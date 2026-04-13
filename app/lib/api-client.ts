@@ -20,28 +20,32 @@ export function buildApiUrl(path: string): string {
   return `${API_BASE_URL}${path}`;
 }
 
+type ApiRequestBody = BodyInit | object | null;
+
 export async function apiRequest<T>(
   path: string,
   options: {
     method?: string;
-    body?: BodyInit | Record<string, unknown> | null;
+    body?: ApiRequestBody;
   } = {},
 ): Promise<T> {
-  const isFormData = options.body instanceof FormData;
-  const hasBody = options.body !== undefined && options.body !== null;
+  const bodySource = options.body ?? null;
+  const isFormData = bodySource instanceof FormData;
+  const hasBody = bodySource !== null;
+  const requestBody = !hasBody
+    ? undefined
+    : isNativeRequestBody(bodySource)
+      ? bodySource
+      : JSON.stringify(bodySource);
 
   const response = await fetch(buildApiUrl(path), {
     method: options.method ?? "GET",
     credentials: "include",
     headers: {
       Accept: "application/json",
-      ...(!isFormData && hasBody ? { "Content-Type": "application/json" } : {}),
+      ...(!isFormData && hasBody && !isNativeRequestBody(bodySource) ? { "Content-Type": "application/json" } : {}),
     },
-    body: !hasBody
-      ? undefined
-      : isFormData
-        ? options.body
-        : JSON.stringify(options.body),
+    body: requestBody,
   });
 
   let payload: ApiEnvelope<T> | null = null;
@@ -59,4 +63,15 @@ export async function apiRequest<T>(
   }
 
   return payload.data;
+}
+
+function isNativeRequestBody(value: ApiRequestBody): value is BodyInit {
+  return (
+    typeof value === "string" ||
+    value instanceof FormData ||
+    value instanceof URLSearchParams ||
+    value instanceof Blob ||
+    value instanceof ArrayBuffer ||
+    ArrayBuffer.isView(value)
+  );
 }

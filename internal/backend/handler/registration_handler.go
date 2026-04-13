@@ -19,6 +19,8 @@ type registrationService interface {
 	SubmitRegistration(ctx context.Context, actor RegistrationFormActor, input SubmitRegistrationInput) (*SubmitRegistrationResult, error)
 	ListRegistrations(ctx context.Context, actor RegistrationFormActor, input ListRegistrationsInput) (*ListRegistrationsResult, error)
 	GetRegistration(ctx context.Context, actor RegistrationFormActor, registrationID uint64) (*RegistrationDetail, error)
+	ReviewRegistration(ctx context.Context, actor RegistrationFormActor, registrationID uint64, input ReviewRegistrationInput) (*RegistrationDetail, error)
+	DeleteRegistration(ctx context.Context, actor RegistrationFormActor, registrationID uint64) error
 	OpenRegistrationFile(ctx context.Context, actor RegistrationFormActor, registrationID uint64, fieldKey string, index int) (*RegistrationFileResult, error)
 }
 
@@ -26,6 +28,11 @@ type listRegistrationsQuery struct {
 	Keyword string `form:"keyword"`
 	Status  string `form:"status"`
 	FormID  string `form:"formId"`
+}
+
+type reviewRegistrationRequest struct {
+	Decision string `json:"decision"`
+	Remark   string `json:"remark"`
 }
 
 func NewRegistrationHandler(service registrationService) *RegistrationHandler {
@@ -105,6 +112,47 @@ func (h *RegistrationHandler) GetRegistration(c *gin.Context) {
 	}
 
 	writeAPI(c, http.StatusOK, "获取报名详情成功", detail)
+}
+
+func (h *RegistrationHandler) ReviewRegistration(c *gin.Context) {
+	registrationID, err := parsePathID(c.Param("id"))
+	if err != nil {
+		writeAPIError(c, http.StatusBadRequest, "无效的报名记录 ID")
+		return
+	}
+
+	var request reviewRegistrationRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		writeAPIError(c, http.StatusBadRequest, "请求参数不合法")
+		return
+	}
+
+	detail, serviceErr := h.service.ReviewRegistration(c.Request.Context(), currentRegistrationFormActor(c), registrationID, ReviewRegistrationInput{
+		Decision: request.Decision,
+		Remark:   request.Remark,
+	})
+	if serviceErr != nil {
+		h.handleServiceError(c, serviceErr)
+		return
+	}
+
+	writeAPI(c, http.StatusOK, "提交审核结果成功", detail)
+}
+
+func (h *RegistrationHandler) DeleteRegistration(c *gin.Context) {
+	registrationID, err := parsePathID(c.Param("id"))
+	if err != nil {
+		writeAPIError(c, http.StatusBadRequest, "无效的报名记录 ID")
+		return
+	}
+
+	serviceErr := h.service.DeleteRegistration(c.Request.Context(), currentRegistrationFormActor(c), registrationID)
+	if serviceErr != nil {
+		h.handleServiceError(c, serviceErr)
+		return
+	}
+
+	writeAPI(c, http.StatusOK, "删除报名记录成功", nil)
 }
 
 func (h *RegistrationHandler) OpenRegistrationFile(c *gin.Context) {

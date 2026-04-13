@@ -136,6 +136,15 @@ export default function RecruitmentPage({
     try {
       setSubmitting(true);
       setNotice(null);
+      const group1Value = typeof formValues.group_1 === "string" ? formValues.group_1.trim() : "";
+      const group2Value = typeof formValues.group_2 === "string" ? formValues.group_2.trim() : "";
+      if (group1Value !== "" && group1Value === group2Value) {
+        setNotice({
+          type: "error",
+          message: "意向组别(1) 与意向组别(2) 不能重复。",
+        });
+        return;
+      }
       const payload = buildRegistrationSubmitPayload(
         loaderData.form.id,
         loaderData.form.fieldsSchema,
@@ -344,7 +353,7 @@ export default function RecruitmentPage({
               <aside className="self-start rounded-xl border border-gray-800 bg-gray-950/60 p-5">
                 <h2 className="text-lg font-semibold">填写提醒</h2>
                 <div className="mt-5 space-y-4 text-sm leading-6 text-gray-300">
-                  <p>系统字段“姓名 / 手机号 / 邮箱”由后台强制要求，提交时必须补全。</p>
+                  <p>系统字段“姓名 / 手机号 / 邮箱 / 意向组别(1) / 意向组别(2)”由后台强制要求，提交时必须补全。</p>
                   <p>文件与图片类字段会跟随本次报名一起上传，并通过后台受保护接口访问。</p>
                   <p>如果当前时间不在开放窗口内，页面会自动切换为不可报名状态。</p>
                 </div>
@@ -387,7 +396,7 @@ function renderFieldControl(
   }
 
   if (isOptionField(field.type)) {
-    if (field.type === "select") {
+    if (field.type === "select" || field.type === "user_group_select") {
       return (
         <select
           value={typeof value === "string" ? value : ""}

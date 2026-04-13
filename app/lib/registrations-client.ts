@@ -16,7 +16,13 @@ export interface RegistrationListItem {
   contactName?: string | null;
   contactPhone?: string | null;
   contactEmail?: string | null;
+  group1?: RegistrationGroupRef | null;
+  group1Status: number;
+  group2?: RegistrationGroupRef | null;
+  group2Status: number;
   status: number;
+  canApprove: boolean;
+  canReject: boolean;
   submittedAt: string;
   updatedAt: string;
 }
@@ -39,11 +45,34 @@ export interface RegistrationDetail {
   contactName?: string | null;
   contactPhone?: string | null;
   contactEmail?: string | null;
+  group1?: RegistrationGroupRef | null;
+  group1Status: number;
+  group2?: RegistrationGroupRef | null;
+  group2Status: number;
   status: number;
+  reviewer1?: RegistrationReviewerRef | null;
+  reviewedAt1?: string | null;
+  reviewRemark1?: string | null;
+  reviewer2?: RegistrationReviewerRef | null;
+  reviewedAt2?: string | null;
+  reviewRemark2?: string | null;
+  canApprove: boolean;
+  canReject: boolean;
   submittedAt: string;
   updatedAt: string;
   fieldsSchema: RegistrationFormField[];
   formData: Record<string, unknown>;
+}
+
+export interface RegistrationGroupRef {
+  id: number;
+  name: string;
+}
+
+export interface RegistrationReviewerRef {
+  id: number;
+  name: string;
+  email: string;
 }
 
 export interface SubmitRegistrationResult {
@@ -57,6 +86,11 @@ export interface ListRegistrationsInput {
   keyword?: string;
   status?: number | "";
   formId?: number | "";
+}
+
+export interface ReviewRegistrationInput {
+  decision: "approve" | "reject";
+  remark?: string;
 }
 
 export async function submitRecruitmentRegistration(
@@ -93,4 +127,20 @@ export async function getAdminRegistration(
   registrationId: number,
 ): Promise<RegistrationDetail> {
   return apiRequest<RegistrationDetail>(`/api/admin/registrations/${registrationId}`);
+}
+
+export async function reviewAdminRegistration(
+  registrationId: number,
+  input: ReviewRegistrationInput,
+): Promise<RegistrationDetail> {
+  return apiRequest<RegistrationDetail>(`/api/admin/registrations/${registrationId}/review`, {
+    method: "POST",
+    body: input,
+  });
+}
+
+export async function deleteAdminRegistration(registrationId: number): Promise<void> {
+  await apiRequest(`/api/admin/registrations/${registrationId}`, {
+    method: "DELETE",
+  });
 }

@@ -17,35 +17,18 @@ import (
 var registrationFieldKeyPattern = regexp.MustCompile(`^[a-z][a-z0-9_]*$`)
 
 var registrationFieldTypeLabels = map[string]string{
-	"text":     "单行文本",
-	"textarea": "多行文本",
-	"number":   "数字",
-	"select":   "下拉选择",
-	"radio":    "单选",
-	"checkbox": "多选",
-	"date":     "日期",
-	"phone":    "手机号",
-	"email":    "邮箱",
-	"file":     "文件上传",
-	"image":    "图片上传",
-}
-
-var lockedRegistrationFields = map[string]struct {
-	FieldType string
-	Label     string
-}{
-	"name": {
-		FieldType: "text",
-		Label:     "姓名",
-	},
-	"phone": {
-		FieldType: "phone",
-		Label:     "手机号",
-	},
-	"email": {
-		FieldType: "email",
-		Label:     "邮箱",
-	},
+	"text":              "单行文本",
+	"textarea":          "多行文本",
+	"number":            "数字",
+	"select":            "下拉选择",
+	"radio":             "单选",
+	"checkbox":          "多选",
+	"date":              "日期",
+	"phone":             "手机号",
+	"email":             "邮箱",
+	"user_group_select": "意向组别",
+	"file":              "文件上传",
+	"image":             "图片上传",
 }
 
 type RegistrationFormService struct {
@@ -62,6 +45,7 @@ type registrationFormRepository interface {
 	UpdateForm(ctx context.Context, formID uint64, updates map[string]any) error
 	ListPublishedForms(ctx context.Context) ([]model.RegistrationForm, error)
 	FindRegistrationByFormAndUser(ctx context.Context, formID uint64, userID uint64) (*model.Registration, error)
+	ListShownUserGroups(ctx context.Context) ([]model.UserGroup, error)
 }
 
 type gormRegistrationFormRepository struct {
@@ -221,7 +205,12 @@ func (s *RegistrationFormService) GetForm(ctx context.Context, actor Registratio
 		return nil, &registrationFormServiceError{Status: http.StatusInternalServerError, Message: "加载报名表详情失败", Err: err}
 	}
 
-	detail := toRegistrationFormDetail(form)
+	groups, err := s.repo.ListShownUserGroups(ctx)
+	if err != nil {
+		return nil, &registrationFormServiceError{Status: http.StatusInternalServerError, Message: "加载展示分组失败", Err: err}
+	}
+
+	detail := toRegistrationFormDetail(form, groups)
 	return &detail, nil
 }
 
@@ -347,12 +336,16 @@ func (s *RegistrationFormService) GetActiveForm(ctx context.Context, actor Regis
 		Title:            form.Title,
 		Description:      copyStringPtr(form.Description),
 		CoverImageURL:    copyStringPtr(form.CoverImageURL),
-		FieldsSchema:     cloneRegistrationFields(form.FieldsSchema),
 		MaxRegistrations: copyIntPtr(form.MaxRegistrations),
 		StartTime:        copyTimePtr(form.StartTime),
 		EndTime:          copyTimePtr(form.EndTime),
 		Status:           form.Status,
 	}
+	groups, err := s.repo.ListShownUserGroups(ctx)
+	if err != nil {
+		return nil, &registrationFormServiceError{Status: http.StatusInternalServerError, Message: "加载展示分组失败", Err: err}
+	}
+	result.FieldsSchema = hydrateUserGroupSelectFields(form.FieldsSchema, groups)
 	return &result, nil
 }
 
@@ -427,10 +420,9 @@ func normalizeRegistrationFields(fields []model.FormField) ([]model.FormField, e
 
 	seen := make(map[string]struct{}, len(fields))
 	normalized := make([]model.FormField, 0, len(fields))
-	lockedSeen := map[string]bool{
-		"name":  false,
-		"phone": false,
-		"email": false,
+	lockedSeen := make(map[string]bool, len(registrationLockedFieldSpecs))
+	for _, spec := range registrationLockedFieldSpecs {
+		lockedSeen[spec.Key] = false
 	}
 
 	for _, field := range fields {
@@ -438,15 +430,15 @@ func normalizeRegistrationFields(fields []model.FormField) ([]model.FormField, e
 		if err != nil {
 			return nil, err
 		}
-		if _, ok := lockedRegistrationFields[item.Key]; ok {
+		if _, ok := registrationLockedFields[item.Key]; ok {
 			lockedSeen[item.Key] = true
 		}
 		normalized = append(normalized, item)
 	}
 
-	for key := range lockedRegistrationFields {
+	for key := range registrationLockedFields {
 		if !lockedSeen[key] {
-			return nil, &registrationFormServiceError{Status: http.StatusBadRequest, Message: "姓名、手机号、邮箱三个系统字段必须保留且为必填项"}
+			return nil, &registrationFormServiceError{Status: http.StatusBadRequest, Message: "姓名、手机号、邮箱、意向组别(1)、意向组别(2) 五个系统字段必须保留且为必填项"}
 		}
 	}
 
@@ -477,13 +469,16 @@ func normalizeRegistrationField(field model.FormField, seen map[string]struct{})
 		return model.FormField{}, &registrationFormServiceError{Status: http.StatusBadRequest, Message: "存在未支持的字段类型"}
 	}
 
-	if locked, ok := lockedRegistrationFields[key]; ok {
+	if locked, ok := registrationLockedFields[key]; ok {
 		if fieldType != locked.FieldType {
 			return model.FormField{}, &registrationFormServiceError{Status: http.StatusBadRequest, Message: "系统字段类型不允许修改"}
 		}
 		if !field.Required {
-			return model.FormField{}, &registrationFormServiceError{Status: http.StatusBadRequest, Message: "姓名、手机号、邮箱三个系统字段必须为必填项"}
+			return model.FormField{}, &registrationFormServiceError{Status: http.StatusBadRequest, Message: "姓名、手机号、邮箱、意向组别(1)、意向组别(2) 五个系统字段必须为必填项"}
 		}
+		label = locked.Label
+	} else if fieldType == "user_group_select" {
+		return model.FormField{}, &registrationFormServiceError{Status: http.StatusBadRequest, Message: "意向组别字段仅允许系统锁定字段使用"}
 	} else if !registrationFieldKeyPattern.MatchString(key) {
 		return model.FormField{}, &registrationFormServiceError{Status: http.StatusBadRequest, Message: "自定义字段 key 仅支持小写字母、数字和下划线，且必须以字母开头"}
 	}
@@ -530,6 +525,8 @@ func normalizeRegistrationField(field model.FormField, seen map[string]struct{})
 func normalizeRegistrationFieldOptions(fieldType string, options []model.FormFieldOption) ([]model.FormFieldOption, error) {
 	switch fieldType {
 	case "select", "radio", "checkbox":
+	case "user_group_select":
+		return nil, nil
 	default:
 		return nil, nil
 	}
@@ -653,10 +650,10 @@ func toRegistrationFormListItem(form *model.RegistrationForm) RegistrationFormLi
 	}
 }
 
-func toRegistrationFormDetail(form *model.RegistrationForm) RegistrationFormDetail {
+func toRegistrationFormDetail(form *model.RegistrationForm, groups []model.UserGroup) RegistrationFormDetail {
 	return RegistrationFormDetail{
 		RegistrationFormListItem: toRegistrationFormListItem(form),
-		FieldsSchema:             cloneRegistrationFields(form.FieldsSchema),
+		FieldsSchema:             hydrateUserGroupSelectFields(form.FieldsSchema, groups),
 	}
 }
 
@@ -735,6 +732,19 @@ func (r *gormRegistrationFormRepository) ListPublishedForms(ctx context.Context)
 		return nil, err
 	}
 	return forms, nil
+}
+
+func (r *gormRegistrationFormRepository) ListShownUserGroups(ctx context.Context) ([]model.UserGroup, error) {
+	var groups []model.UserGroup
+	if err := r.db.WithContext(ctx).
+		Model(&model.UserGroup{}).
+		Where("`show` = ?", 1).
+		Order("is_default DESC").
+		Order("created_at ASC").
+		Find(&groups).Error; err != nil {
+		return nil, err
+	}
+	return groups, nil
 }
 
 func (r *gormRegistrationFormRepository) FindRegistrationByFormAndUser(ctx context.Context, formID uint64, userID uint64) (*model.Registration, error) {

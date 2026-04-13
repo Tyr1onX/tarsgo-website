@@ -2,6 +2,7 @@ package usergroup
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"testing"
@@ -52,12 +53,36 @@ func TestServiceDeleteGroup_RejectsNonEmptyGroup(t *testing.T) {
 	assertServiceError(t, err, 409, "仍有成员")
 }
 
+func TestServiceUpdateGroup_HideDefaultGroupWithTags(t *testing.T) {
+	repo := newFakeRepository()
+	service := NewService(repo)
+
+	detail, err := service.UpdateGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 1, UpdateGroupInput{
+		Name:        "默认分组",
+		Description: "默认分组",
+		Tags:        []string{"新注册"},
+		IsDefault:   true,
+		Show:        0,
+		Status:      model.UserGroupStatusActive,
+	})
+	if err != nil {
+		t.Fatalf("UpdateGroup returned error: %v", err)
+	}
+
+	if detail.Show != 0 {
+		t.Fatalf("expected show=0, got %d", detail.Show)
+	}
+	if len(detail.Tags) != 1 || detail.Tags[0] != "新注册" {
+		t.Fatalf("expected tags to contain 新注册, got %#v", detail.Tags)
+	}
+}
+
 type fakeRepository struct {
-	groups        map[uint64]*model.UserGroup
-	users         map[uint64]*model.User
-	members       map[uint64]*model.UserGroupMember
-	nextGroupID   uint64
-	nextMemberID  uint64
+	groups       map[uint64]*model.UserGroup
+	users        map[uint64]*model.User
+	members      map[uint64]*model.UserGroupMember
+	nextGroupID  uint64
+	nextMemberID uint64
 }
 
 func newFakeRepository() *fakeRepository {
@@ -66,6 +91,7 @@ func newFakeRepository() *fakeRepository {
 			1: {
 				ID:        1,
 				Name:      "默认组",
+				Show:      1,
 				Status:    model.UserGroupStatusActive,
 				IsDefault: true,
 				CreatedAt: time.Now(),
@@ -74,6 +100,7 @@ func newFakeRepository() *fakeRepository {
 			2: {
 				ID:        2,
 				Name:      "运营组",
+				Show:      1,
 				Status:    model.UserGroupStatusActive,
 				CreatedAt: time.Now(),
 				UpdatedAt: time.Now(),
@@ -187,14 +214,21 @@ func (r *fakeRepository) UpdateGroup(_ context.Context, groupID uint64, updates 
 	} else if updates["description"] == nil {
 		group.Description = nil
 	}
-	if value, ok := updates["tags"].([]string); ok {
-		group.Tags = append([]string(nil), value...)
+	if value, ok := updates["tags"].(string); ok {
+		var tags []string
+		if err := json.Unmarshal([]byte(value), &tags); err != nil {
+			return err
+		}
+		group.Tags = append([]string(nil), tags...)
 	}
 	if value, ok := updates["status"].(uint8); ok {
 		group.Status = value
 	}
 	if value, ok := updates["is_default"].(bool); ok {
 		group.IsDefault = value
+	}
+	if value, ok := updates["show"].(uint8); ok {
+		group.Show = value
 	}
 	group.UpdatedAt = time.Now()
 	return nil

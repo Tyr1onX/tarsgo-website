@@ -3,11 +3,15 @@ import { useNavigate, useOutletContext } from "react-router";
 
 import { ApiError, buildApiUrl } from "~/lib/api-client";
 import {
+  deleteAdminRegistration,
   getAdminRegistration,
   listAdminRegistrations,
+  reviewAdminRegistration,
   type RegistrationDetail,
   type RegistrationFileMeta,
+  type RegistrationGroupRef,
   type RegistrationListItem,
+  type RegistrationReviewerRef,
   type RegistrationSummary,
 } from "~/lib/registrations-client";
 import {
@@ -25,8 +29,14 @@ export function meta() {
 }
 
 type FlashState =
+  | { type: "success"; message: string }
   | { type: "error"; message: string }
   | null;
+
+type DeleteTarget = {
+  id: number;
+  label: string;
+};
 
 const defaultSummary: RegistrationSummary = {
   total: 0,
@@ -60,6 +70,9 @@ export default function RegistrationsPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [activeRegistrationId, setActiveRegistrationId] = useState<number | null>(null);
   const [detail, setDetail] = useState<RegistrationDetail | null>(null);
+  const [reviewingId, setReviewingId] = useState<number | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
+  const [deletingId, setDeletingId] = useState<number | null>(null);
 
   const extraSubmittedFields = useMemo(() => {
     if (!detail) {
@@ -135,12 +148,13 @@ export default function RegistrationsPage() {
       return;
     }
 
+    const registrationId = activeRegistrationId;
     let cancelled = false;
 
     async function loadDetail() {
       try {
         setDetailLoading(true);
-        const nextDetail = await getAdminRegistration(activeRegistrationId);
+        const nextDetail = await getAdminRegistration(registrationId);
         if (!cancelled) {
           setDetail(nextDetail);
         }
@@ -174,6 +188,74 @@ export default function RegistrationsPage() {
     setDetail(null);
   }
 
+  async function handleReview(registrationId: number, decision: "approve" | "reject") {
+    try {
+      setReviewingId(registrationId);
+      setFlash(null);
+      const nextDetail = await reviewAdminRegistration(registrationId, { decision });
+      if (detailOpen && activeRegistrationId === registrationId) {
+        setDetail(nextDetail);
+      }
+
+      const response = await listAdminRegistrations({
+        keyword,
+        status: statusFilter === "" ? "" : Number(statusFilter),
+        formId: formIdFilter === "" ? "" : Number(formIdFilter),
+      });
+      setSummary(response.summary);
+      setItems(response.items);
+      setFlash({
+        type: "success",
+        message: decision === "approve" ? "审核已通过。" : "审核已拒绝。",
+      });
+    } catch (error) {
+      handlePageError(error, navigate, setFlash);
+    } finally {
+      setReviewingId(null);
+    }
+  }
+
+  function openDeleteModal(target: {
+    id: number;
+    contactName?: string | null;
+    formTitle: string;
+  }) {
+    setDeleteTarget({
+      id: target.id,
+      label: buildRegistrationDeleteLabel(target.contactName, target.formTitle),
+    });
+  }
+
+  async function handleDeleteRegistration() {
+    if (!deleteTarget) {
+      return;
+    }
+
+    try {
+      setDeletingId(deleteTarget.id);
+      setFlash(null);
+      await deleteAdminRegistration(deleteTarget.id);
+
+      if (activeRegistrationId === deleteTarget.id) {
+        closeDetail();
+      }
+
+      const response = await listAdminRegistrations({
+        keyword,
+        status: statusFilter === "" ? "" : Number(statusFilter),
+        formId: formIdFilter === "" ? "" : Number(formIdFilter),
+      });
+      setSummary(response.summary);
+      setItems(response.items);
+      setFlash({ type: "success", message: "报名记录已删除。" });
+      setDeleteTarget(null);
+    } catch (error) {
+      handlePageError(error, navigate, setFlash);
+    } finally {
+      setDeletingId(null);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -186,7 +268,13 @@ export default function RegistrationsPage() {
       </div>
 
       {flash ? (
-        <div className="rounded-lg border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
+        <div
+          className={`rounded-lg border px-4 py-3 text-sm ${
+            flash.type === "success"
+              ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
+              : "border-rose-500/20 bg-rose-500/10 text-rose-100"
+          }`}
+        >
           {flash.message}
         </div>
       ) : null}
@@ -238,7 +326,7 @@ export default function RegistrationsPage() {
           <table className="min-w-full text-sm">
             <thead className="border-b border-gray-800 bg-gray-950/40">
               <tr>
-                {["姓名", "手机号", "邮箱", "报名表", "状态", "提交时间", "操作"].map((title) => (
+                {["姓名", "手机号", "邮箱", "意向组别(1)", "意向组别(1)状态", "意向组别(2)", "意向组别(2)状态", "报名表", "状态", "提交时间", "操作"].map((title) => (
                   <th
                     key={title}
                     className={`px-5 py-3.5 text-left text-xs font-medium uppercase tracking-wide text-gray-400 ${
@@ -253,13 +341,13 @@ export default function RegistrationsPage() {
             <tbody className="divide-y divide-gray-800">
               {loading ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-12 text-center text-sm text-gray-500">
+                  <td colSpan={11} className="px-5 py-12 text-center text-sm text-gray-500">
                     正在加载报名列表...
                   </td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-5 py-12 text-center text-sm text-gray-500">
+                  <td colSpan={11} className="px-5 py-12 text-center text-sm text-gray-500">
                     当前筛选条件下暂无报名记录。
                   </td>
                 </tr>
@@ -269,19 +357,53 @@ export default function RegistrationsPage() {
                     <td className="px-5 py-4 text-gray-100">{item.contactName ?? "未填写"}</td>
                     <td className="px-5 py-4 text-gray-300">{item.contactPhone ?? "未填写"}</td>
                     <td className="px-5 py-4 text-gray-300">{item.contactEmail ?? "未填写"}</td>
+                    <td className="px-5 py-4 text-gray-300">{registrationGroupLabel(item.group1)}</td>
+                    <td className="px-5 py-4">
+                      <StatusBadge status={item.group1Status} />
+                    </td>
+                    <td className="px-5 py-4 text-gray-300">{registrationGroupLabel(item.group2)}</td>
+                    <td className="px-5 py-4">
+                      <StatusBadge status={item.group2Status} />
+                    </td>
                     <td className="px-5 py-4 text-gray-300">{item.formTitle}</td>
                     <td className="px-5 py-4">
                       <StatusBadge status={item.status} />
                     </td>
                     <td className="px-5 py-4 text-gray-400">{formatDateTime(item.submittedAt)}</td>
                     <td className="px-5 py-4 text-right">
-                      <button
-                        type="button"
-                        onClick={() => openDetail(item.id)}
-                        className="rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-200 transition-colors hover:bg-white/5 hover:text-white"
-                      >
-                        详情
-                      </button>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => void handleReview(item.id, "approve")}
+                          disabled={!item.canApprove || reviewingId === item.id}
+                          className="rounded-lg border border-emerald-500/30 px-3 py-2 text-sm text-emerald-200 transition-colors hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          通过
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => void handleReview(item.id, "reject")}
+                          disabled={!item.canReject || reviewingId === item.id}
+                          className="rounded-lg border border-rose-500/30 px-3 py-2 text-sm text-rose-200 transition-colors hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          拒绝
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openDeleteModal(item)}
+                          disabled={deletingId === item.id}
+                          className="rounded-lg border border-red-500/30 px-3 py-2 text-sm text-red-200 transition-colors hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                        >
+                          删除
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openDetail(item.id)}
+                          className="rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-200 transition-colors hover:bg-white/5 hover:text-white"
+                        >
+                          详情
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))
@@ -334,13 +456,58 @@ export default function RegistrationsPage() {
               </div>
             ) : (
               <div className="space-y-6">
-                <section className="grid gap-4 sm:grid-cols-2">
+                <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                   <MetaCard label="姓名" value={detail.contactName ?? "未填写"} />
                   <MetaCard label="手机号" value={detail.contactPhone ?? "未填写"} />
                   <MetaCard label="邮箱" value={detail.contactEmail ?? "未填写"} />
+                  <MetaCard label="意向组别(1)" value={registrationGroupLabel(detail.group1)} />
+                  <MetaCard label="意向组别(1)状态" value={registrationStatusLabel(detail.group1Status)} />
+                  <MetaCard label="意向组别(2)" value={registrationGroupLabel(detail.group2)} />
+                  <MetaCard label="意向组别(2)状态" value={registrationStatusLabel(detail.group2Status)} />
                   <MetaCard label="状态" value={registrationStatusLabel(detail.status)} />
                   <MetaCard label="提交时间" value={formatDateTime(detail.submittedAt)} />
                   <MetaCard label="更新时间" value={formatDateTime(detail.updatedAt)} />
+                </section>
+
+                <section className="rounded-lg border border-gray-800 bg-gray-900/60 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="text-sm text-gray-300">审核操作</div>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleReview(detail.id, "approve")}
+                        disabled={!detail.canApprove || reviewingId === detail.id}
+                        className="rounded-lg border border-emerald-500/30 px-3 py-2 text-sm text-emerald-200 transition-colors hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        通过
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleReview(detail.id, "reject")}
+                        disabled={!detail.canReject || reviewingId === detail.id}
+                        className="rounded-lg border border-rose-500/30 px-3 py-2 text-sm text-rose-200 transition-colors hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        拒绝
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => openDeleteModal(detail)}
+                        disabled={deletingId === detail.id}
+                        className="rounded-lg border border-red-500/30 px-3 py-2 text-sm text-red-200 transition-colors hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        删除
+                      </button>
+                    </div>
+                  </div>
+                </section>
+
+                <section className="grid gap-4 sm:grid-cols-2">
+                  <MetaCard label="意向组别(1)审核人" value={registrationReviewerLabel(detail.reviewer1)} />
+                  <MetaCard label="意向组别(1)审核时间" value={formatDateTime(detail.reviewedAt1)} />
+                  <MetaCard label="意向组别(1)备注" value={detail.reviewRemark1?.trim() || "暂无"} />
+                  <MetaCard label="意向组别(2)审核人" value={registrationReviewerLabel(detail.reviewer2)} />
+                  <MetaCard label="意向组别(2)审核时间" value={formatDateTime(detail.reviewedAt2)} />
+                  <MetaCard label="意向组别(2)备注" value={detail.reviewRemark2?.trim() || "暂无"} />
                 </section>
 
                 <section className="space-y-4">
@@ -391,6 +558,48 @@ export default function RegistrationsPage() {
           </div>
         </aside>
       </div>
+
+      {deleteTarget ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md rounded-xl border border-gray-800 bg-gray-900 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-gray-800 px-6 py-4">
+              <h2 className="text-base font-semibold text-white">确认删除</h2>
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deletingId === deleteTarget.id}
+                className="rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                关闭
+              </button>
+            </div>
+            <div className="space-y-4 px-6 py-5">
+              <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100">
+                即将硬删除 <span className="font-medium">{deleteTarget.label}</span> 的报名记录，关联上传文件也会一并清理，删除后不可恢复。
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setDeleteTarget(null)}
+                  disabled={deletingId === deleteTarget.id}
+                  className="rounded-lg border border-gray-700 px-4 py-2.5 text-sm text-gray-300 transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleDeleteRegistration()}
+                  disabled={deletingId === deleteTarget.id}
+                  className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {deletingId === deleteTarget.id ? "删除中..." : "确认删除"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -449,7 +658,7 @@ function renderSubmittedFieldValue(
 
   if (Array.isArray(value)) {
     const values = value
-      .map((item) => String(item).trim())
+      .map((item) => resolveFieldOptionLabel(field, String(item).trim()))
       .filter(Boolean);
     if (!values.length) {
       return <EmptyValue />;
@@ -458,11 +667,15 @@ function renderSubmittedFieldValue(
   }
 
   if (typeof value === "number") {
-    return <span className="text-sm text-gray-100">{String(value)}</span>;
+    return <span className="text-sm text-gray-100">{resolveFieldOptionLabel(field, String(value))}</span>;
   }
 
   if (typeof value === "string" && value.trim()) {
-    return <span className="whitespace-pre-wrap text-sm text-gray-100">{value}</span>;
+    return (
+      <span className="whitespace-pre-wrap text-sm text-gray-100">
+        {resolveFieldOptionLabel(field, value.trim())}
+      </span>
+    );
   }
 
   return <EmptyValue />;
@@ -516,6 +729,17 @@ function registrationStatusLabel(status: number) {
   }
 }
 
+function resolveFieldOptionLabel(field: RegistrationFormField, rawValue: string) {
+  if (!rawValue) {
+    return rawValue;
+  }
+
+  return (
+    field.options?.find((option) => option.value === rawValue)?.label ??
+    rawValue
+  );
+}
+
 function formatDateTime(value?: string | null) {
   if (!value) {
     return "暂无";
@@ -560,6 +784,25 @@ function getErrorMessage(error: unknown) {
     return error.message;
   }
   return "请求失败，请稍后重试。";
+}
+
+function registrationGroupLabel(group?: RegistrationGroupRef | null) {
+  return group?.name?.trim() || "未填写";
+}
+
+function registrationReviewerLabel(reviewer?: RegistrationReviewerRef | null) {
+  if (!reviewer) {
+    return "未审核";
+  }
+  return reviewer.name?.trim() || reviewer.email || `#${reviewer.id}`;
+}
+
+function buildRegistrationDeleteLabel(contactName: string | null | undefined, formTitle: string) {
+  const trimmedName = contactName?.trim();
+  if (trimmedName) {
+    return `${trimmedName} / ${formTitle}`;
+  }
+  return formTitle;
 }
 
 function handlePageError(

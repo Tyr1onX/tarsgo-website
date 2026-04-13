@@ -37,6 +37,7 @@ type GroupFormState = {
   description: string;
   tagsText: string;
   isDefault: boolean;
+  show: string;
   status: string;
 };
 
@@ -52,6 +53,7 @@ const defaultGroupFormState: GroupFormState = {
   description: "",
   tagsText: "",
   isDefault: false,
+  show: "1",
   status: "1",
 };
 
@@ -92,7 +94,7 @@ function parseTagsInput(value: string) {
     .filter(Boolean);
 }
 
-function toGroupFormState(group?: Pick<AdminUserGroupListItem, "name" | "description" | "tags" | "isDefault" | "status"> | null): GroupFormState {
+function toGroupFormState(group?: Pick<AdminUserGroupListItem, "name" | "description" | "tags" | "isDefault" | "show" | "status"> | null): GroupFormState {
   if (!group) {
     return defaultGroupFormState;
   }
@@ -102,6 +104,7 @@ function toGroupFormState(group?: Pick<AdminUserGroupListItem, "name" | "descrip
     description: group.description ?? "",
     tagsText: (group.tags ?? []).join(", "),
     isDefault: group.isDefault,
+    show: String(group.show),
     status: String(group.status),
   };
 }
@@ -112,6 +115,7 @@ function buildGroupPayload(form: GroupFormState) {
     description: form.description.trim(),
     tags: parseTagsInput(form.tagsText),
     isDefault: form.isDefault,
+    show: Number(form.show),
     status: Number(form.status),
   };
 }
@@ -126,6 +130,20 @@ function getGroupStatusMeta(status: number) {
 
   return {
     label: "停用",
+    className: "text-gray-300 bg-gray-700/50 border border-gray-700",
+  };
+}
+
+function getGroupShowMeta(show: number) {
+  if (show === 1) {
+    return {
+      label: "展示",
+      className: "text-sky-200 bg-sky-500/10 border border-sky-500/20",
+    };
+  }
+
+  return {
+    label: "隐藏",
     className: "text-gray-300 bg-gray-700/50 border border-gray-700",
   };
 }
@@ -418,6 +436,7 @@ export default function UserGroups() {
         description: group.description ?? "",
         tags: group.tags ?? [],
         isDefault: !group.isDefault,
+        show: group.show,
         status: group.status,
       });
       setFlash({
@@ -447,6 +466,7 @@ export default function UserGroups() {
         description: group.description ?? "",
         tags: group.tags ?? [],
         isDefault: group.isDefault,
+        show: group.show,
         status: group.status === 1 ? 0 : 1,
       });
       setFlash({
@@ -712,10 +732,11 @@ export default function UserGroups() {
             暂无匹配的用户组
           </div>
         ) : (
-          groups.map((group) => {
-            const statusMeta = getGroupStatusMeta(group.status);
-            const isBusy = cardActionGroupId === group.id;
-            return (
+                groups.map((group) => {
+                  const statusMeta = getGroupStatusMeta(group.status);
+                  const showMeta = getGroupShowMeta(group.show);
+                  const isBusy = cardActionGroupId === group.id;
+                  return (
               <article
                 key={group.id}
                 className="rounded-xl bg-gray-900 border border-gray-800 p-5 flex flex-col"
@@ -725,10 +746,13 @@ export default function UserGroups() {
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
                       <h2 className="text-base font-semibold text-white truncate">{group.name}</h2>
-                      <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusMeta.className}`}>
-                        {statusMeta.label}
-                      </span>
-                      {group.isDefault ? (
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${statusMeta.className}`}>
+                            {statusMeta.label}
+                          </span>
+                          <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${showMeta.className}`}>
+                            {showMeta.label}
+                          </span>
+                          {group.isDefault ? (
                         <span className="inline-flex rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-200">
                           默认
                         </span>
@@ -890,11 +914,11 @@ export default function UserGroups() {
                   required
                 />
               </div>
-              <div>
-                <FieldLabel htmlFor="group-status" label="状态" />
-                <select
-                  id="group-status"
-                  value={groupForm.status}
+            <div>
+              <FieldLabel htmlFor="group-status" label="状态" />
+              <select
+                id="group-status"
+                value={groupForm.status}
                   onChange={(event) =>
                     setGroupForm((previous) => ({
                       ...previous,
@@ -911,9 +935,26 @@ export default function UserGroups() {
                         {option.label}
                       </option>
                     ))}
-                </select>
-              </div>
+              </select>
             </div>
+            <div>
+              <FieldLabel htmlFor="group-show" label="前台展示" />
+              <select
+                id="group-show"
+                value={groupForm.show}
+                onChange={(event) =>
+                  setGroupForm((previous) => ({
+                    ...previous,
+                    show: event.target.value,
+                  }))
+                }
+                className={inputClassName()}
+              >
+                <option value="1">展示</option>
+                <option value="0">隐藏</option>
+              </select>
+            </div>
+          </div>
 
             <div>
               <FieldLabel label="分组描述" />

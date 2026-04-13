@@ -10,6 +10,7 @@ export type RegistrationFormFieldType =
   | "date"
   | "phone"
   | "email"
+  | "user_group_select"
   | "file"
   | "image";
 

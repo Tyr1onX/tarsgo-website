@@ -41,6 +41,7 @@ type upsertUserGroupRequest struct {
 	Description string   `json:"description" binding:"omitempty,max=500"`
 	Tags        []string `json:"tags"`
 	IsDefault   bool     `json:"isDefault"`
+	Show        uint8    `json:"show"`
 	Status      uint8    `json:"status"`
 }
 
@@ -124,6 +125,7 @@ func (h *UserGroupHandler) CreateGroup(c *gin.Context) {
 			Description: request.Description,
 			Tags:        request.Tags,
 			IsDefault:   request.IsDefault,
+			Show:        request.Show,
 			Status:      request.Status,
 		},
 	)
@@ -157,6 +159,7 @@ func (h *UserGroupHandler) UpdateGroup(c *gin.Context) {
 			Description: request.Description,
 			Tags:        request.Tags,
 			IsDefault:   request.IsDefault,
+			Show:        request.Show,
 			Status:      request.Status,
 		},
 	)

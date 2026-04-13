@@ -356,12 +356,13 @@ export default function Users() {
       return;
     }
 
+    const userId = selectedUserId;
     let cancelled = false;
 
     async function loadUserDetail() {
       try {
         setDetailLoading(true);
-        const detail = await getAdminUser(selectedUserId);
+        const detail = await getAdminUser(userId);
         if (!cancelled) {
           setSelectedUser(detail);
           setEditForm(toUserFormState(detail));

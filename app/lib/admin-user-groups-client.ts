@@ -22,6 +22,7 @@ export interface AdminUserGroupListItem {
   description?: string | null;
   tags?: string[];
   isDefault: boolean;
+  show: number;
   status: number;
   memberCount: number;
   leaders?: string[];
@@ -81,6 +82,7 @@ export interface UpsertAdminUserGroupInput {
   description?: string;
   tags: string[];
   isDefault: boolean;
+  show: number;
   status: number;
 }
 

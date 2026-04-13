@@ -3,7 +3,13 @@ import type {
   RegistrationFormFieldType,
 } from "~/lib/registration-forms-client";
 
-export const LOCKED_REGISTRATION_FIELD_KEYS = ["name", "phone", "email"] as const;
+export const LOCKED_REGISTRATION_FIELD_KEYS = [
+  "name",
+  "phone",
+  "email",
+  "group_1",
+  "group_2",
+] as const;
 
 export const REGISTRATION_FORM_STATUS_OPTIONS = [
   { value: 0, label: "草稿" },
@@ -28,9 +34,12 @@ export const REGISTRATION_FIELD_TYPE_OPTIONS: Array<{
   { value: "image", label: "图片上传" },
 ];
 
-export const REGISTRATION_FIELD_TYPE_LABELS = Object.fromEntries(
-  REGISTRATION_FIELD_TYPE_OPTIONS.map((item) => [item.value, item.label]),
-) as Record<RegistrationFormFieldType, string>;
+export const REGISTRATION_FIELD_TYPE_LABELS = {
+  ...(Object.fromEntries(
+    REGISTRATION_FIELD_TYPE_OPTIONS.map((item) => [item.value, item.label]),
+  ) as Record<Exclude<RegistrationFormFieldType, "user_group_select">, string>),
+  user_group_select: "意向组别",
+} satisfies Record<RegistrationFormFieldType, string>;
 
 export function buildLockedRegistrationFields(): RegistrationFormField[] {
   return [
@@ -55,6 +64,20 @@ export function buildLockedRegistrationFields(): RegistrationFormField[] {
       required: true,
       placeholder: "请输入联系邮箱",
     },
+    {
+      key: "group_1",
+      label: "意向组别(1)",
+      type: "user_group_select",
+      required: true,
+      placeholder: "请选择意向组别(1)",
+    },
+    {
+      key: "group_2",
+      label: "意向组别(2)",
+      type: "user_group_select",
+      required: true,
+      placeholder: "请选择意向组别(2)",
+    },
   ];
 }
 
@@ -65,7 +88,7 @@ export function isLockedRegistrationField(key: string) {
 }
 
 export function isOptionField(type: RegistrationFormFieldType) {
-  return type === "select" || type === "radio" || type === "checkbox";
+  return type === "select" || type === "radio" || type === "checkbox" || type === "user_group_select";
 }
 
 export function isFileField(type: RegistrationFormFieldType) {

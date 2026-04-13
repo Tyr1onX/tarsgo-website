@@ -19,6 +19,7 @@ import (
 
 	mysqlDriver "github.com/go-sql-driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"tarsgo-backend/model"
 )
@@ -38,10 +39,18 @@ type registrationRepository interface {
 	FindRegistrationByFormAndUser(ctx context.Context, formID uint64, userID uint64) (*model.Registration, error)
 	CountRegistrationsByFormID(ctx context.Context, formID uint64) (int64, error)
 	CreateRegistration(ctx context.Context, registration *model.Registration) error
+	UpdateRegistration(ctx context.Context, registrationID uint64, updates map[string]any) error
 	UpdateRegistrationFormData(ctx context.Context, registrationID uint64, formData map[string]any) error
 	ListRegistrations(ctx context.Context, filter ListRegistrationsInput) ([]model.Registration, error)
 	GetRegistrationStats(ctx context.Context, filter ListRegistrationsInput) (RegistrationStats, error)
 	GetRegistrationByID(ctx context.Context, registrationID uint64) (*model.Registration, error)
+	GetRegistrationByIDForUpdate(ctx context.Context, registrationID uint64) (*model.Registration, error)
+	DeleteRegistration(ctx context.Context, registrationID uint64) error
+	ListShownUserGroups(ctx context.Context) ([]model.UserGroup, error)
+	ListDefaultGroupIDs(ctx context.Context) ([]uint64, error)
+	ListLeaderGroupIDs(ctx context.Context, userID uint64) ([]uint64, error)
+	AddUserToGroupIfAbsent(ctx context.Context, groupID uint64, userID uint64) error
+	RemoveUserFromGroupIfPresent(ctx context.Context, groupID uint64, userID uint64) error
 }
 
 type gormRegistrationRepository struct {
@@ -62,9 +71,10 @@ type SubmitRegistrationResult struct {
 }
 
 type ListRegistrationsInput struct {
-	Keyword string
-	Status  *uint8
-	FormID  *uint64
+	Keyword         string
+	Status          *uint8
+	FormID          *uint64
+	VisibleGroupIDs []uint64
 }
 
 type RegistrationStats struct {
@@ -76,34 +86,52 @@ type RegistrationStats struct {
 }
 
 type RegistrationListItem struct {
-	ID           uint64     `json:"id"`
-	FormID       uint64     `json:"formId"`
-	FormTitle    string     `json:"formTitle"`
-	ContactName  *string    `json:"contactName,omitempty"`
-	ContactPhone *string    `json:"contactPhone,omitempty"`
-	ContactEmail *string    `json:"contactEmail,omitempty"`
-	Status       uint8      `json:"status"`
-	SubmittedAt  time.Time  `json:"submittedAt"`
-	UpdatedAt    time.Time  `json:"updatedAt"`
+	ID           uint64                `json:"id"`
+	FormID       uint64                `json:"formId"`
+	FormTitle    string                `json:"formTitle"`
+	ContactName  *string               `json:"contactName,omitempty"`
+	ContactPhone *string               `json:"contactPhone,omitempty"`
+	ContactEmail *string               `json:"contactEmail,omitempty"`
+	Group1       *RegistrationGroupRef `json:"group1,omitempty"`
+	Group1Status uint8                 `json:"group1Status"`
+	Group2       *RegistrationGroupRef `json:"group2,omitempty"`
+	Group2Status uint8                 `json:"group2Status"`
+	Status       uint8                 `json:"status"`
+	CanApprove   bool                  `json:"canApprove"`
+	CanReject    bool                  `json:"canReject"`
+	SubmittedAt  time.Time             `json:"submittedAt"`
+	UpdatedAt    time.Time             `json:"updatedAt"`
 }
 
 type ListRegistrationsResult struct {
-	Summary RegistrationStats    `json:"summary"`
+	Summary RegistrationStats      `json:"summary"`
 	Items   []RegistrationListItem `json:"items"`
 }
 
 type RegistrationDetail struct {
-	ID           uint64            `json:"id"`
-	FormID       uint64            `json:"formId"`
-	FormTitle    string            `json:"formTitle"`
-	ContactName  *string           `json:"contactName,omitempty"`
-	ContactPhone *string           `json:"contactPhone,omitempty"`
-	ContactEmail *string           `json:"contactEmail,omitempty"`
-	Status       uint8             `json:"status"`
-	SubmittedAt  time.Time         `json:"submittedAt"`
-	UpdatedAt    time.Time         `json:"updatedAt"`
-	FieldsSchema []model.FormField `json:"fieldsSchema"`
-	FormData     map[string]any    `json:"formData"`
+	ID            uint64                   `json:"id"`
+	FormID        uint64                   `json:"formId"`
+	FormTitle     string                   `json:"formTitle"`
+	ContactName   *string                  `json:"contactName,omitempty"`
+	ContactPhone  *string                  `json:"contactPhone,omitempty"`
+	ContactEmail  *string                  `json:"contactEmail,omitempty"`
+	Group1        *RegistrationGroupRef    `json:"group1,omitempty"`
+	Group1Status  uint8                    `json:"group1Status"`
+	Group2        *RegistrationGroupRef    `json:"group2,omitempty"`
+	Group2Status  uint8                    `json:"group2Status"`
+	Status        uint8                    `json:"status"`
+	Reviewer1     *RegistrationReviewerRef `json:"reviewer1,omitempty"`
+	ReviewedAt1   *time.Time               `json:"reviewedAt1,omitempty"`
+	ReviewRemark1 *string                  `json:"reviewRemark1,omitempty"`
+	Reviewer2     *RegistrationReviewerRef `json:"reviewer2,omitempty"`
+	ReviewedAt2   *time.Time               `json:"reviewedAt2,omitempty"`
+	ReviewRemark2 *string                  `json:"reviewRemark2,omitempty"`
+	CanApprove    bool                     `json:"canApprove"`
+	CanReject     bool                     `json:"canReject"`
+	SubmittedAt   time.Time                `json:"submittedAt"`
+	UpdatedAt     time.Time                `json:"updatedAt"`
+	FieldsSchema  []model.FormField        `json:"fieldsSchema"`
+	FormData      map[string]any           `json:"formData"`
 }
 
 type RegistrationFileResult struct {
@@ -125,6 +153,8 @@ type normalizedRegistrationSubmission struct {
 	ContactName  *string
 	ContactPhone *string
 	ContactEmail *string
+	Group1ID     *uint64
+	Group2ID     *uint64
 }
 
 type registrationUploadField struct {
@@ -207,6 +237,10 @@ func (s *RegistrationService) SubmitRegistration(ctx context.Context, actor Regi
 			ContactName:  copyStringPtr(normalized.ContactName),
 			ContactPhone: copyStringPtr(normalized.ContactPhone),
 			ContactEmail: copyStringPtr(normalized.ContactEmail),
+			Group1ID:     copyUint64Ptr(normalized.Group1ID),
+			Group1Status: model.RegistrationStatusPending,
+			Group2ID:     copyUint64Ptr(normalized.Group2ID),
+			Group2Status: model.RegistrationStatusPending,
 			Status:       model.RegistrationStatusPending,
 			SubmittedAt:  now,
 		}
@@ -264,6 +298,13 @@ func (s *RegistrationService) ListRegistrations(ctx context.Context, actor Regis
 	}
 
 	normalized := normalizeRegistrationListInput(input)
+	scope, err := s.resolveRegistrationAccessScope(ctx, actor)
+	if err != nil {
+		return nil, err
+	}
+	if !scope.fullAccess {
+		normalized.VisibleGroupIDs = registrationScopeGroupIDs(scope)
+	}
 	items, err := s.repo.ListRegistrations(ctx, normalized)
 	if err != nil {
 		return nil, &registrationServiceError{Status: http.StatusInternalServerError, Message: "查询报名列表失败", Err: err}
@@ -278,7 +319,7 @@ func (s *RegistrationService) ListRegistrations(ctx context.Context, actor Regis
 
 	resultItems := make([]RegistrationListItem, 0, len(items))
 	for i := range items {
-		resultItems = append(resultItems, toRegistrationListItem(&items[i]))
+		resultItems = append(resultItems, toRegistrationListItem(&items[i], scope))
 	}
 
 	return &ListRegistrationsResult{
@@ -295,6 +336,11 @@ func (s *RegistrationService) GetRegistration(ctx context.Context, actor Registr
 		return nil, &registrationServiceError{Status: http.StatusBadRequest, Message: "报名记录 ID 不合法"}
 	}
 
+	scope, err := s.resolveRegistrationAccessScope(ctx, actor)
+	if err != nil {
+		return nil, err
+	}
+
 	registration, err := s.repo.GetRegistrationByID(ctx, registrationID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -302,21 +348,176 @@ func (s *RegistrationService) GetRegistration(ctx context.Context, actor Registr
 		}
 		return nil, &registrationServiceError{Status: http.StatusInternalServerError, Message: "查询报名详情失败", Err: err}
 	}
+	if !scope.canAccessRegistration(registration) {
+		return nil, &registrationServiceError{Status: http.StatusForbidden, Message: "当前账号无权查看该报名记录"}
+	}
+	groups, err := s.repo.ListShownUserGroups(ctx)
+	if err != nil {
+		return nil, &registrationServiceError{Status: http.StatusInternalServerError, Message: "加载展示分组失败", Err: err}
+	}
 
 	detail := RegistrationDetail{
-		ID:           registration.ID,
-		FormID:       registration.FormID,
-		FormTitle:    registration.Form.Title,
-		ContactName:  copyStringPtr(registration.ContactName),
-		ContactPhone: copyStringPtr(registration.ContactPhone),
-		ContactEmail: copyStringPtr(registration.ContactEmail),
-		Status:       registration.Status,
-		SubmittedAt:  registration.SubmittedAt,
-		UpdatedAt:    registration.UpdatedAt,
-		FieldsSchema: cloneRegistrationFields(registration.Form.FieldsSchema),
-		FormData:     sanitizeRegistrationFormData(registration.FormData),
+		ID:            registration.ID,
+		FormID:        registration.FormID,
+		FormTitle:     registration.Form.Title,
+		ContactName:   copyStringPtr(registration.ContactName),
+		ContactPhone:  copyStringPtr(registration.ContactPhone),
+		ContactEmail:  copyStringPtr(registration.ContactEmail),
+		Group1:        toRegistrationGroupRef(registration.Group1),
+		Group1Status:  registration.Group1Status,
+		Group2:        toRegistrationGroupRef(registration.Group2),
+		Group2Status:  registration.Group2Status,
+		Status:        registration.Status,
+		Reviewer1:     toRegistrationReviewerRef(registration.Reviewer1),
+		ReviewedAt1:   copyTimePtr(registration.ReviewedAt1),
+		ReviewRemark1: copyStringPtr(registration.ReviewRemark1),
+		Reviewer2:     toRegistrationReviewerRef(registration.Reviewer2),
+		ReviewedAt2:   copyTimePtr(registration.ReviewedAt2),
+		ReviewRemark2: copyStringPtr(registration.ReviewRemark2),
+		CanApprove:    false,
+		CanReject:     false,
+		SubmittedAt:   registration.SubmittedAt,
+		UpdatedAt:     registration.UpdatedAt,
+		FieldsSchema:  hydrateUserGroupSelectFields(registration.Form.FieldsSchema, groups),
+		FormData:      sanitizeRegistrationFormData(registration.FormData),
 	}
+	detail.CanApprove, detail.CanReject = scope.reviewActionAvailability(registration)
 	return &detail, nil
+}
+
+func (s *RegistrationService) ReviewRegistration(ctx context.Context, actor RegistrationFormActor, registrationID uint64, input ReviewRegistrationInput) (*RegistrationDetail, error) {
+	if err := wrapRegistrationActorError(ensureRegistrationAdminActor(actor)); err != nil {
+		return nil, err
+	}
+	if registrationID == 0 {
+		return nil, &registrationServiceError{Status: http.StatusBadRequest, Message: "报名记录 ID 不合法"}
+	}
+
+	targetStatus, err := normalizeRegistrationReviewDecision(input.Decision)
+	if err != nil {
+		return nil, err
+	}
+	scope, err := s.resolveRegistrationAccessScope(ctx, actor)
+	if err != nil {
+		return nil, err
+	}
+
+	now := s.now()
+	txErr := s.repo.RunInTx(ctx, func(repo registrationRepository) error {
+		registration, err := repo.GetRegistrationByIDForUpdate(ctx, registrationID)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return &registrationServiceError{Status: http.StatusNotFound, Message: "报名记录不存在"}
+			}
+			return &registrationServiceError{Status: http.StatusInternalServerError, Message: "加载报名记录失败", Err: err}
+		}
+		if !scope.canAccessRegistration(registration) {
+			return &registrationServiceError{Status: http.StatusForbidden, Message: "当前账号无权审核该报名记录"}
+		}
+		if registration.Status == model.RegistrationStatusCancelled {
+			return &registrationServiceError{Status: http.StatusConflict, Message: "已取消的报名记录不支持审核"}
+		}
+
+		slot1, slot2 := scope.reviewableSlots(registration)
+		if !slot1 && !slot2 {
+			return &registrationServiceError{Status: http.StatusConflict, Message: "当前报名没有可审核的意向组别"}
+		}
+
+		remark := trimOptionalString(input.Remark)
+		updates := make(map[string]any, 10)
+		nextGroup1Status := registration.Group1Status
+		nextGroup2Status := registration.Group2Status
+		if slot1 {
+			nextGroup1Status = targetStatus
+			updates["group_1_status"] = targetStatus
+			updates["reviewer_id_1"] = actor.ID
+			updates["reviewed_at_1"] = now
+			updates["review_remark_1"] = copyStringPtr(remark)
+		}
+		if slot2 {
+			nextGroup2Status = targetStatus
+			updates["group_2_status"] = targetStatus
+			updates["reviewer_id_2"] = actor.ID
+			updates["reviewed_at_2"] = now
+			updates["review_remark_2"] = copyStringPtr(remark)
+		}
+
+		updates["status"] = deriveRegistrationStatus(nextGroup1Status, nextGroup2Status)
+		if err := repo.UpdateRegistration(ctx, registrationID, updates); err != nil {
+			return &registrationServiceError{Status: http.StatusInternalServerError, Message: "更新报名审核状态失败", Err: err}
+		}
+
+		if !isRegistrationReviewCompleted(nextGroup1Status, nextGroup2Status) {
+			return nil
+		}
+		approvedGroupIDs := approvedRegistrationGroupIDs(registration, nextGroup1Status, nextGroup2Status)
+		if len(approvedGroupIDs) == 0 {
+			return nil
+		}
+		defaultGroupIDs, err := repo.ListDefaultGroupIDs(ctx)
+		if err != nil {
+			return &registrationServiceError{Status: http.StatusInternalServerError, Message: "加载默认分组失败", Err: err}
+		}
+		for _, groupID := range defaultGroupIDs {
+			if containsUint64(approvedGroupIDs, groupID) {
+				continue
+			}
+			if err := repo.RemoveUserFromGroupIfPresent(ctx, groupID, registration.UserID); err != nil {
+				return &registrationServiceError{Status: http.StatusInternalServerError, Message: "移出默认分组失败", Err: err}
+			}
+		}
+		for _, groupID := range approvedGroupIDs {
+			if err := repo.AddUserToGroupIfAbsent(ctx, groupID, registration.UserID); err != nil {
+				return &registrationServiceError{Status: http.StatusInternalServerError, Message: "同步审核通过分组成员失败", Err: err}
+			}
+		}
+		return nil
+	})
+	if txErr != nil {
+		return nil, txErr
+	}
+
+	return s.GetRegistration(ctx, actor, registrationID)
+}
+
+func (s *RegistrationService) DeleteRegistration(ctx context.Context, actor RegistrationFormActor, registrationID uint64) error {
+	if err := wrapRegistrationActorError(ensureRegistrationAdminActor(actor)); err != nil {
+		return err
+	}
+	if registrationID == 0 {
+		return &registrationServiceError{Status: http.StatusBadRequest, Message: "报名记录 ID 不合法"}
+	}
+
+	scope, err := s.resolveRegistrationAccessScope(ctx, actor)
+	if err != nil {
+		return err
+	}
+
+	var storedPaths []string
+	txErr := s.repo.RunInTx(ctx, func(repo registrationRepository) error {
+		registration, err := repo.GetRegistrationByIDForUpdate(ctx, registrationID)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return &registrationServiceError{Status: http.StatusNotFound, Message: "报名记录不存在"}
+			}
+			return &registrationServiceError{Status: http.StatusInternalServerError, Message: "加载报名记录失败", Err: err}
+		}
+		if !scope.canAccessRegistration(registration) {
+			return &registrationServiceError{Status: http.StatusForbidden, Message: "当前账号无权删除该报名记录"}
+		}
+
+		storedPaths = collectRegistrationStoredPaths(registration.FormData)
+		if err := repo.DeleteRegistration(ctx, registrationID); err != nil {
+			return &registrationServiceError{Status: http.StatusInternalServerError, Message: "删除报名记录失败", Err: err}
+		}
+		return nil
+	})
+	if txErr != nil {
+		return txErr
+	}
+
+	cleanupRegistrationSavedFiles(context.Background(), s.fileStore, storedPaths)
+	return nil
 }
 
 func (s *RegistrationService) OpenRegistrationFile(ctx context.Context, actor RegistrationFormActor, registrationID uint64, fieldKey string, index int) (*RegistrationFileResult, error) {
@@ -333,12 +534,20 @@ func (s *RegistrationService) OpenRegistrationFile(ctx context.Context, actor Re
 		return nil, &registrationServiceError{Status: http.StatusBadRequest, Message: "文件索引不合法"}
 	}
 
+	scope, err := s.resolveRegistrationAccessScope(ctx, actor)
+	if err != nil {
+		return nil, err
+	}
+
 	registration, err := s.repo.GetRegistrationByID(ctx, registrationID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, &registrationServiceError{Status: http.StatusNotFound, Message: "报名记录不存在"}
 		}
 		return nil, &registrationServiceError{Status: http.StatusInternalServerError, Message: "加载报名记录失败", Err: err}
+	}
+	if !scope.canAccessRegistration(registration) {
+		return nil, &registrationServiceError{Status: http.StatusForbidden, Message: "当前账号无权查看该报名文件"}
 	}
 
 	field, exists := findRegistrationField(registration.Form.FieldsSchema, fieldKey)
@@ -396,6 +605,11 @@ func (s *RegistrationService) loadActiveFormForSubmission(ctx context.Context, f
 		return nil, &registrationServiceError{Status: http.StatusConflict, Message: "报名已结束"}
 	}
 
+	groups, err := s.repo.ListShownUserGroups(ctx)
+	if err != nil {
+		return nil, &registrationServiceError{Status: http.StatusInternalServerError, Message: "加载展示分组失败", Err: err}
+	}
+	form.FieldsSchema = hydrateUserGroupSelectFields(form.FieldsSchema, groups)
 	return &form, nil
 }
 
@@ -440,6 +654,36 @@ func (s *RegistrationService) saveRegistrationUploads(
 	return payloads, nil
 }
 
+func (s *RegistrationService) resolveRegistrationAccessScope(ctx context.Context, actor RegistrationFormActor) (registrationAccessScope, error) {
+	if actor.RoleName == model.RoleNameSuperAdmin {
+		return newRegistrationAccessScope(true, nil), nil
+	}
+	if actor.RoleName != model.RoleNameAdmin {
+		return registrationAccessScope{}, &registrationServiceError{Status: http.StatusForbidden, Message: "当前账号无管理员权限"}
+	}
+
+	groupIDs, err := s.repo.ListLeaderGroupIDs(ctx, actor.ID)
+	if err != nil {
+		return registrationAccessScope{}, &registrationServiceError{Status: http.StatusInternalServerError, Message: "加载管理员组长身份失败", Err: err}
+	}
+	if len(groupIDs) == 0 {
+		return newRegistrationAccessScope(true, nil), nil
+	}
+	return newRegistrationAccessScope(false, groupIDs), nil
+}
+
+func registrationScopeGroupIDs(scope registrationAccessScope) []uint64 {
+	if scope.fullAccess || len(scope.leaderGroupIDs) == 0 {
+		return nil
+	}
+
+	groupIDs := make([]uint64, 0, len(scope.leaderGroupIDs))
+	for groupID := range scope.leaderGroupIDs {
+		groupIDs = append(groupIDs, groupID)
+	}
+	return groupIDs
+}
+
 func validateRegistrationListInput(input ListRegistrationsInput) error {
 	if input.Status != nil {
 		if err := validateRegistrationStatus(*input.Status); err != nil {
@@ -453,10 +697,12 @@ func validateRegistrationListInput(input ListRegistrationsInput) error {
 }
 
 func normalizeRegistrationListInput(input ListRegistrationsInput) ListRegistrationsInput {
+	visibleGroupIDs := append([]uint64(nil), input.VisibleGroupIDs...)
 	return ListRegistrationsInput{
-		Keyword: strings.TrimSpace(input.Keyword),
-		Status:  input.Status,
-		FormID:  input.FormID,
+		Keyword:         strings.TrimSpace(input.Keyword),
+		Status:          input.Status,
+		FormID:          input.FormID,
+		VisibleGroupIDs: visibleGroupIDs,
 	}
 }
 
@@ -524,7 +770,47 @@ func cleanupRegistrationSavedFiles(ctx context.Context, fileStore registrationFi
 	}
 }
 
-func toRegistrationListItem(registration *model.Registration) RegistrationListItem {
+func collectRegistrationStoredPaths(formData map[string]any) []string {
+	if len(formData) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{})
+	paths := make([]string, 0)
+	for _, value := range formData {
+		collectRegistrationStoredPathsFromValue(value, seen, &paths)
+	}
+	return paths
+}
+
+func collectRegistrationStoredPathsFromValue(value any, seen map[string]struct{}, paths *[]string) {
+	switch typed := value.(type) {
+	case map[string]any:
+		if storagePath, ok := typed["storage_path"].(string); ok {
+			trimmed := strings.TrimSpace(storagePath)
+			if trimmed != "" {
+				if _, exists := seen[trimmed]; !exists {
+					seen[trimmed] = struct{}{}
+					*paths = append(*paths, trimmed)
+				}
+			}
+		}
+		for _, item := range typed {
+			collectRegistrationStoredPathsFromValue(item, seen, paths)
+		}
+	case []any:
+		for _, item := range typed {
+			collectRegistrationStoredPathsFromValue(item, seen, paths)
+		}
+	case []map[string]any:
+		for _, item := range typed {
+			collectRegistrationStoredPathsFromValue(item, seen, paths)
+		}
+	}
+}
+
+func toRegistrationListItem(registration *model.Registration, scope registrationAccessScope) RegistrationListItem {
+	canApprove, canReject := scope.reviewActionAvailability(registration)
 	return RegistrationListItem{
 		ID:           registration.ID,
 		FormID:       registration.FormID,
@@ -532,7 +818,13 @@ func toRegistrationListItem(registration *model.Registration) RegistrationListIt
 		ContactName:  copyStringPtr(registration.ContactName),
 		ContactPhone: copyStringPtr(registration.ContactPhone),
 		ContactEmail: copyStringPtr(registration.ContactEmail),
+		Group1:       toRegistrationGroupRef(registration.Group1),
+		Group1Status: registration.Group1Status,
+		Group2:       toRegistrationGroupRef(registration.Group2),
+		Group2Status: registration.Group2Status,
 		Status:       registration.Status,
+		CanApprove:   canApprove,
+		CanReject:    canReject,
 		SubmittedAt:  registration.SubmittedAt,
 		UpdatedAt:    registration.UpdatedAt,
 	}
@@ -600,6 +892,14 @@ func normalizeRegistrationSubmission(fields []model.FormField, input SubmitRegis
 			if ok {
 				formData[field.Key] = value
 			}
+		case "user_group_select":
+			value, _, ok, err := normalizeSubmittedUserGroup(field, input.Values[field.Key])
+			if err != nil {
+				return nil, err
+			}
+			if ok {
+				formData[field.Key] = value
+			}
 		case "file", "image":
 			files, err := normalizeSubmittedFiles(field, input.Files[field.Key])
 			if err != nil {
@@ -619,6 +919,14 @@ func normalizeRegistrationSubmission(fields []model.FormField, input SubmitRegis
 	contactName := valueAsOptionalString(formData["name"])
 	contactPhone := valueAsOptionalString(formData["phone"])
 	contactEmail := valueAsOptionalString(formData["email"])
+	group1ID, _ := parseOptionalUint64String(valueAsString(formData["group_1"]))
+	group2ID, _ := parseOptionalUint64String(valueAsString(formData["group_2"]))
+	if group1ID == nil || group2ID == nil {
+		return nil, &registrationServiceError{Status: http.StatusBadRequest, Message: "意向组别(1)与意向组别(2)都为必填项"}
+	}
+	if *group1ID == *group2ID {
+		return nil, &registrationServiceError{Status: http.StatusBadRequest, Message: "两个意向组别不能重复"}
+	}
 
 	return &normalizedRegistrationSubmission{
 		FormData:     formData,
@@ -626,6 +934,8 @@ func normalizeRegistrationSubmission(fields []model.FormField, input SubmitRegis
 		ContactName:  contactName,
 		ContactPhone: contactPhone,
 		ContactEmail: contactEmail,
+		Group1ID:     group1ID,
+		Group2ID:     group2ID,
 	}, nil
 }
 
@@ -739,6 +1049,22 @@ func normalizeSubmittedEmail(field model.FormField, values []string) (string, bo
 	}
 
 	return strings.TrimSpace(address.Address), true, nil
+}
+
+func normalizeSubmittedUserGroup(field model.FormField, values []string) (string, uint64, bool, error) {
+	value, ok, err := normalizeRequiredSingleValue(field, values)
+	if err != nil || !ok {
+		return "", 0, ok, err
+	}
+	if !registrationOptionAllowed(field.Options, value) {
+		return "", 0, false, &registrationServiceError{Status: http.StatusBadRequest, Message: fmt.Sprintf("字段 %s 的选项值不合法", field.Label)}
+	}
+
+	groupID, parseErr := strconv.ParseUint(value, 10, 64)
+	if parseErr != nil || groupID == 0 {
+		return "", 0, false, &registrationServiceError{Status: http.StatusBadRequest, Message: fmt.Sprintf("字段 %s 的选项值不合法", field.Label)}
+	}
+	return value, groupID, true, nil
 }
 
 func normalizeSubmittedFiles(field model.FormField, headers []*multipart.FileHeader) ([]*multipart.FileHeader, error) {
@@ -906,6 +1232,36 @@ func valueAsOptionalString(value any) *string {
 	return &trimmed
 }
 
+func valueAsString(value any) string {
+	text, ok := value.(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(text)
+}
+
+func parseOptionalUint64String(value string) (*uint64, error) {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil, nil
+	}
+
+	parsed, err := strconv.ParseUint(trimmed, 10, 64)
+	if err != nil || parsed == 0 {
+		return nil, errors.New("invalid uint64 string")
+	}
+	result := parsed
+	return &result, nil
+}
+
+func copyUint64Ptr(value *uint64) *uint64 {
+	if value == nil {
+		return nil
+	}
+	cloned := *value
+	return &cloned
+}
+
 func sanitizeRegistrationFormData(formData map[string]any) map[string]any {
 	if len(formData) == 0 {
 		return map[string]any{}
@@ -1059,6 +1415,13 @@ func (r *gormRegistrationRepository) CreateRegistration(ctx context.Context, reg
 	return r.db.WithContext(ctx).Create(registration).Error
 }
 
+func (r *gormRegistrationRepository) UpdateRegistration(ctx context.Context, registrationID uint64, updates map[string]any) error {
+	return r.db.WithContext(ctx).
+		Model(&model.Registration{}).
+		Where("id = ?", registrationID).
+		Updates(updates).Error
+}
+
 func (r *gormRegistrationRepository) UpdateRegistrationFormData(ctx context.Context, registrationID uint64, formData map[string]any) error {
 	registration := model.Registration{
 		ID:       registrationID,
@@ -1082,6 +1445,10 @@ func (r *gormRegistrationRepository) ListRegistrations(ctx context.Context, filt
 	var registrations []model.Registration
 	if err := query.
 		Preload("Form").
+		Preload("Group1").
+		Preload("Group2").
+		Preload("Reviewer1").
+		Preload("Reviewer2").
 		Order("registrations.submitted_at DESC").
 		Find(&registrations).Error; err != nil {
 		return nil, err
@@ -1130,10 +1497,31 @@ func (r *gormRegistrationRepository) GetRegistrationByID(ctx context.Context, re
 	var registration model.Registration
 	if err := r.db.WithContext(ctx).
 		Preload("Form").
+		Preload("Group1").
+		Preload("Group2").
+		Preload("Reviewer1").
+		Preload("Reviewer2").
 		First(&registration, registrationID).Error; err != nil {
 		return nil, err
 	}
 	return &registration, nil
+}
+
+func (r *gormRegistrationRepository) GetRegistrationByIDForUpdate(ctx context.Context, registrationID uint64) (*model.Registration, error) {
+	var registration model.Registration
+	if err := r.db.WithContext(ctx).
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Preload("Group1").
+		Preload("Group2").
+		First(&registration, registrationID).Error; err != nil {
+		return nil, err
+	}
+	return &registration, nil
+}
+
+func (r *gormRegistrationRepository) DeleteRegistration(ctx context.Context, registrationID uint64) error {
+	return r.db.WithContext(ctx).
+		Delete(&model.Registration{}, registrationID).Error
 }
 
 func applyRegistrationListFilters(query *gorm.DB, filter ListRegistrationsInput, includeStatus bool) *gorm.DB {
@@ -1146,9 +1534,12 @@ func applyRegistrationListFilters(query *gorm.DB, filter ListRegistrationsInput,
 	if filter.Keyword != "" {
 		like := "%" + filter.Keyword + "%"
 		query = query.Where(
-			"registrations.contact_name LIKE ? OR registrations.contact_phone LIKE ? OR registrations.contact_email LIKE ? OR registration_forms.title LIKE ?",
+			`registrations.contact_name LIKE ? OR registrations.contact_phone LIKE ? OR registrations.contact_email LIKE ? OR registration_forms.title LIKE ?`,
 			like, like, like, like,
 		)
+	}
+	if len(filter.VisibleGroupIDs) > 0 {
+		query = query.Where("(registrations.group_1 IN ? OR registrations.group_2 IN ?)", filter.VisibleGroupIDs, filter.VisibleGroupIDs)
 	}
 	return query
 }
@@ -1187,4 +1578,57 @@ func (r *gormRegistrationRepository) countRegistrations(ctx context.Context, fil
 func ptrRegistrationStatus(status uint8) *uint8 {
 	value := status
 	return &value
+}
+
+func containsUint64(values []uint64, target uint64) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
+}
+
+func (r *gormRegistrationRepository) ListShownUserGroups(ctx context.Context) ([]model.UserGroup, error) {
+	return (&gormRegistrationFormRepository{db: r.db}).ListShownUserGroups(ctx)
+}
+
+func (r *gormRegistrationRepository) ListDefaultGroupIDs(ctx context.Context) ([]uint64, error) {
+	var groupIDs []uint64
+	if err := r.db.WithContext(ctx).
+		Model(&model.UserGroup{}).
+		Where("is_default = ?", true).
+		Pluck("id", &groupIDs).Error; err != nil {
+		return nil, err
+	}
+	return groupIDs, nil
+}
+
+func (r *gormRegistrationRepository) ListLeaderGroupIDs(ctx context.Context, userID uint64) ([]uint64, error) {
+	var groupIDs []uint64
+	if err := r.db.WithContext(ctx).
+		Model(&model.UserGroupMember{}).
+		Where("user_id = ? AND role = ?", userID, model.UserGroupMemberRoleLeader).
+		Pluck("group_id", &groupIDs).Error; err != nil {
+		return nil, err
+	}
+	return groupIDs, nil
+}
+
+func (r *gormRegistrationRepository) AddUserToGroupIfAbsent(ctx context.Context, groupID uint64, userID uint64) error {
+	member := model.UserGroupMember{
+		GroupID: groupID,
+		UserID:  userID,
+		Role:    model.UserGroupMemberRoleMember,
+	}
+	return r.db.WithContext(ctx).
+		Where("group_id = ? AND user_id = ?", groupID, userID).
+		Attrs(map[string]any{"role": member.Role}).
+		FirstOrCreate(&member).Error
+}
+
+func (r *gormRegistrationRepository) RemoveUserFromGroupIfPresent(ctx context.Context, groupID uint64, userID uint64) error {
+	return r.db.WithContext(ctx).
+		Where("group_id = ? AND user_id = ?", groupID, userID).
+		Delete(&model.UserGroupMember{}).Error
 }

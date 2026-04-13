@@ -150,13 +150,11 @@
 | `checkbox` | 多选 | `options: [{label, value}]` |
 | `select` | 下拉选择 | `options: [{label, value}]` |
 | `date` | 日期选择 | `validation.min_date`, `validation.max_date` |
-| `datetime` | 日期时间选择 | `validation.min_date`, `validation.max_date` |
 | `phone` | 手机号输入 | 内置手机号格式校验 |
 | `email` | 邮箱输入 | 内置邮箱格式校验 |
+| `user_group_select` | 系统锁定意向组别下拉 | 选项由 `user_groups.show=1` 的分组实时生成，不允许手工维护 |
 | `file` | 文件上传 | `file_config.max_size_mb`, `file_config.allowed_types` |
 | `image` | 图片上传 | `file_config.max_size_mb`, `file_config.max_count` |
-| `cascade` | 级联选择 | `cascade_config.data_source`（如 `region` 表示省市区） |
-| `address` | 地址选择 + 详细地址 | 内置省市区级联 + 详细地址文本框 |
 
 #### 字段通用属性
 
@@ -171,11 +169,21 @@
 | `default_value` | any | 否 | 默认值 |
 | `validation` | object | 否 | 校验规则，不同类型有不同的校验项 |
 
+#### 系统锁定字段
+
+| key | label | type | 规则 |
+|-----|-------|------|------|
+| `name` | 姓名 | `text` | 必填，不可删除，不可改类型 |
+| `phone` | 手机号 | `phone` | 必填，不可删除，不可改类型 |
+| `email` | 邮箱 | `email` | 必填，不可删除，不可改类型 |
+| `group_1` | 意向组别(1) | `user_group_select` | 必填，不可删除，不可改类型，选项来自 `user_groups.show=1` |
+| `group_2` | 意向组别(2) | `user_group_select` | 必填，不可删除，不可改类型，选项来自 `user_groups.show=1` |
+
 ---
 
 ## 4. 报名信息表 `registrations`
 
-存储用户提交的报名记录。表单数据以 JSON 整体存储，同时将姓名、手机号、邮箱冒泡到独立列以便查询。
+存储用户提交的报名记录。表单数据以 JSON 整体存储，同时将姓名、手机号、邮箱以及两个意向组别冒泡到独立列以便查询。审核流程按“意向组别(1)”与“意向组别(2)”两个槽位分别推进，总 `status` 由双槽审核结果派生。
 
 | 字段名 | 类型 | 约束 | 说明 |
 |--------|------|------|------|
@@ -183,28 +191,46 @@
 | `form_id` | BIGINT UNSIGNED | NOT NULL, FK → `registration_forms.id` | 所属报名表 |
 | `user_id` | BIGINT UNSIGNED | NOT NULL, FK → `users.id` | 报名用户 |
 | **表单数据** ||||
-| `form_data` | JSON | NOT NULL | 用户填写的完整表单数据（JSON 对象，key 对应 fields_schema 中的 key） |
-| **冒泡字段**（从 form_data 中提取，便于查询和索引） ||||
+| `form_data` | JSON | NOT NULL | 用户填写的完整表单数据（JSON 对象，key 对应 `fields_schema` 中的 key） |
+| **冒泡字段**（从 `form_data` 中提取，便于查询和索引） ||||
 | `contact_name` | VARCHAR(100) | DEFAULT NULL | 冒泡字段：姓名 |
 | `contact_phone` | VARCHAR(20) | DEFAULT NULL | 冒泡字段：手机号 |
 | `contact_email` | VARCHAR(255) | DEFAULT NULL | 冒泡字段：邮箱 |
-| **审核相关** ||||
+| `group_1` | BIGINT UNSIGNED | DEFAULT NULL, FK → `user_groups.id` | 冒泡字段：意向组别(1) |
+| `group_1_status` | TINYINT | NOT NULL DEFAULT 0 | 意向组别(1)审核状态：0=待审核，1=已通过，2=已拒绝 |
+| `group_2` | BIGINT UNSIGNED | DEFAULT NULL, FK → `user_groups.id` | 冒泡字段：意向组别(2) |
+| `group_2_status` | TINYINT | NOT NULL DEFAULT 0 | 意向组别(2)审核状态：0=待审核，1=已通过，2=已拒绝 |
+| **总审核状态** ||||
 | `status` | TINYINT | NOT NULL DEFAULT 0 | 报名状态：0=待审核，1=已通过，2=已拒绝，3=已取消 |
-| `reviewer_id` | BIGINT UNSIGNED | DEFAULT NULL, FK → `users.id` | 审核人（管理员） |
-| `reviewed_at` | DATETIME | DEFAULT NULL | 审核时间 |
-| `review_remark` | VARCHAR(500) | DEFAULT NULL | 审核备注/拒绝原因 |
+| **审核元信息** ||||
+| `reviewer_id_1` | BIGINT UNSIGNED | DEFAULT NULL, FK → `users.id` | 意向组别(1)审核人 |
+| `reviewed_at_1` | DATETIME | DEFAULT NULL | 意向组别(1)审核时间 |
+| `review_remark_1` | VARCHAR(500) | DEFAULT NULL | 意向组别(1)审核备注 |
+| `reviewer_id_2` | BIGINT UNSIGNED | DEFAULT NULL, FK → `users.id` | 意向组别(2)审核人 |
+| `reviewed_at_2` | DATETIME | DEFAULT NULL | 意向组别(2)审核时间 |
+| `review_remark_2` | VARCHAR(500) | DEFAULT NULL | 意向组别(2)审核备注 |
 | **时间戳** ||||
 | `submitted_at` | DATETIME | NOT NULL DEFAULT CURRENT_TIMESTAMP | 提交时间 |
 | `updated_at` | DATETIME | NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 更新时间 |
 
 ### 状态枚举
 
+#### 总状态 `status`
+
 | 值 | 标识 | 说明 |
 |----|------|------|
-| 0 | `pending` | 待审核（默认状态） |
+| 0 | `pending` | 两个意向组别未全部出结果，或仅有一个槽位已审核 |
+| 1 | `approved` | 两个意向组别都已有结果，且至少一个槽位通过 |
+| 2 | `rejected` | 两个意向组别都已有结果，且两个槽位均拒绝 |
+| 3 | `cancelled` | 已取消 |
+
+#### 槽位状态 `group_1_status` / `group_2_status`
+
+| 值 | 标识 | 说明 |
+|----|------|------|
+| 0 | `pending` | 待审核 |
 | 1 | `approved` | 已通过 |
 | 2 | `rejected` | 已拒绝 |
-| 3 | `cancelled` | 已取消（用户主动取消） |
 
 ### `form_data` JSON 示例
 
@@ -213,9 +239,9 @@
   "name": "张三",
   "phone": "13800138000",
   "email": "zhangsan@example.com",
-  "gender": "male",
-  "school": "北京大学",
-  "major": "计算机科学",
+  "group_1": "11",
+  "group_2": "12",
+  "direction": "embedded",
   "resume": {
     "file_name": "张三简历.pdf",
     "file_url": "/api/admin/registrations/12/files/resume/0",
@@ -224,6 +250,16 @@
 }
 ```
 
+### 审核与入组规则
+
+| 规则 | 说明 |
+|------|------|
+| 提交约束 | `group_1`、`group_2` 必须都来自当前 `user_groups.show=1` 的分组集合，且二者不能重复 |
+| 全量审核人 | `super_admin` 与“没有任何组长身份的 admin”可一次性审核当前记录全部待审核槽位 |
+| 组长审核人 | “至少担任一个组长分组的 admin”仅能查看自己负责分组命中的报名，并且只审核命中的待审核槽位 |
+| 总状态派生 | 只要任一槽位仍为 `pending`，总状态就是 `pending`；两个槽位都有结果后，若至少一个通过则总状态为 `approved`，若两个都拒绝则总状态为 `rejected` |
+| 入组同步 | 两个意向组别的审核结果彼此独立，可以同时为 `approved`；仅当两个槽位都已有结果时，系统才会把用户自动加入所有审核通过的意向组别，可能一次加入两个组；若用户当前仍在默认分组中，且默认分组不在通过结果内，则会同步移出；写入 `user_group_members` 需幂等 |
+
 ### 索引
 
 | 索引名 | 字段 | 类型 | 说明 |
@@ -231,17 +267,21 @@
 | `uk_form_user` | `form_id, user_id` | UNIQUE | 同一用户同一表单只能报名一次 |
 | `idx_form_id` | `form_id` | INDEX | 按报名表查询 |
 | `idx_user_id` | `user_id` | INDEX | 按用户查询 |
-| `idx_status` | `status` | INDEX | 按审核状态筛选 |
+| `idx_status` | `status` | INDEX | 按总审核状态筛选 |
 | `idx_contact_name` | `contact_name` | INDEX | 按姓名搜索 |
 | `idx_contact_phone` | `contact_phone` | INDEX | 按手机号搜索 |
 | `idx_contact_email` | `contact_email` | INDEX | 按邮箱搜索 |
+| `idx_group_1` | `group_1` | INDEX | 按意向组别(1)筛选 |
+| `idx_group_1_status` | `group_1_status` | INDEX | 按意向组别(1)审核状态筛选 |
+| `idx_group_2` | `group_2` | INDEX | 按意向组别(2)筛选 |
+| `idx_group_2_status` | `group_2_status` | INDEX | 按意向组别(2)审核状态筛选 |
 | `idx_submitted_at` | `submitted_at` | INDEX | 按提交时间排序 |
 
 ---
 
 ## 5. 用户组表 `user_groups`
 
-存储用户组的基本信息。每个用户组有名称、描述、分类标签等属性。所有用户都应被分配到至少一个用户组中。
+存储用户组的基本信息。每个用户组有名称、描述、分类标签、默认分组标记与前台展示标记等属性。`show=1` 的分组会作为报名表“意向组别(1)/(2)”两个系统字段的下拉选项来源。
 
 | 字段名 | 类型 | 约束 | 说明 |
 |--------|------|------|------|
@@ -250,6 +290,7 @@
 | `description` | VARCHAR(500) | DEFAULT NULL | 用户组描述 |
 | `tags` | JSON | DEFAULT NULL | 分类标签，JSON 数组，如 `["tech", "frontend"]` |
 | `is_default` | TINYINT(1) | NOT NULL DEFAULT 0 | 是否为默认分组：0=否，1=是 |
+| `show` | TINYINT(1) | NOT NULL DEFAULT 1 | 是否在前台报名表中展示：0=隐藏，1=展示 |
 | `status` | TINYINT | NOT NULL DEFAULT 1 | 用户组状态：0=禁用，1=启用 |
 | `created_at` | DATETIME | NOT NULL DEFAULT CURRENT_TIMESTAMP | 创建时间 |
 | `updated_at` | DATETIME | NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 更新时间 |
@@ -272,6 +313,7 @@
 | 索引名 | 字段 | 类型 | 说明 |
 |--------|------|------|------|
 | `uk_name` | `name` | UNIQUE | 用户组名称唯一 |
+| `idx_show` | `show` | INDEX | 按前台展示状态筛选 |
 | `idx_status` | `status` | INDEX | 按状态筛选 |
 
 ---
@@ -317,7 +359,9 @@ roles (1) ──────< (N) users
                         │       │
                         │       │ form_id
                         │       ▼
-                        │  registrations ──── users (user_id, reviewer_id)
+                        │  registrations ──── users (user_id, reviewer_id_1, reviewer_id_2)
+                        │       │
+                        │       └──── user_groups (group_1, group_2)
                         │
                         └── user_id
                                 ▼
@@ -328,7 +372,8 @@ roles (1) ──────< (N) users
 - `users` 1:N `registration_forms` — 一个管理员可创建多个报名表
 - `registration_forms` 1:N `registrations` — 一个报名表对应多条报名记录
 - `users` 1:N `registrations` — 一个用户可参与多个报名表（每表限一次）
-- `users` 1:N `registrations.reviewer_id` — 一个管理员可审核多条报名
+- `users` 1:N `registrations.reviewer_id_1` / `reviewer_id_2` — 一个管理员可审核多个意向槽位
+- `user_groups` 1:N `registrations.group_1` / `group_2` — 报名记录引用两个意向组别
 - `users` M:N `user_groups` — 用户与用户组多对多，通过 `user_group_members` 关联
 - `user_groups` 1:N `user_group_members` — 一个用户组包含多个成员
 - `users` 1:N `user_group_members` — 一个用户可加入多个用户组
@@ -344,5 +389,7 @@ roles (1) ──────< (N) users
 | `contact_name` | `name` |
 | `contact_phone` | `phone` |
 | `contact_email` | `email` |
+| `group_1` | `group_1` |
+| `group_2` | `group_2` |
 
-在后端写入 `registrations` 时，从 `form_data` JSON 中提取对应 key 的值，写入冒泡列。若报名表的 `fields_schema` 中不包含该 key，则冒泡列为 NULL。
+在后端写入 `registrations` 时，从 `form_data` JSON 中提取对应 key 的值，写入冒泡列。`group_1` 与 `group_2` 会转换为 `user_groups.id` 对应的外键值；若报名表的 `fields_schema` 中不包含该 key，则冒泡列为 NULL。

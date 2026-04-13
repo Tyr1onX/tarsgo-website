@@ -84,6 +84,8 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	adminAPI.PATCH("/registration-forms/:id", registrationFormHandler.UpdateForm)
 	adminAPI.GET("/registrations", registrationHandler.ListRegistrations)
 	adminAPI.GET("/registrations/:id", registrationHandler.GetRegistration)
+	adminAPI.POST("/registrations/:id/review", registrationHandler.ReviewRegistration)
+	adminAPI.DELETE("/registrations/:id", registrationHandler.DeleteRegistration)
 	adminAPI.GET("/registrations/:id/files/:fieldKey/:index", registrationHandler.OpenRegistrationFile)
 
 	authenticatedAPI := api.Group("")

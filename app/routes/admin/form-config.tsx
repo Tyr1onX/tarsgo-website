@@ -104,9 +104,19 @@ export default function FormConfigPage() {
       editor.fieldsSchema[0] ??
       null
     );
-  }, [editor, selectedFieldKey]);
+}, [editor, selectedFieldKey]);
 
-  const requiredFieldCount = useMemo(
+const allowManualOptions = useMemo(
+  () =>
+    Boolean(
+      selectedField &&
+        isOptionField(selectedField.type) &&
+        selectedField.type !== "user_group_select",
+    ),
+  [selectedField],
+);
+
+const requiredFieldCount = useMemo(
     () => editor?.fieldsSchema.filter((field) => field.required).length ?? 0,
     [editor],
   );
@@ -161,12 +171,13 @@ export default function FormConfigPage() {
       return;
     }
 
+    const formId = selectedFormId;
     let cancelled = false;
 
     async function loadDetail() {
       try {
         setDetailLoading(true);
-        const detail = await getAdminRegistrationForm(selectedFormId);
+        const detail = await getAdminRegistrationForm(formId);
         if (cancelled) {
           return;
         }
@@ -298,10 +309,10 @@ export default function FormConfigPage() {
     }));
   }
 
-  function addFieldOption() {
-    if (!selectedField) {
-      return;
-    }
+function addFieldOption() {
+  if (!selectedField || !allowManualOptions) {
+    return;
+  }
 
     updateField(selectedField.key, (field) => {
       const nextIndex = (field.options?.length ?? 0) + 1;
@@ -318,14 +329,14 @@ export default function FormConfigPage() {
     });
   }
 
-  function updateFieldOption(
-    optionIndex: number,
-    property: "label" | "value",
-    nextValue: string,
-  ) {
-    if (!selectedField) {
-      return;
-    }
+function updateFieldOption(
+  optionIndex: number,
+  property: "label" | "value",
+  nextValue: string,
+) {
+  if (!selectedField || !allowManualOptions) {
+    return;
+  }
 
     updateField(selectedField.key, (field) => ({
       ...field,
@@ -335,10 +346,10 @@ export default function FormConfigPage() {
     }));
   }
 
-  function moveFieldOption(optionIndex: number, direction: "up" | "down") {
-    if (!selectedField) {
-      return;
-    }
+function moveFieldOption(optionIndex: number, direction: "up" | "down") {
+  if (!selectedField || !allowManualOptions) {
+    return;
+  }
 
     updateField(selectedField.key, (field) => {
       const options = [...(field.options ?? [])];
@@ -357,10 +368,10 @@ export default function FormConfigPage() {
     });
   }
 
-  function removeFieldOption(optionIndex: number) {
-    if (!selectedField) {
-      return;
-    }
+function removeFieldOption(optionIndex: number) {
+  if (!selectedField || !allowManualOptions) {
+    return;
+  }
 
     updateField(selectedField.key, (field) => ({
       ...field,
@@ -980,11 +991,11 @@ export default function FormConfigPage() {
                             />
                           </div>
 
-                          {isOptionField(selectedField.type) ? (
-                            <div>
-                              <FieldLabel
-                                label="选项配置"
-                                hint="分别维护显示名称与提交值"
+              {allowManualOptions ? (
+                <div>
+                  <FieldLabel
+                    label="选项配置"
+                    hint="分别维护显示名称与提交值"
                               />
                               <div className="space-y-3">
                                 {(selectedField.options ?? []).map((option, index) => (
@@ -1043,9 +1054,13 @@ export default function FormConfigPage() {
                                 >
                                   新增选项
                                 </button>
-                              </div>
-                            </div>
-                          ) : null}
+                  </div>
+                </div>
+              ) : selectedField.type === "user_group_select" ? (
+                <div className="rounded-lg border border-primary-500/20 bg-primary-500/10 px-4 py-3 text-sm text-primary-100">
+                  意向组别字段的下拉选项会自动读取当前“前台展示”状态为展示的用户分组，这里无需手动维护。
+                </div>
+              ) : null}
 
                           {isFileField(selectedField.type) ? (
                             <div className="space-y-4 rounded-lg border border-gray-800 bg-gray-900/60 p-4">
@@ -1237,7 +1252,7 @@ export default function FormConfigPage() {
             </div>
 
             <div className="rounded-lg border border-primary-500/20 bg-primary-500/10 px-4 py-3 text-sm text-primary-100">
-              创建后会自动附带“姓名 / 手机号 / 邮箱”三个系统字段，并以草稿状态保存。
+              创建后会自动附带“姓名 / 手机号 / 邮箱 / 意向组别(1) / 意向组别(2)”五个系统字段，并以草稿状态保存。
             </div>
 
             <div className="flex justify-end gap-3">
@@ -1370,7 +1385,7 @@ function renderPreviewControl(field: RegistrationFormField) {
   }
 
   if (isOptionField(field.type)) {
-    if (field.type === "select") {
+    if (field.type === "select" || field.type === "user_group_select") {
       return (
         <select value="" disabled className={className}>
           <option value="">请选择</option>

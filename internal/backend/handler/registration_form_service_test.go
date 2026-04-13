@@ -98,8 +98,8 @@ func TestRegistrationFormServiceCreateFormPersistsValidForm(t *testing.T) {
 	if detail.Title != "2026 春季招新" {
 		t.Fatalf("expected created title, got %q", detail.Title)
 	}
-	if len(detail.FieldsSchema) != 4 {
-		t.Fatalf("expected 4 fields, got %d", len(detail.FieldsSchema))
+	if len(detail.FieldsSchema) != 6 {
+		t.Fatalf("expected 6 fields, got %d", len(detail.FieldsSchema))
 	}
 	if repo.forms[detail.ID].CreatorID != 5 {
 		t.Fatalf("expected creator id 5, got %d", repo.forms[detail.ID].CreatorID)
@@ -272,6 +272,14 @@ func (r *fakeRegistrationFormRepository) ListPublishedForms(_ context.Context) (
 	return forms, nil
 }
 
+func (r *fakeRegistrationFormRepository) ListShownUserGroups(_ context.Context) ([]model.UserGroup, error) {
+	return []model.UserGroup{
+		{ID: 101, Name: "机械组", Show: 1},
+		{ID: 102, Name: "电控组", Show: 1},
+		{ID: 103, Name: "视觉组", Show: 1},
+	}, nil
+}
+
 func (r *fakeRegistrationFormRepository) FindRegistrationByFormAndUser(_ context.Context, formID uint64, userID uint64) (*model.Registration, error) {
 	for _, registration := range r.registrations {
 		if registration.FormID == formID && registration.UserID == userID {
@@ -287,6 +295,8 @@ func validRegistrationFields() []model.FormField {
 		{Key: "name", Label: "姓名", Type: "text", Required: true, Placeholder: "请输入姓名"},
 		{Key: "phone", Label: "手机号", Type: "phone", Required: true, Placeholder: "请输入手机号"},
 		{Key: "email", Label: "邮箱", Type: "email", Required: true, Placeholder: "请输入邮箱"},
+		{Key: "group_1", Label: "意向组别(1)", Type: "user_group_select", Required: true, Placeholder: "请选择意向组别(1)"},
+		{Key: "group_2", Label: "意向组别(2)", Type: "user_group_select", Required: true, Placeholder: "请选择意向组别(2)"},
 		{
 			Key:      "direction",
 			Label:    "意向方向",

@@ -2,6 +2,7 @@ package usergroup
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strings"
@@ -39,6 +40,7 @@ type CreateGroupInput struct {
 	Description string
 	Tags        []string
 	IsDefault   bool
+	Show        uint8
 	Status      uint8
 }
 
@@ -47,6 +49,7 @@ type UpdateGroupInput struct {
 	Description string
 	Tags        []string
 	IsDefault   bool
+	Show        uint8
 	Status      uint8
 }
 
@@ -98,6 +101,7 @@ type GroupListItem struct {
 	Description *string   `json:"description,omitempty"`
 	Tags        []string  `json:"tags,omitempty"`
 	IsDefault   bool      `json:"isDefault"`
+	Show        uint8     `json:"show"`
 	Status      uint8     `json:"status"`
 	MemberCount int       `json:"memberCount"`
 	Leaders     []string  `json:"leaders,omitempty"`
@@ -127,6 +131,7 @@ type GroupDetail struct {
 	Description *string           `json:"description,omitempty"`
 	Tags        []string          `json:"tags,omitempty"`
 	IsDefault   bool              `json:"isDefault"`
+	Show        uint8             `json:"show"`
 	Status      uint8             `json:"status"`
 	MemberCount int               `json:"memberCount"`
 	Leaders     []string          `json:"leaders,omitempty"`
@@ -235,12 +240,16 @@ func (s *Service) CreateGroup(ctx context.Context, actor Actor, input CreateGrou
 	if err := validateGroupStatus(input.Status); err != nil {
 		return nil, err
 	}
+	if err := validateGroupShow(input.Show); err != nil {
+		return nil, err
+	}
 
 	group := &model.UserGroup{
 		Name:      name,
 		Tags:      normalizeTags(input.Tags),
 		Status:    input.Status,
 		IsDefault: input.IsDefault && input.Status == model.UserGroupStatusActive,
+		Show:      input.Show,
 	}
 	assignOptionalString(&group.Description, input.Description)
 
@@ -281,14 +290,14 @@ func (s *Service) UpdateGroup(ctx context.Context, actor Actor, groupID uint64, 
 	if err := validateGroupStatus(input.Status); err != nil {
 		return nil, err
 	}
+	if err := validateGroupShow(input.Show); err != nil {
+		return nil, err
+	}
 
 	isDefault := input.IsDefault && input.Status == model.UserGroupStatusActive
-	updates := map[string]any{
-		"name":        name,
-		"description": nullableString(input.Description),
-		"tags":        normalizeTags(input.Tags),
-		"status":      input.Status,
-		"is_default":  isDefault,
+	updates, err := buildGroupUpdates(name, input.Description, input.Tags, input.Status, isDefault, input.Show)
+	if err != nil {
+		return nil, err
 	}
 
 	if err := s.repo.RunInTx(ctx, func(repo Repository) error {
@@ -489,6 +498,13 @@ func validateGroupStatus(status uint8) error {
 	return nil
 }
 
+func validateGroupShow(show uint8) error {
+	if show != 0 && show != 1 {
+		return &ServiceError{Status: http.StatusBadRequest, Message: "用户组展示状态不合法"}
+	}
+	return nil
+}
+
 func validateMemberRole(role uint8) error {
 	if role != model.UserGroupMemberRoleMember && role != model.UserGroupMemberRoleLeader {
 		return &ServiceError{Status: http.StatusBadRequest, Message: "组内角色不合法"}
@@ -528,6 +544,7 @@ func toGroupListItem(group *model.UserGroup) GroupListItem {
 		Description: group.Description,
 		Tags:        copyTags(group.Tags),
 		IsDefault:   group.IsDefault,
+		Show:        group.Show,
 		Status:      group.Status,
 		MemberCount: len(group.Members),
 		Leaders:     leaderNames(group.Members),
@@ -548,6 +565,7 @@ func toGroupDetail(group *model.UserGroup) GroupDetail {
 		Description: group.Description,
 		Tags:        copyTags(group.Tags),
 		IsDefault:   group.IsDefault,
+		Show:        group.Show,
 		Status:      group.Status,
 		MemberCount: len(group.Members),
 		Leaders:     leaderNames(group.Members),
@@ -647,6 +665,22 @@ func copyTags(tags []string) []string {
 	copied := make([]string, len(tags))
 	copy(copied, tags)
 	return copied
+}
+
+func buildGroupUpdates(name string, description string, tags []string, status uint8, isDefault bool, show uint8) (map[string]any, error) {
+	tagsJSON, err := json.Marshal(normalizeTags(tags))
+	if err != nil {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "序列化用户组标签失败", Err: err}
+	}
+
+	return map[string]any{
+		"name":        name,
+		"description": nullableString(description),
+		"tags":        string(tagsJSON),
+		"status":      status,
+		"is_default":  isDefault,
+		"show":        show,
+	}, nil
 }
 
 func nullableString(value string) *string {

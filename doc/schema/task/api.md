@@ -440,12 +440,13 @@ GET http://127.0.0.1:8080/api/admin/roles 获取角色下拉选项
 
 说明：
  - 需要管理员登录后携带 JWT Cookie 访问
- - `admin` 与 `super_admin` 可访问用户组后台接口
- - 用户组接口服务于 `/admin/user-groups`
- - 同一时间只允许一个“启用中的默认分组”；如果某个分组被设置为默认且状态为启用，服务端会在同一事务内清空其它分组的默认标记
- - 邮箱注册、GitHub 首次建号、后台创建 `role=user` 三条链路都会尝试自动加入当前启用中的默认分组；若不存在默认分组则跳过
- - `user` 与 `admin` 可以加入分组，`super_admin` 永远不能加入分组
- - Round 1 成员详情不分页，成员排序为 `role DESC, joined_at ASC`
+- `admin` 与 `super_admin` 可访问用户组后台接口
+- 用户组接口服务于 `/admin/user-groups`
+- 同一时间只允许一个“启用中的默认分组”；如果某个分组被设置为默认且状态为启用，服务端会在同一事务内清空其它分组的默认标记
+- 邮箱注册、GitHub 首次建号、后台创建 `role=user` 三条链路都会尝试自动加入当前启用中的默认分组；若不存在默认分组则跳过
+- `show` 表示该分组是否出现在前台报名表“意向组别(1)/(2)”下拉中，`1=展示`、`0=隐藏`
+- `user` 与 `admin` 可以加入分组，`super_admin` 永远不能加入分组
+- Round 1 成员详情不分页，成员排序为 `role DESC, joined_at ASC`
 
 GET http://127.0.0.1:8080/api/admin/user-groups 获取用户组分页列表
  - 用途：加载用户分组页的统计卡、卡片列表和分页器
@@ -466,8 +467,9 @@ GET http://127.0.0.1:8080/api/admin/user-groups 获取用户组分页列表
            "name": "新注册用户",
            "description": "邮箱注册与后台新建普通用户的默认承接组",
            "tags": ["新注册", "默认分流"],
-           "isDefault": true,
-           "status": 1,
+          "isDefault": true,
+          "show": 1,
+          "status": 1,
            "memberCount": 18,
            "leaders": ["Alice", "Bob"],
            "createdAt": "2026-04-11T09:00:00+08:00",
@@ -504,8 +506,9 @@ GET http://127.0.0.1:8080/api/admin/user-groups/:id 获取用户组详情
        "name": "新注册用户",
        "description": "邮箱注册与后台新建普通用户的默认承接组",
        "tags": ["新注册", "默认分流"],
-       "isDefault": true,
-       "status": 1,
+      "isDefault": true,
+      "show": 1,
+      "status": 1,
        "memberCount": 2,
        "leaders": ["Alice", "Bob"],
        "createdAt": "2026-04-11T09:00:00+08:00",
@@ -557,17 +560,18 @@ POST http://127.0.0.1:8080/api/admin/user-groups 创建用户组
  - 用途：创建新的用户组卡片
  - 请求体：
    ```json
-   {
-     "name": "企业客户",
-     "description": "付费企业客户与重点服务对象",
-     "tags": ["企业", "重点服务"],
-     "isDefault": false,
-     "status": 1
-   }
+  {
+    "name": "企业客户",
+    "description": "付费企业客户与重点服务对象",
+    "tags": ["企业", "重点服务"],
+    "isDefault": false,
+    "show": 1,
+    "status": 1
+  }
    ```
  - 成功响应：返回创建后的完整用户组详情
  - 常见失败：
-   - `400`：请求参数不合法、分组名称为空、状态值不合法
+- `400`：请求参数不合法、分组名称为空、状态值或 show 值不合法
    - `403`：当前账号无管理员权限
    - `409`：分组名称已存在
 
@@ -578,17 +582,18 @@ PATCH http://127.0.0.1:8080/api/admin/user-groups/:id 更新用户组
    - 当 `status=0` 时，即使请求体中传入 `isDefault=true`，最终也不会保留默认标记
  - 请求体：
    ```json
-   {
-     "name": "企业客户",
-     "description": "已签约企业客户",
-     "tags": ["企业", "签约"],
-     "isDefault": true,
-     "status": 1
-   }
+  {
+    "name": "企业客户",
+    "description": "已签约企业客户",
+    "tags": ["企业", "签约"],
+    "isDefault": true,
+    "show": 1,
+    "status": 1
+  }
    ```
  - 成功响应：返回更新后的完整用户组详情
  - 常见失败：
-   - `400`：请求参数不合法、分组名称为空、状态值不合法
+- `400`：请求参数不合法、分组名称为空、状态值或 show 值不合法
    - `403`：当前账号无管理员权限
    - `404`：用户组不存在
    - `409`：分组名称已存在
@@ -739,7 +744,7 @@ GET http://127.0.0.1:8080/api/admin/registration-forms 获取报名表列表
            "description": "面向机械、电控、视觉、算法方向开放招募",
            "coverImageUrl": "https://example.com/recruitment-cover.jpg",
         "fieldCount": 6,
-        "requiredCount": 4,
+        "requiredCount": 6,
         "maxRegistrations": 120,
         "startTime": "2026-04-20T09:00:00+08:00",
         "endTime": "2026-04-27T18:00:00+08:00",
@@ -800,6 +805,20 @@ POST http://127.0.0.1:8080/api/admin/registration-forms 创建报名表
          "placeholder": "请输入联系邮箱"
        },
        {
+         "key": "group_1",
+         "label": "意向组别(1)",
+         "type": "user_group_select",
+         "required": true,
+         "placeholder": "请选择意向组别(1)"
+       },
+       {
+         "key": "group_2",
+         "label": "意向组别(2)",
+         "type": "user_group_select",
+         "required": true,
+         "placeholder": "请选择意向组别(2)"
+       },
+       {
          "key": "direction",
          "label": "意向方向",
          "type": "select",
@@ -823,8 +842,9 @@ POST http://127.0.0.1:8080/api/admin/registration-forms 创建报名表
     }
     ```
  - 字段说明：
-   - `fieldsSchema`：Round 1 仅支持 `text`、`textarea`、`number`、`select`、`radio`、`checkbox`、`date`、`phone`、`email`、`file`、`image`
-   - `name`、`phone`、`email` 三个系统字段必须存在、必须 `required=true`
+  - `fieldsSchema`：支持 `text`、`textarea`、`number`、`select`、`radio`、`checkbox`、`date`、`phone`、`email`、`user_group_select`、`file`、`image`
+  - `name`、`phone`、`email`、`group_1`、`group_2` 五个系统字段必须存在、必须 `required=true`
+  - `group_1`、`group_2` 的类型固定为 `user_group_select`，其 `options` 由当前 `user_groups.show=1` 的分组实时注入，客户端提交时可省略手工配置的选项内容
    - `status`：`0=草稿`、`1=已发布`、`2=已关闭`
    - `coverImageUrl`：Round 1 仅支持图片 URL，不支持上传
  - 成功响应示例：
@@ -837,8 +857,8 @@ POST http://127.0.0.1:8080/api/admin/registration-forms 创建报名表
        "title": "2026 春季招新报名表",
        "description": "面向机械、电控、视觉、算法方向开放招募",
        "coverImageUrl": "https://example.com/recruitment-cover.jpg",
-       "fieldCount": 4,
-       "requiredCount": 4,
+       "fieldCount": 6,
+       "requiredCount": 6,
        "fieldsSchema": [
          {
            "key": "name",
@@ -852,15 +872,47 @@ POST http://127.0.0.1:8080/api/admin/registration-forms 创建报名表
            "type": "phone",
            "required": true
          },
-         {
-           "key": "email",
-           "label": "邮箱",
-           "type": "email",
-           "required": true
-         },
-         {
-           "key": "direction",
-           "label": "意向方向",
+        {
+          "key": "email",
+          "label": "邮箱",
+          "type": "email",
+          "required": true
+        },
+        {
+          "key": "group_1",
+          "label": "意向组别(1)",
+          "type": "user_group_select",
+          "required": true,
+          "options": [
+            {
+              "label": "机械组",
+              "value": "11"
+            },
+            {
+              "label": "电控组",
+              "value": "12"
+            }
+          ]
+        },
+        {
+          "key": "group_2",
+          "label": "意向组别(2)",
+          "type": "user_group_select",
+          "required": true,
+          "options": [
+            {
+              "label": "机械组",
+              "value": "11"
+            },
+            {
+              "label": "电控组",
+              "value": "12"
+            }
+          ]
+        },
+        {
+          "key": "direction",
+          "label": "意向方向",
            "type": "select",
            "required": true,
            "options": [
@@ -928,12 +980,44 @@ GET http://127.0.0.1:8080/api/recruitment/form 获取当前活动报名表
            "type": "phone",
            "required": true
          },
-         {
-           "key": "email",
-           "label": "邮箱",
-           "type": "email",
-           "required": true
-         }
+        {
+          "key": "email",
+          "label": "邮箱",
+          "type": "email",
+          "required": true
+        },
+        {
+          "key": "group_1",
+          "label": "意向组别(1)",
+          "type": "user_group_select",
+          "required": true,
+          "options": [
+            {
+              "label": "机械组",
+              "value": "11"
+            },
+            {
+              "label": "电控组",
+              "value": "12"
+            }
+          ]
+        },
+        {
+          "key": "group_2",
+          "label": "意向组别(2)",
+          "type": "user_group_select",
+          "required": true,
+          "options": [
+            {
+              "label": "机械组",
+              "value": "11"
+            },
+            {
+              "label": "电控组",
+              "value": "12"
+            }
+          ]
+        }
         ],
         "maxRegistrations": 120,
         "startTime": "2026-04-20T09:00:00+08:00",
@@ -961,13 +1045,16 @@ POST http://127.0.0.1:8080/api/recruitment/registrations 提交报名
     - `name=张三`
     - `phone=13800138000`
     - `email=zhangsan@example.com`
+    - `group_1=11`
+    - `group_2=12`
     - `direction=embedded`
     - `resume=@张三简历.pdf`
     - `portfolio=@作品图1.png`
     - `portfolio=@作品图2.png`
   - 服务端校验：
-    - Round 1 仅支持 `text`、`textarea`、`number`、`select`、`radio`、`checkbox`、`date`、`phone`、`email`、`file`、`image`
+    - 支持 `text`、`textarea`、`number`、`select`、`radio`、`checkbox`、`date`、`phone`、`email`、`user_group_select`、`file`、`image`
     - `required`、选项合法性、手机号/邮箱格式、文件大小/类型、图片数量均按 `fieldsSchema` 校验
+    - `group_1`、`group_2` 必须都落在当前 `user_groups.show=1` 的分组集合中，且两个值不能重复
     - 同一用户对同一张报名表重复提交时返回 `409`
   - 成功响应示例：
     ```json
@@ -995,9 +1082,13 @@ GET http://127.0.0.1:8080/api/admin/registrations 获取报名列表
     - `keyword`：可选，按姓名 / 手机号 / 邮箱 / 报名表标题模糊搜索
     - `status`：可选，`0=待审核`、`1=已通过`、`2=已拒绝`、`3=已取消`
     - `formId`：可选，按报名表筛选
+  - 权限规则：
+    - `super_admin` 与“没有任何组长身份的 admin”可查看全部报名记录
+    - “至少担任一个用户组组长的 admin”仅可查看 `group_1` 或 `group_2` 命中其组长分组的报名记录
   - 返回说明：
     - `summary` 返回当前关键字 / 报名表筛选条件下的状态统计
     - `items` 仅返回固定通用列，不返回 `formData`
+    - `canApprove` / `canReject` 表示当前管理员对该记录是否仍有可执行的审核动作
   - 成功响应示例：
     ```json
     {
@@ -1019,7 +1110,19 @@ GET http://127.0.0.1:8080/api/admin/registrations 获取报名列表
             "contactName": "张三",
             "contactPhone": "13800138000",
             "contactEmail": "zhangsan@example.com",
+            "group1": {
+              "id": 11,
+              "name": "机械组"
+            },
+            "group1Status": 0,
+            "group2": {
+              "id": 12,
+              "name": "电控组"
+            },
+            "group2Status": 0,
             "status": 0,
+            "canApprove": true,
+            "canReject": true,
             "submittedAt": "2026-04-13T20:10:00+08:00",
             "updatedAt": "2026-04-13T20:10:00+08:00"
           }
@@ -1039,6 +1142,7 @@ GET http://127.0.0.1:8080/api/admin/registrations/:id 获取报名详情
     - `formData` 中普通字段存规范化值
     - `file` 字段返回单个对象，`image` 字段返回对象数组
     - 文件对象结构为 `{ file_name, file_url, file_size }`
+    - `reviewer1/reviewer2`、`reviewedAt1/reviewedAt2`、`reviewRemark1/reviewRemark2` 分别对应两个意向组别槽位
   - 成功响应示例：
     ```json
     {
@@ -1051,7 +1155,33 @@ GET http://127.0.0.1:8080/api/admin/registrations/:id 获取报名详情
         "contactName": "张三",
         "contactPhone": "13800138000",
         "contactEmail": "zhangsan@example.com",
+        "group1": {
+          "id": 11,
+          "name": "机械组"
+        },
+        "group1Status": 1,
+        "group2": {
+          "id": 12,
+          "name": "电控组"
+        },
+        "group2Status": 2,
         "status": 0,
+        "reviewer1": {
+          "id": 2,
+          "name": "Alice",
+          "email": "alice@example.com"
+        },
+        "reviewedAt1": "2026-04-13T21:00:00+08:00",
+        "reviewRemark1": "",
+        "reviewer2": {
+          "id": 3,
+          "name": "Bob",
+          "email": "bob@example.com"
+        },
+        "reviewedAt2": "2026-04-13T21:10:00+08:00",
+        "reviewRemark2": "本轮名额已满",
+        "canApprove": false,
+        "canReject": false,
         "submittedAt": "2026-04-13T20:10:00+08:00",
         "updatedAt": "2026-04-13T20:10:00+08:00",
         "fieldsSchema": [
@@ -1076,6 +1206,8 @@ GET http://127.0.0.1:8080/api/admin/registrations/:id 获取报名详情
         ],
         "formData": {
           "name": "张三",
+          "group_1": "11",
+          "group_2": "12",
           "resume": {
             "file_name": "张三简历.pdf",
             "file_url": "/api/admin/registrations/12/files/resume/0",
@@ -1108,6 +1240,59 @@ GET http://127.0.0.1:8080/api/admin/registrations/:id/files/:fieldKey/:index 访
     - `400`：报名记录 ID、字段 key 或文件索引不合法
     - `403`：当前账号无管理员权限
     - `404`：报名记录不存在，或文件不存在
+
+POST http://127.0.0.1:8080/api/admin/registrations/:id/review 审核报名
+  - 用途：后台报名列表页 / 详情抽屉执行“通过 / 拒绝”动作
+  - 鉴权：要求管理员权限
+  - 权限规则：
+    - `super_admin` 与“没有任何组长身份的 admin”会一次性处理该记录当前全部待审核槽位
+    - “至少担任一个用户组组长的 admin”只会处理当前记录中属于自己组长分组且仍待审核的槽位
+  - 请求体：
+    ```json
+    {
+      "decision": "approve",
+      "remark": "综合评估通过"
+    }
+    ```
+  - 字段说明：
+    - `decision`：必填，`approve` 或 `reject`
+    - `remark`：选填，本轮前端未提供备注输入框，但接口已预留
+  - 状态规则：
+    - 若两个槽位中任一仍为 `pending`，总 `status` 保持 `0`
+    - 两个槽位都有结果后，只要至少一个槽位通过，总 `status=1`
+    - 两个槽位都拒绝时，总 `status=2`
+    - 两个槽位的审核结果彼此独立，可以同时都为 `approve`
+    - 两个槽位都出结果后，系统会自动将报名人加入所有审核通过的意向组别；若两个意向组别都通过，则会同时加入两个组，重复写入需幂等
+    - 当报名最终进入通过状态并加入通过组别时，若用户当前仍在默认分组中，且该默认分组不属于通过组别，则会同步从默认分组移出
+  - 成功响应：返回更新后的报名详情，结构同 `GET /api/admin/registrations/:id`
+  - 常见失败：
+    - `400`：报名记录 ID 不合法、`decision` 不合法
+    - `403`：当前账号无管理员权限，或无权审核该报名记录
+    - `404`：报名记录不存在
+    - `409`：已取消的报名不支持审核，或当前报名没有可审核的意向组别
+
+DELETE http://127.0.0.1:8080/api/admin/registrations/:id 删除报名
+  - 用途：后台报名列表页 / 详情抽屉硬删除报名记录
+  - 鉴权：要求管理员权限
+  - 权限规则：
+    - `super_admin` 与“没有任何组长身份的 admin”可删除所有报名记录
+    - “至少担任一个用户组组长的 admin”仅可删除自己有权查看的报名记录
+  - 删除行为：
+    - 直接物理删除 `registrations` 表中的记录
+    - 若报名中包含上传文件，服务端会同步清理运行目录下 `upload/recruitment/...` 对应文件
+    - 删除后不可恢复
+  - 成功响应：
+    ```json
+    {
+      "code": 200,
+      "message": "删除报名记录成功",
+      "data": null
+    }
+    ```
+  - 常见失败：
+    - `400`：报名记录 ID 不合法
+    - `403`：当前账号无管理员权限，或无权删除该报名记录
+    - `404`：报名记录不存在
 
 
 ## 用户后台API列表
