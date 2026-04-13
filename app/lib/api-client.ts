@@ -24,17 +24,24 @@ export async function apiRequest<T>(
   path: string,
   options: {
     method?: string;
-    body?: unknown;
+    body?: BodyInit | Record<string, unknown> | null;
   } = {},
 ): Promise<T> {
+  const isFormData = options.body instanceof FormData;
+  const hasBody = options.body !== undefined && options.body !== null;
+
   const response = await fetch(buildApiUrl(path), {
     method: options.method ?? "GET",
     credentials: "include",
     headers: {
       Accept: "application/json",
-      ...(options.body ? { "Content-Type": "application/json" } : {}),
+      ...(!isFormData && hasBody ? { "Content-Type": "application/json" } : {}),
     },
-    body: options.body ? JSON.stringify(options.body) : undefined,
+    body: !hasBody
+      ? undefined
+      : isFormData
+        ? options.body
+        : JSON.stringify(options.body),
   });
 
   let payload: ApiEnvelope<T> | null = null;

@@ -45,6 +45,8 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	authHandler := handler.NewAuthHandler(cfg, authService)
 	adminUserHandler := handler.NewAdminUserHandler(adminuser.NewService(adminuser.NewRepository(db)))
 	userGroupHandler := handler.NewUserGroupHandler(usergroup.NewService(usergroup.NewRepository(db)))
+	registrationFormHandler := handler.NewRegistrationFormHandler(handler.NewRegistrationFormService(db))
+	registrationHandler := handler.NewRegistrationHandler(handler.NewRegistrationService(db))
 
 	engine.GET("/healthz", healthHandler.Get)
 
@@ -76,6 +78,18 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	adminAPI.POST("/user-groups/:id/members", userGroupHandler.AddMember)
 	adminAPI.PATCH("/user-groups/:id/members/:memberId", userGroupHandler.UpdateMember)
 	adminAPI.DELETE("/user-groups/:id/members/:memberId", userGroupHandler.RemoveMember)
+	adminAPI.GET("/registration-forms", registrationFormHandler.ListForms)
+	adminAPI.POST("/registration-forms", registrationFormHandler.CreateForm)
+	adminAPI.GET("/registration-forms/:id", registrationFormHandler.GetForm)
+	adminAPI.PATCH("/registration-forms/:id", registrationFormHandler.UpdateForm)
+	adminAPI.GET("/registrations", registrationHandler.ListRegistrations)
+	adminAPI.GET("/registrations/:id", registrationHandler.GetRegistration)
+	adminAPI.GET("/registrations/:id/files/:fieldKey/:index", registrationHandler.OpenRegistrationFile)
+
+	authenticatedAPI := api.Group("")
+	authenticatedAPI.Use(middleware.RequireAuthenticated(authService))
+	authenticatedAPI.GET("/recruitment/form", registrationFormHandler.GetActiveForm)
+	authenticatedAPI.POST("/recruitment/registrations", registrationHandler.SubmitRegistration)
 
 	return engine
 }

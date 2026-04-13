@@ -721,8 +721,393 @@ DELETE http://127.0.0.1:8080/api/admin/user-groups/:id/members/:memberId 移除�
 
 ### 表单配置
 
+GET http://127.0.0.1:8080/api/admin/registration-forms 获取报名表列表
+ - 用途：后台表单配置页加载多表单列表与统计信息
+ - 查询参数：
+   - `keyword`：按标题 / 描述模糊搜索，可选
+   - `status`：状态筛选，可选，`0=草稿`、`1=已发布`、`2=已关闭`
+ - 成功响应示例：
+   ```json
+   {
+     "code": 200,
+     "message": "获取报名表列表成功",
+     "data": {
+       "items": [
+         {
+           "id": 3,
+           "title": "2026 春季招新报名表",
+           "description": "面向机械、电控、视觉、算法方向开放招募",
+           "coverImageUrl": "https://example.com/recruitment-cover.jpg",
+        "fieldCount": 6,
+        "requiredCount": 4,
+        "maxRegistrations": 120,
+        "startTime": "2026-04-20T09:00:00+08:00",
+        "endTime": "2026-04-27T18:00:00+08:00",
+        "status": 1,
+        "createdAt": "2026-04-13T18:20:00+08:00",
+        "updatedAt": "2026-04-13T18:40:00+08:00"
+         }
+       ],
+       "summary": {
+         "total": 4,
+         "draft": 2,
+         "published": 1,
+         "closed": 1
+       }
+     }
+   }
+   ```
+ - 常见失败：
+   - `400`：状态筛选值不合法
+   - `403`：当前账号无管理员权限
+
+GET http://127.0.0.1:8080/api/admin/registration-forms/:id 获取报名表详情
+ - 用途：后台打开某张报名表进行编辑
+ - 成功响应：返回单个报名表完整配置，结构与创建 / 更新响应一致
+ - 常见失败：
+   - `400`：报名表 ID 非法
+   - `403`：当前账号无管理员权限
+   - `404`：报名表不存在
+
+POST http://127.0.0.1:8080/api/admin/registration-forms 创建报名表
+ - 用途：创建一张新的报名表草稿或直接创建为已发布 / 已关闭状态
+ - 请求体：
+   ```json
+   {
+     "title": "2026 春季招新报名表",
+     "description": "面向机械、电控、视觉、算法方向开放招募",
+     "coverImageUrl": "https://example.com/recruitment-cover.jpg",
+     "fieldsSchema": [
+       {
+         "key": "name",
+         "label": "姓名",
+         "type": "text",
+         "required": true,
+         "placeholder": "请输入真实姓名"
+       },
+       {
+         "key": "phone",
+         "label": "手机号",
+         "type": "phone",
+         "required": true,
+         "placeholder": "请输入常用手机号"
+       },
+       {
+         "key": "email",
+         "label": "邮箱",
+         "type": "email",
+         "required": true,
+         "placeholder": "请输入联系邮箱"
+       },
+       {
+         "key": "direction",
+         "label": "意向方向",
+         "type": "select",
+         "required": true,
+         "options": [
+           {
+             "label": "机械组",
+             "value": "mechanical"
+           },
+           {
+             "label": "电控组",
+             "value": "embedded"
+           }
+         ]
+       }
+      ],
+      "maxRegistrations": 120,
+      "startTime": "2026-04-20T09:00",
+      "endTime": "2026-04-27T18:00",
+      "status": 0
+    }
+    ```
+ - 字段说明：
+   - `fieldsSchema`：Round 1 仅支持 `text`、`textarea`、`number`、`select`、`radio`、`checkbox`、`date`、`phone`、`email`、`file`、`image`
+   - `name`、`phone`、`email` 三个系统字段必须存在、必须 `required=true`
+   - `status`：`0=草稿`、`1=已发布`、`2=已关闭`
+   - `coverImageUrl`：Round 1 仅支持图片 URL，不支持上传
+ - 成功响应示例：
+   ```json
+   {
+     "code": 200,
+     "message": "创建报名表成功",
+     "data": {
+       "id": 5,
+       "title": "2026 春季招新报名表",
+       "description": "面向机械、电控、视觉、算法方向开放招募",
+       "coverImageUrl": "https://example.com/recruitment-cover.jpg",
+       "fieldCount": 4,
+       "requiredCount": 4,
+       "fieldsSchema": [
+         {
+           "key": "name",
+           "label": "姓名",
+           "type": "text",
+           "required": true
+         },
+         {
+           "key": "phone",
+           "label": "手机号",
+           "type": "phone",
+           "required": true
+         },
+         {
+           "key": "email",
+           "label": "邮箱",
+           "type": "email",
+           "required": true
+         },
+         {
+           "key": "direction",
+           "label": "意向方向",
+           "type": "select",
+           "required": true,
+           "options": [
+             {
+               "label": "机械组",
+               "value": "mechanical"
+             },
+             {
+               "label": "电控组",
+               "value": "embedded"
+             }
+           ]
+         }
+        ],
+        "maxRegistrations": 120,
+        "startTime": "2026-04-20T09:00:00+08:00",
+        "endTime": "2026-04-27T18:00:00+08:00",
+        "status": 0,
+        "createdAt": "2026-04-13T18:20:00+08:00",
+        "updatedAt": "2026-04-13T18:20:00+08:00"
+     }
+   }
+   ```
+ - 常见失败：
+   - `400`：标题为空、系统字段缺失或非必填、字段 key 重复、字段类型不支持、时间范围不合法、选项 / 文件配置不合法
+   - `403`：当前账号无管理员权限
+   - `409`：尝试创建已发布报名表时，系统中已经存在另一张已发布报名表
+
+PATCH http://127.0.0.1:8080/api/admin/registration-forms/:id 更新报名表
+ - 用途：后台修改报名表内容、字段配置、开放时间与发布状态
+ - 请求体：与创建接口一致
+ - 成功响应：返回更新后的报名表详情
+ - 常见失败：
+   - `400`：请求参数不合法、时间范围不合法、系统字段不满足要求
+   - `403`：当前账号无管理员权限
+   - `404`：报名表不存在
+   - `409`：将当前表单改为已发布时，系统中存在另一张已发布报名表
+
+GET http://127.0.0.1:8080/api/recruitment/form 获取当前活动报名表
+ - 用途：前台 `/recruitment` 页面在用户登录后动态拉取当前可访问的报名表
+ - 鉴权：要求已登录；未登录时返回 `401`
+ - 返回规则：
+   - 仅返回 `status=1(已发布)` 且当前时间落在 `startTime/endTime` 窗口内的报名表
+   - 若不存在活动表单、未到开始时间、已结束，均返回业务失败，前端展示不可报名状态页
+ - 成功响应示例：
+   ```json
+   {
+     "code": 200,
+     "message": "获取活动报名表成功",
+     "data": {
+       "id": 3,
+       "title": "2026 春季招新报名表",
+       "description": "面向机械、电控、视觉、算法方向开放招募",
+       "coverImageUrl": "https://example.com/recruitment-cover.jpg",
+       "fieldsSchema": [
+         {
+           "key": "name",
+           "label": "姓名",
+           "type": "text",
+           "required": true
+         },
+         {
+           "key": "phone",
+           "label": "手机号",
+           "type": "phone",
+           "required": true
+         },
+         {
+           "key": "email",
+           "label": "邮箱",
+           "type": "email",
+           "required": true
+         }
+        ],
+        "maxRegistrations": 120,
+        "startTime": "2026-04-20T09:00:00+08:00",
+        "endTime": "2026-04-27T18:00:00+08:00",
+        "status": 1
+      }
+    }
+    ```
+  - 常见失败：
+    - `401`：未登录、登录态失效
+    - `404`：当前暂无开放中的报名表
+    - `409`：你已完成当前报名、报名尚未开始、报名已结束、或后台存在多张已发布报名表
 
 ### 报名列表
+
+POST http://127.0.0.1:8080/api/recruitment/registrations 提交报名
+  - 用途：前台 `/recruitment` 页面提交当前活动报名表
+  - 鉴权：要求已登录；未登录时返回 `401`
+  - 请求体：`multipart/form-data`
+    - 固定字段：`formId`
+    - 其余字段直接使用 `fieldsSchema[].key` 作为表单字段名
+    - `file` 字段单文件提交，`image` 字段多文件提交
+  - 请求示例：
+    - `formId=3`
+    - `name=张三`
+    - `phone=13800138000`
+    - `email=zhangsan@example.com`
+    - `direction=embedded`
+    - `resume=@张三简历.pdf`
+    - `portfolio=@作品图1.png`
+    - `portfolio=@作品图2.png`
+  - 服务端校验：
+    - Round 1 仅支持 `text`、`textarea`、`number`、`select`、`radio`、`checkbox`、`date`、`phone`、`email`、`file`、`image`
+    - `required`、选项合法性、手机号/邮箱格式、文件大小/类型、图片数量均按 `fieldsSchema` 校验
+    - 同一用户对同一张报名表重复提交时返回 `409`
+  - 成功响应示例：
+    ```json
+    {
+      "code": 200,
+      "message": "提交报名成功",
+      "data": {
+        "id": 12,
+        "formId": 3,
+        "status": 0,
+        "submittedAt": "2026-04-13T20:10:00+08:00"
+      }
+    }
+    ```
+  - 常见失败：
+    - `400`：字段缺失、字段格式不合法、文件大小或类型不合法
+    - `401`：未登录、登录态失效
+    - `404`：当前暂无开放中的报名表
+    - `409`：重复报名、报名人数已满、报名尚未开始、报名已结束、或后台存在多张已发布报名表
+
+GET http://127.0.0.1:8080/api/admin/registrations 获取报名列表
+  - 用途：后台报名列表页查询报名记录
+  - 鉴权：要求管理员权限
+  - 查询参数：
+    - `keyword`：可选，按姓名 / 手机号 / 邮箱 / 报名表标题模糊搜索
+    - `status`：可选，`0=待审核`、`1=已通过`、`2=已拒绝`、`3=已取消`
+    - `formId`：可选，按报名表筛选
+  - 返回说明：
+    - `summary` 返回当前关键字 / 报名表筛选条件下的状态统计
+    - `items` 仅返回固定通用列，不返回 `formData`
+  - 成功响应示例：
+    ```json
+    {
+      "code": 200,
+      "message": "获取报名列表成功",
+      "data": {
+        "summary": {
+          "total": 24,
+          "pending": 9,
+          "approved": 8,
+          "rejected": 5,
+          "cancelled": 2
+        },
+        "items": [
+          {
+            "id": 12,
+            "formId": 3,
+            "formTitle": "2026 春季招新报名表",
+            "contactName": "张三",
+            "contactPhone": "13800138000",
+            "contactEmail": "zhangsan@example.com",
+            "status": 0,
+            "submittedAt": "2026-04-13T20:10:00+08:00",
+            "updatedAt": "2026-04-13T20:10:00+08:00"
+          }
+        ]
+      }
+    }
+    ```
+  - 常见失败：
+    - `400`：筛选参数不合法
+    - `403`：当前账号无管理员权限
+
+GET http://127.0.0.1:8080/api/admin/registrations/:id 获取报名详情
+  - 用途：后台从报名列表打开详情抽屉
+  - 鉴权：要求管理员权限
+  - 返回说明：
+    - 返回固定元信息、`formData` 和当前报名表的 `fieldsSchema`
+    - `formData` 中普通字段存规范化值
+    - `file` 字段返回单个对象，`image` 字段返回对象数组
+    - 文件对象结构为 `{ file_name, file_url, file_size }`
+  - 成功响应示例：
+    ```json
+    {
+      "code": 200,
+      "message": "获取报名详情成功",
+      "data": {
+        "id": 12,
+        "formId": 3,
+        "formTitle": "2026 春季招新报名表",
+        "contactName": "张三",
+        "contactPhone": "13800138000",
+        "contactEmail": "zhangsan@example.com",
+        "status": 0,
+        "submittedAt": "2026-04-13T20:10:00+08:00",
+        "updatedAt": "2026-04-13T20:10:00+08:00",
+        "fieldsSchema": [
+          {
+            "key": "name",
+            "label": "姓名",
+            "type": "text",
+            "required": true
+          },
+          {
+            "key": "resume",
+            "label": "简历",
+            "type": "file",
+            "required": false
+          },
+          {
+            "key": "portfolio",
+            "label": "作品图",
+            "type": "image",
+            "required": false
+          }
+        ],
+        "formData": {
+          "name": "张三",
+          "resume": {
+            "file_name": "张三简历.pdf",
+            "file_url": "/api/admin/registrations/12/files/resume/0",
+            "file_size": 1048576
+          },
+          "portfolio": [
+            {
+              "file_name": "作品图1.png",
+              "file_url": "/api/admin/registrations/12/files/portfolio/0",
+              "file_size": 845612
+            }
+          ]
+        }
+      }
+    }
+    ```
+  - 常见失败：
+    - `400`：报名记录 ID 非法
+    - `403`：当前账号无管理员权限
+    - `404`：报名记录不存在
+
+GET http://127.0.0.1:8080/api/admin/registrations/:id/files/:fieldKey/:index 访问报名文件
+  - 用途：后台详情抽屉访问上传文件
+  - 鉴权：要求管理员权限
+  - 返回规则：
+    - `image` 字段文件以 `inline` 方式返回，可直接预览
+    - 其他文件以下载附件方式返回
+    - 文件实际存储目录为运行目录下 `upload/recruitment/{formId}/{userId}/{fieldKey}/`
+  - 常见失败：
+    - `400`：报名记录 ID、字段 key 或文件索引不合法
+    - `403`：当前账号无管理员权限
+    - `404`：报名记录不存在，或文件不存在
 
 
 ## 用户后台API列表

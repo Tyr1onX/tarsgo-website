@@ -48,11 +48,26 @@ func AutoMigrate(db *gorm.DB) error {
 		return err
 	}
 
+	if err := dropLegacyRegistrationFormColumns(db); err != nil {
+		return err
+	}
+
 	if err := seedRoles(db); err != nil {
 		return err
 	}
 
 	return seedAdminUser(db)
+}
+
+func dropLegacyRegistrationFormColumns(db *gorm.DB) error {
+	migrator := db.Migrator()
+	if migrator.HasColumn(&model.RegistrationForm{}, "need_approval") {
+		if err := migrator.DropColumn(&model.RegistrationForm{}, "need_approval"); err != nil {
+			return fmt.Errorf("drop registration_forms.need_approval: %w", err)
+		}
+	}
+
+	return nil
 }
 
 func Ping(db *gorm.DB) error {

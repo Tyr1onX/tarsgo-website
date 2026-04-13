@@ -86,7 +86,6 @@
 | `max_registrations` | INT | DEFAULT NULL | 报名人数上限，NULL 表示不限 |
 | `start_time` | DATETIME | DEFAULT NULL | 报名开始时间，NULL 表示创建即开始 |
 | `end_time` | DATETIME | DEFAULT NULL | 报名截止时间，NULL 表示不限 |
-| `need_approval` | TINYINT(1) | NOT NULL DEFAULT 0 | 是否需要审核：0=不需要（提交即通过），1=需要管理员审核 |
 | **状态** ||||
 | `status` | TINYINT | NOT NULL DEFAULT 0 | 报名表状态：0=草稿，1=已发布，2=已关闭 |
 | `created_at` | DATETIME | NOT NULL DEFAULT CURRENT_TIMESTAMP | 创建时间 |
@@ -202,7 +201,7 @@
 
 | 值 | 标识 | 说明 |
 |----|------|------|
-| 0 | `pending` | 待审核（默认状态，若报名表不需审核则自动跳至 1） |
+| 0 | `pending` | 待审核（默认状态） |
 | 1 | `approved` | 已通过 |
 | 2 | `rejected` | 已拒绝 |
 | 3 | `cancelled` | 已取消（用户主动取消） |
@@ -219,7 +218,7 @@
   "major": "计算机科学",
   "resume": {
     "file_name": "张三简历.pdf",
-    "file_url": "/uploads/2026/04/abc123.pdf",
+    "file_url": "/api/admin/registrations/12/files/resume/0",
     "file_size": 1048576
   }
 }

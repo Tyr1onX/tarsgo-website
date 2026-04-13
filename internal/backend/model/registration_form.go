@@ -2,6 +2,12 @@ package model
 
 import "time"
 
+const (
+	RegistrationFormStatusDraft     uint8 = 0
+	RegistrationFormStatusPublished uint8 = 1
+	RegistrationFormStatusClosed    uint8 = 2
+)
+
 type FormFieldOption struct {
 	Label string `json:"label"`
 	Value string `json:"value"`
@@ -31,7 +37,6 @@ type RegistrationForm struct {
 	MaxRegistrations *int        `json:"maxRegistrations,omitempty" gorm:"column:max_registrations;type:int;default:null"`
 	StartTime        *time.Time  `json:"startTime,omitempty" gorm:"column:start_time;type:datetime;default:null;index:idx_start_time"`
 	EndTime          *time.Time  `json:"endTime,omitempty" gorm:"column:end_time;type:datetime;default:null;index:idx_end_time"`
-	NeedApproval     bool        `json:"needApproval" gorm:"column:need_approval;type:tinyint(1);not null;default:0"`
 	Status           uint8       `json:"status" gorm:"type:tinyint;not null;default:0;index:idx_status"`
 	CreatedAt        time.Time   `json:"createdAt" gorm:"column:created_at;type:datetime;not null;default:CURRENT_TIMESTAMP"`
 	UpdatedAt        time.Time   `json:"updatedAt" gorm:"column:updated_at;type:datetime;not null;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"`

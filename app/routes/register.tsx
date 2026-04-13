@@ -1,5 +1,5 @@
-import { type FormEvent, useState } from "react";
-import { Link, useNavigate } from "react-router";
+import { type FormEvent, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router";
 
 import {
   ApiError,
@@ -17,6 +17,7 @@ export function meta() {
 
 export default function Register() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const cooldown = useCooldown();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -25,6 +26,10 @@ export default function Register() {
   const [errorMessage, setErrorMessage] = useState("");
   const [sendingCode, setSendingCode] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const redirectTo = useMemo(
+    () => getSafeRedirectPath(searchParams.get("redirect")),
+    [searchParams],
+  );
 
   const canSendCode =
     isValidEmail(email) && !cooldown.isCoolingDown && !sendingCode;
@@ -72,7 +77,7 @@ export default function Register() {
         phone,
         code,
       });
-      navigate("/admin/dashboard", { replace: true });
+      navigate(redirectTo, { replace: true });
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
     } finally {
@@ -228,7 +233,7 @@ export default function Register() {
           <p className="mt-6 text-center text-sm text-gray-400">
             已有账号？{" "}
             <Link
-              to="/login"
+              to={redirectTo === "/admin/dashboard" ? "/login" : `/login?redirect=${encodeURIComponent(redirectTo)}`}
               className="text-primary-400 hover:text-primary-300 font-medium transition-colors"
             >
               立即登录
@@ -249,4 +254,17 @@ function getErrorMessage(error: unknown) {
 
 function isValidEmail(value: string) {
   return /\S+@\S+\.\S+/.test(value.trim());
+}
+
+function getSafeRedirectPath(value: string | null) {
+  if (!value) {
+    return "/admin/dashboard";
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("/") || trimmed.startsWith("//")) {
+    return "/admin/dashboard";
+  }
+
+  return trimmed;
 }

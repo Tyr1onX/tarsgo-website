@@ -41,6 +41,10 @@ export default function Login() {
     const code = searchParams.get("error") ?? "";
     return oauthErrorMap[code] ?? "";
   }, [searchParams]);
+  const redirectTo = useMemo(
+    () => getSafeRedirectPath(searchParams.get("redirect")),
+    [searchParams],
+  );
 
   useEffect(() => {
     if (oauthError) {
@@ -86,7 +90,7 @@ export default function Login() {
         await loginWithCode({ email, code });
       }
 
-      navigate("/admin/dashboard", { replace: true });
+      navigate(redirectTo, { replace: true });
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
     } finally {
@@ -270,7 +274,7 @@ export default function Login() {
           <p className="mt-6 text-center text-sm text-gray-400">
             还没有账号？{" "}
             <Link
-              to="/register"
+              to={redirectTo === "/admin/dashboard" ? "/register" : `/register?redirect=${encodeURIComponent(redirectTo)}`}
               className="text-primary-400 hover:text-primary-300 font-medium transition-colors"
             >
               立即注册
@@ -291,4 +295,17 @@ function getErrorMessage(error: unknown) {
 
 function isValidEmail(value: string) {
   return /\S+@\S+\.\S+/.test(value.trim());
+}
+
+function getSafeRedirectPath(value: string | null) {
+  if (!value) {
+    return "/admin/dashboard";
+  }
+
+  const trimmed = value.trim();
+  if (!trimmed.startsWith("/") || trimmed.startsWith("//")) {
+    return "/admin/dashboard";
+  }
+
+  return trimmed;
 }

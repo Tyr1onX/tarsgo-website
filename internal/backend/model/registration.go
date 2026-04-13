@@ -2,6 +2,13 @@ package model
 
 import "time"
 
+const (
+	RegistrationStatusPending   uint8 = 0
+	RegistrationStatusApproved  uint8 = 1
+	RegistrationStatusRejected  uint8 = 2
+	RegistrationStatusCancelled uint8 = 3
+)
+
 type Registration struct {
 	ID           uint64           `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
 	FormID       uint64           `json:"formId" gorm:"column:form_id;type:bigint unsigned;not null;uniqueIndex:uk_form_user;index:idx_form_id"`
