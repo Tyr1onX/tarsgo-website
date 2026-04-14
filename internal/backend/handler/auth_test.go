@@ -102,7 +102,7 @@ func (s stubAuthService) CookieSameSite() http.SameSite {
 }
 
 func (s stubAuthService) AdminDashboardURL() string {
-	return "http://127.0.0.1:5173/admin/dashboard"
+	return "http://127.0.0.1:5173/dashboard"
 }
 
 func (s stubAuthService) LoginErrorURL(code string) string {
@@ -183,6 +183,48 @@ func TestMeWithoutCookieReturnsUnauthorized(t *testing.T) {
 
 	if recorder.Code != http.StatusUnauthorized {
 		t.Fatalf("expected status 401, got %d", recorder.Code)
+	}
+}
+
+func TestMeReturnsPortalFlags(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	handler := NewAuthHandler(nil, stubAuthService{
+		currentUserFn: func(ctx context.Context, token string) (*auth.SessionUser, error) {
+			return &auth.SessionUser{
+				ID:    7,
+				Email: "user@example.com",
+				Role: auth.SessionRole{
+					ID:          3,
+					Name:        "user",
+					DisplayName: "普通用户",
+				},
+				Portal: &auth.SessionUserPortal{
+					ShowRecruitmentEntry: true,
+				},
+			}, nil
+		},
+	})
+	recorder, ctx := newPlainContext(http.MethodGet, "/api/me")
+	ctx.Request.AddCookie(&http.Cookie{Name: "tarsgo_token", Value: "signed-token"})
+
+	handler.Me(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", recorder.Code)
+	}
+
+	var payload struct {
+		Data struct {
+			User auth.SessionUser `json:"user"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if payload.Data.User.Portal == nil || !payload.Data.User.Portal.ShowRecruitmentEntry {
+		t.Fatalf("expected portal.showRecruitmentEntry=true, got %#v", payload.Data.User.Portal)
 	}
 }
 

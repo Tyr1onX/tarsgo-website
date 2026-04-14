@@ -15,7 +15,7 @@ import {
   type ListAdminUsersInput,
 } from "~/lib/admin-users-client";
 import { ApiError } from "~/lib/api-client";
-import type { AdminLayoutOutletContext } from "~/routes/admin/layout";
+import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 
 export function meta() {
   return [
@@ -201,7 +201,7 @@ function buildCreatePayload(form: CreateUserFormState) {
 
 export default function Users() {
   const navigate = useNavigate();
-  const { currentUser } = useOutletContext<AdminLayoutOutletContext>();
+  const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
 
   const actorRoleName = currentUser.role.name;
   const noAdminPermission = actorRoleName === "user";

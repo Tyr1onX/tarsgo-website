@@ -44,12 +44,17 @@ type SessionRole struct {
 	DisplayName string `json:"displayName"`
 }
 
+type SessionUserPortal struct {
+	ShowRecruitmentEntry bool `json:"showRecruitmentEntry"`
+}
+
 type SessionUser struct {
-	ID       uint64      `json:"id"`
-	Email    string      `json:"email"`
-	Phone    *string     `json:"phone,omitempty"`
-	Nickname *string     `json:"nickname,omitempty"`
-	Role     SessionRole `json:"role"`
+	ID       uint64             `json:"id"`
+	Email    string             `json:"email"`
+	Phone    *string            `json:"phone,omitempty"`
+	Nickname *string            `json:"nickname,omitempty"`
+	Role     SessionRole        `json:"role"`
+	Portal   *SessionUserPortal `json:"portal,omitempty"`
 }
 
 type AuthResult struct {
@@ -438,6 +443,11 @@ func (s *Service) CurrentUser(ctx context.Context, token string) (*SessionUser, 
 	}
 
 	sessionUser := toSessionUser(user)
+	portal, err := s.loadSessionUserPortal(ctx, user.ID)
+	if err != nil {
+		return nil, err
+	}
+	sessionUser.Portal = portal
 	return &sessionUser, nil
 }
 
@@ -610,6 +620,61 @@ func (s *Service) loadUserWithRoleTx(tx *gorm.DB, userID uint64) (*model.User, e
 		return nil, err
 	}
 	return &user, nil
+}
+
+func (s *Service) loadSessionUserPortal(ctx context.Context, userID uint64) (*SessionUserPortal, error) {
+	showRecruitmentEntry, err := s.shouldShowRecruitmentEntry(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &SessionUserPortal{
+		ShowRecruitmentEntry: showRecruitmentEntry,
+	}, nil
+}
+
+func (s *Service) shouldShowRecruitmentEntry(ctx context.Context, userID uint64) (bool, error) {
+	hasPublishedForm, err := s.hasPublishedRecruitmentForm(ctx)
+	if err != nil {
+		return false, &ServiceError{Status: http.StatusInternalServerError, Message: "加载当前用户信息失败", Err: err}
+	}
+	if !hasPublishedForm {
+		return false, nil
+	}
+
+	inDefaultGroup, err := s.isUserInActiveDefaultGroup(ctx, userID)
+	if err != nil {
+		return false, &ServiceError{Status: http.StatusInternalServerError, Message: "加载当前用户信息失败", Err: err}
+	}
+	return inDefaultGroup, nil
+}
+
+func (s *Service) hasPublishedRecruitmentForm(ctx context.Context) (bool, error) {
+	var count int64
+	if err := s.db.WithContext(ctx).
+		Model(&model.RegistrationForm{}).
+		Where("status = ?", model.RegistrationFormStatusPublished).
+		Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func (s *Service) isUserInActiveDefaultGroup(ctx context.Context, userID uint64) (bool, error) {
+	var count int64
+	if err := s.db.WithContext(ctx).
+		Model(&model.UserGroupMember{}).
+		Joins("JOIN user_groups ON user_groups.id = user_group_members.group_id").
+		Where(
+			"user_group_members.user_id = ? AND user_groups.is_default = ? AND user_groups.status = ?",
+			userID,
+			true,
+			model.UserGroupStatusActive,
+		).
+		Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 func toSessionUser(user *model.User) SessionUser {

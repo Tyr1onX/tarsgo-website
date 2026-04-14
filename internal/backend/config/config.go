@@ -181,7 +181,7 @@ func (c AppConfig) Address() string {
 }
 
 func (c AppConfig) AdminDashboardURL() string {
-	return strings.TrimRight(c.FrontendURL, "/") + "/admin/dashboard"
+	return strings.TrimRight(c.FrontendURL, "/") + "/dashboard"
 }
 
 func (c DatabaseConfig) DSN() string {

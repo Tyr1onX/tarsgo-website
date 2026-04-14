@@ -90,7 +90,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 
 	authenticatedAPI := api.Group("")
 	authenticatedAPI.Use(middleware.RequireAuthenticated(authService))
-	authenticatedAPI.GET("/recruitment/form", registrationFormHandler.GetActiveForm)
+	authenticatedAPI.GET("/recruitment/form", registrationFormHandler.GetRecruitmentPageData)
 	authenticatedAPI.POST("/recruitment/registrations", registrationHandler.SubmitRegistration)
 
 	return engine

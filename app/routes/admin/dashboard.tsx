@@ -1,7 +1,7 @@
 export function meta() {
   return [
-    { title: "管理后台 | TARS-GO" },
-    { name: "description", content: "TARS-GO 吉甲大师战队管理后台" },
+    { title: "数据面板 | TARS-GO" },
+    { name: "description", content: "TARS-GO 吉甲大师战队统一工作台数据面板" },
   ];
 }
 
@@ -72,8 +72,8 @@ export default function Dashboard() {
   return (
     <div>
       <div className="mb-8">
-        <h1 className="text-2xl font-bold">控制台</h1>
-        <p className="text-sm text-gray-400 mt-1">欢迎回来，这里是 TARS-GO 管理后台概览</p>
+        <h1 className="text-2xl font-bold">数据面板</h1>
+        <p className="text-sm text-gray-400 mt-1">这是统一工作台中的静态演示页，当前不对接实际业务统计。</p>
       </div>
 
       {/* Stats cards */}

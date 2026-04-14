@@ -23,7 +23,7 @@ type registrationFormService interface {
 	GetForm(ctx context.Context, actor RegistrationFormActor, formID uint64) (*RegistrationFormDetail, error)
 	CreateForm(ctx context.Context, actor RegistrationFormActor, input UpsertRegistrationFormInput) (*RegistrationFormDetail, error)
 	UpdateForm(ctx context.Context, actor RegistrationFormActor, formID uint64, input UpsertRegistrationFormInput) (*RegistrationFormDetail, error)
-	GetActiveForm(ctx context.Context, actor RegistrationFormActor) (*ActiveRegistrationFormResult, error)
+	GetRecruitmentPageData(ctx context.Context, actor RegistrationFormActor) (*RecruitmentPageData, error)
 }
 
 type listRegistrationFormsQuery struct {
@@ -123,14 +123,14 @@ func (h *RegistrationFormHandler) UpdateForm(c *gin.Context) {
 	writeAPI(c, http.StatusOK, "更新报名表成功", form)
 }
 
-func (h *RegistrationFormHandler) GetActiveForm(c *gin.Context) {
-	form, err := h.service.GetActiveForm(c.Request.Context(), currentRegistrationFormActor(c))
+func (h *RegistrationFormHandler) GetRecruitmentPageData(c *gin.Context) {
+	data, err := h.service.GetRecruitmentPageData(c.Request.Context(), currentRegistrationFormActor(c))
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
 	}
 
-	writeAPI(c, http.StatusOK, "获取活动报名表成功", form)
+	writeAPI(c, http.StatusOK, "获取报名信息页数据成功", data)
 }
 
 func (h *RegistrationFormHandler) parseUpsertInput(c *gin.Context) (UpsertRegistrationFormInput, bool) {

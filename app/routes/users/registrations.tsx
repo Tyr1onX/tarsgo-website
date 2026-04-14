@@ -4,84 +4,73 @@ import {
   useMemo,
   useState,
 } from "react";
-import { Link, redirect } from "react-router";
+import { Link, redirect, useOutletContext } from "react-router";
 
-import type { Route } from "./+types/recruitment";
+import type { Route } from "./+types/registrations";
+import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import type { ApiEnvelope } from "~/lib/api-client";
 import { ApiError, buildApiUrl } from "~/lib/api-client";
-import type { AuthUser } from "~/lib/auth-client";
-import {
-  submitRecruitmentRegistration,
-  type SubmitRegistrationResult,
-} from "~/lib/registrations-client";
 import {
   isFileField,
   isOptionField,
 } from "~/lib/registration-form-schema";
 import type {
-  ActiveRecruitmentFormResult,
+  RecruitmentPageData,
+  RecruitmentPageRegistrationSummary,
   RegistrationFormField,
 } from "~/lib/registration-forms-client";
+import {
+  submitRecruitmentRegistration,
+  type SubmitRegistrationResult,
+} from "~/lib/registrations-client";
+
+const registrationStatusMeta: Record<number, { label: string; hint: string; badgeClassName: string }> = {
+  0: {
+    label: "待审核",
+    hint: "报名资料已提交，正在等待管理员处理。",
+    badgeClassName: "border-amber-500/20 bg-amber-500/10 text-amber-200",
+  },
+  1: {
+    label: "已通过",
+    hint: "报名审核已通过，请留意后续通知。",
+    badgeClassName: "border-emerald-500/20 bg-emerald-500/10 text-emerald-200",
+  },
+  2: {
+    label: "未通过",
+    hint: "本次报名未通过审核，你可以关注后续开放时间。",
+    badgeClassName: "border-rose-500/20 bg-rose-500/10 text-rose-200",
+  },
+  3: {
+    label: "已取消",
+    hint: "当前报名记录已被取消。",
+    badgeClassName: "border-gray-700 bg-gray-800 text-gray-200",
+  },
+};
 
 export function meta() {
   return [
-    { title: "报名表 | TARS-GO" },
-    { name: "description", content: "TARS-GO 在线报名表" },
+    { title: "纳新报名 | TARS-GO" },
+    { name: "description", content: "TARS-GO 统一工作台纳新报名页" },
   ];
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
   const currentPath = new URL(request.url).pathname;
 
-  let currentUser: AuthUser;
   try {
-    const payload = await fetchLoaderApi<{ user: AuthUser }>(request, "/api/me");
-    currentUser = payload.user;
+    return await fetchLoaderApi<RecruitmentPageData>(request, "/api/recruitment/form");
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
       throw redirect(`/login?redirect=${encodeURIComponent(currentPath)}`);
     }
     throw error;
   }
-
-  try {
-    const form = await fetchLoaderApi<ActiveRecruitmentFormResult>(
-      request,
-      "/api/recruitment/form",
-    );
-    return {
-      currentUser,
-      form,
-      pageMode: "form" as const,
-      unavailableMessage: null,
-      submittedMessage: null,
-    };
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 409 && isSubmittedMessage(error.message)) {
-      return {
-        currentUser,
-        form: null,
-        pageMode: "submitted" as const,
-        unavailableMessage: null,
-        submittedMessage: error.message,
-      };
-    }
-    if (error instanceof ApiError && (error.status === 404 || error.status === 409)) {
-      return {
-        currentUser,
-        form: null,
-        pageMode: "unavailable" as const,
-        unavailableMessage: error.message,
-        submittedMessage: null,
-      };
-    }
-    throw error;
-  }
 }
 
-export default function RecruitmentPage({
+export default function UserRegistrations({
   loaderData,
 }: Route.ComponentProps) {
+  const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
   const [formValues, setFormValues] = useState<Record<string, unknown>>(() =>
     buildInitialValues(loaderData.form?.fieldsSchema ?? []),
   );
@@ -91,15 +80,30 @@ export default function RecruitmentPage({
   } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submittedResult, setSubmittedResult] = useState<SubmitRegistrationResult | null>(null);
-  const isSubmittedPage = loaderData.pageMode === "submitted" || Boolean(submittedResult);
 
   useEffect(() => {
     setFormValues(buildInitialValues(loaderData.form?.fieldsSchema ?? []));
     setNotice(null);
     setSubmitting(false);
     setSubmittedResult(null);
-  }, [loaderData.form]);
+  }, [loaderData.pageMode, loaderData.form, loaderData.registrationSummary?.id]);
 
+  const submittedSummary = useMemo<RecruitmentPageRegistrationSummary | null>(() => {
+    if (submittedResult) {
+      return {
+        id: submittedResult.id,
+        formId: submittedResult.formId,
+        formTitle: loaderData.form?.title ?? loaderData.registrationSummary?.formTitle ?? "当前报名",
+        status: submittedResult.status,
+        submittedAt: submittedResult.submittedAt,
+        updatedAt: submittedResult.submittedAt,
+      };
+    }
+
+    return loaderData.registrationSummary ?? null;
+  }, [loaderData.form?.title, loaderData.registrationSummary, submittedResult]);
+
+  const pageMode = submittedSummary ? "submitted" : loaderData.pageMode;
   const scheduleText = useMemo(() => {
     if (!loaderData.form) {
       return "";
@@ -129,7 +133,7 @@ export default function RecruitmentPage({
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!loaderData.form || submittedResult) {
+    if (!loaderData.form || pageMode !== "form") {
       return;
     }
 
@@ -145,6 +149,7 @@ export default function RecruitmentPage({
         });
         return;
       }
+
       const payload = buildRegistrationSubmitPayload(
         loaderData.form.id,
         loaderData.form.fieldsSchema,
@@ -167,202 +172,184 @@ export default function RecruitmentPage({
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
-      <header className="border-b border-gray-800 bg-gray-950/90 backdrop-blur">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-4 sm:px-6">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-500 text-sm font-bold">
-              T
-            </div>
-            <div>
-              <div className="text-sm font-semibold">TARS-GO 报名系统</div>
-              <div className="text-xs text-gray-400">
-                当前账号：{loaderData.currentUser.email}
-              </div>
-            </div>
+    <div className="space-y-8">
+      <section className="rounded-xl border border-gray-800 bg-gray-900/70 px-6 py-6">
+        <p className="text-sm uppercase tracking-[0.24em] text-primary-300">报名入口</p>
+        <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h1 className="text-3xl font-semibold text-white">纳新报名</h1>
+            <p className="mt-3 max-w-2xl text-sm leading-7 text-gray-300">
+              当前账号 {currentUser.email} 可在这里完成纳新报名、查看审核状态，或确认当前是否开放报名。
+            </p>
           </div>
-
-          <div className="flex items-center gap-3 text-sm">
+          <div className="flex flex-wrap gap-3">
             <Link
-              to="/"
-              className="rounded-lg border border-gray-700 px-3 py-2 text-gray-300 transition-colors hover:bg-white/5 hover:text-white"
+              to="/dashboard/users"
+              className="rounded-lg border border-gray-700 px-4 py-2.5 text-sm text-gray-300 transition-colors hover:bg-white/5 hover:text-white"
             >
-              返回首页
+              返回用户主页
             </Link>
             <Link
-              to="/admin/dashboard"
-              className="rounded-lg bg-primary-500 px-3 py-2 font-medium text-white transition-colors hover:bg-primary-600"
+              to="/"
+              className="rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-600"
             >
-              进入后台
+              返回官网
             </Link>
           </div>
         </div>
-      </header>
+      </section>
 
-      {isSubmittedPage ? (
-        <main className="mx-auto flex min-h-[calc(100vh-73px)] max-w-4xl items-center px-4 py-10 sm:px-6">
-          <section className="w-full rounded-xl border border-emerald-500/20 bg-gray-900/80 p-8 sm:p-10">
-            <p className="text-sm uppercase tracking-[0.24em] text-emerald-300">
-              Registered
-            </p>
-            <h1 className="mt-4 text-3xl font-semibold sm:text-4xl">
-              你已完成报名
-            </h1>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-gray-300">
-              {submittedResult
-                ? "你的报名信息已经提交成功，当前状态为待审核，请留意后续通知。"
-                : loaderData.submittedMessage ?? "你已经提交过当前报名表，无需再次填写。"}
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link
-                to="/"
-                className="rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-600"
-              >
-                回到首页
-              </Link>
-              <Link
-                to="/recruitment"
-                className="rounded-lg border border-gray-700 px-4 py-2.5 text-sm text-gray-300 transition-colors hover:bg-white/5 hover:text-white"
-              >
-                刷新当前页面
-              </Link>
-            </div>
-          </section>
-        </main>
-      ) : !loaderData.form ? (
-        <main className="mx-auto flex min-h-[calc(100vh-73px)] max-w-4xl items-center px-4 py-10 sm:px-6">
-          <section className="w-full rounded-xl border border-gray-800 bg-gray-900/80 p-8 sm:p-10">
-            <p className="text-sm uppercase tracking-[0.24em] text-primary-300">
-              Recruitment
-            </p>
-            <h1 className="mt-4 text-3xl font-semibold sm:text-4xl">
-              当前暂不可报名
-            </h1>
-            <p className="mt-4 max-w-2xl text-base leading-7 text-gray-300">
-              {loaderData.unavailableMessage ?? "当前暂无可访问的报名表。"}
-            </p>
-            <div className="mt-8 flex flex-wrap gap-3">
-              <Link
-                to="/"
-                className="rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-600"
-              >
-                回到首页
-              </Link>
-              <Link
-                to="/admin/form-config"
-                className="rounded-lg border border-gray-700 px-4 py-2.5 text-sm text-gray-300 transition-colors hover:bg-white/5 hover:text-white"
-              >
-                查看后台配置
-              </Link>
-            </div>
-          </section>
-        </main>
-      ) : (
-        <main className="mx-auto max-w-6xl px-4 py-8 sm:px-6">
-          <section className="overflow-hidden rounded-xl border border-gray-800 bg-gray-900/70">
-            {loaderData.form.coverImageUrl ? (
-              <img
-                src={loaderData.form.coverImageUrl}
-                alt={loaderData.form.title}
-                className="h-56 w-full object-cover sm:h-72"
-              />
-            ) : (
-              <div className="flex h-56 w-full items-end bg-[linear-gradient(135deg,rgba(0,91,172,0.35),rgba(0,26,50,0.9))] p-6 sm:h-72 sm:p-8">
-                <div>
-                  <p className="text-sm uppercase tracking-[0.24em] text-primary-200">
-                    Recruitment
-                  </p>
-                  <h1 className="mt-3 text-3xl font-semibold sm:text-4xl">
-                    {loaderData.form.title}
-                  </h1>
-                </div>
-              </div>
-            )}
-
-            <div className="grid gap-8 px-5 py-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:px-8 lg:py-8">
-              <section>
-                {!loaderData.form.coverImageUrl ? null : (
-                  <div>
-                    <p className="text-sm uppercase tracking-[0.24em] text-primary-300">
-                      Recruitment
-                    </p>
-                    <h1 className="mt-3 text-3xl font-semibold">
-                      {loaderData.form.title}
-                    </h1>
-                  </div>
-                )}
-
-                <p className="mt-4 max-w-3xl text-base leading-7 text-gray-300">
-                  {loaderData.form.description?.trim() || "请按要求填写报名信息。"}
+      {pageMode === "submitted" && submittedSummary ? (
+        <SubmittedStateCard summary={submittedSummary} />
+      ) : pageMode === "unavailable" ? (
+        <UnavailableStateCard
+          reason={loaderData.unavailableReason ?? "当前暂无可访问的报名表。"}
+        />
+      ) : loaderData.form ? (
+        <section className="overflow-hidden rounded-xl border border-gray-800 bg-gray-900/70">
+          {loaderData.form.coverImageUrl ? (
+            <img
+              src={loaderData.form.coverImageUrl}
+              alt={loaderData.form.title}
+              className="h-56 w-full object-cover sm:h-72"
+            />
+          ) : (
+            <div className="flex h-56 w-full items-end bg-[linear-gradient(135deg,rgba(0,91,172,0.35),rgba(0,26,50,0.9))] p-6 sm:h-72 sm:p-8">
+              <div>
+                <p className="text-sm uppercase tracking-[0.24em] text-primary-200">
+                  当前报名
                 </p>
-
-                <div className="mt-6 flex flex-wrap gap-3">
-                  <InfoBadge label="开放时间" value={scheduleText} />
-                  <InfoBadge
-                    label="审核流程"
-                    value="提交后进入待审核"
-                  />
-                  <InfoBadge
-                    label="人数上限"
-                    value={
-                      loaderData.form.maxRegistrations
-                        ? `${loaderData.form.maxRegistrations} 人`
-                        : "不限"
-                    }
-                  />
-                </div>
-
-                <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-                  {loaderData.form.fieldsSchema.map((field) => (
-                    <div key={field.key} className="space-y-2">
-                      <label className="block text-sm font-medium text-gray-100">
-                        {field.label}
-                        {field.required ? (
-                          <span className="ml-2 text-xs text-rose-300">必填</span>
-                        ) : null}
-                      </label>
-                      {field.description ? (
-                        <p className="text-sm text-gray-400">{field.description}</p>
-                      ) : null}
-                      {renderFieldControl(field, formValues[field.key], updateFieldValue)}
-                    </div>
-                  ))}
-
-                  {notice ? (
-                    <div
-                      className={`rounded-lg border px-4 py-3 text-sm ${
-                        notice.type === "success"
-                          ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
-                          : "border-rose-500/20 bg-rose-500/10 text-rose-100"
-                      }`}
-                    >
-                      {notice.message}
-                    </div>
-                  ) : null}
-
-                  <button
-                    type="submit"
-                    disabled={submitting || Boolean(submittedResult)}
-                    className="rounded-lg bg-primary-500 px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
-                  >
-                    {submittedResult ? "已提交" : submitting ? "提交中..." : "提交报名"}
-                  </button>
-                </form>
-              </section>
-
-              <aside className="self-start rounded-xl border border-gray-800 bg-gray-950/60 p-5">
-                <h2 className="text-lg font-semibold">填写提醒</h2>
-                <div className="mt-5 space-y-4 text-sm leading-6 text-gray-300">
-                  <p>系统字段“姓名 / 手机号 / 邮箱 / 意向组别(1) / 意向组别(2)”由后台强制要求，提交时必须补全。</p>
-                  <p>文件与图片类字段会跟随本次报名一起上传，并通过后台受保护接口访问。</p>
-                  <p>如果当前时间不在开放窗口内，页面会自动切换为不可报名状态。</p>
-                </div>
-              </aside>
+                <h2 className="mt-3 text-3xl font-semibold text-white sm:text-4xl">
+                  {loaderData.form.title}
+                </h2>
+              </div>
             </div>
-          </section>
-        </main>
+          )}
+
+          <div className="grid gap-8 px-5 py-6 lg:grid-cols-[minmax(0,1fr)_320px] lg:px-8 lg:py-8">
+            <section>
+              {!loaderData.form.coverImageUrl ? null : (
+                <div>
+                  <p className="text-sm uppercase tracking-[0.24em] text-primary-300">
+                    当前报名
+                  </p>
+                  <h2 className="mt-3 text-3xl font-semibold text-white">
+                    {loaderData.form.title}
+                  </h2>
+                </div>
+              )}
+
+              <p className="mt-4 max-w-3xl text-base leading-7 text-gray-300">
+                {loaderData.form.description?.trim() || "请按要求填写纳新报名信息。"}
+              </p>
+
+              <div className="mt-6 flex flex-wrap gap-3">
+                <InfoBadge label="开放时间" value={scheduleText} />
+                <InfoBadge label="审核流程" value="提交后进入待审核" />
+                <InfoBadge
+                  label="人数上限"
+                  value={
+                    loaderData.form.maxRegistrations
+                      ? `${loaderData.form.maxRegistrations} 人`
+                      : "不限"
+                  }
+                />
+              </div>
+
+              <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+                {loaderData.form.fieldsSchema.map((field) => (
+                  <div key={field.key} className="space-y-2">
+                    <label className="block text-sm font-medium text-gray-100">
+                      {field.label}
+                      {field.required ? (
+                        <span className="ml-2 text-xs text-rose-300">必填</span>
+                      ) : null}
+                    </label>
+                    {field.description ? (
+                      <p className="text-sm text-gray-400">{field.description}</p>
+                    ) : null}
+                    {renderFieldControl(field, formValues[field.key], updateFieldValue)}
+                  </div>
+                ))}
+
+                {notice ? (
+                  <div
+                    className={`rounded-lg border px-4 py-3 text-sm ${
+                      notice.type === "success"
+                        ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
+                        : "border-rose-500/20 bg-rose-500/10 text-rose-100"
+                    }`}
+                  >
+                    {notice.message}
+                  </div>
+                ) : null}
+
+                <button
+                  type="submit"
+                  disabled={submitting}
+                  className="rounded-lg bg-primary-500 px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {submitting ? "提交中..." : "提交报名"}
+                </button>
+              </form>
+            </section>
+
+            <aside className="self-start rounded-xl border border-gray-800 bg-gray-950/60 p-5">
+              <h3 className="text-lg font-semibold text-white">填写提醒</h3>
+              <div className="mt-5 space-y-4 text-sm leading-6 text-gray-300">
+                <p>系统字段“姓名 / 手机号 / 邮箱 / 意向组别(1) / 意向组别(2)”为必填项。</p>
+                <p>文件与图片类字段会跟随本次报名一起上传，并通过后台受保护接口访问。</p>
+                <p>提交成功后，本页会直接切换为报名结果页，展示当前进度与提交时间。</p>
+              </div>
+            </aside>
+          </div>
+        </section>
+      ) : (
+        <UnavailableStateCard reason="当前暂无可访问的报名表。" />
       )}
     </div>
+  );
+}
+
+function SubmittedStateCard({
+  summary,
+}: {
+  summary: RecruitmentPageRegistrationSummary;
+}) {
+  const status = registrationStatusMeta[summary.status] ?? registrationStatusMeta[0];
+
+  return (
+    <section className="rounded-xl border border-emerald-500/20 bg-gray-900/80 p-8 sm:p-10">
+      <p className="text-sm uppercase tracking-[0.24em] text-emerald-300">已提交</p>
+      <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div>
+          <h2 className="text-3xl font-semibold text-white sm:text-4xl">你已完成报名</h2>
+          <p className="mt-4 max-w-2xl text-base leading-7 text-gray-300">
+            {summary.formTitle} 已提交成功。当前页面会持续展示你的审核进度与最新结果。
+          </p>
+        </div>
+        <span
+          className={`inline-flex items-center rounded-lg border px-3 py-1.5 text-sm font-medium ${status.badgeClassName}`}
+        >
+          {status.label}
+        </span>
+      </div>
+
+      <div className="mt-8 grid gap-4 sm:grid-cols-2">
+        <InfoBadge label="当前进度" value={status.hint} />
+        <InfoBadge label="提交时间" value={formatDateTime(summary.submittedAt)} />
+      </div>
+    </section>
+  );
+}
+
+function UnavailableStateCard({ reason }: { reason: string }) {
+  return (
+    <section className="rounded-xl border border-gray-800 bg-gray-900/80 p-8 sm:p-10">
+      <p className="text-sm uppercase tracking-[0.24em] text-primary-300">暂未开放</p>
+      <h2 className="mt-4 text-3xl font-semibold text-white sm:text-4xl">当前暂不可报名</h2>
+      <p className="mt-4 max-w-2xl text-base leading-7 text-gray-300">{reason}</p>
+    </section>
   );
 }
 
@@ -622,8 +609,4 @@ function getErrorMessage(error: unknown) {
     return error.message;
   }
   return "提交失败，请稍后重试。";
-}
-
-function isSubmittedMessage(message: string) {
-  return message.includes("已完成当前报名") || message.includes("已提交");
 }

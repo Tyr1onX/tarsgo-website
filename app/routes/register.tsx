@@ -117,7 +117,7 @@ export default function Register() {
             </div>
             <h1 className="text-2xl font-bold text-white mb-2">加入 TARS-GO</h1>
             <p className="text-sm text-gray-400">
-              完成邮箱验证后即可直接进入管理后台
+              完成邮箱验证后即可直接进入统一工作台
             </p>
           </div>
 
@@ -226,14 +226,14 @@ export default function Register() {
               disabled={submitting}
               className="w-full py-3 bg-primary-500 hover:bg-primary-600 disabled:bg-primary-500/60 text-white font-medium rounded-lg transition-colors disabled:cursor-not-allowed"
             >
-              {submitting ? "注册中..." : "注册并进入后台"}
+              {submitting ? "注册中..." : "注册并进入工作台"}
             </button>
           </form>
 
           <p className="mt-6 text-center text-sm text-gray-400">
             已有账号？{" "}
             <Link
-              to={redirectTo === "/admin/dashboard" ? "/login" : `/login?redirect=${encodeURIComponent(redirectTo)}`}
+              to={redirectTo === "/dashboard" ? "/login" : `/login?redirect=${encodeURIComponent(redirectTo)}`}
               className="text-primary-400 hover:text-primary-300 font-medium transition-colors"
             >
               立即登录
@@ -258,12 +258,12 @@ function isValidEmail(value: string) {
 
 function getSafeRedirectPath(value: string | null) {
   if (!value) {
-    return "/admin/dashboard";
+    return "/dashboard";
   }
 
   const trimmed = value.trim();
   if (!trimmed.startsWith("/") || trimmed.startsWith("//")) {
-    return "/admin/dashboard";
+    return "/dashboard";
   }
 
   return trimmed;

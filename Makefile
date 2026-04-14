@@ -1,5 +1,5 @@
-SHELL := cmd.exe
-.SHELLFLAGS := /C
+SHELL := powershell.exe
+.SHELLFLAGS := -NoProfile -Command
 
 DEFAULT_BACKEND_DIR := internal/backend
 .DEFAULT_GOAL := help
@@ -7,27 +7,27 @@ DEFAULT_BACKEND_DIR := internal/backend
 .PHONY: help frontend backend backend-test frontend-check install
 
 help:
-	@echo.
-	@echo Available targets:
-	@echo   make frontend       Start the frontend dev server
-	@echo   make backend        Start the Go backend server
-	@echo   make backend-test   Run backend Go tests
-	@echo   make frontend-check Run frontend type checks
-	@echo   make install        Install frontend deps and sync backend modules
-	@echo.
+	@Write-Output ""
+	@Write-Output "Available targets:"
+	@Write-Output "  make frontend       Start the frontend dev server"
+	@Write-Output "  make backend        Start the Go backend server"
+	@Write-Output "  make backend-test   Run backend Go tests"
+	@Write-Output "  make frontend-check Run frontend type checks"
+	@Write-Output "  make install        Install frontend deps and sync backend modules"
+	@Write-Output ""
 
 frontend:
-	@npm run dev
+	@npm.cmd run dev
 
 backend:
-	@cd /d "$(DEFAULT_BACKEND_DIR)" && go run ./cmd/server
+	@go -C "$(DEFAULT_BACKEND_DIR)" run ./cmd/server
 
 backend-test:
-	@cd /d "$(DEFAULT_BACKEND_DIR)" && go test ./...
+	@go -C "$(DEFAULT_BACKEND_DIR)" test ./...
 
 frontend-check:
-	@npm run typecheck
+	@npm.cmd run typecheck
 
 install:
-	@npm install
-	@cd /d "$(DEFAULT_BACKEND_DIR)" && go mod tidy
+	@npm.cmd install
+	@go -C "$(DEFAULT_BACKEND_DIR)" mod tidy

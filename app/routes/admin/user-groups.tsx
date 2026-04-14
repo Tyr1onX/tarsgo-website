@@ -18,7 +18,7 @@ import {
   type ListAdminUserGroupsInput,
 } from "~/lib/admin-user-groups-client";
 import { ApiError } from "~/lib/api-client";
-import type { AdminLayoutOutletContext } from "~/routes/admin/layout";
+import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 
 export function meta() {
   return [
@@ -173,7 +173,7 @@ function getMemberRoleMeta(role: number) {
 
 export default function UserGroups() {
   const navigate = useNavigate();
-  const { currentUser } = useOutletContext<AdminLayoutOutletContext>();
+  const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
 
   const noAdminPermission = currentUser.role.name === "user";
 
