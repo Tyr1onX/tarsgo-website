@@ -210,11 +210,52 @@ html {
 
 .motion-overlay {
   opacity: 0;
+  pointer-events: none;
   transition: opacity 320ms var(--motion-ease-standard);
 }
 
 .motion-overlay[data-state="open"] {
   opacity: 1;
+  pointer-events: auto;
+}
+
+.motion-dialog {
+  opacity: 0;
+  transform: translate3d(0, 20px, 0) scale(0.98);
+  transform-origin: center top;
+  will-change: transform, opacity;
+  transition:
+    transform 260ms var(--motion-ease-standard),
+    opacity 220ms ease;
+}
+
+.motion-dialog[data-state="open"] {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+
+.motion-dialog-surface {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+}
+
+.motion-dialog-surface::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.05),
+      rgba(255, 255, 255, 0) 48%
+    ),
+    radial-gradient(
+      circle at top right,
+      rgba(0, 91, 172, 0.12),
+      rgba(0, 91, 172, 0) 58%
+    );
+  pointer-events: none;
 }
 
 .motion-drawer-right {
@@ -372,20 +413,30 @@ html {
 
 .motion-date {
   color-scheme: dark;
+  font-variant-numeric: tabular-nums;
 }
 
 .motion-date::-webkit-calendar-picker-indicator {
   cursor: pointer;
-  opacity: 0.72;
-  filter: invert(0.9) sepia(0.08) saturate(0.2);
+  opacity: 0.86;
+  padding: 0.2rem;
+  border-radius: 0.45rem;
+  background-color: rgba(2, 6, 23, 0.82);
+  box-shadow: inset 0 0 0 1px rgba(55, 65, 81, 0.88);
+  filter: invert(0.9) sepia(0.08) saturate(0.28);
   transition:
     opacity var(--motion-duration-fast) ease,
-    transform var(--motion-duration-fast) var(--motion-ease-standard);
+    transform var(--motion-duration-fast) var(--motion-ease-standard),
+    background-color var(--motion-duration-fast) ease,
+    box-shadow var(--motion-duration-fast) ease;
 }
 
-.motion-date:hover:not(:disabled)::-webkit-calendar-picker-indicator {
-  opacity: 0.96;
+.motion-date:hover:not(:disabled)::-webkit-calendar-picker-indicator,
+.motion-date:focus-visible::-webkit-calendar-picker-indicator {
+  opacity: 1;
   transform: scale(1.04);
+  background-color: rgba(2, 6, 23, 0.96);
+  box-shadow: inset 0 0 0 1px rgba(77, 148, 219, 0.34);
 }
 
 .hero-grid-motion {

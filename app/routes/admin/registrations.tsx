@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router";
 
 import { AnimatedSelect } from "~/components/animated-select";
+import { ModalShell, useModalPresenceValue } from "~/components/modal-shell";
 import { ApiError, buildApiUrl } from "~/lib/api-client";
 import {
   deleteAdminRegistration,
@@ -74,6 +75,7 @@ export default function RegistrationsPage() {
   const [reviewingId, setReviewingId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
+  const deleteModalVisible = useModalPresenceValue(deleteTarget);
 
   const extraSubmittedFields = useMemo(() => {
     if (!detail) {
@@ -569,46 +571,38 @@ export default function RegistrationsPage() {
         </aside>
       </div>
 
-      {deleteTarget ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 transition-opacity duration-300">
-          <div className="motion-fade-up motion-surface w-full max-w-md rounded-xl border border-gray-800 bg-gray-900 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-gray-800 px-6 py-4">
-              <h2 className="text-base font-semibold text-white">确认删除</h2>
+      {deleteModalVisible ? (
+        <ModalShell
+          title="确认删除"
+          open={deleteTarget !== null}
+          onClose={() => setDeleteTarget(null)}
+          widthClass="max-w-md"
+        >
+          <div className="space-y-4">
+            <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100">
+              即将硬删除 <span className="font-medium">{deleteModalVisible.label}</span> 的报名记录，关联上传文件也会一并清理，删除后不可恢复。
+            </div>
+
+            <div className="flex justify-end gap-3">
               <button
                 type="button"
                 onClick={() => setDeleteTarget(null)}
-                disabled={deletingId === deleteTarget.id}
-                className="motion-button rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={deletingId === deleteModalVisible.id}
+                className="motion-button rounded-lg border border-gray-700 px-4 py-2.5 text-sm text-gray-300 transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                关闭
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDeleteRegistration()}
+                disabled={deletingId === deleteModalVisible.id}
+                className="motion-button rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {deletingId === deleteModalVisible.id ? "删除中..." : "确认删除"}
               </button>
             </div>
-            <div className="space-y-4 px-6 py-5">
-              <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100">
-                即将硬删除 <span className="font-medium">{deleteTarget.label}</span> 的报名记录，关联上传文件也会一并清理，删除后不可恢复。
-              </div>
-
-              <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setDeleteTarget(null)}
-                  disabled={deletingId === deleteTarget.id}
-                  className="motion-button rounded-lg border border-gray-700 px-4 py-2.5 text-sm text-gray-300 transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  取消
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleDeleteRegistration()}
-                  disabled={deletingId === deleteTarget.id}
-                  className="motion-button rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {deletingId === deleteTarget.id ? "删除中..." : "确认删除"}
-                </button>
-              </div>
-            </div>
           </div>
-        </div>
+        </ModalShell>
       ) : null}
     </div>
   );

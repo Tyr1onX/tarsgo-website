@@ -1,6 +1,5 @@
 import {
   type FormEvent,
-  type ReactNode,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -10,6 +9,8 @@ import {
 import { useNavigate, useOutletContext } from "react-router";
 
 import { AnimatedSelect } from "~/components/animated-select";
+import { MotionDateInput } from "~/components/motion-date-input";
+import { ModalShell, useModalPresence } from "~/components/modal-shell";
 import { ApiError } from "~/lib/api-client";
 import {
   buildCustomRegistrationField,
@@ -104,6 +105,7 @@ export default function FormConfigPage() {
   const [flash, setFlash] = useState<FlashState>(null);
   const fieldButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const pendingFieldSwapAnimationRef = useRef<PendingFieldSwapAnimation | null>(null);
+  const createVisible = useModalPresence(createOpen);
 
   const selectedField = useMemo(() => {
     if (!editor) {
@@ -513,7 +515,6 @@ function removeFieldOption(optionIndex: number) {
       });
 
       setCreateOpen(false);
-      setCreateState(defaultCreateState);
       setEditor(toEditorState(detail));
       setSelectedFormId(detail.id);
       setSelectedFieldKey(detail.fieldsSchema[0]?.key ?? "");
@@ -539,7 +540,10 @@ function removeFieldOption(optionIndex: number) {
         <div className="flex flex-wrap gap-3">
           <button
             type="button"
-            onClick={() => setCreateOpen(true)}
+            onClick={() => {
+              setCreateState(defaultCreateState);
+              setCreateOpen(true);
+            }}
             disabled={!canCreateOrSave}
             className="motion-button rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
@@ -800,7 +804,7 @@ function removeFieldOption(optionIndex: number) {
 
                   <div>
                     <FieldLabel label="报名开始时间" hint="留空表示立即开始" htmlFor="start-time" />
-                    <input
+                    <MotionDateInput
                       id="start-time"
                       type="datetime-local"
                       value={editor.startTime}
@@ -810,13 +814,12 @@ function removeFieldOption(optionIndex: number) {
                           startTime: event.target.value,
                         }))
                       }
-                      className={dateInputClassName()}
                     />
                   </div>
 
                   <div>
                     <FieldLabel label="报名截止时间" hint="留空表示长期开放" htmlFor="end-time" />
-                    <input
+                    <MotionDateInput
                       id="end-time"
                       type="datetime-local"
                       value={editor.endTime}
@@ -826,7 +829,6 @@ function removeFieldOption(optionIndex: number) {
                           endTime: event.target.value,
                         }))
                       }
-                      className={dateInputClassName()}
                     />
                   </div>
                 </div>
@@ -1248,16 +1250,16 @@ function removeFieldOption(optionIndex: number) {
         </section>
       </div>
 
-      {createOpen ? (
+      {createVisible ? (
         <ModalShell
           title="新建报名表"
           description="先创建一张带有系统必填字段的草稿表单，后续再补全详细配置。"
+          open={createOpen}
           onClose={() => {
             if (creating) {
               return;
             }
             setCreateOpen(false);
-            setCreateState(defaultCreateState);
           }}
         >
           <form className="space-y-4" onSubmit={handleCreateForm}>
@@ -1325,7 +1327,6 @@ function removeFieldOption(optionIndex: number) {
                     return;
                   }
                   setCreateOpen(false);
-                  setCreateState(defaultCreateState);
                 }}
                 className="motion-button rounded-lg border border-gray-700 px-4 py-2.5 text-sm text-gray-300 transition-colors hover:bg-white/5"
               >
@@ -1555,10 +1556,6 @@ function inputClassName(disabled = false) {
   }`;
 }
 
-function dateInputClassName(disabled = false) {
-  return `${inputClassName(disabled)} motion-date`;
-}
-
 function FieldLabel({
   label,
   hint,
@@ -1602,39 +1599,6 @@ function StatCard({
       <div className="text-sm text-gray-400">{label}</div>
       <div className="mt-3 text-3xl font-semibold text-white">{value}</div>
       <div className="mt-2 text-xs text-gray-500">{hint}</div>
-    </div>
-  );
-}
-
-function ModalShell({
-  title,
-  description,
-  onClose,
-  children,
-}: {
-  title: string;
-  description?: string;
-  onClose: () => void;
-  children: ReactNode;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 transition-opacity duration-300">
-      <div className="motion-fade-up motion-surface w-full max-w-2xl rounded-xl border border-gray-800 bg-gray-900 shadow-2xl">
-        <div className="flex items-start justify-between gap-4 border-b border-gray-800 px-6 py-5">
-          <div>
-            <h2 className="text-lg font-semibold text-white">{title}</h2>
-            {description ? <p className="mt-1 text-sm text-gray-400">{description}</p> : null}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="motion-button rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 transition-colors hover:bg-white/5"
-          >
-            关闭
-          </button>
-        </div>
-        <div className="px-6 py-5">{children}</div>
-      </div>
     </div>
   );
 }

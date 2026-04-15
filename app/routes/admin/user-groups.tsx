@@ -3,6 +3,11 @@ import { useNavigate, useOutletContext } from "react-router";
 
 import { AnimatedSelect } from "~/components/animated-select";
 import {
+  ModalShell,
+  useModalPresence,
+  useModalPresenceValue,
+} from "~/components/modal-shell";
+import {
   addAdminUserGroupMember,
   createAdminUserGroup,
   deleteAdminUserGroup,
@@ -216,6 +221,8 @@ export default function UserGroups() {
   const [cardActionGroupId, setCardActionGroupId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminUserGroupListItem | AdminUserGroupDetail | null>(null);
   const [deletingGroup, setDeletingGroup] = useState(false);
+  const groupModalVisible = useModalPresence(groupModalOpen);
+  const deleteModalVisible = useModalPresenceValue(deleteTarget);
 
   const averageMembers = useMemo(() => {
     if (summary.total === 0) {
@@ -876,6 +883,7 @@ export default function UserGroups() {
               label: `${size} 条/页`,
             }))}
             size="compact"
+            fitContent
           />
           <button
             type="button"
@@ -902,9 +910,10 @@ export default function UserGroups() {
       </div>
 
       {/* Create / Edit modal */}
-      {groupModalOpen ? (
+      {groupModalVisible ? (
         <ModalShell
           title={editingGroupId === null ? "新建用户组" : "编辑用户组"}
+          open={groupModalOpen}
           onClose={() => setGroupModalOpen(false)}
           widthClass="max-w-2xl"
         >
@@ -1015,17 +1024,18 @@ export default function UserGroups() {
       ) : null}
 
       {/* Delete confirm modal */}
-      {deleteTarget ? (
+      {deleteModalVisible ? (
         <ModalShell
           title="确认删除"
+          open={deleteTarget !== null}
           onClose={() => setDeleteTarget(null)}
           widthClass="max-w-md"
         >
           <div className="space-y-4">
             <div className="rounded-lg border border-red-500/20 bg-red-500/10 p-4 text-sm text-red-100">
-              即将删除 <span className="font-medium">{deleteTarget.name}</span>
-              {"memberCount" in deleteTarget && deleteTarget.memberCount > 0 ? (
-                <span>（当前 {deleteTarget.memberCount} 人，需先清空成员）</span>
+              即将删除 <span className="font-medium">{deleteModalVisible.name}</span>
+              {"memberCount" in deleteModalVisible && deleteModalVisible.memberCount > 0 ? (
+                <span>（当前 {deleteModalVisible.memberCount} 人，需先清空成员）</span>
               ) : null}
             </div>
 
@@ -1332,39 +1342,6 @@ function FieldLabel({ label, hint, htmlFor }: { label: string; hint?: string; ht
 
 function inputClassName(disabled = false) {
   return `motion-field w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
-}
-
-function ModalShell({
-  title,
-  onClose,
-  children,
-  widthClass = "max-w-2xl",
-}: {
-  title: string;
-  onClose: () => void;
-  children: ReactNode;
-  widthClass?: string;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 transition-opacity duration-300">
-      <div className={`motion-fade-up motion-surface w-full ${widthClass} rounded-xl bg-gray-900 border border-gray-800 shadow-2xl`}>
-        <div className="flex items-center justify-between border-b border-gray-800 px-6 py-4">
-          <h2 className="text-base font-semibold text-white">{title}</h2>
-          <button
-            type="button"
-            aria-label="关闭"
-            onClick={onClose}
-            className="motion-button rounded-lg p-1.5 text-gray-400 transition-colors hover:text-white hover:bg-white/5 cursor-pointer"
-          >
-            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <div className="px-6 py-5">{children}</div>
-      </div>
-    </div>
-  );
 }
 
 function StatBlock({ label, value }: { label: string; value: ReactNode }) {

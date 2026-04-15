@@ -1,7 +1,13 @@
-import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router";
 
 import { AnimatedSelect } from "~/components/animated-select";
+import { MotionDateInput } from "~/components/motion-date-input";
+import {
+  ModalShell,
+  useModalPresence,
+  useModalPresenceValue,
+} from "~/components/modal-shell";
 import {
   createAdminUser,
   getAdminUser,
@@ -247,6 +253,9 @@ export default function Users() {
 
   const [statusModalTarget, setStatusModalTarget] = useState<AdminUserListItem | AdminUserDetail | null>(null);
   const [togglingStatus, setTogglingStatus] = useState(false);
+  const createModalVisible = useModalPresence(createModalOpen);
+  const passwordModalVisible = useModalPresenceValue(passwordModalTarget);
+  const statusModalVisible = useModalPresenceValue(statusModalTarget);
 
   const editableRoleOptions = useMemo(
     () => roles.filter((item) => item.editableByCurrentActor),
@@ -822,6 +831,7 @@ export default function Users() {
                 label: `${value} / 页`,
               }))}
               size="compact"
+              fitContent
             />
             <button
               type="button"
@@ -848,10 +858,11 @@ export default function Users() {
         </div>
       </div>
 
-      {createModalOpen ? (
+      {createModalVisible ? (
         <ModalShell
           title="新建账号"
           description="后台直接创建邮箱密码账号，默认创建后立即可登录。GitHub 绑定仅支持用户自行登录后生成。"
+          open={createModalOpen}
           onClose={() => setCreateModalOpen(false)}
         >
           <form onSubmit={handleCreateUser} className="space-y-5">
@@ -952,11 +963,11 @@ export default function Users() {
               </div>
               <div>
                 <FieldLabel label="生日" />
-                <input
+                <MotionDateInput
                   type="date"
                   value={createForm.birthday}
                   onChange={(event) => setCreateForm((previous) => ({ ...previous, birthday: event.target.value }))}
-                  className={DateInputClassName()}
+                  className={InputClassName()}
                 />
               </div>
               <div>
@@ -995,10 +1006,11 @@ export default function Users() {
         </ModalShell>
       ) : null}
 
-      {passwordModalTarget ? (
+      {passwordModalVisible ? (
         <ModalShell
           title="重置密码"
-          description={`直接为 ${passwordModalTarget.email} 设置新的本地密码。旧密码会立即失效。`}
+          description={`直接为 ${passwordModalVisible.email} 设置新的本地密码。旧密码会立即失效。`}
+          open={passwordModalTarget !== null}
           onClose={() => {
             setPasswordModalTarget(null);
             setPasswordValue("");
@@ -1046,16 +1058,17 @@ export default function Users() {
         </ModalShell>
       ) : null}
 
-      {statusModalTarget ? (
+      {statusModalVisible ? (
         <ModalShell
-          title={statusModalTarget.status === 1 ? "停用账号" : "启用账号"}
-          description={`目标账号：${statusModalTarget.email}`}
+          title={statusModalVisible.status === 1 ? "停用账号" : "启用账号"}
+          description={`目标账号：${statusModalVisible.email}`}
+          open={statusModalTarget !== null}
           onClose={() => setStatusModalTarget(null)}
           widthClass="max-w-lg"
         >
           <div className="space-y-5">
             <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm leading-6 text-red-100">
-              {statusModalTarget.status === 1
+              {statusModalVisible.status === 1
                 ? "停用后将立即阻断新登录，并使当前会话在下次 /api/me 校验时失效。系统不会物理删除该账号。"
                 : "启用后账号可重新使用邮箱密码、验证码或 GitHub 登录。"}
             </div>
@@ -1076,7 +1089,7 @@ export default function Users() {
               >
                 {togglingStatus
                   ? "提交中..."
-                  : statusModalTarget.status === 1
+                  : statusModalVisible.status === 1
                     ? "确认停用"
                     : "确认启用"}
               </button>
@@ -1299,11 +1312,11 @@ export default function Users() {
                       </div>
                       <div>
                         <FieldLabel label="生日" />
-                        <input
+                        <MotionDateInput
                           type="date"
                           value={editForm.birthday}
                           onChange={(event) => setEditForm((previous) => ({ ...previous, birthday: event.target.value }))}
-                          className={DateInputClassName(!selectedCanMutate)}
+                          className={InputClassName(!selectedCanMutate)}
                           disabled={!selectedCanMutate}
                         />
                       </div>
@@ -1362,41 +1375,6 @@ function getErrorMessage(error: unknown) {
     return error.message;
   }
   return "请求失败，请稍后重试。";
-}
-
-function ModalShell({
-  title,
-  description,
-  onClose,
-  children,
-  widthClass = "max-w-2xl",
-}: {
-  title: string;
-  description?: string;
-  onClose: () => void;
-  children: ReactNode;
-  widthClass?: string;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 transition-opacity duration-300">
-      <div className={`motion-fade-up motion-surface w-full ${widthClass} rounded-2xl border border-gray-800 bg-gray-900 shadow-2xl`}>
-        <div className="flex items-start justify-between gap-4 border-b border-gray-800 px-6 py-5">
-          <div>
-            <h2 className="text-lg font-semibold text-white">{title}</h2>
-            {description ? <p className="mt-1 text-sm text-gray-400">{description}</p> : null}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="motion-button rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 hover:bg-white/5"
-          >
-            关闭
-          </button>
-        </div>
-        <div className="px-6 py-5">{children}</div>
-      </div>
-    </div>
-  );
 }
 
 function StatCard({ label, value, hint }: { label: string; value: number; hint: string }) {
@@ -1462,8 +1440,4 @@ function FieldLabel({ label }: { label: string }) {
 
 function InputClassName(disabled = false) {
   return `motion-field w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
-}
-
-function DateInputClassName(disabled = false) {
-  return `${InputClassName(disabled)} motion-date`;
 }

@@ -24,6 +24,7 @@ type AnimatedSelectProps = {
   disabled?: boolean;
   placeholder?: string;
   size?: "default" | "compact";
+  fitContent?: boolean;
 };
 
 const PANEL_EXIT_DURATION_MS = 180;
@@ -37,6 +38,7 @@ export function AnimatedSelect({
   disabled = false,
   placeholder = "请选择",
   size = "default",
+  fitContent = false,
 }: AnimatedSelectProps) {
   const generatedId = useId();
   const triggerId = id ?? `animated-select-${generatedId}`;
@@ -74,6 +76,9 @@ export function AnimatedSelect({
       : "min-h-[46px] rounded-lg px-3 py-2.5 text-sm";
   const panelSizeClass = size === "compact" ? "p-1.5" : "p-2";
   const optionSizeClass = size === "compact" ? "px-3 py-2 text-sm" : "px-3 py-2.5 text-sm";
+  const triggerWidthClass = fitContent ? "w-auto min-w-[88px]" : "w-full";
+  const triggerLabelClass = fitContent ? "whitespace-nowrap" : "min-w-0 flex-1 truncate";
+  const optionLabelClass = fitContent ? "whitespace-nowrap" : "min-w-0 flex-1 truncate";
 
   function updatePanelPosition() {
     const rect = triggerRef.current?.getBoundingClientRect();
@@ -212,7 +217,7 @@ export function AnimatedSelect({
   const triggerLabel = selectedOption?.label ?? placeholder;
 
   return (
-    <div ref={wrapperRef} className="motion-select-shell">
+    <div ref={wrapperRef} className={`motion-select-shell ${fitContent ? "w-auto flex-none" : ""}`}>
       <button
         ref={triggerRef}
         id={triggerId}
@@ -229,11 +234,11 @@ export function AnimatedSelect({
           }
         }}
         onKeyDown={handleTriggerKeyDown}
-        className={`motion-select-trigger motion-field flex w-full items-center justify-between gap-3 border border-gray-700 bg-gray-800 text-left text-white focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${triggerSizeClass} ${
+        className={`motion-select-trigger motion-field flex items-center justify-between gap-3 border border-gray-700 bg-gray-800 text-left text-white focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${triggerWidthClass} ${triggerSizeClass} ${
           disabled ? "cursor-not-allowed opacity-60" : ""
         }`}
       >
-        <span className="min-w-0 flex-1 truncate">{triggerLabel}</span>
+        <span className={triggerLabelClass}>{triggerLabel}</span>
         <span className="motion-select-chevron shrink-0 text-gray-400" aria-hidden="true">
           <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none">
             <path
@@ -256,14 +261,23 @@ export function AnimatedSelect({
               style={{
                 top: `${panelStyle.top}px`,
                 left: `${panelStyle.left}px`,
-                width: `${panelStyle.width}px`,
+                ...(fitContent
+                  ? {
+                      minWidth: `${panelStyle.width}px`,
+                      maxWidth: "calc(100vw - 2rem)",
+                    }
+                  : {
+                      width: `${panelStyle.width}px`,
+                    }),
               }}
             >
               <div
                 id={listboxId}
                 role="listbox"
                 aria-label={ariaLabel}
-                className={`max-h-72 overflow-y-auto rounded-xl border border-gray-700 bg-gray-900/96 shadow-2xl backdrop-blur ${panelSizeClass}`}
+                className={`max-h-72 overflow-y-auto rounded-xl border border-gray-700 bg-gray-900/96 shadow-2xl backdrop-blur ${
+                  fitContent ? "inline-block w-max min-w-full" : "w-full"
+                } ${panelSizeClass}`}
               >
                 {options.map((option) => {
                   const optionKey = String(option.value);
@@ -318,7 +332,7 @@ export function AnimatedSelect({
                         option.disabled ? "cursor-not-allowed opacity-45" : ""
                       }`}
                     >
-                      <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                      <span className={optionLabelClass}>{option.label}</span>
                       <span
                         className={`text-primary-300 transition-opacity duration-150 ${
                           selected ? "opacity-100" : "opacity-0"
