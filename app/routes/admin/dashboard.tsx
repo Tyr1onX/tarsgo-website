@@ -70,18 +70,22 @@ export default function Dashboard() {
   const maxCount = Math.max(...groupDistribution.map((g) => g.count));
 
   return (
-    <div>
-      <div className="mb-8">
+    <div className="space-y-8">
+      <div className="motion-fade-up">
         <h1 className="text-2xl font-bold">数据面板</h1>
         <p className="text-sm text-gray-400 mt-1">这是统一工作台中的静态演示页，当前不对接实际业务统计。</p>
       </div>
 
       {/* Stats cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
-        {stats.map((stat) => {
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        {stats.map((stat, index) => {
           const colors = colorMap[stat.color];
           return (
-            <div key={stat.label} className="p-5 rounded-xl bg-gray-900 border border-gray-800">
+            <div
+              key={stat.label}
+              className="motion-fade-up motion-surface rounded-xl border border-gray-800 bg-gray-900 p-5"
+              style={{ animationDelay: `${80 + index * 70}ms` }}
+            >
               <div className="flex items-center justify-between mb-4">
                 <div className={`w-10 h-10 rounded-lg ${colors.iconBg} flex items-center justify-center ${colors.text}`}>
                   <StatIcon type={stat.icon} />
@@ -101,13 +105,17 @@ export default function Dashboard() {
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Recent activity */}
-        <div className="lg:col-span-2 rounded-xl bg-gray-900 border border-gray-800">
+        <div className="motion-fade-up lg:col-span-2 rounded-xl border border-gray-800 bg-gray-900" style={{ animationDelay: "140ms" }}>
           <div className="px-5 py-4 border-b border-gray-800">
             <h2 className="font-semibold">最近动态</h2>
           </div>
           <div className="divide-y divide-gray-800">
             {recentActivity.map((item, i) => (
-              <div key={i} className="px-5 py-4 flex items-center gap-4">
+              <div
+                key={i}
+                className="motion-fade-up flex items-center gap-4 px-5 py-4 transition-colors hover:bg-white/[0.03]"
+                style={{ animationDelay: `${180 + i * 60}ms` }}
+              >
                 <div className="w-9 h-9 rounded-full bg-primary-500/15 flex items-center justify-center shrink-0">
                   <span className="text-primary-400 text-xs font-medium">
                     {item.user.charAt(0)}
@@ -129,13 +137,17 @@ export default function Dashboard() {
         </div>
 
         {/* Group distribution */}
-        <div className="rounded-xl bg-gray-900 border border-gray-800">
+        <div className="motion-fade-up rounded-xl border border-gray-800 bg-gray-900" style={{ animationDelay: "200ms" }}>
           <div className="px-5 py-4 border-b border-gray-800">
             <h2 className="font-semibold">组别分布</h2>
           </div>
           <div className="p-5 space-y-4">
-            {groupDistribution.map((group) => (
-              <div key={group.name}>
+            {groupDistribution.map((group, index) => (
+              <div
+                key={group.name}
+                className="motion-fade-up rounded-lg px-1 py-1 transition-colors hover:bg-white/[0.03]"
+                style={{ animationDelay: `${220 + index * 45}ms` }}
+              >
                 <div className="flex items-center justify-between text-sm mb-1.5">
                   <span className="text-gray-300">{group.name}</span>
                   <span className="text-gray-500">{group.count} 人</span>
