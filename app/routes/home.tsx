@@ -344,45 +344,58 @@ export default function Home() {
       {/* Hero Section */}
       <section
         id="hero"
-        className="relative min-h-screen flex items-center justify-center overflow-hidden"
+        className="relative flex min-h-screen items-center justify-center overflow-hidden pt-16"
       >
         {/* Background grid pattern */}
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(0,91,172,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,91,172,0.03)_1px,transparent_1px)] bg-[size:64px_64px]" />
+        <div className="hero-grid-motion absolute inset-0 bg-[linear-gradient(rgba(0,91,172,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,91,172,0.03)_1px,transparent_1px)] bg-[size:64px_64px]" />
         <div className="absolute inset-0 bg-gradient-to-b from-gray-950 via-transparent to-gray-950" />
 
         {/* Glow effect */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[600px] h-[600px] bg-primary-500/10 rounded-full blur-[128px]" />
+        <div className="hero-glow-motion absolute left-1/2 top-1/2 h-[600px] w-[600px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary-500/10 blur-[128px]" />
+        <div className="hero-glow-motion absolute left-[18%] top-[32%] h-48 w-48 rounded-full bg-sky-400/10 blur-[96px]" />
 
-        <div className="relative z-10 max-w-5xl mx-auto px-4 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border border-primary-500/30 bg-primary-500/10 text-primary-300 text-sm mb-8">
+        <div className="relative z-10 mx-auto max-w-5xl px-4 text-center">
+          <div className="motion-fade-up motion-surface mb-8 inline-flex items-center gap-2 rounded-full border border-primary-500/30 bg-primary-500/10 px-4 py-2 text-sm text-primary-300">
             <span className="w-2 h-2 rounded-full bg-accent-400 animate-pulse" />
             RoboMaster 机甲大师赛参赛战队
           </div>
 
-          <h1 className="text-5xl sm:text-7xl lg:text-8xl font-bold tracking-tight mb-6">
+          <h1
+            className="motion-fade-up mb-6 text-5xl font-bold tracking-tight sm:text-7xl lg:text-8xl"
+            style={{ animationDelay: "80ms" }}
+          >
             <span className="bg-gradient-to-r from-primary-300 via-primary-400 to-primary-500 bg-clip-text text-transparent">
               TARS-GO
             </span>
           </h1>
 
-          <p className="text-xl sm:text-2xl text-gray-400 mb-4">
+          <p
+            className="motion-fade-up mb-4 text-xl text-gray-400 sm:text-2xl"
+            style={{ animationDelay: "160ms" }}
+          >
             吉林大学 吉甲大师战队
           </p>
 
-          <p className="text-lg text-primary-300/80 font-medium tracking-widest mb-12">
+          <p
+            className="motion-fade-up mb-12 text-lg font-medium tracking-widest text-primary-300/80"
+            style={{ animationDelay: "240ms" }}
+          >
             枕戈坐甲 奋勇前行
           </p>
 
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+          <div
+            className="motion-fade-up flex flex-col items-center justify-center gap-4 sm:flex-row"
+            style={{ animationDelay: "320ms" }}
+          >
             <a
               href="#about"
-              className="px-8 py-3 bg-primary-500 hover:bg-primary-600 text-white font-medium rounded-lg transition-colors"
+              className="motion-button rounded-lg bg-primary-500 px-8 py-3 font-medium text-white hover:bg-primary-600"
             >
               了解更多
             </a>
             <a
               href="#robots"
-              className="px-8 py-3 border border-gray-700 hover:border-gray-500 text-gray-300 hover:text-white font-medium rounded-lg transition-colors"
+              className="motion-button rounded-lg border border-gray-700 px-8 py-3 font-medium text-gray-300 hover:border-gray-500 hover:text-white"
             >
               查看机器人
             </a>
@@ -390,9 +403,12 @@ export default function Home() {
         </div>
 
         {/* Scroll indicator */}
-        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 animate-bounce">
+        <div
+          className="motion-fade-up absolute bottom-8 left-1/2 -translate-x-1/2"
+          style={{ animationDelay: "420ms" }}
+        >
           <svg
-            className="w-6 h-6 text-gray-500"
+            className="motion-float w-6 h-6 text-gray-500"
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={1.5}
@@ -410,13 +426,13 @@ export default function Home() {
       {/* About Section */}
       <section id="about" className="py-24 sm:py-32">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-3xl mx-auto text-center mb-16">
+          <div className="motion-fade-up mb-16 mx-auto max-w-3xl text-center">
             <h2 className="text-3xl sm:text-4xl font-bold mb-6">关于我们</h2>
             <div className="w-16 h-1 bg-primary-500 mx-auto mb-8 rounded-full" />
           </div>
 
           <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div className="space-y-6">
+            <div className="motion-fade-up space-y-6" style={{ animationDelay: "80ms" }}>
               <p className="text-gray-300 leading-relaxed text-lg">
                 <strong className="text-white">TARS-GO战队</strong>
                 成立于2018年底，由吉林大学通信工程学院组建，是吉林大学RoboMaster机甲大师赛的正式参赛战队。
@@ -434,23 +450,35 @@ export default function Home() {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div className="p-6 rounded-2xl bg-gray-900 border border-gray-800">
+              <div
+                className="motion-fade-up motion-surface rounded-2xl border border-gray-800 bg-gray-900 p-6"
+                style={{ animationDelay: "120ms" }}
+              >
                 <div className="text-3xl font-bold text-primary-400 mb-2">
                   2018
                 </div>
                 <div className="text-sm text-gray-400">建队年份</div>
               </div>
-              <div className="p-6 rounded-2xl bg-gray-900 border border-gray-800">
+              <div
+                className="motion-fade-up motion-surface rounded-2xl border border-gray-800 bg-gray-900 p-6"
+                style={{ animationDelay: "200ms" }}
+              >
                 <div className="text-3xl font-bold text-accent-400 mb-2">
                   35+
                 </div>
                 <div className="text-sm text-gray-400">团队成员</div>
               </div>
-              <div className="p-6 rounded-2xl bg-gray-900 border border-gray-800">
+              <div
+                className="motion-fade-up motion-surface rounded-2xl border border-gray-800 bg-gray-900 p-6"
+                style={{ animationDelay: "280ms" }}
+              >
                 <div className="text-3xl font-bold text-sky-400 mb-2">7</div>
                 <div className="text-sm text-gray-400">技术组别</div>
               </div>
-              <div className="p-6 rounded-2xl bg-gray-900 border border-gray-800">
+              <div
+                className="motion-fade-up motion-surface rounded-2xl border border-gray-800 bg-gray-900 p-6"
+                style={{ animationDelay: "360ms" }}
+              >
                 <div className="text-3xl font-bold text-amber-400 mb-2">
                   5+
                 </div>
@@ -462,9 +490,9 @@ export default function Home() {
       </section>
 
       {/* Robots Section */}
-      <section id="robots" className="py-24 sm:py-32 bg-gray-900/50">
+      <section id="robots" className="bg-gray-900/50 py-24 sm:py-32">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-3xl mx-auto text-center mb-16">
+          <div className="motion-fade-up mb-16 mx-auto max-w-3xl text-center">
             <h2 className="text-3xl sm:text-4xl font-bold mb-6">战斗兵种</h2>
             <div className="w-16 h-1 bg-primary-500 mx-auto mb-8 rounded-full" />
             <p className="text-gray-400 text-lg">
@@ -473,10 +501,11 @@ export default function Home() {
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {robots.map((robot) => (
+            {robots.map((robot, index) => (
               <div
                 key={robot.name}
-                className="group p-6 rounded-2xl bg-gray-900 border border-gray-800 hover:border-primary-500/50 transition-all duration-300"
+                className="motion-fade-up motion-surface group rounded-2xl border border-gray-800 bg-gray-900 p-6"
+                style={{ animationDelay: `${80 + index * 70}ms` }}
               >
                 <div className="flex items-center gap-4 mb-4">
                   <div className="shrink-0">{robot.icon}</div>
@@ -497,7 +526,7 @@ export default function Home() {
       {/* Achievements Section */}
       <section id="achievements" className="py-24 sm:py-32">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-3xl mx-auto text-center mb-16">
+          <div className="motion-fade-up mb-16 mx-auto max-w-3xl text-center">
             <h2 className="text-3xl sm:text-4xl font-bold mb-6">荣誉成就</h2>
             <div className="w-16 h-1 bg-primary-500 mx-auto mb-8 rounded-full" />
           </div>
@@ -509,7 +538,11 @@ export default function Home() {
 
               <div className="space-y-8">
                 {achievements.map((item, index) => (
-                  <div key={item.year} className="relative flex gap-6">
+                  <div
+                    key={item.year}
+                    className="motion-fade-up relative flex gap-6"
+                    style={{ animationDelay: `${80 + index * 90}ms` }}
+                  >
                     {/* Dot */}
                     <div className="shrink-0 w-12 flex items-start justify-center pt-1">
                       <div
@@ -539,9 +572,9 @@ export default function Home() {
       </section>
 
       {/* Team Section */}
-      <section id="team" className="py-24 sm:py-32 bg-gray-900/50">
+      <section id="team" className="bg-gray-900/50 py-24 sm:py-32">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="max-w-3xl mx-auto text-center mb-16">
+          <div className="motion-fade-up mb-16 mx-auto max-w-3xl text-center">
             <h2 className="text-3xl sm:text-4xl font-bold mb-6">团队架构</h2>
             <div className="w-16 h-1 bg-primary-500 mx-auto mb-8 rounded-full" />
             <p className="text-gray-400 text-lg">
@@ -550,10 +583,11 @@ export default function Home() {
           </div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {teamGroups.map((group) => (
+            {teamGroups.map((group, index) => (
               <div
                 key={group.name}
-                className="p-5 rounded-xl bg-gray-900 border border-gray-800 hover:border-gray-700 transition-colors"
+                className="motion-fade-up motion-surface rounded-xl border border-gray-800 bg-gray-900 p-5"
+                style={{ animationDelay: `${80 + index * 70}ms` }}
               >
                 <h3 className={`text-lg font-semibold mb-2 ${group.color}`}>
                   {group.name}
@@ -566,11 +600,11 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="py-12 border-t border-gray-800">
+      <footer className="border-t border-gray-800 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="motion-fade-up flex flex-col items-center justify-between gap-6 md:flex-row">
             <div className="flex items-center gap-3">
-              <div className="w-8 h-8 rounded-lg bg-primary-500 flex items-center justify-center">
+              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary-500 shadow-lg shadow-primary-500/20">
                 <span className="text-white font-bold text-sm">T</span>
               </div>
               <span className="text-white font-bold tracking-wide">
@@ -587,7 +621,10 @@ export default function Home() {
             </div>
           </div>
 
-          <div className="mt-8 pt-8 border-t border-gray-800/50 text-center text-sm text-gray-600">
+          <div
+            className="motion-fade-up mt-8 border-t border-gray-800/50 pt-8 text-center text-sm text-gray-600"
+            style={{ animationDelay: "120ms" }}
+          >
             &copy; {new Date().getFullYear()} TARS-GO 吉林大学吉甲大师战队
           </div>
         </div>
