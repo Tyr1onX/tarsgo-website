@@ -298,7 +298,7 @@ export default function RegistrationsPage() {
         </div>
       </div>
 
-      <section className="motion-fade-up motion-surface rounded-xl border border-gray-800 bg-gray-900/70 p-4" style={{ animationDelay: "120ms" }}>
+      <section className="motion-fade-up motion-panel-soft rounded-xl border border-gray-800 bg-gray-900/70 p-4" style={{ animationDelay: "120ms" }}>
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1.4fr)_220px_240px]">
           <input
             value={keyword}
@@ -309,7 +309,7 @@ export default function RegistrationsPage() {
           <select
             value={statusFilter}
             onChange={(event) => setStatusFilter(event.target.value)}
-            className={inputClassName()}
+            className={selectClassName()}
           >
             {statusOptions.map((option) => (
               <option key={option.value} value={option.value}>
@@ -320,7 +320,7 @@ export default function RegistrationsPage() {
           <select
             value={formIdFilter}
             onChange={(event) => setFormIdFilter(event.target.value)}
-            className={inputClassName()}
+            className={selectClassName()}
           >
             <option value="">全部报名表</option>
             {forms.map((form) => (
@@ -829,7 +829,11 @@ function handlePageError(
 }
 
 function inputClassName() {
-  return "w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 transition-[border-color,background-color,box-shadow] duration-200 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20";
+  return "motion-field w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20";
+}
+
+function selectClassName() {
+  return `${inputClassName()} motion-select`;
 }
 
 function StatusBadge({ status }: { status: number }) {
@@ -862,7 +866,7 @@ function SummaryCard({
   accent: string;
 }) {
   return (
-    <div className="motion-surface rounded-xl border border-gray-800 bg-gray-900/70 p-5">
+    <div className="motion-stat-surface rounded-xl border border-gray-800 bg-gray-900/70 p-5">
       <div className="text-sm text-gray-400">{label}</div>
       <div className={`mt-3 text-3xl font-semibold ${accent}`}>{value}</div>
     </div>

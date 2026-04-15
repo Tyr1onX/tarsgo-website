@@ -2,7 +2,9 @@ import {
   type FormEvent,
   type ReactNode,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { useNavigate, useOutletContext } from "react-router";
@@ -94,6 +96,8 @@ export default function FormConfigPage() {
   const [createState, setCreateState] = useState<CreateFormState>(defaultCreateState);
   const [creating, setCreating] = useState(false);
   const [flash, setFlash] = useState<FlashState>(null);
+  const fieldButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const previousFieldPositionsRef = useRef<Record<string, DOMRect>>({});
 
   const selectedField = useMemo(() => {
     if (!editor) {
@@ -120,6 +124,45 @@ const requiredFieldCount = useMemo(
     () => editor?.fieldsSchema.filter((field) => field.required).length ?? 0,
     [editor],
   );
+
+  useLayoutEffect(() => {
+    const nextPositions: Record<string, DOMRect> = {};
+
+    for (const field of editor?.fieldsSchema ?? []) {
+      const node = fieldButtonRefs.current[field.key];
+      if (node) {
+        nextPositions[field.key] = node.getBoundingClientRect();
+      }
+    }
+
+    const previousPositions = previousFieldPositionsRef.current;
+
+    for (const [key, nextBox] of Object.entries(nextPositions)) {
+      const previousBox = previousPositions[key];
+      const node = fieldButtonRefs.current[key];
+      if (!previousBox || !node) {
+        continue;
+      }
+
+      const deltaY = previousBox.top - nextBox.top;
+      if (Math.abs(deltaY) < 1) {
+        continue;
+      }
+
+      node.animate(
+        [
+          { transform: `translateY(${deltaY}px)` },
+          { transform: "translateY(0)" },
+        ],
+        {
+          duration: 280,
+          easing: "cubic-bezier(0.22, 1, 0.36, 1)",
+        },
+      );
+    }
+
+    previousFieldPositionsRef.current = nextPositions;
+  }, [editor?.fieldsSchema]);
 
   const canCreateOrSave = currentUser.role.name !== "user";
 
@@ -517,7 +560,7 @@ function removeFieldOption(optionIndex: number) {
 
       <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
         <aside className="space-y-4">
-          <section className="motion-fade-up motion-surface rounded-xl border border-gray-800 bg-gray-900/70 p-4" style={{ animationDelay: "120ms" }}>
+          <section className="motion-fade-up motion-panel-soft rounded-xl border border-gray-800 bg-gray-900/70 p-4" style={{ animationDelay: "120ms" }}>
             <div className="grid gap-3">
               <div>
                 <FieldLabel label="搜索表单" htmlFor="form-keyword" />
@@ -536,7 +579,7 @@ function removeFieldOption(optionIndex: number) {
                   id="status-filter"
                   value={statusFilter}
                   onChange={(event) => setStatusFilter(event.target.value)}
-                  className={inputClassName()}
+                  className={selectClassName()}
                 >
                   <option value="">全部状态</option>
                   {REGISTRATION_FORM_STATUS_OPTIONS.map((option) => (
@@ -604,7 +647,7 @@ function removeFieldOption(optionIndex: number) {
           </section>
         </aside>
 
-        <section className="motion-fade-up motion-surface rounded-xl border border-gray-800 bg-gray-900/70 p-5 sm:p-6" style={{ animationDelay: "180ms" }}>
+        <section className="motion-fade-up motion-panel-soft rounded-xl border border-gray-800 bg-gray-900/70 p-5 sm:p-6" style={{ animationDelay: "180ms" }}>
           {!editor ? (
             <div className="flex min-h-[420px] items-center justify-center rounded-lg border border-dashed border-gray-800 bg-gray-950/40 px-6 py-10 text-center text-sm text-gray-500">
               {loadingList || detailLoading ? "正在加载报名表..." : "请选择左侧报名表开始编辑。"}
@@ -731,7 +774,7 @@ function removeFieldOption(optionIndex: number) {
                           status: event.target.value,
                         }))
                       }
-                      className={inputClassName()}
+                      className={selectClassName()}
                     >
                       {REGISTRATION_FORM_STATUS_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -753,7 +796,7 @@ function removeFieldOption(optionIndex: number) {
                           startTime: event.target.value,
                         }))
                       }
-                      className={inputClassName()}
+                      className={dateInputClassName()}
                     />
                   </div>
 
@@ -769,7 +812,7 @@ function removeFieldOption(optionIndex: number) {
                           endTime: event.target.value,
                         }))
                       }
-                      className={inputClassName()}
+                      className={dateInputClassName()}
                     />
                   </div>
                 </div>
@@ -802,13 +845,16 @@ function removeFieldOption(optionIndex: number) {
                       return (
                         <button
                           key={field.key}
+                          ref={(node) => {
+                            fieldButtonRefs.current[field.key] = node;
+                          }}
                           type="button"
                           onClick={() => setSelectedFieldKey(field.key)}
                           className={`motion-button w-full rounded-lg border px-4 py-4 text-left transition-colors ${
                             active
                               ? "border-primary-500/40 bg-primary-500/10"
                               : "border-gray-800 bg-gray-950/60 hover:border-gray-700 hover:bg-gray-950"
-                          }`}
+                          } will-change-transform`}
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
@@ -877,7 +923,7 @@ function removeFieldOption(optionIndex: number) {
                     })}
                   </div>
 
-                  <div className="motion-surface space-y-5 rounded-lg border border-gray-800 bg-gray-950/50 p-4">
+                  <div className="motion-panel-soft space-y-5 rounded-lg border border-gray-800 bg-gray-950/50 p-4">
                     {selectedField ? (
                       <>
                         <div>
@@ -925,7 +971,7 @@ function removeFieldOption(optionIndex: number) {
                                 }));
                                 setSelectedFieldKey(nextKey || selectedField.key);
                               }}
-                              className={inputClassName(
+                              className={selectClassName(
                                 isLockedRegistrationField(selectedField.key),
                               )}
                             />
@@ -1157,7 +1203,7 @@ function removeFieldOption(optionIndex: number) {
                   </span>
                 </div>
 
-                <div className="motion-surface space-y-4 rounded-xl border border-gray-800 bg-gray-950/60 p-5">
+                <div className="motion-panel-soft space-y-4 rounded-xl border border-gray-800 bg-gray-950/60 p-5">
                   {editor.coverImageUrl ? (
                     <img
                       src={editor.coverImageUrl}
@@ -1379,7 +1425,7 @@ function formatSchedule(start?: string | null, end?: string | null) {
 
 function renderPreviewControl(field: RegistrationFormField) {
   const className =
-    "w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-gray-400";
+    "motion-field w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-gray-400";
 
   if (field.type === "textarea") {
     return (
@@ -1396,7 +1442,7 @@ function renderPreviewControl(field: RegistrationFormField) {
   if (isOptionField(field.type)) {
     if (field.type === "select" || field.type === "user_group_select") {
       return (
-        <select value="" disabled className={className}>
+        <select value="" disabled className={`${className} motion-select`}>
           <option value="">请选择</option>
           {field.options?.map((option) => (
             <option key={option.value} value={option.value}>
@@ -1497,9 +1543,17 @@ function handlePageError(
 }
 
 function inputClassName(disabled = false) {
-  return `w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 transition-[border-color,background-color,box-shadow] duration-200 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${
+  return `motion-field w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${
     disabled ? "cursor-not-allowed opacity-60" : ""
   }`;
+}
+
+function selectClassName(disabled = false) {
+  return `${inputClassName(disabled)} motion-select`;
+}
+
+function dateInputClassName(disabled = false) {
+  return `${inputClassName(disabled)} motion-date`;
 }
 
 function FieldLabel({
@@ -1541,7 +1595,7 @@ function StatCard({
   hint: string;
 }) {
   return (
-    <div className="motion-surface rounded-xl border border-gray-800 bg-gray-900/70 p-5">
+    <div className="motion-stat-surface rounded-xl border border-gray-800 bg-gray-900/70 p-5">
       <div className="text-sm text-gray-400">{label}</div>
       <div className="mt-3 text-3xl font-semibold text-white">{value}</div>
       <div className="mt-2 text-xs text-gray-500">{hint}</div>

@@ -596,7 +596,7 @@ export default function Users() {
 
       <form
         onSubmit={handleSearchSubmit}
-        className="motion-fade-up motion-surface rounded-2xl border border-gray-800 bg-gray-900/70 p-5"
+        className="motion-fade-up motion-panel-soft rounded-2xl border border-gray-800 bg-gray-900/70 p-5"
         style={{ animationDelay: "120ms" }}
       >
         <div className="grid gap-4 xl:grid-cols-[2fr_1fr_1fr_auto]">
@@ -615,7 +615,7 @@ export default function Users() {
             <select
               value={filters.role ?? ""}
               onChange={(event) => setFilters((previous) => ({ ...previous, role: event.target.value }))}
-              className={InputClassName()}
+              className={SelectClassName()}
             >
               <option value="">全部角色</option>
               {roles.map((role) => (
@@ -635,7 +635,7 @@ export default function Users() {
                   status: event.target.value === "" ? "" : Number(event.target.value),
                 }))
               }
-              className={InputClassName()}
+              className={SelectClassName()}
             >
               {statusOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -775,7 +775,7 @@ export default function Users() {
                   pageSize: Number(event.target.value),
                 }))
               }
-              className="rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-sm text-gray-200 transition-colors focus:border-primary-400 focus:outline-none"
+              className={CompactSelectClassName()}
             >
               {[10, 20, 50].map((value) => (
                 <option key={value} value={value}>
@@ -821,7 +821,7 @@ export default function Users() {
                 <select
                   value={createForm.roleId}
                   onChange={(event) => setCreateForm((previous) => ({ ...previous, roleId: event.target.value }))}
-                  className={InputClassName()}
+                  className={SelectClassName()}
                   required
                 >
                   <option value="" disabled>
@@ -904,7 +904,7 @@ export default function Users() {
                 <select
                   value={createForm.gender}
                   onChange={(event) => setCreateForm((previous) => ({ ...previous, gender: event.target.value }))}
-                  className={InputClassName()}
+                  className={SelectClassName()}
                 >
                   {genderOptions.map((option) => (
                     <option key={option.value} value={option.value}>
@@ -919,7 +919,7 @@ export default function Users() {
                   type="date"
                   value={createForm.birthday}
                   onChange={(event) => setCreateForm((previous) => ({ ...previous, birthday: event.target.value }))}
-                  className={InputClassName()}
+                  className={DateInputClassName()}
                 />
               </div>
               <div>
@@ -1058,7 +1058,7 @@ export default function Users() {
               setSelectedUser(null);
             }}
           />
-          <aside className="motion-fade-down absolute right-0 top-0 h-full w-full max-w-3xl overflow-y-auto border-l border-gray-800 bg-gray-950 shadow-2xl">
+          <aside className="motion-drawer-right absolute right-0 top-0 h-full w-full max-w-3xl overflow-y-auto border-l border-gray-800 bg-gray-950 shadow-2xl">
             <div className="sticky top-0 z-10 border-b border-gray-800 bg-gray-950/95 px-6 py-5 backdrop-blur">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -1173,7 +1173,7 @@ export default function Users() {
                         <select
                           value={editForm.roleId}
                           onChange={(event) => setEditForm((previous) => ({ ...previous, roleId: event.target.value }))}
-                          className={InputClassName(!selectedCanMutate)}
+                          className={SelectClassName(!selectedCanMutate)}
                           disabled={!selectedCanMutate}
                           required
                         >
@@ -1189,7 +1189,7 @@ export default function Users() {
                         <select
                           value={editForm.status}
                           onChange={(event) => setEditForm((previous) => ({ ...previous, status: event.target.value }))}
-                          className={InputClassName(!selectedCanMutate)}
+                          className={SelectClassName(!selectedCanMutate)}
                           disabled={!selectedCanMutate}
                         >
                           {statusOptions
@@ -1258,7 +1258,7 @@ export default function Users() {
                         <select
                           value={editForm.gender}
                           onChange={(event) => setEditForm((previous) => ({ ...previous, gender: event.target.value }))}
-                          className={InputClassName(!selectedCanMutate)}
+                          className={SelectClassName(!selectedCanMutate)}
                           disabled={!selectedCanMutate}
                         >
                           {genderOptions.map((option) => (
@@ -1274,7 +1274,7 @@ export default function Users() {
                           type="date"
                           value={editForm.birthday}
                           onChange={(event) => setEditForm((previous) => ({ ...previous, birthday: event.target.value }))}
-                          className={InputClassName(!selectedCanMutate)}
+                          className={DateInputClassName(!selectedCanMutate)}
                           disabled={!selectedCanMutate}
                         />
                       </div>
@@ -1372,7 +1372,7 @@ function ModalShell({
 
 function StatCard({ label, value, hint }: { label: string; value: number; hint: string }) {
   return (
-    <div className="motion-surface rounded-2xl border border-gray-800 bg-gray-900/70 p-5">
+    <div className="motion-stat-surface rounded-2xl border border-gray-800 bg-gray-900/70 p-5">
       <div className="text-sm text-gray-400">{label}</div>
       <div className="mt-3 text-3xl font-semibold text-white">{value}</div>
       <div className="mt-2 text-xs text-gray-500">{hint}</div>
@@ -1432,5 +1432,17 @@ function FieldLabel({ label }: { label: string }) {
 }
 
 function InputClassName(disabled = false) {
-  return `w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 transition-[border-color,background-color,box-shadow] duration-200 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
+  return `motion-field w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
+}
+
+function SelectClassName(disabled = false) {
+  return `${InputClassName(disabled)} motion-select`;
+}
+
+function DateInputClassName(disabled = false) {
+  return `${InputClassName(disabled)} motion-date`;
+}
+
+function CompactSelectClassName(disabled = false) {
+  return `motion-field motion-select rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-sm text-gray-200 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
 }

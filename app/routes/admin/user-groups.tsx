@@ -644,11 +644,11 @@ export default function UserGroups() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-        <div className="motion-fade-up motion-surface rounded-xl border border-gray-800 bg-gray-900 p-4" style={{ animationDelay: "80ms" }}>
+        <div className="motion-fade-up motion-stat-surface rounded-xl border border-gray-800 bg-gray-900 p-4" style={{ animationDelay: "80ms" }}>
           <div className="text-2xl font-bold text-primary-400">{summary.total}</div>
           <div className="text-sm text-gray-400 mt-1">分组总数</div>
         </div>
-        <div className="motion-fade-up motion-surface rounded-xl border border-gray-800 bg-gray-900 p-4" style={{ animationDelay: "140ms" }}>
+        <div className="motion-fade-up motion-stat-surface rounded-xl border border-gray-800 bg-gray-900 p-4" style={{ animationDelay: "140ms" }}>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-bold text-emerald-400">{summary.active}</span>
             {summary.disabled > 0 && (
@@ -657,11 +657,11 @@ export default function UserGroups() {
           </div>
           <div className="text-sm text-gray-400 mt-1">启用分组</div>
         </div>
-        <div className="motion-fade-up motion-surface rounded-xl border border-gray-800 bg-gray-900 p-4" style={{ animationDelay: "200ms" }}>
+        <div className="motion-fade-up motion-stat-surface rounded-xl border border-gray-800 bg-gray-900 p-4" style={{ animationDelay: "200ms" }}>
           <div className="text-2xl font-bold text-amber-400">{summary.defaultCount}</div>
           <div className="text-sm text-gray-400 mt-1">默认分组</div>
         </div>
-        <div className="motion-fade-up motion-surface rounded-xl border border-gray-800 bg-gray-900 p-4" style={{ animationDelay: "260ms" }}>
+        <div className="motion-fade-up motion-stat-surface rounded-xl border border-gray-800 bg-gray-900 p-4" style={{ animationDelay: "260ms" }}>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-bold text-sky-400">{summary.totalMembers}</span>
             <span className="text-xs text-gray-500">均 {averageMembers}/组</span>
@@ -673,7 +673,7 @@ export default function UserGroups() {
       {/* Search & Filter */}
       <form
         onSubmit={handleSearchSubmit}
-        className="motion-fade-up motion-surface rounded-xl border border-gray-800 bg-gray-900 p-4"
+        className="motion-fade-up motion-panel-soft rounded-xl border border-gray-800 bg-gray-900 p-4"
         style={{ animationDelay: "120ms" }}
       >
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
@@ -696,7 +696,7 @@ export default function UserGroups() {
                   status: event.target.value === "" ? "" : Number(event.target.value),
                 }))
               }
-              className={inputClassName()}
+              className={selectClassName()}
             >
               {statusOptions.map((option) => (
                 <option key={option.value} value={option.value}>
@@ -865,7 +865,7 @@ export default function UserGroups() {
                 pageSize: Number(event.target.value),
               }))
             }
-            className="rounded-lg border border-gray-700 bg-gray-800 px-3 py-1.5 text-sm text-gray-200"
+            className={compactSelectClassName()}
           >
             {[6, 9, 12, 18].map((size) => (
               <option key={size} value={size}>
@@ -929,7 +929,7 @@ export default function UserGroups() {
                       isDefault: event.target.value === "1" ? previous.isDefault : false,
                     }))
                   }
-                  className={inputClassName()}
+                  className={selectClassName()}
                 >
                   {statusOptions
                     .filter((option) => option.value !== "")
@@ -951,7 +951,7 @@ export default function UserGroups() {
                     show: event.target.value,
                   }))
                 }
-                className={inputClassName()}
+                className={selectClassName()}
               >
                 <option value="1">展示</option>
                 <option value="0">隐藏</option>
@@ -1059,7 +1059,7 @@ export default function UserGroups() {
             onClick={closeDrawer}
             className="flex-1 cursor-default"
           />
-          <aside className="motion-fade-down relative h-full w-full max-w-2xl overflow-y-auto border-l border-gray-800 bg-gray-950 shadow-2xl">
+          <aside className="motion-drawer-right relative h-full w-full max-w-2xl overflow-y-auto border-l border-gray-800 bg-gray-950 shadow-2xl">
             {/* Drawer header */}
             <div className="sticky top-0 z-10 border-b border-gray-800 bg-gray-950/95 px-6 py-4 backdrop-blur">
               <div className="flex items-center justify-between gap-4">
@@ -1143,7 +1143,7 @@ export default function UserGroups() {
                   ) : null}
 
                   {/* Add member */}
-                  <section className="motion-surface rounded-xl bg-gray-900 border border-gray-800 p-4">
+                  <section className="motion-panel-soft rounded-xl bg-gray-900 border border-gray-800 p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
                       <h3 className="text-sm font-semibold text-white">添加成员</h3>
                       <div className="w-full sm:w-64">
@@ -1207,7 +1207,7 @@ export default function UserGroups() {
                                       [candidate.id]: Number(event.target.value),
                                     }))
                                   }
-                                  className="rounded-lg border border-gray-700 bg-gray-800 px-2.5 py-1.5 text-xs text-gray-200"
+                                  className={compactSelectClassName()}
                                 >
                                   {memberRoleOptions.map((option) => (
                                     <option key={option.value} value={option.value}>
@@ -1329,7 +1329,15 @@ function FieldLabel({ label, hint, htmlFor }: { label: string; hint?: string; ht
 }
 
 function inputClassName(disabled = false) {
-  return `w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 transition-[border-color,background-color,box-shadow] duration-200 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
+  return `motion-field w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
+}
+
+function selectClassName(disabled = false) {
+  return `${inputClassName(disabled)} motion-select`;
+}
+
+function compactSelectClassName(disabled = false) {
+  return `motion-field motion-select rounded-lg border border-gray-700 bg-gray-800 px-2.5 py-1.5 text-xs text-gray-200 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
 }
 
 function ModalShell({

@@ -64,6 +64,18 @@ html {
   }
 }
 
+@keyframes drawer-right-in {
+  from {
+    opacity: 0;
+    transform: translate3d(40px, 0, 0);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
 @keyframes soft-float {
   0%,
   100% {
@@ -112,7 +124,8 @@ html {
   animation: soft-float 3.2s ease-in-out infinite;
 }
 
-.motion-surface {
+.motion-surface,
+.motion-stat-surface {
   position: relative;
   isolation: isolate;
   overflow: hidden;
@@ -123,7 +136,8 @@ html {
     box-shadow var(--motion-duration-base) var(--motion-ease-soft);
 }
 
-.motion-surface::before {
+.motion-surface::before,
+.motion-stat-surface::before {
   content: "";
   position: absolute;
   inset: 0;
@@ -143,13 +157,59 @@ html {
   pointer-events: none;
 }
 
-.motion-surface:hover {
+.motion-surface:hover,
+.motion-stat-surface:hover {
   transform: translate3d(0, -6px, 0);
   box-shadow: 0 24px 56px -32px rgba(0, 91, 172, 0.55);
 }
 
-.motion-surface:hover::before {
+.motion-surface:hover::before,
+.motion-stat-surface:hover::before {
   opacity: 1;
+}
+
+.motion-panel-soft {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  transition:
+    border-color var(--motion-duration-fast) ease,
+    background-color var(--motion-duration-fast) ease,
+    box-shadow var(--motion-duration-base) var(--motion-ease-soft);
+}
+
+.motion-panel-soft::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.05),
+      rgba(255, 255, 255, 0) 52%
+    ),
+    radial-gradient(
+      circle at top right,
+      rgba(0, 91, 172, 0.08),
+      rgba(0, 91, 172, 0) 58%
+    );
+  opacity: 0;
+  transition: opacity var(--motion-duration-base) var(--motion-ease-soft);
+  pointer-events: none;
+}
+
+.motion-panel-soft:hover {
+  border-color: rgba(77, 148, 219, 0.2);
+  background-color: rgba(17, 24, 39, 0.86);
+  box-shadow: 0 18px 36px -30px rgba(0, 91, 172, 0.32);
+}
+
+.motion-panel-soft:hover::before {
+  opacity: 1;
+}
+
+.motion-drawer-right {
+  animation: drawer-right-in 420ms var(--motion-ease-standard) both;
 }
 
 .motion-button {
@@ -189,6 +249,50 @@ html {
 .motion-nav-link:hover::after {
   transform: scaleX(1);
   opacity: 1;
+}
+
+.motion-field {
+  transition:
+    border-color var(--motion-duration-fast) ease,
+    background-color var(--motion-duration-fast) ease,
+    box-shadow var(--motion-duration-fast) ease,
+    color var(--motion-duration-fast) ease;
+}
+
+.motion-field:hover:not(:disabled):not(:focus-visible) {
+  border-color: rgba(77, 148, 219, 0.2);
+  background-color: rgba(17, 24, 39, 0.94);
+}
+
+.motion-select {
+  appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgba(203, 213, 225, 0.82) 50%),
+    linear-gradient(135deg, rgba(203, 213, 225, 0.82) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) calc(50% - 2px),
+    calc(100% - 12px) calc(50% - 2px);
+  background-repeat: no-repeat;
+  background-size: 6px 6px, 6px 6px;
+  padding-right: 2.75rem;
+}
+
+.motion-date {
+  color-scheme: dark;
+}
+
+.motion-date::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+  opacity: 0.72;
+  filter: invert(0.9) sepia(0.08) saturate(0.2);
+  transition:
+    opacity var(--motion-duration-fast) ease,
+    transform var(--motion-duration-fast) var(--motion-ease-standard);
+}
+
+.motion-date:hover:not(:disabled)::-webkit-calendar-picker-indicator {
+  opacity: 0.96;
+  transform: scale(1.04);
 }
 
 .hero-grid-motion {
