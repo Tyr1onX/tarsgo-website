@@ -8,6 +8,9 @@ import {
 } from "~/lib/auth-client";
 import { useCooldown } from "~/lib/use-cooldown";
 
+const inputClassName =
+  "w-full rounded-lg border border-gray-700 bg-gray-800/90 px-4 py-3 text-white placeholder-gray-500 transition-[border-color,box-shadow,background-color] duration-200 focus:border-primary-400 focus:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-primary-500/30";
+
 export function meta() {
   return [
     { title: "注册 | TARS-GO" },
@@ -86,13 +89,15 @@ export default function Register() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4 py-10">
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] h-[420px] bg-primary-500/8 rounded-full blur-[110px]" />
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden bg-gray-950 px-4 py-10">
+      <div className="hero-grid-motion absolute inset-0 bg-[linear-gradient(rgba(0,91,172,0.03)_1px,transparent_1px),linear-gradient(90deg,rgba(0,91,172,0.03)_1px,transparent_1px)] bg-[size:56px_56px] opacity-60" />
+      <div className="hero-glow-motion absolute left-1/2 top-1/3 h-[420px] w-[420px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-primary-500/8 blur-[110px]" />
+      <div className="hero-glow-motion absolute left-[24%] top-[70%] h-56 w-56 rounded-full bg-sky-400/8 blur-[100px]" />
 
       <div className="relative w-full max-w-md">
         <Link
           to="/"
-          className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors mb-8"
+          className="motion-fade-down motion-button mb-8 inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white"
         >
           <svg
             className="w-4 h-4"
@@ -110,9 +115,9 @@ export default function Register() {
           返回首页
         </Link>
 
-        <div className="p-8 rounded-2xl bg-gray-900 border border-gray-800 shadow-2xl shadow-black/20">
-          <div className="text-center mb-8">
-            <div className="w-12 h-12 rounded-xl bg-primary-500 flex items-center justify-center mx-auto mb-4">
+        <div className="motion-fade-up rounded-2xl border border-gray-800 bg-gray-900/95 p-8 shadow-2xl shadow-black/20 backdrop-blur-sm">
+          <div className="motion-fade-up mb-8 text-center" style={{ animationDelay: "80ms" }}>
+            <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary-500 shadow-lg shadow-primary-500/25">
               <span className="text-white font-bold text-lg">T</span>
             </div>
             <h1 className="text-2xl font-bold text-white mb-2">加入 TARS-GO</h1>
@@ -122,7 +127,7 @@ export default function Register() {
           </div>
 
           <form className="space-y-5" onSubmit={handleSubmit}>
-            <div>
+            <div className="motion-fade-up" style={{ animationDelay: "140ms" }}>
               <label
                 htmlFor="email"
                 className="block text-sm font-medium text-gray-300 mb-2"
@@ -137,11 +142,11 @@ export default function Register() {
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="your@jlu.edu.cn"
-                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
+                className={inputClassName}
               />
             </div>
 
-            <div>
+            <div className="motion-fade-up" style={{ animationDelay: "180ms" }}>
               <label
                 htmlFor="password"
                 className="block text-sm font-medium text-gray-300 mb-2"
@@ -156,11 +161,11 @@ export default function Register() {
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder="至少 6 位"
-                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
+                className={inputClassName}
               />
             </div>
 
-            <div>
+            <div className="motion-fade-up" style={{ animationDelay: "220ms" }}>
               <label
                 htmlFor="phone"
                 className="block text-sm font-medium text-gray-300 mb-2"
@@ -175,11 +180,11 @@ export default function Register() {
                 value={phone}
                 onChange={(event) => setPhone(event.target.value)}
                 placeholder="13800138000"
-                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
+                className={inputClassName}
               />
             </div>
 
-            <div>
+            <div className="motion-fade-up" style={{ animationDelay: "260ms" }}>
               <div className="flex items-center justify-between mb-2">
                 <label
                   htmlFor="code"
@@ -191,7 +196,7 @@ export default function Register() {
                   type="button"
                   onClick={handleSendCode}
                   disabled={!canSendCode}
-                  className="text-sm font-medium text-primary-400 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors"
+                  className="motion-button text-sm font-medium text-primary-400 disabled:cursor-not-allowed disabled:text-gray-500"
                 >
                   {cooldown.isCoolingDown
                     ? `${cooldown.remainingSeconds}s 后重发`
@@ -211,12 +216,12 @@ export default function Register() {
                   setCode(event.target.value.replace(/\D/g, "").slice(0, 6))
                 }
                 placeholder="输入 6 位验证码"
-                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
+                className={inputClassName}
               />
             </div>
 
             {errorMessage && (
-              <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+              <div className="motion-fade-up rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
                 {errorMessage}
               </div>
             )}
@@ -224,7 +229,7 @@ export default function Register() {
             <button
               type="submit"
               disabled={submitting}
-              className="w-full py-3 bg-primary-500 hover:bg-primary-600 disabled:bg-primary-500/60 text-white font-medium rounded-lg transition-colors disabled:cursor-not-allowed"
+              className="motion-button w-full rounded-lg bg-primary-500 py-3 font-medium text-white hover:bg-primary-600 disabled:cursor-not-allowed disabled:bg-primary-500/60"
             >
               {submitting ? "注册中..." : "注册并进入工作台"}
             </button>
@@ -234,7 +239,7 @@ export default function Register() {
             已有账号？{" "}
             <Link
               to={redirectTo === "/dashboard" ? "/login" : `/login?redirect=${encodeURIComponent(redirectTo)}`}
-              className="text-primary-400 hover:text-primary-300 font-medium transition-colors"
+              className="motion-button font-medium text-primary-400 hover:text-primary-300"
             >
               立即登录
             </Link>
