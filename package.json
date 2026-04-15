@@ -6,7 +6,11 @@
     "build": "react-router build",
     "dev": "react-router dev",
     "start": "react-router-serve ./build/server/index.js",
-    "typecheck": "react-router typegen && tsc"
+    "typecheck": "react-router typegen && tsc",
+    "test:e2e": "node ./scripts/playwright.mjs test",
+    "test:e2e:ui": "node ./scripts/playwright.mjs test --ui",
+    "playwright:install": "node ./scripts/playwright.mjs install chromium",
+    "playwright:codegen": "node ./scripts/playwright.mjs codegen http://127.0.0.1:5173"
   },
   "dependencies": {
     "@react-router/node": "7.14.0",
@@ -17,6 +21,7 @@
     "react-router": "7.14.0"
   },
   "devDependencies": {
+    "@playwright/test": "^1.58.2",
     "@react-router/dev": "7.14.0",
     "@tailwindcss/vite": "^4.2.2",
     "@types/node": "^22",
