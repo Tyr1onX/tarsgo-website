@@ -599,7 +599,7 @@ export default function UserGroups() {
 
   if (noAdminPermission) {
     return (
-      <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-6">
+      <div className="motion-fade-up motion-surface rounded-xl border border-amber-500/20 bg-amber-500/10 p-6">
         <h1 className="text-xl font-semibold text-white">用户分组</h1>
         <p className="mt-2 text-sm leading-6 text-amber-100/80">
           当前账号没有管理员权限，无法访问此页面。
@@ -609,17 +609,17 @@ export default function UserGroups() {
   }
 
   return (
-    <div>
+    <div className="space-y-6">
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between mb-6">
-        <div>
+      <div className="motion-fade-up flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="space-y-1">
           <h1 className="text-2xl font-bold">用户分组</h1>
           <p className="text-sm text-gray-400 mt-1">管理用户分组与成员分配</p>
         </div>
         <button
           type="button"
           onClick={openCreateModal}
-          className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-600"
+          className="motion-button inline-flex items-center gap-2 rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-600"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -631,23 +631,24 @@ export default function UserGroups() {
       {/* Flash message */}
       {flash ? (
         <div
-          className={`mb-6 rounded-xl border px-4 py-3 text-sm ${
+          className={`motion-fade-up rounded-xl border px-4 py-3 text-sm ${
             flash.type === "success"
               ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
               : "border-red-500/20 bg-red-500/10 text-red-100"
           }`}
+          style={{ animationDelay: "60ms" }}
         >
           {flash.message}
         </div>
       ) : null}
 
       {/* Stats */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4 mb-6">
-        <div className="p-4 rounded-xl bg-gray-900 border border-gray-800">
+      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+        <div className="motion-fade-up motion-surface rounded-xl border border-gray-800 bg-gray-900 p-4" style={{ animationDelay: "80ms" }}>
           <div className="text-2xl font-bold text-primary-400">{summary.total}</div>
           <div className="text-sm text-gray-400 mt-1">分组总数</div>
         </div>
-        <div className="p-4 rounded-xl bg-gray-900 border border-gray-800">
+        <div className="motion-fade-up motion-surface rounded-xl border border-gray-800 bg-gray-900 p-4" style={{ animationDelay: "140ms" }}>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-bold text-emerald-400">{summary.active}</span>
             {summary.disabled > 0 && (
@@ -656,11 +657,11 @@ export default function UserGroups() {
           </div>
           <div className="text-sm text-gray-400 mt-1">启用分组</div>
         </div>
-        <div className="p-4 rounded-xl bg-gray-900 border border-gray-800">
+        <div className="motion-fade-up motion-surface rounded-xl border border-gray-800 bg-gray-900 p-4" style={{ animationDelay: "200ms" }}>
           <div className="text-2xl font-bold text-amber-400">{summary.defaultCount}</div>
           <div className="text-sm text-gray-400 mt-1">默认分组</div>
         </div>
-        <div className="p-4 rounded-xl bg-gray-900 border border-gray-800">
+        <div className="motion-fade-up motion-surface rounded-xl border border-gray-800 bg-gray-900 p-4" style={{ animationDelay: "260ms" }}>
           <div className="flex items-baseline gap-2">
             <span className="text-2xl font-bold text-sky-400">{summary.totalMembers}</span>
             <span className="text-xs text-gray-500">均 {averageMembers}/组</span>
@@ -672,7 +673,8 @@ export default function UserGroups() {
       {/* Search & Filter */}
       <form
         onSubmit={handleSearchSubmit}
-        className="rounded-xl bg-gray-900 border border-gray-800 p-4 mb-6"
+        className="motion-fade-up motion-surface rounded-xl border border-gray-800 bg-gray-900 p-4"
+        style={{ animationDelay: "120ms" }}
       >
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end">
           <div className="flex-1">
@@ -706,14 +708,14 @@ export default function UserGroups() {
           <div className="flex items-center gap-2">
             <button
               type="submit"
-              className="rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-600"
+              className="motion-button rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-600"
             >
               搜索
             </button>
             <button
               type="button"
               onClick={handleResetFilters}
-              className="rounded-lg border border-gray-700 px-4 py-2.5 text-sm text-gray-300 transition-colors hover:bg-white/5"
+              className="motion-button rounded-lg border border-gray-700 px-4 py-2.5 text-sm text-gray-300 transition-colors hover:bg-white/5"
             >
               重置
             </button>
@@ -722,7 +724,7 @@ export default function UserGroups() {
       </form>
 
       {/* Group cards */}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3 mb-6">
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {loadingList ? (
           <div className="col-span-full rounded-xl bg-gray-900 border border-gray-800 px-6 py-12 text-center text-sm text-gray-400">
             正在加载...
@@ -739,7 +741,8 @@ export default function UserGroups() {
                   return (
               <article
                 key={group.id}
-                className="rounded-xl bg-gray-900 border border-gray-800 p-5 flex flex-col"
+                className="motion-fade-up motion-surface rounded-xl border border-gray-800 bg-gray-900 p-5 flex flex-col"
+                style={{ animationDelay: `${120 + (group.id % 6) * 45}ms` }}
               >
                 {/* Card header */}
                 <div className="flex items-start justify-between gap-3">
@@ -765,7 +768,7 @@ export default function UserGroups() {
                   <button
                     type="button"
                     onClick={() => openDrawer(group.id)}
-                    className="shrink-0 rounded-lg border border-gray-700 px-3 py-1.5 text-xs text-gray-300 transition-colors hover:bg-white/5 cursor-pointer"
+                    className="motion-button shrink-0 rounded-lg border border-gray-700 px-3 py-1.5 text-xs text-gray-300 transition-colors hover:bg-white/5 cursor-pointer"
                   >
                     成员
                   </button>
@@ -994,7 +997,7 @@ export default function UserGroups() {
                 type="button"
                 onClick={() => setGroupModalOpen(false)}
                 disabled={savingGroup}
-                className="rounded-lg border border-gray-700 px-4 py-2.5 text-sm text-gray-300 transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+                className="motion-button rounded-lg border border-gray-700 px-4 py-2.5 text-sm text-gray-300 transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 取消
               </button>
@@ -1038,7 +1041,7 @@ export default function UserGroups() {
                 type="button"
                 onClick={() => void handleDeleteGroup()}
                 disabled={deletingGroup}
-                className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
+                className="motion-button rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {deletingGroup ? "删除中..." : "确认删除"}
               </button>
@@ -1049,14 +1052,14 @@ export default function UserGroups() {
 
       {/* Member management drawer */}
       {drawerOpen ? (
-        <div className="fixed inset-0 z-40 flex justify-end bg-black/60">
+        <div className="fixed inset-0 z-40 flex justify-end bg-black/60 transition-opacity duration-300">
           <button
             type="button"
             aria-label="关闭"
             onClick={closeDrawer}
             className="flex-1 cursor-default"
           />
-          <aside className="relative h-full w-full max-w-2xl overflow-y-auto border-l border-gray-800 bg-gray-950 shadow-2xl">
+          <aside className="motion-fade-down relative h-full w-full max-w-2xl overflow-y-auto border-l border-gray-800 bg-gray-950 shadow-2xl">
             {/* Drawer header */}
             <div className="sticky top-0 z-10 border-b border-gray-800 bg-gray-950/95 px-6 py-4 backdrop-blur">
               <div className="flex items-center justify-between gap-4">
@@ -1077,14 +1080,14 @@ export default function UserGroups() {
                       <button
                         type="button"
                         onClick={() => openEditModal(selectedGroup)}
-                        className="rounded-lg border border-gray-700 px-3 py-1.5 text-xs text-gray-300 transition-colors hover:bg-white/5 cursor-pointer"
+                        className="motion-button rounded-lg border border-gray-700 px-3 py-1.5 text-xs text-gray-300 transition-colors hover:bg-white/5 cursor-pointer"
                       >
                         编辑
                       </button>
                       <button
                         type="button"
                         onClick={() => setDeleteTarget(selectedGroup)}
-                        className="rounded-lg border border-red-500/30 px-3 py-1.5 text-xs text-red-300 transition-colors hover:bg-red-500/10 cursor-pointer"
+                        className="motion-button rounded-lg border border-red-500/30 px-3 py-1.5 text-xs text-red-300 transition-colors hover:bg-red-500/10 cursor-pointer"
                       >
                         删除
                       </button>
@@ -1094,7 +1097,7 @@ export default function UserGroups() {
                     type="button"
                     aria-label="关闭"
                     onClick={closeDrawer}
-                    className="rounded-lg p-1.5 text-gray-400 transition-colors hover:text-white hover:bg-white/5 cursor-pointer"
+                    className="motion-button rounded-lg p-1.5 text-gray-400 transition-colors hover:text-white hover:bg-white/5 cursor-pointer"
                   >
                     <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -1124,7 +1127,7 @@ export default function UserGroups() {
 
                   {/* Tags */}
                   {selectedGroup.tags?.length ? (
-                    <section className="rounded-xl bg-gray-900 border border-gray-800 p-4">
+                    <section className="motion-surface rounded-xl bg-gray-900 border border-gray-800 p-4">
                       <div className="text-xs font-medium text-gray-400 mb-2">标签</div>
                       <div className="flex flex-wrap gap-1.5">
                         {selectedGroup.tags.map((tag) => (
@@ -1140,7 +1143,7 @@ export default function UserGroups() {
                   ) : null}
 
                   {/* Add member */}
-                  <section className="rounded-xl bg-gray-900 border border-gray-800 p-4">
+                  <section className="motion-surface rounded-xl bg-gray-900 border border-gray-800 p-4">
                     <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between mb-4">
                       <h3 className="text-sm font-semibold text-white">添加成员</h3>
                       <div className="w-full sm:w-64">
@@ -1167,7 +1170,7 @@ export default function UserGroups() {
                         candidates.map((candidate) => (
                           <div
                             key={candidate.id}
-                            className="rounded-lg bg-gray-800/50 p-3"
+                            className="motion-surface rounded-lg bg-gray-800/50 p-3"
                           >
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                               <div className="min-w-0 flex-1">
@@ -1216,7 +1219,7 @@ export default function UserGroups() {
                                   type="button"
                                   onClick={() => void handleAddMember(candidate)}
                                   disabled={mutatingMemberId === candidate.id}
-                                  className="rounded-lg bg-primary-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+                                  className="motion-button rounded-lg bg-primary-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
                                 >
                                   {mutatingMemberId === candidate.id ? "加入中..." : "加入"}
                                 </button>
@@ -1229,7 +1232,7 @@ export default function UserGroups() {
                   </section>
 
                   {/* Current members */}
-                  <section className="rounded-xl bg-gray-900 border border-gray-800 p-4">
+                  <section className="motion-surface rounded-xl bg-gray-900 border border-gray-800 p-4">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-sm font-semibold text-white">当前成员</h3>
                       <span className="text-xs text-gray-500">{selectedGroup.members.length} 人</span>
@@ -1244,7 +1247,7 @@ export default function UserGroups() {
                         selectedGroup.members.map((member) => (
                           <div
                             key={member.id}
-                            className="rounded-lg bg-gray-800/50 p-3"
+                            className="motion-surface rounded-lg bg-gray-800/50 p-3"
                           >
                             <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                               <div className="min-w-0 flex-1">
@@ -1272,7 +1275,7 @@ export default function UserGroups() {
                                   type="button"
                                   onClick={() => void handleToggleMemberRole(member)}
                                   disabled={mutatingMemberId === member.id}
-                                  className="rounded-lg border border-primary-500/30 px-3 py-1.5 text-xs text-primary-200 transition-colors hover:bg-primary-500/10 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                                  className="motion-button rounded-lg border border-primary-500/30 px-3 py-1.5 text-xs text-primary-200 transition-colors hover:bg-primary-500/10 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
                                 >
                                   {mutatingMemberId === member.id
                                     ? "处理中..."
@@ -1284,7 +1287,7 @@ export default function UserGroups() {
                                   type="button"
                                   onClick={() => void handleRemoveMember(member)}
                                   disabled={mutatingMemberId === member.id}
-                                  className="rounded-lg border border-red-500/30 px-3 py-1.5 text-xs text-red-300 transition-colors hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                                  className="motion-button rounded-lg border border-red-500/30 px-3 py-1.5 text-xs text-red-300 transition-colors hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
                                 >
                                   {mutatingMemberId === member.id ? "移除中..." : "移出"}
                                 </button>
@@ -1326,7 +1329,7 @@ function FieldLabel({ label, hint, htmlFor }: { label: string; hint?: string; ht
 }
 
 function inputClassName(disabled = false) {
-  return `w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-primary-400 focus:outline-none ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
+  return `w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 transition-[border-color,background-color,box-shadow] duration-200 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
 }
 
 function ModalShell({
@@ -1341,15 +1344,15 @@ function ModalShell({
   widthClass?: string;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className={`w-full ${widthClass} rounded-xl bg-gray-900 border border-gray-800 shadow-2xl`}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 transition-opacity duration-300">
+      <div className={`motion-fade-up motion-surface w-full ${widthClass} rounded-xl bg-gray-900 border border-gray-800 shadow-2xl`}>
         <div className="flex items-center justify-between border-b border-gray-800 px-6 py-4">
           <h2 className="text-base font-semibold text-white">{title}</h2>
           <button
             type="button"
             aria-label="关闭"
             onClick={onClose}
-            className="rounded-lg p-1.5 text-gray-400 transition-colors hover:text-white hover:bg-white/5 cursor-pointer"
+            className="motion-button rounded-lg p-1.5 text-gray-400 transition-colors hover:text-white hover:bg-white/5 cursor-pointer"
           >
             <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -1364,7 +1367,7 @@ function ModalShell({
 
 function StatBlock({ label, value }: { label: string; value: ReactNode }) {
   return (
-    <div className="rounded-lg bg-gray-800/50 p-3">
+    <div className="motion-surface rounded-lg bg-gray-800/50 p-3">
       <div className="text-xs text-gray-500">{label}</div>
       <div className="mt-1 text-sm font-medium text-white">{value}</div>
     </div>
