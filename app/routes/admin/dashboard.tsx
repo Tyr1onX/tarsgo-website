@@ -83,21 +83,23 @@ export default function Dashboard() {
           return (
             <div
               key={stat.label}
-              className="motion-fade-up motion-stat-surface rounded-xl border border-gray-800 bg-gray-900 p-5"
+              className="motion-fade-up"
               style={{ animationDelay: `${80 + index * 70}ms` }}
             >
-              <div className="flex items-center justify-between mb-4">
-                <div className={`w-10 h-10 rounded-lg ${colors.iconBg} flex items-center justify-center ${colors.text}`}>
-                  <StatIcon type={stat.icon} />
+              <div className="motion-stat-surface rounded-xl border border-gray-800 bg-gray-900 p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div className={`w-10 h-10 rounded-lg ${colors.iconBg} flex items-center justify-center ${colors.text}`}>
+                    <StatIcon type={stat.icon} />
+                  </div>
+                  {stat.change && (
+                    <span className="text-xs font-medium text-accent-400 bg-accent-500/10 px-2 py-1 rounded-full">
+                      {stat.change}
+                    </span>
+                  )}
                 </div>
-                {stat.change && (
-                  <span className="text-xs font-medium text-accent-400 bg-accent-500/10 px-2 py-1 rounded-full">
-                    {stat.change}
-                  </span>
-                )}
+                <div className="text-2xl font-bold">{stat.value}</div>
+                <div className="text-sm text-gray-400 mt-1">{stat.label}</div>
               </div>
-              <div className="text-2xl font-bold">{stat.value}</div>
-              <div className="text-sm text-gray-400 mt-1">{stat.label}</div>
             </div>
           );
         })}

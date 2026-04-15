@@ -109,19 +109,23 @@ export default function UserDashboard() {
       {/* Quick links */}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {quickLinks.map((link, index) => (
-          <a
+          <div
             key={link.label}
-            href={link.href}
-            className="motion-fade-up motion-surface group flex flex-col items-center gap-3 rounded-xl border border-gray-800 bg-gray-900 p-5"
+            className="motion-fade-up"
             style={{ animationDelay: `${80 + index * 70}ms` }}
           >
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-500/20 text-primary-400 transition-transform duration-300 group-hover:scale-105 group-hover:bg-primary-500/30">
-              <QuickLinkIcon type={link.icon} />
-            </div>
-            <span className="text-sm text-gray-300 transition-colors group-hover:text-white">
-              {link.label}
-            </span>
-          </a>
+            <a
+              href={link.href}
+              className="motion-surface group flex flex-col items-center gap-3 rounded-xl border border-gray-800 bg-gray-900 p-5"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-500/20 text-primary-400 transition-transform duration-300 group-hover:scale-105 group-hover:bg-primary-500/30">
+                <QuickLinkIcon type={link.icon} />
+              </div>
+              <span className="text-sm text-gray-300 transition-colors group-hover:text-white">
+                {link.label}
+              </span>
+            </a>
+          </div>
         ))}
       </div>
 

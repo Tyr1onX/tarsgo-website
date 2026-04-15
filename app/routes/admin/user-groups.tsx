@@ -645,29 +645,37 @@ export default function UserGroups() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-        <div className="motion-fade-up motion-stat-surface rounded-xl border border-gray-800 bg-gray-900 p-4" style={{ animationDelay: "80ms" }}>
-          <div className="text-2xl font-bold text-primary-400">{summary.total}</div>
-          <div className="text-sm text-gray-400 mt-1">分组总数</div>
-        </div>
-        <div className="motion-fade-up motion-stat-surface rounded-xl border border-gray-800 bg-gray-900 p-4" style={{ animationDelay: "140ms" }}>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-emerald-400">{summary.active}</span>
-            {summary.disabled > 0 && (
-              <span className="text-xs text-gray-500">停用 {summary.disabled}</span>
-            )}
+        <div className="motion-fade-up" style={{ animationDelay: "80ms" }}>
+          <div className="motion-stat-surface rounded-xl border border-gray-800 bg-gray-900 p-4">
+            <div className="text-2xl font-bold text-primary-400">{summary.total}</div>
+            <div className="text-sm text-gray-400 mt-1">分组总数</div>
           </div>
-          <div className="text-sm text-gray-400 mt-1">启用分组</div>
         </div>
-        <div className="motion-fade-up motion-stat-surface rounded-xl border border-gray-800 bg-gray-900 p-4" style={{ animationDelay: "200ms" }}>
-          <div className="text-2xl font-bold text-amber-400">{summary.defaultCount}</div>
-          <div className="text-sm text-gray-400 mt-1">默认分组</div>
-        </div>
-        <div className="motion-fade-up motion-stat-surface rounded-xl border border-gray-800 bg-gray-900 p-4" style={{ animationDelay: "260ms" }}>
-          <div className="flex items-baseline gap-2">
-            <span className="text-2xl font-bold text-sky-400">{summary.totalMembers}</span>
-            <span className="text-xs text-gray-500">均 {averageMembers}/组</span>
+        <div className="motion-fade-up" style={{ animationDelay: "140ms" }}>
+          <div className="motion-stat-surface rounded-xl border border-gray-800 bg-gray-900 p-4">
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-bold text-emerald-400">{summary.active}</span>
+              {summary.disabled > 0 && (
+                <span className="text-xs text-gray-500">停用 {summary.disabled}</span>
+              )}
+            </div>
+            <div className="text-sm text-gray-400 mt-1">启用分组</div>
           </div>
-          <div className="text-sm text-gray-400 mt-1">总成员数</div>
+        </div>
+        <div className="motion-fade-up" style={{ animationDelay: "200ms" }}>
+          <div className="motion-stat-surface rounded-xl border border-gray-800 bg-gray-900 p-4">
+            <div className="text-2xl font-bold text-amber-400">{summary.defaultCount}</div>
+            <div className="text-sm text-gray-400 mt-1">默认分组</div>
+          </div>
+        </div>
+        <div className="motion-fade-up" style={{ animationDelay: "260ms" }}>
+          <div className="motion-stat-surface rounded-xl border border-gray-800 bg-gray-900 p-4">
+            <div className="flex items-baseline gap-2">
+              <span className="text-2xl font-bold text-sky-400">{summary.totalMembers}</span>
+              <span className="text-xs text-gray-500">均 {averageMembers}/组</span>
+            </div>
+            <div className="text-sm text-gray-400 mt-1">总成员数</div>
+          </div>
         </div>
       </div>
 
