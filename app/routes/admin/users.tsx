@@ -535,7 +535,7 @@ export default function Users() {
 
   if (noAdminPermission) {
     return (
-      <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 p-6">
+      <div className="motion-fade-up motion-surface rounded-2xl border border-amber-500/20 bg-amber-500/10 p-6">
         <h1 className="text-xl font-semibold text-white">用户数据</h1>
         <p className="mt-2 text-sm leading-6 text-amber-100/80">
           当前账号没有管理员权限，无法访问用户管理接口。请使用管理员账号登录后再进入该页面。
@@ -546,8 +546,8 @@ export default function Users() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div>
+      <div className="motion-fade-up flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div className="space-y-1">
           <h1 className="text-2xl font-bold text-white">用户数据</h1>
           <p className="mt-1 text-sm text-gray-400">
             统一管理 `users` 表中的账号资料、角色、状态与登录方式。
@@ -557,7 +557,7 @@ export default function Users() {
           type="button"
           onClick={openCreateModal}
           disabled={rolesLoading || editableRoleOptions.length === 0}
-          className="inline-flex items-center gap-2 rounded-xl bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
+          className="motion-button inline-flex items-center gap-2 rounded-xl bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
         >
           <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -568,26 +568,36 @@ export default function Users() {
 
       {flash ? (
         <div
-          className={`rounded-2xl border px-4 py-3 text-sm ${
+          className={`motion-fade-up rounded-2xl border px-4 py-3 text-sm ${
             flash.type === "success"
               ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
               : "border-red-500/20 bg-red-500/10 text-red-100"
           }`}
+          style={{ animationDelay: "60ms" }}
         >
           {flash.message}
         </div>
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="账号总数" value={summary.total} hint="users 表中的全部账号" />
-        <StatCard label="启用账号" value={summary.enabled} hint={`停用 ${summary.disabled} 个`} />
-        <StatCard label="管理员账号" value={summary.admins} hint="包含 admin / super_admin" />
-        <StatCard label="GitHub 绑定" value={summary.githubBound} hint="已绑定 GitHub OAuth" />
+        <div className="motion-fade-up" style={{ animationDelay: "80ms" }}>
+          <StatCard label="账号总数" value={summary.total} hint="users 表中的全部账号" />
+        </div>
+        <div className="motion-fade-up" style={{ animationDelay: "140ms" }}>
+          <StatCard label="启用账号" value={summary.enabled} hint={`停用 ${summary.disabled} 个`} />
+        </div>
+        <div className="motion-fade-up" style={{ animationDelay: "200ms" }}>
+          <StatCard label="管理员账号" value={summary.admins} hint="包含 admin / super_admin" />
+        </div>
+        <div className="motion-fade-up" style={{ animationDelay: "260ms" }}>
+          <StatCard label="GitHub 绑定" value={summary.githubBound} hint="已绑定 GitHub OAuth" />
+        </div>
       </div>
 
       <form
         onSubmit={handleSearchSubmit}
-        className="rounded-2xl border border-gray-800 bg-gray-900/70 p-5"
+        className="motion-fade-up motion-surface rounded-2xl border border-gray-800 bg-gray-900/70 p-5"
+        style={{ animationDelay: "120ms" }}
       >
         <div className="grid gap-4 xl:grid-cols-[2fr_1fr_1fr_auto]">
           <div>
@@ -637,14 +647,14 @@ export default function Users() {
           <div className="flex items-end gap-3">
             <button
               type="submit"
-              className="rounded-xl bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary-600"
+              className="motion-button rounded-xl bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary-600"
             >
               搜索
             </button>
             <button
               type="button"
               onClick={handleResetFilters}
-              className="rounded-xl border border-gray-700 px-4 py-2.5 text-sm text-gray-200 transition hover:bg-white/5"
+              className="motion-button rounded-xl border border-gray-700 px-4 py-2.5 text-sm text-gray-200 transition hover:bg-white/5"
             >
               重置
             </button>
@@ -652,7 +662,10 @@ export default function Users() {
         </div>
       </form>
 
-      <div className="overflow-hidden rounded-2xl border border-gray-800 bg-gray-900/70">
+      <div
+        className="motion-fade-up overflow-hidden rounded-2xl border border-gray-800 bg-gray-900/70"
+        style={{ animationDelay: "160ms" }}
+      >
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead className="bg-gray-950/60 text-left text-xs uppercase tracking-wider text-gray-400">
@@ -686,7 +699,7 @@ export default function Users() {
                   const canMutate = readonlyReason === "";
 
                   return (
-                    <tr key={user.id} className="transition hover:bg-white/[0.02]">
+                    <tr key={user.id} className="transition-colors duration-200 hover:bg-white/[0.03]">
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
                           <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-500/15 text-sm font-semibold text-primary-300">
@@ -716,7 +729,7 @@ export default function Users() {
                           <button
                             type="button"
                             onClick={() => openDetail(user.id)}
-                            className="rounded-lg border border-gray-700 px-3 py-1.5 text-xs text-gray-200 transition hover:bg-white/5"
+                            className="motion-button rounded-lg border border-gray-700 px-3 py-1.5 text-xs text-gray-200 transition hover:bg-white/5"
                           >
                             详情
                           </button>
@@ -725,7 +738,7 @@ export default function Users() {
                             onClick={() => setPasswordModalTarget(user)}
                             disabled={!canMutate}
                             title={readonlyReason || "重置密码"}
-                            className="rounded-lg border border-gray-700 px-3 py-1.5 text-xs text-gray-200 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="motion-button rounded-lg border border-gray-700 px-3 py-1.5 text-xs text-gray-200 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             密码
                           </button>
@@ -734,7 +747,7 @@ export default function Users() {
                             onClick={() => setStatusModalTarget(user)}
                             disabled={!canMutate}
                             title={readonlyReason || (user.status === 1 ? "停用账号" : "启用账号")}
-                            className="rounded-lg border border-red-500/30 px-3 py-1.5 text-xs text-red-200 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                            className="motion-button rounded-lg border border-red-500/30 px-3 py-1.5 text-xs text-red-200 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
                           >
                             {user.status === 1 ? "停用" : "启用"}
                           </button>
@@ -762,7 +775,7 @@ export default function Users() {
                   pageSize: Number(event.target.value),
                 }))
               }
-              className="rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-sm text-gray-200"
+              className="rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-sm text-gray-200 transition-colors focus:border-primary-400 focus:outline-none"
             >
               {[10, 20, 50].map((value) => (
                 <option key={value} value={value}>
@@ -774,7 +787,7 @@ export default function Users() {
               type="button"
               disabled={pagination.page <= 1}
               onClick={() => setQuery((previous) => ({ ...previous, page: Math.max((previous.page ?? 1) - 1, 1) }))}
-              className="rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-200 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+              className="motion-button rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-200 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
             >
               上一页
             </button>
@@ -787,7 +800,7 @@ export default function Users() {
                   page: Math.min((previous.page ?? 1) + 1, Math.max(pagination.totalPages, 1)),
                 }))
               }
-              className="rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-200 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+              className="motion-button rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-200 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
             >
               下一页
             </button>
@@ -1038,14 +1051,14 @@ export default function Users() {
       {drawerOpen ? (
         <div className="fixed inset-0 z-40">
           <div
-            className="absolute inset-0 bg-black/70"
+            className="absolute inset-0 bg-black/70 transition-opacity duration-300"
             onClick={() => {
               setDrawerOpen(false);
               setSelectedUserId(null);
               setSelectedUser(null);
             }}
           />
-          <aside className="absolute right-0 top-0 h-full w-full max-w-3xl overflow-y-auto border-l border-gray-800 bg-gray-950 shadow-2xl">
+          <aside className="motion-fade-down absolute right-0 top-0 h-full w-full max-w-3xl overflow-y-auto border-l border-gray-800 bg-gray-950 shadow-2xl">
             <div className="sticky top-0 z-10 border-b border-gray-800 bg-gray-950/95 px-6 py-5 backdrop-blur">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -1074,7 +1087,7 @@ export default function Users() {
                     setSelectedUserId(null);
                     setSelectedUser(null);
                   }}
-                  className="rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 transition hover:bg-white/5"
+                  className="motion-button rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 transition hover:bg-white/5"
                 >
                   关闭
                 </button>
@@ -1089,7 +1102,7 @@ export default function Users() {
               ) : (
                 <>
                   <div className="grid gap-4 md:grid-cols-3">
-                    <div className="rounded-2xl border border-gray-800 bg-gray-900/70 p-4">
+                    <div className="motion-surface rounded-2xl border border-gray-800 bg-gray-900/70 p-4">
                       <div className="text-xs uppercase tracking-wider text-gray-500">登录方式</div>
                       <div className="mt-3 text-sm font-medium text-white">
                         {getAuthMethodLabel(selectedUser)}
@@ -1098,7 +1111,7 @@ export default function Users() {
                         {selectedUser.authMethods.hasPassword ? "已设置邮箱密码" : "未设置本地密码"}
                       </div>
                     </div>
-                    <div className="rounded-2xl border border-gray-800 bg-gray-900/70 p-4">
+                    <div className="motion-surface rounded-2xl border border-gray-800 bg-gray-900/70 p-4">
                       <div className="text-xs uppercase tracking-wider text-gray-500">GitHub 绑定</div>
                       <div className="mt-3 text-sm font-medium text-white">
                         {selectedUser.authMethods.githubBound ? "已绑定" : "未绑定"}
@@ -1107,7 +1120,7 @@ export default function Users() {
                         {selectedUser.githubUsername ? `用户名：${selectedUser.githubUsername}` : "后台不支持手动改绑或解绑"}
                       </div>
                     </div>
-                    <div className="rounded-2xl border border-gray-800 bg-gray-900/70 p-4">
+                    <div className="motion-surface rounded-2xl border border-gray-800 bg-gray-900/70 p-4">
                       <div className="text-xs uppercase tracking-wider text-gray-500">最近登录</div>
                       <div className="mt-3 text-sm font-medium text-white">
                         {formatDateTime(selectedUser.lastLoginAt)}
@@ -1118,7 +1131,7 @@ export default function Users() {
                     </div>
                   </div>
 
-                  <div className="rounded-2xl border border-gray-800 bg-gray-900/70 p-4">
+                  <div className="motion-surface rounded-2xl border border-gray-800 bg-gray-900/70 p-4">
                     <div className="text-xs uppercase tracking-wider text-gray-500">所属分组</div>
                     <div className="mt-3">
                       <GroupTags groups={selectedUser.groups} showRole showStatus />
@@ -1129,7 +1142,7 @@ export default function Users() {
                   </div>
 
                   {selectedReadonlyReason ? (
-                    <div className="rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm leading-6 text-amber-100">
+                    <div className="motion-fade-up rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm leading-6 text-amber-100">
                       {selectedReadonlyReason}
                     </div>
                   ) : null}
@@ -1139,7 +1152,7 @@ export default function Users() {
                       type="button"
                       onClick={() => setPasswordModalTarget(selectedUser)}
                       disabled={!selectedCanMutate}
-                      className="rounded-xl border border-gray-700 px-4 py-2.5 text-sm text-gray-200 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="motion-button rounded-xl border border-gray-700 px-4 py-2.5 text-sm text-gray-200 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       重置密码
                     </button>
@@ -1147,7 +1160,7 @@ export default function Users() {
                       type="button"
                       onClick={() => setStatusModalTarget(selectedUser)}
                       disabled={!selectedCanMutate}
-                      className="rounded-xl border border-red-500/30 px-4 py-2.5 text-sm text-red-200 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                      className="motion-button rounded-xl border border-red-500/30 px-4 py-2.5 text-sm text-red-200 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       {selectedUser.status === 1 ? "停用账号" : "启用账号"}
                     </button>
@@ -1278,7 +1291,7 @@ export default function Users() {
                       </div>
                     </div>
 
-                    <div className="rounded-2xl border border-gray-800 bg-gray-900/70 p-4 text-sm text-gray-400">
+                    <div className="motion-surface rounded-2xl border border-gray-800 bg-gray-900/70 p-4 text-sm text-gray-400">
                       <div>创建时间：{formatDateTime(selectedUser.createdAt)}</div>
                       <div className="mt-2">更新时间：{formatDateTime(selectedUser.updatedAt)}</div>
                     </div>
@@ -1288,14 +1301,14 @@ export default function Users() {
                         type="button"
                         onClick={() => setEditForm(toUserFormState(selectedUser))}
                         disabled={savingEdit || !selectedCanMutate}
-                        className="rounded-xl border border-gray-700 px-4 py-2.5 text-sm text-gray-200 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="motion-button rounded-xl border border-gray-700 px-4 py-2.5 text-sm text-gray-200 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         重置修改
                       </button>
                       <button
                         type="submit"
                         disabled={savingEdit || !selectedCanMutate}
-                        className="rounded-xl bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="motion-button rounded-xl bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {savingEdit ? "保存中..." : "保存变更"}
                       </button>
@@ -1336,8 +1349,8 @@ function ModalShell({
   widthClass?: string;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className={`w-full ${widthClass} rounded-2xl border border-gray-800 bg-gray-900 shadow-2xl`}>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 transition-opacity duration-300">
+      <div className={`motion-fade-up motion-surface w-full ${widthClass} rounded-2xl border border-gray-800 bg-gray-900 shadow-2xl`}>
         <div className="flex items-start justify-between gap-4 border-b border-gray-800 px-6 py-5">
           <div>
             <h2 className="text-lg font-semibold text-white">{title}</h2>
@@ -1346,7 +1359,7 @@ function ModalShell({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 hover:bg-white/5"
+            className="motion-button rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 hover:bg-white/5"
           >
             关闭
           </button>
@@ -1359,7 +1372,7 @@ function ModalShell({
 
 function StatCard({ label, value, hint }: { label: string; value: number; hint: string }) {
   return (
-    <div className="rounded-2xl border border-gray-800 bg-gray-900/70 p-5">
+    <div className="motion-surface rounded-2xl border border-gray-800 bg-gray-900/70 p-5">
       <div className="text-sm text-gray-400">{label}</div>
       <div className="mt-3 text-3xl font-semibold text-white">{value}</div>
       <div className="mt-2 text-xs text-gray-500">{hint}</div>
@@ -1419,5 +1432,5 @@ function FieldLabel({ label }: { label: string }) {
 }
 
 function InputClassName(disabled = false) {
-  return `w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-primary-400 focus:outline-none ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
+  return `w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 transition-[border-color,background-color,box-shadow] duration-200 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
 }
