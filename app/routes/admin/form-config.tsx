@@ -467,8 +467,8 @@ function removeFieldOption(optionIndex: number) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
+      <div className="motion-fade-up flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <div className="space-y-1">
           <h1 className="text-2xl font-bold text-white">表单配置</h1>
           <p className="mt-1 text-sm text-gray-400">
             管理多张报名表，配置字段、开放时间与发布状态。
@@ -480,7 +480,7 @@ function removeFieldOption(optionIndex: number) {
             type="button"
             onClick={() => setCreateOpen(true)}
             disabled={!canCreateOrSave}
-            className="rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
+            className="motion-button rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
             新建报名表
           </button>
@@ -489,26 +489,35 @@ function removeFieldOption(optionIndex: number) {
 
       {flash ? (
         <div
-          className={`rounded-lg border px-4 py-3 text-sm ${
+          className={`motion-fade-up rounded-lg border px-4 py-3 text-sm ${
             flash.type === "success"
               ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
               : "border-rose-500/20 bg-rose-500/10 text-rose-100"
           }`}
+          style={{ animationDelay: "60ms" }}
         >
           {flash.message}
         </div>
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="全部表单" value={summary.total} hint="已创建的报名表数量" />
-        <StatCard label="草稿" value={summary.draft} hint="尚未对外开放" />
-        <StatCard label="已发布" value={summary.published} hint="允许前台访问" />
-        <StatCard label="已关闭" value={summary.closed} hint="保留历史配置" />
+        <div className="motion-fade-up" style={{ animationDelay: "80ms" }}>
+          <StatCard label="全部表单" value={summary.total} hint="已创建的报名表数量" />
+        </div>
+        <div className="motion-fade-up" style={{ animationDelay: "140ms" }}>
+          <StatCard label="草稿" value={summary.draft} hint="尚未对外开放" />
+        </div>
+        <div className="motion-fade-up" style={{ animationDelay: "200ms" }}>
+          <StatCard label="已发布" value={summary.published} hint="允许前台访问" />
+        </div>
+        <div className="motion-fade-up" style={{ animationDelay: "260ms" }}>
+          <StatCard label="已关闭" value={summary.closed} hint="保留历史配置" />
+        </div>
       </div>
 
       <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
         <aside className="space-y-4">
-          <section className="rounded-xl border border-gray-800 bg-gray-900/70 p-4">
+          <section className="motion-fade-up motion-surface rounded-xl border border-gray-800 bg-gray-900/70 p-4" style={{ animationDelay: "120ms" }}>
             <div className="grid gap-3">
               <div>
                 <FieldLabel label="搜索表单" htmlFor="form-keyword" />
@@ -540,7 +549,7 @@ function removeFieldOption(optionIndex: number) {
             </div>
           </section>
 
-          <section className="rounded-xl border border-gray-800 bg-gray-900/70 p-4">
+          <section className="motion-fade-up motion-surface rounded-xl border border-gray-800 bg-gray-900/70 p-4" style={{ animationDelay: "160ms" }}>
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-white">表单列表</h2>
               {loadingList ? (
@@ -561,7 +570,7 @@ function removeFieldOption(optionIndex: number) {
                       key={form.id}
                       type="button"
                       onClick={() => setSelectedFormId(form.id)}
-                      className={`w-full rounded-lg border px-4 py-4 text-left transition-colors ${
+                      className={`motion-button w-full rounded-lg border px-4 py-4 text-left transition-colors ${
                         active
                           ? "border-primary-500/40 bg-primary-500/10"
                           : "border-gray-800 bg-gray-950/60 hover:border-gray-700 hover:bg-gray-950"
@@ -595,7 +604,7 @@ function removeFieldOption(optionIndex: number) {
           </section>
         </aside>
 
-        <section className="rounded-xl border border-gray-800 bg-gray-900/70 p-5 sm:p-6">
+        <section className="motion-fade-up motion-surface rounded-xl border border-gray-800 bg-gray-900/70 p-5 sm:p-6" style={{ animationDelay: "180ms" }}>
           {!editor ? (
             <div className="flex min-h-[420px] items-center justify-center rounded-lg border border-dashed border-gray-800 bg-gray-950/40 px-6 py-10 text-center text-sm text-gray-500">
               {loadingList || detailLoading ? "正在加载报名表..." : "请选择左侧报名表开始编辑。"}
@@ -624,7 +633,7 @@ function removeFieldOption(optionIndex: number) {
                   <button
                     type="submit"
                     disabled={saving || !canCreateOrSave}
-                    className="rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="motion-button rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {saving ? "保存中..." : "保存更改"}
                   </button>
@@ -778,7 +787,7 @@ function removeFieldOption(optionIndex: number) {
                   <button
                     type="button"
                     onClick={addField}
-                    className="rounded-lg border border-gray-700 px-4 py-2.5 text-sm text-gray-200 transition-colors hover:bg-white/5 hover:text-white"
+                    className="motion-button rounded-lg border border-gray-700 px-4 py-2.5 text-sm text-gray-200 transition-colors hover:bg-white/5 hover:text-white"
                   >
                     添加字段
                   </button>
@@ -795,7 +804,7 @@ function removeFieldOption(optionIndex: number) {
                           key={field.key}
                           type="button"
                           onClick={() => setSelectedFieldKey(field.key)}
-                          className={`w-full rounded-lg border px-4 py-4 text-left transition-colors ${
+                          className={`motion-button w-full rounded-lg border px-4 py-4 text-left transition-colors ${
                             active
                               ? "border-primary-500/40 bg-primary-500/10"
                               : "border-gray-800 bg-gray-950/60 hover:border-gray-700 hover:bg-gray-950"
@@ -831,7 +840,7 @@ function removeFieldOption(optionIndex: number) {
                                   event.stopPropagation();
                                   moveField(field.key, "up");
                                 }}
-                                className="rounded-md border border-gray-700 px-2 py-1 text-xs text-gray-300 transition-colors hover:bg-white/5"
+                                className="motion-button rounded-md border border-gray-700 px-2 py-1 text-xs text-gray-300 transition-colors hover:bg-white/5"
                               >
                                 上移
                               </button>
@@ -841,7 +850,7 @@ function removeFieldOption(optionIndex: number) {
                                   event.stopPropagation();
                                   moveField(field.key, "down");
                                 }}
-                                className="rounded-md border border-gray-700 px-2 py-1 text-xs text-gray-300 transition-colors hover:bg-white/5"
+                                className="motion-button rounded-md border border-gray-700 px-2 py-1 text-xs text-gray-300 transition-colors hover:bg-white/5"
                               >
                                 下移
                               </button>
@@ -852,7 +861,7 @@ function removeFieldOption(optionIndex: number) {
                                     event.stopPropagation();
                                     removeField(field.key);
                                   }}
-                                  className="rounded-md border border-rose-500/20 bg-rose-500/10 px-2 py-1 text-xs text-rose-200 transition-colors hover:bg-rose-500/20"
+                                  className="motion-button rounded-md border border-rose-500/20 bg-rose-500/10 px-2 py-1 text-xs text-rose-200 transition-colors hover:bg-rose-500/20"
                                 >
                                   删除
                                 </button>
@@ -868,7 +877,7 @@ function removeFieldOption(optionIndex: number) {
                     })}
                   </div>
 
-                  <div className="space-y-5 rounded-lg border border-gray-800 bg-gray-950/50 p-4">
+                  <div className="motion-surface space-y-5 rounded-lg border border-gray-800 bg-gray-950/50 p-4">
                     {selectedField ? (
                       <>
                         <div>
@@ -1001,7 +1010,7 @@ function removeFieldOption(optionIndex: number) {
                                 {(selectedField.options ?? []).map((option, index) => (
                                   <div
                                     key={`${selectedField.key}-option-${index}`}
-                                    className="rounded-lg border border-gray-800 bg-gray-900/60 p-3"
+                                    className="motion-surface rounded-lg border border-gray-800 bg-gray-900/60 p-3"
                                   >
                                     <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                                       <input
@@ -1024,21 +1033,21 @@ function removeFieldOption(optionIndex: number) {
                                         <button
                                           type="button"
                                           onClick={() => moveFieldOption(index, "up")}
-                                          className="rounded-md border border-gray-700 px-2 py-2 text-xs text-gray-300 transition-colors hover:bg-white/5"
+                                          className="motion-button rounded-md border border-gray-700 px-2 py-2 text-xs text-gray-300 transition-colors hover:bg-white/5"
                                         >
                                           上移
                                         </button>
                                         <button
                                           type="button"
                                           onClick={() => moveFieldOption(index, "down")}
-                                          className="rounded-md border border-gray-700 px-2 py-2 text-xs text-gray-300 transition-colors hover:bg-white/5"
+                                          className="motion-button rounded-md border border-gray-700 px-2 py-2 text-xs text-gray-300 transition-colors hover:bg-white/5"
                                         >
                                           下移
                                         </button>
                                         <button
                                           type="button"
                                           onClick={() => removeFieldOption(index)}
-                                          className="rounded-md border border-rose-500/20 bg-rose-500/10 px-2 py-2 text-xs text-rose-200 transition-colors hover:bg-rose-500/20"
+                                          className="motion-button rounded-md border border-rose-500/20 bg-rose-500/10 px-2 py-2 text-xs text-rose-200 transition-colors hover:bg-rose-500/20"
                                         >
                                           删除
                                         </button>
@@ -1050,7 +1059,7 @@ function removeFieldOption(optionIndex: number) {
                                 <button
                                   type="button"
                                   onClick={addFieldOption}
-                                  className="rounded-lg border border-dashed border-gray-700 px-4 py-2.5 text-sm text-gray-300 transition-colors hover:border-primary-400 hover:text-white"
+                                  className="motion-button rounded-lg border border-dashed border-gray-700 px-4 py-2.5 text-sm text-gray-300 transition-colors hover:border-primary-400 hover:text-white"
                                 >
                                   新增选项
                                 </button>
@@ -1148,7 +1157,7 @@ function removeFieldOption(optionIndex: number) {
                   </span>
                 </div>
 
-                <div className="space-y-4 rounded-xl border border-gray-800 bg-gray-950/60 p-5">
+                <div className="motion-surface space-y-4 rounded-xl border border-gray-800 bg-gray-950/60 p-5">
                   {editor.coverImageUrl ? (
                     <img
                       src={editor.coverImageUrl}
@@ -1265,14 +1274,14 @@ function removeFieldOption(optionIndex: number) {
                   setCreateOpen(false);
                   setCreateState(defaultCreateState);
                 }}
-                className="rounded-lg border border-gray-700 px-4 py-2.5 text-sm text-gray-300 transition-colors hover:bg-white/5"
+                className="motion-button rounded-lg border border-gray-700 px-4 py-2.5 text-sm text-gray-300 transition-colors hover:bg-white/5"
               >
                 取消
               </button>
               <button
                 type="submit"
                 disabled={creating}
-                className="rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
+                className="motion-button rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {creating ? "创建中..." : "创建草稿"}
               </button>
@@ -1488,7 +1497,7 @@ function handlePageError(
 }
 
 function inputClassName(disabled = false) {
-  return `w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-primary-400 focus:outline-none ${
+  return `w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 transition-[border-color,background-color,box-shadow] duration-200 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${
     disabled ? "cursor-not-allowed opacity-60" : ""
   }`;
 }
@@ -1532,7 +1541,7 @@ function StatCard({
   hint: string;
 }) {
   return (
-    <div className="rounded-xl border border-gray-800 bg-gray-900/70 p-5">
+    <div className="motion-surface rounded-xl border border-gray-800 bg-gray-900/70 p-5">
       <div className="text-sm text-gray-400">{label}</div>
       <div className="mt-3 text-3xl font-semibold text-white">{value}</div>
       <div className="mt-2 text-xs text-gray-500">{hint}</div>
@@ -1552,8 +1561,8 @@ function ModalShell({
   children: ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-2xl rounded-xl border border-gray-800 bg-gray-900 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 transition-opacity duration-300">
+      <div className="motion-fade-up motion-surface w-full max-w-2xl rounded-xl border border-gray-800 bg-gray-900 shadow-2xl">
         <div className="flex items-start justify-between gap-4 border-b border-gray-800 px-6 py-5">
           <div>
             <h2 className="text-lg font-semibold text-white">{title}</h2>
@@ -1562,7 +1571,7 @@ function ModalShell({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 transition-colors hover:bg-white/5"
+            className="motion-button rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 transition-colors hover:bg-white/5"
           >
             关闭
           </button>
