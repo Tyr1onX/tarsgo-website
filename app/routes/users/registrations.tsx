@@ -173,7 +173,7 @@ export default function UserRegistrations({
 
   return (
     <div className="space-y-8">
-      <section className="rounded-xl border border-gray-800 bg-gray-900/70 px-6 py-6">
+      <section className="motion-fade-up motion-surface rounded-xl border border-gray-800 bg-gray-900/70 px-6 py-6">
         <p className="text-sm uppercase tracking-[0.24em] text-primary-300">报名入口</p>
         <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -185,13 +185,13 @@ export default function UserRegistrations({
           <div className="flex flex-wrap gap-3">
             <Link
               to="/dashboard/users"
-              className="rounded-lg border border-gray-700 px-4 py-2.5 text-sm text-gray-300 transition-colors hover:bg-white/5 hover:text-white"
+              className="motion-button rounded-lg border border-gray-700 px-4 py-2.5 text-sm text-gray-300 hover:bg-white/5 hover:text-white"
             >
               返回用户主页
             </Link>
             <Link
               to="/"
-              className="rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-600"
+              className="motion-button rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-primary-600"
             >
               返回官网
             </Link>
@@ -206,7 +206,7 @@ export default function UserRegistrations({
           reason={loaderData.unavailableReason ?? "当前暂无可访问的报名表。"}
         />
       ) : loaderData.form ? (
-        <section className="overflow-hidden rounded-xl border border-gray-800 bg-gray-900/70">
+        <section className="motion-fade-up overflow-hidden rounded-xl border border-gray-800 bg-gray-900/70" style={{ animationDelay: "100ms" }}>
           {loaderData.form.coverImageUrl ? (
             <img
               src={loaderData.form.coverImageUrl}
@@ -257,8 +257,12 @@ export default function UserRegistrations({
               </div>
 
               <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-                {loaderData.form.fieldsSchema.map((field) => (
-                  <div key={field.key} className="space-y-2">
+                {loaderData.form.fieldsSchema.map((field, index) => (
+                  <div
+                    key={field.key}
+                    className="motion-fade-up space-y-2"
+                    style={{ animationDelay: `${120 + index * 45}ms` }}
+                  >
                     <label className="block text-sm font-medium text-gray-100">
                       {field.label}
                       {field.required ? (
@@ -274,7 +278,7 @@ export default function UserRegistrations({
 
                 {notice ? (
                   <div
-                    className={`rounded-lg border px-4 py-3 text-sm ${
+                    className={`motion-fade-up rounded-lg border px-4 py-3 text-sm ${
                       notice.type === "success"
                         ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
                         : "border-rose-500/20 bg-rose-500/10 text-rose-100"
@@ -287,14 +291,14 @@ export default function UserRegistrations({
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="rounded-lg bg-primary-500 px-5 py-3 text-sm font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="motion-button rounded-lg bg-primary-500 px-5 py-3 text-sm font-medium text-white hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {submitting ? "提交中..." : "提交报名"}
                 </button>
               </form>
             </section>
 
-            <aside className="self-start rounded-xl border border-gray-800 bg-gray-950/60 p-5">
+            <aside className="motion-fade-up motion-surface self-start rounded-xl border border-gray-800 bg-gray-950/60 p-5" style={{ animationDelay: "180ms" }}>
               <h3 className="text-lg font-semibold text-white">填写提醒</h3>
               <div className="mt-5 space-y-4 text-sm leading-6 text-gray-300">
                 <p>系统字段“姓名 / 手机号 / 邮箱 / 意向组别(1) / 意向组别(2)”为必填项。</p>
@@ -319,7 +323,7 @@ function SubmittedStateCard({
   const status = registrationStatusMeta[summary.status] ?? registrationStatusMeta[0];
 
   return (
-    <section className="rounded-xl border border-emerald-500/20 bg-gray-900/80 p-8 sm:p-10">
+    <section className="motion-fade-up motion-surface rounded-xl border border-emerald-500/20 bg-gray-900/80 p-8 sm:p-10">
       <p className="text-sm uppercase tracking-[0.24em] text-emerald-300">已提交</p>
       <div className="mt-4 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
@@ -345,7 +349,7 @@ function SubmittedStateCard({
 
 function UnavailableStateCard({ reason }: { reason: string }) {
   return (
-    <section className="rounded-xl border border-gray-800 bg-gray-900/80 p-8 sm:p-10">
+    <section className="motion-fade-up motion-surface rounded-xl border border-gray-800 bg-gray-900/80 p-8 sm:p-10">
       <p className="text-sm uppercase tracking-[0.24em] text-primary-300">暂未开放</p>
       <h2 className="mt-4 text-3xl font-semibold text-white sm:text-4xl">当前暂不可报名</h2>
       <p className="mt-4 max-w-2xl text-base leading-7 text-gray-300">{reason}</p>
@@ -355,7 +359,7 @@ function UnavailableStateCard({ reason }: { reason: string }) {
 
 function InfoBadge({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-gray-800 bg-gray-950/60 px-4 py-3">
+    <div className="motion-surface rounded-lg border border-gray-800 bg-gray-950/60 px-4 py-3">
       <div className="text-xs text-gray-500">{label}</div>
       <div className="mt-1 text-sm font-medium text-white">{value}</div>
     </div>
@@ -368,7 +372,7 @@ function renderFieldControl(
   onChange: (key: string, value: unknown) => void,
 ) {
   const commonClassName =
-    "w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-primary-400 focus:outline-none";
+    "w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 transition-[border-color,box-shadow,background-color] duration-200 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20";
 
   if (field.type === "textarea") {
     return (
@@ -406,7 +410,7 @@ function renderFieldControl(
           {field.options?.map((option) => (
             <label
               key={option.value}
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-200"
+              className="motion-button inline-flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-200"
             >
               <input
                 type="radio"
@@ -432,7 +436,7 @@ function renderFieldControl(
           return (
             <label
               key={option.value}
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-200"
+              className="motion-button inline-flex items-center gap-2 rounded-lg border border-gray-700 bg-gray-800 px-3 py-2 text-sm text-gray-200"
             >
               <input
                 type="checkbox"
