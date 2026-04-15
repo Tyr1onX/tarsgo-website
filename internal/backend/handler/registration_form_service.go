@@ -46,6 +46,7 @@ type registrationFormRepository interface {
 	ListPublishedForms(ctx context.Context) ([]model.RegistrationForm, error)
 	FindRegistrationByFormAndUser(ctx context.Context, formID uint64, userID uint64) (*model.Registration, error)
 	ListShownUserGroups(ctx context.Context) ([]model.UserGroup, error)
+	IsUserInActiveDefaultGroup(ctx context.Context, userID uint64) (bool, error)
 }
 
 type gormRegistrationFormRepository struct {
@@ -115,6 +116,22 @@ type ActiveRegistrationFormResult struct {
 	StartTime        *time.Time        `json:"startTime,omitempty"`
 	EndTime          *time.Time        `json:"endTime,omitempty"`
 	Status           uint8             `json:"status"`
+}
+
+type RecruitmentPageData struct {
+	PageMode            string                        `json:"pageMode"`
+	Form                *ActiveRegistrationFormResult `json:"form,omitempty"`
+	RegistrationSummary *RecruitmentRegistrationBrief `json:"registrationSummary,omitempty"`
+	UnavailableReason   *string                       `json:"unavailableReason,omitempty"`
+}
+
+type RecruitmentRegistrationBrief struct {
+	ID          uint64    `json:"id"`
+	FormID      uint64    `json:"formId"`
+	FormTitle   string    `json:"formTitle"`
+	Status      uint8     `json:"status"`
+	SubmittedAt time.Time `json:"submittedAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 type registrationFormServiceError struct {
@@ -300,35 +317,55 @@ func (s *RegistrationFormService) UpdateForm(ctx context.Context, actor Registra
 	return s.GetForm(ctx, actor, formID)
 }
 
-func (s *RegistrationFormService) GetActiveForm(ctx context.Context, actor RegistrationFormActor) (*ActiveRegistrationFormResult, error) {
+func (s *RegistrationFormService) GetRecruitmentPageData(ctx context.Context, actor RegistrationFormActor) (*RecruitmentPageData, error) {
 	if err := ensureRegistrationAuthenticatedActor(actor); err != nil {
 		return nil, err
 	}
 
 	forms, err := s.repo.ListPublishedForms(ctx)
 	if err != nil {
-		return nil, &registrationFormServiceError{Status: http.StatusInternalServerError, Message: "查询活动报名表失败", Err: err}
+		return nil, &registrationFormServiceError{Status: http.StatusInternalServerError, Message: "查询报名页面数据失败", Err: err}
 	}
 	if len(forms) == 0 {
-		return nil, &registrationFormServiceError{Status: http.StatusNotFound, Message: "当前暂无开放中的报名表"}
+		return buildUnavailableRecruitmentPageData("当前暂无开放中的报名表"), nil
 	}
 	if len(forms) > 1 {
-		return nil, &registrationFormServiceError{Status: http.StatusConflict, Message: "存在多个已发布报名表，请联系管理员处理"}
+		return buildUnavailableRecruitmentPageData("存在多个已发布报名表，请联系管理员处理"), nil
 	}
 
 	form := forms[0]
-	if _, err := s.repo.FindRegistrationByFormAndUser(ctx, form.ID, actor.ID); err == nil {
-		return nil, &registrationFormServiceError{Status: http.StatusConflict, Message: "你已完成当前报名，请勿重复提交"}
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+	registration, err := s.repo.FindRegistrationByFormAndUser(ctx, form.ID, actor.ID)
+	if err == nil {
+		return &RecruitmentPageData{
+			PageMode: "submitted",
+			RegistrationSummary: &RecruitmentRegistrationBrief{
+				ID:          registration.ID,
+				FormID:      registration.FormID,
+				FormTitle:   form.Title,
+				Status:      registration.Status,
+				SubmittedAt: registration.SubmittedAt,
+				UpdatedAt:   registration.UpdatedAt,
+			},
+		}, nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, &registrationFormServiceError{Status: http.StatusInternalServerError, Message: "检查报名状态失败", Err: err}
+	}
+
+	inDefaultGroup, err := s.repo.IsUserInActiveDefaultGroup(ctx, actor.ID)
+	if err != nil {
+		return nil, &registrationFormServiceError{Status: http.StatusInternalServerError, Message: "检查报名资格失败", Err: err}
+	}
+	if !inDefaultGroup {
+		return buildUnavailableRecruitmentPageData("当前账号暂无纳新报名资格"), nil
 	}
 
 	now := s.now()
 	if form.StartTime != nil && now.Before(*form.StartTime) {
-		return nil, &registrationFormServiceError{Status: http.StatusConflict, Message: "报名尚未开始"}
+		return buildUnavailableRecruitmentPageData("报名尚未开始"), nil
 	}
 	if form.EndTime != nil && now.After(*form.EndTime) {
-		return nil, &registrationFormServiceError{Status: http.StatusConflict, Message: "报名已结束"}
+		return buildUnavailableRecruitmentPageData("报名已结束"), nil
 	}
 
 	result := ActiveRegistrationFormResult{
@@ -346,7 +383,21 @@ func (s *RegistrationFormService) GetActiveForm(ctx context.Context, actor Regis
 		return nil, &registrationFormServiceError{Status: http.StatusInternalServerError, Message: "加载展示分组失败", Err: err}
 	}
 	result.FieldsSchema = hydrateUserGroupSelectFields(form.FieldsSchema, groups)
-	return &result, nil
+	return &RecruitmentPageData{
+		PageMode: "form",
+		Form:     &result,
+	}, nil
+}
+
+func buildUnavailableRecruitmentPageData(reason string) *RecruitmentPageData {
+	trimmed := strings.TrimSpace(reason)
+	if trimmed == "" {
+		return &RecruitmentPageData{PageMode: "unavailable"}
+	}
+	return &RecruitmentPageData{
+		PageMode:          "unavailable",
+		UnavailableReason: &trimmed,
+	}
 }
 
 func ensureRegistrationAdminActor(actor RegistrationFormActor) error {
@@ -745,6 +796,23 @@ func (r *gormRegistrationFormRepository) ListShownUserGroups(ctx context.Context
 		return nil, err
 	}
 	return groups, nil
+}
+
+func (r *gormRegistrationFormRepository) IsUserInActiveDefaultGroup(ctx context.Context, userID uint64) (bool, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).
+		Model(&model.UserGroupMember{}).
+		Joins("JOIN user_groups ON user_groups.id = user_group_members.group_id").
+		Where(
+			"user_group_members.user_id = ? AND user_groups.is_default = ? AND user_groups.status = ?",
+			userID,
+			true,
+			model.UserGroupStatusActive,
+		).
+		Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
 }
 
 func (r *gormRegistrationFormRepository) FindRegistrationByFormAndUser(ctx context.Context, formID uint64, userID uint64) (*model.Registration, error) {

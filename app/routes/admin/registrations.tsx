@@ -19,7 +19,7 @@ import {
   type RegistrationFormField,
   type RegistrationFormListItem,
 } from "~/lib/registration-forms-client";
-import type { AdminLayoutOutletContext } from "~/routes/admin/layout";
+import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 
 export function meta() {
   return [
@@ -55,7 +55,7 @@ const statusOptions = [
 ];
 
 export default function RegistrationsPage() {
-  useOutletContext<AdminLayoutOutletContext>();
+  useOutletContext<DashboardLayoutOutletContext>();
   const navigate = useNavigate();
 
   const [keyword, setKeyword] = useState("");

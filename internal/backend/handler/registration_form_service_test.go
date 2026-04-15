@@ -41,7 +41,7 @@ func TestRegistrationFormServiceUpdateFormRejectsPublishConflict(t *testing.T) {
 	assertRegistrationFormServiceError(t, err, 409, "已有已发布报名表")
 }
 
-func TestRegistrationFormServiceGetActiveFormChecksTimeWindow(t *testing.T) {
+func TestRegistrationFormServiceGetRecruitmentPageDataReturnsUnavailableWhenNotStarted(t *testing.T) {
 	repo := newFakeRegistrationFormRepository()
 	service := newRegistrationFormServiceWithRepo(repo)
 
@@ -51,24 +51,105 @@ func TestRegistrationFormServiceGetActiveFormChecksTimeWindow(t *testing.T) {
 	form.StartTime = &startAt
 	service.now = func() time.Time { return now }
 
-	_, err := service.GetActiveForm(context.Background(), RegistrationFormActor{ID: 9, RoleName: model.RoleNameUser})
+	result, err := service.GetRecruitmentPageData(context.Background(), RegistrationFormActor{ID: 9, RoleName: model.RoleNameUser})
+	if err != nil {
+		t.Fatalf("GetRecruitmentPageData returned error: %v", err)
+	}
 
-	assertRegistrationFormServiceError(t, err, 409, "尚未开始")
+	if result.PageMode != "unavailable" {
+		t.Fatalf("expected unavailable page mode, got %q", result.PageMode)
+	}
+	if result.UnavailableReason == nil || !strings.Contains(*result.UnavailableReason, "尚未开始") {
+		t.Fatalf("expected unavailable reason to mention 尚未开始, got %#v", result.UnavailableReason)
+	}
+	if result.Form != nil {
+		t.Fatalf("expected no form payload for unavailable state")
+	}
 }
 
-func TestRegistrationFormServiceGetActiveFormRejectsSubmittedUser(t *testing.T) {
+func TestRegistrationFormServiceGetRecruitmentPageDataReturnsSubmittedStateForExistingRegistration(t *testing.T) {
 	repo := newFakeRegistrationFormRepository()
+	repo.usersInDefaultGroup[42] = false
 	repo.registrations = append(repo.registrations, &model.Registration{
-		ID:     9,
-		FormID: 2,
-		UserID: 42,
-		Status: model.RegistrationStatusPending,
+		ID:          9,
+		FormID:      2,
+		UserID:      42,
+		Status:      model.RegistrationStatusPending,
+		SubmittedAt: time.Date(2026, 4, 13, 12, 30, 0, 0, time.Local),
+		UpdatedAt:   time.Date(2026, 4, 13, 12, 30, 0, 0, time.Local),
 	})
 	service := newRegistrationFormServiceWithRepo(repo)
 
-	_, err := service.GetActiveForm(context.Background(), RegistrationFormActor{ID: 42, RoleName: model.RoleNameUser})
+	result, err := service.GetRecruitmentPageData(context.Background(), RegistrationFormActor{ID: 42, RoleName: model.RoleNameUser})
+	if err != nil {
+		t.Fatalf("GetRecruitmentPageData returned error: %v", err)
+	}
 
-	assertRegistrationFormServiceError(t, err, 409, "已完成当前报名")
+	if result.PageMode != "submitted" {
+		t.Fatalf("expected submitted page mode, got %q", result.PageMode)
+	}
+	if result.RegistrationSummary == nil {
+		t.Fatalf("expected submitted summary payload")
+	}
+	if result.RegistrationSummary.FormTitle != "已发布表单" {
+		t.Fatalf("expected form title to be preserved, got %q", result.RegistrationSummary.FormTitle)
+	}
+	if result.RegistrationSummary.Status != model.RegistrationStatusPending {
+		t.Fatalf("expected pending summary status, got %d", result.RegistrationSummary.Status)
+	}
+	if result.Form != nil {
+		t.Fatalf("expected no form payload for submitted state")
+	}
+}
+
+func TestRegistrationFormServiceGetRecruitmentPageDataReturnsUnavailableWhenUserIsNotInDefaultGroup(t *testing.T) {
+	repo := newFakeRegistrationFormRepository()
+	repo.usersInDefaultGroup[77] = false
+	service := newRegistrationFormServiceWithRepo(repo)
+	service.now = func() time.Time {
+		return time.Date(2026, 4, 13, 10, 0, 0, 0, time.Local)
+	}
+
+	result, err := service.GetRecruitmentPageData(context.Background(), RegistrationFormActor{ID: 77, RoleName: model.RoleNameUser})
+	if err != nil {
+		t.Fatalf("GetRecruitmentPageData returned error: %v", err)
+	}
+
+	if result.PageMode != "unavailable" {
+		t.Fatalf("expected unavailable page mode, got %q", result.PageMode)
+	}
+	if result.UnavailableReason == nil || !strings.Contains(*result.UnavailableReason, "暂无纳新报名资格") {
+		t.Fatalf("expected unavailable reason to mention 暂无纳新报名资格, got %#v", result.UnavailableReason)
+	}
+	if result.Form != nil {
+		t.Fatalf("expected no form payload for unavailable state")
+	}
+}
+
+func TestRegistrationFormServiceGetRecruitmentPageDataReturnsFormStateWhenOpen(t *testing.T) {
+	repo := newFakeRegistrationFormRepository()
+	service := newRegistrationFormServiceWithRepo(repo)
+	service.now = func() time.Time {
+		return time.Date(2026, 4, 13, 10, 0, 0, 0, time.Local)
+	}
+
+	result, err := service.GetRecruitmentPageData(context.Background(), RegistrationFormActor{ID: 9, RoleName: model.RoleNameUser})
+	if err != nil {
+		t.Fatalf("GetRecruitmentPageData returned error: %v", err)
+	}
+
+	if result.PageMode != "form" {
+		t.Fatalf("expected form page mode, got %q", result.PageMode)
+	}
+	if result.Form == nil {
+		t.Fatalf("expected form payload")
+	}
+	if len(result.Form.FieldsSchema) != len(validRegistrationFields()) {
+		t.Fatalf("expected hydrated form fields, got %d", len(result.Form.FieldsSchema))
+	}
+	if result.RegistrationSummary != nil {
+		t.Fatalf("expected no submitted summary in form state")
+	}
 }
 
 func TestRegistrationFormServiceCreateFormPersistsValidForm(t *testing.T) {
@@ -136,9 +217,10 @@ func TestPrepareRegistrationFormUpdates_MarshalsFieldsSchema(t *testing.T) {
 }
 
 type fakeRegistrationFormRepository struct {
-	forms         map[uint64]*model.RegistrationForm
-	registrations []*model.Registration
-	nextID        uint64
+	forms               map[uint64]*model.RegistrationForm
+	registrations       []*model.Registration
+	usersInDefaultGroup map[uint64]bool
+	nextID              uint64
 }
 
 func newFakeRegistrationFormRepository() *fakeRegistrationFormRepository {
@@ -163,6 +245,10 @@ func newFakeRegistrationFormRepository() *fakeRegistrationFormRepository {
 				CreatedAt:    now.Add(-72 * time.Hour),
 				UpdatedAt:    now.Add(-2 * time.Hour),
 			},
+		},
+		usersInDefaultGroup: map[uint64]bool{
+			9:  true,
+			42: true,
 		},
 		nextID: 3,
 	}
@@ -288,6 +374,14 @@ func (r *fakeRegistrationFormRepository) FindRegistrationByFormAndUser(_ context
 		}
 	}
 	return nil, gorm.ErrRecordNotFound
+}
+
+func (r *fakeRegistrationFormRepository) IsUserInActiveDefaultGroup(_ context.Context, userID uint64) (bool, error) {
+	inDefaultGroup, ok := r.usersInDefaultGroup[userID]
+	if !ok {
+		return true, nil
+	}
+	return inDefaultGroup, nil
 }
 
 func validRegistrationFields() []model.FormField {

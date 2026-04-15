@@ -149,7 +149,7 @@ GET http://127.0.0.1:8080/api/register/github/oauth/callback GitHub OAuth 回调
  - 后端用 code 换取 access_token，获取 GitHub 用户信息
  - 如果该 GitHub 账号未绑定本站账户，自动创建新账户
  - 若因为 GitHub 首次登录而新建账号，且系统存在“启用中的默认分组”，则会自动加入默认分组
- - 成功后通过 Set-Cookie 下发 JWT，然后 302 重定向到前端管理员后台
+ - 成功后通过 Set-Cookie 下发 JWT，然后 302 重定向到前端统一工作台 `/dashboard`
 
 ### 当前会话
 
@@ -161,19 +161,24 @@ GET http://127.0.0.1:8080/api/me 获取当前登录用户
      "code": 200,
      "message": "获取当前用户成功",
      "data": {
-       "user": {
-         "id": 1,
-         "email": "admin@tarsgo.local",
-         "phone": null,
-         "role": {
-           "id": 1,
-           "name": "super_admin",
-           "displayName": "超级管理员"
-         }
-       }
-     }
-   }
-   ```
+      "user": {
+        "id": 1,
+        "email": "admin@tarsgo.local",
+        "phone": null,
+        "role": {
+          "id": 1,
+          "name": "super_admin",
+          "displayName": "超级管理员"
+        },
+        "portal": {
+          "showRecruitmentEntry": false
+        }
+      }
+    }
+  }
+  ```
+ - 字段说明：
+   - `portal.showRecruitmentEntry`：用户前台是否显示“纳新报名”入口；仅当后台存在已发布报名表，且当前用户仍属于启用中的默认分组时返回 `true`
  - 失败响应：
    ```json
    { "code": 401, "message": "未登录", "data": null }
@@ -201,7 +206,7 @@ POST http://127.0.0.1:8080/api/logout 登出
  - 所有 `super_admin` 账号只允许查看，不允许修改、停用或重置密码
 
 GET http://127.0.0.1:8080/api/admin/users 获取用户分页列表
- - 用途：加载 `/admin/users` 列表、统计卡和分页信息
+ - 用途：加载 `/dashboard/admin/users` 列表、统计卡和分页信息
  - 查询参数：
    - `page`：页码，默认 `1`
    - `pageSize`：每页条数，默认 `10`，最大 `100`
@@ -441,7 +446,7 @@ GET http://127.0.0.1:8080/api/admin/roles 获取角色下拉选项
 说明：
  - 需要管理员登录后携带 JWT Cookie 访问
 - `admin` 与 `super_admin` 可访问用户组后台接口
-- 用户组接口服务于 `/admin/user-groups`
+- 用户组接口服务于 `/dashboard/admin/user-groups`
 - 同一时间只允许一个“启用中的默认分组”；如果某个分组被设置为默认且状态为启用，服务端会在同一事务内清空其它分组的默认标记
 - 邮箱注册、GitHub 首次建号、后台创建 `role=user` 三条链路都会尝试自动加入当前启用中的默认分组；若不存在默认分组则跳过
 - `show` 表示该分组是否出现在前台报名表“意向组别(1)/(2)”下拉中，`1=展示`、`0=隐藏`
@@ -951,90 +956,123 @@ PATCH http://127.0.0.1:8080/api/admin/registration-forms/:id 更新报名表
    - `404`：报名表不存在
    - `409`：将当前表单改为已发布时，系统中存在另一张已发布报名表
 
-GET http://127.0.0.1:8080/api/recruitment/form 获取当前活动报名表
- - 用途：前台 `/recruitment` 页面在用户登录后动态拉取当前可访问的报名表
- - 鉴权：要求已登录；未登录时返回 `401`
- - 返回规则：
-   - 仅返回 `status=1(已发布)` 且当前时间落在 `startTime/endTime` 窗口内的报名表
-   - 若不存在活动表单、未到开始时间、已结束，均返回业务失败，前端展示不可报名状态页
+GET http://127.0.0.1:8080/api/recruitment/form 获取用户前台报名信息页数据
+- 用途：用户前台 `/dashboard/users/registrations` 页面在登录后拉取报名页三态数据
+- 鉴权：要求已登录；未登录时返回 `401`
+- 返回规则：
+   - 若当前用户对已发布报名表已有报名记录，则优先返回 `pageMode=submitted`
+   - `pageMode=form`：返回当前开放中的报名表，前端展示可提交表单
+   - `pageMode=submitted`：返回当前用户的报名摘要，前端展示状态与提交时间
+   - `pageMode=unavailable`：返回不可报名原因，前端展示不可报名状态页
+   - 当当前用户不在启用中的默认分组，且没有已提交记录时，返回 `pageMode=unavailable`
  - 成功响应示例：
    ```json
    {
      "code": 200,
-     "message": "获取活动报名表成功",
+     "message": "获取报名信息页数据成功",
      "data": {
-       "id": 3,
-       "title": "2026 春季招新报名表",
-       "description": "面向机械、电控、视觉、算法方向开放招募",
-       "coverImageUrl": "https://example.com/recruitment-cover.jpg",
-       "fieldsSchema": [
-         {
-           "key": "name",
-           "label": "姓名",
-           "type": "text",
-           "required": true
-         },
-         {
-           "key": "phone",
-           "label": "手机号",
-           "type": "phone",
-           "required": true
-         },
-        {
-          "key": "email",
-          "label": "邮箱",
-          "type": "email",
-          "required": true
-        },
-        {
-          "key": "group_1",
-          "label": "意向组别(1)",
-          "type": "user_group_select",
-          "required": true,
-          "options": [
-            {
-              "label": "机械组",
-              "value": "11"
-            },
-            {
-              "label": "电控组",
-              "value": "12"
-            }
-          ]
-        },
-        {
-          "key": "group_2",
-          "label": "意向组别(2)",
-          "type": "user_group_select",
-          "required": true,
-          "options": [
-            {
-              "label": "机械组",
-              "value": "11"
-            },
-            {
-              "label": "电控组",
-              "value": "12"
-            }
-          ]
+       "pageMode": "form",
+       "form": {
+         "id": 3,
+         "title": "2026 春季招新报名表",
+         "description": "面向机械、电控、视觉、算法方向开放招募",
+         "coverImageUrl": "https://example.com/recruitment-cover.jpg",
+         "fieldsSchema": [
+           {
+             "key": "name",
+             "label": "姓名",
+             "type": "text",
+             "required": true
+           },
+           {
+             "key": "phone",
+             "label": "手机号",
+             "type": "phone",
+             "required": true
+           },
+           {
+             "key": "email",
+             "label": "邮箱",
+             "type": "email",
+             "required": true
+           },
+           {
+             "key": "group_1",
+             "label": "意向组别(1)",
+             "type": "user_group_select",
+             "required": true,
+             "options": [
+               {
+                 "label": "机械组",
+                 "value": "11"
+               },
+               {
+                 "label": "电控组",
+                 "value": "12"
+               }
+             ]
+           },
+           {
+             "key": "group_2",
+             "label": "意向组别(2)",
+             "type": "user_group_select",
+             "required": true,
+             "options": [
+               {
+                 "label": "机械组",
+                 "value": "11"
+               },
+               {
+                 "label": "电控组",
+                 "value": "12"
+               }
+             ]
+           }
+         ],
+         "maxRegistrations": 120,
+         "startTime": "2026-04-20T09:00:00+08:00",
+         "endTime": "2026-04-27T18:00:00+08:00",
+         "status": 1
+       }
+     }
+    }
+    ```
+  - `submitted` 状态示例：
+    ```json
+    {
+      "code": 200,
+      "message": "获取报名信息页数据成功",
+      "data": {
+        "pageMode": "submitted",
+        "registrationSummary": {
+          "id": 12,
+          "formId": 3,
+          "formTitle": "2026 春季招新报名表",
+          "status": 0,
+          "submittedAt": "2026-04-13T20:10:00+08:00",
+          "updatedAt": "2026-04-13T20:10:00+08:00"
         }
-        ],
-        "maxRegistrations": 120,
-        "startTime": "2026-04-20T09:00:00+08:00",
-        "endTime": "2026-04-27T18:00:00+08:00",
-        "status": 1
+      }
+    }
+    ```
+  - `unavailable` 状态示例：
+    ```json
+    {
+      "code": 200,
+      "message": "获取报名信息页数据成功",
+      "data": {
+        "pageMode": "unavailable",
+        "unavailableReason": "当前账号暂无纳新报名资格"
       }
     }
     ```
   - 常见失败：
     - `401`：未登录、登录态失效
-    - `404`：当前暂无开放中的报名表
-    - `409`：你已完成当前报名、报名尚未开始、报名已结束、或后台存在多张已发布报名表
 
-### 报名列表
+### 用户前台报名
 
 POST http://127.0.0.1:8080/api/recruitment/registrations 提交报名
-  - 用途：前台 `/recruitment` 页面提交当前活动报名表
+  - 用途：用户前台 `/dashboard/users/registrations` 页面提交当前活动报名表
   - 鉴权：要求已登录；未登录时返回 `401`
   - 请求体：`multipart/form-data`
     - 固定字段：`formId`

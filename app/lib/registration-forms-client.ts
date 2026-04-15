@@ -80,7 +80,7 @@ export interface UpsertRegistrationFormInput {
   status: number;
 }
 
-export interface ActiveRecruitmentFormResult {
+export interface RecruitmentPageForm {
   id: number;
   title: string;
   description?: string | null;
@@ -90,6 +90,24 @@ export interface ActiveRecruitmentFormResult {
   startTime?: string | null;
   endTime?: string | null;
   status: number;
+}
+
+export type RecruitmentPageMode = "form" | "submitted" | "unavailable";
+
+export interface RecruitmentPageRegistrationSummary {
+  id: number;
+  formId: number;
+  formTitle: string;
+  status: number;
+  submittedAt: string;
+  updatedAt: string;
+}
+
+export interface RecruitmentPageData {
+  pageMode: RecruitmentPageMode;
+  form?: RecruitmentPageForm | null;
+  registrationSummary?: RecruitmentPageRegistrationSummary | null;
+  unavailableReason?: string | null;
 }
 
 export async function listAdminRegistrationForms(
@@ -135,6 +153,6 @@ export async function updateAdminRegistrationForm(
   });
 }
 
-export async function getActiveRecruitmentForm(): Promise<ActiveRecruitmentFormResult> {
-  return apiRequest<ActiveRecruitmentFormResult>("/api/recruitment/form");
+export async function getRecruitmentPageData(): Promise<RecruitmentPageData> {
+  return apiRequest<RecruitmentPageData>("/api/recruitment/form");
 }

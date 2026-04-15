@@ -29,7 +29,7 @@ import {
   type RegistrationFormListItem,
   type RegistrationFormSummary,
 } from "~/lib/registration-forms-client";
-import type { AdminLayoutOutletContext } from "~/routes/admin/layout";
+import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 
 export function meta() {
   return [
@@ -78,7 +78,7 @@ const defaultCreateState: CreateFormState = {
 
 export default function FormConfigPage() {
   const navigate = useNavigate();
-  const { currentUser } = useOutletContext<AdminLayoutOutletContext>();
+  const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
 
   const [keyword, setKeyword] = useState("");
   const [statusFilter, setStatusFilter] = useState("");

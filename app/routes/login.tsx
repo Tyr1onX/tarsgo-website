@@ -129,7 +129,7 @@ export default function Login() {
               <span className="text-white font-bold text-lg">T</span>
             </div>
             <h1 className="text-2xl font-bold text-white mb-2">欢迎回来</h1>
-            <p className="text-sm text-gray-400">登录你的 TARS-GO 管理后台账号</p>
+            <p className="text-sm text-gray-400">登录你的 TARS-GO 统一工作台账号</p>
           </div>
 
           <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-950/70 border border-gray-800 p-1 mb-6">
@@ -274,7 +274,7 @@ export default function Login() {
           <p className="mt-6 text-center text-sm text-gray-400">
             还没有账号？{" "}
             <Link
-              to={redirectTo === "/admin/dashboard" ? "/register" : `/register?redirect=${encodeURIComponent(redirectTo)}`}
+              to={redirectTo === "/dashboard" ? "/register" : `/register?redirect=${encodeURIComponent(redirectTo)}`}
               className="text-primary-400 hover:text-primary-300 font-medium transition-colors"
             >
               立即注册
@@ -299,12 +299,12 @@ function isValidEmail(value: string) {
 
 function getSafeRedirectPath(value: string | null) {
   if (!value) {
-    return "/admin/dashboard";
+    return "/dashboard";
   }
 
   const trimmed = value.trim();
   if (!trimmed.startsWith("/") || trimmed.startsWith("//")) {
-    return "/admin/dashboard";
+    return "/dashboard";
   }
 
   return trimmed;

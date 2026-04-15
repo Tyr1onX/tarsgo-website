@@ -8,12 +8,17 @@ export interface AuthRole {
   displayName: string;
 }
 
+export interface AuthUserPortal {
+  showRecruitmentEntry: boolean;
+}
+
 export interface AuthUser {
   id: number;
   email: string;
   phone?: string | null;
   nickname?: string | null;
   role: AuthRole;
+  portal?: AuthUserPortal | null;
 }
 
 let currentUserCache: AuthUser | null = null;
