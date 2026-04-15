@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useNavigate, useOutletContext } from "react-router";
 
+import { AnimatedSelect } from "~/components/animated-select";
 import { ApiError } from "~/lib/api-client";
 import {
   buildCustomRegistrationField,
@@ -98,6 +99,7 @@ export default function FormConfigPage() {
   const [flash, setFlash] = useState<FlashState>(null);
   const fieldButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const previousFieldPositionsRef = useRef<Record<string, DOMRect>>({});
+  const pendingFieldMoveRef = useRef<string | null>(null);
 
   const selectedField = useMemo(() => {
     if (!editor) {
@@ -136,6 +138,14 @@ const requiredFieldCount = useMemo(
     }
 
     const previousPositions = previousFieldPositionsRef.current;
+    const pendingFieldMoveKey = pendingFieldMoveRef.current;
+
+    if (!pendingFieldMoveKey) {
+      previousFieldPositionsRef.current = nextPositions;
+      return;
+    }
+
+    pendingFieldMoveRef.current = null;
 
     for (const [key, nextBox] of Object.entries(nextPositions)) {
       const previousBox = previousPositions[key];
@@ -289,6 +299,7 @@ const requiredFieldCount = useMemo(
   }
 
   function moveField(key: string, direction: "up" | "down") {
+    pendingFieldMoveRef.current = key;
     updateEditor((current) => {
       const index = current.fieldsSchema.findIndex((field) => field.key === key);
       if (index === -1) {
@@ -575,19 +586,18 @@ function removeFieldOption(optionIndex: number) {
 
               <div>
                 <FieldLabel label="状态筛选" htmlFor="status-filter" />
-                <select
+                <AnimatedSelect
                   id="status-filter"
                   value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value)}
-                  className={selectClassName()}
-                >
-                  <option value="">全部状态</option>
-                  {REGISTRATION_FORM_STATUS_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setStatusFilter}
+                  options={[
+                    { value: "", label: "全部状态" },
+                    ...REGISTRATION_FORM_STATUS_OPTIONS.map((option) => ({
+                      value: option.value,
+                      label: option.label,
+                    })),
+                  ]}
+                />
               </div>
             </div>
           </section>
@@ -765,23 +775,20 @@ function removeFieldOption(optionIndex: number) {
 
                   <div>
                     <FieldLabel label="报名状态" htmlFor="form-status" />
-                    <select
+                    <AnimatedSelect
                       id="form-status"
                       value={editor.status}
-                      onChange={(event) =>
+                      onChange={(value) =>
                         updateEditor((current) => ({
                           ...current,
-                          status: event.target.value,
+                          status: value,
                         }))
                       }
-                      className={selectClassName()}
-                    >
-                      {REGISTRATION_FORM_STATUS_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
+                      options={REGISTRATION_FORM_STATUS_OPTIONS.map((option) => ({
+                        value: option.value,
+                        label: option.label,
+                      }))}
+                    />
                   </div>
 
                   <div>
@@ -971,7 +978,7 @@ function removeFieldOption(optionIndex: number) {
                                 }));
                                 setSelectedFieldKey(nextKey || selectedField.key);
                               }}
-                              className={selectClassName(
+                              className={inputClassName(
                                 isLockedRegistrationField(selectedField.key),
                               )}
                             />
@@ -979,25 +986,18 @@ function removeFieldOption(optionIndex: number) {
 
                           <div>
                             <FieldLabel label="字段类型" htmlFor="field-type" />
-                            <select
+                            <AnimatedSelect
                               id="field-type"
                               value={selectedField.type}
                               disabled={isLockedRegistrationField(selectedField.key)}
-                              onChange={(event) =>
-                                updateFieldType(
-                                  event.target.value as RegistrationFormField["type"],
-                                )
+                              onChange={(value) =>
+                                updateFieldType(value as RegistrationFormField["type"])
                               }
-                              className={inputClassName(
-                                isLockedRegistrationField(selectedField.key),
-                              )}
-                            >
-                              {REGISTRATION_FIELD_TYPE_OPTIONS.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                  {option.label}
-                                </option>
-                              ))}
-                            </select>
+                              options={REGISTRATION_FIELD_TYPE_OPTIONS.map((option) => ({
+                                value: option.value,
+                                label: option.label,
+                              }))}
+                            />
                           </div>
 
                           <label className="flex items-center gap-3 rounded-lg border border-gray-800 bg-gray-900/60 px-3 py-3 text-sm text-gray-200">
@@ -1546,10 +1546,6 @@ function inputClassName(disabled = false) {
   return `motion-field w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${
     disabled ? "cursor-not-allowed opacity-60" : ""
   }`;
-}
-
-function selectClassName(disabled = false) {
-  return `${inputClassName(disabled)} motion-select`;
 }
 
 function dateInputClassName(disabled = false) {

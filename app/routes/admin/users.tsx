@@ -1,6 +1,7 @@
 import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router";
 
+import { AnimatedSelect } from "~/components/animated-select";
 import {
   createAdminUser,
   getAdminUser,
@@ -28,6 +29,8 @@ type FlashState =
   | { type: "success"; message: string }
   | { type: "error"; message: string }
   | null;
+
+type DrawerState = "closed" | "entering" | "open" | "closing";
 
 type UserFormState = {
   roleId: string;
@@ -227,7 +230,7 @@ export default function Users() {
   const [rolesLoading, setRolesLoading] = useState(false);
   const [flash, setFlash] = useState<FlashState>(null);
 
-  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerState, setDrawerState] = useState<DrawerState>("closed");
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [selectedUser, setSelectedUser] = useState<AdminUserDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -275,6 +278,8 @@ export default function Users() {
     return getReadonlyReason(selectedUser.role.name, actorRoleName);
   }, [actorRoleName, selectedUser]);
   const selectedCanMutate = selectedReadonlyReason === "";
+  const drawerVisible = drawerState !== "closed";
+  const drawerActive = drawerState === "entering" || drawerState === "open";
 
   useEffect(() => {
     if (noAdminPermission) {
@@ -352,7 +357,7 @@ export default function Users() {
   }, [navigate, noAdminPermission, query]);
 
   useEffect(() => {
-    if (!drawerOpen || selectedUserId === null) {
+    if (!drawerActive || selectedUserId === null) {
       return;
     }
 
@@ -374,9 +379,7 @@ export default function Users() {
             return;
           }
           setFlash({ type: "error", message: getErrorMessage(error) });
-          setDrawerOpen(false);
-          setSelectedUserId(null);
-          setSelectedUser(null);
+          requestCloseDrawer();
         }
       } finally {
         if (!cancelled) {
@@ -390,7 +393,38 @@ export default function Users() {
     return () => {
       cancelled = true;
     };
-  }, [drawerOpen, navigate, selectedUserId]);
+  }, [drawerActive, navigate, selectedUserId]);
+
+  useEffect(() => {
+    if (drawerState !== "entering") {
+      return;
+    }
+
+    const frame = window.requestAnimationFrame(() => {
+      setDrawerState("open");
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [drawerState]);
+
+  useEffect(() => {
+    if (drawerState !== "closing") {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setDrawerState("closed");
+      setSelectedUserId(null);
+      setSelectedUser(null);
+      setDetailLoading(false);
+    }, 420);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [drawerState]);
 
   async function refreshList() {
     const response = await listAdminUsers(query);
@@ -421,9 +455,18 @@ export default function Users() {
   }
 
   function openDetail(userId: number) {
-    setDrawerOpen(true);
     setSelectedUserId(userId);
     setSelectedUser(null);
+    setDrawerState((current) => (current === "closed" ? "entering" : "open"));
+  }
+
+  function requestCloseDrawer() {
+    setDrawerState((current) => {
+      if (current === "closed" || current === "closing") {
+        return current;
+      }
+      return "closing";
+    });
   }
 
   async function handleCreateUser(event: FormEvent<HTMLFormElement>) {
@@ -612,37 +655,35 @@ export default function Users() {
           </div>
           <div>
             <FieldLabel label="角色" />
-            <select
+            <AnimatedSelect
               value={filters.role ?? ""}
-              onChange={(event) => setFilters((previous) => ({ ...previous, role: event.target.value }))}
-              className={SelectClassName()}
-            >
-              <option value="">全部角色</option>
-              {roles.map((role) => (
-                <option key={role.id} value={role.name}>
-                  {role.displayName}
-                </option>
-              ))}
-            </select>
+              onChange={(value) =>
+                setFilters((previous) => ({ ...previous, role: value }))
+              }
+              options={[
+                { value: "", label: "全部角色" },
+                ...roles.map((role) => ({
+                  value: role.name,
+                  label: role.displayName,
+                })),
+              ]}
+            />
           </div>
           <div>
             <FieldLabel label="状态" />
-            <select
+            <AnimatedSelect
               value={String(filters.status ?? "")}
-              onChange={(event) =>
+              onChange={(value) =>
                 setFilters((previous) => ({
                   ...previous,
-                  status: event.target.value === "" ? "" : Number(event.target.value),
+                  status: value === "" ? "" : Number(value),
                 }))
               }
-              className={SelectClassName()}
-            >
-              {statusOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              options={statusOptions.map((option) => ({
+                value: option.value,
+                label: option.label,
+              }))}
+            />
           </div>
           <div className="flex items-end gap-3">
             <button
@@ -766,23 +807,22 @@ export default function Users() {
             第 {pagination.page} / {Math.max(pagination.totalPages, 1)} 页，共 {pagination.total} 条记录
           </div>
           <div className="flex items-center gap-3">
-            <select
+            <AnimatedSelect
+              ariaLabel="每页条数"
               value={pagination.pageSize}
-              onChange={(event) =>
+              onChange={(value) =>
                 setQuery((previous) => ({
                   ...previous,
                   page: 1,
-                  pageSize: Number(event.target.value),
+                  pageSize: Number(value),
                 }))
               }
-              className={CompactSelectClassName()}
-            >
-              {[10, 20, 50].map((value) => (
-                <option key={value} value={value}>
-                  {value} / 页
-                </option>
-              ))}
-            </select>
+              options={[10, 20, 50].map((value) => ({
+                value,
+                label: `${value} / 页`,
+              }))}
+              size="compact"
+            />
             <button
               type="button"
               disabled={pagination.page <= 1}
@@ -818,21 +858,19 @@ export default function Users() {
             <div className="grid gap-4 md:grid-cols-2">
               <div>
                 <FieldLabel label="角色" />
-                <select
+                <AnimatedSelect
                   value={createForm.roleId}
-                  onChange={(event) => setCreateForm((previous) => ({ ...previous, roleId: event.target.value }))}
-                  className={SelectClassName()}
-                  required
-                >
-                  <option value="" disabled>
-                    请选择角色
-                  </option>
-                  {editableRoleOptions.map((role) => (
-                    <option key={role.id} value={role.id}>
-                      {role.displayName}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) =>
+                    setCreateForm((previous) => ({ ...previous, roleId: value }))
+                  }
+                  options={[
+                    { value: "", label: "请选择角色", disabled: true },
+                    ...editableRoleOptions.map((role) => ({
+                      value: role.id,
+                      label: role.displayName,
+                    })),
+                  ]}
+                />
               </div>
               <div>
                 <FieldLabel label="姓名" />
@@ -901,17 +939,16 @@ export default function Users() {
               </div>
               <div>
                 <FieldLabel label="性别" />
-                <select
+                <AnimatedSelect
                   value={createForm.gender}
-                  onChange={(event) => setCreateForm((previous) => ({ ...previous, gender: event.target.value }))}
-                  className={SelectClassName()}
-                >
-                  {genderOptions.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) =>
+                    setCreateForm((previous) => ({ ...previous, gender: value }))
+                  }
+                  options={genderOptions.map((option) => ({
+                    value: option.value,
+                    label: option.label,
+                  }))}
+                />
               </div>
               <div>
                 <FieldLabel label="生日" />
@@ -1048,17 +1085,17 @@ export default function Users() {
         </ModalShell>
       ) : null}
 
-      {drawerOpen ? (
+      {drawerVisible ? (
         <div className="fixed inset-0 z-40">
           <div
-            className="absolute inset-0 bg-black/70 transition-opacity duration-300"
-            onClick={() => {
-              setDrawerOpen(false);
-              setSelectedUserId(null);
-              setSelectedUser(null);
-            }}
+            className="motion-overlay absolute inset-0 bg-black/70"
+            data-state={drawerState === "open" ? "open" : "closed"}
+            onClick={requestCloseDrawer}
           />
-          <aside className="motion-drawer-right absolute right-0 top-0 h-full w-full max-w-3xl overflow-y-auto border-l border-gray-800 bg-gray-950 shadow-2xl">
+          <aside
+            className="motion-drawer-right absolute right-0 top-0 h-full w-full max-w-3xl overflow-y-auto border-l border-gray-800 bg-gray-950 shadow-2xl"
+            data-state={drawerState === "open" ? "open" : "closed"}
+          >
             <div className="sticky top-0 z-10 border-b border-gray-800 bg-gray-950/95 px-6 py-5 backdrop-blur">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -1082,11 +1119,7 @@ export default function Users() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => {
-                    setDrawerOpen(false);
-                    setSelectedUserId(null);
-                    setSelectedUser(null);
-                  }}
+                  onClick={requestCloseDrawer}
                   className="motion-button rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 transition hover:bg-white/5"
                 >
                   关闭
@@ -1170,36 +1203,33 @@ export default function Users() {
                     <div className="grid gap-4 md:grid-cols-2">
                       <div>
                         <FieldLabel label="角色" />
-                        <select
+                        <AnimatedSelect
                           value={editForm.roleId}
-                          onChange={(event) => setEditForm((previous) => ({ ...previous, roleId: event.target.value }))}
-                          className={SelectClassName(!selectedCanMutate)}
+                          onChange={(value) =>
+                            setEditForm((previous) => ({ ...previous, roleId: value }))
+                          }
                           disabled={!selectedCanMutate}
-                          required
-                        >
-                          {selectedRoleOptions.map((role) => (
-                            <option key={role.id} value={role.id}>
-                              {role.displayName}
-                            </option>
-                          ))}
-                        </select>
+                          options={selectedRoleOptions.map((role) => ({
+                            value: role.id,
+                            label: role.displayName,
+                          }))}
+                        />
                       </div>
                       <div>
                         <FieldLabel label="状态" />
-                        <select
+                        <AnimatedSelect
                           value={editForm.status}
-                          onChange={(event) => setEditForm((previous) => ({ ...previous, status: event.target.value }))}
-                          className={SelectClassName(!selectedCanMutate)}
+                          onChange={(value) =>
+                            setEditForm((previous) => ({ ...previous, status: value }))
+                          }
                           disabled={!selectedCanMutate}
-                        >
-                          {statusOptions
+                          options={statusOptions
                             .filter((option) => option.value !== "")
-                            .map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                        </select>
+                            .map((option) => ({
+                              value: option.value,
+                              label: option.label,
+                            }))}
+                        />
                       </div>
                       <div>
                         <FieldLabel label="姓名" />
@@ -1255,18 +1285,17 @@ export default function Users() {
                       </div>
                       <div>
                         <FieldLabel label="性别" />
-                        <select
+                        <AnimatedSelect
                           value={editForm.gender}
-                          onChange={(event) => setEditForm((previous) => ({ ...previous, gender: event.target.value }))}
-                          className={SelectClassName(!selectedCanMutate)}
+                          onChange={(value) =>
+                            setEditForm((previous) => ({ ...previous, gender: value }))
+                          }
                           disabled={!selectedCanMutate}
-                        >
-                          {genderOptions.map((option) => (
-                            <option key={option.value} value={option.value}>
-                              {option.label}
-                            </option>
-                          ))}
-                        </select>
+                          options={genderOptions.map((option) => ({
+                            value: option.value,
+                            label: option.label,
+                          }))}
+                        />
                       </div>
                       <div>
                         <FieldLabel label="生日" />
@@ -1435,14 +1464,6 @@ function InputClassName(disabled = false) {
   return `motion-field w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
 }
 
-function SelectClassName(disabled = false) {
-  return `${InputClassName(disabled)} motion-select`;
-}
-
 function DateInputClassName(disabled = false) {
   return `${InputClassName(disabled)} motion-date`;
-}
-
-function CompactSelectClassName(disabled = false) {
-  return `motion-field motion-select rounded-lg border border-gray-700 bg-gray-950 px-3 py-2 text-sm text-gray-200 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
 }

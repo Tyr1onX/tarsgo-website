@@ -1,6 +1,7 @@
 import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router";
 
+import { AnimatedSelect } from "~/components/animated-select";
 import {
   addAdminUserGroupMember,
   createAdminUserGroup,
@@ -687,23 +688,20 @@ export default function UserGroups() {
             />
           </div>
           <div className="w-full lg:w-40">
-            <select
-              aria-label="筛选状态"
+            <AnimatedSelect
+              ariaLabel="筛选状态"
               value={String(filters.status ?? "")}
-              onChange={(event) =>
+              onChange={(value) =>
                 setFilters((previous) => ({
                   ...previous,
-                  status: event.target.value === "" ? "" : Number(event.target.value),
+                  status: value === "" ? "" : Number(value),
                 }))
               }
-              className={selectClassName()}
-            >
-              {statusOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              options={statusOptions.map((option) => ({
+                value: option.value,
+                label: option.label,
+              }))}
+            />
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -855,24 +853,22 @@ export default function UserGroups() {
           {pagination.page} / {Math.max(pagination.totalPages, 1)} 页，共 {pagination.total} 条
         </div>
         <div className="flex items-center gap-2">
-          <select
-            aria-label="每页条数"
+          <AnimatedSelect
+            ariaLabel="每页条数"
             value={pagination.pageSize}
-            onChange={(event) =>
+            onChange={(value) =>
               setQuery((previous) => ({
                 ...previous,
                 page: 1,
-                pageSize: Number(event.target.value),
+                pageSize: Number(value),
               }))
             }
-            className={compactSelectClassName()}
-          >
-            {[6, 9, 12, 18].map((size) => (
-              <option key={size} value={size}>
-                {size} 条/页
-              </option>
-            ))}
-          </select>
+            options={[6, 9, 12, 18].map((size) => ({
+              value: size,
+              label: `${size} 条/页`,
+            }))}
+            size="compact"
+          />
           <button
             type="button"
             disabled={pagination.page <= 1}
@@ -919,43 +915,40 @@ export default function UserGroups() {
               </div>
             <div>
               <FieldLabel htmlFor="group-status" label="状态" />
-              <select
+              <AnimatedSelect
                 id="group-status"
                 value={groupForm.status}
-                  onChange={(event) =>
-                    setGroupForm((previous) => ({
-                      ...previous,
-                      status: event.target.value,
-                      isDefault: event.target.value === "1" ? previous.isDefault : false,
-                    }))
-                  }
-                  className={selectClassName()}
-                >
-                  {statusOptions
-                    .filter((option) => option.value !== "")
-                    .map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-              </select>
+                onChange={(value) =>
+                  setGroupForm((previous) => ({
+                    ...previous,
+                    status: value,
+                    isDefault: value === "1" ? previous.isDefault : false,
+                  }))
+                }
+                options={statusOptions
+                  .filter((option) => option.value !== "")
+                  .map((option) => ({
+                    value: option.value,
+                    label: option.label,
+                  }))}
+              />
             </div>
             <div>
               <FieldLabel htmlFor="group-show" label="前台展示" />
-              <select
+              <AnimatedSelect
                 id="group-show"
                 value={groupForm.show}
-                onChange={(event) =>
+                onChange={(value) =>
                   setGroupForm((previous) => ({
                     ...previous,
-                    show: event.target.value,
+                    show: value,
                   }))
                 }
-                className={selectClassName()}
-              >
-                <option value="1">展示</option>
-                <option value="0">隐藏</option>
-              </select>
+                options={[
+                  { value: "1", label: "展示" },
+                  { value: "0", label: "隐藏" },
+                ]}
+              />
             </div>
           </div>
 
@@ -1059,7 +1052,10 @@ export default function UserGroups() {
             onClick={closeDrawer}
             className="flex-1 cursor-default"
           />
-          <aside className="motion-drawer-right relative h-full w-full max-w-2xl overflow-y-auto border-l border-gray-800 bg-gray-950 shadow-2xl">
+          <aside
+            className="motion-drawer-right relative h-full w-full max-w-2xl overflow-y-auto border-l border-gray-800 bg-gray-950 shadow-2xl"
+            data-state="open"
+          >
             {/* Drawer header */}
             <div className="sticky top-0 z-10 border-b border-gray-800 bg-gray-950/95 px-6 py-4 backdrop-blur">
               <div className="flex items-center justify-between gap-4">
@@ -1198,23 +1194,21 @@ export default function UserGroups() {
                               </div>
 
                               <div className="flex items-center gap-2 shrink-0">
-                                <select
-                                  aria-label="入组角色"
+                                <AnimatedSelect
+                                  ariaLabel="入组角色"
                                   value={candidateRoleMap[candidate.id] ?? 0}
-                                  onChange={(event) =>
+                                  onChange={(value) =>
                                     setCandidateRoleMap((previous) => ({
                                       ...previous,
-                                      [candidate.id]: Number(event.target.value),
+                                      [candidate.id]: Number(value),
                                     }))
                                   }
-                                  className={compactSelectClassName()}
-                                >
-                                  {memberRoleOptions.map((option) => (
-                                    <option key={option.value} value={option.value}>
-                                      {option.label}
-                                    </option>
-                                  ))}
-                                </select>
+                                  options={memberRoleOptions.map((option) => ({
+                                    value: option.value,
+                                    label: option.label,
+                                  }))}
+                                  size="compact"
+                                />
                                 <button
                                   type="button"
                                   onClick={() => void handleAddMember(candidate)}
@@ -1330,14 +1324,6 @@ function FieldLabel({ label, hint, htmlFor }: { label: string; hint?: string; ht
 
 function inputClassName(disabled = false) {
   return `motion-field w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
-}
-
-function selectClassName(disabled = false) {
-  return `${inputClassName(disabled)} motion-select`;
-}
-
-function compactSelectClassName(disabled = false) {
-  return `motion-field motion-select rounded-lg border border-gray-700 bg-gray-800 px-2.5 py-1.5 text-xs text-gray-200 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
 }
 
 function ModalShell({

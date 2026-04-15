@@ -208,8 +208,27 @@ html {
   opacity: 1;
 }
 
+.motion-overlay {
+  opacity: 0;
+  transition: opacity 320ms var(--motion-ease-standard);
+}
+
+.motion-overlay[data-state="open"] {
+  opacity: 1;
+}
+
 .motion-drawer-right {
-  animation: drawer-right-in 420ms var(--motion-ease-standard) both;
+  opacity: 0;
+  transform: translate3d(44px, 0, 0);
+  will-change: transform, opacity;
+  transition:
+    transform 420ms var(--motion-ease-standard),
+    opacity 260ms ease;
+}
+
+.motion-drawer-right[data-state="open"] {
+  opacity: 1;
+  transform: translate3d(0, 0, 0);
 }
 
 .motion-button {
@@ -275,6 +294,80 @@ html {
   background-repeat: no-repeat;
   background-size: 6px 6px, 6px 6px;
   padding-right: 2.75rem;
+}
+
+.motion-select-shell {
+  position: relative;
+}
+
+.motion-select-trigger {
+  transition:
+    transform var(--motion-duration-fast) var(--motion-ease-standard),
+    border-color var(--motion-duration-fast) ease,
+    background-color var(--motion-duration-fast) ease,
+    box-shadow var(--motion-duration-base) var(--motion-ease-soft);
+}
+
+.motion-select-trigger:hover:not(:disabled) {
+  transform: translate3d(0, -1px, 0);
+  border-color: rgba(77, 148, 219, 0.22);
+  background-color: rgba(17, 24, 39, 0.94);
+  box-shadow: 0 16px 32px -28px rgba(0, 91, 172, 0.4);
+}
+
+.motion-select-trigger[data-open="true"] {
+  transform: translate3d(0, -1px, 0);
+  border-color: rgba(77, 148, 219, 0.34);
+  background-color: rgba(17, 24, 39, 0.98);
+  box-shadow: 0 22px 44px -30px rgba(0, 91, 172, 0.48);
+}
+
+.motion-select-chevron {
+  transition:
+    transform var(--motion-duration-base) var(--motion-ease-standard),
+    color var(--motion-duration-fast) ease;
+}
+
+.motion-select-trigger[data-open="true"] .motion-select-chevron {
+  transform: rotate(180deg);
+  color: rgb(191 219 254 / 0.95);
+}
+
+.motion-select-panel {
+  position: fixed;
+  z-index: 80;
+  transform-origin: top center;
+  opacity: 0;
+  transform: translate3d(0, -6px, 0) scale(0.98);
+  transition:
+    opacity 180ms ease,
+    transform 220ms var(--motion-ease-standard);
+}
+
+.motion-select-panel[data-state="open"] {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+}
+
+.motion-select-option {
+  transition:
+    transform var(--motion-duration-fast) var(--motion-ease-standard),
+    background-color var(--motion-duration-fast) ease,
+    color var(--motion-duration-fast) ease,
+    box-shadow var(--motion-duration-fast) ease;
+}
+
+.motion-select-option:hover:not(:disabled),
+.motion-select-option:focus-visible {
+  transform: translate3d(0, -1px, 0);
+  background-color: rgba(2, 132, 199, 0.16);
+  color: rgb(239 246 255 / 0.98);
+  outline: none;
+}
+
+.motion-select-option[data-selected="true"] {
+  background-color: rgba(0, 91, 172, 0.2);
+  color: rgb(239 246 255 / 0.98);
 }
 
 .motion-date {

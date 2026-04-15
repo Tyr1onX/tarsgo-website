@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useOutletContext } from "react-router";
 
+import { AnimatedSelect } from "~/components/animated-select";
 import { ApiError, buildApiUrl } from "~/lib/api-client";
 import {
   deleteAdminRegistration,
@@ -306,29 +307,27 @@ export default function RegistrationsPage() {
             placeholder="搜索姓名、手机号、邮箱或报名表"
             className={inputClassName()}
           />
-          <select
+          <AnimatedSelect
+            ariaLabel="筛选状态"
             value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
-            className={selectClassName()}
-          >
-            {statusOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <select
+            onChange={setStatusFilter}
+            options={statusOptions.map((option) => ({
+              value: option.value,
+              label: option.label,
+            }))}
+          />
+          <AnimatedSelect
+            ariaLabel="筛选报名表"
             value={formIdFilter}
-            onChange={(event) => setFormIdFilter(event.target.value)}
-            className={selectClassName()}
-          >
-            <option value="">全部报名表</option>
-            {forms.map((form) => (
-              <option key={form.id} value={form.id}>
-                {form.title}
-              </option>
-            ))}
-          </select>
+            onChange={setFormIdFilter}
+            options={[
+              { value: "", label: "全部报名表" },
+              ...forms.map((form) => ({
+                value: String(form.id),
+                label: form.title,
+              })),
+            ]}
+          />
         </div>
       </section>
 
@@ -830,10 +829,6 @@ function handlePageError(
 
 function inputClassName() {
   return "motion-field w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20";
-}
-
-function selectClassName() {
-  return `${inputClassName()} motion-select`;
 }
 
 function StatusBadge({ status }: { status: number }) {

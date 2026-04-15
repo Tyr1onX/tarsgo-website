@@ -83,7 +83,7 @@ export default function Dashboard() {
           return (
             <div
               key={stat.label}
-              className="motion-fade-up motion-surface rounded-xl border border-gray-800 bg-gray-900 p-5"
+              className="motion-fade-up motion-stat-surface rounded-xl border border-gray-800 bg-gray-900 p-5"
               style={{ animationDelay: `${80 + index * 70}ms` }}
             >
               <div className="flex items-center justify-between mb-4">
