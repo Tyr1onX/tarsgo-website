@@ -66,6 +66,11 @@ type CreateFormState = {
   coverImageUrl: string;
 };
 
+type PendingFieldSwapAnimation = {
+  keys: string[];
+  previousPositions: Record<string, DOMRect>;
+};
+
 const defaultSummary: RegistrationFormSummary = {
   total: 0,
   draft: 0,
@@ -98,8 +103,7 @@ export default function FormConfigPage() {
   const [creating, setCreating] = useState(false);
   const [flash, setFlash] = useState<FlashState>(null);
   const fieldButtonRefs = useRef<Record<string, HTMLButtonElement | null>>({});
-  const previousFieldPositionsRef = useRef<Record<string, DOMRect>>({});
-  const pendingFieldMoveRef = useRef<string | null>(null);
+  const pendingFieldSwapAnimationRef = useRef<PendingFieldSwapAnimation | null>(null);
 
   const selectedField = useMemo(() => {
     if (!editor) {
@@ -128,37 +132,27 @@ const requiredFieldCount = useMemo(
   );
 
   useLayoutEffect(() => {
-    const nextPositions: Record<string, DOMRect> = {};
-
-    for (const field of editor?.fieldsSchema ?? []) {
-      const node = fieldButtonRefs.current[field.key];
-      if (node) {
-        nextPositions[field.key] = node.getBoundingClientRect();
-      }
-    }
-
-    const previousPositions = previousFieldPositionsRef.current;
-    const pendingFieldMoveKey = pendingFieldMoveRef.current;
-
-    if (!pendingFieldMoveKey) {
-      previousFieldPositionsRef.current = nextPositions;
+    const pendingAnimation = pendingFieldSwapAnimationRef.current;
+    if (!pendingAnimation) {
       return;
     }
 
-    pendingFieldMoveRef.current = null;
+    pendingFieldSwapAnimationRef.current = null;
 
-    for (const [key, nextBox] of Object.entries(nextPositions)) {
-      const previousBox = previousPositions[key];
+    for (const key of pendingAnimation.keys) {
       const node = fieldButtonRefs.current[key];
+      const previousBox = pendingAnimation.previousPositions[key];
       if (!previousBox || !node) {
         continue;
       }
 
+      const nextBox = node.getBoundingClientRect();
       const deltaY = previousBox.top - nextBox.top;
       if (Math.abs(deltaY) < 1) {
         continue;
       }
 
+      node.getAnimations().forEach((animation) => animation.cancel());
       node.animate(
         [
           { transform: `translateY(${deltaY}px)` },
@@ -170,8 +164,6 @@ const requiredFieldCount = useMemo(
         },
       );
     }
-
-    previousFieldPositionsRef.current = nextPositions;
   }, [editor?.fieldsSchema]);
 
   const canCreateOrSave = currentUser.role.name !== "user";
@@ -299,7 +291,6 @@ const requiredFieldCount = useMemo(
   }
 
   function moveField(key: string, direction: "up" | "down") {
-    pendingFieldMoveRef.current = key;
     updateEditor((current) => {
       const index = current.fieldsSchema.findIndex((field) => field.key === key);
       if (index === -1) {
@@ -309,6 +300,22 @@ const requiredFieldCount = useMemo(
       if (targetIndex < 0 || targetIndex >= current.fieldsSchema.length) {
         return current;
       }
+
+      const affectedKeys = [key, current.fieldsSchema[targetIndex]?.key].filter(Boolean) as string[];
+      const previousPositions: Record<string, DOMRect> = {};
+
+      for (const affectedKey of affectedKeys) {
+        const node = fieldButtonRefs.current[affectedKey];
+        if (node) {
+          previousPositions[affectedKey] = node.getBoundingClientRect();
+        }
+      }
+
+      pendingFieldSwapAnimationRef.current = {
+        keys: affectedKeys,
+        previousPositions,
+      };
+
       const nextFields = cloneRegistrationFields(current.fieldsSchema);
       const [item] = nextFields.splice(index, 1);
       nextFields.splice(targetIndex, 0, item);
