@@ -19,6 +19,7 @@ import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } 
 import { createPortal } from "react-dom";
 import { useNavigate, useOutletContext } from "react-router";
 import { AnimatedSelect } from "~/components/animated-select";
+import { useModalPresence, useModalPresenceValue } from "~/components/modal-shell";
 import { MotionDateInput } from "~/components/motion-date-input";
 import { Notify } from "~/components/notify";
 import {
@@ -287,6 +288,9 @@ export default function Users() {
 
   const [statusModalTarget, setStatusModalTarget] = useState<AdminUserListItem | AdminUserDetail | null>(null);
   const [togglingStatus, setTogglingStatus] = useState(false);
+  const createModalVisible = useModalPresence(createModalOpen);
+  const visiblePasswordModalTarget = useModalPresenceValue(passwordModalTarget);
+  const visibleStatusModalTarget = useModalPresenceValue(statusModalTarget);
 
   const editableRoleOptions = useMemo(
     () => roles.filter((item) => item.editableByCurrentActor),
@@ -318,6 +322,12 @@ export default function Users() {
     return getReadonlyReason(selectedUser.role.name, actorRoleName);
   }, [actorRoleName, selectedUser]);
   const selectedCanMutate = selectedReadonlyReason === "";
+
+  useEffect(() => {
+    if (!passwordModalTarget && !visiblePasswordModalTarget) {
+      setPasswordValue("");
+    }
+  }, [passwordModalTarget, visiblePasswordModalTarget]);
 
   useEffect(() => {
     if (noAdminPermission) {
@@ -695,7 +705,6 @@ export default function Users() {
       setResettingPassword(true);
       await resetAdminUserPassword(passwordModalTarget.id, passwordValue);
       setPasswordModalTarget(null);
-      setPasswordValue("");
       setFlash({ type: "success", message: `已重置 ${passwordModalTarget.email} 的密码` });
     } catch (error) {
       if (shouldRedirectToLogin(error)) {
@@ -760,7 +769,7 @@ export default function Users() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div className="motion-fade-up flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-fg-primary">用户数据</h1>
           <p className="mt-1 text-sm text-fg-muted">
@@ -789,7 +798,7 @@ export default function Users() {
         />
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="motion-fade-up grid gap-4 sm:grid-cols-2 xl:grid-cols-4" style={{ animationDelay: "80ms" }}>
         <StatCard label="账号总数" value={summary.total} hint="users 表中的全部账号" icon={usersIcon} iconBg="bg-accent-primary/10" iconText="text-accent-primary" barFrom="from-accent-primary/60" />
         <StatCard label="启用账号" value={summary.enabled} hint={`停用 ${summary.disabled} 个`} icon={power} iconBg="bg-accent-tertiary/10" iconText="text-accent-tertiary" barFrom="from-accent-tertiary/60" />
         <StatCard label="管理员账号" value={summary.admins} hint="包含 admin / super_admin" icon={shieldCheck} iconBg="bg-accent-gold/10" iconText="text-accent-gold" barFrom="from-accent-gold/60" />
@@ -799,6 +808,7 @@ export default function Users() {
       <form
         onSubmit={handleSearchSubmit}
         className="motion-fade-up motion-panel-soft rounded-2xl border border-border-subtle bg-surface-card/60 p-5 ring-1 ring-white/[0.03] backdrop-blur-sm"
+        style={{ animationDelay: "140ms" }}
       >
         <div className="mb-4 flex items-center gap-2 border-b border-border-subtle/40 pb-4">
           <Icon icon={searchIcon} className="h-4 w-4 text-fg-dim" />
@@ -867,7 +877,10 @@ export default function Users() {
         </div>
       </form>
 
-      <div className="overflow-hidden rounded-2xl border border-border-subtle bg-surface-card/60 shadow-xl shadow-black/20">
+      <div
+        className="motion-fade-up overflow-hidden rounded-2xl border border-border-subtle bg-surface-card/60 shadow-xl shadow-black/20"
+        style={{ animationDelay: "200ms" }}
+      >
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
             <thead className="bg-surface-dark/80 text-left text-xs tracking-wider text-fg-dim">
@@ -1037,9 +1050,10 @@ export default function Users() {
         </div>
       </div>
 
-      {createModalOpen ? (
+      {createModalVisible ? (
         <OverlayPortal>
           <ModalShell
+            open={createModalOpen}
             title="新建账号"
             description="后台直接创建邮箱密码账号，默认创建后立即可登录。GitHub 绑定仅支持用户自行登录后生成。"
             onClose={() => setCreateModalOpen(false)}
@@ -1190,15 +1204,13 @@ export default function Users() {
         </OverlayPortal>
       ) : null}
 
-      {passwordModalTarget ? (
+      {visiblePasswordModalTarget ? (
         <OverlayPortal>
           <ModalShell
+            open={passwordModalTarget !== null}
             title="重置密码"
-            description={`直接为 ${passwordModalTarget.email} 设置新的本地密码。旧密码会立即失效。`}
-            onClose={() => {
-              setPasswordModalTarget(null);
-              setPasswordValue("");
-            }}
+            description={`直接为 ${visiblePasswordModalTarget.email} 设置新的本地密码。旧密码会立即失效。`}
+            onClose={() => setPasswordModalTarget(null)}
             widthClass="max-w-lg"
           >
             <form onSubmit={handleResetPassword} className="space-y-5">
@@ -1222,10 +1234,7 @@ export default function Users() {
               <div className="flex justify-end gap-3">
                 <button
                   type="button"
-                  onClick={() => {
-                    setPasswordModalTarget(null);
-                    setPasswordValue("");
-                  }}
+                  onClick={() => setPasswordModalTarget(null)}
                   className="motion-button rounded-xl border border-border-subtle px-4 py-2.5 text-sm text-fg-muted transition hover:bg-white/5 hover:text-fg-primary"
                 >
                   取消
@@ -1243,21 +1252,22 @@ export default function Users() {
         </OverlayPortal>
       ) : null}
 
-      {statusModalTarget ? (
+      {visibleStatusModalTarget ? (
         <OverlayPortal>
           <ModalShell
-            title={statusModalTarget?.status === 1 ? "停用账号" : "启用账号"}
-            description={`目标账号：${statusModalTarget.email}`}
+            open={statusModalTarget !== null}
+            title={visibleStatusModalTarget.status === 1 ? "停用账号" : "启用账号"}
+            description={`目标账号：${visibleStatusModalTarget.email}`}
             onClose={() => setStatusModalTarget(null)}
             widthClass="max-w-lg"
           >
             <div className="space-y-5">
               <div className={`rounded-xl border px-4 py-3 text-sm leading-6 ${
-                statusModalTarget.status === 1
+                visibleStatusModalTarget.status === 1
                   ? "border-red-500/20 bg-red-500/10 text-red-100"
                   : "border-accent-tertiary/20 bg-accent-tertiary/10 text-emerald-100"
               }`}>
-                {statusModalTarget.status === 1
+                {visibleStatusModalTarget.status === 1
                   ? "停用后将立即阻断新登录，并使当前会话在下次 /api/me 校验时失效。系统不会物理删除该账号。"
                   : "启用后账号可重新使用邮箱密码、验证码或 GitHub 登录。"}
               </div>
@@ -1275,14 +1285,14 @@ export default function Users() {
                   onClick={() => void handleToggleStatus()}
                   disabled={togglingStatus}
                   className={`motion-button rounded-xl px-4 py-2.5 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                    statusModalTarget.status === 1
+                    visibleStatusModalTarget.status === 1
                       ? "bg-red-500 hover:bg-red-600"
                       : "bg-accent-tertiary hover:bg-accent-tertiary/90"
                   }`}
                 >
                   {togglingStatus
                     ? "提交中..."
-                    : statusModalTarget.status === 1
+                    : visibleStatusModalTarget.status === 1
                       ? "确认停用"
                       : "确认启用"}
                 </button>
@@ -1626,19 +1636,21 @@ function getErrorMessage(error: unknown) {
 function ModalShell({
   title,
   description,
+  open = true,
   onClose,
   children,
   widthClass = "max-w-2xl",
 }: {
   title: string;
   description?: string;
+  open?: boolean;
   onClose: () => void;
   children: ReactNode;
   widthClass?: string;
 }) {
   return (
-    <div className="motion-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md" data-state="open">
-      <div className={`motion-dialog motion-dialog-surface w-full ${widthClass} rounded-2xl border border-border-subtle bg-surface-card shadow-2xl shadow-black/40 ring-1 ring-white/[0.05]`} data-state="open">
+    <div className="motion-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md" data-state={open ? "open" : "closed"}>
+      <div className={`motion-dialog motion-dialog-surface w-full ${widthClass} rounded-2xl border border-border-subtle bg-surface-card shadow-2xl shadow-black/40 ring-1 ring-white/[0.05]`} data-state={open ? "open" : "closed"}>
         <div className="flex items-start justify-between gap-4 border-b border-border-subtle px-6 py-5">
           <div>
             <h2 className="text-lg font-semibold text-fg-primary">{title}</h2>

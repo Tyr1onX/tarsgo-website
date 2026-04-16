@@ -5,9 +5,11 @@ import {
   useMemo,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useOutletContext } from "react-router";
 import { AnimatedSelect } from "~/components/animated-select";
 import { MotionDateInput } from "~/components/motion-date-input";
+import { useModalPresence } from "~/components/modal-shell";
 import { ApiError } from "~/lib/api-client";
 import {
   buildCustomRegistrationField,
@@ -95,6 +97,13 @@ export default function FormConfigPage() {
   const [createState, setCreateState] = useState<CreateFormState>(defaultCreateState);
   const [creating, setCreating] = useState(false);
   const [flash, setFlash] = useState<FlashState>(null);
+  const createModalVisible = useModalPresence(createOpen);
+
+  useEffect(() => {
+    if (!createOpen && !createModalVisible) {
+      setCreateState(defaultCreateState);
+    }
+  }, [createModalVisible, createOpen]);
 
   const selectedField = useMemo(() => {
     if (!editor) {
@@ -453,7 +462,6 @@ function removeFieldOption(optionIndex: number) {
       });
 
       setCreateOpen(false);
-      setCreateState(defaultCreateState);
       setEditor(toEditorState(detail));
       setSelectedFormId(detail.id);
       setSelectedFieldKey(detail.fieldsSchema[0]?.key ?? "");
@@ -1174,19 +1182,19 @@ function removeFieldOption(optionIndex: number) {
         </section>
       </div>
 
-      {createOpen ? (
+      {createModalVisible ? (
         <ModalShell
-        title="新建报名表"
-        description="先创建一张带有系统必填字段的草稿表单，后续再补全详细配置。"
-        onClose={() => {
-          if (creating) {
-            return;
-          }
-          setCreateOpen(false);
-          setCreateState(defaultCreateState);
-        }}
+          open={createOpen}
+          title="新建报名表"
+          description="先创建一张带有系统必填字段的草稿表单，后续再补全详细配置。"
+          onClose={() => {
+            if (creating) {
+              return;
+            }
+            setCreateOpen(false);
+          }}
         >
-        <form className="space-y-4" onSubmit={handleCreateForm}>
+          <form className="space-y-4" onSubmit={handleCreateForm}>
             <div>
               <FieldLabel label="报名表标题" htmlFor="create-form-title" />
               <input
@@ -1251,7 +1259,6 @@ function removeFieldOption(optionIndex: number) {
                     return;
                   }
                   setCreateOpen(false);
-                  setCreateState(defaultCreateState);
                 }}
                 className="motion-button rounded-lg border border-gray-700 px-4 py-2.5 text-sm text-gray-300 transition-colors hover:bg-white/5"
               >
@@ -1265,7 +1272,7 @@ function removeFieldOption(optionIndex: number) {
                 {creating ? "创建中..." : "创建草稿"}
               </button>
             </div>
-        </form>
+          </form>
         </ModalShell>
       ) : null}
     </div>
@@ -1531,17 +1538,23 @@ function StatCard({
 function ModalShell({
   title,
   description,
+  open = true,
   onClose,
   children,
 }: {
   title: string;
   description?: string;
+  open?: boolean;
   onClose: () => void;
   children: ReactNode;
 }) {
-  return (
-    <div className="motion-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" data-state="open">
-      <div className="motion-dialog motion-dialog-surface w-full max-w-2xl rounded-xl border border-gray-800 bg-gray-900 shadow-2xl" data-state="open">
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  return createPortal(
+    <div className="motion-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" data-state={open ? "open" : "closed"}>
+      <div className="motion-dialog motion-dialog-surface w-full max-w-2xl rounded-xl border border-gray-800 bg-gray-900 shadow-2xl" data-state={open ? "open" : "closed"}>
         <div className="flex items-start justify-between gap-4 border-b border-gray-800 px-6 py-5">
           <div>
             <h2 className="text-lg font-semibold text-white">{title}</h2>
@@ -1557,6 +1570,7 @@ function ModalShell({
         </div>
         <div className="px-6 py-5">{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

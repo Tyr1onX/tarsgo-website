@@ -259,7 +259,7 @@ export default function RegistrationsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="motion-fade-up flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold text-white">报名列表</h1>
           <p className="mt-1 text-sm text-gray-400">
@@ -280,7 +280,7 @@ export default function RegistrationsPage() {
         </div>
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="motion-fade-up grid gap-4 sm:grid-cols-2 xl:grid-cols-5" style={{ animationDelay: "80ms" }}>
         <SummaryCard label="总报名数" value={summary.total} accent="text-white" />
         <SummaryCard label="待审核" value={summary.pending} accent="text-amber-300" />
         <SummaryCard label="已通过" value={summary.approved} accent="text-emerald-300" />
@@ -288,7 +288,7 @@ export default function RegistrationsPage() {
         <SummaryCard label="已取消" value={summary.cancelled} accent="text-gray-300" />
       </div>
 
-      <section className="motion-fade-up motion-panel-soft rounded-xl border border-gray-800 bg-gray-900/70 p-4">
+      <section className="motion-fade-up motion-panel-soft rounded-xl border border-gray-800 bg-gray-900/70 p-4" style={{ animationDelay: "140ms" }}>
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1.4fr)_220px_240px]">
           <input
             value={keyword}
@@ -318,7 +318,7 @@ export default function RegistrationsPage() {
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-xl border border-gray-800 bg-gray-900/70">
+      <section className="motion-fade-up overflow-hidden rounded-xl border border-gray-800 bg-gray-900/70" style={{ animationDelay: "200ms" }}>
         <div className="overflow-x-auto">
           <table className="min-w-[1280px] text-sm">
             <thead className="border-b border-gray-800 bg-gray-950/40">

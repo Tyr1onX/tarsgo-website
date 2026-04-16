@@ -28,6 +28,7 @@ import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } 
 import { createPortal } from "react-dom";
 import { useNavigate, useOutletContext } from "react-router";
 import { AnimatedSelect } from "~/components/animated-select";
+import { useModalPresence } from "~/components/modal-shell";
 import { Notify } from "~/components/notify";
 import {
   addAdminUserGroupMember,
@@ -233,6 +234,7 @@ export default function UserGroups() {
   const [cardActionGroupId, setCardActionGroupId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminUserGroupListItem | AdminUserGroupDetail | null>(null);
   const [deletingGroup, setDeletingGroup] = useState(false);
+  const groupModalVisible = useModalPresence(groupModalOpen);
 
   const averageMembers = useMemo(() => {
     if (summary.total === 0) {
@@ -704,7 +706,7 @@ export default function UserGroups() {
       />
 
       {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="motion-fade-up flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-500/10 text-primary-400">
             <Icon icon={layers} className="h-5 w-5" />
@@ -725,7 +727,7 @@ export default function UserGroups() {
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+      <div className="motion-fade-up grid grid-cols-2 xl:grid-cols-4 gap-4" style={{ animationDelay: "80ms" }}>
         <StatCard icon={layers} label="分组总数" value={summary.total} color="primary" />
         <StatCard
           icon={power}
@@ -745,7 +747,7 @@ export default function UserGroups() {
       </div>
 
       {/* Filter bar */}
-      <div className="motion-fade-up motion-panel-soft flex flex-col gap-3 rounded-xl border border-gray-800/60 bg-gray-900/50 p-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+      <div className="motion-fade-up motion-panel-soft flex flex-col gap-3 rounded-xl border border-gray-800/60 bg-gray-900/50 p-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between" style={{ animationDelay: "140ms" }}>
         <div>
           <div className="text-sm font-medium text-white">筛选分组</div>
           <div className="mt-0.5 text-xs text-gray-500">按状态快速筛选，所有分组在当前页展示。</div>
@@ -776,7 +778,7 @@ export default function UserGroups() {
       </div>
 
       {/* Group cards */}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      <div className="motion-fade-up grid gap-4 md:grid-cols-2 xl:grid-cols-3" style={{ animationDelay: "200ms" }}>
         {loadingList ? (
           <div className="col-span-full flex items-center justify-center rounded-xl border border-gray-800/40 bg-gray-900/30 px-6 py-16">
             <div className="flex flex-col items-center gap-3">
@@ -810,9 +812,10 @@ export default function UserGroups() {
       </div>
 
       {/* Create / Edit modal */}
-      {groupModalOpen ? (
+      {groupModalVisible ? (
         <OverlayPortal>
           <ModalShell
+            open={groupModalOpen}
             title={editingGroupId === null ? "新建用户组" : "编辑用户组"}
             icon={editingGroupId === null ? folderPlus : editIcon}
             onClose={() => setGroupModalOpen(false)}
@@ -1635,19 +1638,21 @@ function inputClassName(disabled = false) {
 function ModalShell({
   title,
   icon,
+  open = true,
   onClose,
   children,
   widthClass = "max-w-2xl",
 }: {
   title: string;
   icon?: IconifyIcon;
+  open?: boolean;
   onClose: () => void;
   children: ReactNode;
   widthClass?: string;
 }) {
   return (
-    <div className="motion-overlay fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" data-state="open">
-      <div className={`motion-dialog motion-dialog-surface w-full ${widthClass} overflow-hidden rounded-2xl border border-gray-800/60 bg-gray-950 shadow-2xl shadow-black/40`} data-state="open">
+    <div className="motion-overlay fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" data-state={open ? "open" : "closed"}>
+      <div className={`motion-dialog motion-dialog-surface w-full ${widthClass} overflow-hidden rounded-2xl border border-gray-800/60 bg-gray-950 shadow-2xl shadow-black/40`} data-state={open ? "open" : "closed"}>
         {/* Header with subtle gradient accent */}
         <div className="relative overflow-hidden border-b border-gray-800/60">
           <div className="absolute inset-0 bg-gradient-to-r from-primary-500/[0.06] via-transparent to-transparent" />

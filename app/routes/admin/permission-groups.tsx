@@ -79,7 +79,7 @@ export default function PermissionGroups() {
 
   return (
     <div>
-      <div className="motion-fade-up flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+      <div className="motion-fade-up flex flex-col gap-4 mb-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">权限分组</h1>
           <p className="text-sm text-gray-400 mt-1">管理角色与页面级访问权限</p>
@@ -96,7 +96,7 @@ export default function PermissionGroups() {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
+      <div className="motion-fade-up mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4" style={{ animationDelay: "80ms" }}>
         <div className="motion-stat-surface p-4 rounded-xl bg-gray-900 border border-gray-800">
           <div className="text-2xl font-bold text-white">{roles.length}</div>
           <div className="text-sm text-gray-400 mt-1">角色总数</div>
@@ -116,7 +116,7 @@ export default function PermissionGroups() {
       </div>
 
       {/* Role cards */}
-      <div className="space-y-4">
+      <div className="motion-fade-up space-y-4" style={{ animationDelay: "140ms" }}>
         {roles.map((role) => {
           const colors = colorMap[role.color];
           const isEditing = editingId === role.id;
