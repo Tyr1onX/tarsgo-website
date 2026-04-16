@@ -42,6 +42,7 @@ type registrationRepository interface {
 	UpdateRegistration(ctx context.Context, registrationID uint64, updates map[string]any) error
 	UpdateRegistrationFormData(ctx context.Context, registrationID uint64, formData map[string]any) error
 	ListRegistrations(ctx context.Context, filter ListRegistrationsInput) ([]model.Registration, error)
+	CountRegistrations(ctx context.Context, filter ListRegistrationsInput) (int64, error)
 	GetRegistrationStats(ctx context.Context, filter ListRegistrationsInput) (RegistrationStats, error)
 	GetRegistrationByID(ctx context.Context, registrationID uint64) (*model.Registration, error)
 	GetRegistrationByIDForUpdate(ctx context.Context, registrationID uint64) (*model.Registration, error)
@@ -68,9 +69,12 @@ type SubmitRegistrationResult struct {
 	FormID      uint64    `json:"formId"`
 	Status      uint8     `json:"status"`
 	SubmittedAt time.Time `json:"submittedAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 type ListRegistrationsInput struct {
+	Page            int
+	PageSize        int
 	Keyword         string
 	Status          *uint8
 	FormID          *uint64
@@ -83,6 +87,13 @@ type RegistrationStats struct {
 	Approved  int64 `json:"approved"`
 	Rejected  int64 `json:"rejected"`
 	Cancelled int64 `json:"cancelled"`
+}
+
+type RegistrationPagination struct {
+	Page       int   `json:"page"`
+	PageSize   int   `json:"pageSize"`
+	Total      int64 `json:"total"`
+	TotalPages int   `json:"totalPages"`
 }
 
 type RegistrationListItem struct {
@@ -104,8 +115,9 @@ type RegistrationListItem struct {
 }
 
 type ListRegistrationsResult struct {
-	Summary RegistrationStats      `json:"summary"`
-	Items   []RegistrationListItem `json:"items"`
+	Summary    RegistrationStats      `json:"summary"`
+	Items      []RegistrationListItem `json:"items"`
+	Pagination RegistrationPagination `json:"pagination"`
 }
 
 type RegistrationDetail struct {
@@ -213,7 +225,7 @@ func (s *RegistrationService) SubmitRegistration(ctx context.Context, actor Regi
 		return nil, err
 	}
 
-	normalized, err := normalizeRegistrationSubmission(form.FieldsSchema, input)
+	normalized, err := normalizeRegistrationSubmission(form.FieldsSchema, input, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -286,7 +298,133 @@ func (s *RegistrationService) SubmitRegistration(ctx context.Context, actor Regi
 		FormID:      created.FormID,
 		Status:      created.Status,
 		SubmittedAt: created.SubmittedAt,
+		UpdatedAt:   created.UpdatedAt,
 	}, nil
+}
+
+func (s *RegistrationService) UpdateRecruitmentRegistration(ctx context.Context, actor RegistrationFormActor, registrationID uint64, input SubmitRegistrationInput) (*SubmitRegistrationResult, error) {
+	if err := wrapRegistrationActorError(ensureRegistrationAuthenticatedActor(actor)); err != nil {
+		return nil, err
+	}
+	if registrationID == 0 {
+		return nil, &registrationServiceError{Status: http.StatusBadRequest, Message: "报名记录 ID 不合法"}
+	}
+
+	now := s.now()
+	var updated *model.Registration
+	savedPaths := make([]string, 0)
+	obsoletePaths := make([]string, 0)
+
+	txErr := s.repo.RunInTx(ctx, func(repo registrationRepository) error {
+		registration, form, err := s.loadSelfEditableRegistration(ctx, repo, actor, registrationID)
+		if err != nil {
+			return err
+		}
+		groups, err := repo.ListShownUserGroups(ctx)
+		if err != nil {
+			return &registrationServiceError{Status: http.StatusInternalServerError, Message: "加载展示分组失败", Err: err}
+		}
+		form.FieldsSchema = hydrateUserGroupSelectFields(form.FieldsSchema, groups)
+
+		normalized, err := normalizeRegistrationSubmission(form.FieldsSchema, input, registration.FormData)
+		if err != nil {
+			return err
+		}
+
+		finalFormData := cloneStringAnyMap(normalized.FormData)
+		for _, upload := range normalized.Uploads {
+			if currentValue, exists := registration.FormData[upload.Field.Key]; exists {
+				obsoletePaths = append(obsoletePaths, collectRegistrationStoredPaths(map[string]any{
+					upload.Field.Key: currentValue,
+				})...)
+			}
+
+			filePayloads, err := s.saveRegistrationUploads(ctx, registration.ID, form.ID, actor.ID, upload, now, &savedPaths)
+			if err != nil {
+				return err
+			}
+
+			if upload.Field.Type == "file" {
+				finalFormData[upload.Field.Key] = filePayloads[0]
+				continue
+			}
+			finalFormData[upload.Field.Key] = filePayloads
+		}
+
+		updates := map[string]any{
+			"contact_name":   copyStringPtr(normalized.ContactName),
+			"contact_phone":  copyStringPtr(normalized.ContactPhone),
+			"contact_email":  copyStringPtr(normalized.ContactEmail),
+			"group_1":        copyUint64Ptr(normalized.Group1ID),
+			"group_2":        copyUint64Ptr(normalized.Group2ID),
+			"group_1_status": model.RegistrationStatusPending,
+			"group_2_status": model.RegistrationStatusPending,
+			"status":         model.RegistrationStatusPending,
+			"submitted_at":   now,
+		}
+		if err := repo.UpdateRegistration(ctx, registration.ID, updates); err != nil {
+			return &registrationServiceError{Status: http.StatusInternalServerError, Message: "更新报名记录失败", Err: err}
+		}
+		if err := repo.UpdateRegistrationFormData(ctx, registration.ID, finalFormData); err != nil {
+			return &registrationServiceError{Status: http.StatusInternalServerError, Message: "更新报名表单内容失败", Err: err}
+		}
+
+		registration.FormData = finalFormData
+		registration.ContactName = copyStringPtr(normalized.ContactName)
+		registration.ContactPhone = copyStringPtr(normalized.ContactPhone)
+		registration.ContactEmail = copyStringPtr(normalized.ContactEmail)
+		registration.Group1ID = copyUint64Ptr(normalized.Group1ID)
+		registration.Group2ID = copyUint64Ptr(normalized.Group2ID)
+		registration.Group1Status = model.RegistrationStatusPending
+		registration.Group2Status = model.RegistrationStatusPending
+		registration.Status = model.RegistrationStatusPending
+		registration.SubmittedAt = now
+		registration.UpdatedAt = now
+		updated = registration
+		return nil
+	})
+	if txErr != nil {
+		cleanupRegistrationSavedFiles(context.Background(), s.fileStore, savedPaths)
+		return nil, txErr
+	}
+
+	cleanupRegistrationSavedFiles(context.Background(), s.fileStore, uniqueRegistrationPaths(obsoletePaths))
+	return &SubmitRegistrationResult{
+		ID:          updated.ID,
+		FormID:      updated.FormID,
+		Status:      updated.Status,
+		SubmittedAt: updated.SubmittedAt,
+		UpdatedAt:   updated.UpdatedAt,
+	}, nil
+}
+
+func (s *RegistrationService) CancelRecruitmentRegistration(ctx context.Context, actor RegistrationFormActor, registrationID uint64) error {
+	if err := wrapRegistrationActorError(ensureRegistrationAuthenticatedActor(actor)); err != nil {
+		return err
+	}
+	if registrationID == 0 {
+		return &registrationServiceError{Status: http.StatusBadRequest, Message: "报名记录 ID 不合法"}
+	}
+
+	var storedPaths []string
+	txErr := s.repo.RunInTx(ctx, func(repo registrationRepository) error {
+		registration, _, err := s.loadSelfEditableRegistration(ctx, repo, actor, registrationID)
+		if err != nil {
+			return err
+		}
+
+		storedPaths = collectRegistrationStoredPaths(registration.FormData)
+		if err := repo.DeleteRegistration(ctx, registrationID); err != nil {
+			return &registrationServiceError{Status: http.StatusInternalServerError, Message: "取消报名失败", Err: err}
+		}
+		return nil
+	})
+	if txErr != nil {
+		return txErr
+	}
+
+	cleanupRegistrationSavedFiles(context.Background(), s.fileStore, storedPaths)
+	return nil
 }
 
 func (s *RegistrationService) ListRegistrations(ctx context.Context, actor RegistrationFormActor, input ListRegistrationsInput) (*ListRegistrationsResult, error) {
@@ -305,6 +443,21 @@ func (s *RegistrationService) ListRegistrations(ctx context.Context, actor Regis
 	if !scope.fullAccess {
 		normalized.VisibleGroupIDs = registrationScopeGroupIDs(scope)
 	}
+
+	total, err := s.repo.CountRegistrations(ctx, normalized)
+	if err != nil {
+		return nil, &registrationServiceError{Status: http.StatusInternalServerError, Message: "查询报名总数失败", Err: err}
+	}
+	totalPages := 0
+	if total > 0 {
+		totalPages = int((total + int64(normalized.PageSize) - 1) / int64(normalized.PageSize))
+	}
+	if totalPages == 0 {
+		normalized.Page = 1
+	} else if normalized.Page > totalPages {
+		normalized.Page = totalPages
+	}
+
 	items, err := s.repo.ListRegistrations(ctx, normalized)
 	if err != nil {
 		return nil, &registrationServiceError{Status: http.StatusInternalServerError, Message: "查询报名列表失败", Err: err}
@@ -325,6 +478,12 @@ func (s *RegistrationService) ListRegistrations(ctx context.Context, actor Regis
 	return &ListRegistrationsResult{
 		Summary: summary,
 		Items:   resultItems,
+		Pagination: RegistrationPagination{
+			Page:       normalized.Page,
+			PageSize:   normalized.PageSize,
+			Total:      total,
+			TotalPages: totalPages,
+		},
 	}, nil
 }
 
@@ -613,6 +772,39 @@ func (s *RegistrationService) loadActiveFormForSubmission(ctx context.Context, f
 	return &form, nil
 }
 
+func (s *RegistrationService) loadSelfEditableRegistration(
+	ctx context.Context,
+	repo registrationRepository,
+	actor RegistrationFormActor,
+	registrationID uint64,
+) (*model.Registration, *model.RegistrationForm, error) {
+	registration, err := repo.GetRegistrationByIDForUpdate(ctx, registrationID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil, &registrationServiceError{Status: http.StatusNotFound, Message: "报名记录不存在"}
+		}
+		return nil, nil, &registrationServiceError{Status: http.StatusInternalServerError, Message: "加载报名记录失败", Err: err}
+	}
+	if registration.UserID != actor.ID {
+		return nil, nil, &registrationServiceError{Status: http.StatusForbidden, Message: "当前账号无权操作该报名记录"}
+	}
+	if registration.Status == model.RegistrationStatusCancelled {
+		return nil, nil, &registrationServiceError{Status: http.StatusConflict, Message: "当前报名已取消"}
+	}
+	if !canMutateRegistrationBeforeReview(registration) {
+		return nil, nil, &registrationServiceError{Status: http.StatusConflict, Message: "当前报名已有组别进入审核，无法再修改或取消"}
+	}
+
+	form, err := repo.GetFormByID(ctx, registration.FormID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil, &registrationServiceError{Status: http.StatusNotFound, Message: "报名表不存在"}
+		}
+		return nil, nil, &registrationServiceError{Status: http.StatusInternalServerError, Message: "加载报名表失败", Err: err}
+	}
+	return registration, form, nil
+}
+
 func (s *RegistrationService) saveRegistrationUploads(
 	ctx context.Context,
 	registrationID uint64,
@@ -699,11 +891,30 @@ func validateRegistrationListInput(input ListRegistrationsInput) error {
 func normalizeRegistrationListInput(input ListRegistrationsInput) ListRegistrationsInput {
 	visibleGroupIDs := append([]uint64(nil), input.VisibleGroupIDs...)
 	return ListRegistrationsInput{
+		Page:            normalizeRegistrationListPage(input.Page),
+		PageSize:        normalizeRegistrationListPageSize(input.PageSize),
 		Keyword:         strings.TrimSpace(input.Keyword),
 		Status:          input.Status,
 		FormID:          input.FormID,
 		VisibleGroupIDs: visibleGroupIDs,
 	}
+}
+
+func normalizeRegistrationListPage(page int) int {
+	if page <= 0 {
+		return 1
+	}
+	return page
+}
+
+func normalizeRegistrationListPageSize(pageSize int) int {
+	if pageSize <= 0 {
+		return 10
+	}
+	if pageSize > 100 {
+		return 100
+	}
+	return pageSize
 }
 
 func validateRegistrationStatus(status uint8) error {
@@ -783,6 +994,27 @@ func collectRegistrationStoredPaths(formData map[string]any) []string {
 	return paths
 }
 
+func uniqueRegistrationPaths(paths []string) []string {
+	if len(paths) == 0 {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(paths))
+	result := make([]string, 0, len(paths))
+	for _, path := range paths {
+		trimmed := strings.TrimSpace(path)
+		if trimmed == "" {
+			continue
+		}
+		if _, exists := seen[trimmed]; exists {
+			continue
+		}
+		seen[trimmed] = struct{}{}
+		result = append(result, trimmed)
+	}
+	return result
+}
+
 func collectRegistrationStoredPathsFromValue(value any, seen map[string]struct{}, paths *[]string) {
 	switch typed := value.(type) {
 	case map[string]any:
@@ -830,7 +1062,7 @@ func toRegistrationListItem(registration *model.Registration, scope registration
 	}
 }
 
-func normalizeRegistrationSubmission(fields []model.FormField, input SubmitRegistrationInput) (*normalizedRegistrationSubmission, error) {
+func normalizeRegistrationSubmission(fields []model.FormField, input SubmitRegistrationInput, existingFormData map[string]any) (*normalizedRegistrationSubmission, error) {
 	formData := make(map[string]any, len(fields))
 	uploads := make([]registrationUploadField, 0)
 
@@ -901,7 +1133,7 @@ func normalizeRegistrationSubmission(fields []model.FormField, input SubmitRegis
 				formData[field.Key] = value
 			}
 		case "file", "image":
-			files, err := normalizeSubmittedFiles(field, input.Files[field.Key])
+			files, preserveExisting, err := normalizeSubmittedFiles(field, input.Files[field.Key], existingFormData[field.Key])
 			if err != nil {
 				return nil, err
 			}
@@ -910,6 +1142,10 @@ func normalizeRegistrationSubmission(fields []model.FormField, input SubmitRegis
 					Field: field,
 					Files: files,
 				})
+				continue
+			}
+			if preserveExisting {
+				formData[field.Key] = cloneDynamicValue(existingFormData[field.Key])
 			}
 		default:
 			return nil, &registrationServiceError{Status: http.StatusBadRequest, Message: "存在未支持的报名字段类型"}
@@ -1067,32 +1303,65 @@ func normalizeSubmittedUserGroup(field model.FormField, values []string) (string
 	return value, groupID, true, nil
 }
 
-func normalizeSubmittedFiles(field model.FormField, headers []*multipart.FileHeader) ([]*multipart.FileHeader, error) {
+func normalizeSubmittedFiles(field model.FormField, headers []*multipart.FileHeader, existingValue any) ([]*multipart.FileHeader, bool, error) {
 	files := filterUploadHeaders(headers)
 	if len(files) == 0 {
-		if field.Required {
-			return nil, &registrationServiceError{Status: http.StatusBadRequest, Message: fmt.Sprintf("字段 %s 为必填项", field.Label)}
+		if hasExistingRegistrationFiles(field, existingValue) {
+			return nil, true, nil
 		}
-		return nil, nil
+		if field.Required {
+			return nil, false, &registrationServiceError{Status: http.StatusBadRequest, Message: fmt.Sprintf("字段 %s 为必填项", field.Label)}
+		}
+		return nil, false, nil
 	}
 
 	if field.Type == "file" && len(files) > 1 {
-		return nil, &registrationServiceError{Status: http.StatusBadRequest, Message: fmt.Sprintf("字段 %s 仅允许上传一个文件", field.Label)}
+		return nil, false, &registrationServiceError{Status: http.StatusBadRequest, Message: fmt.Sprintf("字段 %s 仅允许上传一个文件", field.Label)}
 	}
 
 	if field.Type == "image" {
 		if maxCount, ok := parseRegistrationFileConfigPositiveInt(field.FileConfig, "max_count"); ok && len(files) > maxCount {
-			return nil, &registrationServiceError{Status: http.StatusBadRequest, Message: fmt.Sprintf("字段 %s 上传图片数量超过限制", field.Label)}
+			return nil, false, &registrationServiceError{Status: http.StatusBadRequest, Message: fmt.Sprintf("字段 %s 上传图片数量超过限制", field.Label)}
 		}
 	}
 
 	for _, fileHeader := range files {
 		if err := validateRegistrationFileHeader(field, fileHeader); err != nil {
-			return nil, err
+			return nil, false, err
 		}
 	}
 
-	return files, nil
+	return files, false, nil
+}
+
+func hasExistingRegistrationFiles(field model.FormField, value any) bool {
+	if value == nil {
+		return false
+	}
+	if field.Type == "file" {
+		_, ok := registrationStoredFileFromAny(value)
+		return ok
+	}
+
+	items, ok := value.([]any)
+	if ok {
+		for _, item := range items {
+			if _, exists := registrationStoredFileFromAny(item); exists {
+				return true
+			}
+		}
+		return false
+	}
+
+	mappedItems, ok := value.([]map[string]any)
+	if ok {
+		for _, item := range mappedItems {
+			if _, exists := registrationStoredFileFromAny(item); exists {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func validateRegistrationFileHeader(field model.FormField, fileHeader *multipart.FileHeader) error {
@@ -1450,11 +1719,17 @@ func (r *gormRegistrationRepository) ListRegistrations(ctx context.Context, filt
 		Preload("Reviewer1").
 		Preload("Reviewer2").
 		Order("registrations.submitted_at DESC").
+		Offset((normalizeRegistrationListPage(filter.Page) - 1) * normalizeRegistrationListPageSize(filter.PageSize)).
+		Limit(normalizeRegistrationListPageSize(filter.PageSize)).
 		Find(&registrations).Error; err != nil {
 		return nil, err
 	}
 
 	return registrations, nil
+}
+
+func (r *gormRegistrationRepository) CountRegistrations(ctx context.Context, filter ListRegistrationsInput) (int64, error) {
+	return r.countRegistrations(ctx, filter, filter.Status)
 }
 
 func (r *gormRegistrationRepository) GetRegistrationStats(ctx context.Context, filter ListRegistrationsInput) (RegistrationStats, error) {

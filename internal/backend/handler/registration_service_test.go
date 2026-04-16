@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"strings"
 	"testing"
 	"time"
 
@@ -144,6 +145,198 @@ func TestRegistrationAccessScopeReviewActionAvailabilityForLeaderSlot2(t *testin
 	}
 }
 
+func TestRegistrationServiceListRegistrationsReturnsPagination(t *testing.T) {
+	repo := newFakeRegistrationListRepository()
+	service := newRegistrationServiceWithDependencies(repo, nil)
+
+	status := uint8(model.RegistrationStatusPending)
+	formID := uint64(301)
+	result, err := service.ListRegistrations(
+		context.Background(),
+		RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin},
+		ListRegistrationsInput{
+			Page:     5,
+			PageSize: 10,
+			Keyword:  " 张三 ",
+			Status:   &status,
+			FormID:   &formID,
+		},
+	)
+	if err != nil {
+		t.Fatalf("ListRegistrations returned error: %v", err)
+	}
+
+	if result.Pagination.Page != 3 {
+		t.Fatalf("expected clamped page 3, got %d", result.Pagination.Page)
+	}
+	if result.Pagination.PageSize != 10 {
+		t.Fatalf("expected page size 10, got %d", result.Pagination.PageSize)
+	}
+	if result.Pagination.Total != 23 {
+		t.Fatalf("expected total 23, got %d", result.Pagination.Total)
+	}
+	if result.Pagination.TotalPages != 3 {
+		t.Fatalf("expected total pages 3, got %d", result.Pagination.TotalPages)
+	}
+	if len(result.Items) != 1 {
+		t.Fatalf("expected 1 list item, got %d", len(result.Items))
+	}
+	if len(repo.listFilters) != 1 {
+		t.Fatalf("expected 1 list filter call, got %d", len(repo.listFilters))
+	}
+	if repo.listFilters[0].Page != 3 {
+		t.Fatalf("expected repository list page 3, got %d", repo.listFilters[0].Page)
+	}
+	if repo.listFilters[0].Keyword != "张三" {
+		t.Fatalf("expected trimmed keyword, got %q", repo.listFilters[0].Keyword)
+	}
+	if len(repo.statsFilters) != 1 {
+		t.Fatalf("expected 1 stats filter call, got %d", len(repo.statsFilters))
+	}
+	if repo.statsFilters[0].Status != nil {
+		t.Fatalf("expected stats filter status cleared, got %v", *repo.statsFilters[0].Status)
+	}
+}
+
+func TestRegistrationServiceListRegistrationsNormalizesDefaultPageParams(t *testing.T) {
+	repo := newFakeRegistrationListRepository()
+	service := newRegistrationServiceWithDependencies(repo, nil)
+
+	result, err := service.ListRegistrations(
+		context.Background(),
+		RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin},
+		ListRegistrationsInput{},
+	)
+	if err != nil {
+		t.Fatalf("ListRegistrations returned error: %v", err)
+	}
+
+	if result.Pagination.Page != 1 {
+		t.Fatalf("expected default page 1, got %d", result.Pagination.Page)
+	}
+	if result.Pagination.PageSize != 10 {
+		t.Fatalf("expected default page size 10, got %d", result.Pagination.PageSize)
+	}
+	if len(repo.listFilters) != 1 {
+		t.Fatalf("expected 1 list filter call, got %d", len(repo.listFilters))
+	}
+	if repo.listFilters[0].Page != 1 {
+		t.Fatalf("expected repository page 1, got %d", repo.listFilters[0].Page)
+	}
+	if repo.listFilters[0].PageSize != 10 {
+		t.Fatalf("expected repository page size 10, got %d", repo.listFilters[0].PageSize)
+	}
+}
+
+func TestRegistrationServiceUpdateRecruitmentRegistrationAllowsEditablePendingRegistration(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	service.now = func() time.Time {
+		return time.Date(2026, 4, 14, 12, 0, 0, 0, time.Local)
+	}
+
+	result, err := service.UpdateRecruitmentRegistration(
+		context.Background(),
+		RegistrationFormActor{ID: repo.registration.UserID, RoleName: model.RoleNameUser},
+		repo.registration.ID,
+		SubmitRegistrationInput{
+			Values: map[string][]string{
+				"name":      {"李四"},
+				"phone":     {"13900139000"},
+				"email":     {"lisi@example.com"},
+				"group_1":   {"102"},
+				"group_2":   {"101"},
+				"direction": {"embedded"},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("UpdateRecruitmentRegistration returned error: %v", err)
+	}
+
+	if result.Status != model.RegistrationStatusPending {
+		t.Fatalf("expected pending status after resubmit, got %d", result.Status)
+	}
+	if repo.registration == nil {
+		t.Fatalf("expected registration to remain present after update")
+	}
+	if repo.registration.ContactName == nil || *repo.registration.ContactName != "李四" {
+		t.Fatalf("expected updated contact name, got %#v", repo.registration.ContactName)
+	}
+	if repo.registration.ContactPhone == nil || *repo.registration.ContactPhone != "13900139000" {
+		t.Fatalf("expected updated contact phone, got %#v", repo.registration.ContactPhone)
+	}
+	if repo.registration.ContactEmail == nil || *repo.registration.ContactEmail != "lisi@example.com" {
+		t.Fatalf("expected updated contact email, got %#v", repo.registration.ContactEmail)
+	}
+	if repo.registration.Group1ID == nil || *repo.registration.Group1ID != 102 {
+		t.Fatalf("expected updated group 1, got %#v", repo.registration.Group1ID)
+	}
+	if repo.registration.Group2ID == nil || *repo.registration.Group2ID != 101 {
+		t.Fatalf("expected updated group 2, got %#v", repo.registration.Group2ID)
+	}
+	if repo.registration.FormData["direction"] != "embedded" {
+		t.Fatalf("expected updated direction, got %#v", repo.registration.FormData["direction"])
+	}
+}
+
+func TestRegistrationServiceUpdateRecruitmentRegistrationRejectsReviewedRegistration(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	now := time.Date(2026, 4, 14, 11, 0, 0, 0, time.Local)
+	repo.registration.Group1Status = model.RegistrationStatusApproved
+	repo.registration.ReviewedAt1 = &now
+	service := newRegistrationServiceWithDependencies(repo, nil)
+
+	_, err := service.UpdateRecruitmentRegistration(
+		context.Background(),
+		RegistrationFormActor{ID: repo.registration.UserID, RoleName: model.RoleNameUser},
+		repo.registration.ID,
+		SubmitRegistrationInput{
+			Values: map[string][]string{
+				"name":      {"李四"},
+				"phone":     {"13900139000"},
+				"email":     {"lisi@example.com"},
+				"group_1":   {"102"},
+				"group_2":   {"101"},
+				"direction": {"embedded"},
+			},
+		},
+	)
+	assertRegistrationServiceError(t, err, 409, "进入审核")
+}
+
+func TestRegistrationServiceCancelRecruitmentRegistrationDeletesEditablePendingRegistration(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	service := newRegistrationServiceWithDependencies(repo, nil)
+
+	err := service.CancelRecruitmentRegistration(
+		context.Background(),
+		RegistrationFormActor{ID: repo.registration.UserID, RoleName: model.RoleNameUser},
+		repo.registration.ID,
+	)
+	if err != nil {
+		t.Fatalf("CancelRecruitmentRegistration returned error: %v", err)
+	}
+	if repo.registration != nil {
+		t.Fatalf("expected registration to be deleted after cancel")
+	}
+}
+
+func TestRegistrationServiceCancelRecruitmentRegistrationRejectsReviewedRegistration(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	now := time.Date(2026, 4, 14, 11, 0, 0, 0, time.Local)
+	repo.registration.Group2Status = model.RegistrationStatusRejected
+	repo.registration.ReviewedAt2 = &now
+	service := newRegistrationServiceWithDependencies(repo, nil)
+
+	err := service.CancelRecruitmentRegistration(
+		context.Background(),
+		RegistrationFormActor{ID: repo.registration.UserID, RoleName: model.RoleNameUser},
+		repo.registration.ID,
+	)
+	assertRegistrationServiceError(t, err, 409, "进入审核")
+}
+
 type fakeRegistrationReviewRepository struct {
 	registration        *model.Registration
 	shownGroups         []model.UserGroup
@@ -216,7 +409,10 @@ func (r *fakeRegistrationReviewRepository) ListPublishedForms(_ context.Context)
 }
 
 func (r *fakeRegistrationReviewRepository) GetFormByID(_ context.Context, _ uint64) (*model.RegistrationForm, error) {
-	return nil, gorm.ErrRecordNotFound
+	if r.registration == nil {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return cloneRegistrationFormModel(&r.registration.Form), nil
 }
 
 func (r *fakeRegistrationReviewRepository) FindRegistrationByFormAndUser(_ context.Context, _, _ uint64) (*model.Registration, error) {
@@ -236,6 +432,27 @@ func (r *fakeRegistrationReviewRepository) UpdateRegistration(_ context.Context,
 		return gorm.ErrRecordNotFound
 	}
 
+	if value, ok := updates["contact_name"].(*string); ok {
+		r.registration.ContactName = copyStringPtr(value)
+	} else if updates["contact_name"] == nil {
+		r.registration.ContactName = nil
+	}
+	if value, ok := updates["contact_phone"].(*string); ok {
+		r.registration.ContactPhone = copyStringPtr(value)
+	} else if updates["contact_phone"] == nil {
+		r.registration.ContactPhone = nil
+	}
+	if value, ok := updates["contact_email"].(*string); ok {
+		r.registration.ContactEmail = copyStringPtr(value)
+	} else if updates["contact_email"] == nil {
+		r.registration.ContactEmail = nil
+	}
+	if value, ok := updates["group_1"].(*uint64); ok {
+		r.registration.Group1ID = copyUint64Ptr(value)
+	}
+	if value, ok := updates["group_2"].(*uint64); ok {
+		r.registration.Group2ID = copyUint64Ptr(value)
+	}
 	if value, ok := updates["group_1_status"].(uint8); ok {
 		r.registration.Group1Status = value
 	}
@@ -269,6 +486,9 @@ func (r *fakeRegistrationReviewRepository) UpdateRegistration(_ context.Context,
 	} else if updates["review_remark_2"] == nil {
 		r.registration.ReviewRemark2 = nil
 	}
+	if value, ok := updates["submitted_at"].(time.Time); ok {
+		r.registration.SubmittedAt = value
+	}
 
 	updatedAt := time.Now()
 	r.registration.UpdatedAt = updatedAt
@@ -285,6 +505,10 @@ func (r *fakeRegistrationReviewRepository) UpdateRegistrationFormData(_ context.
 
 func (r *fakeRegistrationReviewRepository) ListRegistrations(_ context.Context, _ ListRegistrationsInput) ([]model.Registration, error) {
 	return nil, nil
+}
+
+func (r *fakeRegistrationReviewRepository) CountRegistrations(_ context.Context, _ ListRegistrationsInput) (int64, error) {
+	return 0, nil
 }
 
 func (r *fakeRegistrationReviewRepository) GetRegistrationStats(_ context.Context, _ ListRegistrationsInput) (RegistrationStats, error) {
@@ -369,6 +593,143 @@ func cloneRegistrationModel(registration *model.Registration) *model.Registratio
 	return &cloned
 }
 
+type fakeRegistrationListRepository struct {
+	items          []model.Registration
+	total          int64
+	stats          RegistrationStats
+	leaderGroupIDs map[uint64][]uint64
+	listFilters    []ListRegistrationsInput
+	countFilters   []ListRegistrationsInput
+	statsFilters   []ListRegistrationsInput
+}
+
+func newFakeRegistrationListRepository() *fakeRegistrationListRepository {
+	group1ID := uint64(101)
+	group2ID := uint64(102)
+	now := time.Date(2026, 4, 14, 9, 0, 0, 0, time.Local)
+
+	return &fakeRegistrationListRepository{
+		items: []model.Registration{
+			{
+				ID:           7001,
+				FormID:       301,
+				UserID:       501,
+				FormData:     map[string]any{"name": "张三", "group_1": "101", "group_2": "102"},
+				ContactName:  stringPtr("张三"),
+				ContactPhone: stringPtr("13800138000"),
+				ContactEmail: stringPtr("zhangsan@example.com"),
+				Group1ID:     &group1ID,
+				Group1Status: model.RegistrationStatusPending,
+				Group2ID:     &group2ID,
+				Group2Status: model.RegistrationStatusPending,
+				Status:       model.RegistrationStatusPending,
+				SubmittedAt:  now.Add(-2 * time.Hour),
+				UpdatedAt:    now.Add(-90 * time.Minute),
+				Form: model.RegistrationForm{
+					ID:     301,
+					Title:  "2026 招新报名",
+					Status: model.RegistrationFormStatusPublished,
+				},
+				Group1: &model.UserGroup{ID: group1ID, Name: "机械组", Show: 1},
+				Group2: &model.UserGroup{ID: group2ID, Name: "电控组", Show: 1},
+			},
+		},
+		total: 23,
+		stats: RegistrationStats{
+			Total:     24,
+			Pending:   9,
+			Approved:  8,
+			Rejected:  5,
+			Cancelled: 2,
+		},
+		leaderGroupIDs: map[uint64][]uint64{},
+	}
+}
+
+func (r *fakeRegistrationListRepository) RunInTx(_ context.Context, fn func(repo registrationRepository) error) error {
+	return fn(r)
+}
+
+func (r *fakeRegistrationListRepository) ListPublishedForms(_ context.Context) ([]model.RegistrationForm, error) {
+	return nil, nil
+}
+
+func (r *fakeRegistrationListRepository) GetFormByID(_ context.Context, _ uint64) (*model.RegistrationForm, error) {
+	return nil, gorm.ErrRecordNotFound
+}
+
+func (r *fakeRegistrationListRepository) FindRegistrationByFormAndUser(_ context.Context, _, _ uint64) (*model.Registration, error) {
+	return nil, gorm.ErrRecordNotFound
+}
+
+func (r *fakeRegistrationListRepository) CountRegistrationsByFormID(_ context.Context, _ uint64) (int64, error) {
+	return 0, nil
+}
+
+func (r *fakeRegistrationListRepository) CreateRegistration(_ context.Context, _ *model.Registration) error {
+	return nil
+}
+
+func (r *fakeRegistrationListRepository) UpdateRegistration(_ context.Context, _ uint64, _ map[string]any) error {
+	return nil
+}
+
+func (r *fakeRegistrationListRepository) UpdateRegistrationFormData(_ context.Context, _ uint64, _ map[string]any) error {
+	return nil
+}
+
+func (r *fakeRegistrationListRepository) ListRegistrations(_ context.Context, filter ListRegistrationsInput) ([]model.Registration, error) {
+	r.listFilters = append(r.listFilters, filter)
+	registrations := make([]model.Registration, 0, len(r.items))
+	for i := range r.items {
+		registrations = append(registrations, *cloneRegistrationModel(&r.items[i]))
+	}
+	return registrations, nil
+}
+
+func (r *fakeRegistrationListRepository) CountRegistrations(_ context.Context, filter ListRegistrationsInput) (int64, error) {
+	r.countFilters = append(r.countFilters, filter)
+	return r.total, nil
+}
+
+func (r *fakeRegistrationListRepository) GetRegistrationStats(_ context.Context, filter ListRegistrationsInput) (RegistrationStats, error) {
+	r.statsFilters = append(r.statsFilters, filter)
+	return r.stats, nil
+}
+
+func (r *fakeRegistrationListRepository) GetRegistrationByID(_ context.Context, _ uint64) (*model.Registration, error) {
+	return nil, gorm.ErrRecordNotFound
+}
+
+func (r *fakeRegistrationListRepository) GetRegistrationByIDForUpdate(_ context.Context, _ uint64) (*model.Registration, error) {
+	return nil, gorm.ErrRecordNotFound
+}
+
+func (r *fakeRegistrationListRepository) DeleteRegistration(_ context.Context, _ uint64) error {
+	return nil
+}
+
+func (r *fakeRegistrationListRepository) ListShownUserGroups(_ context.Context) ([]model.UserGroup, error) {
+	return nil, nil
+}
+
+func (r *fakeRegistrationListRepository) ListDefaultGroupIDs(_ context.Context) ([]uint64, error) {
+	return nil, nil
+}
+
+func (r *fakeRegistrationListRepository) ListLeaderGroupIDs(_ context.Context, userID uint64) ([]uint64, error) {
+	groupIDs := r.leaderGroupIDs[userID]
+	return append([]uint64(nil), groupIDs...), nil
+}
+
+func (r *fakeRegistrationListRepository) AddUserToGroupIfAbsent(_ context.Context, _ uint64, _ uint64) error {
+	return nil
+}
+
+func (r *fakeRegistrationListRepository) RemoveUserFromGroupIfPresent(_ context.Context, _ uint64, _ uint64) error {
+	return nil
+}
+
 func cloneGroupModel(group *model.UserGroup) *model.UserGroup {
 	if group == nil {
 		return nil
@@ -410,6 +771,24 @@ func stringPtr(value string) *string {
 
 func uint64Ptr(value uint64) *uint64 {
 	return &value
+}
+
+func assertRegistrationServiceError(t *testing.T, err error, status int, contains string) {
+	t.Helper()
+	if err == nil {
+		t.Fatalf("expected error, got nil")
+	}
+
+	serviceErr, ok := err.(*registrationServiceError)
+	if !ok {
+		t.Fatalf("expected registrationServiceError, got %T", err)
+	}
+	if serviceErr.Status != status {
+		t.Fatalf("expected status %d, got %d", status, serviceErr.Status)
+	}
+	if contains != "" && !strings.Contains(serviceErr.Message, contains) {
+		t.Fatalf("expected message %q to contain %q", serviceErr.Message, contains)
+	}
 }
 
 func assertAddedMemberships(t *testing.T, actual []fakeAddedMembership, expected []fakeAddedMembership) {

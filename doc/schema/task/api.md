@@ -1107,6 +1107,8 @@ GET http://127.0.0.1:8080/api/admin/registrations 获取报名列表
   - 用途：后台报名列表页查询报名记录
   - 鉴权：要求管理员权限
   - 查询参数：
+    - `page`：可选，页码，从 `1` 开始，默认 `1`
+    - `pageSize`：可选，每页条数，默认 `10`，最大 `100`
     - `keyword`：可选，按姓名 / 手机号 / 邮箱 / 报名表标题模糊搜索
     - `status`：可选，`0=待审核`、`1=已通过`、`2=已拒绝`、`3=已取消`
     - `formId`：可选，按报名表筛选
@@ -1117,6 +1119,7 @@ GET http://127.0.0.1:8080/api/admin/registrations 获取报名列表
     - `summary` 返回当前关键字 / 报名表筛选条件下的状态统计
     - `items` 仅返回固定通用列，不返回 `formData`
     - `canApprove` / `canReject` 表示当前管理员对该记录是否仍有可执行的审核动作
+    - `pagination` 返回当前完整筛选条件（包含 `status`）下的分页信息
   - 成功响应示例：
     ```json
     {
@@ -1154,7 +1157,13 @@ GET http://127.0.0.1:8080/api/admin/registrations 获取报名列表
             "submittedAt": "2026-04-13T20:10:00+08:00",
             "updatedAt": "2026-04-13T20:10:00+08:00"
           }
-        ]
+        ],
+        "pagination": {
+          "page": 1,
+          "pageSize": 10,
+          "total": 24,
+          "totalPages": 3
+        }
       }
     }
     ```

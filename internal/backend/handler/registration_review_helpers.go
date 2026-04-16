@@ -94,6 +94,32 @@ func (scope registrationAccessScope) reviewActionAvailability(registration *mode
 	return canReview, canReview
 }
 
+func canMutateRegistrationBeforeReview(registration *model.Registration) bool {
+	if registration == nil {
+		return false
+	}
+	if registration.Status == model.RegistrationStatusCancelled {
+		return false
+	}
+	return !registrationHasAnyReview(registration)
+}
+
+func registrationHasAnyReview(registration *model.Registration) bool {
+	if registration == nil {
+		return false
+	}
+	if registration.Group1Status != model.RegistrationStatusPending ||
+		registration.Group2Status != model.RegistrationStatusPending {
+		return true
+	}
+	return registration.ReviewerID1 != nil ||
+		registration.ReviewerID2 != nil ||
+		registration.ReviewedAt1 != nil ||
+		registration.ReviewedAt2 != nil ||
+		registration.ReviewRemark1 != nil ||
+		registration.ReviewRemark2 != nil
+}
+
 func normalizeRegistrationReviewDecision(decision string) (uint8, error) {
 	switch strings.ToLower(strings.TrimSpace(decision)) {
 	case registrationReviewDecisionApprove:

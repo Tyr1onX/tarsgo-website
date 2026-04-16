@@ -71,12 +71,15 @@ func TestRegistrationFormServiceGetRecruitmentPageDataReturnsSubmittedStateForEx
 	repo := newFakeRegistrationFormRepository()
 	repo.usersInDefaultGroup[42] = false
 	repo.registrations = append(repo.registrations, &model.Registration{
-		ID:          9,
-		FormID:      2,
-		UserID:      42,
-		Status:      model.RegistrationStatusPending,
-		SubmittedAt: time.Date(2026, 4, 13, 12, 30, 0, 0, time.Local),
-		UpdatedAt:   time.Date(2026, 4, 13, 12, 30, 0, 0, time.Local),
+		ID:           9,
+		FormID:       2,
+		UserID:       42,
+		FormData:     map[string]any{"name": "张三", "phone": "13800138000", "email": "zhangsan@example.com", "group_1": "101", "group_2": "102", "direction": "mechanical"},
+		Group1Status: model.RegistrationStatusPending,
+		Group2Status: model.RegistrationStatusPending,
+		Status:       model.RegistrationStatusPending,
+		SubmittedAt:  time.Date(2026, 4, 13, 12, 30, 0, 0, time.Local),
+		UpdatedAt:    time.Date(2026, 4, 13, 12, 30, 0, 0, time.Local),
 	})
 	service := newRegistrationFormServiceWithRepo(repo)
 
@@ -97,8 +100,54 @@ func TestRegistrationFormServiceGetRecruitmentPageDataReturnsSubmittedStateForEx
 	if result.RegistrationSummary.Status != model.RegistrationStatusPending {
 		t.Fatalf("expected pending summary status, got %d", result.RegistrationSummary.Status)
 	}
+	if !result.RegistrationSummary.CanEdit || !result.RegistrationSummary.CanCancel {
+		t.Fatalf("expected submitted summary to allow edit and cancel, got edit=%v cancel=%v", result.RegistrationSummary.CanEdit, result.RegistrationSummary.CanCancel)
+	}
+	if result.Form == nil {
+		t.Fatalf("expected editable submitted state to include form payload")
+	}
+	if result.RegistrationFormData == nil {
+		t.Fatalf("expected editable submitted state to include existing form data")
+	}
+	if result.RegistrationFormData["name"] != "张三" {
+		t.Fatalf("expected form data to preserve submitted values, got %#v", result.RegistrationFormData["name"])
+	}
+}
+
+func TestRegistrationFormServiceGetRecruitmentPageDataReturnsReadonlySubmittedStateAfterReview(t *testing.T) {
+	repo := newFakeRegistrationFormRepository()
+	repo.registrations = append(repo.registrations, &model.Registration{
+		ID:           19,
+		FormID:       2,
+		UserID:       52,
+		FormData:     map[string]any{"name": "李四", "group_1": "101", "group_2": "102"},
+		Group1Status: model.RegistrationStatusApproved,
+		Group2Status: model.RegistrationStatusPending,
+		Status:       model.RegistrationStatusPending,
+		SubmittedAt:  time.Date(2026, 4, 13, 12, 30, 0, 0, time.Local),
+		UpdatedAt:    time.Date(2026, 4, 13, 13, 0, 0, 0, time.Local),
+	})
+	service := newRegistrationFormServiceWithRepo(repo)
+
+	result, err := service.GetRecruitmentPageData(context.Background(), RegistrationFormActor{ID: 52, RoleName: model.RoleNameUser})
+	if err != nil {
+		t.Fatalf("GetRecruitmentPageData returned error: %v", err)
+	}
+
+	if result.PageMode != "submitted" {
+		t.Fatalf("expected submitted page mode, got %q", result.PageMode)
+	}
+	if result.RegistrationSummary == nil {
+		t.Fatalf("expected submitted summary payload")
+	}
+	if result.RegistrationSummary.CanEdit || result.RegistrationSummary.CanCancel {
+		t.Fatalf("expected reviewed registration to be readonly, got edit=%v cancel=%v", result.RegistrationSummary.CanEdit, result.RegistrationSummary.CanCancel)
+	}
 	if result.Form != nil {
-		t.Fatalf("expected no form payload for submitted state")
+		t.Fatalf("expected readonly submitted state to hide form payload")
+	}
+	if result.RegistrationFormData != nil {
+		t.Fatalf("expected readonly submitted state to hide form data")
 	}
 }
 

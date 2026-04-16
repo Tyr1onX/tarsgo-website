@@ -18,6 +18,7 @@ import { Icon, type IconifyIcon } from "@iconify/react";
 import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useOutletContext } from "react-router";
+import { ModalShell } from "~/components/modal-shell";
 import { Notify } from "~/components/notify";
 import {
   type AdminUserGroupListItem,
@@ -1038,13 +1039,12 @@ export default function Users() {
         </div>
       </div>
 
-      {createModalOpen ? (
-        <OverlayPortal>
-          <ModalShell
-            title="新建账号"
-            description="后台直接创建邮箱密码账号，默认创建后立即可登录。GitHub 绑定仅支持用户自行登录后生成。"
-            onClose={() => setCreateModalOpen(false)}
-          >
+      <ModalShell
+        open={createModalOpen}
+        title="新建账号"
+        description="后台直接创建邮箱密码账号，默认创建后立即可登录。GitHub 绑定仅支持用户自行登录后生成。"
+        onClose={() => setCreateModalOpen(false)}
+      >
             <form onSubmit={handleCreateUser} className="space-y-5">
               <div>
                 <div className="mb-3 text-xs font-medium uppercase tracking-wider text-fg-dim">必填信息</div>
@@ -1196,21 +1196,22 @@ export default function Users() {
                 </button>
               </div>
           </form>
-          </ModalShell>
-        </OverlayPortal>
-      ) : null}
+      </ModalShell>
 
-      {passwordModalTarget ? (
-        <OverlayPortal>
-          <ModalShell
-            title="重置密码"
-            description={`直接为 ${passwordModalTarget.email} 设置新的本地密码。旧密码会立即失效。`}
-            onClose={() => {
-              setPasswordModalTarget(null);
-              setPasswordValue("");
-            }}
-            widthClass="max-w-lg"
-          >
+      <ModalShell
+        open={passwordModalTarget !== null}
+        title="重置密码"
+        description={
+          passwordModalTarget
+            ? `直接为 ${passwordModalTarget.email} 设置新的本地密码。旧密码会立即失效。`
+            : undefined
+        }
+        onClose={() => {
+          setPasswordModalTarget(null);
+          setPasswordValue("");
+        }}
+        widthClass="max-w-lg"
+      >
             <form onSubmit={handleResetPassword} className="space-y-5">
               <div>
                 <FieldLabel label="新密码" />
@@ -1249,58 +1250,57 @@ export default function Users() {
                 </button>
               </div>
             </form>
-          </ModalShell>
-        </OverlayPortal>
-      ) : null}
+      </ModalShell>
 
-      {statusModalTarget ? (
-        <OverlayPortal>
-          <ModalShell
-            title={statusModalTarget?.status === 1 ? "停用账号" : "启用账号"}
-            description={`目标账号：${statusModalTarget.email}`}
-            onClose={() => setStatusModalTarget(null)}
-            widthClass="max-w-lg"
-          >
-            <div className="space-y-5">
-              <div className={`rounded-xl border px-4 py-3 text-sm leading-6 ${
-                statusModalTarget.status === 1
-                  ? "border-red-500/20 bg-red-500/10 text-red-100"
-                  : "border-accent-tertiary/20 bg-accent-tertiary/10 text-emerald-100"
-              }`}>
-                {statusModalTarget.status === 1
-                  ? "停用后将立即阻断新登录，并使当前会话在下次 /api/me 校验时失效。系统不会物理删除该账号。"
-                  : "启用后账号可重新使用邮箱密码、验证码或 GitHub 登录。"}
-              </div>
-
-              <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setStatusModalTarget(null)}
-                  className="rounded-xl border border-border-subtle px-4 py-2.5 text-sm text-fg-muted transition hover:bg-white/5 hover:text-fg-primary"
-                >
-                  取消
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleToggleStatus()}
-                  disabled={togglingStatus}
-                  className={`rounded-xl px-4 py-2.5 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${
-                    statusModalTarget.status === 1
-                      ? "bg-red-500 hover:bg-red-600"
-                      : "bg-accent-tertiary hover:bg-accent-tertiary/90"
-                  }`}
-                >
-                  {togglingStatus
-                    ? "提交中..."
-                    : statusModalTarget.status === 1
-                      ? "确认停用"
-                      : "确认启用"}
-                </button>
-              </div>
+      <ModalShell
+        open={statusModalTarget !== null}
+        title={statusModalTarget?.status === 1 ? "停用账号" : "启用账号"}
+        description={
+          statusModalTarget ? `目标账号：${statusModalTarget.email}` : undefined
+        }
+        onClose={() => setStatusModalTarget(null)}
+        widthClass="max-w-lg"
+      >
+        {statusModalTarget ? (
+          <div className="space-y-5">
+            <div className={`rounded-xl border px-4 py-3 text-sm leading-6 ${
+              statusModalTarget.status === 1
+                ? "border-red-500/20 bg-red-500/10 text-red-100"
+                : "border-accent-tertiary/20 bg-accent-tertiary/10 text-emerald-100"
+            }`}>
+              {statusModalTarget.status === 1
+                ? "停用后将立即阻断新登录，并使当前会话在下次 /api/me 校验时失效。系统不会物理删除该账号。"
+                : "启用后账号可重新使用邮箱密码、验证码或 GitHub 登录。"}
             </div>
-          </ModalShell>
-        </OverlayPortal>
-      ) : null}
+
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setStatusModalTarget(null)}
+                className="rounded-xl border border-border-subtle px-4 py-2.5 text-sm text-fg-muted transition hover:bg-white/5 hover:text-fg-primary"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleToggleStatus()}
+                disabled={togglingStatus}
+                className={`rounded-xl px-4 py-2.5 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                  statusModalTarget.status === 1
+                    ? "bg-red-500 hover:bg-red-600"
+                    : "bg-accent-tertiary hover:bg-accent-tertiary/90"
+                }`}
+              >
+                {togglingStatus
+                  ? "提交中..."
+                  : statusModalTarget.status === 1
+                    ? "确认停用"
+                    : "确认启用"}
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </ModalShell>
 
       {drawerOpen ? (
         <OverlayPortal>
@@ -1643,42 +1643,6 @@ function getErrorMessage(error: unknown) {
   return "请求失败，请稍后重试。";
 }
 
-function ModalShell({
-  title,
-  description,
-  onClose,
-  children,
-  widthClass = "max-w-2xl",
-}: {
-  title: string;
-  description?: string;
-  onClose: () => void;
-  children: ReactNode;
-  widthClass?: string;
-}) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md">
-      <div className={`w-full ${widthClass} rounded-2xl border border-border-subtle bg-surface-card shadow-2xl shadow-black/40 ring-1 ring-white/[0.05]`}>
-        <div className="flex items-start justify-between gap-4 border-b border-border-subtle px-6 py-5">
-          <div>
-            <h2 className="text-lg font-semibold text-fg-primary">{title}</h2>
-            {description ? <p className="mt-1 text-sm text-fg-muted">{description}</p> : null}
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            title="关闭"
-            aria-label="关闭"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-fg-dim transition hover:bg-white/5 hover:text-fg-primary"
-          >
-            <Icon icon={x} className="h-4 w-4" />
-          </button>
-        </div>
-        <div className="px-6 py-5">{children}</div>
-      </div>
-    </div>
-  );
-}
 
 function StatCard({
   label,

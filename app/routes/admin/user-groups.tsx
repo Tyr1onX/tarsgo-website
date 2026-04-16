@@ -27,6 +27,7 @@ import { Icon, type IconifyIcon } from "@iconify/react";
 import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useOutletContext } from "react-router";
+import { ModalShell } from "~/components/modal-shell";
 import { Notify } from "~/components/notify";
 import {
   addAdminUserGroupMember,
@@ -809,14 +810,24 @@ export default function UserGroups() {
       </div>
 
       {/* Create / Edit modal */}
-      {groupModalOpen ? (
-        <OverlayPortal>
-          <ModalShell
-            title={editingGroupId === null ? "新建用户组" : "编辑用户组"}
-            icon={editingGroupId === null ? folderPlus : editIcon}
-            onClose={() => setGroupModalOpen(false)}
-            widthClass="max-w-2xl"
-          >
+      <ModalShell
+        open={groupModalOpen}
+        title={editingGroupId === null ? "新建用户组" : "编辑用户组"}
+        headerAccent={
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-500/10 shadow-sm shadow-primary-500/5">
+            <Icon
+              icon={editingGroupId === null ? folderPlus : editIcon}
+              className="h-4 w-4 text-primary-400"
+            />
+          </div>
+        }
+        onClose={() => setGroupModalOpen(false)}
+        widthClass="max-w-2xl"
+        zIndexClass="z-[60]"
+        panelClassName="rounded-2xl border border-gray-800/60 bg-gray-950 shadow-2xl shadow-black/40"
+        bodyClassName="max-h-[calc(100vh-10rem)] overflow-y-auto px-6 py-5"
+        backdropClassName="bg-black/70 backdrop-blur-sm"
+      >
             <form onSubmit={handleSubmitGroup} className="space-y-6">
               {/* ── Section: 基本信息 ── */}
               <section className="rounded-xl border border-gray-800/50 bg-gradient-to-b from-gray-900/60 to-gray-900/30 overflow-hidden">
@@ -966,54 +977,58 @@ export default function UserGroups() {
                 </div>
               </div>
             </form>
-          </ModalShell>
-        </OverlayPortal>
-      ) : null}
+      </ModalShell>
 
       {/* Delete confirm modal */}
-      {deleteTarget ? (
-        <OverlayPortal>
-          <ModalShell
-            title="确认删除"
-            icon={alertTriangle}
-            onClose={() => setDeleteTarget(null)}
-            widthClass="max-w-md"
-          >
-            <div className="space-y-5">
-              <div className="flex items-start gap-3 rounded-xl border border-red-500/20 bg-red-500/5 p-4">
-                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-500/10">
-                  <Icon icon={alertTriangle} className="h-4 w-4 text-red-400" />
-                </div>
-                <div className="text-sm leading-6 text-red-100/80">
-                  即将删除 <span className="font-semibold text-white">{deleteTarget.name}</span>
-                  {"memberCount" in deleteTarget && deleteTarget.memberCount > 0 ? (
-                    <span className="text-red-300">（当前 {deleteTarget.memberCount} 人，需先清空成员）</span>
-                  ) : null}
-                </div>
+      <ModalShell
+        open={deleteTarget !== null}
+        title="确认删除"
+        headerAccent={
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-500/10 shadow-sm shadow-red-500/5">
+            <Icon icon={alertTriangle} className="h-4 w-4 text-red-400" />
+          </div>
+        }
+        onClose={() => setDeleteTarget(null)}
+        widthClass="max-w-md"
+        zIndexClass="z-[60]"
+        panelClassName="rounded-2xl border border-gray-800/60 bg-gray-950 shadow-2xl shadow-black/40"
+        backdropClassName="bg-black/70 backdrop-blur-sm"
+      >
+        {deleteTarget ? (
+          <div className="space-y-5">
+            <div className="flex items-start gap-3 rounded-xl border border-red-500/20 bg-red-500/5 p-4">
+              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-500/10">
+                <Icon icon={alertTriangle} className="h-4 w-4 text-red-400" />
               </div>
-
-              <div className="flex justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => setDeleteTarget(null)}
-                  disabled={deletingGroup}
-                  className="rounded-lg border border-gray-700/60 px-4 py-2.5 text-sm text-gray-300 transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
-                >
-                  取消
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleDeleteGroup()}
-                  disabled={deletingGroup}
-                  className="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-red-600/20 transition-all hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
-                >
-                  {deletingGroup ? "删除中..." : "确认删除"}
-                </button>
+              <div className="text-sm leading-6 text-red-100/80">
+                即将删除 <span className="font-semibold text-white">{deleteTarget.name}</span>
+                {"memberCount" in deleteTarget && deleteTarget.memberCount > 0 ? (
+                  <span className="text-red-300">（当前 {deleteTarget.memberCount} 人，需先清空成员）</span>
+                ) : null}
               </div>
             </div>
-          </ModalShell>
-        </OverlayPortal>
-      ) : null}
+
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                disabled={deletingGroup}
+                className="rounded-lg border border-gray-700/60 px-4 py-2.5 text-sm text-gray-300 transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+              >
+                取消
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDeleteGroup()}
+                disabled={deletingGroup}
+                className="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-red-600/20 transition-all hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+              >
+                {deletingGroup ? "删除中..." : "确认删除"}
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </ModalShell>
 
       {/* Member management drawer */}
       {drawerOpen ? (
@@ -1631,49 +1646,6 @@ function inputClassName(disabled = false) {
   return `w-full rounded-lg border border-gray-700/60 bg-gray-800/80 px-3.5 py-2.5 text-sm text-white placeholder:text-gray-600 backdrop-blur transition-all focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/20 focus:outline-none ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
 }
 
-function ModalShell({
-  title,
-  icon,
-  onClose,
-  children,
-  widthClass = "max-w-2xl",
-}: {
-  title: string;
-  icon?: IconifyIcon;
-  onClose: () => void;
-  children: ReactNode;
-  widthClass?: string;
-}) {
-  return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className={`w-full ${widthClass} overflow-hidden rounded-2xl border border-gray-800/60 bg-gray-950 shadow-2xl shadow-black/40`}>
-        {/* Header with subtle gradient accent */}
-        <div className="relative overflow-hidden border-b border-gray-800/60">
-          <div className="absolute inset-0 bg-gradient-to-r from-primary-500/[0.06] via-transparent to-transparent" />
-          <div className="relative flex items-center justify-between px-6 py-4">
-            <div className="flex items-center gap-3">
-              {icon ? (
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-500/10 shadow-sm shadow-primary-500/5">
-                  <Icon icon={icon} className="h-4.5 w-4.5 text-primary-400" />
-                </div>
-              ) : null}
-              <h2 className="text-base font-semibold text-white">{title}</h2>
-            </div>
-            <button
-              type="button"
-              aria-label="关闭"
-              onClick={onClose}
-              className="rounded-lg p-1.5 text-gray-400 transition-colors hover:text-white hover:bg-white/5 cursor-pointer"
-            >
-              <Icon icon={x} className="h-5 w-5" />
-            </button>
-          </div>
-        </div>
-        <div className="max-h-[calc(100vh-10rem)] overflow-y-auto px-6 py-5">{children}</div>
-      </div>
-    </div>
-  );
-}
 
 function DrawerStatBlock({ label, value, small }: { label: string; value: ReactNode; small?: boolean }) {
   return (

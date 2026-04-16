@@ -17,6 +17,8 @@ type RegistrationHandler struct {
 
 type registrationService interface {
 	SubmitRegistration(ctx context.Context, actor RegistrationFormActor, input SubmitRegistrationInput) (*SubmitRegistrationResult, error)
+	UpdateRecruitmentRegistration(ctx context.Context, actor RegistrationFormActor, registrationID uint64, input SubmitRegistrationInput) (*SubmitRegistrationResult, error)
+	CancelRecruitmentRegistration(ctx context.Context, actor RegistrationFormActor, registrationID uint64) error
 	ListRegistrations(ctx context.Context, actor RegistrationFormActor, input ListRegistrationsInput) (*ListRegistrationsResult, error)
 	GetRegistration(ctx context.Context, actor RegistrationFormActor, registrationID uint64) (*RegistrationDetail, error)
 	ReviewRegistration(ctx context.Context, actor RegistrationFormActor, registrationID uint64, input ReviewRegistrationInput) (*RegistrationDetail, error)
@@ -25,9 +27,11 @@ type registrationService interface {
 }
 
 type listRegistrationsQuery struct {
-	Keyword string `form:"keyword"`
-	Status  string `form:"status"`
-	FormID  string `form:"formId"`
+	Page     int    `form:"page"`
+	PageSize int    `form:"pageSize"`
+	Keyword  string `form:"keyword"`
+	Status   string `form:"status"`
+	FormID   string `form:"formId"`
 }
 
 type reviewRegistrationRequest struct {
@@ -67,6 +71,48 @@ func (h *RegistrationHandler) SubmitRegistration(c *gin.Context) {
 	writeAPI(c, http.StatusOK, "提交报名成功", result)
 }
 
+func (h *RegistrationHandler) UpdateRecruitmentRegistration(c *gin.Context) {
+	registrationID, err := parsePathID(c.Param("id"))
+	if err != nil {
+		writeAPIError(c, http.StatusBadRequest, "无效的报名记录 ID")
+		return
+	}
+	if err := c.Request.ParseMultipartForm(64 << 20); err != nil {
+		writeAPIError(c, http.StatusBadRequest, "报名提交参数不合法")
+		return
+	}
+
+	values, files := cloneMultipartForm(c.Request.MultipartForm)
+	delete(values, "formId")
+
+	result, serviceErr := h.service.UpdateRecruitmentRegistration(c.Request.Context(), currentRegistrationFormActor(c), registrationID, SubmitRegistrationInput{
+		Values: values,
+		Files:  files,
+	})
+	if serviceErr != nil {
+		h.handleServiceError(c, serviceErr)
+		return
+	}
+
+	writeAPI(c, http.StatusOK, "更新报名成功", result)
+}
+
+func (h *RegistrationHandler) CancelRecruitmentRegistration(c *gin.Context) {
+	registrationID, err := parsePathID(c.Param("id"))
+	if err != nil {
+		writeAPIError(c, http.StatusBadRequest, "无效的报名记录 ID")
+		return
+	}
+
+	serviceErr := h.service.CancelRecruitmentRegistration(c.Request.Context(), currentRegistrationFormActor(c), registrationID)
+	if serviceErr != nil {
+		h.handleServiceError(c, serviceErr)
+		return
+	}
+
+	writeAPI(c, http.StatusOK, "取消报名成功", nil)
+}
+
 func (h *RegistrationHandler) ListRegistrations(c *gin.Context) {
 	var query listRegistrationsQuery
 	if err := c.ShouldBindQuery(&query); err != nil {
@@ -86,9 +132,11 @@ func (h *RegistrationHandler) ListRegistrations(c *gin.Context) {
 	}
 
 	result, serviceErr := h.service.ListRegistrations(c.Request.Context(), currentRegistrationFormActor(c), ListRegistrationsInput{
-		Keyword: query.Keyword,
-		Status:  status,
-		FormID:  formID,
+		Page:     query.Page,
+		PageSize: query.PageSize,
+		Keyword:  query.Keyword,
+		Status:   status,
+		FormID:   formID,
 	})
 	if serviceErr != nil {
 		h.handleServiceError(c, serviceErr)

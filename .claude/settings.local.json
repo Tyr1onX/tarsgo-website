@@ -9,7 +9,10 @@
       "Bash(python3 \"C:\\\\Users\\\\xiaofei\\\\.claude\\\\plugins\\\\cache\\\\ui-ux-pro-max-skill\\\\ui-ux-pro-max\\\\2.0.1\\\\.claude\\\\skills\\\\ui-ux-pro-max\\\\scripts\\\\search.py\" \"admin dashboard dark glassmorphism\" --design-system -p \"TarsGo Admin\")",
       "Bash(python3 \"C:\\\\Users\\\\xiaofei\\\\.claude\\\\plugins\\\\cache\\\\ui-ux-pro-max-skill\\\\ui-ux-pro-max\\\\2.0.1\\\\.claude\\\\skills\\\\ui-ux-pro-max\\\\scripts\\\\search.py\" \"admin dashboard dark glassmorphism modern\" --design-system -p \"TarsGo Admin\")",
       "Bash(python \"C:\\\\Users\\\\xiaofei\\\\.claude\\\\plugins\\\\cache\\\\ui-ux-pro-max-skill\\\\ui-ux-pro-max\\\\2.0.1\\\\.claude\\\\skills\\\\ui-ux-pro-max\\\\scripts\\\\search.py\" \"admin dashboard dark glassmorphism modern\" --design-system -p \"TarsGo Admin\")",
-      "Bash(npx tsc *)"
+      "Bash(npx tsc *)",
+      "Read(//c/Users/xiaofei/.claude/plugins/cache/ui-ux-pro-max-skill/ui-ux-pro-max/2.0.1/.claude/skills/ui-ux-pro-max/**)",
+      "Bash(python3 scripts/search.py \"admin dashboard dark mode management panel professional\" --design-system -p \"TarsGo Admin\")",
+      "Bash(python3 \"C:\\\\Users\\\\xiaofei\\\\.claude\\\\plugins\\\\cache\\\\ui-ux-pro-max-skill\\\\ui-ux-pro-max\\\\2.0.1\\\\.claude\\\\skills\\\\ui-ux-pro-max\\\\scripts\\\\search.py\" \"student club recruitment registration form dashboard dark mode modern professional\" --design-system -p \"TARS-GO Recruitment\" -f markdown)"
     ]
   }
 }
