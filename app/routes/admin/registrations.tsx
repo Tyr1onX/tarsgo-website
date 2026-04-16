@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useOutletContext } from "react-router";
+import { AnimatedSelect } from "~/components/animated-select";
 import { ApiError, buildApiUrl } from "~/lib/api-client";
 import {
   deleteAdminRegistration,
@@ -269,7 +270,7 @@ export default function RegistrationsPage() {
 
       {flash ? (
         <div
-          className={`rounded-lg border px-4 py-3 text-sm ${
+          className={`motion-fade-up rounded-lg border px-4 py-3 text-sm ${
             flash.type === "success"
               ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
               : "border-rose-500/20 bg-rose-500/10 text-rose-100"
@@ -287,7 +288,7 @@ export default function RegistrationsPage() {
         <SummaryCard label="已取消" value={summary.cancelled} accent="text-gray-300" />
       </div>
 
-      <section className="rounded-xl border border-gray-800 bg-gray-900/70 p-4">
+      <section className="motion-fade-up motion-panel-soft rounded-xl border border-gray-800 bg-gray-900/70 p-4">
         <div className="grid gap-3 lg:grid-cols-[minmax(0,1.4fr)_220px_240px]">
           <input
             value={keyword}
@@ -295,29 +296,25 @@ export default function RegistrationsPage() {
             placeholder="搜索姓名、手机号、邮箱或报名表"
             className={inputClassName()}
           />
-          <select
+          <AnimatedSelect
             value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value)}
-            className={inputClassName()}
-          >
-            {statusOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <select
+            onChange={setStatusFilter}
+            options={statusOptions.map((option) => ({
+              value: option.value,
+              label: option.label,
+            }))}
+          />
+          <AnimatedSelect
             value={formIdFilter}
-            onChange={(event) => setFormIdFilter(event.target.value)}
-            className={inputClassName()}
-          >
-            <option value="">全部报名表</option>
-            {forms.map((form) => (
-              <option key={form.id} value={form.id}>
-                {form.title}
-              </option>
-            ))}
-          </select>
+            onChange={setFormIdFilter}
+            options={[
+              { value: "", label: "全部报名表" },
+              ...forms.map((form) => ({
+                value: form.id,
+                label: form.title,
+              })),
+            ]}
+          />
         </div>
       </section>
 
@@ -376,7 +373,7 @@ export default function RegistrationsPage() {
                           type="button"
                           onClick={() => void handleReview(item.id, "approve")}
                           disabled={!item.canApprove || reviewingId === item.id}
-                          className="shrink-0 rounded-lg border border-emerald-500/30 px-3 py-2 text-sm text-emerald-200 transition-colors hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="motion-button shrink-0 rounded-lg border border-emerald-500/30 px-3 py-2 text-sm text-emerald-200 transition-colors hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           通过
                         </button>
@@ -384,7 +381,7 @@ export default function RegistrationsPage() {
                           type="button"
                           onClick={() => void handleReview(item.id, "reject")}
                           disabled={!item.canReject || reviewingId === item.id}
-                          className="shrink-0 rounded-lg border border-rose-500/30 px-3 py-2 text-sm text-rose-200 transition-colors hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="motion-button shrink-0 rounded-lg border border-rose-500/30 px-3 py-2 text-sm text-rose-200 transition-colors hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           拒绝
                         </button>
@@ -392,14 +389,14 @@ export default function RegistrationsPage() {
                           type="button"
                           onClick={() => openDeleteModal(item)}
                           disabled={deletingId === item.id}
-                          className="shrink-0 rounded-lg border border-red-500/30 px-3 py-2 text-sm text-red-200 transition-colors hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="motion-button shrink-0 rounded-lg border border-red-500/30 px-3 py-2 text-sm text-red-200 transition-colors hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           删除
                         </button>
                         <button
                           type="button"
                           onClick={() => openDetail(item.id)}
-                          className="shrink-0 rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-200 transition-colors hover:bg-white/5 hover:text-white"
+                  className="motion-button shrink-0 rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-200 transition-colors hover:bg-white/5 hover:text-white"
                         >
                           详情
                         </button>
@@ -415,12 +412,12 @@ export default function RegistrationsPage() {
 
       {detailOpen ? (
         <OverlayPortal>
-          <div className="fixed inset-0 z-40 lg:left-64">
+          <div className="motion-overlay fixed inset-0 z-40 lg:left-64" data-state="open">
             <div
               className="absolute inset-0 bg-black/60"
               onClick={closeDetail}
             />
-            <aside className="absolute inset-y-0 left-0 flex w-full max-w-2xl flex-col border-r border-gray-800 bg-gray-950 shadow-2xl">
+            <aside className="motion-fade-down motion-dialog-surface absolute inset-y-0 left-0 flex w-full max-w-2xl flex-col border-r border-gray-800 bg-gray-950 shadow-2xl">
               <div className="flex items-start justify-between gap-4 border-b border-gray-800 px-6 py-5">
                 <div>
                   <h2 className="text-lg font-semibold text-white">报名详情</h2>
@@ -431,7 +428,7 @@ export default function RegistrationsPage() {
                 <button
                   type="button"
                   onClick={closeDetail}
-                  className="rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 transition-colors hover:bg-white/5"
+                  className="motion-button rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 transition-colors hover:bg-white/5"
                 >
                   关闭
                 </button>
@@ -461,7 +458,7 @@ export default function RegistrationsPage() {
                     <MetaCard label="更新时间" value={formatDateTime(detail.updatedAt)} />
                   </section>
 
-                  <section className="rounded-lg border border-gray-800 bg-gray-900/60 p-4">
+                  <section className="motion-panel-soft rounded-lg border border-gray-800 bg-gray-900/60 p-4">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="text-sm text-gray-300">审核操作</div>
                       <div className="flex flex-wrap gap-2">
@@ -469,7 +466,7 @@ export default function RegistrationsPage() {
                           type="button"
                           onClick={() => void handleReview(detail.id, "approve")}
                           disabled={!detail.canApprove || reviewingId === detail.id}
-                          className="rounded-lg border border-emerald-500/30 px-3 py-2 text-sm text-emerald-200 transition-colors hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="motion-button rounded-lg border border-emerald-500/30 px-3 py-2 text-sm text-emerald-200 transition-colors hover:bg-emerald-500/10 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           通过
                         </button>
@@ -477,7 +474,7 @@ export default function RegistrationsPage() {
                           type="button"
                           onClick={() => void handleReview(detail.id, "reject")}
                           disabled={!detail.canReject || reviewingId === detail.id}
-                          className="rounded-lg border border-rose-500/30 px-3 py-2 text-sm text-rose-200 transition-colors hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="motion-button rounded-lg border border-rose-500/30 px-3 py-2 text-sm text-rose-200 transition-colors hover:bg-rose-500/10 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           拒绝
                         </button>
@@ -485,7 +482,7 @@ export default function RegistrationsPage() {
                           type="button"
                           onClick={() => openDeleteModal(detail)}
                           disabled={deletingId === detail.id}
-                          className="rounded-lg border border-red-500/30 px-3 py-2 text-sm text-red-200 transition-colors hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                          className="motion-button rounded-lg border border-red-500/30 px-3 py-2 text-sm text-red-200 transition-colors hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           删除
                         </button>
@@ -508,7 +505,7 @@ export default function RegistrationsPage() {
                       {detail.fieldsSchema.map((field) => (
                         <div
                           key={field.key}
-                          className="rounded-lg border border-gray-800 bg-gray-900/60 p-4"
+                          className="motion-surface rounded-lg border border-gray-800 bg-gray-900/60 p-4"
                         >
                           <div className="flex items-start justify-between gap-4">
                             <div>
@@ -534,7 +531,7 @@ export default function RegistrationsPage() {
                         {extraSubmittedFields.map(([key, value]) => (
                           <div
                             key={key}
-                            className="rounded-lg border border-gray-800 bg-gray-900/60 p-4"
+                            className="motion-surface rounded-lg border border-gray-800 bg-gray-900/60 p-4"
                           >
                             <div className="text-sm font-medium text-white">{key}</div>
                             <div className="mt-3 text-sm text-gray-300">
@@ -554,15 +551,15 @@ export default function RegistrationsPage() {
       ) : null}
 
       {deleteTarget ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-          <div className="w-full max-w-md rounded-xl border border-gray-800 bg-gray-900 shadow-2xl">
+        <div className="motion-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" data-state="open">
+          <div className="motion-dialog motion-dialog-surface w-full max-w-md rounded-xl border border-gray-800 bg-gray-900 shadow-2xl" data-state="open">
             <div className="flex items-center justify-between border-b border-gray-800 px-6 py-4">
               <h2 className="text-base font-semibold text-white">确认删除</h2>
               <button
                 type="button"
                 onClick={() => setDeleteTarget(null)}
                 disabled={deletingId === deleteTarget.id}
-                className="rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+                className="motion-button rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
               >
                 关闭
               </button>
@@ -577,7 +574,7 @@ export default function RegistrationsPage() {
                   type="button"
                   onClick={() => setDeleteTarget(null)}
                   disabled={deletingId === deleteTarget.id}
-                  className="rounded-lg border border-gray-700 px-4 py-2.5 text-sm text-gray-300 transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+                  className="motion-button rounded-lg border border-gray-700 px-4 py-2.5 text-sm text-gray-300 transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
                 >
                   取消
                 </button>
@@ -585,7 +582,7 @@ export default function RegistrationsPage() {
                   type="button"
                   onClick={() => void handleDeleteRegistration()}
                   disabled={deletingId === deleteTarget.id}
-                  className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="motion-button rounded-lg bg-red-600 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {deletingId === deleteTarget.id ? "删除中..." : "确认删除"}
                 </button>
@@ -820,7 +817,7 @@ function handlePageError(
 }
 
 function inputClassName() {
-  return "w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-primary-400 focus:outline-none";
+  return "motion-field w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20";
 }
 
 function StatusBadge({ status }: { status: number }) {
@@ -853,7 +850,7 @@ function SummaryCard({
   accent: string;
 }) {
   return (
-    <div className="rounded-xl border border-gray-800 bg-gray-900/70 p-5">
+    <div className="motion-stat-surface rounded-xl border border-gray-800 bg-gray-900/70 p-5">
       <div className="text-sm text-gray-400">{label}</div>
       <div className={`mt-3 text-3xl font-semibold ${accent}`}>{value}</div>
     </div>
@@ -862,7 +859,7 @@ function SummaryCard({
 
 function MetaCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg border border-gray-800 bg-gray-900/60 p-4">
+    <div className="motion-surface rounded-lg border border-gray-800 bg-gray-900/60 p-4">
       <div className="text-xs text-gray-500">{label}</div>
       <div className="mt-2 text-sm text-gray-100">{value}</div>
     </div>

@@ -6,6 +6,8 @@ import {
   useState,
 } from "react";
 import { useNavigate, useOutletContext } from "react-router";
+import { AnimatedSelect } from "~/components/animated-select";
+import { MotionDateInput } from "~/components/motion-date-input";
 import { ApiError } from "~/lib/api-client";
 import {
   buildCustomRegistrationField,
@@ -479,7 +481,7 @@ function removeFieldOption(optionIndex: number) {
             type="button"
             onClick={() => setCreateOpen(true)}
             disabled={!canCreateOrSave}
-            className="rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
+            className="motion-button rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
           >
             新建报名表
           </button>
@@ -488,7 +490,7 @@ function removeFieldOption(optionIndex: number) {
 
       {flash ? (
         <div
-          className={`rounded-lg border px-4 py-3 text-sm ${
+          className={`motion-fade-up rounded-lg border px-4 py-3 text-sm ${
             flash.type === "success"
               ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
               : "border-rose-500/20 bg-rose-500/10 text-rose-100"
@@ -507,7 +509,7 @@ function removeFieldOption(optionIndex: number) {
 
       <div className="grid gap-6 xl:grid-cols-[320px_minmax(0,1fr)]">
         <aside className="space-y-4">
-          <section className="rounded-xl border border-gray-800 bg-gray-900/70 p-4">
+          <section className="motion-fade-up motion-panel-soft rounded-xl border border-gray-800 bg-gray-900/70 p-4" style={{ animationDelay: "120ms" }}>
             <div className="grid gap-3">
               <div>
                 <FieldLabel label="搜索表单" htmlFor="form-keyword" />
@@ -522,24 +524,23 @@ function removeFieldOption(optionIndex: number) {
 
               <div>
                 <FieldLabel label="状态筛选" htmlFor="status-filter" />
-                <select
+                <AnimatedSelect
                   id="status-filter"
                   value={statusFilter}
-                  onChange={(event) => setStatusFilter(event.target.value)}
-                  className={inputClassName()}
-                >
-                  <option value="">全部状态</option>
-                  {REGISTRATION_FORM_STATUS_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setStatusFilter}
+                  options={[
+                    { value: "", label: "全部状态" },
+                    ...REGISTRATION_FORM_STATUS_OPTIONS.map((option) => ({
+                      value: option.value,
+                      label: option.label,
+                    })),
+                  ]}
+                />
               </div>
             </div>
           </section>
 
-          <section className="rounded-xl border border-gray-800 bg-gray-900/70 p-4">
+          <section className="motion-fade-up motion-surface rounded-xl border border-gray-800 bg-gray-900/70 p-4" style={{ animationDelay: "160ms" }}>
             <div className="flex items-center justify-between">
               <h2 className="text-sm font-semibold text-white">表单列表</h2>
               {loadingList ? (
@@ -560,7 +561,7 @@ function removeFieldOption(optionIndex: number) {
                       key={form.id}
                       type="button"
                       onClick={() => setSelectedFormId(form.id)}
-                      className={`w-full rounded-lg border px-4 py-4 text-left transition-colors ${
+                      className={`motion-button w-full rounded-lg border px-4 py-4 text-left transition-colors ${
                         active
                           ? "border-primary-500/40 bg-primary-500/10"
                           : "border-gray-800 bg-gray-950/60 hover:border-gray-700 hover:bg-gray-950"
@@ -594,7 +595,7 @@ function removeFieldOption(optionIndex: number) {
           </section>
         </aside>
 
-        <section className="rounded-xl border border-gray-800 bg-gray-900/70 p-5 sm:p-6">
+        <section className="motion-fade-up motion-panel-soft rounded-xl border border-gray-800 bg-gray-900/70 p-5 sm:p-6" style={{ animationDelay: "200ms" }}>
           {!editor ? (
             <div className="flex min-h-[420px] items-center justify-center rounded-lg border border-dashed border-gray-800 bg-gray-950/40 px-6 py-10 text-center text-sm text-gray-500">
               {loadingList || detailLoading ? "正在加载报名表..." : "请选择左侧报名表开始编辑。"}
@@ -623,7 +624,7 @@ function removeFieldOption(optionIndex: number) {
                   <button
                     type="submit"
                     disabled={saving || !canCreateOrSave}
-                    className="rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="motion-button rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {saving ? "保存中..." : "保存更改"}
                   </button>
@@ -712,28 +713,25 @@ function removeFieldOption(optionIndex: number) {
 
                   <div>
                     <FieldLabel label="报名状态" htmlFor="form-status" />
-                    <select
+                    <AnimatedSelect
                       id="form-status"
                       value={editor.status}
-                      onChange={(event) =>
+                      onChange={(value) =>
                         updateEditor((current) => ({
                           ...current,
-                          status: event.target.value,
+                          status: value,
                         }))
                       }
-                      className={inputClassName()}
-                    >
-                      {REGISTRATION_FORM_STATUS_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
+                      options={REGISTRATION_FORM_STATUS_OPTIONS.map((option) => ({
+                        value: option.value,
+                        label: option.label,
+                      }))}
+                    />
                   </div>
 
                   <div>
                     <FieldLabel label="报名开始时间" hint="留空表示立即开始" htmlFor="start-time" />
-                    <input
+                    <MotionDateInput
                       id="start-time"
                       type="datetime-local"
                       value={editor.startTime}
@@ -743,13 +741,12 @@ function removeFieldOption(optionIndex: number) {
                           startTime: event.target.value,
                         }))
                       }
-                      className={inputClassName()}
                     />
                   </div>
 
                   <div>
                     <FieldLabel label="报名截止时间" hint="留空表示长期开放" htmlFor="end-time" />
-                    <input
+                    <MotionDateInput
                       id="end-time"
                       type="datetime-local"
                       value={editor.endTime}
@@ -759,7 +756,6 @@ function removeFieldOption(optionIndex: number) {
                           endTime: event.target.value,
                         }))
                       }
-                      className={inputClassName()}
                     />
                   </div>
                 </div>
@@ -777,7 +773,7 @@ function removeFieldOption(optionIndex: number) {
                   <button
                     type="button"
                     onClick={addField}
-                    className="rounded-lg border border-gray-700 px-4 py-2.5 text-sm text-gray-200 transition-colors hover:bg-white/5 hover:text-white"
+                    className="motion-button rounded-lg border border-gray-700 px-4 py-2.5 text-sm text-gray-200 transition-colors hover:bg-white/5 hover:text-white"
                   >
                     添加字段
                   </button>
@@ -830,7 +826,7 @@ function removeFieldOption(optionIndex: number) {
                                   event.stopPropagation();
                                   moveField(field.key, "up");
                                 }}
-                                className="rounded-md border border-gray-700 px-2 py-1 text-xs text-gray-300 transition-colors hover:bg-white/5"
+                                          className="motion-button rounded-md border border-gray-700 px-2 py-1 text-xs text-gray-300 transition-colors hover:bg-white/5"
                               >
                                 上移
                               </button>
@@ -840,7 +836,7 @@ function removeFieldOption(optionIndex: number) {
                                   event.stopPropagation();
                                   moveField(field.key, "down");
                                 }}
-                                className="rounded-md border border-gray-700 px-2 py-1 text-xs text-gray-300 transition-colors hover:bg-white/5"
+                                          className="motion-button rounded-md border border-gray-700 px-2 py-1 text-xs text-gray-300 transition-colors hover:bg-white/5"
                               >
                                 下移
                               </button>
@@ -851,7 +847,7 @@ function removeFieldOption(optionIndex: number) {
                                     event.stopPropagation();
                                     removeField(field.key);
                                   }}
-                                  className="rounded-md border border-rose-500/20 bg-rose-500/10 px-2 py-1 text-xs text-rose-200 transition-colors hover:bg-rose-500/20"
+                                  className="motion-button rounded-md border border-rose-500/20 bg-rose-500/10 px-2 py-1 text-xs text-rose-200 transition-colors hover:bg-rose-500/20"
                                 >
                                   删除
                                 </button>
@@ -923,25 +919,18 @@ function removeFieldOption(optionIndex: number) {
 
                           <div>
                             <FieldLabel label="字段类型" htmlFor="field-type" />
-                            <select
+                            <AnimatedSelect
                               id="field-type"
                               value={selectedField.type}
                               disabled={isLockedRegistrationField(selectedField.key)}
-                              onChange={(event) =>
-                                updateFieldType(
-                                  event.target.value as RegistrationFormField["type"],
-                                )
+                              onChange={(value) =>
+                                updateFieldType(value as RegistrationFormField["type"])
                               }
-                              className={inputClassName(
-                                isLockedRegistrationField(selectedField.key),
-                              )}
-                            >
-                              {REGISTRATION_FIELD_TYPE_OPTIONS.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                  {option.label}
-                                </option>
-                              ))}
-                            </select>
+                              options={REGISTRATION_FIELD_TYPE_OPTIONS.map((option) => ({
+                                value: option.value,
+                                label: option.label,
+                              }))}
+                            />
                           </div>
 
                           <label className="flex items-center gap-3 rounded-lg border border-gray-800 bg-gray-900/60 px-3 py-3 text-sm text-gray-200">
@@ -1000,7 +989,7 @@ function removeFieldOption(optionIndex: number) {
                                 {(selectedField.options ?? []).map((option, index) => (
                                   <div
                                     key={`${selectedField.key}-option-${index}`}
-                                    className="rounded-lg border border-gray-800 bg-gray-900/60 p-3"
+                                    className="motion-surface rounded-lg border border-gray-800 bg-gray-900/60 p-3"
                                   >
                                     <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]">
                                       <input
@@ -1049,7 +1038,7 @@ function removeFieldOption(optionIndex: number) {
                                 <button
                                   type="button"
                                   onClick={addFieldOption}
-                                  className="rounded-lg border border-dashed border-gray-700 px-4 py-2.5 text-sm text-gray-300 transition-colors hover:border-primary-400 hover:text-white"
+                                  className="motion-button rounded-lg border border-dashed border-gray-700 px-4 py-2.5 text-sm text-gray-300 transition-colors hover:border-primary-400 hover:text-white"
                                 >
                                   新增选项
                                 </button>
@@ -1264,14 +1253,14 @@ function removeFieldOption(optionIndex: number) {
                   setCreateOpen(false);
                   setCreateState(defaultCreateState);
                 }}
-                className="rounded-lg border border-gray-700 px-4 py-2.5 text-sm text-gray-300 transition-colors hover:bg-white/5"
+                className="motion-button rounded-lg border border-gray-700 px-4 py-2.5 text-sm text-gray-300 transition-colors hover:bg-white/5"
               >
                 取消
               </button>
               <button
                 type="submit"
                 disabled={creating}
-                className="rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
+                className="motion-button rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {creating ? "创建中..." : "创建草稿"}
               </button>
@@ -1386,7 +1375,7 @@ function renderPreviewControl(field: RegistrationFormField) {
   if (isOptionField(field.type)) {
     if (field.type === "select" || field.type === "user_group_select") {
       return (
-        <select value="" disabled className={className}>
+        <select value="" disabled className={`${className} motion-select`}>
           <option value="">请选择</option>
           {field.options?.map((option) => (
             <option key={option.value} value={option.value}>
@@ -1487,7 +1476,7 @@ function handlePageError(
 }
 
 function inputClassName(disabled = false) {
-  return `w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-primary-400 focus:outline-none ${
+  return `motion-field w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${
     disabled ? "cursor-not-allowed opacity-60" : ""
   }`;
 }
@@ -1531,7 +1520,7 @@ function StatCard({
   hint: string;
 }) {
   return (
-    <div className="rounded-xl border border-gray-800 bg-gray-900/70 p-5">
+    <div className="motion-stat-surface rounded-xl border border-gray-800 bg-gray-900/70 p-5">
       <div className="text-sm text-gray-400">{label}</div>
       <div className="mt-3 text-3xl font-semibold text-white">{value}</div>
       <div className="mt-2 text-xs text-gray-500">{hint}</div>
@@ -1551,8 +1540,8 @@ function ModalShell({
   children: ReactNode;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
-      <div className="w-full max-w-2xl rounded-xl border border-gray-800 bg-gray-900 shadow-2xl">
+    <div className="motion-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4" data-state="open">
+      <div className="motion-dialog motion-dialog-surface w-full max-w-2xl rounded-xl border border-gray-800 bg-gray-900 shadow-2xl" data-state="open">
         <div className="flex items-start justify-between gap-4 border-b border-gray-800 px-6 py-5">
           <div>
             <h2 className="text-lg font-semibold text-white">{title}</h2>
@@ -1561,7 +1550,7 @@ function ModalShell({
           <button
             type="button"
             onClick={onClose}
-            className="rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 transition-colors hover:bg-white/5"
+            className="motion-button rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 transition-colors hover:bg-white/5"
           >
             关闭
           </button>

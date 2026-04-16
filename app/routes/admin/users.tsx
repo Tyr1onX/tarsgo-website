@@ -18,6 +18,8 @@ import { Icon, type IconifyIcon } from "@iconify/react";
 import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useOutletContext } from "react-router";
+import { AnimatedSelect } from "~/components/animated-select";
+import { MotionDateInput } from "~/components/motion-date-input";
 import { Notify } from "~/components/notify";
 import {
   type AdminUserGroupListItem,
@@ -107,7 +109,7 @@ const FLASH_DURATION_MS = 3000;
 const NOTIFY_ANIMATION_MS = 300;
 const TABLE_ACTION_LOADING_MS = 500;
 const tableActionButtonClassName =
-  "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-subtle text-fg-muted hover:text-fg-primary hover:bg-white/[0.06] transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50";
+  "motion-button inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-subtle text-fg-muted hover:text-fg-primary hover:bg-white/[0.06] transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50";
 
 function buildCreateFormState(defaultRoleId: string): CreateUserFormState {
   return {
@@ -796,7 +798,7 @@ export default function Users() {
 
       <form
         onSubmit={handleSearchSubmit}
-        className="rounded-2xl border border-border-subtle bg-surface-card/60 p-5 ring-1 ring-white/[0.03] backdrop-blur-sm"
+        className="motion-fade-up motion-panel-soft rounded-2xl border border-border-subtle bg-surface-card/60 p-5 ring-1 ring-white/[0.03] backdrop-blur-sm"
       >
         <div className="mb-4 flex items-center gap-2 border-b border-border-subtle/40 pb-4">
           <Icon icon={searchIcon} className="h-4 w-4 text-fg-dim" />
@@ -815,44 +817,41 @@ export default function Users() {
           </div>
           <div>
             <FieldLabel label="角色" />
-            <select
+            <AnimatedSelect
               value={filters.role ?? ""}
-              onChange={(event) => setFilters((previous) => ({ ...previous, role: event.target.value }))}
-              className={InputClassName()}
-            >
-              <option value="">全部角色</option>
-              {roles.map((role) => (
-                <option key={role.id} value={role.name}>
-                  {role.displayName}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => setFilters((previous) => ({ ...previous, role: value }))}
+              options={[
+                { value: "", label: "全部角色" },
+                ...roles.map((role) => ({
+                  value: role.name,
+                  label: role.displayName,
+                })),
+              ]}
+            />
           </div>
           <div>
             <FieldLabel label="组别" />
-            <select
+            <AnimatedSelect
               value={String(filters.groupId ?? "")}
-              onChange={(event) =>
+              onChange={(value) =>
                 setFilters((previous) => ({
                   ...previous,
-                  groupId: event.target.value === "" ? "" : Number(event.target.value),
+                  groupId: value === "" ? "" : Number(value),
                 }))
               }
-              className={InputClassName()}
-            >
-              <option value="">全部组别</option>
-              {groupOptions.map((group) => (
-                <option key={group.id} value={group.id}>
-                  {group.name}
-                  {group.status === 0 ? "（停用）" : ""}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "全部组别" },
+                ...groupOptions.map((group) => ({
+                  value: group.id,
+                  label: `${group.name}${group.status === 0 ? "（停用）" : ""}`,
+                })),
+              ]}
+            />
           </div>
           <div className="flex items-end gap-3">
             <button
               type="submit"
-              className="inline-flex items-center gap-2 rounded-xl bg-accent-primary px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-accent-primary/90"
+              className="motion-button inline-flex items-center gap-2 rounded-xl bg-accent-primary px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-accent-primary/90"
             >
               <Icon icon={searchIcon} className="h-3.5 w-3.5" />
               搜索
@@ -860,7 +859,7 @@ export default function Users() {
             <button
               type="button"
               onClick={handleResetFilters}
-              className="rounded-xl border border-border-subtle px-4 py-2.5 text-sm text-fg-muted transition hover:bg-white/5 hover:text-fg-primary"
+              className="motion-button rounded-xl border border-border-subtle px-4 py-2.5 text-sm text-fg-muted transition hover:bg-white/5 hover:text-fg-primary"
             >
               重置
             </button>
@@ -993,28 +992,28 @@ export default function Users() {
             第 {pagination.page} / {Math.max(pagination.totalPages, 1)} 页，共 {pagination.total} 条记录
           </div>
           <div className="flex items-center gap-3">
-            <select
+            <AnimatedSelect
+              ariaLabel="每页条数"
               value={pagination.pageSize}
-              onChange={(event) =>
+              onChange={(value) =>
                 setQuery((previous) => ({
                   ...previous,
                   page: 1,
-                  pageSize: Number(event.target.value),
+                  pageSize: Number(value),
                 }))
               }
-              className="rounded-lg border border-border-subtle bg-surface-dark px-3 py-2 text-sm text-fg-muted"
-            >
-              {[10, 20, 50].map((value) => (
-                <option key={value} value={value}>
-                  {value} / 页
-                </option>
-              ))}
-            </select>
+              options={[10, 20, 50].map((value) => ({
+                value,
+                label: `${value} / 页`,
+              }))}
+              size="compact"
+              fitContent
+            />
             <button
               type="button"
               disabled={pagination.page <= 1}
               onClick={() => setQuery((previous) => ({ ...previous, page: Math.max((previous.page ?? 1) - 1, 1) }))}
-              className="rounded-lg border border-border-subtle px-3 py-2 text-sm font-medium text-fg-muted transition hover:bg-white/5 hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-40"
+              className="motion-button rounded-lg border border-border-subtle px-3 py-2 text-sm font-medium text-fg-muted transition hover:bg-white/5 hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-40"
             >
               上一页
             </button>
@@ -1030,7 +1029,7 @@ export default function Users() {
                   page: Math.min((previous.page ?? 1) + 1, Math.max(pagination.totalPages, 1)),
                 }))
               }
-              className="rounded-lg border border-border-subtle px-3 py-2 text-sm font-medium text-fg-muted transition hover:bg-white/5 hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-40"
+              className="motion-button rounded-lg border border-border-subtle px-3 py-2 text-sm font-medium text-fg-muted transition hover:bg-white/5 hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-40"
             >
               下一页
             </button>
@@ -1051,21 +1050,15 @@ export default function Users() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <FieldLabel label="角色" />
-                    <select
+                    <AnimatedSelect
                       value={createForm.roleId}
-                      onChange={(event) => setCreateForm((previous) => ({ ...previous, roleId: event.target.value }))}
-                      className={InputClassName()}
-                      required
-                    >
-                      <option value="" disabled>
-                        请选择角色
-                      </option>
-                      {editableRoleOptions.map((role) => (
-                        <option key={role.id} value={role.id}>
-                          {role.displayName}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(value) => setCreateForm((previous) => ({ ...previous, roleId: value }))}
+                      options={editableRoleOptions.map((role) => ({
+                        value: role.id,
+                        label: role.displayName,
+                      }))}
+                      placeholder="请选择角色"
+                    />
                   </div>
                   <div>
                     <FieldLabel label="姓名" />
@@ -1140,21 +1133,18 @@ export default function Users() {
                   </div>
                   <div>
                     <FieldLabel label="性别" />
-                    <select
+                    <AnimatedSelect
                       value={createForm.gender}
-                      onChange={(event) => setCreateForm((previous) => ({ ...previous, gender: event.target.value }))}
-                      className={InputClassName()}
-                    >
-                      {genderOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(value) => setCreateForm((previous) => ({ ...previous, gender: value }))}
+                      options={genderOptions.map((option) => ({
+                        value: option.value,
+                        label: option.label,
+                      }))}
+                    />
                   </div>
                   <div>
                     <FieldLabel label="生日" />
-                    <input
+                    <MotionDateInput
                       type="date"
                       value={createForm.birthday}
                       onChange={(event) => setCreateForm((previous) => ({ ...previous, birthday: event.target.value }))}
@@ -1183,14 +1173,14 @@ export default function Users() {
                 <button
                   type="button"
                   onClick={() => setCreateModalOpen(false)}
-                  className="rounded-xl border border-border-subtle px-4 py-2.5 text-sm text-fg-muted transition hover:bg-white/5 hover:text-fg-primary"
+                  className="motion-button rounded-xl border border-border-subtle px-4 py-2.5 text-sm text-fg-muted transition hover:bg-white/5 hover:text-fg-primary"
                 >
                   取消
                 </button>
                 <button
                   type="submit"
                   disabled={creating || editableRoleOptions.length === 0}
-                  className="rounded-xl bg-accent-primary px-4 py-2.5 text-sm font-medium text-white transition hover:bg-accent-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="motion-button rounded-xl bg-accent-primary px-4 py-2.5 text-sm font-medium text-white transition hover:bg-accent-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {creating ? "创建中..." : "确认创建"}
                 </button>
@@ -1236,14 +1226,14 @@ export default function Users() {
                     setPasswordModalTarget(null);
                     setPasswordValue("");
                   }}
-                  className="rounded-xl border border-border-subtle px-4 py-2.5 text-sm text-fg-muted transition hover:bg-white/5 hover:text-fg-primary"
+                  className="motion-button rounded-xl border border-border-subtle px-4 py-2.5 text-sm text-fg-muted transition hover:bg-white/5 hover:text-fg-primary"
                 >
                   取消
                 </button>
                 <button
                   type="submit"
                   disabled={resettingPassword}
-                  className="rounded-xl bg-accent-primary px-4 py-2.5 text-sm font-medium text-white transition hover:bg-accent-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="motion-button rounded-xl bg-accent-primary px-4 py-2.5 text-sm font-medium text-white transition hover:bg-accent-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {resettingPassword ? "提交中..." : "确认重置"}
                 </button>
@@ -1276,7 +1266,7 @@ export default function Users() {
                 <button
                   type="button"
                   onClick={() => setStatusModalTarget(null)}
-                  className="rounded-xl border border-border-subtle px-4 py-2.5 text-sm text-fg-muted transition hover:bg-white/5 hover:text-fg-primary"
+                  className="motion-button rounded-xl border border-border-subtle px-4 py-2.5 text-sm text-fg-muted transition hover:bg-white/5 hover:text-fg-primary"
                 >
                   取消
                 </button>
@@ -1284,7 +1274,7 @@ export default function Users() {
                   type="button"
                   onClick={() => void handleToggleStatus()}
                   disabled={togglingStatus}
-                  className={`rounded-xl px-4 py-2.5 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                  className={`motion-button rounded-xl px-4 py-2.5 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${
                     statusModalTarget.status === 1
                       ? "bg-red-500 hover:bg-red-600"
                       : "bg-accent-tertiary hover:bg-accent-tertiary/90"
@@ -1473,18 +1463,15 @@ export default function Users() {
                           </div>
                           <div>
                             <FieldLabel label="性别" />
-                            <select
+                            <AnimatedSelect
                               value={editForm.gender}
-                              onChange={(event) => setEditForm((previous) => ({ ...previous, gender: event.target.value }))}
-                              className={InputClassName(!selectedCanMutate)}
+                              onChange={(value) => setEditForm((previous) => ({ ...previous, gender: value }))}
                               disabled={!selectedCanMutate}
-                            >
-                              {genderOptions.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                  {option.label}
-                                </option>
-                              ))}
-                            </select>
+                              options={genderOptions.map((option) => ({
+                                value: option.value,
+                                label: option.label,
+                              }))}
+                            />
                           </div>
                           <div>
                             <FieldLabel label="邮箱" />
@@ -1499,7 +1486,7 @@ export default function Users() {
                           </div>
                           <div>
                             <FieldLabel label="生日" />
-                            <input
+                            <MotionDateInput
                               type="date"
                               value={editForm.birthday}
                               onChange={(event) => setEditForm((previous) => ({ ...previous, birthday: event.target.value }))}
@@ -1555,36 +1542,29 @@ export default function Users() {
                         <div className="grid gap-x-4 gap-y-3 md:grid-cols-2">
                           <div>
                             <FieldLabel label="角色" />
-                            <select
+                            <AnimatedSelect
                               value={editForm.roleId}
-                              onChange={(event) => setEditForm((previous) => ({ ...previous, roleId: event.target.value }))}
-                              className={InputClassName(!selectedCanMutate)}
+                              onChange={(value) => setEditForm((previous) => ({ ...previous, roleId: value }))}
                               disabled={!selectedCanMutate}
-                              required
-                            >
-                              {selectedRoleOptions.map((role) => (
-                                <option key={role.id} value={role.id}>
-                                  {role.displayName}
-                                </option>
-                                ))}
-                            </select>
+                              options={selectedRoleOptions.map((role) => ({
+                                value: role.id,
+                                label: role.displayName,
+                              }))}
+                            />
                           </div>
                           <div>
                             <FieldLabel label="状态" />
-                            <select
+                            <AnimatedSelect
                               value={editForm.status}
-                              onChange={(event) => setEditForm((previous) => ({ ...previous, status: event.target.value }))}
-                              className={InputClassName(!selectedCanMutate)}
+                              onChange={(value) => setEditForm((previous) => ({ ...previous, status: value }))}
                               disabled={!selectedCanMutate}
-                            >
-                              {statusOptions
+                              options={statusOptions
                                 .filter((option) => option.value !== "")
-                                .map((option) => (
-                                  <option key={option.value} value={option.value}>
-                                    {option.label}
-                                  </option>
-                                ))}
-                            </select>
+                                .map((option) => ({
+                                  value: option.value,
+                                  label: option.label,
+                                }))}
+                            />
                           </div>
                         </div>
                       </DrawerSection>
@@ -1606,7 +1586,7 @@ export default function Users() {
                         <button
                           type="submit"
                           disabled={savingEdit || !selectedCanMutate}
-                          className="rounded-xl bg-accent-primary px-5 py-2.5 text-sm font-medium text-white transition hover:bg-accent-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="motion-button rounded-xl bg-accent-primary px-5 py-2.5 text-sm font-medium text-white transition hover:bg-accent-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {savingEdit ? "保存中..." : "保存变更"}
                         </button>
@@ -1657,8 +1637,8 @@ function ModalShell({
   widthClass?: string;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md">
-      <div className={`w-full ${widthClass} rounded-2xl border border-border-subtle bg-surface-card shadow-2xl shadow-black/40 ring-1 ring-white/[0.05]`}>
+    <div className="motion-overlay fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md" data-state="open">
+      <div className={`motion-dialog motion-dialog-surface w-full ${widthClass} rounded-2xl border border-border-subtle bg-surface-card shadow-2xl shadow-black/40 ring-1 ring-white/[0.05]`} data-state="open">
         <div className="flex items-start justify-between gap-4 border-b border-border-subtle px-6 py-5">
           <div>
             <h2 className="text-lg font-semibold text-fg-primary">{title}</h2>
@@ -1669,7 +1649,7 @@ function ModalShell({
             onClick={onClose}
             title="关闭"
             aria-label="关闭"
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-fg-dim transition hover:bg-white/5 hover:text-fg-primary"
+            className="motion-button inline-flex h-8 w-8 items-center justify-center rounded-lg text-fg-dim transition hover:bg-white/5 hover:text-fg-primary"
           >
             <Icon icon={x} className="h-4 w-4" />
           </button>
@@ -1698,7 +1678,7 @@ function StatCard({
   barFrom: string;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-border-subtle bg-surface-card/80 backdrop-blur-sm transition hover:border-gray-700">
+    <div className="motion-stat-surface relative overflow-hidden rounded-2xl border border-border-subtle bg-surface-card/80 backdrop-blur-sm transition hover:border-gray-700">
       <div className={`h-0.5 bg-gradient-to-r ${barFrom} to-transparent`} />
       <div className="p-5">
         <div className={`absolute right-4 top-5 flex h-10 w-10 items-center justify-center rounded-xl ${iconBg}`}>
@@ -1787,7 +1767,7 @@ function DrawerSection({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-border-subtle bg-surface-card/60 backdrop-blur-sm">
+    <div className="motion-panel-soft rounded-2xl border border-border-subtle bg-surface-card/60 backdrop-blur-sm">
       <div className="flex items-center gap-2.5 border-b border-border-subtle/60 px-5 py-3.5">
         <Icon icon={icon} className="h-4 w-4 text-fg-dim" />
         <h3 className="text-sm font-medium text-fg-muted">{title}</h3>
@@ -1802,5 +1782,5 @@ function FieldLabel({ label }: { label: string }) {
 }
 
 function InputClassName(disabled = false) {
-  return `w-full rounded-xl border border-border-subtle bg-surface-dark px-3.5 py-2.5 text-sm text-fg-primary placeholder:text-fg-dim/60 transition focus:border-accent-primary/60 focus:ring-1 focus:ring-accent-primary/20 focus:outline-none ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
+  return `motion-field w-full rounded-xl border border-border-subtle bg-surface-dark px-3.5 py-2.5 text-sm text-fg-primary placeholder:text-fg-dim/60 transition focus:border-accent-primary/60 focus:ring-1 focus:ring-accent-primary/20 focus:outline-none ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
 }

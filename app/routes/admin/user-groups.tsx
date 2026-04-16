@@ -27,6 +27,7 @@ import { Icon, type IconifyIcon } from "@iconify/react";
 import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useOutletContext } from "react-router";
+import { AnimatedSelect } from "~/components/animated-select";
 import { Notify } from "~/components/notify";
 import {
   addAdminUserGroupMember,
@@ -744,29 +745,29 @@ export default function UserGroups() {
       </div>
 
       {/* Filter bar */}
-      <div className="flex flex-col gap-3 rounded-xl border border-gray-800/60 bg-gray-900/50 p-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+      <div className="motion-fade-up motion-panel-soft flex flex-col gap-3 rounded-xl border border-gray-800/60 bg-gray-900/50 p-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="text-sm font-medium text-white">筛选分组</div>
           <div className="mt-0.5 text-xs text-gray-500">按状态快速筛选，所有分组在当前页展示。</div>
         </div>
         <div className="flex items-center gap-2">
-          <select
-            aria-label="筛选状态"
+          <AnimatedSelect
+            ariaLabel="筛选状态"
             value={String(statusFilter ?? "")}
-            onChange={(event) => setStatusFilter(event.target.value === "" ? "" : Number(event.target.value))}
-            className="w-full rounded-lg border border-gray-700/60 bg-gray-800/80 py-2 pl-3 pr-10 text-sm text-white backdrop-blur transition-colors focus:border-primary-500/50 focus:outline-none sm:w-40"
-          >
-            {statusOptions.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
+            onChange={(value) => setStatusFilter(value === "" ? "" : Number(value))}
+            options={statusOptions.map((o) => ({
+              value: o.value,
+              label: o.label,
+            }))}
+            fitContent
+          />
           <button
             type="button"
             onClick={() => {
               setFlash(null);
               setStatusFilter(defaultQuery.status);
             }}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-700/60 px-3.5 py-2 text-sm text-gray-400 transition-colors hover:bg-white/5 hover:text-gray-200 cursor-pointer"
+            className="motion-button inline-flex items-center gap-1.5 rounded-lg border border-gray-700/60 px-3.5 py-2 text-sm text-gray-400 transition-colors hover:bg-white/5 hover:text-gray-200 cursor-pointer"
           >
             <Icon icon={rotateCcw} className="h-3.5 w-3.5" />
             重置
@@ -819,7 +820,7 @@ export default function UserGroups() {
           >
             <form onSubmit={handleSubmitGroup} className="space-y-6">
               {/* ── Section: 基本信息 ── */}
-              <section className="rounded-xl border border-gray-800/50 bg-gradient-to-b from-gray-900/60 to-gray-900/30 overflow-hidden">
+              <section className="motion-panel-soft rounded-xl border border-gray-800/50 bg-gradient-to-b from-gray-900/60 to-gray-900/30 overflow-hidden">
                 <div className="flex items-center gap-2.5 border-b border-gray-800/40 px-5 py-3">
                   <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary-500/10">
                     <Icon icon={layers} className="h-3.5 w-3.5 text-primary-400" />
@@ -852,7 +853,7 @@ export default function UserGroups() {
               </section>
 
               {/* ── Section: 展示与状态 ── */}
-              <section className="rounded-xl border border-gray-800/50 bg-gradient-to-b from-gray-900/60 to-gray-900/30 overflow-hidden">
+              <section className="motion-panel-soft rounded-xl border border-gray-800/50 bg-gradient-to-b from-gray-900/60 to-gray-900/30 overflow-hidden">
                 <div className="flex items-center gap-2.5 border-b border-gray-800/40 px-5 py-3">
                   <div className="flex h-6 w-6 items-center justify-center rounded-md bg-sky-500/10">
                     <Icon icon={zap} className="h-3.5 w-3.5 text-sky-400" />
@@ -863,45 +864,44 @@ export default function UserGroups() {
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div>
                       <FieldLabel htmlFor="group-status" label="状态" />
-                      <select
+                      <AnimatedSelect
                         id="group-status"
-                        aria-label="状态"
+                        ariaLabel="状态"
                         value={groupForm.status}
-                        onChange={(e) =>
+                        onChange={(value) =>
                           setGroupForm((p) => ({
                             ...p,
-                            status: e.target.value,
-                            isDefault: e.target.value === "1" ? p.isDefault : false,
+                            status: value,
+                            isDefault: value === "1" ? p.isDefault : false,
                           }))
                         }
-                        className={inputClassName()}
-                      >
-                        {statusOptions
+                        options={statusOptions
                           .filter((o) => o.value !== "")
-                          .map((o) => (
-                            <option key={o.value} value={o.value}>{o.label}</option>
-                          ))}
-                      </select>
+                          .map((o) => ({
+                            value: o.value,
+                            label: o.label,
+                          }))}
+                      />
                     </div>
                     <div>
                       <FieldLabel htmlFor="group-show" label="前台展示" />
-                      <select
+                      <AnimatedSelect
                         id="group-show"
-                        aria-label="前台展示"
+                        ariaLabel="前台展示"
                         value={groupForm.show}
-                        onChange={(e) => setGroupForm((p) => ({ ...p, show: e.target.value }))}
-                        className={inputClassName()}
-                      >
-                        <option value="1">展示</option>
-                        <option value="0">隐藏</option>
-                      </select>
+                        onChange={(value) => setGroupForm((p) => ({ ...p, show: value }))}
+                        options={[
+                          { value: "1", label: "展示" },
+                          { value: "0", label: "隐藏" },
+                        ]}
+                      />
                     </div>
                   </div>
                 </div>
               </section>
 
               {/* ── Section: 标签 ── */}
-              <section className="rounded-xl border border-gray-800/50 bg-gradient-to-b from-gray-900/60 to-gray-900/30 overflow-hidden">
+              <section className="motion-panel-soft rounded-xl border border-gray-800/50 bg-gradient-to-b from-gray-900/60 to-gray-900/30 overflow-hidden">
                 <div className="flex items-center gap-2.5 border-b border-gray-800/40 px-5 py-3">
                   <div className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-500/10">
                     <Icon icon={tagIcon} className="h-3.5 w-3.5 text-amber-400" />
@@ -1152,7 +1152,7 @@ export default function UserGroups() {
                           candidates.map((candidate) => (
                             <div
                               key={candidate.id}
-                              className="rounded-lg border border-gray-800/40 bg-gray-800/30 p-3 transition-colors hover:bg-gray-800/50"
+                              className="motion-surface rounded-lg border border-gray-800/40 bg-gray-800/30 p-3 transition-colors hover:bg-gray-800/50"
                             >
                               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div className="min-w-0 flex-1">
@@ -1179,26 +1179,27 @@ export default function UserGroups() {
                                   ) : null}
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
-                                  <select
-                                    aria-label="入组角色"
+                                  <AnimatedSelect
+                                    ariaLabel="入组角色"
                                     value={candidateRoleMap[candidate.id] ?? 0}
-                                    onChange={(e) =>
+                                    onChange={(value) =>
                                       setCandidateRoleMap((prev) => ({
                                         ...prev,
-                                        [candidate.id]: Number(e.target.value),
+                                        [candidate.id]: Number(value),
                                       }))
                                     }
-                                    className="rounded-lg border border-gray-700/60 bg-gray-800/80 px-2.5 py-1.5 text-xs text-gray-200"
-                                  >
-                                    {memberRoleOptions.map((o) => (
-                                      <option key={o.value} value={o.value}>{o.label}</option>
-                                    ))}
-                                  </select>
+                                    options={memberRoleOptions.map((o) => ({
+                                      value: o.value,
+                                      label: o.label,
+                                    }))}
+                                    size="compact"
+                                    fitContent
+                                  />
                                   <button
                                     type="button"
                                     onClick={() => void handleAddMember(candidate)}
                                     disabled={mutatingMemberId === candidate.id}
-                                    className="inline-flex items-center gap-1 rounded-lg bg-primary-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+                                    className="motion-button inline-flex items-center gap-1 rounded-lg bg-primary-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
                                   >
                                     <Icon icon={userPlus} className="h-3 w-3" />
                                     {mutatingMemberId === candidate.id ? "加入中..." : "加入"}
@@ -1212,7 +1213,7 @@ export default function UserGroups() {
                     </section>
 
                     {/* Current members */}
-                    <section className="rounded-xl border border-gray-800/60 bg-gray-900/40 p-4">
+                    <section className="motion-surface rounded-xl border border-gray-800/60 bg-gray-900/40 p-4">
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2">
                           <Icon icon={usersIcon} className="h-4 w-4 text-emerald-400" />
@@ -1232,7 +1233,7 @@ export default function UserGroups() {
                           selectedGroup.members.map((member) => (
                             <div
                               key={member.id}
-                              className="rounded-lg border border-gray-800/40 bg-gray-800/30 p-3 transition-colors hover:bg-gray-800/50"
+                              className="motion-surface rounded-lg border border-gray-800/40 bg-gray-800/30 p-3 transition-colors hover:bg-gray-800/50"
                             >
                               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div className="min-w-0 flex-1">
@@ -1628,7 +1629,7 @@ function TagInput({ tags, onChange }: { tags: string[]; onChange: (tags: string[
 }
 
 function inputClassName(disabled = false) {
-  return `w-full rounded-lg border border-gray-700/60 bg-gray-800/80 px-3.5 py-2.5 text-sm text-white placeholder:text-gray-600 backdrop-blur transition-all focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/20 focus:outline-none ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
+  return `motion-field w-full rounded-lg border border-gray-700/60 bg-gray-800/80 px-3.5 py-2.5 text-sm text-white placeholder:text-gray-600 backdrop-blur transition-all focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/20 focus:outline-none ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
 }
 
 function ModalShell({
@@ -1645,8 +1646,8 @@ function ModalShell({
   widthClass?: string;
 }) {
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className={`w-full ${widthClass} overflow-hidden rounded-2xl border border-gray-800/60 bg-gray-950 shadow-2xl shadow-black/40`}>
+    <div className="motion-overlay fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" data-state="open">
+      <div className={`motion-dialog motion-dialog-surface w-full ${widthClass} overflow-hidden rounded-2xl border border-gray-800/60 bg-gray-950 shadow-2xl shadow-black/40`} data-state="open">
         {/* Header with subtle gradient accent */}
         <div className="relative overflow-hidden border-b border-gray-800/60">
           <div className="absolute inset-0 bg-gradient-to-r from-primary-500/[0.06] via-transparent to-transparent" />
@@ -1663,7 +1664,7 @@ function ModalShell({
               type="button"
               aria-label="关闭"
               onClick={onClose}
-              className="rounded-lg p-1.5 text-gray-400 transition-colors hover:text-white hover:bg-white/5 cursor-pointer"
+              className="motion-button rounded-lg p-1.5 text-gray-400 transition-colors hover:text-white hover:bg-white/5 cursor-pointer"
             >
               <Icon icon={x} className="h-5 w-5" />
             </button>
@@ -1677,7 +1678,7 @@ function ModalShell({
 
 function DrawerStatBlock({ label, value, small }: { label: string; value: ReactNode; small?: boolean }) {
   return (
-    <div className="rounded-lg border border-gray-800/40 bg-gray-800/20 p-3">
+    <div className="motion-surface rounded-lg border border-gray-800/40 bg-gray-800/20 p-3">
       <div className="text-xs text-gray-500">{label}</div>
       <div className={`mt-1 font-medium text-white ${small ? "text-xs" : "text-sm"}`}>{value}</div>
     </div>

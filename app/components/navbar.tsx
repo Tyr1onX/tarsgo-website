@@ -15,7 +15,7 @@ export function Navbar() {
     <nav className="sticky top-0 z-50 bg-surface-primary border-b border-border-subtle">
       <div className="max-w-[1440px] mx-auto px-6 sm:px-10 lg:px-20 flex items-center justify-between h-16">
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-2.5 shrink-0">
+        <Link to="/" className="motion-button flex items-center gap-2.5 shrink-0">
           <svg
             className="w-8 h-8 text-accent-primary"
             viewBox="0 0 24 24"
@@ -43,7 +43,7 @@ export function Navbar() {
             <a
               key={link.href}
               href={link.href}
-              className={`text-[15px] font-medium transition-colors ${
+              className={`motion-nav-link text-[15px] font-medium transition-colors ${
                 link.active
                   ? "text-accent-primary"
                   : "text-fg-primary hover:text-accent-primary"
@@ -58,13 +58,13 @@ export function Navbar() {
         <div className="hidden md:flex items-center gap-3">
           <Link
             to="/login"
-            className="px-5 py-2 text-sm font-medium text-accent-primary border-[1.5px] border-accent-primary rounded-full transition-colors hover:bg-accent-primary/10"
+            className="motion-button px-5 py-2 text-sm font-medium text-accent-primary border-[1.5px] border-accent-primary rounded-full transition-colors hover:bg-accent-primary/10"
           >
             登录
           </Link>
           <Link
             to="/register"
-            className="px-5 py-2 text-sm font-medium text-fg-inverse bg-accent-primary rounded-full transition-colors hover:bg-accent-primary/90"
+            className="motion-button px-5 py-2 text-sm font-medium text-fg-inverse bg-accent-primary rounded-full transition-colors hover:bg-accent-primary/90"
           >
             注册
           </Link>
@@ -73,7 +73,7 @@ export function Navbar() {
         {/* Mobile menu button */}
         <button
           type="button"
-          className="md:hidden p-2 text-fg-muted hover:text-fg-primary"
+          className="motion-button md:hidden p-2 text-fg-muted hover:text-fg-primary"
           onClick={() => setMenuOpen(!menuOpen)}
           aria-label="Toggle menu"
         >
@@ -103,13 +103,13 @@ export function Navbar() {
 
       {/* Mobile menu */}
       {menuOpen && (
-        <div className="md:hidden px-6 pb-4 border-t border-border-subtle pt-4">
+        <div className="motion-fade-down md:hidden px-6 pb-4 border-t border-border-subtle pt-4">
           <div className="flex flex-col gap-1">
             {navLinks.map((link) => (
               <a
                 key={link.href}
                 href={link.href}
-                className={`px-3 py-2 text-sm rounded-lg transition-colors ${
+                className={`motion-button motion-nav-link px-3 py-2 text-sm rounded-lg transition-colors ${
                   link.active
                     ? "text-accent-primary"
                     : "text-fg-primary hover:text-accent-primary hover:bg-white/5"
@@ -123,14 +123,14 @@ export function Navbar() {
           <div className="flex gap-3 mt-4 px-3">
             <Link
               to="/login"
-              className="flex-1 text-center px-4 py-2 text-sm font-medium text-accent-primary border-[1.5px] border-accent-primary rounded-full"
+              className="motion-button flex-1 text-center px-4 py-2 text-sm font-medium text-accent-primary border-[1.5px] border-accent-primary rounded-full"
               onClick={() => setMenuOpen(false)}
             >
               登录
             </Link>
             <Link
               to="/register"
-              className="flex-1 text-center px-4 py-2 text-sm font-medium text-fg-inverse bg-accent-primary rounded-full"
+              className="motion-button flex-1 text-center px-4 py-2 text-sm font-medium text-fg-inverse bg-accent-primary rounded-full"
               onClick={() => setMenuOpen(false)}
             >
               注册
