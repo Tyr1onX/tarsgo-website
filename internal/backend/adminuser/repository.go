@@ -51,6 +51,12 @@ func (r *GormRepository) ListUsers(ctx context.Context, filter ListUsersInput) (
 		base = base.Where("roles.name = ?", roleName)
 	}
 
+	if filter.GroupID != nil {
+		base = base.
+			Joins("JOIN user_group_members ON user_group_members.user_id = users.id").
+			Where("user_group_members.group_id = ?", *filter.GroupID)
+	}
+
 	if filter.Status != nil {
 		base = base.Where("users.status = ?", *filter.Status)
 	}
@@ -79,15 +85,19 @@ func (r *GormRepository) ListUsers(ctx context.Context, filter ListUsersInput) (
 
 func (r *GormRepository) GetUserStats(ctx context.Context) (UserStats, error) {
 	stats := UserStats{}
-	query := r.db.WithContext(ctx).Model(&model.User{})
-
-	if err := query.Count(&stats.Total).Error; err != nil {
+	if err := r.db.WithContext(ctx).Model(&model.User{}).Count(&stats.Total).Error; err != nil {
 		return stats, err
 	}
-	if err := query.Where("status = ?", model.UserStatusEnabled).Count(&stats.Enabled).Error; err != nil {
+	if err := r.db.WithContext(ctx).
+		Model(&model.User{}).
+		Where("status = ?", model.UserStatusEnabled).
+		Count(&stats.Enabled).Error; err != nil {
 		return stats, err
 	}
-	if err := query.Where("status = ?", model.UserStatusDisabled).Count(&stats.Disabled).Error; err != nil {
+	if err := r.db.WithContext(ctx).
+		Model(&model.User{}).
+		Where("status = ?", model.UserStatusDisabled).
+		Count(&stats.Disabled).Error; err != nil {
 		return stats, err
 	}
 	if err := r.db.WithContext(ctx).
@@ -97,7 +107,10 @@ func (r *GormRepository) GetUserStats(ctx context.Context) (UserStats, error) {
 		Count(&stats.Admins).Error; err != nil {
 		return stats, err
 	}
-	if err := query.Where("github_id IS NOT NULL AND github_id <> ''").Count(&stats.GitHubBound).Error; err != nil {
+	if err := r.db.WithContext(ctx).
+		Model(&model.User{}).
+		Where("github_id IS NOT NULL AND TRIM(github_id) <> ''").
+		Count(&stats.GitHubBound).Error; err != nil {
 		return stats, err
 	}
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link, NavLink, Outlet, redirect, useLocation, useNavigate } from "react-router";
 
 import type { Route } from "./+types/layout";
@@ -17,6 +17,17 @@ import {
 
 export interface DashboardLayoutOutletContext {
   currentUser: AuthUser;
+}
+
+const CONTENT_TRANSITION_MS = 280;
+const DESKTOP_DASHBOARD_MEDIA = "(min-width: 1024px)";
+
+function getIsDesktopDashboardViewport() {
+  if (typeof window === "undefined") {
+    return true;
+  }
+
+  return window.matchMedia(DESKTOP_DASHBOARD_MEDIA).matches;
 }
 
 export async function loader({ request }: Route.LoaderArgs) {
@@ -67,7 +78,15 @@ function MenuIcon({ iconKey }: { iconKey: DashboardMenuIconKey }) {
   }
 }
 
-function SidebarItem({ item }: { item: DashboardMenuLink | VisibleDashboardAdminMenuItem }) {
+function SidebarItem({
+  item,
+  onNavigate,
+  viewTransition,
+}: {
+  item: DashboardMenuLink | VisibleDashboardAdminMenuItem;
+  onNavigate: () => void;
+  viewTransition: boolean;
+}) {
   const location = useLocation();
   const [expanded, setExpanded] = useState(() => {
     if (!("children" in item)) {
@@ -119,6 +138,8 @@ function SidebarItem({ item }: { item: DashboardMenuLink | VisibleDashboardAdmin
               <NavLink
                 key={child.href}
                 to={child.href}
+                onClick={onNavigate}
+                viewTransition={viewTransition}
                 className={({ isActive }) =>
                   `block px-3 py-2 text-sm rounded-lg transition-colors ${
                     isActive
@@ -140,6 +161,8 @@ function SidebarItem({ item }: { item: DashboardMenuLink | VisibleDashboardAdmin
     <NavLink
       to={item.href}
       end
+      onClick={onNavigate}
+      viewTransition={viewTransition}
       className={({ isActive }) =>
         `flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg transition-colors ${
           isActive
@@ -161,9 +184,12 @@ function SidebarItem({ item }: { item: DashboardMenuLink | VisibleDashboardAdmin
 }
 
 export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
+  const location = useLocation();
   const navigate = useNavigate();
+  const [isDesktopViewport, setIsDesktopViewport] = useState(getIsDesktopDashboardViewport);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const contentPanelRef = useRef<HTMLDivElement | null>(null);
   const { currentUser } = loaderData;
   const userMenuItems = getUserDashboardMenu(currentUser);
   const adminMenuItems = getVisibleAdminDashboardMenu(currentUser.role.name);
@@ -171,6 +197,73 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const userInitial = (currentUser.nickname?.trim() || currentUser.email.trim() || "U")
     .charAt(0)
     .toUpperCase();
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia(DESKTOP_DASHBOARD_MEDIA);
+    const syncViewport = () => {
+      setIsDesktopViewport(mediaQuery.matches);
+    };
+
+    syncViewport();
+    mediaQuery.addEventListener("change", syncViewport);
+
+    return () => {
+      mediaQuery.removeEventListener("change", syncViewport);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (!isDesktopViewport) {
+      return;
+    }
+
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+      return;
+    }
+
+    const panel = contentPanelRef.current;
+    if (!panel) {
+      return;
+    }
+
+    const animation = panel.animate(
+      [
+        {
+          opacity: 0,
+          transform: "translateY(18px) scale(0.985)",
+          filter: "blur(8px)",
+        },
+        {
+          opacity: 1,
+          transform: "translateY(0) scale(1)",
+          filter: "blur(0)",
+        },
+      ],
+      {
+        duration: CONTENT_TRANSITION_MS,
+        easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+        fill: "both",
+      },
+    );
+
+    return () => {
+      animation.cancel();
+    };
+  }, [isDesktopViewport, location.pathname]);
+
+  function handleSidebarNavigate() {
+    if (!isDesktopViewport) {
+      setSidebarOpen(false);
+    }
+  }
 
   async function handleLogout() {
     try {
@@ -222,7 +315,12 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
             <p className="px-3 text-[11px] uppercase tracking-[0.28em] text-gray-500">用户功能</p>
             <div className="mt-3 space-y-1">
               {userMenuItems.map((item) => (
-                <SidebarItem key={item.key} item={item} />
+                <SidebarItem
+                  key={item.key}
+                  item={item}
+                  onNavigate={handleSidebarNavigate}
+                  viewTransition={isDesktopViewport}
+                />
               ))}
             </div>
           </div>
@@ -232,7 +330,12 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
               <p className="px-3 text-[11px] uppercase tracking-[0.28em] text-gray-500">管理功能</p>
               <div className="mt-3 space-y-1">
                 {adminMenuItems.map((item) => (
-                  <SidebarItem key={item.key} item={item} />
+                  <SidebarItem
+                    key={item.key}
+                    item={item}
+                    onNavigate={handleSidebarNavigate}
+                    viewTransition={isDesktopViewport}
+                  />
                 ))}
               </div>
             </div>
@@ -298,7 +401,13 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
         </header>
 
         <main className="p-4 sm:p-6 lg:p-8">
-          <Outlet context={{ currentUser } satisfies DashboardLayoutOutletContext} />
+          <div
+            ref={contentPanelRef}
+            className="relative will-change-transform"
+            style={{ viewTransitionName: "dashboard-content" }}
+          >
+            <Outlet context={{ currentUser } satisfies DashboardLayoutOutletContext} />
+          </div>
         </main>
       </div>
     </div>

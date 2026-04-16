@@ -1,4 +1,4 @@
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { type FormEvent, type MouseEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 
 import {
@@ -35,6 +35,8 @@ export default function Login() {
   const [errorMessage, setErrorMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [sendingCode, setSendingCode] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const [success, setSuccess] = useState(false);
   const cooldown = useCooldown();
 
   const oauthError = useMemo(() => {
@@ -53,6 +55,12 @@ export default function Login() {
   }, [oauthError]);
 
   const canSendCode = isValidEmail(email) && !cooldown.isCoolingDown && !sendingCode;
+
+  function handleBackToHome(e: MouseEvent) {
+    e.preventDefault();
+    setLeaving(true);
+    setTimeout(() => navigate("/"), 350);
+  }
 
   async function handleSendCode() {
     if (!isValidEmail(email)) {
@@ -90,25 +98,30 @@ export default function Login() {
         await loginWithCode({ email, code });
       }
 
-      navigate(redirectTo, { replace: true });
+      setSubmitting(false);
+      setSuccess(true);
+      setTimeout(() => navigate(redirectTo, { replace: true }), 900);
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
-    } finally {
       setSubmitting(false);
     }
   }
 
   return (
     <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4 py-10">
-      <div className="absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] h-[420px] bg-primary-500/8 rounded-full blur-[110px]" />
+      <div className={`absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] h-[420px] bg-primary-500/8 rounded-full blur-[110px] ${success ? "animate-auth-success-glow" : leaving ? "animate-auth-exit-glow" : "animate-auth-glow"}`} />
+      {success && (
+        <div className="fixed inset-0 bg-gray-950/80 animate-auth-success-overlay z-40" />
+      )}
 
-      <div className="relative w-full max-w-md">
+      <div className={`relative w-full max-w-md ${success ? "z-50" : ""} ${leaving ? "animate-auth-exit" : ""}`}>
         <Link
           to="/"
-          className="inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors mb-8"
+          onClick={handleBackToHome}
+          className="group inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors mb-8 animate-auth-back-link"
         >
           <svg
-            className="w-4 h-4"
+            className="w-4 h-4 auth-back-link-arrow"
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={1.5}
@@ -123,13 +136,26 @@ export default function Login() {
           返回首页
         </Link>
 
-        <div className="p-8 rounded-2xl bg-gray-900 border border-gray-800 shadow-2xl shadow-black/20">
-          <div className="text-center mb-8">
-            <div className="w-12 h-12 rounded-xl bg-primary-500 flex items-center justify-center mx-auto mb-4">
-              <span className="text-white font-bold text-lg">T</span>
+        <div className={`p-8 rounded-2xl bg-gray-900 border border-gray-800 shadow-2xl shadow-black/20 animate-auth-card ${success ? "animate-auth-success-card" : ""}`}>
+          <div className="text-center mb-8 relative">
+            <div className={`w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-4 transition-all duration-300 ${success ? "bg-emerald-500 scale-110" : "bg-primary-500"}`}>
+              {success ? (
+                <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                  <path className="auth-success-check" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              ) : (
+                <span className="text-white font-bold text-lg">T</span>
+              )}
             </div>
-            <h1 className="text-2xl font-bold text-white mb-2">欢迎回来</h1>
-            <p className="text-sm text-gray-400">登录你的 TARS-GO 统一工作台账号</p>
+            {success && (
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-16 h-16 rounded-xl border-2 border-emerald-400/50 animate-auth-success-ring" />
+            )}
+            <h1 className="text-2xl font-bold text-white mb-2">
+              {success ? "登录成功" : "欢迎回来"}
+            </h1>
+            <p className="text-sm text-gray-400">
+              {success ? "正在进入工作台..." : "登录你的 TARS-GO 统一工作台账号"}
+            </p>
           </div>
 
           <div className="grid grid-cols-2 gap-2 rounded-xl bg-gray-950/70 border border-gray-800 p-1 mb-6">
@@ -178,7 +204,7 @@ export default function Login() {
             </div>
 
             {mode === "password" ? (
-              <div>
+              <div key="password-field" className="animate-auth-slide-in">
                 <label
                   htmlFor="password"
                   className="block text-sm font-medium text-gray-300 mb-2"
@@ -197,7 +223,7 @@ export default function Login() {
                 />
               </div>
             ) : (
-              <div>
+              <div key="code-field" className="animate-auth-slide-in">
                 <div className="flex items-center justify-between mb-2">
                   <label
                     htmlFor="code"
@@ -235,17 +261,28 @@ export default function Login() {
             )}
 
             {errorMessage && (
-              <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+              <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200 animate-auth-fade-in">
                 {errorMessage}
               </div>
             )}
 
             <button
               type="submit"
-              disabled={submitting}
-              className="w-full py-3 bg-primary-500 hover:bg-primary-600 disabled:bg-primary-500/60 text-white font-medium rounded-lg transition-colors disabled:cursor-not-allowed"
+              disabled={submitting || success}
+              className={`w-full py-3 font-medium rounded-lg transition-all duration-300 disabled:cursor-not-allowed ${
+                success
+                  ? "bg-emerald-500 text-white scale-[1.02]"
+                  : "bg-primary-500 hover:bg-primary-600 disabled:bg-primary-500/60 text-white"
+              }`}
             >
-              {submitting ? "登录中..." : "登录"}
+              {success ? (
+                <span className="inline-flex items-center gap-2">
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                    <path className="auth-success-check" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                  </svg>
+                  登录成功
+                </span>
+              ) : submitting ? "登录中..." : "登录"}
             </button>
           </form>
 

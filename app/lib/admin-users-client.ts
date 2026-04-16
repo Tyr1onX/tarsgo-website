@@ -81,6 +81,7 @@ export interface ListAdminUsersInput {
   pageSize?: number;
   keyword?: string;
   role?: string;
+  groupId?: number | "";
   status?: number | "";
 }
 
@@ -115,6 +116,9 @@ export async function listAdminUsers(input: ListAdminUsersInput): Promise<AdminU
   }
   if (input.role?.trim()) {
     params.set("role", input.role.trim());
+  }
+  if (input.groupId !== "" && input.groupId !== undefined) {
+    params.set("groupId", String(input.groupId));
   }
   if (input.status !== "" && input.status !== undefined) {
     params.set("status", String(input.status));

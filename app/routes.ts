@@ -14,4 +14,5 @@ export default [
     route("admin/form-config", "routes/admin/form-config.tsx"),
     route("admin/registrations", "routes/admin/registrations.tsx"),
   ]),
+  route("*", "routes/not-found.tsx"),
 ] satisfies RouteConfig;

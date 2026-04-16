@@ -6,7 +6,6 @@ import {
   useState,
 } from "react";
 import { useNavigate, useOutletContext } from "react-router";
-
 import { ApiError } from "~/lib/api-client";
 import {
   buildCustomRegistrationField,
@@ -1188,17 +1187,17 @@ function removeFieldOption(optionIndex: number) {
 
       {createOpen ? (
         <ModalShell
-          title="新建报名表"
-          description="先创建一张带有系统必填字段的草稿表单，后续再补全详细配置。"
-          onClose={() => {
-            if (creating) {
-              return;
-            }
-            setCreateOpen(false);
-            setCreateState(defaultCreateState);
-          }}
+        title="新建报名表"
+        description="先创建一张带有系统必填字段的草稿表单，后续再补全详细配置。"
+        onClose={() => {
+          if (creating) {
+            return;
+          }
+          setCreateOpen(false);
+          setCreateState(defaultCreateState);
+        }}
         >
-          <form className="space-y-4" onSubmit={handleCreateForm}>
+        <form className="space-y-4" onSubmit={handleCreateForm}>
             <div>
               <FieldLabel label="报名表标题" htmlFor="create-form-title" />
               <input
@@ -1277,7 +1276,7 @@ function removeFieldOption(optionIndex: number) {
                 {creating ? "创建中..." : "创建草稿"}
               </button>
             </div>
-          </form>
+        </form>
         </ModalShell>
       ) : null}
     </div>

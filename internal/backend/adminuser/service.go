@@ -35,6 +35,7 @@ type ListUsersInput struct {
 	PageSize int
 	Keyword  string
 	Role     string
+	GroupID  *uint64
 	Status   *uint8
 }
 
@@ -83,36 +84,36 @@ type AuthMethods struct {
 }
 
 type UserListItem struct {
-	ID          uint64      `json:"id"`
-	Name        string      `json:"name"`
-	Email       string      `json:"email"`
-	Phone       *string     `json:"phone,omitempty"`
-	Role        RoleRef     `json:"role"`
+	ID          uint64               `json:"id"`
+	Name        string               `json:"name"`
+	Email       string               `json:"email"`
+	Phone       *string              `json:"phone,omitempty"`
+	Role        RoleRef              `json:"role"`
 	Groups      []usergroup.GroupRef `json:"groups,omitempty"`
-	Status      uint8       `json:"status"`
-	AuthMethods AuthMethods `json:"authMethods"`
-	LastLoginAt *time.Time  `json:"lastLoginAt,omitempty"`
-	CreatedAt   time.Time   `json:"createdAt"`
+	Status      uint8                `json:"status"`
+	AuthMethods AuthMethods          `json:"authMethods"`
+	LastLoginAt *time.Time           `json:"lastLoginAt,omitempty"`
+	CreatedAt   time.Time            `json:"createdAt"`
 }
 
 type UserDetail struct {
-	ID             uint64      `json:"id"`
-	Name           string      `json:"name"`
-	Email          string      `json:"email"`
-	Nickname       *string     `json:"nickname,omitempty"`
-	AvatarURL      *string     `json:"avatarUrl,omitempty"`
-	Phone          *string     `json:"phone,omitempty"`
-	RealName       *string     `json:"realName,omitempty"`
-	Gender         uint8       `json:"gender"`
-	Birthday       *string     `json:"birthday,omitempty"`
-	Status         uint8       `json:"status"`
-	GitHubUsername *string     `json:"githubUsername,omitempty"`
-	Role           RoleRef     `json:"role"`
+	ID             uint64               `json:"id"`
+	Name           string               `json:"name"`
+	Email          string               `json:"email"`
+	Nickname       *string              `json:"nickname,omitempty"`
+	AvatarURL      *string              `json:"avatarUrl,omitempty"`
+	Phone          *string              `json:"phone,omitempty"`
+	RealName       *string              `json:"realName,omitempty"`
+	Gender         uint8                `json:"gender"`
+	Birthday       *string              `json:"birthday,omitempty"`
+	Status         uint8                `json:"status"`
+	GitHubUsername *string              `json:"githubUsername,omitempty"`
+	Role           RoleRef              `json:"role"`
 	Groups         []usergroup.GroupRef `json:"groups,omitempty"`
-	AuthMethods    AuthMethods `json:"authMethods"`
-	LastLoginAt    *time.Time  `json:"lastLoginAt,omitempty"`
-	CreatedAt      time.Time   `json:"createdAt"`
-	UpdatedAt      time.Time   `json:"updatedAt"`
+	AuthMethods    AuthMethods          `json:"authMethods"`
+	LastLoginAt    *time.Time           `json:"lastLoginAt,omitempty"`
+	CreatedAt      time.Time            `json:"createdAt"`
+	UpdatedAt      time.Time            `json:"updatedAt"`
 }
 
 type UserStats struct {

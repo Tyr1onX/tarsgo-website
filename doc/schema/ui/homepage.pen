@@ -1,0 +1,2136 @@
+{
+  "version": "2.10",
+  "children": [
+    {
+      "type": "frame",
+      "id": "SLEs0",
+      "x": 1000,
+      "y": 0,
+      "name": "TARS-Go Homepage",
+      "clip": true,
+      "width": 1440,
+      "fill": "$surface-primary",
+      "layout": "vertical",
+      "children": [
+        {
+          "type": "frame",
+          "id": "jJHg3",
+          "name": "Navigation",
+          "width": "fill_container",
+          "fill": "$surface-primary",
+          "padding": [
+            16,
+            80
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "45p9i",
+              "name": "navLogo",
+              "gap": 10,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "icon_font",
+                  "id": "NNKPF",
+                  "name": "logoIcon",
+                  "width": 32,
+                  "height": 32,
+                  "iconFontName": "bot",
+                  "iconFontFamily": "lucide",
+                  "fill": "$accent-primary"
+                },
+                {
+                  "type": "text",
+                  "id": "PziPi",
+                  "name": "logoText",
+                  "fill": "$foreground-primary",
+                  "content": "TARS-Go",
+                  "fontFamily": "Anton",
+                  "fontSize": 24,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "Vb7te",
+              "name": "navSpacer",
+              "width": "fill_container",
+              "height": 1
+            },
+            {
+              "type": "frame",
+              "id": "PdIYs",
+              "name": "navLinks",
+              "gap": 32,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "jeVVD",
+                  "name": "link1",
+                  "fill": "$accent-primary",
+                  "content": "首页",
+                  "fontFamily": "Inter",
+                  "fontSize": 15,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "TtVZX",
+                  "name": "link2",
+                  "fill": "$foreground-primary",
+                  "content": "关于我们",
+                  "fontFamily": "Inter",
+                  "fontSize": 15,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "yH2bO",
+                  "name": "link3",
+                  "fill": "$foreground-primary",
+                  "content": "赛事成就",
+                  "fontFamily": "Inter",
+                  "fontSize": 15,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "y6HUE",
+                  "name": "link4",
+                  "fill": "$foreground-primary",
+                  "content": "加入我们",
+                  "fontFamily": "Inter",
+                  "fontSize": 15,
+                  "fontWeight": "500"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "2ax2Q",
+              "name": "navBtns",
+              "gap": 12,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "BWtPg",
+                  "name": "loginBtn",
+                  "cornerRadius": 9999,
+                  "stroke": {
+                    "thickness": 1.5,
+                    "fill": "$accent-primary"
+                  },
+                  "padding": [
+                    8,
+                    20
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "xaAet",
+                      "name": "loginText",
+                      "fill": "$accent-primary",
+                      "content": "登录",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "02dle",
+                  "name": "regBtn",
+                  "fill": "$accent-primary",
+                  "cornerRadius": 9999,
+                  "padding": [
+                    8,
+                    20
+                  ],
+                  "justifyContent": "center",
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "8CfpQ",
+                      "name": "regText",
+                      "fill": "$foreground-inverse",
+                      "content": "注册",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "rectangle",
+          "id": "VCcuR",
+          "name": "navLine",
+          "fill": "$border-subtle",
+          "width": "fill_container",
+          "height": 1
+        },
+        {
+          "type": "frame",
+          "id": "aU7ob",
+          "name": "Hero Section",
+          "width": "fill_container",
+          "height": 580,
+          "fill": {
+            "type": "gradient",
+            "gradientType": "linear",
+            "enabled": true,
+            "rotation": 180,
+            "size": {
+              "height": 1
+            },
+            "colors": [
+              {
+                "color": "#0052D4",
+                "position": 0
+              },
+              {
+                "color": "#0062FF",
+                "position": 0.5
+              },
+              {
+                "color": "#4F46E5",
+                "position": 1
+              }
+            ]
+          },
+          "gap": 60,
+          "padding": [
+            0,
+            80
+          ],
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "QaI9r",
+              "name": "heroLeft",
+              "width": "fill_container",
+              "layout": "vertical",
+              "gap": 24,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "XuarA",
+                  "name": "heroBadge",
+                  "fill": "#FFFFFF22",
+                  "cornerRadius": 9999,
+                  "gap": 8,
+                  "padding": [
+                    6,
+                    16
+                  ],
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "icon_font",
+                      "id": "3SYpm",
+                      "name": "badgeIcon",
+                      "width": 16,
+                      "height": 16,
+                      "iconFontName": "trophy",
+                      "iconFontFamily": "lucide",
+                      "fill": "#FFD700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "YOR36",
+                      "name": "badgeText",
+                      "fill": "$foreground-inverse",
+                      "content": "吉林大学吉甲大师双创基地",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "pDbqx",
+                  "name": "heroTitle",
+                  "fill": "$foreground-inverse",
+                  "content": "TARS-Go",
+                  "fontFamily": "Anton",
+                  "fontSize": 80,
+                  "fontWeight": "normal",
+                  "letterSpacing": 2
+                },
+                {
+                  "type": "text",
+                  "id": "G16VV",
+                  "name": "heroSubtitle",
+                  "fill": "#FFFFFFCC",
+                  "content": "外在做事沉稳有序，内在思维活跃创新",
+                  "fontFamily": "Inter",
+                  "fontSize": 22,
+                  "fontWeight": "500"
+                },
+                {
+                  "type": "text",
+                  "id": "Uvc6G",
+                  "name": "heroDesc",
+                  "fill": "#FFFFFF99",
+                  "textGrowth": "fixed-width",
+                  "width": 520,
+                  "content": "我们是吉林大学 RoboMaster 机甲大师赛战队，致力于机器人研发与竞技对抗，培养具有工程思维的综合素质人才。",
+                  "lineHeight": 1.6,
+                  "fontFamily": "Inter",
+                  "fontSize": 16,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "frame",
+                  "id": "m8O5M",
+                  "name": "heroBtns",
+                  "gap": 16,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "dLLDU",
+                      "name": "ctaBtn",
+                      "fill": "$foreground-inverse",
+                      "cornerRadius": 9999,
+                      "gap": 8,
+                      "padding": [
+                        14,
+                        32
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Of8JQ",
+                          "name": "ctaText",
+                          "fill": "$accent-primary",
+                          "content": "了解更多",
+                          "fontFamily": "Inter",
+                          "fontSize": 16,
+                          "fontWeight": "600"
+                        },
+                        {
+                          "type": "icon_font",
+                          "id": "MnaJ7",
+                          "name": "ctaIcon",
+                          "width": 18,
+                          "height": 18,
+                          "iconFontName": "arrow-right",
+                          "iconFontFamily": "lucide",
+                          "fill": "$accent-primary"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "frame",
+                      "id": "QFeIT",
+                      "name": "joinBtn",
+                      "cornerRadius": 9999,
+                      "stroke": {
+                        "thickness": 2,
+                        "fill": "$foreground-inverse"
+                      },
+                      "padding": [
+                        14,
+                        32
+                      ],
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "FUbVP",
+                          "name": "joinText",
+                          "fill": "$foreground-inverse",
+                          "content": "加入我们",
+                          "fontFamily": "Inter",
+                          "fontSize": 16,
+                          "fontWeight": "600"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "lH3kd",
+              "name": "heroRight",
+              "width": 480,
+              "height": 420,
+              "fill": {
+                "type": "image",
+                "enabled": true,
+                "url": "./images/generated-1776258184990.png",
+                "mode": "fill"
+              },
+              "cornerRadius": 20,
+              "layout": "vertical",
+              "gap": 16,
+              "justifyContent": "center",
+              "alignItems": "center"
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "eZHFz",
+          "name": "About Section",
+          "width": "fill_container",
+          "fill": "$surface-primary",
+          "layout": "vertical",
+          "gap": 48,
+          "padding": 80,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "ijSvs",
+              "name": "aboutHeader",
+              "layout": "vertical",
+              "gap": 12,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "DqKal",
+                  "name": "aboutLabel",
+                  "fill": "$surface-light",
+                  "cornerRadius": 9999,
+                  "padding": [
+                    4,
+                    16
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "lfmab",
+                      "name": "aboutLabelText",
+                      "fill": "$accent-primary",
+                      "content": "关于我们",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "k0unk",
+                  "name": "aboutTitle",
+                  "fill": "$foreground-primary",
+                  "content": "一支跨校区、跨学科的机器人战队",
+                  "fontFamily": "Anton",
+                  "fontSize": 40,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "B1Tqr",
+                  "name": "aboutDesc",
+                  "fill": "$foreground-muted",
+                  "textGrowth": "fixed-width",
+                  "width": 700,
+                  "content": "TARS-Go 战队成立于 2018 年，取名自电影《星际穿越》中的机器人 TARS。战队依托吉林大学吉甲大师双创基地，汇聚了来自不同学院、不同校区的优秀同学，共同在 RoboMaster 机甲大师赛中竞技拼搏。",
+                  "lineHeight": 1.6,
+                  "textAlign": "center",
+                  "fontFamily": "Inter",
+                  "fontSize": 16,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "6159J",
+              "name": "statsRow",
+              "width": "fill_container",
+              "gap": 24,
+              "justifyContent": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "adv2x",
+                  "name": "stat1",
+                  "width": "fill_container",
+                  "fill": "$surface-light",
+                  "cornerRadius": 16,
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 28,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "sgAKa",
+                      "name": "stat1Icon",
+                      "width": 48,
+                      "height": 48,
+                      "fill": "$accent-primary",
+                      "cornerRadius": 12,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "hqFco",
+                          "name": "stat1Ico",
+                          "width": 24,
+                          "height": 24,
+                          "iconFontName": "calendar",
+                          "iconFontFamily": "lucide",
+                          "fill": "$foreground-inverse"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "hbGlP",
+                      "name": "stat1Num",
+                      "fill": "$foreground-primary",
+                      "content": "2018",
+                      "fontFamily": "Geist Mono",
+                      "fontSize": 36,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "DgSLJ",
+                      "name": "stat1Label",
+                      "fill": "$foreground-muted",
+                      "content": "成立年份",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "hqk8U",
+                  "name": "stat2",
+                  "width": "fill_container",
+                  "fill": "$surface-light",
+                  "cornerRadius": 16,
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 28,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "JKIHh",
+                      "name": "stat2Icon",
+                      "width": 48,
+                      "height": 48,
+                      "fill": "$accent-secondary",
+                      "cornerRadius": 12,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "RKFzh",
+                          "name": "stat2Ico",
+                          "width": 24,
+                          "height": 24,
+                          "iconFontName": "users",
+                          "iconFontFamily": "lucide",
+                          "fill": "$foreground-inverse"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "eZ06Z",
+                      "name": "stat2Num",
+                      "fill": "$foreground-primary",
+                      "content": "35+",
+                      "fontFamily": "Geist Mono",
+                      "fontSize": 36,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "ljzfR",
+                      "name": "stat2Label",
+                      "fill": "$foreground-muted",
+                      "content": "团队成员",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "abaCr",
+                  "name": "stat3",
+                  "width": "fill_container",
+                  "fill": "$surface-light",
+                  "cornerRadius": 16,
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 28,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "p77Sj",
+                      "name": "stat3Icon",
+                      "width": 48,
+                      "height": 48,
+                      "fill": "$accent-tertiary",
+                      "cornerRadius": 12,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "fEq13",
+                          "name": "stat3Ico",
+                          "width": 24,
+                          "height": 24,
+                          "iconFontName": "layers",
+                          "iconFontFamily": "lucide",
+                          "fill": "$foreground-inverse"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "fDYTx",
+                      "name": "stat3Num",
+                      "fill": "$foreground-primary",
+                      "content": "7",
+                      "fontFamily": "Geist Mono",
+                      "fontSize": 36,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Y8qNp",
+                      "name": "stat3Label",
+                      "fill": "$foreground-muted",
+                      "content": "技术组别",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "A7JR0",
+                  "name": "stat4",
+                  "width": "fill_container",
+                  "fill": "$surface-light",
+                  "cornerRadius": 16,
+                  "layout": "vertical",
+                  "gap": 12,
+                  "padding": 28,
+                  "alignItems": "center",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "gHWSr",
+                      "name": "stat4Icon",
+                      "width": 48,
+                      "height": 48,
+                      "fill": "#F59E0B",
+                      "cornerRadius": 12,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "9gnHG",
+                          "name": "stat4Ico",
+                          "width": 24,
+                          "height": 24,
+                          "iconFontName": "award",
+                          "iconFontFamily": "lucide",
+                          "fill": "$foreground-inverse"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "aWCm3",
+                      "name": "stat4Num",
+                      "fill": "$foreground-primary",
+                      "content": "Top 16",
+                      "fontFamily": "Geist Mono",
+                      "fontSize": 36,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "pBxAh",
+                      "name": "stat4Label",
+                      "fill": "$foreground-muted",
+                      "content": "全国最佳成绩",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "500"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "5NBfL",
+          "name": "Achievements Section",
+          "width": "fill_container",
+          "fill": {
+            "type": "gradient",
+            "gradientType": "linear",
+            "enabled": true,
+            "rotation": 180,
+            "size": {
+              "height": 1
+            },
+            "colors": [
+              {
+                "color": "#0052D4",
+                "position": 0
+              },
+              {
+                "color": "#0062FF",
+                "position": 1
+              }
+            ]
+          },
+          "layout": "vertical",
+          "gap": 48,
+          "padding": 80,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "0bk2J",
+              "name": "achieveHeader",
+              "layout": "vertical",
+              "gap": 12,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "RnyPL",
+                  "name": "achieveLabel",
+                  "fill": "#FFFFFF22",
+                  "cornerRadius": 9999,
+                  "padding": [
+                    4,
+                    16
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "QbRN2",
+                      "name": "achieveLabelT",
+                      "fill": "$foreground-inverse",
+                      "content": "赛事成就",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "vNM1t",
+                  "name": "achieveTitle",
+                  "fill": "$foreground-inverse",
+                  "content": "征战机甲大师，一路拼搏前行",
+                  "fontFamily": "Anton",
+                  "fontSize": 40,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "y1r6C",
+              "name": "achieveCards",
+              "width": "fill_container",
+              "gap": 24,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "4XQ8L",
+                  "name": "card1",
+                  "width": "fill_container",
+                  "fill": "#FFFFFF15",
+                  "cornerRadius": 16,
+                  "layout": "vertical",
+                  "gap": 16,
+                  "padding": 28,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "wnGli",
+                      "name": "card1Year",
+                      "fill": "#FFD700",
+                      "content": "2020",
+                      "fontFamily": "Geist Mono",
+                      "fontSize": 14,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "text",
+                      "id": "WPS45",
+                      "name": "card1Title",
+                      "fill": "$foreground-inverse",
+                      "content": "首次参赛即获一等奖",
+                      "fontFamily": "Inter",
+                      "fontSize": 18,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "7PcW5",
+                      "name": "card1Desc",
+                      "fill": "#FFFFFF99",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "RoboMaster 2020 机甲大师赛全国线上评审赛一等奖，进入全国前 16 强",
+                      "lineHeight": 1.5,
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "XMrER",
+                  "name": "card2",
+                  "width": "fill_container",
+                  "fill": "#FFFFFF15",
+                  "cornerRadius": 16,
+                  "layout": "vertical",
+                  "gap": 16,
+                  "padding": 28,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "wZGn2",
+                      "name": "card2Year",
+                      "fill": "#FFD700",
+                      "content": "2023",
+                      "fontFamily": "Geist Mono",
+                      "fontSize": 14,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "text",
+                      "id": "tl7BO",
+                      "name": "card2Title",
+                      "fill": "$foreground-inverse",
+                      "content": "校内赛事品牌创立",
+                      "fontFamily": "Inter",
+                      "fontSize": 18,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "dcsq6",
+                      "name": "card2Desc",
+                      "fill": "#FFFFFF99",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "成功举办吉甲大师 RoboMaster 校内赛，吸引更多同学参与机器人竞技",
+                      "lineHeight": 1.5,
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "8iwrg",
+                  "name": "card3",
+                  "width": "fill_container",
+                  "fill": "#FFFFFF15",
+                  "cornerRadius": 16,
+                  "layout": "vertical",
+                  "gap": 16,
+                  "padding": 28,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "3FKuQ",
+                      "name": "card3Year",
+                      "fill": "#FFD700",
+                      "content": "2024",
+                      "fontFamily": "Geist Mono",
+                      "fontSize": 14,
+                      "fontWeight": "600"
+                    },
+                    {
+                      "type": "text",
+                      "id": "7TDAZ",
+                      "name": "card3Title",
+                      "fill": "$foreground-inverse",
+                      "content": "晋级全国总决赛",
+                      "fontFamily": "Inter",
+                      "fontSize": 18,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "IB130",
+                      "name": "card3Desc",
+                      "fill": "#FFFFFF99",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "在 RoboMaster 2024 东部赛区对抗赛中五战三胜，入围八强晋级全国总决赛",
+                      "lineHeight": 1.5,
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "wFxA5",
+          "name": "Robot Showcase",
+          "width": "fill_container",
+          "fill": "$surface-primary",
+          "layout": "vertical",
+          "gap": 48,
+          "padding": 80,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "37Nw9",
+              "name": "robotsHeader",
+              "layout": "vertical",
+              "gap": 12,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "HYOQd",
+                  "name": "robotsLabel",
+                  "fill": "$surface-light",
+                  "cornerRadius": 9999,
+                  "padding": [
+                    4,
+                    16
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "EYRf5",
+                      "name": "robotsLabelT",
+                      "fill": "$accent-primary",
+                      "content": "机器人展示",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "j0kso",
+                  "name": "robotsTitle",
+                  "fill": "$foreground-primary",
+                  "content": "我们的战旗机甲",
+                  "fontFamily": "Anton",
+                  "fontSize": 40,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "oMVjL",
+                  "name": "robotsDesc",
+                  "fill": "$foreground-muted",
+                  "textGrowth": "fixed-width",
+                  "width": 600,
+                  "content": "每一台机器人都是团队智慧的结晶，融合机械设计、嵌入式系统、机器视觉、人工智能等多项技术",
+                  "lineHeight": 1.5,
+                  "textAlign": "center",
+                  "fontFamily": "Inter",
+                  "fontSize": 16,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "EKcGg",
+              "name": "robotGrid",
+              "width": "fill_container",
+              "gap": 20,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "Bhihp",
+                  "name": "r1",
+                  "clip": true,
+                  "width": "fill_container",
+                  "fill": "$surface-light",
+                  "cornerRadius": 16,
+                  "layout": "vertical",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "syCGc",
+                      "name": "r1Img",
+                      "width": "fill_container",
+                      "height": 160,
+                      "fill": {
+                        "type": "image",
+                        "enabled": true,
+                        "url": "./images/generated-1776258336595.png",
+                        "mode": "fill"
+                      }
+                    },
+                    {
+                      "type": "frame",
+                      "id": "yC7sP",
+                      "name": "r1Info",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 8,
+                      "padding": 20,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "1psGa",
+                          "name": "r1Name",
+                          "fill": "$foreground-primary",
+                          "content": "英雄机器人",
+                          "fontFamily": "Inter",
+                          "fontSize": 16,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "GWeZQ",
+                          "name": "r1Desc",
+                          "fill": "$foreground-muted",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "火力担当，42mm 弹丸发射，打击效率最高",
+                          "lineHeight": 1.5,
+                          "fontFamily": "Inter",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "tZljO",
+                  "name": "r2",
+                  "clip": true,
+                  "width": "fill_container",
+                  "fill": "$surface-light",
+                  "cornerRadius": 16,
+                  "layout": "vertical",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "1Ojn4",
+                      "name": "r2Img",
+                      "width": "fill_container",
+                      "height": 160,
+                      "fill": {
+                        "type": "image",
+                        "enabled": true,
+                        "url": "./images/generated-1776258352854.png",
+                        "mode": "fill"
+                      }
+                    },
+                    {
+                      "type": "frame",
+                      "id": "YRIoP",
+                      "name": "r2Info",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 8,
+                      "padding": 20,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "Y5dQM",
+                          "name": "r2Name",
+                          "fill": "$foreground-primary",
+                          "content": "步兵机器人",
+                          "fontFamily": "Inter",
+                          "fontSize": 16,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "SaL9R",
+                          "name": "r2Desc",
+                          "fill": "$foreground-muted",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "灵活机动，17mm 弹丸射击，场上主力输出",
+                          "lineHeight": 1.5,
+                          "fontFamily": "Inter",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "AZlNA",
+                  "name": "r3",
+                  "clip": true,
+                  "width": "fill_container",
+                  "fill": "$surface-light",
+                  "cornerRadius": 16,
+                  "layout": "vertical",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "PjsaW",
+                      "name": "r3Img",
+                      "width": "fill_container",
+                      "height": 160,
+                      "fill": {
+                        "type": "image",
+                        "enabled": true,
+                        "url": "./images/generated-1776258454985.png",
+                        "mode": "fill"
+                      }
+                    },
+                    {
+                      "type": "frame",
+                      "id": "xrMi1",
+                      "name": "r3Info",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 8,
+                      "padding": 20,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "DugAm",
+                          "name": "r3Name",
+                          "fill": "$foreground-primary",
+                          "content": "工程机器人",
+                          "fontFamily": "Inter",
+                          "fontSize": 16,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "HCGQH",
+                          "name": "r3Desc",
+                          "fill": "$foreground-muted",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "资源采集与弹药补给，战场后勤保障",
+                          "lineHeight": 1.5,
+                          "fontFamily": "Inter",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "AtIgv",
+                  "name": "r4",
+                  "clip": true,
+                  "width": "fill_container",
+                  "fill": "$surface-light",
+                  "cornerRadius": 16,
+                  "layout": "vertical",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "7Imhx",
+                      "name": "r4Img",
+                      "width": "fill_container",
+                      "height": 160,
+                      "fill": {
+                        "type": "image",
+                        "enabled": true,
+                        "url": "./images/generated-1776258483472.png",
+                        "mode": "fill"
+                      }
+                    },
+                    {
+                      "type": "frame",
+                      "id": "ArTrQ",
+                      "name": "r4Info",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 8,
+                      "padding": 20,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "50G8G",
+                          "name": "r4Name",
+                          "fill": "$foreground-primary",
+                          "content": "哨兵机器人",
+                          "fontFamily": "Inter",
+                          "fontSize": 16,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "wB5Fs",
+                          "name": "r4Desc",
+                          "fill": "$foreground-muted",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "自主决策与自动瓦解，AI 驱动防御",
+                          "lineHeight": 1.5,
+                          "fontFamily": "Inter",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "6rNFv",
+                  "name": "r5",
+                  "clip": true,
+                  "width": "fill_container",
+                  "fill": "$surface-light",
+                  "cornerRadius": 16,
+                  "layout": "vertical",
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "C6O20",
+                      "name": "r5Img",
+                      "width": "fill_container",
+                      "height": 160,
+                      "fill": {
+                        "type": "image",
+                        "enabled": true,
+                        "url": "./images/generated-1776258505713.png",
+                        "mode": "fill"
+                      }
+                    },
+                    {
+                      "type": "frame",
+                      "id": "dmA04",
+                      "name": "r5Info",
+                      "width": "fill_container",
+                      "layout": "vertical",
+                      "gap": 8,
+                      "padding": 20,
+                      "children": [
+                        {
+                          "type": "text",
+                          "id": "jndCH",
+                          "name": "r5Name",
+                          "fill": "$foreground-primary",
+                          "content": "空中机器人",
+                          "fontFamily": "Inter",
+                          "fontSize": 16,
+                          "fontWeight": "700"
+                        },
+                        {
+                          "type": "text",
+                          "id": "RYzLG",
+                          "name": "r5Desc",
+                          "fill": "$foreground-muted",
+                          "textGrowth": "fixed-width",
+                          "width": "fill_container",
+                          "content": "空中侦察与空地协同，空中打击威胁",
+                          "lineHeight": 1.5,
+                          "fontFamily": "Inter",
+                          "fontSize": 13,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "Kf3u4",
+          "name": "Join Us Section",
+          "width": "fill_container",
+          "fill": "$surface-light",
+          "layout": "vertical",
+          "gap": 48,
+          "padding": 80,
+          "alignItems": "center",
+          "children": [
+            {
+              "type": "frame",
+              "id": "4AWRx",
+              "name": "joinHeader",
+              "layout": "vertical",
+              "gap": 12,
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "Ene7B",
+                  "name": "joinLabel",
+                  "fill": "$accent-primary",
+                  "cornerRadius": 9999,
+                  "padding": [
+                    4,
+                    16
+                  ],
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "HCMfU",
+                      "name": "joinLabelT",
+                      "fill": "$foreground-inverse",
+                      "content": "加入我们",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "600"
+                    }
+                  ]
+                },
+                {
+                  "type": "text",
+                  "id": "LDyjZ",
+                  "name": "joinTitle",
+                  "fill": "$foreground-primary",
+                  "content": "找到你的战位，一起征服星辰大海",
+                  "fontFamily": "Anton",
+                  "fontSize": 40,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "g1Lxx",
+                  "name": "joinDesc",
+                  "fill": "$foreground-muted",
+                  "textGrowth": "fixed-width",
+                  "width": 600,
+                  "content": "我们欢迎来自各个专业的同学加入，无论你是零基础还是大佬，这里都有你的位置",
+                  "lineHeight": 1.5,
+                  "textAlign": "center",
+                  "fontFamily": "Inter",
+                  "fontSize": 16,
+                  "fontWeight": "normal"
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "Otfec",
+              "name": "joinGrid",
+              "width": "fill_container",
+              "gap": 24,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "AwMeN",
+                  "name": "g1",
+                  "width": "fill_container",
+                  "fill": "$surface-primary",
+                  "cornerRadius": 16,
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "#0000000D",
+                    "offset": {
+                      "x": 0,
+                      "y": 4
+                    },
+                    "blur": 20
+                  },
+                  "layout": "vertical",
+                  "gap": 16,
+                  "padding": 28,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "ntCpy",
+                      "name": "g1Icon",
+                      "width": 52,
+                      "height": 52,
+                      "fill": {
+                        "type": "gradient",
+                        "gradientType": "linear",
+                        "enabled": true,
+                        "rotation": 135,
+                        "size": {
+                          "height": 1
+                        },
+                        "colors": [
+                          {
+                            "color": "#0062FF",
+                            "position": 0
+                          },
+                          {
+                            "color": "#4F46E5",
+                            "position": 1
+                          }
+                        ]
+                      },
+                      "cornerRadius": 14,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "P70Ts",
+                          "name": "g1Ico",
+                          "width": 26,
+                          "height": 26,
+                          "iconFontName": "cog",
+                          "iconFontFamily": "lucide",
+                          "fill": "$foreground-inverse"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "WlkNX",
+                      "name": "g1Name",
+                      "fill": "$foreground-primary",
+                      "content": "机械组",
+                      "fontFamily": "Inter",
+                      "fontSize": 18,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "Y3g7a",
+                      "name": "g1Desc",
+                      "fill": "$foreground-muted",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "负责机器人结构设计、建模、加工与装配，将创意变为现实",
+                      "lineHeight": 1.5,
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "r0mC8",
+                  "name": "g2",
+                  "width": "fill_container",
+                  "fill": "$surface-primary",
+                  "cornerRadius": 16,
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "#0000000D",
+                    "offset": {
+                      "x": 0,
+                      "y": 4
+                    },
+                    "blur": 20
+                  },
+                  "layout": "vertical",
+                  "gap": 16,
+                  "padding": 28,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "dftN3",
+                      "name": "g2Icon",
+                      "width": 52,
+                      "height": 52,
+                      "fill": {
+                        "type": "gradient",
+                        "gradientType": "linear",
+                        "enabled": true,
+                        "rotation": 135,
+                        "size": {
+                          "height": 1
+                        },
+                        "colors": [
+                          {
+                            "color": "#10B981",
+                            "position": 0
+                          },
+                          {
+                            "color": "#059669",
+                            "position": 1
+                          }
+                        ]
+                      },
+                      "cornerRadius": 14,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "JnKIP",
+                          "name": "g2Ico",
+                          "width": 26,
+                          "height": 26,
+                          "iconFontName": "cpu",
+                          "iconFontFamily": "lucide",
+                          "fill": "$foreground-inverse"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "AlAd4",
+                      "name": "g2Name",
+                      "fill": "$foreground-primary",
+                      "content": "电控组",
+                      "fontFamily": "Inter",
+                      "fontSize": 18,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "X94V2",
+                      "name": "g2Desc",
+                      "fill": "$foreground-muted",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "嵌入式系统开发、电路设计、电机控制，让机器人“动”起来",
+                      "lineHeight": 1.5,
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "iuKXR",
+                  "name": "g3",
+                  "width": "fill_container",
+                  "fill": "$surface-primary",
+                  "cornerRadius": 16,
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "#0000000D",
+                    "offset": {
+                      "x": 0,
+                      "y": 4
+                    },
+                    "blur": 20
+                  },
+                  "layout": "vertical",
+                  "gap": 16,
+                  "padding": 28,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "OddrC",
+                      "name": "g3Icon",
+                      "width": 52,
+                      "height": 52,
+                      "fill": {
+                        "type": "gradient",
+                        "gradientType": "linear",
+                        "enabled": true,
+                        "rotation": 135,
+                        "size": {
+                          "height": 1
+                        },
+                        "colors": [
+                          {
+                            "color": "#F59E0B",
+                            "position": 0
+                          },
+                          {
+                            "color": "#D97706",
+                            "position": 1
+                          }
+                        ]
+                      },
+                      "cornerRadius": 14,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "Z6W77",
+                          "name": "g3Ico",
+                          "width": 26,
+                          "height": 26,
+                          "iconFontName": "eye",
+                          "iconFontFamily": "lucide",
+                          "fill": "$foreground-inverse"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "b92x8",
+                      "name": "g3Name",
+                      "fill": "$foreground-primary",
+                      "content": "视觉组",
+                      "fontFamily": "Inter",
+                      "fontSize": 18,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "P9iPh",
+                      "name": "g3Desc",
+                      "fill": "$foreground-muted",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "机器视觉、目标识别、自动瞄准，赋予机器人“眼睛”",
+                      "lineHeight": 1.5,
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "z5RS3",
+                  "name": "g4",
+                  "width": "fill_container",
+                  "fill": "$surface-primary",
+                  "cornerRadius": 16,
+                  "effect": {
+                    "type": "shadow",
+                    "shadowType": "outer",
+                    "color": "#0000000D",
+                    "offset": {
+                      "x": 0,
+                      "y": 4
+                    },
+                    "blur": 20
+                  },
+                  "layout": "vertical",
+                  "gap": 16,
+                  "padding": 28,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "Ff7kh",
+                      "name": "g4Icon",
+                      "width": 52,
+                      "height": 52,
+                      "fill": {
+                        "type": "gradient",
+                        "gradientType": "linear",
+                        "enabled": true,
+                        "rotation": 135,
+                        "size": {
+                          "height": 1
+                        },
+                        "colors": [
+                          {
+                            "color": "#EF4444",
+                            "position": 0
+                          },
+                          {
+                            "color": "#DC2626",
+                            "position": 1
+                          }
+                        ]
+                      },
+                      "cornerRadius": 14,
+                      "justifyContent": "center",
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "hyFGr",
+                          "name": "g4Ico",
+                          "width": 26,
+                          "height": 26,
+                          "iconFontName": "brain",
+                          "iconFontFamily": "lucide",
+                          "fill": "$foreground-inverse"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "6BbkV",
+                      "name": "g4Name",
+                      "fill": "$foreground-primary",
+                      "content": "决策组",
+                      "fontFamily": "Inter",
+                      "fontSize": 18,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "fAMSm",
+                      "name": "g4Desc",
+                      "fill": "$foreground-muted",
+                      "textGrowth": "fixed-width",
+                      "width": "fill_container",
+                      "content": "战术策略、自主决策、AI 算法，机器人的“大脑”",
+                      "lineHeight": 1.5,
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "frame",
+              "id": "ikAt1",
+              "name": "joinCta",
+              "fill": "$accent-primary",
+              "cornerRadius": 9999,
+              "gap": 8,
+              "padding": [
+                16,
+                40
+              ],
+              "justifyContent": "center",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "DRGb0",
+                  "name": "joinCtaText",
+                  "fill": "$foreground-inverse",
+                  "content": "立即报名",
+                  "fontFamily": "Inter",
+                  "fontSize": 18,
+                  "fontWeight": "600"
+                },
+                {
+                  "type": "icon_font",
+                  "id": "1rl4J",
+                  "name": "joinCtaIcon",
+                  "width": 20,
+                  "height": 20,
+                  "iconFontName": "arrow-right",
+                  "iconFontFamily": "lucide",
+                  "fill": "$foreground-inverse"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "frame",
+          "id": "6hN6l",
+          "name": "Footer",
+          "width": "fill_container",
+          "fill": "$surface-dark",
+          "layout": "vertical",
+          "gap": 32,
+          "padding": [
+            48,
+            80
+          ],
+          "children": [
+            {
+              "type": "frame",
+              "id": "Dc5xA",
+              "name": "footerTop",
+              "width": "fill_container",
+              "gap": 60,
+              "children": [
+                {
+                  "type": "frame",
+                  "id": "RTl2j",
+                  "name": "footerBrand",
+                  "width": 320,
+                  "layout": "vertical",
+                  "gap": 16,
+                  "children": [
+                    {
+                      "type": "frame",
+                      "id": "knxEq",
+                      "name": "footerLogo",
+                      "gap": 10,
+                      "alignItems": "center",
+                      "children": [
+                        {
+                          "type": "icon_font",
+                          "id": "BcW5q",
+                          "name": "fLogoIcon",
+                          "width": 28,
+                          "height": 28,
+                          "iconFontName": "bot",
+                          "iconFontFamily": "lucide",
+                          "fill": "$accent-primary"
+                        },
+                        {
+                          "type": "text",
+                          "id": "GllAt",
+                          "name": "fLogoText",
+                          "fill": "$foreground-inverse",
+                          "content": "TARS-Go",
+                          "fontFamily": "Anton",
+                          "fontSize": 22,
+                          "fontWeight": "normal"
+                        }
+                      ]
+                    },
+                    {
+                      "type": "text",
+                      "id": "gn5iQ",
+                      "name": "footerSlogan",
+                      "fill": "$foreground-muted",
+                      "textGrowth": "fixed-width",
+                      "width": 280,
+                      "content": "吉林大学吉甲大师双创基地\n外在做事沉稳有序，内在思维活跃创新",
+                      "lineHeight": 1.6,
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "0CHkW",
+                  "name": "footerNav",
+                  "layout": "vertical",
+                  "gap": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "2vFzm",
+                      "name": "footerNavTitle",
+                      "fill": "$foreground-inverse",
+                      "content": "快速导航",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "4QIep",
+                      "name": "fNav1",
+                      "fill": "$foreground-muted",
+                      "content": "首页",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "5X1Wr",
+                      "name": "fNav2",
+                      "fill": "$foreground-muted",
+                      "content": "关于我们",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "V6qG5",
+                      "name": "fNav3",
+                      "fill": "$foreground-muted",
+                      "content": "赛事成就",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "6AgkB",
+                      "name": "fNav4",
+                      "fill": "$foreground-muted",
+                      "content": "加入我们",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "NPaav",
+                  "name": "footerContact",
+                  "layout": "vertical",
+                  "gap": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "Wmhw5",
+                      "name": "footerContactTitle",
+                      "fill": "$foreground-inverse",
+                      "content": "联系我们",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "text",
+                      "id": "1IliE",
+                      "name": "fContact1",
+                      "fill": "$foreground-muted",
+                      "content": "吉林大学南湖校区",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "d9W8k",
+                      "name": "fContact2",
+                      "fill": "$foreground-muted",
+                      "content": "吉甲大师双创基地",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    },
+                    {
+                      "type": "text",
+                      "id": "B2VU3",
+                      "name": "fContact3",
+                      "fill": "$foreground-muted",
+                      "content": "tarsgo@jlu.edu.cn",
+                      "fontFamily": "Inter",
+                      "fontSize": 13,
+                      "fontWeight": "normal"
+                    }
+                  ]
+                },
+                {
+                  "type": "frame",
+                  "id": "bjaHq",
+                  "name": "footerSocial",
+                  "layout": "vertical",
+                  "gap": 12,
+                  "children": [
+                    {
+                      "type": "text",
+                      "id": "birvf",
+                      "name": "footerSocialTitle",
+                      "fill": "$foreground-inverse",
+                      "content": "关注我们",
+                      "fontFamily": "Inter",
+                      "fontSize": 14,
+                      "fontWeight": "700"
+                    },
+                    {
+                      "type": "frame",
+                      "id": "cRISW",
+                      "name": "socialRow",
+                      "gap": 12,
+                      "children": [
+                        {
+                          "type": "frame",
+                          "id": "aLiQK",
+                          "name": "s1",
+                          "width": 36,
+                          "height": 36,
+                          "fill": "#FFFFFF15",
+                          "cornerRadius": 8,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon_font",
+                              "id": "p1gys",
+                              "name": "s1Icon",
+                              "width": 18,
+                              "height": 18,
+                              "iconFontName": "video",
+                              "iconFontFamily": "lucide",
+                              "fill": "$foreground-muted"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "ErX4Y",
+                          "name": "s2",
+                          "width": 36,
+                          "height": 36,
+                          "fill": "#FFFFFF15",
+                          "cornerRadius": 8,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon_font",
+                              "id": "cJuom",
+                              "name": "s2Icon",
+                              "width": 18,
+                              "height": 18,
+                              "iconFontName": "message-circle",
+                              "iconFontFamily": "lucide",
+                              "fill": "$foreground-muted"
+                            }
+                          ]
+                        },
+                        {
+                          "type": "frame",
+                          "id": "OfSEM",
+                          "name": "s3",
+                          "width": 36,
+                          "height": 36,
+                          "fill": "#FFFFFF15",
+                          "cornerRadius": 8,
+                          "justifyContent": "center",
+                          "alignItems": "center",
+                          "children": [
+                            {
+                              "type": "icon_font",
+                              "id": "TkNzv",
+                              "name": "s3Icon",
+                              "width": 18,
+                              "height": 18,
+                              "iconFontName": "mail",
+                              "iconFontFamily": "lucide",
+                              "fill": "$foreground-muted"
+                            }
+                          ]
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "type": "rectangle",
+              "id": "bCrJX",
+              "name": "footerDivider",
+              "fill": "#FFFFFF15",
+              "width": "fill_container",
+              "height": 1
+            },
+            {
+              "type": "frame",
+              "id": "iJ7jJ",
+              "name": "footerCopy",
+              "width": "fill_container",
+              "justifyContent": "space_between",
+              "alignItems": "center",
+              "children": [
+                {
+                  "type": "text",
+                  "id": "2Dlis",
+                  "name": "copyText",
+                  "fill": "#FFFFFF44",
+                  "content": "© 2024 TARS-Go 战队 · 吉林大学吉甲大师双创基地",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                },
+                {
+                  "type": "text",
+                  "id": "PLR0m",
+                  "name": "rmText",
+                  "fill": "#FFFFFF44",
+                  "content": "Powered by RoboMaster",
+                  "fontFamily": "Inter",
+                  "fontSize": 12,
+                  "fontWeight": "normal"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "variables": {
+    "accent-primary": {
+      "type": "color",
+      "value": "#0062FF"
+    },
+    "accent-secondary": {
+      "type": "color",
+      "value": "#4F46E5"
+    },
+    "accent-tertiary": {
+      "type": "color",
+      "value": "#10B981"
+    },
+    "border-subtle": {
+      "type": "color",
+      "value": "#1E293B"
+    },
+    "foreground-inverse": {
+      "type": "color",
+      "value": "#FFFFFF"
+    },
+    "foreground-muted": {
+      "type": "color",
+      "value": "#94A3B8"
+    },
+    "foreground-primary": {
+      "type": "color",
+      "value": "#F1F5F9"
+    },
+    "surface-dark": {
+      "type": "color",
+      "value": "#020617"
+    },
+    "surface-inverse": {
+      "type": "color",
+      "value": "#0062FF"
+    },
+    "surface-light": {
+      "type": "color",
+      "value": "#0F172A"
+    },
+    "surface-primary": {
+      "type": "color",
+      "value": "#0B1120"
+    },
+    "accent-gold": {
+      "type": "color",
+      "value": "#F59E0B"
+    },
+    "foreground-dim": {
+      "type": "color",
+      "value": "#64748B"
+    },
+    "surface-card": {
+      "type": "color",
+      "value": "#111827"
+    }
+  }
+}

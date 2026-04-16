@@ -44,7 +44,7 @@ export type VisibleDashboardAdminMenuItem =
       key: string;
       label: string;
       iconKey: DashboardMenuIconKey;
-      children: DashboardMenuLeaf[];
+      children: readonly DashboardMenuLeaf[];
     };
 
 const USER_MENU: readonly DashboardMenuLink[] = [
@@ -114,9 +114,15 @@ function isRoleAllowed(roleName: string, allowedRoles: DashboardAllowedRoles) {
   return allowedRoles.includes(roleName);
 }
 
+function isDashboardMenuLinkDefinition(
+  item: DashboardMenuDefinition,
+): item is DashboardMenuLinkDefinition {
+  return typeof item.href === "string";
+}
+
 function getAccessibleAdminPaths(roleName: string) {
   return ADMIN_MENU.flatMap((item) => {
-    if ("href" in item) {
+    if (isDashboardMenuLinkDefinition(item)) {
       return isRoleAllowed(roleName, item.allowedRoles) ? [item.href] : [];
     }
 
@@ -136,27 +142,37 @@ export function getUserDashboardMenu(user: AuthUser): DashboardMenuLink[] {
 }
 
 export function getVisibleAdminDashboardMenu(roleName: string): VisibleDashboardAdminMenuItem[] {
-  return ADMIN_MENU.flatMap((item) => {
-    if ("href" in item) {
-      return isRoleAllowed(roleName, item.allowedRoles) ? [item] : [];
+  const visibleItems: VisibleDashboardAdminMenuItem[] = [];
+
+  for (const item of ADMIN_MENU) {
+    if (isDashboardMenuLinkDefinition(item)) {
+      if (isRoleAllowed(roleName, item.allowedRoles)) {
+        visibleItems.push({
+          key: item.key,
+          label: item.label,
+          href: item.href,
+          iconKey: item.iconKey,
+        });
+      }
+      continue;
     }
 
     const children = item.children.filter((child) =>
       isRoleAllowed(roleName, child.allowedRoles),
     );
     if (children.length === 0) {
-      return [];
+      continue;
     }
 
-    return [
-      {
-        key: item.key,
-        label: item.label,
-        iconKey: item.iconKey,
-        children,
-      },
-    ];
-  });
+    visibleItems.push({
+      key: item.key,
+      label: item.label,
+      iconKey: item.iconKey,
+      children,
+    });
+  }
+
+  return visibleItems;
 }
 
 export function hasDashboardAdminAccess(roleName: string) {

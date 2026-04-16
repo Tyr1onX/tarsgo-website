@@ -189,12 +189,72 @@ func TestServiceValidationErrors(t *testing.T) {
 	assertServiceError(t, err, 400, "状态")
 }
 
+func TestServiceListUsers_SupportsGroupFilter(t *testing.T) {
+	repo := newFakeRepository()
+	service := NewService(repo)
+
+	repo.users[3].GroupMembers = []model.UserGroupMember{
+		{
+			ID:       1,
+			GroupID:  repo.defaultGroup.ID,
+			UserID:   3,
+			Role:     model.UserGroupMemberRoleMember,
+			JoinedAt: time.Now(),
+			Group:    repo.defaultGroup,
+		},
+		{
+			ID:       2,
+			GroupID:  2,
+			UserID:   3,
+			Role:     model.UserGroupMemberRoleLeader,
+			JoinedAt: time.Now(),
+			Group: model.UserGroup{
+				ID:     2,
+				Name:   "视觉组",
+				Status: model.UserGroupStatusActive,
+			},
+		},
+	}
+
+	groupID := uint64(2)
+	result, err := service.ListUsers(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, ListUsersInput{
+		GroupID: &groupID,
+	})
+	if err != nil {
+		t.Fatalf("ListUsers returned error: %v", err)
+	}
+
+	if len(result.Items) != 1 {
+		t.Fatalf("expected 1 filtered user, got %d", len(result.Items))
+	}
+	if result.Items[0].ID != 3 {
+		t.Fatalf("expected filtered user 3, got %d", result.Items[0].ID)
+	}
+	if len(result.Items[0].Groups) != 2 {
+		t.Fatalf("expected user groups to remain populated, got %d", len(result.Items[0].Groups))
+	}
+}
+
+func TestServiceListUsers_ReturnsGithubBoundSummary(t *testing.T) {
+	repo := newFakeRepository()
+	service := NewService(repo)
+
+	result, err := service.ListUsers(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, ListUsersInput{})
+	if err != nil {
+		t.Fatalf("ListUsers returned error: %v", err)
+	}
+
+	if result.Summary.GitHubBound != 1 {
+		t.Fatalf("expected github bound summary to be 1, got %d", result.Summary.GitHubBound)
+	}
+}
+
 type fakeRepository struct {
-	roles      map[uint64]model.Role
-	roleByName map[string]uint64
-	users      map[uint64]*model.User
-	nextUserID uint64
-	defaultGroup model.UserGroup
+	roles             map[uint64]model.Role
+	roleByName        map[string]uint64
+	users             map[uint64]*model.User
+	nextUserID        uint64
+	defaultGroup      model.UserGroup
 	nextGroupMemberID uint64
 }
 
@@ -251,9 +311,18 @@ func newFakeRepository() *fakeRepository {
 	return repo
 }
 
-func (r *fakeRepository) ListUsers(context.Context, ListUsersInput) ([]model.User, int64, error) {
+func (r *fakeRepository) ListUsers(_ context.Context, input ListUsersInput) ([]model.User, int64, error) {
 	result := make([]model.User, 0, len(r.users))
 	for _, user := range r.users {
+		if input.Role != "" && user.Role.Name != input.Role {
+			continue
+		}
+		if input.Status != nil && user.Status != *input.Status {
+			continue
+		}
+		if input.GroupID != nil && !userInGroup(user, *input.GroupID) {
+			continue
+		}
 		result = append(result, *cloneUser(user))
 	}
 	return result, int64(len(result)), nil
@@ -455,6 +524,15 @@ func deref(value *string) string {
 		return ""
 	}
 	return *value
+}
+
+func userInGroup(user *model.User, groupID uint64) bool {
+	for _, member := range user.GroupMembers {
+		if member.GroupID == groupID {
+			return true
+		}
+	}
+	return false
 }
 
 func assertServiceError(t *testing.T, err error, status int, contains string) {

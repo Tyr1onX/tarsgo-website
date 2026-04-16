@@ -2,7 +2,6 @@ package usergroup
 
 import (
 	"context"
-	"strings"
 
 	"gorm.io/gorm"
 
@@ -11,7 +10,7 @@ import (
 
 type Repository interface {
 	RunInTx(ctx context.Context, fn func(repo Repository) error) error
-	ListGroups(ctx context.Context, filter ListGroupsInput) ([]model.UserGroup, int64, error)
+	ListGroups(ctx context.Context, filter ListGroupsInput) ([]model.UserGroup, error)
 	GetGroupStats(ctx context.Context) (GroupStats, error)
 	GetGroupByID(ctx context.Context, groupID uint64) (*model.UserGroup, error)
 	CreateGroup(ctx context.Context, group *model.UserGroup) error
@@ -24,7 +23,7 @@ type Repository interface {
 	CreateMember(ctx context.Context, member *model.UserGroupMember) error
 	UpdateMember(ctx context.Context, groupID uint64, memberID uint64, updates map[string]any) error
 	DeleteMember(ctx context.Context, groupID uint64, memberID uint64) error
-	SearchCandidateUsers(ctx context.Context, groupID uint64, keyword string, limit int) ([]model.User, error)
+	ListCandidateUsers(ctx context.Context, groupID uint64) ([]model.User, error)
 	GetUserByID(ctx context.Context, userID uint64) (*model.User, error)
 }
 
@@ -42,22 +41,11 @@ func (r *GormRepository) RunInTx(ctx context.Context, fn func(repo Repository) e
 	})
 }
 
-func (r *GormRepository) ListGroups(ctx context.Context, filter ListGroupsInput) ([]model.UserGroup, int64, error) {
+func (r *GormRepository) ListGroups(ctx context.Context, filter ListGroupsInput) ([]model.UserGroup, error) {
 	base := r.db.WithContext(ctx).Model(&model.UserGroup{})
-
-	if keyword := strings.TrimSpace(filter.Keyword); keyword != "" {
-		like := "%" + keyword + "%"
-		base = base.Where("name LIKE ? OR description LIKE ?", like, like)
-	}
 
 	if filter.Status != nil {
 		base = base.Where("status = ?", *filter.Status)
-	}
-
-	countQuery := base.Session(&gorm.Session{})
-	var total int64
-	if err := countQuery.Count(&total).Error; err != nil {
-		return nil, 0, err
 	}
 
 	var groups []model.UserGroup
@@ -71,13 +59,11 @@ func (r *GormRepository) ListGroups(ctx context.Context, filter ListGroupsInput)
 		Order("is_default DESC").
 		Order("status DESC").
 		Order("created_at DESC").
-		Offset((filter.Page - 1) * filter.PageSize).
-		Limit(filter.PageSize).
 		Find(&groups).Error; err != nil {
-		return nil, 0, err
+		return nil, err
 	}
 
-	return groups, total, nil
+	return groups, nil
 }
 
 func (r *GormRepository) GetGroupStats(ctx context.Context) (GroupStats, error) {
@@ -178,7 +164,7 @@ func (r *GormRepository) DeleteMember(ctx context.Context, groupID uint64, membe
 	return r.db.WithContext(ctx).Where("group_id = ? AND id = ?", groupID, memberID).Delete(&model.UserGroupMember{}).Error
 }
 
-func (r *GormRepository) SearchCandidateUsers(ctx context.Context, groupID uint64, keyword string, limit int) ([]model.User, error) {
+func (r *GormRepository) ListCandidateUsers(ctx context.Context, groupID uint64) ([]model.User, error) {
 	query := r.db.WithContext(ctx).
 		Model(&model.User{}).
 		Joins("JOIN roles ON roles.id = users.role_id").
@@ -192,25 +178,12 @@ func (r *GormRepository) SearchCandidateUsers(ctx context.Context, groupID uint6
 		query = query.Where("users.id NOT IN (?)", subQuery)
 	}
 
-	if trimmed := strings.TrimSpace(keyword); trimmed != "" {
-		like := "%" + trimmed + "%"
-		query = query.Where(
-			"users.name LIKE ? OR users.email LIKE ? OR users.phone LIKE ? OR users.real_name LIKE ? OR users.nickname LIKE ?",
-			like,
-			like,
-			like,
-			like,
-			like,
-		)
-	}
-
 	var users []model.User
 	if err := query.
 		Preload("Role").
 		Preload("GroupMembers").
 		Preload("GroupMembers.Group").
 		Order("users.created_at DESC").
-		Limit(limit).
 		Find(&users).Error; err != nil {
 		return nil, err
 	}
