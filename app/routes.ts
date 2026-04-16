@@ -11,6 +11,7 @@ export default [
     route("admin", "routes/admin/dashboard.tsx"),
     route("admin/users", "routes/admin/users.tsx"),
     route("admin/user-groups", "routes/admin/user-groups.tsx"),
+    route("admin/permission-groups", "routes/admin/permission-groups.tsx"),
     route("admin/form-config", "routes/admin/form-config.tsx"),
     route("admin/registrations", "routes/admin/registrations.tsx"),
   ]),
