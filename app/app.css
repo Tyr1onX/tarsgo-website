@@ -3,14 +3,38 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif,
     "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
+  --font-display: "Anton", sans-serif;
+  --font-mono: "Geist Mono", ui-monospace, monospace;
 
+  /* Surface colors */
+  --color-surface-primary: #0B1120;
+  --color-surface-light: #0F172A;
+  --color-surface-dark: #020617;
+  --color-surface-card: #111827;
+
+  /* Accent colors */
+  --color-accent-primary: #0062FF;
+  --color-accent-secondary: #4F46E5;
+  --color-accent-tertiary: #10B981;
+  --color-accent-gold: #F59E0B;
+
+  /* Foreground colors */
+  --color-fg-primary: #F1F5F9;
+  --color-fg-muted: #94A3B8;
+  --color-fg-dim: #64748B;
+  --color-fg-inverse: #FFFFFF;
+
+  /* Border */
+  --color-border-subtle: #1E293B;
+
+  /* Legacy primary palette (for dashboard/other pages) */
   --color-primary-50: #e6f0fa;
   --color-primary-100: #b3d1f0;
   --color-primary-200: #80b3e6;
   --color-primary-300: #4d94db;
   --color-primary-400: #2680d1;
-  --color-primary-500: #005bac;
-  --color-primary-600: #004f96;
+  --color-primary-500: #0062FF;
+  --color-primary-600: #0052D4;
   --color-primary-700: #003d75;
   --color-primary-800: #002b53;
   --color-primary-900: #001a32;
@@ -21,11 +45,21 @@
 
 html,
 body {
-  @apply bg-white dark:bg-gray-950;
+  @apply bg-surface-primary;
+  color-scheme: dark;
+}
 
-  @media (prefers-color-scheme: dark) {
-    color-scheme: dark;
-  }
+select {
+  appearance: none;
+  padding-right: 2.75rem;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%2394A3B8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.75'%3E%3Cpath d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
+  background-position: right 0.9rem center;
+  background-repeat: no-repeat;
+  background-size: 1rem 1rem;
+}
+
+select::-ms-expand {
+  display: none;
 }
 
 html {
@@ -56,18 +90,6 @@ html {
   from {
     opacity: 0;
     transform: translate3d(0, -16px, 0);
-  }
-
-  to {
-    opacity: 1;
-    transform: translate3d(0, 0, 0);
-  }
-}
-
-@keyframes drawer-right-in {
-  from {
-    opacity: 0;
-    transform: translate3d(40px, 0, 0);
   }
 
   to {
@@ -298,7 +320,12 @@ html {
   bottom: 0.35rem;
   height: 1px;
   border-radius: 999px;
-  background: linear-gradient(90deg, transparent, rgba(77, 148, 219, 0.9), transparent);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(77, 148, 219, 0.9),
+    transparent
+  );
   transform: scaleX(0.35);
   opacity: 0;
   transition:
@@ -460,4 +487,262 @@ html {
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* ── Auth page transition animations ── */
+@keyframes auth-fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes auth-glow-pulse {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes auth-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes auth-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-auth-entrance {
+  animation: auth-fade-in-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-auth-glow {
+  animation: auth-glow-pulse 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-auth-fade-in {
+  animation: auth-fade-in 0.35s ease-out both;
+}
+
+.animate-auth-slide-in {
+  animation: auth-slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-auth-card {
+  animation: auth-fade-in-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.1s both;
+}
+
+.animate-auth-back-link {
+  animation: auth-fade-in 0.4s ease-out both;
+}
+
+@keyframes auth-exit {
+  to {
+    opacity: 0;
+    transform: translateY(-24px);
+  }
+}
+
+.animate-auth-exit {
+  animation: auth-exit 0.35s cubic-bezier(0.5, 0, 0.75, 0) forwards;
+}
+
+.animate-auth-exit-glow {
+  animation: auth-exit-glow 0.3s ease-in forwards;
+}
+
+@keyframes auth-exit-glow {
+  to {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.8);
+  }
+}
+
+.auth-back-link-arrow {
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.group:hover .auth-back-link-arrow {
+  transform: translateX(-4px);
+}
+
+/* ── Auth success transition ── */
+@keyframes auth-success-card {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.02);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.95) translateY(-20px);
+  }
+}
+
+@keyframes auth-success-glow {
+  0% {
+    opacity: 0.3;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  40% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.8);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(2.5);
+  }
+}
+
+@keyframes auth-success-ring {
+  0% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.5);
+  }
+}
+
+@keyframes auth-success-check {
+  0% {
+    stroke-dashoffset: 24;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes auth-success-overlay {
+  0% {
+    opacity: 0;
+  }
+  100% {
+    opacity: 1;
+  }
+}
+
+.animate-auth-success-card {
+  animation: auth-success-card 0.6s cubic-bezier(0.4, 0, 0.2, 1) 0.4s forwards;
+}
+
+.animate-auth-success-glow {
+  animation: auth-success-glow 0.9s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.animate-auth-success-ring {
+  animation: auth-success-ring 0.7s cubic-bezier(0.16, 1, 0.3, 1) 0.1s forwards;
+  opacity: 0;
+}
+
+.auth-success-check {
+  stroke-dasharray: 24;
+  stroke-dashoffset: 24;
+  animation: auth-success-check 0.35s cubic-bezier(0.16, 1, 0.3, 1) 0.15s forwards;
+}
+
+.animate-auth-success-overlay {
+  animation: auth-success-overlay 0.3s ease-out 0.6s forwards;
+  opacity: 0;
+}
+
+/* ── 404 page animations ── */
+@keyframes notfound-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-12px);
+  }
+}
+
+@keyframes notfound-glow {
+  0%,
+  100% {
+    opacity: 0.3;
+    transform: translate(-50%, -50%) scale(1);
+  }
+  50% {
+    opacity: 0.6;
+    transform: translate(-50%, -50%) scale(1.1);
+  }
+}
+
+@keyframes notfound-line-expand {
+  from {
+    opacity: 0;
+    transform: scaleX(0);
+  }
+  to {
+    opacity: 1;
+    transform: scaleX(1);
+  }
+}
+
+.animate-notfound-glow {
+  animation: notfound-glow 6s ease-in-out infinite;
+}
+
+.animate-notfound-glow-delayed {
+  animation: notfound-glow 6s ease-in-out 3s infinite;
+}
+
+.animate-notfound-number {
+  animation: notfound-float 5s ease-in-out infinite,
+    auth-fade-in-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-notfound-line {
+  animation: notfound-line-expand 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both;
+}
+
+.animate-notfound-content {
+  animation: auth-fade-in-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.4s both;
+}
+
+.animate-notfound-buttons {
+  animation: auth-fade-in-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.55s both;
+}
+
+.animate-notfound-hint {
+  animation: auth-fade-in 0.5s ease-out 0.7s both;
+}
+
+/* ── Admin card decorative dot pattern ── */
+.bg-dot-pattern {
+  background-image: radial-gradient(
+    circle at 1px 1px,
+    currentColor 1px,
+    transparent 0
+  );
+  background-size: 24px 24px;
 }

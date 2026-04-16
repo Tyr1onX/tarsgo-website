@@ -208,14 +208,14 @@ POST http://127.0.0.1:8080/api/logout 登出
 GET http://127.0.0.1:8080/api/admin/users 获取用户分页列表
  - 用途：加载 `/dashboard/admin/users` 列表、统计卡和分页信息
  - 查询参数：
-   - `page`：页码，默认 `1`
-   - `pageSize`：每页条数，默认 `10`，最大 `100`
-   - `keyword`：模糊匹配 `name / email / phone / real_name / nickname`
-   - `role`：角色标识，如 `super_admin`、`admin`、`user`
-   - `status`：账号状态，`1=启用`，`0=停用`
- - 排序：默认 `created_at DESC`
- - 列表项新增字段：
-   - `groups`：该用户所属全部分组，元素结构为 `{ id, name, memberRole }`
+- `page`：页码，默认 `1`
+- `pageSize`：每页条数，默认 `10`，最大 `100`
+- `keyword`：模糊匹配 `name / email / phone / real_name / nickname`
+- `role`：角色标识，如 `super_admin`、`admin`、`user`
+- `groupId`：按所属用户组筛选，传入用户组 ID
+- 排序：默认 `created_at DESC`
+- 列表项新增字段：
+- `groups`：该用户所属全部分组，元素结构为 `{ id, name, memberRole }`
    - `memberRole`：组内角色，`0=普通成员`，`1=组长`
  - 成功响应示例：
    ```json
@@ -453,12 +453,9 @@ GET http://127.0.0.1:8080/api/admin/roles 获取角色下拉选项
 - `user` 与 `admin` 可以加入分组，`super_admin` 永远不能加入分组
 - Round 1 成员详情不分页，成员排序为 `role DESC, joined_at ASC`
 
-GET http://127.0.0.1:8080/api/admin/user-groups 获取用户组分页列表
- - 用途：加载用户分组页的统计卡、卡片列表和分页器
+GET http://127.0.0.1:8080/api/admin/user-groups 获取用户组列表
+ - 用途：加载用户分组页的统计卡与全量卡片列表
  - 查询参数：
-   - `page`：页码，默认 `1`
-   - `pageSize`：每页条数，默认 `10`，最大 `100`
-   - `keyword`：模糊匹配 `name / description`
    - `status`：分组状态，`1=启用`，`0=停用`
  - 成功响应示例：
    ```json
@@ -487,12 +484,6 @@ GET http://127.0.0.1:8080/api/admin/user-groups 获取用户组分页列表
          "disabled": 1,
          "defaultCount": 1,
          "totalMembers": 42
-       },
-       "pagination": {
-         "page": 1,
-         "pageSize": 9,
-         "total": 4,
-         "totalPages": 1
        }
      }
    }
@@ -622,10 +613,9 @@ DELETE http://127.0.0.1:8080/api/admin/user-groups/:id 删除用户组
    - `409`：该用户组仍有成员，请先移除成员后再删除
 
 GET http://127.0.0.1:8080/api/admin/user-groups/member-candidates 获取成员候选用户
- - 用途：为成员管理抽屉提供“可加入当前分组”的候选账号搜索结果
+ - 用途：为成员管理抽屉提供“可加入当前分组”的候选账号列表
  - 查询参数：
    - `groupId`：目标用户组 ID，必填
-   - `keyword`：按用户名或邮箱模糊搜索，选填
  - 返回规则：
    - 仅返回系统角色为 `user / admin` 的账号
    - 已在当前分组中的账号不会再次返回

@@ -32,6 +32,7 @@ type listUsersQuery struct {
 	PageSize int    `form:"pageSize"`
 	Keyword  string `form:"keyword"`
 	Role     string `form:"role"`
+	GroupID  string `form:"groupId"`
 	Status   string `form:"status"`
 }
 
@@ -81,6 +82,11 @@ func (h *AdminUserHandler) ListUsers(c *gin.Context) {
 		writeAPIError(c, http.StatusBadRequest, err.Error())
 		return
 	}
+	groupID, err := parseOptionalGroupID(query.GroupID)
+	if err != nil {
+		writeAPIError(c, http.StatusBadRequest, err.Error())
+		return
+	}
 
 	result, serviceErr := h.service.ListUsers(
 		c.Request.Context(),
@@ -90,6 +96,7 @@ func (h *AdminUserHandler) ListUsers(c *gin.Context) {
 			PageSize: query.PageSize,
 			Keyword:  query.Keyword,
 			Role:     query.Role,
+			GroupID:  groupID,
 			Status:   status,
 		},
 	)
@@ -263,6 +270,19 @@ func parseOptionalStatus(raw string) (*uint8, error) {
 	}
 	status := uint8(value)
 	return &status, nil
+}
+
+func parseOptionalGroupID(raw string) (*uint64, error) {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil, nil
+	}
+
+	value, err := strconv.ParseUint(trimmed, 10, 64)
+	if err != nil || value == 0 {
+		return nil, errors.New("组别筛选值不合法")
+	}
+	return &value, nil
 }
 
 func parseOptionalBirthday(raw string) (*time.Time, error) {

@@ -23,17 +23,14 @@ type userGroupService interface {
 	CreateGroup(ctx context.Context, actor usergroup.Actor, input usergroup.CreateGroupInput) (*usergroup.GroupDetail, error)
 	UpdateGroup(ctx context.Context, actor usergroup.Actor, groupID uint64, input usergroup.UpdateGroupInput) (*usergroup.GroupDetail, error)
 	DeleteGroup(ctx context.Context, actor usergroup.Actor, groupID uint64) error
-	ListMemberCandidates(ctx context.Context, actor usergroup.Actor, groupID uint64, keyword string) ([]usergroup.GroupCandidateItem, error)
+	ListMemberCandidates(ctx context.Context, actor usergroup.Actor, groupID uint64) ([]usergroup.GroupCandidateItem, error)
 	AddMember(ctx context.Context, actor usergroup.Actor, groupID uint64, input usergroup.AddMemberInput) (*usergroup.GroupMemberItem, error)
 	UpdateMember(ctx context.Context, actor usergroup.Actor, groupID uint64, memberID uint64, input usergroup.UpdateMemberInput) (*usergroup.GroupMemberItem, error)
 	RemoveMember(ctx context.Context, actor usergroup.Actor, groupID uint64, memberID uint64) error
 }
 
 type listUserGroupsQuery struct {
-	Page     int    `form:"page"`
-	PageSize int    `form:"pageSize"`
-	Keyword  string `form:"keyword"`
-	Status   string `form:"status"`
+	Status string `form:"status"`
 }
 
 type upsertUserGroupRequest struct {
@@ -47,7 +44,6 @@ type upsertUserGroupRequest struct {
 
 type listMemberCandidatesQuery struct {
 	GroupID uint64 `form:"groupId" binding:"required"`
-	Keyword string `form:"keyword"`
 }
 
 type addGroupMemberRequest struct {
@@ -80,10 +76,7 @@ func (h *UserGroupHandler) ListGroups(c *gin.Context) {
 		c.Request.Context(),
 		currentGroupActor(c),
 		usergroup.ListGroupsInput{
-			Page:     query.Page,
-			PageSize: query.PageSize,
-			Keyword:  query.Keyword,
-			Status:   status,
+			Status: status,
 		},
 	)
 	if serviceErr != nil {
@@ -193,7 +186,7 @@ func (h *UserGroupHandler) ListMemberCandidates(c *gin.Context) {
 		return
 	}
 
-	items, err := h.service.ListMemberCandidates(c.Request.Context(), currentGroupActor(c), query.GroupID, query.Keyword)
+	items, err := h.service.ListMemberCandidates(c.Request.Context(), currentGroupActor(c), query.GroupID)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return

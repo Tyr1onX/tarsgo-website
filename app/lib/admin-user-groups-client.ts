@@ -9,13 +9,6 @@ export interface AdminUserGroupSummary {
   totalMembers: number;
 }
 
-export interface AdminUserGroupPagination {
-  page: number;
-  pageSize: number;
-  total: number;
-  totalPages: number;
-}
-
 export interface AdminUserGroupListItem {
   id: number;
   name: string;
@@ -67,13 +60,9 @@ export interface AdminUserGroupCandidate {
 export interface AdminUserGroupListResponse {
   items: AdminUserGroupListItem[];
   summary: AdminUserGroupSummary;
-  pagination: AdminUserGroupPagination;
 }
 
 export interface ListAdminUserGroupsInput {
-  page?: number;
-  pageSize?: number;
-  keyword?: string;
   status?: number | "";
 }
 
@@ -97,15 +86,6 @@ export interface AddAdminUserGroupMemberInput extends UpsertAdminUserGroupMember
 export async function listAdminUserGroups(input: ListAdminUserGroupsInput): Promise<AdminUserGroupListResponse> {
   const params = new URLSearchParams();
 
-  if (input.page) {
-    params.set("page", String(input.page));
-  }
-  if (input.pageSize) {
-    params.set("pageSize", String(input.pageSize));
-  }
-  if (input.keyword?.trim()) {
-    params.set("keyword", input.keyword.trim());
-  }
   if (input.status !== "" && input.status !== undefined) {
     params.set("status", String(input.status));
   }
@@ -138,12 +118,8 @@ export async function deleteAdminUserGroup(groupId: number): Promise<void> {
   });
 }
 
-export async function listAdminUserGroupMemberCandidates(groupId: number, keyword: string): Promise<AdminUserGroupCandidate[]> {
+export async function listAdminUserGroupMemberCandidates(groupId: number): Promise<AdminUserGroupCandidate[]> {
   const params = new URLSearchParams({ groupId: String(groupId) });
-  if (keyword.trim()) {
-    params.set("keyword", keyword.trim());
-  }
-
   const data = await apiRequest<{ items: AdminUserGroupCandidate[] }>(
     `/api/admin/user-groups/member-candidates?${params.toString()}`,
   );

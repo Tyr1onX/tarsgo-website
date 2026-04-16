@@ -1,13 +1,28 @@
-import { type FormEvent, useEffect, useMemo, useState } from "react";
+import calendarDays from "@iconify-icons/lucide/calendar-days";
+import clock from "@iconify-icons/lucide/clock";
+import eye from "@iconify-icons/lucide/eye";
+import github from "@iconify-icons/lucide/github";
+import info from "@iconify-icons/lucide/info";
+import keyRound from "@iconify-icons/lucide/key-round";
+import mail from "@iconify-icons/lucide/mail";
+import phone from "@iconify-icons/lucide/phone";
+import power from "@iconify-icons/lucide/power";
+import powerOff from "@iconify-icons/lucide/power-off";
+import searchIcon from "@iconify-icons/lucide/search";
+import shieldCheck from "@iconify-icons/lucide/shield-check";
+import userIcon from "@iconify-icons/lucide/user";
+import userPlus from "@iconify-icons/lucide/user-plus";
+import usersIcon from "@iconify-icons/lucide/users";
+import x from "@iconify-icons/lucide/x";
+import { Icon, type IconifyIcon } from "@iconify/react";
+import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate, useOutletContext } from "react-router";
-
-import { AnimatedSelect } from "~/components/animated-select";
-import { MotionDateInput } from "~/components/motion-date-input";
+import { Notify } from "~/components/notify";
 import {
-  ModalShell,
-  useModalPresence,
-  useModalPresenceValue,
-} from "~/components/modal-shell";
+  type AdminUserGroupListItem,
+  listAdminUserGroups,
+} from "~/lib/admin-user-groups-client";
 import {
   createAdminUser,
   getAdminUser,
@@ -15,6 +30,7 @@ import {
   listAdminUsers,
   resetAdminUserPassword,
   updateAdminUser,
+  type AdminUserListResponse,
   type AdminUserDetail,
   type AdminUserGroupRef,
   type AdminUserListItem,
@@ -35,8 +51,6 @@ type FlashState =
   | { type: "success"; message: string }
   | { type: "error"; message: string }
   | null;
-
-type DrawerState = "closed" | "entering" | "open" | "closing";
 
 type UserFormState = {
   roleId: string;
@@ -60,7 +74,7 @@ const defaultQuery: ListAdminUsersInput = {
   pageSize: 10,
   keyword: "",
   role: "",
-  status: "",
+  groupId: "",
 };
 
 const defaultUserFormState: UserFormState = {
@@ -87,6 +101,13 @@ const statusOptions = [
   { value: "1", label: "启用" },
   { value: "0", label: "停用" },
 ];
+
+const DRAWER_ANIMATION_MS = 220;
+const FLASH_DURATION_MS = 3000;
+const NOTIFY_ANIMATION_MS = 300;
+const TABLE_ACTION_LOADING_MS = 500;
+const tableActionButtonClassName =
+  "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-subtle text-fg-muted hover:text-fg-primary hover:bg-white/[0.06] transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50";
 
 function buildCreateFormState(defaultRoleId: string): CreateUserFormState {
   return {
@@ -119,24 +140,26 @@ function getStatusMeta(status: number) {
   if (status === 1) {
     return {
       label: "启用",
+      dotColor: "bg-emerald-400",
       className: "text-emerald-300 bg-emerald-500/10 border border-emerald-500/20",
     };
   }
 
   return {
     label: "停用",
+    dotColor: "bg-gray-400",
     className: "text-gray-300 bg-gray-700/50 border border-gray-700",
   };
 }
 
 function getRoleMeta(roleName: string) {
   if (roleName === "super_admin") {
-    return "text-amber-200 bg-amber-500/10 border border-amber-500/20";
+    return "text-accent-gold bg-accent-gold/10 border border-accent-gold/20";
   }
   if (roleName === "admin") {
-    return "text-sky-200 bg-sky-500/10 border border-sky-500/20";
+    return "text-violet-200 bg-violet-500/10 border border-violet-500/20";
   }
-  return "text-gray-200 bg-gray-700/50 border border-gray-700";
+  return "text-cyan-200 bg-cyan-500/10 border border-cyan-500/20";
 }
 
 function getAuthMethodLabel(user: Pick<AdminUserListItem, "authMethods"> | Pick<AdminUserDetail, "authMethods">) {
@@ -168,7 +191,7 @@ function getGroupBadgeClass(status?: number) {
   if (status === 0) {
     return "border border-gray-700 bg-gray-800/80 text-gray-300";
   }
-  return "border border-primary-500/20 bg-primary-500/10 text-primary-200";
+  return "border border-accent-primary/20 bg-accent-primary/10 text-accent-primary";
 }
 
 function toUserFormState(detail: AdminUserDetail): UserFormState {
@@ -218,6 +241,7 @@ export default function Users() {
   const [query, setQuery] = useState<ListAdminUsersInput>(defaultQuery);
   const [filters, setFilters] = useState<ListAdminUsersInput>(defaultQuery);
   const [roles, setRoles] = useState<AdminUserRoleOption[]>([]);
+  const [groupOptions, setGroupOptions] = useState<AdminUserGroupListItem[]>([]);
   const [users, setUsers] = useState<AdminUserListItem[]>([]);
   const [summary, setSummary] = useState({
     total: 0,
@@ -233,15 +257,23 @@ export default function Users() {
     totalPages: 0,
   });
   const [loadingList, setLoadingList] = useState(false);
+  const [tableActionLoading, setTableActionLoading] = useState(false);
   const [rolesLoading, setRolesLoading] = useState(false);
   const [flash, setFlash] = useState<FlashState>(null);
+  const [flashVisible, setFlashVisible] = useState(false);
 
-  const [drawerState, setDrawerState] = useState<DrawerState>("closed");
+  const [drawerOpen, setDrawerOpen] = useState(false);
+  const [drawerClosing, setDrawerClosing] = useState(false);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [selectedUser, setSelectedUser] = useState<AdminUserDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [editForm, setEditForm] = useState<UserFormState>(defaultUserFormState);
   const [savingEdit, setSavingEdit] = useState(false);
+  const drawerOverlayRef = useRef<HTMLDivElement | null>(null);
+  const drawerPanelRef = useRef<HTMLElement | null>(null);
+  const drawerCloseTimerRef = useRef<number | null>(null);
+  const tableActionLoadingTimerRef = useRef<number | null>(null);
+  const tableActionLoadingDeadlineRef = useRef<number | null>(null);
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createForm, setCreateForm] = useState<CreateUserFormState>(buildCreateFormState(""));
@@ -253,9 +285,6 @@ export default function Users() {
 
   const [statusModalTarget, setStatusModalTarget] = useState<AdminUserListItem | AdminUserDetail | null>(null);
   const [togglingStatus, setTogglingStatus] = useState(false);
-  const createModalVisible = useModalPresence(createModalOpen);
-  const passwordModalVisible = useModalPresenceValue(passwordModalTarget);
-  const statusModalVisible = useModalPresenceValue(statusModalTarget);
 
   const editableRoleOptions = useMemo(
     () => roles.filter((item) => item.editableByCurrentActor),
@@ -287,8 +316,6 @@ export default function Users() {
     return getReadonlyReason(selectedUser.role.name, actorRoleName);
   }, [actorRoleName, selectedUser]);
   const selectedCanMutate = selectedReadonlyReason === "";
-  const drawerVisible = drawerState !== "closed";
-  const drawerActive = drawerState === "entering" || drawerState === "open";
 
   useEffect(() => {
     if (noAdminPermission) {
@@ -297,13 +324,17 @@ export default function Users() {
 
     let cancelled = false;
 
-    async function loadRoles() {
+    async function loadOptions() {
       try {
         setRolesLoading(true);
-        const response = await listAdminRoles();
+        const [roleResponse, groupResponse] = await Promise.all([
+          listAdminRoles(),
+          listAdminUserGroups({}),
+        ]);
         if (!cancelled) {
-          const defaultEditableRole = response.find((item) => item.editableByCurrentActor);
-          setRoles(response);
+          const defaultEditableRole = roleResponse.find((item) => item.editableByCurrentActor);
+          setRoles(roleResponse);
+          setGroupOptions(groupResponse.items);
           setCreateForm((previous) => ({
             ...previous,
             roleId: previous.roleId || (defaultEditableRole ? String(defaultEditableRole.id) : ""),
@@ -320,7 +351,7 @@ export default function Users() {
       }
     }
 
-    void loadRoles();
+    void loadOptions();
 
     return () => {
       cancelled = true;
@@ -339,9 +370,7 @@ export default function Users() {
         setLoadingList(true);
         const response = await listAdminUsers(query);
         if (!cancelled) {
-          setUsers(response.items);
-          setSummary(response.summary);
-          setPagination(response.pagination);
+          applyUserListResponse(response);
         }
       } catch (error) {
         if (!cancelled) {
@@ -353,6 +382,7 @@ export default function Users() {
         }
       } finally {
         if (!cancelled) {
+          settleTableActionLoading();
           setLoadingList(false);
         }
       }
@@ -366,7 +396,7 @@ export default function Users() {
   }, [navigate, noAdminPermission, query]);
 
   useEffect(() => {
-    if (!drawerActive || selectedUserId === null) {
+    if (!drawerOpen || drawerClosing || selectedUserId === null) {
       return;
     }
 
@@ -388,7 +418,7 @@ export default function Users() {
             return;
           }
           setFlash({ type: "error", message: getErrorMessage(error) });
-          requestCloseDrawer();
+          closeDrawer(true);
         }
       } finally {
         if (!cancelled) {
@@ -402,49 +432,173 @@ export default function Users() {
     return () => {
       cancelled = true;
     };
-  }, [drawerActive, navigate, selectedUserId]);
+  }, [drawerClosing, drawerOpen, navigate, selectedUserId]);
 
   useEffect(() => {
-    if (drawerState !== "entering") {
+    return () => {
+      if (drawerCloseTimerRef.current !== null) {
+        window.clearTimeout(drawerCloseTimerRef.current);
+      }
+      clearTableActionLoadingTimer();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!drawerOpen || drawerClosing) {
       return;
     }
 
-    const frame = window.requestAnimationFrame(() => {
-      setDrawerState("open");
-    });
-
-    return () => {
-      window.cancelAnimationFrame(frame);
-    };
-  }, [drawerState]);
+    drawerOverlayRef.current?.animate(
+      [{ opacity: 0 }, { opacity: 1 }],
+      { duration: 180, easing: "ease-out", fill: "forwards" },
+    );
+    drawerPanelRef.current?.animate(
+      [
+        { opacity: 0, transform: "translateX(32px)" },
+        { opacity: 1, transform: "translateX(0)" },
+      ],
+      {
+        duration: DRAWER_ANIMATION_MS,
+        easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+        fill: "forwards",
+      },
+    );
+  }, [drawerClosing, drawerOpen, selectedUserId]);
 
   useEffect(() => {
-    if (drawerState !== "closing") {
+    if (!flash) {
+      return;
+    }
+
+    setFlashVisible(true);
+  }, [flash]);
+
+  useEffect(() => {
+    if (!flash || !flashVisible) {
       return;
     }
 
     const timer = window.setTimeout(() => {
-      setDrawerState("closed");
-      setSelectedUserId(null);
-      setSelectedUser(null);
-      setDetailLoading(false);
-    }, 420);
+      setFlashVisible(false);
+    }, FLASH_DURATION_MS);
 
     return () => {
       window.clearTimeout(timer);
     };
-  }, [drawerState]);
+  }, [flash, flashVisible]);
 
-  async function refreshList() {
-    const response = await listAdminUsers(query);
+  useEffect(() => {
+    if (!flash || flashVisible) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setFlash(null);
+    }, NOTIFY_ANIMATION_MS);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [flash, flashVisible]);
+
+  function applyUserListResponse(response: AdminUserListResponse) {
     setUsers(response.items);
     setSummary(response.summary);
     setPagination(response.pagination);
   }
 
+  async function refreshList() {
+    const response = await listAdminUsers(query);
+    applyUserListResponse(response);
+  }
+
+  function clearTableActionLoadingTimer() {
+    if (tableActionLoadingTimerRef.current !== null) {
+      window.clearTimeout(tableActionLoadingTimerRef.current);
+      tableActionLoadingTimerRef.current = null;
+    }
+  }
+
+  function finishTableActionLoading() {
+    clearTableActionLoadingTimer();
+    tableActionLoadingDeadlineRef.current = null;
+    setTableActionLoading(false);
+  }
+
+  function settleTableActionLoading() {
+    if (tableActionLoadingDeadlineRef.current === null) {
+      return;
+    }
+
+    const remaining = tableActionLoadingDeadlineRef.current - Date.now();
+    if (remaining <= 0) {
+      finishTableActionLoading();
+      return;
+    }
+
+    clearTableActionLoadingTimer();
+    tableActionLoadingTimerRef.current = window.setTimeout(() => {
+      finishTableActionLoading();
+    }, remaining);
+  }
+
+  function startTableActionLoading() {
+    clearTableActionLoadingTimer();
+    tableActionLoadingDeadlineRef.current = Date.now() + TABLE_ACTION_LOADING_MS;
+    setTableActionLoading(true);
+  }
+
+  function clearDrawerCloseTimer() {
+    if (drawerCloseTimerRef.current !== null) {
+      window.clearTimeout(drawerCloseTimerRef.current);
+      drawerCloseTimerRef.current = null;
+    }
+  }
+
+  function finishCloseDrawer() {
+    clearDrawerCloseTimer();
+    setDrawerClosing(false);
+    setDrawerOpen(false);
+    setSelectedUserId(null);
+    setSelectedUser(null);
+  }
+
+  function closeDrawer(immediate = false) {
+    if (immediate) {
+      finishCloseDrawer();
+      return;
+    }
+
+    if (!drawerOpen || drawerClosing) {
+      return;
+    }
+
+    clearDrawerCloseTimer();
+    setDrawerClosing(true);
+    drawerOverlayRef.current?.animate(
+      [{ opacity: 1 }, { opacity: 0 }],
+      { duration: 160, easing: "ease-in", fill: "forwards" },
+    );
+    drawerPanelRef.current?.animate(
+      [
+        { opacity: 1, transform: "translateX(0)" },
+        { opacity: 0, transform: "translateX(32px)" },
+      ],
+      {
+        duration: DRAWER_ANIMATION_MS,
+        easing: "ease-in",
+        fill: "forwards",
+      },
+    );
+    drawerCloseTimerRef.current = window.setTimeout(() => {
+      finishCloseDrawer();
+    }, DRAWER_ANIMATION_MS);
+  }
+
   function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setFlash(null);
+    clearFlash(true);
+    startTableActionLoading();
     setQuery({
       ...filters,
       page: 1,
@@ -453,9 +607,21 @@ export default function Users() {
   }
 
   function handleResetFilters() {
-    setFlash(null);
-    setFilters(defaultQuery);
-    setQuery(defaultQuery);
+    clearFlash(true);
+    startTableActionLoading();
+    const resetQuery = { ...defaultQuery };
+    setFilters(resetQuery);
+    setQuery(resetQuery);
+  }
+
+  function clearFlash(immediate = false) {
+    if (immediate) {
+      setFlashVisible(false);
+      setFlash(null);
+      return;
+    }
+
+    setFlashVisible(false);
   }
 
   function openCreateModal() {
@@ -464,23 +630,16 @@ export default function Users() {
   }
 
   function openDetail(userId: number) {
+    clearDrawerCloseTimer();
+    setDrawerClosing(false);
+    setDrawerOpen(true);
     setSelectedUserId(userId);
     setSelectedUser(null);
-    setDrawerState((current) => (current === "closed" ? "entering" : "open"));
-  }
-
-  function requestCloseDrawer() {
-    setDrawerState((current) => {
-      if (current === "closed" || current === "closing") {
-        return current;
-      }
-      return "closing";
-    });
   }
 
   async function handleCreateUser(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setFlash(null);
+    clearFlash(true);
 
     try {
       setCreating(true);
@@ -512,6 +671,7 @@ export default function Users() {
       setEditForm(toUserFormState(updated));
       setFlash({ type: "success", message: `已更新账号：${updated.email}` });
       await refreshList();
+      closeDrawer();
     } catch (error) {
       if (shouldRedirectToLogin(error)) {
         navigate("/login", { replace: true });
@@ -587,8 +747,8 @@ export default function Users() {
 
   if (noAdminPermission) {
     return (
-      <div className="motion-fade-up motion-surface rounded-2xl border border-amber-500/20 bg-amber-500/10 p-6">
-        <h1 className="text-xl font-semibold text-white">用户数据</h1>
+      <div className="rounded-2xl border border-accent-gold/20 bg-accent-gold/5 p-6">
+        <h1 className="text-xl font-semibold text-fg-primary">用户数据</h1>
         <p className="mt-2 text-sm leading-6 text-amber-100/80">
           当前账号没有管理员权限，无法访问用户管理接口。请使用管理员账号登录后再进入该页面。
         </p>
@@ -598,59 +758,50 @@ export default function Users() {
 
   return (
     <div className="space-y-6">
-      <div className="motion-fade-up flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-        <div className="space-y-1">
-          <h1 className="text-2xl font-bold text-white">用户数据</h1>
-          <p className="mt-1 text-sm text-gray-400">
-            统一管理 `users` 表中的账号资料、角色、状态与登录方式。
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight text-fg-primary">用户数据</h1>
+          <p className="mt-1 text-sm text-fg-muted">
+            统一管理 users 表中的账号资料、角色、状态与登录方式。
           </p>
         </div>
         <button
           type="button"
           onClick={openCreateModal}
           disabled={rolesLoading || editableRoleOptions.length === 0}
-          className="motion-button inline-flex items-center gap-2 rounded-xl bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex items-center gap-2 rounded-xl bg-accent-primary px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-accent-primary/20 transition hover:bg-accent-primary/90 hover:shadow-accent-primary/30 disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
+          <Icon icon={userPlus} className="h-4 w-4" />
           新建账号
         </button>
       </div>
 
       {flash ? (
-        <div
-          className={`motion-fade-up rounded-2xl border px-4 py-3 text-sm ${
-            flash.type === "success"
-              ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
-              : "border-red-500/20 bg-red-500/10 text-red-100"
-          }`}
-          style={{ animationDelay: "60ms" }}
-        >
-          {flash.message}
-        </div>
+        <Notify
+          tone={flash.type}
+          title={flash.type === "success" ? "操作成功" : "操作失败"}
+          message={flash.message}
+          open={flashVisible}
+          onClose={() => clearFlash()}
+          placement="bottom-right"
+        />
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="motion-fade-up" style={{ animationDelay: "80ms" }}>
-          <StatCard label="账号总数" value={summary.total} hint="users 表中的全部账号" />
-        </div>
-        <div className="motion-fade-up" style={{ animationDelay: "140ms" }}>
-          <StatCard label="启用账号" value={summary.enabled} hint={`停用 ${summary.disabled} 个`} />
-        </div>
-        <div className="motion-fade-up" style={{ animationDelay: "200ms" }}>
-          <StatCard label="管理员账号" value={summary.admins} hint="包含 admin / super_admin" />
-        </div>
-        <div className="motion-fade-up" style={{ animationDelay: "260ms" }}>
-          <StatCard label="GitHub 绑定" value={summary.githubBound} hint="已绑定 GitHub OAuth" />
-        </div>
+        <StatCard label="账号总数" value={summary.total} hint="users 表中的全部账号" icon={usersIcon} iconBg="bg-accent-primary/10" iconText="text-accent-primary" barFrom="from-accent-primary/60" />
+        <StatCard label="启用账号" value={summary.enabled} hint={`停用 ${summary.disabled} 个`} icon={power} iconBg="bg-accent-tertiary/10" iconText="text-accent-tertiary" barFrom="from-accent-tertiary/60" />
+        <StatCard label="管理员账号" value={summary.admins} hint="包含 admin / super_admin" icon={shieldCheck} iconBg="bg-accent-gold/10" iconText="text-accent-gold" barFrom="from-accent-gold/60" />
+        <StatCard label="GitHub 绑定" value={summary.githubBound} hint="已绑定 GitHub OAuth" icon={github} iconBg="bg-accent-secondary/10" iconText="text-accent-secondary" barFrom="from-accent-secondary/60" />
       </div>
 
       <form
         onSubmit={handleSearchSubmit}
-        className="motion-fade-up motion-panel-soft rounded-2xl border border-gray-800 bg-gray-900/70 p-5"
-        style={{ animationDelay: "120ms" }}
+        className="rounded-2xl border border-border-subtle bg-surface-card/60 p-5 ring-1 ring-white/[0.03] backdrop-blur-sm"
       >
+        <div className="mb-4 flex items-center gap-2 border-b border-border-subtle/40 pb-4">
+          <Icon icon={searchIcon} className="h-4 w-4 text-fg-dim" />
+          <span className="text-xs font-medium uppercase tracking-wider text-fg-dim">筛选条件</span>
+        </div>
         <div className="grid gap-4 xl:grid-cols-[2fr_1fr_1fr_auto]">
           <div>
             <FieldLabel label="关键词" />
@@ -664,47 +815,52 @@ export default function Users() {
           </div>
           <div>
             <FieldLabel label="角色" />
-            <AnimatedSelect
+            <select
               value={filters.role ?? ""}
-              onChange={(value) =>
-                setFilters((previous) => ({ ...previous, role: value }))
-              }
-              options={[
-                { value: "", label: "全部角色" },
-                ...roles.map((role) => ({
-                  value: role.name,
-                  label: role.displayName,
-                })),
-              ]}
-            />
+              onChange={(event) => setFilters((previous) => ({ ...previous, role: event.target.value }))}
+              className={InputClassName()}
+            >
+              <option value="">全部角色</option>
+              {roles.map((role) => (
+                <option key={role.id} value={role.name}>
+                  {role.displayName}
+                </option>
+              ))}
+            </select>
           </div>
           <div>
-            <FieldLabel label="状态" />
-            <AnimatedSelect
-              value={String(filters.status ?? "")}
-              onChange={(value) =>
+            <FieldLabel label="组别" />
+            <select
+              value={String(filters.groupId ?? "")}
+              onChange={(event) =>
                 setFilters((previous) => ({
                   ...previous,
-                  status: value === "" ? "" : Number(value),
+                  groupId: event.target.value === "" ? "" : Number(event.target.value),
                 }))
               }
-              options={statusOptions.map((option) => ({
-                value: option.value,
-                label: option.label,
-              }))}
-            />
+              className={InputClassName()}
+            >
+              <option value="">全部组别</option>
+              {groupOptions.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                  {group.status === 0 ? "（停用）" : ""}
+                </option>
+              ))}
+            </select>
           </div>
           <div className="flex items-end gap-3">
             <button
               type="submit"
-              className="motion-button rounded-xl bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary-600"
+              className="inline-flex items-center gap-2 rounded-xl bg-accent-primary px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-accent-primary/90"
             >
+              <Icon icon={searchIcon} className="h-3.5 w-3.5" />
               搜索
             </button>
             <button
               type="button"
               onClick={handleResetFilters}
-              className="motion-button rounded-xl border border-gray-700 px-4 py-2.5 text-sm text-gray-200 transition hover:bg-white/5"
+              className="rounded-xl border border-border-subtle px-4 py-2.5 text-sm text-fg-muted transition hover:bg-white/5 hover:text-fg-primary"
             >
               重置
             </button>
@@ -712,34 +868,43 @@ export default function Users() {
         </div>
       </form>
 
-      <div
-        className="motion-fade-up overflow-hidden rounded-2xl border border-gray-800 bg-gray-900/70"
-        style={{ animationDelay: "160ms" }}
-      >
+      <div className="overflow-hidden rounded-2xl border border-border-subtle bg-surface-card/60 shadow-xl shadow-black/20">
         <div className="overflow-x-auto">
           <table className="min-w-full text-sm">
-            <thead className="bg-gray-950/60 text-left text-xs uppercase tracking-wider text-gray-400">
-              <tr>
-                <th className="px-5 py-3.5">账号</th>
-                <th className="px-5 py-3.5">角色</th>
-                <th className="px-5 py-3.5">组别</th>
-                <th className="px-5 py-3.5">状态</th>
-                <th className="px-5 py-3.5">登录方式</th>
-                <th className="px-5 py-3.5">最近登录</th>
-                <th className="px-5 py-3.5">创建时间</th>
-                <th className="px-5 py-3.5 text-right">操作</th>
+            <thead className="bg-surface-dark/80 text-left text-xs tracking-wider text-fg-dim">
+              <tr className="border-b border-border-subtle">
+                <th className="px-5 py-4 font-medium">账号</th>
+                <th className="px-5 py-4 font-medium">角色</th>
+                <th className="px-5 py-4 font-medium">组别</th>
+                <th className="px-5 py-4 font-medium">状态</th>
+                <th className="px-5 py-4 font-medium">登录方式</th>
+                <th className="px-5 py-4 font-medium">最近登录</th>
+                <th className="px-5 py-4 font-medium">创建时间</th>
+                <th className="px-5 py-4 text-right font-medium">操作</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-800">
-              {loadingList ? (
+            <tbody className="divide-y divide-border-subtle/60">
+              {tableActionLoading ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-10 text-center text-sm text-gray-400">
+                  <td colSpan={8} className="px-5 py-14 text-center">
+                    <div className="flex flex-col items-center gap-3 text-sm text-fg-dim">
+                      <span
+                        aria-hidden="true"
+                        className="inline-flex h-8 w-8 animate-spin rounded-full border-2 border-accent-primary/20 border-t-accent-primary"
+                      />
+                      <span>正在刷新用户列表...</span>
+                    </div>
+                  </td>
+                </tr>
+              ) : loadingList ? (
+                <tr>
+                  <td colSpan={8} className="px-5 py-10 text-center text-sm text-fg-dim">
                     正在加载用户列表...
                   </td>
                 </tr>
               ) : users.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="px-5 py-10 text-center text-sm text-gray-400">
+                  <td colSpan={8} className="px-5 py-10 text-center text-sm text-fg-dim">
                     当前筛选条件下没有匹配的账号。
                   </td>
                 </tr>
@@ -747,59 +912,71 @@ export default function Users() {
                 users.map((user) => {
                   const readonlyReason = getReadonlyReason(user.role.name, actorRoleName);
                   const canMutate = readonlyReason === "";
+                  const statusActionLabel = user.status === 1 ? "停用账号" : "启用账号";
 
                   return (
-                    <tr key={user.id} className="transition-colors duration-200 hover:bg-white/[0.03]">
+                    <tr key={user.id} className="transition-colors duration-150 hover:bg-white/[0.04]">
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary-500/15 text-sm font-semibold text-primary-300">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-accent-primary/20 to-accent-secondary/10 text-sm font-semibold text-accent-primary ring-1 ring-accent-primary/10">
                             {(user.name || user.email).slice(0, 1).toUpperCase()}
                           </div>
                           <div>
-                            <div className="font-medium text-white">{user.name}</div>
-                            <div className="text-xs text-gray-500">{user.email}</div>
-                            {user.phone ? <div className="text-xs text-gray-500">{user.phone}</div> : null}
+                            <div className="font-medium text-fg-primary">{user.name}</div>
+                            <div className="text-xs text-fg-dim">{user.email}</div>
+                            {user.phone ? <div className="text-xs text-fg-dim">{user.phone}</div> : null}
                           </div>
                         </div>
                       </td>
-                    <td className="px-5 py-4">
-                      <RoleBadge roleName={user.role.name} displayName={user.role.displayName} />
-                    </td>
-                    <td className="px-5 py-4">
-                      <GroupTags groups={user.groups} />
-                    </td>
-                    <td className="px-5 py-4">
-                      <StatusBadge status={user.status} />
-                    </td>
-                      <td className="px-5 py-4 text-gray-300">{getAuthMethodLabel(user)}</td>
-                      <td className="px-5 py-4 text-gray-400">{formatDateTime(user.lastLoginAt)}</td>
-                      <td className="px-5 py-4 text-gray-400">{formatDateTime(user.createdAt)}</td>
+                      <td className="px-5 py-4">
+                        <RoleBadge roleName={user.role.name} displayName={user.role.displayName} />
+                      </td>
+                      <td className="px-5 py-4">
+                        <GroupTags groups={user.groups} />
+                      </td>
+                      <td className="px-5 py-4">
+                        <StatusBadge status={user.status} />
+                      </td>
+                      <td className="px-5 py-4 text-fg-muted">{getAuthMethodLabel(user)}</td>
+                      <td className="px-5 py-4 text-fg-muted">{formatDateTime(user.lastLoginAt)}</td>
+                      <td className="px-5 py-4 text-fg-muted">{formatDateTime(user.createdAt)}</td>
                       <td className="px-5 py-4">
                         <div className="flex justify-end gap-2">
                           <button
                             type="button"
                             onClick={() => openDetail(user.id)}
-                            className="motion-button rounded-lg border border-gray-700 px-3 py-1.5 text-xs text-gray-200 transition hover:bg-white/5"
+                            title="查看详情"
+                            aria-label="查看详情"
+                            className={tableActionButtonClassName}
                           >
-                            详情
+                            <Icon icon={eye} className="h-3.5 w-3.5" />
+                            <span className="sr-only">查看详情</span>
                           </button>
                           <button
                             type="button"
                             onClick={() => setPasswordModalTarget(user)}
                             disabled={!canMutate}
                             title={readonlyReason || "重置密码"}
-                            className="motion-button rounded-lg border border-gray-700 px-3 py-1.5 text-xs text-gray-200 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
+                            aria-label="重置密码"
+                            className={tableActionButtonClassName}
                           >
-                            密码
+                            <Icon icon={keyRound} className="h-3.5 w-3.5" />
+                            <span className="sr-only">重置密码</span>
                           </button>
                           <button
                             type="button"
                             onClick={() => setStatusModalTarget(user)}
                             disabled={!canMutate}
-                            title={readonlyReason || (user.status === 1 ? "停用账号" : "启用账号")}
-                            className="motion-button rounded-lg border border-red-500/30 px-3 py-1.5 text-xs text-red-200 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
+                            title={readonlyReason || statusActionLabel}
+                            aria-label={statusActionLabel}
+                            className={`${tableActionButtonClassName} ${
+                              user.status === 1
+                                ? "border-red-500/30 text-red-200 hover:bg-red-500/10"
+                                : "border-emerald-500/30 text-emerald-200 hover:bg-emerald-500/10"
+                            }`}
                           >
-                            {user.status === 1 ? "停用" : "启用"}
+                            <Icon icon={user.status === 1 ? powerOff : power} className="h-3.5 w-3.5" />
+                            <span className="sr-only">{statusActionLabel}</span>
                           </button>
                         </div>
                       </td>
@@ -811,36 +988,39 @@ export default function Users() {
           </table>
         </div>
 
-        <div className="flex flex-col gap-3 border-t border-gray-800 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="text-sm text-gray-400">
+        <div className="flex flex-col gap-3 border-t border-border-subtle bg-surface-dark/40 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-sm text-fg-dim">
             第 {pagination.page} / {Math.max(pagination.totalPages, 1)} 页，共 {pagination.total} 条记录
           </div>
           <div className="flex items-center gap-3">
-            <AnimatedSelect
-              ariaLabel="每页条数"
+            <select
               value={pagination.pageSize}
-              onChange={(value) =>
+              onChange={(event) =>
                 setQuery((previous) => ({
                   ...previous,
                   page: 1,
-                  pageSize: Number(value),
+                  pageSize: Number(event.target.value),
                 }))
               }
-              options={[10, 20, 50].map((value) => ({
-                value,
-                label: `${value} / 页`,
-              }))}
-              size="compact"
-              fitContent
-            />
+              className="rounded-lg border border-border-subtle bg-surface-dark px-3 py-2 text-sm text-fg-muted"
+            >
+              {[10, 20, 50].map((value) => (
+                <option key={value} value={value}>
+                  {value} / 页
+                </option>
+              ))}
+            </select>
             <button
               type="button"
               disabled={pagination.page <= 1}
               onClick={() => setQuery((previous) => ({ ...previous, page: Math.max((previous.page ?? 1) - 1, 1) }))}
-              className="motion-button rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-200 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-lg border border-border-subtle px-3 py-2 text-sm font-medium text-fg-muted transition hover:bg-white/5 hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-40"
             >
               上一页
             </button>
+            <span className="rounded-lg bg-accent-primary/10 px-2.5 py-1 text-xs font-medium text-accent-primary">
+              {pagination.page}
+            </span>
             <button
               type="button"
               disabled={pagination.page >= pagination.totalPages || pagination.totalPages === 0}
@@ -850,7 +1030,7 @@ export default function Users() {
                   page: Math.min((previous.page ?? 1) + 1, Math.max(pagination.totalPages, 1)),
                 }))
               }
-              className="motion-button rounded-lg border border-gray-700 px-3 py-2 text-sm text-gray-200 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-lg border border-border-subtle px-3 py-2 text-sm font-medium text-fg-muted transition hover:bg-white/5 hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-40"
             >
               下一页
             </button>
@@ -858,509 +1038,587 @@ export default function Users() {
         </div>
       </div>
 
-      {createModalVisible ? (
-        <ModalShell
-          title="新建账号"
-          description="后台直接创建邮箱密码账号，默认创建后立即可登录。GitHub 绑定仅支持用户自行登录后生成。"
-          open={createModalOpen}
-          onClose={() => setCreateModalOpen(false)}
-        >
-          <form onSubmit={handleCreateUser} className="space-y-5">
-            <div className="grid gap-4 md:grid-cols-2">
+      {createModalOpen ? (
+        <OverlayPortal>
+          <ModalShell
+            title="新建账号"
+            description="后台直接创建邮箱密码账号，默认创建后立即可登录。GitHub 绑定仅支持用户自行登录后生成。"
+            onClose={() => setCreateModalOpen(false)}
+          >
+            <form onSubmit={handleCreateUser} className="space-y-5">
               <div>
-                <FieldLabel label="角色" />
-                <AnimatedSelect
-                  value={createForm.roleId}
-                  onChange={(value) =>
-                    setCreateForm((previous) => ({ ...previous, roleId: value }))
-                  }
-                  options={[
-                    { value: "", label: "请选择角色", disabled: true },
-                    ...editableRoleOptions.map((role) => ({
-                      value: role.id,
-                      label: role.displayName,
-                    })),
-                  ]}
-                />
+                <div className="mb-3 text-xs font-medium uppercase tracking-wider text-fg-dim">必填信息</div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <FieldLabel label="角色" />
+                    <select
+                      value={createForm.roleId}
+                      onChange={(event) => setCreateForm((previous) => ({ ...previous, roleId: event.target.value }))}
+                      className={InputClassName()}
+                      required
+                    >
+                      <option value="" disabled>
+                        请选择角色
+                      </option>
+                      {editableRoleOptions.map((role) => (
+                        <option key={role.id} value={role.id}>
+                          {role.displayName}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <FieldLabel label="姓名" />
+                    <input
+                      type="text"
+                      value={createForm.name}
+                      onChange={(event) => setCreateForm((previous) => ({ ...previous, name: event.target.value }))}
+                      className={InputClassName()}
+                      placeholder="请输入姓名"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel label="邮箱" />
+                    <input
+                      type="email"
+                      value={createForm.email}
+                      onChange={(event) => setCreateForm((previous) => ({ ...previous, email: event.target.value }))}
+                      className={InputClassName()}
+                      placeholder="name@example.com"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel label="初始密码" />
+                    <input
+                      type="password"
+                      value={createForm.password}
+                      onChange={(event) => setCreateForm((previous) => ({ ...previous, password: event.target.value }))}
+                      className={InputClassName()}
+                      placeholder="至少 6 位"
+                      minLength={6}
+                      maxLength={72}
+                      required
+                    />
+                  </div>
+                </div>
               </div>
+
               <div>
-                <FieldLabel label="姓名" />
-                <input
-                  type="text"
-                  value={createForm.name}
-                  onChange={(event) => setCreateForm((previous) => ({ ...previous, name: event.target.value }))}
-                  className={InputClassName()}
-                  placeholder="请输入姓名"
-                  required
-                />
+                <div className="mb-3 text-xs font-medium uppercase tracking-wider text-fg-dim">可选信息</div>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div>
+                    <FieldLabel label="昵称" />
+                    <input
+                      type="text"
+                      value={createForm.nickname}
+                      onChange={(event) => setCreateForm((previous) => ({ ...previous, nickname: event.target.value }))}
+                      className={InputClassName()}
+                      placeholder="可选"
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel label="手机号" />
+                    <input
+                      type="text"
+                      value={createForm.phone}
+                      onChange={(event) => setCreateForm((previous) => ({ ...previous, phone: event.target.value }))}
+                      className={InputClassName()}
+                      placeholder="可选"
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel label="真实姓名" />
+                    <input
+                      type="text"
+                      value={createForm.realName}
+                      onChange={(event) => setCreateForm((previous) => ({ ...previous, realName: event.target.value }))}
+                      className={InputClassName()}
+                      placeholder="可选"
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel label="性别" />
+                    <select
+                      value={createForm.gender}
+                      onChange={(event) => setCreateForm((previous) => ({ ...previous, gender: event.target.value }))}
+                      className={InputClassName()}
+                    >
+                      {genderOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <FieldLabel label="生日" />
+                    <input
+                      type="date"
+                      value={createForm.birthday}
+                      onChange={(event) => setCreateForm((previous) => ({ ...previous, birthday: event.target.value }))}
+                      className={InputClassName()}
+                    />
+                  </div>
+                  <div>
+                    <FieldLabel label="头像 URL" />
+                    <input
+                      type="url"
+                      value={createForm.avatarUrl}
+                      onChange={(event) => setCreateForm((previous) => ({ ...previous, avatarUrl: event.target.value }))}
+                      className={InputClassName()}
+                      placeholder="https://"
+                    />
+                  </div>
+                </div>
               </div>
-              <div>
-                <FieldLabel label="邮箱" />
-                <input
-                  type="email"
-                  value={createForm.email}
-                  onChange={(event) => setCreateForm((previous) => ({ ...previous, email: event.target.value }))}
-                  className={InputClassName()}
-                  placeholder="name@example.com"
-                  required
-                />
+
+              <div className="flex items-start gap-3 rounded-xl border border-accent-primary/10 bg-accent-primary/5 px-4 py-3 text-sm text-fg-dim">
+                <Icon icon={info} className="mt-0.5 h-4 w-4 shrink-0 text-accent-primary" />
+                创建后账号默认启用。若需要临时禁止登录，请创建完成后再执行"停用"操作。
               </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setCreateModalOpen(false)}
+                  className="rounded-xl border border-border-subtle px-4 py-2.5 text-sm text-fg-muted transition hover:bg-white/5 hover:text-fg-primary"
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  disabled={creating || editableRoleOptions.length === 0}
+                  className="rounded-xl bg-accent-primary px-4 py-2.5 text-sm font-medium text-white transition hover:bg-accent-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {creating ? "创建中..." : "确认创建"}
+                </button>
+              </div>
+          </form>
+          </ModalShell>
+        </OverlayPortal>
+      ) : null}
+
+      {passwordModalTarget ? (
+        <OverlayPortal>
+          <ModalShell
+            title="重置密码"
+            description={`直接为 ${passwordModalTarget.email} 设置新的本地密码。旧密码会立即失效。`}
+            onClose={() => {
+              setPasswordModalTarget(null);
+              setPasswordValue("");
+            }}
+            widthClass="max-w-lg"
+          >
+            <form onSubmit={handleResetPassword} className="space-y-5">
               <div>
-                <FieldLabel label="初始密码" />
+                <FieldLabel label="新密码" />
                 <input
                   type="password"
-                  value={createForm.password}
-                  onChange={(event) => setCreateForm((previous) => ({ ...previous, password: event.target.value }))}
+                  value={passwordValue}
+                  onChange={(event) => setPasswordValue(event.target.value)}
                   className={InputClassName()}
-                  placeholder="至少 6 位"
+                  placeholder="请输入新的密码"
                   minLength={6}
                   maxLength={72}
                   required
                 />
+                <p className="mt-2 text-xs text-fg-dim">
+                  若目标账号当前仅绑定 GitHub，本操作会同时补设本地密码登录能力。
+                </p>
               </div>
-              <div>
-                <FieldLabel label="昵称" />
-                <input
-                  type="text"
-                  value={createForm.nickname}
-                  onChange={(event) => setCreateForm((previous) => ({ ...previous, nickname: event.target.value }))}
-                  className={InputClassName()}
-                  placeholder="可选"
-                />
-              </div>
-              <div>
-                <FieldLabel label="手机号" />
-                <input
-                  type="text"
-                  value={createForm.phone}
-                  onChange={(event) => setCreateForm((previous) => ({ ...previous, phone: event.target.value }))}
-                  className={InputClassName()}
-                  placeholder="可选"
-                />
-              </div>
-              <div>
-                <FieldLabel label="真实姓名" />
-                <input
-                  type="text"
-                  value={createForm.realName}
-                  onChange={(event) => setCreateForm((previous) => ({ ...previous, realName: event.target.value }))}
-                  className={InputClassName()}
-                  placeholder="可选"
-                />
-              </div>
-              <div>
-                <FieldLabel label="性别" />
-                <AnimatedSelect
-                  value={createForm.gender}
-                  onChange={(value) =>
-                    setCreateForm((previous) => ({ ...previous, gender: value }))
-                  }
-                  options={genderOptions.map((option) => ({
-                    value: option.value,
-                    label: option.label,
-                  }))}
-                />
-              </div>
-              <div>
-                <FieldLabel label="生日" />
-                <MotionDateInput
-                  type="date"
-                  value={createForm.birthday}
-                  onChange={(event) => setCreateForm((previous) => ({ ...previous, birthday: event.target.value }))}
-                  className={InputClassName()}
-                />
-              </div>
-              <div>
-                <FieldLabel label="头像 URL" />
-                <input
-                  type="url"
-                  value={createForm.avatarUrl}
-                  onChange={(event) => setCreateForm((previous) => ({ ...previous, avatarUrl: event.target.value }))}
-                  className={InputClassName()}
-                  placeholder="https://"
-                />
-              </div>
-            </div>
 
-            <div className="rounded-xl border border-gray-800 bg-gray-950/60 px-4 py-3 text-sm text-gray-400">
-              创建后账号默认启用。若需要临时禁止登录，请创建完成后再执行“停用”操作。
-            </div>
-
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setCreateModalOpen(false)}
-                className="rounded-xl border border-gray-700 px-4 py-2.5 text-sm text-gray-200 transition hover:bg-white/5"
-              >
-                取消
-              </button>
-              <button
-                type="submit"
-                disabled={creating || editableRoleOptions.length === 0}
-                className="rounded-xl bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {creating ? "创建中..." : "确认创建"}
-              </button>
-            </div>
-          </form>
-        </ModalShell>
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPasswordModalTarget(null);
+                    setPasswordValue("");
+                  }}
+                  className="rounded-xl border border-border-subtle px-4 py-2.5 text-sm text-fg-muted transition hover:bg-white/5 hover:text-fg-primary"
+                >
+                  取消
+                </button>
+                <button
+                  type="submit"
+                  disabled={resettingPassword}
+                  className="rounded-xl bg-accent-primary px-4 py-2.5 text-sm font-medium text-white transition hover:bg-accent-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {resettingPassword ? "提交中..." : "确认重置"}
+                </button>
+              </div>
+            </form>
+          </ModalShell>
+        </OverlayPortal>
       ) : null}
 
-      {passwordModalVisible ? (
-        <ModalShell
-          title="重置密码"
-          description={`直接为 ${passwordModalVisible.email} 设置新的本地密码。旧密码会立即失效。`}
-          open={passwordModalTarget !== null}
-          onClose={() => {
-            setPasswordModalTarget(null);
-            setPasswordValue("");
-          }}
-          widthClass="max-w-lg"
-        >
-          <form onSubmit={handleResetPassword} className="space-y-5">
-            <div>
-              <FieldLabel label="新密码" />
-              <input
-                type="password"
-                value={passwordValue}
-                onChange={(event) => setPasswordValue(event.target.value)}
-                className={InputClassName()}
-                placeholder="请输入新的密码"
-                minLength={6}
-                maxLength={72}
-                required
-              />
-              <p className="mt-2 text-xs text-gray-500">
-                若目标账号当前仅绑定 GitHub，本操作会同时补设本地密码登录能力。
-              </p>
-            </div>
-
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => {
-                  setPasswordModalTarget(null);
-                  setPasswordValue("");
-                }}
-                className="rounded-xl border border-gray-700 px-4 py-2.5 text-sm text-gray-200 transition hover:bg-white/5"
-              >
-                取消
-              </button>
-              <button
-                type="submit"
-                disabled={resettingPassword}
-                className="rounded-xl bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {resettingPassword ? "提交中..." : "确认重置"}
-              </button>
-            </div>
-          </form>
-        </ModalShell>
-      ) : null}
-
-      {statusModalVisible ? (
-        <ModalShell
-          title={statusModalVisible.status === 1 ? "停用账号" : "启用账号"}
-          description={`目标账号：${statusModalVisible.email}`}
-          open={statusModalTarget !== null}
-          onClose={() => setStatusModalTarget(null)}
-          widthClass="max-w-lg"
-        >
-          <div className="space-y-5">
-            <div className="rounded-xl border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm leading-6 text-red-100">
-              {statusModalVisible.status === 1
-                ? "停用后将立即阻断新登录，并使当前会话在下次 /api/me 校验时失效。系统不会物理删除该账号。"
-                : "启用后账号可重新使用邮箱密码、验证码或 GitHub 登录。"}
-            </div>
-
-            <div className="flex justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setStatusModalTarget(null)}
-                className="rounded-xl border border-gray-700 px-4 py-2.5 text-sm text-gray-200 transition hover:bg-white/5"
-              >
-                取消
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleToggleStatus()}
-                disabled={togglingStatus}
-                className="rounded-xl bg-red-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-red-600 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {togglingStatus
-                  ? "提交中..."
-                  : statusModalVisible.status === 1
-                    ? "确认停用"
-                    : "确认启用"}
-              </button>
-            </div>
-          </div>
-        </ModalShell>
-      ) : null}
-
-      {drawerVisible ? (
-        <div className="fixed inset-0 z-40">
-          <div
-            className="motion-overlay absolute inset-0 bg-black/70"
-            data-state={drawerState === "open" ? "open" : "closed"}
-            onClick={requestCloseDrawer}
-          />
-          <aside
-            className="motion-drawer-right absolute right-0 top-0 h-full w-full max-w-3xl overflow-y-auto border-l border-gray-800 bg-gray-950 shadow-2xl"
-            data-state={drawerState === "open" ? "open" : "closed"}
+      {statusModalTarget ? (
+        <OverlayPortal>
+          <ModalShell
+            title={statusModalTarget?.status === 1 ? "停用账号" : "启用账号"}
+            description={`目标账号：${statusModalTarget.email}`}
+            onClose={() => setStatusModalTarget(null)}
+            widthClass="max-w-lg"
           >
-            <div className="sticky top-0 z-10 border-b border-gray-800 bg-gray-950/95 px-6 py-5 backdrop-blur">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <h2 className="text-xl font-semibold text-white">
-                      {selectedUser?.name || "用户详情"}
-                    </h2>
-                    {selectedUser ? (
-                      <>
+            <div className="space-y-5">
+              <div className={`rounded-xl border px-4 py-3 text-sm leading-6 ${
+                statusModalTarget.status === 1
+                  ? "border-red-500/20 bg-red-500/10 text-red-100"
+                  : "border-accent-tertiary/20 bg-accent-tertiary/10 text-emerald-100"
+              }`}>
+                {statusModalTarget.status === 1
+                  ? "停用后将立即阻断新登录，并使当前会话在下次 /api/me 校验时失效。系统不会物理删除该账号。"
+                  : "启用后账号可重新使用邮箱密码、验证码或 GitHub 登录。"}
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setStatusModalTarget(null)}
+                  className="rounded-xl border border-border-subtle px-4 py-2.5 text-sm text-fg-muted transition hover:bg-white/5 hover:text-fg-primary"
+                >
+                  取消
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleToggleStatus()}
+                  disabled={togglingStatus}
+                  className={`rounded-xl px-4 py-2.5 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                    statusModalTarget.status === 1
+                      ? "bg-red-500 hover:bg-red-600"
+                      : "bg-accent-tertiary hover:bg-accent-tertiary/90"
+                  }`}
+                >
+                  {togglingStatus
+                    ? "提交中..."
+                    : statusModalTarget.status === 1
+                      ? "确认停用"
+                      : "确认启用"}
+                </button>
+              </div>
+            </div>
+          </ModalShell>
+        </OverlayPortal>
+      ) : null}
+
+      {drawerOpen ? (
+        <OverlayPortal>
+          <div className="fixed inset-0 z-40">
+            <div
+              ref={drawerOverlayRef}
+              className="absolute inset-0 bg-black/70 backdrop-blur-sm"
+              onClick={() => closeDrawer()}
+            />
+            <aside
+              ref={drawerPanelRef}
+              className="absolute right-0 top-0 flex h-full w-full max-w-3xl flex-col border-l border-border-subtle bg-surface-primary shadow-2xl ring-1 ring-white/[0.03]"
+            >
+            {/* Header */}
+            <div className="shrink-0 border-b border-border-subtle bg-surface-primary/95 backdrop-blur">
+              <div className="flex items-center justify-between px-6 py-4">
+                <h2 className="text-lg font-semibold text-fg-primary">用户详情</h2>
+                <button
+                  type="button"
+                  onClick={() => closeDrawer()}
+                  title="关闭"
+                  aria-label="关闭"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-fg-dim transition hover:bg-white/5 hover:text-fg-primary"
+                >
+                  <Icon icon={x} className="h-4 w-4" />
+                </button>
+              </div>
+
+              {selectedUser ? (
+                <div className="border-t border-border-subtle/60 px-6 py-5">
+                  <div className="flex items-center gap-4">
+                    {selectedUser.avatarUrl ? (
+                      <div className="relative shrink-0">
+                        <img src={selectedUser.avatarUrl} alt="" className="h-14 w-14 rounded-2xl object-cover ring-1 ring-white/10" />
+                        <span
+                          className={`absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-surface-primary ${selectedUser.status === 1 ? "bg-emerald-400" : "bg-gray-500"}`}
+                        />
+                      </div>
+                    ) : (
+                      <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-accent-primary/20 to-accent-secondary/10 text-lg font-bold text-accent-primary ring-1 ring-accent-primary/15">
+                        {(selectedUser.name || selectedUser.email).slice(0, 1).toUpperCase()}
+                        <span
+                          className={`absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-surface-primary ${selectedUser.status === 1 ? "bg-emerald-400" : "bg-gray-500"}`}
+                        />
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="truncate text-base font-semibold text-fg-primary">
+                          {selectedUser.name}
+                        </span>
                         <RoleBadge
                           roleName={selectedUser.role.name}
                           displayName={selectedUser.role.displayName}
                         />
                         <StatusBadge status={selectedUser.status} />
-                      </>
-                    ) : null}
+                      </div>
+                      <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-fg-muted">
+                        <span className="inline-flex items-center gap-1.5">
+                          <Icon icon={mail} className="h-3.5 w-3.5 text-fg-dim" />
+                          {selectedUser.email}
+                        </span>
+                        {selectedUser.phone ? (
+                          <span className="inline-flex items-center gap-1.5">
+                            <Icon icon={phone} className="h-3.5 w-3.5 text-fg-dim" />
+                            {selectedUser.phone}
+                          </span>
+                        ) : null}
+                      </div>
+                    </div>
                   </div>
-                  <p className="mt-2 text-sm text-gray-400">
-                    {selectedUser?.email ?? "正在加载账号详情..."}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={requestCloseDrawer}
-                  className="motion-button rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 transition hover:bg-white/5"
-                >
-                  关闭
-                </button>
+
+                  </div>
+                ) : null}
+            </div>
+
+            {/* Scrollable content */}
+            <div className="flex-1 overflow-y-auto">
+              <div className="space-y-5 p-6">
+                {detailLoading || !selectedUser ? (
+                  <div className="flex flex-col items-center gap-3 py-20 text-sm text-fg-dim">
+                    <span
+                      aria-hidden="true"
+                      className="inline-flex h-8 w-8 animate-spin rounded-full border-2 border-accent-primary/20 border-t-accent-primary"
+                    />
+                    <span>正在加载用户详情...</span>
+                  </div>
+                ) : (
+                  <>
+                    {/* Authentication & Login Info */}
+                    <DrawerSection icon={shieldCheck} title="认证与登录">
+                      <div className="grid gap-3 sm:grid-cols-3">
+                        <div className="rounded-xl bg-surface-dark/50 p-3.5 ring-1 ring-white/[0.03]">
+                          <div className="flex items-center gap-2 text-xs text-fg-dim">
+                            <Icon icon={keyRound} className="h-3.5 w-3.5" />
+                            登录方式
+                          </div>
+                          <div className="mt-2 text-sm font-medium text-fg-primary">
+                            {getAuthMethodLabel(selectedUser)}
+                          </div>
+                          <div className="mt-1 text-xs text-fg-dim">
+                            {selectedUser.authMethods.hasPassword ? "已设置邮箱密码" : "未设置本地密码"}
+                          </div>
+                        </div>
+                        <div className="rounded-xl bg-surface-dark/50 p-3.5 ring-1 ring-white/[0.03]">
+                          <div className="flex items-center gap-2 text-xs text-fg-dim">
+                            <Icon icon={github} className="h-3.5 w-3.5" />
+                            GitHub 绑定
+                          </div>
+                          <div className="mt-2 text-sm font-medium text-fg-primary">
+                            {selectedUser.authMethods.githubBound ? (
+                              <span className="text-emerald-300">已绑定</span>
+                            ) : (
+                              <span className="text-fg-muted">未绑定</span>
+                            )}
+                          </div>
+                          <div className="mt-1 text-xs text-fg-dim">
+                            {selectedUser.githubUsername
+                              ? `@${selectedUser.githubUsername}`
+                              : "仅支持用户自行绑定"}
+                          </div>
+                        </div>
+                        <div className="rounded-xl bg-surface-dark/50 p-3.5 ring-1 ring-white/[0.03]">
+                          <div className="flex items-center gap-2 text-xs text-fg-dim">
+                            <Icon icon={clock} className="h-3.5 w-3.5" />
+                            最近登录
+                          </div>
+                          <div className="mt-2 text-sm font-medium text-fg-primary">
+                            {formatDateTime(selectedUser.lastLoginAt)}
+                          </div>
+                          <div className="mt-1 text-xs text-fg-dim">
+                            创建于 {formatDateTime(selectedUser.createdAt)}
+                          </div>
+                        </div>
+                      </div>
+                    </DrawerSection>
+
+                    {/* Groups */}
+                    <DrawerSection icon={usersIcon} title="所属分组">
+                      <GroupTags groups={selectedUser.groups} showRole showStatus />
+                      <p className="mt-3 text-xs text-fg-dim">
+                        分组成员调整统一在"用户分组"页面完成，当前页面仅展示结果。
+                      </p>
+                    </DrawerSection>
+
+                    {/* Readonly warning */}
+                    {selectedReadonlyReason ? (
+                      <div className="flex items-start gap-3 rounded-xl border border-accent-gold/20 bg-accent-gold/5 px-4 py-3">
+                        <Icon icon={shieldCheck} className="mt-0.5 h-4 w-4 shrink-0 text-accent-gold" />
+                        <p className="text-sm leading-6 text-amber-100/90">
+                          {selectedReadonlyReason}
+                        </p>
+                      </div>
+                    ) : null}
+
+                    {/* Edit form */}
+                    <form onSubmit={handleUpdateUser} className="space-y-5">
+                      <DrawerSection icon={userIcon} title="基本信息">
+                        <div className="grid gap-x-4 gap-y-3 md:grid-cols-2">
+                          <div>
+                            <FieldLabel label="姓名" />
+                            <input
+                              type="text"
+                              value={editForm.name}
+                              onChange={(event) => setEditForm((previous) => ({ ...previous, name: event.target.value }))}
+                              className={InputClassName(!selectedCanMutate)}
+                              disabled={!selectedCanMutate}
+                              required
+                            />
+                          </div>
+                          <div>
+                            <FieldLabel label="性别" />
+                            <select
+                              value={editForm.gender}
+                              onChange={(event) => setEditForm((previous) => ({ ...previous, gender: event.target.value }))}
+                              className={InputClassName(!selectedCanMutate)}
+                              disabled={!selectedCanMutate}
+                            >
+                              {genderOptions.map((option) => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                          <div>
+                            <FieldLabel label="邮箱" />
+                            <input
+                              type="email"
+                              value={editForm.email}
+                              onChange={(event) => setEditForm((previous) => ({ ...previous, email: event.target.value }))}
+                              className={InputClassName(!selectedCanMutate)}
+                              disabled={!selectedCanMutate}
+                              required
+                            />
+                          </div>
+                          <div>
+                            <FieldLabel label="生日" />
+                            <input
+                              type="date"
+                              value={editForm.birthday}
+                              onChange={(event) => setEditForm((previous) => ({ ...previous, birthday: event.target.value }))}
+                              className={InputClassName(!selectedCanMutate)}
+                              disabled={!selectedCanMutate}
+                            />
+                          </div>
+                          <div>
+                            <FieldLabel label="昵称" />
+                            <input
+                              type="text"
+                              value={editForm.nickname}
+                              onChange={(event) => setEditForm((previous) => ({ ...previous, nickname: event.target.value }))}
+                              className={InputClassName(!selectedCanMutate)}
+                              disabled={!selectedCanMutate}
+                            />
+                          </div>
+                          <div>
+                            <FieldLabel label="真实姓名" />
+                            <input
+                              type="text"
+                              value={editForm.realName}
+                              onChange={(event) => setEditForm((previous) => ({ ...previous, realName: event.target.value }))}
+                              className={InputClassName(!selectedCanMutate)}
+                              disabled={!selectedCanMutate}
+                            />
+                          </div>
+                          <div>
+                            <FieldLabel label="手机号" />
+                            <input
+                              type="text"
+                              value={editForm.phone}
+                              onChange={(event) => setEditForm((previous) => ({ ...previous, phone: event.target.value }))}
+                              className={InputClassName(!selectedCanMutate)}
+                              disabled={!selectedCanMutate}
+                            />
+                          </div>
+                          <div>
+                            <FieldLabel label="头像 URL" />
+                            <input
+                              type="url"
+                              value={editForm.avatarUrl}
+                              onChange={(event) => setEditForm((previous) => ({ ...previous, avatarUrl: event.target.value }))}
+                              className={InputClassName(!selectedCanMutate)}
+                              disabled={!selectedCanMutate}
+                              placeholder="https://"
+                            />
+                          </div>
+                        </div>
+                      </DrawerSection>
+
+                      <DrawerSection icon={calendarDays} title="账号权限">
+                        <div className="grid gap-x-4 gap-y-3 md:grid-cols-2">
+                          <div>
+                            <FieldLabel label="角色" />
+                            <select
+                              value={editForm.roleId}
+                              onChange={(event) => setEditForm((previous) => ({ ...previous, roleId: event.target.value }))}
+                              className={InputClassName(!selectedCanMutate)}
+                              disabled={!selectedCanMutate}
+                              required
+                            >
+                              {selectedRoleOptions.map((role) => (
+                                <option key={role.id} value={role.id}>
+                                  {role.displayName}
+                                </option>
+                                ))}
+                            </select>
+                          </div>
+                          <div>
+                            <FieldLabel label="状态" />
+                            <select
+                              value={editForm.status}
+                              onChange={(event) => setEditForm((previous) => ({ ...previous, status: event.target.value }))}
+                              className={InputClassName(!selectedCanMutate)}
+                              disabled={!selectedCanMutate}
+                            >
+                              {statusOptions
+                                .filter((option) => option.value !== "")
+                                .map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                            </select>
+                          </div>
+                        </div>
+                      </DrawerSection>
+
+                      {/* Timestamps */}
+                      <div className="flex items-center gap-6 rounded-xl bg-surface-dark/40 px-4 py-3 text-xs text-fg-dim ring-1 ring-white/[0.02]">
+                        <span className="inline-flex items-center gap-1.5">
+                          <Icon icon={clock} className="h-3 w-3" />
+                          创建于 {formatDateTime(selectedUser.createdAt)}
+                        </span>
+                        <span className="inline-flex items-center gap-1.5">
+                          <Icon icon={clock} className="h-3 w-3" />
+                          更新于 {formatDateTime(selectedUser.updatedAt)}
+                        </span>
+                      </div>
+
+                      {/* Footer actions */}
+                      <div className="flex items-center justify-end gap-3 pt-1">
+                        <button
+                          type="submit"
+                          disabled={savingEdit || !selectedCanMutate}
+                          className="rounded-xl bg-accent-primary px-5 py-2.5 text-sm font-medium text-white transition hover:bg-accent-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                        >
+                          {savingEdit ? "保存中..." : "保存变更"}
+                        </button>
+                      </div>
+                    </form>
+                  </>
+                )}
               </div>
             </div>
-
-            <div className="space-y-6 px-6 py-6">
-              {detailLoading || !selectedUser ? (
-                <div className="rounded-2xl border border-gray-800 bg-gray-900/70 px-6 py-10 text-center text-sm text-gray-400">
-                  正在加载用户详情...
-                </div>
-              ) : (
-                <>
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <div className="motion-surface rounded-2xl border border-gray-800 bg-gray-900/70 p-4">
-                      <div className="text-xs uppercase tracking-wider text-gray-500">登录方式</div>
-                      <div className="mt-3 text-sm font-medium text-white">
-                        {getAuthMethodLabel(selectedUser)}
-                      </div>
-                      <div className="mt-2 text-xs text-gray-500">
-                        {selectedUser.authMethods.hasPassword ? "已设置邮箱密码" : "未设置本地密码"}
-                      </div>
-                    </div>
-                    <div className="motion-surface rounded-2xl border border-gray-800 bg-gray-900/70 p-4">
-                      <div className="text-xs uppercase tracking-wider text-gray-500">GitHub 绑定</div>
-                      <div className="mt-3 text-sm font-medium text-white">
-                        {selectedUser.authMethods.githubBound ? "已绑定" : "未绑定"}
-                      </div>
-                      <div className="mt-2 text-xs text-gray-500">
-                        {selectedUser.githubUsername ? `用户名：${selectedUser.githubUsername}` : "后台不支持手动改绑或解绑"}
-                      </div>
-                    </div>
-                    <div className="motion-surface rounded-2xl border border-gray-800 bg-gray-900/70 p-4">
-                      <div className="text-xs uppercase tracking-wider text-gray-500">最近登录</div>
-                      <div className="mt-3 text-sm font-medium text-white">
-                        {formatDateTime(selectedUser.lastLoginAt)}
-                      </div>
-                      <div className="mt-2 text-xs text-gray-500">
-                        创建于 {formatDateTime(selectedUser.createdAt)}
-                      </div>
-                    </div>
-                  </div>
-
-                  <div className="motion-surface rounded-2xl border border-gray-800 bg-gray-900/70 p-4">
-                    <div className="text-xs uppercase tracking-wider text-gray-500">所属分组</div>
-                    <div className="mt-3">
-                      <GroupTags groups={selectedUser.groups} showRole showStatus />
-                    </div>
-                    <div className="mt-3 text-xs text-gray-500">
-                      分组成员调整统一在“用户分组”页面完成，当前页面仅展示结果。
-                    </div>
-                  </div>
-
-                  {selectedReadonlyReason ? (
-                    <div className="motion-fade-up rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm leading-6 text-amber-100">
-                      {selectedReadonlyReason}
-                    </div>
-                  ) : null}
-
-                  <div className="flex flex-wrap justify-end gap-3">
-                    <button
-                      type="button"
-                      onClick={() => setPasswordModalTarget(selectedUser)}
-                      disabled={!selectedCanMutate}
-                      className="motion-button rounded-xl border border-gray-700 px-4 py-2.5 text-sm text-gray-200 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      重置密码
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setStatusModalTarget(selectedUser)}
-                      disabled={!selectedCanMutate}
-                      className="motion-button rounded-xl border border-red-500/30 px-4 py-2.5 text-sm text-red-200 transition hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      {selectedUser.status === 1 ? "停用账号" : "启用账号"}
-                    </button>
-                  </div>
-
-                  <form onSubmit={handleUpdateUser} className="space-y-5">
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div>
-                        <FieldLabel label="角色" />
-                        <AnimatedSelect
-                          value={editForm.roleId}
-                          onChange={(value) =>
-                            setEditForm((previous) => ({ ...previous, roleId: value }))
-                          }
-                          disabled={!selectedCanMutate}
-                          options={selectedRoleOptions.map((role) => ({
-                            value: role.id,
-                            label: role.displayName,
-                          }))}
-                        />
-                      </div>
-                      <div>
-                        <FieldLabel label="状态" />
-                        <AnimatedSelect
-                          value={editForm.status}
-                          onChange={(value) =>
-                            setEditForm((previous) => ({ ...previous, status: value }))
-                          }
-                          disabled={!selectedCanMutate}
-                          options={statusOptions
-                            .filter((option) => option.value !== "")
-                            .map((option) => ({
-                              value: option.value,
-                              label: option.label,
-                            }))}
-                        />
-                      </div>
-                      <div>
-                        <FieldLabel label="姓名" />
-                        <input
-                          type="text"
-                          value={editForm.name}
-                          onChange={(event) => setEditForm((previous) => ({ ...previous, name: event.target.value }))}
-                          className={InputClassName(!selectedCanMutate)}
-                          disabled={!selectedCanMutate}
-                          required
-                        />
-                      </div>
-                      <div>
-                        <FieldLabel label="邮箱" />
-                        <input
-                          type="email"
-                          value={editForm.email}
-                          onChange={(event) => setEditForm((previous) => ({ ...previous, email: event.target.value }))}
-                          className={InputClassName(!selectedCanMutate)}
-                          disabled={!selectedCanMutate}
-                          required
-                        />
-                      </div>
-                      <div>
-                        <FieldLabel label="昵称" />
-                        <input
-                          type="text"
-                          value={editForm.nickname}
-                          onChange={(event) => setEditForm((previous) => ({ ...previous, nickname: event.target.value }))}
-                          className={InputClassName(!selectedCanMutate)}
-                          disabled={!selectedCanMutate}
-                        />
-                      </div>
-                      <div>
-                        <FieldLabel label="手机号" />
-                        <input
-                          type="text"
-                          value={editForm.phone}
-                          onChange={(event) => setEditForm((previous) => ({ ...previous, phone: event.target.value }))}
-                          className={InputClassName(!selectedCanMutate)}
-                          disabled={!selectedCanMutate}
-                        />
-                      </div>
-                      <div>
-                        <FieldLabel label="真实姓名" />
-                        <input
-                          type="text"
-                          value={editForm.realName}
-                          onChange={(event) => setEditForm((previous) => ({ ...previous, realName: event.target.value }))}
-                          className={InputClassName(!selectedCanMutate)}
-                          disabled={!selectedCanMutate}
-                        />
-                      </div>
-                      <div>
-                        <FieldLabel label="性别" />
-                        <AnimatedSelect
-                          value={editForm.gender}
-                          onChange={(value) =>
-                            setEditForm((previous) => ({ ...previous, gender: value }))
-                          }
-                          disabled={!selectedCanMutate}
-                          options={genderOptions.map((option) => ({
-                            value: option.value,
-                            label: option.label,
-                          }))}
-                        />
-                      </div>
-                      <div>
-                        <FieldLabel label="生日" />
-                        <MotionDateInput
-                          type="date"
-                          value={editForm.birthday}
-                          onChange={(event) => setEditForm((previous) => ({ ...previous, birthday: event.target.value }))}
-                          className={InputClassName(!selectedCanMutate)}
-                          disabled={!selectedCanMutate}
-                        />
-                      </div>
-                      <div>
-                        <FieldLabel label="头像 URL" />
-                        <input
-                          type="url"
-                          value={editForm.avatarUrl}
-                          onChange={(event) => setEditForm((previous) => ({ ...previous, avatarUrl: event.target.value }))}
-                          className={InputClassName(!selectedCanMutate)}
-                          disabled={!selectedCanMutate}
-                          placeholder="https://"
-                        />
-                      </div>
-                    </div>
-
-                    <div className="motion-surface rounded-2xl border border-gray-800 bg-gray-900/70 p-4 text-sm text-gray-400">
-                      <div>创建时间：{formatDateTime(selectedUser.createdAt)}</div>
-                      <div className="mt-2">更新时间：{formatDateTime(selectedUser.updatedAt)}</div>
-                    </div>
-
-                    <div className="flex justify-end gap-3">
-                      <button
-                        type="button"
-                        onClick={() => setEditForm(toUserFormState(selectedUser))}
-                        disabled={savingEdit || !selectedCanMutate}
-                        className="motion-button rounded-xl border border-gray-700 px-4 py-2.5 text-sm text-gray-200 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50"
-                      >
-                        重置修改
-                      </button>
-                      <button
-                        type="submit"
-                        disabled={savingEdit || !selectedCanMutate}
-                        className="motion-button rounded-xl bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
-                      >
-                        {savingEdit ? "保存中..." : "保存变更"}
-                      </button>
-                    </div>
-                  </form>
-                </>
-              )}
-            </div>
-          </aside>
-        </div>
+            </aside>
+          </div>
+        </OverlayPortal>
       ) : null}
     </div>
   );
@@ -1370,6 +1628,14 @@ function shouldRedirectToLogin(error: unknown) {
   return error instanceof ApiError && (error.status === 401 || error.message === "账号已停用");
 }
 
+function OverlayPortal({ children }: { children: ReactNode }) {
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  return createPortal(children, document.body);
+}
+
 function getErrorMessage(error: unknown) {
   if (error instanceof ApiError) {
     return error.message;
@@ -1377,12 +1643,71 @@ function getErrorMessage(error: unknown) {
   return "请求失败，请稍后重试。";
 }
 
-function StatCard({ label, value, hint }: { label: string; value: number; hint: string }) {
+function ModalShell({
+  title,
+  description,
+  onClose,
+  children,
+  widthClass = "max-w-2xl",
+}: {
+  title: string;
+  description?: string;
+  onClose: () => void;
+  children: ReactNode;
+  widthClass?: string;
+}) {
   return (
-    <div className="motion-stat-surface rounded-2xl border border-gray-800 bg-gray-900/70 p-5">
-      <div className="text-sm text-gray-400">{label}</div>
-      <div className="mt-3 text-3xl font-semibold text-white">{value}</div>
-      <div className="mt-2 text-xs text-gray-500">{hint}</div>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-md">
+      <div className={`w-full ${widthClass} rounded-2xl border border-border-subtle bg-surface-card shadow-2xl shadow-black/40 ring-1 ring-white/[0.05]`}>
+        <div className="flex items-start justify-between gap-4 border-b border-border-subtle px-6 py-5">
+          <div>
+            <h2 className="text-lg font-semibold text-fg-primary">{title}</h2>
+            {description ? <p className="mt-1 text-sm text-fg-muted">{description}</p> : null}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            title="关闭"
+            aria-label="关闭"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-fg-dim transition hover:bg-white/5 hover:text-fg-primary"
+          >
+            <Icon icon={x} className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="px-6 py-5">{children}</div>
+      </div>
+    </div>
+  );
+}
+
+function StatCard({
+  label,
+  value,
+  hint,
+  icon,
+  iconBg,
+  iconText,
+  barFrom,
+}: {
+  label: string;
+  value: number;
+  hint: string;
+  icon: IconifyIcon;
+  iconBg: string;
+  iconText: string;
+  barFrom: string;
+}) {
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-border-subtle bg-surface-card/80 backdrop-blur-sm transition hover:border-gray-700">
+      <div className={`h-0.5 bg-gradient-to-r ${barFrom} to-transparent`} />
+      <div className="p-5">
+        <div className={`absolute right-4 top-5 flex h-10 w-10 items-center justify-center rounded-xl ${iconBg}`}>
+          <Icon icon={icon} className={`h-5 w-5 ${iconText}`} />
+        </div>
+        <div className="text-xs font-medium uppercase tracking-wider text-fg-dim">{label}</div>
+        <div className="mt-3 font-mono text-3xl font-semibold tabular-nums text-fg-primary">{value}</div>
+        <div className="mt-2 text-xs text-fg-dim/70">{hint}</div>
+      </div>
     </div>
   );
 }
@@ -1391,7 +1716,8 @@ function StatusBadge({ status }: { status: number }) {
   const meta = getStatusMeta(status);
 
   return (
-    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${meta.className}`}>
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${meta.className}`}>
+      <span className={`h-1.5 w-1.5 rounded-full ${meta.dotColor}`} />
       {meta.label}
     </span>
   );
@@ -1399,7 +1725,8 @@ function StatusBadge({ status }: { status: number }) {
 
 function RoleBadge({ roleName, displayName }: { roleName: string; displayName: string }) {
   return (
-    <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getRoleMeta(roleName)}`}>
+    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ${getRoleMeta(roleName)}`}>
+      {roleName === "super_admin" ? <Icon icon={shieldCheck} className="h-3 w-3" /> : null}
       {displayName}
     </span>
   );
@@ -1415,29 +1742,65 @@ function GroupTags({
   showStatus?: boolean;
 }) {
   if (!groups || groups.length === 0) {
-    return <span className="text-sm text-gray-500">未加入任何用户组</span>;
+    return <span className="text-sm text-fg-dim">未加入任何用户组</span>;
   }
 
   return (
     <div className="flex flex-wrap gap-2">
-      {groups.map((group) => (
-        <span
-          key={`${group.id}-${group.memberRole}`}
-          className={`inline-flex rounded-full px-2.5 py-1 text-xs font-medium ${getGroupBadgeClass(showStatus ? group.status : undefined)}`}
-        >
-          {group.name}
-          {showRole ? ` · ${getGroupMemberRoleLabel(group.memberRole)}` : ""}
-          {showStatus && group.status === 0 ? " · 已停用" : ""}
-        </span>
-      ))}
+      {groups.map((group) => {
+        const isLeader = showRole && group.memberRole === 1;
+
+        return (
+          <span
+            key={`${group.id}-${group.memberRole}`}
+            className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${getGroupBadgeClass(showStatus ? group.status : undefined)}`}
+          >
+            <span>{group.name}</span>
+            {showRole ? (
+              <>
+                <span className="mx-1 opacity-60">·</span>
+                <span className={isLeader ? "rounded-full bg-amber-500/15 px-1.5 py-0.5 font-semibold text-amber-200" : ""}>
+                  {getGroupMemberRoleLabel(group.memberRole)}
+                </span>
+              </>
+            ) : null}
+            {showStatus && group.status === 0 ? (
+              <>
+                <span className="mx-1 opacity-60">·</span>
+                <span>已停用</span>
+              </>
+            ) : null}
+          </span>
+        );
+      })}
+    </div>
+  );
+}
+
+function DrawerSection({
+  icon,
+  title,
+  children,
+}: {
+  icon: IconifyIcon;
+  title: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className="rounded-2xl border border-border-subtle bg-surface-card/60 backdrop-blur-sm">
+      <div className="flex items-center gap-2.5 border-b border-border-subtle/60 px-5 py-3.5">
+        <Icon icon={icon} className="h-4 w-4 text-fg-dim" />
+        <h3 className="text-sm font-medium text-fg-muted">{title}</h3>
+      </div>
+      <div className="px-5 py-4">{children}</div>
     </div>
   );
 }
 
 function FieldLabel({ label }: { label: string }) {
-  return <label className="mb-2 block text-sm font-medium text-gray-200">{label}</label>;
+  return <label className="mb-2 block text-xs font-medium uppercase tracking-wider text-fg-dim">{label}</label>;
 }
 
 function InputClassName(disabled = false) {
-  return `motion-field w-full rounded-xl border border-gray-800 bg-gray-950 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
+  return `w-full rounded-xl border border-border-subtle bg-surface-dark px-3.5 py-2.5 text-sm text-fg-primary placeholder:text-fg-dim/60 transition focus:border-accent-primary/60 focus:ring-1 focus:ring-accent-primary/20 focus:outline-none ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
 }

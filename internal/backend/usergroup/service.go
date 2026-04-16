@@ -29,10 +29,7 @@ type Actor struct {
 }
 
 type ListGroupsInput struct {
-	Page     int
-	PageSize int
-	Keyword  string
-	Status   *uint8
+	Status *uint8
 }
 
 type CreateGroupInput struct {
@@ -86,13 +83,6 @@ type GroupStats struct {
 	Disabled     int64 `json:"disabled"`
 	DefaultCount int64 `json:"defaultCount"`
 	TotalMembers int64 `json:"totalMembers"`
-}
-
-type Pagination struct {
-	Page       int   `json:"page"`
-	PageSize   int   `json:"pageSize"`
-	Total      int64 `json:"total"`
-	TotalPages int   `json:"totalPages"`
 }
 
 type GroupListItem struct {
@@ -150,9 +140,8 @@ type GroupCandidateItem struct {
 }
 
 type ListGroupsResult struct {
-	Items      []GroupListItem `json:"items"`
-	Summary    GroupStats      `json:"summary"`
-	Pagination Pagination      `json:"pagination"`
+	Items   []GroupListItem `json:"items"`
+	Summary GroupStats      `json:"summary"`
 }
 
 func NewService(repo Repository) *Service {
@@ -175,11 +164,7 @@ func (s *Service) ListGroups(ctx context.Context, actor Actor, input ListGroupsI
 		return nil, err
 	}
 
-	input.Page = normalizePage(input.Page)
-	input.PageSize = normalizePageSize(input.PageSize)
-	input.Keyword = strings.TrimSpace(input.Keyword)
-
-	groups, total, err := s.repo.ListGroups(ctx, input)
+	groups, err := s.repo.ListGroups(ctx, input)
 	if err != nil {
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "查询用户组列表失败", Err: err}
 	}
@@ -194,20 +179,9 @@ func (s *Service) ListGroups(ctx context.Context, actor Actor, input ListGroupsI
 		items = append(items, toGroupListItem(&groups[i]))
 	}
 
-	totalPages := 0
-	if total > 0 {
-		totalPages = int((total + int64(input.PageSize) - 1) / int64(input.PageSize))
-	}
-
 	return &ListGroupsResult{
 		Items:   items,
 		Summary: stats,
-		Pagination: Pagination{
-			Page:       input.Page,
-			PageSize:   input.PageSize,
-			Total:      total,
-			TotalPages: totalPages,
-		},
 	}, nil
 }
 
@@ -344,7 +318,7 @@ func (s *Service) DeleteGroup(ctx context.Context, actor Actor, groupID uint64) 
 	return nil
 }
 
-func (s *Service) ListMemberCandidates(ctx context.Context, actor Actor, groupID uint64, keyword string) ([]GroupCandidateItem, error) {
+func (s *Service) ListMemberCandidates(ctx context.Context, actor Actor, groupID uint64) ([]GroupCandidateItem, error) {
 	if err := ensureAdminActor(actor); err != nil {
 		return nil, err
 	}
@@ -356,7 +330,7 @@ func (s *Service) ListMemberCandidates(ctx context.Context, actor Actor, groupID
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载用户组失败", Err: err}
 	}
 
-	users, err := s.repo.SearchCandidateUsers(ctx, groupID, keyword, 20)
+	users, err := s.repo.ListCandidateUsers(ctx, groupID)
 	if err != nil {
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "查询成员候选用户失败", Err: err}
 	}
@@ -510,23 +484,6 @@ func validateMemberRole(role uint8) error {
 		return &ServiceError{Status: http.StatusBadRequest, Message: "组内角色不合法"}
 	}
 	return nil
-}
-
-func normalizePage(page int) int {
-	if page <= 0 {
-		return 1
-	}
-	return page
-}
-
-func normalizePageSize(pageSize int) int {
-	if pageSize <= 0 {
-		return 10
-	}
-	if pageSize > 100 {
-		return 100
-	}
-	return pageSize
 }
 
 func toRoleRef(role model.Role) RoleRef {

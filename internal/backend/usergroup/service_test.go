@@ -77,6 +77,27 @@ func TestServiceUpdateGroup_HideDefaultGroupWithTags(t *testing.T) {
 	}
 }
 
+func TestServiceListGroups_FiltersByStatus(t *testing.T) {
+	repo := newFakeRepository()
+	repo.groups[2].Status = model.UserGroupStatusDisabled
+	service := NewService(repo)
+
+	status := uint8(model.UserGroupStatusDisabled)
+	result, err := service.ListGroups(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, ListGroupsInput{
+		Status: &status,
+	})
+	if err != nil {
+		t.Fatalf("ListGroups returned error: %v", err)
+	}
+
+	if len(result.Items) != 1 {
+		t.Fatalf("expected 1 disabled group, got %d", len(result.Items))
+	}
+	if result.Items[0].Name != "运营组" {
+		t.Fatalf("expected disabled group to be 运营组, got %s", result.Items[0].Name)
+	}
+}
+
 type fakeRepository struct {
 	groups       map[uint64]*model.UserGroup
 	users        map[uint64]*model.User
@@ -152,18 +173,15 @@ func (r *fakeRepository) RunInTx(_ context.Context, fn func(repo Repository) err
 	return fn(r)
 }
 
-func (r *fakeRepository) ListGroups(_ context.Context, filter ListGroupsInput) ([]model.UserGroup, int64, error) {
+func (r *fakeRepository) ListGroups(_ context.Context, filter ListGroupsInput) ([]model.UserGroup, error) {
 	items := make([]model.UserGroup, 0, len(r.groups))
 	for _, group := range r.groups {
 		if filter.Status != nil && group.Status != *filter.Status {
 			continue
 		}
-		if keyword := strings.TrimSpace(filter.Keyword); keyword != "" && !strings.Contains(group.Name, keyword) {
-			continue
-		}
 		items = append(items, *cloneGroup(group))
 	}
-	return items, int64(len(items)), nil
+	return items, nil
 }
 
 func (r *fakeRepository) GetGroupStats(_ context.Context) (GroupStats, error) {
@@ -307,7 +325,7 @@ func (r *fakeRepository) DeleteMember(_ context.Context, groupID uint64, memberI
 	return nil
 }
 
-func (r *fakeRepository) SearchCandidateUsers(_ context.Context, groupID uint64, keyword string, limit int) ([]model.User, error) {
+func (r *fakeRepository) ListCandidateUsers(_ context.Context, groupID uint64) ([]model.User, error) {
 	items := make([]model.User, 0, len(r.users))
 	for _, user := range r.users {
 		if !EligibleRoleName(user.Role.Name) {
@@ -316,13 +334,7 @@ func (r *fakeRepository) SearchCandidateUsers(_ context.Context, groupID uint64,
 		if _, err := r.FindMemberByUserID(context.Background(), groupID, user.ID); err == nil {
 			continue
 		}
-		if trimmed := strings.TrimSpace(keyword); trimmed != "" && !strings.Contains(user.Name, trimmed) && !strings.Contains(user.Email, trimmed) {
-			continue
-		}
 		items = append(items, *cloneUser(user))
-		if len(items) >= limit {
-			break
-		}
 	}
 	return items, nil
 }
