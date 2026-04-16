@@ -2,7 +2,9 @@ import {
   type FormEvent,
   type ReactNode,
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { createPortal } from "react-dom";
@@ -98,6 +100,8 @@ export default function FormConfigPage() {
   const [creating, setCreating] = useState(false);
   const [flash, setFlash] = useState<FlashState>(null);
   const createModalVisible = useModalPresence(createOpen);
+  const fieldCardRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+  const previousFieldCardRectsRef = useRef<Record<string, DOMRect>>({});
 
   useEffect(() => {
     if (!createOpen && !createModalVisible) {
@@ -125,6 +129,54 @@ const allowManualOptions = useMemo(
     ),
   [selectedField],
 );
+
+  const fieldOrderMotionKey = useMemo(
+    () =>
+      `${selectedFormId ?? "none"}:${editor?.fieldsSchema.map((field) => field.key).join("|") ?? ""}`,
+    [editor?.fieldsSchema, selectedFormId],
+  );
+
+  useLayoutEffect(() => {
+    if (!editor) {
+      previousFieldCardRectsRef.current = {};
+      return;
+    }
+
+    const nextRects: Record<string, DOMRect> = {};
+
+    for (const field of editor.fieldsSchema) {
+      const node = fieldCardRefs.current[field.key];
+      if (!node) {
+        continue;
+      }
+
+      const nextRect = node.getBoundingClientRect();
+      nextRects[field.key] = nextRect;
+
+      const previousRect = previousFieldCardRectsRef.current[field.key];
+      if (!previousRect) {
+        continue;
+      }
+
+      const deltaY = previousRect.top - nextRect.top;
+      if (Math.abs(deltaY) < 1) {
+        continue;
+      }
+
+      node.animate(
+        [
+          { transform: `translate3d(0, ${deltaY}px, 0)` },
+          { transform: "translate3d(0, 0, 0)" },
+        ],
+        {
+          duration: 260,
+          easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+        },
+      );
+    }
+
+    previousFieldCardRectsRef.current = nextRects;
+  }, [editor, fieldOrderMotionKey]);
 
 const requiredFieldCount = useMemo(
     () => editor?.fieldsSchema.filter((field) => field.required).length ?? 0,
@@ -796,6 +848,9 @@ function removeFieldOption(optionIndex: number) {
                       return (
                         <button
                           key={field.key}
+                          ref={(node) => {
+                            fieldCardRefs.current[field.key] = node;
+                          }}
                           type="button"
                           onClick={() => setSelectedFieldKey(field.key)}
                           className={`w-full rounded-lg border px-4 py-4 text-left transition-colors ${
@@ -803,6 +858,7 @@ function removeFieldOption(optionIndex: number) {
                               ? "border-primary-500/40 bg-primary-500/10"
                               : "border-gray-800 bg-gray-950/60 hover:border-gray-700 hover:bg-gray-950"
                           }`}
+                          style={{ willChange: "transform" }}
                         >
                           <div className="flex items-start justify-between gap-3">
                             <div className="min-w-0">
