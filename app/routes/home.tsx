@@ -84,6 +84,13 @@ const robots = [
   },
 ];
 
+const robotImages = [
+  "/assets/images/HeroRobot.jpg",
+  "/assets/images/InfantryRobot.jpg",
+  "/assets/images/EngineeringRobot.jpg",
+  "/assets/images/SentinelRobot.jpg",
+];
+
 const groups = [
   {
     name: "机械组",
@@ -108,6 +115,51 @@ const groups = [
     description: "战术策略、自主决策、AI 算法，机器人的\u201C大脑\u201D",
     icon: "brain",
     gradient: "from-[#EF4444] to-[#DC2626]",
+  },
+];
+
+const photoCells = [
+  {
+    title: "北部赛区对抗现场",
+    tag: "参赛",
+    image: "/media/team/competition-01.jpg",
+    description: "战车高速穿梭、火力交错，是 TARS-Go 最直接的赛场表情。",
+    className: "md:col-span-2 md:row-span-2",
+  },
+  {
+    title: "校内备赛与展示",
+    tag: "日常",
+    image: "/media/team/daily-01.jpg",
+    description: "在基地里完成联调、展示和复盘，是每个赛季的常态。",
+    className: "md:col-span-2",
+  },
+  {
+    title: "战术联动瞬间",
+    tag: "参赛",
+    image: "/media/team/competition-02.jpg",
+    description: "从调度到执行，协同是比赛强度的一部分。",
+    className: "",
+  },
+  {
+    title: "团队协作日常",
+    tag: "日常",
+    image: "/media/team/daily-02.jpg",
+    description: "深夜车间、会议桌和工位，组成了真正的训练场。",
+    className: "",
+  },
+  {
+    title: "实验室研发场景",
+    tag: "研发",
+    image: "/media/team/workshop-01.png",
+    description: "从结构、控制到视觉，所有模块都在这里并行推进。",
+    className: "md:col-span-2",
+  },
+  {
+    title: "比赛中的机动压制",
+    tag: "参赛",
+    image: "/media/team/competition-03.jpg",
+    description: "速度、判断和执行力，最终都会体现在场上的推进里。",
+    className: "md:col-span-2",
   },
 ];
 
@@ -163,23 +215,71 @@ function GroupIcon({ icon, className }: { icon: string; className?: string }) {
   return <>{icons[icon]}</>;
 }
 
+function TeamLogoMark({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      <path d="M12 8V4H8" />
+      <rect width="16" height="12" x="4" y="8" rx="2" />
+      <path d="M2 14h2" />
+      <path d="M20 14h2" />
+      <path d="M15 13v2" />
+      <path d="M9 13v2" />
+    </svg>
+  );
+}
+
 export default function Home() {
   return (
     <div className="min-h-screen bg-surface-primary text-fg-primary">
-      <Navbar />
-
       {/* Hero Section */}
       <section
         id="hero"
-        className="relative flex items-center min-h-[580px] bg-gradient-to-b from-[#0052D4] via-[#0062FF] to-[#4F46E5] overflow-hidden"
+        className="relative min-h-[100svh] overflow-hidden bg-black"
       >
-        <div className="max-w-[1440px] mx-auto px-6 sm:px-10 lg:px-20 w-full flex flex-col lg:flex-row items-center gap-10 lg:gap-[60px] py-16 lg:py-0">
-          {/* Left content */}
-          <div className="flex-1 flex flex-col gap-6">
-            {/* Badge */}
-            <div className="inline-flex items-center gap-2 self-start px-4 py-1.5 rounded-full bg-white/[0.13]">
+        <div className="absolute inset-0">
+          <video
+            className="h-full w-full object-cover"
+            autoPlay
+            muted
+            loop
+            playsInline
+            preload="metadata"
+            poster="/media/team/competition-01.jpg"
+            aria-label="吉林大学 TARS-Go 战队比赛视频"
+          >
+            <source src="/media/team/tarsgo-match-hero.mp4" type="video/mp4" />
+          </video>
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(0,98,255,0.24),transparent_42%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.78)_0%,rgba(2,6,23,0.24)_36%,rgba(2,6,23,0.7)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(2,6,23,0.88)_0%,rgba(2,6,23,0.28)_45%,rgba(2,6,23,0.68)_100%)]" />
+        </div>
+
+        <div className="absolute inset-x-0 top-0 z-20">
+          <div className="mx-auto flex max-w-[1440px] flex-col items-center gap-4 px-6 pb-10 pt-28 text-center sm:px-10 sm:pt-32 lg:px-20">
+            <div className="motion-fade-down inline-flex items-center gap-3 rounded-full border border-white/18 bg-black/28 px-5 py-3 text-white backdrop-blur-xl">
+              <TeamLogoMark className="h-7 w-7 text-accent-gold" />
+              <span className="font-display text-2xl tracking-[0.18em] sm:text-3xl">
+                TARS-Go
+              </span>
+            </div>
+            <p className="motion-fade-down max-w-2xl text-sm font-medium tracking-[0.42em] text-white/80 sm:text-base">
+              吉林大学机甲大师双创基地
+            </p>
+            <Link
+              to="/register"
+              className="motion-button inline-flex items-center gap-2 rounded-full border border-white/18 bg-white px-7 py-3 text-sm font-semibold text-slate-950 shadow-[0_20px_60px_-28px_rgba(255,255,255,0.78)] sm:text-base"
+            >
+              加入我们
               <svg
-                className="w-4 h-4 text-[#FFD700]"
+                className="h-4 w-4"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -187,43 +287,46 @@ export default function Home() {
                 strokeLinecap="round"
                 strokeLinejoin="round"
               >
-                <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6" />
-                <path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18" />
-                <path d="M4 22h16" />
-                <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22" />
-                <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22" />
-                <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z" />
+                <path d="M5 12h14" />
+                <path d="m12 5 7 7-7 7" />
               </svg>
-              <span className="text-fg-inverse text-[13px] font-medium">
-                吉林大学吉甲大师双创基地
+            </Link>
+          </div>
+        </div>
+
+        <div className="relative z-10 flex min-h-[100svh] items-end">
+          <div className="mx-auto w-full max-w-[1440px] px-6 pb-14 pt-40 sm:px-10 sm:pb-18 lg:px-20">
+            <div className="motion-fade-up max-w-3xl">
+              <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/14 bg-white/8 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.3em] text-white/76 backdrop-blur-md">
+                RoboMaster 2023
               </span>
+              <h1 className="max-w-4xl font-display text-[clamp(4rem,14vw,10rem)] leading-none tracking-[0.12em] text-white">
+                TARS-Go
+              </h1>
+              <p className="mt-6 max-w-2xl text-base leading-7 text-white/70 sm:text-lg sm:leading-8">
+                以 RoboMaster 官方赛事实拍为首页背景，在赛场动态里直接看到吉林大学吉甲大师战队的速度、协同与压制力。
+              </p>
             </div>
 
-            {/* Title */}
-            <h1 className="font-display text-6xl sm:text-7xl lg:text-[80px] text-fg-inverse tracking-wide">
-              TARS-Go
-            </h1>
+            <div className="mt-10 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+              <div className="motion-fade-up max-w-lg rounded-3xl border border-white/12 bg-black/22 p-5 backdrop-blur-md">
+                <p className="text-xs uppercase tracking-[0.34em] text-white/48">
+                  Video Source
+                </p>
+                <p className="mt-2 text-sm leading-6 text-white/74">
+                  吉林大学 TARS_Go 战队 vs 哈尔滨工程大学 创梦之翼战队
+                  <br />
+                  RoboMaster 2023 超级对抗赛北部赛区公开比赛画面
+                </p>
+              </div>
 
-            {/* Subtitle */}
-            <p className="text-[22px] font-medium text-white/80">
-              外在做事沉稳有序，内在思维活跃创新
-            </p>
-
-            {/* Description */}
-            <p className="max-w-[520px] text-base text-white/60 leading-relaxed">
-              我们是吉林大学 RoboMaster
-              机甲大师赛战队，致力于机器人研发与竞技对抗，培养具有工程思维的综合素质人才。
-            </p>
-
-            {/* CTA Buttons */}
-            <div className="flex flex-wrap gap-4 mt-2">
               <a
                 href="#about"
-                className="inline-flex items-center gap-2 px-8 py-3.5 bg-fg-inverse text-accent-primary font-semibold rounded-full transition-opacity hover:opacity-90"
+                className="motion-button inline-flex items-center gap-2 self-start rounded-full border border-white/14 bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur-md hover:bg-white/16"
               >
-                了解更多
+                下滑查看更多
                 <svg
-                  className="w-[18px] h-[18px]"
+                  className="h-4 w-4"
                   viewBox="0 0 24 24"
                   fill="none"
                   stroke="currentColor"
@@ -231,42 +334,16 @@ export default function Home() {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 >
-                  <path d="M5 12h14" />
-                  <path d="m12 5 7 7-7 7" />
+                  <path d="M12 5v14" />
+                  <path d="m19 12-7 7-7-7" />
                 </svg>
               </a>
-              <a
-                href="#join"
-                className="inline-flex items-center px-8 py-3.5 border-2 border-fg-inverse text-fg-inverse font-semibold rounded-full transition-colors hover:bg-white/10"
-              >
-                加入我们
-              </a>
-            </div>
-          </div>
-
-          {/* Right image */}
-          <div className="w-full max-w-[480px] h-[320px] lg:h-[420px] rounded-[20px] bg-surface-light/50 overflow-hidden shrink-0">
-            <div className="w-full h-full bg-gradient-to-br from-accent-primary/30 to-accent-secondary/30 flex items-center justify-center">
-              <svg
-                className="w-24 h-24 text-white/20"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="1.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M12 8V4H8" />
-                <rect width="16" height="12" x="4" y="8" rx="2" />
-                <path d="M2 14h2" />
-                <path d="M20 14h2" />
-                <path d="M15 13v2" />
-                <path d="M9 13v2" />
-              </svg>
             </div>
           </div>
         </div>
       </section>
+
+      <Navbar />
 
       {/* About Section */}
       <section id="about" className="py-16 sm:py-20 bg-surface-primary">
@@ -309,6 +386,51 @@ export default function Home() {
                 </span>
               </div>
             ))}
+          </div>
+
+          <div className="mt-12 grid gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
+            <div className="motion-panel-soft rounded-[28px] border border-white/8 bg-surface-light/80 p-7 sm:p-8">
+              <span className="inline-flex rounded-full border border-accent-primary/20 bg-accent-primary/10 px-4 py-1 text-[13px] font-semibold text-accent-primary">
+                竞赛与日常
+              </span>
+              <h3 className="mt-5 font-display text-3xl text-fg-primary sm:text-4xl">
+                在赛场冲锋，也在车间里把细节磨到极致
+              </h3>
+              <p className="mt-5 text-sm leading-7 text-fg-muted sm:text-base">
+                从区域赛高强度对抗，到实验室调试、校内展示和跨组协同，TARS-Go 的日常并不是单一工位，而是一整套围绕比赛目标持续运转的工程现场。
+              </p>
+              <p className="mt-4 text-sm leading-7 text-fg-muted sm:text-base">
+                这里新增展示的都是吉林大学公开报道中的吉甲大师相关照片，用单元格的方式并排呈现参赛、研发和基地生活的不同切面。
+              </p>
+            </div>
+
+            <div className="grid auto-rows-[160px] grid-cols-2 gap-4 md:auto-rows-[152px] md:grid-cols-4">
+              {photoCells.map((photo) => (
+                <article
+                  key={photo.title}
+                  className={`motion-surface group relative overflow-hidden rounded-[28px] border border-white/10 bg-surface-light ${photo.className}`}
+                >
+                  <img
+                    src={photo.image}
+                    alt={photo.title}
+                    loading="lazy"
+                    className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                  />
+                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.06)_0%,rgba(2,6,23,0.22)_45%,rgba(2,6,23,0.86)_100%)]" />
+                  <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
+                    <span className="inline-flex rounded-full border border-white/12 bg-black/30 px-3 py-1 text-[11px] font-semibold tracking-[0.22em] text-white/78 backdrop-blur-sm">
+                      {photo.tag}
+                    </span>
+                    <h4 className="mt-3 text-base font-bold text-white sm:text-lg">
+                      {photo.title}
+                    </h4>
+                    <p className="mt-2 text-xs leading-5 text-white/72 sm:text-sm">
+                      {photo.description}
+                    </p>
+                  </div>
+                </article>
+              ))}
+            </div>
           </div>
         </div>
       </section>
@@ -365,29 +487,38 @@ export default function Home() {
           </div>
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-5">
-            {robots.map((robot) => (
+            {robots.map((robot, index) => (
               <div
                 key={robot.name}
                 className="overflow-hidden bg-surface-light rounded-2xl"
               >
-                <div className="w-full h-40 bg-gradient-to-br from-accent-primary/20 to-accent-secondary/20 flex items-center justify-center">
-                  <svg
-                    className="w-12 h-12 text-fg-muted/30"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="1.5"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="M12 8V4H8" />
-                    <rect width="16" height="12" x="4" y="8" rx="2" />
-                    <path d="M2 14h2" />
-                    <path d="M20 14h2" />
-                    <path d="M15 13v2" />
-                    <path d="M9 13v2" />
-                  </svg>
-                </div>
+                {robotImages[index] ? (
+                  <img
+                    src={robotImages[index]}
+                    alt={robot.name}
+                    loading="lazy"
+                    className="h-40 w-full object-cover"
+                  />
+                ) : (
+                  <div className="w-full h-40 bg-gradient-to-br from-accent-primary/20 to-accent-secondary/20 flex items-center justify-center">
+                    <svg
+                      className="w-12 h-12 text-fg-muted/30"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="1.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="M12 8V4H8" />
+                      <rect width="16" height="12" x="4" y="8" rx="2" />
+                      <path d="M2 14h2" />
+                      <path d="M20 14h2" />
+                      <path d="M15 13v2" />
+                      <path d="M9 13v2" />
+                    </svg>
+                  </div>
+                )}
                 <div className="p-5 flex flex-col gap-2">
                   <h3 className="text-base font-bold text-fg-primary">
                     {robot.name}

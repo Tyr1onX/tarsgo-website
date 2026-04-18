@@ -6,3 +6,6 @@
 /.react-router/
 /build/
 /.artifacts/
+
+# Local runtime artifacts
+/.runtime/

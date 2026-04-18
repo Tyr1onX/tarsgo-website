@@ -1,143 +1,160 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import { useState } from "react";
 
 const navLinks = [
   { label: "首页", href: "/#hero", active: true },
   { label: "关于我们", href: "/#about", active: false },
   { label: "赛事成就", href: "/#achievements", active: false },
+  { label: "机器人展示", href: "/#robots", active: false },
   { label: "加入我们", href: "/#join", active: false },
 ];
 
 export function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
+
+  useEffect(() => {
+    function handleScroll() {
+      setIsScrolled(window.scrollY > 24);
+    }
+
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
 
   return (
-    <nav className="sticky top-0 z-50 bg-surface-primary border-b border-border-subtle">
-      <div className="max-w-[1440px] mx-auto px-6 sm:px-10 lg:px-20 flex items-center justify-between h-16">
-        {/* Logo */}
-        <Link to="/" className="motion-button flex items-center gap-2.5 shrink-0">
-          <svg
-            className="w-8 h-8 text-accent-primary"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M12 8V4H8" />
-            <rect width="16" height="12" x="4" y="8" rx="2" />
-            <path d="M2 14h2" />
-            <path d="M20 14h2" />
-            <path d="M15 13v2" />
-            <path d="M9 13v2" />
-          </svg>
-          <span className="font-display text-fg-primary text-2xl">
-            TARS-Go
-          </span>
-        </Link>
-
-        {/* Desktop nav links */}
-        <div className="hidden md:flex items-center gap-8">
-          {navLinks.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              className={`motion-nav-link text-[15px] font-medium transition-colors ${
-                link.active
-                  ? "text-accent-primary"
-                  : "text-fg-primary hover:text-accent-primary"
-              }`}
+    <nav className="pointer-events-none fixed inset-x-0 top-0 z-50">
+      <div
+        className={`pointer-events-auto w-full overflow-hidden border-b transition-all duration-300 ${
+          isScrolled
+            ? "border-white/10 bg-surface-primary/88 shadow-[0_20px_60px_-30px_rgba(2,6,23,0.9)] backdrop-blur-2xl"
+            : "border-white/12 bg-black/28 shadow-[0_24px_70px_-38px_rgba(2,6,23,0.85)] backdrop-blur-xl"
+        }`}
+      >
+        <div className="mx-auto flex h-[72px] max-w-[1440px] items-center justify-between px-6 sm:px-10 lg:px-20">
+          <Link to="/" className="motion-button flex shrink-0 items-center gap-2.5">
+            <svg
+              className="h-8 w-8 text-accent-primary"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
             >
-              {link.label}
-            </a>
-          ))}
-        </div>
-
-        {/* Auth buttons */}
-        <div className="hidden md:flex items-center gap-3">
-          <Link
-            to="/login"
-            className="motion-button px-5 py-2 text-sm font-medium text-accent-primary border-[1.5px] border-accent-primary rounded-full transition-colors hover:bg-accent-primary/10"
-          >
-            登录
+              <path d="M12 8V4H8" />
+              <rect width="16" height="12" x="4" y="8" rx="2" />
+              <path d="M2 14h2" />
+              <path d="M20 14h2" />
+              <path d="M15 13v2" />
+              <path d="M9 13v2" />
+            </svg>
+            <span className="font-display text-2xl text-fg-primary">TARS-Go</span>
           </Link>
-          <Link
-            to="/register"
-            className="motion-button px-5 py-2 text-sm font-medium text-fg-inverse bg-accent-primary rounded-full transition-colors hover:bg-accent-primary/90"
-          >
-            注册
-          </Link>
-        </div>
 
-        {/* Mobile menu button */}
-        <button
-          type="button"
-          className="motion-button md:hidden p-2 text-fg-muted hover:text-fg-primary"
-          onClick={() => setMenuOpen(!menuOpen)}
-          aria-label="Toggle menu"
-        >
-          <svg
-            className="w-6 h-6"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={1.5}
-            stroke="currentColor"
-          >
-            {menuOpen ? (
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M6 18L18 6M6 6l12 12"
-              />
-            ) : (
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"
-              />
-            )}
-          </svg>
-        </button>
-      </div>
-
-      {/* Mobile menu */}
-      {menuOpen && (
-        <div className="motion-fade-down md:hidden px-6 pb-4 border-t border-border-subtle pt-4">
-          <div className="flex flex-col gap-1">
+          <div className="hidden items-center gap-8 md:flex">
             {navLinks.map((link) => (
               <a
                 key={link.href}
                 href={link.href}
-                className={`motion-button motion-nav-link px-3 py-2 text-sm rounded-lg transition-colors ${
+                className={`motion-nav-link text-[15px] font-medium transition-colors ${
                   link.active
                     ? "text-accent-primary"
-                    : "text-fg-primary hover:text-accent-primary hover:bg-white/5"
+                    : "text-fg-primary hover:text-accent-primary"
                 }`}
-                onClick={() => setMenuOpen(false)}
               >
                 {link.label}
               </a>
             ))}
           </div>
-          <div className="flex gap-3 mt-4 px-3">
+
+          <div className="hidden items-center gap-3 md:flex">
             <Link
               to="/login"
-              className="motion-button flex-1 text-center px-4 py-2 text-sm font-medium text-accent-primary border-[1.5px] border-accent-primary rounded-full"
-              onClick={() => setMenuOpen(false)}
+              className="motion-button rounded-full border border-white/16 bg-white/4 px-5 py-2 text-sm font-medium text-fg-primary transition-colors hover:bg-white/10"
             >
               登录
             </Link>
             <Link
               to="/register"
-              className="motion-button flex-1 text-center px-4 py-2 text-sm font-medium text-fg-inverse bg-accent-primary rounded-full"
-              onClick={() => setMenuOpen(false)}
+              className="motion-button rounded-full bg-accent-primary px-5 py-2 text-sm font-medium text-fg-inverse shadow-[0_18px_40px_-24px_rgba(0,98,255,0.85)] transition-colors hover:bg-accent-primary/90"
             >
               注册
             </Link>
           </div>
+
+          <button
+            type="button"
+            className="motion-button p-2 text-fg-muted hover:text-fg-primary md:hidden"
+            onClick={() => setMenuOpen((open) => !open)}
+            aria-label="Toggle menu"
+            aria-expanded={menuOpen}
+          >
+            <svg
+              className="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+            >
+              {menuOpen ? (
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              ) : (
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"
+                />
+              )}
+            </svg>
+          </button>
         </div>
-      )}
+
+        {menuOpen && (
+          <div className="motion-fade-down border-t border-white/10 px-6 pb-5 pt-4 md:hidden sm:px-10">
+            <div className="flex flex-col gap-1">
+              {navLinks.map((link) => (
+                <a
+                  key={link.href}
+                  href={link.href}
+                  className={`motion-button motion-nav-link rounded-2xl px-3 py-3 text-sm transition-colors ${
+                    link.active
+                      ? "bg-white/6 text-accent-primary"
+                      : "text-fg-primary hover:bg-white/5 hover:text-accent-primary"
+                  }`}
+                  onClick={() => setMenuOpen(false)}
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
+            <div className="mt-4 flex gap-3">
+              <Link
+                to="/login"
+                className="motion-button flex-1 rounded-full border border-white/16 bg-white/4 px-4 py-2 text-center text-sm font-medium text-fg-primary"
+                onClick={() => setMenuOpen(false)}
+              >
+                登录
+              </Link>
+              <Link
+                to="/register"
+                className="motion-button flex-1 rounded-full bg-accent-primary px-4 py-2 text-center text-sm font-medium text-fg-inverse"
+                onClick={() => setMenuOpen(false)}
+              >
+                注册
+              </Link>
+            </div>
+          </div>
+        )}
+      </div>
     </nav>
   );
 }
