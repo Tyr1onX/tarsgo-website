@@ -7,10 +7,10 @@
   --font-mono: "Geist Mono", ui-monospace, monospace;
 
   /* Surface colors */
-  --color-surface-primary: #0B1120;
-  --color-surface-light: #0F172A;
-  --color-surface-dark: #020617;
-  --color-surface-card: #111827;
+  --color-surface-primary: #050505;
+  --color-surface-light: #0B0B0D;
+  --color-surface-dark: #020203;
+  --color-surface-card: #111114;
 
   /* Accent colors */
   --color-accent-primary: #0062FF;
@@ -25,7 +25,7 @@
   --color-fg-inverse: #FFFFFF;
 
   /* Border */
-  --color-border-subtle: #1E293B;
+  --color-border-subtle: #17181B;
 
   /* Legacy primary palette (for dashboard/other pages) */
   --color-primary-50: #e6f0fa;
@@ -134,6 +134,104 @@ html {
   }
 }
 
+@keyframes obsidian-grid-drift {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  100% {
+    transform: translate3d(44px, 30px, 0) scale(1.03);
+  }
+}
+
+@keyframes obsidian-glow-float {
+  0% {
+    transform: translate3d(-3%, -2%, 0) scale(0.96);
+    opacity: 0.38;
+  }
+
+  50% {
+    transform: translate3d(4%, 5%, 0) scale(1.06);
+    opacity: 0.62;
+  }
+
+  100% {
+    transform: translate3d(6%, -4%, 0) scale(1);
+    opacity: 0.44;
+  }
+}
+
+.bg-obsidian-base {
+  background:
+    radial-gradient(
+      1200px 680px at 50% -12%,
+      rgba(255, 255, 255, 0.06),
+      transparent 60%
+    ),
+    linear-gradient(180deg, #070707 0%, #040404 48%, #020202 100%);
+}
+
+.bg-obsidian-grid {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(
+      135deg,
+      transparent 48%,
+      rgba(0, 98, 255, 0.06) 50%,
+      transparent 52%
+    ),
+    linear-gradient(
+      45deg,
+      transparent 48%,
+      rgba(255, 255, 255, 0.04) 50%,
+      transparent 52%
+    );
+  background-size: 72px 72px, 72px 72px, 180px 180px, 220px 220px;
+  mask-image: linear-gradient(
+    180deg,
+    rgba(0, 0, 0, 0.86),
+    rgba(0, 0, 0, 0.52) 62%,
+    transparent
+  );
+  opacity: 0.52;
+  animation: obsidian-grid-drift 20s linear infinite alternate;
+}
+
+.bg-obsidian-glow {
+  border-radius: 999px;
+  background: radial-gradient(
+    circle at center,
+    rgba(0, 98, 255, 0.22),
+    rgba(79, 70, 229, 0.12) 42%,
+    rgba(2, 2, 2, 0) 74%
+  );
+  filter: blur(22px);
+  animation: obsidian-glow-float 18s ease-in-out infinite alternate;
+}
+
+.bg-obsidian-glow-secondary {
+  background: radial-gradient(
+    circle at center,
+    rgba(255, 255, 255, 0.08),
+    rgba(0, 98, 255, 0.14) 44%,
+    rgba(2, 2, 2, 0) 76%
+  );
+  animation-duration: 24s;
+  animation-delay: -4s;
+}
+
+.bg-obsidian-glow-tertiary {
+  background: radial-gradient(
+    circle at center,
+    rgba(16, 185, 129, 0.12),
+    rgba(0, 98, 255, 0.1) 40%,
+    rgba(2, 2, 2, 0) 74%
+  );
+  animation-duration: 22s;
+  animation-delay: -9s;
+}
+
 .motion-fade-up {
   animation: fade-up-in var(--motion-duration-slow) var(--motion-ease-standard)
     both;
@@ -180,6 +278,42 @@ html {
   pointer-events: none;
 }
 
+.motion-surface::after,
+.motion-stat-surface::after,
+.motion-panel-soft::after,
+.motion-button::before {
+  content: "";
+  position: absolute;
+  inset: -1px;
+  background:
+    linear-gradient(
+      120deg,
+      transparent 18%,
+      rgba(255, 255, 255, 0.04) 28%,
+      rgba(255, 255, 255, 0.16) 34%,
+      transparent 42%
+    ),
+    linear-gradient(
+      36deg,
+      transparent 48%,
+      rgba(0, 98, 255, 0.18) 53%,
+      transparent 58%
+    ),
+    linear-gradient(
+      145deg,
+      transparent 58%,
+      rgba(255, 255, 255, 0.08) 63%,
+      transparent 69%
+    );
+  opacity: 0;
+  transform: translate3d(-12%, 10%, 0) scale(1.02);
+  transition:
+    opacity var(--motion-duration-base) var(--motion-ease-soft),
+    transform 560ms var(--motion-ease-standard);
+  pointer-events: none;
+  mix-blend-mode: screen;
+}
+
 .motion-surface:hover,
 .motion-stat-surface:hover {
   transform: translate3d(0, -6px, 0);
@@ -189,6 +323,12 @@ html {
 .motion-surface:hover::before,
 .motion-stat-surface:hover::before {
   opacity: 1;
+}
+
+.motion-surface:hover::after,
+.motion-stat-surface:hover::after {
+  opacity: 0.92;
+  transform: translate3d(10%, -10%, 0) scale(1);
 }
 
 .motion-panel-soft {
@@ -221,6 +361,10 @@ html {
   pointer-events: none;
 }
 
+.motion-panel-soft::after {
+  z-index: 1;
+}
+
 .motion-panel-soft:hover {
   border-color: rgba(77, 148, 219, 0.2);
   background-color: rgba(17, 24, 39, 0.86);
@@ -229,6 +373,11 @@ html {
 
 .motion-panel-soft:hover::before {
   opacity: 1;
+}
+
+.motion-panel-soft:hover::after {
+  opacity: 0.9;
+  transform: translate3d(10%, -8%, 0) scale(1);
 }
 
 .motion-overlay {
@@ -296,6 +445,9 @@ html {
 }
 
 .motion-button {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
   transition:
     transform var(--motion-duration-fast) var(--motion-ease-standard),
     border-color var(--motion-duration-fast) ease,
@@ -307,6 +459,11 @@ html {
 .motion-button:hover {
   transform: translate3d(0, -2px, 0);
   box-shadow: 0 18px 40px -24px rgba(0, 91, 172, 0.55);
+}
+
+.motion-button:hover::before {
+  opacity: 0.88;
+  transform: translate3d(8%, -10%, 0) scale(1);
 }
 
 .motion-nav-link {

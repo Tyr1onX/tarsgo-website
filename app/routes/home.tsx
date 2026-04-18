@@ -1,4 +1,5 @@
 import type { Route } from "./+types/home";
+import { useState } from "react";
 import { Navbar } from "../components/navbar";
 import { Link } from "react-router";
 
@@ -28,7 +29,7 @@ const stats = [
   },
   {
     icon: "layers",
-    value: "7",
+    value: "6",
     label: "技术组别",
     color: "bg-accent-tertiary",
   },
@@ -40,24 +41,107 @@ const stats = [
   },
 ];
 
-const achievements = [
+const timelineMilestones = [
+  {
+    year: "2018",
+    title: "启航",
+    intro: "吉林大学吉甲大师双创基地正式组建，团队开始以机器人竞赛与人工智能挑战为核心方向持续推进。",
+    highlights: [
+      "正式组建吉林大学吉甲大师双创基地。",
+      "搭建机械、电控、视觉核心团队。",
+      "开启 ICRA 人工智能挑战赛征程。",
+    ],
+    images: ["/assets/images/Milestone/2018_SetSail.png"],
+  },
+  {
+    year: "2019",
+    title: "突破",
+    intro: "团队在国际挑战赛和 RoboMaster 赛场同步迈出关键一步，招新与培养体系也开始快速铺开。",
+    highlights: [
+      "首次出征 ICRA 人工智能挑战赛（蒙特利尔），获得三等奖。",
+      "参加 ICCV 计算机视觉挑战赛（首尔）。",
+      "开启全国大学生 RoboMaster 对抗赛征程。",
+      "开展暑期夏令营和冬令营，跨南岭、南湖、南区，参与学院多达 12 个。",
+    ],
+    images: ["/assets/images/Milestone/2019_Breakthrough.png"],
+  },
   {
     year: "2020",
-    title: "首次参赛即获一等奖",
-    description:
-      "RoboMaster 2020 机甲大师赛全国线上评审赛一等奖，进入全国前 16 强",
+    title: "全国佳绩",
+    intro: "创业实践与竞赛成绩同步拉升，团队在全国与国际赛场都拿到了阶段性成果。",
+    highlights: [
+      "开展创业实践项目，获得挑战杯中国大学生创业计划竞赛全国金奖。",
+      "首次参赛全国大学生 RoboMaster 对抗赛，获 2020 线上赛全国一等奖。",
+      "ICRA 人工智能挑战赛获二等奖。",
+    ],
+    images: [
+      "/assets/images/Milestone/2020_FirstAchievement1.png",
+      "/assets/images/Milestone/2020_FirstAchievement2.png",
+    ],
+  },
+  {
+    year: "2021",
+    title: "技术迭代",
+    intro: "这一年完成了从竞赛经验积累到组织体系升级的关键过渡，六大组别逐步成型。",
+    highlights: [
+      "创业实践获得互联网+国际大学生创新创业大赛国家级银奖。",
+      "建立机械、视觉、电控、AI、软件、运营 6 个组别。",
+      "ICRA 人工智能挑战赛获二等奖。",
+      "全国大学生 RoboMaster 对抗赛三等奖。",
+      "高校联盟赛·黑龙江站八强。",
+    ],
+    images: ["/assets/images/Milestone/2021_TechnologicalIteration.png"],
+  },
+  {
+    year: "2022",
+    title: "传承体系",
+    intro: "团队继续把人才培养和项目训练机制制度化，逐步形成更稳定的传帮带节奏。",
+    highlights: [
+      "创业实践获得互联网+国际大学生创新创业大赛国家级铜奖。",
+      "完善培育体系，继续开展冬夏令营。",
+      "全国大学生 RoboMaster 对抗赛三等奖。",
+    ],
+    images: [
+      "/assets/images/Milestone/2022_InheritanceSystem1.png",
+      "/assets/images/Milestone/2022_InheritanceSystem2.png",
+    ],
   },
   {
     year: "2023",
-    title: "校内赛事品牌创立",
-    description:
-      "成功举办吉甲大师 RoboMaster 校内赛，吸引更多同学参与机器人竞技",
+    title: "文化建设",
+    intro: "在竞赛之外，团队的品牌、文化和学术成果也进一步沉淀，开始形成更完整的外部影响力。",
+    highlights: [
+      "创业实践获得国际大学生创新大赛国家级铜奖。",
+      "中国大学生计算机大赛国家级二等奖。",
+      "全国大学生 RoboMaster 对抗赛三等奖。",
+    ],
+    images: [
+      "/assets/images/Milestone/2023_CulturalDevelopment1.png",
+      "/assets/images/Milestone/2023_CulturalDevelopment2.png",
+    ],
   },
   {
     year: "2024",
-    title: "晋级全国总决赛",
-    description:
-      "在 RoboMaster 2024 东部赛区对抗赛中五战三胜，入围八强晋级全国总决赛",
+    title: "首进国赛",
+    intro: "团队在 RoboMaster 主赛道实现关键突破，首次挺进全国总决赛，完成阶段性里程碑。",
+    highlights: [
+      "全国大学生 RoboMaster 对抗赛东部赛区八强。",
+      "晋级全国总决赛。",
+      "获国家级二等奖、英雄一等奖。",
+    ],
+    images: ["/assets/images/Milestone/2024_NationalCompetition.png"],
+  },
+  {
+    year: "2025",
+    title: "薪火相传",
+    intro: "在新老交替中继续完成机器人体系升级，团队在联盟赛和全国赛中稳定输出成绩。",
+    highlights: [
+      "新老传承持续推进，机器人全面升级。",
+      "RM 高校联盟赛·辽宁站季军。",
+      "全国大学生 RoboMaster 对抗赛国家级二等奖。",
+      "工程一等奖、英雄一等奖等。",
+    ],
+    images: ["/assets/images/Milestone/2025_Legacy.png"],
   },
 ];
 
@@ -85,83 +169,274 @@ const robots = [
 ];
 
 const robotImages = [
-  "/assets/images/HeroRobot.jpg",
-  "/assets/images/InfantryRobot.jpg",
-  "/assets/images/EngineeringRobot.jpg",
-  "/assets/images/SentinelRobot.jpg",
+  "/assets/images/Robot/HeroRobot.jpg",
+  "/assets/images/Robot/InfantryRobot.jpg",
+  "/assets/images/Robot/EngineeringRobot.jpg",
+  "/assets/images/Robot/SentinelRobot.jpg",
+  "/assets/images/Robot/AerialRobots.jpg",
+];
+
+const achievementCertificates = [
+  "/assets/images/CertificateOfAchievement/189fdebe075f2b2a425cc032852caee2.jpg",
+  "/assets/images/CertificateOfAchievement/1dbf37a0cc85d1f3db363313d2460ba2.jpg",
+  "/assets/images/CertificateOfAchievement/2138180547a10616f528f0b4a6f860f0.jpg",
+  "/assets/images/CertificateOfAchievement/333f34f4ccd4639efe0a9d5be5b7755f.png",
+  "/assets/images/CertificateOfAchievement/44dd97dc7af3ce600b404b742cd9bcd9.jpg",
+  "/assets/images/CertificateOfAchievement/45acb4afe387a629b1c55cef3e44854f.jpg",
+  "/assets/images/CertificateOfAchievement/4c7c8f9d37a3889010963ade17b85290.jpg",
+  "/assets/images/CertificateOfAchievement/58fd9666b54ccf3f9c4f6bf47bc5acb3.jpg",
+  "/assets/images/CertificateOfAchievement/67b19286d79aab85320755e120ab77e7.png",
+  "/assets/images/CertificateOfAchievement/7145ec7f7d705e4ff83eadd902f11213.jpg",
+  "/assets/images/CertificateOfAchievement/847747a76123517722ddbae81f2a03e5.jpg",
+  "/assets/images/CertificateOfAchievement/8b29ef58b61e5875d489605b42f142ca.png",
+  "/assets/images/CertificateOfAchievement/8b3d497b3ef2cb878e5fe7c5074466d6.jpg",
+  "/assets/images/CertificateOfAchievement/8e56a495087d0c8d94d21b0078a9076e.jpg",
+  "/assets/images/CertificateOfAchievement/9b04720073b9306b9e173246d5e891f4.jpg",
+  "/assets/images/CertificateOfAchievement/9c90b1dcaf141a4dc6bc1b422ded2f94.jpg",
+  "/assets/images/CertificateOfAchievement/a49ec7d4fc4105d59620b004b54f50d7.jpg",
+  "/assets/images/CertificateOfAchievement/b826ac9abe537c256973c643544d1bfb.png",
+  "/assets/images/CertificateOfAchievement/c44b45e9bce4372f101c56bbf71994c5.jpg",
+  "/assets/images/CertificateOfAchievement/cad783e731ee5328f3894a9109301923.jpg",
+  "/assets/images/CertificateOfAchievement/ceb2d8e6896447f4d5c17da2ecd1467e.jpg",
+  "/assets/images/CertificateOfAchievement/dd3e82687cc57af11b1b59828fc43556.jpg",
+  "/assets/images/CertificateOfAchievement/de58b36ee1169fb6170a70cbd42df164.jpg",
+  "/assets/images/CertificateOfAchievement/e3558818a91d970a7d48883db6a8ae50.jpg",
+  "/assets/images/CertificateOfAchievement/f5f004b168579608071d03a9fb047852.jpg",
+];
+
+const sponsorLogos = [
+  { name: "YELITE", image: "/assets/images/Sponsors/YELITE.jpg" },
+  { name: "AMASS", image: "/assets/images/Sponsors/amass.jpg" },
+  { name: "驰翔股份", image: "/assets/images/Sponsors/cxgf.jpg" },
+  { name: "金地卓立", image: "/assets/images/Sponsors/jdzl.jpg" },
+  { name: "吉利汽车", image: "/assets/images/Sponsors/jlc.jpg" },
+  { name: "吉运模压器", image: "/assets/images/Sponsors/jyymq.jpg" },
+  { name: "坤乾科技", image: "/assets/images/Sponsors/kqkj.jpg" },
+  { name: "联讯科技", image: "/assets/images/Sponsors/lxkj.jpg" },
+  { name: "强基装备", image: "/assets/images/Sponsors/qjzb.jpg" },
+  { name: "夜河神", image: "/assets/images/Sponsors/yeheshen.jpg" },
 ];
 
 const groups = [
   {
     name: "机械组",
     description: "负责机器人结构设计、建模、加工与装配，将创意变为现实",
-    icon: "cog",
-    gradient: "from-[#0062FF] to-[#4F46E5]",
+    logo: "/assets/images/Logo/Mechanical.png",
+    accent: "from-[#0062FF]/24 via-[#2563EB]/14 to-transparent",
   },
   {
     name: "电控组",
     description: "嵌入式系统开发、电路设计、电机控制，让机器人\u201C动\u201D起来",
-    icon: "cpu",
-    gradient: "from-[#10B981] to-[#059669]",
+    logo: "/assets/images/Logo/ElectricalControl.png",
+    accent: "from-[#10B981]/22 via-[#14B8A6]/12 to-transparent",
   },
   {
     name: "视觉组",
     description: "机器视觉、目标识别、自动瞄准，赋予机器人\u201C眼睛\u201D",
-    icon: "eye",
-    gradient: "from-[#F59E0B] to-[#D97706]",
+    logo: "/assets/images/Logo/Vision.png",
+    accent: "from-[#F59E0B]/22 via-[#F97316]/12 to-transparent",
   },
   {
-    name: "决策组",
-    description: "战术策略、自主决策、AI 算法，机器人的\u201C大脑\u201D",
-    icon: "brain",
-    gradient: "from-[#EF4444] to-[#DC2626]",
+    name: "AI组",
+    description: "负责智能算法、决策规划与自主控制，让机器人拥有更强的判断力",
+    logo: "/assets/images/Logo/AI.png",
+    accent: "from-[#EF4444]/22 via-[#EC4899]/12 to-transparent",
+  },
+  {
+    name: "软件组",
+    description: "负责上位机、工具链与平台开发，支撑整队协同与数据流转",
+    logo: "/assets/images/Logo/Software.png",
+    accent: "from-[#8B5CF6]/22 via-[#6366F1]/12 to-transparent",
+  },
+  {
+    name: "运营组",
+    description: "负责宣传、策划、赛事运营与对外联络，推动团队持续成长",
+    logo: "/assets/images/Logo/Operations.png",
+    accent: "from-[#22C55E]/22 via-[#84CC16]/12 to-transparent",
   },
 ];
 
-const photoCells = [
+const aboutModules = [
   {
-    title: "北部赛区对抗现场",
-    tag: "参赛",
-    image: "/media/team/competition-01.jpg",
-    description: "战车高速穿梭、火力交错，是 TARS-Go 最直接的赛场表情。",
-    className: "md:col-span-2 md:row-span-2",
+    name: "参赛",
+    title: "在真实对抗中验证整队协同与执行力",
+    description: [
+      "参赛模块记录的是吉甲大师最直接的赛场表达。从区域赛、公开赛到更高强度的对抗场景，机器人性能、临场判断和团队调度都会在瞬间被放大。",
+      "每一次上场都是一次完整的系统检验，检验的不只是硬件和算法，更是队伍在高压环境下的反应速度、复盘效率与战术默契。",
+    ],
+    highlights: [
+      "高强度攻防与临场协同",
+      "区域赛与公开赛的实战记录",
+      "在赛场上完成技术方案的闭环验证",
+    ],
+    images: [
+      "/assets/images/ContestMoment/微信图片_20260417222437_263_1.jpg",
+      "/assets/images/ContestMoment/微信图片_20260417222456_267_1.jpg",
+      "/assets/images/ContestMoment/微信图片_20260417222636_293_1.jpg",
+      "/assets/images/ContestMoment/微信图片_20260417222649_308_1.jpg",
+      "/assets/images/ContestMoment/微信图片_20260417224230_338_1.jpg",
+      "/assets/images/ContestMoment/微信图片_20260417224231_339_1.jpg",
+      "/assets/images/ContestMoment/微信图片_20260417224233_342_1.jpg",
+      "/assets/images/ContestMoment/微信图片_20260417224238_347_1.jpg",
+    ],
   },
   {
-    title: "校内备赛与展示",
-    tag: "日常",
-    image: "/media/team/daily-01.jpg",
-    description: "在基地里完成联调、展示和复盘，是每个赛季的常态。",
-    className: "md:col-span-2",
+    name: "备赛",
+    title: "把每一场正式上场前的细节反复磨透",
+    description: [
+      "备赛阶段是团队最密集的联调周期。机械、电控、视觉、AI、软件与运营需要围绕同一目标协同推进，把设计、加工、联调、测试和复盘压缩进有限时间内。",
+      "从实验室里的调试，到赛前节奏的演练，真正支撑赛场稳定发挥的，往往正是这些看似重复却必须做到极致的准备过程。",
+    ],
+    highlights: [
+      "赛前联调、整机测试与快速修正",
+      "围绕比赛目标进行跨组协同推进",
+      "通过反复演练降低上场不确定性",
+    ],
+    images: [
+      "/assets/images/Preparation_for_competition/19.jpg",
+      "/assets/images/Preparation_for_competition/2021RM备赛.jpg",
+      "/assets/images/Preparation_for_competition/3.jpg",
+      "/assets/images/Preparation_for_competition/mmexportfe33110d1369fa229665a81fafd6fa0c_1744263091469.jpeg",
+      "/assets/images/Preparation_for_competition/工作照.jpg",
+      "/assets/images/Preparation_for_competition/测试1.jpg",
+      "/assets/images/Preparation_for_competition/测试2.jpg",
+      "/assets/images/Preparation_for_competition/照片底版2-50.jpg",
+    ],
   },
   {
-    title: "战术联动瞬间",
-    tag: "参赛",
-    image: "/media/team/competition-02.jpg",
-    description: "从调度到执行，协同是比赛强度的一部分。",
-    className: "",
+    name: "日常",
+    title: "训练、例会与基地生活共同构成团队肌理",
+    description: [
+      "日常模块展示的是竞赛之外的团队状态。例会、讨论、展示、夜间调试和工位协作，组成了吉甲大师最真实也最持久的运转方式。",
+      "正是这些看似平常的日常训练，让成员在长期协作中建立信任，也让整个团队能够在关键节点迅速进入战斗状态。",
+    ],
+    highlights: [
+      "基地训练、例会沟通与日常协作",
+      "长期积累形成稳定的团队节奏",
+      "从日常磨合中沉淀执行习惯与协同方式",
+    ],
+    images: [
+      "/assets/images/Daily/微信图片_20260417225903_435_1.jpg",
+      "/assets/images/Daily/微信图片_20260417225907_440_1.jpg",
+      "/assets/images/Daily/微信图片_20260417225909_442_1.jpg",
+      "/assets/images/Daily/微信图片_20260417230243_484_1.jpg",
+      "/assets/images/Daily/微信图片_20260417230640_503_1.jpg",
+      "/assets/images/Daily/微信图片_20260417230651_510_1.jpg",
+      "/assets/images/Daily/微信图片_20260417230830_524_1.jpg",
+      "/assets/images/Daily/微信图片_20260417231106_531_1.jpg",
+    ],
   },
   {
-    title: "团队协作日常",
-    tag: "日常",
-    image: "/media/team/daily-02.jpg",
-    description: "深夜车间、会议桌和工位，组成了真正的训练场。",
-    className: "",
+    name: "创新创业",
+    title: "把竞赛能力延伸到项目孵化与双创实践",
+    description: [
+      "创新创业模块记录的是团队把技术能力转化为项目成果的过程。从方案打磨、导师指导到双创竞赛与设备开发，团队持续尝试把赛场经验沉淀为更具延展性的实践能力。",
+      "这不仅拓宽了成员的技术边界，也让吉甲大师在机器人之外建立起更完整的项目组织与成果表达能力。",
+    ],
+    highlights: [
+      "双创赛事、项目答辩与导师指导",
+      "将竞赛经验转化为工程项目与设备开发",
+      "持续拓展团队的成果沉淀与对外表达能力",
+    ],
+    images: [
+      "/assets/images/Innovation_and_entrepreneurship/2021互联网+创新创业竞赛.jpg",
+      "/assets/images/Innovation_and_entrepreneurship/2022双展览.jpg",
+      "/assets/images/Innovation_and_entrepreneurship/创业大赛1.png",
+      "/assets/images/Innovation_and_entrepreneurship/双创导师.jpg",
+      "/assets/images/Innovation_and_entrepreneurship/双创开会1.jpg",
+      "/assets/images/Innovation_and_entrepreneurship/图片4.png",
+      "/assets/images/Innovation_and_entrepreneurship/汽车盖板调试.jpg",
+      "/assets/images/Innovation_and_entrepreneurship/药瓶检测设备开发.png",
+    ],
   },
   {
-    title: "实验室研发场景",
-    tag: "研发",
-    image: "/media/team/workshop-01.png",
-    description: "从结构、控制到视觉，所有模块都在这里并行推进。",
-    className: "md:col-span-2",
-  },
-  {
-    title: "比赛中的机动压制",
-    tag: "参赛",
-    image: "/media/team/competition-03.jpg",
-    description: "速度、判断和执行力，最终都会体现在场上的推进里。",
-    className: "md:col-span-2",
+    name: "校企合作",
+    title: "在交流、调研与合作中拓宽团队的真实场景",
+    description: [
+      "校企合作模块展示的是团队走出实验室后的另一种成长路径。通过企业参访、科创营、合作调研和校园展示，成员得以把课堂、竞赛和产业场景连接起来。",
+      "这些实践一方面帮助团队理解更真实的工程需求，另一方面也让吉甲大师能够在更广泛的合作中持续吸收外部经验。",
+    ],
+    highlights: [
+      "企业走访、合作调研与科创交流",
+      "把校园项目与产业需求连接起来",
+      "在外部合作中拓宽团队视野与实践边界",
+    ],
+    images: [
+      "/assets/images/Industry-AcademiaCollaboration/981c784604bf99407189c4d3fdbfdacc.jpg",
+      "/assets/images/Industry-AcademiaCollaboration/e31d9fb0eb0dcb146f518afc4b4359e9.jpg",
+      "/assets/images/Industry-AcademiaCollaboration/参观企业.jpg",
+      "/assets/images/Industry-AcademiaCollaboration/可口可乐参观.jpg",
+      "/assets/images/Industry-AcademiaCollaboration/吉大附小.jpg",
+      "/assets/images/Industry-AcademiaCollaboration/接待东北师大附中参观.jpg",
+      "/assets/images/Industry-AcademiaCollaboration/重庆明月湖科创营.jpg",
+      "/assets/images/Industry-AcademiaCollaboration/青岛海克斯康调研合作.jpg",
+    ],
   },
 ];
+
+function getAboutModuleLayoutClass(imageCount: number) {
+  if (imageCount >= 8) {
+    return "lg:grid-cols-[1.28fr_0.72fr]";
+  }
+
+  if (imageCount >= 6) {
+    return "lg:grid-cols-[1.18fr_0.82fr]";
+  }
+
+  if (imageCount >= 4) {
+    return "lg:grid-cols-[1.08fr_0.92fr]";
+  }
+
+  return "lg:grid-cols-[0.96fr_1.04fr]";
+}
+
+function getAboutPhotoWallClass(imageCount: number) {
+  if (imageCount === 1) {
+    return "grid-cols-1 auto-rows-[320px]";
+  }
+
+  if (imageCount === 2) {
+    return "grid-cols-2 auto-rows-[220px]";
+  }
+
+  if (imageCount <= 4) {
+    return "grid-cols-2 auto-rows-[170px] sm:auto-rows-[190px]";
+  }
+
+  if (imageCount <= 6) {
+    return "grid-cols-2 md:grid-cols-3 auto-rows-[122px] sm:auto-rows-[138px]";
+  }
+
+  return "grid-cols-2 md:grid-cols-3 auto-rows-[108px] sm:auto-rows-[120px]";
+}
+
+function getAboutPhotoCellClass(imageCount: number, index: number) {
+  if (imageCount <= 2) {
+    return "";
+  }
+
+  if (imageCount === 3) {
+    return index === 0 ? "sm:col-span-2" : "";
+  }
+
+  if (imageCount === 4) {
+    return index === 0 ? "sm:col-span-2" : "";
+  }
+
+  if (index === 0) {
+    return "md:col-span-2 md:row-span-2";
+  }
+
+  if (index === imageCount - 1 && imageCount % 2 === 1) {
+    return "md:col-span-2";
+  }
+
+  if (imageCount >= 8 && index === 4) {
+    return "md:col-span-2";
+  }
+
+  return "";
+}
 
 function StatIcon({ icon, className }: { icon: string; className?: string }) {
   const icons: Record<string, React.ReactNode> = {
@@ -189,56 +464,50 @@ function StatIcon({ icon, className }: { icon: string; className?: string }) {
   return <>{icons[icon]}</>;
 }
 
-function GroupIcon({ icon, className }: { icon: string; className?: string }) {
-  const icons: Record<string, React.ReactNode> = {
-    cog: (
-      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z" /><circle cx="12" cy="12" r="3" />
-      </svg>
-    ),
-    cpu: (
-      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect width="16" height="16" x="4" y="4" rx="2" /><rect width="6" height="6" x="9" y="9" rx="1" /><path d="M15 2v2" /><path d="M15 20v2" /><path d="M2 15h2" /><path d="M2 9h2" /><path d="M20 15h2" /><path d="M20 9h2" /><path d="M9 2v2" /><path d="M9 20v2" />
-      </svg>
-    ),
-    eye: (
-      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0" /><circle cx="12" cy="12" r="3" />
-      </svg>
-    ),
-    brain: (
-      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 5a3 3 0 1 0-5.997.125 4 4 0 0 0-2.526 5.77 4 4 0 0 0 .556 6.588A4 4 0 1 0 12 18Z" /><path d="M12 5a3 3 0 1 1 5.997.125 4 4 0 0 1 2.526 5.77 4 4 0 0 1-.556 6.588A4 4 0 1 1 12 18Z" /><path d="M15 13a4.5 4.5 0 0 1-3-4 4.5 4.5 0 0 1-3 4" /><path d="M17.599 6.5a3 3 0 0 0 .399-1.375" /><path d="M6.003 5.125A3 3 0 0 0 6.401 6.5" /><path d="M3.477 10.896a4 4 0 0 1 .585-.396" /><path d="M19.938 10.5a4 4 0 0 1 .585.396" /><path d="M6 18a4 4 0 0 1-1.967-.516" /><path d="M19.967 17.484A4 4 0 0 1 18 18" />
-      </svg>
-    ),
-  };
-  return <>{icons[icon]}</>;
-}
-
-function TeamLogoMark({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.8"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M12 8V4H8" />
-      <rect width="16" height="12" x="4" y="8" rx="2" />
-      <path d="M2 14h2" />
-      <path d="M20 14h2" />
-      <path d="M15 13v2" />
-      <path d="M9 13v2" />
-    </svg>
-  );
-}
-
 export default function Home() {
+  const [activeAboutModuleIndex, setActiveAboutModuleIndex] = useState(0);
+  const [activeMilestoneIndex, setActiveMilestoneIndex] = useState(0);
+  const activeAboutModule = aboutModules[activeAboutModuleIndex];
+  const activeMilestone = timelineMilestones[activeMilestoneIndex];
+
+  function showPreviousAboutModule() {
+    setActiveAboutModuleIndex((current) =>
+      current === 0 ? aboutModules.length - 1 : current - 1,
+    );
+  }
+
+  function showNextAboutModule() {
+    setActiveAboutModuleIndex((current) =>
+      current === aboutModules.length - 1 ? 0 : current + 1,
+    );
+  }
+
+  function showPreviousMilestone() {
+    setActiveMilestoneIndex((current) =>
+      current === 0 ? timelineMilestones.length - 1 : current - 1,
+    );
+  }
+
+  function showNextMilestone() {
+    setActiveMilestoneIndex((current) =>
+      current === timelineMilestones.length - 1 ? 0 : current + 1,
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-surface-primary text-fg-primary">
+    <div className="relative min-h-screen overflow-hidden bg-[#030303] text-fg-primary">
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
+      >
+        <div className="bg-obsidian-base absolute inset-0" />
+        <div className="bg-obsidian-grid absolute inset-[-15%]" />
+        <div className="bg-obsidian-glow absolute -left-[12%] top-[8%] h-[42vw] w-[42vw]" />
+        <div className="bg-obsidian-glow bg-obsidian-glow-secondary absolute right-[-10%] top-[32%] h-[46vw] w-[46vw]" />
+        <div className="bg-obsidian-glow bg-obsidian-glow-tertiary absolute left-[18%] bottom-[-18%] h-[38vw] w-[38vw]" />
+      </div>
+
+      <div className="relative z-10">
       {/* Hero Section */}
       <section
         id="hero"
@@ -252,79 +521,32 @@ export default function Home() {
             loop
             playsInline
             preload="metadata"
-            poster="/media/team/competition-01.jpg"
-            aria-label="吉林大学 TARS-Go 战队比赛视频"
+            poster="/assets/images/HeroRobot.jpg"
+            aria-label="吉林大学吉甲大师双创基地宣传视频"
           >
-            <source src="/media/team/tarsgo-match-hero.mp4" type="video/mp4" />
+            <source src="/assets/images/Video/599af37af64b86479092f9c28e4619a1.mp4" type="video/mp4" />
           </video>
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(0,98,255,0.24),transparent_42%)]" />
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.78)_0%,rgba(2,6,23,0.24)_36%,rgba(2,6,23,0.7)_100%)]" />
-          <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(2,6,23,0.88)_0%,rgba(2,6,23,0.28)_45%,rgba(2,6,23,0.68)_100%)]" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(15,23,42,0.18)_0%,rgba(2,6,23,0.78)_100%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.62)_0%,rgba(2,6,23,0.16)_38%,rgba(2,6,23,0.78)_100%)]" />
         </div>
 
-        <div className="absolute inset-x-0 top-0 z-20">
-          <div className="mx-auto flex max-w-[1440px] flex-col items-center gap-4 px-6 pb-10 pt-28 text-center sm:px-10 sm:pt-32 lg:px-20">
-            <div className="motion-fade-down inline-flex items-center gap-3 rounded-full border border-white/18 bg-black/28 px-5 py-3 text-white backdrop-blur-xl">
-              <TeamLogoMark className="h-7 w-7 text-accent-gold" />
-              <span className="font-display text-2xl tracking-[0.18em] sm:text-3xl">
-                TARS-Go
-              </span>
-            </div>
-            <p className="motion-fade-down max-w-2xl text-sm font-medium tracking-[0.42em] text-white/80 sm:text-base">
-              吉林大学机甲大师双创基地
-            </p>
-            <Link
-              to="/register"
-              className="motion-button inline-flex items-center gap-2 rounded-full border border-white/18 bg-white px-7 py-3 text-sm font-semibold text-slate-950 shadow-[0_20px_60px_-28px_rgba(255,255,255,0.78)] sm:text-base"
-            >
-              加入我们
-              <svg
-                className="h-4 w-4"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M5 12h14" />
-                <path d="m12 5 7 7-7 7" />
-              </svg>
-            </Link>
-          </div>
-        </div>
-
-        <div className="relative z-10 flex min-h-[100svh] items-end">
-          <div className="mx-auto w-full max-w-[1440px] px-6 pb-14 pt-40 sm:px-10 sm:pb-18 lg:px-20">
-            <div className="motion-fade-up max-w-3xl">
-              <span className="mb-5 inline-flex items-center gap-2 rounded-full border border-white/14 bg-white/8 px-4 py-1.5 text-xs font-semibold uppercase tracking-[0.3em] text-white/76 backdrop-blur-md">
-                RoboMaster 2023
-              </span>
-              <h1 className="max-w-4xl font-display text-[clamp(4rem,14vw,10rem)] leading-none tracking-[0.12em] text-white">
-                TARS-Go
-              </h1>
-              <p className="mt-6 max-w-2xl text-base leading-7 text-white/70 sm:text-lg sm:leading-8">
-                以 RoboMaster 官方赛事实拍为首页背景，在赛场动态里直接看到吉林大学吉甲大师战队的速度、协同与压制力。
+        <div className="relative z-10 flex min-h-[100svh] items-center justify-center">
+          <div className="mx-auto flex w-full max-w-[1440px] items-center justify-center px-6 pb-16 pt-28 sm:px-10 sm:pt-32 lg:px-20">
+            <div className="flex max-w-2xl flex-col items-center gap-6 text-center sm:gap-8">
+              <img
+                src="/assets/images/Logo/JiJiaMaster.png"
+                alt="吉甲大师"
+                className="motion-fade-down h-48 w-auto max-w-full object-contain sm:h-56 md:h-64"
+              />
+              <p className="motion-fade-up text-lg font-semibold tracking-[0.22em] text-white sm:text-2xl">
+                吉林大学吉甲大师双创基地
               </p>
-            </div>
-
-            <div className="mt-10 flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-              <div className="motion-fade-up max-w-lg rounded-3xl border border-white/12 bg-black/22 p-5 backdrop-blur-md">
-                <p className="text-xs uppercase tracking-[0.34em] text-white/48">
-                  Video Source
-                </p>
-                <p className="mt-2 text-sm leading-6 text-white/74">
-                  吉林大学 TARS_Go 战队 vs 哈尔滨工程大学 创梦之翼战队
-                  <br />
-                  RoboMaster 2023 超级对抗赛北部赛区公开比赛画面
-                </p>
-              </div>
-
-              <a
-                href="#about"
-                className="motion-button inline-flex items-center gap-2 self-start rounded-full border border-white/14 bg-white/10 px-6 py-3 text-sm font-semibold text-white backdrop-blur-md hover:bg-white/16"
+              <Link
+                to="/register"
+                className="motion-button inline-flex items-center gap-2 rounded-full border border-white/16 bg-white px-8 py-3 text-sm font-semibold text-slate-950 shadow-[0_20px_60px_-28px_rgba(255,255,255,0.78)] sm:px-10 sm:py-4 sm:text-base"
               >
-                下滑查看更多
+                加入我们
                 <svg
                   className="h-4 w-4"
                   viewBox="0 0 24 24"
@@ -334,11 +556,34 @@ export default function Home() {
                   strokeLinecap="round"
                   strokeLinejoin="round"
                 >
-                  <path d="M12 5v14" />
-                  <path d="m19 12-7 7-7-7" />
+                  <path d="M5 12h14" />
+                  <path d="m12 5 7 7-7 7" />
                 </svg>
-              </a>
+              </Link>
             </div>
+          </div>
+        </div>
+
+        <div className="pointer-events-none absolute inset-x-0 bottom-6 z-20 sm:bottom-8">
+          <div className="mx-auto flex max-w-[1440px] justify-end px-6 sm:px-10 lg:px-20">
+            <a
+              href="#about"
+              className="motion-button pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/14 bg-white/10 px-5 py-3 text-sm font-semibold text-white backdrop-blur-md hover:bg-white/16 sm:px-6"
+            >
+          下滑查看更多
+          <svg
+            className="h-4 w-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
+            <path d="M12 5v14" />
+            <path d="m19 12-7 7-7-7" />
+              </svg>
+            </a>
           </div>
         </div>
       </section>
@@ -346,7 +591,10 @@ export default function Home() {
       <Navbar />
 
       {/* About Section */}
-      <section id="about" className="py-16 sm:py-20 bg-surface-primary">
+      <section
+        id="about"
+        className="border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
+      >
         <div className="max-w-[1440px] mx-auto px-6 sm:px-10 lg:px-20">
           <div className="flex flex-col items-center gap-3 mb-12">
             <span className="inline-block px-4 py-1 text-[13px] font-semibold text-accent-primary bg-surface-light rounded-full">
@@ -368,7 +616,7 @@ export default function Home() {
             {stats.map((stat) => (
               <div
                 key={stat.label}
-                className="flex flex-col items-center gap-3 p-7 bg-surface-light rounded-2xl"
+                className="motion-stat-surface flex flex-col items-center gap-3 rounded-2xl border border-white/8 bg-surface-light/92 p-7"
               >
                 <div
                   className={`w-12 h-12 ${stat.color} rounded-xl flex items-center justify-center`}
@@ -388,48 +636,144 @@ export default function Home() {
             ))}
           </div>
 
-          <div className="mt-12 grid gap-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-start">
-            <div className="motion-panel-soft rounded-[28px] border border-white/8 bg-surface-light/80 p-7 sm:p-8">
-              <span className="inline-flex rounded-full border border-accent-primary/20 bg-accent-primary/10 px-4 py-1 text-[13px] font-semibold text-accent-primary">
-                竞赛与日常
-              </span>
-              <h3 className="mt-5 font-display text-3xl text-fg-primary sm:text-4xl">
-                在赛场冲锋，也在车间里把细节磨到极致
-              </h3>
-              <p className="mt-5 text-sm leading-7 text-fg-muted sm:text-base">
-                从区域赛高强度对抗，到实验室调试、校内展示和跨组协同，TARS-Go 的日常并不是单一工位，而是一整套围绕比赛目标持续运转的工程现场。
-              </p>
-              <p className="mt-4 text-sm leading-7 text-fg-muted sm:text-base">
-                这里新增展示的都是吉林大学公开报道中的吉甲大师相关照片，用单元格的方式并排呈现参赛、研发和基地生活的不同切面。
-              </p>
+          <div className="mt-12">
+            <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+              <div className="min-w-0 flex-1">
+                <div className="relative overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <div className="absolute left-0 right-0 top-6 hidden h-px bg-border-subtle md:block" />
+                  <div className="relative flex min-w-max gap-3 pr-4">
+                    {aboutModules.map((module, index) => (
+                      <button
+                        key={module.name}
+                        type="button"
+                        onClick={() => setActiveAboutModuleIndex(index)}
+                        className={`motion-button flex min-w-[112px] flex-col rounded-2xl border px-4 py-3 text-left transition-colors ${
+                          index === activeAboutModuleIndex
+                            ? "border-accent-primary bg-accent-primary text-fg-inverse shadow-[0_18px_40px_-24px_rgba(0,98,255,0.85)]"
+                            : "border-white/8 bg-surface-light text-fg-muted hover:border-accent-primary/30 hover:text-fg-primary"
+                        }`}
+                        aria-pressed={index === activeAboutModuleIndex}
+                      >
+                        <span className="text-sm font-semibold tracking-[0.18em]">
+                          {module.name}
+                        </span>
+                        <span className="mt-1 text-xs opacity-80">
+                          {module.images.length} 张图片
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between gap-4 lg:justify-end">
+                <span className="text-sm text-fg-muted">
+                  {String(activeAboutModuleIndex + 1).padStart(2, "0")} /{" "}
+                  {String(aboutModules.length).padStart(2, "0")}
+                </span>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={showPreviousAboutModule}
+                    className="motion-button flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-surface-light text-fg-primary hover:border-accent-primary/30 hover:text-accent-primary"
+                    aria-label="查看上一模块"
+                  >
+                    <svg
+                      className="h-5 w-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="m15 18-6-6 6-6" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={showNextAboutModule}
+                    className="motion-button flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-surface-light text-fg-primary hover:border-accent-primary/30 hover:text-accent-primary"
+                    aria-label="查看下一模块"
+                  >
+                    <svg
+                      className="h-5 w-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="m9 18 6-6-6-6" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
             </div>
 
-            <div className="grid auto-rows-[160px] grid-cols-2 gap-4 md:auto-rows-[152px] md:grid-cols-4">
-              {photoCells.map((photo) => (
-                <article
-                  key={photo.title}
-                  className={`motion-surface group relative overflow-hidden rounded-[28px] border border-white/10 bg-surface-light ${photo.className}`}
-                >
-                  <img
-                    src={photo.image}
-                    alt={photo.title}
-                    loading="lazy"
-                    className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-                  />
-                  <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.06)_0%,rgba(2,6,23,0.22)_45%,rgba(2,6,23,0.86)_100%)]" />
-                  <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5">
-                    <span className="inline-flex rounded-full border border-white/12 bg-black/30 px-3 py-1 text-[11px] font-semibold tracking-[0.22em] text-white/78 backdrop-blur-sm">
-                      {photo.tag}
-                    </span>
-                    <h4 className="mt-3 text-base font-bold text-white sm:text-lg">
-                      {photo.title}
-                    </h4>
-                    <p className="mt-2 text-xs leading-5 text-white/72 sm:text-sm">
-                      {photo.description}
+            <div
+              className={`grid gap-6 ${getAboutModuleLayoutClass(activeAboutModule.images.length)} lg:items-start`}
+            >
+              <div
+                className={`grid ${getAboutPhotoWallClass(activeAboutModule.images.length)} gap-4`}
+              >
+                {activeAboutModule.images.map((image, index) => (
+                  <article
+                    key={image}
+                    className={`motion-surface group relative overflow-hidden rounded-[28px] border border-white/10 bg-surface-light ${getAboutPhotoCellClass(activeAboutModule.images.length, index)}`}
+                  >
+                    <img
+                      src={image}
+                      alt={`${activeAboutModule.name}模块图片${index + 1}`}
+                      loading="lazy"
+                      className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.05)_0%,rgba(2,6,23,0.18)_42%,rgba(2,6,23,0.84)_100%)]" />
+                    <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-8">
+                      <span className="inline-flex rounded-full border border-white/12 bg-black/30 px-3 py-1 text-[11px] font-semibold tracking-[0.22em] text-white/78 backdrop-blur-sm">
+                        {activeAboutModule.name}
+                      </span>
+                    </div>
+                  </article>
+                ))}
+              </div>
+
+              <div className="motion-panel-soft rounded-[28px] border border-white/8 bg-surface-light/80 p-7 sm:p-8">
+                <span className="inline-flex rounded-full border border-accent-primary/20 bg-accent-primary/10 px-4 py-1 text-[13px] font-semibold text-accent-primary">
+                  {activeAboutModule.name}
+                </span>
+                <h3 className="mt-5 font-display text-3xl text-fg-primary sm:text-4xl">
+                  {activeAboutModule.title}
+                </h3>
+                <div className="mt-5 space-y-4">
+                  {activeAboutModule.description.map((paragraph) => (
+                    <p
+                      key={paragraph}
+                      className="text-sm leading-7 text-fg-muted sm:text-base"
+                    >
+                      {paragraph}
                     </p>
-                  </div>
-                </article>
-              ))}
+                  ))}
+                </div>
+
+                <div className="mt-6 rounded-[24px] border border-white/8 bg-surface-primary/68 p-5">
+                  <h4 className="text-sm font-semibold uppercase tracking-[0.22em] text-accent-gold">
+                    模块聚焦
+                  </h4>
+                  <ul className="mt-4 space-y-3">
+                    {activeAboutModule.highlights.map((highlight) => (
+                      <li
+                        key={highlight}
+                        className="flex gap-3 text-sm leading-7 text-fg-muted sm:text-[15px]"
+                      >
+                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent-gold" />
+                        <span>{highlight}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -438,41 +782,172 @@ export default function Home() {
       {/* Achievements Section */}
       <section
         id="achievements"
-        className="py-16 sm:py-20 bg-gradient-to-b from-[#0052D4] to-[#0062FF]"
+        className="relative overflow-hidden border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
       >
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(0,98,255,0.16),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(79,70,229,0.12),transparent_26%)]" />
         <div className="max-w-[1440px] mx-auto px-6 sm:px-10 lg:px-20">
-          <div className="flex flex-col items-center gap-3 mb-12">
-            <span className="inline-block px-4 py-1 text-[13px] font-semibold text-fg-inverse bg-white/[0.13] rounded-full">
-              赛事成就
+          <div className="relative mb-12 flex flex-col items-center gap-3">
+            <span className="inline-block rounded-full bg-surface-light px-4 py-1 text-[13px] font-semibold text-accent-primary">
+              团队历程
             </span>
-            <h2 className="font-display text-3xl sm:text-[40px] text-fg-inverse text-center">
-              征战机甲大师，一路拼搏前行
+            <h2 className="text-center font-display text-3xl text-fg-primary sm:text-[40px]">
+              以时间轴回看战队一路走来的每一步
             </h2>
+            <p className="max-w-[760px] text-center text-base leading-relaxed text-fg-muted">
+              从双创基地组建，到国际赛事历练，再到 RoboMaster 国赛突破，吉林大学吉甲大师双创基地在一届又一届成员的接力中不断完成技术积累、组织建设与文化沉淀。
+            </p>
           </div>
 
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-            {achievements.map((item) => (
-              <div
-                key={item.year}
-                className="flex flex-col gap-4 p-7 bg-white/[0.08] rounded-2xl"
-              >
-                <span className="text-sm font-semibold font-mono text-[#FFD700]">
-                  {item.year}
-                </span>
-                <h3 className="text-lg font-bold text-fg-inverse">
-                  {item.title}
-                </h3>
-                <p className="text-sm text-white/60 leading-relaxed">
-                  {item.description}
-                </p>
+          <div className="relative mx-auto max-w-[1240px]">
+            <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+              <div className="min-w-0 flex-1">
+                <div className="relative overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                  <div className="absolute left-0 right-0 top-6 hidden h-px bg-border-subtle md:block" />
+                  <div className="relative flex min-w-max gap-3 pr-4">
+                    {timelineMilestones.map((item, index) => (
+                      <button
+                        key={item.year}
+                        type="button"
+                        onClick={() => setActiveMilestoneIndex(index)}
+                        className={`motion-button flex min-w-[104px] flex-col rounded-2xl border px-4 py-3 text-left transition-colors ${
+                          index === activeMilestoneIndex
+                            ? "border-accent-primary bg-accent-primary text-fg-inverse shadow-[0_18px_40px_-24px_rgba(0,98,255,0.85)]"
+                            : "border-white/8 bg-surface-light text-fg-muted hover:border-accent-primary/30 hover:text-fg-primary"
+                        }`}
+                        aria-pressed={index === activeMilestoneIndex}
+                      >
+                        <span className="font-mono text-sm font-semibold">
+                          {item.year}
+                        </span>
+                        <span className="mt-1 text-sm font-semibold">
+                          {item.title}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
-            ))}
+
+              <div className="flex items-center justify-between gap-4 lg:justify-end">
+                <span className="text-sm text-fg-muted">
+                  {String(activeMilestoneIndex + 1).padStart(2, "0")} /{" "}
+                  {String(timelineMilestones.length).padStart(2, "0")}
+                </span>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={showPreviousMilestone}
+                    className="motion-button flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-surface-light text-fg-primary hover:border-accent-primary/30 hover:text-accent-primary"
+                    aria-label="查看上一段历程"
+                  >
+                    <svg
+                      className="h-5 w-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="m15 18-6-6 6-6" />
+                    </svg>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={showNextMilestone}
+                    className="motion-button flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-surface-light text-fg-primary hover:border-accent-primary/30 hover:text-accent-primary"
+                    aria-label="查看下一段历程"
+                  >
+                    <svg
+                      className="h-5 w-5"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
+                      <path d="m9 18 6-6-6-6" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="overflow-hidden rounded-[32px] border border-white/8 bg-surface-light/86 p-6 shadow-[0_24px_70px_-40px_rgba(2,6,23,0.9)] sm:p-8">
+              <article
+                key={activeMilestone.year}
+                className="motion-fade-up grid gap-6 lg:grid-cols-[0.92fr_1.08fr] lg:items-start"
+              >
+                <div className="flex flex-col gap-6">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#FFD700] text-base font-bold text-slate-950 shadow-[0_18px_40px_-22px_rgba(255,215,0,0.68)]">
+                      {activeMilestone.year.slice(2)}
+                    </div>
+                    <div>
+                      <p className="text-sm font-semibold uppercase tracking-[0.22em] text-accent-primary">
+                        Team Timeline
+                      </p>
+                      <h3 className="mt-1 font-display text-3xl text-fg-primary sm:text-[34px]">
+                        {activeMilestone.year}年 · {activeMilestone.title}
+                      </h3>
+                    </div>
+                  </div>
+
+                  <p className="text-sm leading-7 text-fg-muted sm:text-base">
+                    {activeMilestone.intro}
+                  </p>
+
+                  <div className="rounded-[24px] border border-white/8 bg-surface-primary/72 p-5">
+                    <h4 className="text-sm font-semibold uppercase tracking-[0.22em] text-[#FFD700]">
+                      关键节点
+                    </h4>
+                    <ul className="mt-4 space-y-3">
+                      {activeMilestone.highlights.map((highlight) => (
+                        <li
+                          key={highlight}
+                          className="flex gap-3 text-sm leading-7 text-fg-muted sm:text-[15px]"
+                        >
+                          <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#FFD700]" />
+                          <span>{highlight}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </div>
+
+                <div
+                  className={`grid gap-4 ${
+                    activeMilestone.images.length > 1 ? "sm:grid-cols-2" : "grid-cols-1"
+                  }`}
+                >
+                  {activeMilestone.images.map((image, index) => (
+                    <figure
+                      key={image}
+                      className={`overflow-hidden rounded-[24px] border border-white/8 bg-surface-primary ${
+                        activeMilestone.images.length === 1 ? "sm:max-w-[760px]" : ""
+                      }`}
+                    >
+                      <img
+                        src={image}
+                        alt={`${activeMilestone.year}年${activeMilestone.title}历史图片${index + 1}`}
+                        loading="lazy"
+                        className="h-full w-full object-cover"
+                      />
+                    </figure>
+                  ))}
+                </div>
+              </article>
+            </div>
           </div>
         </div>
       </section>
 
       {/* Robot Showcase Section */}
-      <section id="robots" className="py-16 sm:py-20 bg-surface-primary">
+      <section
+        id="robots"
+        className="border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
+      >
         <div className="max-w-[1440px] mx-auto px-6 sm:px-10 lg:px-20">
           <div className="flex flex-col items-center gap-3 mb-12">
             <span className="inline-block px-4 py-1 text-[13px] font-semibold text-accent-primary bg-surface-light rounded-full">
@@ -490,7 +965,7 @@ export default function Home() {
             {robots.map((robot, index) => (
               <div
                 key={robot.name}
-                className="overflow-hidden bg-surface-light rounded-2xl"
+                className="motion-surface overflow-hidden rounded-2xl border border-white/8 bg-surface-light/92"
               >
                 {robotImages[index] ? (
                   <img
@@ -533,8 +1008,53 @@ export default function Home() {
         </div>
       </section>
 
+      {/* Achievement Certificates Section */}
+      <section
+        id="certificates"
+        className="border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
+      >
+        <div className="mx-auto max-w-[1440px] px-6 sm:px-10 lg:px-20">
+          <div className="mb-12 flex flex-col items-center gap-3">
+            <span className="inline-block rounded-full bg-white/[0.08] px-4 py-1 text-[13px] font-semibold text-accent-gold">
+              成就展示
+            </span>
+            <h2 className="text-center font-display text-3xl text-fg-inverse sm:text-[40px]">
+              团队荣誉证书与阶段成果陈列
+            </h2>
+            <p className="max-w-[760px] text-center text-base leading-relaxed text-fg-muted">
+              这里集中展示团队在创新创业、学科竞赛与 RoboMaster
+              相关实践中获得的阶段性荣誉。整体采用规整的矩形照片墙陈列，便于更直接地浏览不同阶段的获奖成果。
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {achievementCertificates.map((image, index) => (
+              <article
+                key={image}
+                className="motion-surface group relative aspect-[4/3] overflow-hidden rounded-[24px] border border-white/8 bg-surface-light/86 p-3 sm:p-4"
+              >
+                <span className="absolute left-4 top-4 z-10 rounded-full border border-white/10 bg-black/28 px-3 py-1 text-[11px] font-semibold tracking-[0.18em] text-accent-gold backdrop-blur-sm">
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <div className="h-full overflow-hidden rounded-[18px] bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_56%)]">
+                  <img
+                    src={image}
+                    alt={`团队荣誉证书${index + 1}`}
+                    loading="lazy"
+                    className="h-full w-full object-fill transition-transform duration-500 ease-out group-hover:scale-[1.02]"
+                  />
+                </div>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
       {/* Join Us Section */}
-      <section id="join" className="py-16 sm:py-20 bg-surface-light">
+      <section
+        id="join"
+        className="border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
+      >
         <div className="max-w-[1440px] mx-auto px-6 sm:px-10 lg:px-20 flex flex-col items-center">
           <div className="flex flex-col items-center gap-3 mb-12">
             <span className="inline-block px-4 py-1 text-[13px] font-semibold text-fg-inverse bg-accent-primary rounded-full">
@@ -548,33 +1068,40 @@ export default function Home() {
             </p>
           </div>
 
-          <div className="w-full grid sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+          <div className="mb-12 grid w-full gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {groups.map((group) => (
               <div
                 key={group.name}
-                className="flex flex-col gap-4 p-7 bg-surface-primary rounded-2xl shadow-[0_4px_20px_rgba(0,0,0,0.05)]"
+                className="motion-surface relative overflow-hidden rounded-[28px] border border-white/8 bg-surface-primary p-7 shadow-[0_18px_40px_-32px_rgba(2,6,23,0.68)]"
               >
                 <div
-                  className={`w-[52px] h-[52px] bg-gradient-to-br ${group.gradient} rounded-[14px] flex items-center justify-center`}
-                >
-                  <GroupIcon
-                    icon={group.icon}
-                    className="w-[26px] h-[26px] text-fg-inverse"
-                  />
+                  className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${group.accent}`}
+                />
+                <div className="relative flex flex-col gap-4">
+                  <div className="flex items-center gap-4">
+                    <div className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-[22px] border border-white/12 bg-white/[0.08] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
+                      <img
+                        src={group.logo}
+                        alt={`${group.name} logo`}
+                        loading="lazy"
+                        className="h-12 w-12 object-contain"
+                      />
+                    </div>
+                    <h3 className="text-lg font-bold text-fg-primary">
+                      {group.name}
+                    </h3>
+                  </div>
+                  <p className="text-sm leading-relaxed text-fg-muted">
+                    {group.description}
+                  </p>
                 </div>
-                <h3 className="text-lg font-bold text-fg-primary">
-                  {group.name}
-                </h3>
-                <p className="text-sm text-fg-muted leading-relaxed">
-                  {group.description}
-                </p>
               </div>
             ))}
           </div>
 
           <Link
             to="/register"
-            className="inline-flex items-center gap-2 px-10 py-4 bg-accent-primary text-fg-inverse text-lg font-semibold rounded-full transition-opacity hover:opacity-90"
+            className="motion-button inline-flex items-center gap-2 rounded-full bg-accent-primary px-10 py-4 text-lg font-semibold text-fg-inverse shadow-[0_18px_40px_-24px_rgba(0,98,255,0.78)] transition-opacity hover:opacity-90"
           >
             立即报名
             <svg
@@ -594,33 +1121,18 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-surface-dark py-12 px-6 sm:px-10 lg:px-20">
+      <footer className="border-t border-white/[0.06] bg-transparent px-6 py-12 sm:px-10 lg:px-20">
         <div className="max-w-[1440px] mx-auto">
           {/* Footer top */}
-          <div className="flex flex-col md:flex-row gap-10 md:gap-[60px] mb-8">
+          <div className="mb-8 grid gap-10 md:grid-cols-2 lg:grid-cols-[320px_120px_170px_140px] xl:grid-cols-[320px_120px_170px_130px_minmax(280px,1fr)]">
             {/* Brand */}
             <div className="w-full md:w-[320px] flex flex-col gap-4 shrink-0">
-              <div className="flex items-center gap-2.5">
-                <svg
-                  className="w-7 h-7 text-accent-primary"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M12 8V4H8" />
-                  <rect width="16" height="12" x="4" y="8" rx="2" />
-                  <path d="M2 14h2" />
-                  <path d="M20 14h2" />
-                  <path d="M15 13v2" />
-                  <path d="M9 13v2" />
-                </svg>
-                <span className="font-display text-fg-inverse text-[22px]">
-                  TARS-Go
-                </span>
-              </div>
+              <img
+                src="/assets/images/Logo/JiJiaMaster.png"
+                alt="吉甲大师"
+                loading="lazy"
+                className="h-14 w-fit max-w-[220px] object-contain"
+              />
               <p className="text-[13px] text-fg-muted leading-relaxed max-w-[280px]">
                 吉林大学吉甲大师双创基地
                 <br />
@@ -633,7 +1145,9 @@ export default function Home() {
               <h4 className="text-sm font-bold text-fg-inverse">快速导航</h4>
               <a href="/#hero" className="text-[13px] text-fg-muted hover:text-fg-primary transition-colors">首页</a>
               <a href="/#about" className="text-[13px] text-fg-muted hover:text-fg-primary transition-colors">关于我们</a>
-              <a href="/#achievements" className="text-[13px] text-fg-muted hover:text-fg-primary transition-colors">赛事成就</a>
+              <a href="/#achievements" className="text-[13px] text-fg-muted hover:text-fg-primary transition-colors">团队历程</a>
+              <a href="/#robots" className="text-[13px] text-fg-muted hover:text-fg-primary transition-colors">机器人展示</a>
+              <a href="/#certificates" className="text-[13px] text-fg-muted hover:text-fg-primary transition-colors">成就展示</a>
               <a href="/#join" className="text-[13px] text-fg-muted hover:text-fg-primary transition-colors">加入我们</a>
             </div>
 
@@ -666,6 +1180,31 @@ export default function Home() {
                 </div>
               </div>
             </div>
+
+            {/* Sponsors */}
+            <div className="flex flex-col gap-3 md:col-span-2 lg:col-span-4 xl:col-span-1">
+              <div className="flex items-center justify-between gap-3">
+                <h4 className="text-sm font-bold text-fg-inverse">赞助商支持</h4>
+                <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-accent-gold">
+                  Sponsors
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-2 2xl:grid-cols-3">
+                {sponsorLogos.map((sponsor) => (
+                  <div
+                    key={sponsor.name}
+                    className="motion-surface flex h-12 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.06] p-1.5"
+                  >
+                    <img
+                      src={sponsor.image}
+                      alt={sponsor.name}
+                      loading="lazy"
+                      className="h-full w-full object-fill"
+                    />
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* Divider */}
@@ -682,6 +1221,7 @@ export default function Home() {
           </div>
         </div>
       </footer>
+      </div>
     </div>
   );
 }

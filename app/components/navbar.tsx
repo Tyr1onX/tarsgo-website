@@ -4,8 +4,9 @@ import { Link } from "react-router";
 const navLinks = [
   { label: "首页", href: "/#hero", active: true },
   { label: "关于我们", href: "/#about", active: false },
-  { label: "赛事成就", href: "/#achievements", active: false },
+  { label: "团队历程", href: "/#achievements", active: false },
   { label: "机器人展示", href: "/#robots", active: false },
+  { label: "成就展示", href: "/#certificates", active: false },
   { label: "加入我们", href: "/#join", active: false },
 ];
 
@@ -35,25 +36,17 @@ export function Navbar() {
             : "border-white/12 bg-black/28 shadow-[0_24px_70px_-38px_rgba(2,6,23,0.85)] backdrop-blur-xl"
         }`}
       >
-        <div className="mx-auto flex h-[72px] max-w-[1440px] items-center justify-between px-6 sm:px-10 lg:px-20">
-          <Link to="/" className="motion-button flex shrink-0 items-center gap-2.5">
-            <svg
-              className="h-8 w-8 text-accent-primary"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M12 8V4H8" />
-              <rect width="16" height="12" x="4" y="8" rx="2" />
-              <path d="M2 14h2" />
-              <path d="M20 14h2" />
-              <path d="M15 13v2" />
-              <path d="M9 13v2" />
-            </svg>
-            <span className="font-display text-2xl text-fg-primary">TARS-Go</span>
+        <div className="mx-auto flex h-[68px] max-w-[1440px] items-center justify-between px-6 sm:px-10 lg:px-20">
+          <Link
+            to="/"
+            aria-label="TARS-GO 首页"
+            className="motion-button flex shrink-0 items-center"
+          >
+            <img
+              src="/assets/images/Logo/TARS-GO.png"
+              alt="TARS-GO"
+              className="h-[48px] w-auto object-contain sm:h-[54px]"
+            />
           </Link>
 
           <div className="hidden items-center gap-8 md:flex">
@@ -61,7 +54,7 @@ export function Navbar() {
               <a
                 key={link.href}
                 href={link.href}
-                className={`motion-nav-link text-[15px] font-medium transition-colors ${
+                className={`motion-nav-link text-base font-semibold transition-colors ${
                   link.active
                     ? "text-accent-primary"
                     : "text-fg-primary hover:text-accent-primary"
@@ -75,13 +68,13 @@ export function Navbar() {
           <div className="hidden items-center gap-3 md:flex">
             <Link
               to="/login"
-              className="motion-button rounded-full border border-white/16 bg-white/4 px-5 py-2 text-sm font-medium text-fg-primary transition-colors hover:bg-white/10"
+              className="motion-button rounded-full border border-white/16 bg-white/4 px-5 py-2 text-[15px] font-semibold text-fg-primary transition-colors hover:bg-white/10"
             >
               登录
             </Link>
             <Link
               to="/register"
-              className="motion-button rounded-full bg-accent-primary px-5 py-2 text-sm font-medium text-fg-inverse shadow-[0_18px_40px_-24px_rgba(0,98,255,0.85)] transition-colors hover:bg-accent-primary/90"
+              className="motion-button rounded-full bg-accent-primary px-5 py-2 text-[15px] font-semibold text-fg-inverse shadow-[0_18px_40px_-24px_rgba(0,98,255,0.85)] transition-colors hover:bg-accent-primary/90"
             >
               注册
             </Link>
@@ -125,7 +118,7 @@ export function Navbar() {
                 <a
                   key={link.href}
                   href={link.href}
-                  className={`motion-button motion-nav-link rounded-2xl px-3 py-3 text-sm transition-colors ${
+                  className={`motion-button motion-nav-link rounded-2xl px-3 py-3 text-base font-semibold transition-colors ${
                     link.active
                       ? "bg-white/6 text-accent-primary"
                       : "text-fg-primary hover:bg-white/5 hover:text-accent-primary"
@@ -139,14 +132,14 @@ export function Navbar() {
             <div className="mt-4 flex gap-3">
               <Link
                 to="/login"
-                className="motion-button flex-1 rounded-full border border-white/16 bg-white/4 px-4 py-2 text-center text-sm font-medium text-fg-primary"
+                className="motion-button flex-1 rounded-full border border-white/16 bg-white/4 px-4 py-2 text-center text-[15px] font-semibold text-fg-primary"
                 onClick={() => setMenuOpen(false)}
               >
                 登录
               </Link>
               <Link
                 to="/register"
-                className="motion-button flex-1 rounded-full bg-accent-primary px-4 py-2 text-center text-sm font-medium text-fg-inverse"
+                className="motion-button flex-1 rounded-full bg-accent-primary px-4 py-2 text-center text-[15px] font-semibold text-fg-inverse"
                 onClick={() => setMenuOpen(false)}
               >
                 注册
