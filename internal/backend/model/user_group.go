@@ -11,6 +11,7 @@ type UserGroup struct {
 	ID          uint64            `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
 	Name        string            `json:"name" gorm:"size:100;not null;uniqueIndex:uk_name"`
 	Description *string           `json:"description,omitempty" gorm:"size:500;default:null"`
+	LogoURL     *string           `json:"logoUrl,omitempty" gorm:"column:logo_url;size:255;default:null"`
 	Tags        []string          `json:"tags,omitempty" gorm:"type:json;serializer:json"`
 	IsDefault   bool              `json:"isDefault" gorm:"column:is_default;type:tinyint(1);not null;default:0"`
 	Show        uint8             `json:"show" gorm:"column:show;type:tinyint(1);not null;default:1;index:idx_show"`

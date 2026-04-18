@@ -10,8 +10,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"tarsgo-backend/adminuser"
 	"tarsgo-backend/middleware"
+	"tarsgo-backend/service/adminuser"
 )
 
 type AdminUserHandler struct {

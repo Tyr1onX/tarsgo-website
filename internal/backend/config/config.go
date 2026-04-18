@@ -82,7 +82,7 @@ func Load() (*Config, error) {
 			Env:         getEnv("APP_ENV", "development"),
 			Port:        getEnv("APP_PORT", "8080"),
 			GinMode:     getEnv("GIN_MODE", "debug"),
-			FrontendURL: getEnv("APP_FRONTEND_URL", "http://127.0.0.1:5173"),
+			FrontendURL: getEnv("APP_FRONTEND_URL", "http://localhost:5173"),
 		},
 		Database: DatabaseConfig{
 			Host:            os.Getenv("DB_HOST"),
@@ -100,7 +100,7 @@ func Load() (*Config, error) {
 		CORS: CORSConfig{
 			AllowedOrigins: splitAndClean(getEnv(
 				"CORS_ALLOWED_ORIGINS",
-				"http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:5180,http://localhost:5180",
+				"http://localhost:5173,http://localhost:5180",
 			)),
 		},
 		Auth: AuthConfig{
@@ -184,6 +184,10 @@ func (c AppConfig) AdminDashboardURL() string {
 	return strings.TrimRight(c.FrontendURL, "/") + "/dashboard"
 }
 
+func (c AppConfig) BootstrapSetupURL() string {
+	return strings.TrimRight(c.FrontendURL, "/") + "/dashboard/setup/super-admin"
+}
+
 func (c DatabaseConfig) DSN() string {
 	return fmt.Sprintf(
 		"%s:%s@tcp(%s:%s)/%s?charset=%s&parseTime=%t&loc=%s",
@@ -244,9 +248,7 @@ func splitAndClean(value string) []string {
 
 	if len(cleaned) == 0 {
 		return []string{
-			"http://127.0.0.1:5173",
 			"http://localhost:5173",
-			"http://127.0.0.1:5180",
 			"http://localhost:5180",
 		}
 	}

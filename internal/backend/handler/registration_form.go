@@ -12,6 +12,7 @@ import (
 
 	"tarsgo-backend/middleware"
 	"tarsgo-backend/model"
+	"tarsgo-backend/service/registration"
 )
 
 type RegistrationFormHandler struct {
@@ -19,11 +20,11 @@ type RegistrationFormHandler struct {
 }
 
 type registrationFormService interface {
-	ListForms(ctx context.Context, actor RegistrationFormActor, input ListRegistrationFormsInput) (*ListRegistrationFormsResult, error)
-	GetForm(ctx context.Context, actor RegistrationFormActor, formID uint64) (*RegistrationFormDetail, error)
-	CreateForm(ctx context.Context, actor RegistrationFormActor, input UpsertRegistrationFormInput) (*RegistrationFormDetail, error)
-	UpdateForm(ctx context.Context, actor RegistrationFormActor, formID uint64, input UpsertRegistrationFormInput) (*RegistrationFormDetail, error)
-	GetRecruitmentPageData(ctx context.Context, actor RegistrationFormActor) (*RecruitmentPageData, error)
+	ListForms(ctx context.Context, actor registration.RegistrationFormActor, input registration.ListRegistrationFormsInput) (*registration.ListRegistrationFormsResult, error)
+	GetForm(ctx context.Context, actor registration.RegistrationFormActor, formID uint64) (*registration.RegistrationFormDetail, error)
+	CreateForm(ctx context.Context, actor registration.RegistrationFormActor, input registration.UpsertRegistrationFormInput) (*registration.RegistrationFormDetail, error)
+	UpdateForm(ctx context.Context, actor registration.RegistrationFormActor, formID uint64, input registration.UpsertRegistrationFormInput) (*registration.RegistrationFormDetail, error)
+	GetRecruitmentPageData(ctx context.Context, actor registration.RegistrationFormActor) (*registration.RecruitmentPageData, error)
 }
 
 type listRegistrationFormsQuery struct {
@@ -59,7 +60,7 @@ func (h *RegistrationFormHandler) ListForms(c *gin.Context) {
 		return
 	}
 
-	result, serviceErr := h.service.ListForms(c.Request.Context(), currentRegistrationFormActor(c), ListRegistrationFormsInput{
+	result, serviceErr := h.service.ListForms(c.Request.Context(), currentRegistrationFormActor(c), registration.ListRegistrationFormsInput{
 		Keyword: query.Keyword,
 		Status:  status,
 	})
@@ -133,25 +134,25 @@ func (h *RegistrationFormHandler) GetRecruitmentPageData(c *gin.Context) {
 	writeAPI(c, http.StatusOK, "获取报名信息页数据成功", data)
 }
 
-func (h *RegistrationFormHandler) parseUpsertInput(c *gin.Context) (UpsertRegistrationFormInput, bool) {
+func (h *RegistrationFormHandler) parseUpsertInput(c *gin.Context) (registration.UpsertRegistrationFormInput, bool) {
 	var request upsertRegistrationFormRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		writeAPIError(c, http.StatusBadRequest, "请求参数不合法")
-		return UpsertRegistrationFormInput{}, false
+		return registration.UpsertRegistrationFormInput{}, false
 	}
 
 	startTime, err := parseOptionalDateTime(request.StartTime)
 	if err != nil {
 		writeAPIError(c, http.StatusBadRequest, "报名开始时间格式不合法，请使用 YYYY-MM-DDTHH:mm")
-		return UpsertRegistrationFormInput{}, false
+		return registration.UpsertRegistrationFormInput{}, false
 	}
 	endTime, err := parseOptionalDateTime(request.EndTime)
 	if err != nil {
 		writeAPIError(c, http.StatusBadRequest, "报名截止时间格式不合法，请使用 YYYY-MM-DDTHH:mm")
-		return UpsertRegistrationFormInput{}, false
+		return registration.UpsertRegistrationFormInput{}, false
 	}
 
-	return UpsertRegistrationFormInput{
+	return registration.UpsertRegistrationFormInput{
 		Title:            request.Title,
 		Description:      request.Description,
 		CoverImageURL:    request.CoverImageURL,
@@ -164,7 +165,7 @@ func (h *RegistrationFormHandler) parseUpsertInput(c *gin.Context) (UpsertRegist
 }
 
 func (h *RegistrationFormHandler) handleServiceError(c *gin.Context, err error) {
-	var serviceErr *registrationFormServiceError
+	var serviceErr *registration.FormServiceError
 	if errors.As(err, &serviceErr) {
 		writeAPIError(c, serviceErr.Status, serviceErr.Message)
 		return
@@ -173,13 +174,13 @@ func (h *RegistrationFormHandler) handleServiceError(c *gin.Context, err error) 
 	writeAPIError(c, http.StatusInternalServerError, "服务器内部错误")
 }
 
-func currentRegistrationFormActor(c *gin.Context) RegistrationFormActor {
+func currentRegistrationFormActor(c *gin.Context) registration.RegistrationFormActor {
 	sessionUser, ok := middleware.CurrentSessionUser(c)
 	if !ok || sessionUser == nil {
-		return RegistrationFormActor{}
+		return registration.RegistrationFormActor{}
 	}
 
-	return RegistrationFormActor{
+	return registration.RegistrationFormActor{
 		ID:       sessionUser.ID,
 		RoleName: sessionUser.Role.Name,
 	}

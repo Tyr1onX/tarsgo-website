@@ -10,6 +10,72 @@ important：
  - 所有响应格式统一为 `{ "code": int, "message": string, "data": object }`
  - 后端地址：`http://127.0.0.1:8080`
  - 前端开发地址默认是 `http://127.0.0.1:5173`，若端口冲突可能自动切到 `http://127.0.0.1:5180`
+ - 首次运行且系统中不存在 `super_admin` 账号时，前端应先访问 `/dashboard` 进入超级管理员初始化流程
+
+### 初始化状态
+
+GET http://127.0.0.1:8080/api/bootstrap/status 获取系统初始化状态
+ - 用途：前端进入 `/dashboard` 前判断是否需要先创建首个超级管理员
+ - 成功响应（未初始化）：
+   ```json
+   {
+     "code": 200,
+     "message": "获取初始化状态成功",
+     "data": {
+       "setupRequired": true
+     }
+   }
+   ```
+ - 成功响应（已初始化）：
+   ```json
+   {
+     "code": 200,
+     "message": "获取初始化状态成功",
+     "data": {
+       "setupRequired": false
+     }
+   }
+   ```
+
+POST http://127.0.0.1:8080/api/bootstrap/super-admin 首次注册超级管理员
+ - 说明：
+   - 仅在系统尚未初始化时可调用
+   - 注册成功后通过 Set-Cookie 下发 JWT，并直接进入后台
+   - 首个超级管理员不会自动加入默认用户组
+ - 请求体：
+   ```json
+   {
+     "email": "root@example.com",
+     "password": "Password123",
+     "confirmPassword": "Password123"
+   }
+   ```
+ - 成功响应：
+   ```json
+   {
+     "code": 200,
+     "message": "超级管理员注册成功",
+     "data": {
+       "user": {
+         "id": 1,
+         "email": "root@example.com",
+         "role": {
+           "id": 1,
+           "name": "super_admin",
+           "displayName": "超级管理员"
+         }
+       }
+     }
+   }
+   ```
+ - 失败响应（两次密码不一致）：
+   ```json
+   { "code": 400, "message": "两次输入的密码不一致", "data": null }
+   ```
+ - 失败响应（系统已初始化）：
+   ```json
+   { "code": 409, "message": "系统已初始化，请直接登录", "data": null }
+   ```
 
 ### 邮箱注册
 
@@ -31,6 +97,10 @@ POST http://127.0.0.1:8080/api/register/email/send-code 发送注册邮箱验证
  - 失败响应（邮箱已注册）：
    ```json
    { "code": 409, "message": "该邮箱已注册", "data": null }
+   ```
+ - 失败响应（系统未初始化）：
+   ```json
+   { "code": 409, "message": "系统尚未初始化，请先完成超级管理员注册", "data": null }
    ```
 
 POST http://127.0.0.1:8080/api/register/email 邮箱注册
@@ -63,6 +133,10 @@ POST http://127.0.0.1:8080/api/register/email 邮箱注册
    ```json
    { "code": 400, "message": "验证码错误或已过期", "data": null }
    ```
+ - 失败响应（系统未初始化）：
+   ```json
+   { "code": 409, "message": "系统尚未初始化，请先完成超级管理员注册", "data": null }
+   ```
 
 ### 邮箱登录（密码方式）
 
@@ -92,6 +166,10 @@ POST http://127.0.0.1:8080/api/login/email/password 邮箱密码登录
    ```json
    { "code": 401, "message": "邮箱或密码错误", "data": null }
    ```
+ - 失败响应（系统未初始化）：
+   ```json
+   { "code": 409, "message": "系统尚未初始化，请先完成超级管理员注册", "data": null }
+   ```
 
 ### 邮箱登录（验证码方式）
 
@@ -109,6 +187,10 @@ POST http://127.0.0.1:8080/api/login/email/send-code 发送登录邮箱验证码
  - 失败响应（邮箱未注册）：
    ```json
    { "code": 404, "message": "该邮箱未注册", "data": null }
+   ```
+ - 失败响应（系统未初始化）：
+   ```json
+   { "code": 409, "message": "系统尚未初始化，请先完成超级管理员注册", "data": null }
    ```
 
 POST http://127.0.0.1:8080/api/login/email/code 邮箱验证码登录
@@ -137,15 +219,21 @@ POST http://127.0.0.1:8080/api/login/email/code 邮箱验证码登录
    ```json
    { "code": 400, "message": "验证码错误或已过期", "data": null }
    ```
+ - 失败响应（系统未初始化）：
+   ```json
+   { "code": 409, "message": "系统尚未初始化，请先完成超级管理员注册", "data": null }
+   ```
 
 ### GitHub 三方登录
 
 GET http://127.0.0.1:8080/api/login/github GitHub 登录入口
  - 前端跳转到此地址，后端 302 重定向到 GitHub OAuth 授权页面
+ - 若系统尚未初始化，则直接 302 重定向到前端初始化页 `/dashboard/setup/super-admin`
  - GitHub 授权完成后回调到后端回调地址
 
 GET http://127.0.0.1:8080/api/register/github/oauth/callback GitHub OAuth 回调
  - GitHub 授权成功后回调此地址，携带 code 参数
+ - 若系统尚未初始化，则直接 302 重定向到前端初始化页 `/dashboard/setup/super-admin`
  - 后端用 code 换取 access_token，获取 GitHub 用户信息
  - 如果该 GitHub 账号未绑定本站账户，自动创建新账户
  - 若因为 GitHub 首次登录而新建账号，且系统存在“启用中的默认分组”，则会自动加入默认分组
@@ -163,7 +251,7 @@ GET http://127.0.0.1:8080/api/me 获取当前登录用户
      "data": {
       "user": {
         "id": 1,
-        "email": "admin@tarsgo.local",
+        "email": "root@example.com",
         "phone": null,
         "role": {
           "id": 1,
@@ -468,6 +556,7 @@ GET http://127.0.0.1:8080/api/admin/user-groups 获取用户组列表
            "id": 11,
            "name": "新注册用户",
            "description": "邮箱注册与后台新建普通用户的默认承接组",
+           "logoUrl": "/upload/config/group/20260418123000_a1b2c3_logo.png",
            "tags": ["新注册", "默认分流"],
           "isDefault": true,
           "show": 1,
@@ -497,11 +586,12 @@ GET http://127.0.0.1:8080/api/admin/user-groups/:id 获取用户组详情
    {
      "code": 200,
      "message": "获取用户组详情成功",
-     "data": {
-       "id": 11,
-       "name": "新注册用户",
-       "description": "邮箱注册与后台新建普通用户的默认承接组",
-       "tags": ["新注册", "默认分流"],
+      "data": {
+        "id": 11,
+        "name": "新注册用户",
+        "description": "邮箱注册与后台新建普通用户的默认承接组",
+        "logoUrl": "/upload/config/group/20260418123000_a1b2c3_logo.png",
+        "tags": ["新注册", "默认分流"],
       "isDefault": true,
       "show": 1,
       "status": 1,
@@ -554,6 +644,7 @@ GET http://127.0.0.1:8080/api/admin/user-groups/:id 获取用户组详情
 
 POST http://127.0.0.1:8080/api/admin/user-groups 创建用户组
  - 用途：创建新的用户组卡片
+ - 请求类型：`application/json` 或 `multipart/form-data`
  - 请求体：
    ```json
   {
@@ -565,6 +656,9 @@ POST http://127.0.0.1:8080/api/admin/user-groups 创建用户组
     "status": 1
   }
    ```
+ - multipart 补充：
+   - 文件字段：`logo`
+   - 普通字段：`name`、`description`、`tags`、`isDefault`、`show`、`status`
  - 成功响应：返回创建后的完整用户组详情
  - 常见失败：
 - `400`：请求参数不合法、分组名称为空、状态值或 show 值不合法
@@ -576,6 +670,8 @@ PATCH http://127.0.0.1:8080/api/admin/user-groups/:id 更新用户组
  - 说明：
    - 当 `isDefault=true` 且 `status=1` 时，服务端会自动清空其它分组的默认标记
    - 当 `status=0` 时，即使请求体中传入 `isDefault=true`，最终也不会保留默认标记
+   - 支持 `application/json` 或 `multipart/form-data`
+   - multipart 下可额外传 `logo` 文件字段，或传 `removeLogo=true` 清空已有 Logo
  - 请求体：
    ```json
   {
@@ -1333,4 +1429,3 @@ DELETE http://127.0.0.1:8080/api/admin/registrations/:id 删除报名
 
 
 ## 用户后台API列表
-

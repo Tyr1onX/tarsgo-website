@@ -6,10 +6,8 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 
-	"tarsgo-backend/auth"
 	"tarsgo-backend/config"
 	"tarsgo-backend/model"
-	"tarsgo-backend/usergroup"
 )
 
 func New(cfg config.DatabaseConfig) (*gorm.DB, error) {
@@ -57,7 +55,7 @@ func AutoMigrate(db *gorm.DB) error {
 		return err
 	}
 
-	return seedDefaultUsers(db)
+	return nil
 }
 
 func dropLegacyRegistrationFormColumns(db *gorm.DB) error {
@@ -122,90 +120,4 @@ func seedRoles(db *gorm.DB) error {
 	}
 
 	return nil
-}
-
-func seedDefaultUsers(db *gorm.DB) error {
-	seeds := []struct {
-		RoleName           string
-		Email              string
-		Name               string
-		Nickname           string
-		Password           string
-		AssignDefaultGroup bool
-	}{
-		{
-			RoleName: model.RoleNameSuperAdmin,
-			Email:    "admin@tarsgo.local",
-			Name:     "admin",
-			Nickname: "系统管理员",
-			Password: "123456",
-		},
-		{
-			RoleName: model.RoleNameAdmin,
-			Email:    "manager@tarsgo.local",
-			Name:     "manager",
-			Nickname: "默认管理员",
-			Password: "123456",
-		},
-		{
-			RoleName:           model.RoleNameUser,
-			Email:              "user@tarsgo.local",
-			Name:               "user",
-			Nickname:           "默认普通用户",
-			Password:           "123456",
-			AssignDefaultGroup: true,
-		},
-	}
-
-	for _, seed := range seeds {
-		if err := seedDefaultUser(db, seed.RoleName, seed.Email, seed.Name, seed.Nickname, seed.Password, seed.AssignDefaultGroup); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func seedDefaultUser(
-	db *gorm.DB,
-	roleName string,
-	email string,
-	name string,
-	nickname string,
-	password string,
-	assignDefaultGroup bool,
-) error {
-	var role model.Role
-	if err := db.Where("name = ?", roleName).First(&role).Error; err != nil {
-		return fmt.Errorf("load role %s: %w", roleName, err)
-	}
-
-	passwordHash, err := auth.HashPassword(password)
-	if err != nil {
-		return fmt.Errorf("hash password for %s: %w", email, err)
-	}
-
-	return db.Transaction(func(tx *gorm.DB) error {
-		user := model.User{Email: email}
-		if err := tx.
-			Where("email = ?", email).
-			Assign(map[string]any{
-				"role_id":       role.ID,
-				"name":          name,
-				"password_hash": passwordHash,
-				"nickname":      nickname,
-				"status":        model.UserStatusEnabled,
-			}).
-			FirstOrCreate(&user).Error; err != nil {
-			return fmt.Errorf("seed user %s: %w", email, err)
-		}
-
-		if assignDefaultGroup {
-			if err := usergroup.AssignDefaultGroupTx(tx, user.ID); err != nil {
-				return fmt.Errorf("assign default group to %s: %w", email, err)
-			}
-		}
-
-		return nil
-	})
 }
