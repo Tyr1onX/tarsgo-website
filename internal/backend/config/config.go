@@ -82,7 +82,7 @@ func Load() (*Config, error) {
 			Env:         getEnv("APP_ENV", "development"),
 			Port:        getEnv("APP_PORT", "8080"),
 			GinMode:     getEnv("GIN_MODE", "debug"),
-			FrontendURL: getEnv("APP_FRONTEND_URL", "http://localhost:5173"),
+			FrontendURL: getEnv("APP_FRONTEND_URL", ""),
 		},
 		Database: DatabaseConfig{
 			Host:            os.Getenv("DB_HOST"),
@@ -181,11 +181,24 @@ func (c AppConfig) Address() string {
 }
 
 func (c AppConfig) AdminDashboardURL() string {
-	return strings.TrimRight(c.FrontendURL, "/") + "/dashboard"
+	return c.FrontendRoute("/dashboard")
 }
 
 func (c AppConfig) BootstrapSetupURL() string {
-	return strings.TrimRight(c.FrontendURL, "/") + "/dashboard/setup/super-admin"
+	return c.FrontendRoute("/dashboard/setup/super-admin")
+}
+
+func (c AppConfig) LoginErrorURL(code string) string {
+	return c.FrontendRoute("/login") + "?error=" + code
+}
+
+func (c AppConfig) FrontendRoute(routePath string) string {
+	normalizedPath := "/" + strings.TrimLeft(strings.TrimSpace(routePath), "/")
+	if strings.TrimSpace(c.FrontendURL) == "" {
+		return normalizedPath
+	}
+
+	return strings.TrimRight(strings.TrimSpace(c.FrontendURL), "/") + normalizedPath
 }
 
 func (c DatabaseConfig) DSN() string {

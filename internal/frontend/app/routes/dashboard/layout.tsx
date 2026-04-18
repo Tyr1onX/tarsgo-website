@@ -3,8 +3,7 @@ import { Link, NavLink, Outlet, redirect, useLocation, useNavigate } from "react
 
 import type { Route } from "./+types/layout";
 import { ApiError } from "~/lib/api-client";
-import { getBootstrapStatus, logout, type AuthUser } from "~/lib/auth-client";
-import { fetchCurrentUserFromRequest } from "~/lib/server-auth";
+import { getBootstrapStatus, getCurrentUser, logout, type AuthUser } from "~/lib/auth-client";
 import {
   canAccessDashboardAdminPath,
   getUserDashboardMenu,
@@ -31,7 +30,7 @@ function getIsDesktopDashboardViewport() {
   return window.matchMedia(DESKTOP_DASHBOARD_MEDIA).matches;
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
+export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const currentPath = new URL(request.url);
 
   const bootstrapStatus = await getBootstrapStatus();
@@ -40,7 +39,7 @@ export async function loader({ request }: Route.LoaderArgs) {
   }
 
   try {
-    const currentUser = await fetchCurrentUserFromRequest(request);
+    const currentUser = await getCurrentUser({ force: true });
     const pathname = currentPath.pathname;
 
     if (
@@ -59,6 +58,8 @@ export async function loader({ request }: Route.LoaderArgs) {
     throw error;
   }
 }
+
+clientLoader.hydrate = true;
 
 function MenuIcon({ iconKey }: { iconKey: DashboardMenuIconKey }) {
   switch (iconKey) {

@@ -12,6 +12,7 @@ make frontend
 make frontend-check
 make backend
 make backend-test
+make build
 ```
 
 ## Development
@@ -41,3 +42,11 @@ make backend
 ```bash
 make backend-up
 ```
+
+构建单二进制：
+
+```bash
+make build
+```
+
+`make build` 会先构建前端静态资源，再把资源内嵌进后端二进制，最终输出 `dist/tarsgo-backend`。运行该二进制即可同时提供前端页面与后端 API。

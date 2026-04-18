@@ -39,9 +39,9 @@
    - 当前仓库已经提供可直接运行的本地 `.env`
    - 示例模板在 `.env.example`
    - 认证依赖的 JWT / SMTP / GitHub OAuth 配置都已补齐
-   - 前端联调默认端口通常是 `http://127.0.0.1:5173`
+   - 分离式前端联调默认端口通常是 `http://127.0.0.1:5173`
    - 若前端开发端口被占用，React Router / Vite 可能自动切到 `http://127.0.0.1:5180`
-   - 当前 `.env.example` 已默认放行 `5173` 与 `5180` 两组本地域名，`APP_FRONTEND_URL` 需要和你实际打开的前端地址保持一致
+   - `APP_FRONTEND_URL` 只用于分离式前端开发时的 OAuth 回跳；单二进制部署可以留空，后端会使用相对路径回到内嵌前端
 
 3. 启动服务：
 
@@ -87,6 +87,23 @@
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
 | `GET` | `/healthz` | 健康检查，包含数据库连通性 |
+
+## 单二进制部署
+
+在仓库根目录执行：
+
+```bash
+make build
+```
+
+构建流程会先执行前端 `npm run build`，再把 `internal/frontend/build/client/` 复制到 `internal/backend/web/frontend/`，最后通过 `go:embed` 编译进 `dist/tarsgo-backend`。运行该二进制后，后端会同时提供：
+
+| 路径 | 行为 |
+| --- | --- |
+| `/api/*` | 后端 API |
+| `/upload/config/group/*` | 运行时上传文件 |
+| `/assets/*`、`/media/*`、`/favicon.ico` | 内嵌前端静态资源 |
+| `/`、`/login`、`/dashboard/*` | 内嵌前端 SPA fallback |
 
 ## 自动迁移
 

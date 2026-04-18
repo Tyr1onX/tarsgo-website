@@ -1,17 +1,3 @@
-function getApiBaseUrl() {
-  const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/$/, "");
-
-  if (configuredBaseUrl) {
-    return configuredBaseUrl;
-  }
-
-  if (import.meta.env.DEV && typeof window !== "undefined") {
-    return "";
-  }
-
-  return "http://127.0.0.1:8080";
-}
-
 export interface ApiEnvelope<T> {
   code: number;
   message: string;
@@ -29,7 +15,7 @@ export class ApiError extends Error {
 }
 
 export function buildApiUrl(path: string): string {
-  return `${getApiBaseUrl()}${path}`;
+  return path.startsWith("/") ? path : `/${path}`;
 }
 
 type ApiRequestBody = BodyInit | object | null;

@@ -105,18 +105,21 @@ export function meta() {
   ];
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
-  const currentPath = new URL(request.url).pathname;
+export async function clientLoader({ request }: Route.ClientLoaderArgs) {
+  const currentUrl = new URL(request.url);
+  const redirectTarget = `${currentUrl.pathname}${currentUrl.search}`;
 
   try {
-    return await fetchLoaderApi<RecruitmentPageData>(request, "/api/recruitment/form");
+    return await fetchLoaderApi<RecruitmentPageData>("/api/recruitment/form");
   } catch (error) {
     if (error instanceof ApiError && error.status === 401) {
-      throw redirect(`/login?redirect=${encodeURIComponent(currentPath)}`);
+      throw redirect(`/login?redirect=${encodeURIComponent(redirectTarget)}`);
     }
     throw error;
   }
 }
+
+clientLoader.hydrate = true;
 
 export default function UserRegistrations({
   loaderData,
@@ -1456,22 +1459,13 @@ function formatDateTime(value?: string | null) {
   }).format(date);
 }
 
-async function fetchLoaderApi<T>(request: Request, path: string): Promise<T> {
-  const headers = new Headers({
-    Accept: "application/json",
-  });
-
-  if (typeof window === "undefined") {
-    const cookie = request.headers.get("cookie");
-    if (cookie) {
-      headers.set("Cookie", cookie);
-    }
-  }
-
+async function fetchLoaderApi<T>(path: string): Promise<T> {
   const response = await fetch(buildApiUrl(path), {
     method: "GET",
     credentials: "include",
-    headers,
+    headers: {
+      Accept: "application/json",
+    },
   });
 
   let payload: ApiEnvelope<T> | null = null;

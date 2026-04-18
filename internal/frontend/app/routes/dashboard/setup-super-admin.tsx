@@ -12,7 +12,7 @@ export function meta() {
   ];
 }
 
-export async function loader(_: Route.LoaderArgs) {
+export async function clientLoader(_: Route.ClientLoaderArgs) {
   const status = await getBootstrapStatus();
   if (!status.setupRequired) {
     throw redirect("/dashboard");
@@ -20,6 +20,8 @@ export async function loader(_: Route.LoaderArgs) {
 
   return null;
 }
+
+clientLoader.hydrate = true;
 
 export default function SetupSuperAdmin() {
   const navigate = useNavigate();

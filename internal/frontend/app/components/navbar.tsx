@@ -84,13 +84,13 @@ export function Navbar({ currentUser = null }: NavbarProps) {
   return (
     <nav className="pointer-events-none fixed inset-x-0 top-0 z-50">
       <div
-        className={`pointer-events-auto w-full overflow-hidden border-b transition-all duration-300 ${
+        className={`pointer-events-auto w-full overflow-visible border-b transition-all duration-300 ${
           isScrolled
             ? "border-white/10 bg-surface-primary/88 shadow-[0_20px_60px_-30px_rgba(2,6,23,0.9)] backdrop-blur-2xl"
             : "border-white/12 bg-black/28 shadow-[0_24px_70px_-38px_rgba(2,6,23,0.85)] backdrop-blur-xl"
         }`}
       >
-      <div className="max-w-[1440px] mx-auto px-6 sm:px-10 lg:px-20 flex items-center justify-between h-[68px]">
+      <div className="max-w-[1440px] mx-auto flex h-[var(--site-nav-height)] items-center justify-between px-6 sm:px-10 lg:px-20">
         {/* Logo */}
         <Link
           to="/"
@@ -98,7 +98,7 @@ export function Navbar({ currentUser = null }: NavbarProps) {
           className="motion-button flex shrink-0 items-center"
         >
           <img
-            src="/assets/images/Logo/TARS-GO.png"
+            src="/assets/images/Logo/tars-go.webp"
             alt="TARS-GO"
             className="h-[48px] w-auto object-contain sm:h-[54px]"
           />
@@ -156,7 +156,7 @@ export function Navbar({ currentUser = null }: NavbarProps) {
               {userMenuOpen ? (
                 <div
                   role="menu"
-                  className="animate-user-menu-in absolute right-0 mt-3 w-64 overflow-hidden rounded-2xl border border-border-subtle bg-surface-primary/95 shadow-2xl shadow-black/40 backdrop-blur-xl"
+                  className="animate-user-menu-in absolute right-0 z-20 mt-3 w-64 overflow-hidden rounded-2xl border border-border-subtle bg-surface-primary/95 shadow-2xl shadow-black/40 backdrop-blur-xl"
                 >
                   <div className="flex items-center gap-3 border-b border-border-subtle/80 bg-gradient-to-b from-accent-primary/5 to-transparent px-4 py-2.5">
                     <UserAvatar user={currentUser} className="h-9 w-9" textClassName="text-sm" />

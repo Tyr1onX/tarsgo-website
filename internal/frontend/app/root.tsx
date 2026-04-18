@@ -48,6 +48,24 @@ export default function App() {
   return <Outlet />;
 }
 
+export function HydrateFallback() {
+  return (
+    <main className="min-h-screen bg-gray-950 text-white flex items-center justify-center px-6">
+      <div className="flex flex-col items-center gap-4 text-center">
+        <div className="h-12 w-12 rounded-2xl border border-primary-400/30 bg-primary-500/10 flex items-center justify-center">
+          <div className="h-5 w-5 rounded-full border-2 border-primary-300 border-t-transparent animate-spin" />
+        </div>
+        <div>
+          <p className="text-sm font-medium tracking-[0.18em] text-primary-200 uppercase">
+            TARS-GO
+          </p>
+          <p className="mt-2 text-sm text-gray-400">页面加载中...</p>
+        </div>
+      </div>
+    </main>
+  );
+}
+
 export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
   if (isRouteErrorResponse(error) && error.status === 404) {
     return <NotFound />;

@@ -13,6 +13,7 @@ type Repository interface {
 	ListGroups(ctx context.Context, filter ListGroupsInput) ([]model.UserGroup, error)
 	GetGroupStats(ctx context.Context) (GroupStats, error)
 	GetGroupByID(ctx context.Context, groupID uint64) (*model.UserGroup, error)
+	GetActiveDefaultGroup(ctx context.Context) (*model.UserGroup, error)
 	CreateGroup(ctx context.Context, group *model.UserGroup) error
 	UpdateGroup(ctx context.Context, groupID uint64, updates map[string]any) error
 	DeleteGroup(ctx context.Context, groupID uint64) error
@@ -98,6 +99,17 @@ func (r *GormRepository) GetGroupByID(ctx context.Context, groupID uint64) (*mod
 		Preload("Members.User").
 		Preload("Members.User.Role").
 		First(&group, groupID).Error; err != nil {
+		return nil, err
+	}
+	return &group, nil
+}
+
+func (r *GormRepository) GetActiveDefaultGroup(ctx context.Context) (*model.UserGroup, error) {
+	var group model.UserGroup
+	if err := r.db.WithContext(ctx).
+		Where("is_default = ? AND status = ?", true, model.UserGroupStatusActive).
+		Order("id ASC").
+		First(&group).Error; err != nil {
 		return nil, err
 	}
 	return &group, nil

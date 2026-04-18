@@ -16,6 +16,7 @@ import (
 	"tarsgo-backend/service/auth"
 	"tarsgo-backend/service/registration"
 	"tarsgo-backend/service/usergroup"
+	"tarsgo-backend/web"
 )
 
 func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
@@ -99,6 +100,9 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	authenticatedAPI.POST("/recruitment/registrations", registrationHandler.SubmitRegistration)
 	authenticatedAPI.PATCH("/recruitment/registrations/:id", registrationHandler.UpdateRecruitmentRegistration)
 	authenticatedAPI.DELETE("/recruitment/registrations/:id", registrationHandler.CancelRecruitmentRegistration)
+
+	frontendFS, hasFrontend := web.FrontendFS()
+	registerFrontendFallback(engine, frontendFS, hasFrontend)
 
 	return engine
 }

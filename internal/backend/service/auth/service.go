@@ -150,7 +150,7 @@ func (s *Service) SetupSuperAdminURL() string {
 }
 
 func (s *Service) LoginErrorURL(code string) string {
-	return strings.TrimRight(s.appConfig.FrontendURL, "/") + "/login?error=" + code
+	return s.appConfig.LoginErrorURL(code)
 }
 
 func (s *Service) BootstrapStatus(ctx context.Context) (*BootstrapStatus, error) {

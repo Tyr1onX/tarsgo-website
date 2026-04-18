@@ -441,7 +441,8 @@ func (s *Service) AddMember(ctx context.Context, actor Actor, groupID uint64, in
 		return nil, err
 	}
 
-	if _, err := s.repo.GetGroupByID(ctx, groupID); err != nil {
+	group, err := s.repo.GetGroupByID(ctx, groupID)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, &ServiceError{Status: http.StatusNotFound, Message: "用户组不存在"}
 		}
@@ -470,7 +471,16 @@ func (s *Service) AddMember(ctx context.Context, actor Actor, groupID uint64, in
 		UserID:  input.UserID,
 		Role:    input.Role,
 	}
-	if err := s.repo.CreateMember(ctx, member); err != nil {
+
+	if err := s.repo.RunInTx(ctx, func(repo Repository) error {
+		if err := repo.CreateMember(ctx, member); err != nil {
+			return err
+		}
+		if group.IsDefault {
+			return nil
+		}
+		return removeActiveDefaultMemberships(ctx, repo, input.UserID)
+	}); err != nil {
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "添加成员失败", Err: err}
 	}
 
@@ -514,14 +524,23 @@ func (s *Service) RemoveMember(ctx context.Context, actor Actor, groupID uint64,
 		return err
 	}
 
-	if _, err := s.repo.GetMemberByID(ctx, groupID, memberID); err != nil {
+	member, err := s.repo.GetMemberByID(ctx, groupID, memberID)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &ServiceError{Status: http.StatusNotFound, Message: "分组成员不存在"}
 		}
 		return &ServiceError{Status: http.StatusInternalServerError, Message: "加载分组成员失败", Err: err}
 	}
 
-	if err := s.repo.DeleteMember(ctx, groupID, memberID); err != nil {
+	if err := s.repo.RunInTx(ctx, func(repo Repository) error {
+		if err := repo.DeleteMember(ctx, groupID, memberID); err != nil {
+			return err
+		}
+		if member.Group.IsDefault {
+			return nil
+		}
+		return ensureDefaultMembershipWhenNoNonDefaultGroups(ctx, repo, member.UserID)
+	}); err != nil {
 		return &ServiceError{Status: http.StatusInternalServerError, Message: "移除成员失败", Err: err}
 	}
 
@@ -681,6 +700,57 @@ func candidateGroups(members []model.UserGroupMember) []CandidateGroupRef {
 		})
 	}
 	return groups
+}
+
+func removeActiveDefaultMemberships(ctx context.Context, repo Repository, userID uint64) error {
+	user, err := repo.GetUserByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	for _, member := range user.GroupMembers {
+		if !member.Group.IsDefault || member.Group.Status != model.UserGroupStatusActive {
+			continue
+		}
+		if err := repo.DeleteMember(ctx, member.GroupID, member.ID); err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return err
+		}
+	}
+
+	return nil
+}
+
+func ensureDefaultMembershipWhenNoNonDefaultGroups(ctx context.Context, repo Repository, userID uint64) error {
+	user, err := repo.GetUserByID(ctx, userID)
+	if err != nil {
+		return err
+	}
+
+	for _, member := range user.GroupMembers {
+		if !member.Group.IsDefault {
+			return nil
+		}
+	}
+
+	defaultGroup, err := repo.GetActiveDefaultGroup(ctx)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+
+	if _, err := repo.FindMemberByUserID(ctx, defaultGroup.ID, userID); err == nil {
+		return nil
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+
+	return repo.CreateMember(ctx, &model.UserGroupMember{
+		GroupID: defaultGroup.ID,
+		UserID:  userID,
+		Role:    model.UserGroupMemberRoleMember,
+	})
 }
 
 func normalizeTags(tags []string) []string {

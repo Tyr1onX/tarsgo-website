@@ -9,9 +9,9 @@ import {
   getGitHubLoginUrl,
   loginWithCode,
   loginWithPassword,
+  getOptionalCurrentUser,
   sendLoginCode,
 } from "~/lib/auth-client";
-import { fetchCurrentUserFromRequest } from "~/lib/server-auth";
 import { useCooldown } from "~/lib/use-cooldown";
 
 type LoginMode = "password" | "code";
@@ -29,24 +29,21 @@ export function meta() {
   ];
 }
 
-export async function loader({ request }: Route.LoaderArgs) {
+export async function clientLoader(_: Route.ClientLoaderArgs) {
   const bootstrapStatus = await getBootstrapStatus();
   if (bootstrapStatus.setupRequired) {
     throw redirect("/dashboard/setup/super-admin");
   }
 
-  try {
-    await fetchCurrentUserFromRequest(request);
+  const currentUser = await getOptionalCurrentUser({ force: true });
+  if (currentUser) {
     throw redirect("/dashboard");
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 401) {
-      return null;
-    }
-    throw error;
   }
 
   return null;
 }
+
+clientLoader.hydrate = true;
 
 export default function Login() {
   const navigate = useNavigate();

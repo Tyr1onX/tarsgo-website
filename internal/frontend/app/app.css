@@ -64,10 +64,11 @@ select::-ms-expand {
 
 html {
   scroll-behavior: smooth;
-  scroll-padding-top: 7rem;
+  scroll-padding-top: var(--site-nav-height);
 }
 
 :root {
+  --site-nav-height: 68px;
   --motion-duration-fast: 220ms;
   --motion-duration-base: 360ms;
   --motion-duration-slow: 720ms;
@@ -630,6 +631,53 @@ html {
 
 .hero-glow-motion {
   animation: slow-drift 14s ease-in-out infinite alternate;
+}
+
+@keyframes photo-tile-pop-in {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 18px, 0) scale(0.94);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.motion-photo-tile-in {
+  animation: photo-tile-pop-in 580ms var(--motion-ease-standard) both;
+}
+
+@keyframes info-panel-slide-in {
+  from {
+    opacity: 0;
+    transform: translate3d(22px, 0, 0);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+    filter: blur(0);
+  }
+}
+
+.motion-info-panel-in {
+  animation: info-panel-slide-in 640ms var(--motion-ease-standard) both;
+}
+
+@keyframes module-tab-lift {
+  from {
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+  to {
+    transform: translate3d(0, -3px, 0) scale(1.02);
+  }
+}
+
+.motion-module-tab-active {
+  animation: module-tab-lift 260ms var(--motion-ease-standard) both;
 }
 
 @media (prefers-reduced-motion: reduce) {

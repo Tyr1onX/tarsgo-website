@@ -13,7 +13,8 @@
       "Read(//c/Users/xiaofei/.claude/plugins/cache/ui-ux-pro-max-skill/ui-ux-pro-max/2.0.1/.claude/skills/ui-ux-pro-max/**)",
       "Bash(python3 scripts/search.py \"admin dashboard dark mode management panel professional\" --design-system -p \"TarsGo Admin\")",
       "Bash(python3 \"C:\\\\Users\\\\xiaofei\\\\.claude\\\\plugins\\\\cache\\\\ui-ux-pro-max-skill\\\\ui-ux-pro-max\\\\2.0.1\\\\.claude\\\\skills\\\\ui-ux-pro-max\\\\scripts\\\\search.py\" \"student club recruitment registration form dashboard dark mode modern professional\" --design-system -p \"TARS-GO Recruitment\" -f markdown)",
-      "Bash(mysql -uroot -p -e \"SELECT user, host, plugin FROM mysql.user WHERE user='TarsGo';\")"
+      "Bash(mysql -uroot -p -e \"SELECT user, host, plugin FROM mysql.user WHERE user='TarsGo';\")",
+      "Bash(pnpm typecheck *)"
     ]
   }
 }

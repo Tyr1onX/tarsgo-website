@@ -1,8 +1,11 @@
 import { type FormEvent, type MouseEvent, useMemo, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router";
+import { Link, redirect, useNavigate, useSearchParams } from "react-router";
+
+import type { Route } from "./+types/register";
 
 import {
   ApiError,
+  getOptionalCurrentUser,
   registerWithEmail,
   sendRegisterCode,
 } from "~/lib/auth-client";
@@ -14,6 +17,17 @@ export function meta() {
     { name: "description", content: "注册TARS-GO吉甲大师战队平台账号" },
   ];
 }
+
+export async function clientLoader(_: Route.ClientLoaderArgs) {
+  const currentUser = await getOptionalCurrentUser({ force: true });
+  if (currentUser) {
+    throw redirect("/dashboard");
+  }
+
+  return null;
+}
+
+clientLoader.hydrate = true;
 
 export default function Register() {
   const navigate = useNavigate();

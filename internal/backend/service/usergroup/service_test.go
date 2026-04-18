@@ -48,12 +48,88 @@ func TestServiceAddMember_RejectsSuperAdmin(t *testing.T) {
 	assertServiceError(t, err, 403, "不允许加入用户组")
 }
 
+func TestServiceAddMember_NonDefaultGroupRemovesDefaultMembership(t *testing.T) {
+	repo := newFakeRepository()
+	service := NewService(repo)
+
+	member, err := service.AddMember(context.Background(), Actor{ID: 2, RoleName: model.RoleNameAdmin}, 2, AddMemberInput{
+		UserID: 3,
+		Role:   model.UserGroupMemberRoleMember,
+	})
+	if err != nil {
+		t.Fatalf("AddMember returned error: %v", err)
+	}
+
+	if member.UserID != 3 {
+		t.Fatalf("expected user 3, got %d", member.UserID)
+	}
+	if userInGroup(repo, 3, 1) {
+		t.Fatalf("expected user 3 removed from default group")
+	}
+	if !userInGroup(repo, 3, 2) {
+		t.Fatalf("expected user 3 added into non-default group")
+	}
+}
+
 func TestServiceDeleteGroup_RejectsNonEmptyGroup(t *testing.T) {
 	repo := newFakeRepository()
 	service := NewService(repo)
 
 	err := service.DeleteGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 1)
 	assertServiceError(t, err, 409, "仍有成员")
+}
+
+func TestServiceRemoveMember_LastNonDefaultGroupReassignsDefaultMembership(t *testing.T) {
+	repo := newFakeRepository()
+	service := NewService(repo)
+
+	added, err := service.AddMember(context.Background(), Actor{ID: 2, RoleName: model.RoleNameAdmin}, 2, AddMemberInput{
+		UserID: 3,
+		Role:   model.UserGroupMemberRoleMember,
+	})
+	if err != nil {
+		t.Fatalf("AddMember returned error: %v", err)
+	}
+
+	if err := service.RemoveMember(context.Background(), Actor{ID: 2, RoleName: model.RoleNameAdmin}, 2, added.ID); err != nil {
+		t.Fatalf("RemoveMember returned error: %v", err)
+	}
+
+	if !userInGroup(repo, 3, 1) {
+		t.Fatalf("expected user 3 reassigned to default group")
+	}
+	if userInGroup(repo, 3, 2) {
+		t.Fatalf("expected user 3 removed from non-default group")
+	}
+}
+
+func TestServiceRemoveMember_LastNonDefaultGroupWithoutDefaultLeavesNoGroup(t *testing.T) {
+	repo := newFakeRepository()
+	repo.groups[1].IsDefault = false
+	repo.members = map[uint64]*model.UserGroupMember{
+		1: {
+			ID:       1,
+			GroupID:  2,
+			UserID:   3,
+			Role:     model.UserGroupMemberRoleMember,
+			JoinedAt: time.Now(),
+		},
+	}
+	repo.nextMemberID = 2
+	repo.syncRelations()
+	service := NewService(repo)
+
+	if err := service.RemoveMember(context.Background(), Actor{ID: 2, RoleName: model.RoleNameAdmin}, 2, 1); err != nil {
+		t.Fatalf("RemoveMember returned error: %v", err)
+	}
+
+	user, err := repo.GetUserByID(context.Background(), 3)
+	if err != nil {
+		t.Fatalf("GetUserByID returned error: %v", err)
+	}
+	if len(user.GroupMembers) != 0 {
+		t.Fatalf("expected user 3 to have no group, got %d memberships", len(user.GroupMembers))
+	}
 }
 
 func TestServiceUpdateGroup_HideDefaultGroupWithTags(t *testing.T) {
@@ -335,6 +411,15 @@ func (r *fakeRepository) GetGroupByID(_ context.Context, groupID uint64) (*model
 	return cloneGroup(group), nil
 }
 
+func (r *fakeRepository) GetActiveDefaultGroup(_ context.Context) (*model.UserGroup, error) {
+	for _, group := range r.groups {
+		if group.IsDefault && group.Status == model.UserGroupStatusActive {
+			return cloneGroup(group), nil
+		}
+	}
+	return nil, gorm.ErrRecordNotFound
+}
+
 func (r *fakeRepository) CreateGroup(_ context.Context, group *model.UserGroup) error {
 	group.ID = r.nextGroupID
 	r.nextGroupID++
@@ -464,7 +549,7 @@ func (r *fakeRepository) ListCandidateUsers(_ context.Context, groupID uint64) (
 		if _, err := r.FindMemberByUserID(context.Background(), groupID, user.ID); err == nil {
 			continue
 		}
-		items = append(items, *cloneUser(user))
+		items = append(items, *cloneUserWithMembers(user))
 	}
 	return items, nil
 }
@@ -474,7 +559,7 @@ func (r *fakeRepository) GetUserByID(_ context.Context, userID uint64) (*model.U
 	if !ok {
 		return nil, gorm.ErrRecordNotFound
 	}
-	return cloneUser(user), nil
+	return cloneUserWithMembers(user), nil
 }
 
 func (r *fakeRepository) syncRelations() {
@@ -512,6 +597,20 @@ func cloneUser(user *model.User) *model.User {
 	return &cloned
 }
 
+func cloneUserWithMembers(user *model.User) *model.User {
+	cloned := *user
+	if len(user.GroupMembers) == 0 {
+		cloned.GroupMembers = nil
+		return &cloned
+	}
+
+	cloned.GroupMembers = make([]model.UserGroupMember, 0, len(user.GroupMembers))
+	for _, member := range user.GroupMembers {
+		cloned.GroupMembers = append(cloned.GroupMembers, *cloneMember(&member))
+	}
+	return &cloned
+}
+
 func cloneMember(member *model.UserGroupMember) *model.UserGroupMember {
 	cloned := *member
 	cloned.Group = *cloneGroupShallow(&member.Group)
@@ -542,6 +641,15 @@ func copyString(value *string) *string {
 	}
 	copied := *value
 	return &copied
+}
+
+func userInGroup(repo *fakeRepository, userID uint64, groupID uint64) bool {
+	for _, member := range repo.members {
+		if member.UserID == userID && member.GroupID == groupID {
+			return true
+		}
+	}
+	return false
 }
 
 func assertServiceError(t *testing.T, err error, status int, contains string) {

@@ -2,7 +2,7 @@ import type { Route } from "./+types/home";
 import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Navbar } from "../components/navbar";
 import { Link } from "react-router";
-import { fetchOptionalCurrentUserFromRequest } from "~/lib/server-auth";
+import { getOptionalCurrentUser, type AuthUser } from "~/lib/auth-client";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -13,12 +13,6 @@ export function meta({}: Route.MetaArgs) {
         "吉林大学TARS-Go战队官网 - RoboMaster机甲大师赛参赛战队，外在做事沉稳有序，内在思维活跃创新",
     },
   ];
-}
-
-export async function loader({ request }: Route.LoaderArgs) {
-  return {
-    currentUser: await fetchOptionalCurrentUserFromRequest(request),
-  };
 }
 
 const stats = [
@@ -58,7 +52,7 @@ const timelineMilestones = [
       "搭建机械、电控、视觉核心团队。",
       "开启 ICRA 人工智能挑战赛征程。",
     ],
-    images: ["/assets/images/Milestone/2018_SetSail.png"],
+    images: ["/assets/images/Milestone/2018-set-sail.webp"],
   },
   {
     year: "2019",
@@ -70,7 +64,7 @@ const timelineMilestones = [
       "开启全国大学生 RoboMaster 对抗赛征程。",
       "开展暑期夏令营和冬令营，跨南岭、南湖、南区，参与学院多达 12 个。",
     ],
-    images: ["/assets/images/Milestone/2019_Breakthrough.png"],
+    images: ["/assets/images/Milestone/2019-breakthrough.webp"],
   },
   {
     year: "2020",
@@ -82,8 +76,8 @@ const timelineMilestones = [
       "ICRA 人工智能挑战赛获二等奖。",
     ],
     images: [
-      "/assets/images/Milestone/2020_FirstAchievement1.png",
-      "/assets/images/Milestone/2020_FirstAchievement2.png",
+      "/assets/images/Milestone/2020-first-achievement-01.webp",
+      "/assets/images/Milestone/2020-first-achievement-02.webp",
     ],
   },
   {
@@ -97,7 +91,7 @@ const timelineMilestones = [
       "全国大学生 RoboMaster 对抗赛三等奖。",
       "高校联盟赛·黑龙江站八强。",
     ],
-    images: ["/assets/images/Milestone/2021_TechnologicalIteration.png"],
+    images: ["/assets/images/Milestone/2021-technological-iteration.webp"],
   },
   {
     year: "2022",
@@ -109,8 +103,8 @@ const timelineMilestones = [
       "全国大学生 RoboMaster 对抗赛三等奖。",
     ],
     images: [
-      "/assets/images/Milestone/2022_InheritanceSystem1.png",
-      "/assets/images/Milestone/2022_InheritanceSystem2.png",
+      "/assets/images/Milestone/2022-inheritance-system-01.webp",
+      "/assets/images/Milestone/2022-inheritance-system-02.webp",
     ],
   },
   {
@@ -123,8 +117,8 @@ const timelineMilestones = [
       "全国大学生 RoboMaster 对抗赛三等奖。",
     ],
     images: [
-      "/assets/images/Milestone/2023_CulturalDevelopment1.png",
-      "/assets/images/Milestone/2023_CulturalDevelopment2.png",
+      "/assets/images/Milestone/2023-cultural-development-01.webp",
+      "/assets/images/Milestone/2023-cultural-development-02.webp",
     ],
   },
   {
@@ -136,7 +130,7 @@ const timelineMilestones = [
       "晋级全国总决赛。",
       "获国家级二等奖、英雄一等奖。",
     ],
-    images: ["/assets/images/Milestone/2024_NationalCompetition.png"],
+    images: ["/assets/images/Milestone/2024-national-competition.webp"],
   },
   {
     year: "2025",
@@ -148,7 +142,7 @@ const timelineMilestones = [
       "全国大学生 RoboMaster 对抗赛国家级二等奖。",
       "工程一等奖、英雄一等奖等。",
     ],
-    images: ["/assets/images/Milestone/2025_Legacy.png"],
+    images: ["/assets/images/Milestone/2025-legacy.webp"],
   },
 ];
 
@@ -176,89 +170,89 @@ const robots = [
 ];
 
 const robotImages = [
-  "/assets/images/Robot/HeroRobot.jpg",
-  "/assets/images/Robot/InfantryRobot.jpg",
-  "/assets/images/Robot/EngineeringRobot.jpg",
-  "/assets/images/Robot/SentinelRobot.jpg",
-  "/assets/images/Robot/AerialRobots.jpg",
+  "/assets/images/Robot/hero-robot.webp",
+  "/assets/images/Robot/infantry-robot.webp",
+  "/assets/images/Robot/engineering-robot.webp",
+  "/assets/images/Robot/sentinel-robot.webp",
+  "/assets/images/Robot/aerial-robots.webp",
 ];
 
 const achievementCertificates = [
-  "/assets/images/CertificateOfAchievement/189fdebe075f2b2a425cc032852caee2.jpg",
-  "/assets/images/CertificateOfAchievement/1dbf37a0cc85d1f3db363313d2460ba2.jpg",
-  "/assets/images/CertificateOfAchievement/2138180547a10616f528f0b4a6f860f0.jpg",
-  "/assets/images/CertificateOfAchievement/333f34f4ccd4639efe0a9d5be5b7755f.png",
-  "/assets/images/CertificateOfAchievement/44dd97dc7af3ce600b404b742cd9bcd9.jpg",
-  "/assets/images/CertificateOfAchievement/45acb4afe387a629b1c55cef3e44854f.jpg",
-  "/assets/images/CertificateOfAchievement/4c7c8f9d37a3889010963ade17b85290.jpg",
-  "/assets/images/CertificateOfAchievement/58fd9666b54ccf3f9c4f6bf47bc5acb3.jpg",
-  "/assets/images/CertificateOfAchievement/67b19286d79aab85320755e120ab77e7.png",
-  "/assets/images/CertificateOfAchievement/7145ec7f7d705e4ff83eadd902f11213.jpg",
-  "/assets/images/CertificateOfAchievement/847747a76123517722ddbae81f2a03e5.jpg",
-  "/assets/images/CertificateOfAchievement/8b29ef58b61e5875d489605b42f142ca.png",
-  "/assets/images/CertificateOfAchievement/8b3d497b3ef2cb878e5fe7c5074466d6.jpg",
-  "/assets/images/CertificateOfAchievement/8e56a495087d0c8d94d21b0078a9076e.jpg",
-  "/assets/images/CertificateOfAchievement/9b04720073b9306b9e173246d5e891f4.jpg",
-  "/assets/images/CertificateOfAchievement/9c90b1dcaf141a4dc6bc1b422ded2f94.jpg",
-  "/assets/images/CertificateOfAchievement/a49ec7d4fc4105d59620b004b54f50d7.jpg",
-  "/assets/images/CertificateOfAchievement/b826ac9abe537c256973c643544d1bfb.png",
-  "/assets/images/CertificateOfAchievement/c44b45e9bce4372f101c56bbf71994c5.jpg",
-  "/assets/images/CertificateOfAchievement/cad783e731ee5328f3894a9109301923.jpg",
-  "/assets/images/CertificateOfAchievement/ceb2d8e6896447f4d5c17da2ecd1467e.jpg",
-  "/assets/images/CertificateOfAchievement/dd3e82687cc57af11b1b59828fc43556.jpg",
-  "/assets/images/CertificateOfAchievement/de58b36ee1169fb6170a70cbd42df164.jpg",
-  "/assets/images/CertificateOfAchievement/e3558818a91d970a7d48883db6a8ae50.jpg",
-  "/assets/images/CertificateOfAchievement/f5f004b168579608071d03a9fb047852.jpg",
+  "/assets/images/CertificateOfAchievement/certificate-01.webp",
+  "/assets/images/CertificateOfAchievement/certificate-02.webp",
+  "/assets/images/CertificateOfAchievement/certificate-03.webp",
+  "/assets/images/CertificateOfAchievement/certificate-04.webp",
+  "/assets/images/CertificateOfAchievement/certificate-05.webp",
+  "/assets/images/CertificateOfAchievement/certificate-06.webp",
+  "/assets/images/CertificateOfAchievement/certificate-07.webp",
+  "/assets/images/CertificateOfAchievement/certificate-08.webp",
+  "/assets/images/CertificateOfAchievement/certificate-09.webp",
+  "/assets/images/CertificateOfAchievement/certificate-10.webp",
+  "/assets/images/CertificateOfAchievement/certificate-11.webp",
+  "/assets/images/CertificateOfAchievement/certificate-12.webp",
+  "/assets/images/CertificateOfAchievement/certificate-13.webp",
+  "/assets/images/CertificateOfAchievement/certificate-14.webp",
+  "/assets/images/CertificateOfAchievement/certificate-15.webp",
+  "/assets/images/CertificateOfAchievement/certificate-16.webp",
+  "/assets/images/CertificateOfAchievement/certificate-17.webp",
+  "/assets/images/CertificateOfAchievement/certificate-18.webp",
+  "/assets/images/CertificateOfAchievement/certificate-19.webp",
+  "/assets/images/CertificateOfAchievement/certificate-20.webp",
+  "/assets/images/CertificateOfAchievement/certificate-21.webp",
+  "/assets/images/CertificateOfAchievement/certificate-22.webp",
+  "/assets/images/CertificateOfAchievement/certificate-23.webp",
+  "/assets/images/CertificateOfAchievement/certificate-24.webp",
+  "/assets/images/CertificateOfAchievement/certificate-25.webp",
 ];
 
 const sponsorLogos = [
-  { name: "YELITE", image: "/assets/images/Sponsors/YELITE.jpg" },
-  { name: "AMASS", image: "/assets/images/Sponsors/amass.jpg" },
-  { name: "驰翔股份", image: "/assets/images/Sponsors/cxgf.jpg" },
-  { name: "金地卓立", image: "/assets/images/Sponsors/jdzl.jpg" },
-  { name: "吉利汽车", image: "/assets/images/Sponsors/jlc.jpg" },
-  { name: "吉运模压器", image: "/assets/images/Sponsors/jyymq.jpg" },
-  { name: "坤乾科技", image: "/assets/images/Sponsors/kqkj.jpg" },
-  { name: "联讯科技", image: "/assets/images/Sponsors/lxkj.jpg" },
-  { name: "强基装备", image: "/assets/images/Sponsors/qjzb.jpg" },
-  { name: "夜河神", image: "/assets/images/Sponsors/yeheshen.jpg" },
+  { name: "YELITE", image: "/assets/images/Sponsors/yelite.webp" },
+  { name: "AMASS", image: "/assets/images/Sponsors/amass.webp" },
+  { name: "驰翔股份", image: "/assets/images/Sponsors/cxgf.webp" },
+  { name: "金地卓立", image: "/assets/images/Sponsors/jdzl.webp" },
+  { name: "吉利汽车", image: "/assets/images/Sponsors/jlc.webp" },
+  { name: "吉运模压器", image: "/assets/images/Sponsors/jyymq.webp" },
+  { name: "坤乾科技", image: "/assets/images/Sponsors/kqkj.webp" },
+  { name: "联讯科技", image: "/assets/images/Sponsors/lxkj.webp" },
+  { name: "强基装备", image: "/assets/images/Sponsors/qjzb.webp" },
+  { name: "夜河神", image: "/assets/images/Sponsors/yeheshen.webp" },
 ];
 
 const groups = [
   {
     name: "机械组",
     description: "负责机器人结构设计、建模、加工与装配，将创意变为现实",
-    logo: "/assets/images/Logo/Mechanical.png",
+    logo: "/assets/images/Logo/mechanical.webp",
     accent: "from-[#0062FF]/24 via-[#2563EB]/14 to-transparent",
   },
   {
     name: "电控组",
     description: "嵌入式系统开发、电路设计、电机控制，让机器人\u201C动\u201D起来",
-    logo: "/assets/images/Logo/ElectricalControl.png",
+    logo: "/assets/images/Logo/electrical-control.webp",
     accent: "from-[#10B981]/22 via-[#14B8A6]/12 to-transparent",
   },
   {
     name: "视觉组",
     description: "机器视觉、目标识别、自动瞄准，赋予机器人\u201C眼睛\u201D",
-    logo: "/assets/images/Logo/Vision.png",
+    logo: "/assets/images/Logo/vision.webp",
     accent: "from-[#F59E0B]/22 via-[#F97316]/12 to-transparent",
   },
   {
     name: "AI组",
     description: "负责智能算法、决策规划与自主控制，让机器人拥有更强的判断力",
-    logo: "/assets/images/Logo/AI.png",
+    logo: "/assets/images/Logo/ai.webp",
     accent: "from-[#EF4444]/22 via-[#EC4899]/12 to-transparent",
   },
   {
     name: "软件组",
     description: "负责上位机、工具链与平台开发，支撑整队协同与数据流转",
-    logo: "/assets/images/Logo/Software.png",
+    logo: "/assets/images/Logo/software.webp",
     accent: "from-[#8B5CF6]/22 via-[#6366F1]/12 to-transparent",
   },
   {
     name: "运营组",
     description: "负责宣传、策划、赛事运营与对外联络，推动团队持续成长",
-    logo: "/assets/images/Logo/Operations.png",
+    logo: "/assets/images/Logo/operations.webp",
     accent: "from-[#22C55E]/22 via-[#84CC16]/12 to-transparent",
   },
 ];
@@ -277,14 +271,14 @@ const aboutModules = [
       "在赛场上完成技术方案的闭环验证",
     ],
     images: [
-      "/assets/images/ContestMoment/微信图片_20260417222437_263_1.jpg",
-      "/assets/images/ContestMoment/微信图片_20260417222456_267_1.jpg",
-      "/assets/images/ContestMoment/微信图片_20260417222636_293_1.jpg",
-      "/assets/images/ContestMoment/微信图片_20260417222649_308_1.jpg",
-      "/assets/images/ContestMoment/微信图片_20260417224230_338_1.jpg",
-      "/assets/images/ContestMoment/微信图片_20260417224231_339_1.jpg",
-      "/assets/images/ContestMoment/微信图片_20260417224233_342_1.jpg",
-      "/assets/images/ContestMoment/微信图片_20260417224238_347_1.jpg",
+      "/assets/images/ContestMoment/contest-moment-01.webp",
+      "/assets/images/ContestMoment/contest-moment-02.webp",
+      "/assets/images/ContestMoment/contest-moment-03.webp",
+      "/assets/images/ContestMoment/contest-moment-04.webp",
+      "/assets/images/ContestMoment/contest-moment-05.webp",
+      "/assets/images/ContestMoment/contest-moment-06.webp",
+      "/assets/images/ContestMoment/contest-moment-07.webp",
+      "/assets/images/ContestMoment/contest-moment-08.webp",
     ],
   },
   {
@@ -300,14 +294,14 @@ const aboutModules = [
       "通过反复演练降低上场不确定性",
     ],
     images: [
-      "/assets/images/Preparation_for_competition/19.jpg",
-      "/assets/images/Preparation_for_competition/2021RM备赛.jpg",
-      "/assets/images/Preparation_for_competition/3.jpg",
-      "/assets/images/Preparation_for_competition/mmexportfe33110d1369fa229665a81fafd6fa0c_1744263091469.jpeg",
-      "/assets/images/Preparation_for_competition/工作照.jpg",
-      "/assets/images/Preparation_for_competition/测试1.jpg",
-      "/assets/images/Preparation_for_competition/测试2.jpg",
-      "/assets/images/Preparation_for_competition/照片底版2-50.jpg",
+      "/assets/images/Preparation_for_competition/preparation-01.webp",
+      "/assets/images/Preparation_for_competition/preparation-02.webp",
+      "/assets/images/Preparation_for_competition/preparation-03.webp",
+      "/assets/images/Preparation_for_competition/preparation-04.webp",
+      "/assets/images/Preparation_for_competition/preparation-05.webp",
+      "/assets/images/Preparation_for_competition/preparation-06.webp",
+      "/assets/images/Preparation_for_competition/preparation-07.webp",
+      "/assets/images/Preparation_for_competition/preparation-08.webp",
     ],
   },
   {
@@ -323,14 +317,14 @@ const aboutModules = [
       "从日常磨合中沉淀执行习惯与协同方式",
     ],
     images: [
-      "/assets/images/Daily/微信图片_20260417225903_435_1.jpg",
-      "/assets/images/Daily/微信图片_20260417225907_440_1.jpg",
-      "/assets/images/Daily/微信图片_20260417225909_442_1.jpg",
-      "/assets/images/Daily/微信图片_20260417230243_484_1.jpg",
-      "/assets/images/Daily/微信图片_20260417230640_503_1.jpg",
-      "/assets/images/Daily/微信图片_20260417230651_510_1.jpg",
-      "/assets/images/Daily/微信图片_20260417230830_524_1.jpg",
-      "/assets/images/Daily/微信图片_20260417231106_531_1.jpg",
+      "/assets/images/Daily/daily-01.webp",
+      "/assets/images/Daily/daily-02.webp",
+      "/assets/images/Daily/daily-03.webp",
+      "/assets/images/Daily/daily-04.webp",
+      "/assets/images/Daily/daily-05.webp",
+      "/assets/images/Daily/daily-06.webp",
+      "/assets/images/Daily/daily-07.webp",
+      "/assets/images/Daily/daily-08.webp",
     ],
   },
   {
@@ -346,14 +340,14 @@ const aboutModules = [
       "持续拓展团队的成果沉淀与对外表达能力",
     ],
     images: [
-      "/assets/images/Innovation_and_entrepreneurship/2021互联网+创新创业竞赛.jpg",
-      "/assets/images/Innovation_and_entrepreneurship/2022双展览.jpg",
-      "/assets/images/Innovation_and_entrepreneurship/创业大赛1.png",
-      "/assets/images/Innovation_and_entrepreneurship/双创导师.jpg",
-      "/assets/images/Innovation_and_entrepreneurship/双创开会1.jpg",
-      "/assets/images/Innovation_and_entrepreneurship/图片4.png",
-      "/assets/images/Innovation_and_entrepreneurship/汽车盖板调试.jpg",
-      "/assets/images/Innovation_and_entrepreneurship/药瓶检测设备开发.png",
+      "/assets/images/Innovation_and_entrepreneurship/innovation-entrepreneurship-01.webp",
+      "/assets/images/Innovation_and_entrepreneurship/innovation-entrepreneurship-02.webp",
+      "/assets/images/Innovation_and_entrepreneurship/innovation-entrepreneurship-03.webp",
+      "/assets/images/Innovation_and_entrepreneurship/innovation-entrepreneurship-04.webp",
+      "/assets/images/Innovation_and_entrepreneurship/innovation-entrepreneurship-05.webp",
+      "/assets/images/Innovation_and_entrepreneurship/innovation-entrepreneurship-06.webp",
+      "/assets/images/Innovation_and_entrepreneurship/innovation-entrepreneurship-07.webp",
+      "/assets/images/Innovation_and_entrepreneurship/innovation-entrepreneurship-08.webp",
     ],
   },
   {
@@ -369,14 +363,14 @@ const aboutModules = [
       "在外部合作中拓宽团队视野与实践边界",
     ],
     images: [
-      "/assets/images/Industry-AcademiaCollaboration/981c784604bf99407189c4d3fdbfdacc.jpg",
-      "/assets/images/Industry-AcademiaCollaboration/e31d9fb0eb0dcb146f518afc4b4359e9.jpg",
-      "/assets/images/Industry-AcademiaCollaboration/参观企业.jpg",
-      "/assets/images/Industry-AcademiaCollaboration/可口可乐参观.jpg",
-      "/assets/images/Industry-AcademiaCollaboration/吉大附小.jpg",
-      "/assets/images/Industry-AcademiaCollaboration/接待东北师大附中参观.jpg",
-      "/assets/images/Industry-AcademiaCollaboration/重庆明月湖科创营.jpg",
-      "/assets/images/Industry-AcademiaCollaboration/青岛海克斯康调研合作.jpg",
+      "/assets/images/Industry-AcademiaCollaboration/industry-academia-collaboration-01.webp",
+      "/assets/images/Industry-AcademiaCollaboration/industry-academia-collaboration-02.webp",
+      "/assets/images/Industry-AcademiaCollaboration/industry-academia-collaboration-03.webp",
+      "/assets/images/Industry-AcademiaCollaboration/industry-academia-collaboration-04.webp",
+      "/assets/images/Industry-AcademiaCollaboration/industry-academia-collaboration-05.webp",
+      "/assets/images/Industry-AcademiaCollaboration/industry-academia-collaboration-06.webp",
+      "/assets/images/Industry-AcademiaCollaboration/industry-academia-collaboration-07.webp",
+      "/assets/images/Industry-AcademiaCollaboration/industry-academia-collaboration-08.webp",
     ],
   },
 ];
@@ -507,14 +501,143 @@ function StatIcon({ icon, className }: { icon: string; className?: string }) {
   return <>{icons[icon]}</>;
 }
 
-export default function Home({ loaderData }: Route.ComponentProps) {
+type SectionTone = "blue" | "gold" | "teal" | "amber" | "indigo";
+
+const sectionToneColor: Record<SectionTone, string> = {
+  blue: "#0062FF",
+  gold: "#F59E0B",
+  teal: "#10B981",
+  amber: "#FFB547",
+  indigo: "#6366F1",
+};
+
+function SectionHeading({
+  index,
+  total,
+  labelZh,
+  labelEn,
+  title,
+  description,
+  tone,
+}: {
+  index: string;
+  total: string;
+  labelZh: string;
+  labelEn: string;
+  title: string;
+  description: string;
+  tone: SectionTone;
+}) {
+  const color = sectionToneColor[tone];
+  const lineGradient = `linear-gradient(90deg, transparent, ${color}66, transparent)`;
+  const titleGradient = `linear-gradient(180deg, #F1F5F9 0%, #F1F5F9 48%, ${color}66 100%)`;
+  const glowGradient = `radial-gradient(ellipse 560px 220px at 50% 50%, ${color}3d, transparent 70%)`;
+
+  return (
+    <div className="relative mx-auto mb-12 max-w-[900px] sm:mb-14">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[260px] w-[640px] -translate-x-1/2 -translate-y-1/2 opacity-80 blur-[24px]"
+        style={{ backgroundImage: glowGradient }}
+      />
+
+      <div className="flex items-center justify-center gap-3 sm:gap-4">
+        <span
+          className="font-mono text-[11px] font-bold tracking-[0.3em] sm:text-xs"
+          style={{ color }}
+        >
+          {index}
+        </span>
+        <span
+          className="h-px w-10 sm:w-14"
+          style={{ backgroundImage: lineGradient }}
+        />
+        <span
+          className="whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.42em] sm:text-[11px]"
+          style={{ color }}
+        >
+          {labelEn}
+        </span>
+        <span
+          className="h-px w-10 sm:w-14"
+          style={{ backgroundImage: lineGradient }}
+        />
+        <span className="font-mono text-[11px] font-bold tracking-[0.3em] text-fg-dim sm:text-xs">
+          / {total}
+        </span>
+      </div>
+
+      <h2 className="mt-5 text-center font-black leading-[0.98] tracking-[0.04em]">
+        <span
+          className="inline-block bg-clip-text text-[48px] text-transparent sm:text-[72px] lg:text-[92px]"
+          style={{ backgroundImage: titleGradient }}
+        >
+          {labelZh}
+        </span>
+      </h2>
+
+      <div
+        aria-hidden
+        className="mt-5 flex items-center justify-center gap-2.5"
+      >
+        <span
+          className="h-px w-12"
+          style={{
+            backgroundImage: `linear-gradient(90deg, transparent, ${color}cc)`,
+          }}
+        />
+        <span
+          className="h-1.5 w-1.5 rotate-45"
+          style={{ backgroundColor: color }}
+        />
+        <span
+          className="h-px w-12"
+          style={{
+            backgroundImage: `linear-gradient(-90deg, transparent, ${color}cc)`,
+          }}
+        />
+      </div>
+
+      <h3 className="mt-5 text-center text-xl font-bold text-fg-primary sm:text-[26px] lg:text-[30px]">
+        {title}
+      </h3>
+
+      <p className="mx-auto mt-4 max-w-[720px] text-center text-[15px] leading-relaxed text-fg-muted sm:text-base">
+        {description}
+      </p>
+    </div>
+  );
+}
+
+export default function Home() {
   const [activeAboutModuleIndex, setActiveAboutModuleIndex] = useState(0);
   const [activeMilestoneIndex, setActiveMilestoneIndex] = useState(0);
   const [showAllCertificates, setShowAllCertificates] = useState(false);
   const [aboutPanelHeight, setAboutPanelHeight] = useState("auto");
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const aboutPanelRef = useRef<HTMLDivElement | null>(null);
   const activeAboutModule = aboutModules[activeAboutModuleIndex];
   const activeMilestone = timelineMilestones[activeMilestoneIndex];
+
+  useEffect(() => {
+    let disposed = false;
+
+    void getOptionalCurrentUser({ force: true })
+      .then((user) => {
+        if (!disposed) {
+          setCurrentUser(user);
+        }
+      })
+      .catch(() => {
+        if (!disposed) {
+          setCurrentUser(null);
+        }
+      });
+
+    return () => {
+      disposed = true;
+    };
+  }, []);
 
   useEffect(() => {
     const panel = aboutPanelRef.current;
@@ -616,10 +739,10 @@ export default function Home({ loaderData }: Route.ComponentProps) {
             loop
             playsInline
             preload="metadata"
-            poster="/assets/images/Robot/HeroRobot.jpg"
+            poster="/assets/images/Robot/hero-robot.webp"
             aria-label="吉林大学吉甲大师双创基地宣传视频"
           >
-            <source src="/assets/images/Video/599af37af64b86479092f9c28e4619a1.mp4" type="video/mp4" />
+            <source src="/assets/images/Video/hero-showreel.mp4" type="video/mp4" />
           </video>
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(0,98,255,0.24),transparent_42%)]" />
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(15,23,42,0.18)_0%,rgba(2,6,23,0.78)_100%)]" />
@@ -630,7 +753,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
           <div className="mx-auto flex w-full max-w-[1440px] items-center justify-center px-6 pb-16 pt-28 sm:px-10 sm:pt-32 lg:px-20">
             <div className="flex max-w-2xl flex-col items-center gap-6 text-center sm:gap-8">
               <img
-                src="/assets/images/Logo/JiJiaMaster.png"
+                src="/assets/images/Logo/jijia-master.webp"
                 alt="吉甲大师"
                 className="motion-fade-down h-48 w-auto max-w-full object-contain sm:h-56 md:h-64"
               />
@@ -683,7 +806,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         </div>
       </section>
 
-      <Navbar currentUser={loaderData.currentUser} />
+      <Navbar currentUser={currentUser} />
 
       {/* About Section */}
       <section
@@ -691,20 +814,15 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         className="border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
       >
         <div className="max-w-[1440px] mx-auto px-6 sm:px-10 lg:px-20">
-          <div className="flex flex-col items-center gap-3 mb-12">
-            <span className="inline-block px-4 py-1 text-[13px] font-semibold text-accent-primary bg-surface-light rounded-full">
-              关于我们
-            </span>
-            <h2 className="font-display text-3xl sm:text-[40px] text-fg-primary text-center">
-              一支跨校区、跨学科的机器人战队
-            </h2>
-            <p className="max-w-[700px] text-base text-fg-muted leading-relaxed text-center">
-              TARS-Go 战队成立于 2018
-              年，取名自电影《星际穿越》中的机器人
-              TARS。战队依托吉林大学吉甲大师双创基地，汇聚了来自不同学院、不同校区的优秀同学，共同在
-              RoboMaster 机甲大师赛中竞技拼搏。
-            </p>
-          </div>
+          <SectionHeading
+            index="01"
+            total="05"
+            labelZh="关于我们"
+            labelEn="ABOUT US"
+            tone="blue"
+            title="一支跨校区、跨学科的机器人战队"
+            description="TARS-Go 战队成立于 2018 年，取名自电影《星际穿越》中的机器人 TARS。战队依托吉林大学吉甲大师双创基地，汇聚了来自不同学院、不同校区的优秀同学，共同在 RoboMaster 机甲大师赛中竞技拼搏。"
+          />
 
           {/* Stats */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
@@ -742,9 +860,9 @@ export default function Home({ loaderData }: Route.ComponentProps) {
                         key={module.name}
                         type="button"
                         onClick={() => setActiveAboutModuleIndex(index)}
-                        className={`motion-button flex min-w-[112px] flex-col rounded-2xl border px-4 py-3 text-left transition-colors ${
+                        className={`motion-button flex min-w-[112px] flex-col rounded-2xl border px-4 py-3 text-left ${
                           index === activeAboutModuleIndex
-                            ? "border-accent-primary bg-accent-primary text-fg-inverse shadow-[0_18px_40px_-24px_rgba(0,98,255,0.85)]"
+                            ? "motion-module-tab-active border-accent-primary bg-accent-primary text-fg-inverse shadow-[0_18px_40px_-24px_rgba(0,98,255,0.85)]"
                             : "border-white/8 bg-surface-light text-fg-muted hover:border-accent-primary/30 hover:text-fg-primary"
                         }`}
                         aria-pressed={index === activeAboutModuleIndex}
@@ -808,6 +926,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
             </div>
 
             <div
+              key={activeAboutModuleIndex}
               className={`grid gap-6 ${getAboutModuleLayoutClass(activeAboutModule.images.length)} lg:items-start`}
             >
               <div
@@ -824,7 +943,8 @@ export default function Home({ loaderData }: Route.ComponentProps) {
                 {activeAboutModule.images.map((image, index) => (
                   <article
                     key={image}
-                    className={`motion-surface group relative overflow-hidden rounded-[28px] border border-white/10 bg-surface-light ${getAboutPhotoCellClass(activeAboutModule.images.length, index)}`}
+                    style={{ animationDelay: `${index * 55}ms` }}
+                    className={`motion-photo-tile-in motion-surface group relative overflow-hidden rounded-[28px] border border-white/10 bg-surface-light ${getAboutPhotoCellClass(activeAboutModule.images.length, index)}`}
                   >
                     <img
                       src={image}
@@ -844,7 +964,8 @@ export default function Home({ loaderData }: Route.ComponentProps) {
 
               <div
                 ref={aboutPanelRef}
-                className="motion-panel-soft rounded-[28px] border border-white/8 bg-surface-light/80 p-5 sm:p-6"
+                style={{ animationDelay: "80ms" }}
+                className="motion-info-panel-in motion-panel-soft rounded-[28px] border border-white/8 bg-surface-light/80 p-5 sm:p-6"
               >
                 <span className="inline-flex rounded-full border border-accent-primary/20 bg-accent-primary/10 px-4 py-1 text-[13px] font-semibold text-accent-primary">
                   {activeAboutModule.name}
@@ -892,17 +1013,15 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       >
         <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(0,98,255,0.16),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(79,70,229,0.12),transparent_26%)]" />
         <div className="max-w-[1440px] mx-auto px-6 sm:px-10 lg:px-20">
-          <div className="relative mb-12 flex flex-col items-center gap-3">
-            <span className="inline-block rounded-full bg-surface-light px-4 py-1 text-[13px] font-semibold text-accent-primary">
-              团队历程
-            </span>
-            <h2 className="text-center font-display text-3xl text-fg-primary sm:text-[40px]">
-              以时间轴回看战队一路走来的每一步
-            </h2>
-            <p className="max-w-[760px] text-center text-base leading-relaxed text-fg-muted">
-              从双创基地组建，到国际赛事历练，再到 RoboMaster 国赛突破，吉林大学吉甲大师双创基地在一届又一届成员的接力中不断完成技术积累、组织建设与文化沉淀。
-            </p>
-          </div>
+          <SectionHeading
+            index="02"
+            total="05"
+            labelZh="团队历程"
+            labelEn="OUR JOURNEY"
+            tone="gold"
+            title="以时间轴回看战队一路走来的每一步"
+            description="从双创基地组建，到国际赛事历练，再到 RoboMaster 国赛突破，吉林大学吉甲大师双创基地在一届又一届成员的接力中不断完成技术积累、组织建设与文化沉淀。"
+          />
 
           <div className="relative mx-auto max-w-[1240px]">
             <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
@@ -1055,17 +1174,15 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         className="border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
       >
         <div className="max-w-[1440px] mx-auto px-6 sm:px-10 lg:px-20">
-          <div className="flex flex-col items-center gap-3 mb-12">
-            <span className="inline-block px-4 py-1 text-[13px] font-semibold text-accent-primary bg-surface-light rounded-full">
-              机器人展示
-            </span>
-            <h2 className="font-display text-3xl sm:text-[40px] text-fg-primary text-center">
-              我们的战旗机甲
-            </h2>
-            <p className="max-w-[600px] text-base text-fg-muted leading-relaxed text-center">
-              每一台机器人都是团队智慧的结晶，融合机械设计、嵌入式系统、机器视觉、人工智能等多项技术
-            </p>
-          </div>
+          <SectionHeading
+            index="03"
+            total="05"
+            labelZh="机器人展示"
+            labelEn="OUR ROBOTS"
+            tone="teal"
+            title="我们的战旗机甲"
+            description="每一台机器人都是团队智慧的结晶，融合机械设计、嵌入式系统、机器视觉、人工智能等多项技术。"
+          />
 
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-5">
             {robots.map((robot, index) => (
@@ -1120,18 +1237,15 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         className="border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
       >
         <div className="mx-auto max-w-[1440px] px-6 sm:px-10 lg:px-20">
-          <div className="mb-12 flex flex-col items-center gap-3">
-            <span className="inline-block rounded-full bg-white/[0.08] px-4 py-1 text-[13px] font-semibold text-accent-gold">
-              成就展示
-            </span>
-            <h2 className="text-center font-display text-3xl text-fg-inverse sm:text-[40px]">
-              团队荣誉证书与阶段成果陈列
-            </h2>
-            <p className="max-w-[760px] text-center text-base leading-relaxed text-fg-muted">
-              这里集中展示团队在创新创业、学科竞赛与 RoboMaster
-              相关实践中获得的阶段性荣誉。整体采用规整的矩形照片墙陈列，便于更直接地浏览不同阶段的获奖成果。
-            </p>
-          </div>
+          <SectionHeading
+            index="04"
+            total="05"
+            labelZh="成就展示"
+            labelEn="ACHIEVEMENTS"
+            tone="amber"
+            title="团队荣誉证书与阶段成果陈列"
+            description="这里集中展示团队在创新创业、学科竞赛与 RoboMaster 相关实践中获得的阶段性荣誉。整体采用规整的矩形照片墙陈列，便于更直接地浏览不同阶段的获奖成果。"
+          />
 
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {achievementCertificates.map((image, index) => (
@@ -1190,17 +1304,15 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         className="border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
       >
         <div className="max-w-[1440px] mx-auto px-6 sm:px-10 lg:px-20 flex flex-col items-center">
-          <div className="flex flex-col items-center gap-3 mb-12">
-            <span className="inline-block px-4 py-1 text-[13px] font-semibold text-fg-inverse bg-accent-primary rounded-full">
-              加入我们
-            </span>
-            <h2 className="font-display text-3xl sm:text-[40px] text-fg-primary text-center">
-              找到你的战位，一起征服星辰大海
-            </h2>
-            <p className="max-w-[600px] text-base text-fg-muted leading-relaxed text-center">
-              我们欢迎来自各个专业的同学加入，无论你是零基础还是大佬，这里都有你的位置
-            </p>
-          </div>
+          <SectionHeading
+            index="05"
+            total="05"
+            labelZh="加入我们"
+            labelEn="JOIN US"
+            tone="indigo"
+            title="找到你的战位，一起征服星辰大海"
+            description="我们欢迎来自各个专业的同学加入，无论你是零基础还是大佬，这里都有你的位置。"
+          />
 
           <div className="mb-12 grid w-full gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {groups.map((group) => (
@@ -1255,19 +1367,19 @@ export default function Home({ loaderData }: Route.ComponentProps) {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-white/[0.06] bg-transparent px-6 py-12 sm:px-10 lg:px-20">
+      <footer className="border-t border-white/[0.06] bg-transparent px-5 py-10 sm:px-10 sm:py-12 lg:px-20">
         <div className="max-w-[1440px] mx-auto">
           {/* Footer top */}
-          <div className="mb-8 grid gap-10 md:grid-cols-2 lg:grid-cols-[320px_120px_170px_140px] xl:grid-cols-[320px_120px_170px_130px_minmax(280px,1fr)]">
+          <div className="mb-6 grid grid-cols-2 gap-x-5 gap-y-7 sm:mb-8 sm:gap-10 md:grid-cols-2 lg:grid-cols-[320px_120px_170px_140px] xl:grid-cols-[320px_120px_170px_130px_minmax(280px,1fr)]">
             {/* Brand */}
-            <div className="w-full md:w-[320px] flex flex-col gap-4 shrink-0">
+            <div className="col-span-2 flex w-full flex-col items-center gap-3 text-center md:col-span-1 md:w-[320px] md:items-start md:gap-4 md:text-left shrink-0">
               <img
-                src="/assets/images/Logo/JiJiaMaster.png"
+                src="/assets/images/Logo/jijia-master.webp"
                 alt="吉甲大师"
                 loading="lazy"
-                className="h-14 w-fit max-w-[220px] object-contain"
+                className="h-12 w-fit max-w-[200px] object-contain sm:h-14 sm:max-w-[220px]"
               />
-              <p className="text-[13px] text-fg-muted leading-relaxed max-w-[280px]">
+              <p className="text-[12.5px] text-fg-muted leading-relaxed max-w-[280px] sm:text-[13px]">
                 吉林大学吉甲大师双创基地
                 <br />
                 外在做事沉稳有序，内在思维活跃创新
@@ -1275,27 +1387,27 @@ export default function Home({ loaderData }: Route.ComponentProps) {
             </div>
 
             {/* Quick nav */}
-            <div className="flex flex-col gap-3">
-              <h4 className="text-sm font-bold text-fg-inverse">快速导航</h4>
-              <a href="/#hero" className="text-[13px] text-fg-muted hover:text-fg-primary transition-colors">首页</a>
-              <a href="/#about" className="text-[13px] text-fg-muted hover:text-fg-primary transition-colors">关于我们</a>
-              <a href="/#achievements" className="text-[13px] text-fg-muted hover:text-fg-primary transition-colors">团队历程</a>
-              <a href="/#robots" className="text-[13px] text-fg-muted hover:text-fg-primary transition-colors">机器人展示</a>
-              <a href="/#certificates" className="text-[13px] text-fg-muted hover:text-fg-primary transition-colors">成就展示</a>
-              <a href="/#join" className="text-[13px] text-fg-muted hover:text-fg-primary transition-colors">加入我们</a>
+            <div className="flex flex-col gap-2.5 sm:gap-3">
+              <h4 className="text-[13px] font-bold text-fg-inverse sm:text-sm">快速导航</h4>
+              <a href="/#hero" className="text-[12.5px] text-fg-muted hover:text-fg-primary transition-colors sm:text-[13px]">首页</a>
+              <a href="/#about" className="text-[12.5px] text-fg-muted hover:text-fg-primary transition-colors sm:text-[13px]">关于我们</a>
+              <a href="/#achievements" className="text-[12.5px] text-fg-muted hover:text-fg-primary transition-colors sm:text-[13px]">团队历程</a>
+              <a href="/#robots" className="text-[12.5px] text-fg-muted hover:text-fg-primary transition-colors sm:text-[13px]">机器人展示</a>
+              <a href="/#certificates" className="text-[12.5px] text-fg-muted hover:text-fg-primary transition-colors sm:text-[13px]">成就展示</a>
+              <a href="/#join" className="text-[12.5px] text-fg-muted hover:text-fg-primary transition-colors sm:text-[13px]">加入我们</a>
             </div>
 
             {/* Contact */}
-            <div className="flex flex-col gap-3">
-              <h4 className="text-sm font-bold text-fg-inverse">联系我们</h4>
-              <span className="text-[13px] text-fg-muted">吉林大学南湖校区</span>
-              <span className="text-[13px] text-fg-muted">吉甲大师双创基地</span>
-              <span className="text-[13px] text-fg-muted">tarsgo@jlu.edu.cn</span>
+            <div className="flex flex-col gap-2.5 sm:gap-3">
+              <h4 className="text-[13px] font-bold text-fg-inverse sm:text-sm">联系我们</h4>
+              <span className="text-[12.5px] text-fg-muted sm:text-[13px]">吉林大学南湖校区</span>
+              <span className="text-[12.5px] text-fg-muted sm:text-[13px]">吉甲大师双创基地</span>
+              <span className="text-[12.5px] break-all text-fg-muted sm:text-[13px]">tarsgo@jlu.edu.cn</span>
             </div>
 
             {/* Social */}
-            <div className="flex flex-col gap-3">
-              <h4 className="text-sm font-bold text-fg-inverse">关注我们</h4>
+            <div className="col-span-2 flex flex-col items-center gap-3 md:col-span-1 md:items-start">
+              <h4 className="text-[13px] font-bold text-fg-inverse sm:text-sm">关注我们</h4>
               <div className="flex gap-3">
                 <div className="w-9 h-9 bg-white/[0.08] rounded-lg flex items-center justify-center">
                   <svg className="w-[18px] h-[18px] text-fg-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1316,18 +1428,18 @@ export default function Home({ loaderData }: Route.ComponentProps) {
             </div>
 
             {/* Sponsors */}
-            <div className="flex flex-col gap-3 md:col-span-2 lg:col-span-4 xl:col-span-1">
+            <div className="col-span-2 flex flex-col gap-3 md:col-span-2 lg:col-span-4 xl:col-span-1">
               <div className="flex items-center justify-between gap-3">
-                <h4 className="text-sm font-bold text-fg-inverse">赞助商支持</h4>
-                <span className="text-[11px] font-semibold uppercase tracking-[0.2em] text-accent-gold">
+                <h4 className="text-[13px] font-bold text-fg-inverse sm:text-sm">赞助商支持</h4>
+                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-accent-gold sm:text-[11px]">
                   Sponsors
                 </span>
               </div>
-              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-2 2xl:grid-cols-3">
+              <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-3 sm:gap-2 xl:grid-cols-2 2xl:grid-cols-3">
                 {sponsorLogos.map((sponsor) => (
                   <div
                     key={sponsor.name}
-                    className="motion-surface flex h-12 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.06] p-1.5"
+                    className="motion-surface flex h-11 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.06] p-1.5 sm:h-12"
                   >
                     <img
                       src={sponsor.image}
@@ -1342,14 +1454,14 @@ export default function Home({ loaderData }: Route.ComponentProps) {
           </div>
 
           {/* Divider */}
-          <div className="h-px bg-white/[0.08] mb-8" />
+          <div className="h-px bg-white/[0.08] mb-6 sm:mb-8" />
 
           {/* Copyright */}
-          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-            <span className="text-xs text-white/[0.27]">
+          <div className="flex flex-col items-center justify-between gap-2 text-center sm:flex-row sm:gap-4 sm:text-left">
+            <span className="text-[11px] text-white/[0.27] sm:text-xs">
               &copy; {new Date().getFullYear()} TARS-Go 战队 · 吉林大学吉甲大师双创基地
             </span>
-            <span className="text-xs text-white/[0.27]">
+            <span className="text-[11px] text-white/[0.27] sm:text-xs">
               Powered by RoboMaster
             </span>
           </div>

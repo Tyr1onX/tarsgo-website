@@ -128,6 +128,19 @@ export async function getCurrentUser(options: { force?: boolean } = {}): Promise
   return currentUserRequest;
 }
 
+export async function getOptionalCurrentUser(
+  options: { force?: boolean } = {},
+): Promise<AuthUser | null> {
+  try {
+    return await getCurrentUser(options);
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      return null;
+    }
+    throw error;
+  }
+}
+
 export async function logout(): Promise<void> {
   await apiRequest("/api/logout", { method: "POST" });
   currentUserCache = null;
