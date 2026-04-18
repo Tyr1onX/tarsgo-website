@@ -9,8 +9,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"tarsgo-backend/auth"
 	"tarsgo-backend/config"
+	"tarsgo-backend/service/auth"
 )
 
 type AuthHandler struct {
@@ -19,8 +19,10 @@ type AuthHandler struct {
 }
 
 type authService interface {
+	BootstrapStatus(ctx context.Context) (*auth.BootstrapStatus, error)
 	SendRegisterCode(ctx context.Context, email string) error
 	RegisterWithEmail(ctx context.Context, input auth.RegisterEmailInput) (*auth.AuthResult, error)
+	RegisterInitialSuperAdmin(ctx context.Context, input auth.RegisterInitialSuperAdminInput) (*auth.AuthResult, error)
 	LoginWithPassword(ctx context.Context, email string, password string) (*auth.AuthResult, error)
 	SendLoginCode(ctx context.Context, email string) error
 	LoginWithCode(ctx context.Context, email string, code string) (*auth.AuthResult, error)
@@ -33,6 +35,7 @@ type authService interface {
 	CookieSecure() bool
 	CookieSameSite() http.SameSite
 	AdminDashboardURL() string
+	SetupSuperAdminURL() string
 	LoginErrorURL(code string) string
 }
 
@@ -43,8 +46,15 @@ type emailRequest struct {
 type registerEmailRequest struct {
 	Email    string `json:"email" binding:"required,email,max=255"`
 	Password string `json:"password" binding:"required,min=6,max=72"`
-	Phone    string `json:"phone" binding:"omitempty,max=20"`
+	RealName string `json:"realName" binding:"required,max=100"`
+	Phone    string `json:"phone" binding:"required,max=20"`
 	Code     string `json:"code" binding:"required,len=6,numeric"`
+}
+
+type bootstrapSuperAdminRequest struct {
+	Email           string `json:"email" binding:"required,email,max=255"`
+	Password        string `json:"password" binding:"required,min=6,max=72"`
+	ConfirmPassword string `json:"confirmPassword" binding:"required,min=6,max=72"`
 }
 
 type loginPasswordRequest struct {
@@ -79,6 +89,16 @@ func (h *AuthHandler) SendRegisterCode(c *gin.Context) {
 	writeAPI(c, http.StatusOK, "验证码已发送", nil)
 }
 
+func (h *AuthHandler) BootstrapStatus(c *gin.Context) {
+	status, err := h.service.BootstrapStatus(c.Request.Context())
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+
+	writeAPI(c, http.StatusOK, "获取初始化状态成功", status)
+}
+
 func (h *AuthHandler) RegisterWithEmail(c *gin.Context) {
 	var request registerEmailRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -89,6 +109,7 @@ func (h *AuthHandler) RegisterWithEmail(c *gin.Context) {
 	result, err := h.service.RegisterWithEmail(c.Request.Context(), auth.RegisterEmailInput{
 		Email:    request.Email,
 		Password: request.Password,
+		RealName: request.RealName,
 		Phone:    request.Phone,
 		Code:     request.Code,
 	})
@@ -99,6 +120,27 @@ func (h *AuthHandler) RegisterWithEmail(c *gin.Context) {
 
 	h.setAuthCookie(c, result.Token)
 	writeAPI(c, http.StatusOK, "注册成功", gin.H{"user": result.User})
+}
+
+func (h *AuthHandler) RegisterInitialSuperAdmin(c *gin.Context) {
+	var request bootstrapSuperAdminRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		writeAPIError(c, http.StatusBadRequest, "请求参数不合法")
+		return
+	}
+
+	result, err := h.service.RegisterInitialSuperAdmin(c.Request.Context(), auth.RegisterInitialSuperAdminInput{
+		Email:           request.Email,
+		Password:        request.Password,
+		ConfirmPassword: request.ConfirmPassword,
+	})
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+
+	h.setAuthCookie(c, result.Token)
+	writeAPI(c, http.StatusOK, "超级管理员注册成功", gin.H{"user": result.User})
 }
 
 func (h *AuthHandler) LoginWithPassword(c *gin.Context) {
@@ -151,6 +193,16 @@ func (h *AuthHandler) LoginWithCode(c *gin.Context) {
 }
 
 func (h *AuthHandler) GitHubLogin(c *gin.Context) {
+	status, err := h.service.BootstrapStatus(c.Request.Context())
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+	if status.SetupRequired {
+		c.Redirect(http.StatusFound, h.service.SetupSuperAdminURL())
+		return
+	}
+
 	loginURL, state, err := h.service.BuildGitHubLoginURL()
 	if err != nil {
 		h.handleServiceError(c, err)
@@ -162,6 +214,17 @@ func (h *AuthHandler) GitHubLogin(c *gin.Context) {
 }
 
 func (h *AuthHandler) GitHubCallback(c *gin.Context) {
+	status, err := h.service.BootstrapStatus(c.Request.Context())
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+	if status.SetupRequired {
+		h.clearOAuthStateCookie(c)
+		c.Redirect(http.StatusFound, h.service.SetupSuperAdminURL())
+		return
+	}
+
 	state := strings.TrimSpace(c.Query("state"))
 	code := strings.TrimSpace(c.Query("code"))
 	if state == "" || code == "" {

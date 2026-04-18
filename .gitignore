@@ -1,7 +1,12 @@
 .DS_Store
 /node_modules/
 /dist/
+/internal/frontend/.env
+/internal/frontend/node_modules/
+/internal/frontend/dist/
 
 # React Router
 /.react-router/
 /build/
+/internal/frontend/.react-router/
+/internal/frontend/build/

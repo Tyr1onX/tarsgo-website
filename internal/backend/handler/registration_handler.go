@@ -9,6 +9,9 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+
+	"tarsgo-backend/model"
+	"tarsgo-backend/service/registration"
 )
 
 type RegistrationHandler struct {
@@ -16,14 +19,14 @@ type RegistrationHandler struct {
 }
 
 type registrationService interface {
-	SubmitRegistration(ctx context.Context, actor RegistrationFormActor, input SubmitRegistrationInput) (*SubmitRegistrationResult, error)
-	UpdateRecruitmentRegistration(ctx context.Context, actor RegistrationFormActor, registrationID uint64, input SubmitRegistrationInput) (*SubmitRegistrationResult, error)
-	CancelRecruitmentRegistration(ctx context.Context, actor RegistrationFormActor, registrationID uint64) error
-	ListRegistrations(ctx context.Context, actor RegistrationFormActor, input ListRegistrationsInput) (*ListRegistrationsResult, error)
-	GetRegistration(ctx context.Context, actor RegistrationFormActor, registrationID uint64) (*RegistrationDetail, error)
-	ReviewRegistration(ctx context.Context, actor RegistrationFormActor, registrationID uint64, input ReviewRegistrationInput) (*RegistrationDetail, error)
-	DeleteRegistration(ctx context.Context, actor RegistrationFormActor, registrationID uint64) error
-	OpenRegistrationFile(ctx context.Context, actor RegistrationFormActor, registrationID uint64, fieldKey string, index int) (*RegistrationFileResult, error)
+	SubmitRegistration(ctx context.Context, actor registration.RegistrationFormActor, input registration.SubmitRegistrationInput) (*registration.SubmitRegistrationResult, error)
+	UpdateRecruitmentRegistration(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64, input registration.SubmitRegistrationInput) (*registration.SubmitRegistrationResult, error)
+	CancelRecruitmentRegistration(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64) error
+	ListRegistrations(ctx context.Context, actor registration.RegistrationFormActor, input registration.ListRegistrationsInput) (*registration.ListRegistrationsResult, error)
+	GetRegistration(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64) (*registration.RegistrationDetail, error)
+	ReviewRegistration(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64, input registration.ReviewRegistrationInput) (*registration.RegistrationDetail, error)
+	DeleteRegistration(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64) error
+	OpenRegistrationFile(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64, fieldKey string, index int) (*registration.RegistrationFileResult, error)
 }
 
 type listRegistrationsQuery struct {
@@ -58,7 +61,7 @@ func (h *RegistrationHandler) SubmitRegistration(c *gin.Context) {
 	values, files := cloneMultipartForm(c.Request.MultipartForm)
 	delete(values, "formId")
 
-	result, serviceErr := h.service.SubmitRegistration(c.Request.Context(), currentRegistrationFormActor(c), SubmitRegistrationInput{
+	result, serviceErr := h.service.SubmitRegistration(c.Request.Context(), currentRegistrationFormActor(c), registration.SubmitRegistrationInput{
 		FormID: formID,
 		Values: values,
 		Files:  files,
@@ -85,7 +88,7 @@ func (h *RegistrationHandler) UpdateRecruitmentRegistration(c *gin.Context) {
 	values, files := cloneMultipartForm(c.Request.MultipartForm)
 	delete(values, "formId")
 
-	result, serviceErr := h.service.UpdateRecruitmentRegistration(c.Request.Context(), currentRegistrationFormActor(c), registrationID, SubmitRegistrationInput{
+	result, serviceErr := h.service.UpdateRecruitmentRegistration(c.Request.Context(), currentRegistrationFormActor(c), registrationID, registration.SubmitRegistrationInput{
 		Values: values,
 		Files:  files,
 	})
@@ -131,7 +134,7 @@ func (h *RegistrationHandler) ListRegistrations(c *gin.Context) {
 		return
 	}
 
-	result, serviceErr := h.service.ListRegistrations(c.Request.Context(), currentRegistrationFormActor(c), ListRegistrationsInput{
+	result, serviceErr := h.service.ListRegistrations(c.Request.Context(), currentRegistrationFormActor(c), registration.ListRegistrationsInput{
 		Page:     query.Page,
 		PageSize: query.PageSize,
 		Keyword:  query.Keyword,
@@ -175,7 +178,7 @@ func (h *RegistrationHandler) ReviewRegistration(c *gin.Context) {
 		return
 	}
 
-	detail, serviceErr := h.service.ReviewRegistration(c.Request.Context(), currentRegistrationFormActor(c), registrationID, ReviewRegistrationInput{
+	detail, serviceErr := h.service.ReviewRegistration(c.Request.Context(), currentRegistrationFormActor(c), registrationID, registration.ReviewRegistrationInput{
 		Decision: request.Decision,
 		Remark:   request.Remark,
 	})
@@ -241,7 +244,7 @@ func (h *RegistrationHandler) OpenRegistrationFile(c *gin.Context) {
 }
 
 func (h *RegistrationHandler) handleServiceError(c *gin.Context, err error) {
-	var serviceErr *registrationServiceError
+	var serviceErr *registration.ServiceError
 	if errors.As(err, &serviceErr) {
 		writeAPIError(c, serviceErr.Status, serviceErr.Message)
 		return
@@ -262,8 +265,13 @@ func parseOptionalRegistrationStatus(raw string) (*uint8, error) {
 	}
 
 	status := uint8(value)
-	if err := validateRegistrationStatus(status); err != nil {
-		return nil, errors.New(err.Error())
+	switch status {
+	case model.RegistrationStatusPending,
+		model.RegistrationStatusApproved,
+		model.RegistrationStatusRejected,
+		model.RegistrationStatusCancelled:
+	default:
+		return nil, errors.New("报名状态筛选值不合法")
 	}
 	return &status, nil
 }

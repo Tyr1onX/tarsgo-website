@@ -8,12 +8,13 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 
-	"tarsgo-backend/adminuser"
-	"tarsgo-backend/auth"
 	"tarsgo-backend/config"
 	"tarsgo-backend/handler"
 	"tarsgo-backend/middleware"
-	"tarsgo-backend/usergroup"
+	"tarsgo-backend/service/adminuser"
+	"tarsgo-backend/service/auth"
+	"tarsgo-backend/service/registration"
+	"tarsgo-backend/service/usergroup"
 )
 
 func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
@@ -45,12 +46,14 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	authHandler := handler.NewAuthHandler(cfg, authService)
 	adminUserHandler := handler.NewAdminUserHandler(adminuser.NewService(adminuser.NewRepository(db)))
 	userGroupHandler := handler.NewUserGroupHandler(usergroup.NewService(usergroup.NewRepository(db)))
-	registrationFormHandler := handler.NewRegistrationFormHandler(handler.NewRegistrationFormService(db))
-	registrationHandler := handler.NewRegistrationHandler(handler.NewRegistrationService(db))
+	registrationFormHandler := handler.NewRegistrationFormHandler(registration.NewRegistrationFormService(db))
+	registrationHandler := handler.NewRegistrationHandler(registration.NewRegistrationService(db))
 
 	engine.GET("/healthz", healthHandler.Get)
 
 	api := engine.Group("/api")
+	api.GET("/bootstrap/status", authHandler.BootstrapStatus)
+	api.POST("/bootstrap/super-admin", authHandler.RegisterInitialSuperAdmin)
 	api.POST("/register/email/send-code", authHandler.SendRegisterCode)
 	api.POST("/register/email", authHandler.RegisterWithEmail)
 	api.POST("/login/email/password", authHandler.LoginWithPassword)

@@ -8,8 +8,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"tarsgo-backend/auth"
 	"tarsgo-backend/model"
+	"tarsgo-backend/service/auth"
 )
 
 const sessionUserContextKey = "sessionUser"

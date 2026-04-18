@@ -10,7 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"tarsgo-backend/middleware"
-	"tarsgo-backend/usergroup"
+	"tarsgo-backend/service/usergroup"
 )
 
 type UserGroupHandler struct {

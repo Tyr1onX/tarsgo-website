@@ -11,18 +11,27 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"tarsgo-backend/auth"
+	"tarsgo-backend/service/auth"
 )
 
 type stubAuthService struct {
-	sendRegisterCodeFn     func(ctx context.Context, email string) error
-	registerWithEmailFn    func(ctx context.Context, input auth.RegisterEmailInput) (*auth.AuthResult, error)
-	loginWithPasswordFn    func(ctx context.Context, email string, password string) (*auth.AuthResult, error)
-	sendLoginCodeFn        func(ctx context.Context, email string) error
-	loginWithCodeFn        func(ctx context.Context, email string, code string) (*auth.AuthResult, error)
-	buildGitHubLoginURLFn  func() (string, string, error)
-	handleGitHubCallbackFn func(ctx context.Context, code string) (*auth.AuthResult, error)
-	currentUserFn          func(ctx context.Context, token string) (*auth.SessionUser, error)
+	bootstrapStatusFn           func(ctx context.Context) (*auth.BootstrapStatus, error)
+	sendRegisterCodeFn          func(ctx context.Context, email string) error
+	registerWithEmailFn         func(ctx context.Context, input auth.RegisterEmailInput) (*auth.AuthResult, error)
+	registerInitialSuperAdminFn func(ctx context.Context, input auth.RegisterInitialSuperAdminInput) (*auth.AuthResult, error)
+	loginWithPasswordFn         func(ctx context.Context, email string, password string) (*auth.AuthResult, error)
+	sendLoginCodeFn             func(ctx context.Context, email string) error
+	loginWithCodeFn             func(ctx context.Context, email string, code string) (*auth.AuthResult, error)
+	buildGitHubLoginURLFn       func() (string, string, error)
+	handleGitHubCallbackFn      func(ctx context.Context, code string) (*auth.AuthResult, error)
+	currentUserFn               func(ctx context.Context, token string) (*auth.SessionUser, error)
+}
+
+func (s stubAuthService) BootstrapStatus(ctx context.Context) (*auth.BootstrapStatus, error) {
+	if s.bootstrapStatusFn != nil {
+		return s.bootstrapStatusFn(ctx)
+	}
+	return &auth.BootstrapStatus{SetupRequired: false}, nil
 }
 
 func (s stubAuthService) SendRegisterCode(ctx context.Context, email string) error {
@@ -35,6 +44,13 @@ func (s stubAuthService) SendRegisterCode(ctx context.Context, email string) err
 func (s stubAuthService) RegisterWithEmail(ctx context.Context, input auth.RegisterEmailInput) (*auth.AuthResult, error) {
 	if s.registerWithEmailFn != nil {
 		return s.registerWithEmailFn(ctx, input)
+	}
+	return nil, nil
+}
+
+func (s stubAuthService) RegisterInitialSuperAdmin(ctx context.Context, input auth.RegisterInitialSuperAdminInput) (*auth.AuthResult, error) {
+	if s.registerInitialSuperAdminFn != nil {
+		return s.registerInitialSuperAdminFn(ctx, input)
 	}
 	return nil, nil
 }
@@ -105,6 +121,10 @@ func (s stubAuthService) AdminDashboardURL() string {
 	return "http://127.0.0.1:5173/dashboard"
 }
 
+func (s stubAuthService) SetupSuperAdminURL() string {
+	return "http://127.0.0.1:5173/dashboard/setup/super-admin"
+}
+
 func (s stubAuthService) LoginErrorURL(code string) string {
 	return "http://127.0.0.1:5173/login?error=" + code
 }
@@ -133,12 +153,60 @@ func TestSendRegisterCode(t *testing.T) {
 	}
 }
 
+func TestBootstrapStatus(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name          string
+		setupRequired bool
+	}{
+		{name: "setup required", setupRequired: true},
+		{name: "already initialized", setupRequired: false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			gin.SetMode(gin.TestMode)
+			handler := NewAuthHandler(nil, stubAuthService{
+				bootstrapStatusFn: func(ctx context.Context) (*auth.BootstrapStatus, error) {
+					return &auth.BootstrapStatus{SetupRequired: tc.setupRequired}, nil
+				},
+			})
+			recorder, ctx := newPlainContext(http.MethodGet, "/api/bootstrap/status")
+
+			handler.BootstrapStatus(ctx)
+
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("expected status 200, got %d", recorder.Code)
+			}
+
+			var payload struct {
+				Data auth.BootstrapStatus `json:"data"`
+			}
+			if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if payload.Data.SetupRequired != tc.setupRequired {
+				t.Fatalf("expected setupRequired=%t, got %#v", tc.setupRequired, payload.Data)
+			}
+		})
+	}
+}
+
 func TestRegisterWithEmailSetsCookie(t *testing.T) {
 	t.Parallel()
 
 	gin.SetMode(gin.TestMode)
 	handler := NewAuthHandler(nil, stubAuthService{
 		registerWithEmailFn: func(ctx context.Context, input auth.RegisterEmailInput) (*auth.AuthResult, error) {
+			if input.RealName != "张三" {
+				t.Fatalf("expected realName to be forwarded, got %q", input.RealName)
+			}
+			if input.Phone != "13800138000" {
+				t.Fatalf("expected phone to be forwarded, got %q", input.Phone)
+			}
 			return &auth.AuthResult{
 				Token: "signed-token",
 				User: &auth.SessionUser{
@@ -156,6 +224,7 @@ func TestRegisterWithEmailSetsCookie(t *testing.T) {
 	recorder, ctx := newJSONContext(t, http.MethodPost, "/api/register/email", map[string]string{
 		"email":    "user@example.com",
 		"password": "123456",
+		"realName": "张三",
 		"phone":    "13800138000",
 		"code":     "123456",
 	})
@@ -169,6 +238,178 @@ func TestRegisterWithEmailSetsCookie(t *testing.T) {
 	setCookie := recorder.Header().Get("Set-Cookie")
 	if !strings.Contains(setCookie, "tarsgo_token=signed-token") {
 		t.Fatalf("expected auth cookie to be set, got %s", setCookie)
+	}
+}
+
+func TestRegisterWithEmailRejectsMissingRequiredFields(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	handler := NewAuthHandler(nil, stubAuthService{
+		registerWithEmailFn: func(ctx context.Context, input auth.RegisterEmailInput) (*auth.AuthResult, error) {
+			t.Fatal("register service should not be called for invalid request")
+			return nil, nil
+		},
+	})
+
+	recorder, ctx := newJSONContext(t, http.MethodPost, "/api/register/email", map[string]string{
+		"email":    "user@example.com",
+		"password": "123456",
+		"phone":    "13800138000",
+		"code":     "123456",
+	})
+
+	handler.RegisterWithEmail(ctx)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d", recorder.Code)
+	}
+	if !strings.Contains(recorder.Body.String(), "请求参数不合法") {
+		t.Fatalf("unexpected response body: %s", recorder.Body.String())
+	}
+}
+
+func TestRegisterInitialSuperAdminSetsCookie(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	handler := NewAuthHandler(nil, stubAuthService{
+		registerInitialSuperAdminFn: func(ctx context.Context, input auth.RegisterInitialSuperAdminInput) (*auth.AuthResult, error) {
+			return &auth.AuthResult{
+				Token: "bootstrap-token",
+				User: &auth.SessionUser{
+					ID:    1,
+					Email: "root@example.com",
+					Role: auth.SessionRole{
+						ID:          1,
+						Name:        "super_admin",
+						DisplayName: "超级管理员",
+					},
+				},
+			}, nil
+		},
+	})
+	recorder, ctx := newJSONContext(t, http.MethodPost, "/api/bootstrap/super-admin", map[string]string{
+		"email":           "root@example.com",
+		"password":        "Password123",
+		"confirmPassword": "Password123",
+	})
+
+	handler.RegisterInitialSuperAdmin(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d", recorder.Code)
+	}
+
+	setCookie := recorder.Header().Get("Set-Cookie")
+	if !strings.Contains(setCookie, "tarsgo_token=bootstrap-token") {
+		t.Fatalf("expected bootstrap auth cookie to be set, got %s", setCookie)
+	}
+}
+
+func TestRegisterInitialSuperAdminReturnsServiceError(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name    string
+		status  int
+		message string
+	}{
+		{name: "password mismatch", status: http.StatusBadRequest, message: "两次输入的密码不一致"},
+		{name: "already initialized", status: http.StatusConflict, message: "系统已初始化，请直接登录"},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			gin.SetMode(gin.TestMode)
+			handler := NewAuthHandler(nil, stubAuthService{
+				registerInitialSuperAdminFn: func(ctx context.Context, input auth.RegisterInitialSuperAdminInput) (*auth.AuthResult, error) {
+					return nil, &auth.ServiceError{Status: tc.status, Message: tc.message}
+				},
+			})
+			recorder, ctx := newJSONContext(t, http.MethodPost, "/api/bootstrap/super-admin", map[string]string{
+				"email":           "root@example.com",
+				"password":        "Password123",
+				"confirmPassword": "Password123",
+			})
+
+			handler.RegisterInitialSuperAdmin(ctx)
+
+			if recorder.Code != tc.status {
+				t.Fatalf("expected status %d, got %d", tc.status, recorder.Code)
+			}
+			if !strings.Contains(recorder.Body.String(), tc.message) {
+				t.Fatalf("expected message %q, got %s", tc.message, recorder.Body.String())
+			}
+		})
+	}
+}
+
+func TestAuthEndpointsReturnBootstrapConflict(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	serviceErr := &auth.ServiceError{Status: http.StatusConflict, Message: "系统尚未初始化，请先完成超级管理员注册"}
+	handler := NewAuthHandler(nil, stubAuthService{
+		registerWithEmailFn: func(ctx context.Context, input auth.RegisterEmailInput) (*auth.AuthResult, error) {
+			return nil, serviceErr
+		},
+		loginWithPasswordFn: func(ctx context.Context, email string, password string) (*auth.AuthResult, error) {
+			return nil, serviceErr
+		},
+	})
+
+	registerRecorder, registerCtx := newJSONContext(t, http.MethodPost, "/api/register/email", map[string]string{
+		"email":    "user@example.com",
+		"password": "123456",
+		"realName": "张三",
+		"phone":    "13800138000",
+		"code":     "123456",
+	})
+	handler.RegisterWithEmail(registerCtx)
+	if registerRecorder.Code != http.StatusConflict {
+		t.Fatalf("expected register status 409, got %d", registerRecorder.Code)
+	}
+
+	loginRecorder, loginCtx := newJSONContext(t, http.MethodPost, "/api/login/email/password", map[string]string{
+		"email":    "user@example.com",
+		"password": "123456",
+	})
+	handler.LoginWithPassword(loginCtx)
+	if loginRecorder.Code != http.StatusConflict {
+		t.Fatalf("expected login status 409, got %d", loginRecorder.Code)
+	}
+}
+
+func TestGitHubAuthRedirectsToSetupWhenBootstrapRequired(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	handler := NewAuthHandler(nil, stubAuthService{
+		bootstrapStatusFn: func(ctx context.Context) (*auth.BootstrapStatus, error) {
+			return &auth.BootstrapStatus{SetupRequired: true}, nil
+		},
+	})
+
+	loginRecorder, loginCtx := newPlainContext(http.MethodGet, "/api/login/github")
+	handler.GitHubLogin(loginCtx)
+	if loginRecorder.Code != http.StatusFound {
+		t.Fatalf("expected login redirect status 302, got %d", loginRecorder.Code)
+	}
+	if location := loginRecorder.Header().Get("Location"); location != "http://127.0.0.1:5173/dashboard/setup/super-admin" {
+		t.Fatalf("unexpected login redirect location: %s", location)
+	}
+
+	callbackRecorder, callbackCtx := newPlainContext(http.MethodGet, "/api/register/github/oauth/callback?state=abc&code=def")
+	callbackCtx.Request.AddCookie(&http.Cookie{Name: "tarsgo_oauth_state", Value: "abc"})
+	handler.GitHubCallback(callbackCtx)
+	if callbackRecorder.Code != http.StatusFound {
+		t.Fatalf("expected callback redirect status 302, got %d", callbackRecorder.Code)
+	}
+	if location := callbackRecorder.Header().Get("Location"); location != "http://127.0.0.1:5173/dashboard/setup/super-admin" {
+		t.Fatalf("unexpected callback redirect location: %s", location)
 	}
 }
 

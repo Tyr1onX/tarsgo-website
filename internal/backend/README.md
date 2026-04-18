@@ -8,7 +8,7 @@
 - GitHub OAuth 登录
 - JWT HttpOnly Cookie 会话
 - `/api/me` 当前会话检查
-- `super_admin` 测试账号自动初始化
+- 首次运行超级管理员初始化
 
 ## 目录结构
 
@@ -16,12 +16,14 @@
 | --- | --- |
 | `cmd/server/main.go` | 服务入口，负责加载配置、连接数据库、自动迁移并启动 Gin |
 | `config/config.go` | 环境变量读取与配置组装，包含数据库、JWT、SMTP、GitHub OAuth 配置 |
-| `auth/*.go` | 认证核心逻辑：JWT、验证码、SMTP 发信、GitHub OAuth |
-| `database/mysql.go` | Gorm MySQL 连接、自动迁移、角色与管理员账号种子数据 |
+| `database/mysql.go` | Gorm MySQL 连接、自动迁移与角色种子数据 |
 | `model/*.go` | 核心数据模型：角色、用户、邮箱验证码、报名表、报名信息 |
-| `handler/auth.go` | 登录/注册/登出/当前会话接口 |
-| `handler/health.go` | 健康检查接口 |
-| `handler/user.go` | 现有示例用户接口 |
+| `service/auth/*.go` | 认证业务逻辑：JWT、验证码、SMTP 发信、GitHub OAuth |
+| `service/adminuser/*.go` | 后台用户管理业务与仓储 |
+| `service/usergroup/*.go` | 用户组管理业务与仓储 |
+| `service/registration/*.go` | 报名表、报名提交流程、审核与文件存储 |
+| `handler/*.go` | HTTP 适配层，只负责参数绑定、错误翻译与响应输出 |
+| `middleware/*.go` | 鉴权中间件与会话校验 |
 | `router/router.go` | 路由与 CORS 中间件 |
 
 ## 快速启动
@@ -53,20 +55,23 @@
    go test ./...
    ```
 
-## 默认测试管理员账号
+## 首次初始化
 
-| 字段 | 值 |
-| --- | --- |
-| 邮箱 | `admin@tarsgo.local` |
-| 密码 | `123456` |
-| 角色 | `super_admin` |
+服务启动后不再自动创建测试超级管理员账号。
 
-服务启动时会自动补齐该账号；若数据库中已存在同邮箱记录，则会同步更新角色与密码摘要。
+首次运行且系统中尚不存在 `super_admin` 时：
+
+- 访问前端 `/dashboard` 会进入超级管理员初始化流程
+- 前端会先调用 `GET /api/bootstrap/status` 判断是否需要初始化
+- 创建首个超级管理员使用 `POST /api/bootstrap/super-admin`
+- 初始化完成后会直接进入 `/dashboard/admin`
 
 ## 认证接口
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
+| `GET` | `/api/bootstrap/status` | 获取系统初始化状态 |
+| `POST` | `/api/bootstrap/super-admin` | 首次注册超级管理员 |
 | `POST` | `/api/register/email/send-code` | 发送注册验证码 |
 | `POST` | `/api/register/email` | 邮箱注册并签发 JWT Cookie |
 | `POST` | `/api/login/email/password` | 邮箱密码登录 |

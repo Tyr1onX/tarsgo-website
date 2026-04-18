@@ -6,7 +6,6 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 
-	"tarsgo-backend/auth"
 	"tarsgo-backend/config"
 	"tarsgo-backend/model"
 )
@@ -56,7 +55,7 @@ func AutoMigrate(db *gorm.DB) error {
 		return err
 	}
 
-	return seedAdminUser(db)
+	return nil
 }
 
 func dropLegacyRegistrationFormColumns(db *gorm.DB) error {
@@ -118,35 +117,6 @@ func seedRoles(db *gorm.DB) error {
 			FirstOrCreate(&role).Error; err != nil {
 			return fmt.Errorf("seed role %s: %w", seed.Name, err)
 		}
-	}
-
-	return nil
-}
-
-func seedAdminUser(db *gorm.DB) error {
-	var role model.Role
-	if err := db.Where("name = ?", model.RoleNameSuperAdmin).First(&role).Error; err != nil {
-		return fmt.Errorf("load super admin role: %w", err)
-	}
-
-	passwordHash, err := auth.HashPassword("123456")
-	if err != nil {
-		return fmt.Errorf("hash admin password: %w", err)
-	}
-
-	nickname := "系统管理员"
-	user := model.User{Email: "admin@tarsgo.local"}
-	if err := db.
-		Where("email = ?", user.Email).
-		Assign(map[string]any{
-			"role_id":       role.ID,
-			"name":          "admin",
-			"password_hash": passwordHash,
-			"nickname":      nickname,
-			"status":        1,
-		}).
-		FirstOrCreate(&user).Error; err != nil {
-		return fmt.Errorf("seed admin user: %w", err)
 	}
 
 	return nil
