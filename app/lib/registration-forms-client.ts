@@ -99,6 +99,8 @@ export interface RecruitmentPageRegistrationSummary {
   formId: number;
   formTitle: string;
   status: number;
+  canEdit: boolean;
+  canCancel: boolean;
   submittedAt: string;
   updatedAt: string;
 }
@@ -107,6 +109,7 @@ export interface RecruitmentPageData {
   pageMode: RecruitmentPageMode;
   form?: RecruitmentPageForm | null;
   registrationSummary?: RecruitmentPageRegistrationSummary | null;
+  registrationFormData?: Record<string, unknown> | null;
   unavailableReason?: string | null;
 }
 

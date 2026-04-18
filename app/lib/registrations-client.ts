@@ -27,9 +27,17 @@ export interface RegistrationListItem {
   updatedAt: string;
 }
 
+export interface RegistrationPagination {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
 export interface RegistrationListResponse {
   summary: RegistrationSummary;
   items: RegistrationListItem[];
+  pagination: RegistrationPagination;
 }
 
 export interface RegistrationFileMeta {
@@ -80,9 +88,12 @@ export interface SubmitRegistrationResult {
   formId: number;
   status: number;
   submittedAt: string;
+  updatedAt: string;
 }
 
 export interface ListRegistrationsInput {
+  page?: number;
+  pageSize?: number;
   keyword?: string;
   status?: number | "";
   formId?: number | "";
@@ -102,11 +113,33 @@ export async function submitRecruitmentRegistration(
   });
 }
 
+export async function updateRecruitmentRegistration(
+  registrationId: number,
+  formData: FormData,
+): Promise<SubmitRegistrationResult> {
+  return apiRequest<SubmitRegistrationResult>(`/api/recruitment/registrations/${registrationId}`, {
+    method: "PATCH",
+    body: formData,
+  });
+}
+
+export async function cancelRecruitmentRegistration(registrationId: number): Promise<void> {
+  await apiRequest(`/api/recruitment/registrations/${registrationId}`, {
+    method: "DELETE",
+  });
+}
+
 export async function listAdminRegistrations(
   input: ListRegistrationsInput = {},
 ): Promise<RegistrationListResponse> {
   const params = new URLSearchParams();
 
+  if (input.page) {
+    params.set("page", String(input.page));
+  }
+  if (input.pageSize) {
+    params.set("pageSize", String(input.pageSize));
+  }
   if (input.keyword?.trim()) {
     params.set("keyword", input.keyword.trim());
   }

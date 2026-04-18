@@ -95,6 +95,8 @@ export default function UserRegistrations({
         formId: submittedResult.formId,
         formTitle: loaderData.form?.title ?? loaderData.registrationSummary?.formTitle ?? "当前报名",
         status: submittedResult.status,
+        canEdit: loaderData.registrationSummary?.canEdit ?? false,
+        canCancel: loaderData.registrationSummary?.canCancel ?? false,
         submittedAt: submittedResult.submittedAt,
         updatedAt: submittedResult.submittedAt,
       };

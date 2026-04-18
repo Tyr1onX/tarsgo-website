@@ -490,6 +490,34 @@ html {
   }
 }
 
+/* ── Custom scrollbar ── */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border-subtle) transparent;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-border-subtle);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-fg-dim);
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 /* ── Auth page transition animations ── */
 @keyframes auth-fade-in-up {
   from {
@@ -746,4 +774,191 @@ html {
     transparent 0
   );
   background-size: 24px 24px;
+}
+
+/* ── Admin drawer animations ── */
+@keyframes drawer-slide-in {
+  from {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes drawer-slide-out {
+  from {
+    opacity: 1;
+    transform: translateX(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateX(-100%);
+  }
+}
+
+@keyframes drawer-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes drawer-backdrop-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+.animate-drawer-slide-in {
+  animation: drawer-slide-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.animate-drawer-slide-out {
+  animation: drawer-slide-out 0.25s cubic-bezier(0.5, 0, 0.75, 0) both;
+}
+
+.animate-drawer-backdrop-in {
+  animation: drawer-backdrop-in 0.2s ease-out both;
+}
+
+.animate-drawer-backdrop-out {
+  animation: drawer-backdrop-out 0.2s ease-out both;
+}
+
+/* ── Global modal (dialog) animations ── */
+/* Applied via data-state="open"|"closed" on the backdrop and the panel. */
+@keyframes modal-backdrop-in {
+  from {
+    opacity: 0;
+    -webkit-backdrop-filter: blur(0px);
+    backdrop-filter: blur(0px);
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modal-backdrop-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    -webkit-backdrop-filter: blur(0px);
+    backdrop-filter: blur(0px);
+  }
+}
+
+@keyframes modal-panel-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.96);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+@keyframes modal-panel-out {
+  from {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+  to {
+    opacity: 0;
+    transform: translateY(8px) scale(0.97);
+    filter: blur(2px);
+  }
+}
+
+.modal-backdrop[data-state="open"] {
+  animation: modal-backdrop-in 0.2s ease-out both;
+}
+
+.modal-backdrop[data-state="closed"] {
+  animation: modal-backdrop-out 0.18s ease-in both;
+}
+
+.modal-panel[data-state="open"] {
+  animation: modal-panel-in 0.24s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.modal-panel[data-state="closed"] {
+  animation: modal-panel-out 0.18s cubic-bezier(0.5, 0, 0.75, 0) both;
+}
+
+/* ── User registrations page decorative gradients ── */
+.bg-registrations-hero-glow {
+  background:
+    radial-gradient(1200px 300px at 0% 0%, rgba(0, 98, 255, 0.18), transparent 55%),
+    radial-gradient(600px 260px at 100% 100%, rgba(79, 70, 229, 0.18), transparent 60%);
+}
+
+.bg-registrations-cover-glow {
+  background: linear-gradient(
+    135deg,
+    rgba(0, 98, 255, 0.18),
+    rgba(79, 70, 229, 0.08) 45%,
+    rgba(15, 23, 42, 0) 80%
+  );
+}
+
+.bg-registrations-empty-glow {
+  background: radial-gradient(
+    600px 240px at 50% 0%,
+    rgba(100, 116, 139, 0.15),
+    transparent 60%
+  );
+}
+
+.bg-registrations-modal-glow {
+  background: radial-gradient(
+    500px 200px at 0% 0%,
+    rgba(244, 63, 94, 0.12),
+    transparent 60%
+  );
+}
+
+.bg-registrations-status-pending {
+  background: radial-gradient(
+    800px 260px at 100% 0%,
+    rgba(245, 158, 11, 0.14),
+    transparent 55%
+  );
+}
+
+.bg-registrations-status-approved {
+  background: radial-gradient(
+    800px 260px at 100% 0%,
+    rgba(16, 185, 129, 0.14),
+    transparent 55%
+  );
+}
+
+.bg-registrations-status-rejected {
+  background: radial-gradient(
+    800px 260px at 100% 0%,
+    rgba(244, 63, 94, 0.14),
+    transparent 55%
+  );
+}
+
+.bg-registrations-status-cancelled {
+  background: radial-gradient(
+    800px 260px at 100% 0%,
+    rgba(148, 163, 184, 0.12),
+    transparent 55%
+  );
 }

@@ -119,10 +119,11 @@ type ActiveRegistrationFormResult struct {
 }
 
 type RecruitmentPageData struct {
-	PageMode            string                        `json:"pageMode"`
-	Form                *ActiveRegistrationFormResult `json:"form,omitempty"`
-	RegistrationSummary *RecruitmentRegistrationBrief `json:"registrationSummary,omitempty"`
-	UnavailableReason   *string                       `json:"unavailableReason,omitempty"`
+	PageMode             string                        `json:"pageMode"`
+	Form                 *ActiveRegistrationFormResult `json:"form,omitempty"`
+	RegistrationSummary  *RecruitmentRegistrationBrief `json:"registrationSummary,omitempty"`
+	RegistrationFormData map[string]any                `json:"registrationFormData,omitempty"`
+	UnavailableReason    *string                       `json:"unavailableReason,omitempty"`
 }
 
 type RecruitmentRegistrationBrief struct {
@@ -130,6 +131,8 @@ type RecruitmentRegistrationBrief struct {
 	FormID      uint64    `json:"formId"`
 	FormTitle   string    `json:"formTitle"`
 	Status      uint8     `json:"status"`
+	CanEdit     bool      `json:"canEdit"`
+	CanCancel   bool      `json:"canCancel"`
 	SubmittedAt time.Time `json:"submittedAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
@@ -336,17 +339,38 @@ func (s *RegistrationFormService) GetRecruitmentPageData(ctx context.Context, ac
 	form := forms[0]
 	registration, err := s.repo.FindRegistrationByFormAndUser(ctx, form.ID, actor.ID)
 	if err == nil {
-		return &RecruitmentPageData{
+		pageData := &RecruitmentPageData{
 			PageMode: "submitted",
 			RegistrationSummary: &RecruitmentRegistrationBrief{
 				ID:          registration.ID,
 				FormID:      registration.FormID,
 				FormTitle:   form.Title,
 				Status:      registration.Status,
+				CanEdit:     canMutateRegistrationBeforeReview(registration),
+				CanCancel:   canMutateRegistrationBeforeReview(registration),
 				SubmittedAt: registration.SubmittedAt,
 				UpdatedAt:   registration.UpdatedAt,
 			},
-		}, nil
+		}
+		if pageData.RegistrationSummary.CanEdit {
+			groups, groupErr := s.repo.ListShownUserGroups(ctx)
+			if groupErr != nil {
+				return nil, &registrationFormServiceError{Status: http.StatusInternalServerError, Message: "加载展示分组失败", Err: groupErr}
+			}
+			pageData.Form = &ActiveRegistrationFormResult{
+				ID:               form.ID,
+				Title:            form.Title,
+				Description:      copyStringPtr(form.Description),
+				CoverImageURL:    copyStringPtr(form.CoverImageURL),
+				FieldsSchema:     hydrateUserGroupSelectFields(form.FieldsSchema, groups),
+				MaxRegistrations: copyIntPtr(form.MaxRegistrations),
+				StartTime:        copyTimePtr(form.StartTime),
+				EndTime:          copyTimePtr(form.EndTime),
+				Status:           form.Status,
+			}
+			pageData.RegistrationFormData = sanitizeRegistrationFormData(registration.FormData)
+		}
+		return pageData, nil
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, &registrationFormServiceError{Status: http.StatusInternalServerError, Message: "检查报名状态失败", Err: err}

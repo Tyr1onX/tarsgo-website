@@ -61,6 +61,10 @@ Round 1：
 6. 完成本次更改后所有新产生的API都记录在API文档中
 7. 页面路由统一为 `/dashboard/admin/registrations`
 
+Round 2：
+1. 报名列表页面表格我希望加分页功能，需要你完善UI以及后端接口
+2. 完成本次更改后所有新产生的API都记录在API文档中
+
 ## 用户工作台
 Round 1：
 1. 用户工作台相关UI统一挂在 `app\routes\dashboard` 与 `app\routes\users` 下
