@@ -4,13 +4,15 @@ SHELL := powershell.exe
 DEFAULT_BACKEND_DIR := internal/backend
 .DEFAULT_GOAL := help
 
-.PHONY: help frontend backend backend-test frontend-check install
+.PHONY: help frontend backend backend-test frontend-check install db-up backend-up
 
 help:
 	@Write-Output ""
 	@Write-Output "Available targets:"
 	@Write-Output "  make frontend       Start the frontend dev server"
+	@Write-Output "  make db-up          Start the local MariaDB instance for backend dev"
 	@Write-Output "  make backend        Start the Go backend server"
+	@Write-Output "  make backend-up     Start the local MariaDB instance and backend server"
 	@Write-Output "  make backend-test   Run backend Go tests"
 	@Write-Output "  make frontend-check Run frontend type checks"
 	@Write-Output "  make install        Install frontend deps and sync backend modules"
@@ -19,7 +21,14 @@ help:
 frontend:
 	@npm.cmd run dev
 
+db-up:
+	@powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-db.ps1
+
 backend:
+	@go -C "$(DEFAULT_BACKEND_DIR)" run ./cmd/server
+
+backend-up:
+	@powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\start-db.ps1
 	@go -C "$(DEFAULT_BACKEND_DIR)" run ./cmd/server
 
 backend-test:

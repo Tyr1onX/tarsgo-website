@@ -34,6 +34,33 @@ npm run dev
 
 Your application will be available at `http://localhost:5173`.
 
+### Local backend database
+
+For backend local development on Windows, the repo now includes a one-command MariaDB bootstrap script:
+
+```bash
+make db-up
+```
+
+That script:
+
+- reads `internal/backend/.env`
+- starts a local MariaDB instance on the configured `DB_PORT`
+- creates the configured database and user if needed
+- stores runtime files under `.runtime/`
+
+Then start the backend with:
+
+```bash
+make backend
+```
+
+Or start the database and backend together:
+
+```bash
+make backend-up
+```
+
 ## Building for Production
 
 Create a production build:
