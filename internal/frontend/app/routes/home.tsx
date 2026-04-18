@@ -1,5 +1,5 @@
 import type { Route } from "./+types/home";
-import { useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { Navbar } from "../components/navbar";
 import { Link } from "react-router";
 import { fetchOptionalCurrentUserFromRequest } from "~/lib/server-auth";
@@ -399,22 +399,38 @@ function getAboutModuleLayoutClass(imageCount: number) {
 
 function getAboutPhotoWallClass(imageCount: number) {
   if (imageCount === 1) {
-    return "grid-cols-1 auto-rows-[320px]";
+    return "grid-cols-1 auto-rows-[228px] sm:auto-rows-[248px]";
   }
 
   if (imageCount === 2) {
-    return "grid-cols-2 auto-rows-[220px]";
+    return "grid-cols-2 auto-rows-[156px] sm:auto-rows-[176px]";
   }
 
   if (imageCount <= 4) {
-    return "grid-cols-2 auto-rows-[170px] sm:auto-rows-[190px]";
+    return "grid-cols-2 auto-rows-[128px] sm:auto-rows-[144px]";
   }
 
   if (imageCount <= 6) {
-    return "grid-cols-2 md:grid-cols-3 auto-rows-[122px] sm:auto-rows-[138px]";
+    return "grid-cols-2 md:grid-cols-3 auto-rows-[88px] sm:auto-rows-[100px]";
   }
 
-  return "grid-cols-2 md:grid-cols-3 auto-rows-[108px] sm:auto-rows-[120px]";
+  return "grid-cols-2 md:grid-cols-3 auto-rows-[80px] sm:auto-rows-[90px]";
+}
+
+function getAboutPhotoWallRowCount(imageCount: number) {
+  if (imageCount <= 2) {
+    return 1;
+  }
+
+  if (imageCount === 3) {
+    return 2;
+  }
+
+  if (imageCount <= 6) {
+    return 3;
+  }
+
+  return 4;
 }
 
 function getAboutPhotoCellClass(imageCount: number, index: number) {
@@ -443,6 +459,26 @@ function getAboutPhotoCellClass(imageCount: number, index: number) {
   }
 
   return "";
+}
+
+function getCertificateVisibilityClass(index: number) {
+  if (index < 4) {
+    return "";
+  }
+
+  if (index < 6) {
+    return "hidden sm:block";
+  }
+
+  if (index < 8) {
+    return "hidden lg:block";
+  }
+
+  if (index < 10) {
+    return "hidden xl:block";
+  }
+
+  return "hidden";
 }
 
 function StatIcon({ icon, className }: { icon: string; className?: string }) {
@@ -474,8 +510,60 @@ function StatIcon({ icon, className }: { icon: string; className?: string }) {
 export default function Home({ loaderData }: Route.ComponentProps) {
   const [activeAboutModuleIndex, setActiveAboutModuleIndex] = useState(0);
   const [activeMilestoneIndex, setActiveMilestoneIndex] = useState(0);
+  const [showAllCertificates, setShowAllCertificates] = useState(false);
+  const [aboutPanelHeight, setAboutPanelHeight] = useState("auto");
+  const aboutPanelRef = useRef<HTMLDivElement | null>(null);
   const activeAboutModule = aboutModules[activeAboutModuleIndex];
   const activeMilestone = timelineMilestones[activeMilestoneIndex];
+
+  useEffect(() => {
+    const panel = aboutPanelRef.current;
+
+    if (!panel) {
+      return;
+    }
+
+    let frameId = 0;
+
+    const syncAboutPanelHeight = () => {
+      const nextHeight = `${Math.ceil(panel.getBoundingClientRect().height)}px`;
+      setAboutPanelHeight((current) =>
+        current === nextHeight ? current : nextHeight,
+      );
+    };
+
+    const scheduleSync = () => {
+      if (frameId) {
+        window.cancelAnimationFrame(frameId);
+      }
+
+      frameId = window.requestAnimationFrame(syncAboutPanelHeight);
+    };
+
+    syncAboutPanelHeight();
+
+    if (typeof ResizeObserver === "undefined") {
+      return () => {
+        if (frameId) {
+          window.cancelAnimationFrame(frameId);
+        }
+      };
+    }
+
+    const observer = new ResizeObserver(() => {
+      scheduleSync();
+    });
+
+    observer.observe(panel);
+
+    return () => {
+      observer.disconnect();
+
+      if (frameId) {
+        window.cancelAnimationFrame(frameId);
+      }
+    };
+  }, [activeAboutModuleIndex]);
 
   function showPreviousAboutModule() {
     setActiveAboutModuleIndex((current) =>
@@ -528,7 +616,7 @@ export default function Home({ loaderData }: Route.ComponentProps) {
             loop
             playsInline
             preload="metadata"
-            poster="/assets/images/HeroRobot.jpg"
+            poster="/assets/images/Robot/HeroRobot.jpg"
             aria-label="吉林大学吉甲大师双创基地宣传视频"
           >
             <source src="/assets/images/Video/599af37af64b86479092f9c28e4619a1.mp4" type="video/mp4" />
@@ -572,23 +660,23 @@ export default function Home({ loaderData }: Route.ComponentProps) {
         </div>
 
         <div className="pointer-events-none absolute inset-x-0 bottom-6 z-20 sm:bottom-8">
-          <div className="mx-auto flex max-w-[1440px] justify-end px-6 sm:px-10 lg:px-20">
+          <div className="mx-auto flex max-w-[1440px] justify-center px-6 sm:px-10 lg:px-20">
             <a
               href="#about"
-              className="motion-button pointer-events-auto inline-flex items-center gap-2 rounded-full border border-white/14 bg-white/10 px-5 py-3 text-sm font-semibold text-white backdrop-blur-md hover:bg-white/16 sm:px-6"
+              className="motion-button pointer-events-auto inline-flex h-14 w-14 items-center justify-center rounded-full border border-white/14 bg-white/10 text-white shadow-[0_18px_48px_-28px_rgba(255,255,255,0.76)] backdrop-blur-md hover:border-white/28 hover:bg-white/16 sm:h-16 sm:w-16"
+              aria-label="下滑查看更多"
             >
-          下滑查看更多
-          <svg
-            className="h-4 w-4"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M12 5v14" />
-            <path d="m19 12-7 7-7-7" />
+              <svg
+                className="h-6 w-6"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M12 5v14" />
+                <path d="m19 12-7 7-7-7" />
               </svg>
             </a>
           </div>
@@ -723,7 +811,15 @@ export default function Home({ loaderData }: Route.ComponentProps) {
               className={`grid gap-6 ${getAboutModuleLayoutClass(activeAboutModule.images.length)} lg:items-start`}
             >
               <div
-                className={`grid ${getAboutPhotoWallClass(activeAboutModule.images.length)} gap-4`}
+                className={`grid ${getAboutPhotoWallClass(activeAboutModule.images.length)} gap-3 lg:h-[var(--about-photo-wall-height)] lg:[grid-template-rows:repeat(var(--about-photo-rows),minmax(0,1fr))]`}
+                style={
+                  {
+                    "--about-photo-rows": String(
+                      getAboutPhotoWallRowCount(activeAboutModule.images.length),
+                    ),
+                    "--about-photo-wall-height": aboutPanelHeight,
+                  } as CSSProperties
+                }
               >
                 {activeAboutModule.images.map((image, index) => (
                   <article
@@ -746,33 +842,36 @@ export default function Home({ loaderData }: Route.ComponentProps) {
                 ))}
               </div>
 
-              <div className="motion-panel-soft rounded-[28px] border border-white/8 bg-surface-light/80 p-7 sm:p-8">
+              <div
+                ref={aboutPanelRef}
+                className="motion-panel-soft rounded-[28px] border border-white/8 bg-surface-light/80 p-5 sm:p-6"
+              >
                 <span className="inline-flex rounded-full border border-accent-primary/20 bg-accent-primary/10 px-4 py-1 text-[13px] font-semibold text-accent-primary">
                   {activeAboutModule.name}
                 </span>
-                <h3 className="mt-5 font-display text-3xl text-fg-primary sm:text-4xl">
+                <h3 className="mt-3.5 font-display text-3xl text-fg-primary sm:mt-4 sm:text-4xl">
                   {activeAboutModule.title}
                 </h3>
-                <div className="mt-5 space-y-4">
+                <div className="mt-3.5 space-y-2.5 sm:mt-4">
                   {activeAboutModule.description.map((paragraph) => (
                     <p
                       key={paragraph}
-                      className="text-sm leading-7 text-fg-muted sm:text-base"
+                      className="text-sm leading-6 text-fg-muted sm:text-base sm:leading-7"
                     >
                       {paragraph}
                     </p>
                   ))}
                 </div>
 
-                <div className="mt-6 rounded-[24px] border border-white/8 bg-surface-primary/68 p-5">
+                <div className="mt-4 rounded-[24px] border border-white/8 bg-surface-primary/68 p-4 sm:mt-5 sm:p-5">
                   <h4 className="text-sm font-semibold uppercase tracking-[0.22em] text-accent-gold">
                     模块聚焦
                   </h4>
-                  <ul className="mt-4 space-y-3">
+                  <ul className="mt-3 space-y-2.5">
                     {activeAboutModule.highlights.map((highlight) => (
                       <li
                         key={highlight}
-                        className="flex gap-3 text-sm leading-7 text-fg-muted sm:text-[15px]"
+                        className="flex gap-3 text-sm leading-6 text-fg-muted sm:text-[15px] sm:leading-7"
                       >
                         <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent-gold" />
                         <span>{highlight}</span>
@@ -1038,7 +1137,9 @@ export default function Home({ loaderData }: Route.ComponentProps) {
             {achievementCertificates.map((image, index) => (
               <article
                 key={image}
-                className="motion-surface group relative aspect-[4/3] overflow-hidden rounded-[24px] border border-white/8 bg-surface-light/86 p-3 sm:p-4"
+                className={`motion-surface group relative aspect-[4/3] overflow-hidden rounded-[24px] border border-white/8 bg-surface-light/86 p-3 sm:p-4 ${
+                  showAllCertificates ? "" : getCertificateVisibilityClass(index)
+                }`}
               >
                 <span className="absolute left-4 top-4 z-10 rounded-full border border-white/10 bg-black/28 px-3 py-1 text-[11px] font-semibold tracking-[0.18em] text-accent-gold backdrop-blur-sm">
                   {String(index + 1).padStart(2, "0")}
@@ -1054,6 +1155,32 @@ export default function Home({ loaderData }: Route.ComponentProps) {
               </article>
             ))}
           </div>
+
+          {achievementCertificates.length > 10 ? (
+            <div className="mt-10 flex justify-center">
+              <button
+                type="button"
+                onClick={() => setShowAllCertificates((current) => !current)}
+                className="motion-button inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.08] px-7 py-3 text-sm font-semibold text-fg-primary backdrop-blur-md hover:border-accent-gold/40 hover:text-accent-gold"
+                aria-expanded={showAllCertificates}
+              >
+                {showAllCertificates ? "收起" : "点击查看更多"}
+                <svg
+                  className={`h-4 w-4 transition-transform duration-300 ${
+                    showAllCertificates ? "rotate-180" : ""
+                  }`}
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </button>
+            </div>
+          ) : null}
         </div>
       </section>
 

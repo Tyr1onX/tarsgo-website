@@ -10,8 +10,10 @@ import {
 import type { Route } from "./+types/root";
 import "./app.css";
 import NotFound from "./routes/not-found";
+import faviconHref from "../public/favicon.ico";
 
 export const links: Route.LinksFunction = () => [
+  { rel: "icon", href: faviconHref, type: "image/x-icon" },
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
   {
     rel: "preconnect",
