@@ -1,125 +1,148 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
-import { createPortal } from "react-dom";
-import { Icon } from "@iconify/react";
-import x from "@iconify-icons/lucide/x";
+import {
+  type MouseEvent,
+  type ReactNode,
+  useEffect,
+  useId,
+  useState,
+} from "react";
 
-const EXIT_DURATION_MS = 200;
+export const MODAL_TRANSITION_MS = 260;
 
-type ModalShellProps = {
-  open: boolean;
-  title?: string;
-  description?: string;
-  onClose: () => void;
-  children: ReactNode;
-  widthClass?: string;
-  zIndexClass?: string;
-  closeOnBackdrop?: boolean;
-  hideCloseButton?: boolean;
-  headerAccent?: ReactNode;
-  panelClassName?: string;
-  bodyClassName?: string;
-  backdropClassName?: string;
-};
-
-export function ModalShell({
-  open,
-  title,
-  description,
-  onClose,
-  children,
-  widthClass = "max-w-2xl",
-  zIndexClass = "z-50",
-  closeOnBackdrop = true,
-  hideCloseButton = false,
-  headerAccent,
-  panelClassName = "rounded-2xl border border-border-subtle bg-surface-card shadow-2xl shadow-black/40 ring-1 ring-white/[0.05]",
-  bodyClassName = "px-6 py-5",
-  backdropClassName = "bg-black/70 backdrop-blur-md",
-}: ModalShellProps) {
-  const [mounted, setMounted] = useState(open);
-  const [visible, setVisible] = useState(false);
-
-  const snapshotRef = useRef<{
-    title?: string;
-    description?: string;
-    children: ReactNode;
-    headerAccent?: ReactNode;
-  }>({ title, description, children, headerAccent });
-
-  if (open) {
-    snapshotRef.current = { title, description, children, headerAccent };
-  }
+export function useModalPresence(open: boolean, duration = MODAL_TRANSITION_MS) {
+  const [visible, setVisible] = useState(open);
 
   useEffect(() => {
     if (open) {
-      setMounted(true);
-      const raf = window.requestAnimationFrame(() => setVisible(true));
-      return () => window.cancelAnimationFrame(raf);
-    }
-    if (!mounted) {
+      setVisible(true);
       return;
     }
-    setVisible(false);
-    const id = window.setTimeout(() => setMounted(false), EXIT_DURATION_MS);
-    return () => window.clearTimeout(id);
-  }, [open, mounted]);
 
-  if (!mounted || typeof document === "undefined") {
-    return null;
-  }
+    if (!visible) {
+      return;
+    }
 
-  const state = visible ? "open" : "closed";
-  const snap = snapshotRef.current;
-  const hasHeader = Boolean(snap.title || snap.description || snap.headerAccent);
+    const timer = window.setTimeout(() => {
+      setVisible(false);
+    }, duration);
 
-  return createPortal(
-    <div
-      data-state={state}
-      className={`modal-backdrop fixed inset-0 ${zIndexClass} flex items-center justify-center p-4 ${backdropClassName}`}
-      role="dialog"
-      aria-modal="true"
-      onClick={() => {
-        if (closeOnBackdrop) {
-          onClose();
-        }
-      }}
-    >
-      <div
-        data-state={state}
-        className={`modal-panel w-full ${widthClass} transform-gpu overflow-hidden ${panelClassName}`}
-        onClick={(event) => event.stopPropagation()}
-      >
-        {hasHeader ? (
-          <div className="flex items-start justify-between gap-4 border-b border-border-subtle px-6 py-5">
-            <div className="flex items-start gap-3">
-              {snap.headerAccent}
-              <div>
-                {snap.title ? (
-                  <h2 className="text-lg font-semibold text-fg-primary">{snap.title}</h2>
-                ) : null}
-                {snap.description ? (
-                  <p className="mt-1 text-sm text-fg-muted">{snap.description}</p>
-                ) : null}
-              </div>
-            </div>
-            {!hideCloseButton ? (
-              <button
-                type="button"
-                onClick={onClose}
-                title="关闭"
-                aria-label="关闭"
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-fg-dim transition hover:bg-white/5 hover:text-fg-primary"
-              >
-                <Icon icon={x} className="h-4 w-4" />
-              </button>
-            ) : null}
-          </div>
-        ) : null}
-        <div className={bodyClassName}>{snap.children}</div>
-      </div>
-    </div>,
-    document.body,
-  );
+    return () => window.clearTimeout(timer);
+  }, [duration, open, visible]);
+
+  return visible;
 }
 
-export default ModalShell;
+export function useModalPresenceValue<T>(
+  value: T | null | undefined,
+  duration = MODAL_TRANSITION_MS,
+) {
+  const [visibleValue, setVisibleValue] = useState<T | null>(value ?? null);
+
+  useEffect(() => {
+    if (value != null) {
+      setVisibleValue(value);
+      return;
+    }
+
+    if (visibleValue == null) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setVisibleValue(null);
+    }, duration);
+
+    return () => window.clearTimeout(timer);
+  }, [duration, value, visibleValue]);
+
+  return visibleValue;
+}
+
+type ModalShellProps = {
+  title: string;
+  description?: string;
+  headerAccent?: ReactNode;
+  open?: boolean;
+  onClose: () => void;
+  children: ReactNode;
+  widthClass?: string;
+  roundedClassName?: string;
+  panelClassName?: string;
+  bodyClassName?: string;
+  backdropClassName?: string;
+  zIndexClass?: string;
+};
+
+export function ModalShell({
+  title,
+  description,
+  headerAccent,
+  open = true,
+  onClose,
+  children,
+  widthClass = "max-w-2xl",
+  roundedClassName = "rounded-xl",
+  panelClassName = "border border-gray-800 bg-gray-900 shadow-2xl",
+  bodyClassName = "px-6 py-5",
+  backdropClassName = "bg-black/70",
+  zIndexClass = "z-50",
+}: ModalShellProps) {
+  const titleId = useId();
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        onClose();
+      }
+    };
+
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [onClose, open]);
+
+  function handleOverlayMouseDown(event: MouseEvent<HTMLDivElement>) {
+    if (event.target === event.currentTarget) {
+      onClose();
+    }
+  }
+
+  return (
+    <div
+      className={`motion-overlay fixed inset-0 ${zIndexClass} flex items-center justify-center ${backdropClassName} p-4`}
+      data-state={open ? "open" : "closed"}
+      onMouseDown={handleOverlayMouseDown}
+    >
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby={titleId}
+        className={`motion-dialog motion-dialog-surface w-full ${widthClass} ${roundedClassName} ${panelClassName}`}
+        data-state={open ? "open" : "closed"}
+      >
+        <div className="flex items-start justify-between gap-4 border-b border-gray-800 px-6 py-5">
+          <div className="flex min-w-0 items-start gap-3">
+            {headerAccent ? <div className="shrink-0">{headerAccent}</div> : null}
+            <div className="min-w-0">
+              <h2 id={titleId} className="text-lg font-semibold text-white">
+                {title}
+              </h2>
+              {description ? <p className="mt-1 text-sm text-gray-400">{description}</p> : null}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="motion-button rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 transition-colors hover:bg-white/5"
+          >
+            关闭
+          </button>
+        </div>
+        <div className={bodyClassName}>{children}</div>
+      </div>
+    </div>
+  );
+}

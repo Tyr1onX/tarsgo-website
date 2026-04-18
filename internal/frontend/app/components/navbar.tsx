@@ -6,7 +6,9 @@ import { logout, type AuthUser } from "~/lib/auth-client";
 const navLinks = [
   { label: "首页", href: "/#hero", active: true },
   { label: "关于我们", href: "/#about", active: false },
-  { label: "赛事成就", href: "/#achievements", active: false },
+  { label: "团队历程", href: "/#achievements", active: false },
+  { label: "机器人展示", href: "/#robots", active: false },
+  { label: "成就展示", href: "/#certificates", active: false },
   { label: "加入我们", href: "/#join", active: false },
 ];
 
@@ -18,9 +20,23 @@ export function Navbar({ currentUser = null }: NavbarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [isScrolled, setIsScrolled] = useState(false);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
   const revalidator = useRevalidator();
+
+  useEffect(() => {
+    function handleScroll() {
+      setIsScrolled(window.scrollY > 24);
+    }
+
+    handleScroll();
+    window.addEventListener("scroll", handleScroll, { passive: true });
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, []);
 
   useEffect(() => {
     if (!userMenuOpen) {
@@ -66,29 +82,26 @@ export function Navbar({ currentUser = null }: NavbarProps) {
   }
 
   return (
-    <nav className="sticky top-0 z-50 bg-surface-primary border-b border-border-subtle">
-      <div className="max-w-[1440px] mx-auto px-6 sm:px-10 lg:px-20 flex items-center justify-between h-16">
+    <nav className="pointer-events-none fixed inset-x-0 top-0 z-50">
+      <div
+        className={`pointer-events-auto w-full overflow-hidden border-b transition-all duration-300 ${
+          isScrolled
+            ? "border-white/10 bg-surface-primary/88 shadow-[0_20px_60px_-30px_rgba(2,6,23,0.9)] backdrop-blur-2xl"
+            : "border-white/12 bg-black/28 shadow-[0_24px_70px_-38px_rgba(2,6,23,0.85)] backdrop-blur-xl"
+        }`}
+      >
+      <div className="max-w-[1440px] mx-auto px-6 sm:px-10 lg:px-20 flex items-center justify-between h-[68px]">
         {/* Logo */}
-        <Link to="/" className="flex items-center gap-2.5 shrink-0">
-          <svg
-            className="w-8 h-8 text-accent-primary"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          >
-            <path d="M12 8V4H8" />
-            <rect width="16" height="12" x="4" y="8" rx="2" />
-            <path d="M2 14h2" />
-            <path d="M20 14h2" />
-            <path d="M15 13v2" />
-            <path d="M9 13v2" />
-          </svg>
-          <span className="font-display text-fg-primary text-2xl">
-            TARS-Go
-          </span>
+        <Link
+          to="/"
+          aria-label="TARS-GO 首页"
+          className="motion-button flex shrink-0 items-center"
+        >
+          <img
+            src="/assets/images/Logo/TARS-GO.png"
+            alt="TARS-GO"
+            className="h-[48px] w-auto object-contain sm:h-[54px]"
+          />
         </Link>
 
         {/* Desktop nav links */}
@@ -97,7 +110,7 @@ export function Navbar({ currentUser = null }: NavbarProps) {
             <a
               key={link.href}
               href={link.href}
-              className={`text-[15px] font-medium transition-colors ${
+              className={`motion-nav-link text-base font-semibold transition-colors ${
                 link.active
                   ? "text-accent-primary"
                   : "text-fg-primary hover:text-accent-primary"
@@ -315,6 +328,7 @@ export function Navbar({ currentUser = null }: NavbarProps) {
           )}
         </div>
       )}
+      </div>
     </nav>
   );
 }

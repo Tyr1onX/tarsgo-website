@@ -96,8 +96,8 @@ export default function UserDashboard() {
   const quickLinks = getQuickLinks(Boolean(currentUser.portal?.showRecruitmentEntry));
 
   return (
-    <div>
-      <div className="mb-8">
+    <div className="space-y-8">
+      <div className="motion-fade-up">
         <h1 className="text-2xl font-bold">
           你好，{currentUser.nickname || "队员"} 👋
         </h1>
@@ -107,32 +107,41 @@ export default function UserDashboard() {
       </div>
 
       {/* Quick links */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-        {quickLinks.map((link) => (
-          <a
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+        {quickLinks.map((link, index) => (
+          <div
             key={link.label}
-            href={link.href}
-            className="group flex flex-col items-center gap-3 p-5 rounded-xl bg-gray-900 border border-gray-800 hover:border-gray-700 transition-colors"
+            className="motion-fade-up"
+            style={{ animationDelay: `${80 + index * 70}ms` }}
           >
-            <div className="w-10 h-10 rounded-lg bg-primary-500/20 flex items-center justify-center text-primary-400 group-hover:bg-primary-500/30 transition-colors">
-              <QuickLinkIcon type={link.icon} />
-            </div>
-            <span className="text-sm text-gray-300 group-hover:text-white transition-colors">
-              {link.label}
-            </span>
-          </a>
+            <a
+              href={link.href}
+              className="motion-surface group flex flex-col items-center gap-3 rounded-xl border border-gray-800 bg-gray-900 p-5"
+            >
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary-500/20 text-primary-400 transition-transform duration-300 group-hover:scale-105 group-hover:bg-primary-500/30">
+                <QuickLinkIcon type={link.icon} />
+              </div>
+              <span className="text-sm text-gray-300 transition-colors group-hover:text-white">
+                {link.label}
+              </span>
+            </a>
+          </div>
         ))}
       </div>
 
       <div className="grid lg:grid-cols-3 gap-6">
         {/* Announcements */}
-        <div className="lg:col-span-2 rounded-xl bg-gray-900 border border-gray-800">
+        <div className="motion-fade-up lg:col-span-2 rounded-xl border border-gray-800 bg-gray-900" style={{ animationDelay: "120ms" }}>
           <div className="px-5 py-4 border-b border-gray-800">
             <h2 className="font-semibold">最新公告</h2>
           </div>
           <div className="divide-y divide-gray-800">
-            {announcements.map((item) => (
-              <div key={item.id} className="px-5 py-4">
+            {announcements.map((item, index) => (
+              <div
+                key={item.id}
+                className="motion-fade-up px-5 py-4 transition-colors hover:bg-white/[0.03]"
+                style={{ animationDelay: `${160 + index * 70}ms` }}
+              >
                 <div className="flex items-center gap-3 mb-2">
                   <span className={`text-xs px-2.5 py-1 rounded-full ${tagColorMap[item.tagColor]}`}>
                     {item.tag}
@@ -147,13 +156,17 @@ export default function UserDashboard() {
         </div>
 
         {/* Schedule */}
-        <div className="rounded-xl bg-gray-900 border border-gray-800">
+        <div className="motion-fade-up rounded-xl border border-gray-800 bg-gray-900" style={{ animationDelay: "180ms" }}>
           <div className="px-5 py-4 border-b border-gray-800">
             <h2 className="font-semibold">本周日程</h2>
           </div>
           <div className="p-5 space-y-4">
             {schedule.map((item, i) => (
-              <div key={i} className="flex gap-3">
+              <div
+                key={i}
+                className="motion-fade-up flex gap-3 rounded-lg px-1 py-1 transition-colors hover:bg-white/[0.03]"
+                style={{ animationDelay: `${220 + i * 70}ms` }}
+              >
                 <div className="w-1 rounded-full bg-primary-500/40 shrink-0" />
                 <div>
                   <div className="text-sm font-medium text-white">{item.event}</div>

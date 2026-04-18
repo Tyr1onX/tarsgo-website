@@ -79,14 +79,14 @@ export default function PermissionGroups() {
 
   return (
     <div>
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+      <div className="motion-fade-up flex flex-col gap-4 mb-6 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">权限分组</h1>
           <p className="text-sm text-gray-400 mt-1">管理角色与页面级访问权限</p>
         </div>
         <button
           type="button"
-          className="inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-primary-500 hover:bg-primary-600 rounded-lg transition-colors"
+          className="motion-button inline-flex items-center gap-2 px-4 py-2.5 text-sm font-medium text-white bg-primary-500 hover:bg-primary-600 rounded-lg transition-colors"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
@@ -96,27 +96,27 @@ export default function PermissionGroups() {
       </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
-        <div className="p-4 rounded-xl bg-gray-900 border border-gray-800">
+      <div className="motion-fade-up mb-8 grid grid-cols-2 gap-4 sm:grid-cols-4" style={{ animationDelay: "80ms" }}>
+        <div className="motion-stat-surface p-4 rounded-xl bg-gray-900 border border-gray-800">
           <div className="text-2xl font-bold text-white">{roles.length}</div>
           <div className="text-sm text-gray-400 mt-1">角色总数</div>
         </div>
-        <div className="p-4 rounded-xl bg-gray-900 border border-gray-800">
+        <div className="motion-stat-surface p-4 rounded-xl bg-gray-900 border border-gray-800">
           <div className="text-2xl font-bold text-white">{pages.length}</div>
           <div className="text-sm text-gray-400 mt-1">权限项数</div>
         </div>
-        <div className="p-4 rounded-xl bg-gray-900 border border-gray-800">
+        <div className="motion-stat-surface p-4 rounded-xl bg-gray-900 border border-gray-800">
           <div className="text-2xl font-bold text-white">{roles.reduce((sum, r) => sum + r.memberCount, 0)}</div>
           <div className="text-sm text-gray-400 mt-1">总关联用户</div>
         </div>
-        <div className="p-4 rounded-xl bg-gray-900 border border-gray-800">
+        <div className="motion-stat-surface p-4 rounded-xl bg-gray-900 border border-gray-800">
           <div className="text-2xl font-bold text-white">{roles.filter((r) => r.permissions.length === pages.length).length}</div>
           <div className="text-sm text-gray-400 mt-1">满权限角色</div>
         </div>
       </div>
 
       {/* Role cards */}
-      <div className="space-y-4">
+      <div className="motion-fade-up space-y-4" style={{ animationDelay: "140ms" }}>
         {roles.map((role) => {
           const colors = colorMap[role.color];
           const isEditing = editingId === role.id;
@@ -124,7 +124,7 @@ export default function PermissionGroups() {
           return (
             <div
               key={role.id}
-              className={`rounded-xl bg-gray-900 border transition-colors ${isEditing ? colors.border : "border-gray-800"}`}
+              className={`motion-surface rounded-xl bg-gray-900 border transition-colors ${isEditing ? colors.border : "border-gray-800"}`}
             >
               {/* Role header */}
               <div className="flex items-center justify-between px-5 py-4">
@@ -145,7 +145,7 @@ export default function PermissionGroups() {
                   <button
                     type="button"
                     onClick={() => setEditingId(isEditing ? null : role.id)}
-                    className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
+                    className={`motion-button px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
                       isEditing
                         ? "text-primary-400 border-primary-500/30 bg-primary-500/10"
                         : "text-gray-400 border-gray-700 hover:text-white hover:bg-white/5"
@@ -167,7 +167,7 @@ export default function PermissionGroups() {
                         type="button"
                         disabled={!isEditing}
                         onClick={() => togglePermission(role.id, page.key)}
-                        className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
+                        className={`motion-button flex items-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors ${
                           hasPermission
                             ? `${colors.bg} ${colors.text} ${isEditing ? `border ${colors.border}` : ""}`
                             : `bg-gray-800/50 text-gray-500 ${isEditing ? "border border-gray-700 hover:bg-gray-800" : ""}`

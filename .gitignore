@@ -10,3 +10,9 @@
 /build/
 /internal/frontend/.react-router/
 /internal/frontend/build/
+/.vite/
+/internal/frontend/.vite/
+/.artifacts/
+
+# Local runtime artifacts
+/.runtime/

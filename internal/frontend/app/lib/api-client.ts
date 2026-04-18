@@ -1,4 +1,16 @@
-const API_BASE_URL = getRequiredEnv("VITE_API_BASE_URL").replace(/\/$/, "");
+function getApiBaseUrl() {
+  const configuredBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim().replace(/\/$/, "");
+
+  if (configuredBaseUrl) {
+    return configuredBaseUrl;
+  }
+
+  if (import.meta.env.DEV && typeof window !== "undefined") {
+    return "";
+  }
+
+  return "http://127.0.0.1:8080";
+}
 
 export interface ApiEnvelope<T> {
   code: number;
@@ -17,7 +29,7 @@ export class ApiError extends Error {
 }
 
 export function buildApiUrl(path: string): string {
-  return `${API_BASE_URL}${path}`;
+  return `${getApiBaseUrl()}${path}`;
 }
 
 type ApiRequestBody = BodyInit | object | null;
@@ -74,12 +86,4 @@ function isNativeRequestBody(value: ApiRequestBody): value is BodyInit {
     value instanceof ArrayBuffer ||
     ArrayBuffer.isView(value)
   );
-}
-
-function getRequiredEnv(key: "VITE_API_BASE_URL"): string {
-  const value = import.meta.env[key]?.trim();
-  if (!value) {
-    throw new Error(`缺少前端环境变量 ${key}`);
-  }
-  return value;
 }

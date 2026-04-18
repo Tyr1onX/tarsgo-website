@@ -87,6 +87,12 @@ const ADMIN_MENU: readonly DashboardMenuDefinition[] = [
         href: "/dashboard/admin/user-groups",
         allowedRoles: ["super_admin"],
       },
+      {
+        key: "permission-groups",
+        label: "权限分组",
+        href: "/dashboard/admin/permission-groups",
+        allowedRoles: ["super_admin"],
+      },
     ],
   },
   {
