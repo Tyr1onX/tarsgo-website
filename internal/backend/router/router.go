@@ -1,6 +1,7 @@
 package router
 
 import (
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -40,6 +41,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
 	}))
+	engine.Static("/upload/config/group", filepath.Join("upload", "config", "group"))
 
 	healthHandler := handler.NewHealthHandler(db)
 	authService := auth.NewService(cfg, db)

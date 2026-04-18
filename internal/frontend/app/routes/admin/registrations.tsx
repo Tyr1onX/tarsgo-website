@@ -535,19 +535,45 @@ export default function RegistrationsPage() {
   const hasActiveFilters = keyword !== "" || statusFilter !== "" || formIdFilter !== "";
 
   return (
-    <div className="space-y-6">
-      {/* ── Page header ── */}
-      <div className="flex items-center gap-4">
-        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary-500/15 text-primary-400">
-          <IconClipboard />
+    <div className="space-y-5 sm:space-y-6">
+      {/* ── Page hero ── */}
+      <section className="relative overflow-hidden rounded-2xl border border-border-subtle bg-surface-card">
+        <div
+          aria-hidden
+          className="bg-registrations-hero-glow pointer-events-none absolute inset-0 opacity-80"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full bg-primary-500/10 blur-3xl"
+        />
+        <div className="relative flex flex-col gap-4 px-5 py-5 sm:gap-6 sm:px-7 sm:py-7 lg:flex-row lg:items-center lg:justify-between">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary-500/20 bg-primary-500/10 text-primary-300 ring-1 ring-inset ring-primary-500/10 sm:h-12 sm:w-12">
+              <IconClipboard />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.22em] text-primary-300 sm:text-[11px] sm:tracking-[0.28em]">
+                <span>Registrations</span>
+                <span className="h-1 w-1 rounded-full bg-primary-500/70" />
+                <span>报名数据</span>
+              </div>
+              <h1 className="mt-1.5 text-xl font-semibold tracking-tight text-fg-primary sm:mt-2 sm:text-3xl">
+                报名列表
+              </h1>
+              <p className="mt-1.5 max-w-2xl text-xs leading-5 text-fg-muted sm:mt-2 sm:text-sm sm:leading-6">
+                查看所有报名记录，支持按状态、关键字和报名表筛选，并按页浏览结果
+              </p>
+            </div>
+          </div>
+          <div className="inline-flex w-fit items-center gap-2 self-start rounded-full border border-primary-500/30 bg-primary-500/10 px-3 py-1 text-xs font-medium text-primary-200 sm:px-3.5 sm:py-1.5">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inset-0 animate-ping rounded-full bg-primary-400 opacity-75" />
+              <span className="relative h-1.5 w-1.5 rounded-full bg-primary-400" />
+            </span>
+            共 <span className="font-mono tabular-nums text-fg-primary">{summary.total}</span> 条记录
+          </div>
         </div>
-        <div>
-          <h1 className="text-2xl font-bold text-fg-primary">报名列表</h1>
-          <p className="mt-0.5 text-sm text-fg-dim">
-            查看所有报名记录，支持按状态、关键字和报名表筛选，并按页浏览结果
-          </p>
-        </div>
-      </div>
+      </section>
 
       {/* ── Flash message ── */}
       {flash ? (
@@ -572,7 +598,7 @@ export default function RegistrationsPage() {
       ) : null}
 
       {/* ── Summary cards ── */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-5">
         <SummaryCard
           label="总报名数"
           value={summary.total}
@@ -1714,14 +1740,18 @@ function SummaryCard({
   iconBg: string;
 }) {
   return (
-    <div className="rounded-xl border border-border-subtle bg-surface-card p-5">
-      <div className="flex items-center justify-between mb-3">
-        <div className={`flex h-10 w-10 items-center justify-center rounded-lg ${iconBg} ${iconColor}`}>
+    <div className="rounded-xl border border-border-subtle bg-surface-card p-3 transition-colors hover:border-gray-700 sm:p-5">
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0 truncate text-[11px] text-fg-dim sm:text-sm">{label}</div>
+        <div
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md sm:h-10 sm:w-10 sm:rounded-lg ${iconBg} ${iconColor}`}
+        >
           {icon}
         </div>
       </div>
-      <div className="text-2xl font-bold text-fg-primary tabular-nums">{value}</div>
-      <div className="mt-1 text-sm text-fg-dim">{label}</div>
+      <div className="mt-2 text-xl font-bold tabular-nums text-fg-primary sm:mt-3 sm:text-2xl">
+        {value}
+      </div>
     </div>
   );
 }

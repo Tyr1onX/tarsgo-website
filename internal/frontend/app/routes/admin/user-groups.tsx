@@ -24,7 +24,7 @@ import usersIcon from "@iconify-icons/lucide/users";
 import x from "@iconify-icons/lucide/x";
 import zap from "@iconify-icons/lucide/zap";
 import { Icon, type IconifyIcon } from "@iconify/react";
-import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ChangeEvent, type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useOutletContext } from "react-router";
 import { ModalShell } from "~/components/modal-shell";
@@ -45,7 +45,7 @@ import {
   type AdminUserGroupMember,
   type ListAdminUserGroupsInput,
 } from "~/lib/admin-user-groups-client";
-import { ApiError } from "~/lib/api-client";
+import { ApiError, buildApiUrl } from "~/lib/api-client";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 
 export function meta() {
@@ -63,6 +63,9 @@ type FlashState =
 type GroupFormState = {
   name: string;
   description: string;
+  logoUrl: string | null;
+  logoFile: File | null;
+  removeLogo: boolean;
   tags: string[];
   isDefault: boolean;
   show: string;
@@ -76,6 +79,9 @@ const defaultQuery: ListAdminUserGroupsInput = {
 const defaultGroupFormState: GroupFormState = {
   name: "",
   description: "",
+  logoUrl: null,
+  logoFile: null,
+  removeLogo: false,
   tags: [],
   isDefault: false,
   show: "1",
@@ -121,7 +127,7 @@ function parseTagsInput(value: string) {
     .filter(Boolean);
 }
 
-function toGroupFormState(group?: Pick<AdminUserGroupListItem, "name" | "description" | "tags" | "isDefault" | "show" | "status"> | null): GroupFormState {
+function toGroupFormState(group?: Pick<AdminUserGroupListItem, "name" | "description" | "logoUrl" | "tags" | "isDefault" | "show" | "status"> | null): GroupFormState {
   if (!group) {
     return defaultGroupFormState;
   }
@@ -129,6 +135,9 @@ function toGroupFormState(group?: Pick<AdminUserGroupListItem, "name" | "descrip
   return {
     name: group.name,
     description: group.description ?? "",
+    logoUrl: group.logoUrl ?? null,
+    logoFile: null,
+    removeLogo: false,
     tags: group.tags ?? [],
     isDefault: group.isDefault,
     show: String(group.show),
@@ -145,6 +154,30 @@ function buildGroupPayload(form: GroupFormState) {
     show: Number(form.show),
     status: Number(form.status),
   };
+}
+
+function buildGroupRequestBody(form: GroupFormState) {
+  const payload = buildGroupPayload(form);
+  if (!form.logoFile && !form.removeLogo) {
+    return payload;
+  }
+
+  const body = new FormData();
+  body.set("name", payload.name);
+  body.set("description", payload.description);
+  body.set("isDefault", String(payload.isDefault));
+  body.set("show", String(payload.show));
+  body.set("status", String(payload.status));
+  if (form.removeLogo) {
+    body.set("removeLogo", "true");
+  }
+  for (const tag of payload.tags) {
+    body.append("tags", tag);
+  }
+  if (form.logoFile) {
+    body.set("logo", form.logoFile);
+  }
+  return body;
 }
 
 function shouldRedirectToLogin(error: unknown) {
@@ -214,7 +247,9 @@ export default function UserGroups() {
   const [groupModalOpen, setGroupModalOpen] = useState(false);
   const [editingGroupId, setEditingGroupId] = useState<number | null>(null);
   const [groupForm, setGroupForm] = useState<GroupFormState>(defaultGroupFormState);
+  const [groupLogoPreviewUrl, setGroupLogoPreviewUrl] = useState<string | null>(null);
   const [savingGroup, setSavingGroup] = useState(false);
+  const groupLogoInputRef = useRef<HTMLInputElement | null>(null);
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [drawerClosing, setDrawerClosing] = useState(false);
@@ -240,6 +275,9 @@ export default function UserGroups() {
     }
     return (summary.totalMembers / summary.total).toFixed(1);
   }, [summary.total, summary.totalMembers]);
+
+  const groupLogoPreviewSrc = groupLogoPreviewUrl
+    ?? (!groupForm.removeLogo && groupForm.logoUrl ? buildApiUrl(groupForm.logoUrl) : null);
 
   /* ─── Effects ─── */
 
@@ -369,6 +407,19 @@ export default function UserGroups() {
   }, []);
 
   useEffect(() => {
+    if (!groupForm.logoFile) {
+      setGroupLogoPreviewUrl(null);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(groupForm.logoFile);
+    setGroupLogoPreviewUrl(objectUrl);
+    return () => {
+      URL.revokeObjectURL(objectUrl);
+    };
+  }, [groupForm.logoFile]);
+
+  useEffect(() => {
     if (!drawerOpen || drawerClosing) {
       return;
     }
@@ -457,12 +508,18 @@ export default function UserGroups() {
   function openCreateModal() {
     setEditingGroupId(null);
     setGroupForm(defaultGroupFormState);
+    if (groupLogoInputRef.current) {
+      groupLogoInputRef.current.value = "";
+    }
     setGroupModalOpen(true);
   }
 
   function openEditModal(group: AdminUserGroupListItem | AdminUserGroupDetail) {
     setEditingGroupId(group.id);
     setGroupForm(toGroupFormState(group));
+    if (groupLogoInputRef.current) {
+      groupLogoInputRef.current.value = "";
+    }
     setGroupModalOpen(true);
   }
 
@@ -482,12 +539,12 @@ export default function UserGroups() {
 
     try {
       setSavingGroup(true);
-      const payload = buildGroupPayload(groupForm);
+      const body = buildGroupRequestBody(groupForm);
       const detail = editingGroupId === null
-        ? await createAdminUserGroup(payload)
-        : await updateAdminUserGroup(editingGroupId, payload);
+        ? await createAdminUserGroup(body)
+        : await updateAdminUserGroup(editingGroupId, body);
 
-      setGroupModalOpen(false);
+      closeGroupModal();
       setFlash({
         type: "success",
         message: editingGroupId === null ? `已创建用户组：${detail.name}` : `已更新用户组：${detail.name}`,
@@ -505,6 +562,34 @@ export default function UserGroups() {
       setFlash({ type: "error", message: getErrorMessage(error) });
     } finally {
       setSavingGroup(false);
+    }
+  }
+
+  function closeGroupModal() {
+    setGroupModalOpen(false);
+    if (groupLogoInputRef.current) {
+      groupLogoInputRef.current.value = "";
+    }
+  }
+
+  function handleGroupLogoSelect(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0] ?? null;
+    setGroupForm((previous) => ({
+      ...previous,
+      logoFile: file,
+      removeLogo: file ? false : previous.removeLogo,
+    }));
+  }
+
+  function handleRemoveGroupLogo() {
+    setGroupForm((previous) => ({
+      ...previous,
+      logoFile: null,
+      logoUrl: null,
+      removeLogo: previous.logoFile !== null || previous.logoUrl !== null,
+    }));
+    if (groupLogoInputRef.current) {
+      groupLogoInputRef.current.value = "";
     }
   }
 
@@ -821,7 +906,7 @@ export default function UserGroups() {
             />
           </div>
         }
-        onClose={() => setGroupModalOpen(false)}
+        onClose={closeGroupModal}
         widthClass="max-w-2xl"
         zIndexClass="z-[60]"
         panelClassName="rounded-2xl border border-gray-800/60 bg-gray-950 shadow-2xl shadow-black/40"
@@ -849,6 +934,46 @@ export default function UserGroups() {
                       placeholder="输入分组名称"
                       required
                     />
+                  </div>
+                  <div>
+                    <FieldLabel label="分组 Logo" />
+                    <div className="flex flex-col gap-3 rounded-xl border border-gray-700/60 bg-gray-800/50 p-4 sm:flex-row sm:items-center">
+                      <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-gray-700/60 bg-gray-900/80">
+                        {groupLogoPreviewSrc ? (
+                          <img
+                            src={groupLogoPreviewSrc}
+                            alt={groupForm.name.trim() || "分组 Logo"}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <Icon icon={layers} className="h-8 w-8 text-gray-600" />
+                        )}
+                      </div>
+                      <div className="flex flex-1 items-center gap-2">
+                        <input
+                          ref={groupLogoInputRef}
+                          type="file"
+                          accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
+                          onChange={handleGroupLogoSelect}
+                          className="hidden"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => groupLogoInputRef.current?.click()}
+                          className="inline-flex items-center gap-2 rounded-lg border border-gray-700/60 px-4 py-2 text-sm text-gray-200 transition-colors hover:bg-white/5 cursor-pointer"
+                        >
+                          选择图片
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleRemoveGroupLogo}
+                          disabled={!groupLogoPreviewSrc}
+                          className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-4 py-2 text-sm text-red-300 transition-colors hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                        >
+                          移除
+                        </button>
+                      </div>
+                    </div>
                   </div>
                   <div>
                     <FieldLabel label="分组描述" />
@@ -1388,6 +1513,7 @@ function GroupCard({
   const actionsRef = useRef<HTMLDivElement>(null);
   const isActive = group.status === 1;
   const leaders = group.leaders ?? [];
+  const logoSrc = group.logoUrl ? buildApiUrl(group.logoUrl) : null;
   const tags = group.tags ?? [];
 
   useEffect(() => {
@@ -1465,8 +1591,10 @@ function GroupCard({
       <div className="flex flex-1 flex-col px-5 pb-5 pt-4">
         {/* Icon + Title row */}
         <div className="flex items-center gap-3">
-          <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl shadow-lg ${isActive ? "bg-gradient-to-br from-primary-500 to-primary-600 shadow-primary-500/20" : "bg-gradient-to-br from-gray-600 to-gray-700 shadow-gray-900/40"}`}>
-            {group.isDefault ? (
+          <div className={`flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl ${logoSrc ? "bg-transparent shadow-none" : isActive ? "bg-gradient-to-br from-primary-500 to-primary-600 shadow-lg shadow-primary-500/20" : "bg-gradient-to-br from-gray-600 to-gray-700 shadow-lg shadow-gray-900/40"}`}>
+            {logoSrc ? (
+              <img src={logoSrc} alt={group.name} className="h-full w-full object-cover" />
+            ) : group.isDefault ? (
               <Icon icon={shieldIcon} className="h-5 w-5 text-white" />
             ) : (
               <Icon icon={layers} className="h-5 w-5 text-white/90" />

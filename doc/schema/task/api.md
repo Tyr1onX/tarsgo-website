@@ -556,6 +556,7 @@ GET http://127.0.0.1:8080/api/admin/user-groups 获取用户组列表
            "id": 11,
            "name": "新注册用户",
            "description": "邮箱注册与后台新建普通用户的默认承接组",
+           "logoUrl": "/upload/config/group/20260418123000_a1b2c3_logo.png",
            "tags": ["新注册", "默认分流"],
           "isDefault": true,
           "show": 1,
@@ -585,11 +586,12 @@ GET http://127.0.0.1:8080/api/admin/user-groups/:id 获取用户组详情
    {
      "code": 200,
      "message": "获取用户组详情成功",
-     "data": {
-       "id": 11,
-       "name": "新注册用户",
-       "description": "邮箱注册与后台新建普通用户的默认承接组",
-       "tags": ["新注册", "默认分流"],
+      "data": {
+        "id": 11,
+        "name": "新注册用户",
+        "description": "邮箱注册与后台新建普通用户的默认承接组",
+        "logoUrl": "/upload/config/group/20260418123000_a1b2c3_logo.png",
+        "tags": ["新注册", "默认分流"],
       "isDefault": true,
       "show": 1,
       "status": 1,
@@ -642,6 +644,7 @@ GET http://127.0.0.1:8080/api/admin/user-groups/:id 获取用户组详情
 
 POST http://127.0.0.1:8080/api/admin/user-groups 创建用户组
  - 用途：创建新的用户组卡片
+ - 请求类型：`application/json` 或 `multipart/form-data`
  - 请求体：
    ```json
   {
@@ -653,6 +656,9 @@ POST http://127.0.0.1:8080/api/admin/user-groups 创建用户组
     "status": 1
   }
    ```
+ - multipart 补充：
+   - 文件字段：`logo`
+   - 普通字段：`name`、`description`、`tags`、`isDefault`、`show`、`status`
  - 成功响应：返回创建后的完整用户组详情
  - 常见失败：
 - `400`：请求参数不合法、分组名称为空、状态值或 show 值不合法
@@ -664,6 +670,8 @@ PATCH http://127.0.0.1:8080/api/admin/user-groups/:id 更新用户组
  - 说明：
    - 当 `isDefault=true` 且 `status=1` 时，服务端会自动清空其它分组的默认标记
    - 当 `status=0` 时，即使请求体中传入 `isDefault=true`，最终也不会保留默认标记
+   - 支持 `application/json` 或 `multipart/form-data`
+   - multipart 下可额外传 `logo` 文件字段，或传 `removeLogo=true` 清空已有 Logo
  - 请求体：
    ```json
   {

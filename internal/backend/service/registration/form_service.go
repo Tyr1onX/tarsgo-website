@@ -44,6 +44,7 @@ type registrationFormRepository interface {
 	CreateForm(ctx context.Context, form *model.RegistrationForm) error
 	UpdateForm(ctx context.Context, formID uint64, updates map[string]any) error
 	ListPublishedForms(ctx context.Context) ([]model.RegistrationForm, error)
+	CountRegistrationsByFormID(ctx context.Context, formID uint64) (int64, error)
 	FindRegistrationByFormAndUser(ctx context.Context, formID uint64, userID uint64) (*model.Registration, error)
 	ListShownUserGroups(ctx context.Context) ([]model.UserGroup, error)
 	IsUserInActiveDefaultGroup(ctx context.Context, userID uint64) (bool, error)
@@ -390,6 +391,15 @@ func (s *RegistrationFormService) GetRecruitmentPageData(ctx context.Context, ac
 	}
 	if form.EndTime != nil && now.After(*form.EndTime) {
 		return buildUnavailableRecruitmentPageData("报名已结束"), nil
+	}
+	if form.MaxRegistrations != nil && *form.MaxRegistrations > 0 {
+		count, err := s.repo.CountRegistrationsByFormID(ctx, form.ID)
+		if err != nil {
+			return nil, &FormServiceError{Status: http.StatusInternalServerError, Message: "检查报名人数上限失败", Err: err}
+		}
+		if count >= int64(*form.MaxRegistrations) {
+			return buildUnavailableRecruitmentPageData("报名人数已满"), nil
+		}
 	}
 
 	result := ActiveRegistrationFormResult{
@@ -807,6 +817,17 @@ func (r *gormRegistrationFormRepository) ListPublishedForms(ctx context.Context)
 		return nil, err
 	}
 	return forms, nil
+}
+
+func (r *gormRegistrationFormRepository) CountRegistrationsByFormID(ctx context.Context, formID uint64) (int64, error) {
+	var count int64
+	if err := r.db.WithContext(ctx).
+		Model(&model.Registration{}).
+		Where("form_id = ?", formID).
+		Count(&count).Error; err != nil {
+		return 0, err
+	}
+	return count, nil
 }
 
 func (r *gormRegistrationFormRepository) ListShownUserGroups(ctx context.Context) ([]model.UserGroup, error) {

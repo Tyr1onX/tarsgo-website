@@ -27,6 +27,7 @@ export interface AdminUserListItem {
   name: string;
   email: string;
   phone?: string | null;
+  realName?: string | null;
   role: AdminUserRole;
   groups?: AdminUserGroupRef[];
   status: number;

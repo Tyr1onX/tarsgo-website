@@ -288,6 +288,7 @@
 | `id` | BIGINT UNSIGNED | PK, AUTO_INCREMENT | 主键 |
 | `name` | VARCHAR(100) | NOT NULL, UNIQUE | 用户组名称 |
 | `description` | VARCHAR(500) | DEFAULT NULL | 用户组描述 |
+| `logo_url` | VARCHAR(255) | DEFAULT NULL | 分组 Logo 相对地址，如 `/upload/config/group/20260418123000_xxx.png` |
 | `tags` | JSON | DEFAULT NULL | 分类标签，JSON 数组，如 `["tech", "frontend"]` |
 | `is_default` | TINYINT(1) | NOT NULL DEFAULT 0 | 是否为默认分组：0=否，1=是 |
 | `show` | TINYINT(1) | NOT NULL DEFAULT 1 | 是否在前台报名表中展示：0=隐藏，1=展示 |

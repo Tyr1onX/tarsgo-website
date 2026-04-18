@@ -129,7 +129,7 @@ function SidebarItem({
           </span>
           <span className="flex-1 text-left">{item.label}</span>
           <svg
-            className={`w-4 h-4 transition-transform ${expanded ? "rotate-180" : ""}`}
+            className={`w-4 h-4 transition-transform duration-300 ease-out ${expanded ? "rotate-180" : ""}`}
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={1.5}
@@ -138,27 +138,35 @@ function SidebarItem({
             <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
           </svg>
         </button>
-        {expanded ? (
-          <div className="mt-1 ml-8 space-y-1">
-            {item.children.map((child) => (
-              <NavLink
-                key={child.href}
-                to={child.href}
-                onClick={onNavigate}
-                viewTransition={viewTransition}
-                className={({ isActive }) =>
-                  `block px-3 py-2 text-sm rounded-lg transition-colors ${
-                    isActive
-                      ? "text-primary-400 bg-primary-500/10"
-                      : "text-gray-400 hover:text-white hover:bg-white/5"
-                  }`
-                }
-              >
-                {child.label}
-              </NavLink>
-            ))}
+        <div
+          className={`grid transition-all duration-300 ease-out ${
+            expanded ? "grid-rows-[1fr] opacity-100 mt-1" : "grid-rows-[0fr] opacity-0 mt-0"
+          }`}
+          aria-hidden={!expanded}
+        >
+          <div className="overflow-hidden">
+            <div className="ml-8 space-y-1">
+              {item.children.map((child) => (
+                <NavLink
+                  key={child.href}
+                  to={child.href}
+                  onClick={onNavigate}
+                  viewTransition={viewTransition}
+                  tabIndex={expanded ? 0 : -1}
+                  className={({ isActive }) =>
+                    `block px-3 py-2 text-sm rounded-lg transition-colors ${
+                      isActive
+                        ? "text-primary-400 bg-primary-500/10"
+                        : "text-gray-400 hover:text-white hover:bg-white/5"
+                    }`
+                  }
+                >
+                  {child.label}
+                </NavLink>
+              ))}
+            </div>
           </div>
-        ) : null}
+        </div>
       </div>
     );
   }
@@ -351,8 +359,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
 
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           <div>
-            <p className="px-3 text-[11px] uppercase tracking-[0.28em] text-gray-500">用户功能</p>
-            <div className="mt-3 space-y-1">
+            <div className="space-y-1">
               {userMenuItems.map((item) => (
                 <SidebarItem
                   key={item.key}
@@ -366,8 +373,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
 
           {showAdminSection ? (
             <div className="mt-6 pt-5 border-t border-gray-800">
-              <p className="px-3 text-[11px] uppercase tracking-[0.28em] text-gray-500">管理功能</p>
-              <div className="mt-3 space-y-1">
+              <div className="space-y-1">
                 {adminMenuItems.map((item) => (
                   <SidebarItem
                     key={item.key}

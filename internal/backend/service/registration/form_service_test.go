@@ -201,6 +201,35 @@ func TestRegistrationFormServiceGetRecruitmentPageDataReturnsFormStateWhenOpen(t
 	}
 }
 
+func TestRegistrationFormServiceGetRecruitmentPageDataReturnsUnavailableWhenQuotaReached(t *testing.T) {
+	repo := newFakeRegistrationFormRepository()
+	maxRegistrations := 2
+	repo.forms[2].MaxRegistrations = &maxRegistrations
+	repo.registrations = append(repo.registrations,
+		&model.Registration{ID: 1, FormID: 2, UserID: 1001},
+		&model.Registration{ID: 2, FormID: 2, UserID: 1002},
+	)
+	service := newRegistrationFormServiceWithRepo(repo)
+	service.now = func() time.Time {
+		return time.Date(2026, 4, 13, 10, 0, 0, 0, time.Local)
+	}
+
+	result, err := service.GetRecruitmentPageData(context.Background(), RegistrationFormActor{ID: 9, RoleName: model.RoleNameUser})
+	if err != nil {
+		t.Fatalf("GetRecruitmentPageData returned error: %v", err)
+	}
+
+	if result.PageMode != "unavailable" {
+		t.Fatalf("expected unavailable page mode, got %q", result.PageMode)
+	}
+	if result.UnavailableReason == nil || !strings.Contains(*result.UnavailableReason, "报名人数已满") {
+		t.Fatalf("expected unavailable reason to mention 报名人数已满, got %#v", result.UnavailableReason)
+	}
+	if result.Form != nil {
+		t.Fatalf("expected no form payload when quota reached")
+	}
+}
+
 func TestRegistrationFormServiceCreateFormPersistsValidForm(t *testing.T) {
 	repo := newFakeRegistrationFormRepository()
 	delete(repo.forms, 2)
@@ -405,6 +434,16 @@ func (r *fakeRegistrationFormRepository) ListPublishedForms(_ context.Context) (
 		}
 	}
 	return forms, nil
+}
+
+func (r *fakeRegistrationFormRepository) CountRegistrationsByFormID(_ context.Context, formID uint64) (int64, error) {
+	var count int64
+	for _, registration := range r.registrations {
+		if registration.FormID == formID {
+			count++
+		}
+	}
+	return count, nil
 }
 
 func (r *fakeRegistrationFormRepository) ListShownUserGroups(_ context.Context) ([]model.UserGroup, error) {

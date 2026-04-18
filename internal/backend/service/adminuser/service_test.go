@@ -247,6 +247,17 @@ func TestServiceListUsers_ReturnsGithubBoundSummary(t *testing.T) {
 	if result.Summary.GitHubBound != 1 {
 		t.Fatalf("expected github bound summary to be 1, got %d", result.Summary.GitHubBound)
 	}
+
+	var member *UserListItem
+	for i := range result.Items {
+		if result.Items[i].ID == 3 {
+			member = &result.Items[i]
+			break
+		}
+	}
+	if member == nil || member.RealName == nil || *member.RealName != "成员真实姓名" {
+		t.Fatalf("expected list user realName to be preserved, got %#v", result.Items)
+	}
 }
 
 type fakeRepository struct {
@@ -302,6 +313,7 @@ func newFakeRepository() *fakeRepository {
 		RoleID:         repo.roleID(model.RoleNameUser),
 		Name:           "Member",
 		Email:          "member@example.com",
+		RealName:       stringPtr("成员真实姓名"),
 		PasswordHash:   stringPtr(memberHash),
 		GitHubID:       stringPtr("github-3"),
 		GitHubUsername: stringPtr("member-gh"),

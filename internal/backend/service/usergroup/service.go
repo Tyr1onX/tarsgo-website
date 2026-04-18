@@ -4,7 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"mime/multipart"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -14,7 +16,9 @@ import (
 )
 
 type Service struct {
-	repo Repository
+	repo      Repository
+	fileStore groupLogoFileStore
+	now       func() time.Time
 }
 
 type ServiceError struct {
@@ -35,6 +39,7 @@ type ListGroupsInput struct {
 type CreateGroupInput struct {
 	Name        string
 	Description string
+	Logo        *multipart.FileHeader
 	Tags        []string
 	IsDefault   bool
 	Show        uint8
@@ -44,6 +49,8 @@ type CreateGroupInput struct {
 type UpdateGroupInput struct {
 	Name        string
 	Description string
+	Logo        *multipart.FileHeader
+	RemoveLogo  bool
 	Tags        []string
 	IsDefault   bool
 	Show        uint8
@@ -89,6 +96,7 @@ type GroupListItem struct {
 	ID          uint64    `json:"id"`
 	Name        string    `json:"name"`
 	Description *string   `json:"description,omitempty"`
+	LogoURL     *string   `json:"logoUrl,omitempty"`
 	Tags        []string  `json:"tags,omitempty"`
 	IsDefault   bool      `json:"isDefault"`
 	Show        uint8     `json:"show"`
@@ -119,6 +127,7 @@ type GroupDetail struct {
 	ID          uint64            `json:"id"`
 	Name        string            `json:"name"`
 	Description *string           `json:"description,omitempty"`
+	LogoURL     *string           `json:"logoUrl,omitempty"`
 	Tags        []string          `json:"tags,omitempty"`
 	IsDefault   bool              `json:"isDefault"`
 	Show        uint8             `json:"show"`
@@ -145,7 +154,24 @@ type ListGroupsResult struct {
 }
 
 func NewService(repo Repository) *Service {
-	return &Service{repo: repo}
+	fileStore, err := newLocalGroupLogoFileStore("")
+	if err != nil {
+		panic(err)
+	}
+
+	return &Service{
+		repo:      repo,
+		fileStore: fileStore,
+		now:       time.Now,
+	}
+}
+
+func newServiceWithDependencies(repo Repository, fileStore groupLogoFileStore) *Service {
+	return &Service{
+		repo:      repo,
+		fileStore: fileStore,
+		now:       time.Now,
+	}
 }
 
 func (e *ServiceError) Error() string {
@@ -217,6 +243,21 @@ func (s *Service) CreateGroup(ctx context.Context, actor Actor, input CreateGrou
 	if err := validateGroupShow(input.Show); err != nil {
 		return nil, err
 	}
+	if err := validateGroupLogoFile(input.Logo); err != nil {
+		return nil, err
+	}
+
+	var savedLogo *storedGroupLogo
+	if input.Logo != nil {
+		stored, err := s.fileStore.Save(ctx, groupLogoSaveInput{
+			File: input.Logo,
+			Now:  s.now(),
+		})
+		if err != nil {
+			return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "保存用户组 Logo 失败", Err: err}
+		}
+		savedLogo = stored
+	}
 
 	group := &model.UserGroup{
 		Name:      name,
@@ -226,6 +267,9 @@ func (s *Service) CreateGroup(ctx context.Context, actor Actor, input CreateGrou
 		Show:      input.Show,
 	}
 	assignOptionalString(&group.Description, input.Description)
+	if savedLogo != nil {
+		group.LogoURL = stringPtr(savedLogo.URL)
+	}
 
 	if err := s.repo.RunInTx(ctx, func(repo Repository) error {
 		if err := repo.CreateGroup(ctx, group); err != nil {
@@ -236,6 +280,9 @@ func (s *Service) CreateGroup(ctx context.Context, actor Actor, input CreateGrou
 		}
 		return nil
 	}); err != nil {
+		if savedLogo != nil {
+			_ = s.fileStore.Remove(context.Background(), savedLogo.RelativePath)
+		}
 		if isDuplicateError(err) {
 			return nil, &ServiceError{Status: http.StatusConflict, Message: "用户组名称已存在", Err: err}
 		}
@@ -250,7 +297,8 @@ func (s *Service) UpdateGroup(ctx context.Context, actor Actor, groupID uint64, 
 		return nil, err
 	}
 
-	if _, err := s.repo.GetGroupByID(ctx, groupID); err != nil {
+	group, err := s.repo.GetGroupByID(ctx, groupID)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, &ServiceError{Status: http.StatusNotFound, Message: "用户组不存在"}
 		}
@@ -267,10 +315,40 @@ func (s *Service) UpdateGroup(ctx context.Context, actor Actor, groupID uint64, 
 	if err := validateGroupShow(input.Show); err != nil {
 		return nil, err
 	}
+	if err := validateGroupLogoFile(input.Logo); err != nil {
+		return nil, err
+	}
+
+	var savedLogo *storedGroupLogo
+	if input.Logo != nil {
+		stored, err := s.fileStore.Save(ctx, groupLogoSaveInput{
+			File: input.Logo,
+			Now:  s.now(),
+		})
+		if err != nil {
+			return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "保存用户组 Logo 失败", Err: err}
+		}
+		savedLogo = stored
+	}
 
 	isDefault := input.IsDefault && input.Status == model.UserGroupStatusActive
-	updates, err := buildGroupUpdates(name, input.Description, input.Tags, input.Status, isDefault, input.Show)
+	var (
+		logoURL     *string
+		includeLogo bool
+	)
+	switch {
+	case savedLogo != nil:
+		logoURL = stringPtr(savedLogo.URL)
+		includeLogo = true
+	case input.RemoveLogo:
+		includeLogo = true
+	}
+
+	updates, err := buildGroupUpdates(name, input.Description, input.Tags, input.Status, isDefault, input.Show, logoURL, includeLogo)
 	if err != nil {
+		if savedLogo != nil {
+			_ = s.fileStore.Remove(context.Background(), savedLogo.RelativePath)
+		}
 		return nil, err
 	}
 
@@ -283,10 +361,19 @@ func (s *Service) UpdateGroup(ctx context.Context, actor Actor, groupID uint64, 
 		}
 		return nil
 	}); err != nil {
+		if savedLogo != nil {
+			_ = s.fileStore.Remove(context.Background(), savedLogo.RelativePath)
+		}
 		if isDuplicateError(err) {
 			return nil, &ServiceError{Status: http.StatusConflict, Message: "用户组名称已存在", Err: err}
 		}
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "更新用户组失败", Err: err}
+	}
+
+	if savedLogo != nil {
+		cleanupManagedGroupLogoURL(context.Background(), s.fileStore, group.LogoURL, savedLogo.URL)
+	} else if input.RemoveLogo {
+		cleanupManagedGroupLogoURL(context.Background(), s.fileStore, group.LogoURL, "")
 	}
 
 	return s.GetGroup(ctx, actor, groupID)
@@ -297,7 +384,8 @@ func (s *Service) DeleteGroup(ctx context.Context, actor Actor, groupID uint64) 
 		return err
 	}
 
-	if _, err := s.repo.GetGroupByID(ctx, groupID); err != nil {
+	group, err := s.repo.GetGroupByID(ctx, groupID)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &ServiceError{Status: http.StatusNotFound, Message: "用户组不存在"}
 		}
@@ -315,6 +403,8 @@ func (s *Service) DeleteGroup(ctx context.Context, actor Actor, groupID uint64) 
 	if err := s.repo.DeleteGroup(ctx, groupID); err != nil {
 		return &ServiceError{Status: http.StatusInternalServerError, Message: "删除用户组失败", Err: err}
 	}
+
+	cleanupManagedGroupLogoURL(context.Background(), s.fileStore, group.LogoURL, "")
 	return nil
 }
 
@@ -499,6 +589,7 @@ func toGroupListItem(group *model.UserGroup) GroupListItem {
 		ID:          group.ID,
 		Name:        group.Name,
 		Description: group.Description,
+		LogoURL:     copyStringPtr(group.LogoURL),
 		Tags:        copyTags(group.Tags),
 		IsDefault:   group.IsDefault,
 		Show:        group.Show,
@@ -520,6 +611,7 @@ func toGroupDetail(group *model.UserGroup) GroupDetail {
 		ID:          group.ID,
 		Name:        group.Name,
 		Description: group.Description,
+		LogoURL:     copyStringPtr(group.LogoURL),
 		Tags:        copyTags(group.Tags),
 		IsDefault:   group.IsDefault,
 		Show:        group.Show,
@@ -624,20 +716,24 @@ func copyTags(tags []string) []string {
 	return copied
 }
 
-func buildGroupUpdates(name string, description string, tags []string, status uint8, isDefault bool, show uint8) (map[string]any, error) {
+func buildGroupUpdates(name string, description string, tags []string, status uint8, isDefault bool, show uint8, logoURL *string, includeLogo bool) (map[string]any, error) {
 	tagsJSON, err := json.Marshal(normalizeTags(tags))
 	if err != nil {
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "序列化用户组标签失败", Err: err}
 	}
 
-	return map[string]any{
+	updates := map[string]any{
 		"name":        name,
 		"description": nullableString(description),
 		"tags":        string(tagsJSON),
 		"status":      status,
 		"is_default":  isDefault,
 		"show":        show,
-	}, nil
+	}
+	if includeLogo {
+		updates["logo_url"] = copyStringPtr(logoURL)
+	}
+	return updates, nil
 }
 
 func nullableString(value string) *string {
@@ -650,6 +746,67 @@ func nullableString(value string) *string {
 
 func assignOptionalString(target **string, value string) {
 	*target = nullableString(value)
+}
+
+func stringPtr(value string) *string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
+}
+
+func copyStringPtr(value *string) *string {
+	if value == nil {
+		return nil
+	}
+	copied := *value
+	return &copied
+}
+
+func validateGroupLogoFile(fileHeader *multipart.FileHeader) error {
+	if fileHeader == nil {
+		return nil
+	}
+	if fileHeader.Size > 2*1024*1024 {
+		return &ServiceError{Status: http.StatusBadRequest, Message: "分组 Logo 不能超过 2MB"}
+	}
+	contentType := strings.TrimSpace(fileHeader.Header.Get("Content-Type"))
+	if !looksLikeGroupLogo(fileHeader.Filename, contentType) {
+		return &ServiceError{Status: http.StatusBadRequest, Message: "分组 Logo 必须为图片文件"}
+	}
+	return nil
+}
+
+func looksLikeGroupLogo(fileName string, contentType string) bool {
+	if strings.HasPrefix(strings.ToLower(strings.TrimSpace(contentType)), "image/") {
+		return true
+	}
+
+	switch strings.TrimPrefix(strings.ToLower(filepath.Ext(strings.TrimSpace(fileName))), ".") {
+	case "png", "jpg", "jpeg", "webp", "gif":
+		return true
+	default:
+		return false
+	}
+}
+
+func cleanupManagedGroupLogoURL(ctx context.Context, store groupLogoFileStore, logoURL *string, exceptURL string) {
+	if logoURL == nil || store == nil {
+		return
+	}
+
+	trimmedLogoURL := strings.TrimSpace(*logoURL)
+	if trimmedLogoURL == "" || trimmedLogoURL == strings.TrimSpace(exceptURL) {
+		return
+	}
+
+	relativePath, ok := store.RelativePathFromURL(trimmedLogoURL)
+	if !ok {
+		return
+	}
+
+	_ = store.Remove(ctx, relativePath)
 }
 
 func isDuplicateError(err error) bool {

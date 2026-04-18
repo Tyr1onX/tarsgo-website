@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"mime/multipart"
+	"net/textproto"
 	"strings"
 	"testing"
 	"time"
@@ -95,6 +98,128 @@ func TestServiceListGroups_FiltersByStatus(t *testing.T) {
 	}
 	if result.Items[0].Name != "运营组" {
 		t.Fatalf("expected disabled group to be 运营组, got %s", result.Items[0].Name)
+	}
+}
+
+func TestServiceCreateGroup_SavesLogo(t *testing.T) {
+	repo := newFakeRepository()
+	store := &fakeGroupLogoFileStore{}
+	service := newServiceWithDependencies(repo, store)
+
+	detail, err := service.CreateGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, CreateGroupInput{
+		Name:      "视觉组",
+		Logo:      newTestLogoFileHeader("group-logo.png", 1024, "image/png"),
+		Show:      1,
+		Status:    model.UserGroupStatusActive,
+		IsDefault: false,
+	})
+	if err != nil {
+		t.Fatalf("CreateGroup returned error: %v", err)
+	}
+
+	if detail.LogoURL == nil || *detail.LogoURL != groupLogoURLPrefix+"logo-1.png" {
+		t.Fatalf("expected created group logo url, got %#v", detail.LogoURL)
+	}
+	if len(store.saved) != 1 {
+		t.Fatalf("expected 1 saved logo, got %d", len(store.saved))
+	}
+}
+
+func TestServiceUpdateGroup_ReplacesLogoAndRemovesOldFile(t *testing.T) {
+	repo := newFakeRepository()
+	oldLogoURL := groupLogoURLPrefix + "old.png"
+	repo.groups[1].LogoURL = &oldLogoURL
+	store := &fakeGroupLogoFileStore{}
+	service := newServiceWithDependencies(repo, store)
+
+	detail, err := service.UpdateGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 1, UpdateGroupInput{
+		Name:        "默认组",
+		Description: "默认分组",
+		Logo:        newTestLogoFileHeader("next.webp", 2048, "image/webp"),
+		Show:        1,
+		Status:      model.UserGroupStatusActive,
+		IsDefault:   true,
+	})
+	if err != nil {
+		t.Fatalf("UpdateGroup returned error: %v", err)
+	}
+
+	if detail.LogoURL == nil || *detail.LogoURL != groupLogoURLPrefix+"logo-1.png" {
+		t.Fatalf("expected updated group logo url, got %#v", detail.LogoURL)
+	}
+	if len(store.removed) != 1 || store.removed[0] != "old.png" {
+		t.Fatalf("expected old logo removed, got %#v", store.removed)
+	}
+}
+
+func TestServiceUpdateGroup_RemoveLogo(t *testing.T) {
+	repo := newFakeRepository()
+	oldLogoURL := groupLogoURLPrefix + "old.png"
+	repo.groups[1].LogoURL = &oldLogoURL
+	store := &fakeGroupLogoFileStore{}
+	service := newServiceWithDependencies(repo, store)
+
+	detail, err := service.UpdateGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 1, UpdateGroupInput{
+		Name:        "默认组",
+		Description: "默认分组",
+		RemoveLogo:  true,
+		Show:        1,
+		Status:      model.UserGroupStatusActive,
+		IsDefault:   true,
+	})
+	if err != nil {
+		t.Fatalf("UpdateGroup returned error: %v", err)
+	}
+
+	if detail.LogoURL != nil {
+		t.Fatalf("expected logo url cleared, got %#v", detail.LogoURL)
+	}
+	if len(store.removed) != 1 || store.removed[0] != "old.png" {
+		t.Fatalf("expected old logo removed, got %#v", store.removed)
+	}
+}
+
+func TestServiceUpdateGroup_RejectsOversizedLogo(t *testing.T) {
+	repo := newFakeRepository()
+	service := NewService(repo)
+
+	_, err := service.UpdateGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 1, UpdateGroupInput{
+		Name:      "默认组",
+		Logo:      newTestLogoFileHeader("too-large.png", 2*1024*1024+1, "image/png"),
+		Show:      1,
+		Status:    model.UserGroupStatusActive,
+		IsDefault: true,
+	})
+	assertServiceError(t, err, 400, "不能超过 2MB")
+}
+
+func TestServiceUpdateGroup_RejectsNonImageLogo(t *testing.T) {
+	repo := newFakeRepository()
+	service := NewService(repo)
+
+	_, err := service.UpdateGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 1, UpdateGroupInput{
+		Name:      "默认组",
+		Logo:      newTestLogoFileHeader("group.pdf", 1024, "application/pdf"),
+		Show:      1,
+		Status:    model.UserGroupStatusActive,
+		IsDefault: true,
+	})
+	assertServiceError(t, err, 400, "必须为图片文件")
+}
+
+func TestServiceDeleteGroup_RemovesManagedLogo(t *testing.T) {
+	repo := newFakeRepository()
+	logoURL := groupLogoURLPrefix + "remove-me.png"
+	repo.groups[2].LogoURL = &logoURL
+	store := &fakeGroupLogoFileStore{}
+	service := newServiceWithDependencies(repo, store)
+
+	if err := service.DeleteGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 2); err != nil {
+		t.Fatalf("DeleteGroup returned error: %v", err)
+	}
+
+	if len(store.removed) != 1 || store.removed[0] != "remove-me.png" {
+		t.Fatalf("expected group logo removed, got %#v", store.removed)
 	}
 }
 
@@ -231,6 +356,11 @@ func (r *fakeRepository) UpdateGroup(_ context.Context, groupID uint64, updates 
 		group.Description = copyString(value)
 	} else if updates["description"] == nil {
 		group.Description = nil
+	}
+	if value, ok := updates["logo_url"].(*string); ok {
+		group.LogoURL = copyString(value)
+	} else if _, exists := updates["logo_url"]; exists && updates["logo_url"] == nil {
+		group.LogoURL = nil
 	}
 	if value, ok := updates["tags"].(string); ok {
 		var tags []string
@@ -371,6 +501,7 @@ func cloneGroup(group *model.UserGroup) *model.UserGroup {
 		cloned.Tags = append([]string(nil), group.Tags...)
 	}
 	cloned.Description = copyString(group.Description)
+	cloned.LogoURL = copyString(group.LogoURL)
 	cloned.Members = nil
 	return &cloned
 }
@@ -391,6 +522,7 @@ func cloneMember(member *model.UserGroupMember) *model.UserGroupMember {
 func cloneGroupShallow(group *model.UserGroup) *model.UserGroup {
 	cloned := *group
 	cloned.Description = copyString(group.Description)
+	cloned.LogoURL = copyString(group.LogoURL)
 	if len(group.Tags) > 0 {
 		cloned.Tags = append([]string(nil), group.Tags...)
 	}
@@ -428,5 +560,53 @@ func assertServiceError(t *testing.T, err error, status int, contains string) {
 	}
 	if contains != "" && !strings.Contains(serviceErr.Message, contains) {
 		t.Fatalf("expected message %q to contain %q", serviceErr.Message, contains)
+	}
+}
+
+type fakeGroupLogoFileStore struct {
+	saved   []*storedGroupLogo
+	removed []string
+	saveErr error
+}
+
+func (s *fakeGroupLogoFileStore) Save(_ context.Context, _ groupLogoSaveInput) (*storedGroupLogo, error) {
+	if s.saveErr != nil {
+		return nil, s.saveErr
+	}
+
+	index := len(s.saved) + 1
+	stored := &storedGroupLogo{
+		FileName:     fmt.Sprintf("logo-%d.png", index),
+		RelativePath: fmt.Sprintf("logo-%d.png", index),
+		URL:          groupLogoURLPrefix + fmt.Sprintf("logo-%d.png", index),
+		Size:         1024,
+		ContentType:  "image/png",
+	}
+	s.saved = append(s.saved, stored)
+	return stored, nil
+}
+
+func (s *fakeGroupLogoFileStore) Remove(_ context.Context, relativePath string) error {
+	s.removed = append(s.removed, relativePath)
+	return nil
+}
+
+func (s *fakeGroupLogoFileStore) RelativePathFromURL(rawURL string) (string, bool) {
+	if !strings.HasPrefix(rawURL, groupLogoURLPrefix) {
+		return "", false
+	}
+	return strings.TrimPrefix(rawURL, groupLogoURLPrefix), true
+}
+
+func newTestLogoFileHeader(filename string, size int64, contentType string) *multipart.FileHeader {
+	header := textproto.MIMEHeader{}
+	if contentType != "" {
+		header.Set("Content-Type", contentType)
+	}
+
+	return &multipart.FileHeader{
+		Filename: filename,
+		Size:     size,
+		Header:   header,
 	}
 }

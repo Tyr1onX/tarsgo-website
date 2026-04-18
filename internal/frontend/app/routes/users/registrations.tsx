@@ -18,7 +18,6 @@ import badgeCheckIcon from "@iconify-icons/lucide/badge-check";
 import infoIcon from "@iconify-icons/lucide/info";
 import uploadCloudIcon from "@iconify-icons/lucide/upload-cloud";
 import sparklesIcon from "@iconify-icons/lucide/sparkles";
-import mailIcon from "@iconify-icons/lucide/mail";
 import fileTextIcon from "@iconify-icons/lucide/file-text";
 import clipboardListIcon from "@iconify-icons/lucide/clipboard-list";
 import circleSlashIcon from "@iconify-icons/lucide/circle-slash-2";
@@ -342,9 +341,8 @@ export default function UserRegistrations({
   };
 
   return (
-    <div className="space-y-10 pb-12">
+    <div className="space-y-6 pb-8 sm:space-y-10 sm:pb-12">
       <PageHero
-        email={currentUser.email}
         chipTone={headerChip.tone}
         chipLabel={headerChip.label}
       />
@@ -399,11 +397,9 @@ export default function UserRegistrations({
 }
 
 function PageHero({
-  email,
   chipTone,
   chipLabel,
 }: {
-  email: string;
   chipTone: "form" | "submitted" | "unavailable";
   chipLabel: string;
 }) {
@@ -430,32 +426,24 @@ function PageHero({
         aria-hidden
         className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full bg-primary-500/10 blur-3xl"
       />
-      <div className="relative flex flex-col gap-6 px-6 py-8 sm:px-8 sm:py-10 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-start gap-4">
+      <div className="relative flex flex-col gap-4 px-5 py-5 sm:gap-6 sm:px-8 sm:py-10 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex items-start gap-3 sm:gap-4">
           <div className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-primary-500/20 bg-primary-500/10 text-primary-200 ring-1 ring-inset ring-primary-500/10 sm:flex">
             <Icon icon={sparklesIcon} className="h-6 w-6" />
           </div>
           <div>
-            <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.28em] text-primary-300">
+            <div className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.2em] text-primary-300 sm:text-[11px] sm:tracking-[0.28em]">
               <span>Recruitment</span>
               <span className="h-1 w-1 rounded-full bg-primary-500/70" />
               <span>报名入口</span>
             </div>
-            <h1 className="mt-3 text-3xl font-semibold tracking-tight text-fg-primary sm:text-[2.125rem]">
+            <h1 className="mt-1.5 text-xl font-semibold tracking-tight text-fg-primary sm:mt-3 sm:text-[2.125rem]">
               纳新报名
             </h1>
-            <p className="mt-2.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm leading-6 text-fg-muted">
-              当前账号
-              <span className="inline-flex items-center gap-1.5 rounded-md border border-border-subtle bg-surface-dark px-2 py-0.5 font-mono text-xs text-fg-primary">
-                <Icon icon={mailIcon} className="h-3.5 w-3.5 text-fg-dim" />
-                {email}
-              </span>
-              可提交纳新报名、查看审核状态或确认当前开放情况。
-            </p>
           </div>
         </div>
         <div
-          className={`inline-flex w-fit items-center gap-2 rounded-full border px-3.5 py-1.5 text-xs font-medium ${chipStyle}`}
+          className={`inline-flex w-fit items-center gap-2 self-start rounded-full border px-3 py-1 text-xs font-medium sm:px-3.5 sm:py-1.5 ${chipStyle}`}
         >
           <span className={`relative flex h-1.5 w-1.5`}>
             <span
@@ -645,17 +633,17 @@ function FormCoverCard({
             className="h-48 w-full object-cover sm:h-60"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-surface-card via-surface-card/40 to-transparent" />
-          <div className="absolute bottom-0 left-0 right-0 p-6 sm:p-7">
-            <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-primary-200">
+          <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-7">
+            <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-primary-200 sm:text-[11px] sm:tracking-[0.28em]">
               当前报名
             </p>
-            <h2 className="mt-2 text-2xl font-semibold text-white sm:text-3xl">
+            <h2 className="mt-1.5 text-xl font-semibold text-white sm:mt-2 sm:text-3xl">
               {form.title}
             </h2>
           </div>
         </div>
-        <div className="border-t border-border-subtle px-6 py-5">
-          <p className="text-sm leading-7 text-fg-muted">
+        <div className="border-t border-border-subtle px-5 py-4 sm:px-6 sm:py-5">
+          <p className="text-sm leading-6 text-fg-muted sm:leading-7">
             {form.description?.trim() || "请按要求填写纳新报名信息。"}
           </p>
         </div>
@@ -669,14 +657,14 @@ function FormCoverCard({
         aria-hidden
         className="bg-registrations-cover-glow pointer-events-none absolute inset-0"
       />
-      <div className="relative px-6 py-7 sm:px-7 sm:py-8">
-        <p className="text-[11px] font-medium uppercase tracking-[0.28em] text-primary-300">
+      <div className="relative px-5 py-5 sm:px-7 sm:py-8">
+        <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-primary-300 sm:text-[11px] sm:tracking-[0.28em]">
           当前报名
         </p>
-        <h2 className="mt-2 text-2xl font-semibold text-fg-primary sm:text-3xl">
+        <h2 className="mt-1.5 text-xl font-semibold text-fg-primary sm:mt-2 sm:text-3xl">
           {form.title}
         </h2>
-        <p className="mt-4 max-w-3xl text-sm leading-7 text-fg-muted">
+        <p className="mt-3 max-w-3xl text-sm leading-6 text-fg-muted sm:mt-4 sm:leading-7">
           {form.description?.trim() || "请按要求填写纳新报名信息。"}
         </p>
       </div>
@@ -946,35 +934,35 @@ function SubmittedStateCard({
           aria-hidden
           className={`${statusGlowClass} pointer-events-none absolute inset-0`}
         />
-        <div className="relative flex flex-col gap-6 px-6 py-7 sm:px-8 sm:py-8 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex items-start gap-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-200">
-              <Icon icon={badgeCheckIcon} className="h-6 w-6" />
+        <div className="relative flex flex-col gap-4 px-5 py-5 sm:gap-6 sm:px-8 sm:py-8 lg:flex-row lg:items-start lg:justify-between">
+          <div className="flex items-start gap-3 sm:gap-4">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-200 sm:h-12 sm:w-12">
+              <Icon icon={badgeCheckIcon} className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
             <div>
-              <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.24em] text-emerald-300">
+              <div className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.2em] text-emerald-300 sm:text-[11px] sm:tracking-[0.24em]">
                 <span>Submitted</span>
                 <span className="h-1 w-1 rounded-full bg-emerald-400/70" />
                 <span>已提交</span>
               </div>
-              <h2 className="mt-2 text-2xl font-semibold tracking-tight text-fg-primary sm:text-3xl">
+              <h2 className="mt-1.5 text-xl font-semibold tracking-tight text-fg-primary sm:mt-2 sm:text-3xl">
                 你已完成报名
               </h2>
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-fg-muted">
+              <p className="mt-1.5 max-w-2xl text-sm leading-6 text-fg-muted sm:mt-2">
                 <span className="text-fg-primary">{summary.formTitle}</span>{" "}
                 已提交成功，当前页面会持续展示你的审核进度与最新结果。
               </p>
             </div>
           </div>
           <span
-            className={`inline-flex items-center gap-2 self-start rounded-full border px-3 py-1.5 text-sm font-medium ${status.badgeClassName}`}
+            className={`inline-flex items-center gap-2 self-start rounded-full border px-3 py-1 text-xs font-medium sm:py-1.5 sm:text-sm ${status.badgeClassName}`}
           >
             <span className={`h-1.5 w-1.5 rounded-full ${status.dotClassName}`} />
             {status.label}
           </span>
         </div>
 
-        <div className="relative grid gap-3 border-t border-border-subtle bg-surface-dark/30 px-6 py-5 sm:grid-cols-2 sm:px-8 lg:grid-cols-4">
+        <div className="relative grid grid-cols-2 gap-3 border-t border-border-subtle bg-surface-dark/30 px-5 py-4 sm:px-8 sm:py-5 lg:grid-cols-4">
           <StatTile
             icon={clipboardListIcon}
             label="当前进度"
@@ -1055,6 +1043,44 @@ function StatTile({
 }
 
 function UnavailableStateCard({ reason }: { reason: string }) {
+  const isQuotaReached = reason.includes("报名人数已满");
+
+  if (isQuotaReached) {
+    return (
+      <section className="relative overflow-hidden rounded-2xl border border-amber-500/20 bg-surface-card px-6 py-14 sm:px-10 sm:py-16">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.18),transparent_55%)]"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-16 left-1/2 h-56 w-56 -translate-x-1/2 rounded-full bg-amber-500/10 blur-3xl"
+        />
+        <div className="relative mx-auto flex max-w-3xl flex-col items-center text-center">
+          <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl border border-amber-500/25 bg-amber-500/10 text-amber-200">
+            <span
+              aria-hidden
+              className="absolute inset-0 rounded-2xl bg-amber-500/10 blur-xl"
+            />
+            <Icon icon={circleSlashIcon} className="relative h-9 w-9" />
+          </div>
+
+          <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/10 px-3.5 py-1.5 text-[11px] font-medium uppercase tracking-[0.28em] text-amber-200">
+            <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.6)]" />
+            Capacity Full
+          </div>
+
+          <h2 className="mt-5 text-3xl font-semibold tracking-tight text-fg-primary sm:text-[2.4rem]">
+            本轮报名名额已满
+          </h2>
+          <p className="mt-4 max-w-xl text-sm leading-7 text-fg-muted sm:text-base">
+            报名已结束
+          </p>
+        </div>
+      </section>
+    );
+  }
+
   return (
     <section className="relative overflow-hidden rounded-2xl border border-border-subtle bg-surface-card px-6 py-12 text-center sm:px-10 sm:py-14">
       <div
@@ -1471,4 +1497,3 @@ function getErrorMessage(error: unknown) {
   }
   return "提交失败，请稍后重试。";
 }
-

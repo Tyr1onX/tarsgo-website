@@ -13,6 +13,7 @@ export interface AdminUserGroupListItem {
   id: number;
   name: string;
   description?: string | null;
+  logoUrl?: string | null;
   tags?: string[];
   isDefault: boolean;
   show: number;
@@ -75,6 +76,8 @@ export interface UpsertAdminUserGroupInput {
   status: number;
 }
 
+export type UpsertAdminUserGroupBody = UpsertAdminUserGroupInput | FormData;
+
 export interface UpsertAdminUserGroupMemberInput {
   role: number;
 }
@@ -98,14 +101,14 @@ export async function getAdminUserGroup(groupId: number): Promise<AdminUserGroup
   return apiRequest<AdminUserGroupDetail>(`/api/admin/user-groups/${groupId}`);
 }
 
-export async function createAdminUserGroup(input: UpsertAdminUserGroupInput): Promise<AdminUserGroupDetail> {
+export async function createAdminUserGroup(input: UpsertAdminUserGroupBody): Promise<AdminUserGroupDetail> {
   return apiRequest<AdminUserGroupDetail>("/api/admin/user-groups", {
     method: "POST",
     body: input,
   });
 }
 
-export async function updateAdminUserGroup(groupId: number, input: UpsertAdminUserGroupInput): Promise<AdminUserGroupDetail> {
+export async function updateAdminUserGroup(groupId: number, input: UpsertAdminUserGroupBody): Promise<AdminUserGroupDetail> {
   return apiRequest<AdminUserGroupDetail>(`/api/admin/user-groups/${groupId}`, {
     method: "PATCH",
     body: input,

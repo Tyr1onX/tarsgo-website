@@ -823,13 +823,8 @@ export default function FormConfigPage() {
         editor.id,
         buildUpdatePayload(editor),
       );
-      setEditor(toEditorState(detail));
-      setSelectedFieldKey((current) =>
-        current && detail.fieldsSchema.some((field) => field.key === current)
-          ? current
-          : "",
-      );
       await refreshForms(detail.id);
+      closeDrawer();
       setFlash({ type: "success", message: "报名表已保存。" });
     } catch (error) {
       handlePageError(error, navigate, setFlash);
@@ -913,7 +908,7 @@ export default function FormConfigPage() {
       ) : null}
 
       {/* ---- Stat cards ---- */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <StatCard
           label="全部表单"
           value={summary.total}
@@ -1003,7 +998,7 @@ export default function FormConfigPage() {
 
       {/* ---- Table ---- */}
       <div className="overflow-hidden rounded-2xl border border-border-subtle bg-surface-card/60 shadow-xl shadow-black/20">
-        <div className="overflow-x-auto">
+        <div className="hidden overflow-x-auto md:block">
           <table className="min-w-full text-sm">
             <thead className="bg-surface-dark/80 text-left text-xs tracking-wider text-fg-dim">
               <tr className="border-b border-border-subtle">
@@ -1093,6 +1088,83 @@ export default function FormConfigPage() {
               )}
             </tbody>
           </table>
+        </div>
+
+        <div className="md:hidden">
+          {loadingList ? (
+            <div className="flex flex-col items-center gap-3 px-5 py-14 text-sm text-fg-dim">
+              <span
+                aria-hidden="true"
+                className="inline-flex h-8 w-8 animate-spin rounded-full border-2 border-accent-primary/20 border-t-accent-primary"
+              />
+              <span>正在加载表单列表...</span>
+            </div>
+          ) : forms.length === 0 ? (
+            <div className="px-5 py-10 text-center text-sm text-fg-dim">
+              当前筛选条件下没有匹配的报名表。
+            </div>
+          ) : (
+            <ul className="divide-y divide-border-subtle/60">
+              {forms.map((form) => (
+                <li key={form.id} className="px-4 py-4">
+                  <div className="flex items-start gap-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-medium text-fg-primary">{form.title}</div>
+                      <div className="mt-0.5 line-clamp-2 text-xs text-fg-dim">
+                        {form.description?.trim() || "暂无描述"}
+                      </div>
+                    </div>
+                    <div className="shrink-0">
+                      <StatusBadge status={form.status} />
+                    </div>
+                  </div>
+
+                  <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                    <div className="min-w-0">
+                      <dt className="text-fg-dim">字段</dt>
+                      <dd className="mt-0.5 truncate text-fg-muted">
+                        {form.fieldCount} 个 · {form.requiredCount} 必填
+                      </dd>
+                    </div>
+                    <div className="min-w-0">
+                      <dt className="text-fg-dim">更新时间</dt>
+                      <dd className="mt-0.5 truncate text-fg-muted">
+                        {formatDateTime(form.updatedAt)}
+                      </dd>
+                    </div>
+                    <div className="col-span-2 min-w-0">
+                      <dt className="text-fg-dim">开放时间</dt>
+                      <dd className="mt-0.5 truncate text-fg-muted">
+                        {formatSchedule(form.startTime, form.endTime)}
+                      </dd>
+                    </div>
+                  </dl>
+
+                  <div className="mt-3 flex justify-end gap-2 border-t border-border-subtle/60 pt-3">
+                    <button
+                      type="button"
+                      onClick={() => openPreview(form.id)}
+                      title="预览"
+                      aria-label="预览"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-subtle text-fg-muted transition-all duration-150 hover:bg-white/[0.06] hover:text-fg-primary"
+                    >
+                      <Icon icon={eye} className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openDrawer(form.id)}
+                      title="编辑"
+                      aria-label="编辑"
+                      disabled={!canCreateOrSave}
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-subtle text-fg-muted transition-all duration-150 hover:bg-white/[0.06] hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      <Icon icon={pencil} className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
 
@@ -2107,16 +2179,18 @@ function StatCard({
   return (
     <div className="relative overflow-hidden rounded-2xl border border-border-subtle bg-surface-card/80 backdrop-blur-sm transition hover:border-gray-700">
       <div className={`h-0.5 bg-gradient-to-r ${barFrom} to-transparent`} />
-      <div className="p-5">
-        <div
-          className={`absolute right-4 top-5 flex h-10 w-10 items-center justify-center rounded-xl ${iconBg}`}
-        >
-          <Icon icon={icon} className={`h-5 w-5 ${iconText}`} />
+      <div className="p-3 sm:p-5">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 truncate text-[11px] font-medium uppercase tracking-wider text-fg-dim sm:text-xs">
+            {label}
+          </div>
+          <div
+            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10 sm:rounded-xl ${iconBg}`}
+          >
+            <Icon icon={icon} className={`h-3.5 w-3.5 sm:h-5 sm:w-5 ${iconText}`} />
+          </div>
         </div>
-        <div className="text-xs font-medium uppercase tracking-wider text-fg-dim">
-          {label}
-        </div>
-        <div className="mt-3 font-mono text-3xl font-semibold tabular-nums text-fg-primary">
+        <div className="mt-2 font-mono text-xl font-semibold tabular-nums text-fg-primary sm:mt-3 sm:text-3xl">
           {value}
         </div>
       </div>

@@ -785,7 +785,7 @@ export default function Users() {
         />
       ) : null}
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
         <StatCard label="账号总数" value={summary.total} icon={usersIcon} iconBg="bg-accent-primary/10" iconText="text-accent-primary" barFrom="from-accent-primary/60" />
         <StatCard label="启用账号" value={summary.enabled} icon={power} iconBg="bg-accent-tertiary/10" iconText="text-accent-tertiary" barFrom="from-accent-tertiary/60" />
         <StatCard label="管理员账号" value={summary.admins} icon={shieldCheck} iconBg="bg-accent-gold/10" iconText="text-accent-gold" barFrom="from-accent-gold/60" />
@@ -867,17 +867,17 @@ export default function Users() {
       </form>
 
       <div className="overflow-hidden rounded-2xl border border-border-subtle bg-surface-card/60 shadow-xl shadow-black/20">
-        <div className="overflow-x-auto">
+        <div className="hidden overflow-x-auto md:block">
           <table className="min-w-full text-sm">
             <thead className="bg-surface-dark/80 text-left text-xs tracking-wider text-fg-dim">
               <tr className="border-b border-border-subtle">
                 <th className="px-5 py-4 font-medium">账号</th>
+                <th className="px-5 py-4 font-medium">真实姓名</th>
                 <th className="px-5 py-4 font-medium">角色</th>
                 <th className="px-5 py-4 font-medium">组别</th>
                 <th className="px-5 py-4 font-medium">状态</th>
                 <th className="px-5 py-4 font-medium">登录方式</th>
                 <th className="px-5 py-4 font-medium">最近登录</th>
-                <th className="px-5 py-4 font-medium">创建时间</th>
                 <th className="px-5 py-4 text-right font-medium">操作</th>
               </tr>
             </thead>
@@ -926,6 +926,9 @@ export default function Users() {
                           </div>
                         </div>
                       </td>
+                      <td className="px-5 py-4 text-fg-muted">
+                        {user.realName?.trim() || "未填写"}
+                      </td>
                       <td className="px-5 py-4">
                         <RoleBadge roleName={user.role.name} displayName={user.role.displayName} />
                       </td>
@@ -937,7 +940,6 @@ export default function Users() {
                       </td>
                       <td className="px-5 py-4 text-fg-muted">{getAuthMethodLabel(user)}</td>
                       <td className="px-5 py-4 text-fg-muted">{formatDateTime(user.lastLoginAt)}</td>
-                      <td className="px-5 py-4 text-fg-muted">{formatDateTime(user.createdAt)}</td>
                       <td className="px-5 py-4">
                         <div className="flex justify-end gap-2">
                           <button
@@ -984,6 +986,115 @@ export default function Users() {
               )}
             </tbody>
           </table>
+        </div>
+
+        <div className="md:hidden">
+          {tableActionLoading ? (
+            <div className="flex flex-col items-center gap-3 px-5 py-14 text-sm text-fg-dim">
+              <span
+                aria-hidden="true"
+                className="inline-flex h-8 w-8 animate-spin rounded-full border-2 border-accent-primary/20 border-t-accent-primary"
+              />
+              <span>正在刷新用户列表...</span>
+            </div>
+          ) : loadingList ? (
+            <div className="px-5 py-10 text-center text-sm text-fg-dim">正在加载用户列表...</div>
+          ) : users.length === 0 ? (
+            <div className="px-5 py-10 text-center text-sm text-fg-dim">
+              当前筛选条件下没有匹配的账号。
+            </div>
+          ) : (
+            <ul className="divide-y divide-border-subtle/60">
+              {users.map((user) => {
+                const readonlyReason = getReadonlyReason(user.role.name, actorRoleName);
+                const canMutate = readonlyReason === "";
+                const statusActionLabel = user.status === 1 ? "停用账号" : "启用账号";
+
+                return (
+                  <li key={user.id} className="px-4 py-4">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent-primary/20 to-accent-secondary/10 text-sm font-semibold text-accent-primary ring-1 ring-accent-primary/10">
+                        {(user.name || user.email).slice(0, 1).toUpperCase()}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate font-medium text-fg-primary">{user.name}</div>
+                        <div className="truncate text-xs text-fg-dim">{user.email}</div>
+                        {user.phone ? (
+                          <div className="truncate text-xs text-fg-dim">{user.phone}</div>
+                        ) : null}
+                      </div>
+                      <div className="shrink-0">
+                        <StatusBadge status={user.status} />
+                      </div>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <RoleBadge roleName={user.role.name} displayName={user.role.displayName} />
+                      <GroupTags groups={user.groups} />
+                    </div>
+
+                    <dl className="mt-3 grid grid-cols-2 gap-x-3 gap-y-2 text-xs">
+                      <div className="min-w-0">
+                        <dt className="text-fg-dim">真实姓名</dt>
+                        <dd className="mt-0.5 truncate text-fg-muted">
+                          {user.realName?.trim() || "未填写"}
+                        </dd>
+                      </div>
+                      <div className="min-w-0">
+                        <dt className="text-fg-dim">登录方式</dt>
+                        <dd className="mt-0.5 truncate text-fg-muted">{getAuthMethodLabel(user)}</dd>
+                      </div>
+                      <div className="col-span-2 min-w-0">
+                        <dt className="text-fg-dim">最近登录</dt>
+                        <dd className="mt-0.5 truncate text-fg-muted">
+                          {formatDateTime(user.lastLoginAt)}
+                        </dd>
+                      </div>
+                    </dl>
+
+                    <div className="mt-3 flex justify-end gap-2 border-t border-border-subtle/60 pt-3">
+                      <button
+                        type="button"
+                        onClick={() => openDetail(user.id)}
+                        title="查看详情"
+                        aria-label="查看详情"
+                        className={tableActionButtonClassName}
+                      >
+                        <Icon icon={eye} className="h-3.5 w-3.5" />
+                        <span className="sr-only">查看详情</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPasswordModalTarget(user)}
+                        disabled={!canMutate}
+                        title={readonlyReason || "重置密码"}
+                        aria-label="重置密码"
+                        className={tableActionButtonClassName}
+                      >
+                        <Icon icon={keyRound} className="h-3.5 w-3.5" />
+                        <span className="sr-only">重置密码</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setStatusModalTarget(user)}
+                        disabled={!canMutate}
+                        title={readonlyReason || statusActionLabel}
+                        aria-label={statusActionLabel}
+                        className={`${tableActionButtonClassName} ${
+                          user.status === 1
+                            ? "border-red-500/30 text-red-200 hover:bg-red-500/10"
+                            : "border-emerald-500/30 text-emerald-200 hover:bg-emerald-500/10"
+                        }`}
+                      >
+                        <Icon icon={user.status === 1 ? powerOff : power} className="h-3.5 w-3.5" />
+                        <span className="sr-only">{statusActionLabel}</span>
+                      </button>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
         </div>
 
         <div className="flex flex-col gap-3 border-t border-border-subtle bg-surface-dark/40 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
@@ -1659,12 +1770,20 @@ function StatCard({
   return (
     <div className="relative overflow-hidden rounded-2xl border border-border-subtle bg-surface-card/80 backdrop-blur-sm transition hover:border-gray-700">
       <div className={`h-0.5 bg-gradient-to-r ${barFrom} to-transparent`} />
-      <div className="p-5">
-        <div className={`absolute right-4 top-5 flex h-10 w-10 items-center justify-center rounded-xl ${iconBg}`}>
-          <Icon icon={icon} className={`h-5 w-5 ${iconText}`} />
+      <div className="p-3 sm:p-5">
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0 truncate text-[11px] font-medium uppercase tracking-wider text-fg-dim sm:text-xs">
+            {label}
+          </div>
+          <div
+            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10 sm:rounded-xl ${iconBg}`}
+          >
+            <Icon icon={icon} className={`h-3.5 w-3.5 sm:h-5 sm:w-5 ${iconText}`} />
+          </div>
         </div>
-        <div className="text-xs font-medium uppercase tracking-wider text-fg-dim">{label}</div>
-        <div className="mt-3 font-mono text-3xl font-semibold tabular-nums text-fg-primary">{value}</div>
+        <div className="mt-2 font-mono text-xl font-semibold tabular-nums text-fg-primary sm:mt-3 sm:text-3xl">
+          {value}
+        </div>
       </div>
     </div>
   );

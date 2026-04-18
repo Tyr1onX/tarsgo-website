@@ -88,6 +88,7 @@ type UserListItem struct {
 	Name        string               `json:"name"`
 	Email       string               `json:"email"`
 	Phone       *string              `json:"phone,omitempty"`
+	RealName    *string              `json:"realName,omitempty"`
 	Role        RoleRef              `json:"role"`
 	Groups      []usergroup.GroupRef `json:"groups,omitempty"`
 	Status      uint8                `json:"status"`
@@ -471,6 +472,7 @@ func toUserListItem(user *model.User) UserListItem {
 		Name:        user.Name,
 		Email:       user.Email,
 		Phone:       user.Phone,
+		RealName:    user.RealName,
 		Role:        toRoleRef(user.Role),
 		Groups:      usergroup.UserGroupRefsFromMembers(user.GroupMembers, false),
 		Status:      user.Status,
