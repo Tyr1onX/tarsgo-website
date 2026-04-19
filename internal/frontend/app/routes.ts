@@ -14,6 +14,8 @@ export default [
     route("admin/user-groups", "routes/admin/user-groups.tsx"),
     route("admin/form-config", "routes/admin/form-config.tsx"),
     route("admin/registrations", "routes/admin/registrations.tsx"),
+    route("admin/system-config/email", "routes/admin/system-config-email.tsx"),
+    route("admin/system-config/oauth", "routes/admin/system-config-oauth.tsx"),
   ]),
   route("*", "routes/not-found.tsx"),
 ] satisfies RouteConfig;

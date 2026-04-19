@@ -1,6 +1,7 @@
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useOutletContext } from "react-router";
+import { AnimatedSelect } from "~/components/animated-select";
 import { ModalShell } from "~/components/modal-shell";
 import { ApiError, buildApiUrl } from "~/lib/api-client";
 import {
@@ -537,7 +538,7 @@ export default function RegistrationsPage() {
   return (
     <div className="space-y-5 sm:space-y-6">
       {/* ── Page hero ── */}
-      <section className="relative overflow-hidden rounded-2xl border border-border-subtle bg-surface-card">
+      <section className="motion-fade-up relative overflow-hidden rounded-2xl border border-border-subtle bg-surface-card">
         <div
           aria-hidden
           className="bg-registrations-hero-glow pointer-events-none absolute inset-0 opacity-80"
@@ -578,7 +579,7 @@ export default function RegistrationsPage() {
       {/* ── Flash message ── */}
       {flash ? (
         <div
-          className={`flex items-center gap-3 rounded-lg border px-4 py-3 text-sm ${
+          className={`motion-fade-up flex items-center gap-3 rounded-lg border px-4 py-3 text-sm ${
             flash.type === "success"
               ? "border-accent-tertiary/20 bg-accent-tertiary/10 text-emerald-200"
               : "border-rose-500/20 bg-rose-500/10 text-rose-200"
@@ -598,7 +599,7 @@ export default function RegistrationsPage() {
       ) : null}
 
       {/* ── Summary cards ── */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-5">
+      <div className="motion-fade-up grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-5" style={{ animationDelay: "80ms" }}>
         <SummaryCard
           label="总报名数"
           value={summary.total}
@@ -657,7 +658,7 @@ export default function RegistrationsPage() {
       </div>
 
       {/* ── Filters ── */}
-      <section className="rounded-xl border border-border-subtle bg-surface-card p-4">
+      <section className="motion-fade-up rounded-xl border border-border-subtle bg-surface-card p-4" style={{ animationDelay: "140ms" }}>
         <div className="flex items-center gap-2 mb-3 text-xs font-medium uppercase tracking-wider text-fg-dim">
           <IconFilter />
           <span>筛选条件</span>
@@ -686,33 +687,27 @@ export default function RegistrationsPage() {
               className="w-full rounded-lg border border-border-subtle bg-surface-light pl-9 pr-3 py-2.5 text-sm text-fg-primary placeholder:text-fg-dim focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-400/30 transition-colors"
             />
           </div>
-          <select
+          <AnimatedSelect
+            ariaLabel="状态筛选"
             value={statusFilterInput}
-            onChange={(event) => {
-              setStatusFilterInput(event.target.value);
-            }}
-            className="w-full rounded-lg border border-border-subtle bg-surface-light px-3 py-2.5 text-sm text-fg-primary focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-400/30 transition-colors"
-          >
-            {statusOptions.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <select
+            onChange={setStatusFilterInput}
+            options={statusOptions.map((option) => ({
+              value: option.value,
+              label: option.label,
+            }))}
+          />
+          <AnimatedSelect
+            ariaLabel="报名表筛选"
             value={formIdFilterInput}
-            onChange={(event) => {
-              setFormIdFilterInput(event.target.value);
-            }}
-            className="w-full rounded-lg border border-border-subtle bg-surface-light px-3 py-2.5 text-sm text-fg-primary focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-400/30 transition-colors"
-          >
-            <option value="">全部报名表</option>
-            {forms.map((form) => (
-              <option key={form.id} value={form.id}>
-                {form.title}
-              </option>
-            ))}
-          </select>
+            onChange={setFormIdFilterInput}
+            options={[
+              { value: "", label: "全部报名表" },
+              ...forms.map((form) => ({
+                value: form.id,
+                label: form.title,
+              })),
+            ]}
+          />
           <div className="flex gap-2 lg:justify-end">
             <button
               type="button"
@@ -735,7 +730,7 @@ export default function RegistrationsPage() {
       </section>
 
       {/* ── Data table ── */}
-      <section className="overflow-hidden rounded-xl border border-border-subtle bg-surface-card">
+      <section className="motion-fade-up overflow-hidden rounded-xl border border-border-subtle bg-surface-card" style={{ animationDelay: "200ms" }}>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1280px] text-sm">
             <thead>
@@ -848,20 +843,20 @@ export default function RegistrationsPage() {
               第 {pagination.page} / {Math.max(pagination.totalPages, 1)} 页，共 {pagination.total} 条记录
             </div>
             <div className="flex items-center gap-3">
-              <select
+              <AnimatedSelect
+                ariaLabel="每页条数"
                 value={pageSize}
-                onChange={(event) => {
+                onChange={(value) => {
                   setPage(1);
-                  setPageSize(Number(event.target.value));
+                  setPageSize(Number(value));
                 }}
-                className="rounded-lg border border-border-subtle bg-surface-dark px-3 py-2 text-sm text-fg-muted"
-              >
-                {[10, 20, 50].map((value) => (
-                  <option key={value} value={value}>
-                    {value} / 页
-                  </option>
-                ))}
-              </select>
+                options={[10, 20, 50].map((value) => ({
+                  value,
+                  label: `${value} / 页`,
+                }))}
+                size="compact"
+                fitContent
+              />
               <button
                 type="button"
                 disabled={page <= 1}

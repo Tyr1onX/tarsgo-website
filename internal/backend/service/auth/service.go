@@ -26,12 +26,23 @@ const (
 )
 
 type Service struct {
-	db           *gorm.DB
-	appConfig    config.AppConfig
-	authConfig   config.AuthConfig
-	mailer       Mailer
-	githubClient *GitHubClient
-	now          func() time.Time
+	db          *gorm.DB
+	appConfig   config.AppConfig
+	authConfig  config.AuthConfig
+	configStore dynamicConfigStore
+	now         func() time.Time
+}
+
+type dynamicConfigStore interface {
+	SMTPConfig() config.SMTPConfig
+	GitHubConfig() config.GitHubConfig
+	GoogleConfig() config.GoogleConfig
+}
+
+type staticConfigStore struct {
+	smtp   config.SMTPConfig
+	github config.GitHubConfig
+	google config.GoogleConfig
 }
 
 type ServiceError struct {
@@ -83,14 +94,21 @@ type RegisterInitialSuperAdminInput struct {
 	ConfirmPassword string
 }
 
-func NewService(cfg *config.Config, db *gorm.DB) *Service {
+func NewService(cfg *config.Config, db *gorm.DB, configStore dynamicConfigStore) *Service {
+	if configStore == nil {
+		configStore = staticConfigStore{
+			smtp:   cfg.SMTP,
+			github: cfg.GitHub,
+			google: cfg.Google,
+		}
+	}
+
 	return &Service{
-		db:           db,
-		appConfig:    cfg.App,
-		authConfig:   cfg.Auth,
-		mailer:       NewSMTPMailer(cfg.SMTP),
-		githubClient: NewGitHubClient(cfg.GitHub),
-		now:          time.Now,
+		db:          db,
+		appConfig:   cfg.App,
+		authConfig:  cfg.Auth,
+		configStore: configStore,
+		now:         time.Now,
 	}
 }
 
@@ -151,6 +169,23 @@ func (s *Service) SetupSuperAdminURL() string {
 
 func (s *Service) LoginErrorURL(code string) string {
 	return s.appConfig.LoginErrorURL(code)
+}
+
+func (s *Service) ListOAuthLoginProviders() []OAuthLoginProvider {
+	providers := make([]OAuthLoginProvider, 0, 2)
+	for _, providerName := range []string{model.OAuthProviderGitHub, model.OAuthProviderGoogle} {
+		provider, err := s.oauthProviderByName(providerName)
+		if err != nil || !provider.Enabled() {
+			continue
+		}
+
+		providers = append(providers, OAuthLoginProvider{
+			Provider:    provider.Provider(),
+			DisplayName: provider.DisplayName(),
+		})
+	}
+
+	return providers
 }
 
 func (s *Service) BootstrapStatus(ctx context.Context) (*BootstrapStatus, error) {
@@ -449,53 +484,106 @@ func (s *Service) LoginWithCode(ctx context.Context, email string, code string) 
 	return s.buildAuthResult(user)
 }
 
-func (s *Service) BuildGitHubLoginURL() (string, string, error) {
-	state, err := GenerateRandomString(32)
+func (s *Service) BuildOAuthLoginURL(providerName string) (string, string, error) {
+	provider, err := s.getOAuthProvider(providerName)
 	if err != nil {
-		return "", "", &ServiceError{Status: http.StatusInternalServerError, Message: "生成 GitHub 登录态失败", Err: err}
+		return "", "", err
 	}
 
-	return s.githubClient.BuildLoginURL(state), state, nil
+	state, err := GenerateRandomString(32)
+	if err != nil {
+		return "", "", &ServiceError{
+			Status:  http.StatusInternalServerError,
+			Message: fmt.Sprintf("生成 %s 登录态失败", provider.DisplayName()),
+			Err:     err,
+		}
+	}
+
+	return provider.BuildLoginURL(state), state, nil
 }
 
-func (s *Service) HandleGitHubCallback(ctx context.Context, code string) (*AuthResult, error) {
+func (s *Service) BuildGitHubLoginURL() (string, string, error) {
+	return s.BuildOAuthLoginURL(model.OAuthProviderGitHub)
+}
+
+func (s *Service) HandleOAuthCallback(ctx context.Context, providerName string, code string) (*AuthResult, error) {
 	if err := s.ensureBootstrapCompleted(ctx); err != nil {
 		return nil, err
 	}
 
-	accessToken, err := s.githubClient.ExchangeCode(ctx, strings.TrimSpace(code))
+	provider, err := s.getOAuthProvider(providerName)
 	if err != nil {
-		return nil, &ServiceError{Status: http.StatusBadGateway, Message: "获取 GitHub 访问令牌失败", Err: err}
+		return nil, err
 	}
 
-	profile, err := s.githubClient.FetchProfile(ctx, accessToken)
+	accessToken, err := provider.ExchangeCode(ctx, strings.TrimSpace(code))
 	if err != nil {
-		return nil, &ServiceError{Status: http.StatusBadGateway, Message: "获取 GitHub 用户信息失败", Err: err}
-	}
-
-	githubID := strconv.FormatInt(profile.ID, 10)
-	user, err := s.findUserByGitHubID(ctx, githubID)
-	if err == nil {
-		return s.completeGitHubLogin(ctx, user, profile, githubID, false)
-	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "查询 GitHub 用户失败", Err: err}
-	}
-
-	email := NormalizeEmail(stringValue(profile.Email))
-	if email == "" {
-		return nil, &ServiceError{Status: http.StatusBadGateway, Message: "GitHub 用户缺少可用邮箱"}
-	}
-
-	user, err = s.findUserByEmail(ctx, email)
-	if err == nil {
-		if err := ensureGitHubBindingAllowed(user, githubID); err != nil {
-			return nil, err
+		return nil, &ServiceError{
+			Status:  http.StatusBadGateway,
+			Message: fmt.Sprintf("获取 %s 访问令牌失败", provider.DisplayName()),
+			Err:     err,
 		}
-		return s.completeGitHubLogin(ctx, user, profile, githubID, true)
+	}
+
+	profile, err := provider.FetchProfile(ctx, accessToken)
+	if err != nil {
+		return nil, &ServiceError{
+			Status:  http.StatusBadGateway,
+			Message: fmt.Sprintf("获取 %s 用户信息失败", provider.DisplayName()),
+			Err:     err,
+		}
+	}
+
+	profile.Provider = provider.Provider()
+	oauthAccount, err := s.findOAuthAccountByProviderUserID(ctx, provider.Provider(), profile.ProviderUserID)
+	if err == nil {
+		user, loadErr := s.loadUserWithRole(ctx, oauthAccount.UserID)
+		if loadErr != nil {
+			if errors.Is(loadErr, gorm.ErrRecordNotFound) {
+				return nil, &ServiceError{Status: http.StatusNotFound, Message: "当前用户不存在"}
+			}
+			return nil, &ServiceError{
+				Status:  http.StatusInternalServerError,
+				Message: fmt.Sprintf("查询 %s 用户失败", provider.DisplayName()),
+				Err:     loadErr,
+			}
+		}
+		return s.completeOAuthLogin(ctx, user, profile, false)
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "查询邮箱用户失败", Err: err}
+		return nil, &ServiceError{
+			Status:  http.StatusInternalServerError,
+			Message: fmt.Sprintf("查询 %s 用户失败", provider.DisplayName()),
+			Err:     err,
+		}
+	}
+
+	email := NormalizeEmail(profile.Email)
+	if email == "" {
+		return nil, &ServiceError{
+			Status:  http.StatusBadGateway,
+			Message: fmt.Sprintf("%s 用户缺少可用邮箱", provider.DisplayName()),
+		}
+	}
+
+	if profile.EmailVerified {
+		user, err := s.findUserByEmail(ctx, email)
+		if err == nil {
+			if err := s.ensureOAuthBindingAllowed(ctx, user, provider.Provider(), profile.ProviderUserID); err != nil {
+				return nil, err
+			}
+			return s.completeOAuthLogin(ctx, user, profile, true)
+		}
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "查询邮箱用户失败", Err: err}
+		}
+	} else if existingUser, lookupErr := s.findUserByEmail(ctx, email); lookupErr == nil {
+		return nil, &ServiceError{
+			Status:  http.StatusConflict,
+			Message: fmt.Sprintf("%s 账号邮箱未验证，无法自动绑定已有账号 %s", provider.DisplayName(), existingUser.Email),
+		}
+	} else if !errors.Is(lookupErr, gorm.ErrRecordNotFound) {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "查询邮箱用户失败", Err: lookupErr}
 	}
 
 	var result *AuthResult
@@ -505,23 +593,35 @@ func (s *Service) HandleGitHubCallback(ctx context.Context, code string) (*AuthR
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "默认用户角色不存在", Err: err}
 		}
 
-		createdUser := newGitHubUser(role.ID, email, profile, githubID)
+		createdUser := newOAuthUser(role.ID, email, profile)
 
 		if err := tx.Create(&createdUser).Error; err != nil {
-			return &ServiceError{Status: http.StatusInternalServerError, Message: "创建 GitHub 用户失败", Err: err}
+			return &ServiceError{
+				Status:  http.StatusInternalServerError,
+				Message: fmt.Sprintf("创建 %s 用户失败", provider.DisplayName()),
+				Err:     err,
+			}
+		}
+		if err := s.saveOAuthAccountTx(tx, createdUser.ID, profile); err != nil {
+			return err
 		}
 		if err := usergroup.AssignDefaultGroupTx(tx, createdUser.ID); err != nil {
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "分配默认用户组失败", Err: err}
 		}
 
 		now := s.now()
-		if err := tx.Model(&model.User{}).Where("id = ?", createdUser.ID).Update("last_login_at", now).Error; err != nil {
+		updates := buildOAuthUserUpdates(&createdUser, profile, now, false)
+		if err := tx.Model(&model.User{}).Where("id = ?", createdUser.ID).Updates(updates).Error; err != nil {
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "更新登录时间失败", Err: err}
 		}
 
 		loadedUser, err := s.loadUserWithRoleTx(tx, createdUser.ID)
 		if err != nil {
-			return &ServiceError{Status: http.StatusInternalServerError, Message: "加载 GitHub 用户信息失败", Err: err}
+			return &ServiceError{
+				Status:  http.StatusInternalServerError,
+				Message: fmt.Sprintf("加载 %s 用户信息失败", provider.DisplayName()),
+				Err:     err,
+			}
 		}
 		loadedUser.LastLoginAt = &now
 
@@ -539,7 +639,11 @@ func (s *Service) HandleGitHubCallback(ctx context.Context, code string) (*AuthR
 	return result, nil
 }
 
-func (s *Service) completeGitHubLogin(ctx context.Context, user *model.User, profile *GitHubProfile, githubID string, bindGitHub bool) (*AuthResult, error) {
+func (s *Service) HandleGitHubCallback(ctx context.Context, code string) (*AuthResult, error) {
+	return s.HandleOAuthCallback(ctx, model.OAuthProviderGitHub, code)
+}
+
+func (s *Service) completeOAuthLogin(ctx context.Context, user *model.User, profile *OAuthProfile, bindAccount bool) (*AuthResult, error) {
 	if err := ensureUserEnabled(user); err != nil {
 		return nil, err
 	}
@@ -548,14 +652,24 @@ func (s *Service) completeGitHubLogin(ctx context.Context, user *model.User, pro
 	var result *AuthResult
 
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		updates := buildGitHubUserUpdates(user, profile, githubID, now, bindGitHub)
+		if bindAccount {
+			if err := s.saveOAuthAccountTx(tx, user.ID, profile); err != nil {
+				return err
+			}
+		}
+
+		updates := buildOAuthUserUpdates(user, profile, now, bindAccount)
 		if err := tx.Model(&model.User{}).Where("id = ?", user.ID).Updates(updates).Error; err != nil {
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "更新登录时间失败", Err: err}
 		}
 
 		loadedUser, err := s.loadUserWithRoleTx(tx, user.ID)
 		if err != nil {
-			return &ServiceError{Status: http.StatusInternalServerError, Message: "加载 GitHub 用户信息失败", Err: err}
+			return &ServiceError{
+				Status:  http.StatusInternalServerError,
+				Message: fmt.Sprintf("加载 %s 用户信息失败", providerDisplayName(profile.Provider)),
+				Err:     err,
+			}
 		}
 		loadedUser.LastLoginAt = &now
 
@@ -646,7 +760,7 @@ func (s *Service) sendCode(ctx context.Context, email string, purpose string, su
 		}
 	}
 
-	if err := s.mailer.Send(ctx, email, subject, fmt.Sprintf(bodyTemplate, code)); err != nil {
+	if err := NewSMTPMailer(s.configStore.SMTPConfig()).Send(ctx, email, subject, fmt.Sprintf(bodyTemplate, code)); err != nil {
 		if restoreErr := s.restoreCodeRecord(ctx, previous, hasPrevious, record.ID); restoreErr != nil {
 			return &ServiceError{
 				Status:  http.StatusInternalServerError,
@@ -976,6 +1090,136 @@ func deriveDisplayName(email string, preferred string, fallback string) string {
 	return name
 }
 
+func (s *Service) getOAuthProvider(providerName string) (OAuthProvider, error) {
+	provider, err := s.oauthProviderByName(providerName)
+	if err != nil {
+		return nil, err
+	}
+	if !provider.Enabled() {
+		return nil, newDisabledOAuthProviderError(provider.Provider())
+	}
+	return provider, nil
+}
+
+func (s *Service) oauthProviderByName(providerName string) (OAuthProvider, error) {
+	switch normalizeOAuthProvider(providerName) {
+	case model.OAuthProviderGitHub:
+		return NewGitHubClient(s.configStore.GitHubConfig()), nil
+	case model.OAuthProviderGoogle:
+		return NewGoogleClient(s.configStore.GoogleConfig()), nil
+	default:
+		return nil, newUnknownOAuthProviderError(providerName)
+	}
+}
+
+func (s *Service) findOAuthAccountByProviderUserID(ctx context.Context, provider string, providerUserID string) (*model.OAuthAccount, error) {
+	var account model.OAuthAccount
+	if err := s.db.WithContext(ctx).
+		Where("provider = ? AND provider_user_id = ?", normalizeOAuthProvider(provider), strings.TrimSpace(providerUserID)).
+		First(&account).Error; err != nil {
+		return nil, err
+	}
+	return &account, nil
+}
+
+func (s *Service) findOAuthAccountByUserProvider(ctx context.Context, userID uint64, provider string) (*model.OAuthAccount, error) {
+	var account model.OAuthAccount
+	if err := s.db.WithContext(ctx).
+		Where("user_id = ? AND provider = ?", userID, normalizeOAuthProvider(provider)).
+		First(&account).Error; err != nil {
+		return nil, err
+	}
+	return &account, nil
+}
+
+func (s *Service) saveOAuthAccountTx(tx *gorm.DB, userID uint64, profile *OAuthProfile) error {
+	if profile == nil {
+		return &ServiceError{Status: http.StatusBadGateway, Message: "第三方账号信息为空"}
+	}
+
+	provider := normalizeOAuthProvider(profile.Provider)
+	providerUserID := strings.TrimSpace(profile.ProviderUserID)
+	if provider == "" || providerUserID == "" {
+		return &ServiceError{Status: http.StatusBadGateway, Message: "第三方账号信息不完整"}
+	}
+
+	account := model.OAuthAccount{
+		UserID:         userID,
+		Provider:       provider,
+		ProviderUserID: providerUserID,
+		ProviderLogin:  nullableString(profile.Login),
+		ProviderEmail:  nullableString(profile.Email),
+		AvatarURL:      nullableString(profile.AvatarURL),
+	}
+
+	existing := model.OAuthAccount{}
+	err := tx.
+		Where("provider = ? AND provider_user_id = ?", provider, providerUserID).
+		First(&existing).Error
+	if err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return &ServiceError{Status: http.StatusInternalServerError, Message: "保存第三方绑定失败", Err: err}
+		}
+
+		if err := tx.Create(&account).Error; err != nil {
+			return &ServiceError{Status: http.StatusInternalServerError, Message: "保存第三方绑定失败", Err: err}
+		}
+		return nil
+	}
+
+	updates := map[string]any{
+		"user_id":          userID,
+		"provider_login":   account.ProviderLogin,
+		"provider_email":   account.ProviderEmail,
+		"avatar_url":       account.AvatarURL,
+		"provider_user_id": providerUserID,
+	}
+	if err := tx.Model(&model.OAuthAccount{}).Where("id = ?", existing.ID).Updates(updates).Error; err != nil {
+		return &ServiceError{Status: http.StatusInternalServerError, Message: "保存第三方绑定失败", Err: err}
+	}
+
+	return nil
+}
+
+func (s staticConfigStore) SMTPConfig() config.SMTPConfig {
+	return s.smtp
+}
+
+func (s staticConfigStore) GitHubConfig() config.GitHubConfig {
+	return s.github
+}
+
+func (s staticConfigStore) GoogleConfig() config.GoogleConfig {
+	return s.google
+}
+
+func (s *Service) ensureOAuthBindingAllowed(ctx context.Context, user *model.User, provider string, providerUserID string) error {
+	normalizedProvider := normalizeOAuthProvider(provider)
+	normalizedProviderUserID := strings.TrimSpace(providerUserID)
+	if normalizedProvider == model.OAuthProviderGitHub {
+		if err := ensureGitHubBindingAllowed(user, normalizedProviderUserID); err != nil {
+			return err
+		}
+	}
+
+	account, err := s.findOAuthAccountByUserProvider(ctx, user.ID, normalizedProvider)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return &ServiceError{Status: http.StatusInternalServerError, Message: "检查第三方绑定状态失败", Err: err}
+	}
+
+	if strings.TrimSpace(account.ProviderUserID) == normalizedProviderUserID {
+		return nil
+	}
+
+	return &ServiceError{
+		Status:  http.StatusConflict,
+		Message: fmt.Sprintf("当前邮箱已绑定其他 %s 账号", providerDisplayName(normalizedProvider)),
+	}
+}
+
 func ensureGitHubBindingAllowed(user *model.User, githubID string) error {
 	if user.GitHubID == nil {
 		return nil
@@ -989,23 +1233,25 @@ func ensureGitHubBindingAllowed(user *model.User, githubID string) error {
 	return &ServiceError{Status: http.StatusConflict, Message: "当前邮箱已绑定其他 GitHub 账号"}
 }
 
-func buildGitHubUserUpdates(user *model.User, profile *GitHubProfile, githubID string, now time.Time, bindGitHub bool) map[string]any {
+func buildOAuthUserUpdates(user *model.User, profile *OAuthProfile, now time.Time, bindAccount bool) map[string]any {
 	updates := map[string]any{
 		"last_login_at": now,
 	}
 
-	if bindGitHub {
-		updates["github_id"] = githubID
+	if normalizeOAuthProvider(profile.Provider) == model.OAuthProviderGitHub {
+		if bindAccount {
+			updates["github_id"] = strings.TrimSpace(profile.ProviderUserID)
+		}
+		if username := strings.TrimSpace(profile.Login); username != "" {
+			updates["github_username"] = username
+		}
 	}
 
-	if username := strings.TrimSpace(profile.Login); username != "" {
-		updates["github_username"] = username
-	}
 	if avatarURL := strings.TrimSpace(profile.AvatarURL); avatarURL != "" {
 		updates["avatar_url"] = avatarURL
 	}
 
-	nickname := strings.TrimSpace(stringValue(profile.Name))
+	nickname := strings.TrimSpace(profile.Name)
 	if nickname != "" && (user.Nickname == nil || strings.TrimSpace(*user.Nickname) == "") {
 		updates["nickname"] = nickname
 	}
@@ -1013,18 +1259,50 @@ func buildGitHubUserUpdates(user *model.User, profile *GitHubProfile, githubID s
 	return updates
 }
 
-func newGitHubUser(roleID uint64, email string, profile *GitHubProfile, githubID string) model.User {
-	createdUser := model.User{
-		RoleID:         roleID,
-		Name:           deriveDisplayName(email, profile.Login, stringValue(profile.Name)),
-		Email:          email,
-		GitHubID:       stringPtr(githubID),
-		GitHubUsername: stringPtr(profile.Login),
-		AvatarURL:      stringPtr(profile.AvatarURL),
-		Status:         1,
+func buildGitHubUserUpdates(user *model.User, profile *OAuthProfile, githubID string, now time.Time, bindGitHub bool) map[string]any {
+	compatProfile := &OAuthProfile{
+		Provider:       model.OAuthProviderGitHub,
+		ProviderUserID: githubID,
+		Login:          profile.Login,
+		Name:           profile.Name,
+		AvatarURL:      profile.AvatarURL,
 	}
-	if profile.Name != nil {
-		assignOptionalString(&createdUser.Nickname, *profile.Name)
+	return buildOAuthUserUpdates(user, compatProfile, now, bindGitHub)
+}
+
+func newOAuthUser(roleID uint64, email string, profile *OAuthProfile) model.User {
+	createdUser := model.User{
+		RoleID:    roleID,
+		Name:      deriveDisplayName(email, profile.Login, profile.Name),
+		Email:     email,
+		AvatarURL: stringPtr(profile.AvatarURL),
+		Status:    1,
+	}
+	if normalizeOAuthProvider(profile.Provider) == model.OAuthProviderGitHub {
+		createdUser.GitHubID = stringPtr(profile.ProviderUserID)
+		createdUser.GitHubUsername = stringPtr(profile.Login)
+	}
+	if strings.TrimSpace(profile.Name) != "" {
+		assignOptionalString(&createdUser.Nickname, profile.Name)
 	}
 	return createdUser
+}
+
+func newGitHubUser(roleID uint64, email string, profile *OAuthProfile, githubID string) model.User {
+	compatProfile := &OAuthProfile{
+		Provider:       model.OAuthProviderGitHub,
+		ProviderUserID: githubID,
+		Login:          profile.Login,
+		Name:           profile.Name,
+		AvatarURL:      profile.AvatarURL,
+	}
+	return newOAuthUser(roleID, email, compatProfile)
+}
+
+func nullableString(value string) *string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
 }

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { Link, NavLink, Outlet, redirect, useLocation, useNavigate } from "react-router";
 
 import type { Route } from "./+types/layout";
@@ -21,6 +21,17 @@ export interface DashboardLayoutOutletContext {
 const CONTENT_TRANSITION_MS = 280;
 const DESKTOP_DASHBOARD_MEDIA = "(min-width: 1024px)";
 const SUPER_ADMIN_SETUP_PATH = "/dashboard/setup/super-admin";
+const SIDEBAR_DEFAULT_WIDTH = 200;
+const SIDEBAR_MIN_WIDTH = 160;
+const SIDEBAR_MAX_WIDTH = 420;
+
+function getSidebarMaxWidth(viewportWidth: number) {
+  return Math.max(SIDEBAR_DEFAULT_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, Math.floor(viewportWidth * 0.4)));
+}
+
+function clampSidebarWidth(width: number, viewportWidth: number) {
+  return Math.min(getSidebarMaxWidth(viewportWidth), Math.max(SIDEBAR_MIN_WIDTH, Math.round(width)));
+}
 
 function getIsDesktopDashboardViewport() {
   if (typeof window === "undefined") {
@@ -73,6 +84,12 @@ function MenuIcon({ iconKey }: { iconKey: DashboardMenuIconKey }) {
       return (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15a2.25 2.25 0 0 1 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm0 3h.008v.008H6.75V15Zm0 3h.008v.008H6.75V18Z" />
+        </svg>
+      );
+    case "settings":
+      return (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12a7.5 7.5 0 1 1 15 0 7.5 7.5 0 0 1-15 0Zm7.5-9v3m0 12v3m9-9h-3M6 12H3m15.364 6.364-2.122-2.122M7.757 7.757 5.636 5.636m12.728 0-2.122 2.121M7.757 16.243l-2.121 2.121" />
         </svg>
       );
     case "dashboard":
@@ -128,7 +145,7 @@ function SidebarItem({
           <span className={isActive ? "text-primary-400" : ""}>
             <MenuIcon iconKey={item.iconKey} />
           </span>
-          <span className="flex-1 text-left">{item.label}</span>
+          <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
           <svg
             className={`w-4 h-4 transition-transform duration-300 ease-out ${expanded ? "rotate-180" : ""}`}
             fill="none"
@@ -155,7 +172,7 @@ function SidebarItem({
                   viewTransition={viewTransition}
                   tabIndex={expanded ? 0 : -1}
                   className={({ isActive }) =>
-                    `block px-3 py-2 text-sm rounded-lg transition-colors ${
+                    `block truncate px-3 py-2 text-sm rounded-lg transition-colors ${
                       isActive
                         ? "text-primary-400 bg-primary-500/10"
                         : "text-gray-400 hover:text-white hover:bg-white/5"
@@ -179,7 +196,7 @@ function SidebarItem({
       onClick={onNavigate}
       viewTransition={viewTransition}
       className={({ isActive }) =>
-        `flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg transition-colors ${
+        `flex min-w-0 items-center gap-3 px-3 py-2.5 text-sm rounded-lg transition-colors ${
           isActive
             ? "text-primary-400 bg-primary-500/10"
             : "text-gray-400 hover:text-white hover:bg-white/5"
@@ -191,7 +208,7 @@ function SidebarItem({
           <span className={isActive ? "text-primary-400" : ""}>
             <MenuIcon iconKey={item.iconKey} />
           </span>
-          <span>{item.label}</span>
+          <span className="min-w-0 flex-1 truncate">{item.label}</span>
         </>
       )}
     </NavLink>
@@ -203,10 +220,14 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const navigate = useNavigate();
   const [isDesktopViewport, setIsDesktopViewport] = useState(getIsDesktopDashboardViewport);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
+  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const contentPanelRef = useRef<HTMLDivElement | null>(null);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
+  const sidebarResizeStartXRef = useRef(0);
+  const sidebarResizeStartWidthRef = useRef(SIDEBAR_DEFAULT_WIDTH);
   const { currentUser } = loaderData;
   const userMenuItems = getUserDashboardMenu(currentUser);
   const adminMenuItems = getVisibleAdminDashboardMenu(currentUser.role.name);
@@ -230,6 +251,23 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
 
     return () => {
       mediaQuery.removeEventListener("change", syncViewport);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const syncSidebarWidth = () => {
+      setSidebarWidth((current) => clampSidebarWidth(current, window.innerWidth));
+    };
+
+    syncSidebarWidth();
+    window.addEventListener("resize", syncSidebarWidth);
+
+    return () => {
+      window.removeEventListener("resize", syncSidebarWidth);
     };
   }, []);
 
@@ -277,6 +315,12 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   }, [isDesktopViewport, location.pathname]);
 
   useEffect(() => {
+    if (!isDesktopViewport) {
+      setIsResizingSidebar(false);
+    }
+  }, [isDesktopViewport]);
+
+  useEffect(() => {
     if (!userMenuOpen) {
       return;
     }
@@ -302,10 +346,48 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
     };
   }, [userMenuOpen]);
 
+  useEffect(() => {
+    if (typeof window === "undefined" || !isDesktopViewport || !isResizingSidebar) {
+      return;
+    }
+
+    const handleMouseMove = (event: MouseEvent) => {
+      const nextWidth = sidebarResizeStartWidthRef.current + event.clientX - sidebarResizeStartXRef.current;
+      setSidebarWidth(clampSidebarWidth(nextWidth, window.innerWidth));
+    };
+
+    const handleMouseUp = () => {
+      setIsResizingSidebar(false);
+    };
+
+    document.addEventListener("mousemove", handleMouseMove);
+    document.addEventListener("mouseup", handleMouseUp);
+    document.body.style.setProperty("cursor", "col-resize");
+    document.body.style.setProperty("user-select", "none");
+
+    return () => {
+      document.removeEventListener("mousemove", handleMouseMove);
+      document.removeEventListener("mouseup", handleMouseUp);
+      document.body.style.removeProperty("cursor");
+      document.body.style.removeProperty("user-select");
+    };
+  }, [isDesktopViewport, isResizingSidebar]);
+
   function handleSidebarNavigate() {
     if (!isDesktopViewport) {
       setSidebarOpen(false);
     }
+  }
+
+  function handleSidebarResizeStart(event: ReactMouseEvent<HTMLDivElement>) {
+    if (!isDesktopViewport) {
+      return;
+    }
+
+    event.preventDefault();
+    sidebarResizeStartXRef.current = event.clientX;
+    sidebarResizeStartWidthRef.current = sidebarWidth;
+    setIsResizingSidebar(true);
   }
 
   async function handleLogout() {
@@ -333,19 +415,18 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
       ) : null}
 
       <aside
-        className={`fixed top-0 left-0 z-50 h-full w-64 bg-gray-900 border-r border-gray-800 flex flex-col transition-transform lg:translate-x-0 ${
+        className={`group/sidebar fixed top-0 left-0 z-50 flex h-full flex-col border-r border-gray-800 bg-gray-900 transition-transform lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
+        style={{ width: sidebarWidth }}
       >
         <div className="flex items-center gap-3 px-5 h-16 border-b border-gray-800 shrink-0">
-          <Link to="/" className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-primary-500 flex items-center justify-center">
-              <span className="text-white font-bold text-sm">T</span>
-            </div>
-            <div>
-              <div className="text-white font-bold text-sm tracking-wide">TARS-GO</div>
-              <div className="text-[11px] text-gray-500">统一工作台</div>
-            </div>
+          <Link to="/" className="flex min-w-0 flex-1 items-center">
+            <img
+              src="/assets/images/Logo/jijia-master.webp"
+              alt="吉甲大师"
+              className="h-10 w-auto max-w-full object-contain"
+            />
           </Link>
           <button
             type="button"
@@ -455,9 +536,21 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
             </div>
           ) : null}
         </div>
+
+        <div
+          aria-hidden="true"
+          className="absolute inset-y-0 -right-2 hidden w-4 cursor-col-resize lg:flex lg:items-center lg:justify-center"
+          onMouseDown={handleSidebarResizeStart}
+        >
+          <span
+            className={`h-20 w-px rounded-full transition-colors ${
+              isResizingSidebar ? "bg-primary-400" : "bg-transparent group-hover/sidebar:bg-gray-600"
+            }`}
+          />
+        </div>
       </aside>
 
-      <div className="lg:pl-64">
+      <div style={isDesktopViewport ? { paddingLeft: sidebarWidth } : undefined}>
         <header className="sticky top-0 z-30 flex items-center gap-4 h-16 px-4 sm:px-6 bg-gray-950/80 backdrop-blur-md border-b border-gray-800">
           <button
             type="button"

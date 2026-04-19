@@ -32,12 +32,14 @@ func New(cfg config.DatabaseConfig) (*gorm.DB, error) {
 	return db, nil
 }
 
-func AutoMigrate(db *gorm.DB) error {
+func AutoMigrate(db *gorm.DB, appEnv string) error {
 	if err := db.
 		Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").
 		AutoMigrate(
 			&model.Role{},
 			&model.User{},
+			&model.SystemConfig{},
+			&model.OAuthAccount{},
 			&model.UserGroup{},
 			&model.UserGroupMember{},
 			&model.EmailCode{},
@@ -52,6 +54,14 @@ func AutoMigrate(db *gorm.DB) error {
 	}
 
 	if err := seedRoles(db); err != nil {
+		return err
+	}
+
+	if err := backfillLegacyGitHubOAuthAccounts(db); err != nil {
+		return err
+	}
+
+	if err := seedDevelopmentMockData(db, appEnv); err != nil {
 		return err
 	}
 
@@ -116,6 +126,40 @@ func seedRoles(db *gorm.DB) error {
 			}).
 			FirstOrCreate(&role).Error; err != nil {
 			return fmt.Errorf("seed role %s: %w", seed.Name, err)
+		}
+	}
+
+	return nil
+}
+
+func backfillLegacyGitHubOAuthAccounts(db *gorm.DB) error {
+	var users []model.User
+	if err := db.
+		Where("github_id IS NOT NULL AND TRIM(github_id) <> ''").
+		Find(&users).Error; err != nil {
+		return fmt.Errorf("list legacy github users: %w", err)
+	}
+
+	for _, user := range users {
+		if user.GitHubID == nil {
+			continue
+		}
+
+		lookup := model.OAuthAccount{
+			Provider:       model.OAuthProviderGitHub,
+			ProviderUserID: *user.GitHubID,
+		}
+		updates := map[string]any{
+			"user_id":        user.ID,
+			"provider_login": user.GitHubUsername,
+			"provider_email": user.Email,
+			"avatar_url":     user.AvatarURL,
+		}
+		if err := db.
+			Where("provider = ? AND provider_user_id = ?", lookup.Provider, lookup.ProviderUserID).
+			Assign(updates).
+			FirstOrCreate(&lookup).Error; err != nil {
+			return fmt.Errorf("backfill legacy github oauth account for user %d: %w", user.ID, err)
 		}
 	}
 

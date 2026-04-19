@@ -6,6 +6,7 @@ import (
 	"tarsgo-backend/config"
 	"tarsgo-backend/database"
 	"tarsgo-backend/router"
+	"tarsgo-backend/service/runtimeconfig"
 )
 
 func main() {
@@ -25,11 +26,16 @@ func main() {
 	}
 	defer sqlDB.Close()
 
-	if err := database.AutoMigrate(db); err != nil {
+	if err := database.AutoMigrate(db, cfg.App.Env); err != nil {
 		log.Fatalf("auto migrate: %v", err)
 	}
 
-	engine := router.New(cfg, db)
+	runtimeStore, err := runtimeconfig.NewStore(db, cfg)
+	if err != nil {
+		log.Fatalf("init runtime config store: %v", err)
+	}
+
+	engine := router.New(cfg, db, runtimeStore)
 	addr := cfg.App.Address()
 
 	log.Printf("backend started on %s (%s)", addr, cfg.App.Env)

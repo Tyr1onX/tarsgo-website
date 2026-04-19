@@ -7,8 +7,6 @@ import (
 	"strconv"
 	"strings"
 	"time"
-
-	"github.com/joho/godotenv"
 )
 
 type Config struct {
@@ -18,6 +16,8 @@ type Config struct {
 	Auth     AuthConfig
 	SMTP     SMTPConfig
 	GitHub   GitHubConfig
+	Google   GoogleConfig
+	Source   SourceConfig
 }
 
 type AppConfig struct {
@@ -64,6 +64,7 @@ type SMTPConfig struct {
 }
 
 type GitHubConfig struct {
+	Enabled      bool
 	ClientID     string
 	ClientSecret string
 	CallbackURL  string
@@ -74,8 +75,37 @@ type GitHubConfig struct {
 	Scope        string
 }
 
+type GoogleConfig struct {
+	Enabled      bool
+	ClientID     string
+	ClientSecret string
+	CallbackURL  string
+	AuthorizeURL string
+	TokenURL     string
+	UserURL      string
+	Scope        string
+}
+
+type SourceConfig struct {
+	EnvFilePath string
+}
+
 func Load() (*Config, error) {
-	_ = godotenv.Load()
+	envFilePath, err := ResolveEnvFilePath()
+	if err != nil {
+		return nil, err
+	}
+
+	if err := loadEnvFile(envFilePath); err != nil {
+		return nil, err
+	}
+
+	githubClientID := strings.TrimSpace(os.Getenv("GITHUB_CLIENT_ID"))
+	githubClientSecret := strings.TrimSpace(os.Getenv("GITHUB_CLIENT_SECRET"))
+	githubCallbackURL := strings.TrimSpace(os.Getenv("GITHUB_CALLBACK_URL"))
+	googleClientID := strings.TrimSpace(os.Getenv("GOOGLE_CLIENT_ID"))
+	googleClientSecret := strings.TrimSpace(os.Getenv("GOOGLE_CLIENT_SECRET"))
+	googleCallbackURL := strings.TrimSpace(os.Getenv("GOOGLE_CALLBACK_URL"))
 
 	cfg := &Config{
 		App: AppConfig{
@@ -120,14 +150,28 @@ func Load() (*Config, error) {
 			From:     os.Getenv("SMTP_FROM"),
 		},
 		GitHub: GitHubConfig{
-			ClientID:     os.Getenv("GITHUB_CLIENT_ID"),
-			ClientSecret: os.Getenv("GITHUB_CLIENT_SECRET"),
-			CallbackURL:  os.Getenv("GITHUB_CALLBACK_URL"),
+			Enabled:      getProviderEnabled("GITHUB_ENABLED", githubClientID, githubClientSecret, githubCallbackURL),
+			ClientID:     githubClientID,
+			ClientSecret: githubClientSecret,
+			CallbackURL:  githubCallbackURL,
 			AuthorizeURL: getEnv("GITHUB_AUTHORIZE_URL", "https://github.com/login/oauth/authorize"),
 			TokenURL:     getEnv("GITHUB_TOKEN_URL", "https://github.com/login/oauth/access_token"),
 			UserURL:      getEnv("GITHUB_USER_URL", "https://api.github.com/user"),
 			EmailsURL:    getEnv("GITHUB_EMAILS_URL", "https://api.github.com/user/emails"),
 			Scope:        getEnv("GITHUB_SCOPE", "read:user user:email"),
+		},
+		Google: GoogleConfig{
+			Enabled:      getProviderEnabled("GOOGLE_ENABLED", googleClientID, googleClientSecret, googleCallbackURL),
+			ClientID:     googleClientID,
+			ClientSecret: googleClientSecret,
+			CallbackURL:  googleCallbackURL,
+			AuthorizeURL: getEnv("GOOGLE_AUTHORIZE_URL", "https://accounts.google.com/o/oauth2/v2/auth"),
+			TokenURL:     getEnv("GOOGLE_TOKEN_URL", "https://oauth2.googleapis.com/token"),
+			UserURL:      getEnv("GOOGLE_USER_URL", "https://openidconnect.googleapis.com/v1/userinfo"),
+			Scope:        getEnv("GOOGLE_SCOPE", "openid email profile"),
+		},
+		Source: SourceConfig{
+			EnvFilePath: envFilePath,
 		},
 	}
 
@@ -147,28 +191,6 @@ func Load() (*Config, error) {
 	if strings.TrimSpace(cfg.Auth.JWTSecret) == "" {
 		missing = append(missing, "JWT_SECRET")
 	}
-	if strings.TrimSpace(cfg.SMTP.Host) == "" {
-		missing = append(missing, "SMTP_HOST")
-	}
-	if strings.TrimSpace(cfg.SMTP.Username) == "" {
-		missing = append(missing, "SMTP_USERNAME")
-	}
-	if strings.TrimSpace(cfg.SMTP.Password) == "" {
-		missing = append(missing, "SMTP_PASSWORD")
-	}
-	if strings.TrimSpace(cfg.SMTP.From) == "" {
-		missing = append(missing, "SMTP_FROM")
-	}
-	if strings.TrimSpace(cfg.GitHub.ClientID) == "" {
-		missing = append(missing, "GITHUB_CLIENT_ID")
-	}
-	if strings.TrimSpace(cfg.GitHub.ClientSecret) == "" {
-		missing = append(missing, "GITHUB_CLIENT_SECRET")
-	}
-	if strings.TrimSpace(cfg.GitHub.CallbackURL) == "" {
-		missing = append(missing, "GITHUB_CALLBACK_URL")
-	}
-
 	if len(missing) > 0 {
 		return nil, fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))
 	}
@@ -246,6 +268,24 @@ func getEnvAsBool(key string, fallback bool) bool {
 		return fallback
 	}
 	return parsed
+}
+
+func getProviderEnabled(key string, hints ...string) bool {
+	value := strings.TrimSpace(os.Getenv(key))
+	if value != "" {
+		parsed, err := strconv.ParseBool(value)
+		if err == nil {
+			return parsed
+		}
+	}
+
+	for _, hint := range hints {
+		if strings.TrimSpace(hint) != "" {
+			return true
+		}
+	}
+
+	return false
 }
 
 func splitAndClean(value string) []string {

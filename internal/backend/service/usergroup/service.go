@@ -111,6 +111,7 @@ type GroupMemberUser struct {
 	ID     uint64  `json:"id"`
 	Name   string  `json:"name"`
 	Email  string  `json:"email"`
+	Phone  *string `json:"phone,omitempty"`
 	Status uint8   `json:"status"`
 	Role   RoleRef `json:"role"`
 }
@@ -143,6 +144,7 @@ type GroupCandidateItem struct {
 	ID     uint64              `json:"id"`
 	Name   string              `json:"name"`
 	Email  string              `json:"email"`
+	Phone  *string             `json:"phone,omitempty"`
 	Status uint8               `json:"status"`
 	Role   RoleRef             `json:"role"`
 	Groups []CandidateGroupRef `json:"groups,omitempty"`
@@ -653,6 +655,7 @@ func toGroupMemberItem(member *model.UserGroupMember) GroupMemberItem {
 			ID:     member.User.ID,
 			Name:   member.User.Name,
 			Email:  member.User.Email,
+			Phone:  copyStringPtr(member.User.Phone),
 			Status: member.User.Status,
 			Role:   toRoleRef(member.User.Role),
 		},
@@ -664,6 +667,7 @@ func toGroupCandidateItem(user *model.User) GroupCandidateItem {
 		ID:     user.ID,
 		Name:   user.Name,
 		Email:  user.Email,
+		Phone:  copyStringPtr(user.Phone),
 		Status: user.Status,
 		Role:   toRoleRef(user.Role),
 		Groups: candidateGroups(user.GroupMembers),

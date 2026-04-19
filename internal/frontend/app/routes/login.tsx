@@ -6,11 +6,13 @@ import type { Route } from "./+types/login";
 import {
   ApiError,
   getBootstrapStatus,
-  getGitHubLoginUrl,
+  getOptionalCurrentUser,
+  getOAuthLoginProviders,
+  getOAuthLoginUrl,
   loginWithCode,
   loginWithPassword,
-  getOptionalCurrentUser,
   sendLoginCode,
+  type OAuthLoginProvider,
 } from "~/lib/auth-client";
 import { useCooldown } from "~/lib/use-cooldown";
 
@@ -20,6 +22,9 @@ const oauthErrorMap: Record<string, string> = {
   github_callback_invalid: "GitHub 回调参数不完整，请重新发起授权。",
   github_state_invalid: "GitHub 登录态校验失败，请重新尝试。",
   github_oauth_failed: "GitHub 授权失败，请稍后重试。",
+  google_callback_invalid: "Google 回调参数不完整，请重新发起授权。",
+  google_state_invalid: "Google 登录态校验失败，请重新尝试。",
+  google_oauth_failed: "Google 授权失败，请稍后重试。",
 };
 
 export function meta() {
@@ -40,14 +45,16 @@ export async function clientLoader(_: Route.ClientLoaderArgs) {
     throw redirect("/dashboard");
   }
 
-  return null;
+  const providers = await getOAuthLoginProviders();
+  return { providers };
 }
 
 clientLoader.hydrate = true;
 
-export default function Login() {
+export default function Login({ loaderData }: Route.ComponentProps) {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const { providers } = loaderData;
   const [mode, setMode] = useState<LoginMode>("password");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -306,21 +313,28 @@ export default function Login() {
             </button>
           </form>
 
-          <div className="my-6 flex items-center gap-3">
-            <div className="h-px flex-1 bg-gray-800" />
-            <span className="text-xs uppercase tracking-[0.3em] text-gray-500">or</span>
-            <div className="h-px flex-1 bg-gray-800" />
-          </div>
+          {providers.length > 0 ? (
+            <>
+              <div className="my-6 flex items-center gap-3">
+                <div className="h-px flex-1 bg-gray-800" />
+                <span className="text-xs uppercase tracking-[0.3em] text-gray-500">or</span>
+                <div className="h-px flex-1 bg-gray-800" />
+              </div>
 
-          <a
-            href={getGitHubLoginUrl()}
-            className="w-full inline-flex items-center justify-center gap-3 px-4 py-3 border border-gray-700 rounded-lg text-sm font-medium text-gray-200 hover:bg-white/5 transition-colors"
-          >
-            <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M12 1.5a10.5 10.5 0 0 0-3.32 20.46c.53.1.72-.23.72-.5v-1.96c-2.94.64-3.56-1.24-3.56-1.24-.48-1.2-1.17-1.52-1.17-1.52-.96-.65.07-.64.07-.64 1.05.08 1.6 1.06 1.6 1.06.95 1.6 2.48 1.14 3.08.87.1-.67.37-1.14.66-1.4-2.35-.26-4.82-1.16-4.82-5.15 0-1.14.42-2.07 1.1-2.8-.11-.26-.48-1.33.1-2.77 0 0 .9-.28 2.96 1.07a10.4 10.4 0 0 1 5.39 0c2.06-1.35 2.96-1.07 2.96-1.07.58 1.44.21 2.51.1 2.77.69.73 1.1 1.66 1.1 2.8 0 4-2.47 4.89-4.83 5.14.38.32.72.95.72 1.92v2.84c0 .28.19.61.73.5A10.5 10.5 0 0 0 12 1.5Z" />
-            </svg>
-            使用 GitHub 登录
-          </a>
+              <div className="space-y-3">
+                {providers.map((provider) => (
+                  <a
+                    key={provider.provider}
+                    href={getOAuthLoginUrl(provider.provider)}
+                    className="w-full inline-flex items-center justify-center gap-3 px-4 py-3 border border-gray-700 rounded-lg text-sm font-medium text-gray-200 hover:bg-white/5 transition-colors"
+                  >
+                    <OAuthProviderIcon provider={provider} />
+                    <span>使用 {provider.displayName} 登录</span>
+                  </a>
+                ))}
+              </div>
+            </>
+          ) : null}
 
           <p className="mt-6 text-center text-sm text-gray-400">
             还没有账号？{" "}
@@ -334,6 +348,22 @@ export default function Login() {
         </div>
       </div>
     </div>
+  );
+}
+
+function OAuthProviderIcon({ provider }: { provider: OAuthLoginProvider }) {
+  if (provider.provider === "google") {
+    return (
+      <div className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white text-[11px] font-semibold text-sky-600" aria-hidden="true">
+        G
+      </div>
+    );
+  }
+
+  return (
+    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <path d="M12 1.5a10.5 10.5 0 0 0-3.32 20.46c.53.1.72-.23.72-.5v-1.96c-2.94.64-3.56-1.24-3.56-1.24-.48-1.2-1.17-1.52-1.17-1.52-.96-.65.07-.64.07-.64 1.05.08 1.6 1.06 1.6 1.06.95 1.6 2.48 1.14 3.08.87.1-.67.37-1.14.66-1.4-2.35-.26-4.82-1.16-4.82-5.15 0-1.14.42-2.07 1.1-2.8-.11-.26-.48-1.33.1-2.77 0 0 .9-.28 2.96 1.07a10.4 10.4 0 0 1 5.39 0c2.06-1.35 2.96-1.07 2.96-1.07.58 1.44.21 2.51.1 2.77.69.73 1.1 1.66 1.1 2.8 0 4-2.47 4.89-4.83 5.14.38.32.72.95.72 1.92v2.84c0 .28.19.61.73.5A10.5 10.5 0 0 0 12 1.5Z" />
+    </svg>
   );
 }
 

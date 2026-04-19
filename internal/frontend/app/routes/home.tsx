@@ -8,7 +8,11 @@ import {
 } from "react";
 import { Navbar } from "../components/navbar";
 import { Link } from "react-router";
-import { getOptionalCurrentUser, type AuthUser } from "~/lib/auth-client";
+import {
+  getOptionalCurrentUser,
+  subscribeAuthStateChange,
+  type AuthUser,
+} from "~/lib/auth-client";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -673,6 +677,11 @@ export default function Home() {
 
   useEffect(() => {
     let disposed = false;
+    const unsubscribe = subscribeAuthStateChange((user) => {
+      if (!disposed) {
+        setCurrentUser(user);
+      }
+    });
 
     void getOptionalCurrentUser({ force: true })
       .then((user) => {
@@ -688,6 +697,7 @@ export default function Home() {
 
     return () => {
       disposed = true;
+      unsubscribe();
     };
   }, []);
 

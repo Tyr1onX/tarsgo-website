@@ -28,6 +28,7 @@ export interface AdminUserGroupMemberUser {
   id: number;
   name: string;
   email: string;
+  phone?: string | null;
   status: number;
   role: AdminUserRole;
 }
@@ -53,6 +54,7 @@ export interface AdminUserGroupCandidate {
   id: number;
   name: string;
   email: string;
+  phone?: string | null;
   status: number;
   role: AdminUserRole;
   groups?: AdminUserGroupCandidateGroup[];

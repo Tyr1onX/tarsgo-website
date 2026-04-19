@@ -26,6 +26,9 @@ type authService interface {
 	LoginWithPassword(ctx context.Context, email string, password string) (*auth.AuthResult, error)
 	SendLoginCode(ctx context.Context, email string) error
 	LoginWithCode(ctx context.Context, email string, code string) (*auth.AuthResult, error)
+	ListOAuthLoginProviders() []auth.OAuthLoginProvider
+	BuildOAuthLoginURL(provider string) (string, string, error)
+	HandleOAuthCallback(ctx context.Context, provider string, code string) (*auth.AuthResult, error)
 	BuildGitHubLoginURL() (string, string, error)
 	HandleGitHubCallback(ctx context.Context, code string) (*auth.AuthResult, error)
 	CurrentUser(ctx context.Context, token string) (*auth.SessionUser, error)
@@ -192,7 +195,21 @@ func (h *AuthHandler) LoginWithCode(c *gin.Context) {
 	writeAPI(c, http.StatusOK, "登录成功", gin.H{"user": result.User})
 }
 
+func (h *AuthHandler) ListOAuthProviders(c *gin.Context) {
+	writeAPI(c, http.StatusOK, "获取第三方登录配置成功", gin.H{
+		"items": h.service.ListOAuthLoginProviders(),
+	})
+}
+
+func (h *AuthHandler) OAuthLogin(c *gin.Context) {
+	h.oauthLogin(c, strings.TrimSpace(c.Param("provider")))
+}
+
 func (h *AuthHandler) GitHubLogin(c *gin.Context) {
+	h.oauthLogin(c, "github")
+}
+
+func (h *AuthHandler) oauthLogin(c *gin.Context, provider string) {
 	status, err := h.service.BootstrapStatus(c.Request.Context())
 	if err != nil {
 		h.handleServiceError(c, err)
@@ -203,17 +220,25 @@ func (h *AuthHandler) GitHubLogin(c *gin.Context) {
 		return
 	}
 
-	loginURL, state, err := h.service.BuildGitHubLoginURL()
+	loginURL, state, err := h.service.BuildOAuthLoginURL(provider)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
 	}
 
-	h.setCookie(c, h.service.OAuthStateCookieName(), state, 10*60, true)
+	h.setCookie(c, h.service.OAuthStateCookieName(), buildOAuthStateCookieValue(provider, state), 10*60, true)
 	c.Redirect(http.StatusFound, loginURL)
 }
 
+func (h *AuthHandler) OAuthCallback(c *gin.Context) {
+	h.oauthCallback(c, strings.TrimSpace(c.Param("provider")))
+}
+
 func (h *AuthHandler) GitHubCallback(c *gin.Context) {
+	h.oauthCallback(c, "github")
+}
+
+func (h *AuthHandler) oauthCallback(c *gin.Context, provider string) {
 	status, err := h.service.BootstrapStatus(c.Request.Context())
 	if err != nil {
 		h.handleServiceError(c, err)
@@ -229,21 +254,22 @@ func (h *AuthHandler) GitHubCallback(c *gin.Context) {
 	code := strings.TrimSpace(c.Query("code"))
 	if state == "" || code == "" {
 		h.clearOAuthStateCookie(c)
-		c.Redirect(http.StatusFound, h.service.LoginErrorURL(url.QueryEscape("github_callback_invalid")))
+		c.Redirect(http.StatusFound, h.service.LoginErrorURL(url.QueryEscape(authErrorCode(provider, "callback_invalid"))))
 		return
 	}
 
-	expectedState, err := c.Cookie(h.service.OAuthStateCookieName())
-	if err != nil || expectedState != state {
+	expectedCookieValue, err := c.Cookie(h.service.OAuthStateCookieName())
+	expectedProvider, expectedState := parseOAuthStateCookieValue(expectedCookieValue)
+	if err != nil || expectedProvider != strings.TrimSpace(provider) || expectedState != state {
 		h.clearOAuthStateCookie(c)
-		c.Redirect(http.StatusFound, h.service.LoginErrorURL(url.QueryEscape("github_state_invalid")))
+		c.Redirect(http.StatusFound, h.service.LoginErrorURL(url.QueryEscape(authErrorCode(provider, "state_invalid"))))
 		return
 	}
 
-	result, err := h.service.HandleGitHubCallback(c.Request.Context(), code)
+	result, err := h.service.HandleOAuthCallback(c.Request.Context(), provider, code)
 	if err != nil {
 		h.clearOAuthStateCookie(c)
-		c.Redirect(http.StatusFound, h.service.LoginErrorURL(url.QueryEscape("github_oauth_failed")))
+		c.Redirect(http.StatusFound, h.service.LoginErrorURL(url.QueryEscape(authErrorCode(provider, "oauth_failed"))))
 		return
 	}
 
@@ -311,4 +337,20 @@ func writeAPI(c *gin.Context, status int, message string, data any) {
 
 func writeAPIError(c *gin.Context, status int, message string) {
 	writeAPI(c, status, message, nil)
+}
+
+func buildOAuthStateCookieValue(provider string, state string) string {
+	return strings.TrimSpace(provider) + ":" + strings.TrimSpace(state)
+}
+
+func parseOAuthStateCookieValue(value string) (string, string) {
+	provider, state, ok := strings.Cut(strings.TrimSpace(value), ":")
+	if !ok {
+		return "", ""
+	}
+	return strings.TrimSpace(provider), strings.TrimSpace(state)
+}
+
+func authErrorCode(provider string, reason string) string {
+	return strings.ToLower(strings.TrimSpace(provider)) + "_" + strings.TrimSpace(reason)
 }

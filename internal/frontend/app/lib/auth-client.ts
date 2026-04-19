@@ -26,8 +26,20 @@ export interface BootstrapStatus {
   setupRequired: boolean;
 }
 
+export interface OAuthLoginProvider {
+  provider: string;
+  displayName: string;
+}
+
 let currentUserCache: AuthUser | null = null;
 let currentUserRequest: Promise<AuthUser> | null = null;
+const authStateListeners = new Set<(user: AuthUser | null) => void>();
+
+function notifyAuthStateChange(user: AuthUser | null) {
+  for (const listener of authStateListeners) {
+    listener(user);
+  }
+}
 
 export async function getBootstrapStatus(): Promise<BootstrapStatus> {
   return apiRequest<BootstrapStatus>("/api/bootstrap/status");
@@ -52,6 +64,7 @@ export async function registerWithEmail(input: {
     body: input,
   });
   currentUserCache = data.user;
+  notifyAuthStateChange(data.user);
   return data.user;
 }
 
@@ -65,6 +78,7 @@ export async function registerInitialSuperAdmin(input: {
     body: input,
   });
   currentUserCache = data.user;
+  notifyAuthStateChange(data.user);
   return data.user;
 }
 
@@ -77,6 +91,7 @@ export async function loginWithPassword(input: {
     body: input,
   });
   currentUserCache = data.user;
+  notifyAuthStateChange(data.user);
   return data.user;
 }
 
@@ -85,6 +100,11 @@ export async function sendLoginCode(email: string): Promise<void> {
     method: "POST",
     body: { email },
   });
+}
+
+export async function getOAuthLoginProviders(): Promise<OAuthLoginProvider[]> {
+  const data = await apiRequest<{ items: OAuthLoginProvider[] }>("/api/login/providers");
+  return data.items;
 }
 
 export async function loginWithCode(input: {
@@ -96,11 +116,21 @@ export async function loginWithCode(input: {
     body: input,
   });
   currentUserCache = data.user;
+  notifyAuthStateChange(data.user);
   return data.user;
 }
 
 export function getCachedCurrentUser(): AuthUser | null {
   return currentUserCache;
+}
+
+export function subscribeAuthStateChange(
+  listener: (user: AuthUser | null) => void,
+): () => void {
+  authStateListeners.add(listener);
+  return () => {
+    authStateListeners.delete(listener);
+  };
 }
 
 export async function getCurrentUser(options: { force?: boolean } = {}): Promise<AuthUser> {
@@ -115,10 +145,12 @@ export async function getCurrentUser(options: { force?: boolean } = {}): Promise
   currentUserRequest = apiRequest<{ user: AuthUser }>("/api/me")
     .then((data) => {
       currentUserCache = data.user;
+      notifyAuthStateChange(data.user);
       return data.user;
     })
     .catch((error) => {
       currentUserCache = null;
+      notifyAuthStateChange(null);
       throw error;
     })
     .finally(() => {
@@ -145,8 +177,13 @@ export async function logout(): Promise<void> {
   await apiRequest("/api/logout", { method: "POST" });
   currentUserCache = null;
   currentUserRequest = null;
+  notifyAuthStateChange(null);
+}
+
+export function getOAuthLoginUrl(provider: string): string {
+  return buildApiUrl(`/api/login/${encodeURIComponent(provider)}`);
 }
 
 export function getGitHubLoginUrl(): string {
-  return buildApiUrl("/api/login/github");
+  return getOAuthLoginUrl("github");
 }
