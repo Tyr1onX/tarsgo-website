@@ -3,6 +3,7 @@ import { Icon, type IconifyIcon } from "@iconify/react";
 import { type FormEvent, type ReactNode, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 
+import { Notify } from "~/components/notify";
 import { ApiError } from "~/lib/api-client";
 import {
   getOAuthSystemConfig,
@@ -17,10 +18,7 @@ export function meta() {
   ];
 }
 
-type FlashState =
-  | { type: "success"; message: string }
-  | { type: "error"; message: string }
-  | null;
+type SuccessFlashState = string | null;
 
 type OAuthFormState = {
   enabled: boolean;
@@ -30,6 +28,17 @@ type OAuthFormState = {
   scope: string;
 };
 
+const emptyFormState: OAuthFormState = {
+  enabled: false,
+  clientId: "",
+  clientSecret: "",
+  callbackUrl: "",
+  scope: "",
+};
+
+const FLASH_DURATION_MS = 3000;
+const NOTIFY_ANIMATION_MS = 300;
+
 export default function SystemConfigOAuthPage() {
   const navigate = useNavigate();
   const [items, setItems] = useState<OAuthSystemConfigItem[]>([]);
@@ -38,7 +47,9 @@ export default function SystemConfigOAuthPage() {
   const [editingProvider, setEditingProvider] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [flash, setFlash] = useState<FlashState>(null);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [successFlash, setSuccessFlash] = useState<SuccessFlashState>(null);
+  const [successFlashVisible, setSuccessFlashVisible] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -46,6 +57,7 @@ export default function SystemConfigOAuthPage() {
     async function loadConfig() {
       try {
         setLoading(true);
+        setErrorMessage("");
         const result = await getOAuthSystemConfig();
         if (cancelled) {
           return;
@@ -71,7 +83,7 @@ export default function SystemConfigOAuthPage() {
         }
       } catch (error) {
         if (!cancelled) {
-          handlePageError(error, navigate, setFlash);
+          handlePageError(error, navigate, setErrorMessage);
         }
       } finally {
         if (!cancelled) {
@@ -86,33 +98,72 @@ export default function SystemConfigOAuthPage() {
     };
   }, [navigate]);
 
+  useEffect(() => {
+    if (!successFlash) {
+      return;
+    }
+
+    setSuccessFlashVisible(true);
+  }, [successFlash]);
+
+  useEffect(() => {
+    if (!successFlash || !successFlashVisible) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setSuccessFlashVisible(false);
+    }, FLASH_DURATION_MS);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [successFlash, successFlashVisible]);
+
+  useEffect(() => {
+    if (!successFlash || successFlashVisible) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setSuccessFlash(null);
+    }, NOTIFY_ANIMATION_MS);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [successFlash, successFlashVisible]);
+
   const currentItem = useMemo(
     () => items.find((item) => item.provider === activeProvider) ?? null,
     [activeProvider, items],
   );
   const currentForm = useMemo(
-    () =>
-      forms[activeProvider] ?? {
-        enabled: false,
-        clientId: "",
-        clientSecret: "",
-        callbackUrl: "",
-        scope: "",
-      },
+    () => forms[activeProvider] ?? emptyFormState,
     [activeProvider, forms],
   );
+  const isEditingCurrentProvider = currentItem?.provider === editingProvider;
 
+  const currentDefaultScope = useMemo(
+    () => getDefaultScope(currentItem?.provider ?? activeProvider),
+    [activeProvider, currentItem?.provider],
+  );
   const secretPlaceholder = useMemo(() => {
     if (!currentItem?.clientSecretConfigured) {
       return "输入 Client Secret";
     }
     return `${currentItem.clientSecretMasked}（留空保持不变）`;
   }, [currentItem]);
-  const isEditingCurrentProvider = currentItem?.provider === editingProvider;
+  const scopeHelper = useMemo(() => {
+    if (!currentItem) {
+      return "";
+    }
+    return `OAuth 授权范围，决定 ${currentItem.displayName} 返回哪些用户信息。留空时默认使用 ${currentDefaultScope}。`;
+  }, [currentDefaultScope, currentItem]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setFlash(null);
+    setErrorMessage("");
 
     try {
       setSaving(true);
@@ -131,12 +182,9 @@ export default function SystemConfigOAuthPage() {
         },
       }));
       setEditingProvider(null);
-      setFlash({
-        type: "success",
-        message: `${result.displayName} 配置已保存并立即生效。`,
-      });
+      setSuccessFlash(`${result.displayName} 配置已保存并立即生效。`);
     } catch (error) {
-      handlePageError(error, navigate, setFlash);
+      handlePageError(error, navigate, setErrorMessage);
     } finally {
       setSaving(false);
     }
@@ -152,77 +200,91 @@ export default function SystemConfigOAuthPage() {
     }));
   }
 
+  function handleEdit(provider: string) {
+    setErrorMessage("");
+    setEditingProvider(provider);
+  }
+
+  function handleSelectProvider(provider: string) {
+    setErrorMessage("");
+    setActiveProvider(provider);
+  }
+
+  function clearSuccessFlash(immediate = false) {
+    if (immediate) {
+      setSuccessFlashVisible(false);
+      setSuccessFlash(null);
+      return;
+    }
+
+    setSuccessFlashVisible(false);
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="space-y-2">
-        <h1 className="text-2xl font-bold text-white">第三方登录</h1>
-        <p className="text-sm text-gray-400">
-          管理 GitHub 与 Google 登录接入参数。保存后会立即切换当前服务实例的登录配置。
-        </p>
-      </div>
+    <>
+      {successFlash ? (
+        <Notify
+          tone="success"
+          title="操作成功"
+          message={successFlash}
+          open={successFlashVisible}
+          onClose={() => clearSuccessFlash()}
+          placement="bottom-right"
+        />
+      ) : null}
 
-      {flash ? <FlashBanner type={flash.type} message={flash.message} /> : null}
-
-      <div className="rounded-2xl border border-amber-500/20 bg-amber-500/5 px-4 py-3 text-sm text-amber-100">
-        当前仅开放必要字段：启用状态、Client ID、Client Secret、回调地址与 Scope。高级端点继续使用内置默认值。
-      </div>
-
-      <div className="rounded-2xl border border-gray-800 bg-gray-900">
-        <div className="border-b border-gray-800 px-6 py-4">
-          <div className="inline-flex rounded-xl border border-gray-800 bg-gray-950/70 p-1">
-            {items.map((item) => {
-              const active = item.provider === activeProvider;
-              return (
-                <button
-                  key={item.provider}
-                  type="button"
-                  onClick={() => setActiveProvider(item.provider)}
-                  className={`rounded-lg px-4 py-2 text-sm transition-colors ${
-                    active
-                      ? "bg-primary-500 text-white"
-                      : "text-gray-400 hover:text-white"
-                  }`}
-                >
-                  {item.displayName}
-                </button>
-              );
-            })}
-          </div>
+      <div className="space-y-6">
+        <div className="motion-fade-up">
+          <h1 className="text-2xl font-bold text-white">第三方登录</h1>
         </div>
 
-        {currentItem ? (
-          <form onSubmit={handleSubmit}>
-            <SectionHeader
-              icon={keyRound}
-              title={`${currentItem.displayName} 配置`}
-              description="Client Secret 留空时保留当前已保存的值。"
-              action={isEditingCurrentProvider ? (
-                <button
-                  type="submit"
-                  disabled={loading || saving}
-                  className="inline-flex items-center justify-center rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {saving ? "保存中..." : "保存配置"}
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => setEditingProvider(currentItem.provider)}
-                  disabled={loading || saving}
-                  className="inline-flex items-center justify-center rounded-lg border border-gray-700 px-4 py-2.5 text-sm font-medium text-gray-100 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  编辑配置
-                </button>
-              )}
-            />
-            {isEditingCurrentProvider ? (
+        {errorMessage ? <ErrorBanner message={errorMessage} /> : null}
+
+        <div className="motion-fade-up rounded-2xl border border-gray-800 bg-gray-900" style={{ animationDelay: "80ms" }}>
+          <div className="border-b border-gray-800 px-6 py-4">
+            <div className="inline-flex rounded-xl border border-gray-800 bg-gray-950/70 p-1">
+              {items.map((item) => {
+                const active = item.provider === activeProvider;
+                return (
+                  <button
+                    key={item.provider}
+                    type="button"
+                    onClick={() => handleSelectProvider(item.provider)}
+                    className={`rounded-lg px-4 py-2 text-sm transition-colors ${
+                      active
+                        ? "bg-primary-500 text-white"
+                        : "text-gray-400 hover:text-white"
+                    }`}
+                  >
+                    {item.displayName}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {currentItem ? isEditingCurrentProvider ? (
+            <form onSubmit={handleSubmit}>
+              <SectionHeader
+                icon={keyRound}
+                title={`${currentItem.displayName} 配置`}
+                action={(
+                  <button
+                    type="submit"
+                    disabled={loading || saving}
+                    className="inline-flex min-w-[104px] items-center justify-center rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {saving ? "保存中..." : "保存配置"}
+                  </button>
+                )}
+              />
               <div className="grid gap-4 px-6 py-5 md:grid-cols-2">
-                <label className="flex items-center gap-3 rounded-xl border border-gray-800 bg-gray-950 px-4 py-3 md:col-span-2">
+                <label className="flex items-center gap-3 rounded-xl border border-gray-800 bg-gray-950/70 px-4 py-3 md:col-span-2">
                   <input
                     type="checkbox"
                     checked={currentForm.enabled}
                     onChange={(event) => updateCurrentForm({ enabled: event.target.checked })}
-                    disabled={loading}
+                    disabled={loading || saving}
                     className="h-4 w-4 rounded border-gray-700 bg-gray-900 text-primary-500 focus:ring-primary-500/30"
                   />
                   <div>
@@ -238,7 +300,7 @@ export default function SystemConfigOAuthPage() {
                   value={currentForm.clientId}
                   onChange={(value) => updateCurrentForm({ clientId: value })}
                   placeholder="输入 Client ID"
-                  disabled={loading}
+                  disabled={loading || saving}
                 />
                 <InputField
                   label="Client Secret"
@@ -246,7 +308,7 @@ export default function SystemConfigOAuthPage() {
                   onChange={(value) => updateCurrentForm({ clientSecret: value })}
                   placeholder={secretPlaceholder}
                   type="password"
-                  disabled={loading}
+                  disabled={loading || saving}
                 />
                 <div className="md:col-span-2">
                   <InputField
@@ -254,22 +316,40 @@ export default function SystemConfigOAuthPage() {
                     value={currentForm.callbackUrl}
                     onChange={(value) => updateCurrentForm({ callbackUrl: value })}
                     placeholder="https://example.com/api/login/provider/callback"
-                    disabled={loading}
+                    disabled={loading || saving}
                   />
                 </div>
                 <div className="md:col-span-2">
                   <InputField
-                    label="Scope"
+                    label="Scope（授权范围）"
                     value={currentForm.scope}
                     onChange={(value) => updateCurrentForm({ scope: value })}
-                    placeholder="openid email profile"
-                    disabled={loading}
+                    placeholder={currentDefaultScope}
+                    disabled={loading || saving}
                   />
                 </div>
               </div>
-            ) : (
+            </form>
+          ) : (
+            <div>
+              <SectionHeader
+                icon={keyRound}
+                title={`${currentItem.displayName} 配置`}
+                action={(
+                  <button
+                    type="button"
+                    onClick={() => handleEdit(currentItem.provider)}
+                    disabled={loading || saving}
+                    className="inline-flex min-w-[104px] items-center justify-center rounded-lg border border-gray-700 px-4 py-2.5 text-sm font-medium text-gray-100 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    编辑配置
+                  </button>
+                )}
+              />
               <div className="grid gap-4 px-6 py-5 md:grid-cols-2">
-                <ReadonlyField label="启用状态" value={currentItem.enabled ? "已启用" : "未启用"} />
+                <div className="md:col-span-2">
+                  <ReadonlyField label="启用状态" value={currentItem.enabled ? "已启用" : "未启用"} />
+                </div>
                 <ReadonlyField label="Client ID" value={formatDisplayValue(currentItem.clientId)} />
                 <ReadonlyField
                   label="Client Secret"
@@ -283,16 +363,19 @@ export default function SystemConfigOAuthPage() {
                   />
                 </div>
                 <div className="md:col-span-2">
-                  <ReadonlyField label="Scope" value={formatDisplayValue(currentItem.scope)} />
+                  <ReadonlyField
+                    label="Scope（授权范围）"
+                    value={formatDisplayValue(currentItem.scope)}
+                  />
                 </div>
               </div>
-            )}
-          </form>
-        ) : (
-          <div className="px-6 py-10 text-sm text-gray-400">暂无可配置的第三方登录项。</div>
-        )}
+            </div>
+          ) : (
+            <div className="px-6 py-10 text-sm text-gray-400">暂无可配置的第三方登录项。</div>
+          )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 
@@ -304,7 +387,7 @@ function SectionHeader({
 }: {
   icon: IconifyIcon;
   title: string;
-  description: string;
+  description?: ReactNode;
   action?: ReactNode;
 }) {
   return (
@@ -315,7 +398,7 @@ function SectionHeader({
         </div>
         <div>
           <h2 className="text-lg font-semibold text-white">{title}</h2>
-          <p className="mt-1 text-sm text-gray-400">{description}</p>
+          {description ? <p className="mt-1 text-sm text-gray-400">{description}</p> : null}
         </div>
       </div>
       {action ? <div className="md:ml-6 md:shrink-0">{action}</div> : null}
@@ -326,16 +409,19 @@ function SectionHeader({
 function ReadonlyField({
   label,
   value,
+  helper,
   valueClassName,
 }: {
   label: string;
   value: string;
+  helper?: ReactNode;
   valueClassName?: string;
 }) {
   return (
-    <div className="rounded-xl border border-gray-800 bg-gray-950/70 px-4 py-3">
+    <div className="rounded-xl border border-gray-800 px-4 py-3">
       <div className="text-xs font-medium uppercase tracking-wider text-gray-500">{label}</div>
       <div className={`mt-2 text-sm text-white ${valueClassName ?? ""}`}>{value}</div>
+      {helper ? <p className="mt-2 text-xs leading-5 text-gray-500">{helper}</p> : null}
     </div>
   );
 }
@@ -345,6 +431,7 @@ function InputField({
   value,
   onChange,
   placeholder,
+  helper,
   type = "text",
   disabled = false,
 }: {
@@ -352,12 +439,13 @@ function InputField({
   value: string;
   onChange: (value: string) => void;
   placeholder: string;
+  helper?: ReactNode;
   type?: "text" | "password";
   disabled?: boolean;
 }) {
   return (
-    <label className="block">
-      <span className="mb-2 block text-xs font-medium uppercase tracking-wider text-gray-500">
+    <label className="block rounded-xl border border-gray-800 bg-gray-950/70 px-4 py-3">
+      <span className="block text-xs font-medium uppercase tracking-wider text-gray-500">
         {label}
       </span>
       <input
@@ -366,19 +454,16 @@ function InputField({
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
         disabled={disabled}
-        className="w-full rounded-xl border border-gray-800 bg-gray-950 px-4 py-3 text-sm text-white placeholder:text-gray-500 focus:border-primary-500/60 focus:outline-none focus:ring-1 focus:ring-primary-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+        className="mt-2 w-full bg-transparent text-sm text-white placeholder:text-gray-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
       />
+      {helper ? <p className="mt-2 text-xs leading-5 text-gray-500">{helper}</p> : null}
     </label>
   );
 }
 
-function FlashBanner({ type, message }: { type: "success" | "error"; message: string }) {
-  const className = type === "success"
-    ? "border-emerald-500/20 bg-emerald-500/10 text-emerald-100"
-    : "border-rose-500/20 bg-rose-500/10 text-rose-100";
-
+function ErrorBanner({ message }: { message: string }) {
   return (
-    <div className={`rounded-xl border px-4 py-3 text-sm ${className}`}>
+    <div className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">
       {message}
     </div>
   );
@@ -387,7 +472,7 @@ function FlashBanner({ type, message }: { type: "success" | "error"; message: st
 function handlePageError(
   error: unknown,
   navigate: ReturnType<typeof useNavigate>,
-  setFlash: (state: FlashState) => void,
+  setErrorMessage: (message: string) => void,
 ) {
   if (error instanceof ApiError && error.status === 401) {
     navigate("/login", { replace: true });
@@ -397,12 +482,13 @@ function handlePageError(
     navigate("/dashboard/users", { replace: true });
     return;
   }
-  setFlash({
-    type: "error",
-    message: error instanceof ApiError ? error.message : "请求失败，请稍后重试。",
-  });
+  setErrorMessage(error instanceof ApiError ? error.message : "请求失败，请稍后重试。");
 }
 
 function formatDisplayValue(value: string) {
   return value.trim() || "未配置";
+}
+
+function getDefaultScope(provider: string) {
+  return provider === "google" ? "openid email profile" : "read:user user:email";
 }

@@ -18,6 +18,7 @@ import { Icon, type IconifyIcon } from "@iconify/react";
 import { type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useOutletContext } from "react-router";
+import { AnimatedSelect } from "~/components/animated-select";
 import { ModalShell } from "~/components/modal-shell";
 import { Notify } from "~/components/notify";
 import {
@@ -759,7 +760,7 @@ export default function Users() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div className="motion-fade-up flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-fg-primary">用户数据</h1>
         </div>
@@ -785,7 +786,7 @@ export default function Users() {
         />
       ) : null}
 
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+      <div className="motion-fade-up grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4" style={{ animationDelay: "80ms" }}>
         <StatCard label="账号总数" value={summary.total} icon={usersIcon} iconBg="bg-accent-primary/10" iconText="text-accent-primary" barFrom="from-accent-primary/60" />
         <StatCard label="启用账号" value={summary.enabled} icon={power} iconBg="bg-accent-tertiary/10" iconText="text-accent-tertiary" barFrom="from-accent-tertiary/60" />
         <StatCard label="管理员账号" value={summary.admins} icon={shieldCheck} iconBg="bg-accent-gold/10" iconText="text-accent-gold" barFrom="from-accent-gold/60" />
@@ -794,7 +795,8 @@ export default function Users() {
 
       <form
         onSubmit={handleSearchSubmit}
-        className="rounded-2xl border border-border-subtle bg-surface-card/60 p-5 ring-1 ring-white/[0.03] backdrop-blur-sm"
+        className="motion-fade-up rounded-2xl border border-border-subtle bg-surface-card/60 p-5 ring-1 ring-white/[0.03] backdrop-blur-sm"
+        style={{ animationDelay: "140ms" }}
       >
         <div className="mb-4 flex items-center gap-2 border-b border-border-subtle/40 pb-4">
           <Icon icon={searchIcon} className="h-4 w-4 text-fg-dim" />
@@ -813,39 +815,36 @@ export default function Users() {
           </div>
           <div>
             <FieldLabel label="角色" />
-            <select
+            <AnimatedSelect
               value={filters.role ?? ""}
-              onChange={(event) => setFilters((previous) => ({ ...previous, role: event.target.value }))}
-              className={InputClassName()}
-            >
-              <option value="">全部角色</option>
-              {roles.map((role) => (
-                <option key={role.id} value={role.name}>
-                  {role.displayName}
-                </option>
-              ))}
-            </select>
+              onChange={(value) => setFilters((previous) => ({ ...previous, role: value }))}
+              options={[
+                { value: "", label: "全部角色" },
+                ...roles.map((role) => ({
+                  value: role.name,
+                  label: role.displayName,
+                })),
+              ]}
+            />
           </div>
           <div>
             <FieldLabel label="组别" />
-            <select
+            <AnimatedSelect
               value={String(filters.groupId ?? "")}
-              onChange={(event) =>
+              onChange={(value) =>
                 setFilters((previous) => ({
                   ...previous,
-                  groupId: event.target.value === "" ? "" : Number(event.target.value),
+                  groupId: value === "" ? "" : Number(value),
                 }))
               }
-              className={InputClassName()}
-            >
-              <option value="">全部组别</option>
-              {groupOptions.map((group) => (
-                <option key={group.id} value={group.id}>
-                  {group.name}
-                  {group.status === 0 ? "（停用）" : ""}
-                </option>
-              ))}
-            </select>
+              options={[
+                { value: "", label: "全部组别" },
+                ...groupOptions.map((group) => ({
+                  value: group.id,
+                  label: `${group.name}${group.status === 0 ? "（停用）" : ""}`,
+                })),
+              ]}
+            />
           </div>
           <div className="flex items-end gap-3">
             <button
@@ -866,7 +865,10 @@ export default function Users() {
         </div>
       </form>
 
-      <div className="overflow-hidden rounded-2xl border border-border-subtle bg-surface-card/60 shadow-xl shadow-black/20">
+      <div
+        className="motion-fade-up overflow-hidden rounded-2xl border border-border-subtle bg-surface-card/60 shadow-xl shadow-black/20"
+        style={{ animationDelay: "200ms" }}
+      >
         <div className="hidden overflow-x-auto md:block">
           <table className="min-w-full text-sm">
             <thead className="bg-surface-dark/80 text-left text-xs tracking-wider text-fg-dim">
@@ -1102,23 +1104,23 @@ export default function Users() {
             第 {pagination.page} / {Math.max(pagination.totalPages, 1)} 页，共 {pagination.total} 条记录
           </div>
           <div className="flex items-center gap-3">
-            <select
+            <AnimatedSelect
+              ariaLabel="每页条数"
               value={pagination.pageSize}
-              onChange={(event) =>
+              onChange={(value) =>
                 setQuery((previous) => ({
                   ...previous,
                   page: 1,
-                  pageSize: Number(event.target.value),
+                  pageSize: Number(value),
                 }))
               }
-              className="rounded-lg border border-border-subtle bg-surface-dark px-3 py-2 text-sm text-fg-muted"
-            >
-              {[10, 20, 50].map((value) => (
-                <option key={value} value={value}>
-                  {value} / 页
-                </option>
-              ))}
-            </select>
+              options={[10, 20, 50].map((value) => ({
+                value,
+                label: `${value} / 页`,
+              }))}
+              size="compact"
+              fitContent
+            />
             <button
               type="button"
               disabled={pagination.page <= 1}
@@ -1159,21 +1161,15 @@ export default function Users() {
                 <div className="grid gap-4 md:grid-cols-2">
                   <div>
                     <FieldLabel label="角色" />
-                    <select
+                    <AnimatedSelect
                       value={createForm.roleId}
-                      onChange={(event) => setCreateForm((previous) => ({ ...previous, roleId: event.target.value }))}
-                      className={InputClassName()}
-                      required
-                    >
-                      <option value="" disabled>
-                        请选择角色
-                      </option>
-                      {editableRoleOptions.map((role) => (
-                        <option key={role.id} value={role.id}>
-                          {role.displayName}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(value) => setCreateForm((previous) => ({ ...previous, roleId: value }))}
+                      options={editableRoleOptions.map((role) => ({
+                        value: role.id,
+                        label: role.displayName,
+                      }))}
+                      placeholder="请选择角色"
+                    />
                   </div>
                   <div>
                     <FieldLabel label="姓名" />
@@ -1248,17 +1244,14 @@ export default function Users() {
                   </div>
                   <div>
                     <FieldLabel label="性别" />
-                    <select
+                    <AnimatedSelect
                       value={createForm.gender}
-                      onChange={(event) => setCreateForm((previous) => ({ ...previous, gender: event.target.value }))}
-                      className={InputClassName()}
-                    >
-                      {genderOptions.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
+                      onChange={(value) => setCreateForm((previous) => ({ ...previous, gender: value }))}
+                      options={genderOptions.map((option) => ({
+                        value: option.value,
+                        label: option.label,
+                      }))}
+                    />
                   </div>
                   <div>
                     <FieldLabel label="生日" />
@@ -1581,18 +1574,15 @@ export default function Users() {
                           </div>
                           <div>
                             <FieldLabel label="性别" />
-                            <select
+                            <AnimatedSelect
                               value={editForm.gender}
-                              onChange={(event) => setEditForm((previous) => ({ ...previous, gender: event.target.value }))}
-                              className={InputClassName(!selectedCanMutate)}
+                              onChange={(value) => setEditForm((previous) => ({ ...previous, gender: value }))}
                               disabled={!selectedCanMutate}
-                            >
-                              {genderOptions.map((option) => (
-                                <option key={option.value} value={option.value}>
-                                  {option.label}
-                                </option>
-                              ))}
-                            </select>
+                              options={genderOptions.map((option) => ({
+                                value: option.value,
+                                label: option.label,
+                              }))}
+                            />
                           </div>
                           <div>
                             <FieldLabel label="邮箱" />
@@ -1663,36 +1653,29 @@ export default function Users() {
                         <div className="grid gap-x-4 gap-y-3 md:grid-cols-2">
                           <div>
                             <FieldLabel label="角色" />
-                            <select
+                            <AnimatedSelect
                               value={editForm.roleId}
-                              onChange={(event) => setEditForm((previous) => ({ ...previous, roleId: event.target.value }))}
-                              className={InputClassName(!selectedCanMutate)}
+                              onChange={(value) => setEditForm((previous) => ({ ...previous, roleId: value }))}
                               disabled={!selectedCanMutate}
-                              required
-                            >
-                              {selectedRoleOptions.map((role) => (
-                                <option key={role.id} value={role.id}>
-                                  {role.displayName}
-                                </option>
-                                ))}
-                            </select>
+                              options={selectedRoleOptions.map((role) => ({
+                                value: role.id,
+                                label: role.displayName,
+                              }))}
+                            />
                           </div>
                           <div>
                             <FieldLabel label="状态" />
-                            <select
+                            <AnimatedSelect
                               value={editForm.status}
-                              onChange={(event) => setEditForm((previous) => ({ ...previous, status: event.target.value }))}
-                              className={InputClassName(!selectedCanMutate)}
+                              onChange={(value) => setEditForm((previous) => ({ ...previous, status: value }))}
                               disabled={!selectedCanMutate}
-                            >
-                              {statusOptions
+                              options={statusOptions
                                 .filter((option) => option.value !== "")
-                                .map((option) => (
-                                  <option key={option.value} value={option.value}>
-                                    {option.label}
-                                  </option>
-                                ))}
-                            </select>
+                                .map((option) => ({
+                                  value: option.value,
+                                  label: option.label,
+                                }))}
+                            />
                           </div>
                         </div>
                       </DrawerSection>

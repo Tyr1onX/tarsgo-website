@@ -5,6 +5,7 @@ import {
   useId,
   useState,
 } from "react";
+import { createPortal } from "react-dom";
 
 export const MODAL_TRANSITION_MS = 260;
 
@@ -84,7 +85,7 @@ export function ModalShell({
   panelClassName = "border border-gray-800 bg-gray-900 shadow-2xl",
   bodyClassName = "px-6 py-5",
   backdropClassName = "bg-black/70",
-  zIndexClass = "z-50",
+  zIndexClass = "z-[70]",
 }: ModalShellProps) {
   const titleId = useId();
 
@@ -110,7 +111,11 @@ export function ModalShell({
     }
   }
 
-  return (
+  if (typeof document === "undefined") {
+    return null;
+  }
+
+  return createPortal(
     <div
       className={`motion-overlay fixed inset-0 ${zIndexClass} flex items-center justify-center ${backdropClassName} p-4`}
       data-state={open ? "open" : "closed"}
@@ -143,6 +148,7 @@ export function ModalShell({
         </div>
         <div className={bodyClassName}>{children}</div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

@@ -23,6 +23,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useOutletContext } from "react-router";
+import { AnimatedSelect } from "~/components/animated-select";
 import { ModalShell } from "~/components/modal-shell";
 import { Notify } from "~/components/notify";
 import { ApiError } from "~/lib/api-client";
@@ -880,7 +881,7 @@ export default function FormConfigPage() {
   return (
     <div className="space-y-6">
       {/* ---- Page header ---- */}
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div className="motion-fade-up flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <h1 className="text-2xl font-bold tracking-tight text-fg-primary">
             表单配置
@@ -910,7 +911,7 @@ export default function FormConfigPage() {
       ) : null}
 
       {/* ---- Stat cards ---- */}
-      <div className="grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4">
+      <div className="motion-fade-up grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4" style={{ animationDelay: "80ms" }}>
         <StatCard
           label="全部表单"
           value={summary.total}
@@ -948,7 +949,8 @@ export default function FormConfigPage() {
       {/* ---- Filter bar ---- */}
       <form
         onSubmit={handleSearchSubmit}
-        className="rounded-2xl border border-border-subtle bg-surface-card/60 p-5 ring-1 ring-white/[0.03] backdrop-blur-sm"
+        className="motion-fade-up rounded-2xl border border-border-subtle bg-surface-card/60 p-5 ring-1 ring-white/[0.03] backdrop-blur-sm"
+        style={{ animationDelay: "140ms" }}
       >
         <div className="mb-4 flex items-center gap-2 border-b border-border-subtle/40 pb-4">
           <Icon icon={searchIcon} className="h-4 w-4 text-fg-dim" />
@@ -969,19 +971,18 @@ export default function FormConfigPage() {
           </div>
           <div>
             <FieldLabel label="状态" />
-            <select
-              aria-label="状态筛选"
+            <AnimatedSelect
+              ariaLabel="状态筛选"
               value={statusFilter}
-              onChange={(event) => setStatusFilter(event.target.value)}
-              className={InputClassName()}
-            >
-              <option value="">全部状态</option>
-              {REGISTRATION_FORM_STATUS_OPTIONS.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
+              onChange={setStatusFilter}
+              options={[
+                { value: "", label: "全部状态" },
+                ...REGISTRATION_FORM_STATUS_OPTIONS.map((option) => ({
+                  value: option.value,
+                  label: option.label,
+                })),
+              ]}
+            />
           </div>
           <div className="flex items-end gap-3">
             <button
@@ -999,7 +1000,10 @@ export default function FormConfigPage() {
       </form>
 
       {/* ---- Table ---- */}
-      <div className="overflow-hidden rounded-2xl border border-border-subtle bg-surface-card/60 shadow-xl shadow-black/20">
+      <div
+        className="motion-fade-up overflow-hidden rounded-2xl border border-border-subtle bg-surface-card/60 shadow-xl shadow-black/20"
+        style={{ animationDelay: "200ms" }}
+      >
         <div className="hidden overflow-x-auto md:block">
           <table className="min-w-full text-sm">
             <thead className="bg-surface-dark/80 text-left text-xs tracking-wider text-fg-dim">
@@ -1422,23 +1426,20 @@ export default function FormConfigPage() {
 
                         <div>
                           <FieldLabel label="报名状态" />
-                          <select
-                            aria-label="报名状态"
+                          <AnimatedSelect
+                            ariaLabel="报名状态"
                             value={editor.status}
-                            onChange={(event) =>
+                            onChange={(value) =>
                               updateEditor((c) => ({
                                 ...c,
-                                status: event.target.value,
+                                status: value,
                               }))
                             }
-                            className={InputClassName()}
-                          >
-                            {REGISTRATION_FORM_STATUS_OPTIONS.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
+                            options={REGISTRATION_FORM_STATUS_OPTIONS.map((option) => ({
+                              value: option.value,
+                              label: option.label,
+                            }))}
+                          />
                         </div>
 
                         <div>
@@ -1645,29 +1646,18 @@ export default function FormConfigPage() {
                                     </div>
                                     <div>
                                       <FieldLabel label="字段类型" />
-                                      <select
-                                        aria-label="字段类型"
+                                      <AnimatedSelect
+                                        ariaLabel="字段类型"
                                         value={selectedField?.type ?? "text"}
                                         disabled={locked}
-                                        onChange={(event) =>
-                                          updateFieldType(
-                                            event.target
-                                              .value as RegistrationFormField["type"],
-                                          )
+                                        onChange={(value) =>
+                                          updateFieldType(value as RegistrationFormField["type"])
                                         }
-                                        className={InputClassName(locked)}
-                                      >
-                                        {REGISTRATION_FIELD_TYPE_OPTIONS.map(
-                                          (option) => (
-                                            <option
-                                              key={option.value}
-                                              value={option.value}
-                                            >
-                                              {option.label}
-                                            </option>
-                                          ),
-                                        )}
-                                      </select>
+                                        options={REGISTRATION_FIELD_TYPE_OPTIONS.map((option) => ({
+                                          value: option.value,
+                                          label: option.label,
+                                        }))}
+                                      />
                                     </div>
                                     <div className="flex items-end">
                                       <label className="flex w-full cursor-pointer items-center gap-3 rounded-xl border border-border-subtle bg-surface-dark px-3.5 py-2.5 text-sm text-fg-primary transition hover:bg-surface-dark/80">
@@ -2083,14 +2073,17 @@ function renderPreviewControl(field: RegistrationFormField) {
   if (isOptionField(field.type)) {
     if (field.type === "select" || field.type === "user_group_select") {
       return (
-        <select value="" disabled aria-label={field.label} className={cls}>
-          <option value="">请选择</option>
-          {field.options?.map((option) => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
+        <AnimatedSelect
+          ariaLabel={field.label}
+          value=""
+          onChange={() => {}}
+          disabled
+          placeholder="请选择"
+          options={(field.options ?? []).map((option) => ({
+            value: option.value,
+            label: option.label,
+          }))}
+        />
       );
     }
 
