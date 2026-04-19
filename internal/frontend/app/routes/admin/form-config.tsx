@@ -10,6 +10,7 @@ import trash2 from "@iconify-icons/lucide/trash-2";
 import x from "@iconify-icons/lucide/x";
 import chevronDown from "@iconify-icons/lucide/chevron-down";
 import chevronUp from "@iconify-icons/lucide/chevron-up";
+import download from "@iconify-icons/lucide/download";
 import eye from "@iconify-icons/lucide/eye";
 import { Icon, type IconifyIcon } from "@iconify/react";
 import {
@@ -39,6 +40,7 @@ import {
 import {
   createAdminRegistrationForm,
   getAdminRegistrationForm,
+  getAdminRegistrationFormExportUrl,
   listAdminRegistrationForms,
   updateAdminRegistrationForm,
   type RegistrationFormDetail,
@@ -1062,6 +1064,14 @@ export default function FormConfigPage() {
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex justify-end gap-2">
+                        <a
+                          href={getAdminRegistrationFormExportUrl(form.id)}
+                          title="下载报名信息"
+                          aria-label="下载报名信息"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-subtle text-fg-muted transition-all duration-150 hover:bg-white/[0.06] hover:text-fg-primary"
+                        >
+                          <Icon icon={download} className="h-3.5 w-3.5" />
+                        </a>
                         <button
                           type="button"
                           onClick={() => openPreview(form.id)}
@@ -1141,6 +1151,14 @@ export default function FormConfigPage() {
                   </dl>
 
                   <div className="mt-3 flex justify-end gap-2 border-t border-border-subtle/60 pt-3">
+                    <a
+                      href={getAdminRegistrationFormExportUrl(form.id)}
+                      title="下载报名信息"
+                      aria-label="下载报名信息"
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-subtle text-fg-muted transition-all duration-150 hover:bg-white/[0.06] hover:text-fg-primary"
+                    >
+                      <Icon icon={download} className="h-3.5 w-3.5" />
+                    </a>
                     <button
                       type="button"
                       onClick={() => openPreview(form.id)}

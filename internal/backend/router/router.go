@@ -86,6 +86,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	adminAPI.DELETE("/user-groups/:id/members/:memberId", userGroupHandler.RemoveMember)
 	adminAPI.GET("/registration-forms", registrationFormHandler.ListForms)
 	adminAPI.POST("/registration-forms", registrationFormHandler.CreateForm)
+	adminAPI.GET("/registration-forms/:id/registrations/export", registrationHandler.ExportFormRegistrationsCSV)
 	adminAPI.GET("/registration-forms/:id", registrationFormHandler.GetForm)
 	adminAPI.PATCH("/registration-forms/:id", registrationFormHandler.UpdateForm)
 	adminAPI.GET("/registrations", registrationHandler.ListRegistrations)

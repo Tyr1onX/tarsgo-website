@@ -1,4 +1,4 @@
-import { apiRequest } from "~/lib/api-client";
+import { apiRequest, buildApiUrl } from "~/lib/api-client";
 
 export type RegistrationFormFieldType =
   | "text"
@@ -135,6 +135,10 @@ export async function getAdminRegistrationForm(
   formId: number,
 ): Promise<RegistrationFormDetail> {
   return apiRequest<RegistrationFormDetail>(`/api/admin/registration-forms/${formId}`);
+}
+
+export function getAdminRegistrationFormExportUrl(formId: number): string {
+  return buildApiUrl(`/api/admin/registration-forms/${formId}/registrations/export`);
 }
 
 export async function createAdminRegistrationForm(

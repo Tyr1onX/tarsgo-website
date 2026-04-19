@@ -162,6 +162,110 @@ html {
   }
 }
 
+@keyframes cert-reveal {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 14px, 0) scale(0.94);
+  }
+
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+}
+
+@keyframes cert-collapse {
+  from {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+  }
+
+  to {
+    opacity: 0;
+    transform: translate3d(0, -10px, 0) scale(0.94);
+  }
+}
+
+.animate-cert-reveal {
+  animation: cert-reveal 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.animate-cert-collapse {
+  animation: cert-collapse 0.38s cubic-bezier(0.4, 0, 1, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-cert-reveal,
+  .animate-cert-collapse {
+    animation: none;
+  }
+}
+
+@keyframes scroll-hint-trail {
+  0% {
+    transform: translate3d(0, -100%, 0);
+    opacity: 0;
+  }
+
+  20% {
+    opacity: 1;
+  }
+
+  80% {
+    opacity: 1;
+  }
+
+  100% {
+    transform: translate3d(0, 100%, 0);
+    opacity: 0;
+  }
+}
+
+@keyframes scroll-chevron-bounce {
+  0%,
+  100% {
+    transform: translate3d(0, -2px, 0);
+    opacity: 0.65;
+  }
+
+  50% {
+    transform: translate3d(0, 3px, 0);
+    opacity: 1;
+  }
+}
+
+@keyframes scroll-pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.55;
+  }
+
+  100% {
+    transform: scale(1.45);
+    opacity: 0;
+  }
+}
+
+.animate-scroll-hint-trail {
+  animation: scroll-hint-trail 2.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+
+.animate-scroll-chevron-bounce {
+  animation: scroll-chevron-bounce 2s ease-in-out infinite;
+}
+
+.animate-scroll-pulse-ring {
+  animation: scroll-pulse-ring 2.4s ease-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-scroll-hint-trail,
+  .animate-scroll-chevron-bounce,
+  .animate-scroll-pulse-ring {
+    animation: none;
+  }
+}
+
 .bg-obsidian-base {
   background:
     radial-gradient(
@@ -330,6 +434,27 @@ html {
 .motion-stat-surface:hover::after {
   opacity: 0.92;
   transform: translate3d(10%, -10%, 0) scale(1);
+}
+
+.motion-stat-icon {
+  transition:
+    transform 480ms var(--motion-ease-standard),
+    filter 320ms ease;
+  will-change: transform;
+}
+
+.motion-stat-icon-glow {
+  transition: opacity 420ms var(--motion-ease-soft);
+  filter: blur(12px);
+}
+
+.motion-stat-surface:hover .motion-stat-icon {
+  transform: translate3d(0, -2px, 0) scale(1.08) rotate(-4deg);
+  filter: saturate(1.1);
+}
+
+.motion-stat-surface:hover .motion-stat-icon-glow {
+  opacity: 1;
 }
 
 .motion-panel-soft {
@@ -648,6 +773,7 @@ html {
 
 .motion-photo-tile-in {
   animation: photo-tile-pop-in 580ms var(--motion-ease-standard) both;
+  will-change: transform, opacity, filter;
 }
 
 @keyframes info-panel-slide-in {
@@ -665,6 +791,7 @@ html {
 
 .motion-info-panel-in {
   animation: info-panel-slide-in 640ms var(--motion-ease-standard) both;
+  will-change: transform, opacity, filter;
 }
 
 @keyframes module-tab-lift {
@@ -678,6 +805,30 @@ html {
 
 .motion-module-tab-active {
   animation: module-tab-lift 260ms var(--motion-ease-standard) both;
+}
+
+@keyframes year-watermark-in {
+  from {
+    opacity: 0;
+    transform: translate3d(18px, 0, 0) scale(0.96);
+    filter: blur(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.motion-year-watermark {
+  animation: year-watermark-in 780ms var(--motion-ease-standard) both;
+  will-change: transform, opacity, filter;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-year-watermark {
+    animation: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -1203,4 +1354,30 @@ html {
     rgba(148, 163, 184, 0.12),
     transparent 55%
   );
+}
+
+/* ── Module tag shimmer sweep ── */
+@keyframes motion-tag-shine {
+  0% {
+    transform: translateX(-120%) skewX(-24deg);
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  60%,
+  100% {
+    transform: translateX(420%) skewX(-24deg);
+    opacity: 0;
+  }
+}
+
+.motion-tag-shine {
+  animation: motion-tag-shine 3.6s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .motion-tag-shine {
+    animation: none;
+  }
 }

@@ -2,6 +2,7 @@ package registration
 
 import (
 	"context"
+	"encoding/csv"
 	"strings"
 	"testing"
 	"time"
@@ -225,6 +226,152 @@ func TestRegistrationServiceListRegistrationsNormalizesDefaultPageParams(t *test
 	}
 	if repo.listFilters[0].PageSize != 10 {
 		t.Fatalf("expected repository page size 10, got %d", repo.listFilters[0].PageSize)
+	}
+}
+
+func TestRegistrationServiceExportFormRegistrationsCSVIncludesDynamicFieldsAndExtraKeys(t *testing.T) {
+	repo := newFakeRegistrationListRepository()
+	service := newRegistrationServiceWithDependencies(repo, nil)
+
+	result, err := service.ExportFormRegistrationsCSV(
+		context.Background(),
+		RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin},
+		301,
+		"https://admin.example.com",
+	)
+	if err != nil {
+		t.Fatalf("ExportFormRegistrationsCSV returned error: %v", err)
+	}
+
+	if result.FileName != "registration-form-301-registrations.csv" {
+		t.Fatalf("unexpected export filename %q", result.FileName)
+	}
+	if len(repo.exportFilters) != 1 {
+		t.Fatalf("expected 1 export filter call, got %d", len(repo.exportFilters))
+	}
+	if repo.exportFilters[0].FormID == nil || *repo.exportFilters[0].FormID != 301 {
+		t.Fatalf("expected export filter form ID 301, got %#v", repo.exportFilters[0].FormID)
+	}
+	if len(repo.exportFilters[0].VisibleGroupIDs) != 0 {
+		t.Fatalf("expected full-access export to omit visible group filters, got %v", repo.exportFilters[0].VisibleGroupIDs)
+	}
+
+	content := strings.TrimPrefix(string(result.Content), "\ufeff")
+	records, err := csv.NewReader(strings.NewReader(content)).ReadAll()
+	if err != nil {
+		t.Fatalf("failed to parse export csv: %v", err)
+	}
+	if len(records) != 2 {
+		t.Fatalf("expected 2 csv records, got %d", len(records))
+	}
+
+	headerIndex := make(map[string]int, len(records[0]))
+	for index, item := range records[0] {
+		headerIndex[item] = index
+	}
+
+	expectedHeaders := []string{
+		"报名记录ID",
+		"报名表ID",
+		"报名表标题",
+		"姓名",
+		"手机号",
+		"邮箱",
+		"意向组别(1)",
+		"意向组别(1)审核状态",
+		"审核人(1)",
+		"审核时间(1)",
+		"审核备注(1)",
+		"意向组别(2)",
+		"意向组别(2)审核状态",
+		"审核人(2)",
+		"审核时间(2)",
+		"审核备注(2)",
+		"意向方向",
+		"掌握技能",
+		"简历",
+		"作品集",
+		"报名状态",
+		"提交时间",
+		"legacy_note",
+	}
+	if len(records[0]) != len(expectedHeaders) {
+		t.Fatalf("expected %d csv headers, got %d: %v", len(expectedHeaders), len(records[0]), records[0])
+	}
+	for index, header := range expectedHeaders {
+		if records[0][index] != header {
+			t.Fatalf("expected csv header[%d] = %q, got %q", index, header, records[0][index])
+		}
+	}
+
+	row := records[1]
+	if row[headerIndex["姓名"]] != "张三" {
+		t.Fatalf("expected contact name column 张三, got %q", row[headerIndex["姓名"]])
+	}
+	if row[headerIndex["手机号"]] != "13800138000" {
+		t.Fatalf("expected contact phone column 13800138000, got %q", row[headerIndex["手机号"]])
+	}
+	if row[headerIndex["邮箱"]] != "zhangsan@example.com" {
+		t.Fatalf("expected contact email column zhangsan@example.com, got %q", row[headerIndex["邮箱"]])
+	}
+	if row[headerIndex["报名状态"]] != "已通过" {
+		t.Fatalf("expected overall status label 已通过, got %q", row[headerIndex["报名状态"]])
+	}
+	if row[headerIndex["意向组别(1)"]] != "机械组" {
+		t.Fatalf("expected group_1 label 机械组, got %q", row[headerIndex["意向组别(1)"]])
+	}
+	if row[headerIndex["意向方向"]] != "电控组" {
+		t.Fatalf("expected direction option label 电控组, got %q", row[headerIndex["意向方向"]])
+	}
+	if row[headerIndex["掌握技能"]] != "C++；Go" {
+		t.Fatalf("expected checkbox options joined by full-width separator, got %q", row[headerIndex["掌握技能"]])
+	}
+	if row[headerIndex["简历"]] != "张三简历.pdf: https://admin.example.com/api/admin/registrations/7001/files/resume/0" {
+		t.Fatalf("unexpected resume export value %q", row[headerIndex["简历"]])
+	}
+	if row[headerIndex["作品集"]] != "作品图1.png: https://admin.example.com/api/admin/registrations/7001/files/portfolio/0；作品图2.png: https://admin.example.com/api/admin/registrations/7001/files/portfolio/1" {
+		t.Fatalf("unexpected portfolio export value %q", row[headerIndex["作品集"]])
+	}
+	if row[headerIndex["意向组别(1)审核状态"]] != "已通过" {
+		t.Fatalf("expected group_1 review status 已通过, got %q", row[headerIndex["意向组别(1)审核状态"]])
+	}
+	if row[headerIndex["审核人(1)"]] != "审核管理员" {
+		t.Fatalf("expected reviewer1 审核管理员, got %q", row[headerIndex["审核人(1)"]])
+	}
+	if row[headerIndex["意向组别(2)审核状态"]] != "已拒绝" {
+		t.Fatalf("expected group_2 review status 已拒绝, got %q", row[headerIndex["意向组别(2)审核状态"]])
+	}
+	if row[headerIndex["审核人(2)"]] != "复核管理员" {
+		t.Fatalf("expected reviewer2 复核管理员, got %q", row[headerIndex["审核人(2)"]])
+	}
+	if _, exists := headerIndex["更新时间"]; exists {
+		t.Fatalf("did not expect 更新时间 column, got %v", records[0])
+	}
+	if row[headerIndex["legacy_note"]] != "'=需要人工复核" {
+		t.Fatalf("expected legacy note to be formula-safe, got %q", row[headerIndex["legacy_note"]])
+	}
+}
+
+func TestRegistrationServiceExportFormRegistrationsCSVPassesLeaderVisibleGroups(t *testing.T) {
+	repo := newFakeRegistrationListRepository()
+	repo.leaderGroupIDs[2001] = []uint64{101}
+	service := newRegistrationServiceWithDependencies(repo, nil)
+
+	_, err := service.ExportFormRegistrationsCSV(
+		context.Background(),
+		RegistrationFormActor{ID: 2001, RoleName: model.RoleNameAdmin},
+		301,
+		"https://admin.example.com",
+	)
+	if err != nil {
+		t.Fatalf("ExportFormRegistrationsCSV returned error: %v", err)
+	}
+
+	if len(repo.exportFilters) != 1 {
+		t.Fatalf("expected 1 export filter call, got %d", len(repo.exportFilters))
+	}
+	if len(repo.exportFilters[0].VisibleGroupIDs) != 1 || repo.exportFilters[0].VisibleGroupIDs[0] != 101 {
+		t.Fatalf("expected leader export scope [101], got %v", repo.exportFilters[0].VisibleGroupIDs)
 	}
 }
 
@@ -507,6 +654,10 @@ func (r *fakeRegistrationReviewRepository) ListRegistrations(_ context.Context, 
 	return nil, nil
 }
 
+func (r *fakeRegistrationReviewRepository) ListRegistrationsForExport(_ context.Context, _ ListRegistrationsInput) ([]model.Registration, error) {
+	return nil, nil
+}
+
 func (r *fakeRegistrationReviewRepository) CountRegistrations(_ context.Context, _ ListRegistrationsInput) (int64, error) {
 	return 0, nil
 }
@@ -595,10 +746,13 @@ func cloneRegistrationModel(registration *model.Registration) *model.Registratio
 
 type fakeRegistrationListRepository struct {
 	items          []model.Registration
+	forms          map[uint64]*model.RegistrationForm
+	shownGroups    []model.UserGroup
 	total          int64
 	stats          RegistrationStats
 	leaderGroupIDs map[uint64][]uint64
 	listFilters    []ListRegistrationsInput
+	exportFilters  []ListRegistrationsInput
 	countFilters   []ListRegistrationsInput
 	statsFilters   []ListRegistrationsInput
 }
@@ -607,32 +761,108 @@ func newFakeRegistrationListRepository() *fakeRegistrationListRepository {
 	group1ID := uint64(101)
 	group2ID := uint64(102)
 	now := time.Date(2026, 4, 14, 9, 0, 0, 0, time.Local)
+	fields := []model.FormField{
+		{Key: "name", Label: "姓名", Type: "text", Required: true},
+		{Key: "phone", Label: "手机号", Type: "phone", Required: true},
+		{Key: "email", Label: "邮箱", Type: "email", Required: true},
+		{Key: "group_1", Label: "意向组别(1)", Type: "user_group_select", Required: true},
+		{Key: "group_2", Label: "意向组别(2)", Type: "user_group_select", Required: true},
+		{
+			Key:      "direction",
+			Label:    "意向方向",
+			Type:     "select",
+			Required: true,
+			Options: []model.FormFieldOption{
+				{Label: "机械组", Value: "mechanical"},
+				{Label: "电控组", Value: "embedded"},
+			},
+		},
+		{
+			Key:      "skills",
+			Label:    "掌握技能",
+			Type:     "checkbox",
+			Required: false,
+			Options: []model.FormFieldOption{
+				{Label: "C++", Value: "cpp"},
+				{Label: "Go", Value: "go"},
+			},
+		},
+		{Key: "resume", Label: "简历", Type: "file", Required: false},
+		{Key: "portfolio", Label: "作品集", Type: "image", Required: false},
+	}
+	form := &model.RegistrationForm{
+		ID:           301,
+		Title:        "2026 招新报名",
+		FieldsSchema: fields,
+		Status:       model.RegistrationFormStatusPublished,
+	}
 
 	return &fakeRegistrationListRepository{
 		items: []model.Registration{
 			{
-				ID:           7001,
-				FormID:       301,
-				UserID:       501,
-				FormData:     map[string]any{"name": "张三", "group_1": "101", "group_2": "102"},
-				ContactName:  stringPtr("张三"),
-				ContactPhone: stringPtr("13800138000"),
-				ContactEmail: stringPtr("zhangsan@example.com"),
-				Group1ID:     &group1ID,
-				Group1Status: model.RegistrationStatusPending,
-				Group2ID:     &group2ID,
-				Group2Status: model.RegistrationStatusPending,
-				Status:       model.RegistrationStatusPending,
-				SubmittedAt:  now.Add(-2 * time.Hour),
-				UpdatedAt:    now.Add(-90 * time.Minute),
-				Form: model.RegistrationForm{
-					ID:     301,
-					Title:  "2026 招新报名",
-					Status: model.RegistrationFormStatusPublished,
+				ID:     7001,
+				FormID: 301,
+				UserID: 501,
+				FormData: map[string]any{
+					"name":        "张三",
+					"phone":       "13800138000",
+					"email":       "zhangsan@example.com",
+					"group_1":     "101",
+					"group_2":     "102",
+					"direction":   "embedded",
+					"skills":      []any{"cpp", "go"},
+					"legacy_note": "=需要人工复核",
+					"resume": map[string]any{
+						"file_name":    "张三简历.pdf",
+						"file_url":     "/api/admin/registrations/7001/files/resume/0",
+						"file_size":    1024,
+						"storage_path": "upload/recruitment/301/501/resume/resume.pdf",
+						"content_type": "application/pdf",
+					},
+					"portfolio": []any{
+						map[string]any{
+							"file_name":    "作品图1.png",
+							"file_url":     "/api/admin/registrations/7001/files/portfolio/0",
+							"file_size":    2048,
+							"storage_path": "upload/recruitment/301/501/portfolio/0.png",
+							"content_type": "image/png",
+						},
+						map[string]any{
+							"file_name":    "作品图2.png",
+							"file_url":     "/api/admin/registrations/7001/files/portfolio/1",
+							"file_size":    4096,
+							"storage_path": "upload/recruitment/301/501/portfolio/1.png",
+							"content_type": "image/png",
+						},
+					},
 				},
-				Group1: &model.UserGroup{ID: group1ID, Name: "机械组", Show: 1},
-				Group2: &model.UserGroup{ID: group2ID, Name: "电控组", Show: 1},
+				ContactName:   stringPtr("张三"),
+				ContactPhone:  stringPtr("13800138000"),
+				ContactEmail:  stringPtr("zhangsan@example.com"),
+				Group1ID:      &group1ID,
+				Group1Status:  model.RegistrationStatusApproved,
+				Group2ID:      &group2ID,
+				Group2Status:  model.RegistrationStatusRejected,
+				Status:        model.RegistrationStatusApproved,
+				SubmittedAt:   now.Add(-2 * time.Hour),
+				UpdatedAt:     now.Add(-90 * time.Minute),
+				Reviewer1:     &model.User{ID: 9001, Name: "审核管理员", Email: "admin@example.com"},
+				ReviewedAt1:   ptrTime(now.Add(-75 * time.Minute)),
+				ReviewRemark1: stringPtr("一志愿通过"),
+				Reviewer2:     &model.User{ID: 9002, Name: "复核管理员", Email: "reviewer@example.com"},
+				ReviewedAt2:   ptrTime(now.Add(-60 * time.Minute)),
+				ReviewRemark2: stringPtr("二志愿名额已满"),
+				Form:          *cloneRegistrationFormModel(form),
+				Group1:        &model.UserGroup{ID: group1ID, Name: "机械组", Show: 1},
+				Group2:        &model.UserGroup{ID: group2ID, Name: "电控组", Show: 1},
 			},
+		},
+		forms: map[uint64]*model.RegistrationForm{
+			301: form,
+		},
+		shownGroups: []model.UserGroup{
+			{ID: group1ID, Name: "机械组", Show: 1},
+			{ID: group2ID, Name: "电控组", Show: 1},
 		},
 		total: 23,
 		stats: RegistrationStats{
@@ -654,8 +884,12 @@ func (r *fakeRegistrationListRepository) ListPublishedForms(_ context.Context) (
 	return nil, nil
 }
 
-func (r *fakeRegistrationListRepository) GetFormByID(_ context.Context, _ uint64) (*model.RegistrationForm, error) {
-	return nil, gorm.ErrRecordNotFound
+func (r *fakeRegistrationListRepository) GetFormByID(_ context.Context, formID uint64) (*model.RegistrationForm, error) {
+	form, exists := r.forms[formID]
+	if !exists {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return cloneRegistrationFormModel(form), nil
 }
 
 func (r *fakeRegistrationListRepository) FindRegistrationByFormAndUser(_ context.Context, _, _ uint64) (*model.Registration, error) {
@@ -680,11 +914,26 @@ func (r *fakeRegistrationListRepository) UpdateRegistrationFormData(_ context.Co
 
 func (r *fakeRegistrationListRepository) ListRegistrations(_ context.Context, filter ListRegistrationsInput) ([]model.Registration, error) {
 	r.listFilters = append(r.listFilters, filter)
+	return r.filteredRegistrations(filter), nil
+}
+
+func (r *fakeRegistrationListRepository) ListRegistrationsForExport(_ context.Context, filter ListRegistrationsInput) ([]model.Registration, error) {
+	r.exportFilters = append(r.exportFilters, filter)
+	return r.filteredRegistrations(filter), nil
+}
+
+func (r *fakeRegistrationListRepository) filteredRegistrations(filter ListRegistrationsInput) []model.Registration {
 	registrations := make([]model.Registration, 0, len(r.items))
 	for i := range r.items {
+		if filter.FormID != nil && r.items[i].FormID != *filter.FormID {
+			continue
+		}
+		if len(filter.VisibleGroupIDs) > 0 && !registrationMatchesVisibleGroups(&r.items[i], filter.VisibleGroupIDs) {
+			continue
+		}
 		registrations = append(registrations, *cloneRegistrationModel(&r.items[i]))
 	}
-	return registrations, nil
+	return registrations
 }
 
 func (r *fakeRegistrationListRepository) CountRegistrations(_ context.Context, filter ListRegistrationsInput) (int64, error) {
@@ -710,7 +959,7 @@ func (r *fakeRegistrationListRepository) DeleteRegistration(_ context.Context, _
 }
 
 func (r *fakeRegistrationListRepository) ListShownUserGroups(_ context.Context) ([]model.UserGroup, error) {
-	return nil, nil
+	return append([]model.UserGroup(nil), r.shownGroups...), nil
 }
 
 func (r *fakeRegistrationListRepository) ListDefaultGroupIDs(_ context.Context) ([]uint64, error) {
@@ -728,6 +977,21 @@ func (r *fakeRegistrationListRepository) AddUserToGroupIfAbsent(_ context.Contex
 
 func (r *fakeRegistrationListRepository) RemoveUserFromGroupIfPresent(_ context.Context, _ uint64, _ uint64) error {
 	return nil
+}
+
+func registrationMatchesVisibleGroups(registration *model.Registration, visibleGroupIDs []uint64) bool {
+	if registration == nil || len(visibleGroupIDs) == 0 {
+		return true
+	}
+	for _, groupID := range visibleGroupIDs {
+		if registration.Group1ID != nil && *registration.Group1ID == groupID {
+			return true
+		}
+		if registration.Group2ID != nil && *registration.Group2ID == groupID {
+			return true
+		}
+	}
+	return false
 }
 
 func cloneGroupModel(group *model.UserGroup) *model.UserGroup {
@@ -770,6 +1034,10 @@ func stringPtr(value string) *string {
 }
 
 func uint64Ptr(value uint64) *uint64 {
+	return &value
+}
+
+func ptrTime(value time.Time) *time.Time {
 	return &value
 }
 

@@ -1042,6 +1042,32 @@ PATCH http://127.0.0.1:8080/api/admin/registration-forms/:id 更新报名表
    - `404`：报名表不存在
    - `409`：将当前表单改为已发布时，系统中存在另一张已发布报名表
 
+GET http://127.0.0.1:8080/api/admin/registration-forms/:id/registrations/export 下载报名表报名信息 CSV
+ - 用途：后台表单配置页在某张报名表的操作列中一键下载该报名表下所有报名人员信息
+ - 鉴权：要求管理员权限
+ - 返回类型：文件流，不使用 JSON envelope
+ - 响应头：
+   - `Content-Type: text/csv; charset=utf-8`
+   - `Content-Disposition: attachment; filename="registration-form-{id}-registrations.csv"`
+ - 权限规则：
+   - `super_admin` 与“没有任何组长身份的 admin”可导出该报名表下全部报名记录
+   - “至少担任一个用户组组长的 admin”仅导出 `group_1` 或 `group_2` 命中其组长分组的报名记录
+ - CSV 编码与列规则：
+   - 文件内容以 `UTF-8 BOM` 开头，便于常见表格软件正确识别中文
+   - 基础列固定为：`报名记录ID`、`报名表ID`、`报名表标题`
+   - 基础列之后按当前报名表 `fieldsSchema` 顺序追加所有表单字段，包含 `姓名`、`手机号`、`邮箱` 等系统字段
+   - 当字段为 `意向组别(1)` 时，会紧跟 `意向组别(1)审核状态`、`审核人(1)`、`审核时间(1)`、`审核备注(1)` 四列
+   - 当字段为 `意向组别(2)` 时，会紧跟 `意向组别(2)审核状态`、`审核人(2)`、`审核时间(2)`、`审核备注(2)` 四列
+   - 所有表单字段输出完成后，仅追加全局列：`报名状态`、`提交时间`
+   - 若历史报名数据中存在已不在当前 `fieldsSchema` 内的 `formData` 字段，会按字段 key 字典序追加到末尾，避免旧数据丢失
+   - `select`、`radio`、`checkbox`、`user_group_select` 会优先导出可读 `label`，找不到映射时回退原值；多选项使用 `；` 连接
+   - `file` 与 `image` 字段导出为绝对 URL 文本，单个文件格式为 `文件名: URL`，多个图片 / 文件同列用 `；` 连接
+   - 空报名表或当前管理员无可见报名记录时，仍返回只有表头的 CSV
+ - 常见失败：
+   - `400`：报名表 ID 非法
+   - `403`：当前账号无管理员权限
+   - `404`：报名表不存在
+
 GET http://127.0.0.1:8080/api/recruitment/form 获取用户前台报名信息页数据
 - 用途：用户前台 `/dashboard/users/registrations` 页面在登录后拉取报名页三态数据
 - 鉴权：要求已登录；未登录时返回 `401`

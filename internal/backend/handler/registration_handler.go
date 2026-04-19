@@ -27,6 +27,7 @@ type registrationService interface {
 	ReviewRegistration(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64, input registration.ReviewRegistrationInput) (*registration.RegistrationDetail, error)
 	DeleteRegistration(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64) error
 	OpenRegistrationFile(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64, fieldKey string, index int) (*registration.RegistrationFileResult, error)
+	ExportFormRegistrationsCSV(ctx context.Context, actor registration.RegistrationFormActor, formID uint64, baseURL string) (*registration.RegistrationCSVExportResult, error)
 }
 
 type listRegistrationsQuery struct {
@@ -243,6 +244,29 @@ func (h *RegistrationHandler) OpenRegistrationFile(c *gin.Context) {
 	c.FileAttachment(result.Path, result.FileName)
 }
 
+func (h *RegistrationHandler) ExportFormRegistrationsCSV(c *gin.Context) {
+	formID, err := parsePathID(c.Param("id"))
+	if err != nil {
+		writeAPIError(c, http.StatusBadRequest, "无效的报名表 ID")
+		return
+	}
+
+	result, serviceErr := h.service.ExportFormRegistrationsCSV(
+		c.Request.Context(),
+		currentRegistrationFormActor(c),
+		formID,
+		buildRequestBaseURL(c.Request),
+	)
+	if serviceErr != nil {
+		h.handleServiceError(c, serviceErr)
+		return
+	}
+
+	c.Header("Content-Type", "text/csv; charset=utf-8")
+	c.Header("Content-Disposition", "attachment; filename="+strconv.Quote(result.FileName))
+	c.Data(http.StatusOK, "text/csv; charset=utf-8", result.Content)
+}
+
 func (h *RegistrationHandler) handleServiceError(c *gin.Context, err error) {
 	var serviceErr *registration.ServiceError
 	if errors.As(err, &serviceErr) {
@@ -289,6 +313,42 @@ func parseOptionalUint64(raw string, message string) (*uint64, error) {
 
 	result := uint64(value)
 	return &result, nil
+}
+
+func buildRequestBaseURL(request *http.Request) string {
+	if request == nil {
+		return ""
+	}
+
+	scheme := forwardedHeaderValue(request.Header.Get("X-Forwarded-Proto"))
+	if scheme == "" {
+		if request.TLS != nil {
+			scheme = "https"
+		} else {
+			scheme = "http"
+		}
+	}
+
+	host := forwardedHeaderValue(request.Header.Get("X-Forwarded-Host"))
+	if host == "" {
+		host = strings.TrimSpace(request.Host)
+	}
+	if host == "" {
+		return ""
+	}
+
+	return scheme + "://" + host
+}
+
+func forwardedHeaderValue(raw string) string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return ""
+	}
+	if comma := strings.Index(trimmed, ","); comma >= 0 {
+		return strings.TrimSpace(trimmed[:comma])
+	}
+	return trimmed
 }
 
 func cloneMultipartForm(form *multipart.Form) (map[string][]string, map[string][]*multipart.FileHeader) {

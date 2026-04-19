@@ -1,9 +1,12 @@
 package registration
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
+	"encoding/csv"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"math"
@@ -13,6 +16,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -42,6 +46,7 @@ type registrationRepository interface {
 	UpdateRegistration(ctx context.Context, registrationID uint64, updates map[string]any) error
 	UpdateRegistrationFormData(ctx context.Context, registrationID uint64, formData map[string]any) error
 	ListRegistrations(ctx context.Context, filter ListRegistrationsInput) ([]model.Registration, error)
+	ListRegistrationsForExport(ctx context.Context, filter ListRegistrationsInput) ([]model.Registration, error)
 	CountRegistrations(ctx context.Context, filter ListRegistrationsInput) (int64, error)
 	GetRegistrationStats(ctx context.Context, filter ListRegistrationsInput) (RegistrationStats, error)
 	GetRegistrationByID(ctx context.Context, registrationID uint64) (*model.Registration, error)
@@ -151,6 +156,11 @@ type RegistrationFileResult struct {
 	FileName    string
 	ContentType string
 	Inline      bool
+}
+
+type RegistrationCSVExportResult struct {
+	FileName string
+	Content  []byte
 }
 
 type ServiceError struct {
@@ -739,6 +749,58 @@ func (s *RegistrationService) OpenRegistrationFile(ctx context.Context, actor Re
 	}, nil
 }
 
+func (s *RegistrationService) ExportFormRegistrationsCSV(ctx context.Context, actor RegistrationFormActor, formID uint64, baseURL string) (*RegistrationCSVExportResult, error) {
+	if err := wrapRegistrationActorError(ensureRegistrationAdminActor(actor)); err != nil {
+		return nil, err
+	}
+	if formID == 0 {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "报名表 ID 不合法"}
+	}
+
+	scope, err := s.resolveRegistrationAccessScope(ctx, actor)
+	if err != nil {
+		return nil, err
+	}
+
+	form, err := s.repo.GetFormByID(ctx, formID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, &ServiceError{Status: http.StatusNotFound, Message: "报名表不存在"}
+		}
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载报名表失败", Err: err}
+	}
+
+	groups, err := s.repo.ListShownUserGroups(ctx)
+	if err != nil {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载展示分组失败", Err: err}
+	}
+
+	filter := ListRegistrationsInput{
+		FormID: ptrUint64(formID),
+	}
+	if !scope.fullAccess {
+		filter.VisibleGroupIDs = registrationScopeGroupIDs(scope)
+	}
+
+	registrations, err := s.repo.ListRegistrationsForExport(ctx, filter)
+	if err != nil {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "查询报名导出数据失败", Err: err}
+	}
+
+	exportForm := *form
+	exportForm.FieldsSchema = hydrateRegistrationExportFields(form.FieldsSchema, groups)
+
+	content, err := buildRegistrationExportCSV(&exportForm, registrations, baseURL)
+	if err != nil {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "生成报名导出文件失败", Err: err}
+	}
+
+	return &RegistrationCSVExportResult{
+		FileName: fmt.Sprintf("registration-form-%d-registrations.csv", formID),
+		Content:  content,
+	}, nil
+}
+
 func (s *RegistrationService) loadActiveFormForSubmission(ctx context.Context, formID uint64) (*model.RegistrationForm, error) {
 	forms, err := s.repo.ListPublishedForms(ctx)
 	if err != nil {
@@ -1060,6 +1122,468 @@ func toRegistrationListItem(registration *model.Registration, scope registration
 		SubmittedAt:  registration.SubmittedAt,
 		UpdatedAt:    registration.UpdatedAt,
 	}
+}
+
+func buildRegistrationExportCSV(form *model.RegistrationForm, registrations []model.Registration, baseURL string) ([]byte, error) {
+	fields := cloneRegistrationFields(form.FieldsSchema)
+	extraKeys := collectRegistrationExportExtraKeys(fields, registrations)
+	headers := append([]string{}, registrationExportPrefixHeaders...)
+	for _, field := range fields {
+		headers = append(headers, field.Label)
+		headers = append(headers, registrationExportFieldCompanionHeaders(field)...)
+	}
+	headers = append(headers, registrationExportSuffixHeaders...)
+	headers = append(headers, extraKeys...)
+
+	buffer := &bytes.Buffer{}
+	buffer.WriteString("\uFEFF")
+
+	writer := csv.NewWriter(buffer)
+	writer.UseCRLF = true
+	if err := writer.Write(headers); err != nil {
+		return nil, err
+	}
+
+	formTitle := strings.TrimSpace(form.Title)
+	for index := range registrations {
+		row := buildRegistrationExportCSVRow(formTitle, fields, extraKeys, &registrations[index], baseURL)
+		if err := writer.Write(row); err != nil {
+			return nil, err
+		}
+	}
+
+	writer.Flush()
+	if err := writer.Error(); err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
+}
+
+var registrationExportPrefixHeaders = []string{
+	"报名记录ID",
+	"报名表ID",
+	"报名表标题",
+}
+
+var registrationExportSuffixHeaders = []string{
+	"报名状态",
+	"提交时间",
+}
+
+func buildRegistrationExportCSVRow(formTitle string, fields []model.FormField, extraKeys []string, registration *model.Registration, baseURL string) []string {
+	row := []string{
+		registrationExportCell(strconv.FormatUint(registration.ID, 10)),
+		registrationExportCell(strconv.FormatUint(registration.FormID, 10)),
+		registrationExportCell(registrationExportFormTitle(registration, formTitle)),
+	}
+
+	for _, field := range fields {
+		row = append(row, registrationExportCell(formatRegistrationExportFieldValue(registration, field, registration.FormData[field.Key], baseURL)))
+		row = append(row, registrationExportFieldCompanionValues(field, registration)...)
+	}
+	row = append(row,
+		registrationExportCell(registrationStatusLabel(registration.Status)),
+		registrationExportCell(formatRegistrationExportTimeValue(registration.SubmittedAt)),
+	)
+	for _, key := range extraKeys {
+		row = append(row, registrationExportCell(formatRegistrationExportValue(registration.FormData[key], baseURL)))
+	}
+	return row
+}
+
+func registrationExportFieldCompanionHeaders(field model.FormField) []string {
+	switch strings.TrimSpace(field.Key) {
+	case "group_1":
+		return []string{
+			"意向组别(1)审核状态",
+			"审核人(1)",
+			"审核时间(1)",
+			"审核备注(1)",
+		}
+	case "group_2":
+		return []string{
+			"意向组别(2)审核状态",
+			"审核人(2)",
+			"审核时间(2)",
+			"审核备注(2)",
+		}
+	default:
+		return nil
+	}
+}
+
+func registrationExportFieldCompanionValues(field model.FormField, registration *model.Registration) []string {
+	switch strings.TrimSpace(field.Key) {
+	case "group_1":
+		return []string{
+			registrationExportCell(registrationStatusLabel(registration.Group1Status)),
+			registrationExportCell(registrationExportReviewerName(registration.Reviewer1)),
+			registrationExportCell(formatRegistrationExportTime(registration.ReviewedAt1)),
+			registrationExportCell(registrationExportOptionalString(registration.ReviewRemark1)),
+		}
+	case "group_2":
+		return []string{
+			registrationExportCell(registrationStatusLabel(registration.Group2Status)),
+			registrationExportCell(registrationExportReviewerName(registration.Reviewer2)),
+			registrationExportCell(formatRegistrationExportTime(registration.ReviewedAt2)),
+			registrationExportCell(registrationExportOptionalString(registration.ReviewRemark2)),
+		}
+	default:
+		return nil
+	}
+}
+
+func hydrateRegistrationExportFields(fields []model.FormField, groups []model.UserGroup) []model.FormField {
+	result := cloneRegistrationFields(fields)
+	options := buildVisibleUserGroupOptions(groups)
+	for index := range result {
+		if result[index].Type != "user_group_select" {
+			continue
+		}
+		result[index].Options = append([]model.FormFieldOption(nil), options...)
+	}
+	return result
+}
+
+func collectRegistrationExportExtraKeys(fields []model.FormField, registrations []model.Registration) []string {
+	if len(registrations) == 0 {
+		return nil
+	}
+
+	fieldKeys := make(map[string]struct{}, len(fields))
+	for _, field := range fields {
+		fieldKeys[field.Key] = struct{}{}
+	}
+
+	extraKeys := make(map[string]struct{})
+	for _, registration := range registrations {
+		for key := range registration.FormData {
+			if _, exists := fieldKeys[key]; exists {
+				continue
+			}
+			extraKeys[key] = struct{}{}
+		}
+	}
+
+	result := make([]string, 0, len(extraKeys))
+	for key := range extraKeys {
+		result = append(result, key)
+	}
+	sort.Strings(result)
+	return result
+}
+
+func registrationExportFormTitle(registration *model.Registration, fallback string) string {
+	if registration != nil {
+		title := strings.TrimSpace(registration.Form.Title)
+		if title != "" {
+			return title
+		}
+	}
+	return strings.TrimSpace(fallback)
+}
+
+func registrationStatusLabel(status uint8) string {
+	switch status {
+	case model.RegistrationStatusPending:
+		return "待审核"
+	case model.RegistrationStatusApproved:
+		return "已通过"
+	case model.RegistrationStatusRejected:
+		return "已拒绝"
+	case model.RegistrationStatusCancelled:
+		return "已取消"
+	default:
+		return strconv.FormatUint(uint64(status), 10)
+	}
+}
+
+func registrationExportReviewerName(user *model.User) string {
+	if user == nil {
+		return ""
+	}
+	if name := strings.TrimSpace(user.Name); name != "" {
+		return name
+	}
+	return strings.TrimSpace(user.Email)
+}
+
+func registrationExportOptionalString(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return strings.TrimSpace(*value)
+}
+
+func formatRegistrationExportTime(value *time.Time) string {
+	if value == nil {
+		return ""
+	}
+	return formatRegistrationExportTimeValue(*value)
+}
+
+func formatRegistrationExportTimeValue(value time.Time) string {
+	if value.IsZero() {
+		return ""
+	}
+	return value.In(time.Local).Format("2006-01-02 15:04:05")
+}
+
+func formatRegistrationExportFieldValue(registration *model.Registration, field model.FormField, value any, baseURL string) string {
+	switch field.Type {
+	case "select", "radio", "user_group_select":
+		return registrationExportOptionLabel(field.Options, valueAsString(value))
+	case "checkbox":
+		return strings.Join(registrationExportOptionLabels(field.Options, registrationExportStringSlice(value)), "；")
+	case "file":
+		texts := registrationExportStoredFiles(registration, field, value, baseURL)
+		return strings.Join(texts, "；")
+	case "image":
+		texts := registrationExportStoredFiles(registration, field, value, baseURL)
+		return strings.Join(texts, "；")
+	default:
+		return formatRegistrationExportValue(value, baseURL)
+	}
+}
+
+func registrationExportOptionLabel(options []model.FormFieldOption, value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+	for _, option := range options {
+		if option.Value == trimmed {
+			return option.Label
+		}
+	}
+	return trimmed
+}
+
+func registrationExportOptionLabels(options []model.FormFieldOption, values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	labels := make([]string, 0, len(values))
+	for _, value := range values {
+		label := registrationExportOptionLabel(options, value)
+		if strings.TrimSpace(label) == "" {
+			continue
+		}
+		labels = append(labels, label)
+	}
+	return labels
+}
+
+func registrationExportStoredFiles(registration *model.Registration, field model.FormField, value any, baseURL string) []string {
+	if registration == nil {
+		return nil
+	}
+
+	switch typed := value.(type) {
+	case map[string]any:
+		text, ok := registrationExportStoredFileText(registration.ID, field.Key, 0, typed, baseURL)
+		if !ok {
+			return nil
+		}
+		return []string{text}
+	case []map[string]any:
+		texts := make([]string, 0, len(typed))
+		for index, item := range typed {
+			text, ok := registrationExportStoredFileText(registration.ID, field.Key, index, item, baseURL)
+			if !ok {
+				continue
+			}
+			texts = append(texts, text)
+		}
+		return texts
+	case []any:
+		texts := make([]string, 0, len(typed))
+		for index, item := range typed {
+			fileItem, ok := item.(map[string]any)
+			if !ok {
+				continue
+			}
+			text, exists := registrationExportStoredFileText(registration.ID, field.Key, index, fileItem, baseURL)
+			if !exists {
+				continue
+			}
+			texts = append(texts, text)
+		}
+		return texts
+	default:
+		return nil
+	}
+}
+
+func registrationExportStoredFileText(registrationID uint64, fieldKey string, index int, value map[string]any, baseURL string) (string, bool) {
+	fileName, _ := value["file_name"].(string)
+	fileURL, _ := value["file_url"].(string)
+	if stored, ok := registrationStoredFileFromAny(value); ok {
+		fileName = stored.FileName
+		fileURL = registrationExportAbsoluteURL(baseURL, fmt.Sprintf("/api/admin/registrations/%d/files/%s/%d", registrationID, fieldKey, index))
+	}
+
+	fileName = strings.TrimSpace(fileName)
+	fileURL = registrationExportAbsoluteURL(baseURL, fileURL)
+	if fileName == "" && fileURL == "" {
+		return "", false
+	}
+	if fileName == "" {
+		return fileURL, true
+	}
+	if fileURL == "" {
+		return fileName, true
+	}
+	return fmt.Sprintf("%s: %s", fileName, fileURL), true
+}
+
+func formatRegistrationExportValue(value any, baseURL string) string {
+	switch typed := value.(type) {
+	case nil:
+		return ""
+	case string:
+		return strings.TrimSpace(typed)
+	case []string:
+		return strings.Join(registrationExportTrimmedStrings(typed), "；")
+	case []any:
+		fileTexts := registrationExportLooseFileTexts(typed, baseURL)
+		if len(fileTexts) > 0 {
+			return strings.Join(fileTexts, "；")
+		}
+		stringValues := registrationExportStringSlice(typed)
+		if len(stringValues) > 0 {
+			return strings.Join(stringValues, "；")
+		}
+		return registrationExportJSONString(typed)
+	case []map[string]any:
+		fileTexts := make([]string, 0, len(typed))
+		for _, item := range typed {
+			text, ok := registrationExportLooseFileText(item, baseURL)
+			if !ok {
+				return registrationExportJSONString(typed)
+			}
+			fileTexts = append(fileTexts, text)
+		}
+		return strings.Join(fileTexts, "；")
+	case map[string]any:
+		if text, ok := registrationExportLooseFileText(typed, baseURL); ok {
+			return text
+		}
+		return registrationExportJSONString(typed)
+	default:
+		return strings.TrimSpace(fmt.Sprint(typed))
+	}
+}
+
+func registrationExportLooseFileTexts(values []any, baseURL string) []string {
+	texts := make([]string, 0, len(values))
+	for _, value := range values {
+		item, ok := value.(map[string]any)
+		if !ok {
+			return nil
+		}
+		text, exists := registrationExportLooseFileText(item, baseURL)
+		if !exists {
+			return nil
+		}
+		texts = append(texts, text)
+	}
+	return texts
+}
+
+func registrationExportLooseFileText(value map[string]any, baseURL string) (string, bool) {
+	fileName, _ := value["file_name"].(string)
+	fileURL, _ := value["file_url"].(string)
+	fileName = strings.TrimSpace(fileName)
+	fileURL = registrationExportAbsoluteURL(baseURL, fileURL)
+	if fileName == "" && fileURL == "" {
+		return "", false
+	}
+	if fileName == "" {
+		return fileURL, true
+	}
+	if fileURL == "" {
+		return fileName, true
+	}
+	return fmt.Sprintf("%s: %s", fileName, fileURL), true
+}
+
+func registrationExportJSONString(value any) string {
+	bytes, err := json.Marshal(value)
+	if err != nil {
+		return strings.TrimSpace(fmt.Sprint(value))
+	}
+	return string(bytes)
+}
+
+func registrationExportStringSlice(value any) []string {
+	switch typed := value.(type) {
+	case []string:
+		return registrationExportTrimmedStrings(typed)
+	case []any:
+		values := make([]string, 0, len(typed))
+		for _, item := range typed {
+			switch item.(type) {
+			case map[string]any, []any, []map[string]any:
+				return nil
+			}
+			text := strings.TrimSpace(fmt.Sprint(item))
+			if text == "" {
+				continue
+			}
+			values = append(values, text)
+		}
+		return values
+	default:
+		return nil
+	}
+}
+
+func registrationExportTrimmedStrings(values []string) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		trimmed := strings.TrimSpace(value)
+		if trimmed == "" {
+			continue
+		}
+		result = append(result, trimmed)
+	}
+	return result
+}
+
+func registrationExportCell(value string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return ""
+	}
+
+	dangerous := strings.TrimLeft(trimmed, " \t\r\n")
+	if dangerous != "" {
+		switch dangerous[0] {
+		case '=', '+', '-', '@':
+			return "'" + trimmed
+		}
+	}
+	return trimmed
+}
+
+func registrationExportAbsoluteURL(baseURL string, rawPath string) string {
+	path := strings.TrimSpace(rawPath)
+	if path == "" {
+		return ""
+	}
+	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+		return path
+	}
+
+	base := strings.TrimRight(strings.TrimSpace(baseURL), "/")
+	if base == "" {
+		return path
+	}
+	if strings.HasPrefix(path, "/") {
+		return base + path
+	}
+	return base + "/" + path
 }
 
 func normalizeRegistrationSubmission(fields []model.FormField, input SubmitRegistrationInput, existingFormData map[string]any) (*normalizedRegistrationSubmission, error) {
@@ -1728,6 +2252,29 @@ func (r *gormRegistrationRepository) ListRegistrations(ctx context.Context, filt
 	return registrations, nil
 }
 
+func (r *gormRegistrationRepository) ListRegistrationsForExport(ctx context.Context, filter ListRegistrationsInput) ([]model.Registration, error) {
+	query := applyRegistrationListFilters(
+		r.db.WithContext(ctx).
+			Model(&model.Registration{}).
+			Joins("JOIN registration_forms ON registration_forms.id = registrations.form_id"),
+		filter,
+		true,
+	)
+
+	var registrations []model.Registration
+	if err := query.
+		Preload("Form").
+		Preload("Group1").
+		Preload("Group2").
+		Preload("Reviewer1").
+		Preload("Reviewer2").
+		Order("registrations.submitted_at DESC").
+		Find(&registrations).Error; err != nil {
+		return nil, err
+	}
+	return registrations, nil
+}
+
 func (r *gormRegistrationRepository) CountRegistrations(ctx context.Context, filter ListRegistrationsInput) (int64, error) {
 	return r.countRegistrations(ctx, filter, filter.Status)
 }
@@ -1853,6 +2400,11 @@ func (r *gormRegistrationRepository) countRegistrations(ctx context.Context, fil
 func ptrRegistrationStatus(status uint8) *uint8 {
 	value := status
 	return &value
+}
+
+func ptrUint64(value uint64) *uint64 {
+	result := value
+	return &result
 }
 
 func containsUint64(values []uint64, target uint64) bool {

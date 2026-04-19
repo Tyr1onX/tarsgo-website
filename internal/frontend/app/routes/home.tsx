@@ -1,5 +1,11 @@
 import type { Route } from "./+types/home";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import {
+  startTransition,
+  useEffect,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import { Navbar } from "../components/navbar";
 import { Link } from "react-router";
 import { getOptionalCurrentUser, type AuthUser } from "~/lib/auth-client";
@@ -20,25 +26,29 @@ const stats = [
     icon: "calendar",
     value: "2018",
     label: "成立年份",
-    color: "bg-accent-primary",
+    tint: "#0062FF",
+    tintSoft: "#3B82F6",
   },
   {
     icon: "users",
     value: "35+",
     label: "团队成员",
-    color: "bg-accent-secondary",
+    tint: "#4F46E5",
+    tintSoft: "#7C3AED",
   },
   {
     icon: "layers",
     value: "6",
     label: "技术组别",
-    color: "bg-accent-tertiary",
+    tint: "#10B981",
+    tintSoft: "#14B8A6",
   },
   {
     icon: "award",
     value: "Top 16",
     label: "全国最佳成绩",
-    color: "bg-accent-gold",
+    tint: "#F59E0B",
+    tintSoft: "#FBBF24",
   },
 ];
 
@@ -375,6 +385,8 @@ const aboutModules = [
   },
 ];
 
+const preloadedAboutImages = new Set<string>();
+
 function getAboutModuleLayoutClass(imageCount: number) {
   if (imageCount >= 8) {
     return "lg:grid-cols-[1.28fr_0.72fr]";
@@ -475,25 +487,33 @@ function getCertificateVisibilityClass(index: number) {
   return "hidden";
 }
 
-function StatIcon({ icon, className }: { icon: string; className?: string }) {
+function StatIcon({
+  icon,
+  className,
+  style,
+}: {
+  icon: string;
+  className?: string;
+  style?: CSSProperties;
+}) {
   const icons: Record<string, React.ReactNode> = {
     calendar: (
-      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M8 2v4" /><path d="M16 2v4" /><rect width="18" height="18" x="3" y="4" rx="2" /><path d="M3 10h18" />
       </svg>
     ),
     users: (
-      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
       </svg>
     ),
     layers: (
-      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z" /><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65" /><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65" />
       </svg>
     ),
     award: (
-      <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
         <path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526" /><circle cx="12" cy="8" r="6" />
       </svg>
     ),
@@ -613,9 +633,41 @@ export default function Home() {
   const [activeAboutModuleIndex, setActiveAboutModuleIndex] = useState(0);
   const [activeMilestoneIndex, setActiveMilestoneIndex] = useState(0);
   const [showAllCertificates, setShowAllCertificates] = useState(false);
-  const [aboutPanelHeight, setAboutPanelHeight] = useState("auto");
+  const [certAnimPhase, setCertAnimPhase] = useState<"idle" | "entering" | "exiting">("idle");
+  const certAnimTimerRef = useRef<number | null>(null);
+
+  const toggleAllCertificates = () => {
+    if (certAnimTimerRef.current) {
+      window.clearTimeout(certAnimTimerRef.current);
+      certAnimTimerRef.current = null;
+    }
+    if (showAllCertificates) {
+      setCertAnimPhase("exiting");
+      certAnimTimerRef.current = window.setTimeout(() => {
+        setShowAllCertificates(false);
+        setCertAnimPhase("idle");
+        certAnimTimerRef.current = null;
+      }, 420);
+    } else {
+      setShowAllCertificates(true);
+      setCertAnimPhase("entering");
+      certAnimTimerRef.current = window.setTimeout(() => {
+        setCertAnimPhase("idle");
+        certAnimTimerRef.current = null;
+      }, 720);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (certAnimTimerRef.current) {
+        window.clearTimeout(certAnimTimerRef.current);
+      }
+    };
+  }, []);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const aboutPanelRef = useRef<HTMLDivElement | null>(null);
+  const aboutPhotoWallRef = useRef<HTMLDivElement | null>(null);
   const activeAboutModule = aboutModules[activeAboutModuleIndex];
   const activeMilestone = timelineMilestones[activeMilestoneIndex];
 
@@ -641,8 +693,9 @@ export default function Home() {
 
   useEffect(() => {
     const panel = aboutPanelRef.current;
+    const photoWall = aboutPhotoWallRef.current;
 
-    if (!panel) {
+    if (!panel || !photoWall) {
       return;
     }
 
@@ -650,9 +703,9 @@ export default function Home() {
 
     const syncAboutPanelHeight = () => {
       const nextHeight = `${Math.ceil(panel.getBoundingClientRect().height)}px`;
-      setAboutPanelHeight((current) =>
-        current === nextHeight ? current : nextHeight,
-      );
+      if (photoWall.style.getPropertyValue("--about-photo-wall-height") !== nextHeight) {
+        photoWall.style.setProperty("--about-photo-wall-height", nextHeight);
+      }
     };
 
     const scheduleSync = () => {
@@ -688,16 +741,53 @@ export default function Home() {
     };
   }, [activeAboutModuleIndex]);
 
+  useEffect(() => {
+    const preloadModuleImages = (moduleIndex: number) => {
+      for (const image of aboutModules[moduleIndex].images) {
+        if (preloadedAboutImages.has(image)) {
+          continue;
+        }
+
+        preloadedAboutImages.add(image);
+        const nextImage = new Image();
+        nextImage.decoding = "async";
+        nextImage.src = image;
+      }
+    };
+
+    const timerId = window.setTimeout(() => {
+      preloadModuleImages(activeAboutModuleIndex);
+      preloadModuleImages((activeAboutModuleIndex + 1) % aboutModules.length);
+      preloadModuleImages(
+        (activeAboutModuleIndex + aboutModules.length - 1) % aboutModules.length,
+      );
+    }, 120);
+
+    return () => {
+      window.clearTimeout(timerId);
+    };
+  }, [activeAboutModuleIndex]);
+
+  function activateAboutModule(index: number) {
+    startTransition(() => {
+      setActiveAboutModuleIndex(index);
+    });
+  }
+
   function showPreviousAboutModule() {
-    setActiveAboutModuleIndex((current) =>
-      current === 0 ? aboutModules.length - 1 : current - 1,
-    );
+    startTransition(() => {
+      setActiveAboutModuleIndex((current) =>
+        current === 0 ? aboutModules.length - 1 : current - 1,
+      );
+    });
   }
 
   function showNextAboutModule() {
-    setActiveAboutModuleIndex((current) =>
-      current === aboutModules.length - 1 ? 0 : current + 1,
-    );
+    startTransition(() => {
+      setActiveAboutModuleIndex((current) =>
+        current === aboutModules.length - 1 ? 0 : current + 1,
+      );
+    });
   }
 
   function showPreviousMilestone() {
@@ -782,25 +872,41 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="pointer-events-none absolute inset-x-0 bottom-6 z-20 sm:bottom-8">
+        <div className="pointer-events-none absolute inset-x-0 bottom-5 z-20 sm:bottom-8">
           <div className="mx-auto flex max-w-[1440px] justify-center px-6 sm:px-10 lg:px-20">
             <a
               href="#about"
-              className="motion-button pointer-events-auto inline-flex h-14 w-14 items-center justify-center rounded-full border border-white/14 bg-white/10 text-white shadow-[0_18px_48px_-28px_rgba(255,255,255,0.76)] backdrop-blur-md hover:border-white/28 hover:bg-white/16 sm:h-16 sm:w-16"
               aria-label="下滑查看更多"
+              className="pointer-events-auto group relative flex flex-col items-center gap-2 sm:gap-3"
             >
-              <svg
-                className="h-6 w-6"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              >
-                <path d="M12 5v14" />
-                <path d="m19 12-7 7-7-7" />
-              </svg>
+              {/* Scroll hint line with falling dot */}
+              <span className="relative flex h-5 w-px items-start overflow-hidden sm:h-6">
+                <span className="absolute inset-0 bg-gradient-to-b from-transparent via-white/12 to-transparent" />
+                <span className="animate-scroll-hint-trail h-2/5 w-full bg-gradient-to-b from-white/0 via-white/80 to-white/0" />
+              </span>
+
+              {/* Button */}
+              <span className="motion-button relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/14 bg-white/[0.08] text-white shadow-[0_14px_36px_-24px_rgba(255,255,255,0.7)] backdrop-blur-md transition-all duration-300 group-hover:border-white/30 group-hover:bg-white/[0.16] sm:h-10 sm:w-10">
+                {/* Ambient pulsing ring */}
+                <span className="animate-scroll-pulse-ring pointer-events-none absolute inset-0 rounded-full border border-white/25" />
+                {/* Chevron icon with gentle bounce */}
+                <svg
+                  className="animate-scroll-chevron-bounce h-[14px] w-[14px] sm:h-4 sm:w-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="m6 9 6 6 6-6" />
+                </svg>
+              </span>
+
+              {/* Label */}
+              <span className="text-[10px] font-semibold uppercase tracking-[0.32em] text-white/45 transition-colors duration-300 group-hover:text-white/80 sm:text-[11px]">
+                Scroll
+              </span>
             </a>
           </div>
         </div>
@@ -831,12 +937,22 @@ export default function Home() {
                 key={stat.label}
                 className="motion-stat-surface flex flex-col items-center gap-3 rounded-2xl border border-white/8 bg-surface-light/92 p-7"
               >
-                <div
-                  className={`w-12 h-12 ${stat.color} rounded-xl flex items-center justify-center`}
-                >
+                <div className="motion-stat-icon relative flex h-14 w-14 items-center justify-center">
+                  <span
+                    aria-hidden
+                    className="motion-stat-icon-glow pointer-events-none absolute inset-0 opacity-60"
+                    style={{
+                      backgroundImage: `radial-gradient(circle, ${stat.tint}55 0%, transparent 66%)`,
+                      filter: "blur(10px)",
+                    }}
+                  />
                   <StatIcon
                     icon={stat.icon}
-                    className="w-6 h-6 text-fg-inverse"
+                    className="relative h-9 w-9"
+                    style={{
+                      color: stat.tint,
+                      filter: `drop-shadow(0 6px 16px ${stat.tint}66)`,
+                    }}
                   />
                 </div>
                 <span className="font-mono text-4xl font-bold text-fg-primary">
@@ -853,37 +969,81 @@ export default function Home() {
             <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
               <div className="min-w-0 flex-1">
                 <div className="relative overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  <div className="absolute left-0 right-0 top-6 hidden h-px bg-border-subtle md:block" />
                   <div className="relative flex min-w-max gap-3 pr-4">
-                    {aboutModules.map((module, index) => (
-                      <button
-                        key={module.name}
-                        type="button"
-                        onClick={() => setActiveAboutModuleIndex(index)}
-                        className={`motion-button flex min-w-[112px] flex-col rounded-2xl border px-4 py-3 text-left ${
-                          index === activeAboutModuleIndex
-                            ? "motion-module-tab-active border-accent-primary bg-accent-primary text-fg-inverse shadow-[0_18px_40px_-24px_rgba(0,98,255,0.85)]"
-                            : "border-white/8 bg-surface-light text-fg-muted hover:border-accent-primary/30 hover:text-fg-primary"
-                        }`}
-                        aria-pressed={index === activeAboutModuleIndex}
-                      >
-                        <span className="text-sm font-semibold tracking-[0.18em]">
-                          {module.name}
-                        </span>
-                        <span className="mt-1 text-xs opacity-80">
-                          {module.images.length} 张图片
-                        </span>
-                      </button>
-                    ))}
+                    {aboutModules.map((module, index) => {
+                      const isActive = index === activeAboutModuleIndex;
+                      return (
+                        <button
+                          key={module.name}
+                          type="button"
+                          onClick={() => activateAboutModule(index)}
+                          className={`motion-button relative flex min-w-[148px] flex-col gap-2 overflow-hidden rounded-2xl border px-4 py-3.5 text-left ${
+                            isActive
+                              ? "motion-module-tab-active border-accent-primary/70 bg-gradient-to-br from-accent-primary via-accent-primary to-accent-secondary text-fg-inverse shadow-[0_22px_48px_-22px_rgba(0,98,255,0.9)]"
+                              : "border-white/10 bg-surface-light text-fg-muted hover:border-accent-primary/35 hover:text-fg-primary"
+                          }`}
+                          aria-pressed={isActive}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span
+                              className={`font-mono text-[11px] font-bold tracking-[0.22em] ${
+                                isActive ? "text-white/85" : "text-fg-dim"
+                              }`}
+                            >
+                              {String(index + 1).padStart(2, "0")}
+                            </span>
+                            <span
+                              aria-hidden
+                              className={`h-1.5 w-1.5 rounded-full transition-all duration-300 ${
+                                isActive
+                                  ? "bg-white shadow-[0_0_8px_rgba(255,255,255,0.85)]"
+                                  : "bg-white/15"
+                              }`}
+                            />
+                          </div>
+
+                          <span className="text-base font-bold tracking-[0.18em]">
+                            {module.name}
+                          </span>
+
+                          {isActive ? (
+                            <span
+                              aria-hidden
+                              className="pointer-events-none absolute inset-x-3 bottom-0 h-[2px] rounded-full bg-gradient-to-r from-transparent via-white/85 to-transparent"
+                            />
+                          ) : null}
+                        </button>
+                      );
+                    })}
                   </div>
+                </div>
+
+                {/* Progress rail */}
+                <div
+                  aria-hidden
+                  className="relative mt-3 h-[2px] overflow-hidden rounded-full bg-white/[0.06]"
+                >
+                  <div
+                    className="absolute left-0 top-0 h-full rounded-full bg-gradient-to-r from-accent-primary/70 via-accent-primary to-accent-secondary shadow-[0_0_10px_rgba(0,98,255,0.55)]"
+                    style={{
+                      width: `${((activeAboutModuleIndex + 1) / aboutModules.length) * 100}%`,
+                      transition:
+                        "width 520ms cubic-bezier(0.22, 1, 0.36, 1)",
+                    }}
+                  />
                 </div>
               </div>
 
               <div className="flex items-center justify-between gap-4 lg:justify-end">
-                <span className="text-sm text-fg-muted">
-                  {String(activeAboutModuleIndex + 1).padStart(2, "0")} /{" "}
-                  {String(aboutModules.length).padStart(2, "0")}
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="font-mono text-sm font-bold tracking-[0.18em] text-accent-primary">
+                    {String(activeAboutModuleIndex + 1).padStart(2, "0")}
+                  </span>
+                  <span className="h-px w-10 bg-gradient-to-r from-accent-primary/45 to-transparent sm:w-14" />
+                  <span className="font-mono text-sm text-fg-dim">
+                    / {String(aboutModules.length).padStart(2, "0")}
+                  </span>
+                </div>
                 <div className="flex items-center gap-3">
                   <button
                     type="button"
@@ -926,17 +1086,16 @@ export default function Home() {
             </div>
 
             <div
-              key={activeAboutModuleIndex}
               className={`grid gap-6 ${getAboutModuleLayoutClass(activeAboutModule.images.length)} lg:items-start`}
             >
               <div
+                ref={aboutPhotoWallRef}
                 className={`grid ${getAboutPhotoWallClass(activeAboutModule.images.length)} gap-3 lg:h-[var(--about-photo-wall-height)] lg:[grid-template-rows:repeat(var(--about-photo-rows),minmax(0,1fr))]`}
                 style={
                   {
                     "--about-photo-rows": String(
                       getAboutPhotoWallRowCount(activeAboutModule.images.length),
                     ),
-                    "--about-photo-wall-height": aboutPanelHeight,
                   } as CSSProperties
                 }
               >
@@ -949,6 +1108,7 @@ export default function Home() {
                     <img
                       src={image}
                       alt={`${activeAboutModule.name}模块图片${index + 1}`}
+                      decoding="async"
                       loading="lazy"
                       className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
                     />
@@ -964,41 +1124,97 @@ export default function Home() {
 
               <div
                 ref={aboutPanelRef}
-                style={{ animationDelay: "80ms" }}
-                className="motion-info-panel-in motion-panel-soft rounded-[28px] border border-white/8 bg-surface-light/80 p-5 sm:p-6"
+                className="motion-panel-soft rounded-[28px] border border-white/8 bg-surface-light/80 p-5 sm:p-6"
               >
-                <span className="inline-flex rounded-full border border-accent-primary/20 bg-accent-primary/10 px-4 py-1 text-[13px] font-semibold text-accent-primary">
-                  {activeAboutModule.name}
-                </span>
-                <h3 className="mt-3.5 font-display text-3xl text-fg-primary sm:mt-4 sm:text-4xl">
-                  {activeAboutModule.title}
-                </h3>
-                <div className="mt-3.5 space-y-2.5 sm:mt-4">
-                  {activeAboutModule.description.map((paragraph) => (
-                    <p
-                      key={paragraph}
-                      className="text-sm leading-6 text-fg-muted sm:text-base sm:leading-7"
-                    >
-                      {paragraph}
-                    </p>
-                  ))}
-                </div>
-
-                <div className="mt-4 rounded-[24px] border border-white/8 bg-surface-primary/68 p-4 sm:mt-5 sm:p-5">
-                  <h4 className="text-sm font-semibold uppercase tracking-[0.22em] text-accent-gold">
-                    模块聚焦
-                  </h4>
-                  <ul className="mt-3 space-y-2.5">
-                    {activeAboutModule.highlights.map((highlight) => (
-                      <li
-                        key={highlight}
-                        className="flex gap-3 text-sm leading-6 text-fg-muted sm:text-[15px] sm:leading-7"
+                <div
+                  key={activeAboutModuleIndex}
+                  style={{ animationDelay: "80ms" }}
+                  className="motion-info-panel-in"
+                >
+                  <span className="relative inline-flex items-center gap-2 overflow-hidden rounded-full border border-accent-primary/30 bg-gradient-to-r from-accent-primary/20 via-accent-primary/12 to-accent-primary/5 px-4 py-1.5 text-[13px] font-semibold tracking-[0.22em] text-accent-primary shadow-[0_8px_24px_-10px_rgba(0,98,255,0.55)] backdrop-blur-sm">
+                    <span
+                      aria-hidden
+                      className="pointer-events-none absolute inset-y-0 -left-1/4 w-1/3 -skew-x-[24deg] bg-gradient-to-r from-transparent via-white/18 to-transparent motion-tag-shine"
+                    />
+                    <span className="relative flex h-2 w-2">
+                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent-primary/70 opacity-70" />
+                      <span className="relative inline-flex h-2 w-2 rounded-full bg-accent-primary shadow-[0_0_8px_rgba(0,98,255,0.9)]" />
+                    </span>
+                    <span className="relative">{activeAboutModule.name}</span>
+                  </span>
+                  <div className="mt-3.5 flex items-start gap-3 sm:mt-4">
+                    <span
+                      aria-hidden
+                      className="mt-2 h-9 w-[3px] shrink-0 rounded-full bg-gradient-to-b from-accent-primary via-accent-primary/70 to-transparent shadow-[0_0_10px_rgba(0,98,255,0.55)] sm:h-10"
+                    />
+                    <h3 className="font-display text-3xl text-fg-primary sm:text-4xl">
+                      {activeAboutModule.title}
+                    </h3>
+                  </div>
+                  <div className="mt-3.5 space-y-2.5 sm:mt-4">
+                    {activeAboutModule.description.map((paragraph) => (
+                      <p
+                        key={paragraph}
+                        className="text-sm leading-6 text-fg-muted sm:text-base sm:leading-7"
                       >
-                        <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-accent-gold" />
-                        <span>{highlight}</span>
-                      </li>
+                        {paragraph}
+                      </p>
                     ))}
-                  </ul>
+                  </div>
+
+                  <div className="relative mt-4 overflow-hidden rounded-[24px] border border-accent-gold/15 bg-gradient-to-br from-accent-gold/[0.06] via-surface-primary/68 to-surface-primary/68 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] sm:mt-5 sm:p-5">
+                    <div
+                      aria-hidden
+                      className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-accent-gold/12 blur-3xl"
+                    />
+                    <div
+                      aria-hidden
+                      className="pointer-events-none absolute -left-6 -bottom-6 h-24 w-24 rounded-full bg-accent-gold/8 blur-2xl"
+                    />
+                    <div className="relative flex items-center gap-3">
+                      <span
+                        aria-hidden
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-accent-gold/30 bg-accent-gold/10 shadow-[inset_0_0_10px_rgba(245,158,11,0.18)]"
+                      >
+                        <svg
+                          className="h-3.5 w-3.5 text-accent-gold"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <circle cx="12" cy="12" r="9" />
+                          <circle cx="12" cy="12" r="5" />
+                          <circle cx="12" cy="12" r="1.5" fill="currentColor" />
+                        </svg>
+                      </span>
+                      <h4 className="text-sm font-semibold uppercase tracking-[0.22em] text-accent-gold">
+                        模块聚焦
+                      </h4>
+                      <span
+                        aria-hidden
+                        className="h-px flex-1 bg-gradient-to-r from-accent-gold/40 via-accent-gold/10 to-transparent"
+                      />
+                    </div>
+                    <ul className="relative mt-4 space-y-2">
+                      {activeAboutModule.highlights.map((highlight, idx) => (
+                        <li
+                          key={highlight}
+                          className="group relative flex items-start gap-3 rounded-xl border border-transparent px-2 py-1.5 text-sm leading-6 text-fg-muted transition-all duration-300 hover:border-accent-gold/15 hover:bg-accent-gold/[0.05] hover:text-fg-primary sm:text-[15px] sm:leading-7"
+                        >
+                          <span
+                            aria-hidden
+                            className="relative mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-accent-gold/25 bg-gradient-to-br from-accent-gold/15 to-accent-gold/5 font-mono text-[11px] font-bold text-accent-gold shadow-[inset_0_0_10px_rgba(245,158,11,0.18)] transition-all duration-300 group-hover:border-accent-gold/45 group-hover:shadow-[0_0_12px_rgba(245,158,11,0.4),inset_0_0_10px_rgba(245,158,11,0.25)]"
+                          >
+                            {String(idx + 1).padStart(2, "0")}
+                          </span>
+                          <span>{highlight}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 </div>
               </div>
             </div>
@@ -1024,97 +1240,244 @@ export default function Home() {
           />
 
           <div className="relative mx-auto max-w-[1240px]">
-            <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-              <div className="min-w-0 flex-1">
-                <div className="relative overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  <div className="absolute left-0 right-0 top-6 hidden h-px bg-border-subtle md:block" />
-                  <div className="relative flex min-w-max gap-3 pr-4">
-                    {timelineMilestones.map((item, index) => (
-                      <button
-                        key={item.year}
-                        type="button"
-                        onClick={() => setActiveMilestoneIndex(index)}
-                        className={`motion-button flex min-w-[104px] flex-col rounded-2xl border px-4 py-3 text-left transition-colors ${
-                          index === activeMilestoneIndex
-                            ? "border-accent-primary bg-accent-primary text-fg-inverse shadow-[0_18px_40px_-24px_rgba(0,98,255,0.85)]"
-                            : "border-white/8 bg-surface-light text-fg-muted hover:border-accent-primary/30 hover:text-fg-primary"
-                        }`}
-                        aria-pressed={index === activeMilestoneIndex}
-                      >
-                        <span className="font-mono text-sm font-semibold">
-                          {item.year}
-                        </span>
-                        <span className="mt-1 text-sm font-semibold">
-                          {item.title}
-                        </span>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
+            {/* Timeline rail navigation */}
+            <div className="mb-8 sm:mb-10">
+              <div className="overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+                <div className="relative min-w-[760px] px-2 pt-2 lg:min-w-0">
+                  {(() => {
+                    const total = timelineMilestones.length;
+                    const railInsetPercent = 100 / (total * 2);
+                    const progressWidth =
+                      total > 1
+                        ? (activeMilestoneIndex / (total - 1)) *
+                          (100 - 2 * railInsetPercent)
+                        : 0;
+                    return (
+                      <>
+                        <div
+                          aria-hidden
+                          className="pointer-events-none absolute top-[44px] h-[2px] rounded-full bg-gradient-to-r from-transparent via-white/15 to-transparent"
+                          style={{
+                            left: `${railInsetPercent}%`,
+                            right: `${railInsetPercent}%`,
+                          }}
+                        />
+                        <div
+                          aria-hidden
+                          className="pointer-events-none absolute top-[44px] h-[2px] rounded-full bg-gradient-to-r from-[#FFD700]/50 via-[#FFD700] to-[#FFB547] shadow-[0_0_12px_rgba(255,215,0,0.55)]"
+                          style={{
+                            left: `${railInsetPercent}%`,
+                            width: `${progressWidth}%`,
+                            transition:
+                              "width 640ms cubic-bezier(0.22, 1, 0.36, 1)",
+                          }}
+                        />
+                      </>
+                    );
+                  })()}
 
-              <div className="flex items-center justify-between gap-4 lg:justify-end">
-                <span className="text-sm text-fg-muted">
-                  {String(activeMilestoneIndex + 1).padStart(2, "0")} /{" "}
-                  {String(timelineMilestones.length).padStart(2, "0")}
-                </span>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={showPreviousMilestone}
-                    className="motion-button flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-surface-light text-fg-primary hover:border-accent-primary/30 hover:text-accent-primary"
-                    aria-label="查看上一段历程"
+                  <div
+                    className="relative grid gap-2"
+                    style={{
+                      gridTemplateColumns: `repeat(${timelineMilestones.length}, minmax(0, 1fr))`,
+                    }}
                   >
-                    <svg
-                      className="h-5 w-5"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="m15 18-6-6 6-6" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={showNextMilestone}
-                    className="motion-button flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-surface-light text-fg-primary hover:border-accent-primary/30 hover:text-accent-primary"
-                    aria-label="查看下一段历程"
-                  >
-                    <svg
-                      className="h-5 w-5"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="m9 18 6-6-6-6" />
-                    </svg>
-                  </button>
+                    {timelineMilestones.map((item, index) => {
+                      const isActive = index === activeMilestoneIndex;
+                      const isPast = index < activeMilestoneIndex;
+                      return (
+                        <button
+                          key={item.year}
+                          type="button"
+                          onClick={() => setActiveMilestoneIndex(index)}
+                          className="group relative flex flex-col items-center focus:outline-none"
+                          aria-pressed={isActive}
+                          aria-label={`${item.year}年 ${item.title}`}
+                        >
+                          <span
+                            className={`font-mono text-[13px] font-bold tracking-[0.08em] transition-all duration-300 ${
+                              isActive
+                                ? "scale-110 text-[#FFD700] [text-shadow:0_0_12px_rgba(255,215,0,0.55)]"
+                                : isPast
+                                  ? "text-[#FFD700]/70"
+                                  : "text-fg-dim group-hover:text-fg-muted"
+                            }`}
+                          >
+                            {item.year}
+                          </span>
+
+                          <span className="h-5" />
+
+                          <span
+                            className={`relative z-10 flex items-center justify-center rounded-full border-2 transition-all duration-300 ${
+                              isActive
+                                ? "h-5 w-5 border-[#FFD700] bg-gradient-to-br from-[#FFE56B] to-[#FFB800] shadow-[0_0_18px_rgba(255,215,0,0.75)]"
+                                : isPast
+                                  ? "h-4 w-4 border-[#FFD700]/65 bg-[#FFD700]/30"
+                                  : "h-4 w-4 border-white/20 bg-surface-primary group-hover:border-[#FFD700]/55 group-hover:bg-[#FFD700]/10"
+                            }`}
+                          >
+                            {isActive ? (
+                              <>
+                                <span
+                                  aria-hidden
+                                  className="pointer-events-none absolute inset-[-6px] animate-ping rounded-full border border-[#FFD700]/45"
+                                />
+                                <span
+                                  aria-hidden
+                                  className="pointer-events-none absolute inset-[-4px] rounded-full bg-[#FFD700]/10 blur-[4px]"
+                                />
+                              </>
+                            ) : null}
+                          </span>
+
+                          <span
+                            className={`mt-3 text-center text-xs font-semibold transition-all duration-300 sm:text-[13px] ${
+                              isActive
+                                ? "text-fg-primary"
+                                : "text-fg-muted group-hover:text-fg-primary"
+                            }`}
+                          >
+                            {item.title}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             </div>
 
-            <div className="overflow-hidden rounded-[32px] border border-white/8 bg-surface-light/86 p-6 shadow-[0_24px_70px_-40px_rgba(2,6,23,0.9)] sm:p-8">
+            {/* Counter + arrow navigation */}
+            <div className="mb-6 flex items-center justify-between gap-4">
+              <div className="flex items-center gap-3">
+                <span className="font-mono text-sm font-bold tracking-[0.18em] text-[#FFD700]">
+                  {String(activeMilestoneIndex + 1).padStart(2, "0")}
+                </span>
+                <span className="h-px w-10 bg-gradient-to-r from-[#FFD700]/45 to-transparent sm:w-14" />
+                <span className="font-mono text-sm text-fg-dim">
+                  / {String(timelineMilestones.length).padStart(2, "0")}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={showPreviousMilestone}
+                  className="motion-button flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-surface-light text-fg-primary hover:border-[#FFD700]/40 hover:text-[#FFD700]"
+                  aria-label="查看上一段历程"
+                >
+                  <svg
+                    className="h-5 w-5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="m15 18-6-6 6-6" />
+                  </svg>
+                </button>
+                <button
+                  type="button"
+                  onClick={showNextMilestone}
+                  className="motion-button flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-surface-light text-fg-primary hover:border-[#FFD700]/40 hover:text-[#FFD700]"
+                  aria-label="查看下一段历程"
+                >
+                  <svg
+                    className="h-5 w-5"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="m9 18 6-6-6-6" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            <div className="relative overflow-hidden rounded-[32px] border border-white/8 bg-surface-light/86 p-6 shadow-[0_24px_70px_-40px_rgba(2,6,23,0.9)] sm:p-8">
+              {/* Year watermark */}
+              <div
+                key={`watermark-${activeMilestone.year}`}
+                aria-hidden
+                className="motion-year-watermark pointer-events-none absolute -right-4 -top-12 z-0 select-none font-display leading-[0.82] sm:-right-8 sm:-top-20"
+                style={{
+                  fontSize: "clamp(180px, 28vw, 360px)",
+                  background:
+                    "linear-gradient(180deg, rgba(255,215,0,0.09) 0%, rgba(255,215,0,0.025) 62%, transparent 100%)",
+                  WebkitBackgroundClip: "text",
+                  backgroundClip: "text",
+                  color: "transparent",
+                  WebkitTextStroke: "1px rgba(255, 215, 0, 0.06)",
+                }}
+              >
+                {activeMilestone.year}
+              </div>
+
+              {/* Ambient gold glow */}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute -right-32 -top-32 z-0 h-[420px] w-[420px] rounded-full bg-[radial-gradient(circle,rgba(255,215,0,0.08),transparent_62%)]"
+              />
+              <div
+                aria-hidden
+                className="pointer-events-none absolute -left-24 -bottom-24 z-0 h-[320px] w-[320px] rounded-full bg-[radial-gradient(circle,rgba(255,181,71,0.06),transparent_62%)]"
+              />
+
               <article
                 key={activeMilestone.year}
-                className="motion-fade-up grid gap-6 lg:grid-cols-[0.92fr_1.08fr] lg:items-start"
+                className="motion-fade-up relative z-10 grid gap-6 lg:grid-cols-[0.92fr_1.08fr] lg:items-start"
               >
                 <div className="flex flex-col gap-6">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#FFD700] text-base font-bold text-slate-950 shadow-[0_18px_40px_-22px_rgba(255,215,0,0.68)]">
-                      {activeMilestone.year.slice(2)}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold uppercase tracking-[0.22em] text-accent-primary">
+                  <div>
+                    <div className="flex items-center gap-3">
+                      <span
+                        aria-hidden
+                        className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-[#FFD700]/35 bg-[#FFD700]/10 shadow-[inset_0_0_10px_rgba(255,215,0,0.22)]"
+                      >
+                        <svg
+                          className="h-3.5 w-3.5 text-[#FFD700]"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <circle cx="12" cy="12" r="9" />
+                          <path d="M12 7v5l3 2" />
+                        </svg>
+                      </span>
+                      <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#FFD700]">
                         Team Timeline
                       </p>
-                      <h3 className="mt-1 font-display text-3xl text-fg-primary sm:text-[34px]">
-                        {activeMilestone.year}年 · {activeMilestone.title}
+                      <span
+                        aria-hidden
+                        className="h-px flex-1 bg-gradient-to-r from-[#FFD700]/40 via-[#FFD700]/10 to-transparent"
+                      />
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-baseline gap-x-5 gap-y-1">
+                      <span
+                        className="font-display text-[56px] leading-none tracking-tight sm:text-[72px] lg:text-[84px]"
+                        style={{
+                          background:
+                            "linear-gradient(180deg, #FFE56B 0%, #FFD700 52%, #FFB547 100%)",
+                          WebkitBackgroundClip: "text",
+                          backgroundClip: "text",
+                          color: "transparent",
+                          filter:
+                            "drop-shadow(0 8px 24px rgba(255, 215, 0, 0.28))",
+                        }}
+                      >
+                        {activeMilestone.year}
+                      </span>
+                      <h3 className="font-display text-2xl text-fg-primary sm:text-3xl lg:text-[34px]">
+                        · {activeMilestone.title}
                       </h3>
                     </div>
                   </div>
@@ -1123,18 +1486,61 @@ export default function Home() {
                     {activeMilestone.intro}
                   </p>
 
-                  <div className="rounded-[24px] border border-white/8 bg-surface-primary/72 p-5">
-                    <h4 className="text-sm font-semibold uppercase tracking-[0.22em] text-[#FFD700]">
-                      关键节点
-                    </h4>
-                    <ul className="mt-4 space-y-3">
+                  <div className="relative overflow-hidden rounded-[24px] border border-[#FFD700]/18 bg-gradient-to-br from-[#FFD700]/[0.07] via-surface-primary/72 to-surface-primary/72 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
+                    <div
+                      aria-hidden
+                      className="pointer-events-none absolute -right-14 -top-14 h-44 w-44 rounded-full bg-[#FFD700]/12 blur-3xl"
+                    />
+                    <div
+                      aria-hidden
+                      className="pointer-events-none absolute -left-8 -bottom-10 h-32 w-32 rounded-full bg-[#FFB547]/10 blur-3xl"
+                    />
+                    <div className="relative flex items-center gap-3">
+                      <span
+                        aria-hidden
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-[#FFD700]/35 bg-[#FFD700]/12 shadow-[inset_0_0_10px_rgba(255,215,0,0.25)]"
+                      >
+                        <svg
+                          className="h-3.5 w-3.5 text-[#FFD700]"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="m12 2 2.39 6.96h7.32l-5.92 4.3 2.26 6.96L12 15.9l-6.05 4.32 2.26-6.96-5.92-4.3h7.32Z" />
+                        </svg>
+                      </span>
+                      <h4 className="text-sm font-semibold uppercase tracking-[0.22em] text-[#FFD700]">
+                        关键节点
+                      </h4>
+                      <span
+                        aria-hidden
+                        className="h-px flex-1 bg-gradient-to-r from-[#FFD700]/45 via-[#FFD700]/10 to-transparent"
+                      />
+                    </div>
+                    <ul className="relative mt-5 space-y-4 pl-1">
+                      <span
+                        aria-hidden
+                        className="pointer-events-none absolute left-[11px] top-2 bottom-2 w-px bg-gradient-to-b from-[#FFD700]/50 via-[#FFD700]/20 to-transparent"
+                      />
                       {activeMilestone.highlights.map((highlight) => (
                         <li
                           key={highlight}
-                          className="flex gap-3 text-sm leading-7 text-fg-muted sm:text-[15px]"
+                          className="group relative flex items-start gap-4 text-sm leading-7 text-fg-muted transition-colors duration-300 hover:text-fg-primary sm:text-[15px]"
                         >
-                          <span className="mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-[#FFD700]" />
-                          <span>{highlight}</span>
+                          <span
+                            aria-hidden
+                            className="relative z-10 mt-1 flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full border border-[#FFD700]/45 bg-surface-primary shadow-[0_0_14px_rgba(255,215,0,0.32)] transition-all duration-300 group-hover:border-[#FFD700] group-hover:shadow-[0_0_18px_rgba(255,215,0,0.55)]"
+                          >
+                            <span
+                              aria-hidden
+                              className="absolute inline-flex h-full w-full rounded-full bg-[#FFD700]/20 opacity-0 transition-opacity duration-500 group-hover:opacity-100 group-hover:animate-ping"
+                            />
+                            <span className="relative h-2 w-2 rounded-full bg-gradient-to-br from-[#FFE56B] to-[#FFB800] shadow-[0_0_6px_rgba(255,215,0,0.8)]" />
+                          </span>
+                          <span className="pt-0.5">{highlight}</span>
                         </li>
                       ))}
                     </ul>
@@ -1248,37 +1654,54 @@ export default function Home() {
           />
 
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {achievementCertificates.map((image, index) => (
-              <article
-                key={image}
-                className={`motion-surface group relative aspect-[4/3] overflow-hidden rounded-[24px] border border-white/8 bg-surface-light/86 p-3 sm:p-4 ${
-                  showAllCertificates ? "" : getCertificateVisibilityClass(index)
-                }`}
-              >
-                <span className="absolute left-4 top-4 z-10 rounded-full border border-white/10 bg-black/28 px-3 py-1 text-[11px] font-semibold tracking-[0.18em] text-accent-gold backdrop-blur-sm">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-                <div className="h-full overflow-hidden rounded-[18px] bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_56%)]">
-                  <img
-                    src={image}
-                    alt={`团队荣誉证书${index + 1}`}
-                    loading="lazy"
-                    className="h-full w-full object-fill transition-transform duration-500 ease-out group-hover:scale-[1.02]"
-                  />
-                </div>
-              </article>
-            ))}
+            {achievementCertificates.map((image, index) => {
+              const isBreakpointHidden = index >= 4;
+              const breakpointClass =
+                showAllCertificates || certAnimPhase === "exiting"
+                  ? ""
+                  : getCertificateVisibilityClass(index);
+              const animClass =
+                isBreakpointHidden && certAnimPhase === "entering"
+                  ? "animate-cert-reveal"
+                  : isBreakpointHidden && certAnimPhase === "exiting"
+                    ? "animate-cert-collapse"
+                    : "";
+              const staggerDelay =
+                isBreakpointHidden && certAnimPhase !== "idle"
+                  ? `${Math.min((index - 4) * 28, 320)}ms`
+                  : undefined;
+              return (
+                <article
+                  key={image}
+                  className={`motion-surface group relative aspect-[4/3] overflow-hidden rounded-[24px] border border-white/8 bg-surface-light/86 p-3 sm:p-4 ${breakpointClass} ${animClass}`}
+                  style={staggerDelay ? { animationDelay: staggerDelay } : undefined}
+                >
+                  <span className="absolute left-4 top-4 z-10 rounded-full border border-white/10 bg-black/28 px-3 py-1 text-[11px] font-semibold tracking-[0.18em] text-accent-gold backdrop-blur-sm">
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                  <div className="h-full overflow-hidden rounded-[18px] bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_56%)]">
+                    <img
+                      src={image}
+                      alt={`团队荣誉证书${index + 1}`}
+                      loading="lazy"
+                      className="h-full w-full object-fill transition-transform duration-500 ease-out group-hover:scale-[1.02]"
+                    />
+                  </div>
+                </article>
+              );
+            })}
           </div>
 
           {achievementCertificates.length > 10 ? (
             <div className="mt-10 flex justify-center">
               <button
                 type="button"
-                onClick={() => setShowAllCertificates((current) => !current)}
-                className="motion-button inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.08] px-7 py-3 text-sm font-semibold text-fg-primary backdrop-blur-md hover:border-accent-gold/40 hover:text-accent-gold"
+                onClick={toggleAllCertificates}
+                disabled={certAnimPhase !== "idle"}
+                className="motion-button inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.08] px-7 py-3 text-sm font-semibold tracking-[0.18em] text-fg-primary backdrop-blur-md hover:border-accent-gold/40 hover:text-accent-gold disabled:cursor-not-allowed"
                 aria-expanded={showAllCertificates}
               >
-                {showAllCertificates ? "收起" : "点击查看更多"}
+                More
                 <svg
                   className={`h-4 w-4 transition-transform duration-300 ${
                     showAllCertificates ? "rotate-180" : ""
