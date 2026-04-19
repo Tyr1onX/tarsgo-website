@@ -177,6 +177,45 @@ func TestServiceListGroups_FiltersByStatus(t *testing.T) {
 	}
 }
 
+func TestToGroupDetail_IncludesMemberPhone(t *testing.T) {
+	repo := newFakeRepository()
+	detail := toGroupDetail(repo.groups[1])
+
+	if len(detail.Members) != 1 {
+		t.Fatalf("expected 1 member, got %d", len(detail.Members))
+	}
+
+	if detail.Members[0].User.Phone == nil || *detail.Members[0].User.Phone != "13800138003" {
+		t.Fatalf("expected member phone 13800138003, got %#v", detail.Members[0].User.Phone)
+	}
+}
+
+func TestServiceListMemberCandidates_IncludesPhone(t *testing.T) {
+	repo := newFakeRepository()
+	service := NewService(repo)
+
+	items, err := service.ListMemberCandidates(context.Background(), Actor{ID: 2, RoleName: model.RoleNameAdmin}, 1)
+	if err != nil {
+		t.Fatalf("ListMemberCandidates returned error: %v", err)
+	}
+
+	if len(items) == 0 {
+		t.Fatalf("expected candidate items")
+	}
+
+	for _, item := range items {
+		if item.ID != 2 {
+			continue
+		}
+		if item.Phone == nil || *item.Phone != "13800138002" {
+			t.Fatalf("expected candidate phone 13800138002, got %#v", item.Phone)
+		}
+		return
+	}
+
+	t.Fatalf("expected admin user candidate")
+}
+
 func TestServiceCreateGroup_SavesLogo(t *testing.T) {
 	repo := newFakeRepository()
 	store := &fakeGroupLogoFileStore{}
@@ -341,6 +380,7 @@ func newFakeRepository() *fakeRepository {
 				ID:     2,
 				Name:   "Admin",
 				Email:  "admin@example.com",
+				Phone:  stringPtr("13800138002"),
 				Status: model.UserStatusEnabled,
 				RoleID: 2,
 				Role:   model.Role{ID: 2, Name: model.RoleNameAdmin, DisplayName: "管理员"},
@@ -349,6 +389,7 @@ func newFakeRepository() *fakeRepository {
 				ID:     3,
 				Name:   "Member",
 				Email:  "member@example.com",
+				Phone:  stringPtr("13800138003"),
 				Status: model.UserStatusEnabled,
 				RoleID: 3,
 				Role:   model.Role{ID: 3, Name: model.RoleNameUser, DisplayName: "普通用户"},

@@ -9,9 +9,11 @@ import folderPlus from "@iconify-icons/lucide/folder-plus";
 import layers from "@iconify-icons/lucide/layers";
 import mailIcon from "@iconify-icons/lucide/mail";
 import moreHorizontal from "@iconify-icons/lucide/more-horizontal";
+import phoneIcon from "@iconify-icons/lucide/phone";
 import power from "@iconify-icons/lucide/power";
 import powerOff from "@iconify-icons/lucide/power-off";
 import rotateCcw from "@iconify-icons/lucide/rotate-ccw";
+import searchIcon from "@iconify-icons/lucide/search";
 import shieldIcon from "@iconify-icons/lucide/shield";
 import starIcon from "@iconify-icons/lucide/star";
 import starOff from "@iconify-icons/lucide/star-off";
@@ -224,6 +226,18 @@ function getMemberRoleMeta(role: number) {
   return { label: "成员", className: "text-gray-200 bg-gray-700/50 border border-gray-700" };
 }
 
+function normalizeMemberSearchKeyword(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function matchesMemberSearch(keyword: string, values: Array<string | null | undefined>) {
+  if (!keyword) {
+    return true;
+  }
+
+  return values.some((value) => value?.toLowerCase().includes(keyword));
+}
+
 /* ─── Main component ─── */
 
 export default function UserGroups() {
@@ -263,6 +277,7 @@ export default function UserGroups() {
   const [candidateRoleMap, setCandidateRoleMap] = useState<Record<number, number>>({});
   const [candidates, setCandidates] = useState<AdminUserGroupCandidate[]>([]);
   const [loadingCandidates, setLoadingCandidates] = useState(false);
+  const [memberSearchKeyword, setMemberSearchKeyword] = useState("");
   const [mutatingMemberId, setMutatingMemberId] = useState<number | null>(null);
 
   const [cardActionGroupId, setCardActionGroupId] = useState<number | null>(null);
@@ -275,6 +290,33 @@ export default function UserGroups() {
     }
     return (summary.totalMembers / summary.total).toFixed(1);
   }, [summary.total, summary.totalMembers]);
+
+  const normalizedMemberSearchKeyword = useMemo(
+    () => normalizeMemberSearchKeyword(memberSearchKeyword),
+    [memberSearchKeyword],
+  );
+
+  const filteredCandidates = useMemo(
+    () =>
+      candidates.filter((candidate) =>
+        matchesMemberSearch(normalizedMemberSearchKeyword, [
+          candidate.name,
+          candidate.email,
+          candidate.phone,
+        ])),
+    [candidates, normalizedMemberSearchKeyword],
+  );
+
+  const filteredMembers = useMemo(
+    () =>
+      (selectedGroup?.members ?? []).filter((member) =>
+        matchesMemberSearch(normalizedMemberSearchKeyword, [
+          member.user.name,
+          member.user.email,
+          member.user.phone,
+        ])),
+    [normalizedMemberSearchKeyword, selectedGroup],
+  );
 
   const groupLogoPreviewSrc = groupLogoPreviewUrl
     ?? (!groupForm.removeLogo && groupForm.logoUrl ? buildApiUrl(groupForm.logoUrl) : null);
@@ -471,6 +513,7 @@ export default function UserGroups() {
     setSelectedGroup(null);
     setCandidates([]);
     setCandidateRoleMap({});
+    setMemberSearchKeyword("");
   }
 
   function closeDrawer(immediate = false) {
@@ -528,6 +571,7 @@ export default function UserGroups() {
     setDrawerClosing(false);
     setSelectedGroupId(groupId);
     setSelectedGroup(null);
+    setMemberSearchKeyword("");
     setDrawerOpen(true);
   }
 
@@ -1170,7 +1214,7 @@ export default function UserGroups() {
             >
               {/* Drawer header */}
               <div className="sticky top-0 z-10 border-b border-gray-800/60 bg-gray-950/95 px-6 py-4 backdrop-blur">
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div className="flex items-center gap-3 min-w-0">
                     <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-500/10">
                       <Icon icon={usersIcon} className="h-4.5 w-4.5 text-primary-400" />
@@ -1195,7 +1239,20 @@ export default function UserGroups() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                    <label className="relative block w-full sm:w-80">
+                      <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+                        <Icon icon={searchIcon} className="h-4 w-4 text-gray-500" />
+                      </span>
+                      <input
+                        type="text"
+                        value={memberSearchKeyword}
+                        onChange={(event) => setMemberSearchKeyword(event.target.value)}
+                        placeholder="搜索用户名、邮箱、手机号"
+                        className="w-full rounded-lg border border-gray-700/60 bg-gray-900/80 py-2 pl-9 pr-3 text-sm text-gray-100 outline-none transition-colors placeholder:text-gray-500 focus:border-primary-500/60"
+                      />
+                    </label>
+                    <div className="flex items-center gap-2 shrink-0">
                     {selectedGroup ? (
                       <>
                         <button
@@ -1224,6 +1281,7 @@ export default function UserGroups() {
                     >
                       <Icon icon={x} className="h-5 w-5" />
                     </button>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1284,12 +1342,12 @@ export default function UserGroups() {
                           <div className="rounded-lg border border-dashed border-gray-700/60 px-4 py-8 text-center text-sm text-gray-500">
                             加载中...
                           </div>
-                        ) : candidates.length === 0 ? (
+                        ) : filteredCandidates.length === 0 ? (
                           <div className="rounded-lg border border-dashed border-gray-700/60 px-4 py-8 text-center text-sm text-gray-500">
-                            暂无可加入的候选账号
+                            {memberSearchKeyword.trim() ? "没有匹配的候选账号" : "暂无可加入的候选账号"}
                           </div>
                         ) : (
-                          candidates.map((candidate) => (
+                          filteredCandidates.map((candidate) => (
                             <div
                               key={candidate.id}
                               className="rounded-lg border border-gray-800/40 bg-gray-800/30 p-3 transition-colors hover:bg-gray-800/50"
@@ -1301,9 +1359,17 @@ export default function UserGroups() {
                                     <RoleBadge roleName={candidate.role.name} displayName={candidate.role.displayName} />
                                     <UserStatusBadge status={candidate.status} />
                                   </div>
-                                  <div className="mt-1 flex items-center gap-1.5 text-xs text-gray-400">
-                                    <Icon icon={mailIcon} className="h-3 w-3 shrink-0 text-gray-600" />
-                                    <span className="truncate">{candidate.email}</span>
+                                  <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-gray-400">
+                                    <span className="flex min-w-0 items-center gap-1.5">
+                                      <Icon icon={mailIcon} className="h-3 w-3 shrink-0 text-gray-600" />
+                                      <span className="truncate">{candidate.email}</span>
+                                    </span>
+                                    {candidate.phone ? (
+                                      <span className="flex items-center gap-1.5">
+                                        <Icon icon={phoneIcon} className="h-3 w-3 shrink-0 text-gray-600" />
+                                        <span>{candidate.phone}</span>
+                                      </span>
+                                    ) : null}
                                   </div>
                                   {candidate.groups?.length ? (
                                     <div className="mt-1.5 flex flex-wrap gap-1">
@@ -1359,17 +1425,19 @@ export default function UserGroups() {
                           <h3 className="text-sm font-semibold text-white">当前成员</h3>
                         </div>
                         <span className="rounded-full bg-gray-800/60 px-2.5 py-0.5 text-xs text-gray-400">
-                          {selectedGroup.members.length} 人
+                          {memberSearchKeyword.trim()
+                            ? `${filteredMembers.length} / ${selectedGroup.members.length} 人`
+                            : `${selectedGroup.members.length} 人`}
                         </span>
                       </div>
 
                       <div className="space-y-2">
-                        {selectedGroup.members.length === 0 ? (
+                        {filteredMembers.length === 0 ? (
                           <div className="rounded-lg border border-dashed border-gray-700/60 px-4 py-8 text-center text-sm text-gray-500">
-                            暂无成员
+                            {memberSearchKeyword.trim() ? "没有匹配的成员" : "暂无成员"}
                           </div>
                         ) : (
-                          selectedGroup.members.map((member) => (
+                          filteredMembers.map((member) => (
                             <div
                               key={member.id}
                               className="rounded-lg border border-gray-800/40 bg-gray-800/30 p-3 transition-colors hover:bg-gray-800/50"
@@ -1386,11 +1454,17 @@ export default function UserGroups() {
                                     />
                                     <UserStatusBadge status={member.user.status} />
                                   </div>
-                                  <div className="mt-1 flex items-center gap-3 text-xs text-gray-400">
-                                    <span className="flex items-center gap-1.5 truncate">
+                                  <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-gray-400">
+                                    <span className="flex min-w-0 items-center gap-1.5">
                                       <Icon icon={mailIcon} className="h-3 w-3 shrink-0 text-gray-600" />
-                                      {member.user.email}
+                                      <span className="truncate">{member.user.email}</span>
                                     </span>
+                                    {member.user.phone ? (
+                                      <span className="flex items-center gap-1.5">
+                                        <Icon icon={phoneIcon} className="h-3 w-3 shrink-0 text-gray-600" />
+                                        <span>{member.user.phone}</span>
+                                      </span>
+                                    ) : null}
                                     <span className="text-gray-600 shrink-0">{formatDateTime(member.joinedAt)}</span>
                                   </div>
                                 </div>
