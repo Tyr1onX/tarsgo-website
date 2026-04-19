@@ -89,6 +89,43 @@ func RequireAdmin(service sessionReader) gin.HandlerFunc {
 	}
 }
 
+func RequireSuperAdmin(service sessionReader) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token, err := c.Cookie(service.CookieName())
+		if err != nil || strings.TrimSpace(token) == "" {
+			writeAPIError(c, http.StatusUnauthorized, "未登录")
+			c.Abort()
+			return
+		}
+
+		user, err := service.CurrentUser(c.Request.Context(), token)
+		if err != nil {
+			var serviceErr *auth.ServiceError
+			if errors.As(err, &serviceErr) {
+				if serviceErr.Status == http.StatusUnauthorized || serviceErr.Status == http.StatusForbidden {
+					clearAuthCookie(c, service)
+				}
+				writeAPIError(c, serviceErr.Status, serviceErr.Message)
+				c.Abort()
+				return
+			}
+
+			writeAPIError(c, http.StatusInternalServerError, "服务器内部错误")
+			c.Abort()
+			return
+		}
+
+		if user.Role.Name != model.RoleNameSuperAdmin {
+			writeAPIError(c, http.StatusForbidden, "当前账号无系统配置权限")
+			c.Abort()
+			return
+		}
+
+		c.Set(sessionUserContextKey, user)
+		c.Next()
+	}
+}
+
 func CurrentSessionUser(c *gin.Context) (*auth.SessionUser, bool) {
 	value, ok := c.Get(sessionUserContextKey)
 	if !ok {

@@ -1,6 +1,6 @@
 import type { AuthUser } from "~/lib/auth-client";
 
-export type DashboardMenuIconKey = "dashboard" | "people" | "registration";
+export type DashboardMenuIconKey = "dashboard" | "people" | "registration" | "settings";
 
 type DashboardAllowedRoles = readonly string[];
 
@@ -105,6 +105,25 @@ const ADMIN_MENU: readonly DashboardMenuDefinition[] = [
         label: "报名列表",
         href: "/dashboard/admin/registrations",
         allowedRoles: ["super_admin", "admin"],
+      },
+    ],
+  },
+  {
+    key: "system-config",
+    label: "系统配置",
+    iconKey: "settings",
+    children: [
+      {
+        key: "system-config-email",
+        label: "邮件发信",
+        href: "/dashboard/admin/system-config/email",
+        allowedRoles: ["super_admin"],
+      },
+      {
+        key: "system-config-oauth",
+        label: "第三方登录",
+        href: "/dashboard/admin/system-config/oauth",
+        allowedRoles: ["super_admin"],
       },
     ],
   },

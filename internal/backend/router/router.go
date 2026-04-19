@@ -15,11 +15,13 @@ import (
 	"tarsgo-backend/service/adminuser"
 	"tarsgo-backend/service/auth"
 	"tarsgo-backend/service/registration"
+	"tarsgo-backend/service/runtimeconfig"
+	"tarsgo-backend/service/systemconfig"
 	"tarsgo-backend/service/usergroup"
 	"tarsgo-backend/web"
 )
 
-func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
+func New(cfg *config.Config, db *gorm.DB, runtimeStore *runtimeconfig.Store) *gin.Engine {
 	gin.SetMode(cfg.App.GinMode)
 
 	engine := gin.New()
@@ -45,12 +47,14 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	engine.Static("/upload/config/group", filepath.Join("upload", "config", "group"))
 
 	healthHandler := handler.NewHealthHandler(db)
-	authService := auth.NewService(cfg, db)
+	authService := auth.NewService(cfg, db, runtimeStore)
 	authHandler := handler.NewAuthHandler(cfg, authService)
 	adminUserHandler := handler.NewAdminUserHandler(adminuser.NewService(adminuser.NewRepository(db)))
 	userGroupHandler := handler.NewUserGroupHandler(usergroup.NewService(usergroup.NewRepository(db)))
 	registrationFormHandler := handler.NewRegistrationFormHandler(registration.NewRegistrationFormService(db))
 	registrationHandler := handler.NewRegistrationHandler(registration.NewRegistrationService(db))
+	systemConfigService := systemconfig.NewService(runtimeStore, authService)
+	systemConfigHandler := handler.NewSystemConfigHandler(systemConfigService, systemConfigService)
 
 	engine.GET("/healthz", healthHandler.Get)
 
@@ -62,7 +66,9 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	api.POST("/login/email/password", authHandler.LoginWithPassword)
 	api.POST("/login/email/send-code", authHandler.SendLoginCode)
 	api.POST("/login/email/code", authHandler.LoginWithCode)
-	api.GET("/login/github", authHandler.GitHubLogin)
+	api.GET("/login/providers", authHandler.ListOAuthProviders)
+	api.GET("/login/:provider", authHandler.OAuthLogin)
+	api.GET("/login/:provider/callback", authHandler.OAuthCallback)
 	api.GET("/register/github/oauth/callback", authHandler.GitHubCallback)
 	api.POST("/logout", authHandler.Logout)
 	api.GET("/me", authHandler.Me)
@@ -94,6 +100,17 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	adminAPI.POST("/registrations/:id/review", registrationHandler.ReviewRegistration)
 	adminAPI.DELETE("/registrations/:id", registrationHandler.DeleteRegistration)
 	adminAPI.GET("/registrations/:id/files/:fieldKey/:index", registrationHandler.OpenRegistrationFile)
+
+	superAdminAPI := adminAPI.Group("/system-config")
+	superAdminAPI.Use(middleware.RequireSuperAdmin(authService))
+	superAdminAPI.GET("/email", systemConfigHandler.GetEmailConfig)
+	superAdminAPI.PUT("/email", systemConfigHandler.UpdateEmailConfig)
+	superAdminAPI.POST("/email/test", systemConfigHandler.TestEmailConfig)
+	superAdminAPI.POST("/email/test-code", systemConfigHandler.TestVerificationCodeConfig)
+	superAdminAPI.POST("/email/register-flow/send-code", systemConfigHandler.SendRegisterFlowCode)
+	superAdminAPI.POST("/email/register-flow/verify-code", systemConfigHandler.VerifyRegisterFlowCode)
+	superAdminAPI.GET("/oauth", systemConfigHandler.GetOAuthConfigs)
+	superAdminAPI.PUT("/oauth/:provider", systemConfigHandler.UpdateOAuthConfig)
 
 	authenticatedAPI := api.Group("")
 	authenticatedAPI.Use(middleware.RequireAuthenticated(authService))

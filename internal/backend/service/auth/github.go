@@ -17,7 +17,7 @@ type GitHubClient struct {
 	httpClient *http.Client
 }
 
-type GitHubProfile struct {
+type githubUserResponse struct {
 	ID        int64   `json:"id"`
 	Login     string  `json:"login"`
 	AvatarURL string  `json:"avatar_url"`
@@ -42,6 +42,18 @@ func NewGitHubClient(cfg config.GitHubConfig) *GitHubClient {
 		cfg:        cfg,
 		httpClient: &http.Client{},
 	}
+}
+
+func (c *GitHubClient) Provider() string {
+	return "github"
+}
+
+func (c *GitHubClient) DisplayName() string {
+	return "GitHub"
+}
+
+func (c *GitHubClient) Enabled() bool {
+	return c.cfg.Enabled
 }
 
 func (c *GitHubClient) BuildLoginURL(state string) string {
@@ -90,7 +102,7 @@ func (c *GitHubClient) ExchangeCode(ctx context.Context, code string) (string, e
 	return payload.AccessToken, nil
 }
 
-func (c *GitHubClient) FetchProfile(ctx context.Context, accessToken string) (*GitHubProfile, error) {
+func (c *GitHubClient) FetchProfile(ctx context.Context, accessToken string) (*OAuthProfile, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, c.cfg.UserURL, nil)
 	if err != nil {
 		return nil, fmt.Errorf("create github user request: %w", err)
@@ -109,7 +121,7 @@ func (c *GitHubClient) FetchProfile(ctx context.Context, accessToken string) (*G
 		return nil, fmt.Errorf("github user request failed with status %d", response.StatusCode)
 	}
 
-	var profile GitHubProfile
+	var profile githubUserResponse
 	if err := json.NewDecoder(response.Body).Decode(&profile); err != nil {
 		return nil, fmt.Errorf("decode github user response: %w", err)
 	}
@@ -125,12 +137,22 @@ func (c *GitHubClient) FetchProfile(ctx context.Context, accessToken string) (*G
 		}
 	}
 
+	emailVerified := profile.Email != nil && strings.TrimSpace(*profile.Email) != ""
 	if profile.Email == nil || strings.TrimSpace(*profile.Email) == "" {
 		fallback := fmt.Sprintf("%s@users.noreply.github.com", strconv.FormatInt(profile.ID, 10))
 		profile.Email = &fallback
+		emailVerified = false
 	}
 
-	return &profile, nil
+	return &OAuthProfile{
+		Provider:       c.Provider(),
+		ProviderUserID: strconv.FormatInt(profile.ID, 10),
+		Login:          strings.TrimSpace(profile.Login),
+		Email:          strings.TrimSpace(*profile.Email),
+		EmailVerified:  emailVerified,
+		Name:           strings.TrimSpace(stringValue(profile.Name)),
+		AvatarURL:      strings.TrimSpace(profile.AvatarURL),
+	}, nil
 }
 
 func (c *GitHubClient) FetchPrimaryEmail(ctx context.Context, accessToken string) (string, error) {

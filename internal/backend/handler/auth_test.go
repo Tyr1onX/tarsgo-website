@@ -22,6 +22,9 @@ type stubAuthService struct {
 	loginWithPasswordFn         func(ctx context.Context, email string, password string) (*auth.AuthResult, error)
 	sendLoginCodeFn             func(ctx context.Context, email string) error
 	loginWithCodeFn             func(ctx context.Context, email string, code string) (*auth.AuthResult, error)
+	listOAuthLoginProvidersFn   func() []auth.OAuthLoginProvider
+	buildOAuthLoginURLFn        func(provider string) (string, string, error)
+	handleOAuthCallbackFn       func(ctx context.Context, provider string, code string) (*auth.AuthResult, error)
 	buildGitHubLoginURLFn       func() (string, string, error)
 	handleGitHubCallbackFn      func(ctx context.Context, code string) (*auth.AuthResult, error)
 	currentUserFn               func(ctx context.Context, token string) (*auth.SessionUser, error)
@@ -72,6 +75,33 @@ func (s stubAuthService) SendLoginCode(ctx context.Context, email string) error 
 func (s stubAuthService) LoginWithCode(ctx context.Context, email string, code string) (*auth.AuthResult, error) {
 	if s.loginWithCodeFn != nil {
 		return s.loginWithCodeFn(ctx, email, code)
+	}
+	return nil, nil
+}
+
+func (s stubAuthService) ListOAuthLoginProviders() []auth.OAuthLoginProvider {
+	if s.listOAuthLoginProvidersFn != nil {
+		return s.listOAuthLoginProvidersFn()
+	}
+	return nil
+}
+
+func (s stubAuthService) BuildOAuthLoginURL(provider string) (string, string, error) {
+	if s.buildOAuthLoginURLFn != nil {
+		return s.buildOAuthLoginURLFn(provider)
+	}
+	if s.buildGitHubLoginURLFn != nil && provider == "github" {
+		return s.buildGitHubLoginURLFn()
+	}
+	return "", "", nil
+}
+
+func (s stubAuthService) HandleOAuthCallback(ctx context.Context, provider string, code string) (*auth.AuthResult, error) {
+	if s.handleOAuthCallbackFn != nil {
+		return s.handleOAuthCallbackFn(ctx, provider, code)
+	}
+	if s.handleGitHubCallbackFn != nil && provider == "github" {
+		return s.handleGitHubCallbackFn(ctx, code)
 	}
 	return nil, nil
 }

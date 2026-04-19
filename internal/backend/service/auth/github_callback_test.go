@@ -42,14 +42,13 @@ func TestBuildGitHubUserUpdatesForEmailBinding(t *testing.T) {
 	t.Parallel()
 
 	now := time.Unix(1_775_983_000, 0)
-	name := "苏风"
 	user := &model.User{
 		Email: "715041@qq.com",
 	}
-	profile := &GitHubProfile{
+	profile := &OAuthProfile{
 		Login:     "su-fen",
 		AvatarURL: "https://avatars.githubusercontent.com/u/60851806?v=4",
-		Name:      &name,
+		Name:      "苏风",
 	}
 
 	updates := buildGitHubUserUpdates(user, profile, "60851806", now, true)
@@ -76,13 +75,12 @@ func TestBuildGitHubUserUpdatesKeepsExistingNickname(t *testing.T) {
 
 	now := time.Unix(1_775_983_000, 0)
 	existingNickname := "本地昵称"
-	githubName := "GitHub 昵称"
 	user := &model.User{
 		Nickname: &existingNickname,
 	}
-	profile := &GitHubProfile{
+	profile := &OAuthProfile{
 		Login: "su-fen",
-		Name:  &githubName,
+		Name:  "GitHub 昵称",
 	}
 
 	updates := buildGitHubUserUpdates(user, profile, "60851806", now, true)
@@ -94,11 +92,10 @@ func TestBuildGitHubUserUpdatesKeepsExistingNickname(t *testing.T) {
 func TestNewGitHubUserBuildsExpectedUser(t *testing.T) {
 	t.Parallel()
 
-	name := "苏风"
-	user := newGitHubUser(3, "715041@qq.com", &GitHubProfile{
+	user := newGitHubUser(3, "715041@qq.com", &OAuthProfile{
 		Login:     "su-fen",
 		AvatarURL: "https://avatars.githubusercontent.com/u/60851806?v=4",
-		Name:      &name,
+		Name:      "苏风",
 	}, "60851806")
 
 	if user.RoleID != 3 {

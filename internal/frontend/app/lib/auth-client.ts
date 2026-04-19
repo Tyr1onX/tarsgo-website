@@ -26,6 +26,11 @@ export interface BootstrapStatus {
   setupRequired: boolean;
 }
 
+export interface OAuthLoginProvider {
+  provider: string;
+  displayName: string;
+}
+
 let currentUserCache: AuthUser | null = null;
 let currentUserRequest: Promise<AuthUser> | null = null;
 
@@ -85,6 +90,11 @@ export async function sendLoginCode(email: string): Promise<void> {
     method: "POST",
     body: { email },
   });
+}
+
+export async function getOAuthLoginProviders(): Promise<OAuthLoginProvider[]> {
+  const data = await apiRequest<{ items: OAuthLoginProvider[] }>("/api/login/providers");
+  return data.items;
 }
 
 export async function loginWithCode(input: {
@@ -147,6 +157,10 @@ export async function logout(): Promise<void> {
   currentUserRequest = null;
 }
 
+export function getOAuthLoginUrl(provider: string): string {
+  return buildApiUrl(`/api/login/${encodeURIComponent(provider)}`);
+}
+
 export function getGitHubLoginUrl(): string {
-  return buildApiUrl("/api/login/github");
+  return getOAuthLoginUrl("github");
 }
