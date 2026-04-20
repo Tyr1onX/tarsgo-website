@@ -100,13 +100,6 @@ func Load() (*Config, error) {
 		return nil, err
 	}
 
-	githubClientID := strings.TrimSpace(os.Getenv("GITHUB_CLIENT_ID"))
-	githubClientSecret := strings.TrimSpace(os.Getenv("GITHUB_CLIENT_SECRET"))
-	githubCallbackURL := strings.TrimSpace(os.Getenv("GITHUB_CALLBACK_URL"))
-	googleClientID := strings.TrimSpace(os.Getenv("GOOGLE_CLIENT_ID"))
-	googleClientSecret := strings.TrimSpace(os.Getenv("GOOGLE_CLIENT_SECRET"))
-	googleCallbackURL := strings.TrimSpace(os.Getenv("GOOGLE_CALLBACK_URL"))
-
 	cfg := &Config{
 		App: AppConfig{
 			Env:         getEnv("APP_ENV", "development"),
@@ -143,32 +136,22 @@ func Load() (*Config, error) {
 			CookieSameSite:      parseSameSite(getEnv("JWT_COOKIE_SAME_SITE", "lax")),
 		},
 		SMTP: SMTPConfig{
-			Host:     os.Getenv("SMTP_HOST"),
-			Port:     getEnv("SMTP_PORT", "465"),
-			Username: os.Getenv("SMTP_USERNAME"),
-			Password: os.Getenv("SMTP_PASSWORD"),
-			From:     os.Getenv("SMTP_FROM"),
+			Port: "465",
 		},
 		GitHub: GitHubConfig{
-			Enabled:      getProviderEnabled("GITHUB_ENABLED", githubClientID, githubClientSecret, githubCallbackURL),
-			ClientID:     githubClientID,
-			ClientSecret: githubClientSecret,
-			CallbackURL:  githubCallbackURL,
-			AuthorizeURL: getEnv("GITHUB_AUTHORIZE_URL", "https://github.com/login/oauth/authorize"),
-			TokenURL:     getEnv("GITHUB_TOKEN_URL", "https://github.com/login/oauth/access_token"),
-			UserURL:      getEnv("GITHUB_USER_URL", "https://api.github.com/user"),
-			EmailsURL:    getEnv("GITHUB_EMAILS_URL", "https://api.github.com/user/emails"),
-			Scope:        getEnv("GITHUB_SCOPE", "read:user user:email"),
+			Enabled:      false,
+			AuthorizeURL: "https://github.com/login/oauth/authorize",
+			TokenURL:     "https://github.com/login/oauth/access_token",
+			UserURL:      "https://api.github.com/user",
+			EmailsURL:    "https://api.github.com/user/emails",
+			Scope:        "read:user user:email",
 		},
 		Google: GoogleConfig{
-			Enabled:      getProviderEnabled("GOOGLE_ENABLED", googleClientID, googleClientSecret, googleCallbackURL),
-			ClientID:     googleClientID,
-			ClientSecret: googleClientSecret,
-			CallbackURL:  googleCallbackURL,
-			AuthorizeURL: getEnv("GOOGLE_AUTHORIZE_URL", "https://accounts.google.com/o/oauth2/v2/auth"),
-			TokenURL:     getEnv("GOOGLE_TOKEN_URL", "https://oauth2.googleapis.com/token"),
-			UserURL:      getEnv("GOOGLE_USER_URL", "https://openidconnect.googleapis.com/v1/userinfo"),
-			Scope:        getEnv("GOOGLE_SCOPE", "openid email profile"),
+			Enabled:      false,
+			AuthorizeURL: "https://accounts.google.com/o/oauth2/v2/auth",
+			TokenURL:     "https://oauth2.googleapis.com/token",
+			UserURL:      "https://openidconnect.googleapis.com/v1/userinfo",
+			Scope:        "openid email profile",
 		},
 		Source: SourceConfig{
 			EnvFilePath: envFilePath,
@@ -268,24 +251,6 @@ func getEnvAsBool(key string, fallback bool) bool {
 		return fallback
 	}
 	return parsed
-}
-
-func getProviderEnabled(key string, hints ...string) bool {
-	value := strings.TrimSpace(os.Getenv(key))
-	if value != "" {
-		parsed, err := strconv.ParseBool(value)
-		if err == nil {
-			return parsed
-		}
-	}
-
-	for _, hint := range hints {
-		if strings.TrimSpace(hint) != "" {
-			return true
-		}
-	}
-
-	return false
 }
 
 func splitAndClean(value string) []string {

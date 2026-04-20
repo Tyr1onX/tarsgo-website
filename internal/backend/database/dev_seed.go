@@ -67,7 +67,7 @@ func seedDevelopmentMockData(db *gorm.DB, appEnv string) error {
 
 func shouldSeedDevelopmentMockData(appEnv string) bool {
 	switch strings.ToLower(strings.TrimSpace(appEnv)) {
-	case "", "development", "dev", "local", "test":
+	case "", "development", "dev", "local":
 		return true
 	default:
 		return false

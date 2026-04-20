@@ -64,9 +64,6 @@ func NewStore(db *gorm.DB, cfg *config.Config) (*Store, error) {
 		googleBase: cfg.Google,
 	}
 
-	if err := store.backfillFromEnv(context.Background(), cfg); err != nil {
-		return nil, err
-	}
 	if err := store.Reload(context.Background()); err != nil {
 		return nil, err
 	}
@@ -184,40 +181,6 @@ func (s *Store) SaveOAuthSettings(ctx context.Context, provider string, settings
 	return nil
 }
 
-func (s *Store) backfillFromEnv(ctx context.Context, cfg *config.Config) error {
-	if err := s.createIfMissing(ctx, KeyEmailSMTP, smtpPayload{
-		Host:     strings.TrimSpace(cfg.SMTP.Host),
-		Port:     normalizeSMTPConfig(cfg.SMTP).Port,
-		Username: strings.TrimSpace(cfg.SMTP.Username),
-		Password: strings.TrimSpace(cfg.SMTP.Password),
-		From:     strings.TrimSpace(cfg.SMTP.From),
-	}); err != nil {
-		return fmt.Errorf("backfill %s: %w", KeyEmailSMTP, err)
-	}
-
-	if err := s.createIfMissing(ctx, KeyOAuthGitHub, oauthPayloadFromSettings(model.OAuthProviderGitHub, OAuthSettings{
-		Enabled:      cfg.GitHub.Enabled,
-		ClientID:     cfg.GitHub.ClientID,
-		ClientSecret: cfg.GitHub.ClientSecret,
-		CallbackURL:  cfg.GitHub.CallbackURL,
-		Scope:        cfg.GitHub.Scope,
-	})); err != nil {
-		return fmt.Errorf("backfill %s: %w", KeyOAuthGitHub, err)
-	}
-
-	if err := s.createIfMissing(ctx, KeyOAuthGoogle, oauthPayloadFromSettings(model.OAuthProviderGoogle, OAuthSettings{
-		Enabled:      cfg.Google.Enabled,
-		ClientID:     cfg.Google.ClientID,
-		ClientSecret: cfg.Google.ClientSecret,
-		CallbackURL:  cfg.Google.CallbackURL,
-		Scope:        cfg.Google.Scope,
-	})); err != nil {
-		return fmt.Errorf("backfill %s: %w", KeyOAuthGoogle, err)
-	}
-
-	return nil
-}
-
 func (s *Store) loadSMTPConfig(ctx context.Context) (config.SMTPConfig, error) {
 	record, err := s.find(ctx, KeyEmailSMTP)
 	if err != nil {
@@ -277,24 +240,6 @@ func (s *Store) find(ctx context.Context, key string) (*model.SystemConfig, erro
 	}
 
 	return &record, nil
-}
-
-func (s *Store) createIfMissing(ctx context.Context, key string, payload any) error {
-	value, err := marshalPayload(payload)
-	if err != nil {
-		return err
-	}
-
-	record := model.SystemConfig{
-		ConfigKey:   strings.TrimSpace(key),
-		ConfigValue: value,
-	}
-	return s.db.WithContext(ctx).
-		Clauses(clause.OnConflict{
-			Columns:   []clause.Column{{Name: "config_key"}},
-			DoNothing: true,
-		}).
-		Create(&record).Error
 }
 
 func (s *Store) save(ctx context.Context, key string, payload any) error {

@@ -37,6 +37,7 @@ import {
 } from "~/lib/registration-form-schema";
 import type {
   RecruitmentPageData,
+  RecruitmentRegistrationGroupRef,
   RecruitmentPageRegistrationSummary,
   RegistrationFormField,
 } from "~/lib/registration-forms-client";
@@ -244,6 +245,8 @@ export default function UserRegistrations({
         formValues,
       );
       const result = await submitRecruitmentRegistration(payload);
+      const group1 = resolveSelectedRecruitmentGroup(targetForm.fieldsSchema, "group_1", formValues.group_1);
+      const group2 = resolveSelectedRecruitmentGroup(targetForm.fieldsSchema, "group_2", formValues.group_2);
       setPageData((current) => ({
         ...current,
         pageMode: "submitted",
@@ -251,6 +254,10 @@ export default function UserRegistrations({
           id: result.id,
           formId: result.formId,
           formTitle: current.form?.title ?? submittedSummary?.formTitle ?? "当前报名",
+          group1,
+          group1Status: 0,
+          group2,
+          group2Status: 0,
           status: result.status,
           canEdit: true,
           canCancel: true,
@@ -992,6 +999,33 @@ function SubmittedStateCard({
           />
         </div>
 
+        <div className="relative border-t border-border-subtle px-5 py-5 sm:px-8">
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-subtle bg-surface-dark text-primary-300">
+              <Icon icon={shieldCheckIcon} className="h-4 w-4" />
+            </div>
+            <div>
+              <h3 className="text-sm font-semibold text-fg-primary">意向组别审核结果</h3>
+              <p className="text-xs text-fg-dim">
+                两个意向组别会分别推进审核，结果可能不同步返回。
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <GroupReviewCard
+              slotLabel="意向组别(1)"
+              group={summary.group1}
+              status={summary.group1Status}
+            />
+            <GroupReviewCard
+              slotLabel="意向组别(2)"
+              group={summary.group2}
+              status={summary.group2Status}
+            />
+          </div>
+        </div>
+
         {canCancel ? (
           <div className="relative flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle px-6 py-4 sm:px-8">
             <p className="flex items-center gap-2 text-xs text-fg-dim">
@@ -1020,6 +1054,39 @@ function SubmittedStateCard({
         ) : null}
       </div>
     </section>
+  );
+}
+
+function GroupReviewCard({
+  slotLabel,
+  group,
+  status,
+}: {
+  slotLabel: string;
+  group?: RecruitmentRegistrationGroupRef | null;
+  status: number;
+}) {
+  const meta = registrationStatusMeta[status] ?? registrationStatusMeta[0];
+  const groupName = group?.name?.trim() || "未识别组别";
+
+  return (
+    <div className="rounded-xl border border-border-subtle bg-surface-dark/50 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-fg-dim">
+          {slotLabel}
+        </p>
+        <span
+          className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] font-medium ${meta.badgeClassName}`}
+        >
+          <span className={`h-1.5 w-1.5 rounded-full ${meta.dotClassName}`} />
+          {meta.label}
+        </span>
+      </div>
+      <div className="mt-3 text-base font-semibold text-fg-primary">{groupName}</div>
+      <p className="mt-1 text-sm leading-6 text-fg-muted">
+        {buildGroupReviewHint(groupName, status)}
+      </p>
+    </div>
   );
 }
 
@@ -1457,6 +1524,45 @@ function formatDateTime(value?: string | null) {
     hour: "2-digit",
     minute: "2-digit",
   }).format(date);
+}
+
+function resolveSelectedRecruitmentGroup(
+  fields: RegistrationFormField[],
+  fieldKey: string,
+  value: unknown,
+): RecruitmentRegistrationGroupRef | null {
+  if (typeof value !== "string" || value.trim() === "") {
+    return null;
+  }
+
+  const field = fields.find((item) => item.key === fieldKey);
+  const option = field?.options?.find((item) => item.value === value);
+  if (!option) {
+    return null;
+  }
+
+  const id = Number(option.value);
+  if (!Number.isFinite(id)) {
+    return null;
+  }
+
+  return {
+    id,
+    name: option.label,
+  };
+}
+
+function buildGroupReviewHint(groupName: string, status: number) {
+  switch (status) {
+    case 1:
+      return `${groupName} 已通过审核，请留意后续安排。`;
+    case 2:
+      return `${groupName} 本轮未通过审核，你仍可继续关注另一意向组别结果。`;
+    case 3:
+      return "当前报名已取消，该组别不再进入审核流程。";
+    default:
+      return `${groupName} 当前仍在审核中，结果更新后会同步展示在这里。`;
+  }
 }
 
 async function fetchLoaderApi<T>(path: string): Promise<T> {

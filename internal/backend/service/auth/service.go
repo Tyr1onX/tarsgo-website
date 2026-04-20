@@ -961,7 +961,16 @@ func (s *Service) shouldShowRecruitmentEntry(ctx context.Context, userID uint64)
 	if err != nil {
 		return false, &ServiceError{Status: http.StatusInternalServerError, Message: "加载当前用户信息失败", Err: err}
 	}
-	return inDefaultGroup, nil
+	if inDefaultGroup {
+		return shouldShowRecruitmentEntryVisibility(hasPublishedForm, true, false), nil
+	}
+
+	hasSubmittedRegistration, err := s.hasSubmittedRegistrationForPublishedForm(ctx, userID)
+	if err != nil {
+		return false, &ServiceError{Status: http.StatusInternalServerError, Message: "加载当前用户信息失败", Err: err}
+	}
+
+	return shouldShowRecruitmentEntryVisibility(hasPublishedForm, inDefaultGroup, hasSubmittedRegistration), nil
 }
 
 func (s *Service) hasPublishedRecruitmentForm(ctx context.Context) (bool, error) {
@@ -990,6 +999,30 @@ func (s *Service) isUserInActiveDefaultGroup(ctx context.Context, userID uint64)
 		return false, err
 	}
 	return count > 0, nil
+}
+
+func (s *Service) hasSubmittedRegistrationForPublishedForm(ctx context.Context, userID uint64) (bool, error) {
+	var count int64
+	if err := s.db.WithContext(ctx).
+		Model(&model.Registration{}).
+		Joins("JOIN registration_forms ON registration_forms.id = registrations.form_id").
+		Where(
+			"registrations.user_id = ? AND registration_forms.status = ?",
+			userID,
+			model.RegistrationFormStatusPublished,
+		).
+		Count(&count).Error; err != nil {
+		return false, err
+	}
+	return count > 0, nil
+}
+
+func shouldShowRecruitmentEntryVisibility(
+	hasPublishedForm bool,
+	inActiveDefaultGroup bool,
+	hasSubmittedRegistration bool,
+) bool {
+	return hasPublishedForm && (inActiveDefaultGroup || hasSubmittedRegistration)
 }
 
 func toSessionUser(user *model.User) SessionUser {

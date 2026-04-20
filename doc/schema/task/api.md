@@ -266,7 +266,7 @@ GET http://127.0.0.1:8080/api/me 获取当前登录用户
   }
   ```
  - 字段说明：
-   - `portal.showRecruitmentEntry`：用户前台是否显示“纳新报名”入口；仅当后台存在已发布报名表，且当前用户仍属于启用中的默认分组时返回 `true`
+   - `portal.showRecruitmentEntry`：用户前台是否显示“纳新报名”入口；仅当后台存在已发布报名表，且当前用户仍属于启用中的默认分组，或已提交当前已发布报名表时返回 `true`
  - 失败响应：
    ```json
    { "code": 401, "message": "未登录", "data": null }
@@ -1074,7 +1074,7 @@ GET http://127.0.0.1:8080/api/recruitment/form 获取用户前台报名信息页
 - 返回规则：
    - 若当前用户对已发布报名表已有报名记录，则优先返回 `pageMode=submitted`
    - `pageMode=form`：返回当前开放中的报名表，前端展示可提交表单
-   - `pageMode=submitted`：返回当前用户的报名摘要，前端展示状态与提交时间
+   - `pageMode=submitted`：返回当前用户的报名摘要，前端展示总状态、两个意向组别的审核结果与提交时间
    - `pageMode=unavailable`：返回不可报名原因，前端展示不可报名状态页
    - 当当前用户不在启用中的默认分组，且没有已提交记录时，返回 `pageMode=unavailable`
  - 成功响应示例：
@@ -1160,7 +1160,19 @@ GET http://127.0.0.1:8080/api/recruitment/form 获取用户前台报名信息页
           "id": 12,
           "formId": 3,
           "formTitle": "2026 春季招新报名表",
+          "group1": {
+            "id": 11,
+            "name": "机械组"
+          },
+          "group1Status": 1,
+          "group2": {
+            "id": 12,
+            "name": "电控组"
+          },
+          "group2Status": 0,
           "status": 0,
+          "canEdit": false,
+          "canCancel": false,
           "submittedAt": "2026-04-13T20:10:00+08:00",
           "updatedAt": "2026-04-13T20:10:00+08:00"
         }

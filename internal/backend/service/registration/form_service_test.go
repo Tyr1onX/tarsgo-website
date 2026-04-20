@@ -75,7 +75,9 @@ func TestRegistrationFormServiceGetRecruitmentPageDataReturnsSubmittedStateForEx
 		FormID:       2,
 		UserID:       42,
 		FormData:     map[string]any{"name": "张三", "phone": "13800138000", "email": "zhangsan@example.com", "group_1": "101", "group_2": "102", "direction": "mechanical"},
+		Group1ID:     formServiceUint64Ptr(101),
 		Group1Status: model.RegistrationStatusPending,
+		Group2ID:     formServiceUint64Ptr(102),
 		Group2Status: model.RegistrationStatusPending,
 		Status:       model.RegistrationStatusPending,
 		SubmittedAt:  time.Date(2026, 4, 13, 12, 30, 0, 0, time.Local),
@@ -100,6 +102,18 @@ func TestRegistrationFormServiceGetRecruitmentPageDataReturnsSubmittedStateForEx
 	if result.RegistrationSummary.Status != model.RegistrationStatusPending {
 		t.Fatalf("expected pending summary status, got %d", result.RegistrationSummary.Status)
 	}
+	if result.RegistrationSummary.Group1 == nil || result.RegistrationSummary.Group1.Name != "机械组" {
+		t.Fatalf("expected group1 summary payload, got %#v", result.RegistrationSummary.Group1)
+	}
+	if result.RegistrationSummary.Group1Status != model.RegistrationStatusPending {
+		t.Fatalf("expected group1 pending status, got %d", result.RegistrationSummary.Group1Status)
+	}
+	if result.RegistrationSummary.Group2 == nil || result.RegistrationSummary.Group2.Name != "电控组" {
+		t.Fatalf("expected group2 summary payload, got %#v", result.RegistrationSummary.Group2)
+	}
+	if result.RegistrationSummary.Group2Status != model.RegistrationStatusPending {
+		t.Fatalf("expected group2 pending status, got %d", result.RegistrationSummary.Group2Status)
+	}
 	if !result.RegistrationSummary.CanEdit || !result.RegistrationSummary.CanCancel {
 		t.Fatalf("expected submitted summary to allow edit and cancel, got edit=%v cancel=%v", result.RegistrationSummary.CanEdit, result.RegistrationSummary.CanCancel)
 	}
@@ -121,7 +135,9 @@ func TestRegistrationFormServiceGetRecruitmentPageDataReturnsReadonlySubmittedSt
 		FormID:       2,
 		UserID:       52,
 		FormData:     map[string]any{"name": "李四", "group_1": "101", "group_2": "102"},
+		Group1ID:     formServiceUint64Ptr(101),
 		Group1Status: model.RegistrationStatusApproved,
+		Group2ID:     formServiceUint64Ptr(102),
 		Group2Status: model.RegistrationStatusPending,
 		Status:       model.RegistrationStatusPending,
 		SubmittedAt:  time.Date(2026, 4, 13, 12, 30, 0, 0, time.Local),
@@ -139,6 +155,18 @@ func TestRegistrationFormServiceGetRecruitmentPageDataReturnsReadonlySubmittedSt
 	}
 	if result.RegistrationSummary == nil {
 		t.Fatalf("expected submitted summary payload")
+	}
+	if result.RegistrationSummary.Group1 == nil || result.RegistrationSummary.Group1.Name != "机械组" {
+		t.Fatalf("expected reviewed summary to include group1 payload, got %#v", result.RegistrationSummary.Group1)
+	}
+	if result.RegistrationSummary.Group1Status != model.RegistrationStatusApproved {
+		t.Fatalf("expected reviewed summary group1 approved status, got %d", result.RegistrationSummary.Group1Status)
+	}
+	if result.RegistrationSummary.Group2 == nil || result.RegistrationSummary.Group2.Name != "电控组" {
+		t.Fatalf("expected reviewed summary to include group2 payload, got %#v", result.RegistrationSummary.Group2)
+	}
+	if result.RegistrationSummary.Group2Status != model.RegistrationStatusPending {
+		t.Fatalf("expected reviewed summary group2 pending status, got %d", result.RegistrationSummary.Group2Status)
 	}
 	if result.RegistrationSummary.CanEdit || result.RegistrationSummary.CanCancel {
 		t.Fatalf("expected reviewed registration to be readonly, got edit=%v cancel=%v", result.RegistrationSummary.CanEdit, result.RegistrationSummary.CanCancel)
@@ -458,10 +486,33 @@ func (r *fakeRegistrationFormRepository) FindRegistrationByFormAndUser(_ context
 	for _, registration := range r.registrations {
 		if registration.FormID == formID && registration.UserID == userID {
 			cloned := *registration
+			cloned.Group1 = cloneGroupRefByID(registration.Group1ID)
+			cloned.Group2 = cloneGroupRefByID(registration.Group2ID)
 			return &cloned, nil
 		}
 	}
 	return nil, gorm.ErrRecordNotFound
+}
+
+func cloneGroupRefByID(groupID *uint64) *model.UserGroup {
+	if groupID == nil {
+		return nil
+	}
+
+	switch *groupID {
+	case 101:
+		return &model.UserGroup{ID: 101, Name: "机械组", Show: 1}
+	case 102:
+		return &model.UserGroup{ID: 102, Name: "电控组", Show: 1}
+	case 103:
+		return &model.UserGroup{ID: 103, Name: "视觉组", Show: 1}
+	default:
+		return &model.UserGroup{ID: *groupID, Name: "未知组别"}
+	}
+}
+
+func formServiceUint64Ptr(value uint64) *uint64 {
+	return &value
 }
 
 func (r *fakeRegistrationFormRepository) IsUserInActiveDefaultGroup(_ context.Context, userID uint64) (bool, error) {

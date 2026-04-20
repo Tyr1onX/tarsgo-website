@@ -128,14 +128,18 @@ type RecruitmentPageData struct {
 }
 
 type RecruitmentRegistrationBrief struct {
-	ID          uint64    `json:"id"`
-	FormID      uint64    `json:"formId"`
-	FormTitle   string    `json:"formTitle"`
-	Status      uint8     `json:"status"`
-	CanEdit     bool      `json:"canEdit"`
-	CanCancel   bool      `json:"canCancel"`
-	SubmittedAt time.Time `json:"submittedAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	ID           uint64                `json:"id"`
+	FormID       uint64                `json:"formId"`
+	FormTitle    string                `json:"formTitle"`
+	Group1       *RegistrationGroupRef `json:"group1,omitempty"`
+	Group1Status uint8                 `json:"group1Status"`
+	Group2       *RegistrationGroupRef `json:"group2,omitempty"`
+	Group2Status uint8                 `json:"group2Status"`
+	Status       uint8                 `json:"status"`
+	CanEdit      bool                  `json:"canEdit"`
+	CanCancel    bool                  `json:"canCancel"`
+	SubmittedAt  time.Time             `json:"submittedAt"`
+	UpdatedAt    time.Time             `json:"updatedAt"`
 }
 
 type FormServiceError struct {
@@ -343,14 +347,18 @@ func (s *RegistrationFormService) GetRecruitmentPageData(ctx context.Context, ac
 		pageData := &RecruitmentPageData{
 			PageMode: "submitted",
 			RegistrationSummary: &RecruitmentRegistrationBrief{
-				ID:          registration.ID,
-				FormID:      registration.FormID,
-				FormTitle:   form.Title,
-				Status:      registration.Status,
-				CanEdit:     canMutateRegistrationBeforeReview(registration),
-				CanCancel:   canMutateRegistrationBeforeReview(registration),
-				SubmittedAt: registration.SubmittedAt,
-				UpdatedAt:   registration.UpdatedAt,
+				ID:           registration.ID,
+				FormID:       registration.FormID,
+				FormTitle:    form.Title,
+				Group1:       toRegistrationGroupRef(registration.Group1),
+				Group1Status: registration.Group1Status,
+				Group2:       toRegistrationGroupRef(registration.Group2),
+				Group2Status: registration.Group2Status,
+				Status:       registration.Status,
+				CanEdit:      canMutateRegistrationBeforeReview(registration),
+				CanCancel:    canMutateRegistrationBeforeReview(registration),
+				SubmittedAt:  registration.SubmittedAt,
+				UpdatedAt:    registration.UpdatedAt,
 			},
 		}
 		if pageData.RegistrationSummary.CanEdit {
@@ -863,6 +871,8 @@ func (r *gormRegistrationFormRepository) IsUserInActiveDefaultGroup(ctx context.
 func (r *gormRegistrationFormRepository) FindRegistrationByFormAndUser(ctx context.Context, formID uint64, userID uint64) (*model.Registration, error) {
 	var registration model.Registration
 	if err := r.db.WithContext(ctx).
+		Preload("Group1").
+		Preload("Group2").
 		Where("form_id = ? AND user_id = ?", formID, userID).
 		First(&registration).Error; err != nil {
 		return nil, err

@@ -94,10 +94,19 @@ export interface RecruitmentPageForm {
 
 export type RecruitmentPageMode = "form" | "submitted" | "unavailable";
 
+export interface RecruitmentRegistrationGroupRef {
+  id: number;
+  name: string;
+}
+
 export interface RecruitmentPageRegistrationSummary {
   id: number;
   formId: number;
   formTitle: string;
+  group1?: RecruitmentRegistrationGroupRef | null;
+  group1Status: number;
+  group2?: RecruitmentRegistrationGroupRef | null;
+  group2Status: number;
   status: number;
   canEdit: boolean;
   canCancel: boolean;
