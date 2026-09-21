@@ -10,6 +10,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"tarsgo-backend/middleware"
 	"tarsgo-backend/model"
 	"tarsgo-backend/service/registration"
 )
@@ -25,6 +26,7 @@ type registrationService interface {
 	ListRegistrations(ctx context.Context, actor registration.RegistrationFormActor, input registration.ListRegistrationsInput) (*registration.ListRegistrationsResult, error)
 	GetRegistration(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64) (*registration.RegistrationDetail, error)
 	ReviewRegistration(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64, input registration.ReviewRegistrationInput) (*registration.RegistrationDetail, error)
+	UndoRegistrationReview(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64) (*registration.RegistrationDetail, error)
 	DeleteRegistration(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64) error
 	OpenRegistrationFile(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64, fieldKey string, index int) (*registration.RegistrationFileResult, error)
 	ExportFormRegistrationsCSV(ctx context.Context, actor registration.RegistrationFormActor, formID uint64, baseURL string) (*registration.RegistrationCSVExportResult, error)
@@ -71,6 +73,8 @@ func (h *RegistrationHandler) SubmitRegistration(c *gin.Context) {
 		h.handleServiceError(c, serviceErr)
 		return
 	}
+	actor := currentRegistrationFormActor(c)
+	_ = middleware.RecordBusinessActivity(c, middleware.ActivityInput{ActionKey: model.ActivityRegistrationSubmitted, ActorID: &actor.ID, TargetUserID: &actor.ID, EntityType: "registration", EntityID: result.ID})
 
 	writeAPI(c, http.StatusOK, "提交报名成功", result)
 }
@@ -187,8 +191,30 @@ func (h *RegistrationHandler) ReviewRegistration(c *gin.Context) {
 		h.handleServiceError(c, serviceErr)
 		return
 	}
+	actionKey := model.ActivityRegistrationRejected
+	if strings.EqualFold(strings.TrimSpace(request.Decision), "approve") {
+		actionKey = model.ActivityRegistrationApproved
+	}
+	_ = middleware.RecordBusinessActivity(c, middleware.ActivityInput{ActionKey: actionKey, EntityType: "registration", EntityID: registrationID, Metadata: map[string]any{"decision": strings.ToLower(strings.TrimSpace(request.Decision))}})
 
 	writeAPI(c, http.StatusOK, "提交审核结果成功", detail)
+}
+
+func (h *RegistrationHandler) UndoRegistrationReview(c *gin.Context) {
+	registrationID, err := parsePathID(c.Param("id"))
+	if err != nil {
+		writeAPIError(c, http.StatusBadRequest, "无效的报名记录 ID")
+		return
+	}
+
+	detail, serviceErr := h.service.UndoRegistrationReview(c.Request.Context(), currentRegistrationFormActor(c), registrationID)
+	if serviceErr != nil {
+		h.handleServiceError(c, serviceErr)
+		return
+	}
+	_ = middleware.RecordBusinessActivity(c, middleware.ActivityInput{ActionKey: model.ActivityRegistrationReviewUndo, EntityType: "registration", EntityID: registrationID})
+
+	writeAPI(c, http.StatusOK, "撤销审核成功", detail)
 }
 
 func (h *RegistrationHandler) DeleteRegistration(c *gin.Context) {

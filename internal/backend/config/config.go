@@ -177,6 +177,14 @@ func Load() (*Config, error) {
 	if len(missing) > 0 {
 		return nil, fmt.Errorf("missing required environment variables: %s", strings.Join(missing, ", "))
 	}
+	if strings.EqualFold(strings.TrimSpace(cfg.App.Env), "production") {
+		if len(strings.TrimSpace(cfg.Auth.JWTSecret)) < 32 || strings.Contains(strings.ToLower(cfg.Auth.JWTSecret), "change") {
+			return nil, fmt.Errorf("JWT_SECRET must be a unique random value of at least 32 characters in production")
+		}
+		if !cfg.Auth.CookieSecure {
+			return nil, fmt.Errorf("JWT_COOKIE_SECURE must be true in production")
+		}
+	}
 
 	return cfg, nil
 }

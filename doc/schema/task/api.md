@@ -3,6 +3,73 @@ important：
  - API格式为 {请求类型} {请求地址} {API描述} {测试用账号密码（可选）}
  -示例： GET http://127.0.0.1:3000 测试API 账号：123 密码：123
 
+## 门户主页
+
+GET http://127.0.0.1:8080/api/portal/home 获取当前用户可见的主页聚合数据
+ - 需要登录并携带 HttpOnly JWT Cookie
+ - 公告仅返回已发布、已生效、未失效且对当前用户可见的内容；超级管理员可看到所有目标组公告；置顶优先，最多 3 条
+ - 阶段 1 中 `events` 与 `links` 稳定返回空数组
+ - 成功响应：`{ "code": 200, "message": "获取主页数据成功", "data": { "announcements": [], "events": [], "links": [], "generatedAt": "2026-09-15T16:00:00+08:00" } }`
+
+### 门户公告管理
+
+说明：`super_admin` 可访问全部内容；担任启用用户组组长的 `admin` 仅能访问、维护目标组属于自己负责组的公告。删除为软删除；组长不能创建全员可见或跨组公告。
+
+GET http://127.0.0.1:8080/api/admin/portal-groups 获取当前组长负责的启用用户组
+ - `super_admin` 不使用此接口，继续使用用户分组接口获取全部用户组
+
+GET http://127.0.0.1:8080/api/admin/announcements 获取公告分页列表
+ - 查询参数：`status=draft|published|archived`、`page`、`pageSize`（最大 100）
+
+POST http://127.0.0.1:8080/api/admin/announcements 创建公告
+GET http://127.0.0.1:8080/api/admin/announcements/:id 获取公告详情
+PATCH http://127.0.0.1:8080/api/admin/announcements/:id 更新公告
+DELETE http://127.0.0.1:8080/api/admin/announcements/:id 软删除公告
+ - 创建和更新字段：`title`、`summary`、`content`、`category`、`status`、`isPinned`、`publishAt`、`expireAt`、`audienceType`、`targetGroupIds`
+ - `category`：`competition|training|team|system`
+ - `status`：`draft|published|archived`
+ - `audienceType`：`all|groups`；使用 `groups` 时至少提供一个有效启用用户组
+ - `publishAt`、`expireAt` 使用 RFC3339；两者同时存在时失效时间必须晚于发布时间
+
+### 门户日程管理
+
+说明：`super_admin` 可访问全部内容；担任启用用户组组长的 `admin` 仅能访问、维护目标组属于自己负责组的日程。删除为软删除；组长不能创建全员可见或跨组日程。
+
+GET http://127.0.0.1:8080/api/admin/portal-events 获取日程分页列表
+POST http://127.0.0.1:8080/api/admin/portal-events 创建日程
+GET http://127.0.0.1:8080/api/admin/portal-events/:id 获取日程详情
+PATCH http://127.0.0.1:8080/api/admin/portal-events/:id 更新、发布或取消日程
+DELETE http://127.0.0.1:8080/api/admin/portal-events/:id 软删除日程
+ - 列表查询参数：`status=draft|published|cancelled`、`page`、`pageSize`
+ - 创建和更新字段：`title`、`description`、`location`、`startsAt`、`endsAt`、`status`、`audienceType`、`targetGroupIds`
+ - `startsAt`、`endsAt` 使用 RFC3339，且结束时间必须晚于开始时间
+ - `GET /api/portal/home` 的 `events` 返回与北京时间本周有交集、已发布且当前用户可见的日程，按开始时间升序；超级管理员可看到所有目标组日程
+
+### 门户快捷链接管理
+
+说明：`super_admin` 可访问全部内容；担任启用用户组组长的 `admin` 仅能访问、维护目标组属于自己负责组的快捷链接。删除为软删除；组长不能创建全员可见或跨组链接。
+
+GET http://127.0.0.1:8080/api/admin/portal-links 获取可管理范围内的快捷链接（超级管理员为全部，组长为负责组）
+POST http://127.0.0.1:8080/api/admin/portal-links 创建快捷链接
+GET http://127.0.0.1:8080/api/admin/portal-links/:id 获取快捷链接详情
+PATCH http://127.0.0.1:8080/api/admin/portal-links/:id 更新、排序或启停快捷链接
+DELETE http://127.0.0.1:8080/api/admin/portal-links/:id 软删除快捷链接
+ - 字段：`name`、`url`、`iconKey`、`sortOrder`、`isEnabled`、`openInNewWindow`、`audienceType`、`targetGroupIds`
+ - `url` 仅允许单 `/` 开头的站内路径或具有有效主机的 `https://` 外链
+ - `iconKey` 仅允许 `book|folder|home|external|link`
+ - 系统纳新路径 `/dashboard/users/registrations` 不能配置为数据库快捷链接
+ - `GET /api/portal/home` 的 `links` 仅返回启用且当前用户可见的链接，按 `sortOrder`、`id` 升序
+
+### 管理员数据面板
+
+GET http://127.0.0.1:8080/api/admin/dashboard 获取管理员数据面板聚合数据
+ - `admin` 与 `super_admin` 可访问，普通用户返回 `403`
+ - 返回字段：`totalUsers`、`newUsersThisMonth`、`pendingRegistrations`、`activeTechnicalGroups`、`groupDistribution`、`recentActivities`、`generatedAt`
+ - 本月新增按 `Asia/Shanghai` 当前自然月计算
+ - 技术组仅包含启用、允许展示且非默认组；分布包含人数为 0 的组
+ - 最近动态最多 10 条，按发生时间倒序，只返回 `actionKey`、操作者显示名、安全可读文案、可选组名和发生时间，不返回内部元数据或审计 IP
+ - 响应包含 `Cache-Control: no-store`；前端每 30 秒自动请求一次，并在窗口重新聚焦时立即同步
+
 ## 登录/注册
 
 说明：

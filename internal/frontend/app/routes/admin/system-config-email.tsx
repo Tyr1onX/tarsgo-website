@@ -229,7 +229,7 @@ export default function SystemConfigEmailPage() {
 
         {errorMessage ? <ErrorBanner message={errorMessage} /> : null}
 
-        <div className="motion-fade-up rounded-2xl border border-gray-800 bg-gray-900" style={{ animationDelay: "80ms" }}>
+        <div className="motion-fade-up glass-panel rounded-2xl" style={{ animationDelay: "80ms" }}>
           {isEditing ? (
             <form onSubmit={handleSave}>
               <SectionHeader
@@ -239,7 +239,7 @@ export default function SystemConfigEmailPage() {
                   <button
                     type="submit"
                     disabled={loading || saving}
-                    className="inline-flex min-w-[104px] items-center justify-center rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="btn-gradient inline-flex min-w-[104px] items-center justify-center rounded-xl px-4 py-2.5 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {saving ? "保存中..." : "保存配置"}
                   </button>
@@ -299,7 +299,7 @@ export default function SystemConfigEmailPage() {
                       setIsEditing(true);
                     }}
                     disabled={loading || saving}
-                    className="inline-flex min-w-[104px] items-center justify-center rounded-lg border border-gray-700 px-4 py-2.5 text-sm font-medium text-gray-100 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="btn-glass inline-flex min-w-[104px] items-center justify-center rounded-xl px-4 py-2.5 text-sm font-medium text-gray-100 transition disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     编辑配置
                   </button>
@@ -321,10 +321,10 @@ export default function SystemConfigEmailPage() {
           )}
         </div>
 
-        <div className="motion-fade-up rounded-2xl border border-gray-800 bg-gray-900" style={{ animationDelay: "140ms" }}>
+        <div className="motion-fade-up glass-panel rounded-2xl" style={{ animationDelay: "140ms" }}>
           <div className="flex flex-nowrap items-center gap-3 overflow-x-auto px-6 py-5">
             <div className="inline-flex shrink-0 items-center gap-3">
-              <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary-500/10 text-primary-400">
+              <div className="chip-gradient-soft inline-flex h-10 w-10 items-center justify-center rounded-xl text-primary-200">
                 <Icon icon={send} className="h-5 w-5" />
               </div>
               <h2 className="shrink-0 text-lg font-semibold text-white">发信测试</h2>
@@ -343,7 +343,7 @@ export default function SystemConfigEmailPage() {
               <button
                 type="submit"
                 disabled={loading || sendingCode || verifyingCode}
-                className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-gray-700 px-4 py-2.5 text-sm font-medium text-gray-100 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
+                className="btn-glass inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-100 transition disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {sendingCode ? "发送中..." : "获取验证码"}
               </button>
@@ -365,7 +365,7 @@ export default function SystemConfigEmailPage() {
               <button
                 type="submit"
                 disabled={loading || sendingCode || verifyingCode}
-                className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-gray-700 px-4 py-2.5 text-sm font-medium text-gray-100 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
+                className="btn-glass inline-flex shrink-0 items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-100 transition disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {verifyingCode ? "验证中..." : "验证"}
               </button>
@@ -389,9 +389,9 @@ function SectionHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-4 border-b border-gray-800 px-6 py-5 md:flex-row md:items-start md:justify-between">
+    <div className="flex flex-col gap-4 border-b border-white/[0.06] px-6 py-5 md:flex-row md:items-start md:justify-between">
       <div className="flex items-start gap-3">
-        <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary-500/10 text-primary-400">
+        <div className="chip-gradient-soft inline-flex h-10 w-10 items-center justify-center rounded-xl text-primary-200">
           <Icon icon={icon} className="h-5 w-5" />
         </div>
         <div>
@@ -414,7 +414,7 @@ function ReadonlyField({
   valueClassName?: string;
 }) {
   return (
-    <div className="rounded-xl border border-gray-800 px-4 py-3">
+    <div className="rounded-xl border border-white/[0.06] px-4 py-3">
       <div className="text-xs font-medium uppercase tracking-wider text-gray-500">{label}</div>
       <div className={`mt-2 text-sm text-white ${valueClassName ?? ""}`}>{value}</div>
     </div>
@@ -437,7 +437,7 @@ function InputField({
   disabled?: boolean;
 }) {
   return (
-    <label className="block rounded-xl border border-gray-800 bg-gray-950/70 px-4 py-3">
+    <label className="block rounded-xl border border-white/[0.08] bg-black/30 px-4 py-3">
       <span className="block text-xs font-medium uppercase tracking-wider text-gray-500">
         {label}
       </span>
@@ -495,7 +495,7 @@ const CompactInput = forwardRef<HTMLInputElement, {
           inputMode={inputMode}
           maxLength={maxLength}
           aria-label={ariaLabel}
-          className="w-full rounded-lg border border-gray-800 bg-gray-950 px-3.5 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-primary-500/60 focus:outline-none focus:ring-1 focus:ring-primary-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-primary-400/60 focus:outline-none focus:ring-1 focus:ring-primary-400/30 disabled:cursor-not-allowed disabled:opacity-60"
         />
       </label>
     );

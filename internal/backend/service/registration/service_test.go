@@ -126,6 +126,124 @@ func TestRegistrationServiceReviewRegistrationAllowsTwoLeadersToApproveTwoGroups
 	)
 }
 
+func TestRegistrationServiceUndoApprovedReviewRestoresPendingAndAllowsReviewAgain(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	service.now = func() time.Time {
+		return time.Date(2026, 4, 14, 12, 0, 0, 0, time.Local)
+	}
+	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+
+	if _, err := service.ReviewRegistration(
+		context.Background(),
+		actor,
+		repo.registration.ID,
+		ReviewRegistrationInput{Decision: registrationReviewDecisionApprove, Remark: "首次通过"},
+	); err != nil {
+		t.Fatalf("ReviewRegistration returned error: %v", err)
+	}
+
+	detail, err := service.UndoRegistrationReview(context.Background(), actor, repo.registration.ID)
+	if err != nil {
+		t.Fatalf("UndoRegistrationReview returned error: %v", err)
+	}
+	if detail.Group1Status != model.RegistrationStatusPending || detail.Group2Status != model.RegistrationStatusPending {
+		t.Fatalf("expected both groups pending after undo, got group1=%d group2=%d", detail.Group1Status, detail.Group2Status)
+	}
+	if detail.Status != model.RegistrationStatusPending {
+		t.Fatalf("expected overall pending after undo, got %d", detail.Status)
+	}
+	if detail.Reviewer1 != nil || detail.Reviewer2 != nil || detail.ReviewedAt1 != nil || detail.ReviewedAt2 != nil || detail.ReviewRemark1 != nil || detail.ReviewRemark2 != nil {
+		t.Fatalf("expected review metadata cleared after undo, got %#v", detail)
+	}
+	if !detail.CanApprove || !detail.CanReject || detail.CanUndo {
+		t.Fatalf("expected review actions restored and undo disabled, got approve=%v reject=%v undo=%v", detail.CanApprove, detail.CanReject, detail.CanUndo)
+	}
+	assertRemovedMemberships(t, repo.removedMemberships, []fakeAddedMembership{
+		{GroupID: 1, UserID: repo.registration.UserID},
+		{GroupID: 101, UserID: repo.registration.UserID},
+		{GroupID: 102, UserID: repo.registration.UserID},
+	})
+	assertAddedMemberships(t, repo.addedMemberships, []fakeAddedMembership{
+		{GroupID: 101, UserID: repo.registration.UserID},
+		{GroupID: 102, UserID: repo.registration.UserID},
+		{GroupID: 1, UserID: repo.registration.UserID},
+	})
+
+	reviewedAgain, err := service.ReviewRegistration(
+		context.Background(),
+		actor,
+		repo.registration.ID,
+		ReviewRegistrationInput{Decision: registrationReviewDecisionReject, Remark: "重新审核"},
+	)
+	if err != nil {
+		t.Fatalf("second ReviewRegistration returned error: %v", err)
+	}
+	if reviewedAgain.Status != model.RegistrationStatusRejected || !reviewedAgain.CanUndo {
+		t.Fatalf("expected rejected result with undo enabled after re-review, got status=%d undo=%v", reviewedAgain.Status, reviewedAgain.CanUndo)
+	}
+}
+
+func TestRegistrationServiceUndoRejectedReviewRestoresPendingWithoutMembershipChanges(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+
+	if _, err := service.ReviewRegistration(
+		context.Background(),
+		actor,
+		repo.registration.ID,
+		ReviewRegistrationInput{Decision: registrationReviewDecisionReject},
+	); err != nil {
+		t.Fatalf("ReviewRegistration returned error: %v", err)
+	}
+
+	detail, err := service.UndoRegistrationReview(context.Background(), actor, repo.registration.ID)
+	if err != nil {
+		t.Fatalf("UndoRegistrationReview returned error: %v", err)
+	}
+	if detail.Status != model.RegistrationStatusPending {
+		t.Fatalf("expected pending after undoing rejection, got %d", detail.Status)
+	}
+	if len(repo.addedMemberships) != 0 || len(repo.removedMemberships) != 0 {
+		t.Fatalf("expected rejection undo not to change memberships, got added=%v removed=%v", repo.addedMemberships, repo.removedMemberships)
+	}
+}
+
+func TestRegistrationServiceUndoReviewOnlyResetsLeaderGroup(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	now := time.Date(2026, 4, 14, 11, 0, 0, 0, time.Local)
+	repo.registration.Group1Status = model.RegistrationStatusApproved
+	repo.registration.Group2Status = model.RegistrationStatusRejected
+	repo.registration.Status = model.RegistrationStatusApproved
+	repo.registration.ReviewerID1 = uint64Ptr(2001)
+	repo.registration.Reviewer1 = cloneUserModel(repo.users[2001])
+	repo.registration.ReviewedAt1 = &now
+	repo.registration.ReviewerID2 = uint64Ptr(2002)
+	repo.registration.Reviewer2 = cloneUserModel(repo.users[2002])
+	repo.registration.ReviewedAt2 = &now
+	repo.leaderGroupIDs[2001] = []uint64{101}
+	service := newRegistrationServiceWithDependencies(repo, nil)
+
+	detail, err := service.UndoRegistrationReview(
+		context.Background(),
+		RegistrationFormActor{ID: 2001, RoleName: model.RoleNameAdmin},
+		repo.registration.ID,
+	)
+	if err != nil {
+		t.Fatalf("UndoRegistrationReview returned error: %v", err)
+	}
+	if detail.Group1Status != model.RegistrationStatusPending || detail.Group2Status != model.RegistrationStatusRejected {
+		t.Fatalf("expected only leader group reset, got group1=%d group2=%d", detail.Group1Status, detail.Group2Status)
+	}
+	if detail.Reviewer1 != nil || detail.ReviewedAt1 != nil {
+		t.Fatalf("expected group 1 review metadata cleared")
+	}
+	if detail.Reviewer2 == nil || detail.ReviewedAt2 == nil {
+		t.Fatalf("expected group 2 review metadata retained")
+	}
+}
+
 func TestRegistrationAccessScopeReviewActionAvailabilityForLeaderSlot1(t *testing.T) {
 	repo := newFakeRegistrationReviewRepository()
 	scope := newRegistrationAccessScope(false, []uint64{101})
@@ -133,6 +251,17 @@ func TestRegistrationAccessScopeReviewActionAvailabilityForLeaderSlot1(t *testin
 	item := toRegistrationListItem(repo.registration, scope)
 	if !item.CanApprove || !item.CanReject {
 		t.Fatalf("expected both actions enabled for leader reviewing group 1, got approve=%v reject=%v", item.CanApprove, item.CanReject)
+	}
+}
+
+func TestRegistrationAccessScopeReviewActionAvailabilityAllowsUndoReviewedSlot(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	repo.registration.Group1Status = model.RegistrationStatusApproved
+	scope := newRegistrationAccessScope(false, []uint64{101})
+
+	item := toRegistrationListItem(repo.registration, scope)
+	if item.CanApprove || item.CanReject || !item.CanUndo {
+		t.Fatalf("expected only undo enabled for reviewed leader slot, got approve=%v reject=%v undo=%v", item.CanApprove, item.CanReject, item.CanUndo)
 	}
 }
 
@@ -612,16 +741,26 @@ func (r *fakeRegistrationReviewRepository) UpdateRegistration(_ context.Context,
 	if value, ok := updates["reviewer_id_1"].(uint64); ok {
 		r.registration.ReviewerID1 = uint64Ptr(value)
 		r.registration.Reviewer1 = cloneUserModel(r.users[value])
+	} else if _, ok := updates["reviewer_id_1"]; ok {
+		r.registration.ReviewerID1 = nil
+		r.registration.Reviewer1 = nil
 	}
 	if value, ok := updates["reviewer_id_2"].(uint64); ok {
 		r.registration.ReviewerID2 = uint64Ptr(value)
 		r.registration.Reviewer2 = cloneUserModel(r.users[value])
+	} else if _, ok := updates["reviewer_id_2"]; ok {
+		r.registration.ReviewerID2 = nil
+		r.registration.Reviewer2 = nil
 	}
 	if value, ok := updates["reviewed_at_1"].(time.Time); ok {
 		r.registration.ReviewedAt1 = copyTimePtr(&value)
+	} else if _, ok := updates["reviewed_at_1"]; ok {
+		r.registration.ReviewedAt1 = nil
 	}
 	if value, ok := updates["reviewed_at_2"].(time.Time); ok {
 		r.registration.ReviewedAt2 = copyTimePtr(&value)
+	} else if _, ok := updates["reviewed_at_2"]; ok {
+		r.registration.ReviewedAt2 = nil
 	}
 	if value, ok := updates["review_remark_1"].(*string); ok {
 		r.registration.ReviewRemark1 = copyStringPtr(value)

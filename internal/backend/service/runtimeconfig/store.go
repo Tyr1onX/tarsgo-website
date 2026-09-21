@@ -3,7 +3,6 @@ package runtimeconfig
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -230,13 +229,15 @@ func (s *Store) loadOAuthSettings(ctx context.Context, provider string) (OAuthSe
 
 func (s *Store) find(ctx context.Context, key string) (*model.SystemConfig, error) {
 	var record model.SystemConfig
-	if err := s.db.WithContext(ctx).
+	result := s.db.WithContext(ctx).
 		Where("config_key = ?", strings.TrimSpace(key)).
-		First(&record).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
-		}
-		return nil, err
+		Limit(1).
+		Find(&record)
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, nil
 	}
 
 	return &record, nil

@@ -198,33 +198,33 @@ function getErrorMessage(error: unknown) {
 
 function getGroupStatusMeta(status: number) {
   if (status === 1) {
-    return { label: "启用", icon: power, dot: "bg-emerald-400", className: "text-emerald-300 bg-emerald-500/10 border-emerald-500/20" };
+    return { label: "启用", icon: power, dot: "bg-emerald-400", className: "text-emerald-300 bg-emerald-500/10 border-emerald-400/20" };
   }
-  return { label: "停用", icon: powerOff, dot: "bg-gray-500", className: "text-gray-400 bg-gray-500/10 border-gray-600/30" };
+  return { label: "停用", icon: powerOff, dot: "bg-gray-500", className: "text-gray-300 bg-gray-500/10 border-gray-400/20" };
 }
 
 function getGroupShowMeta(show: number) {
   if (show === 1) {
-    return { label: "展示", icon: eyeIcon, className: "text-sky-300 bg-sky-500/10 border-sky-500/20" };
+    return { label: "展示", icon: eyeIcon, className: "text-sky-300 bg-sky-500/10 border-sky-400/20" };
   }
-  return { label: "隐藏", icon: eyeOff, className: "text-gray-400 bg-gray-500/10 border-gray-600/30" };
+  return { label: "隐藏", icon: eyeOff, className: "text-gray-300 bg-gray-500/10 border-gray-400/20" };
 }
 
 function getSystemRoleMeta(roleName: string) {
   if (roleName === "super_admin") {
-    return "text-amber-200 bg-amber-500/10 border border-amber-500/20";
+    return "text-amber-300 bg-amber-500/10 border border-amber-400/20";
   }
   if (roleName === "admin") {
-    return "text-sky-200 bg-sky-500/10 border border-sky-500/20";
+    return "text-sky-300 bg-sky-500/10 border border-sky-400/20";
   }
-  return "text-gray-200 bg-gray-700/50 border border-gray-700";
+  return "text-gray-300 bg-gray-500/10 border border-gray-400/20";
 }
 
 function getMemberRoleMeta(role: number) {
   if (role === 1) {
-    return { label: "组长", className: "text-primary-200 bg-primary-500/10 border border-primary-500/20" };
+    return { label: "组长", className: "text-primary-300 bg-primary-500/10 border border-primary-400/20" };
   }
-  return { label: "成员", className: "text-gray-200 bg-gray-700/50 border border-gray-700" };
+  return { label: "成员", className: "text-gray-300 bg-gray-500/10 border border-gray-400/20" };
 }
 
 function normalizeMemberSearchKeyword(value: string) {
@@ -811,7 +811,7 @@ export default function UserGroups() {
 
   if (noAdminPermission) {
     return (
-      <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-6">
+      <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 p-6">
         <h1 className="text-xl font-semibold text-white">用户分组</h1>
         <p className="mt-2 text-sm leading-6 text-amber-100/80">
           当前账号没有管理员权限，无法访问此页面。
@@ -836,7 +836,7 @@ export default function UserGroups() {
       {/* Header */}
       <div className="motion-fade-up flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary-500/10 text-primary-400">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl chip-gradient-soft text-primary-200">
             <Icon icon={layers} className="h-5 w-5" />
           </div>
           <div>
@@ -847,7 +847,7 @@ export default function UserGroups() {
         <button
           type="button"
           onClick={openCreateModal}
-          className="inline-flex items-center gap-2 rounded-xl bg-primary-500 px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-primary-500/20 transition-all hover:bg-primary-600 hover:shadow-primary-500/30 cursor-pointer"
+          className="inline-flex items-center gap-2 btn-gradient rounded-xl px-5 py-2.5 text-sm font-medium text-white cursor-pointer"
         >
           <Icon icon={folderPlus} className="h-4 w-4" />
           新建分组
@@ -875,7 +875,7 @@ export default function UserGroups() {
       </div>
 
       {/* Filter bar */}
-      <div className="motion-fade-up flex flex-col gap-3 rounded-xl border border-gray-800/60 bg-gray-900/50 p-4 backdrop-blur sm:flex-row sm:items-center sm:justify-between" style={{ animationDelay: "140ms" }}>
+      <div className="motion-fade-up flex flex-col gap-3 glass-panel rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between" style={{ animationDelay: "140ms" }}>
         <div>
           <div className="text-sm font-medium text-white">筛选分组</div>
           <div className="mt-0.5 text-xs text-gray-500">按状态快速筛选，所有分组在当前页展示。</div>
@@ -897,7 +897,7 @@ export default function UserGroups() {
               setFlash(null);
               setStatusFilter(defaultQuery.status);
             }}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-gray-700/60 px-3.5 py-2 text-sm text-gray-400 transition-colors hover:bg-white/5 hover:text-gray-200 cursor-pointer"
+            className="inline-flex items-center gap-1.5 btn-glass rounded-xl px-3.5 py-2 text-sm text-gray-400 transition-colors cursor-pointer"
           >
             <Icon icon={rotateCcw} className="h-3.5 w-3.5" />
             重置
@@ -908,15 +908,15 @@ export default function UserGroups() {
       {/* Group cards */}
       <div className="motion-fade-up grid gap-4 md:grid-cols-2 xl:grid-cols-3" style={{ animationDelay: "200ms" }}>
         {loadingList ? (
-          <div className="col-span-full flex items-center justify-center rounded-xl border border-gray-800/40 bg-gray-900/30 px-6 py-16">
+          <div className="col-span-full flex items-center justify-center glass-panel rounded-2xl px-6 py-16">
             <div className="flex flex-col items-center gap-3">
               <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-700 border-t-primary-500" />
               <span className="text-sm text-gray-500">正在加载...</span>
             </div>
           </div>
         ) : groups.length === 0 ? (
-          <div className="col-span-full flex flex-col items-center justify-center rounded-xl border border-dashed border-gray-800/60 bg-gray-900/20 px-6 py-16 text-center">
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-gray-800/50">
+          <div className="col-span-full flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/[0.06] bg-black/20 px-6 py-16 text-center">
+            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white/[0.03]">
               <Icon icon={layers} className="h-6 w-6 text-gray-600" />
             </div>
             <span className="text-sm text-gray-500">
@@ -944,26 +944,26 @@ export default function UserGroups() {
         open={groupModalOpen}
         title={editingGroupId === null ? "新建用户组" : "编辑用户组"}
         headerAccent={
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary-500/10 shadow-sm shadow-primary-500/5">
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl chip-gradient-soft">
             <Icon
               icon={editingGroupId === null ? folderPlus : editIcon}
-              className="h-4 w-4 text-primary-400"
+              className="h-4 w-4 text-primary-200"
             />
           </div>
         }
         onClose={closeGroupModal}
         widthClass="max-w-2xl"
         zIndexClass="z-[70]"
-        panelClassName="rounded-2xl border border-gray-800/60 bg-gray-950 shadow-2xl shadow-black/40"
+        panelClassName="glass-panel glass-panel-strong rounded-2xl shadow-2xl shadow-black/40"
         bodyClassName="max-h-[calc(100vh-10rem)] overflow-y-auto px-6 py-5"
         backdropClassName="bg-black/70 backdrop-blur-sm"
       >
             <form onSubmit={handleSubmitGroup} className="space-y-6">
               {/* ── Section: 基本信息 ── */}
-              <section className="rounded-xl border border-gray-800/50 bg-gradient-to-b from-gray-900/60 to-gray-900/30 overflow-hidden">
-                <div className="flex items-center gap-2.5 border-b border-gray-800/40 px-5 py-3">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-md bg-primary-500/10">
-                    <Icon icon={layers} className="h-3.5 w-3.5 text-primary-400" />
+              <section className="rounded-2xl border border-white/[0.06] bg-white/[0.03] overflow-hidden">
+                <div className="flex items-center gap-2.5 border-b border-white/[0.06] px-5 py-3">
+                  <div className="flex h-6 w-6 items-center justify-center rounded-md chip-gradient-soft">
+                    <Icon icon={layers} className="h-3.5 w-3.5 text-primary-200" />
                   </div>
                   <span className="text-sm font-medium text-gray-200">基本信息</span>
                 </div>
@@ -982,8 +982,8 @@ export default function UserGroups() {
                   </div>
                   <div>
                     <FieldLabel label="分组 Logo" />
-                    <div className="flex flex-col gap-3 rounded-xl border border-gray-700/60 bg-gray-800/50 p-4 sm:flex-row sm:items-center">
-                      <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-gray-700/60 bg-gray-900/80">
+                    <div className="flex flex-col gap-3 rounded-xl border border-white/[0.08] bg-black/30 p-4 sm:flex-row sm:items-center">
+                      <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/[0.08] bg-black/30">
                         {groupLogoPreviewSrc ? (
                           <img
                             src={groupLogoPreviewSrc}
@@ -1005,7 +1005,7 @@ export default function UserGroups() {
                         <button
                           type="button"
                           onClick={() => groupLogoInputRef.current?.click()}
-                          className="inline-flex items-center gap-2 rounded-lg border border-gray-700/60 px-4 py-2 text-sm text-gray-200 transition-colors hover:bg-white/5 cursor-pointer"
+                          className="inline-flex items-center gap-2 btn-glass rounded-xl px-4 py-2 text-sm text-gray-200 transition-colors cursor-pointer"
                         >
                           选择图片
                         </button>
@@ -1013,7 +1013,7 @@ export default function UserGroups() {
                           type="button"
                           onClick={handleRemoveGroupLogo}
                           disabled={!groupLogoPreviewSrc}
-                          className="inline-flex items-center gap-2 rounded-lg border border-red-500/30 px-4 py-2 text-sm text-red-300 transition-colors hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
+                          className="inline-flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-sm text-rose-300 transition-colors hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
                         >
                           移除
                         </button>
@@ -1033,8 +1033,8 @@ export default function UserGroups() {
               </section>
 
               {/* ── Section: 展示与状态 ── */}
-              <section className="rounded-xl border border-gray-800/50 bg-gradient-to-b from-gray-900/60 to-gray-900/30 overflow-hidden">
-                <div className="flex items-center gap-2.5 border-b border-gray-800/40 px-5 py-3">
+              <section className="rounded-2xl border border-white/[0.06] bg-white/[0.03] overflow-hidden">
+                <div className="flex items-center gap-2.5 border-b border-white/[0.06] px-5 py-3">
                   <div className="flex h-6 w-6 items-center justify-center rounded-md bg-sky-500/10">
                     <Icon icon={zap} className="h-3.5 w-3.5 text-sky-400" />
                   </div>
@@ -1081,8 +1081,8 @@ export default function UserGroups() {
               </section>
 
               {/* ── Section: 标签 ── */}
-              <section className="rounded-xl border border-gray-800/50 bg-gradient-to-b from-gray-900/60 to-gray-900/30 overflow-hidden">
-                <div className="flex items-center gap-2.5 border-b border-gray-800/40 px-5 py-3">
+              <section className="rounded-2xl border border-white/[0.06] bg-white/[0.03] overflow-hidden">
+                <div className="flex items-center gap-2.5 border-b border-white/[0.06] px-5 py-3">
                   <div className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-500/10">
                     <Icon icon={tagIcon} className="h-3.5 w-3.5 text-amber-400" />
                   </div>
@@ -1098,8 +1098,8 @@ export default function UserGroups() {
               </section>
 
               {/* ── Default group toggle ── */}
-              <label className={`group/toggle flex items-center gap-4 rounded-xl border px-5 py-4 transition-all cursor-pointer ${groupForm.isDefault ? "border-amber-500/30 bg-gradient-to-r from-amber-500/[0.08] to-transparent shadow-sm shadow-amber-500/5" : "border-gray-800/50 bg-gray-900/40 hover:border-gray-700/60 hover:bg-gray-800/40"} ${groupForm.status !== "1" ? "opacity-50 cursor-not-allowed" : ""}`}>
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors ${groupForm.isDefault ? "bg-amber-500/15" : "bg-gray-800/60 group-hover/toggle:bg-gray-800/80"}`}>
+              <label className={`group/toggle flex items-center gap-4 rounded-xl border px-5 py-4 transition-all cursor-pointer ${groupForm.isDefault ? "border-amber-400/30 bg-gradient-to-r from-amber-500/[0.08] to-transparent shadow-sm shadow-amber-500/5" : "border-white/[0.06] bg-white/[0.03] hover:border-white/[0.1] hover:bg-white/[0.05]"} ${groupForm.status !== "1" ? "opacity-50 cursor-not-allowed" : ""}`}>
+                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors ${groupForm.isDefault ? "bg-amber-500/15" : "bg-white/[0.04] group-hover/toggle:bg-white/[0.06]"}`}>
                   <Icon icon={groupForm.isDefault ? starIcon : starOff} className={`h-5 w-5 transition-colors ${groupForm.isDefault ? "text-amber-400" : "text-gray-500 group-hover/toggle:text-gray-400"}`} />
                 </div>
                 <div className="flex-1 min-w-0">
@@ -1114,7 +1114,7 @@ export default function UserGroups() {
                     disabled={groupForm.status !== "1"}
                     className="sr-only peer"
                   />
-                  <div className={`relative h-6 w-11 rounded-full transition-colors ${groupForm.isDefault ? "bg-amber-500" : "bg-gray-700"}`}>
+                  <div className={`relative h-6 w-11 rounded-full transition-colors ${groupForm.isDefault ? "bg-amber-500" : "bg-white/[0.1]"}`}>
                     <div className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${groupForm.isDefault ? "translate-x-5" : "translate-x-0"}`} />
                   </div>
                 </div>
@@ -1128,7 +1128,7 @@ export default function UserGroups() {
                     <button
                       type="submit"
                       disabled={savingGroup}
-                      className="inline-flex items-center gap-2 rounded-lg bg-primary-500 px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-primary-500/20 transition-all hover:bg-primary-600 hover:shadow-primary-500/30 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+                      className="inline-flex items-center gap-2 btn-gradient rounded-xl px-5 py-2.5 text-sm font-medium text-white cursor-pointer"
                     >
                       {savingGroup ? (
                         <>
@@ -1153,26 +1153,26 @@ export default function UserGroups() {
         open={deleteTarget !== null}
         title="确认删除"
         headerAccent={
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-red-500/10 shadow-sm shadow-red-500/5">
-            <Icon icon={alertTriangle} className="h-4 w-4 text-red-400" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-500/10 shadow-sm shadow-rose-500/5">
+            <Icon icon={alertTriangle} className="h-4 w-4 text-rose-400" />
           </div>
         }
         onClose={() => setDeleteTarget(null)}
         widthClass="max-w-md"
         zIndexClass="z-[60]"
-        panelClassName="rounded-2xl border border-gray-800/60 bg-gray-950 shadow-2xl shadow-black/40"
+        panelClassName="glass-panel glass-panel-strong rounded-2xl shadow-2xl shadow-black/40"
         backdropClassName="bg-black/70 backdrop-blur-sm"
       >
         {deleteTarget ? (
           <div className="space-y-5">
-            <div className="flex items-start gap-3 rounded-xl border border-red-500/20 bg-red-500/5 p-4">
-              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-red-500/10">
-                <Icon icon={alertTriangle} className="h-4 w-4 text-red-400" />
+            <div className="flex items-start gap-3 rounded-xl border border-rose-400/20 bg-rose-500/10 p-4">
+              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-rose-500/10">
+                <Icon icon={alertTriangle} className="h-4 w-4 text-rose-400" />
               </div>
               <div className="text-sm leading-6 text-red-100/80">
                 即将删除 <span className="font-semibold text-white">{deleteTarget.name}</span>
                 {"memberCount" in deleteTarget && deleteTarget.memberCount > 0 ? (
-                  <span className="text-red-300">（当前 {deleteTarget.memberCount} 人，需先清空成员）</span>
+                  <span className="text-rose-300">（当前 {deleteTarget.memberCount} 人，需先清空成员）</span>
                 ) : null}
               </div>
             </div>
@@ -1182,7 +1182,7 @@ export default function UserGroups() {
                 type="button"
                 onClick={() => setDeleteTarget(null)}
                 disabled={deletingGroup}
-                className="rounded-lg border border-gray-700/60 px-4 py-2.5 text-sm text-gray-300 transition-colors hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                className="btn-glass rounded-xl px-4 py-2.5 text-sm text-gray-300 transition-colors disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
               >
                 取消
               </button>
@@ -1190,7 +1190,7 @@ export default function UserGroups() {
                 type="button"
                 onClick={() => void handleDeleteGroup()}
                 disabled={deletingGroup}
-                className="rounded-lg bg-red-600 px-5 py-2.5 text-sm font-medium text-white shadow-lg shadow-red-600/20 transition-all hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+                className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-5 py-2.5 text-sm font-medium text-rose-300 transition-all hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
               >
                 {deletingGroup ? "删除中..." : "确认删除"}
               </button>
@@ -1210,14 +1210,14 @@ export default function UserGroups() {
             />
             <aside
               ref={drawerPanelRef}
-              className="absolute right-0 top-0 h-full w-full max-w-2xl overflow-y-auto border-l border-gray-800/60 bg-gray-950 shadow-2xl"
+              className="absolute right-0 top-0 h-full w-full max-w-2xl overflow-y-auto glass-panel glass-panel-strong border-l shadow-2xl"
             >
               {/* Drawer header */}
-              <div className="sticky top-0 z-10 border-b border-gray-800/60 bg-gray-950/95 px-6 py-4 backdrop-blur">
+              <div className="sticky top-0 z-10 border-b border-white/[0.06] bg-black/30 px-6 py-4 backdrop-blur">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary-500/10">
-                      <Icon icon={usersIcon} className="h-4.5 w-4.5 text-primary-400" />
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl chip-gradient-soft">
+                      <Icon icon={usersIcon} className="h-4.5 w-4.5 text-primary-200" />
                     </div>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
@@ -1231,7 +1231,7 @@ export default function UserGroups() {
                           </span>
                         ) : null}
                         {selectedGroup?.isDefault ? (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-amber-500/20 bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-200">
+                          <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/20 bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-300">
                             <Icon icon={starIcon} className="h-3 w-3" />
                             默认
                           </span>
@@ -1249,7 +1249,7 @@ export default function UserGroups() {
                         value={memberSearchKeyword}
                         onChange={(event) => setMemberSearchKeyword(event.target.value)}
                         placeholder="搜索用户名、邮箱、手机号"
-                        className="w-full rounded-lg border border-gray-700/60 bg-gray-900/80 py-2 pl-9 pr-3 text-sm text-gray-100 outline-none transition-colors placeholder:text-gray-500 focus:border-primary-500/60"
+                        className="w-full rounded-xl border border-white/[0.08] bg-black/30 py-2 pl-9 pr-3 text-sm text-gray-100 outline-none transition-colors placeholder:text-gray-500 focus:border-primary-400/60"
                       />
                     </label>
                     <div className="flex items-center gap-2 shrink-0">
@@ -1258,7 +1258,7 @@ export default function UserGroups() {
                         <button
                           type="button"
                           onClick={() => openEditModal(selectedGroup)}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-gray-700/60 px-3 py-1.5 text-xs text-gray-300 transition-colors hover:bg-white/5 cursor-pointer"
+                          className="inline-flex items-center gap-1.5 btn-glass rounded-xl px-3 py-1.5 text-xs text-gray-300 transition-colors cursor-pointer"
                         >
                           <Icon icon={editIcon} className="h-3.5 w-3.5" />
                           编辑
@@ -1266,7 +1266,7 @@ export default function UserGroups() {
                         <button
                           type="button"
                           onClick={() => setDeleteTarget(selectedGroup)}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-red-500/30 px-3 py-1.5 text-xs text-red-300 transition-colors hover:bg-red-500/10 cursor-pointer"
+                          className="inline-flex items-center gap-1.5 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-300 transition-colors hover:bg-rose-500/20 cursor-pointer"
                         >
                           <Icon icon={trash2} className="h-3.5 w-3.5" />
                           删除
@@ -1277,7 +1277,7 @@ export default function UserGroups() {
                       type="button"
                       aria-label="关闭"
                       onClick={() => closeDrawer()}
-                      className="rounded-lg p-1.5 text-gray-400 transition-colors hover:text-white hover:bg-white/5 cursor-pointer"
+                      className="rounded-xl p-1.5 text-gray-400 transition-colors hover:text-white hover:bg-white/5 cursor-pointer"
                     >
                       <Icon icon={x} className="h-5 w-5" />
                     </button>
@@ -1288,7 +1288,7 @@ export default function UserGroups() {
 
               <div className="flex flex-col gap-5 px-6 py-5">
                 {detailLoading || !selectedGroup ? (
-                  <div className="flex items-center justify-center rounded-xl border border-gray-800/40 bg-gray-900/30 px-6 py-16">
+                  <div className="flex items-center justify-center rounded-2xl border border-white/[0.06] bg-white/[0.03] px-6 py-16">
                     <div className="flex flex-col items-center gap-3">
                       <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-700 border-t-primary-500" />
                       <span className="text-sm text-gray-500">正在加载...</span>
@@ -1309,7 +1309,7 @@ export default function UserGroups() {
 
                     {/* Tags */}
                     {selectedGroup.tags?.length ? (
-                      <section className="rounded-xl border border-gray-800/60 bg-gray-900/40 p-4">
+                      <section className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-4">
                         <div className="mb-2.5 flex items-center gap-2 text-xs font-medium text-gray-400">
                           <Icon icon={tagIcon} className="h-3.5 w-3.5" />
                           标签
@@ -1318,7 +1318,7 @@ export default function UserGroups() {
                           {selectedGroup.tags.map((t) => (
                             <span
                               key={t}
-                              className="inline-flex rounded-full border border-primary-500/20 bg-primary-500/10 px-2.5 py-0.5 text-xs text-primary-200"
+                              className="inline-flex rounded-full border border-primary-400/20 bg-primary-500/10 px-2.5 py-0.5 text-xs text-primary-200"
                             >
                               {t}
                             </span>
@@ -1328,7 +1328,7 @@ export default function UserGroups() {
                     ) : null}
 
                     {/* Add member */}
-                    <section className="order-2 rounded-xl border border-gray-800/60 bg-gray-900/40 p-4">
+                    <section className="order-2 rounded-2xl border border-white/[0.06] bg-white/[0.03] p-4">
                       <div className="mb-4 flex items-center gap-2">
                         <Icon icon={userPlus} className="h-4 w-4 text-primary-400" />
                         <div>
@@ -1339,18 +1339,18 @@ export default function UserGroups() {
 
                       <div className="space-y-2">
                         {loadingCandidates ? (
-                          <div className="rounded-lg border border-dashed border-gray-700/60 px-4 py-8 text-center text-sm text-gray-500">
+                          <div className="rounded-xl border border-dashed border-white/[0.08] px-4 py-8 text-center text-sm text-gray-500">
                             加载中...
                           </div>
                         ) : filteredCandidates.length === 0 ? (
-                          <div className="rounded-lg border border-dashed border-gray-700/60 px-4 py-8 text-center text-sm text-gray-500">
+                          <div className="rounded-xl border border-dashed border-white/[0.08] px-4 py-8 text-center text-sm text-gray-500">
                             {memberSearchKeyword.trim() ? "没有匹配的候选账号" : "暂无可加入的候选账号"}
                           </div>
                         ) : (
                           filteredCandidates.map((candidate) => (
                             <div
                               key={candidate.id}
-                              className="rounded-lg border border-gray-800/40 bg-gray-800/30 p-3 transition-colors hover:bg-gray-800/50"
+                              className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-3 transition-colors hover:bg-white/[0.05]"
                             >
                               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div className="min-w-0 flex-1">
@@ -1376,7 +1376,7 @@ export default function UserGroups() {
                                       {candidate.groups.map((g) => (
                                         <span
                                           key={`${candidate.id}-${g.id}`}
-                                          className="inline-flex rounded-full bg-gray-700/40 px-2 py-0.5 text-xs text-gray-400"
+                                          className="inline-flex rounded-full bg-white/[0.05] px-2 py-0.5 text-xs text-gray-400"
                                         >
                                           {g.name}
                                         </span>
@@ -1405,7 +1405,7 @@ export default function UserGroups() {
                                     type="button"
                                     onClick={() => void handleAddMember(candidate)}
                                     disabled={mutatingMemberId === candidate.id}
-                                    className="inline-flex items-center gap-1 rounded-lg bg-primary-500 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+                                    className="inline-flex items-center gap-1 btn-gradient rounded-xl px-3 py-1.5 text-xs font-medium text-white cursor-pointer"
                                   >
                                     <Icon icon={userPlus} className="h-3 w-3" />
                                     {mutatingMemberId === candidate.id ? "加入中..." : "加入"}
@@ -1419,13 +1419,13 @@ export default function UserGroups() {
                     </section>
 
                     {/* Current members */}
-                    <section className="order-1 rounded-xl border border-gray-800/60 bg-gray-900/40 p-4">
+                    <section className="order-1 rounded-2xl border border-white/[0.06] bg-white/[0.03] p-4">
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2">
                           <Icon icon={usersIcon} className="h-4 w-4 text-emerald-400" />
                           <h3 className="text-sm font-semibold text-white">当前成员</h3>
                         </div>
-                        <span className="rounded-full bg-gray-800/60 px-2.5 py-0.5 text-xs text-gray-400">
+                        <span className="rounded-full bg-white/[0.05] px-2.5 py-0.5 text-xs text-gray-400">
                           {memberSearchKeyword.trim()
                             ? `${filteredMembers.length} / ${selectedGroup.members.length} 人`
                             : `${selectedGroup.members.length} 人`}
@@ -1434,14 +1434,14 @@ export default function UserGroups() {
 
                       <div className="space-y-2">
                         {filteredMembers.length === 0 ? (
-                          <div className="rounded-lg border border-dashed border-gray-700/60 px-4 py-8 text-center text-sm text-gray-500">
+                          <div className="rounded-xl border border-dashed border-white/[0.08] px-4 py-8 text-center text-sm text-gray-500">
                             {memberSearchKeyword.trim() ? "没有匹配的成员" : "暂无成员"}
                           </div>
                         ) : (
                           filteredMembers.map((member) => (
                             <div
                               key={member.id}
-                              className="rounded-lg border border-gray-800/40 bg-gray-800/30 p-3 transition-colors hover:bg-gray-800/50"
+                              className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-3 transition-colors hover:bg-white/[0.05]"
                             >
                               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div className="min-w-0 flex-1">
@@ -1474,7 +1474,7 @@ export default function UserGroups() {
                                     type="button"
                                     onClick={() => void handleToggleMemberRole(member)}
                                     disabled={mutatingMemberId === member.id}
-                                    className="inline-flex items-center gap-1 rounded-lg border border-primary-500/30 px-3 py-1.5 text-xs text-primary-200 transition-colors hover:bg-primary-500/10 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                                    className="inline-flex items-center gap-1 rounded-xl border border-primary-400/30 px-3 py-1.5 text-xs text-primary-200 transition-colors hover:bg-primary-500/10 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
                                   >
                                     <Icon icon={member.role === 1 ? userCheck : crown} className="h-3 w-3" />
                                     {mutatingMemberId === member.id
@@ -1487,7 +1487,7 @@ export default function UserGroups() {
                                     type="button"
                                     onClick={() => void handleRemoveMember(member)}
                                     disabled={mutatingMemberId === member.id}
-                                    className="inline-flex items-center gap-1 rounded-lg border border-red-500/30 px-3 py-1.5 text-xs text-red-300 transition-colors hover:bg-red-500/10 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                                    className="inline-flex items-center gap-1 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-300 transition-colors hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
                                   >
                                     <Icon icon={userMinus} className="h-3 w-3" />
                                     {mutatingMemberId === member.id ? "移除中..." : "移出"}
@@ -1515,22 +1515,22 @@ export default function UserGroups() {
 const statColorMap = {
   primary: {
     icon: "bg-primary-500/10 text-primary-400",
-    value: "text-primary-400",
+    value: "text-gradient-brand",
     glow: "bg-primary-500/5",
   },
   emerald: {
     icon: "bg-emerald-500/10 text-emerald-400",
-    value: "text-emerald-400",
+    value: "text-gradient-brand",
     glow: "bg-emerald-500/5",
   },
   amber: {
     icon: "bg-amber-500/10 text-amber-400",
-    value: "text-amber-400",
+    value: "text-gradient-brand",
     glow: "bg-amber-500/5",
   },
   sky: {
     icon: "bg-sky-500/10 text-sky-400",
-    value: "text-sky-400",
+    value: "text-gradient-brand",
     glow: "bg-sky-500/5",
   },
 } as const;
@@ -1551,15 +1551,15 @@ function StatCard({
   const c = statColorMap[color];
 
   return (
-    <div className="group relative overflow-hidden rounded-xl border border-gray-800/60 bg-gray-900/50 p-4 backdrop-blur transition-colors hover:border-gray-700/60">
+    <div className="group relative overflow-hidden glass-panel glass-card rounded-2xl p-4">
       <div className={`absolute -right-4 -top-4 h-20 w-20 rounded-full ${c.glow} blur-2xl`} />
       <div className="relative flex items-start justify-between">
         <div>
-          <div className={`text-2xl font-bold ${c.value}`}>{value}</div>
+          <div className={`text-2xl font-bold tabular-nums ${c.value}`}>{value}</div>
           <div className="mt-1 text-sm text-gray-500">{label}</div>
           {extra ? <div className="mt-0.5 text-xs text-gray-600">{extra}</div> : null}
         </div>
-        <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${c.icon}`}>
+        <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${c.icon}`}>
           <Icon icon={icon} className="h-4.5 w-4.5" />
         </div>
       </div>
@@ -1603,9 +1603,9 @@ function GroupCard({
   }, [actionsOpen]);
 
   return (
-    <article className="group/card relative flex flex-col rounded-2xl border border-gray-800/50 bg-gradient-to-b from-gray-900/80 to-gray-950/90 backdrop-blur-sm transition-all duration-300 hover:border-gray-700/70 hover:shadow-2xl hover:shadow-primary-500/[0.03] hover:-translate-y-0.5">
+    <article className="group/card relative flex flex-col glass-panel glass-card rounded-2xl">
       {/* ── Decorative header zone ── */}
-      <div className={`relative rounded-t-2xl ${isActive ? "bg-gradient-to-br from-primary-500/[0.08] via-primary-400/[0.04] to-transparent" : "bg-gradient-to-br from-gray-800/30 via-gray-800/10 to-transparent"}`}>
+      <div className={`relative rounded-t-2xl ${isActive ? "bg-gradient-to-br from-primary-500/[0.08] via-primary-400/[0.04] to-transparent" : "bg-gradient-to-br from-white/[0.04] via-white/[0.02] to-transparent"}`}>
         {/* Geometric pattern */}
         <div className="absolute inset-0 overflow-hidden rounded-t-2xl">
           <div className="absolute inset-0 bg-dot-pattern opacity-[0.03]" />
@@ -1618,11 +1618,11 @@ function GroupCard({
         {/* Top row: status pill + actions */}
         <div className="relative flex items-start justify-between px-5 pt-4 pb-4">
           <div className="flex items-center gap-1.5">
-            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-wide uppercase ${isActive ? "bg-emerald-500/15 text-emerald-300 shadow-sm shadow-emerald-500/10" : "bg-gray-700/40 text-gray-500"}`}>
+            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-wide uppercase ${isActive ? "bg-emerald-500/15 text-emerald-300 shadow-sm shadow-emerald-500/10" : "bg-white/[0.05] text-gray-500"}`}>
               <span className={`h-1.5 w-1.5 rounded-full ${isActive ? "bg-emerald-400 shadow-sm shadow-emerald-400/50" : "bg-gray-600"}`} />
               {isActive ? "启用" : "停用"}
             </span>
-            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium ${group.show === 1 ? "bg-sky-500/10 text-sky-400" : "bg-gray-700/30 text-gray-500"}`}>
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium ${group.show === 1 ? "bg-sky-500/10 text-sky-400" : "bg-white/[0.04] text-gray-500"}`}>
               <Icon icon={group.show === 1 ? eyeIcon : eyeOff} className="h-3 w-3" />
               {group.show === 1 ? "展示" : "隐藏"}
             </span>
@@ -1632,13 +1632,13 @@ function GroupCard({
             <button
               type="button"
               onClick={() => setActionsOpen((p) => !p)}
-              className="flex h-7 w-7 items-center justify-center rounded-lg text-gray-500 transition-colors hover:bg-white/10 hover:text-gray-300 cursor-pointer"
+              className="flex h-7 w-7 items-center justify-center rounded-xl text-gray-500 transition-colors hover:bg-white/10 hover:text-gray-300 cursor-pointer"
               aria-label="操作菜单"
             >
               <Icon icon={moreHorizontal} className="h-4 w-4" />
             </button>
             {actionsOpen ? (
-              <div className="absolute right-0 top-full z-20 mt-1 w-36 overflow-hidden rounded-xl border border-gray-700/60 bg-gray-900 shadow-xl shadow-black/40">
+              <div className="absolute right-0 top-full z-20 mt-1 w-36 overflow-hidden glass-panel glass-panel-strong rounded-xl shadow-xl shadow-black/40">
                 <button type="button" onClick={() => { setActionsOpen(false); onEdit(); }} disabled={isBusy} className="flex w-full items-center gap-2 px-3 py-2 text-xs text-gray-300 transition-colors hover:bg-white/5 disabled:opacity-40 cursor-pointer">
                   <Icon icon={editIcon} className="h-3.5 w-3.5 text-gray-500" />
                   编辑分组
@@ -1651,8 +1651,8 @@ function GroupCard({
                   <Icon icon={isActive ? powerOff : power} className="h-3.5 w-3.5 text-gray-500" />
                   {isActive ? "停用" : "启用"}
                 </button>
-                <div className="mx-2 border-t border-gray-800/80" />
-                <button type="button" onClick={() => { setActionsOpen(false); onDelete(); }} disabled={isBusy} className="flex w-full items-center gap-2 px-3 py-2 text-xs text-red-400 transition-colors hover:bg-red-500/5 disabled:opacity-40 cursor-pointer">
+                <div className="mx-2 border-t border-white/[0.06]" />
+                <button type="button" onClick={() => { setActionsOpen(false); onDelete(); }} disabled={isBusy} className="flex w-full items-center gap-2 px-3 py-2 text-xs text-rose-300 transition-colors hover:bg-rose-500/10 disabled:opacity-40 cursor-pointer">
                   <Icon icon={trash2} className="h-3.5 w-3.5" />
                   删除分组
                 </button>
@@ -1666,7 +1666,7 @@ function GroupCard({
       <div className="flex flex-1 flex-col px-5 pb-5 pt-4">
         {/* Icon + Title row */}
         <div className="flex items-center gap-3">
-          <div className={`flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl ${logoSrc ? "bg-transparent shadow-none" : isActive ? "bg-gradient-to-br from-primary-500 to-primary-600 shadow-lg shadow-primary-500/20" : "bg-gradient-to-br from-gray-600 to-gray-700 shadow-lg shadow-gray-900/40"}`}>
+          <div className={`flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl ${logoSrc ? "bg-transparent shadow-none" : isActive ? "chip-gradient" : "bg-gradient-to-br from-gray-600 to-gray-700 shadow-lg shadow-gray-900/40"}`}>
             {logoSrc ? (
               <img src={logoSrc} alt={group.name} className="h-full w-full object-cover" />
             ) : group.isDefault ? (
@@ -1709,11 +1709,11 @@ function GroupCard({
 
         {/* ── Stats strip ── */}
         <div className="mt-auto pt-4">
-          <div className="flex items-center gap-3 rounded-xl bg-white/[0.02] border border-white/[0.04] px-4 py-3">
+          <div className="flex items-center gap-3 rounded-xl bg-white/[0.03] border border-white/[0.06] px-4 py-3">
             {/* Member count */}
             <div className="flex items-center gap-2">
-              <div className={`flex h-8 w-8 items-center justify-center rounded-lg ${isActive ? "bg-primary-500/10" : "bg-gray-800/60"}`}>
-                <Icon icon={usersIcon} className={`h-4 w-4 ${isActive ? "text-primary-400" : "text-gray-600"}`} />
+              <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${isActive ? "chip-gradient-soft" : "bg-white/[0.04]"}`}>
+                <Icon icon={usersIcon} className={`h-4 w-4 ${isActive ? "text-primary-200" : "text-gray-600"}`} />
               </div>
               <div>
                 <div className="text-sm font-bold text-white leading-none">{group.memberCount}</div>
@@ -1733,7 +1733,7 @@ function GroupCard({
               {leaders.length > 0 ? (
                 <div className="flex items-center gap-1">
                   {leaders.slice(0, 2).map((name) => (
-                    <span key={name} className="inline-flex items-center gap-1 max-w-24 rounded-md bg-gray-800/60 px-1.5 py-0.5 text-[11px] font-medium text-gray-300">
+                    <span key={name} className="inline-flex items-center gap-1 max-w-24 rounded-md bg-white/[0.05] px-1.5 py-0.5 text-[11px] font-medium text-gray-300">
                       <Icon icon={userCheck} className="h-3 w-3 shrink-0 text-amber-500/60" />
                       <span className="truncate">{name}</span>
                     </span>
@@ -1754,7 +1754,7 @@ function GroupCard({
           <button
             type="button"
             onClick={onMembers}
-            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-xs font-medium text-primary-400 transition-all hover:bg-primary-500/10 cursor-pointer"
+            className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium text-primary-400 transition-all hover:bg-primary-500/10 cursor-pointer"
           >
             管理成员
             <Icon icon={arrowRight} className="h-3.5 w-3.5 transition-transform group-hover/card:translate-x-0.5" />
@@ -1812,13 +1812,13 @@ function TagInput({ tags, onChange }: { tags: string[]; onChange: (tags: string[
 
   return (
     <div
-      className="flex flex-wrap items-center gap-1.5 rounded-lg border border-gray-700/60 bg-gray-800/80 px-3 py-2 transition-all focus-within:border-primary-500/50 focus-within:ring-1 focus-within:ring-primary-500/20 cursor-text min-h-[42px]"
+      className="flex flex-wrap items-center gap-1.5 rounded-xl border border-white/[0.08] bg-black/30 px-3 py-2 transition-all focus-within:border-primary-400/60 focus-within:ring-1 focus-within:ring-primary-400/30 cursor-text min-h-[42px]"
       onClick={() => inputRef.current?.focus()}
     >
       {tags.map((tag, i) => (
         <span
           key={tag}
-          className="inline-flex items-center gap-1 rounded-md border border-primary-500/20 bg-primary-500/10 py-0.5 pl-2.5 pr-1.5 text-xs font-medium text-primary-200 transition-colors hover:bg-primary-500/15"
+          className="inline-flex items-center gap-1 rounded-md border border-primary-400/20 bg-primary-500/10 py-0.5 pl-2.5 pr-1.5 text-xs font-medium text-primary-200 transition-colors hover:bg-primary-500/15"
         >
           #{tag}
           <button
@@ -1846,13 +1846,13 @@ function TagInput({ tags, onChange }: { tags: string[]; onChange: (tags: string[
 }
 
 function inputClassName(disabled = false) {
-  return `w-full rounded-lg border border-gray-700/60 bg-gray-800/80 px-3.5 py-2.5 text-sm text-white placeholder:text-gray-600 backdrop-blur transition-all focus:border-primary-500/50 focus:ring-1 focus:ring-primary-500/20 focus:outline-none ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
+  return `w-full rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-white placeholder:text-gray-600 backdrop-blur transition-all focus:border-primary-400/60 focus:ring-1 focus:ring-primary-400/30 focus:outline-none ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
 }
 
 
 function DrawerStatBlock({ label, value, small }: { label: string; value: ReactNode; small?: boolean }) {
   return (
-    <div className="rounded-lg border border-gray-800/40 bg-gray-800/20 p-3">
+    <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-3">
       <div className="text-xs text-gray-500">{label}</div>
       <div className={`mt-1 font-medium text-white ${small ? "text-xs" : "text-sm"}`}>{value}</div>
     </div>
@@ -1879,8 +1879,8 @@ function RoleBadge({
 
 function UserStatusBadge({ status }: { status: number }) {
   const meta = status === 1
-    ? "border border-emerald-500/20 bg-emerald-500/10 text-emerald-200"
-    : "border border-gray-700 bg-gray-800/80 text-gray-300";
+    ? "border border-emerald-400/20 bg-emerald-500/10 text-emerald-300"
+    : "border border-gray-400/20 bg-gray-500/10 text-gray-300";
 
   return (
     <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${meta}`}>

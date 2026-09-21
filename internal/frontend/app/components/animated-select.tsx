@@ -72,8 +72,8 @@ export function AnimatedSelect({
 
   const triggerSizeClass =
     size === "compact"
-      ? "min-h-[34px] rounded-lg px-3 py-1.5 text-sm"
-      : "min-h-[46px] rounded-lg px-3 py-2.5 text-sm";
+      ? "min-h-[34px] rounded-xl px-3 py-1.5 text-sm"
+      : "min-h-[46px] rounded-xl px-3 py-2.5 text-sm";
   const panelSizeClass = size === "compact" ? "p-1.5" : "p-2";
   const optionSizeClass = size === "compact" ? "px-3 py-2 text-sm" : "px-3 py-2.5 text-sm";
   const triggerWidthClass = fitContent ? "w-auto min-w-[88px]" : "w-full";
@@ -234,7 +234,7 @@ export function AnimatedSelect({
           }
         }}
         onKeyDown={handleTriggerKeyDown}
-        className={`motion-select-trigger motion-field flex items-center justify-between gap-3 border border-gray-700 bg-gray-800 text-left text-white focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${triggerWidthClass} ${triggerSizeClass} ${
+        className={`motion-select-trigger motion-field flex items-center justify-between gap-3 border border-white/[0.08] bg-black/30 text-left text-white backdrop-blur focus:border-primary-400/60 focus:outline-none focus:ring-2 focus:ring-primary-400/30 ${triggerWidthClass} ${triggerSizeClass} ${
           disabled ? "cursor-not-allowed opacity-60" : ""
         }`}
       >
@@ -275,7 +275,7 @@ export function AnimatedSelect({
                 id={listboxId}
                 role="listbox"
                 aria-label={ariaLabel}
-                className={`max-h-72 overflow-y-auto rounded-xl border border-gray-700 bg-gray-900/96 shadow-2xl backdrop-blur ${
+                className={`glass-panel glass-panel-strong max-h-72 overflow-y-auto rounded-2xl shadow-2xl shadow-black/40 ${
                   fitContent ? "inline-block w-max min-w-full" : "w-full"
                 } ${panelSizeClass}`}
               >
@@ -328,7 +328,7 @@ export function AnimatedSelect({
                           triggerRef.current?.focus();
                         }
                       }}
-                      className={`motion-select-option flex w-full items-center justify-between gap-3 rounded-lg text-left text-gray-100 ${optionSizeClass} ${
+                      className={`motion-select-option flex w-full items-center justify-between gap-3 rounded-xl text-left text-gray-100 ${optionSizeClass} ${
                         option.disabled ? "cursor-not-allowed opacity-45" : ""
                       }`}
                     >

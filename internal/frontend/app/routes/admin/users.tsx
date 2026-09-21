@@ -109,7 +109,7 @@ const FLASH_DURATION_MS = 3000;
 const NOTIFY_ANIMATION_MS = 300;
 const TABLE_ACTION_LOADING_MS = 500;
 const tableActionButtonClassName =
-  "inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-subtle text-fg-muted hover:text-fg-primary hover:bg-white/[0.06] transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50";
+  "inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/[0.08] text-fg-muted hover:text-fg-primary hover:bg-white/[0.06] transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50";
 
 function buildCreateFormState(defaultRoleId: string): CreateUserFormState {
   return {
@@ -143,14 +143,14 @@ function getStatusMeta(status: number) {
     return {
       label: "启用",
       dotColor: "bg-emerald-400",
-      className: "text-emerald-300 bg-emerald-500/10 border border-emerald-500/20",
+      className: "text-emerald-300 bg-emerald-500/10 border border-emerald-400/20",
     };
   }
 
   return {
     label: "停用",
     dotColor: "bg-gray-400",
-    className: "text-gray-300 bg-gray-700/50 border border-gray-700",
+    className: "text-gray-300 bg-gray-500/10 border border-gray-400/20",
   };
 }
 
@@ -191,7 +191,7 @@ function getGroupMemberRoleLabel(role: number) {
 
 function getGroupBadgeClass(status?: number) {
   if (status === 0) {
-    return "border border-gray-700 bg-gray-800/80 text-gray-300";
+    return "border border-gray-400/20 bg-gray-500/10 text-gray-300";
   }
   return "border border-accent-primary/20 bg-accent-primary/10 text-accent-primary";
 }
@@ -768,7 +768,7 @@ export default function Users() {
           type="button"
           onClick={openCreateModal}
           disabled={rolesLoading || editableRoleOptions.length === 0}
-          className="inline-flex items-center gap-2 rounded-xl bg-accent-primary px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-accent-primary/20 transition hover:bg-accent-primary/90 hover:shadow-accent-primary/30 disabled:cursor-not-allowed disabled:opacity-60"
+          className="btn-gradient inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
         >
           <Icon icon={userPlus} className="h-4 w-4" />
           新建账号
@@ -795,10 +795,10 @@ export default function Users() {
 
       <form
         onSubmit={handleSearchSubmit}
-        className="motion-fade-up rounded-2xl border border-border-subtle bg-surface-card/60 p-5 ring-1 ring-white/[0.03] backdrop-blur-sm"
+        className="motion-fade-up glass-panel rounded-2xl p-5"
         style={{ animationDelay: "140ms" }}
       >
-        <div className="mb-4 flex items-center gap-2 border-b border-border-subtle/40 pb-4">
+        <div className="mb-4 flex items-center gap-2 border-b border-white/[0.06] pb-4">
           <Icon icon={searchIcon} className="h-4 w-4 text-fg-dim" />
           <span className="text-xs font-medium uppercase tracking-wider text-fg-dim">筛选条件</span>
         </div>
@@ -849,7 +849,7 @@ export default function Users() {
           <div className="flex items-end gap-3">
             <button
               type="submit"
-              className="inline-flex items-center gap-2 rounded-xl bg-accent-primary px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-accent-primary/90"
+              className="btn-gradient inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-white"
             >
               <Icon icon={searchIcon} className="h-3.5 w-3.5" />
               搜索
@@ -857,7 +857,7 @@ export default function Users() {
             <button
               type="button"
               onClick={handleResetFilters}
-              className="rounded-xl border border-border-subtle px-4 py-2.5 text-sm text-fg-muted transition hover:bg-white/5 hover:text-fg-primary"
+              className="btn-glass rounded-xl px-4 py-2.5 text-sm text-fg-muted"
             >
               重置
             </button>
@@ -866,13 +866,13 @@ export default function Users() {
       </form>
 
       <div
-        className="motion-fade-up overflow-hidden rounded-2xl border border-border-subtle bg-surface-card/60 shadow-xl shadow-black/20"
+        className="motion-fade-up glass-panel overflow-hidden rounded-2xl shadow-xl shadow-black/20"
         style={{ animationDelay: "200ms" }}
       >
         <div className="hidden overflow-x-auto md:block">
           <table className="min-w-full text-sm">
-            <thead className="bg-surface-dark/80 text-left text-xs tracking-wider text-fg-dim">
-              <tr className="border-b border-border-subtle">
+            <thead className="bg-white/[0.03] text-left text-xs tracking-wider text-fg-dim">
+              <tr className="border-b border-white/[0.06]">
                 <th className="px-5 py-4 font-medium">账号</th>
                 <th className="px-5 py-4 font-medium">真实姓名</th>
                 <th className="px-5 py-4 font-medium">角色</th>
@@ -883,7 +883,7 @@ export default function Users() {
                 <th className="px-5 py-4 text-right font-medium">操作</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border-subtle/60">
+            <tbody className="divide-y divide-white/[0.05]">
               {tableActionLoading ? (
                 <tr>
                   <td colSpan={8} className="px-5 py-14 text-center">
@@ -915,10 +915,10 @@ export default function Users() {
                   const statusActionLabel = user.status === 1 ? "停用账号" : "启用账号";
 
                   return (
-                    <tr key={user.id} className="transition-colors duration-150 hover:bg-white/[0.04]">
+                    <tr key={user.id} className="table-row-glass transition-colors duration-150">
                       <td className="px-5 py-4">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-accent-primary/20 to-accent-secondary/10 text-sm font-semibold text-accent-primary ring-1 ring-accent-primary/10">
+                          <div className="chip-gradient-soft flex h-10 w-10 items-center justify-center rounded-full text-sm font-semibold text-primary-200">
                             {(user.name || user.email).slice(0, 1).toUpperCase()}
                           </div>
                           <div>
@@ -973,7 +973,7 @@ export default function Users() {
                             aria-label={statusActionLabel}
                             className={`${tableActionButtonClassName} ${
                               user.status === 1
-                                ? "border-red-500/30 text-red-200 hover:bg-red-500/10"
+                                ? "border-rose-500/30 text-rose-300 hover:bg-rose-500/20"
                                 : "border-emerald-500/30 text-emerald-200 hover:bg-emerald-500/10"
                             }`}
                           >
@@ -1006,7 +1006,7 @@ export default function Users() {
               当前筛选条件下没有匹配的账号。
             </div>
           ) : (
-            <ul className="divide-y divide-border-subtle/60">
+            <ul className="divide-y divide-white/[0.05]">
               {users.map((user) => {
                 const readonlyReason = getReadonlyReason(user.role.name, actorRoleName);
                 const canMutate = readonlyReason === "";
@@ -1015,7 +1015,7 @@ export default function Users() {
                 return (
                   <li key={user.id} className="px-4 py-4">
                     <div className="flex items-start gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-accent-primary/20 to-accent-secondary/10 text-sm font-semibold text-accent-primary ring-1 ring-accent-primary/10">
+                      <div className="chip-gradient-soft flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-primary-200">
                         {(user.name || user.email).slice(0, 1).toUpperCase()}
                       </div>
                       <div className="min-w-0 flex-1">
@@ -1054,7 +1054,7 @@ export default function Users() {
                       </div>
                     </dl>
 
-                    <div className="mt-3 flex justify-end gap-2 border-t border-border-subtle/60 pt-3">
+                    <div className="mt-3 flex justify-end gap-2 border-t border-white/[0.06] pt-3">
                       <button
                         type="button"
                         onClick={() => openDetail(user.id)}
@@ -1084,7 +1084,7 @@ export default function Users() {
                         aria-label={statusActionLabel}
                         className={`${tableActionButtonClassName} ${
                           user.status === 1
-                            ? "border-red-500/30 text-red-200 hover:bg-red-500/10"
+                            ? "border-rose-500/30 text-rose-300 hover:bg-rose-500/20"
                             : "border-emerald-500/30 text-emerald-200 hover:bg-emerald-500/10"
                         }`}
                       >
@@ -1099,7 +1099,7 @@ export default function Users() {
           )}
         </div>
 
-        <div className="flex flex-col gap-3 border-t border-border-subtle bg-surface-dark/40 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 border-t border-white/[0.06] bg-white/[0.03] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-sm text-fg-dim">
             第 {pagination.page} / {Math.max(pagination.totalPages, 1)} 页，共 {pagination.total} 条记录
           </div>
@@ -1125,11 +1125,11 @@ export default function Users() {
               type="button"
               disabled={pagination.page <= 1}
               onClick={() => setQuery((previous) => ({ ...previous, page: Math.max((previous.page ?? 1) - 1, 1) }))}
-              className="rounded-lg border border-border-subtle px-3 py-2 text-sm font-medium text-fg-muted transition hover:bg-white/5 hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-40"
+              className="btn-glass rounded-xl px-3 py-2 text-sm font-medium text-fg-muted disabled:cursor-not-allowed disabled:opacity-40"
             >
               上一页
             </button>
-            <span className="rounded-lg bg-accent-primary/10 px-2.5 py-1 text-xs font-medium text-accent-primary">
+            <span className="nav-item-active rounded-xl px-2.5 py-1 text-xs font-medium text-white">
               {pagination.page}
             </span>
             <button
@@ -1141,7 +1141,7 @@ export default function Users() {
                   page: Math.min((previous.page ?? 1) + 1, Math.max(pagination.totalPages, 1)),
                 }))
               }
-              className="rounded-lg border border-border-subtle px-3 py-2 text-sm font-medium text-fg-muted transition hover:bg-white/5 hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-40"
+              className="btn-glass rounded-xl px-3 py-2 text-sm font-medium text-fg-muted disabled:cursor-not-allowed disabled:opacity-40"
             >
               下一页
             </button>
@@ -1284,14 +1284,14 @@ export default function Users() {
                 <button
                   type="button"
                   onClick={() => setCreateModalOpen(false)}
-                  className="rounded-xl border border-border-subtle px-4 py-2.5 text-sm text-fg-muted transition hover:bg-white/5 hover:text-fg-primary"
+                  className="btn-glass rounded-xl px-4 py-2.5 text-sm text-fg-muted"
                 >
                   取消
                 </button>
                 <button
                   type="submit"
                   disabled={creating || editableRoleOptions.length === 0}
-                  className="rounded-xl bg-accent-primary px-4 py-2.5 text-sm font-medium text-white transition hover:bg-accent-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="btn-gradient rounded-xl px-4 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {creating ? "创建中..." : "确认创建"}
                 </button>
@@ -1338,14 +1338,14 @@ export default function Users() {
                     setPasswordModalTarget(null);
                     setPasswordValue("");
                   }}
-                  className="rounded-xl border border-border-subtle px-4 py-2.5 text-sm text-fg-muted transition hover:bg-white/5 hover:text-fg-primary"
+                  className="btn-glass rounded-xl px-4 py-2.5 text-sm text-fg-muted"
                 >
                   取消
                 </button>
                 <button
                   type="submit"
                   disabled={resettingPassword}
-                  className="rounded-xl bg-accent-primary px-4 py-2.5 text-sm font-medium text-white transition hover:bg-accent-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="btn-gradient rounded-xl px-4 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {resettingPassword ? "提交中..." : "确认重置"}
                 </button>
@@ -1378,7 +1378,7 @@ export default function Users() {
               <button
                 type="button"
                 onClick={() => setStatusModalTarget(null)}
-                className="rounded-xl border border-border-subtle px-4 py-2.5 text-sm text-fg-muted transition hover:bg-white/5 hover:text-fg-primary"
+                className="btn-glass rounded-xl px-4 py-2.5 text-sm text-fg-muted"
               >
                 取消
               </button>
@@ -1386,10 +1386,10 @@ export default function Users() {
                 type="button"
                 onClick={() => void handleToggleStatus()}
                 disabled={togglingStatus}
-                className={`rounded-xl px-4 py-2.5 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                className={`rounded-xl px-4 py-2.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-60 ${
                   statusModalTarget.status === 1
-                    ? "bg-red-500 hover:bg-red-600"
-                    : "bg-accent-tertiary hover:bg-accent-tertiary/90"
+                    ? "border border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20"
+                    : "bg-accent-tertiary text-white hover:bg-accent-tertiary/90"
                 }`}
               >
                 {togglingStatus
@@ -1413,10 +1413,10 @@ export default function Users() {
             />
             <aside
               ref={drawerPanelRef}
-              className="absolute right-0 top-0 flex h-full w-full max-w-3xl flex-col border-l border-border-subtle bg-surface-primary shadow-2xl ring-1 ring-white/[0.03]"
+              className="glass-panel glass-panel-strong absolute right-0 top-0 flex h-full w-full max-w-3xl flex-col rounded-none shadow-2xl"
             >
             {/* Header */}
-            <div className="shrink-0 border-b border-border-subtle bg-surface-primary/95 backdrop-blur">
+            <div className="shrink-0 border-b border-white/[0.06] bg-black/20 backdrop-blur">
               <div className="flex items-center justify-between px-6 py-4">
                 <h2 className="text-lg font-semibold text-fg-primary">用户详情</h2>
                 <button
@@ -1424,14 +1424,14 @@ export default function Users() {
                   onClick={() => closeDrawer()}
                   title="关闭"
                   aria-label="关闭"
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-fg-dim transition hover:bg-white/5 hover:text-fg-primary"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-fg-dim transition hover:bg-white/5 hover:text-fg-primary"
                 >
                   <Icon icon={x} className="h-4 w-4" />
                 </button>
               </div>
 
               {selectedUser ? (
-                <div className="border-t border-border-subtle/60 px-6 py-5">
+                <div className="border-t border-white/[0.06] px-6 py-5">
                   <div className="flex items-center gap-4">
                     {selectedUser.avatarUrl ? (
                       <div className="relative shrink-0">
@@ -1441,7 +1441,7 @@ export default function Users() {
                         />
                       </div>
                     ) : (
-                      <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-accent-primary/20 to-accent-secondary/10 text-lg font-bold text-accent-primary ring-1 ring-accent-primary/15">
+                      <div className="chip-gradient-soft relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-lg font-bold text-primary-200">
                         {(selectedUser.name || selectedUser.email).slice(0, 1).toUpperCase()}
                         <span
                           className={`absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-surface-primary ${selectedUser.status === 1 ? "bg-emerald-400" : "bg-gray-500"}`}
@@ -1494,7 +1494,7 @@ export default function Users() {
                     {/* Authentication & Login Info */}
                     <DrawerSection icon={shieldCheck} title="认证与登录">
                       <div className="grid gap-3 sm:grid-cols-3">
-                        <div className="rounded-xl bg-surface-dark/50 p-3.5 ring-1 ring-white/[0.03]">
+                        <div className="rounded-xl bg-black/20 p-3.5 ring-1 ring-white/[0.03]">
                           <div className="flex items-center gap-2 text-xs text-fg-dim">
                             <Icon icon={keyRound} className="h-3.5 w-3.5" />
                             登录方式
@@ -1506,7 +1506,7 @@ export default function Users() {
                             {selectedUser.authMethods.hasPassword ? "已设置邮箱密码" : "未设置本地密码"}
                           </div>
                         </div>
-                        <div className="rounded-xl bg-surface-dark/50 p-3.5 ring-1 ring-white/[0.03]">
+                        <div className="rounded-xl bg-black/20 p-3.5 ring-1 ring-white/[0.03]">
                           <div className="flex items-center gap-2 text-xs text-fg-dim">
                             <Icon icon={github} className="h-3.5 w-3.5" />
                             GitHub 绑定
@@ -1524,7 +1524,7 @@ export default function Users() {
                               : "仅支持用户自行绑定"}
                           </div>
                         </div>
-                        <div className="rounded-xl bg-surface-dark/50 p-3.5 ring-1 ring-white/[0.03]">
+                        <div className="rounded-xl bg-black/20 p-3.5 ring-1 ring-white/[0.03]">
                           <div className="flex items-center gap-2 text-xs text-fg-dim">
                             <Icon icon={clock} className="h-3.5 w-3.5" />
                             最近登录
@@ -1681,7 +1681,7 @@ export default function Users() {
                       </DrawerSection>
 
                       {/* Timestamps */}
-                      <div className="flex items-center gap-6 rounded-xl bg-surface-dark/40 px-4 py-3 text-xs text-fg-dim ring-1 ring-white/[0.02]">
+                      <div className="flex items-center gap-6 rounded-xl bg-black/20 px-4 py-3 text-xs text-fg-dim ring-1 ring-white/[0.02]">
                         <span className="inline-flex items-center gap-1.5">
                           <Icon icon={clock} className="h-3 w-3" />
                           创建于 {formatDateTime(selectedUser.createdAt)}
@@ -1697,7 +1697,7 @@ export default function Users() {
                         <button
                           type="submit"
                           disabled={savingEdit || !selectedCanMutate}
-                          className="rounded-xl bg-accent-primary px-5 py-2.5 text-sm font-medium text-white transition hover:bg-accent-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                          className="btn-gradient rounded-xl px-5 py-2.5 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           {savingEdit ? "保存中..." : "保存变更"}
                         </button>
@@ -1751,7 +1751,7 @@ function StatCard({
   barFrom: string;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-border-subtle bg-surface-card/80 backdrop-blur-sm transition hover:border-gray-700">
+    <div className="glass-panel glass-card relative overflow-hidden rounded-2xl">
       <div className={`h-0.5 bg-gradient-to-r ${barFrom} to-transparent`} />
       <div className="p-3 sm:p-5">
         <div className="flex items-start justify-between gap-2">
@@ -1759,12 +1759,12 @@ function StatCard({
             {label}
           </div>
           <div
-            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10 sm:rounded-xl ${iconBg}`}
+            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xl sm:h-10 sm:w-10 ${iconBg}`}
           >
             <Icon icon={icon} className={`h-3.5 w-3.5 sm:h-5 sm:w-5 ${iconText}`} />
           </div>
         </div>
-        <div className="mt-2 font-mono text-xl font-semibold tabular-nums text-fg-primary sm:mt-3 sm:text-3xl">
+        <div className="text-gradient-brand mt-2 font-mono text-xl font-semibold tabular-nums sm:mt-3 sm:text-3xl">
           {value}
         </div>
       </div>
@@ -1847,8 +1847,8 @@ function DrawerSection({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-border-subtle bg-surface-card/60 backdrop-blur-sm">
-      <div className="flex items-center gap-2.5 border-b border-border-subtle/60 px-5 py-3.5">
+    <div className="glass-panel rounded-2xl">
+      <div className="flex items-center gap-2.5 border-b border-white/[0.06] px-5 py-3.5">
         <Icon icon={icon} className="h-4 w-4 text-fg-dim" />
         <h3 className="text-sm font-medium text-fg-muted">{title}</h3>
       </div>
@@ -1862,5 +1862,5 @@ function FieldLabel({ label }: { label: string }) {
 }
 
 function InputClassName(disabled = false) {
-  return `w-full rounded-xl border border-border-subtle bg-surface-dark px-3.5 py-2.5 text-sm text-fg-primary placeholder:text-fg-dim/60 transition focus:border-accent-primary/60 focus:ring-1 focus:ring-accent-primary/20 focus:outline-none ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
+  return `w-full rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-fg-primary placeholder:text-fg-dim/60 transition focus:border-primary-400/60 focus:ring-1 focus:ring-primary-400/30 focus:outline-none ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
 }

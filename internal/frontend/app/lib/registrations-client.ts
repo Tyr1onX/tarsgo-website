@@ -23,6 +23,7 @@ export interface RegistrationListItem {
   status: number;
   canApprove: boolean;
   canReject: boolean;
+  canUndo: boolean;
   submittedAt: string;
   updatedAt: string;
 }
@@ -66,6 +67,7 @@ export interface RegistrationDetail {
   reviewRemark2?: string | null;
   canApprove: boolean;
   canReject: boolean;
+  canUndo: boolean;
   submittedAt: string;
   updatedAt: string;
   fieldsSchema: RegistrationFormField[];
@@ -169,6 +171,14 @@ export async function reviewAdminRegistration(
   return apiRequest<RegistrationDetail>(`/api/admin/registrations/${registrationId}/review`, {
     method: "POST",
     body: input,
+  });
+}
+
+export async function undoAdminRegistrationReview(
+  registrationId: number,
+): Promise<RegistrationDetail> {
+  return apiRequest<RegistrationDetail>(`/api/admin/registrations/${registrationId}/review`, {
+    method: "DELETE",
   });
 }
 

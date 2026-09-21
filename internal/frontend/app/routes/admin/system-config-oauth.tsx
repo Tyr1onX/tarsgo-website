@@ -240,9 +240,9 @@ export default function SystemConfigOAuthPage() {
 
         {errorMessage ? <ErrorBanner message={errorMessage} /> : null}
 
-        <div className="motion-fade-up rounded-2xl border border-gray-800 bg-gray-900" style={{ animationDelay: "80ms" }}>
-          <div className="border-b border-gray-800 px-6 py-4">
-            <div className="inline-flex rounded-xl border border-gray-800 bg-gray-950/70 p-1">
+        <div className="motion-fade-up glass-panel rounded-2xl" style={{ animationDelay: "80ms" }}>
+          <div className="border-b border-white/[0.06] px-6 py-4">
+            <div className="inline-flex rounded-xl border border-white/[0.06] bg-black/20 p-1">
               {items.map((item) => {
                 const active = item.provider === activeProvider;
                 return (
@@ -250,9 +250,9 @@ export default function SystemConfigOAuthPage() {
                     key={item.provider}
                     type="button"
                     onClick={() => handleSelectProvider(item.provider)}
-                    className={`rounded-lg px-4 py-2 text-sm transition-colors ${
+                    className={`rounded-xl px-4 py-2 text-sm transition-colors ${
                       active
-                        ? "bg-primary-500 text-white"
+                        ? "nav-item-active text-white"
                         : "text-gray-400 hover:text-white"
                     }`}
                   >
@@ -272,20 +272,20 @@ export default function SystemConfigOAuthPage() {
                   <button
                     type="submit"
                     disabled={loading || saving}
-                    className="inline-flex min-w-[104px] items-center justify-center rounded-lg bg-primary-500 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-primary-600 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="btn-gradient inline-flex min-w-[104px] items-center justify-center rounded-xl px-4 py-2.5 text-sm font-medium text-white transition disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {saving ? "保存中..." : "保存配置"}
                   </button>
                 )}
               />
               <div className="grid gap-4 px-6 py-5 md:grid-cols-2">
-                <label className="flex items-center gap-3 rounded-xl border border-gray-800 bg-gray-950/70 px-4 py-3 md:col-span-2">
+                <label className="flex items-center gap-3 rounded-xl border border-white/[0.08] bg-black/30 px-4 py-3 md:col-span-2">
                   <input
                     type="checkbox"
                     checked={currentForm.enabled}
                     onChange={(event) => updateCurrentForm({ enabled: event.target.checked })}
                     disabled={loading || saving}
-                    className="h-4 w-4 rounded border-gray-700 bg-gray-900 text-primary-500 focus:ring-primary-500/30"
+                    className="h-4 w-4 rounded border-white/[0.08] bg-black/30 text-primary-500 focus:ring-primary-400/30"
                   />
                   <div>
                     <div className="text-sm font-medium text-white">启用 {currentItem.displayName} 登录</div>
@@ -340,7 +340,7 @@ export default function SystemConfigOAuthPage() {
                     type="button"
                     onClick={() => handleEdit(currentItem.provider)}
                     disabled={loading || saving}
-                    className="inline-flex min-w-[104px] items-center justify-center rounded-lg border border-gray-700 px-4 py-2.5 text-sm font-medium text-gray-100 transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-60"
+                    className="btn-glass inline-flex min-w-[104px] items-center justify-center rounded-xl px-4 py-2.5 text-sm font-medium text-gray-100 transition disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     编辑配置
                   </button>
@@ -393,7 +393,7 @@ function SectionHeader({
   return (
     <div className="flex flex-col gap-4 px-6 py-5 md:flex-row md:items-start md:justify-between">
       <div className="flex items-start gap-3">
-        <div className="inline-flex h-10 w-10 items-center justify-center rounded-lg bg-primary-500/10 text-primary-400">
+        <div className="chip-gradient-soft inline-flex h-10 w-10 items-center justify-center rounded-xl text-primary-200">
           <Icon icon={icon} className="h-5 w-5" />
         </div>
         <div>
@@ -418,7 +418,7 @@ function ReadonlyField({
   valueClassName?: string;
 }) {
   return (
-    <div className="rounded-xl border border-gray-800 px-4 py-3">
+    <div className="rounded-xl border border-white/[0.06] px-4 py-3">
       <div className="text-xs font-medium uppercase tracking-wider text-gray-500">{label}</div>
       <div className={`mt-2 text-sm text-white ${valueClassName ?? ""}`}>{value}</div>
       {helper ? <p className="mt-2 text-xs leading-5 text-gray-500">{helper}</p> : null}
@@ -444,7 +444,7 @@ function InputField({
   disabled?: boolean;
 }) {
   return (
-    <label className="block rounded-xl border border-gray-800 bg-gray-950/70 px-4 py-3">
+    <label className="block rounded-xl border border-white/[0.08] bg-black/30 px-4 py-3">
       <span className="block text-xs font-medium uppercase tracking-wider text-gray-500">
         {label}
       </span>

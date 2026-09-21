@@ -1,170 +1,101 @@
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import { ApiError } from "~/lib/api-client";
+import { getAdminDashboard, type AdminDashboardData } from "~/lib/dashboard-client";
+
 export function meta() {
-  return [
-    { title: "数据面板 | TARS-GO" },
-    { name: "description", content: "TARS-GO 吉甲大师战队统一工作台数据面板" },
-  ];
+  return [{ title: "数据面板 | TARS-GO" }, { name: "description", content: "TARS-GO 吉甲大师战队统一工作台数据面板" }];
 }
 
-const stats = [
-  { label: "总用户数", value: "128", change: "+12", icon: "users", color: "primary" },
-  { label: "本月新增", value: "23", change: "+5", icon: "user-plus", color: "accent" },
-  { label: "待审核报名", value: "7", change: "", icon: "clipboard", color: "amber" },
-  { label: "技术组别", value: "7", change: "", icon: "grid", color: "sky" },
+const cardMeta = [
+  { key: "totalUsers", label: "总用户数", icon: "users", color: "primary" },
+  { key: "newUsersThisMonth", label: "本月新增", icon: "user-plus", color: "accent" },
+  { key: "pendingRegistrations", label: "待审核报名", icon: "clipboard", color: "amber" },
+  { key: "activeTechnicalGroups", label: "技术组别", icon: "grid", color: "sky" },
+] as const;
+const colors = [
+  "bg-gradient-to-r from-primary-500 to-violet-450",
+  "bg-gradient-to-r from-emerald-500 to-teal-400",
+  "bg-gradient-to-r from-sky-500 to-cyan-400",
+  "bg-gradient-to-r from-violet-450 to-fuchsia-400",
+  "bg-gradient-to-r from-amber-500 to-orange-400",
+  "bg-gradient-to-r from-rose-500 to-pink-400",
+  "bg-gradient-to-r from-lime-500 to-emerald-400",
 ];
-
-const recentActivity = [
-  { user: "张三", action: "提交了报名表", time: "5 分钟前", group: "机械组" },
-  { user: "李四", action: "更新了个人信息", time: "12 分钟前", group: "电控组" },
-  { user: "王五", action: "通过了审核", time: "1 小时前", group: "视觉组" },
-  { user: "赵六", action: "提交了报名表", time: "2 小时前", group: "决策组" },
-  { user: "孙七", action: "加入了用户分组", time: "3 小时前", group: "软件组" },
-];
-
-const groupDistribution = [
-  { name: "机械组", count: 8, color: "bg-primary-400" },
-  { name: "电控组", count: 6, color: "bg-accent-400" },
-  { name: "视觉组", count: 5, color: "bg-sky-400" },
-  { name: "决策组", count: 4, color: "bg-violet-400" },
-  { name: "软件组", count: 4, color: "bg-amber-400" },
-  { name: "AI组", count: 3, color: "bg-rose-400" },
-  { name: "运营组", count: 5, color: "bg-emerald-400" },
-];
-
-function StatIcon({ type }: { type: string }) {
-  switch (type) {
-    case "users":
-      return (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
-        </svg>
-      );
-    case "user-plus":
-      return (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M18 7.5v3m0 0v3m0-3h3m-3 0h-3m-2.25-4.125a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0ZM3 19.235v-.11a6.375 6.375 0 0 1 12.75 0v.109A12.318 12.318 0 0 1 9.374 21c-2.331 0-4.512-.645-6.374-1.766Z" />
-        </svg>
-      );
-    case "clipboard":
-      return (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15a2.25 2.25 0 0 1 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm0 3h.008v.008H6.75V15Zm0 3h.008v.008H6.75V18Z" />
-        </svg>
-      );
-    default:
-      return (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-2.25-2.25v-2.25Z" />
-        </svg>
-      );
-  }
-}
-
-const colorMap: Record<string, { bg: string; text: string; iconBg: string }> = {
-  primary: { bg: "bg-primary-500/10", text: "text-primary-400", iconBg: "bg-primary-500/20" },
-  accent: { bg: "bg-accent-500/10", text: "text-accent-400", iconBg: "bg-accent-500/20" },
-  amber: { bg: "bg-amber-500/10", text: "text-amber-400", iconBg: "bg-amber-500/20" },
-  sky: { bg: "bg-sky-500/10", text: "text-sky-400", iconBg: "bg-sky-500/20" },
+const autoRefreshIntervalMs = 30_000;
+const colorMap: Record<string, { text: string; iconBg: string }> = {
+  primary: { text: "text-primary-300", iconBg: "chip-gradient-soft" }, accent: { text: "text-emerald-300", iconBg: "bg-emerald-500/15 border border-emerald-400/20" }, amber: { text: "text-amber-300", iconBg: "bg-amber-500/15 border border-amber-400/20" }, sky: { text: "text-sky-300", iconBg: "bg-sky-500/15 border border-sky-400/20" },
 };
 
+function StatIcon({ type }: { type: string }) {
+  if (type === "users") return <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M16.5 21a6 6 0 0 0-12 0m12 0h4.5v-1.5a4.5 4.5 0 0 0-6.2-4.16M16.5 21h-12M13.5 7.5a4.5 4.5 0 1 1-9 0 4.5 4.5 0 0 1 9 0Zm3-3a3 3 0 1 1 0 6" /></svg>;
+  if (type === "user-plus") return <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M15 19.5a6 6 0 0 0-12 0m6-9a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9Zm9-3v6m3-3h-6" /></svg>;
+  if (type === "clipboard") return <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M9 5.25h6m-6 6h6m-6 4.5h3.75M7.5 3.75h9A2.25 2.25 0 0 1 18.75 6v14.25H5.25V6A2.25 2.25 0 0 1 7.5 3.75Z" /></svg>;
+  return <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75h6.75v6.75H3.75V3.75Zm9.75 0h6.75v6.75H13.5V3.75Zm-9.75 9.75h6.75v6.75H3.75V13.5Zm9.75 0h6.75v6.75H13.5V13.5Z" /></svg>;
+}
+
+function formatTime(value: string) {
+  const date = new Date(value); if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("zh-CN", { timeZone: "Asia/Shanghai", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
+}
+
 export default function Dashboard() {
-  const maxCount = Math.max(...groupDistribution.map((g) => g.count));
+  const [data, setData] = useState<AdminDashboardData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [refreshError, setRefreshError] = useState("");
+  const hasData = useRef(false);
+  const requestController = useRef<AbortController | null>(null);
+  const load = useCallback(async (initial: boolean) => {
+    if (requestController.current) return;
+    const controller = new AbortController();
+    const showInitialLoading = initial || !hasData.current;
+    requestController.current = controller;
+    if (showInitialLoading) setLoading(true);
+    setError("");
+    setRefreshError("");
+    try {
+      const nextData = await getAdminDashboard({ signal: controller.signal });
+      hasData.current = true;
+      setData(nextData);
+    } catch (cause) {
+      if (controller.signal.aborted) return;
+      const message = cause instanceof ApiError ? cause.message : "数据面板加载失败";
+      if (showInitialLoading) setError(message); else setRefreshError(message);
+    } finally {
+      if (requestController.current === controller) requestController.current = null;
+      if (!controller.signal.aborted && showInitialLoading) setLoading(false);
+    }
+  }, []);
 
-  return (
-    <div className="space-y-8">
-      <div className="motion-fade-up">
-        <h1 className="text-2xl font-bold">数据面板</h1>
-        <p className="text-sm text-gray-400 mt-1">这是统一工作台中的静态演示页，当前不对接实际业务统计。</p>
-      </div>
+  useEffect(() => {
+    void load(true);
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void load(false);
+    };
+    const timer = window.setInterval(refreshWhenVisible, autoRefreshIntervalMs);
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      requestController.current?.abort();
+      requestController.current = null;
+    };
+  }, [load]);
+  const maxCount = useMemo(() => Math.max(1, ...(data?.groupDistribution.map((group) => group.count) ?? [0])), [data]);
 
-      {/* Stats cards */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {stats.map((stat, index) => {
-          const colors = colorMap[stat.color];
-          return (
-            <div
-              key={stat.label}
-              className="motion-fade-up"
-              style={{ animationDelay: `${80 + index * 70}ms` }}
-            >
-              <div className="motion-stat-surface rounded-xl border border-gray-800 bg-gray-900 p-5">
-                <div className="flex items-center justify-between mb-4">
-                  <div className={`w-10 h-10 rounded-lg ${colors.iconBg} flex items-center justify-center ${colors.text}`}>
-                    <StatIcon type={stat.icon} />
-                  </div>
-                  {stat.change && (
-                    <span className="text-xs font-medium text-accent-400 bg-accent-500/10 px-2 py-1 rounded-full">
-                      {stat.change}
-                    </span>
-                  )}
-                </div>
-                <div className="text-2xl font-bold">{stat.value}</div>
-                <div className="text-sm text-gray-400 mt-1">{stat.label}</div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+  if (loading) return <div className="space-y-8"><div className="h-16 w-64 animate-pulse rounded-2xl bg-white/[0.04]" /><div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{[1, 2, 3, 4].map((key) => <div key={key} className="h-32 animate-pulse rounded-2xl bg-white/[0.04]" />)}</div><div className="h-80 animate-pulse rounded-2xl bg-white/[0.04]" /></div>;
+  if (error) return <div className="glass-panel rounded-2xl border border-red-500/20 p-12 text-center"><p className="text-red-400">{error}</p><button type="button" onClick={() => void load(true)} className="btn-gradient mt-4 rounded-xl px-4 py-2 text-sm">重新加载</button></div>;
 
-      <div className="grid lg:grid-cols-3 gap-6">
-        {/* Recent activity */}
-        <div className="motion-fade-up lg:col-span-2 rounded-xl border border-gray-800 bg-gray-900" style={{ animationDelay: "140ms" }}>
-          <div className="px-5 py-4 border-b border-gray-800">
-            <h2 className="font-semibold">最近动态</h2>
-          </div>
-          <div className="divide-y divide-gray-800">
-            {recentActivity.map((item, i) => (
-              <div
-                key={i}
-                className="motion-fade-up flex items-center gap-4 px-5 py-4 transition-colors hover:bg-white/[0.03]"
-                style={{ animationDelay: `${180 + i * 60}ms` }}
-              >
-                <div className="w-9 h-9 rounded-full bg-primary-500/15 flex items-center justify-center shrink-0">
-                  <span className="text-primary-400 text-xs font-medium">
-                    {item.user.charAt(0)}
-                  </span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm">
-                    <span className="font-medium text-white">{item.user}</span>
-                    <span className="text-gray-400"> {item.action}</span>
-                  </div>
-                  <div className="text-xs text-gray-500 mt-0.5">{item.time}</div>
-                </div>
-                <span className="text-xs text-gray-500 bg-gray-800 px-2.5 py-1 rounded-full shrink-0">
-                  {item.group}
-                </span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Group distribution */}
-        <div className="motion-fade-up rounded-xl border border-gray-800 bg-gray-900" style={{ animationDelay: "200ms" }}>
-          <div className="px-5 py-4 border-b border-gray-800">
-            <h2 className="font-semibold">组别分布</h2>
-          </div>
-          <div className="p-5 space-y-4">
-            {groupDistribution.map((group, index) => (
-              <div
-                key={group.name}
-                className="motion-fade-up rounded-lg px-1 py-1 transition-colors hover:bg-white/[0.03]"
-                style={{ animationDelay: `${220 + index * 45}ms` }}
-              >
-                <div className="flex items-center justify-between text-sm mb-1.5">
-                  <span className="text-gray-300">{group.name}</span>
-                  <span className="text-gray-500">{group.count} 人</span>
-                </div>
-                <div className="h-2 bg-gray-800 rounded-full overflow-hidden">
-                  <div
-                    className={`h-full rounded-full ${group.color}`}
-                    style={{ width: `${(group.count / maxCount) * 100}%` }}
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </div>
+  return <div className="space-y-8">
+    <div className="motion-fade-up"><h1 className="text-2xl font-bold">数据面板</h1><p className="mt-1 text-sm text-gray-500">团队运营数据总览</p></div>
+    {refreshError && <div role="status" className="glass-panel flex flex-wrap items-center justify-between gap-3 rounded-2xl border-amber-500/25 px-4 py-3 text-sm"><span className="text-amber-300">自动刷新失败：{refreshError}，当前仍显示上次成功获取的数据。</span><button type="button" onClick={() => void load(false)} className="text-amber-200 hover:text-white">重试</button></div>}
+    <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">{cardMeta.map((card, index) => { const palette = colorMap[card.color]; return <div key={card.key} className="motion-fade-up" style={{ animationDelay: `${80 + index * 70}ms` }}><div className="glass-panel glass-card rounded-2xl p-5"><div className={`mb-4 flex h-10 w-10 items-center justify-center rounded-xl ${palette.iconBg} ${palette.text}`}><StatIcon type={card.icon} /></div><div className="text-gradient-brand text-3xl font-bold tabular-nums">{data?.[card.key] ?? 0}</div><div className="mt-1 text-sm text-gray-400">{card.label}</div></div></div>; })}</div>
+    <div className="grid gap-6 lg:grid-cols-3">
+      <section className="motion-fade-up glass-panel overflow-hidden rounded-2xl lg:col-span-2"><div className="px-5 py-4"><h2 className="font-semibold">最近动态</h2></div><div className="divider-gradient mx-5" />{!data?.recentActivities.length ? <div className="p-12 text-center text-sm text-gray-400">暂无业务动态</div> : <div className="divide-y divide-white/[0.05]">{data.recentActivities.map((item, index) => <div key={item.id} className="motion-fade-up table-row-glass flex items-center gap-4 px-5 py-4" style={{ animationDelay: `${180 + index * 45}ms` }}><div className="chip-gradient-soft flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-medium text-primary-200">{item.actorName.charAt(0) || "系"}</div><div className="min-w-0 flex-1"><div className="text-sm"><span className="font-medium text-white">{item.actorName}</span><span className="text-gray-400"> {item.message}</span></div><div className="mt-0.5 text-xs text-gray-500">{formatTime(item.occurredAt)}</div></div>{item.groupName && <span className="shrink-0 rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-xs text-gray-400">{item.groupName}</span>}</div>)}</div>}</section>
+      <section className="motion-fade-up glass-panel rounded-2xl"><div className="px-5 py-4"><h2 className="font-semibold">组别分布</h2></div><div className="divider-gradient mx-5" />{!data?.groupDistribution.length ? <div className="p-10 text-center text-sm text-gray-400">暂无技术组</div> : <div className="space-y-4 p-5">{data.groupDistribution.map((group, index) => <div key={group.id} className="motion-fade-up"><div className="mb-1.5 flex items-center justify-between text-sm"><span className="text-gray-300">{group.name}</span><span className="text-gray-500 tabular-nums">{group.count} 人</span></div><div className="h-2 overflow-hidden rounded-full bg-white/[0.06]"><div className={`h-full rounded-full ${colors[index % colors.length]}`} style={{ width: `${(group.count / maxCount) * 100}%` }} /></div></div>)}</div>}</section>
     </div>
-  );
+  </div>;
 }

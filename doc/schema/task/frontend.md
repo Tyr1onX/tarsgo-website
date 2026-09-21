@@ -24,14 +24,15 @@ router：/dashboard/admin
 Round 1：
 1. 联网深度查找吉林大学吉甲大师、大疆Robomaster相关的内容，我需要为吉甲大师做一个后台管理页面
 2. Sidebar 需要保留管理员功能入口，并与普通用户入口融合到统一工作台中
-3. 管理员首页改为“数据面板”，只展示 demo，不对接实际统计功能
+3. 管理员首页改为“数据面板”，并按 `doc/schema/task/portal-home.md` 的阶段计划接入真实统计；页面每 30 秒自动刷新，窗口重新聚焦时立即同步
 
 ### 管理员菜单
 1. 数据面板：`/dashboard/admin`
-2. 用户数据：`/dashboard/admin/users`
-3. 用户分组：`/dashboard/admin/user-groups`
-4. 表单配置：`/dashboard/admin/form-config`
-5. 报名列表：`/dashboard/admin/registrations`
+2. 队务管理：`/dashboard/admin/portal-content`
+3. 用户数据：`/dashboard/admin/users`
+4. 用户分组：`/dashboard/admin/user-groups`
+5. 表单配置：`/dashboard/admin/form-config`
+6. 报名列表：`/dashboard/admin/registrations`
 
 ## 用户工作台页面
 router：/dashboard/users
@@ -39,10 +40,8 @@ router：/dashboard/users
 Round 1：
 1. 联网深度查找吉林大学吉甲大师、大疆Robomaster相关的内容，我需要为吉甲大师做一个用户前台页面
 2. Sidebar 中的用户功能分区需要有“主页”、“纳新报名”
-3. 根据你的经验，写出每个项页面的 demo，不需要对接任何功能
+3. 用户主页先保留现有视觉设计，再按 `doc/schema/task/portal-home.md` 接入公告、日程与快捷链接
 
 ### 用户菜单
 1. 用户主页：`/dashboard/users`
 2. 纳新报名：`/dashboard/users/registrations`
-
-

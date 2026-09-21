@@ -842,7 +842,7 @@ func (r *gormRegistrationFormRepository) ListShownUserGroups(ctx context.Context
 	var groups []model.UserGroup
 	if err := r.db.WithContext(ctx).
 		Model(&model.UserGroup{}).
-		Where("`show` = ?", 1).
+		Where("`show` = ? AND status = ?", 1, model.UserGroupStatusActive).
 		Order("is_default DESC").
 		Order("created_at ASC").
 		Find(&groups).Error; err != nil {

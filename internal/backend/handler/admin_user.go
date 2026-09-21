@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"tarsgo-backend/middleware"
+	"tarsgo-backend/model"
 	"tarsgo-backend/service/adminuser"
 )
 
@@ -167,6 +168,7 @@ func (h *AdminUserHandler) CreateUser(c *gin.Context) {
 		h.handleServiceError(c, serviceErr)
 		return
 	}
+	_ = middleware.RecordBusinessActivity(c, middleware.ActivityInput{ActionKey: model.ActivityUserCreated, TargetUserID: &user.ID, EntityType: "user", EntityID: user.ID})
 
 	writeAPI(c, http.StatusOK, "创建用户成功", user)
 }

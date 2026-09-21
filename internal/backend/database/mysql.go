@@ -32,7 +32,7 @@ func New(cfg config.DatabaseConfig) (*gorm.DB, error) {
 	return db, nil
 }
 
-func AutoMigrate(db *gorm.DB, appEnv string) error {
+func AutoMigrate(db *gorm.DB, _ string) error {
 	if err := db.
 		Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").
 		AutoMigrate(
@@ -45,11 +45,8 @@ func AutoMigrate(db *gorm.DB, appEnv string) error {
 			&model.EmailCode{},
 			&model.RegistrationForm{},
 			&model.Registration{},
+			&model.AuditLog{},
 		); err != nil {
-		return err
-	}
-
-	if err := dropLegacyRegistrationFormColumns(db); err != nil {
 		return err
 	}
 
@@ -59,21 +56,6 @@ func AutoMigrate(db *gorm.DB, appEnv string) error {
 
 	if err := backfillLegacyGitHubOAuthAccounts(db); err != nil {
 		return err
-	}
-
-	if err := seedDevelopmentMockData(db, appEnv); err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func dropLegacyRegistrationFormColumns(db *gorm.DB) error {
-	migrator := db.Migrator()
-	if migrator.HasColumn(&model.RegistrationForm{}, "need_approval") {
-		if err := migrator.DropColumn(&model.RegistrationForm{}, "need_approval"); err != nil {
-			return fmt.Errorf("drop registration_forms.need_approval: %w", err)
-		}
 	}
 
 	return nil

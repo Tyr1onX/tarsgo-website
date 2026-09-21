@@ -1,6 +1,6 @@
 import type { AuthUser } from "~/lib/auth-client";
 
-export type DashboardMenuIconKey = "dashboard" | "people" | "registration" | "settings";
+export type DashboardMenuIconKey = "dashboard" | "people" | "registration" | "team-management" | "settings";
 
 type DashboardAllowedRoles = readonly string[];
 
@@ -68,6 +68,13 @@ const ADMIN_MENU: readonly DashboardMenuDefinition[] = [
     label: "数据面板",
     href: "/dashboard/admin",
     iconKey: "dashboard",
+    allowedRoles: ["super_admin", "admin"],
+  },
+  {
+    key: "portal-content",
+    label: "队务管理",
+    href: "/dashboard/admin/portal-content",
+    iconKey: "team-management",
     allowedRoles: ["super_admin", "admin"],
   },
   {

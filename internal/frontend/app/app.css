@@ -41,6 +41,207 @@
 
   --color-accent-400: #00e676;
   --color-accent-500: #00c853;
+
+  /* Dashboard glass theme: violet companion palette for blue→violet gradients */
+  --color-violet-350: #a78bfa;
+  --color-violet-450: #8b5cf6;
+}
+
+/* ═══ Dashboard glass design system ═══
+   Deep navy base + glassmorphism panels + blue→violet gradient accents.
+   Used across /dashboard routes. */
+:root {
+  --glass-bg: rgba(17, 20, 31, 0.62);
+  --glass-bg-strong: rgba(17, 20, 31, 0.86);
+  --glass-border: rgba(148, 163, 184, 0.14);
+  --glass-border-strong: rgba(148, 163, 184, 0.22);
+  --glass-highlight: rgba(255, 255, 255, 0.06);
+  --gradient-brand: linear-gradient(135deg, #0062ff 0%, #6d4aff 100%);
+  --gradient-brand-soft: linear-gradient(
+    135deg,
+    rgba(0, 98, 255, 0.16),
+    rgba(109, 74, 255, 0.14)
+  );
+}
+
+/* Ambient dashboard background: deep base + drifting blue/violet glows */
+.dash-bg {
+  background:
+    radial-gradient(900px 540px at 8% -6%, rgba(0, 98, 255, 0.14), transparent 60%),
+    radial-gradient(820px 520px at 96% 12%, rgba(109, 74, 255, 0.12), transparent 62%),
+    radial-gradient(700px 480px at 55% 108%, rgba(0, 98, 255, 0.08), transparent 60%),
+    linear-gradient(180deg, #070912 0%, #05060d 55%, #04040a 100%);
+}
+
+.dash-bg-noise::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.022) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.022) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: radial-gradient(1200px 800px at 50% 0%, rgba(0, 0, 0, 0.8), transparent 78%);
+}
+
+/* Frosted glass panel — the standard dashboard surface.
+   No position here: panels set their own (fixed/sticky/relative) via utilities. */
+.glass-panel {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  -webkit-backdrop-filter: blur(18px) saturate(1.35);
+  backdrop-filter: blur(18px) saturate(1.35);
+  box-shadow:
+    inset 0 1px 0 var(--glass-highlight),
+    0 8px 32px -12px rgba(2, 4, 12, 0.6);
+}
+
+.glass-panel-strong {
+  background: var(--glass-bg-strong);
+  border-color: var(--glass-border-strong);
+}
+
+/* Interactive glass card — lifts with a blue/violet glow on hover */
+.glass-card {
+  transition:
+    transform var(--motion-duration-base) var(--motion-ease-soft),
+    border-color var(--motion-duration-fast) ease,
+    box-shadow var(--motion-duration-base) var(--motion-ease-soft);
+}
+
+.glass-card:hover {
+  transform: translate3d(0, -4px, 0);
+  border-color: rgba(109, 122, 255, 0.32);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.09),
+    0 20px 48px -20px rgba(0, 98, 255, 0.35),
+    0 12px 32px -20px rgba(109, 74, 255, 0.3);
+}
+
+/* Brand gradient primary button */
+.btn-gradient {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  background: var(--gradient-brand);
+  color: #fff;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.18),
+    0 8px 24px -10px rgba(0, 98, 255, 0.55),
+    0 4px 16px -8px rgba(109, 74, 255, 0.4);
+  transition:
+    transform var(--motion-duration-fast) var(--motion-ease-standard),
+    box-shadow var(--motion-duration-base) var(--motion-ease-soft),
+    filter var(--motion-duration-fast) ease;
+}
+
+.btn-gradient:hover:not(:disabled) {
+  transform: translate3d(0, -1px, 0);
+  filter: brightness(1.08);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 12px 32px -12px rgba(0, 98, 255, 0.65),
+    0 6px 20px -8px rgba(109, 74, 255, 0.5);
+}
+
+.btn-gradient:active:not(:disabled) {
+  transform: translate3d(0, 0, 0);
+  filter: brightness(0.98);
+}
+
+.btn-gradient:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Ghost glass button (secondary actions) */
+.btn-glass {
+  background: rgba(148, 163, 184, 0.06);
+  border: 1px solid var(--glass-border);
+  -webkit-backdrop-filter: blur(10px);
+  backdrop-filter: blur(10px);
+  transition:
+    transform var(--motion-duration-fast) var(--motion-ease-standard),
+    border-color var(--motion-duration-fast) ease,
+    background-color var(--motion-duration-fast) ease,
+    color var(--motion-duration-fast) ease;
+}
+
+.btn-glass:hover:not(:disabled) {
+  transform: translate3d(0, -1px, 0);
+  border-color: rgba(109, 122, 255, 0.35);
+  background: rgba(109, 122, 255, 0.1);
+}
+
+/* Brand gradient text (headings, stats) */
+.text-gradient-brand {
+  background: linear-gradient(120deg, #66a3ff 0%, #a78bfa 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Gradient hairline for panel headers */
+.divider-gradient {
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    rgba(0, 98, 255, 0.4),
+    rgba(109, 74, 255, 0.32) 40%,
+    transparent 85%
+  );
+}
+
+/* Active nav item: soft gradient pill with a left glow bar */
+.nav-item-active {
+  position: relative;
+  background: var(--gradient-brand-soft);
+  border: 1px solid rgba(109, 122, 255, 0.22);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+}
+
+.nav-item-active::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: 20%;
+  bottom: 20%;
+  width: 3px;
+  border-radius: 999px;
+  background: var(--gradient-brand);
+  box-shadow: 0 0 12px rgba(0, 98, 255, 0.65);
+}
+
+/* Gradient avatar / icon chip */
+.chip-gradient {
+  background: var(--gradient-brand);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.22),
+    0 4px 14px -6px rgba(0, 98, 255, 0.6);
+}
+
+.chip-gradient-soft {
+  background: var(--gradient-brand-soft);
+  border: 1px solid rgba(109, 122, 255, 0.24);
+}
+
+/* Table row hover for compact data tables */
+.table-row-glass {
+  transition: background-color var(--motion-duration-fast) ease;
+}
+
+.table-row-glass:hover {
+  background: rgba(109, 122, 255, 0.06);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glass-card:hover,
+  .btn-gradient:hover:not(:disabled),
+  .btn-glass:hover:not(:disabled) {
+    transform: none;
+  }
 }
 
 html,

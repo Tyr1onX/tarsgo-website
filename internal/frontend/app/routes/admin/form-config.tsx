@@ -199,20 +199,20 @@ function getStatusMeta(status: number) {
       label: "已发布",
       dotColor: "bg-emerald-400",
       className:
-        "text-emerald-300 bg-emerald-500/10 border border-emerald-500/20",
+        "text-emerald-300 bg-emerald-500/10 border border-emerald-400/20",
     };
   }
   if (status === 2) {
     return {
       label: "已关闭",
       dotColor: "bg-gray-400",
-      className: "text-gray-300 bg-gray-700/50 border border-gray-700",
+      className: "text-gray-300 bg-gray-500/10 border border-gray-400/20",
     };
   }
   return {
     label: "草稿",
     dotColor: "bg-amber-400",
-    className: "text-amber-300 bg-amber-500/10 border border-amber-500/20",
+    className: "text-amber-300 bg-amber-500/10 border border-amber-400/20",
   };
 }
 
@@ -891,7 +891,7 @@ export default function FormConfigPage() {
           type="button"
           onClick={() => setCreateOpen(true)}
           disabled={!canCreateOrSave}
-          className="inline-flex items-center gap-2 rounded-xl bg-accent-primary px-4 py-2.5 text-sm font-medium text-white shadow-lg shadow-accent-primary/20 transition hover:bg-accent-primary/90 hover:shadow-accent-primary/30 disabled:cursor-not-allowed disabled:opacity-60"
+          className="btn-gradient inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-white"
         >
           <Icon icon={plus} className="h-4 w-4" />
           新建报名表
@@ -949,10 +949,10 @@ export default function FormConfigPage() {
       {/* ---- Filter bar ---- */}
       <form
         onSubmit={handleSearchSubmit}
-        className="motion-fade-up rounded-2xl border border-border-subtle bg-surface-card/60 p-5 ring-1 ring-white/[0.03] backdrop-blur-sm"
+        className="motion-fade-up glass-panel rounded-2xl p-5"
         style={{ animationDelay: "140ms" }}
       >
-        <div className="mb-4 flex items-center gap-2 border-b border-border-subtle/40 pb-4">
+        <div className="mb-4 flex items-center gap-2 border-b border-white/[0.06] pb-4">
           <Icon icon={searchIcon} className="h-4 w-4 text-fg-dim" />
           <span className="text-xs font-medium uppercase tracking-wider text-fg-dim">
             筛选条件
@@ -991,7 +991,7 @@ export default function FormConfigPage() {
                 setKeyword("");
                 setStatusFilter("");
               }}
-              className="rounded-xl border border-border-subtle px-4 py-2.5 text-sm text-fg-muted transition hover:bg-white/5 hover:text-fg-primary"
+              className="btn-glass rounded-xl px-4 py-2.5 text-sm text-fg-muted"
             >
               重置
             </button>
@@ -1001,13 +1001,13 @@ export default function FormConfigPage() {
 
       {/* ---- Table ---- */}
       <div
-        className="motion-fade-up overflow-hidden rounded-2xl border border-border-subtle bg-surface-card/60 shadow-xl shadow-black/20"
+        className="motion-fade-up glass-panel overflow-hidden rounded-2xl"
         style={{ animationDelay: "200ms" }}
       >
         <div className="hidden overflow-x-auto md:block">
           <table className="min-w-full text-sm">
-            <thead className="bg-surface-dark/80 text-left text-xs tracking-wider text-fg-dim">
-              <tr className="border-b border-border-subtle">
+            <thead className="bg-white/[0.03] text-left text-xs tracking-wider text-fg-dim">
+              <tr className="border-b border-white/[0.06]">
                 <th className="px-5 py-4 font-medium">标题</th>
                 <th className="px-5 py-4 font-medium">状态</th>
                 <th className="px-5 py-4 font-medium">字段</th>
@@ -1016,7 +1016,7 @@ export default function FormConfigPage() {
                 <th className="px-5 py-4 text-right font-medium">操作</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border-subtle/60">
+            <tbody className="divide-y divide-white/[0.05]">
               {loadingList ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-14 text-center">
@@ -1042,7 +1042,7 @@ export default function FormConfigPage() {
                 forms.map((form) => (
                   <tr
                     key={form.id}
-                    className="transition-colors duration-150 hover:bg-white/[0.04]"
+                    className="table-row-glass transition-colors duration-150"
                   >
                     <td className="px-5 py-4">
                       <div>
@@ -1072,7 +1072,7 @@ export default function FormConfigPage() {
                           href={getAdminRegistrationFormExportUrl(form.id)}
                           title="下载报名信息"
                           aria-label="下载报名信息"
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-subtle text-fg-muted transition-all duration-150 hover:bg-white/[0.06] hover:text-fg-primary"
+                          className="btn-glass inline-flex h-8 w-8 items-center justify-center rounded-xl text-fg-muted"
                         >
                           <Icon icon={download} className="h-3.5 w-3.5" />
                         </a>
@@ -1081,7 +1081,7 @@ export default function FormConfigPage() {
                           onClick={() => openPreview(form.id)}
                           title="预览"
                           aria-label="预览"
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-subtle text-fg-muted transition-all duration-150 hover:bg-white/[0.06] hover:text-fg-primary"
+                          className="btn-glass inline-flex h-8 w-8 items-center justify-center rounded-xl text-fg-muted"
                         >
                           <Icon icon={eye} className="h-3.5 w-3.5" />
                         </button>
@@ -1091,7 +1091,7 @@ export default function FormConfigPage() {
                           title="编辑"
                           aria-label="编辑"
                           disabled={!canCreateOrSave}
-                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-subtle text-fg-muted transition-all duration-150 hover:bg-white/[0.06] hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-50"
+                          className="btn-glass inline-flex h-8 w-8 items-center justify-center rounded-xl text-fg-muted disabled:cursor-not-allowed disabled:opacity-50"
                         >
                           <Icon icon={pencil} className="h-3.5 w-3.5" />
                         </button>
@@ -1118,7 +1118,7 @@ export default function FormConfigPage() {
               当前筛选条件下没有匹配的报名表。
             </div>
           ) : (
-            <ul className="divide-y divide-border-subtle/60">
+            <ul className="divide-y divide-white/[0.05]">
               {forms.map((form) => (
                 <li key={form.id} className="px-4 py-4">
                   <div className="flex items-start gap-3">
@@ -1154,12 +1154,12 @@ export default function FormConfigPage() {
                     </div>
                   </dl>
 
-                  <div className="mt-3 flex justify-end gap-2 border-t border-border-subtle/60 pt-3">
+                  <div className="mt-3 flex justify-end gap-2 border-t border-white/[0.06] pt-3">
                     <a
                       href={getAdminRegistrationFormExportUrl(form.id)}
                       title="下载报名信息"
                       aria-label="下载报名信息"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-subtle text-fg-muted transition-all duration-150 hover:bg-white/[0.06] hover:text-fg-primary"
+                      className="btn-glass inline-flex h-8 w-8 items-center justify-center rounded-xl text-fg-muted"
                     >
                       <Icon icon={download} className="h-3.5 w-3.5" />
                     </a>
@@ -1168,7 +1168,7 @@ export default function FormConfigPage() {
                       onClick={() => openPreview(form.id)}
                       title="预览"
                       aria-label="预览"
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-subtle text-fg-muted transition-all duration-150 hover:bg-white/[0.06] hover:text-fg-primary"
+                      className="btn-glass inline-flex h-8 w-8 items-center justify-center rounded-xl text-fg-muted"
                     >
                       <Icon icon={eye} className="h-3.5 w-3.5" />
                     </button>
@@ -1178,7 +1178,7 @@ export default function FormConfigPage() {
                       title="编辑"
                       aria-label="编辑"
                       disabled={!canCreateOrSave}
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-subtle text-fg-muted transition-all duration-150 hover:bg-white/[0.06] hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-50"
+                      className="btn-glass inline-flex h-8 w-8 items-center justify-center rounded-xl text-fg-muted disabled:cursor-not-allowed disabled:opacity-50"
                     >
                       <Icon icon={pencil} className="h-3.5 w-3.5" />
                     </button>
@@ -1271,14 +1271,14 @@ export default function FormConfigPage() {
                     setCreateOpen(false);
                     setCreateState(defaultCreateState);
                   }}
-                  className="rounded-xl border border-border-subtle px-4 py-2.5 text-sm text-fg-muted transition hover:bg-white/5 hover:text-fg-primary"
+                  className="btn-glass rounded-xl px-4 py-2.5 text-sm text-fg-muted"
                 >
                   取消
                 </button>
                 <button
                   type="submit"
                   disabled={creating}
-                  className="inline-flex items-center gap-2 rounded-xl bg-accent-primary px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-accent-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="btn-gradient inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-white"
                 >
                   {creating ? "创建中..." : "创建草稿"}
                 </button>
@@ -1297,10 +1297,10 @@ export default function FormConfigPage() {
             />
             <aside
               ref={drawerPanelRef}
-              className="absolute right-0 top-0 flex h-full w-full max-w-3xl flex-col border-l border-border-subtle bg-surface-primary shadow-2xl ring-1 ring-white/[0.03]"
+              className="glass-panel glass-panel-strong absolute right-0 top-0 flex h-full w-full max-w-3xl flex-col shadow-2xl"
             >
               {/* Drawer header */}
-              <div className="shrink-0 border-b border-border-subtle bg-surface-primary/95 backdrop-blur">
+              <div className="shrink-0 border-b border-white/[0.06] bg-black/20 backdrop-blur">
                 <div className="flex items-center justify-between px-6 py-4">
                   <h2 className="text-lg font-semibold text-fg-primary">
                     编辑报名表
@@ -1310,16 +1310,16 @@ export default function FormConfigPage() {
                     onClick={() => closeDrawer()}
                     title="关闭"
                     aria-label="关闭"
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-fg-dim transition hover:bg-white/5 hover:text-fg-primary"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-fg-dim transition hover:bg-white/5 hover:text-fg-primary"
                   >
                     <Icon icon={x} className="h-4 w-4" />
                   </button>
                 </div>
 
                 {editor ? (
-                  <div className="border-t border-border-subtle/60 px-6 py-4">
+                  <div className="border-t border-white/[0.06] px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-accent-primary/20 to-accent-secondary/10 text-sm font-bold text-accent-primary ring-1 ring-accent-primary/15">
+                      <div className="chip-gradient-soft flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-primary-200">
                         <Icon icon={fileText} className="h-5 w-5" />
                       </div>
                       <div className="min-w-0 flex-1">
@@ -1487,7 +1487,7 @@ export default function FormConfigPage() {
                         <button
                           type="button"
                           onClick={addField}
-                          className="inline-flex items-center gap-1.5 rounded-lg border border-border-subtle px-3 py-1.5 text-xs text-fg-muted transition hover:bg-white/5 hover:text-fg-primary"
+                          className="btn-glass inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs text-fg-muted"
                         >
                           <Icon icon={plus} className="h-3 w-3" />
                           添加字段
@@ -1512,10 +1512,10 @@ export default function FormConfigPage() {
                                 className={`flex w-full cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all duration-150 ${
                                   active
                                     ? "border-accent-primary/30 bg-accent-primary/5"
-                                    : "border-border-subtle/60 bg-surface-dark/30 hover:border-border-subtle hover:bg-surface-dark/60"
+                                    : "border-white/[0.06] bg-white/[0.03] hover:border-white/[0.1] hover:bg-white/[0.06]"
                                 }`}
                               >
-                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-surface-dark/60 text-[11px] font-semibold tabular-nums text-fg-dim ring-1 ring-white/[0.05]">
+                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-black/20 text-[11px] font-semibold tabular-nums text-fg-dim ring-1 ring-white/[0.05]">
                                   {index + 1}
                                 </div>
                                 <div className="min-w-0 flex-1">
@@ -1529,7 +1529,7 @@ export default function FormConfigPage() {
                                       </span>
                                     ) : null}
                                     {field.required ? (
-                                      <span className="rounded-full border border-rose-500/20 bg-rose-500/10 px-2 py-0.5 text-[10px] font-medium text-rose-300">
+                                      <span className="rounded-full border border-rose-400/20 bg-rose-500/10 px-2 py-0.5 text-[10px] font-medium text-rose-300">
                                         必填
                                       </span>
                                     ) : null}
@@ -1551,7 +1551,7 @@ export default function FormConfigPage() {
                                       e.stopPropagation();
                                       moveField(field.key, "up");
                                     }}
-                                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-border-subtle text-fg-dim transition hover:bg-white/5 hover:text-fg-primary"
+                                    className="btn-glass inline-flex h-7 w-7 items-center justify-center rounded-xl text-fg-dim"
                                   >
                                     <Icon
                                       icon={chevronUp}
@@ -1566,7 +1566,7 @@ export default function FormConfigPage() {
                                       e.stopPropagation();
                                       moveField(field.key, "down");
                                     }}
-                                    className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-border-subtle text-fg-dim transition hover:bg-white/5 hover:text-fg-primary"
+                                    className="btn-glass inline-flex h-7 w-7 items-center justify-center rounded-xl text-fg-dim"
                                   >
                                     <Icon
                                       icon={chevronDown}
@@ -1582,7 +1582,7 @@ export default function FormConfigPage() {
                                         e.stopPropagation();
                                         removeField(field.key);
                                       }}
-                                      className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-rose-500/20 bg-rose-500/10 text-rose-300 transition hover:bg-rose-500/20"
+                                      className="inline-flex h-7 w-7 items-center justify-center rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-300 transition hover:bg-rose-500/20"
                                     >
                                       <Icon
                                         icon={trash2}
@@ -1660,7 +1660,7 @@ export default function FormConfigPage() {
                                       />
                                     </div>
                                     <div className="flex items-end">
-                                      <label className="flex w-full cursor-pointer items-center gap-3 rounded-xl border border-border-subtle bg-surface-dark px-3.5 py-2.5 text-sm text-fg-primary transition hover:bg-surface-dark/80">
+                                      <label className="flex w-full cursor-pointer items-center gap-3 rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-fg-primary transition hover:bg-black/20">
                                         <input
                                           type="checkbox"
                                           checked={
@@ -1673,7 +1673,7 @@ export default function FormConfigPage() {
                                               required: event.target.checked,
                                             }))
                                           }
-                                          className="h-4 w-4 rounded border-gray-600 bg-gray-800 text-accent-primary focus:ring-accent-primary/30"
+                                          className="h-4 w-4 rounded border-white/[0.08] bg-black/30 text-accent-primary focus:ring-primary-400/30"
                                         />
                                         必填项
                                       </label>
@@ -1764,7 +1764,7 @@ export default function FormConfigPage() {
                                                   onClick={() =>
                                                     moveFieldOption(oi, "up")
                                                   }
-                                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-subtle text-fg-dim transition hover:bg-white/5"
+                                                  className="btn-glass inline-flex h-8 w-8 items-center justify-center rounded-xl text-fg-dim"
                                                 >
                                                   <Icon
                                                     icon={chevronUp}
@@ -1778,7 +1778,7 @@ export default function FormConfigPage() {
                                                   onClick={() =>
                                                     moveFieldOption(oi, "down")
                                                   }
-                                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-border-subtle text-fg-dim transition hover:bg-white/5"
+                                                  className="btn-glass inline-flex h-8 w-8 items-center justify-center rounded-xl text-fg-dim"
                                                 >
                                                   <Icon
                                                     icon={chevronDown}
@@ -1792,7 +1792,7 @@ export default function FormConfigPage() {
                                                   onClick={() =>
                                                     removeFieldOption(oi)
                                                   }
-                                                  className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-rose-500/20 bg-rose-500/10 text-rose-300 transition hover:bg-rose-500/20"
+                                                  className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-300 transition hover:bg-rose-500/20"
                                                 >
                                                   <Icon
                                                     icon={trash2}
@@ -1806,7 +1806,7 @@ export default function FormConfigPage() {
                                         <button
                                           type="button"
                                           onClick={addFieldOption}
-                                          className="inline-flex items-center gap-1.5 rounded-lg border border-dashed border-border-subtle px-3 py-2 text-xs text-fg-muted transition hover:border-accent-primary/40 hover:text-accent-primary"
+                                          className="inline-flex items-center gap-1.5 rounded-xl border border-dashed border-white/[0.1] px-3 py-2 text-xs text-fg-muted transition hover:border-accent-primary/40 hover:text-accent-primary"
                                         >
                                           <Icon
                                             icon={plus}
@@ -1921,12 +1921,12 @@ export default function FormConfigPage() {
 
               {/* Drawer footer */}
               {editor ? (
-                <div className="shrink-0 border-t border-border-subtle bg-surface-primary/95 px-6 py-4 backdrop-blur">
+                <div className="shrink-0 border-t border-white/[0.06] bg-black/20 px-6 py-4 backdrop-blur">
                   <div className="flex items-center justify-end gap-3">
                     <button
                       type="button"
                       onClick={() => closeDrawer()}
-                      className="rounded-xl border border-border-subtle px-4 py-2.5 text-sm text-fg-muted transition hover:bg-white/5 hover:text-fg-primary"
+                      className="btn-glass rounded-xl px-4 py-2.5 text-sm text-fg-muted"
                     >
                       取消
                     </button>
@@ -1934,7 +1934,7 @@ export default function FormConfigPage() {
                       type="submit"
                       form="form-editor"
                       disabled={saving || !canCreateOrSave}
-                      className="inline-flex items-center gap-2 rounded-xl bg-accent-primary px-5 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-accent-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="btn-gradient inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-white"
                     >
                       {saving ? (
                         <>
@@ -1967,9 +1967,9 @@ export default function FormConfigPage() {
             />
             <aside
               ref={previewPanelRef}
-              className="absolute right-0 top-0 flex h-full w-full max-w-2xl flex-col border-l border-border-subtle bg-surface-primary shadow-2xl ring-1 ring-white/[0.03]"
+              className="glass-panel glass-panel-strong absolute right-0 top-0 flex h-full w-full max-w-2xl flex-col shadow-2xl"
             >
-              <div className="shrink-0 border-b border-border-subtle bg-surface-primary/95 px-6 py-4 backdrop-blur">
+              <div className="shrink-0 border-b border-white/[0.06] bg-black/20 px-6 py-4 backdrop-blur">
                 <div className="flex items-center justify-between">
                   <h2 className="text-lg font-semibold text-fg-primary">
                     表单预览
@@ -1979,7 +1979,7 @@ export default function FormConfigPage() {
                     onClick={() => closePreview()}
                     title="关闭"
                     aria-label="关闭"
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-fg-dim transition hover:bg-white/5 hover:text-fg-primary"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-fg-dim transition hover:bg-white/5 hover:text-fg-primary"
                   >
                     <Icon icon={x} className="h-4 w-4" />
                   </button>
@@ -2055,7 +2055,7 @@ export default function FormConfigPage() {
 
 function renderPreviewControl(field: RegistrationFormField) {
   const cls =
-    "w-full rounded-xl border border-border-subtle bg-surface-dark px-3.5 py-2.5 text-sm text-fg-muted placeholder:text-fg-dim/60";
+    "w-full rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-fg-muted placeholder:text-fg-dim/60";
 
   if (field.type === "textarea") {
     return (
@@ -2092,7 +2092,7 @@ function renderPreviewControl(field: RegistrationFormField) {
         {field.options?.map((option) => (
           <label
             key={option.value}
-            className="inline-flex items-center gap-2 rounded-xl border border-border-subtle bg-surface-dark px-3 py-2 text-sm text-fg-muted"
+            className="inline-flex items-center gap-2 rounded-xl border border-white/[0.08] bg-black/30 px-3 py-2 text-sm text-fg-muted"
           >
             <input
               type={field.type === "radio" ? "radio" : "checkbox"}
@@ -2107,7 +2107,7 @@ function renderPreviewControl(field: RegistrationFormField) {
 
   if (isFileField(field.type)) {
     return (
-      <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border-subtle bg-surface-dark/50 px-4 py-8 text-sm text-fg-dim">
+      <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-white/[0.1] bg-black/20 px-4 py-8 text-sm text-fg-dim">
         <Icon icon={fileText} className="h-6 w-6 text-fg-dim/50" />
         <span>
           {field.type === "image" ? "点击或拖拽上传图片" : "点击或拖拽上传文件"}
@@ -2149,7 +2149,7 @@ function OverlayPortal({ children }: { children: ReactNode }) {
 }
 
 function InputClassName(disabled = false) {
-  return `w-full rounded-xl border border-border-subtle bg-surface-dark px-3.5 py-2.5 text-sm text-fg-primary placeholder:text-fg-dim/60 transition focus:border-accent-primary/60 focus:ring-1 focus:ring-accent-primary/20 focus:outline-none ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
+  return `w-full rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-fg-primary placeholder:text-fg-dim/60 transition focus:border-primary-400/60 focus:ring-1 focus:ring-primary-400/30 focus:outline-none ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
 }
 
 function FieldLabel({ label }: { label: string }) {
@@ -2188,7 +2188,7 @@ function StatCard({
   barFrom: string;
 }) {
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-border-subtle bg-surface-card/80 backdrop-blur-sm transition hover:border-gray-700">
+    <div className="glass-panel glass-card relative overflow-hidden rounded-2xl">
       <div className={`h-0.5 bg-gradient-to-r ${barFrom} to-transparent`} />
       <div className="p-3 sm:p-5">
         <div className="flex items-start justify-between gap-2">
@@ -2196,12 +2196,12 @@ function StatCard({
             {label}
           </div>
           <div
-            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg sm:h-10 sm:w-10 sm:rounded-xl ${iconBg}`}
+            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xl sm:h-10 sm:w-10 ${iconBg}`}
           >
             <Icon icon={icon} className={`h-3.5 w-3.5 sm:h-5 sm:w-5 ${iconText}`} />
           </div>
         </div>
-        <div className="mt-2 font-mono text-xl font-semibold tabular-nums text-fg-primary sm:mt-3 sm:text-3xl">
+        <div className="text-gradient-brand mt-2 font-mono text-xl font-semibold tabular-nums sm:mt-3 sm:text-3xl">
           {value}
         </div>
       </div>
@@ -2219,11 +2219,12 @@ function DrawerSection({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-2xl border border-border-subtle bg-surface-card/60 backdrop-blur-sm">
-      <div className="flex items-center gap-2.5 border-b border-border-subtle/60 px-5 py-3.5">
+    <div className="glass-panel rounded-2xl">
+      <div className="flex items-center gap-2.5 px-5 py-3.5">
         <Icon icon={icon} className="h-4 w-4 text-fg-dim" />
         <h3 className="text-sm font-medium text-fg-muted">{title}</h3>
       </div>
+      <div className="divider-gradient mx-5" />
       <div className="px-5 py-4">{children}</div>
     </div>
   );

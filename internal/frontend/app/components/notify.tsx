@@ -26,8 +26,8 @@ export function Notify({
   }
 
   const toneClass = tone === "success"
-    ? "border-emerald-500/20 bg-gray-950/95 text-emerald-100"
-    : "border-red-500/20 bg-gray-950/95 text-red-100";
+    ? "border-emerald-400/25 bg-[rgba(10,16,20,0.82)] text-emerald-100"
+    : "border-red-400/25 bg-[rgba(20,10,14,0.82)] text-red-100";
   const wrapperClass = placement === "center"
     ? "pointer-events-none fixed inset-0 z-[70] flex items-center justify-center p-4"
     : `pointer-events-none fixed z-[70] w-[min(24rem,calc(100vw-2rem))] ${
@@ -55,11 +55,11 @@ export function Notify({
       <div
         role="status"
         aria-live="polite"
-        className={`${cardWidthClass} ${open ? "pointer-events-auto" : "pointer-events-none"} transform-gpu rounded-xl border shadow-2xl backdrop-blur transition-[opacity,transform,filter] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${toneClass} ${motionClass}`}
+        className={`${cardWidthClass} ${open ? "pointer-events-auto" : "pointer-events-none"} transform-gpu rounded-2xl border shadow-2xl shadow-black/40 backdrop-blur-xl transition-[opacity,transform,filter] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${toneClass} ${motionClass}`}
       >
         <div
           aria-hidden="true"
-          className={`h-1 rounded-t-xl ${tone === "success" ? "bg-emerald-400/80" : "bg-red-400/80"}`}
+          className={`h-1 rounded-t-2xl ${tone === "success" ? "bg-gradient-to-r from-emerald-400/90 to-teal-300/80" : "bg-gradient-to-r from-red-400/90 to-rose-300/80"}`}
         />
         {placement === "center" ? (
           <div className="relative px-5 py-4 text-center">

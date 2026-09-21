@@ -115,6 +115,7 @@ type RegistrationListItem struct {
 	Status       uint8                 `json:"status"`
 	CanApprove   bool                  `json:"canApprove"`
 	CanReject    bool                  `json:"canReject"`
+	CanUndo      bool                  `json:"canUndo"`
 	SubmittedAt  time.Time             `json:"submittedAt"`
 	UpdatedAt    time.Time             `json:"updatedAt"`
 }
@@ -145,6 +146,7 @@ type RegistrationDetail struct {
 	ReviewRemark2 *string                  `json:"reviewRemark2,omitempty"`
 	CanApprove    bool                     `json:"canApprove"`
 	CanReject     bool                     `json:"canReject"`
+	CanUndo       bool                     `json:"canUndo"`
 	SubmittedAt   time.Time                `json:"submittedAt"`
 	UpdatedAt     time.Time                `json:"updatedAt"`
 	FieldsSchema  []model.FormField        `json:"fieldsSchema"`
@@ -550,7 +552,7 @@ func (s *RegistrationService) GetRegistration(ctx context.Context, actor Registr
 		FieldsSchema:  hydrateUserGroupSelectFields(registration.Form.FieldsSchema, groups),
 		FormData:      sanitizeRegistrationFormData(registration.FormData),
 	}
-	detail.CanApprove, detail.CanReject = scope.reviewActionAvailability(registration)
+	detail.CanApprove, detail.CanReject, detail.CanUndo = scope.reviewActionAvailability(registration)
 	return &detail, nil
 }
 
@@ -638,6 +640,89 @@ func (s *RegistrationService) ReviewRegistration(ctx context.Context, actor Regi
 		for _, groupID := range approvedGroupIDs {
 			if err := repo.AddUserToGroupIfAbsent(ctx, groupID, registration.UserID); err != nil {
 				return &ServiceError{Status: http.StatusInternalServerError, Message: "同步审核通过分组成员失败", Err: err}
+			}
+		}
+		return nil
+	})
+	if txErr != nil {
+		return nil, txErr
+	}
+
+	return s.GetRegistration(ctx, actor, registrationID)
+}
+
+func (s *RegistrationService) UndoRegistrationReview(ctx context.Context, actor RegistrationFormActor, registrationID uint64) (*RegistrationDetail, error) {
+	if err := wrapRegistrationActorError(ensureRegistrationAdminActor(actor)); err != nil {
+		return nil, err
+	}
+	if registrationID == 0 {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "报名记录 ID 不合法"}
+	}
+
+	scope, err := s.resolveRegistrationAccessScope(ctx, actor)
+	if err != nil {
+		return nil, err
+	}
+
+	txErr := s.repo.RunInTx(ctx, func(repo registrationRepository) error {
+		registration, err := repo.GetRegistrationByIDForUpdate(ctx, registrationID)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return &ServiceError{Status: http.StatusNotFound, Message: "报名记录不存在"}
+			}
+			return &ServiceError{Status: http.StatusInternalServerError, Message: "加载报名记录失败", Err: err}
+		}
+		if !scope.canAccessRegistration(registration) {
+			return &ServiceError{Status: http.StatusForbidden, Message: "当前账号无权撤销该报名审核"}
+		}
+		if registration.Status == model.RegistrationStatusCancelled {
+			return &ServiceError{Status: http.StatusConflict, Message: "已取消的报名记录没有可撤销的审核"}
+		}
+
+		slot1, slot2 := scope.undoableSlots(registration)
+		if !slot1 && !slot2 {
+			return &ServiceError{Status: http.StatusConflict, Message: "当前报名没有可撤销的审核结果"}
+		}
+
+		wasCompleted := isRegistrationReviewCompleted(registration.Group1Status, registration.Group2Status)
+		approvedGroupIDs := approvedRegistrationGroupIDs(registration, registration.Group1Status, registration.Group2Status)
+		nextGroup1Status := registration.Group1Status
+		nextGroup2Status := registration.Group2Status
+		updates := make(map[string]any, 9)
+		if slot1 {
+			nextGroup1Status = model.RegistrationStatusPending
+			updates["group_1_status"] = model.RegistrationStatusPending
+			updates["reviewer_id_1"] = nil
+			updates["reviewed_at_1"] = nil
+			updates["review_remark_1"] = nil
+		}
+		if slot2 {
+			nextGroup2Status = model.RegistrationStatusPending
+			updates["group_2_status"] = model.RegistrationStatusPending
+			updates["reviewer_id_2"] = nil
+			updates["reviewed_at_2"] = nil
+			updates["review_remark_2"] = nil
+		}
+		updates["status"] = deriveRegistrationStatus(nextGroup1Status, nextGroup2Status)
+		if err := repo.UpdateRegistration(ctx, registrationID, updates); err != nil {
+			return &ServiceError{Status: http.StatusInternalServerError, Message: "撤销报名审核失败", Err: err}
+		}
+
+		if !wasCompleted || len(approvedGroupIDs) == 0 {
+			return nil
+		}
+		for _, groupID := range approvedGroupIDs {
+			if err := repo.RemoveUserFromGroupIfPresent(ctx, groupID, registration.UserID); err != nil {
+				return &ServiceError{Status: http.StatusInternalServerError, Message: "回滚审核通过分组失败", Err: err}
+			}
+		}
+		defaultGroupIDs, err := repo.ListDefaultGroupIDs(ctx)
+		if err != nil {
+			return &ServiceError{Status: http.StatusInternalServerError, Message: "加载默认分组失败", Err: err}
+		}
+		for _, groupID := range defaultGroupIDs {
+			if err := repo.AddUserToGroupIfAbsent(ctx, groupID, registration.UserID); err != nil {
+				return &ServiceError{Status: http.StatusInternalServerError, Message: "恢复默认分组失败", Err: err}
 			}
 		}
 		return nil
@@ -1104,7 +1189,7 @@ func collectRegistrationStoredPathsFromValue(value any, seen map[string]struct{}
 }
 
 func toRegistrationListItem(registration *model.Registration, scope registrationAccessScope) RegistrationListItem {
-	canApprove, canReject := scope.reviewActionAvailability(registration)
+	canApprove, canReject, canUndo := scope.reviewActionAvailability(registration)
 	return RegistrationListItem{
 		ID:           registration.ID,
 		FormID:       registration.FormID,
@@ -1119,6 +1204,7 @@ func toRegistrationListItem(registration *model.Registration, scope registration
 		Status:       registration.Status,
 		CanApprove:   canApprove,
 		CanReject:    canReject,
+		CanUndo:      canUndo,
 		SubmittedAt:  registration.SubmittedAt,
 		UpdatedAt:    registration.UpdatedAt,
 	}
@@ -1674,6 +1760,11 @@ func normalizeRegistrationSubmission(fields []model.FormField, input SubmitRegis
 		default:
 			return nil, &ServiceError{Status: http.StatusBadRequest, Message: "存在未支持的报名字段类型"}
 		}
+		if value, exists := formData[field.Key]; exists {
+			if err := validateRegistrationFieldValue(field, value); err != nil {
+				return nil, err
+			}
+		}
 	}
 
 	contactName := valueAsOptionalString(formData["name"])
@@ -1699,6 +1790,87 @@ func normalizeRegistrationSubmission(fields []model.FormField, input SubmitRegis
 	}, nil
 }
 
+// validateRegistrationFieldValue enforces the field validation contract on the server.
+// Invalid validation configuration is ignored; submitted values are always validated.
+func validateRegistrationFieldValue(field model.FormField, value any) error {
+	v := field.Validation
+	if len(v) == 0 || value == nil {
+		return nil
+	}
+	label := field.Label
+	if label == "" {
+		label = field.Key
+	}
+	if max, ok := validationInt(v["max_length"]); ok {
+		if str, ok := value.(string); ok && len([]rune(str)) > max {
+			return &ServiceError{Status: http.StatusBadRequest, Message: fmt.Sprintf("字段 %s 长度不能超过 %d", label, max)}
+		}
+	}
+	if pattern, ok := v["pattern"].(string); ok && strings.TrimSpace(pattern) != "" {
+		if str, ok := value.(string); ok {
+			re, err := regexp.Compile(pattern)
+			if err == nil && !re.MatchString(str) {
+				return &ServiceError{Status: http.StatusBadRequest, Message: fmt.Sprintf("字段 %s 格式不符合要求", label)}
+			}
+		}
+	}
+	if field.Type == "number" {
+		n, ok := numericValue(value)
+		if ok {
+			if min, exists := validationFloat(v["min"]); exists && n < min {
+				return &ServiceError{Status: http.StatusBadRequest, Message: fmt.Sprintf("字段 %s 不能小于 %v", label, min)}
+			}
+			if max, exists := validationFloat(v["max"]); exists && n > max {
+				return &ServiceError{Status: http.StatusBadRequest, Message: fmt.Sprintf("字段 %s 不能大于 %v", label, max)}
+			}
+			if places, exists := validationInt(v["decimal_places"]); exists && places >= 0 {
+				text := strconv.FormatFloat(n, 'f', -1, 64)
+				if dot := strings.IndexByte(text, '.'); dot >= 0 && len(text)-dot-1 > places {
+					return &ServiceError{Status: http.StatusBadRequest, Message: fmt.Sprintf("字段 %s 小数位数不能超过 %d", label, places)}
+				}
+			}
+		}
+	}
+	if field.Type == "date" {
+		if str, ok := value.(string); ok {
+			if min, ok := v["min_date"].(string); ok && min != "" && str < min {
+				return &ServiceError{Status: http.StatusBadRequest, Message: fmt.Sprintf("字段 %s 日期不能早于 %s", label, min)}
+			}
+			if max, ok := v["max_date"].(string); ok && max != "" && str > max {
+				return &ServiceError{Status: http.StatusBadRequest, Message: fmt.Sprintf("字段 %s 日期不能晚于 %s", label, max)}
+			}
+		}
+	}
+	return nil
+}
+
+func validationFloat(value any) (float64, bool) {
+	switch x := value.(type) {
+	case float64:
+		return x, true
+	case float32:
+		return float64(x), true
+	case int:
+		return float64(x), true
+	case int64:
+		return float64(x), true
+	case json.Number:
+		n, err := x.Float64()
+		return n, err == nil
+	case string:
+		n, err := strconv.ParseFloat(strings.TrimSpace(x), 64)
+		return n, err == nil
+	default:
+		return 0, false
+	}
+}
+
+func validationInt(value any) (int, bool) {
+	n, ok := validationFloat(value)
+	return int(n), ok && n >= 0 && math.Trunc(n) == n
+}
+func numericValue(value any) (float64, bool) { return validationFloat(value) }
+
 func normalizeRequiredSingleValue(field model.FormField, values []string) (string, bool, error) {
 	value := firstTrimmedValue(values)
 	if value == "" {
@@ -1719,6 +1891,11 @@ func normalizeSubmittedNumber(field model.FormField, values []string) (any, bool
 	numberValue, err := strconv.ParseFloat(value, 64)
 	if err != nil {
 		return nil, false, &ServiceError{Status: http.StatusBadRequest, Message: fmt.Sprintf("字段 %s 必须为数字", field.Label)}
+	}
+	if places, exists := validationInt(field.Validation["decimal_places"]); exists {
+		if dot := strings.IndexByte(value, '.'); dot >= 0 && len(strings.TrimRight(value[dot+1:], "0")) > places {
+			return nil, false, &ServiceError{Status: http.StatusBadRequest, Message: fmt.Sprintf("字段 %s 小数位数不能超过 %d", field.Label, places)}
+		}
 	}
 
 	if math.Trunc(numberValue) == numberValue {
@@ -2196,6 +2373,12 @@ func (r *gormRegistrationRepository) FindRegistrationByFormAndUser(ctx context.C
 }
 
 func (r *gormRegistrationRepository) CountRegistrationsByFormID(ctx context.Context, formID uint64) (int64, error) {
+	// Lock the parent form row while checking quota. SubmitRegistration performs
+	// this inside RunInTx, serializing concurrent submissions for the same form.
+	var form model.RegistrationForm
+	if err := r.db.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).First(&form, formID).Error; err != nil {
+		return 0, err
+	}
 	var count int64
 	err := r.db.WithContext(ctx).
 		Model(&model.Registration{}).

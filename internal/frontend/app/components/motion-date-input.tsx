@@ -12,7 +12,7 @@ export function MotionDateInput({
 }: MotionDateInputProps) {
   const baseClassName =
     className ??
-    `motion-field w-full rounded-lg border border-gray-700 bg-gray-800 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-primary-400 focus:outline-none focus:ring-2 focus:ring-primary-500/20 ${
+    `motion-field w-full rounded-xl border border-white/[0.08] bg-black/30 px-3 py-2.5 text-sm text-white placeholder:text-gray-500 focus:border-primary-400/60 focus:outline-none focus:ring-2 focus:ring-primary-400/30 ${
       disabled ? "cursor-not-allowed opacity-60" : ""
     }`;
 

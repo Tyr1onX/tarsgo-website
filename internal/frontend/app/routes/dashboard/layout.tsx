@@ -74,6 +74,12 @@ clientLoader.hydrate = true;
 
 function MenuIcon({ iconKey }: { iconKey: DashboardMenuIconKey }) {
   switch (iconKey) {
+    case "team-management":
+      return (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M3 3v1.5m0 0 2.77-.693a9 9 0 0 1 6.208.682l.108.054a9 9 0 0 0 6.086.71l3.114-.732a48.524 48.524 0 0 0-.005 10.499l-3.11.732a9 9 0 0 1-6.085-.711l-.108-.054a9 9 0 0 0-6.208-.682L3 15m0-10.5V15m0 0v6" />
+        </svg>
+      );
     case "people":
       return (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -136,13 +142,13 @@ function SidebarItem({
         <button
           type="button"
           onClick={() => setExpanded((current) => !current)}
-          className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-lg transition-colors ${
+          className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors ${
             isActive
-              ? "text-white bg-white/5"
-              : "text-gray-400 hover:text-white hover:bg-white/5"
+              ? "text-white bg-white/[0.04]"
+              : "text-gray-400 hover:text-white hover:bg-white/[0.04]"
           }`}
         >
-          <span className={isActive ? "text-primary-400" : ""}>
+          <span className={isActive ? "text-violet-350" : ""}>
             <MenuIcon iconKey={item.iconKey} />
           </span>
           <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
@@ -172,10 +178,10 @@ function SidebarItem({
                   viewTransition={viewTransition}
                   tabIndex={expanded ? 0 : -1}
                   className={({ isActive }) =>
-                    `block truncate px-3 py-2 text-sm rounded-lg transition-colors ${
+                    `block truncate px-3 py-2 text-sm rounded-xl transition-colors ${
                       isActive
-                        ? "text-primary-400 bg-primary-500/10"
-                        : "text-gray-400 hover:text-white hover:bg-white/5"
+                        ? "nav-item-active text-white"
+                        : "text-gray-400 hover:text-white hover:bg-white/[0.04]"
                     }`
                   }
                 >
@@ -196,16 +202,16 @@ function SidebarItem({
       onClick={onNavigate}
       viewTransition={viewTransition}
       className={({ isActive }) =>
-        `flex min-w-0 items-center gap-3 px-3 py-2.5 text-sm rounded-lg transition-colors ${
+        `flex min-w-0 items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors ${
           isActive
-            ? "text-primary-400 bg-primary-500/10"
-            : "text-gray-400 hover:text-white hover:bg-white/5"
+            ? "nav-item-active text-white"
+            : "text-gray-400 hover:text-white hover:bg-white/[0.04]"
         }`
       }
     >
       {({ isActive }) => (
         <>
-          <span className={isActive ? "text-primary-400" : ""}>
+          <span className={isActive ? "text-violet-350" : ""}>
             <MenuIcon iconKey={item.iconKey} />
           </span>
           <span className="min-w-0 flex-1 truncate">{item.label}</span>
@@ -406,21 +412,21 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 text-white">
+    <div className="dash-bg dash-bg-noise min-h-screen text-white">
       {sidebarOpen ? (
         <div
-          className="fixed inset-0 z-40 bg-black/60 lg:hidden"
+          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       ) : null}
 
       <aside
-        className={`group/sidebar fixed top-0 left-0 z-50 flex h-full flex-col border-r border-gray-800 bg-gray-900 transition-transform lg:translate-x-0 ${
+        className={`group/sidebar glass-panel glass-panel-strong fixed top-0 left-0 z-50 flex h-full flex-col border-y-0 border-l-0 transition-transform lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
         style={{ width: sidebarWidth }}
       >
-        <div className="flex items-center gap-3 px-5 h-16 border-b border-gray-800 shrink-0">
+        <div className="flex items-center gap-3 px-5 h-16 shrink-0">
           <Link to="/" className="flex min-w-0 flex-1 items-center">
             <img
               src="/assets/images/Logo/jijia-master.webp"
@@ -439,6 +445,8 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           </button>
         </div>
 
+        <div className="divider-gradient mx-4 shrink-0" aria-hidden="true" />
+
         <nav className="flex-1 overflow-y-auto px-3 py-4">
           <div>
             <div className="space-y-1">
@@ -454,7 +462,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           </div>
 
           {showAdminSection ? (
-            <div className="mt-6 pt-5 border-t border-gray-800">
+            <div className="mt-6 pt-5 border-t border-white/[0.06]">
               <div className="space-y-1">
                 {adminMenuItems.map((item) => (
                   <SidebarItem
@@ -469,18 +477,18 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           ) : null}
         </nav>
 
-        <div ref={userMenuRef} className="relative px-3 py-3 border-t border-gray-800">
+        <div ref={userMenuRef} className="relative px-3 py-3 border-t border-white/[0.06]">
           <button
             type="button"
             onClick={() => setUserMenuOpen((open) => !open)}
             aria-haspopup="menu"
             aria-expanded={userMenuOpen}
             className={`group w-full flex items-center gap-3 rounded-xl p-2 transition-colors ${
-              userMenuOpen ? "bg-white/5" : "hover:bg-white/5"
+              userMenuOpen ? "bg-white/[0.05]" : "hover:bg-white/[0.05]"
             }`}
           >
-            <div className="w-9 h-9 rounded-full bg-primary-500/20 flex items-center justify-center shrink-0">
-              <span className="text-primary-400 text-sm font-medium">{userInitial}</span>
+            <div className="chip-gradient w-9 h-9 rounded-full flex items-center justify-center shrink-0">
+              <span className="text-white text-sm font-semibold">{userInitial}</span>
             </div>
             <div className="flex-1 min-w-0 text-left">
               <div className="text-sm font-medium text-white truncate">
@@ -491,7 +499,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
             <svg
               className={`w-4 h-4 shrink-0 transition-all duration-200 ${
                 userMenuOpen
-                  ? "rotate-180 text-primary-400"
+                  ? "rotate-180 text-violet-350"
                   : "text-gray-500 group-hover:text-gray-300"
               }`}
               fill="none"
@@ -506,9 +514,9 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           {userMenuOpen ? (
             <div
               role="menu"
-              className="animate-user-menu-in-up absolute left-3 right-3 bottom-full mb-2 overflow-hidden rounded-xl border border-gray-800 bg-gray-900/95 shadow-2xl shadow-black/50 backdrop-blur-xl"
+              className="animate-user-menu-in-up glass-panel glass-panel-strong absolute left-3 right-3 bottom-full mb-2 overflow-hidden rounded-2xl shadow-2xl shadow-black/50"
             >
-              <div className="border-b border-gray-800/80 bg-gradient-to-b from-primary-500/5 to-transparent px-3 py-2.5">
+              <div className="border-b border-white/[0.06] bg-gradient-to-r from-primary-500/10 to-violet-450/10 px-3 py-2.5">
                 <div className="text-[11px] uppercase tracking-[0.22em] text-gray-500">
                   {currentUser.role.displayName}
                 </div>
@@ -544,14 +552,14 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
         >
           <span
             className={`h-20 w-px rounded-full transition-colors ${
-              isResizingSidebar ? "bg-primary-400" : "bg-transparent group-hover/sidebar:bg-gray-600"
+              isResizingSidebar ? "bg-violet-450" : "bg-transparent group-hover/sidebar:bg-gray-600"
             }`}
           />
         </div>
       </aside>
 
-      <div style={isDesktopViewport ? { paddingLeft: sidebarWidth } : undefined}>
-        <header className="sticky top-0 z-30 flex items-center gap-4 h-16 px-4 sm:px-6 bg-gray-950/80 backdrop-blur-md border-b border-gray-800">
+      <div className="relative z-10" style={isDesktopViewport ? { paddingLeft: sidebarWidth } : undefined}>
+        <header className="glass-panel sticky top-0 z-30 flex items-center gap-4 h-16 px-4 sm:px-6 border-x-0 border-t-0">
           <button
             type="button"
             className="lg:hidden p-2 -ml-2 text-gray-400 hover:text-white"
@@ -565,7 +573,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
 
           <Link
             to="/"
-            className="ml-auto inline-flex items-center gap-1.5 px-3 py-2 text-sm text-gray-400 border border-gray-800 rounded-lg hover:text-white hover:border-gray-700 hover:bg-white/5 transition-colors"
+            className="btn-glass ml-auto inline-flex items-center gap-1.5 px-3 py-2 text-sm text-gray-300 rounded-xl hover:text-white"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />

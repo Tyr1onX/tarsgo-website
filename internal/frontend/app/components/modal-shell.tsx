@@ -81,10 +81,10 @@ export function ModalShell({
   onClose,
   children,
   widthClass = "max-w-2xl",
-  roundedClassName = "rounded-xl",
-  panelClassName = "border border-gray-800 bg-gray-900 shadow-2xl",
+  roundedClassName = "rounded-2xl",
+  panelClassName = "glass-panel glass-panel-strong shadow-2xl shadow-black/40",
   bodyClassName = "px-6 py-5",
-  backdropClassName = "bg-black/70",
+  backdropClassName = "bg-black/60 backdrop-blur-sm",
   zIndexClass = "z-[70]",
 }: ModalShellProps) {
   const titleId = useId();
@@ -128,7 +128,7 @@ export function ModalShell({
         className={`motion-dialog motion-dialog-surface w-full ${widthClass} ${roundedClassName} ${panelClassName}`}
         data-state={open ? "open" : "closed"}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-gray-800 px-6 py-5">
+        <div className="flex items-start justify-between gap-4 border-b border-white/[0.06] px-6 py-5">
           <div className="flex min-w-0 items-start gap-3">
             {headerAccent ? <div className="shrink-0">{headerAccent}</div> : null}
             <div className="min-w-0">
@@ -141,7 +141,7 @@ export function ModalShell({
           <button
             type="button"
             onClick={onClose}
-            className="motion-button rounded-lg border border-gray-700 px-3 py-1.5 text-sm text-gray-300 transition-colors hover:bg-white/5"
+            className="btn-glass rounded-xl px-3 py-1.5 text-sm text-gray-300 hover:text-white"
           >
             关闭
           </button>

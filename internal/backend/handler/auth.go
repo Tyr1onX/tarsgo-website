@@ -10,6 +10,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"tarsgo-backend/config"
+	"tarsgo-backend/middleware"
+	"tarsgo-backend/model"
 	"tarsgo-backend/service/auth"
 )
 
@@ -122,6 +124,7 @@ func (h *AuthHandler) RegisterWithEmail(c *gin.Context) {
 	}
 
 	h.setAuthCookie(c, result.Token)
+	_ = middleware.RecordBusinessActivity(c, middleware.ActivityInput{ActionKey: model.ActivityUserRegistered, TargetUserID: &result.User.ID, EntityType: "user", EntityID: result.User.ID})
 	writeAPI(c, http.StatusOK, "注册成功", gin.H{"user": result.User})
 }
 

@@ -88,10 +88,28 @@ func (scope registrationAccessScope) reviewableSlots(registration *model.Registr
 	return slot1, slot2
 }
 
-func (scope registrationAccessScope) reviewActionAvailability(registration *model.Registration) (bool, bool) {
+func (scope registrationAccessScope) undoableSlots(registration *model.Registration) (bool, bool) {
+	if registration == nil || registration.Status == model.RegistrationStatusCancelled {
+		return false, false
+	}
+	if scope.fullAccess {
+		return registration.Group1Status != model.RegistrationStatusPending, registration.Group2Status != model.RegistrationStatusPending
+	}
+
+	slot1 := registration.Group1ID != nil &&
+		scope.hasGroup(*registration.Group1ID) &&
+		registration.Group1Status != model.RegistrationStatusPending
+	slot2 := registration.Group2ID != nil &&
+		scope.hasGroup(*registration.Group2ID) &&
+		registration.Group2Status != model.RegistrationStatusPending
+	return slot1, slot2
+}
+
+func (scope registrationAccessScope) reviewActionAvailability(registration *model.Registration) (bool, bool, bool) {
 	slot1, slot2 := scope.reviewableSlots(registration)
 	canReview := slot1 || slot2
-	return canReview, canReview
+	undoSlot1, undoSlot2 := scope.undoableSlots(registration)
+	return canReview, canReview, undoSlot1 || undoSlot2
 }
 
 func canMutateRegistrationBeforeReview(registration *model.Registration) bool {

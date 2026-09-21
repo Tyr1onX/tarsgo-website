@@ -9,6 +9,7 @@ import {
   getAdminRegistration,
   listAdminRegistrations,
   reviewAdminRegistration,
+  undoAdminRegistrationReview,
   type RegistrationDetail,
   type RegistrationFileMeta,
   type RegistrationGroupRef,
@@ -483,6 +484,39 @@ export default function RegistrationsPage() {
     }
   }
 
+  async function handleUndoReview(registrationId: number) {
+    try {
+      setReviewingId(registrationId);
+      setFlash(null);
+      const nextDetail = await undoAdminRegistrationReview(registrationId);
+      if (detailOpen && activeRegistrationId === registrationId) {
+        setDetail(nextDetail);
+      }
+
+      const response = await listAdminRegistrations({
+        page,
+        pageSize,
+        keyword,
+        status: statusFilter === "" ? "" : Number(statusFilter),
+        formId: formIdFilter === "" ? "" : Number(formIdFilter),
+      });
+      setSummary(response.summary);
+      setItems(response.items);
+      setPagination(response.pagination);
+      if (response.pagination.page !== page) {
+        setPage(response.pagination.page);
+      }
+      if (response.pagination.pageSize !== pageSize) {
+        setPageSize(response.pagination.pageSize);
+      }
+      setFlash({ type: "success", message: "审核结果已撤销，可以重新审核。" });
+    } catch (error) {
+      handlePageError(error, navigate, setFlash);
+    } finally {
+      setReviewingId(null);
+    }
+  }
+
   function openDeleteModal(target: {
     id: number;
     contactName?: string | null;
@@ -538,7 +572,7 @@ export default function RegistrationsPage() {
   return (
     <div className="space-y-5 sm:space-y-6">
       {/* ── Page hero ── */}
-      <section className="motion-fade-up relative overflow-hidden rounded-2xl border border-border-subtle bg-surface-card">
+      <section className="glass-panel motion-fade-up relative overflow-hidden rounded-2xl">
         <div
           aria-hidden
           className="bg-registrations-hero-glow pointer-events-none absolute inset-0 opacity-80"
@@ -549,7 +583,7 @@ export default function RegistrationsPage() {
         />
         <div className="relative flex flex-col gap-4 px-5 py-5 sm:gap-6 sm:px-7 sm:py-7 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex items-start gap-3 sm:gap-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-primary-500/20 bg-primary-500/10 text-primary-300 ring-1 ring-inset ring-primary-500/10 sm:h-12 sm:w-12">
+            <div className="chip-gradient-soft flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-primary-200 sm:h-12 sm:w-12">
               <IconClipboard />
             </div>
             <div className="min-w-0">
@@ -579,7 +613,7 @@ export default function RegistrationsPage() {
       {/* ── Flash message ── */}
       {flash ? (
         <div
-          className={`motion-fade-up flex items-center gap-3 rounded-lg border px-4 py-3 text-sm ${
+          className={`motion-fade-up flex items-center gap-3 rounded-xl border px-4 py-3 text-sm ${
             flash.type === "success"
               ? "border-accent-tertiary/20 bg-accent-tertiary/10 text-emerald-200"
               : "border-rose-500/20 bg-rose-500/10 text-rose-200"
@@ -603,8 +637,8 @@ export default function RegistrationsPage() {
         <SummaryCard
           label="总报名数"
           value={summary.total}
-          iconColor="text-primary-400"
-          iconBg="bg-primary-500/15"
+          iconColor="text-primary-200"
+          iconBg="chip-gradient-soft"
           icon={
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
@@ -658,7 +692,7 @@ export default function RegistrationsPage() {
       </div>
 
       {/* ── Filters ── */}
-      <section className="motion-fade-up rounded-xl border border-border-subtle bg-surface-card p-4" style={{ animationDelay: "140ms" }}>
+      <section className="glass-panel motion-fade-up rounded-2xl p-4" style={{ animationDelay: "140ms" }}>
         <div className="flex items-center gap-2 mb-3 text-xs font-medium uppercase tracking-wider text-fg-dim">
           <IconFilter />
           <span>筛选条件</span>
@@ -684,7 +718,7 @@ export default function RegistrationsPage() {
                 }
               }}
               placeholder="搜索姓名、手机号、邮箱或报名表..."
-              className="w-full rounded-lg border border-border-subtle bg-surface-light pl-9 pr-3 py-2.5 text-sm text-fg-primary placeholder:text-fg-dim focus:border-primary-400 focus:outline-none focus:ring-1 focus:ring-primary-400/30 transition-colors"
+              className="w-full rounded-xl border border-white/[0.08] bg-black/30 pl-9 pr-3 py-2.5 text-sm text-fg-primary placeholder:text-fg-dim focus:border-primary-400/60 focus:outline-none focus:ring-1 focus:ring-primary-400/30 transition-colors"
             />
           </div>
           <AnimatedSelect
@@ -712,7 +746,7 @@ export default function RegistrationsPage() {
             <button
               type="button"
               onClick={applyFilters}
-              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-primary-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-primary-400 lg:flex-none"
+              className="btn-gradient inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl px-4 py-2 text-sm font-semibold text-white lg:flex-none"
             >
               <IconSearch />
               搜索
@@ -720,7 +754,7 @@ export default function RegistrationsPage() {
             <button
               type="button"
               onClick={resetFilters}
-              className="inline-flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-border-subtle bg-surface-light px-4 py-2 text-sm font-medium text-fg-muted transition-colors hover:bg-white/5 hover:text-fg-primary lg:flex-none"
+              className="btn-glass inline-flex flex-1 items-center justify-center gap-1.5 rounded-xl px-4 py-2 text-sm font-medium text-fg-muted hover:text-fg-primary lg:flex-none"
             >
               <IconRefresh />
               重置
@@ -730,11 +764,11 @@ export default function RegistrationsPage() {
       </section>
 
       {/* ── Data table ── */}
-      <section className="motion-fade-up overflow-hidden rounded-xl border border-border-subtle bg-surface-card" style={{ animationDelay: "200ms" }}>
+      <section className="glass-panel motion-fade-up overflow-hidden rounded-2xl" style={{ animationDelay: "200ms" }}>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1280px] text-sm">
             <thead>
-              <tr className="border-b border-border-subtle bg-surface-dark/60">
+              <tr className="border-b border-white/[0.06] bg-white/[0.03]">
                 {[
                   { title: "姓名", align: "left" },
                   { title: "手机号", align: "left" },
@@ -759,13 +793,13 @@ export default function RegistrationsPage() {
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-border-subtle">
+            <tbody className="divide-y divide-white/[0.05]">
               {loading ? (
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={i}>
                     {Array.from({ length: 11 }).map((_, j) => (
                       <td key={j} className="px-4 py-4">
-                        <div className="h-4 animate-pulse rounded bg-gray-800" />
+                        <div className="h-4 animate-pulse rounded bg-white/[0.04]" />
                       </td>
                     ))}
                   </tr>
@@ -783,7 +817,7 @@ export default function RegistrationsPage() {
                 </tr>
               ) : (
                 items.map((item) => (
-                  <tr key={item.id} className="transition-colors hover:bg-white/[0.02]">
+                  <tr key={item.id} className="table-row-glass">
                     <td className="whitespace-nowrap px-4 py-3.5 font-medium text-fg-primary">{item.contactName ?? <span className="text-fg-dim">未填写</span>}</td>
                     <td className="whitespace-nowrap px-4 py-3.5 text-fg-muted">{item.contactPhone ?? <span className="text-fg-dim">未填写</span>}</td>
                     <td className="whitespace-nowrap px-4 py-3.5 text-fg-muted">{item.contactEmail ?? <span className="text-fg-dim">未填写</span>}</td>
@@ -792,7 +826,7 @@ export default function RegistrationsPage() {
                     <td className="whitespace-nowrap px-4 py-3.5 text-fg-muted">{registrationGroupLabel(item.group2)}</td>
                     <td className="whitespace-nowrap px-4 py-3.5"><StatusBadge status={item.group2Status} /></td>
                     <td className="whitespace-nowrap px-4 py-3.5">
-                      <span className="inline-flex rounded-md bg-surface-light px-2 py-0.5 text-xs font-medium text-fg-muted">{item.formTitle}</span>
+                      <span className="inline-flex rounded-md bg-white/[0.03] px-2 py-0.5 text-xs font-medium text-fg-muted">{item.formTitle}</span>
                     </td>
                     <td className="whitespace-nowrap px-4 py-3.5"><StatusBadge status={item.status} /></td>
                     <td className="whitespace-nowrap px-4 py-3.5 text-fg-dim text-xs">{formatDateTime(item.submittedAt)}</td>
@@ -813,6 +847,14 @@ export default function RegistrationsPage() {
                           variant="reject"
                         >
                           <IconX />
+                        </ActionButton>
+                        <ActionButton
+                          title="撤销审核"
+                          onClick={() => void handleUndoReview(item.id)}
+                          disabled={!item.canUndo || reviewingId === item.id}
+                          variant="undo"
+                        >
+                          <IconRefresh />
                         </ActionButton>
                         <ActionButton
                           title="删除"
@@ -838,7 +880,7 @@ export default function RegistrationsPage() {
           </table>
         </div>
         {!loading && items.length > 0 && (
-          <div className="flex flex-col gap-3 border-t border-border-subtle bg-surface-dark/40 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-3 border-t border-white/[0.06] bg-black/20 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="text-xs text-fg-dim">
               第 {pagination.page} / {Math.max(pagination.totalPages, 1)} 页，共 {pagination.total} 条记录
             </div>
@@ -861,11 +903,11 @@ export default function RegistrationsPage() {
                 type="button"
                 disabled={page <= 1}
                 onClick={() => setPage((current) => Math.max(current - 1, 1))}
-                className="rounded-lg border border-border-subtle px-3 py-2 text-sm font-medium text-fg-muted transition hover:bg-white/5 hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-40"
+                className="btn-glass rounded-xl px-3 py-2 text-sm font-medium text-fg-muted hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-40"
               >
                 上一页
               </button>
-              <span className="rounded-lg bg-accent-primary/10 px-2.5 py-1 text-xs font-medium text-accent-primary">
+              <span className="rounded-xl bg-accent-primary/10 px-2.5 py-1 text-xs font-medium text-accent-primary">
                 {pagination.page}
               </span>
               <button
@@ -874,7 +916,7 @@ export default function RegistrationsPage() {
                 onClick={() =>
                   setPage((current) => Math.min(current + 1, Math.max(pagination.totalPages, 1)))
                 }
-                className="rounded-lg border border-border-subtle px-3 py-2 text-sm font-medium text-fg-muted transition hover:bg-white/5 hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-40"
+                className="btn-glass rounded-xl px-3 py-2 text-sm font-medium text-fg-muted hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-40"
               >
                 下一页
               </button>
@@ -896,7 +938,7 @@ export default function RegistrationsPage() {
             />
 
             {/* Drawer panel */}
-            <aside className={`absolute inset-y-0 left-0 flex w-full max-w-2xl flex-col bg-surface-primary shadow-2xl shadow-black/40 ${
+            <aside className={`glass-panel glass-panel-strong absolute inset-y-0 left-0 flex w-full max-w-2xl flex-col shadow-2xl shadow-black/40 ${
               detailClosing ? "animate-drawer-slide-out" : "animate-drawer-slide-in"
             }`}>
               {detailLoading ? (
@@ -906,13 +948,13 @@ export default function RegistrationsPage() {
               ) : (
                 <>
                   {/* ── Header: profile hero ── */}
-                  <div className="relative shrink-0 border-b border-border-subtle bg-surface-card">
+                  <div className="relative shrink-0 border-b border-white/[0.06] bg-white/[0.03]">
                     {/* Decorative gradient strip */}
                     <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-primary-500 via-accent-secondary to-accent-tertiary" />
 
                     <div className="flex items-start gap-4 px-6 pt-5 pb-4">
                       {/* Avatar */}
-                      <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary-500/15 text-xl font-bold text-primary-400">
+                      <div className="chip-gradient-soft flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl text-xl font-bold text-primary-200">
                         {(detail.contactName?.trim()?.[0] ?? "?").toUpperCase()}
                       </div>
 
@@ -943,7 +985,7 @@ export default function RegistrationsPage() {
 
                         {/* Meta tags row */}
                         <div className="mt-2.5 flex flex-wrap items-center gap-2 text-xs text-fg-dim">
-                          <span className="inline-flex items-center gap-1 rounded-md bg-surface-light px-2 py-0.5 font-medium text-fg-muted">
+                          <span className="inline-flex items-center gap-1 rounded-md bg-white/[0.03] px-2 py-0.5 font-medium text-fg-muted">
                             <IconDocument />
                             {detail.formTitle}
                           </span>
@@ -965,7 +1007,7 @@ export default function RegistrationsPage() {
                         type="button"
                         title="关闭"
                         onClick={closeDetail}
-                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-fg-dim transition-colors hover:bg-white/5 hover:text-fg-primary"
+                        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-fg-dim transition-colors hover:bg-white/5 hover:text-fg-primary"
                       >
                         <IconClose />
                       </button>
@@ -1028,9 +1070,9 @@ export default function RegistrationsPage() {
                           {detail.fieldsSchema.map((field) => (
                             <div
                               key={field.key}
-                              className="rounded-lg border border-border-subtle bg-surface-card"
+                              className="rounded-xl border border-white/[0.06] bg-white/[0.03]"
                             >
-                              <div className="flex items-center gap-2 border-b border-border-subtle px-4 py-2.5">
+                              <div className="flex items-center gap-2 border-b border-white/[0.06] px-4 py-2.5">
                                 <span className="text-sm font-medium text-fg-primary">{field.label}</span>
                                 {field.required ? (
                                   <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-400">
@@ -1059,7 +1101,7 @@ export default function RegistrationsPage() {
                             {extraSubmittedFields.map(([key, value]) => (
                               <div
                                 key={key}
-                                className="rounded-lg border border-border-subtle bg-surface-card px-4 py-3"
+                                className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3"
                               >
                                 <div className="text-xs font-medium text-fg-dim mb-1.5">{key}</div>
                                 <div className="text-sm text-fg-primary">
@@ -1074,14 +1116,14 @@ export default function RegistrationsPage() {
                   </div>
 
                   {/* ── Sticky action bar ── */}
-                  <div className="shrink-0 border-t border-border-subtle bg-surface-card px-6 py-3.5">
+                  <div className="shrink-0 border-t border-white/[0.06] bg-white/[0.03] px-6 py-3.5">
                     <div className="flex items-center gap-2">
                       <span className="mr-auto text-xs font-medium text-fg-dim">审核操作</span>
                       <button
                         type="button"
                         onClick={() => void handleReview(detail.id, "approve")}
                         disabled={!detail.canApprove || reviewingId === detail.id}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 px-4 py-2 text-sm font-medium text-emerald-300 transition-colors hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-500/10 border border-emerald-400/20 px-4 py-2 text-sm font-medium text-emerald-300 transition-colors hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         <IconCheck /> 通过
                       </button>
@@ -1089,15 +1131,23 @@ export default function RegistrationsPage() {
                         type="button"
                         onClick={() => void handleReview(detail.id, "reject")}
                         disabled={!detail.canReject || reviewingId === detail.id}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-rose-500/10 border border-rose-500/20 px-4 py-2 text-sm font-medium text-rose-300 transition-colors hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-rose-500/10 border border-rose-500/30 px-4 py-2 text-sm font-medium text-rose-300 transition-colors hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         <IconX /> 拒绝
                       </button>
                       <button
                         type="button"
+                        onClick={() => void handleUndoReview(detail.id)}
+                        disabled={!detail.canUndo || reviewingId === detail.id}
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-amber-500/10 border border-amber-400/20 px-4 py-2 text-sm font-medium text-amber-300 transition-colors hover:bg-amber-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                      >
+                        <IconRefresh /> 撤销审核
+                      </button>
+                      <button
+                        type="button"
                         onClick={() => openDeleteModal(detail)}
                         disabled={deletingId === detail.id}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-red-500/10 border border-red-500/20 px-4 py-2 text-sm font-medium text-red-300 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40"
+                        className="inline-flex items-center gap-1.5 rounded-xl bg-red-500/10 border border-red-500/30 px-4 py-2 text-sm font-medium text-red-300 transition-colors hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-40"
                       >
                         <IconTrash /> 删除
                       </button>
@@ -1117,7 +1167,7 @@ export default function RegistrationsPage() {
         open={deleteTarget !== null}
         title="确认删除"
         headerAccent={
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-red-500/15 text-red-400">
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-red-500/15 text-red-400">
             <IconWarning />
           </div>
         }
@@ -1126,12 +1176,12 @@ export default function RegistrationsPage() {
           setDeleteTarget(null);
         }}
         widthClass="max-w-md"
-        panelClassName="rounded-xl border border-border-subtle bg-surface-card shadow-2xl"
+        panelClassName="glass-panel glass-panel-strong rounded-2xl shadow-2xl"
         backdropClassName="bg-black/70 backdrop-blur-sm"
       >
         {deleteTarget ? (
           <div className="space-y-5">
-            <div className="rounded-lg border border-red-500/20 bg-red-500/5 px-4 py-3.5 text-sm leading-relaxed text-red-200/90">
+            <div className="rounded-xl border border-red-500/20 bg-red-500/5 px-4 py-3.5 text-sm leading-relaxed text-red-200/90">
               即将硬删除 <span className="font-semibold text-red-200">{deleteTarget.label}</span> 的报名记录，关联上传文件也会一并清理，删除后不可恢复。
             </div>
 
@@ -1140,7 +1190,7 @@ export default function RegistrationsPage() {
                 type="button"
                 onClick={() => setDeleteTarget(null)}
                 disabled={deletingId === deleteTarget.id}
-                className="rounded-lg border border-border-subtle bg-surface-light px-4 py-2.5 text-sm font-medium text-fg-muted transition-colors hover:bg-white/5 hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-50"
+                className="btn-glass rounded-xl px-4 py-2.5 text-sm font-medium text-fg-muted hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-50"
               >
                 取消
               </button>
@@ -1148,7 +1198,7 @@ export default function RegistrationsPage() {
                 type="button"
                 onClick={() => void handleDeleteRegistration()}
                 disabled={deletingId === deleteTarget.id}
-                className="inline-flex items-center gap-2 rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-500 disabled:cursor-not-allowed disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-sm font-semibold text-rose-300 transition-colors hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {deletingId === deleteTarget.id ? (
                   <>
@@ -1191,7 +1241,7 @@ function renderSubmittedFieldValue(
             type="button"
             key={`${file.file_url}-${index}`}
             onClick={() => onPreviewImage(file)}
-            className="group overflow-hidden rounded-lg border border-border-subtle bg-surface-dark text-left transition-all hover:border-primary-400/40 hover:shadow-lg hover:shadow-primary-500/5"
+            className="group overflow-hidden rounded-xl border border-white/[0.06] bg-black/20 text-left transition-all hover:border-primary-400/40 hover:shadow-lg hover:shadow-primary-500/5"
           >
             <img
               src={buildApiUrl(file.file_url)}
@@ -1223,7 +1273,7 @@ function renderSubmittedFieldValue(
         href={buildApiUrl(file.file_url)}
         target="_blank"
         rel="noreferrer"
-        className="inline-flex items-center gap-3 rounded-lg border border-border-subtle bg-surface-dark px-4 py-2.5 text-sm text-fg-primary transition-all hover:border-primary-400/40 hover:text-white"
+        className="inline-flex items-center gap-3 rounded-xl border border-white/[0.06] bg-black/20 px-4 py-2.5 text-sm text-fg-primary transition-all hover:border-primary-400/40 hover:text-white"
       >
         <svg className="w-4 h-4 shrink-0 text-fg-dim" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
@@ -1264,7 +1314,7 @@ function renderUnknownValue(value: unknown) {
     return String(value);
   }
   return (
-    <pre className="overflow-x-auto rounded-lg bg-surface-dark p-3 text-xs text-fg-muted">
+    <pre className="overflow-x-auto rounded-xl bg-black/20 p-3 text-xs text-fg-muted">
       {JSON.stringify(value, null, 2)}
     </pre>
   );
@@ -1457,7 +1507,7 @@ function ImagePreviewModal({
           className="modal-panel mx-auto flex h-full w-full max-w-6xl flex-col gap-4"
           onClick={(event) => event.stopPropagation()}
         >
-          <div className="flex items-center gap-3 rounded-xl border border-white/10 bg-surface-card/95 px-4 py-3 shadow-2xl">
+          <div className="glass-panel glass-panel-strong flex items-center gap-3 rounded-2xl px-4 py-3 shadow-2xl">
             <div className="min-w-0 flex-1">
               <div className="truncate text-sm font-semibold text-fg-primary">{snap.fileName}</div>
               <div className="mt-0.5 text-xs text-fg-dim">{formatFileSize(snap.fileSize)}</div>
@@ -1466,17 +1516,17 @@ function ImagePreviewModal({
               type="button"
               title="关闭预览"
               onClick={onClose}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-fg-dim transition-colors hover:bg-white/5 hover:text-fg-primary"
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-fg-dim transition-colors hover:bg-white/5 hover:text-fg-primary"
             >
               <IconClose />
             </button>
           </div>
 
-          <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto rounded-2xl border border-white/10 bg-black/30 p-4 shadow-2xl sm:p-6">
+          <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto rounded-2xl border border-white/[0.1] bg-black/30 p-4 shadow-2xl sm:p-6">
             <img
               src={snap.fileUrl}
               alt={snap.fileName}
-              className="max-h-full w-auto max-w-full rounded-xl border border-white/10 bg-surface-dark object-contain shadow-2xl"
+              className="max-h-full w-auto max-w-full rounded-xl border border-white/[0.1] bg-black/20 object-contain shadow-2xl"
             />
           </div>
         </div>
@@ -1490,7 +1540,7 @@ function DrawerSectionLabel({ icon, children }: { icon: ReactNode; children: Rea
     <div className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-fg-dim">
       <span className="text-fg-muted">{icon}</span>
       <span>{children}</span>
-      <span className="ml-1 h-px flex-1 bg-border-subtle" />
+      <span className="ml-1 h-px flex-1 bg-white/[0.06]" />
     </div>
   );
 }
@@ -1499,22 +1549,22 @@ function DrawerSkeleton({ onClose }: { onClose: () => void }) {
   return (
     <>
       {/* Skeleton header */}
-      <div className="shrink-0 border-b border-border-subtle bg-surface-card px-6 pt-5 pb-4">
+      <div className="shrink-0 border-b border-white/[0.06] bg-white/[0.03] px-6 pt-5 pb-4">
         <div className="flex items-start gap-4">
-          <div className="h-14 w-14 shrink-0 animate-pulse rounded-2xl bg-gray-800" />
+          <div className="h-14 w-14 shrink-0 animate-pulse rounded-2xl bg-white/[0.04]" />
           <div className="min-w-0 flex-1 space-y-3">
-            <div className="h-5 w-36 animate-pulse rounded bg-gray-800" />
-            <div className="h-3 w-48 animate-pulse rounded bg-gray-800" />
+            <div className="h-5 w-36 animate-pulse rounded bg-white/[0.04]" />
+            <div className="h-3 w-48 animate-pulse rounded bg-white/[0.04]" />
             <div className="flex gap-2">
-              <div className="h-5 w-20 animate-pulse rounded-md bg-gray-800" />
-              <div className="h-5 w-32 animate-pulse rounded-md bg-gray-800" />
+              <div className="h-5 w-20 animate-pulse rounded-md bg-white/[0.04]" />
+              <div className="h-5 w-32 animate-pulse rounded-md bg-white/[0.04]" />
             </div>
           </div>
           <button
             type="button"
             title="关闭"
             onClick={onClose}
-            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-fg-dim transition-colors hover:bg-white/5 hover:text-fg-primary"
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-fg-dim transition-colors hover:bg-white/5 hover:text-fg-primary"
           >
             <IconClose />
           </button>
@@ -1524,34 +1574,34 @@ function DrawerSkeleton({ onClose }: { onClose: () => void }) {
       <div className="flex-1 overflow-y-auto px-6 py-5 space-y-5">
         {/* Group cards skeleton */}
         <div>
-          <div className="mb-3 h-3 w-20 animate-pulse rounded bg-gray-800" />
+          <div className="mb-3 h-3 w-20 animate-pulse rounded bg-white/[0.04]" />
           <div className="grid gap-3 sm:grid-cols-2">
             {[0, 1].map((i) => (
-              <div key={i} className="rounded-xl border border-border-subtle bg-surface-card p-4 space-y-3">
-                <div className="h-3 w-16 animate-pulse rounded bg-gray-800" />
-                <div className="h-5 w-24 animate-pulse rounded bg-gray-800" />
-                <div className="h-5 w-16 animate-pulse rounded-full bg-gray-800" />
+              <div key={i} className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-4 space-y-3">
+                <div className="h-3 w-16 animate-pulse rounded bg-white/[0.04]" />
+                <div className="h-5 w-24 animate-pulse rounded bg-white/[0.04]" />
+                <div className="h-5 w-16 animate-pulse rounded-full bg-white/[0.04]" />
               </div>
             ))}
           </div>
         </div>
         {/* Timeline skeleton */}
         <div>
-          <div className="mb-3 h-3 w-20 animate-pulse rounded bg-gray-800" />
+          <div className="mb-3 h-3 w-20 animate-pulse rounded bg-white/[0.04]" />
           {[0, 1].map((i) => (
-            <div key={i} className="mb-3 rounded-lg border border-border-subtle bg-surface-card p-4 space-y-2">
-              <div className="h-4 w-32 animate-pulse rounded bg-gray-800" />
-              <div className="h-3 w-48 animate-pulse rounded bg-gray-800" />
+            <div key={i} className="mb-3 rounded-2xl border border-white/[0.06] bg-white/[0.03] p-4 space-y-2">
+              <div className="h-4 w-32 animate-pulse rounded bg-white/[0.04]" />
+              <div className="h-3 w-48 animate-pulse rounded bg-white/[0.04]" />
             </div>
           ))}
         </div>
         {/* Fields skeleton */}
         <div>
-          <div className="mb-3 h-3 w-20 animate-pulse rounded bg-gray-800" />
+          <div className="mb-3 h-3 w-20 animate-pulse rounded bg-white/[0.04]" />
           {[0, 1, 2].map((i) => (
-            <div key={i} className="mb-2.5 rounded-lg border border-border-subtle bg-surface-card p-4 space-y-2">
-              <div className="h-4 w-28 animate-pulse rounded bg-gray-800" />
-              <div className="h-3 w-full animate-pulse rounded bg-gray-800" />
+            <div key={i} className="mb-2.5 rounded-2xl border border-white/[0.06] bg-white/[0.03] p-4 space-y-2">
+              <div className="h-4 w-28 animate-pulse rounded bg-white/[0.04]" />
+              <div className="h-3 w-full animate-pulse rounded bg-white/[0.04]" />
             </div>
           ))}
         </div>
@@ -1563,13 +1613,13 @@ function DrawerSkeleton({ onClose }: { onClose: () => void }) {
 function DrawerEmpty({ onClose }: { onClose: () => void }) {
   return (
     <>
-      <div className="flex items-center justify-between border-b border-border-subtle px-6 py-4">
+      <div className="flex items-center justify-between border-b border-white/[0.06] px-6 py-4">
         <h2 className="text-base font-semibold text-fg-primary">报名详情</h2>
         <button
           type="button"
           title="关闭"
           onClick={onClose}
-          className="flex h-8 w-8 items-center justify-center rounded-lg text-fg-dim transition-colors hover:bg-white/5 hover:text-fg-primary"
+          className="flex h-8 w-8 items-center justify-center rounded-xl text-fg-dim transition-colors hover:bg-white/5 hover:text-fg-primary"
         >
           <IconClose />
         </button>
@@ -1599,7 +1649,7 @@ function GroupCard({
   const accentBorder = accent === "primary" ? "border-primary-500/20" : "border-accent-secondary/20";
 
   return (
-    <div className={`rounded-xl border bg-surface-card p-4 ${accentBorder}`}>
+    <div className={`rounded-2xl border bg-white/[0.03] p-4 ${accentBorder}`}>
       <div className={`text-[11px] font-semibold uppercase tracking-wider ${accentColor}`}>
         {label}
       </div>
@@ -1633,7 +1683,7 @@ function ReviewTimelineEntry({
       {/* Timeline dot */}
       <div className="flex flex-col items-center pt-1.5">
         <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${dotColor} ring-2 ring-surface-primary`} />
-        <span className="w-px flex-1 bg-border-subtle" />
+        <span className="w-px flex-1 bg-white/[0.06]" />
       </div>
 
       {/* Content */}
@@ -1641,7 +1691,7 @@ function ReviewTimelineEntry({
         <div className="text-sm font-medium text-fg-primary">{label}</div>
 
         {hasContent ? (
-          <div className="mt-1.5 rounded-lg border border-border-subtle bg-surface-card px-3.5 py-3">
+          <div className="mt-1.5 rounded-xl border border-white/[0.06] bg-white/[0.03] px-3.5 py-3">
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-muted">
               {reviewer ? (
                 <span className="inline-flex items-center gap-1">
@@ -1657,7 +1707,7 @@ function ReviewTimelineEntry({
               ) : null}
             </div>
             {remark?.trim() ? (
-              <div className="mt-2 whitespace-pre-wrap border-t border-border-subtle pt-2 text-sm text-fg-muted">
+              <div className="mt-2 whitespace-pre-wrap border-t border-white/[0.06] pt-2 text-sm text-fg-muted">
                 {remark.trim()}
               </div>
             ) : null}
@@ -1673,12 +1723,12 @@ function ReviewTimelineEntry({
 function StatusBadge({ status }: { status: number }) {
   const config =
     status === 1
-      ? { label: "已通过", dot: "bg-emerald-400", text: "text-emerald-300", bg: "bg-emerald-500/10", border: "border-emerald-500/20" }
+      ? { label: "已通过", dot: "bg-emerald-400", text: "text-emerald-300", bg: "bg-emerald-500/10", border: "border-emerald-400/20" }
       : status === 2
-        ? { label: "已拒绝", dot: "bg-rose-400", text: "text-rose-300", bg: "bg-rose-500/10", border: "border-rose-500/20" }
+        ? { label: "已拒绝", dot: "bg-rose-400", text: "text-rose-300", bg: "bg-rose-500/10", border: "border-rose-400/20" }
         : status === 3
-          ? { label: "已取消", dot: "bg-gray-500", text: "text-fg-dim", bg: "bg-gray-500/10", border: "border-gray-500/20" }
-          : { label: "待审核", dot: "bg-amber-400", text: "text-amber-300", bg: "bg-amber-500/10", border: "border-amber-500/20" };
+          ? { label: "已取消", dot: "bg-gray-500", text: "text-gray-300", bg: "bg-gray-500/10", border: "border-gray-400/20" }
+          : { label: "待审核", dot: "bg-amber-400", text: "text-amber-300", bg: "bg-amber-500/10", border: "border-amber-400/20" };
 
   return (
     <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${config.bg} ${config.border} ${config.text}`}>
@@ -1699,11 +1749,12 @@ function ActionButton({
   title: string;
   onClick: () => void;
   disabled?: boolean;
-  variant: "approve" | "reject" | "delete" | "default";
+  variant: "approve" | "reject" | "undo" | "delete" | "default";
 }) {
   const variantClasses = {
     approve: "text-emerald-400 hover:bg-emerald-500/15 hover:text-emerald-300",
     reject: "text-rose-400 hover:bg-rose-500/15 hover:text-rose-300",
+    undo: "text-amber-400 hover:bg-amber-500/15 hover:text-amber-300",
     delete: "text-red-400 hover:bg-red-500/15 hover:text-red-300",
     default: "text-fg-dim hover:bg-white/5 hover:text-fg-primary",
   };
@@ -1714,7 +1765,7 @@ function ActionButton({
       title={title}
       onClick={onClick}
       disabled={disabled}
-      className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${variantClasses[variant]}`}
+      className={`flex h-8 w-8 items-center justify-center rounded-xl transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${variantClasses[variant]}`}
     >
       {children}
     </button>
@@ -1735,16 +1786,16 @@ function SummaryCard({
   iconBg: string;
 }) {
   return (
-    <div className="rounded-xl border border-border-subtle bg-surface-card p-3 transition-colors hover:border-gray-700 sm:p-5">
+    <div className="glass-panel glass-card rounded-2xl p-3 sm:p-5">
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0 truncate text-[11px] text-fg-dim sm:text-sm">{label}</div>
         <div
-          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md sm:h-10 sm:w-10 sm:rounded-lg ${iconBg} ${iconColor}`}
+          className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md sm:h-10 sm:w-10 sm:rounded-xl ${iconBg} ${iconColor}`}
         >
           {icon}
         </div>
       </div>
-      <div className="mt-2 text-xl font-bold tabular-nums text-fg-primary sm:mt-3 sm:text-2xl">
+      <div className="text-gradient-brand mt-2 text-xl font-bold tabular-nums sm:mt-3 sm:text-2xl">
         {value}
       </div>
     </div>

@@ -69,7 +69,7 @@ const registrationStatusMeta: Record<number, StatusMeta> = {
     label: "待审核",
     hint: "报名资料已提交，正在等待管理员处理",
     tone: "pending",
-    badgeClassName: "border-amber-500/30 bg-amber-500/10 text-amber-200",
+    badgeClassName: "border-amber-400/20 bg-amber-500/10 text-amber-300",
     dotClassName: "bg-amber-400",
     ringClassName: "ring-amber-500/20",
   },
@@ -77,7 +77,7 @@ const registrationStatusMeta: Record<number, StatusMeta> = {
     label: "已通过",
     hint: "报名审核已通过，请留意后续通知",
     tone: "approved",
-    badgeClassName: "border-emerald-500/30 bg-emerald-500/10 text-emerald-200",
+    badgeClassName: "border-emerald-400/20 bg-emerald-500/10 text-emerald-300",
     dotClassName: "bg-emerald-400",
     ringClassName: "ring-emerald-500/20",
   },
@@ -85,7 +85,7 @@ const registrationStatusMeta: Record<number, StatusMeta> = {
     label: "未通过",
     hint: "本次报名未通过审核，可关注后续开放时间",
     tone: "rejected",
-    badgeClassName: "border-rose-500/30 bg-rose-500/10 text-rose-200",
+    badgeClassName: "border-rose-400/20 bg-rose-500/10 text-rose-300",
     dotClassName: "bg-rose-400",
     ringClassName: "ring-rose-500/20",
   },
@@ -93,7 +93,7 @@ const registrationStatusMeta: Record<number, StatusMeta> = {
     label: "已取消",
     hint: "当前报名记录已被取消",
     tone: "cancelled",
-    badgeClassName: "border-slate-500/30 bg-slate-500/10 text-slate-200",
+    badgeClassName: "border-slate-400/20 bg-slate-500/10 text-slate-300",
     dotClassName: "bg-slate-400",
     ringClassName: "ring-slate-500/20",
   },
@@ -415,10 +415,10 @@ function PageHero({
 }) {
   const chipStyle =
     chipTone === "submitted"
-      ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-200"
+      ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-300"
       : chipTone === "unavailable"
-        ? "border-slate-500/30 bg-slate-500/10 text-slate-200"
-        : "border-primary-500/30 bg-primary-500/10 text-primary-200";
+        ? "border-slate-400/20 bg-slate-500/10 text-slate-300"
+        : "border-primary-400/20 bg-primary-500/10 text-primary-300";
   const chipDot =
     chipTone === "submitted"
       ? "bg-emerald-400"
@@ -427,7 +427,7 @@ function PageHero({
         : "bg-primary-400";
 
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-border-subtle bg-surface-card">
+    <section className="glass-panel relative overflow-hidden rounded-2xl">
       <div
         aria-hidden
         className="bg-registrations-hero-glow pointer-events-none absolute inset-0 opacity-80"
@@ -438,7 +438,7 @@ function PageHero({
       />
       <div className="relative flex flex-col gap-4 px-5 py-5 sm:gap-6 sm:px-8 sm:py-10 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex items-start gap-3 sm:gap-4">
-          <div className="hidden h-12 w-12 shrink-0 items-center justify-center rounded-xl border border-primary-500/20 bg-primary-500/10 text-primary-200 ring-1 ring-inset ring-primary-500/10 sm:flex">
+          <div className="chip-gradient-soft hidden h-12 w-12 shrink-0 items-center justify-center rounded-xl text-primary-200 sm:flex">
             <Icon icon={sparklesIcon} className="h-6 w-6" />
           </div>
           <div>
@@ -494,12 +494,12 @@ function FormStateView({
         <FormCoverCard form={form} />
 
         <form
-          className="rounded-2xl border border-border-subtle bg-surface-card"
+          className="glass-panel rounded-2xl"
           onSubmit={onSubmit}
         >
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-subtle px-6 py-5">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] px-6 py-5">
             <div className="flex items-center gap-3">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg border border-border-subtle bg-surface-dark text-primary-300">
+              <div className="chip-gradient-soft flex h-9 w-9 items-center justify-center rounded-xl text-primary-300">
                 <Icon icon={clipboardListIcon} className="h-4.5 w-4.5" />
               </div>
               <div>
@@ -509,7 +509,7 @@ function FormStateView({
                 </p>
               </div>
             </div>
-            <span className="hidden items-center gap-1.5 rounded-full border border-border-subtle bg-surface-dark px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-fg-muted sm:inline-flex">
+            <span className="hidden items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-fg-muted sm:inline-flex">
               <span className="h-1.5 w-1.5 rounded-full bg-primary-400" />
               Filling
             </span>
@@ -540,7 +540,7 @@ function FormStateView({
             ))}
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-b-2xl border-t border-border-subtle bg-surface-dark/40 px-6 py-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-b-2xl border-t border-white/[0.06] bg-black/20 px-6 py-4">
             <p className="flex items-center gap-2 text-xs text-fg-dim">
               <Icon icon={shieldCheckIcon} className="h-3.5 w-3.5" />
               提交后进入待审核状态，可在结果页查看进度
@@ -548,7 +548,7 @@ function FormStateView({
             <button
               type="submit"
               disabled={submitting}
-              className="group inline-flex items-center gap-2 rounded-lg bg-primary-500 px-5 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary-500/20 transition-all hover:bg-primary-600 hover:shadow-primary-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+              className="btn-gradient group inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
             >
               {submitting ? (
                 <>
@@ -607,9 +607,9 @@ function FormStateView({
           <p className="mt-1 text-xs text-fg-dim">达到上限后将停止接收新报名</p>
         </SidebarCard>
 
-        <div className="rounded-2xl border border-border-subtle bg-surface-card p-5">
+        <div className="glass-panel rounded-2xl p-5">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-subtle bg-surface-dark text-accent-gold">
+            <div className="chip-gradient-soft flex h-8 w-8 items-center justify-center rounded-xl text-accent-gold">
               <Icon icon={infoIcon} className="h-4 w-4" />
             </div>
             <h3 className="text-sm font-semibold text-fg-primary">填写提醒</h3>
@@ -635,7 +635,7 @@ function FormCoverCard({
 }) {
   if (form.coverImageUrl) {
     return (
-      <section className="overflow-hidden rounded-2xl border border-border-subtle bg-surface-card">
+      <section className="glass-panel overflow-hidden rounded-2xl">
         <div className="relative">
           <img
             src={form.coverImageUrl}
@@ -652,7 +652,7 @@ function FormCoverCard({
             </h2>
           </div>
         </div>
-        <div className="border-t border-border-subtle px-5 py-4 sm:px-6 sm:py-5">
+        <div className="border-t border-white/[0.06] px-5 py-4 sm:px-6 sm:py-5">
           <p className="text-sm leading-6 text-fg-muted sm:leading-7">
             {form.description?.trim() || "请按要求填写纳新报名信息。"}
           </p>
@@ -662,7 +662,7 @@ function FormCoverCard({
   }
 
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-border-subtle bg-surface-card">
+    <section className="glass-panel relative overflow-hidden rounded-2xl">
       <div
         aria-hidden
         className="bg-registrations-cover-glow pointer-events-none absolute inset-0"
@@ -701,10 +701,10 @@ function SidebarCard({
   } as const;
 
   return (
-    <div className="rounded-2xl border border-border-subtle bg-surface-card p-5">
+    <div className="glass-panel rounded-2xl p-5">
       <div className="flex items-center gap-2.5">
         <div
-          className={`flex h-8 w-8 items-center justify-center rounded-lg border ${accentMap[accent]}`}
+          className={`flex h-8 w-8 items-center justify-center rounded-xl border ${accentMap[accent]}`}
         >
           <Icon icon={icon} className="h-4 w-4" />
         </div>
@@ -743,7 +743,7 @@ function FieldRow({
   return (
     <div className="space-y-2.5">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-surface-dark text-[11px] font-mono text-fg-dim ring-1 ring-inset ring-border-subtle">
+        <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-white/[0.03] text-[11px] font-mono text-fg-dim ring-1 ring-inset ring-white/[0.08]">
           {index}
         </span>
         <label
@@ -753,7 +753,7 @@ function FieldRow({
           {field.label}
         </label>
         {field.required ? (
-          <span className="inline-flex items-center rounded-md border border-rose-500/30 bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-medium text-rose-200">
+          <span className="inline-flex items-center rounded-md border border-rose-400/20 bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-medium text-rose-300">
             必填
           </span>
         ) : (
@@ -831,14 +831,14 @@ function CancelConfirmModal({
       }}
     >
       <div
-        className={`w-full max-w-md transform-gpu overflow-hidden rounded-2xl border border-rose-500/20 bg-surface-card shadow-2xl shadow-black/50 ring-1 ring-white/5 transition-[opacity,transform,filter] duration-[220ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${panelClass}`}
+        className={`glass-panel glass-panel-strong w-full max-w-md transform-gpu overflow-hidden rounded-2xl shadow-2xl shadow-black/50 transition-[opacity,transform,filter] duration-[220ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${panelClass}`}
         onClick={(event) => event.stopPropagation()}
       >
         <div
           aria-hidden
           className="bg-registrations-modal-glow pointer-events-none absolute inset-0"
         />
-        <div className="relative flex items-start justify-between gap-4 border-b border-border-subtle px-6 py-5">
+        <div className="relative flex items-start justify-between gap-4 border-b border-white/[0.06] px-6 py-5">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/20">
               <Icon icon={alertTriangle} className="h-5 w-5" />
@@ -859,7 +859,7 @@ function CancelConfirmModal({
             disabled={cancelling}
             title="关闭"
             aria-label="关闭"
-            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-lg text-fg-dim transition hover:bg-white/5 hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-xl text-fg-dim transition hover:bg-white/5 hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Icon icon={x} className="h-4 w-4" />
           </button>
@@ -883,12 +883,12 @@ function CancelConfirmModal({
           </ul>
         </div>
 
-        <div className="relative flex items-center justify-end gap-3 border-t border-border-subtle bg-surface-dark/40 px-6 py-4">
+        <div className="relative flex items-center justify-end gap-3 border-t border-white/[0.06] bg-black/20 px-6 py-4">
           <button
             type="button"
             onClick={onClose}
             disabled={cancelling}
-            className="cursor-pointer rounded-lg border border-border-subtle bg-surface-dark px-4 py-2.5 text-sm font-medium text-fg-muted transition-colors hover:bg-white/5 hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-50"
+            className="btn-glass cursor-pointer rounded-xl px-4 py-2.5 text-sm font-medium"
           >
             保留报名
           </button>
@@ -896,7 +896,7 @@ function CancelConfirmModal({
             type="button"
             onClick={onConfirm}
             disabled={cancelling}
-            className="inline-flex cursor-pointer items-center gap-2 rounded-lg bg-rose-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-rose-600/20 transition-colors hover:bg-rose-500 disabled:cursor-not-allowed disabled:opacity-60"
+            className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-sm font-semibold text-rose-300 transition-colors hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
           >
             {cancelling ? (
               <>
@@ -938,7 +938,7 @@ function SubmittedStateCard({
   return (
     <section className="space-y-6">
       <div
-        className={`relative overflow-hidden rounded-2xl border border-border-subtle bg-surface-card ring-1 ring-inset ${status.ringClassName}`}
+        className={`glass-panel relative overflow-hidden rounded-2xl ring-1 ring-inset ${status.ringClassName}`}
       >
         <div
           aria-hidden
@@ -946,7 +946,7 @@ function SubmittedStateCard({
         />
         <div className="relative flex flex-col gap-4 px-5 py-5 sm:gap-6 sm:px-8 sm:py-8 lg:flex-row lg:items-start lg:justify-between">
           <div className="flex items-start gap-3 sm:gap-4">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-500/20 bg-emerald-500/10 text-emerald-200 sm:h-12 sm:w-12">
+            <div className="chip-gradient-soft flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-emerald-200 sm:h-12 sm:w-12">
               <Icon icon={badgeCheckIcon} className="h-5 w-5 sm:h-6 sm:w-6" />
             </div>
             <div>
@@ -972,7 +972,7 @@ function SubmittedStateCard({
           </span>
         </div>
 
-        <div className="relative grid grid-cols-2 gap-3 border-t border-border-subtle bg-surface-dark/30 px-5 py-4 sm:px-8 sm:py-5 lg:grid-cols-4">
+        <div className="relative grid grid-cols-2 gap-3 border-t border-white/[0.06] bg-black/20 px-5 py-4 sm:px-8 sm:py-5 lg:grid-cols-4">
           <StatTile
             icon={clipboardListIcon}
             label="当前进度"
@@ -999,9 +999,9 @@ function SubmittedStateCard({
           />
         </div>
 
-        <div className="relative border-t border-border-subtle px-5 py-5 sm:px-8">
+        <div className="relative border-t border-white/[0.06] px-5 py-5 sm:px-8">
           <div className="flex items-center gap-2.5">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg border border-border-subtle bg-surface-dark text-primary-300">
+            <div className="chip-gradient-soft flex h-8 w-8 items-center justify-center rounded-xl text-primary-300">
               <Icon icon={shieldCheckIcon} className="h-4 w-4" />
             </div>
             <div>
@@ -1027,7 +1027,7 @@ function SubmittedStateCard({
         </div>
 
         {canCancel ? (
-          <div className="relative flex flex-wrap items-center justify-between gap-3 border-t border-border-subtle px-6 py-4 sm:px-8">
+          <div className="relative flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] px-6 py-4 sm:px-8">
             <p className="flex items-center gap-2 text-xs text-fg-dim">
               <Icon icon={infoIcon} className="h-3.5 w-3.5" />
               如需修改内容，请先取消当前报名，再重新编辑提交
@@ -1036,7 +1036,7 @@ function SubmittedStateCard({
               type="button"
               onClick={onCancel}
               disabled={cancelling}
-              className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-sm font-medium text-rose-100 transition-colors hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-sm font-medium text-rose-300 transition-colors hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {cancelling ? (
                 <>
@@ -1070,7 +1070,7 @@ function GroupReviewCard({
   const groupName = group?.name?.trim() || "未识别组别";
 
   return (
-    <div className="rounded-xl border border-border-subtle bg-surface-dark/50 p-4">
+    <div className="rounded-xl border border-white/[0.06] bg-black/20 p-4">
       <div className="flex items-center justify-between gap-3">
         <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-fg-dim">
           {slotLabel}
@@ -1100,7 +1100,7 @@ function StatTile({
   value: string;
 }) {
   return (
-    <div className="rounded-xl border border-border-subtle bg-surface-card/80 p-4">
+    <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
       <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-fg-dim">
         <Icon icon={icon} className="h-3.5 w-3.5" />
         {label}
@@ -1117,7 +1117,7 @@ function UnavailableStateCard({ reason }: { reason: string }) {
 
   if (isQuotaReached) {
     return (
-      <section className="relative overflow-hidden rounded-2xl border border-amber-500/20 bg-surface-card px-6 py-14 sm:px-10 sm:py-16">
+      <section className="glass-panel relative overflow-hidden rounded-2xl px-6 py-14 ring-1 ring-inset ring-amber-500/20 sm:px-10 sm:py-16">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.18),transparent_55%)]"
@@ -1152,13 +1152,13 @@ function UnavailableStateCard({ reason }: { reason: string }) {
   }
 
   return (
-    <section className="relative overflow-hidden rounded-2xl border border-border-subtle bg-surface-card px-6 py-12 text-center sm:px-10 sm:py-14">
+    <section className="glass-panel relative overflow-hidden rounded-2xl px-6 py-12 text-center sm:px-10 sm:py-14">
       <div
         aria-hidden
         className="bg-registrations-empty-glow pointer-events-none absolute inset-0 opacity-60"
       />
       <div className="relative mx-auto flex max-w-xl flex-col items-center">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-border-subtle bg-surface-dark text-fg-muted">
+        <div className="chip-gradient-soft flex h-14 w-14 items-center justify-center rounded-2xl text-fg-muted">
           <Icon icon={circleSlashIcon} className="h-7 w-7" />
         </div>
         <p className="mt-5 text-[11px] font-medium uppercase tracking-[0.28em] text-fg-dim">
@@ -1168,7 +1168,7 @@ function UnavailableStateCard({ reason }: { reason: string }) {
           当前暂不可报名
         </h2>
         <p className="mt-3 text-sm leading-7 text-fg-muted">{reason}</p>
-        <div className="mt-6 flex items-center gap-2 rounded-full border border-border-subtle bg-surface-dark px-3.5 py-1.5 text-xs text-fg-muted">
+        <div className="mt-6 flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.03] px-3.5 py-1.5 text-xs text-fg-muted">
           <Icon icon={clockIcon} className="h-3.5 w-3.5" />
           请留意站内通知，开放后将在此处更新
         </div>
@@ -1190,7 +1190,7 @@ function ExistingUploadState({
   }
 
   return (
-    <div className="rounded-xl border border-border-subtle bg-surface-dark/60 px-4 py-3 text-sm text-fg-muted">
+    <div className="rounded-xl border border-white/[0.06] bg-black/20 px-4 py-3 text-sm text-fg-muted">
       <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-fg-dim">
         <Icon icon={paperclipIcon} className="h-3.5 w-3.5" />
         当前已上传
@@ -1199,7 +1199,7 @@ function ExistingUploadState({
         {files.map((file, index) => (
           <div
             key={`${field.key}-${file.fileName}-${index}`}
-            className="flex items-center justify-between gap-3 rounded-lg border border-border-subtle bg-surface-card px-3 py-2"
+            className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2"
           >
             <div className="flex min-w-0 items-center gap-2">
               <Icon icon={fileTextIcon} className="h-4 w-4 shrink-0 text-primary-300" />
@@ -1225,7 +1225,7 @@ function renderFieldControl(
   onChange: (key: string, value: unknown) => void,
 ) {
   const commonClassName =
-    "w-full rounded-lg border border-border-subtle bg-surface-dark px-3.5 py-2.5 text-sm text-fg-primary placeholder:text-fg-dim transition-colors focus:border-primary-500 focus:bg-surface-card focus:outline-none focus:ring-2 focus:ring-primary-500/20";
+    "w-full rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-fg-primary placeholder:text-fg-dim transition-colors focus:border-primary-400/60 focus:outline-none focus:ring-2 focus:ring-primary-400/30";
 
   if (field.type === "textarea") {
     return (
@@ -1267,17 +1267,17 @@ function renderFieldControl(
             return (
               <label
                 key={option.value}
-                className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3.5 py-2 text-sm transition-colors ${
+                className={`inline-flex cursor-pointer items-center gap-2 rounded-xl border px-3.5 py-2 text-sm transition-colors ${
                   checked
                     ? "border-primary-500/50 bg-primary-500/10 text-primary-100"
-                    : "border-border-subtle bg-surface-dark text-fg-muted hover:border-border-subtle/80 hover:bg-surface-card hover:text-fg-primary"
+                    : "border-white/[0.08] bg-black/20 text-fg-muted hover:border-white/[0.1] hover:bg-white/[0.03] hover:text-fg-primary"
                 }`}
               >
                 <span
                   className={`flex h-4 w-4 items-center justify-center rounded-full border ${
                     checked
                       ? "border-primary-400 bg-primary-500"
-                      : "border-fg-dim bg-surface-card"
+                      : "border-fg-dim bg-black/20"
                   }`}
                 >
                   {checked ? (
@@ -1310,17 +1310,17 @@ function renderFieldControl(
           return (
             <label
               key={option.value}
-              className={`inline-flex cursor-pointer items-center gap-2 rounded-lg border px-3.5 py-2 text-sm transition-colors ${
+              className={`inline-flex cursor-pointer items-center gap-2 rounded-xl border px-3.5 py-2 text-sm transition-colors ${
                 checked
                   ? "border-primary-500/50 bg-primary-500/10 text-primary-100"
-                  : "border-border-subtle bg-surface-dark text-fg-muted hover:border-border-subtle/80 hover:bg-surface-card hover:text-fg-primary"
+                  : "border-white/[0.08] bg-black/20 text-fg-muted hover:border-white/[0.1] hover:bg-white/[0.03] hover:text-fg-primary"
               }`}
             >
               <span
                 className={`flex h-4 w-4 items-center justify-center rounded border ${
                   checked
                     ? "border-primary-400 bg-primary-500 text-white"
-                    : "border-fg-dim bg-surface-card"
+                    : "border-fg-dim bg-black/20"
                 }`}
               >
                 {checked ? <Icon icon={checkIcon} className="h-3 w-3" /> : null}
@@ -1353,9 +1353,9 @@ function renderFieldControl(
     return (
       <label
         htmlFor={fieldId}
-        className="group flex cursor-pointer items-center gap-3 rounded-lg border border-dashed border-border-subtle bg-surface-dark px-4 py-3 text-sm text-fg-muted transition-colors hover:border-primary-500/40 hover:bg-surface-card hover:text-fg-primary"
+        className="group flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-white/[0.08] bg-black/20 px-4 py-3 text-sm text-fg-muted transition-colors hover:border-primary-500/40 hover:bg-white/[0.03] hover:text-fg-primary"
       >
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-border-subtle bg-surface-card text-primary-300 transition-colors group-hover:border-primary-500/30 group-hover:bg-primary-500/10">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.03] text-primary-300 transition-colors group-hover:border-primary-500/30 group-hover:bg-primary-500/10">
           <Icon icon={uploadCloudIcon} className="h-4.5 w-4.5" />
         </div>
         <div className="min-w-0 flex-1">

@@ -14,7 +14,8 @@ Round 1：
 可访问角色：["超级管理员","普通管理员"]
 说明：
 1. 页面路由统一为 `/dashboard/admin`
-2. 当前阶段仅保留静态 demo，不对接真实统计接口
+2. 主页内容与真实统计按 `doc/schema/task/portal-home.md` 的阶段计划实施
+3. 每次请求都从数据库重新聚合统计和最近动态，并返回 `Cache-Control: no-store`，避免客户端展示缓存数据
 
 ### 用户数据页
 可访问角色：["超级管理员","普通管理员"]
@@ -66,6 +67,8 @@ Round 2：
 2. 完成本次更改后所有新产生的API都记录在API文档中
 
 ## 用户工作台
+主页公告、日程与快捷链接的后端化规则统一记录在 `doc/schema/task/portal-home.md`。
+
 Round 1：
 1. 用户工作台相关UI统一挂在 `app\routes\dashboard` 与 `app\routes\users` 下
 2. 登录注册完成后默认先进入 `/dashboard`，再由前端根路由重定向到 `/dashboard/users`

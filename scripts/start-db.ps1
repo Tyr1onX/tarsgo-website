@@ -52,6 +52,15 @@ if (-not $hostPort) {
 }
 
 $env:MYSQL_HOST_PORT = $hostPort
+$dbName = Get-EnvValueFromFile -Path $backendEnvFile -Name "DB_NAME"
+if (-not $dbName) { $dbName = Get-EnvValueFromFile -Path $backendEnvExampleFile -Name "DB_NAME" }
+$dbUser = Get-EnvValueFromFile -Path $backendEnvFile -Name "DB_USER"
+if (-not $dbUser) { $dbUser = Get-EnvValueFromFile -Path $backendEnvExampleFile -Name "DB_USER" }
+$dbPassword = Get-EnvValueFromFile -Path $backendEnvFile -Name "DB_PASSWORD"
+if (-not $dbPassword) { $dbPassword = Get-EnvValueFromFile -Path $backendEnvExampleFile -Name "DB_PASSWORD" }
+if ($dbName) { $env:MARIADB_DATABASE = $dbName }
+if ($dbUser) { $env:MARIADB_USER = $dbUser }
+if ($dbPassword) { $env:MARIADB_PASSWORD = $dbPassword }
 
 Write-Host "Starting MySQL with $composeFile"
 docker compose -f $composeFile up -d

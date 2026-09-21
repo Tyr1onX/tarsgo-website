@@ -11,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"tarsgo-backend/middleware"
+	"tarsgo-backend/model"
 	"tarsgo-backend/service/usergroup"
 )
 
@@ -231,6 +232,7 @@ func (h *UserGroupHandler) AddMember(c *gin.Context) {
 		h.handleServiceError(c, serviceErr)
 		return
 	}
+	_ = middleware.RecordBusinessActivity(c, middleware.ActivityInput{ActionKey: model.ActivityGroupMemberAdded, TargetUserID: &member.UserID, EntityType: "group_member", EntityID: member.ID, GroupID: &groupID})
 
 	writeAPI(c, http.StatusOK, "添加成员成功", member)
 }
@@ -264,6 +266,7 @@ func (h *UserGroupHandler) UpdateMember(c *gin.Context) {
 		h.handleServiceError(c, serviceErr)
 		return
 	}
+	_ = middleware.RecordBusinessActivity(c, middleware.ActivityInput{ActionKey: model.ActivityGroupMemberRoleChanged, TargetUserID: &member.UserID, EntityType: "group_member", EntityID: member.ID, GroupID: &groupID, Metadata: map[string]any{"memberRole": int(request.Role)}})
 
 	writeAPI(c, http.StatusOK, "更新成员角色成功", member)
 }
@@ -280,10 +283,21 @@ func (h *UserGroupHandler) RemoveMember(c *gin.Context) {
 		return
 	}
 
+	var targetUserID *uint64
+	if group, loadErr := h.service.GetGroup(c.Request.Context(), currentGroupActor(c), groupID); loadErr == nil {
+		for _, member := range group.Members {
+			if member.ID == memberID {
+				value := member.UserID
+				targetUserID = &value
+				break
+			}
+		}
+	}
 	if err := h.service.RemoveMember(c.Request.Context(), currentGroupActor(c), groupID, memberID); err != nil {
 		h.handleServiceError(c, err)
 		return
 	}
+	_ = middleware.RecordBusinessActivity(c, middleware.ActivityInput{ActionKey: model.ActivityGroupMemberRemoved, TargetUserID: targetUserID, EntityType: "group_member", EntityID: memberID, GroupID: &groupID})
 
 	writeAPI(c, http.StatusOK, "移除成员成功", nil)
 }

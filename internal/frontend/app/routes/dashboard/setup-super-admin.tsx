@@ -105,7 +105,7 @@ export default function SetupSuperAdmin() {
 
         <div className="relative">
           <div className="pointer-events-none absolute -inset-px rounded-[1.05rem] bg-gradient-to-br from-primary-500/25 via-primary-500/5 to-transparent opacity-60 blur-sm" />
-        <div className={`relative rounded-2xl border border-gray-800/80 bg-gradient-to-b from-gray-900 to-gray-900/95 px-8 py-9 shadow-2xl shadow-black/40 animate-auth-card ${success ? "animate-auth-success-card" : ""}`}>
+        <div className={`relative glass-panel rounded-2xl px-8 py-9 shadow-2xl shadow-black/40 animate-auth-card ${success ? "animate-auth-success-card" : ""}`}>
           <div className="relative mb-7 text-center">
             <div className="relative mx-auto mb-5 h-14 w-14">
               <div className={`absolute inset-0 rounded-2xl blur-xl transition-all duration-500 ${success ? "bg-emerald-500/40" : "bg-primary-500/35"}`} />
@@ -132,7 +132,7 @@ export default function SetupSuperAdmin() {
             <div className="pointer-events-none absolute -inset-x-20 -top-10 h-24 rotate-12 bg-gradient-to-r from-transparent via-primary-400/10 to-transparent blur-2xl" />
             <div className="relative rounded-[11px] bg-gray-900/60 px-4 py-3.5 backdrop-blur-sm">
               <div className="flex items-start gap-3">
-                <div className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg bg-primary-500/15 ring-1 ring-primary-500/30">
+                <div className="chip-gradient-soft flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl">
                   <svg className="h-4 w-4 text-primary-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
@@ -172,7 +172,7 @@ export default function SetupSuperAdmin() {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="root@example.com"
-                  className="w-full rounded-lg border border-gray-700 bg-gray-800/70 pl-10 pr-4 py-3 text-white placeholder-gray-500 transition-all hover:border-gray-600 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full rounded-xl border border-white/[0.08] bg-black/30 pl-10 pr-4 py-3 text-white placeholder-gray-500 transition-all hover:border-white/[0.1] focus:border-primary-400/60 focus:outline-none focus:ring-2 focus:ring-primary-400/30"
                 />
               </div>
             </div>
@@ -195,7 +195,7 @@ export default function SetupSuperAdmin() {
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   placeholder="至少 6 位"
-                  className="w-full rounded-lg border border-gray-700 bg-gray-800/70 pl-10 pr-11 py-3 text-white placeholder-gray-500 transition-all hover:border-gray-600 focus:border-transparent focus:outline-none focus:ring-2 focus:ring-primary-500"
+                  className="w-full rounded-xl border border-white/[0.08] bg-black/30 pl-10 pr-11 py-3 text-white placeholder-gray-500 transition-all hover:border-white/[0.1] focus:border-primary-400/60 focus:outline-none focus:ring-2 focus:ring-primary-400/30"
                 />
                 <button
                   type="button"
@@ -253,12 +253,12 @@ export default function SetupSuperAdmin() {
                   value={confirmPassword}
                   onChange={(event) => setConfirmPassword(event.target.value)}
                   placeholder="再次输入密码"
-                  className={`w-full rounded-lg border bg-gray-800/70 pl-10 pr-11 py-3 text-white placeholder-gray-500 transition-all focus:border-transparent focus:outline-none focus:ring-2 ${
+                  className={`w-full rounded-xl border bg-black/30 pl-10 pr-11 py-3 text-white placeholder-gray-500 transition-all focus:border-transparent focus:outline-none focus:ring-2 ${
                     passwordsMismatch
                       ? "border-rose-500/50 focus:ring-rose-500"
                       : passwordsMatch
                       ? "border-emerald-500/40 focus:ring-emerald-500"
-                      : "border-gray-700 hover:border-gray-600 focus:ring-primary-500"
+                      : "border-white/[0.08] hover:border-white/[0.1] focus:ring-primary-400/30"
                   }`}
                 />
                 <button
@@ -298,7 +298,7 @@ export default function SetupSuperAdmin() {
             </div>
 
             {errorMessage ? (
-              <div className="animate-auth-fade-in rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+              <div className="animate-auth-fade-in rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
                 {errorMessage}
               </div>
             ) : null}
@@ -306,10 +306,10 @@ export default function SetupSuperAdmin() {
             <button
               type="submit"
               disabled={submitting || success}
-              className={`w-full rounded-lg py-3 font-medium transition-all duration-300 disabled:cursor-not-allowed ${
+              className={`w-full rounded-xl py-3 font-medium transition-all duration-300 disabled:cursor-not-allowed ${
                 success
                   ? "scale-[1.02] bg-emerald-500 text-white"
-                  : "bg-primary-500 text-white hover:bg-primary-600 disabled:bg-primary-500/60"
+                  : "btn-gradient text-white"
               }`}
             >
               {success ? (

@@ -25,6 +25,8 @@ export async function apiRequest<T>(
   options: {
     method?: string;
     body?: ApiRequestBody;
+    cache?: RequestCache;
+    signal?: AbortSignal;
   } = {},
 ): Promise<T> {
   const bodySource = options.body ?? null;
@@ -44,6 +46,8 @@ export async function apiRequest<T>(
       ...(!isFormData && hasBody && !isNativeRequestBody(bodySource) ? { "Content-Type": "application/json" } : {}),
     },
     body: requestBody,
+    cache: options.cache,
+    signal: options.signal,
   });
 
   let payload: ApiEnvelope<T> | null = null;

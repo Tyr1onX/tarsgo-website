@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 
 	"tarsgo-backend/config"
@@ -26,8 +27,8 @@ func main() {
 	}
 	defer sqlDB.Close()
 
-	if err := database.AutoMigrate(db, cfg.App.Env); err != nil {
-		log.Fatalf("auto migrate: %v", err)
+	if err := database.RunMigrations(context.Background(), db, cfg.App.Env); err != nil {
+		log.Fatalf("database migrations: %v", err)
 	}
 
 	runtimeStore, err := runtimeconfig.NewStore(db, cfg)
