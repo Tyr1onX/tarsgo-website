@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, redirect, useLocation, useNavigate } from "react
 
 import type { Route } from "./+types/layout";
 import { ApiError } from "~/lib/api-client";
-import { getAuthUserRoleLabel, getBootstrapStatus, getCurrentUser, logout, type AuthUser } from "~/lib/auth-client";
+import { getAuthUserRoleLabel, getBootstrapStatus, getCachedCurrentUser, getCurrentUser, logout, type AuthUser } from "~/lib/auth-client";
 import {
   canAccessDashboardAdminPath,
   getUserDashboardMenu,
@@ -43,31 +43,34 @@ function getIsDesktopDashboardViewport() {
 
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const currentPath = new URL(request.url);
+  let currentUser = getCachedCurrentUser();
 
-  const bootstrapStatus = await getBootstrapStatus();
-  if (bootstrapStatus.setupRequired) {
-    throw redirect(SUPER_ADMIN_SETUP_PATH);
-  }
-
-  try {
-    const currentUser = await getCurrentUser({ force: true });
-    const pathname = currentPath.pathname;
-
-    if (
-      pathname.startsWith("/dashboard/admin") &&
-      !canAccessDashboardAdminPath(currentUser, pathname)
-    ) {
-      throw redirect("/dashboard/users");
+  if (!currentUser) {
+    const bootstrapStatus = await getBootstrapStatus();
+    if (bootstrapStatus.setupRequired) {
+      throw redirect(SUPER_ADMIN_SETUP_PATH);
     }
 
-    return { currentUser };
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 401) {
-      const redirectTarget = `${currentPath.pathname}${currentPath.search}`;
-      throw redirect(`/login?redirect=${encodeURIComponent(redirectTarget)}`);
+    try {
+      currentUser = await getCurrentUser();
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) {
+        const redirectTarget = `${currentPath.pathname}${currentPath.search}`;
+        throw redirect(`/login?redirect=${encodeURIComponent(redirectTarget)}`);
+      }
+      throw error;
     }
-    throw error;
   }
+
+  const pathname = currentPath.pathname;
+  if (
+    pathname.startsWith("/dashboard/admin") &&
+    !canAccessDashboardAdminPath(currentUser, pathname)
+  ) {
+    throw redirect("/dashboard/users");
+  }
+
+  return { currentUser };
 }
 
 clientLoader.hydrate = true;
@@ -299,13 +302,11 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
       [
         {
           opacity: 0,
-          transform: "translateY(18px) scale(0.985)",
-          filter: "blur(8px)",
+          transform: "translateY(10px)",
         },
         {
           opacity: 1,
-          transform: "translateY(0) scale(1)",
-          filter: "blur(0)",
+          transform: "translateY(0)",
         },
       ],
       {
@@ -415,13 +416,13 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
     <div className="dash-bg dash-bg-noise min-h-screen text-white">
       {sidebarOpen ? (
         <div
-          className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm lg:hidden"
+          className="fixed inset-0 z-40 bg-black/70 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       ) : null}
 
       <aside
-        className={`group/sidebar glass-panel glass-panel-strong fixed top-0 left-0 z-50 flex h-full flex-col border-y-0 border-l-0 transition-transform lg:translate-x-0 ${
+        className={`group/sidebar fixed top-0 left-0 z-50 flex h-full flex-col border-r border-white/[0.08] bg-[rgba(17,20,31,0.96)] shadow-2xl shadow-black/30 transition-transform lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
         style={{ width: sidebarWidth }}
@@ -559,7 +560,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
       </aside>
 
       <div className="relative z-10" style={isDesktopViewport ? { paddingLeft: sidebarWidth } : undefined}>
-        <header className="glass-panel sticky top-0 z-30 flex items-center gap-4 h-16 px-4 sm:px-6 border-x-0 border-t-0">
+        <header className="sticky top-0 z-30 flex items-center gap-4 h-16 px-4 sm:px-6 border-b border-white/[0.08] bg-[rgba(17,20,31,0.94)] shadow-lg shadow-black/20">
           <button
             type="button"
             className="lg:hidden p-2 -ml-2 text-gray-400 hover:text-white"
@@ -585,7 +586,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
         <main className="p-4 sm:p-6 lg:p-8">
           <div
             ref={contentPanelRef}
-            className="relative will-change-transform"
+            className="relative"
             style={{ viewTransitionName: "dashboard-content" }}
           >
             <Outlet context={{ currentUser } satisfies DashboardLayoutOutletContext} />

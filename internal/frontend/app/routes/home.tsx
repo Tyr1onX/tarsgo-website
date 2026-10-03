@@ -683,7 +683,7 @@ export default function Home() {
       }
     });
 
-    void getOptionalCurrentUser({ force: true })
+    void getOptionalCurrentUser()
       .then((user) => {
         if (!disposed) {
           setCurrentUser(user);
@@ -820,9 +820,6 @@ export default function Home() {
       >
         <div className="bg-obsidian-base absolute inset-0" />
         <div className="bg-obsidian-grid absolute inset-[-15%]" />
-        <div className="bg-obsidian-glow absolute -left-[12%] top-[8%] h-[42vw] w-[42vw]" />
-        <div className="bg-obsidian-glow bg-obsidian-glow-secondary absolute right-[-10%] top-[32%] h-[46vw] w-[46vw]" />
-        <div className="bg-obsidian-glow bg-obsidian-glow-tertiary absolute left-[18%] bottom-[-18%] h-[38vw] w-[38vw]" />
       </div>
 
       <div className="relative z-10">

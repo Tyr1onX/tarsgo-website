@@ -1,7 +1,5 @@
-import { type FormEvent, type MouseEvent, useEffect, useMemo, useState } from "react";
-import { Link, redirect, useNavigate, useSearchParams } from "react-router";
-
-import type { Route } from "./+types/login";
+import { type FormEvent, useEffect, useMemo, useState } from "react";
+import { Link, useNavigate, useSearchParams } from "react-router";
 
 import {
   ApiError,
@@ -34,36 +32,17 @@ export function meta() {
   ];
 }
 
-export async function clientLoader(_: Route.ClientLoaderArgs) {
-  const bootstrapStatus = await getBootstrapStatus();
-  if (bootstrapStatus.setupRequired) {
-    throw redirect("/dashboard/setup/super-admin");
-  }
-
-  const currentUser = await getOptionalCurrentUser({ force: true });
-  if (currentUser) {
-    throw redirect("/dashboard");
-  }
-
-  const providers = await getOAuthLoginProviders();
-  return { providers };
-}
-
-clientLoader.hydrate = true;
-
-export default function Login({ loaderData }: Route.ComponentProps) {
+export default function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { providers } = loaderData;
   const [mode, setMode] = useState<LoginMode>("password");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [providers, setProviders] = useState<OAuthLoginProvider[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [sendingCode, setSendingCode] = useState(false);
-  const [leaving, setLeaving] = useState(false);
-  const [success, setSuccess] = useState(false);
   const cooldown = useCooldown();
 
   const oauthError = useMemo(() => {
@@ -81,13 +60,44 @@ export default function Login({ loaderData }: Route.ComponentProps) {
     }
   }, [oauthError]);
 
-  const canSendCode = isValidEmail(email) && !cooldown.isCoolingDown && !sendingCode;
+  useEffect(() => {
+    let disposed = false;
 
-  function handleBackToHome(e: MouseEvent) {
-    e.preventDefault();
-    setLeaving(true);
-    setTimeout(() => navigate("/"), 350);
-  }
+    void Promise.all([getBootstrapStatus(), getOptionalCurrentUser()])
+      .then(([bootstrapStatus, currentUser]) => {
+        if (disposed) {
+          return;
+        }
+        if (bootstrapStatus.setupRequired) {
+          navigate("/dashboard/setup/super-admin", { replace: true });
+          return;
+        }
+        if (currentUser) {
+          navigate("/dashboard", { replace: true });
+        }
+      })
+      .catch((error) => {
+        if (!disposed) {
+          setErrorMessage(getErrorMessage(error));
+        }
+      });
+
+    void getOAuthLoginProviders()
+      .then((items) => {
+        if (!disposed) {
+          setProviders(items);
+        }
+      })
+      .catch(() => {
+        // OAuth is optional; password/code login stays usable if provider discovery fails.
+      });
+
+    return () => {
+      disposed = true;
+    };
+  }, [navigate]);
+
+  const canSendCode = isValidEmail(email) && !cooldown.isCoolingDown && !sendingCode;
 
   async function handleSendCode() {
     if (!isValidEmail(email)) {
@@ -125,9 +135,7 @@ export default function Login({ loaderData }: Route.ComponentProps) {
         await loginWithCode({ email, code });
       }
 
-      setSubmitting(false);
-      setSuccess(true);
-      setTimeout(() => navigate(redirectTo, { replace: true }), 900);
+      navigate(redirectTo, { replace: true });
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
       setSubmitting(false);
@@ -135,16 +143,15 @@ export default function Login({ loaderData }: Route.ComponentProps) {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4 py-10">
-      <div className={`absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] h-[420px] bg-primary-500/8 rounded-full blur-[110px] ${success ? "animate-auth-success-glow" : leaving ? "animate-auth-exit-glow" : "animate-auth-glow"}`} />
-      {success && (
-        <div className="fixed inset-0 bg-gray-950/80 animate-auth-success-overlay z-40" />
-      )}
+    <div className="relative min-h-screen overflow-hidden bg-gray-950 flex items-center justify-center px-4 py-10">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(0,98,255,0.10),transparent_36%)]"
+      />
 
-      <div className={`relative w-full max-w-md ${success ? "z-50" : ""} ${leaving ? "animate-auth-exit" : ""}`}>
+      <div className="relative w-full max-w-md">
         <Link
           to="/"
-          onClick={handleBackToHome}
           className="group inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors mb-8 animate-auth-back-link"
         >
           <svg
@@ -163,25 +170,14 @@ export default function Login({ loaderData }: Route.ComponentProps) {
           返回首页
         </Link>
 
-        <div className={`p-8 rounded-2xl bg-gray-900 border border-gray-800 shadow-2xl shadow-black/20 animate-auth-card ${success ? "animate-auth-success-card" : ""}`}>
+        <div className="p-8 rounded-2xl bg-gray-900 border border-gray-800 shadow-2xl shadow-black/20 animate-auth-card">
           <div className="text-center mb-8 relative">
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-4 transition-all duration-300 ${success ? "bg-emerald-500 scale-110" : "bg-primary-500"}`}>
-              {success ? (
-                <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-                  <path className="auth-success-check" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              ) : (
-                <span className="text-white font-bold text-lg">T</span>
-              )}
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-4 bg-primary-500">
+              <span className="text-white font-bold text-lg">T</span>
             </div>
-            {success && (
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-16 h-16 rounded-xl border-2 border-emerald-400/50 animate-auth-success-ring" />
-            )}
-            <h1 className="text-2xl font-bold text-white mb-2">
-              {success ? "登录成功" : "欢迎回来"}
-            </h1>
+            <h1 className="text-2xl font-bold text-white mb-2">欢迎回来</h1>
             <p className="text-sm text-gray-400">
-              {success ? "正在进入工作台..." : "登录你的 TARS-GO 统一工作台账号"}
+              登录你的 TARS-GO 统一工作台账号
             </p>
           </div>
 
@@ -295,21 +291,10 @@ export default function Login({ loaderData }: Route.ComponentProps) {
 
             <button
               type="submit"
-              disabled={submitting || success}
-              className={`w-full py-3 font-medium rounded-lg transition-all duration-300 disabled:cursor-not-allowed ${
-                success
-                  ? "bg-emerald-500 text-white scale-[1.02]"
-                  : "bg-primary-500 hover:bg-primary-600 disabled:bg-primary-500/60 text-white"
-              }`}
+              disabled={submitting}
+              className="w-full py-3 font-medium rounded-lg transition-colors disabled:cursor-not-allowed bg-primary-500 hover:bg-primary-600 disabled:bg-primary-500/60 text-white"
             >
-              {success ? (
-                <span className="inline-flex items-center gap-2">
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-                    <path className="auth-success-check" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                  登录成功
-                </span>
-              ) : submitting ? "登录中..." : "登录"}
+              {submitting ? "登录中..." : "登录"}
             </button>
           </form>
 

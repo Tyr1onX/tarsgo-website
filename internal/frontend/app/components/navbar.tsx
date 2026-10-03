@@ -86,8 +86,8 @@ export function Navbar({ currentUser = null }: NavbarProps) {
       <div
         className={`pointer-events-auto w-full overflow-visible border-b transition-all duration-300 ${
           isScrolled
-            ? "border-white/10 bg-surface-primary/88 shadow-[0_20px_60px_-30px_rgba(2,6,23,0.9)] backdrop-blur-2xl"
-            : "border-white/12 bg-black/28 shadow-[0_24px_70px_-38px_rgba(2,6,23,0.85)] backdrop-blur-xl"
+            ? "border-white/10 bg-surface-primary/95 shadow-[0_20px_60px_-30px_rgba(2,6,23,0.9)]"
+            : "border-white/12 bg-black/70 shadow-[0_24px_70px_-38px_rgba(2,6,23,0.85)]"
         }`}
       >
       <div className="max-w-[1440px] mx-auto flex h-[var(--site-nav-height)] items-center justify-between px-6 sm:px-10 lg:px-20">
