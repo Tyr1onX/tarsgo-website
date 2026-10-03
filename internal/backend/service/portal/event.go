@@ -150,7 +150,7 @@ func (s *Service) DeleteEvent(ctx context.Context, actor Actor, id uint64) error
 	if !fullAccess && !targetsManaged(existing.AudienceType, eventTargetIDs(*existing), groupIDs) {
 		return forbidden("只能管理负责用户组的日程")
 	}
-	if err := s.repo.DeleteEvent(ctx, id); err != nil {
+	if err := s.repo.DeleteEvent(ctx, id, actor.ID); err != nil {
 		return internalError("删除日程失败", err)
 	}
 	return nil

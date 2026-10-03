@@ -3,7 +3,7 @@ import { Link, NavLink, Outlet, redirect, useLocation, useNavigate } from "react
 
 import type { Route } from "./+types/layout";
 import { ApiError } from "~/lib/api-client";
-import { getBootstrapStatus, getCurrentUser, logout, type AuthUser } from "~/lib/auth-client";
+import { getAuthUserRoleLabel, getBootstrapStatus, getCurrentUser, logout, type AuthUser } from "~/lib/auth-client";
 import {
   canAccessDashboardAdminPath,
   getUserDashboardMenu,
@@ -55,7 +55,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
 
     if (
       pathname.startsWith("/dashboard/admin") &&
-      !canAccessDashboardAdminPath(currentUser.role.name, pathname)
+      !canAccessDashboardAdminPath(currentUser, pathname)
     ) {
       throw redirect("/dashboard/users");
     }
@@ -236,7 +236,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const sidebarResizeStartWidthRef = useRef(SIDEBAR_DEFAULT_WIDTH);
   const { currentUser } = loaderData;
   const userMenuItems = getUserDashboardMenu(currentUser);
-  const adminMenuItems = getVisibleAdminDashboardMenu(currentUser.role.name);
+  const adminMenuItems = getVisibleAdminDashboardMenu(currentUser);
   const showAdminSection = hasDashboardAdminAccess(currentUser.role.name) && adminMenuItems.length > 0;
   const userInitial = (currentUser.nickname?.trim() || currentUser.email.trim() || "U")
     .charAt(0)
@@ -492,7 +492,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
             </div>
             <div className="flex-1 min-w-0 text-left">
               <div className="text-sm font-medium text-white truncate">
-                {currentUser.nickname || currentUser.role.displayName}
+                {currentUser.nickname || getAuthUserRoleLabel(currentUser)}
               </div>
               <div className="text-xs text-gray-500 truncate">{currentUser.email}</div>
             </div>
@@ -518,7 +518,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
             >
               <div className="border-b border-white/[0.06] bg-gradient-to-r from-primary-500/10 to-violet-450/10 px-3 py-2.5">
                 <div className="text-[11px] uppercase tracking-[0.22em] text-gray-500">
-                  {currentUser.role.displayName}
+                  {getAuthUserRoleLabel(currentUser)}
                 </div>
               </div>
               <div className="p-1.5">

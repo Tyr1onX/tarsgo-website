@@ -12,6 +12,22 @@ export interface AuthUserPortal {
   showRecruitmentEntry: boolean;
 }
 
+export interface AuthCapabilities {
+  canManagePortal: boolean;
+  canReviewRegistrations: boolean;
+  canManageGroupMembers: boolean;
+  canManageGroupAdmins: boolean;
+  canManageUserGroups: boolean;
+  canManageSystemConfig: boolean;
+  canViewGroupMembers: boolean;
+  canEditGroupMemberProfiles: boolean;
+  canEditManagedAdminProfiles: boolean;
+  canManageAllPersonnel: boolean;
+  canManageAllPortal: boolean;
+  canManageAdminStatus: boolean;
+  canManageRoles: boolean;
+}
+
 export interface AuthUser {
   id: number;
   email: string;
@@ -19,7 +35,31 @@ export interface AuthUser {
   nickname?: string | null;
   avatarUrl?: string | null;
   role: AuthRole;
+  adminScope: "none" | "global" | "group" | string;
+  managementGroupId?: number | null;
+  groupRole?: "member" | "group_admin" | "leader" | string;
+  permissions: string[];
+  capabilities: AuthCapabilities;
   portal?: AuthUserPortal | null;
+}
+
+export function getAuthUserRoleLabel(user: Pick<AuthUser, "role" | "adminScope" | "groupRole">): string {
+  if (user.role.name === "super_admin") {
+    return "超级管理员";
+  }
+  if (user.role.name === "user") {
+    return "组员";
+  }
+  if (user.adminScope === "global") {
+    return "全局管理员";
+  }
+  if (user.adminScope === "group" && user.groupRole === "leader") {
+    return "组长";
+  }
+  if (user.adminScope === "group" && user.groupRole === "group_admin") {
+    return "组内管理";
+  }
+  return user.role.displayName;
 }
 
 export interface BootstrapStatus {

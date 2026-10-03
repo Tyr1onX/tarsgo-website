@@ -146,14 +146,15 @@ function isDashboardMenuLinkDefinition(
   return typeof item.href === "string";
 }
 
-function getAccessibleAdminPaths(roleName: string) {
-  return ADMIN_MENU.flatMap((item) => {
-    if (isDashboardMenuLinkDefinition(item)) {
-      return isRoleAllowed(roleName, item.allowedRoles) ? [item.href] : [];
-    }
+function getAccessibleAdminPaths(roleName: string, user?: AuthUser) {
+	const canUseAdmin = !user || user.role.name === "super_admin" || (user.role.name === "admin" && user.adminScope !== "none" && (user.adminScope === "global" || Boolean(user.managementGroupId)));
+	return ADMIN_MENU.flatMap((item) => {
+		if (isDashboardMenuLinkDefinition(item)) {
+			return canUseAdmin && isRoleAllowed(roleName, item.allowedRoles) && (!user || item.key !== "portal-content" || user.capabilities.canManagePortal) ? [item.href] : [];
+		}
 
-    return item.children
-      .filter((child) => isRoleAllowed(roleName, child.allowedRoles))
+		return item.children
+			.filter((child) => canUseAdmin && isRoleAllowed(roleName, child.allowedRoles) && (!user || child.key !== "users" || user.role.name === "super_admin" || user.adminScope === "global" || (user.adminScope === "group" && (user.groupRole === "leader" || user.groupRole === "group_admin"))) && (!user || child.key !== "registrations" || user.capabilities.canReviewRegistrations))
       .map((child) => child.href);
   });
 }
@@ -167,12 +168,14 @@ export function getUserDashboardMenu(user: AuthUser): DashboardMenuLink[] {
   });
 }
 
-export function getVisibleAdminDashboardMenu(roleName: string): VisibleDashboardAdminMenuItem[] {
+export function getVisibleAdminDashboardMenu(userOrRole: AuthUser | string): VisibleDashboardAdminMenuItem[] {
+	const user = typeof userOrRole === "string" ? undefined : userOrRole;
+	const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
   const visibleItems: VisibleDashboardAdminMenuItem[] = [];
 
   for (const item of ADMIN_MENU) {
     if (isDashboardMenuLinkDefinition(item)) {
-      if (isRoleAllowed(roleName, item.allowedRoles)) {
+		if (getAccessibleAdminPaths(roleName, user).includes(item.href)) {
         visibleItems.push({
           key: item.key,
           label: item.label,
@@ -183,9 +186,7 @@ export function getVisibleAdminDashboardMenu(roleName: string): VisibleDashboard
       continue;
     }
 
-    const children = item.children.filter((child) =>
-      isRoleAllowed(roleName, child.allowedRoles),
-    );
+		const children = item.children.filter((child) => getAccessibleAdminPaths(roleName, user).includes(child.href));
     if (children.length === 0) {
       continue;
     }
@@ -205,8 +206,9 @@ export function hasDashboardAdminAccess(roleName: string) {
   return getAccessibleAdminPaths(roleName).length > 0;
 }
 
-export function canAccessDashboardAdminPath(roleName: string, pathname: string) {
-  const accessiblePaths = getAccessibleAdminPaths(roleName);
+export function canAccessDashboardAdminPath(userOrRole: AuthUser | string, pathname: string) {
+	const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
+	const accessiblePaths = getAccessibleAdminPaths(roleName, typeof userOrRole === "string" ? undefined : userOrRole);
   return accessiblePaths.some(
     (href) => pathname === href || pathname.startsWith(`${href}/`),
   );

@@ -19,3 +19,4 @@
 
 # Local runtime artifacts
 /.runtime/
+/backups/

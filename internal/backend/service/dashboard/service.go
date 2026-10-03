@@ -12,8 +12,11 @@ import (
 )
 
 type Actor struct {
-	ID       uint64
-	RoleName string
+	ID                uint64
+	RoleName          string
+	AdminScope        string
+	ManagementGroupID *uint64
+	GroupRole         string
 }
 type ServiceError struct {
 	Status  int
@@ -60,6 +63,14 @@ type Repository interface {
 	ListRecentActivities(context.Context, int) ([]model.ActivityEvent, error)
 }
 
+type scopedRepository interface {
+	CountUsersInGroup(context.Context, uint64) (int64, error)
+	CountUsersCreatedInGroup(context.Context, uint64, time.Time, time.Time) (int64, error)
+	CountPendingRegistrationsInGroup(context.Context, uint64) (int64, error)
+	ListTechnicalGroupsInGroup(context.Context, uint64) ([]GroupDistributionItem, error)
+	ListRecentActivitiesInGroup(context.Context, uint64, int) ([]model.ActivityEvent, error)
+}
+
 type Service struct {
 	repo Repository
 	now  func() time.Time
@@ -71,27 +82,65 @@ func (s *Service) Get(ctx context.Context, actor Actor) (*Data, error) {
 	if actor.ID == 0 || (actor.RoleName != model.RoleNameAdmin && actor.RoleName != model.RoleNameSuperAdmin) {
 		return nil, &ServiceError{Status: http.StatusForbidden, Message: "当前账号无管理员权限"}
 	}
+	if actor.RoleName == model.RoleNameAdmin && (actor.AdminScope == model.AdminScopeNone || (actor.AdminScope == model.AdminScopeGroup && actor.GroupRole != "leader" && actor.GroupRole != "group_admin")) {
+		return nil, &ServiceError{Status: http.StatusForbidden, Message: "管理员缺少有效管理范围"}
+	}
 	now := s.now()
 	start, end := monthBounds(now)
-	total, err := s.repo.CountUsers(ctx)
-	if err != nil {
-		return nil, internal("统计总用户数失败", err)
-	}
-	monthly, err := s.repo.CountUsersCreated(ctx, start, end)
-	if err != nil {
-		return nil, internal("统计本月新增失败", err)
-	}
-	pending, err := s.repo.CountPendingRegistrations(ctx)
-	if err != nil {
-		return nil, internal("统计待审核报名失败", err)
-	}
-	groups, err := s.repo.ListTechnicalGroups(ctx)
-	if err != nil {
-		return nil, internal("统计技术组别失败", err)
-	}
-	events, err := s.repo.ListRecentActivities(ctx, 10)
-	if err != nil {
-		return nil, internal("加载最近动态失败", err)
+	var total int64
+	var monthly, pending int64
+	var groups []GroupDistributionItem
+	var events []model.ActivityEvent
+	var err error
+	if actor.RoleName == model.RoleNameAdmin && actor.AdminScope == model.AdminScopeGroup {
+		if actor.ManagementGroupID == nil {
+			return nil, &ServiceError{Status: http.StatusForbidden, Message: "管理员缺少管理组"}
+		}
+		scoped, ok := s.repo.(scopedRepository)
+		if !ok {
+			return nil, &ServiceError{Status: http.StatusForbidden, Message: "当前账号无有效管理范围"}
+		}
+		total, err = scoped.CountUsersInGroup(ctx, *actor.ManagementGroupID)
+		if err != nil {
+			return nil, internal("统计组内用户数失败", err)
+		}
+		monthly, err = scoped.CountUsersCreatedInGroup(ctx, *actor.ManagementGroupID, start, end)
+		if err != nil {
+			return nil, internal("统计组内新增失败", err)
+		}
+		pending, err = scoped.CountPendingRegistrationsInGroup(ctx, *actor.ManagementGroupID)
+		if err != nil {
+			return nil, internal("统计组内待审核报名失败", err)
+		}
+		groups, err = scoped.ListTechnicalGroupsInGroup(ctx, *actor.ManagementGroupID)
+		if err != nil {
+			return nil, internal("统计组别失败", err)
+		}
+		events, err = scoped.ListRecentActivitiesInGroup(ctx, *actor.ManagementGroupID, 10)
+		if err != nil {
+			return nil, internal("加载最近动态失败", err)
+		}
+	} else {
+		total, err = s.repo.CountUsers(ctx)
+		if err != nil {
+			return nil, internal("统计总用户数失败", err)
+		}
+		monthly, err = s.repo.CountUsersCreated(ctx, start, end)
+		if err != nil {
+			return nil, internal("统计本月新增失败", err)
+		}
+		pending, err = s.repo.CountPendingRegistrations(ctx)
+		if err != nil {
+			return nil, internal("统计待审核报名失败", err)
+		}
+		groups, err = s.repo.ListTechnicalGroups(ctx)
+		if err != nil {
+			return nil, internal("统计技术组别失败", err)
+		}
+		events, err = s.repo.ListRecentActivities(ctx, 10)
+		if err != nil {
+			return nil, internal("加载最近动态失败", err)
+		}
 	}
 	activities := make([]RecentActivityItem, 0, len(events))
 	for _, event := range events {
@@ -167,6 +216,21 @@ func activityMessage(event model.ActivityEvent) string {
 			return "发布了公告「" + title + "」"
 		}
 		return "发布了公告"
+	case model.ActivityAnnouncementCreated:
+		if title != "" {
+			return "创建了公告「" + title + "」"
+		}
+		return "创建了公告"
+	case model.ActivityAnnouncementUpdated:
+		if title != "" {
+			return "编辑了公告「" + title + "」"
+		}
+		return "编辑了公告"
+	case model.ActivityAnnouncementDeleted:
+		if title != "" {
+			return "删除了公告「" + title + "」"
+		}
+		return "删除了公告"
 	case model.ActivityAnnouncementArchived:
 		if title != "" {
 			return "归档了公告「" + title + "」"
@@ -177,11 +241,41 @@ func activityMessage(event model.ActivityEvent) string {
 			return "发布了日程「" + title + "」"
 		}
 		return "发布了日程"
+	case model.ActivityEventCreated:
+		if title != "" {
+			return "创建了日程「" + title + "」"
+		}
+		return "创建了日程"
+	case model.ActivityEventUpdated:
+		if title != "" {
+			return "编辑了日程「" + title + "」"
+		}
+		return "编辑了日程"
+	case model.ActivityEventDeleted:
+		if title != "" {
+			return "删除了日程「" + title + "」"
+		}
+		return "删除了日程"
 	case model.ActivityEventCancelled:
 		if title != "" {
 			return "取消了日程「" + title + "」"
 		}
 		return "取消了日程"
+	case model.ActivityPortalLinkCreated:
+		if title != "" {
+			return "创建了快捷链接「" + title + "」"
+		}
+		return "创建了快捷链接"
+	case model.ActivityPortalLinkUpdated:
+		if title != "" {
+			return "编辑了快捷链接「" + title + "」"
+		}
+		return "编辑了快捷链接"
+	case model.ActivityPortalLinkDeleted:
+		if title != "" {
+			return "删除了快捷链接「" + title + "」"
+		}
+		return "删除了快捷链接"
 	default:
 		return "完成了一项业务操作"
 	}
@@ -198,6 +292,37 @@ func (r *GormRepository) CountUsers(ctx context.Context) (int64, error) {
 	var count int64
 	err := r.db.WithContext(ctx).Model(&model.User{}).Count(&count).Error
 	return count, err
+}
+func (r *GormRepository) CountUsersInGroup(ctx context.Context, groupID uint64) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&model.UserGroupMember{}).Where("group_id = ?", groupID).Count(&count).Error
+	return count, err
+}
+func (r *GormRepository) CountUsersCreatedInGroup(ctx context.Context, groupID uint64, start, end time.Time) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&model.User{}).Joins("JOIN user_group_members ON user_group_members.user_id = users.id").Where("user_group_members.group_id = ? AND users.created_at >= ? AND users.created_at < ?", groupID, start, end).Count(&count).Error
+	return count, err
+}
+func (r *GormRepository) CountPendingRegistrationsInGroup(ctx context.Context, groupID uint64) (int64, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&model.Registration{}).Where(
+		"(group_1 = ? AND group_1_status = ?) OR (group_2 = ? AND group_2_status = ?)",
+		groupID,
+		model.RegistrationStatusPending,
+		groupID,
+		model.RegistrationStatusPending,
+	).Count(&count).Error
+	return count, err
+}
+func (r *GormRepository) ListTechnicalGroupsInGroup(ctx context.Context, groupID uint64) ([]GroupDistributionItem, error) {
+	var items []GroupDistributionItem
+	err := r.db.WithContext(ctx).Table("user_groups").Select("user_groups.id, user_groups.name, COUNT(user_group_members.id) AS count").Joins("LEFT JOIN user_group_members ON user_group_members.group_id = user_groups.id").Where("user_groups.id = ? AND user_groups.status = ?", groupID, model.UserGroupStatusActive).Group("user_groups.id, user_groups.name").Scan(&items).Error
+	return items, err
+}
+func (r *GormRepository) ListRecentActivitiesInGroup(ctx context.Context, groupID uint64, limit int) ([]model.ActivityEvent, error) {
+	var rows []model.ActivityEvent
+	err := r.db.WithContext(ctx).Where("group_id = ?", groupID).Preload("Actor").Preload("Group").Order("created_at DESC").Order("id DESC").Limit(limit).Find(&rows).Error
+	return rows, err
 }
 func (r *GormRepository) CountUsersCreated(ctx context.Context, start, end time.Time) (int64, error) {
 	var count int64

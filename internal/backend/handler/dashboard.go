@@ -24,7 +24,7 @@ func (h *DashboardHandler) Get(c *gin.Context) {
 	user, _ := middleware.CurrentSessionUser(c)
 	actor := dashboard.Actor{}
 	if user != nil {
-		actor = dashboard.Actor{ID: user.ID, RoleName: user.Role.Name}
+		actor = dashboard.Actor{ID: user.ID, RoleName: user.Role.Name, AdminScope: user.AdminScope, ManagementGroupID: user.ManagementGroupID, GroupRole: user.GroupRole}
 	}
 	result, err := h.service.Get(c.Request.Context(), actor)
 	if err != nil {

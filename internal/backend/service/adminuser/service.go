@@ -26,8 +26,11 @@ type ServiceError struct {
 }
 
 type Actor struct {
-	ID       uint64
-	RoleName string
+	ID                uint64
+	RoleName          string
+	AdminScope        string
+	ManagementGroupID *uint64
+	GroupRole         string
 }
 
 type ListUsersInput struct {
@@ -39,30 +42,43 @@ type ListUsersInput struct {
 	Status   *uint8
 }
 
+const (
+	UserFilterRoleMember      = "member"
+	UserFilterRoleGroupAdmin  = "group_admin"
+	UserFilterRoleLeader      = "leader"
+	UserFilterRoleGlobal      = "global"
+	UserFilterRoleGlobalAdmin = "global_admin"
+	UserFilterRoleSuperAdmin  = "super_admin"
+)
+
 type CreateUserInput struct {
-	RoleID    uint64
-	Name      string
-	Email     string
-	Password  string
-	Nickname  string
-	AvatarURL string
-	Phone     string
-	RealName  string
-	Gender    uint8
-	Birthday  *time.Time
+	RoleID            uint64
+	Name              string
+	Email             string
+	Password          string
+	Nickname          string
+	AvatarURL         string
+	Phone             string
+	RealName          string
+	Gender            uint8
+	Birthday          *time.Time
+	AdminScope        string
+	ManagementGroupID *uint64
 }
 
 type UpdateUserInput struct {
-	RoleID    uint64
-	Name      string
-	Email     string
-	Nickname  string
-	AvatarURL string
-	Phone     string
-	RealName  string
-	Gender    uint8
-	Birthday  *time.Time
-	Status    uint8
+	RoleID            uint64
+	Name              string
+	Email             string
+	Nickname          string
+	AvatarURL         string
+	Phone             string
+	RealName          string
+	Gender            uint8
+	Birthday          *time.Time
+	Status            uint8
+	AdminScope        string
+	ManagementGroupID *uint64
 }
 
 type RoleRef struct {
@@ -84,37 +100,41 @@ type AuthMethods struct {
 }
 
 type UserListItem struct {
-	ID          uint64               `json:"id"`
-	Name        string               `json:"name"`
-	Email       string               `json:"email"`
-	Phone       *string              `json:"phone,omitempty"`
-	RealName    *string              `json:"realName,omitempty"`
-	Role        RoleRef              `json:"role"`
-	Groups      []usergroup.GroupRef `json:"groups,omitempty"`
-	Status      uint8                `json:"status"`
-	AuthMethods AuthMethods          `json:"authMethods"`
-	LastLoginAt *time.Time           `json:"lastLoginAt,omitempty"`
-	CreatedAt   time.Time            `json:"createdAt"`
+	ID                uint64               `json:"id"`
+	Name              string               `json:"name"`
+	Email             string               `json:"email"`
+	Phone             *string              `json:"phone,omitempty"`
+	RealName          *string              `json:"realName,omitempty"`
+	Role              RoleRef              `json:"role"`
+	AdminScope        string               `json:"adminScope"`
+	ManagementGroupID *uint64              `json:"managementGroupId"`
+	Groups            []usergroup.GroupRef `json:"groups,omitempty"`
+	Status            uint8                `json:"status"`
+	AuthMethods       AuthMethods          `json:"authMethods"`
+	LastLoginAt       *time.Time           `json:"lastLoginAt,omitempty"`
+	CreatedAt         time.Time            `json:"createdAt"`
 }
 
 type UserDetail struct {
-	ID             uint64               `json:"id"`
-	Name           string               `json:"name"`
-	Email          string               `json:"email"`
-	Nickname       *string              `json:"nickname,omitempty"`
-	AvatarURL      *string              `json:"avatarUrl,omitempty"`
-	Phone          *string              `json:"phone,omitempty"`
-	RealName       *string              `json:"realName,omitempty"`
-	Gender         uint8                `json:"gender"`
-	Birthday       *string              `json:"birthday,omitempty"`
-	Status         uint8                `json:"status"`
-	GitHubUsername *string              `json:"githubUsername,omitempty"`
-	Role           RoleRef              `json:"role"`
-	Groups         []usergroup.GroupRef `json:"groups,omitempty"`
-	AuthMethods    AuthMethods          `json:"authMethods"`
-	LastLoginAt    *time.Time           `json:"lastLoginAt,omitempty"`
-	CreatedAt      time.Time            `json:"createdAt"`
-	UpdatedAt      time.Time            `json:"updatedAt"`
+	ID                uint64               `json:"id"`
+	Name              string               `json:"name"`
+	Email             string               `json:"email"`
+	Nickname          *string              `json:"nickname,omitempty"`
+	AvatarURL         *string              `json:"avatarUrl,omitempty"`
+	Phone             *string              `json:"phone,omitempty"`
+	RealName          *string              `json:"realName,omitempty"`
+	Gender            uint8                `json:"gender"`
+	Birthday          *string              `json:"birthday,omitempty"`
+	Status            uint8                `json:"status"`
+	GitHubUsername    *string              `json:"githubUsername,omitempty"`
+	Role              RoleRef              `json:"role"`
+	AdminScope        string               `json:"adminScope"`
+	ManagementGroupID *uint64              `json:"managementGroupId"`
+	Groups            []usergroup.GroupRef `json:"groups,omitempty"`
+	AuthMethods       AuthMethods          `json:"authMethods"`
+	LastLoginAt       *time.Time           `json:"lastLoginAt,omitempty"`
+	CreatedAt         time.Time            `json:"createdAt"`
+	UpdatedAt         time.Time            `json:"updatedAt"`
 }
 
 type UserStats struct {
@@ -154,7 +174,7 @@ func (e *ServiceError) Unwrap() error {
 }
 
 func (s *Service) ListUsers(ctx context.Context, actor Actor, input ListUsersInput) (*ListUsersResult, error) {
-	if err := ensureAdminActor(actor); err != nil {
+	if err := ensureUserListActor(actor); err != nil {
 		return nil, err
 	}
 
@@ -162,13 +182,31 @@ func (s *Service) ListUsers(ctx context.Context, actor Actor, input ListUsersInp
 	input.PageSize = normalizePageSize(input.PageSize)
 	input.Keyword = strings.TrimSpace(input.Keyword)
 	input.Role = strings.TrimSpace(input.Role)
+	if actor.RoleName == model.RoleNameAdmin && actor.AdminScope == model.AdminScopeGroup {
+		if actor.ManagementGroupID == nil {
+			return nil, &ServiceError{Status: http.StatusForbidden, Message: "管理员缺少管理组"}
+		}
+		groupID := *actor.ManagementGroupID
+		input.GroupID = &groupID
+	}
 
 	users, total, err := s.repo.ListUsers(ctx, input)
 	if err != nil {
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "查询用户列表失败", Err: err}
 	}
 
-	stats, err := s.repo.GetUserStats(ctx)
+	var stats UserStats
+	if actor.RoleName == model.RoleNameAdmin && actor.AdminScope == model.AdminScopeGroup {
+		scoped, ok := s.repo.(interface {
+			GetUserStatsInGroup(context.Context, uint64) (UserStats, error)
+		})
+		if !ok {
+			return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "查询组内用户统计失败"}
+		}
+		stats, err = scoped.GetUserStatsInGroup(ctx, *actor.ManagementGroupID)
+	} else {
+		stats, err = s.repo.GetUserStats(ctx)
+	}
 	if err != nil {
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "查询用户统计失败", Err: err}
 	}
@@ -196,7 +234,7 @@ func (s *Service) ListUsers(ctx context.Context, actor Actor, input ListUsersInp
 }
 
 func (s *Service) GetUser(ctx context.Context, actor Actor, userID uint64) (*UserDetail, error) {
-	if err := ensureAdminActor(actor); err != nil {
+	if err := ensureUserViewActor(actor); err != nil {
 		return nil, err
 	}
 
@@ -207,13 +245,15 @@ func (s *Service) GetUser(ctx context.Context, actor Actor, userID uint64) (*Use
 		}
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载用户详情失败", Err: err}
 	}
-
+	if actor.RoleName == model.RoleNameAdmin && actor.AdminScope == model.AdminScopeGroup && (actor.ManagementGroupID == nil || !userBelongsToGroup(user, *actor.ManagementGroupID)) {
+		return nil, &ServiceError{Status: http.StatusForbidden, Message: "无权查看其他用户组成员"}
+	}
 	detail := toUserDetail(user)
 	return &detail, nil
 }
 
 func (s *Service) ListRoles(ctx context.Context, actor Actor) ([]RoleOption, error) {
-	if err := ensureAdminActor(actor); err != nil {
+	if err := ensureUserAdminActor(actor); err != nil {
 		return nil, err
 	}
 
@@ -235,7 +275,7 @@ func (s *Service) ListRoles(ctx context.Context, actor Actor) ([]RoleOption, err
 }
 
 func (s *Service) CreateUser(ctx context.Context, actor Actor, input CreateUserInput) (*UserDetail, error) {
-	if err := ensureAdminActor(actor); err != nil {
+	if err := ensureUserAdminActor(actor); err != nil {
 		return nil, err
 	}
 	if err := validateGender(input.Gender); err != nil {
@@ -259,6 +299,14 @@ func (s *Service) CreateUser(ctx context.Context, actor Actor, input CreateUserI
 	if !canAssignRole(actor.RoleName, role.Name) {
 		return nil, &ServiceError{Status: http.StatusForbidden, Message: "当前账号无权创建该角色"}
 	}
+	requestedScope := input.AdminScope
+	if role.Name == model.RoleNameAdmin && requestedScope == "" && actor.AdminScope == "" {
+		requestedScope = model.AdminScopeGlobal
+	}
+	adminScope, managementGroupID, err := validateRequestedScope(role.Name, requestedScope, input.ManagementGroupID, nil)
+	if err != nil {
+		return nil, err
+	}
 
 	if _, err := s.repo.GetUserByEmail(ctx, email); err == nil {
 		return nil, &ServiceError{Status: http.StatusConflict, Message: "该邮箱已存在"}
@@ -272,13 +320,15 @@ func (s *Service) CreateUser(ctx context.Context, actor Actor, input CreateUserI
 	}
 
 	user := &model.User{
-		RoleID:       role.ID,
-		Name:         name,
-		Email:        email,
-		PasswordHash: stringPtr(passwordHash),
-		Status:       model.UserStatusEnabled,
-		Gender:       input.Gender,
-		Birthday:     input.Birthday,
+		RoleID:            role.ID,
+		Name:              name,
+		Email:             email,
+		PasswordHash:      stringPtr(passwordHash),
+		Status:            model.UserStatusEnabled,
+		Gender:            input.Gender,
+		Birthday:          input.Birthday,
+		AdminScope:        adminScope,
+		ManagementGroupID: managementGroupID,
 	}
 	assignOptionalString(&user.Nickname, input.Nickname)
 	assignOptionalString(&user.AvatarURL, input.AvatarURL)
@@ -298,7 +348,7 @@ func (s *Service) CreateUser(ctx context.Context, actor Actor, input CreateUserI
 }
 
 func (s *Service) UpdateUser(ctx context.Context, actor Actor, userID uint64, input UpdateUserInput) (*UserDetail, error) {
-	if err := ensureAdminActor(actor); err != nil {
+	if err := ensureUserAdminActor(actor); err != nil {
 		return nil, err
 	}
 	if err := validateStatus(input.Status); err != nil {
@@ -318,6 +368,32 @@ func (s *Service) UpdateUser(ctx context.Context, actor Actor, userID uint64, in
 	if err := ensureTargetMutable(actor, target); err != nil {
 		return nil, err
 	}
+	if isProfileOnlyActor(actor) {
+		if err := validateProfileUpdate(actor, target, input); err != nil {
+			return nil, err
+		}
+		updates := map[string]any{
+			"name":       nameOrOriginal(input.Name, target.Name),
+			"nickname":   nullableString(input.Nickname),
+			"avatar_url": nullableString(input.AvatarURL),
+			"phone":      nullableString(input.Phone),
+			"real_name":  nullableString(input.RealName),
+			"gender":     input.Gender,
+			"birthday":   input.Birthday,
+		}
+		if actor.AdminScope == model.AdminScopeGlobal && target.Role.Name == model.RoleNameUser {
+			updates["status"] = input.Status
+		}
+		if err := s.repo.UpdateUser(ctx, target.ID, updates); err != nil {
+			return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "更新用户资料失败", Err: err}
+		}
+		updated, err := s.repo.GetUserByID(ctx, target.ID)
+		if err != nil {
+			return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载更新后的用户资料失败", Err: err}
+		}
+		detail := toUserDetail(updated)
+		return &detail, nil
+	}
 
 	role, err := s.repo.GetRoleByID(ctx, input.RoleID)
 	if err != nil {
@@ -328,6 +404,20 @@ func (s *Service) UpdateUser(ctx context.Context, actor Actor, userID uint64, in
 	}
 	if !canAssignRole(actor.RoleName, role.Name) {
 		return nil, &ServiceError{Status: http.StatusForbidden, Message: "当前账号无权设置该角色"}
+	}
+	if role.Name == model.RoleNameUser && hasManagementMembership(target) {
+		return nil, &ServiceError{Status: http.StatusConflict, Message: "请先通过组成员管理接口撤销组内管理身份"}
+	}
+	requestedScope := input.AdminScope
+	if role.Name == model.RoleNameAdmin && requestedScope == "" && actor.AdminScope == "" {
+		requestedScope = model.AdminScopeGlobal
+	}
+	adminScope, managementGroupID, err := validateRequestedScope(role.Name, requestedScope, input.ManagementGroupID, target)
+	if err != nil {
+		return nil, err
+	}
+	if role.Name == model.RoleNameAdmin && adminScope == model.AdminScopeGlobal && hasManagementMembership(target) {
+		return nil, &ServiceError{Status: http.StatusConflict, Message: "请先撤销组内管理身份后再切换为全局管理员"}
 	}
 
 	email := auth.NormalizeEmail(input.Email)
@@ -343,16 +433,18 @@ func (s *Service) UpdateUser(ctx context.Context, actor Actor, userID uint64, in
 	}
 
 	updates := map[string]any{
-		"role_id":    role.ID,
-		"name":       name,
-		"email":      email,
-		"nickname":   nullableString(input.Nickname),
-		"avatar_url": nullableString(input.AvatarURL),
-		"phone":      nullableString(input.Phone),
-		"real_name":  nullableString(input.RealName),
-		"gender":     input.Gender,
-		"birthday":   input.Birthday,
-		"status":     input.Status,
+		"role_id":             role.ID,
+		"name":                name,
+		"email":               email,
+		"nickname":            nullableString(input.Nickname),
+		"avatar_url":          nullableString(input.AvatarURL),
+		"phone":               nullableString(input.Phone),
+		"real_name":           nullableString(input.RealName),
+		"gender":              input.Gender,
+		"birthday":            input.Birthday,
+		"status":              input.Status,
+		"admin_scope":         adminScope,
+		"management_group_id": managementGroupID,
 	}
 
 	if err := s.repo.UpdateUser(ctx, target.ID, updates); err != nil {
@@ -368,8 +460,11 @@ func (s *Service) UpdateUser(ctx context.Context, actor Actor, userID uint64, in
 }
 
 func (s *Service) ResetPassword(ctx context.Context, actor Actor, userID uint64, password string) error {
-	if err := ensureAdminActor(actor); err != nil {
+	if err := ensureUserAdminActor(actor); err != nil {
 		return err
+	}
+	if actor.RoleName == model.RoleNameAdmin && actor.AdminScope != "" {
+		return &ServiceError{Status: http.StatusForbidden, Message: "当前账号无权重置密码"}
 	}
 
 	password = strings.TrimSpace(password)
@@ -406,11 +501,62 @@ func ensureAdminActor(actor Actor) error {
 	return &ServiceError{Status: http.StatusForbidden, Message: "当前账号无管理员权限"}
 }
 
+func ensureUserAdminActor(actor Actor) error {
+	if err := ensureAdminActor(actor); err != nil {
+		return err
+	}
+	if actor.RoleName == model.RoleNameSuperAdmin || actor.AdminScope == "" || actor.AdminScope == model.AdminScopeGlobal {
+		return nil
+	}
+	if actor.AdminScope == model.AdminScopeGroup && actor.GroupRole == "leader" && actor.ManagementGroupID != nil {
+		return nil
+	}
+	return &ServiceError{Status: http.StatusForbidden, Message: "组内管理员不能管理系统用户"}
+}
+
+func ensureUserViewActor(actor Actor) error {
+	if err := ensureAdminActor(actor); err != nil {
+		return err
+	}
+	if actor.RoleName == model.RoleNameSuperAdmin || actor.AdminScope == model.AdminScopeGlobal {
+		return nil
+	}
+	if actor.RoleName == model.RoleNameAdmin && actor.AdminScope == model.AdminScopeGroup && actor.ManagementGroupID != nil && (actor.GroupRole == "leader" || actor.GroupRole == "group_admin") {
+		return nil
+	}
+	return &ServiceError{Status: http.StatusForbidden, Message: "当前账号无权查看系统用户"}
+}
+
+func ensureUserListActor(actor Actor) error {
+	return ensureUserViewActor(actor)
+}
+
+func userBelongsToGroup(user *model.User, groupID uint64) bool {
+	for _, member := range user.GroupMembers {
+		if member.GroupID == groupID {
+			return true
+		}
+	}
+	return false
+}
+
 func ensureTargetMutable(actor Actor, target *model.User) error {
 	switch target.Role.Name {
 	case model.RoleNameSuperAdmin:
 		return &ServiceError{Status: http.StatusForbidden, Message: "超级管理员账号只允许查看，不允许修改"}
 	case model.RoleNameAdmin:
+		if actor.RoleName == model.RoleNameSuperAdmin {
+			return nil
+		}
+		if actor.RoleName == model.RoleNameAdmin && actor.AdminScope == model.AdminScopeGlobal {
+			return nil
+		}
+		if target.AdminScope == model.AdminScopeGlobal {
+			return &ServiceError{Status: http.StatusForbidden, Message: "当前账号无权修改全局管理员账号"}
+		}
+		if actor.RoleName == model.RoleNameAdmin && actor.AdminScope == model.AdminScopeGroup && actor.GroupRole == "leader" && actor.ManagementGroupID != nil && targetHasManagedRole(target, *actor.ManagementGroupID) {
+			return nil
+		}
 		if actor.RoleName != model.RoleNameSuperAdmin {
 			return &ServiceError{Status: http.StatusForbidden, Message: "当前账号无权修改管理员账号"}
 		}
@@ -424,6 +570,55 @@ func ensureTargetMutable(actor Actor, target *model.User) error {
 	return nil
 }
 
+func isProfileOnlyActor(actor Actor) bool {
+	return actor.RoleName == model.RoleNameAdmin &&
+		(actor.AdminScope == model.AdminScopeGlobal || (actor.AdminScope == model.AdminScopeGroup && actor.GroupRole == "leader" && actor.ManagementGroupID != nil))
+}
+
+func validateProfileUpdate(actor Actor, target *model.User, input UpdateUserInput) error {
+	if strings.TrimSpace(input.Name) == "" {
+		return &ServiceError{Status: http.StatusBadRequest, Message: "姓名不能为空"}
+	}
+	if input.RoleID != 0 && input.RoleID != target.Role.ID {
+		return &ServiceError{Status: http.StatusForbidden, Message: "不能通过资料接口修改系统角色"}
+	}
+	if email := auth.NormalizeEmail(input.Email); email != "" && email != target.Email {
+		return &ServiceError{Status: http.StatusForbidden, Message: "不能通过资料接口修改登录邮箱"}
+	}
+	if input.AdminScope != "" && input.AdminScope != target.AdminScope {
+		return &ServiceError{Status: http.StatusForbidden, Message: "不能通过资料接口修改管理范围"}
+	}
+	if input.ManagementGroupID != nil && (target.ManagementGroupID == nil || *input.ManagementGroupID != *target.ManagementGroupID) {
+		return &ServiceError{Status: http.StatusForbidden, Message: "不能通过资料接口修改管理组"}
+	}
+	if actor.AdminScope == model.AdminScopeGlobal && target.Role.Name != model.RoleNameUser && input.Status != target.Status {
+		return &ServiceError{Status: http.StatusForbidden, Message: "全局管理员只能启用或停用普通用户"}
+	}
+	if actor.AdminScope == model.AdminScopeGroup && input.Status != target.Status {
+		return &ServiceError{Status: http.StatusForbidden, Message: "组长不能启用或停用成员账号"}
+	}
+	if actor.AdminScope == model.AdminScopeGroup && !targetHasManagedRole(target, *actor.ManagementGroupID) {
+		return &ServiceError{Status: http.StatusForbidden, Message: "只能编辑本组成员资料"}
+	}
+	return nil
+}
+
+func targetHasManagedRole(target *model.User, groupID uint64) bool {
+	for _, member := range target.GroupMembers {
+		if member.GroupID == groupID && (member.Role == model.UserGroupMemberRoleMember || member.Role == model.UserGroupMemberRoleGroupAdmin) {
+			return true
+		}
+	}
+	return false
+}
+
+func nameOrOriginal(value, original string) string {
+	if trimmed := strings.TrimSpace(value); trimmed != "" {
+		return trimmed
+	}
+	return original
+}
+
 func canAssignRole(actorRole string, targetRole string) bool {
 	switch actorRole {
 	case model.RoleNameSuperAdmin:
@@ -433,6 +628,60 @@ func canAssignRole(actorRole string, targetRole string) bool {
 	default:
 		return false
 	}
+}
+
+func validateRequestedScope(roleName, scope string, groupID *uint64, target *model.User) (string, *uint64, error) {
+	if roleName == model.RoleNameSuperAdmin {
+		return model.AdminScopeGlobal, nil, nil
+	}
+	if roleName == model.RoleNameUser {
+		return model.AdminScopeNone, nil, nil
+	}
+	if roleName != model.RoleNameAdmin {
+		return model.AdminScopeNone, nil, &ServiceError{Status: http.StatusBadRequest, Message: "角色不合法"}
+	}
+	if scope == "" {
+		return model.AdminScopeNone, nil, &ServiceError{Status: http.StatusBadRequest, Message: "管理员必须明确指定管理范围"}
+	}
+	switch scope {
+	case model.AdminScopeGlobal:
+		if groupID != nil {
+			return model.AdminScopeNone, nil, &ServiceError{Status: http.StatusBadRequest, Message: "全局管理员不能指定管理组"}
+		}
+		return scope, nil, nil
+	case model.AdminScopeGroup:
+		if groupID == nil || *groupID == 0 {
+			return model.AdminScopeNone, nil, &ServiceError{Status: http.StatusBadRequest, Message: "组内管理员必须指定管理组"}
+		}
+		if target == nil {
+			return model.AdminScopeNone, nil, &ServiceError{Status: http.StatusBadRequest, Message: "新建组内管理员必须先建立组成员关系"}
+		}
+		managerCount := 0
+		matching := false
+		for _, member := range target.GroupMembers {
+			if member.Role == model.UserGroupMemberRoleLeader || member.Role == model.UserGroupMemberRoleGroupAdmin {
+				managerCount++
+			}
+			if member.GroupID == *groupID && (member.Role == model.UserGroupMemberRoleLeader || member.Role == model.UserGroupMemberRoleGroupAdmin) {
+				matching = true
+			}
+		}
+		if matching && managerCount == 1 {
+			return scope, groupID, nil
+		}
+		return model.AdminScopeNone, nil, &ServiceError{Status: http.StatusBadRequest, Message: "目标用户不是该组的组内管理员"}
+	default:
+		return model.AdminScopeNone, nil, &ServiceError{Status: http.StatusBadRequest, Message: "管理员范围不合法"}
+	}
+}
+
+func hasManagementMembership(user *model.User) bool {
+	for _, member := range user.GroupMembers {
+		if member.Role == model.UserGroupMemberRoleLeader || member.Role == model.UserGroupMemberRoleGroupAdmin {
+			return true
+		}
+	}
+	return false
 }
 
 func validateStatus(status uint8) error {
@@ -468,39 +717,43 @@ func normalizePageSize(pageSize int) int {
 
 func toUserListItem(user *model.User) UserListItem {
 	return UserListItem{
-		ID:          user.ID,
-		Name:        user.Name,
-		Email:       user.Email,
-		Phone:       user.Phone,
-		RealName:    user.RealName,
-		Role:        toRoleRef(user.Role),
-		Groups:      usergroup.UserGroupRefsFromMembers(user.GroupMembers, false),
-		Status:      user.Status,
-		AuthMethods: toAuthMethods(user),
-		LastLoginAt: user.LastLoginAt,
-		CreatedAt:   user.CreatedAt,
+		ID:                user.ID,
+		Name:              user.Name,
+		Email:             user.Email,
+		Phone:             user.Phone,
+		RealName:          user.RealName,
+		Role:              toRoleRef(user.Role),
+		AdminScope:        user.AdminScope,
+		ManagementGroupID: user.ManagementGroupID,
+		Groups:            usergroup.UserGroupRefsFromMembers(user.GroupMembers, false),
+		Status:            user.Status,
+		AuthMethods:       toAuthMethods(user),
+		LastLoginAt:       user.LastLoginAt,
+		CreatedAt:         user.CreatedAt,
 	}
 }
 
 func toUserDetail(user *model.User) UserDetail {
 	return UserDetail{
-		ID:             user.ID,
-		Name:           user.Name,
-		Email:          user.Email,
-		Nickname:       user.Nickname,
-		AvatarURL:      user.AvatarURL,
-		Phone:          user.Phone,
-		RealName:       user.RealName,
-		Gender:         user.Gender,
-		Birthday:       formatBirthday(user.Birthday),
-		Status:         user.Status,
-		GitHubUsername: user.GitHubUsername,
-		Role:           toRoleRef(user.Role),
-		Groups:         usergroup.UserGroupRefsFromMembers(user.GroupMembers, true),
-		AuthMethods:    toAuthMethods(user),
-		LastLoginAt:    user.LastLoginAt,
-		CreatedAt:      user.CreatedAt,
-		UpdatedAt:      user.UpdatedAt,
+		ID:                user.ID,
+		Name:              user.Name,
+		Email:             user.Email,
+		Nickname:          user.Nickname,
+		AvatarURL:         user.AvatarURL,
+		Phone:             user.Phone,
+		RealName:          user.RealName,
+		Gender:            user.Gender,
+		Birthday:          formatBirthday(user.Birthday),
+		Status:            user.Status,
+		GitHubUsername:    user.GitHubUsername,
+		Role:              toRoleRef(user.Role),
+		AdminScope:        user.AdminScope,
+		ManagementGroupID: user.ManagementGroupID,
+		Groups:            usergroup.UserGroupRefsFromMembers(user.GroupMembers, true),
+		AuthMethods:       toAuthMethods(user),
+		LastLoginAt:       user.LastLoginAt,
+		CreatedAt:         user.CreatedAt,
+		UpdatedAt:         user.UpdatedAt,
 	}
 }
 

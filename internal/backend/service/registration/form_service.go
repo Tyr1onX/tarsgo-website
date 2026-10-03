@@ -55,8 +55,11 @@ type gormRegistrationFormRepository struct {
 }
 
 type RegistrationFormActor struct {
-	ID       uint64
-	RoleName string
+	ID                uint64
+	RoleName          string
+	AdminScope        string
+	ManagementGroupID *uint64
+	GroupRole         string
 }
 
 type ListRegistrationFormsInput struct {

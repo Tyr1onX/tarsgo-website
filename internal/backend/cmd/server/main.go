@@ -27,8 +27,10 @@ func main() {
 	}
 	defer sqlDB.Close()
 
-	if err := database.RunMigrations(context.Background(), db, cfg.App.Env); err != nil {
-		log.Fatalf("database migrations: %v", err)
+	if cfg.App.AutoMigrate {
+		if err := database.RunMigrations(context.Background(), db, cfg.App.Env); err != nil {
+			log.Fatalf("database migrations: %v", err)
+		}
 	}
 
 	runtimeStore, err := runtimeconfig.NewStore(db, cfg)

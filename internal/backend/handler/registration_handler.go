@@ -26,6 +26,7 @@ type registrationService interface {
 	ListRegistrations(ctx context.Context, actor registration.RegistrationFormActor, input registration.ListRegistrationsInput) (*registration.ListRegistrationsResult, error)
 	GetRegistration(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64) (*registration.RegistrationDetail, error)
 	ReviewRegistration(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64, input registration.ReviewRegistrationInput) (*registration.RegistrationDetail, error)
+	UpdateRegistrationInterview(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64, input registration.UpdateInterviewInput) (*registration.RegistrationDetail, error)
 	UndoRegistrationReview(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64) (*registration.RegistrationDetail, error)
 	DeleteRegistration(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64) error
 	OpenRegistrationFile(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64, fieldKey string, index int) (*registration.RegistrationFileResult, error)
@@ -43,6 +44,11 @@ type listRegistrationsQuery struct {
 type reviewRegistrationRequest struct {
 	Decision string `json:"decision"`
 	Remark   string `json:"remark"`
+}
+
+type updateInterviewRequest struct {
+	Status string `json:"status"`
+	Remark string `json:"remark"`
 }
 
 func NewRegistrationHandler(service registrationService) *RegistrationHandler {
@@ -215,6 +221,30 @@ func (h *RegistrationHandler) UndoRegistrationReview(c *gin.Context) {
 	_ = middleware.RecordBusinessActivity(c, middleware.ActivityInput{ActionKey: model.ActivityRegistrationReviewUndo, EntityType: "registration", EntityID: registrationID})
 
 	writeAPI(c, http.StatusOK, "撤销审核成功", detail)
+}
+
+func (h *RegistrationHandler) UpdateRegistrationInterview(c *gin.Context) {
+	registrationID, err := parsePathID(c.Param("id"))
+	if err != nil {
+		writeAPIError(c, http.StatusBadRequest, "无效的报名记录 ID")
+		return
+	}
+	groupID, err := parsePathID(c.Param("groupId"))
+	if err != nil {
+		writeAPIError(c, http.StatusBadRequest, "无效的组别 ID")
+		return
+	}
+	var request updateInterviewRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		writeAPIError(c, http.StatusBadRequest, "请求参数不合法")
+		return
+	}
+	detail, serviceErr := h.service.UpdateRegistrationInterview(c.Request.Context(), currentRegistrationFormActor(c), registrationID, registration.UpdateInterviewInput{GroupID: groupID, Status: request.Status, Remark: request.Remark})
+	if serviceErr != nil {
+		h.handleServiceError(c, serviceErr)
+		return
+	}
+	writeAPI(c, http.StatusOK, "更新面试结果成功", detail)
 }
 
 func (h *RegistrationHandler) DeleteRegistration(c *gin.Context) {

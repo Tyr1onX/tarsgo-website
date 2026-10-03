@@ -3,6 +3,8 @@ import tailwindcss from "@tailwindcss/vite";
 import { fileURLToPath } from "node:url";
 import { defineConfig, searchForWorkspaceRoot } from "vite";
 
+const apiProxyTarget = process.env.TARSGO_API_PROXY ?? "http://127.0.0.1:8080";
+
 const repoRoot = fileURLToPath(new URL("../..", import.meta.url));
 const publicDir = fileURLToPath(new URL("../../public", import.meta.url));
 
@@ -15,7 +17,13 @@ export default defineConfig({
     },
     proxy: {
       "/api": {
-        target: "http://127.0.0.1:8080",
+        target: apiProxyTarget,
+        changeOrigin: true,
+      },
+      // Uploaded group images are returned as same-origin paths by the API.
+      // Proxy them in split frontend development just like API requests.
+      "/upload": {
+        target: apiProxyTarget,
         changeOrigin: true,
       },
     },

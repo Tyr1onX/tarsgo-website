@@ -2,6 +2,41 @@ package config
 
 import "testing"
 
+func setRequiredConfigEnvironment(t *testing.T) {
+	t.Helper()
+	t.Setenv("DB_HOST", "127.0.0.1")
+	t.Setenv("DB_NAME", "tarsgo")
+	t.Setenv("DB_USER", "tarsgo")
+	t.Setenv("DB_PASSWORD", "secret")
+	t.Setenv("JWT_SECRET", "jwt-secret")
+}
+
+func TestLoadAutoMigrateDefaultsToEnabled(t *testing.T) {
+	setRequiredConfigEnvironment(t)
+	t.Setenv("APP_AUTO_MIGRATE", "")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if !cfg.App.AutoMigrate {
+		t.Fatal("expected automatic migrations to be enabled by default")
+	}
+}
+
+func TestLoadCanDisableAutoMigrate(t *testing.T) {
+	setRequiredConfigEnvironment(t)
+	t.Setenv("APP_AUTO_MIGRATE", "false")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.App.AutoMigrate {
+		t.Fatal("expected APP_AUTO_MIGRATE=false to disable automatic migrations")
+	}
+}
+
 func TestFrontendRouteUsesRelativePathWhenFrontendURLIsEmpty(t *testing.T) {
 	t.Parallel()
 
@@ -39,11 +74,7 @@ func TestFrontendRouteUsesConfiguredFrontendURL(t *testing.T) {
 }
 
 func TestLoadIgnoresSMTPAndOAuthEnvironment(t *testing.T) {
-	t.Setenv("DB_HOST", "127.0.0.1")
-	t.Setenv("DB_NAME", "tarsgo")
-	t.Setenv("DB_USER", "tarsgo")
-	t.Setenv("DB_PASSWORD", "secret")
-	t.Setenv("JWT_SECRET", "jwt-secret")
+	setRequiredConfigEnvironment(t)
 	t.Setenv("SMTP_HOST", "smtp.example.com")
 	t.Setenv("SMTP_PORT", "2525")
 	t.Setenv("SMTP_USERNAME", "mailer")

@@ -12,7 +12,124 @@ import (
 	"tarsgo-backend/model"
 )
 
-func TestRegistrationServiceReviewRegistrationFullAccessApproveAddsUserToBothGroups(t *testing.T) {
+func TestBuildInterviewNotificationUsesRequestedTemplates(t *testing.T) {
+	name := "张三"
+	reg := &model.Registration{
+		User:        model.User{Name: name, Email: "zhangsan@example.com"},
+		ContactName: &name,
+		Form:        model.RegistrationForm{Title: "2026 纳新报名"},
+		Group1:      &model.UserGroup{ID: 101, Name: "机械组"},
+	}
+	now := time.Date(2026, 9, 26, 0, 0, 0, 0, time.Local)
+
+	passed := buildInterviewNotification(reg, 101, model.RegistrationInterviewPassed, now)
+	if passed == nil || passed.To != reg.User.Email || !strings.Contains(passed.Subject, "通过") {
+		t.Fatalf("unexpected passed notification: %#v", passed)
+	}
+	for _, expected := range []string{"尊敬的 张三：", "报名项目：2026 纳新报名", "面试组别：机械组", "面试结果：通过", "本次结果仅代表当前面试环节的审核结果"} {
+		if !strings.Contains(passed.Body, expected) {
+			t.Fatalf("passed body missing %q: %s", expected, passed.Body)
+		}
+	}
+
+	failed := buildInterviewNotification(reg, 101, model.RegistrationInterviewFailed, now)
+	if failed == nil || !strings.Contains(failed.Subject, "未通过") {
+		t.Fatalf("unexpected failed notification: %#v", failed)
+	}
+	for _, expected := range []string{"尊敬的 张三：", "经综合评估，很遗憾，你未能通过本轮面试。", "面试结果：未通过", "并不代表对个人能力与发展潜力的全面评价"} {
+		if !strings.Contains(failed.Body, expected) {
+			t.Fatalf("failed body missing %q: %s", expected, failed.Body)
+		}
+	}
+}
+
+type fakeInterviewMailer struct {
+	to          string
+	subject     string
+	body        string
+	image       []byte
+	contentType string
+	err         error
+}
+
+func (m *fakeInterviewMailer) Send(_ context.Context, to string, subject string, body string) error {
+	m.to, m.subject, m.body = to, subject, body
+	m.image = nil
+	m.contentType = ""
+	return m.err
+}
+
+func (m *fakeInterviewMailer) SendWithInlineImage(_ context.Context, to string, subject string, body string, image []byte, contentType string) error {
+	m.to, m.subject, m.body = to, subject, body
+	m.image = append([]byte(nil), image...)
+	m.contentType = contentType
+	return m.err
+}
+
+func TestRegistrationServiceInterviewSendsPassedAndFailedNotifications(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	repo.registration.User = model.User{ID: repo.registration.UserID, Name: "张三", Email: "zhangsan@example.com"}
+	repo.registration.Group1Status = model.RegistrationStatusApproved
+	repo.registration.Group2Status = model.RegistrationStatusApproved
+	mailer := &fakeInterviewMailer{}
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	service.mailer = func() RegistrationMailer { return mailer }
+	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGlobal}
+
+	if _, err := service.UpdateRegistrationInterview(context.Background(), actor, repo.registration.ID, UpdateInterviewInput{GroupID: *repo.registration.Group1ID, Status: "passed"}); err != nil {
+		t.Fatalf("passed interview update returned error: %v", err)
+	}
+	if mailer.to != "zhangsan@example.com" || !strings.Contains(mailer.subject, "录取") || !strings.Contains(mailer.body, "最终结果：已录取") {
+		t.Fatalf("unexpected passed mail: %#v", mailer)
+	}
+
+	if _, err := service.UpdateRegistrationInterview(context.Background(), actor, repo.registration.ID, UpdateInterviewInput{GroupID: *repo.registration.Group2ID, Status: "failed"}); err != nil {
+		t.Fatalf("failed interview update returned error: %v", err)
+	}
+	if !strings.Contains(mailer.subject, "未通过") || !strings.Contains(mailer.body, "面试结果：未通过") {
+		t.Fatalf("unexpected failed mail: %#v", mailer)
+	}
+}
+
+func TestRegistrationServiceAdmissionEmbedsConfiguredImageButFailedResultDoesNot(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	repo.registration.User = model.User{ID: repo.registration.UserID, Name: "张三", Email: "zhangsan@example.com"}
+	repo.registration.Group1Status = model.RegistrationStatusApproved
+	repo.registration.Group2Status = model.RegistrationStatusApproved
+	imageURL := "/upload/config/group/qq-group.png"
+	repo.registration.Group1.AdmissionImageURL = &imageURL
+	repo.shownGroups[0].AdmissionImageURL = &imageURL
+
+	mailer := &fakeInterviewMailer{}
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	service.mailer = func() RegistrationMailer { return mailer }
+	service.loadInlineImage = func(rawURL string) ([]byte, string, error) {
+		if rawURL != imageURL {
+			t.Fatalf("unexpected image URL: %q", rawURL)
+		}
+		return []byte("png-image"), "image/png", nil
+	}
+	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGlobal}
+
+	if _, err := service.UpdateRegistrationInterview(context.Background(), actor, repo.registration.ID, UpdateInterviewInput{GroupID: *repo.registration.Group1ID, Status: "passed"}); err != nil {
+		t.Fatalf("passed interview update returned error: %v", err)
+	}
+	if string(mailer.image) != "png-image" || mailer.contentType != "image/png" {
+		t.Fatalf("expected configured inline image, got image=%q contentType=%q", mailer.image, mailer.contentType)
+	}
+	if !strings.Contains(mailer.body, "扫描邮件内的图片加入录取群") {
+		t.Fatalf("admission body does not mention the inline image: %s", mailer.body)
+	}
+
+	if _, err := service.UpdateRegistrationInterview(context.Background(), actor, repo.registration.ID, UpdateInterviewInput{GroupID: *repo.registration.Group2ID, Status: "failed"}); err != nil {
+		t.Fatalf("failed interview update returned error: %v", err)
+	}
+	if len(mailer.image) != 0 || mailer.contentType != "" {
+		t.Fatalf("failed result must not include an image, got image=%q contentType=%q", mailer.image, mailer.contentType)
+	}
+}
+
+func TestRegistrationServiceReviewRegistrationFullAccessApproveDoesNotChangeMemberships(t *testing.T) {
 	repo := newFakeRegistrationReviewRepository()
 	service := newRegistrationServiceWithDependencies(repo, nil)
 	service.now = func() time.Time {
@@ -39,24 +156,12 @@ func TestRegistrationServiceReviewRegistrationFullAccessApproveAddsUserToBothGro
 		t.Fatalf("expected overall approved, got %d", detail.Status)
 	}
 
-	assertAddedMemberships(
-		t,
-		repo.addedMemberships,
-		[]fakeAddedMembership{
-			{GroupID: 101, UserID: repo.registration.UserID},
-			{GroupID: 102, UserID: repo.registration.UserID},
-		},
-	)
-	assertRemovedMemberships(
-		t,
-		repo.removedMemberships,
-		[]fakeAddedMembership{
-			{GroupID: 1, UserID: repo.registration.UserID},
-		},
-	)
+	if len(repo.addedMemberships) != 0 || len(repo.removedMemberships) != 0 {
+		t.Fatalf("online review must not change memberships")
+	}
 }
 
-func TestRegistrationServiceReviewRegistrationAllowsTwoLeadersToApproveTwoGroups(t *testing.T) {
+func TestRegistrationServiceReviewRegistrationAllowsTwoLeadersWithoutMembershipChanges(t *testing.T) {
 	repo := newFakeRegistrationReviewRepository()
 	repo.leaderGroupIDs[2001] = []uint64{101}
 	repo.leaderGroupIDs[2002] = []uint64{102}
@@ -109,21 +214,9 @@ func TestRegistrationServiceReviewRegistrationAllowsTwoLeadersToApproveTwoGroups
 		t.Fatalf("expected overall approved after second review, got %d", secondDetail.Status)
 	}
 
-	assertAddedMemberships(
-		t,
-		repo.addedMemberships,
-		[]fakeAddedMembership{
-			{GroupID: 101, UserID: repo.registration.UserID},
-			{GroupID: 102, UserID: repo.registration.UserID},
-		},
-	)
-	assertRemovedMemberships(
-		t,
-		repo.removedMemberships,
-		[]fakeAddedMembership{
-			{GroupID: 1, UserID: repo.registration.UserID},
-		},
-	)
+	if len(repo.addedMemberships) != 0 || len(repo.removedMemberships) != 0 {
+		t.Fatalf("online review must not change memberships")
+	}
 }
 
 func TestRegistrationServiceUndoApprovedReviewRestoresPendingAndAllowsReviewAgain(t *testing.T) {
@@ -159,16 +252,9 @@ func TestRegistrationServiceUndoApprovedReviewRestoresPendingAndAllowsReviewAgai
 	if !detail.CanApprove || !detail.CanReject || detail.CanUndo {
 		t.Fatalf("expected review actions restored and undo disabled, got approve=%v reject=%v undo=%v", detail.CanApprove, detail.CanReject, detail.CanUndo)
 	}
-	assertRemovedMemberships(t, repo.removedMemberships, []fakeAddedMembership{
-		{GroupID: 1, UserID: repo.registration.UserID},
-		{GroupID: 101, UserID: repo.registration.UserID},
-		{GroupID: 102, UserID: repo.registration.UserID},
-	})
-	assertAddedMemberships(t, repo.addedMemberships, []fakeAddedMembership{
-		{GroupID: 101, UserID: repo.registration.UserID},
-		{GroupID: 102, UserID: repo.registration.UserID},
-		{GroupID: 1, UserID: repo.registration.UserID},
-	})
+	if len(repo.addedMemberships) != 0 || len(repo.removedMemberships) != 0 {
+		t.Fatalf("undo online review must not change memberships")
+	}
 
 	reviewedAgain, err := service.ReviewRegistration(
 		context.Background(),
@@ -208,6 +294,92 @@ func TestRegistrationServiceUndoRejectedReviewRestoresPendingWithoutMembershipCh
 	if len(repo.addedMemberships) != 0 || len(repo.removedMemberships) != 0 {
 		t.Fatalf("expected rejection undo not to change memberships, got added=%v removed=%v", repo.addedMemberships, repo.removedMemberships)
 	}
+}
+
+func TestRegistrationServiceInterviewKeepsUnresolvedAdmissionUnfinalized(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	repo.registration.Group1Status = model.RegistrationStatusApproved
+	repo.registration.Group2Status = model.RegistrationStatusApproved
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	service.now = func() time.Time {
+		return time.Date(2026, 4, 14, 14, 0, 0, 0, time.Local)
+	}
+	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGlobal}
+
+	detail, err := service.UpdateRegistrationInterview(
+		context.Background(), actor, repo.registration.ID,
+		UpdateInterviewInput{GroupID: *repo.registration.Group2ID, Status: "passed"},
+	)
+	if err != nil {
+		t.Fatalf("UpdateRegistrationInterview returned error: %v", err)
+	}
+	if detail.FinalStatus != model.RegistrationFinalStatusPending || detail.FinalGroup != nil {
+		t.Fatalf("expected unresolved admission to remain pending, got status=%d group=%#v", detail.FinalStatus, detail.FinalGroup)
+	}
+	if detail.FinalizedAt != nil || detail.Finalizer != nil {
+		t.Fatalf("pending admission must not have finalization metadata, got at=%#v by=%#v", detail.FinalizedAt, detail.Finalizer)
+	}
+	if len(repo.addedMemberships) != 0 || len(repo.removedMemberships) != 0 {
+		t.Fatalf("unresolved admission must not change memberships, got added=%v removed=%v", repo.addedMemberships, repo.removedMemberships)
+	}
+}
+
+func TestRegistrationServiceInterviewAdmitsFirstChoiceAndMovesMembership(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	repo.registration.Group1Status = model.RegistrationStatusApproved
+	repo.registration.Group2Status = model.RegistrationStatusApproved
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	now := time.Date(2026, 4, 14, 15, 0, 0, 0, time.Local)
+	service.now = func() time.Time { return now }
+	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGlobal}
+
+	detail, err := service.UpdateRegistrationInterview(
+		context.Background(), actor, repo.registration.ID,
+		UpdateInterviewInput{GroupID: *repo.registration.Group1ID, Status: "passed"},
+	)
+	if err != nil {
+		t.Fatalf("UpdateRegistrationInterview returned error: %v", err)
+	}
+	if detail.FinalStatus != model.RegistrationFinalStatusAdmitted || detail.FinalGroup == nil || detail.FinalGroup.ID != *repo.registration.Group1ID {
+		t.Fatalf("expected first-choice admission, got status=%d group=%#v", detail.FinalStatus, detail.FinalGroup)
+	}
+	if detail.FinalizedAt == nil || !detail.FinalizedAt.Equal(now) || detail.Finalizer == nil || detail.Finalizer.ID != actor.ID {
+		t.Fatalf("expected finalization metadata for admission, got at=%#v by=%#v", detail.FinalizedAt, detail.Finalizer)
+	}
+	assertRemovedMemberships(t, repo.removedMemberships, []fakeAddedMembership{{GroupID: 1, UserID: repo.registration.UserID}})
+	assertAddedMemberships(t, repo.addedMemberships, []fakeAddedMembership{{GroupID: *repo.registration.Group1ID, UserID: repo.registration.UserID}})
+}
+
+func TestRegistrationServiceResetInterviewRevokesAdmissionAndRestoresDefaultGroup(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	repo.registration.Group1Status = model.RegistrationStatusApproved
+	repo.registration.Group2Status = model.RegistrationStatusApproved
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGlobal}
+
+	if _, err := service.UpdateRegistrationInterview(
+		context.Background(), actor, repo.registration.ID,
+		UpdateInterviewInput{GroupID: *repo.registration.Group1ID, Status: "passed"},
+	); err != nil {
+		t.Fatalf("first UpdateRegistrationInterview returned error: %v", err)
+	}
+	repo.addedMemberships = nil
+	repo.removedMemberships = nil
+	repo.addedMembershipKV = make(map[fakeAddedMembership]struct{})
+	repo.removedMembershipKV = make(map[fakeAddedMembership]struct{})
+
+	detail, err := service.UpdateRegistrationInterview(
+		context.Background(), actor, repo.registration.ID,
+		UpdateInterviewInput{GroupID: *repo.registration.Group1ID, Status: "pending"},
+	)
+	if err != nil {
+		t.Fatalf("second UpdateRegistrationInterview returned error: %v", err)
+	}
+	if detail.FinalStatus != model.RegistrationFinalStatusPending || detail.FinalGroup != nil || detail.FinalizedAt != nil || detail.Finalizer != nil {
+		t.Fatalf("expected admission reset to clear final result, got %#v", detail)
+	}
+	assertRemovedMemberships(t, repo.removedMemberships, []fakeAddedMembership{{GroupID: 101, UserID: repo.registration.UserID}})
+	assertAddedMemberships(t, repo.addedMemberships, []fakeAddedMembership{{GroupID: 1, UserID: repo.registration.UserID}})
 }
 
 func TestRegistrationServiceUndoReviewOnlyResetsLeaderGroup(t *testing.T) {
@@ -775,9 +947,42 @@ func (r *fakeRegistrationReviewRepository) UpdateRegistration(_ context.Context,
 	if value, ok := updates["submitted_at"].(time.Time); ok {
 		r.registration.SubmittedAt = value
 	}
+	if value, ok := updates["final_status"].(uint8); ok {
+		r.registration.FinalStatus = value
+	}
+	if value, ok := updates["final_group_id"].(*uint64); ok && value != nil {
+		r.registration.FinalGroupID = copyUint64Ptr(value)
+		r.registration.FinalGroup = cloneGroupModel(groupByID(r.shownGroups, *value))
+	} else if _, ok := updates["final_group_id"]; ok {
+		r.registration.FinalGroupID = nil
+		r.registration.FinalGroup = nil
+	}
+	if value, ok := updates["finalized_at"].(*time.Time); ok {
+		r.registration.FinalizedAt = copyTimePtr(value)
+	} else if _, ok := updates["finalized_at"]; ok {
+		r.registration.FinalizedAt = nil
+	}
+	if value, ok := updates["finalized_by"].(*uint64); ok {
+		r.registration.FinalizedBy = copyUint64Ptr(value)
+		r.registration.Finalizer = cloneUserModel(r.users[*value])
+	} else if _, ok := updates["finalized_by"]; ok {
+		r.registration.FinalizedBy = nil
+		r.registration.Finalizer = nil
+	}
 
 	updatedAt := time.Now()
 	r.registration.UpdatedAt = updatedAt
+	return nil
+}
+
+func (r *fakeRegistrationReviewRepository) UpsertRegistrationInterview(_ context.Context, interview *model.RegistrationInterview) error {
+	for i := range r.registration.Interviews {
+		if r.registration.Interviews[i].GroupID == interview.GroupID {
+			r.registration.Interviews[i] = *interview
+			return nil
+		}
+	}
+	r.registration.Interviews = append(r.registration.Interviews, *interview)
 	return nil
 }
 
@@ -875,12 +1080,27 @@ func cloneRegistrationModel(registration *model.Registration) *model.Registratio
 	cloned.ReviewedAt2 = copyTimePtr(registration.ReviewedAt2)
 	cloned.ReviewRemark1 = copyStringPtr(registration.ReviewRemark1)
 	cloned.ReviewRemark2 = copyStringPtr(registration.ReviewRemark2)
+	cloned.FinalGroupID = copyUint64Ptr(registration.FinalGroupID)
+	cloned.FinalizedAt = copyTimePtr(registration.FinalizedAt)
+	cloned.FinalizedBy = copyUint64Ptr(registration.FinalizedBy)
+	cloned.Interviews = append([]model.RegistrationInterview(nil), registration.Interviews...)
 	cloned.Form = *cloneRegistrationFormModel(&registration.Form)
 	cloned.Group1 = cloneGroupModel(registration.Group1)
 	cloned.Group2 = cloneGroupModel(registration.Group2)
 	cloned.Reviewer1 = cloneUserModel(registration.Reviewer1)
 	cloned.Reviewer2 = cloneUserModel(registration.Reviewer2)
+	cloned.FinalGroup = cloneGroupModel(registration.FinalGroup)
+	cloned.Finalizer = cloneUserModel(registration.Finalizer)
 	return &cloned
+}
+
+func groupByID(groups []model.UserGroup, id uint64) *model.UserGroup {
+	for i := range groups {
+		if groups[i].ID == id {
+			return &groups[i]
+		}
+	}
+	return nil
 }
 
 type fakeRegistrationListRepository struct {
@@ -1044,6 +1264,10 @@ func (r *fakeRegistrationListRepository) CreateRegistration(_ context.Context, _
 }
 
 func (r *fakeRegistrationListRepository) UpdateRegistration(_ context.Context, _ uint64, _ map[string]any) error {
+	return nil
+}
+
+func (r *fakeRegistrationListRepository) UpsertRegistrationInterview(_ context.Context, _ *model.RegistrationInterview) error {
 	return nil
 }
 

@@ -28,8 +28,11 @@ type ServiceError struct {
 }
 
 type Actor struct {
-	ID       uint64
-	RoleName string
+	ID                uint64
+	RoleName          string
+	AdminScope        string
+	ManagementGroupID *uint64
+	GroupRole         string
 }
 
 type ListGroupsInput struct {
@@ -57,6 +60,11 @@ type UpdateGroupInput struct {
 	Status      uint8
 }
 
+type UpdateAdmissionImageInput struct {
+	Image       *multipart.FileHeader
+	RemoveImage bool
+}
+
 type AddMemberInput struct {
 	UserID uint64
 	Role   uint8
@@ -75,6 +83,7 @@ type RoleRef struct {
 type GroupRef struct {
 	ID         uint64 `json:"id"`
 	Name       string `json:"name"`
+	MemberID   uint64 `json:"memberId"`
 	MemberRole uint8  `json:"memberRole"`
 	Status     uint8  `json:"status,omitempty"`
 }
@@ -93,18 +102,19 @@ type GroupStats struct {
 }
 
 type GroupListItem struct {
-	ID          uint64    `json:"id"`
-	Name        string    `json:"name"`
-	Description *string   `json:"description,omitempty"`
-	LogoURL     *string   `json:"logoUrl,omitempty"`
-	Tags        []string  `json:"tags,omitempty"`
-	IsDefault   bool      `json:"isDefault"`
-	Show        uint8     `json:"show"`
-	Status      uint8     `json:"status"`
-	MemberCount int       `json:"memberCount"`
-	Leaders     []string  `json:"leaders,omitempty"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	ID                uint64    `json:"id"`
+	Name              string    `json:"name"`
+	Description       *string   `json:"description,omitempty"`
+	LogoURL           *string   `json:"logoUrl,omitempty"`
+	AdmissionImageURL *string   `json:"admissionImageUrl,omitempty"`
+	Tags              []string  `json:"tags,omitempty"`
+	IsDefault         bool      `json:"isDefault"`
+	Show              uint8     `json:"show"`
+	Status            uint8     `json:"status"`
+	MemberCount       int       `json:"memberCount"`
+	Leaders           []string  `json:"leaders,omitempty"`
+	CreatedAt         time.Time `json:"createdAt"`
+	UpdatedAt         time.Time `json:"updatedAt"`
 }
 
 type GroupMemberUser struct {
@@ -125,19 +135,20 @@ type GroupMemberItem struct {
 }
 
 type GroupDetail struct {
-	ID          uint64            `json:"id"`
-	Name        string            `json:"name"`
-	Description *string           `json:"description,omitempty"`
-	LogoURL     *string           `json:"logoUrl,omitempty"`
-	Tags        []string          `json:"tags,omitempty"`
-	IsDefault   bool              `json:"isDefault"`
-	Show        uint8             `json:"show"`
-	Status      uint8             `json:"status"`
-	MemberCount int               `json:"memberCount"`
-	Leaders     []string          `json:"leaders,omitempty"`
-	CreatedAt   time.Time         `json:"createdAt"`
-	UpdatedAt   time.Time         `json:"updatedAt"`
-	Members     []GroupMemberItem `json:"members"`
+	ID                uint64            `json:"id"`
+	Name              string            `json:"name"`
+	Description       *string           `json:"description,omitempty"`
+	LogoURL           *string           `json:"logoUrl,omitempty"`
+	AdmissionImageURL *string           `json:"admissionImageUrl,omitempty"`
+	Tags              []string          `json:"tags,omitempty"`
+	IsDefault         bool              `json:"isDefault"`
+	Show              uint8             `json:"show"`
+	Status            uint8             `json:"status"`
+	MemberCount       int               `json:"memberCount"`
+	Leaders           []string          `json:"leaders,omitempty"`
+	CreatedAt         time.Time         `json:"createdAt"`
+	UpdatedAt         time.Time         `json:"updatedAt"`
+	Members           []GroupMemberItem `json:"members"`
 }
 
 type GroupCandidateItem struct {
@@ -153,6 +164,12 @@ type GroupCandidateItem struct {
 type ListGroupsResult struct {
 	Items   []GroupListItem `json:"items"`
 	Summary GroupStats      `json:"summary"`
+}
+
+type GroupOption struct {
+	ID     uint64 `json:"id"`
+	Name   string `json:"name"`
+	Status uint8  `json:"status"`
 }
 
 func NewService(repo Repository) *Service {
@@ -191,6 +208,9 @@ func (s *Service) ListGroups(ctx context.Context, actor Actor, input ListGroupsI
 	if err := ensureAdminActor(actor); err != nil {
 		return nil, err
 	}
+	if actor.RoleName == model.RoleNameAdmin && actor.AdminScope != "" {
+		return nil, &ServiceError{Status: http.StatusForbidden, Message: "仅超级管理员可以管理用户组配置"}
+	}
 
 	groups, err := s.repo.ListGroups(ctx, input)
 	if err != nil {
@@ -213,9 +233,29 @@ func (s *Service) ListGroups(ctx context.Context, actor Actor, input ListGroupsI
 	}, nil
 }
 
+func (s *Service) ListGroupOptions(ctx context.Context, actor Actor) ([]GroupOption, error) {
+	if actor.ID == 0 || (actor.RoleName != model.RoleNameSuperAdmin && !(actor.RoleName == model.RoleNameAdmin && actor.AdminScope == model.AdminScopeGlobal)) {
+		return nil, &ServiceError{Status: http.StatusForbidden, Message: "当前账号无权查看用户组筛选项"}
+	}
+
+	groups, err := s.repo.ListGroups(ctx, ListGroupsInput{})
+	if err != nil {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "查询用户组筛选项失败", Err: err}
+	}
+
+	options := make([]GroupOption, 0, len(groups))
+	for _, group := range groups {
+		options = append(options, GroupOption{ID: group.ID, Name: group.Name, Status: group.Status})
+	}
+	return options, nil
+}
+
 func (s *Service) GetGroup(ctx context.Context, actor Actor, groupID uint64) (*GroupDetail, error) {
 	if err := ensureAdminActor(actor); err != nil {
 		return nil, err
+	}
+	if actor.RoleName == model.RoleNameAdmin && actor.AdminScope == model.AdminScopeGroup && (actor.ManagementGroupID == nil || *actor.ManagementGroupID != groupID) {
+		return nil, &ServiceError{Status: http.StatusForbidden, Message: "无权访问其他用户组"}
 	}
 
 	group, err := s.repo.GetGroupByID(ctx, groupID)
@@ -233,6 +273,9 @@ func (s *Service) GetGroup(ctx context.Context, actor Actor, groupID uint64) (*G
 func (s *Service) CreateGroup(ctx context.Context, actor Actor, input CreateGroupInput) (*GroupDetail, error) {
 	if err := ensureAdminActor(actor); err != nil {
 		return nil, err
+	}
+	if actor.RoleName != model.RoleNameSuperAdmin {
+		return nil, &ServiceError{Status: http.StatusForbidden, Message: "仅超级管理员可以管理用户组配置"}
 	}
 
 	name := strings.TrimSpace(input.Name)
@@ -297,6 +340,9 @@ func (s *Service) CreateGroup(ctx context.Context, actor Actor, input CreateGrou
 func (s *Service) UpdateGroup(ctx context.Context, actor Actor, groupID uint64, input UpdateGroupInput) (*GroupDetail, error) {
 	if err := ensureAdminActor(actor); err != nil {
 		return nil, err
+	}
+	if actor.RoleName != model.RoleNameSuperAdmin {
+		return nil, &ServiceError{Status: http.StatusForbidden, Message: "仅超级管理员可以管理用户组配置"}
 	}
 
 	group, err := s.repo.GetGroupByID(ctx, groupID)
@@ -381,9 +427,61 @@ func (s *Service) UpdateGroup(ctx context.Context, actor Actor, groupID uint64, 
 	return s.GetGroup(ctx, actor, groupID)
 }
 
+func (s *Service) UpdateAdmissionImage(ctx context.Context, actor Actor, groupID uint64, input UpdateAdmissionImageInput) (*GroupDetail, error) {
+	if actor.ID == 0 || actor.RoleName != model.RoleNameAdmin || actor.AdminScope != model.AdminScopeGroup || actor.ManagementGroupID == nil || *actor.ManagementGroupID != groupID || actor.GroupRole != "leader" {
+		return nil, &ServiceError{Status: http.StatusForbidden, Message: "仅当前组组长可以配置录取群图片"}
+	}
+	if input.Image == nil && !input.RemoveImage {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "请选择要上传的录取群图片"}
+	}
+	if input.Image != nil && input.RemoveImage {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "不能同时上传和移除录取群图片"}
+	}
+	if err := validateAdmissionImageFile(input.Image); err != nil {
+		return nil, err
+	}
+
+	group, err := s.repo.GetGroupByID(ctx, groupID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, &ServiceError{Status: http.StatusNotFound, Message: "用户组不存在"}
+		}
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载用户组失败", Err: err}
+	}
+
+	var savedImage *storedGroupLogo
+	if input.Image != nil {
+		savedImage, err = s.fileStore.Save(ctx, groupLogoSaveInput{File: input.Image, Now: s.now()})
+		if err != nil {
+			return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "保存录取群图片失败", Err: err}
+		}
+	}
+
+	var imageURL *string
+	if savedImage != nil {
+		imageURL = stringPtr(savedImage.URL)
+	}
+	if err := s.repo.UpdateGroup(ctx, groupID, map[string]any{"admission_image_url": imageURL}); err != nil {
+		if savedImage != nil {
+			_ = s.fileStore.Remove(context.Background(), savedImage.RelativePath)
+		}
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "更新录取群图片失败", Err: err}
+	}
+
+	if savedImage != nil {
+		cleanupManagedGroupLogoURL(context.Background(), s.fileStore, group.AdmissionImageURL, savedImage.URL)
+	} else {
+		cleanupManagedGroupLogoURL(context.Background(), s.fileStore, group.AdmissionImageURL, "")
+	}
+	return s.GetGroup(ctx, actor, groupID)
+}
+
 func (s *Service) DeleteGroup(ctx context.Context, actor Actor, groupID uint64) error {
 	if err := ensureAdminActor(actor); err != nil {
 		return err
+	}
+	if actor.RoleName != model.RoleNameSuperAdmin {
+		return &ServiceError{Status: http.StatusForbidden, Message: "仅超级管理员可以管理用户组配置"}
 	}
 
 	group, err := s.repo.GetGroupByID(ctx, groupID)
@@ -407,11 +505,14 @@ func (s *Service) DeleteGroup(ctx context.Context, actor Actor, groupID uint64) 
 	}
 
 	cleanupManagedGroupLogoURL(context.Background(), s.fileStore, group.LogoURL, "")
+	cleanupManagedGroupLogoURL(context.Background(), s.fileStore, group.AdmissionImageURL, "")
 	return nil
 }
 
 func (s *Service) ListMemberCandidates(ctx context.Context, actor Actor, groupID uint64) ([]GroupCandidateItem, error) {
-	if err := ensureAdminActor(actor); err != nil {
+	if actor.RoleName == model.RoleNameSuperAdmin && actor.AdminScope == "" {
+		// compatibility for pre-scope internal callers
+	} else if err := ensureMemberManager(actor, groupID, model.UserGroupMemberRoleMember, false); err != nil {
 		return nil, err
 	}
 
@@ -429,14 +530,26 @@ func (s *Service) ListMemberCandidates(ctx context.Context, actor Actor, groupID
 
 	items := make([]GroupCandidateItem, 0, len(users))
 	for i := range users {
+		if actor.AdminScope != "" && (users[i].Status != model.UserStatusEnabled || !inActiveDefaultGroup(users[i].GroupMembers)) {
+			continue
+		}
 		items = append(items, toGroupCandidateItem(&users[i]))
 	}
 
 	return items, nil
 }
 
+func inActiveDefaultGroup(members []model.UserGroupMember) bool {
+	for _, member := range members {
+		if member.Group.IsDefault && member.Group.Status == model.UserGroupStatusActive {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Service) AddMember(ctx context.Context, actor Actor, groupID uint64, input AddMemberInput) (*GroupMemberItem, error) {
-	if err := ensureAdminActor(actor); err != nil {
+	if err := ensureMemberManager(actor, groupID, input.Role, false); err != nil {
 		return nil, err
 	}
 	if err := validateMemberRole(input.Role); err != nil {
@@ -461,6 +574,20 @@ func (s *Service) AddMember(ctx context.Context, actor Actor, groupID uint64, in
 	if !EligibleRoleName(user.Role.Name) {
 		return nil, &ServiceError{Status: http.StatusForbidden, Message: "该账号角色不允许加入用户组"}
 	}
+	if user.Role.Name == model.RoleNameSuperAdmin {
+		return nil, &ServiceError{Status: http.StatusForbidden, Message: "超级管理员不能加入普通用户组"}
+	}
+	if actor.RoleName != model.RoleNameSuperAdmin && user.Role.Name == model.RoleNameAdmin && user.AdminScope == model.AdminScopeGlobal {
+		return nil, &ServiceError{Status: http.StatusForbidden, Message: "组长不能调整全局管理员"}
+	}
+	if input.Role != model.UserGroupMemberRoleMember {
+		for _, existing := range user.GroupMembers {
+			if existing.Role == model.UserGroupMemberRoleMember || existing.GroupID == groupID {
+				continue
+			}
+			return nil, &ServiceError{Status: http.StatusConflict, Message: "该用户已在其他用户组担任管理职务"}
+		}
+	}
 
 	if _, err := s.repo.FindMemberByUserID(ctx, groupID, input.UserID); err == nil {
 		return nil, &ServiceError{Status: http.StatusConflict, Message: "该用户已经在当前分组中"}
@@ -477,6 +604,11 @@ func (s *Service) AddMember(ctx context.Context, actor Actor, groupID uint64, in
 	if err := s.repo.RunInTx(ctx, func(repo Repository) error {
 		if err := repo.CreateMember(ctx, member); err != nil {
 			return err
+		}
+		if input.Role == model.UserGroupMemberRoleGroupAdmin || input.Role == model.UserGroupMemberRoleLeader {
+			if err := syncManagedUser(ctx, repo, input.UserID, model.RoleNameAdmin, model.AdminScopeGroup, &groupID); err != nil {
+				return err
+			}
 		}
 		if group.IsDefault {
 			return nil
@@ -495,21 +627,53 @@ func (s *Service) AddMember(ctx context.Context, actor Actor, groupID uint64, in
 }
 
 func (s *Service) UpdateMember(ctx context.Context, actor Actor, groupID uint64, memberID uint64, input UpdateMemberInput) (*GroupMemberItem, error) {
-	if err := ensureAdminActor(actor); err != nil {
+	if err := ensureMemberManager(actor, groupID, input.Role, true); err != nil {
 		return nil, err
 	}
 	if err := validateMemberRole(input.Role); err != nil {
 		return nil, err
 	}
 
-	if _, err := s.repo.GetMemberByID(ctx, groupID, memberID); err != nil {
+	member, err := s.repo.GetMemberByID(ctx, groupID, memberID)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, &ServiceError{Status: http.StatusNotFound, Message: "分组成员不存在"}
 		}
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载分组成员失败", Err: err}
 	}
+	if member.UserID == actor.ID && member.Role == model.UserGroupMemberRoleLeader {
+		return nil, &ServiceError{Status: http.StatusForbidden, Message: "组长不能撤销自己的组长身份"}
+	}
+	if member.Role == model.UserGroupMemberRoleLeader && input.Role == model.UserGroupMemberRoleMember {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "组长不能直接降为普通成员，请先降为组内管理员"}
+	}
+	if input.Role == model.UserGroupMemberRoleLeader && actor.RoleName != model.RoleNameSuperAdmin {
+		return nil, &ServiceError{Status: http.StatusForbidden, Message: "只有超级管理员可以任命组长"}
+	}
+	if member.User.Role.Name == model.RoleNameAdmin && member.User.AdminScope == model.AdminScopeGlobal && actor.RoleName != model.RoleNameSuperAdmin {
+		return nil, &ServiceError{Status: http.StatusForbidden, Message: "组长不能调整全局管理员"}
+	}
+	if input.Role != model.UserGroupMemberRoleMember {
+		for _, existing := range member.User.GroupMembers {
+			if existing.ID == member.ID || existing.Role == model.UserGroupMemberRoleMember {
+				continue
+			}
+			return nil, &ServiceError{Status: http.StatusConflict, Message: "该用户已在其他用户组担任管理职务"}
+		}
+	}
 
-	if err := s.repo.UpdateMember(ctx, groupID, memberID, map[string]any{"role": input.Role}); err != nil {
+	if err := s.repo.RunInTx(ctx, func(repo Repository) error {
+		if err := repo.UpdateMember(ctx, groupID, memberID, map[string]any{"role": input.Role}); err != nil {
+			return err
+		}
+		switch input.Role {
+		case model.UserGroupMemberRoleGroupAdmin, model.UserGroupMemberRoleLeader:
+			return syncManagedUser(ctx, repo, member.UserID, model.RoleNameAdmin, model.AdminScopeGroup, &groupID)
+		case model.UserGroupMemberRoleMember:
+			return syncManagedUser(ctx, repo, member.UserID, model.RoleNameUser, model.AdminScopeNone, nil)
+		}
+		return nil
+	}); err != nil {
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "更新成员角色失败", Err: err}
 	}
 
@@ -522,16 +686,18 @@ func (s *Service) UpdateMember(ctx context.Context, actor Actor, groupID uint64,
 }
 
 func (s *Service) RemoveMember(ctx context.Context, actor Actor, groupID uint64, memberID uint64) error {
-	if err := ensureAdminActor(actor); err != nil {
+	if err := ensureMemberManager(actor, groupID, model.UserGroupMemberRoleMember, true); err != nil {
 		return err
 	}
-
 	member, err := s.repo.GetMemberByID(ctx, groupID, memberID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &ServiceError{Status: http.StatusNotFound, Message: "分组成员不存在"}
 		}
 		return &ServiceError{Status: http.StatusInternalServerError, Message: "加载分组成员失败", Err: err}
+	}
+	if member.Role != model.UserGroupMemberRoleMember {
+		return &ServiceError{Status: http.StatusConflict, Message: "请先撤销组内管理身份后再移除成员"}
 	}
 
 	if err := s.repo.RunInTx(ctx, func(repo Repository) error {
@@ -559,6 +725,7 @@ func UserGroupRefsFromMembers(members []model.UserGroupMember, includeStatus boo
 		ref := GroupRef{
 			ID:         member.Group.ID,
 			Name:       member.Group.Name,
+			MemberID:   member.ID,
 			MemberRole: member.Role,
 		}
 		if includeStatus {
@@ -570,10 +737,55 @@ func UserGroupRefsFromMembers(members []model.UserGroupMember, includeStatus boo
 }
 
 func ensureAdminActor(actor Actor) error {
-	if actor.RoleName == model.RoleNameAdmin || actor.RoleName == model.RoleNameSuperAdmin {
+	if actor.RoleName == model.RoleNameSuperAdmin {
+		return nil
+	}
+	if actor.RoleName == model.RoleNameAdmin && (actor.AdminScope == "" || actor.AdminScope == model.AdminScopeGlobal || actor.AdminScope == model.AdminScopeGroup) && actor.AdminScope != model.AdminScopeNone {
 		return nil
 	}
 	return &ServiceError{Status: http.StatusForbidden, Message: "当前账号无管理员权限"}
+}
+
+func ensureMemberManager(actor Actor, groupID uint64, targetRole uint8, updating bool) error {
+	if actor.RoleName == model.RoleNameSuperAdmin {
+		if actor.AdminScope == "" {
+			return &ServiceError{Status: http.StatusForbidden, Message: "该账号角色不允许加入用户组"}
+		}
+		return nil
+	}
+	// Legacy service callers without the new scope fields are treated as
+	// unrestricted admins; HTTP requests always carry explicit scope values.
+	if actor.RoleName == model.RoleNameAdmin && actor.AdminScope == "" {
+		if targetRole == model.UserGroupMemberRoleLeader {
+			return &ServiceError{Status: http.StatusForbidden, Message: "组长不能任命组长"}
+		}
+		return nil
+	}
+	if actor.RoleName != model.RoleNameAdmin || actor.AdminScope != model.AdminScopeGroup || actor.ManagementGroupID == nil || *actor.ManagementGroupID != groupID || actor.GroupRole != "leader" {
+		return &ServiceError{Status: http.StatusForbidden, Message: "仅当前组组长可以管理成员"}
+	}
+	if targetRole == model.UserGroupMemberRoleLeader {
+		return &ServiceError{Status: http.StatusForbidden, Message: "组长不能任命组长"}
+	}
+	return nil
+}
+
+type managedUserUpdater interface {
+	UpdateUser(context.Context, uint64, map[string]any) error
+}
+
+func syncManagedUser(ctx context.Context, repo Repository, userID uint64, roleName, scope string, groupID *uint64) error {
+	updater, ok := repo.(managedUserUpdater)
+	if !ok {
+		return nil
+	}
+	updates := map[string]any{"admin_scope": scope, "management_group_id": groupID}
+	if roleName == model.RoleNameUser {
+		updates["role_id"] = gorm.Expr("(SELECT id FROM roles WHERE name = ?)", model.RoleNameUser)
+	} else if roleName == model.RoleNameAdmin {
+		updates["role_id"] = gorm.Expr("(SELECT id FROM roles WHERE name = ?)", model.RoleNameAdmin)
+	}
+	return updater.UpdateUser(ctx, userID, updates)
 }
 
 func validateGroupStatus(status uint8) error {
@@ -591,7 +803,7 @@ func validateGroupShow(show uint8) error {
 }
 
 func validateMemberRole(role uint8) error {
-	if role != model.UserGroupMemberRoleMember && role != model.UserGroupMemberRoleLeader {
+	if role != model.UserGroupMemberRoleMember && role != model.UserGroupMemberRoleGroupAdmin && role != model.UserGroupMemberRoleLeader {
 		return &ServiceError{Status: http.StatusBadRequest, Message: "组内角色不合法"}
 	}
 	return nil
@@ -607,18 +819,19 @@ func toRoleRef(role model.Role) RoleRef {
 
 func toGroupListItem(group *model.UserGroup) GroupListItem {
 	return GroupListItem{
-		ID:          group.ID,
-		Name:        group.Name,
-		Description: group.Description,
-		LogoURL:     copyStringPtr(group.LogoURL),
-		Tags:        copyTags(group.Tags),
-		IsDefault:   group.IsDefault,
-		Show:        group.Show,
-		Status:      group.Status,
-		MemberCount: len(group.Members),
-		Leaders:     leaderNames(group.Members),
-		CreatedAt:   group.CreatedAt,
-		UpdatedAt:   group.UpdatedAt,
+		ID:                group.ID,
+		Name:              group.Name,
+		Description:       group.Description,
+		LogoURL:           copyStringPtr(group.LogoURL),
+		AdmissionImageURL: copyStringPtr(group.AdmissionImageURL),
+		Tags:              copyTags(group.Tags),
+		IsDefault:         group.IsDefault,
+		Show:              group.Show,
+		Status:            group.Status,
+		MemberCount:       len(group.Members),
+		Leaders:           leaderNames(group.Members),
+		CreatedAt:         group.CreatedAt,
+		UpdatedAt:         group.UpdatedAt,
 	}
 }
 
@@ -629,19 +842,20 @@ func toGroupDetail(group *model.UserGroup) GroupDetail {
 	}
 
 	return GroupDetail{
-		ID:          group.ID,
-		Name:        group.Name,
-		Description: group.Description,
-		LogoURL:     copyStringPtr(group.LogoURL),
-		Tags:        copyTags(group.Tags),
-		IsDefault:   group.IsDefault,
-		Show:        group.Show,
-		Status:      group.Status,
-		MemberCount: len(group.Members),
-		Leaders:     leaderNames(group.Members),
-		CreatedAt:   group.CreatedAt,
-		UpdatedAt:   group.UpdatedAt,
-		Members:     members,
+		ID:                group.ID,
+		Name:              group.Name,
+		Description:       group.Description,
+		LogoURL:           copyStringPtr(group.LogoURL),
+		AdmissionImageURL: copyStringPtr(group.AdmissionImageURL),
+		Tags:              copyTags(group.Tags),
+		IsDefault:         group.IsDefault,
+		Show:              group.Show,
+		Status:            group.Status,
+		MemberCount:       len(group.Members),
+		Leaders:           leaderNames(group.Members),
+		CreatedAt:         group.CreatedAt,
+		UpdatedAt:         group.UpdatedAt,
+		Members:           members,
 	}
 }
 
@@ -848,6 +1062,19 @@ func validateGroupLogoFile(fileHeader *multipart.FileHeader) error {
 	contentType := strings.TrimSpace(fileHeader.Header.Get("Content-Type"))
 	if !looksLikeGroupLogo(fileHeader.Filename, contentType) {
 		return &ServiceError{Status: http.StatusBadRequest, Message: "分组 Logo 必须为图片文件"}
+	}
+	return nil
+}
+
+func validateAdmissionImageFile(fileHeader *multipart.FileHeader) error {
+	if fileHeader == nil {
+		return nil
+	}
+	if fileHeader.Size > 2*1024*1024 {
+		return &ServiceError{Status: http.StatusBadRequest, Message: "录取群图片不能超过 2MB"}
+	}
+	if !looksLikeGroupLogo(fileHeader.Filename, fileHeader.Header.Get("Content-Type")) {
+		return &ServiceError{Status: http.StatusBadRequest, Message: "录取群图片必须为 PNG、JPG、WebP 或 GIF 图片"}
 	}
 	return nil
 }

@@ -48,7 +48,21 @@ func (r *GormRepository) ListUsers(ctx context.Context, filter ListUsersInput) (
 	}
 
 	if roleName := strings.TrimSpace(filter.Role); roleName != "" {
-		base = base.Where("roles.name = ?", roleName)
+		switch roleName {
+		case UserFilterRoleMember:
+			base = base.Where("roles.name = ?", model.RoleNameUser)
+		case UserFilterRoleGroupAdmin:
+			base = withMembershipRoleFilter(base, model.UserGroupMemberRoleGroupAdmin, filter.GroupID)
+		case UserFilterRoleLeader:
+			base = withMembershipRoleFilter(base, model.UserGroupMemberRoleLeader, filter.GroupID)
+		case UserFilterRoleGlobal, UserFilterRoleGlobalAdmin:
+			base = base.Where("roles.name = ? AND users.admin_scope = ?", model.RoleNameAdmin, model.AdminScopeGlobal)
+		case UserFilterRoleSuperAdmin:
+			base = base.Where("roles.name = ?", model.RoleNameSuperAdmin)
+		default:
+			// Keep the system role values accepted by older clients.
+			base = base.Where("roles.name = ?", roleName)
+		}
 	}
 
 	if filter.GroupID != nil {
@@ -83,6 +97,17 @@ func (r *GormRepository) ListUsers(ctx context.Context, filter ListUsersInput) (
 	return users, total, nil
 }
 
+func withMembershipRoleFilter(base *gorm.DB, memberRole uint8, groupID *uint64) *gorm.DB {
+	condition := "EXISTS (SELECT 1 FROM user_group_members role_members WHERE role_members.user_id = users.id AND role_members.role = ?"
+	args := []any{memberRole}
+	if groupID != nil {
+		condition += " AND role_members.group_id = ?"
+		args = append(args, *groupID)
+	}
+	condition += ")"
+	return base.Where(condition, args...)
+}
+
 func (r *GormRepository) GetUserStats(ctx context.Context) (UserStats, error) {
 	stats := UserStats{}
 	if err := r.db.WithContext(ctx).Model(&model.User{}).Count(&stats.Total).Error; err != nil {
@@ -114,6 +139,29 @@ func (r *GormRepository) GetUserStats(ctx context.Context) (UserStats, error) {
 		return stats, err
 	}
 
+	return stats, nil
+}
+
+func (r *GormRepository) GetUserStatsInGroup(ctx context.Context, groupID uint64) (UserStats, error) {
+	stats := UserStats{}
+	base := func() *gorm.DB {
+		return r.db.WithContext(ctx).Model(&model.User{}).Joins("JOIN user_group_members ON user_group_members.user_id = users.id").Where("user_group_members.group_id = ?", groupID)
+	}
+	if err := base().Count(&stats.Total).Error; err != nil {
+		return stats, err
+	}
+	if err := base().Where("users.status = ?", model.UserStatusEnabled).Count(&stats.Enabled).Error; err != nil {
+		return stats, err
+	}
+	if err := base().Where("users.status = ?", model.UserStatusDisabled).Count(&stats.Disabled).Error; err != nil {
+		return stats, err
+	}
+	if err := base().Joins("JOIN roles ON roles.id = users.role_id").Where("roles.name IN ?", []string{model.RoleNameSuperAdmin, model.RoleNameAdmin}).Count(&stats.Admins).Error; err != nil {
+		return stats, err
+	}
+	if err := base().Where("users.github_id IS NOT NULL AND TRIM(users.github_id) <> ''").Count(&stats.GitHubBound).Error; err != nil {
+		return stats, err
+	}
 	return stats, nil
 }
 

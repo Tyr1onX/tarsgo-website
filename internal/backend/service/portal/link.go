@@ -129,7 +129,7 @@ func (s *Service) DeleteLink(ctx context.Context, actor Actor, id uint64) error 
 	if !fullAccess && !targetsManaged(existing.AudienceType, linkTargetIDs(*existing), groupIDs) {
 		return forbidden("只能管理负责用户组的快捷链接")
 	}
-	if err := s.repo.DeleteLink(ctx, id); err != nil {
+	if err := s.repo.DeleteLink(ctx, id, actor.ID); err != nil {
 		return internalError("删除快捷链接失败", err)
 	}
 	return nil

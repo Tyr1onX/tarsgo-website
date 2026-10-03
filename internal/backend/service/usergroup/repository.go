@@ -145,6 +145,8 @@ func (r *GormRepository) GetMemberByID(ctx context.Context, groupID uint64, memb
 	if err := r.db.WithContext(ctx).
 		Preload("User").
 		Preload("User.Role").
+		Preload("User.GroupMembers").
+		Preload("User.GroupMembers.Group").
 		Preload("Group").
 		Where("group_id = ?", groupID).
 		First(&member, memberID).Error; err != nil {
@@ -213,6 +215,10 @@ func (r *GormRepository) GetUserByID(ctx context.Context, userID uint64) (*model
 		return nil, err
 	}
 	return &user, nil
+}
+
+func (r *GormRepository) UpdateUser(ctx context.Context, userID uint64, updates map[string]any) error {
+	return r.db.WithContext(ctx).Model(&model.User{}).Where("id = ?", userID).Updates(updates).Error
 }
 
 func AssignDefaultGroupTx(tx *gorm.DB, userID uint64) error {

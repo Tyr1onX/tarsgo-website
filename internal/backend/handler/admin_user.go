@@ -38,29 +38,33 @@ type listUsersQuery struct {
 }
 
 type createUserRequest struct {
-	RoleID    uint64 `json:"roleId" binding:"required"`
-	Name      string `json:"name" binding:"required,max=100"`
-	Email     string `json:"email" binding:"required,email,max=255"`
-	Password  string `json:"password" binding:"required,min=6,max=72"`
-	Nickname  string `json:"nickname" binding:"omitempty,max=100"`
-	AvatarURL string `json:"avatarUrl" binding:"omitempty,max=500"`
-	Phone     string `json:"phone" binding:"omitempty,max=20"`
-	RealName  string `json:"realName" binding:"omitempty,max=100"`
-	Gender    uint8  `json:"gender"`
-	Birthday  string `json:"birthday" binding:"omitempty"`
+	RoleID            uint64  `json:"roleId" binding:"required"`
+	Name              string  `json:"name" binding:"required,max=100"`
+	Email             string  `json:"email" binding:"required,email,max=255"`
+	Password          string  `json:"password" binding:"required,min=6,max=72"`
+	Nickname          string  `json:"nickname" binding:"omitempty,max=100"`
+	AvatarURL         string  `json:"avatarUrl" binding:"omitempty,max=500"`
+	Phone             string  `json:"phone" binding:"omitempty,max=20"`
+	RealName          string  `json:"realName" binding:"omitempty,max=100"`
+	Gender            uint8   `json:"gender"`
+	Birthday          string  `json:"birthday" binding:"omitempty"`
+	AdminScope        string  `json:"adminScope"`
+	ManagementGroupID *uint64 `json:"managementGroupId"`
 }
 
 type updateUserRequest struct {
-	RoleID    uint64 `json:"roleId" binding:"required"`
-	Name      string `json:"name" binding:"required,max=100"`
-	Email     string `json:"email" binding:"required,email,max=255"`
-	Nickname  string `json:"nickname" binding:"omitempty,max=100"`
-	AvatarURL string `json:"avatarUrl" binding:"omitempty,max=500"`
-	Phone     string `json:"phone" binding:"omitempty,max=20"`
-	RealName  string `json:"realName" binding:"omitempty,max=100"`
-	Gender    uint8  `json:"gender"`
-	Birthday  string `json:"birthday" binding:"omitempty"`
-	Status    uint8  `json:"status"`
+	RoleID            uint64  `json:"roleId" binding:"required"`
+	Name              string  `json:"name" binding:"required,max=100"`
+	Email             string  `json:"email" binding:"required,email,max=255"`
+	Nickname          string  `json:"nickname" binding:"omitempty,max=100"`
+	AvatarURL         string  `json:"avatarUrl" binding:"omitempty,max=500"`
+	Phone             string  `json:"phone" binding:"omitempty,max=20"`
+	RealName          string  `json:"realName" binding:"omitempty,max=100"`
+	Gender            uint8   `json:"gender"`
+	Birthday          string  `json:"birthday" binding:"omitempty"`
+	Status            uint8   `json:"status"`
+	AdminScope        string  `json:"adminScope"`
+	ManagementGroupID *uint64 `json:"managementGroupId"`
 }
 
 type resetPasswordRequest struct {
@@ -152,16 +156,18 @@ func (h *AdminUserHandler) CreateUser(c *gin.Context) {
 		c.Request.Context(),
 		currentActor(c),
 		adminuser.CreateUserInput{
-			RoleID:    request.RoleID,
-			Name:      request.Name,
-			Email:     request.Email,
-			Password:  request.Password,
-			Nickname:  request.Nickname,
-			AvatarURL: request.AvatarURL,
-			Phone:     request.Phone,
-			RealName:  request.RealName,
-			Gender:    request.Gender,
-			Birthday:  birthday,
+			RoleID:            request.RoleID,
+			Name:              request.Name,
+			Email:             request.Email,
+			Password:          request.Password,
+			Nickname:          request.Nickname,
+			AvatarURL:         request.AvatarURL,
+			Phone:             request.Phone,
+			RealName:          request.RealName,
+			Gender:            request.Gender,
+			Birthday:          birthday,
+			AdminScope:        request.AdminScope,
+			ManagementGroupID: request.ManagementGroupID,
 		},
 	)
 	if serviceErr != nil {
@@ -197,16 +203,18 @@ func (h *AdminUserHandler) UpdateUser(c *gin.Context) {
 		currentActor(c),
 		userID,
 		adminuser.UpdateUserInput{
-			RoleID:    request.RoleID,
-			Name:      request.Name,
-			Email:     request.Email,
-			Nickname:  request.Nickname,
-			AvatarURL: request.AvatarURL,
-			Phone:     request.Phone,
-			RealName:  request.RealName,
-			Gender:    request.Gender,
-			Birthday:  birthday,
-			Status:    request.Status,
+			RoleID:            request.RoleID,
+			Name:              request.Name,
+			Email:             request.Email,
+			Nickname:          request.Nickname,
+			AvatarURL:         request.AvatarURL,
+			Phone:             request.Phone,
+			RealName:          request.RealName,
+			Gender:            request.Gender,
+			Birthday:          birthday,
+			Status:            request.Status,
+			AdminScope:        request.AdminScope,
+			ManagementGroupID: request.ManagementGroupID,
 		},
 	)
 	if serviceErr != nil {
@@ -255,8 +263,11 @@ func currentActor(c *gin.Context) adminuser.Actor {
 	}
 
 	return adminuser.Actor{
-		ID:       sessionUser.ID,
-		RoleName: sessionUser.Role.Name,
+		ID:                sessionUser.ID,
+		RoleName:          sessionUser.Role.Name,
+		AdminScope:        sessionUser.AdminScope,
+		ManagementGroupID: sessionUser.ManagementGroupID,
+		GroupRole:         sessionUser.GroupRole,
 	}
 }
 

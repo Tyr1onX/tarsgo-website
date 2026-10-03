@@ -66,3 +66,16 @@ make build
 ```
 
 `make build` 会先构建前端静态资源，再把资源内嵌进后端二进制，最终输出 `dist/tarsgo-backend`。运行该二进制即可同时提供前端页面与后端 API。
+
+生产发布还会生成同版本的 `dist/tarsgo-migrate`。推荐先备份数据库，再运行一次迁移程序，迁移成功后才启动新的 Web 进程：
+
+```bash
+set -a
+. ./internal/backend/.env
+set +a
+BACKUP_DIR=./backups ./scripts/backup-mariadb.sh
+./dist/tarsgo-migrate
+APP_AUTO_MIGRATE=false ./dist/tarsgo-backend
+```
+
+`APP_AUTO_MIGRATE` 在本地开发中默认开启；生产 Web 进程应设为 `false`，避免多个实例并发执行结构或数据迁移。备份脚本需要 `mariadb-dump`、`gzip` 和 `sha256sum`。

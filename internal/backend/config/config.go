@@ -25,6 +25,7 @@ type AppConfig struct {
 	Port        string
 	GinMode     string
 	FrontendURL string
+	AutoMigrate bool
 }
 
 type DatabaseConfig struct {
@@ -106,6 +107,7 @@ func Load() (*Config, error) {
 			Port:        getEnv("APP_PORT", "8080"),
 			GinMode:     getEnv("GIN_MODE", "debug"),
 			FrontendURL: getEnv("APP_FRONTEND_URL", ""),
+			AutoMigrate: getEnvAsBool("APP_AUTO_MIGRATE", true),
 		},
 		Database: DatabaseConfig{
 			Host:            os.Getenv("DB_HOST"),

@@ -28,6 +28,8 @@ type fakeRepository struct {
 	lastAnnouncementsAllGroups bool
 	lastEventsAllGroups        bool
 	lastLinksAllGroups         bool
+	lastAnnouncementLimit      int
+	lastEventLimit             int
 }
 
 func newFakeRepository() *fakeRepository {
@@ -79,15 +81,16 @@ func (r *fakeRepository) UpdateAnnouncement(_ context.Context, id uint64, update
 	r.lastGroups = append([]uint64(nil), groups...)
 	return nil
 }
-func (r *fakeRepository) DeleteAnnouncement(_ context.Context, id uint64) error {
+func (r *fakeRepository) DeleteAnnouncement(_ context.Context, id uint64, _ uint64) error {
 	r.deletedID = id
 	return nil
 }
 func (r *fakeRepository) CountActiveGroups(context.Context, []uint64) (int64, error) {
 	return r.activeCount, nil
 }
-func (r *fakeRepository) ListVisibleAnnouncements(_ context.Context, _ uint64, _ time.Time, _ int, allGroups bool) ([]model.Announcement, error) {
+func (r *fakeRepository) ListVisibleAnnouncements(_ context.Context, _ uint64, _ time.Time, limit int, allGroups bool) ([]model.Announcement, error) {
 	r.lastAnnouncementsAllGroups = allGroups
+	r.lastAnnouncementLimit = limit
 	return r.visible, nil
 }
 func (r *fakeRepository) ListEvents(_ context.Context, input ListEventsInput) ([]model.TeamEvent, int64, error) {
@@ -120,12 +123,13 @@ func (r *fakeRepository) UpdateEvent(_ context.Context, id uint64, updates map[s
 	}
 	return nil
 }
-func (r *fakeRepository) DeleteEvent(_ context.Context, id uint64) error {
+func (r *fakeRepository) DeleteEvent(_ context.Context, id uint64, _ uint64) error {
 	delete(r.events, id)
 	return nil
 }
-func (r *fakeRepository) ListVisibleEvents(_ context.Context, _ uint64, _ TimeRange, _ int, allGroups bool) ([]model.TeamEvent, error) {
+func (r *fakeRepository) ListVisibleEvents(_ context.Context, _ uint64, _ TimeRange, limit int, allGroups bool) ([]model.TeamEvent, error) {
 	r.lastEventsAllGroups = allGroups
+	r.lastEventLimit = limit
 	return r.visibleEvents, nil
 }
 func (r *fakeRepository) ListLinks(context.Context, []uint64) ([]model.PortalLink, error) {
@@ -162,7 +166,7 @@ func (r *fakeRepository) UpdateLink(_ context.Context, id uint64, updates map[st
 	}
 	return nil
 }
-func (r *fakeRepository) DeleteLink(_ context.Context, id uint64) error {
+func (r *fakeRepository) DeleteLink(_ context.Context, id uint64, _ uint64) error {
 	delete(r.links, id)
 	return nil
 }
@@ -383,5 +387,20 @@ func TestSuperAdminHomeIncludesAllGroupContent(t *testing.T) {
 	}
 	if !repo.lastAnnouncementsAllGroups || !repo.lastEventsAllGroups || !repo.lastLinksAllGroups {
 		t.Fatal("super admin home should request all group content")
+	}
+}
+
+func TestGlobalAdminHomeIncludesAllGroupContent(t *testing.T) {
+	repo := newFakeRepository()
+	service := NewService(repo)
+	_, err := service.GetHome(context.Background(), Actor{ID: 11, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGlobal})
+	if err != nil {
+		t.Fatalf("get global admin home: %v", err)
+	}
+	if !repo.lastAnnouncementsAllGroups || !repo.lastEventsAllGroups || !repo.lastLinksAllGroups {
+		t.Fatalf("global admin home did not request all groups")
+	}
+	if repo.lastAnnouncementLimit != 0 || repo.lastEventLimit != 0 {
+		t.Fatalf("global admin home should not truncate content: announcement=%d event=%d", repo.lastAnnouncementLimit, repo.lastEventLimit)
 	}
 }

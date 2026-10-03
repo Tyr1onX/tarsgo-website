@@ -9,6 +9,7 @@ export interface AdminUserRole {
 export interface AdminUserGroupRef {
   id: number;
   name: string;
+  memberId: number;
   memberRole: number;
   status?: number;
 }
@@ -29,6 +30,8 @@ export interface AdminUserListItem {
   phone?: string | null;
   realName?: string | null;
   role: AdminUserRole;
+  adminScope?: string;
+  managementGroupId?: number | null;
   groups?: AdminUserGroupRef[];
   status: number;
   authMethods: AdminUserAuthMethods;
@@ -49,6 +52,8 @@ export interface AdminUserDetail {
   status: number;
   githubUsername?: string | null;
   role: AdminUserRole;
+  adminScope?: string;
+  managementGroupId?: number | null;
   groups?: AdminUserGroupRef[];
   authMethods: AdminUserAuthMethods;
   lastLoginAt?: string | null;
@@ -97,6 +102,8 @@ export interface AdminUserUpsertInput {
   gender: number;
   birthday?: string;
   status?: number;
+  adminScope?: "none" | "global" | "group" | string;
+  managementGroupId?: number | null;
 }
 
 export interface CreateAdminUserInput extends AdminUserUpsertInput {

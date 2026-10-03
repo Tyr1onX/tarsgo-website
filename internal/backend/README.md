@@ -14,7 +14,8 @@
 
 | 路径 | 说明 |
 | --- | --- |
-| `cmd/server/main.go` | 服务入口，负责加载配置、连接数据库、自动迁移并启动 Gin |
+| `cmd/server/main.go` | Web 服务入口，负责加载配置、连接数据库并启动 Gin；是否自动迁移由 `APP_AUTO_MIGRATE` 控制 |
+| `cmd/migrate/main.go` | 独立迁移入口，供生产发布在切换 Web 进程前执行一次 |
 | `config/config.go` | 环境变量读取与配置组装，包含数据库、JWT、SMTP、GitHub OAuth 配置 |
 | `database/mysql.go` | Gorm MySQL 连接、自动迁移与角色种子数据 |
 | `model/*.go` | 核心数据模型：角色、用户、邮箱验证码、报名表、报名信息 |
@@ -43,6 +44,7 @@
    - 分离式前端联调默认端口通常是 `http://127.0.0.1:5173`
    - 若前端开发端口被占用，React Router / Vite 可能自动切到 `http://127.0.0.1:5180`
    - `APP_FRONTEND_URL` 只用于分离式前端开发时的 OAuth 回跳；单二进制部署可以留空，后端会使用相对路径回到内嵌前端
+   - `APP_AUTO_MIGRATE` 默认为 `true`，适合本地开发；生产 Web 进程建议设置为 `false`
 
 3. 启动服务：
 
@@ -108,7 +110,7 @@
 make build
 ```
 
-构建流程会先执行前端 `npm run build`，再把 `internal/frontend/build/client/` 复制到 `internal/backend/web/frontend/`，最后通过 `go:embed` 编译进 `dist/tarsgo-backend`。运行该二进制后，后端会同时提供：
+构建流程会先执行前端构建，再把 `internal/frontend/build/client/` 复制到 `internal/backend/web/frontend/`，最后通过 `go:embed` 生成 `dist/tarsgo-backend`，并同时生成同版本的 `dist/tarsgo-migrate`。运行 Web 二进制后，后端会同时提供：
 
 | 路径 | 行为 |
 | --- | --- |
@@ -119,9 +121,18 @@ make build
 
 ## 数据库迁移
 
-服务启动后执行版本化迁移 `database.RunMigrations`，迁移版本记录在
-`schema_migrations` 表中。首个版本负责创建当前业务表和角色种子；开发环境 mock 数据会在每次启动时幂等补齐，但不会覆盖已有记录的审核状态；
-后续结构变更应新增版本迁移，避免在启动时执行不可逆 SQL。
+版本化迁移由 `database.RunMigrations` 执行，迁移版本记录在 `schema_migrations` 表中。`APP_AUTO_MIGRATE=true` 时 Web 服务会在启动阶段运行迁移；生产环境推荐设为 `false`，并在切换新版本前单独运行同一次构建产出的 `tarsgo-migrate`。首个版本负责创建当前业务表和角色种子；开发环境 mock 数据会在每次迁移运行后幂等补齐，但不会覆盖已有记录的审核状态；后续结构变更应新增版本迁移，避免修改历史版本。
+
+推荐的生产发布顺序：
+
+```bash
+# 从部署环境导出 DB_HOST / DB_PORT / DB_NAME / DB_USER / DB_PASSWORD 后执行
+BACKUP_DIR=./backups ./scripts/backup-mariadb.sh
+./dist/tarsgo-migrate
+APP_AUTO_MIGRATE=false ./dist/tarsgo-backend
+```
+
+迁移程序失败时不得切换 Web 进程。备份文件默认写入 `./backups`，目录权限为 `0700`，同时生成 SHA-256 校验文件。
 
 | 项目 | 说明 |
 | --- | --- |
@@ -136,11 +147,14 @@ make build
 
 权限由后端中间件强制执行，前端菜单仅用于导航展示：
 
-| 能力 | user | admin | super_admin |
-| --- | --- | --- | --- |
-| 个人报名提交/修改 | ✓ | ✓ | ✓ |
-| 查看和审核报名 | — | ✓（负责组范围） | ✓（全部范围） |
-| 用户管理 | — | ✓ | ✓ |
-| 用户组及成员配置 | — | — | ✓ |
-| 报名表配置 | — | — | ✓ |
-| SMTP/OAuth 系统配置 | — | — | ✓ |
+| 能力 | 普通用户 | 组内管理员 | 组长 | 全局管理员 | 超级管理员 |
+| --- | --- | --- | --- | --- | --- |
+| 个人报名提交/修改 | ✓ | ✓ | ✓ | ✓ | ✓ |
+| 查看和审核报名 | — | ✓（本组） | ✓（本组） | ✓（全部） | ✓（全部） |
+| 查看成员 | — | ✓（本组） | ✓（本组） | ✓（全部） | ✓（全部） |
+| 编辑成员资料 | — | — | ✓（本组，不含组长） | ✓（不能改管理员身份） | ✓ |
+| 管理组内成员/管理员 | — | — | ✓（本组，不能任命组长） | — | ✓ |
+| 用户组配置与组长任命 | — | — | — | — | ✓ |
+| 门户内容 | — | ✓（本组） | ✓（本组） | ✓（全部） | ✓（全部） |
+| 报名表配置 | — | — | — | — | ✓ |
+| SMTP/OAuth 系统配置 | — | — | — | — | ✓ |

@@ -12,7 +12,7 @@ ENV_EXAMPLE        := $(BACKEND_DIR)/.env.example
 COMPOSE_FILE       := database/docker-compose.yml
 PACKAGE_MANAGER    := $(shell if command -v pnpm >/dev/null 2>&1; then echo pnpm; else echo npm; fi)
 
-.PHONY: help env install frontend frontend-install frontend-build backend dev backend-up db-up db-down db-logs backend-test frontend-check fmt build clean secret-check
+.PHONY: help env install frontend frontend-install frontend-build backend dev backend-up db-up db-down db-logs backend-test frontend-check fmt build build-linux-amd64 migrate-build clean secret-check
 
 help:
 	@echo ""
@@ -30,6 +30,7 @@ help:
 	@echo "  make frontend-check   Run frontend TypeScript checks"
 	@echo "  make fmt              Format all Go source files"
 	@echo "  make build            Build frontend and embedded backend binary"
+	@echo "  make migrate-build    Build the standalone database migration binary"
 	@echo "  make clean            Remove generated build output"
 	@echo "  make secret-check     Scan tracked docs/config for obvious credentials"
 	@echo ""
@@ -85,7 +86,22 @@ build: frontend-build
 	@cp -R "$(FRONTEND_BUILD_DIR)/." "$(EMBED_DIR)/"
 	@touch "$(EMBED_DIR)/.keep"
 	@go -C "$(BACKEND_DIR)" build -buildvcs=false -o "../../$(BACKEND_BINARY)" ./cmd/server
-	@echo "Built $(BACKEND_BINARY) with embedded frontend assets"
+	@go -C "$(BACKEND_DIR)" build -buildvcs=false -o "../../$(DIST_DIR)/tarsgo-migrate" ./cmd/migrate
+	@echo "Built $(BACKEND_BINARY) and $(DIST_DIR)/tarsgo-migrate"
+
+migrate-build:
+	@mkdir -p "$(DIST_DIR)"
+	@go -C "$(BACKEND_DIR)" build -buildvcs=false -o "../../$(DIST_DIR)/tarsgo-migrate" ./cmd/migrate
+
+build-linux-amd64: frontend-build
+	@mkdir -p "$(DIST_DIR)"
+	@rm -rf "$(EMBED_DIR)"
+	@mkdir -p "$(EMBED_DIR)"
+	@cp -R "$(FRONTEND_BUILD_DIR)/." "$(EMBED_DIR)/"
+	@touch "$(EMBED_DIR)/.keep"
+	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go -C "$(BACKEND_DIR)" build -buildvcs=false -o "../../$(DIST_DIR)/tarsgo-backend-linux-amd64" ./cmd/server
+	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go -C "$(BACKEND_DIR)" build -buildvcs=false -o "../../$(DIST_DIR)/tarsgo-migrate-linux-amd64" ./cmd/migrate
+	@sha256sum "$(DIST_DIR)/tarsgo-backend-linux-amd64" "$(DIST_DIR)/tarsgo-migrate-linux-amd64"
 
 clean:
 	@rm -rf "$(DIST_DIR)" "$(EMBED_DIR)"

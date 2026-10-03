@@ -21,8 +21,11 @@ var allowedAnnouncementCategories = map[string]struct{}{
 }
 
 type Actor struct {
-	ID       uint64
-	RoleName string
+	ID                uint64
+	RoleName          string
+	AdminScope        string
+	ManagementGroupID *uint64
+	GroupRole         string
 }
 
 type ServiceError struct {
@@ -206,7 +209,7 @@ func (s *Service) DeleteAnnouncement(ctx context.Context, actor Actor, id uint64
 	if !fullAccess && !targetsManaged(existing.AudienceType, announcementTargetIDs(*existing), groupIDs) {
 		return forbidden("只能管理负责用户组的公告")
 	}
-	if err := s.repo.DeleteAnnouncement(ctx, id); err != nil {
+	if err := s.repo.DeleteAnnouncement(ctx, id, actor.ID); err != nil {
 		return internalError("删除公告失败", err)
 	}
 	return nil
@@ -217,12 +220,18 @@ func (s *Service) GetHome(ctx context.Context, actor Actor) (*HomeData, error) {
 		return nil, &ServiceError{Status: http.StatusUnauthorized, Message: "未登录"}
 	}
 	now := s.now()
-	allGroups := actor.RoleName == model.RoleNameSuperAdmin
-	rows, err := s.repo.ListVisibleAnnouncements(ctx, actor.ID, now, 3, allGroups)
+	allGroups := actor.RoleName == model.RoleNameSuperAdmin || (actor.RoleName == model.RoleNameAdmin && actor.AdminScope == model.AdminScopeGlobal)
+	announcementLimit := 3
+	eventLimit := 50
+	if allGroups {
+		announcementLimit = 0
+		eventLimit = 0
+	}
+	rows, err := s.repo.ListVisibleAnnouncements(ctx, actor.ID, now, announcementLimit, allGroups)
 	if err != nil {
 		return nil, internalError("获取主页公告失败", err)
 	}
-	events, err := s.repo.ListVisibleEvents(ctx, actor.ID, weekBounds(now), 50, allGroups)
+	events, err := s.repo.ListVisibleEvents(ctx, actor.ID, weekBounds(now), eventLimit, allGroups)
 	if err != nil {
 		return nil, internalError("获取本周日程失败", err)
 	}
@@ -332,20 +341,23 @@ func (s *Service) portalScope(ctx context.Context, actor Actor) ([]uint64, bool,
 	if actor.ID == 0 {
 		return nil, false, &ServiceError{Status: http.StatusUnauthorized, Message: "未登录"}
 	}
-	if actor.RoleName == model.RoleNameSuperAdmin {
+	if actor.RoleName == model.RoleNameSuperAdmin || (actor.RoleName == model.RoleNameAdmin && actor.AdminScope == model.AdminScopeGlobal) {
 		return nil, true, nil
 	}
-	if actor.RoleName != model.RoleNameAdmin {
+	if actor.RoleName == model.RoleNameAdmin && actor.AdminScope == "" {
+		groupIDs, err := s.repo.ListLeaderGroupIDs(ctx, actor.ID)
+		if err != nil {
+			return nil, false, internalError("加载组长负责用户组失败", err)
+		}
+		if len(groupIDs) == 0 {
+			return nil, false, forbidden("当前账号不是任何用户组组长")
+		}
+		return groupIDs, false, nil
+	}
+	if actor.RoleName != model.RoleNameAdmin || actor.AdminScope != model.AdminScopeGroup || actor.ManagementGroupID == nil || (actor.GroupRole != "leader" && actor.GroupRole != "group_admin") {
 		return nil, false, forbidden("仅超级管理员或组长可以维护公告和日程")
 	}
-	groupIDs, err := s.repo.ListLeaderGroupIDs(ctx, actor.ID)
-	if err != nil {
-		return nil, false, internalError("加载组长负责用户组失败", err)
-	}
-	if len(groupIDs) == 0 {
-		return nil, false, forbidden("当前账号不是任何用户组组长")
-	}
-	return groupIDs, false, nil
+	return []uint64{*actor.ManagementGroupID}, false, nil
 }
 
 func (s *Service) ListManagedGroups(ctx context.Context, actor Actor) ([]ManagedGroupItem, error) {

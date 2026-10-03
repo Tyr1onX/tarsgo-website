@@ -85,3 +85,25 @@ func TestDashboardFormatsSafeReadableActivitiesNewestFirst(t *testing.T) {
 		t.Fatalf("expected UTC database time to display in Shanghai as 19:02:23, got %s", got)
 	}
 }
+
+func TestDashboardFormatsPortalChangeActivities(t *testing.T) {
+	tests := []struct {
+		action string
+		want   string
+	}{
+		{model.ActivityAnnouncementCreated, "创建了公告「测试内容」"},
+		{model.ActivityAnnouncementUpdated, "编辑了公告「测试内容」"},
+		{model.ActivityAnnouncementDeleted, "删除了公告「测试内容」"},
+		{model.ActivityEventCreated, "创建了日程「测试内容」"},
+		{model.ActivityEventUpdated, "编辑了日程「测试内容」"},
+		{model.ActivityEventDeleted, "删除了日程「测试内容」"},
+		{model.ActivityPortalLinkCreated, "创建了快捷链接「测试内容」"},
+		{model.ActivityPortalLinkUpdated, "编辑了快捷链接「测试内容」"},
+		{model.ActivityPortalLinkDeleted, "删除了快捷链接「测试内容」"},
+	}
+	for _, test := range tests {
+		if got := activityMessage(model.ActivityEvent{ActionKey: test.action, Metadata: map[string]any{"title": "测试内容"}}); got != test.want {
+			t.Fatalf("activity %s: got %q, want %q", test.action, got, test.want)
+		}
+	}
+}

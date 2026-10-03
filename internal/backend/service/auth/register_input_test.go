@@ -1,6 +1,28 @@
 package auth
 
-import "testing"
+import (
+	"testing"
+
+	"tarsgo-backend/model"
+)
+
+func TestValidateIdentityConsistencyForOrdinaryUser(t *testing.T) {
+	t.Parallel()
+
+	valid := &model.User{
+		Role:       model.Role{Name: model.RoleNameUser},
+		AdminScope: model.AdminScopeNone,
+	}
+	if err := validateIdentityConsistency(valid); err != nil {
+		t.Fatalf("ordinary user with no admin scope should be valid: %v", err)
+	}
+
+	invalid := *valid
+	invalid.AdminScope = model.AdminScopeGlobal
+	if err := validateIdentityConsistency(&invalid); err == nil {
+		t.Fatal("ordinary user with global admin scope should be rejected")
+	}
+}
 
 func TestNormalizeRegisterEmailInput(t *testing.T) {
 	t.Parallel()

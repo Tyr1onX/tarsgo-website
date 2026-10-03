@@ -294,6 +294,37 @@ func TestServiceUpdateGroup_RemoveLogo(t *testing.T) {
 	}
 }
 
+func TestServiceUpdateAdmissionImageAllowsCurrentGroupLeader(t *testing.T) {
+	repo := newFakeRepository()
+	store := &fakeGroupLogoFileStore{}
+	service := newServiceWithDependencies(repo, store)
+	groupID := uint64(2)
+
+	detail, err := service.UpdateAdmissionImage(context.Background(), Actor{
+		ID: 2, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGroup, ManagementGroupID: &groupID, GroupRole: "leader",
+	}, groupID, UpdateAdmissionImageInput{Image: newTestLogoFileHeader("qq-group.png", 1024, "image/png")})
+	if err != nil {
+		t.Fatalf("UpdateAdmissionImage returned error: %v", err)
+	}
+	if detail.AdmissionImageURL == nil || *detail.AdmissionImageURL != groupLogoURLPrefix+"logo-1.png" {
+		t.Fatalf("expected saved admission image URL, got %#v", detail.AdmissionImageURL)
+	}
+	if len(store.saved) != 1 {
+		t.Fatalf("expected one saved image, got %d", len(store.saved))
+	}
+}
+
+func TestServiceUpdateAdmissionImageRejectsGroupAdmin(t *testing.T) {
+	repo := newFakeRepository()
+	service := NewService(repo)
+	groupID := uint64(2)
+
+	_, err := service.UpdateAdmissionImage(context.Background(), Actor{
+		ID: 2, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGroup, ManagementGroupID: &groupID, GroupRole: "group_admin",
+	}, groupID, UpdateAdmissionImageInput{Image: newTestLogoFileHeader("qq-group.png", 1024, "image/png")})
+	assertServiceError(t, err, 403, "仅当前组组长")
+}
+
 func TestServiceUpdateGroup_RejectsOversizedLogo(t *testing.T) {
 	repo := newFakeRepository()
 	service := NewService(repo)
@@ -487,6 +518,11 @@ func (r *fakeRepository) UpdateGroup(_ context.Context, groupID uint64, updates 
 		group.LogoURL = copyString(value)
 	} else if _, exists := updates["logo_url"]; exists && updates["logo_url"] == nil {
 		group.LogoURL = nil
+	}
+	if value, ok := updates["admission_image_url"].(*string); ok {
+		group.AdmissionImageURL = copyString(value)
+	} else if _, exists := updates["admission_image_url"]; exists && updates["admission_image_url"] == nil {
+		group.AdmissionImageURL = nil
 	}
 	if value, ok := updates["tags"].(string); ok {
 		var tags []string

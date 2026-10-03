@@ -73,6 +73,11 @@ func seedDevelopmentMockData(db *gorm.DB, appEnv string) error {
 				if err := ensureMockMembership(tx, group.ID, user.ID, userSeed.MemberRole); err != nil {
 					return err
 				}
+				if userSeed.MemberRole == model.UserGroupMemberRoleLeader || userSeed.MemberRole == model.UserGroupMemberRoleGroupAdmin {
+					if err := tx.Model(&model.User{}).Where("id = ?", user.ID).Updates(map[string]any{"role_id": adminRole.ID, "admin_scope": model.AdminScopeGroup, "management_group_id": group.ID}).Error; err != nil {
+						return fmt.Errorf("promote mock group manager: %w", err)
+					}
+				}
 				users[normalizeSeedEmail(userSeed.Email)] = user
 			}
 		}
@@ -94,6 +99,9 @@ func seedDevelopmentMockData(db *gorm.DB, appEnv string) error {
 		}
 		if err := seedDevelopmentReviewFixtures(tx, reviewer, groups, users); err != nil {
 			return err
+		}
+		if err := tx.Model(&model.User{}).Where("id = ?", reviewer.ID).Updates(map[string]any{"admin_scope": model.AdminScopeGlobal, "management_group_id": nil}).Error; err != nil {
+			return fmt.Errorf("set mock global admin scope: %w", err)
 		}
 		if err := seedDevelopmentAnnouncementFixtures(tx, portalAdmin, groups); err != nil {
 			return err

@@ -3,6 +3,7 @@ package registration
 import (
 	"net/http"
 	"strings"
+	"time"
 
 	"tarsgo-backend/model"
 )
@@ -21,6 +22,15 @@ type RegistrationReviewerRef struct {
 	ID    uint64 `json:"id"`
 	Name  string `json:"name"`
 	Email string `json:"email"`
+}
+
+type RegistrationInterviewRef struct {
+	GroupID       uint64                   `json:"groupId"`
+	Group         *RegistrationGroupRef    `json:"group,omitempty"`
+	Status        uint8                    `json:"status"`
+	Remark        *string                  `json:"remark,omitempty"`
+	Interviewer   *RegistrationReviewerRef `json:"interviewer,omitempty"`
+	InterviewedAt *time.Time               `json:"interviewedAt,omitempty"`
 }
 
 type ReviewRegistrationInput struct {

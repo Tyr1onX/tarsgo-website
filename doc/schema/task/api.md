@@ -13,7 +13,7 @@ GET http://127.0.0.1:8080/api/portal/home 获取当前用户可见的主页聚�
 
 ### 门户公告管理
 
-说明：`super_admin` 可访问全部内容；担任启用用户组组长的 `admin` 仅能访问、维护目标组属于自己负责组的公告。删除为软删除；组长不能创建全员可见或跨组公告。
+说明：`super_admin` 与全局管理员可访问全部内容；启用管理组中的组长或组内管理员，仅能访问、维护目标组属于其唯一管理组的公告。删除为软删除；组内管理账号不能创建全员可见或跨组公告。
 
 GET http://127.0.0.1:8080/api/admin/portal-groups 获取当前组长负责的启用用户组
  - `super_admin` 不使用此接口，继续使用用户分组接口获取全部用户组
@@ -33,7 +33,7 @@ DELETE http://127.0.0.1:8080/api/admin/announcements/:id 软删除公告
 
 ### 门户日程管理
 
-说明：`super_admin` 可访问全部内容；担任启用用户组组长的 `admin` 仅能访问、维护目标组属于自己负责组的日程。删除为软删除；组长不能创建全员可见或跨组日程。
+说明：`super_admin` 与全局管理员可访问全部内容；启用管理组中的组长或组内管理员，仅能访问、维护目标组属于其唯一管理组的日程。删除为软删除；组内管理账号不能创建全员可见或跨组日程。
 
 GET http://127.0.0.1:8080/api/admin/portal-events 获取日程分页列表
 POST http://127.0.0.1:8080/api/admin/portal-events 创建日程
@@ -47,7 +47,7 @@ DELETE http://127.0.0.1:8080/api/admin/portal-events/:id 软删除日程
 
 ### 门户快捷链接管理
 
-说明：`super_admin` 可访问全部内容；担任启用用户组组长的 `admin` 仅能访问、维护目标组属于自己负责组的快捷链接。删除为软删除；组长不能创建全员可见或跨组链接。
+说明：`super_admin` 与全局管理员可访问全部内容；启用管理组中的组长或组内管理员，仅能访问、维护目标组属于其唯一管理组的快捷链接。删除为软删除；组内管理账号不能创建全员可见或跨组链接。
 
 GET http://127.0.0.1:8080/api/admin/portal-links 获取可管理范围内的快捷链接（超级管理员为全部，组长为负责组）
 POST http://127.0.0.1:8080/api/admin/portal-links 创建快捷链接
@@ -334,6 +334,10 @@ GET http://127.0.0.1:8080/api/me 获取当前登录用户
   ```
  - 字段说明：
    - `portal.showRecruitmentEntry`：用户前台是否显示“纳新报名”入口；仅当后台存在已发布报名表，且当前用户仍属于启用中的默认分组，或已提交当前已发布报名表时返回 `true`
+   - `adminScope`：身份管理范围，取值为 `none|group|global`；超级管理员固定为 `global`
+   - `managementGroupId`：组内管理员负责的唯一用户组；非组内管理员为 `null`
+   - `groupRole`：管理组内角色，取值为 `member|group_admin|leader`；超级管理员为空字符串
+   - `permissions`、`capabilities`：后端根据系统角色、管理范围、管理组状态和组内角色实时计算的功能权限；前端只能据此控制入口，写接口仍由后端再次鉴权
  - 失败响应：
    ```json
    { "code": 401, "message": "未登录", "data": null }
@@ -355,9 +359,10 @@ POST http://127.0.0.1:8080/api/logout 登出
 说明：
  - 需要管理员登录后携带 JWT Cookie 访问
  - 响应格式统一为 `{ "code": int, "message": string, "data": object | null }`
- - `admin` 与 `super_admin` 可访问后台用户管理接口
- - `admin` 仅可创建/编辑/重置 `user`
- - `super_admin` 可创建/编辑 `admin` 与 `user`
+ - `super_admin` 可查看全部人员并管理 `admin` 与 `user`；超级管理员自身账号只读
+ - `adminScope=global` 的全局管理员可查看全部人员，编辑普通用户资料和状态、编辑管理员资料，但不能修改管理员状态、角色或管理范围，也不能重置密码
+ - 组长可查看本组人员并编辑普通成员或组内管理员资料，但不能修改账号状态、登录邮箱、系统角色或管理范围
+ - 组内管理员可查看本组人员，但不能编辑资料或管理成员
  - 所有 `super_admin` 账号只允许查看，不允许修改、停用或重置密码
 
 GET http://127.0.0.1:8080/api/admin/users 获取用户分页列表
@@ -366,12 +371,14 @@ GET http://127.0.0.1:8080/api/admin/users 获取用户分页列表
 - `page`：页码，默认 `1`
 - `pageSize`：每页条数，默认 `10`，最大 `100`
 - `keyword`：模糊匹配 `name / email / phone / real_name / nickname`
-- `role`：角色标识，如 `super_admin`、`admin`、`user`
+- `role`：人员身份筛选，支持 `member`、`group_admin`、`leader`、`global`（兼容 `global_admin`）和 `super_admin`
 - `groupId`：按所属用户组筛选，传入用户组 ID
+- `status`：账号状态，`1=启用`、`0=停用`
 - 排序：默认 `created_at DESC`
 - 列表项新增字段：
-- `groups`：该用户所属全部分组，元素结构为 `{ id, name, memberRole }`
-   - `memberRole`：组内角色，`0=普通成员`，`1=组长`
+- `groups`：该用户所属全部分组，元素结构为 `{ id, name, memberId, memberRole }`
+   - `memberRole`：组内角色，`0=普通成员`、`1=组内管理员`、`2=组长`
+- `adminScope` / `managementGroupId`：该账号的管理范围和唯一管理组
  - 成功响应示例：
    ```json
    {
@@ -431,7 +438,7 @@ GET http://127.0.0.1:8080/api/admin/users/:id 获取用户详情
  - 用途：加载用户详情抽屉
  - 路径参数：`id` 为用户 ID
  - 详情新增字段：
-   - `groups`：展示用户所属全部分组，元素结构为 `{ id, name, memberRole, status }`
+   - `groups`：展示用户所属全部分组，元素结构为 `{ id, name, memberId, memberRole, status }`
    - `status`：分组自身状态，`1=启用`，`0=停用`
  - 成功响应示例：
    ```json
@@ -486,6 +493,8 @@ POST http://127.0.0.1:8080/api/admin/users 创建用户账号
    - 不支持后台写入 `github_id` 或手工绑定 GitHub
    - 创建后默认立即启用
    - 当新建账号角色为 `user` 且系统存在“启用中的默认分组”时，服务端会自动把该账号加入默认分组；若当前没有默认分组则跳过，不报错
+   - 创建全局管理员时传 `adminScope=global` 且不传 `managementGroupId`
+   - 组内管理员和组长必须先通过用户组成员接口任命，不能直接通过创建账号接口跳过成员关系约束
  - 请求体：
    ```json
    {
@@ -498,7 +507,8 @@ POST http://127.0.0.1:8080/api/admin/users 创建用户账号
      "phone": "13800138000",
      "realName": "李四",
      "gender": 1,
-     "birthday": "1999-03-12"
+     "birthday": "1999-03-12",
+     "adminScope": "none"
    }
    ```
  - 成功响应：返回新建后的完整用户详情
@@ -512,6 +522,8 @@ PATCH http://127.0.0.1:8080/api/admin/users/:id 更新用户
  - 说明：
    - `status=0` 表示停用，不做物理删除
    - 邮箱允许修改，但必须保持唯一
+   - `super_admin` 切换全局管理员需使用 `adminScope=global`；组内管理身份必须与唯一的 `managementGroupId` 及组成员角色一致
+   - 将组内管理员降为普通用户前，必须先通过成员接口撤销其组内管理身份
  - 请求体：
    ```json
    {
@@ -600,13 +612,30 @@ GET http://127.0.0.1:8080/api/admin/roles 获取角色下拉选项
 
 说明：
  - 需要管理员登录后携带 JWT Cookie 访问
-- `admin` 与 `super_admin` 可访问用户组后台接口
+- 用户组配置接口 `/api/admin/user-groups/**` 仅 `super_admin` 可访问
+- `adminScope=global` 可读取用户组筛选项；组长和组内管理员通过 `/api/admin/managed-group/**` 访问自己的唯一管理组
 - 用户组接口服务于 `/dashboard/admin/user-groups`
 - 同一时间只允许一个“启用中的默认分组”；如果某个分组被设置为默认且状态为启用，服务端会在同一事务内清空其它分组的默认标记
 - 邮箱注册、GitHub 首次建号、后台创建 `role=user` 三条链路都会尝试自动加入当前启用中的默认分组；若不存在默认分组则跳过
 - `show` 表示该分组是否出现在前台报名表“意向组别(1)/(2)”下拉中，`1=展示`、`0=隐藏`
-- `user` 与 `admin` 可以加入分组，`super_admin` 永远不能加入分组
-- Round 1 成员详情不分页，成员排序为 `role DESC, joined_at ASC`
+- `user` 与 `admin` 可以加入分组，`super_admin` 永远不能加入普通用户组
+- 每个账号最多在一个组担任管理职务；`role=0` 为普通成员、`role=1` 为组内管理员、`role=2` 为组长
+- 组长可管理本组普通成员和组内管理员，但不能任命组长、撤销自己的组长身份或调整全局管理员；组内管理员只有成员只读权限
+- 成员详情不分页，成员排序为 `role DESC, joined_at ASC`
+
+GET http://127.0.0.1:8080/api/admin/user-groups/options 获取人员筛选可用的用户组列表
+ - 权限：`super_admin` 或全局管理员
+ - 响应项：`{ id, name, status }`
+
+GET http://127.0.0.1:8080/api/admin/managed-group 获取当前账号的管理组详情
+GET http://127.0.0.1:8080/api/admin/managed-group/members 获取管理组成员
+GET http://127.0.0.1:8080/api/admin/managed-group/member-candidates 获取可加入管理组的候选成员
+POST http://127.0.0.1:8080/api/admin/managed-group/members 添加管理组成员
+PATCH http://127.0.0.1:8080/api/admin/managed-group/members/:memberId 更新成员组内角色
+DELETE http://127.0.0.1:8080/api/admin/managed-group/members/:memberId 移除普通成员
+ - `managed-group` 接口自动使用当前会话中的 `managementGroupId`，客户端不能指定其他组
+ - 组长可读写成员；组内管理员只能读取组详情和成员列表
+ - 候选成员必须是启用账号且仍属于启用的默认组
 
 GET http://127.0.0.1:8080/api/admin/user-groups 获取用户组列表
  - 用途：加载用户分组页的统计卡与全量卡片列表
@@ -706,8 +735,8 @@ GET http://127.0.0.1:8080/api/admin/user-groups/:id 获取用户组详情
    }
    ```
  - 字段说明：
-   - `role`：组内角色，`0=普通成员`，`1=组长`
-   - `leaders`：由当前成员中所有 `role=1` 的账号名称聚合而成，因此同一分组允许多名组长
+   - `role`：组内角色，`0=普通成员`、`1=组内管理员`、`2=组长`
+   - `leaders`：由当前成员中所有 `role=2` 的账号名称聚合而成
 
 POST http://127.0.0.1:8080/api/admin/user-groups 创建用户组
  - 用途：创建新的用户组卡片
@@ -822,7 +851,7 @@ POST http://127.0.0.1:8080/api/admin/user-groups/:id/members 添加分组成员
    }
    ```
  - 字段说明：
-   - `role`：组内角色，`0=普通成员`，`1=组长`
+   - `role`：组内角色，`0=普通成员`、`1=组内管理员`、`2=组长`
  - 成功响应示例：
    ```json
    {
@@ -854,7 +883,7 @@ POST http://127.0.0.1:8080/api/admin/user-groups/:id/members 添加分组成员
    - `409`：该用户已经在当前分组中
 
 PATCH http://127.0.0.1:8080/api/admin/user-groups/:id/members/:memberId 更新成员组内角色
- - 用途：普通成员与组长互转
+ - 用途：在普通成员、组内管理员与组长之间调整；该路径仅超级管理员可用
  - 请求体：
    ```json
    {
@@ -1117,8 +1146,8 @@ GET http://127.0.0.1:8080/api/admin/registration-forms/:id/registrations/export 
    - `Content-Type: text/csv; charset=utf-8`
    - `Content-Disposition: attachment; filename="registration-form-{id}-registrations.csv"`
  - 权限规则：
-   - `super_admin` 与“没有任何组长身份的 admin”可导出该报名表下全部报名记录
-   - “至少担任一个用户组组长的 admin”仅导出 `group_1` 或 `group_2` 命中其组长分组的报名记录
+   - `super_admin` 与全局管理员可导出该报名表下全部报名记录
+   - 组长或组内管理员仅导出 `group_1` 或 `group_2` 命中其唯一管理组的报名记录
  - CSV 编码与列规则：
    - 文件内容以 `UTF-8 BOM` 开头，便于常见表格软件正确识别中文
    - 基础列固定为：`报名记录ID`、`报名表ID`、`报名表标题`
@@ -1304,6 +1333,17 @@ POST http://127.0.0.1:8080/api/recruitment/registrations 提交报名
     - `404`：当前暂无开放中的报名表
     - `409`：重复报名、报名人数已满、报名尚未开始、报名已结束、或后台存在多张已发布报名表
 
+PATCH http://127.0.0.1:8080/api/recruitment/registrations/:id 修改本人报名
+  - 鉴权：要求已登录，且报名记录必须属于当前用户
+  - 请求体：与首次提交相同的 `multipart/form-data` 字段（不需要再次传 `formId`）
+  - 仅当两个意向组均尚未进入审核时允许修改；更新后审核状态保持待审核，并清理被新文件替换的旧上传文件
+  - 常见失败：`403` 操作他人记录；`404` 记录或报名表不存在；`409` 已进入审核，无法修改
+
+DELETE http://127.0.0.1:8080/api/recruitment/registrations/:id 取消本人报名
+  - 鉴权和可操作阶段与修改接口相同
+  - 当前实现会物理删除尚未审核的报名记录及其上传文件，之后用户可以重新提交
+  - 常见失败：`403` 操作他人记录；`404` 记录不存在；`409` 已进入审核，无法取消
+
 GET http://127.0.0.1:8080/api/admin/registrations 获取报名列表
   - 用途：后台报名列表页查询报名记录
   - 鉴权：要求管理员权限
@@ -1314,8 +1354,8 @@ GET http://127.0.0.1:8080/api/admin/registrations 获取报名列表
     - `status`：可选，`0=待审核`、`1=已通过`、`2=已拒绝`、`3=已取消`
     - `formId`：可选，按报名表筛选
   - 权限规则：
-    - `super_admin` 与“没有任何组长身份的 admin”可查看全部报名记录
-    - “至少担任一个用户组组长的 admin”仅可查看 `group_1` 或 `group_2` 命中其组长分组的报名记录
+    - `super_admin` 与 `adminScope=global` 的全局管理员可查看全部报名记录
+    - 有效管理组中的组长或组内管理员，只能查看 `group_1` 或 `group_2` 命中其唯一 `managementGroupId` 的报名记录
   - 返回说明：
     - `summary` 返回当前关键字 / 报名表筛选条件下的状态统计
     - `items` 仅返回固定通用列，不返回 `formData`
@@ -1381,6 +1421,8 @@ GET http://127.0.0.1:8080/api/admin/registrations/:id 获取报名详情
     - `file` 字段返回单个对象，`image` 字段返回对象数组
     - 文件对象结构为 `{ file_name, file_url, file_size }`
     - `reviewer1/reviewer2`、`reviewedAt1/reviewedAt2`、`reviewRemark1/reviewRemark2` 分别对应两个意向组别槽位
+    - `interviews` 返回各意向组的面试结果；`finalStatus` 为 `0=待定`、`1=已录取`、`2=未录取`
+    - `finalGroup`、`finalizedAt`、`finalizer` 仅在结果真正确定后返回；`canInterview1/2` 表示当前账号能否录入对应组的面试结果
   - 成功响应示例：
     ```json
     {
@@ -1483,8 +1525,8 @@ POST http://127.0.0.1:8080/api/admin/registrations/:id/review 审核报名
   - 用途：后台报名列表页 / 详情抽屉执行“通过 / 拒绝”动作
   - 鉴权：要求管理员权限
   - 权限规则：
-    - `super_admin` 与“没有任何组长身份的 admin”会一次性处理该记录当前全部待审核槽位
-    - “至少担任一个用户组组长的 admin”只会处理当前记录中属于自己组长分组且仍待审核的槽位
+    - `super_admin` 与全局管理员会一次性处理该记录当前全部待审核槽位
+    - 有效管理组中的组长或组内管理员，只会处理属于其唯一管理组且仍待审核的槽位
   - 请求体：
     ```json
     {
@@ -1499,9 +1541,8 @@ POST http://127.0.0.1:8080/api/admin/registrations/:id/review 审核报名
     - 若两个槽位中任一仍为 `pending`，总 `status` 保持 `0`
     - 两个槽位都有结果后，只要至少一个槽位通过，总 `status=1`
     - 两个槽位都拒绝时，总 `status=2`
-    - 两个槽位的审核结果彼此独立，可以同时都为 `approve`
-    - 两个槽位都出结果后，系统会自动将报名人加入所有审核通过的意向组别；若两个意向组别都通过，则会同时加入两个组，重复写入需幂等
-    - 当报名最终进入通过状态并加入通过组别时，若用户当前仍在默认分组中，且该默认分组不属于通过组别，则会同步从默认分组移出
+    - 两个槽位的线上审核结果彼此独立，可以同时都为 `approve`
+    - 线上审核只决定是否进入对应组面试，不会修改报名人的用户组成员关系
   - 成功响应：返回更新后的报名详情，结构同 `GET /api/admin/registrations/:id`
   - 常见失败：
     - `400`：报名记录 ID 不合法、`decision` 不合法
@@ -1509,12 +1550,24 @@ POST http://127.0.0.1:8080/api/admin/registrations/:id/review 审核报名
     - `404`：报名记录不存在
     - `409`：已取消的报名不支持审核，或当前报名没有可审核的意向组别
 
+DELETE http://127.0.0.1:8080/api/admin/registrations/:id/review 撤销线上审核
+  - 权限范围与提交审核相同，只清空当前管理员可管理槽位的审核状态、审核人、时间和备注
+  - 若被撤销的线上审核已经产生最终录取，服务端会撤销该录取成员关系、清空最终结果，并把用户恢复到当前启用的默认组
+  - 已取消或没有可撤销结果时返回 `409`
+
+PATCH http://127.0.0.1:8080/api/admin/registrations/:id/interviews/:groupId 更新面试结果
+  - 请求体：`{ "status": "pending|passed|failed", "remark": "可选备注" }`
+  - 只有对应意向组线上审核已通过，且当前管理员对该组有审核权限时才可操作
+  - 第一志愿面试通过时立即优先录取第一志愿；第一志愿未通过且第二志愿通过时录取第二志愿；两个志愿均未通过时最终未录取；其余组合保持待定
+  - 确认录取时，服务端在同一事务中把用户加入最终组并移出非目标默认组；重置已录取面试结果时撤销原录取组并恢复到启用默认组
+  - `finalizedAt` 和 `finalizer` 只在最终状态为已录取或未录取时写入，待定状态保持为空
+
 DELETE http://127.0.0.1:8080/api/admin/registrations/:id 删除报名
   - 用途：后台报名列表页 / 详情抽屉硬删除报名记录
   - 鉴权：要求管理员权限
   - 权限规则：
-    - `super_admin` 与“没有任何组长身份的 admin”可删除所有报名记录
-    - “至少担任一个用户组组长的 admin”仅可删除自己有权查看的报名记录
+    - `super_admin` 与全局管理员可删除所有报名记录
+    - 组长或组内管理员仅可删除其唯一管理组可见的报名记录
   - 删除行为：
     - 直接物理删除 `registrations` 表中的记录
     - 若报名中包含上传文件，服务端会同步清理运行目录下 `upload/recruitment/...` 对应文件

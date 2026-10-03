@@ -181,8 +181,11 @@ func currentRegistrationFormActor(c *gin.Context) registration.RegistrationFormA
 	}
 
 	return registration.RegistrationFormActor{
-		ID:       sessionUser.ID,
-		RoleName: sessionUser.Role.Name,
+		ID:                sessionUser.ID,
+		RoleName:          sessionUser.Role.Name,
+		AdminScope:        sessionUser.AdminScope,
+		ManagementGroupID: sessionUser.ManagementGroupID,
+		GroupRole:         sessionUser.GroupRole,
 	}
 }
 

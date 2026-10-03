@@ -31,7 +31,7 @@ npm run dev
 
 前端不再读取 `.env` 中的 `VITE_API_*` 配置，所有接口固定访问同源 `/api`。
 
-- 开发态：`vite.config.ts` 将 `/api` 代理到 `http://127.0.0.1:8080`
+- 开发态：`vite.config.ts` 默认将 `/api` 代理到 `http://127.0.0.1:8080`；临时后端使用其他端口时可设置 `TARSGO_API_PROXY`（例如 `TARSGO_API_PROXY=http://127.0.0.1:8081 npm run dev`）
 - 生产态：`make build` 会把 `build/client/` 复制到后端 embed 目录并编译进 Go 二进制
 
 ## 常用命令

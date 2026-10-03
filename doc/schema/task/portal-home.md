@@ -10,7 +10,7 @@
 ## 锁定决策
 
 - 主页后端化覆盖队员主页和管理员数据面板。
-- `super_admin` 可以维护全部公告、日程和快捷链接；担任启用用户组组长的 `admin` 可以维护自己负责组的公告、日程和快捷链接。
+- `super_admin` 与全局管理员可以维护全部公告、日程和快捷链接；启用管理组中的组长或组内管理员可以维护自己唯一管理组的内容。
 - 内容支持全员可见和指定用户组可见。
 - 公告使用纯文本；详情在队员主页左侧抽屉中展示。
 - 日程只支持单次事件，按 `Asia/Shanghai` 展示。
@@ -73,7 +73,7 @@
 ## 已实现接口与页面
 
 - 主页聚合：`GET /api/portal/home`，稳定返回 `announcements`、`events`、`links`、`generatedAt`。
-- 门户管理：`/api/admin/announcements`、`/api/admin/portal-events`、`/api/admin/portal-links`；`super_admin` 可全局维护，担任启用用户组组长的 `admin` 仅可维护自己负责组的公告、日程和快捷链接。
+- 门户管理：`/api/admin/announcements`、`/api/admin/portal-events`、`/api/admin/portal-links`；`super_admin` 与全局管理员可全局维护，组长或组内管理员仅可维护自己唯一管理组的公告、日程和快捷链接。
 - 组长范围：`GET /api/admin/portal-groups` 返回当前 `admin` 账号担任组长的启用用户组，供公告和日程目标组选择使用。
 - 管理员聚合：`GET /api/admin/dashboard`，`admin` 与 `super_admin` 可读。
 - 门户内容页面：`/dashboard/admin/portal-content?tab=announcements|events|links`；缺失或非法标签使用 `replace` 回到公告标签。
@@ -84,12 +84,12 @@
 
 - 状态：已完成
 - 完成日期：2026-09-15
-- 迁移版本：无（复用现有用户组成员 `role=1` 组长标记）
+- 迁移版本：最初复用组长标记；后续版本 6 将历史 `role=1` 组长规范化为 `role=2`，并新增 `role=1` 组内管理员
 - 新增接口：`GET /api/admin/portal-groups`；公告和日程管理接口扩展组长范围权限
-- 权限规则：`super_admin` 保持全局管理；启用用户组中的 `admin` 组长只能管理目标组完全属于自己负责组的公告、日程和快捷链接，不能创建全员可见或跨组内容。
+- 权限规则：`super_admin` 与全局管理员保持全局管理；启用用户组中的组长或组内管理员只能管理目标组完全属于自己唯一管理组的公告、日程和快捷链接，不能创建全员可见或跨组内容。
 - 自动化测试：组长公告/日程创建、跨组拒绝、全员可见拒绝、越权读取测试通过；`make backend-test`、`make frontend-check`、`make build`、`git diff --check` 通过。
 - 前端验收：组长进入队务管理后显示公告、日程和快捷链接标签，目标组选择器仅显示负责组；普通管理员写接口仍由后端返回 `403`。
-- 已知限制：非组长 `admin` 仍可看到队务管理入口，但接口会明确返回无组长权限；后续可在会话能力字段中进一步隐藏入口。
+- 已知限制：无；前端入口由会话 `capabilities.canManagePortal` 控制，写接口仍由后端校验。
 
 ### 阶段 0
 

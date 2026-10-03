@@ -1,3 +1,5 @@
+import imageIcon from "@iconify-icons/lucide/image";
+import { Icon } from "@iconify/react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useOutletContext } from "react-router";
@@ -5,11 +7,17 @@ import { AnimatedSelect } from "~/components/animated-select";
 import { ModalShell } from "~/components/modal-shell";
 import { ApiError, buildApiUrl } from "~/lib/api-client";
 import {
+  getManagedAdminUserGroup,
+  updateManagedGroupAdmissionImage,
+  type AdminUserGroupDetail,
+} from "~/lib/admin-user-groups-client";
+import {
   deleteAdminRegistration,
   getAdminRegistration,
   listAdminRegistrations,
   reviewAdminRegistration,
   undoAdminRegistrationReview,
+  updateAdminRegistrationInterview,
   type RegistrationDetail,
   type RegistrationFileMeta,
   type RegistrationGroupRef,
@@ -233,7 +241,7 @@ function IconUser() {
 /* ────────────────────────────────────────────────────── */
 
 export default function RegistrationsPage() {
-  useOutletContext<DashboardLayoutOutletContext>();
+  const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
   const navigate = useNavigate();
 
   const [keywordInput, setKeywordInput] = useState("");
@@ -260,7 +268,16 @@ export default function RegistrationsPage() {
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
   const [previewImage, setPreviewImage] = useState<ImagePreviewState | null>(null);
+  const [managedGroup, setManagedGroup] = useState<AdminUserGroupDetail | null>(null);
+  const [admissionImageOpen, setAdmissionImageOpen] = useState(false);
+  const [admissionImageFile, setAdmissionImageFile] = useState<File | null>(null);
+  const [admissionImagePreview, setAdmissionImagePreview] = useState<string | null>(null);
+  const [savingAdmissionImage, setSavingAdmissionImage] = useState(false);
   const nextTableLoadMinimumMsRef = useRef(0);
+  const isGroupLeader =
+    currentUser.adminScope === "group" &&
+    currentUser.groupRole === "leader" &&
+    currentUser.capabilities.canManageGroupAdmins;
 
   const extraSubmittedFields = useMemo(() => {
     if (!detail) {
@@ -271,6 +288,11 @@ export default function RegistrationsPage() {
   }, [detail]);
 
   useEffect(() => {
+    if (currentUser.role.name !== "super_admin") {
+      setForms([]);
+      return;
+    }
+
     let cancelled = false;
 
     async function loadForms() {
@@ -291,7 +313,35 @@ export default function RegistrationsPage() {
     return () => {
       cancelled = true;
     };
-  }, [navigate]);
+  }, [currentUser.role.name, navigate]);
+
+  useEffect(() => {
+    if (!isGroupLeader) {
+      setManagedGroup(null);
+      return;
+    }
+    let cancelled = false;
+    getManagedAdminUserGroup()
+      .then((group) => {
+        if (!cancelled) setManagedGroup(group);
+      })
+      .catch((error) => {
+        if (!cancelled) handlePageError(error, navigate, setFlash);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isGroupLeader, navigate]);
+
+  useEffect(() => {
+    if (!admissionImageFile) {
+      setAdmissionImagePreview(null);
+      return;
+    }
+    const objectURL = URL.createObjectURL(admissionImageFile);
+    setAdmissionImagePreview(objectURL);
+    return () => URL.revokeObjectURL(objectURL);
+  }, [admissionImageFile]);
 
   useEffect(() => {
     let cancelled = false;
@@ -517,6 +567,46 @@ export default function RegistrationsPage() {
     }
   }
 
+  async function handleInterview(registrationId: number, groupId: number, status: "pending" | "passed" | "failed") {
+    try {
+      setReviewingId(registrationId);
+      const nextDetail = await updateAdminRegistrationInterview(registrationId, groupId, { status });
+      if (detailOpen && activeRegistrationId === registrationId) setDetail(nextDetail);
+      setFlash({ type: "success", message: "面试结果已更新。" });
+    } catch (error) { handlePageError(error, navigate, setFlash); } finally { setReviewingId(null); }
+  }
+
+  async function saveAdmissionImage() {
+    if (!admissionImageFile) return;
+    try {
+      setSavingAdmissionImage(true);
+      const group = await updateManagedGroupAdmissionImage({ image: admissionImageFile });
+      setManagedGroup(group);
+      setAdmissionImageFile(null);
+      setAdmissionImageOpen(false);
+      setFlash({ type: "success", message: "录取群图片已保存，后续录取邮件会自动内嵌该图片。" });
+    } catch (error) {
+      handlePageError(error, navigate, setFlash);
+    } finally {
+      setSavingAdmissionImage(false);
+    }
+  }
+
+  async function removeAdmissionImage() {
+    try {
+      setSavingAdmissionImage(true);
+      const group = await updateManagedGroupAdmissionImage({ removeImage: true });
+      setManagedGroup(group);
+      setAdmissionImageFile(null);
+      setAdmissionImageOpen(false);
+      setFlash({ type: "success", message: "录取群图片已移除。" });
+    } catch (error) {
+      handlePageError(error, navigate, setFlash);
+    } finally {
+      setSavingAdmissionImage(false);
+    }
+  }
+
   function openDeleteModal(target: {
     id: number;
     contactName?: string | null;
@@ -600,12 +690,24 @@ export default function RegistrationsPage() {
               </p>
             </div>
           </div>
-          <div className="inline-flex w-fit items-center gap-2 self-start rounded-full border border-primary-500/30 bg-primary-500/10 px-3 py-1 text-xs font-medium text-primary-200 sm:px-3.5 sm:py-1.5">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inset-0 animate-ping rounded-full bg-primary-400 opacity-75" />
-              <span className="relative h-1.5 w-1.5 rounded-full bg-primary-400" />
-            </span>
-            共 <span className="font-mono tabular-nums text-fg-primary">{summary.total}</span> 条记录
+          <div className="flex flex-wrap items-center gap-2 self-start">
+            {isGroupLeader ? (
+              <button
+                type="button"
+                onClick={() => setAdmissionImageOpen(true)}
+                className="btn-glass inline-flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-fg-primary"
+              >
+                <Icon icon={imageIcon} className="h-4 w-4" aria-hidden />
+                录取群图片
+              </button>
+            ) : null}
+            <div className="inline-flex w-fit items-center gap-2 rounded-full border border-primary-500/30 bg-primary-500/10 px-3 py-1 text-xs font-medium text-primary-200 sm:px-3.5 sm:py-1.5">
+              <span className="relative flex h-1.5 w-1.5">
+                <span className="absolute inset-0 animate-ping rounded-full bg-primary-400 opacity-75" />
+                <span className="relative h-1.5 w-1.5 rounded-full bg-primary-400" />
+              </span>
+              共 <span className="font-mono tabular-nums text-fg-primary">{summary.total}</span> 条记录
+            </div>
           </div>
         </div>
       </section>
@@ -631,6 +733,62 @@ export default function RegistrationsPage() {
           {flash.message}
         </div>
       ) : null}
+
+      {admissionImageOpen ? <ModalShell
+        open={admissionImageOpen}
+        title="录取群图片"
+        description={`${managedGroup?.name ?? "本组"}录取后用于邮件内的 QQ 群图片`}
+        onClose={() => {
+          if (!savingAdmissionImage) {
+            setAdmissionImageOpen(false);
+            setAdmissionImageFile(null);
+          }
+        }}
+        widthClass="max-w-lg"
+      >
+        <div className="space-y-5">
+          <div className="mx-auto flex aspect-square w-full max-w-72 items-center justify-center overflow-hidden rounded-lg border border-white/[0.08] bg-black/20">
+            {admissionImagePreview || managedGroup?.admissionImageUrl ? (
+              <img
+                src={admissionImagePreview ?? buildApiUrl(managedGroup?.admissionImageUrl ?? "")}
+                alt="录取群图片预览"
+                className="h-full w-full object-contain"
+              />
+            ) : (
+              <span className="px-4 text-center text-sm text-fg-dim">尚未配置录取群图片</span>
+            )}
+          </div>
+          <label className="block text-sm text-fg-muted">
+            选择图片
+            <input
+              type="file"
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              disabled={savingAdmissionImage}
+              onChange={(event) => setAdmissionImageFile(event.target.files?.[0] ?? null)}
+              className="mt-2 block w-full rounded-lg border border-white/[0.08] bg-black/20 px-3 py-2 text-sm text-fg-primary file:mr-3 file:rounded-md file:border-0 file:bg-primary-500/15 file:px-3 file:py-1.5 file:text-primary-200"
+            />
+          </label>
+          <p className="text-xs leading-5 text-fg-dim">支持 PNG、JPG、WebP 或 GIF，最大 2MB。只有最终录取邮件会包含此图片。</p>
+          <div className="flex flex-wrap justify-between gap-3">
+            <div>
+              {managedGroup?.admissionImageUrl ? (
+                <button
+                  type="button"
+                  disabled={savingAdmissionImage}
+                  onClick={() => void removeAdmissionImage()}
+                  className="rounded-lg border border-rose-500/30 px-3 py-2 text-sm text-rose-300 hover:bg-rose-500/10 disabled:opacity-50"
+                >
+                  移除图片
+                </button>
+              ) : null}
+            </div>
+            <div className="flex gap-2">
+              <button type="button" disabled={savingAdmissionImage} onClick={() => { setAdmissionImageOpen(false); setAdmissionImageFile(null); }} className="btn-glass rounded-lg px-4 py-2 text-sm disabled:opacity-50">取消</button>
+              <button type="button" disabled={!admissionImageFile || savingAdmissionImage} onClick={() => void saveAdmissionImage()} className="btn-gradient rounded-lg px-4 py-2 text-sm font-medium text-white disabled:cursor-not-allowed disabled:opacity-50">{savingAdmissionImage ? "保存中..." : "保存"}</button>
+            </div>
+          </div>
+        </div>
+      </ModalShell> : null}
 
       {/* ── Summary cards ── */}
       <div className="motion-fade-up grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 xl:grid-cols-5" style={{ animationDelay: "80ms" }}>
@@ -1055,6 +1213,18 @@ export default function RegistrationsPage() {
                             reviewedAt={detail.reviewedAt2}
                             remark={detail.reviewRemark2}
                           />
+                        </div>
+                      </section>
+
+                      <section>
+                        <DrawerSectionLabel icon={<IconCheck />}>面试结果与最终录取</DrawerSectionLabel>
+                        <div className="space-y-3">
+                          <InterviewResultEntry detail={detail} groupId={detail.group1?.id} label="第一志愿面试" canEdit={detail.canInterview1} onUpdate={(status) => detail.group1 && handleInterview(detail.id, detail.group1.id, status)} />
+                          <InterviewResultEntry detail={detail} groupId={detail.group2?.id} label="第二志愿面试" canEdit={detail.canInterview2} onUpdate={(status) => detail.group2 && handleInterview(detail.id, detail.group2.id, status)} />
+                          <div className="rounded-xl border border-primary-500/20 bg-primary-500/[0.06] px-4 py-3 text-sm text-fg-muted">
+                            最终结果：{detail.finalStatus === 1 ? `录取至 ${detail.finalGroup?.name ?? "已选组别"}` : detail.finalStatus === 2 ? "未录取" : "待定"}
+                            {detail.finalGroup && detail.finalStatus === 1 ? <span className="ml-2 text-xs text-fg-dim">第一志愿通过时优先第一志愿</span> : null}
+                          </div>
                         </div>
                       </section>
 
@@ -1716,6 +1886,21 @@ function ReviewTimelineEntry({
           <div className="mt-1 text-xs text-fg-dim">暂未审核</div>
         )}
       </div>
+    </div>
+  );
+}
+
+function InterviewResultEntry({ detail, groupId, label, canEdit, onUpdate }: { detail: RegistrationDetail; groupId?: number; label: string; canEdit: boolean; onUpdate: (status: "pending" | "passed" | "failed") => void }) {
+  const interview = groupId ? detail.interviews.find((item) => item.groupId === groupId) : undefined;
+  const status = interview?.status ?? 0;
+  return (
+    <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] px-4 py-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-sm font-medium text-fg-primary">{label}</span>
+        <StatusBadge status={status} />
+      </div>
+      {interview?.interviewer || interview?.interviewedAt || interview?.remark ? <div className="mt-2 text-xs text-fg-dim">{interview.interviewer?.name ?? ""}{interview.interviewedAt ? ` · ${formatDateTime(interview.interviewedAt)}` : ""}{interview.remark ? <div className="mt-1 text-sm text-fg-muted">{interview.remark}</div> : null}</div> : null}
+      {groupId && canEdit ? <div className="mt-3 flex flex-wrap gap-2"><button type="button" className="btn-glass rounded-lg px-2.5 py-1 text-xs" onClick={() => onUpdate("passed")}>面试通过</button><button type="button" className="btn-glass rounded-lg px-2.5 py-1 text-xs" onClick={() => onUpdate("failed")}>面试未通过</button><button type="button" className="btn-glass rounded-lg px-2.5 py-1 text-xs text-fg-dim" onClick={() => onUpdate("pending")}>重置</button></div> : null}
     </div>
   );
 }

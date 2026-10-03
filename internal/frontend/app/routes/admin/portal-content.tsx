@@ -4,7 +4,7 @@ import { useNavigate, useOutletContext, useSearchParams } from "react-router";
 import { AnimatedSelect } from "~/components/animated-select";
 import { ModalShell } from "~/components/modal-shell";
 import { Notify } from "~/components/notify";
-import { listAdminUserGroups, type AdminUserGroupListItem } from "~/lib/admin-user-groups-client";
+import { listAdminUserGroupOptions, listAdminUserGroups, type AdminUserGroupListItem } from "~/lib/admin-user-groups-client";
 import { ApiError } from "~/lib/api-client";
 import {
   createAdminAnnouncement,
@@ -68,6 +68,7 @@ export default function PortalContentPage() {
   const [searchParams] = useSearchParams();
   const rawTab = searchParams.get("tab");
   const isSuperAdmin = currentUser.role.name === "super_admin";
+  const hasGlobalPortalAccess = isSuperAdmin || (currentUser.role.name === "admin" && currentUser.adminScope === "global");
   const tab: TabKey = rawTab === "events" || rawTab === "links" ? rawTab : "announcements";
   const [items, setItems] = useState<PortalAnnouncement[]>([]);
   const [groups, setGroups] = useState<AdminUserGroupListItem[]>([]);
@@ -93,7 +94,9 @@ export default function PortalContentPage() {
         listAdminAnnouncements(filter),
         isSuperAdmin
           ? listAdminUserGroups({ status: 1 }).then((result) => result.items)
-          : listManagedPortalGroups(),
+          : hasGlobalPortalAccess
+            ? listAdminUserGroupOptions().then((items) => items.filter((item) => item.status === 1).map((item) => ({ id: item.id, name: item.name, status: item.status } as AdminUserGroupListItem)))
+            : listManagedPortalGroups(),
       ]);
       setItems(announcements.items);
       setGroups(groupItems);
@@ -104,12 +107,12 @@ export default function PortalContentPage() {
     }
   }
 
-  useEffect(() => { void load(); }, [filter, isSuperAdmin]);
+  useEffect(() => { void load(); }, [filter, hasGlobalPortalAccess, isSuperAdmin]);
 
   const selectedGroups = useMemo(() => new Set(form.targetGroupIds), [form.targetGroupIds]);
 
   function openCreate() {
-    setForm(isSuperAdmin ? emptyForm : { ...emptyForm, audienceType: "groups" });
+    setForm(hasGlobalPortalAccess ? emptyForm : { ...emptyForm, audienceType: "groups" });
     setEditing(null);
   }
 
@@ -165,7 +168,7 @@ export default function PortalContentPage() {
           </button>
         ))}
       </div>
-      {tab === "events" ? <PortalEventManager groups={groups} managedOnly={!isSuperAdmin} notify={(type, message) => setFlash({ type, message })} /> : tab === "links" ? <PortalLinkManager groups={groups} managedOnly={!isSuperAdmin} notify={(type, message) => setFlash({ type, message })} /> : (
+      {tab === "events" ? <PortalEventManager groups={groups} managedOnly={!hasGlobalPortalAccess} notify={(type, message) => setFlash({ type, message })} /> : tab === "links" ? <PortalLinkManager groups={groups} managedOnly={!hasGlobalPortalAccess} notify={(type, message) => setFlash({ type, message })} /> : (
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-4"><div className="w-48"><AnimatedSelect value={filter} onChange={setFilter} options={statusOptions} size="compact" /></div><button type="button" onClick={openCreate} className="btn-gradient rounded-xl px-4 py-2 text-sm font-medium text-white">新建公告</button></div>
           <div className="overflow-hidden glass-panel rounded-2xl">
@@ -189,7 +192,7 @@ export default function PortalContentPage() {
             <label className="block text-sm text-gray-300">正文<textarea required rows={7} value={form.content} onChange={(event) => setForm({ ...form, content: event.target.value })} className="mt-1 w-full rounded-xl border border-white/[0.08] bg-black/30 px-3 py-2.5" /></label>
             <div className="grid gap-4 sm:grid-cols-2"><div><span className="mb-1 block text-sm text-gray-300">分类</span><AnimatedSelect value={form.category} onChange={(value) => setForm({ ...form, category: value as AnnouncementCategory })} options={categoryOptions} /></div><div><span className="mb-1 block text-sm text-gray-300">状态</span><AnimatedSelect value={form.status} onChange={(value) => setForm({ ...form, status: value as AnnouncementStatus })} options={statusOptions.slice(1)} /></div></div>
             <div className="grid gap-4 sm:grid-cols-2"><label className="text-sm text-gray-300">发布时间<input type="datetime-local" value={datetimeLocal(form.publishAt)} onChange={(event) => setForm({ ...form, publishAt: toRFC3339(event.target.value) })} className="mt-1 w-full rounded-xl border border-white/[0.08] bg-black/30 px-3 py-2.5" /></label><label className="text-sm text-gray-300">失效时间<input type="datetime-local" value={datetimeLocal(form.expireAt)} onChange={(event) => setForm({ ...form, expireAt: toRFC3339(event.target.value) })} className="mt-1 w-full rounded-xl border border-white/[0.08] bg-black/30 px-3 py-2.5" /></label></div>
-            <div className="flex flex-wrap gap-5 text-sm"><label className="flex items-center gap-2"><input type="checkbox" checked={form.isPinned} onChange={(event) => setForm({ ...form, isPinned: event.target.checked })} />置顶</label>{isSuperAdmin && <label className="flex items-center gap-2"><input type="radio" checked={form.audienceType === "all"} onChange={() => setForm({ ...form, audienceType: "all", targetGroupIds: [] })} />全员可见</label>}<label className="flex items-center gap-2"><input type="radio" checked={form.audienceType === "groups"} onChange={() => setForm({ ...form, audienceType: "groups" })} />{isSuperAdmin ? "指定组可见" : "本组可见"}</label></div>
+            <div className="flex flex-wrap gap-5 text-sm"><label className="flex items-center gap-2"><input type="checkbox" checked={form.isPinned} onChange={(event) => setForm({ ...form, isPinned: event.target.checked })} />置顶</label>{hasGlobalPortalAccess && <label className="flex items-center gap-2"><input type="radio" checked={form.audienceType === "all"} onChange={() => setForm({ ...form, audienceType: "all", targetGroupIds: [] })} />全员可见</label>}<label className="flex items-center gap-2"><input type="radio" checked={form.audienceType === "groups"} onChange={() => setForm({ ...form, audienceType: "groups" })} />{hasGlobalPortalAccess ? "指定组可见" : "本组可见"}</label></div>
             {form.audienceType === "groups" && <div className="grid gap-2 sm:grid-cols-2">{groups.map((group) => <label key={group.id} className="flex items-center gap-2 rounded-xl border border-white/[0.06] p-3 text-sm"><input type="checkbox" checked={selectedGroups.has(group.id)} onChange={(event) => setForm({ ...form, targetGroupIds: event.target.checked ? [...form.targetGroupIds, group.id] : form.targetGroupIds.filter((id) => id !== group.id) })} />{group.name}</label>)}</div>}
             <div className="flex justify-end gap-3"><button type="button" onClick={() => setEditing(undefined)} className="btn-glass rounded-xl px-4 py-2 text-sm">取消</button><button disabled={saving} className="btn-gradient rounded-xl px-4 py-2 text-sm font-medium disabled:opacity-50">{saving ? "保存中…" : "保存"}</button></div>
           </form>

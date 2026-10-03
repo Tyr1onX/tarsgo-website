@@ -38,6 +38,8 @@
 |--------|------|------|------|
 | `id` | BIGINT UNSIGNED | PK, AUTO_INCREMENT | 主键 |
 | `role_id` | BIGINT UNSIGNED | NOT NULL, FK → `roles.id` | 所属角色 |
+| `admin_scope` | VARCHAR(20) | NOT NULL DEFAULT 'none' | 管理范围：`none`、`group`、`global` |
+| `management_group_id` | BIGINT UNSIGNED | DEFAULT NULL | 组内管理员负责的唯一用户组；必须与组内管理成员关系一致 |
 | **认证字段** ||||
 | `email` | VARCHAR(255) | NOT NULL, UNIQUE | 邮箱，同时用于登录和联系 |
 | `password_hash` | VARCHAR(255) | DEFAULT NULL | 密码哈希（bcrypt），GitHub 登录用户可为空 |
@@ -63,6 +65,8 @@
 | `uk_email` | `email` | UNIQUE | 邮箱唯一 |
 | `uk_github_id` | `github_id` | UNIQUE | GitHub ID 唯一（允许 NULL） |
 | `idx_role_id` | `role_id` | INDEX | 按角色查询 |
+| `idx_admin_scope` | `admin_scope` | INDEX | 按管理范围筛选 |
+| `idx_management_group_id` | `management_group_id` | INDEX | 查询某组的管理账号 |
 | `idx_phone` | `phone` | INDEX | 按手机号查询 |
 | `idx_status` | `status` | INDEX | 按状态筛选 |
 
@@ -209,6 +213,11 @@
 | `reviewer_id_2` | BIGINT UNSIGNED | DEFAULT NULL, FK → `users.id` | 意向组别(2)审核人 |
 | `reviewed_at_2` | DATETIME | DEFAULT NULL | 意向组别(2)审核时间 |
 | `review_remark_2` | VARCHAR(500) | DEFAULT NULL | 意向组别(2)审核备注 |
+| **最终录取** ||||
+| `final_group_id` | BIGINT UNSIGNED | DEFAULT NULL, FK → `user_groups.id` | 最终录取组；待定或未录取时为空 |
+| `final_status` | TINYINT | NOT NULL DEFAULT 0 | 最终状态：0=待定，1=已录取，2=未录取 |
+| `finalized_at` | DATETIME | DEFAULT NULL | 最终结果确认时间；待定时为空 |
+| `finalized_by` | BIGINT UNSIGNED | DEFAULT NULL, FK → `users.id` | 最终结果确认人；待定时为空 |
 | **时间戳** ||||
 | `submitted_at` | DATETIME | NOT NULL DEFAULT CURRENT_TIMESTAMP | 提交时间 |
 | `updated_at` | DATETIME | NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 更新时间 |
@@ -255,10 +264,12 @@
 | 规则 | 说明 |
 |------|------|
 | 提交约束 | `group_1`、`group_2` 必须都来自当前 `user_groups.show=1` 的分组集合，且二者不能重复 |
-| 全量审核人 | `super_admin` 与“没有任何组长身份的 admin”可一次性审核当前记录全部待审核槽位 |
-| 组长审核人 | “至少担任一个组长分组的 admin”仅能查看自己负责分组命中的报名，并且只审核命中的待审核槽位 |
+| 全量审核人 | `super_admin` 与 `admin_scope=global` 的全局管理员可一次性审核当前记录全部待审核槽位 |
+| 组内审核人 | 有效管理组中的组长或组内管理员，仅能查看唯一管理组命中的报名，并且只审核命中的待审核槽位 |
 | 总状态派生 | 只要任一槽位仍为 `pending`，总状态就是 `pending`；两个槽位都有结果后，若至少一个通过则总状态为 `approved`，若两个都拒绝则总状态为 `rejected` |
-| 入组同步 | 两个意向组别的审核结果彼此独立，可以同时为 `approved`；仅当两个槽位都已有结果时，系统才会把用户自动加入所有审核通过的意向组别，可能一次加入两个组；若用户当前仍在默认分组中，且默认分组不在通过结果内，则会同步移出；写入 `user_group_members` 需幂等 |
+| 线上审核 | 两个意向组别的线上审核结果彼此独立；通过只表示可以进入该组面试，不直接修改成员关系 |
+| 最终录取 | 第一志愿面试通过优先录取第一志愿；第一志愿未通过且第二志愿通过时录取第二志愿；两组都未通过时最终未录取；其余组合保持待定 |
+| 入组同步 | 最终录取与成员关系变更处于同一事务：加入唯一最终组并移出非目标默认组；重置已录取结果时撤销原录取组并恢复启用默认组 |
 
 ### 索引
 
@@ -276,6 +287,20 @@
 | `idx_group_2` | `group_2` | INDEX | 按意向组别(2)筛选 |
 | `idx_group_2_status` | `group_2_status` | INDEX | 按意向组别(2)审核状态筛选 |
 | `idx_submitted_at` | `submitted_at` | INDEX | 按提交时间排序 |
+
+### 报名面试表 `registration_interviews`
+
+每条记录保存一份报名在一个意向组中的面试结果，`registration_id + group_id` 唯一。
+
+| 字段名 | 类型 | 约束 | 说明 |
+|--------|------|------|------|
+| `id` | BIGINT UNSIGNED | PK, AUTO_INCREMENT | 主键 |
+| `registration_id` | BIGINT UNSIGNED | NOT NULL, FK → `registrations.id` | 报名记录，删除报名时级联删除 |
+| `group_id` | BIGINT UNSIGNED | NOT NULL, FK → `user_groups.id` | 面试组别 |
+| `status` | TINYINT | NOT NULL DEFAULT 0 | 0=待定，1=通过，2=未通过 |
+| `remark` | VARCHAR(500) | DEFAULT NULL | 面试备注 |
+| `interviewer_id` | BIGINT UNSIGNED | DEFAULT NULL, FK → `users.id` | 操作人；重置为待定时为空 |
+| `interviewed_at` | DATETIME | DEFAULT NULL | 操作时间；重置为待定时为空 |
 
 ---
 
@@ -321,14 +346,14 @@
 
 ## 6. 用户组成员表 `user_group_members`
 
-记录用户与用户组的多对多关系，同时标记成员在组内的角色（普通成员或组长）。
+记录用户与用户组的多对多关系，同时标记普通成员、组内管理员或组长身份。
 
 | 字段名 | 类型 | 约束 | 说明 |
 |--------|------|------|------|
 | `id` | BIGINT UNSIGNED | PK, AUTO_INCREMENT | 主键 |
 | `group_id` | BIGINT UNSIGNED | NOT NULL, FK → `user_groups.id` | 所属用户组 |
 | `user_id` | BIGINT UNSIGNED | NOT NULL, FK → `users.id` | 成员用户 |
-| `role` | TINYINT | NOT NULL DEFAULT 0 | 组内角色：0=普通成员，1=组长 |
+| `role` | TINYINT | NOT NULL DEFAULT 0 | 组内角色：0=普通成员，1=组内管理员，2=组长 |
 | `joined_at` | DATETIME | NOT NULL DEFAULT CURRENT_TIMESTAMP | 加入时间 |
 
 ### 角色枚举
@@ -336,7 +361,8 @@
 | 值 | 标识 | 说明 |
 |----|------|------|
 | 0 | `member` | 普通成员（默认） |
-| 1 | `leader` | 组长 |
+| 1 | `group_admin` | 组内管理员，可读成员并处理本组报名/门户内容 |
+| 2 | `leader` | 组长，可管理本组成员和组内管理员 |
 
 ### 索引
 

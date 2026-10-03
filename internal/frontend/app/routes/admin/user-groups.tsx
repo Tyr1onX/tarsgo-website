@@ -99,7 +99,8 @@ const statusOptions = [
 
 const memberRoleOptions = [
   { value: 0, label: "普通成员" },
-  { value: 1, label: "组长" },
+  { value: 1, label: "组内管理" },
+  { value: 2, label: "组长" },
 ];
 
 const DRAWER_ANIMATION_MS = 220;
@@ -221,8 +222,11 @@ function getSystemRoleMeta(roleName: string) {
 }
 
 function getMemberRoleMeta(role: number) {
-  if (role === 1) {
+  if (role === 2) {
     return { label: "组长", className: "text-primary-300 bg-primary-500/10 border border-primary-400/20" };
+  }
+  if (role === 1) {
+    return { label: "组内管理", className: "text-sky-300 bg-sky-500/10 border border-sky-400/20" };
   }
   return { label: "成员", className: "text-gray-300 bg-gray-500/10 border border-gray-400/20" };
 }
@@ -761,11 +765,11 @@ export default function UserGroups() {
 
     try {
       setMutatingMemberId(member.id);
-      const nextRole = member.role === 1 ? 0 : 1;
+      const nextRole = member.role === 2 ? 1 : member.role === 1 ? 0 : 1;
       await updateAdminUserGroupMember(selectedGroupId, member.id, { role: nextRole });
       setFlash({
         type: "success",
-        message: nextRole === 1 ? `已将 ${member.user.name} 设为组长` : `已将 ${member.user.name} 调整为普通成员`,
+        message: member.role === 2 ? `已将 ${member.user.name} 降为组内管理员` : nextRole === 1 ? `已将 ${member.user.name} 设为组内管理员` : `已将 ${member.user.name} 调整为普通成员`,
       });
       await Promise.all([refreshSelectedGroup(selectedGroupId), refreshList()]);
     } catch (error) {
@@ -1301,7 +1305,7 @@ export default function UserGroups() {
                       <DrawerStatBlock label="成员" value={selectedGroup.memberCount} />
                       <DrawerStatBlock
                         label="组长"
-                        value={selectedGroup.members.filter((m) => m.role === 1).length}
+                        value={selectedGroup.members.filter((m) => m.role === 2).length}
                       />
                       <DrawerStatBlock label="创建" value={formatDateTime(selectedGroup.createdAt)} small />
                       <DrawerStatBlock label="更新" value={formatDateTime(selectedGroup.updatedAt)} small />
@@ -1449,7 +1453,7 @@ export default function UserGroups() {
                                     <span className="text-sm font-medium text-white">{member.user.name}</span>
                                     <RoleBadge roleName={member.user.role.name} displayName={member.user.role.displayName} />
                                     <RoleBadge
-                                      roleName={member.role === 1 ? "leader" : "member"}
+                                      roleName={member.role === 2 ? "leader" : member.role === 1 ? "group_admin" : "member"}
                                       displayName={getMemberRoleMeta(member.role).label}
                                       className={getMemberRoleMeta(member.role).className}
                                     />
@@ -1476,12 +1480,14 @@ export default function UserGroups() {
                                     disabled={mutatingMemberId === member.id}
                                     className="inline-flex items-center gap-1 rounded-xl border border-primary-400/30 px-3 py-1.5 text-xs text-primary-200 transition-colors hover:bg-primary-500/10 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
                                   >
-                                    <Icon icon={member.role === 1 ? userCheck : crown} className="h-3 w-3" />
+                                    <Icon icon={member.role > 0 ? userCheck : crown} className="h-3 w-3" />
                                     {mutatingMemberId === member.id
                                       ? "处理中..."
-                                      : member.role === 1
-                                        ? "改为成员"
-                                        : "设为组长"}
+                                      : member.role === 2
+                                        ? "降为组内管理员"
+                                        : member.role === 1
+                                          ? "改为成员"
+                                          : "设为组内管理员"}
                                   </button>
                                   <button
                                     type="button"

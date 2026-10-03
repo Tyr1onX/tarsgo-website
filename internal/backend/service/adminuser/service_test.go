@@ -3,6 +3,7 @@ package adminuser
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -235,6 +236,163 @@ func TestServiceListUsers_SupportsGroupFilter(t *testing.T) {
 	}
 }
 
+func TestServiceGroupLeaderCanEditManagedAdminProfile(t *testing.T) {
+	repo := newFakeRepository()
+	groupID := uint64(7)
+	repo.users[4] = &model.User{ID: 4, RoleID: repo.roleID(model.RoleNameAdmin), Role: repo.roles[repo.roleID(model.RoleNameAdmin)], Name: "组内管理员", Email: "managed@example.com", Status: model.UserStatusEnabled, AdminScope: model.AdminScopeGroup, ManagementGroupID: &groupID, GroupMembers: []model.UserGroupMember{{GroupID: groupID, Role: model.UserGroupMemberRoleGroupAdmin}}}
+	service := NewService(repo)
+	updated, err := service.UpdateUser(context.Background(), Actor{ID: 9, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGroup, ManagementGroupID: &groupID, GroupRole: "leader"}, 4, UpdateUserInput{RoleID: repo.roleID(model.RoleNameAdmin), Name: "已修改", Email: "managed@example.com", Nickname: "新昵称", Status: model.UserStatusEnabled})
+	if err != nil {
+		t.Fatalf("group leader profile update: %v", err)
+	}
+	if updated.Name != "已修改" || updated.Nickname == nil || *updated.Nickname != "新昵称" {
+		t.Fatalf("unexpected updated profile: %#v", updated)
+	}
+}
+
+func TestServiceGroupLeaderCannotEditGlobalAdminInManagedGroup(t *testing.T) {
+	repo := newFakeRepository()
+	groupID := uint64(7)
+	repo.users[4] = &model.User{ID: 4, RoleID: repo.roleID(model.RoleNameAdmin), Role: repo.roles[repo.roleID(model.RoleNameAdmin)], Name: "全局管理员", Email: "global-in-group@example.com", Status: model.UserStatusEnabled, AdminScope: model.AdminScopeGlobal, GroupMembers: []model.UserGroupMember{{GroupID: groupID, Role: model.UserGroupMemberRoleMember}}}
+	service := NewService(repo)
+	_, err := service.UpdateUser(context.Background(), Actor{ID: 9, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGroup, ManagementGroupID: &groupID, GroupRole: "leader"}, 4, UpdateUserInput{RoleID: repo.roleID(model.RoleNameAdmin), Name: "全局管理员", Email: "global-in-group@example.com", Status: model.UserStatusEnabled})
+	assertServiceError(t, err, http.StatusForbidden, "全局管理员")
+}
+
+func TestServiceGlobalAdminCannotChangeAdminStatus(t *testing.T) {
+	repo := newFakeRepository()
+	repo.users[4] = &model.User{ID: 4, RoleID: repo.roleID(model.RoleNameAdmin), Role: repo.roles[repo.roleID(model.RoleNameAdmin)], Name: "全局管理员", Email: "global@example.com", Status: model.UserStatusEnabled, AdminScope: model.AdminScopeGlobal}
+	service := NewService(repo)
+	_, err := service.UpdateUser(context.Background(), Actor{ID: 9, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGlobal}, 4, UpdateUserInput{RoleID: repo.roleID(model.RoleNameAdmin), Name: "全局管理员", Email: "global@example.com", Status: model.UserStatusDisabled})
+	assertServiceError(t, err, http.StatusForbidden, "只能启用或停用普通用户")
+}
+
+func TestServiceGlobalAdminCanChangeUserStatus(t *testing.T) {
+	repo := newFakeRepository()
+	service := NewService(repo)
+	_, err := service.UpdateUser(context.Background(), Actor{ID: 9, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGlobal}, 3, UpdateUserInput{RoleID: repo.roleID(model.RoleNameUser), Name: "Member", Email: "member@example.com", Status: model.UserStatusDisabled})
+	if err != nil {
+		t.Fatalf("global admin user status update: %v", err)
+	}
+	if repo.users[3].Status != model.UserStatusDisabled {
+		t.Fatalf("expected user to be disabled")
+	}
+}
+
+func TestServiceGroupLeaderCannotChangeMemberStatus(t *testing.T) {
+	repo := newFakeRepository()
+	groupID := uint64(7)
+	repo.users[3].GroupMembers = []model.UserGroupMember{{GroupID: groupID, Role: model.UserGroupMemberRoleMember}}
+	service := NewService(repo)
+	_, err := service.UpdateUser(context.Background(), Actor{ID: 9, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGroup, ManagementGroupID: &groupID, GroupRole: "leader"}, 3, UpdateUserInput{RoleID: repo.roleID(model.RoleNameUser), Name: "Member", Email: "member@example.com", Status: model.UserStatusDisabled})
+	assertServiceError(t, err, http.StatusForbidden, "不能启用或停用")
+}
+
+func TestServiceGroupAdminListsAllGroupMembers(t *testing.T) {
+	repo := newFakeRepository()
+	groupID := uint64(7)
+	repo.users[2].AdminScope = model.AdminScopeGroup
+	repo.users[2].ManagementGroupID = &groupID
+	repo.users[2].GroupMembers = []model.UserGroupMember{{GroupID: groupID, Role: model.UserGroupMemberRoleLeader}}
+	repo.users[4] = &model.User{ID: 4, RoleID: repo.roleID(model.RoleNameAdmin), Role: repo.roles[repo.roleID(model.RoleNameAdmin)], Name: "另一名组内管理员", Email: "other-group-admin@example.com", Status: model.UserStatusEnabled, AdminScope: model.AdminScopeGroup, ManagementGroupID: &groupID, GroupMembers: []model.UserGroupMember{{GroupID: groupID, Role: model.UserGroupMemberRoleGroupAdmin}}}
+	repo.users[3].GroupMembers = []model.UserGroupMember{{GroupID: groupID, Role: model.UserGroupMemberRoleMember}}
+	repo.users[5] = &model.User{ID: 5, RoleID: repo.roleID(model.RoleNameUser), Role: repo.roles[repo.roleID(model.RoleNameUser)], Name: "其他组成员", Email: "other-group-member@example.com", Status: model.UserStatusEnabled, GroupMembers: []model.UserGroupMember{{GroupID: 8, Role: model.UserGroupMemberRoleMember}}}
+	service := NewService(repo)
+	actor := Actor{ID: 8, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGroup, ManagementGroupID: &groupID, GroupRole: "group_admin"}
+	result, err := service.ListUsers(context.Background(), actor, ListUsersInput{GroupID: func() *uint64 { id := uint64(8); return &id }()})
+	if err != nil {
+		t.Fatalf("group admin list: %v", err)
+	}
+	if len(result.Items) != 3 {
+		t.Fatalf("expected all group members, got %#v", result.Items)
+	}
+	seen := map[uint64]bool{}
+	for _, item := range result.Items {
+		seen[item.ID] = true
+	}
+	if !seen[2] || !seen[3] || !seen[4] {
+		t.Fatalf("expected leader, group admin, and member in result, got %#v", result.Items)
+	}
+	if seen[5] {
+		t.Fatalf("group admin list must exclude other groups, got %#v", result.Items)
+	}
+	if _, err := service.GetUser(context.Background(), actor, 2); err != nil {
+		t.Fatalf("group admin should view the group leader: %v", err)
+	}
+	if _, err := service.GetUser(context.Background(), actor, 4); err != nil {
+		t.Fatalf("group admin should view another group admin: %v", err)
+	}
+	_, err = service.GetUser(context.Background(), actor, 5)
+	assertServiceError(t, err, http.StatusForbidden, "其他用户组")
+}
+
+func TestServiceListUsersSupportsBusinessRoleFilters(t *testing.T) {
+	repo := newFakeRepository()
+	groupID := uint64(7)
+	otherGroupID := uint64(8)
+	repo.users[2].AdminScope = model.AdminScopeGroup
+	repo.users[2].ManagementGroupID = &groupID
+	repo.users[2].GroupMembers = []model.UserGroupMember{{GroupID: groupID, Role: model.UserGroupMemberRoleLeader}}
+	repo.users[3].GroupMembers = []model.UserGroupMember{{GroupID: groupID, Role: model.UserGroupMemberRoleMember}}
+	repo.users[4] = &model.User{
+		ID:                4,
+		RoleID:            repo.roleID(model.RoleNameAdmin),
+		Role:              repo.roles[repo.roleID(model.RoleNameAdmin)],
+		Name:              "组内管理员",
+		Email:             "group-admin@example.com",
+		Status:            model.UserStatusEnabled,
+		AdminScope:        model.AdminScopeGroup,
+		ManagementGroupID: &groupID,
+		GroupMembers:      []model.UserGroupMember{{GroupID: groupID, Role: model.UserGroupMemberRoleGroupAdmin}},
+	}
+	globalGroupMember := model.UserGroupMember{GroupID: otherGroupID, Role: model.UserGroupMemberRoleMember}
+	repo.users[5] = &model.User{
+		ID:           5,
+		RoleID:       repo.roleID(model.RoleNameAdmin),
+		Role:         repo.roles[repo.roleID(model.RoleNameAdmin)],
+		Name:         "全局管理员",
+		Email:        "global-admin@example.com",
+		Status:       model.UserStatusEnabled,
+		AdminScope:   model.AdminScopeGlobal,
+		GroupMembers: []model.UserGroupMember{globalGroupMember},
+	}
+
+	service := NewService(repo)
+	cases := []struct {
+		name string
+		role string
+		want uint64
+	}{
+		{name: "member", role: UserFilterRoleMember, want: 1},
+		{name: "group admin", role: UserFilterRoleGroupAdmin, want: 1},
+		{name: "leader", role: UserFilterRoleLeader, want: 1},
+		{name: "global admin", role: UserFilterRoleGlobal, want: 1},
+		{name: "super admin", role: UserFilterRoleSuperAdmin, want: 1},
+	}
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			result, err := service.ListUsers(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, ListUsersInput{Role: testCase.role})
+			if err != nil {
+				t.Fatalf("ListUsers returned error: %v", err)
+			}
+			if result.Pagination.Total != int64(testCase.want) {
+				t.Fatalf("expected %d result(s), got %d: %#v", testCase.want, result.Pagination.Total, result.Items)
+			}
+		})
+	}
+
+	result, err := service.ListUsers(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, ListUsersInput{
+		Role:    UserFilterRoleGroupAdmin,
+		GroupID: &otherGroupID,
+	})
+	if err != nil {
+		t.Fatalf("group-scoped ListUsers returned error: %v", err)
+	}
+	if result.Pagination.Total != 0 {
+		t.Fatalf("expected no group admins in another group, got %#v", result.Items)
+	}
+}
+
 func TestServiceListUsers_ReturnsGithubBoundSummary(t *testing.T) {
 	repo := newFakeRepository()
 	service := NewService(repo)
@@ -326,7 +484,7 @@ func newFakeRepository() *fakeRepository {
 func (r *fakeRepository) ListUsers(_ context.Context, input ListUsersInput) ([]model.User, int64, error) {
 	result := make([]model.User, 0, len(r.users))
 	for _, user := range r.users {
-		if input.Role != "" && user.Role.Name != input.Role {
+		if input.Role != "" && !matchesUserRoleFilter(user, input.Role, input.GroupID) {
 			continue
 		}
 		if input.Status != nil && user.Status != *input.Status {
@@ -340,9 +498,58 @@ func (r *fakeRepository) ListUsers(_ context.Context, input ListUsersInput) ([]m
 	return result, int64(len(result)), nil
 }
 
+func matchesUserRoleFilter(user *model.User, roleName string, groupID *uint64) bool {
+	switch roleName {
+	case UserFilterRoleMember:
+		return user.Role.Name == model.RoleNameUser
+	case UserFilterRoleGroupAdmin:
+		return hasMembershipRole(user, model.UserGroupMemberRoleGroupAdmin, groupID)
+	case UserFilterRoleLeader:
+		return hasMembershipRole(user, model.UserGroupMemberRoleLeader, groupID)
+	case UserFilterRoleGlobal, UserFilterRoleGlobalAdmin:
+		return user.Role.Name == model.RoleNameAdmin && user.AdminScope == model.AdminScopeGlobal
+	case UserFilterRoleSuperAdmin:
+		return user.Role.Name == model.RoleNameSuperAdmin
+	default:
+		return user.Role.Name == roleName
+	}
+}
+
+func hasMembershipRole(user *model.User, role uint8, groupID *uint64) bool {
+	for _, member := range user.GroupMembers {
+		if member.Role == role && (groupID == nil || member.GroupID == *groupID) {
+			return true
+		}
+	}
+	return false
+}
+
 func (r *fakeRepository) GetUserStats(context.Context) (UserStats, error) {
 	stats := UserStats{}
 	for _, user := range r.users {
+		stats.Total++
+		if user.Status == model.UserStatusEnabled {
+			stats.Enabled++
+		}
+		if user.Status == model.UserStatusDisabled {
+			stats.Disabled++
+		}
+		if user.Role.Name == model.RoleNameAdmin || user.Role.Name == model.RoleNameSuperAdmin {
+			stats.Admins++
+		}
+		if user.GitHubID != nil && strings.TrimSpace(*user.GitHubID) != "" {
+			stats.GitHubBound++
+		}
+	}
+	return stats, nil
+}
+
+func (r *fakeRepository) GetUserStatsInGroup(_ context.Context, groupID uint64) (UserStats, error) {
+	stats := UserStats{}
+	for _, user := range r.users {
+		if !userInGroup(user, groupID) {
+			continue
+		}
 		stats.Total++
 		if user.Status == model.UserStatusEnabled {
 			stats.Enabled++
@@ -455,7 +662,7 @@ func (r *fakeRepository) UpdateUser(_ context.Context, userID uint64, updates ma
 		case "gender":
 			user.Gender = value.(uint8)
 		case "birthday":
-			if birthday, ok := value.(*time.Time); ok {
+			if birthday, ok := value.(*time.Time); ok && birthday != nil {
 				birthdayCopy := *birthday
 				user.Birthday = &birthdayCopy
 			} else {

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"math"
 	"mime/multipart"
 	"net/http"
@@ -31,9 +32,16 @@ import (
 var mainlandPhonePattern = regexp.MustCompile(`^1[3-9]\d{9}$`)
 
 type RegistrationService struct {
-	repo      registrationRepository
-	fileStore registrationFileStore
-	now       func() time.Time
+	repo            registrationRepository
+	fileStore       registrationFileStore
+	now             func() time.Time
+	mailer          func() RegistrationMailer
+	loadInlineImage func(string) ([]byte, string, error)
+}
+
+type RegistrationMailer interface {
+	Send(ctx context.Context, to string, subject string, body string) error
+	SendWithInlineImage(ctx context.Context, to string, subject string, body string, image []byte, contentType string) error
 }
 
 type registrationRepository interface {
@@ -51,6 +59,7 @@ type registrationRepository interface {
 	GetRegistrationStats(ctx context.Context, filter ListRegistrationsInput) (RegistrationStats, error)
 	GetRegistrationByID(ctx context.Context, registrationID uint64) (*model.Registration, error)
 	GetRegistrationByIDForUpdate(ctx context.Context, registrationID uint64) (*model.Registration, error)
+	UpsertRegistrationInterview(ctx context.Context, interview *model.RegistrationInterview) error
 	DeleteRegistration(ctx context.Context, registrationID uint64) error
 	ListShownUserGroups(ctx context.Context) ([]model.UserGroup, error)
 	ListDefaultGroupIDs(ctx context.Context) ([]uint64, error)
@@ -127,30 +136,37 @@ type ListRegistrationsResult struct {
 }
 
 type RegistrationDetail struct {
-	ID            uint64                   `json:"id"`
-	FormID        uint64                   `json:"formId"`
-	FormTitle     string                   `json:"formTitle"`
-	ContactName   *string                  `json:"contactName,omitempty"`
-	ContactPhone  *string                  `json:"contactPhone,omitempty"`
-	ContactEmail  *string                  `json:"contactEmail,omitempty"`
-	Group1        *RegistrationGroupRef    `json:"group1,omitempty"`
-	Group1Status  uint8                    `json:"group1Status"`
-	Group2        *RegistrationGroupRef    `json:"group2,omitempty"`
-	Group2Status  uint8                    `json:"group2Status"`
-	Status        uint8                    `json:"status"`
-	Reviewer1     *RegistrationReviewerRef `json:"reviewer1,omitempty"`
-	ReviewedAt1   *time.Time               `json:"reviewedAt1,omitempty"`
-	ReviewRemark1 *string                  `json:"reviewRemark1,omitempty"`
-	Reviewer2     *RegistrationReviewerRef `json:"reviewer2,omitempty"`
-	ReviewedAt2   *time.Time               `json:"reviewedAt2,omitempty"`
-	ReviewRemark2 *string                  `json:"reviewRemark2,omitempty"`
-	CanApprove    bool                     `json:"canApprove"`
-	CanReject     bool                     `json:"canReject"`
-	CanUndo       bool                     `json:"canUndo"`
-	SubmittedAt   time.Time                `json:"submittedAt"`
-	UpdatedAt     time.Time                `json:"updatedAt"`
-	FieldsSchema  []model.FormField        `json:"fieldsSchema"`
-	FormData      map[string]any           `json:"formData"`
+	ID            uint64                     `json:"id"`
+	FormID        uint64                     `json:"formId"`
+	FormTitle     string                     `json:"formTitle"`
+	ContactName   *string                    `json:"contactName,omitempty"`
+	ContactPhone  *string                    `json:"contactPhone,omitempty"`
+	ContactEmail  *string                    `json:"contactEmail,omitempty"`
+	Group1        *RegistrationGroupRef      `json:"group1,omitempty"`
+	Group1Status  uint8                      `json:"group1Status"`
+	Group2        *RegistrationGroupRef      `json:"group2,omitempty"`
+	Group2Status  uint8                      `json:"group2Status"`
+	Status        uint8                      `json:"status"`
+	Interviews    []RegistrationInterviewRef `json:"interviews"`
+	FinalGroup    *RegistrationGroupRef      `json:"finalGroup,omitempty"`
+	FinalStatus   uint8                      `json:"finalStatus"`
+	FinalizedAt   *time.Time                 `json:"finalizedAt,omitempty"`
+	Finalizer     *RegistrationReviewerRef   `json:"finalizer,omitempty"`
+	CanInterview1 bool                       `json:"canInterview1"`
+	CanInterview2 bool                       `json:"canInterview2"`
+	Reviewer1     *RegistrationReviewerRef   `json:"reviewer1,omitempty"`
+	ReviewedAt1   *time.Time                 `json:"reviewedAt1,omitempty"`
+	ReviewRemark1 *string                    `json:"reviewRemark1,omitempty"`
+	Reviewer2     *RegistrationReviewerRef   `json:"reviewer2,omitempty"`
+	ReviewedAt2   *time.Time                 `json:"reviewedAt2,omitempty"`
+	ReviewRemark2 *string                    `json:"reviewRemark2,omitempty"`
+	CanApprove    bool                       `json:"canApprove"`
+	CanReject     bool                       `json:"canReject"`
+	CanUndo       bool                       `json:"canUndo"`
+	SubmittedAt   time.Time                  `json:"submittedAt"`
+	UpdatedAt     time.Time                  `json:"updatedAt"`
+	FieldsSchema  []model.FormField          `json:"fieldsSchema"`
+	FormData      map[string]any             `json:"formData"`
 }
 
 type RegistrationFileResult struct {
@@ -199,17 +215,25 @@ func NewRegistrationService(db *gorm.DB) *RegistrationService {
 	}
 
 	return &RegistrationService{
-		repo:      &gormRegistrationRepository{db: db},
-		fileStore: fileStore,
-		now:       time.Now,
+		repo:            &gormRegistrationRepository{db: db},
+		fileStore:       fileStore,
+		now:             time.Now,
+		loadInlineImage: loadAdmissionInlineImage,
 	}
+}
+
+func NewRegistrationServiceWithMailer(db *gorm.DB, mailer func() RegistrationMailer) *RegistrationService {
+	service := NewRegistrationService(db)
+	service.mailer = mailer
+	return service
 }
 
 func newRegistrationServiceWithDependencies(repo registrationRepository, fileStore registrationFileStore) *RegistrationService {
 	return &RegistrationService{
-		repo:      repo,
-		fileStore: fileStore,
-		now:       time.Now,
+		repo:            repo,
+		fileStore:       fileStore,
+		now:             time.Now,
+		loadInlineImage: loadAdmissionInlineImage,
 	}
 }
 
@@ -230,6 +254,17 @@ func (s *RegistrationService) SubmitRegistration(ctx context.Context, actor Regi
 	}
 	if input.FormID == 0 {
 		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "报名表 ID 不合法"}
+	}
+	if checker, ok := s.repo.(interface {
+		IsUserInActiveDefaultGroup(context.Context, uint64) (bool, error)
+	}); ok {
+		eligible, err := checker.IsUserInActiveDefaultGroup(ctx, actor.ID)
+		if err != nil {
+			return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "检查默认用户组资格失败", Err: err}
+		}
+		if !eligible {
+			return nil, &ServiceError{Status: http.StatusForbidden, Message: "当前账号不属于有效的默认用户组，无法提交报名"}
+		}
 	}
 
 	form, err := s.loadActiveFormForSubmission(ctx, input.FormID)
@@ -539,6 +574,11 @@ func (s *RegistrationService) GetRegistration(ctx context.Context, actor Registr
 		Group2:        toRegistrationGroupRef(registration.Group2),
 		Group2Status:  registration.Group2Status,
 		Status:        registration.Status,
+		Interviews:    toRegistrationInterviewRefs(registration.Interviews),
+		FinalGroup:    toRegistrationGroupRef(registration.FinalGroup),
+		FinalStatus:   registration.FinalStatus,
+		FinalizedAt:   copyTimePtr(registration.FinalizedAt),
+		Finalizer:     toRegistrationReviewerRef(registration.Finalizer),
 		Reviewer1:     toRegistrationReviewerRef(registration.Reviewer1),
 		ReviewedAt1:   copyTimePtr(registration.ReviewedAt1),
 		ReviewRemark1: copyStringPtr(registration.ReviewRemark1),
@@ -553,7 +593,323 @@ func (s *RegistrationService) GetRegistration(ctx context.Context, actor Registr
 		FormData:      sanitizeRegistrationFormData(registration.FormData),
 	}
 	detail.CanApprove, detail.CanReject, detail.CanUndo = scope.reviewActionAvailability(registration)
+	detail.CanInterview1 = registration.Group1ID != nil && scope.hasGroup(*registration.Group1ID) && registration.Group1Status == model.RegistrationStatusApproved
+	detail.CanInterview2 = registration.Group2ID != nil && scope.hasGroup(*registration.Group2ID) && registration.Group2Status == model.RegistrationStatusApproved
 	return &detail, nil
+}
+
+type UpdateInterviewInput struct {
+	GroupID uint64
+	Status  string
+	Remark  string
+}
+
+func (s *RegistrationService) UpdateRegistrationInterview(ctx context.Context, actor RegistrationFormActor, registrationID uint64, input UpdateInterviewInput) (*RegistrationDetail, error) {
+	if err := wrapRegistrationActorError(ensureRegistrationAdminActor(actor)); err != nil {
+		return nil, err
+	}
+	if registrationID == 0 || input.GroupID == 0 {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "参数不合法"}
+	}
+	status, err := normalizeInterviewStatus(input.Status)
+	if err != nil {
+		return nil, err
+	}
+	scope, err := s.resolveRegistrationAccessScope(ctx, actor)
+	if err != nil {
+		return nil, err
+	}
+	now := s.now()
+	var notification *interviewNotification
+	if err := s.repo.RunInTx(ctx, func(repo registrationRepository) error {
+		reg, err := repo.GetRegistrationByIDForUpdate(ctx, registrationID)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return &ServiceError{Status: http.StatusNotFound, Message: "报名记录不存在"}
+			}
+			return err
+		}
+		if !scope.canAccessRegistration(reg) {
+			return &ServiceError{Status: http.StatusForbidden, Message: "当前账号无权操作该报名记录"}
+		}
+		isFirst := reg.Group1ID != nil && *reg.Group1ID == input.GroupID
+		isSecond := reg.Group2ID != nil && *reg.Group2ID == input.GroupID
+		if !isFirst && !isSecond {
+			return &ServiceError{Status: http.StatusBadRequest, Message: "面试组别不属于该报名"}
+		}
+		if !scope.hasGroup(input.GroupID) {
+			return &ServiceError{Status: http.StatusForbidden, Message: "当前账号无权操作该组面试结果"}
+		}
+		if (isFirst && reg.Group1Status != model.RegistrationStatusApproved) || (isSecond && reg.Group2Status != model.RegistrationStatusApproved) {
+			return &ServiceError{Status: http.StatusConflict, Message: "线上审核通过后才能录入面试结果"}
+		}
+		remark := trimOptionalString(input.Remark)
+		iv := &model.RegistrationInterview{RegistrationID: registrationID, GroupID: input.GroupID, Status: status, Remark: copyStringPtr(remark), InterviewerID: &actor.ID, InterviewedAt: &now}
+		if status == model.RegistrationInterviewPending {
+			iv.InterviewerID = nil
+			iv.InterviewedAt = nil
+		}
+		if err := repo.UpsertRegistrationInterview(ctx, iv); err != nil {
+			return &ServiceError{Status: http.StatusInternalServerError, Message: "更新面试结果失败", Err: err}
+		}
+		updated := false
+		for i := range reg.Interviews {
+			if reg.Interviews[i].GroupID == input.GroupID {
+				reg.Interviews[i] = *iv
+				updated = true
+				break
+			}
+		}
+		if !updated {
+			reg.Interviews = append(reg.Interviews, *iv)
+		}
+		previousFinalStatus := reg.FinalStatus
+		previousFinalGroupID := copyUint64Ptr(reg.FinalGroupID)
+		finalStatus, finalGroupID, err := s.resolveFinalAdmission(ctx, repo, reg, actor, now)
+		if err != nil {
+			return err
+		}
+		admissionChanged := finalStatus == model.RegistrationFinalStatusAdmitted && finalGroupID != nil && (previousFinalStatus != model.RegistrationFinalStatusAdmitted || !sameUint64Ptr(previousFinalGroupID, finalGroupID))
+		if admissionChanged {
+			notification = buildAdmissionNotification(reg, *finalGroupID, now)
+		} else if status == model.RegistrationInterviewPassed || status == model.RegistrationInterviewFailed {
+			notification = buildInterviewNotification(reg, input.GroupID, status, now)
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	if notification != nil && s.mailer != nil {
+		mailer := s.mailer()
+		var sendErr error
+		if notification.InlineImageURL != nil {
+			image, contentType, err := s.loadInlineImage(*notification.InlineImageURL)
+			if err != nil {
+				return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "面试结果已保存，但录取群图片读取失败", Err: err}
+			}
+			sendErr = mailer.SendWithInlineImage(ctx, notification.To, notification.Subject, notification.Body, image, contentType)
+		} else {
+			sendErr = mailer.Send(ctx, notification.To, notification.Subject, notification.Body)
+		}
+		if sendErr != nil {
+			return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "面试结果已保存，但通知邮件发送失败", Err: sendErr}
+		}
+	}
+	return s.GetRegistration(ctx, actor, registrationID)
+}
+
+type interviewNotification struct {
+	To             string
+	Subject        string
+	Body           string
+	InlineImageURL *string
+}
+
+func buildAdmissionNotification(reg *model.Registration, groupID uint64, now time.Time) *interviewNotification {
+	notification := buildInterviewNotification(reg, groupID, model.RegistrationInterviewPassed, now)
+	if notification == nil {
+		return nil
+	}
+	group := registrationGroupByID(reg, groupID)
+	if group == nil {
+		return notification
+	}
+	name := registrationContactName(reg)
+	notification.Subject = "吉甲大师纳新录取通知"
+	notification.InlineImageURL = copyStringPtr(group.AdmissionImageURL)
+	nextStep := "后续安排及相关事项请留意吉甲大师后续通知。"
+	if notification.InlineImageURL != nil {
+		nextStep = "请扫描邮件内的图片加入录取群，后续安排及相关事项将在群内通知。"
+	}
+	notification.Body = fmt.Sprintf("尊敬的 %s：\n\n你好！\n\n感谢你报名参加吉甲大师纳新。经面试审核，恭喜你被“%s”录取！\n\n报名项目：%s\n录取组别：%s\n最终结果：已录取\n\n%s\n\n感谢你的参与与配合。\n\n吉甲大师\n%s", name, group.Name, reg.Form.Title, group.Name, nextStep, now.Format("2006年1月2日"))
+	return notification
+}
+
+func buildInterviewNotification(reg *model.Registration, groupID uint64, status uint8, now time.Time) *interviewNotification {
+	if reg == nil {
+		return nil
+	}
+	to := strings.TrimSpace(reg.User.Email)
+	if reg.ContactEmail != nil && strings.TrimSpace(*reg.ContactEmail) != "" {
+		to = strings.TrimSpace(*reg.ContactEmail)
+	}
+	if to == "" {
+		return nil
+	}
+	groupName := ""
+	if group := registrationGroupByID(reg, groupID); group != nil {
+		groupName = group.Name
+	}
+	name := registrationContactName(reg)
+	result := "未通过"
+	body := fmt.Sprintf("尊敬的 %s：\n\n你好！\n\n感谢你报名参加吉甲大师纳新，并参与“%s”的面试。\n\n经综合评估，很遗憾，你未能通过本轮面试。\n\n报名项目：%s\n面试组别：%s\n面试结果：未通过\n\n感谢你在报名及面试过程中所投入的时间与精力。面试结果仅基于本次纳新的实际情况及综合评估，并不代表对个人能力与发展潜力的全面评价。\n\n感谢你对吉甲大师的关注与认可，祝你在今后的学习与实践中有所收获、不断进步。\n\n吉甲大师\n%s", name, groupName, reg.Form.Title, groupName, now.Format("2006年1月2日"))
+	if status == model.RegistrationInterviewPassed {
+		result = "通过"
+		body = fmt.Sprintf("尊敬的 %s：\n\n你好！\n\n感谢你报名参加吉甲大师纳新。经面试审核，你已通过“%s”的本轮面试。\n\n报名项目：%s\n面试组别：%s\n面试结果：通过\n\n本次结果仅代表当前面试环节的审核结果。后续安排及相关事项请留意吉甲大师后续通知。\n\n感谢你的参与与配合。\n\n吉甲大师\n%s", name, groupName, reg.Form.Title, groupName, now.Format("2006年1月2日"))
+	}
+	return &interviewNotification{To: to, Subject: "吉甲大师纳新面试结果通知（" + result + "）", Body: body}
+}
+
+func registrationGroupByID(reg *model.Registration, groupID uint64) *model.UserGroup {
+	if reg == nil {
+		return nil
+	}
+	if reg.Group1 != nil && reg.Group1.ID == groupID {
+		return reg.Group1
+	}
+	if reg.Group2 != nil && reg.Group2.ID == groupID {
+		return reg.Group2
+	}
+	return nil
+}
+
+func registrationContactName(reg *model.Registration) string {
+	if reg == nil {
+		return "同学"
+	}
+	if reg.ContactName != nil && strings.TrimSpace(*reg.ContactName) != "" {
+		return strings.TrimSpace(*reg.ContactName)
+	}
+	if reg.User.RealName != nil && strings.TrimSpace(*reg.User.RealName) != "" {
+		return strings.TrimSpace(*reg.User.RealName)
+	}
+	if strings.TrimSpace(reg.User.Name) != "" {
+		return strings.TrimSpace(reg.User.Name)
+	}
+	return "同学"
+}
+
+func loadAdmissionInlineImage(rawURL string) ([]byte, string, error) {
+	const prefix = "/upload/config/group/"
+	trimmed := strings.TrimSpace(rawURL)
+	if !strings.HasPrefix(trimmed, prefix) {
+		return nil, "", fmt.Errorf("unsupported admission image URL")
+	}
+	relative := strings.TrimPrefix(trimmed, prefix)
+	if relative == "" || filepath.Base(relative) != relative {
+		return nil, "", fmt.Errorf("invalid admission image path")
+	}
+
+	file, err := os.Open(filepath.Join("upload", "config", "group", relative))
+	if err != nil {
+		return nil, "", err
+	}
+	defer file.Close()
+	data, err := io.ReadAll(io.LimitReader(file, 2*1024*1024+1))
+	if err != nil {
+		return nil, "", err
+	}
+	if len(data) == 0 || len(data) > 2*1024*1024 {
+		return nil, "", fmt.Errorf("admission image size is invalid")
+	}
+	contentType := http.DetectContentType(data)
+	if !strings.HasPrefix(contentType, "image/") {
+		return nil, "", fmt.Errorf("admission image content is not an image")
+	}
+	return data, contentType, nil
+}
+
+func normalizeInterviewStatus(value string) (uint8, error) {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "pending":
+		return model.RegistrationInterviewPending, nil
+	case "passed":
+		return model.RegistrationInterviewPassed, nil
+	case "failed":
+		return model.RegistrationInterviewFailed, nil
+	default:
+		return 0, &ServiceError{Status: http.StatusBadRequest, Message: "面试结果不合法"}
+	}
+}
+
+func (s *RegistrationService) resolveFinalAdmission(ctx context.Context, repo registrationRepository, reg *model.Registration, actor RegistrationFormActor, now time.Time) (uint8, *uint64, error) {
+	var first, second *model.RegistrationInterview
+	for i := range reg.Interviews {
+		if reg.Interviews[i].GroupID == valueOrZero(reg.Group1ID) {
+			first = &reg.Interviews[i]
+		}
+		if reg.Interviews[i].GroupID == valueOrZero(reg.Group2ID) {
+			second = &reg.Interviews[i]
+		}
+	}
+	finalStatus := model.RegistrationFinalStatusPending
+	var finalGroup *uint64
+	if first != nil && first.Status == model.RegistrationInterviewPassed {
+		finalStatus = model.RegistrationFinalStatusAdmitted
+		finalGroup = reg.Group1ID
+	} else if first != nil && first.Status == model.RegistrationInterviewFailed && second != nil && second.Status == model.RegistrationInterviewPassed {
+		finalStatus = model.RegistrationFinalStatusAdmitted
+		finalGroup = reg.Group2ID
+	} else if first != nil && second != nil && first.Status == model.RegistrationInterviewFailed && second.Status == model.RegistrationInterviewFailed {
+		finalStatus = model.RegistrationFinalStatusRejected
+	}
+	updates := map[string]any{
+		"final_status":   finalStatus,
+		"final_group_id": finalGroup,
+		"finalized_at":   nil,
+		"finalized_by":   nil,
+	}
+	if finalStatus != model.RegistrationFinalStatusPending {
+		updates["finalized_at"] = &now
+		updates["finalized_by"] = &actor.ID
+	}
+	if err := repo.UpdateRegistration(ctx, reg.ID, updates); err != nil {
+		return 0, nil, err
+	}
+	if reg.FinalGroupID != nil && (finalGroup == nil || *reg.FinalGroupID != *finalGroup) {
+		if err := repo.RemoveUserFromGroupIfPresent(ctx, *reg.FinalGroupID, reg.UserID); err != nil {
+			return 0, nil, err
+		}
+	}
+	if finalGroup != nil {
+		defaults, err := repo.ListDefaultGroupIDs(ctx)
+		if err != nil {
+			return 0, nil, err
+		}
+		for _, id := range defaults {
+			if id != *finalGroup {
+				if err := repo.RemoveUserFromGroupIfPresent(ctx, id, reg.UserID); err != nil {
+					return 0, nil, err
+				}
+			}
+		}
+		if err := repo.AddUserToGroupIfAbsent(ctx, *finalGroup, reg.UserID); err != nil {
+			return 0, nil, err
+		}
+	} else if reg.FinalGroupID != nil {
+		defaults, err := repo.ListDefaultGroupIDs(ctx)
+		if err != nil {
+			return 0, nil, err
+		}
+		for _, id := range defaults {
+			if err := repo.AddUserToGroupIfAbsent(ctx, id, reg.UserID); err != nil {
+				return 0, nil, err
+			}
+		}
+	}
+	return finalStatus, copyUint64Ptr(finalGroup), nil
+}
+
+func valueOrZero(v *uint64) uint64 {
+	if v == nil {
+		return 0
+	}
+	return *v
+}
+
+func sameUint64Ptr(left *uint64, right *uint64) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return *left == *right
+}
+
+func toRegistrationInterviewRefs(items []model.RegistrationInterview) []RegistrationInterviewRef {
+	out := make([]RegistrationInterviewRef, 0, len(items))
+	for i := range items {
+		out = append(out, RegistrationInterviewRef{GroupID: items[i].GroupID, Group: toRegistrationGroupRef(items[i].Group), Status: items[i].Status, Remark: copyStringPtr(items[i].Remark), Interviewer: toRegistrationReviewerRef(items[i].Interviewer), InterviewedAt: copyTimePtr(items[i].InterviewedAt)})
+	}
+	return out
 }
 
 func (s *RegistrationService) ReviewRegistration(ctx context.Context, actor RegistrationFormActor, registrationID uint64, input ReviewRegistrationInput) (*RegistrationDetail, error) {
@@ -618,30 +974,6 @@ func (s *RegistrationService) ReviewRegistration(ctx context.Context, actor Regi
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "更新报名审核状态失败", Err: err}
 		}
 
-		if !isRegistrationReviewCompleted(nextGroup1Status, nextGroup2Status) {
-			return nil
-		}
-		approvedGroupIDs := approvedRegistrationGroupIDs(registration, nextGroup1Status, nextGroup2Status)
-		if len(approvedGroupIDs) == 0 {
-			return nil
-		}
-		defaultGroupIDs, err := repo.ListDefaultGroupIDs(ctx)
-		if err != nil {
-			return &ServiceError{Status: http.StatusInternalServerError, Message: "加载默认分组失败", Err: err}
-		}
-		for _, groupID := range defaultGroupIDs {
-			if containsUint64(approvedGroupIDs, groupID) {
-				continue
-			}
-			if err := repo.RemoveUserFromGroupIfPresent(ctx, groupID, registration.UserID); err != nil {
-				return &ServiceError{Status: http.StatusInternalServerError, Message: "移出默认分组失败", Err: err}
-			}
-		}
-		for _, groupID := range approvedGroupIDs {
-			if err := repo.AddUserToGroupIfAbsent(ctx, groupID, registration.UserID); err != nil {
-				return &ServiceError{Status: http.StatusInternalServerError, Message: "同步审核通过分组成员失败", Err: err}
-			}
-		}
 		return nil
 	})
 	if txErr != nil {
@@ -684,8 +1016,6 @@ func (s *RegistrationService) UndoRegistrationReview(ctx context.Context, actor 
 			return &ServiceError{Status: http.StatusConflict, Message: "当前报名没有可撤销的审核结果"}
 		}
 
-		wasCompleted := isRegistrationReviewCompleted(registration.Group1Status, registration.Group2Status)
-		approvedGroupIDs := approvedRegistrationGroupIDs(registration, registration.Group1Status, registration.Group2Status)
 		nextGroup1Status := registration.Group1Status
 		nextGroup2Status := registration.Group2Status
 		updates := make(map[string]any, 9)
@@ -707,24 +1037,25 @@ func (s *RegistrationService) UndoRegistrationReview(ctx context.Context, actor 
 		if err := repo.UpdateRegistration(ctx, registrationID, updates); err != nil {
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "撤销报名审核失败", Err: err}
 		}
+		finalGroupInvalid := registration.FinalGroupID != nil && ((slot1 && registration.Group1ID != nil && *registration.Group1ID == *registration.FinalGroupID) || (slot2 && registration.Group2ID != nil && *registration.Group2ID == *registration.FinalGroupID))
+		if finalGroupInvalid {
+			if err := repo.RemoveUserFromGroupIfPresent(ctx, *registration.FinalGroupID, registration.UserID); err != nil {
+				return &ServiceError{Status: http.StatusInternalServerError, Message: "清除失效录取分组失败", Err: err}
+			}
+			defaultGroupIDs, err := repo.ListDefaultGroupIDs(ctx)
+			if err != nil {
+				return &ServiceError{Status: http.StatusInternalServerError, Message: "加载默认分组失败", Err: err}
+			}
+			for _, groupID := range defaultGroupIDs {
+				if err := repo.AddUserToGroupIfAbsent(ctx, groupID, registration.UserID); err != nil {
+					return &ServiceError{Status: http.StatusInternalServerError, Message: "恢复默认分组失败", Err: err}
+				}
+			}
+			if err := repo.UpdateRegistration(ctx, registrationID, map[string]any{"final_group_id": nil, "final_status": model.RegistrationFinalStatusPending, "finalized_at": nil, "finalized_by": nil}); err != nil {
+				return &ServiceError{Status: http.StatusInternalServerError, Message: "清除失效录取结果失败", Err: err}
+			}
+		}
 
-		if !wasCompleted || len(approvedGroupIDs) == 0 {
-			return nil
-		}
-		for _, groupID := range approvedGroupIDs {
-			if err := repo.RemoveUserFromGroupIfPresent(ctx, groupID, registration.UserID); err != nil {
-				return &ServiceError{Status: http.StatusInternalServerError, Message: "回滚审核通过分组失败", Err: err}
-			}
-		}
-		defaultGroupIDs, err := repo.ListDefaultGroupIDs(ctx)
-		if err != nil {
-			return &ServiceError{Status: http.StatusInternalServerError, Message: "加载默认分组失败", Err: err}
-		}
-		for _, groupID := range defaultGroupIDs {
-			if err := repo.AddUserToGroupIfAbsent(ctx, groupID, registration.UserID); err != nil {
-				return &ServiceError{Status: http.StatusInternalServerError, Message: "恢复默认分组失败", Err: err}
-			}
-		}
 		return nil
 	})
 	if txErr != nil {
@@ -994,21 +1325,25 @@ func (s *RegistrationService) saveRegistrationUploads(
 }
 
 func (s *RegistrationService) resolveRegistrationAccessScope(ctx context.Context, actor RegistrationFormActor) (registrationAccessScope, error) {
-	if actor.RoleName == model.RoleNameSuperAdmin {
+	// Keep compatibility for service callers that predate explicit scope fields;
+	// authenticated requests always populate AdminScope from the database.
+	if actor.AdminScope == "" && actor.RoleName == model.RoleNameAdmin {
+		groupIDs, err := s.repo.ListLeaderGroupIDs(ctx, actor.ID)
+		if err != nil {
+			return registrationAccessScope{}, &ServiceError{Status: http.StatusInternalServerError, Message: "加载管理员组长身份失败", Err: err}
+		}
+		if len(groupIDs) == 0 {
+			return newRegistrationAccessScope(true, nil), nil
+		}
+		return newRegistrationAccessScope(false, groupIDs), nil
+	}
+	if actor.RoleName == model.RoleNameSuperAdmin || (actor.RoleName == model.RoleNameAdmin && actor.AdminScope == model.AdminScopeGlobal) {
 		return newRegistrationAccessScope(true, nil), nil
 	}
-	if actor.RoleName != model.RoleNameAdmin {
+	if actor.RoleName != model.RoleNameAdmin || actor.AdminScope != model.AdminScopeGroup || actor.ManagementGroupID == nil || (actor.GroupRole != "leader" && actor.GroupRole != "group_admin") {
 		return registrationAccessScope{}, &ServiceError{Status: http.StatusForbidden, Message: "当前账号无管理员权限"}
 	}
-
-	groupIDs, err := s.repo.ListLeaderGroupIDs(ctx, actor.ID)
-	if err != nil {
-		return registrationAccessScope{}, &ServiceError{Status: http.StatusInternalServerError, Message: "加载管理员组长身份失败", Err: err}
-	}
-	if len(groupIDs) == 0 {
-		return newRegistrationAccessScope(true, nil), nil
-	}
-	return newRegistrationAccessScope(false, groupIDs), nil
+	return newRegistrationAccessScope(false, []uint64{*actor.ManagementGroupID}), nil
 }
 
 func registrationScopeGroupIDs(scope registrationAccessScope) []uint64 {
@@ -2506,6 +2841,7 @@ func (r *gormRegistrationRepository) GetRegistrationByID(ctx context.Context, re
 		Preload("Group2").
 		Preload("Reviewer1").
 		Preload("Reviewer2").
+		Preload("FinalGroup").Preload("Finalizer").Preload("Interviews").Preload("Interviews.Group").Preload("Interviews.Interviewer").
 		First(&registration, registrationID).Error; err != nil {
 		return nil, err
 	}
@@ -2516,12 +2852,19 @@ func (r *gormRegistrationRepository) GetRegistrationByIDForUpdate(ctx context.Co
 	var registration model.Registration
 	if err := r.db.WithContext(ctx).
 		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Preload("User").
+		Preload("Form").
 		Preload("Group1").
 		Preload("Group2").
+		Preload("FinalGroup").Preload("Finalizer").Preload("Interviews").Preload("Interviews.Group").Preload("Interviews.Interviewer").
 		First(&registration, registrationID).Error; err != nil {
 		return nil, err
 	}
 	return &registration, nil
+}
+
+func (r *gormRegistrationRepository) UpsertRegistrationInterview(ctx context.Context, interview *model.RegistrationInterview) error {
+	return r.db.WithContext(ctx).Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "registration_id"}, {Name: "group_id"}}, DoUpdates: clause.AssignmentColumns([]string{"status", "remark", "interviewer_id", "interviewed_at"})}).Create(interview).Error
 }
 
 func (r *gormRegistrationRepository) DeleteRegistration(ctx context.Context, registrationID uint64) error {
@@ -2612,6 +2955,15 @@ func (r *gormRegistrationRepository) ListDefaultGroupIDs(ctx context.Context) ([
 		return nil, err
 	}
 	return groupIDs, nil
+}
+
+func (r *gormRegistrationRepository) IsUserInActiveDefaultGroup(ctx context.Context, userID uint64) (bool, error) {
+	var count int64
+	err := r.db.WithContext(ctx).Model(&model.UserGroupMember{}).
+		Joins("JOIN user_groups ON user_groups.id = user_group_members.group_id").
+		Where("user_group_members.user_id = ? AND user_groups.is_default = ? AND user_groups.status = ?", userID, true, model.UserGroupStatusActive).
+		Count(&count).Error
+	return count > 0, err
 }
 
 func (r *gormRegistrationRepository) ListLeaderGroupIDs(ctx context.Context, userID uint64) ([]uint64, error) {

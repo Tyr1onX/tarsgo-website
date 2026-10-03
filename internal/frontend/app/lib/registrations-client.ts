@@ -59,6 +59,13 @@ export interface RegistrationDetail {
   group2?: RegistrationGroupRef | null;
   group2Status: number;
   status: number;
+  interviews: RegistrationInterview[];
+  finalGroup?: RegistrationGroupRef | null;
+  finalStatus: number;
+  finalizedAt?: string | null;
+  finalizer?: RegistrationReviewerRef | null;
+  canInterview1: boolean;
+  canInterview2: boolean;
   reviewer1?: RegistrationReviewerRef | null;
   reviewedAt1?: string | null;
   reviewRemark1?: string | null;
@@ -84,6 +91,8 @@ export interface RegistrationReviewerRef {
   name: string;
   email: string;
 }
+
+export interface RegistrationInterview { groupId: number; group?: RegistrationGroupRef | null; status: number; remark?: string | null; interviewer?: RegistrationReviewerRef | null; interviewedAt?: string | null; }
 
 export interface SubmitRegistrationResult {
   id: number;
@@ -180,6 +189,10 @@ export async function undoAdminRegistrationReview(
   return apiRequest<RegistrationDetail>(`/api/admin/registrations/${registrationId}/review`, {
     method: "DELETE",
   });
+}
+
+export async function updateAdminRegistrationInterview(registrationId: number, groupId: number, input: {status: "pending" | "passed" | "failed"; remark?: string}): Promise<RegistrationDetail> {
+  return apiRequest<RegistrationDetail>(`/api/admin/registrations/${registrationId}/interviews/${groupId}`, { method: "PATCH", body: input });
 }
 
 export async function deleteAdminRegistration(registrationId: number): Promise<void> {

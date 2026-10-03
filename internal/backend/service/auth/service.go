@@ -62,13 +62,34 @@ type SessionUserPortal struct {
 }
 
 type SessionUser struct {
-	ID        uint64             `json:"id"`
-	Email     string             `json:"email"`
-	Phone     *string            `json:"phone,omitempty"`
-	Nickname  *string            `json:"nickname,omitempty"`
-	AvatarURL *string            `json:"avatarUrl,omitempty"`
-	Role      SessionRole        `json:"role"`
-	Portal    *SessionUserPortal `json:"portal,omitempty"`
+	ID                uint64              `json:"id"`
+	Email             string              `json:"email"`
+	Phone             *string             `json:"phone,omitempty"`
+	Nickname          *string             `json:"nickname,omitempty"`
+	AvatarURL         *string             `json:"avatarUrl,omitempty"`
+	Role              SessionRole         `json:"role"`
+	AdminScope        string              `json:"adminScope"`
+	ManagementGroupID *uint64             `json:"managementGroupId"`
+	GroupRole         string              `json:"groupRole"`
+	Permissions       []string            `json:"permissions"`
+	Capabilities      SessionCapabilities `json:"capabilities"`
+	Portal            *SessionUserPortal  `json:"portal,omitempty"`
+}
+
+type SessionCapabilities struct {
+	CanManagePortal             bool `json:"canManagePortal"`
+	CanReviewRegistrations      bool `json:"canReviewRegistrations"`
+	CanManageGroupMembers       bool `json:"canManageGroupMembers"`
+	CanManageGroupAdmins        bool `json:"canManageGroupAdmins"`
+	CanManageUserGroups         bool `json:"canManageUserGroups"`
+	CanManageSystemConfig       bool `json:"canManageSystemConfig"`
+	CanViewGroupMembers         bool `json:"canViewGroupMembers"`
+	CanEditGroupMemberProfiles  bool `json:"canEditGroupMemberProfiles"`
+	CanEditManagedAdminProfiles bool `json:"canEditManagedAdminProfiles"`
+	CanManageAllPersonnel       bool `json:"canManageAllPersonnel"`
+	CanManageAllPortal          bool `json:"canManageAllPortal"`
+	CanManageAdminStatus        bool `json:"canManageAdminStatus"`
+	CanManageRoles              bool `json:"canManageRoles"`
 }
 
 type AuthResult struct {
@@ -249,7 +270,10 @@ func (s *Service) RegisterWithEmail(ctx context.Context, input RegisterEmailInpu
 		}
 
 		user := model.User{
-			RoleID:       role.ID,
+			RoleID: role.ID,
+			// Newly registered accounts are ordinary users. They do not have an
+			// administrator scope until a privileged account assigns one.
+			AdminScope:   model.AdminScopeNone,
 			Name:         deriveDisplayName(normalizedInput.Email, normalizedInput.RealName, ""),
 			Email:        normalizedInput.Email,
 			PasswordHash: stringPtr(passwordHash),
@@ -405,6 +429,9 @@ func (s *Service) LoginWithPassword(ctx context.Context, email string, password 
 		return nil, &ServiceError{Status: http.StatusUnauthorized, Message: "邮箱或密码错误"}
 	}
 	if err := ensureUserEnabled(user); err != nil {
+		return nil, err
+	}
+	if err := validateIdentityConsistency(user); err != nil {
 		return nil, err
 	}
 
@@ -708,6 +735,9 @@ func (s *Service) CurrentUser(ctx context.Context, token string) (*SessionUser, 
 	if err := ensureUserEnabled(user); err != nil {
 		return nil, err
 	}
+	if err := validateIdentityConsistency(user); err != nil {
+		return nil, err
+	}
 
 	sessionUser := toSessionUser(user)
 	portal, err := s.loadSessionUserPortal(ctx, user.ID)
@@ -800,6 +830,9 @@ func (s *Service) consumeCode(tx *gorm.DB, email string, purpose string, code st
 }
 
 func (s *Service) buildAuthResult(user *model.User) (*AuthResult, error) {
+	if err := validateIdentityConsistency(user); err != nil {
+		return nil, err
+	}
 	claims := Claims{
 		Subject:   strconv.FormatUint(user.ID, 10),
 		Email:     user.Email,
@@ -895,7 +928,7 @@ func (s *Service) findUserByEmail(ctx context.Context, email string) (*model.Use
 
 func (s *Service) findUserByEmailTx(tx *gorm.DB, email string) (*model.User, error) {
 	var user model.User
-	if err := tx.Preload("Role").Where("email = ?", email).First(&user).Error; err != nil {
+	if err := tx.Preload("Role").Preload("GroupMembers").Preload("GroupMembers.Group").Where("email = ?", email).First(&user).Error; err != nil {
 		return nil, err
 	}
 	return &user, nil
@@ -903,7 +936,7 @@ func (s *Service) findUserByEmailTx(tx *gorm.DB, email string) (*model.User, err
 
 func (s *Service) findUserByGitHubID(ctx context.Context, githubID string) (*model.User, error) {
 	var user model.User
-	if err := s.db.WithContext(ctx).Preload("Role").Where("github_id = ?", githubID).First(&user).Error; err != nil {
+	if err := s.db.WithContext(ctx).Preload("Role").Preload("GroupMembers").Preload("GroupMembers.Group").Where("github_id = ?", githubID).First(&user).Error; err != nil {
 		return nil, err
 	}
 	return &user, nil
@@ -931,7 +964,9 @@ func (s *Service) loadUserWithRole(ctx context.Context, userID uint64) (*model.U
 
 func (s *Service) loadUserWithRoleTx(tx *gorm.DB, userID uint64) (*model.User, error) {
 	var user model.User
-	if err := tx.Preload("Role").First(&user, userID).Error; err != nil {
+	if err := tx.Preload("Role").Preload("GroupMembers", func(q *gorm.DB) *gorm.DB {
+		return q.Order("joined_at ASC").Order("id ASC")
+	}).Preload("GroupMembers.Group").First(&user, userID).Error; err != nil {
 		return nil, err
 	}
 	return &user, nil
@@ -1026,6 +1061,74 @@ func shouldShowRecruitmentEntryVisibility(
 }
 
 func toSessionUser(user *model.User) SessionUser {
+	adminScope := user.AdminScope
+	if adminScope == "" {
+		adminScope = model.AdminScopeNone
+	}
+	groupRole := "member"
+	activeManagement := false
+	if user.ManagementGroupID != nil {
+		for _, member := range user.GroupMembers {
+			if member.GroupID != *user.ManagementGroupID {
+				continue
+			}
+			if member.Group.Status != model.UserGroupStatusActive {
+				break
+			}
+			activeManagement = true
+			switch member.Role {
+			case model.UserGroupMemberRoleLeader:
+				groupRole = "leader"
+			case model.UserGroupMemberRoleGroupAdmin:
+				groupRole = "group_admin"
+			}
+			break
+		}
+	}
+	if user.Role.Name == model.RoleNameSuperAdmin {
+		adminScope = model.AdminScopeGlobal
+		groupRole = ""
+	}
+	capabilities := SessionCapabilities{}
+	permissions := []string{}
+	if user.Role.Name == model.RoleNameSuperAdmin || (user.Role.Name == model.RoleNameAdmin && adminScope == model.AdminScopeGlobal) || (user.Role.Name == model.RoleNameAdmin && adminScope == model.AdminScopeGroup && activeManagement && (groupRole == "leader" || groupRole == "group_admin")) {
+		capabilities.CanReviewRegistrations = true
+		capabilities.CanManagePortal = true
+		permissions = append(permissions, "admin.dashboard.read", "admin.registrations.read", "admin.registrations.review", "admin.registrations.export", "admin.portal.manage")
+	}
+	if user.Role.Name == model.RoleNameSuperAdmin {
+		capabilities.CanViewGroupMembers = true
+		capabilities.CanEditGroupMemberProfiles = true
+		capabilities.CanEditManagedAdminProfiles = true
+		capabilities.CanManageAllPersonnel = true
+		capabilities.CanManageAllPortal = true
+		capabilities.CanManageAdminStatus = true
+		capabilities.CanManageRoles = true
+	} else if adminScope == model.AdminScopeGlobal {
+		capabilities.CanViewGroupMembers = true
+		capabilities.CanEditGroupMemberProfiles = true
+		capabilities.CanEditManagedAdminProfiles = true
+		capabilities.CanManageAllPersonnel = true
+		capabilities.CanManageAllPortal = true
+	} else if adminScope == model.AdminScopeGroup && groupRole == "leader" {
+		capabilities.CanViewGroupMembers = true
+		capabilities.CanEditGroupMemberProfiles = true
+		capabilities.CanEditManagedAdminProfiles = true
+	} else if adminScope == model.AdminScopeGroup && groupRole == "group_admin" {
+		capabilities.CanViewGroupMembers = true
+		permissions = append(permissions, "admin.group.members.read")
+	}
+	if user.Role.Name == model.RoleNameSuperAdmin {
+		capabilities.CanManageUserGroups = true
+		capabilities.CanManageSystemConfig = true
+		capabilities.CanManageGroupMembers = true
+		capabilities.CanManageGroupAdmins = true
+		permissions = append(permissions, "admin.group.members.read", "admin.group.members.manage", "admin.group.admins.manage")
+	} else if adminScope == model.AdminScopeGroup && groupRole == "leader" {
+		capabilities.CanManageGroupMembers = true
+		capabilities.CanManageGroupAdmins = true
+		permissions = append(permissions, "admin.group.members.read", "admin.group.members.manage", "admin.group.admins.manage")
+	}
 	return SessionUser{
 		ID:        user.ID,
 		Email:     user.Email,
@@ -1037,12 +1140,55 @@ func toSessionUser(user *model.User) SessionUser {
 			Name:        user.Role.Name,
 			DisplayName: user.Role.DisplayName,
 		},
+		AdminScope:        adminScope,
+		ManagementGroupID: user.ManagementGroupID,
+		GroupRole:         groupRole,
+		Permissions:       permissions,
+		Capabilities:      capabilities,
 	}
 }
 
 func ensureUserEnabled(user *model.User) error {
 	if user.Status == model.UserStatusDisabled {
 		return &ServiceError{Status: http.StatusForbidden, Message: "账号已停用"}
+	}
+	return nil
+}
+
+func validateIdentityConsistency(user *model.User) error {
+	if user == nil {
+		return &ServiceError{Status: http.StatusUnauthorized, Message: "当前用户不存在"}
+	}
+	scope := user.AdminScope
+	if scope == "" {
+		scope = model.AdminScopeNone
+	}
+	managerCount := 0
+	matchingManager := false
+	for _, member := range user.GroupMembers {
+		if member.Role != model.UserGroupMemberRoleLeader && member.Role != model.UserGroupMemberRoleGroupAdmin {
+			continue
+		}
+		managerCount++
+		if user.ManagementGroupID != nil && member.GroupID == *user.ManagementGroupID {
+			matchingManager = true
+		}
+	}
+	switch user.Role.Name {
+	case model.RoleNameSuperAdmin:
+		if scope != model.AdminScopeGlobal || user.ManagementGroupID != nil || len(user.GroupMembers) > 0 {
+			return &ServiceError{Status: http.StatusForbidden, Message: "超级管理员身份范围不一致"}
+		}
+	case model.RoleNameUser:
+		if scope != model.AdminScopeNone || user.ManagementGroupID != nil || managerCount > 0 {
+			return &ServiceError{Status: http.StatusForbidden, Message: "用户身份范围不一致"}
+		}
+	case model.RoleNameAdmin:
+		if scope == model.AdminScopeNone || (scope == model.AdminScopeGlobal && user.ManagementGroupID != nil) || (scope == model.AdminScopeGroup && (user.ManagementGroupID == nil || !matchingManager)) {
+			return &ServiceError{Status: http.StatusForbidden, Message: "管理员缺少有效管理范围"}
+		}
+	default:
+		return &ServiceError{Status: http.StatusForbidden, Message: "系统角色不合法"}
 	}
 	return nil
 }

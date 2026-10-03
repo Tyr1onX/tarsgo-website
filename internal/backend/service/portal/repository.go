@@ -16,20 +16,20 @@ type Repository interface {
 	GetAnnouncement(context.Context, uint64) (*model.Announcement, error)
 	CreateAnnouncement(context.Context, *model.Announcement, []uint64) error
 	UpdateAnnouncement(context.Context, uint64, map[string]any, []uint64) error
-	DeleteAnnouncement(context.Context, uint64) error
+	DeleteAnnouncement(context.Context, uint64, uint64) error
 	CountActiveGroups(context.Context, []uint64) (int64, error)
 	ListVisibleAnnouncements(context.Context, uint64, time.Time, int, bool) ([]model.Announcement, error)
 	ListEvents(context.Context, ListEventsInput) ([]model.TeamEvent, int64, error)
 	GetEvent(context.Context, uint64) (*model.TeamEvent, error)
 	CreateEvent(context.Context, *model.TeamEvent, []uint64) error
 	UpdateEvent(context.Context, uint64, map[string]any, []uint64) error
-	DeleteEvent(context.Context, uint64) error
+	DeleteEvent(context.Context, uint64, uint64) error
 	ListVisibleEvents(context.Context, uint64, TimeRange, int, bool) ([]model.TeamEvent, error)
 	ListLinks(context.Context, []uint64) ([]model.PortalLink, error)
 	GetLink(context.Context, uint64) (*model.PortalLink, error)
 	CreateLink(context.Context, *model.PortalLink, []uint64) error
 	UpdateLink(context.Context, uint64, map[string]any, []uint64) error
-	DeleteLink(context.Context, uint64) error
+	DeleteLink(context.Context, uint64, uint64) error
 	ListVisibleLinks(context.Context, uint64, bool) ([]model.PortalLink, error)
 }
 
@@ -70,8 +70,11 @@ func (r *GormRepository) CreateEvent(ctx context.Context, row *model.TeamEvent, 
 		if err := createEventTargets(tx, row.ID, groupIDs); err != nil {
 			return err
 		}
+		if err := createPortalActivity(tx, model.ActivityEventCreated, row.UpdatedByID, "team_event", row.ID, row.Title, groupIDs); err != nil {
+			return err
+		}
 		if row.Status == model.TeamEventStatusPublished {
-			return createPortalActivity(tx, model.ActivityEventPublished, row.UpdatedByID, "team_event", row.ID, row.Title)
+			return createPortalActivity(tx, model.ActivityEventPublished, row.UpdatedByID, "team_event", row.ID, row.Title, groupIDs)
 		}
 		return nil
 	})
@@ -80,7 +83,7 @@ func (r *GormRepository) CreateEvent(ctx context.Context, row *model.TeamEvent, 
 func (r *GormRepository) UpdateEvent(ctx context.Context, id uint64, updates map[string]any, groupIDs []uint64) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var previous model.TeamEvent
-		if err := tx.Select("status").First(&previous, id).Error; err != nil {
+		if err := tx.Preload("TargetGroups").First(&previous, id).Error; err != nil {
 			return err
 		}
 		if err := tx.Model(&model.TeamEvent{}).Where("id = ?", id).Updates(updates).Error; err != nil {
@@ -95,11 +98,15 @@ func (r *GormRepository) UpdateEvent(ctx context.Context, id uint64, updates map
 		status, _ := updates["status"].(string)
 		actorID, _ := updates["updated_by_id"].(uint64)
 		title, _ := updates["title"].(string)
+		activityGroups := mergePortalGroupIDs(eventTargetGroupIDs(previous.TargetGroups), groupIDs)
+		if err := createPortalActivity(tx, model.ActivityEventUpdated, actorID, "team_event", id, title, activityGroups); err != nil {
+			return err
+		}
 		if status != previous.Status && status == model.TeamEventStatusPublished {
-			return createPortalActivity(tx, model.ActivityEventPublished, actorID, "team_event", id, title)
+			return createPortalActivity(tx, model.ActivityEventPublished, actorID, "team_event", id, title, activityGroups)
 		}
 		if status != previous.Status && status == model.TeamEventStatusCancelled {
-			return createPortalActivity(tx, model.ActivityEventCancelled, actorID, "team_event", id, title)
+			return createPortalActivity(tx, model.ActivityEventCancelled, actorID, "team_event", id, title, activityGroups)
 		}
 		return nil
 	})
@@ -116,15 +123,27 @@ func createEventTargets(tx *gorm.DB, eventID uint64, groupIDs []uint64) error {
 	return tx.Create(&rows).Error
 }
 
-func (r *GormRepository) DeleteEvent(ctx context.Context, id uint64) error {
-	return r.db.WithContext(ctx).Delete(&model.TeamEvent{}, id).Error
+func (r *GormRepository) DeleteEvent(ctx context.Context, id uint64, actorID uint64) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var row model.TeamEvent
+		if err := tx.Preload("TargetGroups").First(&row, id).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&model.TeamEvent{}, id).Error; err != nil {
+			return err
+		}
+		return createPortalActivity(tx, model.ActivityEventDeleted, actorID, "team_event", id, row.Title, eventTargetGroupIDs(row.TargetGroups))
+	})
 }
 
 func (r *GormRepository) ListVisibleEvents(ctx context.Context, userID uint64, week TimeRange, limit int, allGroups bool) ([]model.TeamEvent, error) {
 	var rows []model.TeamEvent
 	query := r.db.WithContext(ctx).Where("status = ?", model.TeamEventStatusPublished).
 		Where("starts_at < ? AND ends_at > ?", week.End, week.Start).
-		Preload("TargetGroups").Order("starts_at ASC").Limit(limit)
+		Preload("TargetGroups").Order("starts_at ASC")
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
 	if !allGroups {
 		membershipGroups := r.db.WithContext(ctx).Model(&model.UserGroupMember{}).Select("group_id").Where("user_id = ?", userID)
 		targeted := r.db.WithContext(ctx).Model(&model.TeamEventTargetGroup{}).Select("event_id").Where("group_id IN (?)", membershipGroups)
@@ -163,19 +182,31 @@ func (r *GormRepository) CreateLink(ctx context.Context, row *model.PortalLink, 
 		if err := tx.Create(row).Error; err != nil {
 			return err
 		}
-		return createLinkTargets(tx, row.ID, groupIDs)
+		if err := createLinkTargets(tx, row.ID, groupIDs); err != nil {
+			return err
+		}
+		return createPortalActivity(tx, model.ActivityPortalLinkCreated, row.UpdatedByID, "portal_link", row.ID, row.Name, groupIDs)
 	})
 }
 
 func (r *GormRepository) UpdateLink(ctx context.Context, id uint64, updates map[string]any, groupIDs []uint64) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var previous model.PortalLink
+		if err := tx.Preload("TargetGroups").First(&previous, id).Error; err != nil {
+			return err
+		}
 		if err := tx.Model(&model.PortalLink{}).Where("id = ?", id).Updates(updates).Error; err != nil {
 			return err
 		}
 		if err := tx.Where("link_id = ?", id).Delete(&model.PortalLinkTargetGroup{}).Error; err != nil {
 			return err
 		}
-		return createLinkTargets(tx, id, groupIDs)
+		if err := createLinkTargets(tx, id, groupIDs); err != nil {
+			return err
+		}
+		actorID, _ := updates["updated_by_id"].(uint64)
+		name, _ := updates["name"].(string)
+		return createPortalActivity(tx, model.ActivityPortalLinkUpdated, actorID, "portal_link", id, name, mergePortalGroupIDs(linkTargetGroupIDs(previous.TargetGroups), groupIDs))
 	})
 }
 
@@ -190,8 +221,17 @@ func createLinkTargets(tx *gorm.DB, linkID uint64, groupIDs []uint64) error {
 	return tx.Create(&rows).Error
 }
 
-func (r *GormRepository) DeleteLink(ctx context.Context, id uint64) error {
-	return r.db.WithContext(ctx).Delete(&model.PortalLink{}, id).Error
+func (r *GormRepository) DeleteLink(ctx context.Context, id uint64, actorID uint64) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var row model.PortalLink
+		if err := tx.Preload("TargetGroups").First(&row, id).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&model.PortalLink{}, id).Error; err != nil {
+			return err
+		}
+		return createPortalActivity(tx, model.ActivityPortalLinkDeleted, actorID, "portal_link", id, row.Name, linkTargetGroupIDs(row.TargetGroups))
+	})
 }
 
 func (r *GormRepository) ListVisibleLinks(ctx context.Context, userID uint64, allGroups bool) ([]model.PortalLink, error) {
@@ -246,8 +286,11 @@ func (r *GormRepository) CreateAnnouncement(ctx context.Context, row *model.Anno
 		if err := createAnnouncementTargets(tx, row.ID, groupIDs); err != nil {
 			return err
 		}
+		if err := createPortalActivity(tx, model.ActivityAnnouncementCreated, row.UpdatedByID, "announcement", row.ID, row.Title, groupIDs); err != nil {
+			return err
+		}
 		if row.Status == model.AnnouncementStatusPublished {
-			return createPortalActivity(tx, model.ActivityAnnouncementPublished, row.UpdatedByID, "announcement", row.ID, row.Title)
+			return createPortalActivity(tx, model.ActivityAnnouncementPublished, row.UpdatedByID, "announcement", row.ID, row.Title, groupIDs)
 		}
 		return nil
 	})
@@ -256,7 +299,7 @@ func (r *GormRepository) CreateAnnouncement(ctx context.Context, row *model.Anno
 func (r *GormRepository) UpdateAnnouncement(ctx context.Context, id uint64, updates map[string]any, groupIDs []uint64) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var previous model.Announcement
-		if err := tx.Select("status").First(&previous, id).Error; err != nil {
+		if err := tx.Preload("TargetGroups").First(&previous, id).Error; err != nil {
 			return err
 		}
 		if err := tx.Model(&model.Announcement{}).Where("id = ?", id).Updates(updates).Error; err != nil {
@@ -271,11 +314,15 @@ func (r *GormRepository) UpdateAnnouncement(ctx context.Context, id uint64, upda
 		status, _ := updates["status"].(string)
 		actorID, _ := updates["updated_by_id"].(uint64)
 		title, _ := updates["title"].(string)
+		activityGroups := mergePortalGroupIDs(announcementTargetGroupIDs(previous.TargetGroups), groupIDs)
+		if err := createPortalActivity(tx, model.ActivityAnnouncementUpdated, actorID, "announcement", id, title, activityGroups); err != nil {
+			return err
+		}
 		if status != previous.Status && status == model.AnnouncementStatusPublished {
-			return createPortalActivity(tx, model.ActivityAnnouncementPublished, actorID, "announcement", id, title)
+			return createPortalActivity(tx, model.ActivityAnnouncementPublished, actorID, "announcement", id, title, activityGroups)
 		}
 		if status != previous.Status && status == model.AnnouncementStatusArchived {
-			return createPortalActivity(tx, model.ActivityAnnouncementArchived, actorID, "announcement", id, title)
+			return createPortalActivity(tx, model.ActivityAnnouncementArchived, actorID, "announcement", id, title, activityGroups)
 		}
 		return nil
 	})
@@ -292,12 +339,68 @@ func createAnnouncementTargets(tx *gorm.DB, announcementID uint64, groupIDs []ui
 	return tx.Create(&rows).Error
 }
 
-func createPortalActivity(tx *gorm.DB, actionKey string, actorID uint64, entityType string, entityID uint64, title string) error {
-	return tx.Create(&model.ActivityEvent{ActionKey: actionKey, ActorID: &actorID, EntityType: &entityType, EntityID: &entityID, Metadata: map[string]any{"title": title}}).Error
+func createPortalActivity(tx *gorm.DB, actionKey string, actorID uint64, entityType string, entityID uint64, title string, groupIDs []uint64) error {
+	if len(groupIDs) == 0 {
+		return tx.Create(&model.ActivityEvent{ActionKey: actionKey, ActorID: &actorID, EntityType: &entityType, EntityID: &entityID, Metadata: map[string]any{"title": title}}).Error
+	}
+	rows := make([]model.ActivityEvent, 0, len(groupIDs))
+	for _, groupID := range groupIDs {
+		groupID := groupID
+		rows = append(rows, model.ActivityEvent{ActionKey: actionKey, ActorID: &actorID, EntityType: &entityType, EntityID: &entityID, GroupID: &groupID, Metadata: map[string]any{"title": title}})
+	}
+	return tx.Create(&rows).Error
 }
 
-func (r *GormRepository) DeleteAnnouncement(ctx context.Context, id uint64) error {
-	return r.db.WithContext(ctx).Delete(&model.Announcement{}, id).Error
+func (r *GormRepository) DeleteAnnouncement(ctx context.Context, id uint64, actorID uint64) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var row model.Announcement
+		if err := tx.Preload("TargetGroups").First(&row, id).Error; err != nil {
+			return err
+		}
+		if err := tx.Delete(&model.Announcement{}, id).Error; err != nil {
+			return err
+		}
+		return createPortalActivity(tx, model.ActivityAnnouncementDeleted, actorID, "announcement", id, row.Title, announcementTargetGroupIDs(row.TargetGroups))
+	})
+}
+
+func announcementTargetGroupIDs(targets []model.AnnouncementTargetGroup) []uint64 {
+	ids := make([]uint64, 0, len(targets))
+	for _, target := range targets {
+		ids = append(ids, target.GroupID)
+	}
+	return ids
+}
+
+func eventTargetGroupIDs(targets []model.TeamEventTargetGroup) []uint64 {
+	ids := make([]uint64, 0, len(targets))
+	for _, target := range targets {
+		ids = append(ids, target.GroupID)
+	}
+	return ids
+}
+
+func linkTargetGroupIDs(targets []model.PortalLinkTargetGroup) []uint64 {
+	ids := make([]uint64, 0, len(targets))
+	for _, target := range targets {
+		ids = append(ids, target.GroupID)
+	}
+	return ids
+}
+
+func mergePortalGroupIDs(groups ...[]uint64) []uint64 {
+	seen := map[uint64]struct{}{}
+	result := make([]uint64, 0)
+	for _, values := range groups {
+		for _, value := range values {
+			if _, ok := seen[value]; ok {
+				continue
+			}
+			seen[value] = struct{}{}
+			result = append(result, value)
+		}
+	}
+	return result
 }
 
 func (r *GormRepository) CountActiveGroups(ctx context.Context, groupIDs []uint64) (int64, error) {
@@ -328,8 +431,10 @@ func (r *GormRepository) ListVisibleAnnouncements(ctx context.Context, userID ui
 		Where("status = ?", model.AnnouncementStatusPublished).
 		Where("publish_at IS NULL OR publish_at <= ?", now).
 		Where("expire_at IS NULL OR expire_at > ?", now).
-		Preload("TargetGroups").Order("is_pinned DESC").Order("COALESCE(publish_at, created_at) DESC").
-		Limit(limit)
+		Preload("TargetGroups").Order("is_pinned DESC").Order("COALESCE(publish_at, created_at) DESC")
+	if limit > 0 {
+		query = query.Limit(limit)
+	}
 	if !allGroups {
 		membershipGroups := r.db.WithContext(ctx).Model(&model.UserGroupMember{}).Select("group_id").Where("user_id = ?", userID)
 		targeted := r.db.WithContext(ctx).Model(&model.AnnouncementTargetGroup{}).Select("announcement_id").Where("group_id IN (?)", membershipGroups)

@@ -164,7 +164,7 @@ func currentPortalActor(c *gin.Context) portal.Actor {
 	if !ok || user == nil {
 		return portal.Actor{}
 	}
-	return portal.Actor{ID: user.ID, RoleName: user.Role.Name}
+	return portal.Actor{ID: user.ID, RoleName: user.Role.Name, AdminScope: user.AdminScope, ManagementGroupID: user.ManagementGroupID, GroupRole: user.GroupRole}
 }
 
 func bindAnnouncement(c *gin.Context) (portal.AnnouncementInput, error) {

@@ -21,9 +21,11 @@ type UserGroupHandler struct {
 
 type userGroupService interface {
 	ListGroups(ctx context.Context, actor usergroup.Actor, input usergroup.ListGroupsInput) (*usergroup.ListGroupsResult, error)
+	ListGroupOptions(ctx context.Context, actor usergroup.Actor) ([]usergroup.GroupOption, error)
 	GetGroup(ctx context.Context, actor usergroup.Actor, groupID uint64) (*usergroup.GroupDetail, error)
 	CreateGroup(ctx context.Context, actor usergroup.Actor, input usergroup.CreateGroupInput) (*usergroup.GroupDetail, error)
 	UpdateGroup(ctx context.Context, actor usergroup.Actor, groupID uint64, input usergroup.UpdateGroupInput) (*usergroup.GroupDetail, error)
+	UpdateAdmissionImage(ctx context.Context, actor usergroup.Actor, groupID uint64, input usergroup.UpdateAdmissionImageInput) (*usergroup.GroupDetail, error)
 	DeleteGroup(ctx context.Context, actor usergroup.Actor, groupID uint64) error
 	ListMemberCandidates(ctx context.Context, actor usergroup.Actor, groupID uint64) ([]usergroup.GroupCandidateItem, error)
 	AddMember(ctx context.Context, actor usergroup.Actor, groupID uint64, input usergroup.AddMemberInput) (*usergroup.GroupMemberItem, error)
@@ -52,6 +54,7 @@ type parsedUpsertUserGroupRequest struct {
 
 type listMemberCandidatesQuery struct {
 	GroupID uint64 `form:"groupId" binding:"required"`
+	Email   string `form:"email"`
 }
 
 type addGroupMemberRequest struct {
@@ -93,6 +96,15 @@ func (h *UserGroupHandler) ListGroups(c *gin.Context) {
 	}
 
 	writeAPI(c, http.StatusOK, "获取用户组列表成功", result)
+}
+
+func (h *UserGroupHandler) ListGroupOptions(c *gin.Context) {
+	items, serviceErr := h.service.ListGroupOptions(c.Request.Context(), currentGroupActor(c))
+	if serviceErr != nil {
+		h.handleServiceError(c, serviceErr)
+		return
+	}
+	writeAPI(c, http.StatusOK, "获取用户组筛选项成功", gin.H{"items": items})
 }
 
 func (h *UserGroupHandler) GetGroup(c *gin.Context) {
@@ -203,6 +215,17 @@ func (h *UserGroupHandler) ListMemberCandidates(c *gin.Context) {
 		return
 	}
 
+	if strings.TrimSpace(query.Email) != "" {
+		email := strings.ToLower(strings.TrimSpace(query.Email))
+		filtered := make([]usergroup.GroupCandidateItem, 0, 1)
+		for _, item := range items {
+			if strings.ToLower(item.Email) == email {
+				filtered = append(filtered, item)
+				break
+			}
+		}
+		items = filtered
+	}
 	writeAPI(c, http.StatusOK, "获取成员候选用户成功", gin.H{"items": items})
 }
 
@@ -302,6 +325,163 @@ func (h *UserGroupHandler) RemoveMember(c *gin.Context) {
 	writeAPI(c, http.StatusOK, "移除成员成功", nil)
 }
 
+func (h *UserGroupHandler) managedGroupID(c *gin.Context) (uint64, bool) {
+	actor := currentGroupActor(c)
+	if actor.RoleName == model.RoleNameSuperAdmin {
+		return 0, false
+	}
+	if actor.AdminScope != model.AdminScopeGroup || actor.ManagementGroupID == nil {
+		writeAPIError(c, http.StatusForbidden, "当前账号没有管理组")
+		return 0, false
+	}
+	return *actor.ManagementGroupID, true
+}
+
+func (h *UserGroupHandler) GetManagedGroup(c *gin.Context) {
+	groupID, ok := h.managedGroupID(c)
+	if !ok {
+		return
+	}
+	group, err := h.service.GetGroup(c.Request.Context(), currentGroupActor(c), groupID)
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+	if currentGroupActor(c).GroupRole != "leader" && currentGroupActor(c).GroupRole != "group_admin" {
+		group.Members = nil
+	}
+	writeAPI(c, http.StatusOK, "获取管理组信息成功", group)
+}
+
+func (h *UserGroupHandler) UpdateManagedGroupAdmissionImage(c *gin.Context) {
+	groupID, ok := h.managedGroupID(c)
+	if !ok {
+		return
+	}
+	if err := c.Request.ParseMultipartForm(4 << 20); err != nil {
+		writeAPIError(c, http.StatusBadRequest, "录取群图片参数不合法")
+		return
+	}
+
+	removeImage, err := parseOptionalBool(c.PostForm("removeImage"))
+	if err != nil {
+		writeAPIError(c, http.StatusBadRequest, "移除图片参数不合法")
+		return
+	}
+	var image *multipart.FileHeader
+	if c.Request.MultipartForm != nil {
+		files := c.Request.MultipartForm.File["image"]
+		if len(files) > 1 {
+			writeAPIError(c, http.StatusBadRequest, "一次只能上传一张录取群图片")
+			return
+		}
+		if len(files) == 1 {
+			image = files[0]
+		}
+	}
+
+	group, serviceErr := h.service.UpdateAdmissionImage(c.Request.Context(), currentGroupActor(c), groupID, usergroup.UpdateAdmissionImageInput{
+		Image: image, RemoveImage: removeImage,
+	})
+	if serviceErr != nil {
+		h.handleServiceError(c, serviceErr)
+		return
+	}
+	writeAPI(c, http.StatusOK, "录取群图片已更新", group)
+}
+
+func (h *UserGroupHandler) ListManagedGroupMembers(c *gin.Context) {
+	groupID, ok := h.managedGroupID(c)
+	if !ok {
+		return
+	}
+	group, err := h.service.GetGroup(c.Request.Context(), currentGroupActor(c), groupID)
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+	if currentGroupActor(c).GroupRole != "leader" && currentGroupActor(c).GroupRole != "group_admin" {
+		writeAPIError(c, http.StatusForbidden, "组内管理员不能查看成员")
+		return
+	}
+	writeAPI(c, http.StatusOK, "获取管理组成员成功", gin.H{"items": group.Members})
+}
+
+func (h *UserGroupHandler) ListManagedGroupCandidates(c *gin.Context) {
+	groupID, ok := h.managedGroupID(c)
+	if !ok {
+		return
+	}
+	items, err := h.service.ListMemberCandidates(c.Request.Context(), currentGroupActor(c), groupID)
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+	if currentGroupActor(c).GroupRole != "leader" {
+		writeAPIError(c, http.StatusForbidden, "组内管理员不能管理成员")
+		return
+	}
+	writeAPI(c, http.StatusOK, "获取成员候选用户成功", gin.H{"items": items})
+}
+
+func (h *UserGroupHandler) AddManagedGroupMember(c *gin.Context) {
+	groupID, ok := h.managedGroupID(c)
+	if !ok {
+		return
+	}
+	var request addGroupMemberRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		writeAPIError(c, http.StatusBadRequest, "请求参数不合法")
+		return
+	}
+	member, err := h.service.AddMember(c.Request.Context(), currentGroupActor(c), groupID, usergroup.AddMemberInput{UserID: request.UserID, Role: request.Role})
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "添加成员成功", member)
+}
+
+func (h *UserGroupHandler) UpdateManagedGroupMember(c *gin.Context) {
+	groupID, ok := h.managedGroupID(c)
+	if !ok {
+		return
+	}
+	memberID, err := parsePathID(c.Param("memberId"))
+	if err != nil {
+		writeAPIError(c, http.StatusBadRequest, "无效的成员 ID")
+		return
+	}
+	var request updateGroupMemberRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		writeAPIError(c, http.StatusBadRequest, "请求参数不合法")
+		return
+	}
+	member, serviceErr := h.service.UpdateMember(c.Request.Context(), currentGroupActor(c), groupID, memberID, usergroup.UpdateMemberInput{Role: request.Role})
+	if serviceErr != nil {
+		h.handleServiceError(c, serviceErr)
+		return
+	}
+	writeAPI(c, http.StatusOK, "更新成员角色成功", member)
+}
+
+func (h *UserGroupHandler) RemoveManagedGroupMember(c *gin.Context) {
+	groupID, ok := h.managedGroupID(c)
+	if !ok {
+		return
+	}
+	memberID, err := parsePathID(c.Param("memberId"))
+	if err != nil {
+		writeAPIError(c, http.StatusBadRequest, "无效的成员 ID")
+		return
+	}
+	if err := h.service.RemoveMember(c.Request.Context(), currentGroupActor(c), groupID, memberID); err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "移除成员成功", nil)
+}
+
 func (h *UserGroupHandler) handleServiceError(c *gin.Context, err error) {
 	var serviceErr *usergroup.ServiceError
 	if errors.As(err, &serviceErr) {
@@ -319,8 +499,11 @@ func currentGroupActor(c *gin.Context) usergroup.Actor {
 	}
 
 	return usergroup.Actor{
-		ID:       sessionUser.ID,
-		RoleName: sessionUser.Role.Name,
+		ID:                sessionUser.ID,
+		RoleName:          sessionUser.Role.Name,
+		AdminScope:        sessionUser.AdminScope,
+		ManagementGroupID: sessionUser.ManagementGroupID,
+		GroupRole:         sessionUser.GroupRole,
 	}
 }
 
