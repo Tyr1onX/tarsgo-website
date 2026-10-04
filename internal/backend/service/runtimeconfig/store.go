@@ -16,7 +16,6 @@ import (
 )
 
 const (
-	KeyEmailSMTP   = "email.smtp"
 	KeyOAuthGitHub = "oauth.github"
 	KeyOAuthGoogle = "oauth.google"
 )
@@ -33,19 +32,10 @@ type Store struct {
 	db *gorm.DB
 
 	mu         sync.RWMutex
-	smtp       config.SMTPConfig
 	github     OAuthSettings
 	google     OAuthSettings
 	githubBase config.GitHubConfig
 	googleBase config.GoogleConfig
-}
-
-type smtpPayload struct {
-	Host     string `json:"host"`
-	Port     string `json:"port"`
-	Username string `json:"username"`
-	Password string `json:"password"`
-	From     string `json:"from"`
 }
 
 type oauthPayload struct {
@@ -71,10 +61,6 @@ func NewStore(db *gorm.DB, cfg *config.Config) (*Store, error) {
 }
 
 func (s *Store) Reload(ctx context.Context) error {
-	smtpConfig, err := s.loadSMTPConfig(ctx)
-	if err != nil {
-		return err
-	}
 	githubSettings, err := s.loadOAuthSettings(ctx, model.OAuthProviderGitHub)
 	if err != nil {
 		return err
@@ -85,35 +71,8 @@ func (s *Store) Reload(ctx context.Context) error {
 	}
 
 	s.mu.Lock()
-	s.smtp = smtpConfig
 	s.github = githubSettings
 	s.google = googleSettings
-	s.mu.Unlock()
-
-	return nil
-}
-
-func (s *Store) SMTPConfig() config.SMTPConfig {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-
-	return s.smtp
-}
-
-func (s *Store) SaveSMTPConfig(ctx context.Context, cfg config.SMTPConfig) error {
-	normalized := normalizeSMTPConfig(cfg)
-	if err := s.save(ctx, KeyEmailSMTP, smtpPayload{
-		Host:     normalized.Host,
-		Port:     normalized.Port,
-		Username: normalized.Username,
-		Password: normalized.Password,
-		From:     normalized.From,
-	}); err != nil {
-		return err
-	}
-
-	s.mu.Lock()
-	s.smtp = normalized
 	s.mu.Unlock()
 
 	return nil
@@ -178,29 +137,6 @@ func (s *Store) SaveOAuthSettings(ctx context.Context, provider string, settings
 	s.mu.Unlock()
 
 	return nil
-}
-
-func (s *Store) loadSMTPConfig(ctx context.Context) (config.SMTPConfig, error) {
-	record, err := s.find(ctx, KeyEmailSMTP)
-	if err != nil {
-		return config.SMTPConfig{}, err
-	}
-	if record == nil {
-		return normalizeSMTPConfig(config.SMTPConfig{}), nil
-	}
-
-	var payload smtpPayload
-	if err := json.Unmarshal([]byte(record.ConfigValue), &payload); err != nil {
-		return config.SMTPConfig{}, fmt.Errorf("decode %s: %w", KeyEmailSMTP, err)
-	}
-
-	return normalizeSMTPConfig(config.SMTPConfig{
-		Host:     payload.Host,
-		Port:     payload.Port,
-		Username: payload.Username,
-		Password: payload.Password,
-		From:     payload.From,
-	}), nil
 }
 
 func (s *Store) loadOAuthSettings(ctx context.Context, provider string) (OAuthSettings, error) {
@@ -307,21 +243,6 @@ func applyOAuthSettingsToGoogle(cfg *config.GoogleConfig, settings OAuthSettings
 	cfg.ClientSecret = settings.ClientSecret
 	cfg.CallbackURL = settings.CallbackURL
 	cfg.Scope = settings.Scope
-}
-
-func normalizeSMTPConfig(cfg config.SMTPConfig) config.SMTPConfig {
-	port := strings.TrimSpace(cfg.Port)
-	if port == "" {
-		port = "465"
-	}
-
-	return config.SMTPConfig{
-		Host:     strings.TrimSpace(cfg.Host),
-		Port:     port,
-		Username: strings.TrimSpace(cfg.Username),
-		Password: strings.TrimSpace(cfg.Password),
-		From:     strings.TrimSpace(cfg.From),
-	}
 }
 
 func normalizeOAuthSettings(provider string, settings OAuthSettings) OAuthSettings {

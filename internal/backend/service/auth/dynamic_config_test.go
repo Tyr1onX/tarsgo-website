@@ -78,13 +78,8 @@ func TestBuildOAuthLoginURLUsesLatestRuntimeConfig(t *testing.T) {
 }
 
 type fakeDynamicConfigStore struct {
-	smtp   config.SMTPConfig
 	github config.GitHubConfig
 	google config.GoogleConfig
-}
-
-func (s *fakeDynamicConfigStore) SMTPConfig() config.SMTPConfig {
-	return s.smtp
 }
 
 func (s *fakeDynamicConfigStore) GitHubConfig() config.GitHubConfig {

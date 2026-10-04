@@ -2,73 +2,53 @@ package systemconfig
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
-	"testing"
-
 	"tarsgo-backend/config"
 	"tarsgo-backend/model"
-	"tarsgo-backend/service/auth"
+	"tarsgo-backend/service/email"
 	"tarsgo-backend/service/runtimeconfig"
+	"testing"
 )
 
-func TestGetEmailConfigMasksPassword(t *testing.T) {
-	t.Parallel()
-
-	service := NewService(&fakeConfigStore{
-		smtp: config.SMTPConfig{
-			Host:     "smtp.example.com",
-			Port:     "465",
-			Username: "mailer",
-			Password: "secret-password",
-			From:     "noreply@example.com",
-		},
-	})
-
+func TestEmailStatusNeverExposesCredentials(t *testing.T) {
+	service := NewService(&fakeConfigStore{}, config.EmailConfig{APIKey: "private-api-key", From: "吉甲大师 <noreply@jijiamaster.com>"})
 	result, err := service.GetEmailConfig(context.Background())
 	if err != nil {
-		t.Fatalf("GetEmailConfig returned error: %v", err)
+		t.Fatal(err)
 	}
-
-	if !result.PasswordConfigured {
-		t.Fatalf("expected password to be marked configured")
-	}
-	if result.PasswordMasked != maskedSecretValue {
-		t.Fatalf("expected masked password, got %q", result.PasswordMasked)
-	}
-	if result.RequiresRestart {
-		t.Fatalf("expected requiresRestart to be false")
+	encoded, _ := json.Marshal(result)
+	if !result.Configured || strings.Contains(string(encoded), "private-api-key") {
+		t.Fatal("unsafe email status")
 	}
 }
 
-func TestUpdateEmailConfigKeepsExistingPasswordWhenInputIsEmpty(t *testing.T) {
-	t.Parallel()
-
-	store := &fakeConfigStore{
-		smtp: config.SMTPConfig{
-			Host:     "smtp.example.com",
-			Port:     "465",
-			Username: "mailer",
-			Password: "secret-password",
-			From:     "noreply@example.com",
-		},
+func TestVerificationEmailUsesConfiguredSender(t *testing.T) {
+	service := NewService(&fakeConfigStore{}, config.EmailConfig{})
+	mailer := &fakeMail{}
+	service.mailer = mailer
+	if err := service.TestVerificationCodeConfig(context.Background(), TestVerificationCodeInput{To: "receiver@example.com"}); err != nil {
+		t.Fatal(err)
 	}
-	service := NewService(store)
-
-	if _, err := service.UpdateEmailConfig(context.Background(), UpdateEmailInput{
-		Host:     "smtp.changed.example.com",
-		Port:     "587",
-		Username: "updated-mailer",
-		Password: "",
-		From:     "bot@example.com",
-	}); err != nil {
-		t.Fatalf("UpdateEmailConfig returned error: %v", err)
+	if mailer.message.To != "receiver@example.com" || !strings.Contains(mailer.message.Text, "10 分钟内有效") {
+		t.Fatal("verification email content missing")
 	}
+}
 
-	if store.smtp.Password != "secret-password" {
-		t.Fatalf("expected SMTP password to be preserved, got %q", store.smtp.Password)
+func TestRegisterFlowUsesActualRegistrationPath(t *testing.T) {
+	tester := &fakeRegisterCodeTester{}
+	service := NewService(&fakeConfigStore{}, config.EmailConfig{}, tester)
+	if err := service.SendRegisterFlowCode(context.Background(), SendRegisterFlowCodeInput{Email: "receiver@example.com"}); err != nil {
+		t.Fatal(err)
 	}
-	if store.smtp.Host != "smtp.changed.example.com" || store.smtp.Port != "587" {
-		t.Fatalf("unexpected updated smtp values: %#v", store.smtp)
+	if tester.sendEmail != "receiver@example.com" {
+		t.Fatal("registration sender not called")
+	}
+	if err := service.VerifyRegisterFlowCode(context.Background(), VerifyRegisterFlowCodeInput{Email: "receiver@example.com", Code: "123456"}); err != nil {
+		t.Fatal(err)
+	}
+	if tester.verifyCode != "123456" || tester.verifyEmail != "receiver@example.com" {
+		t.Fatal("registration verifier not called")
 	}
 }
 
@@ -89,7 +69,7 @@ func TestUpdateOAuthConfigKeepsExistingSecretWhenInputIsEmpty(t *testing.T) {
 			},
 		},
 	}
-	service := NewService(store)
+	service := NewService(store, config.EmailConfig{})
 
 	result, err := service.UpdateOAuthConfig(context.Background(), model.OAuthProviderGitHub, UpdateOAuthProviderInput{
 		Enabled:      true,
@@ -116,122 +96,8 @@ func TestUpdateOAuthConfigKeepsExistingSecretWhenInputIsEmpty(t *testing.T) {
 	}
 }
 
-func TestTestVerificationCodeConfigUsesResolvedSMTPConfig(t *testing.T) {
-	t.Parallel()
-
-	store := &fakeConfigStore{
-		smtp: config.SMTPConfig{
-			Host:     "smtp.example.com",
-			Port:     "465",
-			Username: "mailer",
-			Password: "secret-password",
-			From:     "noreply@example.com",
-		},
-	}
-	service := NewService(store)
-
-	var sent fakeMail
-	service.mailerFactory = func(cfg config.SMTPConfig) auth.Mailer {
-		sent.cfg = cfg
-		return &sent
-	}
-
-	err := service.TestVerificationCodeConfig(context.Background(), TestVerificationCodeInput{
-		Host:     "smtp.changed.example.com",
-		Port:     "587",
-		Username: "updated-mailer",
-		Password: "",
-		From:     "bot@example.com",
-		To:       "receiver@example.com",
-	})
-	if err != nil {
-		t.Fatalf("TestVerificationCodeConfig returned error: %v", err)
-	}
-
-	if sent.cfg.Password != "secret-password" {
-		t.Fatalf("expected password to fall back to stored value, got %q", sent.cfg.Password)
-	}
-	if sent.to != "receiver@example.com" {
-		t.Fatalf("expected recipient to match, got %q", sent.to)
-	}
-	if !strings.Contains(sent.subject, "验证码") {
-		t.Fatalf("expected verification-code subject, got %q", sent.subject)
-	}
-	if !strings.Contains(sent.body, "10 分钟内有效") {
-		t.Fatalf("expected verification-code body, got %q", sent.body)
-	}
-}
-
-func TestSendRegisterFlowCodeUsesResolvedSMTPConfig(t *testing.T) {
-	t.Parallel()
-
-	store := &fakeConfigStore{
-		smtp: config.SMTPConfig{
-			Host:     "smtp.example.com",
-			Port:     "465",
-			Username: "mailer",
-			Password: "secret-password",
-			From:     "noreply@example.com",
-		},
-	}
-	tester := &fakeRegisterCodeTester{}
-	service := NewService(store, tester)
-
-	err := service.SendRegisterFlowCode(context.Background(), SendRegisterFlowCodeInput{
-		Host:     "smtp.changed.example.com",
-		Port:     "587",
-		Username: "updated-mailer",
-		Password: "",
-		From:     "bot@example.com",
-		Email:    "receiver@example.com",
-	})
-	if err != nil {
-		t.Fatalf("SendRegisterFlowCode returned error: %v", err)
-	}
-
-	if tester.sendSMTPConfig.Password != "secret-password" {
-		t.Fatalf("expected password to fall back to stored value, got %q", tester.sendSMTPConfig.Password)
-	}
-	if tester.sendEmail != "receiver@example.com" {
-		t.Fatalf("expected receiver@example.com, got %q", tester.sendEmail)
-	}
-}
-
-func TestVerifyRegisterFlowCodeDelegatesToTester(t *testing.T) {
-	t.Parallel()
-
-	tester := &fakeRegisterCodeTester{}
-	service := NewService(&fakeConfigStore{}, tester)
-
-	err := service.VerifyRegisterFlowCode(context.Background(), VerifyRegisterFlowCodeInput{
-		Email: "receiver@example.com",
-		Code:  "123456",
-	})
-	if err != nil {
-		t.Fatalf("VerifyRegisterFlowCode returned error: %v", err)
-	}
-
-	if tester.verifyEmail != "receiver@example.com" {
-		t.Fatalf("expected receiver@example.com, got %q", tester.verifyEmail)
-	}
-	if tester.verifyCode != "123456" {
-		t.Fatalf("expected 123456, got %q", tester.verifyCode)
-	}
-}
-
 type fakeConfigStore struct {
-	smtp  config.SMTPConfig
 	oauth map[string]runtimeconfig.OAuthSettings
-}
-
-func (s *fakeConfigStore) SMTPConfig() config.SMTPConfig {
-	return s.smtp
-}
-
-func (s *fakeConfigStore) SaveSMTPConfig(ctx context.Context, cfg config.SMTPConfig) error {
-	_ = ctx
-	s.smtp = cfg
-	return nil
 }
 
 func (s *fakeConfigStore) OAuthSettings(provider string) (runtimeconfig.OAuthSettings, error) {
@@ -256,44 +122,27 @@ func (s *fakeConfigStore) SaveOAuthSettings(ctx context.Context, provider string
 }
 
 type fakeMail struct {
-	cfg     config.SMTPConfig
-	to      string
-	subject string
-	body    string
+	message email.Message
 	err     error
 }
 
-func (m *fakeMail) Send(ctx context.Context, to string, subject string, body string) error {
-	_ = ctx
-	m.to = to
-	m.subject = subject
-	m.body = body
+func (m *fakeMail) SendEmail(_ context.Context, message email.Message) error {
+	m.message = message
 	return m.err
 }
 
 type fakeRegisterCodeTester struct {
-	sendEmail      string
-	sendSMTPConfig config.SMTPConfig
-	sendErr        error
-	verifyEmail    string
-	verifyCode     string
-	verifyErr      error
+	sendEmail   string
+	verifyEmail string
+	verifyCode  string
 }
 
-func (t *fakeRegisterCodeTester) SendRegisterCodeWithSMTPConfig(
-	ctx context.Context,
-	email string,
-	smtpConfig config.SMTPConfig,
-) error {
-	_ = ctx
-	t.sendEmail = email
-	t.sendSMTPConfig = smtpConfig
-	return t.sendErr
+func (t *fakeRegisterCodeTester) SendRegisterCode(_ context.Context, address string) error {
+	t.sendEmail = address
+	return nil
 }
-
-func (t *fakeRegisterCodeTester) VerifyRegisterCode(ctx context.Context, email string, code string) error {
-	_ = ctx
-	t.verifyEmail = email
+func (t *fakeRegisterCodeTester) VerifyRegisterCode(_ context.Context, address, code string) error {
+	t.verifyEmail = address
 	t.verifyCode = code
-	return t.verifyErr
+	return nil
 }

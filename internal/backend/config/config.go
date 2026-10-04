@@ -14,7 +14,7 @@ type Config struct {
 	Database DatabaseConfig
 	CORS     CORSConfig
 	Auth     AuthConfig
-	SMTP     SMTPConfig
+	Email    EmailConfig
 	GitHub   GitHubConfig
 	Google   GoogleConfig
 	Source   SourceConfig
@@ -56,12 +56,9 @@ type AuthConfig struct {
 	CookieSameSite      http.SameSite
 }
 
-type SMTPConfig struct {
-	Host     string
-	Port     string
-	Username string
-	Password string
-	From     string
+type EmailConfig struct {
+	APIKey string `json:"-"`
+	From   string
 }
 
 type GitHubConfig struct {
@@ -137,8 +134,9 @@ func Load() (*Config, error) {
 			CookieSecure:        getEnvAsBool("JWT_COOKIE_SECURE", false),
 			CookieSameSite:      parseSameSite(getEnv("JWT_COOKIE_SAME_SITE", "lax")),
 		},
-		SMTP: SMTPConfig{
-			Port: "465",
+		Email: EmailConfig{
+			APIKey: strings.TrimSpace(os.Getenv("RESEND_API_KEY")),
+			From:   getEnv("EMAIL_FROM", "吉甲大师 <noreply@jijiamaster.com>"),
 		},
 		GitHub: GitHubConfig{
 			Enabled:      false,

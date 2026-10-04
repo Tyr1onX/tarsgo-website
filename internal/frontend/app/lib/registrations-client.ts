@@ -48,6 +48,7 @@ export interface RegistrationFileMeta {
 }
 
 export interface RegistrationDetail {
+  notificationWarning?: string;
   id: number;
   formId: number;
   formTitle: string;

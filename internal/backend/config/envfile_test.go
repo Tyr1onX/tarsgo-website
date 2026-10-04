@@ -63,9 +63,9 @@ func TestWriteEnvFilePersistsValues(t *testing.T) {
 
 	envPath := filepath.Join(t.TempDir(), ".env")
 	if err := WriteEnvFile(envPath, map[string]string{
-		"APP_ENV":     "development",
-		"JWT_SECRET":  "secret",
-		"SMTP_PORT":   "465",
+		"APP_ENV":      "development",
+		"JWT_SECRET":   "secret",
+		"EMAIL_FROM":   "noreply@example.com",
 		"GOOGLE_SCOPE": "openid email profile",
 	}); err != nil {
 		t.Fatalf("write env file: %v", err)

@@ -1,34 +1,13 @@
 import { apiRequest } from "~/lib/api-client";
 
 export interface EmailSystemConfig {
-  host: string;
-  port: string;
-  username: string;
   from: string;
-  passwordMasked: string;
-  passwordConfigured: boolean;
-  requiresRestart: boolean;
+  configured: boolean;
 }
 
-export interface UpdateEmailSystemConfigInput {
-  host: string;
-  port: string;
-  username: string;
-  password: string;
-  from: string;
-}
-
-export interface TestEmailSystemConfigInput extends UpdateEmailSystemConfigInput {
-  to: string;
-}
-
-export interface TestVerificationCodeSystemConfigInput extends UpdateEmailSystemConfigInput {
-  to: string;
-}
-
-export interface SendRegisterFlowCodeSystemConfigInput extends UpdateEmailSystemConfigInput {
-  email: string;
-}
+export interface TestEmailSystemConfigInput { to: string; }
+export interface TestVerificationCodeSystemConfigInput { to: string; }
+export interface SendRegisterFlowCodeSystemConfigInput { email: string; }
 
 export interface VerifyRegisterFlowCodeSystemConfigInput {
   email: string;
@@ -57,15 +36,6 @@ export interface UpdateOAuthSystemConfigInput {
 
 export async function getEmailSystemConfig(): Promise<EmailSystemConfig> {
   return apiRequest<EmailSystemConfig>("/api/admin/system-config/email");
-}
-
-export async function updateEmailSystemConfig(
-  input: UpdateEmailSystemConfigInput,
-): Promise<EmailSystemConfig> {
-  return apiRequest<EmailSystemConfig>("/api/admin/system-config/email", {
-    method: "PUT",
-    body: input,
-  });
 }
 
 export async function testEmailSystemConfig(input: TestEmailSystemConfigInput): Promise<void> {

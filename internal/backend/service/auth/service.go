@@ -17,6 +17,7 @@ import (
 
 	"tarsgo-backend/config"
 	"tarsgo-backend/model"
+	"tarsgo-backend/service/email"
 	"tarsgo-backend/service/usergroup"
 )
 
@@ -31,16 +32,15 @@ type Service struct {
 	authConfig  config.AuthConfig
 	configStore dynamicConfigStore
 	now         func() time.Time
+	mailer      email.Mailer
 }
 
 type dynamicConfigStore interface {
-	SMTPConfig() config.SMTPConfig
 	GitHubConfig() config.GitHubConfig
 	GoogleConfig() config.GoogleConfig
 }
 
 type staticConfigStore struct {
-	smtp   config.SMTPConfig
 	github config.GitHubConfig
 	google config.GoogleConfig
 }
@@ -118,7 +118,6 @@ type RegisterInitialSuperAdminInput struct {
 func NewService(cfg *config.Config, db *gorm.DB, configStore dynamicConfigStore) *Service {
 	if configStore == nil {
 		configStore = staticConfigStore{
-			smtp:   cfg.SMTP,
 			github: cfg.GitHub,
 			google: cfg.Google,
 		}
@@ -130,6 +129,7 @@ func NewService(cfg *config.Config, db *gorm.DB, configStore dynamicConfigStore)
 		authConfig:  cfg.Auth,
 		configStore: configStore,
 		now:         time.Now,
+		mailer:      email.NewSender(cfg.Email),
 	}
 }
 
@@ -790,7 +790,7 @@ func (s *Service) sendCode(ctx context.Context, email string, purpose string, su
 		}
 	}
 
-	if err := NewSMTPMailer(s.configStore.SMTPConfig()).Send(ctx, email, subject, fmt.Sprintf(bodyTemplate, code)); err != nil {
+	if err := s.mailer.SendEmail(ctx, mailMessage(email, subject, fmt.Sprintf(bodyTemplate, code))); err != nil {
 		if restoreErr := s.restoreCodeRecord(ctx, previous, hasPrevious, record.ID); restoreErr != nil {
 			return &ServiceError{
 				Status:  http.StatusInternalServerError,
@@ -1360,10 +1360,6 @@ func (s *Service) saveOAuthAccountTx(tx *gorm.DB, userID uint64, profile *OAuthP
 	return nil
 }
 
-func (s staticConfigStore) SMTPConfig() config.SMTPConfig {
-	return s.smtp
-}
-
 func (s staticConfigStore) GitHubConfig() config.GitHubConfig {
 	return s.github
 }
@@ -1484,4 +1480,8 @@ func nullableString(value string) *string {
 		return nil
 	}
 	return &trimmed
+}
+
+func mailMessage(to, subject, text string) email.Message {
+	return email.Message{To: to, Subject: subject, Text: text}
 }

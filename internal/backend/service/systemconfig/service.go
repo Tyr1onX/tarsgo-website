@@ -6,11 +6,11 @@ import (
 	"net/http"
 	"net/mail"
 	"strings"
-	"time"
 
 	"tarsgo-backend/config"
 	"tarsgo-backend/model"
 	"tarsgo-backend/service/auth"
+	"tarsgo-backend/service/email"
 	"tarsgo-backend/service/runtimeconfig"
 )
 
@@ -18,13 +18,12 @@ const maskedSecretValue = "********"
 
 type Service struct {
 	store          configStore
-	mailerFactory  func(config.SMTPConfig) auth.Mailer
+	mailer         email.Mailer
+	emailConfig    config.EmailConfig
 	registerTester registerCodeTester
 }
 
 type configStore interface {
-	SMTPConfig() config.SMTPConfig
-	SaveSMTPConfig(ctx context.Context, cfg config.SMTPConfig) error
 	OAuthSettings(provider string) (runtimeconfig.OAuthSettings, error)
 	SaveOAuthSettings(ctx context.Context, provider string, settings runtimeconfig.OAuthSettings) error
 }
@@ -36,40 +35,12 @@ type ServiceError struct {
 }
 
 type EmailConfig struct {
-	Host               string `json:"host"`
-	Port               string `json:"port"`
-	Username           string `json:"username"`
-	From               string `json:"from"`
-	PasswordMasked     string `json:"passwordMasked"`
-	PasswordConfigured bool   `json:"passwordConfigured"`
-	RequiresRestart    bool   `json:"requiresRestart"`
+	From       string `json:"from"`
+	Configured bool   `json:"configured"`
 }
 
-type UpdateEmailInput struct {
-	Host     string
-	Port     string
-	Username string
-	Password string
-	From     string
-}
-
-type TestEmailInput struct {
-	Host     string
-	Port     string
-	Username string
-	Password string
-	From     string
-	To       string
-}
-
-type TestVerificationCodeInput struct {
-	Host     string
-	Port     string
-	Username string
-	Password string
-	From     string
-	To       string
-}
+type TestEmailInput struct{ To string }
+type TestVerificationCodeInput struct{ To string }
 
 type OAuthProviderConfig struct {
 	Provider               string `json:"provider"`
@@ -91,10 +62,11 @@ type UpdateOAuthProviderInput struct {
 	Scope        string
 }
 
-func NewService(store configStore, testers ...registerCodeTester) *Service {
+func NewService(store configStore, cfg config.EmailConfig, testers ...registerCodeTester) *Service {
 	service := &Service{
 		store:          store,
-		mailerFactory:  func(cfg config.SMTPConfig) auth.Mailer { return auth.NewSMTPMailer(cfg) },
+		mailer:         email.NewSender(cfg),
+		emailConfig:    cfg,
 		registerTester: nil,
 	}
 	if len(testers) > 0 {
@@ -115,78 +87,17 @@ func (e *ServiceError) Unwrap() error {
 }
 
 func (s *Service) GetEmailConfig(ctx context.Context) (*EmailConfig, error) {
-	_ = ctx
-
-	smtpConfig := s.store.SMTPConfig()
-	password := strings.TrimSpace(smtpConfig.Password)
-	return &EmailConfig{
-		Host:               strings.TrimSpace(smtpConfig.Host),
-		Port:               getValueOrDefault(smtpConfig.Port, "465"),
-		Username:           strings.TrimSpace(smtpConfig.Username),
-		From:               strings.TrimSpace(smtpConfig.From),
-		PasswordMasked:     maskSecret(password),
-		PasswordConfigured: password != "",
-		RequiresRestart:    false,
-	}, nil
-}
-
-func (s *Service) UpdateEmailConfig(ctx context.Context, input UpdateEmailInput) (*EmailConfig, error) {
-	current := s.store.SMTPConfig()
-	resolvedPassword := resolveSecretValue(strings.TrimSpace(input.Password), strings.TrimSpace(current.Password))
-	if err := validateEmailSettings(
-		strings.TrimSpace(input.Host),
-		strings.TrimSpace(input.Port),
-		strings.TrimSpace(input.Username),
-		resolvedPassword,
-		strings.TrimSpace(input.From),
-	); err != nil {
-		return nil, err
-	}
-
-	if err := s.store.SaveSMTPConfig(ctx, config.SMTPConfig{
-		Host:     strings.TrimSpace(input.Host),
-		Port:     strings.TrimSpace(input.Port),
-		Username: strings.TrimSpace(input.Username),
-		Password: resolvedPassword,
-		From:     strings.TrimSpace(input.From),
-	}); err != nil {
-		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "保存邮件配置失败", Err: err}
-	}
-
-	return s.GetEmailConfig(ctx)
+	return &EmailConfig{From: s.emailConfig.From, Configured: strings.TrimSpace(s.emailConfig.APIKey) != ""}, nil
 }
 
 func (s *Service) TestEmailConfig(ctx context.Context, input TestEmailInput) error {
 	if !isValidEmail(strings.TrimSpace(input.To)) {
 		return &ServiceError{Status: http.StatusBadRequest, Message: "测试收件邮箱格式不合法"}
 	}
-
-	current := s.store.SMTPConfig()
-	resolvedPassword := resolveSecretValue(strings.TrimSpace(input.Password), strings.TrimSpace(current.Password))
-	if err := validateEmailSettings(
-		strings.TrimSpace(input.Host),
-		strings.TrimSpace(input.Port),
-		strings.TrimSpace(input.Username),
-		resolvedPassword,
-		strings.TrimSpace(input.From),
-	); err != nil {
-		return err
+	message := email.Message{To: strings.TrimSpace(input.To), Subject: "吉甲大师邮件系统测试", Text: "这是一封测试邮件。中文主题和正文显示正常。", HTML: "<h1>吉甲大师</h1><p>这是一封邮件系统测试邮件。中文主题和 HTML 正文显示正常。</p>"}
+	if err := s.mailer.SendEmail(ctx, message); err != nil {
+		return &ServiceError{Status: http.StatusBadGateway, Message: "测试邮件发送失败：" + err.Error(), Err: err}
 	}
-
-	mailer := s.mailerFactory(config.SMTPConfig{
-		Host:     strings.TrimSpace(input.Host),
-		Port:     strings.TrimSpace(input.Port),
-		Username: strings.TrimSpace(input.Username),
-		Password: resolvedPassword,
-		From:     strings.TrimSpace(input.From),
-	})
-
-	subject := "TARS-GO 系统配置测试邮件"
-	body := fmt.Sprintf("这是一封测试邮件，发送时间：%s。", time.Now().Format(time.RFC3339))
-	if err := mailer.Send(ctx, strings.TrimSpace(input.To), subject, body); err != nil {
-		return &ServiceError{Status: http.StatusBadGateway, Message: "测试邮件发送失败", Err: err}
-	}
-
 	return nil
 }
 
@@ -194,42 +105,14 @@ func (s *Service) TestVerificationCodeConfig(ctx context.Context, input TestVeri
 	if !isValidEmail(strings.TrimSpace(input.To)) {
 		return &ServiceError{Status: http.StatusBadRequest, Message: "测试收件邮箱格式不合法"}
 	}
-
-	current := s.store.SMTPConfig()
-	resolvedPassword := resolveSecretValue(strings.TrimSpace(input.Password), strings.TrimSpace(current.Password))
-	if err := validateEmailSettings(
-		strings.TrimSpace(input.Host),
-		strings.TrimSpace(input.Port),
-		strings.TrimSpace(input.Username),
-		resolvedPassword,
-		strings.TrimSpace(input.From),
-	); err != nil {
-		return err
-	}
-
 	code, err := auth.GenerateNumericCode(6)
 	if err != nil {
 		return &ServiceError{Status: http.StatusInternalServerError, Message: "生成测试验证码失败", Err: err}
 	}
-
-	mailer := s.mailerFactory(config.SMTPConfig{
-		Host:     strings.TrimSpace(input.Host),
-		Port:     strings.TrimSpace(input.Port),
-		Username: strings.TrimSpace(input.Username),
-		Password: resolvedPassword,
-		From:     strings.TrimSpace(input.From),
-	})
-
-	subject := "TARS-GO 验证码测试邮件"
-	body := fmt.Sprintf(
-		"你的验证码为：%s，10 分钟内有效。\n\n这是一封后台系统配置测试邮件，不会写入验证码记录。\n发送时间：%s。",
-		code,
-		time.Now().Format(time.RFC3339),
-	)
-	if err := mailer.Send(ctx, strings.TrimSpace(input.To), subject, body); err != nil {
-		return &ServiceError{Status: http.StatusBadGateway, Message: "验证码测试邮件发送失败", Err: err}
+	message := email.Message{To: strings.TrimSpace(input.To), Subject: "吉甲大师验证码测试邮件", Text: fmt.Sprintf("你的验证码为：%s，10 分钟内有效。\n\n这是一封后台测试邮件，不会写入验证码记录。", code)}
+	if err := s.mailer.SendEmail(ctx, message); err != nil {
+		return &ServiceError{Status: http.StatusBadGateway, Message: "验证码测试邮件发送失败：" + err.Error(), Err: err}
 	}
-
 	return nil
 }
 
@@ -301,25 +184,6 @@ func buildOAuthProviderConfig(provider string, settings runtimeconfig.OAuthSetti
 		ClientSecretMasked:     maskSecret(clientSecret),
 		ClientSecretConfigured: clientSecret != "",
 		RequiresRestart:        false,
-	}
-}
-
-func validateEmailSettings(host string, port string, username string, password string, from string) error {
-	switch {
-	case host == "":
-		return &ServiceError{Status: http.StatusBadRequest, Message: "SMTP Host 不能为空"}
-	case port == "":
-		return &ServiceError{Status: http.StatusBadRequest, Message: "SMTP Port 不能为空"}
-	case username == "":
-		return &ServiceError{Status: http.StatusBadRequest, Message: "SMTP 用户名不能为空"}
-	case password == "":
-		return &ServiceError{Status: http.StatusBadRequest, Message: "SMTP 密码不能为空"}
-	case from == "":
-		return &ServiceError{Status: http.StatusBadRequest, Message: "发件邮箱不能为空"}
-	case !isValidEmail(from):
-		return &ServiceError{Status: http.StatusBadRequest, Message: "发件邮箱格式不合法"}
-	default:
-		return nil
 	}
 }
 

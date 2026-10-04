@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"math"
 	"mime/multipart"
 	"net/http"
@@ -27,6 +28,7 @@ import (
 	"gorm.io/gorm/clause"
 
 	"tarsgo-backend/model"
+	"tarsgo-backend/service/email"
 )
 
 var mainlandPhonePattern = regexp.MustCompile(`^1[3-9]\d{9}$`)
@@ -35,13 +37,8 @@ type RegistrationService struct {
 	repo            registrationRepository
 	fileStore       registrationFileStore
 	now             func() time.Time
-	mailer          func() RegistrationMailer
+	mailer          email.Mailer
 	loadInlineImage func(string) ([]byte, string, error)
-}
-
-type RegistrationMailer interface {
-	Send(ctx context.Context, to string, subject string, body string) error
-	SendWithInlineImage(ctx context.Context, to string, subject string, body string, image []byte, contentType string) error
 }
 
 type registrationRepository interface {
@@ -136,37 +133,38 @@ type ListRegistrationsResult struct {
 }
 
 type RegistrationDetail struct {
-	ID            uint64                     `json:"id"`
-	FormID        uint64                     `json:"formId"`
-	FormTitle     string                     `json:"formTitle"`
-	ContactName   *string                    `json:"contactName,omitempty"`
-	ContactPhone  *string                    `json:"contactPhone,omitempty"`
-	ContactEmail  *string                    `json:"contactEmail,omitempty"`
-	Group1        *RegistrationGroupRef      `json:"group1,omitempty"`
-	Group1Status  uint8                      `json:"group1Status"`
-	Group2        *RegistrationGroupRef      `json:"group2,omitempty"`
-	Group2Status  uint8                      `json:"group2Status"`
-	Status        uint8                      `json:"status"`
-	Interviews    []RegistrationInterviewRef `json:"interviews"`
-	FinalGroup    *RegistrationGroupRef      `json:"finalGroup,omitempty"`
-	FinalStatus   uint8                      `json:"finalStatus"`
-	FinalizedAt   *time.Time                 `json:"finalizedAt,omitempty"`
-	Finalizer     *RegistrationReviewerRef   `json:"finalizer,omitempty"`
-	CanInterview1 bool                       `json:"canInterview1"`
-	CanInterview2 bool                       `json:"canInterview2"`
-	Reviewer1     *RegistrationReviewerRef   `json:"reviewer1,omitempty"`
-	ReviewedAt1   *time.Time                 `json:"reviewedAt1,omitempty"`
-	ReviewRemark1 *string                    `json:"reviewRemark1,omitempty"`
-	Reviewer2     *RegistrationReviewerRef   `json:"reviewer2,omitempty"`
-	ReviewedAt2   *time.Time                 `json:"reviewedAt2,omitempty"`
-	ReviewRemark2 *string                    `json:"reviewRemark2,omitempty"`
-	CanApprove    bool                       `json:"canApprove"`
-	CanReject     bool                       `json:"canReject"`
-	CanUndo       bool                       `json:"canUndo"`
-	SubmittedAt   time.Time                  `json:"submittedAt"`
-	UpdatedAt     time.Time                  `json:"updatedAt"`
-	FieldsSchema  []model.FormField          `json:"fieldsSchema"`
-	FormData      map[string]any             `json:"formData"`
+	NotificationWarning string                     `json:"notificationWarning,omitempty"`
+	ID                  uint64                     `json:"id"`
+	FormID              uint64                     `json:"formId"`
+	FormTitle           string                     `json:"formTitle"`
+	ContactName         *string                    `json:"contactName,omitempty"`
+	ContactPhone        *string                    `json:"contactPhone,omitempty"`
+	ContactEmail        *string                    `json:"contactEmail,omitempty"`
+	Group1              *RegistrationGroupRef      `json:"group1,omitempty"`
+	Group1Status        uint8                      `json:"group1Status"`
+	Group2              *RegistrationGroupRef      `json:"group2,omitempty"`
+	Group2Status        uint8                      `json:"group2Status"`
+	Status              uint8                      `json:"status"`
+	Interviews          []RegistrationInterviewRef `json:"interviews"`
+	FinalGroup          *RegistrationGroupRef      `json:"finalGroup,omitempty"`
+	FinalStatus         uint8                      `json:"finalStatus"`
+	FinalizedAt         *time.Time                 `json:"finalizedAt,omitempty"`
+	Finalizer           *RegistrationReviewerRef   `json:"finalizer,omitempty"`
+	CanInterview1       bool                       `json:"canInterview1"`
+	CanInterview2       bool                       `json:"canInterview2"`
+	Reviewer1           *RegistrationReviewerRef   `json:"reviewer1,omitempty"`
+	ReviewedAt1         *time.Time                 `json:"reviewedAt1,omitempty"`
+	ReviewRemark1       *string                    `json:"reviewRemark1,omitempty"`
+	Reviewer2           *RegistrationReviewerRef   `json:"reviewer2,omitempty"`
+	ReviewedAt2         *time.Time                 `json:"reviewedAt2,omitempty"`
+	ReviewRemark2       *string                    `json:"reviewRemark2,omitempty"`
+	CanApprove          bool                       `json:"canApprove"`
+	CanReject           bool                       `json:"canReject"`
+	CanUndo             bool                       `json:"canUndo"`
+	SubmittedAt         time.Time                  `json:"submittedAt"`
+	UpdatedAt           time.Time                  `json:"updatedAt"`
+	FieldsSchema        []model.FormField          `json:"fieldsSchema"`
+	FormData            map[string]any             `json:"formData"`
 }
 
 type RegistrationFileResult struct {
@@ -222,7 +220,7 @@ func NewRegistrationService(db *gorm.DB) *RegistrationService {
 	}
 }
 
-func NewRegistrationServiceWithMailer(db *gorm.DB, mailer func() RegistrationMailer) *RegistrationService {
+func NewRegistrationServiceWithMailer(db *gorm.DB, mailer email.Mailer) *RegistrationService {
 	service := NewRegistrationService(db)
 	service.mailer = mailer
 	return service
@@ -679,23 +677,26 @@ func (s *RegistrationService) UpdateRegistrationInterview(ctx context.Context, a
 	}); err != nil {
 		return nil, err
 	}
+	detail, err := s.GetRegistration(ctx, actor, registrationID)
+	if err != nil {
+		return nil, err
+	}
 	if notification != nil && s.mailer != nil {
-		mailer := s.mailer()
-		var sendErr error
+		message := email.Message{To: notification.To, Subject: notification.Subject, Text: notification.Body}
 		if notification.InlineImageURL != nil {
 			image, contentType, err := s.loadInlineImage(*notification.InlineImageURL)
 			if err != nil {
-				return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "面试结果已保存，但录取群图片读取失败", Err: err}
+				log.Print("admission notification failed: inline image unavailable")
+				detail.NotificationWarning = "面试结果已保存，但录取群图片读取失败，请检查图片后重新发送通知。"
+				return detail, nil
 			}
-			sendErr = mailer.SendWithInlineImage(ctx, notification.To, notification.Subject, notification.Body, image, contentType)
-		} else {
-			sendErr = mailer.Send(ctx, notification.To, notification.Subject, notification.Body)
+			message.InlineImage, message.InlineImageType = image, contentType
 		}
-		if sendErr != nil {
-			return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "面试结果已保存，但通知邮件发送失败", Err: sendErr}
+		if err := s.mailer.SendEmail(ctx, message); err != nil {
+			detail.NotificationWarning = "面试结果已保存，但通知邮件发送失败：" + err.Error()
 		}
 	}
-	return s.GetRegistration(ctx, actor, registrationID)
+	return detail, nil
 }
 
 type interviewNotification struct {

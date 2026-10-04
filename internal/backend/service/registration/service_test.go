@@ -9,7 +9,9 @@ import (
 
 	"gorm.io/gorm"
 
+	"errors"
 	"tarsgo-backend/model"
+	"tarsgo-backend/service/email"
 )
 
 func TestBuildInterviewNotificationUsesRequestedTemplates(t *testing.T) {
@@ -52,17 +54,10 @@ type fakeInterviewMailer struct {
 	err         error
 }
 
-func (m *fakeInterviewMailer) Send(_ context.Context, to string, subject string, body string) error {
-	m.to, m.subject, m.body = to, subject, body
-	m.image = nil
-	m.contentType = ""
-	return m.err
-}
-
-func (m *fakeInterviewMailer) SendWithInlineImage(_ context.Context, to string, subject string, body string, image []byte, contentType string) error {
-	m.to, m.subject, m.body = to, subject, body
-	m.image = append([]byte(nil), image...)
-	m.contentType = contentType
+func (m *fakeInterviewMailer) SendEmail(_ context.Context, message email.Message) error {
+	m.to, m.subject, m.body = message.To, message.Subject, message.Text
+	m.image = append([]byte(nil), message.InlineImage...)
+	m.contentType = message.InlineImageType
 	return m.err
 }
 
@@ -73,7 +68,7 @@ func TestRegistrationServiceInterviewSendsPassedAndFailedNotifications(t *testin
 	repo.registration.Group2Status = model.RegistrationStatusApproved
 	mailer := &fakeInterviewMailer{}
 	service := newRegistrationServiceWithDependencies(repo, nil)
-	service.mailer = func() RegistrationMailer { return mailer }
+	service.mailer = mailer
 	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGlobal}
 
 	if _, err := service.UpdateRegistrationInterview(context.Background(), actor, repo.registration.ID, UpdateInterviewInput{GroupID: *repo.registration.Group1ID, Status: "passed"}); err != nil {
@@ -102,7 +97,7 @@ func TestRegistrationServiceAdmissionEmbedsConfiguredImageButFailedResultDoesNot
 
 	mailer := &fakeInterviewMailer{}
 	service := newRegistrationServiceWithDependencies(repo, nil)
-	service.mailer = func() RegistrationMailer { return mailer }
+	service.mailer = mailer
 	service.loadInlineImage = func(rawURL string) ([]byte, string, error) {
 		if rawURL != imageURL {
 			t.Fatalf("unexpected image URL: %q", rawURL)
@@ -1554,5 +1549,25 @@ func assertRemovedMemberships(t *testing.T, actual []fakeAddedMembership, expect
 		if _, ok := expectedSet[item]; !ok {
 			t.Fatalf("unexpected removed membership: group=%d user=%d", item.GroupID, item.UserID)
 		}
+	}
+}
+
+func TestInterviewNotificationFailurePreservesAdmission(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	repo.registration.User = model.User{ID: repo.registration.UserID, Name: "张三", Email: "zhangsan@example.com"}
+	repo.registration.Group1Status = model.RegistrationStatusApproved
+	repo.registration.Group2Status = model.RegistrationStatusApproved
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	service.mailer = &fakeInterviewMailer{err: errors.New("邮件服务额度受限")}
+	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGlobal}
+	detail, err := service.UpdateRegistrationInterview(context.Background(), actor, repo.registration.ID, UpdateInterviewInput{GroupID: *repo.registration.Group1ID, Status: "passed"})
+	if err != nil {
+		t.Fatalf("saved admission must succeed: %v", err)
+	}
+	if detail.FinalStatus != model.RegistrationFinalStatusAdmitted || repo.registration.FinalStatus != model.RegistrationFinalStatusAdmitted {
+		t.Fatal("admission was lost after email failure")
+	}
+	if !strings.Contains(detail.NotificationWarning, "面试结果已保存") || !strings.Contains(detail.NotificationWarning, "邮件服务额度受限") {
+		t.Fatal("missing administrator warning")
 	}
 }

@@ -16,10 +16,11 @@
 | --- | --- |
 | `cmd/server/main.go` | Web 服务入口，负责加载配置、连接数据库并启动 Gin；是否自动迁移由 `APP_AUTO_MIGRATE` 控制 |
 | `cmd/migrate/main.go` | 独立迁移入口，供生产发布在切换 Web 进程前执行一次 |
-| `config/config.go` | 环境变量读取与配置组装，包含数据库、JWT、SMTP、GitHub OAuth 配置 |
+| `config/config.go` | 环境变量读取与配置组装，包含数据库、JWT、邮件发信、GitHub OAuth 配置 |
 | `database/mysql.go` | Gorm MySQL 连接、自动迁移与角色种子数据 |
 | `model/*.go` | 核心数据模型：角色、用户、邮箱验证码、报名表、报名信息 |
-| `service/auth/*.go` | 认证业务逻辑：JWT、验证码、SMTP 发信、GitHub OAuth |
+| `service/email/email.go` | 单一 `SendEmail` 入口，使用服务器环境变量调用 Resend |
+| `service/auth/*.go` | 认证业务逻辑：JWT、验证码、GitHub OAuth |
 | `service/adminuser/*.go` | 后台用户管理业务与仓储 |
 | `service/usergroup/*.go` | 用户组管理业务与仓储 |
 | `service/registration/*.go` | 报名表、报名提交流程、审核与文件存储 |
@@ -157,4 +158,4 @@ APP_AUTO_MIGRATE=false ./dist/tarsgo-backend
 | 用户组配置与组长任命 | — | — | — | — | ✓ |
 | 门户内容 | — | ✓（本组） | ✓（本组） | ✓（全部） | ✓（全部） |
 | 报名表配置 | — | — | — | — | ✓ |
-| SMTP/OAuth 系统配置 | — | — | — | — | ✓ |
+| 邮件测试/OAuth 系统配置 | — | — | — | — | ✓ |

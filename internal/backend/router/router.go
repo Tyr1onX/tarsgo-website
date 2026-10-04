@@ -15,6 +15,7 @@ import (
 	"tarsgo-backend/service/adminuser"
 	"tarsgo-backend/service/auth"
 	"tarsgo-backend/service/dashboard"
+	"tarsgo-backend/service/email"
 	"tarsgo-backend/service/portal"
 	"tarsgo-backend/service/registration"
 	"tarsgo-backend/service/runtimeconfig"
@@ -56,13 +57,11 @@ func New(cfg *config.Config, db *gorm.DB, runtimeStore *runtimeconfig.Store) *gi
 	adminUserHandler := handler.NewAdminUserHandler(adminuser.NewService(adminuser.NewRepository(db)))
 	userGroupHandler := handler.NewUserGroupHandler(usergroup.NewService(usergroup.NewRepository(db)))
 	registrationFormHandler := handler.NewRegistrationFormHandler(registration.NewRegistrationFormService(db))
-	registrationService := registration.NewRegistrationServiceWithMailer(db, func() registration.RegistrationMailer {
-		return auth.NewSMTPMailer(runtimeStore.SMTPConfig())
-	})
+	registrationService := registration.NewRegistrationServiceWithMailer(db, email.NewSender(cfg.Email))
 	registrationHandler := handler.NewRegistrationHandler(registrationService)
 	portalHandler := handler.NewPortalHandler(portal.NewService(portal.NewRepository(db)))
 	dashboardHandler := handler.NewDashboardHandler(dashboard.NewService(dashboard.NewRepository(db)))
-	systemConfigService := systemconfig.NewService(runtimeStore, authService)
+	systemConfigService := systemconfig.NewService(runtimeStore, cfg.Email, authService)
 	systemConfigHandler := handler.NewSystemConfigHandler(systemConfigService, systemConfigService)
 
 	engine.GET("/healthz", healthHandler.Get)
@@ -143,7 +142,6 @@ func New(cfg *config.Config, db *gorm.DB, runtimeStore *runtimeconfig.Store) *gi
 
 	systemConfigAPI := superAdminAPI.Group("/system-config")
 	systemConfigAPI.GET("/email", systemConfigHandler.GetEmailConfig)
-	systemConfigAPI.PUT("/email", systemConfigHandler.UpdateEmailConfig)
 	systemConfigAPI.POST("/email/test", systemConfigHandler.TestEmailConfig)
 	systemConfigAPI.POST("/email/test-code", systemConfigHandler.TestVerificationCodeConfig)
 	systemConfigAPI.POST("/email/register-flow/send-code", systemConfigHandler.SendRegisterFlowCode)

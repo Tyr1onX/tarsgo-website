@@ -7,23 +7,15 @@ import (
 	"strings"
 	"unicode"
 
-	"tarsgo-backend/config"
 	"tarsgo-backend/service/auth"
 )
 
 type registerCodeTester interface {
-	SendRegisterCodeWithSMTPConfig(ctx context.Context, email string, smtpConfig config.SMTPConfig) error
+	SendRegisterCode(ctx context.Context, email string) error
 	VerifyRegisterCode(ctx context.Context, email string, code string) error
 }
 
-type SendRegisterFlowCodeInput struct {
-	Host     string
-	Port     string
-	Username string
-	Password string
-	From     string
-	Email    string
-}
+type SendRegisterFlowCodeInput struct{ Email string }
 
 type VerifyRegisterFlowCodeInput struct {
 	Email string
@@ -40,24 +32,7 @@ func (s *Service) SendRegisterFlowCode(ctx context.Context, input SendRegisterFl
 		return &ServiceError{Status: http.StatusBadRequest, Message: "测试邮箱格式不合法"}
 	}
 
-	current := s.store.SMTPConfig()
-	resolvedPassword := resolveSecretValue(strings.TrimSpace(input.Password), strings.TrimSpace(current.Password))
-	host := strings.TrimSpace(input.Host)
-	port := strings.TrimSpace(input.Port)
-	username := strings.TrimSpace(input.Username)
-	from := strings.TrimSpace(input.From)
-
-	if err := validateEmailSettings(host, port, username, resolvedPassword, from); err != nil {
-		return err
-	}
-
-	if err := s.registerTester.SendRegisterCodeWithSMTPConfig(ctx, email, config.SMTPConfig{
-		Host:     host,
-		Port:     port,
-		Username: username,
-		Password: resolvedPassword,
-		From:     from,
-	}); err != nil {
+	if err := s.registerTester.SendRegisterCode(ctx, email); err != nil {
 		return mapRegisterFlowError(err, "发送注册验证码失败")
 	}
 

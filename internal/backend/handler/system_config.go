@@ -18,7 +18,6 @@ type SystemConfigHandler struct {
 
 type systemConfigService interface {
 	GetEmailConfig(ctx context.Context) (*systemconfig.EmailConfig, error)
-	UpdateEmailConfig(ctx context.Context, input systemconfig.UpdateEmailInput) (*systemconfig.EmailConfig, error)
 	TestEmailConfig(ctx context.Context, input systemconfig.TestEmailInput) error
 	TestVerificationCodeConfig(ctx context.Context, input systemconfig.TestVerificationCodeInput) error
 	GetOAuthConfigs(ctx context.Context) ([]systemconfig.OAuthProviderConfig, error)
@@ -30,30 +29,12 @@ type registerFlowService interface {
 	VerifyRegisterFlowCode(ctx context.Context, input systemconfig.VerifyRegisterFlowCodeInput) error
 }
 
-type updateEmailConfigRequest struct {
-	Host     string `json:"host" binding:"required,max=255"`
-	Port     string `json:"port" binding:"required,max=20"`
-	Username string `json:"username" binding:"required,max=255"`
-	Password string `json:"password" binding:"max=255"`
-	From     string `json:"from" binding:"required,email,max=255"`
-}
-
 type testEmailConfigRequest struct {
-	Host     string `json:"host" binding:"required,max=255"`
-	Port     string `json:"port" binding:"required,max=20"`
-	Username string `json:"username" binding:"required,max=255"`
-	Password string `json:"password" binding:"max=255"`
-	From     string `json:"from" binding:"required,email,max=255"`
-	To       string `json:"to" binding:"required,email,max=255"`
+	To string `json:"to" binding:"required,email,max=255"`
 }
 
 type sendRegisterFlowCodeRequest struct {
-	Host     string `json:"host" binding:"required,max=255"`
-	Port     string `json:"port" binding:"required,max=20"`
-	Username string `json:"username" binding:"required,max=255"`
-	Password string `json:"password" binding:"max=255"`
-	From     string `json:"from" binding:"required,email,max=255"`
-	Email    string `json:"email" binding:"required,email,max=255"`
+	Email string `json:"email" binding:"required,email,max=255"`
 }
 
 type verifyRegisterFlowCodeRequest struct {
@@ -83,28 +64,6 @@ func (h *SystemConfigHandler) GetEmailConfig(c *gin.Context) {
 	writeAPI(c, http.StatusOK, "获取邮件配置成功", result)
 }
 
-func (h *SystemConfigHandler) UpdateEmailConfig(c *gin.Context) {
-	var request updateEmailConfigRequest
-	if err := c.ShouldBindJSON(&request); err != nil {
-		writeAPIError(c, http.StatusBadRequest, "请求参数不合法")
-		return
-	}
-
-	result, err := h.service.UpdateEmailConfig(c.Request.Context(), systemconfig.UpdateEmailInput{
-		Host:     request.Host,
-		Port:     request.Port,
-		Username: request.Username,
-		Password: request.Password,
-		From:     request.From,
-	})
-	if err != nil {
-		h.handleServiceError(c, err)
-		return
-	}
-
-	writeAPI(c, http.StatusOK, "邮件配置已保存并立即生效", result)
-}
-
 func (h *SystemConfigHandler) TestEmailConfig(c *gin.Context) {
 	var request testEmailConfigRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -113,12 +72,7 @@ func (h *SystemConfigHandler) TestEmailConfig(c *gin.Context) {
 	}
 
 	if err := h.service.TestEmailConfig(c.Request.Context(), systemconfig.TestEmailInput{
-		Host:     request.Host,
-		Port:     request.Port,
-		Username: request.Username,
-		Password: request.Password,
-		From:     request.From,
-		To:       request.To,
+		To: request.To,
 	}); err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -135,12 +89,7 @@ func (h *SystemConfigHandler) TestVerificationCodeConfig(c *gin.Context) {
 	}
 
 	if err := h.service.TestVerificationCodeConfig(c.Request.Context(), systemconfig.TestVerificationCodeInput{
-		Host:     request.Host,
-		Port:     request.Port,
-		Username: request.Username,
-		Password: request.Password,
-		From:     request.From,
-		To:       request.To,
+		To: request.To,
 	}); err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -157,12 +106,7 @@ func (h *SystemConfigHandler) SendRegisterFlowCode(c *gin.Context) {
 	}
 
 	if err := h.registerFlow.SendRegisterFlowCode(c.Request.Context(), systemconfig.SendRegisterFlowCodeInput{
-		Host:     request.Host,
-		Port:     request.Port,
-		Username: request.Username,
-		Password: request.Password,
-		From:     request.From,
-		Email:    request.Email,
+		Email: request.Email,
 	}); err != nil {
 		h.handleServiceError(c, err)
 		return

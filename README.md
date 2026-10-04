@@ -21,11 +21,11 @@ make build
 
 ```bash
 cp internal/backend/.env.example internal/backend/.env
-# 按需修改数据库、JWT 和 OAuth/SMTP 配置；生产环境必须替换所有示例密钥
+# 按需修改数据库、JWT 和邮件配置；生产环境必须替换所有示例密钥
 make db-up
 ```
 
-安全提示：仓库文档只保留 OAuth/SMTP 占位符。若旧提交曾包含真实凭据，请先在 GitHub
+安全提示：仓库文档只保留 OAuth/邮件 占位符。若旧提交曾包含真实凭据，请先在 GitHub
 和邮件服务商控制台撤销并重新生成，再清理远端 Git 历史；不要把新凭据写回仓库。
 
 macOS/Linux 需要 Docker Compose v2、Go 1.25+ 和 Node.js/npm。Windows 可继续使用
@@ -79,3 +79,5 @@ APP_AUTO_MIGRATE=false ./dist/tarsgo-backend
 ```
 
 `APP_AUTO_MIGRATE` 在本地开发中默认开启；生产 Web 进程应设为 `false`，避免多个实例并发执行结构或数据迁移。备份脚本需要 `mariadb-dump`、`gzip` 和 `sha256sum`。
+
+邮件通过单一 `SendEmail` 入口使用 Resend API。服务器环境需配置 `RESEND_API_KEY`，`EMAIL_FROM` 默认使用吉甲大师 <noreply@jijiamaster.com>；后台只显示状态和提供测试，不接收或返回 API Key。部署沿用现有 Docker Compose 的 app.env，更新后重建应用容器。套餐额度由服务商处理。

@@ -561,7 +561,7 @@ export default function RegistrationsPage() {
       setReviewingId(registrationId);
       const nextDetail = await updateAdminRegistrationInterview(registrationId, groupId, { status });
       if (detailOpen && activeRegistrationId === registrationId) setDetail(nextDetail);
-      setFlash({ type: "success", message: "面试结果已更新。" });
+      setFlash({ type: nextDetail.notificationWarning ? "error" : "success", message: nextDetail.notificationWarning || "面试结果已更新。" });
     } catch (error) { handlePageError(error, navigate, setFlash); } finally { setReviewingId(null); }
   }
 

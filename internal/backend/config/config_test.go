@@ -73,13 +73,8 @@ func TestFrontendRouteUsesConfiguredFrontendURL(t *testing.T) {
 	}
 }
 
-func TestLoadIgnoresSMTPAndOAuthEnvironment(t *testing.T) {
+func TestLoadIgnoresOAuthEnvironment(t *testing.T) {
 	setRequiredConfigEnvironment(t)
-	t.Setenv("SMTP_HOST", "smtp.example.com")
-	t.Setenv("SMTP_PORT", "2525")
-	t.Setenv("SMTP_USERNAME", "mailer")
-	t.Setenv("SMTP_PASSWORD", "mailer-secret")
-	t.Setenv("SMTP_FROM", "noreply@example.com")
 	t.Setenv("GITHUB_ENABLED", "true")
 	t.Setenv("GITHUB_CLIENT_ID", "github-client-id")
 	t.Setenv("GITHUB_CLIENT_SECRET", "github-client-secret")
@@ -103,12 +98,6 @@ func TestLoadIgnoresSMTPAndOAuthEnvironment(t *testing.T) {
 		t.Fatalf("Load returned error: %v", err)
 	}
 
-	if cfg.SMTP.Host != "" || cfg.SMTP.Username != "" || cfg.SMTP.Password != "" || cfg.SMTP.From != "" {
-		t.Fatalf("expected SMTP config to ignore environment values, got %#v", cfg.SMTP)
-	}
-	if cfg.SMTP.Port != "465" {
-		t.Fatalf("expected SMTP port default 465, got %q", cfg.SMTP.Port)
-	}
 	if cfg.GitHub.Enabled || cfg.GitHub.ClientID != "" || cfg.GitHub.ClientSecret != "" || cfg.GitHub.CallbackURL != "" {
 		t.Fatalf("expected GitHub login config to ignore environment values, got %#v", cfg.GitHub)
 	}
@@ -131,5 +120,18 @@ func TestLoadIgnoresSMTPAndOAuthEnvironment(t *testing.T) {
 		cfg.Google.TokenURL != "https://oauth2.googleapis.com/token" ||
 		cfg.Google.UserURL != "https://openidconnect.googleapis.com/v1/userinfo" {
 		t.Fatalf("expected Google provider endpoints to ignore environment values, got %#v", cfg.Google)
+	}
+}
+
+func TestEmailConfigLoadsServerEnvironment(t *testing.T) {
+	setRequiredConfigEnvironment(t)
+	t.Setenv("RESEND_API_KEY", "test-key")
+	t.Setenv("EMAIL_FROM", "吉甲大师 <noreply@jijiamaster.com>")
+	cfg, err := Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Email.APIKey != "test-key" || cfg.Email.From != "吉甲大师 <noreply@jijiamaster.com>" {
+		t.Fatal("email environment not loaded")
 	}
 }
