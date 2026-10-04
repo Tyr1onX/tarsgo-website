@@ -175,6 +175,7 @@ function SidebarItem({
                 <NavLink
                   key={child.href}
                   to={child.href}
+                  prefetch="intent"
                   onClick={onNavigate}
                   tabIndex={expanded ? 0 : -1}
                   className={({ isActive }) =>
@@ -199,6 +200,7 @@ function SidebarItem({
     <NavLink
       to={item.href}
       end
+      prefetch="intent"
       onClick={onNavigate}
       className={({ isActive }) =>
         `flex min-w-0 items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors ${
