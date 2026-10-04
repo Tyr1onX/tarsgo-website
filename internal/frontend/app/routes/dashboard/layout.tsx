@@ -24,6 +24,7 @@ const SUPER_ADMIN_SETUP_PATH = "/dashboard/setup/super-admin";
 const SIDEBAR_DEFAULT_WIDTH = 200;
 const SIDEBAR_MIN_WIDTH = 160;
 const SIDEBAR_MAX_WIDTH = 420;
+const HIGH_PRIORITY_RENDER_PREFETCH_KEYS = new Set(["admin-panel", "portal-content"]);
 
 function getSidebarMaxWidth(viewportWidth: number) {
   return Math.max(SIDEBAR_DEFAULT_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, Math.floor(viewportWidth * 0.4)));
@@ -175,7 +176,7 @@ function SidebarItem({
                 <NavLink
                   key={child.href}
                   to={child.href}
-                  prefetch="intent"
+                  prefetch={expanded ? "render" : "intent"}
                   onClick={onNavigate}
                   tabIndex={expanded ? 0 : -1}
                   className={({ isActive }) =>
@@ -200,7 +201,7 @@ function SidebarItem({
     <NavLink
       to={item.href}
       end
-      prefetch="intent"
+      prefetch={HIGH_PRIORITY_RENDER_PREFETCH_KEYS.has(item.key) ? "render" : "intent"}
       onClick={onNavigate}
       className={({ isActive }) =>
         `flex min-w-0 items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors ${
