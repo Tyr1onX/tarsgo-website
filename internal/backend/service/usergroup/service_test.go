@@ -71,6 +71,30 @@ func TestServiceAddMember_NonDefaultGroupRemovesDefaultMembership(t *testing.T) 
 	}
 }
 
+func TestServiceUpdateMemberRoleDoesNotChangeSystemRole(t *testing.T) {
+	repo := newFakeRepository()
+	service := NewService(repo)
+
+	beforeRole := repo.users[3].Role.Name
+	beforeScope := repo.users[3].AdminScope
+	updated, err := service.UpdateMember(
+		context.Background(),
+		Actor{ID: 1, RoleName: model.RoleNameSuperAdmin},
+		1,
+		1,
+		UpdateMemberInput{Role: model.UserGroupMemberRoleGroupAdmin},
+	)
+	if err != nil {
+		t.Fatalf("UpdateMember returned error: %v", err)
+	}
+	if updated.Role != model.UserGroupMemberRoleGroupAdmin {
+		t.Fatalf("expected group role to change, got %d", updated.Role)
+	}
+	if repo.users[3].Role.Name != beforeRole || repo.users[3].AdminScope != beforeScope {
+		t.Fatalf("group role change must not change system role/scope: role=%q scope=%q", repo.users[3].Role.Name, repo.users[3].AdminScope)
+	}
+}
+
 func TestServiceDeleteGroup_RejectsNonEmptyGroup(t *testing.T) {
 	repo := newFakeRepository()
 	service := NewService(repo)

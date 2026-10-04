@@ -73,11 +73,6 @@ func seedDevelopmentMockData(db *gorm.DB, appEnv string) error {
 				if err := ensureMockMembership(tx, group.ID, user.ID, userSeed.MemberRole); err != nil {
 					return err
 				}
-				if userSeed.MemberRole == model.UserGroupMemberRoleLeader || userSeed.MemberRole == model.UserGroupMemberRoleGroupAdmin {
-					if err := tx.Model(&model.User{}).Where("id = ?", user.ID).Updates(map[string]any{"role_id": adminRole.ID, "admin_scope": model.AdminScopeGroup, "management_group_id": group.ID}).Error; err != nil {
-						return fmt.Errorf("promote mock group manager: %w", err)
-					}
-				}
 				users[normalizeSeedEmail(userSeed.Email)] = user
 			}
 		}

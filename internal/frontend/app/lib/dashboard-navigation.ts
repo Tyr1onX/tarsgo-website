@@ -146,15 +146,14 @@ function isDashboardMenuLinkDefinition(
   return typeof item.href === "string";
 }
 
-function getAccessibleAdminPaths(roleName: string, user?: AuthUser) {
-	const canUseAdmin = !user || user.role.name === "super_admin" || (user.role.name === "admin" && user.adminScope !== "none" && (user.adminScope === "global" || Boolean(user.managementGroupId)));
-	return ADMIN_MENU.flatMap((item) => {
-		if (isDashboardMenuLinkDefinition(item)) {
-			return canUseAdmin && isRoleAllowed(roleName, item.allowedRoles) && (!user || item.key !== "portal-content" || user.capabilities.canManagePortal) ? [item.href] : [];
-		}
+function getAccessibleAdminPaths(roleName: string, _user?: AuthUser) {
+  return ADMIN_MENU.flatMap((item) => {
+    if (isDashboardMenuLinkDefinition(item)) {
+      return isRoleAllowed(roleName, item.allowedRoles) ? [item.href] : [];
+    }
 
-		return item.children
-			.filter((child) => canUseAdmin && isRoleAllowed(roleName, child.allowedRoles) && (!user || child.key !== "users" || user.role.name === "super_admin" || user.adminScope === "global" || (user.adminScope === "group" && (user.groupRole === "leader" || user.groupRole === "group_admin"))) && (!user || child.key !== "registrations" || user.capabilities.canReviewRegistrations))
+    return item.children
+      .filter((child) => isRoleAllowed(roleName, child.allowedRoles))
       .map((child) => child.href);
   });
 }

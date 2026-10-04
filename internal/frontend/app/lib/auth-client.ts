@@ -43,23 +43,14 @@ export interface AuthUser {
   portal?: AuthUserPortal | null;
 }
 
-export function getAuthUserRoleLabel(user: Pick<AuthUser, "role" | "adminScope" | "groupRole">): string {
+export function getAuthUserRoleLabel(user: Pick<AuthUser, "role">): string {
   if (user.role.name === "super_admin") {
     return "超级管理员";
   }
-  if (user.role.name === "user") {
-    return "组员";
+  if (user.role.name === "admin") {
+    return "管理员";
   }
-  if (user.adminScope === "global") {
-    return "全局管理员";
-  }
-  if (user.adminScope === "group" && user.groupRole === "leader") {
-    return "组长";
-  }
-  if (user.adminScope === "group" && user.groupRole === "group_admin") {
-    return "组内管理";
-  }
-  return user.role.displayName;
+  return "成员";
 }
 
 export interface BootstrapStatus {

@@ -16,7 +16,6 @@ import {
   type AnnouncementStatus,
   type PortalAnnouncement,
   type PortalAudienceType,
-  listManagedPortalGroups,
 } from "~/lib/portal-client";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { PortalEventManager } from "./portal-event-manager";
@@ -68,7 +67,7 @@ export default function PortalContentPage() {
   const [searchParams] = useSearchParams();
   const rawTab = searchParams.get("tab");
   const isSuperAdmin = currentUser.role.name === "super_admin";
-  const hasGlobalPortalAccess = isSuperAdmin || (currentUser.role.name === "admin" && currentUser.adminScope === "global");
+  const hasGlobalPortalAccess = isSuperAdmin || currentUser.role.name === "admin";
   const tab: TabKey = rawTab === "events" || rawTab === "links" ? rawTab : "announcements";
   const [items, setItems] = useState<PortalAnnouncement[]>([]);
   const [groups, setGroups] = useState<AdminUserGroupListItem[]>([]);
@@ -103,9 +102,7 @@ export default function PortalContentPage() {
     try {
       const groupItems = isSuperAdmin
         ? await listAdminUserGroups({ status: 1 }).then((result) => result.items)
-        : hasGlobalPortalAccess
-          ? await listAdminUserGroupOptions().then((items) => items.filter((item) => item.status === 1).map((item) => ({ id: item.id, name: item.name, status: item.status } as AdminUserGroupListItem)))
-          : await listManagedPortalGroups();
+        : await listAdminUserGroupOptions().then((items) => items.filter((item) => item.status === 1).map((item) => ({ id: item.id, name: item.name, status: item.status } as AdminUserGroupListItem)));
       setGroups(groupItems);
     } catch (error) {
       setFlash({ type: "error", message: error instanceof ApiError ? error.message : "加载门户内容失败" });
@@ -114,11 +111,11 @@ export default function PortalContentPage() {
 
   useEffect(() => {
     void loadAnnouncements();
-  }, [filter, currentUser.id, currentUser.managementGroupId, hasGlobalPortalAccess, isSuperAdmin]);
+  }, [filter, currentUser.id]);
 
   useEffect(() => {
     void loadGroups();
-  }, [currentUser.id, currentUser.managementGroupId, hasGlobalPortalAccess, isSuperAdmin]);
+  }, [currentUser.id, isSuperAdmin]);
 
   const selectedGroups = useMemo(() => new Set(form.targetGroupIds), [form.targetGroupIds]);
 
@@ -179,7 +176,7 @@ export default function PortalContentPage() {
           </button>
         ))}
       </div>
-      {tab === "events" ? <PortalEventManager groups={groups} managedOnly={!hasGlobalPortalAccess} notify={(type, message) => setFlash({ type, message })} /> : tab === "links" ? <PortalLinkManager groups={groups} managedOnly={!hasGlobalPortalAccess} notify={(type, message) => setFlash({ type, message })} /> : (
+      {tab === "events" ? <PortalEventManager groups={groups} managedOnly={false} notify={(type, message) => setFlash({ type, message })} /> : tab === "links" ? <PortalLinkManager groups={groups} managedOnly={false} notify={(type, message) => setFlash({ type, message })} /> : (
         <div className="space-y-4">
           <div className="flex items-center justify-between gap-4"><div className="w-48"><AnimatedSelect value={filter} onChange={setFilter} options={statusOptions} size="compact" /></div><button type="button" onClick={openCreate} className="btn-gradient rounded-xl px-4 py-2 text-sm font-medium text-white">新建公告</button></div>
           <div className="overflow-hidden glass-panel rounded-2xl">

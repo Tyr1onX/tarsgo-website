@@ -220,7 +220,7 @@ func (s *Service) GetHome(ctx context.Context, actor Actor) (*HomeData, error) {
 		return nil, &ServiceError{Status: http.StatusUnauthorized, Message: "未登录"}
 	}
 	now := s.now()
-	allGroups := actor.RoleName == model.RoleNameSuperAdmin || (actor.RoleName == model.RoleNameAdmin && actor.AdminScope == model.AdminScopeGlobal)
+	allGroups := actor.RoleName == model.RoleNameSuperAdmin || actor.RoleName == model.RoleNameAdmin
 	announcementLimit := 3
 	eventLimit := 50
 	if allGroups {
@@ -337,27 +337,14 @@ func requireSuperAdmin(actor Actor) error {
 	return nil
 }
 
-func (s *Service) portalScope(ctx context.Context, actor Actor) ([]uint64, bool, error) {
+func (s *Service) portalScope(_ context.Context, actor Actor) ([]uint64, bool, error) {
 	if actor.ID == 0 {
 		return nil, false, &ServiceError{Status: http.StatusUnauthorized, Message: "未登录"}
 	}
-	if actor.RoleName == model.RoleNameSuperAdmin || (actor.RoleName == model.RoleNameAdmin && actor.AdminScope == model.AdminScopeGlobal) {
+	if actor.RoleName == model.RoleNameSuperAdmin || actor.RoleName == model.RoleNameAdmin {
 		return nil, true, nil
 	}
-	if actor.RoleName == model.RoleNameAdmin && actor.AdminScope == "" {
-		groupIDs, err := s.repo.ListLeaderGroupIDs(ctx, actor.ID)
-		if err != nil {
-			return nil, false, internalError("加载组长负责用户组失败", err)
-		}
-		if len(groupIDs) == 0 {
-			return nil, false, forbidden("当前账号不是任何用户组组长")
-		}
-		return groupIDs, false, nil
-	}
-	if actor.RoleName != model.RoleNameAdmin || actor.AdminScope != model.AdminScopeGroup || actor.ManagementGroupID == nil || (actor.GroupRole != "leader" && actor.GroupRole != "group_admin") {
-		return nil, false, forbidden("仅超级管理员或组长可以维护公告和日程")
-	}
-	return []uint64{*actor.ManagementGroupID}, false, nil
+	return nil, false, forbidden("当前账号无管理员权限")
 }
 
 func (s *Service) ListManagedGroups(ctx context.Context, actor Actor) ([]ManagedGroupItem, error) {

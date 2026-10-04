@@ -24,8 +24,6 @@ import { Notify } from "~/components/notify";
 import {
   type AdminUserGroupOption,
   listAdminUserGroupOptions,
-  updateAdminUserGroupMember,
-  updateManagedGroupMember,
 } from "~/lib/admin-user-groups-client";
 import {
   createAdminUser,
@@ -58,7 +56,6 @@ type FlashState =
 
 type UserFormState = {
   roleId: string;
-  accountRole: "member" | "group_admin" | "leader" | "global";
   name: string;
   email: string;
   nickname: string;
@@ -84,7 +81,6 @@ const defaultQuery: ListAdminUsersInput = {
 
 const defaultUserFormState: UserFormState = {
   roleId: "",
-  accountRole: "member",
   name: "",
   email: "",
   nickname: "",
@@ -110,10 +106,8 @@ const statusOptions = [
 
 const userRoleFilterOptions = [
   { value: "", label: "全部角色" },
-  { value: "member", label: "组员" },
-  { value: "group_admin", label: "组内管理" },
-  { value: "leader", label: "组长" },
-  { value: "global", label: "全局管理员" },
+  { value: "user", label: "成员" },
+  { value: "admin", label: "管理员" },
   { value: "super_admin", label: "超级管理员" },
 ];
 
@@ -176,14 +170,10 @@ function getRoleMeta(roleName: string) {
   return "text-cyan-200 bg-cyan-500/10 border border-cyan-500/20";
 }
 
-function getAccountRoleLabel(user: Pick<AdminUserListItem, "role" | "adminScope" | "groups"> | Pick<AdminUserDetail, "role" | "adminScope" | "groups">) {
+function getAccountRoleLabel(user: Pick<AdminUserListItem, "role"> | Pick<AdminUserDetail, "role">) {
   if (user.role.name === "super_admin") return "超级管理员";
-  if (user.role.name === "user") return "组员";
-  if (user.adminScope === "global") return "全局管理员";
-  const managedRole = (user.groups ?? []).find((group) => group.memberRole === 2 || group.memberRole === 1)?.memberRole;
-  if (managedRole === 2) return "组长";
-  if (managedRole === 1) return "组内管理";
-  return user.role.displayName;
+  if (user.role.name === "admin") return "管理员";
+  return "成员";
 }
 
 function getAuthMethodLabel(user: Pick<AdminUserListItem, "authMethods"> | Pick<AdminUserDetail, "authMethods">) {
@@ -204,10 +194,6 @@ function getReadonlyReason(roleName: string, actorRoleName: string) {
   return "";
 }
 
-function isInManagedGroup(user: Pick<AdminUserListItem, "groups"> | Pick<AdminUserDetail, "groups">, groupId?: number | null) {
-  return groupId != null && (user.groups ?? []).some((group) => group.id === groupId && (group.memberRole === 0 || group.memberRole === 1));
-}
-
 function getGroupMemberRoleLabel(role: number) {
   return role === 2 ? "组长" : role === 1 ? "组内管理" : "组员";
 }
@@ -220,10 +206,8 @@ function getGroupBadgeClass(status?: number) {
 }
 
 function toUserFormState(detail: AdminUserDetail): UserFormState {
-  const managedMembership = (detail.groups ?? []).find((group) => group.memberRole === 1 || group.memberRole === 2);
   return {
     roleId: String(detail.role.id),
-    accountRole: detail.adminScope === "global" ? "global" : managedMembership?.memberRole === 2 ? "leader" : managedMembership?.memberRole === 1 ? "group_admin" : "member",
     name: detail.name,
     email: detail.email,
     nickname: detail.nickname ?? "",
@@ -234,14 +218,6 @@ function toUserFormState(detail: AdminUserDetail): UserFormState {
     birthday: detail.birthday ?? "",
     status: String(detail.status),
   };
-}
-
-function getAccountRoleKey(user: AdminUserDetail): UserFormState["accountRole"] {
-  if (user.adminScope === "global") return "global";
-  const membership = (user.groups ?? []).find((group) => group.memberRole === 1 || group.memberRole === 2);
-  if (membership?.memberRole === 2) return "leader";
-  if (membership?.memberRole === 1) return "group_admin";
-  return "member";
 }
 
 function buildUpdatePayload(form: UserFormState) {
@@ -271,10 +247,8 @@ export default function Users() {
   const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
 
   const actorRoleName = currentUser.role.name;
-  const isGroupLeader = actorRoleName === "admin" && currentUser.adminScope === "group" && currentUser.groupRole === "leader";
-  const isGroupAdmin = actorRoleName === "admin" && currentUser.adminScope === "group" && currentUser.groupRole === "group_admin";
-  const canManageUserDirectory = actorRoleName === "super_admin" || (actorRoleName === "admin" && currentUser.adminScope === "global");
-  const canViewUserDirectory = canManageUserDirectory || isGroupLeader || isGroupAdmin;
+  const canManageUserDirectory = actorRoleName === "super_admin" || actorRoleName === "admin";
+  const canViewUserDirectory = canManageUserDirectory;
 
   const [query, setQuery] = useState<ListAdminUsersInput>(defaultQuery);
   const [filters, setFilters] = useState<ListAdminUsersInput>(defaultQuery);
@@ -326,37 +300,16 @@ export default function Users() {
     [roles],
   );
   const defaultCreateRoleId = editableRoleOptions[0] ? String(editableRoleOptions[0].id) : "";
-  const accountRoleOptions = useMemo(() => {
-    const canSetGroupRole = actorRoleName === "super_admin" || isGroupLeader;
-    const canSetGlobalRole = actorRoleName === "super_admin";
-    const member = selectedUser?.groups?.find((group) => group.id === currentUser.managementGroupId) ??
-      (actorRoleName === "super_admin" ? selectedUser?.groups?.find((group) => group.memberRole === 0 || group.memberRole === 1 || group.memberRole === 2) : undefined);
-    return [
-      { value: "member", label: "组员", disabled: !canSetGroupRole || !member },
-      { value: "group_admin", label: "组内管理", disabled: !canSetGroupRole || !member },
-      { value: "leader", label: "组长", disabled: actorRoleName !== "super_admin" || !member },
-      { value: "global", label: "全局管理", disabled: !canSetGlobalRole },
-    ];
-  }, [actorRoleName, currentUser.managementGroupId, isGroupLeader, selectedUser]);
-
   const selectedReadonlyReason = useMemo(() => {
     if (!selectedUser) {
       return "";
     }
-    const baseReason = getReadonlyReason(selectedUser.role.name, actorRoleName);
-    if (baseReason) return baseReason;
-    if (actorRoleName === "super_admin") return "";
-    if (actorRoleName === "admin" && currentUser.adminScope === "global") {
-      return selectedUser.role.name === "super_admin" ? "超级管理员账号只允许查看，不允许修改。" : "";
-    }
-    if (isGroupLeader && selectedUser.adminScope === "global") return "组长不能修改全局管理员账号。";
-    if (isGroupLeader && isInManagedGroup(selectedUser, currentUser.managementGroupId)) return "";
-    return "当前账号无权编辑该用户资料。";
-  }, [actorRoleName, currentUser, isGroupLeader, selectedUser]);
+    return getReadonlyReason(selectedUser.role.name, actorRoleName);
+  }, [actorRoleName, selectedUser]);
   const selectedCanMutate = canViewUserDirectory && selectedReadonlyReason === "";
   const selectedCanEditIdentity = actorRoleName === "super_admin";
   const selectedCanEditStatus = actorRoleName === "super_admin" ||
-    (actorRoleName === "admin" && currentUser.adminScope === "global" && selectedUser?.role.name === "user");
+    (actorRoleName === "admin" && selectedUser?.role.name === "user");
 
   useEffect(() => {
     if (!canViewUserDirectory) {
@@ -667,46 +620,11 @@ export default function Users() {
 
     try {
       setSavingEdit(true);
-      const currentAccountRole = getAccountRoleKey(selectedUser);
-      let updated: AdminUserDetail;
-      if (editForm.accountRole === "global" && currentAccountRole !== "global") {
-        const groupMembership = (selectedUser.groups ?? []).find((group) => group.memberRole === 1 || group.memberRole === 2);
-        if (groupMembership) {
-          await updateAdminUserGroupMember(groupMembership.id, groupMembership.memberId, { role: 0 });
-        }
-        const adminRole = roles.find((role) => role.name === "admin");
-        if (!adminRole) throw new Error("管理员角色不可用");
-        updated = await updateAdminUser(selectedUser.id, {
-          ...buildUpdatePayload(editForm),
-          roleId: adminRole.id,
-          adminScope: "global",
-          managementGroupId: null,
-        });
-      } else if (editForm.accountRole === "global" || editForm.accountRole === currentAccountRole) {
-        updated = await updateAdminUser(selectedUser.id, {
-          ...buildUpdatePayload(editForm),
-          roleId: selectedUser.role.id,
-          adminScope: selectedUser.adminScope,
-          managementGroupId: selectedUser.managementGroupId,
-        });
-      } else {
-        const membership = (selectedUser.groups ?? []).find((group) => group.id === currentUser.managementGroupId) ??
-          (selectedUser.groups ?? []).find((group) => group.memberRole === 0 || group.memberRole === 1 || group.memberRole === 2);
-        if (!membership) throw new Error("该用户没有可调整的组成员关系");
-        const nextRole = editForm.accountRole === "leader" ? 2 : editForm.accountRole === "group_admin" ? 1 : 0;
-        await updateAdminUser(selectedUser.id, {
-          ...buildUpdatePayload(editForm),
-          roleId: selectedUser.role.id,
-          adminScope: selectedUser.adminScope,
-          managementGroupId: selectedUser.managementGroupId,
-        });
-        if (actorRoleName === "super_admin") {
-          await updateAdminUserGroupMember(membership.id, membership.memberId, { role: nextRole });
-        } else {
-          await updateManagedGroupMember(membership.memberId, { role: nextRole });
-        }
-        updated = await getAdminUser(selectedUser.id);
-      }
+      const updated = await updateAdminUser(selectedUser.id, {
+        ...buildUpdatePayload(editForm),
+        adminScope: selectedUser.adminScope,
+        managementGroupId: selectedUser.managementGroupId,
+      });
       setSelectedUser(updated);
       setEditForm(toUserFormState(updated));
       setFlash({ type: "success", message: `已更新账号：${updated.email}` });
@@ -840,7 +758,7 @@ export default function Users() {
           <Icon icon={searchIcon} className="h-4 w-4 text-fg-dim" />
           <span className="text-xs font-medium uppercase tracking-wider text-fg-dim">筛选条件</span>
         </div>
-        <div className={`grid gap-4 ${isGroupLeader ? "xl:grid-cols-[minmax(0,1fr)_minmax(160px,1fr)_auto]" : "xl:grid-cols-[minmax(0,2fr)_minmax(160px,1fr)_minmax(160px,1fr)_auto]"}`}>
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(160px,1fr)_minmax(160px,1fr)_auto]">
           <div>
             <FieldLabel label="关键词" />
             <input
@@ -859,7 +777,7 @@ export default function Users() {
               options={userRoleFilterOptions}
             />
           </div>
-          {!isGroupLeader && <div>
+          <div>
             <FieldLabel label="组别" />
             <AnimatedSelect
               value={String(filters.groupId ?? "")}
@@ -877,7 +795,7 @@ export default function Users() {
                 })),
               ]}
             />
-          </div>}
+          </div>
           <div className="flex items-end gap-3">
             <button
               type="submit"
@@ -933,7 +851,7 @@ export default function Users() {
                   const readonlyReason = getReadonlyReason(user.role.name, actorRoleName);
                   const canResetPassword = actorRoleName === "super_admin";
                   const canToggleStatus = actorRoleName === "super_admin" ||
-                    (actorRoleName === "admin" && currentUser.adminScope === "global" && user.role.name === "user");
+                    (actorRoleName === "admin" && user.role.name === "user");
                   const statusActionLabel = user.status === 1 ? "停用账号" : "启用账号";
 
                   return (
@@ -1025,7 +943,7 @@ export default function Users() {
                   const readonlyReason = getReadonlyReason(user.role.name, actorRoleName);
                   const canResetPassword = actorRoleName === "super_admin";
                   const canToggleStatus = actorRoleName === "super_admin" ||
-                    (actorRoleName === "admin" && currentUser.adminScope === "global" && user.role.name === "user");
+                    (actorRoleName === "admin" && user.role.name === "user");
                 const statusActionLabel = user.status === 1 ? "停用账号" : "启用账号";
 
                 return (
@@ -1182,7 +1100,7 @@ export default function Users() {
                       onChange={(value) => setCreateForm((previous) => ({ ...previous, roleId: value }))}
                       options={editableRoleOptions.map((role) => ({
                         value: role.id,
-                        label: role.displayName,
+                        label: role.name === "super_admin" ? "超级管理员" : role.name === "admin" ? "管理员" : "成员",
                       }))}
                       placeholder="请选择角色"
                     />
@@ -1670,10 +1588,14 @@ export default function Users() {
                           <div>
                             <FieldLabel label="角色" />
                             <AnimatedSelect
-                              value={editForm.accountRole}
-                              onChange={(value) => setEditForm((previous) => ({ ...previous, accountRole: value as UserFormState["accountRole"] }))}
-                              disabled={!selectedCanMutate || accountRoleOptions.every((option) => option.disabled)}
-                              options={accountRoleOptions}
+                              value={editForm.roleId}
+                              onChange={(value) => setEditForm((previous) => ({ ...previous, roleId: String(value) }))}
+                              disabled={!selectedCanMutate || !selectedCanEditIdentity}
+                              options={roles.map((role) => ({
+                                value: role.id,
+                                label: role.name === "super_admin" ? "超级管理员" : role.name === "admin" ? "管理员" : "成员",
+                                disabled: !role.editableByCurrentActor,
+                              }))}
                             />
                           </div>
                           <div>

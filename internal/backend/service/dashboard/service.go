@@ -82,65 +82,27 @@ func (s *Service) Get(ctx context.Context, actor Actor) (*Data, error) {
 	if actor.ID == 0 || (actor.RoleName != model.RoleNameAdmin && actor.RoleName != model.RoleNameSuperAdmin) {
 		return nil, &ServiceError{Status: http.StatusForbidden, Message: "当前账号无管理员权限"}
 	}
-	if actor.RoleName == model.RoleNameAdmin && (actor.AdminScope == model.AdminScopeNone || (actor.AdminScope == model.AdminScopeGroup && actor.GroupRole != "leader" && actor.GroupRole != "group_admin")) {
-		return nil, &ServiceError{Status: http.StatusForbidden, Message: "管理员缺少有效管理范围"}
-	}
 	now := s.now()
 	start, end := monthBounds(now)
-	var total int64
-	var monthly, pending int64
-	var groups []GroupDistributionItem
-	var events []model.ActivityEvent
-	var err error
-	if actor.RoleName == model.RoleNameAdmin && actor.AdminScope == model.AdminScopeGroup {
-		if actor.ManagementGroupID == nil {
-			return nil, &ServiceError{Status: http.StatusForbidden, Message: "管理员缺少管理组"}
-		}
-		scoped, ok := s.repo.(scopedRepository)
-		if !ok {
-			return nil, &ServiceError{Status: http.StatusForbidden, Message: "当前账号无有效管理范围"}
-		}
-		total, err = scoped.CountUsersInGroup(ctx, *actor.ManagementGroupID)
-		if err != nil {
-			return nil, internal("统计组内用户数失败", err)
-		}
-		monthly, err = scoped.CountUsersCreatedInGroup(ctx, *actor.ManagementGroupID, start, end)
-		if err != nil {
-			return nil, internal("统计组内新增失败", err)
-		}
-		pending, err = scoped.CountPendingRegistrationsInGroup(ctx, *actor.ManagementGroupID)
-		if err != nil {
-			return nil, internal("统计组内待审核报名失败", err)
-		}
-		groups, err = scoped.ListTechnicalGroupsInGroup(ctx, *actor.ManagementGroupID)
-		if err != nil {
-			return nil, internal("统计组别失败", err)
-		}
-		events, err = scoped.ListRecentActivitiesInGroup(ctx, *actor.ManagementGroupID, 10)
-		if err != nil {
-			return nil, internal("加载最近动态失败", err)
-		}
-	} else {
-		total, err = s.repo.CountUsers(ctx)
-		if err != nil {
-			return nil, internal("统计总用户数失败", err)
-		}
-		monthly, err = s.repo.CountUsersCreated(ctx, start, end)
-		if err != nil {
-			return nil, internal("统计本月新增失败", err)
-		}
-		pending, err = s.repo.CountPendingRegistrations(ctx)
-		if err != nil {
-			return nil, internal("统计待审核报名失败", err)
-		}
-		groups, err = s.repo.ListTechnicalGroups(ctx)
-		if err != nil {
-			return nil, internal("统计技术组别失败", err)
-		}
-		events, err = s.repo.ListRecentActivities(ctx, 10)
-		if err != nil {
-			return nil, internal("加载最近动态失败", err)
-		}
+	total, err := s.repo.CountUsers(ctx)
+	if err != nil {
+		return nil, internal("统计总用户数失败", err)
+	}
+	monthly, err := s.repo.CountUsersCreated(ctx, start, end)
+	if err != nil {
+		return nil, internal("统计本月新增失败", err)
+	}
+	pending, err := s.repo.CountPendingRegistrations(ctx)
+	if err != nil {
+		return nil, internal("统计待审核报名失败", err)
+	}
+	groups, err := s.repo.ListTechnicalGroups(ctx)
+	if err != nil {
+		return nil, internal("统计技术组别失败", err)
+	}
+	events, err := s.repo.ListRecentActivities(ctx, 10)
+	if err != nil {
+		return nil, internal("加载最近动态失败", err)
 	}
 	activities := make([]RecentActivityItem, 0, len(events))
 	for _, event := range events {

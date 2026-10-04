@@ -14,8 +14,10 @@ const (
 )
 
 type User struct {
-	ID                uint64            `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
-	RoleID            uint64            `json:"roleId" gorm:"column:role_id;type:bigint unsigned;not null;index:idx_role_id"`
+	ID     uint64 `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
+	RoleID uint64 `json:"roleId" gorm:"column:role_id;type:bigint unsigned;not null;index:idx_role_id"`
+	// AdminScope and ManagementGroupID are legacy compatibility / organizational
+	// metadata. Core system authorization is determined by RoleID/Role.Name.
 	AdminScope        string            `json:"adminScope" gorm:"column:admin_scope;type:varchar(20);not null;default:'none';index:idx_admin_scope"`
 	ManagementGroupID *uint64           `json:"managementGroupId,omitempty" gorm:"column:management_group_id;type:bigint unsigned;default:null;index:idx_management_group_id"`
 	Name              string            `json:"name,omitempty" gorm:"size:100;not null;default:''"`

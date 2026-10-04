@@ -205,10 +205,7 @@ func (e *ServiceError) Unwrap() error {
 }
 
 func (s *Service) ListGroups(ctx context.Context, actor Actor, input ListGroupsInput) (*ListGroupsResult, error) {
-	if err := ensureAdminActor(actor); err != nil {
-		return nil, err
-	}
-	if actor.RoleName == model.RoleNameAdmin && actor.AdminScope != "" {
+	if actor.RoleName != model.RoleNameSuperAdmin {
 		return nil, &ServiceError{Status: http.StatusForbidden, Message: "仅超级管理员可以管理用户组配置"}
 	}
 
@@ -234,7 +231,7 @@ func (s *Service) ListGroups(ctx context.Context, actor Actor, input ListGroupsI
 }
 
 func (s *Service) ListGroupOptions(ctx context.Context, actor Actor) ([]GroupOption, error) {
-	if actor.ID == 0 || (actor.RoleName != model.RoleNameSuperAdmin && !(actor.RoleName == model.RoleNameAdmin && actor.AdminScope == model.AdminScopeGlobal)) {
+	if actor.ID == 0 || (actor.RoleName != model.RoleNameSuperAdmin && actor.RoleName != model.RoleNameAdmin) {
 		return nil, &ServiceError{Status: http.StatusForbidden, Message: "当前账号无权查看用户组筛选项"}
 	}
 
@@ -577,8 +574,8 @@ func (s *Service) AddMember(ctx context.Context, actor Actor, groupID uint64, in
 	if user.Role.Name == model.RoleNameSuperAdmin {
 		return nil, &ServiceError{Status: http.StatusForbidden, Message: "超级管理员不能加入普通用户组"}
 	}
-	if actor.RoleName != model.RoleNameSuperAdmin && user.Role.Name == model.RoleNameAdmin && user.AdminScope == model.AdminScopeGlobal {
-		return nil, &ServiceError{Status: http.StatusForbidden, Message: "组长不能调整全局管理员"}
+	if actor.RoleName != model.RoleNameSuperAdmin && user.Role.Name == model.RoleNameAdmin {
+		return nil, &ServiceError{Status: http.StatusForbidden, Message: "管理员不能调整其他管理员的组内身份"}
 	}
 	if input.Role != model.UserGroupMemberRoleMember {
 		for _, existing := range user.GroupMembers {
@@ -604,11 +601,6 @@ func (s *Service) AddMember(ctx context.Context, actor Actor, groupID uint64, in
 	if err := s.repo.RunInTx(ctx, func(repo Repository) error {
 		if err := repo.CreateMember(ctx, member); err != nil {
 			return err
-		}
-		if input.Role == model.UserGroupMemberRoleGroupAdmin || input.Role == model.UserGroupMemberRoleLeader {
-			if err := syncManagedUser(ctx, repo, input.UserID, model.RoleNameAdmin, model.AdminScopeGroup, &groupID); err != nil {
-				return err
-			}
 		}
 		if group.IsDefault {
 			return nil
@@ -650,8 +642,8 @@ func (s *Service) UpdateMember(ctx context.Context, actor Actor, groupID uint64,
 	if input.Role == model.UserGroupMemberRoleLeader && actor.RoleName != model.RoleNameSuperAdmin {
 		return nil, &ServiceError{Status: http.StatusForbidden, Message: "只有超级管理员可以任命组长"}
 	}
-	if member.User.Role.Name == model.RoleNameAdmin && member.User.AdminScope == model.AdminScopeGlobal && actor.RoleName != model.RoleNameSuperAdmin {
-		return nil, &ServiceError{Status: http.StatusForbidden, Message: "组长不能调整全局管理员"}
+	if member.User.Role.Name == model.RoleNameAdmin && actor.RoleName != model.RoleNameSuperAdmin {
+		return nil, &ServiceError{Status: http.StatusForbidden, Message: "管理员不能调整其他管理员的组内身份"}
 	}
 	if input.Role != model.UserGroupMemberRoleMember {
 		for _, existing := range member.User.GroupMembers {
@@ -663,16 +655,7 @@ func (s *Service) UpdateMember(ctx context.Context, actor Actor, groupID uint64,
 	}
 
 	if err := s.repo.RunInTx(ctx, func(repo Repository) error {
-		if err := repo.UpdateMember(ctx, groupID, memberID, map[string]any{"role": input.Role}); err != nil {
-			return err
-		}
-		switch input.Role {
-		case model.UserGroupMemberRoleGroupAdmin, model.UserGroupMemberRoleLeader:
-			return syncManagedUser(ctx, repo, member.UserID, model.RoleNameAdmin, model.AdminScopeGroup, &groupID)
-		case model.UserGroupMemberRoleMember:
-			return syncManagedUser(ctx, repo, member.UserID, model.RoleNameUser, model.AdminScopeNone, nil)
-		}
-		return nil
+		return repo.UpdateMember(ctx, groupID, memberID, map[string]any{"role": input.Role})
 	}); err != nil {
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "更新成员角色失败", Err: err}
 	}
@@ -737,10 +720,7 @@ func UserGroupRefsFromMembers(members []model.UserGroupMember, includeStatus boo
 }
 
 func ensureAdminActor(actor Actor) error {
-	if actor.RoleName == model.RoleNameSuperAdmin {
-		return nil
-	}
-	if actor.RoleName == model.RoleNameAdmin && (actor.AdminScope == "" || actor.AdminScope == model.AdminScopeGlobal || actor.AdminScope == model.AdminScopeGroup) && actor.AdminScope != model.AdminScopeNone {
+	if actor.RoleName == model.RoleNameAdmin || actor.RoleName == model.RoleNameSuperAdmin {
 		return nil
 	}
 	return &ServiceError{Status: http.StatusForbidden, Message: "当前账号无管理员权限"}
@@ -748,9 +728,6 @@ func ensureAdminActor(actor Actor) error {
 
 func ensureMemberManager(actor Actor, groupID uint64, targetRole uint8, updating bool) error {
 	if actor.RoleName == model.RoleNameSuperAdmin {
-		if actor.AdminScope == "" {
-			return &ServiceError{Status: http.StatusForbidden, Message: "该账号角色不允许加入用户组"}
-		}
 		return nil
 	}
 	// Legacy service callers without the new scope fields are treated as
@@ -768,24 +745,6 @@ func ensureMemberManager(actor Actor, groupID uint64, targetRole uint8, updating
 		return &ServiceError{Status: http.StatusForbidden, Message: "组长不能任命组长"}
 	}
 	return nil
-}
-
-type managedUserUpdater interface {
-	UpdateUser(context.Context, uint64, map[string]any) error
-}
-
-func syncManagedUser(ctx context.Context, repo Repository, userID uint64, roleName, scope string, groupID *uint64) error {
-	updater, ok := repo.(managedUserUpdater)
-	if !ok {
-		return nil
-	}
-	updates := map[string]any{"admin_scope": scope, "management_group_id": groupID}
-	if roleName == model.RoleNameUser {
-		updates["role_id"] = gorm.Expr("(SELECT id FROM roles WHERE name = ?)", model.RoleNameUser)
-	} else if roleName == model.RoleNameAdmin {
-		updates["role_id"] = gorm.Expr("(SELECT id FROM roles WHERE name = ?)", model.RoleNameAdmin)
-	}
-	return updater.UpdateUser(ctx, userID, updates)
 }
 
 func validateGroupStatus(status uint8) error {

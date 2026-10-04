@@ -56,7 +56,8 @@ func (r *GormRepository) ListUsers(ctx context.Context, filter ListUsersInput) (
 		case UserFilterRoleLeader:
 			base = withMembershipRoleFilter(base, model.UserGroupMemberRoleLeader, filter.GroupID)
 		case UserFilterRoleGlobal, UserFilterRoleGlobalAdmin:
-			base = base.Where("roles.name = ? AND users.admin_scope = ?", model.RoleNameAdmin, model.AdminScopeGlobal)
+			// Legacy filter aliases now map to the single administrator system role.
+			base = base.Where("roles.name = ?", model.RoleNameAdmin)
 		case UserFilterRoleSuperAdmin:
 			base = base.Where("roles.name = ?", model.RoleNameSuperAdmin)
 		default:

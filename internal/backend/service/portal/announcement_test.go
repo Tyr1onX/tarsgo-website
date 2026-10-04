@@ -183,6 +183,8 @@ func superActor() Actor { return Actor{ID: 10, RoleName: model.RoleNameSuperAdmi
 
 func leaderActor() Actor { return Actor{ID: 20, RoleName: model.RoleNameAdmin} }
 
+func uint64Ptr(value uint64) *uint64 { return &value }
+
 func requireStatus(t *testing.T, err error, status int) {
 	t.Helper()
 	var serviceErr *ServiceError
@@ -215,9 +217,9 @@ func TestAnnouncementCRUDAndSoftDelete(t *testing.T) {
 	requireStatus(t, err, http.StatusNotFound)
 }
 
-func TestAnnouncementRejectsNonSuperAdminAndInvalidInputs(t *testing.T) {
+func TestAnnouncementRejectsOrdinaryUserAndInvalidInputs(t *testing.T) {
 	service := NewService(newFakeRepository())
-	_, err := service.CreateAnnouncement(context.Background(), Actor{ID: 2, RoleName: model.RoleNameAdmin}, validAnnouncementInput())
+	_, err := service.CreateAnnouncement(context.Background(), Actor{ID: 2, RoleName: model.RoleNameUser}, validAnnouncementInput())
 	requireStatus(t, err, http.StatusForbidden)
 
 	cases := []AnnouncementInput{
@@ -235,39 +237,31 @@ func TestAnnouncementRejectsNonSuperAdminAndInvalidInputs(t *testing.T) {
 	}
 }
 
-func TestLeaderCanManageOnlyOwnGroupAnnouncements(t *testing.T) {
+func TestAdminCanManageAnnouncementsAcrossGroupsRegardlessOfLegacyScope(t *testing.T) {
 	repo := newFakeRepository()
 	repo.leaderGroupIDs = []uint64{101}
 	repo.activeCount = 1
 	service := NewService(repo)
-	if _, err := service.ListAnnouncements(context.Background(), leaderActor(), ListAnnouncementsInput{}); err != nil {
-		t.Fatalf("leader list: %v", err)
+	actor := Actor{ID: 20, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGroup, ManagementGroupID: uint64Ptr(101), GroupRole: "leader"}
+	if _, err := service.ListAnnouncements(context.Background(), actor, ListAnnouncementsInput{}); err != nil {
+		t.Fatalf("admin list: %v", err)
 	}
-	if len(repo.lastAnnouncementScope) != 1 || repo.lastAnnouncementScope[0] != 101 {
-		t.Fatalf("leader list scope = %v", repo.lastAnnouncementScope)
+	if len(repo.lastAnnouncementScope) != 0 {
+		t.Fatalf("admin list should not be group-scoped: %v", repo.lastAnnouncementScope)
 	}
 	input := validAnnouncementInput()
 	input.AudienceType = model.PortalAudienceGroups
-	input.TargetGroupIDs = []uint64{101}
-	created, err := service.CreateAnnouncement(context.Background(), leaderActor(), input)
+	input.TargetGroupIDs = []uint64{202}
+	created, err := service.CreateAnnouncement(context.Background(), actor, input)
 	if err != nil || created.ID == 0 {
-		t.Fatalf("leader should create own-group announcement: item=%#v err=%v", created, err)
+		t.Fatalf("admin should create cross-group announcement: item=%#v err=%v", created, err)
 	}
-
 	all := input
 	all.AudienceType = model.PortalAudienceAll
 	all.TargetGroupIDs = nil
-	_, err = service.CreateAnnouncement(context.Background(), leaderActor(), all)
-	requireStatus(t, err, http.StatusForbidden)
-
-	other := input
-	other.TargetGroupIDs = []uint64{202}
-	_, err = service.CreateAnnouncement(context.Background(), leaderActor(), other)
-	requireStatus(t, err, http.StatusForbidden)
-
-	repo.rows[created.ID].TargetGroups = []model.AnnouncementTargetGroup{{GroupID: 202}}
-	_, err = service.GetAnnouncement(context.Background(), leaderActor(), created.ID)
-	requireStatus(t, err, http.StatusForbidden)
+	if _, err = service.CreateAnnouncement(context.Background(), actor, all); err != nil {
+		t.Fatalf("admin should create all-audience announcement: %v", err)
+	}
 }
 
 func TestAnnouncementRejectsInvalidTimeRangeAndGroup(t *testing.T) {
@@ -288,68 +282,48 @@ func TestAnnouncementRejectsInvalidTimeRangeAndGroup(t *testing.T) {
 	requireStatus(t, err, http.StatusBadRequest)
 }
 
-func TestLeaderCanManageOnlyOwnGroupEvents(t *testing.T) {
+func TestAdminCanManageEventsAcrossGroupsRegardlessOfLegacyScope(t *testing.T) {
 	repo := newFakeRepository()
-	repo.leaderGroupIDs = []uint64{101}
 	repo.activeCount = 1
 	service := NewService(repo)
-	if _, err := service.ListEvents(context.Background(), leaderActor(), ListEventsInput{}); err != nil {
-		t.Fatalf("leader list: %v", err)
+	actor := Actor{ID: 20, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGroup, ManagementGroupID: uint64Ptr(101), GroupRole: "leader"}
+	if _, err := service.ListEvents(context.Background(), actor, ListEventsInput{}); err != nil {
+		t.Fatalf("admin list: %v", err)
 	}
-	if len(repo.lastEventScope) != 1 || repo.lastEventScope[0] != 101 {
-		t.Fatalf("leader list scope = %v", repo.lastEventScope)
+	if len(repo.lastEventScope) != 0 {
+		t.Fatalf("admin list should not be group-scoped: %v", repo.lastEventScope)
 	}
 	input := EventInput{
-		Title: "组内会议", StartsAt: time.Date(2026, 9, 16, 8, 0, 0, 0, time.UTC),
+		Title: "跨组会议", StartsAt: time.Date(2026, 9, 16, 8, 0, 0, 0, time.UTC),
 		EndsAt: time.Date(2026, 9, 16, 9, 0, 0, 0, time.UTC), Status: model.TeamEventStatusDraft,
-		AudienceType: model.PortalAudienceGroups, TargetGroupIDs: []uint64{101},
+		AudienceType: model.PortalAudienceGroups, TargetGroupIDs: []uint64{202},
 	}
-	created, err := service.CreateEvent(context.Background(), leaderActor(), input)
-	if err != nil || created.ID == 0 {
-		t.Fatalf("leader should create own-group event: item=%#v err=%v", created, err)
+	if _, err := service.CreateEvent(context.Background(), actor, input); err != nil {
+		t.Fatalf("admin should create cross-group event: %v", err)
 	}
-
 	all := input
 	all.AudienceType = model.PortalAudienceAll
 	all.TargetGroupIDs = nil
-	_, err = service.CreateEvent(context.Background(), leaderActor(), all)
-	requireStatus(t, err, http.StatusForbidden)
-
-	other := input
-	other.TargetGroupIDs = []uint64{202}
-	_, err = service.CreateEvent(context.Background(), leaderActor(), other)
-	requireStatus(t, err, http.StatusForbidden)
-
-	repo.events[created.ID].TargetGroups = []model.TeamEventTargetGroup{{GroupID: 202}}
-	_, err = service.GetEvent(context.Background(), leaderActor(), created.ID)
-	requireStatus(t, err, http.StatusForbidden)
+	if _, err := service.CreateEvent(context.Background(), actor, all); err != nil {
+		t.Fatalf("admin should create all-audience event: %v", err)
+	}
 }
 
-func TestLeaderCanManageOnlyOwnGroupLinks(t *testing.T) {
+func TestAdminCanManageLinksAcrossGroupsRegardlessOfLegacyScope(t *testing.T) {
 	repo := newFakeRepository()
-	repo.leaderGroupIDs = []uint64{101}
 	repo.activeCount = 1
 	service := NewService(repo)
-	input := LinkInput{Name: "组内文档", URL: "https://docs.example.com/team", IconKey: "book", IsEnabled: true, AudienceType: model.PortalAudienceGroups, TargetGroupIDs: []uint64{101}}
-	created, err := service.CreateLink(context.Background(), leaderActor(), input)
-	if err != nil || created.ID == 0 {
-		t.Fatalf("leader should create own-group link: item=%#v err=%v", created, err)
+	actor := Actor{ID: 20, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGroup, ManagementGroupID: uint64Ptr(101), GroupRole: "leader"}
+	input := LinkInput{Name: "跨组文档", URL: "https://docs.example.com/team", IconKey: "book", IsEnabled: true, AudienceType: model.PortalAudienceGroups, TargetGroupIDs: []uint64{202}}
+	if _, err := service.CreateLink(context.Background(), actor, input); err != nil {
+		t.Fatalf("admin should create cross-group link: %v", err)
 	}
-
 	all := input
 	all.AudienceType = model.PortalAudienceAll
 	all.TargetGroupIDs = nil
-	_, err = service.CreateLink(context.Background(), leaderActor(), all)
-	requireStatus(t, err, http.StatusForbidden)
-
-	other := input
-	other.TargetGroupIDs = []uint64{202}
-	_, err = service.CreateLink(context.Background(), leaderActor(), other)
-	requireStatus(t, err, http.StatusForbidden)
-
-	repo.links[created.ID].TargetGroups = []model.PortalLinkTargetGroup{{GroupID: 202}}
-	_, err = service.GetLink(context.Background(), leaderActor(), created.ID)
-	requireStatus(t, err, http.StatusForbidden)
+	if _, err := service.CreateLink(context.Background(), actor, all); err != nil {
+		t.Fatalf("admin should create all-audience link: %v", err)
+	}
 }
 
 func TestHomeReturnsStableArraysAndRepositoryOrder(t *testing.T) {

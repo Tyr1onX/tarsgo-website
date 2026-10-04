@@ -1325,26 +1325,11 @@ func (s *RegistrationService) saveRegistrationUploads(
 	return payloads, nil
 }
 
-func (s *RegistrationService) resolveRegistrationAccessScope(ctx context.Context, actor RegistrationFormActor) (registrationAccessScope, error) {
-	// Keep compatibility for service callers that predate explicit scope fields;
-	// authenticated requests always populate AdminScope from the database.
-	if actor.AdminScope == "" && actor.RoleName == model.RoleNameAdmin {
-		groupIDs, err := s.repo.ListLeaderGroupIDs(ctx, actor.ID)
-		if err != nil {
-			return registrationAccessScope{}, &ServiceError{Status: http.StatusInternalServerError, Message: "加载管理员组长身份失败", Err: err}
-		}
-		if len(groupIDs) == 0 {
-			return newRegistrationAccessScope(true, nil), nil
-		}
-		return newRegistrationAccessScope(false, groupIDs), nil
-	}
-	if actor.RoleName == model.RoleNameSuperAdmin || (actor.RoleName == model.RoleNameAdmin && actor.AdminScope == model.AdminScopeGlobal) {
+func (s *RegistrationService) resolveRegistrationAccessScope(_ context.Context, actor RegistrationFormActor) (registrationAccessScope, error) {
+	if actor.RoleName == model.RoleNameSuperAdmin || actor.RoleName == model.RoleNameAdmin {
 		return newRegistrationAccessScope(true, nil), nil
 	}
-	if actor.RoleName != model.RoleNameAdmin || actor.AdminScope != model.AdminScopeGroup || actor.ManagementGroupID == nil || (actor.GroupRole != "leader" && actor.GroupRole != "group_admin") {
-		return registrationAccessScope{}, &ServiceError{Status: http.StatusForbidden, Message: "当前账号无管理员权限"}
-	}
-	return newRegistrationAccessScope(false, []uint64{*actor.ManagementGroupID}), nil
+	return registrationAccessScope{}, &ServiceError{Status: http.StatusForbidden, Message: "当前账号无管理员权限"}
 }
 
 func registrationScopeGroupIDs(scope registrationAccessScope) []uint64 {

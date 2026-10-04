@@ -156,59 +156,32 @@ func TestRegistrationServiceReviewRegistrationFullAccessApproveDoesNotChangeMemb
 	}
 }
 
-func TestRegistrationServiceReviewRegistrationAllowsTwoLeadersWithoutMembershipChanges(t *testing.T) {
+func TestRegistrationServiceLegacyGroupScopedAdminHasFullReviewAccess(t *testing.T) {
 	repo := newFakeRegistrationReviewRepository()
-	repo.leaderGroupIDs[2001] = []uint64{101}
-	repo.leaderGroupIDs[2002] = []uint64{102}
-
+	groupID := uint64(101)
 	service := newRegistrationServiceWithDependencies(repo, nil)
 	service.now = func() time.Time {
 		return time.Date(2026, 4, 14, 11, 0, 0, 0, time.Local)
 	}
 
-	firstDetail, err := service.ReviewRegistration(
+	detail, err := service.ReviewRegistration(
 		context.Background(),
-		RegistrationFormActor{ID: 2001, RoleName: model.RoleNameAdmin},
+		RegistrationFormActor{
+			ID:                2001,
+			RoleName:          model.RoleNameAdmin,
+			AdminScope:        model.AdminScopeGroup,
+			ManagementGroupID: &groupID,
+			GroupRole:         "leader",
+		},
 		repo.registration.ID,
 		ReviewRegistrationInput{Decision: registrationReviewDecisionApprove},
 	)
 	if err != nil {
-		t.Fatalf("first ReviewRegistration returned error: %v", err)
+		t.Fatalf("legacy group-scoped admin review returned error: %v", err)
 	}
-
-	if firstDetail.Group1Status != model.RegistrationStatusApproved {
-		t.Fatalf("expected group 1 approved after first review, got %d", firstDetail.Group1Status)
+	if detail.Group1Status != model.RegistrationStatusApproved || detail.Group2Status != model.RegistrationStatusApproved || detail.Status != model.RegistrationStatusApproved {
+		t.Fatalf("admin should review the full registration regardless of legacy group scope: %#v", detail)
 	}
-	if firstDetail.Group2Status != model.RegistrationStatusPending {
-		t.Fatalf("expected group 2 pending after first review, got %d", firstDetail.Group2Status)
-	}
-	if firstDetail.Status != model.RegistrationStatusPending {
-		t.Fatalf("expected overall pending after first review, got %d", firstDetail.Status)
-	}
-	if len(repo.addedMemberships) != 0 {
-		t.Fatalf("expected no memberships before both slots are reviewed, got %d", len(repo.addedMemberships))
-	}
-
-	secondDetail, err := service.ReviewRegistration(
-		context.Background(),
-		RegistrationFormActor{ID: 2002, RoleName: model.RoleNameAdmin},
-		repo.registration.ID,
-		ReviewRegistrationInput{Decision: registrationReviewDecisionApprove},
-	)
-	if err != nil {
-		t.Fatalf("second ReviewRegistration returned error: %v", err)
-	}
-
-	if secondDetail.Group1Status != model.RegistrationStatusApproved {
-		t.Fatalf("expected group 1 to stay approved, got %d", secondDetail.Group1Status)
-	}
-	if secondDetail.Group2Status != model.RegistrationStatusApproved {
-		t.Fatalf("expected group 2 approved after second review, got %d", secondDetail.Group2Status)
-	}
-	if secondDetail.Status != model.RegistrationStatusApproved {
-		t.Fatalf("expected overall approved after second review, got %d", secondDetail.Status)
-	}
-
 	if len(repo.addedMemberships) != 0 || len(repo.removedMemberships) != 0 {
 		t.Fatalf("online review must not change memberships")
 	}
@@ -377,7 +350,7 @@ func TestRegistrationServiceResetInterviewRevokesAdmissionAndRestoresDefaultGrou
 	assertAddedMemberships(t, repo.addedMemberships, []fakeAddedMembership{{GroupID: 1, UserID: repo.registration.UserID}})
 }
 
-func TestRegistrationServiceUndoReviewOnlyResetsLeaderGroup(t *testing.T) {
+func TestRegistrationServiceAdminUndoReviewResetsFullReview(t *testing.T) {
 	repo := newFakeRegistrationReviewRepository()
 	now := time.Date(2026, 4, 14, 11, 0, 0, 0, time.Local)
 	repo.registration.Group1Status = model.RegistrationStatusApproved
@@ -400,14 +373,11 @@ func TestRegistrationServiceUndoReviewOnlyResetsLeaderGroup(t *testing.T) {
 	if err != nil {
 		t.Fatalf("UndoRegistrationReview returned error: %v", err)
 	}
-	if detail.Group1Status != model.RegistrationStatusPending || detail.Group2Status != model.RegistrationStatusRejected {
-		t.Fatalf("expected only leader group reset, got group1=%d group2=%d", detail.Group1Status, detail.Group2Status)
+	if detail.Group1Status != model.RegistrationStatusPending || detail.Group2Status != model.RegistrationStatusPending {
+		t.Fatalf("expected full review reset, got group1=%d group2=%d", detail.Group1Status, detail.Group2Status)
 	}
-	if detail.Reviewer1 != nil || detail.ReviewedAt1 != nil {
-		t.Fatalf("expected group 1 review metadata cleared")
-	}
-	if detail.Reviewer2 == nil || detail.ReviewedAt2 == nil {
-		t.Fatalf("expected group 2 review metadata retained")
+	if detail.Reviewer1 != nil || detail.ReviewedAt1 != nil || detail.Reviewer2 != nil || detail.ReviewedAt2 != nil {
+		t.Fatalf("expected all review metadata cleared")
 	}
 }
 
@@ -562,7 +532,7 @@ func TestRegistrationServiceListRegistrationsPreservesStatsFilterSemantics(t *te
 			wantFormID: &formID,
 		},
 		{
-			name: "group scope is preserved for stats",
+			name: "legacy group scope does not restrict admin stats",
 			actor: RegistrationFormActor{
 				ID:                2001,
 				RoleName:          model.RoleNameAdmin,
@@ -570,7 +540,7 @@ func TestRegistrationServiceListRegistrationsPreservesStatsFilterSemantics(t *te
 				ManagementGroupID: &groupID,
 				GroupRole:         "leader",
 			},
-			wantVisibleGroupIDs: []uint64{groupID},
+			wantVisibleGroupIDs: nil,
 		},
 	}
 
@@ -749,7 +719,7 @@ func TestRegistrationServiceExportFormRegistrationsCSVIncludesDynamicFieldsAndEx
 	}
 }
 
-func TestRegistrationServiceExportFormRegistrationsCSVPassesLeaderVisibleGroups(t *testing.T) {
+func TestRegistrationServiceExportIgnoresLegacyAdminGroupScope(t *testing.T) {
 	repo := newFakeRegistrationListRepository()
 	repo.leaderGroupIDs[2001] = []uint64{101}
 	service := newRegistrationServiceWithDependencies(repo, nil)
@@ -767,8 +737,8 @@ func TestRegistrationServiceExportFormRegistrationsCSVPassesLeaderVisibleGroups(
 	if len(repo.exportFilters) != 1 {
 		t.Fatalf("expected 1 export filter call, got %d", len(repo.exportFilters))
 	}
-	if len(repo.exportFilters[0].VisibleGroupIDs) != 1 || repo.exportFilters[0].VisibleGroupIDs[0] != 101 {
-		t.Fatalf("expected leader export scope [101], got %v", repo.exportFilters[0].VisibleGroupIDs)
+	if len(repo.exportFilters[0].VisibleGroupIDs) != 0 {
+		t.Fatalf("admin export should not be restricted by legacy group scope, got %v", repo.exportFilters[0].VisibleGroupIDs)
 	}
 }
 

@@ -14,19 +14,23 @@ import (
 	"tarsgo-backend/service/auth"
 )
 
-func TestServiceUpdateUser_AdminCannotModifyAdmin(t *testing.T) {
+func TestServiceUpdateUser_AdminCanModifyAdminProfileWithoutChangingRole(t *testing.T) {
 	repo := newFakeRepository()
 	service := NewService(repo)
 
-	_, err := service.UpdateUser(context.Background(), Actor{ID: 1, RoleName: model.RoleNameAdmin}, 2, UpdateUserInput{
+	updated, err := service.UpdateUser(context.Background(), Actor{ID: 1, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGroup}, 2, UpdateUserInput{
 		RoleID: repo.roleID(model.RoleNameAdmin),
 		Name:   "Updated Admin",
 		Email:  "admin@example.com",
 		Gender: 0,
 		Status: model.UserStatusEnabled,
 	})
-
-	assertServiceError(t, err, 403, "管理员账号")
+	if err != nil {
+		t.Fatalf("admin profile update returned error: %v", err)
+	}
+	if updated.Name != "Updated Admin" || updated.Role.Name != model.RoleNameAdmin {
+		t.Fatalf("unexpected updated admin: %#v", updated)
+	}
 }
 
 func TestServiceUpdateUser_SuperAdminCannotModifySuperAdmin(t *testing.T) {
@@ -52,7 +56,7 @@ func TestServiceUpdateUser_AdminCanModifyUser(t *testing.T) {
 	detail, err := service.UpdateUser(context.Background(), Actor{ID: 2, RoleName: model.RoleNameAdmin}, 3, UpdateUserInput{
 		RoleID:    repo.roleID(model.RoleNameUser),
 		Name:      "Updated User",
-		Email:     "member-updated@example.com",
+		Email:     "member@example.com",
 		Nickname:  "new-nick",
 		AvatarURL: "https://example.com/avatar.png",
 		Phone:     "13800138000",
@@ -68,8 +72,8 @@ func TestServiceUpdateUser_AdminCanModifyUser(t *testing.T) {
 	if detail.Name != "Updated User" {
 		t.Fatalf("expected updated name, got %q", detail.Name)
 	}
-	if detail.Email != "member-updated@example.com" {
-		t.Fatalf("expected updated email, got %q", detail.Email)
+	if detail.Email != "member@example.com" {
+		t.Fatalf("expected login email to remain unchanged, got %q", detail.Email)
 	}
 	if detail.Role.Name != model.RoleNameUser {
 		t.Fatalf("expected user role, got %q", detail.Role.Name)
@@ -146,17 +150,17 @@ func TestServiceCreateUser_AssignsDefaultGroupForNormalUser(t *testing.T) {
 	}
 }
 
-func TestServiceResetPassword_RespectsPermissionAndUpdatesHash(t *testing.T) {
+func TestServiceResetPassword_SuperAdminOnly(t *testing.T) {
 	repo := newFakeRepository()
 	service := NewService(repo)
 
-	if err := service.ResetPassword(context.Background(), Actor{ID: 2, RoleName: model.RoleNameAdmin}, 2, "Password123"); err == nil {
-		t.Fatalf("expected admin resetting admin password to fail")
+	if err := service.ResetPassword(context.Background(), Actor{ID: 2, RoleName: model.RoleNameAdmin}, 3, "Password123"); err == nil {
+		t.Fatalf("expected admin password reset to fail")
 	}
 
 	oldHash := deref(repo.users[3].PasswordHash)
-	if err := service.ResetPassword(context.Background(), Actor{ID: 2, RoleName: model.RoleNameAdmin}, 3, "Password123"); err != nil {
-		t.Fatalf("ResetPassword returned error: %v", err)
+	if err := service.ResetPassword(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 3, "Password123"); err != nil {
+		t.Fatalf("super admin ResetPassword returned error: %v", err)
 	}
 	newHash := deref(repo.users[3].PasswordHash)
 	if newHash == "" || newHash == oldHash {
@@ -250,13 +254,18 @@ func TestServiceGroupLeaderCanEditManagedAdminProfile(t *testing.T) {
 	}
 }
 
-func TestServiceGroupLeaderCannotEditGlobalAdminInManagedGroup(t *testing.T) {
+func TestServiceLegacyGroupAdminCanEditAdminProfile(t *testing.T) {
 	repo := newFakeRepository()
 	groupID := uint64(7)
-	repo.users[4] = &model.User{ID: 4, RoleID: repo.roleID(model.RoleNameAdmin), Role: repo.roles[repo.roleID(model.RoleNameAdmin)], Name: "全局管理员", Email: "global-in-group@example.com", Status: model.UserStatusEnabled, AdminScope: model.AdminScopeGlobal, GroupMembers: []model.UserGroupMember{{GroupID: groupID, Role: model.UserGroupMemberRoleMember}}}
+	repo.users[4] = &model.User{ID: 4, RoleID: repo.roleID(model.RoleNameAdmin), Role: repo.roles[repo.roleID(model.RoleNameAdmin)], Name: "管理员", Email: "global-in-group@example.com", Status: model.UserStatusEnabled, AdminScope: model.AdminScopeGlobal, GroupMembers: []model.UserGroupMember{{GroupID: groupID, Role: model.UserGroupMemberRoleMember}}}
 	service := NewService(repo)
-	_, err := service.UpdateUser(context.Background(), Actor{ID: 9, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGroup, ManagementGroupID: &groupID, GroupRole: "leader"}, 4, UpdateUserInput{RoleID: repo.roleID(model.RoleNameAdmin), Name: "全局管理员", Email: "global-in-group@example.com", Status: model.UserStatusEnabled})
-	assertServiceError(t, err, http.StatusForbidden, "全局管理员")
+	updated, err := service.UpdateUser(context.Background(), Actor{ID: 9, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGroup, ManagementGroupID: &groupID, GroupRole: "leader"}, 4, UpdateUserInput{RoleID: repo.roleID(model.RoleNameAdmin), Name: "已更新管理员", Email: "global-in-group@example.com", Status: model.UserStatusEnabled})
+	if err != nil {
+		t.Fatalf("legacy group-scoped admin should have normal admin profile access: %v", err)
+	}
+	if updated.Name != "已更新管理员" {
+		t.Fatalf("unexpected updated admin: %#v", updated)
+	}
 }
 
 func TestServiceGlobalAdminCannotChangeAdminStatus(t *testing.T) {
@@ -264,7 +273,7 @@ func TestServiceGlobalAdminCannotChangeAdminStatus(t *testing.T) {
 	repo.users[4] = &model.User{ID: 4, RoleID: repo.roleID(model.RoleNameAdmin), Role: repo.roles[repo.roleID(model.RoleNameAdmin)], Name: "全局管理员", Email: "global@example.com", Status: model.UserStatusEnabled, AdminScope: model.AdminScopeGlobal}
 	service := NewService(repo)
 	_, err := service.UpdateUser(context.Background(), Actor{ID: 9, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGlobal}, 4, UpdateUserInput{RoleID: repo.roleID(model.RoleNameAdmin), Name: "全局管理员", Email: "global@example.com", Status: model.UserStatusDisabled})
-	assertServiceError(t, err, http.StatusForbidden, "只能启用或停用普通用户")
+	assertServiceError(t, err, http.StatusForbidden, "只能启用或停用成员账号")
 }
 
 func TestServiceGlobalAdminCanChangeUserStatus(t *testing.T) {
@@ -279,51 +288,44 @@ func TestServiceGlobalAdminCanChangeUserStatus(t *testing.T) {
 	}
 }
 
-func TestServiceGroupLeaderCannotChangeMemberStatus(t *testing.T) {
+func TestServiceLegacyGroupAdminCanChangeMemberStatus(t *testing.T) {
 	repo := newFakeRepository()
 	groupID := uint64(7)
 	repo.users[3].GroupMembers = []model.UserGroupMember{{GroupID: groupID, Role: model.UserGroupMemberRoleMember}}
 	service := NewService(repo)
 	_, err := service.UpdateUser(context.Background(), Actor{ID: 9, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGroup, ManagementGroupID: &groupID, GroupRole: "leader"}, 3, UpdateUserInput{RoleID: repo.roleID(model.RoleNameUser), Name: "Member", Email: "member@example.com", Status: model.UserStatusDisabled})
-	assertServiceError(t, err, http.StatusForbidden, "不能启用或停用")
+	if err != nil {
+		t.Fatalf("legacy group-scoped admin should retain normal admin status access: %v", err)
+	}
+	if repo.users[3].Status != model.UserStatusDisabled {
+		t.Fatal("expected member to be disabled")
+	}
 }
 
-func TestServiceGroupAdminListsAllGroupMembers(t *testing.T) {
+func TestServiceLegacyGroupAdminHasGlobalPersonnelAccess(t *testing.T) {
 	repo := newFakeRepository()
 	groupID := uint64(7)
 	repo.users[2].AdminScope = model.AdminScopeGroup
 	repo.users[2].ManagementGroupID = &groupID
 	repo.users[2].GroupMembers = []model.UserGroupMember{{GroupID: groupID, Role: model.UserGroupMemberRoleLeader}}
-	repo.users[4] = &model.User{ID: 4, RoleID: repo.roleID(model.RoleNameAdmin), Role: repo.roles[repo.roleID(model.RoleNameAdmin)], Name: "另一名组内管理员", Email: "other-group-admin@example.com", Status: model.UserStatusEnabled, AdminScope: model.AdminScopeGroup, ManagementGroupID: &groupID, GroupMembers: []model.UserGroupMember{{GroupID: groupID, Role: model.UserGroupMemberRoleGroupAdmin}}}
-	repo.users[3].GroupMembers = []model.UserGroupMember{{GroupID: groupID, Role: model.UserGroupMemberRoleMember}}
 	repo.users[5] = &model.User{ID: 5, RoleID: repo.roleID(model.RoleNameUser), Role: repo.roles[repo.roleID(model.RoleNameUser)], Name: "其他组成员", Email: "other-group-member@example.com", Status: model.UserStatusEnabled, GroupMembers: []model.UserGroupMember{{GroupID: 8, Role: model.UserGroupMemberRoleMember}}}
 	service := NewService(repo)
 	actor := Actor{ID: 8, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGroup, ManagementGroupID: &groupID, GroupRole: "group_admin"}
-	result, err := service.ListUsers(context.Background(), actor, ListUsersInput{GroupID: func() *uint64 { id := uint64(8); return &id }()})
+
+	result, err := service.ListUsers(context.Background(), actor, ListUsersInput{})
 	if err != nil {
-		t.Fatalf("group admin list: %v", err)
-	}
-	if len(result.Items) != 3 {
-		t.Fatalf("expected all group members, got %#v", result.Items)
+		t.Fatalf("legacy group admin list: %v", err)
 	}
 	seen := map[uint64]bool{}
 	for _, item := range result.Items {
 		seen[item.ID] = true
 	}
-	if !seen[2] || !seen[3] || !seen[4] {
-		t.Fatalf("expected leader, group admin, and member in result, got %#v", result.Items)
+	if !seen[5] {
+		t.Fatalf("legacy group scope must not hide users from another group: %#v", result.Items)
 	}
-	if seen[5] {
-		t.Fatalf("group admin list must exclude other groups, got %#v", result.Items)
+	if _, err := service.GetUser(context.Background(), actor, 5); err != nil {
+		t.Fatalf("legacy group scope must not restrict user detail access: %v", err)
 	}
-	if _, err := service.GetUser(context.Background(), actor, 2); err != nil {
-		t.Fatalf("group admin should view the group leader: %v", err)
-	}
-	if _, err := service.GetUser(context.Background(), actor, 4); err != nil {
-		t.Fatalf("group admin should view another group admin: %v", err)
-	}
-	_, err = service.GetUser(context.Background(), actor, 5)
-	assertServiceError(t, err, http.StatusForbidden, "其他用户组")
 }
 
 func TestServiceListUsersSupportsBusinessRoleFilters(t *testing.T) {

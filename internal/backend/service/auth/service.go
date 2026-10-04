@@ -1091,43 +1091,34 @@ func toSessionUser(user *model.User) SessionUser {
 	}
 	capabilities := SessionCapabilities{}
 	permissions := []string{}
-	if user.Role.Name == model.RoleNameSuperAdmin || (user.Role.Name == model.RoleNameAdmin && adminScope == model.AdminScopeGlobal) || (user.Role.Name == model.RoleNameAdmin && adminScope == model.AdminScopeGroup && activeManagement && (groupRole == "leader" || groupRole == "group_admin")) {
+	isSuperAdmin := user.Role.Name == model.RoleNameSuperAdmin
+	isAdmin := user.Role.Name == model.RoleNameAdmin
+	if isSuperAdmin || isAdmin {
 		capabilities.CanReviewRegistrations = true
 		capabilities.CanManagePortal = true
+		capabilities.CanViewGroupMembers = true
+		capabilities.CanEditGroupMemberProfiles = true
+		capabilities.CanEditManagedAdminProfiles = true
+		capabilities.CanManageAllPersonnel = true
+		capabilities.CanManageAllPortal = true
 		permissions = append(permissions, "admin.dashboard.read", "admin.registrations.read", "admin.registrations.review", "admin.registrations.export", "admin.portal.manage")
 	}
-	if user.Role.Name == model.RoleNameSuperAdmin {
-		capabilities.CanViewGroupMembers = true
-		capabilities.CanEditGroupMemberProfiles = true
-		capabilities.CanEditManagedAdminProfiles = true
-		capabilities.CanManageAllPersonnel = true
-		capabilities.CanManageAllPortal = true
-		capabilities.CanManageAdminStatus = true
-		capabilities.CanManageRoles = true
-	} else if adminScope == model.AdminScopeGlobal {
-		capabilities.CanViewGroupMembers = true
-		capabilities.CanEditGroupMemberProfiles = true
-		capabilities.CanEditManagedAdminProfiles = true
-		capabilities.CanManageAllPersonnel = true
-		capabilities.CanManageAllPortal = true
-	} else if adminScope == model.AdminScopeGroup && groupRole == "leader" {
-		capabilities.CanViewGroupMembers = true
-		capabilities.CanEditGroupMemberProfiles = true
-		capabilities.CanEditManagedAdminProfiles = true
-	} else if adminScope == model.AdminScopeGroup && groupRole == "group_admin" {
-		capabilities.CanViewGroupMembers = true
-		permissions = append(permissions, "admin.group.members.read")
-	}
-	if user.Role.Name == model.RoleNameSuperAdmin {
+	if isSuperAdmin {
 		capabilities.CanManageUserGroups = true
 		capabilities.CanManageSystemConfig = true
 		capabilities.CanManageGroupMembers = true
 		capabilities.CanManageGroupAdmins = true
+		capabilities.CanManageAdminStatus = true
+		capabilities.CanManageRoles = true
 		permissions = append(permissions, "admin.group.members.read", "admin.group.members.manage", "admin.group.admins.manage")
-	} else if adminScope == model.AdminScopeGroup && groupRole == "leader" {
+	} else if isAdmin && adminScope == model.AdminScopeGroup && activeManagement && groupRole == "leader" {
+		// Legacy organizational capability only. It no longer determines access
+		// to the core admin dashboard, registrations, personnel, or portal.
 		capabilities.CanManageGroupMembers = true
 		capabilities.CanManageGroupAdmins = true
 		permissions = append(permissions, "admin.group.members.read", "admin.group.members.manage", "admin.group.admins.manage")
+	} else if isAdmin && adminScope == model.AdminScopeGroup && activeManagement && groupRole == "group_admin" {
+		permissions = append(permissions, "admin.group.members.read")
 	}
 	return SessionUser{
 		ID:        user.ID,
@@ -1159,38 +1150,15 @@ func validateIdentityConsistency(user *model.User) error {
 	if user == nil {
 		return &ServiceError{Status: http.StatusUnauthorized, Message: "当前用户不存在"}
 	}
-	scope := user.AdminScope
-	if scope == "" {
-		scope = model.AdminScopeNone
-	}
-	managerCount := 0
-	matchingManager := false
-	for _, member := range user.GroupMembers {
-		if member.Role != model.UserGroupMemberRoleLeader && member.Role != model.UserGroupMemberRoleGroupAdmin {
-			continue
-		}
-		managerCount++
-		if user.ManagementGroupID != nil && member.GroupID == *user.ManagementGroupID {
-			matchingManager = true
-		}
-	}
 	switch user.Role.Name {
-	case model.RoleNameSuperAdmin:
-		if scope != model.AdminScopeGlobal || user.ManagementGroupID != nil || len(user.GroupMembers) > 0 {
-			return &ServiceError{Status: http.StatusForbidden, Message: "超级管理员身份范围不一致"}
-		}
-	case model.RoleNameUser:
-		if scope != model.AdminScopeNone || user.ManagementGroupID != nil || managerCount > 0 {
-			return &ServiceError{Status: http.StatusForbidden, Message: "用户身份范围不一致"}
-		}
-	case model.RoleNameAdmin:
-		if scope == model.AdminScopeNone || (scope == model.AdminScopeGlobal && user.ManagementGroupID != nil) || (scope == model.AdminScopeGroup && (user.ManagementGroupID == nil || !matchingManager)) {
-			return &ServiceError{Status: http.StatusForbidden, Message: "管理员缺少有效管理范围"}
-		}
+	case model.RoleNameSuperAdmin, model.RoleNameAdmin, model.RoleNameUser:
+		// admin_scope, management_group_id and membership roles are retained as
+		// compatibility / organizational metadata. They no longer decide whether
+		// a valid system role may authenticate or use core admin capabilities.
+		return nil
 	default:
 		return &ServiceError{Status: http.StatusForbidden, Message: "系统角色不合法"}
 	}
-	return nil
 }
 
 func GenerateNumericCode(length int) (string, error) {
