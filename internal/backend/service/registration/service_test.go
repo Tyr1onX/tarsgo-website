@@ -530,6 +530,107 @@ func TestRegistrationServiceListRegistrationsNormalizesDefaultPageParams(t *test
 	}
 }
 
+func TestRegistrationServiceListRegistrationsPreservesStatsFilterSemantics(t *testing.T) {
+	status := uint8(model.RegistrationStatusApproved)
+	formID := uint64(301)
+	groupID := uint64(101)
+
+	tests := []struct {
+		name                string
+		actor               RegistrationFormActor
+		input               ListRegistrationsInput
+		wantKeyword         string
+		wantFormID          *uint64
+		wantVisibleGroupIDs []uint64
+		wantCountStatus     *uint8
+	}{
+		{
+			name:  "no filters",
+			actor: RegistrationFormActor{ID: 9001, RoleName: model.RoleNameSuperAdmin},
+		},
+		{
+			name:            "status filter only affects pagination total and list",
+			actor:           RegistrationFormActor{ID: 9001, RoleName: model.RoleNameSuperAdmin},
+			input:           ListRegistrationsInput{Status: &status},
+			wantCountStatus: &status,
+		},
+		{
+			name:        "keyword is normalized and preserved for stats",
+			actor:       RegistrationFormActor{ID: 9001, RoleName: model.RoleNameSuperAdmin},
+			input:       ListRegistrationsInput{Keyword: " 张三 "},
+			wantKeyword: "张三",
+		},
+		{
+			name:       "form filter is preserved for stats",
+			actor:      RegistrationFormActor{ID: 9001, RoleName: model.RoleNameSuperAdmin},
+			input:      ListRegistrationsInput{FormID: &formID},
+			wantFormID: &formID,
+		},
+		{
+			name: "group scope is preserved for stats",
+			actor: RegistrationFormActor{
+				ID:                2001,
+				RoleName:          model.RoleNameAdmin,
+				AdminScope:        model.AdminScopeGroup,
+				ManagementGroupID: &groupID,
+				GroupRole:         "leader",
+			},
+			wantVisibleGroupIDs: []uint64{groupID},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			repo := newFakeRegistrationListRepository()
+			service := newRegistrationServiceWithDependencies(repo, nil)
+
+			result, err := service.ListRegistrations(context.Background(), tt.actor, tt.input)
+			if err != nil {
+				t.Fatalf("ListRegistrations returned error: %v", err)
+			}
+			if result.Summary != repo.stats {
+				t.Fatalf("expected all stats fields %#v, got %#v", repo.stats, result.Summary)
+			}
+			if len(repo.statsFilters) != 1 {
+				t.Fatalf("expected 1 stats filter call, got %d", len(repo.statsFilters))
+			}
+			statsFilter := repo.statsFilters[0]
+			if statsFilter.Status != nil {
+				t.Fatalf("expected stats filter to ignore current status, got %v", *statsFilter.Status)
+			}
+			if statsFilter.Keyword != tt.wantKeyword {
+				t.Fatalf("expected stats keyword %q, got %q", tt.wantKeyword, statsFilter.Keyword)
+			}
+			if tt.wantFormID == nil {
+				if statsFilter.FormID != nil {
+					t.Fatalf("expected no stats form filter, got %d", *statsFilter.FormID)
+				}
+			} else if statsFilter.FormID == nil || *statsFilter.FormID != *tt.wantFormID {
+				t.Fatalf("expected stats form ID %d, got %#v", *tt.wantFormID, statsFilter.FormID)
+			}
+			if len(statsFilter.VisibleGroupIDs) != len(tt.wantVisibleGroupIDs) {
+				t.Fatalf("expected stats visible groups %v, got %v", tt.wantVisibleGroupIDs, statsFilter.VisibleGroupIDs)
+			}
+			for index, groupID := range tt.wantVisibleGroupIDs {
+				if statsFilter.VisibleGroupIDs[index] != groupID {
+					t.Fatalf("expected stats visible groups %v, got %v", tt.wantVisibleGroupIDs, statsFilter.VisibleGroupIDs)
+				}
+			}
+			if len(repo.countFilters) != 1 {
+				t.Fatalf("expected 1 count filter call, got %d", len(repo.countFilters))
+			}
+			countStatus := repo.countFilters[0].Status
+			if tt.wantCountStatus == nil {
+				if countStatus != nil {
+					t.Fatalf("expected pagination count without status filter, got %v", *countStatus)
+				}
+			} else if countStatus == nil || *countStatus != *tt.wantCountStatus {
+				t.Fatalf("expected pagination count status %d, got %#v", *tt.wantCountStatus, countStatus)
+			}
+		})
+	}
+}
+
 func TestRegistrationServiceExportFormRegistrationsCSVIncludesDynamicFieldsAndExtraKeys(t *testing.T) {
 	repo := newFakeRegistrationListRepository()
 	service := newRegistrationServiceWithDependencies(repo, nil)

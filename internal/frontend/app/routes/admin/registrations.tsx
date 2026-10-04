@@ -273,7 +273,6 @@ export default function RegistrationsPage() {
   const [admissionImageFile, setAdmissionImageFile] = useState<File | null>(null);
   const [admissionImagePreview, setAdmissionImagePreview] = useState<string | null>(null);
   const [savingAdmissionImage, setSavingAdmissionImage] = useState(false);
-  const nextTableLoadMinimumMsRef = useRef(0);
   const isGroupLeader =
     currentUser.adminScope === "group" &&
     currentUser.groupRole === "leader" &&
@@ -347,10 +346,6 @@ export default function RegistrationsPage() {
     let cancelled = false;
 
     async function loadRegistrations() {
-      const startedAt = Date.now();
-      const minimumLoadingMs = nextTableLoadMinimumMsRef.current;
-      nextTableLoadMinimumMsRef.current = 0;
-
       try {
         setLoading(true);
         setFlash(null);
@@ -387,10 +382,6 @@ export default function RegistrationsPage() {
           }));
         }
       } finally {
-        const remainingMs = minimumLoadingMs - (Date.now() - startedAt);
-        if (remainingMs > 0) {
-          await new Promise((resolve) => setTimeout(resolve, remainingMs));
-        }
         if (!cancelled) {
           setLoading(false);
         }
@@ -478,7 +469,6 @@ export default function RegistrationsPage() {
   }
 
   function applyFilters() {
-    nextTableLoadMinimumMsRef.current = 500;
     const nextKeyword = keywordInput.trim();
     setKeywordInput(nextKeyword);
     setKeyword(nextKeyword);
@@ -488,7 +478,6 @@ export default function RegistrationsPage() {
   }
 
   function resetFilters() {
-    nextTableLoadMinimumMsRef.current = 500;
     setKeywordInput("");
     setStatusFilterInput("");
     setFormIdFilterInput("");

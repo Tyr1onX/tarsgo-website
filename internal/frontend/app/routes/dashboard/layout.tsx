@@ -18,7 +18,7 @@ export interface DashboardLayoutOutletContext {
   currentUser: AuthUser;
 }
 
-const CONTENT_TRANSITION_MS = 280;
+const CONTENT_TRANSITION_MS = 180;
 const DESKTOP_DASHBOARD_MEDIA = "(min-width: 1024px)";
 const SUPER_ADMIN_SETUP_PATH = "/dashboard/setup/super-admin";
 const SIDEBAR_DEFAULT_WIDTH = 200;
@@ -114,11 +114,9 @@ function MenuIcon({ iconKey }: { iconKey: DashboardMenuIconKey }) {
 function SidebarItem({
   item,
   onNavigate,
-  viewTransition,
 }: {
   item: DashboardMenuLink | VisibleDashboardAdminMenuItem;
   onNavigate: () => void;
-  viewTransition: boolean;
 }) {
   const location = useLocation();
   const [expanded, setExpanded] = useState(() => {
@@ -178,7 +176,6 @@ function SidebarItem({
                   key={child.href}
                   to={child.href}
                   onClick={onNavigate}
-                  viewTransition={viewTransition}
                   tabIndex={expanded ? 0 : -1}
                   className={({ isActive }) =>
                     `block truncate px-3 py-2 text-sm rounded-xl transition-colors ${
@@ -203,7 +200,6 @@ function SidebarItem({
       to={item.href}
       end
       onClick={onNavigate}
-      viewTransition={viewTransition}
       className={({ isActive }) =>
         `flex min-w-0 items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors ${
           isActive
@@ -456,7 +452,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
                   key={item.key}
                   item={item}
                   onNavigate={handleSidebarNavigate}
-                  viewTransition={isDesktopViewport}
                 />
               ))}
             </div>
@@ -470,7 +465,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
                     key={item.key}
                     item={item}
                     onNavigate={handleSidebarNavigate}
-                    viewTransition={isDesktopViewport}
                   />
                 ))}
               </div>
@@ -584,11 +578,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
         </header>
 
         <main className="p-4 sm:p-6 lg:p-8">
-          <div
-            ref={contentPanelRef}
-            className="relative"
-            style={{ viewTransitionName: "dashboard-content" }}
-          >
+          <div ref={contentPanelRef} className="relative">
             <Outlet context={{ currentUser } satisfies DashboardLayoutOutletContext} />
           </div>
         </main>

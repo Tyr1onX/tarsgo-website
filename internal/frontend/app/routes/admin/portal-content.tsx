@@ -87,19 +87,11 @@ export default function PortalContentPage() {
     }
   }, [isSuperAdmin, navigate, rawTab]);
 
-  async function load() {
+  async function loadAnnouncements() {
     setLoading(true);
     try {
-      const [announcements, groupItems] = await Promise.all([
-        listAdminAnnouncements(filter),
-        isSuperAdmin
-          ? listAdminUserGroups({ status: 1 }).then((result) => result.items)
-          : hasGlobalPortalAccess
-            ? listAdminUserGroupOptions().then((items) => items.filter((item) => item.status === 1).map((item) => ({ id: item.id, name: item.name, status: item.status } as AdminUserGroupListItem)))
-            : listManagedPortalGroups(),
-      ]);
+      const announcements = await listAdminAnnouncements(filter);
       setItems(announcements.items);
-      setGroups(groupItems);
     } catch (error) {
       setFlash({ type: "error", message: error instanceof ApiError ? error.message : "加载门户内容失败" });
     } finally {
@@ -107,7 +99,26 @@ export default function PortalContentPage() {
     }
   }
 
-  useEffect(() => { void load(); }, [filter, hasGlobalPortalAccess, isSuperAdmin]);
+  async function loadGroups() {
+    try {
+      const groupItems = isSuperAdmin
+        ? await listAdminUserGroups({ status: 1 }).then((result) => result.items)
+        : hasGlobalPortalAccess
+          ? await listAdminUserGroupOptions().then((items) => items.filter((item) => item.status === 1).map((item) => ({ id: item.id, name: item.name, status: item.status } as AdminUserGroupListItem)))
+          : await listManagedPortalGroups();
+      setGroups(groupItems);
+    } catch (error) {
+      setFlash({ type: "error", message: error instanceof ApiError ? error.message : "加载门户内容失败" });
+    }
+  }
+
+  useEffect(() => {
+    void loadAnnouncements();
+  }, [filter, currentUser.id, currentUser.managementGroupId, hasGlobalPortalAccess, isSuperAdmin]);
+
+  useEffect(() => {
+    void loadGroups();
+  }, [currentUser.id, currentUser.managementGroupId, hasGlobalPortalAccess, isSuperAdmin]);
 
   const selectedGroups = useMemo(() => new Set(form.targetGroupIds), [form.targetGroupIds]);
 
@@ -130,7 +141,7 @@ export default function PortalContentPage() {
       else await createAdminAnnouncement(payload);
       setEditing(undefined);
       setFlash({ type: "success", message: editing ? "公告已更新" : "公告已创建" });
-      await load();
+      await loadAnnouncements();
     } catch (error) {
       setFlash({ type: "error", message: error instanceof ApiError ? error.message : "保存公告失败" });
     } finally {
@@ -145,7 +156,7 @@ export default function PortalContentPage() {
       await deleteAdminAnnouncement(deleting.id);
       setDeleting(null);
       setFlash({ type: "success", message: "公告已删除" });
-      await load();
+      await loadAnnouncements();
     } catch (error) {
       setFlash({ type: "error", message: error instanceof ApiError ? error.message : "删除公告失败" });
     } finally {
@@ -181,7 +192,7 @@ export default function PortalContentPage() {
               </div>
             ))}
           </div>
-          {!loading && <button type="button" onClick={() => void load()} className="text-sm text-primary-400 hover:text-primary-300">重新加载</button>}
+          {!loading && <button type="button" onClick={() => void loadAnnouncements()} className="text-sm text-primary-400 hover:text-primary-300">重新加载</button>}
         </div>
       )}
       {editing !== undefined && (

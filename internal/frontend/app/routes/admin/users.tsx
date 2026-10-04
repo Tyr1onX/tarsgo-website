@@ -120,7 +120,6 @@ const userRoleFilterOptions = [
 const DRAWER_ANIMATION_MS = 220;
 const FLASH_DURATION_MS = 3000;
 const NOTIFY_ANIMATION_MS = 300;
-const TABLE_ACTION_LOADING_MS = 500;
 const tableActionButtonClassName =
   "inline-flex h-8 w-8 items-center justify-center rounded-xl border border-white/[0.08] text-fg-muted hover:text-fg-primary hover:bg-white/[0.06] transition-all duration-150 disabled:cursor-not-allowed disabled:opacity-50";
 
@@ -296,7 +295,6 @@ export default function Users() {
     totalPages: 0,
   });
   const [loadingList, setLoadingList] = useState(false);
-  const [tableActionLoading, setTableActionLoading] = useState(false);
   const [rolesLoading, setRolesLoading] = useState(false);
   const [flash, setFlash] = useState<FlashState>(null);
   const [flashVisible, setFlashVisible] = useState(false);
@@ -311,8 +309,6 @@ export default function Users() {
   const drawerOverlayRef = useRef<HTMLDivElement | null>(null);
   const drawerPanelRef = useRef<HTMLElement | null>(null);
   const drawerCloseTimerRef = useRef<number | null>(null);
-  const tableActionLoadingTimerRef = useRef<number | null>(null);
-  const tableActionLoadingDeadlineRef = useRef<number | null>(null);
 
   const [createModalOpen, setCreateModalOpen] = useState(false);
   const [createForm, setCreateForm] = useState<CreateUserFormState>(buildCreateFormState(""));
@@ -372,8 +368,10 @@ export default function Users() {
     async function loadOptions() {
       try {
         setRolesLoading(true);
-        const roleResponse = canManageUserDirectory ? await listAdminRoles() : [];
-        const groupResponse = canManageUserDirectory ? await listAdminUserGroupOptions() : [];
+        const [roleResponse, groupResponse]: [AdminUserRoleOption[], AdminUserGroupOption[]] =
+          canManageUserDirectory
+            ? await Promise.all([listAdminRoles(), listAdminUserGroupOptions()])
+            : [[], []];
         if (!cancelled) {
           const defaultEditableRole = roleResponse.find((item) => item.editableByCurrentActor);
           setRoles(roleResponse);
@@ -425,7 +423,6 @@ export default function Users() {
         }
       } finally {
         if (!cancelled) {
-          settleTableActionLoading();
           setLoadingList(false);
         }
       }
@@ -482,7 +479,6 @@ export default function Users() {
       if (drawerCloseTimerRef.current !== null) {
         window.clearTimeout(drawerCloseTimerRef.current);
       }
-      clearTableActionLoadingTimer();
     };
   }, []);
 
@@ -555,42 +551,6 @@ export default function Users() {
     applyUserListResponse(response);
   }
 
-  function clearTableActionLoadingTimer() {
-    if (tableActionLoadingTimerRef.current !== null) {
-      window.clearTimeout(tableActionLoadingTimerRef.current);
-      tableActionLoadingTimerRef.current = null;
-    }
-  }
-
-  function finishTableActionLoading() {
-    clearTableActionLoadingTimer();
-    tableActionLoadingDeadlineRef.current = null;
-    setTableActionLoading(false);
-  }
-
-  function settleTableActionLoading() {
-    if (tableActionLoadingDeadlineRef.current === null) {
-      return;
-    }
-
-    const remaining = tableActionLoadingDeadlineRef.current - Date.now();
-    if (remaining <= 0) {
-      finishTableActionLoading();
-      return;
-    }
-
-    clearTableActionLoadingTimer();
-    tableActionLoadingTimerRef.current = window.setTimeout(() => {
-      finishTableActionLoading();
-    }, remaining);
-  }
-
-  function startTableActionLoading() {
-    clearTableActionLoadingTimer();
-    tableActionLoadingDeadlineRef.current = Date.now() + TABLE_ACTION_LOADING_MS;
-    setTableActionLoading(true);
-  }
-
   function clearDrawerCloseTimer() {
     if (drawerCloseTimerRef.current !== null) {
       window.clearTimeout(drawerCloseTimerRef.current);
@@ -641,7 +601,6 @@ export default function Users() {
   function handleSearchSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     clearFlash(true);
-    startTableActionLoading();
     setQuery({
       ...filters,
       page: 1,
@@ -651,7 +610,6 @@ export default function Users() {
 
   function handleResetFilters() {
     clearFlash(true);
-    startTableActionLoading();
     const resetQuery = { ...defaultQuery };
     setFilters(resetQuery);
     setQuery(resetQuery);
@@ -958,19 +916,7 @@ export default function Users() {
               </tr>
             </thead>
             <tbody className="divide-y divide-white/[0.05]">
-              {tableActionLoading ? (
-                <tr>
-                  <td colSpan={8} className="px-5 py-14 text-center">
-                    <div className="flex flex-col items-center gap-3 text-sm text-fg-dim">
-                      <span
-                        aria-hidden="true"
-                        className="inline-flex h-8 w-8 animate-spin rounded-full border-2 border-accent-primary/20 border-t-accent-primary"
-                      />
-                      <span>正在刷新用户列表...</span>
-                    </div>
-                  </td>
-                </tr>
-              ) : loadingList ? (
+              {loadingList ? (
                 <tr>
                   <td colSpan={8} className="px-5 py-10 text-center text-sm text-fg-dim">
                     正在加载用户列表...
@@ -1067,15 +1013,7 @@ export default function Users() {
         </div>
 
         <div className="md:hidden">
-          {tableActionLoading ? (
-            <div className="flex flex-col items-center gap-3 px-5 py-14 text-sm text-fg-dim">
-              <span
-                aria-hidden="true"
-                className="inline-flex h-8 w-8 animate-spin rounded-full border-2 border-accent-primary/20 border-t-accent-primary"
-              />
-              <span>正在刷新用户列表...</span>
-            </div>
-          ) : loadingList ? (
+          {loadingList ? (
             <div className="px-5 py-10 text-center text-sm text-fg-dim">正在加载用户列表...</div>
           ) : users.length === 0 ? (
             <div className="px-5 py-10 text-center text-sm text-fg-dim">

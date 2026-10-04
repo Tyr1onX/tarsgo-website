@@ -389,8 +389,6 @@ const aboutModules = [
   },
 ];
 
-const preloadedAboutImages = new Set<string>();
-
 function getAboutModuleLayoutClass(imageCount: number) {
   if (imageCount >= 8) {
     return "lg:grid-cols-[1.28fr_0.72fr]";
@@ -748,33 +746,6 @@ export default function Home() {
       if (frameId) {
         window.cancelAnimationFrame(frameId);
       }
-    };
-  }, [activeAboutModuleIndex]);
-
-  useEffect(() => {
-    const preloadModuleImages = (moduleIndex: number) => {
-      for (const image of aboutModules[moduleIndex].images) {
-        if (preloadedAboutImages.has(image)) {
-          continue;
-        }
-
-        preloadedAboutImages.add(image);
-        const nextImage = new Image();
-        nextImage.decoding = "async";
-        nextImage.src = image;
-      }
-    };
-
-    const timerId = window.setTimeout(() => {
-      preloadModuleImages(activeAboutModuleIndex);
-      preloadModuleImages((activeAboutModuleIndex + 1) % aboutModules.length);
-      preloadModuleImages(
-        (activeAboutModuleIndex + aboutModules.length - 1) % aboutModules.length,
-      );
-    }, 120);
-
-    return () => {
-      window.clearTimeout(timerId);
     };
   }, [activeAboutModuleIndex]);
 

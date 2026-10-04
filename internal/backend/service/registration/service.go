@@ -2798,39 +2798,25 @@ func (r *gormRegistrationRepository) CountRegistrations(ctx context.Context, fil
 }
 
 func (r *gormRegistrationRepository) GetRegistrationStats(ctx context.Context, filter ListRegistrationsInput) (RegistrationStats, error) {
-	stats := RegistrationStats{}
-
-	total, err := r.countRegistrations(ctx, filter, nil)
-	if err != nil {
-		return stats, err
-	}
-	stats.Total = total
-
-	pending, err := r.countRegistrations(ctx, filter, ptrRegistrationStatus(model.RegistrationStatusPending))
-	if err != nil {
-		return stats, err
-	}
-	stats.Pending = pending
-
-	approved, err := r.countRegistrations(ctx, filter, ptrRegistrationStatus(model.RegistrationStatusApproved))
-	if err != nil {
-		return stats, err
-	}
-	stats.Approved = approved
-
-	rejected, err := r.countRegistrations(ctx, filter, ptrRegistrationStatus(model.RegistrationStatusRejected))
-	if err != nil {
-		return stats, err
-	}
-	stats.Rejected = rejected
-
-	cancelled, err := r.countRegistrations(ctx, filter, ptrRegistrationStatus(model.RegistrationStatusCancelled))
-	if err != nil {
-		return stats, err
-	}
-	stats.Cancelled = cancelled
-
-	return stats, nil
+	var stats RegistrationStats
+	err := applyRegistrationListFilters(
+		r.db.WithContext(ctx).
+			Model(&model.Registration{}).
+			Joins("JOIN registration_forms ON registration_forms.id = registrations.form_id"),
+		filter,
+		false,
+	).Select(
+		`COUNT(*) AS total,
+		COALESCE(SUM(CASE WHEN registrations.status = ? THEN 1 ELSE 0 END), 0) AS pending,
+		COALESCE(SUM(CASE WHEN registrations.status = ? THEN 1 ELSE 0 END), 0) AS approved,
+		COALESCE(SUM(CASE WHEN registrations.status = ? THEN 1 ELSE 0 END), 0) AS rejected,
+		COALESCE(SUM(CASE WHEN registrations.status = ? THEN 1 ELSE 0 END), 0) AS cancelled`,
+		model.RegistrationStatusPending,
+		model.RegistrationStatusApproved,
+		model.RegistrationStatusRejected,
+		model.RegistrationStatusCancelled,
+	).Scan(&stats).Error
+	return stats, err
 }
 
 func (r *gormRegistrationRepository) GetRegistrationByID(ctx context.Context, registrationID uint64) (*model.Registration, error) {
@@ -2921,11 +2907,6 @@ func (r *gormRegistrationRepository) countRegistrations(ctx context.Context, fil
 		status != nil,
 	).Count(&count).Error
 	return count, err
-}
-
-func ptrRegistrationStatus(status uint8) *uint8 {
-	value := status
-	return &value
 }
 
 func ptrUint64(value uint64) *uint64 {
