@@ -3,12 +3,17 @@ import { useNavigate } from "react-router";
 
 import { ApiError, buildApiUrl } from "~/lib/api-client";
 import {
+  createAdminInterviewSession,
   deleteAdminRegistration,
   getAdminRegistration,
+  listAdminInterviewSessions,
   listAdminRegistrations,
   recordAdminRegistrationInterview,
   screenAdminRegistration,
   undoAdminRegistrationScreening,
+  updateAdminInterviewSession,
+  type InterviewAttendance,
+  type InterviewSession,
   type ListRegistrationsInput,
   type RecruitmentStatus,
   type RegistrationDetail,
@@ -22,6 +27,7 @@ import {
   type RegistrationFormField,
   type RegistrationFormListItem,
 } from "~/lib/registration-forms-client";
+import { listAdminUserGroupOptions, type AdminUserGroupOption } from "~/lib/admin-user-groups-client";
 
 export function meta() {
   return [
@@ -48,6 +54,19 @@ const defaultPagination: RegistrationPagination = {
   totalPages: 0,
 };
 
+const attendanceOptions: Array<{ value: InterviewAttendance | ""; label: string }> = [
+  { value: "", label: "全部参加状态" },
+  { value: "pending", label: "待确认" },
+  { value: "attending", label: "确认参加" },
+  { value: "not_attending", label: "不参加" },
+];
+
+const sessionPresets = [
+  { label: "上午", startTime: "09:00", endTime: "11:30" },
+  { label: "下午", startTime: "13:30", endTime: "17:00" },
+  { label: "晚上", startTime: "18:30", endTime: "21:00" },
+];
+
 const statusOptions: Array<{ value: RecruitmentStatus | ""; label: string }> = [
   { value: "", label: "全部状态" },
   { value: "pending_screening", label: "待初筛" },
@@ -60,12 +79,28 @@ const statusOptions: Array<{ value: RecruitmentStatus | ""; label: string }> = [
 export default function Registrations() {
   const navigate = useNavigate();
   const [forms, setForms] = useState<RegistrationFormListItem[]>([]);
+  const [groups, setGroups] = useState<AdminUserGroupOption[]>([]);
+  const [sessions, setSessions] = useState<InterviewSession[]>([]);
+  const [editingSessionId, setEditingSessionId] = useState<number | null>(null);
+  const [sessionSaving, setSessionSaving] = useState(false);
+  const [sessionDraft, setSessionDraft] = useState({
+    date: "",
+    label: "上午",
+    startTime: "09:00",
+    endTime: "11:30",
+    location: "吉甲大师双创基地",
+    enabled: true,
+  });
   const [query, setQuery] = useState<ListRegistrationsInput>({
     page: 1,
     pageSize: 10,
     keyword: "",
     status: "",
     formId: "",
+    preferredGroupId: "",
+    interviewAttendance: "",
+    interviewDate: "",
+    interviewSessionLabel: "",
   });
   const [draftKeyword, setDraftKeyword] = useState("");
   const [items, setItems] = useState<RegistrationListItem[]>([]);
@@ -86,6 +121,22 @@ export default function Registrations() {
     listAdminRegistrationForms()
       .then((result) => {
         if (!cancelled) setForms(result.items);
+      })
+      .catch((error) => {
+        if (!cancelled) handleError(error);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    Promise.all([listAdminUserGroupOptions(), listAdminInterviewSessions()])
+      .then(([groupItems, sessionItems]) => {
+        if (cancelled) return;
+        setGroups(groupItems.filter((item) => item.status === 1));
+        setSessions(sessionItems);
       })
       .catch((error) => {
         if (!cancelled) handleError(error);
@@ -212,6 +263,72 @@ export default function Registrations() {
     setQuery((current) => ({ ...current, page: 1, keyword: draftKeyword.trim() }));
   }
 
+  function applySessionPreset(label: string, startTime: string, endTime: string) {
+    setSessionDraft((current) => ({ ...current, label, startTime, endTime }));
+  }
+
+  function editSession(session: InterviewSession) {
+    setEditingSessionId(session.id);
+    setSessionDraft({
+      date: session.date,
+      label: session.label,
+      startTime: session.startTime,
+      endTime: session.endTime,
+      location: session.location,
+      enabled: session.enabled,
+    });
+  }
+
+  function resetSessionDraft() {
+    setEditingSessionId(null);
+    setSessionDraft({
+      date: "",
+      label: "上午",
+      startTime: "09:00",
+      endTime: "11:30",
+      location: "吉甲大师双创基地",
+      enabled: true,
+    });
+  }
+
+  async function saveSession(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    try {
+      setSessionSaving(true);
+      if (editingSessionId == null) {
+        await createAdminInterviewSession(sessionDraft);
+      } else {
+        await updateAdminInterviewSession(editingSessionId, sessionDraft);
+      }
+      setSessions(await listAdminInterviewSessions());
+      resetSessionDraft();
+      setFlash({ type: "success", message: editingSessionId == null ? "面试场次已创建。" : "面试场次已更新。" });
+    } catch (error) {
+      handleError(error);
+    } finally {
+      setSessionSaving(false);
+    }
+  }
+
+  async function toggleSession(session: InterviewSession) {
+    try {
+      setSessionSaving(true);
+      await updateAdminInterviewSession(session.id, {
+        date: session.date,
+        label: session.label,
+        startTime: session.startTime,
+        endTime: session.endTime,
+        location: session.location,
+        enabled: !session.enabled,
+      });
+      setSessions(await listAdminInterviewSessions());
+    } catch (error) {
+      handleError(error);
+    } finally {
+      setSessionSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <header className="motion-fade-up">
@@ -238,6 +355,111 @@ export default function Registrations() {
         </div>
       ) : null}
 
+      <section className="glass-panel rounded-2xl p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="font-medium text-fg-primary">面试场次</h2>
+            <p className="mt-1 text-sm text-fg-dim">配置候选人可选的日期、时段和地点。</p>
+          </div>
+          {editingSessionId != null ? (
+            <button type="button" onClick={resetSessionDraft} className="btn-glass rounded-lg px-3 py-2 text-xs">
+              取消编辑
+            </button>
+          ) : null}
+        </div>
+
+        <form onSubmit={saveSession} className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
+          <input
+            type="date"
+            required
+            value={sessionDraft.date}
+            onChange={(event) => setSessionDraft((current) => ({ ...current, date: event.target.value }))}
+            className="rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2.5 text-sm text-fg-primary"
+          />
+          <input
+            required
+            value={sessionDraft.label}
+            onChange={(event) => setSessionDraft((current) => ({ ...current, label: event.target.value }))}
+            placeholder="时段名称"
+            className="rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2.5 text-sm text-fg-primary"
+          />
+          <input
+            type="time"
+            required
+            value={sessionDraft.startTime}
+            onChange={(event) => setSessionDraft((current) => ({ ...current, startTime: event.target.value }))}
+            className="rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2.5 text-sm text-fg-primary"
+          />
+          <input
+            type="time"
+            required
+            value={sessionDraft.endTime}
+            onChange={(event) => setSessionDraft((current) => ({ ...current, endTime: event.target.value }))}
+            className="rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2.5 text-sm text-fg-primary"
+          />
+          <input
+            required
+            value={sessionDraft.location}
+            onChange={(event) => setSessionDraft((current) => ({ ...current, location: event.target.value }))}
+            placeholder="地点"
+            className="rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2.5 text-sm text-fg-primary"
+          />
+          <button disabled={sessionSaving} type="submit" className="btn-gradient rounded-xl px-4 py-2.5 text-sm font-medium disabled:opacity-50">
+            {editingSessionId == null ? "创建场次" : "保存修改"}
+          </button>
+          <div className="flex flex-wrap gap-2 md:col-span-2 xl:col-span-6">
+            {sessionPresets.map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() => applySessionPreset(preset.label, preset.startTime, preset.endTime)}
+                className="btn-glass rounded-lg px-3 py-2 text-xs"
+              >
+                {preset.label} {preset.startTime}–{preset.endTime}
+              </button>
+            ))}
+          </div>
+        </form>
+
+        <div className="mt-4 divide-y divide-white/[0.05] rounded-xl border border-white/[0.06]">
+          {sessions.length === 0 ? (
+            <div className="px-4 py-5 text-sm text-fg-dim">暂无面试场次。</div>
+          ) : (
+            sessions.map((session) => (
+              <div key={session.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                <div>
+                  <div className="text-sm font-medium text-fg-primary">
+                    {session.date} · {session.label} {session.startTime}–{session.endTime}
+                  </div>
+                  <div className="mt-1 text-xs text-fg-dim">
+                    {session.location} · 已确认 {session.confirmedCount} 人 · {session.enabled ? "开放中" : "已停用"}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button
+                    type="button"
+                    aria-label={`编辑 ${session.date} ${session.label}`}
+                    onClick={() => editSession(session)}
+                    className="btn-glass rounded-lg px-3 py-2 text-xs"
+                  >
+                    编辑
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`${session.enabled ? "停用" : "启用"} ${session.date} ${session.label}`}
+                    disabled={sessionSaving}
+                    onClick={() => void toggleSession(session)}
+                    className="btn-glass rounded-lg px-3 py-2 text-xs disabled:opacity-50"
+                  >
+                    {session.enabled ? "停用" : "启用"}
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <SummaryCard label="全部" value={summary.total} />
         <SummaryCard label="待初筛" value={summary.pendingScreening} />
@@ -249,7 +471,7 @@ export default function Registrations() {
 
       <form
         onSubmit={submitSearch}
-        className="glass-panel grid gap-3 rounded-2xl p-4 lg:grid-cols-[minmax(0,1fr)_180px_220px_auto_auto]"
+        className="glass-panel grid gap-3 rounded-2xl p-4 md:grid-cols-2 xl:grid-cols-4"
       >
         <input
           value={draftKeyword}
@@ -290,6 +512,54 @@ export default function Registrations() {
             <option key={form.id} value={form.id}>
               {form.title}
             </option>
+          ))}
+        </select>
+        <select
+          value={query.preferredGroupId ?? ""}
+          onChange={(event) =>
+            setQuery((current) => ({
+              ...current,
+              page: 1,
+              preferredGroupId: event.target.value ? Number(event.target.value) : "",
+            }))
+          }
+          className="rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2.5 text-sm text-fg-primary"
+        >
+          <option value="">全部意向组</option>
+          {groups.map((group) => (
+            <option key={group.id} value={group.id}>{group.name}</option>
+          ))}
+        </select>
+        <select
+          value={query.interviewAttendance ?? ""}
+          onChange={(event) =>
+            setQuery((current) => ({
+              ...current,
+              page: 1,
+              interviewAttendance: event.target.value as InterviewAttendance | "",
+            }))
+          }
+          className="rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2.5 text-sm text-fg-primary"
+        >
+          {attendanceOptions.map((option) => (
+            <option key={option.value || "all"} value={option.value}>{option.label}</option>
+          ))}
+        </select>
+        <input
+          type="date"
+          value={query.interviewDate ?? ""}
+          onChange={(event) => setQuery((current) => ({ ...current, page: 1, interviewDate: event.target.value }))}
+          className="rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2.5 text-sm text-fg-primary"
+          aria-label="面试日期"
+        />
+        <select
+          value={query.interviewSessionLabel ?? ""}
+          onChange={(event) => setQuery((current) => ({ ...current, page: 1, interviewSessionLabel: event.target.value }))}
+          className="rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2.5 text-sm text-fg-primary"
+        >
+          <option value="">全部面试时段</option>
+          {Array.from(new Set(sessions.map((session) => session.label))).map((label) => (
+            <option key={label} value={label}>{label}</option>
           ))}
         </select>
         <button type="submit" className="btn-gradient rounded-xl px-4 py-2.5 text-sm font-medium">
@@ -349,6 +619,9 @@ export default function Registrations() {
                     </td>
                     <td className="px-5 py-4">
                       <StatusBadge status={item.status} rejectedStage={item.rejectedStage} />
+                      {item.status === "pending_interview" ? (
+                        <div className="mt-1.5 text-xs text-fg-dim">{formatInterviewAttendance(item.interviewAttendance, item.interviewSession)}</div>
+                      ) : null}
                     </td>
                     <td className="px-5 py-4 text-fg-muted">{formatDateTime(item.submittedAt)}</td>
                     <td className="px-5 py-4">
@@ -522,6 +795,12 @@ export default function Registrations() {
 
                 <section className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-5">
                   <h3 className="font-medium text-fg-primary">线下面试</h3>
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <InfoItem label="面试参加" value={formatInterviewAttendanceLabel(detail.interviewAttendance)} />
+                    <InfoItem label="预约日期" value={detail.interviewSession?.date ?? "—"} />
+                    <InfoItem label="预约时段" value={detail.interviewSession ? `${detail.interviewSession.label} ${detail.interviewSession.startTime}–${detail.interviewSession.endTime}` : "—"} />
+                    <InfoItem label="地点" value={detail.interviewSession?.location ?? "—"} />
+                  </div>
                   {detail.interviewedAt ? (
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
                       <InfoItem label="面试人" value={detail.interviewer?.name || detail.interviewer?.email || "—"} />
@@ -710,6 +989,19 @@ function normalizeFiles(value: unknown): string[] {
     }
     return String(item);
   });
+}
+
+function formatInterviewAttendanceLabel(attendance: InterviewAttendance) {
+  if (attendance === "attending") return "确认参加";
+  if (attendance === "not_attending") return "不参加";
+  return "待确认";
+}
+
+function formatInterviewAttendance(attendance: InterviewAttendance, session?: InterviewSession | null) {
+  if (attendance === "not_attending") return "不参加";
+  if (attendance !== "attending" || !session) return "待确认";
+  const monthDay = session.date.slice(5).replace("-", "/");
+  return `已确认 · ${monthDay} ${session.label}`;
 }
 
 function formatDateTime(value?: string | null) {

@@ -9,6 +9,34 @@ export type RecruitmentStatus =
   | "withdrawn";
 
 export type RecruitmentRejectedStage = "screening" | "interview";
+export type InterviewAttendance = "pending" | "attending" | "not_attending";
+
+export interface InterviewSession {
+  id: number;
+  date: string;
+  label: string;
+  startTime: string;
+  endTime: string;
+  location: string;
+  enabled: boolean;
+  confirmedCount: number;
+}
+
+export interface InterviewAttendanceResult {
+  attendance: InterviewAttendance;
+  session?: InterviewSession | null;
+  availableSessions: InterviewSession[];
+  canModify: boolean;
+}
+
+export interface UpsertInterviewSessionInput {
+  date: string;
+  label: string;
+  startTime: string;
+  endTime: string;
+  location: string;
+  enabled: boolean;
+}
 
 export interface RegistrationSummary {
   total: number;
@@ -40,6 +68,8 @@ export interface RegistrationListItem {
   preferredGroup?: RegistrationGroupRef | null;
   status: RecruitmentStatus;
   rejectedStage?: RecruitmentRejectedStage | null;
+  interviewAttendance: InterviewAttendance;
+  interviewSession?: InterviewSession | null;
   canScreen: boolean;
   canInterview: boolean;
   submittedAt: string;
@@ -82,6 +112,8 @@ export interface RegistrationDetail {
   interviewer?: RegistrationReviewerRef | null;
   interviewedAt?: string | null;
   interviewRemark?: string | null;
+  interviewAttendance: InterviewAttendance;
+  interviewSession?: InterviewSession | null;
   canScreen: boolean;
   canUndoScreening: boolean;
   canInterview: boolean;
@@ -105,6 +137,10 @@ export interface ListRegistrationsInput {
   keyword?: string;
   status?: RecruitmentStatus | "";
   formId?: number | "";
+  preferredGroupId?: number | "";
+  interviewAttendance?: InterviewAttendance | "";
+  interviewDate?: string;
+  interviewSessionLabel?: string;
 }
 
 export interface ScreeningDecisionInput {
@@ -152,6 +188,10 @@ export async function listAdminRegistrations(
   if (input.keyword?.trim()) params.set("keyword", input.keyword.trim());
   if (input.status !== "" && input.status !== undefined) params.set("status", input.status);
   if (input.formId !== "" && input.formId !== undefined) params.set("formId", String(input.formId));
+  if (input.preferredGroupId !== "" && input.preferredGroupId !== undefined) params.set("preferredGroupId", String(input.preferredGroupId));
+  if (input.interviewAttendance) params.set("interviewAttendance", input.interviewAttendance);
+  if (input.interviewDate?.trim()) params.set("interviewDate", input.interviewDate.trim());
+  if (input.interviewSessionLabel?.trim()) params.set("interviewSessionLabel", input.interviewSessionLabel.trim());
 
   const query = params.toString();
   return apiRequest<RegistrationListResponse>(
@@ -196,5 +236,32 @@ export async function recordAdminRegistrationInterview(
 export async function deleteAdminRegistration(registrationId: number): Promise<void> {
   await apiRequest(`/api/admin/registrations/${registrationId}`, {
     method: "DELETE",
+  });
+}
+
+export async function listAdminInterviewSessions(): Promise<InterviewSession[]> {
+  const data = await apiRequest<{ items: InterviewSession[] }>("/api/admin/interview-sessions");
+  return data.items;
+}
+
+export async function createAdminInterviewSession(input: UpsertInterviewSessionInput): Promise<InterviewSession> {
+  return apiRequest<InterviewSession>("/api/admin/interview-sessions", { method: "POST", body: input });
+}
+
+export async function updateAdminInterviewSession(sessionId: number, input: UpsertInterviewSessionInput): Promise<InterviewSession> {
+  return apiRequest<InterviewSession>(`/api/admin/interview-sessions/${sessionId}`, { method: "PATCH", body: input });
+}
+
+export async function getRecruitmentInterviewAttendance(registrationId: number): Promise<InterviewAttendanceResult> {
+  return apiRequest<InterviewAttendanceResult>(`/api/recruitment/registrations/${registrationId}/interview-attendance`);
+}
+
+export async function updateRecruitmentInterviewAttendance(
+  registrationId: number,
+  input: { attendance: Exclude<InterviewAttendance, "pending">; interviewSessionId?: number | null },
+): Promise<InterviewAttendanceResult> {
+  return apiRequest<InterviewAttendanceResult>(`/api/recruitment/registrations/${registrationId}/interview-attendance`, {
+    method: "PUT",
+    body: input,
   });
 }

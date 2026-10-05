@@ -90,6 +90,9 @@ func TestRegistrationServiceNewSubmissionStartsPendingScreeningWithOnePreferredG
 	if created == nil || created.PreferredGroupID == nil || *created.PreferredGroupID != 101 {
 		t.Fatalf("expected preferred group 101, got %#v", created)
 	}
+	if created.InterviewAttendance != model.InterviewAttendancePending || created.InterviewSessionID != nil {
+		t.Fatalf("new submission interview defaults = attendance %q session %v", created.InterviewAttendance, created.InterviewSessionID)
+	}
 	if created.Group1ID != nil || created.Group2ID != nil {
 		t.Fatalf("new submission must not populate legacy dual-intent fields: group1=%v group2=%v", created.Group1ID, created.Group2ID)
 	}
@@ -707,6 +710,210 @@ func TestRegistrationServiceCancelRecruitmentRegistrationRejectsReviewedRegistra
 	assertRegistrationServiceError(t, err, 409, "进入后续流程")
 }
 
+func TestInterviewAttendanceWithoutOpenSessionsReturnsEmptyOptions(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
+	repo.registration.InterviewAttendance = model.InterviewAttendancePending
+	for index := range repo.interviewSessions {
+		repo.interviewSessions[index].Enabled = false
+	}
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	user := RegistrationFormActor{ID: repo.registration.UserID, RoleName: model.RoleNameUser}
+
+	result, err := service.GetInterviewAttendance(context.Background(), user, repo.registration.ID)
+	if err != nil {
+		t.Fatalf("GetInterviewAttendance returned error: %v", err)
+	}
+	if result.Attendance != model.InterviewAttendancePending || !result.CanModify || len(result.AvailableSessions) != 0 {
+		t.Fatalf("unexpected result without open sessions: %#v", result)
+	}
+}
+
+func TestInterviewAttendanceFlowAndRestrictions(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
+	repo.registration.InterviewAttendance = model.InterviewAttendancePending
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	user := RegistrationFormActor{ID: repo.registration.UserID, RoleName: model.RoleNameUser}
+
+	firstID := uint64(802)
+	result, err := service.UpdateInterviewAttendance(context.Background(), user, repo.registration.ID, InterviewAttendanceInput{
+		Attendance: model.InterviewAttendanceAttending, InterviewSessionID: &firstID,
+	})
+	if err != nil {
+		t.Fatalf("attending update failed: %v", err)
+	}
+	if result.Attendance != model.InterviewAttendanceAttending || result.Session == nil || result.Session.ID != firstID {
+		t.Fatalf("unexpected attending result: %#v", result)
+	}
+
+	secondID := uint64(803)
+	result, err = service.UpdateInterviewAttendance(context.Background(), user, repo.registration.ID, InterviewAttendanceInput{
+		Attendance: model.InterviewAttendanceAttending, InterviewSessionID: &secondID,
+	})
+	if err != nil || result.Session == nil || result.Session.ID != secondID {
+		t.Fatalf("session change failed: result=%#v err=%v", result, err)
+	}
+
+	result, err = service.UpdateInterviewAttendance(context.Background(), user, repo.registration.ID, InterviewAttendanceInput{
+		Attendance: model.InterviewAttendanceNotAttending,
+	})
+	if err != nil {
+		t.Fatalf("not-attending update failed: %v", err)
+	}
+	if result.Attendance != model.InterviewAttendanceNotAttending || result.Session != nil || repo.registration.InterviewSessionID != nil {
+		t.Fatalf("not-attending must clear session: %#v", result)
+	}
+
+	result, err = service.UpdateInterviewAttendance(context.Background(), user, repo.registration.ID, InterviewAttendanceInput{
+		Attendance: model.InterviewAttendanceAttending, InterviewSessionID: &firstID,
+	})
+	if err != nil || result.Session == nil || result.Session.ID != firstID {
+		t.Fatalf("re-attending failed: result=%#v err=%v", result, err)
+	}
+
+	repo.interviewSessions[0].Enabled = false
+	disabledID := repo.interviewSessions[0].ID
+	if _, err := service.UpdateInterviewAttendance(context.Background(), user, repo.registration.ID, InterviewAttendanceInput{
+		Attendance: model.InterviewAttendanceAttending, InterviewSessionID: &disabledID,
+	}); err == nil {
+		t.Fatal("disabled session must not be selectable")
+	}
+	missingID := uint64(99999)
+	if _, err := service.UpdateInterviewAttendance(context.Background(), user, repo.registration.ID, InterviewAttendanceInput{
+		Attendance: model.InterviewAttendanceAttending, InterviewSessionID: &missingID,
+	}); err == nil {
+		t.Fatal("missing session must not be selectable")
+	}
+
+	otherUser := RegistrationFormActor{ID: repo.registration.UserID + 1, RoleName: model.RoleNameUser}
+	if _, err := service.UpdateInterviewAttendance(context.Background(), otherUser, repo.registration.ID, InterviewAttendanceInput{
+		Attendance: model.InterviewAttendanceNotAttending,
+	}); err == nil {
+		t.Fatal("another user must not modify interview attendance")
+	}
+}
+
+func TestInterviewAttendanceOnlyPendingInterviewCanModify(t *testing.T) {
+	statuses := []string{
+		model.RecruitmentStatusPendingScreening,
+		model.RecruitmentStatusAdmitted,
+		model.RecruitmentStatusRejected,
+		model.RecruitmentStatusWithdrawn,
+	}
+	for _, status := range statuses {
+		t.Run(status, func(t *testing.T) {
+			repo := newFakeRegistrationReviewRepository()
+			repo.registration.RecruitmentStatus = status
+			service := newRegistrationServiceWithDependencies(repo, nil)
+			user := RegistrationFormActor{ID: repo.registration.UserID, RoleName: model.RoleNameUser}
+			if _, err := service.UpdateInterviewAttendance(context.Background(), user, repo.registration.ID, InterviewAttendanceInput{
+				Attendance: model.InterviewAttendanceNotAttending,
+			}); err == nil {
+				t.Fatalf("%s must not modify interview attendance", status)
+			}
+		})
+	}
+}
+
+func TestInterviewSessionAdminManagementAndUserPermission(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	admin := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+
+	created, err := service.CreateInterviewSession(context.Background(), admin, UpsertInterviewSessionInput{
+		Date: "2026-10-13", Label: "上午", StartTime: "09:00", EndTime: "11:30", Location: "吉甲大师双创基地", Enabled: true,
+	})
+	if err != nil {
+		t.Fatalf("CreateInterviewSession returned error: %v", err)
+	}
+	if created.Label != "上午" || !created.Enabled {
+		t.Fatalf("unexpected created session: %#v", created)
+	}
+
+	updated, err := service.UpdateInterviewSession(context.Background(), admin, created.ID, UpsertInterviewSessionInput{
+		Date: "2026-10-13", Label: "下午", StartTime: "14:00", EndTime: "17:30", Location: "吉甲大师双创基地", Enabled: false,
+	})
+	if err != nil {
+		t.Fatalf("UpdateInterviewSession returned error: %v", err)
+	}
+	if updated.Label != "下午" || updated.StartTime != "14:00" || updated.EndTime != "17:30" || updated.Enabled {
+		t.Fatalf("unexpected updated session: %#v", updated)
+	}
+
+	user := RegistrationFormActor{ID: repo.registration.UserID, RoleName: model.RoleNameUser}
+	if _, err := service.CreateInterviewSession(context.Background(), user, UpsertInterviewSessionInput{
+		Date: "2026-10-13", Label: "晚上", StartTime: "18:30", EndTime: "21:00", Location: "吉甲大师双创基地", Enabled: true,
+	}); err == nil {
+		t.Fatal("ordinary user must not create interview sessions")
+	}
+}
+
+func TestDisablingSelectedInterviewSessionPreservesExistingSelection(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
+	repo.registration.InterviewAttendance = model.InterviewAttendanceAttending
+	sessionID := uint64(802)
+	repo.registration.InterviewSessionID = &sessionID
+	repo.registration.InterviewSession = cloneInterviewSession(sessionByID(repo.interviewSessions, sessionID))
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	admin := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+	user := RegistrationFormActor{ID: repo.registration.UserID, RoleName: model.RoleNameUser}
+
+	session := sessionByID(repo.interviewSessions, sessionID)
+	_, err := service.UpdateInterviewSession(context.Background(), admin, sessionID, UpsertInterviewSessionInput{
+		Date: session.Date, Label: session.Label, StartTime: session.StartTime, EndTime: session.EndTime, Location: session.Location, Enabled: false,
+	})
+	if err != nil {
+		t.Fatalf("disable selected session failed: %v", err)
+	}
+	result, err := service.GetInterviewAttendance(context.Background(), user, repo.registration.ID)
+	if err != nil {
+		t.Fatalf("GetInterviewAttendance returned error: %v", err)
+	}
+	if result.Session == nil || result.Session.ID != sessionID || result.Attendance != model.InterviewAttendanceAttending {
+		t.Fatalf("disabling session must preserve historical selection: %#v", result)
+	}
+}
+
+func TestInterviewResultPreservesAttendanceHistory(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
+	repo.registration.InterviewAttendance = model.InterviewAttendanceAttending
+	sessionID := uint64(802)
+	repo.registration.InterviewSessionID = &sessionID
+	repo.registration.InterviewSession = cloneInterviewSession(sessionByID(repo.interviewSessions, sessionID))
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	admin := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+
+	detail, err := service.RecordInterviewResult(context.Background(), admin, repo.registration.ID, InterviewDecisionInput{Decision: "admit"})
+	if err != nil {
+		t.Fatalf("RecordInterviewResult returned error: %v", err)
+	}
+	if detail.Status != model.RecruitmentStatusAdmitted {
+		t.Fatalf("status = %q, want admitted", detail.Status)
+	}
+	if detail.InterviewAttendance != model.InterviewAttendanceAttending || detail.InterviewSession == nil || detail.InterviewSession.ID != sessionID {
+		t.Fatalf("interview result must preserve attendance history: %#v", detail)
+	}
+}
+
+func TestInterviewResultDoesNotRequireAttendanceConfirmation(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
+	repo.registration.InterviewAttendance = model.InterviewAttendancePending
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	admin := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+
+	detail, err := service.RecordInterviewResult(context.Background(), admin, repo.registration.ID, InterviewDecisionInput{Decision: "reject"})
+	if err != nil {
+		t.Fatalf("pending attendance must not block interview result: %v", err)
+	}
+	if detail.Status != model.RecruitmentStatusRejected || detail.InterviewAttendance != model.InterviewAttendancePending {
+		t.Fatalf("unexpected detail after interview result: %#v", detail)
+	}
+}
+
 type fakeRegistrationReviewRepository struct {
 	registration        *model.Registration
 	shownGroups         []model.UserGroup
@@ -717,6 +924,7 @@ type fakeRegistrationReviewRepository struct {
 	removedMemberships  []fakeAddedMembership
 	addedMembershipKV   map[fakeAddedMembership]struct{}
 	removedMembershipKV map[fakeAddedMembership]struct{}
+	interviewSessions   []model.InterviewSession
 }
 
 type fakeAddedMembership struct {
@@ -771,6 +979,11 @@ func newFakeRegistrationReviewRepository() *fakeRegistrationReviewRepository {
 		},
 		addedMembershipKV:   make(map[fakeAddedMembership]struct{}),
 		removedMembershipKV: make(map[fakeAddedMembership]struct{}),
+		interviewSessions: []model.InterviewSession{
+			{ID: 801, Date: "2026-10-12", Label: "上午", StartTime: "09:00", EndTime: "11:30", Location: "吉甲大师双创基地", Enabled: true},
+			{ID: 802, Date: "2026-10-12", Label: "下午", StartTime: "13:30", EndTime: "17:00", Location: "吉甲大师双创基地", Enabled: true},
+			{ID: 803, Date: "2026-10-12", Label: "晚上", StartTime: "18:30", EndTime: "21:00", Location: "吉甲大师双创基地", Enabled: true},
+		},
 	}
 }
 
@@ -869,6 +1082,16 @@ func (r *fakeRegistrationReviewRepository) UpdateRegistration(_ context.Context,
 		r.registration.InterviewRemark = copyStringPtr(value)
 	} else if _, ok := updates["interview_remark"]; ok {
 		r.registration.InterviewRemark = nil
+	}
+	if value, ok := updates["interview_attendance"].(string); ok {
+		r.registration.InterviewAttendance = value
+	}
+	if value, ok := updates["interview_session_id"].(uint64); ok {
+		r.registration.InterviewSessionID = uint64Ptr(value)
+		r.registration.InterviewSession = cloneInterviewSession(sessionByID(r.interviewSessions, value))
+	} else if _, ok := updates["interview_session_id"]; ok {
+		r.registration.InterviewSessionID = nil
+		r.registration.InterviewSession = nil
 	}
 	if value, ok := updates["group_1"].(*uint64); ok {
 		r.registration.Group1ID = copyUint64Ptr(value)
@@ -1037,6 +1260,70 @@ func (r *fakeRegistrationReviewRepository) RemoveUserFromGroupIfPresent(_ contex
 	return nil
 }
 
+func (r *fakeRegistrationReviewRepository) ListInterviewSessions(_ context.Context, enabledOnly bool) ([]model.InterviewSession, error) {
+	items := make([]model.InterviewSession, 0, len(r.interviewSessions))
+	for _, session := range r.interviewSessions {
+		if enabledOnly && !session.Enabled {
+			continue
+		}
+		items = append(items, session)
+	}
+	return items, nil
+}
+
+func (r *fakeRegistrationReviewRepository) GetInterviewSessionByID(_ context.Context, sessionID uint64) (*model.InterviewSession, error) {
+	session := sessionByID(r.interviewSessions, sessionID)
+	if session == nil {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return cloneInterviewSession(session), nil
+}
+
+func (r *fakeRegistrationReviewRepository) GetInterviewSessionByIDForUpdate(ctx context.Context, sessionID uint64) (*model.InterviewSession, error) {
+	return r.GetInterviewSessionByID(ctx, sessionID)
+}
+
+func (r *fakeRegistrationReviewRepository) CreateInterviewSession(_ context.Context, session *model.InterviewSession) error {
+	if session.ID == 0 {
+		session.ID = uint64(900 + len(r.interviewSessions) + 1)
+	}
+	r.interviewSessions = append(r.interviewSessions, *session)
+	return nil
+}
+
+func (r *fakeRegistrationReviewRepository) UpdateInterviewSession(_ context.Context, sessionID uint64, updates map[string]any) error {
+	session := sessionByID(r.interviewSessions, sessionID)
+	if session == nil {
+		return gorm.ErrRecordNotFound
+	}
+	if value, ok := updates["date"].(string); ok {
+		session.Date = value
+	}
+	if value, ok := updates["label"].(string); ok {
+		session.Label = value
+	}
+	if value, ok := updates["start_time"].(string); ok {
+		session.StartTime = value
+	}
+	if value, ok := updates["end_time"].(string); ok {
+		session.EndTime = value
+	}
+	if value, ok := updates["location"].(string); ok {
+		session.Location = value
+	}
+	if value, ok := updates["enabled"].(bool); ok {
+		session.Enabled = value
+	}
+	return nil
+}
+
+func (r *fakeRegistrationReviewRepository) CountInterviewSessionSelections(_ context.Context, sessionID uint64) (int64, error) {
+	if r.registration != nil && r.registration.InterviewSessionID != nil && *r.registration.InterviewSessionID == sessionID && r.registration.InterviewAttendance == model.InterviewAttendanceAttending {
+		return 1, nil
+	}
+	return 0, nil
+}
+
 func cloneRegistrationModel(registration *model.Registration) *model.Registration {
 	if registration == nil {
 		return nil
@@ -1055,6 +1342,8 @@ func cloneRegistrationModel(registration *model.Registration) *model.Registratio
 	cloned.InterviewerID = copyUint64Ptr(registration.InterviewerID)
 	cloned.InterviewedAt = copyTimePtr(registration.InterviewedAt)
 	cloned.InterviewRemark = copyStringPtr(registration.InterviewRemark)
+	cloned.InterviewSessionID = copyUint64Ptr(registration.InterviewSessionID)
+	cloned.InterviewSession = cloneInterviewSession(registration.InterviewSession)
 	cloned.Group1ID = copyUint64Ptr(registration.Group1ID)
 	cloned.Group2ID = copyUint64Ptr(registration.Group2ID)
 	cloned.ReviewerID1 = copyUint64Ptr(registration.ReviewerID1)
@@ -1078,6 +1367,23 @@ func cloneRegistrationModel(registration *model.Registration) *model.Registratio
 	cloned.FinalGroup = cloneGroupModel(registration.FinalGroup)
 	cloned.Finalizer = cloneUserModel(registration.Finalizer)
 	return &cloned
+}
+
+func cloneInterviewSession(session *model.InterviewSession) *model.InterviewSession {
+	if session == nil {
+		return nil
+	}
+	cloned := *session
+	return &cloned
+}
+
+func sessionByID(sessions []model.InterviewSession, id uint64) *model.InterviewSession {
+	for i := range sessions {
+		if sessions[i].ID == id {
+			return &sessions[i]
+		}
+	}
+	return nil
 }
 
 func groupByID(groups []model.UserGroup, id uint64) *model.UserGroup {
@@ -1343,6 +1649,30 @@ func (r *fakeRegistrationListRepository) AddUserToGroupIfAbsent(_ context.Contex
 
 func (r *fakeRegistrationListRepository) RemoveUserFromGroupIfPresent(_ context.Context, _ uint64, _ uint64) error {
 	return nil
+}
+
+func (r *fakeRegistrationListRepository) ListInterviewSessions(_ context.Context, _ bool) ([]model.InterviewSession, error) {
+	return nil, nil
+}
+
+func (r *fakeRegistrationListRepository) GetInterviewSessionByID(_ context.Context, _ uint64) (*model.InterviewSession, error) {
+	return nil, gorm.ErrRecordNotFound
+}
+
+func (r *fakeRegistrationListRepository) GetInterviewSessionByIDForUpdate(_ context.Context, _ uint64) (*model.InterviewSession, error) {
+	return nil, gorm.ErrRecordNotFound
+}
+
+func (r *fakeRegistrationListRepository) CreateInterviewSession(_ context.Context, _ *model.InterviewSession) error {
+	return nil
+}
+
+func (r *fakeRegistrationListRepository) UpdateInterviewSession(_ context.Context, _ uint64, _ map[string]any) error {
+	return nil
+}
+
+func (r *fakeRegistrationListRepository) CountInterviewSessionSelections(_ context.Context, _ uint64) (int64, error) {
+	return 0, nil
 }
 
 func registrationMatchesVisibleGroups(registration *model.Registration, visibleGroupIDs []uint64) bool {

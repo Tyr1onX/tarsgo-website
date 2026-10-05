@@ -47,6 +47,26 @@ func migrationRegistry(appEnv string) []migration {
 			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.UserGroup{})
 		}},
 		{version: 9, apply: migrateRecruitmentWorkflow},
+		{version: 10, apply: migrateInterviewScheduling},
+	}
+}
+
+func migrateInterviewScheduling(db *gorm.DB) error {
+	if err := db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(
+		&model.InterviewSession{},
+		&model.Registration{},
+	); err != nil {
+		return err
+	}
+	return db.Model(&model.Registration{}).
+		Where("interview_attendance IS NULL OR interview_attendance = ?", "").
+		Updates(interviewSchedulingBackfillUpdates()).Error
+}
+
+func interviewSchedulingBackfillUpdates() map[string]any {
+	return map[string]any{
+		"interview_attendance": model.InterviewAttendancePending,
+		"interview_session_id": nil,
 	}
 }
 
