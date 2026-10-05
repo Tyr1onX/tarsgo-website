@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getDefaultDashboardPath, getUserDashboardMenu, getVisibleAdminDashboardMenu } from "./dashboard-navigation.ts";
+import { canAccessDashboardAdminPath, getDefaultDashboardPath, getUserDashboardMenu, getVisibleAdminDashboardMenu } from "./dashboard-navigation.ts";
 
 test("default dashboard follows the authenticated system role", () => {
   assert.equal(getDefaultDashboardPath("user"), "/dashboard/users");
@@ -27,4 +27,34 @@ test("user navigation remains separate and super-admin tools stay restricted", (
   const adminMenu = getVisibleAdminDashboardMenu("admin");
   assert.equal(adminMenu.some((item) => item.key === "system-config"), false);
   assert.equal(adminMenu.some((item) => item.key === "people" && "children" in item && item.children.some((child) => child.key === "user-groups")), false);
+});
+
+test("admin routes require an exact workbench match and each route's own menu permission", () => {
+  const cases = [
+    ["/dashboard/admin", true],
+    ["/dashboard/admin/registrations", true],
+    ["/dashboard/admin/statistics", true],
+    ["/dashboard/admin/form-config", false],
+    ["/dashboard/admin/user-groups", false],
+    ["/dashboard/admin/system-config/oauth", false],
+  ];
+
+  for (const [pathname, expected] of cases) {
+    assert.equal(canAccessDashboardAdminPath("admin", pathname), expected, pathname);
+  }
+});
+
+test("super admin can access every listed admin route", () => {
+  const paths = [
+    "/dashboard/admin",
+    "/dashboard/admin/registrations",
+    "/dashboard/admin/statistics",
+    "/dashboard/admin/form-config",
+    "/dashboard/admin/user-groups",
+    "/dashboard/admin/system-config/oauth",
+  ];
+
+  for (const pathname of paths) {
+    assert.equal(canAccessDashboardAdminPath("super_admin", pathname), true, pathname);
+  }
 });
