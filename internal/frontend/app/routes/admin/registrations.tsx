@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 
 import { ApiError, buildApiUrl } from "~/lib/api-client";
 import {
@@ -31,8 +31,8 @@ import { listAdminUserGroupOptions, type AdminUserGroupOption } from "~/lib/admi
 
 export function meta() {
   return [
-    { title: "报名列表 | TARS-GO 管理后台" },
-    { name: "description", content: "TARS-GO 招新候选人管理" },
+    { title: "报名处理 | TARS-GO 管理后台" },
+    { name: "description", content: "TARS-GO 招新候选人处理" },
   ];
 }
 
@@ -78,6 +78,10 @@ const statusOptions: Array<{ value: RecruitmentStatus | ""; label: string }> = [
 
 export default function Registrations() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialStatus = statusOptions.some((option) => option.value !== "" && option.value === searchParams.get("status"))
+    ? searchParams.get("status") as RecruitmentStatus
+    : "";
   const [forms, setForms] = useState<RegistrationFormListItem[]>([]);
   const [groups, setGroups] = useState<AdminUserGroupOption[]>([]);
   const [sessions, setSessions] = useState<InterviewSession[]>([]);
@@ -95,7 +99,7 @@ export default function Registrations() {
     page: 1,
     pageSize: 10,
     keyword: "",
-    status: "",
+    status: initialStatus,
     formId: "",
     preferredGroupId: "",
     interviewAttendance: "",
@@ -265,6 +269,12 @@ export default function Registrations() {
 
   function selectPipelineStatus(status: RecruitmentStatus | "") {
     setQuery((current) => ({ ...current, page: 1, status }));
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      if (status) next.set("status", status);
+      else next.delete("status");
+      return next;
+    }, { replace: true });
   }
 
   function applySessionPreset(label: string, startTime: string, endTime: string) {
@@ -404,7 +414,7 @@ export default function Registrations() {
         </div>
       </section>
 
-      <section className="glass-panel rounded-2xl p-5">
+      <section id="interview-sessions" className="glass-panel rounded-2xl p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h2 className="font-medium text-fg-primary">面试场次</h2>

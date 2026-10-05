@@ -8,6 +8,7 @@
     "preview": "vite preview",
     "start": "vite preview",
     "test:progress": "node --test app/lib/recruitment-progress.test.mjs",
+    "test:workbench": "node --test app/lib/admin-workbench.test.mjs app/lib/dashboard-navigation.test.mjs",
     "typecheck": "react-router typegen && tsc"
   },
   "dependencies": {

@@ -65,16 +65,42 @@ const USER_MENU: readonly DashboardMenuLink[] = [
 const ADMIN_MENU: readonly DashboardMenuDefinition[] = [
   {
     key: "admin-panel",
-    label: "数据面板",
+    label: "工作台",
     href: "/dashboard/admin",
     iconKey: "dashboard",
     allowedRoles: ["super_admin", "admin"],
   },
   {
+    key: "registration",
+    label: "招新管理",
+    iconKey: "registration",
+    children: [
+      {
+        key: "form-config",
+        label: "报名表配置",
+        href: "/dashboard/admin/form-config",
+        allowedRoles: ["super_admin"],
+      },
+      {
+        key: "registrations",
+        label: "报名处理",
+        href: "/dashboard/admin/registrations",
+        allowedRoles: ["super_admin", "admin"],
+      },
+    ],
+  },
+  {
     key: "portal-content",
-    label: "队务管理",
+    label: "内容管理",
     href: "/dashboard/admin/portal-content",
     iconKey: "team-management",
+    allowedRoles: ["super_admin", "admin"],
+  },
+  {
+    key: "recruitment-statistics",
+    label: "统计",
+    href: "/dashboard/admin/statistics",
+    iconKey: "dashboard",
     allowedRoles: ["super_admin", "admin"],
   },
   {
@@ -97,32 +123,13 @@ const ADMIN_MENU: readonly DashboardMenuDefinition[] = [
     ],
   },
   {
-    key: "registration",
-    label: "报名管理",
-    iconKey: "registration",
-    children: [
-      {
-        key: "form-config",
-        label: "表单配置",
-        href: "/dashboard/admin/form-config",
-        allowedRoles: ["super_admin"],
-      },
-      {
-        key: "registrations",
-        label: "报名列表",
-        href: "/dashboard/admin/registrations",
-        allowedRoles: ["super_admin", "admin"],
-      },
-    ],
-  },
-  {
     key: "system-config",
     label: "系统配置",
     iconKey: "settings",
     children: [
       {
         key: "system-config-email",
-        label: "邮件发信",
+        label: "邮件服务",
         href: "/dashboard/admin/system-config/email",
         allowedRoles: ["super_admin"],
       },
@@ -203,6 +210,10 @@ export function getVisibleAdminDashboardMenu(userOrRole: AuthUser | string): Vis
 
 export function hasDashboardAdminAccess(roleName: string) {
   return getAccessibleAdminPaths(roleName).length > 0;
+}
+
+export function getDefaultDashboardPath(roleName: string) {
+  return hasDashboardAdminAccess(roleName) ? "/dashboard/admin" : "/dashboard/users";
 }
 
 export function canAccessDashboardAdminPath(userOrRole: AuthUser | string, pathname: string) {

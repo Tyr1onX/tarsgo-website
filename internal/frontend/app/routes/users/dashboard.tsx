@@ -1,7 +1,10 @@
 import { useEffect, useState } from "react";
-import { useOutletContext } from "react-router";
+import { Link, useOutletContext } from "react-router";
 
 import { ApiError } from "~/lib/api-client";
+import { getRecruitmentProgress } from "~/lib/recruitment-progress";
+import { getRecruitmentPageData, type RecruitmentPageRegistrationSummary } from "~/lib/registration-forms-client";
+import { getRecruitmentInterviewAttendance, type InterviewAttendanceResult } from "~/lib/registrations-client";
 import { getPortalHome, type PortalAnnouncement, type PortalHomeData, type PortalLink } from "~/lib/portal-client";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 
@@ -44,10 +47,15 @@ function QuickLinkIcon({ type }: { type: string }) {
 
 export default function UserDashboard() {
   const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
+  const greeting = currentUser.nickname?.trim() ? `你好，${currentUser.nickname.trim()}` : "你好，欢迎回来";
   const [data, setData] = useState<PortalHomeData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<PortalAnnouncement | null>(null);
+  const [registrationSummary, setRegistrationSummary] = useState<RecruitmentPageRegistrationSummary | null>(null);
+  const [interviewAttendance, setInterviewAttendance] = useState<InterviewAttendanceResult | null>(null);
+  const [interviewLoading, setInterviewLoading] = useState(false);
+  const [recruitmentError, setRecruitmentError] = useState(false);
   const quickLinks = getQuickLinks(data?.links ?? [], Boolean(currentUser.portal?.showRecruitmentEntry));
 
   async function load() {
@@ -60,6 +68,32 @@ export default function UserDashboard() {
 
   useEffect(() => { void load(); }, []);
   useEffect(() => {
+    let cancelled = false;
+    async function loadRecruitment() {
+      try {
+        const page = await getRecruitmentPageData();
+        if (cancelled) return;
+        const summary = page.registrationSummary ?? null;
+        setRegistrationSummary(summary);
+        if (summary?.status === "pending_interview") {
+          setInterviewLoading(true);
+          try {
+            const attendance = await getRecruitmentInterviewAttendance(summary.id);
+            if (!cancelled) setInterviewAttendance(attendance);
+          } catch {
+            if (!cancelled) setInterviewAttendance(null);
+          } finally {
+            if (!cancelled) setInterviewLoading(false);
+          }
+        }
+      } catch {
+        if (!cancelled) setRecruitmentError(true);
+      }
+    }
+    void loadRecruitment();
+    return () => { cancelled = true; };
+  }, []);
+  useEffect(() => {
     if (!selected) return;
     const close = (event: KeyboardEvent) => { if (event.key === "Escape") setSelected(null); };
     document.addEventListener("keydown", close);
@@ -68,7 +102,9 @@ export default function UserDashboard() {
 
   return (
     <div className="space-y-8">
-      <div className="motion-fade-up"><h1 className="text-2xl font-bold">你好，{currentUser.nickname || "队员"} 👋</h1><p className="mt-1 text-sm text-gray-400">欢迎回到 TARS-GO 吉甲大师战队个人中心</p></div>
+      <div className="motion-fade-up"><h1 className="text-2xl font-bold">{greeting} 👋</h1><p className="mt-1 text-sm text-gray-400">TARS-GO 个人中心</p></div>
+      {registrationSummary && <UserRecruitmentProgress summary={registrationSummary} attendance={interviewAttendance} attendanceLoading={interviewLoading} />}
+      {recruitmentError && <section className="glass-panel flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-500/20 px-5 py-4"><p className="text-sm text-amber-200">招新进度暂时无法加载。</p><Link to="/dashboard/users/registrations" className="text-sm text-primary-200 hover:text-white">查看报名页面 →</Link></section>}
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
         {loading ? [1, 2, 3, 4].map((key) => <div key={key} className="h-28 animate-pulse rounded-2xl bg-white/[0.04]" />) : quickLinks.length === 0 ? <div className="col-span-full rounded-2xl border border-dashed border-white/[0.06] p-6 text-center text-sm text-gray-400">暂无快捷链接</div> : quickLinks.map((link, index) => <div key={`${link.href}-${link.label}`} className="motion-fade-up" style={{ animationDelay: `${80 + index * 70}ms` }}><a href={link.href} target={link.openInNewWindow ? "_blank" : undefined} rel={link.openInNewWindow ? "noreferrer" : undefined} aria-label={link.openInNewWindow ? `${link.label}（新窗口打开）` : link.label} className="glass-panel glass-card motion-surface group flex flex-col items-center gap-3 rounded-2xl p-5"><div className="chip-gradient-soft flex h-10 w-10 items-center justify-center rounded-xl text-primary-200"><QuickLinkIcon type={link.icon} /></div><span className="text-sm text-gray-300 group-hover:text-white">{link.label}{link.openInNewWindow && <span aria-hidden="true"> ↗</span>}</span></a></div>)}
       </div>
@@ -83,4 +119,29 @@ export default function UserDashboard() {
       {selected && <div className="fixed inset-0 z-[80] bg-black/70" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSelected(null); }}><aside role="dialog" aria-modal="true" aria-label="公告详情" className="glass-panel glass-panel-strong motion-dialog h-full w-[min(92vw,34rem)] overflow-y-auto p-6" data-state="open"><div className="flex items-start justify-between gap-4"><div><span className={`rounded-full px-2.5 py-1 text-xs ${categoryMeta[selected.category].className}`}>{categoryMeta[selected.category].label}</span><h2 className="mt-4 text-xl font-bold">{selected.title}</h2><p className="mt-2 text-xs text-gray-500">{formatDate(selected.publishAt, selected.createdAt)} · 北京时间</p></div><button type="button" onClick={() => setSelected(null)} className="btn-glass rounded-xl px-3 py-1.5 text-sm">关闭</button></div><div className="mt-8 whitespace-pre-wrap text-sm leading-7 text-gray-300">{selected.content}</div></aside></div>}
     </div>
   );
+}
+
+function UserRecruitmentProgress({
+  summary,
+  attendance,
+  attendanceLoading,
+}: {
+  summary: RecruitmentPageRegistrationSummary;
+  attendance: InterviewAttendanceResult | null;
+  attendanceLoading: boolean;
+}) {
+  const progress = getRecruitmentProgress(summary, attendance, attendanceLoading);
+  return <section aria-label="我的招新进度" className="glass-panel motion-fade-up overflow-hidden rounded-2xl border border-primary-400/15">
+    <div className="flex flex-wrap items-start justify-between gap-4 px-5 py-5 sm:px-6">
+      <div><div className="text-xs font-medium uppercase tracking-[0.16em] text-primary-200">当前招新流程</div><h2 className="mt-1 text-lg font-semibold text-white">{progress.currentStage}</h2><p className="mt-1 text-sm leading-6 text-gray-300">{progress.isTerminal ? progress.nextAction : `下一步：${progress.nextAction}`}</p></div>
+      <Link to="/dashboard/users/registrations" className="btn-gradient shrink-0 rounded-xl px-4 py-2.5 text-sm">查看进度</Link>
+    </div>
+    <ol aria-label="招新流程进度" className="grid grid-cols-2 gap-2 border-t border-white/[0.06] bg-black/10 px-5 py-4 sm:grid-cols-5 sm:px-6">
+      {progress.steps.map((step, index) => {
+        const style = step.state === "current" ? "border-primary-400/30 bg-primary-500/10 text-white" : step.state === "complete" ? "border-emerald-400/15 bg-emerald-500/[0.05] text-emerald-100" : step.state === "skipped" ? "border-white/[0.04] text-gray-600" : "border-white/[0.06] text-gray-400";
+        const marker = step.state === "complete" ? "✓" : step.state === "skipped" ? "–" : String(index + 1);
+        return <li key={step.label} aria-current={step.state === "current" ? "step" : undefined} className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs sm:text-sm ${style}`}><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-white/[0.05] text-[11px]">{marker}</span><span>{step.label}</span></li>;
+      })}
+    </ol>
+  </section>;
 }

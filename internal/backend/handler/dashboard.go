@@ -36,5 +36,5 @@ func (h *DashboardHandler) Get(c *gin.Context) {
 		}
 		return
 	}
-	writeAPI(c, http.StatusOK, "获取数据面板成功", result)
+	writeAPI(c, http.StatusOK, "获取统计数据成功", result)
 }

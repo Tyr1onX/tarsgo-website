@@ -479,7 +479,7 @@ function handlePageError(
     return;
   }
   if (error instanceof ApiError && error.status === 403) {
-    navigate("/dashboard/users", { replace: true });
+    navigate("/dashboard", { replace: true });
     return;
   }
   setErrorMessage(error instanceof ApiError ? error.message : "请求失败，请稍后重试。");

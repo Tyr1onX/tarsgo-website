@@ -6,6 +6,7 @@ import { ApiError } from "~/lib/api-client";
 import { getAuthUserRoleLabel, getBootstrapStatus, getCachedCurrentUser, getCurrentUser, logout, type AuthUser } from "~/lib/auth-client";
 import {
   canAccessDashboardAdminPath,
+  getDefaultDashboardPath,
   getUserDashboardMenu,
   getVisibleAdminDashboardMenu,
   hasDashboardAdminAccess,
@@ -68,7 +69,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     pathname.startsWith("/dashboard/admin") &&
     !canAccessDashboardAdminPath(currentUser, pathname)
   ) {
-    throw redirect("/dashboard/users");
+    throw redirect(getDefaultDashboardPath(currentUser.role.name));
   }
 
   return { currentUser };
