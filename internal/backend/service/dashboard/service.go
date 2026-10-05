@@ -48,7 +48,6 @@ type RecentActivityItem struct {
 type Data struct {
 	TotalUsers            int64                   `json:"totalUsers"`
 	NewUsersThisMonth     int64                   `json:"newUsersThisMonth"`
-	PendingRegistrations  int64                   `json:"pendingRegistrations"`
 	ActiveTechnicalGroups int                     `json:"activeTechnicalGroups"`
 	GroupDistribution     []GroupDistributionItem `json:"groupDistribution"`
 	RecentActivities      []RecentActivityItem    `json:"recentActivities"`
@@ -58,7 +57,6 @@ type Data struct {
 type Repository interface {
 	CountUsers(context.Context) (int64, error)
 	CountUsersCreated(context.Context, time.Time, time.Time) (int64, error)
-	CountPendingRegistrations(context.Context) (int64, error)
 	ListTechnicalGroups(context.Context) ([]GroupDistributionItem, error)
 	ListRecentActivities(context.Context, int) ([]model.ActivityEvent, error)
 }
@@ -66,7 +64,6 @@ type Repository interface {
 type scopedRepository interface {
 	CountUsersInGroup(context.Context, uint64) (int64, error)
 	CountUsersCreatedInGroup(context.Context, uint64, time.Time, time.Time) (int64, error)
-	CountPendingRegistrationsInGroup(context.Context, uint64) (int64, error)
 	ListTechnicalGroupsInGroup(context.Context, uint64) ([]GroupDistributionItem, error)
 	ListRecentActivitiesInGroup(context.Context, uint64, int) ([]model.ActivityEvent, error)
 }
@@ -92,10 +89,6 @@ func (s *Service) Get(ctx context.Context, actor Actor) (*Data, error) {
 	if err != nil {
 		return nil, internal("统计本月新增失败", err)
 	}
-	pending, err := s.repo.CountPendingRegistrations(ctx)
-	if err != nil {
-		return nil, internal("统计待审核报名失败", err)
-	}
 	groups, err := s.repo.ListTechnicalGroups(ctx)
 	if err != nil {
 		return nil, internal("统计技术组别失败", err)
@@ -108,7 +101,7 @@ func (s *Service) Get(ctx context.Context, actor Actor) (*Data, error) {
 	for _, event := range events {
 		activities = append(activities, activityItem(event))
 	}
-	return &Data{TotalUsers: total, NewUsersThisMonth: monthly, PendingRegistrations: pending, ActiveTechnicalGroups: len(groups), GroupDistribution: groups, RecentActivities: activities, GeneratedAt: now}, nil
+	return &Data{TotalUsers: total, NewUsersThisMonth: monthly, ActiveTechnicalGroups: len(groups), GroupDistribution: groups, RecentActivities: activities, GeneratedAt: now}, nil
 }
 
 func monthBounds(value time.Time) (time.Time, time.Time) {
@@ -265,14 +258,6 @@ func (r *GormRepository) CountUsersCreatedInGroup(ctx context.Context, groupID u
 	err := r.db.WithContext(ctx).Model(&model.User{}).Joins("JOIN user_group_members ON user_group_members.user_id = users.id").Where("user_group_members.group_id = ? AND users.created_at >= ? AND users.created_at < ?", groupID, start, end).Count(&count).Error
 	return count, err
 }
-func (r *GormRepository) CountPendingRegistrationsInGroup(ctx context.Context, groupID uint64) (int64, error) {
-	var count int64
-	err := r.db.WithContext(ctx).Model(&model.Registration{}).
-		Where("preferred_group_id = ?", groupID).
-		Where("recruitment_status IN ?", []string{model.RecruitmentStatusPendingScreening, model.RecruitmentStatusPendingInterview}).
-		Count(&count).Error
-	return count, err
-}
 func (r *GormRepository) ListTechnicalGroupsInGroup(ctx context.Context, groupID uint64) ([]GroupDistributionItem, error) {
 	var items []GroupDistributionItem
 	err := r.db.WithContext(ctx).Table("user_groups").Select("user_groups.id, user_groups.name, COUNT(user_group_members.id) AS count").Joins("LEFT JOIN user_group_members ON user_group_members.group_id = user_groups.id").Where("user_groups.id = ? AND user_groups.status = ?", groupID, model.UserGroupStatusActive).Group("user_groups.id, user_groups.name").Scan(&items).Error
@@ -286,13 +271,6 @@ func (r *GormRepository) ListRecentActivitiesInGroup(ctx context.Context, groupI
 func (r *GormRepository) CountUsersCreated(ctx context.Context, start, end time.Time) (int64, error) {
 	var count int64
 	err := r.db.WithContext(ctx).Model(&model.User{}).Where("created_at >= ? AND created_at < ?", start, end).Count(&count).Error
-	return count, err
-}
-func (r *GormRepository) CountPendingRegistrations(ctx context.Context) (int64, error) {
-	var count int64
-	err := r.db.WithContext(ctx).Model(&model.Registration{}).
-		Where("recruitment_status IN ?", []string{model.RecruitmentStatusPendingScreening, model.RecruitmentStatusPendingInterview}).
-		Count(&count).Error
 	return count, err
 }
 func (r *GormRepository) ListTechnicalGroups(ctx context.Context) ([]GroupDistributionItem, error) {

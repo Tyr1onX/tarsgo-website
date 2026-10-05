@@ -10,6 +10,7 @@ export default [
     route("users", "routes/users/dashboard.tsx"),
     route("users/registrations", "routes/users/registrations.tsx"),
     route("admin", "routes/admin/dashboard.tsx"),
+    route("admin/statistics", "routes/admin/statistics.tsx"),
     route("admin/users", "routes/admin/users.tsx"),
     route("admin/user-groups", "routes/admin/user-groups.tsx"),
     route("admin/form-config", "routes/admin/form-config.tsx"),

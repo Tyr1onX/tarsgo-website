@@ -5,7 +5,6 @@ export interface DashboardActivity { id: number; actionKey: string; actorName: s
 export interface AdminDashboardData {
   totalUsers: number;
   newUsersThisMonth: number;
-  pendingRegistrations: number;
   activeTechnicalGroups: number;
   groupDistribution: DashboardGroupDistribution[];
   recentActivities: DashboardActivity[];

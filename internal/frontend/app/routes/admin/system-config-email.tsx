@@ -16,8 +16,8 @@ import {
 
 export function meta() {
   return [
-    { title: "邮件发信 | TARS-GO 管理后台" },
-    { name: "description", content: "TARS-GO 系统邮件发信配置" },
+    { title: "邮件服务 | TARS-GO 管理后台" },
+    { name: "description", content: "TARS-GO 系统邮件服务配置与诊断" },
   ];
 }
 
@@ -182,7 +182,7 @@ export default function SystemConfigEmailPage() {
 
       <div className="space-y-6">
         <div className="motion-fade-up space-y-2">
-          <h1 className="text-2xl font-bold text-white">邮件发信</h1>
+          <h1 className="text-2xl font-bold text-white">邮件服务</h1>
           <p className="text-sm text-gray-400">注册、登录验证码与系统通知的发信状态。</p>
         </div>
 
@@ -373,7 +373,7 @@ function handlePageError(
     return;
   }
   if (error instanceof ApiError && error.status === 403) {
-    navigate("/dashboard/users", { replace: true });
+    navigate("/dashboard", { replace: true });
     return;
   }
   setErrorMessage(error instanceof ApiError ? error.message : "请求失败，请稍后重试。");

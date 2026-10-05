@@ -10,20 +10,17 @@ import (
 )
 
 type fakeRepository struct {
-	total, monthly, pending int64
-	groups                  []GroupDistributionItem
-	activities              []model.ActivityEvent
-	start, end              time.Time
-	requestedLimit          int
+	total, monthly int64
+	groups         []GroupDistributionItem
+	activities     []model.ActivityEvent
+	start, end     time.Time
+	requestedLimit int
 }
 
 func (r *fakeRepository) CountUsers(context.Context) (int64, error) { return r.total, nil }
 func (r *fakeRepository) CountUsersCreated(_ context.Context, start, end time.Time) (int64, error) {
 	r.start, r.end = start, end
 	return r.monthly, nil
-}
-func (r *fakeRepository) CountPendingRegistrations(context.Context) (int64, error) {
-	return r.pending, nil
 }
 func (r *fakeRepository) ListTechnicalGroups(context.Context) ([]GroupDistributionItem, error) {
 	return r.groups, nil
@@ -37,14 +34,14 @@ func (r *fakeRepository) ListRecentActivities(_ context.Context, limit int) ([]m
 }
 
 func TestDashboardUsesShanghaiMonthAndKeepsZeroMemberGroups(t *testing.T) {
-	repo := &fakeRepository{total: 40, monthly: 3, pending: 2, groups: []GroupDistributionItem{{ID: 1, Name: "视觉组", Count: 5}, {ID: 2, Name: "新技术组", Count: 0}}}
+	repo := &fakeRepository{total: 40, monthly: 3, groups: []GroupDistributionItem{{ID: 1, Name: "视觉组", Count: 5}, {ID: 2, Name: "新技术组", Count: 0}}}
 	service := NewService(repo)
 	service.now = func() time.Time { return time.Date(2026, 8, 31, 16, 30, 0, 0, time.UTC) }
 	data, err := service.Get(context.Background(), Actor{ID: 1, RoleName: model.RoleNameAdmin})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if data.TotalUsers != 40 || data.NewUsersThisMonth != 3 || data.PendingRegistrations != 2 || data.ActiveTechnicalGroups != 2 || data.GroupDistribution[1].Count != 0 {
+	if data.TotalUsers != 40 || data.NewUsersThisMonth != 3 || data.ActiveTechnicalGroups != 2 || data.GroupDistribution[1].Count != 0 {
 		t.Fatalf("unexpected data: %#v", data)
 	}
 	if repo.start.Format(time.RFC3339) != "2026-09-01T00:00:00+08:00" || repo.end.Format(time.RFC3339) != "2026-10-01T00:00:00+08:00" {

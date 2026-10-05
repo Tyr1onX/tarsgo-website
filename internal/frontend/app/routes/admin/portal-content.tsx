@@ -22,7 +22,7 @@ import { PortalEventManager } from "./portal-event-manager";
 import { PortalLinkManager } from "./portal-link-manager";
 
 export function meta() {
-  return [{ title: "队务管理 | TARS-GO 管理后台" }, { name: "description", content: "管理主页公告、日程和快捷链接" }];
+  return [{ title: "内容管理 | TARS-GO 管理后台" }, { name: "description", content: "管理公告、日程和快捷链接" }];
 }
 
 type TabKey = "announcements" | "events" | "links";
@@ -167,7 +167,7 @@ export default function PortalContentPage() {
     <div className="space-y-6">
       {flash && <Notify tone={flash.type} title={flash.type === "success" ? "操作成功" : "操作失败"} message={flash.message} onClose={() => setFlash(null)} />}
       <div className="flex flex-wrap items-end justify-between gap-4">
-        <div><h1 className="text-2xl font-bold">队务管理</h1><p className="mt-1 text-sm text-gray-400">配置队员主页展示内容</p></div>
+        <div><h1 className="text-2xl font-bold">内容管理</h1><p className="mt-1 text-sm text-gray-400">管理公告、日程和快捷链接</p></div>
       </div>
       <div className="flex gap-2 border-b border-white/[0.06]">
         {(["announcements", "events", "links"] as TabKey[]).map((key) => (
