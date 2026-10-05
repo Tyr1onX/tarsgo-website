@@ -7,8 +7,7 @@ export const LOCKED_REGISTRATION_FIELD_KEYS = [
   "name",
   "phone",
   "email",
-  "group_1",
-  "group_2",
+  "preferred_group",
 ] as const;
 
 export const REGISTRATION_FORM_STATUS_OPTIONS = [
@@ -38,7 +37,7 @@ export const REGISTRATION_FIELD_TYPE_LABELS = {
   ...(Object.fromEntries(
     REGISTRATION_FIELD_TYPE_OPTIONS.map((item) => [item.value, item.label]),
   ) as Record<Exclude<RegistrationFormFieldType, "user_group_select">, string>),
-  user_group_select: "意向组别",
+  user_group_select: "意向组",
 } satisfies Record<RegistrationFormFieldType, string>;
 
 export function buildLockedRegistrationFields(): RegistrationFormField[] {
@@ -65,18 +64,11 @@ export function buildLockedRegistrationFields(): RegistrationFormField[] {
       placeholder: "请输入联系邮箱",
     },
     {
-      key: "group_1",
-      label: "意向组别(1)",
+      key: "preferred_group",
+      label: "意向组",
       type: "user_group_select",
       required: true,
-      placeholder: "请选择意向组别(1)",
-    },
-    {
-      key: "group_2",
-      label: "意向组别(2)",
-      type: "user_group_select",
-      required: true,
-      placeholder: "请选择意向组别(2)",
+      placeholder: "请选择意向组",
     },
   ];
 }

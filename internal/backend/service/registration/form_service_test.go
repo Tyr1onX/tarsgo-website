@@ -12,6 +12,33 @@ import (
 	"tarsgo-backend/model"
 )
 
+func TestMergeLockedRegistrationFieldsNormalizesLegacyDualIntentPrompt(t *testing.T) {
+	fields := mergeLockedRegistrationFields([]model.FormField{
+		{Key: "group_1", Label: "意向组别(1)", Type: "user_group_select", Required: true},
+		{Key: "group_2", Label: "意向组别(2)", Type: "user_group_select", Required: true},
+		{Key: "motivation", Label: "为什么选择上面2个组别，请分别阐述。", Type: "textarea", Required: true},
+	})
+
+	var hasPreferred, hasLegacy bool
+	var motivationLabel string
+	for _, field := range fields {
+		switch field.Key {
+		case "preferred_group":
+			hasPreferred = true
+		case "group_1", "group_2":
+			hasLegacy = true
+		case "motivation":
+			motivationLabel = field.Label
+		}
+	}
+	if !hasPreferred || hasLegacy {
+		t.Fatalf("expected one canonical preferred-group field and no legacy group fields: %#v", fields)
+	}
+	if motivationLabel != "为什么选择上面的意向组，请阐述。" {
+		t.Fatalf("legacy dual-intent prompt was not normalized: %q", motivationLabel)
+	}
+}
+
 func TestRegistrationFormServiceCreateFormRejectsMissingLockedFields(t *testing.T) {
 	repo := newFakeRegistrationFormRepository()
 	service := newRegistrationFormServiceWithRepo(repo)
@@ -71,17 +98,14 @@ func TestRegistrationFormServiceGetRecruitmentPageDataReturnsSubmittedStateForEx
 	repo := newFakeRegistrationFormRepository()
 	repo.usersInDefaultGroup[42] = false
 	repo.registrations = append(repo.registrations, &model.Registration{
-		ID:           9,
-		FormID:       2,
-		UserID:       42,
-		FormData:     map[string]any{"name": "张三", "phone": "13800138000", "email": "zhangsan@example.com", "group_1": "101", "group_2": "102", "direction": "mechanical"},
-		Group1ID:     formServiceUint64Ptr(101),
-		Group1Status: model.RegistrationStatusPending,
-		Group2ID:     formServiceUint64Ptr(102),
-		Group2Status: model.RegistrationStatusPending,
-		Status:       model.RegistrationStatusPending,
-		SubmittedAt:  time.Date(2026, 4, 13, 12, 30, 0, 0, time.Local),
-		UpdatedAt:    time.Date(2026, 4, 13, 12, 30, 0, 0, time.Local),
+		ID:                9,
+		FormID:            2,
+		UserID:            42,
+		FormData:          map[string]any{"name": "张三", "phone": "13800138000", "email": "zhangsan@example.com", "group_1": "101", "group_2": "102", "direction": "mechanical"},
+		PreferredGroupID:  formServiceUint64Ptr(101),
+		RecruitmentStatus: model.RecruitmentStatusPendingScreening,
+		SubmittedAt:       time.Date(2026, 4, 13, 12, 30, 0, 0, time.Local),
+		UpdatedAt:         time.Date(2026, 4, 13, 12, 30, 0, 0, time.Local),
 	})
 	service := newRegistrationFormServiceWithRepo(repo)
 
@@ -99,20 +123,11 @@ func TestRegistrationFormServiceGetRecruitmentPageDataReturnsSubmittedStateForEx
 	if result.RegistrationSummary.FormTitle != "已发布表单" {
 		t.Fatalf("expected form title to be preserved, got %q", result.RegistrationSummary.FormTitle)
 	}
-	if result.RegistrationSummary.Status != model.RegistrationStatusPending {
-		t.Fatalf("expected pending summary status, got %d", result.RegistrationSummary.Status)
+	if result.RegistrationSummary.Status != model.RecruitmentStatusPendingScreening {
+		t.Fatalf("expected pending-screening summary status, got %q", result.RegistrationSummary.Status)
 	}
-	if result.RegistrationSummary.Group1 == nil || result.RegistrationSummary.Group1.Name != "机械组" {
-		t.Fatalf("expected group1 summary payload, got %#v", result.RegistrationSummary.Group1)
-	}
-	if result.RegistrationSummary.Group1Status != model.RegistrationStatusPending {
-		t.Fatalf("expected group1 pending status, got %d", result.RegistrationSummary.Group1Status)
-	}
-	if result.RegistrationSummary.Group2 == nil || result.RegistrationSummary.Group2.Name != "电控组" {
-		t.Fatalf("expected group2 summary payload, got %#v", result.RegistrationSummary.Group2)
-	}
-	if result.RegistrationSummary.Group2Status != model.RegistrationStatusPending {
-		t.Fatalf("expected group2 pending status, got %d", result.RegistrationSummary.Group2Status)
+	if result.RegistrationSummary.PreferredGroup == nil || result.RegistrationSummary.PreferredGroup.Name != "机械组" {
+		t.Fatalf("expected preferred group summary payload, got %#v", result.RegistrationSummary.PreferredGroup)
 	}
 	if !result.RegistrationSummary.CanEdit || !result.RegistrationSummary.CanCancel {
 		t.Fatalf("expected submitted summary to allow edit and cancel, got edit=%v cancel=%v", result.RegistrationSummary.CanEdit, result.RegistrationSummary.CanCancel)
@@ -131,17 +146,14 @@ func TestRegistrationFormServiceGetRecruitmentPageDataReturnsSubmittedStateForEx
 func TestRegistrationFormServiceGetRecruitmentPageDataReturnsReadonlySubmittedStateAfterReview(t *testing.T) {
 	repo := newFakeRegistrationFormRepository()
 	repo.registrations = append(repo.registrations, &model.Registration{
-		ID:           19,
-		FormID:       2,
-		UserID:       52,
-		FormData:     map[string]any{"name": "李四", "group_1": "101", "group_2": "102"},
-		Group1ID:     formServiceUint64Ptr(101),
-		Group1Status: model.RegistrationStatusApproved,
-		Group2ID:     formServiceUint64Ptr(102),
-		Group2Status: model.RegistrationStatusPending,
-		Status:       model.RegistrationStatusPending,
-		SubmittedAt:  time.Date(2026, 4, 13, 12, 30, 0, 0, time.Local),
-		UpdatedAt:    time.Date(2026, 4, 13, 13, 0, 0, 0, time.Local),
+		ID:                19,
+		FormID:            2,
+		UserID:            52,
+		FormData:          map[string]any{"name": "李四", "group_1": "101", "group_2": "102"},
+		PreferredGroupID:  formServiceUint64Ptr(101),
+		RecruitmentStatus: model.RecruitmentStatusPendingInterview,
+		SubmittedAt:       time.Date(2026, 4, 13, 12, 30, 0, 0, time.Local),
+		UpdatedAt:         time.Date(2026, 4, 13, 13, 0, 0, 0, time.Local),
 	})
 	service := newRegistrationFormServiceWithRepo(repo)
 
@@ -156,17 +168,11 @@ func TestRegistrationFormServiceGetRecruitmentPageDataReturnsReadonlySubmittedSt
 	if result.RegistrationSummary == nil {
 		t.Fatalf("expected submitted summary payload")
 	}
-	if result.RegistrationSummary.Group1 == nil || result.RegistrationSummary.Group1.Name != "机械组" {
-		t.Fatalf("expected reviewed summary to include group1 payload, got %#v", result.RegistrationSummary.Group1)
+	if result.RegistrationSummary.PreferredGroup == nil || result.RegistrationSummary.PreferredGroup.Name != "机械组" {
+		t.Fatalf("expected reviewed summary to include preferred group, got %#v", result.RegistrationSummary.PreferredGroup)
 	}
-	if result.RegistrationSummary.Group1Status != model.RegistrationStatusApproved {
-		t.Fatalf("expected reviewed summary group1 approved status, got %d", result.RegistrationSummary.Group1Status)
-	}
-	if result.RegistrationSummary.Group2 == nil || result.RegistrationSummary.Group2.Name != "电控组" {
-		t.Fatalf("expected reviewed summary to include group2 payload, got %#v", result.RegistrationSummary.Group2)
-	}
-	if result.RegistrationSummary.Group2Status != model.RegistrationStatusPending {
-		t.Fatalf("expected reviewed summary group2 pending status, got %d", result.RegistrationSummary.Group2Status)
+	if result.RegistrationSummary.Status != model.RecruitmentStatusPendingInterview {
+		t.Fatalf("expected pending-interview status, got %q", result.RegistrationSummary.Status)
 	}
 	if result.RegistrationSummary.CanEdit || result.RegistrationSummary.CanCancel {
 		t.Fatalf("expected reviewed registration to be readonly, got edit=%v cancel=%v", result.RegistrationSummary.CanEdit, result.RegistrationSummary.CanCancel)
@@ -285,8 +291,8 @@ func TestRegistrationFormServiceCreateFormPersistsValidForm(t *testing.T) {
 	if detail.Title != "2026 春季招新" {
 		t.Fatalf("expected created title, got %q", detail.Title)
 	}
-	if len(detail.FieldsSchema) != 6 {
-		t.Fatalf("expected 6 fields, got %d", len(detail.FieldsSchema))
+	if len(detail.FieldsSchema) != 5 {
+		t.Fatalf("expected 5 fields, got %d", len(detail.FieldsSchema))
 	}
 	if repo.forms[detail.ID].CreatorID != 5 {
 		t.Fatalf("expected creator id 5, got %d", repo.forms[detail.ID].CreatorID)
@@ -486,6 +492,7 @@ func (r *fakeRegistrationFormRepository) FindRegistrationByFormAndUser(_ context
 	for _, registration := range r.registrations {
 		if registration.FormID == formID && registration.UserID == userID {
 			cloned := *registration
+			cloned.PreferredGroup = cloneGroupRefByID(registration.PreferredGroupID)
 			cloned.Group1 = cloneGroupRefByID(registration.Group1ID)
 			cloned.Group2 = cloneGroupRefByID(registration.Group2ID)
 			return &cloned, nil
@@ -528,8 +535,7 @@ func validRegistrationFields() []model.FormField {
 		{Key: "name", Label: "姓名", Type: "text", Required: true, Placeholder: "请输入姓名"},
 		{Key: "phone", Label: "手机号", Type: "phone", Required: true, Placeholder: "请输入手机号"},
 		{Key: "email", Label: "邮箱", Type: "email", Required: true, Placeholder: "请输入邮箱"},
-		{Key: "group_1", Label: "意向组别(1)", Type: "user_group_select", Required: true, Placeholder: "请选择意向组别(1)"},
-		{Key: "group_2", Label: "意向组别(2)", Type: "user_group_select", Required: true, Placeholder: "请选择意向组别(2)"},
+		{Key: "preferred_group", Label: "意向组", Type: "user_group_select", Required: true, Placeholder: "请选择意向组"},
 		{
 			Key:      "direction",
 			Label:    "意向方向",

@@ -92,16 +92,17 @@
 | --- | --- | --- |
 | `GET` | `/healthz` | 健康检查，包含数据库连通性 |
 
-## 报名审核接口
+## 招新流程接口
 
 | 方法 | 路径 | 说明 |
 | --- | --- | --- |
-| `POST` | `/api/admin/registrations/:id/review` | 提交 `approve` 或 `reject` 审核结果 |
-| `DELETE` | `/api/admin/registrations/:id/review` | 撤销当前权限范围内的审核结果并恢复待审核 |
+| `POST` | `/api/admin/registrations/:id/screening` | 提交 `approve` 或 `reject` 初筛结果 |
+| `DELETE` | `/api/admin/registrations/:id/screening` | 在面试前撤销初筛并恢复待初筛 |
+| `POST` | `/api/admin/registrations/:id/interview` | 提交 `admit` 或 `reject` 面试结果 |
 
-撤销审核会清空对应志愿的审核人、审核时间和审核备注。超级管理员可撤销该记录的全部已审核志愿；负责组组长只能撤销自己负责的志愿。若已完成的通过审核曾同步用户组，撤销时会同时回滚目标组成员关系并恢复默认组。
+每条报名只保留一个意向组和一个主业务状态。初筛通过进入待面试；面试通过后直接录取到意向组，面试未通过则流程结束。历史双志愿字段和旧面试表仅用于历史记录兼容，不参与新业务判断。
 
-开发环境会幂等创建关闭状态的“撤销审核功能测试”报名表及四条记录，分别覆盖待审核、已通过、已拒绝和通过/拒绝混合结果。可使用 `reviewer@tarsgo.test` 和开发 mock 统一密码 `TarsGo123!` 登录测试；这些数据不会在生产、测试或预发布环境创建。
+开发环境会幂等创建关闭状态的“招新流程功能测试”报名表及四条记录，覆盖待初筛、待面试、未通过和已录取。可使用 `reviewer@tarsgo.test` 和开发 mock 统一密码 `TarsGo123!` 登录测试；这些数据不会在生产、测试或预发布环境创建。
 
 ## 单二进制部署
 

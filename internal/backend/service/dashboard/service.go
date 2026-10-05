@@ -267,13 +267,10 @@ func (r *GormRepository) CountUsersCreatedInGroup(ctx context.Context, groupID u
 }
 func (r *GormRepository) CountPendingRegistrationsInGroup(ctx context.Context, groupID uint64) (int64, error) {
 	var count int64
-	err := r.db.WithContext(ctx).Model(&model.Registration{}).Where(
-		"(group_1 = ? AND group_1_status = ?) OR (group_2 = ? AND group_2_status = ?)",
-		groupID,
-		model.RegistrationStatusPending,
-		groupID,
-		model.RegistrationStatusPending,
-	).Count(&count).Error
+	err := r.db.WithContext(ctx).Model(&model.Registration{}).
+		Where("preferred_group_id = ?", groupID).
+		Where("recruitment_status IN ?", []string{model.RecruitmentStatusPendingScreening, model.RecruitmentStatusPendingInterview}).
+		Count(&count).Error
 	return count, err
 }
 func (r *GormRepository) ListTechnicalGroupsInGroup(ctx context.Context, groupID uint64) ([]GroupDistributionItem, error) {
@@ -293,7 +290,9 @@ func (r *GormRepository) CountUsersCreated(ctx context.Context, start, end time.
 }
 func (r *GormRepository) CountPendingRegistrations(ctx context.Context) (int64, error) {
 	var count int64
-	err := r.db.WithContext(ctx).Model(&model.Registration{}).Where("status = ?", model.RegistrationStatusPending).Count(&count).Error
+	err := r.db.WithContext(ctx).Model(&model.Registration{}).
+		Where("recruitment_status IN ?", []string{model.RecruitmentStatusPendingScreening, model.RecruitmentStatusPendingInterview}).
+		Count(&count).Error
 	return count, err
 }
 func (r *GormRepository) ListTechnicalGroups(ctx context.Context) ([]GroupDistributionItem, error) {

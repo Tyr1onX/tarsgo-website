@@ -92,7 +92,7 @@ func seedDevelopmentMockData(db *gorm.DB, appEnv string) error {
 		if err != nil {
 			return err
 		}
-		if err := seedDevelopmentReviewFixtures(tx, reviewer, groups, users); err != nil {
+		if err := seedDevelopmentRecruitmentFixtures(tx, reviewer, groups, users); err != nil {
 			return err
 		}
 		if err := tx.Model(&model.User{}).Where("id = ?", reviewer.ID).Updates(map[string]any{"admin_scope": model.AdminScopeGlobal, "management_group_id": nil}).Error; err != nil {
@@ -329,95 +329,91 @@ func developmentMockGroupSeeds() []mockGroupSeed {
 		},
 		{
 			Name:        "开发候选人",
-			Description: "开发环境撤销审核测试账号所在的默认组",
-			Tags:        []string{"开发演示", "审核测试"},
+			Description: "开发环境招新流程测试账号所在的默认组",
+			Tags:        []string{"开发演示", "招新测试"},
 			IsDefault:   true,
 			Show:        0,
 			Users: []mockUserSeed{
-				{Name: "待审核测试", RealName: "待审核测试", Nickname: "待审核", Email: "review-pending@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
-				{Name: "撤销通过测试", RealName: "撤销通过测试", Nickname: "撤销通过", Email: "review-approved@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
-				{Name: "撤销拒绝测试", RealName: "撤销拒绝测试", Nickname: "撤销拒绝", Email: "review-rejected@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
-				{Name: "混合结果测试", RealName: "混合结果测试", Nickname: "混合审核", Email: "review-mixed@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
+				{Name: "待初筛测试", RealName: "待初筛测试", Nickname: "待初筛", Email: "review-pending@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
+				{Name: "待面试测试", RealName: "待面试测试", Nickname: "待面试", Email: "review-approved@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
+				{Name: "未通过测试", RealName: "未通过测试", Nickname: "未通过", Email: "review-rejected@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
+				{Name: "已录取测试", RealName: "已录取测试", Nickname: "已录取", Email: "review-mixed@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
 			},
 		},
 	}
 }
 
-type mockReviewRegistrationSeed struct {
-	Email        string
-	Name         string
-	Group1Status uint8
-	Group2Status uint8
-	Status       uint8
-	Remark1      string
-	Remark2      string
+type mockRecruitmentRegistrationSeed struct {
+	Email           string
+	Name            string
+	Status          string
+	RejectedStage   string
+	ScreeningRemark string
+	InterviewRemark string
 }
 
-func seedDevelopmentReviewFixtures(
+func seedDevelopmentRecruitmentFixtures(
 	tx *gorm.DB,
 	reviewer *model.User,
 	groups map[string]*model.UserGroup,
 	users map[string]*model.User,
 ) error {
 	visualGroup := groups["视觉组"]
-	electricalGroup := groups["电控组"]
 	defaultGroup := groups["开发候选人"]
-	if reviewer == nil || visualGroup == nil || electricalGroup == nil || defaultGroup == nil {
-		return fmt.Errorf("development review fixtures are incomplete")
+	if reviewer == nil || visualGroup == nil || defaultGroup == nil {
+		return fmt.Errorf("development recruitment fixtures are incomplete")
 	}
 
 	form := &model.RegistrationForm{}
-	formDescription := nullableSeedString("开发环境测试数据：用于验证撤销通过、撤销拒绝和重新审核。")
+	formDescription := nullableSeedString("开发环境测试数据：用于验证单意向组的初筛、面试和录取流程。")
 	if err := tx.
-		Where(&model.RegistrationForm{Title: "撤销审核功能测试"}).
+		Where(&model.RegistrationForm{Title: "招新流程功能测试"}).
 		Attrs(&model.RegistrationForm{
 			CreatorID:    reviewer.ID,
 			Description:  formDescription,
-			FieldsSchema: developmentReviewFixtureFields(),
+			FieldsSchema: developmentRecruitmentFixtureFields(),
 			Status:       model.RegistrationFormStatusClosed,
 		}).
 		FirstOrCreate(form).Error; err != nil {
-		return fmt.Errorf("seed review test form: %w", err)
+		return fmt.Errorf("seed recruitment test form: %w", err)
 	}
 
-	seeds := []mockReviewRegistrationSeed{
-		{Email: "review-pending@tarsgo.test", Name: "待审核测试", Group1Status: model.RegistrationStatusPending, Group2Status: model.RegistrationStatusPending, Status: model.RegistrationStatusPending},
-		{Email: "review-approved@tarsgo.test", Name: "撤销通过测试", Group1Status: model.RegistrationStatusApproved, Group2Status: model.RegistrationStatusApproved, Status: model.RegistrationStatusApproved, Remark1: "测试数据：第一志愿已通过", Remark2: "测试数据：第二志愿已通过"},
-		{Email: "review-rejected@tarsgo.test", Name: "撤销拒绝测试", Group1Status: model.RegistrationStatusRejected, Group2Status: model.RegistrationStatusRejected, Status: model.RegistrationStatusRejected, Remark1: "测试数据：第一志愿已拒绝", Remark2: "测试数据：第二志愿已拒绝"},
-		{Email: "review-mixed@tarsgo.test", Name: "混合结果测试", Group1Status: model.RegistrationStatusApproved, Group2Status: model.RegistrationStatusRejected, Status: model.RegistrationStatusApproved, Remark1: "测试数据：第一志愿已通过", Remark2: "测试数据：第二志愿已拒绝"},
+	seeds := []mockRecruitmentRegistrationSeed{
+		{Email: "review-pending@tarsgo.test", Name: "待初筛测试", Status: model.RecruitmentStatusPendingScreening},
+		{Email: "review-approved@tarsgo.test", Name: "待面试测试", Status: model.RecruitmentStatusPendingInterview, ScreeningRemark: "测试数据：初筛已通过"},
+		{Email: "review-rejected@tarsgo.test", Name: "未通过测试", Status: model.RecruitmentStatusRejected, RejectedStage: model.RecruitmentRejectedStageScreening, ScreeningRemark: "测试数据：初筛未通过"},
+		{Email: "review-mixed@tarsgo.test", Name: "已录取测试", Status: model.RecruitmentStatusAdmitted, ScreeningRemark: "测试数据：初筛已通过", InterviewRemark: "测试数据：面试通过并录取"},
 	}
 
 	for index, seed := range seeds {
 		user := users[normalizeSeedEmail(seed.Email)]
 		if user == nil {
-			return fmt.Errorf("load review test user %s", seed.Email)
+			return fmt.Errorf("load recruitment test user %s", seed.Email)
 		}
-		if err := ensureMockReviewRegistration(tx, form, reviewer, user, visualGroup, electricalGroup, seed, index); err != nil {
+		if err := ensureMockRecruitmentRegistration(tx, form, reviewer, user, visualGroup, seed, index); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func developmentReviewFixtureFields() []model.FormField {
+func developmentRecruitmentFixtureFields() []model.FormField {
 	return []model.FormField{
 		{Key: "name", Label: "姓名", Type: "text", Required: true},
 		{Key: "phone", Label: "手机号", Type: "phone", Required: true},
 		{Key: "email", Label: "邮箱", Type: "email", Required: true},
-		{Key: "group_1", Label: "第一志愿", Type: "user_group_select", Required: true},
-		{Key: "group_2", Label: "第二志愿", Type: "user_group_select", Required: true},
+		{Key: "preferred_group", Label: "意向组", Type: "user_group_select", Required: true},
 		{Key: "note", Label: "测试说明", Type: "textarea", Required: false},
 	}
 }
 
-func ensureMockReviewRegistration(
+func ensureMockRecruitmentRegistration(
 	tx *gorm.DB,
 	form *model.RegistrationForm,
 	reviewer *model.User,
 	user *model.User,
-	visualGroup *model.UserGroup,
-	electricalGroup *model.UserGroup,
-	seed mockReviewRegistrationSeed,
+	preferredGroup *model.UserGroup,
+	seed mockRecruitmentRegistrationSeed,
 	index int,
 ) error {
 	submittedAt := time.Now().Add(-time.Duration(index+1) * time.Hour)
@@ -425,34 +421,38 @@ func ensureMockReviewRegistration(
 	contactEmail := seed.Email
 	registrationSeed := &model.Registration{
 		FormData: map[string]any{
-			"name":    seed.Name,
-			"phone":   contactPhone,
-			"email":   seed.Email,
-			"group_1": fmt.Sprint(visualGroup.ID),
-			"group_2": fmt.Sprint(electricalGroup.ID),
-			"note":    "撤销后可重新选择通过或拒绝",
+			"name":            seed.Name,
+			"phone":           contactPhone,
+			"email":           seed.Email,
+			"preferred_group": fmt.Sprint(preferredGroup.ID),
+			"note":            "单意向组招新流程开发测试数据",
 		},
-		ContactName:  &seed.Name,
-		ContactPhone: &contactPhone,
-		ContactEmail: &contactEmail,
-		Group1ID:     &visualGroup.ID,
-		Group1Status: seed.Group1Status,
-		Group2ID:     &electricalGroup.ID,
-		Group2Status: seed.Group2Status,
-		Status:       seed.Status,
-		SubmittedAt:  submittedAt,
+		ContactName:       &seed.Name,
+		ContactPhone:      &contactPhone,
+		ContactEmail:      &contactEmail,
+		PreferredGroupID:  &preferredGroup.ID,
+		RecruitmentStatus: seed.Status,
+		SubmittedAt:       submittedAt,
 	}
-	if seed.Group1Status != model.RegistrationStatusPending {
-		reviewedAt := submittedAt.Add(15 * time.Minute)
-		registrationSeed.ReviewerID1 = &reviewer.ID
-		registrationSeed.ReviewedAt1 = &reviewedAt
-		registrationSeed.ReviewRemark1 = &seed.Remark1
+	if seed.RejectedStage != "" {
+		registrationSeed.RejectedStage = &seed.RejectedStage
 	}
-	if seed.Group2Status != model.RegistrationStatusPending {
-		reviewedAt := submittedAt.Add(30 * time.Minute)
-		registrationSeed.ReviewerID2 = &reviewer.ID
-		registrationSeed.ReviewedAt2 = &reviewedAt
-		registrationSeed.ReviewRemark2 = &seed.Remark2
+	if seed.Status != model.RecruitmentStatusPendingScreening {
+		screenedAt := submittedAt.Add(15 * time.Minute)
+		registrationSeed.ScreenedBy = &reviewer.ID
+		registrationSeed.ScreenedAt = &screenedAt
+		if seed.ScreeningRemark != "" {
+			registrationSeed.ScreeningRemark = &seed.ScreeningRemark
+		}
+	}
+	if seed.Status == model.RecruitmentStatusAdmitted ||
+		(seed.Status == model.RecruitmentStatusRejected && seed.RejectedStage == model.RecruitmentRejectedStageInterview) {
+		interviewedAt := submittedAt.Add(45 * time.Minute)
+		registrationSeed.InterviewerID = &reviewer.ID
+		registrationSeed.InterviewedAt = &interviewedAt
+		if seed.InterviewRemark != "" {
+			registrationSeed.InterviewRemark = &seed.InterviewRemark
+		}
 	}
 
 	registration := &model.Registration{}
@@ -460,7 +460,7 @@ func ensureMockReviewRegistration(
 		Where(&model.Registration{FormID: form.ID, UserID: user.ID}).
 		Attrs(registrationSeed).
 		FirstOrCreate(registration).Error; err != nil {
-		return fmt.Errorf("seed review registration %s: %w", seed.Email, err)
+		return fmt.Errorf("seed recruitment registration %s: %w", seed.Email, err)
 	}
 	return nil
 }

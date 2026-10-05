@@ -103,11 +103,9 @@ export interface RecruitmentPageRegistrationSummary {
   id: number;
   formId: number;
   formTitle: string;
-  group1?: RecruitmentRegistrationGroupRef | null;
-  group1Status: number;
-  group2?: RecruitmentRegistrationGroupRef | null;
-  group2Status: number;
-  status: number;
+  preferredGroup?: RecruitmentRegistrationGroupRef | null;
+  status: "pending_screening" | "pending_interview" | "admitted" | "rejected" | "withdrawn";
+  rejectedStage?: "screening" | "interview" | null;
   canEdit: boolean;
   canCancel: boolean;
   submittedAt: string;

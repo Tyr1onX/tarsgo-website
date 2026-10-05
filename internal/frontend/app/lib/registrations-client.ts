@@ -1,12 +1,33 @@
 import { apiRequest } from "~/lib/api-client";
 import type { RegistrationFormField } from "~/lib/registration-forms-client";
 
+export type RecruitmentStatus =
+  | "pending_screening"
+  | "pending_interview"
+  | "admitted"
+  | "rejected"
+  | "withdrawn";
+
+export type RecruitmentRejectedStage = "screening" | "interview";
+
 export interface RegistrationSummary {
   total: number;
-  pending: number;
-  approved: number;
+  pendingScreening: number;
+  pendingInterview: number;
+  admitted: number;
   rejected: number;
-  cancelled: number;
+  withdrawn: number;
+}
+
+export interface RegistrationGroupRef {
+  id: number;
+  name: string;
+}
+
+export interface RegistrationReviewerRef {
+  id: number;
+  name: string;
+  email: string;
 }
 
 export interface RegistrationListItem {
@@ -16,14 +37,11 @@ export interface RegistrationListItem {
   contactName?: string | null;
   contactPhone?: string | null;
   contactEmail?: string | null;
-  group1?: RegistrationGroupRef | null;
-  group1Status: number;
-  group2?: RegistrationGroupRef | null;
-  group2Status: number;
-  status: number;
-  canApprove: boolean;
-  canReject: boolean;
-  canUndo: boolean;
+  preferredGroup?: RegistrationGroupRef | null;
+  status: RecruitmentStatus;
+  rejectedStage?: RecruitmentRejectedStage | null;
+  canScreen: boolean;
+  canInterview: boolean;
   submittedAt: string;
   updatedAt: string;
 }
@@ -55,50 +73,28 @@ export interface RegistrationDetail {
   contactName?: string | null;
   contactPhone?: string | null;
   contactEmail?: string | null;
-  group1?: RegistrationGroupRef | null;
-  group1Status: number;
-  group2?: RegistrationGroupRef | null;
-  group2Status: number;
-  status: number;
-  interviews: RegistrationInterview[];
-  finalGroup?: RegistrationGroupRef | null;
-  finalStatus: number;
-  finalizedAt?: string | null;
-  finalizer?: RegistrationReviewerRef | null;
-  canInterview1: boolean;
-  canInterview2: boolean;
-  reviewer1?: RegistrationReviewerRef | null;
-  reviewedAt1?: string | null;
-  reviewRemark1?: string | null;
-  reviewer2?: RegistrationReviewerRef | null;
-  reviewedAt2?: string | null;
-  reviewRemark2?: string | null;
-  canApprove: boolean;
-  canReject: boolean;
-  canUndo: boolean;
+  preferredGroup?: RegistrationGroupRef | null;
+  status: RecruitmentStatus;
+  rejectedStage?: RecruitmentRejectedStage | null;
+  screener?: RegistrationReviewerRef | null;
+  screenedAt?: string | null;
+  screeningRemark?: string | null;
+  interviewer?: RegistrationReviewerRef | null;
+  interviewedAt?: string | null;
+  interviewRemark?: string | null;
+  canScreen: boolean;
+  canUndoScreening: boolean;
+  canInterview: boolean;
   submittedAt: string;
   updatedAt: string;
   fieldsSchema: RegistrationFormField[];
   formData: Record<string, unknown>;
 }
 
-export interface RegistrationGroupRef {
-  id: number;
-  name: string;
-}
-
-export interface RegistrationReviewerRef {
-  id: number;
-  name: string;
-  email: string;
-}
-
-export interface RegistrationInterview { groupId: number; group?: RegistrationGroupRef | null; status: number; remark?: string | null; interviewer?: RegistrationReviewerRef | null; interviewedAt?: string | null; }
-
 export interface SubmitRegistrationResult {
   id: number;
   formId: number;
-  status: number;
+  status: RecruitmentStatus;
   submittedAt: string;
   updatedAt: string;
 }
@@ -107,12 +103,17 @@ export interface ListRegistrationsInput {
   page?: number;
   pageSize?: number;
   keyword?: string;
-  status?: number | "";
+  status?: RecruitmentStatus | "";
   formId?: number | "";
 }
 
-export interface ReviewRegistrationInput {
+export interface ScreeningDecisionInput {
   decision: "approve" | "reject";
+  remark?: string;
+}
+
+export interface InterviewDecisionInput {
+  decision: "admit" | "reject";
   remark?: string;
 }
 
@@ -146,21 +147,11 @@ export async function listAdminRegistrations(
 ): Promise<RegistrationListResponse> {
   const params = new URLSearchParams();
 
-  if (input.page) {
-    params.set("page", String(input.page));
-  }
-  if (input.pageSize) {
-    params.set("pageSize", String(input.pageSize));
-  }
-  if (input.keyword?.trim()) {
-    params.set("keyword", input.keyword.trim());
-  }
-  if (input.status !== "" && input.status !== undefined) {
-    params.set("status", String(input.status));
-  }
-  if (input.formId !== "" && input.formId !== undefined) {
-    params.set("formId", String(input.formId));
-  }
+  if (input.page) params.set("page", String(input.page));
+  if (input.pageSize) params.set("pageSize", String(input.pageSize));
+  if (input.keyword?.trim()) params.set("keyword", input.keyword.trim());
+  if (input.status !== "" && input.status !== undefined) params.set("status", input.status);
+  if (input.formId !== "" && input.formId !== undefined) params.set("formId", String(input.formId));
 
   const query = params.toString();
   return apiRequest<RegistrationListResponse>(
@@ -174,26 +165,32 @@ export async function getAdminRegistration(
   return apiRequest<RegistrationDetail>(`/api/admin/registrations/${registrationId}`);
 }
 
-export async function reviewAdminRegistration(
+export async function screenAdminRegistration(
   registrationId: number,
-  input: ReviewRegistrationInput,
+  input: ScreeningDecisionInput,
 ): Promise<RegistrationDetail> {
-  return apiRequest<RegistrationDetail>(`/api/admin/registrations/${registrationId}/review`, {
+  return apiRequest<RegistrationDetail>(`/api/admin/registrations/${registrationId}/screening`, {
     method: "POST",
     body: input,
   });
 }
 
-export async function undoAdminRegistrationReview(
+export async function undoAdminRegistrationScreening(
   registrationId: number,
 ): Promise<RegistrationDetail> {
-  return apiRequest<RegistrationDetail>(`/api/admin/registrations/${registrationId}/review`, {
+  return apiRequest<RegistrationDetail>(`/api/admin/registrations/${registrationId}/screening`, {
     method: "DELETE",
   });
 }
 
-export async function updateAdminRegistrationInterview(registrationId: number, groupId: number, input: {status: "pending" | "passed" | "failed"; remark?: string}): Promise<RegistrationDetail> {
-  return apiRequest<RegistrationDetail>(`/api/admin/registrations/${registrationId}/interviews/${groupId}`, { method: "PATCH", body: input });
+export async function recordAdminRegistrationInterview(
+  registrationId: number,
+  input: InterviewDecisionInput,
+): Promise<RegistrationDetail> {
+  return apiRequest<RegistrationDetail>(`/api/admin/registrations/${registrationId}/interview`, {
+    method: "POST",
+    body: input,
+  });
 }
 
 export async function deleteAdminRegistration(registrationId: number): Promise<void> {

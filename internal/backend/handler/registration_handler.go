@@ -25,9 +25,9 @@ type registrationService interface {
 	CancelRecruitmentRegistration(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64) error
 	ListRegistrations(ctx context.Context, actor registration.RegistrationFormActor, input registration.ListRegistrationsInput) (*registration.ListRegistrationsResult, error)
 	GetRegistration(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64) (*registration.RegistrationDetail, error)
-	ReviewRegistration(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64, input registration.ReviewRegistrationInput) (*registration.RegistrationDetail, error)
-	UpdateRegistrationInterview(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64, input registration.UpdateInterviewInput) (*registration.RegistrationDetail, error)
-	UndoRegistrationReview(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64) (*registration.RegistrationDetail, error)
+	ScreenRegistration(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64, input registration.ScreeningDecisionInput) (*registration.RegistrationDetail, error)
+	RecordInterviewResult(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64, input registration.InterviewDecisionInput) (*registration.RegistrationDetail, error)
+	UndoScreening(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64) (*registration.RegistrationDetail, error)
 	DeleteRegistration(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64) error
 	OpenRegistrationFile(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64, fieldKey string, index int) (*registration.RegistrationFileResult, error)
 	ExportFormRegistrationsCSV(ctx context.Context, actor registration.RegistrationFormActor, formID uint64, baseURL string) (*registration.RegistrationCSVExportResult, error)
@@ -41,14 +41,9 @@ type listRegistrationsQuery struct {
 	FormID   string `form:"formId"`
 }
 
-type reviewRegistrationRequest struct {
+type recruitmentDecisionRequest struct {
 	Decision string `json:"decision"`
 	Remark   string `json:"remark"`
-}
-
-type updateInterviewRequest struct {
-	Status string `json:"status"`
-	Remark string `json:"remark"`
 }
 
 func NewRegistrationHandler(service registrationService) *RegistrationHandler {
@@ -124,7 +119,7 @@ func (h *RegistrationHandler) CancelRecruitmentRegistration(c *gin.Context) {
 		return
 	}
 
-	writeAPI(c, http.StatusOK, "取消报名成功", nil)
+	writeAPI(c, http.StatusOK, "撤回报名成功", nil)
 }
 
 func (h *RegistrationHandler) ListRegistrations(c *gin.Context) {
@@ -176,20 +171,20 @@ func (h *RegistrationHandler) GetRegistration(c *gin.Context) {
 	writeAPI(c, http.StatusOK, "获取报名详情成功", detail)
 }
 
-func (h *RegistrationHandler) ReviewRegistration(c *gin.Context) {
+func (h *RegistrationHandler) ScreenRegistration(c *gin.Context) {
 	registrationID, err := parsePathID(c.Param("id"))
 	if err != nil {
 		writeAPIError(c, http.StatusBadRequest, "无效的报名记录 ID")
 		return
 	}
 
-	var request reviewRegistrationRequest
+	var request recruitmentDecisionRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		writeAPIError(c, http.StatusBadRequest, "请求参数不合法")
 		return
 	}
 
-	detail, serviceErr := h.service.ReviewRegistration(c.Request.Context(), currentRegistrationFormActor(c), registrationID, registration.ReviewRegistrationInput{
+	detail, serviceErr := h.service.ScreenRegistration(c.Request.Context(), currentRegistrationFormActor(c), registrationID, registration.ScreeningDecisionInput{
 		Decision: request.Decision,
 		Remark:   request.Remark,
 	})
@@ -203,43 +198,38 @@ func (h *RegistrationHandler) ReviewRegistration(c *gin.Context) {
 	}
 	_ = middleware.RecordBusinessActivity(c, middleware.ActivityInput{ActionKey: actionKey, EntityType: "registration", EntityID: registrationID, Metadata: map[string]any{"decision": strings.ToLower(strings.TrimSpace(request.Decision))}})
 
-	writeAPI(c, http.StatusOK, "提交审核结果成功", detail)
+	writeAPI(c, http.StatusOK, "提交初筛结果成功", detail)
 }
 
-func (h *RegistrationHandler) UndoRegistrationReview(c *gin.Context) {
+func (h *RegistrationHandler) UndoScreening(c *gin.Context) {
 	registrationID, err := parsePathID(c.Param("id"))
 	if err != nil {
 		writeAPIError(c, http.StatusBadRequest, "无效的报名记录 ID")
 		return
 	}
 
-	detail, serviceErr := h.service.UndoRegistrationReview(c.Request.Context(), currentRegistrationFormActor(c), registrationID)
+	detail, serviceErr := h.service.UndoScreening(c.Request.Context(), currentRegistrationFormActor(c), registrationID)
 	if serviceErr != nil {
 		h.handleServiceError(c, serviceErr)
 		return
 	}
 	_ = middleware.RecordBusinessActivity(c, middleware.ActivityInput{ActionKey: model.ActivityRegistrationReviewUndo, EntityType: "registration", EntityID: registrationID})
 
-	writeAPI(c, http.StatusOK, "撤销审核成功", detail)
+	writeAPI(c, http.StatusOK, "撤销初筛成功", detail)
 }
 
-func (h *RegistrationHandler) UpdateRegistrationInterview(c *gin.Context) {
+func (h *RegistrationHandler) RecordInterviewResult(c *gin.Context) {
 	registrationID, err := parsePathID(c.Param("id"))
 	if err != nil {
 		writeAPIError(c, http.StatusBadRequest, "无效的报名记录 ID")
 		return
 	}
-	groupID, err := parsePathID(c.Param("groupId"))
-	if err != nil {
-		writeAPIError(c, http.StatusBadRequest, "无效的组别 ID")
-		return
-	}
-	var request updateInterviewRequest
+	var request recruitmentDecisionRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		writeAPIError(c, http.StatusBadRequest, "请求参数不合法")
 		return
 	}
-	detail, serviceErr := h.service.UpdateRegistrationInterview(c.Request.Context(), currentRegistrationFormActor(c), registrationID, registration.UpdateInterviewInput{GroupID: groupID, Status: request.Status, Remark: request.Remark})
+	detail, serviceErr := h.service.RecordInterviewResult(c.Request.Context(), currentRegistrationFormActor(c), registrationID, registration.InterviewDecisionInput{Decision: request.Decision, Remark: request.Remark})
 	if serviceErr != nil {
 		h.handleServiceError(c, serviceErr)
 		return
@@ -333,27 +323,21 @@ func (h *RegistrationHandler) handleServiceError(c *gin.Context, err error) {
 	writeAPIError(c, http.StatusInternalServerError, "服务器内部错误")
 }
 
-func parseOptionalRegistrationStatus(raw string) (*uint8, error) {
+func parseOptionalRegistrationStatus(raw string) (*string, error) {
 	trimmed := strings.TrimSpace(raw)
 	if trimmed == "" {
 		return nil, nil
 	}
-
-	value, err := strconv.ParseUint(trimmed, 10, 8)
-	if err != nil {
-		return nil, errors.New("报名状态筛选值不合法")
-	}
-
-	status := uint8(value)
-	switch status {
-	case model.RegistrationStatusPending,
-		model.RegistrationStatusApproved,
-		model.RegistrationStatusRejected,
-		model.RegistrationStatusCancelled:
+	switch trimmed {
+	case model.RecruitmentStatusPendingScreening,
+		model.RecruitmentStatusPendingInterview,
+		model.RecruitmentStatusAdmitted,
+		model.RecruitmentStatusRejected,
+		model.RecruitmentStatusWithdrawn:
+		return &trimmed, nil
 	default:
 		return nil, errors.New("报名状态筛选值不合法")
 	}
-	return &status, nil
 }
 
 func parseOptionalUint64(raw string, message string) (*uint64, error) {

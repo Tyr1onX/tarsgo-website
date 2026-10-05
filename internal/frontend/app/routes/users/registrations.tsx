@@ -64,34 +64,42 @@ type StatusMeta = {
   ringClassName: string;
 };
 
-const registrationStatusMeta: Record<number, StatusMeta> = {
-  0: {
-    label: "待审核",
-    hint: "报名资料已提交，正在等待管理员处理",
+const registrationStatusMeta: Record<RecruitmentPageRegistrationSummary["status"], StatusMeta> = {
+  pending_screening: {
+    label: "待初筛",
+    hint: "报名资料已提交，正在等待管理员初筛",
     tone: "pending",
     badgeClassName: "border-amber-400/20 bg-amber-500/10 text-amber-300",
     dotClassName: "bg-amber-400",
     ringClassName: "ring-amber-500/20",
   },
-  1: {
-    label: "已通过",
-    hint: "报名审核已通过，请留意后续通知",
+  pending_interview: {
+    label: "待面试",
+    hint: "初筛已通过，请留意线下面试安排",
+    tone: "pending",
+    badgeClassName: "border-sky-400/20 bg-sky-500/10 text-sky-300",
+    dotClassName: "bg-sky-400",
+    ringClassName: "ring-sky-500/20",
+  },
+  admitted: {
+    label: "已录取",
+    hint: "面试已通过，已完成录取",
     tone: "approved",
     badgeClassName: "border-emerald-400/20 bg-emerald-500/10 text-emerald-300",
     dotClassName: "bg-emerald-400",
     ringClassName: "ring-emerald-500/20",
   },
-  2: {
+  rejected: {
     label: "未通过",
-    hint: "本次报名未通过审核，可关注后续开放时间",
+    hint: "本次招新流程已结束",
     tone: "rejected",
     badgeClassName: "border-rose-400/20 bg-rose-500/10 text-rose-300",
     dotClassName: "bg-rose-400",
     ringClassName: "ring-rose-500/20",
   },
-  3: {
-    label: "已取消",
-    hint: "当前报名记录已被取消",
+  withdrawn: {
+    label: "已撤回",
+    hint: "你已撤回本次报名，历史记录仍会保留",
     tone: "cancelled",
     badgeClassName: "border-slate-400/20 bg-slate-500/10 text-slate-300",
     dotClassName: "bg-slate-400",
@@ -229,24 +237,13 @@ export default function UserRegistrations({
       setSubmitting(true);
       setFlash(null);
       setFlashVisible(false);
-      const group1Value = typeof formValues.group_1 === "string" ? formValues.group_1.trim() : "";
-      const group2Value = typeof formValues.group_2 === "string" ? formValues.group_2.trim() : "";
-      if (group1Value !== "" && group1Value === group2Value) {
-        setFlash({
-          type: "error",
-          message: "意向组别(1) 与意向组别(2) 不能重复。",
-        });
-        return;
-      }
-
       const payload = buildRegistrationSubmitPayload(
         targetForm.id,
         targetForm.fieldsSchema,
         formValues,
       );
       const result = await submitRecruitmentRegistration(payload);
-      const group1 = resolveSelectedRecruitmentGroup(targetForm.fieldsSchema, "group_1", formValues.group_1);
-      const group2 = resolveSelectedRecruitmentGroup(targetForm.fieldsSchema, "group_2", formValues.group_2);
+      const preferredGroup = resolveSelectedRecruitmentGroup(targetForm.fieldsSchema, "preferred_group", formValues.preferred_group);
       setPageData((current) => ({
         ...current,
         pageMode: "submitted",
@@ -254,10 +251,7 @@ export default function UserRegistrations({
           id: result.id,
           formId: result.formId,
           formTitle: current.form?.title ?? submittedSummary?.formTitle ?? "当前报名",
-          group1,
-          group1Status: 0,
-          group2,
-          group2Status: 0,
+          preferredGroup,
           status: result.status,
           canEdit: true,
           canCancel: true,
@@ -267,7 +261,7 @@ export default function UserRegistrations({
       }));
       setFlash({
         type: "success",
-        message: "报名提交成功，当前状态为待审核。",
+        message: "报名提交成功，当前状态为待初筛。",
       });
     } catch (error) {
       setFlash({
@@ -307,20 +301,20 @@ export default function UserRegistrations({
       setCancelling(true);
       setFlash(null);
       setFlashVisible(false);
-      const cachedForm = pageData.form;
-      const cachedFormData = pageData.registrationFormData ?? {};
       await cancelRecruitmentRegistration(submittedSummary.id);
-      if (!cachedForm) {
-        throw new Error("missing cached form after cancel");
-      }
-      setPageData({
-        pageMode: "form",
-        form: cachedForm,
-        registrationSummary: null,
-        registrationFormData: cachedFormData,
-        unavailableReason: null,
-      });
-      setFormValues(buildInitialValues(cachedForm.fieldsSchema, cachedFormData));
+      setPageData((current) => ({
+        ...current,
+        pageMode: "submitted",
+        registrationSummary: current.registrationSummary
+          ? {
+              ...current.registrationSummary,
+              status: "withdrawn",
+              canEdit: false,
+              canCancel: false,
+              updatedAt: new Date().toISOString(),
+            }
+          : current.registrationSummary,
+      }));
       setConfirmCancelClosing(true);
       window.setTimeout(() => {
         setConfirmCancelOpen(false);
@@ -328,7 +322,7 @@ export default function UserRegistrations({
       }, MODAL_ANIMATION_MS);
       setFlash({
         type: "success",
-        message: "报名已取消，原填写内容已保留在表单中，可直接重新提交。",
+        message: "报名已撤回，历史记录已保留。",
       });
     } catch (error) {
       setFlash({
@@ -522,7 +516,7 @@ function FormStateView({
                 className="mt-0.5 h-4 w-4 shrink-0 text-primary-300"
               />
               <span>
-                你刚刚取消了上一条未审核报名记录，原填写内容已回填到表单中，可直接重新提交。
+                这是你在待初筛阶段保存的报名内容，可在进入后续流程前继续修改。
               </span>
             </div>
           ) : null}
@@ -543,7 +537,7 @@ function FormStateView({
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-b-2xl border-t border-white/[0.06] bg-black/20 px-6 py-4">
             <p className="flex items-center gap-2 text-xs text-fg-dim">
               <Icon icon={shieldCheckIcon} className="h-3.5 w-3.5" />
-              提交后进入待审核状态，可在结果页查看进度
+              提交后进入待初筛状态，可在结果页查看进度
             </p>
             <button
               type="submit"
@@ -615,10 +609,10 @@ function FormStateView({
             <h3 className="text-sm font-semibold text-fg-primary">填写提醒</h3>
           </div>
           <ul className="mt-4 space-y-3 text-xs leading-6 text-fg-muted">{[
-            "系统字段「姓名 / 手机号 / 邮箱 / 意向组别(1) / 意向组别(2)」为必填项。",
+            "系统字段「姓名 / 手机号 / 邮箱 / 意向组」为必填项。",
             "文件与图片字段会随本次报名一起上传，通过后台受保护接口访问。",
-            "提交成功后页面切换为结果页，展示审核进度与提交时间。",
-            "取消未审核报名后，未重新上传的文件沿用上一版内容。",
+            "提交成功后页面切换为结果页，展示当前招新阶段与提交时间。",
+            "待初筛阶段可以修改或撤回报名；进入面试阶段后不可再修改。",
           ].map((text) => (
             <TipItem key={text}>{text}</TipItem>
           ))}</ul>
@@ -848,9 +842,9 @@ function CancelConfirmModal({
                 id="cancel-registration-title"
                 className="text-base font-semibold text-fg-primary"
               >
-                确认取消报名
+                确认撤回报名
               </h2>
-              <p className="mt-0.5 text-xs text-fg-dim">此操作可随时重新提交</p>
+              <p className="mt-0.5 text-xs text-fg-dim">撤回后保留历史记录</p>
             </div>
           </div>
           <button
@@ -867,18 +861,18 @@ function CancelConfirmModal({
 
         <div className="relative space-y-4 px-6 py-5">
           <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 px-4 py-3.5 text-sm leading-6 text-rose-100/90">
-            即将取消
+            即将撤回
             <span className="mx-1 font-semibold text-fg-primary">{formTitle}</span>
-            的报名记录。取消后该条记录不再进入审核流程，已填写的内容将回填到表单中，你可以重新编辑并再次提交。
+            的报名记录。撤回后该条记录不再进入后续初筛与面试，但历史记录会继续保留。
           </div>
           <ul className="space-y-2 text-xs leading-6 text-fg-muted">
             <li className="flex items-start gap-2">
               <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-rose-400/70" />
-              审核进入中或已完成的报名无法取消
+              只有待初筛状态可以撤回
             </li>
             <li className="flex items-start gap-2">
               <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-rose-400/70" />
-              未重新上传的文件将继续沿用上一版内容
+              撤回不会删除已提交的报名资料与文件记录
             </li>
           </ul>
         </div>
@@ -901,10 +895,10 @@ function CancelConfirmModal({
             {cancelling ? (
               <>
                 <Icon icon={loaderIcon} className="h-4 w-4 animate-spin" />
-                取消中...
+                撤回中...
               </>
             ) : (
-              "确认取消报名"
+              "确认撤回报名"
             )}
           </button>
         </div>
@@ -925,7 +919,7 @@ function SubmittedStateCard({
   cancelling: boolean;
   onCancel: () => void;
 }) {
-  const status = registrationStatusMeta[summary.status] ?? registrationStatusMeta[0];
+  const status = registrationStatusMeta[summary.status];
   const statusGlowClass =
     status.tone === "approved"
       ? "bg-registrations-status-approved"
@@ -993,8 +987,10 @@ function SubmittedStateCard({
             label="当前可操作"
             value={
               canCancel
-                ? "审核开始前可取消报名并重新提交"
-                : "已进入审核，当前不可修改"
+                ? "待初筛阶段可修改或撤回报名"
+                : summary.status === "withdrawn"
+                  ? "报名已撤回"
+                  : "已进入后续流程，当前不可修改"
             }
           />
         </div>
@@ -1005,24 +1001,18 @@ function SubmittedStateCard({
               <Icon icon={shieldCheckIcon} className="h-4 w-4" />
             </div>
             <div>
-              <h3 className="text-sm font-semibold text-fg-primary">意向组别审核结果</h3>
+              <h3 className="text-sm font-semibold text-fg-primary">意向组</h3>
               <p className="text-xs text-fg-dim">
-                两个意向组别会分别推进审核，结果可能不同步返回。
+                本次招新只按一个主要意向组推进初筛与面试。
               </p>
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <GroupReviewCard
-              slotLabel="意向组别(1)"
-              group={summary.group1}
-              status={summary.group1Status}
-            />
-            <GroupReviewCard
-              slotLabel="意向组别(2)"
-              group={summary.group2}
-              status={summary.group2Status}
-            />
+          <div className="mt-4 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-4">
+            <div className="text-xs text-fg-dim">当前意向组</div>
+            <div className="mt-1 text-base font-semibold text-fg-primary">
+              {summary.preferredGroup?.name ?? "未设置"}
+            </div>
           </div>
         </div>
 
@@ -1030,7 +1020,7 @@ function SubmittedStateCard({
           <div className="relative flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] px-6 py-4 sm:px-8">
             <p className="flex items-center gap-2 text-xs text-fg-dim">
               <Icon icon={infoIcon} className="h-3.5 w-3.5" />
-              如需修改内容，请先取消当前报名，再重新编辑提交
+              撤回后会保留本次报名历史，不再进入后续初筛
             </p>
             <button
               type="button"
@@ -1041,12 +1031,12 @@ function SubmittedStateCard({
               {cancelling ? (
                 <>
                   <Icon icon={loaderIcon} className="h-4 w-4 animate-spin" />
-                  取消中...
+                  撤回中...
                 </>
               ) : (
                 <>
                   <Icon icon={x} className="h-4 w-4" />
-                  取消报名
+                  撤回报名
                 </>
               )}
             </button>
@@ -1054,39 +1044,6 @@ function SubmittedStateCard({
         ) : null}
       </div>
     </section>
-  );
-}
-
-function GroupReviewCard({
-  slotLabel,
-  group,
-  status,
-}: {
-  slotLabel: string;
-  group?: RecruitmentRegistrationGroupRef | null;
-  status: number;
-}) {
-  const meta = registrationStatusMeta[status] ?? registrationStatusMeta[0];
-  const groupName = group?.name?.trim() || "未识别组别";
-
-  return (
-    <div className="rounded-xl border border-white/[0.06] bg-black/20 p-4">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[11px] font-medium uppercase tracking-[0.18em] text-fg-dim">
-          {slotLabel}
-        </p>
-        <span
-          className={`inline-flex items-center gap-2 rounded-full border px-2.5 py-1 text-[11px] font-medium ${meta.badgeClassName}`}
-        >
-          <span className={`h-1.5 w-1.5 rounded-full ${meta.dotClassName}`} />
-          {meta.label}
-        </span>
-      </div>
-      <div className="mt-3 text-base font-semibold text-fg-primary">{groupName}</div>
-      <p className="mt-1 text-sm leading-6 text-fg-muted">
-        {buildGroupReviewHint(groupName, status)}
-      </p>
-    </div>
   );
 }
 
@@ -1550,19 +1507,6 @@ function resolveSelectedRecruitmentGroup(
     id,
     name: option.label,
   };
-}
-
-function buildGroupReviewHint(groupName: string, status: number) {
-  switch (status) {
-    case 1:
-      return `${groupName} 已通过审核，请留意后续安排。`;
-    case 2:
-      return `${groupName} 本轮未通过审核，你仍可继续关注另一意向组别结果。`;
-    case 3:
-      return "当前报名已取消，该组别不再进入审核流程。";
-    default:
-      return `${groupName} 当前仍在审核中，结果更新后会同步展示在这里。`;
-  }
 }
 
 async function fetchLoaderApi<T>(path: string): Promise<T> {

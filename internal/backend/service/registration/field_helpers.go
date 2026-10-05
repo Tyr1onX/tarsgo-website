@@ -2,6 +2,7 @@ package registration
 
 import (
 	"strconv"
+	"strings"
 
 	"tarsgo-backend/model"
 )
@@ -33,17 +34,16 @@ var registrationLockedFieldSpecs = []lockedRegistrationFieldSpec{
 		Placeholder: "请输入联系邮箱",
 	},
 	{
-		Key:         "group_1",
+		Key:         "preferred_group",
 		FieldType:   "user_group_select",
-		Label:       "意向组别(1)",
-		Placeholder: "请选择意向组别(1)",
+		Label:       "意向组",
+		Placeholder: "请选择意向组",
 	},
-	{
-		Key:         "group_2",
-		FieldType:   "user_group_select",
-		Label:       "意向组别(2)",
-		Placeholder: "请选择意向组别(2)",
-	},
+}
+
+var legacyRegistrationGroupFieldKeys = map[string]struct{}{
+	"group_1": {},
+	"group_2": {},
 }
 
 var registrationLockedFields = func() map[string]lockedRegistrationFieldSpec {
@@ -95,10 +95,29 @@ func mergeLockedRegistrationFields(fields []model.FormField) []model.FormField {
 		if _, ok := lockedKeys[field.Key]; ok {
 			continue
 		}
-		merged = append(merged, field)
+		if _, legacy := legacyRegistrationGroupFieldKeys[field.Key]; legacy {
+			continue
+		}
+		merged = append(merged, normalizeLegacyRecruitmentFieldCopy(field))
 	}
 
 	return cloneRegistrationFields(merged)
+}
+
+func normalizeLegacyRecruitmentFieldCopy(field model.FormField) model.FormField {
+	replacements := []struct {
+		old string
+		new string
+	}{
+		{"为什么选择上面2个组别，请分别阐述。", "为什么选择上面的意向组，请阐述。"},
+		{"为什么选择上面 2 个组别，请分别阐述。", "为什么选择上面的意向组，请阐述。"},
+	}
+	for _, replacement := range replacements {
+		field.Label = strings.ReplaceAll(field.Label, replacement.old, replacement.new)
+		field.Description = strings.ReplaceAll(field.Description, replacement.old, replacement.new)
+		field.Placeholder = strings.ReplaceAll(field.Placeholder, replacement.old, replacement.new)
+	}
+	return field
 }
 
 func hydrateUserGroupSelectFields(fields []model.FormField, groups []model.UserGroup) []model.FormField {

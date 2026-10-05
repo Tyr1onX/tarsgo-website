@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -131,18 +132,16 @@ type RecruitmentPageData struct {
 }
 
 type RecruitmentRegistrationBrief struct {
-	ID           uint64                `json:"id"`
-	FormID       uint64                `json:"formId"`
-	FormTitle    string                `json:"formTitle"`
-	Group1       *RegistrationGroupRef `json:"group1,omitempty"`
-	Group1Status uint8                 `json:"group1Status"`
-	Group2       *RegistrationGroupRef `json:"group2,omitempty"`
-	Group2Status uint8                 `json:"group2Status"`
-	Status       uint8                 `json:"status"`
-	CanEdit      bool                  `json:"canEdit"`
-	CanCancel    bool                  `json:"canCancel"`
-	SubmittedAt  time.Time             `json:"submittedAt"`
-	UpdatedAt    time.Time             `json:"updatedAt"`
+	ID             uint64                `json:"id"`
+	FormID         uint64                `json:"formId"`
+	FormTitle      string                `json:"formTitle"`
+	PreferredGroup *RegistrationGroupRef `json:"preferredGroup,omitempty"`
+	Status         string                `json:"status"`
+	RejectedStage  *string               `json:"rejectedStage,omitempty"`
+	CanEdit        bool                  `json:"canEdit"`
+	CanCancel      bool                  `json:"canCancel"`
+	SubmittedAt    time.Time             `json:"submittedAt"`
+	UpdatedAt      time.Time             `json:"updatedAt"`
 }
 
 type FormServiceError struct {
@@ -350,18 +349,16 @@ func (s *RegistrationFormService) GetRecruitmentPageData(ctx context.Context, ac
 		pageData := &RecruitmentPageData{
 			PageMode: "submitted",
 			RegistrationSummary: &RecruitmentRegistrationBrief{
-				ID:           registration.ID,
-				FormID:       registration.FormID,
-				FormTitle:    form.Title,
-				Group1:       toRegistrationGroupRef(registration.Group1),
-				Group1Status: registration.Group1Status,
-				Group2:       toRegistrationGroupRef(registration.Group2),
-				Group2Status: registration.Group2Status,
-				Status:       registration.Status,
-				CanEdit:      canMutateRegistrationBeforeReview(registration),
-				CanCancel:    canMutateRegistrationBeforeReview(registration),
-				SubmittedAt:  registration.SubmittedAt,
-				UpdatedAt:    registration.UpdatedAt,
+				ID:             registration.ID,
+				FormID:         registration.FormID,
+				FormTitle:      form.Title,
+				PreferredGroup: toRegistrationGroupRef(registration.PreferredGroup),
+				Status:         registration.RecruitmentStatus,
+				RejectedStage:  copyStringPtr(registration.RejectedStage),
+				CanEdit:        canMutateRegistrationBeforeReview(registration),
+				CanCancel:      canMutateRegistrationBeforeReview(registration),
+				SubmittedAt:    registration.SubmittedAt,
+				UpdatedAt:      registration.UpdatedAt,
 			},
 		}
 		if pageData.RegistrationSummary.CanEdit {
@@ -374,13 +371,16 @@ func (s *RegistrationFormService) GetRecruitmentPageData(ctx context.Context, ac
 				Title:            form.Title,
 				Description:      copyStringPtr(form.Description),
 				CoverImageURL:    copyStringPtr(form.CoverImageURL),
-				FieldsSchema:     hydrateUserGroupSelectFields(form.FieldsSchema, groups),
+				FieldsSchema:     hydrateUserGroupSelectFields(mergeLockedRegistrationFields(form.FieldsSchema), groups),
 				MaxRegistrations: copyIntPtr(form.MaxRegistrations),
 				StartTime:        copyTimePtr(form.StartTime),
 				EndTime:          copyTimePtr(form.EndTime),
 				Status:           form.Status,
 			}
 			pageData.RegistrationFormData = sanitizeRegistrationFormData(registration.FormData)
+			if registration.PreferredGroupID != nil {
+				pageData.RegistrationFormData["preferred_group"] = strconv.FormatUint(*registration.PreferredGroupID, 10)
+			}
 		}
 		return pageData, nil
 	}
@@ -427,7 +427,7 @@ func (s *RegistrationFormService) GetRecruitmentPageData(ctx context.Context, ac
 	if err != nil {
 		return nil, &FormServiceError{Status: http.StatusInternalServerError, Message: "加载展示分组失败", Err: err}
 	}
-	result.FieldsSchema = hydrateUserGroupSelectFields(form.FieldsSchema, groups)
+	result.FieldsSchema = hydrateUserGroupSelectFields(mergeLockedRegistrationFields(form.FieldsSchema), groups)
 	return &RecruitmentPageData{
 		PageMode: "form",
 		Form:     &result,
@@ -534,7 +534,7 @@ func normalizeRegistrationFields(fields []model.FormField) ([]model.FormField, e
 
 	for key := range registrationLockedFields {
 		if !lockedSeen[key] {
-			return nil, &FormServiceError{Status: http.StatusBadRequest, Message: "姓名、手机号、邮箱、意向组别(1)、意向组别(2) 五个系统字段必须保留且为必填项"}
+			return nil, &FormServiceError{Status: http.StatusBadRequest, Message: "姓名、手机号、邮箱、意向组四个系统字段必须保留且为必填项"}
 		}
 	}
 
@@ -570,11 +570,11 @@ func normalizeRegistrationField(field model.FormField, seen map[string]struct{})
 			return model.FormField{}, &FormServiceError{Status: http.StatusBadRequest, Message: "系统字段类型不允许修改"}
 		}
 		if !field.Required {
-			return model.FormField{}, &FormServiceError{Status: http.StatusBadRequest, Message: "姓名、手机号、邮箱、意向组别(1)、意向组别(2) 五个系统字段必须为必填项"}
+			return model.FormField{}, &FormServiceError{Status: http.StatusBadRequest, Message: "姓名、手机号、邮箱、意向组四个系统字段必须为必填项"}
 		}
 		label = locked.Label
 	} else if fieldType == "user_group_select" {
-		return model.FormField{}, &FormServiceError{Status: http.StatusBadRequest, Message: "意向组别字段仅允许系统锁定字段使用"}
+		return model.FormField{}, &FormServiceError{Status: http.StatusBadRequest, Message: "意向组字段仅允许系统锁定字段使用"}
 	} else if !registrationFieldKeyPattern.MatchString(key) {
 		return model.FormField{}, &FormServiceError{Status: http.StatusBadRequest, Message: "自定义字段 key 仅支持小写字母、数字和下划线，且必须以字母开头"}
 	}
@@ -749,7 +749,7 @@ func toRegistrationFormListItem(form *model.RegistrationForm) RegistrationFormLi
 func toRegistrationFormDetail(form *model.RegistrationForm, groups []model.UserGroup) RegistrationFormDetail {
 	return RegistrationFormDetail{
 		RegistrationFormListItem: toRegistrationFormListItem(form),
-		FieldsSchema:             hydrateUserGroupSelectFields(form.FieldsSchema, groups),
+		FieldsSchema:             hydrateUserGroupSelectFields(mergeLockedRegistrationFields(form.FieldsSchema), groups),
 	}
 }
 
@@ -874,8 +874,7 @@ func (r *gormRegistrationFormRepository) IsUserInActiveDefaultGroup(ctx context.
 func (r *gormRegistrationFormRepository) FindRegistrationByFormAndUser(ctx context.Context, formID uint64, userID uint64) (*model.Registration, error) {
 	var registration model.Registration
 	if err := r.db.WithContext(ctx).
-		Preload("Group1").
-		Preload("Group2").
+		Preload("PreferredGroup").
 		Where("form_id = ? AND user_id = ?", formID, userID).
 		First(&registration).Error; err != nil {
 		return nil, err

@@ -14,34 +14,33 @@ import (
 	"tarsgo-backend/service/email"
 )
 
-func TestBuildInterviewNotificationUsesRequestedTemplates(t *testing.T) {
+func TestRecruitmentNotificationTemplatesMatchCanonicalStages(t *testing.T) {
 	name := "张三"
+	group := &model.UserGroup{ID: 101, Name: "机械组"}
 	reg := &model.Registration{
-		User:        model.User{Name: name, Email: "zhangsan@example.com"},
-		ContactName: &name,
-		Form:        model.RegistrationForm{Title: "2026 纳新报名"},
-		Group1:      &model.UserGroup{ID: 101, Name: "机械组"},
+		User:           model.User{Name: name, Email: "zhangsan@example.com"},
+		ContactName:    &name,
+		Form:           model.RegistrationForm{Title: "2026 纳新报名"},
+		PreferredGroup: group,
 	}
 	now := time.Date(2026, 9, 26, 0, 0, 0, 0, time.Local)
 
-	passed := buildInterviewNotification(reg, 101, model.RegistrationInterviewPassed, now)
-	if passed == nil || passed.To != reg.User.Email || !strings.Contains(passed.Subject, "通过") {
-		t.Fatalf("unexpected passed notification: %#v", passed)
+	screenPass := buildScreeningNotification(reg, true, now)
+	if screenPass == nil || !strings.Contains(screenPass.Subject, "初筛") || !strings.Contains(screenPass.Body, "待面试") || strings.Contains(screenPass.Body, "已录取") {
+		t.Fatalf("unexpected screening pass notification: %#v", screenPass)
 	}
-	for _, expected := range []string{"尊敬的 张三：", "报名项目：2026 纳新报名", "面试组别：机械组", "面试结果：通过", "本次结果仅代表当前面试环节的审核结果"} {
-		if !strings.Contains(passed.Body, expected) {
-			t.Fatalf("passed body missing %q: %s", expected, passed.Body)
-		}
+	screenFail := buildScreeningNotification(reg, false, now)
+	if screenFail == nil || !strings.Contains(screenFail.Subject, "未通过") || !strings.Contains(screenFail.Body, "未能进入本次线下面试") {
+		t.Fatalf("unexpected screening fail notification: %#v", screenFail)
 	}
 
-	failed := buildInterviewNotification(reg, 101, model.RegistrationInterviewFailed, now)
-	if failed == nil || !strings.Contains(failed.Subject, "未通过") {
-		t.Fatalf("unexpected failed notification: %#v", failed)
+	admitted := buildAdmissionNotification(reg, now)
+	if admitted == nil || !strings.Contains(admitted.Subject, "录取") || !strings.Contains(admitted.Body, "当前状态：已录取") {
+		t.Fatalf("unexpected admission notification: %#v", admitted)
 	}
-	for _, expected := range []string{"尊敬的 张三：", "经综合评估，很遗憾，你未能通过本轮面试。", "面试结果：未通过", "并不代表对个人能力与发展潜力的全面评价"} {
-		if !strings.Contains(failed.Body, expected) {
-			t.Fatalf("failed body missing %q: %s", expected, failed.Body)
-		}
+	failed := buildInterviewRejectionNotification(reg, now)
+	if failed == nil || !strings.Contains(failed.Subject, "未通过") || !strings.Contains(failed.Body, "当前状态：未通过") {
+		t.Fatalf("unexpected interview fail notification: %#v", failed)
 	}
 }
 
@@ -61,40 +60,222 @@ func (m *fakeInterviewMailer) SendEmail(_ context.Context, message email.Message
 	return m.err
 }
 
-func TestRegistrationServiceInterviewSendsPassedAndFailedNotifications(t *testing.T) {
-	repo := newFakeRegistrationReviewRepository()
-	repo.registration.User = model.User{ID: repo.registration.UserID, Name: "张三", Email: "zhangsan@example.com"}
-	repo.registration.Group1Status = model.RegistrationStatusApproved
-	repo.registration.Group2Status = model.RegistrationStatusApproved
-	mailer := &fakeInterviewMailer{}
+func TestRegistrationServiceNewSubmissionStartsPendingScreeningWithOnePreferredGroup(t *testing.T) {
+	repo := newFakeRegistrationListRepository()
 	service := newRegistrationServiceWithDependencies(repo, nil)
-	service.mailer = mailer
-	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGlobal}
+	now := time.Date(2026, 10, 5, 8, 0, 0, 0, time.Local)
+	service.now = func() time.Time { return now }
 
-	if _, err := service.UpdateRegistrationInterview(context.Background(), actor, repo.registration.ID, UpdateInterviewInput{GroupID: *repo.registration.Group1ID, Status: "passed"}); err != nil {
-		t.Fatalf("passed interview update returned error: %v", err)
+	result, err := service.SubmitRegistration(
+		context.Background(),
+		RegistrationFormActor{ID: 777, RoleName: model.RoleNameUser},
+		SubmitRegistrationInput{
+			FormID: 301,
+			Values: map[string][]string{
+				"name":            {"新候选人"},
+				"phone":           {"13800138001"},
+				"email":           {"candidate@example.com"},
+				"preferred_group": {"101"},
+				"direction":       {"mechanical"},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("SubmitRegistration returned error: %v", err)
 	}
-	if mailer.to != "zhangsan@example.com" || !strings.Contains(mailer.subject, "录取") || !strings.Contains(mailer.body, "最终结果：已录取") {
-		t.Fatalf("unexpected passed mail: %#v", mailer)
+	if result.RecruitmentStatus != model.RecruitmentStatusPendingScreening {
+		t.Fatalf("new submission status = %q, want %q", result.RecruitmentStatus, model.RecruitmentStatusPendingScreening)
 	}
-
-	if _, err := service.UpdateRegistrationInterview(context.Background(), actor, repo.registration.ID, UpdateInterviewInput{GroupID: *repo.registration.Group2ID, Status: "failed"}); err != nil {
-		t.Fatalf("failed interview update returned error: %v", err)
+	created := repo.createdRegistration
+	if created == nil || created.PreferredGroupID == nil || *created.PreferredGroupID != 101 {
+		t.Fatalf("expected preferred group 101, got %#v", created)
 	}
-	if !strings.Contains(mailer.subject, "未通过") || !strings.Contains(mailer.body, "面试结果：未通过") {
-		t.Fatalf("unexpected failed mail: %#v", mailer)
+	if created.Group1ID != nil || created.Group2ID != nil {
+		t.Fatalf("new submission must not populate legacy dual-intent fields: group1=%v group2=%v", created.Group1ID, created.Group2ID)
+	}
+	if _, exists := created.FormData["group_1"]; exists {
+		t.Fatalf("new submission must not write legacy group_1 form key: %#v", created.FormData)
+	}
+	if _, exists := created.FormData["group_2"]; exists {
+		t.Fatalf("new submission must not write legacy group_2 form key: %#v", created.FormData)
 	}
 }
 
-func TestRegistrationServiceAdmissionEmbedsConfiguredImageButFailedResultDoesNot(t *testing.T) {
+func TestRegistrationServiceScreeningNotificationFailureDoesNotRollbackState(t *testing.T) {
 	repo := newFakeRegistrationReviewRepository()
-	repo.registration.User = model.User{ID: repo.registration.UserID, Name: "张三", Email: "zhangsan@example.com"}
-	repo.registration.Group1Status = model.RegistrationStatusApproved
-	repo.registration.Group2Status = model.RegistrationStatusApproved
-	imageURL := "/upload/config/group/qq-group.png"
-	repo.registration.Group1.AdmissionImageURL = &imageURL
-	repo.shownGroups[0].AdmissionImageURL = &imageURL
+	mailer := &fakeInterviewMailer{err: errors.New("mail unavailable")}
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	service.mailer = mailer
+	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
 
+	detail, err := service.ScreenRegistration(
+		context.Background(),
+		actor,
+		repo.registration.ID,
+		ScreeningDecisionInput{Decision: "approve", Remark: "进入面试"},
+	)
+	if err != nil {
+		t.Fatalf("screening result must not rollback on mail failure: %v", err)
+	}
+	if detail.Status != model.RecruitmentStatusPendingInterview || !strings.Contains(detail.NotificationWarning, "邮件发送失败") {
+		t.Fatalf("expected saved pending-interview state plus warning, got %#v", detail)
+	}
+	if repo.registration.RecruitmentStatus != model.RecruitmentStatusPendingInterview {
+		t.Fatalf("repository state rolled back unexpectedly: %q", repo.registration.RecruitmentStatus)
+	}
+}
+
+func TestRegistrationServiceCanonicalWorkflowAdmitsPreferredGroup(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	now := time.Date(2026, 4, 14, 10, 0, 0, 0, time.Local)
+	service.now = func() time.Time { return now }
+	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+
+	screened, err := service.ScreenRegistration(context.Background(), actor, repo.registration.ID, ScreeningDecisionInput{Decision: "approve", Remark: "进入面试"})
+	if err != nil {
+		t.Fatalf("ScreenRegistration returned error: %v", err)
+	}
+	if screened.Status != model.RecruitmentStatusPendingInterview || !screened.CanInterview || screened.CanScreen {
+		t.Fatalf("unexpected post-screening state: %#v", screened)
+	}
+	if screened.Screener == nil || screened.Screener.ID != actor.ID || screened.ScreeningRemark == nil || *screened.ScreeningRemark != "进入面试" {
+		t.Fatalf("screening audit missing: %#v", screened)
+	}
+	if len(repo.addedMemberships) != 0 || len(repo.removedMemberships) != 0 {
+		t.Fatalf("screening must not change memberships")
+	}
+
+	admitted, err := service.RecordInterviewResult(context.Background(), actor, repo.registration.ID, InterviewDecisionInput{Decision: "admit", Remark: "表现良好"})
+	if err != nil {
+		t.Fatalf("RecordInterviewResult returned error: %v", err)
+	}
+	if admitted.Status != model.RecruitmentStatusAdmitted || admitted.PreferredGroup == nil || admitted.PreferredGroup.ID != *repo.registration.PreferredGroupID {
+		t.Fatalf("unexpected admitted result: %#v", admitted)
+	}
+	if admitted.Interviewer == nil || admitted.Interviewer.ID != actor.ID || admitted.InterviewRemark == nil || *admitted.InterviewRemark != "表现良好" {
+		t.Fatalf("interview audit missing: %#v", admitted)
+	}
+	assertRemovedMemberships(t, repo.removedMemberships, []fakeAddedMembership{{GroupID: 1, UserID: repo.registration.UserID}})
+	assertAddedMemberships(t, repo.addedMemberships, []fakeAddedMembership{{GroupID: *repo.registration.PreferredGroupID, UserID: repo.registration.UserID}})
+}
+
+func TestRegistrationServiceScreeningRejectEndsWorkflow(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameSuperAdmin}
+
+	detail, err := service.ScreenRegistration(context.Background(), actor, repo.registration.ID, ScreeningDecisionInput{Decision: "reject", Remark: "资料不匹配"})
+	if err != nil {
+		t.Fatalf("ScreenRegistration returned error: %v", err)
+	}
+	if detail.Status != model.RecruitmentStatusRejected || valueOrEmpty(detail.RejectedStage) != model.RecruitmentRejectedStageScreening || detail.CanInterview {
+		t.Fatalf("unexpected screening rejection: %#v", detail)
+	}
+	if _, err := service.RecordInterviewResult(context.Background(), actor, repo.registration.ID, InterviewDecisionInput{Decision: "admit"}); err == nil {
+		t.Fatal("screening-rejected candidate must not proceed to interview")
+	}
+}
+
+func TestRegistrationServiceInterviewRejectEndsWorkflow(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+
+	detail, err := service.RecordInterviewResult(context.Background(), actor, repo.registration.ID, InterviewDecisionInput{Decision: "reject", Remark: "面试未通过"})
+	if err != nil {
+		t.Fatalf("RecordInterviewResult returned error: %v", err)
+	}
+	if detail.Status != model.RecruitmentStatusRejected || valueOrEmpty(detail.RejectedStage) != model.RecruitmentRejectedStageInterview {
+		t.Fatalf("unexpected interview rejection: %#v", detail)
+	}
+	if _, err := service.RecordInterviewResult(context.Background(), actor, repo.registration.ID, InterviewDecisionInput{Decision: "admit"}); err == nil {
+		t.Fatal("rejected candidate must not be interviewed again")
+	}
+}
+
+func TestRegistrationServiceRejectsInterviewBeforeScreeningAndAfterAdmission(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+
+	if _, err := service.RecordInterviewResult(context.Background(), actor, repo.registration.ID, InterviewDecisionInput{Decision: "admit"}); err == nil {
+		t.Fatal("pending-screening candidate must not be admitted directly")
+	}
+	repo.registration.RecruitmentStatus = model.RecruitmentStatusAdmitted
+	if _, err := service.RecordInterviewResult(context.Background(), actor, repo.registration.ID, InterviewDecisionInput{Decision: "reject"}); err == nil {
+		t.Fatal("admitted candidate must not be interviewed again")
+	}
+}
+
+func TestRegistrationServiceOrdinaryUserCannotScreenOrInterview(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	user := RegistrationFormActor{ID: 501, RoleName: model.RoleNameUser}
+
+	if _, err := service.ScreenRegistration(context.Background(), user, repo.registration.ID, ScreeningDecisionInput{Decision: "approve"}); err == nil {
+		t.Fatal("ordinary user must not screen registrations")
+	}
+	repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
+	if _, err := service.RecordInterviewResult(context.Background(), user, repo.registration.ID, InterviewDecisionInput{Decision: "admit"}); err == nil {
+		t.Fatal("ordinary user must not record interview results")
+	}
+}
+
+func TestRegistrationServiceUndoScreeningOnlyBeforeInterview(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+
+	if _, err := service.ScreenRegistration(context.Background(), actor, repo.registration.ID, ScreeningDecisionInput{Decision: "approve"}); err != nil {
+		t.Fatalf("ScreenRegistration returned error: %v", err)
+	}
+	detail, err := service.UndoScreening(context.Background(), actor, repo.registration.ID)
+	if err != nil {
+		t.Fatalf("UndoScreening returned error: %v", err)
+	}
+	if detail.Status != model.RecruitmentStatusPendingScreening || detail.Screener != nil || detail.ScreenedAt != nil {
+		t.Fatalf("unexpected undo result: %#v", detail)
+	}
+
+	if _, err := service.ScreenRegistration(context.Background(), actor, repo.registration.ID, ScreeningDecisionInput{Decision: "approve"}); err != nil {
+		t.Fatalf("second screening returned error: %v", err)
+	}
+	if _, err := service.RecordInterviewResult(context.Background(), actor, repo.registration.ID, InterviewDecisionInput{Decision: "reject"}); err != nil {
+		t.Fatalf("interview reject returned error: %v", err)
+	}
+	if _, err := service.UndoScreening(context.Background(), actor, repo.registration.ID); err == nil {
+		t.Fatal("screening must not be undoable after interview")
+	}
+}
+
+func TestRegistrationServiceNotificationFailureDoesNotRollbackResult(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
+	mailer := &fakeInterviewMailer{err: errors.New("mail unavailable")}
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	service.mailer = mailer
+	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+
+	detail, err := service.RecordInterviewResult(context.Background(), actor, repo.registration.ID, InterviewDecisionInput{Decision: "reject"})
+	if err != nil {
+		t.Fatalf("business result must not rollback on mail failure: %v", err)
+	}
+	if detail.Status != model.RecruitmentStatusRejected || !strings.Contains(detail.NotificationWarning, "邮件发送失败") {
+		t.Fatalf("expected saved rejection plus warning, got %#v", detail)
+	}
+	if repo.registration.RecruitmentStatus != model.RecruitmentStatusRejected {
+		t.Fatalf("repository state rolled back unexpectedly: %q", repo.registration.RecruitmentStatus)
+	}
+}
+
+func TestRegistrationServiceAdmissionEmbedsConfiguredImage(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
+	imageURL := "/upload/config/group/qq-group.png"
+	repo.registration.PreferredGroup.AdmissionImageURL = &imageURL
+	repo.shownGroups[0].AdmissionImageURL = &imageURL
 	mailer := &fakeInterviewMailer{}
 	service := newRegistrationServiceWithDependencies(repo, nil)
 	service.mailer = mailer
@@ -104,311 +285,13 @@ func TestRegistrationServiceAdmissionEmbedsConfiguredImageButFailedResultDoesNot
 		}
 		return []byte("png-image"), "image/png", nil
 	}
-	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGlobal}
-
-	if _, err := service.UpdateRegistrationInterview(context.Background(), actor, repo.registration.ID, UpdateInterviewInput{GroupID: *repo.registration.Group1ID, Status: "passed"}); err != nil {
-		t.Fatalf("passed interview update returned error: %v", err)
-	}
-	if string(mailer.image) != "png-image" || mailer.contentType != "image/png" {
-		t.Fatalf("expected configured inline image, got image=%q contentType=%q", mailer.image, mailer.contentType)
-	}
-	if !strings.Contains(mailer.body, "扫描邮件内的图片加入录取群") {
-		t.Fatalf("admission body does not mention the inline image: %s", mailer.body)
-	}
-
-	if _, err := service.UpdateRegistrationInterview(context.Background(), actor, repo.registration.ID, UpdateInterviewInput{GroupID: *repo.registration.Group2ID, Status: "failed"}); err != nil {
-		t.Fatalf("failed interview update returned error: %v", err)
-	}
-	if len(mailer.image) != 0 || mailer.contentType != "" {
-		t.Fatalf("failed result must not include an image, got image=%q contentType=%q", mailer.image, mailer.contentType)
-	}
-}
-
-func TestRegistrationServiceReviewRegistrationFullAccessApproveDoesNotChangeMemberships(t *testing.T) {
-	repo := newFakeRegistrationReviewRepository()
-	service := newRegistrationServiceWithDependencies(repo, nil)
-	service.now = func() time.Time {
-		return time.Date(2026, 4, 14, 10, 0, 0, 0, time.Local)
-	}
-
-	detail, err := service.ReviewRegistration(
-		context.Background(),
-		RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin},
-		repo.registration.ID,
-		ReviewRegistrationInput{Decision: registrationReviewDecisionApprove},
-	)
-	if err != nil {
-		t.Fatalf("ReviewRegistration returned error: %v", err)
-	}
-
-	if detail.Group1Status != model.RegistrationStatusApproved {
-		t.Fatalf("expected group 1 approved, got %d", detail.Group1Status)
-	}
-	if detail.Group2Status != model.RegistrationStatusApproved {
-		t.Fatalf("expected group 2 approved, got %d", detail.Group2Status)
-	}
-	if detail.Status != model.RegistrationStatusApproved {
-		t.Fatalf("expected overall approved, got %d", detail.Status)
-	}
-
-	if len(repo.addedMemberships) != 0 || len(repo.removedMemberships) != 0 {
-		t.Fatalf("online review must not change memberships")
-	}
-}
-
-func TestRegistrationServiceLegacyGroupScopedAdminHasFullReviewAccess(t *testing.T) {
-	repo := newFakeRegistrationReviewRepository()
-	groupID := uint64(101)
-	service := newRegistrationServiceWithDependencies(repo, nil)
-	service.now = func() time.Time {
-		return time.Date(2026, 4, 14, 11, 0, 0, 0, time.Local)
-	}
-
-	detail, err := service.ReviewRegistration(
-		context.Background(),
-		RegistrationFormActor{
-			ID:                2001,
-			RoleName:          model.RoleNameAdmin,
-			AdminScope:        model.AdminScopeGroup,
-			ManagementGroupID: &groupID,
-			GroupRole:         "leader",
-		},
-		repo.registration.ID,
-		ReviewRegistrationInput{Decision: registrationReviewDecisionApprove},
-	)
-	if err != nil {
-		t.Fatalf("legacy group-scoped admin review returned error: %v", err)
-	}
-	if detail.Group1Status != model.RegistrationStatusApproved || detail.Group2Status != model.RegistrationStatusApproved || detail.Status != model.RegistrationStatusApproved {
-		t.Fatalf("admin should review the full registration regardless of legacy group scope: %#v", detail)
-	}
-	if len(repo.addedMemberships) != 0 || len(repo.removedMemberships) != 0 {
-		t.Fatalf("online review must not change memberships")
-	}
-}
-
-func TestRegistrationServiceUndoApprovedReviewRestoresPendingAndAllowsReviewAgain(t *testing.T) {
-	repo := newFakeRegistrationReviewRepository()
-	service := newRegistrationServiceWithDependencies(repo, nil)
-	service.now = func() time.Time {
-		return time.Date(2026, 4, 14, 12, 0, 0, 0, time.Local)
-	}
 	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
 
-	if _, err := service.ReviewRegistration(
-		context.Background(),
-		actor,
-		repo.registration.ID,
-		ReviewRegistrationInput{Decision: registrationReviewDecisionApprove, Remark: "首次通过"},
-	); err != nil {
-		t.Fatalf("ReviewRegistration returned error: %v", err)
+	if _, err := service.RecordInterviewResult(context.Background(), actor, repo.registration.ID, InterviewDecisionInput{Decision: "admit"}); err != nil {
+		t.Fatalf("admission returned error: %v", err)
 	}
-
-	detail, err := service.UndoRegistrationReview(context.Background(), actor, repo.registration.ID)
-	if err != nil {
-		t.Fatalf("UndoRegistrationReview returned error: %v", err)
-	}
-	if detail.Group1Status != model.RegistrationStatusPending || detail.Group2Status != model.RegistrationStatusPending {
-		t.Fatalf("expected both groups pending after undo, got group1=%d group2=%d", detail.Group1Status, detail.Group2Status)
-	}
-	if detail.Status != model.RegistrationStatusPending {
-		t.Fatalf("expected overall pending after undo, got %d", detail.Status)
-	}
-	if detail.Reviewer1 != nil || detail.Reviewer2 != nil || detail.ReviewedAt1 != nil || detail.ReviewedAt2 != nil || detail.ReviewRemark1 != nil || detail.ReviewRemark2 != nil {
-		t.Fatalf("expected review metadata cleared after undo, got %#v", detail)
-	}
-	if !detail.CanApprove || !detail.CanReject || detail.CanUndo {
-		t.Fatalf("expected review actions restored and undo disabled, got approve=%v reject=%v undo=%v", detail.CanApprove, detail.CanReject, detail.CanUndo)
-	}
-	if len(repo.addedMemberships) != 0 || len(repo.removedMemberships) != 0 {
-		t.Fatalf("undo online review must not change memberships")
-	}
-
-	reviewedAgain, err := service.ReviewRegistration(
-		context.Background(),
-		actor,
-		repo.registration.ID,
-		ReviewRegistrationInput{Decision: registrationReviewDecisionReject, Remark: "重新审核"},
-	)
-	if err != nil {
-		t.Fatalf("second ReviewRegistration returned error: %v", err)
-	}
-	if reviewedAgain.Status != model.RegistrationStatusRejected || !reviewedAgain.CanUndo {
-		t.Fatalf("expected rejected result with undo enabled after re-review, got status=%d undo=%v", reviewedAgain.Status, reviewedAgain.CanUndo)
-	}
-}
-
-func TestRegistrationServiceUndoRejectedReviewRestoresPendingWithoutMembershipChanges(t *testing.T) {
-	repo := newFakeRegistrationReviewRepository()
-	service := newRegistrationServiceWithDependencies(repo, nil)
-	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
-
-	if _, err := service.ReviewRegistration(
-		context.Background(),
-		actor,
-		repo.registration.ID,
-		ReviewRegistrationInput{Decision: registrationReviewDecisionReject},
-	); err != nil {
-		t.Fatalf("ReviewRegistration returned error: %v", err)
-	}
-
-	detail, err := service.UndoRegistrationReview(context.Background(), actor, repo.registration.ID)
-	if err != nil {
-		t.Fatalf("UndoRegistrationReview returned error: %v", err)
-	}
-	if detail.Status != model.RegistrationStatusPending {
-		t.Fatalf("expected pending after undoing rejection, got %d", detail.Status)
-	}
-	if len(repo.addedMemberships) != 0 || len(repo.removedMemberships) != 0 {
-		t.Fatalf("expected rejection undo not to change memberships, got added=%v removed=%v", repo.addedMemberships, repo.removedMemberships)
-	}
-}
-
-func TestRegistrationServiceInterviewKeepsUnresolvedAdmissionUnfinalized(t *testing.T) {
-	repo := newFakeRegistrationReviewRepository()
-	repo.registration.Group1Status = model.RegistrationStatusApproved
-	repo.registration.Group2Status = model.RegistrationStatusApproved
-	service := newRegistrationServiceWithDependencies(repo, nil)
-	service.now = func() time.Time {
-		return time.Date(2026, 4, 14, 14, 0, 0, 0, time.Local)
-	}
-	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGlobal}
-
-	detail, err := service.UpdateRegistrationInterview(
-		context.Background(), actor, repo.registration.ID,
-		UpdateInterviewInput{GroupID: *repo.registration.Group2ID, Status: "passed"},
-	)
-	if err != nil {
-		t.Fatalf("UpdateRegistrationInterview returned error: %v", err)
-	}
-	if detail.FinalStatus != model.RegistrationFinalStatusPending || detail.FinalGroup != nil {
-		t.Fatalf("expected unresolved admission to remain pending, got status=%d group=%#v", detail.FinalStatus, detail.FinalGroup)
-	}
-	if detail.FinalizedAt != nil || detail.Finalizer != nil {
-		t.Fatalf("pending admission must not have finalization metadata, got at=%#v by=%#v", detail.FinalizedAt, detail.Finalizer)
-	}
-	if len(repo.addedMemberships) != 0 || len(repo.removedMemberships) != 0 {
-		t.Fatalf("unresolved admission must not change memberships, got added=%v removed=%v", repo.addedMemberships, repo.removedMemberships)
-	}
-}
-
-func TestRegistrationServiceInterviewAdmitsFirstChoiceAndMovesMembership(t *testing.T) {
-	repo := newFakeRegistrationReviewRepository()
-	repo.registration.Group1Status = model.RegistrationStatusApproved
-	repo.registration.Group2Status = model.RegistrationStatusApproved
-	service := newRegistrationServiceWithDependencies(repo, nil)
-	now := time.Date(2026, 4, 14, 15, 0, 0, 0, time.Local)
-	service.now = func() time.Time { return now }
-	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGlobal}
-
-	detail, err := service.UpdateRegistrationInterview(
-		context.Background(), actor, repo.registration.ID,
-		UpdateInterviewInput{GroupID: *repo.registration.Group1ID, Status: "passed"},
-	)
-	if err != nil {
-		t.Fatalf("UpdateRegistrationInterview returned error: %v", err)
-	}
-	if detail.FinalStatus != model.RegistrationFinalStatusAdmitted || detail.FinalGroup == nil || detail.FinalGroup.ID != *repo.registration.Group1ID {
-		t.Fatalf("expected first-choice admission, got status=%d group=%#v", detail.FinalStatus, detail.FinalGroup)
-	}
-	if detail.FinalizedAt == nil || !detail.FinalizedAt.Equal(now) || detail.Finalizer == nil || detail.Finalizer.ID != actor.ID {
-		t.Fatalf("expected finalization metadata for admission, got at=%#v by=%#v", detail.FinalizedAt, detail.Finalizer)
-	}
-	assertRemovedMemberships(t, repo.removedMemberships, []fakeAddedMembership{{GroupID: 1, UserID: repo.registration.UserID}})
-	assertAddedMemberships(t, repo.addedMemberships, []fakeAddedMembership{{GroupID: *repo.registration.Group1ID, UserID: repo.registration.UserID}})
-}
-
-func TestRegistrationServiceResetInterviewRevokesAdmissionAndRestoresDefaultGroup(t *testing.T) {
-	repo := newFakeRegistrationReviewRepository()
-	repo.registration.Group1Status = model.RegistrationStatusApproved
-	repo.registration.Group2Status = model.RegistrationStatusApproved
-	service := newRegistrationServiceWithDependencies(repo, nil)
-	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGlobal}
-
-	if _, err := service.UpdateRegistrationInterview(
-		context.Background(), actor, repo.registration.ID,
-		UpdateInterviewInput{GroupID: *repo.registration.Group1ID, Status: "passed"},
-	); err != nil {
-		t.Fatalf("first UpdateRegistrationInterview returned error: %v", err)
-	}
-	repo.addedMemberships = nil
-	repo.removedMemberships = nil
-	repo.addedMembershipKV = make(map[fakeAddedMembership]struct{})
-	repo.removedMembershipKV = make(map[fakeAddedMembership]struct{})
-
-	detail, err := service.UpdateRegistrationInterview(
-		context.Background(), actor, repo.registration.ID,
-		UpdateInterviewInput{GroupID: *repo.registration.Group1ID, Status: "pending"},
-	)
-	if err != nil {
-		t.Fatalf("second UpdateRegistrationInterview returned error: %v", err)
-	}
-	if detail.FinalStatus != model.RegistrationFinalStatusPending || detail.FinalGroup != nil || detail.FinalizedAt != nil || detail.Finalizer != nil {
-		t.Fatalf("expected admission reset to clear final result, got %#v", detail)
-	}
-	assertRemovedMemberships(t, repo.removedMemberships, []fakeAddedMembership{{GroupID: 101, UserID: repo.registration.UserID}})
-	assertAddedMemberships(t, repo.addedMemberships, []fakeAddedMembership{{GroupID: 1, UserID: repo.registration.UserID}})
-}
-
-func TestRegistrationServiceAdminUndoReviewResetsFullReview(t *testing.T) {
-	repo := newFakeRegistrationReviewRepository()
-	now := time.Date(2026, 4, 14, 11, 0, 0, 0, time.Local)
-	repo.registration.Group1Status = model.RegistrationStatusApproved
-	repo.registration.Group2Status = model.RegistrationStatusRejected
-	repo.registration.Status = model.RegistrationStatusApproved
-	repo.registration.ReviewerID1 = uint64Ptr(2001)
-	repo.registration.Reviewer1 = cloneUserModel(repo.users[2001])
-	repo.registration.ReviewedAt1 = &now
-	repo.registration.ReviewerID2 = uint64Ptr(2002)
-	repo.registration.Reviewer2 = cloneUserModel(repo.users[2002])
-	repo.registration.ReviewedAt2 = &now
-	repo.leaderGroupIDs[2001] = []uint64{101}
-	service := newRegistrationServiceWithDependencies(repo, nil)
-
-	detail, err := service.UndoRegistrationReview(
-		context.Background(),
-		RegistrationFormActor{ID: 2001, RoleName: model.RoleNameAdmin},
-		repo.registration.ID,
-	)
-	if err != nil {
-		t.Fatalf("UndoRegistrationReview returned error: %v", err)
-	}
-	if detail.Group1Status != model.RegistrationStatusPending || detail.Group2Status != model.RegistrationStatusPending {
-		t.Fatalf("expected full review reset, got group1=%d group2=%d", detail.Group1Status, detail.Group2Status)
-	}
-	if detail.Reviewer1 != nil || detail.ReviewedAt1 != nil || detail.Reviewer2 != nil || detail.ReviewedAt2 != nil {
-		t.Fatalf("expected all review metadata cleared")
-	}
-}
-
-func TestRegistrationAccessScopeReviewActionAvailabilityForLeaderSlot1(t *testing.T) {
-	repo := newFakeRegistrationReviewRepository()
-	scope := newRegistrationAccessScope(false, []uint64{101})
-
-	item := toRegistrationListItem(repo.registration, scope)
-	if !item.CanApprove || !item.CanReject {
-		t.Fatalf("expected both actions enabled for leader reviewing group 1, got approve=%v reject=%v", item.CanApprove, item.CanReject)
-	}
-}
-
-func TestRegistrationAccessScopeReviewActionAvailabilityAllowsUndoReviewedSlot(t *testing.T) {
-	repo := newFakeRegistrationReviewRepository()
-	repo.registration.Group1Status = model.RegistrationStatusApproved
-	scope := newRegistrationAccessScope(false, []uint64{101})
-
-	item := toRegistrationListItem(repo.registration, scope)
-	if item.CanApprove || item.CanReject || !item.CanUndo {
-		t.Fatalf("expected only undo enabled for reviewed leader slot, got approve=%v reject=%v undo=%v", item.CanApprove, item.CanReject, item.CanUndo)
-	}
-}
-
-func TestRegistrationAccessScopeReviewActionAvailabilityForLeaderSlot2(t *testing.T) {
-	repo := newFakeRegistrationReviewRepository()
-	scope := newRegistrationAccessScope(false, []uint64{102})
-
-	item := toRegistrationListItem(repo.registration, scope)
-	if !item.CanApprove || !item.CanReject {
-		t.Fatalf("expected both actions enabled for leader reviewing group 2, got approve=%v reject=%v", item.CanApprove, item.CanReject)
+	if string(mailer.image) != "png-image" || mailer.contentType != "image/png" || !strings.Contains(mailer.body, "扫描邮件内的图片加入录取群") {
+		t.Fatalf("expected configured admission image, got %#v", mailer)
 	}
 }
 
@@ -416,7 +299,7 @@ func TestRegistrationServiceListRegistrationsReturnsPagination(t *testing.T) {
 	repo := newFakeRegistrationListRepository()
 	service := newRegistrationServiceWithDependencies(repo, nil)
 
-	status := uint8(model.RegistrationStatusPending)
+	status := model.RecruitmentStatusPendingScreening
 	formID := uint64(301)
 	result, err := service.ListRegistrations(
 		context.Background(),
@@ -496,7 +379,7 @@ func TestRegistrationServiceListRegistrationsNormalizesDefaultPageParams(t *test
 }
 
 func TestRegistrationServiceListRegistrationsPreservesStatsFilterSemantics(t *testing.T) {
-	status := uint8(model.RegistrationStatusApproved)
+	status := model.RecruitmentStatusAdmitted
 	formID := uint64(301)
 	groupID := uint64(101)
 
@@ -507,7 +390,7 @@ func TestRegistrationServiceListRegistrationsPreservesStatsFilterSemantics(t *te
 		wantKeyword         string
 		wantFormID          *uint64
 		wantVisibleGroupIDs []uint64
-		wantCountStatus     *uint8
+		wantCountStatus     *string
 	}{
 		{
 			name:  "no filters",
@@ -590,13 +473,13 @@ func TestRegistrationServiceListRegistrationsPreservesStatsFilterSemantics(t *te
 					t.Fatalf("expected pagination count without status filter, got %v", *countStatus)
 				}
 			} else if countStatus == nil || *countStatus != *tt.wantCountStatus {
-				t.Fatalf("expected pagination count status %d, got %#v", *tt.wantCountStatus, countStatus)
+				t.Fatalf("expected pagination count status %q, got %#v", *tt.wantCountStatus, countStatus)
 			}
 		})
 	}
 }
 
-func TestRegistrationServiceExportFormRegistrationsCSVIncludesDynamicFieldsAndExtraKeys(t *testing.T) {
+func TestRegistrationServiceExportFormRegistrationsCSVUsesCanonicalWorkflowColumns(t *testing.T) {
 	repo := newFakeRegistrationListRepository()
 	service := newRegistrationServiceWithDependencies(repo, nil)
 
@@ -609,18 +492,8 @@ func TestRegistrationServiceExportFormRegistrationsCSVIncludesDynamicFieldsAndEx
 	if err != nil {
 		t.Fatalf("ExportFormRegistrationsCSV returned error: %v", err)
 	}
-
 	if result.FileName != "registration-form-301-registrations.csv" {
 		t.Fatalf("unexpected export filename %q", result.FileName)
-	}
-	if len(repo.exportFilters) != 1 {
-		t.Fatalf("expected 1 export filter call, got %d", len(repo.exportFilters))
-	}
-	if repo.exportFilters[0].FormID == nil || *repo.exportFilters[0].FormID != 301 {
-		t.Fatalf("expected export filter form ID 301, got %#v", repo.exportFilters[0].FormID)
-	}
-	if len(repo.exportFilters[0].VisibleGroupIDs) != 0 {
-		t.Fatalf("expected full-access export to omit visible group filters, got %v", repo.exportFilters[0].VisibleGroupIDs)
 	}
 
 	content := strings.TrimPrefix(string(result.Content), "\ufeff")
@@ -632,11 +505,6 @@ func TestRegistrationServiceExportFormRegistrationsCSVIncludesDynamicFieldsAndEx
 		t.Fatalf("expected 2 csv records, got %d", len(records))
 	}
 
-	headerIndex := make(map[string]int, len(records[0]))
-	for index, item := range records[0] {
-		headerIndex[item] = index
-	}
-
 	expectedHeaders := []string{
 		"报名记录ID",
 		"报名表ID",
@@ -644,54 +512,59 @@ func TestRegistrationServiceExportFormRegistrationsCSVIncludesDynamicFieldsAndEx
 		"姓名",
 		"手机号",
 		"邮箱",
-		"意向组别(1)",
-		"意向组别(1)审核状态",
-		"审核人(1)",
-		"审核时间(1)",
-		"审核备注(1)",
-		"意向组别(2)",
-		"意向组别(2)审核状态",
-		"审核人(2)",
-		"审核时间(2)",
-		"审核备注(2)",
+		"意向组",
 		"意向方向",
 		"掌握技能",
 		"简历",
 		"作品集",
-		"报名状态",
+		"当前状态",
+		"初筛人",
+		"初筛时间",
+		"初筛备注",
+		"面试人",
+		"面试时间",
+		"面试结果 / 最终结果",
+		"面试备注",
 		"提交时间",
 		"legacy_note",
 	}
 	if len(records[0]) != len(expectedHeaders) {
 		t.Fatalf("expected %d csv headers, got %d: %v", len(expectedHeaders), len(records[0]), records[0])
 	}
+	headerIndex := make(map[string]int, len(records[0]))
 	for index, header := range expectedHeaders {
 		if records[0][index] != header {
 			t.Fatalf("expected csv header[%d] = %q, got %q", index, header, records[0][index])
+		}
+		headerIndex[header] = index
+	}
+	for _, legacyHeader := range []string{"意向组别(1)", "意向组别(2)", "审核人(1)", "审核人(2)"} {
+		if _, exists := headerIndex[legacyHeader]; exists {
+			t.Fatalf("legacy dual-intent header must not be exported: %q", legacyHeader)
 		}
 	}
 
 	row := records[1]
 	if row[headerIndex["姓名"]] != "张三" {
-		t.Fatalf("expected contact name column 张三, got %q", row[headerIndex["姓名"]])
+		t.Fatalf("expected contact name 张三, got %q", row[headerIndex["姓名"]])
 	}
-	if row[headerIndex["手机号"]] != "13800138000" {
-		t.Fatalf("expected contact phone column 13800138000, got %q", row[headerIndex["手机号"]])
+	if row[headerIndex["意向组"]] != "机械组" {
+		t.Fatalf("expected preferred group 机械组, got %q", row[headerIndex["意向组"]])
 	}
-	if row[headerIndex["邮箱"]] != "zhangsan@example.com" {
-		t.Fatalf("expected contact email column zhangsan@example.com, got %q", row[headerIndex["邮箱"]])
+	if row[headerIndex["当前状态"]] != "已录取" {
+		t.Fatalf("expected canonical status 已录取, got %q", row[headerIndex["当前状态"]])
 	}
-	if row[headerIndex["报名状态"]] != "已通过" {
-		t.Fatalf("expected overall status label 已通过, got %q", row[headerIndex["报名状态"]])
+	if row[headerIndex["初筛人"]] != "审核管理员" || row[headerIndex["初筛备注"]] != "资料通过" {
+		t.Fatalf("unexpected screening audit columns: reviewer=%q remark=%q", row[headerIndex["初筛人"]], row[headerIndex["初筛备注"]])
 	}
-	if row[headerIndex["意向组别(1)"]] != "机械组" {
-		t.Fatalf("expected group_1 label 机械组, got %q", row[headerIndex["意向组别(1)"]])
+	if row[headerIndex["面试人"]] != "面试管理员" || row[headerIndex["面试结果 / 最终结果"]] != "面试通过并录取" || row[headerIndex["面试备注"]] != "表现稳定" {
+		t.Fatalf("unexpected interview audit columns: interviewer=%q outcome=%q remark=%q", row[headerIndex["面试人"]], row[headerIndex["面试结果 / 最终结果"]], row[headerIndex["面试备注"]])
 	}
-	if row[headerIndex["意向方向"]] != "电控组" {
-		t.Fatalf("expected direction option label 电控组, got %q", row[headerIndex["意向方向"]])
+	if row[headerIndex["初筛时间"]] == "" || row[headerIndex["面试时间"]] == "" {
+		t.Fatalf("expected screening and interview timestamps, got screening=%q interview=%q", row[headerIndex["初筛时间"]], row[headerIndex["面试时间"]])
 	}
-	if row[headerIndex["掌握技能"]] != "C++；Go" {
-		t.Fatalf("expected checkbox options joined by full-width separator, got %q", row[headerIndex["掌握技能"]])
+	if row[headerIndex["意向方向"]] != "电控组" || row[headerIndex["掌握技能"]] != "C++；Go" {
+		t.Fatalf("unexpected dynamic field export: direction=%q skills=%q", row[headerIndex["意向方向"]], row[headerIndex["掌握技能"]])
 	}
 	if row[headerIndex["简历"]] != "张三简历.pdf: https://admin.example.com/api/admin/registrations/7001/files/resume/0" {
 		t.Fatalf("unexpected resume export value %q", row[headerIndex["简历"]])
@@ -699,23 +572,8 @@ func TestRegistrationServiceExportFormRegistrationsCSVIncludesDynamicFieldsAndEx
 	if row[headerIndex["作品集"]] != "作品图1.png: https://admin.example.com/api/admin/registrations/7001/files/portfolio/0；作品图2.png: https://admin.example.com/api/admin/registrations/7001/files/portfolio/1" {
 		t.Fatalf("unexpected portfolio export value %q", row[headerIndex["作品集"]])
 	}
-	if row[headerIndex["意向组别(1)审核状态"]] != "已通过" {
-		t.Fatalf("expected group_1 review status 已通过, got %q", row[headerIndex["意向组别(1)审核状态"]])
-	}
-	if row[headerIndex["审核人(1)"]] != "审核管理员" {
-		t.Fatalf("expected reviewer1 审核管理员, got %q", row[headerIndex["审核人(1)"]])
-	}
-	if row[headerIndex["意向组别(2)审核状态"]] != "已拒绝" {
-		t.Fatalf("expected group_2 review status 已拒绝, got %q", row[headerIndex["意向组别(2)审核状态"]])
-	}
-	if row[headerIndex["审核人(2)"]] != "复核管理员" {
-		t.Fatalf("expected reviewer2 复核管理员, got %q", row[headerIndex["审核人(2)"]])
-	}
-	if _, exists := headerIndex["更新时间"]; exists {
-		t.Fatalf("did not expect 更新时间 column, got %v", records[0])
-	}
 	if row[headerIndex["legacy_note"]] != "'=需要人工复核" {
-		t.Fatalf("expected legacy note to be formula-safe, got %q", row[headerIndex["legacy_note"]])
+		t.Fatalf("expected legacy note to remain formula-safe, got %q", row[headerIndex["legacy_note"]])
 	}
 }
 
@@ -755,12 +613,11 @@ func TestRegistrationServiceUpdateRecruitmentRegistrationAllowsEditablePendingRe
 		repo.registration.ID,
 		SubmitRegistrationInput{
 			Values: map[string][]string{
-				"name":      {"李四"},
-				"phone":     {"13900139000"},
-				"email":     {"lisi@example.com"},
-				"group_1":   {"102"},
-				"group_2":   {"101"},
-				"direction": {"embedded"},
+				"name":            {"李四"},
+				"phone":           {"13900139000"},
+				"email":           {"lisi@example.com"},
+				"preferred_group": {"102"},
+				"direction":       {"embedded"},
 			},
 		},
 	)
@@ -768,8 +625,8 @@ func TestRegistrationServiceUpdateRecruitmentRegistrationAllowsEditablePendingRe
 		t.Fatalf("UpdateRecruitmentRegistration returned error: %v", err)
 	}
 
-	if result.Status != model.RegistrationStatusPending {
-		t.Fatalf("expected pending status after resubmit, got %d", result.Status)
+	if result.RecruitmentStatus != model.RecruitmentStatusPendingScreening {
+		t.Fatalf("expected pending-screening status after resubmit, got %q", result.RecruitmentStatus)
 	}
 	if repo.registration == nil {
 		t.Fatalf("expected registration to remain present after update")
@@ -783,22 +640,22 @@ func TestRegistrationServiceUpdateRecruitmentRegistrationAllowsEditablePendingRe
 	if repo.registration.ContactEmail == nil || *repo.registration.ContactEmail != "lisi@example.com" {
 		t.Fatalf("expected updated contact email, got %#v", repo.registration.ContactEmail)
 	}
-	if repo.registration.Group1ID == nil || *repo.registration.Group1ID != 102 {
-		t.Fatalf("expected updated group 1, got %#v", repo.registration.Group1ID)
-	}
-	if repo.registration.Group2ID == nil || *repo.registration.Group2ID != 101 {
-		t.Fatalf("expected updated group 2, got %#v", repo.registration.Group2ID)
+	if repo.registration.PreferredGroupID == nil || *repo.registration.PreferredGroupID != 102 {
+		t.Fatalf("expected updated preferred group, got %#v", repo.registration.PreferredGroupID)
 	}
 	if repo.registration.FormData["direction"] != "embedded" {
 		t.Fatalf("expected updated direction, got %#v", repo.registration.FormData["direction"])
+	}
+	if repo.registration.FormData["group_1"] != "101" || repo.registration.FormData["group_2"] != "102" {
+		t.Fatalf("legacy dual-intent form data must remain archived after edit: %#v", repo.registration.FormData)
 	}
 }
 
 func TestRegistrationServiceUpdateRecruitmentRegistrationRejectsReviewedRegistration(t *testing.T) {
 	repo := newFakeRegistrationReviewRepository()
 	now := time.Date(2026, 4, 14, 11, 0, 0, 0, time.Local)
-	repo.registration.Group1Status = model.RegistrationStatusApproved
-	repo.registration.ReviewedAt1 = &now
+	repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
+	repo.registration.ScreenedAt = &now
 	service := newRegistrationServiceWithDependencies(repo, nil)
 
 	_, err := service.UpdateRecruitmentRegistration(
@@ -807,19 +664,18 @@ func TestRegistrationServiceUpdateRecruitmentRegistrationRejectsReviewedRegistra
 		repo.registration.ID,
 		SubmitRegistrationInput{
 			Values: map[string][]string{
-				"name":      {"李四"},
-				"phone":     {"13900139000"},
-				"email":     {"lisi@example.com"},
-				"group_1":   {"102"},
-				"group_2":   {"101"},
-				"direction": {"embedded"},
+				"name":            {"李四"},
+				"phone":           {"13900139000"},
+				"email":           {"lisi@example.com"},
+				"preferred_group": {"102"},
+				"direction":       {"embedded"},
 			},
 		},
 	)
-	assertRegistrationServiceError(t, err, 409, "进入审核")
+	assertRegistrationServiceError(t, err, 409, "进入后续流程")
 }
 
-func TestRegistrationServiceCancelRecruitmentRegistrationDeletesEditablePendingRegistration(t *testing.T) {
+func TestRegistrationServiceCancelRecruitmentRegistrationWithdrawsEditablePendingRegistration(t *testing.T) {
 	repo := newFakeRegistrationReviewRepository()
 	service := newRegistrationServiceWithDependencies(repo, nil)
 
@@ -831,16 +687,16 @@ func TestRegistrationServiceCancelRecruitmentRegistrationDeletesEditablePendingR
 	if err != nil {
 		t.Fatalf("CancelRecruitmentRegistration returned error: %v", err)
 	}
-	if repo.registration != nil {
-		t.Fatalf("expected registration to be deleted after cancel")
+	if repo.registration == nil || repo.registration.RecruitmentStatus != model.RecruitmentStatusWithdrawn {
+		t.Fatalf("expected registration to be preserved as withdrawn, got %#v", repo.registration)
 	}
 }
 
 func TestRegistrationServiceCancelRecruitmentRegistrationRejectsReviewedRegistration(t *testing.T) {
 	repo := newFakeRegistrationReviewRepository()
 	now := time.Date(2026, 4, 14, 11, 0, 0, 0, time.Local)
-	repo.registration.Group2Status = model.RegistrationStatusRejected
-	repo.registration.ReviewedAt2 = &now
+	repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
+	repo.registration.ScreenedAt = &now
 	service := newRegistrationServiceWithDependencies(repo, nil)
 
 	err := service.CancelRecruitmentRegistration(
@@ -848,7 +704,7 @@ func TestRegistrationServiceCancelRecruitmentRegistrationRejectsReviewedRegistra
 		RegistrationFormActor{ID: repo.registration.UserID, RoleName: model.RoleNameUser},
 		repo.registration.ID,
 	)
-	assertRegistrationServiceError(t, err, 409, "进入审核")
+	assertRegistrationServiceError(t, err, 409, "进入后续流程")
 }
 
 type fakeRegistrationReviewRepository struct {
@@ -875,28 +731,32 @@ func newFakeRegistrationReviewRepository() *fakeRegistrationReviewRepository {
 
 	return &fakeRegistrationReviewRepository{
 		registration: &model.Registration{
-			ID:           7001,
-			FormID:       301,
-			UserID:       501,
-			FormData:     map[string]any{"name": "张三", "group_1": "101", "group_2": "102"},
-			ContactName:  stringPtr("张三"),
-			ContactPhone: stringPtr("13800138000"),
-			ContactEmail: stringPtr("zhangsan@example.com"),
-			Group1ID:     &group1ID,
-			Group1Status: model.RegistrationStatusPending,
-			Group2ID:     &group2ID,
-			Group2Status: model.RegistrationStatusPending,
-			Status:       model.RegistrationStatusPending,
-			SubmittedAt:  now.Add(-2 * time.Hour),
-			UpdatedAt:    now.Add(-90 * time.Minute),
+			ID:                7001,
+			FormID:            301,
+			UserID:            501,
+			FormData:          map[string]any{"name": "张三", "group_1": "101", "group_2": "102"},
+			ContactName:       stringPtr("张三"),
+			ContactPhone:      stringPtr("13800138000"),
+			ContactEmail:      stringPtr("zhangsan@example.com"),
+			PreferredGroupID:  &group1ID,
+			RecruitmentStatus: model.RecruitmentStatusPendingScreening,
+			Group1ID:          &group1ID,
+			Group1Status:      model.RegistrationStatusPending,
+			Group2ID:          &group2ID,
+			Group2Status:      model.RegistrationStatusPending,
+			Status:            model.RegistrationStatusPending,
+			SubmittedAt:       now.Add(-2 * time.Hour),
+			UpdatedAt:         now.Add(-90 * time.Minute),
 			Form: model.RegistrationForm{
 				ID:           301,
 				Title:        "2026 招新报名",
 				FieldsSchema: validRegistrationFields(),
 				Status:       model.RegistrationFormStatusPublished,
 			},
-			Group1: &model.UserGroup{ID: group1ID, Name: "机械组", Show: 1},
-			Group2: &model.UserGroup{ID: group2ID, Name: "电控组", Show: 1},
+			User:           model.User{ID: 501, Name: "张三", Email: "zhangsan@example.com"},
+			PreferredGroup: &model.UserGroup{ID: group1ID, Name: "机械组", Show: 1},
+			Group1:         &model.UserGroup{ID: group1ID, Name: "机械组", Show: 1},
+			Group2:         &model.UserGroup{ID: group2ID, Name: "电控组", Show: 1},
 		},
 		shownGroups: []model.UserGroup{
 			{ID: 101, Name: "机械组", Show: 1},
@@ -960,6 +820,55 @@ func (r *fakeRegistrationReviewRepository) UpdateRegistration(_ context.Context,
 		r.registration.ContactEmail = copyStringPtr(value)
 	} else if updates["contact_email"] == nil {
 		r.registration.ContactEmail = nil
+	}
+	if value, ok := updates["preferred_group_id"].(*uint64); ok {
+		r.registration.PreferredGroupID = copyUint64Ptr(value)
+		r.registration.PreferredGroup = cloneGroupModel(groupByID(r.shownGroups, *value))
+	} else if _, ok := updates["preferred_group_id"]; ok {
+		r.registration.PreferredGroupID = nil
+		r.registration.PreferredGroup = nil
+	}
+	if value, ok := updates["recruitment_status"].(string); ok {
+		r.registration.RecruitmentStatus = value
+	}
+	if value, ok := updates["rejected_stage"].(string); ok {
+		r.registration.RejectedStage = stringPtr(value)
+	} else if _, ok := updates["rejected_stage"]; ok {
+		r.registration.RejectedStage = nil
+	}
+	if value, ok := updates["screened_by"].(uint64); ok {
+		r.registration.ScreenedBy = uint64Ptr(value)
+		r.registration.Screener = cloneUserModel(r.users[value])
+	} else if _, ok := updates["screened_by"]; ok {
+		r.registration.ScreenedBy = nil
+		r.registration.Screener = nil
+	}
+	if value, ok := updates["screened_at"].(time.Time); ok {
+		r.registration.ScreenedAt = copyTimePtr(&value)
+	} else if _, ok := updates["screened_at"]; ok {
+		r.registration.ScreenedAt = nil
+	}
+	if value, ok := updates["screening_remark"].(*string); ok {
+		r.registration.ScreeningRemark = copyStringPtr(value)
+	} else if _, ok := updates["screening_remark"]; ok {
+		r.registration.ScreeningRemark = nil
+	}
+	if value, ok := updates["interviewer_id"].(uint64); ok {
+		r.registration.InterviewerID = uint64Ptr(value)
+		r.registration.Interviewer = cloneUserModel(r.users[value])
+	} else if _, ok := updates["interviewer_id"]; ok {
+		r.registration.InterviewerID = nil
+		r.registration.Interviewer = nil
+	}
+	if value, ok := updates["interviewed_at"].(time.Time); ok {
+		r.registration.InterviewedAt = copyTimePtr(&value)
+	} else if _, ok := updates["interviewed_at"]; ok {
+		r.registration.InterviewedAt = nil
+	}
+	if value, ok := updates["interview_remark"].(*string); ok {
+		r.registration.InterviewRemark = copyStringPtr(value)
+	} else if _, ok := updates["interview_remark"]; ok {
+		r.registration.InterviewRemark = nil
 	}
 	if value, ok := updates["group_1"].(*uint64); ok {
 		r.registration.Group1ID = copyUint64Ptr(value)
@@ -1138,6 +1047,14 @@ func cloneRegistrationModel(registration *model.Registration) *model.Registratio
 	cloned.ContactName = copyStringPtr(registration.ContactName)
 	cloned.ContactPhone = copyStringPtr(registration.ContactPhone)
 	cloned.ContactEmail = copyStringPtr(registration.ContactEmail)
+	cloned.PreferredGroupID = copyUint64Ptr(registration.PreferredGroupID)
+	cloned.RejectedStage = copyStringPtr(registration.RejectedStage)
+	cloned.ScreenedBy = copyUint64Ptr(registration.ScreenedBy)
+	cloned.ScreenedAt = copyTimePtr(registration.ScreenedAt)
+	cloned.ScreeningRemark = copyStringPtr(registration.ScreeningRemark)
+	cloned.InterviewerID = copyUint64Ptr(registration.InterviewerID)
+	cloned.InterviewedAt = copyTimePtr(registration.InterviewedAt)
+	cloned.InterviewRemark = copyStringPtr(registration.InterviewRemark)
 	cloned.Group1ID = copyUint64Ptr(registration.Group1ID)
 	cloned.Group2ID = copyUint64Ptr(registration.Group2ID)
 	cloned.ReviewerID1 = copyUint64Ptr(registration.ReviewerID1)
@@ -1151,6 +1068,9 @@ func cloneRegistrationModel(registration *model.Registration) *model.Registratio
 	cloned.FinalizedBy = copyUint64Ptr(registration.FinalizedBy)
 	cloned.Interviews = append([]model.RegistrationInterview(nil), registration.Interviews...)
 	cloned.Form = *cloneRegistrationFormModel(&registration.Form)
+	cloned.PreferredGroup = cloneGroupModel(registration.PreferredGroup)
+	cloned.Screener = cloneUserModel(registration.Screener)
+	cloned.Interviewer = cloneUserModel(registration.Interviewer)
 	cloned.Group1 = cloneGroupModel(registration.Group1)
 	cloned.Group2 = cloneGroupModel(registration.Group2)
 	cloned.Reviewer1 = cloneUserModel(registration.Reviewer1)
@@ -1170,16 +1090,17 @@ func groupByID(groups []model.UserGroup, id uint64) *model.UserGroup {
 }
 
 type fakeRegistrationListRepository struct {
-	items          []model.Registration
-	forms          map[uint64]*model.RegistrationForm
-	shownGroups    []model.UserGroup
-	total          int64
-	stats          RegistrationStats
-	leaderGroupIDs map[uint64][]uint64
-	listFilters    []ListRegistrationsInput
-	exportFilters  []ListRegistrationsInput
-	countFilters   []ListRegistrationsInput
-	statsFilters   []ListRegistrationsInput
+	items               []model.Registration
+	createdRegistration *model.Registration
+	forms               map[uint64]*model.RegistrationForm
+	shownGroups         []model.UserGroup
+	total               int64
+	stats               RegistrationStats
+	leaderGroupIDs      map[uint64][]uint64
+	listFilters         []ListRegistrationsInput
+	exportFilters       []ListRegistrationsInput
+	countFilters        []ListRegistrationsInput
+	statsFilters        []ListRegistrationsInput
 }
 
 func newFakeRegistrationListRepository() *fakeRegistrationListRepository {
@@ -1261,25 +1182,30 @@ func newFakeRegistrationListRepository() *fakeRegistrationListRepository {
 						},
 					},
 				},
-				ContactName:   stringPtr("张三"),
-				ContactPhone:  stringPtr("13800138000"),
-				ContactEmail:  stringPtr("zhangsan@example.com"),
-				Group1ID:      &group1ID,
-				Group1Status:  model.RegistrationStatusApproved,
-				Group2ID:      &group2ID,
-				Group2Status:  model.RegistrationStatusRejected,
-				Status:        model.RegistrationStatusApproved,
-				SubmittedAt:   now.Add(-2 * time.Hour),
-				UpdatedAt:     now.Add(-90 * time.Minute),
-				Reviewer1:     &model.User{ID: 9001, Name: "审核管理员", Email: "admin@example.com"},
-				ReviewedAt1:   ptrTime(now.Add(-75 * time.Minute)),
-				ReviewRemark1: stringPtr("一志愿通过"),
-				Reviewer2:     &model.User{ID: 9002, Name: "复核管理员", Email: "reviewer@example.com"},
-				ReviewedAt2:   ptrTime(now.Add(-60 * time.Minute)),
-				ReviewRemark2: stringPtr("二志愿名额已满"),
-				Form:          *cloneRegistrationFormModel(form),
-				Group1:        &model.UserGroup{ID: group1ID, Name: "机械组", Show: 1},
-				Group2:        &model.UserGroup{ID: group2ID, Name: "电控组", Show: 1},
+				ContactName:       stringPtr("张三"),
+				ContactPhone:      stringPtr("13800138000"),
+				ContactEmail:      stringPtr("zhangsan@example.com"),
+				PreferredGroupID:  &group1ID,
+				RecruitmentStatus: model.RecruitmentStatusAdmitted,
+				ScreenedBy:        uint64Ptr(9001),
+				ScreenedAt:        ptrTime(now.Add(-75 * time.Minute)),
+				ScreeningRemark:   stringPtr("资料通过"),
+				InterviewerID:     uint64Ptr(9002),
+				InterviewedAt:     ptrTime(now.Add(-30 * time.Minute)),
+				InterviewRemark:   stringPtr("表现稳定"),
+				Group1ID:          &group1ID,
+				Group1Status:      model.RegistrationStatusApproved,
+				Group2ID:          &group2ID,
+				Group2Status:      model.RegistrationStatusRejected,
+				Status:            model.RegistrationStatusApproved,
+				SubmittedAt:       now.Add(-2 * time.Hour),
+				UpdatedAt:         now.Add(-20 * time.Minute),
+				Screener:          &model.User{ID: 9001, Name: "审核管理员", Email: "admin@example.com"},
+				Interviewer:       &model.User{ID: 9002, Name: "面试管理员", Email: "interviewer@example.com"},
+				Form:              *cloneRegistrationFormModel(form),
+				PreferredGroup:    &model.UserGroup{ID: group1ID, Name: "机械组", Show: 1},
+				Group1:            &model.UserGroup{ID: group1ID, Name: "机械组", Show: 1},
+				Group2:            &model.UserGroup{ID: group2ID, Name: "电控组", Show: 1},
 			},
 		},
 		forms: map[uint64]*model.RegistrationForm{
@@ -1291,11 +1217,12 @@ func newFakeRegistrationListRepository() *fakeRegistrationListRepository {
 		},
 		total: 23,
 		stats: RegistrationStats{
-			Total:     24,
-			Pending:   9,
-			Approved:  8,
-			Rejected:  5,
-			Cancelled: 2,
+			Total:            24,
+			PendingScreening: 9,
+			PendingInterview: 4,
+			Admitted:         4,
+			Rejected:         5,
+			Withdrawn:        2,
 		},
 		leaderGroupIDs: map[uint64][]uint64{},
 	}
@@ -1306,7 +1233,13 @@ func (r *fakeRegistrationListRepository) RunInTx(_ context.Context, fn func(repo
 }
 
 func (r *fakeRegistrationListRepository) ListPublishedForms(_ context.Context) ([]model.RegistrationForm, error) {
-	return nil, nil
+	items := make([]model.RegistrationForm, 0, len(r.forms))
+	for _, form := range r.forms {
+		if form.Status == model.RegistrationFormStatusPublished {
+			items = append(items, *cloneRegistrationFormModel(form))
+		}
+	}
+	return items, nil
 }
 
 func (r *fakeRegistrationListRepository) GetFormByID(_ context.Context, formID uint64) (*model.RegistrationForm, error) {
@@ -1325,7 +1258,11 @@ func (r *fakeRegistrationListRepository) CountRegistrationsByFormID(_ context.Co
 	return 0, nil
 }
 
-func (r *fakeRegistrationListRepository) CreateRegistration(_ context.Context, _ *model.Registration) error {
+func (r *fakeRegistrationListRepository) CreateRegistration(_ context.Context, registration *model.Registration) error {
+	if registration.ID == 0 {
+		registration.ID = 9901
+	}
+	r.createdRegistration = cloneRegistrationModel(registration)
 	return nil
 }
 
@@ -1519,25 +1456,5 @@ func assertRemovedMemberships(t *testing.T, actual []fakeAddedMembership, expect
 		if _, ok := expectedSet[item]; !ok {
 			t.Fatalf("unexpected removed membership: group=%d user=%d", item.GroupID, item.UserID)
 		}
-	}
-}
-
-func TestInterviewNotificationFailurePreservesAdmission(t *testing.T) {
-	repo := newFakeRegistrationReviewRepository()
-	repo.registration.User = model.User{ID: repo.registration.UserID, Name: "张三", Email: "zhangsan@example.com"}
-	repo.registration.Group1Status = model.RegistrationStatusApproved
-	repo.registration.Group2Status = model.RegistrationStatusApproved
-	service := newRegistrationServiceWithDependencies(repo, nil)
-	service.mailer = &fakeInterviewMailer{err: errors.New("邮件服务额度受限")}
-	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGlobal}
-	detail, err := service.UpdateRegistrationInterview(context.Background(), actor, repo.registration.ID, UpdateInterviewInput{GroupID: *repo.registration.Group1ID, Status: "passed"})
-	if err != nil {
-		t.Fatalf("saved admission must succeed: %v", err)
-	}
-	if detail.FinalStatus != model.RegistrationFinalStatusAdmitted || repo.registration.FinalStatus != model.RegistrationFinalStatusAdmitted {
-		t.Fatal("admission was lost after email failure")
-	}
-	if !strings.Contains(detail.NotificationWarning, "面试结果已保存") || !strings.Contains(detail.NotificationWarning, "邮件服务额度受限") {
-		t.Fatal("missing administrator warning")
 	}
 }

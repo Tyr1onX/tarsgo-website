@@ -1257,8 +1257,7 @@ export default function FormConfigPage() {
                   icon={info}
                   className="mt-0.5 h-4 w-4 shrink-0 text-accent-primary"
                 />
-                创建后会自动附带"姓名 / 手机号 / 邮箱 / 意向组别(1) /
-                意向组别(2)"五个系统字段，并以草稿状态保存。
+                创建后会自动附带"姓名 / 手机号 / 邮箱 / 意向组"四个系统字段，并以草稿状态保存。
               </div>
 
               <div className="flex justify-end gap-3 pt-1">

@@ -46,7 +46,134 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 8, apply: func(db *gorm.DB) error {
 			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.UserGroup{})
 		}},
+		{version: 9, apply: migrateRecruitmentWorkflow},
 	}
+}
+
+type recruitmentBackfill struct {
+	PreferredGroupID *uint64
+	Status           string
+	RejectedStage    *string
+	ScreenedBy       *uint64
+	ScreenedAt       *time.Time
+	ScreeningRemark  *string
+	InterviewerID    *uint64
+	InterviewedAt    *time.Time
+	InterviewRemark  *string
+}
+
+func migrateRecruitmentWorkflow(db *gorm.DB) error {
+	if err := db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.Registration{}); err != nil {
+		return err
+	}
+
+	var registrations []model.Registration
+	// Only legacy rows without a canonical preferred group need backfilling.
+	// This also makes the migration safe to resume after a partial failure:
+	// rows already migrated, plus records created by the new workflow, are left intact.
+	if err := db.Where("preferred_group_id IS NULL").Preload("Interviews").Find(&registrations).Error; err != nil {
+		return err
+	}
+	for index := range registrations {
+		backfill := buildRecruitmentBackfill(&registrations[index])
+		updates := map[string]any{
+			"preferred_group_id": backfill.PreferredGroupID,
+			"recruitment_status": backfill.Status,
+			"rejected_stage":     backfill.RejectedStage,
+			"screened_by":        backfill.ScreenedBy,
+			"screened_at":        backfill.ScreenedAt,
+			"screening_remark":   backfill.ScreeningRemark,
+			"interviewer_id":     backfill.InterviewerID,
+			"interviewed_at":     backfill.InterviewedAt,
+			"interview_remark":   backfill.InterviewRemark,
+		}
+		if err := db.Model(&model.Registration{}).Where("id = ?", registrations[index].ID).Updates(updates).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func buildRecruitmentBackfill(registration *model.Registration) recruitmentBackfill {
+	if registration == nil {
+		return recruitmentBackfill{Status: model.RecruitmentStatusPendingScreening}
+	}
+
+	preferredGroupID := registration.Group1ID
+	canonicalInterviewGroupID := registration.Group1ID
+	if registration.FinalStatus == model.RegistrationFinalStatusAdmitted && registration.FinalGroupID != nil {
+		// A historical admission is authoritative. Production currently has no
+		// second-choice admissions, but keep the migration lossless if another
+		// environment contains one.
+		preferredGroupID = registration.FinalGroupID
+		canonicalInterviewGroupID = registration.FinalGroupID
+	}
+
+	var primaryInterview *model.RegistrationInterview
+	if canonicalInterviewGroupID != nil {
+		for index := range registration.Interviews {
+			if registration.Interviews[index].GroupID == *canonicalInterviewGroupID {
+				primaryInterview = &registration.Interviews[index]
+				break
+			}
+		}
+	}
+
+	status := model.RecruitmentStatusPendingScreening
+	var rejectedStage *string
+	switch {
+	case registration.Status == model.RegistrationStatusCancelled || registration.Group1Status == model.RegistrationStatusCancelled:
+		status = model.RecruitmentStatusWithdrawn
+	case registration.FinalStatus == model.RegistrationFinalStatusAdmitted:
+		status = model.RecruitmentStatusAdmitted
+	case registration.FinalStatus == model.RegistrationFinalStatusRejected:
+		status = model.RecruitmentStatusRejected
+		stage := model.RecruitmentRejectedStageScreening
+		if primaryInterview != nil {
+			stage = model.RecruitmentRejectedStageInterview
+		}
+		rejectedStage = migrationStringPtr(stage)
+	case primaryInterview != nil:
+		switch primaryInterview.Status {
+		case model.RegistrationInterviewPassed:
+			// Legacy interview success was not itself the authoritative final
+			// admission signal. Only final_status=admitted may become admitted
+			// during backfill; otherwise keep the candidate actionable rather
+			// than guessing a final result.
+			status = model.RecruitmentStatusPendingInterview
+		case model.RegistrationInterviewFailed:
+			status = model.RecruitmentStatusRejected
+			rejectedStage = migrationStringPtr(model.RecruitmentRejectedStageInterview)
+		default:
+			status = model.RecruitmentStatusPendingInterview
+		}
+	case registration.Group1Status == model.RegistrationStatusApproved:
+		status = model.RecruitmentStatusPendingInterview
+	case registration.Group1Status == model.RegistrationStatusRejected:
+		status = model.RecruitmentStatusRejected
+		rejectedStage = migrationStringPtr(model.RecruitmentRejectedStageScreening)
+	case registration.Group1Status == model.RegistrationStatusCancelled:
+		status = model.RecruitmentStatusWithdrawn
+	}
+
+	result := recruitmentBackfill{
+		PreferredGroupID: preferredGroupID,
+		Status:           status,
+		RejectedStage:    rejectedStage,
+		ScreenedBy:       registration.ReviewerID1,
+		ScreenedAt:       registration.ReviewedAt1,
+		ScreeningRemark:  registration.ReviewRemark1,
+	}
+	if primaryInterview != nil {
+		result.InterviewerID = primaryInterview.InterviewerID
+		result.InterviewedAt = primaryInterview.InterviewedAt
+		result.InterviewRemark = primaryInterview.Remark
+	}
+	return result
+}
+
+func migrationStringPtr(value string) *string {
+	return &value
 }
 
 // migrateAdminScopes introduces explicit administrator scope and normalizes

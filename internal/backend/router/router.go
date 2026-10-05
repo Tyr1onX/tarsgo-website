@@ -134,9 +134,9 @@ func New(cfg *config.Config, db *gorm.DB, runtimeStore *runtimeconfig.Store) *gi
 	superAdminAPI.PATCH("/registration-forms/:id", registrationFormHandler.UpdateForm)
 	adminAPI.GET("/registrations", registrationHandler.ListRegistrations)
 	adminAPI.GET("/registrations/:id", registrationHandler.GetRegistration)
-	adminAPI.POST("/registrations/:id/review", registrationHandler.ReviewRegistration)
-	adminAPI.PATCH("/registrations/:id/interviews/:groupId", registrationHandler.UpdateRegistrationInterview)
-	adminAPI.DELETE("/registrations/:id/review", registrationHandler.UndoRegistrationReview)
+	adminAPI.POST("/registrations/:id/screening", registrationHandler.ScreenRegistration)
+	adminAPI.DELETE("/registrations/:id/screening", registrationHandler.UndoScreening)
+	adminAPI.POST("/registrations/:id/interview", registrationHandler.RecordInterviewResult)
 	adminAPI.DELETE("/registrations/:id", registrationHandler.DeleteRegistration)
 	adminAPI.GET("/registrations/:id/files/:fieldKey/:index", registrationHandler.OpenRegistrationFile)
 
