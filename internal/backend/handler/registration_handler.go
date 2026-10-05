@@ -31,14 +31,23 @@ type registrationService interface {
 	DeleteRegistration(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64) error
 	OpenRegistrationFile(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64, fieldKey string, index int) (*registration.RegistrationFileResult, error)
 	ExportFormRegistrationsCSV(ctx context.Context, actor registration.RegistrationFormActor, formID uint64, baseURL string) (*registration.RegistrationCSVExportResult, error)
+	ListInterviewSessions(ctx context.Context, actor registration.RegistrationFormActor) ([]registration.InterviewSessionView, error)
+	CreateInterviewSession(ctx context.Context, actor registration.RegistrationFormActor, input registration.UpsertInterviewSessionInput) (*registration.InterviewSessionView, error)
+	UpdateInterviewSession(ctx context.Context, actor registration.RegistrationFormActor, sessionID uint64, input registration.UpsertInterviewSessionInput) (*registration.InterviewSessionView, error)
+	GetInterviewAttendance(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64) (*registration.InterviewAttendanceResult, error)
+	UpdateInterviewAttendance(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64, input registration.InterviewAttendanceInput) (*registration.InterviewAttendanceResult, error)
 }
 
 type listRegistrationsQuery struct {
-	Page     int    `form:"page"`
-	PageSize int    `form:"pageSize"`
-	Keyword  string `form:"keyword"`
-	Status   string `form:"status"`
-	FormID   string `form:"formId"`
+	Page                  int    `form:"page"`
+	PageSize              int    `form:"pageSize"`
+	Keyword               string `form:"keyword"`
+	Status                string `form:"status"`
+	FormID                string `form:"formId"`
+	PreferredGroupID      string `form:"preferredGroupId"`
+	InterviewAttendance   string `form:"interviewAttendance"`
+	InterviewDate         string `form:"interviewDate"`
+	InterviewSessionLabel string `form:"interviewSessionLabel"`
 }
 
 type recruitmentDecisionRequest struct {
@@ -139,13 +148,22 @@ func (h *RegistrationHandler) ListRegistrations(c *gin.Context) {
 		writeAPIError(c, http.StatusBadRequest, err.Error())
 		return
 	}
+	preferredGroupID, err := parseOptionalUint64(query.PreferredGroupID, "意向组筛选值不合法")
+	if err != nil {
+		writeAPIError(c, http.StatusBadRequest, err.Error())
+		return
+	}
 
 	result, serviceErr := h.service.ListRegistrations(c.Request.Context(), currentRegistrationFormActor(c), registration.ListRegistrationsInput{
-		Page:     query.Page,
-		PageSize: query.PageSize,
-		Keyword:  query.Keyword,
-		Status:   status,
-		FormID:   formID,
+		Page:                  query.Page,
+		PageSize:              query.PageSize,
+		Keyword:               query.Keyword,
+		Status:                status,
+		FormID:                formID,
+		PreferredGroupID:      preferredGroupID,
+		InterviewAttendance:   optionalString(query.InterviewAttendance),
+		InterviewDate:         optionalString(query.InterviewDate),
+		InterviewSessionLabel: optionalString(query.InterviewSessionLabel),
 	})
 	if serviceErr != nil {
 		h.handleServiceError(c, serviceErr)
@@ -353,6 +371,14 @@ func parseOptionalUint64(raw string, message string) (*uint64, error) {
 
 	result := uint64(value)
 	return &result, nil
+}
+
+func optionalString(raw string) *string {
+	trimmed := strings.TrimSpace(raw)
+	if trimmed == "" {
+		return nil
+	}
+	return &trimmed
 }
 
 func buildRequestBaseURL(request *http.Request) string {

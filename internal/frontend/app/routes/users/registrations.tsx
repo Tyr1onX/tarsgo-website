@@ -44,6 +44,10 @@ import type {
 import {
   submitRecruitmentRegistration,
   cancelRecruitmentRegistration,
+  getRecruitmentInterviewAttendance,
+  updateRecruitmentInterviewAttendance,
+  type InterviewAttendanceResult,
+  type InterviewSession,
 } from "~/lib/registrations-client";
 
 const FLASH_DURATION_MS = 3000;
@@ -148,6 +152,9 @@ export default function UserRegistrations({
   const [flashVisible, setFlashVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [cancelling, setCancelling] = useState(false);
+  const [interviewAttendance, setInterviewAttendance] = useState<InterviewAttendanceResult | null>(null);
+  const [interviewLoading, setInterviewLoading] = useState(false);
+  const [interviewSaving, setInterviewSaving] = useState(false);
   const [confirmCancelOpen, setConfirmCancelOpen] = useState(false);
   const [confirmCancelClosing, setConfirmCancelClosing] = useState(false);
 
@@ -198,6 +205,28 @@ export default function UserRegistrations({
 
   const submittedSummary = pageData.registrationSummary ?? null;
   const canCancelSubmitted = Boolean(submittedSummary?.canCancel && pageData.form);
+
+  useEffect(() => {
+    if (!submittedSummary || submittedSummary.status !== "pending_interview") {
+      setInterviewAttendance(null);
+      return;
+    }
+    let cancelled = false;
+    setInterviewLoading(true);
+    getRecruitmentInterviewAttendance(submittedSummary.id)
+      .then((result) => {
+        if (!cancelled) setInterviewAttendance(result);
+      })
+      .catch((error) => {
+        if (!cancelled) setFlash({ type: "error", message: getErrorMessage(error) });
+      })
+      .finally(() => {
+        if (!cancelled) setInterviewLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [submittedSummary?.id, submittedSummary?.status]);
   const pageMode = pageData.pageMode;
   const scheduleText = useMemo(() => {
     if (!pageData.form) {
@@ -292,6 +321,20 @@ export default function UserRegistrations({
     }, MODAL_ANIMATION_MS);
   }
 
+  async function saveInterviewAttendance(attendance: "attending" | "not_attending", interviewSessionId?: number | null) {
+    if (!submittedSummary || submittedSummary.status !== "pending_interview") return;
+    try {
+      setInterviewSaving(true);
+      const result = await updateRecruitmentInterviewAttendance(submittedSummary.id, { attendance, interviewSessionId });
+      setInterviewAttendance(result);
+      setFlash({ type: "success", message: attendance === "attending" ? "面试安排已保存。" : "已记录本次暂不参加面试。" });
+    } catch (error) {
+      setFlash({ type: "error", message: getErrorMessage(error) });
+    } finally {
+      setInterviewSaving(false);
+    }
+  }
+
   async function confirmCancelRegistration() {
     if (!submittedSummary || !canCancelSubmitted || cancelling) {
       return;
@@ -352,12 +395,22 @@ export default function UserRegistrations({
       />
 
       {pageMode === "submitted" && submittedSummary ? (
-        <SubmittedStateCard
-          summary={submittedSummary}
-          canCancel={canCancelSubmitted}
-          cancelling={cancelling}
-          onCancel={requestCancelRegistration}
-        />
+        <>
+          <SubmittedStateCard
+            summary={submittedSummary}
+            canCancel={canCancelSubmitted}
+            cancelling={cancelling}
+            onCancel={requestCancelRegistration}
+          />
+          {submittedSummary.status === "pending_interview" ? (
+            <InterviewAttendanceCard
+              data={interviewAttendance}
+              loading={interviewLoading}
+              saving={interviewSaving}
+              onSave={saveInterviewAttendance}
+            />
+          ) : null}
+        </>
       ) : pageMode === "unavailable" ? (
         <UnavailableStateCard
           reason={pageData.unavailableReason ?? "当前暂无可访问的报名表。"}
@@ -905,6 +958,194 @@ function CancelConfirmModal({
       </div>
     </div>,
     document.body,
+  );
+}
+
+function InterviewAttendanceCard({
+  data,
+  loading,
+  saving,
+  onSave,
+}: {
+  data: InterviewAttendanceResult | null;
+  loading: boolean;
+  saving: boolean;
+  onSave: (attendance: "attending" | "not_attending", interviewSessionId?: number | null) => Promise<void>;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [selectedSessionId, setSelectedSessionId] = useState<number | null>(null);
+
+  useEffect(() => {
+    const currentSessionId = data?.session?.id ?? null;
+    const currentSessionIsSelectable = currentSessionId != null && data?.availableSessions.some((session) => session.id === currentSessionId);
+    setSelectedSessionId(currentSessionIsSelectable ? currentSessionId : null);
+    setEditing(false);
+  }, [data?.attendance, data?.session?.id, data?.availableSessions]);
+
+  const groupedSessions = useMemo(() => {
+    const groups = new Map<string, InterviewSession[]>();
+    for (const session of data?.availableSessions ?? []) {
+      const items = groups.get(session.date) ?? [];
+      items.push(session);
+      groups.set(session.date, items);
+    }
+    return Array.from(groups.entries());
+  }, [data?.availableSessions]);
+
+  if (loading || !data) {
+    return (
+      <section className="glass-panel rounded-2xl p-5 text-sm text-fg-dim">
+        正在加载面试安排...
+      </section>
+    );
+  }
+
+  const hasAvailableSessions = data.availableSessions.length > 0;
+
+  if (data.attendance === "pending" && !hasAvailableSessions) {
+    return (
+      <section className="glass-panel rounded-2xl p-5">
+        <h2 className="text-lg font-semibold text-fg-primary">线下面试</h2>
+        <p className="mt-2 text-sm text-fg-muted">你已通过初筛。</p>
+        <p className="mt-1 text-sm text-fg-dim">面试时间尚未开放，请等待后续通知。</p>
+      </section>
+    );
+  }
+
+  if (!editing && data.attendance === "attending" && data.session) {
+    return (
+      <section className="glass-panel rounded-2xl p-5">
+        <h2 className="text-lg font-semibold text-fg-primary">面试安排</h2>
+        <dl className="mt-4 grid gap-3 sm:grid-cols-2">
+          <InterviewInfo label="日期" value={data.session.date} />
+          <InterviewInfo label="时段" value={data.session.label + " " + data.session.startTime + "–" + data.session.endTime} />
+          <div className="sm:col-span-2">
+            <InterviewInfo label="地点" value={data.session.location} />
+          </div>
+        </dl>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {hasAvailableSessions ? (
+            <button type="button" onClick={() => setEditing(true)} className="btn-glass rounded-xl px-4 py-2.5 text-sm">
+              修改选择
+            </button>
+          ) : null}
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => void onSave("not_attending", null)}
+            className="btn-glass rounded-xl px-4 py-2.5 text-sm disabled:opacity-50"
+          >
+            暂不参加
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  if (!editing && data.attendance === "not_attending") {
+    return (
+      <section className="glass-panel rounded-2xl p-5">
+        <h2 className="text-lg font-semibold text-fg-primary">线下面试</h2>
+        <p className="mt-2 text-sm text-fg-muted">已记录：本次暂不参加。</p>
+        {hasAvailableSessions ? (
+          <button type="button" onClick={() => setEditing(true)} className="btn-glass mt-4 rounded-xl px-4 py-2.5 text-sm">
+            改为参加
+          </button>
+        ) : (
+          <p className="mt-2 text-sm text-fg-dim">当前没有开放的面试时段。</p>
+        )}
+      </section>
+    );
+  }
+
+  if (!editing && data.attendance === "pending") {
+    return (
+      <section className="glass-panel rounded-2xl p-5">
+        <h2 className="text-lg font-semibold text-fg-primary">线下面试</h2>
+        <p className="mt-2 text-sm text-fg-muted">你已通过初筛。</p>
+        <p className="mt-1 text-sm text-fg-primary">是否参加本次线下面试？</p>
+        <div className="mt-4 flex flex-wrap gap-2">
+          <button type="button" onClick={() => setEditing(true)} className="btn-gradient rounded-xl px-4 py-2.5 text-sm font-medium">
+            参加面试
+          </button>
+          <button
+            type="button"
+            disabled={saving}
+            onClick={() => void onSave("not_attending", null)}
+            className="btn-glass rounded-xl px-4 py-2.5 text-sm disabled:opacity-50"
+          >
+            暂不参加
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="glass-panel rounded-2xl p-5">
+      <h2 className="text-lg font-semibold text-fg-primary">选择面试时段</h2>
+      <div className="mt-4 space-y-5">
+        {groupedSessions.map(([date, sessions]) => (
+          <div key={date}>
+            <div className="mb-2 text-sm font-medium text-fg-primary">{date}</div>
+            <div className="space-y-2">
+              {sessions.map((session) => (
+                <label
+                  key={session.id}
+                  className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-3"
+                >
+                  <input
+                    type="radio"
+                    name="interview-session"
+                    checked={selectedSessionId === session.id}
+                    onChange={() => setSelectedSessionId(session.id)}
+                    className="mt-1"
+                  />
+                  <span>
+                    <span className="block text-sm font-medium text-fg-primary">
+                      {session.label} {session.startTime}–{session.endTime}
+                    </span>
+                    <span className="mt-1 block text-xs text-fg-dim">{session.location}</span>
+                  </span>
+                </label>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      <div className="mt-5 flex flex-wrap gap-2">
+        <button
+          type="button"
+          disabled={saving || selectedSessionId == null}
+          onClick={() => selectedSessionId != null && void onSave("attending", selectedSessionId)}
+          className="btn-gradient rounded-xl px-4 py-2.5 text-sm font-medium disabled:opacity-50"
+        >
+          {saving ? "保存中..." : "确认"}
+        </button>
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => void onSave("not_attending", null)}
+          className="btn-glass rounded-xl px-4 py-2.5 text-sm disabled:opacity-50"
+        >
+          暂不参加
+        </button>
+        {data.attendance !== "pending" ? (
+          <button type="button" disabled={saving} onClick={() => setEditing(false)} className="btn-glass rounded-xl px-4 py-2.5 text-sm">
+            取消
+          </button>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function InterviewInfo({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <dt className="text-xs text-fg-dim">{label}</dt>
+      <dd className="mt-1 text-sm text-fg-primary">{value}</dd>
+    </div>
   );
 }
 

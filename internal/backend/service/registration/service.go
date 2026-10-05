@@ -61,6 +61,12 @@ type registrationRepository interface {
 	ListDefaultGroupIDs(ctx context.Context) ([]uint64, error)
 	AddUserToGroupIfAbsent(ctx context.Context, groupID uint64, userID uint64) error
 	RemoveUserFromGroupIfPresent(ctx context.Context, groupID uint64, userID uint64) error
+	ListInterviewSessions(ctx context.Context, enabledOnly bool) ([]model.InterviewSession, error)
+	GetInterviewSessionByID(ctx context.Context, sessionID uint64) (*model.InterviewSession, error)
+	GetInterviewSessionByIDForUpdate(ctx context.Context, sessionID uint64) (*model.InterviewSession, error)
+	CreateInterviewSession(ctx context.Context, session *model.InterviewSession) error
+	UpdateInterviewSession(ctx context.Context, sessionID uint64, updates map[string]any) error
+	CountInterviewSessionSelections(ctx context.Context, sessionID uint64) (int64, error)
 }
 
 type gormRegistrationRepository struct {
@@ -82,12 +88,16 @@ type SubmitRegistrationResult struct {
 }
 
 type ListRegistrationsInput struct {
-	Page            int
-	PageSize        int
-	Keyword         string
-	Status          *string
-	FormID          *uint64
-	VisibleGroupIDs []uint64
+	Page                  int
+	PageSize              int
+	Keyword               string
+	Status                *string
+	FormID                *uint64
+	PreferredGroupID      *uint64
+	InterviewAttendance   *string
+	InterviewDate         *string
+	InterviewSessionLabel *string
+	VisibleGroupIDs       []uint64
 }
 
 type RegistrationStats struct {
@@ -107,19 +117,21 @@ type RegistrationPagination struct {
 }
 
 type RegistrationListItem struct {
-	ID             uint64                `json:"id"`
-	FormID         uint64                `json:"formId"`
-	FormTitle      string                `json:"formTitle"`
-	ContactName    *string               `json:"contactName,omitempty"`
-	ContactPhone   *string               `json:"contactPhone,omitempty"`
-	ContactEmail   *string               `json:"contactEmail,omitempty"`
-	PreferredGroup *RegistrationGroupRef `json:"preferredGroup,omitempty"`
-	Status         string                `json:"status"`
-	RejectedStage  *string               `json:"rejectedStage,omitempty"`
-	CanScreen      bool                  `json:"canScreen"`
-	CanInterview   bool                  `json:"canInterview"`
-	SubmittedAt    time.Time             `json:"submittedAt"`
-	UpdatedAt      time.Time             `json:"updatedAt"`
+	ID                  uint64                `json:"id"`
+	FormID              uint64                `json:"formId"`
+	FormTitle           string                `json:"formTitle"`
+	ContactName         *string               `json:"contactName,omitempty"`
+	ContactPhone        *string               `json:"contactPhone,omitempty"`
+	ContactEmail        *string               `json:"contactEmail,omitempty"`
+	PreferredGroup      *RegistrationGroupRef `json:"preferredGroup,omitempty"`
+	Status              string                `json:"status"`
+	RejectedStage       *string               `json:"rejectedStage,omitempty"`
+	InterviewAttendance string                `json:"interviewAttendance"`
+	InterviewSession    *InterviewSessionView `json:"interviewSession,omitempty"`
+	CanScreen           bool                  `json:"canScreen"`
+	CanInterview        bool                  `json:"canInterview"`
+	SubmittedAt         time.Time             `json:"submittedAt"`
+	UpdatedAt           time.Time             `json:"updatedAt"`
 }
 
 type ListRegistrationsResult struct {
@@ -145,6 +157,8 @@ type RegistrationDetail struct {
 	Interviewer         *RegistrationReviewerRef `json:"interviewer,omitempty"`
 	InterviewedAt       *time.Time               `json:"interviewedAt,omitempty"`
 	InterviewRemark     *string                  `json:"interviewRemark,omitempty"`
+	InterviewAttendance string                   `json:"interviewAttendance"`
+	InterviewSession    *InterviewSessionView    `json:"interviewSession,omitempty"`
 	CanScreen           bool                     `json:"canScreen"`
 	CanUndoScreening    bool                     `json:"canUndoScreening"`
 	CanInterview        bool                     `json:"canInterview"`
@@ -274,15 +288,16 @@ func (s *RegistrationService) SubmitRegistration(ctx context.Context, actor Regi
 		}
 
 		registration := &model.Registration{
-			FormID:            form.ID,
-			UserID:            actor.ID,
-			FormData:          cloneStringAnyMap(normalized.FormData),
-			ContactName:       copyStringPtr(normalized.ContactName),
-			ContactPhone:      copyStringPtr(normalized.ContactPhone),
-			ContactEmail:      copyStringPtr(normalized.ContactEmail),
-			PreferredGroupID:  copyUint64Ptr(normalized.PreferredGroupID),
-			RecruitmentStatus: model.RecruitmentStatusPendingScreening,
-			SubmittedAt:       now,
+			FormID:              form.ID,
+			UserID:              actor.ID,
+			FormData:            cloneStringAnyMap(normalized.FormData),
+			ContactName:         copyStringPtr(normalized.ContactName),
+			ContactPhone:        copyStringPtr(normalized.ContactPhone),
+			ContactEmail:        copyStringPtr(normalized.ContactEmail),
+			PreferredGroupID:    copyUint64Ptr(normalized.PreferredGroupID),
+			RecruitmentStatus:   model.RecruitmentStatusPendingScreening,
+			InterviewAttendance: model.InterviewAttendancePending,
+			SubmittedAt:         now,
 		}
 		if err := repo.CreateRegistration(ctx, registration); err != nil {
 			if isDuplicateRegistrationErr(err) {
@@ -554,22 +569,24 @@ func (s *RegistrationService) GetRegistration(ctx context.Context, actor Registr
 		formData["preferred_group"] = strconv.FormatUint(*registration.PreferredGroupID, 10)
 	}
 	detail := RegistrationDetail{
-		ID:              registration.ID,
-		FormID:          registration.FormID,
-		FormTitle:       registration.Form.Title,
-		ContactName:     copyStringPtr(registration.ContactName),
-		ContactPhone:    copyStringPtr(registration.ContactPhone),
-		ContactEmail:    copyStringPtr(registration.ContactEmail),
-		PreferredGroup:  toRegistrationGroupRef(registration.PreferredGroup),
-		Status:          registration.RecruitmentStatus,
-		RejectedStage:   copyStringPtr(registration.RejectedStage),
-		Screener:        toRegistrationReviewerRef(registration.Screener),
-		ScreenedAt:      copyTimePtr(registration.ScreenedAt),
-		ScreeningRemark: copyStringPtr(registration.ScreeningRemark),
-		Interviewer:     toRegistrationReviewerRef(registration.Interviewer),
-		InterviewedAt:   copyTimePtr(registration.InterviewedAt),
-		InterviewRemark: copyStringPtr(registration.InterviewRemark),
-		CanScreen:       registration.RecruitmentStatus == model.RecruitmentStatusPendingScreening,
+		ID:                  registration.ID,
+		FormID:              registration.FormID,
+		FormTitle:           registration.Form.Title,
+		ContactName:         copyStringPtr(registration.ContactName),
+		ContactPhone:        copyStringPtr(registration.ContactPhone),
+		ContactEmail:        copyStringPtr(registration.ContactEmail),
+		PreferredGroup:      toRegistrationGroupRef(registration.PreferredGroup),
+		Status:              registration.RecruitmentStatus,
+		RejectedStage:       copyStringPtr(registration.RejectedStage),
+		Screener:            toRegistrationReviewerRef(registration.Screener),
+		ScreenedAt:          copyTimePtr(registration.ScreenedAt),
+		ScreeningRemark:     copyStringPtr(registration.ScreeningRemark),
+		Interviewer:         toRegistrationReviewerRef(registration.Interviewer),
+		InterviewedAt:       copyTimePtr(registration.InterviewedAt),
+		InterviewRemark:     copyStringPtr(registration.InterviewRemark),
+		InterviewAttendance: registration.InterviewAttendance,
+		InterviewSession:    toInterviewSessionView(registration.InterviewSession, 0),
+		CanScreen:           registration.RecruitmentStatus == model.RecruitmentStatusPendingScreening,
 		CanUndoScreening: registration.RecruitmentStatus == model.RecruitmentStatusPendingInterview ||
 			(registration.RecruitmentStatus == model.RecruitmentStatusRejected && valueOrEmpty(registration.RejectedStage) == model.RecruitmentRejectedStageScreening),
 		CanInterview: registration.RecruitmentStatus == model.RecruitmentStatusPendingInterview,
@@ -712,7 +729,7 @@ func buildScreeningNotification(reg *model.Registration, passed bool, now time.T
 		return &interviewNotification{
 			To:      to,
 			Subject: "吉甲大师纳新初筛结果通知（通过）",
-			Body:    fmt.Sprintf("尊敬的 %s：\n\n你好！\n\n感谢你报名参加吉甲大师纳新。你的报名资料已通过初筛，接下来将进入线下面试环节。\n\n报名项目：%s\n意向组：%s\n当前状态：待面试\n\n具体面试安排请留意吉甲大师后续通知。\n\n吉甲大师\n%s", name, reg.Form.Title, groupName, now.Format("2006年1月2日")),
+			Body:    fmt.Sprintf("尊敬的 %s：\n\n你好！\n\n感谢你报名参加吉甲大师纳新。你的报名资料已通过初筛，接下来将进入线下面试环节。\n\n报名项目：%s\n意向组：%s\n当前状态：待面试\n\n请登录吉甲大师网站确认是否参加线下面试，并选择预计到场时段；如暂未开放时段，请等待后续通知。\n\n吉甲大师\n%s", name, reg.Form.Title, groupName, now.Format("2006年1月2日")),
 		}
 	}
 	return &interviewNotification{
@@ -1223,18 +1240,35 @@ func validateRegistrationListInput(input ListRegistrationsInput) error {
 	if input.FormID != nil && *input.FormID == 0 {
 		return &ServiceError{Status: http.StatusBadRequest, Message: "报名表筛选值不合法"}
 	}
+	if input.PreferredGroupID != nil && *input.PreferredGroupID == 0 {
+		return &ServiceError{Status: http.StatusBadRequest, Message: "意向组筛选值不合法"}
+	}
+	if input.InterviewAttendance != nil {
+		if err := validateInterviewAttendance(*input.InterviewAttendance, true); err != nil {
+			return err
+		}
+	}
+	if input.InterviewDate != nil {
+		if _, err := time.Parse("2006-01-02", strings.TrimSpace(*input.InterviewDate)); err != nil {
+			return &ServiceError{Status: http.StatusBadRequest, Message: "面试日期筛选值不合法"}
+		}
+	}
 	return nil
 }
 
 func normalizeRegistrationListInput(input ListRegistrationsInput) ListRegistrationsInput {
 	visibleGroupIDs := append([]uint64(nil), input.VisibleGroupIDs...)
 	return ListRegistrationsInput{
-		Page:            normalizeRegistrationListPage(input.Page),
-		PageSize:        normalizeRegistrationListPageSize(input.PageSize),
-		Keyword:         strings.TrimSpace(input.Keyword),
-		Status:          input.Status,
-		FormID:          input.FormID,
-		VisibleGroupIDs: visibleGroupIDs,
+		Page:                  normalizeRegistrationListPage(input.Page),
+		PageSize:              normalizeRegistrationListPageSize(input.PageSize),
+		Keyword:               strings.TrimSpace(input.Keyword),
+		Status:                input.Status,
+		FormID:                input.FormID,
+		PreferredGroupID:      input.PreferredGroupID,
+		InterviewAttendance:   input.InterviewAttendance,
+		InterviewDate:         input.InterviewDate,
+		InterviewSessionLabel: input.InterviewSessionLabel,
+		VisibleGroupIDs:       visibleGroupIDs,
 	}
 }
 
@@ -1382,19 +1416,21 @@ func collectRegistrationStoredPathsFromValue(value any, seen map[string]struct{}
 
 func toRegistrationListItem(registration *model.Registration, _ registrationAccessScope) RegistrationListItem {
 	return RegistrationListItem{
-		ID:             registration.ID,
-		FormID:         registration.FormID,
-		FormTitle:      registration.Form.Title,
-		ContactName:    copyStringPtr(registration.ContactName),
-		ContactPhone:   copyStringPtr(registration.ContactPhone),
-		ContactEmail:   copyStringPtr(registration.ContactEmail),
-		PreferredGroup: toRegistrationGroupRef(registration.PreferredGroup),
-		Status:         registration.RecruitmentStatus,
-		RejectedStage:  copyStringPtr(registration.RejectedStage),
-		CanScreen:      registration.RecruitmentStatus == model.RecruitmentStatusPendingScreening,
-		CanInterview:   registration.RecruitmentStatus == model.RecruitmentStatusPendingInterview,
-		SubmittedAt:    registration.SubmittedAt,
-		UpdatedAt:      registration.UpdatedAt,
+		ID:                  registration.ID,
+		FormID:              registration.FormID,
+		FormTitle:           registration.Form.Title,
+		ContactName:         copyStringPtr(registration.ContactName),
+		ContactPhone:        copyStringPtr(registration.ContactPhone),
+		ContactEmail:        copyStringPtr(registration.ContactEmail),
+		PreferredGroup:      toRegistrationGroupRef(registration.PreferredGroup),
+		Status:              registration.RecruitmentStatus,
+		RejectedStage:       copyStringPtr(registration.RejectedStage),
+		InterviewAttendance: registration.InterviewAttendance,
+		InterviewSession:    toInterviewSessionView(registration.InterviewSession, 0),
+		CanScreen:           registration.RecruitmentStatus == model.RecruitmentStatusPendingScreening,
+		CanInterview:        registration.RecruitmentStatus == model.RecruitmentStatusPendingInterview,
+		SubmittedAt:         registration.SubmittedAt,
+		UpdatedAt:           registration.UpdatedAt,
 	}
 }
 
@@ -2611,6 +2647,7 @@ func (r *gormRegistrationRepository) ListRegistrations(ctx context.Context, filt
 		Preload("PreferredGroup").
 		Preload("Screener").
 		Preload("Interviewer").
+		Preload("InterviewSession").
 		Order("registrations.submitted_at DESC").
 		Offset((normalizeRegistrationListPage(filter.Page) - 1) * normalizeRegistrationListPageSize(filter.PageSize)).
 		Limit(normalizeRegistrationListPageSize(filter.PageSize)).
@@ -2636,6 +2673,7 @@ func (r *gormRegistrationRepository) ListRegistrationsForExport(ctx context.Cont
 		Preload("PreferredGroup").
 		Preload("Screener").
 		Preload("Interviewer").
+		Preload("InterviewSession").
 		Order("registrations.submitted_at DESC").
 		Find(&registrations).Error; err != nil {
 		return nil, err
@@ -2678,6 +2716,7 @@ func (r *gormRegistrationRepository) GetRegistrationByID(ctx context.Context, re
 		Preload("PreferredGroup").
 		Preload("Screener").
 		Preload("Interviewer").
+		Preload("InterviewSession").
 		First(&registration, registrationID).Error; err != nil {
 		return nil, err
 	}
@@ -2693,6 +2732,7 @@ func (r *gormRegistrationRepository) GetRegistrationByIDForUpdate(ctx context.Co
 		Preload("PreferredGroup").
 		Preload("Screener").
 		Preload("Interviewer").
+		Preload("InterviewSession").
 		First(&registration, registrationID).Error; err != nil {
 		return nil, err
 	}
@@ -2707,6 +2747,21 @@ func (r *gormRegistrationRepository) DeleteRegistration(ctx context.Context, reg
 func applyRegistrationListFilters(query *gorm.DB, filter ListRegistrationsInput, includeStatus bool) *gorm.DB {
 	if filter.FormID != nil {
 		query = query.Where("registrations.form_id = ?", *filter.FormID)
+	}
+	if filter.PreferredGroupID != nil {
+		query = query.Where("registrations.preferred_group_id = ?", *filter.PreferredGroupID)
+	}
+	if filter.InterviewAttendance != nil {
+		query = query.Where("registrations.interview_attendance = ?", strings.TrimSpace(*filter.InterviewAttendance))
+	}
+	if filter.InterviewDate != nil || filter.InterviewSessionLabel != nil {
+		query = query.Joins("JOIN interview_sessions ON interview_sessions.id = registrations.interview_session_id")
+	}
+	if filter.InterviewDate != nil {
+		query = query.Where("interview_sessions.date = ?", strings.TrimSpace(*filter.InterviewDate))
+	}
+	if filter.InterviewSessionLabel != nil && strings.TrimSpace(*filter.InterviewSessionLabel) != "" {
+		query = query.Where("interview_sessions.label = ?", strings.TrimSpace(*filter.InterviewSessionLabel))
 	}
 	if includeStatus && filter.Status != nil {
 		query = query.Where("registrations.recruitment_status = ?", strings.TrimSpace(*filter.Status))
