@@ -946,11 +946,13 @@ func (s *RegistrationService) UndoScreening(ctx context.Context, actor Registrat
 			return &ServiceError{Status: http.StatusConflict, Message: "已有面试结果，不能撤销初筛"}
 		}
 		if err := repo.UpdateRegistration(ctx, registrationID, map[string]any{
-			"recruitment_status": model.RecruitmentStatusPendingScreening,
-			"rejected_stage":     nil,
-			"screened_by":        nil,
-			"screened_at":        nil,
-			"screening_remark":   nil,
+			"recruitment_status":   model.RecruitmentStatusPendingScreening,
+			"rejected_stage":       nil,
+			"screened_by":          nil,
+			"screened_at":          nil,
+			"screening_remark":     nil,
+			"interview_attendance": model.InterviewAttendancePending,
+			"interview_session_id": nil,
 		}); err != nil {
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "撤销初筛失败", Err: err}
 		}
