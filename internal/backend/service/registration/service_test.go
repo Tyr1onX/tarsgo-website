@@ -253,6 +253,39 @@ func TestRegistrationServiceUndoScreeningOnlyBeforeInterview(t *testing.T) {
 	}
 }
 
+func TestRegistrationServiceUndoScreeningClearsInterviewBooking(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	session := repo.interviewSessions[1]
+	repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
+	repo.registration.InterviewAttendance = model.InterviewAttendanceAttending
+	repo.registration.InterviewSessionID = uint64Ptr(session.ID)
+	repo.registration.InterviewSession = &session
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+
+	undone, err := service.UndoScreening(context.Background(), actor, repo.registration.ID)
+	if err != nil {
+		t.Fatalf("UndoScreening returned error: %v", err)
+	}
+	if undone.Status != model.RecruitmentStatusPendingScreening || undone.InterviewAttendance != model.InterviewAttendancePending || undone.InterviewSession != nil {
+		t.Fatalf("unexpected state after undo: status=%q attendance=%q session=%#v", undone.Status, undone.InterviewAttendance, undone.InterviewSession)
+	}
+	if repo.registration.InterviewSessionID != nil {
+		t.Fatalf("interview_session_id after undo = %v, want nil", *repo.registration.InterviewSessionID)
+	}
+
+	rescreened, err := service.ScreenRegistration(context.Background(), actor, repo.registration.ID, ScreeningDecisionInput{Decision: "approve"})
+	if err != nil {
+		t.Fatalf("ScreenRegistration returned error: %v", err)
+	}
+	if rescreened.Status != model.RecruitmentStatusPendingInterview || rescreened.InterviewAttendance != model.InterviewAttendancePending || rescreened.InterviewSession != nil {
+		t.Fatalf("unexpected state after rescreening: status=%q attendance=%q session=%#v", rescreened.Status, rescreened.InterviewAttendance, rescreened.InterviewSession)
+	}
+	if repo.registration.InterviewSessionID != nil {
+		t.Fatalf("interview_session_id after rescreening = %v, want nil", *repo.registration.InterviewSessionID)
+	}
+}
+
 func TestRegistrationServiceNotificationFailureDoesNotRollbackResult(t *testing.T) {
 	repo := newFakeRegistrationReviewRepository()
 	repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
