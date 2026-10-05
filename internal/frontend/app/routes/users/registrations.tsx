@@ -60,8 +60,6 @@ type FlashState =
   | null;
 
 type StatusMeta = {
-  label: string;
-  hint: string;
   tone: "pending" | "approved" | "rejected" | "cancelled";
   badgeClassName: string;
   dotClassName: string;
@@ -70,46 +68,110 @@ type StatusMeta = {
 
 const registrationStatusMeta: Record<RecruitmentPageRegistrationSummary["status"], StatusMeta> = {
   pending_screening: {
-    label: "待初筛",
-    hint: "报名资料已提交，正在等待管理员初筛",
     tone: "pending",
     badgeClassName: "border-amber-400/20 bg-amber-500/10 text-amber-300",
     dotClassName: "bg-amber-400",
     ringClassName: "ring-amber-500/20",
   },
   pending_interview: {
-    label: "待面试",
-    hint: "初筛已通过，请留意线下面试安排",
     tone: "pending",
     badgeClassName: "border-sky-400/20 bg-sky-500/10 text-sky-300",
     dotClassName: "bg-sky-400",
     ringClassName: "ring-sky-500/20",
   },
   admitted: {
-    label: "已录取",
-    hint: "面试已通过，已完成录取",
     tone: "approved",
     badgeClassName: "border-emerald-400/20 bg-emerald-500/10 text-emerald-300",
     dotClassName: "bg-emerald-400",
     ringClassName: "ring-emerald-500/20",
   },
   rejected: {
-    label: "未通过",
-    hint: "本次招新流程已结束",
     tone: "rejected",
     badgeClassName: "border-rose-400/20 bg-rose-500/10 text-rose-300",
     dotClassName: "bg-rose-400",
     ringClassName: "ring-rose-500/20",
   },
   withdrawn: {
-    label: "已撤回",
-    hint: "你已撤回本次报名，历史记录仍会保留",
     tone: "cancelled",
     badgeClassName: "border-slate-400/20 bg-slate-500/10 text-slate-300",
     dotClassName: "bg-slate-400",
     ringClassName: "ring-slate-500/20",
   },
 };
+
+type ProgressStepState = "complete" | "current" | "upcoming" | "skipped";
+
+function getRecruitmentProgress(
+  summary: RecruitmentPageRegistrationSummary,
+  attendance: InterviewAttendanceResult | null,
+  attendanceLoading: boolean,
+) {
+  const labels = ["报名完成", "初筛", "面试确认", "等待线下面试", "最终结果"];
+  let currentStep = 1;
+  let currentStage = "等待初筛";
+  let nextAction = "请等待管理员审核报名资料。";
+  let isTerminal = false;
+  const skippedSteps = new Set<number>();
+
+  if (summary.status === "withdrawn") {
+    currentStage = "已撤回";
+    nextAction = "本次报名已撤回，流程已结束。";
+    isTerminal = true;
+    for (let index = 2; index < labels.length; index += 1) skippedSteps.add(index);
+  } else if (summary.status === "pending_interview") {
+    currentStep = 2;
+    currentStage = "确认面试安排";
+    if (attendanceLoading) {
+      nextAction = "正在获取可选的线下面试时段。";
+    } else if (!attendance) {
+      nextAction = "暂时无法读取面试安排，请稍后刷新页面。";
+    } else if (attendance.attendance === "attending") {
+      currentStep = 3;
+      currentStage = "等待线下面试";
+      nextAction = attendance.session
+        ? `请于 ${attendance.session.date} ${attendance.session.startTime}–${attendance.session.endTime} 前往 ${attendance.session.location} 参加面试。`
+        : "你已确认参加，请留意已确认的面试安排。";
+    } else if (attendance.attendance === "not_attending") {
+      currentStage = "已暂不参加";
+      nextAction = "当前选择已记录；如需参加，可修改为参加并选择场次。";
+    } else if (attendance.availableSessions.length > 0) {
+      nextAction = "请选择是否参加，并在参加时确认一个面试时段。";
+    } else {
+      nextAction = "请等待管理员开放可选的面试时段。";
+    }
+  } else if (summary.status === "admitted") {
+    currentStep = 4;
+    currentStage = "已录取";
+    nextAction = "招新流程已完成。";
+    isTerminal = true;
+  } else if (summary.status === "rejected") {
+    currentStep = 4;
+    currentStage = summary.rejectedStage === "screening" ? "初筛未通过" : "面试未通过";
+    nextAction = "本次招新流程已结束。";
+    isTerminal = true;
+    if (summary.rejectedStage === "screening") {
+      skippedSteps.add(2);
+      skippedSteps.add(3);
+    }
+  }
+
+  const steps = labels.map((label, index) => {
+    const stepLabel = summary.status === "withdrawn" && index === 1 ? "已撤回" : label;
+    let state: ProgressStepState;
+    if (index === 0 || index < currentStep) {
+      state = "complete";
+    } else if (index === currentStep) {
+      state = "current";
+    } else if (skippedSteps.has(index)) {
+      state = "skipped";
+    } else {
+      state = "upcoming";
+    }
+    return { label: stepLabel, state };
+  });
+
+  return { currentStage, nextAction, isTerminal, steps };
+}
 
 export function meta() {
   return [
@@ -401,6 +463,8 @@ export default function UserRegistrations({
             canCancel={canCancelSubmitted}
             cancelling={cancelling}
             onCancel={requestCancelRegistration}
+            interviewAttendance={interviewAttendance}
+            interviewLoading={interviewLoading}
           />
           {submittedSummary.status === "pending_interview" ? (
             <InterviewAttendanceCard
@@ -1154,13 +1218,18 @@ function SubmittedStateCard({
   canCancel,
   cancelling,
   onCancel,
+  interviewAttendance,
+  interviewLoading,
 }: {
   summary: RecruitmentPageRegistrationSummary;
   canCancel: boolean;
   cancelling: boolean;
   onCancel: () => void;
+  interviewAttendance: InterviewAttendanceResult | null;
+  interviewLoading: boolean;
 }) {
   const status = registrationStatusMeta[summary.status];
+  const progress = getRecruitmentProgress(summary, interviewAttendance, interviewLoading);
   const statusGlowClass =
     status.tone === "approved"
       ? "bg-registrations-status-approved"
@@ -1203,37 +1272,52 @@ function SubmittedStateCard({
             className={`inline-flex items-center gap-2 self-start rounded-full border px-3 py-1 text-xs font-medium sm:py-1.5 sm:text-sm ${status.badgeClassName}`}
           >
             <span className={`h-1.5 w-1.5 rounded-full ${status.dotClassName}`} />
-            {status.label}
+            {progress.currentStage}
           </span>
         </div>
 
-        <div className="relative grid grid-cols-2 gap-3 border-t border-white/[0.06] bg-black/20 px-5 py-4 sm:px-8 sm:py-5 lg:grid-cols-4">
-          <StatTile
-            icon={clipboardListIcon}
-            label="当前进度"
-            value={status.hint}
-          />
-          <StatTile
-            icon={calendarIcon}
-            label="提交时间"
-            value={formatDateTime(summary.submittedAt) || "—"}
-          />
-          <StatTile
-            icon={clockIcon}
-            label="最近更新"
-            value={formatDateTime(summary.updatedAt) || "—"}
-          />
-          <StatTile
-            icon={shieldCheckIcon}
-            label="当前可操作"
-            value={
-              canCancel
-                ? "待初筛阶段可修改或撤回报名"
-                : summary.status === "withdrawn"
-                  ? "报名已撤回"
-                  : "已进入后续流程，当前不可修改"
-            }
-          />
+        <div className="relative border-t border-white/[0.06] bg-black/20 px-5 py-5 sm:px-8 sm:py-6">
+          <div className="rounded-2xl border border-primary-400/20 bg-primary-500/[0.07] p-4 sm:px-5 sm:py-4">
+            <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-primary-200">
+              {progress.isTerminal ? "当前结果" : "当前阶段"}
+            </div>
+            <p className="mt-1 text-base font-semibold text-fg-primary">{progress.currentStage}</p>
+            <p className="mt-1 text-sm leading-6 text-fg-muted">
+              {progress.isTerminal ? progress.nextAction : `下一步：${progress.nextAction}`}
+            </p>
+          </div>
+
+          <ol aria-label="招新流程进度" className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            {progress.steps.map((step, index) => {
+              const stepStyle =
+                step.state === "current"
+                  ? "border-primary-400/40 bg-primary-500/10 text-fg-primary"
+                  : step.state === "complete"
+                    ? "border-emerald-400/20 bg-emerald-500/[0.06] text-emerald-100"
+                    : step.state === "skipped"
+                      ? "border-white/[0.04] bg-white/[0.01] text-fg-dim/60"
+                      : "border-white/[0.06] bg-white/[0.02] text-fg-dim";
+              const markerStyle =
+                step.state === "current"
+                  ? "bg-primary-400 text-slate-950"
+                  : step.state === "complete"
+                    ? "bg-emerald-400/15 text-emerald-200"
+                    : "bg-white/[0.05] text-fg-dim";
+
+              return (
+                <li
+                  key={step.label}
+                  aria-current={step.state === "current" ? "step" : undefined}
+                  className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-sm ${stepStyle}`}
+                >
+                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${markerStyle}`}>
+                    {step.state === "complete" ? "✓" : step.state === "skipped" ? "–" : index + 1}
+                  </span>
+                  <span className="font-medium">{step.label}</span>
+                </li>
+              );
+            })}
+          </ol>
         </div>
 
         <div className="relative border-t border-white/[0.06] px-5 py-5 sm:px-8">
@@ -1255,6 +1339,11 @@ function SubmittedStateCard({
               {summary.preferredGroup?.name ?? "未设置"}
             </div>
           </div>
+        </div>
+
+        <div className="relative flex flex-wrap gap-x-5 gap-y-1 border-t border-white/[0.06] px-5 py-3 text-xs text-fg-dim sm:px-8">
+          <span>报名时间：{formatDateTime(summary.submittedAt) || "—"}</span>
+          <span>最近更新：{formatDateTime(summary.updatedAt) || "—"}</span>
         </div>
 
         {canCancel ? (
@@ -1285,28 +1374,6 @@ function SubmittedStateCard({
         ) : null}
       </div>
     </section>
-  );
-}
-
-function StatTile({
-  icon,
-  label,
-  value,
-}: {
-  icon: IconifyIcon;
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-4">
-      <div className="flex items-center gap-2 text-[11px] font-medium uppercase tracking-[0.18em] text-fg-dim">
-        <Icon icon={icon} className="h-3.5 w-3.5" />
-        {label}
-      </div>
-      <div className="mt-2 text-sm font-medium leading-6 text-fg-primary">
-        {value}
-      </div>
-    </div>
   );
 }
 

@@ -263,6 +263,10 @@ export default function Registrations() {
     setQuery((current) => ({ ...current, page: 1, keyword: draftKeyword.trim() }));
   }
 
+  function selectPipelineStatus(status: RecruitmentStatus | "") {
+    setQuery((current) => ({ ...current, page: 1, status }));
+  }
+
   function applySessionPreset(label: string, startTime: string, endTime: string) {
     setSessionDraft((current) => ({ ...current, label, startTime, endTime }));
   }
@@ -354,6 +358,51 @@ export default function Registrations() {
           {flash.message}
         </div>
       ) : null}
+
+      <section aria-label="报名阶段处理队列" className="space-y-3">
+        <div>
+          <h2 className="font-medium text-fg-primary">按阶段处理</h2>
+          <p className="mt-1 text-sm text-fg-dim">选择一个阶段打开对应队列；其他筛选条件会继续保留。</p>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+          <SummaryCard
+            label="全部"
+            value={summary.total}
+            active={(query.status ?? "") === ""}
+            onClick={() => selectPipelineStatus("")}
+          />
+          <SummaryCard
+            label="待初筛"
+            value={summary.pendingScreening}
+            active={query.status === "pending_screening"}
+            onClick={() => selectPipelineStatus("pending_screening")}
+          />
+          <SummaryCard
+            label="待面试"
+            value={summary.pendingInterview}
+            active={query.status === "pending_interview"}
+            onClick={() => selectPipelineStatus("pending_interview")}
+          />
+          <SummaryCard
+            label="已录取"
+            value={summary.admitted}
+            active={query.status === "admitted"}
+            onClick={() => selectPipelineStatus("admitted")}
+          />
+          <SummaryCard
+            label="未通过"
+            value={summary.rejected}
+            active={query.status === "rejected"}
+            onClick={() => selectPipelineStatus("rejected")}
+          />
+          <SummaryCard
+            label="已撤回"
+            value={summary.withdrawn}
+            active={query.status === "withdrawn"}
+            onClick={() => selectPipelineStatus("withdrawn")}
+          />
+        </div>
+      </section>
 
       <section className="glass-panel rounded-2xl p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
@@ -458,15 +507,6 @@ export default function Registrations() {
             ))
           )}
         </div>
-      </section>
-
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-        <SummaryCard label="全部" value={summary.total} />
-        <SummaryCard label="待初筛" value={summary.pendingScreening} />
-        <SummaryCard label="待面试" value={summary.pendingInterview} />
-        <SummaryCard label="已录取" value={summary.admitted} />
-        <SummaryCard label="未通过" value={summary.rejected} />
-        <SummaryCard label="已撤回" value={summary.withdrawn} />
       </section>
 
       <form
@@ -631,7 +671,7 @@ export default function Registrations() {
                           onClick={() => setSelectedId(item.id)}
                           className="btn-glass rounded-lg px-3 py-2 text-xs"
                         >
-                          查看
+                          {getRegistrationActionLabel(item.status)}
                         </button>
                         <button
                           type="button"
@@ -885,13 +925,38 @@ export default function Registrations() {
   );
 }
 
-function SummaryCard({ label, value }: { label: string; value: number }) {
+function SummaryCard({
+  label,
+  value,
+  active,
+  onClick,
+}: {
+  label: string;
+  value: number;
+  active: boolean;
+  onClick: () => void;
+}) {
   return (
-    <div className="glass-panel rounded-2xl px-4 py-4">
+    <button
+      type="button"
+      aria-pressed={active}
+      onClick={onClick}
+      className={`glass-panel rounded-2xl border px-4 py-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/60 ${
+        active
+          ? "border-primary-400/40 bg-primary-500/[0.08] ring-1 ring-primary-400/30"
+          : "border-white/[0.06] hover:border-primary-400/25"
+      }`}
+    >
       <div className="text-xs text-fg-dim">{label}</div>
       <div className="mt-2 text-2xl font-semibold text-fg-primary">{value}</div>
-    </div>
+    </button>
   );
+}
+
+function getRegistrationActionLabel(status: RecruitmentStatus) {
+  if (status === "pending_screening") return "处理初筛";
+  if (status === "pending_interview") return "处理面试";
+  return "查看结果";
 }
 
 function StatusBadge({
