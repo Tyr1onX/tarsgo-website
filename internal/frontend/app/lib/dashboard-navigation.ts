@@ -220,6 +220,8 @@ export function canAccessDashboardAdminPath(userOrRole: AuthUser | string, pathn
 	const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
 	const accessiblePaths = getAccessibleAdminPaths(roleName, typeof userOrRole === "string" ? undefined : userOrRole);
   return accessiblePaths.some(
-    (href) => pathname === href || pathname.startsWith(`${href}/`),
+    (href) => href === "/dashboard/admin"
+      ? pathname === href
+      : pathname === href || pathname.startsWith(`${href}/`),
   );
 }
