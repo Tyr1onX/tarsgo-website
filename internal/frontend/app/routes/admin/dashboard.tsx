@@ -28,9 +28,9 @@ function formatTime(value: string) {
 function ActivityList({ activities }: { activities: AdminDashboardData["recentActivities"] }) {
   if (!activities.length) return <div className="admin-workbench__empty">暂无业务动态</div>;
   return (
-    <div className="admin-workbench__activity-list">
+    <div className="admin-list admin-workbench__activity-list">
       {activities.slice(0, 8).map((item) => (
-        <div key={item.id} className="admin-workbench__activity-row">
+        <div key={item.id} className="admin-list-row admin-workbench__activity-row">
           <div className="admin-workbench__activity-mark" aria-hidden="true">{item.actorName.charAt(0) || "系"}</div>
           <div className="admin-workbench__activity-copy">
             <div className="admin-workbench__activity-message">
@@ -101,7 +101,7 @@ export default function AdminDashboard() {
 
   if (loading) {
     return (
-      <div className="admin-workbench admin-workbench--loading">
+      <div className="admin-design admin-workbench admin-workbench--loading">
         <div className="admin-workbench__content admin-workbench__skeleton" aria-label="正在加载工作台">
           <div className="admin-workbench__skeleton-heading" />
           <div className="grid gap-4 lg:grid-cols-2">
@@ -116,17 +116,17 @@ export default function AdminDashboard() {
 
   if (error) {
     return (
-      <div className="admin-workbench">
+      <div className="admin-design admin-workbench">
         <div className="admin-workbench__content admin-workbench__error" role="alert">
           <p>{error}</p>
-          <button type="button" onClick={() => void load(true)} className="admin-workbench__button">重新加载</button>
+          <button type="button" onClick={() => void load(true)} className="admin-button admin-button--primary">重新加载</button>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="admin-workbench">
+    <div className="admin-design admin-workbench">
       <div className="admin-workbench__content">
         <header className="admin-workbench__header">
           <div>
@@ -134,13 +134,13 @@ export default function AdminDashboard() {
             <h1 className="admin-workbench__title">招新工作台</h1>
             <p className="admin-workbench__description">先处理候选人初筛与面试安排，再查看近期业务动态。</p>
           </div>
-          <Link to="/dashboard/admin/registrations" className="admin-workbench__button">进入报名处理 <span aria-hidden="true">→</span></Link>
+          <Link to="/dashboard/admin/registrations" className="admin-button admin-button--primary">进入报名处理 <span aria-hidden="true">→</span></Link>
         </header>
 
         {refreshError && (
-          <div role="status" className="admin-workbench__notice">
+          <div role="status" className="admin-notice admin-notice--warning flex flex-wrap items-center justify-between gap-3 mb-5">
             <span>自动刷新失败：{refreshError}，当前仍显示上次成功获取的数据。</span>
-            <button type="button" onClick={() => void load(false)}>重试</button>
+            <button type="button" onClick={() => void load(false)} className="admin-button admin-button--quiet">重试</button>
           </div>
         )}
 
@@ -154,7 +154,7 @@ export default function AdminDashboard() {
               <div className="admin-workbench__queue-main">
                 <div>
                   <h2 className="admin-workbench__queue-title">{item.label}</h2>
-                  <p className="admin-workbench__queue-count"><span>{summary?.[item.countKey] ?? 0}</span> 位候选人</p>
+                  <p className="admin-workbench__queue-count"><span className="admin-count admin-count--hero">{summary?.[item.countKey] ?? 0}</span> 位候选人</p>
                 </div>
                 <span className="admin-workbench__queue-arrow" aria-hidden="true">→</span>
               </div>
@@ -164,7 +164,7 @@ export default function AdminDashboard() {
         </section>
 
         <section aria-label="招新结果阶段" className="admin-workbench__results">
-          <div className="admin-workbench__section-heading">
+          <div className="admin-section-heading">
             <div>
               <h2>流程结果</h2>
               <p>已完成处理的报名</p>
@@ -182,7 +182,7 @@ export default function AdminDashboard() {
         </section>
 
         <section aria-label="当前及近期面试场次" className="admin-workbench__section">
-          <div className="admin-workbench__section-heading">
+          <div className="admin-section-heading">
             <div>
               <h2>近期面试场次</h2>
               <p>已启用，今天至未来 14 天</p>
@@ -192,14 +192,14 @@ export default function AdminDashboard() {
           {upcomingSessions.length === 0 ? (
             <div className="admin-workbench__empty">暂无近期开放场次</div>
           ) : (
-            <div className="admin-workbench__session-list">
+            <div className="admin-list admin-workbench__session-list">
               {upcomingSessions.slice(0, 5).map((session) => <InterviewSessionRow key={session.id} session={session} />)}
             </div>
           )}
         </section>
 
         <section aria-label="最近业务动态" className="admin-workbench__section admin-workbench__section--activity">
-          <div className="admin-workbench__section-heading">
+          <div className="admin-section-heading">
             <div>
               <h2>最近业务动态</h2>
               <p>招新流程近期操作</p>
@@ -215,7 +215,7 @@ export default function AdminDashboard() {
 
 function InterviewSessionRow({ session }: { session: InterviewSession }) {
   return (
-    <div className="admin-workbench__session-row">
+    <div className="admin-list-row admin-workbench__session-row">
       <div className="admin-workbench__session-time">
         <div>{session.date} · {session.label}</div>
         <div className="admin-workbench__meta">{session.startTime}–{session.endTime}</div>

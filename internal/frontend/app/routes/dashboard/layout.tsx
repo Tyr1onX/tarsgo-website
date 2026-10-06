@@ -241,6 +241,8 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const userMenuItems = getUserDashboardMenu(currentUser);
   const adminMenuItems = getVisibleAdminDashboardMenu(currentUser);
   const showAdminSection = hasDashboardAdminAccess(currentUser.role.name) && adminMenuItems.length > 0;
+  const usesAdminDesign = location.pathname === "/dashboard/admin"
+    || location.pathname === "/dashboard/admin/registrations";
   const userInitial = (currentUser.nickname?.trim() || currentUser.email.trim() || "U")
     .charAt(0)
     .toUpperCase();
@@ -413,7 +415,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   }
 
   return (
-    <div className={`dash-bg dash-bg-noise min-h-screen text-white ${location.pathname === "/dashboard/admin" ? "dashboard-shell--admin-workbench" : ""}`}>
+    <div className={`dash-bg dash-bg-noise min-h-screen text-white ${usesAdminDesign ? "dashboard-shell--admin-design" : ""}`}>
       {sidebarOpen ? (
         <div
           className="fixed inset-0 z-40 bg-black/70 lg:hidden"
