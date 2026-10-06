@@ -8,7 +8,6 @@ production_alias="${PRODUCTION_SSH_ALIAS:-racknerd}"
 ssh_bin="${SSH_BIN:-ssh}"
 scp_bin="${SCP_BIN:-scp}"
 known_hosts_file="${SSH_KNOWN_HOSTS:-$HOME/.ssh/known_hosts}"
-min_free_bytes=4294967296
 remote_helper="/tmp/jijia-backup-accept.$$.sh"
 remote_key_file="/tmp/jijia-backup-authorized.$$.pub"
 tmp_dir="$(mktemp -d)"
@@ -16,13 +15,6 @@ trap 'rm -rf -- "$tmp_dir"' EXIT
 
 if [[ ! -f "$repo_root/scripts/accept-production-backup.sh" ]]; then
   echo "Backup setup aborted: remote backup acceptance helper is missing." >&2
-  exit 1
-fi
-
-production_free_bytes="$("$ssh_bin" -o BatchMode=yes "$production_alias" "df -B1 --output=avail / | tail -n 1 | tr -d '[:space:]'")"
-if [[ ! "$production_free_bytes" =~ ^[0-9]+$ || "$production_free_bytes" -lt "$min_free_bytes" ]]; then
-  production_free_gib="$(awk -v bytes="${production_free_bytes:-0}" 'BEGIN { printf "%.1f", bytes / 1073741824 }')"
-  echo "Production backup setup aborted: only ${production_free_gib} GiB available; at least 4 GiB is required." >&2
   exit 1
 fi
 

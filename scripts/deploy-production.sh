@@ -4,7 +4,6 @@ set -Eeuo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 target="${DEPLOY_TARGET:-racknerd}"
 jijia_root="${JIJIA_ROOT:-/opt/jijia}"
-min_free_bytes=4294967296
 ssh_bin="${SSH_BIN:-ssh}"
 rsync_bin="${RSYNC_BIN:-rsync}"
 make_bin="${MAKE_BIN:-make}"
@@ -21,17 +20,6 @@ if [[ "$commit_sha" != "$main_sha" || ! "$commit_sha" =~ ^[0-9a-f]{40}$ ]]; then
   exit 1
 fi
 short_sha="${commit_sha:0:7}"
-
-available_bytes="$("$ssh_bin" -o BatchMode=yes "$target" "df -B1 --output=avail / | tail -n 1 | tr -d '[:space:]'")"
-if [[ ! "$available_bytes" =~ ^[0-9]+$ || "$available_bytes" -lt "$min_free_bytes" ]]; then
-  available_gib="$(awk -v bytes="${available_bytes:-0}" 'BEGIN { printf "%.1f", bytes / 1073741824 }')"
-  echo "Production deploy aborted: only ${available_gib} GiB available; at least 4 GiB is required." >&2
-  exit 1
-fi
-
-if ! "$ssh_bin" -o BatchMode=yes "$target" test -s /root/.ssh/jijia-backup-ssh-config; then
-  "$repo_root/scripts/setup-production-backup-destination.sh"
-fi
 
 state="$("$ssh_bin" -o BatchMode=yes "$target" bash -s -- "$jijia_root" <<'REMOTE'
 set -Eeuo pipefail
@@ -83,6 +71,18 @@ if "$ssh_bin" -o BatchMode=yes "$target" test -e "$jijia_root/releases/$release_
 fi
 printf 'previous_stable_image=%s\nprevious_stable_release=%s\n' "$previous_image" "$previous_release"
 
+cleanup_output="$("$ssh_bin" -o BatchMode=yes "$target" bash -s -- "$jijia_root" <"$repo_root/scripts/production-safe-cleanup.sh")"
+printf '%s\n' "$cleanup_output"
+safe_cleanup_performed="$(printf '%s\n' "$cleanup_output" | sed -n 's/^safe_cleanup_performed=//p' | tail -n 1)"
+if [[ "$safe_cleanup_performed" != 0 && "$safe_cleanup_performed" != 1 ]]; then
+  echo "Production deploy aborted: safe cleanup status could not be confirmed." >&2
+  exit 1
+fi
+
+if ! "$ssh_bin" -o BatchMode=yes "$target" test -s /root/.ssh/jijia-backup-ssh-config; then
+  "$repo_root/scripts/setup-production-backup-destination.sh"
+fi
+
 release_dir="$(mktemp -d "${TMPDIR:-/tmp}/tarsgo-release.XXXXXXXX")"
 cleanup() {
   status=$?
@@ -118,4 +118,7 @@ systemctl enable --now backup-production.timer
 INSTALL_BACKUP
 
 "$ssh_bin" -o BatchMode=yes "$target" "$jijia_root/jijia-backup.sh"
+if [[ "$safe_cleanup_performed" == 0 ]]; then
+  "$ssh_bin" -o BatchMode=yes "$target" bash -s -- "$jijia_root" "$release_name" <"$repo_root/scripts/production-safe-cleanup.sh"
+fi
 "$ssh_bin" -o BatchMode=yes "$target" bash -s -- "$jijia_root" "$release_name" "$image_tag" "$previous_image" "$previous_release" "$commit_sha" <"$repo_root/scripts/deploy-production-remote.sh"

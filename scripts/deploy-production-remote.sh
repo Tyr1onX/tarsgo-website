@@ -4,7 +4,6 @@ set -Eeuo pipefail
 jijia_root="${JIJIA_ROOT:-/opt/jijia}"
 health_attempts="${HEALTH_ATTEMPTS:-30}"
 health_interval="${HEALTH_INTERVAL:-5}"
-min_free_bytes=4294967296
 
 if [[ $# -ne 6 ]]; then
   echo "usage: deploy-production-remote.sh <jijia-root> <release> <image-tag> <previous-image> <previous-release> <commit-sha>" >&2
@@ -35,10 +34,9 @@ compose_file="$jijia_root/compose.yaml"
 release_dir="$jijia_root/releases/$release_name"
 new_image="jijia-backend:$image_tag"
 
-available_bytes="$(df -B1 --output=avail / | tail -n 1 | tr -d '[:space:]')"
-if [[ ! "$available_bytes" =~ ^[0-9]+$ || "$available_bytes" -lt "$min_free_bytes" ]]; then
-  available_gib="$(awk -v bytes="${available_bytes:-0}" 'BEGIN { printf "%.1f", bytes / 1073741824 }')"
-  echo "Production deploy aborted: only ${available_gib} GiB available; at least 4 GiB is required." >&2
+disk_usage_percent="$(df -P / | awk 'END { value=$5; gsub(/%/, "", value); print value }')"
+if [[ ! "$disk_usage_percent" =~ ^[0-9]+$ || "$disk_usage_percent" -ge 85 ]]; then
+  echo "Production deploy aborted: root filesystem usage is ${disk_usage_percent:-unknown}% before Docker build; usage must remain below 85%." >&2
   exit 1
 fi
 
@@ -192,6 +190,16 @@ docker image inspect "$previous_image" >/dev/null
 [[ -d "$jijia_root/releases/$release_name" && -d "$jijia_root/releases/$previous_release" ]]
 wait_for_health "$new_image"
 
+retention_state_tmp="$jijia_root/.production-retention-state.$$"
+if printf 'current_image=%s\ncurrent_release=%s\nprevious_image=%s\nprevious_release=%s\n' \
+  "$new_image" "$release_name" "$previous_image" "$previous_release" >"$retention_state_tmp" &&
+  chmod 0600 "$retention_state_tmp" && mv -- "$retention_state_tmp" "$jijia_root/.production-retention-state"; then
+  :
+else
+  rm -f -- "$retention_state_tmp"
+  echo "WARNING: current/previous retention state could not be recorded; future safe cleanup will preserve ambiguous Jijia history." >&2
+fi
+
 echo "Production verification after retention:"
 df -h /
 docker ps --format '{{.Names}} {{.Image}} {{.Status}}'
@@ -199,8 +207,9 @@ curl --fail --silent --show-error http://127.0.0.1:8081/healthz
 printf '\ncurrent_image=%s\nprevious_stable_image=%s\n' "$new_image" "$previous_image"
 printf 'current_release=%s\nprevious_stable_release=%s\n' "$release_name" "$previous_release"
 docker image ls --format '{{.Repository}}:{{.Tag}}' jijia-backend
-if [[ "$(df -B1 --output=avail / | tail -n 1 | tr -d '[:space:]')" -lt "$min_free_bytes" ]]; then
-  echo "WARNING: production root filesystem has less than 4 GiB available after retention; manual disk audit is required. No further resources were deleted." >&2
+disk_usage_percent="$(df -P / | awk 'END { value=$5; gsub(/%/, "", value); print value }')"
+if [[ "$disk_usage_percent" =~ ^[0-9]+$ && "$disk_usage_percent" -ge 85 ]]; then
+  echo "WARNING: production root filesystem usage remains at ${disk_usage_percent}% after retention. No further resources were deleted." >&2
 fi
 
 trap - EXIT

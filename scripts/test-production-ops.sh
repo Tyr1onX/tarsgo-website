@@ -9,15 +9,15 @@ trap 'rm -rf -- "$tmp"' EXIT
 fail() { echo "FAIL: $*" >&2; exit 1; }
 pass() { echo "PASS: $*"; }
 
-test_guard_precedes_build() {
+test_high_water_abort_precedes_build() {
   local case_dir="$tmp/guard"
   mkdir -p "$case_dir/repo/scripts" "$case_dir/bin"
-  cp "$repo_root/scripts/deploy-production.sh" "$case_dir/repo/scripts/"
+  cp "$repo_root/scripts/deploy-production.sh" "$repo_root/scripts/production-safe-cleanup.sh" "$case_dir/repo/scripts/"
   git init -q --bare "$case_dir/origin.git"
   git -C "$case_dir/repo" init -q -b main
   git -C "$case_dir/repo" config user.name OpsTest
   git -C "$case_dir/repo" config user.email ops-test@example.invalid
-  git -C "$case_dir/repo" add scripts/deploy-production.sh
+  git -C "$case_dir/repo" add scripts/deploy-production.sh scripts/production-safe-cleanup.sh
   git -C "$case_dir/repo" commit -qm fixture
   git -C "$case_dir/repo" remote add origin "$case_dir/origin.git"
   git -C "$case_dir/repo" push -q -u origin main
@@ -25,7 +25,14 @@ test_guard_precedes_build() {
 #!/usr/bin/env bash
 set -Eeuo pipefail
 printf '%s\n' "$*" >>"$MOCK_SSH_LOG"
-printf '4000000000\n'
+if [[ "$(wc -l <"$MOCK_SSH_LOG")" -eq 1 ]]; then
+  printf 'jijia-backend:20260930-admin-design-system-abcdef0\n20260930-admin-design-system-abcdef0\n'
+  exit 0
+fi
+if [[ "$(wc -l <"$MOCK_SSH_LOG")" -eq 2 ]]; then exit 1; fi
+cat >"$MOCK_RECEIVED_HELPER"
+echo "Production deploy aborted: root filesystem remains at 85% after safe cleanup; deployment requires usage below 85%." >&2
+exit 1
 SSH
   cat >"$case_dir/bin/make" <<'MAKE'
 #!/usr/bin/env bash
@@ -35,14 +42,155 @@ MAKE
   chmod +x "$case_dir/bin/ssh" "$case_dir/bin/make"
   local output status
   set +e
-  output="$(PATH="$case_dir/bin:$PATH" MOCK_SSH_LOG="$case_dir/ssh.log" MOCK_BUILD_MARKER="$case_dir/build-ran" SSH_BIN=ssh MAKE_BIN=make "$case_dir/repo/scripts/deploy-production.sh" 2>&1)"
+  output="$(PATH="$case_dir/bin:$PATH" MOCK_SSH_LOG="$case_dir/ssh.log" MOCK_RECEIVED_HELPER="$case_dir/received-helper.sh" MOCK_BUILD_MARKER="$case_dir/build-ran" SSH_BIN=ssh MAKE_BIN=make "$case_dir/repo/scripts/deploy-production.sh" 2>&1)"
   status=$?
   set -e
-  [[ "$status" -ne 0 ]] || fail "low-space deploy guard unexpectedly succeeded"
-  [[ "$output" == *"only 3.7 GiB available; at least 4 GiB is required"* ]] || fail "low-space deploy message was unclear: $output"
+  [[ "$status" -ne 0 ]] || fail "high-water cleanup failure unexpectedly allowed deployment"
+  [[ "$output" == *"remains at 85% after safe cleanup"* ]] || fail "high-water deploy message was unclear: $output"
   [[ ! -e "$case_dir/build-ran" ]] || fail "build ran before the disk guard"
-  [[ "$(wc -l <"$case_dir/ssh.log")" -eq 1 ]] || fail "deploy performed a remote state operation after the disk guard"
-  pass "less-than-4-GiB guard stops before build or production mutation"
+  [[ "$(wc -l <"$case_dir/ssh.log")" -eq 3 ]] || fail "deploy performed an unexpected production operation after the disk guard"
+  cmp -s "$case_dir/repo/scripts/production-safe-cleanup.sh" "$case_dir/received-helper.sh" || fail "safe cleanup was not the first remote operation"
+  pass "85% high-water cleanup failure stops before build or production mutation"
+}
+
+make_safe_cleanup_mock_bin() {
+  mkdir -p "$1"
+  cat >"$1/docker" <<'DOCKER'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+printf '%s\n' "$*" >>"$MOCK_DOCKER_LOG"
+command="$1"
+shift
+case "$command" in
+  compose)
+    [[ "$*" == *" ps -q app" ]] && { echo app; exit 0; }
+    ;;
+  inspect)
+    if [[ "$2" == *".Config.Image"* && "$3" == app ]]; then
+      printf '%s\n' "$MOCK_CURRENT_IMAGE"
+      exit 0
+    fi
+    ;;
+  image)
+    subcommand="$1"
+    shift
+    case "$subcommand" in
+      inspect) grep -Fxq -- "$1" "$MOCK_IMAGE_NAMES" ;;
+      ls)
+        if [[ "${2:-}" == *Repository* ]]; then cat "$MOCK_IMAGE_NAMES"; else sed 's#^jijia-backend:##' "$MOCK_IMAGE_NAMES"; fi
+        ;;
+      rm)
+        printf '%s\n' "$1" >>"$MOCK_REMOVED_IMAGES"
+        sed "\\|^$1\$|d" "$MOCK_IMAGE_NAMES" >"$MOCK_IMAGE_NAMES.tmp"
+        mv "$MOCK_IMAGE_NAMES.tmp" "$MOCK_IMAGE_NAMES"
+        ;;
+      *) exit 90 ;;
+    esac
+    ;;
+  builder)
+    [[ "$*" == "prune --force" ]] || exit 90
+    if [[ "$MOCK_LOWER_USAGE" == 1 ]]; then printf '84\n' >"$MOCK_USAGE_FILE"; fi
+    ;;
+  *) exit 90 ;;
+esac
+DOCKER
+  cat >"$1/df" <<'DF'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+usage="$(cat "$MOCK_USAGE_FILE")"
+printf 'Filesystem 1024-blocks Used Available Use%% Mounted on\nmock 100 80 20 %s%% /\n' "$usage"
+DF
+  cat >"$1/apt-get" <<'APT'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+printf '%s\n' "$*" >>"$MOCK_APT_LOG"
+[[ "$*" == clean ]]
+APT
+  chmod +x "$1/docker" "$1/df" "$1/apt-get"
+}
+
+init_safe_cleanup_fixture() {
+  local case_dir="$1" current=20261006-current-abcdef1 previous=20261001-previous-abcdef0 stale=20260901-stale-7654321
+  mkdir -p "$case_dir/bin" "$case_dir/jijia/releases/$current" "$case_dir/jijia/releases/$previous" "$case_dir/jijia/releases/$stale" "$case_dir/jijia/backups" "$case_dir/apt/lists/partial"
+  make_safe_cleanup_mock_bin "$case_dir/bin"
+  cat >"$case_dir/jijia/compose.yaml" <<COMPOSE
+services:
+  app:
+    image: jijia-backend:$current
+    build: ./releases/$current
+COMPOSE
+  cat >"$case_dir/jijia/.production-retention-state" <<STATE
+current_image=jijia-backend:$current
+current_release=$current
+previous_image=jijia-backend:$previous
+previous_release=$previous
+STATE
+  printf 'jijia-backend:%s\njijia-backend:%s\njijia-backend:%s\n' "$current" "$previous" "$stale" >"$case_dir/image-names"
+  printf 'old backup\n' >"$case_dir/jijia/backups/jijia-full-20200101T000000Z.tar.gz"
+  printf 'old checksum\n' >"$case_dir/jijia/backups/jijia-full-20200101T000000Z.tar.gz.sha256"
+  printf 'apt cache\n' >"$case_dir/apt/lists/package-index"
+  python3 - "$case_dir/jijia/backups/jijia-full-20200101T000000Z.tar.gz" "$case_dir/jijia/backups/jijia-full-20200101T000000Z.tar.gz.sha256" <<'PY'
+import os, sys, time
+for path in sys.argv[1:]:
+    old = time.time() - 8 * 86400
+    os.utime(path, (old, old))
+PY
+  : >"$case_dir/docker.log"
+  : >"$case_dir/removed-images"
+  printf '90\n' >"$case_dir/usage"
+}
+
+run_safe_cleanup() {
+  local case_dir="$1" lower_usage="$2" pending_release="${3:-}"
+  local args=("$case_dir/jijia")
+  [[ -z "$pending_release" ]] || args+=("$pending_release")
+  MOCK_DOCKER_LOG="$case_dir/docker.log" MOCK_IMAGE_NAMES="$case_dir/image-names" \
+  MOCK_REMOVED_IMAGES="$case_dir/removed-images" MOCK_CURRENT_IMAGE="$(sed -n 's/^    image: //p' "$case_dir/jijia/compose.yaml")" \
+  MOCK_USAGE_FILE="$case_dir/usage" MOCK_LOWER_USAGE="$lower_usage" MOCK_APT_LOG="$case_dir/apt.log" \
+  APT_LISTS_DIR="$case_dir/apt/lists" PATH="$case_dir/bin:$PATH" \
+    bash "$repo_root/scripts/production-safe-cleanup.sh" "${args[@]}"
+}
+
+test_safe_cleanup_and_fresh_threshold() {
+  local case_dir="$tmp/safe-cleanup" stale=20260901-stale-7654321 pending=20261007-pending-fedcba1 status
+  init_safe_cleanup_fixture "$case_dir"
+  mkdir -p "$case_dir/jijia/releases/$pending"
+  run_safe_cleanup "$case_dir" 1 "$pending" >/dev/null
+  [[ "$(cat "$case_dir/usage")" == 84 ]] || fail "cleanup did not recheck disk usage"
+  [[ ! -e "$case_dir/jijia/releases/$stale" ]] || fail "safe cleanup left an unprotected old release"
+  grep -Fxq 'jijia-backend:20261006-current-abcdef1' "$case_dir/image-names" || fail "safe cleanup removed current image"
+  grep -Fxq 'jijia-backend:20261001-previous-abcdef0' "$case_dir/image-names" || fail "safe cleanup removed previous image"
+  grep -Fxq 'jijia-backend:20260901-stale-7654321' "$case_dir/removed-images" || fail "safe cleanup did not remove explicitly stale Jijia image"
+  [[ -e "$case_dir/jijia/releases/20261006-current-abcdef1" && -e "$case_dir/jijia/releases/20261001-previous-abcdef0" ]] || fail "safe cleanup removed a protected release"
+  [[ -d "$case_dir/jijia/releases/$pending" ]] || fail "safe cleanup removed the release being prepared for deployment"
+  [[ ! -e "$case_dir/jijia/backups/jijia-full-20200101T000000Z.tar.gz" ]] || fail "safe cleanup retained a backup older than 7 days"
+  [[ ! -e "$case_dir/apt/lists/package-index" ]] || fail "safe cleanup retained rebuildable APT lists"
+  ! grep -Eq 'system prune|volume prune|image prune' "$case_dir/docker.log" || fail "safe cleanup invoked a forbidden global prune"
+  pass "safe cleanup preserves current/previous, removes only eligible cache and stale Jijia artifacts, then accepts usage below 85%"
+
+  local below_dir="$tmp/safe-cleanup-below"
+  init_safe_cleanup_fixture "$below_dir"
+  printf '84\n' >"$below_dir/usage"
+  run_safe_cleanup "$below_dir" 1 >/dev/null
+  [[ ! -s "$below_dir/docker.log" && -e "$below_dir/jijia/backups/jijia-full-20200101T000000Z.tar.gz" ]] || fail "cleanup ran below the 85% threshold"
+  pass "usage below 85% skips cleanup"
+
+  local ambiguous_dir="$tmp/safe-cleanup-ambiguous"
+  init_safe_cleanup_fixture "$ambiguous_dir"
+  rm -f "$ambiguous_dir/jijia/.production-retention-state"
+  run_safe_cleanup "$ambiguous_dir" 1 >/dev/null
+  [[ -d "$ambiguous_dir/jijia/releases/20260901-stale-7654321" ]] || fail "ambiguous history was deleted without an exact current/previous pair"
+  grep -Fxq 'jijia-backend:20260901-stale-7654321' "$ambiguous_dir/image-names" || fail "ambiguous image history was deleted"
+  pass "ambiguous Jijia history is preserved"
+
+  local full_dir="$tmp/safe-cleanup-still-high"
+  init_safe_cleanup_fixture "$full_dir"
+  set +e
+  run_safe_cleanup "$full_dir" 0 >/dev/null 2>&1
+  status=$?
+  set -e
+  [[ "$status" -ne 0 && "$(cat "$full_dir/usage")" == 90 ]] || fail "cleanup did not abort while usage remained at or above 85%"
+  pass "usage at or above 85% after cleanup aborts"
 }
 
 make_remote_mock_bin() {
@@ -181,6 +329,10 @@ test_retention_keeps_two_releases() {
   actual="$(sed 's#^jijia-backend:##' "$case_dir/image-names" | sort | tr '\n' ' ')"
   [[ "$actual" == "$expected" ]] || fail "retention left unexpected jijia-backend tags: $actual"
   [[ -d "$case_dir/jijia/releases/$release" && -d "$case_dir/jijia/releases/$previous" ]] || fail "current/previous releases missing after retention"
+  grep -Fxq "current_image=jijia-backend:$release" "$case_dir/jijia/.production-retention-state" || fail "current image was not recorded for future safe cleanup"
+  grep -Fxq "current_release=$release" "$case_dir/jijia/.production-retention-state" || fail "current release was not recorded for future safe cleanup"
+  grep -Fxq "previous_image=jijia-backend:$previous" "$case_dir/jijia/.production-retention-state" || fail "previous image was not recorded for future safe cleanup"
+  grep -Fxq "previous_release=$previous" "$case_dir/jijia/.production-retention-state" || fail "previous release was not recorded for future safe cleanup"
   [[ ! -e "$case_dir/jijia/releases/20260901-old-release-7654321" ]] || fail "old release directory survived retention"
   pass "successful deployment retention keeps current and previous image/release"
 }
@@ -197,6 +349,7 @@ test_health_failure_skips_retention() {
   grep -Fxq 'jijia-backend:20260815-stale-tag-1234567' "$case_dir/image-names" || fail "health failure deleted an old image"
   [[ -d "$case_dir/jijia/releases/20260901-old-release-7654321" ]] || fail "health failure deleted an old release"
   [[ ! -s "$case_dir/removed-images" ]] || fail "health failure invoked image retention"
+  [[ ! -e "$case_dir/jijia/.production-retention-state" ]] || fail "health failure updated the successful retention state"
   pass "health failure restores previous app and skips all retention"
 }
 
@@ -303,7 +456,8 @@ PY
   pass "local and remote retention waits for copy plus verified remote checksum"
 }
 
-test_guard_precedes_build
+test_high_water_abort_precedes_build
+test_safe_cleanup_and_fresh_threshold
 test_retention_keeps_two_releases
 test_health_failure_skips_retention
 test_previous_release_sha_mismatch_stops_before_build
