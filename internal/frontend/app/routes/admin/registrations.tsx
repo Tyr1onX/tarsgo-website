@@ -344,37 +344,33 @@ export default function Registrations() {
   }
 
   return (
-    <div className="space-y-6">
-      <header className="motion-fade-up">
-        <div className="text-xs font-medium uppercase tracking-[0.2em] text-primary-300">
-          Recruitment
+    <div className="admin-design admin-registrations space-y-6">
+      <header className="admin-page-header">
+        <div className="admin-eyebrow">
+          吉甲 · 招新处理
         </div>
-        <h1 className="mt-2 text-2xl font-semibold tracking-tight text-fg-primary">
+        <h1 className="admin-page-title">
           招新候选人
         </h1>
-        <p className="mt-2 text-sm text-fg-muted">
+        <p className="admin-page-description">
           单意向组流程：待初筛 → 待面试 → 已录取 / 未通过。
         </p>
       </header>
 
       {flash ? (
         <div
-          className={`rounded-xl border px-4 py-3 text-sm ${
-            flash.type === "success"
-              ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-200"
-              : "border-rose-400/20 bg-rose-500/10 text-rose-200"
-          }`}
+          className={`admin-notice ${flash.type === "success" ? "admin-notice--success" : "admin-notice--error"}`}
         >
           {flash.message}
         </div>
       ) : null}
 
-      <section aria-label="报名阶段处理队列" className="space-y-3">
+      <section aria-label="报名阶段处理队列" className="admin-pipeline">
         <div>
           <h2 className="font-medium text-fg-primary">按阶段处理</h2>
           <p className="mt-1 text-sm text-fg-dim">选择一个阶段打开对应队列；其他筛选条件会继续保留。</p>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+        <div className="admin-stage-grid mt-3">
           <SummaryCard
             label="全部"
             value={summary.total}
@@ -414,120 +410,16 @@ export default function Registrations() {
         </div>
       </section>
 
-      <section id="interview-sessions" className="glass-panel rounded-2xl p-5">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <div>
-            <h2 className="font-medium text-fg-primary">面试场次</h2>
-            <p className="mt-1 text-sm text-fg-dim">配置候选人可选的日期、时段和地点。</p>
-          </div>
-          {editingSessionId != null ? (
-            <button type="button" onClick={resetSessionDraft} className="btn-glass rounded-lg px-3 py-2 text-xs">
-              取消编辑
-            </button>
-          ) : null}
-        </div>
-
-        <form onSubmit={saveSession} className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-          <input
-            type="date"
-            required
-            value={sessionDraft.date}
-            onChange={(event) => setSessionDraft((current) => ({ ...current, date: event.target.value }))}
-            className="rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2.5 text-sm text-fg-primary"
-          />
-          <input
-            required
-            value={sessionDraft.label}
-            onChange={(event) => setSessionDraft((current) => ({ ...current, label: event.target.value }))}
-            placeholder="时段名称"
-            className="rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2.5 text-sm text-fg-primary"
-          />
-          <input
-            type="time"
-            required
-            value={sessionDraft.startTime}
-            onChange={(event) => setSessionDraft((current) => ({ ...current, startTime: event.target.value }))}
-            className="rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2.5 text-sm text-fg-primary"
-          />
-          <input
-            type="time"
-            required
-            value={sessionDraft.endTime}
-            onChange={(event) => setSessionDraft((current) => ({ ...current, endTime: event.target.value }))}
-            className="rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2.5 text-sm text-fg-primary"
-          />
-          <input
-            required
-            value={sessionDraft.location}
-            onChange={(event) => setSessionDraft((current) => ({ ...current, location: event.target.value }))}
-            placeholder="地点"
-            className="rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2.5 text-sm text-fg-primary"
-          />
-          <button disabled={sessionSaving} type="submit" className="btn-gradient rounded-xl px-4 py-2.5 text-sm font-medium disabled:opacity-50">
-            {editingSessionId == null ? "创建场次" : "保存修改"}
-          </button>
-          <div className="flex flex-wrap gap-2 md:col-span-2 xl:col-span-6">
-            {sessionPresets.map((preset) => (
-              <button
-                key={preset.label}
-                type="button"
-                onClick={() => applySessionPreset(preset.label, preset.startTime, preset.endTime)}
-                className="btn-glass rounded-lg px-3 py-2 text-xs"
-              >
-                {preset.label} {preset.startTime}–{preset.endTime}
-              </button>
-            ))}
-          </div>
-        </form>
-
-        <div className="mt-4 divide-y divide-white/[0.05] rounded-xl border border-white/[0.06]">
-          {sessions.length === 0 ? (
-            <div className="px-4 py-5 text-sm text-fg-dim">暂无面试场次。</div>
-          ) : (
-            sessions.map((session) => (
-              <div key={session.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
-                <div>
-                  <div className="text-sm font-medium text-fg-primary">
-                    {session.date} · {session.label} {session.startTime}–{session.endTime}
-                  </div>
-                  <div className="mt-1 text-xs text-fg-dim">
-                    {session.location} · 已确认 {session.confirmedCount} 人 · {session.enabled ? "开放中" : "已停用"}
-                  </div>
-                </div>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    aria-label={`编辑 ${session.date} ${session.label}`}
-                    onClick={() => editSession(session)}
-                    className="btn-glass rounded-lg px-3 py-2 text-xs"
-                  >
-                    编辑
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`${session.enabled ? "停用" : "启用"} ${session.date} ${session.label}`}
-                    disabled={sessionSaving}
-                    onClick={() => void toggleSession(session)}
-                    className="btn-glass rounded-lg px-3 py-2 text-xs disabled:opacity-50"
-                  >
-                    {session.enabled ? "停用" : "启用"}
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-      </section>
-
       <form
+        aria-label="筛选报名记录"
         onSubmit={submitSearch}
-        className="glass-panel grid gap-3 rounded-2xl p-4 md:grid-cols-2 xl:grid-cols-4"
+        className="admin-filter-panel admin-filter-grid"
       >
         <input
           value={draftKeyword}
           onChange={(event) => setDraftKeyword(event.target.value)}
           placeholder="搜索姓名 / 手机号 / 邮箱"
-          className="rounded-xl border border-white/[0.08] bg-black/20 px-4 py-2.5 text-sm text-fg-primary outline-none placeholder:text-fg-dim focus:border-primary-400/40"
+          className="admin-field"
         />
         <select
           value={query.status ?? ""}
@@ -538,7 +430,7 @@ export default function Registrations() {
               status: event.target.value as RecruitmentStatus | "",
             }))
           }
-          className="rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2.5 text-sm text-fg-primary"
+          className="admin-field"
         >
           {statusOptions.map((option) => (
             <option key={option.value || "all"} value={option.value}>
@@ -555,7 +447,7 @@ export default function Registrations() {
               formId: event.target.value ? Number(event.target.value) : "",
             }))
           }
-          className="rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2.5 text-sm text-fg-primary"
+          className="admin-field"
         >
           <option value="">全部报名表</option>
           {forms.map((form) => (
@@ -573,7 +465,7 @@ export default function Registrations() {
               preferredGroupId: event.target.value ? Number(event.target.value) : "",
             }))
           }
-          className="rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2.5 text-sm text-fg-primary"
+          className="admin-field"
         >
           <option value="">全部意向组</option>
           {groups.map((group) => (
@@ -589,7 +481,7 @@ export default function Registrations() {
               interviewAttendance: event.target.value as InterviewAttendance | "",
             }))
           }
-          className="rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2.5 text-sm text-fg-primary"
+          className="admin-field"
         >
           {attendanceOptions.map((option) => (
             <option key={option.value || "all"} value={option.value}>{option.label}</option>
@@ -599,94 +491,99 @@ export default function Registrations() {
           type="date"
           value={query.interviewDate ?? ""}
           onChange={(event) => setQuery((current) => ({ ...current, page: 1, interviewDate: event.target.value }))}
-          className="rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2.5 text-sm text-fg-primary"
+          className="admin-field"
           aria-label="面试日期"
         />
         <select
           value={query.interviewSessionLabel ?? ""}
           onChange={(event) => setQuery((current) => ({ ...current, page: 1, interviewSessionLabel: event.target.value }))}
-          className="rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2.5 text-sm text-fg-primary"
+          className="admin-field"
         >
           <option value="">全部面试时段</option>
           {Array.from(new Set(sessions.map((session) => session.label))).map((label) => (
             <option key={label} value={label}>{label}</option>
           ))}
         </select>
-        <button type="submit" className="btn-gradient rounded-xl px-4 py-2.5 text-sm font-medium">
-          搜索
-        </button>
-        <a
-          href={selectedForm ? getAdminRegistrationFormExportUrl(selectedForm.id) : undefined}
-          onClick={(event) => {
-            if (!selectedForm) event.preventDefault();
-          }}
-          className={`btn-glass rounded-xl px-4 py-2.5 text-center text-sm ${
-            selectedForm ? "" : "pointer-events-none opacity-40"
-          }`}
-        >
-          导出当前报名表
-        </a>
+        <div className="admin-filter-actions admin-actions">
+          <button type="submit" className="admin-button admin-button--primary">
+            搜索
+          </button>
+          <a
+            href={selectedForm ? getAdminRegistrationFormExportUrl(selectedForm.id) : undefined}
+            onClick={(event) => {
+              if (!selectedForm) event.preventDefault();
+            }}
+            className={`admin-button admin-button--secondary ${
+              selectedForm ? "" : "pointer-events-none opacity-40"
+            }`}
+          >
+            导出当前报名表
+          </a>
+        </div>
       </form>
 
-      <section className="glass-panel overflow-hidden rounded-2xl">
+      <section className="admin-panel overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="min-w-full text-left text-sm">
-            <thead className="border-b border-white/[0.06] bg-white/[0.03] text-xs text-fg-dim">
+          <table className="admin-table">
+            <thead>
               <tr>
-                <th className="px-5 py-4 font-medium">候选人</th>
-                <th className="px-5 py-4 font-medium">意向组</th>
-                <th className="px-5 py-4 font-medium">当前状态</th>
-                <th className="px-5 py-4 font-medium">提交时间</th>
-                <th className="px-5 py-4 text-right font-medium">操作</th>
+                <th>候选人</th>
+                <th>意向组</th>
+                <th>当前状态</th>
+                <th>提交时间</th>
+                <th className="text-right">操作</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-white/[0.05]">
+            <tbody>
               {loading ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-12 text-center text-fg-dim">
+                  <td colSpan={5} className="admin-table-empty">
                     正在加载候选人...
                   </td>
                 </tr>
               ) : items.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="px-5 py-12 text-center text-fg-dim">
+                  <td colSpan={5} className="admin-table-empty">
                     当前筛选条件下没有报名记录。
                   </td>
                 </tr>
               ) : (
                 items.map((item) => (
-                  <tr key={item.id} className="transition hover:bg-white/[0.025]">
-                    <td className="px-5 py-4">
+                  <tr key={item.id} className="admin-table-row">
+                    <td>
                       <div className="font-medium text-fg-primary">
                         {item.contactName || "未填写姓名"}
                       </div>
                       <div className="mt-1 text-xs text-fg-dim">
                         {item.contactPhone || item.contactEmail || "—"}
                       </div>
+                      <div className="admin-mobile-group">
+                        {item.preferredGroup?.name ?? "未设置"}
+                      </div>
                     </td>
-                    <td className="px-5 py-4 text-fg-muted">
+                    <td className="text-fg-muted">
                       {item.preferredGroup?.name ?? "未设置"}
                     </td>
-                    <td className="px-5 py-4">
+                    <td>
                       <StatusBadge status={item.status} rejectedStage={item.rejectedStage} />
                       {item.status === "pending_interview" ? (
                         <div className="mt-1.5 text-xs text-fg-dim">{formatInterviewAttendance(item.interviewAttendance, item.interviewSession)}</div>
                       ) : null}
                     </td>
-                    <td className="px-5 py-4 text-fg-muted">{formatDateTime(item.submittedAt)}</td>
-                    <td className="px-5 py-4">
-                      <div className="flex justify-end gap-2">
+                    <td className="text-fg-muted">{formatDateTime(item.submittedAt)}</td>
+                    <td>
+                      <div className="admin-operation-group justify-end">
                         <button
                           type="button"
                           onClick={() => setSelectedId(item.id)}
-                          className="btn-glass rounded-lg px-3 py-2 text-xs"
+                          className="admin-button admin-button--secondary admin-button--small"
                         >
                           {getRegistrationActionLabel(item.status)}
                         </button>
                         <button
                           type="button"
                           onClick={() => void handleDelete(item)}
-                          className="rounded-lg border border-rose-500/20 bg-rose-500/10 px-3 py-2 text-xs text-rose-300"
+                          className="admin-button admin-button--danger admin-button--small"
                         >
                           删除
                         </button>
@@ -699,16 +596,16 @@ export default function Registrations() {
           </table>
         </div>
 
-        <div className="flex items-center justify-between gap-3 border-t border-white/[0.06] px-5 py-4 text-sm">
-          <span className="text-fg-dim">
+        <div className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--admin-border-subtle)] px-4 py-3 text-xs sm:px-5">
+          <span className="text-[var(--admin-dim)]">
             共 {pagination.total} 条 · 第 {pagination.page}/{Math.max(pagination.totalPages, 1)} 页
           </span>
-          <div className="flex gap-2">
+          <div className="admin-actions">
             <button
               type="button"
               disabled={pagination.page <= 1}
               onClick={() => setQuery((current) => ({ ...current, page: Math.max(1, pagination.page - 1) }))}
-              className="btn-glass rounded-lg px-3 py-2 disabled:opacity-40"
+              className="admin-button admin-button--secondary admin-button--small"
             >
               上一页
             </button>
@@ -716,7 +613,7 @@ export default function Registrations() {
               type="button"
               disabled={pagination.page >= pagination.totalPages}
               onClick={() => setQuery((current) => ({ ...current, page: pagination.page + 1 }))}
-              className="btn-glass rounded-lg px-3 py-2 disabled:opacity-40"
+              className="admin-button admin-button--secondary admin-button--small"
             >
               下一页
             </button>
@@ -724,21 +621,126 @@ export default function Registrations() {
         </div>
       </section>
 
+      <section id="interview-sessions" aria-label="面试场次配置" className="admin-session-management">
+        <div className="admin-section-heading">
+          <div>
+            <h2>面试场次</h2>
+            <p>配置候选人可选的日期、时段和地点</p>
+          </div>
+          {editingSessionId != null ? (
+            <button type="button" onClick={resetSessionDraft} className="admin-button admin-button--secondary admin-button--small">
+              取消编辑
+            </button>
+          ) : null}
+        </div>
+
+        <form onSubmit={saveSession} className="admin-session-form grid md:grid-cols-2 xl:grid-cols-6">
+          <input
+            type="date"
+            required
+            value={sessionDraft.date}
+            onChange={(event) => setSessionDraft((current) => ({ ...current, date: event.target.value }))}
+            className="admin-field"
+          />
+          <input
+            required
+            value={sessionDraft.label}
+            onChange={(event) => setSessionDraft((current) => ({ ...current, label: event.target.value }))}
+            placeholder="时段名称"
+            className="admin-field"
+          />
+          <input
+            type="time"
+            required
+            value={sessionDraft.startTime}
+            onChange={(event) => setSessionDraft((current) => ({ ...current, startTime: event.target.value }))}
+            className="admin-field"
+          />
+          <input
+            type="time"
+            required
+            value={sessionDraft.endTime}
+            onChange={(event) => setSessionDraft((current) => ({ ...current, endTime: event.target.value }))}
+            className="admin-field"
+          />
+          <input
+            required
+            value={sessionDraft.location}
+            onChange={(event) => setSessionDraft((current) => ({ ...current, location: event.target.value }))}
+            placeholder="地点"
+            className="admin-field"
+          />
+          <button disabled={sessionSaving} type="submit" className="admin-button admin-button--primary">
+            {editingSessionId == null ? "创建场次" : "保存修改"}
+          </button>
+          <div className="admin-operation-group md:col-span-2 xl:col-span-6">
+            {sessionPresets.map((preset) => (
+              <button
+                key={preset.label}
+                type="button"
+                onClick={() => applySessionPreset(preset.label, preset.startTime, preset.endTime)}
+                className="admin-button admin-button--secondary admin-button--small"
+              >
+                {preset.label} {preset.startTime}–{preset.endTime}
+              </button>
+            ))}
+          </div>
+        </form>
+
+        <div className="admin-list admin-session-list">
+          {sessions.length === 0 ? (
+            <div className="admin-table-empty">暂无面试场次。</div>
+          ) : (
+            sessions.map((session) => (
+              <div key={session.id} className="admin-list-row admin-session-row">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium text-fg-primary">
+                    {session.date} · {session.label} {session.startTime}–{session.endTime}
+                  </div>
+                  <div className="mt-1 text-xs text-fg-dim">
+                    {session.location} · 已确认 {session.confirmedCount} 人 · {session.enabled ? "开放中" : "已停用"}
+                  </div>
+                </div>
+                <div className="admin-operation-group shrink-0">
+                  <button
+                    type="button"
+                    aria-label={`编辑 ${session.date} ${session.label}`}
+                    onClick={() => editSession(session)}
+                    className="admin-button admin-button--secondary admin-button--small"
+                  >
+                    编辑
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`${session.enabled ? "停用" : "启用"} ${session.date} ${session.label}`}
+                    disabled={sessionSaving}
+                    onClick={() => void toggleSession(session)}
+                    className="admin-button admin-button--quiet admin-button--small"
+                  >
+                    {session.enabled ? "停用" : "启用"}
+                  </button>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </section>
+
       {selectedId != null ? (
         <div
-          className="fixed inset-0 z-50 flex justify-end bg-black/60 backdrop-blur-sm"
+          className="admin-drawer-backdrop fixed inset-0 z-50 flex justify-end"
           onClick={() => setSelectedId(null)}
         >
           <aside
-            className="h-full w-full max-w-2xl overflow-y-auto border-l border-white/[0.08] bg-[#0b1019] p-6 shadow-2xl"
+            className="admin-drawer h-full w-full max-w-2xl overflow-y-auto p-4 sm:p-6"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <div className="text-xs uppercase tracking-[0.18em] text-primary-300">Candidate</div>
+                <div className="admin-eyebrow">Candidate</div>
                 <h2 className="mt-2 text-xl font-semibold text-fg-primary">候选人详情</h2>
               </div>
-              <button type="button" onClick={() => setSelectedId(null)} className="btn-glass rounded-lg px-3 py-2 text-sm">
+              <button type="button" onClick={() => setSelectedId(null)} className="admin-button admin-button--secondary">
                 关闭
               </button>
             </div>
@@ -748,12 +750,12 @@ export default function Registrations() {
             ) : (
               <div className="mt-6 space-y-5">
                 {detail.notificationWarning ? (
-                  <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                  <div className="admin-notice admin-notice--warning">
                     {detail.notificationWarning}
                   </div>
                 ) : null}
 
-                <section className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-5">
+                <section className="admin-detail-section">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <div className="text-lg font-semibold text-fg-primary">
@@ -773,7 +775,7 @@ export default function Registrations() {
                   </dl>
                 </section>
 
-                <section className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-5">
+                <section className="admin-detail-section">
                   <h3 className="font-medium text-fg-primary">初筛</h3>
                   {detail.screenedAt ? (
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -793,9 +795,9 @@ export default function Registrations() {
                         value={screeningRemark}
                         onChange={(event) => setScreeningRemark(event.target.value)}
                         placeholder="初筛备注（可选）"
-                        className="min-h-24 w-full rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2 text-sm text-fg-primary outline-none"
+                        className="admin-field min-h-24"
                       />
-                      <div className="flex flex-wrap gap-2">
+                      <div className="admin-operation-group">
                         <button
                           type="button"
                           disabled={actionLoading}
@@ -805,7 +807,7 @@ export default function Registrations() {
                               "初筛已通过，候选人进入待面试。",
                             )
                           }
-                          className="rounded-xl bg-emerald-500/15 px-4 py-2.5 text-sm font-medium text-emerald-200 ring-1 ring-emerald-400/20"
+                          className="admin-button admin-button--positive"
                         >
                           初筛通过
                         </button>
@@ -818,7 +820,7 @@ export default function Registrations() {
                               "初筛未通过，招新流程已结束。",
                             )
                           }
-                          className="rounded-xl bg-rose-500/15 px-4 py-2.5 text-sm font-medium text-rose-200 ring-1 ring-rose-400/20"
+                          className="admin-button admin-button--danger"
                         >
                           初筛未通过
                         </button>
@@ -836,14 +838,14 @@ export default function Registrations() {
                           "已撤销初筛，候选人恢复为待初筛。",
                         )
                       }
-                      className="btn-glass mt-4 rounded-xl px-4 py-2.5 text-sm"
+                      className="admin-button admin-button--secondary mt-4"
                     >
                       撤销初筛
                     </button>
                   ) : null}
                 </section>
 
-                <section className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-5">
+                <section className="admin-detail-section">
                   <h3 className="font-medium text-fg-primary">线下面试</h3>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2">
                     <InfoItem label="面试参加" value={formatInterviewAttendanceLabel(detail.interviewAttendance)} />
@@ -871,9 +873,9 @@ export default function Registrations() {
                         value={interviewRemark}
                         onChange={(event) => setInterviewRemark(event.target.value)}
                         placeholder="面试备注（可选）"
-                        className="min-h-24 w-full rounded-xl border border-white/[0.08] bg-black/20 px-3 py-2 text-sm text-fg-primary outline-none"
+                        className="admin-field min-h-24"
                       />
-                      <div className="flex flex-wrap gap-2">
+                      <div className="admin-operation-group">
                         <button
                           type="button"
                           disabled={actionLoading}
@@ -883,7 +885,7 @@ export default function Registrations() {
                               "面试通过，已录取到意向组。",
                             )
                           }
-                          className="rounded-xl bg-emerald-500/15 px-4 py-2.5 text-sm font-medium text-emerald-200 ring-1 ring-emerald-400/20"
+                          className="admin-button admin-button--positive"
                         >
                           面试通过并录取
                         </button>
@@ -896,7 +898,7 @@ export default function Registrations() {
                               "面试未通过，招新流程已结束。",
                             )
                           }
-                          className="rounded-xl bg-rose-500/15 px-4 py-2.5 text-sm font-medium text-rose-200 ring-1 ring-rose-400/20"
+                          className="admin-button admin-button--danger"
                         >
                           面试未通过
                         </button>
@@ -905,7 +907,7 @@ export default function Registrations() {
                   ) : null}
                 </section>
 
-                <section className="rounded-2xl border border-white/[0.06] bg-white/[0.025] p-5">
+                <section className="admin-detail-section">
                   <h3 className="font-medium text-fg-primary">报名资料</h3>
                   <div className="mt-4 grid gap-4">
                     {detail.fieldsSchema.map((field) => (
@@ -951,14 +953,10 @@ function SummaryCard({
       type="button"
       aria-pressed={active}
       onClick={onClick}
-      className={`glass-panel rounded-2xl border px-4 py-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-400/60 ${
-        active
-          ? "border-primary-400/40 bg-primary-500/[0.08] ring-1 ring-primary-400/30"
-          : "border-white/[0.06] hover:border-primary-400/25"
-      }`}
+      className="admin-stage"
     >
-      <div className="text-xs text-fg-dim">{label}</div>
-      <div className="mt-2 text-2xl font-semibold text-fg-primary">{value}</div>
+      <div className="admin-stage-label">{label}</div>
+      <div className="admin-count admin-count--compact mt-2">{value}</div>
     </button>
   );
 }
@@ -979,28 +977,28 @@ function StatusBadge({
   const meta: Record<RecruitmentStatus, { label: string; className: string }> = {
     pending_screening: {
       label: "待初筛",
-      className: "border-amber-400/20 bg-amber-500/10 text-amber-200",
+      className: "admin-status--screening",
     },
     pending_interview: {
       label: "待面试",
-      className: "border-sky-400/20 bg-sky-500/10 text-sky-200",
+      className: "admin-status--interview",
     },
     admitted: {
       label: "已录取",
-      className: "border-emerald-400/20 bg-emerald-500/10 text-emerald-200",
+      className: "admin-status--admitted",
     },
     rejected: {
       label: rejectedStage === "screening" ? "初筛未通过" : rejectedStage === "interview" ? "面试未通过" : "未通过",
-      className: "border-rose-400/20 bg-rose-500/10 text-rose-200",
+      className: "admin-status--rejected",
     },
     withdrawn: {
       label: "已撤回",
-      className: "border-slate-400/20 bg-slate-500/10 text-slate-300",
+      className: "admin-status--withdrawn",
     },
   };
   const item = meta[status];
   return (
-    <span className={`inline-flex rounded-full border px-2.5 py-1 text-xs font-medium ${item.className}`}>
+    <span className={`admin-status ${item.className}`}>
       {item.label}
     </span>
   );
@@ -1037,7 +1035,7 @@ function FieldValue({
             )}
             target="_blank"
             rel="noreferrer"
-            className="rounded-lg border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-primary-200 hover:bg-white/[0.07]"
+            className="admin-file-link"
           >
             {file || `文件 ${index + 1}`}
           </a>
