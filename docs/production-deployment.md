@@ -6,7 +6,7 @@
 ./scripts/deploy-production.sh
 ```
 
-脚本在开始构建前读取生产根分区的可用字节数。小于 4 GiB 时立即退出，不构建、不上传、不迁移、不切换 Compose。脚本随后记录当前运行的镜像和 release，作为 previous_stable，并验证 release 文件清单完整、SHA256 正确且镜像 tag 后缀与 release commit.txt 一致；再在开始发布前执行一份完整业务备份。
+发布脚本先只读确认当前生产镜像和 release，并记录它们作为新版本的 previous_stable，再读取根分区使用率。低于 85% 时继续；达到或超过 85% 时先执行一次安全清理，清理后仍达到或超过 85% 就退出。整个发布最多执行一次安全清理：如果入口检查未触发清理，而上传 release 和业务备份后达到高水位，就在 Docker build 前用这次清理机会。安全清理仅处理可回收 Docker build cache、超过 7 天保留期的本地备份、APT cache，以及能明确识别为 current 和 previous_stable 之外的 Jijia 镜像与 release；无法明确识别回滚版本时会保留所有 Jijia 镜像和 release。它不会清理 volume、MariaDB 数据、uploads 或其他项目资源。脚本还会验证 current release 文件清单完整、SHA256 正确且镜像 tag 后缀与 release commit.txt 一致；随后在开始发布前执行一份完整业务备份。
 
 ## 首次异机备份配置
 
@@ -29,7 +29,7 @@ systemd timer 每天 04:00 UTC 运行 `backup-production.service`。正式发布
 
 ## 发布、健康检查与 retention
 
-根分区空间护栏通过后，脚本构建 Linux amd64 后端和迁移程序，并上传到新的不可变 release 目录。生产机重新检查可用空间，然后：
+根分区空间护栏通过后，脚本构建 Linux amd64 后端和迁移程序，并上传到新的不可变 release 目录。Docker build 前，生产机再次确认使用率低于 85%；若唯一一次安全清理已执行后又达到高水位，就中止本次发布。之后：
 
 1. 校验 release 文件和 SHA256。
 2. 使用新镜像执行 migration。
@@ -38,7 +38,7 @@ systemd timer 每天 04:00 UTC 运行 `backup-production.service`。正式发布
 5. 只有以上步骤成功后，按显式记录的 tag 和 release 名保留 current 与 `previous_stable`，删除更旧的 TarsGo 镜像和 release。
 6. 再核验两个镜像、两个 release、容器健康和 `/healthz`，并报告磁盘和容器状态。
 
-健康检查失败时恢复之前的 Compose 配置并启动 `previous_stable`；不会删除任何旧镜像、release 或备份。Retention 后可用空间若低于 4 GiB，只发出告警并停止额外清理。脚本不运行 Docker 全局 prune，也不清理其他项目或 volume。
+健康检查失败时恢复之前的 Compose 配置并启动 `previous_stable`；不会执行发布成功后的镜像/release retention。Retention 后使用率若达到或超过 85%，只发出告警并停止额外清理。脚本不运行 Docker 全局 prune，也不清理其他项目或 volume。
 
 当前迁移框架只提供向前迁移。应用回滚不会反向回滚数据库 schema；需要恢复业务数据时，应先将异机备份恢复到隔离数据库验证，再安排生产恢复。
 
@@ -60,4 +60,4 @@ pnpm run test:progress
 pnpm run test:workbench
 ```
 
-`scripts/test-production-ops.sh` 只使用临时目录和 mock 命令，覆盖低磁盘提前退出、current/previous retention、健康检查失败回滚，以及复制或远端 checksum 失败时不执行备份 retention。
+`scripts/test-production-ops.sh` 只使用临时目录和 mock 命令，覆盖 85% 高水位清理与提前退出、current/previous retention、健康检查失败回滚，以及复制或远端 checksum 失败时不执行备份 retention。
