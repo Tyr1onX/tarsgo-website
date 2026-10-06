@@ -26,8 +26,24 @@ function formatTime(value: string) {
 }
 
 function ActivityList({ activities }: { activities: AdminDashboardData["recentActivities"] }) {
-  if (!activities.length) return <div className="p-10 text-center text-sm text-gray-400">暂无业务动态</div>;
-  return <div className="divide-y divide-white/[0.05]">{activities.slice(0, 8).map((item) => <div key={item.id} className="flex items-center gap-4 px-5 py-4"><div className="chip-gradient-soft flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-medium text-primary-200">{item.actorName.charAt(0) || "系"}</div><div className="min-w-0 flex-1"><div className="text-sm"><span className="font-medium text-white">{item.actorName}</span><span className="text-gray-400"> {item.message}</span></div><div className="mt-0.5 text-xs text-gray-500">{formatTime(item.occurredAt)}</div></div>{item.groupName && <span className="shrink-0 rounded-full border border-white/[0.08] bg-white/[0.04] px-2.5 py-1 text-xs text-gray-400">{item.groupName}</span>}</div>)}</div>;
+  if (!activities.length) return <div className="admin-workbench__empty">暂无业务动态</div>;
+  return (
+    <div className="admin-workbench__activity-list">
+      {activities.slice(0, 8).map((item) => (
+        <div key={item.id} className="admin-workbench__activity-row">
+          <div className="admin-workbench__activity-mark" aria-hidden="true">{item.actorName.charAt(0) || "系"}</div>
+          <div className="admin-workbench__activity-copy">
+            <div className="admin-workbench__activity-message">
+              <span className="admin-workbench__activity-name">{item.actorName}</span>
+              <span>{item.message}</span>
+            </div>
+            <div className="admin-workbench__meta">{formatTime(item.occurredAt)}</div>
+          </div>
+          {item.groupName && <span className="admin-workbench__group-label">{item.groupName}</span>}
+        </div>
+      ))}
+    </div>
+  );
 }
 
 export default function AdminDashboard() {
@@ -82,25 +98,130 @@ export default function AdminDashboard() {
   }, [load]);
 
   const upcomingSessions = useMemo(() => getUpcomingInterviewSessions(sessions), [sessions]);
-  if (loading) return <div className="space-y-6"><div className="h-16 w-64 animate-pulse rounded-2xl bg-white/[0.04]" /><div className="grid gap-4 lg:grid-cols-2">{[1, 2].map((key) => <div key={key} className="h-40 animate-pulse rounded-2xl bg-white/[0.04]" />)}</div><div className="h-72 animate-pulse rounded-2xl bg-white/[0.04]" /></div>;
-  if (error) return <div className="glass-panel rounded-2xl border border-red-500/20 p-12 text-center"><p className="text-red-400">{error}</p><button type="button" onClick={() => void load(true)} className="btn-gradient mt-4 rounded-xl px-4 py-2 text-sm">重新加载</button></div>;
 
-  return <div className="space-y-7">
-    <header className="motion-fade-up flex flex-wrap items-end justify-between gap-4"><div><div className="text-xs font-medium uppercase tracking-[0.2em] text-primary-300">Recruitment</div><h1 className="mt-2 text-2xl font-bold">招新工作台</h1><p className="mt-1 text-sm text-gray-400">先处理候选人初筛与面试安排，再查看近期业务动态。</p></div><Link to="/dashboard/admin/registrations" className="btn-gradient rounded-xl px-4 py-2.5 text-sm font-medium">打开报名处理</Link></header>
-    {refreshError && <div role="status" className="glass-panel flex flex-wrap items-center justify-between gap-3 rounded-2xl border-amber-500/25 px-4 py-3 text-sm"><span className="text-amber-300">自动刷新失败：{refreshError}，当前仍显示上次成功获取的数据。</span><button type="button" onClick={() => void load(false)} className="text-amber-200 hover:text-white">重试</button></div>}
+  if (loading) {
+    return (
+      <div className="admin-workbench admin-workbench--loading">
+        <div className="admin-workbench__content admin-workbench__skeleton" aria-label="正在加载工作台">
+          <div className="admin-workbench__skeleton-heading" />
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="admin-workbench__skeleton-queue" />
+            <div className="admin-workbench__skeleton-queue" />
+          </div>
+          <div className="admin-workbench__skeleton-list" />
+        </div>
+      </div>
+    );
+  }
 
-    <section aria-label="当前待处理招新阶段" className="grid gap-4 lg:grid-cols-2">
-      {statusItems.slice(0, 2).map((item) => <Link key={item.status} to={`/dashboard/admin/registrations?status=${item.status}`} className="glass-panel glass-card group rounded-2xl border border-primary-400/15 p-5 transition hover:border-primary-300/35"><div className="flex items-start justify-between gap-4"><div><div className="text-sm font-medium text-gray-300">{item.label}</div><div className="mt-2 text-4xl font-bold tabular-nums text-white">{summary?.[item.countKey] ?? 0}</div><div className="mt-1 text-sm text-gray-500">位候选人</div></div><span className="chip-gradient-soft flex h-11 w-11 items-center justify-center rounded-xl text-primary-200" aria-hidden="true">{item.status === "pending_screening" ? "初" : "面"}</span></div><div className="mt-5 flex items-center justify-between border-t border-white/[0.06] pt-4 text-sm"><span className="text-primary-200">{item.hrefLabel}</span><span className="text-gray-500 transition group-hover:translate-x-1 group-hover:text-white" aria-hidden="true">→</span></div></Link>)}
-    </section>
+  if (error) {
+    return (
+      <div className="admin-workbench">
+        <div className="admin-workbench__content admin-workbench__error" role="alert">
+          <p>{error}</p>
+          <button type="button" onClick={() => void load(true)} className="admin-workbench__button">重新加载</button>
+        </div>
+      </div>
+    );
+  }
 
-    <section aria-label="招新结果阶段" className="glass-panel rounded-2xl px-4 py-4 sm:px-5"><div className="mb-3 flex items-center justify-between gap-4"><h2 className="font-semibold">流程结果</h2><Link to="/dashboard/admin/registrations" className="text-xs text-gray-400 hover:text-white">全部报名 →</Link></div><div className="grid grid-cols-3 gap-2 sm:gap-3">{statusItems.slice(2).map((item) => <Link key={item.status} to={`/dashboard/admin/registrations?status=${item.status}`} className="rounded-xl border border-white/[0.06] bg-white/[0.02] px-3 py-3 transition hover:bg-white/[0.05]"><div className="text-xs text-gray-500">{item.label}</div><div className="mt-1 text-xl font-semibold tabular-nums text-gray-200">{summary?.[item.countKey] ?? 0}</div></Link>)}</div></section>
+  return (
+    <div className="admin-workbench">
+      <div className="admin-workbench__content">
+        <header className="admin-workbench__header">
+          <div>
+            <div className="admin-workbench__eyebrow">吉甲 · 招新处理</div>
+            <h1 className="admin-workbench__title">招新工作台</h1>
+            <p className="admin-workbench__description">先处理候选人初筛与面试安排，再查看近期业务动态。</p>
+          </div>
+          <Link to="/dashboard/admin/registrations" className="admin-workbench__button">进入报名处理 <span aria-hidden="true">→</span></Link>
+        </header>
 
-    <section aria-label="当前及近期面试场次" className="glass-panel overflow-hidden rounded-2xl"><div className="flex flex-wrap items-center justify-between gap-3 px-5 py-4"><div><h2 className="font-semibold">当前 / 近期面试场次</h2><p className="mt-1 text-xs text-gray-500">显示已启用且今天至未来 14 天内的场次</p></div><Link to="/dashboard/admin/registrations#interview-sessions" className="text-sm text-primary-200 hover:text-white">管理场次 →</Link></div><div className="divider-gradient mx-5" />{upcomingSessions.length === 0 ? <div className="px-5 py-8 text-center text-sm text-gray-400">暂无近期开放场次</div> : <div className="divide-y divide-white/[0.05]">{upcomingSessions.slice(0, 5).map((session) => <InterviewSessionRow key={session.id} session={session} />)}</div>}</section>
+        {refreshError && (
+          <div role="status" className="admin-workbench__notice">
+            <span>自动刷新失败：{refreshError}，当前仍显示上次成功获取的数据。</span>
+            <button type="button" onClick={() => void load(false)}>重试</button>
+          </div>
+        )}
 
-    <section aria-label="最近业务动态" className="glass-panel overflow-hidden rounded-2xl"><div className="flex items-center justify-between gap-4 px-5 py-4"><h2 className="font-semibold">最近业务动态</h2><Link to="/dashboard/admin/statistics" className="text-sm text-gray-400 hover:text-white">查看统计 →</Link></div><div className="divider-gradient mx-5" /><ActivityList activities={dashboard?.recentActivities ?? []} /></section>
-  </div>;
+        <section aria-label="当前待处理招新阶段" className="admin-workbench__queues">
+          {statusItems.slice(0, 2).map((item, index) => (
+            <Link key={item.status} to={`/dashboard/admin/registrations?status=${item.status}`} className="admin-workbench__queue">
+              <div className="admin-workbench__queue-topline">
+                <span className="admin-workbench__queue-index">0{index + 1}</span>
+                <span className="admin-workbench__queue-kicker">当前队列</span>
+              </div>
+              <div className="admin-workbench__queue-main">
+                <div>
+                  <h2 className="admin-workbench__queue-title">{item.label}</h2>
+                  <p className="admin-workbench__queue-count"><span>{summary?.[item.countKey] ?? 0}</span> 位候选人</p>
+                </div>
+                <span className="admin-workbench__queue-arrow" aria-hidden="true">→</span>
+              </div>
+              <div className="admin-workbench__queue-action">{item.hrefLabel}</div>
+            </Link>
+          ))}
+        </section>
+
+        <section aria-label="招新结果阶段" className="admin-workbench__results">
+          <div className="admin-workbench__section-heading">
+            <div>
+              <h2>流程结果</h2>
+              <p>已完成处理的报名</p>
+            </div>
+            <Link to="/dashboard/admin/registrations">全部报名 <span aria-hidden="true">→</span></Link>
+          </div>
+          <div className="admin-workbench__result-list">
+            {statusItems.slice(2).map((item) => (
+              <Link key={item.status} to={`/dashboard/admin/registrations?status=${item.status}`} className="admin-workbench__result">
+                <span className="admin-workbench__result-label">{item.label}</span>
+                <span className="admin-workbench__result-count">{summary?.[item.countKey] ?? 0}</span>
+              </Link>
+            ))}
+          </div>
+        </section>
+
+        <section aria-label="当前及近期面试场次" className="admin-workbench__section">
+          <div className="admin-workbench__section-heading">
+            <div>
+              <h2>近期面试场次</h2>
+              <p>已启用，今天至未来 14 天</p>
+            </div>
+            <Link to="/dashboard/admin/registrations#interview-sessions">管理场次 <span aria-hidden="true">→</span></Link>
+          </div>
+          {upcomingSessions.length === 0 ? (
+            <div className="admin-workbench__empty">暂无近期开放场次</div>
+          ) : (
+            <div className="admin-workbench__session-list">
+              {upcomingSessions.slice(0, 5).map((session) => <InterviewSessionRow key={session.id} session={session} />)}
+            </div>
+          )}
+        </section>
+
+        <section aria-label="最近业务动态" className="admin-workbench__section admin-workbench__section--activity">
+          <div className="admin-workbench__section-heading">
+            <div>
+              <h2>最近业务动态</h2>
+              <p>招新流程近期操作</p>
+            </div>
+            <Link to="/dashboard/admin/statistics">查看统计 <span aria-hidden="true">→</span></Link>
+          </div>
+          <ActivityList activities={dashboard?.recentActivities ?? []} />
+        </section>
+      </div>
+    </div>
+  );
 }
 
 function InterviewSessionRow({ session }: { session: InterviewSession }) {
-  return <div className="flex flex-wrap items-center gap-x-5 gap-y-2 px-5 py-4"><div className="min-w-32"><div className="text-sm font-medium text-white">{session.date} · {session.label}</div><div className="mt-1 text-xs text-gray-400">{session.startTime}–{session.endTime}</div></div><div className="min-w-0 flex-1 text-sm text-gray-300">{session.location || "地点待定"}</div><div className="text-xs text-gray-400">已确认 {session.confirmedCount} 人</div></div>;
+  return (
+    <div className="admin-workbench__session-row">
+      <div className="admin-workbench__session-time">
+        <div>{session.date} · {session.label}</div>
+        <div className="admin-workbench__meta">{session.startTime}–{session.endTime}</div>
+      </div>
+      <div className="admin-workbench__session-location">{session.location || "地点待定"}</div>
+      <div className="admin-workbench__session-count">已确认 <strong>{session.confirmedCount}</strong> 人</div>
+    </div>
+  );
 }
