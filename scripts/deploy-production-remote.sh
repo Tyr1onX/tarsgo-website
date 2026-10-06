@@ -6,16 +6,17 @@ health_attempts="${HEALTH_ATTEMPTS:-30}"
 health_interval="${HEALTH_INTERVAL:-5}"
 min_free_bytes=4294967296
 
-if [[ $# -ne 5 ]]; then
-  echo "usage: deploy-production-remote.sh <release> <image-tag> <previous-image> <previous-release> <commit-sha>" >&2
+if [[ $# -ne 6 ]]; then
+  echo "usage: deploy-production-remote.sh <jijia-root> <release> <image-tag> <previous-image> <previous-release> <commit-sha>" >&2
   exit 2
 fi
 
-release_name="$1"
-image_tag="$2"
-previous_image="$3"
-previous_release="$4"
-commit_sha="$5"
+jijia_root="$1"
+release_name="$2"
+image_tag="$3"
+previous_image="$4"
+previous_release="$5"
+commit_sha="$6"
 release_pattern='^[0-9]{8}-[A-Za-z0-9._-]+-[0-9a-f]{7,40}$'
 image_pattern='^jijia-backend:[A-Za-z0-9._-]+$'
 

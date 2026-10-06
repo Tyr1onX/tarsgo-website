@@ -168,9 +168,9 @@ run_remote_deploy() {
   MOCK_DOCKER_LOG="$case_dir/docker.log" MOCK_COMPOSE="$case_dir/jijia/compose.yaml" \
   MOCK_RUNNING_IMAGE="$case_dir/running-image" MOCK_IMAGE_NAMES="$case_dir/image-names" \
   MOCK_REMOVED_IMAGES="$case_dir/removed-images" MOCK_NEW_IMAGE="jijia-backend:$tag" \
-  MOCK_FAIL_HEALTH="$fail_health" PATH="$case_dir/bin:$PATH" JIJIA_ROOT="$case_dir/jijia" \
+  MOCK_FAIL_HEALTH="$fail_health" PATH="$case_dir/bin:$PATH" \
   HEALTH_ATTEMPTS=2 HEALTH_INTERVAL=0 bash "$repo_root/scripts/deploy-production-remote.sh" \
-    "$release" "$tag" "jijia-backend:$previous" "$previous" "$commit"
+    "$case_dir/jijia" "$release" "$tag" "jijia-backend:$previous" "$previous" "$commit"
 }
 
 test_retention_keeps_two_releases() {
