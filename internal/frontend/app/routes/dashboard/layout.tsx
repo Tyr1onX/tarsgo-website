@@ -413,7 +413,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   }
 
   return (
-    <div className="dash-bg dash-bg-noise min-h-screen text-white">
+    <div className={`dash-bg dash-bg-noise min-h-screen text-white ${location.pathname === "/dashboard/admin" ? "dashboard-shell--admin-workbench" : ""}`}>
       {sidebarOpen ? (
         <div
           className="fixed inset-0 z-40 bg-black/70 lg:hidden"
