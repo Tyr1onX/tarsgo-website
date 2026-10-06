@@ -1,0 +1,10 @@
+[Unit]
+Description=Daily Jijia production backup
+
+[Timer]
+OnCalendar=*-*-* 04:00:00 UTC
+Persistent=true
+Unit=backup-production.service
+
+[Install]
+WantedBy=timers.target

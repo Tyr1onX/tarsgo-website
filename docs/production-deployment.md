@@ -1,88 +1,63 @@
-# 生产发布与回滚
+# 生产发布、备份与回滚
 
-本文适用于当前 TarsGo 版本。生产环境只使用生产数据库和生产密钥；开发环境的 Docker 数据、mock 用户和测试报名数据不能复制到生产。
+生产目录为 `/opt/jijia`。正式发布只能从干净且等于最新 `origin/main` 的工作树执行：
 
-## 发布原则
+```bash
+./scripts/deploy-production.sh
+```
 
-1. 发布前先备份数据库和运行时上传目录。
-2. 使用同一版本构建出的 `dist/tarsgo-migrate` 单独执行迁移。
-3. 迁移成功并完成校验后，再启动 `dist/tarsgo-backend`。
-4. Web 进程设置 `APP_AUTO_MIGRATE=false`，避免多实例同时执行迁移。
-5. 保留旧二进制、旧配置、备份文件和校验值，至少覆盖一个完整观察窗口。
+脚本在开始构建前读取生产根分区的可用字节数。小于 4 GiB 时立即退出，不构建、不上传、不迁移、不切换 Compose。脚本随后记录当前运行的镜像和 release，作为 previous_stable，并验证 release 文件清单完整、SHA256 正确且镜像 tag 后缀与 release commit.txt 一致；再在开始发布前执行一份完整业务备份。
 
-当前迁移框架只有向前迁移，没有自动 down migration。迁移 6 会规范化权限数据，迁移 7 新增面试表和最终录取字段。若要精确恢复到迁移前的数据状态，必须从发布前备份恢复，不能只回滚二进制。
+## 首次异机备份配置
 
-## 发布前检查
+发布脚本首次运行时，会按本机 SSH alias `tencent` 中已保存的主机密钥配置专用备份账号、仅限备份用途的 SSH key 和接收目录。密钥由生产机生成，私钥只保存在生产机；腾讯云保存对应公钥。备份目标为 `/opt/backups/jijia`，目录仅 root 可读。之后无需额外基础设施。
 
-~~~bash
-go -C internal/backend test ./...
-npm --prefix internal/frontend run typecheck
-make build-linux-amd64
+主机密钥未在本机 `~/.ssh/known_hosts` 中固定时，配置会停止；先使用已有可信渠道核实并保存 Tencent 主机密钥，再重试。
+
+## 备份内容与保留
+
+每份 `jijia-full-*.tar.gz` 包含：
+
+- MariaDB logical dump（single transaction、routines、events、triggers）
+- `/opt/jijia/data/upload`
+- `compose.yaml`、`.env`、`app.env` 配置快照
+- 对归档文件计算的 SHA256 校验文件
+
+本地归档和配置使用仅 root 可读权限。备份先在生产机生成、压缩并校验，再通过 SCP 复制到腾讯云；腾讯云重新校验 SHA256。只有本地校验、复制和远端校验全部成功后，才执行生产本地 7 天、腾讯云 30 天保留。失败时保留旧备份，失败的新本地临时归档会清理。
+
+systemd timer 每天 04:00 UTC 运行 `backup-production.service`。正式发布开始前也会立即执行一次备份。
+
+## 发布、健康检查与 retention
+
+根分区空间护栏通过后，脚本构建 Linux amd64 后端和迁移程序，并上传到新的不可变 release 目录。生产机重新检查可用空间，然后：
+
+1. 校验 release 文件和 SHA256。
+2. 使用新镜像执行 migration。
+3. 更新 Compose 并启动新应用容器。
+4. 等待应用容器、MariaDB 容器均为 healthy，且本机 `/healthz` 正常。
+5. 只有以上步骤成功后，按显式记录的 tag 和 release 名保留 current 与 `previous_stable`，删除更旧的 TarsGo 镜像和 release。
+6. 再核验两个镜像、两个 release、容器健康和 `/healthz`，并报告磁盘和容器状态。
+
+健康检查失败时恢复之前的 Compose 配置并启动 `previous_stable`；不会删除任何旧镜像、release 或备份。Retention 后可用空间若低于 4 GiB，只发出告警并停止额外清理。脚本不运行 Docker 全局 prune，也不清理其他项目或 volume。
+
+当前迁移框架只提供向前迁移。应用回滚不会反向回滚数据库 schema；需要恢复业务数据时，应先将异机备份恢复到隔离数据库验证，再安排生产恢复。
+
+## 真实验证
+
+提交前运行：
+
+前端依赖使用 pnpm 9.15.4，CI 固定使用该版本。
+
+```bash
+for file in scripts/*.sh; do bash -n "$file"; done
+scripts/test-production-ops.sh
 git diff --check
-~~~
+make backend-test
+cd internal/frontend
+pnpm install --frozen-lockfile
+pnpm run typecheck
+pnpm run test:progress
+pnpm run test:workbench
+```
 
-确认产物包含 `dist/tarsgo-backend-linux-amd64` 和 `dist/tarsgo-migrate-linux-amd64`，并将它们放入不可变版本目录，不要覆盖正在运行的版本。`make build` 生成的是当前构建机架构的二进制，Linux 生产环境应使用 `make build-linux-amd64` 的产物。
-
-## 发布前备份
-
-备份目录应位于独立磁盘或对象存储，并在备份后复制到另一位置。
-
-~~~bash
-export DB_HOST='127.0.0.1'
-export DB_PORT='3306'
-export DB_NAME='tarsgo'
-export DB_USER='tarsgo_backup'
-export DB_PASSWORD='从密钥管理系统注入'
-export BACKUP_DIR='/var/backups/tarsgo'
-./scripts/backup-mariadb.sh
-~~~
-
-同时备份运行时上传文件（报名附件、组 logo 等）：
-
-~~~bash
-tar -C /opt/tarsgo/current -czf /var/backups/tarsgo/uploads-$(date -u +%Y%m%dT%H%M%SZ).tar.gz upload
-~~~
-
-验证备份：
-
-~~~bash
-sha256sum -c /var/backups/tarsgo/<数据库备份>.sha256
-gzip -t /var/backups/tarsgo/<数据库备份>.sql.gz
-~~~
-
-正式发布前应至少在临时 MariaDB 实例恢复一次备份，并核对 `users`、`registrations` 和 `schema_migrations`。
-
-## 正式发布顺序
-
-1. 从负载均衡摘除旧实例或进入维护页，等待正在处理的请求完成。
-2. 保留旧实例、旧版本目录和旧配置。
-3. 新版本生产配置设置 `APP_AUTO_MIGRATE=false`。
-4. 只执行一次迁移程序：
-
-  ~~~bash
-  APP_ENV=production APP_AUTO_MIGRATE=false ./dist/tarsgo-migrate
-  ~~~
-
-Linux amd64 服务器应执行 `./dist/tarsgo-migrate-linux-amd64`。
-
-迁移退出码非 0 时立即停止发布，不启动新 Web 实例，也不要手工写入 `schema_migrations`。
-
-5. 检查迁移版本、`registration_interviews` 表和 `registrations` 最终录取字段。
-6. 启动一台新 Web 实例，执行 `curl -fsS http://127.0.0.1:8080/healthz`，再验证登录、用户权限、报名详情、面试结果、最终录取和附件下载。
-7. 观察错误日志、5xx、登录失败率和数据库连接数，再逐步恢复流量。
-
-## 回滚
-
-- 只有代码问题且新代码没有写入新字段：停止新实例，切回旧二进制和旧静态资源；新增表和字段可以保留。
-- 迁移失败且事务未提交：保持旧版本运行，修复后重新执行迁移。
-- 迁移成功后需要恢复权限或业务数据：停止所有 Web 实例，将备份先恢复到隔离数据库校验，再在维护窗口恢复生产库和上传目录。
-
-恢复示例（确认目标库和审批后执行）：
-
-~~~bash
-gunzip -c /var/backups/tarsgo/<数据库备份>.sql.gz | mariadb \
-  --host="$DB_HOST" --port="$DB_PORT" --user="$DB_USER" --password="$DB_PASSWORD" "$DB_NAME"
-tar -C /opt/tarsgo/current -xzf /var/backups/tarsgo/<上传目录备份>.tar.gz
-~~~
-
-迁移 6 属于数据迁移，精确回滚必须依靠备份；迁移 7 的旧版本短时可回退，但旧版本不会理解面试记录和最终录取数据。生产必须使用 `APP_ENV=production`、唯一随机的 `JWT_SECRET`（至少 32 位）、`JWT_COOKIE_SECURE=true`，并将 CORS 限制为正式站点域名。
+`scripts/test-production-ops.sh` 只使用临时目录和 mock 命令，覆盖低磁盘提前退出、current/previous retention、健康检查失败回滚，以及复制或远端 checksum 失败时不执行备份 retention。

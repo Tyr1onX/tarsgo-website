@@ -1,0 +1,121 @@
+#!/usr/bin/env bash
+set -Eeuo pipefail
+
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+target="${DEPLOY_TARGET:-racknerd}"
+jijia_root="${JIJIA_ROOT:-/opt/jijia}"
+min_free_bytes=4294967296
+ssh_bin="${SSH_BIN:-ssh}"
+rsync_bin="${RSYNC_BIN:-rsync}"
+make_bin="${MAKE_BIN:-make}"
+
+if [[ "$(git -C "$repo_root" rev-parse --is-inside-work-tree)" != true || -n "$(git -C "$repo_root" status --porcelain)" ]]; then
+  echo "Production deploy aborted: run from a clean Git working tree." >&2
+  exit 1
+fi
+git -C "$repo_root" fetch origin main >/dev/null
+commit_sha="$(git -C "$repo_root" rev-parse HEAD)"
+main_sha="$(git -C "$repo_root" rev-parse origin/main)"
+if [[ "$commit_sha" != "$main_sha" || ! "$commit_sha" =~ ^[0-9a-f]{40}$ ]]; then
+  echo "Production deploy aborted: checkout must match the latest origin/main commit." >&2
+  exit 1
+fi
+short_sha="${commit_sha:0:7}"
+
+available_bytes="$("$ssh_bin" -o BatchMode=yes "$target" "df -B1 --output=avail / | tail -n 1 | tr -d '[:space:]'")"
+if [[ ! "$available_bytes" =~ ^[0-9]+$ || "$available_bytes" -lt "$min_free_bytes" ]]; then
+  available_gib="$(awk -v bytes="${available_bytes:-0}" 'BEGIN { printf "%.1f", bytes / 1073741824 }')"
+  echo "Production deploy aborted: only ${available_gib} GiB available; at least 4 GiB is required." >&2
+  exit 1
+fi
+
+if ! "$ssh_bin" -o BatchMode=yes "$target" test -s /root/.ssh/jijia-backup-ssh-config; then
+  "$repo_root/scripts/setup-production-backup-destination.sh"
+fi
+
+state="$("$ssh_bin" -o BatchMode=yes "$target" bash -s -- "$jijia_root" <<'REMOTE'
+set -Eeuo pipefail
+root="$1"
+cd "$root"
+app_id="$(docker compose -f "$root/compose.yaml" ps -q app)"
+db_id="$(docker compose -f "$root/compose.yaml" ps -q db)"
+app_health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$app_id")"
+db_health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$db_id")"
+app_image="$(docker inspect --format '{{.Config.Image}}' "$app_id")"
+app_release="$(awk '/^  app:$/ { in_app=1; next } in_app && /^  [[:alnum:]_-]+:$/ { in_app=0 } in_app && /^    build:/ { print $2; exit }' "$root/compose.yaml")"
+app_release="${app_release##*/}"
+if [[ "$app_health" != healthy || "$db_health" != healthy ]]; then
+  echo "Production deploy aborted: current app and database must both be healthy." >&2
+  exit 1
+fi
+if [[ ! "$app_image" =~ ^jijia-backend:[A-Za-z0-9._-]+$ || ! "$app_release" =~ ^[0-9]{8}-[A-Za-z0-9._-]+-[0-9a-f]{7,40}$ ]]; then
+  echo "Production deploy aborted: unable to identify current image and release." >&2
+  exit 1
+fi
+docker image inspect "$app_image" >/dev/null
+release_dir="$root/releases/$app_release"
+if [[ ! -f "$release_dir/commit.txt" || ! -f "$release_dir/SHA256SUMS" || ! -f "$release_dir/Dockerfile" || ! -f "$release_dir/tarsgo-backend-linux-amd64" || ! -f "$release_dir/tarsgo-migrate-linux-amd64" ]]; then
+  echo "Production deploy aborted: current_stable release is incomplete." >&2
+  exit 1
+fi
+(cd "$release_dir" && sha256sum --check -- SHA256SUMS >/dev/null)
+release_commit="$(cat "$release_dir/commit.txt")"
+image_commit="${app_image##*-}"
+if [[ ! "$release_commit" =~ ^[0-9a-f]{40}$ || ! "$image_commit" =~ ^[0-9a-f]{7,40}$ || "$release_commit" != "$image_commit"* ]]; then
+  echo "Production deploy aborted: current_stable image tag and release SHA do not match." >&2
+  exit 1
+fi
+printf '%s\n%s\n' "$app_image" "$app_release"
+REMOTE
+)"
+previous_image="$(printf '%s\n' "$state" | sed -n '1p')"
+previous_release="$(printf '%s\n' "$state" | sed -n '2p')"
+release_name="$(date -u +%Y%m%d)-ops-retention-$short_sha"
+image_tag="$release_name"
+
+if [[ -z "$previous_image" || -z "$previous_release" ]]; then
+  echo "Production deploy aborted: previous_stable could not be recorded." >&2
+  exit 1
+fi
+if "$ssh_bin" -o BatchMode=yes "$target" test -e "$jijia_root/releases/$release_name"; then
+  echo "Production deploy aborted: release path already exists: $release_name" >&2
+  exit 1
+fi
+printf 'previous_stable_image=%s\nprevious_stable_release=%s\n' "$previous_image" "$previous_release"
+
+release_dir="$(mktemp -d "${TMPDIR:-/tmp}/tarsgo-release.XXXXXXXX")"
+cleanup() {
+  status=$?
+  trap - EXIT
+  rm -rf -- "$release_dir"
+  "$make_bin" -C "$repo_root" clean >/dev/null 2>&1 || true
+  if git -C "$repo_root" ls-files --error-unmatch internal/backend/web/frontend/.keep >/dev/null 2>&1; then
+    mkdir -p "$repo_root/internal/backend/web/frontend"
+    git -C "$repo_root" show "$commit_sha:internal/backend/web/frontend/.keep" >"$repo_root/internal/backend/web/frontend/.keep"
+  fi
+  exit "$status"
+}
+trap cleanup EXIT
+"$make_bin" -C "$repo_root" build-linux-amd64
+
+cp -- "$repo_root/dist/tarsgo-backend-linux-amd64" "$release_dir/"
+cp -- "$repo_root/dist/tarsgo-migrate-linux-amd64" "$release_dir/"
+cp -- "$repo_root/scripts/production.Dockerfile" "$release_dir/Dockerfile"
+printf '%s\n' "$commit_sha" >"$release_dir/commit.txt"
+(cd "$release_dir" && sha256sum Dockerfile commit.txt tarsgo-backend-linux-amd64 tarsgo-migrate-linux-amd64 >SHA256SUMS)
+
+"$rsync_bin" --archive --chmod=D755,F644 "$release_dir/" "$target:$jijia_root/releases/$release_name/"
+"$rsync_bin" --archive "$repo_root/scripts/backup-production.sh" "$repo_root/scripts/backup-production.service" "$repo_root/scripts/backup-production.timer" "$target:/tmp/"
+"$ssh_bin" -o BatchMode=yes "$target" bash -s -- "$jijia_root" <<'INSTALL_BACKUP'
+set -Eeuo pipefail
+root="$1"
+install -o root -g root -m 0700 /tmp/backup-production.sh "$root/jijia-backup.sh"
+install -o root -g root -m 0644 /tmp/backup-production.service /etc/systemd/system/backup-production.service
+install -o root -g root -m 0644 /tmp/backup-production.timer /etc/systemd/system/backup-production.timer
+rm -f /tmp/backup-production.sh /tmp/backup-production.service /tmp/backup-production.timer
+systemctl daemon-reload
+systemctl enable --now backup-production.timer
+INSTALL_BACKUP
+
+"$ssh_bin" -o BatchMode=yes "$target" "$jijia_root/jijia-backup.sh"
+"$ssh_bin" -o BatchMode=yes "$target" bash -s -- "$jijia_root" "$release_name" "$image_tag" "$previous_image" "$previous_release" "$commit_sha" <"$repo_root/scripts/deploy-production-remote.sh"

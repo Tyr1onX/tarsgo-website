@@ -1,0 +1,43 @@
+name: Production Ops Checks
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: internal/backend/go.mod
+          cache-dependency-path: internal/backend/go.sum
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+        working-directory: internal/frontend
+      - name: Check shell scripts
+        run: for file in scripts/*.sh; do bash -n "$file"; done
+      - name: Exercise production operation safety paths
+        run: scripts/test-production-ops.sh
+      - name: Run backend tests
+        run: make backend-test
+      - name: Run frontend unit tests
+        run: |
+          pnpm run test:progress
+          pnpm run test:workbench
+        working-directory: internal/frontend
+      - name: Typecheck frontend
+        run: pnpm run typecheck
+        working-directory: internal/frontend
