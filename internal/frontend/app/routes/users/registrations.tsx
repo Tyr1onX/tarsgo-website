@@ -1,3 +1,5 @@
+import "./registrations.css";
+
 import {
   type FormEvent,
   type ReactNode,
@@ -14,10 +16,8 @@ import calendarIcon from "@iconify-icons/lucide/calendar-days";
 import clockIcon from "@iconify-icons/lucide/clock";
 import usersIcon from "@iconify-icons/lucide/users";
 import shieldCheckIcon from "@iconify-icons/lucide/shield-check";
-import badgeCheckIcon from "@iconify-icons/lucide/badge-check";
 import infoIcon from "@iconify-icons/lucide/info";
 import uploadCloudIcon from "@iconify-icons/lucide/upload-cloud";
-import sparklesIcon from "@iconify-icons/lucide/sparkles";
 import fileTextIcon from "@iconify-icons/lucide/file-text";
 import clipboardListIcon from "@iconify-icons/lucide/clipboard-list";
 import circleSlashIcon from "@iconify-icons/lucide/circle-slash-2";
@@ -61,43 +61,15 @@ type FlashState =
   | null;
 
 type StatusMeta = {
-  tone: "pending" | "approved" | "rejected" | "cancelled";
   badgeClassName: string;
-  dotClassName: string;
-  ringClassName: string;
 };
 
 const registrationStatusMeta: Record<RecruitmentPageRegistrationSummary["status"], StatusMeta> = {
-  pending_screening: {
-    tone: "pending",
-    badgeClassName: "border-amber-400/20 bg-amber-500/10 text-amber-300",
-    dotClassName: "bg-amber-400",
-    ringClassName: "ring-amber-500/20",
-  },
-  pending_interview: {
-    tone: "pending",
-    badgeClassName: "border-sky-400/20 bg-sky-500/10 text-sky-300",
-    dotClassName: "bg-sky-400",
-    ringClassName: "ring-sky-500/20",
-  },
-  admitted: {
-    tone: "approved",
-    badgeClassName: "border-emerald-400/20 bg-emerald-500/10 text-emerald-300",
-    dotClassName: "bg-emerald-400",
-    ringClassName: "ring-emerald-500/20",
-  },
-  rejected: {
-    tone: "rejected",
-    badgeClassName: "border-rose-400/20 bg-rose-500/10 text-rose-300",
-    dotClassName: "bg-rose-400",
-    ringClassName: "ring-rose-500/20",
-  },
-  withdrawn: {
-    tone: "cancelled",
-    badgeClassName: "border-slate-400/20 bg-slate-500/10 text-slate-300",
-    dotClassName: "bg-slate-400",
-    ringClassName: "ring-slate-500/20",
-  },
+  pending_screening: { badgeClassName: "admin-status--screening" },
+  pending_interview: { badgeClassName: "admin-status--interview" },
+  admitted: { badgeClassName: "admin-status--admitted" },
+  rejected: { badgeClassName: "admin-status--rejected" },
+  withdrawn: { badgeClassName: "admin-status--withdrawn" },
 };
 
 export function meta() {
@@ -377,7 +349,7 @@ export default function UserRegistrations({
   };
 
   return (
-    <div className="space-y-6 pb-8 sm:space-y-10 sm:pb-12">
+    <div className="admin-design candidate-recruitment space-y-6 pb-8 sm:space-y-8 sm:pb-10">
       <PageHero
         chipTone={headerChip.tone}
         chipLabel={headerChip.label}
@@ -401,6 +373,11 @@ export default function UserRegistrations({
               onSave={saveInterviewAttendance}
             />
           ) : null}
+          <RecruitmentProgressCard
+            summary={submittedSummary}
+            interviewAttendance={interviewAttendance}
+            interviewLoading={interviewLoading}
+          />
         </>
       ) : pageMode === "unavailable" ? (
         <UnavailableStateCard
@@ -451,57 +428,23 @@ function PageHero({
   chipTone: "form" | "submitted" | "unavailable";
   chipLabel: string;
 }) {
-  const chipStyle =
-    chipTone === "submitted"
-      ? "border-emerald-400/20 bg-emerald-500/10 text-emerald-300"
-      : chipTone === "unavailable"
-        ? "border-slate-400/20 bg-slate-500/10 text-slate-300"
-        : "border-primary-400/20 bg-primary-500/10 text-primary-300";
-  const chipDot =
-    chipTone === "submitted"
-      ? "bg-emerald-400"
-      : chipTone === "unavailable"
-        ? "bg-slate-400"
-        : "bg-primary-400";
+  const chipClassName = chipTone === "unavailable"
+    ? "admin-status--withdrawn"
+    : "admin-status--screening";
+  const description = chipTone === "form"
+    ? "填写报名信息，并在这里查看后续审核与面试安排。"
+    : chipTone === "submitted"
+      ? "查看当前审核进度、下一步安排与最终结果。"
+      : "当前没有开放的报名表；开放后会在此处更新。";
 
   return (
-    <section className="glass-panel relative overflow-hidden rounded-2xl">
-      <div
-        aria-hidden
-        className="bg-registrations-hero-glow pointer-events-none absolute inset-0 opacity-80"
-      />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -right-12 -top-12 h-48 w-48 rounded-full bg-primary-500/10 blur-3xl"
-      />
-      <div className="relative flex flex-col gap-4 px-5 py-5 sm:gap-6 sm:px-8 sm:py-10 lg:flex-row lg:items-center lg:justify-between">
-        <div className="flex items-start gap-3 sm:gap-4">
-          <div className="chip-gradient-soft hidden h-12 w-12 shrink-0 items-center justify-center rounded-xl text-primary-200 sm:flex">
-            <Icon icon={sparklesIcon} className="h-6 w-6" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.2em] text-primary-300 sm:text-[11px] sm:tracking-[0.28em]">
-              <span>Recruitment</span>
-              <span className="h-1 w-1 rounded-full bg-primary-500/70" />
-              <span>报名入口</span>
-            </div>
-            <h1 className="mt-1.5 text-xl font-semibold tracking-tight text-fg-primary sm:mt-3 sm:text-[2.125rem]">
-              纳新报名
-            </h1>
-          </div>
-        </div>
-        <div
-          className={`inline-flex w-fit items-center gap-2 self-start rounded-full border px-3 py-1 text-xs font-medium sm:px-3.5 sm:py-1.5 ${chipStyle}`}
-        >
-          <span className={`relative flex h-1.5 w-1.5`}>
-            <span
-              className={`absolute inset-0 animate-ping rounded-full opacity-75 ${chipDot}`}
-            />
-            <span className={`relative h-1.5 w-1.5 rounded-full ${chipDot}`} />
-          </span>
-          {chipLabel}
-        </div>
+    <section className="candidate-page-header admin-panel">
+      <div className="candidate-page-intro-copy">
+        <p className="candidate-eyebrow">TARS-GO <span aria-hidden="true">/</span> 候选人服务</p>
+        <h1 className="candidate-page-title">纳新报名</h1>
+        <p className="candidate-page-description">{description}</p>
       </div>
+      <span className={`admin-status ${chipClassName}`}>{chipLabel}</span>
     </section>
   );
 }
@@ -531,13 +474,10 @@ function FormStateView({
       <div className="space-y-6">
         <FormCoverCard form={form} />
 
-        <form
-          className="glass-panel rounded-2xl"
-          onSubmit={onSubmit}
-        >
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] px-6 py-5">
+        <form className="admin-panel candidate-form" onSubmit={onSubmit}>
+          <div className="candidate-section-header">
             <div className="flex items-center gap-3">
-              <div className="chip-gradient-soft flex h-9 w-9 items-center justify-center rounded-xl text-primary-300">
+              <div className="candidate-icon-box h-9 w-9">
                 <Icon icon={clipboardListIcon} className="h-4.5 w-4.5" />
               </div>
               <div>
@@ -547,14 +487,10 @@ function FormStateView({
                 </p>
               </div>
             </div>
-            <span className="hidden items-center gap-1.5 rounded-full border border-white/[0.08] bg-white/[0.03] px-3 py-1 text-[11px] font-medium uppercase tracking-wider text-fg-muted sm:inline-flex">
-              <span className="h-1.5 w-1.5 rounded-full bg-primary-400" />
-              Filling
-            </span>
           </div>
 
           {registrationFormData ? (
-            <div className="mx-6 mt-5 flex items-start gap-3 rounded-xl border border-primary-500/20 bg-primary-500/[0.07] px-4 py-3 text-sm leading-6 text-primary-100">
+            <div className="admin-notice admin-notice--warning candidate-form-notice mx-5 mt-5 sm:mx-7">
               <Icon
                 icon={infoIcon}
                 className="mt-0.5 h-4 w-4 shrink-0 text-primary-300"
@@ -565,7 +501,7 @@ function FormStateView({
             </div>
           ) : null}
 
-          <div className="space-y-6 px-6 py-6">
+          <div className="candidate-field-list">
             {form.fieldsSchema.map((field, index) => (
               <FieldRow
                 key={field.key}
@@ -578,7 +514,7 @@ function FormStateView({
             ))}
           </div>
 
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-b-2xl border-t border-white/[0.06] bg-black/20 px-6 py-4">
+          <div className="candidate-form-footer">
             <p className="flex items-center gap-2 text-xs text-fg-dim">
               <Icon icon={shieldCheckIcon} className="h-3.5 w-3.5" />
               提交后进入待初筛状态，可在结果页查看进度
@@ -586,7 +522,7 @@ function FormStateView({
             <button
               type="submit"
               disabled={submitting}
-              className="btn-gradient group inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
+              className="admin-button admin-button--primary group"
             >
               {submitting ? (
                 <>
@@ -610,7 +546,7 @@ function FormStateView({
         </form>
       </div>
 
-      <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+      <aside className="candidate-form-aside space-y-4 lg:sticky lg:top-6 lg:self-start">
         <SidebarCard
           icon={calendarIcon}
           label="开放时间"
@@ -645,9 +581,9 @@ function FormStateView({
           <p className="mt-1 text-xs text-fg-dim">达到上限后将停止接收新报名</p>
         </SidebarCard>
 
-        <div className="glass-panel rounded-2xl p-5">
+        <div className="admin-panel candidate-reminders">
           <div className="flex items-center gap-2.5">
-            <div className="chip-gradient-soft flex h-8 w-8 items-center justify-center rounded-xl text-accent-gold">
+            <div className="candidate-icon-box h-8 w-8">
               <Icon icon={infoIcon} className="h-4 w-4" />
             </div>
             <h3 className="text-sm font-semibold text-fg-primary">填写提醒</h3>
@@ -673,7 +609,7 @@ function FormCoverCard({
 }) {
   if (form.coverImageUrl) {
     return (
-      <section className="glass-panel overflow-hidden rounded-2xl">
+      <section className="admin-panel candidate-cover-card overflow-hidden">
         <div className="relative">
           <img
             src={form.coverImageUrl}
@@ -700,7 +636,7 @@ function FormCoverCard({
   }
 
   return (
-    <section className="glass-panel relative overflow-hidden rounded-2xl">
+    <section className="admin-panel candidate-cover-card relative overflow-hidden">
       <div
         aria-hidden
         className="bg-registrations-cover-glow pointer-events-none absolute inset-0"
@@ -732,17 +668,17 @@ function SidebarCard({
   accent: "primary" | "indigo" | "emerald" | "gold";
 }) {
   const accentMap = {
-    primary: "border-primary-500/20 bg-primary-500/10 text-primary-200",
-    indigo: "border-indigo-500/20 bg-indigo-500/10 text-indigo-200",
-    emerald: "border-emerald-500/20 bg-emerald-500/10 text-emerald-200",
-    gold: "border-amber-500/20 bg-amber-500/10 text-amber-200",
+    primary: "candidate-icon-box",
+    indigo: "candidate-icon-box",
+    emerald: "candidate-icon-box",
+    gold: "candidate-icon-box",
   } as const;
 
   return (
-    <div className="glass-panel rounded-2xl p-5">
+    <div className="admin-panel candidate-info-card">
       <div className="flex items-center gap-2.5">
         <div
-          className={`flex h-8 w-8 items-center justify-center rounded-xl border ${accentMap[accent]}`}
+          className={`flex h-8 w-8 items-center justify-center rounded-lg ${accentMap[accent]}`}
         >
           <Icon icon={icon} className="h-4 w-4" />
         </div>
@@ -758,7 +694,7 @@ function SidebarCard({
 function TipItem({ children }: { children: ReactNode }) {
   return (
     <li className="flex items-start gap-2.5">
-      <span className="mt-[7px] h-1 w-1 shrink-0 rounded-full bg-primary-400" />
+      <span className="candidate-bullet" />
       <span>{children}</span>
     </li>
   );
@@ -791,7 +727,7 @@ function FieldRow({
           {field.label}
         </label>
         {field.required ? (
-          <span className="inline-flex items-center rounded-md border border-rose-400/20 bg-rose-500/10 px-1.5 py-0.5 text-[10px] font-medium text-rose-300">
+          <span className="candidate-required">
             必填
           </span>
         ) : (
@@ -849,16 +785,11 @@ function CancelConfirmModal({
   }
 
   const visible = mounted && !closing;
-  const overlayClass = visible
-    ? "bg-black/70 backdrop-blur-md"
-    : "bg-black/0 backdrop-blur-0";
-  const panelClass = visible
-    ? "translate-y-0 scale-100 opacity-100 blur-0"
-    : "translate-y-3 scale-95 opacity-0 blur-sm";
+  const overlayClass = visible ? "bg-black/70" : "bg-black/0";
 
   return createPortal(
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center p-4 transition-[background-color,backdrop-filter] duration-[220ms] ease-out ${overlayClass}`}
+      className={`admin-design candidate-recruitment-modal fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-150 ${overlayClass}`}
       role="dialog"
       aria-modal="true"
       aria-labelledby="cancel-registration-title"
@@ -869,7 +800,7 @@ function CancelConfirmModal({
       }}
     >
       <div
-        className={`glass-panel glass-panel-strong w-full max-w-md transform-gpu overflow-hidden rounded-2xl shadow-2xl shadow-black/50 transition-[opacity,transform,filter] duration-[220ms] ease-[cubic-bezier(0.16,1,0.3,1)] ${panelClass}`}
+        className={`admin-panel candidate-modal-panel w-full max-w-md overflow-hidden transition-opacity duration-150 ${visible ? "opacity-100" : "opacity-0"}`}
         onClick={(event) => event.stopPropagation()}
       >
         <div
@@ -926,7 +857,7 @@ function CancelConfirmModal({
             type="button"
             onClick={onClose}
             disabled={cancelling}
-            className="btn-glass cursor-pointer rounded-xl px-4 py-2.5 text-sm font-medium"
+            className="admin-button admin-button--secondary"
           >
             保留报名
           </button>
@@ -934,7 +865,7 @@ function CancelConfirmModal({
             type="button"
             onClick={onConfirm}
             disabled={cancelling}
-            className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-sm font-semibold text-rose-300 transition-colors hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+            className="admin-button admin-button--danger"
           >
             {cancelling ? (
               <>
@@ -985,7 +916,7 @@ function InterviewAttendanceCard({
 
   if (loading || !data) {
     return (
-      <section className="glass-panel rounded-2xl p-5 text-sm text-fg-dim">
+      <section className="admin-panel candidate-panel candidate-interview-card p-5 text-sm text-fg-dim">
         正在加载面试安排...
       </section>
     );
@@ -995,7 +926,7 @@ function InterviewAttendanceCard({
 
   if (data.attendance === "pending" && !hasAvailableSessions) {
     return (
-      <section className="glass-panel rounded-2xl p-5">
+      <section className="admin-panel candidate-panel candidate-interview-card p-5">
         <h2 className="text-lg font-semibold text-fg-primary">线下面试</h2>
         <p className="mt-2 text-sm text-fg-muted">你已通过初筛。</p>
         <p className="mt-1 text-sm text-fg-dim">面试时间尚未开放，请等待后续通知。</p>
@@ -1005,7 +936,7 @@ function InterviewAttendanceCard({
 
   if (!editing && data.attendance === "attending" && data.session) {
     return (
-      <section className="glass-panel rounded-2xl p-5">
+      <section className="admin-panel candidate-panel candidate-interview-card p-5">
         <h2 className="text-lg font-semibold text-fg-primary">面试安排</h2>
         <dl className="mt-4 grid gap-3 sm:grid-cols-2">
           <InterviewInfo label="日期" value={data.session.date} />
@@ -1016,7 +947,7 @@ function InterviewAttendanceCard({
         </dl>
         <div className="mt-4 flex flex-wrap gap-2">
           {hasAvailableSessions ? (
-            <button type="button" onClick={() => setEditing(true)} className="btn-glass rounded-xl px-4 py-2.5 text-sm">
+            <button type="button" onClick={() => setEditing(true)} className="admin-button admin-button--secondary">
               修改选择
             </button>
           ) : null}
@@ -1024,7 +955,7 @@ function InterviewAttendanceCard({
             type="button"
             disabled={saving}
             onClick={() => void onSave("not_attending", null)}
-            className="btn-glass rounded-xl px-4 py-2.5 text-sm disabled:opacity-50"
+            className="admin-button admin-button--secondary"
           >
             暂不参加
           </button>
@@ -1035,12 +966,12 @@ function InterviewAttendanceCard({
 
   if (!editing && data.attendance === "not_attending") {
     return (
-      <section className="glass-panel rounded-2xl p-5">
+      <section className="admin-panel candidate-panel candidate-interview-card p-5">
         <h2 className="text-lg font-semibold text-fg-primary">线下面试</h2>
         <p className="mt-2 text-sm text-fg-muted">已记录：本次暂不参加。</p>
         {hasAvailableSessions ? (
-          <button type="button" onClick={() => setEditing(true)} className="btn-glass mt-4 rounded-xl px-4 py-2.5 text-sm">
-            改为参加
+          <button type="button" onClick={() => setEditing(true)} className="admin-button admin-button--primary mt-4">
+            重新参加
           </button>
         ) : (
           <p className="mt-2 text-sm text-fg-dim">当前没有开放的面试时段。</p>
@@ -1051,19 +982,19 @@ function InterviewAttendanceCard({
 
   if (!editing && data.attendance === "pending") {
     return (
-      <section className="glass-panel rounded-2xl p-5">
+      <section className="admin-panel candidate-panel candidate-interview-card p-5">
         <h2 className="text-lg font-semibold text-fg-primary">线下面试</h2>
         <p className="mt-2 text-sm text-fg-muted">你已通过初筛。</p>
         <p className="mt-1 text-sm text-fg-primary">是否参加本次线下面试？</p>
         <div className="mt-4 flex flex-wrap gap-2">
-          <button type="button" onClick={() => setEditing(true)} className="btn-gradient rounded-xl px-4 py-2.5 text-sm font-medium">
+          <button type="button" onClick={() => setEditing(true)} className="admin-button admin-button--primary">
             参加面试
           </button>
           <button
             type="button"
             disabled={saving}
             onClick={() => void onSave("not_attending", null)}
-            className="btn-glass rounded-xl px-4 py-2.5 text-sm disabled:opacity-50"
+            className="admin-button admin-button--secondary"
           >
             暂不参加
           </button>
@@ -1073,7 +1004,7 @@ function InterviewAttendanceCard({
   }
 
   return (
-    <section className="glass-panel rounded-2xl p-5">
+    <section className="admin-panel candidate-panel candidate-interview-card p-5">
       <h2 className="text-lg font-semibold text-fg-primary">选择面试时段</h2>
       <div className="mt-4 space-y-5">
         {groupedSessions.map(([date, sessions]) => (
@@ -1083,7 +1014,7 @@ function InterviewAttendanceCard({
               {sessions.map((session) => (
                 <label
                   key={session.id}
-                  className="flex cursor-pointer items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.02] px-4 py-3"
+                  className="candidate-session-option flex cursor-pointer items-start gap-3 rounded-lg border px-4 py-3"
                 >
                   <input
                     type="radio"
@@ -1109,20 +1040,20 @@ function InterviewAttendanceCard({
           type="button"
           disabled={saving || selectedSessionId == null}
           onClick={() => selectedSessionId != null && void onSave("attending", selectedSessionId)}
-          className="btn-gradient rounded-xl px-4 py-2.5 text-sm font-medium disabled:opacity-50"
+          className="admin-button admin-button--primary"
         >
-          {saving ? "保存中..." : "确认"}
+          {saving ? "保存中..." : "确认时段"}
         </button>
         <button
           type="button"
           disabled={saving}
           onClick={() => void onSave("not_attending", null)}
-          className="btn-glass rounded-xl px-4 py-2.5 text-sm disabled:opacity-50"
+          className="admin-button admin-button--secondary"
         >
           暂不参加
         </button>
         {data.attendance !== "pending" ? (
-          <button type="button" disabled={saving} onClick={() => setEditing(false)} className="btn-glass rounded-xl px-4 py-2.5 text-sm">
+          <button type="button" disabled={saving} onClick={() => setEditing(false)} className="admin-button admin-button--secondary">
             取消
           </button>
         ) : null}
@@ -1157,148 +1088,96 @@ function SubmittedStateCard({
 }) {
   const status = registrationStatusMeta[summary.status];
   const progress = getRecruitmentProgress(summary, interviewAttendance, interviewLoading);
-  const statusGlowClass =
-    status.tone === "approved"
-      ? "bg-registrations-status-approved"
-      : status.tone === "rejected"
-        ? "bg-registrations-status-rejected"
-        : status.tone === "cancelled"
-          ? "bg-registrations-status-cancelled"
-          : "bg-registrations-status-pending";
 
   return (
-    <section className="space-y-6">
-      <div
-        className={`glass-panel relative overflow-hidden rounded-2xl ring-1 ring-inset ${status.ringClassName}`}
-      >
-        <div
-          aria-hidden
-          className={`${statusGlowClass} pointer-events-none absolute inset-0`}
-        />
-        <div className="relative flex flex-col gap-4 px-5 py-5 sm:gap-6 sm:px-8 sm:py-8 lg:flex-row lg:items-start lg:justify-between">
-          <div className="flex items-start gap-3 sm:gap-4">
-            <div className="chip-gradient-soft flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-emerald-200 sm:h-12 sm:w-12">
-              <Icon icon={badgeCheckIcon} className="h-5 w-5 sm:h-6 sm:w-6" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2 text-[10px] font-medium uppercase tracking-[0.2em] text-emerald-300 sm:text-[11px] sm:tracking-[0.24em]">
-                <span>Submitted</span>
-                <span className="h-1 w-1 rounded-full bg-emerald-400/70" />
-                <span>已提交</span>
-              </div>
-              <h2 className="mt-1.5 text-xl font-semibold tracking-tight text-fg-primary sm:mt-2 sm:text-3xl">
-                你已完成报名
-              </h2>
-              <p className="mt-1.5 max-w-2xl text-sm leading-6 text-fg-muted sm:mt-2">
-                <span className="text-fg-primary">{summary.formTitle}</span>{" "}
-                已提交成功，当前页面会持续展示你的审核进度与最新结果。
-              </p>
-            </div>
-          </div>
-          <span
-            className={`inline-flex items-center gap-2 self-start rounded-full border px-3 py-1 text-xs font-medium sm:py-1.5 sm:text-sm ${status.badgeClassName}`}
+    <section className="admin-panel candidate-status-card">
+      <div className="candidate-status-heading">
+        <div className="min-w-0">
+          <p className="candidate-eyebrow">当前报名状态</p>
+          <h2 className="candidate-current-status">{progress.currentStage}</h2>
+          <p className="candidate-status-summary">
+            <span className="font-medium text-white">{summary.formTitle}</span>
+          </p>
+        </div>
+        <span className={`admin-status ${status.badgeClassName}`}>{progress.isTerminal ? "流程已结束" : "流程进行中"}</span>
+      </div>
+
+      <div className="candidate-next-action" aria-live="polite">
+        <p className="candidate-next-action-label">{progress.isTerminal ? "招新结果" : "下一步"}</p>
+        <p className="candidate-next-action-text">{progress.nextAction}</p>
+      </div>
+
+      {canCancel ? (
+        <div className="candidate-cancel-row">
+          <p>撤回后会保留本次报名历史；撤回后不会继续进入初筛。</p>
+          <button
+            type="button"
+            onClick={onCancel}
+            disabled={cancelling}
+            className="admin-button admin-button--danger"
           >
-            <span className={`h-1.5 w-1.5 rounded-full ${status.dotClassName}`} />
-            {progress.currentStage}
-          </span>
+            {cancelling ? (
+              <><Icon icon={loaderIcon} className="h-4 w-4 animate-spin" />撤回中...</>
+            ) : (
+              <><Icon icon={x} className="h-4 w-4" />撤回报名</>
+            )}
+          </button>
         </div>
+      ) : null}
+    </section>
+  );
+}
 
-        <div className="relative border-t border-white/[0.06] bg-black/20 px-5 py-5 sm:px-8 sm:py-6">
-          <div className="rounded-2xl border border-primary-400/20 bg-primary-500/[0.07] p-4 sm:px-5 sm:py-4">
-            <div className="text-[11px] font-medium uppercase tracking-[0.16em] text-primary-200">
-              {progress.isTerminal ? "当前结果" : "当前阶段"}
-            </div>
-            <p className="mt-1 text-base font-semibold text-fg-primary">{progress.currentStage}</p>
-            <p className="mt-1 text-sm leading-6 text-fg-muted">
-              {progress.isTerminal ? progress.nextAction : `下一步：${progress.nextAction}`}
-            </p>
-          </div>
+function RecruitmentProgressCard({
+  summary,
+  interviewAttendance,
+  interviewLoading,
+}: {
+  summary: RecruitmentPageRegistrationSummary;
+  interviewAttendance: InterviewAttendanceResult | null;
+  interviewLoading: boolean;
+}) {
+  const progress = getRecruitmentProgress(summary, interviewAttendance, interviewLoading);
 
-          <ol aria-label="招新流程进度" className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
-            {progress.steps.map((step, index) => {
-              const stepStyle =
-                step.state === "current"
-                  ? "border-primary-400/40 bg-primary-500/10 text-fg-primary"
-                  : step.state === "complete"
-                    ? "border-emerald-400/20 bg-emerald-500/[0.06] text-emerald-100"
-                    : step.state === "skipped"
-                      ? "border-white/[0.04] bg-white/[0.01] text-fg-dim/60"
-                      : "border-white/[0.06] bg-white/[0.02] text-fg-dim";
-              const markerStyle =
-                step.state === "current"
-                  ? "bg-primary-400 text-slate-950"
-                  : step.state === "complete"
-                    ? "bg-emerald-400/15 text-emerald-200"
-                    : "bg-white/[0.05] text-fg-dim";
-
-              return (
-                <li
-                  key={step.label}
-                  aria-current={step.state === "current" ? "step" : undefined}
-                  className={`flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-sm ${stepStyle}`}
-                >
-                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-semibold ${markerStyle}`}>
-                    {step.state === "complete" ? "✓" : step.state === "skipped" ? "–" : index + 1}
-                  </span>
-                  <span className="font-medium">{step.label}</span>
-                </li>
-              );
-            })}
-          </ol>
+  return (
+    <section className="admin-panel candidate-progress-card">
+      <div className="candidate-progress-section">
+        <div className="candidate-section-heading">
+          <h3>招新流程</h3>
+          <p>每一步的状态会在这里更新</p>
         </div>
-
-        <div className="relative border-t border-white/[0.06] px-5 py-5 sm:px-8">
-          <div className="flex items-center gap-2.5">
-            <div className="chip-gradient-soft flex h-8 w-8 items-center justify-center rounded-xl text-primary-300">
-              <Icon icon={shieldCheckIcon} className="h-4 w-4" />
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold text-fg-primary">意向组</h3>
-              <p className="text-xs text-fg-dim">
-                本次招新只按一个主要意向组推进初筛与面试。
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-4 rounded-xl border border-white/[0.06] bg-white/[0.02] px-4 py-4">
-            <div className="text-xs text-fg-dim">当前意向组</div>
-            <div className="mt-1 text-base font-semibold text-fg-primary">
-              {summary.preferredGroup?.name ?? "未设置"}
-            </div>
-          </div>
-        </div>
-
-        <div className="relative flex flex-wrap gap-x-5 gap-y-1 border-t border-white/[0.06] px-5 py-3 text-xs text-fg-dim sm:px-8">
-          <span>报名时间：{formatDateTime(summary.submittedAt) || "—"}</span>
-          <span>最近更新：{formatDateTime(summary.updatedAt) || "—"}</span>
-        </div>
-
-        {canCancel ? (
-          <div className="relative flex flex-wrap items-center justify-between gap-3 border-t border-white/[0.06] px-6 py-4 sm:px-8">
-            <p className="flex items-center gap-2 text-xs text-fg-dim">
-              <Icon icon={infoIcon} className="h-3.5 w-3.5" />
-              撤回后会保留本次报名历史，不再进入后续初筛
-            </p>
-            <button
-              type="button"
-              onClick={onCancel}
-              disabled={cancelling}
-              className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2.5 text-sm font-medium text-rose-300 transition-colors hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+        <ol aria-label="招新流程进度" className="candidate-progress-list">
+          {progress.steps.map((step, index) => (
+            <li
+              key={step.label}
+              aria-current={step.state === "current" ? "step" : undefined}
+              className={`candidate-step candidate-step--${step.state}`}
             >
-              {cancelling ? (
-                <>
-                  <Icon icon={loaderIcon} className="h-4 w-4 animate-spin" />
-                  撤回中...
-                </>
-              ) : (
-                <>
-                  <Icon icon={x} className="h-4 w-4" />
-                  撤回报名
-                </>
-              )}
-            </button>
-          </div>
-        ) : null}
+              <span className="candidate-step-marker">
+                {step.state === "complete" ? "✓" : step.state === "skipped" ? "–" : index + 1}
+              </span>
+              <span className="candidate-step-label">{step.label}</span>
+              <span className="candidate-step-state">
+                {step.state === "complete" ? "已完成" : step.state === "current" ? "当前" : step.state === "skipped" ? "未进入" : "待开始"}
+              </span>
+            </li>
+          ))}
+        </ol>
+      </div>
+
+      <div className="candidate-meta-grid">
+        <div className="candidate-meta-item">
+          <span>报名时间</span>
+          <strong>{formatDateTime(summary.submittedAt) || "—"}</strong>
+        </div>
+        <div className="candidate-meta-item">
+          <span>最近更新</span>
+          <strong>{formatDateTime(summary.updatedAt) || "—"}</strong>
+        </div>
+        <div className="candidate-meta-item">
+          <span>当前意向组</span>
+          <strong>{summary.preferredGroup?.name ?? "未设置"}</strong>
+        </div>
       </div>
     </section>
   );
@@ -1307,64 +1186,12 @@ function SubmittedStateCard({
 function UnavailableStateCard({ reason }: { reason: string }) {
   const isQuotaReached = reason.includes("报名人数已满");
 
-  if (isQuotaReached) {
-    return (
-      <section className="glass-panel relative overflow-hidden rounded-2xl px-6 py-14 ring-1 ring-inset ring-amber-500/20 sm:px-10 sm:py-16">
-        <div
-          aria-hidden
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(245,158,11,0.18),transparent_55%)]"
-        />
-        <div
-          aria-hidden
-          className="pointer-events-none absolute -top-16 left-1/2 h-56 w-56 -translate-x-1/2 rounded-full bg-amber-500/10 blur-3xl"
-        />
-        <div className="relative mx-auto flex max-w-3xl flex-col items-center text-center">
-          <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl border border-amber-500/25 bg-amber-500/10 text-amber-200">
-            <span
-              aria-hidden
-              className="absolute inset-0 rounded-2xl bg-amber-500/10 blur-xl"
-            />
-            <Icon icon={circleSlashIcon} className="relative h-9 w-9" />
-          </div>
-
-          <div className="mt-6 inline-flex items-center gap-2 rounded-full border border-amber-500/20 bg-amber-500/10 px-3.5 py-1.5 text-[11px] font-medium uppercase tracking-[0.28em] text-amber-200">
-            <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shadow-[0_0_12px_rgba(251,191,36,0.6)]" />
-            Capacity Full
-          </div>
-
-          <h2 className="mt-5 text-3xl font-semibold tracking-tight text-fg-primary sm:text-[2.4rem]">
-            本轮报名名额已满
-          </h2>
-          <p className="mt-4 max-w-xl text-sm leading-7 text-fg-muted sm:text-base">
-            报名已结束
-          </p>
-        </div>
-      </section>
-    );
-  }
-
   return (
-    <section className="glass-panel relative overflow-hidden rounded-2xl px-6 py-12 text-center sm:px-10 sm:py-14">
-      <div
-        aria-hidden
-        className="bg-registrations-empty-glow pointer-events-none absolute inset-0 opacity-60"
-      />
-      <div className="relative mx-auto flex max-w-xl flex-col items-center">
-        <div className="chip-gradient-soft flex h-14 w-14 items-center justify-center rounded-2xl text-fg-muted">
-          <Icon icon={circleSlashIcon} className="h-7 w-7" />
-        </div>
-        <p className="mt-5 text-[11px] font-medium uppercase tracking-[0.28em] text-fg-dim">
-          Unavailable · 暂未开放
-        </p>
-        <h2 className="mt-3 text-2xl font-semibold text-fg-primary sm:text-3xl">
-          当前暂不可报名
-        </h2>
-        <p className="mt-3 text-sm leading-7 text-fg-muted">{reason}</p>
-        <div className="mt-6 flex items-center gap-2 rounded-full border border-white/[0.08] bg-white/[0.03] px-3.5 py-1.5 text-xs text-fg-muted">
-          <Icon icon={clockIcon} className="h-3.5 w-3.5" />
-          请留意站内通知，开放后将在此处更新
-        </div>
-      </div>
+    <section className="admin-panel candidate-unavailable-card">
+      <span className="admin-status admin-status--withdrawn">{isQuotaReached ? "报名已结束" : "暂未开放"}</span>
+      <h2>{isQuotaReached ? "本轮报名名额已满" : "当前暂不可报名"}</h2>
+      <p>{isQuotaReached ? "本轮报名已结束，感谢关注 TARS-GO。" : reason}</p>
+      {!isQuotaReached ? <p className="candidate-unavailable-hint"><Icon icon={clockIcon} className="h-4 w-4" />请留意站内通知，开放后会在此处更新。</p> : null}
     </section>
   );
 }
@@ -1382,7 +1209,7 @@ function ExistingUploadState({
   }
 
   return (
-    <div className="rounded-xl border border-white/[0.06] bg-black/20 px-4 py-3 text-sm text-fg-muted">
+    <div className="candidate-upload-summary rounded-lg border px-4 py-3 text-sm text-fg-muted">
       <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.18em] text-fg-dim">
         <Icon icon={paperclipIcon} className="h-3.5 w-3.5" />
         当前已上传
@@ -1391,7 +1218,7 @@ function ExistingUploadState({
         {files.map((file, index) => (
           <div
             key={`${field.key}-${file.fileName}-${index}`}
-            className="flex items-center justify-between gap-3 rounded-xl border border-white/[0.06] bg-white/[0.03] px-3 py-2"
+            className="candidate-upload-file flex items-center justify-between gap-3 rounded-md border px-3 py-2"
           >
             <div className="flex min-w-0 items-center gap-2">
               <Icon icon={fileTextIcon} className="h-4 w-4 shrink-0 text-primary-300" />
@@ -1417,7 +1244,7 @@ function renderFieldControl(
   onChange: (key: string, value: unknown) => void,
 ) {
   const commonClassName =
-    "w-full rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-fg-primary placeholder:text-fg-dim transition-colors focus:border-primary-400/60 focus:outline-none focus:ring-2 focus:ring-primary-400/30";
+    "admin-field candidate-field";
 
   if (field.type === "textarea") {
     return (
@@ -1459,11 +1286,7 @@ function renderFieldControl(
             return (
               <label
                 key={option.value}
-                className={`inline-flex cursor-pointer items-center gap-2 rounded-xl border px-3.5 py-2 text-sm transition-colors ${
-                  checked
-                    ? "border-primary-500/50 bg-primary-500/10 text-primary-100"
-                    : "border-white/[0.08] bg-black/20 text-fg-muted hover:border-white/[0.1] hover:bg-white/[0.03] hover:text-fg-primary"
-                }`}
+                className={`candidate-choice ${checked ? "candidate-choice--selected" : ""}`}
               >
                 <span
                   className={`flex h-4 w-4 items-center justify-center rounded-full border ${
@@ -1545,7 +1368,7 @@ function renderFieldControl(
     return (
       <label
         htmlFor={fieldId}
-        className="group flex cursor-pointer items-center gap-3 rounded-xl border border-dashed border-white/[0.08] bg-black/20 px-4 py-3 text-sm text-fg-muted transition-colors hover:border-primary-500/40 hover:bg-white/[0.03] hover:text-fg-primary"
+        className="candidate-upload-field group flex cursor-pointer items-center gap-3 text-sm text-fg-muted"
       >
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.03] text-primary-300 transition-colors group-hover:border-primary-500/30 group-hover:bg-primary-500/10">
           <Icon icon={uploadCloudIcon} className="h-4.5 w-4.5" />
