@@ -1,5 +1,4 @@
 import alertTriangle from "@iconify-icons/lucide/alert-triangle";
-import arrowRight from "@iconify-icons/lucide/arrow-right";
 import clock from "@iconify-icons/lucide/clock";
 import crown from "@iconify-icons/lucide/crown";
 import editIcon from "@iconify-icons/lucide/edit-3";
@@ -14,7 +13,6 @@ import power from "@iconify-icons/lucide/power";
 import powerOff from "@iconify-icons/lucide/power-off";
 import rotateCcw from "@iconify-icons/lucide/rotate-ccw";
 import searchIcon from "@iconify-icons/lucide/search";
-import shieldIcon from "@iconify-icons/lucide/shield";
 import starIcon from "@iconify-icons/lucide/star";
 import starOff from "@iconify-icons/lucide/star-off";
 import tagIcon from "@iconify-icons/lucide/tag";
@@ -24,12 +22,10 @@ import userMinus from "@iconify-icons/lucide/user-minus";
 import userPlus from "@iconify-icons/lucide/user-plus";
 import usersIcon from "@iconify-icons/lucide/users";
 import x from "@iconify-icons/lucide/x";
-import zap from "@iconify-icons/lucide/zap";
-import { Icon, type IconifyIcon } from "@iconify/react";
+import { Icon } from "@iconify/react";
 import { type ChangeEvent, type FormEvent, type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useOutletContext } from "react-router";
-import { AnimatedSelect } from "~/components/animated-select";
 import { ModalShell } from "~/components/modal-shell";
 import { Notify } from "~/components/notify";
 import {
@@ -199,36 +195,30 @@ function getErrorMessage(error: unknown) {
 
 function getGroupStatusMeta(status: number) {
   if (status === 1) {
-    return { label: "启用", icon: power, dot: "bg-emerald-400", className: "text-emerald-300 bg-emerald-500/10 border-emerald-400/20" };
+    return { label: "启用", icon: power, dot: "admin-groups__status-dot--active", className: "admin-status--group-enabled" };
   }
-  return { label: "停用", icon: powerOff, dot: "bg-gray-500", className: "text-gray-300 bg-gray-500/10 border-gray-400/20" };
+  return { label: "停用", icon: powerOff, dot: "admin-groups__status-dot--disabled", className: "admin-status--group-disabled" };
 }
 
 function getGroupShowMeta(show: number) {
   if (show === 1) {
-    return { label: "展示", icon: eyeIcon, className: "text-sky-300 bg-sky-500/10 border-sky-400/20" };
+    return { label: "展示", icon: eyeIcon, className: "admin-groups__visibility--visible" };
   }
-  return { label: "隐藏", icon: eyeOff, className: "text-gray-300 bg-gray-500/10 border-gray-400/20" };
+  return { label: "隐藏", icon: eyeOff, className: "admin-groups__visibility--hidden" };
 }
 
 function getSystemRoleMeta(roleName: string) {
-  if (roleName === "super_admin") {
-    return "text-amber-300 bg-amber-500/10 border border-amber-400/20";
-  }
-  if (roleName === "admin") {
-    return "text-sky-300 bg-sky-500/10 border border-sky-400/20";
-  }
-  return "text-gray-300 bg-gray-500/10 border border-gray-400/20";
+  return roleName === "super_admin" || roleName === "admin" ? "admin-role--elevated" : "";
 }
 
 function getMemberRoleMeta(role: number) {
   if (role === 2) {
-    return { label: "组长", className: "text-primary-300 bg-primary-500/10 border border-primary-400/20" };
+    return { label: "组长", className: "admin-groups__member-role--leader" };
   }
   if (role === 1) {
-    return { label: "组内管理", className: "text-sky-300 bg-sky-500/10 border border-sky-400/20" };
+    return { label: "组内管理", className: "admin-groups__member-role--manager" };
   }
-  return { label: "成员", className: "text-gray-300 bg-gray-500/10 border border-gray-400/20" };
+  return { label: "成员", className: "admin-groups__member-role--member" };
 }
 
 function normalizeMemberSearchKeyword(value: string) {
@@ -288,13 +278,6 @@ export default function UserGroups() {
   const [cardActionGroupId, setCardActionGroupId] = useState<number | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<AdminUserGroupListItem | AdminUserGroupDetail | null>(null);
   const [deletingGroup, setDeletingGroup] = useState(false);
-
-  const averageMembers = useMemo(() => {
-    if (summary.total === 0) {
-      return "0";
-    }
-    return (summary.totalMembers / summary.total).toFixed(1);
-  }, [summary.total, summary.totalMembers]);
 
   const normalizedMemberSearchKeyword = useMemo(
     () => normalizeMemberSearchKeyword(memberSearchKeyword),
@@ -815,11 +798,11 @@ export default function UserGroups() {
 
   if (noAdminPermission) {
     return (
-      <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 p-6">
-        <h1 className="text-xl font-semibold text-white">用户分组</h1>
-        <p className="mt-2 text-sm leading-6 text-amber-100/80">
-          当前账号没有管理员权限，无法访问此页面。
-        </p>
+      <div className="admin-design admin-groups">
+        <div className="admin-notice admin-notice--warning">
+          <h1 className="admin-page-title">用户分组</h1>
+          <p className="mt-2 leading-6">当前账号没有管理员权限，无法访问此页面。</p>
+        </div>
       </div>
     );
   }
@@ -827,7 +810,7 @@ export default function UserGroups() {
   /* ─── Render ─── */
 
   return (
-    <div className="space-y-6">
+    <div className="admin-design admin-groups space-y-4">
       {/* Notification */}
       <Notify
         tone={flash?.type ?? "success"}
@@ -838,70 +821,56 @@ export default function UserGroups() {
       />
 
       {/* Header */}
-      <div className="motion-fade-up flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl chip-gradient-soft text-primary-200">
-            <Icon icon={layers} className="h-5 w-5" />
-          </div>
-          <div>
-            <h1 className="text-2xl font-bold text-white">用户分组</h1>
-            <p className="text-sm text-gray-500">管理用户分组与成员分配</p>
-          </div>
+      <header className="admin-page-header flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <div className="admin-eyebrow">吉甲 · 组织目录</div>
+          <h1 className="admin-page-title">用户分组</h1>
+          <p className="admin-page-description">查看组别负责人和成员规模，快速进入成员管理或编辑组别信息。</p>
         </div>
         <button
           type="button"
           onClick={openCreateModal}
-          className="inline-flex items-center gap-2 btn-gradient rounded-xl px-5 py-2.5 text-sm font-medium text-white cursor-pointer"
+          className="admin-button admin-button--primary shrink-0"
         >
           <Icon icon={folderPlus} className="h-4 w-4" />
           新建分组
         </button>
-      </div>
+      </header>
 
       {/* Stats */}
-      <div className="motion-fade-up grid grid-cols-2 xl:grid-cols-4 gap-4" style={{ animationDelay: "80ms" }}>
-        <StatCard icon={layers} label="分组总数" value={summary.total} color="primary" />
-        <StatCard
-          icon={power}
-          label="启用分组"
-          value={summary.active}
-          color="emerald"
-          extra={summary.disabled > 0 ? `停用 ${summary.disabled}` : undefined}
-        />
-        <StatCard icon={starIcon} label="默认分组" value={summary.defaultCount} color="amber" />
-        <StatCard
-          icon={usersIcon}
-          label="总成员数"
-          value={summary.totalMembers}
-          color="sky"
-          extra={`均 ${averageMembers}/组`}
-        />
+      <div className="admin-groups__summary" aria-label="用户分组统计">
+        <span>分组<strong>{summary.total}</strong></span>
+        <span>启用<strong>{summary.active}</strong></span>
+        <span>停用<strong>{summary.disabled}</strong></span>
+        <span>默认<strong>{summary.defaultCount}</strong></span>
+        <span>成员<strong>{summary.totalMembers}</strong></span>
       </div>
 
       {/* Filter bar */}
-      <div className="motion-fade-up flex flex-col gap-3 glass-panel rounded-2xl p-4 sm:flex-row sm:items-center sm:justify-between" style={{ animationDelay: "140ms" }}>
+      <div className="admin-filter-panel admin-groups__filter">
         <div>
-          <div className="text-sm font-medium text-white">筛选分组</div>
-          <div className="mt-0.5 text-xs text-gray-500">按状态快速筛选，所有分组在当前页展示。</div>
+          <div className="text-sm font-semibold text-[var(--admin-text)]">组别列表</div>
+          <div className="mt-0.5 text-xs text-[var(--admin-dim)]">按状态筛选当前组别。</div>
         </div>
-        <div className="flex items-center gap-2">
-          <AnimatedSelect
-            ariaLabel="筛选状态"
-            value={String(statusFilter ?? "")}
-            onChange={(value) => setStatusFilter(value === "" ? "" : Number(value))}
-            options={statusOptions.map((o) => ({
-              value: o.value,
-              label: o.label,
-            }))}
-            fitContent
-          />
+        <div className="admin-groups__filter-controls">
+          <label className="admin-groups__status-filter">
+            <span className="admin-field-label">分组状态</span>
+            <select
+              aria-label="筛选分组状态"
+              value={String(statusFilter ?? "")}
+              onChange={(event) => setStatusFilter(event.target.value === "" ? "" : Number(event.target.value))}
+              className="admin-field"
+            >
+              {statusOptions.map((option) => <option key={option.value || "all"} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
           <button
             type="button"
             onClick={() => {
               setFlash(null);
               setStatusFilter(defaultQuery.status);
             }}
-            className="inline-flex items-center gap-1.5 btn-glass rounded-xl px-3.5 py-2 text-sm text-gray-400 transition-colors cursor-pointer"
+            className="admin-button admin-button--secondary"
           >
             <Icon icon={rotateCcw} className="h-3.5 w-3.5" />
             重置
@@ -909,247 +878,184 @@ export default function UserGroups() {
         </div>
       </div>
 
-      {/* Group cards */}
-      <div className="motion-fade-up grid gap-4 md:grid-cols-2 xl:grid-cols-3" style={{ animationDelay: "200ms" }}>
+      {/* Group list */}
+      <section className="admin-panel overflow-hidden" aria-label="用户组列表">
+        <div className="admin-groups__list-heading">
+          <span>分组信息</span>
+          <span>共 {groups.length} 个</span>
+        </div>
         {loadingList ? (
-          <div className="col-span-full flex items-center justify-center glass-panel rounded-2xl px-6 py-16">
+          <div className="admin-table-empty">
             <div className="flex flex-col items-center gap-3">
-              <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-700 border-t-primary-500" />
-              <span className="text-sm text-gray-500">正在加载...</span>
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--admin-border)] border-t-[var(--admin-accent)]" />
+              <span className="text-sm">正在加载...</span>
             </div>
           </div>
         ) : groups.length === 0 ? (
-          <div className="col-span-full flex flex-col items-center justify-center rounded-2xl border border-dashed border-white/[0.06] bg-black/20 px-6 py-16 text-center">
-            <div className="mb-3 flex h-12 w-12 items-center justify-center rounded-full bg-white/[0.03]">
-              <Icon icon={layers} className="h-6 w-6 text-gray-600" />
+          <div className="admin-groups__empty">
+            <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-full border border-[var(--admin-border)] text-[var(--admin-accent-soft)]">
+              <Icon icon={layers} className="h-5 w-5" />
             </div>
-            <span className="text-sm text-gray-500">
+            <span className="text-sm text-[var(--admin-muted)]">
               {statusFilter === "" ? "暂无用户组" : "当前筛选下暂无用户组"}
             </span>
           </div>
         ) : (
-          groups.map((group) => (
-            <GroupCard
-              key={group.id}
-              group={group}
-              isBusy={cardActionGroupId === group.id}
-              onEdit={() => openEditModal(group)}
-              onToggleDefault={() => void handleToggleDefault(group)}
-              onToggleStatus={() => void handleToggleStatus(group)}
-              onDelete={() => setDeleteTarget(group)}
-              onMembers={() => openDrawer(group.id)}
-            />
-          ))
+          <div className="admin-groups__list">
+            {groups.map((group) => (
+              <GroupCard
+                key={group.id}
+                group={group}
+                isBusy={cardActionGroupId === group.id}
+                onEdit={() => openEditModal(group)}
+                onToggleDefault={() => void handleToggleDefault(group)}
+                onToggleStatus={() => void handleToggleStatus(group)}
+                onDelete={() => setDeleteTarget(group)}
+                onMembers={() => openDrawer(group.id)}
+              />
+            ))}
+          </div>
         )}
-      </div>
+      </section>
 
       {/* Create / Edit modal */}
       <ModalShell
         open={groupModalOpen}
         title={editingGroupId === null ? "新建用户组" : "编辑用户组"}
         headerAccent={
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl chip-gradient-soft">
+          <div className="admin-groups__modal-icon">
             <Icon
               icon={editingGroupId === null ? folderPlus : editIcon}
-              className="h-4 w-4 text-primary-200"
+              className="h-4 w-4"
             />
           </div>
         }
         onClose={closeGroupModal}
         widthClass="max-w-2xl"
         zIndexClass="z-[70]"
-        panelClassName="glass-panel glass-panel-strong rounded-2xl shadow-2xl shadow-black/40"
+        panelClassName="admin-design admin-groups admin-groups__modal"
         bodyClassName="max-h-[calc(100vh-10rem)] overflow-y-auto px-6 py-5"
-        backdropClassName="bg-black/70 backdrop-blur-sm"
+        backdropClassName="admin-groups__modal-backdrop"
       >
-            <form onSubmit={handleSubmitGroup} className="space-y-6">
-              {/* ── Section: 基本信息 ── */}
-              <section className="rounded-2xl border border-white/[0.06] bg-white/[0.03] overflow-hidden">
-                <div className="flex items-center gap-2.5 border-b border-white/[0.06] px-5 py-3">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-md chip-gradient-soft">
-                    <Icon icon={layers} className="h-3.5 w-3.5 text-primary-200" />
+        <form onSubmit={handleSubmitGroup} className="space-y-3">
+          <section className="admin-detail-section">
+            <div className="admin-groups__section-heading"><Icon icon={layers} className="h-4 w-4" /><h3>基本信息</h3></div>
+            <div className="space-y-4 pt-3">
+              <div>
+                <FieldLabel htmlFor="group-name" label="分组名称" />
+                <input
+                  id="group-name"
+                  type="text"
+                  value={groupForm.name}
+                  onChange={(event) => setGroupForm((previous) => ({ ...previous, name: event.target.value }))}
+                  className={inputClassName()}
+                  placeholder="输入分组名称"
+                  required
+                />
+              </div>
+              <div>
+                <FieldLabel label="分组 Logo" />
+                <div className="admin-groups__logo-picker">
+                  <div className="admin-groups__logo-preview">
+                    {groupLogoPreviewSrc ? (
+                      <img src={groupLogoPreviewSrc} alt={groupForm.name.trim() || "分组 Logo"} className="h-full w-full object-cover" />
+                    ) : <Icon icon={layers} className="h-7 w-7" />}
                   </div>
-                  <span className="text-sm font-medium text-gray-200">基本信息</span>
-                </div>
-                <div className="px-5 py-4 space-y-4">
-                  <div>
-                    <FieldLabel htmlFor="group-name" label="分组名称" />
-                    <input
-                      id="group-name"
-                      type="text"
-                      value={groupForm.name}
-                      onChange={(e) => setGroupForm((p) => ({ ...p, name: e.target.value }))}
-                      className={inputClassName()}
-                      placeholder="输入分组名称"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <FieldLabel label="分组 Logo" />
-                    <div className="flex flex-col gap-3 rounded-xl border border-white/[0.08] bg-black/30 p-4 sm:flex-row sm:items-center">
-                      <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-white/[0.08] bg-black/30">
-                        {groupLogoPreviewSrc ? (
-                          <img
-                            src={groupLogoPreviewSrc}
-                            alt={groupForm.name.trim() || "分组 Logo"}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <Icon icon={layers} className="h-8 w-8 text-gray-600" />
-                        )}
-                      </div>
-                      <div className="flex flex-1 items-center gap-2">
-                        <input
-                          ref={groupLogoInputRef}
-                          type="file"
-                          accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
-                          onChange={handleGroupLogoSelect}
-                          className="hidden"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => groupLogoInputRef.current?.click()}
-                          className="inline-flex items-center gap-2 btn-glass rounded-xl px-4 py-2 text-sm text-gray-200 transition-colors cursor-pointer"
-                        >
-                          选择图片
-                        </button>
-                        <button
-                          type="button"
-                          onClick={handleRemoveGroupLogo}
-                          disabled={!groupLogoPreviewSrc}
-                          className="inline-flex items-center gap-2 rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-2 text-sm text-rose-300 transition-colors hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-40 cursor-pointer"
-                        >
-                          移除
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <FieldLabel label="分组描述" />
-                    <textarea
-                      value={groupForm.description}
-                      onChange={(e) => setGroupForm((p) => ({ ...p, description: e.target.value }))}
-                      className={`${inputClassName()} min-h-24 resize-y`}
-                      placeholder="描述分组用途（选填）"
-                    />
-                  </div>
-                </div>
-              </section>
-
-              {/* ── Section: 展示与状态 ── */}
-              <section className="rounded-2xl border border-white/[0.06] bg-white/[0.03] overflow-hidden">
-                <div className="flex items-center gap-2.5 border-b border-white/[0.06] px-5 py-3">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-md bg-sky-500/10">
-                    <Icon icon={zap} className="h-3.5 w-3.5 text-sky-400" />
-                  </div>
-                  <span className="text-sm font-medium text-gray-200">展示与状态</span>
-                </div>
-                <div className="px-5 py-4">
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    <div>
-                      <FieldLabel htmlFor="group-status" label="状态" />
-                      <AnimatedSelect
-                        id="group-status"
-                        ariaLabel="状态"
-                        value={groupForm.status}
-                        onChange={(value) =>
-                          setGroupForm((p) => ({
-                            ...p,
-                            status: value,
-                            isDefault: value === "1" ? p.isDefault : false,
-                          }))
-                        }
-                        options={statusOptions
-                          .filter((o) => o.value !== "")
-                          .map((o) => ({
-                            value: o.value,
-                            label: o.label,
-                          }))}
-                      />
-                    </div>
-                    <div>
-                      <FieldLabel htmlFor="group-show" label="前台展示" />
-                      <AnimatedSelect
-                        id="group-show"
-                        ariaLabel="前台展示"
-                        value={groupForm.show}
-                        onChange={(value) => setGroupForm((p) => ({ ...p, show: value }))}
-                        options={[
-                          { value: "1", label: "展示" },
-                          { value: "0", label: "隐藏" },
-                        ]}
-                      />
-                    </div>
-                  </div>
-                </div>
-              </section>
-
-              {/* ── Section: 标签 ── */}
-              <section className="rounded-2xl border border-white/[0.06] bg-white/[0.03] overflow-hidden">
-                <div className="flex items-center gap-2.5 border-b border-white/[0.06] px-5 py-3">
-                  <div className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-500/10">
-                    <Icon icon={tagIcon} className="h-3.5 w-3.5 text-amber-400" />
-                  </div>
-                  <span className="text-sm font-medium text-gray-200">标签</span>
-                  <span className="text-xs text-gray-600">输入后按回车添加</span>
-                </div>
-                <div className="px-5 py-4">
-                  <TagInput
-                    tags={groupForm.tags}
-                    onChange={(tags) => setGroupForm((p) => ({ ...p, tags }))}
-                  />
-                </div>
-              </section>
-
-              {/* ── Default group toggle ── */}
-              <label className={`group/toggle flex items-center gap-4 rounded-xl border px-5 py-4 transition-all cursor-pointer ${groupForm.isDefault ? "border-amber-400/30 bg-gradient-to-r from-amber-500/[0.08] to-transparent shadow-sm shadow-amber-500/5" : "border-white/[0.06] bg-white/[0.03] hover:border-white/[0.1] hover:bg-white/[0.05]"} ${groupForm.status !== "1" ? "opacity-50 cursor-not-allowed" : ""}`}>
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition-colors ${groupForm.isDefault ? "bg-amber-500/15" : "bg-white/[0.04] group-hover/toggle:bg-white/[0.06]"}`}>
-                  <Icon icon={groupForm.isDefault ? starIcon : starOff} className={`h-5 w-5 transition-colors ${groupForm.isDefault ? "text-amber-400" : "text-gray-500 group-hover/toggle:text-gray-400"}`} />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium text-white">设为默认分组</div>
-                  <p className="mt-0.5 text-xs text-gray-500">新注册用户将自动加入默认分组，同一时间仅保留一个默认分组</p>
-                </div>
-                <div className="shrink-0">
                   <input
-                    type="checkbox"
-                    checked={groupForm.isDefault}
-                    onChange={(e) => setGroupForm((p) => ({ ...p, isDefault: e.target.checked }))}
-                    disabled={groupForm.status !== "1"}
-                    className="sr-only peer"
+                    ref={groupLogoInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg,image/webp,image/gif"
+                    onChange={handleGroupLogoSelect}
+                    className="hidden"
                   />
-                  <div className={`relative h-6 w-11 rounded-full transition-colors ${groupForm.isDefault ? "bg-amber-500" : "bg-white/[0.1]"}`}>
-                    <div className={`absolute top-0.5 left-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${groupForm.isDefault ? "translate-x-5" : "translate-x-0"}`} />
-                  </div>
-                </div>
-              </label>
-
-              {/* ── Footer ── */}
-              <div className="relative pt-5">
-                <div className="absolute left-0 right-0 top-0 h-px bg-gradient-to-r from-transparent via-gray-700/60 to-transparent" />
-                <div className="flex items-center justify-end">
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="submit"
-                      disabled={savingGroup}
-                      className="inline-flex items-center gap-2 btn-gradient rounded-xl px-5 py-2.5 text-sm font-medium text-white cursor-pointer"
-                    >
-                      {savingGroup ? (
-                        <>
-                          <div className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-t-white" />
-                          保存中...
-                        </>
-                      ) : (
-                        <>
-                          <Icon icon={editingGroupId === null ? folderPlus : userCheck} className="h-3.5 w-3.5" />
-                          {editingGroupId === null ? "创建分组" : "保存修改"}
-                        </>
-                      )}
+                  <div className="flex flex-wrap gap-2">
+                    <button type="button" onClick={() => groupLogoInputRef.current?.click()} className="admin-button admin-button--secondary admin-button--small">
+                      选择图片
+                    </button>
+                    <button type="button" onClick={handleRemoveGroupLogo} disabled={!groupLogoPreviewSrc} className="admin-button admin-button--quiet admin-button--small">
+                      移除
                     </button>
                   </div>
                 </div>
               </div>
-            </form>
+              <div>
+                <FieldLabel label="分组描述" />
+                <textarea
+                  value={groupForm.description}
+                  onChange={(event) => setGroupForm((previous) => ({ ...previous, description: event.target.value }))}
+                  className={`${inputClassName()} min-h-24 resize-y`}
+                  placeholder="描述分组用途（选填）"
+                />
+              </div>
+            </div>
+          </section>
+
+          <section className="admin-detail-section">
+            <div className="admin-groups__section-heading"><Icon icon={eyeIcon} className="h-4 w-4" /><h3>展示与状态</h3></div>
+            <div className="grid gap-3 pt-3 sm:grid-cols-2">
+              <div>
+                <FieldLabel htmlFor="group-status" label="状态" />
+                <select
+                  id="group-status"
+                  value={groupForm.status}
+                  onChange={(event) => setGroupForm((previous) => ({
+                    ...previous,
+                    status: event.target.value,
+                    isDefault: event.target.value === "1" ? previous.isDefault : false,
+                  }))}
+                  className="admin-field"
+                >
+                  {statusOptions.filter((option) => option.value !== "").map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </div>
+              <div>
+                <FieldLabel htmlFor="group-show" label="前台展示" />
+                <select
+                  id="group-show"
+                  value={groupForm.show}
+                  onChange={(event) => setGroupForm((previous) => ({ ...previous, show: event.target.value }))}
+                  className="admin-field"
+                >
+                  <option value="1">展示</option>
+                  <option value="0">隐藏</option>
+                </select>
+              </div>
+            </div>
+          </section>
+
+          <section className="admin-detail-section">
+            <div className="admin-groups__section-heading"><Icon icon={tagIcon} className="h-4 w-4" /><h3>标签</h3><span>按回车添加</span></div>
+            <div className="pt-3">
+              <TagInput tags={groupForm.tags} onChange={(tags) => setGroupForm((previous) => ({ ...previous, tags }))} />
+            </div>
+          </section>
+
+          <div className={`admin-groups__default-toggle${groupForm.status !== "1" ? " admin-groups__default-toggle--disabled" : ""}`}>
+            <div>
+              <div className="text-sm font-medium text-[var(--admin-text)]">设为默认分组</div>
+              <p className="mt-0.5 text-xs text-[var(--admin-dim)]">新注册用户将自动加入默认分组，同一时间仅保留一个默认分组。</p>
+            </div>
+            <label className="admin-groups__checkbox-label">
+              <input
+                type="checkbox"
+                checked={groupForm.isDefault}
+                onChange={(event) => setGroupForm((previous) => ({ ...previous, isDefault: event.target.checked }))}
+                disabled={groupForm.status !== "1"}
+                className="admin-checkbox"
+              />
+              默认
+            </label>
+          </div>
+
+          <div className="flex flex-col-reverse justify-end gap-2 border-t border-[var(--admin-border-subtle)] pt-4 sm:flex-row">
+            <button type="button" onClick={closeGroupModal} disabled={savingGroup} className="admin-button admin-button--secondary">
+              取消
+            </button>
+            <button type="submit" disabled={savingGroup} className="admin-button admin-button--primary">
+              {savingGroup ? "保存中..." : editingGroupId === null ? "创建分组" : "保存修改"}
+            </button>
+          </div>
+        </form>
       </ModalShell>
 
       {/* Delete confirm modal */}
@@ -1157,26 +1063,24 @@ export default function UserGroups() {
         open={deleteTarget !== null}
         title="确认删除"
         headerAccent={
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-500/10 shadow-sm shadow-rose-500/5">
-            <Icon icon={alertTriangle} className="h-4 w-4 text-rose-400" />
+          <div className="admin-groups__modal-icon admin-groups__modal-icon--danger">
+            <Icon icon={alertTriangle} className="h-4 w-4" />
           </div>
         }
         onClose={() => setDeleteTarget(null)}
         widthClass="max-w-md"
         zIndexClass="z-[60]"
-        panelClassName="glass-panel glass-panel-strong rounded-2xl shadow-2xl shadow-black/40"
-        backdropClassName="bg-black/70 backdrop-blur-sm"
+        panelClassName="admin-design admin-groups admin-groups__modal"
+        backdropClassName="admin-groups__modal-backdrop"
       >
         {deleteTarget ? (
           <div className="space-y-5">
-            <div className="flex items-start gap-3 rounded-xl border border-rose-400/20 bg-rose-500/10 p-4">
-              <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-rose-500/10">
-                <Icon icon={alertTriangle} className="h-4 w-4 text-rose-400" />
-              </div>
-              <div className="text-sm leading-6 text-red-100/80">
-                即将删除 <span className="font-semibold text-white">{deleteTarget.name}</span>
+            <div className="admin-groups__confirm-notice">
+              <Icon icon={alertTriangle} className="mt-0.5 h-4 w-4 shrink-0" />
+              <div className="text-sm leading-6">
+                即将删除 <span className="font-semibold text-[var(--admin-text)]">{deleteTarget.name}</span>
                 {"memberCount" in deleteTarget && deleteTarget.memberCount > 0 ? (
-                  <span className="text-rose-300">（当前 {deleteTarget.memberCount} 人，需先清空成员）</span>
+                  <span>（当前 {deleteTarget.memberCount} 人，需先清空成员）</span>
                 ) : null}
               </div>
             </div>
@@ -1186,7 +1090,7 @@ export default function UserGroups() {
                 type="button"
                 onClick={() => setDeleteTarget(null)}
                 disabled={deletingGroup}
-                className="btn-glass rounded-xl px-4 py-2.5 text-sm text-gray-300 transition-colors disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                className="admin-button admin-button--secondary"
               >
                 取消
               </button>
@@ -1194,7 +1098,7 @@ export default function UserGroups() {
                 type="button"
                 onClick={() => void handleDeleteGroup()}
                 disabled={deletingGroup}
-                className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-5 py-2.5 text-sm font-medium text-rose-300 transition-all hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-60 cursor-pointer"
+                className="admin-button admin-button--danger"
               >
                 {deletingGroup ? "删除中..." : "确认删除"}
               </button>
@@ -1206,36 +1110,36 @@ export default function UserGroups() {
       {/* Member management drawer */}
       {drawerOpen ? (
         <OverlayPortal>
-          <div className="fixed inset-0 z-[60]">
+          <div className="admin-design admin-groups fixed inset-0 z-[60]">
             <div
               ref={drawerOverlayRef}
-              className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+              className="admin-drawer-backdrop absolute inset-0"
               onClick={() => closeDrawer()}
             />
             <aside
               ref={drawerPanelRef}
-              className="absolute right-0 top-0 h-full w-full max-w-2xl overflow-y-auto glass-panel glass-panel-strong border-l shadow-2xl"
+              className="admin-drawer admin-groups__drawer absolute right-0 top-0 h-full w-full max-w-3xl overflow-y-auto"
             >
               {/* Drawer header */}
-              <div className="sticky top-0 z-10 border-b border-white/[0.06] bg-black/30 px-6 py-4 backdrop-blur">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="admin-groups__drawer-header sticky top-0 z-10 border-b px-4 py-4 sm:px-6">
+                <div className="flex flex-col gap-3">
                   <div className="flex items-center gap-3 min-w-0">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl chip-gradient-soft">
-                      <Icon icon={usersIcon} className="h-4.5 w-4.5 text-primary-200" />
+                    <div className="admin-groups__drawer-icon">
+                      <Icon icon={usersIcon} className="h-4 w-4" />
                     </div>
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
-                        <h2 className="text-lg font-semibold text-white truncate">
+                        <h2 className="text-lg font-semibold text-[var(--admin-text)] truncate">
                           {selectedGroup?.name ?? "成员管理"}
                         </h2>
                         {selectedGroup ? (
-                          <span className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-xs font-medium ${getGroupStatusMeta(selectedGroup.status).className}`}>
-                            <span className={`h-1.5 w-1.5 rounded-full ${getGroupStatusMeta(selectedGroup.status).dot}`} />
+                          <span className={`admin-status ${getGroupStatusMeta(selectedGroup.status).className}`}>
+                            <span className={`admin-groups__status-dot ${getGroupStatusMeta(selectedGroup.status).dot}`} />
                             {getGroupStatusMeta(selectedGroup.status).label}
                           </span>
                         ) : null}
                         {selectedGroup?.isDefault ? (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/20 bg-amber-500/10 px-2 py-0.5 text-xs font-medium text-amber-300">
+                          <span className="admin-groups__default-badge">
                             <Icon icon={starIcon} className="h-3 w-3" />
                             默认
                           </span>
@@ -1243,26 +1147,25 @@ export default function UserGroups() {
                       </div>
                     </div>
                   </div>
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
-                    <label className="relative block w-full sm:w-80">
-                      <span className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
-                        <Icon icon={searchIcon} className="h-4 w-4 text-gray-500" />
-                      </span>
+                  <div className="admin-groups__drawer-tools">
+                    <label className="admin-groups__member-search">
+                      <span className="admin-groups__search-icon"><Icon icon={searchIcon} className="h-4 w-4" /></span>
                       <input
                         type="text"
+                        aria-label="搜索成员和候选账号"
                         value={memberSearchKeyword}
                         onChange={(event) => setMemberSearchKeyword(event.target.value)}
                         placeholder="搜索用户名、邮箱、手机号"
-                        className="w-full rounded-xl border border-white/[0.08] bg-black/30 py-2 pl-9 pr-3 text-sm text-gray-100 outline-none transition-colors placeholder:text-gray-500 focus:border-primary-400/60"
+                        className="admin-field pl-9"
                       />
                     </label>
-                    <div className="flex items-center gap-2 shrink-0">
+                    <div className="admin-groups__drawer-actions">
                     {selectedGroup ? (
                       <>
                         <button
                           type="button"
                           onClick={() => openEditModal(selectedGroup)}
-                          className="inline-flex items-center gap-1.5 btn-glass rounded-xl px-3 py-1.5 text-xs text-gray-300 transition-colors cursor-pointer"
+                          className="admin-button admin-button--secondary admin-button--small"
                         >
                           <Icon icon={editIcon} className="h-3.5 w-3.5" />
                           编辑
@@ -1270,7 +1173,7 @@ export default function UserGroups() {
                         <button
                           type="button"
                           onClick={() => setDeleteTarget(selectedGroup)}
-                          className="inline-flex items-center gap-1.5 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-300 transition-colors hover:bg-rose-500/20 cursor-pointer"
+                          className="admin-button admin-button--quiet admin-button--small"
                         >
                           <Icon icon={trash2} className="h-3.5 w-3.5" />
                           删除
@@ -1281,7 +1184,7 @@ export default function UserGroups() {
                       type="button"
                       aria-label="关闭"
                       onClick={() => closeDrawer()}
-                      className="rounded-xl p-1.5 text-gray-400 transition-colors hover:text-white hover:bg-white/5 cursor-pointer"
+                      className="admin-button admin-button--quiet admin-button--small"
                     >
                       <Icon icon={x} className="h-5 w-5" />
                     </button>
@@ -1290,39 +1193,33 @@ export default function UserGroups() {
                 </div>
               </div>
 
-              <div className="flex flex-col gap-5 px-6 py-5">
+              <div className="flex flex-col gap-4 px-4 py-4 sm:px-6 sm:py-5">
                 {detailLoading || !selectedGroup ? (
-                  <div className="flex items-center justify-center rounded-2xl border border-white/[0.06] bg-white/[0.03] px-6 py-16">
+                  <div className="admin-table-empty">
                     <div className="flex flex-col items-center gap-3">
-                      <div className="h-8 w-8 animate-spin rounded-full border-2 border-gray-700 border-t-primary-500" />
-                      <span className="text-sm text-gray-500">正在加载...</span>
+                      <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--admin-border)] border-t-[var(--admin-accent)]" />
+                      <span className="text-sm text-[var(--admin-dim)]">正在加载...</span>
                     </div>
                   </div>
                 ) : (
                   <>
                     {/* Group info stats */}
-                    <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-                      <DrawerStatBlock label="成员" value={selectedGroup.memberCount} />
-                      <DrawerStatBlock
-                        label="组长"
-                        value={selectedGroup.members.filter((m) => m.role === 2).length}
-                      />
-                      <DrawerStatBlock label="创建" value={formatDateTime(selectedGroup.createdAt)} small />
-                      <DrawerStatBlock label="更新" value={formatDateTime(selectedGroup.updatedAt)} small />
+                    <div className="admin-groups__drawer-summary">
+                      <span>成员<strong>{selectedGroup.memberCount}</strong></span>
+                      <span>组长<strong>{selectedGroup.members.filter((member) => member.role === 2).length}</strong></span>
+                      <span>创建<strong>{formatDateTime(selectedGroup.createdAt)}</strong></span>
+                      <span>更新<strong>{formatDateTime(selectedGroup.updatedAt)}</strong></span>
                     </div>
 
                     {/* Tags */}
                     {selectedGroup.tags?.length ? (
-                      <section className="rounded-2xl border border-white/[0.06] bg-white/[0.03] p-4">
-                        <div className="mb-2.5 flex items-center gap-2 text-xs font-medium text-gray-400">
-                          <Icon icon={tagIcon} className="h-3.5 w-3.5" />
-                          标签
-                        </div>
-                        <div className="flex flex-wrap gap-1.5">
+                      <section className="admin-detail-section">
+                        <div className="admin-groups__section-heading"><Icon icon={tagIcon} className="h-4 w-4" /><h3>标签</h3></div>
+                        <div className="flex flex-wrap gap-1.5 pt-3">
                           {selectedGroup.tags.map((t) => (
                             <span
                               key={t}
-                              className="inline-flex rounded-full border border-primary-400/20 bg-primary-500/10 px-2.5 py-0.5 text-xs text-primary-200"
+                              className="admin-groups__tag"
                             >
                               {t}
                             </span>
@@ -1332,45 +1229,44 @@ export default function UserGroups() {
                     ) : null}
 
                     {/* Add member */}
-                    <section className="order-2 rounded-2xl border border-white/[0.06] bg-white/[0.03] p-4">
-                      <div className="mb-4 flex items-center gap-2">
-                        <Icon icon={userPlus} className="h-4 w-4 text-primary-400" />
+                    <section className="admin-detail-section order-2">
+                      <div className="admin-groups__section-heading mb-3"><Icon icon={userPlus} className="h-4 w-4" />
                         <div>
-                          <h3 className="text-sm font-semibold text-white">添加成员</h3>
-                          <p className="mt-0.5 text-xs text-gray-500">列出当前未加入本组的可选账号</p>
+                          <h3>添加成员</h3>
+                          <p className="mt-0.5 text-xs text-[var(--admin-dim)]">列出当前未加入本组的可选账号</p>
                         </div>
                       </div>
 
                       <div className="space-y-2">
                         {loadingCandidates ? (
-                          <div className="rounded-xl border border-dashed border-white/[0.08] px-4 py-8 text-center text-sm text-gray-500">
+                          <div className="admin-groups__empty-row">
                             加载中...
                           </div>
                         ) : filteredCandidates.length === 0 ? (
-                          <div className="rounded-xl border border-dashed border-white/[0.08] px-4 py-8 text-center text-sm text-gray-500">
+                          <div className="admin-groups__empty-row">
                             {memberSearchKeyword.trim() ? "没有匹配的候选账号" : "暂无可加入的候选账号"}
                           </div>
                         ) : (
                           filteredCandidates.map((candidate) => (
                             <div
                               key={candidate.id}
-                              className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-3 transition-colors hover:bg-white/[0.05]"
+                              className="admin-groups__member-row"
                             >
                               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div className="min-w-0 flex-1">
                                   <div className="flex flex-wrap items-center gap-1.5">
-                                    <span className="text-sm font-medium text-white">{candidate.name}</span>
+                                    <span className="text-sm font-medium text-[var(--admin-text)]">{candidate.name}</span>
                                     <RoleBadge roleName={candidate.role.name} displayName={candidate.role.displayName} />
                                     <UserStatusBadge status={candidate.status} />
                                   </div>
-                                  <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-gray-400">
+                                  <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-[var(--admin-muted)]">
                                     <span className="flex min-w-0 items-center gap-1.5">
-                                      <Icon icon={mailIcon} className="h-3 w-3 shrink-0 text-gray-600" />
+                                      <Icon icon={mailIcon} className="h-3 w-3 shrink-0 text-[var(--admin-dim)]" />
                                       <span className="truncate">{candidate.email}</span>
                                     </span>
                                     {candidate.phone ? (
                                       <span className="flex items-center gap-1.5">
-                                        <Icon icon={phoneIcon} className="h-3 w-3 shrink-0 text-gray-600" />
+                                        <Icon icon={phoneIcon} className="h-3 w-3 shrink-0 text-[var(--admin-dim)]" />
                                         <span>{candidate.phone}</span>
                                       </span>
                                     ) : null}
@@ -1380,7 +1276,7 @@ export default function UserGroups() {
                                       {candidate.groups.map((g) => (
                                         <span
                                           key={`${candidate.id}-${g.id}`}
-                                          className="inline-flex rounded-full bg-white/[0.05] px-2 py-0.5 text-xs text-gray-400"
+                                          className="admin-groups__existing-group"
                                         >
                                           {g.name}
                                         </span>
@@ -1389,27 +1285,24 @@ export default function UserGroups() {
                                   ) : null}
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
-                                  <AnimatedSelect
-                                    ariaLabel="入组角色"
+                                  <select
+                                    aria-label="入组角色"
                                     value={candidateRoleMap[candidate.id] ?? 0}
-                                    onChange={(value) =>
+                                    onChange={(event) =>
                                       setCandidateRoleMap((prev) => ({
                                         ...prev,
-                                        [candidate.id]: Number(value),
+                                        [candidate.id]: Number(event.target.value),
                                       }))
                                     }
-                                    options={memberRoleOptions.map((o) => ({
-                                      value: o.value,
-                                      label: o.label,
-                                    }))}
-                                    size="compact"
-                                    fitContent
-                                  />
+                                    className="admin-field admin-groups__role-select"
+                                  >
+                                    {memberRoleOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                                  </select>
                                   <button
                                     type="button"
                                     onClick={() => void handleAddMember(candidate)}
                                     disabled={mutatingMemberId === candidate.id}
-                                    className="inline-flex items-center gap-1 btn-gradient rounded-xl px-3 py-1.5 text-xs font-medium text-white cursor-pointer"
+                                    className="admin-button admin-button--primary admin-button--small"
                                   >
                                     <Icon icon={userPlus} className="h-3 w-3" />
                                     {mutatingMemberId === candidate.id ? "加入中..." : "加入"}
@@ -1423,13 +1316,13 @@ export default function UserGroups() {
                     </section>
 
                     {/* Current members */}
-                    <section className="order-1 rounded-2xl border border-white/[0.06] bg-white/[0.03] p-4">
-                      <div className="flex items-center justify-between mb-4">
+                    <section className="admin-detail-section order-1">
+                      <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
-                          <Icon icon={usersIcon} className="h-4 w-4 text-emerald-400" />
-                          <h3 className="text-sm font-semibold text-white">当前成员</h3>
+                          <Icon icon={usersIcon} className="h-4 w-4 text-[var(--admin-accent-soft)]" />
+                          <h3 className="text-sm font-semibold text-[var(--admin-text)]">当前成员</h3>
                         </div>
-                        <span className="rounded-full bg-white/[0.05] px-2.5 py-0.5 text-xs text-gray-400">
+                        <span className="text-xs text-[var(--admin-dim)]">
                           {memberSearchKeyword.trim()
                             ? `${filteredMembers.length} / ${selectedGroup.members.length} 人`
                             : `${selectedGroup.members.length} 人`}
@@ -1438,19 +1331,19 @@ export default function UserGroups() {
 
                       <div className="space-y-2">
                         {filteredMembers.length === 0 ? (
-                          <div className="rounded-xl border border-dashed border-white/[0.08] px-4 py-8 text-center text-sm text-gray-500">
+                          <div className="admin-groups__empty-row">
                             {memberSearchKeyword.trim() ? "没有匹配的成员" : "暂无成员"}
                           </div>
                         ) : (
                           filteredMembers.map((member) => (
                             <div
                               key={member.id}
-                              className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-3 transition-colors hover:bg-white/[0.05]"
+                              className="admin-groups__member-row"
                             >
                               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                                 <div className="min-w-0 flex-1">
                                   <div className="flex flex-wrap items-center gap-1.5">
-                                    <span className="text-sm font-medium text-white">{member.user.name}</span>
+                                    <span className="text-sm font-medium text-[var(--admin-text)]">{member.user.name}</span>
                                     <RoleBadge roleName={member.user.role.name} displayName={member.user.role.displayName} />
                                     <RoleBadge
                                       roleName={member.role === 2 ? "leader" : member.role === 1 ? "group_admin" : "member"}
@@ -1459,18 +1352,18 @@ export default function UserGroups() {
                                     />
                                     <UserStatusBadge status={member.user.status} />
                                   </div>
-                                  <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-gray-400">
+                                  <div className="mt-1 flex flex-wrap items-center gap-3 text-xs text-[var(--admin-muted)]">
                                     <span className="flex min-w-0 items-center gap-1.5">
-                                      <Icon icon={mailIcon} className="h-3 w-3 shrink-0 text-gray-600" />
+                                      <Icon icon={mailIcon} className="h-3 w-3 shrink-0 text-[var(--admin-dim)]" />
                                       <span className="truncate">{member.user.email}</span>
                                     </span>
                                     {member.user.phone ? (
                                       <span className="flex items-center gap-1.5">
-                                        <Icon icon={phoneIcon} className="h-3 w-3 shrink-0 text-gray-600" />
+                                        <Icon icon={phoneIcon} className="h-3 w-3 shrink-0 text-[var(--admin-dim)]" />
                                         <span>{member.user.phone}</span>
                                       </span>
                                     ) : null}
-                                    <span className="text-gray-600 shrink-0">{formatDateTime(member.joinedAt)}</span>
+                                    <span className="text-[var(--admin-dim)] shrink-0">{formatDateTime(member.joinedAt)}</span>
                                   </div>
                                 </div>
                                 <div className="flex items-center gap-2 shrink-0">
@@ -1478,7 +1371,7 @@ export default function UserGroups() {
                                     type="button"
                                     onClick={() => void handleToggleMemberRole(member)}
                                     disabled={mutatingMemberId === member.id}
-                                    className="inline-flex items-center gap-1 rounded-xl border border-primary-400/30 px-3 py-1.5 text-xs text-primary-200 transition-colors hover:bg-primary-500/10 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                                    className="admin-button admin-button--secondary admin-button--small"
                                   >
                                     <Icon icon={member.role > 0 ? userCheck : crown} className="h-3 w-3" />
                                     {mutatingMemberId === member.id
@@ -1493,7 +1386,7 @@ export default function UserGroups() {
                                     type="button"
                                     onClick={() => void handleRemoveMember(member)}
                                     disabled={mutatingMemberId === member.id}
-                                    className="inline-flex items-center gap-1 rounded-xl border border-rose-500/30 bg-rose-500/10 px-3 py-1.5 text-xs text-rose-300 transition-colors hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50 cursor-pointer"
+                                    className="admin-button admin-button--quiet admin-button--small"
                                   >
                                     <Icon icon={userMinus} className="h-3 w-3" />
                                     {mutatingMemberId === member.id ? "移除中..." : "移出"}
@@ -1518,61 +1411,6 @@ export default function UserGroups() {
 
 /* ─── Sub-components ─── */
 
-const statColorMap = {
-  primary: {
-    icon: "bg-primary-500/10 text-primary-400",
-    value: "text-gradient-brand",
-    glow: "bg-primary-500/5",
-  },
-  emerald: {
-    icon: "bg-emerald-500/10 text-emerald-400",
-    value: "text-gradient-brand",
-    glow: "bg-emerald-500/5",
-  },
-  amber: {
-    icon: "bg-amber-500/10 text-amber-400",
-    value: "text-gradient-brand",
-    glow: "bg-amber-500/5",
-  },
-  sky: {
-    icon: "bg-sky-500/10 text-sky-400",
-    value: "text-gradient-brand",
-    glow: "bg-sky-500/5",
-  },
-} as const;
-
-function StatCard({
-  icon,
-  label,
-  value,
-  color,
-  extra,
-}: {
-  icon: IconifyIcon;
-  label: string;
-  value: ReactNode;
-  color: keyof typeof statColorMap;
-  extra?: string;
-}) {
-  const c = statColorMap[color];
-
-  return (
-    <div className="group relative overflow-hidden glass-panel glass-card rounded-2xl p-4">
-      <div className={`absolute -right-4 -top-4 h-20 w-20 rounded-full ${c.glow} blur-2xl`} />
-      <div className="relative flex items-start justify-between">
-        <div>
-          <div className={`text-2xl font-bold tabular-nums ${c.value}`}>{value}</div>
-          <div className="mt-1 text-sm text-gray-500">{label}</div>
-          {extra ? <div className="mt-0.5 text-xs text-gray-600">{extra}</div> : null}
-        </div>
-        <div className={`flex h-9 w-9 items-center justify-center rounded-xl ${c.icon}`}>
-          <Icon icon={icon} className="h-4.5 w-4.5" />
-        </div>
-      </div>
-    </div>
-  );
-}
-
 function GroupCard({
   group,
   isBusy,
@@ -1592,15 +1430,16 @@ function GroupCard({
 }) {
   const [actionsOpen, setActionsOpen] = useState(false);
   const actionsRef = useRef<HTMLDivElement>(null);
-  const isActive = group.status === 1;
+  const status = getGroupStatusMeta(group.status);
+  const visibility = getGroupShowMeta(group.show);
   const leaders = group.leaders ?? [];
   const logoSrc = group.logoUrl ? buildApiUrl(group.logoUrl) : null;
   const tags = group.tags ?? [];
 
   useEffect(() => {
     if (!actionsOpen) return;
-    function handleClick(e: MouseEvent) {
-      if (actionsRef.current && !actionsRef.current.contains(e.target as Node)) {
+    function handleClick(event: MouseEvent) {
+      if (actionsRef.current && !actionsRef.current.contains(event.target as Node)) {
         setActionsOpen(false);
       }
     }
@@ -1609,166 +1448,88 @@ function GroupCard({
   }, [actionsOpen]);
 
   return (
-    <article className="group/card relative flex flex-col glass-panel glass-card rounded-2xl">
-      {/* ── Decorative header zone ── */}
-      <div className={`relative rounded-t-2xl ${isActive ? "bg-gradient-to-br from-primary-500/[0.08] via-primary-400/[0.04] to-transparent" : "bg-gradient-to-br from-white/[0.04] via-white/[0.02] to-transparent"}`}>
-        {/* Geometric pattern */}
-        <div className="absolute inset-0 overflow-hidden rounded-t-2xl">
-          <div className="absolute inset-0 bg-dot-pattern opacity-[0.03]" />
-          {/* Glow orb */}
-          {isActive ? (
-            <div className="absolute -right-8 -top-8 h-32 w-32 rounded-full bg-primary-500/10 blur-3xl" />
-          ) : null}
+    <article className="admin-groups__item">
+      <div className="admin-groups__identity">
+        <div className="admin-groups__logo">
+          {logoSrc ? <img src={logoSrc} alt="" className="h-full w-full object-cover" /> : <Icon icon={layers} className="h-5 w-5" />}
         </div>
-
-        {/* Top row: status pill + actions */}
-        <div className="relative flex items-start justify-between px-5 pt-4 pb-4">
-          <div className="flex items-center gap-1.5">
-            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold tracking-wide uppercase ${isActive ? "bg-emerald-500/15 text-emerald-300 shadow-sm shadow-emerald-500/10" : "bg-white/[0.05] text-gray-500"}`}>
-              <span className={`h-1.5 w-1.5 rounded-full ${isActive ? "bg-emerald-400 shadow-sm shadow-emerald-400/50" : "bg-gray-600"}`} />
-              {isActive ? "启用" : "停用"}
-            </span>
-            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium ${group.show === 1 ? "bg-sky-500/10 text-sky-400" : "bg-white/[0.04] text-gray-500"}`}>
-              <Icon icon={group.show === 1 ? eyeIcon : eyeOff} className="h-3 w-3" />
-              {group.show === 1 ? "展示" : "隐藏"}
-            </span>
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h2 className="truncate text-sm font-semibold text-[var(--admin-text)]">{group.name}</h2>
+            {group.isDefault ? <span className="admin-groups__default-badge"><Icon icon={starIcon} className="h-3 w-3" />默认</span> : null}
           </div>
-          {/* Actions menu trigger */}
-          <div ref={actionsRef} className="relative">
-            <button
-              type="button"
-              onClick={() => setActionsOpen((p) => !p)}
-              className="flex h-7 w-7 items-center justify-center rounded-xl text-gray-500 transition-colors hover:bg-white/10 hover:text-gray-300 cursor-pointer"
-              aria-label="操作菜单"
-            >
-              <Icon icon={moreHorizontal} className="h-4 w-4" />
-            </button>
-            {actionsOpen ? (
-              <div className="absolute right-0 top-full z-20 mt-1 w-36 overflow-hidden glass-panel glass-panel-strong rounded-xl shadow-xl shadow-black/40">
-                <button type="button" onClick={() => { setActionsOpen(false); onEdit(); }} disabled={isBusy} className="flex w-full items-center gap-2 px-3 py-2 text-xs text-gray-300 transition-colors hover:bg-white/5 disabled:opacity-40 cursor-pointer">
-                  <Icon icon={editIcon} className="h-3.5 w-3.5 text-gray-500" />
-                  编辑分组
-                </button>
-                <button type="button" onClick={() => { setActionsOpen(false); onToggleDefault(); }} disabled={isBusy || !isActive} className="flex w-full items-center gap-2 px-3 py-2 text-xs text-gray-300 transition-colors hover:bg-white/5 disabled:opacity-40 cursor-pointer">
-                  <Icon icon={group.isDefault ? starOff : starIcon} className="h-3.5 w-3.5 text-amber-500/70" />
-                  {group.isDefault ? "取消默认" : "设为默认"}
-                </button>
-                <button type="button" onClick={() => { setActionsOpen(false); onToggleStatus(); }} disabled={isBusy} className="flex w-full items-center gap-2 px-3 py-2 text-xs text-gray-300 transition-colors hover:bg-white/5 disabled:opacity-40 cursor-pointer">
-                  <Icon icon={isActive ? powerOff : power} className="h-3.5 w-3.5 text-gray-500" />
-                  {isActive ? "停用" : "启用"}
-                </button>
-                <div className="mx-2 border-t border-white/[0.06]" />
-                <button type="button" onClick={() => { setActionsOpen(false); onDelete(); }} disabled={isBusy} className="flex w-full items-center gap-2 px-3 py-2 text-xs text-rose-300 transition-colors hover:bg-rose-500/10 disabled:opacity-40 cursor-pointer">
-                  <Icon icon={trash2} className="h-3.5 w-3.5" />
-                  删除分组
-                </button>
-              </div>
-            ) : null}
-          </div>
+          <p className="mt-0.5 line-clamp-1 text-xs text-[var(--admin-dim)]">{group.description?.trim() || "暂无描述"}</p>
+          {tags.length ? (
+            <div className="mt-1.5 flex flex-wrap gap-1">
+              {tags.slice(0, 3).map((tag) => <span key={tag} className="admin-groups__tag">{tag}</span>)}
+              {tags.length > 3 ? <span className="text-[11px] text-[var(--admin-dim)]">+{tags.length - 3}</span> : null}
+            </div>
+          ) : null}
         </div>
       </div>
 
-      {/* ── Card body ── */}
-      <div className="flex flex-1 flex-col px-5 pb-5 pt-4">
-        {/* Icon + Title row */}
-        <div className="flex items-center gap-3">
-          <div className={`flex h-10 w-10 shrink-0 items-center justify-center overflow-hidden rounded-xl ${logoSrc ? "bg-transparent shadow-none" : isActive ? "chip-gradient" : "bg-gradient-to-br from-gray-600 to-gray-700 shadow-lg shadow-gray-900/40"}`}>
-            {logoSrc ? (
-              <img src={logoSrc} alt={group.name} className="h-full w-full object-cover" />
-            ) : group.isDefault ? (
-              <Icon icon={shieldIcon} className="h-5 w-5 text-white" />
-            ) : (
-              <Icon icon={layers} className="h-5 w-5 text-white/90" />
-            )}
-          </div>
-          <div className="min-w-0 flex-1">
-            <div className="flex items-center gap-2">
-              <h2 className="text-[15px] font-semibold text-white truncate">{group.name}</h2>
-              {group.isDefault ? (
-                <span className="inline-flex shrink-0 items-center gap-0.5 rounded-md bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-300">
-                  <Icon icon={starIcon} className="h-2.5 w-2.5" />
-                  默认
-                </span>
-              ) : null}
-            </div>
-            {group.description?.trim() ? (
-              <p className="mt-0.5 text-[13px] leading-snug text-gray-500 line-clamp-1">{group.description}</p>
-            ) : (
-              <p className="mt-0.5 text-[13px] italic text-gray-700">暂无描述</p>
-            )}
-          </div>
+      <div className="admin-groups__facts">
+        <div className="admin-groups__fact">
+          <span className="admin-groups__fact-label">状态</span>
+          <span className={`admin-status ${status.className}`}><span className={`admin-groups__status-dot ${status.dot}`} />{status.label}</span>
         </div>
-
-        {/* Tags */}
-        {tags.length > 0 ? (
-          <div className="mt-3 flex flex-wrap gap-1">
-            {tags.map((t) => (
-              <span
-                key={t}
-                className="inline-flex items-center rounded-md bg-primary-500/[0.07] px-2 py-0.5 text-[11px] font-medium text-primary-300/70"
-              >
-                #{t}
-              </span>
-            ))}
-          </div>
-        ) : null}
-
-        {/* ── Stats strip ── */}
-        <div className="mt-auto pt-4">
-          <div className="flex items-center gap-3 rounded-xl bg-white/[0.03] border border-white/[0.06] px-4 py-3">
-            {/* Member count */}
-            <div className="flex items-center gap-2">
-              <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${isActive ? "chip-gradient-soft" : "bg-white/[0.04]"}`}>
-                <Icon icon={usersIcon} className={`h-4 w-4 ${isActive ? "text-primary-200" : "text-gray-600"}`} />
-              </div>
-              <div>
-                <div className="text-sm font-bold text-white leading-none">{group.memberCount}</div>
-                <div className="text-[10px] text-gray-600 mt-0.5">成员</div>
-              </div>
-            </div>
-
-            {/* Divider */}
-            <div className="h-8 w-px bg-white/[0.06]" />
-
-            {/* Leaders */}
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-1 text-[10px] text-gray-600 mb-0.5">
-                <Icon icon={crown} className="h-3 w-3 text-amber-500/50" />
-                组长
-              </div>
-              {leaders.length > 0 ? (
-                <div className="flex items-center gap-1">
-                  {leaders.slice(0, 2).map((name) => (
-                    <span key={name} className="inline-flex items-center gap-1 max-w-24 rounded-md bg-white/[0.05] px-1.5 py-0.5 text-[11px] font-medium text-gray-300">
-                      <Icon icon={userCheck} className="h-3 w-3 shrink-0 text-amber-500/60" />
-                      <span className="truncate">{name}</span>
-                    </span>
-                  ))}
-                  {leaders.length > 2 ? (
-                    <span className="text-[11px] text-gray-600">+{leaders.length - 2}</span>
-                  ) : null}
-                </div>
-              ) : (
-                <span className="text-[11px] text-gray-700">未指定</span>
-              )}
-            </div>
-          </div>
+        <div className="admin-groups__fact">
+          <span className="admin-groups__fact-label">前台展示</span>
+          <span className={`admin-groups__visibility ${visibility.className}`}><Icon icon={visibility.icon} className="h-3 w-3" />{visibility.label}</span>
         </div>
+        <div className="admin-groups__fact">
+          <span className="admin-groups__fact-label">成员</span>
+          <span className="admin-groups__member-count">{group.memberCount}</span>
+        </div>
+        <div className="admin-groups__fact admin-groups__leaders-fact">
+          <span className="admin-groups__fact-label">负责人</span>
+          {leaders.length ? (
+            <span className="admin-groups__leaders" title={leaders.join("、")}>
+              {leaders.slice(0, 2).join("、")}{leaders.length > 2 ? ` +${leaders.length - 2}` : ""}
+            </span>
+          ) : <span className="admin-groups__unassigned">未指定</span>}
+        </div>
+        <div className="admin-groups__fact admin-groups__updated-fact">
+          <span className="admin-groups__fact-label">更新</span>
+          <span className="admin-groups__updated"><Icon icon={clock} className="h-3 w-3" />{formatDateTime(group.updatedAt)}</span>
+        </div>
+      </div>
 
-        {/* ── Footer: view members + timestamp ── */}
-        <div className="mt-3 flex items-center justify-between">
+      <div className="admin-groups__item-actions">
+        <button type="button" onClick={onMembers} disabled={isBusy} className="admin-button admin-button--primary admin-button--small">
+          成员管理
+        </button>
+        <button type="button" onClick={onEdit} disabled={isBusy} className="admin-button admin-button--secondary admin-button--small">
+          编辑
+        </button>
+        <div ref={actionsRef} className="relative">
           <button
             type="button"
-            onClick={onMembers}
-            className="inline-flex items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium text-primary-400 transition-all hover:bg-primary-500/10 cursor-pointer"
+            onClick={() => setActionsOpen((open) => !open)}
+            disabled={isBusy}
+            aria-label={`${group.name} 更多操作`}
+            aria-expanded={actionsOpen}
+            className="admin-button admin-button--quiet admin-button--small"
           >
-            管理成员
-            <Icon icon={arrowRight} className="h-3.5 w-3.5 transition-transform group-hover/card:translate-x-0.5" />
+            <Icon icon={moreHorizontal} className="h-4 w-4" />
           </button>
-          <div className="flex items-center gap-1 text-[11px] text-gray-600">
-            <Icon icon={clock} className="h-3 w-3" />
-            {formatDateTime(group.updatedAt)}
-          </div>
+          {actionsOpen ? (
+            <div className="admin-groups__action-menu" role="menu">
+              <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onToggleDefault(); }} disabled={isBusy || group.status !== 1}>
+                <Icon icon={group.isDefault ? starOff : starIcon} className="h-3.5 w-3.5" />
+                {group.isDefault ? "取消默认" : "设为默认"}
+              </button>
+              <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onToggleStatus(); }} disabled={isBusy}>
+                <Icon icon={group.status === 1 ? powerOff : power} className="h-3.5 w-3.5" />
+                {group.status === 1 ? "停用分组" : "启用分组"}
+              </button>
+              <div className="admin-groups__action-divider" />
+              <button type="button" role="menuitem" onClick={() => { setActionsOpen(false); onDelete(); }} disabled={isBusy} className="admin-groups__action-danger">
+                <Icon icon={trash2} className="h-3.5 w-3.5" />
+                删除分组
+              </button>
+            </div>
+          ) : null}
         </div>
       </div>
     </article>
@@ -1784,9 +1545,9 @@ function OverlayPortal({ children }: { children: ReactNode }) {
 
 function FieldLabel({ label, hint, htmlFor }: { label: string; hint?: string; htmlFor?: string }) {
   return (
-    <label htmlFor={htmlFor} className="mb-1.5 flex items-baseline gap-2 text-sm font-medium text-gray-200">
+    <label htmlFor={htmlFor} className="admin-field-label">
       {label}
-      {hint ? <span className="text-xs font-normal text-gray-500">{hint}</span> : null}
+      {hint ? <span className="ml-2 text-xs font-normal text-[var(--admin-dim)]">{hint}</span> : null}
     </label>
   );
 }
@@ -1818,20 +1579,20 @@ function TagInput({ tags, onChange }: { tags: string[]; onChange: (tags: string[
 
   return (
     <div
-      className="flex flex-wrap items-center gap-1.5 rounded-xl border border-white/[0.08] bg-black/30 px-3 py-2 transition-all focus-within:border-primary-400/60 focus-within:ring-1 focus-within:ring-primary-400/30 cursor-text min-h-[42px]"
+      className="admin-groups__tag-input"
       onClick={() => inputRef.current?.focus()}
     >
       {tags.map((tag, i) => (
         <span
           key={tag}
-          className="inline-flex items-center gap-1 rounded-md border border-primary-400/20 bg-primary-500/10 py-0.5 pl-2.5 pr-1.5 text-xs font-medium text-primary-200 transition-colors hover:bg-primary-500/15"
+          className="admin-groups__tag"
         >
           #{tag}
           <button
             type="button"
             aria-label={`移除标签 ${tag}`}
             onClick={(e) => { e.stopPropagation(); removeTag(i); }}
-            className="flex h-4 w-4 items-center justify-center rounded text-primary-300/60 transition-colors hover:bg-primary-500/20 hover:text-primary-200 cursor-pointer"
+            className="admin-groups__tag-remove"
           >
             <Icon icon={x} className="h-3 w-3" />
           </button>
@@ -1844,7 +1605,7 @@ function TagInput({ tags, onChange }: { tags: string[]; onChange: (tags: string[
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyDown}
         onBlur={() => { if (input.trim()) addTag(input); }}
-        className="min-w-[80px] flex-1 border-none bg-transparent py-0.5 text-sm text-white placeholder:text-gray-600 outline-none"
+        className="min-w-[80px] flex-1 border-none bg-transparent py-0.5 text-sm text-[var(--admin-text)] placeholder:text-[var(--admin-dim)] outline-none"
         placeholder={tags.length === 0 ? "输入标签，按回车添加" : "继续添加..."}
       />
     </div>
@@ -1852,17 +1613,7 @@ function TagInput({ tags, onChange }: { tags: string[]; onChange: (tags: string[
 }
 
 function inputClassName(disabled = false) {
-  return `w-full rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-white placeholder:text-gray-600 backdrop-blur transition-all focus:border-primary-400/60 focus:ring-1 focus:ring-primary-400/30 focus:outline-none ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
-}
-
-
-function DrawerStatBlock({ label, value, small }: { label: string; value: ReactNode; small?: boolean }) {
-  return (
-    <div className="rounded-xl border border-white/[0.06] bg-white/[0.03] p-3">
-      <div className="text-xs text-gray-500">{label}</div>
-      <div className={`mt-1 font-medium text-white ${small ? "text-xs" : "text-sm"}`}>{value}</div>
-    </div>
-  );
+  return `admin-field${disabled ? " admin-field--disabled" : ""}`;
 }
 
 function RoleBadge({
@@ -1877,20 +1628,18 @@ function RoleBadge({
   const resolvedClassName = className ?? getSystemRoleMeta(roleName);
 
   return (
-    <span className={`inline-flex rounded-full px-2 py-0.5 text-xs font-medium ${resolvedClassName}`}>
+    <span className={`admin-role ${resolvedClassName}`}>
       {displayName}
     </span>
   );
 }
 
 function UserStatusBadge({ status }: { status: number }) {
-  const meta = status === 1
-    ? "border border-emerald-400/20 bg-emerald-500/10 text-emerald-300"
-    : "border border-gray-400/20 bg-gray-500/10 text-gray-300";
+  const className = status === 1 ? "admin-groups__user-status--enabled" : "admin-groups__user-status--disabled";
 
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium ${meta}`}>
-      <span className={`h-1.5 w-1.5 rounded-full ${status === 1 ? "bg-emerald-400" : "bg-gray-500"}`} />
+    <span className={`admin-status ${className}`}>
+      <span className={`admin-groups__status-dot ${status === 1 ? "admin-groups__status-dot--active" : "admin-groups__status-dot--disabled"}`} />
       {status === 1 ? "启用" : "停用"}
     </span>
   );
