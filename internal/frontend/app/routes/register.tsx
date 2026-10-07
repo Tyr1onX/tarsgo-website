@@ -1,8 +1,9 @@
 import { type FormEvent, type MouseEvent, useMemo, useState } from "react";
-import { Link, redirect, useNavigate, useSearchParams } from "react-router";
+import { redirect, useNavigate, useSearchParams } from "react-router";
 
 import type { Route } from "./+types/register";
 
+import { AuthShell } from "~/components/auth-shell";
 import {
   ApiError,
   getOptionalCurrentUser,
@@ -123,64 +124,26 @@ export default function Register() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4 py-10">
-      <div className={`absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] h-[420px] bg-primary-500/8 rounded-full blur-[110px] ${success ? "animate-auth-success-glow" : leaving ? "animate-auth-exit-glow" : "animate-auth-glow"}`} />
-      {success && (
-        <div className="fixed inset-0 bg-gray-950/80 animate-auth-success-overlay z-40" />
-      )}
-
-      <div className={`relative w-full max-w-md ${success ? "z-50" : ""} ${leaving ? "animate-auth-exit" : ""}`}>
-        <Link
-          to="/"
-          onClick={handleBackToHome}
-          className="group inline-flex items-center gap-2 text-sm text-gray-400 hover:text-white transition-colors mb-8 animate-auth-back-link"
-        >
-          <svg
-            className="w-4 h-4 auth-back-link-arrow"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={1.5}
-            stroke="currentColor"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"
-            />
+    <AuthShell
+      mode="register"
+      title={success ? "注册成功" : "加入 TARS-GO"}
+      description={success ? "账号已创建，正在进入工作台。" : "完成邮箱验证后即可进入统一工作台。"}
+      redirectTo={redirectTo}
+      leaving={leaving}
+      onHomeClick={handleBackToHome}
+    >
+      {success ? (
+        <div className="auth-success" role="status" aria-live="polite">
+          <svg className="mt-0.5 h-4 w-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} aria-hidden="true">
+            <path strokeLinecap="round" strokeLinejoin="round" d="m5 13 4 4L19 7" />
           </svg>
-          返回首页
-        </Link>
-
-        <div className={`p-8 rounded-2xl bg-gray-900 border border-gray-800 shadow-2xl shadow-black/20 animate-auth-card ${success ? "animate-auth-success-card" : ""}`}>
-          <div className="text-center mb-8 relative">
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center mx-auto mb-4 transition-all duration-300 ${success ? "bg-emerald-500 scale-110" : "bg-primary-500"}`}>
-              {success ? (
-                <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-                  <path className="auth-success-check" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              ) : (
-                <span className="text-white font-bold text-lg">T</span>
-              )}
-            </div>
-            {success && (
-              <div className="absolute top-0 left-1/2 -translate-x-1/2 w-16 h-16 rounded-xl border-2 border-emerald-400/50 animate-auth-success-ring" />
-            )}
-            <h1 className="text-2xl font-bold text-white mb-2">
-              {success ? "注册成功" : "加入 TARS-GO"}
-            </h1>
-            <p className="text-sm text-gray-400">
-              {success ? "正在进入工作台..." : "完成邮箱验证后即可直接进入统一工作台"}
-            </p>
-          </div>
-
-          <form className="space-y-5" onSubmit={handleSubmit}>
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-sm font-medium text-gray-300 mb-2"
-              >
-                邮箱
-              </label>
+          <span>注册成功，正在进入工作台…</span>
+        </div>
+      ) : (
+        <form className="auth-form" onSubmit={handleSubmit} aria-busy={submitting}>
+          <div className="auth-form-grid">
+            <div className="auth-field auth-field--wide">
+              <label htmlFor="email">邮箱</label>
               <input
                 id="email"
                 type="email"
@@ -189,17 +152,12 @@ export default function Register() {
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
                 placeholder="your@jlu.edu.cn"
-                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
+                className="auth-input"
               />
             </div>
 
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-sm font-medium text-gray-300 mb-2"
-              >
-                密码
-              </label>
+            <div className="auth-field auth-field--wide">
+              <label htmlFor="password">密码</label>
               <input
                 id="password"
                 type="password"
@@ -208,17 +166,12 @@ export default function Register() {
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder="至少 6 位"
-                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
+                className="auth-input"
               />
             </div>
 
-            <div>
-              <label
-                htmlFor="realName"
-                className="block text-sm font-medium text-gray-300 mb-2"
-              >
-                真实姓名
-              </label>
+            <div className="auth-field">
+              <label htmlFor="realName">真实姓名</label>
               <input
                 id="realName"
                 type="text"
@@ -227,17 +180,12 @@ export default function Register() {
                 value={realName}
                 onChange={(event) => setRealName(event.target.value)}
                 placeholder="请输入真实姓名"
-                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
+                className="auth-input"
               />
             </div>
 
-            <div>
-              <label
-                htmlFor="phone"
-                className="block text-sm font-medium text-gray-300 mb-2"
-              >
-                手机号
-              </label>
+            <div className="auth-field">
+              <label htmlFor="phone">手机号</label>
               <input
                 id="phone"
                 type="tel"
@@ -246,24 +194,26 @@ export default function Register() {
                 value={phone}
                 onChange={(event) => setPhone(event.target.value)}
                 placeholder="13800138000"
-                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
+                className="auth-input"
               />
             </div>
 
-            <div>
-              <div className="flex items-center justify-between mb-2">
-                <label
-                  htmlFor="code"
-                  className="block text-sm font-medium text-gray-300"
-                >
-                  邮箱验证码
-                </label>
-                <button
-                  type="button"
-                  onClick={handleSendCode}
-                  disabled={!canSendCode}
-                  className="text-sm font-medium text-primary-400 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors"
-                >
+            <div className="auth-field auth-field--wide">
+              <label htmlFor="code">邮箱验证码</label>
+              <div className="auth-code-control">
+                <input
+                  id="code"
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  maxLength={6}
+                  required
+                  value={code}
+                  onChange={(event) => setCode(event.target.value.replace(/\D/g, "").slice(0, 6))}
+                  placeholder="输入 6 位验证码"
+                  className="auth-input"
+                />
+                <button type="button" onClick={handleSendCode} disabled={!canSendCode} className="auth-code-send">
                   {cooldown.isCoolingDown
                     ? `${cooldown.remainingSeconds}s 后重发`
                     : sendingCode
@@ -271,59 +221,17 @@ export default function Register() {
                       : "发送验证码"}
                 </button>
               </div>
-              <input
-                id="code"
-                type="text"
-                inputMode="numeric"
-                maxLength={6}
-                required
-                value={code}
-                onChange={(event) =>
-                  setCode(event.target.value.replace(/\D/g, "").slice(0, 6))
-                }
-                placeholder="输入 6 位验证码"
-                className="w-full px-4 py-3 bg-gray-800 border border-gray-700 rounded-lg text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-shadow"
-              />
             </div>
+          </div>
 
-            {errorMessage && (
-              <div className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200 animate-auth-fade-in">
-                {errorMessage}
-              </div>
-            )}
+          {errorMessage ? <div className="auth-error animate-auth-fade-in" role="alert" aria-live="polite">{errorMessage}</div> : null}
 
-            <button
-              type="submit"
-              disabled={submitting || success}
-              className={`w-full py-3 font-medium rounded-lg transition-all duration-300 disabled:cursor-not-allowed ${
-                success
-                  ? "bg-emerald-500 text-white scale-[1.02]"
-                  : "bg-primary-500 hover:bg-primary-600 disabled:bg-primary-500/60 text-white"
-              }`}
-            >
-              {success ? (
-                <span className="inline-flex items-center gap-2">
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
-                    <path className="auth-success-check" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                  </svg>
-                  注册成功
-                </span>
-              ) : submitting ? "注册中..." : "注册"}
-            </button>
-          </form>
-
-          <p className="mt-6 text-center text-sm text-gray-400">
-            已有账号？{" "}
-            <Link
-              to={redirectTo === "/dashboard" ? "/login" : `/login?redirect=${encodeURIComponent(redirectTo)}`}
-              className="text-primary-400 hover:text-primary-300 font-medium transition-colors"
-            >
-              立即登录
-            </Link>
-          </p>
-        </div>
-      </div>
-    </div>
+          <button type="submit" disabled={submitting} className="auth-submit">
+            {submitting ? "注册中..." : "创建账号"}
+          </button>
+        </form>
+      )}
+    </AuthShell>
   );
 }
 
