@@ -1,154 +1,9 @@
-.dashboard-shell--candidate-design {
-  --glass-bg: #171d1b;
-  --glass-bg-strong: #171d1b;
-  --glass-border: #303a35;
-  --glass-border-strong: #3c4841;
-  --glass-highlight: transparent;
-  --gradient-brand: linear-gradient(135deg, #d0ad69 0%, #a18a5e 100%);
-  --gradient-brand-soft: linear-gradient(135deg, rgba(208, 173, 105, 0.11), rgba(208, 173, 105, 0.06));
-  background: #111514;
-}
-
-.dashboard-shell--candidate-design.dash-bg-noise::before {
-  display: none;
-}
-
-.dashboard-shell--candidate-design > aside,
-.dashboard-shell--candidate-design header {
-  border-color: #28312d;
-  background: #111514;
-}
-
-.dashboard-shell--candidate-design .nav-item-active {
-  border-color: rgba(208, 173, 105, 0.25);
-  background: rgba(208, 173, 105, 0.08);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-}
-
-.dashboard-shell--candidate-design .nav-item-active::before {
-  background: #d0ad69;
-  box-shadow: none;
-}
-
-.dashboard-shell--candidate-design aside .text-violet-350 {
-  color: #d0ad69;
-}
-
-.dashboard-shell--candidate-design .divider-gradient {
-  background: #28312d;
-}
-
-.dashboard-shell--candidate-design .btn-glass {
-  border-color: #303a35;
-  background: #171d1b;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-}
-
 .candidate-recruitment {
-  --admin-canvas: #111514;
-  --admin-surface: #171d1b;
-  --admin-surface-hover: #1d2421;
-  --admin-surface-subtle: #141a18;
-  --admin-border: #303a35;
-  --admin-border-subtle: #28312d;
-  --admin-text: #edf1ed;
-  --admin-muted: #a3ada7;
-  --admin-dim: #849089;
-  --admin-accent: #d0ad69;
-  --admin-accent-soft: #a18a5e;
-  --admin-success: #a8d5b7;
-  --admin-success-surface: rgba(64, 125, 84, 0.16);
-  --admin-warning: #e4ca95;
-  --admin-warning-surface: rgba(208, 173, 105, 0.08);
-  --admin-danger: #e3b1a9;
-  --admin-danger-surface: rgba(126, 57, 52, 0.18);
-  --admin-neutral: #b9c1bc;
-  --color-accent-primary: #d0ad69;
-  --color-accent-secondary: #a18a5e;
-  --color-primary-50: #f5edda;
-  --color-primary-100: #e9d9b2;
-  --color-primary-200: #dfc88f;
-  --color-primary-300: #d6b975;
-  --color-primary-400: #d0ad69;
-  --color-primary-500: #b99454;
-  --color-primary-600: #9b7840;
-  --color-primary-700: #795c31;
-  --color-primary-800: #574322;
-  --color-primary-900: #392d18;
-  --color-violet-350: #c4b181;
-  --glass-bg: #171d1b;
-  --glass-bg-strong: #171d1b;
-  --glass-border: #303a35;
-  --glass-border-strong: #3c4841;
-  --glass-highlight: transparent;
-  --gradient-brand: linear-gradient(135deg, #d0ad69 0%, #a18a5e 100%);
-
-  min-height: calc(100vh - 4rem);
-  margin: -1rem;
-  padding: 1.25rem 1rem 2rem;
-  background: var(--admin-canvas);
   color: var(--admin-text);
-}
-
-.admin-design.candidate-recruitment .glass-panel,
-.admin-design.candidate-recruitment .admin-panel {
-  border-color: var(--admin-border-subtle);
-  border-radius: 0.875rem;
-  background: var(--admin-surface);
-  box-shadow: none;
-}
-
-.admin-design.candidate-recruitment .glass-panel {
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
 }
 
 .candidate-recruitment [class*="registrations-"][aria-hidden="true"] {
   display: none;
-}
-
-.candidate-recruitment .chip-gradient,
-.candidate-recruitment .chip-gradient-soft {
-  border: 1px solid rgba(208, 173, 105, 0.2);
-  background: rgba(208, 173, 105, 0.08);
-  color: #dfc88f;
-  box-shadow: none;
-}
-
-.candidate-recruitment .btn-gradient,
-.candidate-recruitment .btn-glass {
-  box-shadow: none;
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
-}
-
-.candidate-recruitment .btn-gradient {
-  border: 1px solid #dfbd7c;
-  background: var(--admin-accent);
-  color: #171915;
-}
-
-.candidate-recruitment .btn-gradient:hover:not(:disabled) {
-  border-color: #ebcb8e;
-  background: #dfbd7c;
-  box-shadow: none;
-  filter: none;
-  transform: none;
-}
-
-.candidate-recruitment .btn-glass {
-  border: 1px solid var(--admin-border);
-  background: var(--admin-surface-subtle);
-  color: var(--admin-text);
-}
-
-.candidate-recruitment .btn-glass:hover:not(:disabled) {
-  border-color: #59604f;
-  background: var(--admin-surface-hover);
-  color: var(--admin-text);
-  transform: none;
 }
 
 .candidate-recruitment .candidate-page-header {
@@ -514,8 +369,12 @@
   overflow: hidden;
 }
 
+.candidate-cover-image-caption {
+  background: rgba(16, 21, 20, 0.82);
+}
+
 .candidate-cover-scrim {
-  background: linear-gradient(0deg, rgba(17, 21, 20, 0.95), rgba(17, 21, 20, 0.15) 75%, transparent);
+  background: rgba(16, 21, 20, 0.84);
 }
 
 .candidate-session-option {
@@ -564,32 +423,6 @@
   font-size: 0.78rem !important;
 }
 
-.candidate-recruitment-modal {
-  --admin-canvas: #111514;
-  --admin-surface: #171d1b;
-  --admin-surface-hover: #1d2421;
-  --admin-surface-subtle: #141a18;
-  --admin-border: #303a35;
-  --admin-border-subtle: #28312d;
-  --admin-text: #edf1ed;
-  --admin-muted: #a3ada7;
-  --admin-dim: #849089;
-  --admin-accent: #d0ad69;
-  --admin-danger: #e3b1a9;
-  --admin-danger-surface: rgba(126, 57, 52, 0.18);
-  color: var(--admin-text);
-}
-
-.candidate-recruitment-modal .glass-panel,
-.candidate-recruitment-modal .candidate-modal-panel {
-  border-color: var(--admin-border);
-  border-radius: 0.875rem;
-  background: var(--admin-surface);
-  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.45);
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-}
-
 .candidate-modal-panel {
   position: relative;
 }
@@ -601,11 +434,6 @@
 }
 
 @media (min-width: 640px) {
-  .candidate-recruitment {
-    margin: -1.5rem;
-    padding: 1.5rem 1.5rem 2.25rem;
-  }
-
   .candidate-recruitment .candidate-progress-list {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -616,11 +444,6 @@
 }
 
 @media (min-width: 1024px) {
-  .candidate-recruitment {
-    margin: -2rem;
-    padding: 1.75rem 2rem 2.5rem;
-  }
-
   .candidate-recruitment .candidate-progress-list {
     grid-template-columns: repeat(5, minmax(0, 1fr));
   }
@@ -699,8 +522,6 @@
 @media (prefers-reduced-motion: reduce) {
   .candidate-recruitment .candidate-choice,
   .candidate-recruitment .candidate-session-option,
-  .candidate-recruitment .btn-gradient,
-  .candidate-recruitment .btn-glass,
   .candidate-recruitment-modal {
     transition-duration: 0.01ms;
   }

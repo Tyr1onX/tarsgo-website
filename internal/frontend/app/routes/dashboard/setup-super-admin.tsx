@@ -1,4 +1,4 @@
-import { type FormEvent, type MouseEvent, useMemo, useState } from "react";
+import { type FormEvent, useMemo, useState } from "react";
 import { Link, redirect, useNavigate } from "react-router";
 
 import type { Route } from "./+types/setup-super-admin";
@@ -31,19 +31,12 @@ export default function SetupSuperAdmin() {
   const [errorMessage, setErrorMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
-  const [leaving, setLeaving] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
   const passwordStrength = useMemo(() => computePasswordStrength(password), [password]);
   const passwordsMatch = confirmPassword.length > 0 && password === confirmPassword;
   const passwordsMismatch = confirmPassword.length > 0 && password !== confirmPassword;
-
-  function handleBackToHome(event: MouseEvent) {
-    event.preventDefault();
-    setLeaving(true);
-    setTimeout(() => navigate("/"), 350);
-  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -75,17 +68,11 @@ export default function SetupSuperAdmin() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-950 flex items-center justify-center px-4 py-10">
-      <div className={`absolute top-1/3 left-1/2 -translate-x-1/2 -translate-y-1/2 h-[420px] w-[420px] rounded-full bg-primary-500/8 blur-[110px] ${success ? "animate-auth-success-glow" : leaving ? "animate-auth-exit-glow" : "animate-auth-glow"}`} />
-      {success ? (
-        <div className="fixed inset-0 z-40 bg-gray-950/80 animate-auth-success-overlay" />
-      ) : null}
-
-      <div className={`relative w-full max-w-md ${success ? "z-50" : ""} ${leaving ? "animate-auth-exit" : ""}`}>
+    <div className="admin-design setup-super-admin min-h-screen flex items-center justify-center px-4 py-10">
+      <div className="relative w-full max-w-md">
         <Link
           to="/"
-          onClick={handleBackToHome}
-          className="group mb-8 inline-flex items-center gap-2 text-sm text-gray-400 transition-colors hover:text-white animate-auth-back-link"
+          className="group mb-8 inline-flex items-center gap-2 text-sm text-gray-400 transition-colors hover:text-white"
         >
           <svg
             className="h-4 w-4 auth-back-link-arrow"
@@ -103,13 +90,10 @@ export default function SetupSuperAdmin() {
           返回首页
         </Link>
 
-        <div className="relative">
-          <div className="pointer-events-none absolute -inset-px rounded-[1.05rem] bg-gradient-to-br from-primary-500/25 via-primary-500/5 to-transparent opacity-60 blur-sm" />
-        <div className={`relative glass-panel rounded-2xl px-8 py-9 shadow-2xl shadow-black/40 animate-auth-card ${success ? "animate-auth-success-card" : ""}`}>
+        <div className="relative admin-panel setup-super-admin__card rounded-lg px-8 py-9">
           <div className="relative mb-7 text-center">
             <div className="relative mx-auto mb-5 h-14 w-14">
-              <div className={`absolute inset-0 rounded-2xl blur-xl transition-all duration-500 ${success ? "bg-emerald-500/40" : "bg-primary-500/35"}`} />
-              <div className={`relative flex h-full w-full items-center justify-center rounded-2xl ring-1 transition-all duration-300 ${success ? "scale-110 bg-gradient-to-br from-emerald-400 to-emerald-600 ring-emerald-300/50" : "bg-gradient-to-br from-primary-400 to-primary-600 ring-primary-300/30"}`}>
+              <div className={`setup-super-admin__mark ${success ? "setup-super-admin__mark--success" : ""}`}>
                 {success ? (
                   <svg className="h-7 w-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
                     <path className="auth-success-check" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
@@ -118,34 +102,30 @@ export default function SetupSuperAdmin() {
                   <span className="text-xl font-bold tracking-tight text-white">T</span>
                 )}
               </div>
-              {success ? (
-                <div className="absolute -inset-1 rounded-2xl border-2 border-emerald-400/50 animate-auth-success-ring" />
-              ) : null}
             </div>
             <h1 className="mb-1.5 text-2xl font-bold tracking-tight text-white">
               {success ? "初始化完成" : "创建超级管理员"}
             </h1>
-            <div className="mx-auto mt-5 h-px w-16 bg-gradient-to-r from-transparent via-gray-700 to-transparent" />
+            <div className="mx-auto mt-5 h-px w-16 bg-[var(--admin-border)]" />
           </div>
 
-          <div className="group relative mb-6 overflow-hidden rounded-xl border border-primary-500/25 bg-gradient-to-br from-primary-500/15 via-primary-500/8 to-transparent p-[1px] shadow-lg shadow-primary-500/5">
-            <div className="pointer-events-none absolute -inset-x-20 -top-10 h-24 rotate-12 bg-gradient-to-r from-transparent via-primary-400/10 to-transparent blur-2xl" />
-            <div className="relative rounded-[11px] bg-gray-900/60 px-4 py-3.5 backdrop-blur-sm">
+          <div className="setup-super-admin__notice mb-6 rounded-md p-4">
+            <div className="relative">
               <div className="flex items-start gap-3">
                 <div className="chip-gradient-soft flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-xl">
-                  <svg className="h-4 w-4 text-primary-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
+                  <svg className="h-4 w-4 text-[var(--admin-accent)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" />
                   </svg>
                 </div>
                 <div className="flex-1 pt-0.5">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-semibold text-primary-100">仅首次运行显示</span>
-                    <span className="inline-flex items-center rounded-full border border-primary-400/30 bg-primary-500/15 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-primary-200">
+                    <span className="text-sm font-semibold text-[var(--admin-text)]">仅首次运行显示</span>
+                    <span className="inline-flex items-center rounded-full border border-[var(--admin-border)] bg-[var(--admin-surface)] px-2 py-0.5 text-[10px] font-medium uppercase tracking-wider text-[var(--admin-muted)]">
                       One-time
                     </span>
                   </div>
-                  <p className="mt-1.5 text-xs leading-relaxed text-primary-100/75">
-                    创建成功后，该账号将作为系统的首个<span className="font-medium text-primary-200">超级管理员</span>，后续访问将恢复为正常登录流程。
+                  <p className="mt-1.5 text-xs leading-relaxed text-[var(--admin-muted)]">
+                    创建成功后，该账号将作为系统的首个<span className="font-medium text-[var(--admin-accent)]">超级管理员</span>，后续访问将恢复为正常登录流程。
                   </p>
                 </div>
               </div>
@@ -172,7 +152,7 @@ export default function SetupSuperAdmin() {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="root@example.com"
-                  className="w-full rounded-xl border border-white/[0.08] bg-black/30 pl-10 pr-4 py-3 text-white placeholder-gray-500 transition-all hover:border-white/[0.1] focus:border-primary-400/60 focus:outline-none focus:ring-2 focus:ring-primary-400/30"
+                  className="admin-field setup-super-admin__field setup-super-admin__field--icon"
                 />
               </div>
             </div>
@@ -195,12 +175,12 @@ export default function SetupSuperAdmin() {
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   placeholder="至少 6 位"
-                  className="w-full rounded-xl border border-white/[0.08] bg-black/30 pl-10 pr-11 py-3 text-white placeholder-gray-500 transition-all hover:border-white/[0.1] focus:border-primary-400/60 focus:outline-none focus:ring-2 focus:ring-primary-400/30"
+                  className="admin-field setup-super-admin__field setup-super-admin__field--icon setup-super-admin__field--action"
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-gray-500 transition-colors hover:text-gray-300 focus:outline-none focus:ring-1 focus:ring-primary-500/40"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-gray-500 transition-colors hover:text-gray-300"
                   aria-label={showPassword ? "隐藏密码" : "显示密码"}
                   tabIndex={-1}
                 >
@@ -253,18 +233,16 @@ export default function SetupSuperAdmin() {
                   value={confirmPassword}
                   onChange={(event) => setConfirmPassword(event.target.value)}
                   placeholder="再次输入密码"
-                  className={`w-full rounded-xl border bg-black/30 pl-10 pr-11 py-3 text-white placeholder-gray-500 transition-all focus:border-transparent focus:outline-none focus:ring-2 ${
+                  className={`admin-field setup-super-admin__field setup-super-admin__field--icon setup-super-admin__field--action ${
                     passwordsMismatch
-                      ? "border-rose-500/50 focus:ring-rose-500"
-                      : passwordsMatch
-                      ? "border-emerald-500/40 focus:ring-emerald-500"
-                      : "border-white/[0.08] hover:border-white/[0.1] focus:ring-primary-400/30"
+                      ? "setup-super-admin__field--error"
+                      : passwordsMatch ? "setup-super-admin__field--success" : ""
                   }`}
                 />
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-gray-500 transition-colors hover:text-gray-300 focus:outline-none focus:ring-1 focus:ring-primary-500/40"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-gray-500 transition-colors hover:text-gray-300"
                   aria-label={showConfirmPassword ? "隐藏密码" : "显示密码"}
                   tabIndex={-1}
                 >
@@ -298,7 +276,7 @@ export default function SetupSuperAdmin() {
             </div>
 
             {errorMessage ? (
-              <div className="animate-auth-fade-in rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200">
+              <div role="alert" className="admin-notice admin-notice--error">
                 {errorMessage}
               </div>
             ) : null}
@@ -306,11 +284,7 @@ export default function SetupSuperAdmin() {
             <button
               type="submit"
               disabled={submitting || success}
-              className={`w-full rounded-xl py-3 font-medium transition-all duration-300 disabled:cursor-not-allowed ${
-                success
-                  ? "scale-[1.02] bg-emerald-500 text-white"
-                  : "btn-gradient text-white"
-              }`}
+              className="admin-button admin-button--primary w-full py-3"
             >
               {success ? (
                 <span className="inline-flex items-center gap-2">
@@ -322,7 +296,6 @@ export default function SetupSuperAdmin() {
               ) : submitting ? "创建中..." : "创建"}
             </button>
           </form>
-        </div>
         </div>
       </div>
     </div>

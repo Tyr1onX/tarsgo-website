@@ -25,9 +25,7 @@ export function Notify({
     return null;
   }
 
-  const toneClass = tone === "success"
-    ? "border-emerald-400/25 bg-[rgba(10,16,20,0.82)] text-emerald-100"
-    : "border-red-400/25 bg-[rgba(20,10,14,0.82)] text-red-100";
+  const toneClass = tone === "success" ? "admin-notice admin-notice--success" : "admin-notice admin-notice--error";
   const wrapperClass = placement === "center"
     ? "pointer-events-none fixed inset-0 z-[70] flex items-center justify-center p-4"
     : `pointer-events-none fixed z-[70] w-[min(24rem,calc(100vw-2rem))] ${
@@ -40,27 +38,23 @@ export function Notify({
     : "w-full";
   const motionClass = placement === "center"
     ? (open
-      ? "translate-y-0 scale-100 opacity-100 blur-0"
-      : "translate-y-3 scale-95 opacity-0 blur-sm")
+      ? "translate-y-0 opacity-100"
+      : "translate-y-2 opacity-0")
     : placement === "top-right"
     ? (open
-      ? "translate-x-0 translate-y-0 scale-100 opacity-100 blur-0"
-      : "translate-x-3 -translate-y-3 scale-95 opacity-0 blur-sm")
+      ? "translate-x-0 translate-y-0 opacity-100"
+      : "translate-x-2 -translate-y-2 opacity-0")
     : (open
-      ? "translate-x-0 translate-y-0 scale-100 opacity-100 blur-0"
-      : "translate-x-3 translate-y-3 scale-95 opacity-0 blur-sm");
+      ? "translate-x-0 translate-y-0 opacity-100"
+      : "translate-x-2 translate-y-2 opacity-0");
 
   return createPortal(
-    <div className={wrapperClass}>
+    <div className={`admin-design ${wrapperClass}`}>
       <div
         role="status"
         aria-live="polite"
-        className={`${cardWidthClass} ${open ? "pointer-events-auto" : "pointer-events-none"} transform-gpu rounded-2xl border shadow-2xl shadow-black/40 backdrop-blur-xl transition-[opacity,transform,filter] duration-300 ease-[cubic-bezier(0.16,1,0.3,1)] ${toneClass} ${motionClass}`}
+        className={`${cardWidthClass} ${open ? "pointer-events-auto" : "pointer-events-none"} rounded-md transition-[opacity,transform] duration-150 ${toneClass} ${motionClass}`}
       >
-        <div
-          aria-hidden="true"
-          className={`h-1 rounded-t-2xl ${tone === "success" ? "bg-gradient-to-r from-emerald-400/90 to-teal-300/80" : "bg-gradient-to-r from-red-400/90 to-rose-300/80"}`}
-        />
         {placement === "center" ? (
           <div className="relative px-5 py-4 text-center">
             <button

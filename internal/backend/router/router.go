@@ -14,9 +14,7 @@ import (
 	"tarsgo-backend/middleware"
 	"tarsgo-backend/service/adminuser"
 	"tarsgo-backend/service/auth"
-	"tarsgo-backend/service/dashboard"
 	"tarsgo-backend/service/email"
-	"tarsgo-backend/service/portal"
 	"tarsgo-backend/service/registration"
 	"tarsgo-backend/service/runtimeconfig"
 	"tarsgo-backend/service/systemconfig"
@@ -59,8 +57,6 @@ func New(cfg *config.Config, db *gorm.DB, runtimeStore *runtimeconfig.Store) *gi
 	registrationFormHandler := handler.NewRegistrationFormHandler(registration.NewRegistrationFormService(db))
 	registrationService := registration.NewRegistrationServiceWithMailer(db, email.NewSender(cfg.Email))
 	registrationHandler := handler.NewRegistrationHandler(registrationService)
-	portalHandler := handler.NewPortalHandler(portal.NewService(portal.NewRepository(db)))
-	dashboardHandler := handler.NewDashboardHandler(dashboard.NewService(dashboard.NewRepository(db)))
 	systemConfigService := systemconfig.NewService(runtimeStore, cfg.Email, authService)
 	systemConfigHandler := handler.NewSystemConfigHandler(systemConfigService, systemConfigService)
 
@@ -83,25 +79,17 @@ func New(cfg *config.Config, db *gorm.DB, runtimeStore *runtimeconfig.Store) *gi
 
 	adminAPI := api.Group("/admin")
 	adminAPI.Use(middleware.RequireAdmin(authService))
-	adminAPI.GET("/roles", adminUserHandler.ListRoles)
-	adminAPI.GET("/dashboard", dashboardHandler.Get)
-	adminAPI.GET("/users", adminUserHandler.ListUsers)
-	adminAPI.POST("/users", adminUserHandler.CreateUser)
-	adminAPI.GET("/users/:id", adminUserHandler.GetUser)
-	adminAPI.PATCH("/users/:id", adminUserHandler.UpdateUser)
-	adminAPI.POST("/users/:id/reset-password", adminUserHandler.ResetPassword)
-	adminAPI.GET("/managed-group", userGroupHandler.GetManagedGroup)
-	adminAPI.PATCH("/managed-group/admission-image", userGroupHandler.UpdateManagedGroupAdmissionImage)
-	adminAPI.GET("/managed-group/members", userGroupHandler.ListManagedGroupMembers)
-	adminAPI.GET("/managed-group/member-candidates", userGroupHandler.ListManagedGroupCandidates)
-	adminAPI.POST("/managed-group/members", userGroupHandler.AddManagedGroupMember)
-	adminAPI.PATCH("/managed-group/members/:memberId", userGroupHandler.UpdateManagedGroupMember)
-	adminAPI.DELETE("/managed-group/members/:memberId", userGroupHandler.RemoveManagedGroupMember)
 	adminAPI.GET("/user-groups/options", userGroupHandler.ListGroupOptions)
 
 	// User-group and registration-form configuration are restricted to super admins.
 	superAdminAPI := adminAPI.Group("")
 	superAdminAPI.Use(middleware.RequireSuperAdmin(authService))
+	superAdminAPI.GET("/roles", adminUserHandler.ListRoles)
+	superAdminAPI.GET("/users", adminUserHandler.ListUsers)
+	superAdminAPI.POST("/users", adminUserHandler.CreateUser)
+	superAdminAPI.GET("/users/:id", adminUserHandler.GetUser)
+	superAdminAPI.PATCH("/users/:id", adminUserHandler.UpdateUser)
+	superAdminAPI.POST("/users/:id/reset-password", adminUserHandler.ResetPassword)
 	superAdminAPI.GET("/user-groups", userGroupHandler.ListGroups)
 	superAdminAPI.GET("/user-groups/member-candidates", userGroupHandler.ListMemberCandidates)
 	superAdminAPI.POST("/user-groups", userGroupHandler.CreateGroup)
@@ -111,22 +99,6 @@ func New(cfg *config.Config, db *gorm.DB, runtimeStore *runtimeconfig.Store) *gi
 	superAdminAPI.POST("/user-groups/:id/members", userGroupHandler.AddMember)
 	superAdminAPI.PATCH("/user-groups/:id/members/:memberId", userGroupHandler.UpdateMember)
 	superAdminAPI.DELETE("/user-groups/:id/members/:memberId", userGroupHandler.RemoveMember)
-	adminAPI.GET("/portal-groups", portalHandler.ListManagedGroups)
-	adminAPI.GET("/announcements", portalHandler.ListAnnouncements)
-	adminAPI.POST("/announcements", portalHandler.CreateAnnouncement)
-	adminAPI.GET("/announcements/:id", portalHandler.GetAnnouncement)
-	adminAPI.PATCH("/announcements/:id", portalHandler.UpdateAnnouncement)
-	adminAPI.DELETE("/announcements/:id", portalHandler.DeleteAnnouncement)
-	adminAPI.GET("/portal-events", portalHandler.ListEvents)
-	adminAPI.POST("/portal-events", portalHandler.CreateEvent)
-	adminAPI.GET("/portal-events/:id", portalHandler.GetEvent)
-	adminAPI.PATCH("/portal-events/:id", portalHandler.UpdateEvent)
-	adminAPI.DELETE("/portal-events/:id", portalHandler.DeleteEvent)
-	adminAPI.GET("/portal-links", portalHandler.ListLinks)
-	adminAPI.POST("/portal-links", portalHandler.CreateLink)
-	adminAPI.GET("/portal-links/:id", portalHandler.GetLink)
-	adminAPI.PATCH("/portal-links/:id", portalHandler.UpdateLink)
-	adminAPI.DELETE("/portal-links/:id", portalHandler.DeleteLink)
 	adminAPI.GET("/registration-forms", registrationFormHandler.ListForms)
 	superAdminAPI.POST("/registration-forms", registrationFormHandler.CreateForm)
 	adminAPI.GET("/registration-forms/:id/registrations/export", registrationHandler.ExportFormRegistrationsCSV)
@@ -154,7 +126,6 @@ func New(cfg *config.Config, db *gorm.DB, runtimeStore *runtimeconfig.Store) *gi
 
 	authenticatedAPI := api.Group("")
 	authenticatedAPI.Use(middleware.RequireAuthenticated(authService))
-	authenticatedAPI.GET("/portal/home", portalHandler.GetHome)
 	authenticatedAPI.GET("/recruitment/form", registrationFormHandler.GetRecruitmentPageData)
 	authenticatedAPI.POST("/recruitment/registrations", registrationHandler.SubmitRegistration)
 	authenticatedAPI.PATCH("/recruitment/registrations/:id", registrationHandler.UpdateRecruitmentRegistration)

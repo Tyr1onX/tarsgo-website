@@ -256,7 +256,7 @@ export function AnimatedSelect({
         ? createPortal(
             <div
               ref={panelRef}
-              className="motion-select-panel"
+              className="admin-design motion-select-panel"
               data-state={panelState}
               style={{
                 top: `${panelStyle.top}px`,

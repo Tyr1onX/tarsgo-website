@@ -201,43 +201,28 @@ func TestServiceListGroups_FiltersByStatus(t *testing.T) {
 	}
 }
 
-func TestToGroupDetail_IncludesMemberPhone(t *testing.T) {
+func TestGroupAPIResponsesDoNotExposeMemberPhoneOrAdmissionImage(t *testing.T) {
 	repo := newFakeRepository()
 	detail := toGroupDetail(repo.groups[1])
-
-	if len(detail.Members) != 1 {
-		t.Fatalf("expected 1 member, got %d", len(detail.Members))
+	detailJSON, err := json.Marshal(detail)
+	if err != nil {
+		t.Fatalf("marshal group detail: %v", err)
+	}
+	if strings.Contains(string(detailJSON), "13800138003") || strings.Contains(string(detailJSON), "admissionImageUrl") {
+		t.Fatalf("group detail exposed retired member or admission data: %s", detailJSON)
 	}
 
-	if detail.Members[0].User.Phone == nil || *detail.Members[0].User.Phone != "13800138003" {
-		t.Fatalf("expected member phone 13800138003, got %#v", detail.Members[0].User.Phone)
-	}
-}
-
-func TestServiceListMemberCandidates_IncludesPhone(t *testing.T) {
-	repo := newFakeRepository()
-	service := NewService(repo)
-
-	items, err := service.ListMemberCandidates(context.Background(), Actor{ID: 2, RoleName: model.RoleNameAdmin}, 1)
+	candidates, err := NewService(repo).ListMemberCandidates(context.Background(), Actor{ID: 2, RoleName: model.RoleNameAdmin}, 1)
 	if err != nil {
 		t.Fatalf("ListMemberCandidates returned error: %v", err)
 	}
-
-	if len(items) == 0 {
-		t.Fatalf("expected candidate items")
+	candidatesJSON, err := json.Marshal(candidates)
+	if err != nil {
+		t.Fatalf("marshal group candidates: %v", err)
 	}
-
-	for _, item := range items {
-		if item.ID != 2 {
-			continue
-		}
-		if item.Phone == nil || *item.Phone != "13800138002" {
-			t.Fatalf("expected candidate phone 13800138002, got %#v", item.Phone)
-		}
-		return
+	if strings.Contains(string(candidatesJSON), "13800138002") {
+		t.Fatalf("group candidates exposed member phone: %s", candidatesJSON)
 	}
-
-	t.Fatalf("expected admin user candidate")
 }
 
 func TestServiceCreateGroup_SavesLogo(t *testing.T) {
@@ -316,37 +301,6 @@ func TestServiceUpdateGroup_RemoveLogo(t *testing.T) {
 	if len(store.removed) != 1 || store.removed[0] != "old.png" {
 		t.Fatalf("expected old logo removed, got %#v", store.removed)
 	}
-}
-
-func TestServiceUpdateAdmissionImageAllowsCurrentGroupLeader(t *testing.T) {
-	repo := newFakeRepository()
-	store := &fakeGroupLogoFileStore{}
-	service := newServiceWithDependencies(repo, store)
-	groupID := uint64(2)
-
-	detail, err := service.UpdateAdmissionImage(context.Background(), Actor{
-		ID: 2, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGroup, ManagementGroupID: &groupID, GroupRole: "leader",
-	}, groupID, UpdateAdmissionImageInput{Image: newTestLogoFileHeader("qq-group.png", 1024, "image/png")})
-	if err != nil {
-		t.Fatalf("UpdateAdmissionImage returned error: %v", err)
-	}
-	if detail.AdmissionImageURL == nil || *detail.AdmissionImageURL != groupLogoURLPrefix+"logo-1.png" {
-		t.Fatalf("expected saved admission image URL, got %#v", detail.AdmissionImageURL)
-	}
-	if len(store.saved) != 1 {
-		t.Fatalf("expected one saved image, got %d", len(store.saved))
-	}
-}
-
-func TestServiceUpdateAdmissionImageRejectsGroupAdmin(t *testing.T) {
-	repo := newFakeRepository()
-	service := NewService(repo)
-	groupID := uint64(2)
-
-	_, err := service.UpdateAdmissionImage(context.Background(), Actor{
-		ID: 2, RoleName: model.RoleNameAdmin, AdminScope: model.AdminScopeGroup, ManagementGroupID: &groupID, GroupRole: "group_admin",
-	}, groupID, UpdateAdmissionImageInput{Image: newTestLogoFileHeader("qq-group.png", 1024, "image/png")})
-	assertServiceError(t, err, 403, "仅当前组组长")
 }
 
 func TestServiceUpdateGroup_RejectsOversizedLogo(t *testing.T) {
@@ -542,11 +496,6 @@ func (r *fakeRepository) UpdateGroup(_ context.Context, groupID uint64, updates 
 		group.LogoURL = copyString(value)
 	} else if _, exists := updates["logo_url"]; exists && updates["logo_url"] == nil {
 		group.LogoURL = nil
-	}
-	if value, ok := updates["admission_image_url"].(*string); ok {
-		group.AdmissionImageURL = copyString(value)
-	} else if _, exists := updates["admission_image_url"]; exists && updates["admission_image_url"] == nil {
-		group.AdmissionImageURL = nil
 	}
 	if value, ok := updates["tags"].(string); ok {
 		var tags []string

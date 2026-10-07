@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from "react-router";
 
 import { ApiError, buildApiUrl } from "~/lib/api-client";
 import {
-  createAdminInterviewSession,
   deleteAdminRegistration,
   getAdminRegistration,
   listAdminInterviewSessions,
@@ -11,7 +10,6 @@ import {
   recordAdminRegistrationInterview,
   screenAdminRegistration,
   undoAdminRegistrationScreening,
-  updateAdminInterviewSession,
   type InterviewAttendance,
   type InterviewSession,
   type ListRegistrationsInput,
@@ -61,12 +59,6 @@ const attendanceOptions: Array<{ value: InterviewAttendance | ""; label: string 
   { value: "not_attending", label: "不参加" },
 ];
 
-const sessionPresets = [
-  { label: "上午", startTime: "09:00", endTime: "11:30" },
-  { label: "下午", startTime: "13:30", endTime: "17:00" },
-  { label: "晚上", startTime: "18:30", endTime: "21:00" },
-];
-
 const statusOptions: Array<{ value: RecruitmentStatus | ""; label: string }> = [
   { value: "", label: "全部状态" },
   { value: "pending_screening", label: "待初筛" },
@@ -85,16 +77,6 @@ export default function Registrations() {
   const [forms, setForms] = useState<RegistrationFormListItem[]>([]);
   const [groups, setGroups] = useState<AdminUserGroupOption[]>([]);
   const [sessions, setSessions] = useState<InterviewSession[]>([]);
-  const [editingSessionId, setEditingSessionId] = useState<number | null>(null);
-  const [sessionSaving, setSessionSaving] = useState(false);
-  const [sessionDraft, setSessionDraft] = useState({
-    date: "",
-    label: "上午",
-    startTime: "09:00",
-    endTime: "11:30",
-    location: "吉甲大师双创基地",
-    enabled: true,
-  });
   const [query, setQuery] = useState<ListRegistrationsInput>({
     page: 1,
     pageSize: 10,
@@ -275,72 +257,6 @@ export default function Registrations() {
       else next.delete("status");
       return next;
     }, { replace: true });
-  }
-
-  function applySessionPreset(label: string, startTime: string, endTime: string) {
-    setSessionDraft((current) => ({ ...current, label, startTime, endTime }));
-  }
-
-  function editSession(session: InterviewSession) {
-    setEditingSessionId(session.id);
-    setSessionDraft({
-      date: session.date,
-      label: session.label,
-      startTime: session.startTime,
-      endTime: session.endTime,
-      location: session.location,
-      enabled: session.enabled,
-    });
-  }
-
-  function resetSessionDraft() {
-    setEditingSessionId(null);
-    setSessionDraft({
-      date: "",
-      label: "上午",
-      startTime: "09:00",
-      endTime: "11:30",
-      location: "吉甲大师双创基地",
-      enabled: true,
-    });
-  }
-
-  async function saveSession(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    try {
-      setSessionSaving(true);
-      if (editingSessionId == null) {
-        await createAdminInterviewSession(sessionDraft);
-      } else {
-        await updateAdminInterviewSession(editingSessionId, sessionDraft);
-      }
-      setSessions(await listAdminInterviewSessions());
-      resetSessionDraft();
-      setFlash({ type: "success", message: editingSessionId == null ? "面试场次已创建。" : "面试场次已更新。" });
-    } catch (error) {
-      handleError(error);
-    } finally {
-      setSessionSaving(false);
-    }
-  }
-
-  async function toggleSession(session: InterviewSession) {
-    try {
-      setSessionSaving(true);
-      await updateAdminInterviewSession(session.id, {
-        date: session.date,
-        label: session.label,
-        startTime: session.startTime,
-        endTime: session.endTime,
-        location: session.location,
-        enabled: !session.enabled,
-      });
-      setSessions(await listAdminInterviewSessions());
-    } catch (error) {
-      handleError(error);
-    } finally {
-      setSessionSaving(false);
-    }
   }
 
   return (
@@ -618,111 +534,6 @@ export default function Registrations() {
               下一页
             </button>
           </div>
-        </div>
-      </section>
-
-      <section id="interview-sessions" aria-label="面试场次配置" className="admin-session-management">
-        <div className="admin-section-heading">
-          <div>
-            <h2>面试场次</h2>
-            <p>配置候选人可选的日期、时段和地点</p>
-          </div>
-          {editingSessionId != null ? (
-            <button type="button" onClick={resetSessionDraft} className="admin-button admin-button--secondary admin-button--small">
-              取消编辑
-            </button>
-          ) : null}
-        </div>
-
-        <form onSubmit={saveSession} className="admin-session-form grid md:grid-cols-2 xl:grid-cols-6">
-          <input
-            type="date"
-            required
-            value={sessionDraft.date}
-            onChange={(event) => setSessionDraft((current) => ({ ...current, date: event.target.value }))}
-            className="admin-field"
-          />
-          <input
-            required
-            value={sessionDraft.label}
-            onChange={(event) => setSessionDraft((current) => ({ ...current, label: event.target.value }))}
-            placeholder="时段名称"
-            className="admin-field"
-          />
-          <input
-            type="time"
-            required
-            value={sessionDraft.startTime}
-            onChange={(event) => setSessionDraft((current) => ({ ...current, startTime: event.target.value }))}
-            className="admin-field"
-          />
-          <input
-            type="time"
-            required
-            value={sessionDraft.endTime}
-            onChange={(event) => setSessionDraft((current) => ({ ...current, endTime: event.target.value }))}
-            className="admin-field"
-          />
-          <input
-            required
-            value={sessionDraft.location}
-            onChange={(event) => setSessionDraft((current) => ({ ...current, location: event.target.value }))}
-            placeholder="地点"
-            className="admin-field"
-          />
-          <button disabled={sessionSaving} type="submit" className="admin-button admin-button--primary">
-            {editingSessionId == null ? "创建场次" : "保存修改"}
-          </button>
-          <div className="admin-operation-group md:col-span-2 xl:col-span-6">
-            {sessionPresets.map((preset) => (
-              <button
-                key={preset.label}
-                type="button"
-                onClick={() => applySessionPreset(preset.label, preset.startTime, preset.endTime)}
-                className="admin-button admin-button--secondary admin-button--small"
-              >
-                {preset.label} {preset.startTime}–{preset.endTime}
-              </button>
-            ))}
-          </div>
-        </form>
-
-        <div className="admin-list admin-session-list">
-          {sessions.length === 0 ? (
-            <div className="admin-table-empty">暂无面试场次。</div>
-          ) : (
-            sessions.map((session) => (
-              <div key={session.id} className="admin-list-row admin-session-row">
-                <div className="min-w-0">
-                  <div className="text-sm font-medium text-fg-primary">
-                    {session.date} · {session.label} {session.startTime}–{session.endTime}
-                  </div>
-                  <div className="mt-1 text-xs text-fg-dim">
-                    {session.location} · 已确认 {session.confirmedCount} 人 · {session.enabled ? "开放中" : "已停用"}
-                  </div>
-                </div>
-                <div className="admin-operation-group shrink-0">
-                  <button
-                    type="button"
-                    aria-label={`编辑 ${session.date} ${session.label}`}
-                    onClick={() => editSession(session)}
-                    className="admin-button admin-button--secondary admin-button--small"
-                  >
-                    编辑
-                  </button>
-                  <button
-                    type="button"
-                    aria-label={`${session.enabled ? "停用" : "启用"} ${session.date} ${session.label}`}
-                    disabled={sessionSaving}
-                    onClick={() => void toggleSession(session)}
-                    className="admin-button admin-button--quiet admin-button--small"
-                  >
-                    {session.enabled ? "停用" : "启用"}
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
         </div>
       </section>
 

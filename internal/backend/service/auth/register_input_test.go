@@ -50,7 +50,7 @@ func TestSessionCapabilitiesIgnoreLegacyAdminScopeForCoreAccess(t *testing.T) {
 	}
 	for _, admin := range admins {
 		session := toSessionUser(admin)
-		if !session.Capabilities.CanReviewRegistrations || !session.Capabilities.CanManagePortal || !session.Capabilities.CanManageAllPersonnel {
+		if !session.Capabilities.CanReviewRegistrations {
 			t.Fatalf("admin %d should have core admin capabilities regardless of legacy scope: %#v", admin.ID, session.Capabilities)
 		}
 		if session.Capabilities.CanManageSystemConfig || session.Capabilities.CanManageRoles || session.Capabilities.CanManageUserGroups {
@@ -69,7 +69,7 @@ func TestSessionCapabilitiesIgnoreLegacyAdminScopeForCoreAccess(t *testing.T) {
 		}},
 	}
 	memberSession := toSessionUser(member)
-	if memberSession.Capabilities.CanReviewRegistrations || memberSession.Capabilities.CanManagePortal || memberSession.Capabilities.CanManageAllPersonnel {
+	if memberSession.Capabilities.CanReviewRegistrations {
 		t.Fatalf("group leadership must not grant member core admin capabilities: %#v", memberSession.Capabilities)
 	}
 

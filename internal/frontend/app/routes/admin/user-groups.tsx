@@ -8,7 +8,6 @@ import folderPlus from "@iconify-icons/lucide/folder-plus";
 import layers from "@iconify-icons/lucide/layers";
 import mailIcon from "@iconify-icons/lucide/mail";
 import moreHorizontal from "@iconify-icons/lucide/more-horizontal";
-import phoneIcon from "@iconify-icons/lucide/phone";
 import power from "@iconify-icons/lucide/power";
 import powerOff from "@iconify-icons/lucide/power-off";
 import rotateCcw from "@iconify-icons/lucide/rotate-ccw";
@@ -49,8 +48,8 @@ import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 
 export function meta() {
   return [
-    { title: "用户分组 | TARS-GO 管理后台" },
-    { name: "description", content: "TARS-GO 用户分组管理" },
+    { title: "招新组别 | TARS-GO" },
+    { name: "description", content: "维护候选人意向组别和招新处理范围" },
   ];
 }
 
@@ -290,7 +289,6 @@ export default function UserGroups() {
         matchesMemberSearch(normalizedMemberSearchKeyword, [
           candidate.name,
           candidate.email,
-          candidate.phone,
         ])),
     [candidates, normalizedMemberSearchKeyword],
   );
@@ -301,7 +299,6 @@ export default function UserGroups() {
         matchesMemberSearch(normalizedMemberSearchKeyword, [
           member.user.name,
           member.user.email,
-          member.user.phone,
         ])),
     [normalizedMemberSearchKeyword, selectedGroup],
   );
@@ -579,7 +576,7 @@ export default function UserGroups() {
       closeGroupModal();
       setFlash({
         type: "success",
-        message: editingGroupId === null ? `已创建用户组：${detail.name}` : `已更新用户组：${detail.name}`,
+        message: editingGroupId === null ? `已创建招新组别：${detail.name}` : `已更新招新组别：${detail.name}`,
       });
       await refreshList();
 
@@ -693,7 +690,7 @@ export default function UserGroups() {
     try {
       setDeletingGroup(true);
       await deleteAdminUserGroup(deleteTarget.id);
-      setFlash({ type: "success", message: `已删除用户组：${deleteTarget.name}` });
+      setFlash({ type: "success", message: `已删除招新组别：${deleteTarget.name}` });
       setDeleteTarget(null);
       await refreshList();
       if (selectedGroupId === deleteTarget.id) {
@@ -800,7 +797,7 @@ export default function UserGroups() {
     return (
       <div className="admin-design admin-groups">
         <div className="admin-notice admin-notice--warning">
-          <h1 className="admin-page-title">用户分组</h1>
+          <h1 className="admin-page-title">招新组别</h1>
           <p className="mt-2 leading-6">当前账号没有管理员权限，无法访问此页面。</p>
         </div>
       </div>
@@ -823,9 +820,9 @@ export default function UserGroups() {
       {/* Header */}
       <header className="admin-page-header flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <div className="admin-eyebrow">吉甲 · 组织目录</div>
-          <h1 className="admin-page-title">用户分组</h1>
-          <p className="admin-page-description">查看组别负责人和成员规模，快速进入成员管理或编辑组别信息。</p>
+          <div className="admin-eyebrow">吉甲 · 招新设置</div>
+          <h1 className="admin-page-title">招新组别</h1>
+          <p className="admin-page-description">这些组别用于报名意向、默认组报名资格和分组候选人处理范围。</p>
         </div>
         <button
           type="button"
@@ -833,12 +830,12 @@ export default function UserGroups() {
           className="admin-button admin-button--primary shrink-0"
         >
           <Icon icon={folderPlus} className="h-4 w-4" />
-          新建分组
+          新建招新组别
         </button>
       </header>
 
       {/* Stats */}
-      <div className="admin-groups__summary" aria-label="用户分组统计">
+      <div className="admin-groups__summary" aria-label="招新组别概况">
         <span>分组<strong>{summary.total}</strong></span>
         <span>启用<strong>{summary.active}</strong></span>
         <span>停用<strong>{summary.disabled}</strong></span>
@@ -879,7 +876,7 @@ export default function UserGroups() {
       </div>
 
       {/* Group list */}
-      <section className="admin-panel overflow-hidden" aria-label="用户组列表">
+      <section className="admin-panel overflow-hidden" aria-label="招新组别列表">
         <div className="admin-groups__list-heading">
           <span>分组信息</span>
           <span>共 {groups.length} 个</span>
@@ -897,7 +894,7 @@ export default function UserGroups() {
               <Icon icon={layers} className="h-5 w-5" />
             </div>
             <span className="text-sm text-[var(--admin-muted)]">
-              {statusFilter === "" ? "暂无用户组" : "当前筛选下暂无用户组"}
+              {statusFilter === "" ? "暂无招新组别" : "当前筛选下暂无招新组别"}
             </span>
           </div>
         ) : (
@@ -921,7 +918,7 @@ export default function UserGroups() {
       {/* Create / Edit modal */}
       <ModalShell
         open={groupModalOpen}
-        title={editingGroupId === null ? "新建用户组" : "编辑用户组"}
+        title={editingGroupId === null ? "新建招新组别" : "编辑招新组别"}
         headerAccent={
           <div className="admin-groups__modal-icon">
             <Icon
@@ -1264,12 +1261,6 @@ export default function UserGroups() {
                                       <Icon icon={mailIcon} className="h-3 w-3 shrink-0 text-[var(--admin-dim)]" />
                                       <span className="truncate">{candidate.email}</span>
                                     </span>
-                                    {candidate.phone ? (
-                                      <span className="flex items-center gap-1.5">
-                                        <Icon icon={phoneIcon} className="h-3 w-3 shrink-0 text-[var(--admin-dim)]" />
-                                        <span>{candidate.phone}</span>
-                                      </span>
-                                    ) : null}
                                   </div>
                                   {candidate.groups?.length ? (
                                     <div className="mt-1.5 flex flex-wrap gap-1">
@@ -1357,12 +1348,6 @@ export default function UserGroups() {
                                       <Icon icon={mailIcon} className="h-3 w-3 shrink-0 text-[var(--admin-dim)]" />
                                       <span className="truncate">{member.user.email}</span>
                                     </span>
-                                    {member.user.phone ? (
-                                      <span className="flex items-center gap-1.5">
-                                        <Icon icon={phoneIcon} className="h-3 w-3 shrink-0 text-[var(--admin-dim)]" />
-                                        <span>{member.user.phone}</span>
-                                      </span>
-                                    ) : null}
                                     <span className="text-[var(--admin-dim)] shrink-0">{formatDateTime(member.joinedAt)}</span>
                                   </div>
                                 </div>

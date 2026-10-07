@@ -6,14 +6,6 @@ export interface AdminUserRole {
   displayName: string;
 }
 
-export interface AdminUserGroupRef {
-  id: number;
-  name: string;
-  memberId: number;
-  memberRole: number;
-  status?: number;
-}
-
 export interface AdminUserRoleOption extends AdminUserRole {
   editableByCurrentActor: boolean;
 }
@@ -27,12 +19,7 @@ export interface AdminUserListItem {
   id: number;
   name: string;
   email: string;
-  phone?: string | null;
-  realName?: string | null;
   role: AdminUserRole;
-  adminScope?: string;
-  managementGroupId?: number | null;
-  groups?: AdminUserGroupRef[];
   status: number;
   authMethods: AdminUserAuthMethods;
   lastLoginAt?: string | null;
@@ -43,18 +30,8 @@ export interface AdminUserDetail {
   id: number;
   name: string;
   email: string;
-  nickname?: string | null;
-  avatarUrl?: string | null;
-  phone?: string | null;
-  realName?: string | null;
-  gender: number;
-  birthday?: string | null;
   status: number;
-  githubUsername?: string | null;
   role: AdminUserRole;
-  adminScope?: string;
-  managementGroupId?: number | null;
-  groups?: AdminUserGroupRef[];
   authMethods: AdminUserAuthMethods;
   lastLoginAt?: string | null;
   createdAt: string;
@@ -66,7 +43,6 @@ export interface AdminUserSummary {
   enabled: number;
   disabled: number;
   admins: number;
-  githubBound: number;
 }
 
 export interface AdminUserPagination {
@@ -87,7 +63,6 @@ export interface ListAdminUsersInput {
   pageSize?: number;
   keyword?: string;
   role?: string;
-  groupId?: number | "";
   status?: number | "";
 }
 
@@ -95,15 +70,6 @@ export interface AdminUserUpsertInput {
   roleId: number;
   name: string;
   email: string;
-  nickname?: string;
-  avatarUrl?: string;
-  phone?: string;
-  realName?: string;
-  gender: number;
-  birthday?: string;
-  status?: number;
-  adminScope?: "none" | "global" | "group" | string;
-  managementGroupId?: number | null;
 }
 
 export interface CreateAdminUserInput extends AdminUserUpsertInput {
@@ -124,9 +90,6 @@ export async function listAdminUsers(input: ListAdminUsersInput): Promise<AdminU
   }
   if (input.role?.trim()) {
     params.set("role", input.role.trim());
-  }
-  if (input.groupId !== "" && input.groupId !== undefined) {
-    params.set("groupId", String(input.groupId));
   }
   if (input.status !== "" && input.status !== undefined) {
     params.set("status", String(input.status));

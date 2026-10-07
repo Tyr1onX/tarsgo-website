@@ -82,9 +82,9 @@ export function ModalShell({
   children,
   widthClass = "max-w-2xl",
   roundedClassName = "rounded-2xl",
-  panelClassName = "glass-panel glass-panel-strong shadow-2xl shadow-black/40",
+  panelClassName = "admin-modal-panel",
   bodyClassName = "px-6 py-5",
-  backdropClassName = "bg-black/60 backdrop-blur-sm",
+  backdropClassName = "bg-black/60",
   zIndexClass = "z-[70]",
 }: ModalShellProps) {
   const titleId = useId();
@@ -117,7 +117,7 @@ export function ModalShell({
 
   return createPortal(
     <div
-      className={`motion-overlay fixed inset-0 ${zIndexClass} flex items-center justify-center ${backdropClassName} p-4`}
+      className={`admin-design motion-overlay fixed inset-0 ${zIndexClass} flex items-center justify-center ${backdropClassName} p-4`}
       data-state={open ? "open" : "closed"}
       onMouseDown={handleOverlayMouseDown}
     >

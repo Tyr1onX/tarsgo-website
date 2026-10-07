@@ -93,16 +93,8 @@ func TestUserGroupHandlerUpdateGroup_Multipart(t *testing.T) {
 }
 
 type stubUserGroupService struct {
-	createFn          func(ctx context.Context, actor usergroup.Actor, input usergroup.CreateGroupInput) (*usergroup.GroupDetail, error)
-	updateFn          func(ctx context.Context, actor usergroup.Actor, groupID uint64, input usergroup.UpdateGroupInput) (*usergroup.GroupDetail, error)
-	updateAdmissionFn func(ctx context.Context, actor usergroup.Actor, groupID uint64, input usergroup.UpdateAdmissionImageInput) (*usergroup.GroupDetail, error)
-}
-
-func (s *stubUserGroupService) UpdateAdmissionImage(ctx context.Context, actor usergroup.Actor, groupID uint64, input usergroup.UpdateAdmissionImageInput) (*usergroup.GroupDetail, error) {
-	if s.updateAdmissionFn == nil {
-		return nil, nil
-	}
-	return s.updateAdmissionFn(ctx, actor, groupID, input)
+	createFn func(ctx context.Context, actor usergroup.Actor, input usergroup.CreateGroupInput) (*usergroup.GroupDetail, error)
+	updateFn func(ctx context.Context, actor usergroup.Actor, groupID uint64, input usergroup.UpdateGroupInput) (*usergroup.GroupDetail, error)
 }
 
 func (s *stubUserGroupService) ListGroups(_ context.Context, _ usergroup.Actor, _ usergroup.ListGroupsInput) (*usergroup.ListGroupsResult, error) {

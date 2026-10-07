@@ -8,22 +8,13 @@ export interface AuthRole {
   displayName: string;
 }
 
-export interface AuthUserPortal {
-  showRecruitmentEntry: boolean;
-}
-
 export interface AuthCapabilities {
-  canManagePortal: boolean;
   canReviewRegistrations: boolean;
   canManageGroupMembers: boolean;
   canManageGroupAdmins: boolean;
   canManageUserGroups: boolean;
   canManageSystemConfig: boolean;
   canViewGroupMembers: boolean;
-  canEditGroupMemberProfiles: boolean;
-  canEditManagedAdminProfiles: boolean;
-  canManageAllPersonnel: boolean;
-  canManageAllPortal: boolean;
   canManageAdminStatus: boolean;
   canManageRoles: boolean;
 }
@@ -40,7 +31,6 @@ export interface AuthUser {
   groupRole?: "member" | "group_admin" | "leader" | string;
   permissions: string[];
   capabilities: AuthCapabilities;
-  portal?: AuthUserPortal | null;
 }
 
 export function getAuthUserRoleLabel(user: Pick<AuthUser, "role">): string {

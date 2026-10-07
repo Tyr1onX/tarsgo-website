@@ -12,19 +12,6 @@ const (
 	ActivityGroupMemberAdded       = "group.member_added"
 	ActivityGroupMemberRemoved     = "group.member_removed"
 	ActivityGroupMemberRoleChanged = "group.member_role_changed"
-	ActivityAnnouncementPublished  = "announcement.published"
-	ActivityAnnouncementArchived   = "announcement.archived"
-	ActivityAnnouncementCreated    = "announcement.created"
-	ActivityAnnouncementUpdated    = "announcement.updated"
-	ActivityAnnouncementDeleted    = "announcement.deleted"
-	ActivityEventPublished         = "event.published"
-	ActivityEventCancelled         = "event.cancelled"
-	ActivityEventCreated           = "event.created"
-	ActivityEventUpdated           = "event.updated"
-	ActivityEventDeleted           = "event.deleted"
-	ActivityPortalLinkCreated      = "portal_link.created"
-	ActivityPortalLinkUpdated      = "portal_link.updated"
-	ActivityPortalLinkDeleted      = "portal_link.deleted"
 )
 
 type ActivityEvent struct {

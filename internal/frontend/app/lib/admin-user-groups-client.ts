@@ -14,7 +14,6 @@ export interface AdminUserGroupListItem {
   name: string;
   description?: string | null;
   logoUrl?: string | null;
-  admissionImageUrl?: string | null;
   tags?: string[];
   isDefault: boolean;
   show: number;
@@ -29,7 +28,6 @@ export interface AdminUserGroupMemberUser {
   id: number;
   name: string;
   email: string;
-  phone?: string | null;
   status: number;
   role: AdminUserRole;
 }
@@ -55,7 +53,6 @@ export interface AdminUserGroupCandidate {
   id: number;
   name: string;
   email: string;
-  phone?: string | null;
   status: number;
   role: AdminUserRole;
   groups?: AdminUserGroupCandidateGroup[];
@@ -115,24 +112,6 @@ export async function getAdminUserGroup(groupId: number): Promise<AdminUserGroup
   return apiRequest<AdminUserGroupDetail>(`/api/admin/user-groups/${groupId}`);
 }
 
-export async function getManagedAdminUserGroup(): Promise<AdminUserGroupDetail> {
-  return apiRequest<AdminUserGroupDetail>("/api/admin/managed-group");
-}
-
-export async function updateManagedGroupAdmissionImage(input: { image?: File; removeImage?: boolean }): Promise<AdminUserGroupDetail> {
-  const body = new FormData();
-  if (input.image) {
-    body.set("image", input.image);
-  }
-  if (input.removeImage) {
-    body.set("removeImage", "true");
-  }
-  return apiRequest<AdminUserGroupDetail>("/api/admin/managed-group/admission-image", {
-    method: "PATCH",
-    body,
-  });
-}
-
 export async function createAdminUserGroup(input: UpsertAdminUserGroupBody): Promise<AdminUserGroupDetail> {
   return apiRequest<AdminUserGroupDetail>("/api/admin/user-groups", {
     method: "POST",
@@ -170,13 +149,6 @@ export async function addAdminUserGroupMember(groupId: number, input: AddAdminUs
 
 export async function updateAdminUserGroupMember(groupId: number, memberId: number, input: UpsertAdminUserGroupMemberInput): Promise<AdminUserGroupMember> {
   return apiRequest<AdminUserGroupMember>(`/api/admin/user-groups/${groupId}/members/${memberId}`, {
-    method: "PATCH",
-    body: input,
-  });
-}
-
-export async function updateManagedGroupMember(memberId: number, input: UpsertAdminUserGroupMemberInput): Promise<AdminUserGroupMember> {
-  return apiRequest<AdminUserGroupMember>(`/api/admin/managed-group/members/${memberId}`, {
     method: "PATCH",
     body: input,
   });

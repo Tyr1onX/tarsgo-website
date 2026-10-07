@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -33,38 +32,21 @@ type listUsersQuery struct {
 	PageSize int    `form:"pageSize"`
 	Keyword  string `form:"keyword"`
 	Role     string `form:"role"`
-	GroupID  string `form:"groupId"`
 	Status   string `form:"status"`
 }
 
 type createUserRequest struct {
-	RoleID            uint64  `json:"roleId" binding:"required"`
-	Name              string  `json:"name" binding:"required,max=100"`
-	Email             string  `json:"email" binding:"required,email,max=255"`
-	Password          string  `json:"password" binding:"required,min=6,max=72"`
-	Nickname          string  `json:"nickname" binding:"omitempty,max=100"`
-	AvatarURL         string  `json:"avatarUrl" binding:"omitempty,max=500"`
-	Phone             string  `json:"phone" binding:"omitempty,max=20"`
-	RealName          string  `json:"realName" binding:"omitempty,max=100"`
-	Gender            uint8   `json:"gender"`
-	Birthday          string  `json:"birthday" binding:"omitempty"`
-	AdminScope        string  `json:"adminScope"`
-	ManagementGroupID *uint64 `json:"managementGroupId"`
+	RoleID   uint64 `json:"roleId" binding:"required"`
+	Name     string `json:"name" binding:"required,max=100"`
+	Email    string `json:"email" binding:"required,email,max=255"`
+	Password string `json:"password" binding:"required,min=6,max=72"`
 }
 
 type updateUserRequest struct {
-	RoleID            uint64  `json:"roleId" binding:"required"`
-	Name              string  `json:"name" binding:"required,max=100"`
-	Email             string  `json:"email" binding:"required,email,max=255"`
-	Nickname          string  `json:"nickname" binding:"omitempty,max=100"`
-	AvatarURL         string  `json:"avatarUrl" binding:"omitempty,max=500"`
-	Phone             string  `json:"phone" binding:"omitempty,max=20"`
-	RealName          string  `json:"realName" binding:"omitempty,max=100"`
-	Gender            uint8   `json:"gender"`
-	Birthday          string  `json:"birthday" binding:"omitempty"`
-	Status            uint8   `json:"status"`
-	AdminScope        string  `json:"adminScope"`
-	ManagementGroupID *uint64 `json:"managementGroupId"`
+	RoleID uint64 `json:"roleId" binding:"required"`
+	Name   string `json:"name" binding:"required,max=100"`
+	Email  string `json:"email" binding:"required,email,max=255"`
+	Status uint8  `json:"status"`
 }
 
 type resetPasswordRequest struct {
@@ -87,12 +69,6 @@ func (h *AdminUserHandler) ListUsers(c *gin.Context) {
 		writeAPIError(c, http.StatusBadRequest, err.Error())
 		return
 	}
-	groupID, err := parseOptionalGroupID(query.GroupID)
-	if err != nil {
-		writeAPIError(c, http.StatusBadRequest, err.Error())
-		return
-	}
-
 	result, serviceErr := h.service.ListUsers(
 		c.Request.Context(),
 		currentActor(c),
@@ -101,7 +77,6 @@ func (h *AdminUserHandler) ListUsers(c *gin.Context) {
 			PageSize: query.PageSize,
 			Keyword:  query.Keyword,
 			Role:     query.Role,
-			GroupID:  groupID,
 			Status:   status,
 		},
 	)
@@ -146,28 +121,14 @@ func (h *AdminUserHandler) CreateUser(c *gin.Context) {
 		return
 	}
 
-	birthday, err := parseOptionalBirthday(request.Birthday)
-	if err != nil {
-		writeAPIError(c, http.StatusBadRequest, "生日格式不合法，请使用 YYYY-MM-DD")
-		return
-	}
-
 	user, serviceErr := h.service.CreateUser(
 		c.Request.Context(),
 		currentActor(c),
 		adminuser.CreateUserInput{
-			RoleID:            request.RoleID,
-			Name:              request.Name,
-			Email:             request.Email,
-			Password:          request.Password,
-			Nickname:          request.Nickname,
-			AvatarURL:         request.AvatarURL,
-			Phone:             request.Phone,
-			RealName:          request.RealName,
-			Gender:            request.Gender,
-			Birthday:          birthday,
-			AdminScope:        request.AdminScope,
-			ManagementGroupID: request.ManagementGroupID,
+			RoleID:   request.RoleID,
+			Name:     request.Name,
+			Email:    request.Email,
+			Password: request.Password,
 		},
 	)
 	if serviceErr != nil {
@@ -192,29 +153,15 @@ func (h *AdminUserHandler) UpdateUser(c *gin.Context) {
 		return
 	}
 
-	birthday, err := parseOptionalBirthday(request.Birthday)
-	if err != nil {
-		writeAPIError(c, http.StatusBadRequest, "生日格式不合法，请使用 YYYY-MM-DD")
-		return
-	}
-
 	user, serviceErr := h.service.UpdateUser(
 		c.Request.Context(),
 		currentActor(c),
 		userID,
 		adminuser.UpdateUserInput{
-			RoleID:            request.RoleID,
-			Name:              request.Name,
-			Email:             request.Email,
-			Nickname:          request.Nickname,
-			AvatarURL:         request.AvatarURL,
-			Phone:             request.Phone,
-			RealName:          request.RealName,
-			Gender:            request.Gender,
-			Birthday:          birthday,
-			Status:            request.Status,
-			AdminScope:        request.AdminScope,
-			ManagementGroupID: request.ManagementGroupID,
+			RoleID: request.RoleID,
+			Name:   request.Name,
+			Email:  request.Email,
+			Status: request.Status,
 		},
 	)
 	if serviceErr != nil {
@@ -263,11 +210,7 @@ func currentActor(c *gin.Context) adminuser.Actor {
 	}
 
 	return adminuser.Actor{
-		ID:                sessionUser.ID,
-		RoleName:          sessionUser.Role.Name,
-		AdminScope:        sessionUser.AdminScope,
-		ManagementGroupID: sessionUser.ManagementGroupID,
-		GroupRole:         sessionUser.GroupRole,
+		RoleName: sessionUser.Role.Name,
 	}
 }
 
@@ -283,32 +226,6 @@ func parseOptionalStatus(raw string) (*uint8, error) {
 	}
 	status := uint8(value)
 	return &status, nil
-}
-
-func parseOptionalGroupID(raw string) (*uint64, error) {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return nil, nil
-	}
-
-	value, err := strconv.ParseUint(trimmed, 10, 64)
-	if err != nil || value == 0 {
-		return nil, errors.New("组别筛选值不合法")
-	}
-	return &value, nil
-}
-
-func parseOptionalBirthday(raw string) (*time.Time, error) {
-	trimmed := strings.TrimSpace(raw)
-	if trimmed == "" {
-		return nil, nil
-	}
-
-	value, err := time.Parse("2006-01-02", trimmed)
-	if err != nil {
-		return nil, err
-	}
-	return &value, nil
 }
 
 func parsePathUserID(raw string) (uint64, error) {

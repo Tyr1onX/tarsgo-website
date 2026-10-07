@@ -74,8 +74,8 @@ const registrationStatusMeta: Record<RecruitmentPageRegistrationSummary["status"
 
 export function meta() {
   return [
-    { title: "纳新报名 | TARS-GO" },
-    { name: "description", content: "TARS-GO 统一工作台纳新报名页" },
+    { title: "我的招新 | TARS-GO" },
+    { name: "description", content: "查看吉甲大师招新进度并完成后续确认" },
   ];
 }
 
@@ -550,7 +550,6 @@ function FormStateView({
         <SidebarCard
           icon={calendarIcon}
           label="开放时间"
-          accent="primary"
         >
           <p className="text-sm font-medium leading-6 text-fg-primary">
             {scheduleText || "发布后立即开放"}
@@ -564,7 +563,6 @@ function FormStateView({
         <SidebarCard
           icon={usersIcon}
           label="人数上限"
-          accent="indigo"
         >
           <p className="text-sm font-medium text-fg-primary">
             {form.maxRegistrations ? (
@@ -616,8 +614,7 @@ function FormCoverCard({
             alt={form.title}
             className="h-48 w-full object-cover sm:h-60"
           />
-          <div className="absolute inset-0 bg-gradient-to-t from-surface-card via-surface-card/40 to-transparent" />
-          <div className="absolute bottom-0 left-0 right-0 p-5 sm:p-7">
+          <div className="candidate-cover-image-caption absolute bottom-0 left-0 right-0 p-5 sm:p-7">
             <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-primary-200 sm:text-[11px] sm:tracking-[0.28em]">
               当前报名
             </p>
@@ -637,10 +634,6 @@ function FormCoverCard({
 
   return (
     <section className="admin-panel candidate-cover-card relative overflow-hidden">
-      <div
-        aria-hidden
-        className="bg-registrations-cover-glow pointer-events-none absolute inset-0"
-      />
       <div className="relative px-5 py-5 sm:px-7 sm:py-8">
         <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-primary-300 sm:text-[11px] sm:tracking-[0.28em]">
           当前报名
@@ -660,25 +653,16 @@ function SidebarCard({
   icon,
   label,
   children,
-  accent,
 }: {
   icon: IconifyIcon;
   label: string;
   children: ReactNode;
-  accent: "primary" | "indigo" | "emerald" | "gold";
 }) {
-  const accentMap = {
-    primary: "candidate-icon-box",
-    indigo: "candidate-icon-box",
-    emerald: "candidate-icon-box",
-    gold: "candidate-icon-box",
-  } as const;
-
   return (
     <div className="admin-panel candidate-info-card">
       <div className="flex items-center gap-2.5">
         <div
-          className={`flex h-8 w-8 items-center justify-center rounded-lg ${accentMap[accent]}`}
+          className="candidate-icon-box flex h-8 w-8 items-center justify-center rounded-lg"
         >
           <Icon icon={icon} className="h-4 w-4" />
         </div>
@@ -803,10 +787,6 @@ function CancelConfirmModal({
         className={`admin-panel candidate-modal-panel w-full max-w-md overflow-hidden transition-opacity duration-150 ${visible ? "opacity-100" : "opacity-0"}`}
         onClick={(event) => event.stopPropagation()}
       >
-        <div
-          aria-hidden
-          className="bg-registrations-modal-glow pointer-events-none absolute inset-0"
-        />
         <div className="relative flex items-start justify-between gap-4 border-b border-white/[0.06] px-6 py-5">
           <div className="flex items-start gap-3">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/20">
