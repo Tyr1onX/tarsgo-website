@@ -16,13 +16,12 @@ import (
 	"tarsgo-backend/service/auth"
 	"tarsgo-backend/service/email"
 	"tarsgo-backend/service/registration"
-	"tarsgo-backend/service/runtimeconfig"
 	"tarsgo-backend/service/systemconfig"
 	"tarsgo-backend/service/usergroup"
 	"tarsgo-backend/web"
 )
 
-func New(cfg *config.Config, db *gorm.DB, runtimeStore *runtimeconfig.Store) *gin.Engine {
+func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	gin.SetMode(cfg.App.GinMode)
 
 	engine := gin.New()
@@ -50,14 +49,14 @@ func New(cfg *config.Config, db *gorm.DB, runtimeStore *runtimeconfig.Store) *gi
 	engine.Static("/upload/config/group", filepath.Join("upload", "config", "group"))
 
 	healthHandler := handler.NewHealthHandler(db)
-	authService := auth.NewService(cfg, db, runtimeStore)
-	authHandler := handler.NewAuthHandler(cfg, authService)
+	authService := auth.NewService(cfg, db)
+	authHandler := handler.NewAuthHandler(authService)
 	adminUserHandler := handler.NewAdminUserHandler(adminuser.NewService(adminuser.NewRepository(db)))
 	userGroupHandler := handler.NewUserGroupHandler(usergroup.NewService(usergroup.NewRepository(db)))
 	registrationFormHandler := handler.NewRegistrationFormHandler(registration.NewRegistrationFormService(db))
 	registrationService := registration.NewRegistrationServiceWithMailer(db, email.NewSender(cfg.Email))
 	registrationHandler := handler.NewRegistrationHandler(registrationService)
-	systemConfigService := systemconfig.NewService(runtimeStore, cfg.Email, authService)
+	systemConfigService := systemconfig.NewService(cfg.Email, authService)
 	systemConfigHandler := handler.NewSystemConfigHandler(systemConfigService, systemConfigService)
 
 	engine.GET("/healthz", healthHandler.Get)
@@ -70,10 +69,6 @@ func New(cfg *config.Config, db *gorm.DB, runtimeStore *runtimeconfig.Store) *gi
 	api.POST("/login/email/password", authHandler.LoginWithPassword)
 	api.POST("/login/email/send-code", authHandler.SendLoginCode)
 	api.POST("/login/email/code", authHandler.LoginWithCode)
-	api.GET("/login/providers", authHandler.ListOAuthProviders)
-	api.GET("/login/:provider", authHandler.OAuthLogin)
-	api.GET("/login/:provider/callback", authHandler.OAuthCallback)
-	api.GET("/register/github/oauth/callback", authHandler.GitHubCallback)
 	api.POST("/logout", authHandler.Logout)
 	api.GET("/me", authHandler.Me)
 
@@ -89,30 +84,24 @@ func New(cfg *config.Config, db *gorm.DB, runtimeStore *runtimeconfig.Store) *gi
 	superAdminAPI.POST("/users", adminUserHandler.CreateUser)
 	superAdminAPI.GET("/users/:id", adminUserHandler.GetUser)
 	superAdminAPI.PATCH("/users/:id", adminUserHandler.UpdateUser)
+	superAdminAPI.PATCH("/users/:id/recruitment-group", adminUserHandler.UpdateRecruitmentGroup)
 	superAdminAPI.POST("/users/:id/reset-password", adminUserHandler.ResetPassword)
 	superAdminAPI.GET("/user-groups", userGroupHandler.ListGroups)
-	superAdminAPI.GET("/user-groups/member-candidates", userGroupHandler.ListMemberCandidates)
 	superAdminAPI.POST("/user-groups", userGroupHandler.CreateGroup)
-	superAdminAPI.GET("/user-groups/:id", userGroupHandler.GetGroup)
 	superAdminAPI.PATCH("/user-groups/:id", userGroupHandler.UpdateGroup)
-	superAdminAPI.DELETE("/user-groups/:id", userGroupHandler.DeleteGroup)
-	superAdminAPI.POST("/user-groups/:id/members", userGroupHandler.AddMember)
-	superAdminAPI.PATCH("/user-groups/:id/members/:memberId", userGroupHandler.UpdateMember)
-	superAdminAPI.DELETE("/user-groups/:id/members/:memberId", userGroupHandler.RemoveMember)
-	adminAPI.GET("/registration-forms", registrationFormHandler.ListForms)
+	superAdminAPI.GET("/registration-forms", registrationFormHandler.ListForms)
 	superAdminAPI.POST("/registration-forms", registrationFormHandler.CreateForm)
-	adminAPI.GET("/registration-forms/:id/registrations/export", registrationHandler.ExportFormRegistrationsCSV)
+	superAdminAPI.GET("/registration-forms/:id/registrations/export", registrationHandler.ExportFormRegistrationsCSV)
 	superAdminAPI.GET("/registration-forms/:id", registrationFormHandler.GetForm)
 	superAdminAPI.PATCH("/registration-forms/:id", registrationFormHandler.UpdateForm)
 	adminAPI.GET("/interview-sessions", registrationHandler.ListInterviewSessions)
-	adminAPI.POST("/interview-sessions", registrationHandler.CreateInterviewSession)
-	adminAPI.PATCH("/interview-sessions/:id", registrationHandler.UpdateInterviewSession)
+	superAdminAPI.POST("/interview-sessions", registrationHandler.CreateInterviewSession)
+	superAdminAPI.PATCH("/interview-sessions/:id", registrationHandler.UpdateInterviewSession)
 	adminAPI.GET("/registrations", registrationHandler.ListRegistrations)
 	adminAPI.GET("/registrations/:id", registrationHandler.GetRegistration)
 	adminAPI.POST("/registrations/:id/screening", registrationHandler.ScreenRegistration)
 	adminAPI.DELETE("/registrations/:id/screening", registrationHandler.UndoScreening)
 	adminAPI.POST("/registrations/:id/interview", registrationHandler.RecordInterviewResult)
-	adminAPI.DELETE("/registrations/:id", registrationHandler.DeleteRegistration)
 	adminAPI.GET("/registrations/:id/files/:fieldKey/:index", registrationHandler.OpenRegistrationFile)
 
 	systemConfigAPI := superAdminAPI.Group("/system-config")
@@ -121,8 +110,6 @@ func New(cfg *config.Config, db *gorm.DB, runtimeStore *runtimeconfig.Store) *gi
 	systemConfigAPI.POST("/email/test-code", systemConfigHandler.TestVerificationCodeConfig)
 	systemConfigAPI.POST("/email/register-flow/send-code", systemConfigHandler.SendRegisterFlowCode)
 	systemConfigAPI.POST("/email/register-flow/verify-code", systemConfigHandler.VerifyRegisterFlowCode)
-	systemConfigAPI.GET("/oauth", systemConfigHandler.GetOAuthConfigs)
-	systemConfigAPI.PUT("/oauth/:provider", systemConfigHandler.UpdateOAuthConfig)
 
 	authenticatedAPI := api.Group("")
 	authenticatedAPI.Use(middleware.RequireAuthenticated(authService))

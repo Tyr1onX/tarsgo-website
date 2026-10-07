@@ -11,7 +11,6 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"tarsgo-backend/middleware"
-	"tarsgo-backend/model"
 	"tarsgo-backend/service/usergroup"
 )
 
@@ -22,14 +21,8 @@ type UserGroupHandler struct {
 type userGroupService interface {
 	ListGroups(ctx context.Context, actor usergroup.Actor, input usergroup.ListGroupsInput) (*usergroup.ListGroupsResult, error)
 	ListGroupOptions(ctx context.Context, actor usergroup.Actor) ([]usergroup.GroupOption, error)
-	GetGroup(ctx context.Context, actor usergroup.Actor, groupID uint64) (*usergroup.GroupDetail, error)
 	CreateGroup(ctx context.Context, actor usergroup.Actor, input usergroup.CreateGroupInput) (*usergroup.GroupDetail, error)
 	UpdateGroup(ctx context.Context, actor usergroup.Actor, groupID uint64, input usergroup.UpdateGroupInput) (*usergroup.GroupDetail, error)
-	DeleteGroup(ctx context.Context, actor usergroup.Actor, groupID uint64) error
-	ListMemberCandidates(ctx context.Context, actor usergroup.Actor, groupID uint64) ([]usergroup.GroupCandidateItem, error)
-	AddMember(ctx context.Context, actor usergroup.Actor, groupID uint64, input usergroup.AddMemberInput) (*usergroup.GroupMemberItem, error)
-	UpdateMember(ctx context.Context, actor usergroup.Actor, groupID uint64, memberID uint64, input usergroup.UpdateMemberInput) (*usergroup.GroupMemberItem, error)
-	RemoveMember(ctx context.Context, actor usergroup.Actor, groupID uint64, memberID uint64) error
 }
 
 type listUserGroupsQuery struct {
@@ -49,20 +42,6 @@ type parsedUpsertUserGroupRequest struct {
 	upsertUserGroupRequest
 	Logo       *multipart.FileHeader
 	RemoveLogo bool
-}
-
-type listMemberCandidatesQuery struct {
-	GroupID uint64 `form:"groupId" binding:"required"`
-	Email   string `form:"email"`
-}
-
-type addGroupMemberRequest struct {
-	UserID uint64 `json:"userId" binding:"required"`
-	Role   uint8  `json:"role"`
-}
-
-type updateGroupMemberRequest struct {
-	Role uint8 `json:"role"`
 }
 
 func NewUserGroupHandler(service userGroupService) *UserGroupHandler {
@@ -104,22 +83,6 @@ func (h *UserGroupHandler) ListGroupOptions(c *gin.Context) {
 		return
 	}
 	writeAPI(c, http.StatusOK, "获取用户组筛选项成功", gin.H{"items": items})
-}
-
-func (h *UserGroupHandler) GetGroup(c *gin.Context) {
-	groupID, err := parsePathID(c.Param("id"))
-	if err != nil {
-		writeAPIError(c, http.StatusBadRequest, "无效的用户组 ID")
-		return
-	}
-
-	group, serviceErr := h.service.GetGroup(c.Request.Context(), currentGroupActor(c), groupID)
-	if serviceErr != nil {
-		h.handleServiceError(c, serviceErr)
-		return
-	}
-
-	writeAPI(c, http.StatusOK, "获取用户组详情成功", group)
 }
 
 func (h *UserGroupHandler) CreateGroup(c *gin.Context) {
@@ -186,144 +149,6 @@ func (h *UserGroupHandler) UpdateGroup(c *gin.Context) {
 	writeAPI(c, http.StatusOK, "更新用户组成功", group)
 }
 
-func (h *UserGroupHandler) DeleteGroup(c *gin.Context) {
-	groupID, err := parsePathID(c.Param("id"))
-	if err != nil {
-		writeAPIError(c, http.StatusBadRequest, "无效的用户组 ID")
-		return
-	}
-
-	if err := h.service.DeleteGroup(c.Request.Context(), currentGroupActor(c), groupID); err != nil {
-		h.handleServiceError(c, err)
-		return
-	}
-
-	writeAPI(c, http.StatusOK, "删除用户组成功", nil)
-}
-
-func (h *UserGroupHandler) ListMemberCandidates(c *gin.Context) {
-	var query listMemberCandidatesQuery
-	if err := c.ShouldBindQuery(&query); err != nil {
-		writeAPIError(c, http.StatusBadRequest, "查询参数不合法")
-		return
-	}
-
-	items, err := h.service.ListMemberCandidates(c.Request.Context(), currentGroupActor(c), query.GroupID)
-	if err != nil {
-		h.handleServiceError(c, err)
-		return
-	}
-
-	if strings.TrimSpace(query.Email) != "" {
-		email := strings.ToLower(strings.TrimSpace(query.Email))
-		filtered := make([]usergroup.GroupCandidateItem, 0, 1)
-		for _, item := range items {
-			if strings.ToLower(item.Email) == email {
-				filtered = append(filtered, item)
-				break
-			}
-		}
-		items = filtered
-	}
-	writeAPI(c, http.StatusOK, "获取成员候选用户成功", gin.H{"items": items})
-}
-
-func (h *UserGroupHandler) AddMember(c *gin.Context) {
-	groupID, err := parsePathID(c.Param("id"))
-	if err != nil {
-		writeAPIError(c, http.StatusBadRequest, "无效的用户组 ID")
-		return
-	}
-
-	var request addGroupMemberRequest
-	if err := c.ShouldBindJSON(&request); err != nil {
-		writeAPIError(c, http.StatusBadRequest, "请求参数不合法")
-		return
-	}
-
-	member, serviceErr := h.service.AddMember(
-		c.Request.Context(),
-		currentGroupActor(c),
-		groupID,
-		usergroup.AddMemberInput{
-			UserID: request.UserID,
-			Role:   request.Role,
-		},
-	)
-	if serviceErr != nil {
-		h.handleServiceError(c, serviceErr)
-		return
-	}
-	_ = middleware.RecordBusinessActivity(c, middleware.ActivityInput{ActionKey: model.ActivityGroupMemberAdded, TargetUserID: &member.UserID, EntityType: "group_member", EntityID: member.ID, GroupID: &groupID})
-
-	writeAPI(c, http.StatusOK, "添加成员成功", member)
-}
-
-func (h *UserGroupHandler) UpdateMember(c *gin.Context) {
-	groupID, err := parsePathID(c.Param("id"))
-	if err != nil {
-		writeAPIError(c, http.StatusBadRequest, "无效的用户组 ID")
-		return
-	}
-	memberID, err := parsePathID(c.Param("memberId"))
-	if err != nil {
-		writeAPIError(c, http.StatusBadRequest, "无效的成员 ID")
-		return
-	}
-
-	var request updateGroupMemberRequest
-	if err := c.ShouldBindJSON(&request); err != nil {
-		writeAPIError(c, http.StatusBadRequest, "请求参数不合法")
-		return
-	}
-
-	member, serviceErr := h.service.UpdateMember(
-		c.Request.Context(),
-		currentGroupActor(c),
-		groupID,
-		memberID,
-		usergroup.UpdateMemberInput{Role: request.Role},
-	)
-	if serviceErr != nil {
-		h.handleServiceError(c, serviceErr)
-		return
-	}
-	_ = middleware.RecordBusinessActivity(c, middleware.ActivityInput{ActionKey: model.ActivityGroupMemberRoleChanged, TargetUserID: &member.UserID, EntityType: "group_member", EntityID: member.ID, GroupID: &groupID, Metadata: map[string]any{"memberRole": int(request.Role)}})
-
-	writeAPI(c, http.StatusOK, "更新成员角色成功", member)
-}
-
-func (h *UserGroupHandler) RemoveMember(c *gin.Context) {
-	groupID, err := parsePathID(c.Param("id"))
-	if err != nil {
-		writeAPIError(c, http.StatusBadRequest, "无效的用户组 ID")
-		return
-	}
-	memberID, err := parsePathID(c.Param("memberId"))
-	if err != nil {
-		writeAPIError(c, http.StatusBadRequest, "无效的成员 ID")
-		return
-	}
-
-	var targetUserID *uint64
-	if group, loadErr := h.service.GetGroup(c.Request.Context(), currentGroupActor(c), groupID); loadErr == nil {
-		for _, member := range group.Members {
-			if member.ID == memberID {
-				value := member.UserID
-				targetUserID = &value
-				break
-			}
-		}
-	}
-	if err := h.service.RemoveMember(c.Request.Context(), currentGroupActor(c), groupID, memberID); err != nil {
-		h.handleServiceError(c, err)
-		return
-	}
-	_ = middleware.RecordBusinessActivity(c, middleware.ActivityInput{ActionKey: model.ActivityGroupMemberRemoved, TargetUserID: targetUserID, EntityType: "group_member", EntityID: memberID, GroupID: &groupID})
-
-	writeAPI(c, http.StatusOK, "移除成员成功", nil)
-}
-
 func (h *UserGroupHandler) handleServiceError(c *gin.Context, err error) {
 	var serviceErr *usergroup.ServiceError
 	if errors.As(err, &serviceErr) {
@@ -341,11 +166,8 @@ func currentGroupActor(c *gin.Context) usergroup.Actor {
 	}
 
 	return usergroup.Actor{
-		ID:                sessionUser.ID,
-		RoleName:          sessionUser.Role.Name,
-		AdminScope:        sessionUser.AdminScope,
-		ManagementGroupID: sessionUser.ManagementGroupID,
-		GroupRole:         sessionUser.GroupRole,
+		ID:       sessionUser.ID,
+		RoleName: sessionUser.Role.Name,
 	}
 }
 

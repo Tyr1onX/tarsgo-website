@@ -22,11 +22,6 @@ type stubAuthService struct {
 	loginWithPasswordFn         func(ctx context.Context, email string, password string) (*auth.AuthResult, error)
 	sendLoginCodeFn             func(ctx context.Context, email string) error
 	loginWithCodeFn             func(ctx context.Context, email string, code string) (*auth.AuthResult, error)
-	listOAuthLoginProvidersFn   func() []auth.OAuthLoginProvider
-	buildOAuthLoginURLFn        func(provider string) (string, string, error)
-	handleOAuthCallbackFn       func(ctx context.Context, provider string, code string) (*auth.AuthResult, error)
-	buildGitHubLoginURLFn       func() (string, string, error)
-	handleGitHubCallbackFn      func(ctx context.Context, code string) (*auth.AuthResult, error)
 	currentUserFn               func(ctx context.Context, token string) (*auth.SessionUser, error)
 }
 
@@ -79,47 +74,6 @@ func (s stubAuthService) LoginWithCode(ctx context.Context, email string, code s
 	return nil, nil
 }
 
-func (s stubAuthService) ListOAuthLoginProviders() []auth.OAuthLoginProvider {
-	if s.listOAuthLoginProvidersFn != nil {
-		return s.listOAuthLoginProvidersFn()
-	}
-	return nil
-}
-
-func (s stubAuthService) BuildOAuthLoginURL(provider string) (string, string, error) {
-	if s.buildOAuthLoginURLFn != nil {
-		return s.buildOAuthLoginURLFn(provider)
-	}
-	if s.buildGitHubLoginURLFn != nil && provider == "github" {
-		return s.buildGitHubLoginURLFn()
-	}
-	return "", "", nil
-}
-
-func (s stubAuthService) HandleOAuthCallback(ctx context.Context, provider string, code string) (*auth.AuthResult, error) {
-	if s.handleOAuthCallbackFn != nil {
-		return s.handleOAuthCallbackFn(ctx, provider, code)
-	}
-	if s.handleGitHubCallbackFn != nil && provider == "github" {
-		return s.handleGitHubCallbackFn(ctx, code)
-	}
-	return nil, nil
-}
-
-func (s stubAuthService) BuildGitHubLoginURL() (string, string, error) {
-	if s.buildGitHubLoginURLFn != nil {
-		return s.buildGitHubLoginURLFn()
-	}
-	return "", "", nil
-}
-
-func (s stubAuthService) HandleGitHubCallback(ctx context.Context, code string) (*auth.AuthResult, error) {
-	if s.handleGitHubCallbackFn != nil {
-		return s.handleGitHubCallbackFn(ctx, code)
-	}
-	return nil, nil
-}
-
 func (s stubAuthService) CurrentUser(ctx context.Context, token string) (*auth.SessionUser, error) {
 	if s.currentUserFn != nil {
 		return s.currentUserFn(ctx, token)
@@ -129,10 +83,6 @@ func (s stubAuthService) CurrentUser(ctx context.Context, token string) (*auth.S
 
 func (s stubAuthService) CookieName() string {
 	return "tarsgo_token"
-}
-
-func (s stubAuthService) OAuthStateCookieName() string {
-	return "tarsgo_oauth_state"
 }
 
 func (s stubAuthService) CookieMaxAgeSeconds() int {
@@ -147,23 +97,11 @@ func (s stubAuthService) CookieSameSite() http.SameSite {
 	return http.SameSiteLaxMode
 }
 
-func (s stubAuthService) AdminDashboardURL() string {
-	return "http://127.0.0.1:5173/dashboard"
-}
-
-func (s stubAuthService) SetupSuperAdminURL() string {
-	return "http://127.0.0.1:5173/dashboard/setup/super-admin"
-}
-
-func (s stubAuthService) LoginErrorURL(code string) string {
-	return "http://127.0.0.1:5173/login?error=" + code
-}
-
 func TestSendRegisterCode(t *testing.T) {
 	t.Parallel()
 
 	gin.SetMode(gin.TestMode)
-	handler := NewAuthHandler(nil, stubAuthService{})
+	handler := NewAuthHandler(stubAuthService{})
 	recorder, ctx := newJSONContext(t, http.MethodPost, "/api/register/email/send-code", map[string]string{
 		"email": "user@example.com",
 	})
@@ -199,7 +137,7 @@ func TestBootstrapStatus(t *testing.T) {
 			t.Parallel()
 
 			gin.SetMode(gin.TestMode)
-			handler := NewAuthHandler(nil, stubAuthService{
+			handler := NewAuthHandler(stubAuthService{
 				bootstrapStatusFn: func(ctx context.Context) (*auth.BootstrapStatus, error) {
 					return &auth.BootstrapStatus{SetupRequired: tc.setupRequired}, nil
 				},
@@ -229,7 +167,7 @@ func TestRegisterWithEmailSetsCookie(t *testing.T) {
 	t.Parallel()
 
 	gin.SetMode(gin.TestMode)
-	handler := NewAuthHandler(nil, stubAuthService{
+	handler := NewAuthHandler(stubAuthService{
 		registerWithEmailFn: func(ctx context.Context, input auth.RegisterEmailInput) (*auth.AuthResult, error) {
 			if input.RealName != "张三" {
 				t.Fatalf("expected realName to be forwarded, got %q", input.RealName)
@@ -275,7 +213,7 @@ func TestRegisterWithEmailRejectsMissingRequiredFields(t *testing.T) {
 	t.Parallel()
 
 	gin.SetMode(gin.TestMode)
-	handler := NewAuthHandler(nil, stubAuthService{
+	handler := NewAuthHandler(stubAuthService{
 		registerWithEmailFn: func(ctx context.Context, input auth.RegisterEmailInput) (*auth.AuthResult, error) {
 			t.Fatal("register service should not be called for invalid request")
 			return nil, nil
@@ -303,7 +241,7 @@ func TestRegisterInitialSuperAdminSetsCookie(t *testing.T) {
 	t.Parallel()
 
 	gin.SetMode(gin.TestMode)
-	handler := NewAuthHandler(nil, stubAuthService{
+	handler := NewAuthHandler(stubAuthService{
 		registerInitialSuperAdminFn: func(ctx context.Context, input auth.RegisterInitialSuperAdminInput) (*auth.AuthResult, error) {
 			return &auth.AuthResult{
 				Token: "bootstrap-token",
@@ -354,7 +292,7 @@ func TestRegisterInitialSuperAdminReturnsServiceError(t *testing.T) {
 			t.Parallel()
 
 			gin.SetMode(gin.TestMode)
-			handler := NewAuthHandler(nil, stubAuthService{
+			handler := NewAuthHandler(stubAuthService{
 				registerInitialSuperAdminFn: func(ctx context.Context, input auth.RegisterInitialSuperAdminInput) (*auth.AuthResult, error) {
 					return nil, &auth.ServiceError{Status: tc.status, Message: tc.message}
 				},
@@ -382,7 +320,7 @@ func TestAuthEndpointsReturnBootstrapConflict(t *testing.T) {
 
 	gin.SetMode(gin.TestMode)
 	serviceErr := &auth.ServiceError{Status: http.StatusConflict, Message: "系统尚未初始化，请先完成超级管理员注册"}
-	handler := NewAuthHandler(nil, stubAuthService{
+	handler := NewAuthHandler(stubAuthService{
 		registerWithEmailFn: func(ctx context.Context, input auth.RegisterEmailInput) (*auth.AuthResult, error) {
 			return nil, serviceErr
 		},
@@ -413,41 +351,11 @@ func TestAuthEndpointsReturnBootstrapConflict(t *testing.T) {
 	}
 }
 
-func TestGitHubAuthRedirectsToSetupWhenBootstrapRequired(t *testing.T) {
-	t.Parallel()
-
-	gin.SetMode(gin.TestMode)
-	handler := NewAuthHandler(nil, stubAuthService{
-		bootstrapStatusFn: func(ctx context.Context) (*auth.BootstrapStatus, error) {
-			return &auth.BootstrapStatus{SetupRequired: true}, nil
-		},
-	})
-
-	loginRecorder, loginCtx := newPlainContext(http.MethodGet, "/api/login/github")
-	handler.GitHubLogin(loginCtx)
-	if loginRecorder.Code != http.StatusFound {
-		t.Fatalf("expected login redirect status 302, got %d", loginRecorder.Code)
-	}
-	if location := loginRecorder.Header().Get("Location"); location != "http://127.0.0.1:5173/dashboard/setup/super-admin" {
-		t.Fatalf("unexpected login redirect location: %s", location)
-	}
-
-	callbackRecorder, callbackCtx := newPlainContext(http.MethodGet, "/api/register/github/oauth/callback?state=abc&code=def")
-	callbackCtx.Request.AddCookie(&http.Cookie{Name: "tarsgo_oauth_state", Value: "abc"})
-	handler.GitHubCallback(callbackCtx)
-	if callbackRecorder.Code != http.StatusFound {
-		t.Fatalf("expected callback redirect status 302, got %d", callbackRecorder.Code)
-	}
-	if location := callbackRecorder.Header().Get("Location"); location != "http://127.0.0.1:5173/dashboard/setup/super-admin" {
-		t.Fatalf("unexpected callback redirect location: %s", location)
-	}
-}
-
 func TestMeWithoutCookieReturnsUnauthorized(t *testing.T) {
 	t.Parallel()
 
 	gin.SetMode(gin.TestMode)
-	handler := NewAuthHandler(nil, stubAuthService{})
+	handler := NewAuthHandler(stubAuthService{})
 	recorder, ctx := newPlainContext(http.MethodGet, "/api/me")
 
 	handler.Me(ctx)
@@ -461,7 +369,7 @@ func TestMeReturnsCurrentUser(t *testing.T) {
 	t.Parallel()
 
 	gin.SetMode(gin.TestMode)
-	handler := NewAuthHandler(nil, stubAuthService{
+	handler := NewAuthHandler(stubAuthService{
 		currentUserFn: func(ctx context.Context, token string) (*auth.SessionUser, error) {
 			return &auth.SessionUser{
 				ID:    7,
@@ -500,7 +408,7 @@ func TestLogoutClearsCookie(t *testing.T) {
 	t.Parallel()
 
 	gin.SetMode(gin.TestMode)
-	handler := NewAuthHandler(nil, stubAuthService{})
+	handler := NewAuthHandler(stubAuthService{})
 	recorder, ctx := newPlainContext(http.MethodPost, "/api/logout")
 
 	handler.Logout(ctx)

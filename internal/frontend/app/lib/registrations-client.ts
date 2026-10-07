@@ -84,6 +84,7 @@ export interface RegistrationPagination {
 }
 
 export interface RegistrationListResponse {
+  currentFormAvailable: boolean;
   summary: RegistrationSummary;
   items: RegistrationListItem[];
   pagination: RegistrationPagination;
@@ -230,12 +231,6 @@ export async function recordAdminRegistrationInterview(
   return apiRequest<RegistrationDetail>(`/api/admin/registrations/${registrationId}/interview`, {
     method: "POST",
     body: input,
-  });
-}
-
-export async function deleteAdminRegistration(registrationId: number): Promise<void> {
-  await apiRequest(`/api/admin/registrations/${registrationId}`, {
-    method: "DELETE",
   });
 }
 

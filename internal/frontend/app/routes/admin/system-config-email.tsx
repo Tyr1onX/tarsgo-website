@@ -373,7 +373,7 @@ function handlePageError(
     return;
   }
   if (error instanceof ApiError && error.status === 403) {
-    navigate("/dashboard", { replace: true });
+    navigate("/dashboard/admin", { replace: true });
     return;
   }
   setErrorMessage(error instanceof ApiError ? error.message : "请求失败，请稍后重试。");

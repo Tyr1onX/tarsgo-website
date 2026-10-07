@@ -48,7 +48,29 @@ func migrationRegistry(appEnv string) []migration {
 		}},
 		{version: 9, apply: migrateRecruitmentWorkflow},
 		{version: 10, apply: migrateInterviewScheduling},
+		{version: 11, apply: migrateInterviewSessionFormAssociation},
 	}
+}
+
+func migrateInterviewSessionFormAssociation(db *gorm.DB) error {
+	if err := db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.InterviewSession{}); err != nil {
+		return err
+	}
+	// Preserve historical sessions as unassigned when their registration
+	// history spans forms or no registration refers to them. Only an unambiguous
+	// one-form relationship is safe to carry forward.
+	return db.Exec(`
+		UPDATE interview_sessions AS sessions
+		JOIN (
+			SELECT interview_session_id, MIN(form_id) AS form_id
+			FROM registrations
+			WHERE interview_session_id IS NOT NULL
+			GROUP BY interview_session_id
+			HAVING COUNT(DISTINCT form_id) = 1
+		) AS linked ON linked.interview_session_id = sessions.id
+		SET sessions.form_id = linked.form_id
+		WHERE sessions.form_id IS NULL
+	`).Error
 }
 
 func migrateInterviewScheduling(db *gorm.DB) error {

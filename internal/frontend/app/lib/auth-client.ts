@@ -1,4 +1,4 @@
-import { ApiError, apiRequest, buildApiUrl } from "~/lib/api-client";
+import { ApiError, apiRequest } from "~/lib/api-client";
 
 export { ApiError } from "~/lib/api-client";
 
@@ -8,17 +8,6 @@ export interface AuthRole {
   displayName: string;
 }
 
-export interface AuthCapabilities {
-  canReviewRegistrations: boolean;
-  canManageGroupMembers: boolean;
-  canManageGroupAdmins: boolean;
-  canManageUserGroups: boolean;
-  canManageSystemConfig: boolean;
-  canViewGroupMembers: boolean;
-  canManageAdminStatus: boolean;
-  canManageRoles: boolean;
-}
-
 export interface AuthUser {
   id: number;
   email: string;
@@ -26,11 +15,6 @@ export interface AuthUser {
   nickname?: string | null;
   avatarUrl?: string | null;
   role: AuthRole;
-  adminScope: "none" | "global" | "group" | string;
-  managementGroupId?: number | null;
-  groupRole?: "member" | "group_admin" | "leader" | string;
-  permissions: string[];
-  capabilities: AuthCapabilities;
 }
 
 export function getAuthUserRoleLabel(user: Pick<AuthUser, "role">): string {
@@ -45,11 +29,6 @@ export function getAuthUserRoleLabel(user: Pick<AuthUser, "role">): string {
 
 export interface BootstrapStatus {
   setupRequired: boolean;
-}
-
-export interface OAuthLoginProvider {
-  provider: string;
-  displayName: string;
 }
 
 let currentUserCache: AuthUser | null = null;
@@ -123,11 +102,6 @@ export async function sendLoginCode(email: string): Promise<void> {
   });
 }
 
-export async function getOAuthLoginProviders(): Promise<OAuthLoginProvider[]> {
-  const data = await apiRequest<{ items: OAuthLoginProvider[] }>("/api/login/providers");
-  return data.items;
-}
-
 export async function loginWithCode(input: {
   email: string;
   code: string;
@@ -199,12 +173,4 @@ export async function logout(): Promise<void> {
   currentUserCache = null;
   currentUserRequest = null;
   notifyAuthStateChange(null);
-}
-
-export function getOAuthLoginUrl(provider: string): string {
-  return buildApiUrl(`/api/login/${encodeURIComponent(provider)}`);
-}
-
-export function getGitHubLoginUrl(): string {
-  return getOAuthLoginUrl("github");
 }

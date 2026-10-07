@@ -37,122 +37,33 @@ func TestServiceCreateGroup_ClearsPreviousDefault(t *testing.T) {
 	}
 }
 
-func TestServiceAddMember_RejectsSuperAdmin(t *testing.T) {
-	repo := newFakeRepository()
-	service := NewService(repo)
+func TestServiceGroupConfigurationRequiresSuperAdmin(t *testing.T) {
+	service := NewService(newFakeRepository())
+	admin := Actor{ID: 2, RoleName: model.RoleNameAdmin}
 
-	_, err := service.AddMember(context.Background(), Actor{ID: 2, RoleName: model.RoleNameAdmin}, 1, AddMemberInput{
-		UserID: 1,
-		Role:   model.UserGroupMemberRoleMember,
-	})
-	assertServiceError(t, err, 403, "不允许加入用户组")
-}
-
-func TestServiceAddMember_NonDefaultGroupRemovesDefaultMembership(t *testing.T) {
-	repo := newFakeRepository()
-	service := NewService(repo)
-
-	member, err := service.AddMember(context.Background(), Actor{ID: 2, RoleName: model.RoleNameAdmin}, 2, AddMemberInput{
-		UserID: 3,
-		Role:   model.UserGroupMemberRoleMember,
-	})
-	if err != nil {
-		t.Fatalf("AddMember returned error: %v", err)
+	if _, err := service.ListGroups(context.Background(), admin, ListGroupsInput{}); err == nil {
+		t.Fatal("admin must not list recruitment group configuration")
+	} else {
+		assertServiceError(t, err, 403, "超级管理员")
 	}
-
-	if member.UserID != 3 {
-		t.Fatalf("expected user 3, got %d", member.UserID)
+	if _, err := service.CreateGroup(context.Background(), admin, CreateGroupInput{
+		Name:   "新组",
+		Status: model.UserGroupStatusActive,
+		Show:   1,
+	}); err == nil {
+		t.Fatal("admin must not create recruitment groups")
+	} else {
+		assertServiceError(t, err, 403, "超级管理员")
 	}
-	if userInGroup(repo, 3, 1) {
-		t.Fatalf("expected user 3 removed from default group")
-	}
-	if !userInGroup(repo, 3, 2) {
-		t.Fatalf("expected user 3 added into non-default group")
-	}
-}
-
-func TestServiceUpdateMemberRoleDoesNotChangeSystemRole(t *testing.T) {
-	repo := newFakeRepository()
-	service := NewService(repo)
-
-	beforeRole := repo.users[3].Role.Name
-	beforeScope := repo.users[3].AdminScope
-	updated, err := service.UpdateMember(
-		context.Background(),
-		Actor{ID: 1, RoleName: model.RoleNameSuperAdmin},
-		1,
-		1,
-		UpdateMemberInput{Role: model.UserGroupMemberRoleGroupAdmin},
-	)
-	if err != nil {
-		t.Fatalf("UpdateMember returned error: %v", err)
-	}
-	if updated.Role != model.UserGroupMemberRoleGroupAdmin {
-		t.Fatalf("expected group role to change, got %d", updated.Role)
-	}
-	if repo.users[3].Role.Name != beforeRole || repo.users[3].AdminScope != beforeScope {
-		t.Fatalf("group role change must not change system role/scope: role=%q scope=%q", repo.users[3].Role.Name, repo.users[3].AdminScope)
-	}
-}
-
-func TestServiceDeleteGroup_RejectsNonEmptyGroup(t *testing.T) {
-	repo := newFakeRepository()
-	service := NewService(repo)
-
-	err := service.DeleteGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 1)
-	assertServiceError(t, err, 409, "仍有成员")
-}
-
-func TestServiceRemoveMember_LastNonDefaultGroupReassignsDefaultMembership(t *testing.T) {
-	repo := newFakeRepository()
-	service := NewService(repo)
-
-	added, err := service.AddMember(context.Background(), Actor{ID: 2, RoleName: model.RoleNameAdmin}, 2, AddMemberInput{
-		UserID: 3,
-		Role:   model.UserGroupMemberRoleMember,
-	})
-	if err != nil {
-		t.Fatalf("AddMember returned error: %v", err)
-	}
-
-	if err := service.RemoveMember(context.Background(), Actor{ID: 2, RoleName: model.RoleNameAdmin}, 2, added.ID); err != nil {
-		t.Fatalf("RemoveMember returned error: %v", err)
-	}
-
-	if !userInGroup(repo, 3, 1) {
-		t.Fatalf("expected user 3 reassigned to default group")
-	}
-	if userInGroup(repo, 3, 2) {
-		t.Fatalf("expected user 3 removed from non-default group")
-	}
-}
-
-func TestServiceRemoveMember_LastNonDefaultGroupWithoutDefaultLeavesNoGroup(t *testing.T) {
-	repo := newFakeRepository()
-	repo.groups[1].IsDefault = false
-	repo.members = map[uint64]*model.UserGroupMember{
-		1: {
-			ID:       1,
-			GroupID:  2,
-			UserID:   3,
-			Role:     model.UserGroupMemberRoleMember,
-			JoinedAt: time.Now(),
-		},
-	}
-	repo.nextMemberID = 2
-	repo.syncRelations()
-	service := NewService(repo)
-
-	if err := service.RemoveMember(context.Background(), Actor{ID: 2, RoleName: model.RoleNameAdmin}, 2, 1); err != nil {
-		t.Fatalf("RemoveMember returned error: %v", err)
-	}
-
-	user, err := repo.GetUserByID(context.Background(), 3)
-	if err != nil {
-		t.Fatalf("GetUserByID returned error: %v", err)
-	}
-	if len(user.GroupMembers) != 0 {
-		t.Fatalf("expected user 3 to have no group, got %d memberships", len(user.GroupMembers))
+	if _, err := service.UpdateGroup(context.Background(), admin, 1, UpdateGroupInput{
+		Name:      "默认组",
+		IsDefault: true,
+		Status:    model.UserGroupStatusActive,
+		Show:      1,
+	}); err == nil {
+		t.Fatal("admin must not update recruitment groups")
+	} else {
+		assertServiceError(t, err, 403, "超级管理员")
 	}
 }
 
@@ -201,27 +112,16 @@ func TestServiceListGroups_FiltersByStatus(t *testing.T) {
 	}
 }
 
-func TestGroupAPIResponsesDoNotExposeMemberPhoneOrAdmissionImage(t *testing.T) {
+func TestGroupAPIResponsesExposeRecruitmentConfigurationOnly(t *testing.T) {
 	repo := newFakeRepository()
-	detail := toGroupDetail(repo.groups[1])
-	detailJSON, err := json.Marshal(detail)
+	detail, err := json.Marshal(toGroupDetail(repo.groups[1]))
 	if err != nil {
 		t.Fatalf("marshal group detail: %v", err)
 	}
-	if strings.Contains(string(detailJSON), "13800138003") || strings.Contains(string(detailJSON), "admissionImageUrl") {
-		t.Fatalf("group detail exposed retired member or admission data: %s", detailJSON)
-	}
-
-	candidates, err := NewService(repo).ListMemberCandidates(context.Background(), Actor{ID: 2, RoleName: model.RoleNameAdmin}, 1)
-	if err != nil {
-		t.Fatalf("ListMemberCandidates returned error: %v", err)
-	}
-	candidatesJSON, err := json.Marshal(candidates)
-	if err != nil {
-		t.Fatalf("marshal group candidates: %v", err)
-	}
-	if strings.Contains(string(candidatesJSON), "13800138002") {
-		t.Fatalf("group candidates exposed member phone: %s", candidatesJSON)
+	for _, retiredField := range []string{"members", "memberCount", "leaders", "admissionImageUrl"} {
+		if strings.Contains(string(detail), retiredField) {
+			t.Fatalf("group detail exposed retired field %q: %s", retiredField, detail)
+		}
 	}
 }
 
@@ -331,32 +231,13 @@ func TestServiceUpdateGroup_RejectsNonImageLogo(t *testing.T) {
 	assertServiceError(t, err, 400, "必须为图片文件")
 }
 
-func TestServiceDeleteGroup_RemovesManagedLogo(t *testing.T) {
-	repo := newFakeRepository()
-	logoURL := groupLogoURLPrefix + "remove-me.png"
-	repo.groups[2].LogoURL = &logoURL
-	store := &fakeGroupLogoFileStore{}
-	service := newServiceWithDependencies(repo, store)
-
-	if err := service.DeleteGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 2); err != nil {
-		t.Fatalf("DeleteGroup returned error: %v", err)
-	}
-
-	if len(store.removed) != 1 || store.removed[0] != "remove-me.png" {
-		t.Fatalf("expected group logo removed, got %#v", store.removed)
-	}
-}
-
 type fakeRepository struct {
-	groups       map[uint64]*model.UserGroup
-	users        map[uint64]*model.User
-	members      map[uint64]*model.UserGroupMember
-	nextGroupID  uint64
-	nextMemberID uint64
+	groups      map[uint64]*model.UserGroup
+	nextGroupID uint64
 }
 
 func newFakeRepository() *fakeRepository {
-	repo := &fakeRepository{
+	return &fakeRepository{
 		groups: map[uint64]*model.UserGroup{
 			1: {
 				ID:        1,
@@ -376,48 +257,8 @@ func newFakeRepository() *fakeRepository {
 				UpdatedAt: time.Now(),
 			},
 		},
-		users: map[uint64]*model.User{
-			1: {
-				ID:     1,
-				Name:   "Root",
-				Email:  "root@example.com",
-				Status: model.UserStatusEnabled,
-				RoleID: 1,
-				Role:   model.Role{ID: 1, Name: model.RoleNameSuperAdmin, DisplayName: "超级管理员"},
-			},
-			2: {
-				ID:     2,
-				Name:   "Admin",
-				Email:  "admin@example.com",
-				Phone:  stringPtr("13800138002"),
-				Status: model.UserStatusEnabled,
-				RoleID: 2,
-				Role:   model.Role{ID: 2, Name: model.RoleNameAdmin, DisplayName: "管理员"},
-			},
-			3: {
-				ID:     3,
-				Name:   "Member",
-				Email:  "member@example.com",
-				Phone:  stringPtr("13800138003"),
-				Status: model.UserStatusEnabled,
-				RoleID: 3,
-				Role:   model.Role{ID: 3, Name: model.RoleNameUser, DisplayName: "普通用户"},
-			},
-		},
-		members: map[uint64]*model.UserGroupMember{
-			1: {
-				ID:       1,
-				GroupID:  1,
-				UserID:   3,
-				Role:     model.UserGroupMemberRoleLeader,
-				JoinedAt: time.Now(),
-			},
-		},
-		nextGroupID:  3,
-		nextMemberID: 2,
+		nextGroupID: 3,
 	}
-	repo.syncRelations()
-	return repo
 }
 
 func (r *fakeRepository) RunInTx(_ context.Context, fn func(repo Repository) error) error {
@@ -449,7 +290,6 @@ func (r *fakeRepository) GetGroupStats(_ context.Context) (GroupStats, error) {
 			stats.DefaultCount++
 		}
 	}
-	stats.TotalMembers = int64(len(r.members))
 	return stats, nil
 }
 
@@ -459,15 +299,6 @@ func (r *fakeRepository) GetGroupByID(_ context.Context, groupID uint64) (*model
 		return nil, gorm.ErrRecordNotFound
 	}
 	return cloneGroup(group), nil
-}
-
-func (r *fakeRepository) GetActiveDefaultGroup(_ context.Context) (*model.UserGroup, error) {
-	for _, group := range r.groups {
-		if group.IsDefault && group.Status == model.UserGroupStatusActive {
-			return cloneGroup(group), nil
-		}
-	}
-	return nil, gorm.ErrRecordNotFound
 }
 
 func (r *fakeRepository) CreateGroup(_ context.Context, group *model.UserGroup) error {
@@ -517,11 +348,6 @@ func (r *fakeRepository) UpdateGroup(_ context.Context, groupID uint64, updates 
 	return nil
 }
 
-func (r *fakeRepository) DeleteGroup(_ context.Context, groupID uint64) error {
-	delete(r.groups, groupID)
-	return nil
-}
-
 func (r *fakeRepository) ClearDefaultExcept(_ context.Context, exceptGroupID uint64) error {
 	for id, group := range r.groups {
 		if id == exceptGroupID {
@@ -530,104 +356,6 @@ func (r *fakeRepository) ClearDefaultExcept(_ context.Context, exceptGroupID uin
 		group.IsDefault = false
 	}
 	return nil
-}
-
-func (r *fakeRepository) CountMembers(_ context.Context, groupID uint64) (int64, error) {
-	var count int64
-	for _, member := range r.members {
-		if member.GroupID == groupID {
-			count++
-		}
-	}
-	return count, nil
-}
-
-func (r *fakeRepository) GetMemberByID(_ context.Context, groupID uint64, memberID uint64) (*model.UserGroupMember, error) {
-	member, ok := r.members[memberID]
-	if !ok || member.GroupID != groupID {
-		return nil, gorm.ErrRecordNotFound
-	}
-	return cloneMember(member), nil
-}
-
-func (r *fakeRepository) FindMemberByUserID(_ context.Context, groupID uint64, userID uint64) (*model.UserGroupMember, error) {
-	for _, member := range r.members {
-		if member.GroupID == groupID && member.UserID == userID {
-			return cloneMember(member), nil
-		}
-	}
-	return nil, gorm.ErrRecordNotFound
-}
-
-func (r *fakeRepository) CreateMember(_ context.Context, member *model.UserGroupMember) error {
-	member.ID = r.nextMemberID
-	r.nextMemberID++
-	member.JoinedAt = time.Now()
-	r.members[member.ID] = cloneMember(member)
-	r.syncRelations()
-	return nil
-}
-
-func (r *fakeRepository) UpdateMember(_ context.Context, groupID uint64, memberID uint64, updates map[string]any) error {
-	member, ok := r.members[memberID]
-	if !ok || member.GroupID != groupID {
-		return gorm.ErrRecordNotFound
-	}
-	if value, ok := updates["role"].(uint8); ok {
-		member.Role = value
-	}
-	r.syncRelations()
-	return nil
-}
-
-func (r *fakeRepository) DeleteMember(_ context.Context, groupID uint64, memberID uint64) error {
-	member, ok := r.members[memberID]
-	if !ok || member.GroupID != groupID {
-		return gorm.ErrRecordNotFound
-	}
-	delete(r.members, memberID)
-	r.syncRelations()
-	return nil
-}
-
-func (r *fakeRepository) ListCandidateUsers(_ context.Context, groupID uint64) ([]model.User, error) {
-	items := make([]model.User, 0, len(r.users))
-	for _, user := range r.users {
-		if !EligibleRoleName(user.Role.Name) {
-			continue
-		}
-		if _, err := r.FindMemberByUserID(context.Background(), groupID, user.ID); err == nil {
-			continue
-		}
-		items = append(items, *cloneUserWithMembers(user))
-	}
-	return items, nil
-}
-
-func (r *fakeRepository) GetUserByID(_ context.Context, userID uint64) (*model.User, error) {
-	user, ok := r.users[userID]
-	if !ok {
-		return nil, gorm.ErrRecordNotFound
-	}
-	return cloneUserWithMembers(user), nil
-}
-
-func (r *fakeRepository) syncRelations() {
-	for _, group := range r.groups {
-		group.Members = nil
-	}
-	for _, user := range r.users {
-		user.GroupMembers = nil
-	}
-
-	for _, member := range r.members {
-		group := r.groups[member.GroupID]
-		user := r.users[member.UserID]
-		member.Group = *cloneGroup(group)
-		member.User = *cloneUser(user)
-		group.Members = append(group.Members, *cloneMember(member))
-		user.GroupMembers = append(user.GroupMembers, *cloneMember(member))
-	}
 }
 
 func cloneGroup(group *model.UserGroup) *model.UserGroup {
@@ -641,65 +369,12 @@ func cloneGroup(group *model.UserGroup) *model.UserGroup {
 	return &cloned
 }
 
-func cloneUser(user *model.User) *model.User {
-	cloned := *user
-	cloned.GroupMembers = nil
-	return &cloned
-}
-
-func cloneUserWithMembers(user *model.User) *model.User {
-	cloned := *user
-	if len(user.GroupMembers) == 0 {
-		cloned.GroupMembers = nil
-		return &cloned
-	}
-
-	cloned.GroupMembers = make([]model.UserGroupMember, 0, len(user.GroupMembers))
-	for _, member := range user.GroupMembers {
-		cloned.GroupMembers = append(cloned.GroupMembers, *cloneMember(&member))
-	}
-	return &cloned
-}
-
-func cloneMember(member *model.UserGroupMember) *model.UserGroupMember {
-	cloned := *member
-	cloned.Group = *cloneGroupShallow(&member.Group)
-	cloned.User = *cloneUserShallow(&member.User)
-	return &cloned
-}
-
-func cloneGroupShallow(group *model.UserGroup) *model.UserGroup {
-	cloned := *group
-	cloned.Description = copyString(group.Description)
-	cloned.LogoURL = copyString(group.LogoURL)
-	if len(group.Tags) > 0 {
-		cloned.Tags = append([]string(nil), group.Tags...)
-	}
-	cloned.Members = nil
-	return &cloned
-}
-
-func cloneUserShallow(user *model.User) *model.User {
-	cloned := *user
-	cloned.GroupMembers = nil
-	return &cloned
-}
-
 func copyString(value *string) *string {
 	if value == nil {
 		return nil
 	}
 	copied := *value
 	return &copied
-}
-
-func userInGroup(repo *fakeRepository, userID uint64, groupID uint64) bool {
-	for _, member := range repo.members {
-		if member.UserID == userID && member.GroupID == groupID {
-			return true
-		}
-	}
-	return false
 }
 
 func assertServiceError(t *testing.T, err error, status int, contains string) {

@@ -159,8 +159,9 @@ func TestRegistrationServiceCanonicalWorkflowAdmitsPreferredGroup(t *testing.T) 
 	if admitted.Interviewer == nil || admitted.Interviewer.ID != actor.ID || admitted.InterviewRemark == nil || *admitted.InterviewRemark != "表现良好" {
 		t.Fatalf("interview audit missing: %#v", admitted)
 	}
-	assertRemovedMemberships(t, repo.removedMemberships, []fakeAddedMembership{{GroupID: 1, UserID: repo.registration.UserID}})
-	assertAddedMemberships(t, repo.addedMemberships, []fakeAddedMembership{{GroupID: *repo.registration.PreferredGroupID, UserID: repo.registration.UserID}})
+	if len(repo.addedMemberships) != 0 || len(repo.removedMemberships) != 0 {
+		t.Fatalf("admission must only record the recruitment result and must not change team membership")
+	}
 }
 
 func TestRegistrationServiceScreeningRejectEndsWorkflow(t *testing.T) {
@@ -384,6 +385,20 @@ func TestRegistrationServiceListRegistrationsReturnsPagination(t *testing.T) {
 	}
 }
 
+func TestRegistrationServiceListRegistrationsHasNoCurrentFormState(t *testing.T) {
+	repo := newFakeRegistrationListRepository()
+	repo.forms = nil
+	service := newRegistrationServiceWithDependencies(repo, nil)
+
+	result, err := service.ListRegistrations(context.Background(), RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}, ListRegistrationsInput{})
+	if err != nil {
+		t.Fatalf("ListRegistrations returned error: %v", err)
+	}
+	if result.CurrentFormAvailable || len(result.Items) != 0 || result.Summary.Total != 0 || result.Pagination.Total != 0 {
+		t.Fatalf("expected empty current-term result, got %#v", result)
+	}
+}
+
 func TestRegistrationServiceListRegistrationsNormalizesDefaultPageParams(t *testing.T) {
 	repo := newFakeRegistrationListRepository()
 	service := newRegistrationServiceWithDependencies(repo, nil)
@@ -417,7 +432,6 @@ func TestRegistrationServiceListRegistrationsNormalizesDefaultPageParams(t *test
 func TestRegistrationServiceListRegistrationsPreservesStatsFilterSemantics(t *testing.T) {
 	status := model.RecruitmentStatusAdmitted
 	formID := uint64(301)
-	groupID := uint64(101)
 
 	tests := []struct {
 		name                string
@@ -451,14 +465,8 @@ func TestRegistrationServiceListRegistrationsPreservesStatsFilterSemantics(t *te
 			wantFormID: &formID,
 		},
 		{
-			name: "legacy group scope does not restrict admin stats",
-			actor: RegistrationFormActor{
-				ID:                2001,
-				RoleName:          model.RoleNameAdmin,
-				AdminScope:        model.AdminScopeGroup,
-				ManagementGroupID: &groupID,
-				GroupRole:         "leader",
-			},
+			name:                "admin role has full current-term review access",
+			actor:               RegistrationFormActor{ID: 2001, RoleName: model.RoleNameAdmin},
 			wantVisibleGroupIDs: nil,
 		},
 	}
@@ -485,12 +493,8 @@ func TestRegistrationServiceListRegistrationsPreservesStatsFilterSemantics(t *te
 			if statsFilter.Keyword != tt.wantKeyword {
 				t.Fatalf("expected stats keyword %q, got %q", tt.wantKeyword, statsFilter.Keyword)
 			}
-			if tt.wantFormID == nil {
-				if statsFilter.FormID != nil {
-					t.Fatalf("expected no stats form filter, got %d", *statsFilter.FormID)
-				}
-			} else if statsFilter.FormID == nil || *statsFilter.FormID != *tt.wantFormID {
-				t.Fatalf("expected stats form ID %d, got %#v", *tt.wantFormID, statsFilter.FormID)
+			if statsFilter.FormID == nil || *statsFilter.FormID != 301 {
+				t.Fatalf("expected current form ID 301, got %#v", statsFilter.FormID)
 			}
 			if len(statsFilter.VisibleGroupIDs) != len(tt.wantVisibleGroupIDs) {
 				t.Fatalf("expected stats visible groups %v, got %v", tt.wantVisibleGroupIDs, statsFilter.VisibleGroupIDs)
@@ -521,7 +525,7 @@ func TestRegistrationServiceExportFormRegistrationsCSVUsesCanonicalWorkflowColum
 
 	result, err := service.ExportFormRegistrationsCSV(
 		context.Background(),
-		RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin},
+		RegistrationFormActor{ID: 9001, RoleName: model.RoleNameSuperAdmin},
 		301,
 		"https://admin.example.com",
 	)
@@ -613,14 +617,14 @@ func TestRegistrationServiceExportFormRegistrationsCSVUsesCanonicalWorkflowColum
 	}
 }
 
-func TestRegistrationServiceExportIgnoresLegacyAdminGroupScope(t *testing.T) {
+func TestRegistrationServiceExportIgnoresLegacyAdminGroupScopeForSuperAdmin(t *testing.T) {
 	repo := newFakeRegistrationListRepository()
 	repo.leaderGroupIDs[2001] = []uint64{101}
 	service := newRegistrationServiceWithDependencies(repo, nil)
 
 	_, err := service.ExportFormRegistrationsCSV(
 		context.Background(),
-		RegistrationFormActor{ID: 2001, RoleName: model.RoleNameAdmin},
+		RegistrationFormActor{ID: 2001, RoleName: model.RoleNameSuperAdmin},
 		301,
 		"https://admin.example.com",
 	)
@@ -634,6 +638,14 @@ func TestRegistrationServiceExportIgnoresLegacyAdminGroupScope(t *testing.T) {
 	if len(repo.exportFilters[0].VisibleGroupIDs) != 0 {
 		t.Fatalf("admin export should not be restricted by legacy group scope, got %v", repo.exportFilters[0].VisibleGroupIDs)
 	}
+}
+
+func TestRegistrationServiceExportIsSuperAdminOnly(t *testing.T) {
+	service := newRegistrationServiceWithDependencies(newFakeRegistrationListRepository(), nil)
+	_, err := service.ExportFormRegistrationsCSV(context.Background(), RegistrationFormActor{
+		ID: 9001, RoleName: model.RoleNameAdmin,
+	}, 301, "https://admin.example.com")
+	assertRegistrationServiceError(t, err, 403, "超级管理员")
 }
 
 func TestRegistrationServiceUpdateRecruitmentRegistrationAllowsEditablePendingRegistration(t *testing.T) {
@@ -762,6 +774,24 @@ func TestInterviewAttendanceWithoutOpenSessionsReturnsEmptyOptions(t *testing.T)
 	}
 }
 
+func TestInterviewAttendanceRejectsArchivedRecruitmentForm(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
+	repo.registration.Form.Status = model.RegistrationFormStatusClosed
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	user := RegistrationFormActor{ID: repo.registration.UserID, RoleName: model.RoleNameUser}
+
+	if _, err := service.GetInterviewAttendance(context.Background(), user, repo.registration.ID); err == nil {
+		t.Fatal("archived interview attendance must not be available")
+	}
+	sessionID := repo.interviewSessions[0].ID
+	if _, err := service.UpdateInterviewAttendance(context.Background(), user, repo.registration.ID, InterviewAttendanceInput{
+		Attendance: model.InterviewAttendanceAttending, InterviewSessionID: &sessionID,
+	}); err == nil {
+		t.Fatal("archived interview attendance must not be mutable")
+	}
+}
+
 func TestInterviewAttendanceFlowAndRestrictions(t *testing.T) {
 	repo := newFakeRegistrationReviewRepository()
 	repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
@@ -853,8 +883,14 @@ func TestInterviewSessionAdminManagementAndUserPermission(t *testing.T) {
 	repo := newFakeRegistrationReviewRepository()
 	service := newRegistrationServiceWithDependencies(repo, nil)
 	admin := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+	superAdmin := RegistrationFormActor{ID: 9002, RoleName: model.RoleNameSuperAdmin}
+	if _, err := service.CreateInterviewSession(context.Background(), admin, UpsertInterviewSessionInput{
+		Date: "2026-10-13", Label: "上午", StartTime: "09:00", EndTime: "11:30", Location: "吉甲大师双创基地", Enabled: true,
+	}); err == nil {
+		t.Fatal("ordinary admin must not create interview sessions")
+	}
 
-	created, err := service.CreateInterviewSession(context.Background(), admin, UpsertInterviewSessionInput{
+	created, err := service.CreateInterviewSession(context.Background(), superAdmin, UpsertInterviewSessionInput{
 		Date: "2026-10-13", Label: "上午", StartTime: "09:00", EndTime: "11:30", Location: "吉甲大师双创基地", Enabled: true,
 	})
 	if err != nil {
@@ -863,8 +899,13 @@ func TestInterviewSessionAdminManagementAndUserPermission(t *testing.T) {
 	if created.Label != "上午" || !created.Enabled {
 		t.Fatalf("unexpected created session: %#v", created)
 	}
+	if _, err := service.UpdateInterviewSession(context.Background(), admin, created.ID, UpsertInterviewSessionInput{
+		Date: "2026-10-13", Label: "上午", StartTime: "09:00", EndTime: "11:30", Location: "吉甲大师双创基地", Enabled: false,
+	}); err == nil {
+		t.Fatal("ordinary admin must not update interview sessions")
+	}
 
-	updated, err := service.UpdateInterviewSession(context.Background(), admin, created.ID, UpsertInterviewSessionInput{
+	updated, err := service.UpdateInterviewSession(context.Background(), superAdmin, created.ID, UpsertInterviewSessionInput{
 		Date: "2026-10-13", Label: "下午", StartTime: "14:00", EndTime: "17:30", Location: "吉甲大师双创基地", Enabled: false,
 	})
 	if err != nil {
@@ -890,7 +931,7 @@ func TestDisablingSelectedInterviewSessionPreservesExistingSelection(t *testing.
 	repo.registration.InterviewSessionID = &sessionID
 	repo.registration.InterviewSession = cloneInterviewSession(sessionByID(repo.interviewSessions, sessionID))
 	service := newRegistrationServiceWithDependencies(repo, nil)
-	admin := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+	admin := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameSuperAdmin}
 	user := RegistrationFormActor{ID: repo.registration.UserID, RoleName: model.RoleNameUser}
 
 	session := sessionByID(repo.interviewSessions, sessionID)
@@ -950,7 +991,6 @@ func TestInterviewResultDoesNotRequireAttendanceConfirmation(t *testing.T) {
 type fakeRegistrationReviewRepository struct {
 	registration        *model.Registration
 	shownGroups         []model.UserGroup
-	defaultGroupIDs     []uint64
 	leaderGroupIDs      map[uint64][]uint64
 	users               map[uint64]*model.User
 	addedMemberships    []fakeAddedMembership
@@ -1003,8 +1043,7 @@ func newFakeRegistrationReviewRepository() *fakeRegistrationReviewRepository {
 			{ID: 101, Name: "机械组", Show: 1},
 			{ID: 102, Name: "电控组", Show: 1},
 		},
-		defaultGroupIDs: []uint64{1},
-		leaderGroupIDs:  map[uint64][]uint64{},
+		leaderGroupIDs: map[uint64][]uint64{},
 		users: map[uint64]*model.User{
 			2001: {ID: 2001, Name: "机械组长", Email: "leader1@example.com"},
 			2002: {ID: 2002, Name: "电控组长", Email: "leader2@example.com"},
@@ -1013,9 +1052,9 @@ func newFakeRegistrationReviewRepository() *fakeRegistrationReviewRepository {
 		addedMembershipKV:   make(map[fakeAddedMembership]struct{}),
 		removedMembershipKV: make(map[fakeAddedMembership]struct{}),
 		interviewSessions: []model.InterviewSession{
-			{ID: 801, Date: "2026-10-12", Label: "上午", StartTime: "09:00", EndTime: "11:30", Location: "吉甲大师双创基地", Enabled: true},
-			{ID: 802, Date: "2026-10-12", Label: "下午", StartTime: "13:30", EndTime: "17:00", Location: "吉甲大师双创基地", Enabled: true},
-			{ID: 803, Date: "2026-10-12", Label: "晚上", StartTime: "18:30", EndTime: "21:00", Location: "吉甲大师双创基地", Enabled: true},
+			{ID: 801, FormID: uint64Ptr(301), Date: "2026-10-12", Label: "上午", StartTime: "09:00", EndTime: "11:30", Location: "吉甲大师双创基地", Enabled: true},
+			{ID: 802, FormID: uint64Ptr(301), Date: "2026-10-12", Label: "下午", StartTime: "13:30", EndTime: "17:00", Location: "吉甲大师双创基地", Enabled: true},
+			{ID: 803, FormID: uint64Ptr(301), Date: "2026-10-12", Label: "晚上", StartTime: "18:30", EndTime: "21:00", Location: "吉甲大师双创基地", Enabled: true},
 		},
 	}
 }
@@ -1025,7 +1064,10 @@ func (r *fakeRegistrationReviewRepository) RunInTx(_ context.Context, fn func(re
 }
 
 func (r *fakeRegistrationReviewRepository) ListPublishedForms(_ context.Context) ([]model.RegistrationForm, error) {
-	return nil, nil
+	if r.registration == nil || r.registration.Form.Status != model.RegistrationFormStatusPublished {
+		return nil, nil
+	}
+	return []model.RegistrationForm{r.registration.Form}, nil
 }
 
 func (r *fakeRegistrationReviewRepository) GetFormByID(_ context.Context, _ uint64) (*model.RegistrationForm, error) {
@@ -1252,20 +1294,8 @@ func (r *fakeRegistrationReviewRepository) GetRegistrationByIDForUpdate(_ contex
 	return r.GetRegistrationByID(context.Background(), registrationID)
 }
 
-func (r *fakeRegistrationReviewRepository) DeleteRegistration(_ context.Context, registrationID uint64) error {
-	if r.registration == nil || r.registration.ID != registrationID {
-		return gorm.ErrRecordNotFound
-	}
-	r.registration = nil
-	return nil
-}
-
 func (r *fakeRegistrationReviewRepository) ListShownUserGroups(_ context.Context) ([]model.UserGroup, error) {
 	return append([]model.UserGroup(nil), r.shownGroups...), nil
-}
-
-func (r *fakeRegistrationReviewRepository) ListDefaultGroupIDs(_ context.Context) ([]uint64, error) {
-	return append([]uint64(nil), r.defaultGroupIDs...), nil
 }
 
 func (r *fakeRegistrationReviewRepository) ListLeaderGroupIDs(_ context.Context, userID uint64) ([]uint64, error) {
@@ -1659,29 +1689,13 @@ func (r *fakeRegistrationListRepository) GetRegistrationByIDForUpdate(_ context.
 	return nil, gorm.ErrRecordNotFound
 }
 
-func (r *fakeRegistrationListRepository) DeleteRegistration(_ context.Context, _ uint64) error {
-	return nil
-}
-
 func (r *fakeRegistrationListRepository) ListShownUserGroups(_ context.Context) ([]model.UserGroup, error) {
 	return append([]model.UserGroup(nil), r.shownGroups...), nil
-}
-
-func (r *fakeRegistrationListRepository) ListDefaultGroupIDs(_ context.Context) ([]uint64, error) {
-	return nil, nil
 }
 
 func (r *fakeRegistrationListRepository) ListLeaderGroupIDs(_ context.Context, userID uint64) ([]uint64, error) {
 	groupIDs := r.leaderGroupIDs[userID]
 	return append([]uint64(nil), groupIDs...), nil
-}
-
-func (r *fakeRegistrationListRepository) AddUserToGroupIfAbsent(_ context.Context, _ uint64, _ uint64) error {
-	return nil
-}
-
-func (r *fakeRegistrationListRepository) RemoveUserFromGroupIfPresent(_ context.Context, _ uint64, _ uint64) error {
-	return nil
 }
 
 func (r *fakeRegistrationListRepository) ListInterviewSessions(_ context.Context, _ bool) ([]model.InterviewSession, error) {

@@ -6,25 +6,14 @@ import {
   ApiError,
   getBootstrapStatus,
   getOptionalCurrentUser,
-  getOAuthLoginProviders,
-  getOAuthLoginUrl,
   loginWithCode,
   loginWithPassword,
   sendLoginCode,
-  type OAuthLoginProvider,
 } from "~/lib/auth-client";
+import { getDefaultDashboardPath } from "~/lib/dashboard-navigation";
 import { useCooldown } from "~/lib/use-cooldown";
 
 type LoginMode = "password" | "code";
-
-const oauthErrorMap: Record<string, string> = {
-  github_callback_invalid: "GitHub 回调参数不完整，请重新发起授权。",
-  github_state_invalid: "GitHub 登录态校验失败，请重新尝试。",
-  github_oauth_failed: "GitHub 授权失败，请稍后重试。",
-  google_callback_invalid: "Google 回调参数不完整，请重新发起授权。",
-  google_state_invalid: "Google 登录态校验失败，请重新尝试。",
-  google_oauth_failed: "Google 授权失败，请稍后重试。",
-};
 
 export function meta() {
   return [
@@ -41,25 +30,14 @@ export default function Login() {
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
-  const [providers, setProviders] = useState<OAuthLoginProvider[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [sendingCode, setSendingCode] = useState(false);
   const cooldown = useCooldown();
 
-  const oauthError = useMemo(() => {
-    const code = searchParams.get("error") ?? "";
-    return oauthErrorMap[code] ?? "";
-  }, [searchParams]);
   const redirectTo = useMemo(
     () => getSafeRedirectPath(searchParams.get("redirect")),
     [searchParams],
   );
-
-  useEffect(() => {
-    if (oauthError) {
-      setErrorMessage(oauthError);
-    }
-  }, [oauthError]);
 
   useEffect(() => {
     let disposed = false;
@@ -74,23 +52,13 @@ export default function Login() {
           return;
         }
         if (currentUser) {
-          navigate("/dashboard", { replace: true });
+          navigate(resolveAuthDestination(redirectTo, currentUser.role.name), { replace: true });
         }
       })
       .catch((error) => {
         if (!disposed) {
           setErrorMessage(getErrorMessage(error));
         }
-      });
-
-    void getOAuthLoginProviders()
-      .then((items) => {
-        if (!disposed) {
-          setProviders(items);
-        }
-      })
-      .catch(() => {
-        // OAuth is optional; password/code login stays usable if provider discovery fails.
       });
 
     return () => {
@@ -131,12 +99,14 @@ export default function Login() {
       setErrorMessage("");
 
       if (mode === "password") {
-        await loginWithPassword({ email, password });
+        const user = await loginWithPassword({ email, password });
+        prefetchDashboardForRole(user.role.name);
+        navigate(resolveAuthDestination(redirectTo, user.role.name), { replace: true });
       } else {
-        await loginWithCode({ email, code });
+        const user = await loginWithCode({ email, code });
+        prefetchDashboardForRole(user.role.name);
+        navigate(resolveAuthDestination(redirectTo, user.role.name), { replace: true });
       }
-
-      navigate(redirectTo, { replace: true });
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
       setSubmitting(false);
@@ -222,36 +192,7 @@ export default function Login() {
         </button>
       </form>
 
-      {providers.length > 0 ? (
-        <>
-          <div className="auth-oauth-divider">其他登录方式</div>
-          <div className="auth-oauth-list">
-            {providers.map((provider) => (
-              <a key={provider.provider} href={getOAuthLoginUrl(provider.provider)} className="auth-oauth-link">
-                <OAuthProviderIcon provider={provider} />
-                <span>使用 {provider.displayName} 登录</span>
-              </a>
-            ))}
-          </div>
-        </>
-      ) : null}
     </AuthShell>
-  );
-}
-
-function OAuthProviderIcon({ provider }: { provider: OAuthLoginProvider }) {
-  if (provider.provider === "google") {
-    return (
-      <div className="inline-flex h-5 w-5 items-center justify-center rounded-full bg-white text-[11px] font-semibold text-sky-600" aria-hidden="true">
-        G
-      </div>
-    );
-  }
-
-  return (
-    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <path d="M12 1.5a10.5 10.5 0 0 0-3.32 20.46c.53.1.72-.23.72-.5v-1.96c-2.94.64-3.56-1.24-3.56-1.24-.48-1.2-1.17-1.52-1.17-1.52-.96-.65.07-.64.07-.64 1.05.08 1.6 1.06 1.6 1.06.95 1.6 2.48 1.14 3.08.87.1-.67.37-1.14.66-1.4-2.35-.26-4.82-1.16-4.82-5.15 0-1.14.42-2.07 1.1-2.8-.11-.26-.48-1.33.1-2.77 0 0 .9-.28 2.96 1.07a10.4 10.4 0 0 1 5.39 0c2.06-1.35 2.96-1.07 2.96-1.07.58 1.44.21 2.51.1 2.77.69.73 1.1 1.66 1.1 2.8 0 4-2.47 4.89-4.83 5.14.38.32.72.95.72 1.92v2.84c0 .28.19.61.73.5A10.5 10.5 0 0 0 12 1.5Z" />
-    </svg>
   );
 }
 
@@ -277,4 +218,16 @@ function getSafeRedirectPath(value: string | null) {
   }
 
   return trimmed;
+}
+
+function resolveAuthDestination(redirectTo: string, roleName: string) {
+  return redirectTo === "/dashboard" ? getDefaultDashboardPath(roleName) : redirectTo;
+}
+
+function prefetchDashboardForRole(roleName: string) {
+  if (roleName === "admin" || roleName === "super_admin") {
+    void import("~/routes/admin/dashboard");
+  } else {
+    void import("~/routes/users/registrations");
+  }
 }

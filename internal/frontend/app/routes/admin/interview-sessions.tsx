@@ -163,3 +163,5 @@ export default function InterviewSessions() {
     </div>
   );
 }
+
+export { InterviewSessions };

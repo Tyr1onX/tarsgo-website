@@ -25,60 +25,6 @@ func TestValidateIdentityConsistencyUsesSystemRole(t *testing.T) {
 	}
 }
 
-func TestSessionCapabilitiesIgnoreLegacyAdminScopeForCoreAccess(t *testing.T) {
-	t.Parallel()
-
-	groupID := uint64(7)
-	activeGroup := model.UserGroup{ID: groupID, Status: model.UserGroupStatusActive}
-	admins := []*model.User{
-		{
-			ID:         1,
-			Role:       model.Role{Name: model.RoleNameAdmin},
-			AdminScope: model.AdminScopeGlobal,
-		},
-		{
-			ID:                2,
-			Role:              model.Role{Name: model.RoleNameAdmin},
-			AdminScope:        model.AdminScopeGroup,
-			ManagementGroupID: &groupID,
-			GroupMembers: []model.UserGroupMember{{
-				GroupID: groupID,
-				Role:    model.UserGroupMemberRoleLeader,
-				Group:   activeGroup,
-			}},
-		},
-	}
-	for _, admin := range admins {
-		session := toSessionUser(admin)
-		if !session.Capabilities.CanReviewRegistrations {
-			t.Fatalf("admin %d should have core admin capabilities regardless of legacy scope: %#v", admin.ID, session.Capabilities)
-		}
-		if session.Capabilities.CanManageSystemConfig || session.Capabilities.CanManageRoles || session.Capabilities.CanManageUserGroups {
-			t.Fatalf("admin %d must not gain super-admin capabilities: %#v", admin.ID, session.Capabilities)
-		}
-	}
-
-	member := &model.User{
-		ID:         3,
-		Role:       model.Role{Name: model.RoleNameUser},
-		AdminScope: model.AdminScopeNone,
-		GroupMembers: []model.UserGroupMember{{
-			GroupID: groupID,
-			Role:    model.UserGroupMemberRoleLeader,
-			Group:   activeGroup,
-		}},
-	}
-	memberSession := toSessionUser(member)
-	if memberSession.Capabilities.CanReviewRegistrations {
-		t.Fatalf("group leadership must not grant member core admin capabilities: %#v", memberSession.Capabilities)
-	}
-
-	superAdmin := toSessionUser(&model.User{ID: 4, Role: model.Role{Name: model.RoleNameSuperAdmin}, AdminScope: model.AdminScopeGlobal})
-	if !superAdmin.Capabilities.CanManageSystemConfig || !superAdmin.Capabilities.CanManageRoles || !superAdmin.Capabilities.CanManageUserGroups {
-		t.Fatalf("super admin should retain system-level capabilities: %#v", superAdmin.Capabilities)
-	}
-}
-
 func TestNormalizeRegisterEmailInput(t *testing.T) {
 	t.Parallel()
 

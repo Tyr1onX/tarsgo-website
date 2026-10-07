@@ -24,6 +24,7 @@ type adminUserService interface {
 	ListRoles(ctx context.Context, actor adminuser.Actor) ([]adminuser.RoleOption, error)
 	CreateUser(ctx context.Context, actor adminuser.Actor, input adminuser.CreateUserInput) (*adminuser.UserDetail, error)
 	UpdateUser(ctx context.Context, actor adminuser.Actor, userID uint64, input adminuser.UpdateUserInput) (*adminuser.UserDetail, error)
+	UpdateCurrentRecruitmentGroup(ctx context.Context, actor adminuser.Actor, userID uint64, groupID uint64) (*adminuser.UserDetail, error)
 	ResetPassword(ctx context.Context, actor adminuser.Actor, userID uint64, password string) error
 }
 
@@ -51,6 +52,10 @@ type updateUserRequest struct {
 
 type resetPasswordRequest struct {
 	Password string `json:"password" binding:"required,min=6,max=72"`
+}
+
+type updateRecruitmentGroupRequest struct {
+	GroupID uint64 `json:"groupId" binding:"required"`
 }
 
 func NewAdminUserHandler(service adminUserService) *AdminUserHandler {
@@ -170,6 +175,25 @@ func (h *AdminUserHandler) UpdateUser(c *gin.Context) {
 	}
 
 	writeAPI(c, http.StatusOK, "更新用户成功", user)
+}
+
+func (h *AdminUserHandler) UpdateRecruitmentGroup(c *gin.Context) {
+	userID, err := parsePathUserID(c.Param("id"))
+	if err != nil {
+		writeAPIError(c, http.StatusBadRequest, "无效的用户 ID")
+		return
+	}
+	var request updateRecruitmentGroupRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		writeAPIError(c, http.StatusBadRequest, "招新组别不合法")
+		return
+	}
+	user, serviceErr := h.service.UpdateCurrentRecruitmentGroup(c.Request.Context(), currentActor(c), userID, request.GroupID)
+	if serviceErr != nil {
+		h.handleServiceError(c, serviceErr)
+		return
+	}
+	writeAPI(c, http.StatusOK, "招新意向组已修正", user)
 }
 
 func (h *AdminUserHandler) ResetPassword(c *gin.Context) {

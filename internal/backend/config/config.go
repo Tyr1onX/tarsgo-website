@@ -15,8 +15,6 @@ type Config struct {
 	CORS     CORSConfig
 	Auth     AuthConfig
 	Email    EmailConfig
-	GitHub   GitHubConfig
-	Google   GoogleConfig
 	Source   SourceConfig
 }
 
@@ -24,7 +22,6 @@ type AppConfig struct {
 	Env         string
 	Port        string
 	GinMode     string
-	FrontendURL string
 	AutoMigrate bool
 }
 
@@ -49,7 +46,6 @@ type CORSConfig struct {
 type AuthConfig struct {
 	JWTSecret           string
 	CookieName          string
-	OAuthStateCookie    string
 	TokenTTL            time.Duration
 	CookieMaxAgeSeconds int
 	CookieSecure        bool
@@ -59,29 +55,6 @@ type AuthConfig struct {
 type EmailConfig struct {
 	APIKey string `json:"-"`
 	From   string
-}
-
-type GitHubConfig struct {
-	Enabled      bool
-	ClientID     string
-	ClientSecret string
-	CallbackURL  string
-	AuthorizeURL string
-	TokenURL     string
-	UserURL      string
-	EmailsURL    string
-	Scope        string
-}
-
-type GoogleConfig struct {
-	Enabled      bool
-	ClientID     string
-	ClientSecret string
-	CallbackURL  string
-	AuthorizeURL string
-	TokenURL     string
-	UserURL      string
-	Scope        string
 }
 
 type SourceConfig struct {
@@ -103,7 +76,6 @@ func Load() (*Config, error) {
 			Env:         getEnv("APP_ENV", "development"),
 			Port:        getEnv("APP_PORT", "8080"),
 			GinMode:     getEnv("GIN_MODE", "debug"),
-			FrontendURL: getEnv("APP_FRONTEND_URL", ""),
 			AutoMigrate: getEnvAsBool("APP_AUTO_MIGRATE", true),
 		},
 		Database: DatabaseConfig{
@@ -128,7 +100,6 @@ func Load() (*Config, error) {
 		Auth: AuthConfig{
 			JWTSecret:           os.Getenv("JWT_SECRET"),
 			CookieName:          getEnv("JWT_COOKIE_NAME", "tarsgo_token"),
-			OAuthStateCookie:    getEnv("JWT_OAUTH_STATE_COOKIE_NAME", "tarsgo_oauth_state"),
 			TokenTTL:            time.Duration(getEnvAsInt("JWT_EXPIRES_HOURS", 72)) * time.Hour,
 			CookieMaxAgeSeconds: getEnvAsInt("JWT_COOKIE_MAX_AGE_SECONDS", 72*60*60),
 			CookieSecure:        getEnvAsBool("JWT_COOKIE_SECURE", false),
@@ -137,21 +108,6 @@ func Load() (*Config, error) {
 		Email: EmailConfig{
 			APIKey: strings.TrimSpace(os.Getenv("RESEND_API_KEY")),
 			From:   getEnv("EMAIL_FROM", "吉甲大师 <noreply@jijiamaster.com>"),
-		},
-		GitHub: GitHubConfig{
-			Enabled:      false,
-			AuthorizeURL: "https://github.com/login/oauth/authorize",
-			TokenURL:     "https://github.com/login/oauth/access_token",
-			UserURL:      "https://api.github.com/user",
-			EmailsURL:    "https://api.github.com/user/emails",
-			Scope:        "read:user user:email",
-		},
-		Google: GoogleConfig{
-			Enabled:      false,
-			AuthorizeURL: "https://accounts.google.com/o/oauth2/v2/auth",
-			TokenURL:     "https://oauth2.googleapis.com/token",
-			UserURL:      "https://openidconnect.googleapis.com/v1/userinfo",
-			Scope:        "openid email profile",
 		},
 		Source: SourceConfig{
 			EnvFilePath: envFilePath,
@@ -191,27 +147,6 @@ func Load() (*Config, error) {
 
 func (c AppConfig) Address() string {
 	return ":" + c.Port
-}
-
-func (c AppConfig) AdminDashboardURL() string {
-	return c.FrontendRoute("/dashboard")
-}
-
-func (c AppConfig) BootstrapSetupURL() string {
-	return c.FrontendRoute("/dashboard/setup/super-admin")
-}
-
-func (c AppConfig) LoginErrorURL(code string) string {
-	return c.FrontendRoute("/login") + "?error=" + code
-}
-
-func (c AppConfig) FrontendRoute(routePath string) string {
-	normalizedPath := "/" + strings.TrimLeft(strings.TrimSpace(routePath), "/")
-	if strings.TrimSpace(c.FrontendURL) == "" {
-		return normalizedPath
-	}
-
-	return strings.TrimRight(strings.TrimSpace(c.FrontendURL), "/") + normalizedPath
 }
 
 func (c DatabaseConfig) DSN() string {

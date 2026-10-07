@@ -28,11 +28,8 @@ type ServiceError struct {
 }
 
 type Actor struct {
-	ID                uint64
-	RoleName          string
-	AdminScope        string
-	ManagementGroupID *uint64
-	GroupRole         string
+	ID       uint64
+	RoleName string
 }
 
 type ListGroupsInput struct {
@@ -60,40 +57,11 @@ type UpdateGroupInput struct {
 	Status      uint8
 }
 
-type AddMemberInput struct {
-	UserID uint64
-	Role   uint8
-}
-
-type UpdateMemberInput struct {
-	Role uint8
-}
-
-type RoleRef struct {
-	ID          uint64 `json:"id"`
-	Name        string `json:"name"`
-	DisplayName string `json:"displayName"`
-}
-
-type GroupRef struct {
-	ID         uint64 `json:"id"`
-	Name       string `json:"name"`
-	MemberID   uint64 `json:"memberId"`
-	MemberRole uint8  `json:"memberRole"`
-	Status     uint8  `json:"status,omitempty"`
-}
-
-type CandidateGroupRef struct {
-	ID   uint64 `json:"id"`
-	Name string `json:"name"`
-}
-
 type GroupStats struct {
 	Total        int64 `json:"total"`
 	Active       int64 `json:"active"`
 	Disabled     int64 `json:"disabled"`
 	DefaultCount int64 `json:"defaultCount"`
-	TotalMembers int64 `json:"totalMembers"`
 }
 
 type GroupListItem struct {
@@ -105,51 +73,21 @@ type GroupListItem struct {
 	IsDefault   bool      `json:"isDefault"`
 	Show        uint8     `json:"show"`
 	Status      uint8     `json:"status"`
-	MemberCount int       `json:"memberCount"`
-	Leaders     []string  `json:"leaders,omitempty"`
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
-type GroupMemberUser struct {
-	ID     uint64  `json:"id"`
-	Name   string  `json:"name"`
-	Email  string  `json:"email"`
-	Status uint8   `json:"status"`
-	Role   RoleRef `json:"role"`
-}
-
-type GroupMemberItem struct {
-	ID       uint64          `json:"id"`
-	UserID   uint64          `json:"userId"`
-	Role     uint8           `json:"role"`
-	JoinedAt time.Time       `json:"joinedAt"`
-	User     GroupMemberUser `json:"user"`
-}
-
 type GroupDetail struct {
-	ID          uint64            `json:"id"`
-	Name        string            `json:"name"`
-	Description *string           `json:"description,omitempty"`
-	LogoURL     *string           `json:"logoUrl,omitempty"`
-	Tags        []string          `json:"tags,omitempty"`
-	IsDefault   bool              `json:"isDefault"`
-	Show        uint8             `json:"show"`
-	Status      uint8             `json:"status"`
-	MemberCount int               `json:"memberCount"`
-	Leaders     []string          `json:"leaders,omitempty"`
-	CreatedAt   time.Time         `json:"createdAt"`
-	UpdatedAt   time.Time         `json:"updatedAt"`
-	Members     []GroupMemberItem `json:"members"`
-}
-
-type GroupCandidateItem struct {
-	ID     uint64              `json:"id"`
-	Name   string              `json:"name"`
-	Email  string              `json:"email"`
-	Status uint8               `json:"status"`
-	Role   RoleRef             `json:"role"`
-	Groups []CandidateGroupRef `json:"groups,omitempty"`
+	ID          uint64    `json:"id"`
+	Name        string    `json:"name"`
+	Description *string   `json:"description,omitempty"`
+	LogoURL     *string   `json:"logoUrl,omitempty"`
+	Tags        []string  `json:"tags,omitempty"`
+	IsDefault   bool      `json:"isDefault"`
+	Show        uint8     `json:"show"`
+	Status      uint8     `json:"status"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 type ListGroupsResult struct {
@@ -242,10 +180,6 @@ func (s *Service) GetGroup(ctx context.Context, actor Actor, groupID uint64) (*G
 	if err := ensureAdminActor(actor); err != nil {
 		return nil, err
 	}
-	if actor.RoleName == model.RoleNameAdmin && actor.AdminScope == model.AdminScopeGroup && (actor.ManagementGroupID == nil || *actor.ManagementGroupID != groupID) {
-		return nil, &ServiceError{Status: http.StatusForbidden, Message: "无权访问其他用户组"}
-	}
-
 	group, err := s.repo.GetGroupByID(ctx, groupID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -415,278 +349,11 @@ func (s *Service) UpdateGroup(ctx context.Context, actor Actor, groupID uint64, 
 	return s.GetGroup(ctx, actor, groupID)
 }
 
-func (s *Service) DeleteGroup(ctx context.Context, actor Actor, groupID uint64) error {
-	if err := ensureAdminActor(actor); err != nil {
-		return err
-	}
-	if actor.RoleName != model.RoleNameSuperAdmin {
-		return &ServiceError{Status: http.StatusForbidden, Message: "仅超级管理员可以管理用户组配置"}
-	}
-
-	group, err := s.repo.GetGroupByID(ctx, groupID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return &ServiceError{Status: http.StatusNotFound, Message: "用户组不存在"}
-		}
-		return &ServiceError{Status: http.StatusInternalServerError, Message: "加载用户组失败", Err: err}
-	}
-
-	memberCount, err := s.repo.CountMembers(ctx, groupID)
-	if err != nil {
-		return &ServiceError{Status: http.StatusInternalServerError, Message: "检查用户组成员失败", Err: err}
-	}
-	if memberCount > 0 {
-		return &ServiceError{Status: http.StatusConflict, Message: "该用户组仍有成员，请先移除成员后再删除"}
-	}
-
-	if err := s.repo.DeleteGroup(ctx, groupID); err != nil {
-		return &ServiceError{Status: http.StatusInternalServerError, Message: "删除用户组失败", Err: err}
-	}
-
-	cleanupManagedGroupLogoURL(context.Background(), s.fileStore, group.LogoURL, "")
-	cleanupManagedGroupLogoURL(context.Background(), s.fileStore, group.AdmissionImageURL, "")
-	return nil
-}
-
-func (s *Service) ListMemberCandidates(ctx context.Context, actor Actor, groupID uint64) ([]GroupCandidateItem, error) {
-	if actor.RoleName == model.RoleNameSuperAdmin && actor.AdminScope == "" {
-		// compatibility for pre-scope internal callers
-	} else if err := ensureMemberManager(actor, groupID, model.UserGroupMemberRoleMember, false); err != nil {
-		return nil, err
-	}
-
-	if _, err := s.repo.GetGroupByID(ctx, groupID); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, &ServiceError{Status: http.StatusNotFound, Message: "用户组不存在"}
-		}
-		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载用户组失败", Err: err}
-	}
-
-	users, err := s.repo.ListCandidateUsers(ctx, groupID)
-	if err != nil {
-		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "查询成员候选用户失败", Err: err}
-	}
-
-	items := make([]GroupCandidateItem, 0, len(users))
-	for i := range users {
-		if actor.AdminScope != "" && (users[i].Status != model.UserStatusEnabled || !inActiveDefaultGroup(users[i].GroupMembers)) {
-			continue
-		}
-		items = append(items, toGroupCandidateItem(&users[i]))
-	}
-
-	return items, nil
-}
-
-func inActiveDefaultGroup(members []model.UserGroupMember) bool {
-	for _, member := range members {
-		if member.Group.IsDefault && member.Group.Status == model.UserGroupStatusActive {
-			return true
-		}
-	}
-	return false
-}
-
-func (s *Service) AddMember(ctx context.Context, actor Actor, groupID uint64, input AddMemberInput) (*GroupMemberItem, error) {
-	if err := ensureMemberManager(actor, groupID, input.Role, false); err != nil {
-		return nil, err
-	}
-	if err := validateMemberRole(input.Role); err != nil {
-		return nil, err
-	}
-
-	group, err := s.repo.GetGroupByID(ctx, groupID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, &ServiceError{Status: http.StatusNotFound, Message: "用户组不存在"}
-		}
-		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载用户组失败", Err: err}
-	}
-
-	user, err := s.repo.GetUserByID(ctx, input.UserID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, &ServiceError{Status: http.StatusNotFound, Message: "目标用户不存在"}
-		}
-		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载目标用户失败", Err: err}
-	}
-	if !EligibleRoleName(user.Role.Name) {
-		return nil, &ServiceError{Status: http.StatusForbidden, Message: "该账号角色不允许加入用户组"}
-	}
-	if user.Role.Name == model.RoleNameSuperAdmin {
-		return nil, &ServiceError{Status: http.StatusForbidden, Message: "超级管理员不能加入普通用户组"}
-	}
-	if actor.RoleName != model.RoleNameSuperAdmin && user.Role.Name == model.RoleNameAdmin {
-		return nil, &ServiceError{Status: http.StatusForbidden, Message: "管理员不能调整其他管理员的组内身份"}
-	}
-	if input.Role != model.UserGroupMemberRoleMember {
-		for _, existing := range user.GroupMembers {
-			if existing.Role == model.UserGroupMemberRoleMember || existing.GroupID == groupID {
-				continue
-			}
-			return nil, &ServiceError{Status: http.StatusConflict, Message: "该用户已在其他用户组担任管理职务"}
-		}
-	}
-
-	if _, err := s.repo.FindMemberByUserID(ctx, groupID, input.UserID); err == nil {
-		return nil, &ServiceError{Status: http.StatusConflict, Message: "该用户已经在当前分组中"}
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "检查成员关系失败", Err: err}
-	}
-
-	member := &model.UserGroupMember{
-		GroupID: groupID,
-		UserID:  input.UserID,
-		Role:    input.Role,
-	}
-
-	if err := s.repo.RunInTx(ctx, func(repo Repository) error {
-		if err := repo.CreateMember(ctx, member); err != nil {
-			return err
-		}
-		if group.IsDefault {
-			return nil
-		}
-		return removeActiveDefaultMemberships(ctx, repo, input.UserID)
-	}); err != nil {
-		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "添加成员失败", Err: err}
-	}
-
-	loaded, err := s.repo.GetMemberByID(ctx, groupID, member.ID)
-	if err != nil {
-		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载新增成员失败", Err: err}
-	}
-	item := toGroupMemberItem(loaded)
-	return &item, nil
-}
-
-func (s *Service) UpdateMember(ctx context.Context, actor Actor, groupID uint64, memberID uint64, input UpdateMemberInput) (*GroupMemberItem, error) {
-	if err := ensureMemberManager(actor, groupID, input.Role, true); err != nil {
-		return nil, err
-	}
-	if err := validateMemberRole(input.Role); err != nil {
-		return nil, err
-	}
-
-	member, err := s.repo.GetMemberByID(ctx, groupID, memberID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, &ServiceError{Status: http.StatusNotFound, Message: "分组成员不存在"}
-		}
-		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载分组成员失败", Err: err}
-	}
-	if member.UserID == actor.ID && member.Role == model.UserGroupMemberRoleLeader {
-		return nil, &ServiceError{Status: http.StatusForbidden, Message: "组长不能撤销自己的组长身份"}
-	}
-	if member.Role == model.UserGroupMemberRoleLeader && input.Role == model.UserGroupMemberRoleMember {
-		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "组长不能直接降为普通成员，请先降为组内管理员"}
-	}
-	if input.Role == model.UserGroupMemberRoleLeader && actor.RoleName != model.RoleNameSuperAdmin {
-		return nil, &ServiceError{Status: http.StatusForbidden, Message: "只有超级管理员可以任命组长"}
-	}
-	if member.User.Role.Name == model.RoleNameAdmin && actor.RoleName != model.RoleNameSuperAdmin {
-		return nil, &ServiceError{Status: http.StatusForbidden, Message: "管理员不能调整其他管理员的组内身份"}
-	}
-	if input.Role != model.UserGroupMemberRoleMember {
-		for _, existing := range member.User.GroupMembers {
-			if existing.ID == member.ID || existing.Role == model.UserGroupMemberRoleMember {
-				continue
-			}
-			return nil, &ServiceError{Status: http.StatusConflict, Message: "该用户已在其他用户组担任管理职务"}
-		}
-	}
-
-	if err := s.repo.RunInTx(ctx, func(repo Repository) error {
-		return repo.UpdateMember(ctx, groupID, memberID, map[string]any{"role": input.Role})
-	}); err != nil {
-		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "更新成员角色失败", Err: err}
-	}
-
-	loaded, err := s.repo.GetMemberByID(ctx, groupID, memberID)
-	if err != nil {
-		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载更新后的成员失败", Err: err}
-	}
-	item := toGroupMemberItem(loaded)
-	return &item, nil
-}
-
-func (s *Service) RemoveMember(ctx context.Context, actor Actor, groupID uint64, memberID uint64) error {
-	if err := ensureMemberManager(actor, groupID, model.UserGroupMemberRoleMember, true); err != nil {
-		return err
-	}
-	member, err := s.repo.GetMemberByID(ctx, groupID, memberID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return &ServiceError{Status: http.StatusNotFound, Message: "分组成员不存在"}
-		}
-		return &ServiceError{Status: http.StatusInternalServerError, Message: "加载分组成员失败", Err: err}
-	}
-	if member.Role != model.UserGroupMemberRoleMember {
-		return &ServiceError{Status: http.StatusConflict, Message: "请先撤销组内管理身份后再移除成员"}
-	}
-
-	if err := s.repo.RunInTx(ctx, func(repo Repository) error {
-		if err := repo.DeleteMember(ctx, groupID, memberID); err != nil {
-			return err
-		}
-		if member.Group.IsDefault {
-			return nil
-		}
-		return ensureDefaultMembershipWhenNoNonDefaultGroups(ctx, repo, member.UserID)
-	}); err != nil {
-		return &ServiceError{Status: http.StatusInternalServerError, Message: "移除成员失败", Err: err}
-	}
-
-	return nil
-}
-
-func UserGroupRefsFromMembers(members []model.UserGroupMember, includeStatus bool) []GroupRef {
-	if len(members) == 0 {
-		return nil
-	}
-
-	refs := make([]GroupRef, 0, len(members))
-	for _, member := range members {
-		ref := GroupRef{
-			ID:         member.Group.ID,
-			Name:       member.Group.Name,
-			MemberID:   member.ID,
-			MemberRole: member.Role,
-		}
-		if includeStatus {
-			ref.Status = member.Group.Status
-		}
-		refs = append(refs, ref)
-	}
-	return refs
-}
-
 func ensureAdminActor(actor Actor) error {
 	if actor.RoleName == model.RoleNameAdmin || actor.RoleName == model.RoleNameSuperAdmin {
 		return nil
 	}
 	return &ServiceError{Status: http.StatusForbidden, Message: "当前账号无管理员权限"}
-}
-
-func ensureMemberManager(actor Actor, groupID uint64, targetRole uint8, updating bool) error {
-	if actor.RoleName == model.RoleNameSuperAdmin {
-		return nil
-	}
-	// Legacy service callers without the new scope fields are treated as
-	// unrestricted admins; HTTP requests always carry explicit scope values.
-	if actor.RoleName == model.RoleNameAdmin && actor.AdminScope == "" {
-		if targetRole == model.UserGroupMemberRoleLeader {
-			return &ServiceError{Status: http.StatusForbidden, Message: "组长不能任命组长"}
-		}
-		return nil
-	}
-	if actor.RoleName != model.RoleNameAdmin || actor.AdminScope != model.AdminScopeGroup || actor.ManagementGroupID == nil || *actor.ManagementGroupID != groupID || actor.GroupRole != "leader" {
-		return &ServiceError{Status: http.StatusForbidden, Message: "仅当前组组长可以管理成员"}
-	}
-	if targetRole == model.UserGroupMemberRoleLeader {
-		return &ServiceError{Status: http.StatusForbidden, Message: "组长不能任命组长"}
-	}
-	return nil
 }
 
 func validateGroupStatus(status uint8) error {
@@ -703,21 +370,6 @@ func validateGroupShow(show uint8) error {
 	return nil
 }
 
-func validateMemberRole(role uint8) error {
-	if role != model.UserGroupMemberRoleMember && role != model.UserGroupMemberRoleGroupAdmin && role != model.UserGroupMemberRoleLeader {
-		return &ServiceError{Status: http.StatusBadRequest, Message: "组内角色不合法"}
-	}
-	return nil
-}
-
-func toRoleRef(role model.Role) RoleRef {
-	return RoleRef{
-		ID:          role.ID,
-		Name:        role.Name,
-		DisplayName: role.DisplayName,
-	}
-}
-
 func toGroupListItem(group *model.UserGroup) GroupListItem {
 	return GroupListItem{
 		ID:          group.ID,
@@ -728,19 +380,12 @@ func toGroupListItem(group *model.UserGroup) GroupListItem {
 		IsDefault:   group.IsDefault,
 		Show:        group.Show,
 		Status:      group.Status,
-		MemberCount: len(group.Members),
-		Leaders:     leaderNames(group.Members),
 		CreatedAt:   group.CreatedAt,
 		UpdatedAt:   group.UpdatedAt,
 	}
 }
 
 func toGroupDetail(group *model.UserGroup) GroupDetail {
-	members := make([]GroupMemberItem, 0, len(group.Members))
-	for _, member := range group.Members {
-		members = append(members, toGroupMemberItem(&member))
-	}
-
 	return GroupDetail{
 		ID:          group.ID,
 		Name:        group.Name,
@@ -750,122 +395,9 @@ func toGroupDetail(group *model.UserGroup) GroupDetail {
 		IsDefault:   group.IsDefault,
 		Show:        group.Show,
 		Status:      group.Status,
-		MemberCount: len(group.Members),
-		Leaders:     leaderNames(group.Members),
 		CreatedAt:   group.CreatedAt,
 		UpdatedAt:   group.UpdatedAt,
-		Members:     members,
 	}
-}
-
-func toGroupMemberItem(member *model.UserGroupMember) GroupMemberItem {
-	return GroupMemberItem{
-		ID:       member.ID,
-		UserID:   member.UserID,
-		Role:     member.Role,
-		JoinedAt: member.JoinedAt,
-		User: GroupMemberUser{
-			ID:     member.User.ID,
-			Name:   member.User.Name,
-			Email:  member.User.Email,
-			Status: member.User.Status,
-			Role:   toRoleRef(member.User.Role),
-		},
-	}
-}
-
-func toGroupCandidateItem(user *model.User) GroupCandidateItem {
-	return GroupCandidateItem{
-		ID:     user.ID,
-		Name:   user.Name,
-		Email:  user.Email,
-		Status: user.Status,
-		Role:   toRoleRef(user.Role),
-		Groups: candidateGroups(user.GroupMembers),
-	}
-}
-
-func leaderNames(members []model.UserGroupMember) []string {
-	leaders := make([]string, 0, len(members))
-	for _, member := range members {
-		if member.Role != model.UserGroupMemberRoleLeader {
-			continue
-		}
-		name := strings.TrimSpace(member.User.Name)
-		if name == "" {
-			name = strings.TrimSpace(member.User.Email)
-		}
-		if name != "" {
-			leaders = append(leaders, name)
-		}
-	}
-	return leaders
-}
-
-func candidateGroups(members []model.UserGroupMember) []CandidateGroupRef {
-	if len(members) == 0 {
-		return nil
-	}
-
-	groups := make([]CandidateGroupRef, 0, len(members))
-	for _, member := range members {
-		groups = append(groups, CandidateGroupRef{
-			ID:   member.Group.ID,
-			Name: member.Group.Name,
-		})
-	}
-	return groups
-}
-
-func removeActiveDefaultMemberships(ctx context.Context, repo Repository, userID uint64) error {
-	user, err := repo.GetUserByID(ctx, userID)
-	if err != nil {
-		return err
-	}
-
-	for _, member := range user.GroupMembers {
-		if !member.Group.IsDefault || member.Group.Status != model.UserGroupStatusActive {
-			continue
-		}
-		if err := repo.DeleteMember(ctx, member.GroupID, member.ID); err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func ensureDefaultMembershipWhenNoNonDefaultGroups(ctx context.Context, repo Repository, userID uint64) error {
-	user, err := repo.GetUserByID(ctx, userID)
-	if err != nil {
-		return err
-	}
-
-	for _, member := range user.GroupMembers {
-		if !member.Group.IsDefault {
-			return nil
-		}
-	}
-
-	defaultGroup, err := repo.GetActiveDefaultGroup(ctx)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil
-		}
-		return err
-	}
-
-	if _, err := repo.FindMemberByUserID(ctx, defaultGroup.ID, userID); err == nil {
-		return nil
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return err
-	}
-
-	return repo.CreateMember(ctx, &model.UserGroupMember{
-		GroupID: defaultGroup.ID,
-		UserID:  userID,
-		Role:    model.UserGroupMemberRoleMember,
-	})
 }
 
 func normalizeTags(tags []string) []string {

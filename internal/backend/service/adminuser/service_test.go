@@ -216,6 +216,14 @@ func (r *fakeRepository) GetUserByID(_ context.Context, userID uint64) (*model.U
 	return cloneUser(user), nil
 }
 
+func (r *fakeRepository) ListRecruitmentHistory(context.Context, uint64) ([]model.Registration, error) {
+	return []model.Registration{}, nil
+}
+
+func (r *fakeRepository) UpdateCurrentRecruitmentGroup(context.Context, uint64, uint64) error {
+	return nil
+}
+
 func (r *fakeRepository) GetUserByEmail(_ context.Context, email string) (*model.User, error) {
 	for _, user := range r.users {
 		if user.Email == email {

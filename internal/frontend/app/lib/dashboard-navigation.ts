@@ -72,33 +72,15 @@ const ADMIN_MENU: readonly DashboardMenuDefinition[] = [
     allowedRoles: ["super_admin", "admin"],
   },
   {
-    key: "recruitment-settings",
-    label: "招新设置",
-    iconKey: "registration",
-    children: [
-      {
-        key: "form-config",
-        label: "届次与报名字段",
-        href: "/dashboard/admin/recruitment-settings",
-        allowedRoles: ["super_admin"],
-      },
-      {
-        key: "interview-sessions",
-        label: "面试场次",
-        href: "/dashboard/admin/interview-sessions",
-        allowedRoles: ["super_admin"],
-      },
-      {
-        key: "recruitment-groups",
-        label: "招新组别",
-        href: "/dashboard/admin/recruitment-groups",
-        allowedRoles: ["super_admin"],
-      },
-    ],
+	key: "recruitment-management",
+	label: "招新管理",
+	href: "/dashboard/admin/recruitment",
+	iconKey: "registration",
+	allowedRoles: ["super_admin"],
   },
   {
-    key: "accounts",
-    label: "账号管理",
+	key: "accounts",
+	label: "账号与权限",
     iconKey: "people",
     href: "/dashboard/admin/users",
     allowedRoles: ["super_admin"],
@@ -112,12 +94,6 @@ const ADMIN_MENU: readonly DashboardMenuDefinition[] = [
         key: "system-config-email",
         label: "邮件服务",
         href: "/dashboard/admin/system-config/email",
-        allowedRoles: ["super_admin"],
-      },
-      {
-        key: "system-config-oauth",
-        label: "第三方登录",
-        href: "/dashboard/admin/system-config/oauth",
         allowedRoles: ["super_admin"],
       },
     ],
@@ -146,8 +122,9 @@ function getAccessibleAdminPaths(roleName: string) {
   });
 }
 
-export function getUserDashboardMenu(): DashboardMenuLink[] {
-  return [...USER_MENU];
+export function getUserDashboardMenu(userOrRole: AuthUser | string): DashboardMenuLink[] {
+	const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
+	return roleName === "user" ? [...USER_MENU] : [];
 }
 
 export function getVisibleAdminDashboardMenu(userOrRole: AuthUser | string): VisibleDashboardAdminMenuItem[] {
