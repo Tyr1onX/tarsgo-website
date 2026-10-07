@@ -25,16 +25,6 @@ export function Navbar({ currentUser = null }: NavbarProps) {
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
   const revalidator = useRevalidator();
-  const dashboardPath = currentUser ? getDefaultDashboardPath(currentUser.role.name) : "/dashboard";
-
-  useEffect(() => {
-    if (!currentUser) return;
-    if (currentUser.role.name === "admin" || currentUser.role.name === "super_admin") {
-      void import("~/routes/admin/dashboard");
-    } else {
-      void import("~/routes/users/registrations");
-    }
-  }, [currentUser]);
 
   useEffect(() => {
     function handleScroll() {
@@ -181,7 +171,8 @@ export function Navbar({ currentUser = null }: NavbarProps) {
 
                   <div className="p-1.5">
                     <Link
-                      to={dashboardPath}
+                      to={getDefaultDashboardPath(currentUser.role.name)}
+                      prefetch="render"
                       onClick={() => setUserMenuOpen(false)}
                       role="menuitem"
                       className="group/item flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-fg-muted transition-colors hover:bg-white/5 hover:text-fg-primary"
@@ -303,7 +294,8 @@ export function Navbar({ currentUser = null }: NavbarProps) {
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2">
                 <Link
-                  to={dashboardPath}
+                  to={getDefaultDashboardPath(currentUser.role.name)}
+                  prefetch="render"
                   className="rounded-full bg-accent-primary px-4 py-2 text-center text-sm font-medium text-fg-inverse"
                   onClick={() => setMenuOpen(false)}
                 >

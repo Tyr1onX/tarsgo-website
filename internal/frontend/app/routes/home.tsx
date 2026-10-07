@@ -9,6 +9,7 @@ import {
 import { Navbar } from "../components/navbar";
 import { Link } from "react-router";
 import {
+  getCachedCurrentUser,
   getOptionalCurrentUser,
   subscribeAuthStateChange,
   type AuthUser,
@@ -570,7 +571,7 @@ export default function Home() {
   const toggleAllCertificates = () => {
     setShowAllCertificates((current) => !current);
   };
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
+  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => getCachedCurrentUser());
   const aboutPanelRef = useRef<HTMLDivElement | null>(null);
   const aboutPhotoWallRef = useRef<HTMLDivElement | null>(null);
   const activeAboutModule = aboutModules[activeAboutModuleIndex];

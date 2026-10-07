@@ -4,6 +4,7 @@ import { Link, NavLink, Outlet, redirect, useLocation, useNavigate } from "react
 import type { Route } from "./+types/layout";
 import { ApiError } from "~/lib/api-client";
 import { getAuthUserRoleLabel, getBootstrapStatus, getCachedCurrentUser, getCurrentUser, logout, type AuthUser } from "~/lib/auth-client";
+import { resolveDashboardAuth } from "~/lib/dashboard-auth-flow";
 import {
   canAccessDashboardAdminPath,
   getDefaultDashboardPath,
@@ -45,24 +46,21 @@ function getIsDesktopDashboardViewport() {
 
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const currentPath = new URL(request.url);
-  let currentUser = getCachedCurrentUser();
+  const auth = await resolveDashboardAuth({
+    cachedUser: getCachedCurrentUser(),
+    getCurrentUser,
+    getBootstrapStatus,
+    isUnauthorized: (error) => error instanceof ApiError && error.status === 401,
+  });
 
-  if (!currentUser) {
-    const bootstrapStatus = await getBootstrapStatus();
-    if (bootstrapStatus.setupRequired) {
-      throw redirect(SUPER_ADMIN_SETUP_PATH);
-    }
-
-    try {
-      currentUser = await getCurrentUser();
-    } catch (error) {
-      if (error instanceof ApiError && error.status === 401) {
-        const redirectTarget = `${currentPath.pathname}${currentPath.search}`;
-        throw redirect(`/login?redirect=${encodeURIComponent(redirectTarget)}`);
-      }
-      throw error;
-    }
+  if (auth.type === "setup-required") {
+    throw redirect(SUPER_ADMIN_SETUP_PATH);
   }
+  if (auth.type === "unauthenticated") {
+    const redirectTarget = `${currentPath.pathname}${currentPath.search}`;
+    throw redirect(`/login?redirect=${encodeURIComponent(redirectTarget)}`);
+  }
+  const currentUser = auth.user;
 
   const pathname = currentPath.pathname;
   if (
