@@ -30,29 +30,25 @@ const stats = [
     icon: "calendar",
     value: "2018",
     label: "成立年份",
-    tint: "#0062FF",
-    tintSoft: "#3B82F6",
+    tint: "#D0AD69",
   },
   {
     icon: "users",
     value: "35+",
     label: "团队成员",
-    tint: "#4F46E5",
-    tintSoft: "#7C3AED",
+    tint: "#D0AD69",
   },
   {
     icon: "layers",
     value: "6",
     label: "技术组别",
-    tint: "#10B981",
-    tintSoft: "#14B8A6",
+    tint: "#D0AD69",
   },
   {
     icon: "award",
     value: "Top 16",
     label: "全国最佳成绩",
-    tint: "#F59E0B",
-    tintSoft: "#FBBF24",
+    tint: "#D0AD69",
   },
 ];
 
@@ -237,37 +233,31 @@ const groups = [
     name: "机械组",
     description: "负责机器人结构设计、建模、加工与装配，将创意变为现实",
     logo: "/assets/images/Logo/mechanical.webp",
-    accent: "from-[#0062FF]/24 via-[#2563EB]/14 to-transparent",
   },
   {
     name: "电控组",
     description: "嵌入式系统开发、电路设计、电机控制，让机器人\u201C动\u201D起来",
     logo: "/assets/images/Logo/electrical-control.webp",
-    accent: "from-[#10B981]/22 via-[#14B8A6]/12 to-transparent",
   },
   {
     name: "视觉组",
     description: "机器视觉、目标识别、自动瞄准，赋予机器人\u201C眼睛\u201D",
     logo: "/assets/images/Logo/vision.webp",
-    accent: "from-[#F59E0B]/22 via-[#F97316]/12 to-transparent",
   },
   {
     name: "AI组",
     description: "负责智能算法、决策规划与自主控制，让机器人拥有更强的判断力",
     logo: "/assets/images/Logo/ai.webp",
-    accent: "from-[#EF4444]/22 via-[#EC4899]/12 to-transparent",
   },
   {
     name: "软件组",
     description: "负责上位机、工具链与平台开发，支撑整队协同与数据流转",
     logo: "/assets/images/Logo/software.webp",
-    accent: "from-[#8B5CF6]/22 via-[#6366F1]/12 to-transparent",
   },
   {
     name: "运营组",
     description: "负责宣传、策划、赛事运营与对外联络，推动团队持续成长",
     logo: "/assets/images/Logo/operations.webp",
-    accent: "from-[#22C55E]/22 via-[#84CC16]/12 to-transparent",
   },
 ];
 
@@ -523,16 +513,6 @@ function StatIcon({
   return <>{icons[icon]}</>;
 }
 
-type SectionTone = "blue" | "gold" | "teal" | "amber" | "indigo";
-
-const sectionToneColor: Record<SectionTone, string> = {
-  blue: "#0062FF",
-  gold: "#F59E0B",
-  teal: "#10B981",
-  amber: "#FFB547",
-  indigo: "#6366F1",
-};
-
 function SectionHeading({
   index,
   total,
@@ -540,7 +520,6 @@ function SectionHeading({
   labelEn,
   title,
   description,
-  tone,
 }: {
   index: string;
   total: string;
@@ -548,83 +527,35 @@ function SectionHeading({
   labelEn: string;
   title: string;
   description: string;
-  tone: SectionTone;
 }) {
-  const color = sectionToneColor[tone];
-  const lineGradient = `linear-gradient(90deg, transparent, ${color}66, transparent)`;
-  const titleGradient = `linear-gradient(180deg, #F1F5F9 0%, #F1F5F9 48%, ${color}66 100%)`;
-  const glowGradient = `radial-gradient(ellipse 560px 220px at 50% 50%, ${color}3d, transparent 70%)`;
+  const color = "#D0AD69";
 
   return (
-    <div className="relative mx-auto mb-12 max-w-[900px] sm:mb-14">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute left-1/2 top-1/2 -z-10 h-[260px] w-[640px] -translate-x-1/2 -translate-y-1/2 opacity-80 blur-[24px]"
-        style={{ backgroundImage: glowGradient }}
-      />
-
-      <div className="flex items-center justify-center gap-3 sm:gap-4">
+    <div className="public-section-heading mx-auto mb-9 max-w-[900px] sm:mb-11">
+      <div className="flex items-center justify-center gap-3 sm:justify-start sm:gap-4">
         <span
-          className="font-mono text-[11px] font-bold tracking-[0.3em] sm:text-xs"
+          className="font-mono text-[11px] font-semibold tracking-[0.18em] sm:text-xs"
           style={{ color }}
         >
-          {index}
+          {index} / {total}
         </span>
         <span
-          className="h-px w-10 sm:w-14"
-          style={{ backgroundImage: lineGradient }}
-        />
-        <span
-          className="whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.42em] sm:text-[11px]"
+          className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.2em] sm:text-[11px]"
           style={{ color }}
         >
           {labelEn}
         </span>
-        <span
-          className="h-px w-10 sm:w-14"
-          style={{ backgroundImage: lineGradient }}
-        />
-        <span className="font-mono text-[11px] font-bold tracking-[0.3em] text-fg-dim sm:text-xs">
-          / {total}
-        </span>
       </div>
 
-      <h2 className="mt-5 text-center font-black leading-[0.98] tracking-[0.04em]">
-        <span
-          className="inline-block bg-clip-text text-[48px] text-transparent sm:text-[72px] lg:text-[92px]"
-          style={{ backgroundImage: titleGradient }}
-        >
-          {labelZh}
-        </span>
+      <h2 className="mt-3 text-center text-[32px] font-semibold leading-tight tracking-[-0.03em] text-fg-primary sm:text-left sm:text-[40px]">
+        {labelZh}
       </h2>
 
-      <div
-        aria-hidden
-        className="mt-5 flex items-center justify-center gap-2.5"
-      >
-        <span
-          className="h-px w-12"
-          style={{
-            backgroundImage: `linear-gradient(90deg, transparent, ${color}cc)`,
-          }}
-        />
-        <span
-          className="h-1.5 w-1.5 rotate-45"
-          style={{ backgroundColor: color }}
-        />
-        <span
-          className="h-px w-12"
-          style={{
-            backgroundImage: `linear-gradient(-90deg, transparent, ${color}cc)`,
-          }}
-        />
-      </div>
-
-      <h3 className="mt-5 text-center text-xl font-bold text-fg-primary sm:text-[26px] lg:text-[30px]">
+      <h3 className="mt-2 text-center text-base font-medium text-fg-primary sm:text-left sm:text-lg">
         {title}
       </h3>
 
-      <p className="mx-auto mt-4 max-w-[720px] text-center text-[15px] leading-relaxed text-fg-muted sm:text-base">
+      <p className="mx-auto mt-3 max-w-[760px] text-center text-sm leading-6 text-fg-muted sm:mx-0 sm:text-left sm:text-[15px] sm:leading-7">
         {description}
       </p>
     </div>
@@ -635,38 +566,10 @@ export default function Home() {
   const [activeAboutModuleIndex, setActiveAboutModuleIndex] = useState(0);
   const [activeMilestoneIndex, setActiveMilestoneIndex] = useState(0);
   const [showAllCertificates, setShowAllCertificates] = useState(false);
-  const [certAnimPhase, setCertAnimPhase] = useState<"idle" | "entering" | "exiting">("idle");
-  const certAnimTimerRef = useRef<number | null>(null);
 
   const toggleAllCertificates = () => {
-    if (certAnimTimerRef.current) {
-      window.clearTimeout(certAnimTimerRef.current);
-      certAnimTimerRef.current = null;
-    }
-    if (showAllCertificates) {
-      setCertAnimPhase("exiting");
-      certAnimTimerRef.current = window.setTimeout(() => {
-        setShowAllCertificates(false);
-        setCertAnimPhase("idle");
-        certAnimTimerRef.current = null;
-      }, 420);
-    } else {
-      setShowAllCertificates(true);
-      setCertAnimPhase("entering");
-      certAnimTimerRef.current = window.setTimeout(() => {
-        setCertAnimPhase("idle");
-        certAnimTimerRef.current = null;
-      }, 720);
-    }
+    setShowAllCertificates((current) => !current);
   };
-
-  useEffect(() => {
-    return () => {
-      if (certAnimTimerRef.current) {
-        window.clearTimeout(certAnimTimerRef.current);
-      }
-    };
-  }, []);
   const [currentUser, setCurrentUser] = useState<AuthUser | null>(null);
   const aboutPanelRef = useRef<HTMLDivElement | null>(null);
   const aboutPhotoWallRef = useRef<HTMLDivElement | null>(null);
@@ -784,20 +687,12 @@ export default function Home() {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#030303] text-fg-primary">
-      <div
-        aria-hidden
-        className="pointer-events-none fixed inset-0 z-0 overflow-hidden"
-      >
-        <div className="bg-obsidian-base absolute inset-0" />
-        <div className="bg-obsidian-grid absolute inset-[-15%]" />
-      </div>
-
+    <div className="public-home relative min-h-screen overflow-hidden bg-[#101516] text-fg-primary">
       <div className="relative z-10">
       {/* Hero Section */}
       <section
         id="hero"
-        className="relative min-h-[100svh] overflow-hidden bg-black"
+        className="public-home-hero relative min-h-[88svh] overflow-hidden bg-black sm:min-h-[92svh]"
       >
         <div className="absolute inset-0">
           <video
@@ -812,40 +707,54 @@ export default function Home() {
           >
             <source src="/assets/images/Video/hero-showreel.mp4" type="video/mp4" />
           </video>
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(0,98,255,0.24),transparent_42%)]" />
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(15,23,42,0.18)_0%,rgba(2,6,23,0.78)_100%)]" />
-          <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.62)_0%,rgba(2,6,23,0.16)_38%,rgba(2,6,23,0.78)_100%)]" />
+          <div className="public-home-hero-shade absolute inset-0" />
         </div>
 
-        <div className="relative z-10 flex min-h-[100svh] items-center justify-center">
-          <div className="mx-auto flex w-full max-w-[1440px] items-center justify-center px-6 pb-16 pt-28 sm:px-10 sm:pt-32 lg:px-20">
-            <div className="flex max-w-2xl flex-col items-center gap-6 text-center sm:gap-8">
+        <div className="relative z-10 flex min-h-[88svh] items-center sm:min-h-[92svh]">
+          <div className="mx-auto flex w-full max-w-[1440px] items-center px-6 pb-20 pt-28 sm:px-10 sm:pt-32 lg:px-20">
+            <div className="flex max-w-2xl flex-col items-center gap-4 text-center sm:items-start sm:text-left">
               <img
                 src="/assets/images/Logo/jijia-master.webp"
                 alt="吉甲大师"
-                className="motion-fade-down h-48 w-auto max-w-full object-contain sm:h-56 md:h-64"
+                className="h-20 w-auto max-w-full object-contain sm:h-24"
               />
-              <p className="motion-fade-up text-lg font-semibold tracking-[0.22em] text-white sm:text-2xl">
-                吉林大学吉甲大师双创基地
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#e0c790] sm:text-sm">
+                吉林大学 · RoboMaster 机甲大师赛
               </p>
-              <Link
-                to="/register"
-                className="motion-button inline-flex items-center gap-2 rounded-full border border-white/16 bg-white px-8 py-3 text-sm font-semibold text-slate-950 shadow-[0_20px_60px_-28px_rgba(255,255,255,0.78)] sm:px-10 sm:py-4 sm:text-base"
-              >
-                加入我们
-                <svg
-                  className="h-4 w-4"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+              <h1 className="max-w-xl text-3xl font-semibold leading-tight tracking-[-0.035em] text-white sm:text-5xl sm:leading-[1.12] lg:text-[56px]">
+                吉林大学吉甲大师
+                <br className="hidden sm:block" />
+                机器人战队
+              </h1>
+              <p className="max-w-lg text-sm leading-6 text-white/78 sm:text-base sm:leading-7">
+                自 2018 年起持续投入机器人研发与 RoboMaster 竞赛，2024 年首次晋级全国总决赛。
+              </p>
+              <div className="mt-2 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+                <Link
+                  to="/register"
+                  className="motion-button inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[#d0ad69] px-6 py-3 text-sm font-semibold text-[#171915] transition-colors hover:bg-[#dfbd7c] sm:px-7"
                 >
-                  <path d="M5 12h14" />
-                  <path d="m12 5 7 7-7 7" />
-                </svg>
-              </Link>
+                  立即报名
+                  <svg
+                    className="h-4 w-4"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <path d="M5 12h14" />
+                    <path d="m12 5 7 7-7 7" />
+                  </svg>
+                </Link>
+                <a
+                  href="#robots"
+                  className="inline-flex min-h-11 items-center justify-center rounded-md border border-white/35 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10 sm:px-7"
+                >
+                  认识我们的机器人
+                </a>
+              </div>
             </div>
           </div>
         </div>
@@ -857,33 +766,11 @@ export default function Home() {
               aria-label="下滑查看更多"
               className="pointer-events-auto group relative flex flex-col items-center gap-2 sm:gap-3"
             >
-              {/* Scroll hint line with falling dot */}
-              <span className="relative flex h-5 w-px items-start overflow-hidden sm:h-6">
-                <span className="absolute inset-0 bg-gradient-to-b from-transparent via-white/12 to-transparent" />
-                <span className="animate-scroll-hint-trail h-2/5 w-full bg-gradient-to-b from-white/0 via-white/80 to-white/0" />
-              </span>
-
-              {/* Button */}
-              <span className="motion-button relative inline-flex h-9 w-9 items-center justify-center rounded-full border border-white/14 bg-white/[0.08] text-white shadow-[0_14px_36px_-24px_rgba(255,255,255,0.7)] backdrop-blur-md transition-all duration-300 group-hover:border-white/30 group-hover:bg-white/[0.16] sm:h-10 sm:w-10">
-                {/* Ambient pulsing ring */}
-                <span className="animate-scroll-pulse-ring pointer-events-none absolute inset-0 rounded-full border border-white/25" />
-                {/* Chevron icon with gentle bounce */}
-                <svg
-                  className="animate-scroll-chevron-bounce h-[14px] w-[14px] sm:h-4 sm:w-4"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
+              <span className="inline-flex items-center gap-2 text-xs font-medium text-white/70">
+                向下了解吉甲大师
+                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="m6 9 6 6 6-6" />
                 </svg>
-              </span>
-
-              {/* Label */}
-              <span className="text-[10px] font-semibold uppercase tracking-[0.32em] text-white/45 transition-colors duration-300 group-hover:text-white/80 sm:text-[11px]">
-                Scroll
               </span>
             </a>
           </div>
@@ -903,7 +790,6 @@ export default function Home() {
             total="05"
             labelZh="关于我们"
             labelEn="ABOUT US"
-            tone="blue"
             title="一支跨校区、跨学科的机器人战队"
             description="TARS-Go 战队成立于 2018 年，取名自电影《星际穿越》中的机器人 TARS。战队依托吉林大学吉甲大师双创基地，汇聚了来自不同学院、不同校区的优秀同学，共同在 RoboMaster 机甲大师赛中竞技拼搏。"
           />
@@ -916,20 +802,11 @@ export default function Home() {
                 className="motion-stat-surface flex flex-col items-center gap-3 rounded-2xl border border-white/8 bg-surface-light/92 p-7"
               >
                 <div className="motion-stat-icon relative flex h-14 w-14 items-center justify-center">
-                  <span
-                    aria-hidden
-                    className="motion-stat-icon-glow pointer-events-none absolute inset-0 opacity-60"
-                    style={{
-                      backgroundImage: `radial-gradient(circle, ${stat.tint}55 0%, transparent 66%)`,
-                      filter: "blur(10px)",
-                    }}
-                  />
                   <StatIcon
                     icon={stat.icon}
                     className="relative h-9 w-9"
                     style={{
                       color: stat.tint,
-                      filter: `drop-shadow(0 6px 16px ${stat.tint}66)`,
                     }}
                   />
                 </div>
@@ -957,7 +834,7 @@ export default function Home() {
                           onClick={() => activateAboutModule(index)}
                           className={`motion-button relative flex min-w-[148px] flex-col gap-2 overflow-hidden rounded-2xl border px-4 py-3.5 text-left ${
                             isActive
-                              ? "motion-module-tab-active border-accent-primary/70 bg-gradient-to-br from-accent-primary via-accent-primary to-accent-secondary text-fg-inverse shadow-[0_22px_48px_-22px_rgba(0,98,255,0.9)]"
+                              ? "motion-module-tab-active border-[#dfbd7c] bg-[#d0ad69] text-[#171915]"
                               : "border-white/10 bg-surface-light text-fg-muted hover:border-accent-primary/35 hover:text-fg-primary"
                           }`}
                           aria-pressed={isActive}
@@ -1002,7 +879,7 @@ export default function Home() {
                   className="relative mt-3 h-[2px] overflow-hidden rounded-full bg-white/[0.06]"
                 >
                   <div
-                    className="absolute left-0 top-0 h-full rounded-full bg-gradient-to-r from-accent-primary/70 via-accent-primary to-accent-secondary shadow-[0_0_10px_rgba(0,98,255,0.55)]"
+                    className="absolute left-0 top-0 h-full rounded-full bg-accent-primary"
                     style={{
                       width: `${((activeAboutModuleIndex + 1) / aboutModules.length) * 100}%`,
                       transition:
@@ -1092,7 +969,7 @@ export default function Home() {
                     />
                     <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.05)_0%,rgba(2,6,23,0.18)_42%,rgba(2,6,23,0.84)_100%)]" />
                     <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-8">
-                      <span className="inline-flex rounded-full border border-white/12 bg-black/30 px-3 py-1 text-[11px] font-semibold tracking-[0.22em] text-white/78 backdrop-blur-sm">
+                      <span className="inline-flex rounded-full border border-white/12 bg-black/70 px-3 py-1 text-[11px] font-semibold tracking-[0.22em] text-white/90">
                         {activeAboutModule.name}
                       </span>
                     </div>
@@ -1109,15 +986,8 @@ export default function Home() {
                   style={{ animationDelay: "80ms" }}
                   className="motion-info-panel-in"
                 >
-                  <span className="relative inline-flex items-center gap-2 overflow-hidden rounded-full border border-accent-primary/30 bg-gradient-to-r from-accent-primary/20 via-accent-primary/12 to-accent-primary/5 px-4 py-1.5 text-[13px] font-semibold tracking-[0.22em] text-accent-primary shadow-[0_8px_24px_-10px_rgba(0,98,255,0.55)] backdrop-blur-sm">
-                    <span
-                      aria-hidden
-                      className="pointer-events-none absolute inset-y-0 -left-1/4 w-1/3 -skew-x-[24deg] bg-gradient-to-r from-transparent via-white/18 to-transparent motion-tag-shine"
-                    />
-                    <span className="relative flex h-2 w-2">
-                      <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-accent-primary/70 opacity-70" />
-                      <span className="relative inline-flex h-2 w-2 rounded-full bg-accent-primary shadow-[0_0_8px_rgba(0,98,255,0.9)]" />
-                    </span>
+                  <span className="inline-flex items-center gap-2 rounded-full border border-accent-primary/30 bg-accent-primary/10 px-4 py-1.5 text-[13px] font-semibold tracking-[0.22em] text-accent-primary">
+                    <span className="inline-flex h-2 w-2 rounded-full bg-accent-primary" />
                     <span className="relative">{activeAboutModule.name}</span>
                   </span>
                   <div className="mt-3.5 flex items-start gap-3 sm:mt-4">
@@ -1140,15 +1010,7 @@ export default function Home() {
                     ))}
                   </div>
 
-                  <div className="relative mt-4 overflow-hidden rounded-[24px] border border-accent-gold/15 bg-gradient-to-br from-accent-gold/[0.06] via-surface-primary/68 to-surface-primary/68 p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)] sm:mt-5 sm:p-5">
-                    <div
-                      aria-hidden
-                      className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-accent-gold/12 blur-3xl"
-                    />
-                    <div
-                      aria-hidden
-                      className="pointer-events-none absolute -left-6 -bottom-6 h-24 w-24 rounded-full bg-accent-gold/8 blur-2xl"
-                    />
+                  <div className="relative mt-4 overflow-hidden rounded-[24px] border border-accent-gold/15 bg-surface-primary p-4 sm:mt-5 sm:p-5">
                     <div className="relative flex items-center gap-3">
                       <span
                         aria-hidden
@@ -1184,7 +1046,7 @@ export default function Home() {
                         >
                           <span
                             aria-hidden
-                            className="relative mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-accent-gold/25 bg-gradient-to-br from-accent-gold/15 to-accent-gold/5 font-mono text-[11px] font-bold text-accent-gold shadow-[inset_0_0_10px_rgba(245,158,11,0.18)] transition-all duration-300 group-hover:border-accent-gold/45 group-hover:shadow-[0_0_12px_rgba(245,158,11,0.4),inset_0_0_10px_rgba(245,158,11,0.25)]"
+                            className="relative mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-accent-gold/25 bg-accent-gold/10 font-mono text-[11px] font-bold text-accent-gold"
                           >
                             {String(idx + 1).padStart(2, "0")}
                           </span>
@@ -1205,14 +1067,12 @@ export default function Home() {
         id="achievements"
         className="relative overflow-hidden border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
       >
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(0,98,255,0.16),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(79,70,229,0.12),transparent_26%)]" />
         <div className="max-w-[1440px] mx-auto px-6 sm:px-10 lg:px-20">
           <SectionHeading
             index="02"
             total="05"
             labelZh="团队历程"
             labelEn="OUR JOURNEY"
-            tone="gold"
             title="以时间轴回看战队一路走来的每一步"
             description="从双创基地组建，到国际赛事历练，再到 RoboMaster 国赛突破，吉林大学吉甲大师双创基地在一届又一届成员的接力中不断完成技术积累、组织建设与文化沉淀。"
           />
@@ -1242,7 +1102,7 @@ export default function Home() {
                         />
                         <div
                           aria-hidden
-                          className="pointer-events-none absolute top-[44px] h-[2px] rounded-full bg-gradient-to-r from-[#FFD700]/50 via-[#FFD700] to-[#FFB547] shadow-[0_0_12px_rgba(255,215,0,0.55)]"
+                          className="pointer-events-none absolute top-[44px] h-[2px] rounded-full bg-[#D0AD69]"
                           style={{
                             left: `${railInsetPercent}%`,
                             width: `${progressWidth}%`,
@@ -1273,11 +1133,11 @@ export default function Home() {
                           aria-label={`${item.year}年 ${item.title}`}
                         >
                           <span
-                            className={`font-mono text-[13px] font-bold tracking-[0.08em] transition-all duration-300 ${
+                            className={`font-mono text-[13px] font-semibold tracking-[0.08em] ${
                               isActive
-                                ? "scale-110 text-[#FFD700] [text-shadow:0_0_12px_rgba(255,215,0,0.55)]"
+                                ? "text-[#D0AD69]"
                                 : isPast
-                                  ? "text-[#FFD700]/70"
+                                  ? "text-[#D0AD69]/70"
                                   : "text-fg-dim group-hover:text-fg-muted"
                             }`}
                           >
@@ -1289,24 +1149,12 @@ export default function Home() {
                           <span
                             className={`relative z-10 flex items-center justify-center rounded-full border-2 transition-all duration-300 ${
                               isActive
-                                ? "h-5 w-5 border-[#FFD700] bg-gradient-to-br from-[#FFE56B] to-[#FFB800] shadow-[0_0_18px_rgba(255,215,0,0.75)]"
+                                ? "h-5 w-5 border-[#D0AD69] bg-[#D0AD69]"
                                 : isPast
-                                  ? "h-4 w-4 border-[#FFD700]/65 bg-[#FFD700]/30"
-                                  : "h-4 w-4 border-white/20 bg-surface-primary group-hover:border-[#FFD700]/55 group-hover:bg-[#FFD700]/10"
+                                ? "h-4 w-4 border-[#D0AD69]/65 bg-[#D0AD69]/30"
+                                : "h-4 w-4 border-white/20 bg-surface-primary group-hover:border-[#D0AD69]/55 group-hover:bg-[#D0AD69]/10"
                             }`}
                           >
-                            {isActive ? (
-                              <>
-                                <span
-                                  aria-hidden
-                                  className="pointer-events-none absolute inset-[-6px] animate-ping rounded-full border border-[#FFD700]/45"
-                                />
-                                <span
-                                  aria-hidden
-                                  className="pointer-events-none absolute inset-[-4px] rounded-full bg-[#FFD700]/10 blur-[4px]"
-                                />
-                              </>
-                            ) : null}
                           </span>
 
                           <span
@@ -1329,10 +1177,10 @@ export default function Home() {
             {/* Counter + arrow navigation */}
             <div className="mb-6 flex items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <span className="font-mono text-sm font-bold tracking-[0.18em] text-[#FFD700]">
+                <span className="font-mono text-sm font-bold tracking-[0.18em] text-[#D0AD69]">
                   {String(activeMilestoneIndex + 1).padStart(2, "0")}
                 </span>
-                <span className="h-px w-10 bg-gradient-to-r from-[#FFD700]/45 to-transparent sm:w-14" />
+                <span className="h-px w-10 bg-gradient-to-r from-[#D0AD69]/45 to-transparent sm:w-14" />
                 <span className="font-mono text-sm text-fg-dim">
                   / {String(timelineMilestones.length).padStart(2, "0")}
                 </span>
@@ -1342,7 +1190,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={showPreviousMilestone}
-                  className="motion-button flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-surface-light text-fg-primary hover:border-[#FFD700]/40 hover:text-[#FFD700]"
+                  className="motion-button flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-surface-light text-fg-primary hover:border-[#D0AD69]/40 hover:text-[#D0AD69]"
                   aria-label="查看上一段历程"
                 >
                   <svg
@@ -1360,7 +1208,7 @@ export default function Home() {
                 <button
                   type="button"
                   onClick={showNextMilestone}
-                  className="motion-button flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-surface-light text-fg-primary hover:border-[#FFD700]/40 hover:text-[#FFD700]"
+                  className="motion-button flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-surface-light text-fg-primary hover:border-[#D0AD69]/40 hover:text-[#D0AD69]"
                   aria-label="查看下一段历程"
                 >
                   <svg
@@ -1379,34 +1227,6 @@ export default function Home() {
             </div>
 
             <div className="relative overflow-hidden rounded-[32px] border border-white/8 bg-surface-light/86 p-6 shadow-[0_24px_70px_-40px_rgba(2,6,23,0.9)] sm:p-8">
-              {/* Year watermark */}
-              <div
-                key={`watermark-${activeMilestone.year}`}
-                aria-hidden
-                className="motion-year-watermark pointer-events-none absolute -right-4 -top-12 z-0 select-none font-display leading-[0.82] sm:-right-8 sm:-top-20"
-                style={{
-                  fontSize: "clamp(180px, 28vw, 360px)",
-                  background:
-                    "linear-gradient(180deg, rgba(255,215,0,0.09) 0%, rgba(255,215,0,0.025) 62%, transparent 100%)",
-                  WebkitBackgroundClip: "text",
-                  backgroundClip: "text",
-                  color: "transparent",
-                  WebkitTextStroke: "1px rgba(255, 215, 0, 0.06)",
-                }}
-              >
-                {activeMilestone.year}
-              </div>
-
-              {/* Ambient gold glow */}
-              <div
-                aria-hidden
-                className="pointer-events-none absolute -right-32 -top-32 z-0 h-[420px] w-[420px] rounded-full bg-[radial-gradient(circle,rgba(255,215,0,0.08),transparent_62%)]"
-              />
-              <div
-                aria-hidden
-                className="pointer-events-none absolute -left-24 -bottom-24 z-0 h-[320px] w-[320px] rounded-full bg-[radial-gradient(circle,rgba(255,181,71,0.06),transparent_62%)]"
-              />
-
               <article
                 key={activeMilestone.year}
                 className="motion-fade-up relative z-10 grid gap-6 lg:grid-cols-[0.92fr_1.08fr] lg:items-start"
@@ -1416,10 +1236,10 @@ export default function Home() {
                     <div className="flex items-center gap-3">
                       <span
                         aria-hidden
-                        className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-[#FFD700]/35 bg-[#FFD700]/10 shadow-[inset_0_0_10px_rgba(255,215,0,0.22)]"
+                        className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-[#D0AD69]/35 bg-[#D0AD69]/10 shadow-[inset_0_0_10px_rgba(255,215,0,0.22)]"
                       >
                         <svg
-                          className="h-3.5 w-3.5 text-[#FFD700]"
+                          className="h-3.5 w-3.5 text-[#D0AD69]"
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
@@ -1431,26 +1251,17 @@ export default function Home() {
                           <path d="M12 7v5l3 2" />
                         </svg>
                       </span>
-                      <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#FFD700]">
+                      <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#D0AD69]">
                         Team Timeline
                       </p>
                       <span
                         aria-hidden
-                        className="h-px flex-1 bg-gradient-to-r from-[#FFD700]/40 via-[#FFD700]/10 to-transparent"
+                        className="h-px flex-1 bg-gradient-to-r from-[#D0AD69]/40 via-[#D0AD69]/10 to-transparent"
                       />
                     </div>
                     <div className="mt-3 flex flex-wrap items-baseline gap-x-5 gap-y-1">
                       <span
-                        className="font-display text-[56px] leading-none tracking-tight sm:text-[72px] lg:text-[84px]"
-                        style={{
-                          background:
-                            "linear-gradient(180deg, #FFE56B 0%, #FFD700 52%, #FFB547 100%)",
-                          WebkitBackgroundClip: "text",
-                          backgroundClip: "text",
-                          color: "transparent",
-                          filter:
-                            "drop-shadow(0 8px 24px rgba(255, 215, 0, 0.28))",
-                        }}
+                        className="font-display text-[56px] font-semibold leading-none tracking-tight text-[#D0AD69] sm:text-[72px] lg:text-[84px]"
                       >
                         {activeMilestone.year}
                       </span>
@@ -1464,22 +1275,14 @@ export default function Home() {
                     {activeMilestone.intro}
                   </p>
 
-                  <div className="relative overflow-hidden rounded-[24px] border border-[#FFD700]/18 bg-gradient-to-br from-[#FFD700]/[0.07] via-surface-primary/72 to-surface-primary/72 p-5 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]">
-                    <div
-                      aria-hidden
-                      className="pointer-events-none absolute -right-14 -top-14 h-44 w-44 rounded-full bg-[#FFD700]/12 blur-3xl"
-                    />
-                    <div
-                      aria-hidden
-                      className="pointer-events-none absolute -left-8 -bottom-10 h-32 w-32 rounded-full bg-[#FFB547]/10 blur-3xl"
-                    />
+                  <div className="relative overflow-hidden rounded-[24px] border border-[#D0AD69]/18 bg-surface-primary p-5">
                     <div className="relative flex items-center gap-3">
                       <span
                         aria-hidden
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-[#FFD700]/35 bg-[#FFD700]/12 shadow-[inset_0_0_10px_rgba(255,215,0,0.25)]"
+                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-[#D0AD69]/35 bg-[#D0AD69]/12 shadow-[inset_0_0_10px_rgba(255,215,0,0.25)]"
                       >
                         <svg
-                          className="h-3.5 w-3.5 text-[#FFD700]"
+                          className="h-3.5 w-3.5 text-[#D0AD69]"
                           viewBox="0 0 24 24"
                           fill="none"
                           stroke="currentColor"
@@ -1490,18 +1293,18 @@ export default function Home() {
                           <path d="m12 2 2.39 6.96h7.32l-5.92 4.3 2.26 6.96L12 15.9l-6.05 4.32 2.26-6.96-5.92-4.3h7.32Z" />
                         </svg>
                       </span>
-                      <h4 className="text-sm font-semibold uppercase tracking-[0.22em] text-[#FFD700]">
+                      <h4 className="text-sm font-semibold uppercase tracking-[0.22em] text-[#D0AD69]">
                         关键节点
                       </h4>
                       <span
                         aria-hidden
-                        className="h-px flex-1 bg-gradient-to-r from-[#FFD700]/45 via-[#FFD700]/10 to-transparent"
+                        className="h-px flex-1 bg-gradient-to-r from-[#D0AD69]/45 via-[#D0AD69]/10 to-transparent"
                       />
                     </div>
                     <ul className="relative mt-5 space-y-4 pl-1">
                       <span
                         aria-hidden
-                        className="pointer-events-none absolute left-[11px] top-2 bottom-2 w-px bg-gradient-to-b from-[#FFD700]/50 via-[#FFD700]/20 to-transparent"
+                        className="pointer-events-none absolute left-[11px] top-2 bottom-2 w-px bg-gradient-to-b from-[#D0AD69]/50 via-[#D0AD69]/20 to-transparent"
                       />
                       {activeMilestone.highlights.map((highlight) => (
                         <li
@@ -1510,13 +1313,9 @@ export default function Home() {
                         >
                           <span
                             aria-hidden
-                            className="relative z-10 mt-1 flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full border border-[#FFD700]/45 bg-surface-primary shadow-[0_0_14px_rgba(255,215,0,0.32)] transition-all duration-300 group-hover:border-[#FFD700] group-hover:shadow-[0_0_18px_rgba(255,215,0,0.55)]"
+                            className="relative z-10 mt-1 flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full border border-[#D0AD69]/45 bg-surface-primary shadow-[0_0_14px_rgba(255,215,0,0.32)] transition-all duration-300 group-hover:border-[#D0AD69] group-hover:shadow-[0_0_18px_rgba(255,215,0,0.55)]"
                           >
-                            <span
-                              aria-hidden
-                              className="absolute inline-flex h-full w-full rounded-full bg-[#FFD700]/20 opacity-0 transition-opacity duration-500 group-hover:opacity-100 group-hover:animate-ping"
-                            />
-                            <span className="relative h-2 w-2 rounded-full bg-gradient-to-br from-[#FFE56B] to-[#FFB800] shadow-[0_0_6px_rgba(255,215,0,0.8)]" />
+                            <span className="relative h-2 w-2 rounded-full bg-[#D0AD69]" />
                           </span>
                           <span className="pt-0.5">{highlight}</span>
                         </li>
@@ -1563,7 +1362,6 @@ export default function Home() {
             total="05"
             labelZh="机器人展示"
             labelEn="OUR ROBOTS"
-            tone="teal"
             title="我们的战旗机甲"
             description="每一台机器人都是团队智慧的结晶，融合机械设计、嵌入式系统、机器视觉、人工智能等多项技术。"
           />
@@ -1626,38 +1424,23 @@ export default function Home() {
             total="05"
             labelZh="成就展示"
             labelEn="ACHIEVEMENTS"
-            tone="amber"
             title="团队荣誉证书与阶段成果陈列"
             description="这里集中展示团队在创新创业、学科竞赛与 RoboMaster 相关实践中获得的阶段性荣誉。整体采用规整的矩形照片墙陈列，便于更直接地浏览不同阶段的获奖成果。"
           />
 
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
             {achievementCertificates.map((image, index) => {
-              const isBreakpointHidden = index >= 4;
               const breakpointClass =
-                showAllCertificates || certAnimPhase === "exiting"
-                  ? ""
-                  : getCertificateVisibilityClass(index);
-              const animClass =
-                isBreakpointHidden && certAnimPhase === "entering"
-                  ? "animate-cert-reveal"
-                  : isBreakpointHidden && certAnimPhase === "exiting"
-                    ? "animate-cert-collapse"
-                    : "";
-              const staggerDelay =
-                isBreakpointHidden && certAnimPhase !== "idle"
-                  ? `${Math.min((index - 4) * 28, 320)}ms`
-                  : undefined;
+                showAllCertificates ? "" : getCertificateVisibilityClass(index);
               return (
                 <article
                   key={image}
-                  className={`motion-surface group relative aspect-[4/3] overflow-hidden rounded-[24px] border border-white/8 bg-surface-light/86 p-3 sm:p-4 ${breakpointClass} ${animClass}`}
-                  style={staggerDelay ? { animationDelay: staggerDelay } : undefined}
+                  className={`motion-surface group relative aspect-[4/3] overflow-hidden rounded-[24px] border border-white/8 bg-surface-light/86 p-3 sm:p-4 ${breakpointClass}`}
                 >
-                  <span className="absolute left-4 top-4 z-10 rounded-full border border-white/10 bg-black/28 px-3 py-1 text-[11px] font-semibold tracking-[0.18em] text-accent-gold backdrop-blur-sm">
+                  <span className="absolute left-4 top-4 z-10 rounded-full border border-white/10 bg-black/70 px-3 py-1 text-[11px] font-semibold tracking-[0.18em] text-accent-gold">
                     {String(index + 1).padStart(2, "0")}
                   </span>
-                  <div className="h-full overflow-hidden rounded-[18px] bg-[radial-gradient(circle_at_top,rgba(255,255,255,0.08),transparent_56%)]">
+                  <div className="h-full overflow-hidden rounded-[18px] bg-surface-primary">
                     <img
                       src={image}
                       alt={`团队荣誉证书${index + 1}`}
@@ -1675,8 +1458,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={toggleAllCertificates}
-                disabled={certAnimPhase !== "idle"}
-                className="motion-button inline-flex items-center gap-2 rounded-full border border-white/12 bg-white/[0.08] px-7 py-3 text-sm font-semibold tracking-[0.18em] text-fg-primary backdrop-blur-md hover:border-accent-gold/40 hover:text-accent-gold disabled:cursor-not-allowed"
+                className="motion-button inline-flex items-center gap-2 rounded-full border border-white/12 bg-surface-light px-7 py-3 text-sm font-semibold tracking-[0.18em] text-fg-primary hover:border-accent-gold/40 hover:text-accent-gold"
                 aria-expanded={showAllCertificates}
               >
                 More
@@ -1710,20 +1492,16 @@ export default function Home() {
             total="05"
             labelZh="加入我们"
             labelEn="JOIN US"
-            tone="indigo"
-            title="找到你的战位，一起征服星辰大海"
-            description="我们欢迎来自各个专业的同学加入，无论你是零基础还是大佬，这里都有你的位置。"
+            title="加入一支持续做机器人、参加比赛的团队"
+            description="了解六个技术与运营组别，选择感兴趣的方向并提交报名。"
           />
 
           <div className="mb-12 grid w-full gap-6 sm:grid-cols-2 lg:grid-cols-3">
             {groups.map((group) => (
               <div
                 key={group.name}
-                className="motion-surface relative overflow-hidden rounded-[28px] border border-white/8 bg-surface-primary p-7 shadow-[0_18px_40px_-32px_rgba(2,6,23,0.68)]"
+                className="motion-surface relative overflow-hidden rounded-[28px] border border-white/8 bg-surface-primary p-6"
               >
-                <div
-                  className={`pointer-events-none absolute inset-0 bg-gradient-to-br ${group.accent}`}
-                />
                 <div className="relative flex flex-col gap-4">
                   <div className="flex items-center gap-4">
                     <div className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-[22px] border border-white/12 bg-white/[0.08] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">

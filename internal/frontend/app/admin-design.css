@@ -1,7 +1,8 @@
-/* Shared graphite and warm-gold palette for admin and authentication surfaces. */
+/* Shared graphite and warm-gold palette for admin, authentication, and public surfaces. */
 .dashboard-shell--admin-design,
 .admin-design,
-.auth-page {
+.auth-page,
+.public-home {
   --admin-canvas: #101516;
   --admin-surface: #171e1e;
   --admin-surface-hover: #1b2322;
