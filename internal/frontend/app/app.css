@@ -2025,3 +2025,126 @@ html {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Public site palette and restrained surfaces. It shares the graphite/gold
+   tokens with the dashboard while keeping its own editorial layout. */
+.public-home {
+  --color-surface-primary: var(--admin-canvas);
+  --color-surface-light: var(--admin-surface);
+  --color-surface-dark: #0c1111;
+  --color-surface-card: var(--admin-surface);
+  --color-accent-primary: var(--admin-accent);
+  --color-accent-secondary: #a18a5e;
+  --color-accent-tertiary: #84958c;
+  --color-accent-gold: var(--admin-accent);
+  --color-fg-primary: var(--admin-text);
+  --color-fg-muted: var(--admin-muted);
+  --color-fg-dim: var(--admin-dim);
+  --color-fg-inverse: #171915;
+  --color-border-subtle: var(--admin-border);
+  background: #101516;
+  color: var(--admin-text);
+}
+
+.public-home-hero-shade {
+  background:
+    linear-gradient(90deg, rgba(10, 14, 14, 0.94) 0%, rgba(10, 14, 14, 0.78) 38%, rgba(10, 14, 14, 0.24) 76%, rgba(10, 14, 14, 0.34) 100%),
+    linear-gradient(0deg, rgba(10, 14, 14, 0.62), transparent 38%);
+}
+
+.public-home .public-section-heading {
+  color: var(--admin-text);
+}
+
+.public-home :is(section, footer) {
+  border-color: var(--admin-border-subtle);
+}
+
+.public-home :is(.motion-surface, .motion-stat-surface, .motion-panel-soft) {
+  border-color: var(--admin-border);
+  border-radius: var(--admin-radius-lg);
+  background-color: var(--admin-surface);
+  box-shadow: none;
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.public-home :is(.motion-surface, .motion-stat-surface)::before,
+.public-home :is(.motion-surface, .motion-stat-surface)::after,
+.public-home .motion-panel-soft::before,
+.public-home .motion-panel-soft::after,
+.public-home .motion-button::before {
+  display: none !important;
+}
+
+.public-home :is(.motion-surface, .motion-stat-surface, .motion-panel-soft):hover {
+  transform: none;
+  border-color: #59604f;
+  background-color: var(--admin-surface-hover);
+  box-shadow: none;
+}
+
+.public-home .motion-stat-surface:hover .motion-stat-icon,
+.public-home .group:hover img {
+  transform: none !important;
+  filter: none;
+}
+
+.public-home .motion-module-tab-active {
+  transform: none;
+  border-color: #dfbd7c;
+  background-color: var(--admin-accent);
+  background-image: none;
+  color: #171915;
+  box-shadow: none;
+}
+
+.public-home .motion-stat-icon-glow,
+.public-home .motion-year-watermark {
+  display: none !important;
+}
+
+.public-home [class*="shadow-"] {
+  box-shadow: none !important;
+}
+
+.public-home [class*="backdrop-blur"] {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
+.public-home [class*="rounded-["] {
+  border-radius: var(--admin-radius-lg) !important;
+}
+
+.public-home :is([class*="animate-"], [class*="motion-"]) {
+  animation: none !important;
+  animation-delay: 0s !important;
+}
+
+.public-home .font-display {
+  font-family: var(--font-sans);
+}
+
+.public-home footer .text-fg-inverse {
+  color: var(--admin-text);
+}
+
+.public-home .bg-accent-primary {
+  color: #171915;
+}
+
+.public-home :is(a, button):focus-visible {
+  outline: 2px solid var(--admin-accent);
+  outline-offset: 2px;
+}
+
+@media (max-width: 639px) {
+  .public-home-hero-shade {
+    background: linear-gradient(
+      180deg,
+      rgba(10, 14, 14, 0.55) 0%,
+      rgba(10, 14, 14, 0.76) 42%,
+      rgba(10, 14, 14, 0.9) 100%
+    );
+  }
+}
