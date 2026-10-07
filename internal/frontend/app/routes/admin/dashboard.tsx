@@ -3,7 +3,6 @@ import { Link } from "react-router";
 
 import { ApiError } from "~/lib/api-client";
 import { getUpcomingInterviewSessions } from "~/lib/admin-workbench";
-import { getAdminDashboard, type AdminDashboardData } from "~/lib/dashboard-client";
 import { listAdminInterviewSessions, listAdminRegistrations, type InterviewSession, type RegistrationSummary, type RecruitmentStatus } from "~/lib/registrations-client";
 
 export function meta() {
@@ -19,35 +18,7 @@ const statusItems: Array<{ status: RecruitmentStatus; label: string; countKey: k
   { status: "withdrawn", label: "已撤回", countKey: "withdrawn", hrefLabel: "查看已撤回" },
 ];
 
-function formatTime(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("zh-CN", { timeZone: "Asia/Shanghai", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
-}
-
-function ActivityList({ activities }: { activities: AdminDashboardData["recentActivities"] }) {
-  if (!activities.length) return <div className="admin-workbench__empty">暂无业务动态</div>;
-  return (
-    <div className="admin-list admin-workbench__activity-list">
-      {activities.slice(0, 8).map((item) => (
-        <div key={item.id} className="admin-list-row admin-workbench__activity-row">
-          <div className="admin-workbench__activity-mark" aria-hidden="true">{item.actorName.charAt(0) || "系"}</div>
-          <div className="admin-workbench__activity-copy">
-            <div className="admin-workbench__activity-message">
-              <span className="admin-workbench__activity-name">{item.actorName}</span>
-              <span>{item.message}</span>
-            </div>
-            <div className="admin-workbench__meta">{formatTime(item.occurredAt)}</div>
-          </div>
-          {item.groupName && <span className="admin-workbench__group-label">{item.groupName}</span>}
-        </div>
-      ))}
-    </div>
-  );
-}
-
 export default function AdminDashboard() {
-  const [dashboard, setDashboard] = useState<AdminDashboardData | null>(null);
   const [summary, setSummary] = useState<RegistrationSummary | null>(null);
   const [sessions, setSessions] = useState<InterviewSession[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,12 +35,10 @@ export default function AdminDashboard() {
     setError("");
     setRefreshError("");
     try {
-      const [nextDashboard, registrations, nextSessions] = await Promise.all([
-        getAdminDashboard(),
+      const [registrations, nextSessions] = await Promise.all([
         listAdminRegistrations({ page: 1, pageSize: 1 }),
         listAdminInterviewSessions(),
       ]);
-      setDashboard(nextDashboard);
       setSummary(registrations.summary);
       setSessions(nextSessions);
       hasData.current = true;
@@ -187,7 +156,7 @@ export default function AdminDashboard() {
               <h2>近期面试场次</h2>
               <p>已启用，今天至未来 14 天</p>
             </div>
-            <Link to="/dashboard/admin/registrations#interview-sessions">管理场次 <span aria-hidden="true">→</span></Link>
+            <Link to="/dashboard/admin/interview-sessions">管理场次 <span aria-hidden="true">→</span></Link>
           </div>
           {upcomingSessions.length === 0 ? (
             <div className="admin-workbench__empty">暂无近期开放场次</div>
@@ -198,16 +167,6 @@ export default function AdminDashboard() {
           )}
         </section>
 
-        <section aria-label="最近业务动态" className="admin-workbench__section admin-workbench__section--activity">
-          <div className="admin-section-heading">
-            <div>
-              <h2>最近业务动态</h2>
-              <p>招新流程近期操作</p>
-            </div>
-            <Link to="/dashboard/admin/statistics">查看统计 <span aria-hidden="true">→</span></Link>
-          </div>
-          <ActivityList activities={dashboard?.recentActivities ?? []} />
-        </section>
       </div>
     </div>
   );

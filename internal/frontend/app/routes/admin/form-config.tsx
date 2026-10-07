@@ -53,8 +53,8 @@ import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 
 export function meta() {
   return [
-    { title: "表单配置 | TARS-GO 管理后台" },
-    { name: "description", content: "TARS-GO 报名表单配置与发布管理" },
+    { title: "招新设置 | TARS-GO" },
+    { name: "description", content: "管理招新届次、开放时间与报名字段" },
   ];
 }
 
@@ -2144,7 +2144,7 @@ function OverlayPortal({ children }: { children: ReactNode }) {
   if (typeof document === "undefined") {
     return null;
   }
-  return createPortal(children, document.body);
+  return createPortal(<div className="admin-design">{children}</div>, document.body);
 }
 
 function InputClassName(disabled = false) {

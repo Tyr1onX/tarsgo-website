@@ -50,11 +50,6 @@ func seedDevelopmentMockData(db *gorm.DB, appEnv string) error {
 		if err := tx.Where("name = ?", model.RoleNameAdmin).First(&adminRole).Error; err != nil {
 			return fmt.Errorf("load mock admin role: %w", err)
 		}
-		var superAdminRole model.Role
-		if err := tx.Where("name = ?", model.RoleNameSuperAdmin).First(&superAdminRole).Error; err != nil {
-			return fmt.Errorf("load mock super admin role: %w", err)
-		}
-
 		groups := make(map[string]*model.UserGroup)
 		users := make(map[string]*model.User)
 		for _, groupSeed := range developmentMockGroupSeeds() {
@@ -86,129 +81,15 @@ func seedDevelopmentMockData(db *gorm.DB, appEnv string) error {
 		if err != nil {
 			return err
 		}
-		portalAdmin, err := ensureMockUser(tx, superAdminRole.ID, string(passwordHash), mockUserSeed{
-			Name: "门户内容管理员", RealName: "门户内容管理员", Nickname: "门户管理员", Email: "portal-admin@tarsgo.test",
-		})
-		if err != nil {
-			return err
-		}
 		if err := seedDevelopmentRecruitmentFixtures(tx, reviewer, groups, users); err != nil {
 			return err
 		}
 		if err := tx.Model(&model.User{}).Where("id = ?", reviewer.ID).Updates(map[string]any{"admin_scope": model.AdminScopeGlobal, "management_group_id": nil}).Error; err != nil {
 			return fmt.Errorf("set mock global admin scope: %w", err)
 		}
-		if err := seedDevelopmentAnnouncementFixtures(tx, portalAdmin, groups); err != nil {
-			return err
-		}
-		if err := seedDevelopmentEventFixtures(tx, portalAdmin, groups); err != nil {
-			return err
-		}
-		if err := seedDevelopmentLinkFixtures(tx, portalAdmin); err != nil {
-			return err
-		}
 
 		return nil
 	})
-}
-
-func seedDevelopmentLinkFixtures(tx *gorm.DB, creator *model.User) error {
-	if creator == nil {
-		return fmt.Errorf("development link fixtures are incomplete")
-	}
-	seeds := []model.PortalLink{
-		{Name: "官方规则手册", URL: "https://www.robomaster.com/zh-CN/resource/pages/announcement/1764", IconKey: "book", SortOrder: 10, IsEnabled: true, OpenInNewWindow: true, AudienceType: model.PortalAudienceAll, CreatorID: creator.ID, UpdatedByID: creator.ID},
-		{Name: "技术文档库", URL: "https://github.com/吉林大学TARS-GO战队", IconKey: "folder", SortOrder: 20, IsEnabled: true, OpenInNewWindow: true, AudienceType: model.PortalAudienceAll, CreatorID: creator.ID, UpdatedByID: creator.ID},
-		{Name: "返回官网", URL: "/", IconKey: "home", SortOrder: 30, IsEnabled: true, AudienceType: model.PortalAudienceAll, CreatorID: creator.ID, UpdatedByID: creator.ID},
-	}
-	for _, seed := range seeds {
-		row := &model.PortalLink{}
-		if err := tx.Where("name = ?", seed.Name).Attrs(&seed).FirstOrCreate(row).Error; err != nil {
-			return fmt.Errorf("seed portal link %s: %w", seed.Name, err)
-		}
-	}
-	return nil
-}
-
-func seedDevelopmentEventFixtures(tx *gorm.DB, creator *model.User, groups map[string]*model.UserGroup) error {
-	visualGroup := groups["视觉组"]
-	if creator == nil || visualGroup == nil {
-		return fmt.Errorf("development event fixtures are incomplete")
-	}
-	location, err := time.LoadLocation("Asia/Shanghai")
-	if err != nil {
-		return fmt.Errorf("load Shanghai timezone: %w", err)
-	}
-	now := time.Now().In(location)
-	dayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, location)
-	monday := dayStart.AddDate(0, 0, -((int(now.Weekday()) + 6) % 7))
-	seeds := []struct {
-		title, description, place, status, audience string
-		startsAt, endsAt                            time.Time
-		groups                                      []uint64
-	}{
-		{title: "开发日程：全队周会", description: "验证全员本周日程。", place: "南岭实验室 B201", status: model.TeamEventStatusPublished, audience: model.PortalAudienceAll, startsAt: monday.Add(19 * time.Hour), endsAt: monday.Add(21 * time.Hour)},
-		{title: "开发日程：视觉组分享", description: "验证指定组日程。", place: "视觉组工位", status: model.TeamEventStatusPublished, audience: model.PortalAudienceGroups, startsAt: monday.AddDate(0, 0, 2).Add(19 * time.Hour), endsAt: monday.AddDate(0, 0, 2).Add(21 * time.Hour), groups: []uint64{visualGroup.ID}},
-		{title: "开发日程：跨天联调", description: "验证跨天事件展示。", place: "工程训练中心", status: model.TeamEventStatusPublished, audience: model.PortalAudienceAll, startsAt: monday.AddDate(0, 0, 5).Add(20 * time.Hour), endsAt: monday.AddDate(0, 0, 6).Add(2 * time.Hour)},
-		{title: "开发日程：已取消训练", description: "取消日程不应显示。", place: "工程训练中心", status: model.TeamEventStatusCancelled, audience: model.PortalAudienceAll, startsAt: monday.AddDate(0, 0, 4).Add(14 * time.Hour), endsAt: monday.AddDate(0, 0, 4).Add(16 * time.Hour)},
-	}
-	for _, seed := range seeds {
-		row := &model.TeamEvent{}
-		if err := tx.Where("title = ?", seed.title).Attrs(&model.TeamEvent{Title: seed.title, Description: nullableSeedString(seed.description), Location: nullableSeedString(seed.place), StartsAt: seed.startsAt, EndsAt: seed.endsAt, Status: seed.status, AudienceType: seed.audience, CreatorID: creator.ID, UpdatedByID: creator.ID}).FirstOrCreate(row).Error; err != nil {
-			return fmt.Errorf("seed event %s: %w", seed.title, err)
-		}
-		for _, groupID := range seed.groups {
-			target := &model.TeamEventTargetGroup{}
-			if err := tx.Where("event_id = ? AND group_id = ?", row.ID, groupID).Attrs(&model.TeamEventTargetGroup{EventID: row.ID, GroupID: groupID}).FirstOrCreate(target).Error; err != nil {
-				return fmt.Errorf("seed event target %s: %w", seed.title, err)
-			}
-		}
-	}
-	return nil
-}
-
-func seedDevelopmentAnnouncementFixtures(tx *gorm.DB, creator *model.User, groups map[string]*model.UserGroup) error {
-	visualGroup := groups["视觉组"]
-	if creator == nil || visualGroup == nil {
-		return fmt.Errorf("development announcement fixtures are incomplete")
-	}
-	now := time.Now()
-	future := now.Add(7 * 24 * time.Hour)
-	expiredPublish := now.Add(-14 * 24 * time.Hour)
-	expiredAt := now.Add(-7 * 24 * time.Hour)
-	seeds := []struct {
-		title        string
-		content      string
-		category     string
-		publishAt    *time.Time
-		expireAt     *time.Time
-		audienceType string
-		groupIDs     []uint64
-	}{
-		{title: "开发公告：全员训练安排", content: "本公告用于验证所有已登录用户都能在主页看到已发布公告。", category: "training", audienceType: model.PortalAudienceAll},
-		{title: "开发公告：视觉组专项通知", content: "本公告用于验证指定用户组的当前成员可见。", category: "team", audienceType: model.PortalAudienceGroups, groupIDs: []uint64{visualGroup.ID}},
-		{title: "开发公告：未来发布", content: "本公告在发布时间到达前不应出现在主页。", category: "system", publishAt: &future, audienceType: model.PortalAudienceAll},
-		{title: "开发公告：已过期", content: "本公告已超过失效时间，不应出现在主页。", category: "competition", publishAt: &expiredPublish, expireAt: &expiredAt, audienceType: model.PortalAudienceAll},
-	}
-	for _, seed := range seeds {
-		row := &model.Announcement{}
-		if err := tx.Where("title = ?", seed.title).Attrs(&model.Announcement{
-			Title: seed.title, Content: seed.content, Category: seed.category,
-			Status: model.AnnouncementStatusPublished, PublishAt: seed.publishAt, ExpireAt: seed.expireAt,
-			AudienceType: seed.audienceType, CreatorID: creator.ID, UpdatedByID: creator.ID,
-		}).FirstOrCreate(row).Error; err != nil {
-			return fmt.Errorf("seed announcement %s: %w", seed.title, err)
-		}
-		for _, groupID := range seed.groupIDs {
-			target := &model.AnnouncementTargetGroup{}
-			if err := tx.Where("announcement_id = ? AND group_id = ?", row.ID, groupID).
-				Attrs(&model.AnnouncementTargetGroup{AnnouncementID: row.ID, GroupID: groupID}).
-				FirstOrCreate(target).Error; err != nil {
-				return fmt.Errorf("seed announcement target %s: %w", seed.title, err)
-			}
-		}
-	}
-	return nil
 }
 
 func shouldSeedDevelopmentMockData(appEnv string) bool {

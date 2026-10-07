@@ -1,6 +1,6 @@
 import type { AuthUser } from "~/lib/auth-client";
 
-export type DashboardMenuIconKey = "dashboard" | "people" | "registration" | "team-management" | "settings";
+export type DashboardMenuIconKey = "dashboard" | "people" | "registration" | "settings";
 
 type DashboardAllowedRoles = readonly string[];
 
@@ -49,14 +49,8 @@ export type VisibleDashboardAdminMenuItem =
 
 const USER_MENU: readonly DashboardMenuLink[] = [
   {
-    key: "users-home",
-    label: "主页",
-    href: "/dashboard/users",
-    iconKey: "dashboard",
-  },
-  {
     key: "users-registrations",
-    label: "纳新报名",
+    label: "我的招新",
     href: "/dashboard/users/registrations",
     iconKey: "registration",
   },
@@ -65,66 +59,53 @@ const USER_MENU: readonly DashboardMenuLink[] = [
 const ADMIN_MENU: readonly DashboardMenuDefinition[] = [
   {
     key: "admin-panel",
-    label: "工作台",
+    label: "招新工作台",
     href: "/dashboard/admin",
     iconKey: "dashboard",
     allowedRoles: ["super_admin", "admin"],
   },
   {
-    key: "registration",
-    label: "招新管理",
+    key: "candidate-processing",
+    label: "候选人处理",
+    href: "/dashboard/admin/registrations",
+    iconKey: "registration",
+    allowedRoles: ["super_admin", "admin"],
+  },
+  {
+    key: "recruitment-settings",
+    label: "招新设置",
     iconKey: "registration",
     children: [
       {
         key: "form-config",
-        label: "报名表配置",
-        href: "/dashboard/admin/form-config",
+        label: "届次与报名字段",
+        href: "/dashboard/admin/recruitment-settings",
         allowedRoles: ["super_admin"],
       },
       {
-        key: "registrations",
-        label: "报名处理",
-        href: "/dashboard/admin/registrations",
-        allowedRoles: ["super_admin", "admin"],
+        key: "interview-sessions",
+        label: "面试场次",
+        href: "/dashboard/admin/interview-sessions",
+        allowedRoles: ["super_admin"],
+      },
+      {
+        key: "recruitment-groups",
+        label: "招新组别",
+        href: "/dashboard/admin/recruitment-groups",
+        allowedRoles: ["super_admin"],
       },
     ],
   },
   {
-    key: "portal-content",
-    label: "内容管理",
-    href: "/dashboard/admin/portal-content",
-    iconKey: "team-management",
-    allowedRoles: ["super_admin", "admin"],
-  },
-  {
-    key: "recruitment-statistics",
-    label: "统计",
-    href: "/dashboard/admin/statistics",
-    iconKey: "dashboard",
-    allowedRoles: ["super_admin", "admin"],
-  },
-  {
-    key: "people",
-    label: "人员管理",
+    key: "accounts",
+    label: "账号管理",
     iconKey: "people",
-    children: [
-      {
-        key: "users",
-        label: "用户数据",
-        href: "/dashboard/admin/users",
-        allowedRoles: ["super_admin", "admin"],
-      },
-      {
-        key: "user-groups",
-        label: "用户分组",
-        href: "/dashboard/admin/user-groups",
-        allowedRoles: ["super_admin"],
-      },
-    ],
+    href: "/dashboard/admin/users",
+    allowedRoles: ["super_admin"],
   },
   {
     key: "system-config",
-    label: "系统配置",
+    label: "系统设置",
     iconKey: "settings",
     children: [
       {
@@ -153,7 +134,7 @@ function isDashboardMenuLinkDefinition(
   return typeof item.href === "string";
 }
 
-function getAccessibleAdminPaths(roleName: string, _user?: AuthUser) {
+function getAccessibleAdminPaths(roleName: string) {
   return ADMIN_MENU.flatMap((item) => {
     if (isDashboardMenuLinkDefinition(item)) {
       return isRoleAllowed(roleName, item.allowedRoles) ? [item.href] : [];
@@ -165,23 +146,18 @@ function getAccessibleAdminPaths(roleName: string, _user?: AuthUser) {
   });
 }
 
-export function getUserDashboardMenu(user: AuthUser): DashboardMenuLink[] {
-  return USER_MENU.filter((item) => {
-    if (item.key === "users-registrations") {
-      return Boolean(user.portal?.showRecruitmentEntry);
-    }
-    return true;
-  });
+export function getUserDashboardMenu(): DashboardMenuLink[] {
+  return [...USER_MENU];
 }
 
 export function getVisibleAdminDashboardMenu(userOrRole: AuthUser | string): VisibleDashboardAdminMenuItem[] {
-	const user = typeof userOrRole === "string" ? undefined : userOrRole;
-	const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
+  const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
+  const accessiblePaths = getAccessibleAdminPaths(roleName);
   const visibleItems: VisibleDashboardAdminMenuItem[] = [];
 
   for (const item of ADMIN_MENU) {
     if (isDashboardMenuLinkDefinition(item)) {
-		if (getAccessibleAdminPaths(roleName, user).includes(item.href)) {
+      if (accessiblePaths.includes(item.href)) {
         visibleItems.push({
           key: item.key,
           label: item.label,
@@ -192,7 +168,7 @@ export function getVisibleAdminDashboardMenu(userOrRole: AuthUser | string): Vis
       continue;
     }
 
-		const children = item.children.filter((child) => getAccessibleAdminPaths(roleName, user).includes(child.href));
+    const children = item.children.filter((child) => accessiblePaths.includes(child.href));
     if (children.length === 0) {
       continue;
     }
@@ -213,12 +189,12 @@ export function hasDashboardAdminAccess(roleName: string) {
 }
 
 export function getDefaultDashboardPath(roleName: string) {
-  return hasDashboardAdminAccess(roleName) ? "/dashboard/admin" : "/dashboard/users";
+  return hasDashboardAdminAccess(roleName) ? "/dashboard/admin" : "/dashboard/users/registrations";
 }
 
 export function canAccessDashboardAdminPath(userOrRole: AuthUser | string, pathname: string) {
-	const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
-	const accessiblePaths = getAccessibleAdminPaths(roleName, typeof userOrRole === "string" ? undefined : userOrRole);
+  const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
+  const accessiblePaths = getAccessibleAdminPaths(roleName);
   return accessiblePaths.some(
     (href) => href === "/dashboard/admin"
       ? pathname === href

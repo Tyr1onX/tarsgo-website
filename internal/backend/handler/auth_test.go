@@ -457,7 +457,7 @@ func TestMeWithoutCookieReturnsUnauthorized(t *testing.T) {
 	}
 }
 
-func TestMeReturnsPortalFlags(t *testing.T) {
+func TestMeReturnsCurrentUser(t *testing.T) {
 	t.Parallel()
 
 	gin.SetMode(gin.TestMode)
@@ -470,9 +470,6 @@ func TestMeReturnsPortalFlags(t *testing.T) {
 					ID:          3,
 					Name:        "user",
 					DisplayName: "普通用户",
-				},
-				Portal: &auth.SessionUserPortal{
-					ShowRecruitmentEntry: true,
 				},
 			}, nil
 		},
@@ -494,8 +491,8 @@ func TestMeReturnsPortalFlags(t *testing.T) {
 	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
 		t.Fatalf("decode response: %v", err)
 	}
-	if payload.Data.User.Portal == nil || !payload.Data.User.Portal.ShowRecruitmentEntry {
-		t.Fatalf("expected portal.showRecruitmentEntry=true, got %#v", payload.Data.User.Portal)
+	if payload.Data.User.ID != 7 || payload.Data.User.Email != "user@example.com" {
+		t.Fatalf("expected current account in response, got %#v", payload.Data.User)
 	}
 }
 

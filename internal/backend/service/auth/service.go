@@ -57,10 +57,6 @@ type SessionRole struct {
 	DisplayName string `json:"displayName"`
 }
 
-type SessionUserPortal struct {
-	ShowRecruitmentEntry bool `json:"showRecruitmentEntry"`
-}
-
 type SessionUser struct {
 	ID                uint64              `json:"id"`
 	Email             string              `json:"email"`
@@ -73,23 +69,17 @@ type SessionUser struct {
 	GroupRole         string              `json:"groupRole"`
 	Permissions       []string            `json:"permissions"`
 	Capabilities      SessionCapabilities `json:"capabilities"`
-	Portal            *SessionUserPortal  `json:"portal,omitempty"`
 }
 
 type SessionCapabilities struct {
-	CanManagePortal             bool `json:"canManagePortal"`
-	CanReviewRegistrations      bool `json:"canReviewRegistrations"`
-	CanManageGroupMembers       bool `json:"canManageGroupMembers"`
-	CanManageGroupAdmins        bool `json:"canManageGroupAdmins"`
-	CanManageUserGroups         bool `json:"canManageUserGroups"`
-	CanManageSystemConfig       bool `json:"canManageSystemConfig"`
-	CanViewGroupMembers         bool `json:"canViewGroupMembers"`
-	CanEditGroupMemberProfiles  bool `json:"canEditGroupMemberProfiles"`
-	CanEditManagedAdminProfiles bool `json:"canEditManagedAdminProfiles"`
-	CanManageAllPersonnel       bool `json:"canManageAllPersonnel"`
-	CanManageAllPortal          bool `json:"canManageAllPortal"`
-	CanManageAdminStatus        bool `json:"canManageAdminStatus"`
-	CanManageRoles              bool `json:"canManageRoles"`
+	CanReviewRegistrations bool `json:"canReviewRegistrations"`
+	CanManageGroupMembers  bool `json:"canManageGroupMembers"`
+	CanManageGroupAdmins   bool `json:"canManageGroupAdmins"`
+	CanManageUserGroups    bool `json:"canManageUserGroups"`
+	CanManageSystemConfig  bool `json:"canManageSystemConfig"`
+	CanViewGroupMembers    bool `json:"canViewGroupMembers"`
+	CanManageAdminStatus   bool `json:"canManageAdminStatus"`
+	CanManageRoles         bool `json:"canManageRoles"`
 }
 
 type AuthResult struct {
@@ -740,11 +730,6 @@ func (s *Service) CurrentUser(ctx context.Context, token string) (*SessionUser, 
 	}
 
 	sessionUser := toSessionUser(user)
-	portal, err := s.loadSessionUserPortal(ctx, user.ID)
-	if err != nil {
-		return nil, err
-	}
-	sessionUser.Portal = portal
 	return &sessionUser, nil
 }
 
@@ -972,94 +957,6 @@ func (s *Service) loadUserWithRoleTx(tx *gorm.DB, userID uint64) (*model.User, e
 	return &user, nil
 }
 
-func (s *Service) loadSessionUserPortal(ctx context.Context, userID uint64) (*SessionUserPortal, error) {
-	showRecruitmentEntry, err := s.shouldShowRecruitmentEntry(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-
-	return &SessionUserPortal{
-		ShowRecruitmentEntry: showRecruitmentEntry,
-	}, nil
-}
-
-func (s *Service) shouldShowRecruitmentEntry(ctx context.Context, userID uint64) (bool, error) {
-	hasPublishedForm, err := s.hasPublishedRecruitmentForm(ctx)
-	if err != nil {
-		return false, &ServiceError{Status: http.StatusInternalServerError, Message: "加载当前用户信息失败", Err: err}
-	}
-	if !hasPublishedForm {
-		return false, nil
-	}
-
-	inDefaultGroup, err := s.isUserInActiveDefaultGroup(ctx, userID)
-	if err != nil {
-		return false, &ServiceError{Status: http.StatusInternalServerError, Message: "加载当前用户信息失败", Err: err}
-	}
-	if inDefaultGroup {
-		return shouldShowRecruitmentEntryVisibility(hasPublishedForm, true, false), nil
-	}
-
-	hasSubmittedRegistration, err := s.hasSubmittedRegistrationForPublishedForm(ctx, userID)
-	if err != nil {
-		return false, &ServiceError{Status: http.StatusInternalServerError, Message: "加载当前用户信息失败", Err: err}
-	}
-
-	return shouldShowRecruitmentEntryVisibility(hasPublishedForm, inDefaultGroup, hasSubmittedRegistration), nil
-}
-
-func (s *Service) hasPublishedRecruitmentForm(ctx context.Context) (bool, error) {
-	var count int64
-	if err := s.db.WithContext(ctx).
-		Model(&model.RegistrationForm{}).
-		Where("status = ?", model.RegistrationFormStatusPublished).
-		Count(&count).Error; err != nil {
-		return false, err
-	}
-	return count > 0, nil
-}
-
-func (s *Service) isUserInActiveDefaultGroup(ctx context.Context, userID uint64) (bool, error) {
-	var count int64
-	if err := s.db.WithContext(ctx).
-		Model(&model.UserGroupMember{}).
-		Joins("JOIN user_groups ON user_groups.id = user_group_members.group_id").
-		Where(
-			"user_group_members.user_id = ? AND user_groups.is_default = ? AND user_groups.status = ?",
-			userID,
-			true,
-			model.UserGroupStatusActive,
-		).
-		Count(&count).Error; err != nil {
-		return false, err
-	}
-	return count > 0, nil
-}
-
-func (s *Service) hasSubmittedRegistrationForPublishedForm(ctx context.Context, userID uint64) (bool, error) {
-	var count int64
-	if err := s.db.WithContext(ctx).
-		Model(&model.Registration{}).
-		Joins("JOIN registration_forms ON registration_forms.id = registrations.form_id").
-		Where(
-			"registrations.user_id = ? AND registration_forms.status = ?",
-			userID,
-			model.RegistrationFormStatusPublished,
-		).
-		Count(&count).Error; err != nil {
-		return false, err
-	}
-	return count > 0, nil
-}
-
-func shouldShowRecruitmentEntryVisibility(
-	hasPublishedForm bool,
-	inActiveDefaultGroup bool,
-	hasSubmittedRegistration bool,
-) bool {
-	return hasPublishedForm && (inActiveDefaultGroup || hasSubmittedRegistration)
-}
-
 func toSessionUser(user *model.User) SessionUser {
 	adminScope := user.AdminScope
 	if adminScope == "" {
@@ -1095,13 +992,8 @@ func toSessionUser(user *model.User) SessionUser {
 	isAdmin := user.Role.Name == model.RoleNameAdmin
 	if isSuperAdmin || isAdmin {
 		capabilities.CanReviewRegistrations = true
-		capabilities.CanManagePortal = true
 		capabilities.CanViewGroupMembers = true
-		capabilities.CanEditGroupMemberProfiles = true
-		capabilities.CanEditManagedAdminProfiles = true
-		capabilities.CanManageAllPersonnel = true
-		capabilities.CanManageAllPortal = true
-		permissions = append(permissions, "admin.dashboard.read", "admin.registrations.read", "admin.registrations.review", "admin.registrations.export", "admin.portal.manage")
+		permissions = append(permissions, "admin.dashboard.read", "admin.registrations.read", "admin.registrations.review", "admin.registrations.export")
 	}
 	if isSuperAdmin {
 		capabilities.CanManageUserGroups = true
@@ -1112,8 +1004,7 @@ func toSessionUser(user *model.User) SessionUser {
 		capabilities.CanManageRoles = true
 		permissions = append(permissions, "admin.group.members.read", "admin.group.members.manage", "admin.group.admins.manage")
 	} else if isAdmin && adminScope == model.AdminScopeGroup && activeManagement && groupRole == "leader" {
-		// Legacy organizational capability only. It no longer determines access
-		// to the core admin dashboard, registrations, personnel, or portal.
+		// Group-role capabilities remain limited to recruitment group operations.
 		capabilities.CanManageGroupMembers = true
 		capabilities.CanManageGroupAdmins = true
 		permissions = append(permissions, "admin.group.members.read", "admin.group.members.manage", "admin.group.admins.manage")

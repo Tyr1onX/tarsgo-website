@@ -60,11 +60,6 @@ type UpdateGroupInput struct {
 	Status      uint8
 }
 
-type UpdateAdmissionImageInput struct {
-	Image       *multipart.FileHeader
-	RemoveImage bool
-}
-
 type AddMemberInput struct {
 	UserID uint64
 	Role   uint8
@@ -102,26 +97,24 @@ type GroupStats struct {
 }
 
 type GroupListItem struct {
-	ID                uint64    `json:"id"`
-	Name              string    `json:"name"`
-	Description       *string   `json:"description,omitempty"`
-	LogoURL           *string   `json:"logoUrl,omitempty"`
-	AdmissionImageURL *string   `json:"admissionImageUrl,omitempty"`
-	Tags              []string  `json:"tags,omitempty"`
-	IsDefault         bool      `json:"isDefault"`
-	Show              uint8     `json:"show"`
-	Status            uint8     `json:"status"`
-	MemberCount       int       `json:"memberCount"`
-	Leaders           []string  `json:"leaders,omitempty"`
-	CreatedAt         time.Time `json:"createdAt"`
-	UpdatedAt         time.Time `json:"updatedAt"`
+	ID          uint64    `json:"id"`
+	Name        string    `json:"name"`
+	Description *string   `json:"description,omitempty"`
+	LogoURL     *string   `json:"logoUrl,omitempty"`
+	Tags        []string  `json:"tags,omitempty"`
+	IsDefault   bool      `json:"isDefault"`
+	Show        uint8     `json:"show"`
+	Status      uint8     `json:"status"`
+	MemberCount int       `json:"memberCount"`
+	Leaders     []string  `json:"leaders,omitempty"`
+	CreatedAt   time.Time `json:"createdAt"`
+	UpdatedAt   time.Time `json:"updatedAt"`
 }
 
 type GroupMemberUser struct {
 	ID     uint64  `json:"id"`
 	Name   string  `json:"name"`
 	Email  string  `json:"email"`
-	Phone  *string `json:"phone,omitempty"`
 	Status uint8   `json:"status"`
 	Role   RoleRef `json:"role"`
 }
@@ -135,27 +128,25 @@ type GroupMemberItem struct {
 }
 
 type GroupDetail struct {
-	ID                uint64            `json:"id"`
-	Name              string            `json:"name"`
-	Description       *string           `json:"description,omitempty"`
-	LogoURL           *string           `json:"logoUrl,omitempty"`
-	AdmissionImageURL *string           `json:"admissionImageUrl,omitempty"`
-	Tags              []string          `json:"tags,omitempty"`
-	IsDefault         bool              `json:"isDefault"`
-	Show              uint8             `json:"show"`
-	Status            uint8             `json:"status"`
-	MemberCount       int               `json:"memberCount"`
-	Leaders           []string          `json:"leaders,omitempty"`
-	CreatedAt         time.Time         `json:"createdAt"`
-	UpdatedAt         time.Time         `json:"updatedAt"`
-	Members           []GroupMemberItem `json:"members"`
+	ID          uint64            `json:"id"`
+	Name        string            `json:"name"`
+	Description *string           `json:"description,omitempty"`
+	LogoURL     *string           `json:"logoUrl,omitempty"`
+	Tags        []string          `json:"tags,omitempty"`
+	IsDefault   bool              `json:"isDefault"`
+	Show        uint8             `json:"show"`
+	Status      uint8             `json:"status"`
+	MemberCount int               `json:"memberCount"`
+	Leaders     []string          `json:"leaders,omitempty"`
+	CreatedAt   time.Time         `json:"createdAt"`
+	UpdatedAt   time.Time         `json:"updatedAt"`
+	Members     []GroupMemberItem `json:"members"`
 }
 
 type GroupCandidateItem struct {
 	ID     uint64              `json:"id"`
 	Name   string              `json:"name"`
 	Email  string              `json:"email"`
-	Phone  *string             `json:"phone,omitempty"`
 	Status uint8               `json:"status"`
 	Role   RoleRef             `json:"role"`
 	Groups []CandidateGroupRef `json:"groups,omitempty"`
@@ -421,55 +412,6 @@ func (s *Service) UpdateGroup(ctx context.Context, actor Actor, groupID uint64, 
 		cleanupManagedGroupLogoURL(context.Background(), s.fileStore, group.LogoURL, "")
 	}
 
-	return s.GetGroup(ctx, actor, groupID)
-}
-
-func (s *Service) UpdateAdmissionImage(ctx context.Context, actor Actor, groupID uint64, input UpdateAdmissionImageInput) (*GroupDetail, error) {
-	if actor.ID == 0 || actor.RoleName != model.RoleNameAdmin || actor.AdminScope != model.AdminScopeGroup || actor.ManagementGroupID == nil || *actor.ManagementGroupID != groupID || actor.GroupRole != "leader" {
-		return nil, &ServiceError{Status: http.StatusForbidden, Message: "仅当前组组长可以配置录取群图片"}
-	}
-	if input.Image == nil && !input.RemoveImage {
-		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "请选择要上传的录取群图片"}
-	}
-	if input.Image != nil && input.RemoveImage {
-		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "不能同时上传和移除录取群图片"}
-	}
-	if err := validateAdmissionImageFile(input.Image); err != nil {
-		return nil, err
-	}
-
-	group, err := s.repo.GetGroupByID(ctx, groupID)
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, &ServiceError{Status: http.StatusNotFound, Message: "用户组不存在"}
-		}
-		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载用户组失败", Err: err}
-	}
-
-	var savedImage *storedGroupLogo
-	if input.Image != nil {
-		savedImage, err = s.fileStore.Save(ctx, groupLogoSaveInput{File: input.Image, Now: s.now()})
-		if err != nil {
-			return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "保存录取群图片失败", Err: err}
-		}
-	}
-
-	var imageURL *string
-	if savedImage != nil {
-		imageURL = stringPtr(savedImage.URL)
-	}
-	if err := s.repo.UpdateGroup(ctx, groupID, map[string]any{"admission_image_url": imageURL}); err != nil {
-		if savedImage != nil {
-			_ = s.fileStore.Remove(context.Background(), savedImage.RelativePath)
-		}
-		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "更新录取群图片失败", Err: err}
-	}
-
-	if savedImage != nil {
-		cleanupManagedGroupLogoURL(context.Background(), s.fileStore, group.AdmissionImageURL, savedImage.URL)
-	} else {
-		cleanupManagedGroupLogoURL(context.Background(), s.fileStore, group.AdmissionImageURL, "")
-	}
 	return s.GetGroup(ctx, actor, groupID)
 }
 
@@ -778,19 +720,18 @@ func toRoleRef(role model.Role) RoleRef {
 
 func toGroupListItem(group *model.UserGroup) GroupListItem {
 	return GroupListItem{
-		ID:                group.ID,
-		Name:              group.Name,
-		Description:       group.Description,
-		LogoURL:           copyStringPtr(group.LogoURL),
-		AdmissionImageURL: copyStringPtr(group.AdmissionImageURL),
-		Tags:              copyTags(group.Tags),
-		IsDefault:         group.IsDefault,
-		Show:              group.Show,
-		Status:            group.Status,
-		MemberCount:       len(group.Members),
-		Leaders:           leaderNames(group.Members),
-		CreatedAt:         group.CreatedAt,
-		UpdatedAt:         group.UpdatedAt,
+		ID:          group.ID,
+		Name:        group.Name,
+		Description: group.Description,
+		LogoURL:     copyStringPtr(group.LogoURL),
+		Tags:        copyTags(group.Tags),
+		IsDefault:   group.IsDefault,
+		Show:        group.Show,
+		Status:      group.Status,
+		MemberCount: len(group.Members),
+		Leaders:     leaderNames(group.Members),
+		CreatedAt:   group.CreatedAt,
+		UpdatedAt:   group.UpdatedAt,
 	}
 }
 
@@ -801,20 +742,19 @@ func toGroupDetail(group *model.UserGroup) GroupDetail {
 	}
 
 	return GroupDetail{
-		ID:                group.ID,
-		Name:              group.Name,
-		Description:       group.Description,
-		LogoURL:           copyStringPtr(group.LogoURL),
-		AdmissionImageURL: copyStringPtr(group.AdmissionImageURL),
-		Tags:              copyTags(group.Tags),
-		IsDefault:         group.IsDefault,
-		Show:              group.Show,
-		Status:            group.Status,
-		MemberCount:       len(group.Members),
-		Leaders:           leaderNames(group.Members),
-		CreatedAt:         group.CreatedAt,
-		UpdatedAt:         group.UpdatedAt,
-		Members:           members,
+		ID:          group.ID,
+		Name:        group.Name,
+		Description: group.Description,
+		LogoURL:     copyStringPtr(group.LogoURL),
+		Tags:        copyTags(group.Tags),
+		IsDefault:   group.IsDefault,
+		Show:        group.Show,
+		Status:      group.Status,
+		MemberCount: len(group.Members),
+		Leaders:     leaderNames(group.Members),
+		CreatedAt:   group.CreatedAt,
+		UpdatedAt:   group.UpdatedAt,
+		Members:     members,
 	}
 }
 
@@ -828,7 +768,6 @@ func toGroupMemberItem(member *model.UserGroupMember) GroupMemberItem {
 			ID:     member.User.ID,
 			Name:   member.User.Name,
 			Email:  member.User.Email,
-			Phone:  copyStringPtr(member.User.Phone),
 			Status: member.User.Status,
 			Role:   toRoleRef(member.User.Role),
 		},
@@ -840,7 +779,6 @@ func toGroupCandidateItem(user *model.User) GroupCandidateItem {
 		ID:     user.ID,
 		Name:   user.Name,
 		Email:  user.Email,
-		Phone:  copyStringPtr(user.Phone),
 		Status: user.Status,
 		Role:   toRoleRef(user.Role),
 		Groups: candidateGroups(user.GroupMembers),
@@ -1021,19 +959,6 @@ func validateGroupLogoFile(fileHeader *multipart.FileHeader) error {
 	contentType := strings.TrimSpace(fileHeader.Header.Get("Content-Type"))
 	if !looksLikeGroupLogo(fileHeader.Filename, contentType) {
 		return &ServiceError{Status: http.StatusBadRequest, Message: "分组 Logo 必须为图片文件"}
-	}
-	return nil
-}
-
-func validateAdmissionImageFile(fileHeader *multipart.FileHeader) error {
-	if fileHeader == nil {
-		return nil
-	}
-	if fileHeader.Size > 2*1024*1024 {
-		return &ServiceError{Status: http.StatusBadRequest, Message: "录取群图片不能超过 2MB"}
-	}
-	if !looksLikeGroupLogo(fileHeader.Filename, fileHeader.Header.Get("Content-Type")) {
-		return &ServiceError{Status: http.StatusBadRequest, Message: "录取群图片必须为 PNG、JPG、WebP 或 GIF 图片"}
 	}
 	return nil
 }
