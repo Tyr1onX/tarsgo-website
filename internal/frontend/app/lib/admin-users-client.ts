@@ -12,7 +12,6 @@ export interface AdminUserRoleOption extends AdminUserRole {
 
 export interface AdminUserAuthMethods {
   hasPassword: boolean;
-  githubBound: boolean;
 }
 
 export interface AdminUserListItem {
@@ -36,6 +35,19 @@ export interface AdminUserDetail {
   lastLoginAt?: string | null;
   createdAt: string;
   updatedAt: string;
+  realName?: string | null;
+  phone?: string | null;
+  currentRecruitmentGroupId?: number | null;
+  recruitmentHistory: Array<{
+    id: number;
+    formId: number;
+    formTitle: string;
+    formStatus: number;
+    recruitmentStatus: string;
+    preferredGroupId?: number | null;
+    preferredGroup: string;
+    submittedAt: string;
+  }>;
 }
 
 export interface AdminUserSummary {
@@ -119,6 +131,13 @@ export async function updateAdminUser(userId: number, input: AdminUserUpsertInpu
   return apiRequest<AdminUserDetail>(`/api/admin/users/${userId}`, {
     method: "PATCH",
     body: input,
+  });
+}
+
+export async function updateAdminUserRecruitmentGroup(userId: number, groupId: number): Promise<AdminUserDetail> {
+  return apiRequest<AdminUserDetail>(`/api/admin/users/${userId}/recruitment-group`, {
+    method: "PATCH",
+    body: { groupId },
   });
 }
 

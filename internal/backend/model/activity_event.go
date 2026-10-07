@@ -9,9 +9,6 @@ const (
 	ActivityRegistrationApproved   = "registration.approved"
 	ActivityRegistrationRejected   = "registration.rejected"
 	ActivityRegistrationReviewUndo = "registration.review_undone"
-	ActivityGroupMemberAdded       = "group.member_added"
-	ActivityGroupMemberRemoved     = "group.member_removed"
-	ActivityGroupMemberRoleChanged = "group.member_role_changed"
 )
 
 type ActivityEvent struct {

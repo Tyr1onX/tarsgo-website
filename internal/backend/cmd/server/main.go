@@ -7,7 +7,6 @@ import (
 	"tarsgo-backend/config"
 	"tarsgo-backend/database"
 	"tarsgo-backend/router"
-	"tarsgo-backend/service/runtimeconfig"
 )
 
 func main() {
@@ -33,12 +32,7 @@ func main() {
 		}
 	}
 
-	runtimeStore, err := runtimeconfig.NewStore(db, cfg)
-	if err != nil {
-		log.Fatalf("init runtime config store: %v", err)
-	}
-
-	engine := router.New(cfg, db, runtimeStore)
+	engine := router.New(cfg, db)
 	addr := cfg.App.Address()
 
 	log.Printf("backend started on %s (%s)", addr, cfg.App.Env)

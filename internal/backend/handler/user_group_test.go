@@ -105,10 +105,6 @@ func (s *stubUserGroupService) ListGroupOptions(_ context.Context, _ usergroup.A
 	return nil, nil
 }
 
-func (s *stubUserGroupService) GetGroup(_ context.Context, _ usergroup.Actor, _ uint64) (*usergroup.GroupDetail, error) {
-	return nil, nil
-}
-
 func (s *stubUserGroupService) CreateGroup(ctx context.Context, actor usergroup.Actor, input usergroup.CreateGroupInput) (*usergroup.GroupDetail, error) {
 	if s.createFn == nil {
 		return nil, nil
@@ -121,26 +117,6 @@ func (s *stubUserGroupService) UpdateGroup(ctx context.Context, actor usergroup.
 		return nil, nil
 	}
 	return s.updateFn(ctx, actor, groupID, input)
-}
-
-func (s *stubUserGroupService) DeleteGroup(_ context.Context, _ usergroup.Actor, _ uint64) error {
-	return nil
-}
-
-func (s *stubUserGroupService) ListMemberCandidates(_ context.Context, _ usergroup.Actor, _ uint64) ([]usergroup.GroupCandidateItem, error) {
-	return nil, nil
-}
-
-func (s *stubUserGroupService) AddMember(_ context.Context, _ usergroup.Actor, _ uint64, _ usergroup.AddMemberInput) (*usergroup.GroupMemberItem, error) {
-	return nil, nil
-}
-
-func (s *stubUserGroupService) UpdateMember(_ context.Context, _ usergroup.Actor, _ uint64, _ uint64, _ usergroup.UpdateMemberInput) (*usergroup.GroupMemberItem, error) {
-	return nil, nil
-}
-
-func (s *stubUserGroupService) RemoveMember(_ context.Context, _ usergroup.Actor, _ uint64, _ uint64) error {
-	return nil
 }
 
 func setAdminSessionUser(ctx *gin.Context) {

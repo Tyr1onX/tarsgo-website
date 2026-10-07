@@ -56,11 +56,7 @@ type registrationRepository interface {
 	GetRegistrationStats(ctx context.Context, filter ListRegistrationsInput) (RegistrationStats, error)
 	GetRegistrationByID(ctx context.Context, registrationID uint64) (*model.Registration, error)
 	GetRegistrationByIDForUpdate(ctx context.Context, registrationID uint64) (*model.Registration, error)
-	DeleteRegistration(ctx context.Context, registrationID uint64) error
 	ListShownUserGroups(ctx context.Context) ([]model.UserGroup, error)
-	ListDefaultGroupIDs(ctx context.Context) ([]uint64, error)
-	AddUserToGroupIfAbsent(ctx context.Context, groupID uint64, userID uint64) error
-	RemoveUserFromGroupIfPresent(ctx context.Context, groupID uint64, userID uint64) error
 	ListInterviewSessions(ctx context.Context, enabledOnly bool) ([]model.InterviewSession, error)
 	GetInterviewSessionByID(ctx context.Context, sessionID uint64) (*model.InterviewSession, error)
 	GetInterviewSessionByIDForUpdate(ctx context.Context, sessionID uint64) (*model.InterviewSession, error)
@@ -135,9 +131,10 @@ type RegistrationListItem struct {
 }
 
 type ListRegistrationsResult struct {
-	Summary    RegistrationStats      `json:"summary"`
-	Items      []RegistrationListItem `json:"items"`
-	Pagination RegistrationPagination `json:"pagination"`
+	CurrentFormAvailable bool                   `json:"currentFormAvailable"`
+	Summary              RegistrationStats      `json:"summary"`
+	Items                []RegistrationListItem `json:"items"`
+	Pagination           RegistrationPagination `json:"pagination"`
 }
 
 type RegistrationDetail struct {
@@ -485,6 +482,18 @@ func (s *RegistrationService) ListRegistrations(ctx context.Context, actor Regis
 	}
 
 	normalized := normalizeRegistrationListInput(input)
+	form, err := currentPublishedForm(ctx, s.repo)
+	if err != nil {
+		return nil, err
+	}
+	if form == nil {
+		return &ListRegistrationsResult{
+			CurrentFormAvailable: false,
+			Items:                []RegistrationListItem{},
+			Pagination:           RegistrationPagination{Page: 1, PageSize: normalized.PageSize},
+		}, nil
+	}
+	normalized.FormID = ptrUint64(form.ID)
 	scope, err := s.resolveRegistrationAccessScope(ctx, actor)
 	if err != nil {
 		return nil, err
@@ -525,8 +534,9 @@ func (s *RegistrationService) ListRegistrations(ctx context.Context, actor Regis
 	}
 
 	return &ListRegistrationsResult{
-		Summary: summary,
-		Items:   resultItems,
+		CurrentFormAvailable: true,
+		Summary:              summary,
+		Items:                resultItems,
 		Pagination: RegistrationPagination{
 			Page:       normalized.Page,
 			PageSize:   normalized.PageSize,
@@ -555,6 +565,9 @@ func (s *RegistrationService) GetRegistration(ctx context.Context, actor Registr
 			return nil, &ServiceError{Status: http.StatusNotFound, Message: "报名记录不存在"}
 		}
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "查询报名详情失败", Err: err}
+	}
+	if err := ensureRegistrationRecordIsCurrent(ctx, s.repo, registration); err != nil {
+		return nil, err
 	}
 	if !scope.canAccessRegistration(registration) {
 		return nil, &ServiceError{Status: http.StatusForbidden, Message: "当前账号无权查看该报名记录"}
@@ -629,6 +642,9 @@ func (s *RegistrationService) RecordInterviewResult(ctx context.Context, actor R
 			}
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "加载报名记录失败", Err: err}
 		}
+		if err := ensureRegistrationRecordIsCurrent(ctx, repo, reg); err != nil {
+			return err
+		}
 		if !scope.canAccessRegistration(reg) {
 			return &ServiceError{Status: http.StatusForbidden, Message: "当前账号无权操作该报名记录"}
 		}
@@ -657,20 +673,6 @@ func (s *RegistrationService) RecordInterviewResult(ctx context.Context, actor R
 		}
 
 		if decision == "admit" {
-			defaults, err := repo.ListDefaultGroupIDs(ctx)
-			if err != nil {
-				return &ServiceError{Status: http.StatusInternalServerError, Message: "加载默认分组失败", Err: err}
-			}
-			for _, groupID := range defaults {
-				if groupID != *reg.PreferredGroupID {
-					if err := repo.RemoveUserFromGroupIfPresent(ctx, groupID, reg.UserID); err != nil {
-						return &ServiceError{Status: http.StatusInternalServerError, Message: "移除默认分组失败", Err: err}
-					}
-				}
-			}
-			if err := repo.AddUserToGroupIfAbsent(ctx, *reg.PreferredGroupID, reg.UserID); err != nil {
-				return &ServiceError{Status: http.StatusInternalServerError, Message: "同步录取组失败", Err: err}
-			}
 			notification = buildAdmissionNotification(reg, now)
 		} else {
 			notification = buildInterviewRejectionNotification(reg, now)
@@ -870,6 +872,9 @@ func (s *RegistrationService) ScreenRegistration(ctx context.Context, actor Regi
 			}
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "加载报名记录失败", Err: err}
 		}
+		if err := ensureRegistrationRecordIsCurrent(ctx, repo, registration); err != nil {
+			return err
+		}
 		if !scope.canAccessRegistration(registration) {
 			return &ServiceError{Status: http.StatusForbidden, Message: "当前账号无权初筛该报名记录"}
 		}
@@ -934,6 +939,9 @@ func (s *RegistrationService) UndoScreening(ctx context.Context, actor Registrat
 			}
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "加载报名记录失败", Err: err}
 		}
+		if err := ensureRegistrationRecordIsCurrent(ctx, repo, registration); err != nil {
+			return err
+		}
 		if !scope.canAccessRegistration(registration) {
 			return &ServiceError{Status: http.StatusForbidden, Message: "当前账号无权撤销初筛"}
 		}
@@ -961,46 +969,6 @@ func (s *RegistrationService) UndoScreening(ctx context.Context, actor Registrat
 		return nil, err
 	}
 	return s.GetRegistration(ctx, actor, registrationID)
-}
-
-func (s *RegistrationService) DeleteRegistration(ctx context.Context, actor RegistrationFormActor, registrationID uint64) error {
-	if err := wrapRegistrationActorError(ensureRegistrationAdminActor(actor)); err != nil {
-		return err
-	}
-	if registrationID == 0 {
-		return &ServiceError{Status: http.StatusBadRequest, Message: "报名记录 ID 不合法"}
-	}
-
-	scope, err := s.resolveRegistrationAccessScope(ctx, actor)
-	if err != nil {
-		return err
-	}
-
-	var storedPaths []string
-	txErr := s.repo.RunInTx(ctx, func(repo registrationRepository) error {
-		registration, err := repo.GetRegistrationByIDForUpdate(ctx, registrationID)
-		if err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return &ServiceError{Status: http.StatusNotFound, Message: "报名记录不存在"}
-			}
-			return &ServiceError{Status: http.StatusInternalServerError, Message: "加载报名记录失败", Err: err}
-		}
-		if !scope.canAccessRegistration(registration) {
-			return &ServiceError{Status: http.StatusForbidden, Message: "当前账号无权删除该报名记录"}
-		}
-
-		storedPaths = collectRegistrationStoredPaths(registration.FormData)
-		if err := repo.DeleteRegistration(ctx, registrationID); err != nil {
-			return &ServiceError{Status: http.StatusInternalServerError, Message: "删除报名记录失败", Err: err}
-		}
-		return nil
-	})
-	if txErr != nil {
-		return txErr
-	}
-
-	cleanupRegistrationSavedFiles(context.Background(), s.fileStore, storedPaths)
-	return nil
 }
 
 func (s *RegistrationService) OpenRegistrationFile(ctx context.Context, actor RegistrationFormActor, registrationID uint64, fieldKey string, index int) (*RegistrationFileResult, error) {
@@ -1064,7 +1032,7 @@ func (s *RegistrationService) OpenRegistrationFile(ctx context.Context, actor Re
 }
 
 func (s *RegistrationService) ExportFormRegistrationsCSV(ctx context.Context, actor RegistrationFormActor, formID uint64, baseURL string) (*RegistrationCSVExportResult, error) {
-	if err := wrapRegistrationActorError(ensureRegistrationAdminActor(actor)); err != nil {
+	if err := wrapRegistrationActorError(ensureRegistrationSuperAdminActor(actor)); err != nil {
 		return nil, err
 	}
 	if formID == 0 {
@@ -2741,11 +2709,6 @@ func (r *gormRegistrationRepository) GetRegistrationByIDForUpdate(ctx context.Co
 	return &registration, nil
 }
 
-func (r *gormRegistrationRepository) DeleteRegistration(ctx context.Context, registrationID uint64) error {
-	return r.db.WithContext(ctx).
-		Delete(&model.Registration{}, registrationID).Error
-}
-
 func applyRegistrationListFilters(query *gorm.DB, filter ListRegistrationsInput, includeStatus bool) *gorm.DB {
 	if filter.FormID != nil {
 		query = query.Where("registrations.form_id = ?", *filter.FormID)
@@ -2830,17 +2793,6 @@ func (r *gormRegistrationRepository) ListShownUserGroups(ctx context.Context) ([
 	return (&gormRegistrationFormRepository{db: r.db}).ListShownUserGroups(ctx)
 }
 
-func (r *gormRegistrationRepository) ListDefaultGroupIDs(ctx context.Context) ([]uint64, error) {
-	var groupIDs []uint64
-	if err := r.db.WithContext(ctx).
-		Model(&model.UserGroup{}).
-		Where("is_default = ?", true).
-		Pluck("id", &groupIDs).Error; err != nil {
-		return nil, err
-	}
-	return groupIDs, nil
-}
-
 func (r *gormRegistrationRepository) IsUserInActiveDefaultGroup(ctx context.Context, userID uint64) (bool, error) {
 	var count int64
 	err := r.db.WithContext(ctx).Model(&model.UserGroupMember{}).
@@ -2848,22 +2800,4 @@ func (r *gormRegistrationRepository) IsUserInActiveDefaultGroup(ctx context.Cont
 		Where("user_group_members.user_id = ? AND user_groups.is_default = ? AND user_groups.status = ?", userID, true, model.UserGroupStatusActive).
 		Count(&count).Error
 	return count > 0, err
-}
-
-func (r *gormRegistrationRepository) AddUserToGroupIfAbsent(ctx context.Context, groupID uint64, userID uint64) error {
-	member := model.UserGroupMember{
-		GroupID: groupID,
-		UserID:  userID,
-		Role:    model.UserGroupMemberRoleMember,
-	}
-	return r.db.WithContext(ctx).
-		Where("group_id = ? AND user_id = ?", groupID, userID).
-		Attrs(map[string]any{"role": member.Role}).
-		FirstOrCreate(&member).Error
-}
-
-func (r *gormRegistrationRepository) RemoveUserFromGroupIfPresent(ctx context.Context, groupID uint64, userID uint64) error {
-	return r.db.WithContext(ctx).
-		Where("group_id = ? AND user_id = ?", groupID, userID).
-		Delete(&model.UserGroupMember{}).Error
 }

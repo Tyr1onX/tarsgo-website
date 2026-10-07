@@ -11,6 +11,7 @@ import {
   sendRegisterCode,
 } from "~/lib/auth-client";
 import { useCooldown } from "~/lib/use-cooldown";
+import { getDefaultDashboardPath } from "~/lib/dashboard-navigation";
 
 export function meta() {
   return [
@@ -22,7 +23,7 @@ export function meta() {
 export async function clientLoader(_: Route.ClientLoaderArgs) {
   const currentUser = await getOptionalCurrentUser({ force: true });
   if (currentUser) {
-    throw redirect("/dashboard");
+    throw redirect(getDefaultDashboardPath(currentUser.role.name));
   }
 
   return null;
@@ -107,16 +108,22 @@ export default function Register() {
     try {
       setSubmitting(true);
       setErrorMessage("");
-      await registerWithEmail({
+      const user = await registerWithEmail({
         email,
         password,
         realName,
         phone,
         code,
       });
+      const destination = redirectTo === "/dashboard" ? getDefaultDashboardPath(user.role.name) : redirectTo;
+      if (user.role.name === "admin" || user.role.name === "super_admin") {
+        void import("~/routes/admin/dashboard");
+      } else {
+        void import("~/routes/users/registrations");
+      }
       setSubmitting(false);
       setSuccess(true);
-      setTimeout(() => navigate(redirectTo, { replace: true }), 900);
+      setTimeout(() => navigate(destination, { replace: true }), 900);
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
       setSubmitting(false);

@@ -65,7 +65,6 @@ type RoleOption struct {
 
 type AuthMethods struct {
 	HasPassword bool `json:"hasPassword"`
-	GitHubBound bool `json:"githubBound"`
 }
 
 type UserListItem struct {
@@ -80,15 +79,30 @@ type UserListItem struct {
 }
 
 type UserDetail struct {
-	ID          uint64      `json:"id"`
-	Name        string      `json:"name"`
-	Email       string      `json:"email"`
-	Status      uint8       `json:"status"`
-	Role        RoleRef     `json:"role"`
-	AuthMethods AuthMethods `json:"authMethods"`
-	LastLoginAt *time.Time  `json:"lastLoginAt,omitempty"`
-	CreatedAt   time.Time   `json:"createdAt"`
-	UpdatedAt   time.Time   `json:"updatedAt"`
+	ID                        uint64                   `json:"id"`
+	Name                      string                   `json:"name"`
+	Email                     string                   `json:"email"`
+	Status                    uint8                    `json:"status"`
+	Role                      RoleRef                  `json:"role"`
+	AuthMethods               AuthMethods              `json:"authMethods"`
+	LastLoginAt               *time.Time               `json:"lastLoginAt,omitempty"`
+	CreatedAt                 time.Time                `json:"createdAt"`
+	UpdatedAt                 time.Time                `json:"updatedAt"`
+	RealName                  *string                  `json:"realName,omitempty"`
+	Phone                     *string                  `json:"phone,omitempty"`
+	RecruitmentHistory        []RecruitmentHistoryItem `json:"recruitmentHistory"`
+	CurrentRecruitmentGroupID *uint64                  `json:"currentRecruitmentGroupId,omitempty"`
+}
+
+type RecruitmentHistoryItem struct {
+	ID                uint64    `json:"id"`
+	FormID            uint64    `json:"formId"`
+	FormTitle         string    `json:"formTitle"`
+	FormStatus        uint8     `json:"formStatus"`
+	RecruitmentStatus string    `json:"recruitmentStatus"`
+	PreferredGroupID  *uint64   `json:"preferredGroupId,omitempty"`
+	PreferredGroup    string    `json:"preferredGroup"`
+	SubmittedAt       time.Time `json:"submittedAt"`
 }
 
 type UserStats struct {
@@ -181,7 +195,49 @@ func (s *Service) GetUser(ctx context.Context, actor Actor, userID uint64) (*Use
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载用户详情失败", Err: err}
 	}
 	detail := toUserDetail(user)
+	registrations, err := s.repo.ListRecruitmentHistory(ctx, userID)
+	if err != nil {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载历史报名失败", Err: err}
+	}
+	detail.RecruitmentHistory = make([]RecruitmentHistoryItem, 0, len(registrations))
+	for _, registration := range registrations {
+		groupName := ""
+		if registration.PreferredGroup != nil {
+			groupName = registration.PreferredGroup.Name
+		}
+		item := RecruitmentHistoryItem{
+			ID: registration.ID, FormID: registration.FormID, FormTitle: registration.Form.Title,
+			FormStatus: registration.Form.Status, RecruitmentStatus: registration.RecruitmentStatus,
+			PreferredGroupID: registration.PreferredGroupID, PreferredGroup: groupName, SubmittedAt: registration.SubmittedAt,
+		}
+		detail.RecruitmentHistory = append(detail.RecruitmentHistory, item)
+		if detail.CurrentRecruitmentGroupID == nil && registration.Form.Status == model.RegistrationFormStatusPublished {
+			detail.CurrentRecruitmentGroupID = registration.PreferredGroupID
+		}
+	}
 	return &detail, nil
+}
+
+func (s *Service) UpdateCurrentRecruitmentGroup(ctx context.Context, actor Actor, userID uint64, groupID uint64) (*UserDetail, error) {
+	if err := ensureUserAdminActor(actor); err != nil {
+		return nil, err
+	}
+	if userID == 0 || groupID == 0 {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "账号或招新组别不合法"}
+	}
+	if _, err := s.repo.GetUserByID(ctx, userID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, &ServiceError{Status: http.StatusNotFound, Message: "用户不存在"}
+		}
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载用户失败", Err: err}
+	}
+	if err := s.repo.UpdateCurrentRecruitmentGroup(ctx, userID, groupID); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, &ServiceError{Status: http.StatusConflict, Message: "当前账号没有可修正的当届报名记录或组别已停用"}
+		}
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "修正招新意向组失败", Err: err}
+	}
+	return s.GetUser(ctx, actor, userID)
 }
 
 func (s *Service) ListRoles(ctx context.Context, actor Actor) ([]RoleOption, error) {
@@ -452,17 +508,21 @@ func toUserListItem(user *model.User) UserListItem {
 }
 
 func toUserDetail(user *model.User) UserDetail {
-	return UserDetail{
-		ID:          user.ID,
-		Name:        user.Name,
-		Email:       user.Email,
-		Status:      user.Status,
-		Role:        toRoleRef(user.Role),
-		AuthMethods: toAuthMethods(user),
-		LastLoginAt: user.LastLoginAt,
-		CreatedAt:   user.CreatedAt,
-		UpdatedAt:   user.UpdatedAt,
+	detail := UserDetail{
+		ID:                 user.ID,
+		Name:               user.Name,
+		Email:              user.Email,
+		Status:             user.Status,
+		Role:               toRoleRef(user.Role),
+		AuthMethods:        toAuthMethods(user),
+		LastLoginAt:        user.LastLoginAt,
+		CreatedAt:          user.CreatedAt,
+		UpdatedAt:          user.UpdatedAt,
+		RealName:           user.RealName,
+		Phone:              user.Phone,
+		RecruitmentHistory: []RecruitmentHistoryItem{},
 	}
+	return detail
 }
 
 func toRoleRef(role model.Role) RoleRef {
@@ -476,7 +536,6 @@ func toRoleRef(role model.Role) RoleRef {
 func toAuthMethods(user *model.User) AuthMethods {
 	return AuthMethods{
 		HasPassword: user.PasswordHash != nil && strings.TrimSpace(*user.PasswordHash) != "",
-		GitHubBound: user.GitHubID != nil && strings.TrimSpace(*user.GitHubID) != "",
 	}
 }
 

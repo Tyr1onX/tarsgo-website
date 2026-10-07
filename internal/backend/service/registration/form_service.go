@@ -56,11 +56,8 @@ type gormRegistrationFormRepository struct {
 }
 
 type RegistrationFormActor struct {
-	ID                uint64
-	RoleName          string
-	AdminScope        string
-	ManagementGroupID *uint64
-	GroupRole         string
+	ID       uint64
+	RoleName string
 }
 
 type ListRegistrationFormsInput struct {
@@ -187,7 +184,7 @@ func (e *FormServiceError) Unwrap() error {
 }
 
 func (s *RegistrationFormService) ListForms(ctx context.Context, actor RegistrationFormActor, input ListRegistrationFormsInput) (*ListRegistrationFormsResult, error) {
-	if err := ensureRegistrationAdminActor(actor); err != nil {
+	if err := ensureRegistrationSuperAdminActor(actor); err != nil {
 		return nil, err
 	}
 
@@ -220,7 +217,7 @@ func (s *RegistrationFormService) ListForms(ctx context.Context, actor Registrat
 }
 
 func (s *RegistrationFormService) GetForm(ctx context.Context, actor RegistrationFormActor, formID uint64) (*RegistrationFormDetail, error) {
-	if err := ensureRegistrationAdminActor(actor); err != nil {
+	if err := ensureRegistrationSuperAdminActor(actor); err != nil {
 		return nil, err
 	}
 
@@ -242,7 +239,7 @@ func (s *RegistrationFormService) GetForm(ctx context.Context, actor Registratio
 }
 
 func (s *RegistrationFormService) CreateForm(ctx context.Context, actor RegistrationFormActor, input UpsertRegistrationFormInput) (*RegistrationFormDetail, error) {
-	if err := ensureRegistrationAdminActor(actor); err != nil {
+	if err := ensureRegistrationSuperAdminActor(actor); err != nil {
 		return nil, err
 	}
 
@@ -282,7 +279,7 @@ func (s *RegistrationFormService) CreateForm(ctx context.Context, actor Registra
 }
 
 func (s *RegistrationFormService) UpdateForm(ctx context.Context, actor RegistrationFormActor, formID uint64, input UpsertRegistrationFormInput) (*RegistrationFormDetail, error) {
-	if err := ensureRegistrationAdminActor(actor); err != nil {
+	if err := ensureRegistrationSuperAdminActor(actor); err != nil {
 		return nil, err
 	}
 
@@ -337,7 +334,7 @@ func (s *RegistrationFormService) GetRecruitmentPageData(ctx context.Context, ac
 		return nil, &FormServiceError{Status: http.StatusInternalServerError, Message: "查询报名页面数据失败", Err: err}
 	}
 	if len(forms) == 0 {
-		return buildUnavailableRecruitmentPageData("当前暂无开放中的报名表"), nil
+		return buildUnavailableRecruitmentPageData("当前暂无开放招新"), nil
 	}
 	if len(forms) > 1 {
 		return buildUnavailableRecruitmentPageData("存在多个已发布报名表，请联系管理员处理"), nil
@@ -451,6 +448,16 @@ func ensureRegistrationAdminActor(actor RegistrationFormActor) error {
 	}
 	if actor.RoleName != model.RoleNameAdmin && actor.RoleName != model.RoleNameSuperAdmin {
 		return &FormServiceError{Status: http.StatusForbidden, Message: "当前账号无管理员权限"}
+	}
+	return nil
+}
+
+func ensureRegistrationSuperAdminActor(actor RegistrationFormActor) error {
+	if actor.ID == 0 {
+		return &FormServiceError{Status: http.StatusUnauthorized, Message: "未登录"}
+	}
+	if actor.RoleName != model.RoleNameSuperAdmin {
+		return &FormServiceError{Status: http.StatusForbidden, Message: "仅超级管理员可以管理招新配置"}
 	}
 	return nil
 }

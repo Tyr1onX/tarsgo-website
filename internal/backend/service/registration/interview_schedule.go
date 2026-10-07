@@ -49,22 +49,37 @@ func (s *RegistrationService) ListInterviewSessions(ctx context.Context, actor R
 	if err := wrapRegistrationActorError(ensureRegistrationAdminActor(actor)); err != nil {
 		return nil, err
 	}
+	form, err := currentPublishedForm(ctx, s.repo)
+	if err != nil {
+		return nil, err
+	}
+	if form == nil {
+		return []InterviewSessionView{}, nil
+	}
 	sessions, err := s.repo.ListInterviewSessions(ctx, false)
 	if err != nil {
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "查询面试场次失败", Err: err}
 	}
-	return s.buildInterviewSessionViews(ctx, sessions)
+	return s.buildInterviewSessionViews(ctx, filterSessionsForForm(sessions, form.ID))
 }
 
 func (s *RegistrationService) CreateInterviewSession(ctx context.Context, actor RegistrationFormActor, input UpsertInterviewSessionInput) (*InterviewSessionView, error) {
-	if err := wrapRegistrationActorError(ensureRegistrationAdminActor(actor)); err != nil {
+	if err := wrapRegistrationActorError(ensureRegistrationSuperAdminActor(actor)); err != nil {
 		return nil, err
+	}
+	form, err := currentPublishedForm(ctx, s.repo)
+	if err != nil {
+		return nil, err
+	}
+	if form == nil {
+		return nil, &ServiceError{Status: http.StatusConflict, Message: "当前暂无进行中的招新"}
 	}
 	normalized, err := normalizeInterviewSessionInput(input)
 	if err != nil {
 		return nil, err
 	}
 	session := &model.InterviewSession{
+		FormID:    ptrUint64(form.ID),
 		Date:      normalized.Date,
 		Label:     normalized.Label,
 		StartTime: normalized.StartTime,
@@ -79,17 +94,28 @@ func (s *RegistrationService) CreateInterviewSession(ctx context.Context, actor 
 }
 
 func (s *RegistrationService) UpdateInterviewSession(ctx context.Context, actor RegistrationFormActor, sessionID uint64, input UpsertInterviewSessionInput) (*InterviewSessionView, error) {
-	if err := wrapRegistrationActorError(ensureRegistrationAdminActor(actor)); err != nil {
+	if err := wrapRegistrationActorError(ensureRegistrationSuperAdminActor(actor)); err != nil {
 		return nil, err
 	}
 	if sessionID == 0 {
 		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "面试场次 ID 不合法"}
 	}
-	if _, err := s.repo.GetInterviewSessionByID(ctx, sessionID); err != nil {
+	form, err := currentPublishedForm(ctx, s.repo)
+	if err != nil {
+		return nil, err
+	}
+	if form == nil {
+		return nil, &ServiceError{Status: http.StatusConflict, Message: "当前暂无进行中的招新"}
+	}
+	existing, err := s.repo.GetInterviewSessionByID(ctx, sessionID)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, &ServiceError{Status: http.StatusNotFound, Message: "面试场次不存在"}
 		}
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "查询面试场次失败", Err: err}
+	}
+	if existing.FormID == nil || *existing.FormID != form.ID {
+		return nil, &ServiceError{Status: http.StatusNotFound, Message: "当前届面试场次不存在"}
 	}
 	normalized, err := normalizeInterviewSessionInput(input)
 	if err != nil {
@@ -125,6 +151,9 @@ func (s *RegistrationService) GetInterviewAttendance(ctx context.Context, actor 
 	if registration.UserID != actor.ID {
 		return nil, &ServiceError{Status: http.StatusForbidden, Message: "只能查看自己的面试安排"}
 	}
+	if err := ensureRegistrationRecordIsCurrent(ctx, s.repo, registration); err != nil {
+		return nil, err
+	}
 	return s.buildInterviewAttendanceResult(ctx, registration)
 }
 
@@ -151,6 +180,9 @@ func (s *RegistrationService) UpdateInterviewAttendance(ctx context.Context, act
 		if registration.UserID != actor.ID {
 			return &ServiceError{Status: http.StatusForbidden, Message: "只能修改自己的面试安排"}
 		}
+		if err := ensureRegistrationRecordIsCurrent(ctx, repo, registration); err != nil {
+			return err
+		}
 		if registration.RecruitmentStatus != model.RecruitmentStatusPendingInterview {
 			return &ServiceError{Status: http.StatusConflict, Message: "当前报名状态不能修改面试安排"}
 		}
@@ -173,6 +205,9 @@ func (s *RegistrationService) UpdateInterviewAttendance(ctx context.Context, act
 			if !session.Enabled {
 				return &ServiceError{Status: http.StatusConflict, Message: "所选面试场次已停用，请重新选择"}
 			}
+			if session.FormID == nil || *session.FormID != registration.FormID {
+				return &ServiceError{Status: http.StatusConflict, Message: "所选面试场次不属于当前报名届次"}
+			}
 			updates["interview_session_id"] = session.ID
 		}
 		if err := repo.UpdateRegistration(ctx, registration.ID, updates); err != nil {
@@ -194,7 +229,7 @@ func (s *RegistrationService) buildInterviewAttendanceResult(ctx context.Context
 	result := &InterviewAttendanceResult{
 		Attendance:        attendance,
 		Session:           toInterviewSessionView(registration.InterviewSession, 0),
-		CanModify:         registration.RecruitmentStatus == model.RecruitmentStatusPendingInterview,
+		CanModify:         registration.RecruitmentStatus == model.RecruitmentStatusPendingInterview && registration.Form.Status == model.RegistrationFormStatusPublished,
 		AvailableSessions: []InterviewSessionView{},
 	}
 	if !result.CanModify {
@@ -204,12 +239,47 @@ func (s *RegistrationService) buildInterviewAttendanceResult(ctx context.Context
 	if err != nil {
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "查询可选面试场次失败", Err: err}
 	}
-	views, err := s.buildInterviewSessionViews(ctx, sessions)
+	views, err := s.buildInterviewSessionViews(ctx, filterSessionsForForm(sessions, registration.FormID))
 	if err != nil {
 		return nil, err
 	}
 	result.AvailableSessions = views
 	return result, nil
+}
+
+func currentPublishedForm(ctx context.Context, repo registrationRepository) (*model.RegistrationForm, error) {
+	forms, err := repo.ListPublishedForms(ctx)
+	if err != nil {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "查询当前招新失败", Err: err}
+	}
+	if len(forms) == 0 {
+		return nil, nil
+	}
+	if len(forms) > 1 {
+		return nil, &ServiceError{Status: http.StatusConflict, Message: "存在多个已发布报名表，请先在招新管理中收敛当前届"}
+	}
+	return &forms[0], nil
+}
+
+func ensureRegistrationRecordIsCurrent(ctx context.Context, repo registrationRepository, registration *model.Registration) error {
+	form, err := currentPublishedForm(ctx, repo)
+	if err != nil {
+		return err
+	}
+	if form == nil || registration == nil || registration.FormID != form.ID {
+		return &ServiceError{Status: http.StatusNotFound, Message: "当前届报名记录不存在"}
+	}
+	return nil
+}
+
+func filterSessionsForForm(sessions []model.InterviewSession, formID uint64) []model.InterviewSession {
+	filtered := make([]model.InterviewSession, 0, len(sessions))
+	for _, session := range sessions {
+		if session.FormID != nil && *session.FormID == formID {
+			filtered = append(filtered, session)
+		}
+	}
+	return filtered
 }
 
 func (s *RegistrationService) buildInterviewSessionViews(ctx context.Context, sessions []model.InterviewSession) ([]InterviewSessionView, error) {

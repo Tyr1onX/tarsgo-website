@@ -2048,6 +2048,8 @@ export default function FormConfigPage() {
   );
 }
 
+export { FormConfigPage };
+
 /* ================================================================== */
 /*  Preview control renderer                                          */
 /* ================================================================== */

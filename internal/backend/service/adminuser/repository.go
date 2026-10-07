@@ -14,6 +14,8 @@ type Repository interface {
 	ListUsers(ctx context.Context, filter ListUsersInput) ([]model.User, int64, error)
 	GetUserStats(ctx context.Context) (UserStats, error)
 	GetUserByID(ctx context.Context, userID uint64) (*model.User, error)
+	ListRecruitmentHistory(ctx context.Context, userID uint64) ([]model.Registration, error)
+	UpdateCurrentRecruitmentGroup(ctx context.Context, userID uint64, groupID uint64) error
 	GetUserByEmail(ctx context.Context, email string) (*model.User, error)
 	ListRoles(ctx context.Context) ([]model.Role, error)
 	GetRoleByID(ctx context.Context, roleID uint64) (*model.Role, error)
@@ -103,6 +105,51 @@ func (r *GormRepository) GetUserByID(ctx context.Context, userID uint64) (*model
 		return nil, err
 	}
 	return &user, nil
+}
+
+func (r *GormRepository) ListRecruitmentHistory(ctx context.Context, userID uint64) ([]model.Registration, error) {
+	var registrations []model.Registration
+	err := r.db.WithContext(ctx).
+		Preload("Form").
+		Preload("PreferredGroup").
+		Where("user_id = ?", userID).
+		Order("submitted_at DESC").
+		Order("id DESC").
+		Find(&registrations).Error
+	return registrations, err
+}
+
+func (r *GormRepository) UpdateCurrentRecruitmentGroup(ctx context.Context, userID uint64, groupID uint64) error {
+	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var forms []model.RegistrationForm
+		if err := tx.Where("status = ?", model.RegistrationFormStatusPublished).Find(&forms).Error; err != nil {
+			return err
+		}
+		if len(forms) != 1 {
+			return gorm.ErrRecordNotFound
+		}
+		var group model.UserGroup
+		if err := tx.Where("id = ? AND status = ?", groupID, model.UserGroupStatusActive).First(&group).Error; err != nil {
+			return err
+		}
+		var registration model.Registration
+		if err := tx.Where("user_id = ? AND form_id = ?", userID, forms[0].ID).First(&registration).Error; err != nil {
+			return err
+		}
+		if registration.PreferredGroupID != nil && *registration.PreferredGroupID == groupID {
+			return nil
+		}
+		result := tx.Model(&model.Registration{}).
+			Where("user_id = ? AND form_id = ?", userID, forms[0].ID).
+			Update("preferred_group_id", groupID)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return nil
+	})
 }
 
 func (r *GormRepository) GetUserByEmail(ctx context.Context, email string) (*model.User, error) {

@@ -10,12 +10,9 @@ export default [
     route("users/registrations", "routes/users/registrations.tsx"),
     route("admin", "routes/admin/dashboard.tsx"),
     route("admin/users", "routes/admin/users.tsx"),
-    route("admin/recruitment-groups", "routes/admin/user-groups.tsx"),
-    route("admin/recruitment-settings", "routes/admin/form-config.tsx"),
-    route("admin/interview-sessions", "routes/admin/interview-sessions.tsx"),
+    route("admin/recruitment", "routes/admin/recruitment-management.tsx"),
     route("admin/registrations", "routes/admin/registrations.tsx"),
     route("admin/system-config/email", "routes/admin/system-config-email.tsx"),
-    route("admin/system-config/oauth", "routes/admin/system-config-oauth.tsx"),
   ]),
   route("*", "routes/not-found.tsx"),
 ] satisfies RouteConfig;

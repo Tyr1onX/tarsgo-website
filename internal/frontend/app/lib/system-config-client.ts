@@ -14,26 +14,6 @@ export interface VerifyRegisterFlowCodeSystemConfigInput {
   code: string;
 }
 
-export interface OAuthSystemConfigItem {
-  provider: string;
-  displayName: string;
-  enabled: boolean;
-  clientId: string;
-  callbackUrl: string;
-  scope: string;
-  clientSecretMasked: string;
-  clientSecretConfigured: boolean;
-  requiresRestart: boolean;
-}
-
-export interface UpdateOAuthSystemConfigInput {
-  enabled: boolean;
-  clientId: string;
-  clientSecret: string;
-  callbackUrl: string;
-  scope: string;
-}
-
 export async function getEmailSystemConfig(): Promise<EmailSystemConfig> {
   return apiRequest<EmailSystemConfig>("/api/admin/system-config/email");
 }
@@ -68,21 +48,6 @@ export async function verifyRegisterFlowCodeSystemConfig(
 ): Promise<void> {
   await apiRequest("/api/admin/system-config/email/register-flow/verify-code", {
     method: "POST",
-    body: input,
-  });
-}
-
-export async function getOAuthSystemConfig(): Promise<OAuthSystemConfigItem[]> {
-  const data = await apiRequest<{ items: OAuthSystemConfigItem[] }>("/api/admin/system-config/oauth");
-  return data.items;
-}
-
-export async function updateOAuthSystemConfig(
-  provider: string,
-  input: UpdateOAuthSystemConfigInput,
-): Promise<OAuthSystemConfigItem> {
-  return apiRequest<OAuthSystemConfigItem>(`/api/admin/system-config/oauth/${encodeURIComponent(provider)}`, {
-    method: "PUT",
     body: input,
   });
 }

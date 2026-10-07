@@ -5,7 +5,6 @@
 - 邮箱验证码注册
 - 邮箱密码登录
 - 邮箱验证码登录
-- GitHub OAuth 登录
 - JWT HttpOnly Cookie 会话
 - `/api/me` 当前会话检查
 - 首次运行超级管理员初始化
@@ -16,11 +15,11 @@
 | --- | --- |
 | `cmd/server/main.go` | Web 服务入口，负责加载配置、连接数据库并启动 Gin；是否自动迁移由 `APP_AUTO_MIGRATE` 控制 |
 | `cmd/migrate/main.go` | 独立迁移入口，供生产发布在切换 Web 进程前执行一次 |
-| `config/config.go` | 环境变量读取与配置组装，包含数据库、JWT、邮件发信、GitHub OAuth 配置 |
+| `config/config.go` | 环境变量读取与配置组装，包含数据库、JWT、邮件发信配置 |
 | `database/mysql.go` | Gorm MySQL 连接、自动迁移与角色种子数据 |
 | `model/*.go` | 核心数据模型：角色、用户、邮箱验证码、报名表、报名信息 |
 | `service/email/email.go` | 单一 `SendEmail` 入口，使用服务器环境变量调用 Resend |
-| `service/auth/*.go` | 认证业务逻辑：JWT、验证码、GitHub OAuth |
+| `service/auth/*.go` | 认证业务逻辑：JWT、邮箱密码和验证码 |
 | `service/adminuser/*.go` | 后台用户管理业务与仓储 |
 | `service/usergroup/*.go` | 用户组管理业务与仓储 |
 | `service/registration/*.go` | 报名表、报名提交流程、审核与文件存储 |
@@ -40,11 +39,10 @@
 
    - 当前仓库已经提供可直接运行的本地 `.env`
    - 示例模板在 `.env.example`
-   - `.env` 只负责基础运行参数，例如数据库、JWT、CORS、前端回跳基础地址
-   - 邮箱发信配置、GitHub / Google 第三方登录配置不再从 `.env` 读取，必须由超级管理员在后台“系统配置”中手动填写
+   - `.env` 只负责数据库、JWT、CORS 等基础运行参数
+   - 邮箱发信配置由超级管理员在后台“系统设置”中维护
    - 分离式前端联调默认端口通常是 `http://127.0.0.1:5173`
    - 若前端开发端口被占用，React Router / Vite 可能自动切到 `http://127.0.0.1:5180`
-   - `APP_FRONTEND_URL` 只用于分离式前端开发时的 OAuth 回跳；单二进制部署可以留空，后端会使用相对路径回到内嵌前端
    - `APP_AUTO_MIGRATE` 默认为 `true`，适合本地开发；生产 Web 进程建议设置为 `false`
 
 3. 启动服务：
@@ -81,8 +79,6 @@
 | `POST` | `/api/login/email/password` | 邮箱密码登录 |
 | `POST` | `/api/login/email/send-code` | 发送登录验证码 |
 | `POST` | `/api/login/email/code` | 邮箱验证码登录 |
-| `GET` | `/api/login/github` | GitHub OAuth 登录入口 |
-| `GET` | `/api/register/github/oauth/callback` | GitHub OAuth 回调 |
 | `GET` | `/api/me` | 获取当前登录用户 |
 | `POST` | `/api/logout` | 清除 JWT Cookie |
 
@@ -139,7 +135,8 @@ APP_AUTO_MIGRATE=false ./dist/tarsgo-backend
 | 项目 | 说明 |
 | --- | --- |
 | `roles` | 创建角色表并写入 `super_admin`、`admin`、`user` 三条预置角色 |
-| `users` | 创建用户表，支持邮箱密码登录与 GitHub OAuth 字段 |
+| `users` | 创建用户表，支持邮箱密码登录；旧 GitHub 字段仅保留历史数据 |
+| `oauth_accounts` | 保留旧第三方账号关联记录，不再提供登录入口或管理 API |
 | `email_codes` | 创建邮箱验证码表，区分 `register` / `login` 两类用途 |
 | `registration_forms` | 创建报名表配置表，支持 `fields_schema` JSON 字段定义 |
 | `registrations` | 创建报名信息表，支持 `form_data` JSON 与姓名/手机号/邮箱冒泡字段 |
@@ -149,14 +146,12 @@ APP_AUTO_MIGRATE=false ./dist/tarsgo-backend
 
 权限由后端中间件强制执行，前端菜单仅用于导航展示：
 
-| 能力 | 普通用户 | 组内管理员 | 组长 | 全局管理员 | 超级管理员 |
-| --- | --- | --- | --- | --- | --- |
-| 个人报名提交/修改 | ✓ | ✓ | ✓ | ✓ | ✓ |
-| 查看和审核报名 | — | ✓（本组） | ✓（本组） | ✓（全部） | ✓（全部） |
-| 查看成员 | — | ✓（本组） | ✓（本组） | ✓（全部） | ✓（全部） |
-| 编辑成员资料 | — | — | ✓（本组，不含组长） | ✓（不能改管理员身份） | ✓ |
-| 管理组内成员/管理员 | — | — | ✓（本组，不能任命组长） | — | ✓ |
-| 用户组配置与组长任命 | — | — | — | — | ✓ |
-| 门户内容 | — | ✓（本组） | ✓（本组） | ✓（全部） | ✓（全部） |
-| 报名表配置 | — | — | — | — | ✓ |
-| 邮件测试/OAuth 系统配置 | — | — | — | — | ✓ |
+| 能力 | `user` | `admin` | `super_admin` |
+| --- | --- | --- | --- |
+| 我的招新 | ✓ | — | — |
+| 招新工作台、当前届候选人处理 | — | ✓ | ✓ |
+| 报名表、面试场次、招新组别配置 | — | — | ✓ |
+| 账号与权限 | — | — | ✓ |
+| 邮件系统设置 | — | — | ✓ |
+
+历史报名按报名表状态归档；当前工作台、候选人处理和预约只使用唯一的 `published` 报名表。面试场次通过报名表 ID 关联届次。关闭报名表不会删除历史记录。

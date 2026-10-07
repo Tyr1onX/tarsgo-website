@@ -9,31 +9,33 @@ test("default dashboard follows the authenticated system role", () => {
   assert.equal(getDefaultDashboardPath("super_admin"), "/dashboard/admin");
 });
 
-test("recruitment navigation is grouped and OAuth settings stay restricted", () => {
+test("recruitment administration has one configuration entry and email settings only", () => {
   const menu = getVisibleAdminDashboardMenu("super_admin");
   assert.equal(menu[0]?.label, "招新工作台");
   assert.equal(menu.find((item) => item.key === "candidate-processing")?.label, "候选人处理");
-  const recruitmentSettings = menu.find((item) => item.key === "recruitment-settings");
-  assert.ok(recruitmentSettings && "children" in recruitmentSettings);
-  assert.deepEqual(recruitmentSettings.children.map((item) => item.label), ["届次与报名字段", "面试场次", "招新组别"]);
+  assert.equal(menu.find((item) => item.key === "recruitment-management")?.label, "招新管理");
+  assert.equal(menu.find((item) => item.key === "accounts")?.label, "账号与权限");
   assert.equal(menu.some((item) => item.key === "portal-content" || item.key === "recruitment-statistics"), false);
   const systemConfig = menu.find((item) => item.key === "system-config");
   assert.ok(systemConfig && "children" in systemConfig);
-  assert.ok(systemConfig.children.some((child) => child.label === "第三方登录" && child.href === "/dashboard/admin/system-config/oauth"));
+  assert.deepEqual(systemConfig.children.map((child) => child.href), ["/dashboard/admin/system-config/email"]);
 });
 
 test("candidate navigation has one recruitment destination and admin tools stay restricted", () => {
-  assert.deepEqual(getUserDashboardMenu().map((item) => item.href), ["/dashboard/users/registrations"]);
-  assert.equal(getUserDashboardMenu()[0]?.label, "我的招新");
+  assert.deepEqual(getUserDashboardMenu("user").map((item) => item.href), ["/dashboard/users/registrations"]);
+  assert.equal(getUserDashboardMenu("user")[0]?.label, "我的招新");
+  assert.deepEqual(getUserDashboardMenu("admin"), []);
+  assert.deepEqual(getUserDashboardMenu("super_admin"), []);
   const adminMenu = getVisibleAdminDashboardMenu("admin");
   assert.equal(adminMenu.some((item) => item.key === "system-config"), false);
-  assert.equal(adminMenu.some((item) => item.key === "recruitment-settings" || item.key === "accounts"), false);
+  assert.equal(adminMenu.some((item) => item.key === "recruitment-management" || item.key === "accounts"), false);
 });
 
 test("admin routes require an exact workbench match and each route's own menu permission", () => {
   const cases = [
     ["/dashboard/admin", true],
     ["/dashboard/admin/registrations", true],
+    ["/dashboard/admin/recruitment", false],
     ["/dashboard/admin/interview-sessions", false],
     ["/dashboard/admin/recruitment-settings", false],
     ["/dashboard/admin/recruitment-groups", false],
@@ -50,11 +52,9 @@ test("super admin can access every listed admin route", () => {
   const paths = [
     "/dashboard/admin",
     "/dashboard/admin/registrations",
-    "/dashboard/admin/interview-sessions",
-    "/dashboard/admin/recruitment-settings",
-    "/dashboard/admin/recruitment-groups",
+    "/dashboard/admin/recruitment",
     "/dashboard/admin/users",
-    "/dashboard/admin/system-config/oauth",
+    "/dashboard/admin/system-config/email",
   ];
 
   for (const pathname of paths) {

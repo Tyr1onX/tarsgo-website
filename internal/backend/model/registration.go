@@ -93,15 +93,17 @@ type Registration struct {
 }
 
 type InterviewSession struct {
-	ID        uint64    `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
-	Date      string    `json:"date" gorm:"size:10;not null;index:idx_interview_session_date"`
-	Label     string    `json:"label" gorm:"size:50;not null"`
-	StartTime string    `json:"startTime" gorm:"size:5;not null"`
-	EndTime   string    `json:"endTime" gorm:"size:5;not null"`
-	Location  string    `json:"location" gorm:"size:255;not null"`
-	Enabled   bool      `json:"enabled" gorm:"not null;default:true;index:idx_interview_session_enabled"`
-	CreatedAt time.Time `json:"createdAt" gorm:"type:datetime;not null;default:CURRENT_TIMESTAMP"`
-	UpdatedAt time.Time `json:"updatedAt" gorm:"type:datetime;not null;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"`
+	ID        uint64            `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
+	FormID    *uint64           `json:"formId,omitempty" gorm:"column:form_id;type:bigint unsigned;default:null;index:idx_interview_session_form_id"`
+	Date      string            `json:"date" gorm:"size:10;not null;index:idx_interview_session_date"`
+	Label     string            `json:"label" gorm:"size:50;not null"`
+	StartTime string            `json:"startTime" gorm:"size:5;not null"`
+	EndTime   string            `json:"endTime" gorm:"size:5;not null"`
+	Location  string            `json:"location" gorm:"size:255;not null"`
+	Enabled   bool              `json:"enabled" gorm:"not null;default:true;index:idx_interview_session_enabled"`
+	CreatedAt time.Time         `json:"createdAt" gorm:"type:datetime;not null;default:CURRENT_TIMESTAMP"`
+	UpdatedAt time.Time         `json:"updatedAt" gorm:"type:datetime;not null;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"`
+	Form      *RegistrationForm `json:"form,omitempty" gorm:"foreignKey:FormID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:SET NULL;"`
 }
 
 type RegistrationInterview struct {

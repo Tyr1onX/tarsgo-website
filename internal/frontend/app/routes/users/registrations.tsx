@@ -908,8 +908,7 @@ function InterviewAttendanceCard({
     return (
       <section className="admin-panel candidate-panel candidate-interview-card p-5">
         <h2 className="text-lg font-semibold text-fg-primary">线下面试</h2>
-        <p className="mt-2 text-sm text-fg-muted">你已通过初筛。</p>
-        <p className="mt-1 text-sm text-fg-dim">面试时间尚未开放，请等待后续通知。</p>
+        <p className="mt-2 text-sm text-fg-muted">你已通过初筛，面试时间尚未开放，请等待后续通知。</p>
       </section>
     );
   }

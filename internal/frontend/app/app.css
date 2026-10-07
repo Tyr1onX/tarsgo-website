@@ -1607,49 +1607,6 @@ html {
   color: #ebcb8e;
 }
 
-.auth-oauth-divider {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-block: 1.5rem 0.875rem;
-  color: var(--admin-dim);
-  font-size: 0.6875rem;
-}
-
-.auth-oauth-divider::before,
-.auth-oauth-divider::after {
-  height: 1px;
-  flex: 1;
-  background: var(--admin-border-subtle);
-  content: "";
-}
-
-.auth-oauth-list {
-  display: grid;
-  gap: 0.5rem;
-}
-
-.auth-oauth-link {
-  display: inline-flex;
-  min-height: 2.75rem;
-  align-items: center;
-  justify-content: center;
-  gap: 0.625rem;
-  border: 1px solid var(--admin-border);
-  border-radius: var(--admin-radius-md);
-  background: transparent;
-  padding: 0.625rem 0.875rem;
-  color: var(--admin-muted);
-  font-size: 0.8125rem;
-  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
-}
-
-.auth-oauth-link:hover {
-  border-color: #59604f;
-  background: rgba(255, 255, 255, 0.025);
-  color: var(--admin-text);
-}
-
 .auth-page--leaving .auth-main {
   animation: auth-exit 0.35s cubic-bezier(0.5, 0, 0.75, 0) forwards;
 }

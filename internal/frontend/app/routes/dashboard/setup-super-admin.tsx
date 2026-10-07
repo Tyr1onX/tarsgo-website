@@ -15,7 +15,7 @@ export function meta() {
 export async function clientLoader(_: Route.ClientLoaderArgs) {
   const status = await getBootstrapStatus();
   if (!status.setupRequired) {
-    throw redirect("/dashboard");
+    throw redirect("/dashboard/admin");
   }
 
   return null;

@@ -28,7 +28,6 @@ type registrationService interface {
 	ScreenRegistration(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64, input registration.ScreeningDecisionInput) (*registration.RegistrationDetail, error)
 	RecordInterviewResult(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64, input registration.InterviewDecisionInput) (*registration.RegistrationDetail, error)
 	UndoScreening(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64) (*registration.RegistrationDetail, error)
-	DeleteRegistration(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64) error
 	OpenRegistrationFile(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64, fieldKey string, index int) (*registration.RegistrationFileResult, error)
 	ExportFormRegistrationsCSV(ctx context.Context, actor registration.RegistrationFormActor, formID uint64, baseURL string) (*registration.RegistrationCSVExportResult, error)
 	ListInterviewSessions(ctx context.Context, actor registration.RegistrationFormActor) ([]registration.InterviewSessionView, error)
@@ -253,22 +252,6 @@ func (h *RegistrationHandler) RecordInterviewResult(c *gin.Context) {
 		return
 	}
 	writeAPI(c, http.StatusOK, "更新面试结果成功", detail)
-}
-
-func (h *RegistrationHandler) DeleteRegistration(c *gin.Context) {
-	registrationID, err := parsePathID(c.Param("id"))
-	if err != nil {
-		writeAPIError(c, http.StatusBadRequest, "无效的报名记录 ID")
-		return
-	}
-
-	serviceErr := h.service.DeleteRegistration(c.Request.Context(), currentRegistrationFormActor(c), registrationID)
-	if serviceErr != nil {
-		h.handleServiceError(c, serviceErr)
-		return
-	}
-
-	writeAPI(c, http.StatusOK, "删除报名记录成功", nil)
 }
 
 func (h *RegistrationHandler) OpenRegistrationFile(c *gin.Context) {

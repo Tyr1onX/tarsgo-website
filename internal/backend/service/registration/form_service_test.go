@@ -43,7 +43,7 @@ func TestRegistrationFormServiceCreateFormRejectsMissingLockedFields(t *testing.
 	repo := newFakeRegistrationFormRepository()
 	service := newRegistrationFormServiceWithRepo(repo)
 
-	_, err := service.CreateForm(context.Background(), RegistrationFormActor{ID: 1, RoleName: model.RoleNameAdmin}, UpsertRegistrationFormInput{
+	_, err := service.CreateForm(context.Background(), RegistrationFormActor{ID: 1, RoleName: model.RoleNameSuperAdmin}, UpsertRegistrationFormInput{
 		Title: "2026 招新报名",
 		FieldsSchema: []model.FormField{
 			{Key: "name", Label: "姓名", Type: "text", Required: true},
@@ -53,6 +53,16 @@ func TestRegistrationFormServiceCreateFormRejectsMissingLockedFields(t *testing.
 	})
 
 	assertRegistrationFormServiceError(t, err, 400, "系统字段")
+}
+
+func TestRegistrationFormConfigurationIsSuperAdminOnly(t *testing.T) {
+	repo := newFakeRegistrationFormRepository()
+	service := newRegistrationFormServiceWithRepo(repo)
+
+	_, err := service.CreateForm(context.Background(), RegistrationFormActor{ID: 2, RoleName: model.RoleNameAdmin}, UpsertRegistrationFormInput{
+		Title: "2026 招新报名", FieldsSchema: validRegistrationFields(), Status: model.RegistrationFormStatusDraft,
+	})
+	assertRegistrationFormServiceError(t, err, 403, "超级管理员")
 }
 
 func TestRegistrationFormServiceUpdateFormRejectsPublishConflict(t *testing.T) {
@@ -91,6 +101,20 @@ func TestRegistrationFormServiceGetRecruitmentPageDataReturnsUnavailableWhenNotS
 	}
 	if result.Form != nil {
 		t.Fatalf("expected no form payload for unavailable state")
+	}
+}
+
+func TestRegistrationFormServiceShowsNoOpenRecruitmentWhenNoFormIsPublished(t *testing.T) {
+	repo := newFakeRegistrationFormRepository()
+	repo.forms[2].Status = model.RegistrationFormStatusClosed
+	service := newRegistrationFormServiceWithRepo(repo)
+
+	result, err := service.GetRecruitmentPageData(context.Background(), RegistrationFormActor{ID: 9, RoleName: model.RoleNameUser})
+	if err != nil {
+		t.Fatalf("GetRecruitmentPageData returned error: %v", err)
+	}
+	if result.PageMode != "unavailable" || result.UnavailableReason == nil || *result.UnavailableReason != "当前暂无开放招新" {
+		t.Fatalf("expected exact no-open-recruitment state, got %#v", result)
 	}
 }
 
@@ -274,7 +298,7 @@ func TestRegistrationFormServiceCreateFormPersistsValidForm(t *testing.T) {
 	startAt := time.Date(2026, 4, 20, 9, 0, 0, 0, time.Local)
 	endAt := startAt.Add(72 * time.Hour)
 
-	detail, err := service.CreateForm(context.Background(), RegistrationFormActor{ID: 5, RoleName: model.RoleNameAdmin}, UpsertRegistrationFormInput{
+	detail, err := service.CreateForm(context.Background(), RegistrationFormActor{ID: 5, RoleName: model.RoleNameSuperAdmin}, UpsertRegistrationFormInput{
 		Title:            "2026 春季招新",
 		Description:      "欢迎加入 TARS-GO",
 		CoverImageURL:    "https://example.com/cover.jpg",

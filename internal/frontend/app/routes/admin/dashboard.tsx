@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link } from "react-router";
+import { Link, useOutletContext } from "react-router";
 
 import { ApiError } from "~/lib/api-client";
 import { getUpcomingInterviewSessions } from "~/lib/admin-workbench";
 import { listAdminInterviewSessions, listAdminRegistrations, type InterviewSession, type RegistrationSummary, type RecruitmentStatus } from "~/lib/registrations-client";
+import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 
 export function meta() {
   return [{ title: "招新工作台 | TARS-GO" }, { name: "description", content: "TARS-GO 当前招新处理工作台" }];
@@ -19,7 +20,9 @@ const statusItems: Array<{ status: RecruitmentStatus; label: string; countKey: k
 ];
 
 export default function AdminDashboard() {
+  const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
   const [summary, setSummary] = useState<RegistrationSummary | null>(null);
+  const [currentFormAvailable, setCurrentFormAvailable] = useState(true);
   const [sessions, setSessions] = useState<InterviewSession[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -40,6 +43,7 @@ export default function AdminDashboard() {
         listAdminInterviewSessions(),
       ]);
       setSummary(registrations.summary);
+      setCurrentFormAvailable(registrations.currentFormAvailable);
       setSessions(nextSessions);
       hasData.current = true;
     } catch (cause) {
@@ -106,6 +110,11 @@ export default function AdminDashboard() {
           <Link to="/dashboard/admin/registrations" className="admin-button admin-button--primary">进入报名处理 <span aria-hidden="true">→</span></Link>
         </header>
 
+        {!currentFormAvailable ? (
+          <div className="admin-workbench__empty" role="status">当前暂无进行中的招新</div>
+        ) : (
+          <>
+
         {refreshError && (
           <div role="status" className="admin-notice admin-notice--warning flex flex-wrap items-center justify-between gap-3 mb-5">
             <span>自动刷新失败：{refreshError}，当前仍显示上次成功获取的数据。</span>
@@ -156,7 +165,9 @@ export default function AdminDashboard() {
               <h2>近期面试场次</h2>
               <p>已启用，今天至未来 14 天</p>
             </div>
-            <Link to="/dashboard/admin/interview-sessions">管理场次 <span aria-hidden="true">→</span></Link>
+            {currentUser.role.name === "super_admin" ? (
+              <Link to="/dashboard/admin/recruitment?tab=sessions">管理场次 <span aria-hidden="true">→</span></Link>
+            ) : null}
           </div>
           {upcomingSessions.length === 0 ? (
             <div className="admin-workbench__empty">暂无近期开放场次</div>
@@ -166,6 +177,9 @@ export default function AdminDashboard() {
             </div>
           )}
         </section>
+
+          </>
+        )}
 
       </div>
     </div>

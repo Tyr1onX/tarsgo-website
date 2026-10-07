@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -20,8 +19,6 @@ type systemConfigService interface {
 	GetEmailConfig(ctx context.Context) (*systemconfig.EmailConfig, error)
 	TestEmailConfig(ctx context.Context, input systemconfig.TestEmailInput) error
 	TestVerificationCodeConfig(ctx context.Context, input systemconfig.TestVerificationCodeInput) error
-	GetOAuthConfigs(ctx context.Context) ([]systemconfig.OAuthProviderConfig, error)
-	UpdateOAuthConfig(ctx context.Context, provider string, input systemconfig.UpdateOAuthProviderInput) (*systemconfig.OAuthProviderConfig, error)
 }
 
 type registerFlowService interface {
@@ -40,14 +37,6 @@ type sendRegisterFlowCodeRequest struct {
 type verifyRegisterFlowCodeRequest struct {
 	Email string `json:"email" binding:"required,email,max=255"`
 	Code  string `json:"code" binding:"required,len=6,numeric"`
-}
-
-type updateOAuthProviderRequest struct {
-	Enabled      bool   `json:"enabled"`
-	ClientID     string `json:"clientId" binding:"max=255"`
-	ClientSecret string `json:"clientSecret" binding:"max=255"`
-	CallbackURL  string `json:"callbackUrl" binding:"max=500"`
-	Scope        string `json:"scope" binding:"max=255"`
 }
 
 func NewSystemConfigHandler(service systemConfigService, registerFlow registerFlowService) *SystemConfigHandler {
@@ -131,40 +120,6 @@ func (h *SystemConfigHandler) VerifyRegisterFlowCode(c *gin.Context) {
 	}
 
 	writeAPI(c, http.StatusOK, "验证码校验通过", nil)
-}
-
-func (h *SystemConfigHandler) GetOAuthConfigs(c *gin.Context) {
-	items, err := h.service.GetOAuthConfigs(c.Request.Context())
-	if err != nil {
-		h.handleServiceError(c, err)
-		return
-	}
-
-	writeAPI(c, http.StatusOK, "获取第三方登录配置成功", gin.H{"items": items})
-}
-
-func (h *SystemConfigHandler) UpdateOAuthConfig(c *gin.Context) {
-	provider := strings.TrimSpace(c.Param("provider"))
-
-	var request updateOAuthProviderRequest
-	if err := c.ShouldBindJSON(&request); err != nil {
-		writeAPIError(c, http.StatusBadRequest, "请求参数不合法")
-		return
-	}
-
-	result, err := h.service.UpdateOAuthConfig(c.Request.Context(), provider, systemconfig.UpdateOAuthProviderInput{
-		Enabled:      request.Enabled,
-		ClientID:     request.ClientID,
-		ClientSecret: request.ClientSecret,
-		CallbackURL:  request.CallbackURL,
-		Scope:        request.Scope,
-	})
-	if err != nil {
-		h.handleServiceError(c, err)
-		return
-	}
-
-	writeAPI(c, http.StatusOK, "第三方登录配置已保存并立即生效", result)
 }
 
 func (h *SystemConfigHandler) handleServiceError(c *gin.Context, err error) {

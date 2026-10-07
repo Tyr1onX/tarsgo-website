@@ -232,7 +232,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const sidebarResizeStartXRef = useRef(0);
   const sidebarResizeStartWidthRef = useRef(SIDEBAR_DEFAULT_WIDTH);
   const { currentUser } = loaderData;
-  const userMenuItems = getUserDashboardMenu();
+  const userMenuItems = getUserDashboardMenu(currentUser);
   const adminMenuItems = getVisibleAdminDashboardMenu(currentUser);
   const showAdminSection = hasDashboardAdminAccess(currentUser.role.name) && adminMenuItems.length > 0;
   const userInitial = (currentUser.nickname?.trim() || currentUser.email.trim() || "U")
@@ -443,7 +443,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
         <div className="dashboard-shell__divider mx-4 shrink-0" aria-hidden="true" />
 
         <nav className="flex-1 overflow-y-auto px-3 py-4">
-          <div>
+          {userMenuItems.length > 0 ? (
             <div className="space-y-1">
               {userMenuItems.map((item) => (
                 <SidebarItem
@@ -453,7 +453,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
                 />
               ))}
             </div>
-          </div>
+          ) : null}
 
           {showAdminSection ? (
             <div className="mt-6 pt-5 border-t border-white/[0.06]">

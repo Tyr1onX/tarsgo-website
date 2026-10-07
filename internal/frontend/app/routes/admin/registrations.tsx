@@ -1,9 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 
 import { ApiError, buildApiUrl } from "~/lib/api-client";
 import {
-  deleteAdminRegistration,
   getAdminRegistration,
   listAdminInterviewSessions,
   listAdminRegistrations,
@@ -19,12 +18,7 @@ import {
   type RegistrationPagination,
   type RegistrationSummary,
 } from "~/lib/registrations-client";
-import {
-  getAdminRegistrationFormExportUrl,
-  listAdminRegistrationForms,
-  type RegistrationFormField,
-  type RegistrationFormListItem,
-} from "~/lib/registration-forms-client";
+import type { RegistrationFormField } from "~/lib/registration-forms-client";
 import { listAdminUserGroupOptions, type AdminUserGroupOption } from "~/lib/admin-user-groups-client";
 
 export function meta() {
@@ -74,7 +68,6 @@ export default function Registrations() {
   const initialStatus = statusOptions.some((option) => option.value !== "" && option.value === searchParams.get("status"))
     ? searchParams.get("status") as RecruitmentStatus
     : "";
-  const [forms, setForms] = useState<RegistrationFormListItem[]>([]);
   const [groups, setGroups] = useState<AdminUserGroupOption[]>([]);
   const [sessions, setSessions] = useState<InterviewSession[]>([]);
   const [query, setQuery] = useState<ListRegistrationsInput>({
@@ -82,7 +75,6 @@ export default function Registrations() {
     pageSize: 10,
     keyword: "",
     status: initialStatus,
-    formId: "",
     preferredGroupId: "",
     interviewAttendance: "",
     interviewDate: "",
@@ -91,6 +83,7 @@ export default function Registrations() {
   const [draftKeyword, setDraftKeyword] = useState("");
   const [items, setItems] = useState<RegistrationListItem[]>([]);
   const [summary, setSummary] = useState(defaultSummary);
+  const [currentFormAvailable, setCurrentFormAvailable] = useState<boolean | null>(null);
   const [pagination, setPagination] = useState(defaultPagination);
   const [loading, setLoading] = useState(false);
   const [flash, setFlash] = useState<Flash>(null);
@@ -101,20 +94,6 @@ export default function Registrations() {
   const [actionLoading, setActionLoading] = useState(false);
   const [screeningRemark, setScreeningRemark] = useState("");
   const [interviewRemark, setInterviewRemark] = useState("");
-
-  useEffect(() => {
-    let cancelled = false;
-    listAdminRegistrationForms()
-      .then((result) => {
-        if (!cancelled) setForms(result.items);
-      })
-      .catch((error) => {
-        if (!cancelled) handleError(error);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -141,6 +120,7 @@ export default function Registrations() {
         setItems(result.items);
         setSummary(result.summary);
         setPagination(result.pagination);
+        setCurrentFormAvailable(result.currentFormAvailable);
       })
       .catch((error) => {
         if (!cancelled) handleError(error);
@@ -177,11 +157,6 @@ export default function Registrations() {
       cancelled = true;
     };
   }, [selectedId]);
-
-  const selectedForm = useMemo(
-    () => forms.find((form) => form.id === Number(query.formId)),
-    [forms, query.formId],
-  );
 
   function handleError(error: unknown) {
     if (error instanceof ApiError && error.status === 401) {
@@ -230,20 +205,6 @@ export default function Registrations() {
     }
   }
 
-  async function handleDelete(item: RegistrationListItem) {
-    if (!window.confirm(`确认删除 ${item.contactName || item.contactEmail || "该候选人"} 的报名记录？此操作仅用于管理员数据清理。`)) {
-      return;
-    }
-    try {
-      await deleteAdminRegistration(item.id);
-      if (selectedId === item.id) setSelectedId(null);
-      await refreshAfterAction();
-      setFlash({ type: "success", message: "报名记录已删除。" });
-    } catch (error) {
-      handleError(error);
-    }
-  }
-
   function submitSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setQuery((current) => ({ ...current, page: 1, keyword: draftKeyword.trim() }));
@@ -281,7 +242,13 @@ export default function Registrations() {
         </div>
       ) : null}
 
-      <section aria-label="报名阶段处理队列" className="admin-pipeline">
+      {currentFormAvailable === false ? (
+        <div className="admin-panel px-5 py-8 text-center text-fg-muted" role="status">
+          当前暂无进行中的招新
+        </div>
+      ) : null}
+
+      {currentFormAvailable !== false ? <section aria-label="报名阶段处理队列" className="admin-pipeline">
         <div>
           <h2 className="font-medium text-fg-primary">按阶段处理</h2>
           <p className="mt-1 text-sm text-fg-dim">选择一个阶段打开对应队列；其他筛选条件会继续保留。</p>
@@ -324,9 +291,9 @@ export default function Registrations() {
             onClick={() => selectPipelineStatus("withdrawn")}
           />
         </div>
-      </section>
+      </section> : null}
 
-      <form
+      {currentFormAvailable !== false ? <form
         aria-label="筛选报名记录"
         onSubmit={submitSearch}
         className="admin-filter-panel admin-filter-grid"
@@ -351,24 +318,6 @@ export default function Registrations() {
           {statusOptions.map((option) => (
             <option key={option.value || "all"} value={option.value}>
               {option.label}
-            </option>
-          ))}
-        </select>
-        <select
-          value={query.formId ?? ""}
-          onChange={(event) =>
-            setQuery((current) => ({
-              ...current,
-              page: 1,
-              formId: event.target.value ? Number(event.target.value) : "",
-            }))
-          }
-          className="admin-field"
-        >
-          <option value="">全部报名表</option>
-          {forms.map((form) => (
-            <option key={form.id} value={form.id}>
-              {form.title}
             </option>
           ))}
         </select>
@@ -424,21 +373,10 @@ export default function Registrations() {
           <button type="submit" className="admin-button admin-button--primary">
             搜索
           </button>
-          <a
-            href={selectedForm ? getAdminRegistrationFormExportUrl(selectedForm.id) : undefined}
-            onClick={(event) => {
-              if (!selectedForm) event.preventDefault();
-            }}
-            className={`admin-button admin-button--secondary ${
-              selectedForm ? "" : "pointer-events-none opacity-40"
-            }`}
-          >
-            导出当前报名表
-          </a>
         </div>
-      </form>
+      </form> : null}
 
-      <section className="admin-panel overflow-hidden">
+      {currentFormAvailable !== false ? <section className="admin-panel overflow-hidden">
         <div className="overflow-x-auto">
           <table className="admin-table">
             <thead>
@@ -496,13 +434,6 @@ export default function Registrations() {
                         >
                           {getRegistrationActionLabel(item.status)}
                         </button>
-                        <button
-                          type="button"
-                          onClick={() => void handleDelete(item)}
-                          className="admin-button admin-button--danger admin-button--small"
-                        >
-                          删除
-                        </button>
                       </div>
                     </td>
                   </tr>
@@ -535,7 +466,7 @@ export default function Registrations() {
             </button>
           </div>
         </div>
-      </section>
+      </section> : null}
 
       {selectedId != null ? (
         <div
