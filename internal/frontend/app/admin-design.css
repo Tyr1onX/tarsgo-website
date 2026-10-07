@@ -1,6 +1,7 @@
-/* Shared admin palette and components. Tokens are scoped to the admin shell and pages. */
+/* Shared graphite and warm-gold palette for admin and authentication surfaces. */
 .dashboard-shell--admin-design,
-.admin-design {
+.admin-design,
+.auth-page {
   --admin-canvas: #101516;
   --admin-surface: #171e1e;
   --admin-surface-hover: #1b2322;
