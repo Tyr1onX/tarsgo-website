@@ -232,6 +232,21 @@ case "$command" in
     shift
     case "$subcommand" in
       inspect)
+        if [[ "${1:-}" == --format ]]; then
+          format="$2"
+          object="$3"
+          field=""
+          case "$format" in
+            '{{.Parent}}') field=2 ;;
+            '{{json .RepoTags}}') field=3 ;;
+            *) exit 90 ;;
+          esac
+          awk -F '|' -v id="$object" -v column="$field" '
+            $1 == id { print $column; found=1; exit }
+            END { if (!found) exit 1 }
+          ' "$MOCK_IMAGE_GRAPH"
+          exit $?
+        fi
         grep -Fxq -- "$1" "$MOCK_IMAGE_NAMES" && exit 0
         [[ "$1" == mariadb:11.4 ]] && exit 0
         exit 1
@@ -244,9 +259,14 @@ case "$command" in
         ;;
       rm)
         object="$1"
+        [[ ! -f "$MOCK_BLOCKED_PARENTS" ]] || {
+          if grep -Fxq -- "$object" "$MOCK_BLOCKED_PARENTS"; then exit 1; fi
+        }
         printf '%s\n' "$object" >>"$MOCK_REMOVED_IMAGES"
         sed "\|^$object\$|d" "$MOCK_IMAGE_NAMES" >"$MOCK_IMAGE_NAMES.tmp"
         mv "$MOCK_IMAGE_NAMES.tmp" "$MOCK_IMAGE_NAMES"
+        awk -F '|' -v id="$object" '$1 != id' "$MOCK_IMAGE_GRAPH" >"$MOCK_IMAGE_GRAPH.tmp"
+        mv "$MOCK_IMAGE_GRAPH.tmp" "$MOCK_IMAGE_GRAPH"
         exit 0
         ;;
     esac
@@ -259,7 +279,16 @@ case "$command" in
     exit 0
     ;;
   run) exit 0 ;;
-  ps) echo "jijia-app mock healthy"; exit 0 ;;
+  ps)
+    if [[ "$*" == "-aq --filter ancestor="* ]]; then
+      object="${*: -1}"
+      object="${object#ancestor=}"
+      if grep -Fxq -- "$object" "$MOCK_BUSY_PARENTS"; then echo protected_container; fi
+      exit 0
+    fi
+    echo "jijia-app mock healthy"
+    exit 0
+    ;;
 esac
 echo "unexpected mocked docker command: $command $*" >&2
 exit 90
@@ -309,6 +338,9 @@ COMPOSE
   (cd "$case_dir/jijia/releases/$release" && sha256sum Dockerfile commit.txt tarsgo-backend-linux-amd64 tarsgo-migrate-linux-amd64 >SHA256SUMS)
   : >"$case_dir/docker.log"
   : >"$case_dir/removed-images"
+  : >"$case_dir/image-graph"
+  : >"$case_dir/busy-parents"
+  : >"$case_dir/blocked-parents"
 }
 
 run_remote_deploy() {
@@ -316,6 +348,8 @@ run_remote_deploy() {
   MOCK_DOCKER_LOG="$case_dir/docker.log" MOCK_COMPOSE="$case_dir/jijia/compose.yaml" \
   MOCK_RUNNING_IMAGE="$case_dir/running-image" MOCK_IMAGE_NAMES="$case_dir/image-names" \
   MOCK_REMOVED_IMAGES="$case_dir/removed-images" MOCK_NEW_IMAGE="jijia-backend:$tag" \
+  MOCK_IMAGE_GRAPH="$case_dir/image-graph" MOCK_BUSY_PARENTS="$case_dir/busy-parents" \
+  MOCK_BLOCKED_PARENTS="$case_dir/blocked-parents" \
   MOCK_FAIL_HEALTH="$fail_health" PATH="$case_dir/bin:$PATH" \
   HEALTH_ATTEMPTS=2 HEALTH_INTERVAL=0 bash "$repo_root/scripts/deploy-production-remote.sh" \
     "$case_dir/jijia" "$release" "$tag" "jijia-backend:$previous" "$previous" "$commit"
@@ -335,6 +369,56 @@ test_retention_keeps_two_releases() {
   grep -Fxq "previous_release=$previous" "$case_dir/jijia/.production-retention-state" || fail "previous release was not recorded for future safe cleanup"
   [[ ! -e "$case_dir/jijia/releases/20260901-old-release-7654321" ]] || fail "old release directory survived retention"
   pass "successful deployment retention keeps current and previous image/release"
+}
+
+test_retention_reclaims_only_retired_jijia_parent_chain() {
+  local case_dir="$tmp/parent-chain" release=20261006-ops-retention-abcdef4 previous=20260930-admin-design-system-abcdef0 commit=abcdef4123456789012345678901234567890123
+  local parent_a parent_b common_base other_parent
+  printf -v parent_a 'sha256:%064d' 101
+  printf -v parent_b 'sha256:%064d' 102
+  printf -v common_base 'sha256:%064d' 103
+  printf -v other_parent 'sha256:%064d' 104
+  init_remote_fixture "$case_dir" "$release" "$previous" "$commit"
+  cat >"$case_dir/image-graph" <<GRAPH
+jijia-backend:20260815-stale-tag-1234567|$parent_a|["jijia-backend:20260815-stale-tag-1234567"]
+$parent_a|$parent_b|[]
+$parent_b|$common_base|[]
+$common_base||["alpine:3"]
+$other_parent||[]
+GRAPH
+  run_remote_deploy "$case_dir" "$release" "$release" "$previous" "$commit" 0 >/dev/null
+  grep -Fxq "$parent_a" "$case_dir/removed-images" || fail "retired Jijia image parent was not removed"
+  grep -Fxq "$parent_b" "$case_dir/removed-images" || fail "retired Jijia image grandparent was not removed"
+  ! grep -Fxq "$common_base" "$case_dir/removed-images" || fail "tagged common base image was removed"
+  ! grep -Fxq "$other_parent" "$case_dir/removed-images" || fail "unrelated image was removed"
+  grep -Fxq "jijia-backend:$previous" "$case_dir/image-names" || fail "rollback image was removed"
+  grep -Fxq "jijia-backend:$release" "$case_dir/image-names" || fail "current image was removed"
+  ! grep -Eq 'system prune|volume prune|image prune' "$case_dir/docker.log" || fail "retention used global prune"
+  pass "retired Jijia image parents are reclaimed without touching tagged bases or unrelated images"
+}
+
+test_retention_skips_referenced_parents() {
+  local release=20261006-ops-retention-abcdef5 previous=20260930-admin-design-system-abcdef0 commit=abcdef5123456789012345678901234567890123 case_dir
+  local parent_a parent_b
+  printf -v parent_a 'sha256:%064d' 201
+  printf -v parent_b 'sha256:%064d' 202
+
+  case_dir="$tmp/parent-busy"
+  init_remote_fixture "$case_dir" "$release" "$previous" "$commit"
+  printf 'jijia-backend:20260815-stale-tag-1234567|%s|["jijia-backend:20260815-stale-tag-1234567"]\n%s|%s|[]\n' "$parent_a" "$parent_a" "$parent_b" >"$case_dir/image-graph"
+  printf '%s\n' "$parent_a" >"$case_dir/busy-parents"
+  run_remote_deploy "$case_dir" "$release" "$release" "$previous" "$commit" 0 >/dev/null
+  ! grep -Fxq "$parent_a" "$case_dir/removed-images" || fail "parent with container references was removed"
+  pass "parent chains used by running or stopped containers are preserved"
+
+  case_dir="$tmp/parent-blocked"
+  init_remote_fixture "$case_dir" "$release" "$previous" "$commit"
+  printf 'jijia-backend:20260815-stale-tag-1234567|%s|["jijia-backend:20260815-stale-tag-1234567"]\n%s|%s|[]\n%s||[]\n' "$parent_a" "$parent_a" "$parent_b" "$parent_b" >"$case_dir/image-graph"
+  printf '%s\n' "$parent_a" >"$case_dir/blocked-parents"
+  run_remote_deploy "$case_dir" "$release" "$release" "$previous" "$commit" 0 >/dev/null 2>&1
+  ! grep -Fxq "$parent_a" "$case_dir/removed-images" || fail "image rejected by Docker was marked as removed"
+  ! grep -Fxq "$parent_b" "$case_dir/removed-images" || fail "traversal continued past a protected parent"
+  pass "Docker image conflicts stop parent cleanup without failing a healthy deploy"
 }
 
 test_health_failure_skips_retention() {
@@ -459,6 +543,8 @@ PY
 test_high_water_abort_precedes_build
 test_safe_cleanup_and_fresh_threshold
 test_retention_keeps_two_releases
+test_retention_reclaims_only_retired_jijia_parent_chain
+test_retention_skips_referenced_parents
 test_health_failure_skips_retention
 test_previous_release_sha_mismatch_stops_before_build
 test_backup_retention_waits_for_remote_checksum

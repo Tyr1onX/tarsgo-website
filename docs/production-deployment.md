@@ -35,8 +35,8 @@ systemd timer 每天 04:00 UTC 运行 `backup-production.service`。正式发布
 2. 使用新镜像执行 migration。
 3. 更新 Compose 并启动新应用容器。
 4. 等待应用容器、MariaDB 容器均为 healthy，且本机 `/healthz` 正常。
-5. 只有以上步骤成功后，按显式记录的 tag 和 release 名保留 current 与 `previous_stable`，删除更旧的 TarsGo 镜像和 release。
-6. 再核验两个镜像、两个 release、容器健康和 `/healthz`，并报告磁盘和容器状态。
+5. 只有以上步骤成功后，按显式记录的 tag 和 release 名保留 current 与 `previous_stable`，删除更旧的吉甲镜像和 release。删除旧版吉甲镜像后，沿**该旧镜像事先记录的父级构建链**逐层检查：只尝试删除无标签、无容器引用的父镜像；遇到共享镜像、有标签镜像、引用检查失败或 Docker 拒绝删除时立即停止。不会扫描或清理其他项目的无标签镜像，也不会触碰卷、数据库或 RedPalm。
+6. 再核验两个镜像、两个 release、容器健康和 `/healthz`，并报告磁盘、容器状态及 retention 前后可用字节数（实际差值可能受到同期日志写入影响）。
 
 健康检查失败时恢复之前的 Compose 配置并启动 `previous_stable`；不会执行发布成功后的镜像/release retention。Retention 后使用率若达到或超过 85%，只发出告警并停止额外清理。脚本不运行 Docker 全局 prune，也不清理其他项目或 volume。
 
