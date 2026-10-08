@@ -150,6 +150,41 @@ fi
 docker image inspect "$new_image" >/dev/null
 docker image inspect "$previous_image" >/dev/null
 
+# Only traverse parents recorded from an explicitly retired jijia-backend tag.
+# Never prune all dangling images: the host also runs TARS Base and other services.
+reclaim_retired_jijia_parents() {
+  local parent="$1" next_parent tags container_refs
+  local removed=0
+  while [[ "$parent" =~ ^sha256:[0-9a-f]{64}$ ]]; do
+    if ! tags="$(docker image inspect --format '{{json .RepoTags}}' "$parent" 2>/dev/null)"; then
+      break
+    fi
+    # Tagged parents (including shared base images) must never be removed.
+    [[ "$tags" == '[]' ]] || break
+    # Running *and stopped* containers protect their image ancestry.
+    if ! container_refs="$(docker ps -aq --filter "ancestor=$parent")"; then
+      echo "WARNING: cannot verify image consumers for $parent; preserving the remaining chain." >&2
+      break
+    fi
+    if [[ -n "$container_refs" ]]; then
+      break
+    fi
+    if ! next_parent="$(docker image inspect --format '{{.Parent}}' "$parent" 2>/dev/null)"; then
+      break
+    fi
+    # Docker enforces remaining child-image references, including rollback images
+    # without a running container. Failure is a safe stop, not a deployment failure.
+    if ! docker image rm "$parent" >/dev/null 2>&1; then
+      echo "Preserving still-referenced Jijia build parent $parent." >&2
+      break
+    fi
+    ((removed += 1))
+    parent="$next_parent"
+  done
+  echo "Retired Jijia build parents removed: $removed"
+}
+
+retention_available_before="$(df -B1 / | awk 'END { print $4 }')"
 retention_started=1
 while IFS= read -r image_tag_to_remove; do
   [[ -n "$image_tag_to_remove" && "$image_tag_to_remove" != '<none>' ]] || continue
@@ -157,7 +192,11 @@ while IFS= read -r image_tag_to_remove; do
     "$image_tag"|"${previous_image#jijia-backend:}") continue ;;
   esac
   if [[ "$image_tag_to_remove" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]]; then
-    docker image rm "jijia-backend:$image_tag_to_remove"
+    retired_image="jijia-backend:$image_tag_to_remove"
+    # Read lineage before removing the named image, as Docker may lose the tag.
+    retired_parent="$(docker image inspect --format '{{.Parent}}' "$retired_image" 2>/dev/null || true)"
+    docker image rm "$retired_image"
+    reclaim_retired_jijia_parents "$retired_parent"
   fi
 done < <(docker image ls --format '{{.Tag}}' jijia-backend)
 
@@ -198,6 +237,12 @@ if printf 'current_image=%s\ncurrent_release=%s\nprevious_image=%s\nprevious_rel
 else
   rm -f -- "$retention_state_tmp"
   echo "WARNING: current/previous retention state could not be recorded; future safe cleanup will preserve ambiguous Jijia history." >&2
+fi
+
+retention_available_after="$(df -B1 / | awk 'END { print $4 }')"
+if [[ "$retention_available_before" =~ ^[0-9]+$ && "$retention_available_after" =~ ^[0-9]+$ ]]; then
+  printf 'retention_free_bytes_before=%s\nretention_free_bytes_after=%s\nretention_free_bytes_delta=%s\n' \
+    "$retention_available_before" "$retention_available_after" "$((retention_available_after - retention_available_before))"
 fi
 
 echo "Production verification after retention:"
