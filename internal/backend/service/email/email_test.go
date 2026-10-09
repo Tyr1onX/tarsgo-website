@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -50,6 +51,27 @@ func TestSendEmailAPIContractAndInlineImage(t *testing.T) {
 	err := sender.SendEmail(context.Background(), Message{To: "receiver@example.com", Subject: "中文测试", Text: "<script>内容</script>", InlineImage: []byte("image"), InlineImageType: "image/png"})
 	if err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestSenderUsesConfiguredEndpoint(t *testing.T) {
+	var received bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		received = true
+		if r.URL.Path != "/emails" {
+			t.Errorf("request path = %q", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"captured"}`))
+	}))
+	defer server.Close()
+
+	sender := NewSender(config.EmailConfig{APIKey: "test-key", APIURL: server.URL + "/emails", From: "noreply@tarsgo.test"})
+	if err := sender.SendEmail(context.Background(), Message{To: "candidate@tarsgo.test", Subject: "test", Text: "test"}); err != nil {
+		t.Fatalf("SendEmail returned error: %v", err)
+	}
+	if !received {
+		t.Fatal("configured email endpoint did not receive the message")
 	}
 }
 

@@ -78,7 +78,11 @@ func (s *Sender) SendEmail(ctx context.Context, message Message) error {
 	if err != nil {
 		return deliveryError("邮件内容编码失败")
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, "https://api.resend.com/emails", bytes.NewReader(encoded))
+	endpoint := strings.TrimSpace(s.cfg.APIURL)
+	if endpoint == "" {
+		endpoint = "https://api.resend.com/emails"
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(encoded))
 	if err != nil {
 		return deliveryError("邮件请求创建失败")
 	}
