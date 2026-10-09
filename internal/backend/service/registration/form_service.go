@@ -792,13 +792,19 @@ func (r *gormRegistrationFormRepository) GetFormStats(ctx context.Context) (Regi
 	if err := query.Count(&stats.Total).Error; err != nil {
 		return stats, err
 	}
-	if err := query.Where("status = ?", model.RegistrationFormStatusDraft).Count(&stats.Draft).Error; err != nil {
+	if err := r.db.WithContext(ctx).Model(&model.RegistrationForm{}).
+		Where("status = ?", model.RegistrationFormStatusDraft).
+		Count(&stats.Draft).Error; err != nil {
 		return stats, err
 	}
-	if err := query.Where("status = ?", model.RegistrationFormStatusPublished).Count(&stats.Published).Error; err != nil {
+	if err := r.db.WithContext(ctx).Model(&model.RegistrationForm{}).
+		Where("status = ?", model.RegistrationFormStatusPublished).
+		Count(&stats.Published).Error; err != nil {
 		return stats, err
 	}
-	if err := query.Where("status = ?", model.RegistrationFormStatusClosed).Count(&stats.Closed).Error; err != nil {
+	if err := r.db.WithContext(ctx).Model(&model.RegistrationForm{}).
+		Where("status = ?", model.RegistrationFormStatusClosed).
+		Count(&stats.Closed).Error; err != nil {
 		return stats, err
 	}
 
