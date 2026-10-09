@@ -4,11 +4,51 @@ import "testing"
 
 func setRequiredConfigEnvironment(t *testing.T) {
 	t.Helper()
+	t.Setenv("APP_ENV", "test")
 	t.Setenv("DB_HOST", "127.0.0.1")
 	t.Setenv("DB_NAME", "tarsgo")
 	t.Setenv("DB_USER", "tarsgo")
 	t.Setenv("DB_PASSWORD", "secret")
 	t.Setenv("JWT_SECRET", "jwt-secret")
+}
+
+func TestAcceptanceConfigRequiresIsolatedLoopbackServices(t *testing.T) {
+	setRequiredConfigEnvironment(t)
+	t.Setenv("APP_ENV", "acceptance")
+	t.Setenv("APP_HOST", "127.0.0.1")
+	t.Setenv("APP_PORT", "8182")
+	t.Setenv("DB_HOST", "127.0.0.1")
+	t.Setenv("DB_PORT", "3317")
+	t.Setenv("DB_NAME", "tarsgo_acceptance")
+	t.Setenv("EMAIL_API_URL", "http://127.0.0.1:8126/emails")
+	t.Setenv("TARSGO_ACCEPTANCE_SEED", "true")
+	t.Setenv("TARSGO_TEST_USER_PASSWORD", "unit-test-user-password")
+	t.Setenv("TARSGO_TEST_ADMIN_PASSWORD", "unit-test-admin-password")
+	t.Setenv("TARSGO_TEST_SUPER_ADMIN_PASSWORD", "unit-test-superadmin-password")
+	if _, err := Load(); err != nil {
+		t.Fatalf("isolated acceptance config should load: %v", err)
+	}
+
+	t.Setenv("DB_NAME", "production")
+	if _, err := Load(); err == nil {
+		t.Fatal("acceptance config must reject a non-acceptance database")
+	}
+	t.Setenv("DB_NAME", "tarsgo_acceptance")
+	t.Setenv("EMAIL_API_URL", "https://api.resend.com/emails")
+	if _, err := Load(); err == nil {
+		t.Fatal("acceptance config must reject an external email provider")
+	}
+}
+
+func TestProductionEmailEndpointCannotBeOverridden(t *testing.T) {
+	setRequiredConfigEnvironment(t)
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("JWT_SECRET", "01234567890123456789012345678901")
+	t.Setenv("JWT_COOKIE_SECURE", "true")
+	t.Setenv("EMAIL_API_URL", "http://127.0.0.1:8126/emails")
+	if _, err := Load(); err == nil {
+		t.Fatal("production config must reject an email endpoint override")
+	}
 }
 
 func TestLoadAutoMigrateDefaultsToEnabled(t *testing.T) {

@@ -346,5 +346,8 @@ func RunMigrations(ctx context.Context, db *gorm.DB, appEnv string) error {
 	if err := seedDevelopmentMockData(db.WithContext(ctx), appEnv); err != nil {
 		return fmt.Errorf("seed development data: %w", err)
 	}
+	if err := seedAcceptanceTestData(db.WithContext(ctx), appEnv); err != nil {
+		return fmt.Errorf("seed acceptance test data: %w", err)
+	}
 	return nil
 }

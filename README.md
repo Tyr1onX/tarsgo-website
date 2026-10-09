@@ -17,6 +17,8 @@ make build
 
 ## Development
 
+持久化、与生产隔离的招新验收环境见 [`docs/acceptance-environment.md`](docs/acceptance-environment.md)。使用 `scripts/acceptance-env.sh up` 启动，测试账号凭据保存在本机 macOS 钥匙串；不要在生产环境创建这些账号。
+
 首次启动（macOS/Linux/Windows）：
 
 ```bash

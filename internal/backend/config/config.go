@@ -20,6 +20,7 @@ type Config struct {
 
 type AppConfig struct {
 	Env         string
+	Host        string
 	Port        string
 	GinMode     string
 	AutoMigrate bool
@@ -54,6 +55,7 @@ type AuthConfig struct {
 
 type EmailConfig struct {
 	APIKey string `json:"-"`
+	APIURL string `json:"-"`
 	From   string
 }
 
@@ -74,6 +76,7 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		App: AppConfig{
 			Env:         getEnv("APP_ENV", "development"),
+			Host:        strings.TrimSpace(os.Getenv("APP_HOST")),
 			Port:        getEnv("APP_PORT", "8080"),
 			GinMode:     getEnv("GIN_MODE", "debug"),
 			AutoMigrate: getEnvAsBool("APP_AUTO_MIGRATE", true),
@@ -106,7 +109,8 @@ func Load() (*Config, error) {
 			CookieSameSite:      parseSameSite(getEnv("JWT_COOKIE_SAME_SITE", "lax")),
 		},
 		Email: EmailConfig{
-			APIKey: strings.TrimSpace(os.Getenv("RESEND_API_KEY")),
+			APIKey: strings.TrimSpace(getEnv("EMAIL_API_KEY", os.Getenv("RESEND_API_KEY"))),
+			APIURL: getEnv("EMAIL_API_URL", "https://api.resend.com/emails"),
 			From:   getEnv("EMAIL_FROM", "吉甲大师 <noreply@jijiamaster.com>"),
 		},
 		Source: SourceConfig{
@@ -140,12 +144,37 @@ func Load() (*Config, error) {
 		if !cfg.Auth.CookieSecure {
 			return nil, fmt.Errorf("JWT_COOKIE_SECURE must be true in production")
 		}
+		if cfg.Email.APIURL != "https://api.resend.com/emails" {
+			return nil, fmt.Errorf("EMAIL_API_URL cannot be overridden in production")
+		}
+	}
+	if strings.EqualFold(strings.TrimSpace(cfg.App.Env), "acceptance") {
+		if cfg.App.Host != "127.0.0.1" || cfg.App.Port != "8182" {
+			return nil, fmt.Errorf("acceptance app must bind to 127.0.0.1:8182")
+		}
+		if cfg.Database.Host != "127.0.0.1" || cfg.Database.Port != "3317" || cfg.Database.Name != "tarsgo_acceptance" {
+			return nil, fmt.Errorf("acceptance app must use the isolated local tarsgo_acceptance database")
+		}
+		if cfg.Email.APIURL != "http://127.0.0.1:8126/emails" {
+			return nil, fmt.Errorf("acceptance app must use the local simulated email inbox")
+		}
+		if os.Getenv("TARSGO_ACCEPTANCE_SEED") != "true" {
+			return nil, fmt.Errorf("acceptance environment requires TARSGO_ACCEPTANCE_SEED=true")
+		}
+		for _, key := range []string{"TARSGO_TEST_USER_PASSWORD", "TARSGO_TEST_ADMIN_PASSWORD", "TARSGO_TEST_SUPER_ADMIN_PASSWORD"} {
+			if strings.TrimSpace(os.Getenv(key)) == "" {
+				return nil, fmt.Errorf("acceptance environment requires %s from the local credential store", key)
+			}
+		}
 	}
 
 	return cfg, nil
 }
 
 func (c AppConfig) Address() string {
+	if c.Host != "" {
+		return c.Host + ":" + c.Port
+	}
 	return ":" + c.Port
 }
 
