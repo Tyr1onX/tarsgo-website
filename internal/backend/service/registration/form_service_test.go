@@ -3,6 +3,7 @@ package registration
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -99,6 +100,58 @@ func TestRegistrationFormServiceUpdateFormRejectsPublishConflict(t *testing.T) {
 	})
 
 	assertRegistrationFormServiceError(t, err, 409, "已有已发布报名表")
+}
+
+func TestRegistrationFormServiceUpdatePreservesLegacySchemaWhenOnlyClosingForm(t *testing.T) {
+	repo := newFakeRegistrationFormRepository()
+	legacyFields := legacyDualIntentRegistrationFields()
+	repo.forms[1].FieldsSchema = cloneRegistrationFields(legacyFields)
+	service := newRegistrationFormServiceWithRepo(repo)
+	actor := RegistrationFormActor{ID: 1, RoleName: model.RoleNameSuperAdmin}
+
+	detail, err := service.GetForm(context.Background(), actor, 1)
+	if err != nil {
+		t.Fatalf("GetForm returned error: %v", err)
+	}
+	if len(detail.FieldsSchema) != len(legacyFields) || detail.FieldsSchema[3].Key != "group_1" || detail.FieldsSchema[4].Key != "group_2" {
+		t.Fatalf("admin detail should preserve the original dual-intent schema, got %#v", detail.FieldsSchema)
+	}
+
+	_, err = service.UpdateForm(context.Background(), actor, 1, UpsertRegistrationFormInput{
+		Title:        detail.Title,
+		FieldsSchema: detail.FieldsSchema,
+		Status:       model.RegistrationFormStatusClosed,
+	})
+	if err != nil {
+		t.Fatalf("closing legacy form returned error: %v", err)
+	}
+	if !reflect.DeepEqual(repo.forms[1].FieldsSchema, legacyFields) {
+		t.Fatalf("closing a form rewrote its fields: got %#v want %#v", repo.forms[1].FieldsSchema, legacyFields)
+	}
+	if repo.forms[1].Status != model.RegistrationFormStatusClosed {
+		t.Fatalf("expected closed status, got %d", repo.forms[1].Status)
+	}
+}
+
+func TestRegistrationFormServiceCanRestoreLegacyDualIntentSchema(t *testing.T) {
+	repo := newFakeRegistrationFormRepository()
+	service := newRegistrationFormServiceWithRepo(repo)
+	legacyFields := legacyDualIntentRegistrationFields()
+
+	updated, err := service.UpdateForm(context.Background(), RegistrationFormActor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 1, UpsertRegistrationFormInput{
+		Title:        "草稿表单",
+		FieldsSchema: legacyFields,
+		Status:       model.RegistrationFormStatusClosed,
+	})
+	if err != nil {
+		t.Fatalf("restoring legacy dual-intent fields returned error: %v", err)
+	}
+	if !reflect.DeepEqual(repo.forms[1].FieldsSchema, legacyFields) {
+		t.Fatalf("legacy field restore was not retained: got %#v want %#v", repo.forms[1].FieldsSchema, legacyFields)
+	}
+	if len(updated.FieldsSchema) != len(legacyFields) || updated.FieldsSchema[3].Key != "group_1" || updated.FieldsSchema[4].Key != "group_2" {
+		t.Fatalf("updated detail did not expose the legacy fields: %#v", updated.FieldsSchema)
+	}
 }
 
 func TestRegistrationFormServiceGetRecruitmentPageDataReturnsUnavailableWhenNotStarted(t *testing.T) {
@@ -593,6 +646,17 @@ func validRegistrationFields() []model.FormField {
 				{Label: "电控组", Value: "embedded"},
 			},
 		},
+	}
+}
+
+func legacyDualIntentRegistrationFields() []model.FormField {
+	return []model.FormField{
+		{Key: "name", Label: "姓名", Type: "text", Required: true, Placeholder: "请输入真实姓名"},
+		{Key: "phone", Label: "手机号", Type: "phone", Required: true, Placeholder: "请输入常用手机号"},
+		{Key: "email", Label: "邮箱", Type: "email", Required: true, Placeholder: "请输入联系邮箱"},
+		{Key: "group_1", Label: "意向组别(1)", Type: "user_group_select", Required: true, Placeholder: "请选择意向组别(1)"},
+		{Key: "group_2", Label: "意向组别(2)", Type: "user_group_select", Required: true, Placeholder: "请选择意向组别(2)"},
+		{Key: "motivation", Label: "为什么选择上面2个组别，请分别阐述。", Type: "textarea", Required: true},
 	}
 }
 

@@ -104,6 +104,23 @@ func mergeLockedRegistrationFields(fields []model.FormField) []model.FormField {
 	return cloneRegistrationFields(merged)
 }
 
+func hasLegacyDualIntentFields(fields []model.FormField) bool {
+	keys := make(map[string]struct{}, len(fields))
+	for _, field := range fields {
+		keys[field.Key] = struct{}{}
+	}
+	_, hasFirst := keys["group_1"]
+	_, hasSecond := keys["group_2"]
+	return hasFirst && hasSecond
+}
+
+func registrationFormEditorFields(fields []model.FormField) []model.FormField {
+	if hasLegacyDualIntentFields(fields) {
+		return cloneRegistrationFields(fields)
+	}
+	return mergeLockedRegistrationFields(fields)
+}
+
 func normalizeLegacyRecruitmentFieldCopy(field model.FormField) model.FormField {
 	replacements := []struct {
 		old string
@@ -121,7 +138,11 @@ func normalizeLegacyRecruitmentFieldCopy(field model.FormField) model.FormField 
 }
 
 func hydrateUserGroupSelectFields(fields []model.FormField, groups []model.UserGroup) []model.FormField {
-	result := mergeLockedRegistrationFields(fields)
+	return hydrateUserGroupSelectOptions(mergeLockedRegistrationFields(fields), groups)
+}
+
+func hydrateUserGroupSelectOptions(fields []model.FormField, groups []model.UserGroup) []model.FormField {
+	result := cloneRegistrationFields(fields)
 	options := buildVisibleUserGroupOptions(groups)
 	for index := range result {
 		if result[index].Type != "user_group_select" {
