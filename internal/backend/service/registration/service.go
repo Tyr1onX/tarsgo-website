@@ -1091,7 +1091,7 @@ func (s *RegistrationService) ExportFormRegistrationsCSV(ctx context.Context, ac
 	}
 
 	exportForm := *form
-	exportForm.FieldsSchema = hydrateRegistrationExportFields(mergeLockedRegistrationFields(form.FieldsSchema), groups)
+	exportForm.FieldsSchema = hydrateRegistrationExportFields(registrationExportFields(form.FieldsSchema, registrations), groups)
 
 	content, err := buildRegistrationExportCSV(&exportForm, registrations, baseURL)
 	if err != nil {
@@ -1459,6 +1459,93 @@ func buildRegistrationExportCSV(form *model.RegistrationForm, registrations []mo
 	return buffer.Bytes(), nil
 }
 
+func registrationExportFields(fields []model.FormField, registrations []model.Registration) []model.FormField {
+	hasLegacySchema := hasLegacyDualIntentFields(fields)
+	result := cloneRegistrationFields(fields)
+	if !hasLegacySchema {
+		result = mergeLockedRegistrationFields(result)
+	}
+
+	legacyKeysPresent := hasLegacySchema
+	if !legacyKeysPresent {
+		for _, registration := range registrations {
+			for key := range legacyRegistrationGroupFieldKeys {
+				if _, exists := registration.FormData[key]; exists {
+					legacyKeysPresent = true
+					break
+				}
+			}
+			if legacyKeysPresent {
+				break
+			}
+		}
+	}
+	if !legacyKeysPresent {
+		return result
+	}
+
+	contains := func(key string) bool {
+		for _, field := range result {
+			if field.Key == key {
+				return true
+			}
+		}
+		return false
+	}
+	preferredIndex := -1
+	for index, field := range result {
+		if field.Key == "preferred_group" {
+			preferredIndex = index
+			break
+		}
+	}
+	if preferredIndex < 0 {
+		preferred := buildLockedRegistrationField(registrationLockedFieldSpecs[3])
+		insertAt := len(result)
+		for index, field := range result {
+			if field.Key == "email" {
+				insertAt = index + 1
+				break
+			}
+		}
+		result = append(result, model.FormField{})
+		copy(result[insertAt+1:], result[insertAt:])
+		result[insertAt] = preferred
+		preferredIndex = insertAt
+	}
+
+	legacyFields := []model.FormField{
+		{Key: "group_1", Label: "意向组别(1)", Type: "user_group_select", Required: true},
+		{Key: "group_2", Label: "意向组别(2)", Type: "user_group_select", Required: true},
+	}
+	insertAt := preferredIndex + 1
+	for insertAt < len(result) && (result[insertAt].Key == "group_1" || result[insertAt].Key == "group_2") {
+		insertAt++
+	}
+	for _, legacyField := range legacyFields {
+		if contains(legacyField.Key) {
+			continue
+		}
+		if !hasLegacySchema {
+			presentInData := false
+			for _, registration := range registrations {
+				if _, exists := registration.FormData[legacyField.Key]; exists {
+					presentInData = true
+					break
+				}
+			}
+			if !presentInData {
+				continue
+			}
+		}
+		result = append(result, model.FormField{})
+		copy(result[insertAt+1:], result[insertAt:])
+		result[insertAt] = legacyField
+		insertAt++
+	}
+	return result
+}
+
 var registrationExportPrefixHeaders = []string{
 	"报名记录ID",
 	"报名表ID",
@@ -1626,6 +1713,18 @@ func formatRegistrationExportTimeValue(value time.Time) string {
 }
 
 func formatRegistrationExportFieldValue(registration *model.Registration, field model.FormField, value any, baseURL string) string {
+	if registration != nil {
+		switch field.Key {
+		case "group_1":
+			if registration.Group1 != nil {
+				return registration.Group1.Name
+			}
+		case "group_2":
+			if registration.Group2 != nil {
+				return registration.Group2.Name
+			}
+		}
+	}
 	if field.Key == "preferred_group" && registration != nil && registration.PreferredGroup != nil {
 		return registration.PreferredGroup.Name
 	}
@@ -2662,6 +2761,8 @@ func (r *gormRegistrationRepository) ListRegistrationsForExport(ctx context.Cont
 	if err := query.
 		Preload("Form").
 		Preload("PreferredGroup").
+		Preload("Group1").
+		Preload("Group2").
 		Preload("Screener").
 		Preload("Interviewer").
 		Preload("InterviewSession").

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -270,7 +271,7 @@ func (s *RegistrationFormService) CreateForm(ctx context.Context, actor Registra
 		Title:            normalized.Title,
 		Description:      copyStringPtr(normalized.Description),
 		CoverImageURL:    copyStringPtr(normalized.CoverImageURL),
-		FieldsSchema:     cloneRegistrationFields(normalized.FieldsSchema),
+		FieldsSchema:     cloneRegistrationFields(mergeLockedRegistrationFields(normalized.FieldsSchema)),
 		MaxRegistrations: copyIntPtr(normalized.MaxRegistrations),
 		StartTime:        copyTimePtr(normalized.StartTime),
 		EndTime:          copyTimePtr(normalized.EndTime),
@@ -300,7 +301,8 @@ func (s *RegistrationFormService) UpdateForm(ctx context.Context, actor Registra
 		return nil, err
 	}
 
-	if _, err := s.repo.GetFormByID(ctx, formID); err != nil {
+	currentForm, err := s.repo.GetFormByID(ctx, formID)
+	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, &FormServiceError{Status: http.StatusNotFound, Message: "报名表不存在"}
 		}
@@ -316,11 +318,14 @@ func (s *RegistrationFormService) UpdateForm(ctx context.Context, actor Registra
 		"title":             normalized.Title,
 		"description":       copyStringPtr(normalized.Description),
 		"cover_image_url":   copyStringPtr(normalized.CoverImageURL),
-		"fields_schema":     cloneRegistrationFields(normalized.FieldsSchema),
 		"max_registrations": copyIntPtr(normalized.MaxRegistrations),
 		"start_time":        copyTimePtr(normalized.StartTime),
 		"end_time":          copyTimePtr(normalized.EndTime),
 		"status":            normalized.Status,
+	}
+	currentFields, currentFieldsErr := normalizeRegistrationFields(currentForm.FieldsSchema)
+	if currentFieldsErr != nil || !reflect.DeepEqual(normalized.FieldsSchema, currentFields) {
+		updates["fields_schema"] = cloneRegistrationFields(normalized.FieldsSchema)
 	}
 
 	if err := s.repo.RunInTx(ctx, func(repo registrationFormRepository) error {
@@ -556,8 +561,14 @@ func normalizeRegistrationFields(fields []model.FormField) ([]model.FormField, e
 		normalized = append(normalized, item)
 	}
 
+	_, hasLegacyFirst := seen["group_1"]
+	_, hasLegacySecond := seen["group_2"]
+	hasLegacyDualIntent := hasLegacyFirst && hasLegacySecond
 	for key := range registrationLockedFields {
 		if !lockedSeen[key] {
+			if key == "preferred_group" && hasLegacyDualIntent {
+				continue
+			}
 			return nil, &FormServiceError{Status: http.StatusBadRequest, Message: "姓名、手机号、邮箱、意向组四个系统字段必须保留且为必填项"}
 		}
 	}
@@ -598,7 +609,9 @@ func normalizeRegistrationField(field model.FormField, seen map[string]struct{})
 		}
 		label = locked.Label
 	} else if fieldType == "user_group_select" {
-		return model.FormField{}, &FormServiceError{Status: http.StatusBadRequest, Message: "意向组字段仅允许系统锁定字段使用"}
+		if _, legacy := legacyRegistrationGroupFieldKeys[key]; !legacy {
+			return model.FormField{}, &FormServiceError{Status: http.StatusBadRequest, Message: "意向组字段仅允许系统锁定字段使用"}
+		}
 	} else if !registrationFieldKeyPattern.MatchString(key) {
 		return model.FormField{}, &FormServiceError{Status: http.StatusBadRequest, Message: "自定义字段 key 仅支持小写字母、数字和下划线，且必须以字母开头"}
 	}
@@ -773,7 +786,7 @@ func toRegistrationFormListItem(form *model.RegistrationForm) RegistrationFormLi
 func toRegistrationFormDetail(form *model.RegistrationForm, groups []model.UserGroup) RegistrationFormDetail {
 	return RegistrationFormDetail{
 		RegistrationFormListItem: toRegistrationFormListItem(form),
-		FieldsSchema:             hydrateUserGroupSelectFields(mergeLockedRegistrationFields(form.FieldsSchema), groups),
+		FieldsSchema:             hydrateUserGroupSelectOptions(registrationFormEditorFields(form.FieldsSchema), groups),
 	}
 }
 

@@ -572,7 +572,7 @@ func TestRegistrationServiceListRegistrationsPreservesStatsFilterSemantics(t *te
 	}
 }
 
-func TestRegistrationServiceExportFormRegistrationsCSVUsesCanonicalWorkflowColumns(t *testing.T) {
+func TestRegistrationServiceExportFormRegistrationsCSVIncludesLegacyIntentMappings(t *testing.T) {
 	repo := newFakeRegistrationListRepository()
 	service := newRegistrationServiceWithDependencies(repo, nil)
 
@@ -606,6 +606,8 @@ func TestRegistrationServiceExportFormRegistrationsCSVUsesCanonicalWorkflowColum
 		"手机号",
 		"邮箱",
 		"意向组",
+		"意向组别(1)",
+		"意向组别(2)",
 		"意向方向",
 		"掌握技能",
 		"简历",
@@ -631,18 +633,15 @@ func TestRegistrationServiceExportFormRegistrationsCSVUsesCanonicalWorkflowColum
 		}
 		headerIndex[header] = index
 	}
-	for _, legacyHeader := range []string{"意向组别(1)", "意向组别(2)", "审核人(1)", "审核人(2)"} {
-		if _, exists := headerIndex[legacyHeader]; exists {
-			t.Fatalf("legacy dual-intent header must not be exported: %q", legacyHeader)
-		}
-	}
-
 	row := records[1]
 	if row[headerIndex["姓名"]] != "张三" {
 		t.Fatalf("expected contact name 张三, got %q", row[headerIndex["姓名"]])
 	}
 	if row[headerIndex["意向组"]] != "机械组" {
 		t.Fatalf("expected preferred group 机械组, got %q", row[headerIndex["意向组"]])
+	}
+	if row[headerIndex["意向组别(1)"]] != "机械组" || row[headerIndex["意向组别(2)"]] != "电控组" {
+		t.Fatalf("expected both original intent groups, got first=%q second=%q", row[headerIndex["意向组别(1)"]], row[headerIndex["意向组别(2)"]])
 	}
 	if row[headerIndex["当前状态"]] != "已录取" {
 		t.Fatalf("expected canonical status 已录取, got %q", row[headerIndex["当前状态"]])
