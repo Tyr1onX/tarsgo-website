@@ -183,6 +183,23 @@ func (e *FormServiceError) Unwrap() error {
 	return e.Err
 }
 
+// ListArchivedForms exposes only closed recruitment rounds to admin reviewers.
+func (s *RegistrationFormService) ListArchivedForms(ctx context.Context, actor RegistrationFormActor) ([]RegistrationFormListItem, error) {
+	if err := ensureRegistrationAdminActor(actor); err != nil {
+		return nil, err
+	}
+	closed := uint8(model.RegistrationFormStatusClosed)
+	forms, err := s.repo.ListForms(ctx, ListRegistrationFormsInput{Status: &closed})
+	if err != nil {
+		return nil, &FormServiceError{Status: http.StatusInternalServerError, Message: "查询历史招新失败", Err: err}
+	}
+	result := make([]RegistrationFormListItem, 0, len(forms))
+	for i := range forms {
+		result = append(result, toRegistrationFormListItem(&forms[i]))
+	}
+	return result, nil
+}
+
 func (s *RegistrationFormService) ListForms(ctx context.Context, actor RegistrationFormActor, input ListRegistrationFormsInput) (*ListRegistrationFormsResult, error) {
 	if err := ensureRegistrationSuperAdminActor(actor); err != nil {
 		return nil, err

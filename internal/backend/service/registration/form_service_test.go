@@ -55,6 +55,29 @@ func TestRegistrationFormServiceCreateFormRejectsMissingLockedFields(t *testing.
 	assertRegistrationFormServiceError(t, err, 400, "系统字段")
 }
 
+func TestRegistrationFormServiceArchiveListIsAdminReadableButClosedOnly(t *testing.T) {
+	repo := newFakeRegistrationFormRepository()
+	for _, form := range repo.forms {
+		if form.Status == model.RegistrationFormStatusDraft {
+			form.Status = model.RegistrationFormStatusClosed
+			break
+		}
+	}
+	svc := newRegistrationFormServiceWithRepo(repo)
+	result, err := svc.ListArchivedForms(context.Background(), RegistrationFormActor{ID: 2, RoleName: model.RoleNameAdmin})
+	if err != nil || len(result) == 0 {
+		t.Fatalf("admin could not list closed forms: result=%#v err=%v", result, err)
+	}
+	for _, item := range result {
+		if item.Status != model.RegistrationFormStatusClosed {
+			t.Fatalf("archive list includes nonclosed item %#v", item)
+		}
+	}
+	if _, err := svc.ListArchivedForms(context.Background(), RegistrationFormActor{ID: 3, RoleName: model.RoleNameUser}); err == nil {
+		t.Fatal("normal user should not list closed forms")
+	}
+}
+
 func TestRegistrationFormConfigurationIsSuperAdminOnly(t *testing.T) {
 	repo := newFakeRegistrationFormRepository()
 	service := newRegistrationFormServiceWithRepo(repo)

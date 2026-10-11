@@ -132,6 +132,7 @@ type RegistrationListItem struct {
 
 type ListRegistrationsResult struct {
 	CurrentFormAvailable bool                   `json:"currentFormAvailable"`
+	ArchivedView         bool                   `json:"archivedView"`
 	Summary              RegistrationStats      `json:"summary"`
 	Items                []RegistrationListItem `json:"items"`
 	Pagination           RegistrationPagination `json:"pagination"`
@@ -482,9 +483,25 @@ func (s *RegistrationService) ListRegistrations(ctx context.Context, actor Regis
 	}
 
 	normalized := normalizeRegistrationListInput(input)
-	form, err := currentPublishedForm(ctx, s.repo)
+	currentForm, err := currentPublishedForm(ctx, s.repo)
 	if err != nil {
 		return nil, err
+	}
+	form := currentForm
+	archivedView := false
+	if input.FormID != nil {
+		form, err = s.repo.GetFormByID(ctx, *input.FormID)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, &ServiceError{Status: http.StatusNotFound, Message: "历史届次不存在"}
+		}
+		if err != nil {
+			return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "读取历史届次失败", Err: err}
+		}
+		if form.Status == model.RegistrationFormStatusClosed {
+			archivedView = true
+		} else if currentForm == nil || form.ID != currentForm.ID {
+			return nil, &ServiceError{Status: http.StatusBadRequest, Message: "只能查看当前招新或已关闭的历史届次"}
+		}
 	}
 	if form == nil {
 		return &ListRegistrationsResult{
@@ -534,7 +551,8 @@ func (s *RegistrationService) ListRegistrations(ctx context.Context, actor Regis
 	}
 
 	return &ListRegistrationsResult{
-		CurrentFormAvailable: true,
+		CurrentFormAvailable: currentForm != nil,
+		ArchivedView:         archivedView,
 		Summary:              summary,
 		Items:                resultItems,
 		Pagination: RegistrationPagination{
@@ -566,8 +584,11 @@ func (s *RegistrationService) GetRegistration(ctx context.Context, actor Registr
 		}
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "查询报名详情失败", Err: err}
 	}
-	if err := ensureRegistrationRecordIsCurrent(ctx, s.repo, registration); err != nil {
-		return nil, err
+	archived := registration.Form.Status == model.RegistrationFormStatusClosed
+	if !archived {
+		if err := ensureRegistrationRecordIsCurrent(ctx, s.repo, registration); err != nil {
+			return nil, err
+		}
 	}
 	if !scope.canAccessRegistration(registration) {
 		return nil, &ServiceError{Status: http.StatusForbidden, Message: "当前账号无权查看该报名记录"}
@@ -599,10 +620,10 @@ func (s *RegistrationService) GetRegistration(ctx context.Context, actor Registr
 		InterviewRemark:     copyStringPtr(registration.InterviewRemark),
 		InterviewAttendance: registration.InterviewAttendance,
 		InterviewSession:    toInterviewSessionView(registration.InterviewSession, 0),
-		CanScreen:           registration.RecruitmentStatus == model.RecruitmentStatusPendingScreening,
-		CanUndoScreening: registration.RecruitmentStatus == model.RecruitmentStatusPendingInterview ||
-			(registration.RecruitmentStatus == model.RecruitmentStatusRejected && valueOrEmpty(registration.RejectedStage) == model.RecruitmentRejectedStageScreening),
-		CanInterview: registration.RecruitmentStatus == model.RecruitmentStatusPendingInterview,
+		CanScreen:           !archived && registration.RecruitmentStatus == model.RecruitmentStatusPendingScreening,
+		CanUndoScreening: !archived && (registration.RecruitmentStatus == model.RecruitmentStatusPendingInterview ||
+			(registration.RecruitmentStatus == model.RecruitmentStatusRejected && valueOrEmpty(registration.RejectedStage) == model.RecruitmentRejectedStageScreening)),
+		CanInterview: !archived && registration.RecruitmentStatus == model.RecruitmentStatusPendingInterview,
 		SubmittedAt:  registration.SubmittedAt,
 		UpdatedAt:    registration.UpdatedAt,
 		FieldsSchema: hydrateUserGroupSelectFields(mergeLockedRegistrationFields(registration.Form.FieldsSchema), groups),

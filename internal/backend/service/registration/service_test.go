@@ -385,6 +385,59 @@ func TestRegistrationServiceListRegistrationsReturnsPagination(t *testing.T) {
 	}
 }
 
+func TestRegistrationServiceClosedRoundIsHistoricalAndCurrentQueueIsEmpty(t *testing.T) {
+	repo := newFakeRegistrationListRepository()
+	repo.forms[301].Status = model.RegistrationFormStatusClosed
+	svc := newRegistrationServiceWithDependencies(repo, nil)
+	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+	current, err := svc.ListRegistrations(context.Background(), actor, ListRegistrationsInput{})
+	if err != nil || current.CurrentFormAvailable || current.ArchivedView || len(current.Items) != 0 || current.Summary.Total != 0 {
+		t.Fatalf("closed round appeared in current queue: result=%#v err=%v", current, err)
+	}
+	id := uint64(301)
+	archived, err := svc.ListRegistrations(context.Background(), actor, ListRegistrationsInput{FormID: &id})
+	if err != nil || archived.CurrentFormAvailable || !archived.ArchivedView || archived.Summary.Total == 0 || len(archived.Items) == 0 {
+		t.Fatalf("closed round not available in history: result=%#v err=%v", archived, err)
+	}
+	if got := *repo.statsFilters[len(repo.statsFilters)-1].FormID; got != id {
+		t.Fatalf("historical statistics used wrong form: %d", got)
+	}
+}
+
+func TestRegistrationServiceRejectsNonCurrentUnclosedFormSelection(t *testing.T) {
+	repo := newFakeRegistrationListRepository()
+	draft := *cloneRegistrationFormModel(repo.forms[301])
+	draft.ID = 302
+	draft.Status = model.RegistrationFormStatusDraft
+	repo.forms[302] = &draft
+	svc := newRegistrationServiceWithDependencies(repo, nil)
+	id := uint64(302)
+	_, err := svc.ListRegistrations(context.Background(), RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}, ListRegistrationsInput{FormID: &id})
+	var serviceErr *ServiceError
+	if !errors.As(err, &serviceErr) || serviceErr.Status != 400 {
+		t.Fatalf("draft form should not be available as history: %v", err)
+	}
+}
+
+func TestRegistrationServiceClosedRoundDetailsAreReadOnly(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	repo.registration.Form.Status = model.RegistrationFormStatusClosed
+	svc := newRegistrationServiceWithDependencies(repo, nil)
+	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+	detail, err := svc.GetRegistration(context.Background(), actor, repo.registration.ID)
+	if err != nil || detail == nil {
+		t.Fatalf("cannot read closed candidate detail: %v", err)
+	}
+	if detail.CanScreen || detail.CanInterview || detail.CanUndoScreening {
+		t.Fatalf("closed candidate must not have mutating actions: %#v", detail)
+	}
+	_, err = svc.ScreenRegistration(context.Background(), actor, repo.registration.ID, ScreeningDecisionInput{Decision: "approve"})
+	var serviceErr *ServiceError
+	if !errors.As(err, &serviceErr) || (serviceErr.Status != 404 && serviceErr.Status != 409) {
+		t.Fatalf("closed candidate screening should be rejected: %v", err)
+	}
+}
+
 func TestRegistrationServiceListRegistrationsHasNoCurrentFormState(t *testing.T) {
 	repo := newFakeRegistrationListRepository()
 	repo.forms = nil

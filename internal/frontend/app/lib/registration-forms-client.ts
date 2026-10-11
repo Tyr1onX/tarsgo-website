@@ -120,6 +120,12 @@ export interface RecruitmentPageData {
   unavailableReason?: string | null;
 }
 
+// Only closed rounds are visible to both reviewers and super admins.
+export async function listAdminArchivedForms(): Promise<RegistrationFormListItem[]> {
+  const result = await apiRequest<{ items: RegistrationFormListItem[] }>("/api/admin/registration-forms/history");
+  return result.items;
+}
+
 export async function listAdminRegistrationForms(
   input: ListRegistrationFormsInput = {},
 ): Promise<RegistrationFormsListResponse> {

@@ -97,6 +97,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	adminAPI.GET("/interview-sessions", registrationHandler.ListInterviewSessions)
 	superAdminAPI.POST("/interview-sessions", registrationHandler.CreateInterviewSession)
 	superAdminAPI.PATCH("/interview-sessions/:id", registrationHandler.UpdateInterviewSession)
+	adminAPI.GET("/registration-forms/history", registrationFormHandler.ListArchivedForms)
 	adminAPI.GET("/registrations", registrationHandler.ListRegistrations)
 	adminAPI.GET("/registrations/:id", registrationHandler.GetRegistration)
 	adminAPI.POST("/registrations/:id/screening", registrationHandler.ScreenRegistration)

@@ -85,6 +85,7 @@ export interface RegistrationPagination {
 
 export interface RegistrationListResponse {
   currentFormAvailable: boolean;
+  archivedView: boolean;
   summary: RegistrationSummary;
   items: RegistrationListItem[];
   pagination: RegistrationPagination;

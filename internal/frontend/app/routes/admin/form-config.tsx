@@ -253,10 +253,15 @@ export default function FormConfigPage() {
   /* ---- list state ---- */
   const [keyword, setKeyword] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [listView, setListView] = useState<"current" | "history">("current");
   const [forms, setForms] = useState<RegistrationFormListItem[]>([]);
   const [summary, setSummary] =
     useState<RegistrationFormSummary>(defaultSummary);
   const [loadingList, setLoadingList] = useState(false);
+  const visibleForms = useMemo(
+    () => forms.filter((form) => listView === "history" ? form.status === 2 : form.status !== 2),
+    [forms, listView],
+  );
 
   /* ---- drawer state ---- */
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -946,6 +951,29 @@ export default function FormConfigPage() {
         />
       </div>
 
+      {/* ---- Current / archived list ---- */}
+      <section className="motion-fade-up flex flex-wrap items-center justify-between gap-3" aria-label="当前和历史届次">
+        <div className="flex flex-wrap gap-2" role="group" aria-label="查看届次范围">
+          <button
+            type="button"
+            className={"admin-button admin-button--small " + (listView === "current" ? "admin-button--primary" : "admin-button--secondary")}
+            aria-pressed={listView === "current"}
+            onClick={() => { setListView("current"); setStatusFilter(""); }}
+          >当前届次与草稿</button>
+          <button
+            type="button"
+            className={"admin-button admin-button--small " + (listView === "history" ? "admin-button--primary" : "admin-button--secondary")}
+            aria-pressed={listView === "history"}
+            onClick={() => { setListView("history"); setStatusFilter(""); }}
+          >历史届次（{summary.closed}）</button>
+        </div>
+        <p className="text-xs text-fg-dim">
+          {listView === "current"
+            ? "本届招新全部结束后，请将报名表设为已关闭；历史记录不会被删除。"
+            : "已关闭届次保留报名数据，可查看详情和导出记录。"}
+        </p>
+      </section>
+
       {/* ---- Filter bar ---- */}
       <form
         onSubmit={handleSearchSubmit}
@@ -977,10 +1005,12 @@ export default function FormConfigPage() {
               onChange={setStatusFilter}
               options={[
                 { value: "", label: "全部状态" },
-                ...REGISTRATION_FORM_STATUS_OPTIONS.map((option) => ({
-                  value: option.value,
-                  label: option.label,
-                })),
+                ...REGISTRATION_FORM_STATUS_OPTIONS
+                  .filter((option) => listView === "history" ? option.value === 2 : option.value !== 2)
+                  .map((option) => ({
+                    value: option.value,
+                    label: option.label,
+                  })),
               ]}
             />
           </div>
@@ -1005,15 +1035,15 @@ export default function FormConfigPage() {
         style={{ animationDelay: "200ms" }}
       >
         <div className="hidden overflow-x-auto md:block">
-          <table className="min-w-full text-sm">
+          <table className="w-full min-w-[1160px] text-sm">
             <thead className="bg-white/[0.03] text-left text-xs tracking-wider text-fg-dim">
               <tr className="border-b border-white/[0.06]">
-                <th className="px-5 py-4 font-medium">标题</th>
-                <th className="px-5 py-4 font-medium">状态</th>
-                <th className="px-5 py-4 font-medium">字段</th>
-                <th className="px-5 py-4 font-medium">开放时间</th>
-                <th className="px-5 py-4 font-medium">更新时间</th>
-                <th className="px-5 py-4 text-right font-medium">操作</th>
+                <th className="min-w-60 px-5 py-4 font-medium">标题</th>
+                <th className="w-28 min-w-28 whitespace-nowrap px-5 py-4 font-medium">状态</th>
+                <th className="w-44 min-w-44 whitespace-nowrap px-5 py-4 font-medium">字段</th>
+                <th className="w-56 min-w-56 px-5 py-4 font-medium">开放时间</th>
+                <th className="w-48 min-w-48 whitespace-nowrap px-5 py-4 font-medium">更新时间</th>
+                <th className="w-44 min-w-44 whitespace-nowrap px-5 py-4 text-right font-medium">操作</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-white/[0.05]">
@@ -1029,17 +1059,17 @@ export default function FormConfigPage() {
                     </div>
                   </td>
                 </tr>
-              ) : forms.length === 0 ? (
+              ) : visibleForms.length === 0 ? (
                 <tr>
                   <td
                     colSpan={6}
                     className="px-5 py-10 text-center text-sm text-fg-dim"
                   >
-                    当前筛选条件下没有匹配的报名表。
+                    {listView === "history" ? "还没有已关闭的历史届次。" : "当前没有匹配的草稿或已发布报名表。"}
                   </td>
                 </tr>
               ) : (
-                forms.map((form) => (
+                visibleForms.map((form) => (
                   <tr
                     key={form.id}
                     className="table-row-glass transition-colors duration-150"
@@ -1055,19 +1085,26 @@ export default function FormConfigPage() {
                       </div>
                     </td>
                     <td className="px-5 py-4">
-                      <StatusBadge status={form.status} />
+                      <div className="whitespace-nowrap"><StatusBadge status={form.status} /></div>
                     </td>
-                    <td className="px-5 py-4 text-fg-muted">
+                    <td className="whitespace-nowrap px-5 py-4 text-fg-muted">
                       {form.fieldCount} 个字段 · {form.requiredCount} 个必填
                     </td>
                     <td className="px-5 py-4 text-fg-muted">
-                      {formatSchedule(form.startTime, form.endTime)}
+                      {form.startTime && form.endTime ? (
+                        <div className="space-y-1 whitespace-nowrap">
+                          <div>{formatDateTime(form.startTime)}</div>
+                          <div className="text-xs text-fg-dim">至 {formatDateTime(form.endTime)}</div>
+                        </div>
+                      ) : (
+                        <span className="whitespace-nowrap">{formatSchedule(form.startTime, form.endTime)}</span>
+                      )}
                     </td>
-                    <td className="px-5 py-4 text-fg-muted">
+                    <td className="whitespace-nowrap px-5 py-4 text-fg-muted">
                       {formatDateTime(form.updatedAt)}
                     </td>
                     <td className="px-5 py-4">
-                      <div className="flex justify-end gap-2">
+                      <div className="flex flex-nowrap justify-end gap-2">
                         <a
                           href={getAdminRegistrationFormExportUrl(form.id)}
                           title="下载报名信息"
@@ -1113,13 +1150,13 @@ export default function FormConfigPage() {
               />
               <span>正在加载表单列表...</span>
             </div>
-          ) : forms.length === 0 ? (
+          ) : visibleForms.length === 0 ? (
             <div className="px-5 py-10 text-center text-sm text-fg-dim">
-              当前筛选条件下没有匹配的报名表。
+              {listView === "history" ? "还没有已关闭的历史届次。" : "当前没有匹配的草稿或已发布报名表。"}
             </div>
           ) : (
             <ul className="divide-y divide-white/[0.05]">
-              {forms.map((form) => (
+              {visibleForms.map((form) => (
                 <li key={form.id} className="px-4 py-4">
                   <div className="flex items-start gap-3">
                     <div className="min-w-0 flex-1">

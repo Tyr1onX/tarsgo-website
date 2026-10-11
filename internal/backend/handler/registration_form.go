@@ -21,6 +21,7 @@ type RegistrationFormHandler struct {
 
 type registrationFormService interface {
 	ListForms(ctx context.Context, actor registration.RegistrationFormActor, input registration.ListRegistrationFormsInput) (*registration.ListRegistrationFormsResult, error)
+	ListArchivedForms(ctx context.Context, actor registration.RegistrationFormActor) ([]registration.RegistrationFormListItem, error)
 	GetForm(ctx context.Context, actor registration.RegistrationFormActor, formID uint64) (*registration.RegistrationFormDetail, error)
 	CreateForm(ctx context.Context, actor registration.RegistrationFormActor, input registration.UpsertRegistrationFormInput) (*registration.RegistrationFormDetail, error)
 	UpdateForm(ctx context.Context, actor registration.RegistrationFormActor, formID uint64, input registration.UpsertRegistrationFormInput) (*registration.RegistrationFormDetail, error)
@@ -45,6 +46,15 @@ type upsertRegistrationFormRequest struct {
 
 func NewRegistrationFormHandler(service registrationFormService) *RegistrationFormHandler {
 	return &RegistrationFormHandler{service: service}
+}
+
+func (h *RegistrationFormHandler) ListArchivedForms(c *gin.Context) {
+	items, err := h.service.ListArchivedForms(c.Request.Context(), currentRegistrationFormActor(c))
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "获取历史招新成功", gin.H{"items": items})
 }
 
 func (h *RegistrationFormHandler) ListForms(c *gin.Context) {
