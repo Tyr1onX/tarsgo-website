@@ -31,9 +31,10 @@ keychain_get() {
   security find-generic-password -s "$SERVICE" -a "$1" -w 2>/dev/null
 }
 
-keychain_ensure() {
+keychain_load() {
   local name="$1" length="${2:-32}" value
-  if keychain_get "$name" >/dev/null 2>&1; then
+  if value="$(keychain_get "$name")"; then
+    printf '%s' "$value"
     return
   fi
   if [[ -f "$KEYCHAIN_MARKER" ]]; then
@@ -42,22 +43,17 @@ keychain_ensure() {
   fi
   value="$(openssl rand -hex "$length")"
   security add-generic-password -U -s "$SERVICE" -a "$name" -w "$value" >/dev/null
+  printf '%s' "$value"
   unset value
 }
 
 load_credentials() {
-  keychain_ensure database-password 32
-  keychain_ensure jwt-secret 32
-  keychain_ensure mailbox-token 32
-  keychain_ensure TEST_USER 24
-  keychain_ensure TEST_ADMIN 24
-  keychain_ensure TEST_SUPER_ADMIN 24
-  DB_PASSWORD="$(keychain_get database-password)"
-  JWT_SECRET_VALUE="$(keychain_get jwt-secret)"
-  MAILBOX_TOKEN="$(keychain_get mailbox-token)"
-  TEST_USER_PASSWORD="$(keychain_get TEST_USER)"
-  TEST_ADMIN_PASSWORD="$(keychain_get TEST_ADMIN)"
-  TEST_SUPER_ADMIN_PASSWORD="$(keychain_get TEST_SUPER_ADMIN)"
+  DB_PASSWORD="$(keychain_load database-password 32)"
+  JWT_SECRET_VALUE="$(keychain_load jwt-secret 32)"
+  MAILBOX_TOKEN="$(keychain_load mailbox-token 32)"
+  TEST_USER_PASSWORD="$(keychain_load TEST_USER 24)"
+  TEST_ADMIN_PASSWORD="$(keychain_load TEST_ADMIN 24)"
+  TEST_SUPER_ADMIN_PASSWORD="$(keychain_load TEST_SUPER_ADMIN 24)"
 }
 
 acceptance_environment() {
