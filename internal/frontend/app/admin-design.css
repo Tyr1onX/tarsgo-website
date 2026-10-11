@@ -637,6 +637,26 @@
   font-size: 0.8125rem;
 }
 
+/* Preserve readable columns at desktop widths; let the container scroll instead
+   of stacking Chinese glyphs vertically in status, dates and action cells. */
+.admin-design .admin-table--registrations {
+  min-width: 900px;
+}
+
+.admin-design .admin-table--users {
+  min-width: 980px;
+}
+
+.admin-design .admin-table--registrations td:nth-child(3),
+.admin-design .admin-table--registrations td:nth-child(4),
+.admin-design .admin-table--registrations td:nth-child(5),
+.admin-design .admin-table--users td:nth-child(2),
+.admin-design .admin-table--users td:nth-child(3),
+.admin-design .admin-table--users td:nth-child(4),
+.admin-design .admin-table--users td:nth-child(5) {
+  white-space: nowrap;
+}
+
 .admin-design .admin-table thead {
   border-bottom: 1px solid var(--admin-border);
   background: rgba(255, 255, 255, 0.025);
@@ -716,7 +736,9 @@
     font-size: 0.6875rem;
   }
 
-  .admin-design .admin-table {
+  .admin-design .admin-table,
+  .admin-design .admin-table--registrations,
+  .admin-design .admin-table--users {
     min-width: 0;
     table-layout: fixed;
   }

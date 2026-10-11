@@ -18,7 +18,7 @@ import {
   type RegistrationPagination,
   type RegistrationSummary,
 } from "~/lib/registrations-client";
-import type { RegistrationFormField } from "~/lib/registration-forms-client";
+import { listAdminArchivedForms, type RegistrationFormField, type RegistrationFormListItem } from "~/lib/registration-forms-client";
 import { listAdminUserGroupOptions, type AdminUserGroupOption } from "~/lib/admin-user-groups-client";
 
 export function meta() {
@@ -68,6 +68,9 @@ export default function Registrations() {
   const initialStatus = statusOptions.some((option) => option.value !== "" && option.value === searchParams.get("status"))
     ? searchParams.get("status") as RecruitmentStatus
     : "";
+  const initialFormId = Number(searchParams.get("formId"));
+  const [archivedForms, setArchivedForms] = useState<RegistrationFormListItem[]>([]);
+  const [archivedView, setArchivedView] = useState(false);
   const [groups, setGroups] = useState<AdminUserGroupOption[]>([]);
   const [sessions, setSessions] = useState<InterviewSession[]>([]);
   const [query, setQuery] = useState<ListRegistrationsInput>({
@@ -79,6 +82,7 @@ export default function Registrations() {
     interviewAttendance: "",
     interviewDate: "",
     interviewSessionLabel: "",
+    formId: Number.isSafeInteger(initialFormId) && initialFormId > 0 ? initialFormId : "",
   });
   const [draftKeyword, setDraftKeyword] = useState("");
   const [items, setItems] = useState<RegistrationListItem[]>([]);
@@ -97,11 +101,12 @@ export default function Registrations() {
 
   useEffect(() => {
     let cancelled = false;
-    Promise.all([listAdminUserGroupOptions(), listAdminInterviewSessions()])
-      .then(([groupItems, sessionItems]) => {
+    Promise.all([listAdminUserGroupOptions(), listAdminInterviewSessions(), listAdminArchivedForms()])
+      .then(([groupItems, sessionItems, archived]) => {
         if (cancelled) return;
         setGroups(groupItems.filter((item) => item.status === 1));
         setSessions(sessionItems);
+        setArchivedForms(archived);
       })
       .catch((error) => {
         if (!cancelled) handleError(error);
@@ -121,6 +126,7 @@ export default function Registrations() {
         setSummary(result.summary);
         setPagination(result.pagination);
         setCurrentFormAvailable(result.currentFormAvailable);
+        setArchivedView(result.archivedView);
       })
       .catch((error) => {
         if (!cancelled) handleError(error);
@@ -181,6 +187,8 @@ export default function Registrations() {
     setItems(result.items);
     setSummary(result.summary);
     setPagination(result.pagination);
+    setCurrentFormAvailable(result.currentFormAvailable);
+    setArchivedView(result.archivedView);
   }
 
   async function runAction(
@@ -204,6 +212,30 @@ export default function Registrations() {
       setActionLoading(false);
     }
   }
+
+  function selectRound(value: string) {
+    const numericId = Number(value);
+    const formId = value && Number.isSafeInteger(numericId) && archivedForms.some((form) => form.id === numericId)
+      ? numericId
+      : "";
+    setSelectedId(null);
+    setDetail(null);
+    setItems([]);
+    setSummary(defaultSummary);
+    setPagination(defaultPagination);
+    setCurrentFormAvailable(null);
+    setArchivedView(false);
+    setQuery((current) => ({ ...current, formId, page: 1, status: "", interviewDate: "", interviewSessionLabel: "" }));
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete("status");
+      if (formId) next.set("formId", String(formId));
+      else next.delete("formId");
+      return next;
+    }, { replace: true });
+  }
+
+  const isRoundVisible = currentFormAvailable !== false || archivedView || query.formId !== "";
 
   function submitSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -242,16 +274,43 @@ export default function Registrations() {
         </div>
       ) : null}
 
-      {currentFormAvailable === false ? (
+      <section className="admin-panel px-5 py-4 sm:px-6" aria-label="招新届次选择">
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="min-w-0 flex-1">
+            <h2 className="text-sm font-semibold text-fg-primary">查看招新届次</h2>
+            <p className="mt-1 text-xs text-fg-dim">
+              当前工作台只显示已发布的届次；结束后由超级管理员关闭并移入历史。历史记录只读。
+            </p>
+          </div>
+          <select
+            className="admin-field w-full sm:w-auto sm:min-w-64 sm:max-w-lg"
+            aria-label="切换当前招新或历史届次"
+            value={query.formId ?? ""}
+            onChange={(event) => selectRound(event.target.value)}
+          >
+            <option value="">当前招新</option>
+            {archivedForms.map((form) => (
+              <option key={form.id} value={form.id}>{form.title} · 已关闭</option>
+            ))}
+          </select>
+        </div>
+        {archivedView ? (
+          <p className="mt-3 text-sm text-fg-muted" role="status">正在查看历史届次，报名结果仅供查阅，不能继续初筛或修改面试结果。</p>
+        ) : null}
+      </section>
+
+      {currentFormAvailable === false && !query.formId ? (
         <div className="admin-panel px-5 py-8 text-center text-fg-muted" role="status">
-          当前暂无进行中的招新
+          当前暂无进行中的招新。可从上方切换历史届次查看往期报名。
         </div>
       ) : null}
 
-      {currentFormAvailable !== false ? <section aria-label="报名阶段处理队列" className="admin-pipeline">
+      {isRoundVisible ? <section aria-label="报名阶段处理队列" className="admin-pipeline">
         <div>
-          <h2 className="font-medium text-fg-primary">按阶段处理</h2>
-          <p className="mt-1 text-sm text-fg-dim">选择一个阶段打开对应队列；其他筛选条件会继续保留。</p>
+          <h2 className="font-medium text-fg-primary">{archivedView ? "历史阶段统计" : "按阶段处理"}</h2>
+          <p className="mt-1 text-sm text-fg-dim">
+            {archivedView ? "仅查看已归档的历史结果，不能再进行审核操作。" : "选择一个阶段打开对应队列；其他筛选条件会继续保留。"}
+          </p>
         </div>
         <div className="admin-stage-grid mt-3">
           <SummaryCard
@@ -293,7 +352,7 @@ export default function Registrations() {
         </div>
       </section> : null}
 
-      {currentFormAvailable !== false ? <form
+      {isRoundVisible ? <form
         aria-label="筛选报名记录"
         onSubmit={submitSearch}
         className="admin-filter-panel admin-filter-grid"
@@ -376,9 +435,9 @@ export default function Registrations() {
         </div>
       </form> : null}
 
-      {currentFormAvailable !== false ? <section className="admin-panel overflow-hidden">
+      {isRoundVisible ? <section className="admin-panel overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="admin-table">
+          <table className="admin-table admin-table--registrations">
             <thead>
               <tr>
                 <th>候选人</th>
@@ -432,7 +491,7 @@ export default function Registrations() {
                           onClick={() => setSelectedId(item.id)}
                           className="admin-button admin-button--secondary admin-button--small"
                         >
-                          {getRegistrationActionLabel(item.status)}
+                          {archivedView ? "查看详情" : getRegistrationActionLabel(item.status)}
                         </button>
                       </div>
                     </td>
