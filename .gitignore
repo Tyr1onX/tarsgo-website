@@ -3,6 +3,7 @@
 /node_modules/
 /dist/
 /internal/frontend/.env
+/internal/backend/.env
 /internal/frontend/node_modules/
 /internal/frontend/dist/
 
