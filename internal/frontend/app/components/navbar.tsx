@@ -9,6 +9,7 @@ const navLinks = [
   { label: "关于我们", href: "/#about", active: false },
   { label: "团队历程", href: "/#achievements", active: false },
   { label: "机器人展示", href: "/#robots", active: false },
+  { label: "低空微专业", href: "/micro-specialties/low-altitude-intelligent-sensing-control", active: false },
   { label: "成就展示", href: "/#certificates", active: false },
   { label: "加入我们", href: "/#join", active: false },
 ];

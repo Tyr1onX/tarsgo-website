@@ -2,6 +2,7 @@ import { type RouteConfig, index, route } from "@react-router/dev/routes";
 
 export default [
   index("routes/home.tsx"),
+  route("micro-specialties/low-altitude-intelligent-sensing-control", "routes/micro-specialty-low-altitude.tsx"),
   route("login", "routes/login.tsx"),
   route("register", "routes/register.tsx"),
   route("dashboard/setup/super-admin", "routes/dashboard/setup-super-admin.tsx"),
