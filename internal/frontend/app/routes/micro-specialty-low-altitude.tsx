@@ -3,14 +3,14 @@ import { Link } from "react-router";
 import type { Route } from "./+types/micro-specialty-low-altitude";
 import { Navbar } from "~/components/navbar";
 import {
-  lowAltitudeCourses,
+  lowAltitudeCourseTerms,
   lowAltitudeFaqs,
   lowAltitudePractices,
 } from "~/lib/micro-specialty-content";
 
 const title = "低空智能感知与控制微专业 | TARS-Go 吉甲大师";
 const description =
-  "了解低空智能感知与控制微专业的项目方向、课程体系、实践内容和常见问题。";
+  "了解吉林大学低空智能感知与控制微专业的课程结构、无人机实践内容和常见问题。";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -46,7 +46,7 @@ export default function LowAltitudeMicroSpecialty() {
                 <span className="block text-[#dfbd7c]">与控制</span>
               </h1>
               <p className="mt-7 max-w-2xl text-base leading-8 text-white/70 sm:text-lg">
-                从环境感知、状态理解到运动控制，走进低空智能系统的完整技术链路，用项目实践把算法、硬件与真实任务连接起来。
+                从认识无人机结构与飞行原理开始，逐步学习飞行控制、操控训练和应用实践，了解无人机如何服务不同任务。
               </p>
               <div className="mt-9 flex flex-col gap-3 sm:flex-row">
                 <a href="#curriculum" className="inline-flex min-h-12 items-center justify-center rounded-lg border border-white/20 px-6 py-3 text-sm font-semibold text-white transition hover:border-white/50 hover:bg-white/[0.06]">
@@ -73,11 +73,11 @@ export default function LowAltitudeMicroSpecialty() {
                   <circle cx="24" cy="24" r="7" />
                   <circle cx="24" cy="24" r="20" strokeOpacity=".35" />
                 </svg>
-                <span className="text-xs font-semibold tracking-[0.18em] text-white/75 sm:text-sm">SENSE · PLAN · CONTROL</span>
+                <span className="text-xs font-semibold tracking-[0.18em] text-white/75 sm:text-sm">LEARN · PRACTICE · APPLY</span>
               </div>
-              <span className="absolute left-[2%] top-1/2 max-w-24 -translate-y-1/2 text-right text-[10px] font-mono uppercase tracking-[0.16em] text-sky-100/55 sm:left-0 sm:text-xs">Perception</span>
-              <span className="absolute right-[1%] top-[28%] max-w-24 text-left text-[10px] font-mono uppercase tracking-[0.16em] text-emerald-100/55 sm:right-0 sm:text-xs">Estimation</span>
-              <span className="absolute bottom-[8%] right-[9%] max-w-24 text-left text-[10px] font-mono uppercase tracking-[0.16em] text-[#dfbd7c]/70 sm:bottom-[6%] sm:right-[12%] sm:text-xs">Control</span>
+              <span className="absolute left-[2%] top-1/2 max-w-24 -translate-y-1/2 text-right text-[10px] font-mono uppercase tracking-[0.16em] text-sky-100/55 sm:left-0 sm:text-xs">Basics</span>
+              <span className="absolute right-[1%] top-[28%] max-w-24 text-left text-[10px] font-mono uppercase tracking-[0.16em] text-emerald-100/55 sm:right-0 sm:text-xs">Control</span>
+              <span className="absolute bottom-[8%] right-[9%] max-w-24 text-left text-[10px] font-mono uppercase tracking-[0.16em] text-[#dfbd7c]/70 sm:bottom-[6%] sm:right-[12%] sm:text-xs">Practice</span>
             </div>
           </div>
         </section>
@@ -87,16 +87,16 @@ export default function LowAltitudeMicroSpecialty() {
             <SectionLabel number="01" english="ABOUT THE PROGRAM" title="项目介绍" />
             <div>
               <h2 className="max-w-3xl text-2xl font-semibold leading-snug text-white sm:text-3xl">
-                让低空智能从“看见环境”走向“理解并行动”
+                从认识无人机，到理解控制并探索应用
               </h2>
               <p className="mt-5 max-w-3xl text-sm leading-7 text-white/65 sm:text-base sm:leading-8">
-                微专业围绕低空智能设备在复杂环境中的自主作业需求，聚焦环境感知、状态估计、任务规划与运动控制。学习路径从系统基础出发，逐步进入关键技术和项目实践，帮助同学建立从传感器输入到控制执行的整体认识。
+                吉林大学「低空智能感知与控制」微专业围绕无人机基础认知、飞行控制、操控训练和应用实践展开。课程从了解无人机结构和飞行原理开始，逐步进入操控方法与安全规范，再认识无人机在实际任务中的应用。
               </p>
               <p className="mt-4 max-w-3xl text-sm leading-7 text-white/55 sm:text-base sm:leading-8">
-                课程模块为方向介绍，具体开课安排、学时、先修要求及考核方式以当期正式通知为准。
+                理论学习以线上为主，实践安排会结合学生课表、教学资源、设备、场地和安全条件协调。具体课次、时间、学时、学分及考核方式以学校正式通知为准。
               </p>
               <div className="mt-8 grid gap-3 sm:grid-cols-3">
-                {["理解低空系统", "掌握感知链路", "完成项目闭环"].map((item, index) => (
+                {["认识无人机", "理解飞行控制", "探索应用实践"].map((item, index) => (
                   <div key={item} className="rounded-xl border border-white/10 bg-white/[0.035] p-4">
                     <span className="font-mono text-xs text-[#dfbd7c]">0{index + 1}</span>
                     <p className="mt-2 text-sm font-medium text-white/80">{item}</p>
@@ -111,20 +111,31 @@ export default function LowAltitudeMicroSpecialty() {
           <div className="mx-auto max-w-7xl">
             <SectionLabel number="02" english="CURRICULUM" title="课程安排" />
             <div className="mb-8 mt-7 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <h2 className="max-w-2xl text-2xl font-semibold leading-snug text-white sm:text-3xl">从系统基础到综合项目，逐步搭起技术闭环</h2>
-              <p className="max-w-sm text-xs leading-6 text-white/50 sm:text-right">模块顺序用于介绍学习路径；具体课次和时间以当期教学安排为准。</p>
+              <h2 className="max-w-2xl text-2xl font-semibold leading-snug text-white sm:text-3xl">一年两学期，从基础认知到实践应用</h2>
+              <p className="max-w-sm text-xs leading-6 text-white/50 sm:text-right">以下课程名称和学期结构依据现有教学资料整理；具体安排以学校正式通知为准。</p>
             </div>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              {lowAltitudeCourses.map((course) => (
-                <article key={course.step} className="group min-w-0 rounded-2xl border border-white/10 bg-[#101619] p-5 transition hover:-translate-y-1 hover:border-[#dfbd7c]/40 sm:p-6">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="font-mono text-3xl font-semibold text-[#dfbd7c]/75">{course.step}</span>
-                    <span className="h-px flex-1 bg-gradient-to-r from-white/15 to-transparent" />
+            <div className="grid gap-6 lg:grid-cols-2">
+              {lowAltitudeCourseTerms.map((term) => (
+                <section key={term.semester} className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.025] p-4 sm:p-6">
+                  <div className="mb-5">
+                    <p className="text-xs font-semibold tracking-[0.16em] text-[#dfbd7c]">{term.semester}</p>
+                    <h3 className="mt-2 text-xl font-semibold text-white">{term.focus}</h3>
+                    <p className="mt-2 text-sm leading-6 text-white/55">{term.description}</p>
                   </div>
-                  <h3 className="mt-6 break-words text-lg font-semibold leading-7 text-white">{course.title}</h3>
-                  <p className="mt-3 text-sm leading-6 text-white/60">{course.description}</p>
-                  <p className="mt-5 border-t border-white/[0.08] pt-4 text-xs leading-5 text-emerald-100/70">学习重点 · {course.outcome}</p>
-                </article>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    {term.courses.map((course) => (
+                      <article key={course.step} className="group min-w-0 rounded-xl border border-white/10 bg-[#101619] p-5 transition hover:-translate-y-1 hover:border-[#dfbd7c]/40">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="font-mono text-2xl font-semibold text-[#dfbd7c]/75">{course.step}</span>
+                          <span className="h-px flex-1 bg-gradient-to-r from-white/15 to-transparent" />
+                        </div>
+                        <h4 className="mt-5 break-words text-base font-semibold leading-7 text-white">{course.title}</h4>
+                        <p className="mt-3 text-sm leading-6 text-white/60">{course.description}</p>
+                        <p className="mt-5 border-t border-white/[0.08] pt-4 text-xs leading-5 text-emerald-100/70">学习重点 · {course.outcome}</p>
+                      </article>
+                    ))}
+                  </div>
+                </section>
               ))}
             </div>
           </div>
@@ -133,7 +144,7 @@ export default function LowAltitudeMicroSpecialty() {
         <section id="practice" className="scroll-mt-24 px-5 py-16 sm:px-8 sm:py-20 lg:px-12">
           <div className="mx-auto max-w-7xl">
             <SectionLabel number="03" english="PROJECT PRACTICE" title="实践内容" />
-            <div className="mt-8 grid gap-4 md:grid-cols-3">
+            <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {lowAltitudePractices.map((practice, index) => (
                 <article key={practice.title} className="relative min-w-0 overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-[#172124] to-[#101416] p-5 sm:p-6">
                   <span aria-hidden className="absolute -right-2 -top-8 font-mono text-8xl font-bold text-white/[0.035]">0{index + 1}</span>
