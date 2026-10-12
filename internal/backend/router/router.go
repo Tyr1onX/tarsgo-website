@@ -95,6 +95,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	superAdminAPI.GET("/registration-forms/:id", registrationFormHandler.GetForm)
 	superAdminAPI.PATCH("/registration-forms/:id", registrationFormHandler.UpdateForm)
 	adminAPI.GET("/interview-sessions", registrationHandler.ListInterviewSessions)
+	adminAPI.GET("/workbench/summary", registrationHandler.GetAdminWorkbenchSummary)
 	superAdminAPI.POST("/interview-sessions", registrationHandler.CreateInterviewSession)
 	superAdminAPI.PATCH("/interview-sessions/:id", registrationHandler.UpdateInterviewSession)
 	adminAPI.GET("/registration-forms/history", registrationFormHandler.ListArchivedForms)

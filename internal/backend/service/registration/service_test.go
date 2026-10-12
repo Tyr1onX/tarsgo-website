@@ -3,6 +3,7 @@ package registration
 import (
 	"context"
 	"encoding/csv"
+	"net/http"
 	"strings"
 	"testing"
 	"time"
@@ -449,6 +450,69 @@ func TestRegistrationServiceListRegistrationsHasNoCurrentFormState(t *testing.T)
 	}
 	if result.CurrentFormAvailable || len(result.Items) != 0 || result.Summary.Total != 0 || result.Pagination.Total != 0 {
 		t.Fatalf("expected empty current-term result, got %#v", result)
+	}
+}
+
+func TestRegistrationServiceAdminWorkbenchSummaryUsesOnlyAggregateStats(t *testing.T) {
+	repo := newFakeRegistrationListRepository()
+	service := newRegistrationServiceWithDependencies(repo, nil)
+
+	result, err := service.GetAdminWorkbenchSummary(context.Background(), RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin})
+	if err != nil {
+		t.Fatalf("GetAdminWorkbenchSummary returned error: %v", err)
+	}
+	if !result.CurrentFormAvailable || result.Summary != repo.stats {
+		t.Fatalf("unexpected workbench summary: %#v", result)
+	}
+	if len(repo.statsFilters) != 1 || repo.statsFilters[0].FormID == nil || *repo.statsFilters[0].FormID != 301 {
+		t.Fatalf("expected one current-form aggregate query, got %#v", repo.statsFilters)
+	}
+	if repo.statsFilters[0].Status != nil || repo.statsFilters[0].Page != 0 || repo.statsFilters[0].PageSize != 0 {
+		t.Fatalf("summary query must not carry list pagination or status filters: %#v", repo.statsFilters[0])
+	}
+	if len(repo.countFilters) != 0 || len(repo.listFilters) != 0 {
+		t.Fatalf("workbench summary must not count or load candidate rows: count=%d list=%d", len(repo.countFilters), len(repo.listFilters))
+	}
+}
+
+func TestRegistrationServiceAdminWorkbenchSummaryWithoutPublishedForm(t *testing.T) {
+	repo := newFakeRegistrationListRepository()
+	repo.forms = nil
+	service := newRegistrationServiceWithDependencies(repo, nil)
+
+	result, err := service.GetAdminWorkbenchSummary(context.Background(), RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin})
+	if err != nil {
+		t.Fatalf("GetAdminWorkbenchSummary returned error: %v", err)
+	}
+	if result.CurrentFormAvailable || result.Summary != (RegistrationStats{}) || len(repo.statsFilters) != 0 {
+		t.Fatalf("expected empty workbench summary without a published form, got %#v", result)
+	}
+}
+
+func TestRegistrationServiceAdminWorkbenchSummaryRequiresAdmin(t *testing.T) {
+	service := newRegistrationServiceWithDependencies(newFakeRegistrationListRepository(), nil)
+	_, err := service.GetAdminWorkbenchSummary(context.Background(), RegistrationFormActor{ID: 501, RoleName: model.RoleNameUser})
+	var serviceErr *ServiceError
+	if !errors.As(err, &serviceErr) || serviceErr.Status != http.StatusForbidden {
+		t.Fatalf("expected admin access to be required, got %v", err)
+	}
+}
+
+func TestRegistrationServiceListInterviewSessionsBatchesSelectionCounts(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	repo.registration.InterviewSessionID = uint64Ptr(802)
+	repo.registration.InterviewAttendance = model.InterviewAttendanceAttending
+	service := newRegistrationServiceWithDependencies(repo, nil)
+
+	sessions, err := service.ListInterviewSessions(context.Background(), RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin})
+	if err != nil {
+		t.Fatalf("ListInterviewSessions returned error: %v", err)
+	}
+	if len(sessions) != 3 || sessions[0].ConfirmedCount != 0 || sessions[1].ConfirmedCount != 1 || sessions[2].ConfirmedCount != 0 {
+		t.Fatalf("unexpected session selection counts: %#v", sessions)
+	}
+	if repo.selectionCountBatchCalls != 1 || repo.selectionCountCalls != 0 {
+		t.Fatalf("expected one grouped selection-count call, got batch=%d individual=%d", repo.selectionCountBatchCalls, repo.selectionCountCalls)
 	}
 }
 
@@ -1041,15 +1105,17 @@ func TestInterviewResultDoesNotRequireAttendanceConfirmation(t *testing.T) {
 }
 
 type fakeRegistrationReviewRepository struct {
-	registration        *model.Registration
-	shownGroups         []model.UserGroup
-	leaderGroupIDs      map[uint64][]uint64
-	users               map[uint64]*model.User
-	addedMemberships    []fakeAddedMembership
-	removedMemberships  []fakeAddedMembership
-	addedMembershipKV   map[fakeAddedMembership]struct{}
-	removedMembershipKV map[fakeAddedMembership]struct{}
-	interviewSessions   []model.InterviewSession
+	registration             *model.Registration
+	shownGroups              []model.UserGroup
+	leaderGroupIDs           map[uint64][]uint64
+	users                    map[uint64]*model.User
+	addedMemberships         []fakeAddedMembership
+	removedMemberships       []fakeAddedMembership
+	addedMembershipKV        map[fakeAddedMembership]struct{}
+	removedMembershipKV      map[fakeAddedMembership]struct{}
+	interviewSessions        []model.InterviewSession
+	selectionCountCalls      int
+	selectionCountBatchCalls int
 }
 
 type fakeAddedMembership struct {
@@ -1433,10 +1499,22 @@ func (r *fakeRegistrationReviewRepository) UpdateInterviewSession(_ context.Cont
 }
 
 func (r *fakeRegistrationReviewRepository) CountInterviewSessionSelections(_ context.Context, sessionID uint64) (int64, error) {
+	r.selectionCountCalls++
 	if r.registration != nil && r.registration.InterviewSessionID != nil && *r.registration.InterviewSessionID == sessionID && r.registration.InterviewAttendance == model.InterviewAttendanceAttending {
 		return 1, nil
 	}
 	return 0, nil
+}
+
+func (r *fakeRegistrationReviewRepository) CountInterviewSessionSelectionsByIDs(_ context.Context, sessionIDs []uint64) (map[uint64]int64, error) {
+	r.selectionCountBatchCalls++
+	counts := make(map[uint64]int64, len(sessionIDs))
+	for _, sessionID := range sessionIDs {
+		if r.registration != nil && r.registration.InterviewSessionID != nil && *r.registration.InterviewSessionID == sessionID && r.registration.InterviewAttendance == model.InterviewAttendanceAttending {
+			counts[sessionID] = 1
+		}
+	}
+	return counts, nil
 }
 
 func cloneRegistrationModel(registration *model.Registration) *model.Registration {
@@ -1772,6 +1850,10 @@ func (r *fakeRegistrationListRepository) UpdateInterviewSession(_ context.Contex
 
 func (r *fakeRegistrationListRepository) CountInterviewSessionSelections(_ context.Context, _ uint64) (int64, error) {
 	return 0, nil
+}
+
+func (r *fakeRegistrationListRepository) CountInterviewSessionSelectionsByIDs(_ context.Context, _ []uint64) (map[uint64]int64, error) {
+	return map[uint64]int64{}, nil
 }
 
 func registrationMatchesVisibleGroups(registration *model.Registration, visibleGroupIDs []uint64) bool {

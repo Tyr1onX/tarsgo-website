@@ -24,6 +24,7 @@ type registrationService interface {
 	UpdateRecruitmentRegistration(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64, input registration.SubmitRegistrationInput) (*registration.SubmitRegistrationResult, error)
 	CancelRecruitmentRegistration(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64) error
 	ListRegistrations(ctx context.Context, actor registration.RegistrationFormActor, input registration.ListRegistrationsInput) (*registration.ListRegistrationsResult, error)
+	GetAdminWorkbenchSummary(ctx context.Context, actor registration.RegistrationFormActor) (*registration.AdminWorkbenchSummary, error)
 	GetRegistration(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64) (*registration.RegistrationDetail, error)
 	ScreenRegistration(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64, input registration.ScreeningDecisionInput) (*registration.RegistrationDetail, error)
 	RecordInterviewResult(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64, input registration.InterviewDecisionInput) (*registration.RegistrationDetail, error)
@@ -170,6 +171,15 @@ func (h *RegistrationHandler) ListRegistrations(c *gin.Context) {
 	}
 
 	writeAPI(c, http.StatusOK, "获取报名列表成功", result)
+}
+
+func (h *RegistrationHandler) GetAdminWorkbenchSummary(c *gin.Context) {
+	result, serviceErr := h.service.GetAdminWorkbenchSummary(c.Request.Context(), currentRegistrationFormActor(c))
+	if serviceErr != nil {
+		h.handleServiceError(c, serviceErr)
+		return
+	}
+	writeAPI(c, http.StatusOK, "获取招新工作台统计成功", result)
 }
 
 func (h *RegistrationHandler) GetRegistration(c *gin.Context) {
