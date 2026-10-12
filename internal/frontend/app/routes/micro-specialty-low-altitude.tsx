@@ -1,14 +1,7 @@
-import { useEffect, useState } from "react";
 import { Link } from "react-router";
 
 import type { Route } from "./+types/micro-specialty-low-altitude";
 import { Navbar } from "~/components/navbar";
-import {
-  getCachedCurrentUser,
-  getOptionalCurrentUser,
-  subscribeAuthStateChange,
-  type AuthUser,
-} from "~/lib/auth-client";
 import {
   lowAltitudeCourses,
   lowAltitudeFaqs,
@@ -17,7 +10,7 @@ import {
 
 const title = "低空智能感知与控制微专业 | TARS-Go 吉甲大师";
 const description =
-  "了解低空智能感知与控制微专业的项目方向、课程模块、实践内容和报名方式。";
+  "了解低空智能感知与控制微专业的项目方向、课程体系、实践内容和常见问题。";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -27,31 +20,9 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export default function LowAltitudeMicroSpecialty() {
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => getCachedCurrentUser());
-
-  useEffect(() => {
-    let disposed = false;
-    const unsubscribe = subscribeAuthStateChange((user) => {
-      if (!disposed) setCurrentUser(user);
-    });
-
-    void getOptionalCurrentUser()
-      .then((user) => {
-        if (!disposed) setCurrentUser(user);
-      })
-      .catch(() => {
-        if (!disposed) setCurrentUser(null);
-      });
-
-    return () => {
-      disposed = true;
-      unsubscribe();
-    };
-  }, []);
-
   return (
     <div className="min-h-screen overflow-hidden bg-[#0b1013] text-fg-primary">
-      <Navbar currentUser={currentUser} />
+      <Navbar variant="micro-specialty" />
 
       <main>
         <section className="relative isolate overflow-hidden border-b border-white/[0.08] bg-[#0b1013]">
@@ -78,15 +49,15 @@ export default function LowAltitudeMicroSpecialty() {
                 从环境感知、状态理解到运动控制，走进低空智能系统的完整技术链路，用项目实践把算法、硬件与真实任务连接起来。
               </p>
               <div className="mt-9 flex flex-col gap-3 sm:flex-row">
-                <Link to="/register" className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-[#d0ad69] px-6 py-3 text-sm font-semibold text-[#141813] transition hover:bg-[#e0c17e]">
-                  前往现有报名入口 <span aria-hidden>↗</span>
-                </Link>
                 <a href="#curriculum" className="inline-flex min-h-12 items-center justify-center rounded-lg border border-white/20 px-6 py-3 text-sm font-semibold text-white transition hover:border-white/50 hover:bg-white/[0.06]">
                   查看课程安排
                 </a>
+                <a href="#practice" className="inline-flex min-h-12 items-center justify-center rounded-lg border border-white/20 px-6 py-3 text-sm font-semibold text-white transition hover:border-white/50 hover:bg-white/[0.06]">
+                  了解实践内容
+                </a>
               </div>
               <p className="mt-4 max-w-xl text-xs leading-6 text-white/45">
-                报名入口沿用官网现有流程；报名表、账号及联系方式等信息仅在原流程中处理。
+                本页面仅用于介绍微专业项目，不提供报名、账号注册或招生管理功能。
               </p>
             </div>
 
@@ -194,18 +165,6 @@ export default function LowAltitudeMicroSpecialty() {
           </div>
         </section>
 
-        <section id="apply" className="scroll-mt-24 px-5 py-16 sm:px-8 sm:py-20 lg:px-12">
-          <div className="mx-auto flex max-w-5xl flex-col items-start justify-between gap-6 rounded-3xl border border-[#dfbd7c]/20 bg-[radial-gradient(ellipse_at_top_right,rgba(208,173,105,.13),transparent_55%),#111719] p-6 sm:flex-row sm:items-center sm:p-10">
-            <div className="max-w-2xl">
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#dfbd7c]">NEXT STEP</p>
-              <h2 className="mt-3 text-2xl font-semibold text-white sm:text-3xl">通过官网现有入口了解报名流程</h2>
-              <p className="mt-3 text-sm leading-6 text-white/60">账号注册和报名信息继续由原有页面处理，本介绍页不会收集个人资料。</p>
-            </div>
-            <Link to="/register" className="inline-flex min-h-12 w-full shrink-0 items-center justify-center gap-2 rounded-lg bg-[#d0ad69] px-6 py-3 text-sm font-semibold text-[#141813] transition hover:bg-[#e0c17e] sm:w-auto">
-              前往现有报名入口 <span aria-hidden>↗</span>
-            </Link>
-          </div>
-        </section>
       </main>
 
       <footer className="border-t border-white/[0.08] px-5 py-7 text-xs text-white/45 sm:px-8 lg:px-12">
