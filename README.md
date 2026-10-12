@@ -69,7 +69,7 @@ git switch -c docs/my-first-change  # 根据任务使用 docs/、fix/、feat/ �
 
 # 修改本次任务涉及的文件
 git diff --check
-git add <本次修改的文件>
+git add README.md  # 示例：只提交本次修改的 README；其他任务请调整文件名
 git commit -m "docs: improve onboarding notes"
 git push -u origin docs/my-first-change
 ```
