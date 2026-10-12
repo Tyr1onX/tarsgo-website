@@ -767,6 +767,7 @@ func TestRegistrationServiceExportIsSuperAdminOnly(t *testing.T) {
 func TestRegistrationServiceUpdateRecruitmentRegistrationAllowsEditablePendingRegistration(t *testing.T) {
 	repo := newFakeRegistrationReviewRepository()
 	service := newRegistrationServiceWithDependencies(repo, nil)
+	originalSubmittedAt := repo.registration.SubmittedAt
 	service.now = func() time.Time {
 		return time.Date(2026, 4, 14, 12, 0, 0, 0, time.Local)
 	}
@@ -792,6 +793,9 @@ func TestRegistrationServiceUpdateRecruitmentRegistrationAllowsEditablePendingRe
 	if result.RecruitmentStatus != model.RecruitmentStatusPendingScreening {
 		t.Fatalf("expected pending-screening status after resubmit, got %q", result.RecruitmentStatus)
 	}
+	if !result.SubmittedAt.Equal(originalSubmittedAt) || !repo.registration.SubmittedAt.Equal(originalSubmittedAt) {
+		t.Fatalf("editing a registration must preserve its first submission time: result=%s stored=%s want=%s", result.SubmittedAt, repo.registration.SubmittedAt, originalSubmittedAt)
+	}
 	if repo.registration == nil {
 		t.Fatalf("expected registration to remain present after update")
 	}
@@ -812,6 +816,69 @@ func TestRegistrationServiceUpdateRecruitmentRegistrationAllowsEditablePendingRe
 	}
 	if repo.registration.FormData["group_1"] != "101" || repo.registration.FormData["group_2"] != "102" {
 		t.Fatalf("legacy dual-intent form data must remain archived after edit: %#v", repo.registration.FormData)
+	}
+}
+
+func TestRegistrationServiceUpdateRecruitmentRegistrationRejectsAfterDeadline(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	deadline := time.Date(2026, 4, 14, 11, 59, 0, 0, time.Local)
+	repo.registration.Form.EndTime = &deadline
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	service.now = func() time.Time { return deadline.Add(time.Second) }
+	originalName := *repo.registration.ContactName
+
+	_, err := service.UpdateRecruitmentRegistration(
+		context.Background(),
+		RegistrationFormActor{ID: repo.registration.UserID, RoleName: model.RoleNameUser},
+		repo.registration.ID,
+		editableRegistrationInput(),
+	)
+	assertRegistrationServiceError(t, err, 409, "报名已结束")
+	if *repo.registration.ContactName != originalName {
+		t.Fatalf("registration was modified after its deadline: contact name = %q", *repo.registration.ContactName)
+	}
+}
+
+func TestRegistrationServiceUpdateRecruitmentRegistrationAllowsExactDeadline(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	deadline := time.Date(2026, 4, 14, 12, 0, 0, 0, time.Local)
+	repo.registration.Form.EndTime = &deadline
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	service.now = func() time.Time { return deadline }
+
+	if _, err := service.UpdateRecruitmentRegistration(
+		context.Background(),
+		RegistrationFormActor{ID: repo.registration.UserID, RoleName: model.RoleNameUser},
+		repo.registration.ID,
+		editableRegistrationInput(),
+	); err != nil {
+		t.Fatalf("registration should remain editable at the configured deadline instant: %v", err)
+	}
+}
+
+func TestRegistrationServiceUpdateRecruitmentRegistrationRejectsClosedForm(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	repo.registration.Form.Status = model.RegistrationFormStatusClosed
+	service := newRegistrationServiceWithDependencies(repo, nil)
+
+	_, err := service.UpdateRecruitmentRegistration(
+		context.Background(),
+		RegistrationFormActor{ID: repo.registration.UserID, RoleName: model.RoleNameUser},
+		repo.registration.ID,
+		editableRegistrationInput(),
+	)
+	assertRegistrationServiceError(t, err, 409, "报名表已关闭")
+}
+
+func editableRegistrationInput() SubmitRegistrationInput {
+	return SubmitRegistrationInput{
+		Values: map[string][]string{
+			"name":            {"李四"},
+			"phone":           {"13900139000"},
+			"email":           {"lisi@example.com"},
+			"preferred_group": {"102"},
+			"direction":       {"embedded"},
+		},
 	}
 }
 
