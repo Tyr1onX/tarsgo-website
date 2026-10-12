@@ -14,11 +14,20 @@ const navLinks = [
   { label: "加入我们", href: "/#join", active: false },
 ];
 
+const microSpecialtyNavLinks = [
+  { label: "项目介绍", href: "#introduction", active: false },
+  { label: "课程安排", href: "#curriculum", active: false },
+  { label: "实践内容", href: "#practice", active: false },
+  { label: "常见问题", href: "#faq", active: false },
+];
+
 type NavbarProps = {
   currentUser?: AuthUser | null;
+  variant?: "default" | "micro-specialty";
 };
 
-export function Navbar({ currentUser = null }: NavbarProps) {
+export function Navbar({ currentUser = null, variant = "default" }: NavbarProps) {
+  const visibleNavLinks = variant === "micro-specialty" ? microSpecialtyNavLinks : navLinks;
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -108,7 +117,7 @@ export function Navbar({ currentUser = null }: NavbarProps) {
 
         {/* Desktop nav links */}
         <div className="hidden md:flex items-center gap-8">
-          {navLinks.map((link) => (
+          {visibleNavLinks.map((link) => (
             <a
               key={link.href}
               href={link.href}
@@ -124,7 +133,7 @@ export function Navbar({ currentUser = null }: NavbarProps) {
         </div>
 
         {/* Auth area */}
-        <div className="hidden md:flex items-center gap-3">
+        {variant === "default" ? <div className="hidden md:flex items-center gap-3">
           {currentUser ? (
             <div ref={userMenuRef} className="relative">
               <button
@@ -230,7 +239,7 @@ export function Navbar({ currentUser = null }: NavbarProps) {
               </Link>
             </>
           )}
-        </div>
+        </div> : null}
 
         {/* Mobile menu button */}
         <button
@@ -267,7 +276,7 @@ export function Navbar({ currentUser = null }: NavbarProps) {
       {menuOpen && (
         <div className="md:hidden px-6 pb-4 border-t border-border-subtle pt-4">
           <div className="flex flex-col gap-1">
-            {navLinks.map((link) => (
+            {visibleNavLinks.map((link) => (
               <a
                 key={link.href}
                 href={link.href}
@@ -282,7 +291,7 @@ export function Navbar({ currentUser = null }: NavbarProps) {
               </a>
             ))}
           </div>
-          {currentUser ? (
+          {variant === "default" && currentUser ? (
             <div className="mt-4 rounded-2xl border border-border-subtle bg-surface-light/40 p-3">
               <div className="flex items-center gap-3">
                 <UserAvatar user={currentUser} className="h-10 w-10" textClassName="text-sm" />
@@ -312,7 +321,7 @@ export function Navbar({ currentUser = null }: NavbarProps) {
                 </button>
               </div>
             </div>
-          ) : (
+          ) : variant === "default" ? (
             <div className="flex gap-3 mt-4 px-3">
               <Link
                 to="/login"
@@ -329,7 +338,7 @@ export function Navbar({ currentUser = null }: NavbarProps) {
                 注册
               </Link>
             </div>
-          )}
+          ) : null}
         </div>
       )}
       </div>
