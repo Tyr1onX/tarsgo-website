@@ -47,6 +47,11 @@ export interface RegistrationSummary {
   withdrawn: number;
 }
 
+export interface AdminWorkbenchSummaryResponse {
+  currentFormAvailable: boolean;
+  summary: RegistrationSummary;
+}
+
 export interface RegistrationGroupRef {
   id: number;
   name: string;
@@ -238,6 +243,10 @@ export async function recordAdminRegistrationInterview(
 export async function listAdminInterviewSessions(): Promise<InterviewSession[]> {
   const data = await apiRequest<{ items: InterviewSession[] }>("/api/admin/interview-sessions");
   return data.items;
+}
+
+export async function getAdminWorkbenchSummary(): Promise<AdminWorkbenchSummaryResponse> {
+  return apiRequest<AdminWorkbenchSummaryResponse>("/api/admin/workbench/summary");
 }
 
 export async function createAdminInterviewSession(input: UpsertInterviewSessionInput): Promise<InterviewSession> {

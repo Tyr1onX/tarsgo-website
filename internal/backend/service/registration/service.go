@@ -63,6 +63,7 @@ type registrationRepository interface {
 	CreateInterviewSession(ctx context.Context, session *model.InterviewSession) error
 	UpdateInterviewSession(ctx context.Context, sessionID uint64, updates map[string]any) error
 	CountInterviewSessionSelections(ctx context.Context, sessionID uint64) (int64, error)
+	CountInterviewSessionSelectionsByIDs(ctx context.Context, sessionIDs []uint64) (map[uint64]int64, error)
 }
 
 type gormRegistrationRepository struct {
@@ -103,6 +104,11 @@ type RegistrationStats struct {
 	Admitted         int64 `json:"admitted"`
 	Rejected         int64 `json:"rejected"`
 	Withdrawn        int64 `json:"withdrawn"`
+}
+
+type AdminWorkbenchSummary struct {
+	CurrentFormAvailable bool              `json:"currentFormAvailable"`
+	Summary              RegistrationStats `json:"summary"`
 }
 
 type RegistrationPagination struct {
@@ -1050,6 +1056,35 @@ func (s *RegistrationService) OpenRegistrationFile(ctx context.Context, actor Re
 		ContentType: fileRef.ContentType,
 		Inline:      field.Type == "image",
 	}, nil
+}
+
+func (s *RegistrationService) GetAdminWorkbenchSummary(ctx context.Context, actor RegistrationFormActor) (*AdminWorkbenchSummary, error) {
+	if err := wrapRegistrationActorError(ensureRegistrationAdminActor(actor)); err != nil {
+		return nil, err
+	}
+
+	form, err := currentPublishedForm(ctx, s.repo)
+	if err != nil {
+		return nil, err
+	}
+	result := &AdminWorkbenchSummary{CurrentFormAvailable: form != nil}
+	if form == nil {
+		return result, nil
+	}
+
+	scope, err := s.resolveRegistrationAccessScope(ctx, actor)
+	if err != nil {
+		return nil, err
+	}
+	filter := ListRegistrationsInput{FormID: ptrUint64(form.ID)}
+	if !scope.fullAccess {
+		filter.VisibleGroupIDs = registrationScopeGroupIDs(scope)
+	}
+	result.Summary, err = s.repo.GetRegistrationStats(ctx, filter)
+	if err != nil {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "查询报名统计失败", Err: err}
+	}
+	return result, nil
 }
 
 func (s *RegistrationService) ExportFormRegistrationsCSV(ctx context.Context, actor RegistrationFormActor, formID uint64, baseURL string) (*RegistrationCSVExportResult, error) {

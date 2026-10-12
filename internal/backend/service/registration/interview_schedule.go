@@ -283,13 +283,22 @@ func filterSessionsForForm(sessions []model.InterviewSession, formID uint64) []m
 }
 
 func (s *RegistrationService) buildInterviewSessionViews(ctx context.Context, sessions []model.InterviewSession) ([]InterviewSessionView, error) {
+	if len(sessions) == 0 {
+		return []InterviewSessionView{}, nil
+	}
+
+	sessionIDs := make([]uint64, len(sessions))
+	for i := range sessions {
+		sessionIDs[i] = sessions[i].ID
+	}
+	counts, err := s.repo.CountInterviewSessionSelectionsByIDs(ctx, sessionIDs)
+	if err != nil {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "查询场次确认人数失败", Err: err}
+	}
+
 	result := make([]InterviewSessionView, 0, len(sessions))
 	for i := range sessions {
-		count, err := s.repo.CountInterviewSessionSelections(ctx, sessions[i].ID)
-		if err != nil {
-			return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "查询场次确认人数失败", Err: err}
-		}
-		result = append(result, *toInterviewSessionView(&sessions[i], count))
+		result = append(result, *toInterviewSessionView(&sessions[i], counts[sessions[i].ID]))
 	}
 	return result, nil
 }
@@ -409,4 +418,29 @@ func (r *gormRegistrationRepository) CountInterviewSessionSelections(ctx context
 		Where("interview_session_id = ? AND interview_attendance = ?", sessionID, model.InterviewAttendanceAttending).
 		Count(&count).Error
 	return count, err
+}
+
+func (r *gormRegistrationRepository) CountInterviewSessionSelectionsByIDs(ctx context.Context, sessionIDs []uint64) (map[uint64]int64, error) {
+	counts := make(map[uint64]int64, len(sessionIDs))
+	if len(sessionIDs) == 0 {
+		return counts, nil
+	}
+
+	type sessionSelectionCount struct {
+		SessionID uint64 `gorm:"column:interview_session_id"`
+		Count     int64  `gorm:"column:confirmed_count"`
+	}
+	var rows []sessionSelectionCount
+	err := r.db.WithContext(ctx).Model(&model.Registration{}).
+		Select("interview_session_id, COUNT(*) AS confirmed_count").
+		Where("interview_session_id IN ? AND interview_attendance = ?", sessionIDs, model.InterviewAttendanceAttending).
+		Group("interview_session_id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		counts[row.SessionID] = row.Count
+	}
+	return counts, nil
 }

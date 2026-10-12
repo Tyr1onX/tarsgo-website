@@ -1,9 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useOutletContext } from "react-router";
 
-import { ApiError } from "~/lib/api-client";
 import { getUpcomingInterviewSessions } from "~/lib/admin-workbench";
-import { listAdminInterviewSessions, listAdminRegistrations, type InterviewSession, type RegistrationSummary, type RecruitmentStatus } from "~/lib/registrations-client";
+import { getAdminWorkbenchSummary, listAdminInterviewSessions, type InterviewSession, type RegistrationSummary, type RecruitmentStatus } from "~/lib/registrations-client";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 
 export function meta() {
@@ -11,6 +10,7 @@ export function meta() {
 }
 
 const autoRefreshIntervalMs = 30_000;
+const duplicateRefreshWindowMs = 3_000;
 const statusItems: Array<{ status: RecruitmentStatus; label: string; countKey: keyof RegistrationSummary; hrefLabel: string }> = [
   { status: "pending_screening", label: "待初筛", countKey: "pendingScreening", hrefLabel: "进入初筛队列" },
   { status: "pending_interview", label: "待面试", countKey: "pendingInterview", hrefLabel: "进入面试队列" },
@@ -19,41 +19,73 @@ const statusItems: Array<{ status: RecruitmentStatus; label: string; countKey: k
   { status: "withdrawn", label: "已撤回", countKey: "withdrawn", hrefLabel: "查看已撤回" },
 ];
 
+interface WorkbenchSnapshot {
+  summary: RegistrationSummary | null;
+  currentFormAvailable: boolean | null;
+  sessions: InterviewSession[] | null;
+}
+
+const workbenchCache = new Map<number, WorkbenchSnapshot>();
+
+function describeLoadError(cause: unknown, fallback: string) {
+  return cause instanceof Error ? cause.message : fallback;
+}
+
 export default function AdminDashboard() {
   const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
-  const [summary, setSummary] = useState<RegistrationSummary | null>(null);
-  const [currentFormAvailable, setCurrentFormAvailable] = useState(true);
-  const [sessions, setSessions] = useState<InterviewSession[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [refreshError, setRefreshError] = useState("");
-  const hasData = useRef(false);
+  const cachedSnapshot = workbenchCache.get(currentUser.id) ?? {
+    summary: null,
+    currentFormAvailable: null,
+    sessions: null,
+  };
+  const snapshotRef = useRef(cachedSnapshot);
+  const [summary, setSummary] = useState(cachedSnapshot.summary);
+  const [currentFormAvailable, setCurrentFormAvailable] = useState(cachedSnapshot.currentFormAvailable);
+  const [sessions, setSessions] = useState(cachedSnapshot.sessions ?? []);
+  const [summaryLoading, setSummaryLoading] = useState(cachedSnapshot.summary === null);
+  const [sessionsLoading, setSessionsLoading] = useState(cachedSnapshot.sessions === null);
+  const [summaryError, setSummaryError] = useState("");
+  const [sessionsError, setSessionsError] = useState("");
   const requestInFlight = useRef(false);
+  const lastRefreshStartedAt = useRef(0);
 
-  const load = useCallback(async (initial: boolean) => {
+  const load = useCallback(async (force = false) => {
     if (requestInFlight.current) return;
+    const startedAt = Date.now();
+    if (!force && startedAt - lastRefreshStartedAt.current < duplicateRefreshWindowMs) return;
     requestInFlight.current = true;
-    const showLoading = initial || !hasData.current;
-    if (showLoading) setLoading(true);
-    setError("");
-    setRefreshError("");
-    try {
-      const [registrations, nextSessions] = await Promise.all([
-        listAdminRegistrations({ page: 1, pageSize: 1 }),
-        listAdminInterviewSessions(),
-      ]);
-      setSummary(registrations.summary);
-      setCurrentFormAvailable(registrations.currentFormAvailable);
-      setSessions(nextSessions);
-      hasData.current = true;
-    } catch (cause) {
-      const message = cause instanceof ApiError ? cause.message : "工作台数据加载失败";
-      if (showLoading) setError(message); else setRefreshError(message);
-    } finally {
-      requestInFlight.current = false;
-      if (showLoading) setLoading(false);
-    }
-  }, []);
+    lastRefreshStartedAt.current = startedAt;
+    if (snapshotRef.current.summary === null) setSummaryLoading(true);
+    if (snapshotRef.current.sessions === null) setSessionsLoading(true);
+
+    const updateSnapshot = (patch: Partial<WorkbenchSnapshot>) => {
+      const next = { ...snapshotRef.current, ...patch };
+      snapshotRef.current = next;
+      workbenchCache.set(currentUser.id, next);
+    };
+
+    const summaryRequest = getAdminWorkbenchSummary()
+      .then((result) => {
+        updateSnapshot({ summary: result.summary, currentFormAvailable: result.currentFormAvailable });
+        setSummary(result.summary);
+        setCurrentFormAvailable(result.currentFormAvailable);
+        setSummaryError("");
+      })
+      .catch((cause: unknown) => setSummaryError(describeLoadError(cause, "工作台统计加载失败")))
+      .finally(() => setSummaryLoading(false));
+
+    const sessionsRequest = listAdminInterviewSessions()
+      .then((result) => {
+        updateSnapshot({ sessions: result });
+        setSessions(result);
+        setSessionsError("");
+      })
+      .catch((cause: unknown) => setSessionsError(describeLoadError(cause, "面试场次加载失败")))
+      .finally(() => setSessionsLoading(false));
+
+    await Promise.all([summaryRequest, sessionsRequest]);
+    requestInFlight.current = false;
+  }, [currentUser.id]);
 
   useEffect(() => {
     void load(true);
@@ -72,32 +104,6 @@ export default function AdminDashboard() {
 
   const upcomingSessions = useMemo(() => getUpcomingInterviewSessions(sessions), [sessions]);
 
-  if (loading) {
-    return (
-      <div className="admin-design admin-workbench admin-workbench--loading">
-        <div className="admin-workbench__content admin-workbench__skeleton" aria-label="正在加载工作台">
-          <div className="admin-workbench__skeleton-heading" />
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div className="admin-workbench__skeleton-queue" />
-            <div className="admin-workbench__skeleton-queue" />
-          </div>
-          <div className="admin-workbench__skeleton-list" />
-        </div>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="admin-design admin-workbench">
-        <div className="admin-workbench__content admin-workbench__error" role="alert">
-          <p>{error}</p>
-          <button type="button" onClick={() => void load(true)} className="admin-button admin-button--primary">重新加载</button>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="admin-design admin-workbench">
       <div className="admin-workbench__content">
@@ -110,20 +116,25 @@ export default function AdminDashboard() {
           <Link to="/dashboard/admin/registrations" className="admin-button admin-button--primary">进入报名处理 <span aria-hidden="true">→</span></Link>
         </header>
 
-        {!currentFormAvailable ? (
+        {currentFormAvailable === false ? (
           <div className="admin-workbench__empty" role="status">当前暂无进行中的招新</div>
         ) : (
           <>
 
-        {refreshError && (
+        {(summaryError || sessionsError) && (
           <div role="status" className="admin-notice admin-notice--warning flex flex-wrap items-center justify-between gap-3 mb-5">
-            <span>自动刷新失败：{refreshError}，当前仍显示上次成功获取的数据。</span>
-            <button type="button" onClick={() => void load(false)} className="admin-button admin-button--quiet">重试</button>
+            <span>部分工作台数据加载失败：{[summaryError, sessionsError].filter(Boolean).join("；")}。已加载的数据仍可使用。</span>
+            <button type="button" onClick={() => void load(true)} className="admin-button admin-button--quiet">重试</button>
           </div>
         )}
 
         <section aria-label="当前待处理招新阶段" className="admin-workbench__queues">
-          {statusItems.slice(0, 2).map((item, index) => (
+          {summaryLoading && !summary ? (
+            <div className="grid gap-4 lg:grid-cols-2" role="status" aria-label="正在加载招新统计">
+              <div className="admin-workbench__skeleton-queue" />
+              <div className="admin-workbench__skeleton-queue" />
+            </div>
+          ) : statusItems.slice(0, 2).map((item, index) => (
             <Link key={item.status} to={`/dashboard/admin/registrations?status=${item.status}`} className="admin-workbench__queue">
               <div className="admin-workbench__queue-topline">
                 <span className="admin-workbench__queue-index">0{index + 1}</span>
@@ -132,7 +143,7 @@ export default function AdminDashboard() {
               <div className="admin-workbench__queue-main">
                 <div>
                   <h2 className="admin-workbench__queue-title">{item.label}</h2>
-                  <p className="admin-workbench__queue-count"><span className="admin-count admin-count--hero">{summary?.[item.countKey] ?? 0}</span> 位候选人</p>
+                  <p className="admin-workbench__queue-count"><span className="admin-count admin-count--hero">{summary?.[item.countKey] ?? "—"}</span> 位候选人</p>
                 </div>
                 <span className="admin-workbench__queue-arrow" aria-hidden="true">→</span>
               </div>
@@ -149,14 +160,14 @@ export default function AdminDashboard() {
             </div>
             <Link to="/dashboard/admin/registrations">全部报名 <span aria-hidden="true">→</span></Link>
           </div>
-          <div className="admin-workbench__result-list">
+          {summaryLoading && !summary ? <div className="admin-workbench__skeleton-list" role="status" aria-label="正在加载招新结果统计" /> : <div className="admin-workbench__result-list">
             {statusItems.slice(2).map((item) => (
               <Link key={item.status} to={`/dashboard/admin/registrations?status=${item.status}`} className="admin-workbench__result">
                 <span className="admin-workbench__result-label">{item.label}</span>
-                <span className="admin-workbench__result-count">{summary?.[item.countKey] ?? 0}</span>
+                <span className="admin-workbench__result-count">{summary?.[item.countKey] ?? "—"}</span>
               </Link>
             ))}
-          </div>
+          </div>}
         </section>
 
         <section aria-label="当前及近期面试场次" className="admin-workbench__section">
@@ -169,7 +180,9 @@ export default function AdminDashboard() {
               <Link to="/dashboard/admin/recruitment?tab=sessions">管理场次 <span aria-hidden="true">→</span></Link>
             ) : null}
           </div>
-          {upcomingSessions.length === 0 ? (
+          {sessionsLoading && sessions.length === 0 ? (
+            <div className="admin-workbench__skeleton-list" role="status" aria-label="正在加载面试场次" />
+          ) : upcomingSessions.length === 0 ? (
             <div className="admin-workbench__empty">暂无近期开放场次</div>
           ) : (
             <div className="admin-list admin-workbench__session-list">
