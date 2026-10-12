@@ -357,7 +357,7 @@ func (s *RegistrationService) UpdateRecruitmentRegistration(ctx context.Context,
 		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "报名记录 ID 不合法"}
 	}
 
-	now := s.now()
+	var now time.Time
 	var updated *model.Registration
 	savedPaths := make([]string, 0)
 	obsoletePaths := make([]string, 0)
@@ -365,6 +365,10 @@ func (s *RegistrationService) UpdateRecruitmentRegistration(ctx context.Context,
 	txErr := s.repo.RunInTx(ctx, func(repo registrationRepository) error {
 		registration, form, err := s.loadSelfEditableRegistration(ctx, repo, actor, registrationID)
 		if err != nil {
+			return err
+		}
+		now = s.now()
+		if err := ensureRegistrationFormOpenForModification(form, now); err != nil {
 			return err
 		}
 		groups, err := repo.ListShownUserGroups(ctx)
@@ -411,7 +415,6 @@ func (s *RegistrationService) UpdateRecruitmentRegistration(ctx context.Context,
 			"interviewer_id":     nil,
 			"interviewed_at":     nil,
 			"interview_remark":   nil,
-			"submitted_at":       now,
 		}
 		if err := repo.UpdateRegistration(ctx, registration.ID, updates); err != nil {
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "更新报名记录失败", Err: err}
@@ -433,7 +436,6 @@ func (s *RegistrationService) UpdateRecruitmentRegistration(ctx context.Context,
 		registration.InterviewerID = nil
 		registration.InterviewedAt = nil
 		registration.InterviewRemark = nil
-		registration.SubmittedAt = now
 		registration.UpdatedAt = now
 		updated = registration
 		return nil
@@ -1203,6 +1205,16 @@ func (s *RegistrationService) loadSelfEditableRegistration(
 		return nil, nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载报名表失败", Err: err}
 	}
 	return registration, form, nil
+}
+
+func ensureRegistrationFormOpenForModification(form *model.RegistrationForm, now time.Time) error {
+	if form.Status != model.RegistrationFormStatusPublished {
+		return &ServiceError{Status: http.StatusConflict, Message: "报名表已关闭，无法修改"}
+	}
+	if form.EndTime != nil && now.After(*form.EndTime) {
+		return &ServiceError{Status: http.StatusConflict, Message: "报名已结束，无法修改"}
+	}
+	return nil
 }
 
 func (s *RegistrationService) saveRegistrationUploads(
