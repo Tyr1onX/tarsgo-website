@@ -1,4 +1,5 @@
 import { ApiError, apiRequest } from "~/lib/api-client";
+import { AuthSessionCache } from "~/lib/auth-session-cache";
 
 export { ApiError } from "~/lib/api-client";
 
@@ -31,8 +32,12 @@ export interface BootstrapStatus {
   setupRequired: boolean;
 }
 
-let currentUserCache: AuthUser | null = null;
+const authSessionCache = new AuthSessionCache<AuthUser>();
 let currentUserRequest: Promise<AuthUser> | null = null;
+const bootstrapStatusCacheTtlMs = 5_000;
+let bootstrapStatusCache: { value: BootstrapStatus; expiresAt: number } | null = null;
+let bootstrapStatusRequest: Promise<BootstrapStatus> | null = null;
+let bootstrapStatusGeneration = 0;
 const authStateListeners = new Set<(user: AuthUser | null) => void>();
 
 function notifyAuthStateChange(user: AuthUser | null) {
@@ -42,7 +47,30 @@ function notifyAuthStateChange(user: AuthUser | null) {
 }
 
 export async function getBootstrapStatus(): Promise<BootstrapStatus> {
-  return apiRequest<BootstrapStatus>("/api/bootstrap/status");
+  if (bootstrapStatusCache && bootstrapStatusCache.expiresAt > Date.now()) {
+    return bootstrapStatusCache.value;
+  }
+  if (bootstrapStatusRequest) return bootstrapStatusRequest;
+
+  const requestGeneration = bootstrapStatusGeneration;
+  const request = apiRequest<BootstrapStatus>("/api/bootstrap/status")
+    .then((value) => {
+      if (requestGeneration === bootstrapStatusGeneration) {
+        bootstrapStatusCache = { value, expiresAt: Date.now() + bootstrapStatusCacheTtlMs };
+      }
+      return value;
+    })
+    .finally(() => {
+      if (bootstrapStatusRequest === request) bootstrapStatusRequest = null;
+    });
+  bootstrapStatusRequest = request;
+  return request;
+}
+
+function invalidateBootstrapStatus() {
+  bootstrapStatusGeneration += 1;
+  bootstrapStatusCache = null;
+  bootstrapStatusRequest = null;
 }
 
 export async function sendRegisterCode(email: string): Promise<void> {
@@ -63,7 +91,8 @@ export async function registerWithEmail(input: {
     method: "POST",
     body: input,
   });
-  currentUserCache = data.user;
+  authSessionCache.setAuthenticated(data.user);
+  currentUserRequest = null;
   notifyAuthStateChange(data.user);
   return data.user;
 }
@@ -77,7 +106,9 @@ export async function registerInitialSuperAdmin(input: {
     method: "POST",
     body: input,
   });
-  currentUserCache = data.user;
+  invalidateBootstrapStatus();
+  authSessionCache.setAuthenticated(data.user);
+  currentUserRequest = null;
   notifyAuthStateChange(data.user);
   return data.user;
 }
@@ -90,7 +121,8 @@ export async function loginWithPassword(input: {
     method: "POST",
     body: input,
   });
-  currentUserCache = data.user;
+  authSessionCache.setAuthenticated(data.user);
+  currentUserRequest = null;
   notifyAuthStateChange(data.user);
   return data.user;
 }
@@ -110,13 +142,14 @@ export async function loginWithCode(input: {
     method: "POST",
     body: input,
   });
-  currentUserCache = data.user;
+  authSessionCache.setAuthenticated(data.user);
+  currentUserRequest = null;
   notifyAuthStateChange(data.user);
   return data.user;
 }
 
 export function getCachedCurrentUser(): AuthUser | null {
-  return currentUserCache;
+  return authSessionCache.getUser();
 }
 
 export function subscribeAuthStateChange(
@@ -129,30 +162,39 @@ export function subscribeAuthStateChange(
 }
 
 export async function getCurrentUser(options: { force?: boolean } = {}): Promise<AuthUser> {
-  if (!options.force && currentUserCache) {
-    return currentUserCache;
+  if (!options.force) {
+    const cachedUser = authSessionCache.getUser();
+    if (cachedUser) return cachedUser;
+    if (authSessionCache.hasFreshAnonymousResult()) {
+      throw new ApiError("未登录", 401);
+    }
   }
 
   if (currentUserRequest) {
     return currentUserRequest;
   }
 
-  currentUserRequest = apiRequest<{ user: AuthUser }>("/api/me")
+  const requestVersion = authSessionCache.version;
+  const request = apiRequest<{ user: AuthUser }>("/api/me")
     .then((data) => {
-      currentUserCache = data.user;
-      notifyAuthStateChange(data.user);
+      if (authSessionCache.acceptAuthenticatedRequest(requestVersion, data.user)) {
+        notifyAuthStateChange(data.user);
+      }
       return data.user;
     })
     .catch((error) => {
-      currentUserCache = null;
-      notifyAuthStateChange(null);
+      const stateChanged = error instanceof ApiError && error.status === 401
+        ? authSessionCache.acceptAnonymousRequest(requestVersion)
+        : authSessionCache.acceptFailedRequest(requestVersion);
+      if (stateChanged) notifyAuthStateChange(null);
       throw error;
     })
     .finally(() => {
-      currentUserRequest = null;
+      if (currentUserRequest === request) currentUserRequest = null;
     });
+  currentUserRequest = request;
 
-  return currentUserRequest;
+  return request;
 }
 
 export async function getOptionalCurrentUser(
@@ -170,7 +212,7 @@ export async function getOptionalCurrentUser(
 
 export async function logout(): Promise<void> {
   await apiRequest("/api/logout", { method: "POST" });
-  currentUserCache = null;
+  authSessionCache.setAnonymous();
   currentUserRequest = null;
   notifyAuthStateChange(null);
 }

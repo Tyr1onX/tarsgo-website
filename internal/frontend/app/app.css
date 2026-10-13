@@ -51,6 +51,37 @@ body {
   color-scheme: dark;
 }
 
+.route-progress {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 100;
+  height: 2px;
+  overflow: hidden;
+  background: rgb(208 173 105 / 12%);
+  pointer-events: none;
+}
+
+.route-progress__bar {
+  display: block;
+  width: 30%;
+  height: 100%;
+  background: #d0ad69;
+  animation: route-progress-slide 1.1s ease-in-out infinite;
+}
+
+@keyframes route-progress-slide {
+  from { transform: translateX(-110%); }
+  to { transform: translateX(360%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .route-progress__bar {
+    width: 100%;
+    animation: none;
+    transform: none;
+  }
+}
+
 select {
   appearance: none;
   padding-right: 2.75rem;

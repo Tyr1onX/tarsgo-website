@@ -48,7 +48,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const currentPath = new URL(request.url);
   const auth = await resolveDashboardAuth({
     cachedUser: getCachedCurrentUser(),
-    getCurrentUser,
+    getCurrentUser: () => getCurrentUser({ force: true }),
     getBootstrapStatus,
     isUnauthorized: (error) => error instanceof ApiError && error.status === 401,
   });
