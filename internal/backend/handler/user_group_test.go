@@ -119,6 +119,18 @@ func (s *stubUserGroupService) UpdateGroup(ctx context.Context, actor usergroup.
 	return s.updateFn(ctx, actor, groupID, input)
 }
 
+func (s *stubUserGroupService) UploadAdmissionQRCode(context.Context, usergroup.Actor, uint64, *multipart.FileHeader) (*usergroup.AdmissionQRCodeConfiguration, error) {
+	return nil, nil
+}
+
+func (s *stubUserGroupService) RemoveAdmissionQRCode(context.Context, usergroup.Actor, uint64) (*usergroup.AdmissionQRCodeConfiguration, error) {
+	return nil, nil
+}
+
+func (s *stubUserGroupService) OpenAdmissionQRCode(context.Context, usergroup.Actor, string) (*usergroup.AdmissionQRCodeImage, error) {
+	return nil, nil
+}
+
 func setAdminSessionUser(ctx *gin.Context) {
 	ctx.Set("sessionUser", &auth.SessionUser{
 		ID:    1,

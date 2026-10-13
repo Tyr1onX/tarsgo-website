@@ -157,6 +157,11 @@ export interface InterviewNotificationPreview {
   subject: string;
   body: string;
   qrCodeStatus: "not_required" | "ready" | "missing" | "unreadable";
+  qrCodeUrl?: string;
+  qrCodeGroupName?: string;
+  currentQrCodeStatus?: "ready" | "missing" | "unreadable";
+  currentQrCodeUrl?: string;
+  canRefreshQrCode: boolean;
   canSend: boolean;
   requiresConfirmation: boolean;
   warning?: string;
@@ -300,6 +305,14 @@ export async function getAdminInterviewNotificationPreview(
   registrationId: number,
 ): Promise<InterviewNotificationPreview> {
   return apiRequest<InterviewNotificationPreview>(`/api/admin/registrations/${registrationId}/interview-notification`);
+}
+
+export async function refreshAdminInterviewNotificationQRCode(
+  registrationId: number,
+): Promise<InterviewNotificationPreview> {
+  return apiRequest<InterviewNotificationPreview>(`/api/admin/registrations/${registrationId}/interview-notification/refresh-qr`, {
+    method: "POST",
+  });
 }
 
 export async function sendAdminInterviewResultNotification(
