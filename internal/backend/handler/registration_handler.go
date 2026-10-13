@@ -48,6 +48,7 @@ type listRegistrationsQuery struct {
 	InterviewAttendance   string `form:"interviewAttendance"`
 	InterviewDate         string `form:"interviewDate"`
 	InterviewSessionLabel string `form:"interviewSessionLabel"`
+	InterviewResult       string `form:"interviewResult"`
 }
 
 type recruitmentDecisionRequest struct {
@@ -180,6 +181,7 @@ func (h *RegistrationHandler) ListRegistrations(c *gin.Context) {
 		InterviewAttendance:   optionalString(query.InterviewAttendance),
 		InterviewDate:         optionalString(query.InterviewDate),
 		InterviewSessionLabel: optionalString(query.InterviewSessionLabel),
+		InterviewResult:       query.InterviewResult,
 	})
 	if serviceErr != nil {
 		h.handleServiceError(c, serviceErr)

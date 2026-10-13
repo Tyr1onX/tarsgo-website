@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 
 	"errors"
@@ -832,6 +833,105 @@ func TestRegistrationServiceListRegistrationsNormalizesDefaultPageParams(t *test
 	}
 	if repo.listFilters[0].PageSize != 10 {
 		t.Fatalf("expected repository page size 10, got %d", repo.listFilters[0].PageSize)
+	}
+}
+
+func TestRegistrationServiceListRegistrationsPreservesProcessedInterviewFilter(t *testing.T) {
+	repo := newFakeRegistrationListRepository()
+	service := newRegistrationServiceWithDependencies(repo, nil)
+
+	result, err := service.ListRegistrations(
+		context.Background(),
+		RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin},
+		ListRegistrationsInput{
+			InterviewResult:     "processed",
+			InterviewAttendance: stringPtr(model.InterviewAttendanceAttending),
+			InterviewDate:       stringPtr("2026-10-13"),
+		},
+	)
+	if err != nil {
+		t.Fatalf("ListRegistrations returned error: %v", err)
+	}
+	if result == nil || len(repo.listFilters) != 1 || len(repo.countFilters) != 1 || len(repo.statsFilters) != 1 {
+		t.Fatalf("expected list, count and aggregate calls, got result=%#v list=%d count=%d stats=%d", result, len(repo.listFilters), len(repo.countFilters), len(repo.statsFilters))
+	}
+	for name, filter := range map[string]ListRegistrationsInput{
+		"list": repo.listFilters[0], "count": repo.countFilters[0], "stats": repo.statsFilters[0],
+	} {
+		if filter.InterviewResult != "processed" || filter.InterviewAttendance == nil || *filter.InterviewAttendance != model.InterviewAttendanceAttending || filter.InterviewDate == nil || *filter.InterviewDate != "2026-10-13" {
+			t.Errorf("%s query lost interview queue filters: %#v", name, filter)
+		}
+	}
+}
+
+func TestRegistrationServiceRejectsUnknownInterviewResultFilter(t *testing.T) {
+	service := newRegistrationServiceWithDependencies(newFakeRegistrationListRepository(), nil)
+	_, err := service.ListRegistrations(
+		context.Background(),
+		RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin},
+		ListRegistrationsInput{InterviewResult: "anything"},
+	)
+	var serviceErr *ServiceError
+	if !errors.As(err, &serviceErr) || serviceErr.Status != http.StatusBadRequest {
+		t.Fatalf("unknown interview result filter must be rejected, got %v", err)
+	}
+}
+
+func TestInterviewListQueryScopesProcessedResultsAndReusesFilters(t *testing.T) {
+	db, err := gorm.Open(mysql.New(mysql.Config{
+		DSN:                       "user:pass@tcp(127.0.0.1:1)/test?charset=utf8mb4&parseTime=True&loc=Local",
+		SkipInitializeWithVersion: true,
+	}), &gorm.Config{DryRun: true, DisableAutomaticPing: true})
+	if err != nil {
+		t.Fatalf("open dry-run MySQL dialect: %v", err)
+	}
+	groupID := uint64(41)
+	date := "2026-10-13"
+	attendance := model.InterviewAttendanceAttending
+	filter := ListRegistrationsInput{
+		PreferredGroupID:      &groupID,
+		InterviewAttendance:   &attendance,
+		InterviewDate:         &date,
+		InterviewSessionLabel: stringPtr("上午场"),
+		InterviewResult:       "processed",
+	}
+	var rows []model.Registration
+	query := applyRegistrationListFilters(
+		db.Model(&model.Registration{}).Joins("JOIN registration_forms ON registration_forms.id = registrations.form_id"),
+		filter,
+		true,
+	)
+	if err := query.Find(&rows).Error; err != nil {
+		t.Fatalf("build processed interview query: %v", err)
+	}
+	sql := query.Statement.SQL.String()
+	for _, expected := range []string{
+		"registrations.preferred_group_id = ?",
+		"registrations.interview_attendance = ?",
+		"interview_sessions.date = ?",
+		"interview_sessions.label = ?",
+		"registrations.recruitment_status = ? OR (registrations.recruitment_status = ? AND registrations.rejected_stage = ?)",
+	} {
+		if !strings.Contains(sql, expected) {
+			t.Errorf("query is missing filter %q: %s", expected, sql)
+		}
+	}
+	for _, expected := range []any{
+		groupID, attendance, date, "上午场",
+		model.RecruitmentStatusAdmitted,
+		model.RecruitmentStatusRejected,
+		model.RecruitmentRejectedStageInterview,
+	} {
+		found := false
+		for _, value := range query.Statement.Vars {
+			if value == expected {
+				found = true
+				break
+			}
+		}
+		if !found {
+			t.Errorf("query arguments are missing %#v: %#v", expected, query.Statement.Vars)
+		}
 	}
 }
 

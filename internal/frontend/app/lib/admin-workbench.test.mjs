@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { getUpcomingInterviewSessions } from "./admin-workbench.ts";
+import { getShanghaiDate, getUpcomingInterviewSessions } from "./admin-workbench.ts";
+
+test("workbench's current interview date uses Asia/Shanghai at day boundaries", () => {
+  assert.equal(getShanghaiDate(new Date("2026-10-12T15:59:59Z")), "2026-10-12");
+  assert.equal(getShanghaiDate(new Date("2026-10-12T16:00:00Z")), "2026-10-13");
+});
 
 test("workbench shows enabled sessions from today through the next 14 days in local schedule order", () => {
   const sessions = [
