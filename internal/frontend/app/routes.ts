@@ -13,7 +13,7 @@ export default [
     route("admin/users", "routes/admin/users.tsx"),
     route("admin/recruitment", "routes/admin/recruitment-management.tsx"),
     route("admin/registrations", "routes/admin/registrations.tsx"),
-    route("admin/system-config/email", "routes/admin/system-config-email.tsx"),
+    route("admin/email", "routes/admin/email-management.tsx"),
   ]),
   route("*", "routes/not-found.tsx"),
 ] satisfies RouteConfig;

@@ -15,6 +15,7 @@ import (
 	"tarsgo-backend/service/adminuser"
 	"tarsgo-backend/service/auth"
 	"tarsgo-backend/service/email"
+	"tarsgo-backend/service/emailtemplate"
 	"tarsgo-backend/service/registration"
 	"tarsgo-backend/service/systemconfig"
 	"tarsgo-backend/service/usergroup"
@@ -56,7 +57,8 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	registrationFormHandler := handler.NewRegistrationFormHandler(registration.NewRegistrationFormService(db))
 	registrationService := registration.NewRegistrationServiceWithMailer(db, email.NewSender(cfg.Email))
 	registrationHandler := handler.NewRegistrationHandler(registrationService)
-	systemConfigService := systemconfig.NewService(cfg.Email, authService)
+	templateStore := emailtemplate.NewGormStore(db)
+	systemConfigService := systemconfig.NewServiceWithTemplateStore(cfg.Email, templateStore, authService)
 	systemConfigHandler := handler.NewSystemConfigHandler(systemConfigService, systemConfigService)
 
 	engine.GET("/healthz", healthHandler.Get)
@@ -115,6 +117,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 
 	systemConfigAPI := superAdminAPI.Group("/system-config")
 	systemConfigAPI.GET("/email", systemConfigHandler.GetEmailConfig)
+	systemConfigAPI.PUT("/email/templates", systemConfigHandler.SaveEmailNotificationTemplates)
 	systemConfigAPI.POST("/email/test", systemConfigHandler.TestEmailConfig)
 	systemConfigAPI.POST("/email/test-code", systemConfigHandler.TestVerificationCodeConfig)
 	systemConfigAPI.POST("/email/register-flow/send-code", systemConfigHandler.SendRegisterFlowCode)

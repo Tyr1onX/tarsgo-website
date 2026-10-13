@@ -27,6 +27,7 @@ import (
 
 	"tarsgo-backend/model"
 	"tarsgo-backend/service/email"
+	"tarsgo-backend/service/emailtemplate"
 	"tarsgo-backend/service/usergroup"
 )
 
@@ -37,6 +38,7 @@ type RegistrationService struct {
 	fileStore       registrationFileStore
 	now             func() time.Time
 	mailer          email.Mailer
+	templateStore   emailtemplate.ConfigStore
 	loadInlineImage func(string) ([]byte, string, error)
 }
 
@@ -279,6 +281,7 @@ func NewRegistrationService(db *gorm.DB) *RegistrationService {
 		repo:            &gormRegistrationRepository{db: db},
 		fileStore:       fileStore,
 		now:             time.Now,
+		templateStore:   emailtemplate.NewGormStore(db),
 		loadInlineImage: loadAdmissionInlineImage,
 	}
 }
@@ -729,6 +732,10 @@ func (s *RegistrationService) RecordInterviewResult(ctx context.Context, actor R
 	if err != nil {
 		return nil, err
 	}
+	templates, err := emailtemplate.Load(ctx, s.templateStore)
+	if err != nil {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "读取邮件模板失败", Err: err}
+	}
 	now := s.now()
 	if err := s.repo.RunInTx(ctx, func(repo registrationRepository) error {
 		reg, err := repo.GetRegistrationByIDForUpdate(ctx, registrationID)
@@ -775,7 +782,7 @@ func (s *RegistrationService) RecordInterviewResult(ctx context.Context, actor R
 		if decision == "reject" {
 			newStatus = model.RecruitmentStatusRejected
 		}
-		if err := createInterviewResultRevision(ctx, resultStore, reg, actor.ID, nil, newStatus, nil, now); err != nil {
+		if err := createInterviewResultRevision(ctx, resultStore, reg, actor.ID, nil, newStatus, nil, now, templates); err != nil {
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "保存面试结果追溯记录失败", Err: err}
 		}
 		return nil
@@ -854,6 +861,8 @@ func (s *RegistrationService) GetInterviewNotificationPreview(ctx context.Contex
 	if notification.Status == model.InterviewNotificationLegacyUnknown {
 		preview.RequiresConfirmation = true
 		preview.Warning = "这是邮件跟踪上线前登记的结果，历史发送状态未知。请先核对邮件服务商记录，确认未接受发送后再补发。"
+		// Legacy rows have no content snapshot. Keep their established built-in
+		// wording so later edits to current templates cannot rewrite history.
 		createdAt := revision.CreatedAt
 		content := buildNotificationForInterviewStatus(registration, revision.ResultStatus, createdAt)
 		if content == nil {
@@ -1146,6 +1155,9 @@ func (s *RegistrationService) SendInterviewResultNotification(ctx context.Contex
 			if content == nil {
 				return &ServiceError{Status: http.StatusConflict, Message: "无法生成历史结果通知，请核对报名资料和组别"}
 			}
+			if content.To != preview.Recipient || content.Subject != preview.Subject || content.Body != preview.Body {
+				return &ServiceError{Status: http.StatusConflict, Message: "通知内容已变化，请重新核对邮件预览"}
+			}
 			if !sameOptionalString(content.InlineImageURL, stringPointerOrNil(preview.QRCodeURL)) {
 				return &ServiceError{Status: http.StatusConflict, Message: "组别二维码已变化，请重新核对邮件预览"}
 			}
@@ -1229,12 +1241,12 @@ func (s *RegistrationService) SendInterviewResultNotification(ctx context.Contex
 	return attempt, nil
 }
 
-func buildNotificationForInterviewStatus(reg *model.Registration, status string, at time.Time) *interviewNotification {
+func buildNotificationForInterviewStatus(reg *model.Registration, status string, at time.Time, configured ...emailtemplate.Templates) *interviewNotification {
 	if status == model.RecruitmentStatusAdmitted {
-		return buildAdmissionNotification(reg, at)
+		return buildAdmissionNotification(reg, at, configured...)
 	}
 	if status == model.RecruitmentStatusRejected {
-		return buildInterviewRejectionNotification(reg, at)
+		return buildInterviewRejectionNotification(reg, at, configured...)
 	}
 	return nil
 }
@@ -1313,6 +1325,10 @@ func (s *RegistrationService) CorrectInterviewResult(ctx context.Context, actor 
 	if err != nil {
 		return nil, err
 	}
+	templates, err := emailtemplate.Load(ctx, s.templateStore)
+	if err != nil {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "读取邮件模板失败", Err: err}
+	}
 	now := s.now()
 	if err := s.repo.RunInTx(ctx, func(repo registrationRepository) error {
 		reg, err := repo.GetRegistrationByIDForUpdate(ctx, registrationID)
@@ -1363,7 +1379,7 @@ func (s *RegistrationService) CorrectInterviewResult(ctx context.Context, actor 
 		if err := repo.UpdateRegistration(ctx, reg.ID, updates); err != nil {
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "保存面试结果修改失败", Err: err}
 		}
-		if err := createInterviewResultRevision(ctx, resultStore, reg, actor.ID, &previous, newStatus, &reason, now); err != nil {
+		if err := createInterviewResultRevision(ctx, resultStore, reg, actor.ID, &previous, newStatus, &reason, now, templates); err != nil {
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "保存面试结果追溯记录失败", Err: err}
 		}
 		return nil
@@ -1373,7 +1389,7 @@ func (s *RegistrationService) CorrectInterviewResult(ctx context.Context, actor 
 	return s.GetRegistration(ctx, actor, registrationID)
 }
 
-func createInterviewResultRevision(ctx context.Context, repo interviewResultRepository, reg *model.Registration, actorID uint64, previous *string, resultStatus string, reason *string, now time.Time) error {
+func createInterviewResultRevision(ctx context.Context, repo interviewResultRepository, reg *model.Registration, actorID uint64, previous *string, resultStatus string, reason *string, now time.Time, configured ...emailtemplate.Templates) error {
 	revisions, err := repo.ListInterviewResultRevisions(ctx, reg.ID)
 	if err != nil {
 		return err
@@ -1393,9 +1409,9 @@ func createInterviewResultRevision(ctx context.Context, repo interviewResultRepo
 	}
 	var content *interviewNotification
 	if resultStatus == model.RecruitmentStatusAdmitted {
-		content = buildAdmissionNotification(reg, now)
+		content = buildAdmissionNotification(reg, now, configured...)
 	} else {
-		content = buildInterviewRejectionNotification(reg, now)
+		content = buildInterviewRejectionNotification(reg, now, configured...)
 	}
 	if content == nil {
 		return fmt.Errorf("构建通知内容失败")
@@ -1421,7 +1437,23 @@ type interviewNotification struct {
 	InlineImageURL *string
 }
 
-func buildScreeningRejectionNotification(reg *model.Registration, now time.Time) *interviewNotification {
+func selectedNotificationTemplates(configured []emailtemplate.Templates) emailtemplate.Templates {
+	if len(configured) > 0 {
+		return configured[0]
+	}
+	return emailtemplate.Default()
+}
+
+func renderNotificationTemplate(template emailtemplate.Template, reg *model.Registration, group string, now time.Time) emailtemplate.Template {
+	return emailtemplate.Render(template, map[string]string{
+		"name":    registrationContactName(reg),
+		"project": reg.Form.Title,
+		"group":   group,
+		"date":    now.Format("2006年1月2日"),
+	})
+}
+
+func buildScreeningRejectionNotification(reg *model.Registration, now time.Time, configured ...emailtemplate.Templates) *interviewNotification {
 	if reg == nil {
 		return nil
 	}
@@ -1436,15 +1468,15 @@ func buildScreeningRejectionNotification(reg *model.Registration, now time.Time)
 	if reg.PreferredGroup != nil {
 		groupName = reg.PreferredGroup.Name
 	}
-	name := registrationContactName(reg)
+	content := renderNotificationTemplate(selectedNotificationTemplates(configured).ScreeningRejected, reg, groupName, now)
 	return &interviewNotification{
 		To:      to,
-		Subject: "吉甲大师纳新初筛结果通知（未通过）",
-		Body:    fmt.Sprintf("尊敬的 %s：\n\n你好！\n\n感谢你报名参加吉甲大师纳新。经报名资料初筛，很遗憾你未能通过本次初筛，无须前往现场参加面试。\n\n报名项目：%s\n意向组：%s\n当前状态：初筛未通过\n\n感谢你的关注与参与，祝你在今后的学习与实践中不断进步。\n\n吉甲大师\n%s", name, reg.Form.Title, groupName, now.Format("2006年1月2日")),
+		Subject: content.Subject,
+		Body:    content.Body,
 	}
 }
 
-func buildAdmissionNotification(reg *model.Registration, now time.Time) *interviewNotification {
+func buildAdmissionNotification(reg *model.Registration, now time.Time, configured ...emailtemplate.Templates) *interviewNotification {
 	if reg == nil {
 		return nil
 	}
@@ -1456,18 +1488,17 @@ func buildAdmissionNotification(reg *model.Registration, now time.Time) *intervi
 	if group == nil {
 		return nil
 	}
-	name := registrationContactName(reg)
 	inlineImageURL := copyStringPtr(group.AdmissionImageURL)
-	nextStep := "请扫描邮件内的录取群二维码加入对应小组，后续安排及相关事项将在群内通知。"
+	content := renderNotificationTemplate(selectedNotificationTemplates(configured).InterviewAdmitted, reg, group.Name, now)
 	return &interviewNotification{
 		To:             to,
-		Subject:        "吉甲大师纳新录取通知",
+		Subject:        content.Subject,
 		InlineImageURL: inlineImageURL,
-		Body:           fmt.Sprintf("尊敬的 %s：\n\n你好！\n\n感谢你报名参加吉甲大师纳新。经线下面试，恭喜你被“%s”录取！\n\n报名项目：%s\n录取组：%s\n当前状态：已录取\n\n%s\n\n感谢你的参与与配合。\n\n吉甲大师\n%s", name, group.Name, reg.Form.Title, group.Name, nextStep, now.Format("2006年1月2日")),
+		Body:           content.Body,
 	}
 }
 
-func buildInterviewRejectionNotification(reg *model.Registration, now time.Time) *interviewNotification {
+func buildInterviewRejectionNotification(reg *model.Registration, now time.Time, configured ...emailtemplate.Templates) *interviewNotification {
 	if reg == nil {
 		return nil
 	}
@@ -1479,11 +1510,11 @@ func buildInterviewRejectionNotification(reg *model.Registration, now time.Time)
 	if reg.PreferredGroup != nil {
 		groupName = reg.PreferredGroup.Name
 	}
-	name := registrationContactName(reg)
+	content := renderNotificationTemplate(selectedNotificationTemplates(configured).InterviewRejected, reg, groupName, now)
 	return &interviewNotification{
 		To:      to,
-		Subject: "吉甲大师纳新面试结果通知（未通过）",
-		Body:    fmt.Sprintf("尊敬的 %s：\n\n你好！\n\n感谢你报名参加吉甲大师纳新，并参与“%s”的线下面试。\n\n经综合评估，很遗憾你未能通过本次面试，本次招新流程到此结束。\n\n报名项目：%s\n意向组：%s\n当前状态：未通过\n\n感谢你在报名及面试过程中所投入的时间与精力，祝你在今后的学习与实践中不断进步。\n\n吉甲大师\n%s", name, groupName, reg.Form.Title, groupName, now.Format("2006年1月2日")),
+		Subject: content.Subject,
+		Body:    content.Body,
 	}
 }
 
@@ -1531,6 +1562,11 @@ func (s *RegistrationService) ScreenRegistration(ctx context.Context, actor Regi
 		return nil, err
 	}
 	now := s.now()
+	templates := emailtemplate.Default()
+	var templateErr error
+	if decision == "reject" {
+		templates, templateErr = emailtemplate.Load(ctx, s.templateStore)
+	}
 	var rejectionNotification *interviewNotification
 	if err := s.repo.RunInTx(ctx, func(repo registrationRepository) error {
 		registration, err := repo.GetRegistrationByIDForUpdate(ctx, registrationID)
@@ -1565,7 +1601,9 @@ func (s *RegistrationService) ScreenRegistration(ctx context.Context, actor Regi
 		} else {
 			updates["recruitment_status"] = model.RecruitmentStatusRejected
 			updates["rejected_stage"] = model.RecruitmentRejectedStageScreening
-			rejectionNotification = buildScreeningRejectionNotification(registration, now)
+			if templateErr == nil {
+				rejectionNotification = buildScreeningRejectionNotification(registration, now, templates)
+			}
 		}
 		if err := repo.UpdateRegistration(ctx, registrationID, updates); err != nil {
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "保存初筛结果失败", Err: err}
@@ -1578,6 +1616,10 @@ func (s *RegistrationService) ScreenRegistration(ctx context.Context, actor Regi
 	detail, err := s.GetRegistration(ctx, actor, registrationID)
 	if err != nil {
 		return nil, err
+	}
+	if decision == "reject" && templateErr != nil {
+		detail.NotificationWarning = "初筛结果已保存，但邮件模板读取失败，未发送通知。"
+		return detail, nil
 	}
 	if rejectionNotification != nil && s.mailer != nil {
 		if err := s.mailer.SendEmail(ctx, email.Message{To: rejectionNotification.To, Subject: rejectionNotification.Subject, Text: rejectionNotification.Body}); err != nil {

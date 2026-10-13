@@ -14,6 +14,7 @@ import (
 	"errors"
 	"tarsgo-backend/model"
 	"tarsgo-backend/service/email"
+	"tarsgo-backend/service/emailtemplate"
 )
 
 func TestRecruitmentNotificationTemplatesMatchCanonicalStages(t *testing.T) {
@@ -40,6 +41,45 @@ func TestRecruitmentNotificationTemplatesMatchCanonicalStages(t *testing.T) {
 	if failed == nil || !strings.Contains(failed.Subject, "未通过") || !strings.Contains(failed.Body, "当前状态：未通过") {
 		t.Fatalf("unexpected interview fail notification: %#v", failed)
 	}
+}
+
+func TestCustomRecruitmentTemplatesRenderForAllNotificationTypes(t *testing.T) {
+	name := "张三"
+	reg := &model.Registration{
+		User:           model.User{Name: name, Email: "zhangsan@example.com"},
+		ContactName:    &name,
+		Form:           model.RegistrationForm{Title: "2026 招新报名"},
+		PreferredGroup: &model.UserGroup{ID: 101, Name: "机械组"},
+	}
+	now := time.Date(2026, 10, 13, 0, 0, 0, 0, time.Local)
+	templates := emailtemplate.Templates{
+		ScreeningRejected: emailtemplate.Template{Subject: "初筛 {{name}}", Body: "{{project}} / {{group}} / {{date}}"},
+		InterviewAdmitted: emailtemplate.Template{Subject: "录取 {{name}}", Body: "{{group}} / {{project}} / {{date}}"},
+		InterviewRejected: emailtemplate.Template{Subject: "面试未通过 {{name}}", Body: "{{project}} / {{group}} / {{date}}"},
+	}
+	for _, item := range []struct {
+		name    string
+		message *interviewNotification
+		subject string
+	}{
+		{"screening rejection", buildScreeningRejectionNotification(reg, now, templates), "初筛 张三"},
+		{"interview admission", buildAdmissionNotification(reg, now, templates), "录取 张三"},
+		{"interview rejection", buildInterviewRejectionNotification(reg, now, templates), "面试未通过 张三"},
+	} {
+		if item.message == nil || item.message.Subject != item.subject || !strings.Contains(item.message.Body, "2026年10月13日") || !strings.Contains(item.message.Body, "2026 招新报名") || !strings.Contains(item.message.Body, "机械组") {
+			t.Errorf("%s template did not render predefined values: %#v", item.name, item.message)
+		}
+	}
+}
+
+type memoryNotificationTemplateStore map[string]string
+
+func (s memoryNotificationTemplateStore) Get(_ context.Context, key string) (string, error) {
+	return s[key], nil
+}
+func (s memoryNotificationTemplateStore) Set(_ context.Context, key, value string) error {
+	s[key] = value
+	return nil
 }
 
 type fakeInterviewMailer struct {
@@ -443,6 +483,57 @@ func TestRegistrationServiceAdmissionEmbedsConfiguredImage(t *testing.T) {
 	}
 }
 
+func TestChangingTemplatesDoesNotRewriteExistingNotificationSnapshot(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
+	imageURL := "/upload/config/group/qq-group.png"
+	repo.registration.PreferredGroup.AdmissionImageURL = &imageURL
+	repo.shownGroups[0].AdmissionImageURL = &imageURL
+	templateStore := memoryNotificationTemplateStore{}
+	initial := emailtemplate.Default()
+	initial.InterviewAdmitted = emailtemplate.Template{Subject: "旧模板：{{name}}", Body: "旧正文 {{project}} · {{group}} · {{date}}"}
+	if err := emailtemplate.Save(context.Background(), templateStore, initial); err != nil {
+		t.Fatalf("save initial templates: %v", err)
+	}
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	service.templateStore = templateStore
+	mailer := &fakeInterviewMailer{}
+	service.mailer = mailer
+	service.loadInlineImage = func(rawURL string) ([]byte, string, error) {
+		if rawURL != imageURL {
+			t.Fatalf("notification QR code was not controlled by the selected group: %q", rawURL)
+		}
+		return []byte("png-image"), "image/png", nil
+	}
+	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+	if _, err := service.RecordInterviewResult(context.Background(), actor, repo.registration.ID, InterviewDecisionInput{Decision: "admit"}); err != nil {
+		t.Fatalf("record interview result: %v", err)
+	}
+	snapshot := repo.resultNotifications[1]
+	if snapshot.Subject != "旧模板：张三" || !strings.Contains(snapshot.Body, "旧正文 2026 招新报名 · 机械组 · ") || snapshot.Recipient != "zhangsan@example.com" || snapshot.QRImageURL == nil || *snapshot.QRImageURL != imageURL {
+		t.Fatalf("custom template did not render into a system-controlled notification snapshot: %#v", snapshot)
+	}
+
+	updated := emailtemplate.Default()
+	updated.InterviewAdmitted = emailtemplate.Template{Subject: "新模板：{{name}}", Body: "新正文 {{project}}"}
+	if err := emailtemplate.Save(context.Background(), templateStore, updated); err != nil {
+		t.Fatalf("save updated templates: %v", err)
+	}
+	preview, err := service.GetInterviewNotificationPreview(context.Background(), actor, repo.registration.ID)
+	if err != nil {
+		t.Fatalf("load saved notification preview: %v", err)
+	}
+	if preview.Subject != snapshot.Subject || preview.Body != snapshot.Body || preview.Recipient != snapshot.Recipient || preview.QRCodeURL != imageURL {
+		t.Fatalf("editing templates changed an existing notification snapshot: preview=%#v snapshot=%#v", preview, snapshot)
+	}
+	if _, err := service.SendInterviewResultNotification(context.Background(), actor, repo.registration.ID, false); err != nil {
+		t.Fatalf("send existing notification after template update: %v", err)
+	}
+	if mailer.subject != snapshot.Subject || mailer.body != snapshot.Body || mailer.to != snapshot.Recipient || string(mailer.image) != "png-image" {
+		t.Fatalf("retry did not use the original content, recipient, and QR snapshot: mailer=%#v snapshot=%#v", mailer, snapshot)
+	}
+}
+
 func TestAdmissionNotificationsUseThePreferredGroupsQRCode(t *testing.T) {
 	for _, test := range []struct {
 		groupID   uint64
@@ -703,6 +794,60 @@ func TestLegacyUnknownAdmissionNotificationCannotRefreshQRCode(t *testing.T) {
 	assertRegistrationServiceError(t, refreshErr, http.StatusConflict, "不能修改")
 	if len(repo.auditLogs) != 0 {
 		t.Fatalf("legacy unknown notification must not be silently rewritten: %#v", repo.auditLogs)
+	}
+}
+
+func TestLegacyNotificationKeepsBuiltInSnapshotWhenTemplatesChange(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	now := time.Date(2026, 10, 13, 8, 0, 0, 0, time.Local)
+	repo.registration.RecruitmentStatus = model.RecruitmentStatusAdmitted
+	repo.registration.InterviewedAt = &now
+	qrURL := "/upload/config/group/current-qr.png"
+	repo.registration.PreferredGroup.AdmissionImageURL = &qrURL
+	revision := &model.InterviewResultRevision{RegistrationID: repo.registration.ID, Revision: 1, ResultStatus: model.RecruitmentStatusAdmitted, ActorID: uint64Ptr(9001), CreatedAt: now}
+	if err := repo.CreateInterviewResultRevision(context.Background(), revision); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CreateInterviewResultNotification(context.Background(), &model.InterviewResultNotification{
+		RegistrationID: repo.registration.ID, RevisionID: revision.ID, Status: model.InterviewNotificationLegacyUnknown,
+		Recipient: "zhangsan@example.com", Subject: "历史面试结果通知待核对", Body: "历史邮件状态未知", CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	store := memoryNotificationTemplateStore{}
+	if err := emailtemplate.Save(context.Background(), store, emailtemplate.Default()); err != nil {
+		t.Fatal(err)
+	}
+	mailer := &fakeInterviewMailer{}
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	service.templateStore = store
+	service.mailer = mailer
+	service.now = func() time.Time { return now }
+	service.loadInlineImage = func(string) ([]byte, string, error) { return []byte("png"), "image/png", nil }
+	admin := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+	preview, err := service.GetInterviewNotificationPreview(context.Background(), admin, repo.registration.ID)
+	if err != nil || !preview.RequiresConfirmation || !preview.CanSend {
+		t.Fatalf("legacy notice should have a confirmable preview: preview=%#v err=%v", preview, err)
+	}
+
+	updated := emailtemplate.Default()
+	updated.InterviewAdmitted.Subject = "{{name}} 新模板"
+	if err := emailtemplate.Save(context.Background(), store, updated); err != nil {
+		t.Fatal(err)
+	}
+	refreshedPreview, err := service.GetInterviewNotificationPreview(context.Background(), admin, repo.registration.ID)
+	if err != nil || refreshedPreview.Subject != preview.Subject || refreshedPreview.Body != preview.Body {
+		t.Fatalf("template edits must not affect an existing legacy notification preview: preview=%#v refreshed=%#v err=%v", preview, refreshedPreview, err)
+	}
+	_, err = service.SendInterviewResultNotification(context.Background(), admin, repo.registration.ID, true)
+	if err != nil {
+		t.Fatalf("send legacy notification with its built-in preview: %v", err)
+	}
+	if mailer.subject != preview.Subject || mailer.body != preview.Body || mailer.to != preview.Recipient || string(mailer.image) != "png" {
+		t.Fatalf("legacy resend changed after a template edit: mailer=%#v preview=%#v", mailer, preview)
+	}
+	if repo.resultNotifications[1].Subject != preview.Subject || repo.resultNotifications[1].Body != preview.Body {
+		t.Fatalf("resend did not snapshot the content shown in its preview: %#v", repo.resultNotifications[1])
 	}
 }
 

@@ -10,12 +10,14 @@ import (
 	"tarsgo-backend/config"
 	"tarsgo-backend/service/auth"
 	"tarsgo-backend/service/email"
+	"tarsgo-backend/service/emailtemplate"
 )
 
 type Service struct {
 	mailer         email.Mailer
 	emailConfig    config.EmailConfig
 	registerTester registerCodeTester
+	templateStore  emailtemplate.ConfigStore
 }
 
 type ServiceError struct {
@@ -25,8 +27,10 @@ type ServiceError struct {
 }
 
 type EmailConfig struct {
-	From       string `json:"from"`
-	Configured bool   `json:"configured"`
+	From                  string                   `json:"from"`
+	Configured            bool                     `json:"configured"`
+	NotificationTemplates emailtemplate.Templates  `json:"notificationTemplates"`
+	AvailableVariables    []emailtemplate.Variable `json:"availableVariables"`
 }
 
 type TestEmailInput struct{ To string }
@@ -44,6 +48,12 @@ func NewService(cfg config.EmailConfig, testers ...registerCodeTester) *Service 
 	return service
 }
 
+func NewServiceWithTemplateStore(cfg config.EmailConfig, store emailtemplate.ConfigStore, testers ...registerCodeTester) *Service {
+	service := NewService(cfg, testers...)
+	service.templateStore = store
+	return service
+}
+
 func (e *ServiceError) Error() string {
 	if e.Err != nil {
 		return e.Message + ": " + e.Err.Error()
@@ -56,7 +66,29 @@ func (e *ServiceError) Unwrap() error {
 }
 
 func (s *Service) GetEmailConfig(ctx context.Context) (*EmailConfig, error) {
-	return &EmailConfig{From: s.emailConfig.From, Configured: strings.TrimSpace(s.emailConfig.APIKey) != ""}, nil
+	templates, err := emailtemplate.Load(ctx, s.templateStore)
+	if err != nil {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "读取邮件模板失败", Err: err}
+	}
+	return &EmailConfig{
+		From:                  s.emailConfig.From,
+		Configured:            strings.TrimSpace(s.emailConfig.APIKey) != "",
+		NotificationTemplates: templates,
+		AvailableVariables:    emailtemplate.Variables(),
+	}, nil
+}
+
+func (s *Service) SaveEmailNotificationTemplates(ctx context.Context, templates emailtemplate.Templates) (*EmailConfig, error) {
+	if err := emailtemplate.Validate(templates); err != nil {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: err.Error()}
+	}
+	if s.templateStore == nil {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "邮件模板存储不可用"}
+	}
+	if err := emailtemplate.Save(ctx, s.templateStore, templates); err != nil {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "保存邮件模板失败", Err: err}
+	}
+	return s.GetEmailConfig(ctx)
 }
 
 func (s *Service) TestEmailConfig(ctx context.Context, input TestEmailInput) error {
