@@ -95,13 +95,6 @@ const DRAWER_ANIMATION_MS = 220;
 const FLASH_DURATION_MS = 3000;
 const NOTIFY_ANIMATION_MS = 300;
 
-const defaultSummary: RegistrationFormSummary = {
-  total: 0,
-  draft: 0,
-  published: 0,
-  closed: 0,
-};
-
 const defaultCreateState: CreateFormState = {
   title: "",
   description: "",
@@ -255,9 +248,8 @@ export default function FormConfigPage() {
   const [statusFilter, setStatusFilter] = useState("");
   const [listView, setListView] = useState<"current" | "history">("current");
   const [forms, setForms] = useState<RegistrationFormListItem[]>([]);
-  const [summary, setSummary] =
-    useState<RegistrationFormSummary>(defaultSummary);
-  const [loadingList, setLoadingList] = useState(false);
+  const [summary, setSummary] = useState<RegistrationFormSummary | null>(null);
+  const [loadingList, setLoadingList] = useState(true);
   const visibleForms = useMemo(
     () => forms.filter((form) => listView === "history" ? form.status === 2 : form.status !== 2),
     [forms, listView],
@@ -919,7 +911,7 @@ export default function FormConfigPage() {
       <div className="motion-fade-up grid grid-cols-2 gap-3 sm:gap-4 xl:grid-cols-4" style={{ animationDelay: "80ms" }}>
         <StatCard
           label="全部表单"
-          value={summary.total}
+          value={summary?.total ?? null}
           icon={layers}
           iconBg="bg-accent-primary/10"
           iconText="text-accent-primary"
@@ -927,7 +919,7 @@ export default function FormConfigPage() {
         />
         <StatCard
           label="草稿"
-          value={summary.draft}
+          value={summary?.draft ?? null}
           icon={fileText}
           iconBg="bg-accent-gold/10"
           iconText="text-accent-gold"
@@ -935,7 +927,7 @@ export default function FormConfigPage() {
         />
         <StatCard
           label="已发布"
-          value={summary.published}
+          value={summary?.published ?? null}
           icon={eye}
           iconBg="bg-accent-tertiary/10"
           iconText="text-accent-tertiary"
@@ -943,7 +935,7 @@ export default function FormConfigPage() {
         />
         <StatCard
           label="已关闭"
-          value={summary.closed}
+          value={summary?.closed ?? null}
           icon={clock}
           iconBg="bg-gray-700/30"
           iconText="text-fg-dim"
@@ -965,7 +957,7 @@ export default function FormConfigPage() {
             className={"admin-button admin-button--small " + (listView === "history" ? "admin-button--primary" : "admin-button--secondary")}
             aria-pressed={listView === "history"}
             onClick={() => { setListView("history"); setStatusFilter(""); }}
-          >历史届次（{summary.closed}）</button>
+          >历史届次（{summary?.closed ?? "—"}）</button>
         </div>
         <p className="text-xs text-fg-dim">
           {listView === "current"
@@ -1059,6 +1051,8 @@ export default function FormConfigPage() {
                     </div>
                   </td>
                 </tr>
+              ) : summary === null ? (
+                <tr><td colSpan={6} className="px-5 py-10 text-center text-sm text-fg-dim">报名表加载失败，请刷新后重试。</td></tr>
               ) : visibleForms.length === 0 ? (
                 <tr>
                   <td
@@ -1150,6 +1144,8 @@ export default function FormConfigPage() {
               />
               <span>正在加载表单列表...</span>
             </div>
+          ) : summary === null ? (
+            <div className="px-5 py-10 text-center text-sm text-fg-dim">报名表加载失败，请刷新后重试。</div>
           ) : visibleForms.length === 0 ? (
             <div className="px-5 py-10 text-center text-sm text-fg-dim">
               {listView === "history" ? "还没有已关闭的历史届次。" : "当前没有匹配的草稿或已发布报名表。"}
@@ -2219,7 +2215,7 @@ function StatCard({
   barFrom,
 }: {
   label: string;
-  value: number;
+  value: number | null;
   icon: IconifyIcon;
   iconBg: string;
   iconText: string;
@@ -2240,7 +2236,7 @@ function StatCard({
           </div>
         </div>
         <div className="text-gradient-brand mt-2 font-mono text-xl font-semibold tabular-nums sm:mt-3 sm:text-3xl">
-          {value}
+          {value === null ? <span className="inline-block h-7 w-12 animate-pulse rounded bg-white/[0.08]" role="status" aria-label="正在加载统计" /> : value}
         </div>
       </div>
     </div>

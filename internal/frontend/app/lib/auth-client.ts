@@ -152,6 +152,10 @@ export function getCachedCurrentUser(): AuthUser | null {
   return authSessionCache.getUser();
 }
 
+export function hasKnownAnonymousSession(): boolean {
+  return authSessionCache.hasFreshAnonymousResult();
+}
+
 export function subscribeAuthStateChange(
   listener: (user: AuthUser | null) => void,
 ): () => void {

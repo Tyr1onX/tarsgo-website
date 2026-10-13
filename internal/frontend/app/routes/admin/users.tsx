@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 
 import { ModalShell } from "~/components/modal-shell";
@@ -63,6 +63,7 @@ export default function AccountManagement() {
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [loading, setLoading] = useState(true);
+  const accountRequestId = useRef(0);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [editing, setEditing] = useState<AdminUserDetail | null>(null);
@@ -86,6 +87,7 @@ export default function AccountManagement() {
   }
 
   async function loadAccounts(nextPage = page) {
+    const requestId = ++accountRequestId.current;
     setLoading(true);
     setError("");
     try {
@@ -96,20 +98,25 @@ export default function AccountManagement() {
         role: roleFilter,
         status: statusFilter === "" ? "" : Number(statusFilter),
       });
+      if (requestId !== accountRequestId.current) return;
       setItems(result.items);
       setSummary(result.summary);
       setTotalPages(Math.max(1, result.pagination.totalPages));
       setPage(result.pagination.page);
     } catch (cause) {
+      if (requestId !== accountRequestId.current) return;
       if (cause instanceof ApiError && cause.status === 401) navigate("/login", { replace: true });
       else setError(cause instanceof Error ? cause.message : "账号列表加载失败");
     } finally {
-      setLoading(false);
+      if (requestId === accountRequestId.current) setLoading(false);
     }
   }
 
   useEffect(() => { void loadRoles(); }, []);
-  useEffect(() => { void loadAccounts(1); }, [keyword, roleFilter, statusFilter]);
+  useEffect(() => {
+    void loadAccounts(1);
+    return () => { accountRequestId.current += 1; };
+  }, [keyword, roleFilter, statusFilter]);
 
   function openCreate() {
     setEditing(null);
