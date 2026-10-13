@@ -23,10 +23,11 @@ const microSpecialtyNavLinks = [
 
 type NavbarProps = {
   currentUser?: AuthUser | null;
+  authError?: boolean;
   variant?: "default" | "micro-specialty";
 };
 
-export function Navbar({ currentUser = null, variant = "default" }: NavbarProps) {
+export function Navbar({ currentUser, authError = false, variant = "default" }: NavbarProps) {
   const visibleNavLinks = variant === "micro-specialty" ? microSpecialtyNavLinks : navLinks;
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -154,8 +155,11 @@ export function Navbar({ currentUser = null, variant = "default" }: NavbarProps)
         </div>
 
         {/* Auth area */}
-        {variant === "default" ? <div className="hidden md:flex items-center gap-3">
-          {currentUser ? (
+        {variant === "default" ? <div className="hidden w-[174px] shrink-0 items-center justify-end gap-3 md:flex">
+          {currentUser === undefined ? (
+            authError ? <Link to="/login" className="text-sm text-fg-muted hover:text-accent-primary">验证失败，重试</Link> :
+              <span className="h-10 w-28 animate-pulse rounded-full border border-white/10 bg-white/[0.06]" role="status" aria-label="正在确认登录状态" />
+          ) : currentUser ? (
             <div ref={userMenuRef} className="relative">
               <button
                 type="button"
@@ -312,7 +316,10 @@ export function Navbar({ currentUser = null, variant = "default" }: NavbarProps)
               </a>
             ))}
           </div>
-          {variant === "default" && currentUser ? (
+          {variant === "default" && currentUser === undefined ? (
+            authError ? <Link to="/login" className="mt-4 text-sm text-fg-muted" onClick={() => setMenuOpen(false)}>验证失败，重试</Link> :
+              <div className="mt-4 h-10 w-32 animate-pulse rounded-full bg-white/[0.06]" role="status" aria-label="正在确认登录状态" />
+          ) : variant === "default" && currentUser ? (
             <div className="mt-4 rounded-2xl border border-border-subtle bg-surface-light/40 p-3">
               <div className="flex items-center gap-3">
                 <UserAvatar user={currentUser} className="h-10 w-10" textClassName="text-sm" />

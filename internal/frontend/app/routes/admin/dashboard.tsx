@@ -116,11 +116,6 @@ export default function AdminDashboard() {
           <Link to="/dashboard/admin/registrations" className="admin-button admin-button--primary">进入报名处理 <span aria-hidden="true">→</span></Link>
         </header>
 
-        {currentFormAvailable === false ? (
-          <div className="admin-workbench__empty" role="status">当前暂无进行中的招新</div>
-        ) : (
-          <>
-
         {(summaryError || sessionsError) && (
           <div role="status" className="admin-notice admin-notice--warning flex flex-wrap items-center justify-between gap-3 mb-5">
             <span>部分工作台数据加载失败：{[summaryError, sessionsError].filter(Boolean).join("；")}。已加载的数据仍可使用。</span>
@@ -128,6 +123,13 @@ export default function AdminDashboard() {
           </div>
         )}
 
+        {currentFormAvailable === null ? (
+          <div className="admin-workbench__empty flex min-h-32 items-center" role="status" aria-label="正在加载招新状态">
+            {!summaryError ? <span className="h-4 w-44 animate-pulse rounded bg-white/[0.08]" aria-hidden="true" /> : null}
+          </div>
+        ) : currentFormAvailable === false ? (
+          <div className="admin-workbench__empty" role="status">当前暂无进行中的招新</div>
+        ) : <>
         <section aria-label="当前待处理招新阶段" className="admin-workbench__queues">
           {summaryLoading && !summary ? (
             <div className="grid gap-4 lg:grid-cols-2" role="status" aria-label="正在加载招新统计">
@@ -197,8 +199,7 @@ export default function AdminDashboard() {
           )}
         </section>
 
-          </>
-        )}
+          </>}
 
       </div>
     </div>

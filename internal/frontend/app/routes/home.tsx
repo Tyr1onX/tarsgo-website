@@ -11,6 +11,7 @@ import { Link } from "react-router";
 import {
   getCachedCurrentUser,
   getOptionalCurrentUser,
+  hasKnownAnonymousSession,
   subscribeAuthStateChange,
   type AuthUser,
 } from "~/lib/auth-client";
@@ -563,6 +564,10 @@ function SectionHeading({
   );
 }
 
+function getNavbarUser(): AuthUser | null | undefined {
+  return getCachedCurrentUser() ?? (hasKnownAnonymousSession() ? null : undefined);
+}
+
 export default function Home() {
   const [activeAboutModuleIndex, setActiveAboutModuleIndex] = useState(0);
   const [activeMilestoneIndex, setActiveMilestoneIndex] = useState(0);
@@ -571,7 +576,8 @@ export default function Home() {
   const toggleAllCertificates = () => {
     setShowAllCertificates((current) => !current);
   };
-  const [currentUser, setCurrentUser] = useState<AuthUser | null>(() => getCachedCurrentUser());
+  const [currentUser, setCurrentUser] = useState<AuthUser | null | undefined>(getNavbarUser);
+  const [authError, setAuthError] = useState(false);
   const aboutPanelRef = useRef<HTMLDivElement | null>(null);
   const aboutPhotoWallRef = useRef<HTMLDivElement | null>(null);
   const activeAboutModule = aboutModules[activeAboutModuleIndex];
@@ -579,21 +585,24 @@ export default function Home() {
 
   useEffect(() => {
     let disposed = false;
-    const unsubscribe = subscribeAuthStateChange((user) => {
+    const unsubscribe = subscribeAuthStateChange(() => {
       if (!disposed) {
-        setCurrentUser(user);
+        setCurrentUser(getNavbarUser());
+        setAuthError(false);
       }
     });
 
     void getOptionalCurrentUser()
-      .then((user) => {
+      .then(() => {
         if (!disposed) {
-          setCurrentUser(user);
+          setCurrentUser(getNavbarUser());
+          setAuthError(false);
         }
       })
       .catch(() => {
         if (!disposed) {
-          setCurrentUser(null);
+          setCurrentUser(getNavbarUser());
+          setAuthError(true);
         }
       });
 
@@ -778,7 +787,7 @@ export default function Home() {
         </div>
       </section>
 
-      <Navbar currentUser={currentUser} />
+      <Navbar currentUser={currentUser} authError={authError} />
 
       {/* About Section */}
       <section

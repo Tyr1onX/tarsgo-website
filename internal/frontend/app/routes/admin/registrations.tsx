@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 
 import { ApiError, buildApiUrl } from "~/lib/api-client";
@@ -95,8 +95,6 @@ export default function Registrations() {
     interviewResult: interviewWorkbench && initialInterviewQueue === "processed" ? "processed" : "",
     formId: Number.isSafeInteger(initialFormId) && initialFormId > 0 ? initialFormId : "",
   });
-  const queryRef = useRef(query);
-  queryRef.current = query;
   const [draftKeyword, setDraftKeyword] = useState("");
   const [items, setItems] = useState<RegistrationListItem[]>([]);
   const [pendingQueueCount, setPendingQueueCount] = useState<number | null>(null);
@@ -104,6 +102,7 @@ export default function Registrations() {
   const [currentFormAvailable, setCurrentFormAvailable] = useState<boolean | null>(null);
   const [pagination, setPagination] = useState(defaultPagination);
   const [loading, setLoading] = useState(true);
+  const [listError, setListError] = useState(false);
   const [flash, setFlash] = useState<Flash>(null);
   const [refreshToken, setRefreshToken] = useState(0);
 
@@ -139,6 +138,7 @@ export default function Registrations() {
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
+    setListError(false);
     listAdminRegistrations(query)
       .then((result) => {
         if (cancelled) return;
@@ -152,7 +152,10 @@ export default function Registrations() {
         setArchivedView(result.archivedView);
       })
       .catch((error) => {
-        if (!cancelled) handleError(error);
+        if (!cancelled) {
+          setListError(true);
+          handleError(error);
+        }
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -226,12 +229,7 @@ export default function Registrations() {
     } else if (selectedId != null) {
       setDetail(await getAdminRegistration(selectedId));
     }
-    const result = await listAdminRegistrations(query);
-    setItems(result.items);
-    setSummary(result.summary);
-    setPagination(result.pagination);
-    setCurrentFormAvailable(result.currentFormAvailable);
-    setArchivedView(result.archivedView);
+    setRefreshToken((current) => current + 1);
   }
 
   async function runAction(
@@ -279,21 +277,7 @@ export default function Registrations() {
         message: `${updated.contactName || "候选人"}的面试结果已保存为${updated.status === "admitted" ? "通过" : "拒绝"}，已从待处理名单移除。`,
       });
 
-      try {
-        const refreshQuery = queryRef.current;
-        const result = await listAdminRegistrations(refreshQuery);
-        if (queryRef.current !== refreshQuery) return;
-        setItems(result.items);
-        setSummary(result.summary);
-        setPagination(result.pagination);
-        if (interviewWorkbench && query.status === "pending_interview" && query.interviewResult !== "processed") {
-          setPendingQueueCount(result.pagination.total);
-        }
-        setCurrentFormAvailable(result.currentFormAvailable);
-        setArchivedView(result.archivedView);
-      } catch {
-        setFlash({ type: "error", message: "面试结果已保存，候选人已从待处理名单移除；名单刷新失败，请稍后重试。" });
-      }
+      setRefreshToken((current) => current + 1);
     } catch (error) {
       handleError(error);
     } finally {
@@ -365,12 +349,10 @@ export default function Registrations() {
       : "";
     setSelectedId(null);
     setDetail(null);
-    setItems([]);
-    setSummary(defaultSummary);
-    setPagination(defaultPagination);
     setCurrentFormAvailable(null);
     setArchivedView(false);
-    setQuery((current) => ({ ...current, formId, page: 1, status: "", interviewAttendance: "", interviewDate: "", interviewSessionLabel: "", interviewResult: "" }));
+    setLoading(true);
+    setQuery((current) => ({ ...current, formId, page: 1 }));
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       next.delete("status");
@@ -382,7 +364,7 @@ export default function Registrations() {
     }, { replace: true });
   }
 
-  const isRoundVisible = currentFormAvailable !== false || archivedView || query.formId !== "";
+  const isRoundVisible = currentFormAvailable !== null && (currentFormAvailable || archivedView || query.formId !== "");
 
   function submitSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -511,7 +493,13 @@ export default function Registrations() {
         ) : null}
       </section>
 
-      {currentFormAvailable === false && !query.formId ? (
+      {currentFormAvailable === null && loading ? (
+        <div className="admin-panel flex min-h-32 items-center px-6" role="status" aria-label="正在加载招新届次">
+          <div className="h-4 w-48 animate-pulse rounded bg-white/[0.08]" aria-hidden="true" />
+        </div>
+      ) : listError && currentFormAvailable === null ? (
+        <div className="admin-panel px-5 py-8 text-center text-fg-muted" role="alert">招新数据加载失败，请重试页面。</div>
+      ) : currentFormAvailable === false && !query.formId ? (
         <div className="admin-panel px-5 py-8 text-center text-fg-muted" role="status">
           当前暂无进行中的招新。可从上方切换历史届次查看往期报名。
         </div>
