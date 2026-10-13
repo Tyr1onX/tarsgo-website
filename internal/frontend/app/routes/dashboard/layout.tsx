@@ -422,8 +422,8 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
         <div className="flex items-center gap-3 px-5 h-16 shrink-0">
           <Link to="/" className="flex min-w-0 flex-1 items-center">
             <img
-              src="/assets/images/Logo/jijia-master.webp"
-              alt="吉甲大师"
+              src="/assets/images/Logo/tarsgo-logo-v5.svg"
+              alt="TARSGO"
               className="h-10 w-auto max-w-full object-contain"
             />
           </Link>

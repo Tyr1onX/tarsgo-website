@@ -12,10 +12,11 @@ import { useEffect, useState } from "react";
 import type { Route } from "./+types/root";
 import "./app.css";
 import NotFound, { StatusPage } from "./routes/not-found";
-import faviconHref from "../public/favicon.ico";
+import fallbackFaviconHref from "../public/favicon.ico";
 
 export const links: Route.LinksFunction = () => [
-  { rel: "icon", href: faviconHref, type: "image/x-icon" },
+  { rel: "icon", href: fallbackFaviconHref, type: "image/x-icon" },
+  { rel: "icon", href: "/assets/images/Logo/tarsgo-robot-v5.svg", type: "image/svg+xml" },
   { rel: "preconnect", href: "https://fonts.googleapis.com" },
   {
     rel: "preconnect",

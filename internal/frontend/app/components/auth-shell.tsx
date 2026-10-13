@@ -1,6 +1,7 @@
 import type { ReactNode, MouseEventHandler } from "react";
 import { Link } from "react-router";
 
+
 type AuthShellProps = {
   mode: "login" | "register";
   title: string;
@@ -29,7 +30,7 @@ export function AuthShell({
       <div className="auth-layout">
         <aside className="auth-brand-panel" aria-label="吉甲大师品牌信息">
           <Link to="/" className="auth-brand-lockup" aria-label="返回 TARS-GO 首页">
-            <img src="/assets/images/Logo/tars-go.webp" alt="TARS-GO" />
+            <img src="/assets/images/Logo/tarsgo-logo-v5.svg" alt="TARSGO" />
             <span>吉林大学 · 吉甲大师双创基地</span>
           </Link>
 
