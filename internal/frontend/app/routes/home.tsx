@@ -42,8 +42,8 @@ const stats = [
   },
   {
     icon: "layers",
-    value: "6",
-    label: "技术组别",
+    value: "5",
+    label: "战队组别",
     tint: "#D0AD69",
   },
   {
@@ -252,11 +252,6 @@ const groups = [
     logo: "/assets/images/Logo/ai.webp",
   },
   {
-    name: "软件组",
-    description: "负责上位机、工具链与平台开发，支撑整队协同与数据流转",
-    logo: "/assets/images/Logo/software.webp",
-  },
-  {
     name: "运营组",
     description: "负责宣传、策划、赛事运营与对外联络，推动团队持续成长",
     logo: "/assets/images/Logo/operations.webp",
@@ -291,7 +286,7 @@ const aboutModules = [
     name: "备赛",
     title: "把每一场正式上场前的细节反复磨透",
     description: [
-      "备赛阶段是团队最密集的联调周期。机械、电控、视觉、AI、软件与运营需要围绕同一目标协同推进，把设计、加工、联调、测试和复盘压缩进有限时间内。",
+      "备赛阶段是团队最密集的联调周期。机械、电控、视觉、AI 与运营需要围绕同一目标协同推进，把设计、加工、联调、测试和复盘压缩进有限时间内。",
       "从实验室里的调试，到赛前节奏的演练，真正支撑赛场稳定发挥的，往往正是这些看似重复却必须做到极致的准备过程。",
     ],
     highlights: [
@@ -1503,7 +1498,7 @@ export default function Home() {
             labelZh="加入我们"
             labelEn="JOIN US"
             title="加入一支持续做机器人、参加比赛的团队"
-            description="了解六个技术与运营组别，选择感兴趣的方向并提交报名。"
+            description="了解战队各组别，选择感兴趣的方向并提交报名。"
           />
 
           <div className="mb-12 grid w-full gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -1597,12 +1592,6 @@ export default function Home() {
                   </span>
                 </a>
               </nav>
-              <a
-                href="mailto:tarsgo@jlu.edu.cn"
-                className="w-fit text-sm text-fg-muted underline-offset-4 transition-colors hover:text-accent-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary"
-              >
-                tarsgo@jlu.edu.cn
-              </a>
             </div>
           </div>
 
