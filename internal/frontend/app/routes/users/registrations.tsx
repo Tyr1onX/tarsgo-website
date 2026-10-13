@@ -8,7 +8,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { redirect, useOutletContext } from "react-router";
+import { redirect, useOutletContext, useRevalidator } from "react-router";
 import { Icon, type IconifyIcon } from "@iconify/react";
 import alertTriangle from "@iconify-icons/lucide/alert-triangle";
 import x from "@iconify-icons/lucide/x";
@@ -99,6 +99,7 @@ export default function UserRegistrations({
   loaderData,
 }: Route.ComponentProps) {
   const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
+  const { revalidate } = useRevalidator();
   const [pageData, setPageData] = useState<RecruitmentPageData>(loaderData);
   const initialFormValues = useMemo(
     () =>
@@ -122,6 +123,17 @@ export default function UserRegistrations({
   useEffect(() => {
     setPageData(loaderData);
   }, [loaderData]);
+
+  useEffect(() => {
+    if (pageData.pageMode !== "submitted") return;
+    const refreshStatus = () => revalidate();
+    const timer = window.setInterval(refreshStatus, 30_000);
+    window.addEventListener("focus", refreshStatus);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshStatus);
+    };
+  }, [pageData.pageMode, revalidate]);
 
   useEffect(() => {
     setFormValues(initialFormValues);
@@ -1550,6 +1562,7 @@ async function fetchLoaderApi<T>(path: string): Promise<T> {
   const response = await fetch(buildApiUrl(path), {
     method: "GET",
     credentials: "include",
+    cache: "no-store",
     headers: {
       Accept: "application/json",
     },
