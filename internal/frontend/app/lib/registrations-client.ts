@@ -188,6 +188,7 @@ export interface ListRegistrationsInput {
   interviewAttendance?: InterviewAttendance | "";
   interviewDate?: string;
   interviewSessionLabel?: string;
+  interviewResult?: "processed" | "";
 }
 
 export interface ScreeningDecisionInput {
@@ -243,6 +244,7 @@ export async function listAdminRegistrations(
   if (input.interviewAttendance) params.set("interviewAttendance", input.interviewAttendance);
   if (input.interviewDate?.trim()) params.set("interviewDate", input.interviewDate.trim());
   if (input.interviewSessionLabel?.trim()) params.set("interviewSessionLabel", input.interviewSessionLabel.trim());
+  if (input.interviewResult) params.set("interviewResult", input.interviewResult);
 
   const query = params.toString();
   return apiRequest<RegistrationListResponse>(

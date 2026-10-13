@@ -135,7 +135,13 @@ export default function AdminDashboard() {
               <div className="admin-workbench__skeleton-queue" />
             </div>
           ) : statusItems.slice(0, 2).map((item, index) => (
-            <Link key={item.status} to={`/dashboard/admin/registrations?status=${item.status}`} className="admin-workbench__queue">
+            <Link
+              key={item.status}
+              to={item.status === "pending_interview"
+                ? "/dashboard/admin/registrations?view=interviews"
+                : `/dashboard/admin/registrations?status=${item.status}`}
+              className="admin-workbench__queue"
+            >
               <div className="admin-workbench__queue-topline">
                 <span className="admin-workbench__queue-index">0{index + 1}</span>
                 <span className="admin-workbench__queue-kicker">当前队列</span>

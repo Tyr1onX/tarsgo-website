@@ -191,6 +191,7 @@ func seedAcceptanceCandidates(tx *gorm.DB, form *model.RegistrationForm, group *
 		{key: "pending-screening", name: "[TEST] 待初筛候选人", status: model.RecruitmentStatusPendingScreening, sessionIndex: -1},
 		{key: "pending-interview", name: "[TEST] 待预约候选人", status: model.RecruitmentStatusPendingInterview, sessionIndex: -1},
 		{key: "booked-interview", name: "[TEST] 已预约候选人", status: model.RecruitmentStatusPendingInterview, sessionIndex: 0},
+		{key: "booked-interview-workbench", name: "[TEST] 工作台待处理候选人", status: model.RecruitmentStatusPendingInterview, sessionIndex: 0},
 		{key: "admitted", name: "[TEST] 已录取候选人", status: model.RecruitmentStatusAdmitted, sessionIndex: 0},
 		{key: "rejected", name: "[TEST] 初筛未通过候选人", status: model.RecruitmentStatusRejected, stage: model.RecruitmentRejectedStageScreening, sessionIndex: -1},
 	}

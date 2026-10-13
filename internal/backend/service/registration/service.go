@@ -101,6 +101,7 @@ type ListRegistrationsInput struct {
 	InterviewAttendance   *string
 	InterviewDate         *string
 	InterviewSessionLabel *string
+	InterviewResult       string
 	VisibleGroupIDs       []uint64
 }
 
@@ -1785,6 +1786,9 @@ func registrationScopeGroupIDs(_ registrationAccessScope) []uint64 {
 }
 
 func validateRegistrationListInput(input ListRegistrationsInput) error {
+	if input.InterviewResult != "" && input.InterviewResult != "processed" {
+		return &ServiceError{Status: http.StatusBadRequest, Message: "面试结果筛选值不合法"}
+	}
 	if input.Status != nil {
 		if err := validateRecruitmentStatus(*input.Status); err != nil {
 			return err
@@ -1821,6 +1825,7 @@ func normalizeRegistrationListInput(input ListRegistrationsInput) ListRegistrati
 		InterviewAttendance:   input.InterviewAttendance,
 		InterviewDate:         input.InterviewDate,
 		InterviewSessionLabel: input.InterviewSessionLabel,
+		InterviewResult:       input.InterviewResult,
 		VisibleGroupIDs:       visibleGroupIDs,
 	}
 }
@@ -3466,6 +3471,14 @@ func applyRegistrationListFilters(query *gorm.DB, filter ListRegistrationsInput,
 	}
 	if includeStatus && filter.Status != nil {
 		query = query.Where("registrations.recruitment_status = ?", strings.TrimSpace(*filter.Status))
+	}
+	if filter.InterviewResult == "processed" {
+		query = query.Where(
+			"(registrations.recruitment_status = ? OR (registrations.recruitment_status = ? AND registrations.rejected_stage = ?))",
+			model.RecruitmentStatusAdmitted,
+			model.RecruitmentStatusRejected,
+			model.RecruitmentRejectedStageInterview,
+		)
 	}
 	if filter.Keyword != "" {
 		like := "%" + filter.Keyword + "%"

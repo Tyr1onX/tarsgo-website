@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 
 import { ApiError, buildApiUrl } from "~/lib/api-client";
@@ -24,6 +24,7 @@ import {
 } from "~/lib/registrations-client";
 import { listAdminArchivedForms, type RegistrationFormField, type RegistrationFormListItem } from "~/lib/registration-forms-client";
 import { listAdminUserGroupOptions, type AdminUserGroupOption } from "~/lib/admin-user-groups-client";
+import { getShanghaiDate } from "~/lib/admin-workbench";
 
 export function meta() {
   return [
@@ -69,6 +70,8 @@ const statusOptions: Array<{ value: RecruitmentStatus | ""; label: string }> = [
 export default function Registrations() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const interviewWorkbench = searchParams.get("view") === "interviews";
+  const initialInterviewQueue = searchParams.get("queue") === "processed" ? "processed" : "pending";
   const initialStatus = statusOptions.some((option) => option.value !== "" && option.value === searchParams.get("status"))
     ? searchParams.get("status") as RecruitmentStatus
     : "";
@@ -79,27 +82,35 @@ export default function Registrations() {
   const [sessions, setSessions] = useState<InterviewSession[]>([]);
   const [query, setQuery] = useState<ListRegistrationsInput>({
     page: 1,
-    pageSize: 10,
+    pageSize: interviewWorkbench ? 50 : 10,
     keyword: "",
-    status: initialStatus,
+    status: interviewWorkbench
+      ? initialInterviewQueue === "processed" ? "" : "pending_interview"
+      : initialStatus,
     preferredGroupId: "",
-    interviewAttendance: "",
-    interviewDate: "",
+    interviewAttendance: interviewWorkbench ? "attending" : "",
+    interviewDate: interviewWorkbench ? getShanghaiDate() : "",
     interviewSessionLabel: "",
+    interviewResult: interviewWorkbench && initialInterviewQueue === "processed" ? "processed" : "",
     formId: Number.isSafeInteger(initialFormId) && initialFormId > 0 ? initialFormId : "",
   });
+  const queryRef = useRef(query);
+  queryRef.current = query;
   const [draftKeyword, setDraftKeyword] = useState("");
   const [items, setItems] = useState<RegistrationListItem[]>([]);
+  const [pendingQueueCount, setPendingQueueCount] = useState<number | null>(null);
   const [summary, setSummary] = useState(defaultSummary);
   const [currentFormAvailable, setCurrentFormAvailable] = useState<boolean | null>(null);
   const [pagination, setPagination] = useState(defaultPagination);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [flash, setFlash] = useState<Flash>(null);
+  const [refreshToken, setRefreshToken] = useState(0);
 
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [detail, setDetail] = useState<RegistrationDetail | null>(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [quickActionId, setQuickActionId] = useState<number | null>(null);
   const [screeningRemark, setScreeningRemark] = useState("");
   const [interviewRemark, setInterviewRemark] = useState("");
   const [correctionReason, setCorrectionReason] = useState("");
@@ -133,6 +144,9 @@ export default function Registrations() {
         setItems(result.items);
         setSummary(result.summary);
         setPagination(result.pagination);
+        if (interviewWorkbench && query.status === "pending_interview" && query.interviewResult !== "processed") {
+          setPendingQueueCount(result.pagination.total);
+        }
         setCurrentFormAvailable(result.currentFormAvailable);
         setArchivedView(result.archivedView);
       })
@@ -145,7 +159,22 @@ export default function Registrations() {
     return () => {
       cancelled = true;
     };
-  }, [query]);
+  }, [query, refreshToken]);
+
+  useEffect(() => {
+    if (!interviewWorkbench) return;
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") setRefreshToken((current) => current + 1);
+    };
+    const timer = window.setInterval(refreshWhenVisible, 30_000);
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [interviewWorkbench]);
 
   useEffect(() => {
     if (selectedId == null) {
@@ -226,6 +255,51 @@ export default function Registrations() {
     }
   }
 
+  async function runQuickInterviewDecision(registrationId: number, decision: "admit" | "reject") {
+    setQuickActionId(registrationId);
+    setFlash(null);
+    try {
+      const updated = await recordAdminRegistrationInterview(registrationId, { decision });
+      setItems((current) => current.filter((item) => item.id !== registrationId));
+      setPagination((current) => {
+        const total = Math.max(0, current.total - 1);
+        return { ...current, total, totalPages: Math.ceil(total / current.pageSize) };
+      });
+      setPendingQueueCount((current) => current == null ? 0 : Math.max(0, current - 1));
+      setSummary((current) => ({
+        ...current,
+        total: Math.max(0, current.total - 1),
+        pendingInterview: Math.max(0, current.pendingInterview - 1),
+        admitted: updated.status === "admitted" ? current.admitted + 1 : current.admitted,
+        rejected: updated.status === "rejected" ? current.rejected + 1 : current.rejected,
+      }));
+      setFlash({
+        type: "success",
+        message: `${updated.contactName || "候选人"}的面试结果已保存为${updated.status === "admitted" ? "通过" : "拒绝"}，已从待处理名单移除。`,
+      });
+
+      try {
+        const refreshQuery = queryRef.current;
+        const result = await listAdminRegistrations(refreshQuery);
+        if (queryRef.current !== refreshQuery) return;
+        setItems(result.items);
+        setSummary(result.summary);
+        setPagination(result.pagination);
+        if (interviewWorkbench && query.status === "pending_interview" && query.interviewResult !== "processed") {
+          setPendingQueueCount(result.pagination.total);
+        }
+        setCurrentFormAvailable(result.currentFormAvailable);
+        setArchivedView(result.archivedView);
+      } catch {
+        setFlash({ type: "error", message: "面试结果已保存，候选人已从待处理名单移除；名单刷新失败，请稍后重试。" });
+      }
+    } catch (error) {
+      handleError(error);
+    } finally {
+      setQuickActionId(null);
+    }
+  }
+
   async function loadInterviewNotificationPreview(registrationId: number) {
     try {
       setNotificationLoading(true);
@@ -282,10 +356,12 @@ export default function Registrations() {
     setPagination(defaultPagination);
     setCurrentFormAvailable(null);
     setArchivedView(false);
-    setQuery((current) => ({ ...current, formId, page: 1, status: "", interviewDate: "", interviewSessionLabel: "" }));
+    setQuery((current) => ({ ...current, formId, page: 1, status: "", interviewAttendance: "", interviewDate: "", interviewSessionLabel: "", interviewResult: "" }));
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
       next.delete("status");
+      next.delete("view");
+      next.delete("queue");
       if (formId) next.set("formId", String(formId));
       else next.delete("formId");
       return next;
@@ -300,11 +376,50 @@ export default function Registrations() {
   }
 
   function selectPipelineStatus(status: RecruitmentStatus | "") {
-    setQuery((current) => ({ ...current, page: 1, status }));
+    setQuery((current) => ({ ...current, page: 1, status, interviewResult: "" }));
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
+      next.delete("view");
+      next.delete("queue");
       if (status) next.set("status", status);
       else next.delete("status");
+      return next;
+    }, { replace: true });
+  }
+
+  function selectInterviewQueue(queue: "pending" | "processed") {
+    setQuery((current) => ({
+      ...current,
+      page: 1,
+      status: queue === "pending" ? "pending_interview" : "",
+      interviewResult: queue === "processed" ? "processed" : "",
+      interviewAttendance: current.interviewAttendance || "attending",
+      interviewDate: current.interviewDate || getShanghaiDate(),
+    }));
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set("view", "interviews");
+      if (queue === "processed") next.set("queue", "processed");
+      else next.delete("queue");
+      return next;
+    }, { replace: true });
+  }
+
+  function showFullRegistrationManagement() {
+    setQuery((current) => ({
+      ...current,
+      page: 1,
+      status: "",
+      interviewAttendance: "",
+      interviewDate: "",
+      interviewSessionLabel: "",
+      interviewResult: "",
+    }));
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.delete("view");
+      next.delete("queue");
+      next.delete("status");
       return next;
     }, { replace: true });
   }
@@ -316,11 +431,16 @@ export default function Registrations() {
           吉甲 · 招新处理
         </div>
         <h1 className="admin-page-title">
-          招新候选人
+          {interviewWorkbench ? "今日面试工作台" : "招新候选人"}
         </h1>
         <p className="admin-page-description">
-          单意向组流程：待初筛 → 待面试 → 已录取 / 未通过。
+          {interviewWorkbench
+            ? "优先处理今天已预约并确认参加的候选人；查看报名资料后可直接登记最终结果。"
+            : "单意向组流程：待初筛 → 待面试 → 已录取 / 未通过。"}
         </p>
+        {interviewWorkbench ? (
+          <button type="button" onClick={showFullRegistrationManagement} className="admin-button admin-button--secondary mt-4">完整报名管理</button>
+        ) : null}
       </header>
 
       {flash ? (
@@ -329,6 +449,27 @@ export default function Registrations() {
         >
           {flash.message}
         </div>
+      ) : null}
+
+      {interviewWorkbench ? (
+        <nav aria-label="面试处理视图" className="admin-panel flex flex-wrap gap-2 p-3">
+          <button
+            type="button"
+            aria-pressed={query.interviewResult !== "processed"}
+            onClick={() => selectInterviewQueue("pending")}
+            className="admin-button admin-button--secondary"
+          >
+            今日待处理{query.interviewResult !== "processed" ? <span className="admin-count ml-1">{pendingQueueCount ?? "…"}</span> : null}
+          </button>
+          <button
+            type="button"
+            aria-pressed={query.interviewResult === "processed"}
+            onClick={() => selectInterviewQueue("processed")}
+            className="admin-button admin-button--secondary"
+          >
+            已处理{query.interviewResult === "processed" ? <span className="admin-count ml-1">{pagination.total}</span> : null}
+          </button>
+        </nav>
       ) : null}
 
       <section className="admin-panel px-5 py-4 sm:px-6" aria-label="招新届次选择">
@@ -362,7 +503,7 @@ export default function Registrations() {
         </div>
       ) : null}
 
-      {isRoundVisible ? <section aria-label="报名阶段处理队列" className="admin-pipeline">
+      {isRoundVisible && !interviewWorkbench ? <section aria-label="报名阶段处理队列" className="admin-pipeline">
         <div>
           <h2 className="font-medium text-fg-primary">{archivedView ? "历史阶段统计" : "按阶段处理"}</h2>
           <p className="mt-1 text-sm text-fg-dim">
@@ -422,13 +563,20 @@ export default function Registrations() {
         />
         <select
           value={query.status ?? ""}
-          onChange={(event) =>
+          onChange={(event) => {
             setQuery((current) => ({
               ...current,
               page: 1,
               status: event.target.value as RecruitmentStatus | "",
+              interviewResult: "",
             }))
-          }
+            setSearchParams((current) => {
+              const next = new URLSearchParams(current);
+              next.delete("view");
+              next.delete("queue");
+              return next;
+            }, { replace: true });
+          }}
           className="admin-field"
         >
           {statusOptions.map((option) => (
@@ -505,10 +653,19 @@ export default function Registrations() {
               </tr>
             </thead>
             <tbody>
-              {loading ? (
+              {loading && items.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="admin-table-empty">
-                    正在加载候选人...
+                    <div role="status" aria-label={interviewWorkbench ? "正在加载今日面试名单" : "正在加载报名名单"} className="space-y-3 py-2 text-left">
+                      <span className="sr-only">正在加载候选人…</span>
+                      {[0, 1, 2].map((skeleton) => (
+                        <div key={skeleton} aria-hidden="true" className="flex animate-pulse items-center justify-between gap-4 rounded-lg bg-white/[0.03] px-3 py-3">
+                          <span className="h-4 w-32 rounded bg-white/[0.08]" />
+                          <span className="h-4 w-20 rounded bg-white/[0.08]" />
+                          <span className="h-8 w-36 rounded bg-white/[0.08]" />
+                        </div>
+                      ))}
+                    </div>
                   </td>
                 </tr>
               ) : items.length === 0 ? (
@@ -543,12 +700,30 @@ export default function Registrations() {
                     <td className="text-fg-muted">{formatDateTime(item.submittedAt)}</td>
                     <td>
                       <div className="admin-operation-group justify-end">
+                        {interviewWorkbench && query.status === "pending_interview" && item.canInterview && !archivedView ? (
+                          <>
+                            <button
+                              type="button"
+                              disabled={quickActionId !== null}
+                              onClick={() => void runQuickInterviewDecision(item.id, "admit")}
+                              aria-label={`将${item.contactName || "候选人"}的面试结果登记为通过`}
+                              className="admin-button admin-button--positive admin-button--small"
+                            >{quickActionId === item.id ? "保存中…" : "通过"}</button>
+                            <button
+                              type="button"
+                              disabled={quickActionId !== null}
+                              onClick={() => void runQuickInterviewDecision(item.id, "reject")}
+                              aria-label={`将${item.contactName || "候选人"}的面试结果登记为拒绝`}
+                              className="admin-button admin-button--danger admin-button--small"
+                            >{quickActionId === item.id ? "保存中…" : "拒绝"}</button>
+                          </>
+                        ) : null}
                         <button
                           type="button"
                           onClick={() => setSelectedId(item.id)}
                           className="admin-button admin-button--secondary admin-button--small"
                         >
-                          {archivedView ? "查看详情" : getRegistrationActionLabel(item.status)}
+                          {archivedView ? "查看详情" : interviewWorkbench ? "查看报名资料" : getRegistrationActionLabel(item.status)}
                         </button>
                       </div>
                     </td>
@@ -1055,7 +1230,7 @@ function formatInterviewAttendance(attendance: InterviewAttendance, session?: In
   if (attendance === "not_attending") return "不参加";
   if (attendance !== "attending" || !session) return "待确认";
   const monthDay = session.date.slice(5).replace("-", "/");
-  return `已确认 · ${monthDay} ${session.label}`;
+  return `已确认 · ${monthDay} ${session.label} ${session.startTime}–${session.endTime}`;
 }
 
 function formatDateTime(value?: string | null) {
