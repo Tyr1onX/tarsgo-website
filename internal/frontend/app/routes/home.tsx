@@ -724,8 +724,8 @@ export default function Home() {
           <div className="mx-auto flex w-full max-w-[1440px] items-center px-6 pb-20 pt-28 sm:px-10 sm:pt-32 lg:px-20">
             <div className="flex max-w-2xl flex-col items-center gap-4 text-center sm:items-start sm:text-left">
               <img
-                src="/assets/images/Logo/jijia-master.webp"
-                alt="吉甲大师"
+                src="/assets/images/Logo/tarsgo-logo-v5.svg"
+                alt="TARSGO"
                 className="h-20 w-auto max-w-full object-contain sm:h-24"
               />
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#e0c790] sm:text-sm">
@@ -1563,8 +1563,8 @@ export default function Home() {
             {/* Brand */}
             <div className="col-span-2 flex w-full flex-col items-center gap-3 text-center md:col-span-1 md:w-[320px] md:items-start md:gap-4 md:text-left shrink-0">
               <img
-                src="/assets/images/Logo/jijia-master.webp"
-                alt="吉甲大师"
+                src="/assets/images/Logo/tarsgo-logo-v5.svg"
+                alt="TARSGO"
                 loading="lazy"
                 className="h-12 w-fit max-w-[200px] object-contain sm:h-14 sm:max-w-[220px]"
               />

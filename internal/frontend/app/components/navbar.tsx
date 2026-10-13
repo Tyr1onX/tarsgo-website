@@ -131,7 +131,7 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
           className="motion-button flex shrink-0 items-center"
         >
           <img
-            src="/assets/images/Logo/tars-go.webp"
+            src="/assets/images/Logo/tarsgo-logo-v5.svg"
             alt="TARS-GO"
             className="h-[48px] w-auto object-contain sm:h-[54px]"
           />
