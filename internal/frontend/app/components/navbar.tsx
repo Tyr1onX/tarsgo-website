@@ -1,4 +1,4 @@
-import { Link, useNavigate, useRevalidator } from "react-router";
+import { Link, PrefetchPageLinks, useNavigate, useRevalidator } from "react-router";
 import { useEffect, useRef, useState } from "react";
 
 import { logout, type AuthUser } from "~/lib/auth-client";
@@ -32,9 +32,26 @@ export function Navbar({ currentUser = null, variant = "default" }: NavbarProps)
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
+  const [dashboardPrefetchUserId, setDashboardPrefetchUserId] = useState<number | null>(null);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
   const revalidator = useRevalidator();
+
+  // Warm the authenticated dashboard route before the user opens the menu.
+  // Defer this work until idle so public homepage resources keep priority.
+  useEffect(() => {
+    if (!currentUser || variant !== "default") return;
+    const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
+    if (connection?.saveData) return;
+
+    if (typeof window.requestIdleCallback === "function") {
+      const idleId = window.requestIdleCallback(() => setDashboardPrefetchUserId(currentUser.id), { timeout: 1500 });
+      return () => window.cancelIdleCallback(idleId);
+    }
+
+    const timeoutId = setTimeout(() => setDashboardPrefetchUserId(currentUser.id), 700);
+    return () => clearTimeout(timeoutId);
+  }, [currentUser?.id, variant]);
 
   useEffect(() => {
     function handleScroll() {
@@ -94,6 +111,9 @@ export function Navbar({ currentUser = null, variant = "default" }: NavbarProps)
 
   return (
     <nav className="pointer-events-none fixed inset-x-0 top-0 z-50">
+      {variant === "default" && currentUser && dashboardPrefetchUserId === currentUser.id ? (
+        <PrefetchPageLinks page={getDefaultDashboardPath(currentUser.role.name)} />
+      ) : null}
       <div
         className={`pointer-events-auto w-full overflow-visible border-b transition-all duration-300 ${
           isScrolled
