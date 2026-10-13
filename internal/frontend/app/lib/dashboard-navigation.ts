@@ -86,17 +86,11 @@ const ADMIN_MENU: readonly DashboardMenuDefinition[] = [
     allowedRoles: ["super_admin"],
   },
   {
-    key: "system-config",
-    label: "系统设置",
+    key: "email-management",
+    label: "邮件管理",
+    href: "/dashboard/admin/email",
     iconKey: "settings",
-    children: [
-      {
-        key: "system-config-email",
-        label: "邮件服务",
-        href: "/dashboard/admin/system-config/email",
-        allowedRoles: ["super_admin"],
-      },
-    ],
+    allowedRoles: ["super_admin"],
   },
 ];
 

@@ -2,11 +2,13 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 
+	"tarsgo-backend/service/emailtemplate"
 	"tarsgo-backend/service/systemconfig"
 )
 
@@ -17,6 +19,7 @@ type SystemConfigHandler struct {
 
 type systemConfigService interface {
 	GetEmailConfig(ctx context.Context) (*systemconfig.EmailConfig, error)
+	SaveEmailNotificationTemplates(ctx context.Context, templates emailtemplate.Templates) (*systemconfig.EmailConfig, error)
 	TestEmailConfig(ctx context.Context, input systemconfig.TestEmailInput) error
 	TestVerificationCodeConfig(ctx context.Context, input systemconfig.TestVerificationCodeInput) error
 }
@@ -51,6 +54,41 @@ func (h *SystemConfigHandler) GetEmailConfig(c *gin.Context) {
 	}
 
 	writeAPI(c, http.StatusOK, "获取邮件配置成功", result)
+}
+
+func (h *SystemConfigHandler) SaveEmailNotificationTemplates(c *gin.Context) {
+	var payload map[string]json.RawMessage
+	if err := c.ShouldBindJSON(&payload); err != nil || len(payload) != 1 {
+		writeAPIError(c, http.StatusBadRequest, "请求参数不合法")
+		return
+	}
+	encodedTemplates, ok := payload["templates"]
+	if !ok {
+		writeAPIError(c, http.StatusBadRequest, "请求参数不合法")
+		return
+	}
+	var input map[string]emailtemplate.Template
+	if err := json.Unmarshal(encodedTemplates, &input); err != nil || len(input) != 3 {
+		writeAPIError(c, http.StatusBadRequest, "邮件模板参数不合法")
+		return
+	}
+	screening, screeningOK := input["screeningRejected"]
+	admitted, admittedOK := input["interviewAdmitted"]
+	rejected, rejectedOK := input["interviewRejected"]
+	if !screeningOK || !admittedOK || !rejectedOK {
+		writeAPIError(c, http.StatusBadRequest, "仅支持编辑初筛未通过、面试录取和面试未通过模板")
+		return
+	}
+	result, err := h.service.SaveEmailNotificationTemplates(c.Request.Context(), emailtemplate.Templates{
+		ScreeningRejected: screening,
+		InterviewAdmitted: admitted,
+		InterviewRejected: rejected,
+	})
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "邮件模板已保存", result)
 }
 
 func (h *SystemConfigHandler) TestEmailConfig(c *gin.Context) {

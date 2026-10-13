@@ -9,16 +9,21 @@ test("default dashboard follows the authenticated system role", () => {
   assert.equal(getDefaultDashboardPath("super_admin"), "/dashboard/admin");
 });
 
-test("recruitment administration has one configuration entry and email settings only", () => {
+test("recruitment administration exposes email management as a first-level entry", () => {
   const menu = getVisibleAdminDashboardMenu("super_admin");
   assert.equal(menu[0]?.label, "招新工作台");
   assert.equal(menu.find((item) => item.key === "candidate-processing")?.label, "候选人处理");
   assert.equal(menu.find((item) => item.key === "recruitment-management")?.label, "招新管理");
   assert.equal(menu.find((item) => item.key === "accounts")?.label, "账号与权限");
   assert.equal(menu.some((item) => item.key === "portal-content" || item.key === "recruitment-statistics"), false);
-  const systemConfig = menu.find((item) => item.key === "system-config");
-  assert.ok(systemConfig && "children" in systemConfig);
-  assert.deepEqual(systemConfig.children.map((child) => child.href), ["/dashboard/admin/system-config/email"]);
+  const emailManagement = menu.find((item) => item.key === "email-management");
+  assert.deepEqual(emailManagement, {
+    key: "email-management",
+    label: "邮件管理",
+    href: "/dashboard/admin/email",
+    iconKey: "settings",
+  });
+  assert.equal(menu.some((item) => item.key === "system-config"), false);
 });
 
 test("candidate navigation has one recruitment destination and admin tools stay restricted", () => {
@@ -27,7 +32,7 @@ test("candidate navigation has one recruitment destination and admin tools stay 
   assert.deepEqual(getUserDashboardMenu("admin"), []);
   assert.deepEqual(getUserDashboardMenu("super_admin"), []);
   const adminMenu = getVisibleAdminDashboardMenu("admin");
-  assert.equal(adminMenu.some((item) => item.key === "system-config"), false);
+  assert.equal(adminMenu.some((item) => item.key === "email-management"), false);
   assert.equal(adminMenu.some((item) => item.key === "recruitment-management" || item.key === "accounts"), false);
 });
 
@@ -40,6 +45,8 @@ test("admin routes require an exact workbench match and each route's own menu pe
     ["/dashboard/admin/recruitment-settings", false],
     ["/dashboard/admin/recruitment-groups", false],
     ["/dashboard/admin/users", false],
+    ["/dashboard/admin/email", false],
+    ["/dashboard/admin/system-config/email", false],
     ["/dashboard/admin/system-config/oauth", false],
   ];
 
@@ -54,7 +61,7 @@ test("super admin can access every listed admin route", () => {
     "/dashboard/admin/registrations",
     "/dashboard/admin/recruitment",
     "/dashboard/admin/users",
-    "/dashboard/admin/system-config/email",
+    "/dashboard/admin/email",
   ];
 
   for (const pathname of paths) {
