@@ -114,6 +114,7 @@ export function Navbar({ currentUser = null, variant = "default" }: NavbarProps)
       {variant === "default" && currentUser && dashboardPrefetchUserId === currentUser.id ? (
         <PrefetchPageLinks page={getDefaultDashboardPath(currentUser.role.name)} />
       ) : null}
+      {variant === "default" ? <PrefetchPageLinks page="/login" /> : null}
       <div
         className={`pointer-events-auto w-full overflow-visible border-b transition-all duration-300 ${
           isScrolled
