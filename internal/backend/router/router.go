@@ -104,6 +104,9 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	adminAPI.POST("/registrations/:id/screening", registrationHandler.ScreenRegistration)
 	adminAPI.DELETE("/registrations/:id/screening", registrationHandler.UndoScreening)
 	adminAPI.POST("/registrations/:id/interview", registrationHandler.RecordInterviewResult)
+	adminAPI.PUT("/registrations/:id/interview", registrationHandler.CorrectInterviewResult)
+	adminAPI.GET("/registrations/:id/interview-notification", registrationHandler.GetInterviewNotificationPreview)
+	adminAPI.POST("/registrations/:id/interview-notification/send", registrationHandler.SendInterviewResultNotification)
 	adminAPI.GET("/registrations/:id/files/:fieldKey/:index", registrationHandler.OpenRegistrationFile)
 
 	systemConfigAPI := superAdminAPI.Group("/system-config")

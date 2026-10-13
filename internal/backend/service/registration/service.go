@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"math"
 	"mime/multipart"
 	"net/http"
@@ -64,6 +63,14 @@ type registrationRepository interface {
 	UpdateInterviewSession(ctx context.Context, sessionID uint64, updates map[string]any) error
 	CountInterviewSessionSelections(ctx context.Context, sessionID uint64) (int64, error)
 	CountInterviewSessionSelectionsByIDs(ctx context.Context, sessionIDs []uint64) (map[uint64]int64, error)
+}
+
+type interviewResultRepository interface {
+	CreateInterviewResultRevision(ctx context.Context, revision *model.InterviewResultRevision) error
+	CreateInterviewResultNotification(ctx context.Context, notification *model.InterviewResultNotification) error
+	ListInterviewResultRevisions(ctx context.Context, registrationID uint64) ([]model.InterviewResultRevision, error)
+	GetLatestInterviewResultNotificationForUpdate(ctx context.Context, registrationID uint64) (*model.InterviewResultNotification, error)
+	UpdateInterviewResultNotification(ctx context.Context, notificationID uint64, updates map[string]any) error
 }
 
 type gormRegistrationRepository struct {
@@ -145,31 +152,73 @@ type ListRegistrationsResult struct {
 }
 
 type RegistrationDetail struct {
-	NotificationWarning string                   `json:"notificationWarning,omitempty"`
-	ID                  uint64                   `json:"id"`
-	FormID              uint64                   `json:"formId"`
-	FormTitle           string                   `json:"formTitle"`
-	ContactName         *string                  `json:"contactName,omitempty"`
-	ContactPhone        *string                  `json:"contactPhone,omitempty"`
-	ContactEmail        *string                  `json:"contactEmail,omitempty"`
-	PreferredGroup      *RegistrationGroupRef    `json:"preferredGroup,omitempty"`
-	Status              string                   `json:"status"`
-	RejectedStage       *string                  `json:"rejectedStage,omitempty"`
-	Screener            *RegistrationReviewerRef `json:"screener,omitempty"`
-	ScreenedAt          *time.Time               `json:"screenedAt,omitempty"`
-	ScreeningRemark     *string                  `json:"screeningRemark,omitempty"`
-	Interviewer         *RegistrationReviewerRef `json:"interviewer,omitempty"`
-	InterviewedAt       *time.Time               `json:"interviewedAt,omitempty"`
-	InterviewRemark     *string                  `json:"interviewRemark,omitempty"`
-	InterviewAttendance string                   `json:"interviewAttendance"`
-	InterviewSession    *InterviewSessionView    `json:"interviewSession,omitempty"`
-	CanScreen           bool                     `json:"canScreen"`
-	CanUndoScreening    bool                     `json:"canUndoScreening"`
-	CanInterview        bool                     `json:"canInterview"`
-	SubmittedAt         time.Time                `json:"submittedAt"`
-	UpdatedAt           time.Time                `json:"updatedAt"`
-	FieldsSchema        []model.FormField        `json:"fieldsSchema"`
-	FormData            map[string]any           `json:"formData"`
+	NotificationWarning    string                       `json:"notificationWarning,omitempty"`
+	InterviewResultHistory []InterviewResultHistoryItem `json:"interviewResultHistory"`
+	ID                     uint64                       `json:"id"`
+	FormID                 uint64                       `json:"formId"`
+	FormTitle              string                       `json:"formTitle"`
+	ContactName            *string                      `json:"contactName,omitempty"`
+	ContactPhone           *string                      `json:"contactPhone,omitempty"`
+	ContactEmail           *string                      `json:"contactEmail,omitempty"`
+	PreferredGroup         *RegistrationGroupRef        `json:"preferredGroup,omitempty"`
+	Status                 string                       `json:"status"`
+	RejectedStage          *string                      `json:"rejectedStage,omitempty"`
+	Screener               *RegistrationReviewerRef     `json:"screener,omitempty"`
+	ScreenedAt             *time.Time                   `json:"screenedAt,omitempty"`
+	ScreeningRemark        *string                      `json:"screeningRemark,omitempty"`
+	Interviewer            *RegistrationReviewerRef     `json:"interviewer,omitempty"`
+	InterviewedAt          *time.Time                   `json:"interviewedAt,omitempty"`
+	InterviewRemark        *string                      `json:"interviewRemark,omitempty"`
+	InterviewAttendance    string                       `json:"interviewAttendance"`
+	InterviewSession       *InterviewSessionView        `json:"interviewSession,omitempty"`
+	CanScreen              bool                         `json:"canScreen"`
+	CanUndoScreening       bool                         `json:"canUndoScreening"`
+	CanInterview           bool                         `json:"canInterview"`
+	SubmittedAt            time.Time                    `json:"submittedAt"`
+	UpdatedAt              time.Time                    `json:"updatedAt"`
+	FieldsSchema           []model.FormField            `json:"fieldsSchema"`
+	FormData               map[string]any               `json:"formData"`
+}
+
+type InterviewResultHistoryItem struct {
+	Revision       uint                        `json:"revision"`
+	PreviousStatus *string                     `json:"previousStatus,omitempty"`
+	ResultStatus   string                      `json:"resultStatus"`
+	Reason         *string                     `json:"reason,omitempty"`
+	Actor          *RegistrationReviewerRef    `json:"actor,omitempty"`
+	CreatedAt      time.Time                   `json:"createdAt"`
+	Notification   *InterviewNotificationState `json:"notification,omitempty"`
+}
+
+type InterviewNotificationState struct {
+	Status            string     `json:"status"`
+	Recipient         string     `json:"recipient,omitempty"`
+	Subject           string     `json:"subject,omitempty"`
+	Body              string     `json:"body,omitempty"`
+	ProviderMessageID *string    `json:"providerMessageId,omitempty"`
+	AttemptCount      uint       `json:"attemptCount"`
+	LastAttemptAt     *time.Time `json:"lastAttemptAt,omitempty"`
+	LastError         *string    `json:"lastError,omitempty"`
+}
+
+type InterviewNotificationPreview struct {
+	Revision             uint   `json:"revision"`
+	Status               string `json:"status"`
+	Recipient            string `json:"recipient"`
+	Subject              string `json:"subject"`
+	Body                 string `json:"body"`
+	QRCodeStatus         string `json:"qrCodeStatus"`
+	CanSend              bool   `json:"canSend"`
+	RequiresConfirmation bool   `json:"requiresConfirmation"`
+	Warning              string `json:"warning,omitempty"`
+}
+
+type InterviewNotificationAttempt struct {
+	Status            string     `json:"status"`
+	ProviderMessageID *string    `json:"providerMessageId,omitempty"`
+	AttemptCount      uint       `json:"attemptCount"`
+	LastAttemptAt     *time.Time `json:"lastAttemptAt,omitempty"`
+	Message           string     `json:"message"`
 }
 
 type RegistrationFileResult struct {
@@ -611,24 +660,25 @@ func (s *RegistrationService) GetRegistration(ctx context.Context, actor Registr
 		formData["preferred_group"] = strconv.FormatUint(*registration.PreferredGroupID, 10)
 	}
 	detail := RegistrationDetail{
-		ID:                  registration.ID,
-		FormID:              registration.FormID,
-		FormTitle:           registration.Form.Title,
-		ContactName:         copyStringPtr(registration.ContactName),
-		ContactPhone:        copyStringPtr(registration.ContactPhone),
-		ContactEmail:        copyStringPtr(registration.ContactEmail),
-		PreferredGroup:      toRegistrationGroupRef(registration.PreferredGroup),
-		Status:              registration.RecruitmentStatus,
-		RejectedStage:       copyStringPtr(registration.RejectedStage),
-		Screener:            toRegistrationReviewerRef(registration.Screener),
-		ScreenedAt:          copyTimePtr(registration.ScreenedAt),
-		ScreeningRemark:     copyStringPtr(registration.ScreeningRemark),
-		Interviewer:         toRegistrationReviewerRef(registration.Interviewer),
-		InterviewedAt:       copyTimePtr(registration.InterviewedAt),
-		InterviewRemark:     copyStringPtr(registration.InterviewRemark),
-		InterviewAttendance: registration.InterviewAttendance,
-		InterviewSession:    toInterviewSessionView(registration.InterviewSession, 0),
-		CanScreen:           !archived && registration.RecruitmentStatus == model.RecruitmentStatusPendingScreening,
+		InterviewResultHistory: make([]InterviewResultHistoryItem, 0),
+		ID:                     registration.ID,
+		FormID:                 registration.FormID,
+		FormTitle:              registration.Form.Title,
+		ContactName:            copyStringPtr(registration.ContactName),
+		ContactPhone:           copyStringPtr(registration.ContactPhone),
+		ContactEmail:           copyStringPtr(registration.ContactEmail),
+		PreferredGroup:         toRegistrationGroupRef(registration.PreferredGroup),
+		Status:                 registration.RecruitmentStatus,
+		RejectedStage:          copyStringPtr(registration.RejectedStage),
+		Screener:               toRegistrationReviewerRef(registration.Screener),
+		ScreenedAt:             copyTimePtr(registration.ScreenedAt),
+		ScreeningRemark:        copyStringPtr(registration.ScreeningRemark),
+		Interviewer:            toRegistrationReviewerRef(registration.Interviewer),
+		InterviewedAt:          copyTimePtr(registration.InterviewedAt),
+		InterviewRemark:        copyStringPtr(registration.InterviewRemark),
+		InterviewAttendance:    registration.InterviewAttendance,
+		InterviewSession:       toInterviewSessionView(registration.InterviewSession, 0),
+		CanScreen:              !archived && registration.RecruitmentStatus == model.RecruitmentStatusPendingScreening,
 		CanUndoScreening: !archived && (registration.RecruitmentStatus == model.RecruitmentStatusPendingInterview ||
 			(registration.RecruitmentStatus == model.RecruitmentStatusRejected && valueOrEmpty(registration.RejectedStage) == model.RecruitmentRejectedStageScreening)),
 		CanInterview: !archived && registration.RecruitmentStatus == model.RecruitmentStatusPendingInterview,
@@ -636,6 +686,14 @@ func (s *RegistrationService) GetRegistration(ctx context.Context, actor Registr
 		UpdatedAt:    registration.UpdatedAt,
 		FieldsSchema: hydrateUserGroupSelectFields(mergeLockedRegistrationFields(registration.Form.FieldsSchema), groups),
 		FormData:     formData,
+	}
+	resultStore, ok := s.repo.(interviewResultRepository)
+	if ok {
+		revisions, err := resultStore.ListInterviewResultRevisions(ctx, registrationID)
+		if err != nil {
+			return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载面试结果记录失败", Err: err}
+		}
+		detail.InterviewResultHistory = toInterviewResultHistory(revisions)
 	}
 	return &detail, nil
 }
@@ -662,7 +720,6 @@ func (s *RegistrationService) RecordInterviewResult(ctx context.Context, actor R
 		return nil, err
 	}
 	now := s.now()
-	var notification *interviewNotification
 	if err := s.repo.RunInTx(ctx, func(repo registrationRepository) error {
 		reg, err := repo.GetRegistrationByIDForUpdate(ctx, registrationID)
 		if err != nil {
@@ -700,11 +757,16 @@ func (s *RegistrationService) RecordInterviewResult(ctx context.Context, actor R
 		if err := repo.UpdateRegistration(ctx, reg.ID, updates); err != nil {
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "保存面试结果失败", Err: err}
 		}
-
-		if decision == "admit" {
-			notification = buildAdmissionNotification(reg, now)
-		} else {
-			notification = buildInterviewRejectionNotification(reg, now)
+		resultStore, ok := repo.(interviewResultRepository)
+		if !ok {
+			return &ServiceError{Status: http.StatusInternalServerError, Message: "面试结果记录服务不可用"}
+		}
+		newStatus := model.RecruitmentStatusAdmitted
+		if decision == "reject" {
+			newStatus = model.RecruitmentStatusRejected
+		}
+		if err := createInterviewResultRevision(ctx, resultStore, reg, actor.ID, nil, newStatus, nil, now); err != nil {
+			return &ServiceError{Status: http.StatusInternalServerError, Message: "保存面试结果追溯记录失败", Err: err}
 		}
 		return nil
 	}); err != nil {
@@ -715,22 +777,484 @@ func (s *RegistrationService) RecordInterviewResult(ctx context.Context, actor R
 	if err != nil {
 		return nil, err
 	}
-	if notification != nil && s.mailer != nil {
-		message := email.Message{To: notification.To, Subject: notification.Subject, Text: notification.Body}
-		if notification.InlineImageURL != nil {
-			image, contentType, err := s.loadInlineImage(*notification.InlineImageURL)
+	return detail, nil
+}
+
+func toInterviewResultHistory(revisions []model.InterviewResultRevision) []InterviewResultHistoryItem {
+	result := make([]InterviewResultHistoryItem, 0, len(revisions))
+	for _, revision := range revisions {
+		item := InterviewResultHistoryItem{
+			Revision:       revision.Revision,
+			PreviousStatus: copyStringPtr(revision.PreviousStatus),
+			ResultStatus:   revision.ResultStatus,
+			Reason:         copyStringPtr(revision.Reason),
+			Actor:          toRegistrationReviewerRef(revision.Actor),
+			CreatedAt:      revision.CreatedAt,
+		}
+		if notification := revision.Notification; notification != nil {
+			item.Notification = &InterviewNotificationState{
+				Status:            notification.Status,
+				Recipient:         notification.Recipient,
+				ProviderMessageID: copyStringPtr(notification.ProviderMessageID),
+				AttemptCount:      notification.AttemptCount,
+				LastAttemptAt:     copyTimePtr(notification.LastAttemptAt),
+				LastError:         copyStringPtr(notification.LastError),
+			}
+		}
+		result = append(result, item)
+	}
+	return result
+}
+
+const (
+	interviewNotificationSendingLease = 2 * time.Minute
+	interviewNotificationReviewAfter  = 23 * time.Hour
+)
+
+func (s *RegistrationService) GetInterviewNotificationPreview(ctx context.Context, actor RegistrationFormActor, registrationID uint64) (*InterviewNotificationPreview, error) {
+	if _, err := s.GetRegistration(ctx, actor, registrationID); err != nil {
+		return nil, err
+	}
+	resultStore, ok := s.repo.(interviewResultRepository)
+	if !ok {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "面试通知服务不可用"}
+	}
+	registration, err := s.repo.GetRegistrationByID(ctx, registrationID)
+	if err != nil {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载报名记录失败", Err: err}
+	}
+	revisions, err := resultStore.ListInterviewResultRevisions(ctx, registrationID)
+	if err != nil {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载面试结果记录失败", Err: err}
+	}
+	if len(revisions) == 0 || revisions[len(revisions)-1].Notification == nil {
+		return nil, &ServiceError{Status: http.StatusNotFound, Message: "没有可发送的面试结果通知"}
+	}
+	revision := revisions[len(revisions)-1]
+	notification := revision.Notification
+	preview := &InterviewNotificationPreview{
+		Revision:     revision.Revision,
+		Status:       notification.Status,
+		Recipient:    notification.Recipient,
+		Subject:      notification.Subject,
+		Body:         notification.Body,
+		QRCodeStatus: "not_required",
+		CanSend:      true,
+	}
+	if notification.Status == model.InterviewNotificationLegacyUnknown {
+		preview.RequiresConfirmation = true
+		preview.Warning = "这是邮件跟踪上线前登记的结果，历史发送状态未知。请先核对邮件服务商记录，确认未接受发送后再补发。"
+		createdAt := revision.CreatedAt
+		content := buildNotificationForInterviewStatus(registration, revision.ResultStatus, createdAt)
+		if content == nil {
+			preview.CanSend = false
+			preview.Warning = "无法生成历史结果通知，请检查报名资料和组别。"
+		} else {
+			preview.Recipient, preview.Subject, preview.Body = content.To, content.Subject, content.Body
+			notification.QRImageURL = copyStringPtr(content.InlineImageURL)
+		}
+	}
+	if notification.Status == model.InterviewNotificationNeedsReview {
+		preview.RequiresConfirmation = true
+		preview.Warning = "上次请求结果不明确。请先核对邮件服务商记录，再确认是否重新发送。"
+	}
+	if notification.Status == model.InterviewNotificationFailed && notification.LastAttemptAt != nil &&
+		s.now().Sub(*notification.LastAttemptAt) >= interviewNotificationReviewAfter {
+		preview.RequiresConfirmation = true
+		preview.Warning = "上次失败记录已超过安全自动重试时间。请先核对邮件服务商记录，再确认是否重新发送。"
+	}
+	if notification.Status == model.InterviewNotificationProviderAccepted {
+		preview.CanSend = false
+		preview.Warning = "邮件服务商已接受该通知请求；这不代表邮件已送达收件人。"
+	}
+	if notification.Status != model.InterviewNotificationPending &&
+		notification.Status != model.InterviewNotificationFailed &&
+		notification.Status != model.InterviewNotificationSending &&
+		notification.Status != model.InterviewNotificationLegacyUnknown &&
+		notification.Status != model.InterviewNotificationNeedsReview &&
+		notification.Status != model.InterviewNotificationProviderAccepted {
+		preview.CanSend = false
+		preview.Warning = "通知状态无法识别，已阻止发送，请联系管理员核对。"
+	}
+	if notification.Status == model.InterviewNotificationSending {
+		age := s.now().Sub(valueOrTime(notification.SendingStartedAt))
+		if age < interviewNotificationSendingLease {
+			preview.CanSend = false
+			preview.Warning = "通知正在发送，请勿重复操作。"
+		} else if age >= interviewNotificationReviewAfter {
+			preview.RequiresConfirmation = true
+			preview.Warning = "通知发送状态长时间未更新。请先核对服务商记录，再确认是否重试。"
+		}
+	}
+	if preview.Recipient == "" {
+		preview.CanSend = false
+		preview.Warning = "没有可用的收件地址，请先核对报名资料。"
+	} else if _, err := parseNotificationRecipient(preview.Recipient); err != nil {
+		preview.CanSend = false
+		preview.Warning = "收件地址格式不正确，请先核对报名资料。"
+	}
+	if revision.ResultStatus == model.RecruitmentStatusAdmitted {
+		if notification.QRImageURL == nil || strings.TrimSpace(*notification.QRImageURL) == "" {
+			preview.QRCodeStatus = "missing"
+			preview.CanSend = false
+			preview.Warning = "该组未配置录取群二维码，已阻止发送不完整的录取通知。请先补齐二维码配置。"
+		} else if s.loadInlineImage == nil {
+			preview.QRCodeStatus = "unreadable"
+			preview.CanSend = false
+			preview.Warning = "录取群二维码无法读取，已阻止发送不完整的录取通知。"
+		} else if _, _, err := s.readAdmissionQRCode(*notification.QRImageURL); err != nil {
+			preview.QRCodeStatus = "unreadable"
+			preview.CanSend = false
+			preview.Warning = "录取群二维码读取失败，已阻止发送不完整的录取通知。请检查二维码文件。"
+		} else {
+			preview.QRCodeStatus = "ready"
+		}
+	}
+	if s.mailer == nil {
+		preview.CanSend = false
+		if preview.Warning == "" {
+			preview.Warning = "邮件服务尚未配置，请联系超级管理员。"
+		}
+	} else if _, ok := s.mailer.(email.ReceiptMailer); !ok {
+		preview.CanSend = false
+		if preview.Warning == "" {
+			preview.Warning = "当前邮件服务不支持安全重试，请联系管理员。"
+		}
+	}
+	return preview, nil
+}
+
+func (s *RegistrationService) SendInterviewResultNotification(ctx context.Context, actor RegistrationFormActor, registrationID uint64, confirmUncertain bool) (*InterviewNotificationAttempt, error) {
+	preview, err := s.GetInterviewNotificationPreview(ctx, actor, registrationID)
+	if err != nil {
+		return nil, err
+	}
+	if !preview.CanSend {
+		status := http.StatusUnprocessableEntity
+		if preview.Status == model.InterviewNotificationProviderAccepted ||
+			(preview.Status == model.InterviewNotificationSending && preview.Warning == "通知正在发送，请勿重复操作。") {
+			status = http.StatusConflict
+		}
+		return nil, &ServiceError{Status: status, Message: preview.Warning}
+	}
+	if preview.RequiresConfirmation && !confirmUncertain {
+		return nil, &ServiceError{Status: http.StatusConflict, Message: preview.Warning}
+	}
+	resultStore, ok := s.repo.(interviewResultRepository)
+	if !ok {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "面试通知服务不可用"}
+	}
+	var registrationIDForKey uint64
+	var notification *model.InterviewResultNotification
+	var message email.Message
+	now := s.now()
+	if err := s.repo.RunInTx(ctx, func(repo registrationRepository) error {
+		reg, err := repo.GetRegistrationByIDForUpdate(ctx, registrationID)
+		if err != nil {
+			return &ServiceError{Status: http.StatusConflict, Message: "面试结果已更新，请刷新详情后重试", Err: err}
+		}
+		if err := ensureRegistrationRecordIsCurrent(ctx, repo, reg); err != nil {
+			return err
+		}
+		if !registrationCanAccessWithActor(ctx, s, actor, reg) {
+			return &ServiceError{Status: http.StatusForbidden, Message: "当前账号无权操作该报名记录"}
+		}
+		txResultStore, ok := repo.(interviewResultRepository)
+		if !ok {
+			return &ServiceError{Status: http.StatusInternalServerError, Message: "面试通知服务不可用"}
+		}
+		current, err := txResultStore.GetLatestInterviewResultNotificationForUpdate(ctx, registrationID)
+		if err != nil {
+			return &ServiceError{Status: http.StatusConflict, Message: "面试通知记录已变化，请刷新后重试", Err: err}
+		}
+		if current.Status == model.InterviewNotificationProviderAccepted {
+			return &ServiceError{Status: http.StatusConflict, Message: "该版本通知已被邮件服务商接受，不能重复发送"}
+		}
+		if current.Status == model.InterviewNotificationSending {
+			age := now.Sub(valueOrTime(current.SendingStartedAt))
+			if age < interviewNotificationSendingLease {
+				return &ServiceError{Status: http.StatusConflict, Message: "通知正在发送，请勿重复操作"}
+			}
+			if age >= interviewNotificationReviewAfter && !confirmUncertain {
+				return &ServiceError{Status: http.StatusConflict, Message: "通知发送状态不明确，请核对邮件服务商记录后确认重试"}
+			}
+		}
+		if (current.Status == model.InterviewNotificationLegacyUnknown || current.Status == model.InterviewNotificationNeedsReview) && !confirmUncertain {
+			return &ServiceError{Status: http.StatusConflict, Message: "历史通知状态不明确，请核对邮件服务商记录后确认重试"}
+		}
+		if current.Status == model.InterviewNotificationFailed && current.LastAttemptAt != nil &&
+			now.Sub(*current.LastAttemptAt) >= interviewNotificationReviewAfter && !confirmUncertain {
+			return &ServiceError{Status: http.StatusConflict, Message: "上次失败记录已超过安全自动重试时间，请核对邮件服务商记录后确认重试"}
+		}
+		if reg.RecruitmentStatus != model.RecruitmentStatusAdmitted &&
+			!(reg.RecruitmentStatus == model.RecruitmentStatusRejected && valueOrEmpty(reg.RejectedStage) == model.RecruitmentRejectedStageInterview) {
+			return &ServiceError{Status: http.StatusConflict, Message: "当前报名状态与面试通知不一致，请先核对结果记录"}
+		}
+		if current.RevisionID == 0 || preview.Revision == 0 {
+			return &ServiceError{Status: http.StatusConflict, Message: "面试结果版本不合法，请刷新后重试"}
+		}
+		revisions, err := txResultStore.ListInterviewResultRevisions(ctx, registrationID)
+		if err != nil || len(revisions) == 0 {
+			return &ServiceError{Status: http.StatusInternalServerError, Message: "加载面试结果版本失败", Err: err}
+		}
+		latestRevision := revisions[len(revisions)-1]
+		if latestRevision.Revision != preview.Revision || latestRevision.ResultStatus != reg.RecruitmentStatus {
+			return &ServiceError{Status: http.StatusConflict, Message: "面试结果版本已变化，请刷新后重试"}
+		}
+		if current.Status == model.InterviewNotificationLegacyUnknown {
+			content := buildNotificationForInterviewStatus(reg, latestRevision.ResultStatus, latestRevision.CreatedAt)
+			if content == nil {
+				return &ServiceError{Status: http.StatusConflict, Message: "无法生成历史结果通知，请核对报名资料和组别"}
+			}
+			current.Recipient, current.Subject, current.Body = content.To, content.Subject, content.Body
+			current.QRImageURL = copyStringPtr(content.InlineImageURL)
+		} else if current.Recipient != preview.Recipient || current.Subject != preview.Subject || current.Body != preview.Body {
+			return &ServiceError{Status: http.StatusConflict, Message: "通知内容已变化，请重新核对邮件预览"}
+		}
+		message = email.Message{To: current.Recipient, Subject: current.Subject, Text: current.Body}
+		if reg.RecruitmentStatus == model.RecruitmentStatusAdmitted {
+			url := current.QRImageURL
+			if url == nil || strings.TrimSpace(*url) == "" {
+				return &ServiceError{Status: http.StatusUnprocessableEntity, Message: "录取组二维码未配置，已阻止发送"}
+			}
+			image, contentType, err := s.readAdmissionQRCode(*url)
 			if err != nil {
-				log.Print("admission notification failed: inline image unavailable")
-				detail.NotificationWarning = "面试结果已保存，但录取群图片读取失败，请检查图片后重新发送通知。"
-				return detail, nil
+				return &ServiceError{Status: http.StatusUnprocessableEntity, Message: "录取群二维码读取失败，已阻止发送不完整的录取通知"}
 			}
 			message.InlineImage, message.InlineImageType = image, contentType
 		}
-		if err := s.mailer.SendEmail(ctx, message); err != nil {
-			detail.NotificationWarning = "面试结果已保存，但通知邮件发送失败：" + err.Error()
+		current.Status = model.InterviewNotificationSending
+		current.AttemptCount++
+		current.LastAttemptAt = timePointer(now)
+		current.SendingStartedAt = timePointer(now)
+		current.LastAttemptBy = uint64Pointer(actor.ID)
+		current.LastError = nil
+		current.UpdatedAt = now
+		updates := map[string]any{
+			"status":             current.Status,
+			"recipient":          current.Recipient,
+			"subject":            current.Subject,
+			"body":               current.Body,
+			"qr_image_url":       current.QRImageURL,
+			"attempt_count":      current.AttemptCount,
+			"last_attempt_at":    current.LastAttemptAt,
+			"sending_started_at": current.SendingStartedAt,
+			"last_attempt_by":    current.LastAttemptBy,
+			"last_error":         nil,
+			"updated_at":         now,
 		}
+		if err := txResultStore.UpdateInterviewResultNotification(ctx, current.ID, updates); err != nil {
+			return &ServiceError{Status: http.StatusInternalServerError, Message: "记录通知发送状态失败", Err: err}
+		}
+		registrationIDForKey = reg.ID
+		notification = current
+		return nil
+	}); err != nil {
+		return nil, err
 	}
-	return detail, nil
+	if notification == nil {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "通知状态更新失败"}
+	}
+	key := fmt.Sprintf("jijia-interview-result-%d-%d", registrationIDForKey, notification.RevisionID)
+	providerID, sendErr := s.mailer.(email.ReceiptMailer).SendEmailWithReceipt(ctx, message, key)
+	updatedAt := s.now()
+	state := model.InterviewNotificationProviderAccepted
+	updates := map[string]any{"status": state, "provider_message_id": providerID, "sending_started_at": nil, "last_error": nil, "updated_at": updatedAt}
+	responseMessage := "邮件服务商已接受通知请求；是否送达收件人需查看服务商投递记录。"
+	if sendErr != nil {
+		state = model.InterviewNotificationFailed
+		failure := sendErr.Error()
+		updates["status"] = state
+		updates["provider_message_id"] = nil
+		updates["last_error"] = failure
+		responseMessage = "通知发送失败，面试结果仍已保存；可以核对内容后重试。"
+	}
+	if err := resultStore.UpdateInterviewResultNotification(ctx, notification.ID, updates); err != nil {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "邮件请求已提交，但保存通知状态失败；请先核对邮件服务商记录", Err: err}
+	}
+	attempt := &InterviewNotificationAttempt{
+		Status:        state,
+		AttemptCount:  notification.AttemptCount,
+		LastAttemptAt: timePointer(updatedAt),
+		Message:       responseMessage,
+	}
+	if sendErr == nil {
+		attempt.ProviderMessageID = stringPointer(providerID)
+	}
+	return attempt, nil
+}
+
+func buildNotificationForInterviewStatus(reg *model.Registration, status string, at time.Time) *interviewNotification {
+	if status == model.RecruitmentStatusAdmitted {
+		return buildAdmissionNotification(reg, at)
+	}
+	if status == model.RecruitmentStatusRejected {
+		return buildInterviewRejectionNotification(reg, at)
+	}
+	return nil
+}
+
+func parseNotificationRecipient(raw string) (string, error) {
+	parsed, err := mail.ParseAddress(strings.TrimSpace(raw))
+	if err != nil || parsed.Address == "" {
+		return "", fmt.Errorf("invalid recipient")
+	}
+	return parsed.Address, nil
+}
+
+func (s *RegistrationService) readAdmissionQRCode(rawURL string) ([]byte, string, error) {
+	if s.loadInlineImage == nil {
+		return nil, "", fmt.Errorf("二维码读取器未配置")
+	}
+	image, contentType, err := s.loadInlineImage(rawURL)
+	if err != nil {
+		return nil, "", err
+	}
+	if len(image) == 0 || !strings.HasPrefix(strings.ToLower(strings.TrimSpace(contentType)), "image/") {
+		return nil, "", fmt.Errorf("二维码图片内容不完整")
+	}
+	return image, contentType, nil
+}
+
+func valueOrTime(value *time.Time) time.Time {
+	if value == nil {
+		return time.Time{}
+	}
+	return *value
+}
+
+func registrationCanAccessWithActor(ctx context.Context, service *RegistrationService, actor RegistrationFormActor, registration *model.Registration) bool {
+	scope, err := service.resolveRegistrationAccessScope(ctx, actor)
+	return err == nil && scope.canAccessRegistration(registration)
+}
+
+type CorrectInterviewResultInput struct {
+	Decision         string
+	Remark           string
+	CorrectionReason string
+}
+
+func (s *RegistrationService) CorrectInterviewResult(ctx context.Context, actor RegistrationFormActor, registrationID uint64, input CorrectInterviewResultInput) (*RegistrationDetail, error) {
+	if err := wrapRegistrationActorError(ensureRegistrationAdminActor(actor)); err != nil {
+		return nil, err
+	}
+	if registrationID == 0 {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "报名记录 ID 不合法"}
+	}
+	decision := strings.ToLower(strings.TrimSpace(input.Decision))
+	if decision != "admit" && decision != "reject" {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "面试结果不合法"}
+	}
+	reason := strings.TrimSpace(input.CorrectionReason)
+	if reason == "" {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "请填写修改原因"}
+	}
+	if len([]rune(reason)) > 500 {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "修改原因不能超过 500 个字"}
+	}
+	scope, err := s.resolveRegistrationAccessScope(ctx, actor)
+	if err != nil {
+		return nil, err
+	}
+	now := s.now()
+	if err := s.repo.RunInTx(ctx, func(repo registrationRepository) error {
+		reg, err := repo.GetRegistrationByIDForUpdate(ctx, registrationID)
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return &ServiceError{Status: http.StatusNotFound, Message: "报名记录不存在"}
+			}
+			return &ServiceError{Status: http.StatusInternalServerError, Message: "加载报名记录失败", Err: err}
+		}
+		if err := ensureRegistrationRecordIsCurrent(ctx, repo, reg); err != nil {
+			return err
+		}
+		if !scope.canAccessRegistration(reg) {
+			return &ServiceError{Status: http.StatusForbidden, Message: "当前账号无权操作该报名记录"}
+		}
+		if reg.RecruitmentStatus != model.RecruitmentStatusAdmitted &&
+			!(reg.RecruitmentStatus == model.RecruitmentStatusRejected && valueOrEmpty(reg.RejectedStage) == model.RecruitmentRejectedStageInterview) {
+			return &ServiceError{Status: http.StatusConflict, Message: "只有已登记面试结果的候选人可以纠正结果"}
+		}
+		if reg.PreferredGroupID == nil || *reg.PreferredGroupID == 0 {
+			return &ServiceError{Status: http.StatusConflict, Message: "候选人缺少有效意向组"}
+		}
+		resultStore, ok := repo.(interviewResultRepository)
+		if !ok {
+			return &ServiceError{Status: http.StatusInternalServerError, Message: "面试结果记录服务不可用"}
+		}
+		previous := reg.RecruitmentStatus
+		if previousNotification, loadErr := resultStore.GetLatestInterviewResultNotificationForUpdate(ctx, registrationID); loadErr == nil {
+			if previousNotification.Status == model.InterviewNotificationSending {
+				return &ServiceError{Status: http.StatusConflict, Message: "结果通知正在发送，请稍后再纠正"}
+			}
+		} else if !errors.Is(loadErr, gorm.ErrRecordNotFound) {
+			return &ServiceError{Status: http.StatusInternalServerError, Message: "加载历史通知状态失败", Err: loadErr}
+		}
+		newStatus := model.RecruitmentStatusAdmitted
+		updates := map[string]any{
+			"interviewer_id":     actor.ID,
+			"interviewed_at":     now,
+			"interview_remark":   copyStringPtr(trimOptionalString(input.Remark)),
+			"rejected_stage":     nil,
+			"recruitment_status": newStatus,
+		}
+		if decision == "reject" {
+			newStatus = model.RecruitmentStatusRejected
+			updates["recruitment_status"] = newStatus
+			updates["rejected_stage"] = model.RecruitmentRejectedStageInterview
+		}
+		if err := repo.UpdateRegistration(ctx, reg.ID, updates); err != nil {
+			return &ServiceError{Status: http.StatusInternalServerError, Message: "保存面试结果修改失败", Err: err}
+		}
+		if err := createInterviewResultRevision(ctx, resultStore, reg, actor.ID, &previous, newStatus, &reason, now); err != nil {
+			return &ServiceError{Status: http.StatusInternalServerError, Message: "保存面试结果追溯记录失败", Err: err}
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return s.GetRegistration(ctx, actor, registrationID)
+}
+
+func createInterviewResultRevision(ctx context.Context, repo interviewResultRepository, reg *model.Registration, actorID uint64, previous *string, resultStatus string, reason *string, now time.Time) error {
+	revisions, err := repo.ListInterviewResultRevisions(ctx, reg.ID)
+	if err != nil {
+		return err
+	}
+	revisionNumber := uint(len(revisions) + 1)
+	revision := &model.InterviewResultRevision{
+		RegistrationID: reg.ID,
+		Revision:       revisionNumber,
+		PreviousStatus: copyStringPtr(previous),
+		ResultStatus:   resultStatus,
+		ActorID:        uint64Pointer(actorID),
+		Reason:         copyStringPtr(reason),
+		CreatedAt:      now,
+	}
+	if err := repo.CreateInterviewResultRevision(ctx, revision); err != nil {
+		return err
+	}
+	var content *interviewNotification
+	if resultStatus == model.RecruitmentStatusAdmitted {
+		content = buildAdmissionNotification(reg, now)
+	} else {
+		content = buildInterviewRejectionNotification(reg, now)
+	}
+	if content == nil {
+		return fmt.Errorf("构建通知内容失败")
+	}
+	notification := &model.InterviewResultNotification{
+		RegistrationID: reg.ID,
+		RevisionID:     revision.ID,
+		Status:         model.InterviewNotificationPending,
+		Recipient:      strings.TrimSpace(content.To),
+		Subject:        content.Subject,
+		Body:           content.Body,
+		QRImageURL:     copyStringPtr(content.InlineImageURL),
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	return repo.CreateInterviewResultNotification(ctx, notification)
 }
 
 type interviewNotification struct {
@@ -778,19 +1302,13 @@ func buildAdmissionNotification(reg *model.Registration, now time.Time) *intervi
 	if reg.ContactEmail != nil && strings.TrimSpace(*reg.ContactEmail) != "" {
 		to = strings.TrimSpace(*reg.ContactEmail)
 	}
-	if to == "" {
-		return nil
-	}
 	group := reg.PreferredGroup
 	if group == nil {
 		return nil
 	}
 	name := registrationContactName(reg)
 	inlineImageURL := copyStringPtr(group.AdmissionImageURL)
-	nextStep := "后续安排及相关事项请留意吉甲大师后续通知。"
-	if inlineImageURL != nil {
-		nextStep = "请扫描邮件内的图片加入录取群，后续安排及相关事项将在群内通知。"
-	}
+	nextStep := "请扫描邮件内的录取群二维码加入对应小组，后续安排及相关事项将在群内通知。"
 	return &interviewNotification{
 		To:             to,
 		Subject:        "吉甲大师纳新录取通知",
@@ -806,9 +1324,6 @@ func buildInterviewRejectionNotification(reg *model.Registration, now time.Time)
 	to := strings.TrimSpace(reg.User.Email)
 	if reg.ContactEmail != nil && strings.TrimSpace(*reg.ContactEmail) != "" {
 		to = strings.TrimSpace(*reg.ContactEmail)
-	}
-	if to == "" {
-		return nil
 	}
 	groupName := ""
 	if reg.PreferredGroup != nil {
@@ -2591,6 +3106,18 @@ func copyUint64Ptr(value *uint64) *uint64 {
 	return &cloned
 }
 
+func uint64Pointer(value uint64) *uint64 {
+	return &value
+}
+
+func stringPointer(value string) *string {
+	return &value
+}
+
+func timePointer(value time.Time) *time.Time {
+	return &value
+}
+
 func sanitizeRegistrationFormData(formData map[string]any) map[string]any {
 	if len(formData) == 0 {
 		return map[string]any{}
@@ -2851,6 +3378,7 @@ func (r *gormRegistrationRepository) GetRegistrationStats(ctx context.Context, f
 func (r *gormRegistrationRepository) GetRegistrationByID(ctx context.Context, registrationID uint64) (*model.Registration, error) {
 	var registration model.Registration
 	if err := r.db.WithContext(ctx).
+		Preload("User").
 		Preload("Form").
 		Preload("PreferredGroup").
 		Preload("Screener").
@@ -2876,6 +3404,45 @@ func (r *gormRegistrationRepository) GetRegistrationByIDForUpdate(ctx context.Co
 		return nil, err
 	}
 	return &registration, nil
+}
+
+func (r *gormRegistrationRepository) CreateInterviewResultRevision(ctx context.Context, revision *model.InterviewResultRevision) error {
+	return r.db.WithContext(ctx).Create(revision).Error
+}
+
+func (r *gormRegistrationRepository) CreateInterviewResultNotification(ctx context.Context, notification *model.InterviewResultNotification) error {
+	return r.db.WithContext(ctx).Create(notification).Error
+}
+
+func (r *gormRegistrationRepository) ListInterviewResultRevisions(ctx context.Context, registrationID uint64) ([]model.InterviewResultRevision, error) {
+	var revisions []model.InterviewResultRevision
+	err := r.db.WithContext(ctx).
+		Preload("Actor").
+		Preload("Notification").
+		Where("registration_id = ?", registrationID).
+		Order("revision ASC").
+		Find(&revisions).Error
+	return revisions, err
+}
+
+func (r *gormRegistrationRepository) GetLatestInterviewResultNotificationForUpdate(ctx context.Context, registrationID uint64) (*model.InterviewResultNotification, error) {
+	var notification model.InterviewResultNotification
+	err := r.db.WithContext(ctx).
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("registration_id = ?", registrationID).
+		Order("revision_id DESC").
+		First(&notification).Error
+	if err != nil {
+		return nil, err
+	}
+	return &notification, nil
+}
+
+func (r *gormRegistrationRepository) UpdateInterviewResultNotification(ctx context.Context, notificationID uint64, updates map[string]any) error {
+	return r.db.WithContext(ctx).
+		Model(&model.InterviewResultNotification{}).
+		Where("id = ?", notificationID).
+		Updates(updates).Error
 }
 
 func applyRegistrationListFilters(query *gorm.DB, filter ListRegistrationsInput, includeStatus bool) *gorm.DB {

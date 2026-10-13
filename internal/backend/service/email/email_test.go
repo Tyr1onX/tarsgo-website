@@ -75,6 +75,24 @@ func TestSenderUsesConfiguredEndpoint(t *testing.T) {
 	}
 }
 
+func TestSenderSendsStableIdempotencyKeyAndReturnsProviderReceipt(t *testing.T) {
+	var calls int
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if got := r.Header.Get("Idempotency-Key"); got != "jijia-interview-result-701-2" {
+			t.Errorf("idempotency key = %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"provider-receipt-123"}`))
+	}))
+	defer server.Close()
+	sender := NewSender(config.EmailConfig{APIKey: "test-key", APIURL: server.URL, From: "noreply@tarsgo.test"})
+	id, err := sender.SendEmailWithReceipt(context.Background(), Message{To: "candidate@tarsgo.test", Subject: "结果", Text: "测试"}, "jijia-interview-result-701-2")
+	if err != nil || id != "provider-receipt-123" || calls != 1 {
+		t.Fatalf("receipt send = id %q, err %v, calls %d", id, err, calls)
+	}
+}
+
 func TestProviderFailureIsSafeAndDoesNotRetry(t *testing.T) {
 	var logs bytes.Buffer
 	previous := log.Writer()

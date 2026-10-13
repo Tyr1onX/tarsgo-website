@@ -104,6 +104,7 @@ export interface RegistrationFileMeta {
 
 export interface RegistrationDetail {
   notificationWarning?: string;
+  interviewResultHistory: InterviewResultHistoryItem[];
   id: number;
   formId: number;
   formTitle: string;
@@ -128,6 +129,45 @@ export interface RegistrationDetail {
   updatedAt: string;
   fieldsSchema: RegistrationFormField[];
   formData: Record<string, unknown>;
+}
+
+export interface InterviewNotificationState {
+  status: string;
+  recipient?: string;
+  providerMessageId?: string | null;
+  attemptCount: number;
+  lastAttemptAt?: string | null;
+  lastError?: string | null;
+}
+
+export interface InterviewResultHistoryItem {
+  revision: number;
+  previousStatus?: RecruitmentStatus | null;
+  resultStatus: RecruitmentStatus;
+  reason?: string | null;
+  actor?: RegistrationReviewerRef | null;
+  createdAt: string;
+  notification?: InterviewNotificationState | null;
+}
+
+export interface InterviewNotificationPreview {
+  revision: number;
+  status: string;
+  recipient: string;
+  subject: string;
+  body: string;
+  qrCodeStatus: "not_required" | "ready" | "missing" | "unreadable";
+  canSend: boolean;
+  requiresConfirmation: boolean;
+  warning?: string;
+}
+
+export interface InterviewNotificationAttempt {
+  status: string;
+  providerMessageId?: string | null;
+  attemptCount: number;
+  lastAttemptAt?: string | null;
+  message: string;
 }
 
 export interface SubmitRegistrationResult {
@@ -158,6 +198,10 @@ export interface ScreeningDecisionInput {
 export interface InterviewDecisionInput {
   decision: "admit" | "reject";
   remark?: string;
+}
+
+export interface InterviewResultCorrectionInput extends InterviewDecisionInput {
+  correctionReason: string;
 }
 
 export async function submitRecruitmentRegistration(
@@ -237,6 +281,32 @@ export async function recordAdminRegistrationInterview(
   return apiRequest<RegistrationDetail>(`/api/admin/registrations/${registrationId}/interview`, {
     method: "POST",
     body: input,
+  });
+}
+
+export async function correctAdminRegistrationInterview(
+  registrationId: number,
+  input: InterviewResultCorrectionInput,
+): Promise<RegistrationDetail> {
+  return apiRequest<RegistrationDetail>(`/api/admin/registrations/${registrationId}/interview`, {
+    method: "PUT",
+    body: input,
+  });
+}
+
+export async function getAdminInterviewNotificationPreview(
+  registrationId: number,
+): Promise<InterviewNotificationPreview> {
+  return apiRequest<InterviewNotificationPreview>(`/api/admin/registrations/${registrationId}/interview-notification`);
+}
+
+export async function sendAdminInterviewResultNotification(
+  registrationId: number,
+  confirmUncertain: boolean,
+): Promise<InterviewNotificationAttempt> {
+  return apiRequest<InterviewNotificationAttempt>(`/api/admin/registrations/${registrationId}/interview-notification/send`, {
+    method: "POST",
+    body: { confirmUncertain },
   });
 }
 
