@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"mime/multipart"
 	"net/http"
 	"path/filepath"
@@ -16,9 +17,10 @@ import (
 )
 
 type Service struct {
-	repo      Repository
-	fileStore groupLogoFileStore
-	now       func() time.Time
+	repo        Repository
+	fileStore   groupLogoFileStore
+	qrFileStore admissionQRCodeFileStore
+	now         func() time.Time
 }
 
 type ServiceError struct {
@@ -65,16 +67,30 @@ type GroupStats struct {
 }
 
 type GroupListItem struct {
-	ID          uint64    `json:"id"`
-	Name        string    `json:"name"`
-	Description *string   `json:"description,omitempty"`
-	LogoURL     *string   `json:"logoUrl,omitempty"`
-	Tags        []string  `json:"tags,omitempty"`
-	IsDefault   bool      `json:"isDefault"`
-	Show        uint8     `json:"show"`
-	Status      uint8     `json:"status"`
-	CreatedAt   time.Time `json:"createdAt"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	ID                        uint64    `json:"id"`
+	Name                      string    `json:"name"`
+	Description               *string   `json:"description,omitempty"`
+	LogoURL                   *string   `json:"logoUrl,omitempty"`
+	AdmissionQRCodeConfigured bool      `json:"admissionQrCodeConfigured"`
+	AdmissionQRCodeURL        *string   `json:"admissionQrCodeUrl,omitempty"`
+	Tags                      []string  `json:"tags,omitempty"`
+	IsDefault                 bool      `json:"isDefault"`
+	Show                      uint8     `json:"show"`
+	Status                    uint8     `json:"status"`
+	CreatedAt                 time.Time `json:"createdAt"`
+	UpdatedAt                 time.Time `json:"updatedAt"`
+}
+
+type AdmissionQRCodeConfiguration struct {
+	GroupID            uint64  `json:"groupId"`
+	GroupName          string  `json:"groupName"`
+	Configured         bool    `json:"configured"`
+	AdmissionQRCodeURL *string `json:"admissionQrCodeUrl,omitempty"`
+}
+
+type AdmissionQRCodeImage struct {
+	Content     []byte
+	ContentType string
 }
 
 type GroupDetail struct {
@@ -108,18 +124,24 @@ func NewService(repo Repository) *Service {
 	}
 
 	return &Service{
-		repo:      repo,
-		fileStore: fileStore,
-		now:       time.Now,
+		repo:        repo,
+		fileStore:   fileStore,
+		qrFileStore: mustNewAdmissionQRCodeFileStore(),
+		now:         time.Now,
 	}
 }
 
 func newServiceWithDependencies(repo Repository, fileStore groupLogoFileStore) *Service {
 	return &Service{
-		repo:      repo,
-		fileStore: fileStore,
-		now:       time.Now,
+		repo:        repo,
+		fileStore:   fileStore,
+		qrFileStore: mustNewAdmissionQRCodeFileStore(),
+		now:         time.Now,
 	}
+}
+
+func newServiceWithAdmissionQRCodeDependencies(repo Repository, logoStore groupLogoFileStore, qrStore admissionQRCodeFileStore) *Service {
+	return &Service{repo: repo, fileStore: logoStore, qrFileStore: qrStore, now: time.Now}
 }
 
 func (e *ServiceError) Error() string {
@@ -190,6 +212,103 @@ func (s *Service) GetGroup(ctx context.Context, actor Actor, groupID uint64) (*G
 
 	detail := toGroupDetail(group)
 	return &detail, nil
+}
+
+func (s *Service) UploadAdmissionQRCode(ctx context.Context, actor Actor, groupID uint64, file *multipart.FileHeader) (*AdmissionQRCodeConfiguration, error) {
+	if err := ensureSuperAdminActor(actor); err != nil {
+		return nil, err
+	}
+	if groupID == 0 {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "用户组 ID 不合法"}
+	}
+	if file == nil {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "请选择 PNG 或 JPEG 图片"}
+	}
+	if s.qrFileStore == nil {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "录取群二维码存储不可用"}
+	}
+	now := s.now()
+	saved, err := s.qrFileStore.Save(ctx, file, now)
+	if err != nil {
+		status := http.StatusBadRequest
+		if !strings.Contains(err.Error(), "不能超过") && !strings.Contains(err.Error(), "PNG") && !strings.Contains(err.Error(), "JPEG") && !strings.Contains(err.Error(), "尺寸") && !strings.Contains(err.Error(), "图片") {
+			status = http.StatusInternalServerError
+		}
+		return nil, &ServiceError{Status: status, Message: err.Error(), Err: err}
+	}
+	currentURL := stringPtr(saved.URL)
+	updates := map[string]any{"admission_image_url": currentURL}
+	var groupName string
+	var previousURL *string
+	if err := s.repo.RunInTx(ctx, func(repo Repository) error {
+		group, err := repo.GetGroupByIDForUpdate(ctx, groupID)
+		if err != nil {
+			return err
+		}
+		groupName = group.Name
+		previousURL = copyStringPtr(group.AdmissionImageURL)
+		if err := repo.UpdateGroup(ctx, groupID, updates); err != nil {
+			return err
+		}
+		return recordAdmissionQRCodeAudit(ctx, repo, actor, groupID, "user_group_admission_qr_updated", http.MethodPost, previousURL, currentURL)
+	}); err != nil {
+		_ = s.qrFileStore.Remove(context.Background(), saved.RelativePath)
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, &ServiceError{Status: http.StatusNotFound, Message: "用户组不存在"}
+		}
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "更新录取群二维码失败", Err: err}
+	}
+	return admissionQRCodeConfiguration(&model.UserGroup{ID: groupID, Name: groupName, AdmissionImageURL: currentURL}), nil
+}
+
+func (s *Service) RemoveAdmissionQRCode(ctx context.Context, actor Actor, groupID uint64) (*AdmissionQRCodeConfiguration, error) {
+	if err := ensureSuperAdminActor(actor); err != nil {
+		return nil, err
+	}
+	if groupID == 0 {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "用户组 ID 不合法"}
+	}
+	var group *model.UserGroup
+	var previousURL *string
+	if err := s.repo.RunInTx(ctx, func(repo Repository) error {
+		var err error
+		group, err = repo.GetGroupByIDForUpdate(ctx, groupID)
+		if err != nil {
+			return err
+		}
+		previousURL = copyStringPtr(group.AdmissionImageURL)
+		if previousURL == nil {
+			return nil
+		}
+		if err := repo.UpdateGroup(ctx, groupID, map[string]any{"admission_image_url": nil}); err != nil {
+			return err
+		}
+		return recordAdmissionQRCodeAudit(ctx, repo, actor, groupID, "user_group_admission_qr_removed", http.MethodDelete, previousURL, nil)
+	}); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, &ServiceError{Status: http.StatusNotFound, Message: "用户组不存在"}
+		}
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "移除录取群二维码失败", Err: err}
+	}
+	if previousURL == nil {
+		return admissionQRCodeConfiguration(group), nil
+	}
+	// Keep the old file so pending notification snapshots remain usable.
+	return admissionQRCodeConfiguration(&model.UserGroup{ID: group.ID, Name: group.Name}), nil
+}
+
+func (s *Service) OpenAdmissionQRCode(ctx context.Context, actor Actor, fileName string) (*AdmissionQRCodeImage, error) {
+	if err := ensureAdminActor(actor); err != nil {
+		return nil, err
+	}
+	if s.qrFileStore == nil {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "录取群二维码存储不可用"}
+	}
+	data, contentType, err := s.qrFileStore.Read(ctx, fileName)
+	if err != nil {
+		return nil, &ServiceError{Status: http.StatusNotFound, Message: "录取群二维码不存在或无法读取", Err: err}
+	}
+	return &AdmissionQRCodeImage{Content: data, ContentType: contentType}, nil
 }
 
 func (s *Service) CreateGroup(ctx context.Context, actor Actor, input CreateGroupInput) (*GroupDetail, error) {
@@ -356,6 +475,13 @@ func ensureAdminActor(actor Actor) error {
 	return &ServiceError{Status: http.StatusForbidden, Message: "当前账号无管理员权限"}
 }
 
+func ensureSuperAdminActor(actor Actor) error {
+	if actor.RoleName == model.RoleNameSuperAdmin {
+		return nil
+	}
+	return &ServiceError{Status: http.StatusForbidden, Message: "仅超级管理员可以管理录取群二维码"}
+}
+
 func validateGroupStatus(status uint8) error {
 	if status != model.UserGroupStatusActive && status != model.UserGroupStatusDisabled {
 		return &ServiceError{Status: http.StatusBadRequest, Message: "用户组状态不合法"}
@@ -372,17 +498,54 @@ func validateGroupShow(show uint8) error {
 
 func toGroupListItem(group *model.UserGroup) GroupListItem {
 	return GroupListItem{
-		ID:          group.ID,
-		Name:        group.Name,
-		Description: group.Description,
-		LogoURL:     copyStringPtr(group.LogoURL),
-		Tags:        copyTags(group.Tags),
-		IsDefault:   group.IsDefault,
-		Show:        group.Show,
-		Status:      group.Status,
-		CreatedAt:   group.CreatedAt,
-		UpdatedAt:   group.UpdatedAt,
+		ID:                        group.ID,
+		Name:                      group.Name,
+		Description:               group.Description,
+		LogoURL:                   copyStringPtr(group.LogoURL),
+		AdmissionQRCodeConfigured: group.AdmissionImageURL != nil && strings.TrimSpace(*group.AdmissionImageURL) != "",
+		AdmissionQRCodeURL:        copyStringPtr(group.AdmissionImageURL),
+		Tags:                      copyTags(group.Tags),
+		IsDefault:                 group.IsDefault,
+		Show:                      group.Show,
+		Status:                    group.Status,
+		CreatedAt:                 group.CreatedAt,
+		UpdatedAt:                 group.UpdatedAt,
 	}
+}
+
+func admissionQRCodeConfiguration(group *model.UserGroup) *AdmissionQRCodeConfiguration {
+	if group == nil {
+		return nil
+	}
+	url := copyStringPtr(group.AdmissionImageURL)
+	return &AdmissionQRCodeConfiguration{
+		GroupID: group.ID, GroupName: group.Name,
+		Configured:         url != nil && strings.TrimSpace(*url) != "",
+		AdmissionQRCodeURL: url,
+	}
+}
+
+type admissionQRCodeAuditRepository interface {
+	CreateAuditLog(ctx context.Context, audit *model.AuditLog) error
+}
+
+func recordAdmissionQRCodeAudit(ctx context.Context, repo Repository, actor Actor, groupID uint64, action string, method string, previousURL *string, currentURL *string) error {
+	writer, ok := repo.(admissionQRCodeAuditRepository)
+	if !ok {
+		return fmt.Errorf("admission QR audit storage unavailable")
+	}
+	metadata, err := json.Marshal(map[string]any{
+		"groupId": groupID, "previousUrl": previousURL, "currentUrl": currentURL,
+	})
+	if err != nil {
+		return err
+	}
+	id := actor.ID
+	return writer.CreateAuditLog(ctx, &model.AuditLog{
+		ActorID: &id, Action: action, Method: method,
+		Path:   fmt.Sprintf("/api/admin/user-groups/%d/admission-qr", groupID),
+		Status: http.StatusOK, Metadata: string(metadata),
+	})
 }
 
 func toGroupDetail(group *model.UserGroup) GroupDetail {

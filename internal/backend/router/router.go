@@ -75,6 +75,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	adminAPI := api.Group("/admin")
 	adminAPI.Use(middleware.RequireAdmin(authService))
 	adminAPI.GET("/user-groups/options", userGroupHandler.ListGroupOptions)
+	adminAPI.GET("/admission-qr/:filename", userGroupHandler.OpenAdmissionQRCode)
 
 	// User-group and registration-form configuration are restricted to super admins.
 	superAdminAPI := adminAPI.Group("")
@@ -89,6 +90,8 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	superAdminAPI.GET("/user-groups", userGroupHandler.ListGroups)
 	superAdminAPI.POST("/user-groups", userGroupHandler.CreateGroup)
 	superAdminAPI.PATCH("/user-groups/:id", userGroupHandler.UpdateGroup)
+	superAdminAPI.POST("/user-groups/:id/admission-qr", userGroupHandler.UploadAdmissionQRCode)
+	superAdminAPI.DELETE("/user-groups/:id/admission-qr", userGroupHandler.RemoveAdmissionQRCode)
 	superAdminAPI.GET("/registration-forms", registrationFormHandler.ListForms)
 	superAdminAPI.POST("/registration-forms", registrationFormHandler.CreateForm)
 	superAdminAPI.GET("/registration-forms/:id/registrations/export", registrationHandler.ExportFormRegistrationsCSV)
@@ -106,6 +109,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	adminAPI.POST("/registrations/:id/interview", registrationHandler.RecordInterviewResult)
 	adminAPI.PUT("/registrations/:id/interview", registrationHandler.CorrectInterviewResult)
 	adminAPI.GET("/registrations/:id/interview-notification", registrationHandler.GetInterviewNotificationPreview)
+	adminAPI.POST("/registrations/:id/interview-notification/refresh-qr", registrationHandler.RefreshInterviewNotificationQRCode)
 	adminAPI.POST("/registrations/:id/interview-notification/send", registrationHandler.SendInterviewResultNotification)
 	adminAPI.GET("/registrations/:id/files/:fieldKey/:index", registrationHandler.OpenRegistrationFile)
 

@@ -1,11 +1,18 @@
 package usergroup
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	"image/color"
+	"image/jpeg"
+	"image/png"
+	"io"
 	"mime/multipart"
+	"net/http/httptest"
 	"net/textproto"
 	"strings"
 	"testing"
@@ -109,6 +116,138 @@ func TestServiceListGroups_FiltersByStatus(t *testing.T) {
 	}
 	if result.Items[0].Name != "运营组" {
 		t.Fatalf("expected disabled group to be 运营组, got %s", result.Items[0].Name)
+	}
+}
+
+func TestServiceAdmissionQRCodeUploadReplaceRemoveAndAudit(t *testing.T) {
+	repo := newFakeRepository()
+	store, err := newLocalAdmissionQRCodeFileStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("new QR store: %v", err)
+	}
+	service := newServiceWithAdmissionQRCodeDependencies(repo, &fakeGroupLogoFileStore{}, store)
+	service.now = func() time.Time { return time.Date(2026, 10, 13, 10, 0, 0, 0, time.UTC) }
+	superAdmin := Actor{ID: 41, RoleName: model.RoleNameSuperAdmin}
+
+	first, err := service.UploadAdmissionQRCode(context.Background(), superAdmin, 1, newTestQRCodeFileHeader(t, "../first.png", makeTestQRCodePNG(t)))
+	if err != nil {
+		t.Fatalf("upload first QR: %v", err)
+	}
+	if !first.Configured || first.AdmissionQRCodeURL == nil || !strings.HasPrefix(*first.AdmissionQRCodeURL, admissionQRCodeURLPrefix) {
+		t.Fatalf("unexpected first QR configuration: %#v", first)
+	}
+	firstName, ok := store.RelativePathFromURL(*first.AdmissionQRCodeURL)
+	if !ok {
+		t.Fatalf("stored QR URL is not a safe managed URL: %q", *first.AdmissionQRCodeURL)
+	}
+	if _, contentType, err := store.Read(context.Background(), firstName); err != nil || contentType != "image/png" {
+		t.Fatalf("uploaded QR could not be previewed: type=%q err=%v", contentType, err)
+	}
+	if _, err := service.UploadAdmissionQRCode(context.Background(), Actor{ID: 42, RoleName: model.RoleNameAdmin}, 1, newTestQRCodeFileHeader(t, "other.png", makeTestQRCodePNG(t))); err == nil {
+		t.Fatal("ordinary admin uploaded an admission QR")
+	} else {
+		assertServiceError(t, err, 403, "超级管理员")
+	}
+	if _, err := service.RemoveAdmissionQRCode(context.Background(), Actor{ID: 42, RoleName: model.RoleNameAdmin}, 1); err == nil {
+		t.Fatal("ordinary admin removed an admission QR")
+	} else {
+		assertServiceError(t, err, 403, "超级管理员")
+	}
+	if _, err := service.OpenAdmissionQRCode(context.Background(), Actor{ID: 42, RoleName: model.RoleNameAdmin}, "../secret.png"); err == nil {
+		t.Fatal("QR preview accepted a path traversal")
+	}
+
+	second, err := service.UploadAdmissionQRCode(context.Background(), superAdmin, 1, newTestQRCodeFileHeader(t, "replacement.jpg", makeTestQRCodeJPEG(t)))
+	if err != nil {
+		t.Fatalf("replace QR: %v", err)
+	}
+	if second.AdmissionQRCodeURL == nil || *second.AdmissionQRCodeURL == *first.AdmissionQRCodeURL {
+		t.Fatalf("QR replacement did not produce a new version: first=%#v second=%#v", first, second)
+	}
+	secondName, ok := store.RelativePathFromURL(*second.AdmissionQRCodeURL)
+	if !ok {
+		t.Fatalf("replacement QR URL is not a managed URL: %q", *second.AdmissionQRCodeURL)
+	}
+	if _, contentType, err := store.Read(context.Background(), secondName); err != nil || contentType != "image/jpeg" {
+		t.Fatalf("replacement JPEG could not be previewed: type=%q err=%v", contentType, err)
+	}
+	if _, err := service.OpenAdmissionQRCode(context.Background(), Actor{ID: 99, RoleName: model.RoleNameUser}, secondName); err == nil {
+		t.Fatal("ordinary user read a private admission QR")
+	} else {
+		assertServiceError(t, err, 403, "管理员")
+	}
+	oldBytes, oldType, err := store.Read(context.Background(), firstName)
+	if err != nil || len(oldBytes) == 0 || oldType != "image/png" {
+		t.Fatalf("replacing QR removed an older notification snapshot file: type=%q err=%v", oldType, err)
+	}
+	logs := repo.auditLogs
+	if len(logs) != 2 || logs[0].Action != "user_group_admission_qr_updated" || !strings.Contains(logs[1].Metadata, *first.AdmissionQRCodeURL) || !strings.Contains(logs[1].Metadata, *second.AdmissionQRCodeURL) {
+		t.Fatalf("QR replacement audit did not preserve old and new URL: %#v", logs)
+	}
+
+	removed, err := service.RemoveAdmissionQRCode(context.Background(), superAdmin, 1)
+	if err != nil {
+		t.Fatalf("remove QR: %v", err)
+	}
+	if removed.Configured || removed.AdmissionQRCodeURL != nil || repo.groups[1].AdmissionImageURL != nil {
+		t.Fatalf("QR config was not removed: result=%#v group=%#v", removed, repo.groups[1])
+	}
+	if _, _, err := store.Read(context.Background(), firstName); err != nil {
+		t.Fatalf("removing current config must preserve snapshotted image files: %v", err)
+	}
+	if len(repo.auditLogs) != 3 || repo.auditLogs[2].Action != "user_group_admission_qr_removed" {
+		t.Fatalf("QR removal audit missing: %#v", repo.auditLogs)
+	}
+}
+
+func TestAdmissionQRCodeStoreValidatesActualImageAndSize(t *testing.T) {
+	store, err := newLocalAdmissionQRCodeFileStore(t.TempDir())
+	if err != nil {
+		t.Fatalf("new QR store: %v", err)
+	}
+	for _, test := range []struct {
+		name string
+		data []byte
+	}{
+		{name: "extension-is-not-content", data: []byte("<svg><script>alert(1)</script></svg>")},
+		{name: "truncated-png", data: makeTestQRCodePNG(t)[:20]},
+		{name: "oversized", data: bytes.Repeat([]byte("x"), admissionQRCodeMaxBytes+1)},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			_, err := store.Save(context.Background(), newTestQRCodeFileHeader(t, "looks-like-image.png", test.data), time.Now())
+			if err == nil {
+				t.Fatal("invalid or oversized QR image was accepted")
+			}
+		})
+	}
+}
+
+func TestSuperAdminGroupListShowsQRConfigurationWithoutExposingItToRegularGroupOptions(t *testing.T) {
+	repo := newFakeRepository()
+	url := admissionQRCodeURLPrefix + "qr_20261013100000_0123456789abcdef01234567.png"
+	repo.groups[1].AdmissionImageURL = &url
+	service := NewService(repo)
+	result, err := service.ListGroups(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, ListGroupsInput{})
+	if err != nil {
+		t.Fatalf("ListGroups: %v", err)
+	}
+	var found *GroupListItem
+	for i := range result.Items {
+		if result.Items[i].ID == 1 {
+			found = &result.Items[i]
+			break
+		}
+	}
+	if found == nil || !found.AdmissionQRCodeConfigured || found.AdmissionQRCodeURL == nil || *found.AdmissionQRCodeURL != url {
+		t.Fatalf("super admin list did not expose QR configuration state: %#v", found)
+	}
+	options, err := service.ListGroupOptions(context.Background(), Actor{ID: 2, RoleName: model.RoleNameAdmin})
+	if err != nil {
+		t.Fatalf("ListGroupOptions: %v", err)
+	}
+	encoded, _ := json.Marshal(options)
+	if strings.Contains(string(encoded), "admission") || strings.Contains(string(encoded), "qr_") {
+		t.Fatalf("regular admin group options exposed QR configuration outside notification preview: %s", encoded)
 	}
 }
 
@@ -234,6 +373,7 @@ func TestServiceUpdateGroup_RejectsNonImageLogo(t *testing.T) {
 type fakeRepository struct {
 	groups      map[uint64]*model.UserGroup
 	nextGroupID uint64
+	auditLogs   []model.AuditLog
 }
 
 func newFakeRepository() *fakeRepository {
@@ -301,6 +441,10 @@ func (r *fakeRepository) GetGroupByID(_ context.Context, groupID uint64) (*model
 	return cloneGroup(group), nil
 }
 
+func (r *fakeRepository) GetGroupByIDForUpdate(ctx context.Context, groupID uint64) (*model.UserGroup, error) {
+	return r.GetGroupByID(ctx, groupID)
+}
+
 func (r *fakeRepository) CreateGroup(_ context.Context, group *model.UserGroup) error {
 	group.ID = r.nextGroupID
 	r.nextGroupID++
@@ -327,6 +471,11 @@ func (r *fakeRepository) UpdateGroup(_ context.Context, groupID uint64, updates 
 		group.LogoURL = copyString(value)
 	} else if _, exists := updates["logo_url"]; exists && updates["logo_url"] == nil {
 		group.LogoURL = nil
+	}
+	if value, ok := updates["admission_image_url"].(*string); ok {
+		group.AdmissionImageURL = copyString(value)
+	} else if _, exists := updates["admission_image_url"]; exists && updates["admission_image_url"] == nil {
+		group.AdmissionImageURL = nil
 	}
 	if value, ok := updates["tags"].(string); ok {
 		var tags []string
@@ -358,6 +507,12 @@ func (r *fakeRepository) ClearDefaultExcept(_ context.Context, exceptGroupID uin
 	return nil
 }
 
+func (r *fakeRepository) CreateAuditLog(_ context.Context, audit *model.AuditLog) error {
+	clone := *audit
+	r.auditLogs = append(r.auditLogs, clone)
+	return nil
+}
+
 func cloneGroup(group *model.UserGroup) *model.UserGroup {
 	cloned := *group
 	if len(group.Tags) > 0 {
@@ -365,8 +520,70 @@ func cloneGroup(group *model.UserGroup) *model.UserGroup {
 	}
 	cloned.Description = copyString(group.Description)
 	cloned.LogoURL = copyString(group.LogoURL)
+	cloned.AdmissionImageURL = copyString(group.AdmissionImageURL)
 	cloned.Members = nil
 	return &cloned
+}
+
+func makeTestQRCodePNG(t *testing.T) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, 16, 16))
+	for y := 0; y < 16; y++ {
+		for x := 0; x < 16; x++ {
+			if (x/4+y/4)%2 == 0 {
+				img.Set(x, y, color.Black)
+			} else {
+				img.Set(x, y, color.White)
+			}
+		}
+	}
+	var buffer bytes.Buffer
+	if err := png.Encode(&buffer, img); err != nil {
+		t.Fatalf("encode PNG: %v", err)
+	}
+	return buffer.Bytes()
+}
+
+func makeTestQRCodeJPEG(t *testing.T) []byte {
+	t.Helper()
+	img := image.NewRGBA(image.Rect(0, 0, 16, 16))
+	for y := 0; y < 16; y++ {
+		for x := 0; x < 16; x++ {
+			if (x/4+y/4)%2 == 0 {
+				img.Set(x, y, color.Black)
+			} else {
+				img.Set(x, y, color.White)
+			}
+		}
+	}
+	var buffer bytes.Buffer
+	if err := jpeg.Encode(&buffer, img, &jpeg.Options{Quality: 90}); err != nil {
+		t.Fatalf("encode JPEG: %v", err)
+	}
+	return buffer.Bytes()
+}
+
+func newTestQRCodeFileHeader(t *testing.T, filename string, data []byte) *multipart.FileHeader {
+	t.Helper()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("image", filename)
+	if err != nil {
+		t.Fatalf("create QR form field: %v", err)
+	}
+	if _, err := io.Copy(part, bytes.NewReader(data)); err != nil {
+		t.Fatalf("write QR form field: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close QR form: %v", err)
+	}
+	request := httptest.NewRequest("POST", "/", &body)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	if err := request.ParseMultipartForm(int64(len(data)) + 1024); err != nil {
+		t.Fatalf("parse QR form: %v", err)
+	}
+	t.Cleanup(func() { _ = request.MultipartForm.RemoveAll() })
+	return request.MultipartForm.File["image"][0]
 }
 
 func copyString(value *string) *string {

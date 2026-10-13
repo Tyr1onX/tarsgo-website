@@ -14,6 +14,8 @@ import (
 	"tarsgo-backend/service/usergroup"
 )
 
+const usergroupMaxAdmissionQRCodeRequestBytes int64 = (2 << 20) + (64 << 10)
+
 type UserGroupHandler struct {
 	service userGroupService
 }
@@ -23,6 +25,9 @@ type userGroupService interface {
 	ListGroupOptions(ctx context.Context, actor usergroup.Actor) ([]usergroup.GroupOption, error)
 	CreateGroup(ctx context.Context, actor usergroup.Actor, input usergroup.CreateGroupInput) (*usergroup.GroupDetail, error)
 	UpdateGroup(ctx context.Context, actor usergroup.Actor, groupID uint64, input usergroup.UpdateGroupInput) (*usergroup.GroupDetail, error)
+	UploadAdmissionQRCode(ctx context.Context, actor usergroup.Actor, groupID uint64, file *multipart.FileHeader) (*usergroup.AdmissionQRCodeConfiguration, error)
+	RemoveAdmissionQRCode(ctx context.Context, actor usergroup.Actor, groupID uint64) (*usergroup.AdmissionQRCodeConfiguration, error)
+	OpenAdmissionQRCode(ctx context.Context, actor usergroup.Actor, fileName string) (*usergroup.AdmissionQRCodeImage, error)
 }
 
 type listUserGroupsQuery struct {
@@ -147,6 +152,65 @@ func (h *UserGroupHandler) UpdateGroup(c *gin.Context) {
 	}
 
 	writeAPI(c, http.StatusOK, "更新用户组成功", group)
+}
+
+func (h *UserGroupHandler) UploadAdmissionQRCode(c *gin.Context) {
+	groupID, err := parsePathID(c.Param("id"))
+	if err != nil {
+		writeAPIError(c, http.StatusBadRequest, "无效的用户组 ID")
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, usergroupMaxAdmissionQRCodeRequestBytes)
+	if err := c.Request.ParseMultipartForm(256 << 10); err != nil {
+		writeAPIError(c, http.StatusRequestEntityTooLarge, "二维码上传内容过大或格式不正确")
+		return
+	}
+	if c.Request.MultipartForm != nil {
+		defer c.Request.MultipartForm.RemoveAll()
+	}
+	if c.Request.MultipartForm == nil || len(c.Request.MultipartForm.File["image"]) != 1 {
+		writeAPIError(c, http.StatusBadRequest, "请上传一张 PNG 或 JPEG 图片")
+		return
+	}
+	for field, files := range c.Request.MultipartForm.File {
+		if field != "image" || len(files) != 1 {
+			writeAPIError(c, http.StatusBadRequest, "请求中只能包含一张二维码图片")
+			return
+		}
+	}
+	result, serviceErr := h.service.UploadAdmissionQRCode(c.Request.Context(), currentGroupActor(c), groupID, c.Request.MultipartForm.File["image"][0])
+	if serviceErr != nil {
+		h.handleServiceError(c, serviceErr)
+		return
+	}
+	writeAPI(c, http.StatusOK, "录取群二维码已更新", result)
+}
+
+func (h *UserGroupHandler) RemoveAdmissionQRCode(c *gin.Context) {
+	groupID, err := parsePathID(c.Param("id"))
+	if err != nil {
+		writeAPIError(c, http.StatusBadRequest, "无效的用户组 ID")
+		return
+	}
+	result, serviceErr := h.service.RemoveAdmissionQRCode(c.Request.Context(), currentGroupActor(c), groupID)
+	if serviceErr != nil {
+		h.handleServiceError(c, serviceErr)
+		return
+	}
+	writeAPI(c, http.StatusOK, "录取群二维码已移除", result)
+}
+
+func (h *UserGroupHandler) OpenAdmissionQRCode(c *gin.Context) {
+	result, serviceErr := h.service.OpenAdmissionQRCode(c.Request.Context(), currentGroupActor(c), c.Param("filename"))
+	if serviceErr != nil {
+		h.handleServiceError(c, serviceErr)
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("Content-Security-Policy", "default-src 'none'; sandbox")
+	c.Header("Content-Disposition", "inline")
+	c.Data(http.StatusOK, result.ContentType, result.Content)
 }
 
 func (h *UserGroupHandler) handleServiceError(c *gin.Context, err error) {

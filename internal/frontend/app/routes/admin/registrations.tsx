@@ -5,6 +5,7 @@ import { ApiError, buildApiUrl } from "~/lib/api-client";
 import {
   getAdminRegistration,
   getAdminInterviewNotificationPreview,
+  refreshAdminInterviewNotificationQRCode,
   listAdminInterviewSessions,
   listAdminRegistrations,
   sendAdminInterviewResultNotification,
@@ -325,6 +326,19 @@ export default function Registrations() {
       setNotificationPreview(preview);
       setConfirmUncertainNotification(false);
       setFlash({ type: result.status === "failed" ? "error" : "success", message: result.message });
+    } catch (error) {
+      handleError(error);
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  async function runRefreshInterviewNotificationQRCode(registrationId: number) {
+    try {
+      setActionLoading(true);
+      setFlash(null);
+      setNotificationPreview(await refreshAdminInterviewNotificationQRCode(registrationId));
+      setFlash({ type: "success", message: "待发送通知已更新为该组当前二维码，请重新核对预览。" });
     } catch (error) {
       handleError(error);
     } finally {
@@ -989,14 +1003,43 @@ export default function Registrations() {
                                 label="录取群二维码"
                                 value={notificationPreview.qrCodeStatus === "ready" ? "已配置且可读取" : notificationPreview.qrCodeStatus === "not_required" ? "拒绝通知无需附图" : notificationPreview.qrCodeStatus === "missing" ? "未配置" : "读取失败"}
                               />
+                              {notificationPreview.qrCodeStatus !== "not_required" ? (
+                                <InfoItem label="对应组别" value={notificationPreview.qrCodeGroupName || "未设置"} />
+                              ) : null}
                               <div className="sm:col-span-2"><InfoItem label="收件地址" value={notificationPreview.recipient || "未配置"} /></div>
                               <div className="sm:col-span-2"><InfoItem label="邮件主题" value={notificationPreview.subject || "未生成"} /></div>
                             </div>
+                            {notificationPreview.qrCodeStatus !== "not_required" ? (
+                              <div className="grid gap-3 sm:grid-cols-2">
+                                <QRCodePreviewCard
+                                  title={notificationPreview.status === "legacy_unknown" ? "本次预览使用的当前组二维码" : "通知保存的二维码"}
+                                  status={notificationPreview.qrCodeStatus}
+                                  imageUrl={notificationPreview.qrCodeUrl}
+                                />
+                                {notificationPreview.status !== "legacy_unknown" ? (
+                                  <QRCodePreviewCard
+                                    title="该组当前配置的二维码"
+                                    status={notificationPreview.currentQrCodeStatus ?? "missing"}
+                                    imageUrl={notificationPreview.currentQrCodeUrl}
+                                  />
+                                ) : null}
+                              </div>
+                            ) : null}
                             <div className="rounded-lg bg-black/20 p-3">
                               <div className="text-xs text-fg-dim">邮件正文</div>
                               <div className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-fg-primary">{notificationPreview.body}</div>
                             </div>
                             {notificationPreview.warning ? <div className="admin-notice admin-notice--warning">{notificationPreview.warning}</div> : null}
+                            {notificationPreview.canRefreshQrCode ? (
+                              <button
+                                type="button"
+                                disabled={notificationLoading || actionLoading}
+                                onClick={() => void runRefreshInterviewNotificationQRCode(detail.id)}
+                                className="admin-button admin-button--secondary"
+                              >
+                                更新待发送通知的二维码
+                              </button>
+                            ) : null}
                             {notificationPreview.requiresConfirmation ? (
                               <label className="flex gap-2 text-sm leading-6 text-fg-muted">
                                 <input
@@ -1157,6 +1200,25 @@ function StatusBadge({
     <span className={`admin-status ${item.className}`}>
       {item.label}
     </span>
+  );
+}
+
+function QRCodePreviewCard({ title, status, imageUrl }: { title: string; status: string; imageUrl?: string }) {
+  const statusLabel = status === "ready" ? "可读取" : status === "missing" ? "未配置" : "读取失败";
+  return (
+    <div className="min-w-0 rounded-lg border border-white/[0.08] bg-black/10 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h5 className="text-sm font-medium text-fg-primary">{title}</h5>
+        <span className="text-xs text-fg-dim">{statusLabel}</span>
+      </div>
+      <div className="mt-2 flex min-h-36 items-center justify-center rounded-md bg-black/20 p-2">
+        {status === "ready" && imageUrl ? (
+          <img src={buildApiUrl(imageUrl)} alt={title} className="max-h-40 max-w-full object-contain" />
+        ) : (
+          <span className="px-2 text-center text-xs text-fg-dim">{status === "missing" ? "没有可用的二维码图片" : "无法预览二维码"}</span>
+        )}
+      </div>
+    </div>
   );
 }
 

@@ -443,6 +443,47 @@ func TestRegistrationServiceAdmissionEmbedsConfiguredImage(t *testing.T) {
 	}
 }
 
+func TestAdmissionNotificationsUseThePreferredGroupsQRCode(t *testing.T) {
+	for _, test := range []struct {
+		groupID   uint64
+		groupName string
+		qrURL     string
+		image     string
+	}{
+		{groupID: 101, groupName: "机械组", qrURL: "/upload/config/group/mechanical.png", image: "mechanical-qr"},
+		{groupID: 102, groupName: "电控组", qrURL: "/upload/config/group/electrical.png", image: "electrical-qr"},
+	} {
+		t.Run(test.groupName, func(t *testing.T) {
+			repo := newFakeRegistrationReviewRepository()
+			repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
+			group := &model.UserGroup{ID: test.groupID, Name: test.groupName, Show: 1, AdmissionImageURL: stringPtr(test.qrURL)}
+			repo.registration.PreferredGroupID = uint64Ptr(test.groupID)
+			repo.registration.PreferredGroup = group
+			repo.registration.Group1 = group
+			repo.registration.Group1ID = uint64Ptr(test.groupID)
+			mailer := &fakeInterviewMailer{}
+			service := newRegistrationServiceWithDependencies(repo, nil)
+			service.mailer = mailer
+			service.loadInlineImage = func(rawURL string) ([]byte, string, error) {
+				if rawURL != test.qrURL {
+					t.Fatalf("preferred group %s resolved to wrong QR URL %q", test.groupName, rawURL)
+				}
+				return []byte(test.image), "image/png", nil
+			}
+			admin := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+			if _, err := service.RecordInterviewResult(context.Background(), admin, repo.registration.ID, InterviewDecisionInput{Decision: "admit"}); err != nil {
+				t.Fatalf("record admission: %v", err)
+			}
+			if _, err := service.SendInterviewResultNotification(context.Background(), admin, repo.registration.ID, false); err != nil {
+				t.Fatalf("send admission notice: %v", err)
+			}
+			if string(mailer.image) != test.image {
+				t.Fatalf("received another group's QR: got %q, want %q", mailer.image, test.image)
+			}
+		})
+	}
+}
+
 func TestInterviewNotificationFailureCanBeRetriedAndAcceptedResultCannotDuplicate(t *testing.T) {
 	repo := newFakeRegistrationReviewRepository()
 	repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
@@ -544,6 +585,124 @@ func TestAdmissionNotificationCannotSendWithoutReadableQRCode(t *testing.T) {
 				t.Fatalf("QR failure should leave a pending notice without sending: calls=%d notification=%#v", mailer.sendCalls, repo.resultNotifications[1])
 			}
 		})
+	}
+}
+
+func TestAdmissionNotificationCreatedBeforeQRCodeCanBeRefreshedAndSent(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
+	mailer := &fakeInterviewMailer{}
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	service.mailer = mailer
+	admin := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+	if _, err := service.RecordInterviewResult(context.Background(), admin, repo.registration.ID, InterviewDecisionInput{Decision: "admit"}); err != nil {
+		t.Fatalf("record result without configured QR: %v", err)
+	}
+
+	newURL := "/api/admin/admission-qr/qr_20261013120000_0123456789abcdef01234567.png"
+	repo.registration.PreferredGroup.AdmissionImageURL = &newURL
+	service.loadInlineImage = func(rawURL string) ([]byte, string, error) {
+		if rawURL != newURL {
+			t.Fatalf("unexpected QR URL: %q", rawURL)
+		}
+		return []byte("new-group-qr"), "image/png", nil
+	}
+
+	preview, err := service.GetInterviewNotificationPreview(context.Background(), admin, repo.registration.ID)
+	if err != nil || preview.CanSend || !preview.CanRefreshQRCode || preview.QRCodeStatus != "missing" || preview.CurrentQRCodeStatus != "ready" {
+		t.Fatalf("missing QR should be explicitly refreshable from current group config: preview=%#v err=%v", preview, err)
+	}
+	updated, err := service.RefreshInterviewResultNotificationQRCode(context.Background(), admin, repo.registration.ID)
+	if err != nil || !updated.CanSend || updated.QRCodeStatus != "ready" || updated.QRCodeURL != newURL || updated.CanRefreshQRCode {
+		t.Fatalf("refreshed preview does not match current configured QR: preview=%#v err=%v", updated, err)
+	}
+	if len(repo.auditLogs) != 1 || repo.auditLogs[0].Action != "refresh_admission_notification_qr" || !strings.Contains(repo.auditLogs[0].Metadata, newURL) {
+		t.Fatalf("QR snapshot refresh was not recorded in the audit log: %#v", repo.auditLogs)
+	}
+	attempt, err := service.SendInterviewResultNotification(context.Background(), admin, repo.registration.ID, false)
+	if err != nil || attempt.Status != model.InterviewNotificationProviderAccepted || string(mailer.image) != "new-group-qr" {
+		t.Fatalf("refreshed QR was not used in explicit send: attempt=%#v mailer=%#v err=%v", attempt, mailer, err)
+	}
+}
+
+func TestAdmissionNotificationSnapshotRefreshIsAuditedAndLockedAfterAcceptance(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
+	oldURL := "/upload/config/group/old-qr.png"
+	repo.registration.PreferredGroup.AdmissionImageURL = &oldURL
+	mailer := &fakeInterviewMailer{}
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	service.mailer = mailer
+	service.loadInlineImage = func(rawURL string) ([]byte, string, error) {
+		return []byte(rawURL), "image/png", nil
+	}
+	admin := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+	if _, err := service.RecordInterviewResult(context.Background(), admin, repo.registration.ID, InterviewDecisionInput{Decision: "admit"}); err != nil {
+		t.Fatalf("record admission: %v", err)
+	}
+
+	newURL := "/upload/config/group/new-qr.png"
+	repo.registration.PreferredGroup.AdmissionImageURL = &newURL
+	preview, err := service.GetInterviewNotificationPreview(context.Background(), admin, repo.registration.ID)
+	if err != nil || preview.QRCodeURL != oldURL || preview.CurrentQRCodeURL != newURL || !preview.CanRefreshQRCode {
+		t.Fatalf("preview must distinguish snapshot and current group QR: preview=%#v err=%v", preview, err)
+	}
+	preview, err = service.RefreshInterviewResultNotificationQRCode(context.Background(), admin, repo.registration.ID)
+	if err != nil || preview.QRCodeURL != newURL || !preview.CanSend {
+		t.Fatalf("explicit refresh did not update pending snapshot: preview=%#v err=%v", preview, err)
+	}
+	if len(repo.auditLogs) != 1 || !strings.Contains(repo.auditLogs[0].Metadata, oldURL) || !strings.Contains(repo.auditLogs[0].Metadata, newURL) {
+		t.Fatalf("refresh audit lacks previous and current QR URLs: %#v", repo.auditLogs)
+	}
+	if _, err := service.SendInterviewResultNotification(context.Background(), admin, repo.registration.ID, false); err != nil {
+		t.Fatalf("send refreshed notification: %v", err)
+	}
+
+	acceptedSnapshot := copyStringPtr(repo.resultNotifications[1].QRImageURL)
+	thirdURL := "/upload/config/group/later-qr.png"
+	repo.registration.PreferredGroup.AdmissionImageURL = &thirdURL
+	locked, err := service.GetInterviewNotificationPreview(context.Background(), admin, repo.registration.ID)
+	if err != nil || locked.CanRefreshQRCode || locked.QRCodeURL != newURL {
+		t.Fatalf("provider-accepted notification must retain the sent QR snapshot: preview=%#v err=%v", locked, err)
+	}
+	_, refreshErr := service.RefreshInterviewResultNotificationQRCode(context.Background(), admin, repo.registration.ID)
+	assertRegistrationServiceError(t, refreshErr, http.StatusConflict, "不能修改")
+	if !sameOptionalString(repo.resultNotifications[1].QRImageURL, acceptedSnapshot) {
+		t.Fatalf("accepted notification QR snapshot changed: got=%v want=%v", repo.resultNotifications[1].QRImageURL, acceptedSnapshot)
+	}
+}
+
+func TestLegacyUnknownAdmissionNotificationCannotRefreshQRCode(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	now := time.Date(2026, 10, 13, 8, 0, 0, 0, time.Local)
+	repo.registration.RecruitmentStatus = model.RecruitmentStatusAdmitted
+	repo.registration.InterviewedAt = &now
+	oldURL := "/upload/config/group/old-legacy-qr.png"
+	repo.registration.PreferredGroup.AdmissionImageURL = &oldURL
+	revision := &model.InterviewResultRevision{RegistrationID: repo.registration.ID, Revision: 1, ResultStatus: model.RecruitmentStatusAdmitted, ActorID: uint64Ptr(9001), CreatedAt: now}
+	if err := repo.CreateInterviewResultRevision(context.Background(), revision); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CreateInterviewResultNotification(context.Background(), &model.InterviewResultNotification{
+		RegistrationID: repo.registration.ID, RevisionID: revision.ID, Status: model.InterviewNotificationLegacyUnknown,
+		Recipient: "zhangsan@example.com", Subject: "历史面试结果通知待核对", Body: "历史邮件状态未知", CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	newURL := "/upload/config/group/current-qr.png"
+	repo.registration.PreferredGroup.AdmissionImageURL = &newURL
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	service.mailer = &fakeInterviewMailer{}
+	service.loadInlineImage = func(string) ([]byte, string, error) { return []byte("png"), "image/png", nil }
+	admin := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+	preview, err := service.GetInterviewNotificationPreview(context.Background(), admin, repo.registration.ID)
+	if err != nil || !preview.RequiresConfirmation || preview.CanRefreshQRCode || preview.QRCodeURL != newURL {
+		t.Fatalf("legacy preview must remain explicit and non-refreshable: preview=%#v err=%v", preview, err)
+	}
+	_, refreshErr := service.RefreshInterviewResultNotificationQRCode(context.Background(), admin, repo.registration.ID)
+	assertRegistrationServiceError(t, refreshErr, http.StatusConflict, "不能修改")
+	if len(repo.auditLogs) != 0 {
+		t.Fatalf("legacy unknown notification must not be silently rewritten: %#v", repo.auditLogs)
 	}
 }
 
@@ -1631,6 +1790,7 @@ type fakeRegistrationReviewRepository struct {
 	selectionCountBatchCalls int
 	resultRevisions          []model.InterviewResultRevision
 	resultNotifications      map[uint64]model.InterviewResultNotification
+	auditLogs                []model.AuditLog
 	nextRevisionID           uint64
 	nextNotificationID       uint64
 	createNotificationError  error
@@ -1700,6 +1860,7 @@ func (r *fakeRegistrationReviewRepository) RunInTx(_ context.Context, fn func(re
 	registrationSnapshot := cloneRegistrationModel(r.registration)
 	revisionsSnapshot := append([]model.InterviewResultRevision(nil), r.resultRevisions...)
 	notificationsSnapshot := make(map[uint64]model.InterviewResultNotification, len(r.resultNotifications))
+	auditSnapshot := append([]model.AuditLog(nil), r.auditLogs...)
 	for id, item := range r.resultNotifications {
 		notificationsSnapshot[id] = item
 	}
@@ -1707,6 +1868,7 @@ func (r *fakeRegistrationReviewRepository) RunInTx(_ context.Context, fn func(re
 		r.registration = registrationSnapshot
 		r.resultRevisions = revisionsSnapshot
 		r.resultNotifications = notificationsSnapshot
+		r.auditLogs = auditSnapshot
 		return err
 	}
 	return nil
@@ -1957,6 +2119,12 @@ func (r *fakeRegistrationReviewRepository) CreateInterviewResultNotification(_ c
 	r.nextNotificationID++
 	notification.ID = r.nextNotificationID
 	r.resultNotifications[notification.ID] = *notification
+	return nil
+}
+
+func (r *fakeRegistrationReviewRepository) CreateAuditLog(_ context.Context, audit *model.AuditLog) error {
+	clone := *audit
+	r.auditLogs = append(r.auditLogs, clone)
 	return nil
 }
 
@@ -2527,6 +2695,7 @@ func cloneGroupModel(group *model.UserGroup) *model.UserGroup {
 	}
 	cloned := *group
 	cloned.Description = copyStringPtr(group.Description)
+	cloned.AdmissionImageURL = copyStringPtr(group.AdmissionImageURL)
 	cloned.Tags = append([]string(nil), group.Tags...)
 	return &cloned
 }

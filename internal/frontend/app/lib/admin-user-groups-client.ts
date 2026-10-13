@@ -12,6 +12,8 @@ export interface AdminUserGroupListItem {
   name: string;
   description?: string | null;
   logoUrl?: string | null;
+  admissionQrCodeConfigured?: boolean;
+  admissionQrCodeUrl?: string | null;
   tags?: string[];
   isDefault: boolean;
   show: number;
@@ -73,5 +75,27 @@ export async function updateAdminUserGroup(groupId: number, input: UpsertAdminUs
   return apiRequest<AdminUserGroupListItem>(`/api/admin/user-groups/${groupId}`, {
     method: "PATCH",
     body: input,
+  });
+}
+
+export interface AdmissionQRCodeConfiguration {
+  groupId: number;
+  groupName: string;
+  configured: boolean;
+  admissionQrCodeUrl?: string | null;
+}
+
+export async function uploadAdminAdmissionQRCode(groupId: number, file: File): Promise<AdmissionQRCodeConfiguration> {
+  const body = new FormData();
+  body.append("image", file);
+  return apiRequest<AdmissionQRCodeConfiguration>(`/api/admin/user-groups/${groupId}/admission-qr`, {
+    method: "POST",
+    body,
+  });
+}
+
+export async function removeAdminAdmissionQRCode(groupId: number): Promise<AdmissionQRCodeConfiguration> {
+  return apiRequest<AdmissionQRCodeConfiguration>(`/api/admin/user-groups/${groupId}/admission-qr`, {
+    method: "DELETE",
   });
 }

@@ -69,6 +69,7 @@ type interviewNotificationSendRequest struct {
 type interviewResultNotificationService interface {
 	CorrectInterviewResult(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64, input registration.CorrectInterviewResultInput) (*registration.RegistrationDetail, error)
 	GetInterviewNotificationPreview(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64) (*registration.InterviewNotificationPreview, error)
+	RefreshInterviewResultNotificationQRCode(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64) (*registration.InterviewNotificationPreview, error)
 	SendInterviewResultNotification(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64, confirmUncertain bool) (*registration.InterviewNotificationAttempt, error)
 }
 
@@ -325,6 +326,25 @@ func (h *RegistrationHandler) GetInterviewNotificationPreview(c *gin.Context) {
 		return
 	}
 	writeAPI(c, http.StatusOK, "已加载通知预览", preview)
+}
+
+func (h *RegistrationHandler) RefreshInterviewNotificationQRCode(c *gin.Context) {
+	registrationID, err := parsePathID(c.Param("id"))
+	if err != nil {
+		writeAPIError(c, http.StatusBadRequest, "无效的报名记录 ID")
+		return
+	}
+	service, ok := h.service.(interviewResultNotificationService)
+	if !ok {
+		writeAPIError(c, http.StatusInternalServerError, "面试通知服务不可用")
+		return
+	}
+	preview, serviceErr := service.RefreshInterviewResultNotificationQRCode(c.Request.Context(), currentRegistrationFormActor(c), registrationID)
+	if serviceErr != nil {
+		h.handleServiceError(c, serviceErr)
+		return
+	}
+	writeAPI(c, http.StatusOK, "通知二维码已更新，请重新核对邮件内容", preview)
 }
 
 func (h *RegistrationHandler) SendInterviewResultNotification(c *gin.Context) {

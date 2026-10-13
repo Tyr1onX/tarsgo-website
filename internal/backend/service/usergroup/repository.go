@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"tarsgo-backend/model"
 )
@@ -13,6 +14,7 @@ type Repository interface {
 	ListGroups(ctx context.Context, filter ListGroupsInput) ([]model.UserGroup, error)
 	GetGroupStats(ctx context.Context) (GroupStats, error)
 	GetGroupByID(ctx context.Context, groupID uint64) (*model.UserGroup, error)
+	GetGroupByIDForUpdate(ctx context.Context, groupID uint64) (*model.UserGroup, error)
 	CreateGroup(ctx context.Context, group *model.UserGroup) error
 	UpdateGroup(ctx context.Context, groupID uint64, updates map[string]any) error
 	ClearDefaultExcept(ctx context.Context, exceptGroupID uint64) error
@@ -76,12 +78,24 @@ func (r *GormRepository) GetGroupByID(ctx context.Context, groupID uint64) (*mod
 	return &group, nil
 }
 
+func (r *GormRepository) GetGroupByIDForUpdate(ctx context.Context, groupID uint64) (*model.UserGroup, error) {
+	var group model.UserGroup
+	if err := r.db.WithContext(ctx).Clauses(clause.Locking{Strength: "UPDATE"}).First(&group, groupID).Error; err != nil {
+		return nil, err
+	}
+	return &group, nil
+}
+
 func (r *GormRepository) CreateGroup(ctx context.Context, group *model.UserGroup) error {
 	return r.db.WithContext(ctx).Create(group).Error
 }
 
 func (r *GormRepository) UpdateGroup(ctx context.Context, groupID uint64, updates map[string]any) error {
 	return r.db.WithContext(ctx).Model(&model.UserGroup{}).Where("id = ?", groupID).Updates(updates).Error
+}
+
+func (r *GormRepository) CreateAuditLog(ctx context.Context, audit *model.AuditLog) error {
+	return r.db.WithContext(ctx).Create(audit).Error
 }
 
 func (r *GormRepository) ClearDefaultExcept(ctx context.Context, exceptGroupID uint64) error {

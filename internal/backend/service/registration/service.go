@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"math"
 	"mime/multipart"
 	"net/http"
@@ -28,6 +27,7 @@ import (
 
 	"tarsgo-backend/model"
 	"tarsgo-backend/service/email"
+	"tarsgo-backend/service/usergroup"
 )
 
 var mainlandPhonePattern = regexp.MustCompile(`^1[3-9]\d{9}$`)
@@ -71,6 +71,10 @@ type interviewResultRepository interface {
 	ListInterviewResultRevisions(ctx context.Context, registrationID uint64) ([]model.InterviewResultRevision, error)
 	GetLatestInterviewResultNotificationForUpdate(ctx context.Context, registrationID uint64) (*model.InterviewResultNotification, error)
 	UpdateInterviewResultNotification(ctx context.Context, notificationID uint64, updates map[string]any) error
+}
+
+type registrationAuditRepository interface {
+	CreateAuditLog(ctx context.Context, audit *model.AuditLog) error
 }
 
 type gormRegistrationRepository struct {
@@ -209,6 +213,11 @@ type InterviewNotificationPreview struct {
 	Subject              string `json:"subject"`
 	Body                 string `json:"body"`
 	QRCodeStatus         string `json:"qrCodeStatus"`
+	QRCodeURL            string `json:"qrCodeUrl,omitempty"`
+	QRCodeGroupName      string `json:"qrCodeGroupName,omitempty"`
+	CurrentQRCodeStatus  string `json:"currentQrCodeStatus,omitempty"`
+	CurrentQRCodeURL     string `json:"currentQrCodeUrl,omitempty"`
+	CanRefreshQRCode     bool   `json:"canRefreshQrCode"`
 	CanSend              bool   `json:"canSend"`
 	RequiresConfirmation bool   `json:"requiresConfirmation"`
 	Warning              string `json:"warning,omitempty"`
@@ -895,20 +904,60 @@ func (s *RegistrationService) GetInterviewNotificationPreview(ctx context.Contex
 		preview.Warning = "收件地址格式不正确，请先核对报名资料。"
 	}
 	if revision.ResultStatus == model.RecruitmentStatusAdmitted {
-		if notification.QRImageURL == nil || strings.TrimSpace(*notification.QRImageURL) == "" {
-			preview.QRCodeStatus = "missing"
+		if registration.PreferredGroup != nil {
+			preview.QRCodeGroupName = registration.PreferredGroup.Name
+		}
+		preview.QRCodeStatus = "missing"
+		if notification.QRImageURL != nil && strings.TrimSpace(*notification.QRImageURL) != "" {
+			if usergroup.AdmissionQRCodeURLIsDisplayable(*notification.QRImageURL) {
+				preview.QRCodeURL = *notification.QRImageURL
+			}
+			if _, _, err := s.readAdmissionQRCode(*notification.QRImageURL); err != nil {
+				preview.QRCodeStatus = "unreadable"
+			} else {
+				preview.QRCodeStatus = "ready"
+			}
+		}
+		preview.CurrentQRCodeStatus = "missing"
+		var currentQRCodeURL *string
+		if registration.PreferredGroup != nil {
+			currentQRCodeURL = registration.PreferredGroup.AdmissionImageURL
+		}
+		if currentQRCodeURL != nil && strings.TrimSpace(*currentQRCodeURL) != "" {
+			if usergroup.AdmissionQRCodeURLIsDisplayable(*currentQRCodeURL) {
+				preview.CurrentQRCodeURL = *currentQRCodeURL
+			}
+			if _, _, err := s.readAdmissionQRCode(*currentQRCodeURL); err != nil {
+				preview.CurrentQRCodeStatus = "unreadable"
+			} else {
+				preview.CurrentQRCodeStatus = "ready"
+			}
+		}
+		canRefresh := (notification.Status == model.InterviewNotificationPending || notification.Status == model.InterviewNotificationFailed) && preview.CurrentQRCodeStatus == "ready" && !sameOptionalString(notification.QRImageURL, currentQRCodeURL)
+		preview.CanRefreshQRCode = canRefresh
+		switch preview.QRCodeStatus {
+		case "missing":
 			preview.CanSend = false
-			preview.Warning = "该组未配置录取群二维码，已阻止发送不完整的录取通知。请先补齐二维码配置。"
-		} else if s.loadInlineImage == nil {
-			preview.QRCodeStatus = "unreadable"
+			if preview.Warning == "" {
+				preview.Warning = "本通知没有可用的录取群二维码，已阻止发送不完整邮件。"
+				if preview.CurrentQRCodeStatus == "ready" && canRefresh {
+					preview.Warning += "可以先将本通知更新为该组当前二维码，再重新核对邮件。"
+				} else if preview.CurrentQRCodeStatus != "ready" {
+					preview.Warning += "请先由超级管理员配置可用二维码。"
+				}
+			}
+		case "unreadable":
 			preview.CanSend = false
-			preview.Warning = "录取群二维码无法读取，已阻止发送不完整的录取通知。"
-		} else if _, _, err := s.readAdmissionQRCode(*notification.QRImageURL); err != nil {
-			preview.QRCodeStatus = "unreadable"
-			preview.CanSend = false
-			preview.Warning = "录取群二维码读取失败，已阻止发送不完整的录取通知。请检查二维码文件。"
-		} else {
-			preview.QRCodeStatus = "ready"
+			if preview.Warning == "" {
+				preview.Warning = "本通知保存的录取群二维码读取失败，已阻止发送。"
+				if preview.CurrentQRCodeStatus == "ready" && canRefresh {
+					preview.Warning += "可以将本通知更新为该组当前二维码后重新核对。"
+				}
+			}
+		case "ready":
+			if canRefresh && preview.Warning == "" {
+				preview.Warning = "当前预览使用创建通知时保存的二维码。如需使用该组最新二维码，请先显式更新本通知的二维码。"
+			}
 		}
 	}
 	if s.mailer == nil {
@@ -923,6 +972,96 @@ func (s *RegistrationService) GetInterviewNotificationPreview(ctx context.Contex
 		}
 	}
 	return preview, nil
+}
+
+func (s *RegistrationService) RefreshInterviewResultNotificationQRCode(ctx context.Context, actor RegistrationFormActor, registrationID uint64) (*InterviewNotificationPreview, error) {
+	if err := wrapRegistrationActorError(ensureRegistrationAdminActor(actor)); err != nil {
+		return nil, err
+	}
+	if registrationID == 0 {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "报名记录 ID 不合法"}
+	}
+	if _, err := s.GetRegistration(ctx, actor, registrationID); err != nil {
+		return nil, err
+	}
+	if _, ok := s.repo.(interviewResultRepository); !ok {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "面试通知服务不可用"}
+	}
+	now := s.now()
+	if err := s.repo.RunInTx(ctx, func(repo registrationRepository) error {
+		reg, err := repo.GetRegistrationByIDForUpdate(ctx, registrationID)
+		if err != nil {
+			return &ServiceError{Status: http.StatusConflict, Message: "报名结果已变化，请刷新后重试", Err: err}
+		}
+		if err := ensureRegistrationRecordIsCurrent(ctx, repo, reg); err != nil {
+			return err
+		}
+		if !registrationCanAccessWithActor(ctx, s, actor, reg) {
+			return &ServiceError{Status: http.StatusForbidden, Message: "当前账号无权操作该报名记录"}
+		}
+		if reg.RecruitmentStatus != model.RecruitmentStatusAdmitted || reg.PreferredGroup == nil {
+			return &ServiceError{Status: http.StatusConflict, Message: "只有已录取且组别有效的通知可以更新二维码"}
+		}
+		resultStore, ok := repo.(interviewResultRepository)
+		if !ok {
+			return &ServiceError{Status: http.StatusInternalServerError, Message: "面试通知服务不可用"}
+		}
+		current, err := resultStore.GetLatestInterviewResultNotificationForUpdate(ctx, registrationID)
+		if err != nil {
+			return &ServiceError{Status: http.StatusNotFound, Message: "没有可更新的结果通知", Err: err}
+		}
+		if current.Status != model.InterviewNotificationPending && current.Status != model.InterviewNotificationFailed {
+			return &ServiceError{Status: http.StatusConflict, Message: "只有待发送或发送失败的通知可以更新二维码；历史状态未知或服务商已接受的通知不能修改"}
+		}
+		if reg.PreferredGroup.AdmissionImageURL == nil || strings.TrimSpace(*reg.PreferredGroup.AdmissionImageURL) == "" {
+			return &ServiceError{Status: http.StatusUnprocessableEntity, Message: "该组尚未配置录取群二维码，请先由超级管理员上传"}
+		}
+		if _, _, err := s.readAdmissionQRCode(*reg.PreferredGroup.AdmissionImageURL); err != nil {
+			return &ServiceError{Status: http.StatusUnprocessableEntity, Message: "该组当前二维码无法读取，请先由超级管理员更换有效图片", Err: err}
+		}
+		previousURL := copyStringPtr(current.QRImageURL)
+		updatedURL := copyStringPtr(reg.PreferredGroup.AdmissionImageURL)
+		if sameOptionalString(previousURL, updatedURL) {
+			return &ServiceError{Status: http.StatusConflict, Message: "本通知已使用该组当前二维码，无需更新"}
+		}
+		current.QRImageURL = updatedURL
+		current.UpdatedAt = now
+		if err := resultStore.UpdateInterviewResultNotification(ctx, current.ID, map[string]any{
+			"qr_image_url": updatedURL,
+			"updated_at":   now,
+		}); err != nil {
+			return &ServiceError{Status: http.StatusInternalServerError, Message: "保存通知二维码快照失败", Err: err}
+		}
+		writer, ok := repo.(registrationAuditRepository)
+		if !ok {
+			return &ServiceError{Status: http.StatusInternalServerError, Message: "通知二维码审计记录不可用"}
+		}
+		metadata, err := json.Marshal(map[string]any{
+			"registrationId": registrationID,
+			"revisionId":     current.RevisionID,
+			"resultStatus":   reg.RecruitmentStatus,
+			"previousQrUrl":  previousURL,
+			"currentQrUrl":   updatedURL,
+		})
+		if err != nil {
+			return &ServiceError{Status: http.StatusInternalServerError, Message: "生成二维码审计信息失败", Err: err}
+		}
+		actorID := actor.ID
+		if err := writer.CreateAuditLog(ctx, &model.AuditLog{
+			ActorID:  &actorID,
+			Action:   "refresh_admission_notification_qr",
+			Method:   http.MethodPost,
+			Path:     fmt.Sprintf("/api/admin/registrations/%d/interview-notification/refresh-qr", registrationID),
+			Status:   http.StatusOK,
+			Metadata: string(metadata),
+		}); err != nil {
+			return &ServiceError{Status: http.StatusInternalServerError, Message: "保存二维码更新审计记录失败", Err: err}
+		}
+		return nil
+	}); err != nil {
+		return nil, err
+	}
+	return s.GetInterviewNotificationPreview(ctx, actor, registrationID)
 }
 
 func (s *RegistrationService) SendInterviewResultNotification(ctx context.Context, actor RegistrationFormActor, registrationID uint64, confirmUncertain bool) (*InterviewNotificationAttempt, error) {
@@ -1007,10 +1146,15 @@ func (s *RegistrationService) SendInterviewResultNotification(ctx context.Contex
 			if content == nil {
 				return &ServiceError{Status: http.StatusConflict, Message: "无法生成历史结果通知，请核对报名资料和组别"}
 			}
+			if !sameOptionalString(content.InlineImageURL, stringPointerOrNil(preview.QRCodeURL)) {
+				return &ServiceError{Status: http.StatusConflict, Message: "组别二维码已变化，请重新核对邮件预览"}
+			}
 			current.Recipient, current.Subject, current.Body = content.To, content.Subject, content.Body
 			current.QRImageURL = copyStringPtr(content.InlineImageURL)
 		} else if current.Recipient != preview.Recipient || current.Subject != preview.Subject || current.Body != preview.Body {
 			return &ServiceError{Status: http.StatusConflict, Message: "通知内容已变化，请重新核对邮件预览"}
+		} else if latestRevision.ResultStatus == model.RecruitmentStatusAdmitted && !sameOptionalString(current.QRImageURL, stringPointerOrNil(preview.QRCodeURL)) {
+			return &ServiceError{Status: http.StatusConflict, Message: "通知二维码快照已变化，请重新核对邮件预览"}
 		}
 		message = email.Message{To: current.Recipient, Subject: current.Subject, Text: current.Body}
 		if reg.RecruitmentStatus == model.RecruitmentStatusAdmitted {
@@ -1115,6 +1259,18 @@ func (s *RegistrationService) readAdmissionQRCode(rawURL string) ([]byte, string
 		return nil, "", fmt.Errorf("二维码图片内容不完整")
 	}
 	return image, contentType, nil
+}
+
+func sameOptionalString(left *string, right *string) bool {
+	return strings.TrimSpace(valueOrEmpty(left)) == strings.TrimSpace(valueOrEmpty(right))
+}
+
+func stringPointerOrNil(raw string) *string {
+	if strings.TrimSpace(raw) == "" {
+		return nil
+	}
+	value := raw
+	return &value
 }
 
 func valueOrTime(value *time.Time) time.Time {
@@ -1348,33 +1504,7 @@ func registrationContactName(reg *model.Registration) string {
 }
 
 func loadAdmissionInlineImage(rawURL string) ([]byte, string, error) {
-	const prefix = "/upload/config/group/"
-	trimmed := strings.TrimSpace(rawURL)
-	if !strings.HasPrefix(trimmed, prefix) {
-		return nil, "", fmt.Errorf("unsupported admission image URL")
-	}
-	relative := strings.TrimPrefix(trimmed, prefix)
-	if relative == "" || filepath.Base(relative) != relative {
-		return nil, "", fmt.Errorf("invalid admission image path")
-	}
-
-	file, err := os.Open(filepath.Join("upload", "config", "group", relative))
-	if err != nil {
-		return nil, "", err
-	}
-	defer file.Close()
-	data, err := io.ReadAll(io.LimitReader(file, 2*1024*1024+1))
-	if err != nil {
-		return nil, "", err
-	}
-	if len(data) == 0 || len(data) > 2*1024*1024 {
-		return nil, "", fmt.Errorf("admission image size is invalid")
-	}
-	contentType := http.DetectContentType(data)
-	if !strings.HasPrefix(contentType, "image/") {
-		return nil, "", fmt.Errorf("admission image content is not an image")
-	}
-	return data, contentType, nil
+	return usergroup.ReadAdmissionQRCodeImageURL(rawURL)
 }
 
 func valueOrEmpty(v *string) string {
@@ -3440,6 +3570,10 @@ func (r *gormRegistrationRepository) UpdateInterviewResultNotification(ctx conte
 		Model(&model.InterviewResultNotification{}).
 		Where("id = ?", notificationID).
 		Updates(updates).Error
+}
+
+func (r *gormRegistrationRepository) CreateAuditLog(ctx context.Context, audit *model.AuditLog) error {
+	return r.db.WithContext(ctx).Create(audit).Error
 }
 
 func applyRegistrationListFilters(query *gorm.DB, filter ListRegistrationsInput, includeStatus bool) *gorm.DB {
