@@ -254,6 +254,9 @@ func normalizeRegisterEmailInput(input RegisterEmailInput) (*normalizedRegisterE
 	if !isChineseRealName(normalized.RealName) {
 		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "真实姓名需为汉字"}
 	}
+	if !isValidMainlandMobile(normalized.Phone) {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "请输入正确的 11 位手机号"}
+	}
 
 	return normalized, nil
 }
@@ -780,6 +783,18 @@ func isChineseRealName(value string) bool {
 		}
 	}
 
+	return true
+}
+
+func isValidMainlandMobile(phone string) bool {
+	if len(phone) != 11 || phone[0] != '1' || phone[1] < '3' || phone[1] > '9' {
+		return false
+	}
+	for i := 2; i < len(phone); i++ {
+		if phone[i] < '0' || phone[i] > '9' {
+			return false
+		}
+	}
 	return true
 }
 
