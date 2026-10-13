@@ -1556,104 +1556,48 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-white/[0.06] bg-transparent px-5 py-10 sm:px-10 sm:py-12 lg:px-20">
-        <div className="max-w-[1440px] mx-auto">
-          {/* Footer top */}
-          <div className="mb-6 grid grid-cols-2 gap-x-5 gap-y-7 sm:mb-8 sm:gap-10 md:grid-cols-2 lg:grid-cols-[320px_120px_170px_140px] xl:grid-cols-[320px_120px_170px_130px_minmax(280px,1fr)]">
-            {/* Brand */}
-            <div className="col-span-2 flex w-full flex-col items-center gap-3 text-center md:col-span-1 md:w-[320px] md:items-start md:gap-4 md:text-left shrink-0">
+      <footer className="border-t border-white/[0.08] bg-transparent px-5 py-10 sm:px-10 lg:px-20">
+        <div className="mx-auto max-w-[1440px]">
+          <div className="flex flex-col gap-6 border-b border-white/[0.08] pb-8 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col items-start gap-3">
               <img
                 src="/assets/images/Logo/tarsgo-logo-v5.svg"
                 alt="TARSGO"
                 loading="lazy"
-                className="h-12 w-fit max-w-[200px] object-contain sm:h-14 sm:max-w-[220px]"
+                className="h-12 w-auto max-w-[220px] object-contain"
               />
-              <p className="text-[12.5px] text-fg-muted leading-relaxed max-w-[280px] sm:text-[13px]">
-                吉林大学吉甲大师双创基地
-                <br />
-                外在做事沉稳有序，内在思维活跃创新
-              </p>
+              <p className="text-sm text-fg-muted">吉林大学吉甲大师双创基地</p>
             </div>
-
-            {/* Quick nav */}
-            <div className="flex flex-col gap-2.5 sm:gap-3">
-              <h4 className="text-[13px] font-bold text-fg-inverse sm:text-sm">快速导航</h4>
-              <a href="/#hero" className="text-[12.5px] text-fg-muted hover:text-fg-primary transition-colors sm:text-[13px]">首页</a>
-              <a href="/#about" className="text-[12.5px] text-fg-muted hover:text-fg-primary transition-colors sm:text-[13px]">关于我们</a>
-              <a href="/#achievements" className="text-[12.5px] text-fg-muted hover:text-fg-primary transition-colors sm:text-[13px]">团队历程</a>
-              <a href="/#robots" className="text-[12.5px] text-fg-muted hover:text-fg-primary transition-colors sm:text-[13px]">机器人展示</a>
-              <a href="/#certificates" className="text-[12.5px] text-fg-muted hover:text-fg-primary transition-colors sm:text-[13px]">成就展示</a>
-              <a href="/#join" className="text-[12.5px] text-fg-muted hover:text-fg-primary transition-colors sm:text-[13px]">加入我们</a>
-            </div>
-
-            {/* Contact */}
-            <div className="flex flex-col gap-2.5 sm:gap-3">
-              <h4 className="text-[13px] font-bold text-fg-inverse sm:text-sm">联系我们</h4>
-              <span className="text-[12.5px] text-fg-muted sm:text-[13px]">吉林大学南湖校区</span>
-              <span className="text-[12.5px] text-fg-muted sm:text-[13px]">吉甲大师双创基地</span>
-              <span className="text-[12.5px] break-all text-fg-muted sm:text-[13px]">tarsgo@jlu.edu.cn</span>
-            </div>
-
-            {/* Social */}
-            <div className="col-span-2 flex flex-col items-center gap-3 md:col-span-1 md:items-start">
-              <h4 className="text-[13px] font-bold text-fg-inverse sm:text-sm">关注我们</h4>
-              <div className="flex gap-3">
-                <div className="w-9 h-9 bg-white/[0.08] rounded-lg flex items-center justify-center">
-                  <svg className="w-[18px] h-[18px] text-fg-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="m16 13 5.223 3.482a.5.5 0 0 0 .777-.416V7.87a.5.5 0 0 0-.752-.432L16 10.5" /><rect x="2" y="6" width="14" height="12" rx="2" />
-                  </svg>
-                </div>
-                <div className="w-9 h-9 bg-white/[0.08] rounded-lg flex items-center justify-center">
-                  <svg className="w-[18px] h-[18px] text-fg-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z" />
-                  </svg>
-                </div>
-                <div className="w-9 h-9 bg-white/[0.08] rounded-lg flex items-center justify-center">
-                  <svg className="w-[18px] h-[18px] text-fg-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect width="20" height="16" x="2" y="4" rx="2" /><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
-                  </svg>
-                </div>
-              </div>
-            </div>
-
-            {/* Sponsors */}
-            <div className="col-span-2 flex flex-col gap-3 md:col-span-2 lg:col-span-4 xl:col-span-1">
-              <div className="flex items-center justify-between gap-3">
-                <h4 className="text-[13px] font-bold text-fg-inverse sm:text-sm">赞助商支持</h4>
-                <span className="text-[10px] font-semibold uppercase tracking-[0.2em] text-accent-gold sm:text-[11px]">
-                  Sponsors
-                </span>
-              </div>
-              <div className="grid grid-cols-3 gap-1.5 sm:grid-cols-3 sm:gap-2 xl:grid-cols-2 2xl:grid-cols-3">
-                {sponsorLogos.map((sponsor) => (
-                  <div
-                    key={sponsor.name}
-                    className="motion-surface flex h-11 items-center justify-center rounded-xl border border-white/[0.08] bg-white/[0.06] p-1.5 sm:h-12"
-                  >
-                    <img
-                      src={sponsor.image}
-                      alt={sponsor.name}
-                      loading="lazy"
-                      className="h-full w-full object-fill"
-                    />
-                  </div>
-                ))}
-              </div>
-            </div>
+            <a
+              href="mailto:tarsgo@jlu.edu.cn"
+              className="w-fit text-sm text-fg-muted underline-offset-4 transition-colors hover:text-accent-primary hover:underline focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary"
+            >
+              tarsgo@jlu.edu.cn
+            </a>
           </div>
 
-          {/* Divider */}
-          <div className="h-px bg-white/[0.08] mb-6 sm:mb-8" />
+          <section className="py-8" aria-label="赞助商">
+            <h2 className="mb-4 text-sm font-semibold text-fg-primary">赞助商支持</h2>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+              {sponsorLogos.map((sponsor) => (
+                <div
+                  key={sponsor.name}
+                  className="flex h-16 items-center justify-center overflow-hidden rounded-md bg-white p-2 sm:h-20 sm:p-3"
+                >
+                  <img
+                    src={sponsor.image}
+                    alt={sponsor.name}
+                    loading="lazy"
+                    className="h-full w-full object-contain"
+                  />
+                </div>
+              ))}
+            </div>
+          </section>
 
-          {/* Copyright */}
-          <div className="flex flex-col items-center justify-between gap-2 text-center sm:flex-row sm:gap-4 sm:text-left">
-            <span className="text-[11px] text-white/[0.27] sm:text-xs">
-              &copy; {new Date().getFullYear()} TARS-Go 战队 · 吉林大学吉甲大师双创基地
-            </span>
-            <span className="text-[11px] text-white/[0.27] sm:text-xs">
-              Powered by RoboMaster
-            </span>
-          </div>
+          <p className="border-t border-white/[0.08] pt-5 text-xs text-fg-dim">
+            &copy; {new Date().getFullYear()} TARS-Go 战队 · 吉林大学吉甲大师双创基地
+          </p>
         </div>
       </footer>
       </div>
