@@ -96,8 +96,8 @@ export default function Register() {
       setErrorMessage("真实姓名需为汉字。");
       return;
     }
-    if (phone.trim() === "") {
-      setErrorMessage("请输入手机号。");
+    if (!/^1[3-9]\d{9}$/.test(phone)) {
+      setErrorMessage("请输入正确的 11 位手机号。");
       return;
     }
     if (code.trim().length !== 6) {
@@ -158,7 +158,8 @@ export default function Register() {
                 required
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
-                placeholder="your@jlu.edu.cn"
+                placeholder="建议使用常用非校园邮箱"
+                maxLength={255}
                 className="auth-input"
               />
             </div>
@@ -173,6 +174,7 @@ export default function Register() {
                 value={password}
                 onChange={(event) => setPassword(event.target.value)}
                 placeholder="至少 6 位"
+                maxLength={72}
                 className="auth-input"
               />
             </div>
@@ -187,6 +189,7 @@ export default function Register() {
                 value={realName}
                 onChange={(event) => setRealName(event.target.value)}
                 placeholder="请输入真实姓名"
+                maxLength={100}
                 className="auth-input"
               />
             </div>
@@ -196,10 +199,12 @@ export default function Register() {
               <input
                 id="phone"
                 type="tel"
+                inputMode="numeric"
                 autoComplete="tel"
                 required
+                maxLength={11}
                 value={phone}
-                onChange={(event) => setPhone(event.target.value)}
+                onChange={(event) => setPhone(event.target.value.replace(/\D/g, "").slice(0, 11))}
                 placeholder="13800138000"
                 className="auth-input"
               />
@@ -250,7 +255,8 @@ function getErrorMessage(error: unknown) {
 }
 
 function isValidEmail(value: string) {
-  return /\S+@\S+\.\S+/.test(value.trim());
+  const email = value.trim();
+  return email.length <= 255 && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 function isChineseRealName(value: string) {

@@ -82,6 +82,34 @@ func TestNormalizeRegisterEmailInputRequiresRealNameAndPhone(t *testing.T) {
 	}
 }
 
+func TestNormalizeRegisterEmailInputRejectsInvalidPhone(t *testing.T) {
+	t.Parallel()
+
+	for _, phone := range []string{
+		"123",
+		"abcdefghijk",
+		"12345678901",
+		"1380013800a",
+		"138001380001",
+		"12800138000",
+	} {
+		t.Run(phone, func(t *testing.T) {
+			t.Parallel()
+			_, err := normalizeRegisterEmailInput(RegisterEmailInput{
+				Email: "user@example.com", Password: "123456",
+				RealName: "张三", Phone: phone, Code: "123456",
+			})
+			if err == nil {
+				t.Fatalf("invalid phone %q was accepted", phone)
+			}
+			serviceErr, ok := err.(*ServiceError)
+			if !ok || serviceErr.Status != 400 || serviceErr.Message != "请输入正确的 11 位手机号" {
+				t.Fatalf("unexpected error for phone %q: %v", phone, err)
+			}
+		})
+	}
+}
+
 func TestNormalizeRegisterEmailInputRequiresChineseRealName(t *testing.T) {
 	t.Parallel()
 
