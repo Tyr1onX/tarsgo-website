@@ -1013,69 +1013,6 @@ html {
   opacity: 0;
 }
 
-/* ── 404 page animations ── */
-@keyframes notfound-float {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-12px);
-  }
-}
-
-@keyframes notfound-glow {
-  0%,
-  100% {
-    opacity: 0.3;
-    transform: translate(-50%, -50%) scale(1);
-  }
-  50% {
-    opacity: 0.6;
-    transform: translate(-50%, -50%) scale(1.1);
-  }
-}
-
-@keyframes notfound-line-expand {
-  from {
-    opacity: 0;
-    transform: scaleX(0);
-  }
-  to {
-    opacity: 1;
-    transform: scaleX(1);
-  }
-}
-
-.animate-notfound-glow {
-  animation: notfound-glow 6s ease-in-out infinite;
-}
-
-.animate-notfound-glow-delayed {
-  animation: notfound-glow 6s ease-in-out 3s infinite;
-}
-
-.animate-notfound-number {
-  animation: notfound-float 5s ease-in-out infinite,
-    auth-fade-in-up 0.6s cubic-bezier(0.16, 1, 0.3, 1) both;
-}
-
-.animate-notfound-line {
-  animation: notfound-line-expand 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.3s both;
-}
-
-.animate-notfound-content {
-  animation: auth-fade-in-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.4s both;
-}
-
-.animate-notfound-buttons {
-  animation: auth-fade-in-up 0.5s cubic-bezier(0.16, 1, 0.3, 1) 0.55s both;
-}
-
-.animate-notfound-hint {
-  animation: auth-fade-in 0.5s ease-out 0.7s both;
-}
-
 /* ── Admin card decorative dot pattern ── */
 .bg-dot-pattern {
   background-image: radial-gradient(

@@ -11,7 +11,7 @@ import { useEffect, useState } from "react";
 
 import type { Route } from "./+types/root";
 import "./app.css";
-import NotFound from "./routes/not-found";
+import NotFound, { StatusPage } from "./routes/not-found";
 import faviconHref from "../public/favicon.ico";
 
 export const links: Route.LinksFunction = () => [
@@ -126,31 +126,20 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
     return <NotFound />;
   }
 
-  let message = "Oops!";
-  let details = "An unexpected error occurred.";
-  let stack: string | undefined;
-
-  if (isRouteErrorResponse(error)) {
-    message = `${error.status}`;
-    details = error.statusText || details;
-  } else if (import.meta.env.DEV && error && error instanceof Error) {
-    details = error.message;
-    stack = error.stack;
-  }
+  const status = isRouteErrorResponse(error) ? error.status : 500;
+  const title = status === 401 ? "请先登录" : status === 403 ? "无权访问" : "页面暂时无法访问";
+  const description = status === 401
+    ? "登录后再尝试访问该页面。"
+    : status === 403
+      ? "当前账号没有访问该页面的权限。"
+      : "页面加载失败，请稍后再试。";
 
   return (
-    <main className="min-h-screen bg-surface-primary flex items-center justify-center px-6">
-      <div className="text-center max-w-md">
-        <h1 className="text-6xl font-display font-bold text-fg-primary mb-4">
-          {message}
-        </h1>
-        <p className="text-fg-muted mb-6">{details}</p>
-        {stack && (
-          <pre className="w-full p-4 overflow-x-auto text-left text-xs text-fg-dim bg-surface-light rounded-xl border border-border-subtle">
-            <code>{stack}</code>
-          </pre>
-        )}
-      </div>
-    </main>
+    <StatusPage
+      status={status}
+      title={title}
+      description={description}
+      debugDetails={import.meta.env.DEV && error instanceof Error ? error.stack ?? error.message : undefined}
+    />
   );
 }
