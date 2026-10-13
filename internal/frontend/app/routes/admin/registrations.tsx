@@ -355,7 +355,6 @@ export default function Registrations() {
     setQuery((current) => ({ ...current, formId, page: 1 }));
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
-      next.delete("status");
       next.delete("view");
       next.delete("queue");
       if (formId) next.set("formId", String(formId));
@@ -364,7 +363,7 @@ export default function Registrations() {
     }, { replace: true });
   }
 
-  const isRoundVisible = currentFormAvailable !== null && (currentFormAvailable || archivedView || query.formId !== "");
+  const isRoundVisible = currentFormAvailable !== null && (currentFormAvailable || archivedView);
 
   function submitSearch(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
