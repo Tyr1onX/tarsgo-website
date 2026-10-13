@@ -1,4 +1,3 @@
-import clock from "@iconify-icons/lucide/clock";
 import fileText from "@iconify-icons/lucide/file-text";
 import info from "@iconify-icons/lucide/info";
 import layers from "@iconify-icons/lucide/layers";
@@ -912,34 +911,18 @@ export default function FormConfigPage() {
         <StatCard
           label="全部表单"
           value={summary?.total ?? null}
-          icon={layers}
-          iconBg="bg-accent-primary/10"
-          iconText="text-accent-primary"
-          barFrom="from-accent-primary/60"
         />
         <StatCard
           label="草稿"
           value={summary?.draft ?? null}
-          icon={fileText}
-          iconBg="bg-accent-gold/10"
-          iconText="text-accent-gold"
-          barFrom="from-accent-gold/60"
         />
         <StatCard
           label="已发布"
           value={summary?.published ?? null}
-          icon={eye}
-          iconBg="bg-accent-tertiary/10"
-          iconText="text-accent-tertiary"
-          barFrom="from-accent-tertiary/60"
         />
         <StatCard
           label="已关闭"
           value={summary?.closed ?? null}
-          icon={clock}
-          iconBg="bg-gray-700/30"
-          iconText="text-fg-dim"
-          barFrom="from-gray-500/40"
         />
       </div>
 
@@ -2206,38 +2189,14 @@ function StatusBadge({ status }: { status: number }) {
   );
 }
 
-function StatCard({
-  label,
-  value,
-  icon,
-  iconBg,
-  iconText,
-  barFrom,
-}: {
-  label: string;
-  value: number | null;
-  icon: IconifyIcon;
-  iconBg: string;
-  iconText: string;
-  barFrom: string;
-}) {
+function StatCard({ label, value }: { label: string; value: number | null }) {
   return (
-    <div className="glass-panel glass-card relative overflow-hidden rounded-2xl">
-      <div className={`h-0.5 bg-gradient-to-r ${barFrom} to-transparent`} />
-      <div className="p-3 sm:p-5">
-        <div className="flex items-start justify-between gap-2">
-          <div className="min-w-0 truncate text-[11px] font-medium uppercase tracking-wider text-fg-dim sm:text-xs">
-            {label}
-          </div>
-          <div
-            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-xl sm:h-10 sm:w-10 ${iconBg}`}
-          >
-            <Icon icon={icon} className={`h-3.5 w-3.5 sm:h-5 sm:w-5 ${iconText}`} />
-          </div>
-        </div>
-        <div className="text-gradient-brand mt-2 font-mono text-xl font-semibold tabular-nums sm:mt-3 sm:text-3xl">
-          {value === null ? <span className="inline-block h-7 w-12 animate-pulse rounded bg-white/[0.08]" role="status" aria-label="正在加载统计" /> : value}
-        </div>
+    <div className="glass-panel glass-card rounded-2xl p-3 sm:p-5">
+      <div className="truncate text-[11px] font-medium uppercase tracking-wider text-fg-dim sm:text-xs">
+        {label}
+      </div>
+      <div className="text-gradient-brand mt-2 font-mono text-xl font-semibold tabular-nums sm:mt-3 sm:text-3xl">
+        {value === null ? <span className="inline-block h-7 w-12 animate-pulse rounded bg-white/[0.08]" role="status" aria-label="正在加载统计" /> : value}
       </div>
     </div>
   );
