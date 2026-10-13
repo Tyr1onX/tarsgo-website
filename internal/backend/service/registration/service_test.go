@@ -27,12 +27,8 @@ func TestRecruitmentNotificationTemplatesMatchCanonicalStages(t *testing.T) {
 	}
 	now := time.Date(2026, 9, 26, 0, 0, 0, 0, time.Local)
 
-	screenPass := buildScreeningNotification(reg, true, now)
-	if screenPass == nil || !strings.Contains(screenPass.Subject, "初筛") || !strings.Contains(screenPass.Body, "待面试") || strings.Contains(screenPass.Body, "已录取") {
-		t.Fatalf("unexpected screening pass notification: %#v", screenPass)
-	}
-	screenFail := buildScreeningNotification(reg, false, now)
-	if screenFail == nil || !strings.Contains(screenFail.Subject, "未通过") || !strings.Contains(screenFail.Body, "未能进入本次线下面试") {
+	screenFail := buildScreeningRejectionNotification(reg, now)
+	if screenFail == nil || !strings.Contains(screenFail.Subject, "未通过") || !strings.Contains(screenFail.Body, "无须前往现场参加面试") || !strings.Contains(screenFail.Body, "初筛未通过") {
 		t.Fatalf("unexpected screening fail notification: %#v", screenFail)
 	}
 
@@ -126,16 +122,55 @@ func TestRegistrationServiceScreeningNotificationFailureDoesNotRollbackState(t *
 		context.Background(),
 		actor,
 		repo.registration.ID,
-		ScreeningDecisionInput{Decision: "approve", Remark: "进入面试"},
+		ScreeningDecisionInput{Decision: "reject", Remark: "资料不匹配"},
 	)
 	if err != nil {
 		t.Fatalf("screening result must not rollback on mail failure: %v", err)
 	}
-	if detail.Status != model.RecruitmentStatusPendingInterview || !strings.Contains(detail.NotificationWarning, "邮件发送失败") {
-		t.Fatalf("expected saved pending-interview state plus warning, got %#v", detail)
+	if detail.Status != model.RecruitmentStatusRejected || valueOrEmpty(detail.RejectedStage) != model.RecruitmentRejectedStageScreening || !strings.Contains(detail.NotificationWarning, "邮件发送失败") {
+		t.Fatalf("expected saved screening-rejected state plus warning, got %#v", detail)
 	}
-	if repo.registration.RecruitmentStatus != model.RecruitmentStatusPendingInterview {
+	if repo.registration.RecruitmentStatus != model.RecruitmentStatusRejected {
 		t.Fatalf("repository state rolled back unexpectedly: %q", repo.registration.RecruitmentStatus)
+	}
+	if mailer.sendCalls != 1 || !strings.Contains(mailer.body, "无须前往现场参加面试") {
+		t.Fatalf("expected one explicit screening rejection email, calls=%d body=%q", mailer.sendCalls, mailer.body)
+	}
+}
+
+func TestRegistrationServiceScreeningApprovalDoesNotSendEmail(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	mailer := &fakeInterviewMailer{}
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	service.mailer = mailer
+	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+
+	detail, err := service.ScreenRegistration(context.Background(), actor, repo.registration.ID, ScreeningDecisionInput{Decision: "approve", Remark: "资料符合要求"})
+	if err != nil {
+		t.Fatalf("ScreenRegistration returned error: %v", err)
+	}
+	if detail.Status != model.RecruitmentStatusPendingInterview || !detail.CanInterview || detail.Screener == nil || detail.Screener.ID != actor.ID || detail.ScreenedAt == nil || detail.ScreeningRemark == nil {
+		t.Fatalf("screening pass state or audit fields were not saved: %#v", detail)
+	}
+	if mailer.sendCalls != 0 {
+		t.Fatalf("screening approval must not send an email, got %d sends", mailer.sendCalls)
+	}
+}
+
+func TestOrdinaryAdminCanScreenCandidateFromAnotherGroup(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	groupID := uint64(102)
+	repo.registration.PreferredGroupID = &groupID
+	repo.registration.PreferredGroup = cloneGroupModel(groupByID(repo.shownGroups, groupID))
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	admin := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+
+	detail, err := service.ScreenRegistration(context.Background(), admin, repo.registration.ID, ScreeningDecisionInput{Decision: "approve"})
+	if err != nil {
+		t.Fatalf("ordinary admin could not screen a candidate from another group: %v", err)
+	}
+	if detail.Status != model.RecruitmentStatusPendingInterview || detail.PreferredGroup == nil || detail.PreferredGroup.ID != groupID {
+		t.Fatalf("cross-group screening did not preserve candidate state and group: %#v", detail)
 	}
 }
 
@@ -177,7 +212,9 @@ func TestRegistrationServiceCanonicalWorkflowAdmitsPreferredGroup(t *testing.T) 
 
 func TestRegistrationServiceScreeningRejectEndsWorkflow(t *testing.T) {
 	repo := newFakeRegistrationReviewRepository()
+	mailer := &fakeInterviewMailer{}
 	service := newRegistrationServiceWithDependencies(repo, nil)
+	service.mailer = mailer
 	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameSuperAdmin}
 
 	detail, err := service.ScreenRegistration(context.Background(), actor, repo.registration.ID, ScreeningDecisionInput{Decision: "reject", Remark: "资料不匹配"})
@@ -186,6 +223,15 @@ func TestRegistrationServiceScreeningRejectEndsWorkflow(t *testing.T) {
 	}
 	if detail.Status != model.RecruitmentStatusRejected || valueOrEmpty(detail.RejectedStage) != model.RecruitmentRejectedStageScreening || detail.CanInterview {
 		t.Fatalf("unexpected screening rejection: %#v", detail)
+	}
+	if mailer.sendCalls != 1 || !strings.Contains(mailer.body, "无须前往现场参加面试") || !strings.Contains(mailer.body, "初筛未通过") {
+		t.Fatalf("screening rejection must send one explicit email, calls=%d body=%q", mailer.sendCalls, mailer.body)
+	}
+	if _, err := service.ScreenRegistration(context.Background(), actor, repo.registration.ID, ScreeningDecisionInput{Decision: "reject"}); err == nil {
+		t.Fatal("duplicate screening must be rejected")
+	}
+	if mailer.sendCalls != 1 {
+		t.Fatalf("duplicate screening sent another email, calls=%d", mailer.sendCalls)
 	}
 	if _, err := service.RecordInterviewResult(context.Background(), actor, repo.registration.ID, InterviewDecisionInput{Decision: "admit"}); err == nil {
 		t.Fatal("screening-rejected candidate must not proceed to interview")
@@ -265,11 +311,16 @@ func TestOrdinaryUserCannotPreviewInterviewNotification(t *testing.T) {
 
 func TestRegistrationServiceUndoScreeningOnlyBeforeInterview(t *testing.T) {
 	repo := newFakeRegistrationReviewRepository()
+	mailer := &fakeInterviewMailer{}
 	service := newRegistrationServiceWithDependencies(repo, nil)
+	service.mailer = mailer
 	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
 
 	if _, err := service.ScreenRegistration(context.Background(), actor, repo.registration.ID, ScreeningDecisionInput{Decision: "approve"}); err != nil {
 		t.Fatalf("ScreenRegistration returned error: %v", err)
+	}
+	if mailer.sendCalls != 0 {
+		t.Fatalf("approval or later undo must not send screening result email, calls=%d", mailer.sendCalls)
 	}
 	detail, err := service.UndoScreening(context.Background(), actor, repo.registration.ID)
 	if err != nil {
@@ -278,9 +329,15 @@ func TestRegistrationServiceUndoScreeningOnlyBeforeInterview(t *testing.T) {
 	if detail.Status != model.RecruitmentStatusPendingScreening || detail.Screener != nil || detail.ScreenedAt != nil {
 		t.Fatalf("unexpected undo result: %#v", detail)
 	}
+	if mailer.sendCalls != 0 {
+		t.Fatalf("undo screening sent an email, calls=%d", mailer.sendCalls)
+	}
 
 	if _, err := service.ScreenRegistration(context.Background(), actor, repo.registration.ID, ScreeningDecisionInput{Decision: "approve"}); err != nil {
 		t.Fatalf("second screening returned error: %v", err)
+	}
+	if mailer.sendCalls != 0 {
+		t.Fatalf("re-approval after undo sent an email, calls=%d", mailer.sendCalls)
 	}
 	if _, err := service.RecordInterviewResult(context.Background(), actor, repo.registration.ID, InterviewDecisionInput{Decision: "reject"}); err != nil {
 		t.Fatalf("interview reject returned error: %v", err)

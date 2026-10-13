@@ -1265,7 +1265,7 @@ type interviewNotification struct {
 	InlineImageURL *string
 }
 
-func buildScreeningNotification(reg *model.Registration, passed bool, now time.Time) *interviewNotification {
+func buildScreeningRejectionNotification(reg *model.Registration, now time.Time) *interviewNotification {
 	if reg == nil {
 		return nil
 	}
@@ -1281,17 +1281,10 @@ func buildScreeningNotification(reg *model.Registration, passed bool, now time.T
 		groupName = reg.PreferredGroup.Name
 	}
 	name := registrationContactName(reg)
-	if passed {
-		return &interviewNotification{
-			To:      to,
-			Subject: "吉甲大师纳新初筛结果通知（通过）",
-			Body:    fmt.Sprintf("尊敬的 %s：\n\n你好！\n\n感谢你报名参加吉甲大师纳新。你的报名资料已通过初筛，接下来将进入线下面试环节。\n\n报名项目：%s\n意向组：%s\n当前状态：待面试\n\n请登录吉甲大师网站确认是否参加线下面试，并选择预计到场时段；如暂未开放时段，请等待后续通知。\n\n吉甲大师\n%s", name, reg.Form.Title, groupName, now.Format("2006年1月2日")),
-		}
-	}
 	return &interviewNotification{
 		To:      to,
 		Subject: "吉甲大师纳新初筛结果通知（未通过）",
-		Body:    fmt.Sprintf("尊敬的 %s：\n\n你好！\n\n感谢你报名参加吉甲大师纳新。经报名资料初筛，很遗憾你未能进入本次线下面试环节。\n\n报名项目：%s\n意向组：%s\n当前状态：未通过\n\n感谢你的关注与参与，祝你在今后的学习与实践中不断进步。\n\n吉甲大师\n%s", name, reg.Form.Title, groupName, now.Format("2006年1月2日")),
+		Body:    fmt.Sprintf("尊敬的 %s：\n\n你好！\n\n感谢你报名参加吉甲大师纳新。经报名资料初筛，很遗憾你未能通过本次初筛，无须前往现场参加面试。\n\n报名项目：%s\n意向组：%s\n当前状态：初筛未通过\n\n感谢你的关注与参与，祝你在今后的学习与实践中不断进步。\n\n吉甲大师\n%s", name, reg.Form.Title, groupName, now.Format("2006年1月2日")),
 	}
 }
 
@@ -1408,7 +1401,7 @@ func (s *RegistrationService) ScreenRegistration(ctx context.Context, actor Regi
 		return nil, err
 	}
 	now := s.now()
-	var notification *interviewNotification
+	var rejectionNotification *interviewNotification
 	if err := s.repo.RunInTx(ctx, func(repo registrationRepository) error {
 		registration, err := repo.GetRegistrationByIDForUpdate(ctx, registrationID)
 		if err != nil {
@@ -1439,11 +1432,10 @@ func (s *RegistrationService) ScreenRegistration(ctx context.Context, actor Regi
 		}
 		if decision == "approve" {
 			updates["recruitment_status"] = model.RecruitmentStatusPendingInterview
-			notification = buildScreeningNotification(registration, true, now)
 		} else {
 			updates["recruitment_status"] = model.RecruitmentStatusRejected
 			updates["rejected_stage"] = model.RecruitmentRejectedStageScreening
-			notification = buildScreeningNotification(registration, false, now)
+			rejectionNotification = buildScreeningRejectionNotification(registration, now)
 		}
 		if err := repo.UpdateRegistration(ctx, registrationID, updates); err != nil {
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "保存初筛结果失败", Err: err}
@@ -1457,8 +1449,8 @@ func (s *RegistrationService) ScreenRegistration(ctx context.Context, actor Regi
 	if err != nil {
 		return nil, err
 	}
-	if notification != nil && s.mailer != nil {
-		if err := s.mailer.SendEmail(ctx, email.Message{To: notification.To, Subject: notification.Subject, Text: notification.Body}); err != nil {
+	if rejectionNotification != nil && s.mailer != nil {
+		if err := s.mailer.SendEmail(ctx, email.Message{To: rejectionNotification.To, Subject: rejectionNotification.Subject, Text: rejectionNotification.Body}); err != nil {
 			detail.NotificationWarning = "初筛结果已保存，但通知邮件发送失败：" + err.Error()
 		}
 	}
