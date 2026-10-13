@@ -45,6 +45,8 @@ func AutoMigrate(db *gorm.DB, _ string) error {
 			&model.EmailCode{},
 			&model.RegistrationForm{},
 			&model.Registration{},
+			&model.InterviewResultRevision{},
+			&model.InterviewResultNotification{},
 			&model.AuditLog{},
 		); err != nil {
 		return err

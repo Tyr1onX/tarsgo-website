@@ -4,13 +4,17 @@ import { useNavigate, useSearchParams } from "react-router";
 import { ApiError, buildApiUrl } from "~/lib/api-client";
 import {
   getAdminRegistration,
+  getAdminInterviewNotificationPreview,
   listAdminInterviewSessions,
   listAdminRegistrations,
+  sendAdminInterviewResultNotification,
+  correctAdminRegistrationInterview,
   recordAdminRegistrationInterview,
   screenAdminRegistration,
   undoAdminRegistrationScreening,
   type InterviewAttendance,
   type InterviewSession,
+  type InterviewNotificationPreview,
   type ListRegistrationsInput,
   type RecruitmentStatus,
   type RegistrationDetail,
@@ -98,6 +102,10 @@ export default function Registrations() {
   const [actionLoading, setActionLoading] = useState(false);
   const [screeningRemark, setScreeningRemark] = useState("");
   const [interviewRemark, setInterviewRemark] = useState("");
+  const [correctionReason, setCorrectionReason] = useState("");
+  const [notificationPreview, setNotificationPreview] = useState<InterviewNotificationPreview | null>(null);
+  const [notificationLoading, setNotificationLoading] = useState(false);
+  const [confirmUncertainNotification, setConfirmUncertainNotification] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -152,6 +160,9 @@ export default function Registrations() {
         setDetail(result);
         setScreeningRemark(result.screeningRemark ?? "");
         setInterviewRemark(result.interviewRemark ?? "");
+        setCorrectionReason("");
+        setNotificationPreview(null);
+        setConfirmUncertainNotification(false);
       })
       .catch((error) => {
         if (!cancelled) handleError(error);
@@ -180,6 +191,8 @@ export default function Registrations() {
       setDetail(updated);
       setScreeningRemark(updated.screeningRemark ?? "");
       setInterviewRemark(updated.interviewRemark ?? "");
+      setCorrectionReason("");
+      setNotificationPreview(null);
     } else if (selectedId != null) {
       setDetail(await getAdminRegistration(selectedId));
     }
@@ -210,6 +223,50 @@ export default function Registrations() {
       handleError(error);
     } finally {
       setActionLoading(false);
+    }
+  }
+
+  async function loadInterviewNotificationPreview(registrationId: number) {
+    try {
+      setNotificationLoading(true);
+      setConfirmUncertainNotification(false);
+      setNotificationPreview(await getAdminInterviewNotificationPreview(registrationId));
+    } catch (error) {
+      handleError(error);
+    } finally {
+      setNotificationLoading(false);
+    }
+  }
+
+  async function runInterviewNotificationSend(registrationId: number) {
+    try {
+      setActionLoading(true);
+      setFlash(null);
+      const result = await sendAdminInterviewResultNotification(registrationId, confirmUncertainNotification);
+      const [updated, preview] = await Promise.all([
+        getAdminRegistration(registrationId),
+        getAdminInterviewNotificationPreview(registrationId),
+      ]);
+      setDetail(updated);
+      setNotificationPreview(preview);
+      setConfirmUncertainNotification(false);
+      setFlash({ type: result.status === "failed" ? "error" : "success", message: result.message });
+    } catch (error) {
+      handleError(error);
+    } finally {
+      setActionLoading(false);
+    }
+  }
+
+  function notificationStatusLabel(status: string) {
+    switch (status) {
+      case "pending": return "待发送";
+      case "sending": return "发送中";
+      case "provider_accepted": return "服务商已接受（不代表已送达）";
+      case "failed": return "发送失败，可核对后重试";
+      case "needs_review": return "状态待核对";
+      case "legacy_unknown": return "历史发送状态未知";
+      default: return status || "未建立通知记录";
     }
   }
 
@@ -706,6 +763,122 @@ export default function Registrations() {
                       </div>
                     </div>
                   ) : null}
+
+                  {detail.interviewResultHistory.length > 0 ? (
+                    <div className="mt-5 space-y-4">
+                      <div className="rounded-xl border border-white/[0.08] p-4">
+                        <h4 className="font-medium text-fg-primary">结果修改记录与邮件状态</h4>
+                        <ol className="mt-3 space-y-3">
+                          {detail.interviewResultHistory.map((item) => (
+                            <li key={item.revision} className="rounded-lg bg-white/[0.03] p-3 text-sm">
+                              <div className="font-medium text-fg-primary">
+                                第 {item.revision} 次登记：{getInterviewResultLabel(item.resultStatus)}
+                                {item.previousStatus ? `（原状态：${getInterviewResultLabel(item.previousStatus)}）` : "（首次登记）"}
+                              </div>
+                              <div className="mt-1 text-fg-dim">
+                                操作人：{item.actor?.name || item.actor?.email || "历史记录"} · {formatDateTime(item.createdAt)}
+                              </div>
+                              {item.reason ? <div className="mt-1 text-fg-muted">修改原因：{item.reason}</div> : null}
+                              <div className="mt-1 text-fg-muted">
+                                邮件状态：{item.notification ? notificationStatusLabel(item.notification.status) : "无通知记录"}
+                                {item.notification?.recipient ? ` · ${item.notification.recipient}` : ""}
+                                {item.notification?.providerMessageId ? ` · 服务商编号 ${item.notification.providerMessageId}` : ""}
+                              </div>
+                              {item.notification?.lastError ? <div className="admin-notice admin-notice--error mt-2">最近错误：{item.notification.lastError}</div> : null}
+                            </li>
+                          ))}
+                        </ol>
+                      </div>
+
+                      <div className="rounded-xl border border-white/[0.08] p-4">
+                        <div className="flex flex-wrap items-center justify-between gap-3">
+                          <div>
+                            <h4 className="font-medium text-fg-primary">独立发送结果通知</h4>
+                            <p className="mt-1 text-sm text-fg-dim">保存面试结果不会发邮件。发送前请检查收件地址、正文和二维码状态。</p>
+                          </div>
+                          <button
+                            type="button"
+                            disabled={notificationLoading || actionLoading}
+                            onClick={() => void loadInterviewNotificationPreview(detail.id)}
+                            className="admin-button admin-button--secondary"
+                          >
+                            {notificationLoading ? "正在核对..." : notificationPreview ? "重新核对邮件内容" : "核对邮件内容"}
+                          </button>
+                        </div>
+
+                        {notificationPreview ? (
+                          <div className="mt-4 space-y-3">
+                            <div className="grid gap-3 text-sm sm:grid-cols-2">
+                              <InfoItem label="通知版本" value={`第 ${notificationPreview.revision} 版 · ${notificationStatusLabel(notificationPreview.status)}`} />
+                              <InfoItem
+                                label="录取群二维码"
+                                value={notificationPreview.qrCodeStatus === "ready" ? "已配置且可读取" : notificationPreview.qrCodeStatus === "not_required" ? "拒绝通知无需附图" : notificationPreview.qrCodeStatus === "missing" ? "未配置" : "读取失败"}
+                              />
+                              <div className="sm:col-span-2"><InfoItem label="收件地址" value={notificationPreview.recipient || "未配置"} /></div>
+                              <div className="sm:col-span-2"><InfoItem label="邮件主题" value={notificationPreview.subject || "未生成"} /></div>
+                            </div>
+                            <div className="rounded-lg bg-black/20 p-3">
+                              <div className="text-xs text-fg-dim">邮件正文</div>
+                              <div className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-fg-primary">{notificationPreview.body}</div>
+                            </div>
+                            {notificationPreview.warning ? <div className="admin-notice admin-notice--warning">{notificationPreview.warning}</div> : null}
+                            {notificationPreview.requiresConfirmation ? (
+                              <label className="flex gap-2 text-sm leading-6 text-fg-muted">
+                                <input
+                                  type="checkbox"
+                                  checked={confirmUncertainNotification}
+                                  onChange={(event) => setConfirmUncertainNotification(event.target.checked)}
+                                  className="mt-1"
+                                />
+                                我已核对邮件服务商记录，确认需要发送或重试。历史状态不明时，未核对前不要勾选。
+                              </label>
+                            ) : null}
+                            <button
+                              type="button"
+                              disabled={!notificationPreview.canSend || actionLoading || (notificationPreview.requiresConfirmation && !confirmUncertainNotification)}
+                              onClick={() => void runInterviewNotificationSend(detail.id)}
+                              className="admin-button admin-button--positive"
+                            >
+                              {notificationPreview.status === "failed" ? "核对后重新发送" : "发送结果通知"}
+                            </button>
+                          </div>
+                        ) : null}
+                      </div>
+
+                      {(detail.status === "admitted" || (detail.status === "rejected" && detail.rejectedStage === "interview")) ? (
+                        <div className="rounded-xl border border-amber-300/20 p-4">
+                          <h4 className="font-medium text-fg-primary">纠正面试结果</h4>
+                          <p className="mt-1 text-sm text-fg-dim">纠正会新增一条历史记录和对应的新通知，已接受发送的旧通知记录会保留。</p>
+                          <textarea
+                            value={correctionReason}
+                            onChange={(event) => setCorrectionReason(event.target.value)}
+                            placeholder="请说明纠正原因（必填）"
+                            className="admin-field mt-3 min-h-20"
+                          />
+                          <div className="admin-operation-group mt-3">
+                            <button
+                              type="button"
+                              disabled={actionLoading || correctionReason.trim() === ""}
+                              onClick={() => void runAction(
+                                () => correctAdminRegistrationInterview(detail.id, { decision: "admit", remark: interviewRemark, correctionReason }),
+                                "已保存面试结果纠正，原邮件状态记录已保留。",
+                              )}
+                              className="admin-button admin-button--positive"
+                            >纠正为录取</button>
+                            <button
+                              type="button"
+                              disabled={actionLoading || correctionReason.trim() === ""}
+                              onClick={() => void runAction(
+                                () => correctAdminRegistrationInterview(detail.id, { decision: "reject", remark: interviewRemark, correctionReason }),
+                                "已保存面试结果纠正，原邮件状态记录已保留。",
+                              )}
+                              className="admin-button admin-button--danger"
+                            >纠正为未通过</button>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </section>
 
                 <section className="admin-detail-section">
@@ -766,6 +939,13 @@ function getRegistrationActionLabel(status: RecruitmentStatus) {
   if (status === "pending_screening") return "处理初筛";
   if (status === "pending_interview") return "处理面试";
   return "查看结果";
+}
+
+function getInterviewResultLabel(status: RecruitmentStatus) {
+  if (status === "admitted") return "已录取";
+  if (status === "rejected") return "未通过";
+  if (status === "pending_interview") return "待面试";
+  return status;
 }
 
 function StatusBadge({

@@ -49,7 +49,73 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 9, apply: migrateRecruitmentWorkflow},
 		{version: 10, apply: migrateInterviewScheduling},
 		{version: 11, apply: migrateInterviewSessionFormAssociation},
+		{version: 12, apply: migrateInterviewResultNotifications},
 	}
+}
+
+func migrateInterviewResultNotifications(db *gorm.DB) error {
+	if err := db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(
+		&model.InterviewResultRevision{},
+		&model.InterviewResultNotification{},
+	); err != nil {
+		return err
+	}
+
+	// Results saved before notification tracking was introduced cannot safely
+	// be assumed delivered or undelivered. Record them as unknown and require
+	// an explicit operator check before any resend.
+	var registrations []model.Registration
+	if err := db.Preload("User").Preload("Form").Preload("PreferredGroup").
+		Where("interviewed_at IS NOT NULL AND (recruitment_status = ? OR (recruitment_status = ? AND rejected_stage = ?))",
+			model.RecruitmentStatusAdmitted, model.RecruitmentStatusRejected, model.RecruitmentRejectedStageInterview).
+		Find(&registrations).Error; err != nil {
+		return err
+	}
+	for _, registration := range registrations {
+		var count int64
+		if err := db.Model(&model.InterviewResultRevision{}).
+			Where("registration_id = ?", registration.ID).Count(&count).Error; err != nil {
+			return err
+		}
+		if count > 0 {
+			continue
+		}
+		createdAt := registration.UpdatedAt.UTC()
+		if registration.InterviewedAt != nil && !registration.InterviewedAt.IsZero() {
+			createdAt = registration.InterviewedAt.UTC()
+		}
+		revision := model.InterviewResultRevision{
+			RegistrationID: registration.ID,
+			Revision:       1,
+			ResultStatus:   registration.RecruitmentStatus,
+			ActorID:        registration.InterviewerID,
+			Reason:         migrationStringPtr("迁移前已有面试结果；历史邮件状态未知，补发前需核对邮件服务商记录。"),
+			CreatedAt:      createdAt,
+		}
+		if err := db.Create(&revision).Error; err != nil {
+			return err
+		}
+		recipient := ""
+		if registration.ContactEmail != nil && *registration.ContactEmail != "" {
+			recipient = *registration.ContactEmail
+		} else {
+			recipient = registration.User.Email
+		}
+		notification := model.InterviewResultNotification{
+			RegistrationID: registration.ID,
+			RevisionID:     revision.ID,
+			Status:         model.InterviewNotificationLegacyUnknown,
+			Recipient:      recipient,
+			Subject:        "历史面试结果通知待核对",
+			Body:           "本结果在邮件状态跟踪上线前登记。请先核对邮件服务商记录，再决定是否补发。",
+			CreatedAt:      createdAt,
+			UpdatedAt:      createdAt,
+		}
+		if err := db.Create(&notification).Error; err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func migrateInterviewSessionFormAssociation(db *gorm.DB) error {

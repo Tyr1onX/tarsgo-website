@@ -32,6 +32,13 @@ type Mailer interface {
 	SendEmail(context.Context, Message) error
 }
 
+// ReceiptMailer supports provider-side deduplication and returns the provider
+// request ID. It remains optional so existing transactional email flows keep
+// using the same Mailer contract.
+type ReceiptMailer interface {
+	SendEmailWithReceipt(context.Context, Message, string) (string, error)
+}
+
 type Sender struct {
 	cfg    config.EmailConfig
 	client *http.Client
@@ -46,8 +53,16 @@ func NewSender(cfg config.EmailConfig) *Sender {
 
 // SendEmail is the application's sole email sending entry point.
 func (s *Sender) SendEmail(ctx context.Context, message Message) error {
+	_, err := s.SendEmailWithReceipt(ctx, message, "")
+	return err
+}
+
+// SendEmailWithReceipt optionally sends a stable idempotency key and returns
+// the provider's accepted message ID. A provider acceptance does not prove
+// that the recipient's mailbox received or displayed the message.
+func (s *Sender) SendEmailWithReceipt(ctx context.Context, message Message, idempotencyKey string) (string, error) {
 	if strings.TrimSpace(s.cfg.APIKey) == "" || strings.TrimSpace(s.cfg.From) == "" {
-		return deliveryError("邮件服务尚未配置，请联系管理员")
+		return "", deliveryError("邮件服务尚未配置，请联系管理员")
 	}
 	markup := message.HTML
 	if markup == "" {
@@ -60,7 +75,7 @@ func (s *Sender) SendEmail(ctx context.Context, message Message) error {
 	if len(message.InlineImage) > 0 {
 		mediaType, _, err := mime.ParseMediaType(message.InlineImageType)
 		if err != nil || !strings.HasPrefix(mediaType, "image/") {
-			return deliveryError("邮件图片格式不合法")
+			return "", deliveryError("邮件图片格式不合法")
 		}
 		extensions, _ := mime.ExtensionsByType(mediaType)
 		extension := ".png"
@@ -76,7 +91,7 @@ func (s *Sender) SendEmail(ctx context.Context, message Message) error {
 	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {
-		return deliveryError("邮件内容编码失败")
+		return "", deliveryError("邮件内容编码失败")
 	}
 	endpoint := strings.TrimSpace(s.cfg.APIURL)
 	if endpoint == "" {
@@ -84,14 +99,17 @@ func (s *Sender) SendEmail(ctx context.Context, message Message) error {
 	}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, endpoint, bytes.NewReader(encoded))
 	if err != nil {
-		return deliveryError("邮件请求创建失败")
+		return "", deliveryError("邮件请求创建失败")
 	}
 	req.Header.Set("Authorization", "Bearer "+s.cfg.APIKey)
 	req.Header.Set("Content-Type", "application/json")
+	if key := strings.TrimSpace(idempotencyKey); key != "" {
+		req.Header.Set("Idempotency-Key", key)
+	}
 	response, err := s.client.Do(req)
 	if err != nil {
 		// Network errors and provider response bodies can contain sensitive data.
-		return deliveryError("邮件服务连接失败或超时，请稍后重试")
+		return "", deliveryError("邮件服务连接失败或超时，请稍后重试")
 	}
 	defer response.Body.Close()
 	if response.StatusCode < 200 || response.StatusCode >= 300 {
@@ -108,15 +126,15 @@ func (s *Sender) SendEmail(ctx context.Context, message Message) error {
 		case response.StatusCode == http.StatusBadRequest || response.StatusCode == http.StatusUnprocessableEntity:
 			message = "邮件服务拒绝了发送请求，请检查收件地址和域名配置"
 		}
-		return deliveryError(fmt.Sprintf("%s（HTTP %d）", message, response.StatusCode))
+		return "", deliveryError(fmt.Sprintf("%s（HTTP %d）", message, response.StatusCode))
 	}
 	var result struct {
 		ID string `json:"id"`
 	}
 	if err := json.NewDecoder(io.LimitReader(response.Body, 4096)).Decode(&result); err != nil || result.ID == "" {
-		return deliveryError("邮件服务返回无效结果，请检查服务商控制台后再重试")
+		return "", deliveryError("邮件服务返回无效结果，请检查服务商控制台后再重试")
 	}
-	return nil
+	return result.ID, nil
 }
 
 func deliveryError(message string) error {

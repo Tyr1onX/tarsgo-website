@@ -55,6 +55,22 @@ type recruitmentDecisionRequest struct {
 	Remark   string `json:"remark"`
 }
 
+type interviewResultCorrectionRequest struct {
+	Decision         string `json:"decision"`
+	Remark           string `json:"remark"`
+	CorrectionReason string `json:"correctionReason"`
+}
+
+type interviewNotificationSendRequest struct {
+	ConfirmUncertain bool `json:"confirmUncertain"`
+}
+
+type interviewResultNotificationService interface {
+	CorrectInterviewResult(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64, input registration.CorrectInterviewResultInput) (*registration.RegistrationDetail, error)
+	GetInterviewNotificationPreview(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64) (*registration.InterviewNotificationPreview, error)
+	SendInterviewResultNotification(ctx context.Context, actor registration.RegistrationFormActor, registrationID uint64, confirmUncertain bool) (*registration.InterviewNotificationAttempt, error)
+}
+
 func NewRegistrationHandler(service registrationService) *RegistrationHandler {
 	return &RegistrationHandler{service: service}
 }
@@ -262,6 +278,75 @@ func (h *RegistrationHandler) RecordInterviewResult(c *gin.Context) {
 		return
 	}
 	writeAPI(c, http.StatusOK, "更新面试结果成功", detail)
+}
+
+func (h *RegistrationHandler) CorrectInterviewResult(c *gin.Context) {
+	service, ok := h.service.(interviewResultNotificationService)
+	if !ok {
+		writeAPIError(c, http.StatusNotImplemented, "当前服务不支持面试结果纠错")
+		return
+	}
+	registrationID, err := parsePathID(c.Param("id"))
+	if err != nil {
+		writeAPIError(c, http.StatusBadRequest, "无效的报名记录 ID")
+		return
+	}
+	var request interviewResultCorrectionRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		writeAPIError(c, http.StatusBadRequest, "请求参数不合法")
+		return
+	}
+	detail, serviceErr := service.CorrectInterviewResult(c.Request.Context(), currentRegistrationFormActor(c), registrationID, registration.CorrectInterviewResultInput{
+		Decision: request.Decision, Remark: request.Remark, CorrectionReason: request.CorrectionReason,
+	})
+	if serviceErr != nil {
+		h.handleServiceError(c, serviceErr)
+		return
+	}
+	writeAPI(c, http.StatusOK, "已保存面试结果纠正记录", detail)
+}
+
+func (h *RegistrationHandler) GetInterviewNotificationPreview(c *gin.Context) {
+	service, ok := h.service.(interviewResultNotificationService)
+	if !ok {
+		writeAPIError(c, http.StatusNotImplemented, "当前服务不支持面试结果通知")
+		return
+	}
+	registrationID, err := parsePathID(c.Param("id"))
+	if err != nil {
+		writeAPIError(c, http.StatusBadRequest, "无效的报名记录 ID")
+		return
+	}
+	preview, serviceErr := service.GetInterviewNotificationPreview(c.Request.Context(), currentRegistrationFormActor(c), registrationID)
+	if serviceErr != nil {
+		h.handleServiceError(c, serviceErr)
+		return
+	}
+	writeAPI(c, http.StatusOK, "已加载通知预览", preview)
+}
+
+func (h *RegistrationHandler) SendInterviewResultNotification(c *gin.Context) {
+	service, ok := h.service.(interviewResultNotificationService)
+	if !ok {
+		writeAPIError(c, http.StatusNotImplemented, "当前服务不支持面试结果通知")
+		return
+	}
+	registrationID, err := parsePathID(c.Param("id"))
+	if err != nil {
+		writeAPIError(c, http.StatusBadRequest, "无效的报名记录 ID")
+		return
+	}
+	var request interviewNotificationSendRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		writeAPIError(c, http.StatusBadRequest, "请求参数不合法")
+		return
+	}
+	attempt, serviceErr := service.SendInterviewResultNotification(c.Request.Context(), currentRegistrationFormActor(c), registrationID, request.ConfirmUncertain)
+	if serviceErr != nil {
+		h.handleServiceError(c, serviceErr)
+		return
+	}
+	writeAPI(c, http.StatusOK, attempt.Message, attempt)
 }
 
 func (h *RegistrationHandler) OpenRegistrationFile(c *gin.Context) {

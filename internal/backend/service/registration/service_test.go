@@ -52,13 +52,22 @@ type fakeInterviewMailer struct {
 	image       []byte
 	contentType string
 	err         error
+	sendCalls   int
 }
 
 func (m *fakeInterviewMailer) SendEmail(_ context.Context, message email.Message) error {
+	m.sendCalls++
 	m.to, m.subject, m.body = message.To, message.Subject, message.Text
 	m.image = append([]byte(nil), message.InlineImage...)
 	m.contentType = message.InlineImageType
 	return m.err
+}
+
+func (m *fakeInterviewMailer) SendEmailWithReceipt(ctx context.Context, message email.Message, _ string) (string, error) {
+	if err := m.SendEmail(ctx, message); err != nil {
+		return "", err
+	}
+	return "test-provider-message", nil
 }
 
 func TestRegistrationServiceNewSubmissionStartsPendingScreeningWithOnePreferredGroup(t *testing.T) {
@@ -228,6 +237,31 @@ func TestRegistrationServiceOrdinaryUserCannotScreenOrInterview(t *testing.T) {
 	}
 }
 
+func TestOrdinaryAdminCanRecordInterviewResultForAnotherGroup(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	groupID := uint64(102)
+	repo.registration.PreferredGroupID = &groupID
+	repo.registration.PreferredGroup = cloneGroupModel(groupByID(repo.shownGroups, groupID))
+	repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	admin := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+	detail, err := service.RecordInterviewResult(context.Background(), admin, repo.registration.ID, InterviewDecisionInput{Decision: "reject"})
+	if err != nil {
+		t.Fatalf("ordinary admin could not process a candidate from another group: %v", err)
+	}
+	if detail.Status != model.RecruitmentStatusRejected || detail.PreferredGroup == nil || detail.PreferredGroup.ID != groupID {
+		t.Fatalf("cross-group result was not recorded against the candidate's preferred group: %#v", detail)
+	}
+}
+
+func TestOrdinaryUserCannotPreviewInterviewNotification(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	if _, err := service.GetInterviewNotificationPreview(context.Background(), RegistrationFormActor{ID: 501, RoleName: model.RoleNameUser}, repo.registration.ID); err == nil {
+		t.Fatal("ordinary user was able to access admin interview notification preview")
+	}
+}
+
 func TestRegistrationServiceUndoScreeningOnlyBeforeInterview(t *testing.T) {
 	repo := newFakeRegistrationReviewRepository()
 	service := newRegistrationServiceWithDependencies(repo, nil)
@@ -288,7 +322,7 @@ func TestRegistrationServiceUndoScreeningClearsInterviewBooking(t *testing.T) {
 	}
 }
 
-func TestRegistrationServiceNotificationFailureDoesNotRollbackResult(t *testing.T) {
+func TestRecordingInterviewResultDoesNotSendNotificationAutomatically(t *testing.T) {
 	repo := newFakeRegistrationReviewRepository()
 	repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
 	mailer := &fakeInterviewMailer{err: errors.New("mail unavailable")}
@@ -300,11 +334,14 @@ func TestRegistrationServiceNotificationFailureDoesNotRollbackResult(t *testing.
 	if err != nil {
 		t.Fatalf("business result must not rollback on mail failure: %v", err)
 	}
-	if detail.Status != model.RecruitmentStatusRejected || !strings.Contains(detail.NotificationWarning, "邮件发送失败") {
-		t.Fatalf("expected saved rejection plus warning, got %#v", detail)
+	if detail.Status != model.RecruitmentStatusRejected || mailer.sendCalls != 0 {
+		t.Fatalf("result recording must not send email, status=%q sendCalls=%d", detail.Status, mailer.sendCalls)
 	}
 	if repo.registration.RecruitmentStatus != model.RecruitmentStatusRejected {
 		t.Fatalf("repository state rolled back unexpectedly: %q", repo.registration.RecruitmentStatus)
+	}
+	if len(detail.InterviewResultHistory) != 1 || detail.InterviewResultHistory[0].Notification == nil || detail.InterviewResultHistory[0].Notification.Status != model.InterviewNotificationPending {
+		t.Fatalf("saved result must have a pending independent notification: %#v", detail.InterviewResultHistory)
 	}
 }
 
@@ -325,11 +362,263 @@ func TestRegistrationServiceAdmissionEmbedsConfiguredImage(t *testing.T) {
 	}
 	actor := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
 
-	if _, err := service.RecordInterviewResult(context.Background(), actor, repo.registration.ID, InterviewDecisionInput{Decision: "admit"}); err != nil {
+	detail, err := service.RecordInterviewResult(context.Background(), actor, repo.registration.ID, InterviewDecisionInput{Decision: "admit"})
+	if err != nil {
 		t.Fatalf("admission returned error: %v", err)
 	}
-	if string(mailer.image) != "png-image" || mailer.contentType != "image/png" || !strings.Contains(mailer.body, "扫描邮件内的图片加入录取群") {
+	if mailer.sendCalls != 0 {
+		t.Fatal("recording an admission must not send automatically")
+	}
+	preview, err := service.GetInterviewNotificationPreview(context.Background(), actor, repo.registration.ID)
+	if err != nil || !preview.CanSend || preview.QRCodeStatus != "ready" || !strings.Contains(preview.Body, "扫描邮件内的录取群二维码") {
+		t.Fatalf("expected verified admission notification preview, preview=%#v err=%v", preview, err)
+	}
+	attempt, err := service.SendInterviewResultNotification(context.Background(), actor, repo.registration.ID, false)
+	if err != nil || attempt.Status != model.InterviewNotificationProviderAccepted {
+		t.Fatalf("explicit notification send failed: attempt=%#v err=%v", attempt, err)
+	}
+	if string(mailer.image) != "png-image" || mailer.contentType != "image/png" || !strings.Contains(mailer.body, "扫描邮件内的录取群二维码") {
 		t.Fatalf("expected configured admission image, got %#v", mailer)
+	}
+	if detail.Status != model.RecruitmentStatusAdmitted {
+		t.Fatalf("unexpected result status: %q", detail.Status)
+	}
+}
+
+func TestInterviewNotificationFailureCanBeRetriedAndAcceptedResultCannotDuplicate(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
+	mailer := &fakeInterviewMailer{err: errors.New("provider unavailable")}
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	service.mailer = mailer
+	admin := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+	if _, err := service.RecordInterviewResult(context.Background(), admin, repo.registration.ID, InterviewDecisionInput{Decision: "reject"}); err != nil {
+		t.Fatalf("record result: %v", err)
+	}
+	if mailer.sendCalls != 0 {
+		t.Fatal("result record unexpectedly sent an email")
+	}
+	failed, err := service.SendInterviewResultNotification(context.Background(), admin, repo.registration.ID, false)
+	if err != nil || failed.Status != model.InterviewNotificationFailed {
+		t.Fatalf("expected saved notification failure, attempt=%#v err=%v", failed, err)
+	}
+	if repo.registration.RecruitmentStatus != model.RecruitmentStatusRejected {
+		t.Fatalf("email failure changed final result to %q", repo.registration.RecruitmentStatus)
+	}
+	mailer.err = nil
+	accepted, err := service.SendInterviewResultNotification(context.Background(), admin, repo.registration.ID, false)
+	if err != nil || accepted.Status != model.InterviewNotificationProviderAccepted {
+		t.Fatalf("retry did not reach provider-accepted state: attempt=%#v err=%v", accepted, err)
+	}
+	if accepted.ProviderMessageID == nil || *accepted.ProviderMessageID != "test-provider-message" {
+		t.Fatalf("provider message ID was not retained: %#v", accepted)
+	}
+	_, duplicateErr := service.SendInterviewResultNotification(context.Background(), admin, repo.registration.ID, false)
+	assertRegistrationServiceError(t, duplicateErr, http.StatusConflict, "邮件服务商已接受该通知请求")
+	if mailer.sendCalls != 2 {
+		t.Fatalf("send calls = %d, want initial failure and one retry", mailer.sendCalls)
+	}
+}
+
+func TestOldFailedNotificationNeedsManualReconciliationBeforeRetry(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
+	mailer := &fakeInterviewMailer{err: errors.New("provider timeout")}
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	service.mailer = mailer
+	admin := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+	now := time.Date(2026, 10, 13, 8, 0, 0, 0, time.Local)
+	service.now = func() time.Time { return now }
+	if _, err := service.RecordInterviewResult(context.Background(), admin, repo.registration.ID, InterviewDecisionInput{Decision: "reject"}); err != nil {
+		t.Fatalf("record result: %v", err)
+	}
+	if _, err := service.SendInterviewResultNotification(context.Background(), admin, repo.registration.ID, false); err != nil {
+		t.Fatalf("initial provider failure should be recorded: %v", err)
+	}
+	now = now.Add(24 * time.Hour)
+	preview, err := service.GetInterviewNotificationPreview(context.Background(), admin, repo.registration.ID)
+	if err != nil || !preview.RequiresConfirmation {
+		t.Fatalf("old failure did not require provider reconciliation: preview=%#v err=%v", preview, err)
+	}
+	_, retryErr := service.SendInterviewResultNotification(context.Background(), admin, repo.registration.ID, false)
+	assertRegistrationServiceError(t, retryErr, http.StatusConflict, "核对邮件服务商记录")
+	mailer.err = nil
+	attempt, err := service.SendInterviewResultNotification(context.Background(), admin, repo.registration.ID, true)
+	if err != nil || attempt.Status != model.InterviewNotificationProviderAccepted {
+		t.Fatalf("confirmed retry failed: attempt=%#v err=%v", attempt, err)
+	}
+}
+
+func TestAdmissionNotificationCannotSendWithoutReadableQRCode(t *testing.T) {
+	for _, test := range []struct {
+		name       string
+		imageURL   *string
+		loadImage  func(string) ([]byte, string, error)
+		wantStatus string
+	}{
+		{name: "missing", wantStatus: "missing"},
+		{name: "unreadable", imageURL: stringPtr("/upload/config/group/broken.png"), loadImage: func(string) ([]byte, string, error) { return nil, "", errors.New("read failed") }, wantStatus: "unreadable"},
+		{name: "empty file", imageURL: stringPtr("/upload/config/group/empty.png"), loadImage: func(string) ([]byte, string, error) { return []byte{}, "image/png", nil }, wantStatus: "unreadable"},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			repo := newFakeRegistrationReviewRepository()
+			repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
+			repo.registration.PreferredGroup.AdmissionImageURL = copyStringPtr(test.imageURL)
+			repo.shownGroups[0].AdmissionImageURL = copyStringPtr(test.imageURL)
+			mailer := &fakeInterviewMailer{}
+			service := newRegistrationServiceWithDependencies(repo, nil)
+			service.mailer = mailer
+			if test.loadImage != nil {
+				service.loadInlineImage = test.loadImage
+			}
+			admin := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+			if _, err := service.RecordInterviewResult(context.Background(), admin, repo.registration.ID, InterviewDecisionInput{Decision: "admit"}); err != nil {
+				t.Fatalf("record result: %v", err)
+			}
+			preview, err := service.GetInterviewNotificationPreview(context.Background(), admin, repo.registration.ID)
+			if err != nil || preview.CanSend || preview.QRCodeStatus != test.wantStatus || !strings.Contains(preview.Warning, "二维码") {
+				t.Fatalf("missing or unreadable QR was not clearly blocked: preview=%#v err=%v", preview, err)
+			}
+			if _, err := service.SendInterviewResultNotification(context.Background(), admin, repo.registration.ID, false); err == nil {
+				t.Fatal("incomplete admission notice was sent")
+			}
+			if mailer.sendCalls != 0 || repo.resultNotifications[1].Status != model.InterviewNotificationPending {
+				t.Fatalf("QR failure should leave a pending notice without sending: calls=%d notification=%#v", mailer.sendCalls, repo.resultNotifications[1])
+			}
+		})
+	}
+}
+
+func TestCorrectingInterviewResultKeepsAppendOnlyHistoryAndNoticeState(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
+	imageURL := "/upload/config/group/qq-group.png"
+	repo.registration.PreferredGroup.AdmissionImageURL = &imageURL
+	repo.shownGroups[0].AdmissionImageURL = &imageURL
+	mailer := &fakeInterviewMailer{}
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	service.mailer = mailer
+	service.loadInlineImage = func(string) ([]byte, string, error) { return []byte("png"), "image/png", nil }
+	admin := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+	if _, err := service.RecordInterviewResult(context.Background(), admin, repo.registration.ID, InterviewDecisionInput{Decision: "reject"}); err != nil {
+		t.Fatalf("record original result: %v", err)
+	}
+	if _, err := service.SendInterviewResultNotification(context.Background(), admin, repo.registration.ID, false); err != nil {
+		t.Fatalf("send original result notification: %v", err)
+	}
+	corrected, err := service.CorrectInterviewResult(context.Background(), admin, repo.registration.ID, CorrectInterviewResultInput{
+		Decision: "admit", Remark: "复核后通过", CorrectionReason: "录入时选错结果",
+	})
+	if err != nil {
+		t.Fatalf("correct interview result: %v", err)
+	}
+	if corrected.Status != model.RecruitmentStatusAdmitted || len(corrected.InterviewResultHistory) != 2 {
+		t.Fatalf("correction did not create a second effective revision: %#v", corrected)
+	}
+	first, second := corrected.InterviewResultHistory[0], corrected.InterviewResultHistory[1]
+	if first.Notification == nil || first.Notification.Status != model.InterviewNotificationProviderAccepted {
+		t.Fatalf("original notification status was overwritten: %#v", first)
+	}
+	if second.PreviousStatus == nil || *second.PreviousStatus != model.RecruitmentStatusRejected || second.ResultStatus != model.RecruitmentStatusAdmitted || second.Reason == nil || *second.Reason != "录入时选错结果" || second.Notification == nil || second.Notification.Status != model.InterviewNotificationPending {
+		t.Fatalf("correction lacks before/after, reason, actor/time, or new notification state: %#v", second)
+	}
+}
+
+func TestInterviewResultAndNotificationAreSavedAtomically(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
+	repo.createNotificationError = errors.New("database unavailable")
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	admin := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+	if _, err := service.RecordInterviewResult(context.Background(), admin, repo.registration.ID, InterviewDecisionInput{Decision: "reject"}); err == nil {
+		t.Fatal("expected notification state persistence error")
+	}
+	if repo.registration.RecruitmentStatus != model.RecruitmentStatusPendingInterview || len(repo.resultRevisions) != 0 {
+		t.Fatalf("result and notification audit were not rolled back together: status=%q revisions=%#v", repo.registration.RecruitmentStatus, repo.resultRevisions)
+	}
+}
+
+type blockingReceiptMailer struct {
+	started chan struct{}
+	release chan struct{}
+	calls   int
+}
+
+func (m *blockingReceiptMailer) SendEmail(context.Context, email.Message) error { return nil }
+
+func (m *blockingReceiptMailer) SendEmailWithReceipt(context.Context, email.Message, string) (string, error) {
+	m.calls++
+	close(m.started)
+	<-m.release
+	return "provider-message", nil
+}
+
+func TestConcurrentInterviewNotificationSendIsRejectedWhileFirstIsInFlight(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	repo.registration.RecruitmentStatus = model.RecruitmentStatusPendingInterview
+	mailer := &blockingReceiptMailer{started: make(chan struct{}), release: make(chan struct{})}
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	service.mailer = mailer
+	admin := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+	if _, err := service.RecordInterviewResult(context.Background(), admin, repo.registration.ID, InterviewDecisionInput{Decision: "reject"}); err != nil {
+		t.Fatalf("record result: %v", err)
+	}
+	firstResult := make(chan error, 1)
+	go func() {
+		_, err := service.SendInterviewResultNotification(context.Background(), admin, repo.registration.ID, false)
+		firstResult <- err
+	}()
+	<-mailer.started
+	_, concurrentErr := service.SendInterviewResultNotification(context.Background(), admin, repo.registration.ID, false)
+	assertRegistrationServiceError(t, concurrentErr, http.StatusConflict, "正在发送")
+	close(mailer.release)
+	if err := <-firstResult; err != nil {
+		t.Fatalf("first send failed: %v", err)
+	}
+	if mailer.calls != 1 {
+		t.Fatalf("provider was called %d times, want one", mailer.calls)
+	}
+}
+
+func TestLegacyInterviewNotificationRequiresExplicitReconciliation(t *testing.T) {
+	repo := newFakeRegistrationReviewRepository()
+	now := time.Date(2026, 10, 13, 8, 0, 0, 0, time.Local)
+	repo.registration.RecruitmentStatus = model.RecruitmentStatusAdmitted
+	repo.registration.InterviewedAt = &now
+	imageURL := "/upload/config/group/qq-group.png"
+	repo.registration.PreferredGroup.AdmissionImageURL = &imageURL
+	repo.shownGroups[0].AdmissionImageURL = &imageURL
+	revision := &model.InterviewResultRevision{RegistrationID: repo.registration.ID, Revision: 1, ResultStatus: model.RecruitmentStatusAdmitted, ActorID: uint64Ptr(9001), CreatedAt: now}
+	if err := repo.CreateInterviewResultRevision(context.Background(), revision); err != nil {
+		t.Fatal(err)
+	}
+	if err := repo.CreateInterviewResultNotification(context.Background(), &model.InterviewResultNotification{
+		RegistrationID: repo.registration.ID, RevisionID: revision.ID, Status: model.InterviewNotificationLegacyUnknown,
+		Recipient: "zhangsan@example.com", Subject: "历史面试结果通知待核对", Body: "历史邮件状态未知", CreatedAt: now, UpdatedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	mailer := &fakeInterviewMailer{}
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	service.mailer = mailer
+	service.loadInlineImage = func(string) ([]byte, string, error) { return []byte("png"), "image/png", nil }
+	admin := RegistrationFormActor{ID: 9001, RoleName: model.RoleNameAdmin}
+	preview, err := service.GetInterviewNotificationPreview(context.Background(), admin, repo.registration.ID)
+	if err != nil || !preview.RequiresConfirmation || !preview.CanSend || !strings.Contains(preview.Warning, "历史发送状态未知") || !strings.Contains(preview.Body, "当前状态：已录取") {
+		t.Fatalf("legacy result preview is not marked for reconciliation: preview=%#v err=%v", preview, err)
+	}
+	if _, err := service.SendInterviewResultNotification(context.Background(), admin, repo.registration.ID, false); err == nil {
+		t.Fatal("legacy notice was sent without explicit reconciliation")
+	}
+	if mailer.sendCalls != 0 {
+		t.Fatal("legacy notice reached the mail provider without reconciliation")
+	}
+	attempt, err := service.SendInterviewResultNotification(context.Background(), admin, repo.registration.ID, true)
+	if err != nil || attempt.Status != model.InterviewNotificationProviderAccepted {
+		t.Fatalf("confirmed legacy retry failed: attempt=%#v err=%v", attempt, err)
+	}
+	if mailer.sendCalls != 1 {
+		t.Fatalf("legacy retry send calls = %d, want 1", mailer.sendCalls)
 	}
 }
 
@@ -1183,6 +1472,11 @@ type fakeRegistrationReviewRepository struct {
 	interviewSessions        []model.InterviewSession
 	selectionCountCalls      int
 	selectionCountBatchCalls int
+	resultRevisions          []model.InterviewResultRevision
+	resultNotifications      map[uint64]model.InterviewResultNotification
+	nextRevisionID           uint64
+	nextNotificationID       uint64
+	createNotificationError  error
 }
 
 type fakeAddedMembership struct {
@@ -1236,6 +1530,7 @@ func newFakeRegistrationReviewRepository() *fakeRegistrationReviewRepository {
 		},
 		addedMembershipKV:   make(map[fakeAddedMembership]struct{}),
 		removedMembershipKV: make(map[fakeAddedMembership]struct{}),
+		resultNotifications: make(map[uint64]model.InterviewResultNotification),
 		interviewSessions: []model.InterviewSession{
 			{ID: 801, FormID: uint64Ptr(301), Date: "2026-10-12", Label: "上午", StartTime: "09:00", EndTime: "11:30", Location: "吉甲大师双创基地", Enabled: true},
 			{ID: 802, FormID: uint64Ptr(301), Date: "2026-10-12", Label: "下午", StartTime: "13:30", EndTime: "17:00", Location: "吉甲大师双创基地", Enabled: true},
@@ -1245,7 +1540,19 @@ func newFakeRegistrationReviewRepository() *fakeRegistrationReviewRepository {
 }
 
 func (r *fakeRegistrationReviewRepository) RunInTx(_ context.Context, fn func(repo registrationRepository) error) error {
-	return fn(r)
+	registrationSnapshot := cloneRegistrationModel(r.registration)
+	revisionsSnapshot := append([]model.InterviewResultRevision(nil), r.resultRevisions...)
+	notificationsSnapshot := make(map[uint64]model.InterviewResultNotification, len(r.resultNotifications))
+	for id, item := range r.resultNotifications {
+		notificationsSnapshot[id] = item
+	}
+	if err := fn(r); err != nil {
+		r.registration = registrationSnapshot
+		r.resultRevisions = revisionsSnapshot
+		r.resultNotifications = notificationsSnapshot
+		return err
+	}
+	return nil
 }
 
 func (r *fakeRegistrationReviewRepository) ListPublishedForms(_ context.Context) ([]model.RegistrationForm, error) {
@@ -1477,6 +1784,125 @@ func (r *fakeRegistrationReviewRepository) GetRegistrationByID(_ context.Context
 
 func (r *fakeRegistrationReviewRepository) GetRegistrationByIDForUpdate(_ context.Context, registrationID uint64) (*model.Registration, error) {
 	return r.GetRegistrationByID(context.Background(), registrationID)
+}
+
+func (r *fakeRegistrationReviewRepository) CreateInterviewResultRevision(_ context.Context, revision *model.InterviewResultRevision) error {
+	r.nextRevisionID++
+	revision.ID = r.nextRevisionID
+	r.resultRevisions = append(r.resultRevisions, *revision)
+	return nil
+}
+
+func (r *fakeRegistrationReviewRepository) CreateInterviewResultNotification(_ context.Context, notification *model.InterviewResultNotification) error {
+	if r.createNotificationError != nil {
+		return r.createNotificationError
+	}
+	r.nextNotificationID++
+	notification.ID = r.nextNotificationID
+	r.resultNotifications[notification.ID] = *notification
+	return nil
+}
+
+func (r *fakeRegistrationReviewRepository) ListInterviewResultRevisions(_ context.Context, registrationID uint64) ([]model.InterviewResultRevision, error) {
+	result := make([]model.InterviewResultRevision, 0, len(r.resultRevisions))
+	for _, revision := range r.resultRevisions {
+		if revision.RegistrationID != registrationID {
+			continue
+		}
+		cloned := revision
+		cloned.PreviousStatus = copyStringPtr(revision.PreviousStatus)
+		cloned.Reason = copyStringPtr(revision.Reason)
+		cloned.ActorID = copyUint64Ptr(revision.ActorID)
+		if revision.ActorID != nil {
+			cloned.Actor = cloneUserModel(r.users[*revision.ActorID])
+		}
+		for _, notification := range r.resultNotifications {
+			if notification.RevisionID != revision.ID {
+				continue
+			}
+			copy := notification
+			copy.ProviderMessageID = copyStringPtr(notification.ProviderMessageID)
+			copy.QRImageURL = copyStringPtr(notification.QRImageURL)
+			copy.LastAttemptAt = copyTimePtr(notification.LastAttemptAt)
+			copy.SendingStartedAt = copyTimePtr(notification.SendingStartedAt)
+			copy.LastAttemptBy = copyUint64Ptr(notification.LastAttemptBy)
+			copy.LastError = copyStringPtr(notification.LastError)
+			cloned.Notification = &copy
+			break
+		}
+		result = append(result, cloned)
+	}
+	return result, nil
+}
+
+func (r *fakeRegistrationReviewRepository) GetLatestInterviewResultNotificationForUpdate(_ context.Context, registrationID uint64) (*model.InterviewResultNotification, error) {
+	var latest *model.InterviewResultNotification
+	for _, revision := range r.resultRevisions {
+		if revision.RegistrationID != registrationID {
+			continue
+		}
+		for _, notification := range r.resultNotifications {
+			if notification.RevisionID == revision.ID && (latest == nil || notification.RevisionID > latest.RevisionID) {
+				copy := notification
+				latest = &copy
+			}
+		}
+	}
+	if latest == nil {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return latest, nil
+}
+
+func (r *fakeRegistrationReviewRepository) UpdateInterviewResultNotification(_ context.Context, notificationID uint64, updates map[string]any) error {
+	notification, exists := r.resultNotifications[notificationID]
+	if !exists {
+		return gorm.ErrRecordNotFound
+	}
+	if value, ok := updates["status"].(string); ok {
+		notification.Status = value
+	}
+	if value, ok := updates["recipient"].(string); ok {
+		notification.Recipient = value
+	}
+	if value, ok := updates["subject"].(string); ok {
+		notification.Subject = value
+	}
+	if value, ok := updates["body"].(string); ok {
+		notification.Body = value
+	}
+	if value, ok := updates["qr_image_url"].(*string); ok {
+		notification.QRImageURL = copyStringPtr(value)
+	}
+	if value, ok := updates["provider_message_id"].(string); ok {
+		notification.ProviderMessageID = stringPtr(value)
+	} else if _, ok := updates["provider_message_id"]; ok {
+		notification.ProviderMessageID = nil
+	}
+	if value, ok := updates["attempt_count"].(uint); ok {
+		notification.AttemptCount = value
+	}
+	if value, ok := updates["last_attempt_at"].(*time.Time); ok {
+		notification.LastAttemptAt = copyTimePtr(value)
+	}
+	if value, ok := updates["sending_started_at"].(*time.Time); ok {
+		notification.SendingStartedAt = copyTimePtr(value)
+	} else if _, ok := updates["sending_started_at"]; ok {
+		notification.SendingStartedAt = nil
+	}
+	if value, ok := updates["last_attempt_by"].(*uint64); ok {
+		notification.LastAttemptBy = copyUint64Ptr(value)
+	}
+	if value, ok := updates["last_error"].(string); ok {
+		notification.LastError = stringPtr(value)
+	} else if _, ok := updates["last_error"]; ok {
+		notification.LastError = nil
+	}
+	if value, ok := updates["updated_at"].(time.Time); ok {
+		notification.UpdatedAt = value
+	}
+	r.resultNotifications[notificationID] = notification
+	return nil
 }
 
 func (r *fakeRegistrationReviewRepository) ListShownUserGroups(_ context.Context) ([]model.UserGroup, error) {
