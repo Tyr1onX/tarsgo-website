@@ -53,7 +53,7 @@ test("topic content uses the existing five groups, practice modules, and real ev
   assert.match(home, /运营组/);
   assert.match(home, /const aboutModules = \[/);
   assert.match(home, /const competitionHighlights = timelineMilestones\.map/);
-  assert.match(home, /从日常训练与组内协作开始/);
+  assert.match(joinExperience, /从具体任务开始/);
 });
 
 test("the homepage uses six image-led routes, preserves legacy hashes, and keeps reduced-motion video behavior", () => {

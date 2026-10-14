@@ -136,7 +136,7 @@ export function JoinExperience({ groups }: { groups: JoinGroup[] }) {
 
   return (
     <main className="join-page">
-      <section className="join-hero" aria-labelledby="join-page-heading">
+      <section id="join" className="join-hero" aria-labelledby="join-page-heading">
         <img
           className="join-hero__image"
           src="/assets/images/Daily/daily-02.webp"
