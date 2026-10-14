@@ -90,7 +90,6 @@ export function RobotPhotoGallery() {
         <div className="robot-gallery__season-copy">
           <p className="robot-gallery__season-kicker">ROBOT SEASON ARCHIVE · {activeSeason.season}</p>
           <h2>{activeSeason.title}</h2>
-          <p>{activeSeason.description}</p>
         </div>
         <div className="robot-gallery__season-switch" role="group" aria-label="选择机器人赛季">
           {robotSeasons.map((season) => (
