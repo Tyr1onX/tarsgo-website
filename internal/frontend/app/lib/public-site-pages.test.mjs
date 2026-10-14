@@ -38,7 +38,7 @@ test("the original home keeps its video and legacy anchors while all historical 
   assert.match(home, /showAllCertificates/);
   assert.match(home, /moveCertificatePreview/);
   assert.match(home, /scrollToTimelineYear/);
-  assert.match(home, /setActiveRobotIndex/);
+  assert.match(home, /<RobotPhotoGallery \/>/);
 });
 
 test("topic content uses the existing five groups, practice modules, and real event highlights", () => {
