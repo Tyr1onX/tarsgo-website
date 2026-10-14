@@ -588,11 +588,15 @@
   border: 1px solid var(--admin-border);
   border-radius: var(--admin-radius-md);
   padding: 0.5rem 0.75rem;
-  background: var(--admin-input-surface);
+  background-color: var(--admin-input-surface);
   color: var(--admin-text);
   font-size: 0.8125rem;
   line-height: 1.25rem;
   color-scheme: var(--theme-color-scheme);
+}
+
+.admin-design select.admin-field {
+  padding-right: 2.75rem;
 }
 
 .admin-design .admin-field::placeholder {
