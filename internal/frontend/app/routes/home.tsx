@@ -1,6 +1,7 @@
 import type { Route } from "./+types/home";
 import { useEffect, useId, useRef, useState } from "react";
 import { Navbar } from "../components/navbar";
+import { JoinExperience } from "../components/join-experience";
 import { RobotPhotoGallery } from "../components/robot-photo-gallery";
 import { SiteLogo } from "~/components/site-logo";
 import { Link, useLocation, useNavigate } from "react-router";
@@ -223,14 +224,6 @@ function TeamGroupMark({ group, className = "" }: { group: typeof groups[number]
     <span className={`team-group-mark ${className}`.trim()} aria-hidden="true">
       <img src={group.logoBlack} alt="" loading="lazy" decoding="async" className="team-group-mark__image team-group-mark__image--light" />
       <img src={group.logoWhite} alt="" loading="lazy" decoding="async" className="team-group-mark__image team-group-mark__image--dark" />
-    </span>
-  );
-}
-
-function TeamGroupStructure({ group, className = "" }: { group: typeof groups[number]; className?: string }) {
-  return (
-    <span className={`team-group-structure ${className}`.trim()} aria-hidden="true">
-      <img src={group.logoStructure} alt="" loading="lazy" decoding="async" />
     </span>
   );
 }
@@ -779,12 +772,10 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
     ? legacyHomeHashDestinations[location.hash]
     : undefined;
   const [activeAboutModuleIndex, setActiveAboutModuleIndex] = useState(0);
-  const [activeGroupIndex, setActiveGroupIndex] = useState(0);
   const [activeTimelineYear, setActiveTimelineYear] = useState(timelineMilestones[0].year);
   const [showAllCertificates, setShowAllCertificates] = useState(false);
   const [selectedCertificateIndex, setSelectedCertificateIndex] = useState<number | null>(null);
   const certificateDialogRef = useRef<HTMLDialogElement>(null);
-  const groupTabsRef = useRef<HTMLDivElement | null>(null);
   const timelineWindowRef = useRef<HTMLDivElement | null>(null);
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(
@@ -795,7 +786,6 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
   const [authError, setAuthError] = useState(false);
   const topic = routePage === "home" ? null : topicPages[routePage];
   const activeAboutModule = aboutModules[activeAboutModuleIndex];
-  const activeGroup = groups[activeGroupIndex];
   const selectedCertificate = selectedCertificateIndex === null
     ? null
     : achievementCertificates[selectedCertificateIndex];
@@ -956,7 +946,7 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
         </div>
 
       </section>
-      ) : (
+      ) : routePage === "join" ? null : (
         <section className={"public-topic-hero relative isolate overflow-hidden " + (routePage === "robots" ? "public-topic-hero--robots" : "")}>
           <img
             src={topic?.image}
@@ -1409,122 +1399,7 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
       </section>
       )}
 
-      {/* Join Us Section */}
-      {routePage === "join" && (
-      <section
-        id="join"
-        className="border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
-      >
-        <div className="public-home-container flex flex-col items-center">
-          <SectionHeading
-            index="05"
-            total="05"
-            labelZh="加入我们"
-            labelEn="JOIN US"
-            title="加入一支持续做机器人、参加比赛的团队"
-            description="了解战队各组别，选择感兴趣的方向并提交报名。"
-          />
-
-          <div className="team-group-explorer mb-12 w-full">
-            <h2 id="join-groups-heading" className="sr-only">五个专业组别</h2>
-            <p className="mb-4 text-xs font-semibold tracking-[0.14em] text-accent-primary">选择组别，查看职责与方向</p>
-            <div
-              ref={groupTabsRef}
-              className="team-group-tabs"
-              role="tablist"
-              aria-labelledby="join-groups-heading"
-              onKeyDown={(event) => {
-                const currentIndex = Number((event.target as HTMLButtonElement).dataset.groupIndex);
-                if (!Number.isInteger(currentIndex)) return;
-                let nextIndex: number | null = null;
-                if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % groups.length;
-                if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + groups.length) % groups.length;
-                if (event.key === "Home") nextIndex = 0;
-                if (event.key === "End") nextIndex = groups.length - 1;
-                if (nextIndex === null) return;
-                event.preventDefault();
-                setActiveGroupIndex(nextIndex);
-                groupTabsRef.current?.querySelector<HTMLButtonElement>(`[data-group-index="${nextIndex}"]`)?.focus();
-              }}
-            >
-              {groups.map((group, index) => {
-                const isActive = index === activeGroupIndex;
-                return (
-                  <button
-                    key={group.name}
-                    id={`team-group-tab-${index}`}
-                    type="button"
-                    role="tab"
-                    data-group-index={index}
-                    aria-selected={isActive}
-                    aria-controls="team-group-panel"
-                    tabIndex={isActive ? 0 : -1}
-                    className="team-group-tab"
-                    onClick={() => setActiveGroupIndex(index)}
-                  >
-                    <TeamGroupMark group={group} className="team-group-tab__mark" />
-                    <span>{group.name}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <div
-              id="team-group-panel"
-              className="team-group-panel"
-              role="tabpanel"
-              aria-labelledby={`team-group-tab-${activeGroupIndex}`}
-              tabIndex={0}
-            >
-              <div key={activeGroup.name} className="team-group-panel__content" aria-live="polite" aria-atomic="true">
-                <div className="team-group-panel__visual" aria-hidden="true">
-                  <TeamGroupStructure group={activeGroup} className="team-group-panel__structure" />
-                  <TeamGroupMark group={activeGroup} className="team-group-panel__mark" />
-                </div>
-                <div className="team-group-panel__copy">
-                  <p className="font-mono text-xs tracking-[0.16em] text-accent-primary">专业组 / {String(activeGroupIndex + 1).padStart(2, "0")}</p>
-                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-fg-primary sm:text-3xl">{activeGroup.name}</h3>
-                  <p className="mt-3 max-w-2xl text-sm leading-7 text-fg-muted sm:text-base">{activeGroup.description}</p>
-                  <p className="mt-5 text-xs font-semibold tracking-[0.12em] text-fg-dim">涉及方向</p>
-                  <ul className="team-group-directions" aria-label={`${activeGroup.name}涉及方向`}>
-                    {activeGroup.directions.map((direction) => <li key={direction}>{direction}</li>)}
-                  </ul>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <section className="mb-10 w-full border-y border-white/10 py-7" aria-labelledby="join-training-heading">
-            <h3 id="join-training-heading" className="text-xl font-semibold text-fg-primary sm:text-2xl">团队培养方式</h3>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-fg-muted sm:text-base">
-              从日常训练与组内协作开始，通过赛前联调、项目实践和赛事检验逐步积累经验。具体安排以团队当期培养计划为准。
-            </p>
-            <h3 className="mt-7 text-xl font-semibold text-fg-primary sm:text-2xl">报名流程</h3>
-            <p className="mt-3 max-w-3xl text-sm leading-7 text-fg-muted sm:text-base">
-              先了解组别方向，再从现有报名入口进入；具体招新批次、表单与后续安排以当前开放的报名信息为准。
-            </p>
-          </section>
-
-          <Link
-            to="/register"
-            className="motion-button inline-flex items-center gap-2 rounded-full bg-accent-primary px-10 py-4 text-lg font-semibold text-fg-inverse shadow-[0_18px_40px_-24px_rgba(0,98,255,0.78)] transition-opacity hover:opacity-90"
-          >
-            立即报名
-            <svg
-              className="w-5 h-5"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-            >
-              <path d="M5 12h14" />
-              <path d="m12 5 7 7-7 7" />
-            </svg>
-          </Link>
-        </div>
-      </section>
-      )}
+      {routePage === "join" ? <JoinExperience groups={groups} /> : null}
 
       {/* Footer */}
       {routePage === "home" ? <HomeSponsorSection /> : null}
