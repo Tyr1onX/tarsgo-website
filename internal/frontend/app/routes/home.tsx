@@ -434,76 +434,78 @@ function AboutImageReveal({ src, alt }: { src: string; alt: string }) {
         className="absolute inset-0 h-full w-full object-cover"
       />
       {incomingSrc ? (
-        <svg
-          key={transition.sequence}
-          viewBox="0 0 100 100"
-          preserveAspectRatio="xMidYMid slice"
-          role="img"
-          aria-label={alt}
-          className="absolute inset-0 h-full w-full"
-        >
-          <defs>
-            <filter
-              id={filterId}
-              x="-12%"
-              y="-12%"
-              width="124%"
-              height="124%"
-            >
-              <feTurbulence
-                type="fractalNoise"
-                baseFrequency="0.035"
-                numOctaves="2"
-                seed="7"
-                result="ink-noise"
-              />
-              <feDisplacementMap
-                in="SourceGraphic"
-                in2="ink-noise"
-                scale="3"
-                xChannelSelector="R"
-                yChannelSelector="G"
-              />
-              <feGaussianBlur stdDeviation="0.25" />
-            </filter>
-            <mask
-              id={maskId}
-              maskUnits="userSpaceOnUse"
-              x="0"
-              y="0"
-              width="100"
-              height="100"
-            >
-              <rect width="100" height="100" fill="black" />
-              <g filter={`url(#${filterId})`}>
+        <>
+          <svg
+            aria-hidden="true"
+            className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
+          >
+            <defs>
+              <filter
+                id={filterId}
+                x="-100%"
+                y="-100%"
+                width="300%"
+                height="300%"
+              >
+                <feTurbulence
+                  type="fractalNoise"
+                  baseFrequency="3.5"
+                  numOctaves="2"
+                  seed="7"
+                  result="ink-noise"
+                />
+                <feDisplacementMap
+                  in="SourceGraphic"
+                  in2="ink-noise"
+                  scale="0.03"
+                  xChannelSelector="R"
+                  yChannelSelector="G"
+                />
+                <feGaussianBlur stdDeviation="0.0025" />
+              </filter>
+              <mask
+                id={maskId}
+                maskUnits="objectBoundingBox"
+                maskContentUnits="objectBoundingBox"
+                x="-100%"
+                y="-100%"
+                width="300%"
+                height="300%"
+              >
                 <circle
-                  cx="50"
-                  cy="50"
-                  r="88"
+                  cx="0.5"
+                  cy="0.5"
+                  r="1.5"
                   fill="white"
+                  filter={`url(#${filterId})`}
                   className={
-                    transition.ready ? "about-ink-blot about-ink-blot-active" : "about-ink-blot"
+                    transition.ready
+                      ? "about-ink-blot about-ink-blot-active"
+                      : "about-ink-blot"
                   }
                   onAnimationEnd={() =>
                     finishIncomingImage(incomingSrc, transition.sequence)
                   }
                 />
-              </g>
-            </mask>
-          </defs>
-          <image
-            href={incomingSrc}
-            x="0"
-            y="0"
-            width="100"
-            height="100"
-            preserveAspectRatio="xMidYMid slice"
-            mask={`url(#${maskId})`}
+              </mask>
+            </defs>
+          </svg>
+          <img
+            key={transition.sequence}
+            src={incomingSrc}
+            alt={alt}
+            loading="eager"
+            decoding="async"
+            className="absolute inset-0 h-full w-full object-cover"
+            style={{
+              maskImage: `url(#${maskId})`,
+              WebkitMaskImage: `url(#${maskId})`,
+            }}
             onLoad={() =>
               markIncomingImageReady(incomingSrc, transition.sequence)
             }
           />
-        </svg>
+        </>
       ) : null}
     </div>
   );
