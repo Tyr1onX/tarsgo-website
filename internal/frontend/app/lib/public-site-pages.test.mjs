@@ -41,7 +41,7 @@ test("the original home keeps its video and legacy anchors while all historical 
   assert.match(home, /showAllCertificates/);
   assert.match(home, /moveCertificatePreview/);
   assert.match(home, /scrollToTimelineYear/);
-  assert.match(home, /setActiveRobotIndex/);
+  assert.match(home, /<RobotPhotoGallery \/>/);
 });
 
 test("topic content uses the existing five groups, practice modules, and real event highlights", () => {
@@ -161,11 +161,12 @@ test("group identity appears on the about and join pages with accessible theme-a
   assert.match(joinExperience, /role="tabpanel"/);
   assert.match(joinExperience, /aria-live="polite"/);
   assert.match(joinExperience, /activeGroup\.directions\.map/);
+  assert.match(styles, /:root\[data-theme="dark"\] \.team-group-mark__image--light\s*\{\s*display:\s*none;/);
+  assert.match(styles, /:root\[data-theme="dark"\] \.team-group-mark__image--dark\s*\{\s*display:\s*block;/);
   assert.match(joinStyles, /:root\[data-theme="dark"\] \.join-group-mark__light/);
   assert.match(joinStyles, /:root\[data-theme="dark"\] \.join-group-mark__dark/);
   assert.match(joinStyles, /@media \(prefers-reduced-motion: reduce\)/);
 });
-
 
 test("the join guide distinguishes account creation from an open recruitment application", () => {
   assert.match(joinExperience, /创建账号本身不等于提交招新报名/);
@@ -175,7 +176,6 @@ test("the join guide distinguishes account creation from an open recruitment app
   assert.match(joinExperience, /初筛通过不代表最终录取/);
   assert.match(joinStyles, /grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
 });
-
 
 test("the dedicated join guide only renders on its join route", () => {
   assert.match(home, /routePage === "join" \? <JoinExperience groups=\{groups\} \/> : null/);
