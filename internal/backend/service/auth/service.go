@@ -16,6 +16,7 @@ import (
 	"gorm.io/gorm/clause"
 
 	"tarsgo-backend/config"
+	"tarsgo-backend/database"
 	"tarsgo-backend/model"
 	"tarsgo-backend/service/email"
 	"tarsgo-backend/service/usergroup"
@@ -113,6 +114,13 @@ func NormalizeEmail(email string) string {
 	return strings.ToLower(strings.TrimSpace(email))
 }
 
+func duplicateEmailConflict() *ServiceError {
+	return &ServiceError{
+		Status:  http.StatusConflict,
+		Message: "该邮箱已注册，请先登录或使用邮箱验证码登录",
+	}
+}
+
 func (s *Service) CookieName() string {
 	return s.authConfig.CookieName
 }
@@ -149,7 +157,7 @@ func (s *Service) SendRegisterCode(ctx context.Context, email string) error {
 	}
 
 	if _, err := s.findUserByEmail(ctx, email); err == nil {
-		return &ServiceError{Status: http.StatusConflict, Message: "该邮箱已注册"}
+		return duplicateEmailConflict()
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return &ServiceError{Status: http.StatusInternalServerError, Message: "检查邮箱注册状态失败", Err: err}
 	}
@@ -168,7 +176,7 @@ func (s *Service) RegisterWithEmail(ctx context.Context, input RegisterEmailInpu
 	}
 
 	if _, err := s.findUserByEmail(ctx, normalizedInput.Email); err == nil {
-		return nil, &ServiceError{Status: http.StatusConflict, Message: "该邮箱已注册"}
+		return nil, duplicateEmailConflict()
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "检查邮箱注册状态失败", Err: err}
 	}
@@ -202,6 +210,9 @@ func (s *Service) RegisterWithEmail(ctx context.Context, input RegisterEmailInpu
 		assignOptionalString(&user.RealName, normalizedInput.RealName)
 		assignOptionalString(&user.Phone, normalizedInput.Phone)
 		if err := tx.Create(&user).Error; err != nil {
+			if database.IsDuplicateKeyError(err) {
+				return duplicateEmailConflict()
+			}
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "创建用户失败", Err: err}
 		}
 		if err := usergroup.AssignDefaultGroupTx(tx, user.ID); err != nil {
@@ -313,6 +324,9 @@ func (s *Service) RegisterInitialSuperAdmin(ctx context.Context, input RegisterI
 			Status:       model.UserStatusEnabled,
 		}
 		if err := tx.Create(&user).Error; err != nil {
+			if database.IsDuplicateKeyError(err) {
+				return duplicateEmailConflict()
+			}
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "创建超级管理员失败", Err: err}
 		}
 
