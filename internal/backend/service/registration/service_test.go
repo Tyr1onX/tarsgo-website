@@ -151,6 +151,58 @@ func TestRegistrationServiceNewSubmissionStartsPendingScreeningWithOnePreferredG
 	}
 }
 
+func registrationSubmissionIdentityTestInput(contactEmail string) SubmitRegistrationInput {
+	return SubmitRegistrationInput{
+		FormID: 301,
+		Values: map[string][]string{
+			"name": {"重复候选人"},
+			"phone": {"13800138001"},
+			"email": {contactEmail},
+			"preferred_group": {"101"},
+			"direction": {"mechanical"},
+		},
+	}
+}
+
+func TestRegistrationServiceRejectsDuplicateFormForSameAccount(t *testing.T) {
+	repo := newFakeRegistrationListRepository()
+	repo.registrationsByFormUser[[2]uint64{301, 777}] = &model.Registration{
+		ID: 9900, FormID: 301, UserID: 777,
+	}
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	service.now = func() time.Time { return time.Date(2026, 10, 5, 8, 0, 0, 0, time.Local) }
+
+	_, err := service.SubmitRegistration(
+		context.Background(),
+		RegistrationFormActor{ID: 777, RoleName: model.RoleNameUser},
+		registrationSubmissionIdentityTestInput("first@example.com"),
+	)
+	assertRegistrationServiceError(t, err, http.StatusConflict, "请勿重复提交")
+	if repo.createdRegistration != nil {
+		t.Fatal("duplicate account submission must not create another registration")
+	}
+}
+
+func TestRegistrationServiceDoesNotTreatUnverifiedContactDetailsAsCrossAccountUniqueness(t *testing.T) {
+	repo := newFakeRegistrationListRepository()
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	service.now = func() time.Time { return time.Date(2026, 10, 5, 8, 0, 0, 0, time.Local) }
+
+	for _, actorID := range []uint64{777, 778} {
+		_, err := service.SubmitRegistration(
+			context.Background(),
+			RegistrationFormActor{ID: actorID, RoleName: model.RoleNameUser},
+			registrationSubmissionIdentityTestInput("candidate@example.com"),
+		)
+		if err != nil {
+			t.Fatalf("unverified shared contact details must remain eligible for manual review, actor %d: %v", actorID, err)
+		}
+	}
+	if len(repo.registrationsByFormUser) != 2 {
+		t.Fatalf("distinct accounts should retain separate historical submissions; got %d", len(repo.registrationsByFormUser))
+	}
+}
+
 func TestRegistrationServiceScreeningNotificationFailureDoesNotRollbackState(t *testing.T) {
 	repo := newFakeRegistrationReviewRepository()
 	mailer := &fakeInterviewMailer{err: errors.New("mail unavailable")}
@@ -2552,8 +2604,9 @@ func groupByID(groups []model.UserGroup, id uint64) *model.UserGroup {
 }
 
 type fakeRegistrationListRepository struct {
-	items               []model.Registration
-	createdRegistration *model.Registration
+	items                   []model.Registration
+	createdRegistration     *model.Registration
+	registrationsByFormUser map[[2]uint64]*model.Registration
 	forms               map[uint64]*model.RegistrationForm
 	shownGroups         []model.UserGroup
 	total               int64
@@ -2686,7 +2739,8 @@ func newFakeRegistrationListRepository() *fakeRegistrationListRepository {
 			Rejected:         5,
 			Withdrawn:        2,
 		},
-		leaderGroupIDs: map[uint64][]uint64{},
+		leaderGroupIDs:           map[uint64][]uint64{},
+		registrationsByFormUser: map[[2]uint64]*model.Registration{},
 	}
 }
 
@@ -2712,8 +2766,12 @@ func (r *fakeRegistrationListRepository) GetFormByID(_ context.Context, formID u
 	return cloneRegistrationFormModel(form), nil
 }
 
-func (r *fakeRegistrationListRepository) FindRegistrationByFormAndUser(_ context.Context, _, _ uint64) (*model.Registration, error) {
-	return nil, gorm.ErrRecordNotFound
+func (r *fakeRegistrationListRepository) FindRegistrationByFormAndUser(_ context.Context, formID, userID uint64) (*model.Registration, error) {
+	registration, exists := r.registrationsByFormUser[[2]uint64{formID, userID}]
+	if !exists {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return cloneRegistrationModel(registration), nil
 }
 
 func (r *fakeRegistrationListRepository) CountRegistrationsByFormID(_ context.Context, _ uint64) (int64, error) {
@@ -2722,8 +2780,12 @@ func (r *fakeRegistrationListRepository) CountRegistrationsByFormID(_ context.Co
 
 func (r *fakeRegistrationListRepository) CreateRegistration(_ context.Context, registration *model.Registration) error {
 	if registration.ID == 0 {
-		registration.ID = 9901
+		registration.ID = 9901 + uint64(len(r.registrationsByFormUser))
 	}
+	if r.registrationsByFormUser == nil {
+		r.registrationsByFormUser = map[[2]uint64]*model.Registration{}
+	}
+	r.registrationsByFormUser[[2]uint64{registration.FormID, registration.UserID}] = cloneRegistrationModel(registration)
 	r.createdRegistration = cloneRegistrationModel(registration)
 	return nil
 }

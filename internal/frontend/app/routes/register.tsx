@@ -1,5 +1,5 @@
 import { type FormEvent, type MouseEvent, useMemo, useState } from "react";
-import { redirect, useNavigate, useSearchParams } from "react-router";
+import { Link, redirect, useNavigate, useSearchParams } from "react-router";
 
 import type { Route } from "./+types/register";
 
@@ -41,6 +41,7 @@ export default function Register() {
   const [phone, setPhone] = useState("");
   const [code, setCode] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [showLoginGuidance, setShowLoginGuidance] = useState(false);
   const [sendingCode, setSendingCode] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [leaving, setLeaving] = useState(false);
@@ -68,10 +69,12 @@ export default function Register() {
     try {
       setSendingCode(true);
       setErrorMessage("");
+      setShowLoginGuidance(false);
       await sendRegisterCode(email);
       cooldown.start(60);
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
+      setShowLoginGuidance(isRegisteredEmailConflict(error));
     } finally {
       setSendingCode(false);
     }
@@ -108,6 +111,7 @@ export default function Register() {
     try {
       setSubmitting(true);
       setErrorMessage("");
+      setShowLoginGuidance(false);
       const user = await registerWithEmail({
         email,
         password,
@@ -126,6 +130,7 @@ export default function Register() {
       setTimeout(() => navigate(destination, { replace: true }), 900);
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
+      setShowLoginGuidance(isRegisteredEmailConflict(error));
       setSubmitting(false);
     }
   }
@@ -134,7 +139,7 @@ export default function Register() {
     <AuthShell
       mode="register"
       title={success ? "注册成功" : "加入 TARS-GO"}
-      description={success ? "账号已创建，正在进入工作台。" : "完成邮箱验证后即可进入统一工作台。"}
+      description={success ? "账号已创建，正在进入工作台。" : "完成邮箱验证后即可进入统一工作台；如可能已有账号，请先尝试登录或使用邮箱验证码。"}
       redirectTo={redirectTo}
       leaving={leaving}
       onHomeClick={handleBackToHome}
@@ -157,7 +162,11 @@ export default function Register() {
                 autoComplete="email"
                 required
                 value={email}
-                onChange={(event) => setEmail(event.target.value)}
+                onChange={(event) => {
+                  setEmail(event.target.value);
+                  setErrorMessage("");
+                  setShowLoginGuidance(false);
+                }}
                 placeholder="建议使用常用非校园邮箱"
                 maxLength={255}
                 className="auth-input"
@@ -236,7 +245,18 @@ export default function Register() {
             </div>
           </div>
 
-          {errorMessage ? <div className="auth-error animate-auth-fade-in" role="alert" aria-live="polite">{errorMessage}</div> : null}
+          {errorMessage ? (
+            <div className="auth-error animate-auth-fade-in" role="alert" aria-live="polite">
+              {errorMessage}
+              {showLoginGuidance ? (
+                <div className="mt-1">
+                  <Link to="/login" className="font-semibold underline underline-offset-4">
+                    前往登录或使用邮箱验证码
+                  </Link>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           <button type="submit" disabled={submitting} className="auth-submit">
             {submitting ? "注册中..." : "创建账号"}
@@ -245,6 +265,10 @@ export default function Register() {
       )}
     </AuthShell>
   );
+}
+
+function isRegisteredEmailConflict(error: unknown) {
+  return error instanceof ApiError && error.status === 409 && error.message.includes("邮箱已注册");
 }
 
 function getErrorMessage(error: unknown) {

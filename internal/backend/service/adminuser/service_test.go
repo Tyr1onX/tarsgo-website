@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	mysqlDriver "github.com/go-sql-driver/mysql"
 	"gorm.io/gorm"
 
 	"tarsgo-backend/model"
@@ -48,6 +49,32 @@ func TestCreateUserKeepsOnlyAccountFieldsAndAssignsDefaultRecruitmentGroup(t *te
 	if created.Gender != 0 || created.Nickname != nil || created.Phone != nil || created.RealName != nil {
 		t.Fatalf("account creation should leave profile fields at their defaults: %#v", created)
 	}
+}
+
+func TestUniqueEmailConstraintRaceReturnsConflictInAccountManagement(t *testing.T) {
+	t.Run("create", func(t *testing.T) {
+		repo := newFakeRepository()
+		repo.createUserErr = &mysqlDriver.MySQLError{Number: 1062}
+		service := NewService(repo)
+
+		_, err := service.CreateUser(context.Background(), Actor{RoleName: model.RoleNameSuperAdmin}, CreateUserInput{
+			RoleID: repo.roleID(model.RoleNameUser), Name: "Candidate",
+			Email: "candidate@example.com", Password: "Password123",
+		})
+		assertServiceError(t, err, http.StatusConflict, "邮箱")
+	})
+
+	t.Run("update", func(t *testing.T) {
+		repo := newFakeRepository()
+		repo.updateUserErr = &mysqlDriver.MySQLError{Number: 1062}
+		service := NewService(repo)
+
+		_, err := service.UpdateUser(context.Background(), Actor{RoleName: model.RoleNameSuperAdmin}, 3, UpdateUserInput{
+			RoleID: repo.roleID(model.RoleNameUser), Name: "Candidate",
+			Email: "new-candidate@example.com", Status: model.UserStatusEnabled,
+		})
+		assertServiceError(t, err, http.StatusConflict, "邮箱")
+	})
 }
 
 func TestUpdateAccountChangesIdentityRoleAndStatusWithoutChangingMemberProfile(t *testing.T) {
@@ -139,6 +166,8 @@ type fakeRepository struct {
 	users        map[uint64]*model.User
 	nextUserID   uint64
 	defaultGroup model.UserGroup
+	createUserErr error
+	updateUserErr error
 }
 
 func newFakeRepository() *fakeRepository {
@@ -250,6 +279,9 @@ func (r *fakeRepository) GetRoleByID(_ context.Context, roleID uint64) (*model.R
 }
 
 func (r *fakeRepository) CreateUser(_ context.Context, user *model.User, assignDefaultGroup bool) error {
+	if r.createUserErr != nil {
+		return r.createUserErr
+	}
 	role, ok := r.roles[user.RoleID]
 	if !ok {
 		return gorm.ErrRecordNotFound
@@ -272,6 +304,9 @@ func (r *fakeRepository) CreateUser(_ context.Context, user *model.User, assignD
 }
 
 func (r *fakeRepository) UpdateUser(_ context.Context, userID uint64, updates map[string]any) error {
+	if r.updateUserErr != nil {
+		return r.updateUserErr
+	}
 	user, ok := r.users[userID]
 	if !ok {
 		return gorm.ErrRecordNotFound

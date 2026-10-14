@@ -10,6 +10,7 @@ import (
 
 	"gorm.io/gorm"
 
+	"tarsgo-backend/database"
 	"tarsgo-backend/model"
 	"tarsgo-backend/service/auth"
 )
@@ -312,6 +313,9 @@ func (s *Service) CreateUser(ctx context.Context, actor Actor, input CreateUserI
 	}
 
 	if err := s.repo.CreateUser(ctx, user, role.Name == model.RoleNameUser); err != nil {
+		if database.IsDuplicateKeyError(err) {
+			return nil, &ServiceError{Status: http.StatusConflict, Message: "该邮箱已存在"}
+		}
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "创建用户失败", Err: err}
 	}
 
@@ -382,6 +386,9 @@ func (s *Service) UpdateUser(ctx context.Context, actor Actor, userID uint64, in
 	}
 
 	if err := s.repo.UpdateUser(ctx, target.ID, updates); err != nil {
+		if database.IsDuplicateKeyError(err) {
+			return nil, &ServiceError{Status: http.StatusConflict, Message: "该邮箱已存在"}
+		}
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "更新用户失败", Err: err}
 	}
 

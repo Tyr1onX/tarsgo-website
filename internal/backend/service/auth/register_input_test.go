@@ -135,3 +135,19 @@ func TestNormalizeRegisterEmailInputRequiresChineseRealName(t *testing.T) {
 		t.Fatalf("unexpected message: %q", serviceErr.Message)
 	}
 }
+
+
+// Registration profile fields are contact hints, not verified identity keys.
+func TestNormalizeRegisterInputAllowsSharedNameAndPhoneAcrossEmails(t *testing.T) {
+	t.Parallel()
+
+	for _, email := range []string{"first@example.com", "second@example.com"} {
+		_, err := normalizeRegisterEmailInput(RegisterEmailInput{
+			Email: email, Password: "123456", RealName: "张三",
+			Phone: "13800138000", Code: "123456",
+		})
+		if err != nil {
+			t.Fatalf("valid contact details must not be treated as unique identity keys for %s: %v", email, err)
+		}
+	}
+}
