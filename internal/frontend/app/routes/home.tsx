@@ -1,5 +1,5 @@
 import type { Route } from "./+types/home";
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { Navbar } from "../components/navbar";
 import { Link } from "react-router";
 import {
@@ -335,6 +335,180 @@ function SectionHeading({
   );
 }
 
+type AboutImageTransition = {
+  baseSrc: string;
+  incomingSrc: string | null;
+  sequence: number;
+  ready: boolean;
+};
+
+function AboutImageReveal({ src, alt }: { src: string; alt: string }) {
+  const id = useId().replace(/:/g, "");
+  const filterId = `${id}-ink-filter`;
+  const maskId = `${id}-ink-mask`;
+  const [transition, setTransition] = useState<AboutImageTransition>(() => ({
+    baseSrc: src,
+    incomingSrc: null,
+    sequence: 0,
+    ready: false,
+  }));
+
+  useEffect(() => {
+    setTransition((current) => {
+      if (current.incomingSrc === src) return current;
+      if (current.baseSrc === src) {
+        if (!current.incomingSrc) return current;
+        return {
+          baseSrc: src,
+          incomingSrc: null,
+          sequence: current.sequence + 1,
+          ready: false,
+        };
+      }
+
+      const sequence = current.sequence + 1;
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        return { baseSrc: src, incomingSrc: null, sequence, ready: false };
+      }
+
+      return { ...current, incomingSrc: src, sequence, ready: false };
+    });
+  }, [src]);
+
+  useEffect(() => {
+    const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const finishForReducedMotion = () => {
+      if (!preference.matches) return;
+      setTransition((current) =>
+        current.incomingSrc
+          ? {
+              baseSrc: current.incomingSrc,
+              incomingSrc: null,
+              sequence: current.sequence + 1,
+              ready: false,
+            }
+          : current,
+      );
+    };
+
+    preference.addEventListener("change", finishForReducedMotion);
+    return () =>
+      preference.removeEventListener("change", finishForReducedMotion);
+  }, []);
+
+  function markIncomingImageReady(src: string, sequence: number) {
+    setTransition((current) => {
+      if (current.incomingSrc !== src || current.sequence !== sequence) {
+        return current;
+      }
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        return {
+          baseSrc: src,
+          incomingSrc: null,
+          sequence: sequence + 1,
+          ready: false,
+        };
+      }
+      return { ...current, ready: true };
+    });
+  }
+
+  function finishIncomingImage(src: string, sequence: number) {
+    setTransition((current) =>
+      current.incomingSrc === src && current.sequence === sequence
+        ? { baseSrc: src, incomingSrc: null, sequence, ready: false }
+        : current,
+    );
+  }
+
+  const incomingSrc = transition.incomingSrc;
+
+  return (
+    <div className="relative aspect-[4/3] overflow-hidden bg-[#171b1a] md:aspect-auto md:min-h-[420px]">
+      <img
+        src={transition.baseSrc}
+        alt={incomingSrc ? "" : alt}
+        aria-hidden={Boolean(incomingSrc)}
+        loading="lazy"
+        decoding="async"
+        className="absolute inset-0 h-full w-full object-cover"
+      />
+      {incomingSrc ? (
+        <svg
+          key={transition.sequence}
+          viewBox="0 0 100 100"
+          preserveAspectRatio="xMidYMid slice"
+          role="img"
+          aria-label={alt}
+          className="absolute inset-0 h-full w-full"
+        >
+          <defs>
+            <filter
+              id={filterId}
+              x="-12%"
+              y="-12%"
+              width="124%"
+              height="124%"
+            >
+              <feTurbulence
+                type="fractalNoise"
+                baseFrequency="0.035"
+                numOctaves="2"
+                seed="7"
+                result="ink-noise"
+              />
+              <feDisplacementMap
+                in="SourceGraphic"
+                in2="ink-noise"
+                scale="3"
+                xChannelSelector="R"
+                yChannelSelector="G"
+              />
+              <feGaussianBlur stdDeviation="0.25" />
+            </filter>
+            <mask
+              id={maskId}
+              maskUnits="userSpaceOnUse"
+              x="0"
+              y="0"
+              width="100"
+              height="100"
+            >
+              <rect width="100" height="100" fill="black" />
+              <g filter={`url(#${filterId})`}>
+                <circle
+                  cx="50"
+                  cy="50"
+                  r="88"
+                  fill="white"
+                  className={
+                    transition.ready ? "about-ink-blot about-ink-blot-active" : "about-ink-blot"
+                  }
+                  onAnimationEnd={() =>
+                    finishIncomingImage(incomingSrc, transition.sequence)
+                  }
+                />
+              </g>
+            </mask>
+          </defs>
+          <image
+            href={incomingSrc}
+            x="0"
+            y="0"
+            width="100"
+            height="100"
+            preserveAspectRatio="xMidYMid slice"
+            mask={`url(#${maskId})`}
+            onLoad={() =>
+              markIncomingImageReady(incomingSrc, transition.sequence)
+            }
+          />
+        </svg>
+      ) : null}
+    </div>
+  );
+}
+
 function getNavbarUser(): AuthUser | null | undefined {
   return getCachedCurrentUser() ?? (hasKnownAnonymousSession() ? null : undefined);
 }
@@ -529,14 +703,10 @@ export default function Home() {
             </div>
 
             <article className="mt-6 grid overflow-hidden md:grid-cols-[1.28fr_0.72fr]">
-              <figure className="aspect-[4/3] overflow-hidden bg-[#171b1a] md:aspect-auto md:min-h-[420px]">
-                <img
-                  key={activeAboutModule.image}
+              <figure>
+                <AboutImageReveal
                   src={activeAboutModule.image}
                   alt={activeAboutModule.imageAlt}
-                  loading="lazy"
-                  decoding="async"
-                  className="h-full w-full object-cover"
                 />
               </figure>
               <div className="flex flex-col justify-center border-t border-white/10 py-6 md:border-l md:border-t-0 md:px-8 lg:px-12">
