@@ -1535,7 +1535,7 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
       </section>
       )}
 
-      <JoinExperience groups={groups} />
+      {routePage === "join" ? <JoinExperience groups={groups} /> : null}
 
       {/* Footer */}
       {routePage === "home" ? <HomeSponsorSection /> : null}

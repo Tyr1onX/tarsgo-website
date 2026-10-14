@@ -175,3 +175,8 @@ test("the join guide distinguishes account creation from an open recruitment app
   assert.match(joinExperience, /初筛通过不代表最终录取/);
   assert.match(joinStyles, /grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
 });
+
+
+test("the dedicated join guide only renders on its join route", () => {
+  assert.match(home, /routePage === "join" \? <JoinExperience groups=\{groups\} \/> : null/);
+});
