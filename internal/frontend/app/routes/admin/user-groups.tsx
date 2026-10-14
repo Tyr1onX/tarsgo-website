@@ -35,7 +35,7 @@ const emptyForm: GroupForm = {
 
 export function meta() {
   return [
-    { title: "招新组别 | TARS-GO" },
+    { title: "招新组别 | TARSGO" },
     { name: "description", content: "配置候选人可选的招新意向组别" },
   ];
 }

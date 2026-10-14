@@ -19,7 +19,7 @@ import {
 import { listAdminUserGroupOptions, type AdminUserGroupOption } from "~/lib/admin-user-groups-client";
 
 export function meta() {
-  return [{ title: "账号与权限 | TARS-GO" }, { name: "description", content: "管理招新账号、系统角色和访问状态" }];
+  return [{ title: "账号与权限 | TARSGO" }, { name: "description", content: "管理招新账号、系统角色和访问状态" }];
 }
 
 type AccountDraft = {

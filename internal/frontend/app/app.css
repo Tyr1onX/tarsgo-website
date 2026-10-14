@@ -1771,6 +1771,29 @@ html[data-theme-transition] body *::after {
     linear-gradient(0deg, rgba(10, 14, 14, 0.62), transparent 38%);
 }
 
+.public-topic-hero {
+  min-height: 26rem;
+  background: var(--admin-canvas);
+}
+
+.public-topic-hero-shade {
+  background:
+    linear-gradient(90deg, rgba(9, 13, 13, 0.88) 0%, rgba(9, 13, 13, 0.52) 52%, rgba(9, 13, 13, 0.12) 100%),
+    linear-gradient(0deg, rgba(9, 13, 13, 0.72), transparent 62%);
+}
+
+.public-topic-hero img {
+  object-position: center 42%;
+}
+
+@media (max-width: 639px) {
+  .public-topic-hero-shade {
+    background:
+      linear-gradient(90deg, rgba(9, 13, 13, 0.66), rgba(9, 13, 13, 0.22)),
+      linear-gradient(0deg, rgba(9, 13, 13, 0.8), transparent 74%);
+  }
+}
+
 .public-home .public-section-heading {
   color: var(--admin-text);
 }

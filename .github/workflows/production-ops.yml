@@ -37,6 +37,7 @@ jobs:
         run: |
           pnpm run test:navbar
           pnpm run test:micro-specialty
+          pnpm run test:public-site
           pnpm run test:progress
           pnpm run test:workbench
           pnpm run test:email-templates

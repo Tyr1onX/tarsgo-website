@@ -6,7 +6,7 @@ import { getAdminWorkbenchSummary, listAdminInterviewSessions, type InterviewSes
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 
 export function meta() {
-  return [{ title: "招新工作台 | TARS-GO" }, { name: "description", content: "TARS-GO 当前招新处理工作台" }];
+  return [{ title: "招新工作台 | TARSGO" }, { name: "description", content: "TARSGO 当前招新处理工作台" }];
 }
 
 const autoRefreshIntervalMs = 30_000;

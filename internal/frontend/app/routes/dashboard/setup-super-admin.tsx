@@ -8,8 +8,8 @@ import { getBootstrapStatus, registerInitialSuperAdmin } from "~/lib/auth-client
 
 export function meta() {
   return [
-    { title: "初始化超级管理员 | TARS-GO" },
-    { name: "description", content: "首次运行时创建 TARS-GO 超级管理员账户" },
+    { title: "初始化超级管理员 | TARSGO" },
+    { name: "description", content: "首次运行时创建 TARSGO 超级管理员账户" },
   ];
 }
 

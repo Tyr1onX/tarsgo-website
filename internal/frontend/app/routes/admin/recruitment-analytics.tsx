@@ -5,7 +5,7 @@ import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { getRecruitmentAnalytics, type RecruitmentAnalyticsCohort, type RecruitmentAnalyticsReport } from "~/lib/recruitment-analytics-client";
 
 export function meta() {
-  return [{ title: "招新数据分析 | TARS-GO" }, { name: "description", content: "按报名表查看招新届次、录取和组别意向变化" }];
+  return [{ title: "招新数据分析 | TARSGO" }, { name: "description", content: "按报名表查看招新届次、录取和组别意向变化" }];
 }
 
 function formatCount(value: number, hasData: boolean) {

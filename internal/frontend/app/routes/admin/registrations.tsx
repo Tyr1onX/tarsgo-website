@@ -29,8 +29,8 @@ import { getShanghaiDate } from "~/lib/admin-workbench";
 
 export function meta() {
   return [
-    { title: "报名处理 | TARS-GO 管理后台" },
-    { name: "description", content: "TARS-GO 招新候选人处理" },
+    { title: "报名处理 | TARSGO 管理后台" },
+    { name: "description", content: "TARSGO 招新候选人处理" },
   ];
 }
 

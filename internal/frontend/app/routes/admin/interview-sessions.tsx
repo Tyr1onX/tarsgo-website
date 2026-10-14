@@ -11,7 +11,7 @@ import {
 } from "~/lib/registrations-client";
 
 export function meta() {
-  return [{ title: "面试场次 | TARS-GO" }, { name: "description", content: "配置当前招新的面试日期、时段和地点" }];
+  return [{ title: "面试场次 | TARSGO" }, { name: "description", content: "配置当前招新的面试日期、时段和地点" }];
 }
 
 const presets = [

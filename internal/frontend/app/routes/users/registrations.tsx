@@ -74,7 +74,7 @@ const registrationStatusMeta: Record<RecruitmentPageRegistrationSummary["status"
 
 export function meta() {
   return [
-    { title: "我的招新 | TARS-GO" },
+    { title: "我的招新 | TARSGO" },
     { name: "description", content: "查看吉甲大师招新进度并完成后续确认" },
   ];
 }
@@ -452,7 +452,7 @@ function PageHero({
   return (
     <section className="candidate-page-header admin-panel">
       <div className="candidate-page-intro-copy">
-        <p className="candidate-eyebrow">TARS-GO <span aria-hidden="true">/</span> 候选人服务</p>
+        <p className="candidate-eyebrow">TARSGO <span aria-hidden="true">/</span> 候选人服务</p>
         <h1 className="candidate-page-title">纳新报名</h1>
         <p className="candidate-page-description">{description}</p>
       </div>
@@ -1181,7 +1181,7 @@ function UnavailableStateCard({ reason }: { reason: string }) {
     <section className="admin-panel candidate-unavailable-card">
       <span className="admin-status admin-status--withdrawn">{isQuotaReached ? "报名已结束" : "暂未开放"}</span>
       <h2>{isQuotaReached ? "本轮报名名额已满" : "当前暂不可报名"}</h2>
-      <p>{isQuotaReached ? "本轮报名已结束，感谢关注 TARS-GO。" : reason}</p>
+      <p>{isQuotaReached ? "本轮报名已结束，感谢关注 TARSGO。" : reason}</p>
       {!isQuotaReached ? <p className="candidate-unavailable-hint"><Icon icon={clockIcon} className="h-4 w-4" />请留意站内通知，开放后会在此处更新。</p> : null}
     </section>
   );

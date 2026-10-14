@@ -3,7 +3,7 @@ export function SiteLogo({ className = "" }: { className?: string }) {
     <span className={`site-logo ${className}`.trim()}>
       <img
         src="/assets/images/Logo/tarsgo-logo-v5.svg"
-        alt="TARS-GO"
+        alt="TARSGO"
         className="site-logo__image site-logo__image--dark"
       />
       <img
