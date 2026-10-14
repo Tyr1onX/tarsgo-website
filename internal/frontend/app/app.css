@@ -1651,6 +1651,26 @@ html {
   outline-offset: 2px;
 }
 
+@keyframes robot-showcase-image-enter {
+  from {
+    opacity: 0.72;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
+
+.public-home .robot-showcase-image {
+  animation: robot-showcase-image-enter 240ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .public-home .robot-showcase-image {
+    animation: none;
+  }
+}
+
 @media (max-width: 639px) {
   .public-home-hero-shade {
     background: linear-gradient(

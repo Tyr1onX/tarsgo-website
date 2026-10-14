@@ -518,6 +518,7 @@ function getNavbarUser(): AuthUser | null | undefined {
 export default function Home() {
   const [activeAboutModuleIndex, setActiveAboutModuleIndex] = useState(0);
   const [activeMilestoneIndex, setActiveMilestoneIndex] = useState(0);
+  const [activeRobotIndex, setActiveRobotIndex] = useState(0);
   const [showAllCertificates, setShowAllCertificates] = useState(false);
 
   const toggleAllCertificates = () => {
@@ -527,6 +528,7 @@ export default function Home() {
   const [authError, setAuthError] = useState(false);
   const activeAboutModule = aboutModules[activeAboutModuleIndex];
   const activeMilestone = timelineMilestones[activeMilestoneIndex];
+  const activeRobot = robots[activeRobotIndex];
 
   useEffect(() => {
     let disposed = false;
@@ -1029,52 +1031,100 @@ export default function Home() {
             labelEn="OUR ROBOTS"
           />
 
-          <div className="grid gap-7 lg:grid-cols-[1.3fr_0.7fr] lg:gap-10">
-            <figure className="overflow-hidden bg-[#171b1a]">
-              <div className="relative aspect-[4/3] min-h-[320px] overflow-hidden bg-[#171b1a] sm:min-h-[420px] lg:min-h-0">
+          <div className="grid gap-7 lg:grid-cols-[minmax(0,1.7fr)_minmax(17rem,0.8fr)] lg:items-stretch lg:gap-12 xl:gap-16">
+            <figure className="min-w-0">
+              <div className="relative aspect-[4/3] overflow-hidden bg-[#111312] sm:aspect-[16/10]">
                 <img
-                  src={robots[0].image}
-                  alt={robots[0].name}
+                  key={activeRobot.image}
+                  src={activeRobot.image}
+                  alt={activeRobot.name}
                   loading="lazy"
                   decoding="async"
-                  className="absolute inset-0 h-full w-full object-contain object-center"
+                  className="robot-showcase-image absolute inset-0 h-full w-full object-contain object-center p-2 sm:p-4 lg:p-6"
+                  onError={(event) => {
+                    event.currentTarget.hidden = true;
+                  }}
                 />
               </div>
-              <figcaption className="flex items-center justify-between gap-4 border-t border-white/10 px-5 py-4 sm:px-7">
-                <span className="font-mono text-xs tracking-[0.14em] text-[#D0AD69]">
-                  01 / 主展示
-                </span>
-                <h3 className="text-lg font-semibold text-fg-primary sm:text-xl">
-                  {robots[0].name}
-                </h3>
+              <figcaption
+                aria-live="polite"
+                aria-atomic="true"
+                className="flex min-h-[82px] items-center justify-between gap-4 border-b border-white/10 py-4 sm:py-5"
+              >
+                <div>
+                  <p className="font-mono text-[11px] tracking-[0.16em] text-[#D0AD69]">
+                    {String(activeRobotIndex + 1).padStart(2, "0")} / 05
+                  </p>
+                  <h3 className="mt-1 text-xl font-semibold text-fg-primary sm:text-2xl">
+                    {activeRobot.name}
+                  </h3>
+                </div>
               </figcaption>
             </figure>
 
-            <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4 lg:grid-cols-1 lg:gap-0">
-              {robots.slice(1).map((robot, index) => (
-                <article
-                  key={robot.name}
-                  className="min-w-0 lg:grid lg:grid-cols-[120px_1fr] lg:items-center lg:gap-4 lg:border-b lg:border-white/10 lg:py-3.5"
-                >
-                  <div className="aspect-[4/3] overflow-hidden bg-[#171b1a] lg:aspect-[5/3]">
-                    <img
-                      src={robot.image}
-                      alt={robot.name}
-                      loading="lazy"
-                      decoding="async"
-                      className="h-full w-full object-cover"
-                    />
-                  </div>
-                  <div className="mt-2 flex items-baseline gap-2 lg:mt-0">
-                    <span className="font-mono text-[10px] text-[#D0AD69]">
-                      {String(index + 2).padStart(2, "0")}
-                    </span>
-                    <h3 className="text-sm font-semibold text-fg-primary sm:text-base">
-                      {robot.name}
-                    </h3>
-                  </div>
-                </article>
-              ))}
+            <div className="min-w-0">
+              <div className="flex items-center justify-between pb-3 text-[11px] tracking-[0.12em] text-fg-muted">
+                <h3 className="font-medium text-fg-primary">选择机器人</h3>
+                <span className="font-mono">01—05</span>
+              </div>
+              <div
+                role="group"
+                aria-label="选择展示机器人"
+                className="border-y border-white/10"
+              >
+                {robots.map((robot, index) => {
+                  const selected = index === activeRobotIndex;
+                  const number = String(index + 1).padStart(2, "0");
+
+                  return (
+                    <button
+                      key={robot.name}
+                      type="button"
+                      aria-label={number + " " + robot.name}
+                      aria-pressed={selected}
+                      onClick={() => setActiveRobotIndex(index)}
+                      className={
+                        "group grid min-h-[78px] w-full grid-cols-[64px_minmax(0,1fr)] items-center gap-4 border-b border-l-2 px-3 text-left transition-colors last:border-b-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D0AD69] sm:min-h-[86px] sm:grid-cols-[76px_minmax(0,1fr)] " +
+                        (selected
+                          ? "border-l-[#D0AD69] bg-white/[0.04]"
+                          : "border-l-transparent hover:bg-white/[0.025]")
+                      }
+                    >
+                      <span className="flex h-12 w-14 items-center justify-center bg-[#171a19] sm:h-14 sm:w-[68px]">
+                        <img
+                          src={robot.image}
+                          alt=""
+                          aria-hidden="true"
+                          loading="lazy"
+                          decoding="async"
+                          className="h-full w-full object-contain p-1"
+                          onError={(event) => {
+                            event.currentTarget.hidden = true;
+                          }}
+                        />
+                      </span>
+                      <span className="flex min-w-0 items-baseline gap-3">
+                        <span
+                          className={
+                            "font-mono text-xs tracking-[0.12em] " +
+                            (selected ? "text-[#D0AD69]" : "text-fg-muted")
+                          }
+                        >
+                          {number}
+                        </span>
+                        <span
+                          className={
+                            "truncate text-sm font-medium sm:text-base " +
+                            (selected ? "text-fg-primary" : "text-fg-muted")
+                          }
+                        >
+                          {robot.name}
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>
