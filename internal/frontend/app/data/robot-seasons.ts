@@ -21,6 +21,19 @@ export type RobotSeason = {
   robots: readonly RobotSeasonEntry[];
 };
 
+const robotNumberCollator = new Intl.Collator("zh-CN", { numeric: true, sensitivity: "base" });
+
+export function sortRobotsByNumber(robots: readonly RobotSeasonEntry[]): RobotSeasonEntry[] {
+  return [...robots].sort((left, right) => {
+    const numberOrder = robotNumberCollator.compare(left.number, right.number);
+    if (numberOrder !== 0) return numberOrder;
+
+    const leftIsBackup = left.name.includes("备车");
+    const rightIsBackup = right.name.includes("备车");
+    return Number(leftIsBackup) - Number(rightIsBackup);
+  });
+}
+
 export const robotSeasons = [
   {
     season: 2026,
