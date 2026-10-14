@@ -1,5 +1,5 @@
 import type { Route } from "./+types/home";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { Navbar } from "../components/navbar";
 import { Link } from "react-router";
 import {
@@ -38,7 +38,7 @@ const timelineMilestones = [
       "搭建机械、电控、视觉核心团队。",
       "开启 ICRA 人工智能挑战赛征程。",
     ],
-    images: ["/assets/images/Milestone/2018-set-sail.webp"],
+    images: [{ src: "/assets/images/Milestone/2018-set-sail.webp", width: 660, height: 428 }],
   },
   {
     year: "2019",
@@ -50,7 +50,7 @@ const timelineMilestones = [
       "开启全国大学生 RoboMaster 对抗赛征程。",
       "开展暑期夏令营和冬令营，跨南岭、南湖、南区，参与学院多达 12 个。",
     ],
-    images: ["/assets/images/Milestone/2019-breakthrough.webp"],
+    images: [{ src: "/assets/images/Milestone/2019-breakthrough.webp", width: 900, height: 550 }],
   },
   {
     year: "2020",
@@ -62,8 +62,8 @@ const timelineMilestones = [
       "ICRA 人工智能挑战赛获二等奖。",
     ],
     images: [
-      "/assets/images/Milestone/2020-first-achievement-01.webp",
-      "/assets/images/Milestone/2020-first-achievement-02.webp",
+      { src: "/assets/images/Milestone/2020-first-achievement-01.webp", width: 900, height: 393 },
+      { src: "/assets/images/Milestone/2020-first-achievement-02.webp", width: 660, height: 933 },
     ],
   },
   {
@@ -77,7 +77,7 @@ const timelineMilestones = [
       "全国大学生 RoboMaster 对抗赛三等奖。",
       "高校联盟赛·黑龙江站八强。",
     ],
-    images: ["/assets/images/Milestone/2021-technological-iteration.webp"],
+    images: [{ src: "/assets/images/Milestone/2021-technological-iteration.webp", width: 1267, height: 845 }],
   },
   {
     year: "2022",
@@ -89,8 +89,8 @@ const timelineMilestones = [
       "全国大学生 RoboMaster 对抗赛三等奖。",
     ],
     images: [
-      "/assets/images/Milestone/2022-inheritance-system-01.webp",
-      "/assets/images/Milestone/2022-inheritance-system-02.webp",
+      { src: "/assets/images/Milestone/2022-inheritance-system-01.webp", width: 1080, height: 773 },
+      { src: "/assets/images/Milestone/2022-inheritance-system-02.webp", width: 1269, height: 845 },
     ],
   },
   {
@@ -103,8 +103,8 @@ const timelineMilestones = [
       "全国大学生 RoboMaster 对抗赛三等奖。",
     ],
     images: [
-      "/assets/images/Milestone/2023-cultural-development-01.webp",
-      "/assets/images/Milestone/2023-cultural-development-02.webp",
+      { src: "/assets/images/Milestone/2023-cultural-development-01.webp", width: 1222, height: 862 },
+      { src: "/assets/images/Milestone/2023-cultural-development-02.webp", width: 1258, height: 839 },
     ],
   },
   {
@@ -116,7 +116,7 @@ const timelineMilestones = [
       "晋级全国总决赛。",
       "获国家级二等奖、英雄一等奖。",
     ],
-    images: ["/assets/images/Milestone/2024-national-competition.webp"],
+    images: [{ src: "/assets/images/Milestone/2024-national-competition.webp", width: 1080, height: 720 }],
   },
   {
     year: "2025",
@@ -128,7 +128,7 @@ const timelineMilestones = [
       "全国大学生 RoboMaster 对抗赛国家级二等奖。",
       "工程一等奖、英雄一等奖等。",
     ],
-    images: ["/assets/images/Milestone/2025-legacy.webp"],
+    images: [{ src: "/assets/images/Milestone/2025-legacy.webp", width: 1269, height: 714 }],
   },
 ];
 
@@ -261,26 +261,6 @@ const aboutModules = [
     imageAlt: "团队成员在交流现场共同观察一件工程样品。",
   },
 ];
-
-function getCertificateVisibilityClass(index: number) {
-  if (index < 4) {
-    return "";
-  }
-
-  if (index < 6) {
-    return "hidden sm:block";
-  }
-
-  if (index < 8) {
-    return "hidden lg:block";
-  }
-
-  if (index < 10) {
-    return "hidden xl:block";
-  }
-
-  return "hidden";
-}
 
 function SectionHeading({
   index,
@@ -517,17 +497,13 @@ function getNavbarUser(): AuthUser | null | undefined {
 
 export default function Home() {
   const [activeAboutModuleIndex, setActiveAboutModuleIndex] = useState(0);
-  const [activeMilestoneIndex, setActiveMilestoneIndex] = useState(0);
   const [activeRobotIndex, setActiveRobotIndex] = useState(0);
-  const [showAllCertificates, setShowAllCertificates] = useState(false);
+  const [selectedCertificate, setSelectedCertificate] = useState<string | null>(null);
+  const certificateDialogRef = useRef<HTMLDialogElement>(null);
 
-  const toggleAllCertificates = () => {
-    setShowAllCertificates((current) => !current);
-  };
   const [currentUser, setCurrentUser] = useState<AuthUser | null | undefined>(getNavbarUser);
   const [authError, setAuthError] = useState(false);
   const activeAboutModule = aboutModules[activeAboutModuleIndex];
-  const activeMilestone = timelineMilestones[activeMilestoneIndex];
   const activeRobot = robots[activeRobotIndex];
 
   useEffect(() => {
@@ -559,16 +535,9 @@ export default function Home() {
     };
   }, []);
 
-  function showPreviousMilestone() {
-    setActiveMilestoneIndex((current) =>
-      current === 0 ? timelineMilestones.length - 1 : current - 1,
-    );
-  }
-
-  function showNextMilestone() {
-    setActiveMilestoneIndex((current) =>
-      current === timelineMilestones.length - 1 ? 0 : current + 1,
-    );
+  function openCertificate(image: string) {
+    setSelectedCertificate(image);
+    certificateDialogRef.current?.showModal();
   }
 
   return (
@@ -745,275 +714,101 @@ export default function Home() {
           />
 
           <div className="relative mx-auto max-w-[1240px]">
-            {/* Timeline rail navigation */}
-            <div className="mb-8 sm:mb-10">
-              <div className="overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                <div className="relative min-w-[760px] px-2 pt-2 lg:min-w-0">
-                  {(() => {
-                    const total = timelineMilestones.length;
-                    const railInsetPercent = 100 / (total * 2);
-                    const progressWidth =
-                      total > 1
-                        ? (activeMilestoneIndex / (total - 1)) *
-                          (100 - 2 * railInsetPercent)
-                        : 0;
-                    return (
-                      <>
-                        <div
-                          aria-hidden
-                          className="pointer-events-none absolute top-[44px] h-[2px] rounded-full bg-gradient-to-r from-transparent via-white/15 to-transparent"
-                          style={{
-                            left: `${railInsetPercent}%`,
-                            right: `${railInsetPercent}%`,
-                          }}
-                        />
-                        <div
-                          aria-hidden
-                          className="pointer-events-none absolute top-[44px] h-[2px] rounded-full bg-[#D0AD69]"
-                          style={{
-                            left: `${railInsetPercent}%`,
-                            width: `${progressWidth}%`,
-                            transition:
-                              "width 640ms cubic-bezier(0.22, 1, 0.36, 1)",
-                          }}
-                        />
-                      </>
-                    );
-                  })()}
+            <ol className="ml-2 border-l border-white/15 pl-6 sm:ml-8 sm:pl-10">
+              {timelineMilestones.map((item) => {
+                const isFeatured = item.year === "2018" || item.year === "2024";
 
-                  <div
-                    className="relative grid gap-2"
-                    style={{
-                      gridTemplateColumns: `repeat(${timelineMilestones.length}, minmax(0, 1fr))`,
-                    }}
+                return (
+                  <li
+                    key={item.year}
+                    className="relative border-b border-white/10 py-8 first:pt-2 last:border-b-0 sm:py-10 lg:py-12"
                   >
-                    {timelineMilestones.map((item, index) => {
-                      const isActive = index === activeMilestoneIndex;
-                      const isPast = index < activeMilestoneIndex;
-                      return (
-                        <button
-                          key={item.year}
-                          type="button"
-                          onClick={() => setActiveMilestoneIndex(index)}
-                          className="group relative flex flex-col items-center focus:outline-none"
-                          aria-pressed={isActive}
-                          aria-label={`${item.year}年 ${item.title}`}
-                        >
-                          <span
-                            className={`font-mono text-[13px] font-semibold tracking-[0.08em] ${
-                              isActive
-                                ? "text-[#D0AD69]"
-                                : isPast
-                                  ? "text-[#D0AD69]/70"
-                                  : "text-fg-dim group-hover:text-fg-muted"
-                            }`}
-                          >
-                            {item.year}
-                          </span>
-
-                          <span className="h-5" />
-
-                          <span
-                            className={`relative z-10 flex items-center justify-center rounded-full border-2 transition-all duration-300 ${
-                              isActive
-                                ? "h-5 w-5 border-[#D0AD69] bg-[#D0AD69]"
-                                : isPast
-                                ? "h-4 w-4 border-[#D0AD69]/65 bg-[#D0AD69]/30"
-                                : "h-4 w-4 border-white/20 bg-surface-primary group-hover:border-[#D0AD69]/55 group-hover:bg-[#D0AD69]/10"
-                            }`}
-                          >
-                          </span>
-
-                          <span
-                            className={`mt-3 text-center text-xs font-semibold transition-all duration-300 sm:text-[13px] ${
-                              isActive
-                                ? "text-fg-primary"
-                                : "text-fg-muted group-hover:text-fg-primary"
-                            }`}
-                          >
-                            {item.title}
-                          </span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Counter + arrow navigation */}
-            <div className="mb-6 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <span className="font-mono text-sm font-bold tracking-[0.18em] text-[#D0AD69]">
-                  {String(activeMilestoneIndex + 1).padStart(2, "0")}
-                </span>
-                <span className="h-px w-10 bg-gradient-to-r from-[#D0AD69]/45 to-transparent sm:w-14" />
-                <span className="font-mono text-sm text-fg-dim">
-                  / {String(timelineMilestones.length).padStart(2, "0")}
-                </span>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={showPreviousMilestone}
-                  className="motion-button flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-surface-light text-fg-primary hover:border-[#D0AD69]/40 hover:text-[#D0AD69]"
-                  aria-label="查看上一段历程"
-                >
-                  <svg
-                    className="h-5 w-5"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="m15 18-6-6 6-6" />
-                  </svg>
-                </button>
-                <button
-                  type="button"
-                  onClick={showNextMilestone}
-                  className="motion-button flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-surface-light text-fg-primary hover:border-[#D0AD69]/40 hover:text-[#D0AD69]"
-                  aria-label="查看下一段历程"
-                >
-                  <svg
-                    className="h-5 w-5"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  >
-                    <path d="m9 18 6-6-6-6" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            <div className="relative overflow-hidden rounded-[32px] border border-white/8 bg-surface-light/86 p-6 shadow-[0_24px_70px_-40px_rgba(2,6,23,0.9)] sm:p-8">
-              <article
-                key={activeMilestone.year}
-                className="motion-fade-up relative z-10 grid gap-6 lg:grid-cols-[0.92fr_1.08fr] lg:items-start"
-              >
-                <div className="flex flex-col gap-6">
-                  <div>
-                    <div className="flex items-center gap-3">
-                      <span
-                        aria-hidden
-                        className="inline-flex h-6 w-6 items-center justify-center rounded-md border border-[#D0AD69]/35 bg-[#D0AD69]/10 shadow-[inset_0_0_10px_rgba(255,215,0,0.22)]"
-                      >
-                        <svg
-                          className="h-3.5 w-3.5 text-[#D0AD69]"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <circle cx="12" cy="12" r="9" />
-                          <path d="M12 7v5l3 2" />
-                        </svg>
-                      </span>
-                      <p className="text-xs font-semibold uppercase tracking-[0.28em] text-[#D0AD69]">
-                        Team Timeline
-                      </p>
-                      <span
-                        aria-hidden
-                        className="h-px flex-1 bg-gradient-to-r from-[#D0AD69]/40 via-[#D0AD69]/10 to-transparent"
-                      />
-                    </div>
-                    <div className="mt-3 flex flex-wrap items-baseline gap-x-5 gap-y-1">
-                      <span
-                        className="font-display text-[56px] font-semibold leading-none tracking-tight text-[#D0AD69] sm:text-[72px] lg:text-[84px]"
-                      >
-                        {activeMilestone.year}
-                      </span>
-                      <h3 className="font-display text-2xl text-fg-primary sm:text-3xl lg:text-[34px]">
-                        · {activeMilestone.title}
-                      </h3>
-                    </div>
-                  </div>
-
-                  <p className="text-sm leading-7 text-fg-muted sm:text-base">
-                    {activeMilestone.intro}
-                  </p>
-
-                  <div className="relative overflow-hidden rounded-[24px] border border-[#D0AD69]/18 bg-surface-primary p-5">
-                    <div className="relative flex items-center gap-3">
-                      <span
-                        aria-hidden
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-[#D0AD69]/35 bg-[#D0AD69]/12 shadow-[inset_0_0_10px_rgba(255,215,0,0.25)]"
-                      >
-                        <svg
-                          className="h-3.5 w-3.5 text-[#D0AD69]"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <path d="m12 2 2.39 6.96h7.32l-5.92 4.3 2.26 6.96L12 15.9l-6.05 4.32 2.26-6.96-5.92-4.3h7.32Z" />
-                        </svg>
-                      </span>
-                      <h4 className="text-sm font-semibold uppercase tracking-[0.22em] text-[#D0AD69]">
-                        关键节点
-                      </h4>
-                      <span
-                        aria-hidden
-                        className="h-px flex-1 bg-gradient-to-r from-[#D0AD69]/45 via-[#D0AD69]/10 to-transparent"
-                      />
-                    </div>
-                    <ul className="relative mt-5 space-y-4 pl-1">
-                      <span
-                        aria-hidden
-                        className="pointer-events-none absolute left-[11px] top-2 bottom-2 w-px bg-gradient-to-b from-[#D0AD69]/50 via-[#D0AD69]/20 to-transparent"
-                      />
-                      {activeMilestone.highlights.map((highlight) => (
-                        <li
-                          key={highlight}
-                          className="group relative flex items-start gap-4 text-sm leading-7 text-fg-muted transition-colors duration-300 hover:text-fg-primary sm:text-[15px]"
-                        >
-                          <span
-                            aria-hidden
-                            className="relative z-10 mt-1 flex h-[22px] w-[22px] shrink-0 items-center justify-center rounded-full border border-[#D0AD69]/45 bg-surface-primary shadow-[0_0_14px_rgba(255,215,0,0.32)] transition-all duration-300 group-hover:border-[#D0AD69] group-hover:shadow-[0_0_18px_rgba(255,215,0,0.55)]"
-                          >
-                            <span className="relative h-2 w-2 rounded-full bg-[#D0AD69]" />
-                          </span>
-                          <span className="pt-0.5">{highlight}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-
-                <div
-                  className={`grid gap-4 ${
-                    activeMilestone.images.length > 1 ? "sm:grid-cols-2" : "grid-cols-1"
-                  }`}
-                >
-                  {activeMilestone.images.map((image, index) => (
-                    <figure
-                      key={image}
-                      className={`overflow-hidden rounded-[24px] border border-white/8 bg-surface-primary ${
-                        activeMilestone.images.length === 1 ? "sm:max-w-[760px]" : ""
-                      }`}
+                    <span
+                      aria-hidden="true"
+                      className="absolute -left-[29px] top-[2.15rem] h-2.5 w-2.5 rounded-full border border-[#D0AD69] bg-[#101516] sm:-left-[45px] sm:top-[2.65rem]"
+                    />
+                    <article
+                      className={"grid gap-x-8 gap-y-5 " + (
+                        isFeatured
+                          ? "lg:grid-cols-[minmax(8rem,0.55fr)_minmax(0,1.15fr)_minmax(20rem,1.4fr)] lg:items-start"
+                          : "lg:grid-cols-[minmax(7rem,0.45fr)_minmax(0,1.35fr)_minmax(16rem,0.9fr)] lg:items-center"
+                      )}
                     >
-                      <img
-                        src={image}
-                        alt={`${activeMilestone.year}年${activeMilestone.title}历史图片${index + 1}`}
-                        loading="lazy"
-                        className="h-full w-full object-cover"
-                      />
-                    </figure>
-                  ))}
-                </div>
-              </article>
-            </div>
+                      <div className="flex items-baseline gap-4 lg:block">
+                        <p
+                          className={"font-mono leading-none tracking-[-0.08em] " + (
+                            isFeatured
+                              ? "text-5xl font-medium text-[#D0AD69] sm:text-6xl lg:text-[5.5rem]"
+                              : "text-4xl font-normal text-[#D0AD69]/75 sm:text-5xl lg:text-[3.5rem]"
+                          )}
+                        >
+                          {item.year}
+                        </p>
+                        <h3
+                          className={"font-semibold text-fg-primary " + (
+                            isFeatured
+                              ? "text-xl sm:text-2xl lg:mt-4"
+                              : "text-lg sm:text-xl lg:mt-3"
+                          )}
+                        >
+                          {item.title}
+                        </h3>
+                      </div>
+
+                      <div>
+                        <p
+                          className={"leading-7 text-fg-muted " + (
+                            isFeatured
+                              ? "text-sm sm:text-base"
+                              : "text-sm sm:text-[15px]"
+                          )}
+                        >
+                          {item.intro}
+                        </p>
+                        <ul className="mt-4 space-y-2.5">
+                          {item.highlights.map((highlight) => (
+                            <li
+                              key={highlight}
+                              className="grid grid-cols-[8px_minmax(0,1fr)] items-start gap-3 text-sm leading-6 text-fg-muted sm:text-[15px]"
+                            >
+                              <span
+                                aria-hidden="true"
+                                className="mt-[0.65rem] h-1.5 w-1.5 rounded-full bg-[#D0AD69]/75"
+                              />
+                              <span>{highlight}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+
+                      <div
+                        className={
+                          "grid items-start gap-3 " +
+                          (item.images.length > 1 ? "grid-cols-2 lg:grid-cols-1" : "")
+                        }
+                      >
+                        {item.images.map((image, index) => (
+                          <figure
+                            key={image.src}
+                            className="overflow-hidden bg-[#171a19]"
+                          >
+                            <img
+                              src={image.src}
+                              alt={item.year + "年" + item.title + "历史图片" + (index + 1)}
+                              width={image.width}
+                              height={image.height}
+                              loading="lazy"
+                              decoding="async"
+                              className="block h-auto max-h-[420px] w-full object-contain object-left-top"
+                            />
+                          </figure>
+                        ))}
+                      </div>
+                    </article>
+                  </li>
+                );
+              })}
+            </ol>
           </div>
         </div>
       </section>
@@ -1141,60 +936,88 @@ export default function Home() {
             total="05"
             labelZh="成就展示"
             labelEn="ACHIEVEMENTS"
-            title="团队荣誉证书与阶段成果陈列"
-            description="这里集中展示团队在创新创业、学科竞赛与 RoboMaster 相关实践中获得的阶段性荣誉。整体采用规整的矩形照片墙陈列，便于更直接地浏览不同阶段的获奖成果。"
+            title="把一路走来的成果，留在真实记录里"
+            description="团队在创新创业、学科竞赛与 RoboMaster 实践中积累的阶段性荣誉。"
           />
 
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+          <div
+            id="achievement-certificate-grid"
+            className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
+          >
             {achievementCertificates.map((image, index) => {
-              const breakpointClass =
-                showAllCertificates ? "" : getCertificateVisibilityClass(index);
+              const isFeatured = index === 0;
+              const number = String(index + 1).padStart(2, "0");
+
               return (
                 <article
                   key={image}
-                  className={`motion-surface group relative aspect-[4/3] overflow-hidden rounded-[24px] border border-white/8 bg-surface-light/86 p-3 sm:p-4 ${breakpointClass}`}
+                  className={"min-w-0 " + (isFeatured ? "col-span-2" : "")}
                 >
-                  <span className="absolute left-4 top-4 z-10 rounded-full border border-white/10 bg-black/70 px-3 py-1 text-[11px] font-semibold tracking-[0.18em] text-accent-gold">
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
-                  <div className="h-full overflow-hidden rounded-[18px] bg-surface-primary">
-                    <img
-                      src={image}
-                      alt={`团队荣誉证书${index + 1}`}
-                      loading="lazy"
-                      className="h-full w-full object-fill transition-transform duration-500 ease-out group-hover:scale-[1.02]"
-                    />
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => openCertificate(image)}
+                    aria-label={"第" + number + "张团队荣誉证书，查看原图"}
+                    aria-haspopup="dialog"
+                    className="group block w-full text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#D0AD69]"
+                  >
+                    <span
+                      className={
+                        "relative block overflow-hidden border border-white/10 bg-[#f4f2ed] " +
+                        (isFeatured ? "aspect-[16/10]" : "aspect-[4/3]")
+                      }
+                    >
+                      <img
+                        src={image}
+                        alt=""
+                        aria-hidden="true"
+                        loading="lazy"
+                        decoding="async"
+                        className="h-full w-full object-contain"
+                      />
+                    </span>
+                    <span className="mt-2 flex items-baseline justify-between gap-3 border-b border-white/10 pb-2">
+                      <span className="font-mono text-xs tracking-[0.14em] text-[#D0AD69]">
+                        {number}
+                      </span>
+                      <span className="text-xs text-fg-dim transition-colors group-hover:text-fg-primary">
+                        查看原图
+                      </span>
+                    </span>
+                  </button>
                 </article>
               );
             })}
           </div>
 
-          {achievementCertificates.length > 10 ? (
-            <div className="mt-10 flex justify-center">
-              <button
-                type="button"
-                onClick={toggleAllCertificates}
-                className="motion-button inline-flex items-center gap-2 rounded-full border border-white/12 bg-surface-light px-7 py-3 text-sm font-semibold tracking-[0.18em] text-fg-primary hover:border-accent-gold/40 hover:text-accent-gold"
-                aria-expanded={showAllCertificates}
-              >
-                More
-                <svg
-                  className={`h-4 w-4 transition-transform duration-300 ${
-                    showAllCertificates ? "rotate-180" : ""
-                  }`}
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
+          <dialog
+            ref={certificateDialogRef}
+            aria-label="团队荣誉证书预览"
+            onClose={() => setSelectedCertificate(null)}
+            onClick={(event) => {
+              if (event.target === event.currentTarget) {
+                certificateDialogRef.current?.close();
+              }
+            }}
+            className="m-auto max-h-[92dvh] w-[min(92vw,76rem)] max-w-none overflow-visible border-0 bg-transparent p-0 text-white backdrop:bg-black/90"
+          >
+            {selectedCertificate ? (
+              <div className="relative flex max-h-[92dvh] justify-center">
+                <button
+                  type="button"
+                  onClick={() => certificateDialogRef.current?.close()}
+                  aria-label="关闭证书预览"
+                  className="absolute right-2 top-2 z-10 flex h-11 min-w-11 items-center justify-center border border-white/20 bg-[#101516]/90 px-3 text-sm text-white hover:border-[#D0AD69] focus-visible:outline-2 focus-visible:outline-[#D0AD69] sm:right-4 sm:top-4"
                 >
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
-              </button>
-            </div>
-          ) : null}
+                  关闭
+                </button>
+                <img
+                  src={selectedCertificate}
+                  alt="团队荣誉证书原图"
+                  className="max-h-[92dvh] w-auto max-w-full object-contain"
+                />
+              </div>
+            ) : null}
+          </dialog>
         </div>
       </section>
 
