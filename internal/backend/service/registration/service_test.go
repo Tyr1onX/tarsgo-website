@@ -155,11 +155,11 @@ func registrationSubmissionIdentityTestInput(contactEmail string) SubmitRegistra
 	return SubmitRegistrationInput{
 		FormID: 301,
 		Values: map[string][]string{
-			"name": {"重复候选人"},
-			"phone": {"13800138001"},
-			"email": {contactEmail},
+			"name":            {"重复候选人"},
+			"phone":           {"13800138001"},
+			"email":           {contactEmail},
 			"preferred_group": {"101"},
-			"direction": {"mechanical"},
+			"direction":       {"mechanical"},
 		},
 	}
 }
@@ -188,11 +188,12 @@ func TestRegistrationServiceDoesNotTreatUnverifiedContactDetailsAsCrossAccountUn
 	service := newRegistrationServiceWithDependencies(repo, nil)
 	service.now = func() time.Time { return time.Date(2026, 10, 5, 8, 0, 0, 0, time.Local) }
 
-	for _, actorID := range []uint64{777, 778} {
+	for index, actorID := range []uint64{777, 778} {
+		contactEmail := []string{"first@example.com", "second@example.com"}[index]
 		_, err := service.SubmitRegistration(
 			context.Background(),
 			RegistrationFormActor{ID: actorID, RoleName: model.RoleNameUser},
-			registrationSubmissionIdentityTestInput("candidate@example.com"),
+			registrationSubmissionIdentityTestInput(contactEmail),
 		)
 		if err != nil {
 			t.Fatalf("unverified shared contact details must remain eligible for manual review, actor %d: %v", actorID, err)
