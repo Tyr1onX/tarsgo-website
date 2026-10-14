@@ -281,7 +281,7 @@ function SectionHeading({
   const color = "var(--color-accent-primary)";
 
   return (
-    <div className="public-section-heading mx-auto mb-8 max-w-[1440px] sm:mb-10">
+    <div className="public-section-heading mx-auto mb-9 max-w-[1440px] sm:mb-12">
       <div className="flex items-center justify-center gap-3 sm:justify-start sm:gap-4">
         <span
           className="font-mono text-[11px] font-semibold tracking-[0.18em] sm:text-xs"
@@ -297,18 +297,18 @@ function SectionHeading({
         </span>
       </div>
 
-      <h2 className="mt-3 text-center text-[32px] font-semibold leading-tight tracking-[-0.03em] text-fg-primary sm:text-left sm:text-[40px]">
+      <h2 className="mt-4 text-center text-[32px] font-semibold leading-tight tracking-[-0.03em] text-fg-primary sm:text-left sm:text-[40px]">
         {labelZh}
       </h2>
 
       {title ? (
-        <h3 className="mt-2 text-center text-base font-medium text-fg-primary sm:text-left sm:text-lg">
+        <h3 className="mt-3 text-center text-base font-medium text-fg-primary sm:text-left sm:text-lg">
           {title}
         </h3>
       ) : null}
 
       {description ? (
-        <p className="mx-auto mt-3 max-w-[760px] text-center text-sm leading-6 text-fg-muted sm:mx-0 sm:text-left sm:text-[15px] sm:leading-7">
+        <p className="mx-auto mt-4 max-w-[760px] text-center text-sm leading-6 text-fg-muted sm:mx-0 sm:text-left sm:text-[15px] sm:leading-7">
           {description}
         </p>
       ) : null}
@@ -405,7 +405,7 @@ function AboutImageReveal({ src, alt }: { src: string; alt: string }) {
   const incomingSrc = transition.incomingSrc;
 
   return (
-    <div className="relative aspect-[4/3] overflow-hidden bg-surface-card md:aspect-auto md:min-h-[420px]">
+    <div className="relative aspect-[4/3] overflow-hidden bg-surface-card md:aspect-[16/10]">
       <img
         src={transition.baseSrc}
         alt={incomingSrc ? "" : alt}
@@ -499,8 +499,10 @@ function getNavbarUser(): AuthUser | null | undefined {
 export default function Home() {
   const [activeAboutModuleIndex, setActiveAboutModuleIndex] = useState(0);
   const [activeRobotIndex, setActiveRobotIndex] = useState(0);
+  const [activeTimelineYear, setActiveTimelineYear] = useState(timelineMilestones[0].year);
   const [selectedCertificate, setSelectedCertificate] = useState<string | null>(null);
   const certificateDialogRef = useRef<HTMLDialogElement>(null);
+  const timelineWindowRef = useRef<HTMLDivElement | null>(null);
 
   const [currentUser, setCurrentUser] = useState<AuthUser | null | undefined>(getNavbarUser);
   const [authError, setAuthError] = useState(false);
@@ -541,6 +543,28 @@ export default function Home() {
     certificateDialogRef.current?.showModal();
   }
 
+  function scrollToTimelineYear(year: string) {
+    const timelineWindow = timelineWindowRef.current;
+    const milestone = timelineWindow?.querySelector<HTMLElement>(`[data-timeline-year="${year}"]`);
+    if (!timelineWindow || !milestone) return;
+
+    const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ? "auto"
+      : "smooth";
+    setActiveTimelineYear(year);
+
+    if (window.matchMedia("(min-width: 1024px)").matches) {
+      const offset = milestone.getBoundingClientRect().top - timelineWindow.getBoundingClientRect().top;
+      timelineWindow.scrollTo({
+        top: Math.max(0, timelineWindow.scrollTop + offset - 12),
+        behavior,
+      });
+      return;
+    }
+
+    milestone.scrollIntoView({ behavior, block: "start" });
+  }
+
   return (
     <div className="public-home relative min-h-screen overflow-hidden bg-surface-primary text-fg-primary">
       <div className="relative z-10">
@@ -566,7 +590,7 @@ export default function Home() {
         </div>
 
         <div className="relative z-10 flex min-h-[88svh] items-center sm:min-h-[92svh]">
-          <div className="mx-auto flex w-full max-w-[1440px] items-center px-6 pb-20 pt-28 sm:px-10 sm:pt-32 lg:px-20">
+          <div className="public-home-container mx-auto flex w-full items-center pb-20 pt-28 sm:pt-32">
             <div className="flex max-w-2xl flex-col items-center gap-4 text-center sm:items-start sm:text-left">
               <img
                 src="/assets/images/Logo/tarsgo-logo-v5.svg"
@@ -621,7 +645,7 @@ export default function Home() {
         id="about"
         className="border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
       >
-        <div className="max-w-[1440px] mx-auto px-6 sm:px-10 lg:px-20">
+        <div className="public-home-container">
           <SectionHeading
             index="01"
             total="05"
@@ -704,7 +728,7 @@ export default function Home() {
         id="achievements"
         className="relative overflow-hidden border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
       >
-        <div className="max-w-[1440px] mx-auto px-6 sm:px-10 lg:px-20">
+        <div className="public-home-container">
           <SectionHeading
             index="02"
             total="05"
@@ -714,102 +738,133 @@ export default function Home() {
             description="从双创基地组建，到国际赛事历练，再到 RoboMaster 国赛突破，吉林大学吉甲大师双创基地在一届又一届成员的接力中不断完成技术积累、组织建设与文化沉淀。"
           />
 
-          <div className="relative mx-auto max-w-[1240px]">
-            <ol className="ml-2 border-l border-white/15 pl-6 sm:ml-8 sm:pl-10">
-              {timelineMilestones.map((item) => {
-                const isFeatured = item.year === "2018" || item.year === "2024";
+          <div className="team-timeline mx-auto max-w-[1240px]">
+            <nav aria-label="按年份定位团队历程" className="team-timeline-years">
+              {timelineMilestones.map((item) => (
+                <button
+                  key={item.year}
+                  type="button"
+                  aria-label={`跳转到${item.year}年：${item.title}`}
+                  aria-pressed={activeTimelineYear === item.year}
+                  onClick={() => scrollToTimelineYear(item.year)}
+                  className="team-timeline-year"
+                >
+                  {item.year}
+                </button>
+              ))}
+            </nav>
 
-                return (
-                  <li
-                    key={item.year}
-                    className="relative border-b border-white/10 py-8 first:pt-2 last:border-b-0 sm:py-10 lg:py-12"
-                  >
-                    <span
-                      aria-hidden="true"
-                      className="absolute -left-[29px] top-[2.15rem] h-2.5 w-2.5 rounded-full border border-accent-primary bg-surface-primary sm:-left-[45px] sm:top-[2.65rem]"
-                    />
-                    <article
-                      className={"grid gap-x-8 gap-y-5 " + (
-                        isFeatured
-                          ? "lg:grid-cols-[minmax(8rem,0.55fr)_minmax(0,1.15fr)_minmax(20rem,1.4fr)] lg:items-start"
-                          : "lg:grid-cols-[minmax(7rem,0.45fr)_minmax(0,1.35fr)_minmax(16rem,0.9fr)] lg:items-center"
-                      )}
+            <p id="team-timeline-scroll-help" className="team-timeline-help">
+              <span className="team-timeline-help--desktop">滚轮、触控板或聚焦后使用方向键与 Page Up／Down 滚动</span>
+              <span className="team-timeline-help--natural">完整历程随页面自然展开，可直接滚动浏览</span>
+            </p>
+
+            <div
+              ref={timelineWindowRef}
+              className="team-timeline-window"
+              role="region"
+              aria-label="团队历程内容，2018 至 2025 年"
+              aria-describedby="team-timeline-scroll-help"
+              tabIndex={0}
+            >
+              <ol className="team-timeline-list ml-2 border-l border-white/15 pl-6 sm:ml-8 sm:pl-10">
+                {timelineMilestones.map((item) => {
+                  const isFeatured = item.year === "2018" || item.year === "2024";
+
+                  return (
+                    <li
+                      key={item.year}
+                      id={`team-milestone-${item.year}`}
+                      data-timeline-year={item.year}
+                      className="team-timeline-milestone relative border-b border-white/10 py-8 first:pt-2 last:border-b-0 sm:py-10 lg:py-12"
                     >
-                      <div className="flex items-baseline gap-4 lg:block">
-                        <p
-                          className={"font-mono leading-none tracking-[-0.08em] " + (
-                            isFeatured
-                              ? "text-5xl font-medium text-accent-primary sm:text-6xl lg:text-[5.5rem]"
-                              : "text-4xl font-normal text-accent-primary/75 sm:text-5xl lg:text-[3.5rem]"
-                          )}
-                        >
-                          {item.year}
-                        </p>
-                        <h3
-                          className={"font-semibold text-fg-primary " + (
-                            isFeatured
-                              ? "text-xl sm:text-2xl lg:mt-4"
-                              : "text-lg sm:text-xl lg:mt-3"
-                          )}
-                        >
-                          {item.title}
-                        </h3>
-                      </div>
-
-                      <div>
-                        <p
-                          className={"leading-7 text-fg-muted " + (
-                            isFeatured
-                              ? "text-sm sm:text-base"
-                              : "text-sm sm:text-[15px]"
-                          )}
-                        >
-                          {item.intro}
-                        </p>
-                        <ul className="mt-4 space-y-2.5">
-                          {item.highlights.map((highlight) => (
-                            <li
-                              key={highlight}
-                              className="grid grid-cols-[8px_minmax(0,1fr)] items-start gap-3 text-sm leading-6 text-fg-muted sm:text-[15px]"
-                            >
-                              <span
-                                aria-hidden="true"
-                                className="mt-[0.65rem] h-1.5 w-1.5 rounded-full bg-accent-primary/75"
-                              />
-                              <span>{highlight}</span>
-                            </li>
-                          ))}
-                        </ul>
-                      </div>
-
-                      <div
-                        className={
-                          "grid items-start gap-3 " +
-                          (item.images.length > 1 ? "grid-cols-2 lg:grid-cols-1" : "")
-                        }
+                      <span
+                        aria-hidden="true"
+                        className="absolute -left-[29px] top-[2.15rem] h-2.5 w-2.5 rounded-full border border-accent-primary bg-surface-primary sm:-left-[45px] sm:top-[2.65rem]"
+                      />
+                      <article
+                        className={"grid gap-x-8 gap-y-5 " + (
+                          isFeatured
+                            ? "lg:grid-cols-[minmax(8rem,0.55fr)_minmax(0,1.15fr)_minmax(20rem,1.4fr)] lg:items-start"
+                            : "lg:grid-cols-[minmax(7rem,0.45fr)_minmax(0,1.35fr)_minmax(16rem,0.9fr)] lg:items-center"
+                        )}
                       >
-                        {item.images.map((image, index) => (
-                          <figure
-                            key={image.src}
-                            className="overflow-hidden bg-surface-card"
+                        <div className="flex items-baseline gap-4 lg:block">
+                          <p
+                            className={"font-mono leading-none tracking-[-0.08em] " + (
+                              isFeatured
+                                ? "text-5xl font-medium text-accent-primary sm:text-6xl lg:text-[5.5rem]"
+                                : "text-4xl font-normal text-accent-primary/75 sm:text-5xl lg:text-[3.5rem]"
+                            )}
                           >
-                            <img
-                              src={image.src}
-                              alt={item.year + "年" + item.title + "历史图片" + (index + 1)}
-                              width={image.width}
-                              height={image.height}
-                              loading="lazy"
-                              decoding="async"
-                              className="block h-auto max-h-[420px] w-full object-contain object-left-top"
-                            />
-                          </figure>
-                        ))}
-                      </div>
-                    </article>
-                  </li>
-                );
-              })}
-            </ol>
+                            {item.year}
+                          </p>
+                          <h3
+                            className={"font-semibold text-fg-primary " + (
+                              isFeatured
+                                ? "text-xl sm:text-2xl lg:mt-4"
+                                : "text-lg sm:text-xl lg:mt-3"
+                            )}
+                          >
+                            {item.title}
+                          </h3>
+                        </div>
+
+                        <div>
+                          <p
+                            className={"leading-7 text-fg-muted " + (
+                              isFeatured
+                                ? "text-sm sm:text-base"
+                                : "text-sm sm:text-[15px]"
+                            )}
+                          >
+                            {item.intro}
+                          </p>
+                          <ul className="mt-4 space-y-2.5">
+                            {item.highlights.map((highlight) => (
+                              <li
+                                key={highlight}
+                                className="grid grid-cols-[8px_minmax(0,1fr)] items-start gap-3 text-sm leading-6 text-fg-muted sm:text-[15px]"
+                              >
+                                <span
+                                  aria-hidden="true"
+                                  className="mt-[0.65rem] h-1.5 w-1.5 rounded-full bg-accent-primary/75"
+                                />
+                                <span>{highlight}</span>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+
+                        <div
+                          className={
+                            "grid items-start gap-3 " +
+                            (item.images.length > 1 ? "grid-cols-2 lg:grid-cols-1" : "")
+                          }
+                        >
+                          {item.images.map((image, index) => (
+                            <figure
+                              key={image.src}
+                              className="team-timeline-image overflow-hidden bg-surface-card"
+                            >
+                              <img
+                                src={image.src}
+                                alt={item.year + "年" + item.title + "历史图片" + (index + 1)}
+                                width={image.width}
+                                height={image.height}
+                                loading="lazy"
+                                decoding="async"
+                                className="block h-full w-full object-contain object-center"
+                              />
+                            </figure>
+                          ))}
+                        </div>
+                      </article>
+                    </li>
+                  );
+                })}
+              </ol>
+            </div>
           </div>
         </div>
       </section>
@@ -819,7 +874,7 @@ export default function Home() {
         id="robots"
         className="border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
       >
-        <div className="max-w-[1440px] mx-auto px-6 sm:px-10 lg:px-20">
+        <div className="public-home-container">
           <SectionHeading
             index="03"
             total="05"
@@ -931,7 +986,7 @@ export default function Home() {
         id="certificates"
         className="border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
       >
-        <div className="mx-auto max-w-[1440px] px-6 sm:px-10 lg:px-20">
+        <div className="public-home-container">
           <SectionHeading
             index="04"
             total="05"
@@ -1027,7 +1082,7 @@ export default function Home() {
         id="join"
         className="border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
       >
-        <div className="max-w-[1440px] mx-auto px-6 sm:px-10 lg:px-20 flex flex-col items-center">
+        <div className="public-home-container flex flex-col items-center">
           <SectionHeading
             index="05"
             total="05"
@@ -1087,8 +1142,8 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="border-t border-white/[0.08] bg-transparent px-5 py-10 sm:px-10 lg:px-20">
-        <div className="mx-auto max-w-[1440px]">
+      <footer className="border-t border-white/[0.08] bg-transparent py-10">
+        <div className="public-home-container">
           <div className="flex flex-col gap-6 border-b border-white/[0.08] pb-8 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-col items-start gap-3">
               <SiteLogo className="h-12 max-w-[220px]" />
