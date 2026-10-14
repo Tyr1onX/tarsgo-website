@@ -4,7 +4,7 @@ import test from "node:test";
 
 const home = await readFile(new URL("../routes/home.tsx", import.meta.url), "utf8");
 const styles = await readFile(new URL("../app.css", import.meta.url), "utf8");
-const milestonesSource = home.match(/const timelineMilestones = \[([\s\S]*?)\n\];\n\nconst robots/)?.[1] ?? "";
+const milestonesSource = home.match(/const timelineMilestones = \[([\s\S]*?)\n\];\n\nconst achievementCertificates/)?.[1] ?? "";
 const milestoneYears = Array.from(milestonesSource.matchAll(/year: "(\d{4})"/g), ([, year]) => year);
 
 test("the timeline keeps all eight historical years and their source records", () => {
@@ -69,18 +69,12 @@ test("the original-certificate preview supports keyboard and touch navigation", 
   assert.match(styles, /\.certificate-preview-image\s*\{[^}]*max-height:\s*min\(74dvh,\s*56rem,\s*calc\(92dvh\s*-\s*7rem\)\);/);
 });
 
-test("all five about categories and robot options remain available in uniform image frames", () => {
+test("all five about categories remain available and the robot route delegates to the photo gallery", () => {
   const aboutSource = home.match(/const aboutModules = \[([\s\S]*?)\n\];/)?.[1] ?? "";
-  const robotSource = home.match(/const robots = \[([\s\S]*?)\n\];/)?.[1] ?? "";
   assert.equal((aboutSource.match(/name: /g) ?? []).length, 5);
-  assert.equal((robotSource.match(/name: /g) ?? []).length, 5);
   assert.match(home, /aria-label="团队实践分类"/);
-  assert.match(home, /aria-label="选择展示机器人"/);
-  assert.match(home, /robot-showcase-frame relative aspect-\[16\/10\]/);
-  assert.match(home, /robot-showcase-image[^\"]*object-contain/);
-  assert.match(home, /visualScale: 1\.45/);
-  assert.match(home, /transform: `scale\(\$\{activeRobot\.visualScale\}\)`/);
-  assert.match(home, /robot-option-image[^\"]*aspect-\[4\/3\]/);
+  assert.match(home, /import \{ RobotPhotoGallery \} from "\.\.\/components\/robot-photo-gallery"/);
+  assert.match(home, /<RobotPhotoGallery \/>/);
 });
 
 test("every sponsor remains in the homepage logo grid without changing source artwork", () => {

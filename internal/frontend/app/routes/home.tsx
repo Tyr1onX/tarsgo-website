@@ -1,6 +1,7 @@
 import type { Route } from "./+types/home";
 import { useEffect, useId, useRef, useState } from "react";
 import { Navbar } from "../components/navbar";
+import { RobotPhotoGallery } from "../components/robot-photo-gallery";
 import { SiteLogo } from "~/components/site-logo";
 import { Link, useLocation, useNavigate } from "react-router";
 import {
@@ -130,34 +131,6 @@ const timelineMilestones = [
       "工程一等奖、英雄一等奖等。",
     ],
     images: [{ src: "/assets/images/Milestone/2025-legacy.webp", width: 1269, height: 714, fit: "cover" }],
-  },
-];
-
-const robots = [
-  {
-    name: "英雄机器人",
-    image: "/assets/images/Robot/hero-robot.webp",
-    visualScale: 1,
-  },
-  {
-    name: "步兵机器人",
-    image: "/assets/images/Robot/infantry-robot.webp",
-    visualScale: 1,
-  },
-  {
-    name: "工程机器人",
-    image: "/assets/images/Robot/engineering-robot.webp",
-    visualScale: 1,
-  },
-  {
-    name: "哨兵机器人",
-    image: "/assets/images/Robot/sentinel-robot.webp",
-    visualScale: 1,
-  },
-  {
-    name: "空中机器人",
-    image: "/assets/images/Robot/aerial-robots.webp",
-    visualScale: 1.45,
   },
 ];
 
@@ -311,11 +284,11 @@ const topicPages: Record<Exclude<PublicPage, "home">, { title: string; eyebrow: 
     alt: "队员在 RoboMaster 比赛现场共同检查机器人。",
   },
   robots: {
-    title: "机器人展示",
-    eyebrow: "OUR ROBOTS",
-    description: "浏览团队现有的五类机器人影像，了解机器人与团队的真实实践。",
+    title: "2024 赛季机器人阵容",
+    eyebrow: "TARSGO ROBOT COLLECTION",
+    description: "11 台机器人与设备定妆照，按类别浏览并打开照片查看完整细节。",
     image: "/assets/images/Robot/hero-robot.webp",
-    alt: "吉甲大师英雄机器人。",
+    alt: "TARSGO 机器人展厅主视觉。",
   },
   "events-and-honors": {
     title: "赛事与荣誉",
@@ -807,7 +780,6 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
     : undefined;
   const [activeAboutModuleIndex, setActiveAboutModuleIndex] = useState(0);
   const [activeGroupIndex, setActiveGroupIndex] = useState(0);
-  const [activeRobotIndex, setActiveRobotIndex] = useState(0);
   const [activeTimelineYear, setActiveTimelineYear] = useState(timelineMilestones[0].year);
   const [showAllCertificates, setShowAllCertificates] = useState(false);
   const [selectedCertificateIndex, setSelectedCertificateIndex] = useState<number | null>(null);
@@ -824,7 +796,6 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
   const topic = routePage === "home" ? null : topicPages[routePage];
   const activeAboutModule = aboutModules[activeAboutModuleIndex];
   const activeGroup = groups[activeGroupIndex];
-  const activeRobot = robots[activeRobotIndex];
   const selectedCertificate = selectedCertificateIndex === null
     ? null
     : achievementCertificates[selectedCertificateIndex];
@@ -986,7 +957,7 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
 
       </section>
       ) : (
-        <section className="public-topic-hero relative isolate overflow-hidden">
+        <section className={"public-topic-hero relative isolate overflow-hidden " + (routePage === "robots" ? "public-topic-hero--robots" : "")}>
           <img
             src={topic?.image}
             alt=""
@@ -1280,117 +1251,10 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
       {routePage === "robots" && (
       <section
         id="robots"
-        className="border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
+        className="border-t border-white/[0.06] bg-transparent py-8 sm:py-10 lg:py-12"
       >
         <div className="public-home-container">
-          <SectionHeading
-            index="03"
-            total="05"
-            labelZh="机器人展示"
-            labelEn="OUR ROBOTS"
-          />
-
-          <p className="mx-auto mb-8 max-w-3xl text-center text-sm leading-7 text-fg-muted sm:mb-10 sm:text-left sm:text-base">
-            页面展示团队现有五类机器人影像与真实称呼。按名称切换查看实物资料；不补写未核实的型号、性能或技术参数。
-          </p>
-
-          <div className="grid gap-7 lg:grid-cols-[minmax(0,1.7fr)_minmax(17rem,0.8fr)] lg:items-stretch lg:gap-12 xl:gap-16">
-            <figure className="min-w-0">
-              <div className="robot-showcase-frame relative aspect-[16/10] overflow-hidden bg-surface-card">
-                <img
-                  key={activeRobot.image}
-                  src={activeRobot.image}
-                  alt={activeRobot.name}
-                  loading="lazy"
-                  decoding="async"
-                  className="robot-showcase-image absolute inset-0 h-full w-full object-contain object-center"
-                  style={{ transform: `scale(${activeRobot.visualScale})` }}
-                  onError={(event) => {
-                    event.currentTarget.hidden = true;
-                  }}
-                />
-              </div>
-              <figcaption
-                aria-live="polite"
-                aria-atomic="true"
-                className="flex min-h-[82px] items-center justify-between gap-4 border-b border-white/10 py-4 sm:py-5"
-              >
-                <div>
-                  <p className="font-mono text-[11px] tracking-[0.16em] text-accent-primary">
-                    {String(activeRobotIndex + 1).padStart(2, "0")} / 05
-                  </p>
-                  <h3 className="mt-1 text-xl font-semibold text-fg-primary sm:text-2xl">
-                    {activeRobot.name}
-                  </h3>
-                </div>
-              </figcaption>
-            </figure>
-
-            <div className="min-w-0">
-              <div className="flex items-center justify-between pb-3 text-[11px] tracking-[0.12em] text-fg-muted">
-                <h3 className="font-medium text-fg-primary">选择机器人</h3>
-                <span className="font-mono">01—05</span>
-              </div>
-              <div
-                role="group"
-                aria-label="选择展示机器人"
-                className="border-y border-white/10"
-              >
-                {robots.map((robot, index) => {
-                  const selected = index === activeRobotIndex;
-                  const number = String(index + 1).padStart(2, "0");
-
-                  return (
-                    <button
-                      key={robot.name}
-                      type="button"
-                      aria-label={number + " " + robot.name}
-                      aria-pressed={selected}
-                      onClick={() => setActiveRobotIndex(index)}
-                      className={
-                        "group grid min-h-[78px] w-full grid-cols-[64px_minmax(0,1fr)] items-center gap-4 border-b border-l-2 px-3 text-left transition-colors last:border-b-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-primary sm:min-h-[86px] sm:grid-cols-[76px_minmax(0,1fr)] " +
-                        (selected
-                          ? "border-l-accent-primary bg-white/[0.04]"
-                          : "border-l-transparent hover:bg-white/[0.025]")
-                      }
-                    >
-                      <span className="robot-option-image flex aspect-[4/3] w-16 shrink-0 items-center justify-center bg-surface-card">
-                        <img
-                          src={robot.image}
-                          alt=""
-                          aria-hidden="true"
-                          loading="lazy"
-                          decoding="async"
-                          className="h-full w-full object-contain"
-                          onError={(event) => {
-                            event.currentTarget.hidden = true;
-                          }}
-                        />
-                      </span>
-                      <span className="flex min-w-0 items-baseline gap-3">
-                        <span
-                          className={
-                            "font-mono text-xs tracking-[0.12em] " +
-                            (selected ? "text-accent-primary" : "text-fg-muted")
-                          }
-                        >
-                          {number}
-                        </span>
-                        <span
-                          className={
-                            "truncate text-sm font-medium sm:text-base " +
-                            (selected ? "text-fg-primary" : "text-fg-muted")
-                          }
-                        >
-                          {robot.name}
-                        </span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
+          <RobotPhotoGallery />
         </div>
       </section>
       )}
