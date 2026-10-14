@@ -18,7 +18,6 @@ export type RobotSeasonEntry = {
 export type RobotSeason = {
   season: number;
   title: string;
-  description: string;
   robots: readonly RobotSeasonEntry[];
 };
 
@@ -26,7 +25,6 @@ export const robotSeasons = [
   {
     season: 2026,
     title: "2026 赛季机器人阵容",
-    description: "收录 2026 赛季用户提供的 10 张机器人定妆照。按类别浏览，或打开大图查看完整影像。",
     robots: [
       {
         id: "2026-infantry-03",
@@ -163,7 +161,6 @@ export const robotSeasons = [
   {
     season: 2025,
     title: "2025 赛季机器人阵容",
-    description: "收录 2025 赛季用户提供的 9 张机器人定妆照。按类别浏览，或打开大图查看完整影像。",
     robots: [
       {
         id: "2025-hero-01",
@@ -287,7 +284,6 @@ export const robotSeasons = [
   {
     season: 2024,
     title: "2024 赛季机器人阵容",
-    description: "收录 2024 赛季的 11 台机器人与设备定妆照。按类别浏览，或打开大图查看完整影像。",
     robots: [
       {
         id: "hero-01",
