@@ -16,6 +16,7 @@ import (
 	"tarsgo-backend/service/auth"
 	"tarsgo-backend/service/email"
 	"tarsgo-backend/service/emailtemplate"
+	"tarsgo-backend/service/recruitmentanalytics"
 	"tarsgo-backend/service/registration"
 	"tarsgo-backend/service/systemconfig"
 	"tarsgo-backend/service/usergroup"
@@ -57,6 +58,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	registrationFormHandler := handler.NewRegistrationFormHandler(registration.NewRegistrationFormService(db))
 	registrationService := registration.NewRegistrationServiceWithMailer(db, email.NewSender(cfg.Email))
 	registrationHandler := handler.NewRegistrationHandler(registrationService)
+	recruitmentAnalyticsHandler := handler.NewRecruitmentAnalyticsHandler(recruitmentanalytics.NewService(db))
 	templateStore := emailtemplate.NewGormStore(db)
 	systemConfigService := systemconfig.NewServiceWithTemplateStore(cfg.Email, templateStore, authService)
 	systemConfigHandler := handler.NewSystemConfigHandler(systemConfigService, systemConfigService)
@@ -79,7 +81,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	adminAPI.GET("/user-groups/options", userGroupHandler.ListGroupOptions)
 	adminAPI.GET("/admission-qr/:filename", userGroupHandler.OpenAdmissionQRCode)
 
-	// User-group and registration-form configuration are restricted to super admins.
+	// System configuration, recruitment configuration, account management, and analytics are super-admin only.
 	superAdminAPI := adminAPI.Group("")
 	superAdminAPI.Use(middleware.RequireSuperAdmin(authService))
 	superAdminAPI.GET("/roles", adminUserHandler.ListRoles)
@@ -95,6 +97,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	superAdminAPI.POST("/user-groups/:id/admission-qr", userGroupHandler.UploadAdmissionQRCode)
 	superAdminAPI.DELETE("/user-groups/:id/admission-qr", userGroupHandler.RemoveAdmissionQRCode)
 	superAdminAPI.GET("/registration-forms", registrationFormHandler.ListForms)
+	superAdminAPI.GET("/recruitment-analytics", recruitmentAnalyticsHandler.GetReport)
 	superAdminAPI.POST("/registration-forms", registrationFormHandler.CreateForm)
 	superAdminAPI.GET("/registration-forms/:id/registrations/export", registrationHandler.ExportFormRegistrationsCSV)
 	superAdminAPI.GET("/registration-forms/:id", registrationFormHandler.GetForm)
