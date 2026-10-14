@@ -3,6 +3,8 @@ import { useEffect, useRef, useState } from "react";
 
 import { logout, type AuthUser } from "~/lib/auth-client";
 import { getDefaultDashboardPath } from "~/lib/dashboard-navigation";
+import { SiteLogo } from "./site-logo";
+import { ThemeControl } from "./theme-control";
 
 const navLinks = [
   { label: "首页", href: "/#hero", active: true },
@@ -176,13 +178,7 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
         <PrefetchPageLinks page={getDefaultDashboardPath(currentUser.role.name)} />
       ) : null}
       {variant === "default" ? <PrefetchPageLinks page="/login" /> : null}
-      <div
-        className={`pointer-events-auto w-full overflow-visible border-b transition-all duration-300 ${
-          isScrolled
-            ? "border-white/10 bg-surface-primary/95 shadow-[0_20px_60px_-30px_rgba(2,6,23,0.9)]"
-            : "border-white/12 bg-black/70 shadow-[0_24px_70px_-38px_rgba(2,6,23,0.85)]"
-        }`}
-      >
+      <div className={`site-navbar pointer-events-auto w-full overflow-visible ${isScrolled ? "site-navbar--scrolled" : ""}`}>
       <div className="max-w-[1440px] mx-auto flex h-[var(--site-nav-height)] items-center justify-between px-6 sm:px-10 lg:px-20">
         {/* Logo */}
         <Link
@@ -190,11 +186,7 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
           aria-label="TARS-GO 首页"
           className="motion-button flex shrink-0 items-center"
         >
-          <img
-            src="/assets/images/Logo/tarsgo-logo-v5.svg"
-            alt="TARS-GO"
-            className="h-[48px] w-auto object-contain sm:h-[54px]"
-          />
+          <SiteLogo className="h-[48px] sm:h-[54px]" />
         </Link>
 
         {/* Desktop nav links */}
@@ -213,6 +205,8 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
             </a>
           ))}
         </div>
+
+        <ThemeControl className="theme-control--desktop" />
 
         {/* Auth area */}
         {variant === "default" ? <div ref={desktopAuthAreaRef} className="hidden w-[174px] shrink-0 items-center justify-end gap-3 xl:flex">
@@ -327,6 +321,7 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
         </div> : null}
 
         {/* Mobile menu button */}
+        <ThemeControl className="theme-control--mobile" />
         <button
           ref={mobileMenuButtonRef}
           type="button"

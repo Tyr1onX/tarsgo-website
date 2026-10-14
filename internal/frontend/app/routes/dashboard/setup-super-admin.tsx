@@ -2,6 +2,7 @@ import { type FormEvent, useMemo, useState } from "react";
 import { Link, redirect, useNavigate } from "react-router";
 
 import type { Route } from "./+types/setup-super-admin";
+import { ThemeControl } from "~/components/theme-control";
 import { ApiError } from "~/lib/api-client";
 import { getBootstrapStatus, registerInitialSuperAdmin } from "~/lib/auth-client";
 
@@ -70,25 +71,28 @@ export default function SetupSuperAdmin() {
   return (
     <div className="admin-design setup-super-admin min-h-screen flex items-center justify-center px-4 py-10">
       <div className="relative w-full max-w-md">
-        <Link
-          to="/"
-          className="group mb-8 inline-flex items-center gap-2 text-sm text-gray-400 transition-colors hover:text-white"
-        >
-          <svg
-            className="h-4 w-4 auth-back-link-arrow"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={1.5}
-            stroke="currentColor"
+        <div className="setup-super-admin__topbar">
+          <Link
+            to="/"
+            className="group inline-flex items-center gap-2 text-sm text-gray-400 transition-colors hover:text-white"
           >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"
-            />
-          </svg>
-          返回首页
-        </Link>
+            <svg
+              className="h-4 w-4 auth-back-link-arrow"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"
+              />
+            </svg>
+            返回首页
+          </Link>
+          <ThemeControl />
+        </div>
 
         <div className="relative admin-panel setup-super-admin__card rounded-lg px-8 py-9">
           <div className="relative mb-7 text-center">

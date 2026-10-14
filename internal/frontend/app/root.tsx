@@ -13,6 +13,22 @@ import type { Route } from "./+types/root";
 import "./app.css";
 import NotFound, { StatusPage } from "./routes/not-found";
 import fallbackFaviconHref from "../public/favicon.ico";
+import { ThemeProvider } from "./components/theme-provider";
+
+const themeBootstrapScript = `(() => {
+  let preference = "system";
+  try {
+    const saved = window.localStorage.getItem("jijia-theme-preference");
+    if (saved === "light" || saved === "dark" || saved === "system") preference = saved;
+  } catch {}
+  const resolved = preference === "system"
+    ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+    : preference;
+  const root = document.documentElement;
+  root.dataset.theme = resolved;
+  root.dataset.themePreference = preference;
+  root.style.colorScheme = resolved;
+})();`;
 
 export const links: Route.LinksFunction = () => [
   { rel: "icon", href: fallbackFaviconHref, type: "image/x-icon" },
@@ -31,10 +47,11 @@ export const links: Route.LinksFunction = () => [
 
 export function Layout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="zh-CN">
+    <html lang="zh-CN" suppressHydrationWarning>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
         <Meta />
         <Links />
       </head>
@@ -74,7 +91,9 @@ export default function App() {
           <span className="route-progress__bar" aria-hidden="true" />
         </div>
       ) : null}
-      <Outlet />
+      <ThemeProvider>
+        <Outlet />
+      </ThemeProvider>
     </>
   );
 }
