@@ -1,11 +1,5 @@
 import type { Route } from "./+types/home";
-import {
-  startTransition,
-  useEffect,
-  useRef,
-  useState,
-  type CSSProperties,
-} from "react";
+import { useEffect, useState } from "react";
 import { Navbar } from "../components/navbar";
 import { Link } from "react-router";
 import {
@@ -22,36 +16,16 @@ export function meta({}: Route.MetaArgs) {
     {
       name: "description",
       content:
-        "吉林大学TARS-Go战队官网 - RoboMaster机甲大师赛参赛战队，外在做事沉稳有序，内在思维活跃创新",
+        "吉林大学 TARS-Go 战队官网：以 RoboMaster 竞赛为牵引，持续开展机器人研发与团队协作。",
     },
   ];
 }
 
 const stats = [
-  {
-    icon: "calendar",
-    value: "2018",
-    label: "成立年份",
-    tint: "#D0AD69",
-  },
-  {
-    icon: "users",
-    value: "35+",
-    label: "团队成员",
-    tint: "#D0AD69",
-  },
-  {
-    icon: "layers",
-    value: "5",
-    label: "战队组别",
-    tint: "#D0AD69",
-  },
-  {
-    icon: "award",
-    value: "Top 16",
-    label: "全国最佳成绩",
-    tint: "#D0AD69",
-  },
+  { value: "2018", label: "成立年份" },
+  { value: "35+", label: "团队成员" },
+  { value: "5", label: "战队组别" },
+  { value: "Top 16", label: "全国最佳成绩" },
 ];
 
 const timelineMilestones = [
@@ -161,32 +135,24 @@ const timelineMilestones = [
 const robots = [
   {
     name: "英雄机器人",
-    description: "火力担当，42mm 弹丸发射，打击效率最高",
+    image: "/assets/images/Robot/hero-robot.webp",
   },
   {
     name: "步兵机器人",
-    description: "灵活机动，17mm 弹丸射击，场上主力输出",
+    image: "/assets/images/Robot/infantry-robot.webp",
   },
   {
     name: "工程机器人",
-    description: "资源采集与弹药补给，战场后勤保障",
+    image: "/assets/images/Robot/engineering-robot.webp",
   },
   {
     name: "哨兵机器人",
-    description: "自主决策与自动瞄准，AI 驱动防御",
+    image: "/assets/images/Robot/sentinel-robot.webp",
   },
   {
     name: "空中机器人",
-    description: "空中侦察与空地协同，空中打击威胁",
+    image: "/assets/images/Robot/aerial-robots.webp",
   },
-];
-
-const robotImages = [
-  "/assets/images/Robot/hero-robot.webp",
-  "/assets/images/Robot/infantry-robot.webp",
-  "/assets/images/Robot/engineering-robot.webp",
-  "/assets/images/Robot/sentinel-robot.webp",
-  "/assets/images/Robot/aerial-robots.webp",
 ];
 
 const achievementCertificates = [
@@ -261,200 +227,40 @@ const groups = [
 const aboutModules = [
   {
     name: "参赛",
-    title: "在真实对抗中验证整队协同与执行力",
-    description: [
-      "参赛模块记录的是吉甲大师最直接的赛场表达。从区域赛、公开赛到更高强度的对抗场景，机器人性能、临场判断和团队调度都会在瞬间被放大。",
-      "每一次上场都是一次完整的系统检验，检验的不只是硬件和算法，更是队伍在高压环境下的反应速度、复盘效率与战术默契。",
-    ],
-    highlights: [
-      "高强度攻防与临场协同",
-      "区域赛与公开赛的实战记录",
-      "在赛场上完成技术方案的闭环验证",
-    ],
-    images: [
-      "/assets/images/ContestMoment/contest-moment-01.webp",
-      "/assets/images/ContestMoment/contest-moment-02.webp",
-      "/assets/images/ContestMoment/contest-moment-03.webp",
-      "/assets/images/ContestMoment/contest-moment-04.webp",
-      "/assets/images/ContestMoment/contest-moment-05.webp",
-      "/assets/images/ContestMoment/contest-moment-06.webp",
-      "/assets/images/ContestMoment/contest-moment-07.webp",
-      "/assets/images/ContestMoment/contest-moment-08.webp",
-    ],
+    title: "在赛场上检验机器人与团队协作",
+    description: "正式比赛让机器人表现、临场判断与团队调度得到直接检验。",
+    image: "/assets/images/ContestMoment/contest-moment-04.webp",
+    imageAlt: "队员在 RoboMaster 比赛现场共同检查机器人。",
   },
   {
     name: "备赛",
-    title: "把每一场正式上场前的细节反复磨透",
-    description: [
-      "备赛阶段是团队最密集的联调周期。机械、电控、视觉、AI 与运营需要围绕同一目标协同推进，把设计、加工、联调、测试和复盘压缩进有限时间内。",
-      "从实验室里的调试，到赛前节奏的演练，真正支撑赛场稳定发挥的，往往正是这些看似重复却必须做到极致的准备过程。",
-    ],
-    highlights: [
-      "赛前联调、整机测试与快速修正",
-      "围绕比赛目标进行跨组协同推进",
-      "通过反复演练降低上场不确定性",
-    ],
-    images: [
-      "/assets/images/Preparation_for_competition/preparation-01.webp",
-      "/assets/images/Preparation_for_competition/preparation-02.webp",
-      "/assets/images/Preparation_for_competition/preparation-03.webp",
-      "/assets/images/Preparation_for_competition/preparation-04.webp",
-      "/assets/images/Preparation_for_competition/preparation-05.webp",
-      "/assets/images/Preparation_for_competition/preparation-06.webp",
-      "/assets/images/Preparation_for_competition/preparation-07.webp",
-      "/assets/images/Preparation_for_competition/preparation-08.webp",
-    ],
+    title: "把上场前的细节反复磨透",
+    description: "围绕机器人进行联调、测试和修正，让方案经得起赛场验证。",
+    image: "/assets/images/Preparation_for_competition/preparation-02.webp",
+    imageAlt: "队员围绕机器人进行赛前检查与调试。",
   },
   {
     name: "日常",
-    title: "训练、例会与基地生活共同构成团队肌理",
-    description: [
-      "日常模块展示的是竞赛之外的团队状态。例会、讨论、展示、夜间调试和工位协作，组成了吉甲大师最真实也最持久的运转方式。",
-      "正是这些看似平常的日常训练，让成员在长期协作中建立信任，也让整个团队能够在关键节点迅速进入战斗状态。",
-    ],
-    highlights: [
-      "基地训练、例会沟通与日常协作",
-      "长期积累形成稳定的团队节奏",
-      "从日常磨合中沉淀执行习惯与协同方式",
-    ],
-    images: [
-      "/assets/images/Daily/daily-01.webp",
-      "/assets/images/Daily/daily-02.webp",
-      "/assets/images/Daily/daily-03.webp",
-      "/assets/images/Daily/daily-04.webp",
-      "/assets/images/Daily/daily-05.webp",
-      "/assets/images/Daily/daily-06.webp",
-      "/assets/images/Daily/daily-07.webp",
-      "/assets/images/Daily/daily-08.webp",
-    ],
+    title: "在日常训练中建立长期默契",
+    description: "训练、讨论与共同生活，组成团队持续协作的日常。",
+    image: "/assets/images/Daily/daily-02.webp",
+    imageAlt: "队员围绕笔记本与模型进行日常讨论。",
   },
   {
     name: "创新创业",
-    title: "把竞赛能力延伸到项目孵化与双创实践",
-    description: [
-      "创新创业模块记录的是团队把技术能力转化为项目成果的过程。从方案打磨、导师指导到双创竞赛与设备开发，团队持续尝试把赛场经验沉淀为更具延展性的实践能力。",
-      "这不仅拓宽了成员的技术边界，也让吉甲大师在机器人之外建立起更完整的项目组织与成果表达能力。",
-    ],
-    highlights: [
-      "双创赛事、项目答辩与导师指导",
-      "将竞赛经验转化为工程项目与设备开发",
-      "持续拓展团队的成果沉淀与对外表达能力",
-    ],
-    images: [
-      "/assets/images/Innovation_and_entrepreneurship/innovation-entrepreneurship-01.webp",
-      "/assets/images/Innovation_and_entrepreneurship/innovation-entrepreneurship-02.webp",
-      "/assets/images/Innovation_and_entrepreneurship/innovation-entrepreneurship-03.webp",
-      "/assets/images/Innovation_and_entrepreneurship/innovation-entrepreneurship-04.webp",
-      "/assets/images/Innovation_and_entrepreneurship/innovation-entrepreneurship-05.webp",
-      "/assets/images/Innovation_and_entrepreneurship/innovation-entrepreneurship-06.webp",
-      "/assets/images/Innovation_and_entrepreneurship/innovation-entrepreneurship-07.webp",
-      "/assets/images/Innovation_and_entrepreneurship/innovation-entrepreneurship-08.webp",
-    ],
+    title: "把竞赛经验延伸到项目实践",
+    description: "在双创赛事和成果展示中，继续打磨技术方案与项目表达。",
+    image: "/assets/images/Innovation_and_entrepreneurship/innovation-entrepreneurship-02.webp",
+    imageAlt: "团队成员在创新创业展示现场介绍项目。",
   },
   {
     name: "校企合作",
-    title: "在交流、调研与合作中拓宽团队的真实场景",
-    description: [
-      "校企合作模块展示的是团队走出实验室后的另一种成长路径。通过企业参访、科创营、合作调研和校园展示，成员得以把课堂、竞赛和产业场景连接起来。",
-      "这些实践一方面帮助团队理解更真实的工程需求，另一方面也让吉甲大师能够在更广泛的合作中持续吸收外部经验。",
-    ],
-    highlights: [
-      "企业走访、合作调研与科创交流",
-      "把校园项目与产业需求连接起来",
-      "在外部合作中拓宽团队视野与实践边界",
-    ],
-    images: [
-      "/assets/images/Industry-AcademiaCollaboration/industry-academia-collaboration-01.webp",
-      "/assets/images/Industry-AcademiaCollaboration/industry-academia-collaboration-02.webp",
-      "/assets/images/Industry-AcademiaCollaboration/industry-academia-collaboration-03.webp",
-      "/assets/images/Industry-AcademiaCollaboration/industry-academia-collaboration-04.webp",
-      "/assets/images/Industry-AcademiaCollaboration/industry-academia-collaboration-05.webp",
-      "/assets/images/Industry-AcademiaCollaboration/industry-academia-collaboration-06.webp",
-      "/assets/images/Industry-AcademiaCollaboration/industry-academia-collaboration-07.webp",
-      "/assets/images/Industry-AcademiaCollaboration/industry-academia-collaboration-08.webp",
-    ],
+    title: "在产业现场理解真实工程需求",
+    description: "通过企业走访与交流，把校园里的工程实践连接到真实场景。",
+    image: "/assets/images/Industry-AcademiaCollaboration/industry-academia-collaboration-03.webp",
+    imageAlt: "团队成员在交流现场共同观察一件工程样品。",
   },
 ];
-
-function getAboutModuleLayoutClass(imageCount: number) {
-  if (imageCount >= 8) {
-    return "lg:grid-cols-[1.28fr_0.72fr]";
-  }
-
-  if (imageCount >= 6) {
-    return "lg:grid-cols-[1.18fr_0.82fr]";
-  }
-
-  if (imageCount >= 4) {
-    return "lg:grid-cols-[1.08fr_0.92fr]";
-  }
-
-  return "lg:grid-cols-[0.96fr_1.04fr]";
-}
-
-function getAboutPhotoWallClass(imageCount: number) {
-  if (imageCount === 1) {
-    return "grid-cols-1 auto-rows-[228px] sm:auto-rows-[248px]";
-  }
-
-  if (imageCount === 2) {
-    return "grid-cols-2 auto-rows-[156px] sm:auto-rows-[176px]";
-  }
-
-  if (imageCount <= 4) {
-    return "grid-cols-2 auto-rows-[128px] sm:auto-rows-[144px]";
-  }
-
-  if (imageCount <= 6) {
-    return "grid-cols-2 md:grid-cols-3 auto-rows-[88px] sm:auto-rows-[100px]";
-  }
-
-  return "grid-cols-2 md:grid-cols-3 auto-rows-[80px] sm:auto-rows-[90px]";
-}
-
-function getAboutPhotoWallRowCount(imageCount: number) {
-  if (imageCount <= 2) {
-    return 1;
-  }
-
-  if (imageCount === 3) {
-    return 2;
-  }
-
-  if (imageCount <= 6) {
-    return 3;
-  }
-
-  return 4;
-}
-
-function getAboutPhotoCellClass(imageCount: number, index: number) {
-  if (imageCount <= 2) {
-    return "";
-  }
-
-  if (imageCount === 3) {
-    return index === 0 ? "sm:col-span-2" : "";
-  }
-
-  if (imageCount === 4) {
-    return index === 0 ? "sm:col-span-2" : "";
-  }
-
-  if (index === 0) {
-    return "md:col-span-2 md:row-span-2";
-  }
-
-  if (index === imageCount - 1 && imageCount % 2 === 1) {
-    return "md:col-span-2";
-  }
-
-  if (imageCount >= 8 && index === 4) {
-    return "md:col-span-2";
-  }
-
-  return "";
-}
 
 function getCertificateVisibilityClass(index: number) {
   if (index < 4) {
@@ -476,40 +282,6 @@ function getCertificateVisibilityClass(index: number) {
   return "hidden";
 }
 
-function StatIcon({
-  icon,
-  className,
-  style,
-}: {
-  icon: string;
-  className?: string;
-  style?: CSSProperties;
-}) {
-  const icons: Record<string, React.ReactNode> = {
-    calendar: (
-      <svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M8 2v4" /><path d="M16 2v4" /><rect width="18" height="18" x="3" y="4" rx="2" /><path d="M3 10h18" />
-      </svg>
-    ),
-    users: (
-      <svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.87" /><path d="M16 3.13a4 4 0 0 1 0 7.75" />
-      </svg>
-    ),
-    layers: (
-      <svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="m12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z" /><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65" /><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65" />
-      </svg>
-    ),
-    award: (
-      <svg className={className} style={style} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526" /><circle cx="12" cy="8" r="6" />
-      </svg>
-    ),
-  };
-  return <>{icons[icon]}</>;
-}
-
 function SectionHeading({
   index,
   total,
@@ -522,13 +294,13 @@ function SectionHeading({
   total: string;
   labelZh: string;
   labelEn: string;
-  title: string;
-  description: string;
+  title?: string;
+  description?: string;
 }) {
   const color = "#D0AD69";
 
   return (
-    <div className="public-section-heading mx-auto mb-9 max-w-[900px] sm:mb-11">
+    <div className="public-section-heading mx-auto mb-8 max-w-[1440px] sm:mb-10">
       <div className="flex items-center justify-center gap-3 sm:justify-start sm:gap-4">
         <span
           className="font-mono text-[11px] font-semibold tracking-[0.18em] sm:text-xs"
@@ -548,13 +320,17 @@ function SectionHeading({
         {labelZh}
       </h2>
 
-      <h3 className="mt-2 text-center text-base font-medium text-fg-primary sm:text-left sm:text-lg">
-        {title}
-      </h3>
+      {title ? (
+        <h3 className="mt-2 text-center text-base font-medium text-fg-primary sm:text-left sm:text-lg">
+          {title}
+        </h3>
+      ) : null}
 
-      <p className="mx-auto mt-3 max-w-[760px] text-center text-sm leading-6 text-fg-muted sm:mx-0 sm:text-left sm:text-[15px] sm:leading-7">
-        {description}
-      </p>
+      {description ? (
+        <p className="mx-auto mt-3 max-w-[760px] text-center text-sm leading-6 text-fg-muted sm:mx-0 sm:text-left sm:text-[15px] sm:leading-7">
+          {description}
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -573,8 +349,6 @@ export default function Home() {
   };
   const [currentUser, setCurrentUser] = useState<AuthUser | null | undefined>(getNavbarUser);
   const [authError, setAuthError] = useState(false);
-  const aboutPanelRef = useRef<HTMLDivElement | null>(null);
-  const aboutPhotoWallRef = useRef<HTMLDivElement | null>(null);
   const activeAboutModule = aboutModules[activeAboutModuleIndex];
   const activeMilestone = timelineMilestones[activeMilestoneIndex];
 
@@ -606,78 +380,6 @@ export default function Home() {
       unsubscribe();
     };
   }, []);
-
-  useEffect(() => {
-    const panel = aboutPanelRef.current;
-    const photoWall = aboutPhotoWallRef.current;
-
-    if (!panel || !photoWall) {
-      return;
-    }
-
-    let frameId = 0;
-
-    const syncAboutPanelHeight = () => {
-      const nextHeight = `${Math.ceil(panel.getBoundingClientRect().height)}px`;
-      if (photoWall.style.getPropertyValue("--about-photo-wall-height") !== nextHeight) {
-        photoWall.style.setProperty("--about-photo-wall-height", nextHeight);
-      }
-    };
-
-    const scheduleSync = () => {
-      if (frameId) {
-        window.cancelAnimationFrame(frameId);
-      }
-
-      frameId = window.requestAnimationFrame(syncAboutPanelHeight);
-    };
-
-    syncAboutPanelHeight();
-
-    if (typeof ResizeObserver === "undefined") {
-      return () => {
-        if (frameId) {
-          window.cancelAnimationFrame(frameId);
-        }
-      };
-    }
-
-    const observer = new ResizeObserver(() => {
-      scheduleSync();
-    });
-
-    observer.observe(panel);
-
-    return () => {
-      observer.disconnect();
-
-      if (frameId) {
-        window.cancelAnimationFrame(frameId);
-      }
-    };
-  }, [activeAboutModuleIndex]);
-
-  function activateAboutModule(index: number) {
-    startTransition(() => {
-      setActiveAboutModuleIndex(index);
-    });
-  }
-
-  function showPreviousAboutModule() {
-    startTransition(() => {
-      setActiveAboutModuleIndex((current) =>
-        current === 0 ? aboutModules.length - 1 : current - 1,
-      );
-    });
-  }
-
-  function showNextAboutModule() {
-    startTransition(() => {
-      setActiveAboutModuleIndex((current) =>
-        current === aboutModules.length - 1 ? 0 : current + 1,
-      );
-    });
-  }
 
   function showPreviousMilestone() {
     setActiveMilestoneIndex((current) =>
@@ -723,16 +425,14 @@ export default function Home() {
                 alt="TARSGO"
                 className="h-20 w-auto max-w-full object-contain sm:h-24"
               />
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-[#e0c790] sm:text-sm">
-                吉林大学 · RoboMaster 机甲大师赛
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#e0c790] sm:text-xs">
+                吉林大学 · RoboMaster 战队
               </p>
-              <h1 className="max-w-xl text-3xl font-semibold leading-tight tracking-[-0.035em] text-white sm:text-5xl sm:leading-[1.12] lg:text-[56px]">
-                吉林大学吉甲大师
-                <br className="hidden sm:block" />
-                机器人战队
+              <h1 className="max-w-2xl text-[42px] font-semibold leading-[1.1] tracking-[-0.045em] text-white sm:text-6xl lg:text-[72px]">
+                有秩序的<span className="text-[#dfbd7c]">创造力</span>
               </h1>
               <p className="max-w-lg text-sm leading-6 text-white/78 sm:text-base sm:leading-7">
-                自 2018 年起持续投入机器人研发与 RoboMaster 竞赛，2024 年首次晋级全国总决赛。
+                以 RoboMaster 竞赛为牵引，持续投入机器人研发与团队协作。
               </p>
               <div className="mt-2 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
                 <Link
@@ -764,22 +464,6 @@ export default function Home() {
           </div>
         </div>
 
-        <div className="pointer-events-none absolute inset-x-0 bottom-5 z-20 sm:bottom-8">
-          <div className="mx-auto flex max-w-[1440px] justify-center px-6 sm:px-10 lg:px-20">
-            <a
-              href="#about"
-              aria-label="下滑查看更多"
-              className="pointer-events-auto group relative flex flex-col items-center gap-2 sm:gap-3"
-            >
-              <span className="inline-flex items-center gap-2 text-xs font-medium text-white/70">
-                向下了解吉甲大师
-                <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="m6 9 6 6 6-6" />
-                </svg>
-              </span>
-            </a>
-          </div>
-        </div>
       </section>
 
       <Navbar currentUser={currentUser} authError={authError} />
@@ -795,274 +479,78 @@ export default function Home() {
             total="05"
             labelZh="关于我们"
             labelEn="ABOUT US"
-            title="一支跨校区、跨学科的机器人战队"
-            description="TARS-Go 战队成立于 2018 年，取名自电影《星际穿越》中的机器人 TARS。战队依托吉林大学吉甲大师双创基地，汇聚了来自不同学院、不同校区的优秀同学，共同在 RoboMaster 机甲大师赛中竞技拼搏。"
+            title="从赛场到日常，记录工程如何落地"
+            description="五组真实影像，串起参赛、备赛、日常训练与项目实践。"
           />
 
-          {/* Stats */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-5">
-            {stats.map((stat) => (
+          <div className="grid grid-cols-2 gap-y-5 border-y border-white/10 py-5 sm:grid-cols-4 sm:gap-y-0">
+            {stats.map((stat, index) => (
               <div
                 key={stat.label}
-                className="motion-stat-surface flex flex-col items-center gap-3 rounded-2xl border border-white/8 bg-surface-light/92 p-7"
+                className={`flex items-baseline gap-2 sm:gap-3 ${index > 0 ? "sm:border-l sm:border-white/10 sm:pl-6" : ""}`}
               >
-                <div className="motion-stat-icon relative flex h-14 w-14 items-center justify-center">
-                  <StatIcon
-                    icon={stat.icon}
-                    className="relative h-9 w-9"
-                    style={{
-                      color: stat.tint,
-                    }}
-                  />
-                </div>
-                <span className="font-mono text-4xl font-bold text-fg-primary">
+                <span className="font-mono text-xl font-semibold tracking-tight text-fg-primary sm:text-3xl">
                   {stat.value}
                 </span>
-                <span className="text-sm font-medium text-fg-muted">
+                <span className="text-xs font-medium text-fg-muted sm:text-sm">
                   {stat.label}
                 </span>
               </div>
             ))}
           </div>
 
-          <div className="mt-12">
-            <div className="mb-8 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
-              <div className="min-w-0 flex-1">
-                <div className="relative overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  <div className="relative flex min-w-max gap-3 pr-4">
-                    {aboutModules.map((module, index) => {
-                      const isActive = index === activeAboutModuleIndex;
-                      return (
-                        <button
-                          key={module.name}
-                          type="button"
-                          onClick={() => activateAboutModule(index)}
-                          className={`motion-button relative flex min-w-[148px] flex-col gap-2 overflow-hidden rounded-2xl border px-4 py-3.5 text-left ${
-                            isActive
-                              ? "motion-module-tab-active border-[#dfbd7c] bg-[#d0ad69] text-[#171915]"
-                              : "border-white/10 bg-surface-light text-fg-muted hover:border-accent-primary/35 hover:text-fg-primary"
-                          }`}
-                          aria-pressed={isActive}
-                        >
-                          <div className="flex items-center justify-between">
-                            <span
-                              className={`font-mono text-[11px] font-bold tracking-[0.22em] ${
-                                isActive ? "text-white/85" : "text-fg-dim"
-                              }`}
-                            >
-                              {String(index + 1).padStart(2, "0")}
-                            </span>
-                            <span
-                              aria-hidden
-                              className={`h-1.5 w-1.5 rounded-full transition-all duration-300 ${
-                                isActive
-                                  ? "bg-white shadow-[0_0_8px_rgba(255,255,255,0.85)]"
-                                  : "bg-white/15"
-                              }`}
-                            />
-                          </div>
-
-                          <span className="text-base font-bold tracking-[0.18em]">
-                            {module.name}
-                          </span>
-
-                          {isActive ? (
-                            <span
-                              aria-hidden
-                              className="pointer-events-none absolute inset-x-3 bottom-0 h-[2px] rounded-full bg-gradient-to-r from-transparent via-white/85 to-transparent"
-                            />
-                          ) : null}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-
-                {/* Progress rail */}
-                <div
-                  aria-hidden
-                  className="relative mt-3 h-[2px] overflow-hidden rounded-full bg-white/[0.06]"
-                >
-                  <div
-                    className="absolute left-0 top-0 h-full rounded-full bg-accent-primary"
-                    style={{
-                      width: `${((activeAboutModuleIndex + 1) / aboutModules.length) * 100}%`,
-                      transition:
-                        "width 520ms cubic-bezier(0.22, 1, 0.36, 1)",
-                    }}
-                  />
-                </div>
-              </div>
-
-              <div className="flex items-center justify-between gap-4 lg:justify-end">
-                <div className="flex items-center gap-3">
-                  <span className="font-mono text-sm font-bold tracking-[0.18em] text-accent-primary">
-                    {String(activeAboutModuleIndex + 1).padStart(2, "0")}
-                  </span>
-                  <span className="h-px w-10 bg-gradient-to-r from-accent-primary/45 to-transparent sm:w-14" />
-                  <span className="font-mono text-sm text-fg-dim">
-                    / {String(aboutModules.length).padStart(2, "0")}
-                  </span>
-                </div>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={showPreviousAboutModule}
-                    className="motion-button flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-surface-light text-fg-primary hover:border-accent-primary/30 hover:text-accent-primary"
-                    aria-label="查看上一模块"
-                  >
-                    <svg
-                      className="h-5 w-5"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="m15 18-6-6 6-6" />
-                    </svg>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={showNextAboutModule}
-                    className="motion-button flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-surface-light text-fg-primary hover:border-accent-primary/30 hover:text-accent-primary"
-                    aria-label="查看下一模块"
-                  >
-                    <svg
-                      className="h-5 w-5"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="m9 18 6-6-6-6" />
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            </div>
-
+          <div className="mt-10">
             <div
-              className={`grid gap-6 ${getAboutModuleLayoutClass(activeAboutModule.images.length)} lg:items-start`}
+              role="group"
+              aria-label="团队实践分类"
+              className="flex overflow-x-auto border-b border-white/10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
-              <div
-                ref={aboutPhotoWallRef}
-                className={`grid ${getAboutPhotoWallClass(activeAboutModule.images.length)} gap-3 lg:h-[var(--about-photo-wall-height)] lg:[grid-template-rows:repeat(var(--about-photo-rows),minmax(0,1fr))]`}
-                style={
-                  {
-                    "--about-photo-rows": String(
-                      getAboutPhotoWallRowCount(activeAboutModule.images.length),
-                    ),
-                  } as CSSProperties
-                }
-              >
-                {activeAboutModule.images.map((image, index) => (
-                  <article
-                    key={image}
-                    style={{ animationDelay: `${index * 55}ms` }}
-                    className={`motion-photo-tile-in motion-surface group relative overflow-hidden rounded-[28px] border border-white/10 bg-surface-light ${getAboutPhotoCellClass(activeAboutModule.images.length, index)}`}
+              {aboutModules.map((module, index) => {
+                const isActive = index === activeAboutModuleIndex;
+                return (
+                  <button
+                    key={module.name}
+                    type="button"
+                    onClick={() => setActiveAboutModuleIndex(index)}
+                    className={`inline-flex min-h-12 shrink-0 items-center gap-1.5 border-b-2 px-1.5 text-xs transition-colors sm:gap-2 sm:px-5 sm:text-sm ${
+                      isActive
+                        ? "border-[#D0AD69] text-fg-primary"
+                        : "border-transparent text-fg-muted hover:text-fg-primary"
+                    }`}
+                    aria-pressed={isActive}
                   >
-                    <img
-                      src={image}
-                      alt={`${activeAboutModule.name}模块图片${index + 1}`}
-                      decoding="async"
-                      loading="lazy"
-                      className="h-full w-full object-cover transition-transform duration-700 ease-out group-hover:scale-105"
-                    />
-                    <div className="absolute inset-0 bg-[linear-gradient(180deg,rgba(2,6,23,0.05)_0%,rgba(2,6,23,0.18)_42%,rgba(2,6,23,0.84)_100%)]" />
-                    <div className="absolute bottom-0 left-0 right-0 px-4 pb-4 pt-8">
-                      <span className="inline-flex rounded-full border border-white/12 bg-black/70 px-3 py-1 text-[11px] font-semibold tracking-[0.22em] text-white/90">
-                        {activeAboutModule.name}
-                      </span>
-                    </div>
-                  </article>
-                ))}
-              </div>
-
-              <div
-                ref={aboutPanelRef}
-                className="motion-panel-soft rounded-[28px] border border-white/8 bg-surface-light/80 p-5 sm:p-6"
-              >
-                <div
-                  key={activeAboutModuleIndex}
-                  style={{ animationDelay: "80ms" }}
-                  className="motion-info-panel-in"
-                >
-                  <span className="inline-flex items-center gap-2 rounded-full border border-accent-primary/30 bg-accent-primary/10 px-4 py-1.5 text-[13px] font-semibold tracking-[0.22em] text-accent-primary">
-                    <span className="inline-flex h-2 w-2 rounded-full bg-accent-primary" />
-                    <span className="relative">{activeAboutModule.name}</span>
-                  </span>
-                  <div className="mt-3.5 flex items-start gap-3 sm:mt-4">
-                    <span
-                      aria-hidden
-                      className="mt-2 h-9 w-[3px] shrink-0 rounded-full bg-gradient-to-b from-accent-primary via-accent-primary/70 to-transparent shadow-[0_0_10px_rgba(0,98,255,0.55)] sm:h-10"
-                    />
-                    <h3 className="font-display text-3xl text-fg-primary sm:text-4xl">
-                      {activeAboutModule.title}
-                    </h3>
-                  </div>
-                  <div className="mt-3.5 space-y-2.5 sm:mt-4">
-                    {activeAboutModule.description.map((paragraph) => (
-                      <p
-                        key={paragraph}
-                        className="text-sm leading-6 text-fg-muted sm:text-base sm:leading-7"
-                      >
-                        {paragraph}
-                      </p>
-                    ))}
-                  </div>
-
-                  <div className="relative mt-4 overflow-hidden rounded-[24px] border border-accent-gold/15 bg-surface-primary p-4 sm:mt-5 sm:p-5">
-                    <div className="relative flex items-center gap-3">
-                      <span
-                        aria-hidden
-                        className="inline-flex h-7 w-7 items-center justify-center rounded-lg border border-accent-gold/30 bg-accent-gold/10 shadow-[inset_0_0_10px_rgba(245,158,11,0.18)]"
-                      >
-                        <svg
-                          className="h-3.5 w-3.5 text-accent-gold"
-                          viewBox="0 0 24 24"
-                          fill="none"
-                          stroke="currentColor"
-                          strokeWidth="2.2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        >
-                          <circle cx="12" cy="12" r="9" />
-                          <circle cx="12" cy="12" r="5" />
-                          <circle cx="12" cy="12" r="1.5" fill="currentColor" />
-                        </svg>
-                      </span>
-                      <h4 className="text-sm font-semibold uppercase tracking-[0.22em] text-accent-gold">
-                        模块聚焦
-                      </h4>
-                      <span
-                        aria-hidden
-                        className="h-px flex-1 bg-gradient-to-r from-accent-gold/40 via-accent-gold/10 to-transparent"
-                      />
-                    </div>
-                    <ul className="relative mt-4 space-y-2">
-                      {activeAboutModule.highlights.map((highlight, idx) => (
-                        <li
-                          key={highlight}
-                          className="group relative flex items-start gap-3 rounded-xl border border-transparent px-2 py-1.5 text-sm leading-6 text-fg-muted transition-all duration-300 hover:border-accent-gold/15 hover:bg-accent-gold/[0.05] hover:text-fg-primary sm:text-[15px] sm:leading-7"
-                        >
-                          <span
-                            aria-hidden
-                            className="relative mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border border-accent-gold/25 bg-accent-gold/10 font-mono text-[11px] font-bold text-accent-gold"
-                          >
-                            {String(idx + 1).padStart(2, "0")}
-                          </span>
-                          <span>{highlight}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                </div>
-              </div>
+                    <span className="font-mono text-[10px] text-[#D0AD69]">
+                      {String(index + 1).padStart(2, "0")}
+                    </span>
+                    <span className="font-medium">{module.name}</span>
+                  </button>
+                );
+              })}
             </div>
+
+            <article className="mt-6 grid overflow-hidden md:grid-cols-[1.28fr_0.72fr]">
+              <figure className="aspect-[4/3] overflow-hidden bg-[#171b1a] md:aspect-auto md:min-h-[420px]">
+                <img
+                  key={activeAboutModule.image}
+                  src={activeAboutModule.image}
+                  alt={activeAboutModule.imageAlt}
+                  loading="lazy"
+                  decoding="async"
+                  className="h-full w-full object-cover"
+                />
+              </figure>
+              <div className="flex flex-col justify-center border-t border-white/10 py-6 md:border-l md:border-t-0 md:px-8 lg:px-12">
+                <span className="font-mono text-xs tracking-[0.16em] text-[#D0AD69]">
+                  {String(activeAboutModuleIndex + 1).padStart(2, "0")} / {String(aboutModules.length).padStart(2, "0")}
+                </span>
+                <h3 className="mt-3 text-2xl font-semibold tracking-tight text-fg-primary sm:text-3xl">
+                  {activeAboutModule.title}
+                </h3>
+                <p className="mt-4 max-w-md text-sm leading-7 text-fg-muted sm:text-[15px]">
+                  {activeAboutModule.description}
+                </p>
+              </div>
+            </article>
           </div>
         </div>
       </section>
@@ -1367,53 +855,55 @@ export default function Home() {
             total="05"
             labelZh="机器人展示"
             labelEn="OUR ROBOTS"
-            title="我们的战旗机甲"
-            description="每一台机器人都是团队智慧的结晶，融合机械设计、嵌入式系统、机器视觉、人工智能等多项技术。"
           />
 
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-5">
-            {robots.map((robot, index) => (
-              <div
-                key={robot.name}
-                className="motion-surface overflow-hidden rounded-2xl border border-white/8 bg-surface-light/92"
-              >
-                {robotImages[index] ? (
-                  <img
-                    src={robotImages[index]}
-                    alt={robot.name}
-                    loading="lazy"
-                    className="h-40 w-full object-cover"
-                  />
-                ) : (
-                  <div className="w-full h-40 bg-gradient-to-br from-accent-primary/20 to-accent-secondary/20 flex items-center justify-center">
-                    <svg
-                      className="w-12 h-12 text-fg-muted/30"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="1.5"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <path d="M12 8V4H8" />
-                      <rect width="16" height="12" x="4" y="8" rx="2" />
-                      <path d="M2 14h2" />
-                      <path d="M20 14h2" />
-                      <path d="M15 13v2" />
-                      <path d="M9 13v2" />
-                    </svg>
-                  </div>
-                )}
-                <div className="p-5 flex flex-col gap-2">
-                  <h3 className="text-base font-bold text-fg-primary">
-                    {robot.name}
-                  </h3>
-                  <p className="text-[13px] text-fg-muted leading-relaxed">
-                    {robot.description}
-                  </p>
-                </div>
+          <div className="grid gap-7 lg:grid-cols-[1.3fr_0.7fr] lg:gap-10">
+            <figure className="overflow-hidden bg-[#171b1a]">
+              <div className="relative aspect-[4/3] min-h-[320px] overflow-hidden bg-[#171b1a] sm:min-h-[420px] lg:min-h-0">
+                <img
+                  src={robots[0].image}
+                  alt={robots[0].name}
+                  loading="lazy"
+                  decoding="async"
+                  className="absolute inset-0 h-full w-full object-contain object-center"
+                />
               </div>
-            ))}
+              <figcaption className="flex items-center justify-between gap-4 border-t border-white/10 px-5 py-4 sm:px-7">
+                <span className="font-mono text-xs tracking-[0.14em] text-[#D0AD69]">
+                  01 / 主展示
+                </span>
+                <h3 className="text-lg font-semibold text-fg-primary sm:text-xl">
+                  {robots[0].name}
+                </h3>
+              </figcaption>
+            </figure>
+
+            <div className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-4 lg:grid-cols-1 lg:gap-0">
+              {robots.slice(1).map((robot, index) => (
+                <article
+                  key={robot.name}
+                  className="min-w-0 lg:grid lg:grid-cols-[120px_1fr] lg:items-center lg:gap-4 lg:border-b lg:border-white/10 lg:py-3.5"
+                >
+                  <div className="aspect-[4/3] overflow-hidden bg-[#171b1a] lg:aspect-[5/3]">
+                    <img
+                      src={robot.image}
+                      alt={robot.name}
+                      loading="lazy"
+                      decoding="async"
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                  <div className="mt-2 flex items-baseline gap-2 lg:mt-0">
+                    <span className="font-mono text-[10px] text-[#D0AD69]">
+                      {String(index + 2).padStart(2, "0")}
+                    </span>
+                    <h3 className="text-sm font-semibold text-fg-primary sm:text-base">
+                      {robot.name}
+                    </h3>
+                  </div>
+                </article>
+              ))}
+            </div>
           </div>
         </div>
       </section>
