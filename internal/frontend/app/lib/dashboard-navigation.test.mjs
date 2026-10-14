@@ -13,6 +13,7 @@ test("recruitment administration exposes email management as a first-level entry
   const menu = getVisibleAdminDashboardMenu("super_admin");
   assert.equal(menu[0]?.label, "招新工作台");
   assert.equal(menu.find((item) => item.key === "candidate-processing")?.label, "候选人处理");
+  assert.equal(menu.find((item) => item.key === "recruitment-analytics")?.label, "招新数据分析");
   assert.equal(menu.find((item) => item.key === "recruitment-management")?.label, "招新管理");
   assert.equal(menu.find((item) => item.key === "accounts")?.label, "账号与权限");
   assert.equal(menu.some((item) => item.key === "portal-content" || item.key === "recruitment-statistics"), false);
@@ -33,13 +34,14 @@ test("candidate navigation has one recruitment destination and admin tools stay 
   assert.deepEqual(getUserDashboardMenu("super_admin"), []);
   const adminMenu = getVisibleAdminDashboardMenu("admin");
   assert.equal(adminMenu.some((item) => item.key === "email-management"), false);
-  assert.equal(adminMenu.some((item) => item.key === "recruitment-management" || item.key === "accounts"), false);
+  assert.equal(adminMenu.some((item) => item.key === "recruitment-management" || item.key === "accounts" || item.key === "recruitment-analytics"), false);
 });
 
 test("admin routes require an exact workbench match and each route's own menu permission", () => {
   const cases = [
     ["/dashboard/admin", true],
     ["/dashboard/admin/registrations", true],
+    ["/dashboard/admin/recruitment-analytics", false],
     ["/dashboard/admin/recruitment", false],
     ["/dashboard/admin/interview-sessions", false],
     ["/dashboard/admin/recruitment-settings", false],
@@ -60,6 +62,7 @@ test("super admin can access every listed admin route", () => {
     "/dashboard/admin",
     "/dashboard/admin/registrations",
     "/dashboard/admin/recruitment",
+    "/dashboard/admin/recruitment-analytics",
     "/dashboard/admin/users",
     "/dashboard/admin/email",
   ];

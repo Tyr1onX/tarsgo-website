@@ -12,6 +12,7 @@ export default [
     route("admin", "routes/admin/dashboard.tsx"),
     route("admin/users", "routes/admin/users.tsx"),
     route("admin/recruitment", "routes/admin/recruitment-management.tsx"),
+    route("admin/recruitment-analytics", "routes/admin/recruitment-analytics.tsx"),
     route("admin/registrations", "routes/admin/registrations.tsx"),
     route("admin/email", "routes/admin/email-management.tsx"),
   ]),
