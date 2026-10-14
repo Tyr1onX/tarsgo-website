@@ -2,7 +2,7 @@ import type { Route } from "./+types/home";
 import { useEffect, useId, useRef, useState } from "react";
 import { Navbar } from "../components/navbar";
 import { SiteLogo } from "~/components/site-logo";
-import { Link, useLocation } from "react-router";
+import { Link, useLocation, useNavigate } from "react-router";
 import {
   getCachedCurrentUser,
   getOptionalCurrentUser,
@@ -317,6 +317,65 @@ const topicPageByPath: Record<string, PublicPage> = {
   "/join": "join",
 };
 
+const legacyHomeHashDestinations: Record<string, string> = {
+  "#about": "/about#about",
+  "#achievements": "/team-history#achievements",
+  "#robots": "/robots#robots",
+  "#certificates": "/events-and-honors#certificates",
+  "#join": "/join#join",
+};
+
+const homeNavigationModules = [
+  {
+    title: "认识吉甲",
+    description: "从训练日常和团队文化，认识工程实践如何走进赛场。",
+    href: "/about",
+    image: "/assets/images/ContestMoment/contest-moment-04.webp",
+    alt: "队员在比赛现场协作检查机器人。",
+    placement: "home-visual-card--about",
+  },
+  {
+    title: "机器人展示",
+    description: "浏览五类机器人影像，了解真实的团队实践。",
+    href: "/robots",
+    image: "/assets/images/Robot/hero-robot.webp",
+    alt: "吉甲大师英雄机器人实物。",
+    placement: "home-visual-card--robots",
+  },
+  {
+    title: "加入吉甲",
+    description: "从机械、电控、视觉、AI 与运营五个方向找到入口。",
+    href: "/join",
+    image: "/assets/images/Daily/daily-02.webp",
+    alt: "队员围绕笔记本和工程模型交流。",
+    placement: "home-visual-card--join",
+  },
+  {
+    title: "赛事与荣誉",
+    description: "回看真实赛事记录，浏览 25 张荣誉证书原图。",
+    href: "/events-and-honors",
+    image: "/assets/images/ContestMoment/contest-moment-02.webp",
+    alt: "吉甲大师团队赛事现场记录。",
+    placement: "home-visual-card--events",
+  },
+  {
+    title: "团队历程",
+    description: "沿着 2018—2025 年真实资料，回看团队接力。",
+    href: "/team-history",
+    image: "/assets/images/Milestone/2025-legacy.webp",
+    alt: "团队历程中的 2025 年历史影像。",
+    placement: "home-visual-card--history",
+  },
+  {
+    title: "低空微专业",
+    description: "了解低空智能感知与控制的课程和实践内容。",
+    href: "/micro-specialties/low-altitude-intelligent-sensing-control",
+    image: "/assets/images/Robot/aerial-robots.webp",
+    alt: "吉甲大师空中机器人。",
+    placement: "home-visual-card--micro",
+  },
+];
+
 const competitionHighlights = timelineMilestones.map((milestone) => ({
   year: milestone.year,
   items: milestone.highlights.filter((highlight) =>
@@ -553,13 +612,167 @@ function AboutImageReveal({ src, alt }: { src: string; alt: string }) {
   );
 }
 
+function HomeVisualNavigation() {
+  return (
+    <section
+      id="home-navigation"
+      aria-labelledby="home-navigation-heading"
+      className="border-t border-white/[0.06] py-14 sm:py-16 lg:py-20"
+    >
+      <div className="public-home-container">
+        <div className="mx-auto mb-8 max-w-3xl sm:mb-10 lg:mx-0">
+          <p className="mb-3 text-center text-[11px] font-semibold uppercase tracking-[0.2em] text-accent-primary sm:text-left">
+            探索 TARSGO
+          </p>
+          <h2
+            id="home-navigation-heading"
+            className="text-center text-3xl font-semibold tracking-[-0.035em] text-fg-primary sm:text-left sm:text-4xl"
+          >
+            走进吉甲的工程现场
+          </h2>
+          <p className="mt-3 text-center text-sm leading-6 text-fg-muted sm:text-left sm:text-base">
+            从团队、机器人、赛事到成长路径，选择一个入口继续了解。
+          </p>
+        </div>
+
+        <nav aria-label="吉甲专题导航" className="home-visual-grid">
+          {homeNavigationModules.map((module) => (
+            <Link
+              key={module.href}
+              to={module.href}
+              className={`home-visual-card ${module.placement}`}
+              aria-label={`${module.title}：${module.description}`}
+            >
+              <img
+                src={module.image}
+                alt={module.alt}
+                loading="lazy"
+                decoding="async"
+              />
+              <span className="home-visual-card-shade" aria-hidden="true" />
+              <div className="home-visual-card-copy">
+                <h3>{module.title}</h3>
+                <p>{module.description}</p>
+              </div>
+              <svg
+                className="home-visual-card-arrow"
+                viewBox="0 0 24 24"
+                fill="none"
+                aria-hidden="true"
+              >
+                <path d="M5 12h14m-6-6 6 6-6 6" />
+              </svg>
+            </Link>
+          ))}
+        </nav>
+      </div>
+    </section>
+  );
+}
+
+function HomeSponsorSection() {
+  return (
+    <section
+      className="home-sponsors border-t border-white/[0.06] py-12 sm:py-14 lg:py-16"
+      aria-labelledby="home-sponsors-heading"
+    >
+      <div className="public-home-container">
+        <div className="mb-7 flex flex-col gap-2 sm:mb-8 sm:flex-row sm:items-end sm:justify-between">
+          <div>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent-primary">PARTNERS</p>
+            <h2 id="home-sponsors-heading" className="mt-2 text-2xl font-semibold tracking-tight text-fg-primary sm:text-3xl">
+              赞助商与合作伙伴
+            </h2>
+          </div>
+          <p className="max-w-xl text-sm leading-6 text-fg-muted">
+            感谢所有支持吉甲大师团队建设与实践的合作伙伴。
+          </p>
+        </div>
+
+        <ul className="home-sponsor-grid" aria-label="现有赞助商">
+          {sponsorLogos.map((sponsor) => (
+            <li key={sponsor.name} className="home-sponsor-logo">
+              <img src={sponsor.image} alt={sponsor.name} loading="lazy" decoding="async" />
+            </li>
+          ))}
+        </ul>
+      </div>
+    </section>
+  );
+}
+
+function PublicFooter() {
+  return (
+    <footer className="public-site-footer border-t border-white/[0.08] py-9 sm:py-11">
+      <div className="public-home-container">
+        <div className="grid gap-8 border-b border-white/[0.08] pb-8 sm:grid-cols-2 lg:grid-cols-4 lg:gap-10">
+          <section aria-labelledby="footer-social-heading">
+            <Link to="/" aria-label="TARSGO 首页" className="inline-flex focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary">
+              <SiteLogo className="h-11 max-w-[200px]" />
+            </Link>
+            <h2 id="footer-social-heading" className="mt-5 text-sm font-semibold text-fg-primary">社交媒体</h2>
+            <nav aria-label="官方社交账号" className="mt-3 flex flex-wrap gap-2">
+              <a
+                href="https://www.douyin.com/user/MS4wLjABAAAAZJcCtp6uwKt4wKUwa_STi1GadztAmwBwHKN0jjjDj2MNjgOclLsim387ZDtRPjvW"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="footer-social-link"
+              >
+                <DouyinIcon />
+                抖音
+              </a>
+              <a
+                href="https://space.bilibili.com/488284486"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="footer-social-link"
+              >
+                <BilibiliIcon />
+                B站
+              </a>
+            </nav>
+          </section>
+
+          <nav aria-labelledby="footer-about-heading" className="flex flex-col items-start gap-2">
+            <h2 id="footer-about-heading" className="mb-1 text-sm font-semibold text-fg-primary">关于吉甲</h2>
+            <Link className="footer-link" to="/about">认识吉甲</Link>
+            <Link className="footer-link" to="/team-history">团队历程</Link>
+          </nav>
+
+          <nav aria-labelledby="footer-quick-links-heading" className="flex flex-col items-start gap-2">
+            <h2 id="footer-quick-links-heading" className="mb-1 text-sm font-semibold text-fg-primary">快速入口</h2>
+            <Link className="footer-link" to="/robots">机器人展示</Link>
+            <Link className="footer-link" to="/events-and-honors">赛事与荣誉</Link>
+            <Link className="footer-link" to="/join">加入我们</Link>
+            <Link className="footer-link" to="/micro-specialties/low-altitude-intelligent-sensing-control">低空微专业</Link>
+          </nav>
+
+          <section aria-labelledby="footer-contact-heading">
+            <h2 id="footer-contact-heading" className="mb-3 text-sm font-semibold text-fg-primary">联系方式</h2>
+            <p className="text-sm leading-6 text-fg-muted">吉林大学吉甲大师双创基地</p>
+            <p className="mt-2 text-sm leading-6 text-fg-muted">请通过官方社交账号联系团队。</p>
+          </section>
+        </div>
+
+        <p className="pt-5 text-xs text-fg-dim">
+          &copy; {new Date().getFullYear()} TARSGO 战队 · 吉林大学吉甲大师双创基地
+        </p>
+      </div>
+    </footer>
+  );
+}
+
 function getNavbarUser(): AuthUser | null | undefined {
   return getCachedCurrentUser() ?? (hasKnownAnonymousSession() ? null : undefined);
 }
 
 export default function Home({ page = "home" }: { page?: PublicPage }) {
   const location = useLocation();
+  const navigate = useNavigate();
   const routePage = topicPageByPath[location.pathname] ?? page;
+  const legacyDestination = location.pathname === "/"
+    ? legacyHomeHashDestinations[location.hash]
+    : undefined;
   const [activeAboutModuleIndex, setActiveAboutModuleIndex] = useState(0);
   const [activeRobotIndex, setActiveRobotIndex] = useState(0);
   const [activeTimelineYear, setActiveTimelineYear] = useState(timelineMilestones[0].year);
@@ -567,6 +780,10 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
   const [selectedCertificateIndex, setSelectedCertificateIndex] = useState<number | null>(null);
   const certificateDialogRef = useRef<HTMLDialogElement>(null);
   const timelineWindowRef = useRef<HTMLDivElement | null>(null);
+  const heroVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(
+    () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+  );
 
   const [currentUser, setCurrentUser] = useState<AuthUser | null | undefined>(getNavbarUser);
   const [authError, setAuthError] = useState(false);
@@ -579,6 +796,23 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
   const visibleCertificates = showAllCertificates
     ? achievementCertificates
     : achievementCertificates.slice(0, 6);
+
+  useEffect(() => {
+    if (legacyDestination) {
+      navigate(legacyDestination, { replace: true });
+    }
+  }, [legacyDestination, navigate]);
+
+  useEffect(() => {
+    const reducedMotionPreference = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const updatePreference = () => setPrefersReducedMotion(reducedMotionPreference.matches);
+    reducedMotionPreference.addEventListener("change", updatePreference);
+    return () => reducedMotionPreference.removeEventListener("change", updatePreference);
+  }, []);
+
+  useEffect(() => {
+    if (prefersReducedMotion) heroVideoRef.current?.pause();
+  }, [prefersReducedMotion]);
 
   useEffect(() => {
     let disposed = false;
@@ -653,12 +887,13 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
       >
         <div className="absolute inset-0">
           <video
+            ref={heroVideoRef}
             className="h-full w-full object-cover"
-            autoPlay
+            autoPlay={!prefersReducedMotion}
             muted
             loop
             playsInline
-            preload="metadata"
+            preload={prefersReducedMotion ? "none" : "metadata"}
             poster="/assets/images/Robot/hero-robot.webp"
             aria-label="吉林大学吉甲大师双创基地宣传视频"
           >
@@ -686,10 +921,10 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
               </p>
               <div className="mt-2 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
                 <Link
-                  to="/register"
+                  to="/about"
                   className="motion-button inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-accent-primary px-6 py-3 text-sm font-semibold text-fg-inverse transition-colors hover:bg-[var(--admin-accent-bright)] sm:px-7"
                 >
-                  立即报名
+                  了解吉甲
                   <svg
                     className="h-4 w-4"
                     viewBox="0 0 24 24"
@@ -703,12 +938,12 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
                     <path d="m12 5 7 7-7 7" />
                   </svg>
                 </Link>
-                <a
-                  href="#robots"
+                <Link
+                  to="/join"
                   className="inline-flex min-h-11 items-center justify-center rounded-md border border-white/35 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10 sm:px-7"
                 >
-                  认识我们的机器人
-                </a>
+                  加入我们
+                </Link>
               </div>
             </div>
           </div>
@@ -740,6 +975,8 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
 
       <Navbar currentUser={currentUser} authError={authError} />
 
+      {routePage === "home" ? <HomeVisualNavigation /> : null}
+
       {routePage === "events-and-honors" ? (
         <section id="competition-records" className="border-t border-white/[0.06] py-16 sm:py-20">
           <div className="public-home-container">
@@ -760,7 +997,7 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
       ) : null}
 
       {/* About Section */}
-      {(routePage === "home" || routePage === "about") && (
+      {routePage === "about" && (
       <section
         id="about"
         className="border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
@@ -845,7 +1082,7 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
       )}
 
       {/* Achievements Section */}
-      {(routePage === "home" || routePage === "team-history") && (
+      {routePage === "team-history" && (
       <section
         id="achievements"
         className="relative overflow-hidden border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
@@ -989,7 +1226,7 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
       )}
 
       {/* Robot Showcase Section */}
-      {(routePage === "home" || routePage === "robots") && (
+      {routePage === "robots" && (
       <section
         id="robots"
         className="border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
@@ -1108,7 +1345,7 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
       )}
 
       {/* Achievement Certificates Section */}
-      {(routePage === "home" || routePage === "events-and-honors") && (
+      {routePage === "events-and-honors" && (
       <section
         id="certificates"
         className="border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
@@ -1258,7 +1495,7 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
       )}
 
       {/* Join Us Section */}
-      {(routePage === "home" || routePage === "join") && (
+      {routePage === "join" && (
       <section
         id="join"
         className="border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
@@ -1335,78 +1572,8 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
       )}
 
       {/* Footer */}
-      <footer className="border-t border-white/[0.08] bg-transparent py-10">
-        <div className="public-home-container">
-          <div className="flex flex-col gap-6 border-b border-white/[0.08] pb-8 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex flex-col items-start gap-3">
-              <SiteLogo className="h-12 max-w-[220px]" />
-              <p className="text-sm text-fg-muted">吉林大学吉甲大师双创基地</p>
-            </div>
-            <div className="flex flex-wrap items-center gap-3 sm:justify-end">
-              <nav aria-label="官方社交账号" className="flex flex-wrap items-center gap-2">
-                <a
-                  href="https://www.douyin.com/user/MS4wLjABAAAAZJcCtp6uwKt4wKUwa_STi1GadztAmwBwHKN0jjjDj2MNjgOclLsim387ZDtRPjvW"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label="抖音：吉甲大师TARSGO（在新标签页打开）"
-                  className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/[0.12] px-3 py-2 text-fg-muted transition-colors hover:border-accent-primary/50 hover:text-accent-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary"
-                >
-                  <DouyinIcon />
-                  <span className="flex flex-col leading-tight">
-                    <span className="text-xs font-medium text-fg-primary">抖音</span>
-                    <span className="text-xs">吉甲大师TARSGO</span>
-                  </span>
-                </a>
-                <a
-                  href="https://space.bilibili.com/488284486"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  aria-label="B站：吉甲大师TARSGO（在新标签页打开）"
-                  className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/[0.12] px-3 py-2 text-fg-muted transition-colors hover:border-accent-primary/50 hover:text-accent-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary"
-                >
-                  <BilibiliIcon />
-                  <span className="flex flex-col leading-tight">
-                    <span className="text-xs font-medium text-fg-primary">B站</span>
-                    <span className="text-xs">吉甲大师TARSGO</span>
-                  </span>
-                </a>
-              </nav>
-            </div>
-          </div>
-
-          <section className="py-8" aria-label="赞助商">
-            <h2 className="mb-4 text-sm font-semibold text-fg-primary">赞助商支持</h2>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-              {sponsorLogos.map((sponsor) => (
-                <div
-                  key={sponsor.name}
-                  className="sponsor-logo-frame flex h-20 items-center justify-center overflow-hidden bg-white p-3"
-                >
-                  <img
-                    src={sponsor.image}
-                    alt={sponsor.name}
-                    loading="lazy"
-                    className="h-full w-full object-contain"
-                  />
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <nav aria-label="吉甲专题页面" className="grid grid-cols-2 gap-x-5 gap-y-3 border-b border-white/[0.08] pb-8 text-sm sm:grid-cols-3 lg:grid-cols-6">
-            <Link className="text-fg-muted transition hover:text-accent-primary" to="/about">认识吉甲</Link>
-            <Link className="text-fg-muted transition hover:text-accent-primary" to="/robots">机器人展示</Link>
-            <Link className="text-fg-muted transition hover:text-accent-primary" to="/events-and-honors">赛事与荣誉</Link>
-            <Link className="text-fg-muted transition hover:text-accent-primary" to="/team-history">团队历程</Link>
-            <Link className="text-fg-muted transition hover:text-accent-primary" to="/join">加入吉甲</Link>
-            <Link className="text-fg-muted transition hover:text-accent-primary" to="/micro-specialties/low-altitude-intelligent-sensing-control">低空微专业</Link>
-          </nav>
-
-          <p className="border-t border-white/[0.08] pt-5 text-xs text-fg-dim">
-            &copy; {new Date().getFullYear()} TARSGO 战队 · 吉林大学吉甲大师双创基地
-          </p>
-        </div>
-      </footer>
+      {routePage === "home" ? <HomeSponsorSection /> : null}
+      <PublicFooter />
       </div>
     </div>
   );

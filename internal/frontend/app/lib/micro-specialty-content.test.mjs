@@ -77,7 +77,7 @@ test("micro-specialty page is informational and has no registration or recruitme
   assert.match(navbar, /microSpecialtyNavLinks/);
   assert.doesNotMatch(navbar.match(/const microSpecialtyNavLinks = \[([\s\S]*?)\];/)?.[1] ?? "", /register|login|加入我们|招新/i);
   assert.match(navbar, /to="\/register"/);
-  assert.match(navbar, /label: "加入吉甲"/);
+  assert.match(navbar, /label: "加入我们"/);
 });
 
 test("page layout remains responsive across mobile and desktop widths", () => {
