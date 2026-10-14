@@ -122,7 +122,9 @@ test("all three seasons contain thirty distinct real source photos and 2026 is t
   assert.match(component, /aria-pressed=\{activeSeasonYear === season\.season\}/);
   assert.match(home, /image: "\/assets\/images\/Robot\/2026\/hero-01-1440\.webp"/);
   assert.match(home, /2026 \/ 2025 \/ 2024 赛季机器人阵容/);
-  assert.match(home, /三季共 30 张真实机器人定妆照/);
+  assert.doesNotMatch(home, /切换赛季，浏览 2026、2025 与 2024 三季共 30 张真实机器人定妆照/);
+  assert.doesNotMatch(component, /activeSeason\.description/);
+  assert.doesNotMatch(data, /收录 202[456] 赛季/);
 });
 
 test("switching seasons resets the category and closes any active preview", () => {
