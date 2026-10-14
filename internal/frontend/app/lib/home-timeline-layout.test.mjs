@@ -83,11 +83,11 @@ test("all five about categories and robot options remain available in uniform im
   assert.match(home, /robot-option-image[^\"]*aspect-\[4\/3\]/);
 });
 
-test("every sponsor remains in the shared fixed-height logo grid", () => {
+test("every sponsor remains in the homepage logo grid without changing source artwork", () => {
   const sponsorSource = home.match(/const sponsorLogos = \[([\s\S]*?)\n\];/)?.[1] ?? "";
   assert.equal((sponsorSource.match(/name: /g) ?? []).length, 10);
   assert.match(home, /sponsorLogos\.map\(/);
-  assert.match(home, /sponsor-logo-frame flex h-20/);
-  assert.match(home, /className="h-full w-full object-contain"/);
-  assert.match(styles, /\.sponsor-logo-frame\s*\{[^}]*max-width:\s*15rem;/);
+  assert.match(home, /className="home-sponsor-logo"/);
+  assert.match(styles, /\.home-sponsor-logo\s*\{[^}]*min-height:\s*5rem;[^}]*background:\s*#fff;/);
+  assert.match(styles, /\.home-sponsor-logo img\s*\{[^}]*object-fit:\s*contain;/);
 });

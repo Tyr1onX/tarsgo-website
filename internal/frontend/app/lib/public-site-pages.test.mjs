@@ -4,6 +4,8 @@ import test from "node:test";
 
 const routes = await readFile(new URL("../routes.ts", import.meta.url), "utf8");
 const home = await readFile(new URL("../routes/home.tsx", import.meta.url), "utf8");
+const navbar = await readFile(new URL("../components/navbar.tsx", import.meta.url), "utf8");
+const styles = await readFile(new URL("../app.css", import.meta.url), "utf8");
 
 const pages = [
   ["about", "about"],
@@ -49,4 +51,28 @@ test("topic content uses the existing five groups, practice modules, and real ev
   assert.match(home, /const aboutModules = \[/);
   assert.match(home, /const competitionHighlights = timelineMilestones\.map/);
   assert.match(home, /从日常训练与组内协作开始/);
+});
+
+test("the homepage uses six image-led routes, preserves legacy hashes, and keeps reduced-motion video behavior", () => {
+  const modules = home.match(/const homeNavigationModules = \[([\s\S]*?)\n\];/)?.[1] ?? "";
+  assert.equal((modules.match(/title: /g) ?? []).length, 6);
+  for (const path of ["/about", "/robots", "/join", "/events-and-honors", "/team-history", "/micro-specialties/low-altitude-intelligent-sensing-control"]) {
+    assert.ok(modules.includes(`href: "${path}"`), `missing homepage route ${path}`);
+  }
+  for (const [anchor, destination] of [
+    ["#about", "/about#about"],
+    ["#achievements", "/team-history#achievements"],
+    ["#robots", "/robots#robots"],
+    ["#certificates", "/events-and-honors#certificates"],
+    ["#join", "/join#join"],
+  ]) {
+    assert.ok(home.includes(`"${anchor}": "${destination}"`), `missing legacy mapping for ${anchor}`);
+  }
+  assert.match(home, /autoPlay=\{!prefersReducedMotion\}/);
+  assert.match(home, /preload=\{prefersReducedMotion \? "none" : "metadata"\}/);
+  assert.match(home, /if \(prefersReducedMotion\) heroVideoRef\.current\?\.pause\(\)/);
+  assert.match(home, /<HomeVisualNavigation \/>/);
+  assert.match(navbar, /label: "加入我们", href: "\/join"/);
+  assert.match(styles, /\.home-visual-card:focus-visible/);
+  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.home-visual-card:hover > img[\s\S]*?transform: none;/);
 });
