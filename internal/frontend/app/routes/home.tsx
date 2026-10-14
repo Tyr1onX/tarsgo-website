@@ -39,7 +39,7 @@ const timelineMilestones = [
       "搭建机械、电控、视觉核心团队。",
       "开启 ICRA 人工智能挑战赛征程。",
     ],
-    images: [{ src: "/assets/images/Milestone/2018-set-sail.webp", width: 660, height: 428 }],
+    images: [{ src: "/assets/images/Milestone/2018-set-sail.webp", width: 660, height: 428, fit: "cover" }],
   },
   {
     year: "2019",
@@ -51,7 +51,7 @@ const timelineMilestones = [
       "开启全国大学生 RoboMaster 对抗赛征程。",
       "开展暑期夏令营和冬令营，跨南岭、南湖、南区，参与学院多达 12 个。",
     ],
-    images: [{ src: "/assets/images/Milestone/2019-breakthrough.webp", width: 900, height: 550 }],
+    images: [{ src: "/assets/images/Milestone/2019-breakthrough.webp", width: 900, height: 550, fit: "cover" }],
   },
   {
     year: "2020",
@@ -63,8 +63,8 @@ const timelineMilestones = [
       "ICRA 人工智能挑战赛获二等奖。",
     ],
     images: [
-      { src: "/assets/images/Milestone/2020-first-achievement-01.webp", width: 900, height: 393 },
-      { src: "/assets/images/Milestone/2020-first-achievement-02.webp", width: 660, height: 933 },
+      { src: "/assets/images/Milestone/2020-first-achievement-01.webp", width: 900, height: 393, fit: "cover" },
+      { src: "/assets/images/Milestone/2020-first-achievement-02.webp", width: 660, height: 933, fit: "contain" },
     ],
   },
   {
@@ -78,7 +78,7 @@ const timelineMilestones = [
       "全国大学生 RoboMaster 对抗赛三等奖。",
       "高校联盟赛·黑龙江站八强。",
     ],
-    images: [{ src: "/assets/images/Milestone/2021-technological-iteration.webp", width: 1267, height: 845 }],
+    images: [{ src: "/assets/images/Milestone/2021-technological-iteration.webp", width: 1267, height: 845, fit: "cover" }],
   },
   {
     year: "2022",
@@ -90,8 +90,8 @@ const timelineMilestones = [
       "全国大学生 RoboMaster 对抗赛三等奖。",
     ],
     images: [
-      { src: "/assets/images/Milestone/2022-inheritance-system-01.webp", width: 1080, height: 773 },
-      { src: "/assets/images/Milestone/2022-inheritance-system-02.webp", width: 1269, height: 845 },
+      { src: "/assets/images/Milestone/2022-inheritance-system-01.webp", width: 1080, height: 773, fit: "cover" },
+      { src: "/assets/images/Milestone/2022-inheritance-system-02.webp", width: 1269, height: 845, fit: "cover" },
     ],
   },
   {
@@ -104,8 +104,8 @@ const timelineMilestones = [
       "全国大学生 RoboMaster 对抗赛三等奖。",
     ],
     images: [
-      { src: "/assets/images/Milestone/2023-cultural-development-01.webp", width: 1222, height: 862 },
-      { src: "/assets/images/Milestone/2023-cultural-development-02.webp", width: 1258, height: 839 },
+      { src: "/assets/images/Milestone/2023-cultural-development-01.webp", width: 1222, height: 862, fit: "cover" },
+      { src: "/assets/images/Milestone/2023-cultural-development-02.webp", width: 1258, height: 839, fit: "cover" },
     ],
   },
   {
@@ -117,7 +117,7 @@ const timelineMilestones = [
       "晋级全国总决赛。",
       "获国家级二等奖、英雄一等奖。",
     ],
-    images: [{ src: "/assets/images/Milestone/2024-national-competition.webp", width: 1080, height: 720 }],
+    images: [{ src: "/assets/images/Milestone/2024-national-competition.webp", width: 1080, height: 720, fit: "cover" }],
   },
   {
     year: "2025",
@@ -129,7 +129,7 @@ const timelineMilestones = [
       "全国大学生 RoboMaster 对抗赛国家级二等奖。",
       "工程一等奖、英雄一等奖等。",
     ],
-    images: [{ src: "/assets/images/Milestone/2025-legacy.webp", width: 1269, height: 714 }],
+    images: [{ src: "/assets/images/Milestone/2025-legacy.webp", width: 1269, height: 714, fit: "cover" }],
   },
 ];
 
@@ -137,22 +137,27 @@ const robots = [
   {
     name: "英雄机器人",
     image: "/assets/images/Robot/hero-robot.webp",
+    visualScale: 1,
   },
   {
     name: "步兵机器人",
     image: "/assets/images/Robot/infantry-robot.webp",
+    visualScale: 1,
   },
   {
     name: "工程机器人",
     image: "/assets/images/Robot/engineering-robot.webp",
+    visualScale: 1,
   },
   {
     name: "哨兵机器人",
     image: "/assets/images/Robot/sentinel-robot.webp",
+    visualScale: 1,
   },
   {
     name: "空中机器人",
     image: "/assets/images/Robot/aerial-robots.webp",
+    visualScale: 1.45,
   },
 ];
 
@@ -405,7 +410,7 @@ function AboutImageReveal({ src, alt }: { src: string; alt: string }) {
   const incomingSrc = transition.incomingSrc;
 
   return (
-    <div className="relative aspect-[4/3] overflow-hidden bg-surface-card md:aspect-[16/10]">
+    <div className="relative aspect-[16/10] overflow-hidden bg-surface-card">
       <img
         src={transition.baseSrc}
         alt={incomingSrc ? "" : alt}
@@ -500,7 +505,8 @@ export default function Home() {
   const [activeAboutModuleIndex, setActiveAboutModuleIndex] = useState(0);
   const [activeRobotIndex, setActiveRobotIndex] = useState(0);
   const [activeTimelineYear, setActiveTimelineYear] = useState(timelineMilestones[0].year);
-  const [selectedCertificate, setSelectedCertificate] = useState<string | null>(null);
+  const [showAllCertificates, setShowAllCertificates] = useState(false);
+  const [selectedCertificateIndex, setSelectedCertificateIndex] = useState<number | null>(null);
   const certificateDialogRef = useRef<HTMLDialogElement>(null);
   const timelineWindowRef = useRef<HTMLDivElement | null>(null);
 
@@ -508,6 +514,12 @@ export default function Home() {
   const [authError, setAuthError] = useState(false);
   const activeAboutModule = aboutModules[activeAboutModuleIndex];
   const activeRobot = robots[activeRobotIndex];
+  const selectedCertificate = selectedCertificateIndex === null
+    ? null
+    : achievementCertificates[selectedCertificateIndex];
+  const visibleCertificates = showAllCertificates
+    ? achievementCertificates
+    : achievementCertificates.slice(0, 6);
 
   useEffect(() => {
     let disposed = false;
@@ -538,9 +550,16 @@ export default function Home() {
     };
   }, []);
 
-  function openCertificate(image: string) {
-    setSelectedCertificate(image);
+  function openCertificate(index: number) {
+    setSelectedCertificateIndex(index);
     certificateDialogRef.current?.showModal();
+  }
+
+  function moveCertificatePreview(direction: -1 | 1) {
+    setSelectedCertificateIndex((current) => {
+      if (current === null) return current;
+      return (current + direction + achievementCertificates.length) % achievementCertificates.length;
+    });
   }
 
   function scrollToTimelineYear(year: string) {
@@ -700,14 +719,14 @@ export default function Home() {
               })}
             </div>
 
-            <article className="mt-6 grid overflow-hidden md:grid-cols-[1.28fr_0.72fr]">
+            <article className="mt-6 grid overflow-hidden lg:grid-cols-[minmax(0,1.2fr)_minmax(17rem,0.8fr)]">
               <figure>
                 <AboutImageReveal
                   src={activeAboutModule.image}
                   alt={activeAboutModule.imageAlt}
                 />
               </figure>
-              <div className="flex flex-col justify-center border-t border-white/10 py-6 md:border-l md:border-t-0 md:px-8 lg:px-12">
+              <div className="flex flex-col justify-center border-t border-white/10 py-6 lg:border-l lg:border-t-0 lg:px-8 xl:px-12">
                 <span className="font-mono text-xs tracking-[0.16em] text-accent-primary">
                   {String(activeAboutModuleIndex + 1).padStart(2, "0")} / {String(aboutModules.length).padStart(2, "0")}
                 </span>
@@ -738,7 +757,7 @@ export default function Home() {
             description="从双创基地组建，到国际赛事历练，再到 RoboMaster 国赛突破，吉林大学吉甲大师双创基地在一届又一届成员的接力中不断完成技术积累、组织建设与文化沉淀。"
           />
 
-          <div className="team-timeline mx-auto max-w-[1240px]">
+          <div className="team-timeline mx-auto">
             <nav aria-label="按年份定位团队历程" className="team-timeline-years">
               {timelineMilestones.map((item) => (
                 <button
@@ -783,11 +802,7 @@ export default function Home() {
                         className="absolute -left-[29px] top-[2.15rem] h-2.5 w-2.5 rounded-full border border-accent-primary bg-surface-primary sm:-left-[45px] sm:top-[2.65rem]"
                       />
                       <article
-                        className={"grid gap-x-8 gap-y-5 " + (
-                          isFeatured
-                            ? "lg:grid-cols-[minmax(8rem,0.55fr)_minmax(0,1.15fr)_minmax(20rem,1.4fr)] lg:items-start"
-                            : "lg:grid-cols-[minmax(7rem,0.45fr)_minmax(0,1.35fr)_minmax(16rem,0.9fr)] lg:items-center"
-                        )}
+                        className="team-timeline-entry grid gap-x-8 gap-y-5 lg:grid-cols-[minmax(7rem,0.45fr)_minmax(0,1.2fr)_minmax(18rem,1fr)] lg:items-start"
                       >
                         <div className="flex items-baseline gap-4 lg:block">
                           <p
@@ -839,7 +854,7 @@ export default function Home() {
                         <div
                           className={
                             "grid items-start gap-3 " +
-                            (item.images.length > 1 ? "grid-cols-2 lg:grid-cols-1" : "")
+                            (item.images.length > 1 ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-1" : "")
                           }
                         >
                           {item.images.map((image, index) => (
@@ -854,7 +869,7 @@ export default function Home() {
                                 height={image.height}
                                 loading="lazy"
                                 decoding="async"
-                                className="block h-full w-full object-contain object-center"
+                                className={"block h-full w-full object-center " + (image.fit === "contain" ? "object-contain" : "object-cover")}
                               />
                             </figure>
                           ))}
@@ -884,14 +899,15 @@ export default function Home() {
 
           <div className="grid gap-7 lg:grid-cols-[minmax(0,1.7fr)_minmax(17rem,0.8fr)] lg:items-stretch lg:gap-12 xl:gap-16">
             <figure className="min-w-0">
-              <div className="relative aspect-[4/3] overflow-hidden bg-surface-card sm:aspect-[16/10]">
+              <div className="robot-showcase-frame relative aspect-[16/10] overflow-hidden bg-surface-card">
                 <img
                   key={activeRobot.image}
                   src={activeRobot.image}
                   alt={activeRobot.name}
                   loading="lazy"
                   decoding="async"
-                  className="robot-showcase-image absolute inset-0 h-full w-full object-contain object-center p-2 sm:p-4 lg:p-6"
+                  className="robot-showcase-image absolute inset-0 h-full w-full object-contain object-center"
+                  style={{ transform: `scale(${activeRobot.visualScale})` }}
                   onError={(event) => {
                     event.currentTarget.hidden = true;
                   }}
@@ -941,14 +957,14 @@ export default function Home() {
                           : "border-l-transparent hover:bg-white/[0.025]")
                       }
                     >
-                      <span className="flex h-12 w-14 items-center justify-center bg-surface-card sm:h-14 sm:w-[68px]">
+                      <span className="robot-option-image flex aspect-[4/3] w-16 shrink-0 items-center justify-center bg-surface-card">
                         <img
                           src={robot.image}
                           alt=""
                           aria-hidden="true"
                           loading="lazy"
                           decoding="async"
-                          className="h-full w-full object-contain p-1"
+                          className="h-full w-full object-contain"
                           onError={(event) => {
                             event.currentTarget.hidden = true;
                           }}
@@ -1000,28 +1016,22 @@ export default function Home() {
             id="achievement-certificate-grid"
             className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
           >
-            {achievementCertificates.map((image, index) => {
-              const isFeatured = index === 0;
+            {visibleCertificates.map((image, index) => {
               const number = String(index + 1).padStart(2, "0");
 
               return (
                 <article
                   key={image}
-                  className={"min-w-0 " + (isFeatured ? "col-span-2" : "")}
+                  className="min-w-0"
                 >
                   <button
                     type="button"
-                    onClick={() => openCertificate(image)}
+                    onClick={() => openCertificate(index)}
                     aria-label={"第" + number + "张团队荣誉证书，查看原图"}
                     aria-haspopup="dialog"
                     className="group block w-full text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary"
                   >
-                    <span
-                      className={
-                        "relative block overflow-hidden border border-white/10 bg-[#f4f2ed] " +
-                        (isFeatured ? "aspect-[16/10]" : "aspect-[4/3]")
-                      }
-                    >
+                    <span className="certificate-thumbnail relative block aspect-[4/3] overflow-hidden bg-[#f4f2ed]">
                       <img
                         src={image}
                         alt=""
@@ -1045,32 +1055,90 @@ export default function Home() {
             })}
           </div>
 
+          <div className="certificate-gallery-controls mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
+            <p className="text-sm text-fg-muted" aria-live="polite">
+              {showAllCertificates
+                ? `已展示全部 ${achievementCertificates.length} 项荣誉`
+                : `精选展示 6 项，共 ${achievementCertificates.length} 项荣誉`}
+            </p>
+            <button
+              type="button"
+              aria-expanded={showAllCertificates}
+              aria-controls="achievement-certificate-grid"
+              onClick={() => setShowAllCertificates((expanded) => !expanded)}
+              className="inline-flex min-h-11 items-center justify-center border border-accent-primary/50 px-5 text-sm font-semibold text-accent-primary transition-colors hover:border-accent-primary hover:bg-accent-primary/8 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary"
+            >
+              {showAllCertificates ? "收起荣誉" : "查看全部荣誉"}
+            </button>
+          </div>
+
           <dialog
             ref={certificateDialogRef}
             aria-label="团队荣誉证书预览"
-            onClose={() => setSelectedCertificate(null)}
+            onClose={() => setSelectedCertificateIndex(null)}
+            onKeyDown={(event) => {
+              if (event.key === "ArrowLeft") {
+                event.preventDefault();
+                moveCertificatePreview(-1);
+              } else if (event.key === "ArrowRight") {
+                event.preventDefault();
+                moveCertificatePreview(1);
+              } else if (event.key === "Home") {
+                event.preventDefault();
+                setSelectedCertificateIndex(0);
+              } else if (event.key === "End") {
+                event.preventDefault();
+                setSelectedCertificateIndex(achievementCertificates.length - 1);
+              }
+            }}
             onClick={(event) => {
               if (event.target === event.currentTarget) {
                 certificateDialogRef.current?.close();
               }
             }}
-            className="m-auto max-h-[92dvh] w-[min(92vw,76rem)] max-w-none overflow-visible border-0 bg-transparent p-0 text-white backdrop:bg-black/90"
+            className="certificate-preview-dialog m-auto max-h-[92dvh] w-[min(94vw,76rem)] max-w-none overflow-visible border-0 bg-transparent p-0 text-white backdrop:bg-black/90"
           >
-            {selectedCertificate ? (
-              <div className="relative flex max-h-[92dvh] justify-center">
-                <button
-                  type="button"
-                  onClick={() => certificateDialogRef.current?.close()}
-                  aria-label="关闭证书预览"
-                  className="absolute right-2 top-2 z-10 flex h-11 min-w-11 items-center justify-center border border-white/20 bg-surface-primary/90 px-3 text-sm text-white hover:border-accent-primary focus-visible:outline-2 focus-visible:outline-accent-primary sm:right-4 sm:top-4"
-                >
-                  关闭
-                </button>
+            {selectedCertificate !== null && selectedCertificateIndex !== null ? (
+              <div className="certificate-preview-content mx-auto flex max-h-[92dvh] max-w-full flex-col items-center gap-3">
+                <div className="flex w-full items-center justify-between gap-4">
+                  <h2 className="text-sm font-medium text-white/85">
+                    团队荣誉 {String(selectedCertificateIndex + 1).padStart(2, "0")} / {String(achievementCertificates.length).padStart(2, "0")}
+                  </h2>
+                  <button
+                    type="button"
+                    onClick={() => certificateDialogRef.current?.close()}
+                    aria-label="关闭证书预览"
+                    className="flex min-h-11 min-w-11 items-center justify-center border border-white/25 bg-black/55 px-3 text-sm text-white hover:border-accent-primary focus-visible:outline-2 focus-visible:outline-accent-primary"
+                  >
+                    关闭
+                  </button>
+                </div>
                 <img
                   src={selectedCertificate}
-                  alt="团队荣誉证书原图"
-                  className="max-h-[92dvh] w-auto max-w-full object-contain"
+                  alt={`第${selectedCertificateIndex + 1}张团队荣誉证书原图`}
+                  className="certificate-preview-image w-auto max-w-full object-contain"
                 />
+                <div className="certificate-preview-controls flex w-full items-center justify-between gap-3">
+                  <button
+                    type="button"
+                    onClick={() => moveCertificatePreview(-1)}
+                    aria-label="查看上一张证书（键盘左方向键）"
+                    className="min-h-11 min-w-11 border border-white/25 bg-black/55 px-4 text-sm text-white hover:border-accent-primary focus-visible:outline-2 focus-visible:outline-accent-primary"
+                  >
+                    上一张
+                  </button>
+                  <span className="text-sm text-white/80" aria-live="polite">
+                    {String(selectedCertificateIndex + 1).padStart(2, "0")} / {String(achievementCertificates.length).padStart(2, "0")}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => moveCertificatePreview(1)}
+                    aria-label="查看下一张证书（键盘右方向键）"
+                    className="min-h-11 min-w-11 border border-white/25 bg-black/55 px-4 text-sm text-white hover:border-accent-primary focus-visible:outline-2 focus-visible:outline-accent-primary"
+                  >
+                    下一张
+                  </button>
+                </div>
               </div>
             ) : null}
           </dialog>
@@ -1187,7 +1255,7 @@ export default function Home() {
               {sponsorLogos.map((sponsor) => (
                 <div
                   key={sponsor.name}
-                  className="flex h-16 items-center justify-center overflow-hidden rounded-md bg-white p-2 sm:h-20 sm:p-3"
+                  className="sponsor-logo-frame flex h-20 items-center justify-center overflow-hidden bg-white p-3"
                 >
                   <img
                     src={sponsor.image}

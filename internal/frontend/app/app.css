@@ -1645,6 +1645,7 @@ html[data-theme-transition] body *::after {
 /* Public site palette and restrained surfaces. It shares the graphite/gold
    tokens with the dashboard while keeping its own editorial layout. */
 .public-home {
+  --public-content-width: 84rem;
   --color-surface-primary: var(--admin-canvas);
   --color-surface-light: var(--admin-surface);
   --color-surface-dark: var(--admin-canvas);
@@ -1665,9 +1666,18 @@ html[data-theme-transition] body *::after {
 .public-home-container {
   box-sizing: border-box;
   width: 100%;
-  max-width: 90rem;
+  max-width: var(--public-content-width);
   margin-inline: auto;
-  padding-inline: 1.5rem;
+  padding-inline: clamp(1.25rem, 5vw, 4rem);
+}
+
+.public-home .public-section-heading,
+.team-timeline {
+  max-width: var(--public-content-width);
+}
+
+.team-timeline {
+  width: 100%;
 }
 
 .team-timeline-years {
@@ -1729,7 +1739,30 @@ html[data-theme-transition] body *::after {
 }
 
 .team-timeline-image {
-  aspect-ratio: 4 / 3;
+  aspect-ratio: 16 / 10;
+  background: var(--admin-surface-subtle);
+}
+
+.robot-showcase-frame {
+  width: 100%;
+}
+
+.robot-option-image {
+  overflow: hidden;
+}
+
+.certificate-thumbnail {
+  border: 1px solid var(--admin-border);
+}
+
+.certificate-preview-image {
+  max-height: min(74dvh, 56rem, calc(92dvh - 7rem));
+}
+
+.sponsor-logo-frame {
+  width: 100%;
+  max-width: 15rem;
+  margin-inline: auto;
 }
 
 .public-home-hero-shade {
@@ -1743,20 +1776,12 @@ html[data-theme-transition] body *::after {
 }
 
 @media (min-width: 640px) {
-  .public-home-container {
-    padding-inline: 2.5rem;
-  }
-
   .team-timeline-years {
     grid-template-columns: repeat(8, minmax(0, 1fr));
   }
 }
 
 @media (min-width: 1024px) {
-  .public-home-container {
-    padding-inline: 5rem;
-  }
-
   .team-timeline-years {
     gap: 0.625rem;
   }
