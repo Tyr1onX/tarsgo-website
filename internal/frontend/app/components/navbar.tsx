@@ -38,6 +38,7 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
   const mobileMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const mobileMenuRef = useRef<HTMLDivElement | null>(null);
   const desktopNavLinksRef = useRef<HTMLDivElement | null>(null);
+  const desktopAuthAreaRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
   const revalidator = useRevalidator();
 
@@ -59,21 +60,33 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
   useEffect(() => {
     const desktopViewport = window.matchMedia("(min-width: 1280px)");
 
-    function closeMenuAtDesktopWidth() {
-      if (!desktopViewport.matches || !menuOpen) return;
+    function handleNavBreakpointChange() {
+      const activeElement = document.activeElement;
 
-      const focusedMobileControl =
-        document.activeElement === mobileMenuButtonRef.current ||
-        Boolean(mobileMenuRef.current?.contains(document.activeElement));
+      if (desktopViewport.matches) {
+        const focusedMobileControl =
+          activeElement === mobileMenuButtonRef.current ||
+          Boolean(mobileMenuRef.current?.contains(activeElement));
 
-      setMenuOpen(false);
-      if (focusedMobileControl) {
-        desktopNavLinksRef.current?.querySelector<HTMLAnchorElement>("a")?.focus();
+        if (menuOpen) setMenuOpen(false);
+        if (focusedMobileControl) {
+          desktopNavLinksRef.current?.querySelector<HTMLAnchorElement>("a")?.focus();
+        }
+        return;
+      }
+
+      const focusedDesktopControl =
+        Boolean(desktopNavLinksRef.current?.contains(activeElement)) ||
+        Boolean(desktopAuthAreaRef.current?.contains(activeElement));
+
+      setUserMenuOpen(false);
+      if (focusedDesktopControl) {
+        mobileMenuButtonRef.current?.focus();
       }
     }
 
-    desktopViewport.addEventListener("change", closeMenuAtDesktopWidth);
-    return () => desktopViewport.removeEventListener("change", closeMenuAtDesktopWidth);
+    desktopViewport.addEventListener("change", handleNavBreakpointChange);
+    return () => desktopViewport.removeEventListener("change", handleNavBreakpointChange);
   }, [menuOpen]);
 
   function closeMobileMenu() {
@@ -202,7 +215,7 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
         </div>
 
         {/* Auth area */}
-        {variant === "default" ? <div className="hidden w-[174px] shrink-0 items-center justify-end gap-3 xl:flex">
+        {variant === "default" ? <div ref={desktopAuthAreaRef} className="hidden w-[174px] shrink-0 items-center justify-end gap-3 xl:flex">
           {currentUser === undefined ? (
             authError ? <Link to="/login" className="text-sm text-fg-muted hover:text-accent-primary">验证失败，重试</Link> :
               <span className="h-10 w-28 animate-pulse rounded-full border border-white/10 bg-white/[0.06]" role="status" aria-label="正在确认登录状态" />

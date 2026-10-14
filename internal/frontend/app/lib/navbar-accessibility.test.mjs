@@ -25,4 +25,6 @@ test("mobile links close the menu and desktop resize moves focus to a visible na
   assert.match(navbar, /function closeMobileMenu\(\)[\s\S]*?setMenuOpen\(false\)[\s\S]*?mobileMenuButtonRef\.current\?\.focus\(\)/);
   assert.match(navbar, /onClick=\{closeMobileMenu\}/);
   assert.match(navbar, /desktopNavLinksRef\.current\?\.querySelector<HTMLAnchorElement>\("a"\)\?\.focus\(\)/);
+  assert.match(navbar, /desktopAuthAreaRef\.current\?\.contains\(activeElement\)/);
+  assert.match(navbar, /if \(focusedDesktopControl\) \{\s*mobileMenuButtonRef\.current\?\.focus\(\)/);
 });
