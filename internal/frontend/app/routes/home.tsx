@@ -206,29 +206,61 @@ const groups = [
   {
     name: "机械组",
     description: "负责机器人结构设计、建模、加工与装配，将创意变为现实",
-    logo: "/assets/images/Logo/mechanical.webp",
+    directions: ["结构设计", "建模", "加工与装配"],
+    logoBlack: "/assets/images/Groups/mechanical-black.svg",
+    logoWhite: "/assets/images/Groups/mechanical-white.svg",
+    logoStructure: "/assets/images/Groups/mechanical-structure.svg",
   },
   {
     name: "电控组",
     description: "嵌入式系统开发、电路设计、电机控制，让机器人\u201C动\u201D起来",
-    logo: "/assets/images/Logo/electrical-control.webp",
+    directions: ["嵌入式系统开发", "电路设计", "电机控制"],
+    logoBlack: "/assets/images/Groups/electrical-control-black.svg",
+    logoWhite: "/assets/images/Groups/electrical-control-white.svg",
+    logoStructure: "/assets/images/Groups/electrical-control-structure.svg",
   },
   {
     name: "视觉组",
     description: "机器视觉、目标识别、自动瞄准，赋予机器人\u201C眼睛\u201D",
-    logo: "/assets/images/Logo/vision.webp",
+    directions: ["机器视觉", "目标识别", "自动瞄准"],
+    logoBlack: "/assets/images/Groups/vision-black.svg",
+    logoWhite: "/assets/images/Groups/vision-white.svg",
+    logoStructure: "/assets/images/Groups/vision-structure.svg",
   },
   {
     name: "AI组",
     description: "负责智能算法、决策规划与自主控制，让机器人拥有更强的判断力",
-    logo: "/assets/images/Logo/ai.webp",
+    directions: ["智能算法", "决策规划", "自主控制"],
+    logoBlack: "/assets/images/Groups/ai-black.svg",
+    logoWhite: "/assets/images/Groups/ai-white.svg",
+    logoStructure: "/assets/images/Groups/ai-structure.svg",
   },
   {
     name: "运营组",
     description: "负责宣传、策划、赛事运营与对外联络，推动团队持续成长",
-    logo: "/assets/images/Logo/operations.webp",
+    directions: ["宣传", "策划", "赛事运营", "对外联络"],
+    logoBlack: "/assets/images/Groups/operations-black.svg",
+    logoWhite: "/assets/images/Groups/operations-white.svg",
+    logoStructure: "/assets/images/Groups/operations-structure.svg",
   },
 ];
+
+function TeamGroupMark({ group, className = "" }: { group: typeof groups[number]; className?: string }) {
+  return (
+    <span className={`team-group-mark ${className}`.trim()} aria-hidden="true">
+      <img src={group.logoBlack} alt="" loading="lazy" decoding="async" className="team-group-mark__image team-group-mark__image--light" />
+      <img src={group.logoWhite} alt="" loading="lazy" decoding="async" className="team-group-mark__image team-group-mark__image--dark" />
+    </span>
+  );
+}
+
+function TeamGroupStructure({ group, className = "" }: { group: typeof groups[number]; className?: string }) {
+  return (
+    <span className={`team-group-structure ${className}`.trim()} aria-hidden="true">
+      <img src={group.logoStructure} alt="" loading="lazy" decoding="async" />
+    </span>
+  );
+}
 
 const aboutModules = [
   {
@@ -774,11 +806,13 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
     ? legacyHomeHashDestinations[location.hash]
     : undefined;
   const [activeAboutModuleIndex, setActiveAboutModuleIndex] = useState(0);
+  const [activeGroupIndex, setActiveGroupIndex] = useState(0);
   const [activeRobotIndex, setActiveRobotIndex] = useState(0);
   const [activeTimelineYear, setActiveTimelineYear] = useState(timelineMilestones[0].year);
   const [showAllCertificates, setShowAllCertificates] = useState(false);
   const [selectedCertificateIndex, setSelectedCertificateIndex] = useState<number | null>(null);
   const certificateDialogRef = useRef<HTMLDialogElement>(null);
+  const groupTabsRef = useRef<HTMLDivElement | null>(null);
   const timelineWindowRef = useRef<HTMLDivElement | null>(null);
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(
@@ -789,6 +823,7 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
   const [authError, setAuthError] = useState(false);
   const topic = routePage === "home" ? null : topicPages[routePage];
   const activeAboutModule = aboutModules[activeAboutModuleIndex];
+  const activeGroup = groups[activeGroupIndex];
   const activeRobot = robots[activeRobotIndex];
   const selectedCertificate = selectedCertificateIndex === null
     ? null
@@ -1027,6 +1062,22 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
               </div>
             ))}
           </div>
+
+          <section className="team-composition" aria-labelledby="team-composition-heading">
+            <div className="team-composition__identity">
+              <p id="team-composition-heading" className="mb-3 text-xs font-semibold tracking-[0.16em] text-accent-primary">团队组成</p>
+              <SiteLogo className="h-9 max-w-[170px]" />
+              <p className="mt-3 text-xs leading-5 text-fg-muted sm:text-sm">吉林大学吉甲大师双创基地</p>
+            </div>
+            <ul className="team-composition__groups" aria-label="五个专业组别">
+              {groups.map((group) => (
+                <li key={group.name} className="team-composition__group">
+                  <TeamGroupMark group={group} className="team-composition__mark" />
+                  <span>{group.name}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
 
           <div className="mt-10">
             <div
@@ -1510,32 +1561,72 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
             description="了解战队各组别，选择感兴趣的方向并提交报名。"
           />
 
-          <div className="mb-12 grid w-full gap-6 sm:grid-cols-2 lg:grid-cols-3">
-            {groups.map((group) => (
-              <div
-                key={group.name}
-                className="motion-surface relative overflow-hidden rounded-[28px] border border-white/8 bg-surface-primary p-6"
-              >
-                <div className="relative flex flex-col gap-4">
-                  <div className="flex items-center gap-4">
-                    <div className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-[22px] border border-white/12 bg-white/[0.08] shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-                      <img
-                        src={group.logo}
-                        alt={`${group.name} logo`}
-                        loading="lazy"
-                        className="h-12 w-12 object-contain"
-                      />
-                    </div>
-                    <h3 className="text-lg font-bold text-fg-primary">
-                      {group.name}
-                    </h3>
-                  </div>
-                  <p className="text-sm leading-relaxed text-fg-muted">
-                    {group.description}
-                  </p>
+          <div className="team-group-explorer mb-12 w-full">
+            <h2 id="join-groups-heading" className="sr-only">五个专业组别</h2>
+            <p className="mb-4 text-xs font-semibold tracking-[0.14em] text-accent-primary">选择组别，查看职责与方向</p>
+            <div
+              ref={groupTabsRef}
+              className="team-group-tabs"
+              role="tablist"
+              aria-labelledby="join-groups-heading"
+              onKeyDown={(event) => {
+                const currentIndex = Number((event.target as HTMLButtonElement).dataset.groupIndex);
+                if (!Number.isInteger(currentIndex)) return;
+                let nextIndex: number | null = null;
+                if (event.key === "ArrowRight") nextIndex = (currentIndex + 1) % groups.length;
+                if (event.key === "ArrowLeft") nextIndex = (currentIndex - 1 + groups.length) % groups.length;
+                if (event.key === "Home") nextIndex = 0;
+                if (event.key === "End") nextIndex = groups.length - 1;
+                if (nextIndex === null) return;
+                event.preventDefault();
+                setActiveGroupIndex(nextIndex);
+                groupTabsRef.current?.querySelector<HTMLButtonElement>(`[data-group-index="${nextIndex}"]`)?.focus();
+              }}
+            >
+              {groups.map((group, index) => {
+                const isActive = index === activeGroupIndex;
+                return (
+                  <button
+                    key={group.name}
+                    id={`team-group-tab-${index}`}
+                    type="button"
+                    role="tab"
+                    data-group-index={index}
+                    aria-selected={isActive}
+                    aria-controls="team-group-panel"
+                    tabIndex={isActive ? 0 : -1}
+                    className="team-group-tab"
+                    onClick={() => setActiveGroupIndex(index)}
+                  >
+                    <TeamGroupMark group={group} className="team-group-tab__mark" />
+                    <span>{group.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <div
+              id="team-group-panel"
+              className="team-group-panel"
+              role="tabpanel"
+              aria-labelledby={`team-group-tab-${activeGroupIndex}`}
+              tabIndex={0}
+            >
+              <div key={activeGroup.name} className="team-group-panel__content" aria-live="polite" aria-atomic="true">
+                <div className="team-group-panel__visual" aria-hidden="true">
+                  <TeamGroupStructure group={activeGroup} className="team-group-panel__structure" />
+                  <TeamGroupMark group={activeGroup} className="team-group-panel__mark" />
+                </div>
+                <div className="team-group-panel__copy">
+                  <p className="font-mono text-xs tracking-[0.16em] text-accent-primary">专业组 / {String(activeGroupIndex + 1).padStart(2, "0")}</p>
+                  <h3 className="mt-2 text-2xl font-semibold tracking-tight text-fg-primary sm:text-3xl">{activeGroup.name}</h3>
+                  <p className="mt-3 max-w-2xl text-sm leading-7 text-fg-muted sm:text-base">{activeGroup.description}</p>
+                  <p className="mt-5 text-xs font-semibold tracking-[0.12em] text-fg-dim">涉及方向</p>
+                  <ul className="team-group-directions" aria-label={`${activeGroup.name}涉及方向`}>
+                    {activeGroup.directions.map((direction) => <li key={direction}>{direction}</li>)}
+                  </ul>
                 </div>
               </div>
-            ))}
+            </div>
           </div>
 
           <section className="mb-10 w-full border-y border-white/10 py-7" aria-labelledby="join-training-heading">
