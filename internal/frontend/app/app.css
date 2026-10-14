@@ -1809,6 +1809,13 @@ html[data-theme-transition] body *::after {
   transition: transform 240ms ease;
 }
 
+.home-visual-card--about > img { object-position: center 46%; }
+.home-visual-card--robots > img { object-position: center 48%; }
+.home-visual-card--join > img { object-position: center 42%; }
+.home-visual-card--events > img { object-position: center 46%; }
+.home-visual-card--history > img { object-position: center 50%; }
+.home-visual-card--micro > img { object-position: center 48%; }
+
 .home-visual-card-shade {
   position: absolute;
   inset: 0;
@@ -1970,7 +1977,7 @@ html[data-theme-transition] body *::after {
 @media (min-width: 1280px) {
   .home-visual-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
-    grid-template-rows: repeat(2, minmax(19rem, 24vw));
+    grid-template-rows: repeat(2, clamp(17.5rem, 21vw, 20rem));
   }
 
   .home-visual-card {

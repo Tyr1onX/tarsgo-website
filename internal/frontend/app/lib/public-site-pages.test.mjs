@@ -76,3 +76,23 @@ test("the homepage uses six image-led routes, preserves legacy hashes, and keeps
   assert.match(styles, /\.home-visual-card:focus-visible/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.home-visual-card:hover > img[\s\S]*?transform: none;/);
 });
+
+test("the desktop visual navigation is an equal-height two-row grid with responsive fallbacks and focused crops", () => {
+  const desktopGrid = styles.match(/@media \(min-width: 1280px\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
+  assert.match(desktopGrid, /grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
+  assert.match(desktopGrid, /grid-template-rows: repeat\(2, clamp\(17\.5rem, 21vw, 20rem\)\)/);
+  for (const [card, placement] of [
+    ["about", /grid-column: 1; grid-row: 1;/],
+    ["robots", /grid-column: 2; grid-row: 1;/],
+    ["join", /grid-column: 3 \/ span 2; grid-row: 1;/],
+    ["events", /grid-column: 1 \/ span 2; grid-row: 2;/],
+    ["history", /grid-column: 3; grid-row: 2;/],
+    ["micro", /grid-column: 4; grid-row: 2;/],
+  ]) {
+    assert.match(desktopGrid, new RegExp(`\\.home-visual-card--${card} \\{[^}]*${placement.source}[^}]*\\}`));
+  }
+  assert.match(styles, /@media \(min-width: 640px\) \{[\s\S]*?\.home-visual-grid \{\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+  for (const card of ["about", "robots", "join", "events", "history", "micro"]) {
+    assert.match(styles, new RegExp(`\\.home-visual-card--${card} > img \\{ object-position: center \\d+%; \\}`));
+  }
+});
