@@ -5,16 +5,18 @@ import { logout, type AuthUser } from "~/lib/auth-client";
 import { getDefaultDashboardPath } from "~/lib/dashboard-navigation";
 import { SiteLogo } from "./site-logo";
 import { ThemeControl } from "./theme-control";
+import { useTheme } from "./theme-provider";
 
 const navLinks = [
   { label: "首页", href: "/#hero", active: true },
   { label: "关于我们", href: "/#about", active: false },
   { label: "团队历程", href: "/#achievements", active: false },
   { label: "机器人展示", href: "/#robots", active: false },
-  { label: "低空微专业", href: "/micro-specialties/low-altitude-intelligent-sensing-control", active: false },
   { label: "成就展示", href: "/#certificates", active: false },
   { label: "加入我们", href: "/#join", active: false },
 ];
+
+const microSpecialtyHref = "/micro-specialties/low-altitude-intelligent-sensing-control";
 
 const microSpecialtyNavLinks = [
   { label: "项目介绍", href: "#introduction", active: false },
@@ -36,6 +38,7 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
   const [loggingOut, setLoggingOut] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [dashboardPrefetchUserId, setDashboardPrefetchUserId] = useState<number | null>(null);
+  const { preference, setPreference } = useTheme();
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const mobileMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const mobileMenuRef = useRef<HTMLDivElement | null>(null);
@@ -179,257 +182,273 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
       ) : null}
       {variant === "default" ? <PrefetchPageLinks page="/login" /> : null}
       <div className={`site-navbar pointer-events-auto w-full overflow-visible ${isScrolled ? "site-navbar--scrolled" : ""}`}>
-      <div className="max-w-[1440px] mx-auto flex h-[var(--site-nav-height)] items-center justify-between px-6 sm:px-10 lg:px-20">
-        {/* Logo */}
-        <Link
-          to="/"
-          aria-label="TARS-GO 首页"
-          className="motion-button flex shrink-0 items-center"
-        >
-          <SiteLogo className="h-[48px] sm:h-[54px]" />
-        </Link>
+        <div className="max-w-[1440px] mx-auto flex h-[var(--site-nav-height)] items-center justify-between px-6 sm:px-10 lg:px-20">
+          {/* Logo */}
+          <Link
+            to="/"
+            aria-label="TARS-GO 首页"
+            className="motion-button flex shrink-0 items-center"
+          >
+            <SiteLogo className="h-[48px] sm:h-[54px]" />
+          </Link>
 
-        {/* Desktop nav links */}
-        <div ref={desktopNavLinksRef} className="hidden xl:flex items-center gap-8">
-          {visibleNavLinks.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              className={`motion-nav-link text-base font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D0AD69] ${
-                link.active
-                  ? "text-accent-primary"
-                  : "text-fg-primary hover:text-accent-primary"
-              }`}
-            >
-              {link.label}
-            </a>
-          ))}
-        </div>
-
-        <ThemeControl className="theme-control--desktop" />
-
-        {/* Auth area */}
-        {variant === "default" ? <div ref={desktopAuthAreaRef} className="hidden w-[174px] shrink-0 items-center justify-end gap-3 xl:flex">
-          {currentUser === undefined ? (
-            authError ? <Link to="/login" className="text-sm text-fg-muted hover:text-accent-primary">验证失败，重试</Link> :
-              <span className="h-10 w-28 animate-pulse rounded-full border border-white/10 bg-white/[0.06]" role="status" aria-label="正在确认登录状态" />
-          ) : currentUser ? (
-            <div ref={userMenuRef} className="relative">
-              <button
-                type="button"
-                onClick={() => setUserMenuOpen((open) => !open)}
-                className={`group flex items-center gap-2 rounded-full border p-1 pr-2.5 transition-all duration-200 ${
-                  userMenuOpen
-                    ? "border-accent-primary/60 bg-surface-light shadow-lg shadow-accent-primary/10"
-                    : "border-border-subtle bg-surface-light/60 hover:border-accent-primary/40 hover:bg-surface-light hover:shadow-md hover:shadow-black/20"
+          {/* Desktop nav links */}
+          <div ref={desktopNavLinksRef} className="hidden xl:flex items-center gap-5 2xl:gap-8">
+            {visibleNavLinks.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                className={`motion-nav-link text-base font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D0AD69] ${
+                  link.active
+                    ? "text-accent-primary"
+                    : "text-fg-primary hover:text-accent-primary"
                 }`}
-                aria-label="打开用户菜单"
-                aria-expanded={userMenuOpen}
-                aria-haspopup="menu"
               >
-                <UserAvatar user={currentUser} className="h-9 w-9" textClassName="text-sm" />
-                <svg
-                  className={`h-4 w-4 transition-all duration-200 ${
-                    userMenuOpen
-                      ? "rotate-180 text-accent-primary"
-                      : "text-fg-muted group-hover:text-fg-primary"
-                  }`}
-                  fill="none"
-                  viewBox="0 0 24 24"
-                  strokeWidth={1.75}
-                  stroke="currentColor"
-                >
-                  <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                </svg>
-              </button>
+                {link.label}
+              </a>
+            ))}
+          </div>
 
-              {userMenuOpen ? (
-                <div
-                  role="menu"
-                  className="animate-user-menu-in absolute right-0 z-20 mt-3 w-64 overflow-hidden rounded-2xl border border-border-subtle bg-surface-primary/95 shadow-2xl shadow-black/40 backdrop-blur-xl"
+          <div className="navbar-actions">
+          {variant === "default" ? (
+            <Link to={microSpecialtyHref} className="navbar-micro-specialty navbar-micro-specialty--wide">
+              <span>低空微专业</span>
+              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none">
+                <path d="M4.5 10h11m-4.5-4.5L15.5 10 11 14.5" />
+              </svg>
+            </Link>
+          ) : null}
+          <ThemeControl className="theme-control--navbar" systemOnly />
+
+          {/* Auth area */}
+          {variant === "default" ? <div ref={desktopAuthAreaRef} className="hidden w-[174px] shrink-0 items-center justify-end gap-3 xl:flex">
+            {currentUser === undefined ? (
+              authError ? <Link to="/login" className="text-sm text-fg-muted hover:text-accent-primary">验证失败，重试</Link> :
+                <span className="h-10 w-28 animate-pulse rounded-full border border-white/10 bg-white/[0.06]" role="status" aria-label="正在确认登录状态" />
+            ) : currentUser ? (
+              <div ref={userMenuRef} className="relative">
+                <button
+                  type="button"
+                  onClick={() => setUserMenuOpen((open) => !open)}
+                  className={`group flex items-center gap-2 rounded-full border p-1 pr-2.5 transition-all duration-200 ${
+                    userMenuOpen
+                      ? "border-accent-primary/60 bg-surface-light shadow-lg shadow-accent-primary/10"
+                      : "border-border-subtle bg-surface-light/60 hover:border-accent-primary/40 hover:bg-surface-light hover:shadow-md hover:shadow-black/20"
+                  }`}
+                  aria-label="打开用户菜单"
+                  aria-expanded={userMenuOpen}
+                  aria-haspopup="menu"
                 >
-                  <div className="flex items-center gap-3 border-b border-border-subtle/80 bg-gradient-to-b from-accent-primary/5 to-transparent px-4 py-2.5">
-                    <UserAvatar user={currentUser} className="h-9 w-9" textClassName="text-sm" />
-                    <div className="min-w-0">
-                      <div className="truncate text-sm font-semibold text-fg-primary">
-                        {getUserDisplayName(currentUser)}
+                  <UserAvatar user={currentUser} className="h-9 w-9" textClassName="text-sm" />
+                  <svg
+                    className={`h-4 w-4 transition-all duration-200 ${
+                      userMenuOpen
+                        ? "rotate-180 text-accent-primary"
+                        : "text-fg-muted group-hover:text-fg-primary"
+                    }`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    strokeWidth={1.75}
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                  </svg>
+                </button>
+
+                {userMenuOpen ? (
+                  <div
+                    role="menu"
+                    className="animate-user-menu-in absolute right-0 z-20 mt-3 w-64 overflow-hidden rounded-2xl border border-border-subtle bg-surface-primary/95 shadow-2xl shadow-black/40 backdrop-blur-xl"
+                  >
+                    <div className="flex items-center gap-3 border-b border-border-subtle/80 bg-gradient-to-b from-accent-primary/5 to-transparent px-4 py-2.5">
+                      <UserAvatar user={currentUser} className="h-9 w-9" textClassName="text-sm" />
+                      <div className="min-w-0">
+                        {currentUser.nickname?.trim() ? <div className="truncate text-sm font-semibold text-fg-primary">{currentUser.nickname.trim()}</div> : null}
+                        <div className="truncate text-xs text-fg-muted">{currentUser.email}</div>
                       </div>
-                      <div className="truncate text-xs text-fg-muted">{currentUser.email}</div>
+                    </div>
+
+                    <div className="p-1.5">
+                      <Link
+                        to={getDefaultDashboardPath(currentUser.role.name)}
+                        prefetch="render"
+                        onClick={() => setUserMenuOpen(false)}
+                        role="menuitem"
+                        className="group/item flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-fg-muted transition-colors hover:bg-white/5 hover:text-fg-primary"
+                      >
+                        <svg
+                          className="h-4 w-4 text-fg-dim transition-colors group-hover/item:text-accent-primary"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          strokeWidth={1.75}
+                          stroke="currentColor"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955a1.126 1.126 0 0 1 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75" />
+                        </svg>
+                        进入工作台
+                      </Link>
+
+                      <div className="my-0.5 h-px bg-border-subtle/70" />
+
+                      <button
+                        type="button"
+                        onClick={handleLogout}
+                        disabled={loggingOut}
+                        role="menuitem"
+                        className="group/item flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm text-rose-300 transition-colors hover:bg-rose-500/10 hover:text-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
+                      >
+                        <svg
+                          className="h-4 w-4 text-rose-400/70 transition-colors group-hover/item:text-rose-300"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          strokeWidth={1.75}
+                          stroke="currentColor"
+                        >
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6A2.25 2.25 0 0 0 5.25 5.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+                        </svg>
+                        {loggingOut ? "退出中..." : "登出"}
+                      </button>
                     </div>
                   </div>
+                ) : null}
+              </div>
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  className="px-5 py-2 text-sm font-medium text-accent-primary border-[1.5px] border-accent-primary rounded-full transition-colors hover:bg-accent-primary/10"
+                >
+                  登录
+                </Link>
+                <Link
+                  to="/register"
+                  className="px-5 py-2 text-sm font-medium text-fg-inverse bg-accent-primary rounded-full transition-colors hover:bg-accent-primary/90"
+                >
+                  注册
+                </Link>
+              </>
+            )}
+          </div> : null}
 
-                  <div className="p-1.5">
-                    <Link
-                      to={getDefaultDashboardPath(currentUser.role.name)}
-                      prefetch="render"
-                      onClick={() => setUserMenuOpen(false)}
-                      role="menuitem"
-                      className="group/item flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-fg-muted transition-colors hover:bg-white/5 hover:text-fg-primary"
-                    >
-                      <svg
-                        className="h-4 w-4 text-fg-dim transition-colors group-hover/item:text-accent-primary"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        strokeWidth={1.75}
-                        stroke="currentColor"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955a1.126 1.126 0 0 1 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75" />
-                      </svg>
-                      进入工作台
-                    </Link>
+          <button
+            ref={mobileMenuButtonRef}
+            type="button"
+            className="navbar-menu-toggle xl:hidden"
+            onClick={() => setMenuOpen((open) => !open)}
+            aria-label={menuOpen ? "关闭导航菜单" : "展开导航菜单"}
+            aria-expanded={menuOpen}
+            aria-controls="site-mobile-menu"
+          >
+            <svg
+              className="w-6 h-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              strokeWidth={1.5}
+              stroke="currentColor"
+            >
+              {menuOpen ? (
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M6 18L18 6M6 6l12 12"
+                />
+              ) : (
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"
+                />
+              )}
+            </svg>
+          </button>
+          </div>
+        </div>
 
-                    <div className="my-0.5 h-px bg-border-subtle/70" />
-
-                    <button
-                      type="button"
-                      onClick={handleLogout}
-                      disabled={loggingOut}
-                      role="menuitem"
-                      className="group/item flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm text-rose-300 transition-colors hover:bg-rose-500/10 hover:text-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
-                    >
-                      <svg
-                        className="h-4 w-4 text-rose-400/70 transition-colors group-hover/item:text-rose-300"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        strokeWidth={1.75}
-                        stroke="currentColor"
-                      >
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6A2.25 2.25 0 0 0 5.25 5.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
-                      </svg>
-                      {loggingOut ? "退出中..." : "登出"}
-                    </button>
-                  </div>
-                </div>
-              ) : null}
+        {/* Mobile menu */}
+        <div
+          id="site-mobile-menu"
+          ref={mobileMenuRef}
+          hidden={!menuOpen}
+          className="site-mobile-menu xl:hidden"
+        >
+          {variant === "default" ? (
+            <Link to={microSpecialtyHref} className="navbar-micro-specialty navbar-micro-specialty--panel" onClick={closeMobileMenu}>
+              <span className="navbar-micro-specialty__eyebrow">独立微专业</span>
+              <span className="navbar-micro-specialty__title">低空智能感知与控制</span>
+              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none">
+                <path d="M4.5 10h11m-4.5-4.5L15.5 10 11 14.5" />
+              </svg>
+            </Link>
+          ) : null}
+          <div className="navbar-mobile-links">
+            {visibleNavLinks.map((link) => (
+              <a
+                key={link.href}
+                href={link.href}
+                className={`navbar-mobile-link ${link.active ? "navbar-mobile-link--active" : ""}`}
+                onClick={closeMobileMenu}
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
+          {variant === "default" && currentUser === undefined ? (
+            authError ? <Link to="/login" className="mt-4 text-sm text-fg-muted" onClick={closeMobileMenu}>验证失败，重试</Link> :
+              <div className="mt-4 h-10 w-32 animate-pulse rounded-full bg-white/[0.06]" role="status" aria-label="正在确认登录状态" />
+          ) : variant === "default" && currentUser ? (
+            <div className="navbar-mobile-account">
+              <UserAvatar user={currentUser} className="h-8 w-8" textClassName="text-xs" />
+              <span className="navbar-mobile-account__name">{currentUser.nickname?.trim() || "已登录"}</span>
+              <div className="navbar-mobile-account__actions">
+                <Link
+                  to={getDefaultDashboardPath(currentUser.role.name)}
+                  prefetch="render"
+                  className="navbar-mobile-account__action navbar-mobile-account__action--primary"
+                  onClick={closeMobileMenu}
+                >
+                  工作台
+                </Link>
+                <button
+                  type="button"
+                  onClick={handleLogout}
+                  disabled={loggingOut}
+                  className="navbar-mobile-account__action navbar-mobile-account__action--quiet"
+                >
+                  {loggingOut ? "退出中..." : "登出"}
+                </button>
+              </div>
             </div>
-          ) : (
-            <>
+          ) : variant === "default" ? (
+            <div className="flex gap-3 mt-4 px-3">
               <Link
                 to="/login"
-                className="px-5 py-2 text-sm font-medium text-accent-primary border-[1.5px] border-accent-primary rounded-full transition-colors hover:bg-accent-primary/10"
+                className="flex-1 text-center px-4 py-2 text-sm font-medium text-accent-primary border-[1.5px] border-accent-primary rounded-full"
+                onClick={closeMobileMenu}
               >
                 登录
               </Link>
               <Link
                 to="/register"
-                className="px-5 py-2 text-sm font-medium text-fg-inverse bg-accent-primary rounded-full transition-colors hover:bg-accent-primary/90"
+                className="flex-1 text-center px-4 py-2 text-sm font-medium text-fg-inverse bg-accent-primary rounded-full"
+                onClick={closeMobileMenu}
               >
                 注册
               </Link>
-            </>
-          )}
-        </div> : null}
-
-        {/* Mobile menu button */}
-        <ThemeControl className="theme-control--mobile" />
-        <button
-          ref={mobileMenuButtonRef}
-          type="button"
-          className="xl:hidden rounded-lg p-2 text-fg-muted hover:text-fg-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D0AD69]"
-          onClick={() => setMenuOpen((open) => !open)}
-          aria-label={menuOpen ? "关闭导航菜单" : "展开导航菜单"}
-          aria-expanded={menuOpen}
-          aria-controls="site-mobile-menu"
-        >
-          <svg
-            className="w-6 h-6"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={1.5}
-            stroke="currentColor"
+            </div>
+          ) : null}
+          <button
+            type="button"
+            className="navbar-system-theme"
+            aria-pressed={preference === "system"}
+            onClick={() => {
+              setPreference("system");
+              closeMobileMenu();
+            }}
           >
-            {menuOpen ? (
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M6 18L18 6M6 6l12 12"
-              />
-            ) : (
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"
-              />
-            )}
-          </svg>
-        </button>
-      </div>
-
-      {/* Mobile menu */}
-      <div
-        id="site-mobile-menu"
-        ref={mobileMenuRef}
-        hidden={!menuOpen}
-        className="xl:hidden border-t border-border-subtle px-6 pb-4 pt-4"
-      >
-        <div className="flex flex-col gap-1">
-          {visibleNavLinks.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              className={`rounded-lg px-3 py-2 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D0AD69] ${
-                link.active
-                  ? "text-accent-primary"
-                  : "text-fg-primary hover:text-accent-primary hover:bg-white/5"
-              }`}
-              onClick={closeMobileMenu}
-            >
-              {link.label}
-            </a>
-          ))}
+            <span>跟随系统主题</span>
+            <span className="navbar-system-theme__state">{preference === "system" ? "已启用" : "恢复自动"}</span>
+          </button>
         </div>
-        {variant === "default" && currentUser === undefined ? (
-          authError ? <Link to="/login" className="mt-4 text-sm text-fg-muted" onClick={closeMobileMenu}>验证失败，重试</Link> :
-            <div className="mt-4 h-10 w-32 animate-pulse rounded-full bg-white/[0.06]" role="status" aria-label="正在确认登录状态" />
-        ) : variant === "default" && currentUser ? (
-          <div className="mt-4 rounded-2xl border border-border-subtle bg-surface-light/40 p-3">
-            <div className="flex items-center gap-3">
-              <UserAvatar user={currentUser} className="h-10 w-10" textClassName="text-sm" />
-              <div className="min-w-0">
-                <div className="truncate text-sm font-semibold text-fg-primary">
-                  {getUserDisplayName(currentUser)}
-                </div>
-                <div className="truncate text-xs text-fg-muted">{currentUser.email}</div>
-              </div>
-            </div>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              <Link
-                to={getDefaultDashboardPath(currentUser.role.name)}
-                prefetch="render"
-                className="rounded-full bg-accent-primary px-4 py-2 text-center text-sm font-medium text-fg-inverse"
-                onClick={closeMobileMenu}
-              >
-                工作台
-              </Link>
-              <button
-                type="button"
-                onClick={handleLogout}
-                disabled={loggingOut}
-                className="rounded-full border border-border-subtle px-4 py-2 text-sm font-medium text-rose-300 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {loggingOut ? "退出中..." : "登出"}
-              </button>
-            </div>
-          </div>
-        ) : variant === "default" ? (
-          <div className="flex gap-3 mt-4 px-3">
-            <Link
-              to="/login"
-              className="flex-1 text-center px-4 py-2 text-sm font-medium text-accent-primary border-[1.5px] border-accent-primary rounded-full"
-              onClick={closeMobileMenu}
-            >
-              登录
-            </Link>
-            <Link
-              to="/register"
-              className="flex-1 text-center px-4 py-2 text-sm font-medium text-fg-inverse bg-accent-primary rounded-full"
-              onClick={closeMobileMenu}
-            >
-              注册
-            </Link>
-          </div>
-        ) : null}
-      </div>
       </div>
     </nav>
   );
@@ -464,7 +483,7 @@ function UserAvatar({
 }
 
 function getUserDisplayName(user: AuthUser) {
-  return user.nickname?.trim() || user.email;
+  return user.nickname?.trim() || user.email.split("@")[0] || "TARS-GO 成员";
 }
 
 function getUserInitial(user: AuthUser) {
