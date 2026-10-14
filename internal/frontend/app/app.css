@@ -1676,8 +1676,216 @@ html[data-theme-transition] body *::after {
   max-width: var(--public-content-width);
 }
 
+.team-composition {
+  display: grid;
+  gap: 1.5rem;
+  align-items: center;
+  border-block: 1px solid var(--admin-border-subtle);
+  padding-block: 1.5rem;
+}
+
+.team-composition__groups {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem 0.5rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.team-composition__group {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--admin-muted);
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+  text-align: center;
+}
+
+.team-composition__mark {
+  width: 2.75rem;
+  height: 2.75rem;
+}
+
+.team-group-explorer {
+  min-width: 0;
+}
+
+.team-group-tabs {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.team-group-tab {
+  display: flex;
+  min-width: 0;
+  min-height: 6.75rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border: 1px solid var(--admin-border-subtle);
+  background: var(--admin-surface);
+  color: var(--admin-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.25rem;
+  text-align: center;
+  transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease;
+}
+
+.team-group-tab:hover,
+.team-group-tab[aria-selected="true"] {
+  border-color: var(--admin-accent);
+  background: color-mix(in srgb, var(--admin-accent) 8%, var(--admin-surface));
+  color: var(--admin-text);
+}
+
+.team-group-tab:focus-visible,
+.team-group-panel:focus-visible {
+  outline: 2px solid var(--theme-accent-contrast);
+  outline-offset: 3px;
+}
+
+.team-group-tab__mark {
+  width: 3rem;
+  height: 3rem;
+}
+
+.team-group-mark {
+  position: relative;
+  display: block;
+  flex: none;
+  aspect-ratio: 1;
+}
+
+.team-group-mark__image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.team-group-mark__image--dark {
+  display: none;
+}
+
+:root[data-theme="dark"] .team-group-mark__image--light {
+  display: none;
+}
+
+:root[data-theme="dark"] .team-group-mark__image--dark {
+  display: block;
+}
+
+.team-group-panel {
+  min-width: 0;
+  margin-top: 0.75rem;
+  border: 1px solid var(--admin-border-subtle);
+  background: var(--admin-surface-subtle);
+}
+
+.team-group-panel__content {
+  display: grid;
+  grid-template-columns: minmax(5rem, 0.55fr) minmax(0, 2fr);
+  align-items: center;
+  gap: 1rem;
+  padding: clamp(1rem, 4vw, 2.5rem);
+  animation: team-group-panel-enter 240ms ease-out both;
+}
+
+@keyframes team-group-panel-enter {
+  from { opacity: 0.4; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.team-group-panel__visual {
+  position: relative;
+  display: grid;
+  width: min(100%, 10rem);
+  aspect-ratio: 1;
+  place-items: center;
+  margin-inline: auto;
+}
+
+.team-group-panel__structure {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.055;
+}
+
+.team-group-panel__structure img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.team-group-panel__mark {
+  position: relative;
+  width: 58%;
+  height: 58%;
+}
+
+.team-group-directions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin: 0.625rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.team-group-directions li {
+  border: 1px solid var(--admin-border-subtle);
+  padding: 0.35rem 0.55rem;
+  color: var(--admin-muted);
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+}
+
 .team-timeline {
   width: 100%;
+}
+
+@media (min-width: 640px) {
+  .team-composition {
+    grid-template-columns: minmax(12rem, 0.9fr) minmax(0, 2.5fr);
+    gap: 2rem;
+    padding-block: 2rem;
+  }
+
+  .team-composition__groups,
+  .team-group-tabs {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .team-group-tabs {
+    gap: 0.75rem;
+  }
+
+  .team-group-tab {
+    min-height: 7rem;
+  }
+
+  .team-group-panel__content {
+    grid-template-columns: minmax(10rem, 0.8fr) minmax(0, 2fr);
+    gap: clamp(1.5rem, 4vw, 3rem);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .team-group-tab,
+  .team-group-panel__content {
+    animation: none;
+    transition-duration: 0.01ms;
+  }
 }
 
 .team-timeline-years {

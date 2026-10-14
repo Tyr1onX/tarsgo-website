@@ -96,3 +96,52 @@ test("the desktop visual navigation is an equal-height two-row grid with respons
     assert.match(styles, new RegExp(`\\.home-visual-card--${card} > img \\{ object-position: center \\d+%; \\}`));
   }
 });
+
+test("the five uploaded groups keep matching black and white SVG geometry with square source canvases", async () => {
+  const groups = ["mechanical", "electrical-control", "vision", "ai", "operations"];
+  for (const group of groups) {
+    const [black, white, structure] = await Promise.all([
+      readFile(new URL(`../../../../public/assets/images/Groups/${group}-black.svg`, import.meta.url), "utf8"),
+      readFile(new URL(`../../../../public/assets/images/Groups/${group}-white.svg`, import.meta.url), "utf8"),
+      readFile(new URL(`../../../../public/assets/images/Groups/${group}-structure.svg`, import.meta.url), "utf8"),
+    ]);
+    const geometry = (svg) => ({
+      viewBox: svg.match(/viewBox="([^"]+)"/)?.[1],
+      transforms: [...svg.matchAll(/transform="([^"]+)"/g)].map((match) => match[1]),
+      paths: [...svg.matchAll(/<path\b[^>]*\sd="([^"]+)"/g)].map((match) => match[1]),
+    });
+
+    assert.match(black, /width="1600"[^>]*height="1600"/);
+    assert.match(white, /width="1600"[^>]*height="1600"/);
+    assert.match(structure, /width="1600"[^>]*height="1600"/);
+    assert.match(black, /#000000/i, `${group} black variant must stay black`);
+    assert.doesNotMatch(black, /#FFFFFF/i, `${group} black variant must not contain white fills`);
+    assert.match(white, /#FFFFFF/i, `${group} white variant must stay white`);
+    assert.doesNotMatch(white, /#000000/i, `${group} white variant must not contain black fills`);
+    assert.match(structure, /<path\b/);
+    assert.deepEqual(geometry(white), geometry(black), `${group} color variants must preserve vector geometry`);
+    for (const svg of [black, white, structure]) {
+      assert.doesNotMatch(svg, /<script\b|<foreignObject\b|href="https?:/i);
+    }
+  }
+});
+
+test("group identity appears on the about and join pages with accessible theme-aware tabs", () => {
+  assert.match(home, /team-composition-heading/);
+  assert.match(home, /<SiteLogo className=/);
+  assert.match(home, /吉林大学吉甲大师双创基地/);
+  assert.match(home, /team-composition__groups/);
+  assert.match(home, /role="tablist"/);
+  assert.match(home, /role="tab"/);
+  assert.match(home, /aria-selected=\{isActive\}/);
+  assert.match(home, /event\.key === "ArrowRight"/);
+  assert.match(home, /event\.key === "ArrowLeft"/);
+  assert.match(home, /event\.key === "Home"/);
+  assert.match(home, /event\.key === "End"/);
+  assert.match(home, /role="tabpanel"/);
+  assert.match(home, /aria-live="polite"/);
+  assert.match(home, /activeGroup\.directions\.map/);
+  assert.match(styles, /:root\[data-theme="dark"\] \.team-group-mark__image--light\s*\{\s*display:\s*none;/);
+  assert.match(styles, /:root\[data-theme="dark"\] \.team-group-mark__image--dark\s*\{\s*display:\s*block;/);
+  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?\.team-group-panel__content\s*\{\s*animation:\s*none;/);
+});
