@@ -1,5 +1,7 @@
 import type { ReactNode, MouseEventHandler } from "react";
 import { Link } from "react-router";
+import { SiteLogo } from "./site-logo";
+import { ThemeControl } from "./theme-control";
 
 
 type AuthShellProps = {
@@ -30,7 +32,7 @@ export function AuthShell({
       <div className="auth-layout">
         <aside className="auth-brand-panel" aria-label="吉甲大师品牌信息">
           <Link to="/" className="auth-brand-lockup" aria-label="返回 TARS-GO 首页">
-            <img src="/assets/images/Logo/tarsgo-logo-v5.svg" alt="TARSGO" />
+            <SiteLogo className="auth-brand-lockup__logo" />
             <span>吉林大学 · 吉甲大师双创基地</span>
           </Link>
 
@@ -59,14 +61,17 @@ export function AuthShell({
               返回官网
             </Link>
 
-            <nav className="auth-entry-switch" aria-label="账户入口">
-              <Link to={authPath("/login", redirectTo)} aria-current={mode === "login" ? "page" : undefined}>
-                登录
-              </Link>
-              <Link to={authPath("/register", redirectTo)} aria-current={mode === "register" ? "page" : undefined}>
-                注册
-              </Link>
-            </nav>
+            <div className="auth-main-top__actions">
+              <nav className="auth-entry-switch" aria-label="账户入口">
+                <Link to={authPath("/login", redirectTo)} aria-current={mode === "login" ? "page" : undefined}>
+                  登录
+                </Link>
+                <Link to={authPath("/register", redirectTo)} aria-current={mode === "register" ? "page" : undefined}>
+                  注册
+                </Link>
+              </nav>
+              <ThemeControl />
+            </div>
           </div>
 
           <div className="auth-form-wrap">

@@ -1,6 +1,7 @@
 import type { Route } from "./+types/home";
 import { useEffect, useId, useRef, useState } from "react";
 import { Navbar } from "../components/navbar";
+import { SiteLogo } from "~/components/site-logo";
 import { Link } from "react-router";
 import {
   getCachedCurrentUser,
@@ -277,7 +278,7 @@ function SectionHeading({
   title?: string;
   description?: string;
 }) {
-  const color = "#D0AD69";
+  const color = "var(--color-accent-primary)";
 
   return (
     <div className="public-section-heading mx-auto mb-8 max-w-[1440px] sm:mb-10">
@@ -404,7 +405,7 @@ function AboutImageReveal({ src, alt }: { src: string; alt: string }) {
   const incomingSrc = transition.incomingSrc;
 
   return (
-    <div className="relative aspect-[4/3] overflow-hidden bg-[#171b1a] md:aspect-auto md:min-h-[420px]">
+    <div className="relative aspect-[4/3] overflow-hidden bg-surface-card md:aspect-auto md:min-h-[420px]">
       <img
         src={transition.baseSrc}
         alt={incomingSrc ? "" : alt}
@@ -541,7 +542,7 @@ export default function Home() {
   }
 
   return (
-    <div className="public-home relative min-h-screen overflow-hidden bg-[#101516] text-fg-primary">
+    <div className="public-home relative min-h-screen overflow-hidden bg-surface-primary text-fg-primary">
       <div className="relative z-10">
       {/* Hero Section */}
       <section
@@ -572,11 +573,11 @@ export default function Home() {
                 alt="TARSGO"
                 className="h-20 w-auto max-w-full object-contain sm:h-24"
               />
-              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[#e0c790] sm:text-xs">
+              <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--hero-accent)] sm:text-xs">
                 吉林大学 · RoboMaster 战队
               </p>
               <h1 className="max-w-2xl text-[42px] font-semibold leading-[1.1] tracking-[-0.045em] text-white sm:text-6xl lg:text-[72px]">
-                有秩序的<span className="text-[#dfbd7c]">创造力</span>
+                有秩序的<span className="text-[var(--hero-accent)]">创造力</span>
               </h1>
               <p className="max-w-lg text-sm leading-6 text-white/78 sm:text-base sm:leading-7">
                 以 RoboMaster 竞赛为牵引，持续投入机器人研发与团队协作。
@@ -584,7 +585,7 @@ export default function Home() {
               <div className="mt-2 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
                 <Link
                   to="/register"
-                  className="motion-button inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-[#d0ad69] px-6 py-3 text-sm font-semibold text-[#171915] transition-colors hover:bg-[#dfbd7c] sm:px-7"
+                  className="motion-button inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-accent-primary px-6 py-3 text-sm font-semibold text-fg-inverse transition-colors hover:bg-[var(--admin-accent-bright)] sm:px-7"
                 >
                   立即报名
                   <svg
@@ -661,12 +662,12 @@ export default function Home() {
                     onClick={() => setActiveAboutModuleIndex(index)}
                     className={`inline-flex min-h-12 shrink-0 items-center gap-1.5 border-b-2 px-1.5 text-xs transition-colors sm:gap-2 sm:px-5 sm:text-sm ${
                       isActive
-                        ? "border-[#D0AD69] text-fg-primary"
+                        ? "border-accent-primary text-fg-primary"
                         : "border-transparent text-fg-muted hover:text-fg-primary"
                     }`}
                     aria-pressed={isActive}
                   >
-                    <span className="font-mono text-[10px] text-[#D0AD69]">
+                    <span className="font-mono text-[10px] text-accent-primary">
                       {String(index + 1).padStart(2, "0")}
                     </span>
                     <span className="font-medium">{module.name}</span>
@@ -683,7 +684,7 @@ export default function Home() {
                 />
               </figure>
               <div className="flex flex-col justify-center border-t border-white/10 py-6 md:border-l md:border-t-0 md:px-8 lg:px-12">
-                <span className="font-mono text-xs tracking-[0.16em] text-[#D0AD69]">
+                <span className="font-mono text-xs tracking-[0.16em] text-accent-primary">
                   {String(activeAboutModuleIndex + 1).padStart(2, "0")} / {String(aboutModules.length).padStart(2, "0")}
                 </span>
                 <h3 className="mt-3 text-2xl font-semibold tracking-tight text-fg-primary sm:text-3xl">
@@ -725,7 +726,7 @@ export default function Home() {
                   >
                     <span
                       aria-hidden="true"
-                      className="absolute -left-[29px] top-[2.15rem] h-2.5 w-2.5 rounded-full border border-[#D0AD69] bg-[#101516] sm:-left-[45px] sm:top-[2.65rem]"
+                      className="absolute -left-[29px] top-[2.15rem] h-2.5 w-2.5 rounded-full border border-accent-primary bg-surface-primary sm:-left-[45px] sm:top-[2.65rem]"
                     />
                     <article
                       className={"grid gap-x-8 gap-y-5 " + (
@@ -738,8 +739,8 @@ export default function Home() {
                         <p
                           className={"font-mono leading-none tracking-[-0.08em] " + (
                             isFeatured
-                              ? "text-5xl font-medium text-[#D0AD69] sm:text-6xl lg:text-[5.5rem]"
-                              : "text-4xl font-normal text-[#D0AD69]/75 sm:text-5xl lg:text-[3.5rem]"
+                              ? "text-5xl font-medium text-accent-primary sm:text-6xl lg:text-[5.5rem]"
+                              : "text-4xl font-normal text-accent-primary/75 sm:text-5xl lg:text-[3.5rem]"
                           )}
                         >
                           {item.year}
@@ -773,7 +774,7 @@ export default function Home() {
                             >
                               <span
                                 aria-hidden="true"
-                                className="mt-[0.65rem] h-1.5 w-1.5 rounded-full bg-[#D0AD69]/75"
+                                className="mt-[0.65rem] h-1.5 w-1.5 rounded-full bg-accent-primary/75"
                               />
                               <span>{highlight}</span>
                             </li>
@@ -790,7 +791,7 @@ export default function Home() {
                         {item.images.map((image, index) => (
                           <figure
                             key={image.src}
-                            className="overflow-hidden bg-[#171a19]"
+                            className="overflow-hidden bg-surface-card"
                           >
                             <img
                               src={image.src}
@@ -828,7 +829,7 @@ export default function Home() {
 
           <div className="grid gap-7 lg:grid-cols-[minmax(0,1.7fr)_minmax(17rem,0.8fr)] lg:items-stretch lg:gap-12 xl:gap-16">
             <figure className="min-w-0">
-              <div className="relative aspect-[4/3] overflow-hidden bg-[#111312] sm:aspect-[16/10]">
+              <div className="relative aspect-[4/3] overflow-hidden bg-surface-card sm:aspect-[16/10]">
                 <img
                   key={activeRobot.image}
                   src={activeRobot.image}
@@ -847,7 +848,7 @@ export default function Home() {
                 className="flex min-h-[82px] items-center justify-between gap-4 border-b border-white/10 py-4 sm:py-5"
               >
                 <div>
-                  <p className="font-mono text-[11px] tracking-[0.16em] text-[#D0AD69]">
+                  <p className="font-mono text-[11px] tracking-[0.16em] text-accent-primary">
                     {String(activeRobotIndex + 1).padStart(2, "0")} / 05
                   </p>
                   <h3 className="mt-1 text-xl font-semibold text-fg-primary sm:text-2xl">
@@ -879,13 +880,13 @@ export default function Home() {
                       aria-pressed={selected}
                       onClick={() => setActiveRobotIndex(index)}
                       className={
-                        "group grid min-h-[78px] w-full grid-cols-[64px_minmax(0,1fr)] items-center gap-4 border-b border-l-2 px-3 text-left transition-colors last:border-b-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D0AD69] sm:min-h-[86px] sm:grid-cols-[76px_minmax(0,1fr)] " +
+                        "group grid min-h-[78px] w-full grid-cols-[64px_minmax(0,1fr)] items-center gap-4 border-b border-l-2 px-3 text-left transition-colors last:border-b-0 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent-primary sm:min-h-[86px] sm:grid-cols-[76px_minmax(0,1fr)] " +
                         (selected
-                          ? "border-l-[#D0AD69] bg-white/[0.04]"
+                          ? "border-l-accent-primary bg-white/[0.04]"
                           : "border-l-transparent hover:bg-white/[0.025]")
                       }
                     >
-                      <span className="flex h-12 w-14 items-center justify-center bg-[#171a19] sm:h-14 sm:w-[68px]">
+                      <span className="flex h-12 w-14 items-center justify-center bg-surface-card sm:h-14 sm:w-[68px]">
                         <img
                           src={robot.image}
                           alt=""
@@ -902,7 +903,7 @@ export default function Home() {
                         <span
                           className={
                             "font-mono text-xs tracking-[0.12em] " +
-                            (selected ? "text-[#D0AD69]" : "text-fg-muted")
+                            (selected ? "text-accent-primary" : "text-fg-muted")
                           }
                         >
                           {number}
@@ -958,7 +959,7 @@ export default function Home() {
                     onClick={() => openCertificate(image)}
                     aria-label={"第" + number + "张团队荣誉证书，查看原图"}
                     aria-haspopup="dialog"
-                    className="group block w-full text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-[#D0AD69]"
+                    className="group block w-full text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary"
                   >
                     <span
                       className={
@@ -976,7 +977,7 @@ export default function Home() {
                       />
                     </span>
                     <span className="mt-2 flex items-baseline justify-between gap-3 border-b border-white/10 pb-2">
-                      <span className="font-mono text-xs tracking-[0.14em] text-[#D0AD69]">
+                      <span className="font-mono text-xs tracking-[0.14em] text-accent-primary">
                         {number}
                       </span>
                       <span className="text-xs text-fg-dim transition-colors group-hover:text-fg-primary">
@@ -1006,7 +1007,7 @@ export default function Home() {
                   type="button"
                   onClick={() => certificateDialogRef.current?.close()}
                   aria-label="关闭证书预览"
-                  className="absolute right-2 top-2 z-10 flex h-11 min-w-11 items-center justify-center border border-white/20 bg-[#101516]/90 px-3 text-sm text-white hover:border-[#D0AD69] focus-visible:outline-2 focus-visible:outline-[#D0AD69] sm:right-4 sm:top-4"
+                  className="absolute right-2 top-2 z-10 flex h-11 min-w-11 items-center justify-center border border-white/20 bg-surface-primary/90 px-3 text-sm text-white hover:border-accent-primary focus-visible:outline-2 focus-visible:outline-accent-primary sm:right-4 sm:top-4"
                 >
                   关闭
                 </button>
@@ -1090,12 +1091,7 @@ export default function Home() {
         <div className="mx-auto max-w-[1440px]">
           <div className="flex flex-col gap-6 border-b border-white/[0.08] pb-8 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex flex-col items-start gap-3">
-              <img
-                src="/assets/images/Logo/tarsgo-logo-v5.svg"
-                alt="TARSGO"
-                loading="lazy"
-                className="h-12 w-auto max-w-[220px] object-contain"
-              />
+              <SiteLogo className="h-12 max-w-[220px]" />
               <p className="text-sm text-fg-muted">吉林大学吉甲大师双创基地</p>
             </div>
             <div className="flex flex-wrap items-center gap-3 sm:justify-end">

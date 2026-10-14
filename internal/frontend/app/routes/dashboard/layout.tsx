@@ -2,6 +2,8 @@ import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from 
 import { Link, NavLink, Outlet, redirect, useLocation, useNavigate } from "react-router";
 
 import type { Route } from "./+types/layout";
+import { SiteLogo } from "~/components/site-logo";
+import { ThemeControl } from "~/components/theme-control";
 import { ApiError } from "~/lib/api-client";
 import { getAuthUserRoleLabel, getBootstrapStatus, getCachedCurrentUser, getCurrentUser, logout, type AuthUser } from "~/lib/auth-client";
 import { resolveDashboardAuth } from "~/lib/dashboard-auth-flow";
@@ -421,11 +423,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
       >
         <div className="flex items-center gap-3 px-5 h-16 shrink-0">
           <Link to="/" className="flex min-w-0 flex-1 items-center">
-            <img
-              src="/assets/images/Logo/tarsgo-logo-v5.svg"
-              alt="TARSGO"
-              className="h-10 w-auto max-w-full object-contain"
-            />
+            <SiteLogo className="h-10 max-w-full" />
           </Link>
           <button
             type="button"
@@ -562,9 +560,10 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
             </svg>
           </button>
 
+          <ThemeControl className="ml-auto" />
           <Link
             to="/"
-            className="dashboard-shell__site-link ml-auto inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md"
+            className="dashboard-shell__site-link inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
