@@ -7,6 +7,7 @@
     "dev": "react-router dev",
     "preview": "vite preview",
     "start": "vite preview",
+    "test:navbar": "node --test app/lib/navbar-accessibility.test.mjs",
     "test:micro-specialty": "node --test app/lib/micro-specialty-content.test.mjs",
     "test:progress": "node --test app/lib/recruitment-progress.test.mjs",
     "test:workbench": "node --test app/lib/admin-workbench.test.mjs app/lib/dashboard-navigation.test.mjs",

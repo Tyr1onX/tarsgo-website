@@ -35,6 +35,8 @@ jobs:
         run: make backend-test
       - name: Run frontend unit tests
         run: |
+          pnpm run test:navbar
+          pnpm run test:micro-specialty
           pnpm run test:progress
           pnpm run test:workbench
           pnpm run test:email-templates

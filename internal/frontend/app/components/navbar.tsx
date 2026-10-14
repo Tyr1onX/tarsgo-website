@@ -35,8 +35,51 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
   const [isScrolled, setIsScrolled] = useState(false);
   const [dashboardPrefetchUserId, setDashboardPrefetchUserId] = useState<number | null>(null);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
+  const mobileMenuButtonRef = useRef<HTMLButtonElement | null>(null);
+  const mobileMenuRef = useRef<HTMLDivElement | null>(null);
+  const desktopNavLinksRef = useRef<HTMLDivElement | null>(null);
   const navigate = useNavigate();
   const revalidator = useRevalidator();
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+
+      event.preventDefault();
+      setMenuOpen(false);
+      mobileMenuButtonRef.current?.focus();
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [menuOpen]);
+
+  useEffect(() => {
+    const desktopViewport = window.matchMedia("(min-width: 1280px)");
+
+    function closeMenuAtDesktopWidth() {
+      if (!desktopViewport.matches || !menuOpen) return;
+
+      const focusedMobileControl =
+        document.activeElement === mobileMenuButtonRef.current ||
+        Boolean(mobileMenuRef.current?.contains(document.activeElement));
+
+      setMenuOpen(false);
+      if (focusedMobileControl) {
+        desktopNavLinksRef.current?.querySelector<HTMLAnchorElement>("a")?.focus();
+      }
+    }
+
+    desktopViewport.addEventListener("change", closeMenuAtDesktopWidth);
+    return () => desktopViewport.removeEventListener("change", closeMenuAtDesktopWidth);
+  }, [menuOpen]);
+
+  function closeMobileMenu() {
+    setMenuOpen(false);
+    mobileMenuButtonRef.current?.focus();
+  }
 
   // Warm the authenticated dashboard route before the user opens the menu.
   // Defer this work until idle so public homepage resources keep priority.
@@ -103,6 +146,7 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
       await logout();
       setUserMenuOpen(false);
       setMenuOpen(false);
+      if (menuOpen) mobileMenuButtonRef.current?.focus();
       revalidator.revalidate();
       navigate("/", { replace: true });
     } finally {
@@ -111,7 +155,10 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
   }
 
   return (
-    <nav className="pointer-events-none fixed inset-x-0 top-0 z-50">
+    <nav
+      aria-label={variant === "micro-specialty" ? "低空微专业导航" : "主导航"}
+      className="pointer-events-none fixed inset-x-0 top-0 z-50"
+    >
       {variant === "default" && currentUser && dashboardPrefetchUserId === currentUser.id ? (
         <PrefetchPageLinks page={getDefaultDashboardPath(currentUser.role.name)} />
       ) : null}
@@ -138,12 +185,12 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
         </Link>
 
         {/* Desktop nav links */}
-        <div className="hidden md:flex items-center gap-8">
+        <div ref={desktopNavLinksRef} className="hidden xl:flex items-center gap-8">
           {visibleNavLinks.map((link) => (
             <a
               key={link.href}
               href={link.href}
-              className={`motion-nav-link text-base font-semibold transition-colors ${
+              className={`motion-nav-link text-base font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D0AD69] ${
                 link.active
                   ? "text-accent-primary"
                   : "text-fg-primary hover:text-accent-primary"
@@ -155,7 +202,7 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
         </div>
 
         {/* Auth area */}
-        {variant === "default" ? <div className="hidden w-[174px] shrink-0 items-center justify-end gap-3 md:flex">
+        {variant === "default" ? <div className="hidden w-[174px] shrink-0 items-center justify-end gap-3 xl:flex">
           {currentUser === undefined ? (
             authError ? <Link to="/login" className="text-sm text-fg-muted hover:text-accent-primary">验证失败，重试</Link> :
               <span className="h-10 w-28 animate-pulse rounded-full border border-white/10 bg-white/[0.06]" role="status" aria-label="正在确认登录状态" />
@@ -268,10 +315,13 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
 
         {/* Mobile menu button */}
         <button
+          ref={mobileMenuButtonRef}
           type="button"
-          className="md:hidden p-2 text-fg-muted hover:text-fg-primary"
-          onClick={() => setMenuOpen(!menuOpen)}
-          aria-label="Toggle menu"
+          className="xl:hidden rounded-lg p-2 text-fg-muted hover:text-fg-primary focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D0AD69]"
+          onClick={() => setMenuOpen((open) => !open)}
+          aria-label={menuOpen ? "关闭导航菜单" : "展开导航菜单"}
+          aria-expanded={menuOpen}
+          aria-controls="site-mobile-menu"
         >
           <svg
             className="w-6 h-6"
@@ -298,77 +348,80 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
       </div>
 
       {/* Mobile menu */}
-      {menuOpen && (
-        <div className="md:hidden px-6 pb-4 border-t border-border-subtle pt-4">
-          <div className="flex flex-col gap-1">
-            {visibleNavLinks.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                className={`px-3 py-2 text-sm rounded-lg transition-colors ${
-                  link.active
-                    ? "text-accent-primary"
-                    : "text-fg-primary hover:text-accent-primary hover:bg-white/5"
-                }`}
-                onClick={() => setMenuOpen(false)}
-              >
-                {link.label}
-              </a>
-            ))}
-          </div>
-          {variant === "default" && currentUser === undefined ? (
-            authError ? <Link to="/login" className="mt-4 text-sm text-fg-muted" onClick={() => setMenuOpen(false)}>验证失败，重试</Link> :
-              <div className="mt-4 h-10 w-32 animate-pulse rounded-full bg-white/[0.06]" role="status" aria-label="正在确认登录状态" />
-          ) : variant === "default" && currentUser ? (
-            <div className="mt-4 rounded-2xl border border-border-subtle bg-surface-light/40 p-3">
-              <div className="flex items-center gap-3">
-                <UserAvatar user={currentUser} className="h-10 w-10" textClassName="text-sm" />
-                <div className="min-w-0">
-                  <div className="truncate text-sm font-semibold text-fg-primary">
-                    {getUserDisplayName(currentUser)}
-                  </div>
-                  <div className="truncate text-xs text-fg-muted">{currentUser.email}</div>
-                </div>
-              </div>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <Link
-                  to={getDefaultDashboardPath(currentUser.role.name)}
-                  prefetch="render"
-                  className="rounded-full bg-accent-primary px-4 py-2 text-center text-sm font-medium text-fg-inverse"
-                  onClick={() => setMenuOpen(false)}
-                >
-                  工作台
-                </Link>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  disabled={loggingOut}
-                  className="rounded-full border border-border-subtle px-4 py-2 text-sm font-medium text-rose-300 disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {loggingOut ? "退出中..." : "登出"}
-                </button>
-              </div>
-            </div>
-          ) : variant === "default" ? (
-            <div className="flex gap-3 mt-4 px-3">
-              <Link
-                to="/login"
-                className="flex-1 text-center px-4 py-2 text-sm font-medium text-accent-primary border-[1.5px] border-accent-primary rounded-full"
-                onClick={() => setMenuOpen(false)}
-              >
-                登录
-              </Link>
-              <Link
-                to="/register"
-                className="flex-1 text-center px-4 py-2 text-sm font-medium text-fg-inverse bg-accent-primary rounded-full"
-                onClick={() => setMenuOpen(false)}
-              >
-                注册
-              </Link>
-            </div>
-          ) : null}
+      <div
+        id="site-mobile-menu"
+        ref={mobileMenuRef}
+        hidden={!menuOpen}
+        className="xl:hidden border-t border-border-subtle px-6 pb-4 pt-4"
+      >
+        <div className="flex flex-col gap-1">
+          {visibleNavLinks.map((link) => (
+            <a
+              key={link.href}
+              href={link.href}
+              className={`rounded-lg px-3 py-2 text-sm transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D0AD69] ${
+                link.active
+                  ? "text-accent-primary"
+                  : "text-fg-primary hover:text-accent-primary hover:bg-white/5"
+              }`}
+              onClick={closeMobileMenu}
+            >
+              {link.label}
+            </a>
+          ))}
         </div>
-      )}
+        {variant === "default" && currentUser === undefined ? (
+          authError ? <Link to="/login" className="mt-4 text-sm text-fg-muted" onClick={closeMobileMenu}>验证失败，重试</Link> :
+            <div className="mt-4 h-10 w-32 animate-pulse rounded-full bg-white/[0.06]" role="status" aria-label="正在确认登录状态" />
+        ) : variant === "default" && currentUser ? (
+          <div className="mt-4 rounded-2xl border border-border-subtle bg-surface-light/40 p-3">
+            <div className="flex items-center gap-3">
+              <UserAvatar user={currentUser} className="h-10 w-10" textClassName="text-sm" />
+              <div className="min-w-0">
+                <div className="truncate text-sm font-semibold text-fg-primary">
+                  {getUserDisplayName(currentUser)}
+                </div>
+                <div className="truncate text-xs text-fg-muted">{currentUser.email}</div>
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <Link
+                to={getDefaultDashboardPath(currentUser.role.name)}
+                prefetch="render"
+                className="rounded-full bg-accent-primary px-4 py-2 text-center text-sm font-medium text-fg-inverse"
+                onClick={closeMobileMenu}
+              >
+                工作台
+              </Link>
+              <button
+                type="button"
+                onClick={handleLogout}
+                disabled={loggingOut}
+                className="rounded-full border border-border-subtle px-4 py-2 text-sm font-medium text-rose-300 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {loggingOut ? "退出中..." : "登出"}
+              </button>
+            </div>
+          </div>
+        ) : variant === "default" ? (
+          <div className="flex gap-3 mt-4 px-3">
+            <Link
+              to="/login"
+              className="flex-1 text-center px-4 py-2 text-sm font-medium text-accent-primary border-[1.5px] border-accent-primary rounded-full"
+              onClick={closeMobileMenu}
+            >
+              登录
+            </Link>
+            <Link
+              to="/register"
+              className="flex-1 text-center px-4 py-2 text-sm font-medium text-fg-inverse bg-accent-primary rounded-full"
+              onClick={closeMobileMenu}
+            >
+              注册
+            </Link>
+          </div>
+        ) : null}
+      </div>
       </div>
     </nav>
   );
