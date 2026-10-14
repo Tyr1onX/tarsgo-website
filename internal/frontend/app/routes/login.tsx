@@ -17,8 +17,8 @@ type LoginMode = "password" | "code";
 
 export function meta() {
   return [
-    { title: "登录 | TARS-GO" },
-    { name: "description", content: "登录TARS-GO吉甲大师战队平台" },
+    { title: "登录 | TARSGO" },
+    { name: "description", content: "登录TARSGO吉甲大师战队平台" },
   ];
 }
 
@@ -117,7 +117,7 @@ export default function Login() {
     <AuthShell
       mode="login"
       title="欢迎回来"
-      description="登录你的 TARS-GO 统一工作台账号"
+      description="登录你的 TARSGO 统一工作台账号"
       redirectTo={redirectTo}
     >
       <div className="auth-mode-switch" aria-label="登录方式">

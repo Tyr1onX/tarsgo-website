@@ -31,7 +31,7 @@ export function AuthShell({
     <main className={`auth-page${leaving ? " auth-page--leaving" : ""}`}>
       <div className="auth-layout">
         <aside className="auth-brand-panel" aria-label="吉甲大师品牌信息">
-          <Link to="/" className="auth-brand-lockup" aria-label="返回 TARS-GO 首页">
+          <Link to="/" className="auth-brand-lockup" aria-label="返回 TARSGO 首页">
             <SiteLogo className="auth-brand-lockup__logo" />
             <span>吉林大学 · 吉甲大师双创基地</span>
           </Link>
@@ -39,7 +39,7 @@ export function AuthShell({
           <div className="auth-brand-story">
             <p className="auth-eyebrow">JLU · JIJIA MASTER</p>
             <h2>为赛场而来，<br />与团队并肩。</h2>
-            <p>TARS-GO 战队统一工作台入口。</p>
+            <p>TARSGO 战队统一工作台入口。</p>
           </div>
 
           <div className="auth-brand-footer">
@@ -84,7 +84,7 @@ export function AuthShell({
           </div>
 
           <footer className="auth-main-footer">
-            <span>© TARS-GO 战队</span>
+            <span>© TARSGO 战队</span>
             <span>吉林大学 · 吉甲大师双创基地</span>
           </footer>
         </section>

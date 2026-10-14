@@ -16,7 +16,7 @@ const baseTabs: Array<{ key: RecruitmentTab; label: string; description: string 
 ];
 
 export function meta() {
-  return [{ title: "招新管理 | TARS-GO" }, { name: "description", content: "管理当前届招新与历史届次" }];
+  return [{ title: "招新管理 | TARSGO" }, { name: "description", content: "管理当前届招新与历史届次" }];
 }
 
 export default function RecruitmentManagement() {

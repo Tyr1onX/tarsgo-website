@@ -52,7 +52,7 @@ import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 
 export function meta() {
   return [
-    { title: "招新设置 | TARS-GO" },
+    { title: "招新设置 | TARSGO" },
     { name: "description", content: "管理招新届次、开放时间与报名字段" },
   ];
 }

@@ -1,4 +1,4 @@
-import { Link, PrefetchPageLinks, useNavigate, useRevalidator } from "react-router";
+import { Link, PrefetchPageLinks, useLocation, useNavigate, useRevalidator } from "react-router";
 import { useEffect, useRef, useState } from "react";
 
 import { logout, type AuthUser } from "~/lib/auth-client";
@@ -8,12 +8,11 @@ import { ThemeControl } from "./theme-control";
 import { useTheme } from "./theme-provider";
 
 const navLinks = [
-  { label: "首页", href: "/#hero", active: true },
-  { label: "关于我们", href: "/#about", active: false },
-  { label: "团队历程", href: "/#achievements", active: false },
-  { label: "机器人展示", href: "/#robots", active: false },
-  { label: "成就展示", href: "/#certificates", active: false },
-  { label: "加入我们", href: "/#join", active: false },
+  { label: "首页", href: "/", active: true },
+  { label: "认识吉甲", href: "/about", active: false },
+  { label: "机器人", href: "/robots", active: false },
+  { label: "赛事与荣誉", href: "/events-and-honors", active: false },
+  { label: "加入吉甲", href: "/join", active: false },
 ];
 
 const microSpecialtyHref = "/micro-specialties/low-altitude-intelligent-sensing-control";
@@ -44,6 +43,7 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
   const mobileMenuRef = useRef<HTMLDivElement | null>(null);
   const desktopNavLinksRef = useRef<HTMLDivElement | null>(null);
   const desktopAuthAreaRef = useRef<HTMLDivElement | null>(null);
+  const location = useLocation();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
 
@@ -186,7 +186,7 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
           {/* Logo */}
           <Link
             to="/"
-            aria-label="TARS-GO 首页"
+            aria-label="TARSGO 首页"
             className="motion-button flex shrink-0 items-center"
           >
             <SiteLogo className="h-[48px] sm:h-[54px]" />
@@ -194,19 +194,23 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
 
           {/* Desktop nav links */}
           <div ref={desktopNavLinksRef} className="hidden xl:flex items-center gap-5 2xl:gap-8">
-            {visibleNavLinks.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                className={`motion-nav-link text-base font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D0AD69] ${
-                  link.active
-                    ? "text-accent-primary"
-                    : "text-fg-primary hover:text-accent-primary"
-                }`}
-              >
-                {link.label}
-              </a>
-            ))}
+            {visibleNavLinks.map((link) => {
+              const active = link.href.startsWith("#")
+                ? location.hash === link.href
+                : location.pathname === link.href;
+              return (
+                <Link
+                  key={link.href}
+                  to={link.href}
+                  aria-current={active ? "page" : undefined}
+                  className={`motion-nav-link text-base font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D0AD69] ${
+                    active ? "text-accent-primary" : "text-fg-primary hover:text-accent-primary"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
           </div>
 
           <div className="navbar-actions">
@@ -381,16 +385,22 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
             </Link>
           ) : null}
           <div className="navbar-mobile-links">
-            {visibleNavLinks.map((link) => (
-              <a
-                key={link.href}
-                href={link.href}
-                className={`navbar-mobile-link ${link.active ? "navbar-mobile-link--active" : ""}`}
-                onClick={closeMobileMenu}
-              >
-                {link.label}
-              </a>
-            ))}
+            {visibleNavLinks.map((link) => {
+              const active = link.href.startsWith("#")
+                ? location.hash === link.href
+                : location.pathname === link.href;
+              return (
+                <Link
+                  key={link.href}
+                  to={link.href}
+                  aria-current={active ? "page" : undefined}
+                  className={`navbar-mobile-link ${active ? "navbar-mobile-link--active" : ""}`}
+                  onClick={closeMobileMenu}
+                >
+                  {link.label}
+                </Link>
+              );
+            })}
           </div>
           {variant === "default" && currentUser === undefined ? (
             authError ? <Link to="/login" className="mt-4 text-sm text-fg-muted" onClick={closeMobileMenu}>验证失败，重试</Link> :
@@ -483,7 +493,7 @@ function UserAvatar({
 }
 
 function getUserDisplayName(user: AuthUser) {
-  return user.nickname?.trim() || user.email.split("@")[0] || "TARS-GO 成员";
+  return user.nickname?.trim() || user.email.split("@")[0] || "TARSGO 成员";
 }
 
 function getUserInitial(user: AuthUser) {

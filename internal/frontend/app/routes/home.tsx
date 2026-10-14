@@ -2,7 +2,7 @@ import type { Route } from "./+types/home";
 import { useEffect, useId, useRef, useState } from "react";
 import { Navbar } from "../components/navbar";
 import { SiteLogo } from "~/components/site-logo";
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 import {
   getCachedCurrentUser,
   getOptionalCurrentUser,
@@ -13,11 +13,11 @@ import {
 
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: "TARS-Go | 吉林大学吉甲大师战队" },
+    { title: "TARSGO | 吉林大学吉甲大师战队" },
     {
       name: "description",
       content:
-        "吉林大学 TARS-Go 战队官网：以 RoboMaster 竞赛为牵引，持续开展机器人研发与团队协作。",
+        "吉林大学 TARSGO 战队官网：以 RoboMaster 竞赛为牵引，持续开展机器人研发与团队协作。",
     },
   ];
 }
@@ -268,6 +268,62 @@ const aboutModules = [
   },
 ];
 
+export type PublicPage = "home" | "about" | "robots" | "events-and-honors" | "team-history" | "join";
+
+const topicPages: Record<Exclude<PublicPage, "home">, { title: string; eyebrow: string; description: string; image: string; alt: string }> = {
+  about: {
+    title: "认识吉甲",
+    eyebrow: "ABOUT TARSGO",
+    description: "从赛场、训练和项目实践中，认识吉林大学吉甲大师双创基地。",
+    image: "/assets/images/ContestMoment/contest-moment-04.webp",
+    alt: "队员在 RoboMaster 比赛现场共同检查机器人。",
+  },
+  robots: {
+    title: "机器人展示",
+    eyebrow: "OUR ROBOTS",
+    description: "浏览团队现有的五类机器人影像，了解机器人与团队的真实实践。",
+    image: "/assets/images/Robot/hero-robot.webp",
+    alt: "吉甲大师英雄机器人。",
+  },
+  "events-and-honors": {
+    title: "赛事与荣誉",
+    eyebrow: "EVENTS & HONORS",
+    description: "以真实赛事记录和证书，回看团队在竞赛与创新实践中的阶段成果。",
+    image: "/assets/images/ContestMoment/contest-moment-02.webp",
+    alt: "吉甲大师团队赛事现场记录。",
+  },
+  "team-history": {
+    title: "团队历程",
+    eyebrow: "OUR JOURNEY",
+    description: "从 2018 年到 2025 年，按年份回看团队真实历史资料。",
+    image: "/assets/images/Milestone/2025-legacy.webp",
+    alt: "团队历程中的 2025 年历史图片。",
+  },
+  join: {
+    title: "加入吉甲",
+    eyebrow: "JOIN TARSGO",
+    description: "了解五个组别、团队培养方式，并从现有入口进入报名流程。",
+    image: "/assets/images/Daily/daily-02.webp",
+    alt: "队员围绕笔记本与模型进行日常讨论。",
+  },
+};
+
+const topicPageByPath: Record<string, PublicPage> = {
+  "/": "home",
+  "/about": "about",
+  "/robots": "robots",
+  "/events-and-honors": "events-and-honors",
+  "/team-history": "team-history",
+  "/join": "join",
+};
+
+const competitionHighlights = timelineMilestones.map((milestone) => ({
+  year: milestone.year,
+  items: milestone.highlights.filter((highlight) =>
+    /(RoboMaster|ICRA|ICCV|挑战赛|对抗赛|联盟赛|国赛|赛区)/i.test(highlight),
+  ),
+})).filter((milestone) => milestone.items.length > 0);
+
 function SectionHeading({
   index,
   total,
@@ -501,7 +557,9 @@ function getNavbarUser(): AuthUser | null | undefined {
   return getCachedCurrentUser() ?? (hasKnownAnonymousSession() ? null : undefined);
 }
 
-export default function Home() {
+export default function Home({ page = "home" }: { page?: PublicPage }) {
+  const location = useLocation();
+  const routePage = topicPageByPath[location.pathname] ?? page;
   const [activeAboutModuleIndex, setActiveAboutModuleIndex] = useState(0);
   const [activeRobotIndex, setActiveRobotIndex] = useState(0);
   const [activeTimelineYear, setActiveTimelineYear] = useState(timelineMilestones[0].year);
@@ -512,6 +570,7 @@ export default function Home() {
 
   const [currentUser, setCurrentUser] = useState<AuthUser | null | undefined>(getNavbarUser);
   const [authError, setAuthError] = useState(false);
+  const topic = routePage === "home" ? null : topicPages[routePage];
   const activeAboutModule = aboutModules[activeAboutModuleIndex];
   const activeRobot = robots[activeRobotIndex];
   const selectedCertificate = selectedCertificateIndex === null
@@ -587,7 +646,7 @@ export default function Home() {
   return (
     <div className="public-home relative min-h-screen overflow-hidden bg-surface-primary text-fg-primary">
       <div className="relative z-10">
-      {/* Hero Section */}
+      {routePage === "home" ? (
       <section
         id="hero"
         className="public-home-hero relative min-h-[88svh] overflow-hidden bg-black sm:min-h-[92svh]"
@@ -656,10 +715,52 @@ export default function Home() {
         </div>
 
       </section>
+      ) : (
+        <section className="public-topic-hero relative isolate overflow-hidden">
+          <img
+            src={topic?.image}
+            alt=""
+            aria-hidden="true"
+            fetchPriority="high"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div className="public-topic-hero-shade absolute inset-0" />
+          <div className="public-home-container relative z-10 flex min-h-[26rem] items-end pb-12 pt-32 sm:min-h-[32rem] sm:pb-16 lg:min-h-[38rem]">
+            <div className="max-w-3xl">
+              <Link to="/" className="mb-8 inline-flex min-h-11 items-center text-sm font-medium text-white/80 transition hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">
+                ← 返回首页
+              </Link>
+              <p className="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--hero-accent)] sm:text-sm">{topic?.eyebrow}</p>
+              <h1 className="text-4xl font-semibold tracking-[-0.04em] text-white sm:text-5xl lg:text-7xl">{topic?.title}</h1>
+              <p className="mt-5 max-w-2xl text-sm leading-7 text-white/80 sm:text-base sm:leading-8">{topic?.description}</p>
+            </div>
+          </div>
+        </section>
+      )}
 
       <Navbar currentUser={currentUser} authError={authError} />
 
+      {routePage === "events-and-honors" ? (
+        <section id="competition-records" className="border-t border-white/[0.06] py-16 sm:py-20">
+          <div className="public-home-container">
+            <SectionHeading index="01" total="02" labelZh="赛事记录" labelEn="COMPETITION RECORDS" title="来自团队历程的真实赛事节点" description="以下记录整理自各届团队历程，不合并不同赛事或批次。完整年度资料可在团队历程页查看。" />
+            <ol className="grid gap-x-8 sm:grid-cols-2 lg:grid-cols-4">
+              {competitionHighlights.map((record) => (
+                <li key={record.year} className="border-t border-white/12 py-5">
+                  <p className="font-mono text-xl font-semibold text-accent-primary">{record.year}</p>
+                  <ul className="mt-3 space-y-2">
+                    {record.items.map((item) => <li key={item} className="text-sm leading-6 text-fg-muted">{item}</li>)}
+                  </ul>
+                </li>
+              ))}
+            </ol>
+            <Link to="/team-history" className="mt-6 inline-flex min-h-11 items-center gap-2 border-b border-accent-primary/60 pb-1 text-sm font-semibold text-accent-primary hover:border-accent-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary">查看完整团队历程 <span aria-hidden>→</span></Link>
+          </div>
+        </section>
+      ) : null}
+
       {/* About Section */}
+      {(routePage === "home" || routePage === "about") && (
       <section
         id="about"
         className="border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
@@ -741,8 +842,10 @@ export default function Home() {
           </div>
         </div>
       </section>
+      )}
 
       {/* Achievements Section */}
+      {(routePage === "home" || routePage === "team-history") && (
       <section
         id="achievements"
         className="relative overflow-hidden border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
@@ -883,8 +986,10 @@ export default function Home() {
           </div>
         </div>
       </section>
+      )}
 
       {/* Robot Showcase Section */}
+      {(routePage === "home" || routePage === "robots") && (
       <section
         id="robots"
         className="border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
@@ -896,6 +1001,10 @@ export default function Home() {
             labelZh="机器人展示"
             labelEn="OUR ROBOTS"
           />
+
+          <p className="mx-auto mb-8 max-w-3xl text-center text-sm leading-7 text-fg-muted sm:mb-10 sm:text-left sm:text-base">
+            页面展示团队现有五类机器人影像与真实称呼。按名称切换查看实物资料；不补写未核实的型号、性能或技术参数。
+          </p>
 
           <div className="grid gap-7 lg:grid-cols-[minmax(0,1.7fr)_minmax(17rem,0.8fr)] lg:items-stretch lg:gap-12 xl:gap-16">
             <figure className="min-w-0">
@@ -996,8 +1105,10 @@ export default function Home() {
           </div>
         </div>
       </section>
+      )}
 
       {/* Achievement Certificates Section */}
+      {(routePage === "home" || routePage === "events-and-honors") && (
       <section
         id="certificates"
         className="border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
@@ -1144,8 +1255,10 @@ export default function Home() {
           </dialog>
         </div>
       </section>
+      )}
 
       {/* Join Us Section */}
+      {(routePage === "home" || routePage === "join") && (
       <section
         id="join"
         className="border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
@@ -1188,6 +1301,17 @@ export default function Home() {
             ))}
           </div>
 
+          <section className="mb-10 w-full border-y border-white/10 py-7" aria-labelledby="join-training-heading">
+            <h3 id="join-training-heading" className="text-xl font-semibold text-fg-primary sm:text-2xl">团队培养方式</h3>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-fg-muted sm:text-base">
+              从日常训练与组内协作开始，通过赛前联调、项目实践和赛事检验逐步积累经验。具体安排以团队当期培养计划为准。
+            </p>
+            <h3 className="mt-7 text-xl font-semibold text-fg-primary sm:text-2xl">报名流程</h3>
+            <p className="mt-3 max-w-3xl text-sm leading-7 text-fg-muted sm:text-base">
+              先了解组别方向，再从现有报名入口进入；具体招新批次、表单与后续安排以当前开放的报名信息为准。
+            </p>
+          </section>
+
           <Link
             to="/register"
             className="motion-button inline-flex items-center gap-2 rounded-full bg-accent-primary px-10 py-4 text-lg font-semibold text-fg-inverse shadow-[0_18px_40px_-24px_rgba(0,98,255,0.78)] transition-opacity hover:opacity-90"
@@ -1208,6 +1332,7 @@ export default function Home() {
           </Link>
         </div>
       </section>
+      )}
 
       {/* Footer */}
       <footer className="border-t border-white/[0.08] bg-transparent py-10">
@@ -1223,26 +1348,26 @@ export default function Home() {
                   href="https://www.douyin.com/user/MS4wLjABAAAAZJcCtp6uwKt4wKUwa_STi1GadztAmwBwHKN0jjjDj2MNjgOclLsim387ZDtRPjvW"
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label="抖音：吉甲大师TARS-GO（在新标签页打开）"
+                  aria-label="抖音：吉甲大师TARSGO（在新标签页打开）"
                   className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/[0.12] px-3 py-2 text-fg-muted transition-colors hover:border-accent-primary/50 hover:text-accent-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary"
                 >
                   <DouyinIcon />
                   <span className="flex flex-col leading-tight">
                     <span className="text-xs font-medium text-fg-primary">抖音</span>
-                    <span className="text-xs">吉甲大师TARS-GO</span>
+                    <span className="text-xs">吉甲大师TARSGO</span>
                   </span>
                 </a>
                 <a
                   href="https://space.bilibili.com/488284486"
                   target="_blank"
                   rel="noopener noreferrer"
-                  aria-label="B站：吉甲大师TARS-GO（在新标签页打开）"
+                  aria-label="B站：吉甲大师TARSGO（在新标签页打开）"
                   className="inline-flex min-h-11 items-center gap-2 rounded-full border border-white/[0.12] px-3 py-2 text-fg-muted transition-colors hover:border-accent-primary/50 hover:text-accent-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary"
                 >
                   <BilibiliIcon />
                   <span className="flex flex-col leading-tight">
                     <span className="text-xs font-medium text-fg-primary">B站</span>
-                    <span className="text-xs">吉甲大师TARS-GO</span>
+                    <span className="text-xs">吉甲大师TARSGO</span>
                   </span>
                 </a>
               </nav>
@@ -1268,8 +1393,17 @@ export default function Home() {
             </div>
           </section>
 
+          <nav aria-label="吉甲专题页面" className="grid grid-cols-2 gap-x-5 gap-y-3 border-b border-white/[0.08] pb-8 text-sm sm:grid-cols-3 lg:grid-cols-6">
+            <Link className="text-fg-muted transition hover:text-accent-primary" to="/about">认识吉甲</Link>
+            <Link className="text-fg-muted transition hover:text-accent-primary" to="/robots">机器人展示</Link>
+            <Link className="text-fg-muted transition hover:text-accent-primary" to="/events-and-honors">赛事与荣誉</Link>
+            <Link className="text-fg-muted transition hover:text-accent-primary" to="/team-history">团队历程</Link>
+            <Link className="text-fg-muted transition hover:text-accent-primary" to="/join">加入吉甲</Link>
+            <Link className="text-fg-muted transition hover:text-accent-primary" to="/micro-specialties/low-altitude-intelligent-sensing-control">低空微专业</Link>
+          </nav>
+
           <p className="border-t border-white/[0.08] pt-5 text-xs text-fg-dim">
-            &copy; {new Date().getFullYear()} TARS-Go 战队 · 吉林大学吉甲大师双创基地
+            &copy; {new Date().getFullYear()} TARSGO 战队 · 吉林大学吉甲大师双创基地
           </p>
         </div>
       </footer>

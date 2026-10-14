@@ -15,8 +15,8 @@ import { getDefaultDashboardPath } from "~/lib/dashboard-navigation";
 
 export function meta() {
   return [
-    { title: "注册 | TARS-GO" },
-    { name: "description", content: "注册TARS-GO吉甲大师战队平台账号" },
+    { title: "注册 | TARSGO" },
+    { name: "description", content: "注册TARSGO吉甲大师战队平台账号" },
   ];
 }
 
@@ -138,7 +138,7 @@ export default function Register() {
   return (
     <AuthShell
       mode="register"
-      title={success ? "注册成功" : "加入 TARS-GO"}
+      title={success ? "注册成功" : "加入 TARSGO"}
       description={success ? "账号已创建，正在进入工作台。" : "完成邮箱验证后即可进入统一工作台；如可能已有账号，请先尝试登录或使用邮箱验证码。"}
       redirectTo={redirectTo}
       leaving={leaving}

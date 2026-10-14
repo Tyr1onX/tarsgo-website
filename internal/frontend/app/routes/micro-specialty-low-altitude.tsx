@@ -8,7 +8,7 @@ import {
   lowAltitudePractices,
 } from "~/lib/micro-specialty-content";
 
-const title = "低空智能感知与控制微专业 | TARS-Go 吉甲大师";
+const title = "低空智能感知与控制微专业 | TARSGO 吉甲大师";
 const description =
   "了解吉林大学低空智能感知与控制微专业的课程结构、无人机实践内容和常见问题。";
 
@@ -22,7 +22,7 @@ export function meta({}: Route.MetaArgs) {
 export default function LowAltitudeMicroSpecialty() {
   return (
     <div className="micro-specialty-page min-h-screen overflow-hidden bg-surface-primary text-fg-primary">
-      <Navbar variant="micro-specialty" />
+      <Navbar />
 
       <main>
         <section className="relative isolate overflow-hidden border-b border-border-subtle bg-surface-primary">
@@ -81,6 +81,15 @@ export default function LowAltitudeMicroSpecialty() {
             </div>
           </div>
         </section>
+
+        <nav aria-label="低空微专业页面内容" className="micro-specialty-section-nav sticky top-[var(--site-nav-height)] z-30 overflow-x-auto border-b border-border-subtle bg-surface-primary/95 px-5 backdrop-blur sm:px-8 lg:px-12">
+          <div className="mx-auto flex min-h-12 w-max max-w-7xl items-center gap-6 text-sm sm:gap-8">
+            <a className="text-fg-muted transition hover:text-accent-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary" href="#introduction">项目介绍</a>
+            <a className="text-fg-muted transition hover:text-accent-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary" href="#curriculum">课程安排</a>
+            <a className="text-fg-muted transition hover:text-accent-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary" href="#practice">实践内容</a>
+            <a className="text-fg-muted transition hover:text-accent-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary" href="#faq">常见问题</a>
+          </div>
+        </nav>
 
         <section id="introduction" className="scroll-mt-24 px-5 py-16 sm:px-8 sm:py-20 lg:px-12">
           <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[.7fr_1.3fr] lg:gap-16">
@@ -180,7 +189,7 @@ export default function LowAltitudeMicroSpecialty() {
 
       <footer className="border-t border-border-subtle px-5 py-7 text-xs text-fg-dim sm:px-8 lg:px-12">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <span>吉林大学吉甲大师双创基地 · TARS-Go</span>
+          <span>吉林大学吉甲大师双创基地 · TARSGO</span>
           <Link to="/" className="min-h-10 self-start py-3 transition hover:text-fg-primary sm:self-auto">返回官网首页</Link>
         </div>
       </footer>
