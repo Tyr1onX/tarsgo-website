@@ -2176,13 +2176,49 @@ html[data-theme-transition] body *::after {
   }
 }
 
-@media (min-width: 1024px) {
-  .home-sponsor-grid {
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+@media (min-width: 768px) and (max-width: 1023px) {
+  .home-visual-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-rows: repeat(2, clamp(17rem, 28vw, 19rem));
+  }
+
+  .home-visual-card {
+    min-height: 0;
+  }
+
+  .home-visual-card--about { grid-column: 1; grid-row: 1; }
+  .home-visual-card--robots { grid-column: 2; grid-row: 1; }
+  .home-visual-card--join { grid-column: 3; grid-row: 1; }
+  .home-visual-card--events { grid-column: 1; grid-row: 2; }
+  .home-visual-card--history { grid-column: 2; grid-row: 2; }
+  .home-visual-card--micro { grid-column: 3; grid-row: 2; }
+
+  .home-visual-card-copy {
+    right: 3.25rem;
+    bottom: 1.25rem;
+    left: 1rem;
+  }
+
+  .home-visual-card-copy h3 {
+    font-size: clamp(1.0625rem, 1.9vw, 1.25rem);
+  }
+
+  .home-visual-card-copy > p {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+    font-size: 0.8125rem;
+    line-height: 1.45;
+  }
+
+  .home-visual-card-arrow {
+    right: 1rem;
+    bottom: 1.25rem;
   }
 }
 
-@media (min-width: 1280px) {
+@media (min-width: 1024px) {
   .home-visual-grid {
     grid-template-columns: repeat(4, minmax(0, 1fr));
     grid-template-rows: repeat(2, clamp(17.5rem, 21vw, 20rem));
@@ -2200,13 +2236,26 @@ html[data-theme-transition] body *::after {
   .home-visual-card--micro { grid-column: 4; grid-row: 2; }
 
   .home-visual-card-copy {
-    bottom: 1.75rem;
-    left: 1.5rem;
+    right: 3.25rem;
+    bottom: 1.35rem;
+    left: 1rem;
+  }
+
+  .home-visual-card-copy h3 {
+    font-size: clamp(1.1rem, 1.55vw, 1.3rem);
+  }
+
+  .home-visual-card-copy > p {
+    font-size: clamp(0.8125rem, 0.95vw, 0.875rem);
   }
 
   .home-visual-card-arrow {
-    right: 1.5rem;
-    bottom: 1.75rem;
+    right: 1rem;
+    bottom: 1.35rem;
+  }
+
+  .home-sponsor-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
   }
 }
 
