@@ -21,6 +21,29 @@ QUALITY = 84
 METHOD = 6
 
 PHOTOS_BY_SEASON = {
+    2026: (
+        ("infantry-03", "3.JPG", "3号步兵机器人", "步兵"),
+        ("infantry-04", "4.JPG", "4号步兵机器人", "步兵"),
+        ("hero-01", "1.JPG", "1号英雄机器人", "英雄"),
+        ("hero-01-backup", "1（备车）.JPG", "1号英雄机器人（备车）", "英雄"),
+        ("engineering-02", "2.JPG", "2号工程机器人", "工程"),
+        ("radar-09", "9.JPG", "9号雷达系统", "雷达"),
+        ("infantry-03-backup", "3（备车）.JPG", "3号步兵机器人（备车）", "步兵"),
+        ("sentinel-07", "7.JPG", "7号哨兵机器人", "哨兵"),
+        ("dart-08", "8.JPG", "8号飞镖系统", "飞镖"),
+        ("air-06", "6.JPG", "6号无人机", "空中"),
+    ),
+    2025: (
+        ("hero-01", "1号英雄.JPG", "1号英雄机器人", "英雄"),
+        ("engineering-02", "2号工程.JPG", "2号工程机器人", "工程"),
+        ("infantry-03", "3号步兵.JPG", "3号步兵机器人", "步兵"),
+        ("infantry-04", "4号步兵.JPG", "4号步兵机器人", "步兵"),
+        ("sentinel-07", "7号哨兵.JPG", "7号哨兵机器人", "哨兵"),
+        ("radar-09", "9号雷达.JPG", "9号雷达系统", "雷达"),
+        ("dart-08", "8号飞镖.JPG", "8号飞镖系统", "飞镖"),
+        ("hero-backup", "英雄备车.JPG", "英雄机器人（备车）", "英雄"),
+        ("air-06", "6号无人机.JPG", "6号无人机", "空中"),
+    ),
     2024: (
         ("hero-01", "1号英雄.JPG", "1号英雄机器人", "英雄"),
         ("hero-01-backup", "1号英雄（备车）.JPG", "1号英雄机器人（备车）", "英雄"),
@@ -33,17 +56,6 @@ PHOTOS_BY_SEASON = {
         ("infantry-05", "5号步兵.JPG", "5号步兵机器人", "步兵"),
         ("dart-08", "8号飞镖.JPG", "8号飞镖系统", "飞镖"),
         ("air-06", "6号无人机.JPG", "6号空中机器人", "空中"),
-    ),
-    2025: (
-        ("hero-01", "1号英雄.JPG", "1号英雄机器人", "英雄"),
-        ("engineering-02", "2号工程.JPG", "2号工程机器人", "工程"),
-        ("infantry-03", "3号步兵.JPG", "3号步兵机器人", "步兵"),
-        ("infantry-04", "4号步兵.JPG", "4号步兵机器人", "步兵"),
-        ("sentinel-07", "7号哨兵.JPG", "7号哨兵机器人", "哨兵"),
-        ("radar-09", "9号雷达.JPG", "9号雷达系统", "雷达"),
-        ("dart-08", "8号飞镖.JPG", "8号飞镖系统", "飞镖"),
-        ("hero-backup", "英雄备车.JPG", "英雄机器人（备车）", "英雄"),
-        ("air-06", "6号无人机.JPG", "6号无人机", "空中"),
     ),
 }
 
@@ -58,13 +70,13 @@ def sha256(path: Path) -> str:
 
 def main() -> None:
     if len(sys.argv) > 2:
-        raise SystemExit("用法：python3 scripts/optimize_robot_gallery_assets.py [2024|2025]")
+        raise SystemExit("用法：python3 scripts/optimize_robot_gallery_assets.py [2024|2025|2026]")
     try:
         season = int(sys.argv[1]) if len(sys.argv) == 2 else 2024
     except ValueError:
-        raise SystemExit("赛季参数必须是 2024 或 2025") from None
+        raise SystemExit("赛季参数必须是 2024、2025 或 2026") from None
     if season not in PHOTOS_BY_SEASON:
-        raise SystemExit("赛季参数必须是 2024 或 2025")
+        raise SystemExit("赛季参数必须是 2024、2025 或 2026")
     if not features.check("webp"):
         raise SystemExit("当前 Pillow 未启用 WebP 编码支持")
 

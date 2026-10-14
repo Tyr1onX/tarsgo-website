@@ -40,7 +40,7 @@ function CloseIcon() {
 }
 
 export function RobotPhotoGallery() {
-  const [activeSeasonYear, setActiveSeasonYear] = useState(2025);
+  const [activeSeasonYear, setActiveSeasonYear] = useState(2026);
   const [activeCategory, setActiveCategory] = useState<"all" | RobotCategory>("all");
   const [selectedRobotId, setSelectedRobotId] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
