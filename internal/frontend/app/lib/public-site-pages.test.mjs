@@ -6,6 +6,8 @@ const routes = await readFile(new URL("../routes.ts", import.meta.url), "utf8");
 const home = await readFile(new URL("../routes/home.tsx", import.meta.url), "utf8");
 const navbar = await readFile(new URL("../components/navbar.tsx", import.meta.url), "utf8");
 const styles = await readFile(new URL("../app.css", import.meta.url), "utf8");
+const joinExperience = await readFile(new URL("../components/join-experience.tsx", import.meta.url), "utf8");
+const joinStyles = await readFile(new URL("../components/join-experience.css", import.meta.url), "utf8");
 
 const pages = [
   ["about", "about"],
@@ -28,9 +30,10 @@ test("all five new public topic routes are directly registered and share the exi
 });
 
 test("the original home keeps its video and legacy anchors while all historical and interactive assets remain present", () => {
-  for (const anchor of ["hero", "about", "achievements", "robots", "certificates", "join"]) {
+  for (const anchor of ["hero", "about", "achievements", "robots", "certificates"]) {
     assert.ok(home.includes(`id="${anchor}"`), `missing legacy home anchor #${anchor}`);
   }
+  assert.ok(joinExperience.includes("id=\"join\""), "missing legacy join anchor #join");
   assert.match(home, /hero-showreel\.mp4/);
   assert.match(home, /const timelineMilestones = \[/);
   assert.match(home, /year: "2018"[\s\S]*?year: "2025"/);
@@ -148,17 +151,27 @@ test("group identity appears on the about and join pages with accessible theme-a
   assert.match(home, /<SiteLogo className=/);
   assert.match(home, /吉林大学吉甲大师双创基地/);
   assert.match(home, /team-composition__groups/);
-  assert.match(home, /role="tablist"/);
-  assert.match(home, /role="tab"/);
-  assert.match(home, /aria-selected=\{isActive\}/);
-  assert.match(home, /event\.key === "ArrowRight"/);
-  assert.match(home, /event\.key === "ArrowLeft"/);
-  assert.match(home, /event\.key === "Home"/);
-  assert.match(home, /event\.key === "End"/);
-  assert.match(home, /role="tabpanel"/);
-  assert.match(home, /aria-live="polite"/);
-  assert.match(home, /activeGroup\.directions\.map/);
-  assert.match(styles, /:root\[data-theme="dark"\] \.team-group-mark__image--light\s*\{\s*display:\s*none;/);
-  assert.match(styles, /:root\[data-theme="dark"\] \.team-group-mark__image--dark\s*\{\s*display:\s*block;/);
-  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?\.team-group-panel__content\s*\{\s*animation:\s*none;/);
+  assert.match(joinExperience, /role="tablist"/);
+  assert.match(joinExperience, /role="tab"/);
+  assert.match(joinExperience, /aria-selected=\{isActive\}/);
+  assert.match(joinExperience, /event\.key === "ArrowRight"/);
+  assert.match(joinExperience, /event\.key === "ArrowLeft"/);
+  assert.match(joinExperience, /event\.key === "Home"/);
+  assert.match(joinExperience, /event\.key === "End"/);
+  assert.match(joinExperience, /role="tabpanel"/);
+  assert.match(joinExperience, /aria-live="polite"/);
+  assert.match(joinExperience, /activeGroup\.directions\.map/);
+  assert.match(joinStyles, /:root\[data-theme="dark"\] \.join-group-mark__light/);
+  assert.match(joinStyles, /:root\[data-theme="dark"\] \.join-group-mark__dark/);
+  assert.match(joinStyles, /@media \(prefers-reduced-motion: reduce\)/);
+});
+
+
+test("the join guide distinguishes account creation from an open recruitment application", () => {
+  assert.match(joinExperience, /创建账号本身不等于提交招新报名/);
+  assert.match(joinExperience, /to="\/register"/);
+  assert.match(joinExperience, /to="\/dashboard\/users\/registrations"/);
+  assert.match(joinExperience, /当前是否开放招新/);
+  assert.match(joinExperience, /初筛通过不代表最终录取/);
+  assert.match(joinStyles, /grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
 });
