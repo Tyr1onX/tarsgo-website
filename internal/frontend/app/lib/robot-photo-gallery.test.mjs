@@ -8,7 +8,7 @@ const data = await readFile(new URL("../data/robot-seasons.ts", import.meta.url)
 const styles = await readFile(new URL("../app.css", import.meta.url), "utf8");
 const home = await readFile(new URL("../routes/home.tsx", import.meta.url), "utf8");
 const manifests = new Map();
-for (const season of [2024, 2025]) {
+for (const season of [2024, 2025, 2026]) {
   manifests.set(
     season,
     JSON.parse(await readFile(new URL(`../../../../source-assets/robot-gallery/${season}/manifest.json`, import.meta.url), "utf8")),
@@ -88,18 +88,41 @@ test("the 2025 archive maps the nine uploaded filenames to their own season and 
   ]);
 });
 
-test("both seasons contain twenty distinct real source photos and 2025 is the default", () => {
-  assert.equal(manifests.get(2024).photos.length + manifests.get(2025).photos.length, 20);
+test("the 2026 archive maps all ten uploaded photos, including both independent backup robots", async () => {
+  const manifest = manifests.get(2026);
+  const expected = [
+    "3.JPG", "4.JPG", "1.JPG", "1（备车）.JPG", "2.JPG",
+    "9.JPG", "3（备车）.JPG", "7.JPG", "8.JPG", "6.JPG",
+  ];
+  assert.equal(manifest.conversion.format, "WebP");
+  assert.deepEqual(manifest.conversion.widths, [720, 1440, 2400]);
+  await assertManifestAssets(2026, manifest, expected, [6960, 4640]);
+  assert.deepEqual(manifest.photos.map(({ name, category }) => [name, category]), [
+    ["3号步兵机器人", "步兵"], ["4号步兵机器人", "步兵"], ["1号英雄机器人", "英雄"],
+    ["1号英雄机器人（备车）", "英雄"], ["2号工程机器人", "工程"], ["9号雷达系统", "雷达"],
+    ["3号步兵机器人（备车）", "步兵"], ["7号哨兵机器人", "哨兵"], ["8号飞镖系统", "飞镖"],
+    ["6号无人机", "空中"],
+  ]);
+  assert.equal(new Set(manifest.photos.map(({ id }) => id)).size, 10);
+});
+
+test("all three seasons contain thirty distinct real source photos and 2026 is the default", () => {
+  assert.equal(
+    manifests.get(2024).photos.length + manifests.get(2025).photos.length + manifests.get(2026).photos.length,
+    30,
+  );
   const allHashes = [...manifests.values()].flatMap(({ photos }) => photos.map(({ originalSha256 }) => originalSha256));
-  assert.equal(new Set(allHashes).size, 20);
+  assert.equal(new Set(allHashes).size, 30);
   assert.deepEqual(
     [...data.matchAll(/season: (202\d),/g)].map(([, season]) => Number(season)),
-    [2025, 2024],
+    [2026, 2025, 2024],
   );
-  assert.match(component, /useState\(2025\)/);
+  assert.match(component, /useState\(2026\)/);
   assert.match(component, /robotSeasons\.map\(\(season\)/);
   assert.match(component, /aria-pressed=\{activeSeasonYear === season\.season\}/);
-  assert.match(home, /image: "\/assets\/images\/Robot\/2025\/hero-01-1440\.webp"/);
+  assert.match(home, /image: "\/assets\/images\/Robot\/2026\/hero-01-1440\.webp"/);
+  assert.match(home, /2026 \/ 2025 \/ 2024 赛季机器人阵容/);
+  assert.match(home, /三季共 30 张真实机器人定妆照/);
 });
 
 test("switching seasons resets the category and closes any active preview", () => {

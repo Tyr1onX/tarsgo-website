@@ -277,11 +277,11 @@ const topicPages: Record<Exclude<PublicPage, "home">, { title: string; eyebrow: 
     alt: "队员在 RoboMaster 比赛现场共同检查机器人。",
   },
   robots: {
-    title: "2025 / 2024 赛季机器人阵容",
+    title: "2026 / 2025 / 2024 赛季机器人阵容",
     eyebrow: "TARSGO ROBOT COLLECTION",
-    description: "切换赛季，浏览 2025 与 2024 两季共 20 张真实机器人定妆照。",
-    image: "/assets/images/Robot/2025/hero-01-1440.webp",
-    alt: "2025 赛季 1 号英雄机器人定妆照。",
+    description: "切换赛季，浏览 2026、2025 与 2024 三季共 30 张真实机器人定妆照。",
+    image: "/assets/images/Robot/2026/hero-01-1440.webp",
+    alt: "2026 赛季 1 号英雄机器人定妆照。",
   },
   "events-and-honors": {
     title: "赛事与荣誉",
