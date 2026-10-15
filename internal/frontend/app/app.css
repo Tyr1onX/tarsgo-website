@@ -1951,14 +1951,6 @@ html[data-theme-transition] body *::after {
   background: var(--admin-surface-subtle);
 }
 
-.certificate-thumbnail {
-  border: 1px solid var(--admin-border);
-}
-
-.certificate-preview-image {
-  max-height: min(74dvh, 56rem, calc(92dvh - 7rem));
-}
-
 .public-home-hero-shade {
   background:
     linear-gradient(90deg, rgba(10, 14, 14, 0.94) 0%, rgba(10, 14, 14, 0.78) 38%, rgba(10, 14, 14, 0.24) 76%, rgba(10, 14, 14, 0.34) 100%),

@@ -2,6 +2,7 @@ import type { Route } from "./+types/home";
 import { useEffect, useId, useRef, useState } from "react";
 import { Navbar } from "../components/navbar";
 import { JoinExperience } from "../components/join-experience";
+import { EventsAndHonorsArchive } from "../components/events-and-honors-archive";
 import { RobotPhotoGallery } from "../components/robot-photo-gallery";
 import { SiteLogo } from "~/components/site-logo";
 import { Link, useLocation, useNavigate } from "react-router";
@@ -135,34 +136,6 @@ const timelineMilestones = [
   },
 ];
 
-const achievementCertificates = [
-  "/assets/images/CertificateOfAchievement/certificate-01.webp",
-  "/assets/images/CertificateOfAchievement/certificate-02.webp",
-  "/assets/images/CertificateOfAchievement/certificate-03.webp",
-  "/assets/images/CertificateOfAchievement/certificate-04.webp",
-  "/assets/images/CertificateOfAchievement/certificate-05.webp",
-  "/assets/images/CertificateOfAchievement/certificate-06.webp",
-  "/assets/images/CertificateOfAchievement/certificate-07.webp",
-  "/assets/images/CertificateOfAchievement/certificate-08.webp",
-  "/assets/images/CertificateOfAchievement/certificate-09.webp",
-  "/assets/images/CertificateOfAchievement/certificate-10.webp",
-  "/assets/images/CertificateOfAchievement/certificate-11.webp",
-  "/assets/images/CertificateOfAchievement/certificate-12.webp",
-  "/assets/images/CertificateOfAchievement/certificate-13.webp",
-  "/assets/images/CertificateOfAchievement/certificate-14.webp",
-  "/assets/images/CertificateOfAchievement/certificate-15.webp",
-  "/assets/images/CertificateOfAchievement/certificate-16.webp",
-  "/assets/images/CertificateOfAchievement/certificate-17.webp",
-  "/assets/images/CertificateOfAchievement/certificate-18.webp",
-  "/assets/images/CertificateOfAchievement/certificate-19.webp",
-  "/assets/images/CertificateOfAchievement/certificate-20.webp",
-  "/assets/images/CertificateOfAchievement/certificate-21.webp",
-  "/assets/images/CertificateOfAchievement/certificate-22.webp",
-  "/assets/images/CertificateOfAchievement/certificate-23.webp",
-  "/assets/images/CertificateOfAchievement/certificate-24.webp",
-  "/assets/images/CertificateOfAchievement/certificate-25.webp",
-];
-
 const sponsorLogos = [
   { name: "YELITE", image: "/assets/images/Sponsors/yelite.webp" },
   { name: "AMASS", image: "/assets/images/Sponsors/amass.webp" },
@@ -268,7 +241,7 @@ const aboutModules = [
 
 export type PublicPage = "home" | "about" | "robots" | "events-and-honors" | "team-history" | "join";
 
-const topicPages: Record<Exclude<PublicPage, "home">, { title: string; eyebrow: string; description?: string; image: string; alt: string }> = {
+const topicPages: Record<Exclude<PublicPage, "home">, { title: string; eyebrow?: string; description?: string; image: string; alt: string }> = {
   about: {
     title: "认识吉甲",
     eyebrow: "ABOUT TARSGO",
@@ -284,8 +257,7 @@ const topicPages: Record<Exclude<PublicPage, "home">, { title: string; eyebrow: 
   },
   "events-and-honors": {
     title: "赛事与荣誉",
-    eyebrow: "EVENTS & HONORS",
-    description: "以真实赛事记录和证书，回看团队在竞赛与创新实践中的阶段成果。",
+    description: "回看吉甲大师在比赛与创新实践中留下的关键成果。",
     image: "/assets/images/ContestMoment/contest-moment-02.webp",
     alt: "吉甲大师团队赛事现场记录。",
   },
@@ -372,13 +344,6 @@ const homeNavigationModules = [
     placement: "home-visual-card--micro",
   },
 ];
-
-const competitionHighlights = timelineMilestones.map((milestone) => ({
-  year: milestone.year,
-  items: milestone.highlights.filter((highlight) =>
-    /(RoboMaster|ICRA|ICCV|挑战赛|对抗赛|联盟赛|国赛|赛区)/i.test(highlight),
-  ),
-})).filter((milestone) => milestone.items.length > 0);
 
 function SectionHeading({
   index,
@@ -772,9 +737,6 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
     : undefined;
   const [activeAboutModuleIndex, setActiveAboutModuleIndex] = useState(0);
   const [activeTimelineYear, setActiveTimelineYear] = useState(timelineMilestones[0].year);
-  const [showAllCertificates, setShowAllCertificates] = useState(false);
-  const [selectedCertificateIndex, setSelectedCertificateIndex] = useState<number | null>(null);
-  const certificateDialogRef = useRef<HTMLDialogElement>(null);
   const timelineWindowRef = useRef<HTMLDivElement | null>(null);
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(
@@ -785,12 +747,6 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
   const [authError, setAuthError] = useState(false);
   const topic = routePage === "home" ? null : topicPages[routePage];
   const activeAboutModule = aboutModules[activeAboutModuleIndex];
-  const selectedCertificate = selectedCertificateIndex === null
-    ? null
-    : achievementCertificates[selectedCertificateIndex];
-  const visibleCertificates = showAllCertificates
-    ? achievementCertificates
-    : achievementCertificates.slice(0, 6);
 
   useEffect(() => {
     if (legacyDestination) {
@@ -837,18 +793,6 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
       unsubscribe();
     };
   }, []);
-
-  function openCertificate(index: number) {
-    setSelectedCertificateIndex(index);
-    certificateDialogRef.current?.showModal();
-  }
-
-  function moveCertificatePreview(direction: -1 | 1) {
-    setSelectedCertificateIndex((current) => {
-      if (current === null) return current;
-      return (current + direction + achievementCertificates.length) % achievementCertificates.length;
-    });
-  }
 
   function scrollToTimelineYear(year: string) {
     const timelineWindow = timelineWindowRef.current;
@@ -960,7 +904,7 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
               <Link to="/" className="mb-8 inline-flex min-h-11 items-center text-sm font-medium text-white/80 transition hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">
                 ← 返回首页
               </Link>
-              <p className="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--hero-accent)] sm:text-sm">{topic?.eyebrow}</p>
+              {topic?.eyebrow ? <p className="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--hero-accent)] sm:text-sm">{topic.eyebrow}</p> : null}
               <h1 className="text-4xl font-semibold tracking-[-0.04em] text-white sm:text-5xl lg:text-7xl">{topic?.title}</h1>
               {topic?.description ? <p className="mt-5 max-w-2xl text-sm leading-7 text-white/80 sm:text-base sm:leading-8">{topic.description}</p> : null}
             </div>
@@ -972,26 +916,8 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
 
       {routePage === "home" ? <HomeVisualNavigation /> : null}
 
-      {routePage === "events-and-honors" ? (
-        <section id="competition-records" className="border-t border-white/[0.06] py-16 sm:py-20">
-          <div className="public-home-container">
-            <SectionHeading index="01" total="02" labelZh="赛事记录" labelEn="COMPETITION RECORDS" title="来自团队历程的真实赛事节点" description="以下记录整理自各届团队历程，不合并不同赛事或批次。完整年度资料可在团队历程页查看。" />
-            <ol className="grid gap-x-8 sm:grid-cols-2 lg:grid-cols-4">
-              {competitionHighlights.map((record) => (
-                <li key={record.year} className="border-t border-white/12 py-5">
-                  <p className="font-mono text-xl font-semibold text-accent-primary">{record.year}</p>
-                  <ul className="mt-3 space-y-2">
-                    {record.items.map((item) => <li key={item} className="text-sm leading-6 text-fg-muted">{item}</li>)}
-                  </ul>
-                </li>
-              ))}
-            </ol>
-            <Link to="/team-history" className="mt-6 inline-flex min-h-11 items-center gap-2 border-b border-accent-primary/60 pb-1 text-sm font-semibold text-accent-primary hover:border-accent-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary">查看完整团队历程 <span aria-hidden>→</span></Link>
-          </div>
-        </section>
-      ) : null}
+      {routePage === "events-and-honors" ? <EventsAndHonorsArchive /> : null}
 
-      {/* About Section */}
       {routePage === "about" && (
       <section
         id="about"
@@ -1244,156 +1170,6 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
       >
         <div className="public-home-container">
           <RobotPhotoGallery />
-        </div>
-      </section>
-      )}
-
-      {/* Achievement Certificates Section */}
-      {routePage === "events-and-honors" && (
-      <section
-        id="certificates"
-        className="border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
-      >
-        <div className="public-home-container">
-          <SectionHeading
-            index="04"
-            total="05"
-            labelZh="成就展示"
-            labelEn="ACHIEVEMENTS"
-            title="把一路走来的成果，留在真实记录里"
-            description="团队在创新创业、学科竞赛与 RoboMaster 实践中积累的阶段性荣誉。"
-          />
-
-          <div
-            id="achievement-certificate-grid"
-            className="grid grid-cols-2 gap-x-4 gap-y-6 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5"
-          >
-            {visibleCertificates.map((image, index) => {
-              const number = String(index + 1).padStart(2, "0");
-
-              return (
-                <article
-                  key={image}
-                  className="min-w-0"
-                >
-                  <button
-                    type="button"
-                    onClick={() => openCertificate(index)}
-                    aria-label={"第" + number + "张团队荣誉证书，查看原图"}
-                    aria-haspopup="dialog"
-                    className="group block w-full text-left focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary"
-                  >
-                    <span className="certificate-thumbnail relative block aspect-[4/3] overflow-hidden bg-[#f4f2ed]">
-                      <img
-                        src={image}
-                        alt=""
-                        aria-hidden="true"
-                        loading="lazy"
-                        decoding="async"
-                        className="h-full w-full object-contain"
-                      />
-                    </span>
-                    <span className="mt-2 flex items-baseline justify-between gap-3 border-b border-white/10 pb-2">
-                      <span className="font-mono text-xs tracking-[0.14em] text-accent-primary">
-                        {number}
-                      </span>
-                      <span className="text-xs text-fg-dim transition-colors group-hover:text-fg-primary">
-                        查看原图
-                      </span>
-                    </span>
-                  </button>
-                </article>
-              );
-            })}
-          </div>
-
-          <div className="certificate-gallery-controls mt-8 flex flex-col items-center gap-3 sm:flex-row sm:justify-between">
-            <p className="text-sm text-fg-muted" aria-live="polite">
-              {showAllCertificates
-                ? `已展示全部 ${achievementCertificates.length} 项荣誉`
-                : `精选展示 6 项，共 ${achievementCertificates.length} 项荣誉`}
-            </p>
-            <button
-              type="button"
-              aria-expanded={showAllCertificates}
-              aria-controls="achievement-certificate-grid"
-              onClick={() => setShowAllCertificates((expanded) => !expanded)}
-              className="inline-flex min-h-11 items-center justify-center border border-accent-primary/50 px-5 text-sm font-semibold text-accent-primary transition-colors hover:border-accent-primary hover:bg-accent-primary/8 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary"
-            >
-              {showAllCertificates ? "收起荣誉" : "查看全部荣誉"}
-            </button>
-          </div>
-
-          <dialog
-            ref={certificateDialogRef}
-            aria-label="团队荣誉证书预览"
-            onClose={() => setSelectedCertificateIndex(null)}
-            onKeyDown={(event) => {
-              if (event.key === "ArrowLeft") {
-                event.preventDefault();
-                moveCertificatePreview(-1);
-              } else if (event.key === "ArrowRight") {
-                event.preventDefault();
-                moveCertificatePreview(1);
-              } else if (event.key === "Home") {
-                event.preventDefault();
-                setSelectedCertificateIndex(0);
-              } else if (event.key === "End") {
-                event.preventDefault();
-                setSelectedCertificateIndex(achievementCertificates.length - 1);
-              }
-            }}
-            onClick={(event) => {
-              if (event.target === event.currentTarget) {
-                certificateDialogRef.current?.close();
-              }
-            }}
-            className="certificate-preview-dialog m-auto max-h-[92dvh] w-[min(94vw,76rem)] max-w-none overflow-visible border-0 bg-transparent p-0 text-white backdrop:bg-black/90"
-          >
-            {selectedCertificate !== null && selectedCertificateIndex !== null ? (
-              <div className="certificate-preview-content mx-auto flex max-h-[92dvh] max-w-full flex-col items-center gap-3">
-                <div className="flex w-full items-center justify-between gap-4">
-                  <h2 className="text-sm font-medium text-white/85">
-                    团队荣誉 {String(selectedCertificateIndex + 1).padStart(2, "0")} / {String(achievementCertificates.length).padStart(2, "0")}
-                  </h2>
-                  <button
-                    type="button"
-                    onClick={() => certificateDialogRef.current?.close()}
-                    aria-label="关闭证书预览"
-                    className="flex min-h-11 min-w-11 items-center justify-center border border-white/25 bg-black/55 px-3 text-sm text-white hover:border-accent-primary focus-visible:outline-2 focus-visible:outline-accent-primary"
-                  >
-                    关闭
-                  </button>
-                </div>
-                <img
-                  src={selectedCertificate}
-                  alt={`第${selectedCertificateIndex + 1}张团队荣誉证书原图`}
-                  className="certificate-preview-image w-auto max-w-full object-contain"
-                />
-                <div className="certificate-preview-controls flex w-full items-center justify-between gap-3">
-                  <button
-                    type="button"
-                    onClick={() => moveCertificatePreview(-1)}
-                    aria-label="查看上一张证书（键盘左方向键）"
-                    className="min-h-11 min-w-11 border border-white/25 bg-black/55 px-4 text-sm text-white hover:border-accent-primary focus-visible:outline-2 focus-visible:outline-accent-primary"
-                  >
-                    上一张
-                  </button>
-                  <span className="text-sm text-white/80" aria-live="polite">
-                    {String(selectedCertificateIndex + 1).padStart(2, "0")} / {String(achievementCertificates.length).padStart(2, "0")}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => moveCertificatePreview(1)}
-                    aria-label="查看下一张证书（键盘右方向键）"
-                    className="min-h-11 min-w-11 border border-white/25 bg-black/55 px-4 text-sm text-white hover:border-accent-primary focus-visible:outline-2 focus-visible:outline-accent-primary"
-                  >
-                    下一张
-                  </button>
-                </div>
-              </div>
-            ) : null}
-          </dialog>
         </div>
       </section>
       )}
