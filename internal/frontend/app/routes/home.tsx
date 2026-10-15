@@ -4,6 +4,7 @@ import { Navbar } from "../components/navbar";
 import { JoinExperience } from "../components/join-experience";
 import { EventsAndHonorsArchive } from "../components/events-and-honors-archive";
 import { RobotPhotoGallery } from "../components/robot-photo-gallery";
+import { TeamHistoryArchive } from "../components/team-history-archive";
 import { SiteLogo } from "~/components/site-logo";
 import { Link, useLocation, useNavigate } from "react-router";
 import {
@@ -30,110 +31,6 @@ const stats = [
   { value: "35+", label: "团队成员" },
   { value: "5", label: "战队组别" },
   { value: "Top 16", label: "全国最佳成绩" },
-];
-
-const timelineMilestones = [
-  {
-    year: "2018",
-    title: "启航",
-    intro: "吉林大学吉甲大师双创基地正式组建，团队开始以机器人竞赛与人工智能挑战为核心方向持续推进。",
-    highlights: [
-      "正式组建吉林大学吉甲大师双创基地。",
-      "搭建机械、电控、视觉核心团队。",
-      "开启 ICRA 人工智能挑战赛征程。",
-    ],
-    images: [{ src: "/assets/images/Milestone/2018-set-sail.webp", width: 660, height: 428, fit: "cover" }],
-  },
-  {
-    year: "2019",
-    title: "突破",
-    intro: "团队在国际挑战赛和 RoboMaster 赛场同步迈出关键一步，招新与培养体系也开始快速铺开。",
-    highlights: [
-      "首次出征 ICRA 人工智能挑战赛（蒙特利尔），获得三等奖。",
-      "参加 ICCV 计算机视觉挑战赛（首尔）。",
-      "开启全国大学生 RoboMaster 对抗赛征程。",
-      "开展暑期夏令营和冬令营，跨南岭、南湖、南区，参与学院多达 12 个。",
-    ],
-    images: [{ src: "/assets/images/Milestone/2019-breakthrough.webp", width: 900, height: 550, fit: "cover" }],
-  },
-  {
-    year: "2020",
-    title: "全国佳绩",
-    intro: "创业实践与竞赛成绩同步拉升，团队在全国与国际赛场都拿到了阶段性成果。",
-    highlights: [
-      "开展创业实践项目，获得挑战杯中国大学生创业计划竞赛全国金奖。",
-      "首次参赛全国大学生 RoboMaster 对抗赛，获 2020 线上赛全国一等奖。",
-      "ICRA 人工智能挑战赛获二等奖。",
-    ],
-    images: [
-      { src: "/assets/images/Milestone/2020-first-achievement-01.webp", width: 900, height: 393, fit: "cover" },
-      { src: "/assets/images/Milestone/2020-first-achievement-02.webp", width: 660, height: 933, fit: "contain" },
-    ],
-  },
-  {
-    year: "2021",
-    title: "技术迭代",
-    intro: "这一年完成了从竞赛经验积累到组织体系升级的关键过渡，六大组别逐步成型。",
-    highlights: [
-      "创业实践获得互联网+国际大学生创新创业大赛国家级银奖。",
-      "建立机械、视觉、电控、AI、软件、运营 6 个组别。",
-      "ICRA 人工智能挑战赛获二等奖。",
-      "全国大学生 RoboMaster 对抗赛三等奖。",
-      "高校联盟赛·黑龙江站八强。",
-    ],
-    images: [{ src: "/assets/images/Milestone/2021-technological-iteration.webp", width: 1267, height: 845, fit: "cover" }],
-  },
-  {
-    year: "2022",
-    title: "传承体系",
-    intro: "团队继续把人才培养和项目训练机制制度化，逐步形成更稳定的传帮带节奏。",
-    highlights: [
-      "创业实践获得互联网+国际大学生创新创业大赛国家级铜奖。",
-      "完善培育体系，继续开展冬夏令营。",
-      "全国大学生 RoboMaster 对抗赛三等奖。",
-    ],
-    images: [
-      { src: "/assets/images/Milestone/2022-inheritance-system-01.webp", width: 1080, height: 773, fit: "cover" },
-      { src: "/assets/images/Milestone/2022-inheritance-system-02.webp", width: 1269, height: 845, fit: "cover" },
-    ],
-  },
-  {
-    year: "2023",
-    title: "文化建设",
-    intro: "在竞赛之外，团队的品牌、文化和学术成果也进一步沉淀，开始形成更完整的外部影响力。",
-    highlights: [
-      "创业实践获得国际大学生创新大赛国家级铜奖。",
-      "中国大学生计算机大赛国家级二等奖。",
-      "全国大学生 RoboMaster 对抗赛三等奖。",
-    ],
-    images: [
-      { src: "/assets/images/Milestone/2023-cultural-development-01.webp", width: 1222, height: 862, fit: "cover" },
-      { src: "/assets/images/Milestone/2023-cultural-development-02.webp", width: 1258, height: 839, fit: "cover" },
-    ],
-  },
-  {
-    year: "2024",
-    title: "首进国赛",
-    intro: "团队在 RoboMaster 主赛道实现关键突破，首次挺进全国总决赛，完成阶段性里程碑。",
-    highlights: [
-      "全国大学生 RoboMaster 对抗赛东部赛区八强。",
-      "晋级全国总决赛。",
-      "获国家级二等奖、英雄一等奖。",
-    ],
-    images: [{ src: "/assets/images/Milestone/2024-national-competition.webp", width: 1080, height: 720, fit: "cover" }],
-  },
-  {
-    year: "2025",
-    title: "薪火相传",
-    intro: "在新老交替中继续完成机器人体系升级，团队在联盟赛和全国赛中稳定输出成绩。",
-    highlights: [
-      "新老传承持续推进，机器人全面升级。",
-      "RM 高校联盟赛·辽宁站季军。",
-      "全国大学生 RoboMaster 对抗赛国家级二等奖。",
-      "工程一等奖、英雄一等奖等。",
-    ],
-    images: [{ src: "/assets/images/Milestone/2025-legacy.webp", width: 1269, height: 714, fit: "cover" }],
-  },
 ];
 
 const sponsorLogos = [
@@ -264,9 +161,9 @@ const topicPages: Record<Exclude<PublicPage, "home">, { title: string; eyebrow?:
   "team-history": {
     title: "团队历程",
     eyebrow: "OUR JOURNEY",
-    description: "从 2018 年到 2025 年，按年份回看团队真实历史资料。",
-    image: "/assets/images/Milestone/2025-legacy.webp",
-    alt: "团队历程中的 2025 年历史图片。",
+    description: "查看 2018 至 2026 年 TARS-Go 战队与吉甲大师实践平台的历史事件、真实照片和资料来源。",
+    image: "/assets/images/Milestone/2019-breakthrough.webp",
+    alt: "TARS-Go 队员在 2019 ICRA RoboMaster 人工智能挑战赛现场。",
   },
   join: {
     title: "加入吉甲",
@@ -329,10 +226,10 @@ const homeNavigationModules = [
   },
   {
     title: "团队历程",
-    description: "沿着 2018—2025 年真实资料，回看团队接力。",
+    description: "沿着 2018—2026 年真实资料，回看战队与平台的接力。",
     href: "/team-history",
-    image: "/assets/images/Milestone/2025-legacy.webp",
-    alt: "团队历程中的 2025 年历史影像。",
+    image: "/assets/images/Milestone/2019-breakthrough.webp",
+    alt: "TARS-Go 在 2019 ICRA RoboMaster 人工智能挑战赛的队伍合影。",
     placement: "home-visual-card--history",
   },
   {
@@ -736,8 +633,6 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
     ? legacyHomeHashDestinations[location.hash]
     : undefined;
   const [activeAboutModuleIndex, setActiveAboutModuleIndex] = useState(0);
-  const [activeTimelineYear, setActiveTimelineYear] = useState(timelineMilestones[0].year);
-  const timelineWindowRef = useRef<HTMLDivElement | null>(null);
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(
     () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
@@ -794,27 +689,7 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
     };
   }, []);
 
-  function scrollToTimelineYear(year: string) {
-    const timelineWindow = timelineWindowRef.current;
-    const milestone = timelineWindow?.querySelector<HTMLElement>(`[data-timeline-year="${year}"]`);
-    if (!timelineWindow || !milestone) return;
 
-    const behavior = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-      ? "auto"
-      : "smooth";
-    setActiveTimelineYear(year);
-
-    if (window.matchMedia("(min-width: 1024px)").matches) {
-      const offset = milestone.getBoundingClientRect().top - timelineWindow.getBoundingClientRect().top;
-      timelineWindow.scrollTo({
-        top: Math.max(0, timelineWindow.scrollTop + offset - 12),
-        behavior,
-      });
-      return;
-    }
-
-    milestone.scrollIntoView({ behavior, block: "start" });
-  }
 
   return (
     <div className="public-home relative min-h-screen overflow-hidden bg-surface-primary text-fg-primary">
@@ -1018,151 +893,8 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
       </section>
       )}
 
-      {/* Achievements Section */}
-      {routePage === "team-history" && (
-      <section
-        id="achievements"
-        className="relative overflow-hidden border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
-      >
-        <div className="public-home-container">
-          <SectionHeading
-            index="02"
-            total="05"
-            labelZh="团队历程"
-            labelEn="OUR JOURNEY"
-            title="以时间轴回看战队一路走来的每一步"
-            description="从双创基地组建，到国际赛事历练，再到 RoboMaster 国赛突破，吉林大学吉甲大师双创基地在一届又一届成员的接力中不断完成技术积累、组织建设与文化沉淀。"
-          />
+      {routePage === "team-history" ? <TeamHistoryArchive /> : null}
 
-          <div className="team-timeline mx-auto">
-            <nav aria-label="按年份定位团队历程" className="team-timeline-years">
-              {timelineMilestones.map((item) => (
-                <button
-                  key={item.year}
-                  type="button"
-                  aria-label={`跳转到${item.year}年：${item.title}`}
-                  aria-pressed={activeTimelineYear === item.year}
-                  onClick={() => scrollToTimelineYear(item.year)}
-                  className="team-timeline-year"
-                >
-                  {item.year}
-                </button>
-              ))}
-            </nav>
-
-            <p id="team-timeline-scroll-help" className="team-timeline-help">
-              <span className="team-timeline-help--desktop">滚轮、触控板或聚焦后使用方向键与 Page Up／Down 滚动</span>
-              <span className="team-timeline-help--natural">完整历程随页面自然展开，可直接滚动浏览</span>
-            </p>
-
-            <div
-              ref={timelineWindowRef}
-              className="team-timeline-window"
-              role="region"
-              aria-label="团队历程内容，2018 至 2025 年"
-              aria-describedby="team-timeline-scroll-help"
-              tabIndex={0}
-            >
-              <ol className="team-timeline-list ml-2 border-l border-white/15 pl-6 sm:ml-8 sm:pl-10">
-                {timelineMilestones.map((item) => {
-                  const isFeatured = item.year === "2018" || item.year === "2024";
-
-                  return (
-                    <li
-                      key={item.year}
-                      id={`team-milestone-${item.year}`}
-                      data-timeline-year={item.year}
-                      className="team-timeline-milestone relative border-b border-white/10 py-8 first:pt-2 last:border-b-0 sm:py-10 lg:py-12"
-                    >
-                      <span
-                        aria-hidden="true"
-                        className="absolute -left-[29px] top-[2.15rem] h-2.5 w-2.5 rounded-full border border-accent-primary bg-surface-primary sm:-left-[45px] sm:top-[2.65rem]"
-                      />
-                      <article
-                        className="team-timeline-entry grid gap-x-8 gap-y-5 lg:grid-cols-[minmax(7rem,0.45fr)_minmax(0,1.2fr)_minmax(18rem,1fr)] lg:items-start"
-                      >
-                        <div className="flex items-baseline gap-4 lg:block">
-                          <p
-                            className={"font-mono leading-none tracking-[-0.08em] " + (
-                              isFeatured
-                                ? "text-5xl font-medium text-accent-primary sm:text-6xl lg:text-[5.5rem]"
-                                : "text-4xl font-normal text-accent-primary/75 sm:text-5xl lg:text-[3.5rem]"
-                            )}
-                          >
-                            {item.year}
-                          </p>
-                          <h3
-                            className={"font-semibold text-fg-primary " + (
-                              isFeatured
-                                ? "text-xl sm:text-2xl lg:mt-4"
-                                : "text-lg sm:text-xl lg:mt-3"
-                            )}
-                          >
-                            {item.title}
-                          </h3>
-                        </div>
-
-                        <div>
-                          <p
-                            className={"leading-7 text-fg-muted " + (
-                              isFeatured
-                                ? "text-sm sm:text-base"
-                                : "text-sm sm:text-[15px]"
-                            )}
-                          >
-                            {item.intro}
-                          </p>
-                          <ul className="mt-4 space-y-2.5">
-                            {item.highlights.map((highlight) => (
-                              <li
-                                key={highlight}
-                                className="grid grid-cols-[8px_minmax(0,1fr)] items-start gap-3 text-sm leading-6 text-fg-muted sm:text-[15px]"
-                              >
-                                <span
-                                  aria-hidden="true"
-                                  className="mt-[0.65rem] h-1.5 w-1.5 rounded-full bg-accent-primary/75"
-                                />
-                                <span>{highlight}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        </div>
-
-                        <div
-                          className={
-                            "grid items-start gap-3 " +
-                            (item.images.length > 1 ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-1" : "")
-                          }
-                        >
-                          {item.images.map((image, index) => (
-                            <figure
-                              key={image.src}
-                              className="team-timeline-image overflow-hidden bg-surface-card"
-                            >
-                              <img
-                                src={image.src}
-                                alt={item.year + "年" + item.title + "历史图片" + (index + 1)}
-                                width={image.width}
-                                height={image.height}
-                                loading="lazy"
-                                decoding="async"
-                                className={"block h-full w-full object-center " + (image.fit === "contain" ? "object-contain" : "object-cover")}
-                              />
-                            </figure>
-                          ))}
-                        </div>
-                      </article>
-                    </li>
-                  );
-                })}
-              </ol>
-            </div>
-          </div>
-        </div>
-      </section>
-      )}
-
-      {/* Robot Showcase Section */}
       {routePage === "robots" && (
       <section
         id="robots"

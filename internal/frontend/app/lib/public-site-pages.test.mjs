@@ -8,6 +8,8 @@ const navbar = await readFile(new URL("../components/navbar.tsx", import.meta.ur
 const styles = await readFile(new URL("../app.css", import.meta.url), "utf8");
 const joinExperience = await readFile(new URL("../components/join-experience.tsx", import.meta.url), "utf8");
 const joinStyles = await readFile(new URL("../components/join-experience.css", import.meta.url), "utf8");
+const historyData = await readFile(new URL("../data/team-history.ts", import.meta.url), "utf8");
+const historyArchive = await readFile(new URL("../components/team-history-archive.tsx", import.meta.url), "utf8");
 const eventsArchive = await readFile(new URL("../components/events-and-honors-archive.tsx", import.meta.url), "utf8");
 const eventsStyles = await readFile(new URL("../components/events-and-honors-archive.css", import.meta.url), "utf8");
 const honorsData = await readFile(new URL("./events-and-honors-data.ts", import.meta.url), "utf8");
@@ -33,18 +35,21 @@ test("all five new public topic routes are directly registered and share the exi
 });
 
 test("the original home keeps its video and legacy anchors while archive content lives in its own component", () => {
-  for (const anchor of ["hero", "about", "achievements", "robots"]) {
+  for (const anchor of ["hero", "about", "robots"]) {
     assert.ok(home.includes(`id="${anchor}"`), `missing legacy home anchor #${anchor}`);
   }
+  assert.ok(historyArchive.includes('id="achievements"'), "missing legacy archive anchor #achievements");
   assert.ok(eventsArchive.includes('id="certificates"'), "missing archive anchor #certificates");
   assert.match(home, /"#certificates": "\/events-and-honors#certificates"/);
   assert.ok(joinExperience.includes("id=\"join\""), "missing legacy join anchor #join");
   assert.match(home, /hero-showreel\.mp4/);
-  assert.match(home, /const timelineMilestones = \[/);
-  assert.match(home, /year: "2018"[\s\S]*?year: "2025"/);
+  assert.match(home, /import \{ TeamHistoryArchive \} from "\.\.\/components\/team-history-archive"/);
+  assert.match(home, /<TeamHistoryArchive \/>/);
+  assert.match(historyData, /year: 2018,[\s\S]*?year: 2026,/);
+  assert.match(historyArchive, /href=\{`#team-history-\$\{year\}`\}/);
   assert.match(honorsData, /Array\.from\(\{ length: 25 \}/);
   assert.match(eventsArchive, /getMaterialsForYear\(year\)\.map\(/);
-  assert.match(home, /scrollToTimelineYear/);
+  assert.doesNotMatch(home, /timelineMilestones|scrollToTimelineYear/);
   assert.match(home, /<RobotPhotoGallery \/>/);
 });
 
@@ -57,6 +62,8 @@ test("topic content uses the existing five groups, practice modules, and a dedic
   assert.match(home, /运营组/);
   assert.match(home, /const aboutModules = \[/);
   assert.match(home, /<EventsAndHonorsArchive \/>/);
+  assert.match(home, /<TeamHistoryArchive \/>/);
+  assert.match(historyData, /sourceIds: \[/);
   assert.match(eventsArchive, /精选成果[\s\S]*?历年赛事[\s\S]*?荣誉证书/);
   assert.match(honorsData, /source\("RoboMaster 2025 全国赛获奖名单"/);
   assert.match(joinExperience, /从具体任务开始/);
