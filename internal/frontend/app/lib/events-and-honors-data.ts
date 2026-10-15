@@ -32,6 +32,17 @@ const source = (label: string, href: string): HonorSource => ({ label, href });
 
 export const honorAwards: HonorAward[] = [
   {
+    id: "rm-2026-national-team",
+    year: 2026,
+    event: "RoboMaster 2026 机甲大师超级对抗赛全国赛",
+    result: "全国三等奖",
+    title: "吉林大学 TARS Go 战队",
+    category: "team",
+    certificateIds: [],
+    sources: [source("RoboMaster 2026 全国赛获奖名单", "https://www.robomaster.com/zh-CN/resource/pages/announcement/1925")],
+    featured: true,
+  },
+  {
     id: "rm-2025-national-team",
     year: 2025,
     event: "RoboMaster 2025 全国赛",
@@ -50,7 +61,7 @@ export const honorAwards: HonorAward[] = [
     title: "吉林大学 TARS_Go 战队",
     category: "team",
     certificateIds: ["certificate-16"],
-    sources: [],
+    sources: [source("RoboMaster 2025 区域赛获奖名单", "https://www.robomaster.com/zh-CN/resource/pages/announcement/1847")],
   },
   {
     id: "rm-2025-aerial",
@@ -60,17 +71,27 @@ export const honorAwards: HonorAward[] = [
     title: "空中机器人组",
     category: "robot",
     certificateIds: ["certificate-02", "certificate-10"],
-    sources: [],
+    sources: [source("RoboMaster 2025 机器人竞技奖获奖名单", "https://www.robomaster.com/zh-CN/resource/pages/announcement/1853")],
   },
   {
     id: "rm-2025-hero",
     year: 2025,
     event: "RoboMaster 2025 机甲大师超级对抗赛",
-    result: "机器人竞技奖 · 二等奖",
+    result: "机器人竞技奖 · 一等奖",
     title: "英雄机器人组",
     category: "robot",
     certificateIds: ["certificate-17"],
-    sources: [],
+    sources: [source("RoboMaster 2025 机器人竞技奖获奖名单", "https://www.robomaster.com/zh-CN/resource/pages/announcement/1853")],
+  },
+  {
+    id: "rm-2025-infantry",
+    year: 2025,
+    event: "RoboMaster 2025 机甲大师超级对抗赛",
+    result: "机器人竞技奖 · 二等奖",
+    title: "步兵机器人组",
+    category: "robot",
+    certificateIds: [],
+    sources: [source("RoboMaster 2025 机器人竞技奖获奖名单", "https://www.robomaster.com/zh-CN/resource/pages/announcement/1853")],
   },
   {
     id: "rm-2025-engineer",
@@ -80,7 +101,7 @@ export const honorAwards: HonorAward[] = [
     title: "工程机器人组",
     category: "robot",
     certificateIds: ["certificate-23"],
-    sources: [],
+    sources: [source("RoboMaster 2025 机器人竞技奖获奖名单", "https://www.robomaster.com/zh-CN/resource/pages/announcement/1853")],
   },
   {
     id: "rm-2024-national-team",
@@ -232,7 +253,7 @@ export const honorAwards: HonorAward[] = [
     title: "吉林大学 TARS_Go 战队",
     category: "team",
     certificateIds: ["certificate-15"],
-    sources: [],
+    sources: [source("吉林大学：吉甲大师与 TARS-Go 起源报道", "https://news.jlu.edu.cn/info/1306/52000.htm")],
   },
   {
     id: "challenge-cup-2020-bottle-vision",

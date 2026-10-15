@@ -5,32 +5,55 @@ import test from "node:test";
 
 const home = await readFile(new URL("../routes/home.tsx", import.meta.url), "utf8");
 const styles = await readFile(new URL("../app.css", import.meta.url), "utf8");
-const milestonesSource = home.match(/const timelineMilestones = \[([\s\S]*?)\n\];\n\nconst sponsorLogos/)?.[1] ?? "";
-const milestoneYears = Array.from(milestonesSource.matchAll(/year: "(\d{4})"/g), ([, year]) => year);
+const historyData = await readFile(new URL("../data/team-history.ts", import.meta.url), "utf8");
+const historyArchive = await readFile(new URL("../components/team-history-archive.tsx", import.meta.url), "utf8");
+const historyStyles = await readFile(new URL("../components/team-history-archive.css", import.meta.url), "utf8");
+const honorsData = await readFile(new URL("./events-and-honors-data.ts", import.meta.url), "utf8");
+const milestoneYears = Array.from(historyData.matchAll(/year: (\d{4}),/g), ([, year]) => year);
 
-test("the timeline keeps all eight historical years and their source records", () => {
-  assert.deepEqual(milestoneYears, ["2018", "2019", "2020", "2021", "2022", "2023", "2024", "2025"]);
-  assert.equal((milestonesSource.match(/images:/g) ?? []).length, 8);
-  assert.match(milestonesSource, /首次出征 ICRA 人工智能挑战赛（蒙特利尔），获得三等奖/);
-  assert.match(milestonesSource, /首次挺进全国总决赛/);
-  assert.match(milestonesSource, /机器人全面升级/);
+test("the archive uses sourced events across the requested historical range", () => {
+  assert.equal(milestoneYears[0], "2018");
+  assert.equal(milestoneYears.at(-1), "2026");
+  assert.deepEqual(milestoneYears, [...milestoneYears].sort());
+  assert.equal(new Set(milestoneYears).size, milestoneYears.length);
+  assert.doesNotMatch(historyData, /stories:\s*\[\s*\]/);
+  assert.match(historyData, /第一次走上国际赛场/);
+  assert.match(historyData, /名称来自电影《星际穿越》中的机器人 TARS/);
+  assert.match(historyData, /第一次进入 RoboMaster 全国总决赛/);
+  assert.match(historyData, /TARS-Go 发布 2025 步兵机器人开源资料/);
+  assert.match(honorsData, /RoboMaster 2026 机甲大师超级对抗赛全国赛[\s\S]*?全国三等奖/);
+  assert.ok((historyData.match(/sourceIds: \[/g) ?? []).length >= milestoneYears.length);
+  assert.match(historyData, /teamHistorySources = \{/);
+  assert.match(historyData, /honorIds: \["rm-2025-east-team", "rm-2025-national-team", "rm-2025-infantry"\]/);
+  assert.match(historyData, /honorIds: \["rm-2026-national-team"\]/);
+  assert.match(historyArchive, /import \{ honorAwards \} from "\.\.\/lib\/events-and-honors-data"/);
+  assert.match(honorsData, /id: "rm-2026-national-team"/);
+  assert.match(honorsData, /id: "rm-2025-infantry"[\s\S]*?机器人竞技奖 · 二等奖/);
+  assert.match(honorsData, /id: "rm-2025-hero"[\s\S]*?机器人竞技奖 · 一等奖/);
 });
 
-test("year controls and the timeline region expose keyboard-accessible navigation", () => {
-  assert.match(home, /nav aria-label="按年份定位团队历程"/);
-  assert.match(home, /aria-pressed=\{activeTimelineYear === item\.year\}/);
-  assert.match(home, /id=\{`team-milestone-\$\{item\.year\}`\}/);
-  assert.match(home, /role="region"[\s\S]*?aria-label="团队历程内容，2018 至 2025 年"[\s\S]*?tabIndex=\{0\}/);
-  assert.match(home, /matchMedia\("\(prefers-reduced-motion: reduce\)"\)/);
+test("year links and source citations use accessible labels and natural page flow", () => {
+  assert.match(historyArchive, /nav className="team-history-years" aria-label="按年份浏览团队历程"/);
+  assert.match(historyArchive, /href=\{`#team-history-\$\{year\}`\}/);
+  assert.match(historyArchive, /id=\{`team-history-\$\{year\}`\}/);
+  assert.match(historyArchive, /aria-label=\{`\$\{story\.title\}的资料依据`\}/);
+  assert.match(historyArchive, /target="_blank" rel="noreferrer"/);
+  assert.doesNotMatch(historyArchive, /team-timeline-window|overflow-y:\s*scroll/);
+  assert.doesNotMatch(historyStyles, /height:\s*40rem|max-height:\s*40rem|overflow-y:\s*scroll/);
+  assert.match(historyStyles, /scroll-margin-top/);
+  assert.doesNotMatch(styles, /team-timeline/);
 });
 
-test("desktop uses a bounded native scroll region and smaller screens keep natural page flow", () => {
-  assert.match(styles, /\.team-timeline-window\s*\{[^}]*height:\s*40rem;[^}]*max-height:\s*40rem;[^}]*overflow-y:\s*scroll;[^}]*overscroll-behavior:\s*auto;/);
-  assert.match(styles, /\.team-timeline-window::-webkit-scrollbar\s*\{[^}]*width:\s*0\.875rem;/);
-  assert.match(styles, /\.team-timeline-window::-webkit-scrollbar-thumb\s*\{[^}]*background:\s*var\(--admin-accent\);/);
-  assert.match(styles, /@media \(max-width: 1023px\)\s*\{[\s\S]*?\.team-timeline-window\s*\{[^}]*height:\s*auto;[^}]*max-height:\s*none;[^}]*overflow:\s*visible;[^}]*overscroll-behavior:\s*auto;/);
-  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?\.team-timeline-window\s*\{\s*scroll-behavior:\s*auto;/);
-  assert.doesNotMatch(home, /onWheel|touchmove/i);
+test("real photos, source labels, cross-links and theme tokens are part of the archive", () => {
+  assert.equal((historyData.match(/src: "\/assets\/images\//g) ?? []).length, 6);
+  assert.match(historyArchive, /<img src=\{image\.src\} alt=\{image\.alt\} loading="lazy" decoding="async" \/>/);
+  assert.match(historyArchive, /team-history-related/);
+  assert.match(historyArchive, /to="\/events-and-honors"/);
+  assert.match(historyArchive, /to="\/robots"/);
+  assert.match(historyStyles, /var\(--admin-surface\)/);
+  assert.match(historyStyles, /var\(--admin-accent\)/);
+  assert.match(historyStyles, /@media \(max-width: 639px\)/);
+  assert.match(historyStyles, /@media \(min-width: 1024px\)/);
 });
 
 test("home sections share a content width and imagery uses deliberate aspect ratios", () => {
@@ -38,9 +61,9 @@ test("home sections share a content width and imagery uses deliberate aspect rat
   assert.match(styles, /\.public-home-container\s*\{[^}]*max-width:\s*var\(--public-content-width\);[^}]*margin-inline:\s*auto;/);
   assert.match(home, /className="public-home-container"/);
   assert.match(home, /aspect-\[16\/10\]/);
-  assert.match(home, /team-timeline-image overflow-hidden bg-surface-card/);
-  assert.match(styles, /\.team-timeline-image\s*\{[^}]*aspect-ratio:\s*16\s*\/\s*10;/);
-  assert.match(home, /image\.fit === "contain" \? "object-contain" : "object-cover"/);
+  assert.match(historyArchive, /className="team-history-photo"/);
+  assert.match(historyStyles, /aspect-ratio:\s*16\s*\/\s*10;/);
+  assert.match(historyStyles, /object-fit:\s*cover/);
 });
 
 test("the honors archive pairs a real competition photo with selected results and a single year-indexed record", async () => {

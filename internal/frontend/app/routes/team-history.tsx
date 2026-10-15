@@ -4,7 +4,7 @@ import Home from "./home";
 export function meta({}: Route.MetaArgs) {
   return [
     { title: "团队历程 | TARSGO" },
-    { name: "description", content: "按年份查看吉林大学吉甲大师双创基地 2018 至 2025 年的团队历程与历史图片。" },
+    { name: "description", content: "查看 2018 至 2026 年 TARS-Go 战队与吉甲大师实践平台的历史事件、真实照片和资料来源。" },
   ];
 }
 

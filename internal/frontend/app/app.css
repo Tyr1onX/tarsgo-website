@@ -1671,8 +1671,7 @@ html[data-theme-transition] body *::after {
   padding-inline: clamp(1.25rem, 5vw, 4rem);
 }
 
-.public-home .public-section-heading,
-.team-timeline {
+.public-home .public-section-heading {
   max-width: var(--public-content-width);
 }
 
@@ -1850,10 +1849,6 @@ html[data-theme-transition] body *::after {
   line-height: 1.25rem;
 }
 
-.team-timeline {
-  width: 100%;
-}
-
 @media (min-width: 640px) {
   .team-composition {
     grid-template-columns: minmax(12rem, 0.9fr) minmax(0, 2.5fr);
@@ -1886,69 +1881,6 @@ html[data-theme-transition] body *::after {
     animation: none;
     transition-duration: 0.01ms;
   }
-}
-
-.team-timeline-years {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.5rem;
-}
-
-.team-timeline-year {
-  display: inline-flex;
-  min-width: 0;
-  min-height: 2.75rem;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--admin-border);
-  border-radius: 999px;
-  background: var(--admin-surface);
-  color: var(--admin-muted);
-  font-family: var(--font-mono, ui-monospace, monospace);
-  font-size: 0.8125rem;
-  font-weight: 600;
-  transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
-}
-
-.team-timeline-year:hover,
-.team-timeline-year[aria-pressed="true"] {
-  border-color: var(--admin-accent);
-  background: color-mix(in srgb, var(--admin-accent) 10%, var(--admin-surface));
-  color: var(--admin-accent);
-}
-
-.team-timeline-year:focus-visible {
-  outline: 2px solid var(--theme-accent-contrast);
-  outline-offset: 3px;
-}
-
-.team-timeline-help {
-  min-height: 1.25rem;
-  margin: 0.75rem 0;
-  color: var(--admin-muted);
-  font-size: 0.75rem;
-  line-height: 1.25rem;
-}
-
-.team-timeline-help--desktop {
-  display: none;
-}
-
-.team-timeline-window {
-  min-width: 0;
-}
-
-.team-timeline-list {
-  min-width: 0;
-}
-
-.team-timeline-milestone {
-  scroll-margin-block: 1rem;
-}
-
-.team-timeline-image {
-  aspect-ratio: 16 / 10;
-  background: var(--admin-surface-subtle);
 }
 
 .public-home-hero-shade {
@@ -2269,96 +2201,6 @@ html[data-theme-transition] body *::after {
 
 .public-home .public-section-heading {
   color: var(--admin-text);
-}
-
-@media (min-width: 640px) {
-  .team-timeline-years {
-    grid-template-columns: repeat(8, minmax(0, 1fr));
-  }
-}
-
-@media (min-width: 1024px) {
-  .team-timeline-years {
-    gap: 0.625rem;
-  }
-
-  .team-timeline-help--desktop {
-    display: inline;
-  }
-
-  .team-timeline-help--natural {
-    display: none;
-  }
-
-  .team-timeline-window {
-    height: 40rem;
-    max-height: 40rem;
-    overflow-x: hidden;
-    overflow-y: scroll;
-    overscroll-behavior: auto;
-    scrollbar-gutter: stable;
-    scrollbar-color: var(--admin-accent) var(--admin-surface-subtle);
-    scrollbar-width: auto;
-    scroll-behavior: smooth;
-    scroll-padding-block: 1rem;
-    -webkit-overflow-scrolling: touch;
-    touch-action: pan-y;
-    border: 1px solid var(--admin-border);
-    border-radius: 1rem;
-    background: var(--admin-surface-subtle);
-    padding: 0.25rem 0.5rem 0.25rem 0;
-  }
-
-  .team-timeline-window:focus-visible {
-    outline: 2px solid var(--theme-accent-contrast);
-    outline-offset: 4px;
-  }
-
-  .team-timeline-window::-webkit-scrollbar {
-    width: 0.875rem;
-  }
-
-  .team-timeline-window::-webkit-scrollbar-track {
-    border-radius: 999px;
-    background: var(--admin-surface);
-  }
-
-  .team-timeline-window::-webkit-scrollbar-thumb {
-    min-height: 3.5rem;
-    border: 3px solid var(--admin-surface);
-    border-radius: 999px;
-    background: var(--admin-accent);
-  }
-
-  .team-timeline-window::-webkit-scrollbar-thumb:hover {
-    background: var(--theme-accent-contrast);
-  }
-
-}
-
-@media (max-width: 1023px) {
-  .team-timeline-window {
-    height: auto;
-    max-height: none;
-    overflow: visible;
-    overscroll-behavior: auto;
-  }
-}
-
-@media (max-width: 639px) {
-  .team-timeline-help {
-    margin-block: 0.5rem;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .team-timeline-window {
-    scroll-behavior: auto;
-  }
-
-  .team-timeline-year {
-    transition-duration: 0.01ms;
-  }
 }
 
 .public-home :is(section, footer) {
