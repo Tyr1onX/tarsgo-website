@@ -58,7 +58,7 @@ test("topic content uses the existing five groups, practice modules, and a dedic
   assert.match(home, /const aboutModules = \[/);
   assert.match(home, /<EventsAndHonorsArchive \/>/);
   assert.match(eventsArchive, /精选成果[\s\S]*?历年赛事[\s\S]*?荣誉证书/);
-  assert.match(honorsData, /赛事组委会公布的全国赛团队名次/);
+  assert.match(honorsData, /source\("RoboMaster 2025 全国赛获奖名单"/);
   assert.match(joinExperience, /从具体任务开始/);
 });
 

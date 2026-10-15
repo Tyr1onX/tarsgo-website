@@ -241,7 +241,7 @@ const aboutModules = [
 
 export type PublicPage = "home" | "about" | "robots" | "events-and-honors" | "team-history" | "join";
 
-const topicPages: Record<Exclude<PublicPage, "home">, { title: string; eyebrow: string; description?: string; image: string; alt: string }> = {
+const topicPages: Record<Exclude<PublicPage, "home">, { title: string; eyebrow?: string; description?: string; image: string; alt: string }> = {
   about: {
     title: "认识吉甲",
     eyebrow: "ABOUT TARSGO",
@@ -257,8 +257,7 @@ const topicPages: Record<Exclude<PublicPage, "home">, { title: string; eyebrow: 
   },
   "events-and-honors": {
     title: "赛事与荣誉",
-    eyebrow: "EVENTS & HONORS",
-    description: "以真实赛事记录和证书，回看团队在竞赛与创新实践中的阶段成果。",
+    description: "回看吉甲大师在比赛与创新实践中留下的关键成果。",
     image: "/assets/images/ContestMoment/contest-moment-02.webp",
     alt: "吉甲大师团队赛事现场记录。",
   },
@@ -905,7 +904,7 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
               <Link to="/" className="mb-8 inline-flex min-h-11 items-center text-sm font-medium text-white/80 transition hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">
                 ← 返回首页
               </Link>
-              <p className="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--hero-accent)] sm:text-sm">{topic?.eyebrow}</p>
+              {topic?.eyebrow ? <p className="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--hero-accent)] sm:text-sm">{topic.eyebrow}</p> : null}
               <h1 className="text-4xl font-semibold tracking-[-0.04em] text-white sm:text-5xl lg:text-7xl">{topic?.title}</h1>
               {topic?.description ? <p className="mt-5 max-w-2xl text-sm leading-7 text-white/80 sm:text-base sm:leading-8">{topic.description}</p> : null}
             </div>

@@ -8,9 +8,6 @@
 }
 
 .honors-section-heading {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: 0.65rem;
   margin-bottom: clamp(2rem, 4vw, 3.5rem);
 }
 
@@ -22,23 +19,6 @@
   line-height: 1.1;
 }
 
-.honors-section-heading > p:last-child {
-  max-width: 46rem;
-  margin: 0.25rem 0 0;
-  color: var(--admin-muted);
-  font-size: 0.9375rem;
-  line-height: 1.8;
-}
-
-.honors-eyebrow {
-  margin: 0;
-  color: var(--admin-accent);
-  font-family: var(--font-mono);
-  font-size: 0.7rem;
-  font-weight: 600;
-  letter-spacing: 0.17em;
-}
-
 .honors-featured-list {
   display: grid;
   border-block: 1px solid var(--admin-border-subtle);
@@ -46,7 +26,7 @@
 
 .honors-featured-item {
   display: grid;
-  grid-template-columns: 2.25rem minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1fr);
   align-items: start;
   gap: 1rem;
   padding: 1.5rem 0;
@@ -57,16 +37,8 @@
   border-bottom: 0;
 }
 
-.honors-featured-item > .honors-source-list,
-.honors-featured-item > .honors-source-note {
-  grid-column: 2;
-}
-
-.honors-index {
-  padding-top: 0.1rem;
-  color: var(--admin-accent);
-  font-family: var(--font-mono);
-  font-size: 0.875rem;
+.honors-featured-item > .honors-source-list {
+  grid-column: 1;
 }
 
 .honors-category {
@@ -106,8 +78,7 @@
   font-size: 0.78rem;
 }
 
-.honors-source-list,
-.honors-source-note {
+.honors-source-list {
   display: block;
   margin-top: 0.7rem;
   color: var(--admin-dim);
@@ -253,10 +224,6 @@
 }
 
 .honors-material-year-heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 1rem;
   margin-bottom: 1rem;
   padding-bottom: 0.65rem;
   border-bottom: 1px solid var(--admin-border-subtle);
@@ -267,11 +234,6 @@
   font-family: var(--font-mono);
   font-size: 1.15rem;
   font-weight: 600;
-}
-
-.honors-material-year-heading span {
-  color: var(--admin-dim);
-  font-size: 0.72rem;
 }
 
 .honors-material-grid {
@@ -374,15 +336,6 @@
   font-size: 0.72rem;
 }
 
-.honors-archive-note {
-  margin: 2.5rem 0 0;
-  padding-top: 1rem;
-  border-top: 1px solid var(--admin-border-subtle);
-  color: var(--admin-dim);
-  font-size: 0.75rem;
-  line-height: 1.75;
-}
-
 .honors-preview-dialog {
   width: min(94vw, 72rem);
   max-width: none;
@@ -477,7 +430,7 @@
 
 @media (min-width: 640px) {
   .honors-featured-item {
-    grid-template-columns: 2.5rem minmax(0, 1fr) minmax(10rem, 0.5fr);
+    grid-template-columns: minmax(0, 1fr) minmax(10rem, 0.5fr);
     gap: 1.5rem;
   }
 
@@ -486,9 +439,8 @@
     gap: 1.65rem 1rem;
   }
 
-  .honors-featured-item > .honors-source-list,
-  .honors-featured-item > .honors-source-note {
-    grid-column: 3;
+  .honors-featured-item > .honors-source-list {
+    grid-column: 2;
   }
 }
 
@@ -498,7 +450,7 @@
   }
 
   .honors-featured-item {
-    grid-template-columns: 2rem minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     align-content: start;
     padding: 1.5rem 1rem 1.5rem 0;
     border-right: 1px solid var(--admin-border-subtle);
@@ -513,9 +465,8 @@
     border-right: 0;
   }
 
-  .honors-featured-item > .honors-source-list,
-  .honors-featured-item > .honors-source-note {
-    grid-column: 2;
+  .honors-featured-item > .honors-source-list {
+    grid-column: 1;
   }
 
   .honors-year-row {

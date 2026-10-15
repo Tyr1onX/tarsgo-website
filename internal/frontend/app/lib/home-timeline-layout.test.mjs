@@ -64,7 +64,8 @@ test("the dedicated honors archive owns certificate records, categorizes awards,
   assert.match(archive, /event.key === "End"/);
   assert.match(archive, /aria-haspopup="dialog"/);
   assert.match(archive, /award\.certificateIds\.length > 0[\s\S]*?查看证书原件/);
-  assert.match(styles, /\.honors-featured-item > \.honors-source-list,[\s\S]*?grid-column: 2;/);
+  assert.match(styles, /\.honors-featured-item > \.honors-source-list\s*\{\s*grid-column: 1;/);
+  assert.match(styles, /@media \(min-width: 640px\)[\s\S]*?\.honors-featured-item > \.honors-source-list\s*\{\s*grid-column: 2;/);
   assert.match(styles, /\.honors-featured-list\s*\{\s*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
   assert.match(styles, /\.honors-material-grid\s*\{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);

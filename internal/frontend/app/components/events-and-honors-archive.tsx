@@ -34,7 +34,11 @@ function getCategoryClass(category: HonorCategory) {
 
 function ArchiveSources({ award }: { award: HonorAward }) {
   if (award.sources.length === 0) {
-    return <span className="honors-source-note">以证书原件记录</span>;
+    return award.certificateIds.length > 0 ? (
+      <span className="honors-source-list">
+        <a href={"#certificates-" + award.year}>查看证书原件 <span aria-hidden="true">↓</span></a>
+      </span>
+    ) : null;
   }
 
   return (
@@ -80,14 +84,11 @@ export function EventsAndHonorsArchive() {
       <section id="highlights" className="honors-section honors-featured">
         <div className="public-home-container">
           <div className="honors-section-heading">
-            <p className="honors-eyebrow">01 / SELECTED RESULTS</p>
             <h2>精选成果</h2>
-            <p>以赛事组委会记录和原始证书为依据，呈现团队、机器人专项与项目作品的不同成果。</p>
           </div>
           <div className="honors-featured-list">
-            {featuredAwards.map((award, index) => (
+            {featuredAwards.map((award) => (
               <article className="honors-featured-item" key={award.id}>
-                <span className="honors-index">0{index + 1}</span>
                 <div>
                   <span className={getCategoryClass(award.category)}>{honorCategoryLabels[award.category]}</span>
                   <p className="honors-featured-result">{award.result}</p>
@@ -104,9 +105,7 @@ export function EventsAndHonorsArchive() {
       <section id="competition-records" className="honors-section honors-history">
         <div className="public-home-container">
           <div className="honors-section-heading">
-            <p className="honors-eyebrow">02 / COMPETITION ARCHIVE</p>
             <h2>历年赛事</h2>
-            <p>按年份整理已核对的奖项记录。团队名次、机器人专项、项目作品和指导教师荣誉分别列出。</p>
           </div>
           <div className="honors-year-timeline">
             {archiveYears.map((year) => {
@@ -152,9 +151,7 @@ export function EventsAndHonorsArchive() {
       <section id="certificates" className="honors-section honors-certificates">
         <div className="public-home-container">
           <div className="honors-section-heading">
-            <p className="honors-eyebrow">03 / ORIGINAL MATERIALS</p>
             <h2>荣誉证书</h2>
-            <p>按年份查看原图。重复扫描件与佐证影像会明确标注并关联到对应奖项，不重复计奖。</p>
           </div>
           <nav className="honors-year-index" aria-label="跳转至证书年份">
             {yearsWithMaterials.map((year) => (
@@ -166,7 +163,6 @@ export function EventsAndHonorsArchive() {
               <section className="honors-material-year" id={"certificates-" + year} key={year}>
                 <div className="honors-material-year-heading">
                   <h3>{year}</h3>
-                  <span>{getMaterialsForYear(year).length} 份原始材料</span>
                 </div>
                 <div className="honors-material-grid">
                   {getMaterialsForYear(year).map((material) => {
@@ -209,9 +205,6 @@ export function EventsAndHonorsArchive() {
               </section>
             ))}
           </div>
-          <p className="honors-archive-note">
-            证书中出现指导教师姓名，不等同于指导教师个人获奖；仅有独立获奖记录时才归入“指导教师奖”。
-          </p>
         </div>
       </section>
 
