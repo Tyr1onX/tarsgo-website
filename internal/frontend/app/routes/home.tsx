@@ -241,7 +241,7 @@ const aboutModules = [
 
 export type PublicPage = "home" | "about" | "robots" | "events-and-honors" | "team-history" | "join";
 
-const topicPages: Record<Exclude<PublicPage, "home">, { title: string; eyebrow: string; description: string; image: string; alt: string }> = {
+const topicPages: Record<Exclude<PublicPage, "home">, { title: string; eyebrow: string; description?: string; image: string; alt: string }> = {
   about: {
     title: "认识吉甲",
     eyebrow: "ABOUT TARSGO",
@@ -250,11 +250,10 @@ const topicPages: Record<Exclude<PublicPage, "home">, { title: string; eyebrow: 
     alt: "队员在 RoboMaster 比赛现场共同检查机器人。",
   },
   robots: {
-    title: "2024 赛季机器人阵容",
+    title: "2026 / 2025 / 2024 赛季机器人阵容",
     eyebrow: "TARSGO ROBOT COLLECTION",
-    description: "11 台机器人与设备定妆照，按类别浏览并打开照片查看完整细节。",
-    image: "/assets/images/Robot/hero-robot.webp",
-    alt: "TARSGO 机器人展厅主视觉。",
+    image: "/assets/images/Robot/2026/hero-01-1440.webp",
+    alt: "2026 赛季 1 号英雄机器人定妆照。",
   },
   "events-and-honors": {
     title: "赛事与荣誉",
@@ -908,7 +907,7 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
               </Link>
               <p className="mb-4 text-xs font-semibold uppercase tracking-[0.22em] text-[var(--hero-accent)] sm:text-sm">{topic?.eyebrow}</p>
               <h1 className="text-4xl font-semibold tracking-[-0.04em] text-white sm:text-5xl lg:text-7xl">{topic?.title}</h1>
-              <p className="mt-5 max-w-2xl text-sm leading-7 text-white/80 sm:text-base sm:leading-8">{topic?.description}</p>
+              {topic?.description ? <p className="mt-5 max-w-2xl text-sm leading-7 text-white/80 sm:text-base sm:leading-8">{topic.description}</p> : null}
             </div>
           </div>
         </section>

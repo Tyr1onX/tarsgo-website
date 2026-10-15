@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { robotArchive2024, type RobotCategory, type RobotSeasonEntry } from "~/data/robot-seasons";
+import { robotSeasons, sortRobotsByNumber, type RobotCategory, type RobotSeasonEntry } from "~/data/robot-seasons";
 
 const filters: readonly ({ value: "all"; label: string } | { value: RobotCategory; label: RobotCategory })[] = [
   { value: "all", label: "全部" },
@@ -40,10 +40,12 @@ function CloseIcon() {
 }
 
 export function RobotPhotoGallery() {
+  const [activeSeasonYear, setActiveSeasonYear] = useState(2026);
   const [activeCategory, setActiveCategory] = useState<"all" | RobotCategory>("all");
   const [selectedRobotId, setSelectedRobotId] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
-  const robots = robotArchive2024.robots;
+  const activeSeason = robotSeasons.find((season) => season.season === activeSeasonYear) ?? robotSeasons[0];
+  const robots = useMemo(() => sortRobotsByNumber(activeSeason.robots), [activeSeason]);
   const visibleRobots = useMemo(
     () => activeCategory === "all"
       ? robots
@@ -74,8 +76,35 @@ export function RobotPhotoGallery() {
     dialogRef.current?.close();
   }
 
+  function selectSeason(seasonYear: number) {
+    if (seasonYear === activeSeasonYear) return;
+    dialogRef.current?.close();
+    setSelectedRobotId(null);
+    setActiveCategory("all");
+    setActiveSeasonYear(seasonYear);
+  }
+
   return (
-    <div className="robot-gallery" role="region" aria-label={`${robotArchive2024.season} 赛季机器人照片展厅`}>
+    <div className="robot-gallery" role="region" aria-label={`${activeSeason.season} 赛季机器人照片展厅`}>
+      <div className="robot-gallery__season-heading">
+        <div className="robot-gallery__season-copy">
+          <p className="robot-gallery__season-kicker">ROBOT SEASON ARCHIVE · {activeSeason.season}</p>
+          <h2>{activeSeason.title}</h2>
+        </div>
+        <div className="robot-gallery__season-switch" role="group" aria-label="选择机器人赛季">
+          {robotSeasons.map((season) => (
+            <button
+              key={season.season}
+              type="button"
+              aria-pressed={activeSeasonYear === season.season}
+              onClick={() => selectSeason(season.season)}
+            >
+              {season.season} 赛季
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div className="robot-gallery__toolbar">
         <div className="robot-gallery__filters" role="group" aria-label="按机器人类别筛选">
           {filters.map((filter) => {
@@ -163,7 +192,7 @@ export function RobotPhotoGallery() {
           <div className="robot-gallery__dialog-content">
             <div className="robot-gallery__dialog-heading">
               <div>
-                <p className="robot-gallery__dialog-kicker">{robotArchive2024.season} SEASON · {selectedRobot.category}</p>
+                <p className="robot-gallery__dialog-kicker">{activeSeason.season} SEASON · {selectedRobot.category}</p>
                 <h2 id="robot-gallery-preview-title">{selectedRobot.name}</h2>
               </div>
               <button

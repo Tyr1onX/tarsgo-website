@@ -18,15 +18,285 @@ export type RobotSeasonEntry = {
 export type RobotSeason = {
   season: number;
   title: string;
-  description: string;
   robots: readonly RobotSeasonEntry[];
 };
 
+const robotNumberCollator = new Intl.Collator("zh-CN", { numeric: true, sensitivity: "base" });
+
+export function sortRobotsByNumber(robots: readonly RobotSeasonEntry[]): RobotSeasonEntry[] {
+  return [...robots].sort((left, right) => {
+    const numberOrder = robotNumberCollator.compare(left.number, right.number);
+    if (numberOrder !== 0) return numberOrder;
+
+    const leftIsBackup = left.name.includes("备车");
+    const rightIsBackup = right.name.includes("备车");
+    return Number(leftIsBackup) - Number(rightIsBackup);
+  });
+}
+
 export const robotSeasons = [
+  {
+    season: 2026,
+    title: "2026 赛季机器人阵容",
+    robots: [
+      {
+        id: "2026-infantry-03",
+        number: "03",
+        name: "3号步兵机器人",
+        category: "步兵",
+        sourceFilename: "3.JPG",
+        sourceSha256: "8fe1948a05805a2ca35edea2b784ec5832b454996f42cfdfa2bbbe7c3a3344ab",
+        image: {
+          thumbnail: "/assets/images/Robot/2026/infantry-03-720.webp",
+          medium: "/assets/images/Robot/2026/infantry-03-1440.webp",
+          large: "/assets/images/Robot/2026/infantry-03-2400.webp",
+        },
+      },
+      {
+        id: "2026-infantry-04",
+        number: "04",
+        name: "4号步兵机器人",
+        category: "步兵",
+        sourceFilename: "4.JPG",
+        sourceSha256: "971928439327f842c7b21ce428427ddffb5c8cb17b3749d567514f2d22b69aa3",
+        image: {
+          thumbnail: "/assets/images/Robot/2026/infantry-04-720.webp",
+          medium: "/assets/images/Robot/2026/infantry-04-1440.webp",
+          large: "/assets/images/Robot/2026/infantry-04-2400.webp",
+        },
+      },
+      {
+        id: "2026-hero-01",
+        number: "01",
+        name: "1号英雄机器人",
+        category: "英雄",
+        sourceFilename: "1.JPG",
+        sourceSha256: "deff8756929afb8bfc2599b5a8e235aae04322d58976db024db5f8f2cb061221",
+        image: {
+          thumbnail: "/assets/images/Robot/2026/hero-01-720.webp",
+          medium: "/assets/images/Robot/2026/hero-01-1440.webp",
+          large: "/assets/images/Robot/2026/hero-01-2400.webp",
+        },
+      },
+      {
+        id: "2026-hero-01-backup",
+        number: "01B",
+        name: "1号英雄机器人（备车）",
+        category: "英雄",
+        sourceFilename: "1（备车）.JPG",
+        sourceSha256: "a4dce8cf60ea60eeafcde690aba97bdfc214e418a3ed84818f60c24e6ade0dbe",
+        image: {
+          thumbnail: "/assets/images/Robot/2026/hero-01-backup-720.webp",
+          medium: "/assets/images/Robot/2026/hero-01-backup-1440.webp",
+          large: "/assets/images/Robot/2026/hero-01-backup-2400.webp",
+        },
+      },
+      {
+        id: "2026-engineering-02",
+        number: "02",
+        name: "2号工程机器人",
+        category: "工程",
+        sourceFilename: "2.JPG",
+        sourceSha256: "85ce924ad6d40cd378d7079669b5b6ca5c5f63e1ee0c1cb81b314a9f8cfb30b9",
+        image: {
+          thumbnail: "/assets/images/Robot/2026/engineering-02-720.webp",
+          medium: "/assets/images/Robot/2026/engineering-02-1440.webp",
+          large: "/assets/images/Robot/2026/engineering-02-2400.webp",
+        },
+      },
+      {
+        id: "2026-radar-09",
+        number: "09",
+        name: "9号雷达系统",
+        category: "雷达",
+        sourceFilename: "9.JPG",
+        sourceSha256: "b15ab6cb538aba94fbb76dc8b4992f28c4c5a12a0d5f969bb4fe3a43a772c544",
+        image: {
+          thumbnail: "/assets/images/Robot/2026/radar-09-720.webp",
+          medium: "/assets/images/Robot/2026/radar-09-1440.webp",
+          large: "/assets/images/Robot/2026/radar-09-2400.webp",
+        },
+      },
+      {
+        id: "2026-infantry-03-backup",
+        number: "03B",
+        name: "3号步兵机器人（备车）",
+        category: "步兵",
+        sourceFilename: "3（备车）.JPG",
+        sourceSha256: "d2adaaa83f7194fd3b5f34fcb60d5361f6cfe74519f90313fec420bf56a55aa2",
+        image: {
+          thumbnail: "/assets/images/Robot/2026/infantry-03-backup-720.webp",
+          medium: "/assets/images/Robot/2026/infantry-03-backup-1440.webp",
+          large: "/assets/images/Robot/2026/infantry-03-backup-2400.webp",
+        },
+      },
+      {
+        id: "2026-sentinel-07",
+        number: "07",
+        name: "7号哨兵机器人",
+        category: "哨兵",
+        sourceFilename: "7.JPG",
+        sourceSha256: "8706779a673f511f0205b702d03d5d175d590be22df718826831fe6cc52e279d",
+        image: {
+          thumbnail: "/assets/images/Robot/2026/sentinel-07-720.webp",
+          medium: "/assets/images/Robot/2026/sentinel-07-1440.webp",
+          large: "/assets/images/Robot/2026/sentinel-07-2400.webp",
+        },
+      },
+      {
+        id: "2026-dart-08",
+        number: "08",
+        name: "8号飞镖系统",
+        category: "飞镖",
+        sourceFilename: "8.JPG",
+        sourceSha256: "5ed4c1ef2c77a07cc03df31e24875db1086945ef50d0b0ab81bb765a90f56d86",
+        image: {
+          thumbnail: "/assets/images/Robot/2026/dart-08-720.webp",
+          medium: "/assets/images/Robot/2026/dart-08-1440.webp",
+          large: "/assets/images/Robot/2026/dart-08-2400.webp",
+        },
+      },
+      {
+        id: "2026-air-06",
+        number: "06",
+        name: "6号无人机",
+        category: "空中",
+        sourceFilename: "6.JPG",
+        sourceSha256: "e8ab9d3a65dbc2fb793279aa1b9dcc94f4c3d587935a055cf510855670f106b0",
+        image: {
+          thumbnail: "/assets/images/Robot/2026/air-06-720.webp",
+          medium: "/assets/images/Robot/2026/air-06-1440.webp",
+          large: "/assets/images/Robot/2026/air-06-2400.webp",
+        },
+      },
+    ] satisfies readonly RobotSeasonEntry[],
+  },
+  {
+    season: 2025,
+    title: "2025 赛季机器人阵容",
+    robots: [
+      {
+        id: "2025-hero-01",
+        number: "01",
+        name: "1号英雄机器人",
+        category: "英雄",
+        sourceFilename: "1号英雄.JPG",
+        sourceSha256: "fc8d730f223af18a77b3568d3f2d1b6953c626b106f06b0cbca8a2e1f9a338ce",
+        image: {
+          thumbnail: "/assets/images/Robot/2025/hero-01-720.webp",
+          medium: "/assets/images/Robot/2025/hero-01-1440.webp",
+          large: "/assets/images/Robot/2025/hero-01-2400.webp",
+        },
+      },
+      {
+        id: "2025-engineering-02",
+        number: "02",
+        name: "2号工程机器人",
+        category: "工程",
+        sourceFilename: "2号工程.JPG",
+        sourceSha256: "9b9a66f6e7b36d190a91f8bd7e1901f05469360fd19456dbc41a67a0fac0ae7c",
+        image: {
+          thumbnail: "/assets/images/Robot/2025/engineering-02-720.webp",
+          medium: "/assets/images/Robot/2025/engineering-02-1440.webp",
+          large: "/assets/images/Robot/2025/engineering-02-2400.webp",
+        },
+      },
+      {
+        id: "2025-infantry-03",
+        number: "03",
+        name: "3号步兵机器人",
+        category: "步兵",
+        sourceFilename: "3号步兵.JPG",
+        sourceSha256: "cd60761ad94eec8f0dbbb3d9d851c68107be46a2a0d11f455c6df4c6fc8af5a9",
+        image: {
+          thumbnail: "/assets/images/Robot/2025/infantry-03-720.webp",
+          medium: "/assets/images/Robot/2025/infantry-03-1440.webp",
+          large: "/assets/images/Robot/2025/infantry-03-2400.webp",
+        },
+      },
+      {
+        id: "2025-infantry-04",
+        number: "04",
+        name: "4号步兵机器人",
+        category: "步兵",
+        sourceFilename: "4号步兵.JPG",
+        sourceSha256: "8082eef6beb720c86073e71388dfdf4085912bd9df37b0bc825b6d5d7512f361",
+        image: {
+          thumbnail: "/assets/images/Robot/2025/infantry-04-720.webp",
+          medium: "/assets/images/Robot/2025/infantry-04-1440.webp",
+          large: "/assets/images/Robot/2025/infantry-04-2400.webp",
+        },
+      },
+      {
+        id: "2025-sentinel-07",
+        number: "07",
+        name: "7号哨兵机器人",
+        category: "哨兵",
+        sourceFilename: "7号哨兵.JPG",
+        sourceSha256: "ce546777721575f9a42bf216c61326ea5d7cfc782deef29d37e7fdc9d8d2836d",
+        image: {
+          thumbnail: "/assets/images/Robot/2025/sentinel-07-720.webp",
+          medium: "/assets/images/Robot/2025/sentinel-07-1440.webp",
+          large: "/assets/images/Robot/2025/sentinel-07-2400.webp",
+        },
+      },
+      {
+        id: "2025-radar-09",
+        number: "09",
+        name: "9号雷达系统",
+        category: "雷达",
+        sourceFilename: "9号雷达.JPG",
+        sourceSha256: "431346fb302253bdad3eb0bb02c0fd380481cafbc1833bf4e218ee9620c6eb4c",
+        image: {
+          thumbnail: "/assets/images/Robot/2025/radar-09-720.webp",
+          medium: "/assets/images/Robot/2025/radar-09-1440.webp",
+          large: "/assets/images/Robot/2025/radar-09-2400.webp",
+        },
+      },
+      {
+        id: "2025-dart-08",
+        number: "08",
+        name: "8号飞镖系统",
+        category: "飞镖",
+        sourceFilename: "8号飞镖.JPG",
+        sourceSha256: "3607c829e18365b31c5fb4fc195d93d13e08711c7a2f7998a3340b12313e9c47",
+        image: {
+          thumbnail: "/assets/images/Robot/2025/dart-08-720.webp",
+          medium: "/assets/images/Robot/2025/dart-08-1440.webp",
+          large: "/assets/images/Robot/2025/dart-08-2400.webp",
+        },
+      },
+      {
+        id: "2025-hero-backup",
+        number: "备车",
+        name: "英雄机器人（备车）",
+        category: "英雄",
+        sourceFilename: "英雄备车.JPG",
+        sourceSha256: "ce10c9cad1718c681916306e8e04996594940ff44a02b7bb463c1e63c4ba76a8",
+        image: {
+          thumbnail: "/assets/images/Robot/2025/hero-backup-720.webp",
+          medium: "/assets/images/Robot/2025/hero-backup-1440.webp",
+          large: "/assets/images/Robot/2025/hero-backup-2400.webp",
+        },
+      },
+      {
+        id: "2025-air-06",
+        number: "06",
+        name: "6号无人机",
+        category: "空中",
+        sourceFilename: "6号无人机.JPG",
+        sourceSha256: "d36395b1414506814f6a32ce3235a5da6fa3f9de4c2e5bd2712281231483df1a",
+        image: {
+          thumbnail: "/assets/images/Robot/2025/air-06-720.webp",
+          medium: "/assets/images/Robot/2025/air-06-1440.webp",
+          large: "/assets/images/Robot/2025/air-06-2400.webp",
+        },
+      },
+    ] satisfies readonly RobotSeasonEntry[],
+  },
   {
     season: 2024,
     title: "2024 赛季机器人阵容",
-    description: "收录 2024 赛季的 11 台机器人与设备定妆照。按类别浏览，或打开大图查看完整影像。",
     robots: [
       {
         id: "hero-01",
@@ -175,4 +445,5 @@ export const robotSeasons = [
   },
 ] satisfies readonly RobotSeason[];
 
-export const robotArchive2024 = robotSeasons[0];
+export const robotArchive2025 = robotSeasons.find((season) => season.season === 2025)!;
+export const robotArchive2024 = robotSeasons.find((season) => season.season === 2024)!;

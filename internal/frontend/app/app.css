@@ -3001,6 +3001,72 @@ html[data-theme-transition] body *::after {
   color: var(--theme-text);
 }
 
+.robot-gallery__season-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1.25rem 2rem;
+  margin-bottom: 2rem;
+}
+
+.robot-gallery__season-copy {
+  max-width: 48rem;
+}
+
+.robot-gallery__season-kicker {
+  margin-bottom: 0.45rem;
+  color: var(--theme-accent-contrast);
+  font-family: var(--font-mono);
+  font-size: 0.67rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+}
+
+.robot-gallery__season-copy h2 {
+  color: var(--theme-text);
+  font-size: clamp(1.35rem, 3vw, 2rem);
+  font-weight: 600;
+  line-height: 1.25;
+}
+
+.robot-gallery__season-copy > p:last-child {
+  margin-top: 0.6rem;
+  color: var(--theme-muted);
+  font-size: 0.875rem;
+  line-height: 1.7;
+}
+
+.robot-gallery__season-switch {
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 0.4rem;
+  border: 1px solid var(--theme-border);
+  background: var(--theme-surface);
+  padding: 0.25rem;
+}
+
+.robot-gallery__season-switch button {
+  min-height: 2.65rem;
+  border: 1px solid transparent;
+  padding: 0.45rem 0.85rem;
+  color: var(--theme-muted);
+  font-size: 0.8rem;
+  font-weight: 600;
+  transition: color 180ms ease, background-color 180ms ease, border-color 180ms ease;
+}
+
+.robot-gallery__season-switch button:hover,
+.robot-gallery__season-switch button[aria-pressed="true"] {
+  border-color: var(--theme-accent-contrast);
+  background: color-mix(in srgb, var(--theme-accent-contrast) 10%, var(--theme-surface));
+  color: var(--theme-text);
+}
+
+.robot-gallery__season-switch button[aria-pressed="true"] {
+  box-shadow: inset 0 -2px 0 var(--theme-accent-contrast);
+}
+
 .robot-gallery__toolbar {
   display: flex;
   flex-wrap: wrap;
@@ -3042,6 +3108,7 @@ html[data-theme-transition] body *::after {
 }
 
 .robot-gallery__filter:focus-visible,
+.robot-gallery__season-switch button:focus-visible,
 .robot-gallery__image-button:focus-visible,
 .robot-gallery__dialog button:focus-visible {
   outline: 2px solid var(--theme-accent-contrast);
@@ -3294,6 +3361,19 @@ html[data-theme-transition] body *::after {
     align-items: flex-start;
   }
 
+  .robot-gallery__season-heading {
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+  }
+
+  .robot-gallery__season-switch {
+    width: 100%;
+  }
+
+  .robot-gallery__season-switch button {
+    flex: 1 1 0;
+  }
+
   .robot-gallery__filters {
     gap: 0.4rem;
   }
@@ -3322,6 +3402,7 @@ html[data-theme-transition] body *::after {
 
 @media (prefers-reduced-motion: reduce) {
   .robot-gallery__filter,
+  .robot-gallery__season-switch button,
   .robot-gallery__view-label,
   .robot-gallery__dialog-close,
   .robot-gallery__dialog-nav {

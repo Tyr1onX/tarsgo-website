@@ -1,0 +1,298 @@
+{
+  "season": 2025,
+  "sourceArchive": "source-assets/robot-gallery/2025/originals/",
+  "conversion": {
+    "format": "WebP",
+    "pillowVersion": "12.3.0",
+    "quality": 84,
+    "method": 6,
+    "widths": [
+      720,
+      1440,
+      2400
+    ],
+    "exif": "orientation applied; metadata omitted from derivatives",
+    "iccProfile": "preserved when present"
+  },
+  "photos": [
+    {
+      "id": "hero-01",
+      "name": "1号英雄机器人",
+      "category": "英雄",
+      "originalFilename": "1号英雄.JPG",
+      "originalPath": "originals/1号英雄.JPG",
+      "originalSha256": "fc8d730f223af18a77b3568d3f2d1b6953c626b106f06b0cbca8a2e1f9a338ce",
+      "originalBytes": 3848406,
+      "originalWidth": 6000,
+      "originalHeight": 4000,
+      "assets": [
+        {
+          "width": 720,
+          "height": 480,
+          "path": "public/assets/images/Robot/2025/hero-01-720.webp",
+          "bytes": 26838
+        },
+        {
+          "width": 1440,
+          "height": 960,
+          "path": "public/assets/images/Robot/2025/hero-01-1440.webp",
+          "bytes": 76748
+        },
+        {
+          "width": 2400,
+          "height": 1600,
+          "path": "public/assets/images/Robot/2025/hero-01-2400.webp",
+          "bytes": 160704
+        }
+      ]
+    },
+    {
+      "id": "engineering-02",
+      "name": "2号工程机器人",
+      "category": "工程",
+      "originalFilename": "2号工程.JPG",
+      "originalPath": "originals/2号工程.JPG",
+      "originalSha256": "9b9a66f6e7b36d190a91f8bd7e1901f05469360fd19456dbc41a67a0fac0ae7c",
+      "originalBytes": 3159586,
+      "originalWidth": 6000,
+      "originalHeight": 4000,
+      "assets": [
+        {
+          "width": 720,
+          "height": 480,
+          "path": "public/assets/images/Robot/2025/engineering-02-720.webp",
+          "bytes": 18446
+        },
+        {
+          "width": 1440,
+          "height": 960,
+          "path": "public/assets/images/Robot/2025/engineering-02-1440.webp",
+          "bytes": 51726
+        },
+        {
+          "width": 2400,
+          "height": 1600,
+          "path": "public/assets/images/Robot/2025/engineering-02-2400.webp",
+          "bytes": 109860
+        }
+      ]
+    },
+    {
+      "id": "infantry-03",
+      "name": "3号步兵机器人",
+      "category": "步兵",
+      "originalFilename": "3号步兵.JPG",
+      "originalPath": "originals/3号步兵.JPG",
+      "originalSha256": "cd60761ad94eec8f0dbbb3d9d851c68107be46a2a0d11f455c6df4c6fc8af5a9",
+      "originalBytes": 3156167,
+      "originalWidth": 6000,
+      "originalHeight": 4000,
+      "assets": [
+        {
+          "width": 720,
+          "height": 480,
+          "path": "public/assets/images/Robot/2025/infantry-03-720.webp",
+          "bytes": 17412
+        },
+        {
+          "width": 1440,
+          "height": 960,
+          "path": "public/assets/images/Robot/2025/infantry-03-1440.webp",
+          "bytes": 48842
+        },
+        {
+          "width": 2400,
+          "height": 1600,
+          "path": "public/assets/images/Robot/2025/infantry-03-2400.webp",
+          "bytes": 104276
+        }
+      ]
+    },
+    {
+      "id": "infantry-04",
+      "name": "4号步兵机器人",
+      "category": "步兵",
+      "originalFilename": "4号步兵.JPG",
+      "originalPath": "originals/4号步兵.JPG",
+      "originalSha256": "8082eef6beb720c86073e71388dfdf4085912bd9df37b0bc825b6d5d7512f361",
+      "originalBytes": 3113301,
+      "originalWidth": 6000,
+      "originalHeight": 4000,
+      "assets": [
+        {
+          "width": 720,
+          "height": 480,
+          "path": "public/assets/images/Robot/2025/infantry-04-720.webp",
+          "bytes": 16420
+        },
+        {
+          "width": 1440,
+          "height": 960,
+          "path": "public/assets/images/Robot/2025/infantry-04-1440.webp",
+          "bytes": 46052
+        },
+        {
+          "width": 2400,
+          "height": 1600,
+          "path": "public/assets/images/Robot/2025/infantry-04-2400.webp",
+          "bytes": 98756
+        }
+      ]
+    },
+    {
+      "id": "sentinel-07",
+      "name": "7号哨兵机器人",
+      "category": "哨兵",
+      "originalFilename": "7号哨兵.JPG",
+      "originalPath": "originals/7号哨兵.JPG",
+      "originalSha256": "ce546777721575f9a42bf216c61326ea5d7cfc782deef29d37e7fdc9d8d2836d",
+      "originalBytes": 3467418,
+      "originalWidth": 6000,
+      "originalHeight": 4000,
+      "assets": [
+        {
+          "width": 720,
+          "height": 480,
+          "path": "public/assets/images/Robot/2025/sentinel-07-720.webp",
+          "bytes": 23438
+        },
+        {
+          "width": 1440,
+          "height": 960,
+          "path": "public/assets/images/Robot/2025/sentinel-07-1440.webp",
+          "bytes": 63958
+        },
+        {
+          "width": 2400,
+          "height": 1600,
+          "path": "public/assets/images/Robot/2025/sentinel-07-2400.webp",
+          "bytes": 132516
+        }
+      ]
+    },
+    {
+      "id": "radar-09",
+      "name": "9号雷达系统",
+      "category": "雷达",
+      "originalFilename": "9号雷达.JPG",
+      "originalPath": "originals/9号雷达.JPG",
+      "originalSha256": "431346fb302253bdad3eb0bb02c0fd380481cafbc1833bf4e218ee9620c6eb4c",
+      "originalBytes": 2437529,
+      "originalWidth": 6000,
+      "originalHeight": 4000,
+      "assets": [
+        {
+          "width": 720,
+          "height": 480,
+          "path": "public/assets/images/Robot/2025/radar-09-720.webp",
+          "bytes": 8248
+        },
+        {
+          "width": 1440,
+          "height": 960,
+          "path": "public/assets/images/Robot/2025/radar-09-1440.webp",
+          "bytes": 21198
+        },
+        {
+          "width": 2400,
+          "height": 1600,
+          "path": "public/assets/images/Robot/2025/radar-09-2400.webp",
+          "bytes": 44496
+        }
+      ]
+    },
+    {
+      "id": "dart-08",
+      "name": "8号飞镖系统",
+      "category": "飞镖",
+      "originalFilename": "8号飞镖.JPG",
+      "originalPath": "originals/8号飞镖.JPG",
+      "originalSha256": "3607c829e18365b31c5fb4fc195d93d13e08711c7a2f7998a3340b12313e9c47",
+      "originalBytes": 3932656,
+      "originalWidth": 6000,
+      "originalHeight": 4000,
+      "assets": [
+        {
+          "width": 720,
+          "height": 480,
+          "path": "public/assets/images/Robot/2025/dart-08-720.webp",
+          "bytes": 27812
+        },
+        {
+          "width": 1440,
+          "height": 960,
+          "path": "public/assets/images/Robot/2025/dart-08-1440.webp",
+          "bytes": 77446
+        },
+        {
+          "width": 2400,
+          "height": 1600,
+          "path": "public/assets/images/Robot/2025/dart-08-2400.webp",
+          "bytes": 161840
+        }
+      ]
+    },
+    {
+      "id": "hero-backup",
+      "name": "英雄机器人（备车）",
+      "category": "英雄",
+      "originalFilename": "英雄备车.JPG",
+      "originalPath": "originals/英雄备车.JPG",
+      "originalSha256": "ce10c9cad1718c681916306e8e04996594940ff44a02b7bb463c1e63c4ba76a8",
+      "originalBytes": 3376688,
+      "originalWidth": 6000,
+      "originalHeight": 4000,
+      "assets": [
+        {
+          "width": 720,
+          "height": 480,
+          "path": "public/assets/images/Robot/2025/hero-backup-720.webp",
+          "bytes": 21158
+        },
+        {
+          "width": 1440,
+          "height": 960,
+          "path": "public/assets/images/Robot/2025/hero-backup-1440.webp",
+          "bytes": 57958
+        },
+        {
+          "width": 2400,
+          "height": 1600,
+          "path": "public/assets/images/Robot/2025/hero-backup-2400.webp",
+          "bytes": 122920
+        }
+      ]
+    },
+    {
+      "id": "air-06",
+      "name": "6号无人机",
+      "category": "空中",
+      "originalFilename": "6号无人机.JPG",
+      "originalPath": "originals/6号无人机.JPG",
+      "originalSha256": "d36395b1414506814f6a32ce3235a5da6fa3f9de4c2e5bd2712281231483df1a",
+      "originalBytes": 4851792,
+      "originalWidth": 6000,
+      "originalHeight": 4000,
+      "assets": [
+        {
+          "width": 720,
+          "height": 480,
+          "path": "public/assets/images/Robot/2025/air-06-720.webp",
+          "bytes": 31474
+        },
+        {
+          "width": 1440,
+          "height": 960,
+          "path": "public/assets/images/Robot/2025/air-06-1440.webp",
+          "bytes": 108406
+        },
+        {
+          "width": 2400,
+          "height": 1600,
+          "path": "public/assets/images/Robot/2025/air-06-2400.webp",
+          "bytes": 261510
+        }
+      ]
+    }
+  ]
+}
