@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { robotSeasons, type RobotCategory, type RobotSeasonEntry } from "~/data/robot-seasons";
+import { robotSeasons, sortRobotsByNumber, type RobotCategory, type RobotSeasonEntry } from "~/data/robot-seasons";
 
 const filters: readonly ({ value: "all"; label: string } | { value: RobotCategory; label: RobotCategory })[] = [
   { value: "all", label: "全部" },
@@ -45,7 +45,7 @@ export function RobotPhotoGallery() {
   const [selectedRobotId, setSelectedRobotId] = useState<string | null>(null);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const activeSeason = robotSeasons.find((season) => season.season === activeSeasonYear) ?? robotSeasons[0];
-  const robots = activeSeason.robots;
+  const robots = useMemo(() => sortRobotsByNumber(activeSeason.robots), [activeSeason]);
   const visibleRobots = useMemo(
     () => activeCategory === "all"
       ? robots

@@ -8,6 +8,7 @@ const data = await readFile(new URL("../data/robot-seasons.ts", import.meta.url)
 const styles = await readFile(new URL("../app.css", import.meta.url), "utf8");
 const home = await readFile(new URL("../routes/home.tsx", import.meta.url), "utf8");
 const manifests = new Map();
+const { robotSeasons, sortRobotsByNumber } = await import("../data/robot-seasons.ts");
 for (const season of [2024, 2025, 2026]) {
   manifests.set(
     season,
@@ -106,6 +107,41 @@ test("the 2026 archive maps all ten uploaded photos, including both independent 
   assert.equal(new Set(manifest.photos.map(({ id }) => id)).size, 10);
 });
 
+test("all three seasons sort by robot number and keep numbered backups next to their main robots", () => {
+  const expectedIdsBySeason = new Map([
+    [2024, [
+      "hero-01", "hero-01-backup", "engineering-02", "infantry-03", "infantry-04",
+      "infantry-05", "infantry-05-backup", "air-06", "sentinel-07", "dart-08", "radar-09",
+    ]],
+    [2025, [
+      "2025-hero-01", "2025-engineering-02", "2025-infantry-03", "2025-infantry-04",
+      "2025-air-06", "2025-sentinel-07", "2025-dart-08", "2025-radar-09", "2025-hero-backup",
+    ]],
+    [2026, [
+      "2026-hero-01", "2026-hero-01-backup", "2026-engineering-02", "2026-infantry-03",
+      "2026-infantry-03-backup", "2026-infantry-04", "2026-air-06", "2026-sentinel-07",
+      "2026-dart-08", "2026-radar-09",
+    ]],
+  ]);
+
+  for (const season of robotSeasons) {
+    const ordered = sortRobotsByNumber(season.robots);
+    const expectedIds = expectedIdsBySeason.get(season.season);
+    assert.deepEqual(ordered.map(({ id }) => id), expectedIds, `${season.season} season order`);
+
+    for (const category of new Set(ordered.map(({ category }) => category))) {
+      const filtered = ordered.filter((robot) => robot.category === category);
+      assert.deepEqual(
+        filtered.map(({ id }) => id),
+        expectedIds.filter((id) => ordered.find((robot) => robot.id === id).category === category),
+        `${season.season} ${category} filter order`,
+      );
+    }
+  }
+
+  assert.deepEqual(robotSeasons.map(({ season }) => season), [2026, 2025, 2024]);
+});
+
 test("all three seasons contain thirty distinct real source photos and 2026 is the default", () => {
   assert.equal(
     manifests.get(2024).photos.length + manifests.get(2025).photos.length + manifests.get(2026).photos.length,
@@ -129,15 +165,16 @@ test("all three seasons contain thirty distinct real source photos and 2026 is t
 
 test("switching seasons resets the category and closes any active preview", () => {
   assert.match(component, /function selectSeason\(seasonYear: number\)[\s\S]*?dialogRef\.current\?\.close\(\);[\s\S]*?setSelectedRobotId\(null\);[\s\S]*?setActiveCategory\("all"\);[\s\S]*?setActiveSeasonYear\(seasonYear\);/);
-  assert.match(component, /const robots = activeSeason\.robots/);
+  assert.match(component, /const robots = useMemo\(\(\) => sortRobotsByNumber\(activeSeason\.robots\), \[activeSeason\]\)/);
   assert.match(component, /robots\.filter\(\(robot\) => robot\.category === activeCategory\)/);
   assert.match(component, /\{activeSeason\.season\} SEASON · \{selectedRobot\.category\}/);
 });
 
-test("gallery filters cover every requested category and keep the source order for all results", () => {
+test("gallery filters cover every requested category and use natural number order", () => {
   for (const label of ["全部", "英雄", "工程", "步兵", "空中", "哨兵", "飞镖", "雷达"]) {
     assert.match(component, new RegExp(`label: "${label}"`));
   }
+  assert.match(component, /sortRobotsByNumber\(activeSeason\.robots\)/);
   assert.match(component, /robots\.filter\(\(robot\) => robot\.category === activeCategory\)/);
   assert.match(component, /aria-pressed=\{selected\}/);
   assert.match(component, /loading=\{index === 0 \? "eager" : "lazy"\}/);
@@ -146,6 +183,8 @@ test("gallery filters cover every requested category and keep the source order f
 });
 
 test("lightbox supports filtered previous/next navigation, Escape, arrow keys, and native dialog focus restoration", () => {
+  assert.match(component, /const selectedRobotIndex = visibleRobots\.findIndex/);
+  assert.match(component, /visibleRobots\[nextIndex\]\.id/);
   assert.match(component, /<dialog[\s\S]*?onCancel=\{/);
   assert.match(component, /event\.key === "ArrowLeft"[\s\S]*?movePreview\(-1\)/);
   assert.match(component, /event\.key === "ArrowRight"[\s\S]*?movePreview\(1\)/);
