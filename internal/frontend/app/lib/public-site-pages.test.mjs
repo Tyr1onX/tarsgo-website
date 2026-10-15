@@ -75,7 +75,7 @@ test("topic content keeps the five group definitions, dedicated about page, and 
   assert.match(historyData, /sourceIds: \[/);
   assert.match(eventsArchive, /精选成果[\s\S]*?历年赛事[\s\S]*?荣誉证书/);
   assert.match(honorsData, /source\("RoboMaster 2025 全国赛获奖名单"/);
-  assert.match(joinExperience, /从具体任务开始/);
+  assert.match(joinExperience, /memberGrowthStages\.map/);
 });
 
 test("the homepage uses six image-led routes, preserves legacy hashes, and keeps reduced-motion video behavior", () => {
@@ -213,18 +213,39 @@ test("the about page explains platform identity, group collaboration, member gro
   assert.match(joinExperience, /role="tabpanel"/);
   assert.match(joinExperience, /aria-live="polite"/);
   assert.match(joinExperience, /activeGroup\.directions\.map/);
+  assert.match(joinExperience, /activeGroup\.collaboration/);
+  assert.match(joinExperience, /import \{ memberGrowthStages \} from "\.\.\/data\/about-team"/);
   assert.match(joinStyles, /:root\[data-theme="dark"\] \.join-group-mark__light/);
   assert.match(joinStyles, /:root\[data-theme="dark"\] \.join-group-mark__dark/);
   assert.match(joinStyles, /@media \(prefers-reduced-motion: reduce\)/);
 });
 
-test("the join guide distinguishes account creation from an open recruitment application", () => {
-  assert.match(joinExperience, /创建账号本身不等于提交招新报名/);
-  assert.match(joinExperience, /to="\/register"/);
+test("the join guide shows the verified current cycle and only a truthful next action", () => {
+  assert.match(joinExperience, /phase: "between-cycles"/);
+  assert.match(joinExperience, /cycle: "2026 纳新"/);
+  assert.match(joinExperience, /本轮结果通知已基本完成；下一轮安排尚未发布/);
+  assert.doesNotMatch(joinExperience, /to="\/register"/);
+  assert.match(joinExperience, /当届报名开放后/);
   assert.match(joinExperience, /to="\/dashboard\/users\/registrations"/);
-  assert.match(joinExperience, /当前是否开放招新/);
-  assert.match(joinExperience, /初筛通过不代表最终录取/);
+  assert.match(joinExperience, /href="#footer-social-heading"/);
+  assert.match(joinExperience, /publicRecruitmentState\.phase === "open"/);
+  assert.match(joinExperience, /材料初筛/);
+  assert.match(joinExperience, /确认面试/);
+  assert.match(joinExperience, /查看结果/);
+  assert.match(joinExperience, /注册完成后仍要单独提交报名/);
   assert.match(joinStyles, /grid-template-columns: repeat\(5, minmax\(0, 1fr\)\)/);
+  assert.match(joinStyles, /@media \(min-width: 768px\) and \(max-width: 1023px\)[\s\S]*?\.join-growth-path\s*\{\s*grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
+});
+
+test("the join guide reuses shared group facts and references existing local photography", async () => {
+  const imagePaths = [...joinExperience.matchAll(/(?:src=|image:)\s*"(\/assets\/images\/[^\"]+\.webp)"/g)].map((match) => match[1]);
+  assert.ok(imagePaths.length >= 5, "the join guide should remain image-led");
+  assert.equal(new Set(imagePaths).size, imagePaths.length, "the featured join photos should not repeat");
+  for (const imagePath of imagePaths) {
+    await readFile(new URL(`../../../../public${imagePath}`, import.meta.url));
+  }
+  assert.match(home, /collaboration:/);
+  assert.match(joinExperience, /activeGroup\.collaboration/);
 });
 
 test("the dedicated join guide only renders on its join route", () => {
