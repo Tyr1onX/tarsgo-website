@@ -453,7 +453,7 @@ test_previous_release_sha_mismatch_stops_before_build() {
 }
 
 test_backup_retention_waits_for_remote_checksum() {
-  local case_dir="$tmp/backup" old_name=jijia-old.sql.gz status latest_archive output
+  local case_dir="$tmp/backup" old_name=jijia-old.sql.gz retained_name=jijia-full-20261001T000000Z.tar.gz status latest_archive archive_name local_checksum remote_archive remote_checksum output
   mkdir -p "$case_dir/bin" "$case_dir/source/data/upload" "$case_dir/local" "$case_dir/remote/incoming" "$case_dir/remote/store"
   printf 'services: {}\n' >"$case_dir/source/compose.yaml"
   printf 'DB_PASSWORD=secret\n' >"$case_dir/source/.env"
@@ -463,9 +463,17 @@ test_backup_retention_waits_for_remote_checksum() {
   printf old >"$case_dir/local/$old_name.sha256"
   printf old >"$case_dir/remote/store/jijia-full-20200101T000000Z.tar.gz"
   printf 'old checksum\n' >"$case_dir/remote/store/jijia-full-20200101T000000Z.tar.gz.sha256"
-  python3 - "$case_dir/local/$old_name" "$case_dir/local/$old_name.sha256" "$case_dir/remote/store/jijia-full-20200101T000000Z.tar.gz" "$case_dir/remote/store/jijia-full-20200101T000000Z.tar.gz.sha256" <<'PY'
+  printf recent >"$case_dir/local/$retained_name"
+  printf 'recent checksum\n' >"$case_dir/local/$retained_name.sha256"
+  printf recent >"$case_dir/remote/store/$retained_name"
+  printf 'recent checksum\n' >"$case_dir/remote/store/$retained_name.sha256"
+  python3 - \
+    "$case_dir/local/$old_name" "$case_dir/local/$old_name.sha256" \
+    "$case_dir/remote/store/jijia-full-20200101T000000Z.tar.gz" "$case_dir/remote/store/jijia-full-20200101T000000Z.tar.gz.sha256" \
+    "$case_dir/local/$retained_name" "$case_dir/local/$retained_name.sha256" \
+    "$case_dir/remote/store/$retained_name" "$case_dir/remote/store/$retained_name.sha256" <<'PY'
 import os, sys, time
-for path, days in zip(sys.argv[1:], (8, 8, 31, 31)):
+for path, days in zip(sys.argv[1:], (8, 8, 31, 31, 6, 6, 29, 29)):
     old = time.time() - days * 86400
     os.utime(path, (old, old))
 PY
@@ -516,28 +524,63 @@ SSH
   status=$?
   set -e
   [[ "$status" -ne 0 ]] || fail "SCP failure was reported as success, mock modes: $(cat "$case_dir/scp.log" 2>/dev/null || true); output: $output"
-  [[ -e "$case_dir/local/$old_name" && -e "$case_dir/remote/store/jijia-full-20200101T000000Z.tar.gz" ]] || fail "SCP failure removed old backups"
+  [[ -e "$case_dir/local/$old_name" && -e "$case_dir/local/$old_name.sha256" && -e "$case_dir/remote/store/jijia-full-20200101T000000Z.tar.gz" && -e "$case_dir/remote/store/jijia-full-20200101T000000Z.tar.gz.sha256" ]] || fail "SCP failure removed old backups or checksums"
   set +e
   run_backup checksum-failure >/dev/null 2>&1
   status=$?
   set -e
-  [[ "$status" -ne 0 && -e "$case_dir/local/$old_name" && -e "$case_dir/remote/store/jijia-full-20200101T000000Z.tar.gz" ]] || fail "remote checksum failure triggered retention"
+  [[ "$status" -ne 0 && -e "$case_dir/local/$old_name" && -e "$case_dir/local/$old_name.sha256" && -e "$case_dir/remote/store/jijia-full-20200101T000000Z.tar.gz" && -e "$case_dir/remote/store/jijia-full-20200101T000000Z.tar.gz.sha256" ]] || fail "remote checksum failure triggered retention"
+  touch "$case_dir/backup-started"
   run_backup success >/dev/null
-  [[ ! -e "$case_dir/local/$old_name" && ! -e "$case_dir/remote/store/jijia-full-20200101T000000Z.tar.gz" ]] || fail "successful verified backup did not apply retention"
-  latest_archive="$(find "$case_dir/local" -maxdepth 1 -name 'jijia-full-*.tar.gz' -print -quit)"
+  [[ ! -e "$case_dir/local/$old_name" && ! -e "$case_dir/local/$old_name.sha256" && ! -e "$case_dir/remote/store/jijia-full-20200101T000000Z.tar.gz" && ! -e "$case_dir/remote/store/jijia-full-20200101T000000Z.tar.gz.sha256" ]] || fail "successful verified backup did not remove expired backups and checksums"
+  [[ -e "$case_dir/local/$retained_name" && -e "$case_dir/local/$retained_name.sha256" && -e "$case_dir/remote/store/$retained_name" && -e "$case_dir/remote/store/$retained_name.sha256" ]] || fail "retention removed a backup that was within its retention window"
+  latest_archive="$(find "$case_dir/local" -maxdepth 1 -name 'jijia-full-*.tar.gz' -newer "$case_dir/backup-started" -print -quit)"
   [[ -n "$latest_archive" ]] || fail "successful backup archive missing"
-  python3 - "$latest_archive" <<'PY'
-import os, sys
-assert os.stat(sys.argv[1]).st_mode & 0o777 == 0o600
+  archive_name="$(basename "$latest_archive")"
+  local_checksum="$latest_archive.sha256"
+  remote_archive="$case_dir/remote/store/$archive_name"
+  remote_checksum="$remote_archive.sha256"
+  [[ -f "$local_checksum" && -f "$remote_archive" && -f "$remote_checksum" ]] || fail "successful backup is missing its local or remote archive/checksum"
+  cmp -s "$latest_archive" "$remote_archive" || fail "remote archive differs from the locally verified archive"
+  cmp -s "$local_checksum" "$remote_checksum" || fail "remote checksum manifest differs from the local manifest"
+  (cd "$case_dir/local" && sha256sum --check -- "$archive_name.sha256") >/dev/null || fail "local archive checksum did not verify"
+  (cd "$case_dir/remote/store" && sha256sum --check -- "$archive_name.sha256") >/dev/null || fail "remote archive checksum did not verify"
+  python3 - "$latest_archive" "$local_checksum" "$remote_archive" "$remote_checksum" "$case_dir/local" "$case_dir/remote/store" "$case_dir/remote/incoming" <<'PY'
+import gzip
+import io
+import os
+import sys
+import tarfile
+
+local_archive, local_checksum, remote_archive, remote_checksum, local_dir, remote_store, remote_incoming = sys.argv[1:]
+for path in (local_archive, local_checksum, remote_archive, remote_checksum):
+    assert os.stat(path).st_mode & 0o777 == 0o600, f"{path} permissions are not 0600"
+for path in (local_dir, remote_store, remote_incoming):
+    assert os.stat(path).st_mode & 0o777 == 0o700, f"{path} permissions are not 0700"
+
+expected = {".env", "app.env", "compose.yaml", "database.sql.gz", "uploads.tar.gz"}
+with tarfile.open(local_archive, "r:gz") as archive:
+    members = {member.name: member for member in archive.getmembers()}
+    assert expected.issubset(members), f"backup omits required snapshots: {sorted(expected - members.keys())}"
+    contents = {}
+    for name in expected:
+        member = members[name]
+        assert member.isfile(), f"{name} is not a regular file"
+        assert member.mode & 0o777 == 0o600, f"{name} permissions are not 0600"
+        extracted = archive.extractfile(member)
+        assert extracted is not None, f"{name} cannot be read"
+        contents[name] = extracted.read()
+
+assert contents[".env"] == b"DB_PASSWORD=secret\n", ".env snapshot content is incorrect"
+assert contents["app.env"] == b"JWT_SECRET=secret\n", "app.env snapshot content is incorrect"
+assert contents["compose.yaml"] == b"services: {}\n", "compose.yaml snapshot content is incorrect"
+assert b"CREATE DATABASE fixture;" in gzip.decompress(contents["database.sql.gz"]), "database dump is missing from the archive"
+with tarfile.open(fileobj=io.BytesIO(gzip.decompress(contents["uploads.tar.gz"])), mode="r:") as uploads:
+    assert "upload/example.txt" in uploads.getnames(), "upload snapshot is missing from the archive"
+    uploaded = uploads.extractfile("upload/example.txt")
+    assert uploaded is not None and uploaded.read() == b"upload fixture\n", "upload snapshot content is incorrect"
 PY
-  tar -tzf "$latest_archive" | grep -Fxq .env || fail "backup omits required config snapshot"
-  python3 - "$latest_archive" <<'PY'
-import sys, tarfile
-with tarfile.open(sys.argv[1], "r:gz") as archive:
-    for name in (".env", "app.env", "compose.yaml", "database.sql.gz", "uploads.tar.gz"):
-        assert archive.getmember(name).mode & 0o777 == 0o600, name
-PY
-  pass "local and remote retention waits for copy plus verified remote checksum"
+  pass "archive contents, local/remote permissions and checksums, and 7/30-day retention verified"
 }
 
 test_high_water_abort_precedes_build
