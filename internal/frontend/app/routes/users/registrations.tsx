@@ -5,6 +5,7 @@ import {
   type ReactNode,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 import { createPortal } from "react-dom";
@@ -1129,31 +1130,72 @@ function RecruitmentProgressCard({
   interviewLoading: boolean;
 }) {
   const progress = getRecruitmentProgress(summary, interviewAttendance, interviewLoading);
+  const progressScrollerRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const scroller = progressScrollerRef.current;
+    if (!scroller) return;
+
+    const centerActiveStep = () => {
+      const activeStep = scroller.querySelector<HTMLElement>('[aria-current="step"]');
+      if (!activeStep || scroller.scrollWidth <= scroller.clientWidth) return;
+
+      const scrollerRect = scroller.getBoundingClientRect();
+      const stepRect = activeStep.getBoundingClientRect();
+      const left = scroller.scrollLeft + stepRect.left - scrollerRect.left - (scroller.clientWidth - activeStep.clientWidth) / 2;
+      scroller.scrollTo({ left: Math.max(0, left), behavior: "auto" });
+    };
+
+    centerActiveStep();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", centerActiveStep);
+      return () => window.removeEventListener("resize", centerActiveStep);
+    }
+
+    const observer = new ResizeObserver(centerActiveStep);
+    observer.observe(scroller);
+    return () => observer.disconnect();
+  }, [progress.activeStepIndex]);
 
   return (
     <section className="admin-panel candidate-progress-card">
       <div className="candidate-progress-section">
         <div className="candidate-section-heading">
           <h3>招新流程</h3>
-          <p>每一步的状态会在这里更新</p>
         </div>
-        <ol aria-label="招新流程进度" className="candidate-progress-list">
-          {progress.steps.map((step, index) => (
-            <li
-              key={step.label}
-              aria-current={step.state === "current" ? "step" : undefined}
-              className={`candidate-step candidate-step--${step.state}`}
-            >
-              <span className="candidate-step-marker">
-                {step.state === "complete" ? "✓" : step.state === "skipped" ? "–" : index + 1}
-              </span>
-              <span className="candidate-step-label">{step.label}</span>
-              <span className="candidate-step-state">
-                {step.state === "complete" ? "已完成" : step.state === "current" ? "当前" : step.state === "skipped" ? "未进入" : "待开始"}
-              </span>
-            </li>
-          ))}
-        </ol>
+        <div
+          ref={progressScrollerRef}
+          aria-label="招新流程步骤"
+          className="candidate-progress-scroll"
+          role="region"
+          tabIndex={0}
+        >
+          <ol aria-label="招新流程进度" className="candidate-progress-list">
+            {progress.steps.map((step, index) => (
+              <li
+                key={step.label}
+                aria-current={index === progress.activeStepIndex ? "step" : undefined}
+                className={`candidate-step candidate-step--${step.state}`}
+              >
+                <span aria-hidden="true" className="candidate-step-marker">
+                  {step.state === "complete"
+                    ? "✓"
+                    : step.state === "skipped"
+                      ? "–"
+                      : step.state === "rejected" || step.state === "result"
+                        ? "!"
+                        : step.state === "withdrawn"
+                          ? "撤"
+                          : step.state === "admitted"
+                            ? "★"
+                            : index + 1}
+                </span>
+                <span className="candidate-step-label">{step.label}</span>
+                <span className="candidate-step-state">{step.status}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
       </div>
 
       <div className="candidate-meta-grid">
