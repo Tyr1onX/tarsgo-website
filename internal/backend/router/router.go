@@ -1,6 +1,7 @@
 package router
 
 import (
+	"net/url"
 	"path/filepath"
 	"strings"
 	"time"
@@ -31,6 +32,14 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	engine.Use(gin.Recovery())
 	engine.Use(middleware.AuditAdministrativeActions(db))
 	engine.Use(middleware.AttachBusinessActivityRecorder(db))
+	engine.Use(func(c *gin.Context) {
+		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+			c.Header("Cache-Control", "private, no-store")
+			c.Header("Pragma", "no-cache")
+			c.Header("Vary", "Cookie")
+		}
+		c.Next()
+	})
 	engine.Use(cors.New(cors.Config{
 		AllowOriginFunc: func(origin string) bool {
 			return isAllowedOrigin(origin, cfg.CORS.AllowedOrigins, cfg.App.Env)
@@ -44,6 +53,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 			"accept",
 			"Authorization",
 			"authorization",
+			"X-Tarsgo-Account-Action",
 		},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
@@ -74,8 +84,15 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	api.POST("/login/email/password", authHandler.LoginWithPassword)
 	api.POST("/login/email/send-code", authHandler.SendLoginCode)
 	api.POST("/login/email/code", authHandler.LoginWithCode)
-	api.POST("/logout", authHandler.Logout)
+	api.POST("/logout", requireAccountActionOrigin(cfg), authHandler.Logout)
 	api.GET("/me", authHandler.Me)
+	api.GET("/account-sessions", authHandler.ListAccountSessions)
+	accountSessionAPI := api.Group("/account-sessions")
+	accountSessionAPI.Use(requireAccountActionOrigin(cfg))
+	accountSessionAPI.POST("/initialize", authHandler.InitializeAccountSessions)
+	accountSessionAPI.POST("/switch", authHandler.SwitchAccountSession)
+	accountSessionAPI.DELETE("/:id", authHandler.RemoveAccountSession)
+	accountSessionAPI.POST("/logout-all", authHandler.LogoutAllAccounts)
 
 	adminAPI := api.Group("/admin")
 	adminAPI.Use(middleware.RequireAdmin(authService))
@@ -168,4 +185,39 @@ func isAllowedOrigin(origin string, explicitOrigins []string, appEnv string) boo
 	}
 
 	return false
+}
+
+func requireAccountActionOrigin(cfg *config.Config) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if c.GetHeader("X-Tarsgo-Account-Action") != "1" {
+			c.AbortWithStatusJSON(403, gin.H{"code": 403, "message": "请求来源校验失败", "data": nil})
+			return
+		}
+		origin := strings.TrimSpace(c.GetHeader("Origin"))
+		if !isSameOriginOrAllowed(origin, c, cfg.CORS.AllowedOrigins, cfg.App.Env) {
+			c.AbortWithStatusJSON(403, gin.H{"code": 403, "message": "请求来源校验失败", "data": nil})
+			return
+		}
+		if strings.EqualFold(strings.TrimSpace(c.GetHeader("Sec-Fetch-Site")), "cross-site") {
+			c.AbortWithStatusJSON(403, gin.H{"code": 403, "message": "请求来源校验失败", "data": nil})
+			return
+		}
+		c.Next()
+	}
+}
+
+func isSameOriginOrAllowed(origin string, c *gin.Context, allowedOrigins []string, appEnv string) bool {
+	parsed, err := url.Parse(origin)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" || parsed.User != nil || parsed.Path != "" || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return false
+	}
+	requestScheme := "http"
+	forwardedProto := strings.TrimSpace(strings.Split(c.GetHeader("X-Forwarded-Proto"), ",")[0])
+	if c.Request.TLS != nil || strings.EqualFold(forwardedProto, "https") {
+		requestScheme = "https"
+	}
+	if strings.EqualFold(parsed.Scheme, requestScheme) && strings.EqualFold(parsed.Host, c.Request.Host) {
+		return true
+	}
+	return isAllowedOrigin(origin, allowedOrigins, appEnv)
 }

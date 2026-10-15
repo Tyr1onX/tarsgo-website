@@ -75,12 +75,19 @@
 | `GET` | `/api/bootstrap/status` | 获取系统初始化状态 |
 | `POST` | `/api/bootstrap/super-admin` | 首次注册超级管理员 |
 | `POST` | `/api/register/email/send-code` | 发送注册验证码 |
-| `POST` | `/api/register/email` | 邮箱注册并签发 JWT Cookie |
+| `POST` | `/api/register/email` | 邮箱注册并签发 HttpOnly 服务端会话 Cookie |
 | `POST` | `/api/login/email/password` | 邮箱密码登录 |
 | `POST` | `/api/login/email/send-code` | 发送登录验证码 |
 | `POST` | `/api/login/email/code` | 邮箱验证码登录 |
 | `GET` | `/api/me` | 获取当前登录用户 |
-| `POST` | `/api/logout` | 清除 JWT Cookie |
+| `GET` | `/api/account-sessions` | 获取当前浏览器保存的账号 |
+| `POST` | `/api/account-sessions/initialize` | 将当前有效会话纳入浏览器账号列表 |
+| `POST` | `/api/account-sessions/switch` | 校验账号槽位并轮换服务端会话 |
+| `DELETE` | `/api/account-sessions/:id` | 移除账号并撤销对应会话 |
+| `POST` | `/api/account-sessions/logout-all` | 撤销并退出当前浏览器保存的全部账号 |
+| `POST` | `/api/logout` | 退出当前账号并保留其他已保存账号 |
+
+新登录使用随机不透明会话值，数据库只保存其 SHA-256 摘要；浏览器只通过 HttpOnly Cookie 持有当前会话和账号列表标识。JWT 仅为兼容部署前尚未过期的旧 Cookie 保留解析逻辑。账号列表最多 5 个槽位，每次切换都会轮换所选会话值；所有账号变更接口要求自定义请求头并校验 Origin。
 
 ## 基础接口
 

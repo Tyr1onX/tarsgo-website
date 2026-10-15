@@ -81,6 +81,34 @@ func (s stubAuthService) CurrentUser(ctx context.Context, token string) (*auth.S
 	return nil, nil
 }
 
+func (stubAuthService) CreateAccountSession(ctx context.Context, userID uint64, currentToken, vaultToken string) (*auth.AccountSessionsResult, error) {
+	return &auth.AccountSessionsResult{SessionToken: "opaque-session", VaultToken: "opaque-vault"}, nil
+}
+
+func (stubAuthService) InitializeAccountSessions(ctx context.Context, currentToken, vaultToken string) (*auth.AccountSessionsResult, error) {
+	return &auth.AccountSessionsResult{SessionToken: currentToken, VaultToken: vaultToken}, nil
+}
+
+func (stubAuthService) ListAccountSessions(ctx context.Context, vaultToken, currentToken string) (*auth.AccountSessionsResult, error) {
+	return &auth.AccountSessionsResult{}, nil
+}
+
+func (stubAuthService) SwitchAccountSession(ctx context.Context, vaultToken string, entryID uint64) (*auth.AccountSessionsResult, error) {
+	return &auth.AccountSessionsResult{SessionToken: "switched-session", User: &auth.SessionUser{}}, nil
+}
+
+func (stubAuthService) RemoveAccountSession(ctx context.Context, vaultToken, currentToken string, entryID uint64) (*auth.AccountSessionsResult, error) {
+	return &auth.AccountSessionsResult{}, nil
+}
+
+func (stubAuthService) LogoutCurrentAccount(ctx context.Context, currentToken, vaultToken string) (bool, error) {
+	return false, nil
+}
+
+func (stubAuthService) LogoutAllAccounts(ctx context.Context, currentToken, vaultToken string) error {
+	return nil
+}
+
 func (s stubAuthService) CookieName() string {
 	return "tarsgo_token"
 }
@@ -176,7 +204,6 @@ func TestRegisterWithEmailSetsCookie(t *testing.T) {
 				t.Fatalf("expected phone to be forwarded, got %q", input.Phone)
 			}
 			return &auth.AuthResult{
-				Token: "signed-token",
 				User: &auth.SessionUser{
 					ID:    1,
 					Email: "user@example.com",
@@ -204,8 +231,11 @@ func TestRegisterWithEmailSetsCookie(t *testing.T) {
 	}
 
 	setCookie := recorder.Header().Get("Set-Cookie")
-	if !strings.Contains(setCookie, "tarsgo_token=signed-token") {
+	if !strings.Contains(setCookie, "tarsgo_token=opaque-session") {
 		t.Fatalf("expected auth cookie to be set, got %s", setCookie)
+	}
+	if !strings.Contains(recorder.Header().Get("Set-Cookie"), "HttpOnly") {
+		t.Fatalf("expected session cookie to be HttpOnly, got %s", setCookie)
 	}
 }
 
@@ -244,7 +274,6 @@ func TestRegisterInitialSuperAdminSetsCookie(t *testing.T) {
 	handler := NewAuthHandler(stubAuthService{
 		registerInitialSuperAdminFn: func(ctx context.Context, input auth.RegisterInitialSuperAdminInput) (*auth.AuthResult, error) {
 			return &auth.AuthResult{
-				Token: "bootstrap-token",
 				User: &auth.SessionUser{
 					ID:    1,
 					Email: "root@example.com",
@@ -270,7 +299,7 @@ func TestRegisterInitialSuperAdminSetsCookie(t *testing.T) {
 	}
 
 	setCookie := recorder.Header().Get("Set-Cookie")
-	if !strings.Contains(setCookie, "tarsgo_token=bootstrap-token") {
+	if !strings.Contains(setCookie, "tarsgo_token=opaque-session") {
 		t.Fatalf("expected bootstrap auth cookie to be set, got %s", setCookie)
 	}
 }
