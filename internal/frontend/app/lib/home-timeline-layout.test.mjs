@@ -43,12 +43,16 @@ test("home sections share a content width and imagery uses deliberate aspect rat
   assert.match(home, /image\.fit === "contain" \? "object-contain" : "object-cover"/);
 });
 
-test("the dedicated honors archive owns certificate records, categorizes awards, and preserves duplicate evidence", async () => {
+test("the honors archive pairs a real competition photo with selected results and a single year-indexed record", async () => {
   const archive = await readFile(new URL("../components/events-and-honors-archive.tsx", import.meta.url), "utf8");
   const data = await readFile(new URL("./events-and-honors-data.ts", import.meta.url), "utf8");
   const styles = await readFile(new URL("../components/events-and-honors-archive.css", import.meta.url), "utf8");
   assert.match(home, /<EventsAndHonorsArchive \/>/);
   assert.match(archive, /id="highlights"[\s\S]*?id="competition-records"[\s\S]*?id="certificates"/);
+  assert.match(home, /routePage === "events-and-honors" \? "public-topic-hero--events"/);
+  assert.match(archive, /honors-featured-visual[\s\S]*?2024-national-competition\.webp/);
+  assert.match(archive, /spotlightAward\.result/);
+  assert.match(archive, /aria-label="按年份查看赛事档案"[\s\S]*?honors-year-" \+ year/);
   assert.equal((data.match(/id: "certificate-\d{2}"/g) ?? []).length, 0, "materials are generated from a single numbered source list");
   assert.match(data, /Array\.from\(\{ length: 25 \}/);
   assert.match(data, /id === "certificate-10"[\s\S]*?duplicate/);
@@ -63,12 +67,14 @@ test("the dedicated honors archive owns certificate records, categorizes awards,
   assert.match(archive, /event.key === "Home"/);
   assert.match(archive, /event.key === "End"/);
   assert.match(archive, /aria-haspopup="dialog"/);
+  assert.match(archive, /honors-preview-original/);
   assert.match(archive, /award\.certificateIds\.length > 0[\s\S]*?查看证书原件/);
-  assert.match(styles, /\.honors-featured-item > \.honors-source-list\s*\{\s*grid-column: 1;/);
-  assert.match(styles, /@media \(min-width: 640px\)[\s\S]*?\.honors-featured-item > \.honors-source-list\s*\{\s*grid-column: 2;/);
-  assert.match(styles, /\.honors-featured-list\s*\{\s*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
-  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.match(styles, /\.honors-featured-showcase\s*\{[^}]*grid-template-columns: minmax\(0, 1\.15fr\) minmax\(20rem, 0\.85fr\)/);
+  assert.match(styles, /\.honors-year-timeline\s*\{[^}]*border-left:/);
+  assert.match(styles, /@media \(max-width: 767px\)[\s\S]*?\.honors-featured-showcase\s*\{[^}]*grid-template-columns: minmax\(0, 1fr\)/);
   assert.match(styles, /\.honors-material-grid\s*\{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /@media \(min-width: 1024px\)[\s\S]*?\.honors-material-grid\s*\{\s*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.honors-material-open:focus-visible/);
   const certificates = await Promise.all(Array.from({ length: 25 }, (_, index) => {
     const number = String(index + 1).padStart(2, "0");
     return readFile(new URL(`../../../../public/assets/images/CertificateOfAchievement/certificate-${number}.webp`, import.meta.url));

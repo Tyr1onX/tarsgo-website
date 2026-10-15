@@ -890,7 +890,7 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
 
       </section>
       ) : routePage === "join" ? null : (
-        <section className={"public-topic-hero relative isolate overflow-hidden " + (routePage === "robots" ? "public-topic-hero--robots" : "")}>
+        <section className={"public-topic-hero relative isolate overflow-hidden " + (routePage === "robots" ? "public-topic-hero--robots" : routePage === "events-and-honors" ? "public-topic-hero--events" : "")}>
           <img
             src={topic?.image}
             alt=""
