@@ -81,6 +81,7 @@ test("topic content keeps the five group definitions, dedicated about page, and 
 test("the homepage uses six image-led routes, preserves legacy hashes, and keeps reduced-motion video behavior", () => {
   const modules = home.match(/const homeNavigationModules = \[([\s\S]*?)\n\];/)?.[1] ?? "";
   assert.equal((modules.match(/title: /g) ?? []).length, 6);
+  assert.doesNotMatch(home, /25 张荣誉证书原图/);
   for (const path of ["/about", "/robots", "/join", "/events-and-honors", "/team-history", "/micro-specialties/low-altitude-intelligent-sensing-control"]) {
     assert.ok(modules.includes(`href: "${path}"`), `missing homepage route ${path}`);
   }

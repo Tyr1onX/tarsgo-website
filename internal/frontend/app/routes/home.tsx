@@ -175,7 +175,7 @@ const homeNavigationModules = [
   },
   {
     title: "赛事与荣誉",
-    description: "回看真实赛事记录，浏览 25 张荣誉证书原图。",
+    description: "回看真实赛事记录，浏览荣誉证书原图。",
     href: "/events-and-honors",
     image: "/assets/images/ContestMoment/contest-moment-02.webp",
     alt: "吉甲大师团队赛事现场记录。",
