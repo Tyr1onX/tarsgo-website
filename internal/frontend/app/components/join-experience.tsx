@@ -1,12 +1,14 @@
 import { useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Link } from "react-router";
 
+import { memberGrowthStages } from "../data/about-team";
 import "./join-experience.css";
 
 type JoinGroup = {
   name: string;
   description: string;
   directions: string[];
+  collaboration: string;
   logoBlack: string;
   logoWhite: string;
   logoStructure: string;
@@ -24,7 +26,7 @@ const activityStories = [
   {
     number: "01",
     title: "参与真实项目",
-    description: "围绕具体任务开展机器人实践与组内协作，从承担实际工作开始积累经验。每组参与的内容会随项目不同而变化。",
+    description: "围绕具体任务开展机器人研发与组内协作，从承担实际工作开始积累经验。每组参与的内容会随项目不同而变化。",
     image: "/assets/images/Preparation_for_competition/preparation-02.webp",
     imageAlt: "队员围绕机器人进行赛前检查与调试。",
     caption: "团队备赛现场记录",
@@ -41,32 +43,9 @@ const activityStories = [
     number: "03",
     title: "一起建设团队",
     description: "技术开发之外，宣传、策划、赛事运营与对外联络同样支撑团队运转。不同兴趣与专长都能成为协作的一部分。",
-    image: "/assets/images/Daily/daily-02.webp",
-    imageAlt: "队员围绕笔记本与模型进行日常讨论。",
-    caption: "吉甲大师团队日常",
-  },
-];
-
-const growthStages = [
-  {
-    number: "01",
-    title: "了解方向",
-    description: "认识战队、了解组别职责，选择自己感兴趣的方向。",
-  },
-  {
-    number: "02",
-    title: "基础学习",
-    description: "接触必要的工具与知识，逐步熟悉组内协作。",
-  },
-  {
-    number: "03",
-    title: "参与实践",
-    description: "从具体任务开始，在实践中积累经验。",
-  },
-  {
-    number: "04",
-    title: "深入项目",
-    description: "结合个人能力与团队需求，尝试参与更完整的项目。",
+    image: "/assets/images/Daily/daily-05.webp",
+    imageAlt: "吉甲大师成员共同准备餐食的团队活动现场。",
+    caption: "团队活动记录",
   },
 ];
 
@@ -74,39 +53,41 @@ const recruitmentSteps = [
   {
     number: "01",
     title: "了解方向",
-    description: "先了解五个组别的职责，想清楚感兴趣的方向。",
+    description: "结合组别职责和当届招新公告，了解团队需要与自己感兴趣的方向。",
   },
   {
     number: "02",
-    title: "创建平台账号",
-    description: "在账号注册页创建登录账号；创建账号本身不等于提交招新报名。",
+    title: "提交当届报名",
+    description: "当届报名开放后，通过 TARSGO 平台登录并填写该届表单；如需注册账号，注册完成后仍要单独提交报名。",
   },
   {
     number: "03",
-    title: "查看开放报名",
-    description: "登录后进入“我的招新”。只有当前有开放表单时，才能填写并提交报名。",
+    title: "线上初筛",
+    description: "提交后按当届流程进行材料初筛；后续进度可在“我的招新”中查看。",
   },
   {
     number: "04",
-    title: "线上初筛",
-    description: "报名提交后进入材料初筛；初筛通过不代表最终录取。",
+    title: "确认面试",
+    description: "通过初筛后按通知确认意愿，并在有可选时段时预约面试；具体安排以当届页面为准。",
   },
   {
     number: "05",
-    title: "确认面试",
-    description: "初筛通过后，在“我的招新”查看通知并确认是否参加。",
-  },
-  {
-    number: "06",
-    title: "预约面试",
-    description: "有可选时段时选择并保存面试时间；时段未开放时按页面提示等待安排。",
-  },
-  {
-    number: "07",
     title: "查看结果",
-    description: "在“我的招新”查看进度与结果；面试结果按系统流程通知报名邮箱。",
+    description: "在“我的招新”查看进度与结果，并留意报名邮箱中的流程通知。",
   },
 ];
+
+type PublicRecruitmentState =
+  | { phase: "open"; cycle: string; message: string; registrationPath: string }
+  | { phase: "between-cycles"; cycle: string; message: string; registrationPath: null };
+
+// The current platform form is login-protected, so keep the public notice explicit and easy to update.
+const publicRecruitmentState: PublicRecruitmentState = {
+  phase: "between-cycles",
+  cycle: "2026 纳新",
+  message: "本轮结果通知已基本完成；下一轮安排尚未发布。",
+  registrationPath: null,
+};
 
 function handleGroupTabKeyDown(
   event: ReactKeyboardEvent<HTMLButtonElement>,
@@ -139,8 +120,8 @@ export function JoinExperience({ groups }: { groups: JoinGroup[] }) {
       <section id="join" className="join-hero" aria-labelledby="join-page-heading">
         <img
           className="join-hero__image"
-          src="/assets/images/Daily/daily-02.webp"
-          alt="队员围绕笔记本与模型进行日常讨论。"
+          src="/assets/images/Daily/daily-07.webp"
+          alt="吉甲大师成员在工作室围绕机器人交流与调试。"
           fetchPriority="high"
           decoding="async"
         />
@@ -149,7 +130,7 @@ export function JoinExperience({ groups }: { groups: JoinGroup[] }) {
           <p className="join-eyebrow">YOUR JOURNEY STARTS HERE</p>
           <h1 id="join-page-heading">和我们一起，创造更多可能。</h1>
           <p className="join-hero__description">
-            从接触机器人，到参与项目与赛事，在工程实践和团队协作中探索属于自己的方向。
+            从机器人研发与 RoboMaster 赛季，到跨学科项目和团队运行，在真实任务中练习工程协作，也把经验留给后来者。
           </p>
           <a className="join-hero__link" href="#join-groups">
             探索五个组别 <span aria-hidden="true">↓</span>
@@ -201,12 +182,12 @@ export function JoinExperience({ groups }: { groups: JoinGroup[] }) {
           >
             <figure className="join-group-panel__photo">
               <img
-                src="/assets/images/Preparation_for_competition/preparation-02.webp"
-                alt="吉甲大师团队备赛现场的通用影像，与当前选择的组别不直接对应。"
+                src="/assets/images/Daily/daily-03.webp"
+                alt="吉甲大师成员在工作室围绕电脑交流。"
                 loading="lazy"
                 decoding="async"
               />
-              <figcaption>团队备赛现场 · 通用团队影像，不代表当前组别的专属工作现场。</figcaption>
+              <figcaption>团队协作现场 · 通用团队影像，不代表当前组别的专属工作现场。</figcaption>
             </figure>
 
             <div className="join-group-panel__content" aria-live="polite" aria-atomic="true">
@@ -237,6 +218,10 @@ export function JoinExperience({ groups }: { groups: JoinGroup[] }) {
                   <h4>适合怎样的兴趣方向？</h4>
                   <p>{groupInterests[activeGroup.name] ?? "可以先从本组职责与涉及方向开始了解，再结合自己的兴趣选择。"}</p>
                 </section>
+                <section>
+                  <h4>怎样与其他组协作？</h4>
+                  <p>{activeGroup.collaboration}</p>
+                </section>
               </div>
             </div>
           </div>
@@ -246,7 +231,7 @@ export function JoinExperience({ groups }: { groups: JoinGroup[] }) {
           <div className="join-section__heading">
             <p className="join-eyebrow">LIFE AT TARSGO</p>
             <h2 id="join-stories-heading">在吉甲，你可以经历什么？</h2>
-            <p>机器人项目、比赛现场与团队日常，构成不同成员共同参与的实践。</p>
+            <p>研发、竞赛与团队活动呈现不同的实践场景；实际参与内容随组别、项目和赛季安排变化。</p>
           </div>
 
           <div className="join-story-list">
@@ -273,10 +258,10 @@ export function JoinExperience({ groups }: { groups: JoinGroup[] }) {
           <div className="join-section__heading">
             <p className="join-eyebrow">A POSSIBLE JOURNEY</p>
             <h2 id="join-growth-heading">新人如何成长？</h2>
-            <p>这是一条可能的成长方向，不代表统一执行的培养制度；具体内容与安排以各组和项目实际情况为准。</p>
+            <p>这是一条可能的成长方向，不代表统一课程、进度或培养承诺。组内训练、项目与赛季中的参与机会和责任，会随个人准备及实际任务变化。</p>
           </div>
           <ol className="join-growth-path">
-            {growthStages.map((stage) => (
+            {memberGrowthStages.map((stage) => (
               <li key={stage.number}>
                 <span className="join-growth-path__number">{stage.number}</span>
                 <h3>{stage.title}</h3>
@@ -290,7 +275,6 @@ export function JoinExperience({ groups }: { groups: JoinGroup[] }) {
           <div className="join-section__heading">
             <p className="join-eyebrow">HOW TO JOIN</p>
             <h2 id="join-process-heading">如何加入我们？</h2>
-            <p>页面会根据当前招新状态显示开放信息；不要把平台账号注册当作完成报名。</p>
           </div>
 
           <ol className="join-process">
@@ -306,20 +290,23 @@ export function JoinExperience({ groups }: { groups: JoinGroup[] }) {
           </ol>
 
           <p className="join-process__status">
-            当前是否开放招新，以登录后“我的招新”页面显示为准；本页不预设报名开放或截止状态。
+            <strong>{publicRecruitmentState.cycle}：</strong> {publicRecruitmentState.message} 请以当届正式公告和平台表单为准。
           </p>
 
           <div className="join-actions">
-            <Link className="join-action join-action--primary" to="/register">
-              创建平台账号 <span aria-hidden="true">→</span>
-            </Link>
+            {publicRecruitmentState.phase === "open" ? (
+              <Link className="join-action join-action--primary" to={publicRecruitmentState.registrationPath}>
+                进入当届报名 <span aria-hidden="true">→</span>
+              </Link>
+            ) : (
+              <a className="join-action join-action--primary" href="#footer-social-heading">
+                关注官方账号，留意下一轮信息 <span aria-hidden="true">↓</span>
+              </a>
+            )}
             <Link className="join-action join-action--secondary" to="/dashboard/users/registrations">
-              已有账号？进入“我的招新”
+              已提交报名？查看进度
             </Link>
           </div>
-          <p className="join-actions__note">
-            创建账号只会开通平台登录；请在“我的招新”确认是否有开放表单，并单独提交招新报名。
-          </p>
         </section>
       </div>
     </main>
