@@ -19,8 +19,10 @@ type Repository interface {
 	GetUserByEmail(ctx context.Context, email string) (*model.User, error)
 	ListRoles(ctx context.Context) ([]model.Role, error)
 	GetRoleByID(ctx context.Context, roleID uint64) (*model.Role, error)
-	CreateUser(ctx context.Context, user *model.User, assignDefaultGroup bool) error
+	CreateUser(ctx context.Context, user *model.User) error
 	UpdateUser(ctx context.Context, userID uint64, updates map[string]any) error
+	UpdateUserGroup(ctx context.Context, actorID, userID uint64, groupID *uint64) error
+	UpdateUserGroupRole(ctx context.Context, actorID, userID, groupID uint64, role uint8) error
 	UpdatePasswordHash(ctx context.Context, userID uint64, passwordHash string) error
 }
 
@@ -33,9 +35,13 @@ func NewRepository(db *gorm.DB) Repository {
 }
 
 func (r *GormRepository) ListUsers(ctx context.Context, filter ListUsersInput) ([]model.User, int64, error) {
+	memberships := r.activeMembershipCounts()
+	rawMemberships := r.rawMembershipCounts()
 	base := r.db.WithContext(ctx).
 		Model(&model.User{}).
-		Joins("JOIN roles ON roles.id = users.role_id")
+		Joins("JOIN roles ON roles.id = users.role_id").
+		Joins("LEFT JOIN (?) AS group_counts ON group_counts.user_id = users.id", memberships).
+		Joins("LEFT JOIN (?) AS raw_group_counts ON raw_group_counts.user_id = users.id", rawMemberships)
 
 	if keyword := strings.TrimSpace(filter.Keyword); keyword != "" {
 		like := "%" + keyword + "%"
@@ -49,6 +55,16 @@ func (r *GormRepository) ListUsers(ctx context.Context, filter ListUsersInput) (
 	if filter.Status != nil {
 		base = base.Where("users.status = ?", *filter.Status)
 	}
+	switch filter.GroupState {
+	case "assigned":
+		base = base.Where("COALESCE(group_counts.group_count, 0) = 1")
+	case "unassigned":
+		base = base.Where("COALESCE(group_counts.group_count, 0) = 0")
+	case "pending":
+		base = base.Where("COALESCE(group_counts.group_count, 0) >= 2")
+	case "cleanup":
+		base = base.Where("COALESCE(raw_group_counts.group_count, 0) >= 2 AND COALESCE(group_counts.group_count, 0) < 2")
+	}
 
 	countQuery := base.Session(&gorm.Session{})
 	var total int64
@@ -59,7 +75,7 @@ func (r *GormRepository) ListUsers(ctx context.Context, filter ListUsersInput) (
 	var users []model.User
 	dataQuery := base.Session(&gorm.Session{})
 	if err := dataQuery.
-		Preload("Role").
+		Preload("Role").Preload("GroupMembers.Group").
 		Order("users.created_at DESC").
 		Offset((filter.Page - 1) * filter.PageSize).
 		Limit(filter.PageSize).
@@ -71,36 +87,73 @@ func (r *GormRepository) ListUsers(ctx context.Context, filter ListUsersInput) (
 }
 
 func (r *GormRepository) GetUserStats(ctx context.Context) (UserStats, error) {
-	stats := UserStats{}
-	if err := r.db.WithContext(ctx).Model(&model.User{}).Count(&stats.Total).Error; err != nil {
-		return stats, err
+	stats := UserStats{GroupDistribution: make([]GroupDistributionItem, 0)}
+	type aggregate struct {
+		Total      int64
+		Enabled    int64
+		Disabled   int64
+		Admins     int64
+		Grouped    int64
+		Unassigned int64
+		Pending    int64
+		Cleanup    int64
 	}
-	if err := r.db.WithContext(ctx).
-		Model(&model.User{}).
-		Where("status = ?", model.UserStatusEnabled).
-		Count(&stats.Enabled).Error; err != nil {
-		return stats, err
-	}
-	if err := r.db.WithContext(ctx).
-		Model(&model.User{}).
-		Where("status = ?", model.UserStatusDisabled).
-		Count(&stats.Disabled).Error; err != nil {
-		return stats, err
-	}
-	if err := r.db.WithContext(ctx).
-		Model(&model.User{}).
+	var counts aggregate
+	memberships := r.activeMembershipCounts()
+	rawMemberships := r.rawMembershipCounts()
+	if err := r.db.WithContext(ctx).Table("users").
 		Joins("JOIN roles ON roles.id = users.role_id").
-		Where("roles.name IN ?", []string{model.RoleNameSuperAdmin, model.RoleNameAdmin}).
-		Count(&stats.Admins).Error; err != nil {
+		Joins("LEFT JOIN (?) AS group_counts ON group_counts.user_id = users.id", memberships).
+		Joins("LEFT JOIN (?) AS raw_group_counts ON raw_group_counts.user_id = users.id", rawMemberships).
+		Select(`COUNT(DISTINCT users.id) AS total,
+			COALESCE(SUM(CASE WHEN users.status = ? THEN 1 ELSE 0 END), 0) AS enabled,
+			COALESCE(SUM(CASE WHEN users.status = ? THEN 1 ELSE 0 END), 0) AS disabled,
+			COALESCE(SUM(CASE WHEN roles.name IN (?, ?) THEN 1 ELSE 0 END), 0) AS admins,
+			COALESCE(SUM(CASE WHEN COALESCE(group_counts.group_count, 0) = 1 THEN 1 ELSE 0 END), 0) AS grouped,
+			COALESCE(SUM(CASE WHEN COALESCE(group_counts.group_count, 0) = 0 THEN 1 ELSE 0 END), 0) AS unassigned,
+			COALESCE(SUM(CASE WHEN COALESCE(group_counts.group_count, 0) >= 2 THEN 1 ELSE 0 END), 0) AS pending,
+			COALESCE(SUM(CASE WHEN COALESCE(raw_group_counts.group_count, 0) >= 2 AND COALESCE(group_counts.group_count, 0) < 2 THEN 1 ELSE 0 END), 0) AS cleanup`,
+			model.UserStatusEnabled, model.UserStatusDisabled, model.RoleNameSuperAdmin, model.RoleNameAdmin).
+		Scan(&counts).Error; err != nil {
+		return stats, err
+	}
+	stats.Total, stats.Enabled, stats.Disabled, stats.Admins = counts.Total, counts.Enabled, counts.Disabled, counts.Admins
+	stats.Grouped, stats.Unassigned, stats.Pending = counts.Grouped, counts.Unassigned, counts.Pending
+	stats.CleanupPending = counts.Cleanup
+
+	singleMembership := r.db.Table("user_group_members AS member").
+		Select("member.user_id, MIN(member.group_id) AS group_id").
+		Joins("JOIN user_groups AS active_group ON active_group.id = member.group_id AND active_group.status = ?", model.UserGroupStatusActive).
+		Group("member.user_id").Having("COUNT(DISTINCT member.group_id) = 1")
+	if err := r.db.WithContext(ctx).Table("user_groups AS groups").
+		Select("groups.id AS group_id, groups.name, COUNT(DISTINCT single_membership.user_id) AS user_count").
+		Joins("LEFT JOIN (?) AS single_membership ON single_membership.group_id = groups.id", singleMembership).
+		Where("groups.status = ?", model.UserGroupStatusActive).
+		Group("groups.id, groups.name").Order("groups.name ASC").
+		Scan(&stats.GroupDistribution).Error; err != nil {
 		return stats, err
 	}
 	return stats, nil
+}
+
+func (r *GormRepository) activeMembershipCounts() *gorm.DB {
+	return r.db.Table("user_group_members AS members").
+		Select("members.user_id, COUNT(DISTINCT members.group_id) AS group_count").
+		Joins("JOIN user_groups AS active_groups ON active_groups.id = members.group_id AND active_groups.status = ?", model.UserGroupStatusActive).
+		Group("members.user_id")
+}
+
+func (r *GormRepository) rawMembershipCounts() *gorm.DB {
+	return r.db.Table("user_group_members AS members").
+		Select("members.user_id, COUNT(DISTINCT members.group_id) AS group_count").
+		Group("members.user_id")
 }
 
 func (r *GormRepository) GetUserByID(ctx context.Context, userID uint64) (*model.User, error) {
 	var user model.User
 	if err := r.db.WithContext(ctx).
 		Preload("Role").
+		Preload("GroupMembers.Group").
 		First(&user, userID).Error; err != nil {
 		return nil, err
 	}
@@ -182,16 +235,18 @@ func (r *GormRepository) GetRoleByID(ctx context.Context, roleID uint64) (*model
 	return &role, nil
 }
 
-func (r *GormRepository) CreateUser(ctx context.Context, user *model.User, assignDefaultGroup bool) error {
+func (r *GormRepository) CreateUser(ctx context.Context, user *model.User) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Create(user).Error; err != nil {
-			return err
-		}
-		if assignDefaultGroup {
-			return usergroup.AssignDefaultGroupTx(tx, user.ID)
-		}
-		return nil
+		return tx.Create(user).Error
 	})
+}
+
+func (r *GormRepository) UpdateUserGroup(ctx context.Context, actorID, userID uint64, groupID *uint64) error {
+	return usergroup.ReplaceUserGroup(ctx, r.db, actorID, userID, groupID)
+}
+
+func (r *GormRepository) UpdateUserGroupRole(ctx context.Context, actorID, userID, groupID uint64, role uint8) error {
+	return usergroup.UpdateUserGroupRole(ctx, r.db, actorID, userID, groupID, role)
 }
 
 func (r *GormRepository) UpdateUser(ctx context.Context, userID uint64, updates map[string]any) error {

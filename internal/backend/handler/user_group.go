@@ -38,7 +38,6 @@ type upsertUserGroupRequest struct {
 	Name        string   `json:"name" binding:"required,max=100"`
 	Description string   `json:"description" binding:"omitempty,max=500"`
 	Tags        []string `json:"tags"`
-	IsDefault   bool     `json:"isDefault"`
 	Show        uint8    `json:"show"`
 	Status      uint8    `json:"status"`
 }
@@ -105,7 +104,6 @@ func (h *UserGroupHandler) CreateGroup(c *gin.Context) {
 			Description: request.Description,
 			Logo:        request.Logo,
 			Tags:        request.Tags,
-			IsDefault:   request.IsDefault,
 			Show:        request.Show,
 			Status:      request.Status,
 		},
@@ -141,7 +139,6 @@ func (h *UserGroupHandler) UpdateGroup(c *gin.Context) {
 			Logo:        request.Logo,
 			RemoveLogo:  request.RemoveLogo,
 			Tags:        request.Tags,
-			IsDefault:   request.IsDefault,
 			Show:        request.Show,
 			Status:      request.Status,
 		},
@@ -284,10 +281,6 @@ func parseMultipartUpsertUserGroupRequest(c *gin.Context) (*parsedUpsertUserGrou
 	if err != nil {
 		return nil, err
 	}
-	isDefault, err := parseRequiredBool(c.PostForm("isDefault"))
-	if err != nil {
-		return nil, err
-	}
 	removeLogo, err := parseOptionalBool(c.PostForm("removeLogo"))
 	if err != nil {
 		return nil, err
@@ -309,7 +302,6 @@ func parseMultipartUpsertUserGroupRequest(c *gin.Context) (*parsedUpsertUserGrou
 			Name:        c.PostForm("name"),
 			Description: c.PostForm("description"),
 			Tags:        c.PostFormArray("tags"),
-			IsDefault:   isDefault,
 			Show:        show,
 			Status:      status,
 		},

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"strconv"
@@ -24,16 +25,19 @@ type adminUserService interface {
 	ListRoles(ctx context.Context, actor adminuser.Actor) ([]adminuser.RoleOption, error)
 	CreateUser(ctx context.Context, actor adminuser.Actor, input adminuser.CreateUserInput) (*adminuser.UserDetail, error)
 	UpdateUser(ctx context.Context, actor adminuser.Actor, userID uint64, input adminuser.UpdateUserInput) (*adminuser.UserDetail, error)
+	UpdateUserGroup(ctx context.Context, actor adminuser.Actor, userID uint64, groupID *uint64) (*adminuser.UserDetail, error)
+	UpdateUserGroupRole(ctx context.Context, actor adminuser.Actor, userID, groupID uint64, role uint8) (*adminuser.UserDetail, error)
 	UpdateCurrentRecruitmentGroup(ctx context.Context, actor adminuser.Actor, userID uint64, groupID uint64) (*adminuser.UserDetail, error)
 	ResetPassword(ctx context.Context, actor adminuser.Actor, userID uint64, password string) error
 }
 
 type listUsersQuery struct {
-	Page     int    `form:"page"`
-	PageSize int    `form:"pageSize"`
-	Keyword  string `form:"keyword"`
-	Role     string `form:"role"`
-	Status   string `form:"status"`
+	Page       int    `form:"page"`
+	PageSize   int    `form:"pageSize"`
+	Keyword    string `form:"keyword"`
+	Role       string `form:"role"`
+	Status     string `form:"status"`
+	GroupState string `form:"groupState"`
 }
 
 type createUserRequest struct {
@@ -58,6 +62,15 @@ type updateRecruitmentGroupRequest struct {
 	GroupID uint64 `json:"groupId" binding:"required"`
 }
 
+type updateUserGroupRequest struct {
+	GroupID json.RawMessage `json:"groupId"`
+}
+
+type updateUserGroupRoleRequest struct {
+	GroupID uint64 `json:"groupId" binding:"required"`
+	Role    *uint8 `json:"role" binding:"required"`
+}
+
 func NewAdminUserHandler(service adminUserService) *AdminUserHandler {
 	return &AdminUserHandler{service: service}
 }
@@ -78,11 +91,12 @@ func (h *AdminUserHandler) ListUsers(c *gin.Context) {
 		c.Request.Context(),
 		currentActor(c),
 		adminuser.ListUsersInput{
-			Page:     query.Page,
-			PageSize: query.PageSize,
-			Keyword:  query.Keyword,
-			Role:     query.Role,
-			Status:   status,
+			Page:       query.Page,
+			PageSize:   query.PageSize,
+			Keyword:    query.Keyword,
+			Role:       query.Role,
+			Status:     status,
+			GroupState: query.GroupState,
 		},
 	)
 	if serviceErr != nil {
@@ -91,6 +105,53 @@ func (h *AdminUserHandler) ListUsers(c *gin.Context) {
 	}
 
 	writeAPI(c, http.StatusOK, "获取用户列表成功", result)
+}
+
+func (h *AdminUserHandler) UpdateUserGroup(c *gin.Context) {
+	userID, err := parsePathUserID(c.Param("id"))
+	if err != nil {
+		writeAPIError(c, http.StatusBadRequest, "无效的用户 ID")
+		return
+	}
+	var request updateUserGroupRequest
+	if err := c.ShouldBindJSON(&request); err != nil || len(request.GroupID) == 0 {
+		writeAPIError(c, http.StatusBadRequest, "所属组别不合法")
+		return
+	}
+	var groupID *uint64
+	if strings.TrimSpace(string(request.GroupID)) != "null" {
+		var value uint64
+		if err := json.Unmarshal(request.GroupID, &value); err != nil || value == 0 {
+			writeAPIError(c, http.StatusBadRequest, "所属组别不合法")
+			return
+		}
+		groupID = &value
+	}
+	user, serviceErr := h.service.UpdateUserGroup(c.Request.Context(), currentActor(c), userID, groupID)
+	if serviceErr != nil {
+		h.handleServiceError(c, serviceErr)
+		return
+	}
+	writeAPI(c, http.StatusOK, "所属组别已更新", user)
+}
+
+func (h *AdminUserHandler) UpdateUserGroupRole(c *gin.Context) {
+	userID, err := parsePathUserID(c.Param("id"))
+	if err != nil {
+		writeAPIError(c, http.StatusBadRequest, "无效的用户 ID")
+		return
+	}
+	var request updateUserGroupRoleRequest
+	if err := c.ShouldBindJSON(&request); err != nil || request.GroupID == 0 || request.Role == nil {
+		writeAPIError(c, http.StatusBadRequest, "用户或组别信息不合法")
+		return
+	}
+	user, serviceErr := h.service.UpdateUserGroupRole(c.Request.Context(), currentActor(c), userID, request.GroupID, *request.Role)
+	if serviceErr != nil {
+		h.handleServiceError(c, serviceErr)
+		return
+	}
+	writeAPI(c, http.StatusOK, "组内角色已更新", user)
 }
 
 func (h *AdminUserHandler) GetUser(c *gin.Context) {
@@ -234,6 +295,7 @@ func currentActor(c *gin.Context) adminuser.Actor {
 	}
 
 	return adminuser.Actor{
+		ID:       sessionUser.ID,
 		RoleName: sessionUser.Role.Name,
 	}
 }

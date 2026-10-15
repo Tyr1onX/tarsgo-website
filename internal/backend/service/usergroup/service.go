@@ -43,7 +43,6 @@ type CreateGroupInput struct {
 	Description string
 	Logo        *multipart.FileHeader
 	Tags        []string
-	IsDefault   bool
 	Show        uint8
 	Status      uint8
 }
@@ -54,16 +53,14 @@ type UpdateGroupInput struct {
 	Logo        *multipart.FileHeader
 	RemoveLogo  bool
 	Tags        []string
-	IsDefault   bool
 	Show        uint8
 	Status      uint8
 }
 
 type GroupStats struct {
-	Total        int64 `json:"total"`
-	Active       int64 `json:"active"`
-	Disabled     int64 `json:"disabled"`
-	DefaultCount int64 `json:"defaultCount"`
+	Total    int64 `json:"total"`
+	Active   int64 `json:"active"`
+	Disabled int64 `json:"disabled"`
 }
 
 type GroupListItem struct {
@@ -74,7 +71,6 @@ type GroupListItem struct {
 	AdmissionQRCodeConfigured bool      `json:"admissionQrCodeConfigured"`
 	AdmissionQRCodeURL        *string   `json:"admissionQrCodeUrl,omitempty"`
 	Tags                      []string  `json:"tags,omitempty"`
-	IsDefault                 bool      `json:"isDefault"`
 	Show                      uint8     `json:"show"`
 	Status                    uint8     `json:"status"`
 	CreatedAt                 time.Time `json:"createdAt"`
@@ -99,7 +95,6 @@ type GroupDetail struct {
 	Description *string   `json:"description,omitempty"`
 	LogoURL     *string   `json:"logoUrl,omitempty"`
 	Tags        []string  `json:"tags,omitempty"`
-	IsDefault   bool      `json:"isDefault"`
 	Show        uint8     `json:"show"`
 	Status      uint8     `json:"status"`
 	CreatedAt   time.Time `json:"createdAt"`
@@ -346,11 +341,10 @@ func (s *Service) CreateGroup(ctx context.Context, actor Actor, input CreateGrou
 	}
 
 	group := &model.UserGroup{
-		Name:      name,
-		Tags:      normalizeTags(input.Tags),
-		Status:    input.Status,
-		IsDefault: input.IsDefault && input.Status == model.UserGroupStatusActive,
-		Show:      input.Show,
+		Name:   name,
+		Tags:   normalizeTags(input.Tags),
+		Status: input.Status,
+		Show:   input.Show,
 	}
 	assignOptionalString(&group.Description, input.Description)
 	if savedLogo != nil {
@@ -358,13 +352,7 @@ func (s *Service) CreateGroup(ctx context.Context, actor Actor, input CreateGrou
 	}
 
 	if err := s.repo.RunInTx(ctx, func(repo Repository) error {
-		if err := repo.CreateGroup(ctx, group); err != nil {
-			return err
-		}
-		if group.IsDefault {
-			return repo.ClearDefaultExcept(ctx, group.ID)
-		}
-		return nil
+		return repo.CreateGroup(ctx, group)
 	}); err != nil {
 		if savedLogo != nil {
 			_ = s.fileStore.Remove(context.Background(), savedLogo.RelativePath)
@@ -420,7 +408,6 @@ func (s *Service) UpdateGroup(ctx context.Context, actor Actor, groupID uint64, 
 		savedLogo = stored
 	}
 
-	isDefault := input.IsDefault && input.Status == model.UserGroupStatusActive
 	var (
 		logoURL     *string
 		includeLogo bool
@@ -433,7 +420,7 @@ func (s *Service) UpdateGroup(ctx context.Context, actor Actor, groupID uint64, 
 		includeLogo = true
 	}
 
-	updates, err := buildGroupUpdates(name, input.Description, input.Tags, input.Status, isDefault, input.Show, logoURL, includeLogo)
+	updates, err := buildGroupUpdates(name, input.Description, input.Tags, input.Status, input.Show, logoURL, includeLogo)
 	if err != nil {
 		if savedLogo != nil {
 			_ = s.fileStore.Remove(context.Background(), savedLogo.RelativePath)
@@ -442,13 +429,7 @@ func (s *Service) UpdateGroup(ctx context.Context, actor Actor, groupID uint64, 
 	}
 
 	if err := s.repo.RunInTx(ctx, func(repo Repository) error {
-		if err := repo.UpdateGroup(ctx, groupID, updates); err != nil {
-			return err
-		}
-		if isDefault {
-			return repo.ClearDefaultExcept(ctx, groupID)
-		}
-		return nil
+		return repo.UpdateGroup(ctx, groupID, updates)
 	}); err != nil {
 		if savedLogo != nil {
 			_ = s.fileStore.Remove(context.Background(), savedLogo.RelativePath)
@@ -505,7 +486,6 @@ func toGroupListItem(group *model.UserGroup) GroupListItem {
 		AdmissionQRCodeConfigured: group.AdmissionImageURL != nil && strings.TrimSpace(*group.AdmissionImageURL) != "",
 		AdmissionQRCodeURL:        copyStringPtr(group.AdmissionImageURL),
 		Tags:                      copyTags(group.Tags),
-		IsDefault:                 group.IsDefault,
 		Show:                      group.Show,
 		Status:                    group.Status,
 		CreatedAt:                 group.CreatedAt,
@@ -555,7 +535,6 @@ func toGroupDetail(group *model.UserGroup) GroupDetail {
 		Description: group.Description,
 		LogoURL:     copyStringPtr(group.LogoURL),
 		Tags:        copyTags(group.Tags),
-		IsDefault:   group.IsDefault,
 		Show:        group.Show,
 		Status:      group.Status,
 		CreatedAt:   group.CreatedAt,
@@ -596,7 +575,7 @@ func copyTags(tags []string) []string {
 	return copied
 }
 
-func buildGroupUpdates(name string, description string, tags []string, status uint8, isDefault bool, show uint8, logoURL *string, includeLogo bool) (map[string]any, error) {
+func buildGroupUpdates(name string, description string, tags []string, status uint8, show uint8, logoURL *string, includeLogo bool) (map[string]any, error) {
 	tagsJSON, err := json.Marshal(normalizeTags(tags))
 	if err != nil {
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "序列化用户组标签失败", Err: err}
@@ -607,7 +586,6 @@ func buildGroupUpdates(name string, description string, tags []string, status ui
 		"description": nullableString(description),
 		"tags":        string(tagsJSON),
 		"status":      status,
-		"is_default":  isDefault,
 		"show":        show,
 	}
 	if includeLogo {

@@ -196,7 +196,6 @@ func TestRegistrationFormServiceShowsNoOpenRecruitmentWhenNoFormIsPublished(t *t
 
 func TestRegistrationFormServiceGetRecruitmentPageDataReturnsSubmittedStateForExistingRegistration(t *testing.T) {
 	repo := newFakeRegistrationFormRepository()
-	repo.usersInDefaultGroup[42] = false
 	repo.registrations = append(repo.registrations, &model.Registration{
 		ID:                9,
 		FormID:            2,
@@ -285,9 +284,8 @@ func TestRegistrationFormServiceGetRecruitmentPageDataReturnsReadonlySubmittedSt
 	}
 }
 
-func TestRegistrationFormServiceGetRecruitmentPageDataReturnsUnavailableWhenUserIsNotInDefaultGroup(t *testing.T) {
+func TestRegistrationFormServiceAllowsUnassignedUserToOpenRegistration(t *testing.T) {
 	repo := newFakeRegistrationFormRepository()
-	repo.usersInDefaultGroup[77] = false
 	service := newRegistrationFormServiceWithRepo(repo)
 	service.now = func() time.Time {
 		return time.Date(2026, 4, 13, 10, 0, 0, 0, time.Local)
@@ -298,14 +296,8 @@ func TestRegistrationFormServiceGetRecruitmentPageDataReturnsUnavailableWhenUser
 		t.Fatalf("GetRecruitmentPageData returned error: %v", err)
 	}
 
-	if result.PageMode != "unavailable" {
-		t.Fatalf("expected unavailable page mode, got %q", result.PageMode)
-	}
-	if result.UnavailableReason == nil || !strings.Contains(*result.UnavailableReason, "暂无纳新报名资格") {
-		t.Fatalf("expected unavailable reason to mention 暂无纳新报名资格, got %#v", result.UnavailableReason)
-	}
-	if result.Form != nil {
-		t.Fatalf("expected no form payload for unavailable state")
+	if result.PageMode != "form" || result.Form == nil {
+		t.Fatalf("an unassigned account should receive the open registration form, got %#v", result)
 	}
 }
 
@@ -429,10 +421,9 @@ func TestPrepareRegistrationFormUpdates_MarshalsFieldsSchema(t *testing.T) {
 }
 
 type fakeRegistrationFormRepository struct {
-	forms               map[uint64]*model.RegistrationForm
-	registrations       []*model.Registration
-	usersInDefaultGroup map[uint64]bool
-	nextID              uint64
+	forms         map[uint64]*model.RegistrationForm
+	registrations []*model.Registration
+	nextID        uint64
 }
 
 func newFakeRegistrationFormRepository() *fakeRegistrationFormRepository {
@@ -457,10 +448,6 @@ func newFakeRegistrationFormRepository() *fakeRegistrationFormRepository {
 				CreatedAt:    now.Add(-72 * time.Hour),
 				UpdatedAt:    now.Add(-2 * time.Hour),
 			},
-		},
-		usersInDefaultGroup: map[uint64]bool{
-			9:  true,
-			42: true,
 		},
 		nextID: 3,
 	}
@@ -620,14 +607,6 @@ func cloneGroupRefByID(groupID *uint64) *model.UserGroup {
 
 func formServiceUint64Ptr(value uint64) *uint64 {
 	return &value
-}
-
-func (r *fakeRegistrationFormRepository) IsUserInActiveDefaultGroup(_ context.Context, userID uint64) (bool, error) {
-	inDefaultGroup, ok := r.usersInDefaultGroup[userID]
-	if !ok {
-		return true, nil
-	}
-	return inDefaultGroup, nil
 }
 
 func validRegistrationFields() []model.FormField {

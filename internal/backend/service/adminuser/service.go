@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -13,6 +14,7 @@ import (
 	"tarsgo-backend/database"
 	"tarsgo-backend/model"
 	"tarsgo-backend/service/auth"
+	"tarsgo-backend/service/usergroup"
 )
 
 type Service struct {
@@ -26,15 +28,17 @@ type ServiceError struct {
 }
 
 type Actor struct {
+	ID       uint64
 	RoleName string
 }
 
 type ListUsersInput struct {
-	Page     int
-	PageSize int
-	Keyword  string
-	Role     string
-	Status   *uint8
+	Page       int
+	PageSize   int
+	Keyword    string
+	Role       string
+	Status     *uint8
+	GroupState string
 }
 
 type CreateUserInput struct {
@@ -69,14 +73,18 @@ type AuthMethods struct {
 }
 
 type UserListItem struct {
-	ID          uint64      `json:"id"`
-	Name        string      `json:"name"`
-	Email       string      `json:"email"`
-	Role        RoleRef     `json:"role"`
-	Status      uint8       `json:"status"`
-	AuthMethods AuthMethods `json:"authMethods"`
-	LastLoginAt *time.Time  `json:"lastLoginAt,omitempty"`
-	CreatedAt   time.Time   `json:"createdAt"`
+	ID             uint64                `json:"id"`
+	Name           string                `json:"name"`
+	Email          string                `json:"email"`
+	Role           RoleRef               `json:"role"`
+	Status         uint8                 `json:"status"`
+	AuthMethods    AuthMethods           `json:"authMethods"`
+	LastLoginAt    *time.Time            `json:"lastLoginAt,omitempty"`
+	CreatedAt      time.Time             `json:"createdAt"`
+	GroupState     string                `json:"groupState"`
+	GroupName      string                `json:"groupName,omitempty"`
+	Groups         []UserGroupMembership `json:"groups"`
+	CleanupPending bool                  `json:"cleanupPending"`
 }
 
 type UserDetail struct {
@@ -93,6 +101,16 @@ type UserDetail struct {
 	Phone                     *string                  `json:"phone,omitempty"`
 	RecruitmentHistory        []RecruitmentHistoryItem `json:"recruitmentHistory"`
 	CurrentRecruitmentGroupID *uint64                  `json:"currentRecruitmentGroupId,omitempty"`
+	GroupState                string                   `json:"groupState"`
+	Groups                    []UserGroupMembership    `json:"groups"`
+	CleanupPending            bool                     `json:"cleanupPending"`
+}
+
+type UserGroupMembership struct {
+	GroupID uint64 `json:"groupId"`
+	Name    string `json:"name"`
+	Status  uint8  `json:"status"`
+	Role    uint8  `json:"role"`
 }
 
 type RecruitmentHistoryItem struct {
@@ -107,10 +125,21 @@ type RecruitmentHistoryItem struct {
 }
 
 type UserStats struct {
-	Total    int64 `json:"total"`
-	Enabled  int64 `json:"enabled"`
-	Disabled int64 `json:"disabled"`
-	Admins   int64 `json:"admins"`
+	Total             int64                   `json:"total"`
+	Enabled           int64                   `json:"enabled"`
+	Disabled          int64                   `json:"disabled"`
+	Admins            int64                   `json:"admins"`
+	Grouped           int64                   `json:"grouped"`
+	Unassigned        int64                   `json:"unassigned"`
+	Pending           int64                   `json:"pending"`
+	CleanupPending    int64                   `json:"cleanupPending"`
+	GroupDistribution []GroupDistributionItem `json:"groupDistribution"`
+}
+
+type GroupDistributionItem struct {
+	GroupID   uint64 `json:"groupId"`
+	Name      string `json:"name"`
+	UserCount int64  `json:"userCount"`
 }
 
 type Pagination struct {
@@ -150,6 +179,10 @@ func (s *Service) ListUsers(ctx context.Context, actor Actor, input ListUsersInp
 	input.PageSize = normalizePageSize(input.PageSize)
 	input.Keyword = strings.TrimSpace(input.Keyword)
 	input.Role = strings.TrimSpace(input.Role)
+	input.GroupState = strings.TrimSpace(input.GroupState)
+	if input.GroupState != "" && input.GroupState != usergroup.MembershipStateAssigned && input.GroupState != usergroup.MembershipStateUnassigned && input.GroupState != usergroup.MembershipStatePending && input.GroupState != "cleanup" {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "所属组别筛选值不合法"}
+	}
 
 	users, total, err := s.repo.ListUsers(ctx, input)
 	if err != nil {
@@ -312,7 +345,7 @@ func (s *Service) CreateUser(ctx context.Context, actor Actor, input CreateUserI
 		ManagementGroupID: managementGroupID,
 	}
 
-	if err := s.repo.CreateUser(ctx, user, role.Name == model.RoleNameUser); err != nil {
+	if err := s.repo.CreateUser(ctx, user); err != nil {
 		if database.IsDuplicateKeyError(err) {
 			return nil, &ServiceError{Status: http.StatusConflict, Message: "该邮箱已存在"}
 		}
@@ -325,6 +358,40 @@ func (s *Service) CreateUser(ctx context.Context, actor Actor, input CreateUserI
 	}
 	detail := toUserDetail(created)
 	return &detail, nil
+}
+
+func (s *Service) UpdateUserGroup(ctx context.Context, actor Actor, userID uint64, groupID *uint64) (*UserDetail, error) {
+	if err := ensureUserAdminActor(actor); err != nil {
+		return nil, err
+	}
+	if userID == 0 {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "用户 ID 不合法"}
+	}
+	if err := s.repo.UpdateUserGroup(ctx, actor.ID, userID, groupID); err != nil {
+		var userGroupError *usergroup.ServiceError
+		if errors.As(err, &userGroupError) {
+			return nil, &ServiceError{Status: userGroupError.Status, Message: userGroupError.Message, Err: userGroupError.Err}
+		}
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "调整所属组别失败", Err: err}
+	}
+	return s.GetUser(ctx, actor, userID)
+}
+
+func (s *Service) UpdateUserGroupRole(ctx context.Context, actor Actor, userID, groupID uint64, role uint8) (*UserDetail, error) {
+	if actor.RoleName != model.RoleNameSuperAdmin {
+		return nil, &ServiceError{Status: http.StatusForbidden, Message: "仅超级管理员可以调整组内角色"}
+	}
+	if userID == 0 || groupID == 0 {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "用户或组别 ID 不合法"}
+	}
+	if err := s.repo.UpdateUserGroupRole(ctx, actor.ID, userID, groupID, role); err != nil {
+		var userGroupError *usergroup.ServiceError
+		if errors.As(err, &userGroupError) {
+			return nil, &ServiceError{Status: userGroupError.Status, Message: userGroupError.Message, Err: userGroupError.Err}
+		}
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "更新组内角色失败", Err: err}
+	}
+	return s.GetUser(ctx, actor, userID)
 }
 
 func (s *Service) UpdateUser(ctx context.Context, actor Actor, userID uint64, input UpdateUserInput) (*UserDetail, error) {
@@ -502,15 +569,27 @@ func normalizePageSize(pageSize int) int {
 }
 
 func toUserListItem(user *model.User) UserListItem {
+	groups := mapUserGroupMemberships(user.GroupMembers)
+	state, groupName := membershipStateAndName(groups)
+	activeCount := 0
+	for _, group := range groups {
+		if group.Status == model.UserGroupStatusActive {
+			activeCount++
+		}
+	}
 	return UserListItem{
-		ID:          user.ID,
-		Name:        user.Name,
-		Email:       user.Email,
-		Role:        toRoleRef(user.Role),
-		Status:      user.Status,
-		AuthMethods: toAuthMethods(user),
-		LastLoginAt: user.LastLoginAt,
-		CreatedAt:   user.CreatedAt,
+		ID:             user.ID,
+		Name:           user.Name,
+		Email:          user.Email,
+		Role:           toRoleRef(user.Role),
+		Status:         user.Status,
+		AuthMethods:    toAuthMethods(user),
+		LastLoginAt:    user.LastLoginAt,
+		CreatedAt:      user.CreatedAt,
+		GroupState:     state,
+		GroupName:      groupName,
+		Groups:         groups,
+		CleanupPending: len(groups) >= 2 && activeCount < 2,
 	}
 }
 
@@ -528,8 +607,53 @@ func toUserDetail(user *model.User) UserDetail {
 		RealName:           user.RealName,
 		Phone:              user.Phone,
 		RecruitmentHistory: []RecruitmentHistoryItem{},
+		Groups:             mapUserGroupMemberships(user.GroupMembers),
 	}
+	detail.GroupState, _ = membershipStateAndName(detail.Groups)
+	activeCount := 0
+	for _, group := range detail.Groups {
+		if group.Status == model.UserGroupStatusActive {
+			activeCount++
+		}
+	}
+	detail.CleanupPending = len(detail.Groups) >= 2 && activeCount < 2
 	return detail
+}
+
+func mapUserGroupMemberships(members []model.UserGroupMember) []UserGroupMembership {
+	groups := make([]UserGroupMembership, 0, len(members))
+	for _, member := range members {
+		groups = append(groups, UserGroupMembership{
+			GroupID: member.GroupID,
+			Name:    member.Group.Name,
+			Status:  member.Group.Status,
+			Role:    member.Role,
+		})
+	}
+	sort.Slice(groups, func(i, j int) bool {
+		if groups[i].Name == groups[j].Name {
+			return groups[i].GroupID < groups[j].GroupID
+		}
+		return groups[i].Name < groups[j].Name
+	})
+	return groups
+}
+
+func membershipStateAndName(groups []UserGroupMembership) (string, string) {
+	active := make([]UserGroupMembership, 0, len(groups))
+	for _, group := range groups {
+		if group.Status == model.UserGroupStatusActive {
+			active = append(active, group)
+		}
+	}
+	switch len(active) {
+	case 0:
+		return usergroup.MembershipStateUnassigned, ""
+	case 1:
+		return usergroup.MembershipStateAssigned, active[0].Name
+	default:
+		return usergroup.MembershipStatePending, ""
+	}
 }
 
 func toRoleRef(role model.Role) RoleRef {

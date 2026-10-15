@@ -23,6 +23,17 @@ export interface AdminUserListItem {
   authMethods: AdminUserAuthMethods;
   lastLoginAt?: string | null;
   createdAt: string;
+	groupState: "assigned" | "unassigned" | "pending";
+	groupName?: string;
+	groups: AdminUserGroupMembership[];
+	cleanupPending: boolean;
+}
+
+export interface AdminUserGroupMembership {
+	groupId: number;
+	name: string;
+	status: number;
+	role: number;
 }
 
 export interface AdminUserDetail {
@@ -38,6 +49,9 @@ export interface AdminUserDetail {
   realName?: string | null;
   phone?: string | null;
   currentRecruitmentGroupId?: number | null;
+	groupState: "assigned" | "unassigned" | "pending";
+	groups: AdminUserGroupMembership[];
+	cleanupPending: boolean;
   recruitmentHistory: Array<{
     id: number;
     formId: number;
@@ -55,6 +69,11 @@ export interface AdminUserSummary {
   enabled: number;
   disabled: number;
   admins: number;
+	grouped: number;
+	unassigned: number;
+	pending: number;
+	cleanupPending: number;
+	groupDistribution: Array<{ groupId: number; name: string; userCount: number }>;
 }
 
 export interface AdminUserPagination {
@@ -76,6 +95,7 @@ export interface ListAdminUsersInput {
   keyword?: string;
   role?: string;
   status?: number | "";
+	groupState?: "" | "assigned" | "unassigned" | "pending" | "cleanup";
 }
 
 export interface AdminUserUpsertInput {
@@ -105,6 +125,9 @@ export async function listAdminUsers(input: ListAdminUsersInput): Promise<AdminU
   }
   if (input.status !== "" && input.status !== undefined) {
     params.set("status", String(input.status));
+  }
+  if (input.groupState) {
+    params.set("groupState", input.groupState);
   }
 
   const query = params.toString();
@@ -139,6 +162,20 @@ export async function updateAdminUserRecruitmentGroup(userId: number, groupId: n
     method: "PATCH",
     body: { groupId },
   });
+}
+
+export async function updateAdminUserGroup(userId: number, groupId: number | null): Promise<AdminUserDetail> {
+	return apiRequest<AdminUserDetail>(`/api/admin/users/${userId}/group`, {
+		method: "PATCH",
+		body: { groupId },
+	});
+}
+
+export async function updateAdminUserGroupRole(userId: number, groupId: number, role: number): Promise<AdminUserDetail> {
+	return apiRequest<AdminUserDetail>(`/api/admin/users/${userId}/group-role`, {
+		method: "PATCH",
+		body: { groupId, role },
+	});
 }
 
 export async function resetAdminUserPassword(userId: number, password: string): Promise<void> {

@@ -26,7 +26,7 @@ func TestAccountManagementIsSuperAdminOnly(t *testing.T) {
 	}
 }
 
-func TestCreateUserKeepsOnlyAccountFieldsAndAssignsDefaultRecruitmentGroup(t *testing.T) {
+func TestCreateUserKeepsOnlyAccountFieldsAndLeavesUserUngrouped(t *testing.T) {
 	repo := newFakeRepository()
 	service := NewService(repo)
 
@@ -43,8 +43,8 @@ func TestCreateUserKeepsOnlyAccountFieldsAndAssignsDefaultRecruitmentGroup(t *te
 		t.Fatalf("unexpected created account: %#v", detail)
 	}
 	created := repo.users[detail.ID]
-	if len(created.GroupMembers) != 1 || created.GroupMembers[0].GroupID != repo.defaultGroup.ID {
-		t.Fatalf("expected candidate account in default recruitment group, got %#v", created.GroupMembers)
+	if len(created.GroupMembers) != 0 {
+		t.Fatalf("new accounts should remain ungrouped, got %#v", created.GroupMembers)
 	}
 	if created.Gender != 0 || created.Nickname != nil || created.Phone != nil || created.RealName != nil {
 		t.Fatalf("account creation should leave profile fields at their defaults: %#v", created)
@@ -132,6 +132,38 @@ func TestResetPasswordRemainsSuperAdminOnly(t *testing.T) {
 	}
 }
 
+func TestUpdateUserGroupRoleKeepsSystemPermissionsSeparate(t *testing.T) {
+	repo := newFakeRepository()
+	user := repo.users[2]
+	groupID := uint64(11)
+	user.AdminScope = model.AdminScopeGroup
+	user.ManagementGroupID = &groupID
+	user.GroupMembers = []model.UserGroupMember{{
+		GroupID: groupID,
+		UserID:  user.ID,
+		Role:    model.UserGroupMemberRoleLeader,
+		Group:   model.UserGroup{ID: groupID, Name: "机械组", Status: model.UserGroupStatusActive},
+	}}
+	service := NewService(repo)
+
+	if _, err := service.UpdateUserGroupRole(context.Background(), Actor{ID: 1, RoleName: model.RoleNameAdmin}, user.ID, groupID, model.UserGroupMemberRoleMember); err == nil {
+		t.Fatal("expected regular administrator to be denied")
+	}
+	if user.GroupMembers[0].Role != model.UserGroupMemberRoleLeader {
+		t.Fatal("denied role update changed the group membership")
+	}
+
+	if _, err := service.UpdateUserGroupRole(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, user.ID, groupID, model.UserGroupMemberRoleMember); err != nil {
+		t.Fatalf("UpdateUserGroupRole returned error: %v", err)
+	}
+	if user.GroupMembers[0].Role != model.UserGroupMemberRoleMember {
+		t.Fatalf("group role = %d, want ordinary member", user.GroupMembers[0].Role)
+	}
+	if user.Role.Name != model.RoleNameAdmin || user.AdminScope != model.AdminScopeGroup || user.ManagementGroupID == nil || *user.ManagementGroupID != groupID {
+		t.Fatalf("group role update changed system permissions: %#v", user)
+	}
+}
+
 func TestAccountInputValidation(t *testing.T) {
 	repo := newFakeRepository()
 	service := NewService(repo)
@@ -161,11 +193,10 @@ func TestListUsersFiltersBySystemRoleAndStatus(t *testing.T) {
 }
 
 type fakeRepository struct {
-	roles        map[uint64]model.Role
-	roleByName   map[string]uint64
-	users        map[uint64]*model.User
-	nextUserID   uint64
-	defaultGroup model.UserGroup
+	roles         map[uint64]model.Role
+	roleByName    map[string]uint64
+	users         map[uint64]*model.User
+	nextUserID    uint64
 	createUserErr error
 	updateUserErr error
 }
@@ -176,12 +207,6 @@ func newFakeRepository() *fakeRepository {
 		roleByName: map[string]uint64{},
 		users:      map[uint64]*model.User{},
 		nextUserID: 4,
-		defaultGroup: model.UserGroup{
-			ID:        1,
-			Name:      "招新候选人",
-			Status:    model.UserGroupStatusActive,
-			IsDefault: true,
-		},
 	}
 	repo.addRole(model.Role{ID: 1, Name: model.RoleNameSuperAdmin, DisplayName: "超级管理员"})
 	repo.addRole(model.Role{ID: 2, Name: model.RoleNameAdmin, DisplayName: "管理员"})
@@ -278,7 +303,7 @@ func (r *fakeRepository) GetRoleByID(_ context.Context, roleID uint64) (*model.R
 	return &role, nil
 }
 
-func (r *fakeRepository) CreateUser(_ context.Context, user *model.User, assignDefaultGroup bool) error {
+func (r *fakeRepository) CreateUser(_ context.Context, user *model.User) error {
 	if r.createUserErr != nil {
 		return r.createUserErr
 	}
@@ -290,17 +315,45 @@ func (r *fakeRepository) CreateUser(_ context.Context, user *model.User, assignD
 	r.nextUserID++
 	created := cloneUser(user)
 	created.Role = role
-	if assignDefaultGroup {
-		created.GroupMembers = []model.UserGroupMember{{
-			ID:      1,
-			GroupID: r.defaultGroup.ID,
-			UserID:  created.ID,
-			Role:    model.UserGroupMemberRoleMember,
-			Group:   r.defaultGroup,
-		}}
-	}
 	r.users[created.ID] = created
 	return nil
+}
+
+func (r *fakeRepository) UpdateUserGroup(_ context.Context, actorID, userID uint64, groupID *uint64) error {
+	if actorID == 0 {
+		return errors.New("actor ID is required")
+	}
+	user, ok := r.users[userID]
+	if !ok {
+		return gorm.ErrRecordNotFound
+	}
+	user.GroupMembers = nil
+	if groupID != nil {
+		user.GroupMembers = []model.UserGroupMember{{
+			GroupID: *groupID,
+			UserID:  user.ID,
+			Role:    model.UserGroupMemberRoleMember,
+			Group:   model.UserGroup{ID: *groupID, Name: "机械组", Status: model.UserGroupStatusActive},
+		}}
+	}
+	return nil
+}
+
+func (r *fakeRepository) UpdateUserGroupRole(_ context.Context, actorID, userID, groupID uint64, role uint8) error {
+	if actorID == 0 {
+		return errors.New("actor ID is required")
+	}
+	user, ok := r.users[userID]
+	if !ok {
+		return gorm.ErrRecordNotFound
+	}
+	for index := range user.GroupMembers {
+		if user.GroupMembers[index].GroupID == groupID {
+			user.GroupMembers[index].Role = role
+			return nil
+		}
+	}
+	return gorm.ErrRecordNotFound
 }
 
 func (r *fakeRepository) UpdateUser(_ context.Context, userID uint64, updates map[string]any) error {

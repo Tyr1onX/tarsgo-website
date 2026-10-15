@@ -269,7 +269,7 @@
 | 总状态派生 | 只要任一槽位仍为 `pending`，总状态就是 `pending`；两个槽位都有结果后，若至少一个通过则总状态为 `approved`，若两个都拒绝则总状态为 `rejected` |
 | 线上审核 | 两个意向组别的线上审核结果彼此独立；通过只表示可以进入该组面试，不直接修改成员关系 |
 | 最终录取 | 第一志愿面试通过优先录取第一志愿；第一志愿未通过且第二志愿通过时录取第二志愿；两组都未通过时最终未录取；其余组合保持待定 |
-| 入组同步 | 最终录取与成员关系变更处于同一事务：加入唯一最终组并移出非目标默认组；重置已录取结果时撤销原录取组并恢复启用默认组 |
+| 意向与所属组 | `preferred_group_id` 是该次报名的意向组快照，不会自动改写用户当前所属组；历史报名数据保持不变 |
 
 ### 索引
 
@@ -306,7 +306,7 @@
 
 ## 5. 用户组表 `user_groups`
 
-存储用户组的基本信息。每个用户组有名称、描述、分类标签、默认分组标记与前台展示标记等属性。`show=1` 的分组会作为报名表“意向组别(1)/(2)”两个系统字段的下拉选项来源。
+存储用户组的基本信息。每个用户组有名称、描述、分类标签与前台展示标记等属性。`show=1` 的分组会作为报名表“意向组别(1)/(2)”两个系统字段的下拉选项来源。
 
 | 字段名 | 类型 | 约束 | 说明 |
 |--------|------|------|------|
@@ -315,7 +315,7 @@
 | `description` | VARCHAR(500) | DEFAULT NULL | 用户组描述 |
 | `logo_url` | VARCHAR(255) | DEFAULT NULL | 分组 Logo 相对地址，如 `/upload/config/group/20260418123000_xxx.png` |
 | `tags` | JSON | DEFAULT NULL | 分类标签，JSON 数组，如 `["tech", "frontend"]` |
-| `is_default` | TINYINT(1) | NOT NULL DEFAULT 0 | 是否为默认分组：0=否，1=是 |
+| `is_default` | TINYINT(1) | NOT NULL DEFAULT 0 | 旧默认组标记；当前运行逻辑不读取或更新此字段，保留用于兼容回滚 |
 | `show` | TINYINT(1) | NOT NULL DEFAULT 1 | 是否在前台报名表中展示：0=隐藏，1=展示 |
 | `status` | TINYINT | NOT NULL DEFAULT 1 | 用户组状态：0=禁用，1=启用 |
 | `created_at` | DATETIME | NOT NULL DEFAULT CURRENT_TIMESTAMP | 创建时间 |
@@ -346,7 +346,7 @@
 
 ## 6. 用户组成员表 `user_group_members`
 
-记录用户与用户组的多对多关系，同时标记普通成员、组内管理员或组长身份。
+记录用户与用户组的关系，同时标记普通成员、组内管理员或组长身份。业务有效状态为未分组或一个启用组；存在多条历史关系的账号进入待确认或管理员清理状态。
 
 | 字段名 | 类型 | 约束 | 说明 |
 |--------|------|------|------|
@@ -372,6 +372,8 @@
 | `idx_group_id` | `group_id` | INDEX | 按用户组查询成员 |
 | `idx_user_id` | `user_id` | INDEX | 按用户查询所属组 |
 | `idx_role` | `role` | INDEX | 按角色筛选（如查询所有组长） |
+
+当前唯一索引 `uk_group_user(group_id, user_id)` 只防止同一账号在同一组重复插入。生产历史上存在同一账号多组关系，因此本阶段不创建 `UNIQUE(user_id)`。服务端通过锁定用户行并在事务中替换关系来阻止新增重复关系。等启用组关系和停用组关系均完成清理后，先只读确认没有任何重复 `user_id`，再单独发布数据库迁移创建用户级唯一索引。索引创建失败时保留现有关系与应用版本，修复数据后重试；不得自动猜测保留组或删除账号、报名记录。
 
 ---
 
@@ -401,9 +403,9 @@ roles (1) ──────< (N) users
 - `users` 1:N `registrations` — 一个用户可参与多个报名表（每表限一次）
 - `users` 1:N `registrations.reviewer_id_1` / `reviewer_id_2` — 一个管理员可审核多个意向槽位
 - `user_groups` 1:N `registrations.group_1` / `group_2` — 报名记录引用两个意向组别
-- `users` M:N `user_groups` — 用户与用户组多对多，通过 `user_group_members` 关联
+- `users` 0..1:N `user_groups` — 一个用户当前至多属于一个有效组，通过 `user_group_members` 关联；历史异常关系在清理完成前保留
 - `user_groups` 1:N `user_group_members` — 一个用户组包含多个成员
-- `users` 1:N `user_group_members` — 一个用户可加入多个用户组
+- `users` 0..1 `user_group_members` — 一个用户最多一条有效所属组关系；迁移期间允许只读识别历史多组关系
 
 ---
 

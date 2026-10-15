@@ -691,7 +691,7 @@
 }
 
 .admin-design .admin-table--users {
-  min-width: 980px;
+  min-width: 1080px;
 }
 
 .admin-design .admin-table--registrations td:nth-child(3),
@@ -827,6 +827,31 @@
   }
 
   .admin-design .admin-table-row > td:nth-child(5) {
+    grid-area: actions;
+    justify-self: end;
+  }
+
+  .admin-design .admin-table--users .admin-table-row {
+    grid-template-areas: "candidate status" "membership actions";
+  }
+
+  .admin-design .admin-table--users .admin-table-row > td:nth-child(2),
+  .admin-design .admin-table--users .admin-table-row > td:nth-child(3),
+  .admin-design .admin-table--users .admin-table-row > td:nth-child(5) {
+    display: none;
+  }
+
+  .admin-design .admin-table--users .admin-table-row > td:nth-child(2) {
+    display: block;
+    grid-area: membership;
+  }
+
+  .admin-design .admin-table--users .admin-table-row > td:nth-child(4) {
+    grid-area: status;
+    text-align: right;
+  }
+
+  .admin-design .admin-table--users .admin-table-row > td:nth-child(6) {
     grid-area: actions;
     justify-self: end;
   }
@@ -2164,6 +2189,12 @@
   color: var(--admin-text);
   font-variant-numeric: tabular-nums;
   font-weight: 650;
+}
+
+.admin-users__distribution {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(8rem, 1fr));
+  gap: 0.5rem;
 }
 
 .admin-design .admin-role {
