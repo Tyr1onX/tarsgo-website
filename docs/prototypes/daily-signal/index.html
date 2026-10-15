@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#0d1010" />
+    <title>吉甲基地 · 每日通信（交互原型）</title>
+    <link rel="stylesheet" href="./prototype.css" />
+    <script src="./prototype.js" defer></script>
+  </head>
+  <body>
+    <div class="prototype-frame">
+      <header class="site-header">
+        <a class="brand" href="#top" aria-label="吉甲机器人队工作台">
+          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+          <span class="brand-copy"><strong>吉甲</strong><small>TARS-GO · BASE</small></span>
+        </a>
+        <nav class="primary-nav" aria-label="工作台导航">
+          <a href="#terminal">工作台</a>
+          <a href="#terminal" class="is-current" aria-current="page">每日通信</a>
+          <a href="#archive">个人档案</a>
+        </nav>
+        <div class="header-actions">
+          <aside class="prototype-dock" aria-label="原型演示场景">
+            <label for="sceneSelect"><span class="dock-dot" aria-hidden="true"></span><span class="dock-label-long">原型场景</span><span class="dock-label-short">预览</span></label>
+            <select id="sceneSelect" aria-label="切换原型演示场景（虚构数据，不会保存）">
+              <option value="first">首次访问</option>
+              <option value="repeat">今天已签到 · 重复访问</option>
+              <option value="signed-mood">今天已签到 · 高负载</option>
+              <option value="failure">发送失败 · 可重试</option>
+              <option value="empty">空白档案</option>
+            </select>
+            <span class="dock-caption">演示数据 · 不会保存</span>
+          </aside>
+          <button class="theme-toggle" type="button" id="themeToggle" aria-label="切换到日间白金主题">
+            <svg class="theme-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.3"/><path d="M12 2.5v2m0 15v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2.5 12h2m15 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
+            <svg class="theme-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 15.2A8.3 8.3 0 0 1 8.8 4.6a8.4 8.4 0 1 0 10.6 10.6Z"/></svg>
+          </button>
+          <div class="profile-chip" aria-label="虚构演示账号：林知夏">
+            <span class="profile-avatar" aria-hidden="true">林</span>
+            <span class="profile-name">林知夏</span>
+            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
+          </div>
+        </div>
+      </header>
+
+      <main id="top" class="page-shell">
+        <div class="page-head">
+          <div>
+            <div class="eyebrow"><span class="eyebrow-line"></span>BASE / DAILY COMMS</div>
+            <h1>每日通信</h1>
+            <p class="page-intro">今天也向基地发送一个信号吧。</p>
+          </div>
+          <div class="page-date">
+            <span class="date-kicker">北京时间 · 星期五</span>
+            <strong>2026<span> / </span>10<span> / </span>16</strong>
+          </div>
+        </div>
+
+        <section id="terminal" class="terminal-panel" aria-labelledby="terminal-title">
+          <div class="terminal-main">
+            <div class="terminal-topline">
+              <div class="panel-label"><span class="status-light" aria-hidden="true"></span><span>基地终端</span><span class="label-divider">/</span><span class="mono">SIGNAL ONLINE</span></div>
+              <span class="privacy-note"><svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.25" y="7" width="9.5" height="7" rx="1.6"/><path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7"/></svg>仅自己可见</span>
+            </div>
+            <h2 id="terminal-title" class="terminal-title">给今天，留一个<br class="desktop-break" />温柔的落点。</h2>
+            <div class="mood-heading"><span>今日状态</span><span id="moodHeadingMode">可选</span></div>
+            <div class="mood-grid" id="moodGrid" role="group" aria-label="选择今日状态，可不选择">
+              <button class="mood-option" type="button" data-mood="状态不错" aria-pressed="false">
+                <span class="mood-icon mood-icon--sun" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.4"/><path d="M12 2.8v2m0 14.4v2M4.92 4.92l1.4 1.4m11.36 11.36 1.4 1.4M2.8 12h2m14.4 0h2M4.92 19.08l1.4-1.4M17.68 6.32l1.4-1.4"/></svg></span>
+                <span>状态不错</span>
+              </button>
+              <button class="mood-option" type="button" data-mood="稳定运行" aria-pressed="false">
+                <span class="mood-icon mood-icon--steady" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M3 12h4l2.1-5.2L13 17l2.2-5H21"/></svg></span>
+                <span>稳定运行</span>
+              </button>
+              <button class="mood-option" type="button" data-mood="有点疲惫" aria-pressed="false">
+                <span class="mood-icon mood-icon--rest" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M18.8 14.8A7.6 7.6 0 0 1 9.2 5.2a7.8 7.8 0 1 0 9.6 9.6Z"/><path d="M17 4v3m-1.5-1.5h3"/></svg></span>
+                <span>有点疲惫</span>
+              </button>
+              <button class="mood-option" type="button" data-mood="高负载中" aria-pressed="false">
+                <span class="mood-icon mood-icon--load" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 18.5h16M6.5 15l3-3 2.3 1.8 5.7-6.3"/><path d="M17.5 7.5h2v2"/></svg></span>
+                <span>高负载中</span>
+              </button>
+              <button class="mood-option" type="button" data-mood="正在调试" aria-pressed="false">
+                <span class="mood-icon mood-icon--tune" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 7h8m4 0h4M4 17h4m4 0h8"/><circle cx="14" cy="7" r="2"/><circle cx="10" cy="17" r="2"/></svg></span>
+                <span>正在调试</span>
+              </button>
+            </div>
+            <p class="mood-readonly-note" id="moodReadonlyNote" hidden>今天没有选择状态。</p>
+            <div class="terminal-footer">
+              <button class="send-button" type="button" id="sendSignal">
+                <span class="send-button__label">发送今日信号</span>
+                <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 10h13m-5-5 5 5-5 5"/></svg>
+              </button>
+              <span class="optional-hint">不选择状态，也可以直接签到</span>
+            </div>
+            <div id="terminalMessage" class="terminal-message" role="status" aria-live="polite" hidden></div>
+          </div>
+          <aside class="transmitter" aria-label="通信终端状态">
+            <div class="transmitter-head"><span class="mono">TX / 01</span><span>吉甲基地</span></div>
+            <div class="signal-orbit" id="signalOrbit" aria-hidden="true">
+              <span class="orbit orbit--outer"></span><span class="orbit orbit--mid"></span><span class="orbit orbit--inner"></span>
+              <span class="signal-core"><span class="signal-core__dot"></span></span>
+              <span class="signal-trace signal-trace--one"></span><span class="signal-trace signal-trace--two"></span>
+            </div>
+            <div class="transmitter-state"><span class="transmitter-state__label">TERMINAL STATE</span><strong id="terminalState">等待发送</strong></div>
+            <div class="transmitter-readout"><span>CHANNEL</span><strong>BASE—01</strong><span class="readout-rule"></span><span>SECURE</span><strong><span class="secure-dot"></span> PRIVATE</strong></div>
+            <span class="transmitter-index">GJ / 026</span>
+          </aside>
+          <span class="terminal-corner terminal-corner--tl" aria-hidden="true"></span><span class="terminal-corner terminal-corner--br" aria-hidden="true"></span>
+        </section>
+
+        <section id="archive" class="archive-panel" aria-labelledby="archive-title">
+          <div class="archive-header">
+            <div>
+              <div class="eyebrow"><span class="eyebrow-line"></span>SIGNAL ARCHIVE</div>
+              <div class="archive-title-row"><h2 id="archive-title">信号档案</h2><span class="archive-year" id="archiveYearLabel">2026</span></div>
+            </div>
+            <div class="archive-actions">
+              <label class="year-select-wrap"><span class="sr-only">选择档案年份</span>
+                <select id="yearSelect" class="year-select" aria-label="选择档案年份">
+                  <option value="2026" selected>2026 年</option><option value="2025">2025 年</option><option value="2024">2024 年</option>
+                </select>
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
+              </label>
+              <button class="today-return" type="button" id="returnToday" aria-label="返回今天并定位到今日所在周">
+                <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.2 6A5.5 5.5 0 1 0 14 9M13 2.5v3.8H9.2"/></svg>
+                <span>回到今天</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="heatmap-viewport" id="heatmapViewport" tabindex="0" aria-label="年度签到热力图，可横向滚动查看">
+            <div class="heatmap-content">
+              <div class="month-labels" id="monthLabels" aria-hidden="true"></div>
+              <div class="heatmap-body">
+                <div class="weekday-labels" aria-hidden="true"><span></span><span>一</span><span></span><span>三</span><span></span><span>五</span><span></span></div>
+                <div id="heatmapGrid" class="heatmap-grid" role="grid" aria-label="2026 年每日通信记录"></div>
+              </div>
+            </div>
+          </div>
+          <div class="heatmap-swipe-hint" aria-hidden="true"><span>←</span>滑动查看全年<span>→</span></div>
+          <div class="archive-bottom">
+            <div class="heatmap-legend" aria-label="图例">
+              <span><i class="legend-cell legend-cell--quiet" aria-hidden="true"></i>留白</span>
+              <span><i class="legend-cell legend-cell--sent" aria-hidden="true"></i>已发送</span>
+              <span><i class="legend-cell legend-cell--today" aria-hidden="true"></i>今天</span>
+              <span><i class="legend-cell legend-cell--future" aria-hidden="true"></i>未来</span>
+            </div>
+            <span class="archive-note">每一天，都有自己的节奏。</span>
+          </div>
+          <div class="date-detail" id="dateDetail" aria-live="polite"></div>
+        </section>
+
+        <div class="footer-line"><span>JIJIA BASE · PERSONAL ARCHIVE</span><span>留下一点信号，也留一点余地。</span></div>
+      </main>
+
+    </div>
+  </body>
+</html>
