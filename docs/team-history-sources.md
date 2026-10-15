@@ -13,12 +13,12 @@
 | 2022 | S1 模拟对抗实践覆盖三个校区、近百名学生；TARS-Go 发布 AI 挑战赛算法资料 | [吉林大学 S1 活动报道](https://cxcyjyxy.jlu.edu.cn/info/1099/1614.htm)；[RoboMaster 社区算法开源记录](https://bbs.robomaster.com/article/9138) |
 | 2023 | 公开英雄机器人机械设计资料、模型与说明 | [RoboMaster 社区英雄机器人开源记录](https://bbs.robomaster.com/article/9447) |
 | 2024 | 东部赛区晋级；首次进入全国总决赛；东部赛区一等奖、全国赛二等奖 | [RoboMaster 2024 区域赛名单](https://www.robomaster.com/zh-CN/resource/pages/announcement/1736)；[RoboMaster 2024 全国赛名单](https://www.robomaster.com/zh-CN/resource/pages/announcement/1759) |
-| 2025 | 步兵方案开源；区域赛晋级；全国赛二等奖、步兵机器人竞技奖二等奖；队史学习为文化建设规划内容 | [步兵开源记录](https://bbs.robomaster.com/article/716393)；[区域赛名单](https://www.robomaster.com/zh-CN/resource/pages/announcement/1847)；[全国赛名单](https://www.robomaster.com/zh-CN/resource/pages/announcement/1856)；[机器人竞技奖名单](https://www.robomaster.com/zh-CN/resource/pages/announcement/1853)；内部规划依据为 `jijia-master-operations/research/2025-culture-building-plan-source-notes.md`（仅说明规划，不作为已执行活动的证据） |
+| 2025 | 步兵方案开源；区域赛晋级；全国赛二等奖、步兵机器人竞技奖二等奖；队史学习为文化建设规划内容 | [步兵开源记录](https://bbs.robomaster.com/article/716393)；[区域赛名单](https://www.robomaster.com/zh-CN/resource/pages/announcement/1847)；[全国赛名单](https://www.robomaster.com/zh-CN/resource/pages/announcement/1856)；[机器人竞技奖名单](https://www.robomaster.com/zh-CN/resource/pages/announcement/1853)；内部规划依据为 `tarsgo-operations/research/2025-culture-building-plan-source-notes.md`（仅说明规划，不作为已执行活动的证据） |
 | 2026 | 官网机器人赛季档案、步兵与工程机器人开源资料；超级对抗赛全国赛三等奖；青少年科创研学报道 | [官网机器人展厅](/robots)；[步兵算法开源](https://bbs.robomaster.com/article/1883887)；[工程机器人机械结构开源](https://bbs.robomaster.com/article/1885239)；[全国赛获奖名单](https://www.robomaster.com/zh-CN/resource/pages/announcement/1925)；[吉林大学研学报道](https://news.jlu.edu.cn/info/1211/61778.htm) |
 
-平台与战队身份的区分参考吉林大学 2020 年起源报道、2021 年梦工场平台报道，以及内部 `jijia-master-operations/operations/team-foundation-v1.0.md` 和 `publicity/brand-foundation.md`。内部资料用于核对组织定位，不将内部会议内容或成员评价写入页面。
+平台与战队身份的区分参考吉林大学 2020 年起源报道、2021 年梦工场平台报道，以及内部 `tarsgo-operations/operations/team-foundation-v1.0.md` 和 `publicity/brand-foundation.md`。内部资料用于核对组织定位，不将内部会议内容或成员评价写入页面。
 
-资料整理还对照了 `jijia-master-operations/research/tarsgo-public-history-and-culture.md`、`research/oral-history/`、`research/team-history-culture-asset-system.md`、`operations/2024赛季规划历史沉淀.md` 和 `research/2025-culture-building-plan-source-notes.md`。其中口述与内部规划仅按页面标注的范围使用；2024 赛季内部规划中的会议和成员信息不对外发布。
+资料整理还对照了 `tarsgo-operations/research/tarsgo-public-history-and-culture.md`、`research/oral-history/`、`research/team-history-culture-asset-system.md`、`operations/2024赛季规划历史沉淀.md` 和 `research/2025-culture-building-plan-source-notes.md`。其中口述与内部规划仅按页面标注的范围使用；2024 赛季内部规划中的会议和成员信息不对外发布。
 
 ## 页面照片
 
