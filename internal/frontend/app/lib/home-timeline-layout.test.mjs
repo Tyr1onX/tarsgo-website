@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { honorAwards, honorMaterials } from "./events-and-honors-data.ts";
 
 const home = await readFile(new URL("../routes/home.tsx", import.meta.url), "utf8");
 const styles = await readFile(new URL("../app.css", import.meta.url), "utf8");
@@ -79,8 +80,9 @@ test("the honors archive pairs a real competition photo with selected results an
   assert.match(archive, /honors-featured-visual[\s\S]*?2024-national-competition\.webp/);
   assert.match(archive, /spotlightAward\.result/);
   assert.match(archive, /aria-label="按年份查看赛事档案"[\s\S]*?honors-year-" \+ year/);
-  assert.equal((data.match(/id: "certificate-\d{2}"/g) ?? []).length, 0, "materials are generated from a single numbered source list");
-  assert.match(data, /Array\.from\(\{ length: 25 \}/);
+  assert.match(data, /existingHonorMaterials: HonorMaterial\[\] = Array\.from\(\{ length: 25 \}/);
+  assert.match(data, /const addedHonorMaterials: HonorMaterial\[\] = \[/);
+  assert.equal((data.match(/id: "certificate-\d{2}"/g) ?? []).length, 19, "new material records are explicit and keep their intake classifications");
   assert.match(data, /id === "certificate-10"[\s\S]*?duplicate/);
   assert.match(data, /id === "certificate-20"[\s\S]*?duplicate/);
   assert.match(data, /id === "certificate-11"[\s\S]*?supporting/);
@@ -101,13 +103,69 @@ test("the honors archive pairs a real competition photo with selected results an
   assert.match(styles, /\.honors-material-grid\s*\{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(styles, /@media \(min-width: 1024px\)[\s\S]*?\.honors-material-grid\s*\{\s*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.honors-material-open:focus-visible/);
-  const certificates = await Promise.all(Array.from({ length: 25 }, (_, index) => {
+  const certificates = await Promise.all(Array.from({ length: 44 }, (_, index) => {
     const number = String(index + 1).padStart(2, "0");
     return readFile(new URL(`../../../../public/assets/images/CertificateOfAchievement/certificate-${number}.webp`, import.meta.url));
   }));
-  assert.equal(certificates.length, 25);
+  assert.equal(certificates.length, 44);
+  for (const certificate of certificates) {
+    assert.equal(certificate.toString("ascii", 0, 4), "RIFF");
+    assert.equal(certificate.toString("ascii", 8, 12), "WEBP");
+    assert.ok(certificate.length > 10_000);
+  }
   assert.equal(createHash("sha256").update(certificates[1]).digest("hex"), createHash("sha256").update(certificates[9]).digest("hex"));
   assert.match(data, /certificateIds: \["certificate-03", "certificate-20"\]/);
+
+  assert.equal(honorMaterials.length, 44);
+  assert.deepEqual(honorMaterials.map((material) => material.id), Array.from({ length: 44 }, (_, index) => `certificate-${String(index + 1).padStart(2, "0")}`));
+  for (const award of honorAwards) {
+    for (const certificateId of award.certificateIds) {
+      const material = honorMaterials.find((candidate) => candidate.id === certificateId);
+      assert.ok(material, `${award.id} references missing ${certificateId}`);
+      assert.equal(material.awardId, award.id, `${certificateId} must point back to ${award.id}`);
+    }
+  }
+
+  const intakeAwardIds = [
+    "ican-2023-injection-vision-jilin-first",
+    "ican-2023-outstanding-instructor",
+    "challenge-cup-2026-jijiazhichuang",
+  ];
+  assert.deepEqual(honorAwards.filter((award) => intakeAwardIds.includes(award.id)).map((award) => award.category).sort(), ["instructor", "project", "project"]);
+  assert.deepEqual(honorAwards.find((award) => award.id === "ican-2023-injection-vision-jilin-first").certificateIds, ["certificate-30"]);
+  assert.deepEqual(honorAwards.find((award) => award.id === "ican-2023-injection-vision").certificateIds, ["certificate-21"]);
+
+  const newDuplicates = honorMaterials.filter((material) => [27, 28, 32, 34, 39, 41].includes(Number(material.id.slice("certificate-".length))));
+  assert.equal(newDuplicates.length, 6);
+  for (const material of newDuplicates) {
+    assert.equal(material.relation, "duplicate");
+    assert.ok(material.awardId);
+    assert.ok(honorAwards.some((award) => award.id === material.awardId));
+  }
+  const duplicateOriginals = new Map([
+    ["certificate-27", "#14"],
+    ["certificate-28", "#06"],
+    ["certificate-32", "#21"],
+    ["certificate-34", "#04"],
+    ["certificate-39", "#12"],
+    ["certificate-41", "#23"],
+  ]);
+  for (const [materialId, originalId] of duplicateOriginals) {
+    assert.ok(honorMaterials.find((material) => material.id === materialId).note?.includes(originalId));
+  }
+  const associatedEnvelope = honorMaterials.find((material) => material.id === "certificate-29");
+  assert.equal(associatedEnvelope.relation, "supporting");
+  assert.ok(associatedEnvelope.note?.includes("#22"));
+  const intakeMaterials = honorMaterials.filter((material) => Number(material.id.slice("certificate-".length)) >= 26);
+  const pendingMaterials = intakeMaterials.filter((material) => material.relation === "pending");
+  assert.equal(pendingMaterials.length, 8);
+  assert.ok(pendingMaterials.every((material) => !material.awardId));
+  assert.ok(pendingMaterials.some((material) => material.id === "certificate-26" && material.note?.includes("#24")));
+  const completionMaterials = honorMaterials.filter((material) => material.kind === "project-completion");
+  assert.equal(completionMaterials.length, 4);
+  assert.equal(completionMaterials.filter((material) => material.relation === "pending").length, 3);
+  assert.equal(completionMaterials.filter((material) => material.relation === "supporting").length, 1);
+  assert.ok(completionMaterials.every((material) => !material.awardId));
 });
 
 test("the about route renders the brand and group system while the robot route delegates to the photo gallery", () => {
