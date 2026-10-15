@@ -1,6 +1,6 @@
 # 「认识吉甲」页面事实与来源
 
-本文是 `/about` 的事实与来源维护索引；页面不直接展示内部运营材料或编辑说明。运营资料以 `Tyr1onX/jijia-master-operations` 的 `origin/main` `4adece5` 为本轮核验版本。
+本文是 `/about` 的事实与来源维护索引；页面不直接展示内部运营材料或编辑说明。运营资料以 `Tyr1onX/tarsgo-operations` 的 `origin/main` `4adece5` 为本轮核验版本。
 
 | 页面内容 | 采用依据 | 使用边界 |
 | --- | --- | --- |
