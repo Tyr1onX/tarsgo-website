@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
@@ -8,6 +9,10 @@ const navbar = await readFile(new URL("../components/navbar.tsx", import.meta.ur
 const styles = await readFile(new URL("../app.css", import.meta.url), "utf8");
 const joinExperience = await readFile(new URL("../components/join-experience.tsx", import.meta.url), "utf8");
 const joinStyles = await readFile(new URL("../components/join-experience.css", import.meta.url), "utf8");
+const aboutPage = await readFile(new URL("../components/about-team-page.tsx", import.meta.url), "utf8");
+const aboutStyles = await readFile(new URL("../components/about-team-page.css", import.meta.url), "utf8");
+const aboutData = await readFile(new URL("../data/about-team.ts", import.meta.url), "utf8");
+const aboutSources = await readFile(new URL("../../../../docs/about-page-fact-sources.md", import.meta.url), "utf8");
 const historyData = await readFile(new URL("../data/team-history.ts", import.meta.url), "utf8");
 const historyArchive = await readFile(new URL("../components/team-history-archive.tsx", import.meta.url), "utf8");
 const eventsArchive = await readFile(new URL("../components/events-and-honors-archive.tsx", import.meta.url), "utf8");
@@ -36,7 +41,8 @@ test("all five new public topic routes are directly registered and share the exi
 
 test("the original home keeps its video and legacy anchors while archive content lives in its own component", () => {
   for (const anchor of ["hero", "about", "robots"]) {
-    assert.ok(home.includes(`id="${anchor}"`), `missing legacy home anchor #${anchor}`);
+    const anchorSource = anchor === "about" ? aboutPage : home;
+    assert.ok(anchorSource.includes(`id="${anchor}"`), `missing legacy home anchor #${anchor}`);
   }
   assert.ok(historyArchive.includes('id="achievements"'), "missing legacy archive anchor #achievements");
   assert.ok(eventsArchive.includes('id="certificates"'), "missing archive anchor #certificates");
@@ -53,14 +59,17 @@ test("the original home keeps its video and legacy anchors while archive content
   assert.match(home, /<RobotPhotoGallery \/>/);
 });
 
-test("topic content uses the existing five groups, practice modules, and a dedicated evidence-based honors archive", () => {
+test("topic content keeps the five group definitions, dedicated about page, and separate evidence-based archives", () => {
   assert.match(home, /const groups = \[/);
   assert.match(home, /机械组/);
   assert.match(home, /电控组/);
   assert.match(home, /视觉组/);
   assert.match(home, /AI组/);
   assert.match(home, /运营组/);
-  assert.match(home, /const aboutModules = \[/);
+  assert.match(home, /<AboutTeamPage groups=\{groups\} \/>/);
+  assert.doesNotMatch(home, /const aboutModules = \[/);
+  assert.match(aboutPage, /吉甲大师/);
+  assert.match(aboutPage, /TARS-Go/);
   assert.match(home, /<EventsAndHonorsArchive \/>/);
   assert.match(home, /<TeamHistoryArchive \/>/);
   assert.match(historyData, /sourceIds: \[/);
@@ -159,11 +168,40 @@ test("the five uploaded groups keep matching black and white SVG geometry with s
   }
 });
 
-test("group identity appears on the about and join pages with accessible theme-aware tabs", () => {
-  assert.match(home, /team-composition-heading/);
-  assert.match(home, /<SiteLogo className=/);
-  assert.match(home, /吉林大学吉甲大师双创基地/);
-  assert.match(home, /team-composition__groups/);
+test("the about page explains platform identity, group collaboration, member growth, and traceable sources", async () => {
+  assert.match(aboutPage, /一个实践平台，一支工程战队/);
+  assert.match(aboutPage, /吉甲大师是平台，TARS-Go 是战队/);
+  assert.match(aboutPage, /about-groups-grid/);
+  assert.match(aboutPage, /about-engineering-flow/);
+  assert.match(aboutPage, /about-operations-thread/);
+  assert.match(aboutPage, /about-growth-path/);
+  assert.match(aboutPage, /五个组别/);
+  assert.match(aboutPage, /训练营、校内实践、技术开源和前辈分享/);
+  assert.match(aboutPage, /不是统一课表或固定晋升制度/);
+  assert.match(aboutPage, /to="\/team-history"/);
+  assert.match(aboutPage, /to="\/robots"/);
+  assert.match(aboutPage, /to="\/events-and-honors"/);
+  assert.match(aboutPage, /to="\/join"/);
+  assert.match(aboutPage, /loading="lazy"/);
+  assert.match(aboutData, /teamOutcomes/);
+  assert.match(aboutData, /engineeringStages/);
+  assert.match(aboutData, /memberGrowthStages/);
+  assert.match(aboutSources, /team-foundation-v1\.0\.md/);
+  assert.match(aboutSources, /当前各组实际人员配置/);
+  assert.match(aboutSources, /赛季口号与长期队训/);
+  assert.match(aboutStyles, /:root\[data-theme="dark"\] \.about-group-mark__light/);
+  assert.match(aboutStyles, /:root\[data-theme="dark"\] \.about-group-mark__dark/);
+  for (const breakpoint of ["640px", "900px", "1200px", "1500px"]) {
+    assert.ok(aboutStyles.includes(`min-width: ${breakpoint}`), `missing about layout breakpoint ${breakpoint}`);
+  }
+
+  const operationsMark = await readFile(new URL("../../../../public/assets/images/Groups/operations-black.svg", import.meta.url));
+  assert.equal(
+    createHash("sha256").update(operationsMark).digest("hex"),
+    "a62b6c62a94e6141669bc6de6602cca280eeacd2975302d2762615bcb3788bf8",
+    "the site must keep the latest seven-piece Operations mark, not the withdrawn old O mark",
+  );
+
   assert.match(joinExperience, /role="tablist"/);
   assert.match(joinExperience, /role="tab"/);
   assert.match(joinExperience, /aria-selected=\{isActive\}/);
@@ -174,8 +212,6 @@ test("group identity appears on the about and join pages with accessible theme-a
   assert.match(joinExperience, /role="tabpanel"/);
   assert.match(joinExperience, /aria-live="polite"/);
   assert.match(joinExperience, /activeGroup\.directions\.map/);
-  assert.match(styles, /:root\[data-theme="dark"\] \.team-group-mark__image--light\s*\{\s*display:\s*none;/);
-  assert.match(styles, /:root\[data-theme="dark"\] \.team-group-mark__image--dark\s*\{\s*display:\s*block;/);
   assert.match(joinStyles, /:root\[data-theme="dark"\] \.join-group-mark__light/);
   assert.match(joinStyles, /:root\[data-theme="dark"\] \.join-group-mark__dark/);
   assert.match(joinStyles, /@media \(prefers-reduced-motion: reduce\)/);
