@@ -1,10 +1,11 @@
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const home = await readFile(new URL("../routes/home.tsx", import.meta.url), "utf8");
 const styles = await readFile(new URL("../app.css", import.meta.url), "utf8");
-const milestonesSource = home.match(/const timelineMilestones = \[([\s\S]*?)\n\];\n\nconst achievementCertificates/)?.[1] ?? "";
+const milestonesSource = home.match(/const timelineMilestones = \[([\s\S]*?)\n\];\n\nconst sponsorLogos/)?.[1] ?? "";
 const milestoneYears = Array.from(milestonesSource.matchAll(/year: "(\d{4})"/g), ([, year]) => year);
 
 test("the timeline keeps all eight historical years and their source records", () => {
@@ -42,31 +43,38 @@ test("home sections share a content width and imagery uses deliberate aspect rat
   assert.match(home, /image\.fit === "contain" \? "object-contain" : "object-cover"/);
 });
 
-test("the honor gallery shows six certificates by default and retains all original entries", () => {
-  const certificateSource = home.match(/const achievementCertificates = \[([\s\S]*?)\n\];/)?.[1] ?? "";
-  const certificates = Array.from(certificateSource.matchAll(/"(\/assets\/images\/CertificateOfAchievement\/certificate-\d+\.webp)"/g), ([, path]) => path);
+test("the dedicated honors archive owns certificate records, categorizes awards, and preserves duplicate evidence", async () => {
+  const archive = await readFile(new URL("../components/events-and-honors-archive.tsx", import.meta.url), "utf8");
+  const data = await readFile(new URL("./events-and-honors-data.ts", import.meta.url), "utf8");
+  const styles = await readFile(new URL("../components/events-and-honors-archive.css", import.meta.url), "utf8");
+  assert.match(home, /<EventsAndHonorsArchive \/>/);
+  assert.match(archive, /id="highlights"[\s\S]*?id="competition-records"[\s\S]*?id="certificates"/);
+  assert.equal((data.match(/id: "certificate-\d{2}"/g) ?? []).length, 0, "materials are generated from a single numbered source list");
+  assert.match(data, /Array\.from\(\{ length: 25 \}/);
+  assert.match(data, /id === "certificate-10"[\s\S]*?duplicate/);
+  assert.match(data, /id === "certificate-20"[\s\S]*?duplicate/);
+  assert.match(data, /id === "certificate-11"[\s\S]*?supporting/);
+  assert.match(data, /id === "certificate-22"[\s\S]*?supporting/);
+  assert.match(data, /id === "certificate-24"[\s\S]*?pending/);
+  for (const category of ["team", "robot", "project", "instructor"]) assert.ok(data.includes('"' + category + '"'));
+  assert.match(data, /荣获|优秀指导老师/);
+  assert.match(archive, /event.key === "ArrowLeft"/);
+  assert.match(archive, /event.key === "ArrowRight"/);
+  assert.match(archive, /event.key === "Home"/);
+  assert.match(archive, /event.key === "End"/);
+  assert.match(archive, /aria-haspopup="dialog"/);
+  assert.match(archive, /award\.certificateIds\.length > 0[\s\S]*?查看证书原件/);
+  assert.match(styles, /\.honors-featured-item > \.honors-source-list,[\s\S]*?grid-column: 2;/);
+  assert.match(styles, /\.honors-featured-list\s*\{\s*grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)/);
+  assert.match(styles, /\.honors-material-grid\s*\{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  const certificates = await Promise.all(Array.from({ length: 25 }, (_, index) => {
+    const number = String(index + 1).padStart(2, "0");
+    return readFile(new URL(`../../../../public/assets/images/CertificateOfAchievement/certificate-${number}.webp`, import.meta.url));
+  }));
   assert.equal(certificates.length, 25);
-  assert.ok(certificates.includes("/assets/images/CertificateOfAchievement/certificate-02.webp"));
-  assert.ok(certificates.includes("/assets/images/CertificateOfAchievement/certificate-10.webp"));
-  assert.match(home, /achievementCertificates\.slice\(0, 6\)/);
-  assert.match(home, /visibleCertificates\.map\(/);
-  assert.match(home, /aria-expanded=\{showAllCertificates\}/);
-  assert.match(home, /查看全部荣誉/);
-  assert.match(home, /收起荣誉/);
-  assert.match(home, /certificate-thumbnail[^\"]*aspect-\[4\/3\]/);
-  assert.match(home, /className="h-full w-full object-contain"/);
-});
-
-test("the original-certificate preview supports keyboard and touch navigation", () => {
-  assert.match(home, /key === "ArrowLeft"[\s\S]*?moveCertificatePreview\(-1\)/);
-  assert.match(home, /key === "ArrowRight"[\s\S]*?moveCertificatePreview\(1\)/);
-  assert.match(home, /key === "Home"[\s\S]*?setSelectedCertificateIndex\(0\)/);
-  assert.match(home, /key === "End"[\s\S]*?setSelectedCertificateIndex\(achievementCertificates\.length - 1\)/);
-  assert.match(home, /aria-label="查看上一张证书/);
-  assert.match(home, /aria-label="查看下一张证书/);
-  assert.match(home, /aria-label="关闭证书预览"/);
-  assert.match(home, /certificate-preview-image/);
-  assert.match(styles, /\.certificate-preview-image\s*\{[^}]*max-height:\s*min\(74dvh,\s*56rem,\s*calc\(92dvh\s*-\s*7rem\)\);/);
+  assert.equal(createHash("sha256").update(certificates[1]).digest("hex"), createHash("sha256").update(certificates[9]).digest("hex"));
+  assert.match(data, /certificateIds: \["certificate-03", "certificate-20"\]/);
 });
 
 test("all five about categories remain available and the robot route delegates to the photo gallery", () => {
