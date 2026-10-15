@@ -5,10 +5,13 @@ import { AuthShell } from "~/components/auth-shell";
 import {
   ApiError,
   getBootstrapStatus,
+  getAccountSessions,
   getOptionalCurrentUser,
   loginWithCode,
   loginWithPassword,
   sendLoginCode,
+  switchAccountSession,
+  type AccountSessionAccount,
 } from "~/lib/auth-client";
 import { getDefaultDashboardPath } from "~/lib/dashboard-navigation";
 import { useCooldown } from "~/lib/use-cooldown";
@@ -32,26 +35,30 @@ export default function Login() {
   const [errorMessage, setErrorMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [sendingCode, setSendingCode] = useState(false);
+  const [savedAccounts, setSavedAccounts] = useState<AccountSessionAccount[]>([]);
+  const [switchingAccountId, setSwitchingAccountId] = useState<number | null>(null);
   const cooldown = useCooldown();
 
   const redirectTo = useMemo(
     () => getSafeRedirectPath(searchParams.get("redirect")),
     [searchParams],
   );
+  const addingAccount = searchParams.get("addAccount") === "1";
 
   useEffect(() => {
     let disposed = false;
 
-    void Promise.all([getBootstrapStatus(), getOptionalCurrentUser()])
-      .then(([bootstrapStatus, currentUser]) => {
+    void Promise.all([getBootstrapStatus(), getOptionalCurrentUser(), getAccountSessions().catch(() => [])])
+      .then(([bootstrapStatus, currentUser, accounts]) => {
         if (disposed) {
           return;
         }
+        setSavedAccounts(accounts);
         if (bootstrapStatus.setupRequired) {
           navigate("/dashboard/setup/super-admin", { replace: true });
           return;
         }
-        if (currentUser) {
+        if (currentUser && !addingAccount) {
           navigate(resolveAuthDestination(redirectTo, currentUser.role.name), { replace: true });
         }
       })
@@ -64,7 +71,7 @@ export default function Login() {
     return () => {
       disposed = true;
     };
-  }, [navigate]);
+  }, [addingAccount, navigate, redirectTo]);
 
   const canSendCode = isValidEmail(email) && !cooldown.isCoolingDown && !sendingCode;
 
@@ -101,11 +108,11 @@ export default function Login() {
       if (mode === "password") {
         const user = await loginWithPassword({ email, password });
         prefetchDashboardForRole(user.role.name);
-        navigate(resolveAuthDestination(redirectTo, user.role.name), { replace: true });
+        navigate(getAccountLoginDestination(redirectTo, user.role.name, addingAccount), { replace: true });
       } else {
         const user = await loginWithCode({ email, code });
         prefetchDashboardForRole(user.role.name);
-        navigate(resolveAuthDestination(redirectTo, user.role.name), { replace: true });
+        navigate(getAccountLoginDestination(redirectTo, user.role.name, addingAccount), { replace: true });
       }
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
@@ -113,13 +120,53 @@ export default function Login() {
     }
   }
 
+  async function handleSwitchSavedAccount(accountId: number) {
+    setErrorMessage("");
+    setSwitchingAccountId(accountId);
+    try {
+      const { user } = await switchAccountSession(accountId);
+      window.location.assign(getAccountLoginDestination(redirectTo, user.role.name, addingAccount));
+    } catch (error) {
+      setErrorMessage(getErrorMessage(error));
+      setSwitchingAccountId(null);
+    }
+  }
+
   return (
     <AuthShell
       mode="login"
-      title="欢迎回来"
-      description="登录你的 TARSGO 统一工作台账号"
+      title={addingAccount ? "添加另一个账号" : "欢迎回来"}
+      description={addingAccount ? "使用另一个 TARSGO 账号登录" : "登录你的 TARSGO 统一工作台账号"}
       redirectTo={redirectTo}
     >
+      {savedAccounts.length > 0 ? (
+        <section className="auth-saved-accounts" aria-label="已保存账号">
+          <h2>已保存账号</h2>
+          <div className="auth-saved-accounts__list">
+            {savedAccounts.map((account) => (
+              <button
+                key={account.id}
+                type="button"
+                onClick={() => void handleSwitchSavedAccount(account.id)}
+                disabled={account.current || switchingAccountId != null}
+                className="auth-saved-account"
+              >
+                <span className="auth-saved-account__avatar" aria-hidden="true">
+                  {(account.user.nickname?.trim() || account.user.email).charAt(0).toUpperCase()}
+                </span>
+                <span className="auth-saved-account__details">
+                  <strong>{account.user.nickname || account.user.email}</strong>
+                  <small>{account.user.email} · {account.user.role.displayName}</small>
+                </span>
+                <span className="auth-saved-account__status">
+                  {account.current ? "当前" : switchingAccountId === account.id ? "切换中…" : "切换"}
+                </span>
+              </button>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <div className="auth-mode-switch" aria-label="登录方式">
         <button type="button" aria-pressed={mode === "password"} onClick={() => setMode("password")}>
           密码登录
@@ -222,6 +269,10 @@ function getSafeRedirectPath(value: string | null) {
 
 function resolveAuthDestination(redirectTo: string, roleName: string) {
   return redirectTo === "/dashboard" ? getDefaultDashboardPath(roleName) : redirectTo;
+}
+
+function getAccountLoginDestination(redirectTo: string, roleName: string, addingAccount: boolean) {
+  return addingAccount ? getDefaultDashboardPath(roleName) : resolveAuthDestination(redirectTo, roleName);
 }
 
 function prefetchDashboardForRole(roleName: string) {

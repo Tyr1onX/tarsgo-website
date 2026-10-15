@@ -32,6 +32,16 @@ export interface BootstrapStatus {
   setupRequired: boolean;
 }
 
+export interface AccountSessionAccount {
+  id: number;
+  user: AuthUser;
+  expiresAt: string;
+  current: boolean;
+}
+
+const ACCOUNT_SESSION_CHANNEL = "tarsgo:account-session-change";
+let accountSessionTabId: string | null = null;
+
 const authSessionCache = new AuthSessionCache<AuthUser>();
 let currentUserRequest: Promise<AuthUser> | null = null;
 const bootstrapStatusCacheTtlMs = 5_000;
@@ -44,6 +54,42 @@ function notifyAuthStateChange(user: AuthUser | null) {
   for (const listener of authStateListeners) {
     listener(user);
   }
+}
+
+export function announceAccountSessionChange() {
+  if (typeof BroadcastChannel === "undefined") return;
+  const channel = new BroadcastChannel(ACCOUNT_SESSION_CHANNEL);
+  channel.postMessage({ type: "identity-changed", source: getAccountSessionTabId() });
+  channel.close();
+}
+
+export function subscribeAccountSessionChange(onChange: () => void): () => void {
+  if (typeof BroadcastChannel === "undefined") return () => undefined;
+  const channel = new BroadcastChannel(ACCOUNT_SESSION_CHANNEL);
+  const handleMessage = (event: MessageEvent<{ type?: string; source?: string }>) => {
+    if (event.data?.type === "identity-changed" && event.data.source !== getAccountSessionTabId()) onChange();
+  };
+  channel.addEventListener("message", handleMessage);
+  return () => {
+    channel.removeEventListener("message", handleMessage);
+    channel.close();
+  };
+}
+
+function getAccountSessionTabId() {
+  if (!accountSessionTabId) {
+    accountSessionTabId = typeof crypto !== "undefined" && "randomUUID" in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  }
+  return accountSessionTabId;
+}
+
+function notifyNewLogin(user: AuthUser) {
+  authSessionCache.setAuthenticated(user);
+  currentUserRequest = null;
+  notifyAuthStateChange(user);
+  announceAccountSessionChange();
 }
 
 export async function getBootstrapStatus(): Promise<BootstrapStatus> {
@@ -91,9 +137,7 @@ export async function registerWithEmail(input: {
     method: "POST",
     body: input,
   });
-  authSessionCache.setAuthenticated(data.user);
-  currentUserRequest = null;
-  notifyAuthStateChange(data.user);
+  notifyNewLogin(data.user);
   return data.user;
 }
 
@@ -107,9 +151,7 @@ export async function registerInitialSuperAdmin(input: {
     body: input,
   });
   invalidateBootstrapStatus();
-  authSessionCache.setAuthenticated(data.user);
-  currentUserRequest = null;
-  notifyAuthStateChange(data.user);
+  notifyNewLogin(data.user);
   return data.user;
 }
 
@@ -121,9 +163,7 @@ export async function loginWithPassword(input: {
     method: "POST",
     body: input,
   });
-  authSessionCache.setAuthenticated(data.user);
-  currentUserRequest = null;
-  notifyAuthStateChange(data.user);
+  notifyNewLogin(data.user);
   return data.user;
 }
 
@@ -142,10 +182,71 @@ export async function loginWithCode(input: {
     method: "POST",
     body: input,
   });
-  authSessionCache.setAuthenticated(data.user);
-  currentUserRequest = null;
-  notifyAuthStateChange(data.user);
+  notifyNewLogin(data.user);
   return data.user;
+}
+
+export async function initializeAccountSessions(): Promise<AccountSessionAccount[]> {
+  const data = await apiRequest<{ accounts: AccountSessionAccount[]; identityChanged: boolean }>("/api/account-sessions/initialize", {
+    method: "POST",
+    body: {},
+    accountAction: true,
+    cache: "no-store",
+  });
+  if (data.identityChanged) announceAccountSessionChange();
+  return data.accounts;
+}
+
+export async function getAccountSessions(): Promise<AccountSessionAccount[]> {
+  const data = await apiRequest<{ accounts: AccountSessionAccount[] }>("/api/account-sessions", { cache: "no-store" });
+  return data.accounts;
+}
+
+export async function switchAccountSession(accountId: number): Promise<{ user: AuthUser; accounts: AccountSessionAccount[] }> {
+  const result = await apiRequest<{ user: AuthUser; accounts: AccountSessionAccount[] }>("/api/account-sessions/switch", {
+    method: "POST",
+    body: { accountId },
+    accountAction: true,
+  });
+  authSessionCache.setAuthenticated(result.user);
+  currentUserRequest = null;
+  notifyAuthStateChange(result.user);
+  announceAccountSessionChange();
+  return result;
+}
+
+export async function removeAccountSession(accountId: number): Promise<{
+  accounts: AccountSessionAccount[];
+  currentRemoved: boolean;
+  vaultRemoved: boolean;
+}> {
+  const result = await apiRequest<{
+    accounts: AccountSessionAccount[];
+    currentRemoved: boolean;
+    vaultRemoved: boolean;
+  }>(`/api/account-sessions/${accountId}`, {
+    method: "DELETE",
+    accountAction: true,
+  });
+  if (result.currentRemoved) {
+    authSessionCache.setAnonymous();
+    currentUserRequest = null;
+    notifyAuthStateChange(null);
+    announceAccountSessionChange();
+  }
+  return result;
+}
+
+export async function logoutAllAccounts(): Promise<void> {
+  await apiRequest("/api/account-sessions/logout-all", {
+    method: "POST",
+    body: {},
+    accountAction: true,
+  });
+  authSessionCache.setAnonymous();
+  currentUserRequest = null;
+  notifyAuthStateChange(null);
+  announceAccountSessionChange();
 }
 
 export function getCachedCurrentUser(): AuthUser | null {
@@ -215,8 +316,9 @@ export async function getOptionalCurrentUser(
 }
 
 export async function logout(): Promise<void> {
-  await apiRequest("/api/logout", { method: "POST" });
+  await apiRequest("/api/logout", { method: "POST", body: {}, accountAction: true });
   authSessionCache.setAnonymous();
   currentUserRequest = null;
   notifyAuthStateChange(null);
+  announceAccountSessionChange();
 }

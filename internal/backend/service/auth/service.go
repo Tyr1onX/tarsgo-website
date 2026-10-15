@@ -55,8 +55,7 @@ type SessionUser struct {
 }
 
 type AuthResult struct {
-	Token string       `json:"-"`
-	User  *SessionUser `json:"user"`
+	User *SessionUser `json:"user"`
 }
 
 type BootstrapStatus struct {
@@ -444,14 +443,32 @@ func (s *Service) LoginWithCode(ctx context.Context, email string, code string) 
 }
 
 func (s *Service) CurrentUser(ctx context.Context, token string) (*SessionUser, error) {
-	claims, err := ParseToken(s.authConfig.JWTSecret, strings.TrimSpace(token))
-	if err != nil {
-		return nil, &ServiceError{Status: http.StatusUnauthorized, Message: "登录态已失效", Err: err}
+	token = strings.TrimSpace(token)
+	if token == "" {
+		return nil, &ServiceError{Status: http.StatusUnauthorized, Message: "未登录"}
 	}
 
-	userID, err := strconv.ParseUint(claims.Subject, 10, 64)
-	if err != nil {
-		return nil, &ServiceError{Status: http.StatusUnauthorized, Message: "登录态无效", Err: err}
+	userID := uint64(0)
+	session, found, sessionErr := s.findAuthSession(ctx, token)
+	if sessionErr != nil {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "读取登录会话失败", Err: sessionErr}
+	}
+	if found {
+		if session.RevokedAt != nil || !s.now().Before(session.ExpiresAt) {
+			return nil, &ServiceError{Status: http.StatusUnauthorized, Message: "登录态已失效"}
+		}
+		userID = session.UserID
+	} else {
+		// JWT cookies issued before server-side account sessions remain valid
+		// until their original expiry, then all new logins use opaque sessions.
+		claims, err := ParseToken(s.authConfig.JWTSecret, token)
+		if err != nil {
+			return nil, &ServiceError{Status: http.StatusUnauthorized, Message: "登录态已失效", Err: err}
+		}
+		userID, err = strconv.ParseUint(claims.Subject, 10, 64)
+		if err != nil {
+			return nil, &ServiceError{Status: http.StatusUnauthorized, Message: "登录态无效", Err: err}
+		}
 	}
 
 	user, err := s.loadUserWithRole(ctx, userID)
@@ -557,23 +574,9 @@ func (s *Service) buildAuthResult(user *model.User) (*AuthResult, error) {
 	if err := validateIdentityConsistency(user); err != nil {
 		return nil, err
 	}
-	claims := Claims{
-		Subject:   strconv.FormatUint(user.ID, 10),
-		Email:     user.Email,
-		Role:      user.Role.Name,
-		ExpiresAt: s.now().Add(s.authConfig.TokenTTL).Unix(),
-		IssuedAt:  s.now().Unix(),
-	}
-
-	token, err := SignToken(s.authConfig.JWTSecret, claims)
-	if err != nil {
-		return nil, err
-	}
-
 	sessionUser := toSessionUser(user)
 	return &AuthResult{
-		Token: token,
-		User:  &sessionUser,
+		User: &sessionUser,
 	}, nil
 }
 

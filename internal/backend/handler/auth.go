@@ -26,6 +26,13 @@ type authService interface {
 	SendLoginCode(ctx context.Context, email string) error
 	LoginWithCode(ctx context.Context, email string, code string) (*auth.AuthResult, error)
 	CurrentUser(ctx context.Context, token string) (*auth.SessionUser, error)
+	CreateAccountSession(ctx context.Context, userID uint64, currentToken, vaultToken string) (*auth.AccountSessionsResult, error)
+	InitializeAccountSessions(ctx context.Context, currentToken, vaultToken string) (*auth.AccountSessionsResult, error)
+	ListAccountSessions(ctx context.Context, vaultToken, currentToken string) (*auth.AccountSessionsResult, error)
+	SwitchAccountSession(ctx context.Context, vaultToken string, entryID uint64) (*auth.AccountSessionsResult, error)
+	RemoveAccountSession(ctx context.Context, vaultToken, currentToken string, entryID uint64) (*auth.AccountSessionsResult, error)
+	LogoutCurrentAccount(ctx context.Context, currentToken, vaultToken string) (bool, error)
+	LogoutAllAccounts(ctx context.Context, currentToken, vaultToken string) error
 	CookieName() string
 	CookieMaxAgeSeconds() int
 	CookieSecure() bool
@@ -58,6 +65,10 @@ type loginPasswordRequest struct {
 type loginCodeRequest struct {
 	Email string `json:"email" binding:"required,email,max=255"`
 	Code  string `json:"code" binding:"required,len=6,numeric"`
+}
+
+type switchAccountRequest struct {
+	AccountID uint64 `json:"accountId" binding:"required,gt=0"`
 }
 
 func NewAuthHandler(service authService) *AuthHandler {
@@ -108,7 +119,9 @@ func (h *AuthHandler) RegisterWithEmail(c *gin.Context) {
 		return
 	}
 
-	h.setAuthCookie(c, result.Token)
+	if !h.finishAuthentication(c, result) {
+		return
+	}
 	_ = middleware.RecordBusinessActivity(c, middleware.ActivityInput{ActionKey: model.ActivityUserRegistered, TargetUserID: &result.User.ID, EntityType: "user", EntityID: result.User.ID})
 	writeAPI(c, http.StatusOK, "注册成功", gin.H{"user": result.User})
 }
@@ -130,7 +143,9 @@ func (h *AuthHandler) RegisterInitialSuperAdmin(c *gin.Context) {
 		return
 	}
 
-	h.setAuthCookie(c, result.Token)
+	if !h.finishAuthentication(c, result) {
+		return
+	}
 	writeAPI(c, http.StatusOK, "超级管理员注册成功", gin.H{"user": result.User})
 }
 
@@ -147,7 +162,9 @@ func (h *AuthHandler) LoginWithPassword(c *gin.Context) {
 		return
 	}
 
-	h.setAuthCookie(c, result.Token)
+	if !h.finishAuthentication(c, result) {
+		return
+	}
 	writeAPI(c, http.StatusOK, "登录成功", gin.H{"user": result.User})
 }
 
@@ -179,13 +196,110 @@ func (h *AuthHandler) LoginWithCode(c *gin.Context) {
 		return
 	}
 
-	h.setAuthCookie(c, result.Token)
+	if !h.finishAuthentication(c, result) {
+		return
+	}
 	writeAPI(c, http.StatusOK, "登录成功", gin.H{"user": result.User})
 }
 
 func (h *AuthHandler) Logout(c *gin.Context) {
+	currentToken, _ := c.Cookie(h.service.CookieName())
+	vaultToken, _ := c.Cookie(accountVaultCookieName)
+	keepVault, err := h.service.LogoutCurrentAccount(c.Request.Context(), currentToken, vaultToken)
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
 	h.clearAuthCookie(c)
+	if !keepVault {
+		h.clearAccountVaultCookie(c)
+	}
 	writeAPI(c, http.StatusOK, "登出成功", nil)
+}
+
+func (h *AuthHandler) InitializeAccountSessions(c *gin.Context) {
+	currentToken, err := c.Cookie(h.service.CookieName())
+	if err != nil || strings.TrimSpace(currentToken) == "" {
+		writeAPIError(c, http.StatusUnauthorized, "未登录")
+		return
+	}
+	vaultToken, _ := c.Cookie(accountVaultCookieName)
+	result, serviceErr := h.service.InitializeAccountSessions(c.Request.Context(), currentToken, vaultToken)
+	if serviceErr != nil {
+		h.handleServiceError(c, serviceErr)
+		return
+	}
+	h.setAuthCookie(c, result.SessionToken)
+	h.setAccountVaultCookie(c, result.VaultToken)
+	writeAPI(c, http.StatusOK, "账号列表已更新", gin.H{
+		"accounts":        result.Accounts,
+		"identityChanged": result.SessionToken != currentToken,
+	})
+}
+
+func (h *AuthHandler) ListAccountSessions(c *gin.Context) {
+	vaultToken, _ := c.Cookie(accountVaultCookieName)
+	currentToken, _ := c.Cookie(h.service.CookieName())
+	result, err := h.service.ListAccountSessions(c.Request.Context(), vaultToken, currentToken)
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "获取账号列表成功", gin.H{"accounts": result.Accounts})
+}
+
+func (h *AuthHandler) SwitchAccountSession(c *gin.Context) {
+	var request switchAccountRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		writeAPIError(c, http.StatusBadRequest, "请求参数不合法")
+		return
+	}
+	vaultToken, _ := c.Cookie(accountVaultCookieName)
+	result, err := h.service.SwitchAccountSession(c.Request.Context(), vaultToken, request.AccountID)
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+	h.setAuthCookie(c, result.SessionToken)
+	writeAPI(c, http.StatusOK, "账号已切换", gin.H{"user": result.User, "accounts": result.Accounts})
+}
+
+func (h *AuthHandler) RemoveAccountSession(c *gin.Context) {
+	entryID, err := parsePathID(c.Param("id"))
+	if err != nil {
+		writeAPIError(c, http.StatusBadRequest, "请求参数不合法")
+		return
+	}
+	vaultToken, _ := c.Cookie(accountVaultCookieName)
+	currentToken, _ := c.Cookie(h.service.CookieName())
+	result, serviceErr := h.service.RemoveAccountSession(c.Request.Context(), vaultToken, currentToken, entryID)
+	if serviceErr != nil {
+		h.handleServiceError(c, serviceErr)
+		return
+	}
+	if result.CurrentRemoved {
+		h.clearAuthCookie(c)
+	}
+	if result.VaultRemoved {
+		h.clearAccountVaultCookie(c)
+	}
+	writeAPI(c, http.StatusOK, "账号已移除", gin.H{
+		"accounts":       result.Accounts,
+		"currentRemoved": result.CurrentRemoved,
+		"vaultRemoved":   result.VaultRemoved,
+	})
+}
+
+func (h *AuthHandler) LogoutAllAccounts(c *gin.Context) {
+	currentToken, _ := c.Cookie(h.service.CookieName())
+	vaultToken, _ := c.Cookie(accountVaultCookieName)
+	if err := h.service.LogoutAllAccounts(c.Request.Context(), currentToken, vaultToken); err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+	h.clearAuthCookie(c)
+	h.clearAccountVaultCookie(c)
+	writeAPI(c, http.StatusOK, "已退出全部账号", nil)
 }
 
 func (h *AuthHandler) Me(c *gin.Context) {
@@ -218,8 +332,37 @@ func (h *AuthHandler) setAuthCookie(c *gin.Context, token string) {
 	h.setCookie(c, h.service.CookieName(), token, h.service.CookieMaxAgeSeconds(), true)
 }
 
+const accountVaultCookieName = "tarsgo_accounts"
+
+func (h *AuthHandler) setAccountVaultCookie(c *gin.Context, token string) {
+	if strings.TrimSpace(token) != "" {
+		h.setCookie(c, accountVaultCookieName, token, h.service.CookieMaxAgeSeconds(), true)
+	}
+}
+
 func (h *AuthHandler) clearAuthCookie(c *gin.Context) {
 	h.setCookie(c, h.service.CookieName(), "", -1, true)
+}
+
+func (h *AuthHandler) clearAccountVaultCookie(c *gin.Context) {
+	h.setCookie(c, accountVaultCookieName, "", -1, true)
+}
+
+func (h *AuthHandler) finishAuthentication(c *gin.Context, result *auth.AuthResult) bool {
+	if result == nil || result.User == nil {
+		writeAPIError(c, http.StatusInternalServerError, "创建登录态失败")
+		return false
+	}
+	currentToken, _ := c.Cookie(h.service.CookieName())
+	vaultToken, _ := c.Cookie(accountVaultCookieName)
+	accountSessions, err := h.service.CreateAccountSession(c.Request.Context(), result.User.ID, currentToken, vaultToken)
+	if err != nil {
+		h.handleServiceError(c, err)
+		return false
+	}
+	h.setAuthCookie(c, accountSessions.SessionToken)
+	h.setAccountVaultCookie(c, accountSessions.VaultToken)
+	return true
 }
 
 func (h *AuthHandler) setCookie(c *gin.Context, name string, value string, maxAge int, httpOnly bool) {

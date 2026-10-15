@@ -5,7 +5,21 @@ import type { Route } from "./+types/layout";
 import { SiteLogo } from "~/components/site-logo";
 import { ThemeControl } from "~/components/theme-control";
 import { ApiError } from "~/lib/api-client";
-import { getAuthUserRoleLabel, getBootstrapStatus, getCachedCurrentUser, getCurrentUser, logout, type AuthUser } from "~/lib/auth-client";
+import {
+  getAccountSessions,
+  getAuthUserRoleLabel,
+  getBootstrapStatus,
+  getCachedCurrentUser,
+  getCurrentUser,
+  initializeAccountSessions,
+  logout,
+  logoutAllAccounts,
+  removeAccountSession,
+  subscribeAccountSessionChange,
+  switchAccountSession,
+  type AccountSessionAccount,
+  type AuthUser,
+} from "~/lib/auth-client";
 import { resolveDashboardAuth } from "~/lib/dashboard-auth-flow";
 import { confirmUserGroup, getUserGroupConfirmationState, type UserGroupConfirmationState } from "~/lib/user-group-client";
 import {
@@ -247,6 +261,11 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [accountModalMode, setAccountModalMode] = useState<"switch" | "manage" | null>(null);
+  const [accountSessions, setAccountSessions] = useState<AccountSessionAccount[]>([]);
+  const [accountSessionsLoading, setAccountSessionsLoading] = useState(false);
+  const [accountSessionsError, setAccountSessionsError] = useState("");
+  const [accountActionError, setAccountActionError] = useState("");
   const contentPanelRef = useRef<HTMLDivElement | null>(null);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const sidebarResizeStartXRef = useRef(0);
@@ -258,6 +277,24 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const userInitial = (currentUser.nickname?.trim() || currentUser.email.trim() || "U")
     .charAt(0)
     .toUpperCase();
+
+  useEffect(() => {
+    let active = true;
+    void initializeAccountSessions()
+      .then((accounts) => {
+        if (active) setAccountSessions(accounts);
+      })
+      .catch((error) => {
+        if (active) setAccountSessionsError(getAccountActionError(error));
+      });
+    return () => {
+      active = false;
+    };
+  }, [currentUser.id]);
+
+  useEffect(() => subscribeAccountSessionChange(() => {
+    window.location.assign("/dashboard");
+  }), []);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -421,6 +458,73 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
       await logout();
       setUserMenuOpen(false);
       navigate("/login", { replace: true });
+    } catch (error) {
+      setAccountActionError(getAccountActionError(error));
+    } finally {
+      setLoggingOut(false);
+    }
+  }
+
+  async function openAccountModal(mode: "switch" | "manage") {
+    setUserMenuOpen(false);
+    setAccountModalMode(mode);
+    setAccountSessionsError("");
+    setAccountSessionsLoading(true);
+    try {
+      setAccountSessions(await getAccountSessions());
+    } catch (error) {
+      setAccountSessionsError(getAccountActionError(error));
+    } finally {
+      setAccountSessionsLoading(false);
+    }
+  }
+
+  function handleAddAccount() {
+    setUserMenuOpen(false);
+    const redirectTarget = `${location.pathname}${location.search}`;
+    const query = new URLSearchParams({ redirect: redirectTarget, addAccount: "1" });
+    navigate(`/login?${query.toString()}`);
+  }
+
+  async function handleSwitchAccount(accountId: number) {
+    setAccountActionError("");
+    setLoggingOut(true);
+    try {
+      const { user } = await switchAccountSession(accountId);
+      window.location.assign(getDefaultDashboardPath(user.role.name));
+    } catch (error) {
+      setAccountSessionsError(getAccountActionError(error));
+      setLoggingOut(false);
+    }
+  }
+
+  async function handleRemoveAccount(accountId: number) {
+    setAccountActionError("");
+    setAccountSessionsError("");
+    setLoggingOut(true);
+    try {
+      const result = await removeAccountSession(accountId);
+      setAccountSessions(result.accounts);
+      if (result.currentRemoved) {
+        setAccountModalMode(null);
+        navigate("/login", { replace: true });
+      }
+    } catch (error) {
+      setAccountSessionsError(getAccountActionError(error));
+    } finally {
+      setLoggingOut(false);
+    }
+  }
+
+  async function handleLogoutAll() {
+    setLoggingOut(true);
+    setAccountActionError("");
+    try {
+      await logoutAllAccounts();
+      setAccountModalMode(null);
+      navigate("/login", { replace: true });
+    } catch (error) {
+      setAccountSessionsError(getAccountActionError(error));
     } finally {
       setLoggingOut(false);
     }
@@ -560,6 +664,25 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
               <div className="p-1.5">
                 <button
                   type="button"
+                  onClick={() => void openAccountModal("switch")}
+                  role="menuitem"
+                  className="dashboard-shell__account-action"
+                >切换账号</button>
+                <button
+                  type="button"
+                  onClick={handleAddAccount}
+                  role="menuitem"
+                  className="dashboard-shell__account-action"
+                >添加账号</button>
+                <button
+                  type="button"
+                  onClick={() => void openAccountModal("manage")}
+                  role="menuitem"
+                  className="dashboard-shell__account-action"
+                >管理账号</button>
+                <div className="dashboard-shell__account-divider" />
+                <button
+                  type="button"
                   onClick={handleLogout}
                   disabled={loggingOut}
                   role="menuitem"
@@ -574,8 +697,9 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
                   >
                     <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6A2.25 2.25 0 0 0 5.25 5.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
                   </svg>
-                  {loggingOut ? "退出中..." : "登出"}
+                  {loggingOut ? "退出中..." : "退出当前账号"}
                 </button>
+                {accountActionError ? <p role="alert" className="dashboard-shell__account-error mx-2 mt-2">{accountActionError}</p> : null}
               </div>
             </div>
           ) : null}
@@ -625,8 +749,126 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           </div>
         </main>
       </div>
+      {accountModalMode ? (
+        <AccountSessionDialog
+          mode={accountModalMode}
+          accounts={accountSessions}
+          loading={accountSessionsLoading}
+          busy={loggingOut}
+          error={accountSessionsError}
+          currentUser={currentUser}
+          onClose={() => setAccountModalMode(null)}
+          onSwitch={handleSwitchAccount}
+          onRemove={handleRemoveAccount}
+          onAdd={() => {
+            setAccountModalMode(null);
+            handleAddAccount();
+          }}
+          onLogoutCurrent={() => void handleLogout()}
+          onLogoutAll={() => void handleLogoutAll()}
+        />
+      ) : null}
     </div>
   );
+}
+
+function AccountSessionDialog({
+  mode,
+  accounts,
+  loading,
+  busy,
+  error,
+  currentUser,
+  onClose,
+  onSwitch,
+  onRemove,
+  onAdd,
+  onLogoutCurrent,
+  onLogoutAll,
+}: {
+  mode: "switch" | "manage";
+  accounts: AccountSessionAccount[];
+  loading: boolean;
+  busy: boolean;
+  error: string;
+  currentUser: AuthUser;
+  onClose: () => void;
+  onSwitch: (accountId: number) => void;
+  onRemove: (accountId: number) => void;
+  onAdd: () => void;
+  onLogoutCurrent: () => void;
+  onLogoutAll: () => void;
+}) {
+  const title = mode === "manage" ? "管理账号" : "切换账号";
+
+  useEffect(() => {
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
+
+  return (
+    <div className="dashboard-shell__account-modal-backdrop" onMouseDown={(event) => {
+      if (event.target === event.currentTarget) onClose();
+    }}>
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="account-session-dialog-title"
+        className="dashboard-shell__account-modal"
+      >
+        <header className="dashboard-shell__account-modal-header">
+          <div>
+            <h2 id="account-session-dialog-title">{title}</h2>
+            <p>{accounts.length} / 5 个账号</p>
+          </div>
+          <button type="button" onClick={onClose} aria-label="关闭" className="dashboard-shell__account-close">×</button>
+        </header>
+        {error ? <div role="alert" className="admin-notice admin-notice--error mb-3">{error}</div> : null}
+        <div className="dashboard-shell__account-list" aria-busy={loading}>
+          {loading ? <div role="status" className="dashboard-shell__account-empty">正在读取账号…</div> : accounts.length === 0 ? (
+            <div className="dashboard-shell__account-empty">当前没有可切换的账号。</div>
+          ) : accounts.map((account) => (
+            <div className="dashboard-shell__account-row" key={account.id}>
+              <div className="dashboard-shell__account-avatar" aria-hidden="true">
+                {(account.user.nickname?.trim() || account.user.email).charAt(0).toUpperCase()}
+              </div>
+              <div className="dashboard-shell__account-details">
+                <strong>{account.user.nickname || account.user.email}</strong>
+                <span>{account.user.email}</span>
+                <small>{getAuthUserRoleLabel(account.user)}</small>
+              </div>
+              <div className="dashboard-shell__account-controls">
+                {account.current || account.user.id === currentUser.id ? (
+                  <span className="dashboard-shell__account-current">当前</span>
+                ) : (
+                  <button type="button" disabled={busy} onClick={() => onSwitch(account.id)} className="admin-button admin-button--secondary admin-button--small">切换</button>
+                )}
+                {mode === "manage" ? (
+                  <button type="button" disabled={busy} onClick={() => onRemove(account.id)} className="dashboard-shell__account-remove">移除</button>
+                ) : null}
+              </div>
+            </div>
+          ))}
+        </div>
+        <footer className="dashboard-shell__account-modal-footer">
+          <button type="button" onClick={onAdd} className="admin-button admin-button--primary">添加账号</button>
+          {mode === "manage" ? (
+            <div className="dashboard-shell__account-signout-actions">
+              <button type="button" disabled={busy} onClick={onLogoutCurrent} className="admin-button admin-button--quiet">退出当前账号</button>
+              <button type="button" disabled={busy} onClick={onLogoutAll} className="dashboard-shell__account-signout-all">退出全部账号</button>
+            </div>
+          ) : null}
+        </footer>
+      </section>
+    </div>
+  );
+}
+
+function getAccountActionError(error: unknown) {
+  return error instanceof Error ? error.message : "账号操作失败，请重试。";
 }
 
 function GroupConfirmationGate({

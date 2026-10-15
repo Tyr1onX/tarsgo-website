@@ -27,6 +27,7 @@ export async function apiRequest<T>(
     body?: ApiRequestBody;
     cache?: RequestCache;
     signal?: AbortSignal;
+    accountAction?: boolean;
   } = {},
 ): Promise<T> {
   const bodySource = options.body ?? null;
@@ -43,6 +44,7 @@ export async function apiRequest<T>(
     credentials: "include",
     headers: {
       Accept: "application/json",
+      ...(options.accountAction ? { "X-Tarsgo-Account-Action": "1" } : {}),
       ...(!isFormData && hasBody && !isNativeRequestBody(bodySource) ? { "Content-Type": "application/json" } : {}),
     },
     body: requestBody,

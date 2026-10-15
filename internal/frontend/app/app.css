@@ -1391,6 +1391,94 @@ html[data-theme-transition] body *::after {
   gap: 1.125rem;
 }
 
+.auth-saved-accounts {
+  margin-bottom: 1.5rem;
+  border: 1px solid var(--admin-border-subtle);
+  border-radius: var(--admin-radius-lg);
+  background: var(--admin-surface);
+  padding: 0.75rem;
+}
+
+.auth-saved-accounts h2 {
+  margin: 0.125rem 0.5rem 0.625rem;
+  color: var(--admin-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.auth-saved-accounts__list {
+  display: grid;
+  gap: 0.25rem;
+}
+
+.auth-saved-account {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.75rem;
+  border-radius: 0.625rem;
+  padding: 0.625rem;
+  text-align: left;
+  transition: background-color 140ms ease;
+}
+
+.auth-saved-account:hover:not(:disabled) {
+  background: var(--admin-surface-hover);
+}
+
+.auth-saved-account:disabled:not(:has(.auth-saved-account__status)) {
+  opacity: 0.68;
+}
+
+.auth-saved-account:disabled {
+  cursor: default;
+}
+
+.auth-saved-account__avatar {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid rgba(208, 173, 105, 0.3);
+  border-radius: 50%;
+  background: rgba(208, 173, 105, 0.12);
+  color: var(--admin-accent-text);
+  font-weight: 650;
+}
+
+.auth-saved-account__details {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0.125rem;
+}
+
+.auth-saved-account__details strong,
+.auth-saved-account__details small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.auth-saved-account__details strong {
+  color: var(--admin-text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+
+.auth-saved-account__details small {
+  color: var(--admin-muted);
+  font-size: 0.6875rem;
+}
+
+.auth-saved-account__status {
+  flex: 0 0 auto;
+  color: var(--admin-accent-text);
+  font-size: 0.75rem;
+}
+
 .auth-mode-switch {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

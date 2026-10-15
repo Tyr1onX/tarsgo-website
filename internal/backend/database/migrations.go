@@ -50,6 +50,13 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 10, apply: migrateInterviewScheduling},
 		{version: 11, apply: migrateInterviewSessionFormAssociation},
 		{version: 12, apply: migrateInterviewResultNotifications},
+		{version: 13, apply: func(db *gorm.DB) error {
+			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(
+				&model.AuthSession{},
+				&model.AccountVault{},
+				&model.AccountVaultEntry{},
+			)
+		}},
 	}
 }
 
