@@ -328,8 +328,22 @@ export default function AccountManagement() {
       </section>
 
       {editingIsNew || editing ? (
-        <ModalShell open title={editingIsNew ? "新建账号" : "账号详情与权限"} description="处理账号访问权限，并核对该账号的招新意向与历史报名记录。" onClose={closeEditor} panelClassName="admin-panel" bodyClassName="p-5" widthClass="max-w-3xl">
-          <form onSubmit={submit} className="space-y-4">
+        <ModalShell
+          open
+          title={editingIsNew ? "新建账号" : "账号详情与权限"}
+          description="处理账号访问权限，并核对该账号的招新意向与历史报名记录。"
+          onClose={closeEditor}
+          panelClassName="admin-panel"
+          bodyClassName="p-4 sm:p-5"
+          widthClass="max-w-3xl"
+          footer={(
+            <div className="flex flex-wrap justify-end gap-2">
+              <button type="button" form="account-editor-form" onClick={closeEditor} disabled={saving} className="admin-button admin-button--secondary">取消</button>
+              <button type="submit" form="account-editor-form" disabled={saving} className="admin-button admin-button--primary">{saving ? "保存中…" : editingIsNew ? "创建账号" : "保存修改"}</button>
+            </div>
+          )}
+        >
+          <form id="account-editor-form" onSubmit={submit} className="space-y-4">
             <label className="block text-xs text-[var(--admin-muted)]">显示名称<input required maxLength={100} value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} className="admin-field mt-1" /></label>
             <label className="block text-xs text-[var(--admin-muted)]">登录邮箱<input required type="email" maxLength={255} value={draft.email} onChange={(event) => setDraft((current) => ({ ...current, email: event.target.value }))} className="admin-field mt-1" /></label>
             <label className="block text-xs text-[var(--admin-muted)]">系统角色<select required value={draft.roleId} onChange={(event) => setDraft((current) => ({ ...current, roleId: event.target.value }))} className="admin-field mt-1">{roles.map((role) => <option key={role.id} value={role.id}>{role.displayName}</option>)}</select></label>
@@ -386,17 +400,29 @@ export default function AccountManagement() {
               </div>
             ) : null}
             {error ? <div role="alert" className="admin-notice admin-notice--error">{error}</div> : null}
-            <div className="flex justify-end gap-2 border-t border-[var(--admin-border-subtle)] pt-4"><button type="button" onClick={closeEditor} disabled={saving} className="admin-button admin-button--secondary">取消</button><button type="submit" disabled={saving} className="admin-button admin-button--primary">{saving ? "保存中…" : editingIsNew ? "创建账号" : "保存修改"}</button></div>
           </form>
         </ModalShell>
       ) : null}
 
       {resetTarget ? (
-        <ModalShell open title="重置登录密码" description={`为 ${resetTarget.email} 设置新密码。`} onClose={() => { if (!resetting) { setResetTarget(null); setNewPassword(""); } }} panelClassName="admin-panel" bodyClassName="p-5" widthClass="max-w-md">
-          <form onSubmit={submitPasswordReset} className="space-y-4">
+        <ModalShell
+          open
+          title="重置登录密码"
+          description={`为 ${resetTarget.email} 设置新密码。`}
+          onClose={() => { if (!resetting) { setResetTarget(null); setNewPassword(""); } }}
+          panelClassName="admin-panel"
+          bodyClassName="p-4 sm:p-5"
+          widthClass="max-w-md"
+          footer={(
+            <div className="flex flex-wrap justify-end gap-2">
+              <button type="button" form="account-reset-form" onClick={() => setResetTarget(null)} disabled={resetting} className="admin-button admin-button--secondary">取消</button>
+              <button type="submit" form="account-reset-form" disabled={resetting} className="admin-button admin-button--secondary">{resetting ? "重置中…" : "确认重置"}</button>
+            </div>
+          )}
+        >
+          <form id="account-reset-form" onSubmit={submitPasswordReset} className="space-y-4">
             <label className="block text-xs text-[var(--admin-muted)]">新密码<input required minLength={8} type="password" autoComplete="new-password" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} className="admin-field mt-1" /></label>
             {error ? <div role="alert" className="admin-notice admin-notice--error">{error}</div> : null}
-            <div className="flex justify-end gap-2 border-t border-[var(--admin-border-subtle)] pt-4"><button type="button" onClick={() => setResetTarget(null)} disabled={resetting} className="admin-button admin-button--secondary">取消</button><button type="submit" disabled={resetting} className="admin-button admin-button--secondary">{resetting ? "重置中…" : "确认重置"}</button></div>
           </form>
         </ModalShell>
       ) : null}

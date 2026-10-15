@@ -220,8 +220,21 @@ export function UserGroups() {
         )}
       </section>
 
-      <ModalShell open={modalOpen} title={editingGroup ? "编辑招新组别" : "新建招新组别"} onClose={() => setModalOpen(false)} panelClassName="admin-design admin-panel" bodyClassName="p-5" widthClass="max-w-2xl">
-        <form onSubmit={submit} className="space-y-4">
+      <ModalShell
+        open={modalOpen}
+        title={editingGroup ? "编辑招新组别" : "新建招新组别"}
+        onClose={() => setModalOpen(false)}
+        panelClassName="admin-design admin-panel"
+        bodyClassName="p-4 sm:p-5"
+        widthClass="max-w-2xl"
+        footer={(
+          <div className="flex flex-wrap justify-end gap-2">
+            <button type="button" form="user-group-form" onClick={() => setModalOpen(false)} disabled={saving} className="admin-button admin-button--secondary">取消</button>
+            <button type="submit" form="user-group-form" disabled={saving} className="admin-button admin-button--primary">{saving ? "保存中…" : "保存"}</button>
+          </div>
+        )}
+      >
+        <form id="user-group-form" onSubmit={submit} className="space-y-4">
           <label className="block text-sm text-[var(--admin-muted)]">组别名称<input required maxLength={100} className="admin-field mt-1" value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></label>
           <label className="block text-sm text-[var(--admin-muted)]">说明<textarea maxLength={500} className="admin-field mt-1 min-h-24" value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></label>
           <div className="space-y-2">
@@ -233,7 +246,6 @@ export function UserGroups() {
             <label className="block text-sm text-[var(--admin-muted)]">状态<select className="admin-field mt-1" value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: Number(event.target.value) }))}><option value={1}>启用</option><option value={0}>停用</option></select></label>
             <label className="block text-sm text-[var(--admin-muted)]">报名页<select className="admin-field mt-1" value={form.show} onChange={(event) => setForm((current) => ({ ...current, show: Number(event.target.value) }))}><option value={1}>展示</option><option value={0}>隐藏</option></select></label>
           </div>
-          <div className="flex justify-end gap-2 border-t border-[var(--admin-border-subtle)] pt-4"><button type="button" onClick={() => setModalOpen(false)} disabled={saving} className="admin-button admin-button--secondary">取消</button><button type="submit" disabled={saving} className="admin-button admin-button--primary">{saving ? "保存中…" : "保存"}</button></div>
         </form>
       </ModalShell>
     </div>

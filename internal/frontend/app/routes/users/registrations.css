@@ -506,6 +506,25 @@
 
 .candidate-modal-panel {
   position: relative;
+  display: flex;
+  min-height: 0;
+  max-height: calc(100vh - 1.5rem);
+  max-height: calc(100dvh - 1.5rem);
+  flex-direction: column;
+}
+
+.candidate-modal-panel > div:first-child,
+.candidate-modal-panel > div:last-child {
+  flex: 0 0 auto;
+}
+
+.candidate-modal-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
 }
 
 .candidate-modal-close {
@@ -515,6 +534,11 @@
 }
 
 @media (min-width: 640px) {
+  .candidate-modal-panel {
+    max-height: calc(100vh - 2rem);
+    max-height: calc(100dvh - 2rem);
+  }
+
   .candidate-meta-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }

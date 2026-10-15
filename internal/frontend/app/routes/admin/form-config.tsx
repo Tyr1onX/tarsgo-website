@@ -23,7 +23,7 @@ import {
 import { createPortal } from "react-dom";
 import { useNavigate, useOutletContext } from "react-router";
 import { AnimatedSelect } from "~/components/animated-select";
-import { ModalShell } from "~/components/modal-shell";
+import { ModalShell, useModalAccessibility } from "~/components/modal-shell";
 import { Notify } from "~/components/notify";
 import { ApiError } from "~/lib/api-client";
 import {
@@ -285,6 +285,9 @@ export default function FormConfigPage() {
   const previewOverlayRef = useRef<HTMLDivElement | null>(null);
   const previewPanelRef = useRef<HTMLElement | null>(null);
   const previewCloseTimerRef = useRef<number | null>(null);
+
+  useModalAccessibility(drawerOpen, drawerPanelRef, () => closeDrawer());
+  useModalAccessibility(previewOpen, previewPanelRef, () => closePreview());
 
   const canCreateOrSave = currentUser.role.name !== "user";
 
@@ -1211,6 +1214,7 @@ export default function FormConfigPage() {
         open={createOpen}
         title="新建报名表"
         description="创建一张带有系统必填字段的草稿表单，后续再补全详细配置。"
+        bodyClassName="px-4 py-4 sm:px-6 sm:py-5"
         onClose={() => {
           if (creating) {
             return;
@@ -1218,8 +1222,35 @@ export default function FormConfigPage() {
           setCreateOpen(false);
           setCreateState(defaultCreateState);
         }}
+        footer={(
+          <div className="flex flex-wrap justify-end gap-3">
+            <button
+              type="button"
+              form="create-registration-form"
+              onClick={() => {
+                if (creating) {
+                  return;
+                }
+                setCreateOpen(false);
+                setCreateState(defaultCreateState);
+              }}
+              disabled={creating}
+              className="btn-glass rounded-xl px-4 py-2.5 text-sm text-fg-muted"
+            >
+              取消
+            </button>
+            <button
+              type="submit"
+              form="create-registration-form"
+              disabled={creating}
+              className="btn-gradient inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-white"
+            >
+              {creating ? "创建中..." : "创建草稿"}
+            </button>
+          </div>
+        )}
       >
-            <form className="space-y-5" onSubmit={handleCreateForm}>
+            <form id="create-registration-form" className="space-y-5" onSubmit={handleCreateForm}>
               <div>
                 <FieldLabel label="报名表标题" />
                 <input
@@ -1276,28 +1307,6 @@ export default function FormConfigPage() {
                 创建后会自动附带"姓名 / 手机号 / 邮箱 / 意向组"四个系统字段，并以草稿状态保存。
               </div>
 
-              <div className="flex justify-end gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (creating) {
-                      return;
-                    }
-                    setCreateOpen(false);
-                    setCreateState(defaultCreateState);
-                  }}
-                  className="btn-glass rounded-xl px-4 py-2.5 text-sm text-fg-muted"
-                >
-                  取消
-                </button>
-                <button
-                  type="submit"
-                  disabled={creating}
-                  className="btn-gradient inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-white"
-                >
-                  {creating ? "创建中..." : "创建草稿"}
-                </button>
-              </div>
             </form>
       </ModalShell>
 
@@ -1312,12 +1321,16 @@ export default function FormConfigPage() {
             />
             <aside
               ref={drawerPanelRef}
-              className="glass-panel glass-panel-strong absolute right-0 top-0 flex h-full w-full max-w-3xl flex-col shadow-2xl"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="form-editor-drawer-title"
+              tabIndex={-1}
+              className="glass-panel glass-panel-strong absolute right-0 top-0 flex h-full w-full max-w-3xl min-h-0 flex-col shadow-2xl"
             >
               {/* Drawer header */}
               <div className="shrink-0 border-b border-white/[0.06] bg-black/20 backdrop-blur">
                 <div className="flex items-center justify-between px-6 py-4">
-                  <h2 className="text-lg font-semibold text-fg-primary">
+                  <h2 id="form-editor-drawer-title" className="text-lg font-semibold text-fg-primary">
                     编辑报名表
                   </h2>
                   <button
@@ -1355,7 +1368,7 @@ export default function FormConfigPage() {
               </div>
 
               {/* Drawer body */}
-              <div className="flex-1 overflow-y-auto">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 {detailLoading || !editor ? (
                   <div className="flex flex-col items-center gap-3 py-20 text-sm text-fg-dim">
                     <span
@@ -1982,11 +1995,15 @@ export default function FormConfigPage() {
             />
             <aside
               ref={previewPanelRef}
-              className="glass-panel glass-panel-strong absolute right-0 top-0 flex h-full w-full max-w-2xl flex-col shadow-2xl"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="form-preview-drawer-title"
+              tabIndex={-1}
+              className="glass-panel glass-panel-strong absolute right-0 top-0 flex h-full w-full max-w-2xl min-h-0 flex-col shadow-2xl"
             >
               <div className="shrink-0 border-b border-white/[0.06] bg-black/20 px-6 py-4 backdrop-blur">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold text-fg-primary">
+                  <h2 id="form-preview-drawer-title" className="text-lg font-semibold text-fg-primary">
                     表单预览
                   </h2>
                   <button
@@ -2001,7 +2018,7 @@ export default function FormConfigPage() {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto p-6">
+              <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6">
                 {previewLoading || !previewEditor ? (
                   <div className="flex flex-col items-center gap-3 py-20 text-sm text-fg-dim">
                     <span
