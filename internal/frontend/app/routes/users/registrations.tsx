@@ -32,6 +32,7 @@ import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import type { ApiEnvelope } from "~/lib/api-client";
 import { ApiError, buildApiUrl } from "~/lib/api-client";
 import { Notify } from "~/components/notify";
+import { useModalAccessibility } from "~/components/modal-shell";
 import {
   isFileField,
   isOptionField,
@@ -756,26 +757,14 @@ function CancelConfirmModal({
   onConfirm: () => void;
 }) {
   const [mounted, setMounted] = useState(false);
+  const dialogRef = useRef<HTMLDivElement | null>(null);
+
+  useModalAccessibility(mounted && !closing, dialogRef, onClose);
 
   useEffect(() => {
     const raf = window.requestAnimationFrame(() => setMounted(true));
     return () => window.cancelAnimationFrame(raf);
   }, []);
-
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "Escape" && !cancelling) {
-        onClose();
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    const originalOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown);
-      document.body.style.overflow = originalOverflow;
-    };
-  }, [cancelling, onClose]);
 
   if (typeof document === "undefined") {
     return null;
@@ -786,10 +775,13 @@ function CancelConfirmModal({
 
   return createPortal(
     <div
-      className={`admin-design candidate-recruitment-modal fixed inset-0 z-50 flex items-center justify-center p-4 transition-opacity duration-150 ${overlayClass}`}
+      ref={dialogRef}
+      className={`admin-design candidate-recruitment-modal fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overscroll-contain p-3 sm:p-4 transition-opacity duration-150 ${overlayClass}`}
       role="dialog"
       aria-modal="true"
       aria-labelledby="cancel-registration-title"
+      aria-describedby="cancel-registration-description"
+      tabIndex={-1}
       onClick={() => {
         if (!cancelling) {
           onClose();
@@ -827,7 +819,7 @@ function CancelConfirmModal({
           </button>
         </div>
 
-        <div className="relative space-y-4 px-6 py-5">
+        <div id="cancel-registration-description" className="candidate-modal-body relative space-y-4 px-4 py-4 sm:px-6 sm:py-5">
           <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 px-4 py-3.5 text-sm leading-6 text-rose-100/90">
             即将撤回
             <span className="mx-1 font-semibold text-fg-primary">{formTitle}</span>

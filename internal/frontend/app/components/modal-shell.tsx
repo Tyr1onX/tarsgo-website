@@ -1,8 +1,9 @@
 import {
-  type MouseEvent,
+  type PointerEvent,
   type ReactNode,
   useEffect,
   useId,
+  useRef,
   useState,
 } from "react";
 import { createPortal } from "react-dom";
@@ -69,9 +70,99 @@ type ModalShellProps = {
   roundedClassName?: string;
   panelClassName?: string;
   bodyClassName?: string;
+  footer?: ReactNode;
+  footerClassName?: string;
   backdropClassName?: string;
   zIndexClass?: string;
 };
+
+const FOCUSABLE_SELECTOR = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "[contenteditable='true']",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
+
+export function useModalAccessibility(
+  open: boolean,
+  containerRef: { current: HTMLElement | null },
+  onClose: () => void,
+) {
+  const onCloseRef = useRef(onClose);
+
+  useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    const previousFocus = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const previousBodyOverflow = document.body.style.overflow;
+    const previousDocumentOverflow = document.documentElement.style.overflow;
+    const container = containerRef.current;
+
+    document.body.style.overflow = "hidden";
+    document.documentElement.style.overflow = "hidden";
+    container?.focus({ preventScroll: true });
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        event.stopPropagation();
+        onCloseRef.current();
+        return;
+      }
+
+      if (event.key !== "Tab" || !container) {
+        return;
+      }
+
+      const focusableElements = Array.from(
+        container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR),
+      ).filter((element) => element.tabIndex >= 0 && element.getClientRects().length > 0);
+
+      if (focusableElements.length === 0) {
+        event.preventDefault();
+        container.focus({ preventScroll: true });
+        return;
+      }
+
+      const first = focusableElements[0];
+      const last = focusableElements[focusableElements.length - 1];
+      const activeElement = document.activeElement;
+
+      if (!container.contains(activeElement)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+      } else if (event.shiftKey && (activeElement === first || activeElement === container)) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    }
+
+    document.addEventListener("keydown", handleKeyDown, true);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown, true);
+      document.body.style.overflow = previousBodyOverflow;
+      document.documentElement.style.overflow = previousDocumentOverflow;
+      if (previousFocus?.isConnected) {
+        previousFocus.focus({ preventScroll: true });
+      }
+    };
+  }, [containerRef, open]);
+}
 
 export function ModalShell({
   title,
@@ -84,28 +175,18 @@ export function ModalShell({
   roundedClassName = "rounded-2xl",
   panelClassName = "admin-modal-panel",
   bodyClassName = "px-6 py-5",
+  footer,
+  footerClassName = "",
   backdropClassName = "bg-black/60",
   zIndexClass = "z-[70]",
 }: ModalShellProps) {
   const titleId = useId();
+  const descriptionId = useId();
+  const panelRef = useRef<HTMLDivElement | null>(null);
 
-  useEffect(() => {
-    if (!open) {
-      return;
-    }
+  useModalAccessibility(open, panelRef, onClose);
 
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onClose();
-      }
-    };
-
-    document.addEventListener("keydown", handleEscape);
-    return () => document.removeEventListener("keydown", handleEscape);
-  }, [onClose, open]);
-
-  function handleOverlayMouseDown(event: MouseEvent<HTMLDivElement>) {
+  function handleOverlayPointerDown(event: PointerEvent<HTMLDivElement>) {
     if (event.target === event.currentTarget) {
       onClose();
     }
@@ -117,36 +198,47 @@ export function ModalShell({
 
   return createPortal(
     <div
-      className={`admin-design motion-overlay fixed inset-0 ${zIndexClass} flex items-center justify-center ${backdropClassName} p-4`}
+      className={`admin-design motion-overlay fixed inset-0 ${zIndexClass} flex items-center justify-center overflow-y-auto overscroll-contain ${backdropClassName} p-3 sm:p-4`}
       data-state={open ? "open" : "closed"}
-      onMouseDown={handleOverlayMouseDown}
+      aria-hidden={!open}
+      inert={!open}
+      onPointerDown={handleOverlayPointerDown}
     >
       <div
+        ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className={`motion-dialog motion-dialog-surface w-full ${widthClass} ${roundedClassName} ${panelClassName}`}
+        aria-describedby={description ? descriptionId : undefined}
+        tabIndex={-1}
+        className={`modal-shell-panel motion-dialog motion-dialog-surface w-full ${widthClass} ${roundedClassName} ${panelClassName}`}
         data-state={open ? "open" : "closed"}
       >
-        <div className="flex items-start justify-between gap-4 border-b border-white/[0.06] px-6 py-5">
+        <div className="modal-shell-header flex items-start justify-between gap-4 border-b border-white/[0.06] px-4 py-4 sm:px-6 sm:py-5">
           <div className="flex min-w-0 items-start gap-3">
             {headerAccent ? <div className="shrink-0">{headerAccent}</div> : null}
             <div className="min-w-0">
               <h2 id={titleId} className="text-lg font-semibold text-white">
                 {title}
               </h2>
-              {description ? <p className="mt-1 text-sm text-gray-400">{description}</p> : null}
+              {description ? <p id={descriptionId} className="mt-1 text-sm text-gray-400">{description}</p> : null}
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
+            aria-label="关闭弹窗"
             className="btn-glass rounded-xl px-3 py-1.5 text-sm text-gray-300 hover:text-white"
           >
             关闭
           </button>
         </div>
-        <div className={bodyClassName}>{children}</div>
+        <div className={`modal-shell-body ${bodyClassName}`}>{children}</div>
+        {footer ? (
+          <div className={`modal-shell-footer border-t border-white/[0.06] px-4 py-4 sm:px-6 ${footerClassName}`}>
+            {footer}
+          </div>
+        ) : null}
       </div>
     </div>,
     document.body,

@@ -486,6 +486,40 @@ html[data-theme-transition] body *::after {
   overflow: hidden;
 }
 
+.modal-shell-panel {
+  display: flex;
+  min-height: 0;
+  max-height: calc(100vh - 1.5rem);
+  max-height: calc(100dvh - 1.5rem);
+  flex-direction: column;
+}
+
+.modal-shell-panel > * {
+  position: relative;
+  z-index: 1;
+}
+
+.modal-shell-header,
+.modal-shell-footer {
+  flex: 0 0 auto;
+}
+
+.modal-shell-body {
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+}
+
+@media (min-width: 640px) {
+  .modal-shell-panel {
+    max-height: calc(100vh - 2rem);
+    max-height: calc(100dvh - 2rem);
+  }
+}
+
 .motion-dialog-surface::before {
   content: "";
   position: absolute;

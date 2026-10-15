@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router";
 
 import { ApiError, buildApiUrl } from "~/lib/api-client";
@@ -26,6 +26,7 @@ import {
 import { listAdminArchivedForms, type RegistrationFormField, type RegistrationFormListItem } from "~/lib/registration-forms-client";
 import { listAdminUserGroupOptions, type AdminUserGroupOption } from "~/lib/admin-user-groups-client";
 import { getShanghaiDate } from "~/lib/admin-workbench";
+import { useModalAccessibility } from "~/components/modal-shell";
 
 export function meta() {
   return [
@@ -117,6 +118,9 @@ export default function Registrations() {
   const [notificationPreview, setNotificationPreview] = useState<InterviewNotificationPreview | null>(null);
   const [notificationLoading, setNotificationLoading] = useState(false);
   const [confirmUncertainNotification, setConfirmUncertainNotification] = useState(false);
+  const detailDrawerRef = useRef<HTMLElement | null>(null);
+
+  useModalAccessibility(selectedId != null, detailDrawerRef, () => setSelectedId(null));
 
   useEffect(() => {
     let cancelled = false;
@@ -766,13 +770,18 @@ export default function Registrations() {
           onClick={() => setSelectedId(null)}
         >
           <aside
-            className="admin-drawer h-full w-full max-w-2xl overflow-y-auto p-4 sm:p-6"
+            ref={detailDrawerRef}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="registration-detail-title"
+            tabIndex={-1}
+            className="admin-drawer h-full w-full max-w-2xl overflow-y-auto overscroll-contain p-4 sm:p-6"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex items-start justify-between gap-4">
+            <div className="sticky top-0 z-10 -mx-4 -mt-4 mb-4 flex items-start justify-between gap-4 bg-[var(--admin-canvas)] p-4 sm:-mx-6 sm:-mt-6 sm:p-6">
               <div>
                 <div className="admin-eyebrow">Candidate</div>
-                <h2 className="mt-2 text-xl font-semibold text-fg-primary">候选人详情</h2>
+                <h2 id="registration-detail-title" className="mt-2 text-xl font-semibold text-fg-primary">候选人详情</h2>
               </div>
               <button type="button" onClick={() => setSelectedId(null)} className="admin-button admin-button--secondary">
                 关闭
