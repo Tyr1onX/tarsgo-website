@@ -1,7 +1,8 @@
 import type { Route } from "./+types/home";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Navbar } from "../components/navbar";
 import { JoinExperience } from "../components/join-experience";
+import { AboutTeamPage } from "../components/about-team-page";
 import { EventsAndHonorsArchive } from "../components/events-and-honors-archive";
 import { RobotPhotoGallery } from "../components/robot-photo-gallery";
 import { TeamHistoryArchive } from "../components/team-history-archive";
@@ -26,13 +27,6 @@ export function meta({}: Route.MetaArgs) {
   ];
 }
 
-const stats = [
-  { value: "2018", label: "成立年份" },
-  { value: "35+", label: "团队成员" },
-  { value: "5", label: "战队组别" },
-  { value: "Top 16", label: "全国最佳成绩" },
-];
-
 const sponsorLogos = [
   { name: "YELITE", image: "/assets/images/Sponsors/yelite.webp" },
   { name: "AMASS", image: "/assets/images/Sponsors/amass.webp" },
@@ -51,6 +45,8 @@ const groups = [
     name: "机械组",
     description: "负责机器人结构设计、建模、加工与装配，将创意变为现实",
     directions: ["结构设计", "建模", "加工与装配"],
+    contribution: "把机器人需求转成可制造、可装配的结构与机构。",
+    collaboration: "与电控对齐安装、走线和空间接口，并随整机联调迭代。",
     logoBlack: "/assets/images/Groups/mechanical-black.svg",
     logoWhite: "/assets/images/Groups/mechanical-white.svg",
     logoStructure: "/assets/images/Groups/mechanical-structure.svg",
@@ -59,6 +55,8 @@ const groups = [
     name: "电控组",
     description: "嵌入式系统开发、电路设计、电机控制，让机器人\u201C动\u201D起来",
     directions: ["嵌入式系统开发", "电路设计", "电机控制"],
+    contribution: "连接传感器、控制器与执行机构，让机器人按系统要求运行。",
+    collaboration: "与机械确认器件和布线接口，与视觉、AI 联调数据和控制链路。",
     logoBlack: "/assets/images/Groups/electrical-control-black.svg",
     logoWhite: "/assets/images/Groups/electrical-control-white.svg",
     logoStructure: "/assets/images/Groups/electrical-control-structure.svg",
@@ -67,6 +65,8 @@ const groups = [
     name: "视觉组",
     description: "机器视觉、目标识别、自动瞄准，赋予机器人\u201C眼睛\u201D",
     directions: ["机器视觉", "目标识别", "自动瞄准"],
+    contribution: "从图像与传感信息中提取目标和环境线索。",
+    collaboration: "与电控、AI 和机器人系统联调感知信息的输入、处理与使用。",
     logoBlack: "/assets/images/Groups/vision-black.svg",
     logoWhite: "/assets/images/Groups/vision-white.svg",
     logoStructure: "/assets/images/Groups/vision-structure.svg",
@@ -75,64 +75,21 @@ const groups = [
     name: "AI组",
     description: "负责智能算法、决策规划与自主控制，让机器人拥有更强的判断力",
     directions: ["智能算法", "决策规划", "自主控制"],
+    contribution: "把感知信息和机器人状态转化为算法判断与行动策略。",
+    collaboration: "与视觉、电控和整机团队一起验证算法在机器人上的实际表现。",
     logoBlack: "/assets/images/Groups/ai-black.svg",
     logoWhite: "/assets/images/Groups/ai-white.svg",
     logoStructure: "/assets/images/Groups/ai-structure.svg",
   },
   {
     name: "运营组",
-    description: "负责宣传、策划、赛事运营与对外联络，推动团队持续成长",
-    directions: ["宣传", "策划", "赛事运营", "对外联络"],
+    description: "围绕团队运行识别需求、拆解任务、协调资源、跟进交付，并整理发布与复盘材料。",
+    directions: ["组织协调", "活动与赛事运营", "资源支持", "记录与传承"],
+    contribution: "让跨组工作有协同、有结果，成果也能被找到和继续使用。",
+    collaboration: "贯穿技术研发、赛事和项目活动；技术判断与设备状态由技术组负责。",
     logoBlack: "/assets/images/Groups/operations-black.svg",
     logoWhite: "/assets/images/Groups/operations-white.svg",
     logoStructure: "/assets/images/Groups/operations-structure.svg",
-  },
-];
-
-function TeamGroupMark({ group, className = "" }: { group: typeof groups[number]; className?: string }) {
-  return (
-    <span className={`team-group-mark ${className}`.trim()} aria-hidden="true">
-      <img src={group.logoBlack} alt="" loading="lazy" decoding="async" className="team-group-mark__image team-group-mark__image--light" />
-      <img src={group.logoWhite} alt="" loading="lazy" decoding="async" className="team-group-mark__image team-group-mark__image--dark" />
-    </span>
-  );
-}
-
-const aboutModules = [
-  {
-    name: "参赛",
-    title: "在赛场上检验机器人与团队协作",
-    description: "正式比赛让机器人表现、临场判断与团队调度得到直接检验。",
-    image: "/assets/images/ContestMoment/contest-moment-04.webp",
-    imageAlt: "队员在 RoboMaster 比赛现场共同检查机器人。",
-  },
-  {
-    name: "备赛",
-    title: "把上场前的细节反复磨透",
-    description: "围绕机器人进行联调、测试和修正，让方案经得起赛场验证。",
-    image: "/assets/images/Preparation_for_competition/preparation-02.webp",
-    imageAlt: "队员围绕机器人进行赛前检查与调试。",
-  },
-  {
-    name: "日常",
-    title: "在日常训练中建立长期默契",
-    description: "训练、讨论与共同生活，组成团队持续协作的日常。",
-    image: "/assets/images/Daily/daily-02.webp",
-    imageAlt: "队员围绕笔记本与模型进行日常讨论。",
-  },
-  {
-    name: "创新创业",
-    title: "把竞赛经验延伸到项目实践",
-    description: "在双创赛事和成果展示中，继续打磨技术方案与项目表达。",
-    image: "/assets/images/Innovation_and_entrepreneurship/innovation-entrepreneurship-02.webp",
-    imageAlt: "团队成员在创新创业展示现场介绍项目。",
-  },
-  {
-    name: "校企合作",
-    title: "在产业现场理解真实工程需求",
-    description: "通过企业走访与交流，把校园里的工程实践连接到真实场景。",
-    image: "/assets/images/Industry-AcademiaCollaboration/industry-academia-collaboration-03.webp",
-    imageAlt: "团队成员在交流现场共同观察一件工程样品。",
   },
 ];
 
@@ -142,7 +99,7 @@ const topicPages: Record<Exclude<PublicPage, "home">, { title: string; eyebrow?:
   about: {
     title: "认识吉甲",
     eyebrow: "ABOUT TARSGO",
-    description: "从赛场、训练和项目实践中，认识吉林大学吉甲大师双创基地。",
+    description: "吉甲大师是跨学科工程实践与创新创业平台，TARS-Go 是其中以 RoboMaster 为核心的学生工程战队。",
     image: "/assets/images/ContestMoment/contest-moment-04.webp",
     alt: "队员在 RoboMaster 比赛现场共同检查机器人。",
   },
@@ -241,235 +198,6 @@ const homeNavigationModules = [
     placement: "home-visual-card--micro",
   },
 ];
-
-function SectionHeading({
-  index,
-  total,
-  labelZh,
-  labelEn,
-  title,
-  description,
-}: {
-  index: string;
-  total: string;
-  labelZh: string;
-  labelEn: string;
-  title?: string;
-  description?: string;
-}) {
-  const color = "var(--color-accent-primary)";
-
-  return (
-    <div className="public-section-heading mx-auto mb-9 max-w-[1440px] sm:mb-12">
-      <div className="flex items-center justify-center gap-3 sm:justify-start sm:gap-4">
-        <span
-          className="font-mono text-[11px] font-semibold tracking-[0.18em] sm:text-xs"
-          style={{ color }}
-        >
-          {index} / {total}
-        </span>
-        <span
-          className="whitespace-nowrap text-[10px] font-semibold uppercase tracking-[0.2em] sm:text-[11px]"
-          style={{ color }}
-        >
-          {labelEn}
-        </span>
-      </div>
-
-      <h2 className="mt-4 text-center text-[32px] font-semibold leading-tight tracking-[-0.03em] text-fg-primary sm:text-left sm:text-[40px]">
-        {labelZh}
-      </h2>
-
-      {title ? (
-        <h3 className="mt-3 text-center text-base font-medium text-fg-primary sm:text-left sm:text-lg">
-          {title}
-        </h3>
-      ) : null}
-
-      {description ? (
-        <p className="mx-auto mt-4 max-w-[760px] text-center text-sm leading-6 text-fg-muted sm:mx-0 sm:text-left sm:text-[15px] sm:leading-7">
-          {description}
-        </p>
-      ) : null}
-    </div>
-  );
-}
-
-type AboutImageTransition = {
-  baseSrc: string;
-  incomingSrc: string | null;
-  sequence: number;
-  ready: boolean;
-};
-
-function AboutImageReveal({ src, alt }: { src: string; alt: string }) {
-  const id = useId().replace(/:/g, "");
-  const filterId = `${id}-ink-filter`;
-  const maskId = `${id}-ink-mask`;
-  const [transition, setTransition] = useState<AboutImageTransition>(() => ({
-    baseSrc: src,
-    incomingSrc: null,
-    sequence: 0,
-    ready: false,
-  }));
-
-  useEffect(() => {
-    setTransition((current) => {
-      if (current.incomingSrc === src) return current;
-      if (current.baseSrc === src) {
-        if (!current.incomingSrc) return current;
-        return {
-          baseSrc: src,
-          incomingSrc: null,
-          sequence: current.sequence + 1,
-          ready: false,
-        };
-      }
-
-      const sequence = current.sequence + 1;
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        return { baseSrc: src, incomingSrc: null, sequence, ready: false };
-      }
-
-      return { ...current, incomingSrc: src, sequence, ready: false };
-    });
-  }, [src]);
-
-  useEffect(() => {
-    const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
-    const finishForReducedMotion = () => {
-      if (!preference.matches) return;
-      setTransition((current) =>
-        current.incomingSrc
-          ? {
-              baseSrc: current.incomingSrc,
-              incomingSrc: null,
-              sequence: current.sequence + 1,
-              ready: false,
-            }
-          : current,
-      );
-    };
-
-    preference.addEventListener("change", finishForReducedMotion);
-    return () =>
-      preference.removeEventListener("change", finishForReducedMotion);
-  }, []);
-
-  function markIncomingImageReady(src: string, sequence: number) {
-    setTransition((current) => {
-      if (current.incomingSrc !== src || current.sequence !== sequence) {
-        return current;
-      }
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        return {
-          baseSrc: src,
-          incomingSrc: null,
-          sequence: sequence + 1,
-          ready: false,
-        };
-      }
-      return { ...current, ready: true };
-    });
-  }
-
-  function finishIncomingImage(src: string, sequence: number) {
-    setTransition((current) =>
-      current.incomingSrc === src && current.sequence === sequence
-        ? { baseSrc: src, incomingSrc: null, sequence, ready: false }
-        : current,
-    );
-  }
-
-  const incomingSrc = transition.incomingSrc;
-
-  return (
-    <div className="relative aspect-[16/10] overflow-hidden bg-surface-card">
-      <img
-        src={transition.baseSrc}
-        alt={incomingSrc ? "" : alt}
-        aria-hidden={Boolean(incomingSrc)}
-        loading="lazy"
-        decoding="async"
-        className="absolute inset-0 h-full w-full object-cover"
-      />
-      {incomingSrc ? (
-        <>
-          <svg
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-0 h-full w-full overflow-visible"
-          >
-            <defs>
-              <filter
-                id={filterId}
-                x="-100%"
-                y="-100%"
-                width="300%"
-                height="300%"
-              >
-                <feTurbulence
-                  type="fractalNoise"
-                  baseFrequency="3.5"
-                  numOctaves="2"
-                  seed="7"
-                  result="ink-noise"
-                />
-                <feDisplacementMap
-                  in="SourceGraphic"
-                  in2="ink-noise"
-                  scale="0.03"
-                  xChannelSelector="R"
-                  yChannelSelector="G"
-                />
-                <feGaussianBlur stdDeviation="0.0025" />
-              </filter>
-              <mask
-                id={maskId}
-                maskUnits="objectBoundingBox"
-                maskContentUnits="objectBoundingBox"
-                x="-100%"
-                y="-100%"
-                width="300%"
-                height="300%"
-              >
-                <circle
-                  cx="0.5"
-                  cy="0.5"
-                  r="1.5"
-                  fill="white"
-                  filter={`url(#${filterId})`}
-                  className={
-                    transition.ready
-                      ? "about-ink-blot about-ink-blot-active"
-                      : "about-ink-blot"
-                  }
-                  onAnimationEnd={() =>
-                    finishIncomingImage(incomingSrc, transition.sequence)
-                  }
-                />
-              </mask>
-            </defs>
-          </svg>
-          <img
-            key={transition.sequence}
-            src={incomingSrc}
-            alt={alt}
-            loading="eager"
-            decoding="async"
-            className="absolute inset-0 h-full w-full object-cover"
-            style={{
-              maskImage: `url(#${maskId})`,
-              WebkitMaskImage: `url(#${maskId})`,
-            }}
-            onLoad={() =>
-              markIncomingImageReady(incomingSrc, transition.sequence)
-            }
-          />
-        </>
-      ) : null}
-    </div>
-  );
-}
 
 function HomeVisualNavigation() {
   return (
@@ -632,7 +360,6 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
   const legacyDestination = location.pathname === "/"
     ? legacyHomeHashDestinations[location.hash]
     : undefined;
-  const [activeAboutModuleIndex, setActiveAboutModuleIndex] = useState(0);
   const heroVideoRef = useRef<HTMLVideoElement | null>(null);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(
     () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
@@ -641,7 +368,6 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
   const [currentUser, setCurrentUser] = useState<AuthUser | null | undefined>(getNavbarUser);
   const [authError, setAuthError] = useState(false);
   const topic = routePage === "home" ? null : topicPages[routePage];
-  const activeAboutModule = aboutModules[activeAboutModuleIndex];
 
   useEffect(() => {
     if (legacyDestination) {
@@ -793,105 +519,7 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
 
       {routePage === "events-and-honors" ? <EventsAndHonorsArchive /> : null}
 
-      {routePage === "about" && (
-      <section
-        id="about"
-        className="border-t border-white/[0.06] bg-transparent py-16 sm:py-20"
-      >
-        <div className="public-home-container">
-          <SectionHeading
-            index="01"
-            total="05"
-            labelZh="关于我们"
-            labelEn="ABOUT US"
-            title="从赛场到日常，记录工程如何落地"
-            description="五组真实影像，串起参赛、备赛、日常训练与项目实践。"
-          />
-
-          <div className="grid grid-cols-2 gap-y-5 border-y border-white/10 py-5 sm:grid-cols-4 sm:gap-y-0">
-            {stats.map((stat, index) => (
-              <div
-                key={stat.label}
-                className={`flex items-baseline gap-2 sm:gap-3 ${index > 0 ? "sm:border-l sm:border-white/10 sm:pl-6" : ""}`}
-              >
-                <span className="font-mono text-xl font-semibold tracking-tight text-fg-primary sm:text-3xl">
-                  {stat.value}
-                </span>
-                <span className="text-xs font-medium text-fg-muted sm:text-sm">
-                  {stat.label}
-                </span>
-              </div>
-            ))}
-          </div>
-
-          <section className="team-composition" aria-labelledby="team-composition-heading">
-            <div className="team-composition__identity">
-              <p id="team-composition-heading" className="mb-3 text-xs font-semibold tracking-[0.16em] text-accent-primary">团队组成</p>
-              <SiteLogo className="h-9 max-w-[170px]" />
-              <p className="mt-3 text-xs leading-5 text-fg-muted sm:text-sm">吉林大学吉甲大师双创基地</p>
-            </div>
-            <ul className="team-composition__groups" aria-label="五个专业组别">
-              {groups.map((group) => (
-                <li key={group.name} className="team-composition__group">
-                  <TeamGroupMark group={group} className="team-composition__mark" />
-                  <span>{group.name}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
-
-          <div className="mt-10">
-            <div
-              role="group"
-              aria-label="团队实践分类"
-              className="flex overflow-x-auto border-b border-white/10 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
-            >
-              {aboutModules.map((module, index) => {
-                const isActive = index === activeAboutModuleIndex;
-                return (
-                  <button
-                    key={module.name}
-                    type="button"
-                    onClick={() => setActiveAboutModuleIndex(index)}
-                    className={`inline-flex min-h-12 shrink-0 items-center gap-1.5 border-b-2 px-1.5 text-xs transition-colors sm:gap-2 sm:px-5 sm:text-sm ${
-                      isActive
-                        ? "border-accent-primary text-fg-primary"
-                        : "border-transparent text-fg-muted hover:text-fg-primary"
-                    }`}
-                    aria-pressed={isActive}
-                  >
-                    <span className="font-mono text-[10px] text-accent-primary">
-                      {String(index + 1).padStart(2, "0")}
-                    </span>
-                    <span className="font-medium">{module.name}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            <article className="mt-6 grid overflow-hidden lg:grid-cols-[minmax(0,1.2fr)_minmax(17rem,0.8fr)]">
-              <figure>
-                <AboutImageReveal
-                  src={activeAboutModule.image}
-                  alt={activeAboutModule.imageAlt}
-                />
-              </figure>
-              <div className="flex flex-col justify-center border-t border-white/10 py-6 lg:border-l lg:border-t-0 lg:px-8 xl:px-12">
-                <span className="font-mono text-xs tracking-[0.16em] text-accent-primary">
-                  {String(activeAboutModuleIndex + 1).padStart(2, "0")} / {String(aboutModules.length).padStart(2, "0")}
-                </span>
-                <h3 className="mt-3 text-2xl font-semibold tracking-tight text-fg-primary sm:text-3xl">
-                  {activeAboutModule.title}
-                </h3>
-                <p className="mt-4 max-w-md text-sm leading-7 text-fg-muted sm:text-[15px]">
-                  {activeAboutModule.description}
-                </p>
-              </div>
-            </article>
-          </div>
-        </div>
-      </section>
-      )}
+      {routePage === "about" ? <AboutTeamPage groups={groups} /> : null}
 
       {routePage === "team-history" ? <TeamHistoryArchive /> : null}
 

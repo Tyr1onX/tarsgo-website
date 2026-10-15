@@ -5,6 +5,8 @@ import test from "node:test";
 
 const home = await readFile(new URL("../routes/home.tsx", import.meta.url), "utf8");
 const styles = await readFile(new URL("../app.css", import.meta.url), "utf8");
+const aboutPage = await readFile(new URL("../components/about-team-page.tsx", import.meta.url), "utf8");
+const aboutStyles = await readFile(new URL("../components/about-team-page.css", import.meta.url), "utf8");
 const historyData = await readFile(new URL("../data/team-history.ts", import.meta.url), "utf8");
 const historyArchive = await readFile(new URL("../components/team-history-archive.tsx", import.meta.url), "utf8");
 const historyStyles = await readFile(new URL("../components/team-history-archive.css", import.meta.url), "utf8");
@@ -60,7 +62,8 @@ test("home sections share a content width and imagery uses deliberate aspect rat
   assert.match(styles, /\.public-home\s*\{[^}]*--public-content-width:\s*84rem;/);
   assert.match(styles, /\.public-home-container\s*\{[^}]*max-width:\s*var\(--public-content-width\);[^}]*margin-inline:\s*auto;/);
   assert.match(home, /className="public-home-container"/);
-  assert.match(home, /aspect-\[16\/10\]/);
+  assert.match(aboutPage, /preparation-02\.webp/);
+  assert.match(aboutStyles, /aspect-ratio:\s*4\s*\/\s*3;/);
   assert.match(historyArchive, /className="team-history-photo"/);
   assert.match(historyStyles, /aspect-ratio:\s*16\s*\/\s*10;/);
   assert.match(historyStyles, /object-fit:\s*cover/);
@@ -107,10 +110,13 @@ test("the honors archive pairs a real competition photo with selected results an
   assert.match(data, /certificateIds: \["certificate-03", "certificate-20"\]/);
 });
 
-test("all five about categories remain available and the robot route delegates to the photo gallery", () => {
-  const aboutSource = home.match(/const aboutModules = \[([\s\S]*?)\n\];/)?.[1] ?? "";
-  assert.equal((aboutSource.match(/name: /g) ?? []).length, 5);
-  assert.match(home, /aria-label="团队实践分类"/);
+test("the about route renders the brand and group system while the robot route delegates to the photo gallery", () => {
+  assert.match(home, /<AboutTeamPage groups=\{groups\} \/>/);
+  assert.match(home, /name: "机械组"/);
+  assert.match(home, /name: "电控组"/);
+  assert.match(home, /name: "视觉组"/);
+  assert.match(home, /name: "AI组"/);
+  assert.match(home, /name: "运营组"/);
   assert.match(home, /import \{ RobotPhotoGallery \} from "\.\.\/components\/robot-photo-gallery"/);
   assert.match(home, /<RobotPhotoGallery \/>/);
 });
