@@ -22,6 +22,7 @@ export type HonorMaterial = {
   src: string;
   title: string;
   year: number;
+  kind?: "certificate" | "project-completion";
   awardId?: string;
   relation: "certificate" | "duplicate" | "supporting" | "pending";
   note?: string;
@@ -31,6 +32,19 @@ export type HonorMaterial = {
 const source = (label: string, href: string): HonorSource => ({ label, href });
 
 export const honorAwards: HonorAward[] = [
+  {
+    id: "challenge-cup-2026-jijiazhichuang",
+    year: 2026,
+    event: "2026年“挑战杯”吉林省大学生创业计划竞赛“创业在边疆”东北振兴产业升级专项赛",
+    result: "特等奖",
+    title: "吉甲智创——中小学轻量化机器人对抗竞技教育项目",
+    category: "project",
+    certificateIds: ["certificate-44"],
+    sources: [
+      source("吉林省政府：2026年“挑战杯”吉林省大学生创业计划竞赛", "https://www.jl.gov.cn/yaowen/202605/t20260524_3632734.html"),
+      source("吉林大学：“吉甲智创”科创美育研学实践", "https://news.jlu.edu.cn/info/1211/61778.htm"),
+    ],
+  },
   {
     id: "rm-2026-national-team",
     year: 2026,
@@ -176,6 +190,26 @@ export const honorAwards: HonorAward[] = [
     featured: true,
   },
   {
+    id: "ican-2023-injection-vision-jilin-first",
+    year: 2023,
+    event: "2023年第17届 iCAN 大学生创新创业大赛吉林赛区选拔赛",
+    result: "省级一等奖",
+    title: "面向注塑件产业的机器视觉缺陷检测设备",
+    category: "project",
+    certificateIds: ["certificate-30"],
+    sources: [source("吉林大学：2023年第17届 iCAN 吉林赛区选拔赛", "https://ee.jlu.edu.cn/info/1031/8111.htm")],
+  },
+  {
+    id: "ican-2023-outstanding-instructor",
+    year: 2023,
+    event: "2023年第17届 iCAN 大学生创新创业大赛吉林赛区选拔赛",
+    result: "优秀指导教师",
+    title: "玄玉波",
+    category: "instructor",
+    certificateIds: ["certificate-31"],
+    sources: [source("吉林大学：2023年第17届 iCAN 吉林赛区选拔赛", "https://ee.jlu.edu.cn/info/1031/8111.htm")],
+  },
+  {
     id: "ican-2023-injection-vision",
     year: 2023,
     event: "第17届 iCAN 大学生创新创业大赛全国总决赛",
@@ -278,7 +312,7 @@ export const honorAwards: HonorAward[] = [
   },
 ];
 
-export const honorMaterials: HonorMaterial[] = Array.from({ length: 25 }, (_, index) => {
+const existingHonorMaterials: HonorMaterial[] = Array.from({ length: 25 }, (_, index) => {
   const number = String(index + 1).padStart(2, "0");
   const id = "certificate-" + number;
   const award = honorAwards.find((item) => item.certificateIds.includes(id));
@@ -311,6 +345,175 @@ export const honorMaterials: HonorMaterial[] = Array.from({ length: 25 }, (_, in
       : undefined,
   };
 });
+
+const addedHonorMaterials: HonorMaterial[] = [
+  {
+    id: "certificate-26",
+    src: "/assets/images/CertificateOfAchievement/certificate-26.webp",
+    title: "ICCV 2019 视频目标分割挑战赛证书（第9名）",
+    year: 2019,
+    relation: "pending",
+    note: "本证书列出第9名；现有 #24 列出同赛事、同赛项第3名，无法确认两份证书对应不同名次类别还是修订材料，均暂不计入已确认成果。",
+    sources: [source("YouTube-VOS 官方 VOS 成绩榜", "https://youtube-vos.org/challenge/2019/leaderboard/")],
+  },
+  {
+    id: "certificate-27",
+    src: "/assets/images/CertificateOfAchievement/certificate-27.webp",
+    title: "大视场相位显微镜——光学元件高精度质检成像领跑者",
+    year: 2021,
+    awardId: "internet-plus-2021-phase-microscope",
+    relation: "duplicate",
+    note: "与 #14 是同届赛事、同一作品和同一奖项的另一份扫描，不重复计奖。",
+  },
+  {
+    id: "certificate-28",
+    src: "/assets/images/CertificateOfAchievement/certificate-28.webp",
+    title: "子母机器人集群空地一体联合消防救援系统",
+    year: 2022,
+    awardId: "challenge-cup-2022-fire-rescue",
+    relation: "duplicate",
+    note: "与 #06 内容相同，为同一奖项的另一份扫描，不重复计奖。",
+  },
+  {
+    id: "certificate-29",
+    src: "/assets/images/CertificateOfAchievement/certificate-29.webp",
+    title: "子母机器人集群空地一体联合消防救援系统 · 证书封套",
+    year: 2022,
+    awardId: "challenge-cup-2022-fire-rescue",
+    relation: "supporting",
+    note: "与 #22 属于同一奖项的关联封套材料，不单独计奖。",
+  },
+  {
+    id: "certificate-30",
+    src: "/assets/images/CertificateOfAchievement/certificate-30.webp",
+    title: "面向注塑件产业的机器视觉缺陷检测设备",
+    year: 2023,
+    awardId: "ican-2023-injection-vision-jilin-first",
+    relation: "certificate",
+  },
+  {
+    id: "certificate-31",
+    src: "/assets/images/CertificateOfAchievement/certificate-31.webp",
+    title: "玄玉波",
+    year: 2023,
+    awardId: "ican-2023-outstanding-instructor",
+    relation: "certificate",
+  },
+  {
+    id: "certificate-32",
+    src: "/assets/images/CertificateOfAchievement/certificate-32.webp",
+    title: "面向注塑件产业的机器视觉缺陷检测设备",
+    year: 2023,
+    awardId: "ican-2023-injection-vision",
+    relation: "duplicate",
+    note: "与 #21 内容相同，为同一全国总决赛奖项的另一份扫描，不重复计奖。",
+  },
+  {
+    id: "certificate-33",
+    src: "/assets/images/CertificateOfAchievement/certificate-33.webp",
+    title: "智能活细胞检测与分析系统",
+    year: 2024,
+    relation: "pending",
+    note: "证书显示该项目获第18届 iCAN 全国总决赛三等奖；目前没有材料确认其与 TARSGO 的项目归属，暂不计入正式荣誉。",
+  },
+  {
+    id: "certificate-34",
+    src: "/assets/images/CertificateOfAchievement/certificate-34.webp",
+    title: "吉林大学 TARS_Go 战队",
+    year: 2024,
+    awardId: "rm-2024-east-team",
+    relation: "duplicate",
+    note: "与 #04 是同一届 RoboMaster 东部赛区一等奖的另一份扫描，不重复计奖。",
+  },
+  {
+    id: "certificate-35",
+    src: "/assets/images/CertificateOfAchievement/certificate-35.webp",
+    title: "高通量在线式干细胞培养测控系统 · 结题证明",
+    year: 2024,
+    kind: "project-completion",
+    relation: "supporting",
+    note: "证书明确列出吉甲大师创新创业实践示范基地为承担基地。这是双创实践重点项目结题材料，不属于竞赛获奖。",
+  },
+  {
+    id: "certificate-36",
+    src: "/assets/images/CertificateOfAchievement/certificate-36.webp",
+    title: "面向 PCB 产业的 AOI 缺陷检测设备 · 结题证明",
+    year: 2024,
+    kind: "project-completion",
+    relation: "pending",
+    note: "这是国家级大学生创新创业训练计划项目结题材料，不属于竞赛获奖；与 TARSGO 的归属尚未确认。",
+  },
+  {
+    id: "certificate-37",
+    src: "/assets/images/CertificateOfAchievement/certificate-37.webp",
+    title: "数字病理显微成像系统 · 结题证明",
+    year: 2024,
+    kind: "project-completion",
+    relation: "pending",
+    note: "这是国家级大学生创新训练项目结题材料，不属于竞赛获奖；与 TARSGO 的归属尚未确认。",
+  },
+  {
+    id: "certificate-38",
+    src: "/assets/images/CertificateOfAchievement/certificate-38.webp",
+    title: "精准智检：华为云 AI 驱动的工业残次识别专家",
+    year: 2024,
+    relation: "pending",
+    note: "证书显示该作品获第19届“挑战杯”全国大学生课外学术科技作品竞赛“揭榜挂帅”专项赛三等奖；与 TARSGO 的项目归属尚未确认。",
+  },
+  {
+    id: "certificate-39",
+    src: "/assets/images/CertificateOfAchievement/certificate-39.webp",
+    title: "英雄机器人组",
+    year: 2024,
+    awardId: "rm-2024-hero",
+    relation: "duplicate",
+    note: "与 #12 是同一届 RoboMaster 英雄机器人竞技奖一等奖的另一份扫描，不重复计奖。",
+  },
+  {
+    id: "certificate-40",
+    src: "/assets/images/CertificateOfAchievement/certificate-40.webp",
+    title: "面向活细胞的自适应监测装置 · 结题证明",
+    year: 2025,
+    kind: "project-completion",
+    relation: "pending",
+    note: "这是省级大学生创新创业训练计划项目结题材料，不属于竞赛获奖；与 TARSGO 的归属尚未确认。",
+  },
+  {
+    id: "certificate-41",
+    src: "/assets/images/CertificateOfAchievement/certificate-41.webp",
+    title: "工程机器人组",
+    year: 2025,
+    awardId: "rm-2025-engineer",
+    relation: "duplicate",
+    note: "与 #23 内容相同，为同一届 RoboMaster 工程机器人竞技奖一等奖的另一份扫描，不重复计奖。",
+  },
+  {
+    id: "certificate-42",
+    src: "/assets/images/CertificateOfAchievement/certificate-42.webp",
+    title: "微斑慧眼——基于无人机的玉米病害智能预警领航者",
+    year: 2026,
+    relation: "pending",
+    note: "证书显示该项目获 2026 年“挑战杯”吉林省大学生创业计划竞赛东北振兴产业升级专项赛三等奖；项目与 TARSGO 的归属尚未确认。",
+  },
+  {
+    id: "certificate-43",
+    src: "/assets/images/CertificateOfAchievement/certificate-43.webp",
+    title: "智海算法调优赛项 · 全国总决赛二等奖",
+    year: 2026,
+    relation: "pending",
+    note: "证书显示该项目获 2026 睿抗机器人开发者大赛全国总决赛二等奖；与 TARSGO 的归属尚未确认。",
+  },
+  {
+    id: "certificate-44",
+    src: "/assets/images/CertificateOfAchievement/certificate-44.webp",
+    title: "吉甲智创——中小学轻量化机器人对抗竞技教育项目",
+    year: 2026,
+    awardId: "challenge-cup-2026-jijiazhichuang",
+    relation: "certificate",
+  },
+];
+
+export const honorMaterials: HonorMaterial[] = [...existingHonorMaterials, ...addedHonorMaterials];
 
 export const honorCategoryLabels: Record<HonorCategory, string> = {
   team: "战队团体奖",

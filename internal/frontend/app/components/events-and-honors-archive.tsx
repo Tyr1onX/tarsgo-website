@@ -204,7 +204,9 @@ export function EventsAndHonorsArchive() {
                 <div className="honors-material-grid">
                   {getMaterialsForYear(year).map((material) => {
                     const award = getAwardForMaterial(material);
-                    const relationLabel = material.relation === "duplicate"
+                    const relationLabel = material.kind === "project-completion"
+                      ? material.relation === "pending" ? "结题证明 · 归属待核" : "项目结题证明"
+                      : material.relation === "duplicate"
                       ? "重复扫描"
                       : material.relation === "supporting"
                         ? "关联材料"
