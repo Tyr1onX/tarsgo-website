@@ -454,7 +454,7 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
                 吉林大学 · RoboMaster 战队
               </p>
               <h1 className="max-w-2xl text-[42px] font-semibold leading-[1.1] tracking-[-0.045em] text-white sm:text-6xl lg:text-[72px]">
-                有秩序的<span className="text-[var(--hero-accent)]">创造力</span>
+                从构想，到<span className="text-[var(--hero-accent)]">赛场</span>
               </h1>
               <p className="max-w-lg text-sm leading-6 text-white/78 sm:text-base sm:leading-7">
                 以 RoboMaster 竞赛为牵引，持续投入机器人研发与团队协作。
