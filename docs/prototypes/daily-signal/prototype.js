@@ -1,4 +1,4 @@
-const MOCK_TODAY = "2026-10-15";
+const MOCK_TODAY = "2026-10-16";
 const root = document.documentElement;
 const panel = document.querySelector(".terminal-panel");
 const sceneSelect = document.querySelector("#sceneSelect");
@@ -8,9 +8,13 @@ const monthLabels = document.querySelector("#monthLabels");
 const dateDetail = document.querySelector("#dateDetail");
 const terminalState = document.querySelector("#terminalState");
 const terminalMessage = document.querySelector("#terminalMessage");
+const moodGrid = document.querySelector("#moodGrid");
+const moodHeadingMode = document.querySelector("#moodHeadingMode");
+const moodReadonlyNote = document.querySelector("#moodReadonlyNote");
 const sendButton = document.querySelector("#sendSignal");
 const themeToggle = document.querySelector("#themeToggle");
 const heatmapViewport = document.querySelector("#heatmapViewport");
+const returnTodayButton = document.querySelector("#returnToday");
 
 const scenarios = {
   first: { signed: false, mood: null, empty: false, failed: false },
@@ -103,7 +107,7 @@ function getCurrentRecords(year) {
 
 function buildMonthLabels(weeks, year) {
   monthLabels.replaceChildren();
-  monthLabels.style.gridTemplateColumns = `repeat(${weeks.length}, 14px)`;
+  monthLabels.style.gridTemplateColumns = `repeat(${weeks.length}, var(--heatmap-week-track))`;
   let previousMonth = -1;
   weeks.forEach((week, index) => {
     const inYear = week.find((date) => date.getUTCFullYear() === year);
@@ -142,7 +146,7 @@ function renderHeatmap({ preserveScroll = true } = {}) {
   const activeKey = focusedDate.startsWith(`${year}-`) ? focusedDate : `${year}-01-01`;
   buildMonthLabels(weeks, year);
   heatmapGrid.replaceChildren();
-  heatmapGrid.style.gridTemplateColumns = `repeat(${weeks.length}, 12px)`;
+  heatmapGrid.style.gridTemplateColumns = `repeat(${weeks.length}, var(--heatmap-week-track))`;
   heatmapGrid.setAttribute("aria-label", `${year} 年每日通信记录`);
 
   weeks.forEach((week) => {
@@ -194,10 +198,36 @@ function renderHeatmap({ preserveScroll = true } = {}) {
 
 function chooseDate(key) {
   selectedDate = key;
+  focusedDate = key;
+  heatmapGrid.querySelectorAll(".heatmap-cell").forEach((cell) => {
+    cell.tabIndex = cell.dataset.date === key ? 0 : -1;
+  });
   heatmapGrid.querySelectorAll(".heatmap-cell[aria-pressed='true']").forEach((cell) => cell.setAttribute("aria-pressed", "false"));
   const selectedCell = heatmapGrid.querySelector(`.heatmap-cell[data-date="${key}"]`);
   if (selectedCell) selectedCell.setAttribute("aria-pressed", "true");
   updateDateDetail(key);
+}
+
+function scrollHeatmapToDate(key) {
+  const target = heatmapGrid.querySelector(`.heatmap-cell[data-date="${key}"]`);
+  if (!target) return false;
+  const viewportRect = heatmapViewport.getBoundingClientRect();
+  const targetRect = target.getBoundingClientRect();
+  const targetCenter = heatmapViewport.scrollLeft + targetRect.left - viewportRect.left + targetRect.width / 2;
+  const maxScroll = heatmapViewport.scrollWidth - heatmapViewport.clientWidth;
+  const left = Math.max(0, Math.min(maxScroll, targetCenter - heatmapViewport.clientWidth * 0.62));
+  const reducedMotion = root.dataset.motion === "reduce" || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  heatmapViewport.scrollTo({ left, behavior: reducedMotion ? "auto" : "smooth" });
+  return true;
+}
+
+function returnToToday() {
+  yearSelect.value = MOCK_TODAY.slice(0, 4);
+  document.querySelector("#archiveYearLabel").textContent = yearSelect.value;
+  selectedDate = MOCK_TODAY;
+  focusedDate = MOCK_TODAY;
+  renderHeatmap({ preserveScroll: false });
+  scrollHeatmapToDate(MOCK_TODAY);
 }
 
 function updateDateDetail(key) {
@@ -273,9 +303,30 @@ function moveGridFocus(event) {
 }
 
 function setMood(mood) {
+  if (signedToday || panel.dataset.mode === "sending") return;
   selectedMood = selectedMood === mood ? null : mood;
   document.querySelectorAll(".mood-option").forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.mood === selectedMood));
+  });
+}
+
+function syncMoodControls() {
+  const readOnly = signedToday;
+  const sending = panel.dataset.mode === "sending";
+  const moodOptions = document.querySelectorAll(".mood-option");
+  moodGrid.classList.toggle("is-readonly", readOnly);
+  moodGrid.setAttribute("aria-label", readOnly
+    ? selectedMood ? `今日状态：${selectedMood}，签到后只读展示` : "今日状态：未选择，签到后只读展示"
+    : "选择今日状态，可不选择");
+  moodHeadingMode.textContent = readOnly
+    ? selectedMood ? "已记录 · 只读" : "未选择 · 只读"
+    : "可选";
+  moodReadonlyNote.hidden = !(readOnly && !selectedMood);
+  moodOptions.forEach((button) => {
+    const isSavedChoice = button.dataset.mood === selectedMood;
+    button.hidden = readOnly && !isSavedChoice;
+    button.disabled = readOnly || sending;
+    button.setAttribute("aria-pressed", String(isSavedChoice));
   });
 }
 
@@ -300,9 +351,7 @@ function applyScenario(name) {
   sendButton.disabled = false;
   sendButton.querySelector(".send-button__label").textContent = config.failed ? "重新发送信号" : "发送今日信号";
   terminalState.textContent = signedToday ? "信号已收到" : config.failed ? "发送未完成" : "等待发送";
-  document.querySelectorAll(".mood-option").forEach((button) => {
-    button.setAttribute("aria-pressed", String(button.dataset.mood === selectedMood));
-  });
+  syncMoodControls();
 
   if (scene === "repeat") setMessage("今天已经见过你啦。谢谢你把这一天，也留在基地。", "success");
   else if (scene === "signed-mood") setMessage("「高负载中」已收到。辛苦了，今天可以慢一点。", "success");
@@ -324,6 +373,7 @@ function startSending() {
   }
 
   panel.dataset.mode = "sending";
+  syncMoodControls();
   panel.classList.add("is-transmitting");
   sendButton.disabled = true;
   sendButton.querySelector(".send-button__label").textContent = "正在发送…";
@@ -339,11 +389,17 @@ function startSending() {
     sceneSelect.value = "first";
     signedToday = true;
     recordSet.add(MOCK_TODAY);
+    selectedDate = MOCK_TODAY;
+    focusedDate = MOCK_TODAY;
+    yearSelect.value = MOCK_TODAY.slice(0, 4);
+    document.querySelector("#archiveYearLabel").textContent = yearSelect.value;
     terminalState.textContent = "信号已收到";
     setMessage(selectedMood
       ? `今天的信号收到了。谢谢你分享「${selectedMood}」。`
       : "今天的信号收到了。谢谢你又来到这里。", "success");
-    renderHeatmap();
+    syncMoodControls();
+    renderHeatmap({ preserveScroll: false });
+    scrollHeatmapToDate(MOCK_TODAY);
   }, reduceMotion ? 80 : 680);
 }
 
@@ -364,6 +420,7 @@ yearSelect.addEventListener("change", () => {
   renderHeatmap({ preserveScroll: false });
 });
 themeToggle.addEventListener("click", toggleTheme);
+returnTodayButton.addEventListener("click", returnToToday);
 
 if (new URLSearchParams(window.location.search).get("motion") === "reduce") {
   root.dataset.motion = "reduce";
@@ -373,4 +430,5 @@ if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
 }
 
 applyScenario("first");
+scrollHeatmapToDate(MOCK_TODAY);
 themeToggle.setAttribute("aria-label", "切换到日间白金主题");
