@@ -10,6 +10,8 @@ import {
 import "./events-and-honors-archive.css";
 
 const featuredAwards = honorAwards.filter((award) => award.featured);
+const spotlightAward = featuredAwards.find((award) => award.id === "rm-2024-national-team");
+const supportingFeaturedAwards = featuredAwards.filter((award) => award.id !== spotlightAward?.id);
 const archiveYears = [...new Set(honorAwards.map((award) => award.year))].sort((a, b) => b - a);
 const yearsWithMaterials = [...new Set(honorMaterials.map((material) => material.year))].sort((a, b) => b - a);
 const categoryOrder: HonorCategory[] = ["team", "robot", "project", "instructor"];
@@ -85,19 +87,49 @@ export function EventsAndHonorsArchive() {
         <div className="public-home-container">
           <div className="honors-section-heading">
             <h2>精选成果</h2>
+            <a href="#certificates">查看证书原件 <span aria-hidden="true">↓</span></a>
           </div>
-          <div className="honors-featured-list">
-            {featuredAwards.map((award) => (
-              <article className="honors-featured-item" key={award.id}>
-                <div>
-                  <span className={getCategoryClass(award.category)}>{honorCategoryLabels[award.category]}</span>
-                  <p className="honors-featured-result">{award.result}</p>
-                  <h3>{award.title}</h3>
-                  <p className="honors-featured-event">{award.year} · {award.event}</p>
-                </div>
-                <ArchiveSources award={award} />
-              </article>
-            ))}
+          <div className="honors-featured-showcase">
+            {spotlightAward ? (
+              <figure className="honors-featured-visual">
+                <img
+                  src="/assets/images/Milestone/2024-national-competition.webp"
+                  alt="TARSGO 队员在 RoboMaster 2024 全国赛现场与机器人合影。"
+                  fetchPriority="high"
+                  decoding="async"
+                />
+                <figcaption>
+                  <span>{spotlightAward.year} · {spotlightAward.event}</span>
+                  <strong>RoboMaster 全国赛现场</strong>
+                </figcaption>
+              </figure>
+            ) : null}
+            <div className="honors-featured-records">
+              {spotlightAward ? (
+                <article className="honors-spotlight-result">
+                  <span className={getCategoryClass(spotlightAward.category)}>{honorCategoryLabels[spotlightAward.category]}</span>
+                  <p>{spotlightAward.result}</p>
+                  <h3>{spotlightAward.title}</h3>
+                  <span>{spotlightAward.year} · {spotlightAward.event}</span>
+                  <ArchiveSources award={spotlightAward} />
+                </article>
+              ) : null}
+              <div className="honors-featured-list">
+                {supportingFeaturedAwards.map((award) => (
+                  <article className="honors-featured-item" key={award.id}>
+                    <div className="honors-featured-item-result">
+                      <span className={getCategoryClass(award.category)}>{honorCategoryLabels[award.category]}</span>
+                      <p>{award.result}</p>
+                    </div>
+                    <div>
+                      <h3>{award.title}</h3>
+                      <p className="honors-featured-event">{award.year} · {award.event}</p>
+                      <ArchiveSources award={award} />
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -107,6 +139,11 @@ export function EventsAndHonorsArchive() {
           <div className="honors-section-heading">
             <h2>历年赛事</h2>
           </div>
+          <nav className="honors-year-navigation" aria-label="按年份查看赛事档案">
+            {archiveYears.map((year) => (
+              <a key={year} href={"#honors-year-" + year}>{year}</a>
+            ))}
+          </nav>
           <div className="honors-year-timeline">
             {archiveYears.map((year) => {
               const yearAwards = getAwardsForYear(year);
@@ -187,15 +224,10 @@ export function EventsAndHonorsArchive() {
                             <img src={material.src} alt="" loading="lazy" decoding="async" />
                           </span>
                           <span className="honors-material-meta">
-                            <span className="honors-material-number">{material.id.replace("certificate-", "#")}</span>
                             <span className="honors-material-relation">{relationLabel}</span>
                           </span>
                           <strong>{material.title}</strong>
                           {award ? <span className="honors-material-result">{award.result}</span> : null}
-                          {material.note ? <span className="honors-material-note">{material.note}</span> : null}
-                          {material.sources?.map((source) => (
-                            <span className="honors-material-note" key={source.href}>{source.label} ↗</span>
-                          ))}
                           <span className="honors-view-original">查看原图 <span aria-hidden="true">↗</span></span>
                         </button>
                       </article>
@@ -248,6 +280,7 @@ export function EventsAndHonorsArchive() {
             </div>
             <img className="honors-preview-image" src={activeMaterial.src} alt={activeMaterial.title + "原图"} />
             {activeMaterial.note ? <p className="honors-preview-note">{activeMaterial.note}</p> : null}
+            <a className="honors-preview-original" href={activeMaterial.src} target="_blank" rel="noreferrer">打开原图 <span aria-hidden="true">↗</span></a>
             <div className="honors-preview-controls">
               <button type="button" onClick={() => moveMaterial(-1)} aria-label="查看上一份原始材料">上一份</button>
               <span aria-live="polite">{String(selectedMaterialIndex! + 1).padStart(2, "0")} / {honorMaterials.length}</span>
