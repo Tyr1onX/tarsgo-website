@@ -1,8 +1,6 @@
 # 吉甲大师网站 · TarsGo
 
-本仓库是吉甲大师官网与招新管理后台的**唯一主开发仓库**。旧仓库 [`Tyr1onX/TarsGo`](https://github.com/Tyr1onX/TarsGo) 仅保留历史版本，不再用于新功能开发。
-
-吉林大学吉甲大师战队的**官方网站与招新管理后台**。本仓库由战队共同维护，欢迎开发、运营、内容、设计和测试成员参与。
+本仓库是吉林大学吉甲大师战队的**官方网站与招新管理后台**，也是唯一主开发入口。旧仓库 [`Tyr1onX/TarsGo`](https://github.com/Tyr1onX/TarsGo) 仅保留历史版本，不再用于新功能开发。本仓库由战队成员共同维护，欢迎开发、运营、内容、设计和测试成员参与。
 
 > **第一次参与：** [找一项任务](https://github.com/Tyr1onX/jijia-website/issues) → 确认负责人和完成标准 → 提交反馈或独立分支的 [Pull Request](https://github.com/Tyr1onX/jijia-website/pulls) → 维护者审查。**不需要一开始就接触生产环境。**
 
