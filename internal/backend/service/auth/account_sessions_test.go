@@ -56,7 +56,9 @@ func TestRevokedLegacyJWTDoesNotFallBackToSignatureValidation(t *testing.T) {
 }
 
 func TestRevokeLegacyJWTPersistsDigestUntilOriginalExpiry(t *testing.T) {
-	now := time.Date(2026, 10, 15, 12, 0, 0, 0, time.UTC)
+	// ParseToken validates expiry against the real clock, so keep this token
+	// valid independently of when the test suite runs.
+	now := time.Now().UTC().Truncate(time.Second)
 	expiresAt := now.Add(3 * time.Hour)
 	token, err := SignToken("test-secret", Claims{
 		Subject:   "17",
