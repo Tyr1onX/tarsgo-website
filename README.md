@@ -2,7 +2,7 @@
 
 本仓库是吉林大学吉甲大师战队的**官方网站与招新管理后台**，也是唯一主开发入口。旧仓库 [`Tyr1onX/TarsGo`](https://github.com/Tyr1onX/TarsGo) 仅保留历史版本，不再用于新功能开发。本仓库由战队成员共同维护，欢迎开发、运营、内容、设计和测试成员参与。
 
-> **第一次参与：** [找一项任务](https://github.com/Tyr1onX/jijia-website/issues) → 确认负责人和完成标准 → 提交反馈或独立分支的 [Pull Request](https://github.com/Tyr1onX/jijia-website/pulls) → 维护者审查。**不需要一开始就接触生产环境。**
+> **第一次参与：** [找一项任务](https://github.com/Tyr1onX/tarsgo-website/issues) → 确认负责人和完成标准 → 提交反馈或独立分支的 [Pull Request](https://github.com/Tyr1onX/tarsgo-website/pulls) → 维护者审查。**不需要一开始就接触生产环境。**
 
 ## 这个项目做什么
 
@@ -12,11 +12,11 @@
 | 招新与管理后台 | 报名、初筛、面试预约及后台管理 | `internal/frontend/`、`internal/backend/` |
 | 数据与基础设施 | MariaDB、开发脚本、验收与生产维护 | `database/`、`scripts/`、`docs/` |
 
-技术栈：React 19、React Router 7、TypeScript、Tailwind CSS 4；Go 1.25、Gin、GORM；MariaDB 11.4。部分历史代码仍使用 `TarsGo` 名称。**吉甲网站不是 TARS Base（`tarsgo-platform`）**，不要混淆仓库。
+技术栈：React 19、React Router 7、TypeScript、Tailwind CSS 4；Go 1.25、Gin、GORM；MariaDB 11.4。部分历史代码仍使用 `TarsGo` 名称。**吉甲网站不是 TARS Base（`tarsgo-base`）**，不要混淆仓库。
 
 ## 新成员从哪里开始
 
-**不写代码也能参与。** 先在 [Issues](https://github.com/Tyr1onX/jijia-website/issues) 找一项范围小、验收标准明确的任务，或请负责人分配：
+**不写代码也能参与。** 先在 [Issues](https://github.com/Tyr1onX/tarsgo-website/issues) 找一项范围小、验收标准明确的任务，或请负责人分配：
 
 | 参与方向 | 建议的第一个任务 | 需要本地开发环境吗 |
 | --- | --- | --- |
@@ -38,8 +38,8 @@
 在终端执行：
 
 ```bash
-git clone git@github.com:Tyr1onX/jijia-website.git
-cd jijia-website
+git clone git@github.com:Tyr1onX/tarsgo-website.git
+cd tarsgo-website
 make env       # 从示例文件创建 internal/backend/.env
 make install   # 安装 Go / 前端依赖
 make db-up     # 启动本地 MariaDB，默认使用 3307 端口
@@ -74,7 +74,7 @@ git commit -m "docs: improve onboarding notes"
 git push -u origin docs/my-first-change
 ```
 
-随后到 [Pull Requests](https://github.com/Tyr1onX/jijia-website/pulls) 创建 PR，**base 选择本仓库的 `main`**。PR 描述用简洁中文，包括：
+随后到 [Pull Requests](https://github.com/Tyr1onX/tarsgo-website/pulls) 创建 PR，**base 选择本仓库的 `main`**。PR 描述用简洁中文，包括：
 
 ```markdown
 ## 背景
@@ -112,8 +112,8 @@ pnpm run test:workbench
 
 ## 项目入口
 
-- [Issues：任务与问题](https://github.com/Tyr1onX/jijia-website/issues)
-- [Pull Requests：提交与审查](https://github.com/Tyr1onX/jijia-website/pulls)
-- [Actions：自动化检查](https://github.com/Tyr1onX/jijia-website/actions)
+- [Issues：任务与问题](https://github.com/Tyr1onX/tarsgo-website/issues)
+- [Pull Requests：提交与审查](https://github.com/Tyr1onX/tarsgo-website/pulls)
+- [Actions：自动化检查](https://github.com/Tyr1onX/tarsgo-website/actions)
 - [招新验收环境](docs/acceptance-environment.md)
 - [生产发布与回滚](docs/production-deployment.md)
