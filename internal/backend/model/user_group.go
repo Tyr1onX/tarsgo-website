@@ -14,7 +14,7 @@ type UserGroup struct {
 	LogoURL           *string           `json:"logoUrl,omitempty" gorm:"column:logo_url;size:255;default:null"`
 	AdmissionImageURL *string           `json:"admissionImageUrl,omitempty" gorm:"column:admission_image_url;size:255;default:null"`
 	Tags              []string          `json:"tags,omitempty" gorm:"type:json;serializer:json"`
-	IsDefault         bool              `json:"isDefault" gorm:"column:is_default;type:tinyint(1);not null;default:0"`
+	IsDefault         bool              `json:"-" gorm:"column:is_default;type:tinyint(1);not null;default:0"`
 	Show              uint8             `json:"show" gorm:"column:show;type:tinyint(1);not null;default:1;index:idx_show"`
 	Status            uint8             `json:"status" gorm:"type:tinyint;not null;default:1;index:idx_status"`
 	CreatedAt         time.Time         `json:"createdAt" gorm:"column:created_at;type:datetime;not null;default:CURRENT_TIMESTAMP"`

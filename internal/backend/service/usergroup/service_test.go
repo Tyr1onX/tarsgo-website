@@ -23,24 +23,23 @@ import (
 	"tarsgo-backend/model"
 )
 
-func TestServiceCreateGroup_ClearsPreviousDefault(t *testing.T) {
+func TestServiceCreateGroupDoesNotCreateDefaultGroup(t *testing.T) {
 	repo := newFakeRepository()
 	service := NewService(repo)
 
 	detail, err := service.CreateGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, CreateGroupInput{
-		Name:      "新的默认组",
-		IsDefault: true,
-		Status:    model.UserGroupStatusActive,
+		Name:   "新组",
+		Status: model.UserGroupStatusActive,
 	})
 	if err != nil {
 		t.Fatalf("CreateGroup returned error: %v", err)
 	}
 
-	if !detail.IsDefault {
-		t.Fatalf("expected created group to be default")
+	if repo.groups[detail.ID].IsDefault {
+		t.Fatalf("new group must not be marked as the registration default")
 	}
-	if repo.groups[1].IsDefault {
-		t.Fatalf("expected previous default group to be cleared")
+	if !repo.groups[1].IsDefault {
+		t.Fatalf("legacy default marker should remain intact for rollback compatibility")
 	}
 }
 
@@ -63,10 +62,9 @@ func TestServiceGroupConfigurationRequiresSuperAdmin(t *testing.T) {
 		assertServiceError(t, err, 403, "超级管理员")
 	}
 	if _, err := service.UpdateGroup(context.Background(), admin, 1, UpdateGroupInput{
-		Name:      "默认组",
-		IsDefault: true,
-		Status:    model.UserGroupStatusActive,
-		Show:      1,
+		Name:   "默认组",
+		Status: model.UserGroupStatusActive,
+		Show:   1,
 	}); err == nil {
 		t.Fatal("admin must not update recruitment groups")
 	} else {
@@ -82,7 +80,6 @@ func TestServiceUpdateGroup_HideDefaultGroupWithTags(t *testing.T) {
 		Name:        "默认分组",
 		Description: "默认分组",
 		Tags:        []string{"新注册"},
-		IsDefault:   true,
 		Show:        0,
 		Status:      model.UserGroupStatusActive,
 	})
@@ -95,6 +92,9 @@ func TestServiceUpdateGroup_HideDefaultGroupWithTags(t *testing.T) {
 	}
 	if len(detail.Tags) != 1 || detail.Tags[0] != "新注册" {
 		t.Fatalf("expected tags to contain 新注册, got %#v", detail.Tags)
+	}
+	if !repo.groups[1].IsDefault {
+		t.Fatalf("updating group configuration must preserve the legacy marker for rollback compatibility")
 	}
 }
 
@@ -270,11 +270,10 @@ func TestServiceCreateGroup_SavesLogo(t *testing.T) {
 	service := newServiceWithDependencies(repo, store)
 
 	detail, err := service.CreateGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, CreateGroupInput{
-		Name:      "视觉组",
-		Logo:      newTestLogoFileHeader("group-logo.png", 1024, "image/png"),
-		Show:      1,
-		Status:    model.UserGroupStatusActive,
-		IsDefault: false,
+		Name:   "视觉组",
+		Logo:   newTestLogoFileHeader("group-logo.png", 1024, "image/png"),
+		Show:   1,
+		Status: model.UserGroupStatusActive,
 	})
 	if err != nil {
 		t.Fatalf("CreateGroup returned error: %v", err)
@@ -301,7 +300,6 @@ func TestServiceUpdateGroup_ReplacesLogoAndRemovesOldFile(t *testing.T) {
 		Logo:        newTestLogoFileHeader("next.webp", 2048, "image/webp"),
 		Show:        1,
 		Status:      model.UserGroupStatusActive,
-		IsDefault:   true,
 	})
 	if err != nil {
 		t.Fatalf("UpdateGroup returned error: %v", err)
@@ -328,7 +326,6 @@ func TestServiceUpdateGroup_RemoveLogo(t *testing.T) {
 		RemoveLogo:  true,
 		Show:        1,
 		Status:      model.UserGroupStatusActive,
-		IsDefault:   true,
 	})
 	if err != nil {
 		t.Fatalf("UpdateGroup returned error: %v", err)
@@ -347,11 +344,10 @@ func TestServiceUpdateGroup_RejectsOversizedLogo(t *testing.T) {
 	service := NewService(repo)
 
 	_, err := service.UpdateGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 1, UpdateGroupInput{
-		Name:      "默认组",
-		Logo:      newTestLogoFileHeader("too-large.png", 2*1024*1024+1, "image/png"),
-		Show:      1,
-		Status:    model.UserGroupStatusActive,
-		IsDefault: true,
+		Name:   "默认组",
+		Logo:   newTestLogoFileHeader("too-large.png", 2*1024*1024+1, "image/png"),
+		Show:   1,
+		Status: model.UserGroupStatusActive,
 	})
 	assertServiceError(t, err, 400, "不能超过 2MB")
 }
@@ -361,11 +357,10 @@ func TestServiceUpdateGroup_RejectsNonImageLogo(t *testing.T) {
 	service := NewService(repo)
 
 	_, err := service.UpdateGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 1, UpdateGroupInput{
-		Name:      "默认组",
-		Logo:      newTestLogoFileHeader("group.pdf", 1024, "application/pdf"),
-		Show:      1,
-		Status:    model.UserGroupStatusActive,
-		IsDefault: true,
+		Name:   "默认组",
+		Logo:   newTestLogoFileHeader("group.pdf", 1024, "application/pdf"),
+		Show:   1,
+		Status: model.UserGroupStatusActive,
 	})
 	assertServiceError(t, err, 400, "必须为图片文件")
 }
@@ -426,9 +421,6 @@ func (r *fakeRepository) GetGroupStats(_ context.Context) (GroupStats, error) {
 		if group.Status == model.UserGroupStatusDisabled {
 			stats.Disabled++
 		}
-		if group.IsDefault {
-			stats.DefaultCount++
-		}
 	}
 	return stats, nil
 }
@@ -487,23 +479,10 @@ func (r *fakeRepository) UpdateGroup(_ context.Context, groupID uint64, updates 
 	if value, ok := updates["status"].(uint8); ok {
 		group.Status = value
 	}
-	if value, ok := updates["is_default"].(bool); ok {
-		group.IsDefault = value
-	}
 	if value, ok := updates["show"].(uint8); ok {
 		group.Show = value
 	}
 	group.UpdatedAt = time.Now()
-	return nil
-}
-
-func (r *fakeRepository) ClearDefaultExcept(_ context.Context, exceptGroupID uint64) error {
-	for id, group := range r.groups {
-		if id == exceptGroupID {
-			continue
-		}
-		group.IsDefault = false
-	}
 	return nil
 }
 

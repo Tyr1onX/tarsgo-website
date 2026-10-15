@@ -17,7 +17,6 @@ type mockGroupSeed struct {
 	Name        string
 	Description string
 	Tags        []string
-	IsDefault   bool
 	Show        uint8
 	Users       []mockUserSeed
 }
@@ -108,7 +107,6 @@ func ensureMockGroup(tx *gorm.DB, seed mockGroupSeed) (*model.UserGroup, error) 
 		Attrs(map[string]any{
 			"description": nullableSeedString(seed.Description),
 			"tags":        seed.Tags,
-			"is_default":  seed.IsDefault,
 			"show":        seed.Show,
 			"status":      model.UserGroupStatusActive,
 		}).
@@ -210,9 +208,8 @@ func developmentMockGroupSeeds() []mockGroupSeed {
 		},
 		{
 			Name:        "开发候选人",
-			Description: "开发环境招新流程测试账号所在的默认组",
+			Description: "开发环境招新流程测试账号所在的组",
 			Tags:        []string{"开发演示", "招新测试"},
-			IsDefault:   true,
 			Show:        0,
 			Users: []mockUserSeed{
 				{Name: "待初筛测试", RealName: "待初筛测试", Nickname: "待初筛", Email: "review-pending@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
@@ -240,8 +237,8 @@ func seedDevelopmentRecruitmentFixtures(
 	users map[string]*model.User,
 ) error {
 	visualGroup := groups["视觉组"]
-	defaultGroup := groups["开发候选人"]
-	if reviewer == nil || visualGroup == nil || defaultGroup == nil {
+	candidateGroup := groups["开发候选人"]
+	if reviewer == nil || visualGroup == nil || candidateGroup == nil {
 		return fmt.Errorf("development recruitment fixtures are incomplete")
 	}
 

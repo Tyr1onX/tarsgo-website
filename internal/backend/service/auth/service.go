@@ -19,7 +19,6 @@ import (
 	"tarsgo-backend/database"
 	"tarsgo-backend/model"
 	"tarsgo-backend/service/email"
-	"tarsgo-backend/service/usergroup"
 )
 
 const (
@@ -215,10 +214,6 @@ func (s *Service) RegisterWithEmail(ctx context.Context, input RegisterEmailInpu
 			}
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "创建用户失败", Err: err}
 		}
-		if err := usergroup.AssignDefaultGroupTx(tx, user.ID); err != nil {
-			return &ServiceError{Status: http.StatusInternalServerError, Message: "分配默认用户组失败", Err: err}
-		}
-
 		loadedUser, err := s.loadUserWithRoleTx(tx, user.ID)
 		if err != nil {
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "加载注册用户信息失败", Err: err}

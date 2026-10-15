@@ -319,18 +319,6 @@ func (s *RegistrationService) SubmitRegistration(ctx context.Context, actor Regi
 	if input.FormID == 0 {
 		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "报名表 ID 不合法"}
 	}
-	if checker, ok := s.repo.(interface {
-		IsUserInActiveDefaultGroup(context.Context, uint64) (bool, error)
-	}); ok {
-		eligible, err := checker.IsUserInActiveDefaultGroup(ctx, actor.ID)
-		if err != nil {
-			return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "检查默认用户组资格失败", Err: err}
-		}
-		if !eligible {
-			return nil, &ServiceError{Status: http.StatusForbidden, Message: "当前账号不属于有效的默认用户组，无法提交报名"}
-		}
-	}
-
 	form, err := s.loadActiveFormForSubmission(ctx, input.FormID)
 	if err != nil {
 		return nil, err
@@ -3708,13 +3696,4 @@ func containsUint64(values []uint64, target uint64) bool {
 
 func (r *gormRegistrationRepository) ListShownUserGroups(ctx context.Context) ([]model.UserGroup, error) {
 	return (&gormRegistrationFormRepository{db: r.db}).ListShownUserGroups(ctx)
-}
-
-func (r *gormRegistrationRepository) IsUserInActiveDefaultGroup(ctx context.Context, userID uint64) (bool, error) {
-	var count int64
-	err := r.db.WithContext(ctx).Model(&model.UserGroupMember{}).
-		Joins("JOIN user_groups ON user_groups.id = user_group_members.group_id").
-		Where("user_group_members.user_id = ? AND user_groups.is_default = ? AND user_groups.status = ?", userID, true, model.UserGroupStatusActive).
-		Count(&count).Error
-	return count > 0, err
 }

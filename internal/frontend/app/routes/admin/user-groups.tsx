@@ -21,14 +21,12 @@ const emptySummary: AdminUserGroupSummary = {
   total: 0,
   active: 0,
   disabled: 0,
-  defaultCount: 0,
 };
 
 const emptyForm: GroupForm = {
   name: "",
   description: "",
   tags: [],
-  isDefault: false,
   show: 1,
   status: 1,
 };
@@ -97,7 +95,6 @@ export function UserGroups() {
       name: group.name,
       description: group.description ?? "",
       tags: group.tags ?? [],
-      isDefault: group.isDefault,
       show: group.show,
       status: group.status,
     });
@@ -143,11 +140,10 @@ export function UserGroups() {
         name: group.name,
         description: group.description ?? "",
         tags: group.tags ?? [],
-        isDefault: changes.isDefault ?? group.isDefault,
         show: changes.show ?? group.show,
         status: changes.status ?? group.status,
       });
-      setFlash({ tone: "success", message: result.isDefault ? `已将 ${result.name} 设为默认组别` : `已更新 ${result.name}` });
+      setFlash({ tone: "success", message: `已更新 ${result.name}` });
       await loadGroups();
     } catch (error) {
       if (error instanceof ApiError && error.status === 401) {
@@ -181,7 +177,6 @@ export function UserGroups() {
         <Summary label="全部组别" value={summary.total} />
         <Summary label="已启用" value={summary.active} />
         <Summary label="已停用" value={summary.disabled} />
-        <Summary label="默认报名组" value={summary.defaultCount} />
       </section>
 
       <section className="admin-filter-panel grid gap-3 sm:grid-cols-[minmax(0,1fr)_14rem]">
@@ -209,7 +204,6 @@ export function UserGroups() {
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
                     <h3 className="font-semibold text-[var(--admin-text)]">{group.name}</h3>
-                    {group.isDefault ? <span className="admin-status">默认报名组</span> : null}
                     <span className={`admin-status ${group.status === 1 ? "admin-status--success" : "admin-status--muted"}`}>{group.status === 1 ? "启用" : "停用"}</span>
                     <span className="admin-status admin-status--muted">{group.show === 1 ? "报名页展示" : "报名页隐藏"}</span>
                   </div>
@@ -219,7 +213,6 @@ export function UserGroups() {
                 <div className="flex flex-wrap gap-2 sm:shrink-0">
                   <button type="button" onClick={() => openEdit(group)} className="admin-button admin-button--secondary admin-button--small">编辑</button>
                   <button type="button" onClick={() => void updateGroup(group, { status: group.status === 1 ? 0 : 1 })} className="admin-button admin-button--quiet admin-button--small">{group.status === 1 ? "停用" : "启用"}</button>
-                  {group.status === 1 ? <button type="button" onClick={() => void updateGroup(group, { isDefault: !group.isDefault })} className="admin-button admin-button--quiet admin-button--small">{group.isDefault ? "取消默认" : "设为默认"}</button> : null}
                 </div>
               </article>
             ))}
@@ -237,10 +230,9 @@ export function UserGroups() {
             {form.tags.length ? <div className="flex flex-wrap gap-2">{form.tags.map((tag) => <button key={tag} type="button" onClick={() => setForm((current) => ({ ...current, tags: current.tags.filter((item) => item !== tag) }))} className="admin-badge" aria-label={`移除标签 ${tag}`}>{tag} ×</button>)}</div> : null}
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <label className="block text-sm text-[var(--admin-muted)]">状态<select className="admin-field mt-1" value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: Number(event.target.value), isDefault: event.target.value === "1" ? current.isDefault : false }))}><option value={1}>启用</option><option value={0}>停用</option></select></label>
+            <label className="block text-sm text-[var(--admin-muted)]">状态<select className="admin-field mt-1" value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: Number(event.target.value) }))}><option value={1}>启用</option><option value={0}>停用</option></select></label>
             <label className="block text-sm text-[var(--admin-muted)]">报名页<select className="admin-field mt-1" value={form.show} onChange={(event) => setForm((current) => ({ ...current, show: Number(event.target.value) }))}><option value={1}>展示</option><option value={0}>隐藏</option></select></label>
           </div>
-          <label className="flex items-start gap-2 border-t border-[var(--admin-border-subtle)] pt-4 text-sm text-[var(--admin-text)]"><input type="checkbox" checked={form.isDefault} disabled={form.status !== 1} onChange={(event) => setForm((current) => ({ ...current, isDefault: event.target.checked }))} /><span>设为默认报名组<p className="mt-1 text-xs text-[var(--admin-muted)]">新注册账号会加入该默认组以获得报名资格；同一时间只允许一个默认组。</p></span></label>
           <div className="flex justify-end gap-2 border-t border-[var(--admin-border-subtle)] pt-4"><button type="button" onClick={() => setModalOpen(false)} disabled={saving} className="admin-button admin-button--secondary">取消</button><button type="submit" disabled={saving} className="admin-button admin-button--primary">{saving ? "保存中…" : "保存"}</button></div>
         </form>
       </ModalShell>

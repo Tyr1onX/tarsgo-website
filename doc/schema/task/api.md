@@ -66,7 +66,7 @@ GET http://127.0.0.1:8080/api/admin/dashboard 获取管理员数据面板聚合�
  - `admin` 与 `super_admin` 可访问，普通用户返回 `403`
  - 返回字段：`totalUsers`、`newUsersThisMonth`、`pendingRegistrations`、`activeTechnicalGroups`、`groupDistribution`、`recentActivities`、`generatedAt`
  - 本月新增按 `Asia/Shanghai` 当前自然月计算
- - 技术组仅包含启用、允许展示且非默认组；分布包含人数为 0 的组
+ - 组别分布按唯一所属组统计；多启用组异常用户不重复计入任何具体组，未分组用户不计入组别分布
  - 最近动态最多 10 条，按发生时间倒序，只返回 `actionKey`、操作者显示名、安全可读文案、可选组名和发生时间，不返回内部元数据或审计 IP
  - 响应包含 `Cache-Control: no-store`；前端每 30 秒自动请求一次，并在窗口重新聚焦时立即同步
 
@@ -172,7 +172,7 @@ POST http://127.0.0.1:8080/api/register/email/send-code 发送注册邮箱验证
 
 POST http://127.0.0.1:8080/api/register/email 邮箱注册
  - 说明：
-   - 若系统当前存在“启用中的默认分组”，注册成功后会自动把新账号加入该默认分组
+   - 注册成功后账号保持未分组；不创建或更新用户组成员关系
  - 请求体：
    ```json
    {
@@ -303,7 +303,7 @@ GET http://127.0.0.1:8080/api/register/github/oauth/callback GitHub OAuth 回调
  - 若系统尚未初始化，则直接 302 重定向到前端初始化页 `/dashboard/setup/super-admin`
  - 后端用 code 换取 access_token，获取 GitHub 用户信息
  - 如果该 GitHub 账号未绑定本站账户，自动创建新账户
- - 若因为 GitHub 首次登录而新建账号，且系统存在“启用中的默认分组”，则会自动加入默认分组
+ - GitHub 首次登录创建的新账号保持未分组
  - 成功后通过 Set-Cookie 下发 JWT，然后 302 重定向到前端统一工作台 `/dashboard`
 
 ### 当前会话
@@ -333,7 +333,7 @@ GET http://127.0.0.1:8080/api/me 获取当前登录用户
   }
   ```
  - 字段说明：
-   - `portal.showRecruitmentEntry`：用户前台是否显示“纳新报名”入口；仅当后台存在已发布报名表，且当前用户仍属于启用中的默认分组，或已提交当前已发布报名表时返回 `true`
+   - 纳新报名入口和报名资格由报名表状态决定，不依赖用户所属组别；用户选择的报名意向组只保存在对应报名记录中
    - `adminScope`：身份管理范围，取值为 `none|group|global`；超级管理员固定为 `global`
    - `managementGroupId`：组内管理员负责的唯一用户组；非组内管理员为 `null`
    - `groupRole`：管理组内角色，取值为 `member|group_admin|leader`；超级管理员为空字符串
@@ -374,10 +374,10 @@ GET http://127.0.0.1:8080/api/admin/users 获取用户分页列表
 - `role`：人员身份筛选，支持 `member`、`group_admin`、`leader`、`global`（兼容 `global_admin`）和 `super_admin`
 - `groupId`：按所属用户组筛选，传入用户组 ID
 - `status`：账号状态，`1=启用`、`0=停用`
+- `groupState`：用户有效组别状态筛选，支持 `assigned`、`unassigned`、`pending`；`cleanup` 筛选尚有停用组关系待清理的历史账号
 - 排序：默认 `created_at DESC`
-- 列表项新增字段：
-- `groups`：该用户所属全部分组，元素结构为 `{ id, name, memberId, memberRole }`
-   - `memberRole`：组内角色，`0=普通成员`、`1=组内管理员`、`2=组长`
+- 用户组字段：`groupState` 为 `assigned|unassigned|pending`；`groupName` 在唯一有效组别时返回；`groups` 返回完整历史关系 `{ groupId, name, status, role }`；`cleanupPending=true` 表示有多条记录但有效组不足两个，需清理停用组关系
+- 统计口径：`total` 按唯一账号数；`enabled`、`disabled` 按账号状态；`grouped`、`unassigned`、`pending` 按启用组关系数分别统计；`cleanupPending` 单独统计停用关系清理人数；`groupDistribution` 仅统计恰好属于一个启用组的唯一用户，多启用组用户不计入任何单组分布
 - `adminScope` / `managementGroupId`：该账号的管理范围和唯一管理组
  - 成功响应示例：
    ```json
@@ -397,16 +397,12 @@ GET http://127.0.0.1:8080/api/admin/users 获取用户分页列表
              "displayName": "普通用户"
            },
            "groups": [
-             {
-               "id": 11,
-               "name": "新注册用户",
-               "memberRole": 0
-             },
-             {
-               "id": 12,
-               "name": "试用观察组",
-               "memberRole": 1
-             }
+            {
+              "groupId": 11,
+              "name": "机械组",
+              "status": 1,
+              "role": 0
+            }
            ],
            "status": 1,
            "authMethods": {
@@ -422,7 +418,11 @@ GET http://127.0.0.1:8080/api/admin/users 获取用户分页列表
          "enabled": 10,
          "disabled": 2,
          "admins": 3,
-         "githubBound": 5
+        "grouped": 7,
+        "unassigned": 3,
+        "pending": 0,
+        "cleanupPending": 0,
+        "groupDistribution": [{ "groupId": 11, "name": "机械组", "userCount": 7 }]
        },
        "pagination": {
          "page": 1,
@@ -438,8 +438,8 @@ GET http://127.0.0.1:8080/api/admin/users/:id 获取用户详情
  - 用途：加载用户详情抽屉
  - 路径参数：`id` 为用户 ID
  - 详情新增字段：
-   - `groups`：展示用户所属全部分组，元素结构为 `{ id, name, memberId, memberRole, status }`
-   - `status`：分组自身状态，`1=启用`，`0=停用`
+   - `groups`：展示当前和历史组关系 `{ groupId, name, role, status }`；`role=0/1/2` 分别表示普通成员、组内管理员、组长
+   - `groupState`：`assigned|unassigned|pending`；`cleanupPending` 表示还存在需要管理员清理的停用组关系
  - 成功响应示例：
    ```json
    {
@@ -463,18 +463,7 @@ GET http://127.0.0.1:8080/api/admin/users/:id 获取用户详情
          "displayName": "普通用户"
        },
        "groups": [
-         {
-           "id": 11,
-           "name": "新注册用户",
-           "memberRole": 0,
-           "status": 1
-         },
-         {
-           "id": 12,
-           "name": "试用观察组",
-           "memberRole": 1,
-           "status": 0
-         }
+         { "groupId": 11, "name": "机械组", "role": 0, "status": 1 }
        ],
        "authMethods": {
          "hasPassword": true,
@@ -487,12 +476,37 @@ GET http://127.0.0.1:8080/api/admin/users/:id 获取用户详情
    }
    ```
 
+GET http://127.0.0.1:8080/api/user-group/confirmation 获取当前账号的组别确认状态
+ - 鉴权：需要登录
+ - 返回状态：`unassigned` 未分组、`assigned` 唯一启用组、`pending` 存在多个启用组
+ - `groups` 只返回账号当前已拥有的启用组；普通账号不能提交其他组别
+ - `canSelfConfirm=false` 表示关系包含组长/组内管理员、组内管理范围或超级管理员身份，需由管理员先处理
+ - 未分组和唯一组账号正常进入工作台，不要求选择组别
+
+POST http://127.0.0.1:8080/api/user-group/confirmation 确认历史多组账号的所属组别
+ - 请求体：`{ "groupId": 11 }`
+ - 鉴权：需要登录
+ - 成功后在事务中保留所选有效组、移除其他可移除关系并写入审计记录；不会修改系统角色、管理范围或历史报名
+ - 常见失败：`403` 目标组不属于当前账号；`409` 关系已变化或含需管理员处理的组内管理身份
+
+PATCH http://127.0.0.1:8080/api/admin/users/:id/group 管理员替换用户所属组
+ - 权限：沿用现有用户管理权限（当前路由仅超级管理员）
+ - 请求体：`{ "groupId": 11 }` 将用户设为一个启用组；`{ "groupId": null }` 清理为未分组
+ - 操作锁定用户记录并使用事务写审计日志；替换原关系，不增加第二个有效组
+ - 组长、组内管理员关系和绑定的组内管理范围不会被直接移除；需先完成角色或管理范围处理
+
+PATCH http://127.0.0.1:8080/api/admin/users/:id/group-role 管理员调整用户在某组的组内角色
+ - 权限：仅超级管理员；目标组别必须是该账号当前已有的关系
+ - 请求体：`{ "groupId": 11, "role": 0 }`；`role=0/1/2` 分别为普通成员、组内管理员、组长
+ - 单独调整 `user_group_members.role`，写入前后审计记录；不会修改系统角色、`admin_scope` 或 `management_group_id`
+ - 若需移除组长/组管理员关系，先明确调整该组内角色，再执行所属组替换；绑定到其他组的系统管理范围仍需单独处理
+
 POST http://127.0.0.1:8080/api/admin/users 创建用户账号
  - 用途：后台直接创建邮箱密码账号
  - 说明：
    - 不支持后台写入 `github_id` 或手工绑定 GitHub
    - 创建后默认立即启用
-   - 当新建账号角色为 `user` 且系统存在“启用中的默认分组”时，服务端会自动把该账号加入默认分组；若当前没有默认分组则跳过，不报错
+   - 新账号默认未分组；系统角色字段与所属组别独立
    - 创建全局管理员时传 `adminScope=global` 且不传 `managementGroupId`
    - 组内管理员和组长必须先通过用户组成员接口任命，不能直接通过创建账号接口跳过成员关系约束
  - 请求体：
@@ -512,6 +526,7 @@ POST http://127.0.0.1:8080/api/admin/users 创建用户账号
    }
    ```
  - 成功响应：返回新建后的完整用户详情
+- 新账号默认未分组；系统角色字段与用户所属组别独立
  - 常见失败：
    - `400`：请求参数不合法、生日格式错误、角色不存在
    - `403`：当前账号无权创建该角色
@@ -615,8 +630,9 @@ GET http://127.0.0.1:8080/api/admin/roles 获取角色下拉选项
 - 用户组配置接口 `/api/admin/user-groups/**` 仅 `super_admin` 可访问
 - `adminScope=global` 可读取用户组筛选项；组长和组内管理员通过 `/api/admin/managed-group/**` 访问自己的唯一管理组
 - 用户组接口服务于 `/dashboard/admin/user-groups`
-- 同一时间只允许一个“启用中的默认分组”；如果某个分组被设置为默认且状态为启用，服务端会在同一事务内清空其它分组的默认标记
-- 邮箱注册、GitHub 首次建号、后台创建 `role=user` 三条链路都会尝试自动加入当前启用中的默认分组；若不存在默认分组则跳过
+ - `is_default` 仅为旧数据兼容字段，当前接口不显示、不写入，也不参与报名资格判断；数据库字段暂保留
+ - 邮箱注册、GitHub 首次建号和后台新建普通用户均保持未分组
+ - 普通账号新增或替换所属组别会在事务中锁定用户记录；此阶段不增加 `user_id` 唯一索引，待生产历史关系清理并经只读审计确认无重复后再单独迁移
 - `show` 表示该分组是否出现在前台报名表“意向组别(1)/(2)”下拉中，`1=展示`、`0=隐藏`
 - `user` 与 `admin` 可以加入分组，`super_admin` 永远不能加入普通用户组
 - 每个账号最多在一个组担任管理职务；`role=0` 为普通成员、`role=1` 为组内管理员、`role=2` 为组长
@@ -635,7 +651,7 @@ PATCH http://127.0.0.1:8080/api/admin/managed-group/members/:memberId 更新成�
 DELETE http://127.0.0.1:8080/api/admin/managed-group/members/:memberId 移除普通成员
  - `managed-group` 接口自动使用当前会话中的 `managementGroupId`，客户端不能指定其他组
  - 组长可读写成员；组内管理员只能读取组详情和成员列表
- - 候选成员必须是启用账号且仍属于启用的默认组
+ - 候选成员必须是启用账号；所属组别由成员管理操作显式设置，不以默认组作为资格判断
 
 GET http://127.0.0.1:8080/api/admin/user-groups 获取用户组列表
  - 用途：加载用户分组页的统计卡与全量卡片列表
@@ -1172,7 +1188,7 @@ GET http://127.0.0.1:8080/api/recruitment/form 获取用户前台报名信息页
    - `pageMode=form`：返回当前开放中的报名表，前端展示可提交表单
    - `pageMode=submitted`：返回当前用户的报名摘要，前端展示总状态、两个意向组别的审核结果与提交时间
    - `pageMode=unavailable`：返回不可报名原因，前端展示不可报名状态页
-   - 当当前用户不在启用中的默认分组，且没有已提交记录时，返回 `pageMode=unavailable`
+   - 任何正常登录用户都可查看当前开放的报名表，不检查其用户所属组别；报名意向组只写入本次报名记录
  - 成功响应示例：
    ```json
    {
@@ -1552,14 +1568,14 @@ POST http://127.0.0.1:8080/api/admin/registrations/:id/review 审核报名
 
 DELETE http://127.0.0.1:8080/api/admin/registrations/:id/review 撤销线上审核
   - 权限范围与提交审核相同，只清空当前管理员可管理槽位的审核状态、审核人、时间和备注
-  - 若被撤销的线上审核已经产生最终录取，服务端会撤销该录取成员关系、清空最终结果，并把用户恢复到当前启用的默认组
+ - 若被撤销的线上审核已经产生最终录取，服务端会清空对应最终结果；用户所属组别由独立的组别管理流程维护
   - 已取消或没有可撤销结果时返回 `409`
 
 PATCH http://127.0.0.1:8080/api/admin/registrations/:id/interviews/:groupId 更新面试结果
   - 请求体：`{ "status": "pending|passed|failed", "remark": "可选备注" }`
   - 只有对应意向组线上审核已通过，且当前管理员对该组有审核权限时才可操作
   - 第一志愿面试通过时立即优先录取第一志愿；第一志愿未通过且第二志愿通过时录取第二志愿；两个志愿均未通过时最终未录取；其余组合保持待定
-  - 确认录取时，服务端在同一事务中把用户加入最终组并移出非目标默认组；重置已录取面试结果时撤销原录取组并恢复到启用默认组
+  - 面试结果仅更新报名记录；用户选择的意向组和用户当前所属组互相独立
   - `finalizedAt` 和 `finalizer` 只在最终状态为已录取或未录取时写入，待定状态保持为空
 
 DELETE http://127.0.0.1:8080/api/admin/registrations/:id 删除报名

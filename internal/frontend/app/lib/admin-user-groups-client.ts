@@ -4,7 +4,6 @@ export interface AdminUserGroupSummary {
   total: number;
   active: number;
   disabled: number;
-  defaultCount: number;
 }
 
 export interface AdminUserGroupListItem {
@@ -15,7 +14,6 @@ export interface AdminUserGroupListItem {
   admissionQrCodeConfigured?: boolean;
   admissionQrCodeUrl?: string | null;
   tags?: string[];
-  isDefault: boolean;
   show: number;
   status: number;
   createdAt: string;
@@ -41,7 +39,6 @@ export interface UpsertAdminUserGroupInput {
   name: string;
   description?: string;
   tags: string[];
-  isDefault: boolean;
   show: number;
   status: number;
 }

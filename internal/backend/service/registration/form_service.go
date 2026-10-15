@@ -49,7 +49,6 @@ type registrationFormRepository interface {
 	CountRegistrationsByFormID(ctx context.Context, formID uint64) (int64, error)
 	FindRegistrationByFormAndUser(ctx context.Context, formID uint64, userID uint64) (*model.Registration, error)
 	ListShownUserGroups(ctx context.Context) ([]model.UserGroup, error)
-	IsUserInActiveDefaultGroup(ctx context.Context, userID uint64) (bool, error)
 }
 
 type gormRegistrationFormRepository struct {
@@ -405,14 +404,6 @@ func (s *RegistrationFormService) GetRecruitmentPageData(ctx context.Context, ac
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, &FormServiceError{Status: http.StatusInternalServerError, Message: "检查报名状态失败", Err: err}
-	}
-
-	inDefaultGroup, err := s.repo.IsUserInActiveDefaultGroup(ctx, actor.ID)
-	if err != nil {
-		return nil, &FormServiceError{Status: http.StatusInternalServerError, Message: "检查报名资格失败", Err: err}
-	}
-	if !inDefaultGroup {
-		return buildUnavailableRecruitmentPageData("当前账号暂无纳新报名资格"), nil
 	}
 
 	now := s.now()
@@ -889,29 +880,11 @@ func (r *gormRegistrationFormRepository) ListShownUserGroups(ctx context.Context
 	if err := r.db.WithContext(ctx).
 		Model(&model.UserGroup{}).
 		Where("`show` = ? AND status = ?", 1, model.UserGroupStatusActive).
-		Order("is_default DESC").
 		Order("created_at ASC").
 		Find(&groups).Error; err != nil {
 		return nil, err
 	}
 	return groups, nil
-}
-
-func (r *gormRegistrationFormRepository) IsUserInActiveDefaultGroup(ctx context.Context, userID uint64) (bool, error) {
-	var count int64
-	if err := r.db.WithContext(ctx).
-		Model(&model.UserGroupMember{}).
-		Joins("JOIN user_groups ON user_groups.id = user_group_members.group_id").
-		Where(
-			"user_group_members.user_id = ? AND user_groups.is_default = ? AND user_groups.status = ?",
-			userID,
-			true,
-			model.UserGroupStatusActive,
-		).
-		Count(&count).Error; err != nil {
-		return false, err
-	}
-	return count > 0, nil
 }
 
 func (r *gormRegistrationFormRepository) FindRegistrationByFormAndUser(ctx context.Context, formID uint64, userID uint64) (*model.Registration, error) {

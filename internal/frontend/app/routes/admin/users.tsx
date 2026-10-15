@@ -9,6 +9,8 @@ import {
   listAdminRoles,
   listAdminUsers,
   resetAdminUserPassword,
+  updateAdminUserGroup,
+  updateAdminUserGroupRole,
   updateAdminUser,
   updateAdminUserRecruitmentGroup,
   type AdminUserDetail,
@@ -31,7 +33,7 @@ type AccountDraft = {
 };
 
 const emptyDraft: AccountDraft = { name: "", email: "", roleId: "", status: "1", password: "" };
-const emptySummary: AdminUserSummary = { total: 0, enabled: 0, disabled: 0, admins: 0 };
+const emptySummary: AdminUserSummary = { total: 0, enabled: 0, disabled: 0, admins: 0, grouped: 0, unassigned: 0, pending: 0, cleanupPending: 0, groupDistribution: [] };
 
 function formatDate(value?: string | null) {
   if (!value) return "从未登录";
@@ -62,6 +64,7 @@ export default function AccountManagement() {
   const [keyword, setKeyword] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [groupStateFilter, setGroupStateFilter] = useState<"" | "assigned" | "unassigned" | "pending" | "cleanup">("");
   const [loading, setLoading] = useState(true);
   const accountRequestId = useRef(0);
   const [error, setError] = useState("");
@@ -69,6 +72,8 @@ export default function AccountManagement() {
   const [editing, setEditing] = useState<AdminUserDetail | null>(null);
   const [editingIsNew, setEditingIsNew] = useState(false);
   const [preferredGroupId, setPreferredGroupId] = useState("");
+  const [userGroupId, setUserGroupId] = useState("");
+  const [groupRoleDrafts, setGroupRoleDrafts] = useState<Record<number, string>>({});
   const [draft, setDraft] = useState<AccountDraft>(emptyDraft);
   const [saving, setSaving] = useState(false);
   const [resetTarget, setResetTarget] = useState<AdminUserListItem | null>(null);
@@ -97,6 +102,7 @@ export default function AccountManagement() {
         keyword,
         role: roleFilter,
         status: statusFilter === "" ? "" : Number(statusFilter),
+        groupState: groupStateFilter,
       });
       if (requestId !== accountRequestId.current) return;
       setItems(result.items);
@@ -116,7 +122,7 @@ export default function AccountManagement() {
   useEffect(() => {
     void loadAccounts(1);
     return () => { accountRequestId.current += 1; };
-  }, [keyword, roleFilter, statusFilter]);
+  }, [keyword, roleFilter, statusFilter, groupStateFilter]);
 
   function openCreate() {
     setEditing(null);
@@ -133,6 +139,9 @@ export default function AccountManagement() {
       setEditingIsNew(false);
       setDraft({ name: detail.name, email: detail.email, roleId: String(detail.role.id), status: String(detail.status), password: "" });
       setPreferredGroupId(detail.currentRecruitmentGroupId == null ? "" : String(detail.currentRecruitmentGroupId));
+      const assignedGroup = detail.groups.find((group) => group.status === 1);
+      setUserGroupId(detail.groupState === "pending" ? "" : String(assignedGroup?.groupId ?? ""));
+      setGroupRoleDrafts(Object.fromEntries(detail.groups.map((group) => [group.groupId, String(group.role)])));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "账号详情加载失败");
     }
@@ -143,6 +152,49 @@ export default function AccountManagement() {
     setEditingIsNew(false);
     setDraft(emptyDraft);
     setPreferredGroupId("");
+    setUserGroupId("");
+    setGroupRoleDrafts({});
+  }
+
+  async function saveUserGroup(nextGroupID: number | null = userGroupId ? Number(userGroupId) : null) {
+    if (!editing) return;
+    setSaving(true);
+    setError("");
+    try {
+      const detail = await updateAdminUserGroup(editing.id, nextGroupID);
+      setEditing(detail);
+      setUserGroupId(String(detail.groups.find((group) => group.status === 1)?.groupId ?? ""));
+      setNotice(nextGroupID == null ? "账号已设为未分组。" : detail.cleanupPending ? "所属组别已更新，仍有停用组关系待处理。" : "所属组别已更新。");
+      await loadAccounts();
+    } catch (cause) {
+      if (cause instanceof ApiError && cause.status === 401) navigate("/login", { replace: true });
+      else setError(cause instanceof Error ? cause.message : "所属组别更新失败");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function saveGroupRole(groupId: number) {
+    if (!editing) return;
+    const role = Number(groupRoleDrafts[groupId]);
+    const roleLabel = role === 1 ? "组管理员" : role === 2 ? "组长" : "普通成员";
+    const group = editing.groups.find((item) => item.groupId === groupId);
+    if (!group || role === group.role) return;
+    if (!window.confirm(`将「${group.name}」的组内身份调整为「${roleLabel}」？系统角色与管理范围不会随此操作改变。`)) return;
+    setSaving(true);
+    setError("");
+    try {
+      const detail = await updateAdminUserGroupRole(editing.id, groupId, role);
+      setEditing(detail);
+      setGroupRoleDrafts(Object.fromEntries(detail.groups.map((item) => [item.groupId, String(item.role)])));
+      setNotice(`「${group.name}」的组内角色已更新。`);
+      await loadAccounts();
+    } catch (cause) {
+      if (cause instanceof ApiError && cause.status === 401) navigate("/login", { replace: true });
+      else setError(cause instanceof Error ? cause.message : "组内角色更新失败");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function savePreferredGroup() {
@@ -220,24 +272,31 @@ export default function AccountManagement() {
       <header className="admin-page-header">
         <div className="admin-eyebrow">吉甲 · 系统管理</div>
         <h1 className="admin-page-title">账号与权限</h1>
-        <p className="admin-page-description">搜索所有账号，处理角色、启停、密码、特殊账号和招新记录；队内成员生命周期由 TARS Base 管理。</p>
+        <p className="admin-page-description">管理账号访问状态、系统角色、所属组别和历史报名记录。</p>
       </header>
 
       {error ? <div role="alert" className="admin-notice admin-notice--error">{error}</div> : null}
       {notice ? <div role="status" className="admin-notice admin-notice--success">{notice}</div> : null}
 
       <div className="admin-users__summary" aria-label="账号概况">
-        <span>账号 <strong>{summary.total}</strong></span>
-        <span>启用 <strong>{summary.enabled}</strong></span>
-        <span>停用 <strong>{summary.disabled}</strong></span>
-        <span>管理员 <strong>{summary.admins}</strong></span>
+        <span>用户总数 <strong>{summary.total}</strong></span>
+        <span>正常账号 <strong>{summary.enabled}</strong></span>
+        <span>已停用 <strong>{summary.disabled}</strong></span>
+        <span>已分组 <strong>{summary.grouped}</strong></span>
+        <span>未分组 <strong>{summary.unassigned}</strong></span>
+        <span>组别待处理 <strong>{summary.pending}</strong></span>
+        <span>停用组关系待清理 <strong>{summary.cleanupPending}</strong></span>
       </div>
+      <section className="admin-users__distribution" aria-label="组别分布">
+        {summary.groupDistribution.map((group) => <div key={group.groupId} className="admin-panel px-4 py-3"><div className="text-xs text-[var(--admin-muted)]">{group.name}</div><strong className="mt-1 block text-xl text-[var(--admin-text)]">{group.userCount}</strong></div>)}
+      </section>
 
       <section className="admin-filter-panel">
-        <div className="admin-filter-grid sm:grid-cols-2 xl:grid-cols-4">
+        <div className="admin-filter-grid sm:grid-cols-2 xl:grid-cols-5">
           <label className="text-xs text-[var(--admin-muted)]">搜索账号<input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="姓名或邮箱" className="admin-field mt-1" /></label>
           <label className="text-xs text-[var(--admin-muted)]">系统角色<select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} className="admin-field mt-1"><option value="">全部角色</option>{roles.map((role) => <option key={role.id} value={role.name}>{role.displayName}</option>)}</select></label>
           <label className="text-xs text-[var(--admin-muted)]">账号状态<select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="admin-field mt-1"><option value="">全部状态</option><option value="1">启用</option><option value="0">停用</option></select></label>
+          <label className="text-xs text-[var(--admin-muted)]">所属组别<select value={groupStateFilter} onChange={(event) => setGroupStateFilter(event.target.value as typeof groupStateFilter)} className="admin-field mt-1"><option value="">全部组别状态</option><option value="assigned">已分组</option><option value="unassigned">未分组</option><option value="pending">待处理（多组）</option><option value="cleanup">停用组关系待清理</option></select></label>
           <div className="admin-filter-actions flex items-end"><button type="button" onClick={openCreate} className="admin-button admin-button--primary w-full">新建账号</button></div>
         </div>
       </section>
@@ -246,11 +305,12 @@ export default function AccountManagement() {
         {loading ? <div role="status" className="admin-table-empty">正在加载账号…</div> : items.length === 0 ? <div className="admin-table-empty">没有符合条件的账号。</div> : (
           <div className="overflow-x-auto">
             <table className="admin-table admin-table--users">
-              <thead><tr><th>账号</th><th>系统角色</th><th>状态</th><th>登录方式 · 最近登录</th><th className="text-right">操作</th></tr></thead>
+              <thead><tr><th>账号</th><th>所属组别</th><th>系统角色</th><th>状态</th><th>登录方式 · 最近登录</th><th className="text-right">操作</th></tr></thead>
               <tbody>
                 {items.map((item) => (
                   <tr key={item.id} className="admin-table-row">
                     <td><div className="font-medium text-[var(--admin-text)]">{item.name || "未设置名称"}</div><div className="mt-0.5 truncate text-xs text-[var(--admin-muted)]">{item.email}</div></td>
+                    <td>{item.groupState === "pending" ? <><span className="admin-status admin-status--screening">待确认（双组异常）</span><div className="mt-1 text-xs text-[var(--admin-muted)]">{item.groups.filter((group) => group.status === 1).map((group) => group.name).join("、")}</div></> : item.groupState === "assigned" ? <><span className="text-sm text-[var(--admin-text)]">{item.groupName}</span>{item.cleanupPending ? <div className="mt-1 text-xs text-amber-600">停用组关系待清理</div> : null}</> : <><span className="text-sm text-[var(--admin-muted)]">未分组</span>{item.cleanupPending ? <div className="mt-1 text-xs text-amber-600">停用组关系待清理</div> : null}</>}</td>
                     <td><span className={`admin-role ${item.role.name === "user" ? "" : "admin-role--elevated"}`}>{item.role.displayName}</span></td>
                     <td><span className={`admin-status ${item.status === 1 ? "admin-status--account-enabled" : "admin-status--account-disabled"}`}>{item.status === 1 ? "启用" : "停用"}</span></td>
                     <td><div className="text-xs text-[var(--admin-muted)]">{item.authMethods.hasPassword ? "邮箱密码" : "未设置密码"}</div><div className="mt-0.5 text-xs text-[var(--admin-dim)]">{formatDate(item.lastLoginAt)}</div></td>
@@ -279,6 +339,29 @@ export default function AccountManagement() {
                 <section className="space-y-2" aria-label="实名资料">
                   <h3 className="text-sm font-semibold text-[var(--admin-text)]">实名资料</h3>
                   <p className="text-xs text-[var(--admin-muted)]">真实姓名：{editing.realName || "未填写"} · 手机号：{editing.phone || "未填写"}</p>
+                </section>
+                <section className="space-y-2" aria-label="用户所属组别">
+                  <h3 className="text-sm font-semibold text-[var(--admin-text)]">所属组别</h3>
+                  {editing.groups.length ? <ul className="space-y-2">{editing.groups.map((group) => (
+                    <li key={group.groupId} className="flex flex-wrap items-end justify-between gap-2 rounded-lg border border-[var(--admin-border-subtle)] px-3 py-2">
+                      <div className="text-xs text-[var(--admin-text)]">{group.name}{group.status === 1 ? "" : "（已停用）"}</div>
+                      {editing.role.name === "super_admin" ? <span className="text-xs text-[var(--admin-muted)]">超级管理员不能设置组内角色</span> : (
+                        <div className="flex flex-wrap items-end gap-2">
+                          <label className="min-w-36 text-xs text-[var(--admin-muted)]">组内角色<select value={groupRoleDrafts[group.groupId] ?? String(group.role)} onChange={(event) => setGroupRoleDrafts((current) => ({ ...current, [group.groupId]: event.target.value }))} className="admin-field mt-1">
+                            <option value="0">普通成员</option><option value="1">组管理员</option><option value="2">组长</option>
+                          </select></label>
+                          <button type="button" disabled={saving || Number(groupRoleDrafts[group.groupId] ?? group.role) === group.role} onClick={() => void saveGroupRole(group.groupId)} className="admin-button admin-button--secondary admin-button--small">保存组内角色</button>
+                        </div>
+                      )}
+                    </li>
+                  ))}</ul> : <p className="text-xs leading-5 text-[var(--admin-muted)]">未分组</p>}
+                  {editing.cleanupPending ? <p className="text-xs text-amber-600">该账号还保留已停用组别关系，需由管理员清理。</p> : null}
+                  {editing.groups.some((group) => group.role !== 0) ? <p className="text-xs text-[var(--admin-muted)]">组内角色需单独处理。修改所属组不会改变系统角色或管理范围；需要移除管理范围时，请先在账号角色中处理。</p> : null}
+                  <div className="flex flex-wrap items-end gap-2">
+                    <label className="min-w-48 flex-1 text-xs text-[var(--admin-muted)]">设置为<select value={userGroupId} onChange={(event) => setUserGroupId(event.target.value)} className="admin-field mt-1"><option value="">选择有效组别</option>{groupOptions.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>
+                    <button type="button" disabled={saving || !userGroupId || (!editing.cleanupPending && editing.groupState === "assigned" && editing.groups.some((group) => group.status === 1 && String(group.groupId) === userGroupId))} onClick={() => void saveUserGroup()} className="admin-button admin-button--secondary admin-button--small">{saving ? "保存中…" : editing.cleanupPending ? "更新并清理停用关系" : "更新所属组别"}</button>
+                    {editing.groups.length > 0 ? <button type="button" disabled={saving} onClick={() => void saveUserGroup(null)} className="admin-button admin-button--quiet admin-button--small">{saving ? "处理中…" : editing.cleanupPending ? "清理关系并设为未分组" : "设为未分组"}</button> : null}
+                  </div>
                 </section>
                 <section className="space-y-2" aria-label="当届招新意向组">
                   <h3 className="text-sm font-semibold text-[var(--admin-text)]">当届招新意向组</h3>

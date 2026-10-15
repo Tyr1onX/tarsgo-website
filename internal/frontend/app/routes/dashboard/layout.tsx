@@ -1,5 +1,5 @@
-import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
-import { Link, NavLink, Outlet, redirect, useLocation, useNavigate } from "react-router";
+import { useEffect, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent } from "react";
+import { Link, NavLink, Outlet, redirect, useLocation, useNavigate, useRevalidator } from "react-router";
 
 import type { Route } from "./+types/layout";
 import { SiteLogo } from "~/components/site-logo";
@@ -7,6 +7,7 @@ import { ThemeControl } from "~/components/theme-control";
 import { ApiError } from "~/lib/api-client";
 import { getAuthUserRoleLabel, getBootstrapStatus, getCachedCurrentUser, getCurrentUser, logout, type AuthUser } from "~/lib/auth-client";
 import { resolveDashboardAuth } from "~/lib/dashboard-auth-flow";
+import { confirmUserGroup, getUserGroupConfirmationState, type UserGroupConfirmationState } from "~/lib/user-group-client";
 import {
   canAccessDashboardAdminPath,
   getDefaultDashboardPath,
@@ -72,7 +73,19 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect(getDefaultDashboardPath(currentUser.role.name));
   }
 
-  return { currentUser };
+  let groupResolution: UserGroupConfirmationState | null = null;
+  let groupResolutionError = "";
+  try {
+    groupResolution = await getUserGroupConfirmationState();
+  } catch (error) {
+    if (error instanceof ApiError && error.status === 401) {
+      const redirectTarget = `${currentPath.pathname}${currentPath.search}`;
+      throw redirect(`/login?redirect=${encodeURIComponent(redirectTarget)}`);
+    }
+    groupResolutionError = error instanceof Error ? error.message : "所属组别暂时无法读取。";
+  }
+
+  return { currentUser, groupResolution, groupResolutionError };
 }
 
 clientLoader.hydrate = true;
@@ -227,6 +240,7 @@ function SidebarItem({
 export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const location = useLocation();
   const navigate = useNavigate();
+  const revalidator = useRevalidator();
   const [isDesktopViewport, setIsDesktopViewport] = useState(getIsDesktopDashboardViewport);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
@@ -237,7 +251,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const sidebarResizeStartXRef = useRef(0);
   const sidebarResizeStartWidthRef = useRef(SIDEBAR_DEFAULT_WIDTH);
-  const { currentUser } = loaderData;
+  const { currentUser, groupResolution, groupResolutionError } = loaderData;
   const userMenuItems = getUserDashboardMenu(currentUser);
   const adminMenuItems = getVisibleAdminDashboardMenu(currentUser);
   const showAdminSection = hasDashboardAdminAccess(currentUser.role.name) && adminMenuItems.length > 0;
@@ -410,6 +424,33 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
     } finally {
       setLoggingOut(false);
     }
+  }
+
+  if (!groupResolution || groupResolution.state === "pending") {
+    return (
+      <GroupConfirmationGate
+        resolution={groupResolution}
+        loadError={groupResolutionError}
+        onConfirm={async (groupID) => {
+          try {
+            await confirmUserGroup(groupID);
+            await revalidator.revalidate();
+          } catch (error) {
+            if (error instanceof ApiError && error.status === 401) {
+              navigate("/login", { replace: true });
+              return error.message;
+            }
+            if (error instanceof ApiError && error.status === 409) {
+              await revalidator.revalidate();
+            }
+            return error instanceof Error ? error.message : "确认失败，请重试。";
+          }
+          return "";
+        }}
+        onRefresh={() => revalidator.revalidate()}
+        refreshing={revalidator.state !== "idle"}
+      />
+    );
   }
 
   return (
@@ -585,5 +626,86 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
         </main>
       </div>
     </div>
+  );
+}
+
+function GroupConfirmationGate({
+  resolution,
+  loadError,
+  onConfirm,
+  onRefresh,
+  refreshing,
+}: {
+  resolution: UserGroupConfirmationState | null;
+  loadError: string;
+  onConfirm: (groupID: number) => Promise<string>;
+  onRefresh: () => void;
+  refreshing: boolean;
+}) {
+  const [selectedGroupID, setSelectedGroupID] = useState<number | null>(null);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const currentSelection = resolution?.groups.some((group) => group.groupId === selectedGroupID)
+    ? selectedGroupID
+    : resolution?.groups[0]?.groupId ?? null;
+
+  async function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!currentSelection) return;
+    setSaving(true);
+    setError("");
+    const message = await onConfirm(currentSelection);
+    if (message) setError(message);
+    setSaving(false);
+  }
+
+  return (
+    <main className="admin-design dashboard-group-confirmation min-h-screen px-4 py-8 sm:px-6 sm:py-12">
+      <section className="admin-panel mx-auto w-full max-w-xl space-y-5 p-5 sm:p-7" aria-labelledby="group-confirmation-title">
+        <div>
+          <div className="admin-eyebrow">账号信息</div>
+          <h1 id="group-confirmation-title" className="admin-page-title mt-2">确认你的所属组别</h1>
+        </div>
+        {loadError ? (
+          <div role="alert" className="admin-notice admin-notice--error">所属组别暂时无法读取，请刷新状态后重试。</div>
+        ) : resolution?.canSelfConfirm ? (
+          <>
+            <p className="text-sm leading-6 text-[var(--admin-muted)]">系统检测到你的账号存在多个组别记录，请选择目前所属的组别。</p>
+            <p className="text-sm leading-6 text-[var(--admin-muted)]">确认后，账号将仅保留所选组别，不影响历史报名记录。</p>
+            <form onSubmit={submit} className="space-y-4">
+              <fieldset className="space-y-2" aria-label="选择所属组别">
+                {resolution.groups.map((group) => (
+                  <label key={group.groupId} className="flex min-h-12 cursor-pointer items-center gap-3 rounded-lg border border-[var(--admin-border-subtle)] px-4 py-3 text-sm text-[var(--admin-text)]">
+                    <input
+                      type="radio"
+                      name="user-group"
+                      value={group.groupId}
+                      checked={currentSelection === group.groupId}
+                      onChange={() => setSelectedGroupID(group.groupId)}
+                    />
+                    <span>{group.name}</span>
+                  </label>
+                ))}
+              </fieldset>
+              {error ? <div role="alert" className="admin-notice admin-notice--error">{error}</div> : null}
+              <button type="submit" disabled={saving || currentSelection == null} className="admin-button admin-button--primary w-full sm:w-auto">
+                {saving ? "正在确认…" : "确认所属组别"}
+              </button>
+            </form>
+          </>
+        ) : resolution?.state === "pending" ? (
+          <>
+            <p className="text-sm leading-6 text-[var(--admin-muted)]">该账号存在需要保留的组内管理身份，不能自行移除组别关系。请联系管理员处理。</p>
+            <ul className="space-y-2" aria-label="当前有效组别">
+              {resolution.groups.map((group) => <li key={group.groupId} className="rounded-lg border border-[var(--admin-border-subtle)] px-4 py-3 text-sm text-[var(--admin-text)]">{group.name}</li>)}
+            </ul>
+          </>
+        ) : null}
+        {error && !resolution?.canSelfConfirm ? <div role="alert" className="admin-notice admin-notice--error">{error}</div> : null}
+        <button type="button" onClick={() => { setError(""); onRefresh(); }} disabled={refreshing} className="admin-button admin-button--secondary w-full sm:w-auto">
+          {refreshing ? "正在刷新…" : "刷新状态"}
+        </button>
+      </section>
+    </main>
   );
 }
