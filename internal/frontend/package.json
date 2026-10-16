@@ -14,7 +14,7 @@
     "test:workbench": "node --test app/lib/admin-workbench.test.mjs app/lib/dashboard-navigation.test.mjs",
     "test:email-templates": "node --test app/lib/email-templates.test.mjs",
     "test:auth-flow": "node --test app/lib/auth-session-cache.test.mjs app/lib/dashboard-auth-flow.test.mjs",
-    "test:daily-signal": "node --experimental-strip-types --test app/lib/daily-signal-calendar.test.mjs",
+    "test:daily-signal": "node --experimental-strip-types --test app/lib/daily-signal-calendar.test.mjs app/lib/daily-signal-scroll.test.mjs",
     "typecheck": "react-router typegen && tsc"
   },
   "dependencies": {

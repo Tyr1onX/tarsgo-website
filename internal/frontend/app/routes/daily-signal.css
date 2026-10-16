@@ -21,21 +21,6 @@
   padding: calc(var(--site-nav-height) + 38px) 0 64px;
 }
 
-.daily-signal__base-link {
-  display: inline-flex;
-  min-height: 40px;
-  align-items: center;
-  gap: 8px;
-  margin: -8px 0 12px;
-  color: var(--theme-muted);
-  font-size: 13px;
-  text-decoration: none;
-}
-
-.daily-signal__base-link span { color: var(--theme-accent-contrast); }
-.daily-signal__base-link:hover { color: var(--theme-accent-contrast); }
-.daily-signal__base-link:focus-visible { outline: 2px solid var(--theme-accent-contrast); outline-offset: 2px; }
-
 .daily-signal__page-head,
 .daily-signal__archive-head {
   display: flex;
