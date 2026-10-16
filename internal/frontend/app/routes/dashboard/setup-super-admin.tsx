@@ -16,7 +16,7 @@ export function meta() {
 export async function clientLoader(_: Route.ClientLoaderArgs) {
   const status = await getBootstrapStatus();
   if (!status.setupRequired) {
-    throw redirect("/dashboard/admin");
+    throw redirect("/dashboard");
   }
 
   return null;
@@ -61,7 +61,7 @@ export default function SetupSuperAdmin() {
       await registerInitialSuperAdmin({ email, password, confirmPassword });
       setSubmitting(false);
       setSuccess(true);
-      setTimeout(() => navigate("/dashboard/admin", { replace: true }), 900);
+      setTimeout(() => navigate("/dashboard", { replace: true }), 900);
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
       setSubmitting(false);
