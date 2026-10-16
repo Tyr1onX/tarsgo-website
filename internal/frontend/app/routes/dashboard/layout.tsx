@@ -24,6 +24,7 @@ import { resolveDashboardAuth } from "~/lib/dashboard-auth-flow";
 import { confirmUserGroup, getUserGroupConfirmationState, type UserGroupConfirmationState } from "~/lib/user-group-client";
 import {
   canAccessDashboardAdminPath,
+  getCoreDashboardMenu,
   getDefaultDashboardPath,
   getUserDashboardMenu,
   getVisibleAdminDashboardMenu,
@@ -41,6 +42,7 @@ const CONTENT_TRANSITION_MS = 180;
 const DESKTOP_DASHBOARD_MEDIA = "(min-width: 1024px)";
 const SUPER_ADMIN_SETUP_PATH = "/dashboard/setup/super-admin";
 const SIDEBAR_DEFAULT_WIDTH = 200;
+const SIDEBAR_COLLAPSED_WIDTH = 80;
 const SIDEBAR_MIN_WIDTH = 160;
 const SIDEBAR_MAX_WIDTH = 420;
 const HIGH_PRIORITY_RENDER_PREFETCH_KEYS = new Set(["admin-panel"]);
@@ -106,6 +108,14 @@ clientLoader.hydrate = true;
 
 function MenuIcon({ iconKey }: { iconKey: DashboardMenuIconKey }) {
   switch (iconKey) {
+    case "signal":
+      return (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+          <circle cx="12" cy="12" r="8.25" />
+          <circle cx="12" cy="12" r="4.5" />
+          <circle cx="12" cy="12" r="1" fill="currentColor" />
+        </svg>
+      );
     case "people":
       return (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -143,9 +153,11 @@ function MenuIcon({ iconKey }: { iconKey: DashboardMenuIconKey }) {
 function SidebarItem({
   item,
   onNavigate,
+  collapsed = false,
 }: {
   item: DashboardMenuLink | VisibleDashboardAdminMenuItem;
   onNavigate: () => void;
+  collapsed?: boolean;
 }) {
   const location = useLocation();
   const [expanded, setExpanded] = useState(() => {
@@ -172,7 +184,9 @@ function SidebarItem({
         <button
           type="button"
           onClick={() => setExpanded((current) => !current)}
-          className={`w-full flex items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors ${
+          aria-label={item.label}
+          title={collapsed ? item.label : undefined}
+          className={`w-full flex items-center gap-3 rounded-xl py-2.5 text-sm transition-colors ${collapsed ? "justify-center px-2" : "px-3"} ${
             isActive
               ? "dashboard-nav-link dashboard-nav-link--active"
               : "dashboard-nav-link"
@@ -181,9 +195,9 @@ function SidebarItem({
           <span className={isActive ? "dashboard-shell__accent" : ""}>
             <MenuIcon iconKey={item.iconKey} />
           </span>
-          <span className="min-w-0 flex-1 truncate text-left">{item.label}</span>
+          <span className={`min-w-0 flex-1 truncate text-left ${collapsed ? "sr-only" : ""}`}>{item.label}</span>
           <svg
-            className={`w-4 h-4 transition-transform duration-300 ease-out ${expanded ? "rotate-180" : ""}`}
+            className={`w-4 h-4 transition-transform duration-300 ease-out ${collapsed ? "hidden" : ""} ${expanded ? "rotate-180" : ""}`}
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={1.5}
@@ -231,8 +245,10 @@ function SidebarItem({
       end
       prefetch={HIGH_PRIORITY_RENDER_PREFETCH_KEYS.has(item.key) ? "render" : "intent"}
       onClick={onNavigate}
+      aria-label={item.label}
+      title={collapsed ? item.label : undefined}
       className={({ isActive }) =>
-        `flex min-w-0 items-center gap-3 px-3 py-2.5 text-sm rounded-xl transition-colors ${
+        `flex min-w-0 items-center gap-3 rounded-xl py-2.5 text-sm transition-colors ${collapsed ? "justify-center px-2" : "px-3"} ${
           isActive
           ? "dashboard-nav-link dashboard-nav-link--active"
           : "dashboard-nav-link"
@@ -244,7 +260,7 @@ function SidebarItem({
           <span className={isActive ? "dashboard-shell__accent" : ""}>
             <MenuIcon iconKey={item.iconKey} />
           </span>
-          <span className="min-w-0 flex-1 truncate">{item.label}</span>
+          <span className={`min-w-0 flex-1 truncate ${collapsed ? "sr-only" : ""}`}>{item.label}</span>
         </>
       )}
     </NavLink>
@@ -257,6 +273,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const revalidator = useRevalidator();
   const [isDesktopViewport, setIsDesktopViewport] = useState(getIsDesktopDashboardViewport);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -268,9 +285,13 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const [accountActionError, setAccountActionError] = useState("");
   const contentPanelRef = useRef<HTMLDivElement | null>(null);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
+  const sidebarRef = useRef<HTMLElement | null>(null);
+  const sidebarTriggerRef = useRef<HTMLButtonElement | null>(null);
   const sidebarResizeStartXRef = useRef(0);
   const sidebarResizeStartWidthRef = useRef(SIDEBAR_DEFAULT_WIDTH);
   const { currentUser, groupResolution, groupResolutionError } = loaderData;
+  const isSidebarCollapsed = isDesktopViewport && sidebarCollapsed;
+  const coreMenuItems = getCoreDashboardMenu();
   const userMenuItems = getUserDashboardMenu(currentUser);
   const adminMenuItems = getVisibleAdminDashboardMenu(currentUser);
   const showAdminSection = hasDashboardAdminAccess(currentUser.role.name) && adminMenuItems.length > 0;
@@ -405,6 +426,18 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   }, [userMenuOpen]);
 
   useEffect(() => {
+    if (!sidebarOpen || isDesktopViewport) return;
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      setSidebarOpen(false);
+      sidebarTriggerRef.current?.focus();
+    }
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [isDesktopViewport, sidebarOpen]);
+
+  useEffect(() => {
     if (typeof window === "undefined" || !isDesktopViewport || !isResizingSidebar) {
       return;
     }
@@ -437,12 +470,23 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
     }
   }
 
+  function openMobileSidebar() {
+    setSidebarOpen(true);
+    requestAnimationFrame(() => sidebarRef.current?.querySelector<HTMLElement>("a, button")?.focus());
+  }
+
+  function closeMobileSidebar() {
+    setSidebarOpen(false);
+    requestAnimationFrame(() => sidebarTriggerRef.current?.focus());
+  }
+
   function handleSidebarResizeStart(event: ReactMouseEvent<HTMLDivElement>) {
     if (!isDesktopViewport) {
       return;
     }
 
     event.preventDefault();
+    setSidebarCollapsed(false);
     sidebarResizeStartXRef.current = event.clientX;
     sidebarResizeStartWidthRef.current = sidebarWidth;
     setIsResizingSidebar(true);
@@ -560,26 +604,47 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   return (
     <div className="dashboard-shell admin-design min-h-screen text-white">
       {sidebarOpen ? (
-        <div
+        <button
+          type="button"
           className="fixed inset-0 z-40 bg-black/70 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
+          aria-label="关闭侧边栏"
+          onClick={closeMobileSidebar}
         />
       ) : null}
 
       <aside
-        className={`dashboard-shell__sidebar group/sidebar fixed top-0 left-0 z-50 flex h-full flex-col border-r transition-transform lg:translate-x-0 ${
+        ref={sidebarRef}
+        id="dashboard-sidebar"
+        aria-label="统一工作台导航"
+        aria-hidden={!isDesktopViewport && !sidebarOpen}
+        inert={!isDesktopViewport && !sidebarOpen}
+        className={`dashboard-shell__sidebar group/sidebar fixed top-0 left-0 z-50 flex h-full flex-col border-r transition-[transform,width] duration-200 lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
-        style={{ width: sidebarWidth }}
+        style={{ width: isDesktopViewport ? (isSidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : sidebarWidth) : "min(84vw, 320px)" }}
+        data-collapsed={isSidebarCollapsed}
       >
-        <div className="flex items-center gap-3 px-5 h-16 shrink-0">
-          <Link to="/" className="flex min-w-0 flex-1 items-center">
-            <SiteLogo className="h-10 max-w-full" />
+        <div className={`flex shrink-0 items-center ${isSidebarCollapsed ? "h-20 flex-col justify-center gap-1 px-2" : "h-16 gap-3 px-5"}`}>
+          <Link to="/" aria-label="返回 TARSGO 官网" title="返回 TARSGO 官网" className={`flex min-w-0 items-center ${isSidebarCollapsed ? "h-8 w-full flex-none justify-center" : "flex-1"}`}>
+            <SiteLogo className={isSidebarCollapsed ? "h-7 max-w-[58px]" : "h-10 max-w-full"} />
           </Link>
           <button
             type="button"
+            className={`dashboard-shell__sidebar-toggle hidden shrink-0 place-items-center rounded-md lg:grid ${isSidebarCollapsed ? "h-7 w-8" : "h-8 w-8"}`}
+            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
+            aria-label={isSidebarCollapsed ? "展开侧边栏" : "收起侧边栏"}
+            aria-expanded={!isSidebarCollapsed}
+            title={isSidebarCollapsed ? "展开侧边栏" : "收起侧边栏"}
+          >
+            <svg className="h-4 w-4" fill="none" viewBox="0 0 20 20" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
+              {isSidebarCollapsed ? <path strokeLinecap="round" strokeLinejoin="round" d="m7 4 6 6-6 6M3 4v12" /> : <path strokeLinecap="round" strokeLinejoin="round" d="m13 4-6 6 6 6M17 4v12" />}
+            </svg>
+          </button>
+          <button
+            type="button"
             className="lg:hidden ml-auto p-1 text-gray-400 hover:text-white"
-            onClick={() => setSidebarOpen(false)}
+            onClick={closeMobileSidebar}
+            aria-label="关闭侧边栏"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
@@ -589,50 +654,36 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
 
         <div className="dashboard-shell__divider mx-4 shrink-0" aria-hidden="true" />
 
-        <nav className="flex-1 overflow-y-auto px-3 py-4">
+        <nav className="dashboard-shell__sidebar-nav flex-1 overflow-y-auto px-3 py-4" aria-label="工作台功能">
+          <div className="space-y-1">
+            {coreMenuItems.map((item) => (
+              <SidebarItem key={item.key} item={item} onNavigate={handleSidebarNavigate} collapsed={isSidebarCollapsed} />
+            ))}
+          </div>
           {userMenuItems.length > 0 ? (
-            <div className="space-y-1">
+            <div className={`${isSidebarCollapsed ? "mt-2 border-t border-white/[0.06] pt-2" : "mt-6 border-t border-white/[0.06] pt-5"}`}>
+              <div className={`dashboard-shell__sidebar-section-title px-3 pb-2 text-[11px] uppercase tracking-[0.18em] text-gray-500 ${isSidebarCollapsed ? "sr-only" : ""}`}>个人事务</div>
               {userMenuItems.map((item) => (
                 <SidebarItem
                   key={item.key}
                   item={item}
                   onNavigate={handleSidebarNavigate}
+                  collapsed={isSidebarCollapsed}
                 />
               ))}
             </div>
           ) : null}
 
-          <div className={`${userMenuItems.length > 0 ? "mt-6 border-t border-white/[0.06] pt-5" : ""}`}>
-            <div className="px-3 pb-2 text-[11px] uppercase tracking-[0.18em] text-gray-500">吉甲基地</div>
-            <NavLink
-              to="/base"
-              end
-              onClick={handleSidebarNavigate}
-              className={({ isActive }) =>
-                `flex min-w-0 items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${
-                  isActive ? "dashboard-nav-link dashboard-nav-link--active" : "dashboard-nav-link"
-                }`
-              }
-            >
-              <span className="dashboard-shell__accent" aria-hidden="true">
-                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-                  <circle cx="12" cy="12" r="8.25" />
-                  <circle cx="12" cy="12" r="4.5" />
-                  <circle cx="12" cy="12" r="1" fill="currentColor" />
-                </svg>
-              </span>
-              <span className="min-w-0 flex-1 truncate text-left">每日通信</span>
-            </NavLink>
-          </div>
-
           {showAdminSection ? (
-            <div className="mt-6 pt-5 border-t border-white/[0.06]">
+            <div className={`${isSidebarCollapsed ? "mt-2 border-t border-white/[0.06] pt-2" : "mt-6 border-t border-white/[0.06] pt-5"}`}>
+              <div className={`dashboard-shell__sidebar-section-title px-3 pb-2 text-[11px] uppercase tracking-[0.18em] text-gray-500 ${isSidebarCollapsed ? "sr-only" : ""}`}>管理事务</div>
               <div className="space-y-1">
                 {adminMenuItems.map((item) => (
                   <SidebarItem
                     key={item.key}
                     item={item}
                     onNavigate={handleSidebarNavigate}
+                    collapsed={isSidebarCollapsed}
                   />
                 ))}
               </div>
@@ -640,27 +691,30 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           ) : null}
         </nav>
 
-        <div ref={userMenuRef} className="relative px-3 py-3 border-t border-white/[0.06]">
+        <div ref={userMenuRef} className={`dashboard-shell__profile-area relative border-t border-white/[0.06] py-3 ${isSidebarCollapsed ? "px-2" : "px-3"}`}>
           <button
             type="button"
             onClick={() => setUserMenuOpen((open) => !open)}
             aria-haspopup="menu"
             aria-expanded={userMenuOpen}
-            className={`dashboard-shell__profile group w-full flex items-center gap-3 rounded-lg p-2 transition-colors ${
+            aria-label={`${currentUser.nickname || currentUser.email}，打开账号菜单`}
+            title={isSidebarCollapsed ? currentUser.nickname || currentUser.email : undefined}
+            className={`dashboard-shell__profile group w-full flex items-center gap-3 rounded-lg p-2 transition-colors ${isSidebarCollapsed ? "justify-center" : ""} ${
               userMenuOpen ? "dashboard-shell__profile--open" : ""
             }`}
           >
             <div className="dashboard-shell__avatar w-9 h-9 rounded-full flex items-center justify-center shrink-0">
               <span className="text-white text-sm font-semibold">{userInitial}</span>
             </div>
-            <div className="flex-1 min-w-0 text-left">
+            <div className={`flex-1 min-w-0 text-left ${isSidebarCollapsed ? "hidden" : ""}`}>
               <div className="text-sm font-medium text-white truncate">
                 {currentUser.nickname || getAuthUserRoleLabel(currentUser)}
               </div>
               <div className="text-xs text-gray-500 truncate">{currentUser.email}</div>
             </div>
             <svg
-              className={`w-4 h-4 shrink-0 transition-all duration-200 ${
+              aria-hidden="true"
+              className={`w-4 h-4 shrink-0 transition-all duration-200 ${isSidebarCollapsed ? "hidden" : ""} ${
                 userMenuOpen
                   ? "rotate-180 dashboard-shell__accent"
                   : "text-gray-500 group-hover:text-gray-300"
@@ -730,7 +784,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
 
         <div
           aria-hidden="true"
-          className="absolute inset-y-0 -right-2 hidden w-4 cursor-col-resize lg:flex lg:items-center lg:justify-center"
+          className={`absolute inset-y-0 -right-2 hidden w-4 cursor-col-resize lg:items-center lg:justify-center ${isSidebarCollapsed ? "lg:hidden" : "lg:flex"}`}
           onMouseDown={handleSidebarResizeStart}
         >
           <span
@@ -741,13 +795,16 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
         </div>
       </aside>
 
-      <div className="relative z-10" style={isDesktopViewport ? { paddingLeft: sidebarWidth } : undefined}>
+      <div className="dashboard-shell__main-frame relative z-10" style={isDesktopViewport ? { paddingLeft: isSidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : sidebarWidth } : undefined}>
         <header className="dashboard-shell__topbar sticky top-0 z-30 flex items-center gap-4 h-16 px-4 sm:px-6 border-b">
           <button
+            ref={sidebarTriggerRef}
             type="button"
             className="lg:hidden p-2 -ml-2 text-gray-400 hover:text-white"
-            onClick={() => setSidebarOpen(true)}
+            onClick={openMobileSidebar}
             aria-label="打开侧边栏"
+            aria-controls="dashboard-sidebar"
+            aria-expanded={sidebarOpen}
           >
             <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />

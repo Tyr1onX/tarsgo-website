@@ -21,6 +21,18 @@
   padding: calc(var(--site-nav-height) + 38px) 0 64px;
 }
 
+.dashboard-daily-signal .daily-signal-page--workspace {
+  min-height: 0;
+  overflow: visible;
+  background: transparent;
+}
+
+.dashboard-daily-signal .daily-signal__shell--workspace {
+  width: min(1120px, 100%);
+  margin-inline: auto;
+  padding: 8px 0 24px;
+}
+
 .daily-signal__page-head,
 .daily-signal__archive-head {
   display: flex;
@@ -514,5 +526,11 @@
     transition-duration: .01ms !important;
     animation-duration: .01ms !important;
     animation-iteration-count: 1 !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .dashboard-daily-signal .daily-signal__shell--workspace {
+    padding: 0 0 12px;
   }
 }

@@ -92,6 +92,29 @@
   box-shadow: 8px 0 24px rgba(0, 0, 0, 0.18);
 }
 
+.dashboard-shell__sidebar-toggle {
+  border: 1px solid transparent;
+  color: var(--admin-muted);
+}
+
+.dashboard-shell__sidebar-toggle:hover {
+  border-color: var(--admin-border-subtle);
+  background: rgba(255, 255, 255, 0.04);
+  color: var(--admin-accent);
+}
+
+.dashboard-shell__main-frame {
+  transition: padding-left 200ms ease;
+}
+
+.dashboard-shell__sidebar[data-collapsed="true"] .dashboard-shell__user-menu {
+  right: auto;
+  bottom: 0.75rem;
+  left: calc(100% - 0.5rem);
+  width: 15rem;
+  margin: 0;
+}
+
 .dashboard-shell__topbar {
   border-color: var(--admin-border-subtle);
   background: var(--admin-surface-topbar);
@@ -507,6 +530,13 @@
 .admin-design :is(a, button, input, select, textarea):focus-visible {
   outline: 2px solid var(--admin-accent);
   outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-shell__sidebar,
+  .dashboard-shell__main-frame {
+    transition-duration: .01ms !important;
+  }
 }
 
 .admin-design .admin-button {
