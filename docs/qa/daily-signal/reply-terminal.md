@@ -1,12 +1,14 @@
 # 吉甲基地回信终端 · Issue #69 设计原型
 
-关联 [Issue #69：吉甲基地回信终端与轻仪式感设计](https://github.com/Tyr1onX/tarsgo-website/issues/69)。本轮只更新静态原型、人工编写的候选回信与设计记录，供视觉和交互评审；没有改正式每日通信页面、接口、认证、签到规则或数据库。
+关联 [Issue #69：吉甲基地回信终端与轻仪式感设计](https://github.com/Tyr1onX/tarsgo-website/issues/69)。本轮只更新静态原型、人工编写的候选回信、截图与设计记录，供视觉和交互评审；没有改正式每日通信页面、接口、认证、签到规则或数据库。原型已按 #82 合并后的统一工作台 `/dashboard/base` 重排，不再绘制第二套基地工作台。
 
 ## 设计意图
 
 > 你向基地发送一个信号，基地认真地回应你。
 
-基地回信终端继续使用原来的右侧通信舱、同心环、金色信号点和细网格。等待时安静、传输时只出现一次柔和波纹、收到后回信留在面板里。通过间距、细线和局部金色表达「错位的秩序」，没有常驻运动、音效、粒子或成功庆祝特效。
+原型复用 #82 的统一工作台外壳：左侧工作台导航、底部个人身份、上方主题与官网控制；唯一的基地功能项为「每日通信」。页面主体保留当前每日通信的签到区域和年度热力图，把回信卡作为右侧通信舱，移动端自然堆叠在签到区域之下。演示身份与数据均为虚构，不是正式路由或新工作台实现。
+
+基地回信终端继续使用现有同心环、金色信号点和细网格。等待时安静、传输时只出现一次柔和波纹、收到后回信留在面板里。回信字号提升到 16px，卡片标题和状态信息加大，按钮高度至少 44px；通过间距、细线和局部金色表达「错位的秩序」，没有常驻运动、音效、粒子或成功庆祝特效。
 
 签到与否始终由用户决定。回信感谢这次到访，不评价勤奋、状态或连续天数，也不制造催促。热力图、签到按钮、情绪选择的布局与业务规则没有更改。
 
@@ -19,10 +21,14 @@
 | 发送成功 | 状态变为「回信已抵达」，回信卡出现当天文案 | 今日热力图方块点亮；无情绪时使用一般感谢文案 |
 | 再次访问 | 保持当天同一条回信，不自动播放传输动画 | 可点击「重看这次回应」，只重播一次轻量波纹和卡片入场 |
 | 无情绪签到 | 不额外询问、不显示缺失状态 | 从日常感谢文案中选择回信，不推断用户情绪 |
+| 当天修改情绪 | 保存新选择后，用新情绪所属文案替换旧回信 | 旧回信编号与文案不会继续留在本原型回执中 |
+| 当天清除情绪 | 清除后改用中性感谢回信 | 签到日期保留，回信和档案不再显示已清除的情绪 |
 | 传输失败 | 雷达显示稍后再试，保留可读的失败说明 | 签到模拟本身仍可正常重试；回信内容异常会退回通用感谢 |
 | 减少动态效果 | 状态直接切换，动画停用或瞬时完成 | 文案、状态和操作保持完整可用 |
 
-`sessionStorage` 仅用于同一浏览器标签页刷新后的虚构重访演示，存储固定模拟日期、模拟情绪和回信编号。切换到「首次访问」会清除模拟回执。没有任何真实账号、API 或生产存储。
+`sessionStorage` 仅用于同一浏览器标签页刷新后的虚构重访演示，存储固定模拟日期、当前模拟情绪和回信编号。情绪变更时同时替换回执，清除情绪时将回执改为中性文案；重访时还会校验回信编号是否仍匹配当前状态，不匹配则重新选择对应分组的候选文案。切换到「首次访问」会清除模拟回执。没有真实账号、API 或生产存储。
+
+**隐私边界建议（待产品确认）：**正式实现若保留当天回信，应在当天情绪保存成功后同步替换回信，清除情绪后立即改为与情绪无关的中性回信；应让回执和情绪更新在同一服务端操作中保持一致，并清除相关客户端缓存。重访时绝不能恢复旧的情绪专属回信。原型仅展示这一建议，尚未决定正式回信是否持久化、回信文案是否需要与情绪数据使用相同的删除和保留期限。
 
 ## 候选回信文案
 
@@ -43,20 +49,20 @@
 | `compiler-joke` | 工程轻梗 | 信号已收；这一帧无需返工。 |
 | `fallback-thanks` | 异常兜底 | 信号已收到。谢谢你愿意把今天留在这里。 |
 
-目前的轻梗只在较少的情绪分组中出现；任何文案缺失或读取异常都回退到 `fallback-thanks`，不能影响签到流程。所有内容都不引用真实内部事件，也不带评判、诊断或缺勤暗示。
+目前的轻梗只在较少的情绪分组中出现；任何文案缺失或读取异常都回退到 `fallback-thanks`，不能影响签到流程。所有内容都不引用真实内部事件，也不带评判、诊断或缺勤暗示。候选文案按固定的本地日期和当前自愿选择的状态稳定选取，重访不会换成另一句；用户当天修改或删除状态后才按新状态替换。
 
 ## 浏览器验收
 
-在 Chrome 155.0.8059.82（本机已安装的真实 Chromium）中检查：
+在本机真实 Chrome 155.0.8059.82 中通过浏览器界面与 Playwright 操作检查：
 
-- 桌面与移动宽度下终端与现有签到、档案布局的关系。
-- 黑金和白金主题下回信卡、终端状态、已发送金色信号点的对比度和层级。
-- 键盘 Tab 到回信重看按钮并触发；签到后情绪只读，不会产生已保存状态的误解。
-- 首次访问、可选情绪发送、无情绪发送、失败重试、重复访问与刷新后保持同一回信。
-- 手动重看回信；系统 `prefers-reduced-motion` 与 `?motion=reduce` 均可读、可操作。
-- 页面控制台错误、可视区溢出、移动端横向滚动边界。
+- 桌面 1440 × 1100、移动 390 × 844 与窄屏 320 × 800；页面本身没有横向溢出，热力图只在档案容器内横向滚动。
+- 黑金与白金主题、等待/发送中/签到成功/同日重访/手动重看/发送失败和重试。
+- 有情绪与无情绪签到；键盘 Enter 重看回信；桌面侧栏折叠和移动抽屉 Escape 关闭并还原焦点。
+- 当天修改情绪后替换专属回信、清除情绪后换为中性回信；刷新后只保留中性内容，回执中 `mood: null` 且不再含旧情绪专属回信编号。
+- 系统 `prefers-reduced-motion: reduce` 与 `?motion=reduce`；读取样式确认传输与卡片过渡缩短为瞬时，签到状态及今日热力格点仍正确更新。
+- 运行期错误与控制台错误为 0。
 
-本轮实际通过桌面 1440 × 1100、移动 390 × 844 和窄屏 320 × 800 视口；覆盖黑金、白金、选情绪／不选情绪签到、发送中、回信重访、键盘回看、减少动态与今日热力格点。自动化浏览器检查 17 项均通过，运行时异常 0 条；另在 Codex In-app Browser 中用真实键盘 Enter 触发「重看这次回应」并观察到读屏 live region 确认。浏览器视口截图已写入本目录，主题切换后等待过渡结束再捕获。
+自动化文案隐私测试：`node --test docs/prototypes/daily-signal/reply-copy.test.mjs`，4 项通过。页面 JavaScript 语法检查、差异空白检查和真实浏览器交互检查均通过。浏览器视口截图已写入本目录；主题切换后等待过渡结束再捕获。上述均是静态原型验收，不代表正式接口、认证、服务端持久化或生产隐私行为已实现。
 
 截图保存在 [`reply-terminal-screenshots/`](./reply-terminal-screenshots/)。实际测试浏览器版本、尺寸、静置结果与截图清单由本次评审 PR 的最终验证记录补全，避免将旧版 P0 截图误作新版回信终端证据。
 
@@ -80,12 +86,14 @@
 
 | 状态 | 截图 |
 | --- | --- |
-| 桌面黑金 · 待发送 | [desktop-dark-waiting.png](./reply-terminal-screenshots/desktop-dark-waiting.png) |
-| 桌面白金 · 待发送 | [desktop-light-waiting.png](./reply-terminal-screenshots/desktop-light-waiting.png) |
-| 桌面 · 发送中 | [desktop-dark-sending.png](./reply-terminal-screenshots/desktop-dark-sending.png) |
-| 桌面 · 已收到回信 | [desktop-dark-received.png](./reply-terminal-screenshots/desktop-dark-received.png) |
-| 桌面 · 再次访问 | [desktop-dark-repeat.png](./reply-terminal-screenshots/desktop-dark-repeat.png) |
-| 移动黑金 · 已收到回信 | [mobile-dark-received.png](./reply-terminal-screenshots/mobile-dark-received.png) |
-| 移动白金 · 已收到回信 | [mobile-light-received.png](./reply-terminal-screenshots/mobile-light-received.png) |
-| 移动黑金 · 无情绪回信 | [mobile-dark-no-mood-received.png](./reply-terminal-screenshots/mobile-dark-no-mood-received.png) |
-| 移动 · 减少动态 | [mobile-reduced-motion.png](./reply-terminal-screenshots/mobile-reduced-motion.png) |
+| 桌面黑金 · 待发送 | [desktop-dark-waiting.jpg](./reply-terminal-screenshots/desktop-dark-waiting.jpg) |
+| 桌面白金 · 待发送 | [desktop-light-waiting.jpg](./reply-terminal-screenshots/desktop-light-waiting.jpg) |
+| 桌面黑金 · 发送中 | [desktop-dark-sending.jpg](./reply-terminal-screenshots/desktop-dark-sending.jpg) |
+| 桌面黑金 · 已收到基地回信 | [desktop-dark-received.jpg](./reply-terminal-screenshots/desktop-dark-received.jpg) |
+| 桌面黑金 · 再次访问及重看入口 | [desktop-dark-repeat.jpg](./reply-terminal-screenshots/desktop-dark-repeat.jpg) |
+| 桌面黑金 · 发送失败 | [desktop-dark-failure.jpg](./reply-terminal-screenshots/desktop-dark-failure.jpg) |
+| 移动黑金 · 待发送 | [mobile-dark-waiting.jpg](./reply-terminal-screenshots/mobile-dark-waiting.jpg) |
+| 移动白金 · 待发送 | [mobile-light-waiting.jpg](./reply-terminal-screenshots/mobile-light-waiting.jpg) |
+| 移动黑金 · 无情绪签到后收到回信 | [mobile-dark-received.jpg](./reply-terminal-screenshots/mobile-dark-received.jpg) |
+| 移动黑金 · 有情绪回信 | [mobile-dark-debug-received.jpg](./reply-terminal-screenshots/mobile-dark-debug-received.jpg) |
+| 移动黑金 · 减少动态 | [mobile-dark-reduced-motion.jpg](./reply-terminal-screenshots/mobile-dark-reduced-motion.jpg) |
