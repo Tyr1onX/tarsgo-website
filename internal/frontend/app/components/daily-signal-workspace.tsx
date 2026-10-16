@@ -86,6 +86,8 @@ export function DailySignalWorkspace() {
       setArchive(null);
       setMessage(null);
       setEditingTodayMood(false);
+      setHoveredDate(null);
+      setConfirmMoodDelete(false);
       setSelectedDate(getCurrentBeijingDate());
       setFocusedDate(getCurrentBeijingDate());
       pendingScrollDateRef.current = getCurrentBeijingDate();
@@ -95,25 +97,30 @@ export function DailySignalWorkspace() {
 
   useEffect(() => {
     let disposed = false;
+    let identityRequestGeneration = 0;
     const unsubscribeAuth = subscribeAuthStateChange((user) => {
+      identityRequestGeneration += 1;
       if (!disposed) applyIdentity(user);
     });
     const unsubscribeAccountSession = subscribeAccountSessionChange(() => {
+      const requestGeneration = ++identityRequestGeneration;
+      applyIdentity(null);
       void getOptionalCurrentUser({ force: true })
         .then((user) => {
-          if (!disposed) applyIdentity(getCachedCurrentUser() ?? (hasKnownAnonymousSession() ? null : user));
+          if (!disposed && requestGeneration === identityRequestGeneration) applyIdentity(user);
         })
         .catch(() => {
-          if (!disposed) setAuthError(true);
+          if (!disposed && requestGeneration === identityRequestGeneration) setAuthError(true);
         });
     });
 
+    const initialGeneration = identityRequestGeneration;
     void getOptionalCurrentUser({ force: true })
       .then((user) => {
-        if (!disposed) applyIdentity(getCachedCurrentUser() ?? (hasKnownAnonymousSession() ? null : user));
+        if (!disposed && initialGeneration === identityRequestGeneration) applyIdentity(user);
       })
       .catch((error) => {
-        if (!disposed) {
+        if (!disposed && initialGeneration === identityRequestGeneration) {
           setCurrentUser(null);
           setAuthError(!(error instanceof ApiError && error.status === 401));
         }
@@ -541,20 +548,21 @@ export function DailySignalWorkspace() {
             <span className="daily-signal__detail-divider" aria-hidden="true" />
             <span className="daily-signal__detail-copy">{detailCopy}</span>
             {detailStatus === "sent" ? <span className="daily-signal__detail-tag">信号已发送</span> : detailStatus === "today" ? <span className="daily-signal__detail-tag">今天</span> : null}
-            {canDeleteSelectedMood ? (
-              <div className="daily-signal__delete-mood">
-                {confirmMoodDelete ? (
-                  <>
-                    <span>删除这条状态？日期仍会保留。</span>
-                    <button type="button" disabled={deletingMood} onClick={() => void handleDeleteHistoricalMood()}>{deletingMood ? "删除中…" : "确认删除"}</button>
-                    <button type="button" disabled={deletingMood} onClick={() => setConfirmMoodDelete(false)}>取消</button>
-                  </>
-                ) : <button type="button" onClick={() => setConfirmMoodDelete(true)}>删除状态</button>}
-              </div>
-            ) : null}
+            <div className="daily-signal__detail-extra" aria-hidden={!selectedMoodEntry || undefined}>
+              {selectedMoodEntry ? <span className="daily-signal__history-mood"><span className="daily-signal__mood-icon" aria-hidden="true"><MoodGlyph mood={selectedMoodEntry} /></span><span>当日状态：{selectedMoodEntry}</span></span> : null}
+              {canDeleteSelectedMood ? (
+                <div className="daily-signal__delete-mood">
+                  {confirmMoodDelete ? (
+                    <>
+                      <span>删除状态？日期保留。</span>
+                      <button type="button" disabled={deletingMood} onClick={() => void handleDeleteHistoricalMood()}>{deletingMood ? "删除中…" : "确认删除"}</button>
+                      <button type="button" disabled={deletingMood} onClick={() => setConfirmMoodDelete(false)}>取消</button>
+                    </>
+                  ) : <button type="button" onClick={() => setConfirmMoodDelete(true)}>删除状态</button>}
+                </div>
+              ) : null}
+            </div>
           </div>
-
-          {detailStatus === "sent" && selectedMoodEntry ? <div className="daily-signal__history-mood"><span className="daily-signal__mood-icon" aria-hidden="true"><MoodGlyph mood={selectedMoodEntry} /></span><span>当日状态：{selectedMoodEntry}</span></div> : null}
         </section>
       </main>
     </div>

@@ -101,23 +101,25 @@ test("the homepage uses six image-led routes, preserves legacy hashes, and keeps
   assert.match(home, /autoPlay=\{!prefersReducedMotion\}/);
   assert.match(home, /preload=\{prefersReducedMotion \? "none" : "metadata"\}/);
   assert.match(home, /if \(prefersReducedMotion\) heroVideoRef\.current\?\.pause\(\)/);
-  assert.match(home, /<HomeVisualNavigation currentUser=\{currentUser\} \/>/);
+  assert.match(home, /<HomeVisualNavigation \/>/);
+  assert.match(home, /home-base-feature/);
+  assert.doesNotMatch(home, /home-space-entry--manage|个人工作台/);
   assert.match(navbar, /label: "加入我们", href: "\/join"/);
   assert.match(styles, /\.home-visual-card:focus-visible/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.home-visual-card:hover > img[\s\S]*?transform: none;/);
 });
 
-test("吉甲基地成为参与空间入口，工作台仍保留每日通信快捷入口", () => {
+test("吉甲基地欢迎访客并为已登录用户打开工作空间，首页只增加横向基地专题", () => {
   assert.match(routes, /route\("base", "routes\/base\.tsx"\)/);
   assert.match(navbar, /label: "吉甲基地", href: "\/base"/);
   assert.match(navbar, /pathname === "\/daily-signal"/);
-  assert.match(home, /<h3 id="home-space-learn-heading">了解吉甲<\/h3>/);
-  assert.match(home, /home-space-entry__eyebrow">参与吉甲/);
-  assert.match(home, /home-space-entry__eyebrow">管理吉甲/);
-  assert.match(home, /to="\/base" className="home-space-entry home-space-entry--base"/);
-  assert.match(home, /getDefaultDashboardPath\(currentUser\.role\.name\)/);
+  assert.match(home, /home-base-feature/);
+  assert.doesNotMatch(home, /home-space-entry|个人工作台/);
   assert.match(basePage, /<strong>吉甲基地<\/strong>/);
   assert.match(basePage, /<DailySignalWorkspace \/>/);
+  assert.match(basePage, /currentUser === null \?/);
+  assert.match(basePage, /gijia-base__guest-welcome/);
+  assert.match(basePage, /currentUser === undefined \?/);
   assert.match(basePage, /aria-label="基地功能"/);
   assert.match(basePage, /aria-controls="gijia-base-sidebar"/);
   assert.match(basePage, /window\.matchMedia\("\(max-width: 767px\)"\)\.matches/);
@@ -130,9 +132,10 @@ test("吉甲基地成为参与空间入口，工作台仍保留每日通信快�
   assert.doesNotMatch(basePage, /gijia-base__feature/);
   assert.match(dashboardLayout, /to="\/base"/);
   assert.match(dashboardLayout, /每日通信/);
-  assert.match(home, /<HomeVisualNavigation currentUser=\{currentUser\} \/>/);
-  assert.match(styles, /\.home-space-layout\s*\{[\s\S]*?grid-template-columns/);
-  assert.match(styles, /@media \(max-width: 767px\)\s*\{[\s\S]*?\.home-space-layout\s*\{\s*grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(home, /<HomeVisualNavigation \/>/);
+  assert.match(styles, /\.home-base-feature\s*\{[\s\S]*?border-block/);
+  assert.match(styles, /\.home-base-feature__radar::before/);
+  assert.doesNotMatch(styles, /\.home-space-layout|\.home-space-entry/);
   assert.match(basePage, /<PublicFooter \/>/);
   assert.match(basePage, /gijia-base__workspace--collapsed/);
   assert.match(basePage, /收起基地侧栏/);
@@ -141,7 +144,7 @@ test("吉甲基地成为参与空间入口，工作台仍保留每日通信快�
   assert.doesNotMatch(basePage, /BASE<br \/>01|A PLACE FOR ORDINARY DAYS|TX \/ 01/);
 });
 
-test("the homepage visual navigation uses two rows from tablet width and the required four-column desktop grid", () => {
+test("the homepage restores its historic photo collage across tablet and desktop widths", () => {
   const desktopGrid = styles.match(/@media \(min-width: 1024px\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
   const tabletGrid = styles.match(/@media \(min-width: 768px\) and \(max-width: 1023px\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
   assert.match(desktopGrid, /grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);

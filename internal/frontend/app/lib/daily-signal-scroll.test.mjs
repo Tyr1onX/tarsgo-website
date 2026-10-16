@@ -5,6 +5,7 @@ import test from "node:test";
 import { scrollHeatmapCellIntoView, scrollHeatmapToDate } from "./daily-signal-scroll.ts";
 
 const workspace = await readFile(new URL("../components/daily-signal-workspace.tsx", import.meta.url), "utf8");
+const dailySignalStyles = await readFile(new URL("../routes/daily-signal.css", import.meta.url), "utf8");
 
 function makeViewport({ targetLeft = 950, targetRight = 970, scrollLeft = 0 } = {}) {
   const calls = [];
@@ -75,4 +76,19 @@ test("date navigation is isolated from document scrolling and focuses without br
 test("automatic positioning consumes its request once, and returning within the current year clears stale work", () => {
   assert.match(workspace, /const date = pendingScrollDateRef\.current;\s*pendingScrollDateRef\.current = null;\s*requestAnimationFrame\(\(\) => scrollHeatmapToDate/);
   assert.match(workspace, /if \(nextYear === selectedYear\) \{\s*pendingScrollDateRef\.current = null;\s*requestAnimationFrame\(\(\) => scrollHeatmapToDate/);
+});
+
+test("heatmap date details reserve the same mood and action row for every hovered date", () => {
+  assert.match(workspace, /className="daily-signal__detail-extra" aria-hidden=\{!selectedMoodEntry \|\| undefined\}/);
+  assert.match(workspace, /daily-signal__history-mood/);
+  assert.doesNotMatch(workspace, /\{detailStatus === "sent" && selectedMoodEntry \? <div className="daily-signal__history-mood"/);
+  assert.match(dailySignalStyles, /\.daily-signal__date-detail\s*\{[^}]*grid-template-rows:\s*40px 48px/);
+  assert.match(dailySignalStyles, /\.daily-signal__detail-extra\s*\{[^}]*min-height:\s*48px/);
+  assert.match(dailySignalStyles, /@media \(max-width: 700px\)[\s\S]*?\.daily-signal__date-detail\s*\{[^}]*grid-template-rows:\s*24px 40px 48px/);
+  assert.match(dailySignalStyles, /\.daily-signal__detail-copy\s*\{[^}]*-webkit-line-clamp:\s*2/);
+});
+
+test("switching accounts clears hovered details and pending deletion confirmation", () => {
+  assert.match(workspace, /setHoveredDate\(null\);\s*setConfirmMoodDelete\(false\);\s*setSelectedDate/);
+  assert.match(workspace, /applyIdentity\(null\);\s*void getOptionalCurrentUser\(\{ force: true \}\)/);
 });

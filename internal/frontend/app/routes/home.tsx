@@ -8,11 +8,11 @@ import { RobotPhotoGallery } from "../components/robot-photo-gallery";
 import { TeamHistoryArchive } from "../components/team-history-archive";
 import { SiteLogo } from "~/components/site-logo";
 import { Link, useLocation, useNavigate } from "react-router";
-import { getDefaultDashboardPath } from "~/lib/dashboard-navigation";
 import {
   getCachedCurrentUser,
   getOptionalCurrentUser,
   hasKnownAnonymousSession,
+  subscribeAccountSessionChange,
   subscribeAuthStateChange,
   type AuthUser,
 } from "~/lib/auth-client";
@@ -200,7 +200,7 @@ const homeNavigationModules = [
   },
 ];
 
-function HomeVisualNavigation({ currentUser }: { currentUser: AuthUser | null | undefined }) {
+function HomeVisualNavigation() {
   return (
     <section
       id="home-navigation"
@@ -209,63 +209,52 @@ function HomeVisualNavigation({ currentUser }: { currentUser: AuthUser | null | 
     >
       <div className="public-home-container">
         <div className="mx-auto mb-8 max-w-3xl sm:mb-10 lg:mx-0">
+          <p className="mb-3 text-center text-[11px] font-semibold uppercase tracking-[0.2em] text-accent-primary sm:text-left">
+            探索 TARSGO
+          </p>
           <h2
             id="home-navigation-heading"
             className="text-center text-3xl font-semibold tracking-[-0.035em] text-fg-primary sm:text-left sm:text-4xl"
           >
-            了解、参与，或继续协作
+            走进吉甲的工程现场
           </h2>
           <p className="mt-3 text-center text-sm leading-6 text-fg-muted sm:text-left sm:text-base">
-            了解吉甲的故事，在基地参与日常，或进入工作台。
+            从团队、机器人、赛事到成长路径，选择一个入口继续了解。
           </p>
         </div>
 
-        <div className="home-space-layout">
-          <section className="home-space-learn" aria-labelledby="home-space-learn-heading">
-            <div className="home-space-heading">
-              <h3 id="home-space-learn-heading">了解吉甲</h3>
-            </div>
-            <nav aria-label="了解吉甲专题" className="home-visual-grid">
-              {homeNavigationModules.map((module) => (
-                <Link
-                  key={module.href}
-                  to={module.href}
-                  className={`home-visual-card ${module.placement}`}
-                  aria-label={`${module.title}：${module.description}`}
-                >
-                  <img src={module.image} alt={module.alt} loading="lazy" decoding="async" />
-                  <span className="home-visual-card-shade" aria-hidden="true" />
-                  <div className="home-visual-card-copy">
-                    <h3>{module.title}</h3>
-                    <p>{module.description}</p>
-                  </div>
-                  <svg className="home-visual-card-arrow" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                    <path d="M5 12h14m-6-6 6 6-6 6" />
-                  </svg>
-                </Link>
-              ))}
-            </nav>
-          </section>
-
-          <div className="home-space-actions" aria-label="参与与管理吉甲">
-            <Link to="/base" className="home-space-entry home-space-entry--base">
-              <span className="home-space-entry__eyebrow">参与吉甲</span>
-              <span className="home-space-entry__signal" aria-hidden="true"><i /><i /><i /><b /></span>
-              <span className="home-space-entry__title">吉甲基地</span>
-              <span className="home-space-entry__copy">从每日通信开始，为普通的日子留下一条信号。</span>
-              <span className="home-space-entry__action">进入基地 <HomeArrowIcon /></span>
-            </Link>
+        <nav aria-label="吉甲专题导航" className="home-visual-grid">
+          {homeNavigationModules.map((module) => (
             <Link
-              to={currentUser ? getDefaultDashboardPath(currentUser.role.name) : "/login?redirect=%2Fdashboard"}
-              className="home-space-entry home-space-entry--manage"
+              key={module.href}
+              to={module.href}
+              className={`home-visual-card ${module.placement}`}
+              aria-label={`${module.title}：${module.description}`}
             >
-              <span className="home-space-entry__eyebrow">管理吉甲</span>
-              <span className="home-space-entry__title">个人工作台</span>
-              <span className="home-space-entry__copy">个人协作、成员管理与后台事务。</span>
-              <span className="home-space-entry__action">进入工作台 <HomeArrowIcon /></span>
+              <img src={module.image} alt={module.alt} loading="lazy" decoding="async" />
+              <span className="home-visual-card-shade" aria-hidden="true" />
+              <div className="home-visual-card-copy">
+                <h3>{module.title}</h3>
+                <p>{module.description}</p>
+              </div>
+              <svg className="home-visual-card-arrow" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path d="M5 12h14m-6-6 6 6-6 6" />
+              </svg>
             </Link>
-          </div>
-        </div>
+          ))}
+        </nav>
+
+        <Link to="/base" className="home-base-feature" aria-labelledby="home-base-title">
+          <span className="home-base-feature__copy">
+            <span className="home-base-feature__eyebrow">参与吉甲 · 吉甲基地</span>
+            <span className="home-base-feature__title" id="home-base-title">从每日通信开始</span>
+            <span className="home-base-feature__description">为普通的日子，留下一条自己的信号。</span>
+            <span className="home-base-feature__action">进入基地 <HomeArrowIcon /></span>
+          </span>
+          <span className="home-base-feature__radar" aria-hidden="true">
+            <i /><i /><i /><b />
+          </span>
+        </Link>
       </div>
     </section>
   );
@@ -407,30 +396,45 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
 
   useEffect(() => {
     let disposed = false;
-    const unsubscribe = subscribeAuthStateChange(() => {
+    let identityGeneration = 0;
+    const unsubscribeAuth = subscribeAuthStateChange((user) => {
+      identityGeneration += 1;
       if (!disposed) {
-        setCurrentUser(getNavbarUser());
+        setCurrentUser(user);
         setAuthError(false);
       }
     });
+    const unsubscribeAccount = subscribeAccountSessionChange(() => {
+      const requestGeneration = ++identityGeneration;
+      setCurrentUser(undefined);
+      setAuthError(false);
+      void getOptionalCurrentUser({ force: true })
+        .then((user) => {
+          if (!disposed && requestGeneration === identityGeneration) setCurrentUser(user);
+        })
+        .catch(() => {
+          if (!disposed && requestGeneration === identityGeneration) setAuthError(true);
+        });
+    });
 
+    const initialGeneration = identityGeneration;
     void getOptionalCurrentUser()
-      .then(() => {
-        if (!disposed) {
-          setCurrentUser(getNavbarUser());
+      .then((user) => {
+        if (!disposed && initialGeneration === identityGeneration) {
+          setCurrentUser(user);
           setAuthError(false);
         }
       })
       .catch(() => {
-        if (!disposed) {
-          setCurrentUser(getNavbarUser());
+        if (!disposed && initialGeneration === identityGeneration) {
           setAuthError(true);
         }
       });
 
     return () => {
       disposed = true;
-      unsubscribe();
+      unsubscribeAuth();
+      unsubscribeAccount();
     };
   }, []);
 
@@ -534,7 +538,7 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
 
       <Navbar currentUser={currentUser} authError={authError} />
 
-      {routePage === "home" ? <HomeVisualNavigation currentUser={currentUser} /> : null}
+      {routePage === "home" ? <HomeVisualNavigation /> : null}
 
       {routePage === "events-and-honors" ? <EventsAndHonorsArchive /> : null}
 
