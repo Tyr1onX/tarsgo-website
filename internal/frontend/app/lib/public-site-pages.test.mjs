@@ -193,6 +193,31 @@ test("the homepage restores its historic photo collage across tablet and desktop
   }
 });
 
+test("RightAPI is a separate, disclosed alumni recommendation below the unchanged sponsor wall", async () => {
+  const sponsorListEnd = home.indexOf("</ul>", home.indexOf('aria-label="现有赞助商"'));
+  const recommendationStart = home.indexOf("home-alumni-recommendation", sponsorListEnd);
+  assert.ok(sponsorListEnd >= 0, "missing the existing sponsor list");
+  assert.ok(recommendationStart > sponsorListEnd, "the alumni recommendation must follow the sponsor wall");
+  assert.match(home, /const sponsorLogos = \[/);
+  assert.match(home, /aria-label="现有赞助商"[\s\S]*?sponsorLogos\.map/);
+  assert.doesNotMatch(home.match(/const sponsorLogos = \[([\s\S]*?)\n\];/)?.[1] ?? "", /RightAPI/i);
+  assert.match(home, /<aside className="home-alumni-recommendation"/);
+  assert.match(home, /校友项目推荐/);
+  assert.match(home, /href="https:\/\/rightapi\.ai\/register\?aff=066c2467"/);
+  assert.match(home, /target="_blank"/);
+  assert.match(home, /rel="noopener noreferrer"/);
+  assert.match(home, /src="\/assets\/images\/Partners\/rightapi\.jpg" alt="" loading="lazy" decoding="async"/);
+  assert.match(home, /由吉甲学长运营，提供第三方 AI 模型 API 接入服务/);
+  assert.match(home, /第三方服务推荐，链接包含邀请参数/);
+  const logo = await readFile(new URL("../../../../public/assets/images/Partners/rightapi.jpg", import.meta.url));
+  assert.ok(logo.length > 1_000, "the supplied RightAPI logo should be included as a local asset");
+  assert.match(styles, /\.home-alumni-recommendation__card\s*\{[\s\S]*?background:\s*var\(--theme-card\)/);
+  assert.match(styles, /\.home-alumni-recommendation__card:focus-visible/);
+  assert.match(styles, /@media \(max-width: 359px\)[\s\S]*?\.home-alumni-recommendation__logo[\s\S]*?\.home-alumni-recommendation__description/);
+  assert.match(styles, /@media \(hover: hover\) and \(prefers-reduced-motion: no-preference\)[\s\S]*?\.home-alumni-recommendation__card:hover/);
+  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.home-alumni-recommendation__card/);
+});
+
 test("the five uploaded groups keep matching black and white SVG geometry with square source canvases", async () => {
   const groups = ["mechanical", "electrical-control", "vision", "ai", "operations"];
   for (const group of groups) {

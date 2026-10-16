@@ -294,6 +294,32 @@ function HomeSponsorSection() {
             </li>
           ))}
         </ul>
+
+        <aside className="home-alumni-recommendation" aria-labelledby="home-alumni-recommendation-heading">
+          <div className="home-alumni-recommendation__label">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent-primary">ALUMNI PROJECT</p>
+            <h3 id="home-alumni-recommendation-heading" className="mt-2 text-base font-semibold tracking-tight text-fg-primary sm:text-lg">
+              校友项目推荐
+            </h3>
+          </div>
+          <a
+            href="https://rightapi.ai/register?aff=066c2467"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="访问 RightAPI（第三方服务推荐，链接包含邀请参数）"
+            className="home-alumni-recommendation__card"
+          >
+            <span className="home-alumni-recommendation__logo" aria-hidden="true">
+              <img src="/assets/images/Partners/rightapi.jpg" alt="" loading="lazy" decoding="async" />
+            </span>
+            <span className="home-alumni-recommendation__copy">
+              <span className="home-alumni-recommendation__name">RightAPI</span>
+              <span className="home-alumni-recommendation__description">由吉甲学长运营，提供第三方 AI 模型 API 接入服务。</span>
+              <span className="home-alumni-recommendation__disclosure">第三方服务推荐，链接包含邀请参数</span>
+            </span>
+            <span className="home-alumni-recommendation__arrow" aria-hidden="true"><HomeArrowIcon /></span>
+          </a>
+        </aside>
       </div>
     </section>
   );
