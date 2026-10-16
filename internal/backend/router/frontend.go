@@ -118,10 +118,38 @@ func isStaticAssetPath(assetPath string) bool {
 }
 
 func setFrontendCacheHeader(c *gin.Context, name string) {
-	if strings.HasPrefix(name, "assets/") {
+	if isFingerprintFrontendAsset(name) {
 		c.Header("Cache-Control", "public, max-age=31536000, immutable")
 		return
 	}
 
 	c.Header("Cache-Control", "no-cache")
+}
+
+func isFingerprintFrontendAsset(name string) bool {
+	if !strings.HasPrefix(name, "assets/") {
+		return false
+	}
+
+	filename := path.Base(name)
+	stem := strings.TrimSuffix(filename, path.Ext(filename))
+	separator := strings.LastIndexByte(stem, '-')
+	if separator < 0 {
+		return false
+	}
+
+	hash := stem[separator+1:]
+	if len(hash) != 8 {
+		return false
+	}
+	for _, char := range hash {
+		if (char < 'a' || char > 'z') &&
+			(char < 'A' || char > 'Z') &&
+			(char < '0' || char > '9') &&
+			char != '_' && char != '-' {
+			return false
+		}
+	}
+
+	return true
 }
