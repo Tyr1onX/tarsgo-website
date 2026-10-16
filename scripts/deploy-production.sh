@@ -7,6 +7,11 @@ jijia_root="${JIJIA_ROOT:-/opt/jijia}"
 ssh_bin="${SSH_BIN:-ssh}"
 rsync_bin="${RSYNC_BIN:-rsync}"
 make_bin="${MAKE_BIN:-make}"
+require_offsite_backup="${DEPLOY_REQUIRE_OFFSITE_BACKUP:-0}"
+if [[ "$require_offsite_backup" != 0 && "$require_offsite_backup" != 1 ]]; then
+  echo "Production deploy aborted: DEPLOY_REQUIRE_OFFSITE_BACKUP must be 0 or 1." >&2
+  exit 2
+fi
 
 if [[ "$(git -C "$repo_root" rev-parse --is-inside-work-tree)" != true || -n "$(git -C "$repo_root" status --porcelain)" ]]; then
   echo "Production deploy aborted: run from a clean Git working tree." >&2
@@ -117,7 +122,13 @@ systemctl daemon-reload
 systemctl enable --now backup-production.timer
 INSTALL_BACKUP
 
-"$ssh_bin" -o BatchMode=yes "$target" "$jijia_root/jijia-backup.sh"
+if [[ "$require_offsite_backup" == 1 ]]; then
+  echo "production_backup_mode=offsite (local + Tencent, required before deployment)"
+  "$ssh_bin" -o BatchMode=yes "$target" "$jijia_root/jijia-backup.sh" --offsite
+else
+  echo "production_backup_mode=local (Tencent transfer skipped for this deployment)"
+  "$ssh_bin" -o BatchMode=yes "$target" "$jijia_root/jijia-backup.sh" --local-only
+fi
 if [[ "$safe_cleanup_performed" == 0 ]]; then
   "$ssh_bin" -o BatchMode=yes "$target" bash -s -- "$jijia_root" "$release_name" <"$repo_root/scripts/production-safe-cleanup.sh"
 fi

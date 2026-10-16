@@ -6,7 +6,7 @@
 ./scripts/deploy-production.sh
 ```
 
-发布脚本先只读确认当前生产镜像和 release，并记录它们作为新版本的 previous_stable，再读取根分区使用率。低于 85% 时继续；达到或超过 85% 时先执行一次安全清理，清理后仍达到或超过 85% 就退出。整个发布最多执行一次安全清理：如果入口检查未触发清理，而上传 release 和业务备份后达到高水位，就在 Docker build 前用这次清理机会。安全清理仅处理可回收 Docker build cache、超过 7 天保留期的本地备份、APT cache，以及能明确识别为 current 和 previous_stable 之外的 Jijia 镜像与 release；无法明确识别回滚版本时会保留所有 Jijia 镜像和 release。它不会清理 volume、MariaDB 数据、uploads 或其他项目资源。脚本还会验证 current release 文件清单完整、SHA256 正确且镜像 tag 后缀与 release commit.txt 一致；随后在开始发布前执行一份完整业务备份。
+发布脚本先只读确认当前生产镜像和 release，并记录它们作为新版本的 previous_stable，再读取根分区使用率。低于 85% 时继续；达到或超过 85% 时先执行一次安全清理，清理后仍达到或超过 85% 就退出。整个发布最多执行一次安全清理：如果入口检查未触发清理，而上传 release 和业务备份后达到高水位，就在 Docker build 前用这次清理机会。安全清理仅处理可回收 Docker build cache、超过 7 天保留期的本地备份、APT cache，以及能明确识别为 current 和 previous_stable 之外的 Jijia 镜像与 release；无法明确识别回滚版本时会保留所有 Jijia 镜像和 release。它不会清理 volume、MariaDB 数据、uploads 或其他项目资源。脚本还会验证 current release 文件清单完整、SHA256 正确且镜像 tag 后缀与 release commit.txt 一致；随后在开始发布前执行一份本地完整业务备份（验证成功后才切换应用，不等待腾讯云上传）。
 
 ## 首次异机备份配置
 
@@ -23,9 +23,11 @@
 - `compose.yaml`、`.env`、`app.env` 配置快照
 - 对归档文件计算的 SHA256 校验文件
 
-本地归档和配置使用仅 root 可读权限。备份先在生产机生成、压缩并校验，再通过 SCP 复制到腾讯云；腾讯云重新校验 SHA256。只有本地校验、复制和远端校验全部成功后，才执行生产本地 7 天、腾讯云 30 天保留。失败时保留旧备份，失败的新本地临时归档会清理。
+本地归档和配置使用仅 root 可读权限。备份先在生产机生成、压缩并校验，再通过 SCP 复制到腾讯云；腾讯云重新校验 SHA256。**每日定时异机备份**只有本地校验、复制和远端校验全部成功后，才执行生产本地 7 天、腾讯云 30 天保留。失败时保留旧备份，失败的新本地临时归档会清理。**普通部署前备份**只在生产本地生成完整数据库、上传文件及配置归档，执行完整性与 SHA256 校验、7 天本地保留；不通过 SCP 上传腾讯云。
 
-systemd timer 每天 04:00 UTC 运行 `backup-production.service`。正式发布开始前也会立即执行一次备份。
+systemd timer 每天 04:00 UTC（北京时间 12:00）运行 `backup-production.service`，无参数调用备份脚本，**仍会上传腾讯云并校验**。普通发布前执行 `jijia-backup.sh --local-only`；当发布包含重大数据库结构调整等高风险操作时，执行 `DEPLOY_REQUIRE_OFFSITE_BACKUP=1 ./scripts/deploy-production.sh`，强制在部署前完成本地与腾讯云异机备份及双端校验。
+
+部署仍必须等待本地完整备份通过；不能因腾讯云网络问题阻塞**普通代码更新**，但该优化不代表取消异机灾难恢复。若每日异机备份长期失败，需要及时处理（当前脚本未建立超过 36 小时的独立告警，不能假定有监控）。
 
 ## 发布、健康检查与 retention
 
