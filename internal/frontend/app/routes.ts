@@ -7,6 +7,7 @@ export default [
   route("events-and-honors", "routes/events-and-honors.tsx"),
   route("team-history", "routes/team-history.tsx"),
   route("join", "routes/join.tsx"),
+  route("daily-signal", "routes/daily-signal.tsx"),
   route("micro-specialties/low-altitude-intelligent-sensing-control", "routes/micro-specialty-low-altitude.tsx"),
   route("login", "routes/login.tsx"),
   route("register", "routes/register.tsx"),

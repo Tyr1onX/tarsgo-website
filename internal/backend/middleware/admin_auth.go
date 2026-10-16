@@ -21,6 +21,39 @@ type sessionReader interface {
 	CookieSameSite() http.SameSite
 }
 
+// OptionalAuthenticated attaches a valid session when one is present while
+// allowing public pages to continue as anonymous visitors.
+func OptionalAuthenticated(service sessionReader) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		token, err := c.Cookie(service.CookieName())
+		if err != nil || strings.TrimSpace(token) == "" {
+			c.Next()
+			return
+		}
+
+		user, err := service.CurrentUser(c.Request.Context(), token)
+		if err != nil {
+			var serviceErr *auth.ServiceError
+			if errors.As(err, &serviceErr) {
+				if serviceErr.Status == http.StatusUnauthorized || serviceErr.Status == http.StatusForbidden {
+					clearAuthCookie(c, service)
+					c.Next()
+					return
+				}
+				writeAPIError(c, serviceErr.Status, serviceErr.Message)
+				c.Abort()
+				return
+			}
+			writeAPIError(c, http.StatusInternalServerError, "服务器内部错误")
+			c.Abort()
+			return
+		}
+
+		c.Set(sessionUserContextKey, user)
+		c.Next()
+	}
+}
+
 func RequireAuthenticated(service sessionReader) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		token, err := c.Cookie(service.CookieName())

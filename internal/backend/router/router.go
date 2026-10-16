@@ -15,6 +15,7 @@ import (
 	"tarsgo-backend/middleware"
 	"tarsgo-backend/service/adminuser"
 	"tarsgo-backend/service/auth"
+	"tarsgo-backend/service/dailysignal"
 	"tarsgo-backend/service/email"
 	"tarsgo-backend/service/emailtemplate"
 	"tarsgo-backend/service/recruitmentanalytics"
@@ -73,6 +74,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	templateStore := emailtemplate.NewGormStore(db)
 	systemConfigService := systemconfig.NewServiceWithTemplateStore(cfg.Email, templateStore, authService)
 	systemConfigHandler := handler.NewSystemConfigHandler(systemConfigService, systemConfigService)
+	dailySignalHandler := handler.NewDailySignalHandler(dailysignal.NewService(dailysignal.NewGormRepository(db)))
 
 	engine.GET("/healthz", healthHandler.Get)
 
@@ -93,6 +95,15 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	accountSessionAPI.POST("/switch", authHandler.SwitchAccountSession)
 	accountSessionAPI.DELETE("/:id", authHandler.RemoveAccountSession)
 	accountSessionAPI.POST("/logout-all", authHandler.LogoutAllAccounts)
+
+	dailySignalPublicAPI := api.Group("/daily-signals")
+	dailySignalPublicAPI.Use(middleware.OptionalAuthenticated(authService))
+	dailySignalPublicAPI.GET("", dailySignalHandler.GetArchive)
+	dailySignalWriteAPI := api.Group("/daily-signals")
+	dailySignalWriteAPI.Use(requireSameOriginRequest(cfg), middleware.RequireAuthenticated(authService))
+	dailySignalWriteAPI.POST("", dailySignalHandler.SendToday)
+	dailySignalWriteAPI.PATCH("/today/mood", dailySignalHandler.SetTodayMood)
+	dailySignalWriteAPI.DELETE("/:date/mood", dailySignalHandler.DeleteHistoricalMood)
 
 	adminAPI := api.Group("/admin")
 	adminAPI.Use(middleware.RequireAdmin(authService))
@@ -199,6 +210,18 @@ func requireAccountActionOrigin(cfg *config.Config) gin.HandlerFunc {
 			return
 		}
 		if strings.EqualFold(strings.TrimSpace(c.GetHeader("Sec-Fetch-Site")), "cross-site") {
+			c.AbortWithStatusJSON(403, gin.H{"code": 403, "message": "请求来源校验失败", "data": nil})
+			return
+		}
+		c.Next()
+	}
+}
+
+func requireSameOriginRequest(cfg *config.Config) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		origin := strings.TrimSpace(c.GetHeader("Origin"))
+		if !isSameOriginOrAllowed(origin, c, cfg.CORS.AllowedOrigins, cfg.App.Env) ||
+			strings.EqualFold(strings.TrimSpace(c.GetHeader("Sec-Fetch-Site")), "cross-site") {
 			c.AbortWithStatusJSON(403, gin.H{"code": 403, "message": "请求来源校验失败", "data": nil})
 			return
 		}

@@ -42,6 +42,7 @@ jobs:
           pnpm run test:workbench
           pnpm run test:email-templates
           pnpm run test:auth-flow
+          pnpm run test:daily-signal
         working-directory: internal/frontend
       - name: Typecheck frontend
         run: pnpm run typecheck
