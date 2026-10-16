@@ -135,6 +135,12 @@ test("吉甲基地欢迎访客并为已登录用户打开工作空间，首页�
   assert.match(home, /<HomeVisualNavigation \/>/);
   assert.match(styles, /\.home-base-feature\s*\{[\s\S]*?border-block/);
   assert.match(styles, /\.home-base-feature__radar::before/);
+  assert.match(home, /home-base-feature__radar-axis--horizontal/);
+  assert.match(home, /DAILY SIGNAL · BASE 01/);
+  assert.match(styles, /\.home-base-feature\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1\.2fr\)/);
+  assert.match(styles, /\.home-base-feature__radar-register/);
+  assert.match(styles, /@media \(hover: hover\) and \(prefers-reduced-motion: no-preference\)[\s\S]*?\.home-base-feature:hover \.home-base-feature__radar/);
+  assert.match(styles, /@media \(max-width: 639px\)[\s\S]*?\.home-base-feature__radar \{ width: 10\.5rem/);
   assert.doesNotMatch(styles, /\.home-space-layout|\.home-space-entry/);
   assert.match(basePage, /<PublicFooter \/>/);
   assert.match(basePage, /gijia-base__workspace--collapsed/);

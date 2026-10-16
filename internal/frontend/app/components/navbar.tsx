@@ -47,6 +47,11 @@ type NavbarProps = {
   variant?: "default" | "micro-specialty";
 };
 
+type GroupIdentityStatus =
+  | { userId: number; status: "loading" }
+  | { userId: number; status: "ready"; state: UserGroupConfirmationState }
+  | { userId: number; status: "error" };
+
 export function Navbar({ currentUser, authError = false, variant = "default" }: NavbarProps) {
   const visibleNavLinks = variant === "micro-specialty" ? microSpecialtyNavLinks : navLinks;
   const [observedUser, setObservedUser] = useState<AuthUser | null | undefined>(() =>
@@ -54,11 +59,13 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
   );
   const visibleUser = currentUser === undefined ? observedUser : currentUser;
   const [identityRefreshError, setIdentityRefreshError] = useState(false);
-  const [groupState, setGroupState] = useState<{ userId: number; state: UserGroupConfirmationState } | null>(null);
-  const groupIdentity = groupState && visibleUser && groupState.userId === visibleUser.id
+  const [groupState, setGroupState] = useState<GroupIdentityStatus | null>(null);
+  const groupStateMatchesUser = Boolean(visibleUser && groupState?.userId === visibleUser.id);
+  const groupIdentityLoading = Boolean(visibleUser && (!groupStateMatchesUser || groupState?.status === "loading"));
+  const groupIdentity = groupStateMatchesUser && groupState?.status === "ready"
     ? resolveGroupIdentity(groupState.state)
     : null;
-  const visibleAuthError = !visibleUser && (authError || identityRefreshError);
+  const visibleAuthError = visibleUser === undefined && (authError || identityRefreshError);
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -71,41 +78,44 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
   const mobileMenuRef = useRef<HTMLDivElement | null>(null);
   const desktopNavLinksRef = useRef<HTMLDivElement | null>(null);
   const desktopAuthAreaRef = useRef<HTMLDivElement | null>(null);
+  const identityRequestGenerationRef = useRef(0);
   const location = useLocation();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
 
   useEffect(() => {
     let disposed = false;
-    let identityRequestGeneration = 0;
     const unsubscribeAuth = subscribeAuthStateChange((user) => {
-      identityRequestGeneration += 1;
+      identityRequestGenerationRef.current += 1;
       if (!disposed) {
         setObservedUser(user);
         setIdentityRefreshError(false);
+        setUserMenuOpen(false);
       }
     });
     const unsubscribeAccount = subscribeAccountSessionChange(() => {
-      const requestGeneration = ++identityRequestGeneration;
+      const requestGeneration = ++identityRequestGenerationRef.current;
       setObservedUser(undefined);
+      setGroupState(null);
       setIdentityRefreshError(false);
+      setUserMenuOpen(false);
       void getOptionalCurrentUser({ force: true })
         .then((user) => {
-          if (!disposed && requestGeneration === identityRequestGeneration) setObservedUser(user);
+          if (!disposed && requestGeneration === identityRequestGenerationRef.current) setObservedUser(user);
         })
         .catch(() => {
-          if (!disposed && requestGeneration === identityRequestGeneration) setIdentityRefreshError(true);
+          if (!disposed && requestGeneration === identityRequestGenerationRef.current) setIdentityRefreshError(true);
         });
     });
 
     if (currentUser === undefined) {
-      const initialGeneration = identityRequestGeneration;
+      const initialGeneration = identityRequestGenerationRef.current;
       void getOptionalCurrentUser()
         .then((user) => {
-          if (!disposed && initialGeneration === identityRequestGeneration) setObservedUser(user);
+          if (!disposed && initialGeneration === identityRequestGenerationRef.current) setObservedUser(user);
         })
         .catch(() => {
-          if (!disposed && initialGeneration === identityRequestGeneration) setIdentityRefreshError(true);
+          if (!disposed && initialGeneration === identityRequestGenerationRef.current) setIdentityRefreshError(true);
         });
     }
 
@@ -118,19 +128,20 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
 
   useEffect(() => {
     const userId = visibleUser?.id;
+    setUserMenuOpen(false);
     if (!userId) {
       setGroupState(null);
       return;
     }
 
     let active = true;
-    setGroupState(null);
+    setGroupState({ userId, status: "loading" });
     void getUserGroupConfirmationState()
       .then((state) => {
-        if (active) setGroupState({ userId, state });
+        if (active) setGroupState({ userId, status: "ready", state });
       })
       .catch(() => {
-        if (active) setGroupState(null);
+        if (active) setGroupState({ userId, status: "error" });
       });
     return () => { active = false; };
   }, [visibleUser?.id]);
@@ -274,6 +285,20 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
     }
   }
 
+  function retryIdentityCheck() {
+    const requestGeneration = ++identityRequestGenerationRef.current;
+    setObservedUser(undefined);
+    setGroupState(null);
+    setIdentityRefreshError(false);
+    void getOptionalCurrentUser({ force: true })
+      .then((user) => {
+        if (requestGeneration === identityRequestGenerationRef.current) setObservedUser(user);
+      })
+      .catch(() => {
+        if (requestGeneration === identityRequestGenerationRef.current) setIdentityRefreshError(true);
+      });
+  }
+
   function getAccountSwitchHref() {
     const redirectTarget = `${location.pathname}${location.search}${location.hash}`;
     const query = new URLSearchParams({ redirect: redirectTarget, addAccount: "1" });
@@ -327,8 +352,8 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
           {/* Auth area */}
           {variant === "default" ? <div ref={desktopAuthAreaRef} className="hidden w-[220px] shrink-0 items-center justify-end gap-3 xl:flex">
             {visibleUser === undefined ? (
-              visibleAuthError ? <Link to="/login" className="text-sm text-fg-muted hover:text-accent-primary">验证失败，重试</Link> :
-                <span className="h-10 w-28 animate-pulse rounded-full border border-white/10 bg-white/[0.06]" role="status" aria-label="正在确认登录状态" />
+              visibleAuthError ? <button type="button" onClick={retryIdentityCheck} className="navbar-auth-loading navbar-auth-loading--error">重新确认登录状态</button> :
+                <NavbarAuthLoadingStatus />
             ) : visibleUser ? (
               <div ref={userMenuRef} className="relative">
                 <button
@@ -356,7 +381,7 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
                   <UserAvatar user={visibleUser} className="h-8 w-8" textClassName="text-sm" />
                   <span className="navbar-profile-identity">
                     <span className="navbar-profile-identity__name">{getUserDisplayName(visibleUser)}</span>
-                    {groupIdentity ? <GroupIdentityBadge identity={groupIdentity} compact /> : <span className="navbar-profile-identity__role">{getAuthUserRoleLabel(visibleUser)}</span>}
+                    <NavbarIdentityDetail user={visibleUser} identity={groupIdentity} loading={groupIdentityLoading} compact />
                   </span>
                   <svg
                     className={`h-4 w-4 transition-all duration-200 ${
@@ -376,24 +401,24 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
                 {userMenuOpen ? (
                   <div
                     role="menu"
-                    className="animate-user-menu-in absolute right-0 z-20 mt-3 w-64 overflow-hidden rounded-2xl border border-border-subtle bg-surface-primary/95 shadow-2xl shadow-black/40 backdrop-blur-xl"
+                    className="navbar-user-menu animate-user-menu-in absolute right-0 z-20 mt-2.5 w-60 overflow-hidden rounded-xl border border-border-subtle bg-surface-primary/95 shadow-2xl shadow-black/40 backdrop-blur-xl"
                   >
-                    <div className="flex items-center gap-3 border-b border-border-subtle/80 bg-gradient-to-b from-accent-primary/5 to-transparent px-4 py-2.5">
-                      <UserAvatar user={visibleUser} className="h-9 w-9" textClassName="text-sm" />
+                    <div className="flex items-center gap-2.5 border-b border-border-subtle/80 bg-gradient-to-b from-accent-primary/5 to-transparent px-3 py-2">
+                      <UserAvatar user={visibleUser} className="h-8 w-8" textClassName="text-sm" />
                       <div className="min-w-0">
                         <div className="truncate text-sm font-semibold text-fg-primary">{getUserDisplayName(visibleUser)}</div>
                         <div className="truncate text-xs text-fg-muted">{visibleUser.email}</div>
-                        <div className="mt-1">{groupIdentity ? <GroupIdentityBadge identity={groupIdentity} /> : <span className="navbar-user-role">{getAuthUserRoleLabel(visibleUser)}</span>}</div>
+                        <div className="mt-1"><NavbarIdentityDetail user={visibleUser} identity={groupIdentity} loading={groupIdentityLoading} /></div>
                       </div>
                     </div>
 
-                    <div className="p-1.5">
+                    <div className="p-1">
                       <Link
                         to={getDefaultDashboardPath(visibleUser.role.name)}
                         prefetch="render"
                         onClick={() => setUserMenuOpen(false)}
                         role="menuitem"
-                        className="group/item flex items-center gap-2.5 rounded-xl px-3 py-2 text-sm text-fg-muted transition-colors hover:bg-white/5 hover:text-fg-primary"
+                        className="group/item flex min-h-10 items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-fg-muted transition-colors hover:bg-white/5 hover:text-fg-primary focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent-primary"
                       >
                         <svg
                           className="h-4 w-4 text-fg-dim transition-colors group-hover/item:text-accent-primary"
@@ -414,7 +439,7 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
                         prefetch="render"
                         onClick={() => setUserMenuOpen(false)}
                         role="menuitem"
-                        className="group/item flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm text-fg-muted transition-colors hover:bg-white/5 hover:text-fg-primary"
+                        className="group/item flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm text-fg-muted transition-colors hover:bg-white/5 hover:text-fg-primary focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent-primary"
                       >
                         切换或添加账号
                       </Link>
@@ -424,7 +449,7 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
                         onClick={handleLogout}
                         disabled={loggingOut}
                         role="menuitem"
-                        className="group/item flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm text-rose-300 transition-colors hover:bg-rose-500/10 hover:text-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="group/item flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm text-rose-300 transition-colors hover:bg-rose-500/10 hover:text-rose-200 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-rose-300 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <svg
                           className="h-4 w-4 text-rose-400/70 transition-colors group-hover/item:text-rose-300"
@@ -462,16 +487,22 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
           <button
             ref={mobileMenuButtonRef}
             type="button"
-            className={"navbar-menu-toggle xl:hidden" + (visibleUser ? " navbar-menu-toggle--identity" : "")}
+            className={"navbar-menu-toggle xl:hidden" + (visibleUser ? " navbar-menu-toggle--identity" : visibleUser === undefined ? " navbar-menu-toggle--loading" : "")}
             onClick={() => setMenuOpen((open) => !open)}
             aria-label={visibleUser
               ? (menuOpen ? "关闭导航菜单" : "展开导航菜单") + "，" + getUserDisplayName(visibleUser) + "，" + (groupIdentity?.name ?? getAuthUserRoleLabel(visibleUser))
+              : visibleUser === undefined
+                ? (menuOpen ? "关闭导航菜单" : "展开导航菜单") + "，正在确认登录状态"
               : menuOpen ? "关闭导航菜单" : "展开导航菜单"}
             aria-expanded={menuOpen}
             aria-controls="site-mobile-menu"
           >
-            {visibleUser ? <UserAvatar user={visibleUser} className="h-7 w-7" textClassName="text-xs" /> : null}
-            {groupIdentity ? <img className="navbar-menu-group-mark" src={`/assets/images/Groups/${groupIdentity.mark}-black.svg`} alt="" aria-hidden="true" /> : null}
+            {visibleUser ? (
+              <span className="navbar-menu-avatar">
+                <UserAvatar user={visibleUser} className="h-7 w-7" textClassName="text-xs" />
+                {groupIdentity ? <span className="navbar-menu-group-mark" aria-hidden="true"><img src={`/assets/images/Groups/${groupIdentity.mark}-black.svg`} alt="" /></span> : groupIdentityLoading ? <span className="navbar-menu-group-mark navbar-menu-group-mark--loading" aria-hidden="true" /> : null}
+              </span>
+            ) : visibleUser === undefined ? <span className="navbar-menu-loading-avatar" aria-hidden="true" /> : null}
             <svg
               className="w-6 h-6"
               fill="none"
@@ -523,14 +554,14 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
             })}
           </div>
           {variant === "default" && visibleUser === undefined ? (
-            visibleAuthError ? <Link to="/login" className="mt-4 text-sm text-fg-muted" onClick={closeMobileMenu}>验证失败，重试</Link> :
-              <div className="mt-4 h-10 w-32 animate-pulse rounded-full bg-white/[0.06]" role="status" aria-label="正在确认登录状态" />
+            visibleAuthError ? <button type="button" className="navbar-auth-loading navbar-auth-loading--mobile navbar-auth-loading--error" onClick={retryIdentityCheck}>重新确认登录状态</button> :
+              <NavbarAuthLoadingStatus mobile />
           ) : variant === "default" && visibleUser ? (
             <div className="navbar-mobile-account">
               <UserAvatar user={visibleUser} className="h-8 w-8" textClassName="text-xs" />
               <span className="navbar-mobile-account__identity">
                 <span className="navbar-mobile-account__name">{getUserDisplayName(visibleUser)}</span>
-                {groupIdentity ? <GroupIdentityBadge identity={groupIdentity} /> : <span className="navbar-user-role">{getAuthUserRoleLabel(visibleUser)}</span>}
+                <NavbarIdentityDetail user={visibleUser} identity={groupIdentity} loading={groupIdentityLoading} />
               </span>
               <div className="navbar-mobile-account__actions">
                 <Link
@@ -621,6 +652,40 @@ function UserAvatar({
     <div className={`${className} flex items-center justify-center rounded-full bg-accent-primary/15 text-accent-primary`}>
       <span className={`font-semibold ${textClassName}`}>{getUserInitial(user)}</span>
     </div>
+  );
+}
+
+function NavbarAuthLoadingStatus({ mobile = false }: { mobile?: boolean }) {
+  return (
+    <div
+      className={`navbar-auth-loading${mobile ? " navbar-auth-loading--mobile" : ""}`}
+      role="status"
+      aria-label="正在确认登录状态"
+      aria-busy="true"
+    >
+      <span className="navbar-auth-loading__avatar" aria-hidden="true" />
+      <span>正在确认登录状态</span>
+    </div>
+  );
+}
+
+function NavbarIdentityDetail({
+  user,
+  identity,
+  loading,
+  compact = false,
+}: {
+  user: AuthUser;
+  identity: GroupIdentity | null;
+  loading: boolean;
+  compact?: boolean;
+}) {
+  return (
+    <span className={`navbar-identity-detail${compact ? " navbar-identity-detail--compact" : ""}`}>
+      {identity ? <GroupIdentityBadge identity={identity} compact={compact} /> : loading ? (
+        <span className="navbar-identity-detail__loading" role="status">正在确认组别</span>
+      ) : <span className="navbar-user-role">{getAuthUserRoleLabel(user)}</span>}
+    </span>
   );
 }
 
