@@ -91,7 +91,11 @@ test("heatmap date details reserve the same mood and action row for every hovere
 test("the communication terminal uses static signal detail with a restrained, hover-only response", () => {
   assert.match(dailySignalStyles, /\.daily-signal__orbit::before,[\s\S]*?\.daily-signal__orbit::after/);
   assert.match(dailySignalStyles, /daily-signal__signal-trace/);
-  assert.match(workspace, /TX \/ 01/);
+  assert.match(workspace, /aria-label="基地回信终端"/);
+  assert.match(workspace, /daily-signal__reply-copy/);
+  assert.match(workspace, /getDailySignalReply\(currentUser\?\.id/);
+  assert.doesNotMatch(workspace, /TX \/ 01|CHANNEL|VISIBILITY|daily-signal__terminal-index/);
+  assert.match(dailySignalStyles, /daily-signal__terminal\[data-transmitting="true"\] \.daily-signal__signal-ripple \{ animation: daily-signal-ripple 720ms ease-out 1/);
   assert.match(dailySignalStyles, /@media \(hover: hover\) and \(prefers-reduced-motion: no-preference\)[\s\S]*?\.daily-signal__terminal:hover \.daily-signal__orbit/);
   assert.doesNotMatch(dailySignalStyles, /daily-signal__orbit[^\n]*animation:[^\n]*infinite/);
   assert.match(dailySignalStyles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?transition-duration:\s*\.01ms !important/);
