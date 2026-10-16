@@ -23,14 +23,16 @@
         <div class="header-actions">
           <aside class="prototype-dock" aria-label="原型演示场景">
             <label for="sceneSelect"><span class="dock-dot" aria-hidden="true"></span><span class="dock-label-long">原型场景</span><span class="dock-label-short">预览</span></label>
-            <select id="sceneSelect" aria-label="切换原型演示场景（虚构数据，不会保存）">
+            <select id="sceneSelect" aria-label="切换原型演示场景（仅当前标签页的虚构数据）">
               <option value="first">首次访问</option>
               <option value="repeat">今天已签到 · 重复访问</option>
               <option value="signed-mood">今天已签到 · 高负载</option>
+              <option value="signed-debug">今天已签到 · 调试回信</option>
+              <option value="signed-now">刚刚收到回信</option>
               <option value="failure">发送失败 · 可重试</option>
               <option value="empty">空白档案</option>
             </select>
-            <span class="dock-caption">演示数据 · 不会保存</span>
+            <span class="dock-caption">虚构记录 · 当前标签页</span>
           </aside>
           <button class="theme-toggle" type="button" id="themeToggle" aria-label="切换到日间白金主题">
             <svg class="theme-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.3"/><path d="M12 2.5v2m0 15v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2.5 12h2m15 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
@@ -97,16 +99,28 @@
             </div>
             <div id="terminalMessage" class="terminal-message" role="status" aria-live="polite" hidden></div>
           </div>
-          <aside class="transmitter" aria-label="通信终端状态">
-            <div class="transmitter-head"><span class="mono">TX / 01</span><span>吉甲基地</span></div>
-            <div class="signal-orbit" id="signalOrbit" aria-hidden="true">
-              <span class="orbit orbit--outer"></span><span class="orbit orbit--mid"></span><span class="orbit orbit--inner"></span>
-              <span class="signal-core"><span class="signal-core__dot"></span></span>
-              <span class="signal-trace signal-trace--one"></span><span class="signal-trace signal-trace--two"></span>
+          <aside class="transmitter" id="replyTerminal" aria-label="基地回信终端" data-reply-state="waiting">
+            <div class="transmitter-head"><span class="mono">BASE REPLY / 01</span><span class="transmitter-head__base">吉甲基地</span></div>
+            <div class="reply-signal-row">
+              <div class="signal-orbit" id="signalOrbit" aria-hidden="true">
+                <span class="orbit orbit--outer"></span><span class="orbit orbit--mid"></span><span class="orbit orbit--inner"></span>
+                <span class="signal-core"><span class="signal-core__dot"></span></span>
+                <span class="signal-trace signal-trace--one"></span><span class="signal-trace signal-trace--two"></span>
+                <span class="signal-ripple"></span>
+              </div>
+              <div class="transmitter-state" role="status" aria-live="polite">
+                <span class="transmitter-state__label" id="terminalStateLabel">TERMINAL STATE</span>
+                <strong id="terminalState">安静待命</strong>
+                <span class="transmitter-state__detail" id="terminalStateDetail">基地在这里，今天按自己的节奏来。</span>
+              </div>
             </div>
-            <div class="transmitter-state"><span class="transmitter-state__label">TERMINAL STATE</span><strong id="terminalState">等待发送</strong></div>
-            <div class="transmitter-readout"><span>CHANNEL</span><strong>BASE—01</strong><span class="readout-rule"></span><span>SECURE</span><strong><span class="secure-dot"></span> PRIVATE</strong></div>
-            <span class="transmitter-index">GJ / 026</span>
+            <article class="reply-card" id="replyCard" aria-live="polite" aria-atomic="true">
+              <div class="reply-card__head"><span id="replyCardTitle">终端问候</span><span class="reply-card__channel" id="replyCardChannel">WAITING</span></div>
+              <p id="replyCopy">雷达静静亮着。你路过时，基地就在这里。</p>
+              <button class="reply-replay" type="button" id="replayReply" hidden>重看这次回应</button>
+            </article>
+            <div class="transmitter-readout"><span>CHANNEL</span><strong>BASE—01</strong><span class="readout-rule"></span><span>VISIBILITY</span><strong><span class="secure-dot"></span> PRIVATE</strong></div>
+            <span class="sr-only" id="replayAnnouncement" aria-live="polite"></span>
           </aside>
           <span class="terminal-corner terminal-corner--tl" aria-hidden="true"></span><span class="terminal-corner terminal-corner--br" aria-hidden="true"></span>
         </section>

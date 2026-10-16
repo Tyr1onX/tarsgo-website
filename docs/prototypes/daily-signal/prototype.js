@@ -1,13 +1,22 @@
 const MOCK_TODAY = "2026-10-16";
+const DEMO_RECORD_KEY = `jijia-reply-terminal:${MOCK_TODAY}`;
 const root = document.documentElement;
 const panel = document.querySelector(".terminal-panel");
+const replyTerminal = document.querySelector("#replyTerminal");
 const sceneSelect = document.querySelector("#sceneSelect");
 const yearSelect = document.querySelector("#yearSelect");
 const heatmapGrid = document.querySelector("#heatmapGrid");
 const monthLabels = document.querySelector("#monthLabels");
 const dateDetail = document.querySelector("#dateDetail");
 const terminalState = document.querySelector("#terminalState");
+const terminalStateDetail = document.querySelector("#terminalStateDetail");
 const terminalMessage = document.querySelector("#terminalMessage");
+const replyCard = document.querySelector("#replyCard");
+const replyCardTitle = document.querySelector("#replyCardTitle");
+const replyCardChannel = document.querySelector("#replyCardChannel");
+const replyCopyElement = document.querySelector("#replyCopy");
+const replayButton = document.querySelector("#replayReply");
+const replayAnnouncement = document.querySelector("#replayAnnouncement");
 const moodGrid = document.querySelector("#moodGrid");
 const moodHeadingMode = document.querySelector("#moodHeadingMode");
 const moodReadonlyNote = document.querySelector("#moodReadonlyNote");
@@ -20,6 +29,8 @@ const scenarios = {
   first: { signed: false, mood: null, empty: false, failed: false },
   repeat: { signed: true, mood: null, empty: false, failed: false },
   "signed-mood": { signed: true, mood: "高负载中", empty: false, failed: false },
+  "signed-debug": { signed: true, mood: "正在调试", replyId: "compiler-joke", empty: false, failed: false },
+  "signed-now": { signed: true, mood: null, empty: false, failed: false },
   failure: { signed: false, mood: null, empty: false, failed: true },
   empty: { signed: false, mood: null, empty: true, failed: false },
 };
@@ -32,6 +43,7 @@ let selectedDate = MOCK_TODAY;
 let focusedDate = MOCK_TODAY;
 let transientTimer = 0;
 let failureCanRecover = false;
+let replayTimer = 0;
 
 function parseDate(key) {
   const [year, month, day] = key.split("-").map(Number);
@@ -59,6 +71,138 @@ function stableHash(value) {
     hash = Math.imul(hash, 16777619);
   }
   return hash >>> 0;
+}
+
+const FALLBACK_REPLY = Object.freeze({
+  id: "fallback-thanks",
+  tone: "感谢",
+  text: "信号已收到。谢谢你愿意把今天留在这里。",
+});
+
+const REPLY_LIBRARY = Object.freeze([
+  { id: "thanks-note", tone: "感谢", text: "谢谢你把今天的一小段，寄到这里。" },
+  { id: "thanks-rhythm", tone: "日常", text: "信号收到。今天按自己的节奏走，也很好。" },
+  { id: "thanks-kept", tone: "感谢", text: "收到啦。愿这条记录替你轻轻收好今天。" },
+  { id: "good-bright", tone: "状态不错", text: "收到这份好状态啦。愿它陪你走过今天。" },
+  { id: "steady-thanks", tone: "稳定运行", text: "稳定运行，基地已为今天留档。谢谢你来。" },
+  { id: "tired-soft", tone: "有点疲惫", text: "收到啦。今天可以给自己留一点余地。" },
+  { id: "load-buffer", tone: "高负载中", text: "信号收到。任务队列很长，也请给自己留一点缓冲。" },
+  { id: "debug-progress", tone: "正在调试", text: "调试中的每一步，也值得被记下来。愿下一次编译顺利。" },
+  { id: "robot-arrival", tone: "机器人轻梗", text: "信号已到站，机器人今天不用返工。" },
+  { id: "ops-queue", tone: "运营轻梗", text: "基地收到啦，值班台今天不催进度，只负责认真收信。" },
+  { id: "compiler-joke", tone: "工程轻梗", text: "信号已收；这一帧无需返工。" },
+]);
+
+const REPLY_IDS_BY_MOOD = Object.freeze({
+  none: ["thanks-note", "thanks-rhythm", "thanks-kept", "ops-queue"],
+  "状态不错": ["good-bright", "robot-arrival"],
+  "稳定运行": ["steady-thanks", "ops-queue"],
+  "有点疲惫": ["tired-soft"],
+  "高负载中": ["load-buffer", "ops-queue"],
+  "正在调试": ["debug-progress", "compiler-joke"],
+});
+
+function getReplyById(id) {
+  try {
+    return REPLY_LIBRARY.find((reply) => reply.id === id) ?? FALLBACK_REPLY;
+  } catch {
+    return FALLBACK_REPLY;
+  }
+}
+
+function chooseReply(mood) {
+  try {
+    const options = REPLY_IDS_BY_MOOD[mood ?? "none"] ?? REPLY_IDS_BY_MOOD.none;
+    const index = stableHash(`${MOCK_TODAY}:${mood ?? "none"}`) % options.length;
+    return getReplyById(options[index]);
+  } catch {
+    return FALLBACK_REPLY;
+  }
+}
+
+function readDemoReply() {
+  try {
+    const record = JSON.parse(window.sessionStorage.getItem(DEMO_RECORD_KEY) ?? "null");
+    const savedReply = REPLY_LIBRARY.find((reply) => reply.id === record?.replyId);
+    if (!record || record.date !== MOCK_TODAY || !savedReply) return null;
+    return {
+      date: MOCK_TODAY,
+      mood: typeof record.mood === "string" && Object.hasOwn(REPLY_IDS_BY_MOOD, record.mood) ? record.mood : null,
+      replyId: savedReply.id,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function saveDemoReply(mood, reply) {
+  try {
+    window.sessionStorage.setItem(DEMO_RECORD_KEY, JSON.stringify({ date: MOCK_TODAY, mood, replyId: reply.id }));
+  } catch {
+    // The prototype keeps working even when the browser blocks session storage.
+  }
+}
+
+function clearDemoReply() {
+  try {
+    window.sessionStorage.removeItem(DEMO_RECORD_KEY);
+  } catch {
+    // The prototype can still switch scenarios without browser storage.
+  }
+}
+
+function setReplyTerminal(state, reply = FALLBACK_REPLY, { arrive = false } = {}) {
+  const messages = {
+    waiting: {
+      status: "安静待命",
+      detail: "基地在这里，今天按自己的节奏来。",
+      title: "终端问候",
+      channel: "WAITING",
+      copy: "雷达静静亮着。你路过时，基地就在这里。",
+    },
+    sending: {
+      status: "正在接收",
+      detail: "一条信号正在轻轻抵达。",
+      title: "信号入站",
+      channel: "INBOUND",
+      copy: "基地正认真接收你的今天。",
+    },
+    received: {
+      status: "回信已抵达",
+      detail: "今天的信号，基地记下了。",
+      title: "基地回信",
+      channel: "REPLY / 01",
+      copy: reply?.text ?? FALLBACK_REPLY.text,
+    },
+    failed: {
+      status: "稍后再试",
+      detail: "链路稍后再试，也完全可以。",
+      title: "信号暂未抵达",
+      channel: "RETRY",
+      copy: "签到还没有完成。等你方便时，再试一次。",
+    },
+  };
+  const message = messages[state] ?? messages.waiting;
+  replyTerminal.dataset.replyState = state in messages ? state : "waiting";
+  terminalState.textContent = message.status;
+  terminalStateDetail.textContent = message.detail;
+  replyCardTitle.textContent = message.title;
+  replyCardChannel.textContent = message.channel;
+  replyCopyElement.textContent = message.copy;
+  replayButton.hidden = state !== "received";
+  replyCard.classList.remove("is-arriving");
+  if (arrive) requestAnimationFrame(() => replyCard.classList.add("is-arriving"));
+}
+
+function replayReply() {
+  if (!signedToday) return;
+  window.clearTimeout(replayTimer);
+  replyTerminal.classList.remove("is-replaying");
+  void replyTerminal.offsetWidth;
+  replyTerminal.classList.add("is-replaying");
+  replayAnnouncement.textContent = "基地回信已重新呈现。";
+  const reduceMotion = root.dataset.motion === "reduce" || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  replayTimer = window.setTimeout(() => replyTerminal.classList.remove("is-replaying"), reduceMotion ? 30 : 760);
 }
 
 function makeFictionalRecords(year) {
@@ -336,12 +480,14 @@ function setMessage(text, kind = "") {
   terminalMessage.hidden = !text;
 }
 
-function applyScenario(name) {
+function applyScenario(name, { storedReply = null } = {}) {
   window.clearTimeout(transientTimer);
+  window.clearTimeout(replayTimer);
+  replyTerminal.classList.remove("is-replaying");
   scene = name in scenarios ? name : "first";
   const config = scenarios[scene];
   signedToday = config.signed;
-  selectedMood = config.mood;
+  selectedMood = storedReply && scene === "repeat" ? storedReply.mood : config.mood;
   recordSet = new Set();
   failureCanRecover = config.failed;
   selectedDate = MOCK_TODAY;
@@ -350,11 +496,22 @@ function applyScenario(name) {
   panel.dataset.mode = signedToday ? "signed" : config.failed ? "error" : "ready";
   sendButton.disabled = false;
   sendButton.querySelector(".send-button__label").textContent = config.failed ? "重新发送信号" : "发送今日信号";
-  terminalState.textContent = signedToday ? "信号已收到" : config.failed ? "发送未完成" : "等待发送";
+  const savedReply = signedToday
+    ? storedReply ?? (scene === "repeat" ? readDemoReply() : null) ?? (config.replyId ? { mood: selectedMood, replyId: config.replyId } : null)
+    : null;
+  const reply = signedToday
+    ? getReplyById(savedReply?.replyId ?? chooseReply(selectedMood).id)
+    : null;
+  if (scene === "first" || config.failed || config.empty) clearDemoReply();
+  else if (signedToday) saveDemoReply(selectedMood, reply);
+  sceneSelect.value = scene;
   syncMoodControls();
+  setReplyTerminal(config.failed ? "failed" : signedToday ? "received" : "waiting", reply);
 
   if (scene === "repeat") setMessage("今天已经见过你啦。谢谢你把这一天，也留在基地。", "success");
-  else if (scene === "signed-mood") setMessage("「高负载中」已收到。辛苦了，今天可以慢一点。", "success");
+  else if (scene === "signed-mood") setMessage("「高负载中」已收到。基地回信已为你留好。", "success");
+  else if (scene === "signed-debug") setMessage("今日信号已收到。", "success");
+  else if (scene === "signed-now") setMessage("今日信号已送达。", "success");
   else if (scene === "failure") setMessage("信号暂时没有送达。休息一下，再试一次也可以。", "error");
   else if (scene === "empty") setMessage("档案刚刚启程。什么时候想来，什么时候再发送。", "");
   else setMessage("");
@@ -377,26 +534,31 @@ function startSending() {
   panel.classList.add("is-transmitting");
   sendButton.disabled = true;
   sendButton.querySelector(".send-button__label").textContent = "正在发送…";
-  terminalState.textContent = "信号传输中";
-  setMessage("SIGNAL TRANSMITTING", "");
+  setReplyTerminal("sending");
+  setMessage("信号正在送往基地…", "");
 
   const reduceMotion = root.dataset.motion === "reduce" || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   transientTimer = window.setTimeout(() => {
     panel.classList.remove("is-transmitting");
     panel.dataset.mode = "signed";
     sendButton.disabled = false;
-    scene = "first";
-    sceneSelect.value = "first";
+    scene = "signed-now";
+    sceneSelect.value = scene;
     signedToday = true;
     recordSet.add(MOCK_TODAY);
     selectedDate = MOCK_TODAY;
     focusedDate = MOCK_TODAY;
     yearSelect.value = MOCK_TODAY.slice(0, 4);
     document.querySelector("#archiveYearLabel").textContent = yearSelect.value;
-    terminalState.textContent = "信号已收到";
-    setMessage(selectedMood
-      ? `今天的信号收到了。谢谢你分享「${selectedMood}」。`
-      : "今天的信号收到了。谢谢你又来到这里。", "success");
+    let reply = FALLBACK_REPLY;
+    try {
+      reply = chooseReply(selectedMood);
+    } catch {
+      // A missing copy still ends the demo sign-in and lights today's cell.
+    }
+    saveDemoReply(selectedMood, reply);
+    setReplyTerminal("received", reply, { arrive: !reduceMotion });
+    setMessage("今日信号已送达，今天的格点已点亮。", "success");
     syncMoodControls();
     renderHeatmap({ preserveScroll: false });
     scrollHeatmapToDate(MOCK_TODAY);
@@ -412,6 +574,7 @@ function toggleTheme() {
 
 document.querySelectorAll(".mood-option").forEach((button) => button.addEventListener("click", () => setMood(button.dataset.mood)));
 sendButton.addEventListener("click", startSending);
+replayButton.addEventListener("click", replayReply);
 sceneSelect.addEventListener("change", (event) => applyScenario(event.currentTarget.value));
 yearSelect.addEventListener("change", () => {
   document.querySelector("#archiveYearLabel").textContent = yearSelect.value;
@@ -429,6 +592,14 @@ if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
   root.dataset.motion = "reduce";
 }
 
-applyScenario("first");
+const requestedScene = new URLSearchParams(window.location.search).get("scene");
+const savedReply = readDemoReply();
+if (requestedScene && requestedScene in scenarios) {
+  applyScenario(requestedScene, { storedReply: requestedScene === "repeat" ? savedReply : null });
+} else if (savedReply) {
+  applyScenario("repeat", { storedReply: savedReply });
+} else {
+  applyScenario("first");
+}
 scrollHeatmapToDate(MOCK_TODAY);
 themeToggle.setAttribute("aria-label", "切换到日间白金主题");
