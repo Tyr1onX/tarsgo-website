@@ -1,6 +1,6 @@
 import type { AuthUser } from "~/lib/auth-client";
 
-export type DashboardMenuIconKey = "dashboard" | "people" | "registration" | "settings" | "analytics";
+export type DashboardMenuIconKey = "dashboard" | "signal" | "people" | "registration" | "settings" | "analytics";
 
 type DashboardAllowedRoles = readonly string[];
 
@@ -56,10 +56,25 @@ const USER_MENU: readonly DashboardMenuLink[] = [
   },
 ];
 
+const CORE_DASHBOARD_MENU: readonly DashboardMenuLink[] = [
+  {
+    key: "personal-workspace",
+    label: "个人工作台",
+    href: "/dashboard",
+    iconKey: "dashboard",
+  },
+  {
+    key: "daily-signal",
+    label: "每日通信",
+    href: "/dashboard/base",
+    iconKey: "signal",
+  },
+];
+
 const ADMIN_MENU: readonly DashboardMenuDefinition[] = [
   {
     key: "admin-panel",
-    label: "招新工作台",
+    label: "招新总览",
     href: "/dashboard/admin",
     iconKey: "dashboard",
     allowedRoles: ["super_admin", "admin"],
@@ -128,6 +143,10 @@ export function getUserDashboardMenu(userOrRole: AuthUser | string): DashboardMe
 	return roleName === "user" ? [...USER_MENU] : [];
 }
 
+export function getCoreDashboardMenu(): DashboardMenuLink[] {
+  return [...CORE_DASHBOARD_MENU];
+}
+
 export function getVisibleAdminDashboardMenu(userOrRole: AuthUser | string): VisibleDashboardAdminMenuItem[] {
   const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
   const accessiblePaths = getAccessibleAdminPaths(roleName);
@@ -166,8 +185,8 @@ export function hasDashboardAdminAccess(roleName: string) {
   return getAccessibleAdminPaths(roleName).length > 0;
 }
 
-export function getDefaultDashboardPath(roleName: string) {
-  return hasDashboardAdminAccess(roleName) ? "/dashboard/admin" : "/dashboard/users/registrations";
+export function getDefaultDashboardPath(_roleName: string) {
+  return "/dashboard";
 }
 
 export function canAccessDashboardAdminPath(userOrRole: AuthUser | string, pathname: string) {

@@ -1,17 +1,24 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { canAccessDashboardAdminPath, getDefaultDashboardPath, getUserDashboardMenu, getVisibleAdminDashboardMenu } from "./dashboard-navigation.ts";
+import { canAccessDashboardAdminPath, getCoreDashboardMenu, getDefaultDashboardPath, getUserDashboardMenu, getVisibleAdminDashboardMenu } from "./dashboard-navigation.ts";
 
-test("default dashboard follows the authenticated system role", () => {
-  assert.equal(getDefaultDashboardPath("user"), "/dashboard/users/registrations");
-  assert.equal(getDefaultDashboardPath("admin"), "/dashboard/admin");
-  assert.equal(getDefaultDashboardPath("super_admin"), "/dashboard/admin");
+test("every authenticated role opens the same personal workbench", () => {
+  assert.equal(getDefaultDashboardPath("user"), "/dashboard");
+  assert.equal(getDefaultDashboardPath("admin"), "/dashboard");
+  assert.equal(getDefaultDashboardPath("super_admin"), "/dashboard");
+});
+
+test("every role shares personal-workbench and daily-signal navigation", () => {
+  assert.deepEqual(getCoreDashboardMenu().map(({ key, label, href }) => ({ key, label, href })), [
+    { key: "personal-workspace", label: "个人工作台", href: "/dashboard" },
+    { key: "daily-signal", label: "每日通信", href: "/dashboard/base" },
+  ]);
 });
 
 test("recruitment administration exposes email management as a first-level entry", () => {
   const menu = getVisibleAdminDashboardMenu("super_admin");
-  assert.equal(menu[0]?.label, "招新工作台");
+  assert.equal(menu[0]?.label, "招新总览");
   assert.equal(menu.find((item) => item.key === "candidate-processing")?.label, "候选人处理");
   assert.equal(menu.find((item) => item.key === "recruitment-analytics")?.label, "招新数据分析");
   assert.equal(menu.find((item) => item.key === "recruitment-management")?.label, "招新管理");

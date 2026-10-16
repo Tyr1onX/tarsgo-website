@@ -275,10 +275,6 @@ function getAccountLoginDestination(redirectTo: string, roleName: string, adding
   return addingAccount ? getDefaultDashboardPath(roleName) : resolveAuthDestination(redirectTo, roleName);
 }
 
-function prefetchDashboardForRole(roleName: string) {
-  if (roleName === "admin" || roleName === "super_admin") {
-    void import("~/routes/admin/dashboard");
-  } else {
-    void import("~/routes/users/registrations");
-  }
+function prefetchDashboardForRole(_roleName: string) {
+  void import("~/routes/dashboard/index");
 }

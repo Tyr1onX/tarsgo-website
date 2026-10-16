@@ -6,7 +6,7 @@ import { getAdminWorkbenchSummary, listAdminInterviewSessions, type InterviewSes
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 
 export function meta() {
-  return [{ title: "招新工作台 | TARSGO" }, { name: "description", content: "TARSGO 当前招新处理工作台" }];
+  return [{ title: "招新总览 | TARSGO" }, { name: "description", content: "TARSGO 当前招新概况及待处理事项" }];
 }
 
 const autoRefreshIntervalMs = 30_000;
@@ -110,7 +110,7 @@ export default function AdminDashboard() {
         <header className="admin-workbench__header">
           <div>
             <div className="admin-workbench__eyebrow">吉甲 · 招新处理</div>
-            <h1 className="admin-workbench__title">招新工作台</h1>
+            <h1 className="admin-workbench__title">招新总览</h1>
             <p className="admin-workbench__description">先处理候选人初筛与面试安排，再查看近期业务动态。</p>
           </div>
           <Link to="/dashboard/admin/registrations" className="admin-button admin-button--primary">进入报名处理 <span aria-hidden="true">→</span></Link>
