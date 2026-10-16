@@ -359,19 +359,21 @@
 .daily-signal__legend-cell--today { border: 1px solid var(--signal-gold-bright); background: var(--signal-quiet); }
 .daily-signal__legend-cell--future { border: 1px solid color-mix(in srgb, var(--signal-quiet-edge) 48%, transparent); background: color-mix(in srgb, var(--signal-quiet) 42%, transparent); }
 .daily-signal__archive-note { color: var(--theme-muted); font-size: 13px; text-align: right; }
-.daily-signal__date-detail { position: relative; min-height: 48px; flex-wrap: wrap; gap: 10px; margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: color-mix(in srgb, var(--signal-raised) 76%, transparent); color: var(--theme-muted); font-size: 14px; line-height: 1.5; }
-.daily-signal__detail-date { flex: 0 0 auto; color: var(--theme-text); font: 500 13px/1.35 "Geist Mono", ui-monospace, monospace; }
-.daily-signal__detail-divider { width: 1px; height: 18px; flex: 0 0 1px; background: var(--theme-border); }
-.daily-signal__detail-copy { color: var(--theme-muted); }
-.daily-signal__detail-tag { margin-left: auto; flex: 0 0 auto; color: var(--theme-accent-contrast); font-size: 13px; }
+.daily-signal__date-detail { position: relative; display: grid; min-height: 108px; grid-template-columns: max-content 1px minmax(0, 1fr) max-content; grid-template-rows: 40px 48px; align-items: center; gap: 0 10px; margin-top: 12px; padding: 10px 12px; border-radius: 8px; background: color-mix(in srgb, var(--signal-raised) 76%, transparent); color: var(--theme-muted); font-size: 14px; line-height: 1.5; }
+.daily-signal__detail-date { grid-column: 1; grid-row: 1; color: var(--theme-text); font: 500 13px/1.35 "Geist Mono", ui-monospace, monospace; white-space: nowrap; }
+.daily-signal__detail-divider { grid-column: 2; grid-row: 1; width: 1px; height: 18px; background: var(--theme-border); }
+.daily-signal__detail-copy { display: -webkit-box; min-width: 0; grid-column: 3; grid-row: 1; overflow: hidden; color: var(--theme-muted); line-height: 1.4; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.daily-signal__detail-tag { grid-column: 4; grid-row: 1; color: var(--theme-accent-contrast); font-size: 13px; white-space: nowrap; }
 .daily-signal__date-detail--future .daily-signal__detail-copy { color: var(--theme-muted); }
 .daily-signal__date-detail--quiet .daily-signal__detail-tag { color: var(--theme-muted); }
 .daily-signal__date-detail--sent .daily-signal__detail-tag { color: var(--signal-gold-bright); }
-.daily-signal__delete-mood { display: flex; flex: 1 1 100%; flex-wrap: wrap; align-items: center; gap: 7px; padding-left: calc(13ch + 20px); color: var(--theme-muted); font-size: 13px; }
-.daily-signal__delete-mood button { min-height: 38px; padding: 0 10px; border: 1px solid var(--theme-border); border-radius: 7px; background: var(--signal-raised); color: var(--theme-accent-contrast); font-size: 13px; cursor: pointer; }
+.daily-signal__detail-extra { display: flex; min-width: 0; min-height: 48px; grid-column: 1 / -1; grid-row: 2; align-items: center; justify-content: space-between; gap: 10px; overflow: hidden; }
+.daily-signal__delete-mood { display: flex; min-width: 0; align-items: center; gap: 7px; color: var(--theme-muted); font-size: 13px; white-space: nowrap; }
+.daily-signal__delete-mood button { min-height: 38px; flex: 0 0 auto; padding: 0 10px; border: 1px solid var(--theme-border); border-radius: 7px; background: var(--signal-raised); color: var(--theme-accent-contrast); font-size: 13px; cursor: pointer; }
 .daily-signal__delete-mood button:hover:not(:disabled) { border-color: var(--theme-accent-contrast); }
 .daily-signal__delete-mood button:disabled { opacity: .6; cursor: not-allowed; }
-.daily-signal__history-mood { gap: 9px; margin: 9px 0 0 12px; color: var(--theme-text); font-size: 14px; }
+.daily-signal__history-mood { min-width: 0; gap: 9px; margin: 0; overflow: hidden; color: var(--theme-text); font-size: 13px; }
+.daily-signal__history-mood > span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .daily-signal__history-mood .daily-signal__mood-icon { color: var(--theme-accent-contrast); }
 
 .daily-signal-page :focus-visible { outline-color: var(--signal-gold-bright); }
@@ -463,14 +465,15 @@
   .daily-signal__legend > span { gap: 6px; }
   .daily-signal__legend-cell { width: 12px; height: 12px; }
   .daily-signal__archive-note { font-size: 13px; text-align: left; }
-  .daily-signal__date-detail { align-items: flex-start; gap: 8px; min-height: 48px; margin-top: 9px; padding: 10px 9px; font-size: 13px; }
+  .daily-signal__date-detail { min-height: 128px; grid-template-columns: minmax(0, 1fr) max-content; grid-template-rows: 24px 40px 48px; gap: 0 8px; margin-top: 9px; padding: 8px 9px; font-size: 13px; }
   .daily-signal__detail-date { font-size: 12px; white-space: nowrap; }
-  .daily-signal__detail-divider { height: 16px; }
-  .daily-signal__detail-copy { flex: 1 1 50%; }
-  .daily-signal__detail-tag { flex-basis: 100%; margin-left: 0; font-size: 13px; }
-  .daily-signal__delete-mood { padding-left: 0; }
-  .daily-signal__delete-mood button { min-height: 42px; }
-  .daily-signal__history-mood { margin-left: 5px; font-size: 14px; }
+  .daily-signal__detail-divider { display: none; }
+  .daily-signal__detail-copy { grid-column: 1 / -1; grid-row: 2; }
+  .daily-signal__detail-tag { grid-column: 2; grid-row: 1; margin: 0; font-size: 12px; }
+  .daily-signal__detail-extra { min-height: 48px; grid-row: 3; gap: 6px; }
+  .daily-signal__delete-mood { gap: 5px; font-size: 12px; }
+  .daily-signal__delete-mood button { min-height: 44px; padding-inline: 8px; font-size: 12px; }
+  .daily-signal__history-mood { gap: 6px; font-size: 13px; }
   .daily-signal__saved-mood { gap: 8px; font-size: 14px; }
   .daily-signal__saved-mood .daily-signal__quiet-action { min-height: 42px; }
 }
@@ -484,6 +487,7 @@
   .daily-signal__terminal-main { padding-right: 13px; padding-left: 13px; }
   .daily-signal__mood-option { padding-right: 7px; padding-left: 7px; font-size: 12px; }
   .daily-signal__archive { padding-right: 12px; padding-left: 12px; }
+  .daily-signal__date-detail { padding-right: 8px; padding-left: 8px; }
   .daily-signal__archive-head { flex-wrap: wrap; }
   .daily-signal__archive-actions { margin-left: auto; }
   .daily-signal__today-button { gap: 4px; padding: 0 6px; font-size: 11px; }

@@ -44,6 +44,7 @@ let accountSessionTabId: string | null = null;
 
 const authSessionCache = new AuthSessionCache<AuthUser>();
 let currentUserRequest: Promise<AuthUser> | null = null;
+let currentUserRequestGeneration = 0;
 const bootstrapStatusCacheTtlMs = 5_000;
 let bootstrapStatusCache: { value: BootstrapStatus; expiresAt: number } | null = null;
 let bootstrapStatusRequest: Promise<BootstrapStatus> | null = null;
@@ -275,22 +276,26 @@ export async function getCurrentUser(options: { force?: boolean } = {}): Promise
     }
   }
 
-  if (currentUserRequest) {
+  if (currentUserRequest && !options.force) {
     return currentUserRequest;
   }
 
+  if (options.force) currentUserRequest = null;
+  const requestGeneration = ++currentUserRequestGeneration;
   const requestVersion = authSessionCache.version;
   const request = apiRequest<{ user: AuthUser }>("/api/me")
     .then((data) => {
-      if (authSessionCache.acceptAuthenticatedRequest(requestVersion, data.user)) {
+      if (requestGeneration === currentUserRequestGeneration && authSessionCache.acceptAuthenticatedRequest(requestVersion, data.user)) {
         notifyAuthStateChange(data.user);
       }
       return data.user;
     })
     .catch((error) => {
-      const stateChanged = error instanceof ApiError && error.status === 401
-        ? authSessionCache.acceptAnonymousRequest(requestVersion)
-        : authSessionCache.acceptFailedRequest(requestVersion);
+      const stateChanged = requestGeneration !== currentUserRequestGeneration
+        ? false
+        : error instanceof ApiError && error.status === 401
+          ? authSessionCache.acceptAnonymousRequest(requestVersion)
+          : authSessionCache.acceptFailedRequest(requestVersion);
       if (stateChanged) notifyAuthStateChange(null);
       throw error;
     })

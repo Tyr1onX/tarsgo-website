@@ -66,5 +66,5 @@ test("global route loading uses the gold progress bar and no legacy full-screen 
 
 test("the default homepage preloads the small login route without preloading dashboards for guests", () => {
   assert.match(navbarSource, /<PrefetchPageLinks page="\/login"\s*\/>/);
-  assert.match(navbarSource, /variant === "default" && currentUser && dashboardPrefetchUserId === currentUser\.id/);
+  assert.match(navbarSource, /variant === "default" && visibleUser && dashboardPrefetchUserId === visibleUser\.id/);
 });

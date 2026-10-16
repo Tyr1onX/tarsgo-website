@@ -1,8 +1,19 @@
 import { Link, PrefetchPageLinks, useLocation, useNavigate, useRevalidator } from "react-router";
 import { useEffect, useRef, useState } from "react";
 
-import { logout, type AuthUser } from "~/lib/auth-client";
+import {
+  getAuthUserRoleLabel,
+  getCachedCurrentUser,
+  getOptionalCurrentUser,
+  hasKnownAnonymousSession,
+  logout,
+  subscribeAccountSessionChange,
+  subscribeAuthStateChange,
+  type AuthUser,
+} from "~/lib/auth-client";
 import { getDefaultDashboardPath } from "~/lib/dashboard-navigation";
+import { resolveGroupIdentity, type GroupIdentity } from "~/lib/group-identity";
+import { getUserGroupConfirmationState, type UserGroupConfirmationState } from "~/lib/user-group-client";
 import { SiteLogo } from "./site-logo";
 import { ThemeControl } from "./theme-control";
 import { useTheme } from "./theme-provider";
@@ -23,8 +34,6 @@ function isNavigationLinkActive(href: string, pathname: string) {
   return pathname === href;
 }
 
-const microSpecialtyHref = "/micro-specialties/low-altitude-intelligent-sensing-control";
-
 const microSpecialtyNavLinks = [
   { label: "项目介绍", href: "#introduction", active: false },
   { label: "课程安排", href: "#curriculum", active: false },
@@ -40,6 +49,16 @@ type NavbarProps = {
 
 export function Navbar({ currentUser, authError = false, variant = "default" }: NavbarProps) {
   const visibleNavLinks = variant === "micro-specialty" ? microSpecialtyNavLinks : navLinks;
+  const [observedUser, setObservedUser] = useState<AuthUser | null | undefined>(() =>
+    currentUser !== undefined ? currentUser : getCachedCurrentUser() ?? (hasKnownAnonymousSession() ? null : undefined),
+  );
+  const visibleUser = currentUser === undefined ? observedUser : currentUser;
+  const [identityRefreshError, setIdentityRefreshError] = useState(false);
+  const [groupState, setGroupState] = useState<{ userId: number; state: UserGroupConfirmationState } | null>(null);
+  const groupIdentity = groupState && visibleUser && groupState.userId === visibleUser.id
+    ? resolveGroupIdentity(groupState.state)
+    : null;
+  const visibleAuthError = !visibleUser && (authError || identityRefreshError);
   const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -47,6 +66,7 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
   const [dashboardPrefetchUserId, setDashboardPrefetchUserId] = useState<number | null>(null);
   const { preference, setPreference } = useTheme();
   const userMenuRef = useRef<HTMLDivElement | null>(null);
+  const profileButtonRef = useRef<HTMLButtonElement | null>(null);
   const mobileMenuButtonRef = useRef<HTMLButtonElement | null>(null);
   const mobileMenuRef = useRef<HTMLDivElement | null>(null);
   const desktopNavLinksRef = useRef<HTMLDivElement | null>(null);
@@ -54,6 +74,66 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
   const location = useLocation();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
+
+  useEffect(() => {
+    let disposed = false;
+    let identityRequestGeneration = 0;
+    const unsubscribeAuth = subscribeAuthStateChange((user) => {
+      identityRequestGeneration += 1;
+      if (!disposed) {
+        setObservedUser(user);
+        setIdentityRefreshError(false);
+      }
+    });
+    const unsubscribeAccount = subscribeAccountSessionChange(() => {
+      const requestGeneration = ++identityRequestGeneration;
+      setObservedUser(undefined);
+      setIdentityRefreshError(false);
+      void getOptionalCurrentUser({ force: true })
+        .then((user) => {
+          if (!disposed && requestGeneration === identityRequestGeneration) setObservedUser(user);
+        })
+        .catch(() => {
+          if (!disposed && requestGeneration === identityRequestGeneration) setIdentityRefreshError(true);
+        });
+    });
+
+    if (currentUser === undefined) {
+      const initialGeneration = identityRequestGeneration;
+      void getOptionalCurrentUser()
+        .then((user) => {
+          if (!disposed && initialGeneration === identityRequestGeneration) setObservedUser(user);
+        })
+        .catch(() => {
+          if (!disposed && initialGeneration === identityRequestGeneration) setIdentityRefreshError(true);
+        });
+    }
+
+    return () => {
+      disposed = true;
+      unsubscribeAuth();
+      unsubscribeAccount();
+    };
+  }, []);
+
+  useEffect(() => {
+    const userId = visibleUser?.id;
+    if (!userId) {
+      setGroupState(null);
+      return;
+    }
+
+    let active = true;
+    setGroupState(null);
+    void getUserGroupConfirmationState()
+      .then((state) => {
+        if (active) setGroupState({ userId, state });
+      })
+      .catch(() => {
+        if (active) setGroupState(null);
+      });
+    return () => { active = false; };
+  }, [visibleUser?.id]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -110,18 +190,18 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
   // Warm the authenticated dashboard route before the user opens the menu.
   // Defer this work until idle so public homepage resources keep priority.
   useEffect(() => {
-    if (!currentUser || variant !== "default") return;
+    if (!visibleUser || variant !== "default") return;
     const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
     if (connection?.saveData) return;
 
     if (typeof window.requestIdleCallback === "function") {
-      const idleId = window.requestIdleCallback(() => setDashboardPrefetchUserId(currentUser.id), { timeout: 1500 });
+      const idleId = window.requestIdleCallback(() => setDashboardPrefetchUserId(visibleUser.id), { timeout: 1500 });
       return () => window.cancelIdleCallback(idleId);
     }
 
-    const timeoutId = setTimeout(() => setDashboardPrefetchUserId(currentUser.id), 700);
+    const timeoutId = setTimeout(() => setDashboardPrefetchUserId(visibleUser.id), 700);
     return () => clearTimeout(timeoutId);
-  }, [currentUser?.id, variant]);
+  }, [visibleUser?.id, variant]);
 
   useEffect(() => {
     function handleScroll() {
@@ -150,7 +230,21 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
         setUserMenuOpen(false);
+        profileButtonRef.current?.focus();
+        return;
       }
+
+      if (event.key !== "ArrowDown" && event.key !== "ArrowUp" && event.key !== "Home" && event.key !== "End") return;
+      const items = Array.from(userMenuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])') ?? []);
+      if (!items.length) return;
+      const currentIndex = items.indexOf(document.activeElement as HTMLElement);
+      let nextIndex = currentIndex;
+      if (event.key === "Home") nextIndex = 0;
+      else if (event.key === "End") nextIndex = items.length - 1;
+      else if (currentIndex < 0) nextIndex = event.key === "ArrowDown" ? 0 : items.length - 1;
+      else nextIndex = (currentIndex + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+      event.preventDefault();
+      items[nextIndex].focus();
     }
 
     document.addEventListener("mousedown", handlePointerDown);
@@ -180,13 +274,19 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
     }
   }
 
+  function getAccountSwitchHref() {
+    const redirectTarget = `${location.pathname}${location.search}${location.hash}`;
+    const query = new URLSearchParams({ redirect: redirectTarget, addAccount: "1" });
+    return `/login?${query.toString()}`;
+  }
+
   return (
     <nav
       aria-label={variant === "micro-specialty" ? "低空微专业导航" : "主导航"}
       className="pointer-events-none fixed inset-x-0 top-0 z-50"
     >
-      {variant === "default" && currentUser && dashboardPrefetchUserId === currentUser.id ? (
-        <PrefetchPageLinks page={getDefaultDashboardPath(currentUser.role.name)} />
+      {variant === "default" && visibleUser && dashboardPrefetchUserId === visibleUser.id ? (
+        <PrefetchPageLinks page={getDefaultDashboardPath(visibleUser.role.name)} />
       ) : null}
       {variant === "default" ? <PrefetchPageLinks page="/login" /> : null}
       <div className={`site-navbar pointer-events-auto w-full overflow-visible ${isScrolled ? "site-navbar--scrolled" : ""}`}>
@@ -222,36 +322,42 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
           </div>
 
           <div className="navbar-actions">
-          {variant === "default" ? (
-            <Link to={microSpecialtyHref} className="navbar-micro-specialty navbar-micro-specialty--wide">
-              <span>低空微专业</span>
-              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none">
-                <path d="M4.5 10h11m-4.5-4.5L15.5 10 11 14.5" />
-              </svg>
-            </Link>
-          ) : null}
           <ThemeControl className="theme-control--navbar" systemOnly />
 
           {/* Auth area */}
-          {variant === "default" ? <div ref={desktopAuthAreaRef} className="hidden w-[174px] shrink-0 items-center justify-end gap-3 xl:flex">
-            {currentUser === undefined ? (
-              authError ? <Link to="/login" className="text-sm text-fg-muted hover:text-accent-primary">验证失败，重试</Link> :
+          {variant === "default" ? <div ref={desktopAuthAreaRef} className="hidden w-[220px] shrink-0 items-center justify-end gap-3 xl:flex">
+            {visibleUser === undefined ? (
+              visibleAuthError ? <Link to="/login" className="text-sm text-fg-muted hover:text-accent-primary">验证失败，重试</Link> :
                 <span className="h-10 w-28 animate-pulse rounded-full border border-white/10 bg-white/[0.06]" role="status" aria-label="正在确认登录状态" />
-            ) : currentUser ? (
+            ) : visibleUser ? (
               <div ref={userMenuRef} className="relative">
                 <button
+                  ref={profileButtonRef}
                   type="button"
                   onClick={() => setUserMenuOpen((open) => !open)}
-                  className={`group flex items-center gap-2 rounded-full border p-1 pr-2.5 transition-all duration-200 ${
+                  onKeyDown={(event) => {
+                    if (userMenuOpen || (event.key !== "ArrowDown" && event.key !== "ArrowUp")) return;
+                    event.preventDefault();
+                    setUserMenuOpen(true);
+                    requestAnimationFrame(() => {
+                      const items = userMenuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])');
+                      items?.[event.key === "ArrowDown" ? 0 : items.length - 1]?.focus();
+                    });
+                  }}
+                  className={`navbar-profile-button group flex items-center gap-2 rounded-full border p-1 pr-2.5 transition-all duration-200 ${
                     userMenuOpen
                       ? "border-accent-primary/60 bg-surface-light shadow-lg shadow-accent-primary/10"
                       : "border-border-subtle bg-surface-light/60 hover:border-accent-primary/40 hover:bg-surface-light hover:shadow-md hover:shadow-black/20"
                   }`}
-                  aria-label="打开用户菜单"
+                  aria-label={`打开${getUserDisplayName(visibleUser)}的用户菜单${groupIdentity ? `，${groupIdentity.name}` : `，${getAuthUserRoleLabel(visibleUser)}`}`}
                   aria-expanded={userMenuOpen}
                   aria-haspopup="menu"
                 >
-                  <UserAvatar user={currentUser} className="h-9 w-9" textClassName="text-sm" />
+                  <UserAvatar user={visibleUser} className="h-8 w-8" textClassName="text-sm" />
+                  <span className="navbar-profile-identity">
+                    <span className="navbar-profile-identity__name">{getUserDisplayName(visibleUser)}</span>
+                    {groupIdentity ? <GroupIdentityBadge identity={groupIdentity} compact /> : <span className="navbar-profile-identity__role">{getAuthUserRoleLabel(visibleUser)}</span>}
+                  </span>
                   <svg
                     className={`h-4 w-4 transition-all duration-200 ${
                       userMenuOpen
@@ -273,16 +379,17 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
                     className="animate-user-menu-in absolute right-0 z-20 mt-3 w-64 overflow-hidden rounded-2xl border border-border-subtle bg-surface-primary/95 shadow-2xl shadow-black/40 backdrop-blur-xl"
                   >
                     <div className="flex items-center gap-3 border-b border-border-subtle/80 bg-gradient-to-b from-accent-primary/5 to-transparent px-4 py-2.5">
-                      <UserAvatar user={currentUser} className="h-9 w-9" textClassName="text-sm" />
+                      <UserAvatar user={visibleUser} className="h-9 w-9" textClassName="text-sm" />
                       <div className="min-w-0">
-                        {currentUser.nickname?.trim() ? <div className="truncate text-sm font-semibold text-fg-primary">{currentUser.nickname.trim()}</div> : null}
-                        <div className="truncate text-xs text-fg-muted">{currentUser.email}</div>
+                        <div className="truncate text-sm font-semibold text-fg-primary">{getUserDisplayName(visibleUser)}</div>
+                        <div className="truncate text-xs text-fg-muted">{visibleUser.email}</div>
+                        <div className="mt-1">{groupIdentity ? <GroupIdentityBadge identity={groupIdentity} /> : <span className="navbar-user-role">{getAuthUserRoleLabel(visibleUser)}</span>}</div>
                       </div>
                     </div>
 
                     <div className="p-1.5">
                       <Link
-                        to={getDefaultDashboardPath(currentUser.role.name)}
+                        to={getDefaultDashboardPath(visibleUser.role.name)}
                         prefetch="render"
                         onClick={() => setUserMenuOpen(false)}
                         role="menuitem"
@@ -297,10 +404,20 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
                         >
                           <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955a1.126 1.126 0 0 1 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75" />
                         </svg>
-                        进入工作台
+                        {visibleUser.role.name === "admin" || visibleUser.role.name === "super_admin" ? "管理工作台" : "个人工作台"}
                       </Link>
 
                       <div className="my-0.5 h-px bg-border-subtle/70" />
+
+                      <Link
+                        to={getAccountSwitchHref()}
+                        prefetch="render"
+                        onClick={() => setUserMenuOpen(false)}
+                        role="menuitem"
+                        className="group/item flex w-full items-center gap-2.5 rounded-xl px-3 py-2 text-left text-sm text-fg-muted transition-colors hover:bg-white/5 hover:text-fg-primary"
+                      >
+                        切换或添加账号
+                      </Link>
 
                       <button
                         type="button"
@@ -345,12 +462,16 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
           <button
             ref={mobileMenuButtonRef}
             type="button"
-            className="navbar-menu-toggle xl:hidden"
+            className={"navbar-menu-toggle xl:hidden" + (visibleUser ? " navbar-menu-toggle--identity" : "")}
             onClick={() => setMenuOpen((open) => !open)}
-            aria-label={menuOpen ? "关闭导航菜单" : "展开导航菜单"}
+            aria-label={visibleUser
+              ? (menuOpen ? "关闭导航菜单" : "展开导航菜单") + "，" + getUserDisplayName(visibleUser) + "，" + (groupIdentity?.name ?? getAuthUserRoleLabel(visibleUser))
+              : menuOpen ? "关闭导航菜单" : "展开导航菜单"}
             aria-expanded={menuOpen}
             aria-controls="site-mobile-menu"
           >
+            {visibleUser ? <UserAvatar user={visibleUser} className="h-7 w-7" textClassName="text-xs" /> : null}
+            {groupIdentity ? <img className="navbar-menu-group-mark" src={`/assets/images/Groups/${groupIdentity.mark}-black.svg`} alt="" aria-hidden="true" /> : null}
             <svg
               className="w-6 h-6"
               fill="none"
@@ -383,15 +504,6 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
           hidden={!menuOpen}
           className="site-mobile-menu xl:hidden"
         >
-          {variant === "default" ? (
-            <Link to={microSpecialtyHref} className="navbar-micro-specialty navbar-micro-specialty--panel" onClick={closeMobileMenu}>
-              <span className="navbar-micro-specialty__eyebrow">独立微专业</span>
-              <span className="navbar-micro-specialty__title">低空智能感知与控制</span>
-              <svg aria-hidden="true" viewBox="0 0 20 20" fill="none">
-                <path d="M4.5 10h11m-4.5-4.5L15.5 10 11 14.5" />
-              </svg>
-            </Link>
-          ) : null}
           <div className="navbar-mobile-links">
             {visibleNavLinks.map((link) => {
               const active = link.href.startsWith("#")
@@ -410,21 +522,32 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
               );
             })}
           </div>
-          {variant === "default" && currentUser === undefined ? (
-            authError ? <Link to="/login" className="mt-4 text-sm text-fg-muted" onClick={closeMobileMenu}>验证失败，重试</Link> :
+          {variant === "default" && visibleUser === undefined ? (
+            visibleAuthError ? <Link to="/login" className="mt-4 text-sm text-fg-muted" onClick={closeMobileMenu}>验证失败，重试</Link> :
               <div className="mt-4 h-10 w-32 animate-pulse rounded-full bg-white/[0.06]" role="status" aria-label="正在确认登录状态" />
-          ) : variant === "default" && currentUser ? (
+          ) : variant === "default" && visibleUser ? (
             <div className="navbar-mobile-account">
-              <UserAvatar user={currentUser} className="h-8 w-8" textClassName="text-xs" />
-              <span className="navbar-mobile-account__name">{currentUser.nickname?.trim() || "已登录"}</span>
+              <UserAvatar user={visibleUser} className="h-8 w-8" textClassName="text-xs" />
+              <span className="navbar-mobile-account__identity">
+                <span className="navbar-mobile-account__name">{getUserDisplayName(visibleUser)}</span>
+                {groupIdentity ? <GroupIdentityBadge identity={groupIdentity} /> : <span className="navbar-user-role">{getAuthUserRoleLabel(visibleUser)}</span>}
+              </span>
               <div className="navbar-mobile-account__actions">
                 <Link
-                  to={getDefaultDashboardPath(currentUser.role.name)}
+                  to={getDefaultDashboardPath(visibleUser.role.name)}
                   prefetch="render"
                   className="navbar-mobile-account__action navbar-mobile-account__action--primary"
                   onClick={closeMobileMenu}
                 >
                   工作台
+                </Link>
+                <Link
+                  to={getAccountSwitchHref()}
+                  prefetch="render"
+                  className="navbar-mobile-account__action navbar-mobile-account__action--quiet"
+                  onClick={closeMobileMenu}
+                >
+                  切换
                 </Link>
                 <button
                   type="button"
@@ -486,7 +609,8 @@ function UserAvatar({
     return (
       <img
         src={avatarUrl}
-        alt={`${getUserDisplayName(user)}头像`}
+        alt=""
+        aria-hidden="true"
         referrerPolicy="no-referrer"
         className={`${className} rounded-full border border-white/10 object-cover`}
       />
@@ -507,4 +631,13 @@ function getUserDisplayName(user: AuthUser) {
 function getUserInitial(user: AuthUser) {
   const source = getUserDisplayName(user).trim() || "U";
   return source.charAt(0).toUpperCase();
+}
+
+function GroupIdentityBadge({ identity, compact = false }: { identity: GroupIdentity; compact?: boolean }) {
+  return (
+    <span className={`navbar-group-badge${compact ? " navbar-group-badge--compact" : ""}`} title={identity.name}>
+      <img src={`/assets/images/Groups/${identity.mark}-black.svg`} alt="" aria-hidden="true" />
+      <span>{identity.name}</span>
+    </span>
+  );
 }
