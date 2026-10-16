@@ -1,6 +1,6 @@
-import { chooseReply, FALLBACK_REPLY, getReplyById, MOCK_TODAY, normalizeDemoReceipt } from "./reply-copy.mjs?v=2";
+import { chooseReply, DEMO_ACCOUNT_ID, FALLBACK_REPLY, getReplyById, MOCK_TODAY, normalizeDemoReceipt } from "./reply-copy.mjs?v=3";
 
-const DEMO_RECORD_KEY = `jijia-reply-terminal:${MOCK_TODAY}`;
+const DEMO_RECORD_KEY = `jijia-reply-terminal:${DEMO_ACCOUNT_ID}:${MOCK_TODAY}`;
 const root = document.documentElement;
 const panel = document.querySelector(".terminal-panel");
 const replyTerminal = document.querySelector("#replyTerminal");
@@ -10,14 +10,8 @@ const heatmapGrid = document.querySelector("#heatmapGrid");
 const monthLabels = document.querySelector("#monthLabels");
 const dateDetail = document.querySelector("#dateDetail");
 const terminalState = document.querySelector("#terminalState");
-const terminalStateDetail = document.querySelector("#terminalStateDetail");
 const terminalMessage = document.querySelector("#terminalMessage");
-const replyCard = document.querySelector("#replyCard");
-const replyCardTitle = document.querySelector("#replyCardTitle");
-const replyCardChannel = document.querySelector("#replyCardChannel");
 const replyCopyElement = document.querySelector("#replyCopy");
-const replayButton = document.querySelector("#replayReply");
-const replayAnnouncement = document.querySelector("#replayAnnouncement");
 const moodGrid = document.querySelector("#moodGrid");
 const moodHeadingMode = document.querySelector("#moodHeadingMode");
 const moodReadonlyNote = document.querySelector("#moodReadonlyNote");
@@ -55,7 +49,6 @@ let selectedDate = MOCK_TODAY;
 let focusedDate = MOCK_TODAY;
 let transientTimer = 0;
 let failureCanRecover = false;
-let replayTimer = 0;
 let moodBeforeEdit = null;
 let editingMood = false;
 
@@ -90,7 +83,7 @@ function stableHash(value) {
 function readDemoReply() {
   try {
     const record = JSON.parse(window.sessionStorage.getItem(DEMO_RECORD_KEY) ?? "null");
-    return normalizeDemoReceipt(record, MOCK_TODAY);
+    return normalizeDemoReceipt(record, MOCK_TODAY, DEMO_ACCOUNT_ID);
   } catch {
     return null;
   }
@@ -98,7 +91,7 @@ function readDemoReply() {
 
 function saveDemoReply(mood, reply) {
   try {
-    const receipt = normalizeDemoReceipt({ date: MOCK_TODAY, mood, replyId: reply.id }, MOCK_TODAY);
+    const receipt = normalizeDemoReceipt({ date: MOCK_TODAY, accountId: DEMO_ACCOUNT_ID, mood, replyId: reply.id }, MOCK_TODAY, DEMO_ACCOUNT_ID);
     window.sessionStorage.setItem(DEMO_RECORD_KEY, JSON.stringify(receipt));
   } catch {
     // The prototype keeps working even when the browser blocks session storage.
@@ -116,60 +109,32 @@ function clearDemoReply() {
 function setReplyTerminal(state, reply = FALLBACK_REPLY, { arrive = false } = {}) {
   const messages = {
     waiting: {
-      status: "安静待命",
-      detail: "基地在这里，今天按自己的节奏来。",
-      title: "终端问候",
-      channel: "WAITING",
-      copy: "雷达静静亮着。你路过时，基地就在这里。",
+      status: "等待发送",
+      copy: "今天也可以按自己的节奏来，基地一直在这里。",
     },
     sending: {
       status: "正在接收",
-      detail: "一条信号正在轻轻抵达。",
-      title: "信号入站",
-      channel: "INBOUND",
-      copy: "基地正认真接收你的今天。",
+      copy: "基地正在认真接收你的信号。",
     },
     received: {
-      status: "回信已抵达",
-      detail: "今天的信号，基地记下了。",
-      title: "基地回信",
-      channel: "REPLY / 01",
+      status: "基地已回应",
       copy: reply?.text ?? FALLBACK_REPLY.text,
     },
     failed: {
-      status: "稍后再试",
-      detail: "链路稍后再试，也完全可以。",
-      title: "信号暂未抵达",
-      channel: "RETRY",
-      copy: "签到还没有完成。等你方便时，再试一次。",
+      status: "暂未收到",
+      copy: "这次没能收到，等你方便时再试也可以。",
     },
   };
   const message = messages[state] ?? messages.waiting;
   replyTerminal.dataset.replyState = state in messages ? state : "waiting";
   terminalState.textContent = message.status;
-  terminalStateDetail.textContent = message.detail;
-  replyCardTitle.textContent = message.title;
-  replyCardChannel.textContent = message.channel;
   replyCopyElement.textContent = message.copy;
-  replayButton.hidden = state !== "received";
-  replyCard.classList.remove("is-arriving");
-  if (arrive) requestAnimationFrame(() => replyCard.classList.add("is-arriving"));
-}
-
-function replayReply() {
-  if (!signedToday) return;
-  window.clearTimeout(replayTimer);
-  replyTerminal.classList.remove("is-replaying");
-  replyCard.classList.remove("is-replay-emphasis");
-  void replyTerminal.offsetWidth;
-  replyTerminal.classList.add("is-replaying");
-  replyCard.classList.add("is-replay-emphasis");
-  replayAnnouncement.textContent = "基地回信已重新呈现。";
   const reduceMotion = root.dataset.motion === "reduce" || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  replayTimer = window.setTimeout(() => {
-    replyTerminal.classList.remove("is-replaying");
-    replyCard.classList.remove("is-replay-emphasis");
-  }, reduceMotion ? 1100 : 1000);
+  replyTerminal.classList.remove("is-arriving");
+  if (arrive && state === "received" && !reduceMotion) {
+    requestAnimationFrame(() => replyTerminal.classList.add("is-arriving"));
+    window.setTimeout(() => replyTerminal.classList.remove("is-arriving"), 760);
+  }
 }
 
 function makeFictionalRecords(year) {
@@ -467,12 +432,7 @@ function saveMoodUpdate(nextMood) {
   const reply = chooseReply(selectedMood);
   saveDemoReply(selectedMood, reply);
   setReplyTerminal("received", reply);
-  setMessage(
-    selectedMood
-      ? "今日状态已更新，基地回信已按当前选择替换。旧回信不会继续显示。"
-      : "今日情绪已清除。回信已换为中性感谢，签到记录仍保留。",
-    "success",
-  );
+  setMessage(reply.text, "success");
   moodBeforeEdit = selectedMood;
   syncMoodControls();
   updateDateDetail(MOCK_TODAY);
@@ -480,14 +440,14 @@ function saveMoodUpdate(nextMood) {
 
 function setMessage(text, kind = "") {
   terminalMessage.textContent = text;
-  terminalMessage.className = `terminal-message${kind ? ` is-${kind}` : ""}`;
+  terminalMessage.className = `terminal-message${kind === "success" ? " sr-only" : kind ? ` is-${kind}` : ""}`;
+  terminalMessage.setAttribute("role", kind === "error" ? "alert" : "status");
   terminalMessage.hidden = !text;
 }
 
 function applyScenario(name, { storedReply = null } = {}) {
   window.clearTimeout(transientTimer);
-  window.clearTimeout(replayTimer);
-  replyTerminal.classList.remove("is-replaying");
+  replyTerminal.classList.remove("is-arriving");
   scene = name in scenarios ? name : "first";
   const config = scenarios[scene];
   signedToday = config.signed;
@@ -514,10 +474,7 @@ function applyScenario(name, { storedReply = null } = {}) {
   syncMoodControls();
   setReplyTerminal(config.failed ? "failed" : signedToday ? "received" : "waiting", reply);
 
-  if (scene === "repeat") setMessage("今天已经见过你啦。谢谢你把这一天，也留在基地。", "success");
-  else if (scene === "signed-mood") setMessage("「高负载中」已收到。基地回信已为你留好。", "success");
-  else if (scene === "signed-debug") setMessage("今日信号已收到。", "success");
-  else if (scene === "signed-now") setMessage("今日信号已送达。", "success");
+  if (scene === "repeat" || scene === "signed-mood" || scene === "signed-debug" || scene === "signed-now") setMessage(reply?.text ?? FALLBACK_REPLY.text, "success");
   else if (scene === "failure") setMessage("信号暂时没有送达。休息一下，再试一次也可以。", "error");
   else if (scene === "empty") setMessage("档案刚刚启程。什么时候想来，什么时候再发送。", "");
   else setMessage("");
@@ -541,7 +498,7 @@ function startSending() {
   sendButton.disabled = true;
   sendButton.querySelector(".send-button__label").textContent = "正在发送…";
   setReplyTerminal("sending");
-  setMessage("信号正在送往基地…", "");
+  setMessage("");
 
   const reduceMotion = root.dataset.motion === "reduce" || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   transientTimer = window.setTimeout(() => {
@@ -564,7 +521,7 @@ function startSending() {
     }
     saveDemoReply(selectedMood, reply);
     setReplyTerminal("received", reply, { arrive: !reduceMotion });
-    setMessage("今日信号已送达，今天的格点已点亮。", "success");
+    setMessage(reply.text, "success");
     syncMoodControls();
     renderHeatmap({ preserveScroll: false });
     scrollHeatmapToDate(MOCK_TODAY);
@@ -596,7 +553,6 @@ function toggleSidebarCollapse() {
 
 document.querySelectorAll(".mood-option").forEach((button) => button.addEventListener("click", () => setMood(button.dataset.mood)));
 sendButton.addEventListener("click", startSending);
-replayButton.addEventListener("click", replayReply);
 sceneSelect.addEventListener("change", (event) => applyScenario(event.currentTarget.value));
 yearSelect.addEventListener("change", () => {
   document.querySelector("#archiveYearLabel").textContent = yearSelect.value;

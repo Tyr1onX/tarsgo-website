@@ -6,7 +6,7 @@
 
 ## 原型入口
 
-在仓库根目录启动任意静态文件服务器，打开 `docs/prototypes/daily-signal/index.html`。页面右上角「原型场景」可切换首次访问、重复访问、高负载／调试回信、发送失败和空白档案；Issue #69 的虚构回执编号只保存在当前标签页的 `sessionStorage`，用于演示刷新后的重复访问，不代表账号数据或生产持久化。顶部主题按钮可切换夜间黑金与日间白金。
+在仓库根目录启动任意静态文件服务器，打开 `docs/prototypes/daily-signal/index.html`。页面右上角「原型场景」可切换首次访问、重复访问、高负载／调试回信、发送失败和空白档案；虚构回执仅保存在当前标签页的 `sessionStorage`，用于演示重访，不代表账号数据或生产持久化。顶部主题按钮可切换夜间黑金与日间白金。正式回信规则见 [`reply-terminal.md`](./reply-terminal.md)。
 
 原型代码：[index.html](../../prototypes/daily-signal/index.html)、[prototype.css](../../prototypes/daily-signal/prototype.css)、[prototype.js](../../prototypes/daily-signal/prototype.js)。所有演示用户、日期、签到日与回信都是虚构数据；原型不调用 API、不连接账户、不写入数据库。
 

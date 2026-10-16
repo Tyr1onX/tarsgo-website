@@ -1,4 +1,6 @@
 export const MOCK_TODAY = "2026-10-16";
+export const DEMO_ACCOUNT_ID = "fictional-member-01";
+export const REPLY_CATALOG_VERSION = "v1";
 
 export const FALLBACK_REPLY = Object.freeze({
   id: "fallback-thanks",
@@ -21,12 +23,12 @@ export const REPLY_LIBRARY = Object.freeze([
 ]);
 
 const REPLY_IDS_BY_MOOD = Object.freeze({
-  none: ["thanks-note", "thanks-rhythm", "thanks-kept", "ops-queue"],
-  "状态不错": ["good-bright", "robot-arrival"],
-  "稳定运行": ["steady-thanks", "ops-queue"],
-  "有点疲惫": ["tired-soft"],
-  "高负载中": ["load-buffer", "ops-queue"],
-  "正在调试": ["debug-progress", "compiler-joke"],
+  none: { warm: ["thanks-note", "thanks-rhythm", "thanks-kept"], humor: ["ops-queue"] },
+  "状态不错": { warm: ["good-bright"], humor: ["robot-arrival"] },
+  "稳定运行": { warm: ["steady-thanks"], humor: ["ops-queue"] },
+  "有点疲惫": { warm: ["tired-soft"], humor: [] },
+  "高负载中": { warm: ["load-buffer"], humor: ["ops-queue"] },
+  "正在调试": { warm: ["debug-progress"], humor: ["compiler-joke"] },
 });
 
 export function stableHash(value) {
@@ -42,10 +44,14 @@ export function getReplyById(id) {
   return REPLY_LIBRARY.find((reply) => reply.id === id) ?? FALLBACK_REPLY;
 }
 
-export function chooseReply(mood, date = MOCK_TODAY) {
+export function chooseReply(mood, date = MOCK_TODAY, accountId = DEMO_ACCOUNT_ID) {
   const group = Object.hasOwn(REPLY_IDS_BY_MOOD, mood ?? "none") ? mood ?? "none" : "none";
-  const options = REPLY_IDS_BY_MOOD[group];
-  return getReplyById(options[stableHash(`${date}:${group}`) % options.length]);
+  const rules = REPLY_IDS_BY_MOOD[group];
+  const seed = `${REPLY_CATALOG_VERSION}:${accountId}:${date}:${group}`;
+  const chooseHumor = rules.humor.length > 0 && stableHash(`${seed}:tone`) % 10 === 0;
+  const options = chooseHumor ? rules.humor : rules.warm;
+  const pool = options.length > 0 ? options : [FALLBACK_REPLY.id];
+  return getReplyById(pool[stableHash(`${seed}:copy`) % pool.length]);
 }
 
 function isMood(value) {
@@ -53,19 +59,22 @@ function isMood(value) {
 }
 
 function isReplyAllowedForMood(replyId, mood) {
-  return (REPLY_IDS_BY_MOOD[mood ?? "none"] ?? REPLY_IDS_BY_MOOD.none).includes(replyId);
+  const group = REPLY_IDS_BY_MOOD[mood ?? "none"] ?? REPLY_IDS_BY_MOOD.none;
+  return group.warm.includes(replyId) || group.humor.includes(replyId);
 }
 
 /**
- * Reject an outdated mood-specific reply after a mood update or deletion.
- * The returned id always belongs to the currently saved mood.
+ * Prototype-only receipt normalization. Production derives the sentence from
+ * the active account, Beijing date and currently saved mood without storing it.
  */
-export function normalizeDemoReceipt(receipt, expectedDate = MOCK_TODAY) {
+export function normalizeDemoReceipt(receipt, expectedDate = MOCK_TODAY, accountId = DEMO_ACCOUNT_ID) {
   if (!receipt || receipt.date !== expectedDate) return null;
+  if (receipt.accountId !== accountId) return null;
   const mood = isMood(receipt.mood) ? receipt.mood : null;
   const savedReply = REPLY_LIBRARY.find((reply) => reply.id === receipt.replyId);
-  const reply = savedReply && isReplyAllowedForMood(savedReply.id, mood)
+  const sameVersion = receipt.version === REPLY_CATALOG_VERSION;
+  const reply = savedReply && sameVersion && isReplyAllowedForMood(savedReply.id, mood)
     ? savedReply
-    : chooseReply(mood, expectedDate);
-  return { date: expectedDate, mood, replyId: reply.id };
+    : chooseReply(mood, expectedDate, accountId);
+  return { date: expectedDate, accountId, mood, replyId: reply.id, version: REPLY_CATALOG_VERSION };
 }

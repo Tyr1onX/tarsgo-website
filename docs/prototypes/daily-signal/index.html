@@ -140,30 +140,19 @@
               </button>
               <span class="optional-hint">不选择状态，也可以直接签到</span>
             </div>
-            <div id="terminalMessage" class="terminal-message" role="status" aria-live="polite" hidden></div>
+            <div id="terminalMessage" class="sr-only terminal-message" role="status" aria-live="polite" hidden></div>
           </div>
-          <aside class="transmitter" id="replyTerminal" aria-label="基地回信终端" data-reply-state="waiting">
-            <div class="transmitter-head"><span class="mono">BASE REPLY / 01</span><span class="transmitter-head__base">吉甲基地</span></div>
+          <aside class="transmitter" id="replyTerminal" aria-label="基地回应" data-reply-state="waiting">
+            <div class="transmitter-head"><span>吉甲基地</span><strong id="terminalState">等待发送</strong></div>
             <div class="reply-signal-row">
-              <div class="signal-orbit" id="signalOrbit" aria-hidden="true">
+              <div class="signal-orbit" aria-hidden="true">
                 <span class="orbit orbit--outer"></span><span class="orbit orbit--mid"></span><span class="orbit orbit--inner"></span>
                 <span class="signal-core"><span class="signal-core__dot"></span></span>
                 <span class="signal-trace signal-trace--one"></span><span class="signal-trace signal-trace--two"></span>
                 <span class="signal-ripple"></span>
               </div>
-              <div class="transmitter-state">
-                <span class="transmitter-state__label" id="terminalStateLabel">TERMINAL STATE</span>
-                <strong id="terminalState">安静待命</strong>
-                <span class="transmitter-state__detail" id="terminalStateDetail">基地在这里，今天按自己的节奏来。</span>
-              </div>
+              <p id="replyCopy" class="reply-copy">今天也可以按自己的节奏来，基地一直在这里。</p>
             </div>
-            <article class="reply-card" id="replyCard" aria-atomic="true">
-              <div class="reply-card__head"><span id="replyCardTitle">终端问候</span><span class="reply-card__channel" id="replyCardChannel">WAITING</span></div>
-              <p id="replyCopy">雷达静静亮着。你路过时，基地就在这里。</p>
-              <button class="reply-replay" type="button" id="replayReply" hidden>重看这次回应</button>
-            </article>
-          <div class="transmitter-readout"><span>CHANNEL</span><strong>BASE—01</strong><span class="readout-rule"></span><span>VISIBILITY</span><strong><span class="secure-dot"></span> 仅本人</strong></div>
-            <span class="sr-only" id="replayAnnouncement" aria-live="polite"></span>
           </aside>
           <span class="terminal-corner terminal-corner--tl" aria-hidden="true"></span><span class="terminal-corner terminal-corner--br" aria-hidden="true"></span>
         </section>
