@@ -10,6 +10,7 @@ import {
   type AuthUser,
 } from "~/lib/auth-client";
 import { apiRequest, ApiError } from "~/lib/api-client";
+import { getDailySignalReply, type DailySignalMood } from "~/lib/daily-signal-reply";
 import {
   addSignalDays,
   formatSignalDate,
@@ -23,8 +24,8 @@ import {
 import { scrollHeatmapCellIntoView, scrollHeatmapToDate } from "~/lib/daily-signal-scroll";
 import "../routes/daily-signal.css";
 
-const MOODS = ["状态不错", "稳定运行", "有点疲惫", "高负载中", "正在调试"] as const;
-type Mood = (typeof MOODS)[number];
+const MOODS: readonly DailySignalMood[] = ["状态不错", "稳定运行", "有点疲惫", "高负载中", "正在调试"];
+type Mood = DailySignalMood;
 
 interface DailySignalArchive {
   year: number;
@@ -85,7 +86,9 @@ export function DailySignalWorkspace() {
       identityGenerationRef.current += 1;
       setArchive(null);
       setMessage(null);
+      setMoodDraft(null);
       setEditingTodayMood(false);
+      setTransmitting(false);
       setHoveredDate(null);
       setConfirmMoodDelete(false);
       setSelectedDate(getCurrentBeijingDate());
@@ -204,6 +207,22 @@ export function DailySignalWorkspace() {
   const todaySigned = archive?.signedToday ?? false;
   const authenticated = archive?.authenticated ?? false;
   const canUseTerminal = authenticated && !archiveLoading;
+  const todayReply = todaySigned
+    ? getDailySignalReply(currentUser?.id, archive?.today ?? today, archive?.todayMood ?? null)
+    : null;
+  const historicalReply = detailStatus === "sent" && dateForDetail !== today && authenticated
+    ? getDailySignalReply(currentUser?.id, dateForDetail, moodByDate.get(dateForDetail) ?? null)
+    : null;
+  const terminalCopy = sending
+    ? "基地正在认真接收你的信号。"
+    : todayReply ?? "今天也可以按自己的节奏来，基地一直在这里。";
+  const terminalStatus = sending
+    ? "正在接收"
+    : archiveLoading
+      ? "连接中"
+      : todaySigned
+        ? "基地已回应"
+        : "等待发送";
 
   useEffect(() => {
     if (!todaySigned) {
@@ -229,6 +248,7 @@ export function DailySignalWorkspace() {
       const selectedYearHasToday = String(year) === result.date.slice(0, 4);
       setArchive((previous) => previous ? {
         ...previous,
+        today: result.date,
         signedToday: true,
         todayMood: result.mood,
         days: selectedYearHasToday && !previous.days.includes(result.date)
@@ -242,17 +262,8 @@ export function DailySignalWorkspace() {
       setFocusedDate(result.date);
       pendingScrollDateRef.current = result.date;
       setTransmitting(result.created);
-      if (result.created) {
-        setMessage({
-          tone: "success",
-          text: result.mood === "有点疲惫"
-            ? "收到啦。今天可以给自己留一点余地。"
-            : "今天的信号收到了。谢谢你又来到这里。",
-        });
-        window.setTimeout(() => setTransmitting(false), 720);
-      } else {
-        setMessage({ tone: "success", text: "今天已经见过你啦，今天的记录已为你保留。" });
-      }
+      setMessage({ tone: "success", text: getDailySignalReply(currentUser?.id, result.date, result.mood) });
+      if (result.created) window.setTimeout(() => setTransmitting(false), 720);
     } catch (error) {
       if (identityGeneration === identityGenerationRef.current) {
         setMessage({ tone: "error", text: getRequestMessage(error, "信号未能送达，请稍后重试。") });
@@ -275,6 +286,7 @@ export function DailySignalWorkspace() {
       if (identityGeneration !== identityGenerationRef.current) return;
       setArchive((previous) => previous ? {
         ...previous,
+        today: result.date,
         todayMood: result.mood,
         moods: String(previous.year) === result.date.slice(0, 4)
           ? result.mood
@@ -283,7 +295,7 @@ export function DailySignalWorkspace() {
           : previous.moods,
       } : previous);
       setEditingTodayMood(false);
-      setMessage({ tone: "success", text: result.mood ? "今日状态已更新。" : "今日状态已清除，信号仍会保留。" });
+      setMessage({ tone: "success", text: getDailySignalReply(currentUser?.id, result.date, result.mood) });
     } catch (error) {
       if (identityGeneration === identityGenerationRef.current) {
         setMessage({ tone: "error", text: getRequestMessage(error, "今日状态暂时无法保存，请重试。") });
@@ -364,7 +376,7 @@ export function DailySignalWorkspace() {
 
   const selectedMoodEntry = moodByDate.get(dateForDetail) ?? null;
   const canDeleteSelectedMood = authenticated && selectedMoodEntry && dateForDetail < today;
-  const detailCopy = getDateDetailCopy(detailStatus, selectedMoodEntry, authenticated);
+  const detailCopy = historicalReply ?? getDateDetailCopy(detailStatus);
 
   return (
     <div className="public-home daily-signal-page daily-signal-page--workspace">
@@ -384,7 +396,7 @@ export function DailySignalWorkspace() {
         <section className="daily-signal__terminal" aria-labelledby="daily-signal-terminal-title" data-mode={sending ? "sending" : todaySigned ? "signed" : "ready"} data-transmitting={transmitting || undefined}>
           <div className="daily-signal__terminal-main">
             <div className="daily-signal__topline">
-              <div className="daily-signal__panel-label"><span className="daily-signal__online-dot" aria-hidden="true" />基地终端 <span aria-hidden="true">/</span> <span className="daily-signal__mono">SIGNAL ONLINE</span></div>
+              <div className="daily-signal__panel-label"><span className="daily-signal__online-dot" aria-hidden="true" />基地终端</div>
               {authenticated ? <span className="daily-signal__privacy"><LockIcon />仅自己可见</span> : null}
             </div>
             <h2 id="daily-signal-terminal-title">给今天，留一个温柔的落点。</h2>
@@ -455,15 +467,15 @@ export function DailySignalWorkspace() {
               </div>
             )}
 
-            {message ? <p className={`daily-signal__message daily-signal__message--${message.tone}`} role={message.tone === "error" ? "alert" : "status"} aria-live="polite">{message.text}</p> : null}
+            {message ? <p className={`daily-signal__message daily-signal__message--${message.tone}${message.tone === "success" && message.text === todayReply ? " sr-only" : ""}`} role={message.tone === "error" ? "alert" : "status"} aria-live="polite">{message.text}</p> : null}
           </div>
 
-          <aside className="daily-signal__transmitter" aria-label="通信终端状态">
-            <div className="daily-signal__transmitter-head"><span>TX / 01</span><span>吉甲基地</span></div>
-            <div className="daily-signal__orbit" aria-hidden="true"><i className="daily-signal__orbit-outer" /><i className="daily-signal__orbit-mid" /><i className="daily-signal__orbit-inner" /><i className="daily-signal__signal-core"><i /></i><i className="daily-signal__signal-trace" /></div>
-            <div className="daily-signal__transmitter-state"><span>TERMINAL STATE</span><strong>{sending ? "正在传输" : archiveLoading ? "连接中" : todaySigned ? "信号已接收" : "等待发送"}</strong></div>
-            <div className="daily-signal__readout"><span>CHANNEL</span><strong>BASE—01</strong><span>VISIBILITY</span><strong><i /> PRIVATE</strong></div>
-            <span className="daily-signal__terminal-index">GJ / {today.slice(2, 4)}</span>
+          <aside className="daily-signal__transmitter" aria-label="基地回信终端">
+            <div className="daily-signal__transmitter-head"><span>吉甲基地</span><span>{terminalStatus}</span></div>
+            <div className="daily-signal__reply-row">
+              <div className="daily-signal__orbit" aria-hidden="true"><i className="daily-signal__orbit-outer" /><i className="daily-signal__orbit-mid" /><i className="daily-signal__orbit-inner" /><i className="daily-signal__signal-ripple" /><i className="daily-signal__signal-core"><i /></i><i className="daily-signal__signal-trace" /></div>
+              <p className="daily-signal__reply-copy">{terminalCopy}</p>
+            </div>
           </aside>
           <span className="daily-signal__corner daily-signal__corner--top" aria-hidden="true" />
           <span className="daily-signal__corner daily-signal__corner--bottom" aria-hidden="true" />
@@ -581,13 +593,10 @@ function cellAccessibleName(date: string, status: SignalDayStatus) {
   return `${label}，这一天没有留下基地信号`;
 }
 
-function getDateDetailCopy(status: SignalDayStatus, mood: Mood | null, authenticated: boolean) {
+function getDateDetailCopy(status: SignalDayStatus) {
   if (status === "future") return "这一天还没有到来。";
   if (status === "today") return "今天的方块会在信号送达后亮起。";
-  if (status === "sent") {
-    if (mood) return authenticated ? `当日状态：${mood}` : "这一天留下过一条基地信号。";
-    return "这一天留下过一条基地信号，没有保留状态。";
-  }
+  if (status === "sent") return "这一天留下过一条基地信号。";
   return "这一天没有留下基地信号，生活仍在继续。";
 }
 
