@@ -1,6 +1,14 @@
 # 吉甲基地 · 每日通信：P1 实施说明
 
-关联 [总规划 #66](https://github.com/Tyr1onX/tarsgo-website/issues/66)、[设计评审 #67](https://github.com/Tyr1onX/tarsgo-website/issues/67)、[功能 Issue #68](https://github.com/Tyr1onX/tarsgo-website/issues/68)。交互原型仍见 [P0 原型入口](../../prototypes/daily-signal/index.html)；正式体验从网站主导航的「每日通信」进入。
+关联 [总规划 #66](https://github.com/Tyr1onX/tarsgo-website/issues/66)、[设计评审 #67](https://github.com/Tyr1onX/tarsgo-website/issues/67)、[功能 Issue #68](https://github.com/Tyr1onX/tarsgo-website/issues/68)。交互原型仍见 [P0 原型入口](../../prototypes/daily-signal/index.html)；正式体验从主导航的「吉甲基地」进入，再打开每日通信。
+
+## 信息架构
+
+- 官网以「了解吉甲、参与吉甲、管理吉甲」组织入口：首页保留战队专题内容，新增「吉甲基地」参与入口，工作台继续承载个人与后台事务。
+- `/base` 是公开基地首页；当前只呈现已开放的「每日通信」，游客可以浏览，登录后保存自己的信号。未实现的规则竞技场、基地档案等不展示为可用入口。
+- `/daily-signal` 保持原地址以兼容既有链接；页面主导航会标记「吉甲基地」为当前空间，并提供返回基地首页的入口。工作台侧栏保留直达每日通信的快捷链接。
+- 个人工作台入口按当前账号权限决定目标；访客经登录后进入其默认工作台。
+- 首页空间划分、基地卡片视觉及后续扩展边界另见[吉甲基地信息架构说明](../gijia-base/README.md)。
 
 ## 产品边界
 

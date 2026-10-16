@@ -13,8 +13,15 @@ const navLinks = [
   { label: "机器人", href: "/robots", active: false },
   { label: "赛事与荣誉", href: "/events-and-honors", active: false },
   { label: "加入我们", href: "/join", active: false },
-  { label: "每日通信", href: "/daily-signal", active: false },
+  { label: "吉甲基地", href: "/base", active: false },
 ];
+
+function isNavigationLinkActive(href: string, pathname: string) {
+  if (href === "/base") {
+    return pathname === "/base" || pathname === "/daily-signal" || pathname.startsWith("/base/");
+  }
+  return pathname === href;
+}
 
 const microSpecialtyHref = "/micro-specialties/low-altitude-intelligent-sensing-control";
 
@@ -198,7 +205,7 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
             {visibleNavLinks.map((link) => {
               const active = link.href.startsWith("#")
                 ? location.hash === link.href
-                : location.pathname === link.href;
+                : isNavigationLinkActive(link.href, location.pathname);
               return (
                 <Link
                   key={link.href}
@@ -389,7 +396,7 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
             {visibleNavLinks.map((link) => {
               const active = link.href.startsWith("#")
                 ? location.hash === link.href
-                : location.pathname === link.href;
+                : isNavigationLinkActive(link.href, location.pathname);
               return (
                 <Link
                   key={link.href}

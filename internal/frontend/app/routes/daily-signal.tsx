@@ -367,6 +367,7 @@ export default function DailySignalPage() {
     <div className="public-home daily-signal-page min-h-screen bg-surface-primary text-fg-primary">
       <Navbar currentUser={currentUser} authError={authError} />
       <main className="daily-signal__shell">
+        <Link to="/base" className="daily-signal__base-link">吉甲基地 <span aria-hidden="true">/</span> 基地首页</Link>
         <header className="daily-signal__page-head">
           <div>
             <div className="daily-signal__eyebrow"><span aria-hidden="true" />BASE / DAILY COMMS</div>
