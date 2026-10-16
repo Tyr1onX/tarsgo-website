@@ -149,12 +149,31 @@ const legacyHomeHashDestinations: Record<string, string> = {
   "#join": "/join#join",
 };
 
+const responsiveHomeImage = (
+  name: string,
+  width640Hash: string,
+  width1280Hash: string,
+  cardSize: "standard" | "wide" = "standard",
+) => ({
+  imageSrcSet: `/assets/images/Home/Responsive/${name}-640-${width640Hash}.webp 640w, /assets/images/Home/Responsive/${name}-1280-${width1280Hash}.webp 1280w`,
+  imageSizes:
+    cardSize === "wide"
+      ? "(min-width: 1280px) 608px, (min-width: 1024px) 50vw, (min-width: 768px) 33vw, (min-width: 640px) 50vw, calc(100vw - 2rem)"
+      : "(min-width: 1280px) 300px, (min-width: 1024px) 25vw, (min-width: 768px) 33vw, (min-width: 640px) 50vw, calc(100vw - 2rem)",
+});
+
+const noResponsiveHomeImage = {
+  imageSrcSet: undefined as string | undefined,
+  imageSizes: undefined as string | undefined,
+};
+
 const homeNavigationModules = [
   {
     title: "认识吉甲",
     description: "从训练日常和团队文化，认识工程实践如何走进赛场。",
     href: "/about",
     image: "/assets/images/ContestMoment/contest-moment-04.webp",
+    ...responsiveHomeImage("about", "381e0fa8", "8e5963df"),
     alt: "队员在比赛现场协作检查机器人。",
     placement: "home-visual-card--about",
   },
@@ -163,6 +182,8 @@ const homeNavigationModules = [
     description: "浏览五类机器人影像，了解真实的团队实践。",
     href: "/robots",
     image: "/assets/images/Robot/hero-robot.webp",
+    // This image is also the hero video's poster; keep one shared request instead of downloading a second responsive copy.
+    ...noResponsiveHomeImage,
     alt: "吉甲大师英雄机器人实物。",
     placement: "home-visual-card--robots",
   },
@@ -171,6 +192,7 @@ const homeNavigationModules = [
     description: "从机械、电控、视觉、AI 与运营五个方向找到入口。",
     href: "/join",
     image: "/assets/images/Daily/daily-02.webp",
+    ...noResponsiveHomeImage,
     alt: "队员围绕笔记本和工程模型交流。",
     placement: "home-visual-card--join",
   },
@@ -179,6 +201,7 @@ const homeNavigationModules = [
     description: "回看真实赛事记录，浏览荣誉证书原图。",
     href: "/events-and-honors",
     image: "/assets/images/ContestMoment/contest-moment-02.webp",
+    ...responsiveHomeImage("events", "a0240c86", "0a9ecfa8", "wide"),
     alt: "吉甲大师团队赛事现场记录。",
     placement: "home-visual-card--events",
   },
@@ -187,6 +210,7 @@ const homeNavigationModules = [
     description: "沿着 2018—2026 年真实资料，回看战队与平台的接力。",
     href: "/team-history",
     image: "/assets/images/Milestone/2019-breakthrough.webp",
+    ...noResponsiveHomeImage,
     alt: "TARS-Go 在 2019 ICRA RoboMaster 人工智能挑战赛的队伍合影。",
     placement: "home-visual-card--history",
   },
@@ -195,6 +219,7 @@ const homeNavigationModules = [
     description: "了解低空智能感知与控制的课程和实践内容。",
     href: "/micro-specialties/low-altitude-intelligent-sensing-control",
     image: "/assets/images/Robot/aerial-robots.webp",
+    ...responsiveHomeImage("micro", "9613d89c", "d641915f"),
     alt: "吉甲大师空中机器人。",
     placement: "home-visual-card--micro",
   },
@@ -231,7 +256,14 @@ function HomeVisualNavigation() {
               className={`home-visual-card ${module.placement}`}
               aria-label={`${module.title}：${module.description}`}
             >
-              <img src={module.image} alt={module.alt} loading="lazy" decoding="async" />
+              <img
+                src={module.image}
+                srcSet={module.imageSrcSet}
+                sizes={module.imageSizes}
+                alt={module.alt}
+                loading="lazy"
+                decoding="async"
+              />
               <span className="home-visual-card-shade" aria-hidden="true" />
               <div className="home-visual-card-copy">
                 <h3>{module.title}</h3>
