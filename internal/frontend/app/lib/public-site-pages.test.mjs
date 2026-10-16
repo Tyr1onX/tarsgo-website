@@ -208,7 +208,8 @@ test("RightAPI is a separate, disclosed alumni recommendation below the unchange
   assert.match(home, /rel="noopener noreferrer"/);
   assert.match(home, /src="\/assets\/images\/Partners\/rightapi\.jpg" alt="" loading="lazy" decoding="async"/);
   assert.match(home, /由吉甲学长运营，提供第三方 AI 模型 API 接入服务/);
-  assert.match(home, /第三方服务推荐，链接包含邀请参数/);
+  assert.match(home, /aria-label="访问 RightAPI"/);
+  assert.doesNotMatch(home, /第三方服务推荐，链接包含邀请参数/);
   const logo = await readFile(new URL("../../../../public/assets/images/Partners/rightapi.jpg", import.meta.url));
   assert.ok(logo.length > 1_000, "the supplied RightAPI logo should be included as a local asset");
   assert.match(styles, /\.home-alumni-recommendation__card\s*\{[\s\S]*?background:\s*var\(--theme-card\)/);

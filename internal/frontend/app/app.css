@@ -2212,12 +2212,6 @@ html[data-theme-transition] body *::after {
   line-height: 1.55;
 }
 
-.home-alumni-recommendation__disclosure {
-  color: var(--theme-dim);
-  font-size: 0.75rem;
-  line-height: 1.5;
-}
-
 .home-alumni-recommendation__arrow {
   display: grid;
   width: 2.75rem;
@@ -2271,9 +2265,6 @@ html[data-theme-transition] body *::after {
     font-size: 0.8125rem;
   }
 
-  .home-alumni-recommendation__disclosure {
-    font-size: 0.6875rem;
-  }
 }
 
 @media (hover: hover) and (prefers-reduced-motion: no-preference) {
