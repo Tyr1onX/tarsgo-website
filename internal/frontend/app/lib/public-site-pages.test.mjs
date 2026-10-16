@@ -112,6 +112,35 @@ test("the homepage uses six image-led routes, preserves legacy hashes, and keeps
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.home-visual-card:hover > img[\s\S]*?transform: none;/);
 });
 
+test("large homepage photos use content-hashed responsive WebP candidates without replacing the original photos", async () => {
+  const modules = home.match(/const homeNavigationModules = \[([\s\S]*?)\n\];/)?.[1] ?? "";
+  const candidates = [
+    ["about", "381e0fa8", "8e5963df"],
+    ["events", "a0240c86", "0a9ecfa8"],
+    ["micro", "9613d89c", "d641915f"],
+  ];
+
+  assert.match(home, /srcSet=\{module\.imageSrcSet\}/);
+  assert.match(home, /sizes=\{module\.imageSizes\}/);
+  for (const [name, hash640, hash1280] of candidates) {
+    assert.match(
+      modules,
+      new RegExp(`responsiveHomeImage\\("${name}", "${hash640}", "${hash1280}"`),
+      `missing responsive candidates for ${name}`,
+    );
+    for (const filename of [`${name}-640-${hash640}.webp`, `${name}-1280-${hash1280}.webp`]) {
+      const image = await readFile(new URL(`../../../../public/assets/images/Home/Responsive/${filename}`, import.meta.url));
+      assert.equal(image.toString("ascii", 0, 4), "RIFF", `${filename} is not a WebP container`);
+      assert.equal(image.toString("ascii", 8, 12), "WEBP", `${filename} is not a WebP image`);
+    }
+  }
+  assert.match(modules, /image: "\/assets\/images\/ContestMoment\/contest-moment-04\.webp"/);
+  assert.match(modules, /image: "\/assets\/images\/Robot\/hero-robot\.webp"/);
+  assert.match(modules, /href: "\/robots"[\s\S]*?image: "\/assets\/images\/Robot\/hero-robot\.webp"[\s\S]*?\.\.\.noResponsiveHomeImage/);
+  assert.match(modules, /image: "\/assets\/images\/ContestMoment\/contest-moment-02\.webp"/);
+  assert.match(modules, /image: "\/assets\/images\/Robot\/aerial-robots\.webp"/);
+});
+
 test("访客保留基地欢迎页，已登录用户在统一工作台使用每日通信", () => {
   assert.match(routes, /route\("base", "routes\/base\.tsx"\)/);
   assert.match(routes, /route\("dashboard", "routes\/dashboard\/layout\.tsx", \[[\s\S]*?route\("base", "routes\/dashboard\/base\.tsx"\)/);
