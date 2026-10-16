@@ -489,7 +489,7 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
             poster="/assets/images/Robot/hero-robot.webp"
             aria-label="吉林大学吉甲大师双创基地宣传视频"
           >
-            <source src="/assets/images/Video/hero-showreel.mp4" type="video/mp4" />
+            <source src="/assets/images/Video/hero-showreel-005cfe69.mp4" type="video/mp4" />
           </video>
           <div className="public-home-hero-shade absolute inset-0" />
         </div>
