@@ -40,7 +40,7 @@ test("the header uses a role-aware identity menu and keeps account switching key
   const mainLinks = navbar.match(/const navLinks = \[([\s\S]*?)\];/)?.[1] ?? "";
   assert.doesNotMatch(mainLinks, /低空微专业/);
   assert.doesNotMatch(navbar, /navbar-micro-specialty|to=.*micro-specialties/);
-  assert.match(navbar, /GroupIdentityBadge identity=\{groupIdentity\}/);
+  assert.match(navbar, /NavbarIdentityDetail user=\{visibleUser\} identity=\{groupIdentity\}/);
   assert.match(navbar, /resolveGroupIdentity/);
   assert.match(navbar, /管理工作台/);
   assert.match(navbar, /个人工作台/);
@@ -61,4 +61,22 @@ test("the header uses a role-aware identity menu and keeps account switching key
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?\.theme-control__toggle svg[\s\S]*?transition-duration:\s*0\.01ms !important;/);
   assert.match(styles, /\.navbar-group-badge\s*\{[\s\S]*?border-radius:\s*999px/);
   assert.match(styles, /\.navbar-mobile-account__actions\s*\{[\s\S]*?grid-template-columns:\s*repeat\(3/);
+});
+
+test("authentication loading, guest, and member states stay distinct and reserve identity space", () => {
+  assert.match(navbar, /visibleUser === undefined \? \([\s\S]*?visibleUser \? \(/);
+  assert.match(navbar, /visibleAuthError = visibleUser === undefined/);
+  assert.match(navbar, /function retryIdentityCheck\(\)/);
+  assert.match(navbar, /setObservedUser\(undefined\);\s*setGroupState\(null\);/);
+  assert.match(navbar, /<NavbarAuthLoadingStatus \/>/);
+  assert.match(navbar, /role="status"[\s\S]*?aria-busy="true"/);
+  assert.match(navbar, /groupIdentityLoading/);
+  assert.match(navbar, /setGroupState\(\{ userId, status: "loading" \}\)/);
+  assert.match(navbar, /setUserMenuOpen\(false\)/);
+  assert.match(styles, /\.navbar-auth-loading\s*\{[\s\S]*?min-height:\s*2\.75rem/);
+  assert.match(styles, /\.navbar-identity-detail--compact\s*\{\s*min-height:\s*17px/);
+  assert.match(styles, /\.navbar-user-menu\s*\{/);
+  assert.match(styles, /\.navbar-user-menu\s+\[role="menuitem"\]:focus-visible/);
+  assert.match(styles, /\.navbar-menu-group-mark\s*\{[\s\S]*?position:\s*absolute/);
+  assert.match(styles, /\.navbar-auth-loading__avatar,[\s\S]*?animation:\s*none !important/);
 });

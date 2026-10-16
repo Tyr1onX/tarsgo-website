@@ -253,6 +253,10 @@ function HomeVisualNavigation() {
           </span>
           <span className="home-base-feature__radar" aria-hidden="true">
             <i /><i /><i /><b />
+            <span className="home-base-feature__radar-axis home-base-feature__radar-axis--horizontal" />
+            <span className="home-base-feature__radar-axis home-base-feature__radar-axis--vertical" />
+            <span className="home-base-feature__radar-register" />
+            <span className="home-base-feature__radar-label">DAILY SIGNAL · BASE 01</span>
           </span>
         </Link>
       </div>

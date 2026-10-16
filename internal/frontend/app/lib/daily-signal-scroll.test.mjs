@@ -88,6 +88,15 @@ test("heatmap date details reserve the same mood and action row for every hovere
   assert.match(dailySignalStyles, /\.daily-signal__detail-copy\s*\{[^}]*-webkit-line-clamp:\s*2/);
 });
 
+test("the communication terminal uses static signal detail with a restrained, hover-only response", () => {
+  assert.match(dailySignalStyles, /\.daily-signal__orbit::before,[\s\S]*?\.daily-signal__orbit::after/);
+  assert.match(dailySignalStyles, /daily-signal__signal-trace/);
+  assert.match(workspace, /TX \/ 01/);
+  assert.match(dailySignalStyles, /@media \(hover: hover\) and \(prefers-reduced-motion: no-preference\)[\s\S]*?\.daily-signal__terminal:hover \.daily-signal__orbit/);
+  assert.doesNotMatch(dailySignalStyles, /daily-signal__orbit[^\n]*animation:[^\n]*infinite/);
+  assert.match(dailySignalStyles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?transition-duration:\s*\.01ms !important/);
+});
+
 test("switching accounts clears hovered details and pending deletion confirmation", () => {
   assert.match(workspace, /setHoveredDate\(null\);\s*setConfirmMoodDelete\(false\);\s*setSelectedDate/);
   assert.match(workspace, /applyIdentity\(null\);\s*void getOptionalCurrentUser\(\{ force: true \}\)/);

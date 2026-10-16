@@ -74,3 +74,35 @@
 | 每日通信工作空间 · 桌面黑金（虚构账号） | [base-member-desktop-black-gold.jpg](./screenshots/base-member-desktop-black-gold.jpg) |
 
 这些是本地浏览器截图，不代表生产环境验收；本轮未连接生产，也未部署。
+
+## 导航与基地视觉精修（2026-10-16）
+
+- 顶部身份按「确认中、访客、已登录」分别呈现。查询期间使用固定尺寸的状态位；登录后的组别也先保留身份行，再显示正式组标，减少内容闪现与导航位移。账号切换时立即关闭个人菜单并清除旧身份，再展示新账号资料。
+- 个人菜单收窄到 240px，压缩身份区和菜单项间距，保留工作台、切换账号和登出三项权限入口；菜单项仍有清晰焦点反馈和至少 40px 的操作高度。
+- 首页基地专题改为文案与雷达图并列的稳定比例，增加与「错位的秩序」对应的轴线、定位点和每日通信标识。图形不使用持续动画；悬停只轻微提亮边框与雷达。六张真实照片的来源、顺序和拼贴结构未改动。
+- 每日通信终端补充静态细轴与信号定位细节；鼠标悬停时轻微提亮，键盘聚焦保留主题焦点环，减少动态效果设置继续生效。
+- 本轮仅涉及导航和视觉层；没有改变登录权限、签到请求、签到日期、情绪规则或数据库。
+
+### 真实浏览器验收
+
+在 Google Chrome 155.0.8059.82 中，通过本地生产构建预览完成检查。认证、组别及签到请求由浏览器内存拦截器提供；测试账号使用 `example.invalid` 邮箱，签到数据只存在于本次页面状态，没有连接生产服务或数据库。
+
+- 首页 1440px 桌面端对比白金、黑金两主题，390px 移动端检查白金主题；先滚动页面以加载照片后截图。与最新 main 的首页截图对比，六个真实照片入口的素材、顺序和布局保持一致，基地专题只在其后增加横向区域。
+- 基地 1440×1050 黑金桌面与 390×844 白金移动端检查；虚构成员选择「稳定运行」并签到后，今日热力图方块点亮。桌面和移动端均无文档级横向溢出。
+- 人为延迟登录响应 650ms，确认访客和成员加载期间认证区宽度均稳定为 220px；访客最后显示登录/注册，成员显示头像与组标。虚构账号从机械组切到 AI 组时，旧昵称与组标在重新确认阶段消失，随后显示新账号信息。
+- 桌面个人菜单通过方向键打开、菜单项焦点移动和 Escape 关闭并恢复焦点；移动主导航通过 Escape 关闭。`prefers-reduced-motion: reduce` 下终端过渡时间为 `0.01ms`。
+- 浏览器未发现脚本运行异常或非预期控制台错误。访客检查中可见的 401 仅来自预期的匿名 `/api/me` 认证探测。
+- 前端 82 项自动化测试通过；React Router 类型检查及生产构建通过。
+
+| 场景 | 截图 |
+| --- | --- |
+| 首页 · 桌面白金（完整页面） | [visual-polish-home-desktop-platinum.jpg](./screenshots/visual-polish-home-desktop-platinum.jpg) |
+| 首页 · 桌面黑金（完整页面） | [visual-polish-home-desktop-black-gold.jpg](./screenshots/visual-polish-home-desktop-black-gold.jpg) |
+| 首页 · 移动白金（六张真实照片与基地专题） | [visual-polish-home-mobile-platinum.jpg](./screenshots/visual-polish-home-mobile-platinum.jpg) |
+| 基地专题 · 桌面白金 | [visual-polish-base-feature-desktop-platinum.jpg](./screenshots/visual-polish-base-feature-desktop-platinum.jpg) |
+| 基地专题 · 桌面黑金 | [visual-polish-base-feature-desktop-black-gold.jpg](./screenshots/visual-polish-base-feature-desktop-black-gold.jpg) |
+| 个人身份菜单 · 桌面黑金 | [visual-polish-profile-menu-crop-black-gold.jpg](./screenshots/visual-polish-profile-menu-crop-black-gold.jpg) |
+| 已登录每日通信 · 桌面黑金（虚构账号） | [visual-polish-base-member-desktop-black-gold.jpg](./screenshots/visual-polish-base-member-desktop-black-gold.jpg) |
+| 已登录每日通信 · 移动白金（虚构账号、减少动态效果） | [visual-polish-base-member-mobile-platinum.jpg](./screenshots/visual-polish-base-member-mobile-platinum.jpg) |
+
+截图仅用于本地视觉评审，不代表生产验收；本轮未部署。
