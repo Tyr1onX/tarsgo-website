@@ -303,7 +303,7 @@ function HomeSponsorSection() {
             </h3>
           </div>
           <a
-            href="https://rightapi.ai/register?aff=066c2467"
+            href="https://rightapi.ai/register?aff=RIGHTCODE_JLU"
             target="_blank"
             rel="noopener noreferrer"
             aria-label="访问 RightAPI"

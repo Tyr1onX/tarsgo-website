@@ -203,7 +203,7 @@ test("RightAPI is a separate, disclosed alumni recommendation below the unchange
   assert.doesNotMatch(home.match(/const sponsorLogos = \[([\s\S]*?)\n\];/)?.[1] ?? "", /RightAPI/i);
   assert.match(home, /<aside className="home-alumni-recommendation"/);
   assert.match(home, /校友项目推荐/);
-  assert.match(home, /href="https:\/\/rightapi\.ai\/register\?aff=066c2467"/);
+  assert.match(home, /href="https:\/\/rightapi\.ai\/register\?aff=RIGHTCODE_JLU"/);
   assert.match(home, /target="_blank"/);
   assert.match(home, /rel="noopener noreferrer"/);
   assert.match(home, /src="\/assets\/images\/Partners\/rightapi\.jpg" alt="" loading="lazy" decoding="async"/);
