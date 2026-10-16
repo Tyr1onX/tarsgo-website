@@ -50,14 +50,17 @@
 ## PR 3：固定 URL 静态资源重新校验
 
 - 生产基线请求 `/assets/images/Robot/hero-robot.webp` 返回 200、383,348 bytes，`Cache-Control: public, max-age=31536000, immutable`，Cloudflare `HIT` 且 `Age: 148244`；内容哈希构建 JS 的长期缓存行为符合预期。
-- 服务器现在只给资源文件名尾部带 8 位内容指纹的前端构建资源或嵌套图片发一年 `immutable`。固定 URL（包括机器人主图）以及页面 HTML 发 `no-cache`，条件请求可返回 304。这样后续固定 URL 更新时可由浏览器 / CDN 重新验证，同时保留哈希资源缓存收益。
+- 源站现在只给资源文件名尾部带 8 位内容指纹的前端构建资源或嵌套图片发一年 `immutable`；固定 URL（包括机器人主图）发 `no-cache`。页面 HTML 仍按原逻辑 `no-cache`。
 - 后端自动化覆盖哈希构建文件、哈希图片、固定 URL 图片、无哈希脚本和 `If-Modified-Since` 304。`make backend-test`、前端 87 项既有测试、类型检查、构建和生产运维安全测试均通过。
-- 该修复不改变 HTML 或静态文件内容，不预期改变首屏字节、请求数或 LCP；不将缓存正确性修复写成页面性能分数提升。合并部署后会核对固定图片与哈希 JS 的生产响应头，并记录 Cloudflare 缓存状态。
-- 限制：在旧策略下已经保存的一年期浏览器缓存无法被新的源站响应头追溯撤销；本次保证今后从新响应取得的固定 URL 资源按 `no-cache` 重新校验。线上验收结果待部署后补记。
+- 2026-10-17 部署版本 `80534ff` 后，`/`、`/about`、`/login`、`/base`、`/dashboard/base`、`/healthz` 和响应式图片资源均返回 200，健康端点报告数据库正常。哈希 JS 仍是 `public, max-age=31536000, immutable`，Cloudflare `HIT`。
+- 对固定机器人图使用唯一查询参数令 CDN 未命中，Cloudflare 返回 `Cache-Control: max-age=14400` 与 `MISS`；同一固定 URL 不带查询参数仍命中部署前对象，返回旧的 `public, max-age=31536000, immutable` 与 `HIT`、`Age: 148680`。说明发布脚本没有清理 Cloudflare 缓存，且 CDN 当前 4 小时浏览器 TTL 覆盖了更短的源站指令。该现象与 Cloudflare 官方文档中“Browser Cache TTL 覆盖较短源站 TTL、默认 4 小时”的说明一致；实际控制台规则未读取，因此不能断言具体规则设置。参见 [Cloudflare Edge and Browser Cache TTL](https://developers.cloudflare.com/cache/how-to/edge-browser-cache-ttl/)。
+- 自动化测试确认本地 `http.ServeContent` 会对稳定 URL 的 `If-Modified-Since` 返回 304；线上条件 304 本轮未确认。部署未新增数据库迁移，不预期改变页面传输字节、请求数或 LCP；不将缓存正确性修复写成页面性能分数提升。
+- 该 PR 只完成源站策略调整，**没有完全清除线上旧缓存风险**。Cloudflare 规则需改为尊重源站指令，并处理现有边缘对象；无法撤销已经发给访客浏览器的一年期缓存，因此可变静态内容还应使用新内容哈希 URL。
+- 发布前备份 `jijia-full-20261016T224258Z.tar.gz` 已在本地及腾讯云端校验通过，执行了本地 7 天 / 远端 30 天保留策略。当前版本为 `20261016-ops-retention-80534ff`，回滚版本保留为 `20261016-ops-retention-e3f85bd`。
 
 ## 后续建议
 
-1. 合并部署 PR 3 后，检查固定 URL 静态资源与哈希资源的真实 Cloudflare 响应头和条件请求表现。
+1. 在 Cloudflare 中核对 Browser Cache TTL 和相关 Cache Rules，确保固定 URL 尊重源站重新校验指令，并处理仍带旧一年缓存头的边缘对象；对可变内容采用内容哈希 URL。需有 CDN 配置访问后再完成验证。
 2. 检查 Google Fonts 中实际使用的字族、字重和字体许可证，再决定是否自托管；不能仅因外部请求而盲目增加仓库字体。
 3. 评估把首页未使用的公开档案组件从 `home` chunk 拆出。拆分前后以实际主页脚本字节和页面切换耗时决定是否保留。
 4. 为 `/dashboard`、`/dashboard/base` 和招新管理补充隔离账号下的认证后测量；当前未登录页面数据不能代替工作台真实请求链路。
