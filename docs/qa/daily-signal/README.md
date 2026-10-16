@@ -1,14 +1,14 @@
 # 吉甲基地 · 每日通信：P0 原型与设计说明
 
-关联 [总规划 #66](https://github.com/Tyr1onX/tarsgo-website/issues/66) 与 [设计 Issue #67](https://github.com/Tyr1onX/tarsgo-website/issues/67)。本页记录 P0 静态原型与设计依据；正式页面、接口及数据边界见 [P1 实施说明](./p1-implementation.md)。静态原型仍不调用接口或写入数据。
+关联 [总规划 #66](https://github.com/Tyr1onX/tarsgo-website/issues/66) 与 [设计 Issue #67](https://github.com/Tyr1onX/tarsgo-website/issues/67)。本页记录 P0 静态原型与设计依据；正式页面、接口及数据边界见 [P1 实施说明](./p1-implementation.md)。Issue #69 的回信终端交互、文案库与评审记录见[基地回信终端设计说明](./reply-terminal.md)。
 
 官网三个空间及基地入口的当前信息架构见[吉甲基地说明](../gijia-base/README.md)。
 
 ## 原型入口
 
-在仓库根目录启动任意静态文件服务器，打开 `docs/prototypes/daily-signal/index.html`。页面右下角「原型场景」可切换首次访问、重复访问、高负载已签到、发送失败和空白档案；演示状态只存在于当前页面内存，刷新即重置。顶部主题按钮可切换夜间黑金与日间白金。
+在仓库根目录启动任意静态文件服务器，打开 `docs/prototypes/daily-signal/index.html`。页面右上角「原型场景」可切换首次访问、重复访问、高负载／调试回信、发送失败和空白档案；虚构回执仅保存在当前标签页的 `sessionStorage`，用于演示重访，不代表账号数据或生产持久化。顶部主题按钮可切换夜间黑金与日间白金。正式回信规则见 [`reply-terminal.md`](./reply-terminal.md)。
 
-原型代码：[index.html](../../prototypes/daily-signal/index.html)、[prototype.css](../../prototypes/daily-signal/prototype.css)、[prototype.js](../../prototypes/daily-signal/prototype.js)。所有演示用户、日期与签到日均为虚构数据，原型没有持久化行为。
+原型代码：[index.html](../../prototypes/daily-signal/index.html)、[prototype.css](../../prototypes/daily-signal/prototype.css)、[prototype.js](../../prototypes/daily-signal/prototype.js)。所有演示用户、日期、签到日与回信都是虚构数据；原型不调用 API、不连接账户、不写入数据库。
 
 ## 设计说明
 

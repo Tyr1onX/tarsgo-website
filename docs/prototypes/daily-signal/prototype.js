@@ -1,6 +1,9 @@
-const MOCK_TODAY = "2026-10-16";
+import { chooseReply, DEMO_ACCOUNT_ID, FALLBACK_REPLY, getReplyById, MOCK_TODAY, normalizeDemoReceipt } from "./reply-copy.mjs?v=3";
+
+const DEMO_RECORD_KEY = `jijia-reply-terminal:${DEMO_ACCOUNT_ID}:${MOCK_TODAY}`;
 const root = document.documentElement;
 const panel = document.querySelector(".terminal-panel");
+const replyTerminal = document.querySelector("#replyTerminal");
 const sceneSelect = document.querySelector("#sceneSelect");
 const yearSelect = document.querySelector("#yearSelect");
 const heatmapGrid = document.querySelector("#heatmapGrid");
@@ -8,18 +11,32 @@ const monthLabels = document.querySelector("#monthLabels");
 const dateDetail = document.querySelector("#dateDetail");
 const terminalState = document.querySelector("#terminalState");
 const terminalMessage = document.querySelector("#terminalMessage");
+const replyCopyElement = document.querySelector("#replyCopy");
 const moodGrid = document.querySelector("#moodGrid");
 const moodHeadingMode = document.querySelector("#moodHeadingMode");
 const moodReadonlyNote = document.querySelector("#moodReadonlyNote");
+const moodRecord = document.querySelector("#moodRecord");
+const moodEditActions = document.querySelector("#moodEditActions");
+const editMoodButton = document.querySelector("#editMood");
+const saveMoodButton = document.querySelector("#saveMood");
+const clearMoodButton = document.querySelector("#clearMood");
+const cancelMoodButton = document.querySelector("#cancelMood");
 const sendButton = document.querySelector("#sendSignal");
 const themeToggle = document.querySelector("#themeToggle");
 const heatmapViewport = document.querySelector("#heatmapViewport");
 const returnTodayButton = document.querySelector("#returnToday");
+const sidebar = document.querySelector("#dashboardSidebar");
+const sidebarOpenButton = document.querySelector("#sidebarOpen");
+const sidebarCloseButton = document.querySelector("#sidebarClose");
+const sidebarCollapseButton = document.querySelector("#sidebarCollapse");
+const sidebarScrim = document.querySelector("#sidebarScrim");
 
 const scenarios = {
   first: { signed: false, mood: null, empty: false, failed: false },
   repeat: { signed: true, mood: null, empty: false, failed: false },
   "signed-mood": { signed: true, mood: "高负载中", empty: false, failed: false },
+  "signed-debug": { signed: true, mood: "正在调试", replyId: "compiler-joke", empty: false, failed: false },
+  "signed-now": { signed: true, mood: null, empty: false, failed: false },
   failure: { signed: false, mood: null, empty: false, failed: true },
   empty: { signed: false, mood: null, empty: true, failed: false },
 };
@@ -32,6 +49,8 @@ let selectedDate = MOCK_TODAY;
 let focusedDate = MOCK_TODAY;
 let transientTimer = 0;
 let failureCanRecover = false;
+let moodBeforeEdit = null;
+let editingMood = false;
 
 function parseDate(key) {
   const [year, month, day] = key.split("-").map(Number);
@@ -54,11 +73,68 @@ function formattedMonth(date) {
 
 function stableHash(value) {
   let hash = 2166136261;
-  for (let i = 0; i < value.length; i += 1) {
-    hash ^= value.charCodeAt(i);
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
     hash = Math.imul(hash, 16777619);
   }
   return hash >>> 0;
+}
+
+function readDemoReply() {
+  try {
+    const record = JSON.parse(window.sessionStorage.getItem(DEMO_RECORD_KEY) ?? "null");
+    return normalizeDemoReceipt(record, MOCK_TODAY, DEMO_ACCOUNT_ID);
+  } catch {
+    return null;
+  }
+}
+
+function saveDemoReply(mood, reply) {
+  try {
+    const receipt = normalizeDemoReceipt({ date: MOCK_TODAY, accountId: DEMO_ACCOUNT_ID, mood, replyId: reply.id }, MOCK_TODAY, DEMO_ACCOUNT_ID);
+    window.sessionStorage.setItem(DEMO_RECORD_KEY, JSON.stringify(receipt));
+  } catch {
+    // The prototype keeps working even when the browser blocks session storage.
+  }
+}
+
+function clearDemoReply() {
+  try {
+    window.sessionStorage.removeItem(DEMO_RECORD_KEY);
+  } catch {
+    // The prototype can still switch scenarios without browser storage.
+  }
+}
+
+function setReplyTerminal(state, reply = FALLBACK_REPLY, { arrive = false } = {}) {
+  const messages = {
+    waiting: {
+      status: "等待发送",
+      copy: "今天也可以按自己的节奏来，基地一直在这里。",
+    },
+    sending: {
+      status: "正在接收",
+      copy: "基地正在认真接收你的信号。",
+    },
+    received: {
+      status: "基地已回应",
+      copy: reply?.text ?? FALLBACK_REPLY.text,
+    },
+    failed: {
+      status: "暂未收到",
+      copy: "这次没能收到，等你方便时再试也可以。",
+    },
+  };
+  const message = messages[state] ?? messages.waiting;
+  replyTerminal.dataset.replyState = state in messages ? state : "waiting";
+  terminalState.textContent = message.status;
+  replyCopyElement.textContent = message.copy;
+  const reduceMotion = root.dataset.motion === "reduce" || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  replyTerminal.classList.remove("is-arriving");
+  if (arrive && state === "received" && !reduceMotion) {
+    requestAnimationFrame(() => replyTerminal.classList.add("is-arriving"));
+    window.setTimeout(() => replyTerminal.classList.remove("is-arriving"), 760);
+  }
 }
 
 function makeFictionalRecords(year) {
@@ -303,7 +379,7 @@ function moveGridFocus(event) {
 }
 
 function setMood(mood) {
-  if (signedToday || panel.dataset.mode === "sending") return;
+  if ((signedToday && !editingMood) || panel.dataset.mode === "sending") return;
   selectedMood = selectedMood === mood ? null : mood;
   document.querySelectorAll(".mood-option").forEach((button) => {
     button.setAttribute("aria-pressed", String(button.dataset.mood === selectedMood));
@@ -311,37 +387,73 @@ function setMood(mood) {
 }
 
 function syncMoodControls() {
-  const readOnly = signedToday;
+  const readOnly = signedToday && !editingMood;
   const sending = panel.dataset.mode === "sending";
   const moodOptions = document.querySelectorAll(".mood-option");
   moodGrid.classList.toggle("is-readonly", readOnly);
   moodGrid.setAttribute("aria-label", readOnly
-    ? selectedMood ? `今日状态：${selectedMood}，签到后只读展示` : "今日状态：未选择，签到后只读展示"
+    ? selectedMood ? `今日记录状态：${selectedMood}` : "今日未选择状态"
     : "选择今日状态，可不选择");
-  moodHeadingMode.textContent = readOnly
-    ? selectedMood ? "已记录 · 只读" : "未选择 · 只读"
+  moodHeadingMode.textContent = signedToday
+    ? editingMood ? "编辑中" : selectedMood ? "已记录" : "未选择"
     : "可选";
-  moodReadonlyNote.hidden = !(readOnly && !selectedMood);
+  moodRecord.hidden = !readOnly;
+  moodReadonlyNote.textContent = selectedMood ? `已记录：${selectedMood}` : "今天没有选择状态。";
+  moodEditActions.hidden = !signedToday || !editingMood;
+  clearMoodButton.disabled = selectedMood === null;
   moodOptions.forEach((button) => {
     const isSavedChoice = button.dataset.mood === selectedMood;
-    button.hidden = readOnly && !isSavedChoice;
-    button.disabled = readOnly || sending;
+    button.hidden = readOnly;
+    button.disabled = (signedToday && !editingMood) || sending;
     button.setAttribute("aria-pressed", String(isSavedChoice));
   });
 }
 
+function beginMoodEdit() {
+  if (!signedToday) return;
+  moodBeforeEdit = selectedMood;
+  editingMood = true;
+  syncMoodControls();
+  const selected = moodGrid.querySelector(".mood-option[aria-pressed='true']") ?? moodGrid.querySelector(".mood-option");
+  selected?.focus();
+}
+
+function cancelMoodEdit() {
+  selectedMood = moodBeforeEdit;
+  editingMood = false;
+  syncMoodControls();
+  editMoodButton.focus();
+}
+
+function saveMoodUpdate(nextMood) {
+  if (!signedToday || !editingMood) return;
+  selectedMood = nextMood;
+  editingMood = false;
+  const reply = chooseReply(selectedMood);
+  saveDemoReply(selectedMood, reply);
+  setReplyTerminal("received", reply);
+  setMessage(reply.text, "success");
+  moodBeforeEdit = selectedMood;
+  syncMoodControls();
+  updateDateDetail(MOCK_TODAY);
+}
+
 function setMessage(text, kind = "") {
   terminalMessage.textContent = text;
-  terminalMessage.className = `terminal-message${kind ? ` is-${kind}` : ""}`;
+  terminalMessage.className = `terminal-message${kind === "success" ? " sr-only" : kind ? ` is-${kind}` : ""}`;
+  terminalMessage.setAttribute("role", kind === "error" ? "alert" : "status");
   terminalMessage.hidden = !text;
 }
 
-function applyScenario(name) {
+function applyScenario(name, { storedReply = null } = {}) {
   window.clearTimeout(transientTimer);
+  replyTerminal.classList.remove("is-arriving");
   scene = name in scenarios ? name : "first";
   const config = scenarios[scene];
   signedToday = config.signed;
-  selectedMood = config.mood;
+  editingMood = false;
+  moodBeforeEdit = null;
+  selectedMood = storedReply && scene === "repeat" ? storedReply.mood : config.mood;
   recordSet = new Set();
   failureCanRecover = config.failed;
   selectedDate = MOCK_TODAY;
@@ -350,11 +462,19 @@ function applyScenario(name) {
   panel.dataset.mode = signedToday ? "signed" : config.failed ? "error" : "ready";
   sendButton.disabled = false;
   sendButton.querySelector(".send-button__label").textContent = config.failed ? "重新发送信号" : "发送今日信号";
-  terminalState.textContent = signedToday ? "信号已收到" : config.failed ? "发送未完成" : "等待发送";
+  const savedReply = signedToday
+    ? storedReply ?? (scene === "repeat" ? readDemoReply() : null) ?? (config.replyId ? { mood: selectedMood, replyId: config.replyId } : null)
+    : null;
+  const reply = signedToday
+    ? getReplyById(savedReply?.replyId ?? chooseReply(selectedMood).id)
+    : null;
+  if (scene === "first" || config.failed || config.empty) clearDemoReply();
+  else if (signedToday) saveDemoReply(selectedMood, reply);
+  sceneSelect.value = scene;
   syncMoodControls();
+  setReplyTerminal(config.failed ? "failed" : signedToday ? "received" : "waiting", reply);
 
-  if (scene === "repeat") setMessage("今天已经见过你啦。谢谢你把这一天，也留在基地。", "success");
-  else if (scene === "signed-mood") setMessage("「高负载中」已收到。辛苦了，今天可以慢一点。", "success");
+  if (scene === "repeat" || scene === "signed-mood" || scene === "signed-debug" || scene === "signed-now") setMessage(reply?.text ?? FALLBACK_REPLY.text, "success");
   else if (scene === "failure") setMessage("信号暂时没有送达。休息一下，再试一次也可以。", "error");
   else if (scene === "empty") setMessage("档案刚刚启程。什么时候想来，什么时候再发送。", "");
   else setMessage("");
@@ -377,26 +497,31 @@ function startSending() {
   panel.classList.add("is-transmitting");
   sendButton.disabled = true;
   sendButton.querySelector(".send-button__label").textContent = "正在发送…";
-  terminalState.textContent = "信号传输中";
-  setMessage("SIGNAL TRANSMITTING", "");
+  setReplyTerminal("sending");
+  setMessage("");
 
   const reduceMotion = root.dataset.motion === "reduce" || window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   transientTimer = window.setTimeout(() => {
     panel.classList.remove("is-transmitting");
     panel.dataset.mode = "signed";
     sendButton.disabled = false;
-    scene = "first";
-    sceneSelect.value = "first";
+    scene = "signed-now";
+    sceneSelect.value = scene;
     signedToday = true;
     recordSet.add(MOCK_TODAY);
     selectedDate = MOCK_TODAY;
     focusedDate = MOCK_TODAY;
     yearSelect.value = MOCK_TODAY.slice(0, 4);
     document.querySelector("#archiveYearLabel").textContent = yearSelect.value;
-    terminalState.textContent = "信号已收到";
-    setMessage(selectedMood
-      ? `今天的信号收到了。谢谢你分享「${selectedMood}」。`
-      : "今天的信号收到了。谢谢你又来到这里。", "success");
+    let reply = FALLBACK_REPLY;
+    try {
+      reply = chooseReply(selectedMood);
+    } catch {
+      // A missing copy still ends the demo sign-in and lights today's cell.
+    }
+    saveDemoReply(selectedMood, reply);
+    setReplyTerminal("received", reply, { arrive: !reduceMotion });
+    setMessage(reply.text, "success");
     syncMoodControls();
     renderHeatmap({ preserveScroll: false });
     scrollHeatmapToDate(MOCK_TODAY);
@@ -410,6 +535,22 @@ function toggleTheme() {
   themeToggle.setAttribute("aria-label", `切换到${next === "dark" ? "日间白金" : "夜间黑金"}主题`);
 }
 
+function setMobileSidebarOpen(open) {
+  document.body.classList.toggle("is-sidebar-open", open);
+  sidebarOpenButton.setAttribute("aria-expanded", String(open));
+  sidebarScrim.hidden = !open;
+  if (open) sidebarCloseButton.focus();
+  else sidebarOpenButton.focus();
+}
+
+function toggleSidebarCollapse() {
+  const collapsed = sidebar.dataset.collapsed !== "true";
+  sidebar.dataset.collapsed = String(collapsed);
+  sidebarCollapseButton.setAttribute("aria-expanded", String(!collapsed));
+  sidebarCollapseButton.setAttribute("aria-label", collapsed ? "展开侧边栏" : "收起侧边栏");
+  sidebarCollapseButton.title = collapsed ? "展开侧边栏" : "收起侧边栏";
+}
+
 document.querySelectorAll(".mood-option").forEach((button) => button.addEventListener("click", () => setMood(button.dataset.mood)));
 sendButton.addEventListener("click", startSending);
 sceneSelect.addEventListener("change", (event) => applyScenario(event.currentTarget.value));
@@ -421,6 +562,19 @@ yearSelect.addEventListener("change", () => {
 });
 themeToggle.addEventListener("click", toggleTheme);
 returnTodayButton.addEventListener("click", returnToToday);
+editMoodButton.addEventListener("click", beginMoodEdit);
+saveMoodButton.addEventListener("click", () => saveMoodUpdate(selectedMood));
+clearMoodButton.addEventListener("click", () => saveMoodUpdate(null));
+cancelMoodButton.addEventListener("click", cancelMoodEdit);
+sidebarOpenButton.addEventListener("click", () => setMobileSidebarOpen(true));
+sidebarCloseButton.addEventListener("click", () => setMobileSidebarOpen(false));
+sidebarScrim.addEventListener("click", () => setMobileSidebarOpen(false));
+sidebarCollapseButton.addEventListener("click", toggleSidebarCollapse);
+document.addEventListener("keydown", (event) => {
+  if (event.key === "Escape" && document.body.classList.contains("is-sidebar-open")) {
+    setMobileSidebarOpen(false);
+  }
+});
 
 if (new URLSearchParams(window.location.search).get("motion") === "reduce") {
   root.dataset.motion = "reduce";
@@ -429,6 +583,14 @@ if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
   root.dataset.motion = "reduce";
 }
 
-applyScenario("first");
+const requestedScene = new URLSearchParams(window.location.search).get("scene");
+const savedReply = readDemoReply();
+if (requestedScene && requestedScene in scenarios) {
+  applyScenario(requestedScene, { storedReply: requestedScene === "repeat" ? savedReply : null });
+} else if (savedReply) {
+  applyScenario("repeat", { storedReply: savedReply });
+} else {
+  applyScenario("first");
+}
 scrollHeatmapToDate(MOCK_TODAY);
 themeToggle.setAttribute("aria-label", "切换到日间白金主题");

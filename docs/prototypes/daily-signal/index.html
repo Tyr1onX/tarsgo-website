@@ -6,45 +6,81 @@
     <meta name="theme-color" content="#0d1010" />
     <title>吉甲基地 · 每日通信（交互原型）</title>
     <link rel="stylesheet" href="./prototype.css" />
-    <script src="./prototype.js" defer></script>
+    <script type="module" src="./prototype.js?v=2"></script>
   </head>
   <body>
-    <div class="prototype-frame">
-      <header class="site-header">
-        <a class="brand" href="#top" aria-label="吉甲机器人队工作台">
-          <span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
-          <span class="brand-copy"><strong>吉甲</strong><small>TARS-GO · BASE</small></span>
-        </a>
-        <nav class="primary-nav" aria-label="工作台导航">
-          <a href="#terminal">工作台</a>
-          <a href="#terminal" class="is-current" aria-current="page">每日通信</a>
-          <a href="#archive">个人档案</a>
+    <div class="dashboard-shell" id="top">
+      <button class="sidebar-scrim" id="sidebarScrim" type="button" aria-label="关闭工作台侧边栏" hidden></button>
+      <aside class="dashboard-sidebar" id="dashboardSidebar" aria-label="统一工作台导航" data-collapsed="false">
+        <div class="sidebar-brand-row">
+          <a class="sidebar-brand" href="#top" aria-label="返回 TARS-Go 工作台首页">
+            <img src="../../../public/assets/images/Logo/tarsgo-logo-v5.svg" alt="TARSGO" class="logo-dark" />
+            <img src="../../../public/assets/images/Logo/tarsgo-logo-v5-light.svg" alt="" aria-hidden="true" class="logo-light" />
+          </a>
+          <button class="sidebar-collapse" id="sidebarCollapse" type="button" aria-label="收起侧边栏" aria-expanded="true" title="收起侧边栏">
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m13 4-6 6 6 6M17 4v12" /></svg>
+          </button>
+          <button class="sidebar-close" id="sidebarClose" type="button" aria-label="关闭侧边栏">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18 18 6M6 6l12 12" /></svg>
+          </button>
+        </div>
+        <div class="sidebar-divider" aria-hidden="true"></div>
+        <nav class="sidebar-nav" aria-label="工作台功能">
+          <a href="#workspace-home" class="sidebar-link" title="个人工作台" aria-label="个人工作台">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m2.25 12 8.95-8.96a1.13 1.13 0 0 1 1.6 0L21.75 12M4.5 9.75v10.13c0 .62.5 1.12 1.12 1.12h3.75v-4.88c0-.62.5-1.12 1.13-1.12h2.25c.62 0 1.12.5 1.12 1.12V21h4.13c.62 0 1.12-.5 1.12-1.12V9.75" /></svg>
+            <span>个人工作台</span>
+          </a>
+          <a href="#terminal" class="sidebar-link is-active" title="每日通信" aria-label="每日通信" aria-current="page">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><circle cx="12" cy="12" r="8.25"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>
+            <span>每日通信</span>
+          </a>
+          <div class="sidebar-section">
+            <span class="sidebar-section-title">个人事务</span>
+            <a href="/dashboard/users/registrations" class="sidebar-link" title="我的招新" aria-label="我的招新">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.11c0-1.14-.85-2.1-1.98-2.19-.37-.03-.74-.05-1.12-.08m-5.8 0A2.25 2.25 0 0 1 13.5 2.25H15a2.25 2.25 0 0 1 2.15 1.59M8.25 8.25H4.88c-.62 0-1.13.5-1.13 1.12v11.25c0 .62.51 1.13 1.13 1.13h9.75c.62 0 1.12-.51 1.12-1.13V9.38c0-.63-.5-1.13-1.12-1.13H8.25Z" /></svg>
+              <span>我的招新</span>
+            </a>
+          </div>
         </nav>
-        <div class="header-actions">
-          <aside class="prototype-dock" aria-label="原型演示场景">
-            <label for="sceneSelect"><span class="dock-dot" aria-hidden="true"></span><span class="dock-label-long">原型场景</span><span class="dock-label-short">预览</span></label>
-            <select id="sceneSelect" aria-label="切换原型演示场景（虚构数据，不会保存）">
-              <option value="first">首次访问</option>
-              <option value="repeat">今天已签到 · 重复访问</option>
-              <option value="signed-mood">今天已签到 · 高负载</option>
+        <div class="sidebar-profile">
+          <span class="profile-avatar" aria-hidden="true">林</span>
+          <span class="profile-copy"><strong>林知夏</strong><small>lin@example.test · 虚构账号</small></span>
+          <svg class="profile-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="m4 6 4 4 4-4" /></svg>
+        </div>
+      </aside>
+
+      <div class="dashboard-main">
+        <header class="dashboard-topbar">
+          <button class="mobile-sidebar-open" id="sidebarOpen" type="button" aria-label="打开工作台侧边栏" aria-controls="dashboardSidebar" aria-expanded="false">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" /></svg>
+          </button>
+          <div class="topbar-actions">
+            <button class="theme-toggle" type="button" id="themeToggle" aria-label="切换到白金主题" title="切换主题">
+              <svg class="theme-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.3"/><path d="M12 2.5v2m0 15v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2.5 12h2m15 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
+              <svg class="theme-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 15.2A8.3 8.3 0 0 1 8.8 4.6a8.4 8.4 0 1 0 10.6 10.6Z"/></svg>
+            </button>
+            <a class="site-link" href="https://jijiamaster.com/" aria-label="打开官网">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" /></svg>
+              <span>返回官网</span>
+            </a>
+          </div>
+        </header>
+
+        <main id="workspace-home" class="dashboard-content">
+          <div class="prototype-toolbar" aria-label="原型演示控制">
+            <span class="prototype-toolbar__label"><span class="dock-dot" aria-hidden="true"></span>原型演示</span>
+            <label for="sceneSelect" class="sr-only">切换原型演示场景</label>
+            <select id="sceneSelect" aria-label="切换演示场景（仅当前标签页的虚构数据）">
+              <option value="first">签到前 · 等待发送</option>
+              <option value="repeat">已签到 · 同日重访</option>
+              <option value="signed-mood">已签到 · 高负载</option>
+              <option value="signed-debug">已签到 · 调试回信</option>
+              <option value="signed-now">已签到 · 无情绪</option>
               <option value="failure">发送失败 · 可重试</option>
               <option value="empty">空白档案</option>
             </select>
-            <span class="dock-caption">演示数据 · 不会保存</span>
-          </aside>
-          <button class="theme-toggle" type="button" id="themeToggle" aria-label="切换到日间白金主题">
-            <svg class="theme-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.3"/><path d="M12 2.5v2m0 15v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2.5 12h2m15 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/></svg>
-            <svg class="theme-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M19.4 15.2A8.3 8.3 0 0 1 8.8 4.6a8.4 8.4 0 1 0 10.6 10.6Z"/></svg>
-          </button>
-          <div class="profile-chip" aria-label="虚构演示账号：林知夏">
-            <span class="profile-avatar" aria-hidden="true">林</span>
-            <span class="profile-name">林知夏</span>
-            <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>
+            <span class="prototype-toolbar__note">虚构数据 · 不连接服务</span>
           </div>
-        </div>
-      </header>
-
-      <main id="top" class="page-shell">
         <div class="page-head">
           <div>
             <div class="eyebrow"><span class="eyebrow-line"></span>BASE / DAILY COMMS</div>
@@ -87,7 +123,16 @@
                 <span>正在调试</span>
               </button>
             </div>
-            <p class="mood-readonly-note" id="moodReadonlyNote" hidden>今天没有选择状态。</p>
+            <div class="mood-record" id="moodRecord" hidden>
+              <p class="mood-readonly-note" id="moodReadonlyNote">今天没有选择状态。</p>
+              <button class="mood-edit-button" id="editMood" type="button">修改今日状态</button>
+            </div>
+            <div class="mood-edit-actions" id="moodEditActions" hidden>
+              <span class="mood-edit-hint">修改后，基地会用当前状态更新回信。</span>
+              <button class="mood-save-button" id="saveMood" type="button">保存更改</button>
+              <button class="mood-clear-button" id="clearMood" type="button">清除状态</button>
+              <button class="mood-cancel-button" id="cancelMood" type="button">取消</button>
+            </div>
             <div class="terminal-footer">
               <button class="send-button" type="button" id="sendSignal">
                 <span class="send-button__label">发送今日信号</span>
@@ -95,18 +140,19 @@
               </button>
               <span class="optional-hint">不选择状态，也可以直接签到</span>
             </div>
-            <div id="terminalMessage" class="terminal-message" role="status" aria-live="polite" hidden></div>
+            <div id="terminalMessage" class="sr-only terminal-message" role="status" aria-live="polite" hidden></div>
           </div>
-          <aside class="transmitter" aria-label="通信终端状态">
-            <div class="transmitter-head"><span class="mono">TX / 01</span><span>吉甲基地</span></div>
-            <div class="signal-orbit" id="signalOrbit" aria-hidden="true">
-              <span class="orbit orbit--outer"></span><span class="orbit orbit--mid"></span><span class="orbit orbit--inner"></span>
-              <span class="signal-core"><span class="signal-core__dot"></span></span>
-              <span class="signal-trace signal-trace--one"></span><span class="signal-trace signal-trace--two"></span>
+          <aside class="transmitter" id="replyTerminal" aria-label="基地回应" data-reply-state="waiting">
+            <div class="transmitter-head"><span>吉甲基地</span><strong id="terminalState">等待发送</strong></div>
+            <div class="reply-signal-row">
+              <div class="signal-orbit" aria-hidden="true">
+                <span class="orbit orbit--outer"></span><span class="orbit orbit--mid"></span><span class="orbit orbit--inner"></span>
+                <span class="signal-core"><span class="signal-core__dot"></span></span>
+                <span class="signal-trace signal-trace--one"></span><span class="signal-trace signal-trace--two"></span>
+                <span class="signal-ripple"></span>
+              </div>
+              <p id="replyCopy" class="reply-copy">今天也可以按自己的节奏来，基地一直在这里。</p>
             </div>
-            <div class="transmitter-state"><span class="transmitter-state__label">TERMINAL STATE</span><strong id="terminalState">等待发送</strong></div>
-            <div class="transmitter-readout"><span>CHANNEL</span><strong>BASE—01</strong><span class="readout-rule"></span><span>SECURE</span><strong><span class="secure-dot"></span> PRIVATE</strong></div>
-            <span class="transmitter-index">GJ / 026</span>
           </aside>
           <span class="terminal-corner terminal-corner--tl" aria-hidden="true"></span><span class="terminal-corner terminal-corner--br" aria-hidden="true"></span>
         </section>
@@ -154,8 +200,8 @@
         </section>
 
         <div class="footer-line"><span>JIJIA BASE · PERSONAL ARCHIVE</span><span>留下一点信号，也留一点余地。</span></div>
-      </main>
-
+        </main>
+      </div>
     </div>
   </body>
 </html>
