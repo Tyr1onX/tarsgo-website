@@ -303,10 +303,10 @@ function HomeSponsorSection() {
             </h3>
           </div>
           <a
-            href="https://rightapi.ai/register?aff=066c2467"
+            href="https://rightapi.ai/register?aff=RIGHTCODE_JLU"
             target="_blank"
             rel="noopener noreferrer"
-            aria-label="访问 RightAPI（第三方服务推荐，链接包含邀请参数）"
+            aria-label="访问 RightAPI"
             className="home-alumni-recommendation__card"
           >
             <span className="home-alumni-recommendation__logo" aria-hidden="true">
@@ -315,7 +315,6 @@ function HomeSponsorSection() {
             <span className="home-alumni-recommendation__copy">
               <span className="home-alumni-recommendation__name">RightAPI</span>
               <span className="home-alumni-recommendation__description">由吉甲学长运营，提供第三方 AI 模型 API 接入服务。</span>
-              <span className="home-alumni-recommendation__disclosure">第三方服务推荐，链接包含邀请参数</span>
             </span>
             <span className="home-alumni-recommendation__arrow" aria-hidden="true"><HomeArrowIcon /></span>
           </a>
