@@ -2,6 +2,19 @@
 set -Eeuo pipefail
 umask 077
 
+if (( $# > 1 )); then
+  echo "usage: backup-production.sh [--local-only|--offsite]" >&2
+  exit 2
+fi
+case "${1:-}" in
+  --local-only) backup_mode=local ;;
+  ""|--offsite) backup_mode=offsite ;;
+  *)
+    echo "usage: backup-production.sh [--local-only|--offsite]" >&2
+    exit 2
+    ;;
+esac
+
 jijia_root="${JIJIA_ROOT:-/opt/jijia}"
 backup_dir="${JIJIA_BACKUP_DIR:-$jijia_root/backups}"
 remote_alias="${JIJIA_BACKUP_REMOTE:-tencent-backup}"
@@ -85,8 +98,10 @@ chmod 0600 "$checksum_path"
   sha256sum --check -- "$backup_name.sha256"
 )
 
-run_scp -o BatchMode=yes "$archive_path" "$checksum_path" "$remote_alias:$incoming_dir/"
-run_ssh -o BatchMode=yes "$remote_alias" sudo -n /usr/local/sbin/jijia-backup-accept "$backup_name"
+if [[ "$backup_mode" == offsite ]]; then
+  run_scp -o BatchMode=yes "$archive_path" "$checksum_path" "$remote_alias:$incoming_dir/"
+  run_ssh -o BatchMode=yes "$remote_alias" sudo -n /usr/local/sbin/jijia-backup-accept "$backup_name"
+fi
 
 retain_local_backups() {
   local pattern expired_archive
@@ -98,4 +113,8 @@ retain_local_backups() {
 }
 
 retain_local_backups
-echo "Production backup verified locally and on Tencent; 7-day local retention completed: $backup_name"
+if [[ "$backup_mode" == offsite ]]; then
+  echo "Production backup verified locally and on Tencent; 7-day local retention completed: $backup_name"
+else
+  echo "Production backup verified locally (Tencent transfer skipped); 7-day local retention completed: $backup_name"
+fi
