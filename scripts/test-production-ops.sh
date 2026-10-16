@@ -512,12 +512,14 @@ JIJIA_BACKUP_OWNER="$(id -un)" JIJIA_BACKUP_GROUP="$(id -gn)" JIJIA_BACKUP_STORE
 SSH
   chmod +x "$case_dir/bin/docker" "$case_dir/bin/scp" "$case_dir/bin/ssh"
   run_backup() {
-    JIJIA_ROOT="$case_dir/source" JIJIA_BACKUP_DIR="$case_dir/local" \
+    local mock_mode="$1"
+    shift
+    JIJIA_ROOT="$case_dir/source" JIJIA_BACKUP_DIR="${MOCK_LOCAL_BACKUP_DIR:-$case_dir/local}" \
     JIJIA_BACKUP_INCOMING="$case_dir/remote/incoming" JIJIA_BACKUP_REMOTE=fixture \
-    DOCKER_BIN="$case_dir/bin/docker" SCP_BIN="$case_dir/bin/scp" SSH_BIN="$case_dir/bin/ssh" MOCK_BACKUP_MODE="$1" \
+    DOCKER_BIN="$case_dir/bin/docker" SCP_BIN="$case_dir/bin/scp" SSH_BIN="$case_dir/bin/ssh" MOCK_BACKUP_MODE="$mock_mode" \
     MOCK_REMOTE_INCOMING="$case_dir/remote/incoming" MOCK_REMOTE_STORE="$case_dir/remote/store" MOCK_SCP_LOG="$case_dir/scp.log" \
     MOCK_ACCEPT_SCRIPT="$repo_root/scripts/accept-production-backup.sh" PATH="$case_dir/bin:$PATH" \
-      bash "$repo_root/scripts/backup-production.sh"
+      bash "$repo_root/scripts/backup-production.sh" "$@"
   }
   set +e
   output="$(run_backup scp-failure 2>&1)"
@@ -580,6 +582,29 @@ with tarfile.open(fileobj=io.BytesIO(gzip.decompress(contents["uploads.tar.gz"])
     uploaded = uploads.extractfile("upload/example.txt")
     assert uploaded is not None and uploaded.read() == b"upload fixture\n", "upload snapshot content is incorrect"
 PY
+  # Deployment mode must produce a complete, verified local archive without
+  # calling Tencent, even when the mocked remote would reject every upload.
+  local local_only_dir="$case_dir/local-only" local_only_archive remote_count_before remote_count_after
+  mkdir -p "$local_only_dir"
+  printf 'expired\n' >"$local_only_dir/jijia-old.sql.gz"
+  touch -d '8 days ago' "$local_only_dir/jijia-old.sql.gz"
+  remote_count_before="$(find "$case_dir/remote/store" -type f | wc -l)"
+  : >"$case_dir/scp.log"
+  output="$(MOCK_LOCAL_BACKUP_DIR="$local_only_dir" run_backup scp-failure --local-only)"
+  [[ "$output" == *"Tencent transfer skipped"* ]] || fail "local-only backup mode was not reported"
+  [[ ! -s "$case_dir/scp.log" ]] || fail "local-only backup attempted an SCP transfer"
+  local_only_archive="$(find "$local_only_dir" -maxdepth 1 -type f -name 'jijia-full-*.tar.gz' -print -quit)"
+  [[ -n "$local_only_archive" && -f "$local_only_archive.sha256" ]] || fail "local-only backup is missing archive or checksum"
+  (cd "$local_only_dir" && sha256sum --check -- "$(basename "$local_only_archive").sha256") >/dev/null || fail "local-only backup checksum failed"
+  tar -tzf "$local_only_archive" | grep -Fxq 'database.sql.gz' || fail "local-only backup lost the database dump"
+  tar -tzf "$local_only_archive" | grep -Fxq 'uploads.tar.gz' || fail "local-only backup lost uploaded files"
+  [[ ! -e "$local_only_dir/jijia-old.sql.gz" ]] || fail "local-only backup failed 7-day retention"
+  remote_count_after="$(find "$case_dir/remote/store" -type f | wc -l)"
+  [[ "$remote_count_after" == "$remote_count_before" ]] || fail "local-only backup changed remote storage"
+  [[ "$(grep -Fxc 'ExecStart=/opt/jijia/jijia-backup.sh' "$repo_root/scripts/backup-production.service")" == 1 ]] || fail "scheduled backup must continue using the default offsite mode"
+  grep -Fq '"$jijia_root/jijia-backup.sh" --local-only' "$repo_root/scripts/deploy-production.sh" || fail "standard deployment must use local-only backup"
+  grep -Fq '"$jijia_root/jijia-backup.sh" --offsite' "$repo_root/scripts/deploy-production.sh" || fail "required offsite deployment mode is missing"
+  pass "local-only deployment backup is complete, checksum-verified and skips Tencent; daily offsite mode remains"
   pass "archive contents, local/remote permissions and checksums, and 7/30-day retention verified"
 }
 
