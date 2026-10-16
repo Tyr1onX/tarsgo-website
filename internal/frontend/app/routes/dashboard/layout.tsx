@@ -605,7 +605,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           <div className={`${userMenuItems.length > 0 ? "mt-6 border-t border-white/[0.06] pt-5" : ""}`}>
             <div className="px-3 pb-2 text-[11px] uppercase tracking-[0.18em] text-gray-500">吉甲基地</div>
             <NavLink
-              to="/daily-signal"
+              to="/base"
               end
               onClick={handleSidebarNavigate}
               className={({ isActive }) =>
