@@ -5,6 +5,8 @@ import test from "node:test";
 
 const routes = await readFile(new URL("../routes.ts", import.meta.url), "utf8");
 const home = await readFile(new URL("../routes/home.tsx", import.meta.url), "utf8");
+const basePage = await readFile(new URL("../routes/base.tsx", import.meta.url), "utf8");
+const dashboardLayout = await readFile(new URL("../routes/dashboard/layout.tsx", import.meta.url), "utf8");
 const navbar = await readFile(new URL("../components/navbar.tsx", import.meta.url), "utf8");
 const styles = await readFile(new URL("../app.css", import.meta.url), "utf8");
 const joinExperience = await readFile(new URL("../components/join-experience.tsx", import.meta.url), "utf8");
@@ -97,10 +99,33 @@ test("the homepage uses six image-led routes, preserves legacy hashes, and keeps
   assert.match(home, /autoPlay=\{!prefersReducedMotion\}/);
   assert.match(home, /preload=\{prefersReducedMotion \? "none" : "metadata"\}/);
   assert.match(home, /if \(prefersReducedMotion\) heroVideoRef\.current\?\.pause\(\)/);
-  assert.match(home, /<HomeVisualNavigation \/>/);
+  assert.match(home, /<HomeVisualNavigation currentUser=\{currentUser\} \/>/);
   assert.match(navbar, /label: "加入我们", href: "\/join"/);
   assert.match(styles, /\.home-visual-card:focus-visible/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.home-visual-card:hover > img[\s\S]*?transform: none;/);
+});
+
+test("吉甲基地成为参与空间入口，工作台仍保留每日通信快捷入口", () => {
+  assert.match(routes, /route\("base", "routes\/base\.tsx"\)/);
+  assert.match(navbar, /label: "吉甲基地", href: "\/base"/);
+  assert.match(navbar, /pathname === "\/daily-signal"/);
+  assert.match(home, /<h3 id="home-space-learn-heading">了解吉甲<\/h3>/);
+  assert.match(home, /home-space-entry__eyebrow">参与吉甲/);
+  assert.match(home, /home-space-entry__eyebrow">管理吉甲/);
+  assert.match(home, /to="\/base" className="home-space-entry home-space-entry--base"/);
+  assert.match(home, /getDefaultDashboardPath\(currentUser\.role\.name\)/);
+  assert.match(basePage, /<h1>吉甲基地<\/h1>/);
+  assert.match(basePage, /to="\/daily-signal" className="gijia-base__feature"/);
+  assert.match(basePage, /登录后可保存自己的信号/);
+  assert.doesNotMatch(basePage, /规则竞技场|基地档案/);
+  assert.match(dashboardLayout, /to="\/daily-signal"/);
+  assert.match(dashboardLayout, /每日通信/);
+  assert.match(home, /<HomeVisualNavigation currentUser=\{currentUser\} \/>/);
+  assert.match(styles, /\.home-space-layout\s*\{[\s\S]*?grid-template-columns/);
+  assert.match(styles, /@media \(max-width: 767px\)\s*\{[\s\S]*?\.home-space-layout\s*\{\s*grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(basePage, /<PublicFooter \/>/);
+  assert.match(basePage, /当前开放/);
+  assert.doesNotMatch(basePage, /BASE<br \/>01|A PLACE FOR ORDINARY DAYS|TX \/ 01/);
 });
 
 test("the homepage visual navigation uses two rows from tablet width and the required four-column desktop grid", () => {

@@ -602,6 +602,29 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
             </div>
           ) : null}
 
+          <div className={`${userMenuItems.length > 0 ? "mt-6 border-t border-white/[0.06] pt-5" : ""}`}>
+            <div className="px-3 pb-2 text-[11px] uppercase tracking-[0.18em] text-gray-500">吉甲基地</div>
+            <NavLink
+              to="/daily-signal"
+              end
+              onClick={handleSidebarNavigate}
+              className={({ isActive }) =>
+                `flex min-w-0 items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${
+                  isActive ? "dashboard-nav-link dashboard-nav-link--active" : "dashboard-nav-link"
+                }`
+              }
+            >
+              <span className="dashboard-shell__accent" aria-hidden="true">
+                <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+                  <circle cx="12" cy="12" r="8.25" />
+                  <circle cx="12" cy="12" r="4.5" />
+                  <circle cx="12" cy="12" r="1" fill="currentColor" />
+                </svg>
+              </span>
+              <span className="min-w-0 flex-1 truncate text-left">每日通信</span>
+            </NavLink>
+          </div>
+
           {showAdminSection ? (
             <div className="mt-6 pt-5 border-t border-white/[0.06]">
               <div className="space-y-1">
