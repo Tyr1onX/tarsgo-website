@@ -13,6 +13,7 @@ const route = await readFile(new URL("../routes/micro-specialty-low-altitude.tsx
 const routeConfig = await readFile(new URL("../routes.ts", import.meta.url), "utf8");
 const navbar = await readFile(new URL("../components/navbar.tsx", import.meta.url), "utf8");
 const home = await readFile(new URL("../routes/home.tsx", import.meta.url), "utf8");
+const homeVisualNavigation = await readFile(new URL("../components/home-visual-navigation.tsx", import.meta.url), "utf8");
 const visibleContent = [
   route,
   lowAltitudeCourseTerms.map(({ semester, focus, description, courses }) =>
@@ -40,7 +41,7 @@ test("micro-specialty page presents the four real courses in a two-semester path
   assert.match(route, /id="practice"/);
   assert.match(route, /id="faq"/);
   assert.match(routeConfig, /micro-specialties\/low-altitude-intelligent-sensing-control/);
-  assert.match(home, /href: "\/micro-specialties\/low-altitude-intelligent-sensing-control"/);
+  assert.match(homeVisualNavigation, /href: "\/micro-specialties\/low-altitude-intelligent-sensing-control"/);
   assert.match(home, /<Link className="footer-link" to="\/micro-specialties\/low-altitude-intelligent-sensing-control">低空微专业<\/Link>/);
   assert.doesNotMatch(navbar, /navbar-micro-specialty|to=.*micro-specialties/);
   assert.doesNotMatch(visibleContent, /低空系统与任务基础|智能感知与状态估计|运动控制与任务规划|综合项目与系统联调/);

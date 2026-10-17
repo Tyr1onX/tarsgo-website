@@ -452,7 +452,7 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
 
       <Navbar currentUser={currentUser} authError={authError} />
 
-      {routePage === "home" ? <HomeVisualNavigation /> : null}
+      {routePage === "home" ? <HomeVisualNavigation imageTreatment="sand" /> : null}
 
       {routePage === "events-and-honors" ? <EventsAndHonorsArchive /> : null}
 

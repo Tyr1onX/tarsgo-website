@@ -1,10 +1,7 @@
-import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
+import { HomeSandRevealLayer } from "./home-sand-reveal-layer";
 import type { HomeImageTreatment, SandRevealPhase } from "./home-sand-reveal-layer";
-
-const HomeSandRevealLayer = lazy(() =>
-  import("./home-sand-reveal-layer").then((module) => ({ default: module.HomeSandRevealLayer })),
-);
 
 const responsiveHomeImage = (
   name: string,
@@ -125,17 +122,15 @@ function HomeVisualCard({
         decoding="async"
       />
       {imageTreatment ? (
-        <Suspense fallback={null}>
-          <HomeSandRevealLayer
-            imageRef={imageRef}
-            mode={imageTreatment}
-            started={started}
-            replayToken={replayToken}
-            staggerMs={staggerMs}
-            frameOverride={frameOverride}
-            onPhaseChange={setPhase}
-          />
-        </Suspense>
+        <HomeSandRevealLayer
+          imageRef={imageRef}
+          mode={imageTreatment}
+          started={started}
+          replayToken={replayToken}
+          staggerMs={staggerMs}
+          frameOverride={frameOverride}
+          onPhaseChange={setPhase}
+        />
       ) : null}
       <span className="home-visual-card-shade" aria-hidden="true" />
       <div className="home-visual-card-copy">

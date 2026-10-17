@@ -25,6 +25,8 @@ const SAMPLE_MAX_HEIGHT = 240;
 const REVEAL_DURATION_MS = 2_800;
 const FRAME_INTERVAL_MS = 1000 / 30;
 const SETTLE_CROSSFADE_MS = 300;
+const PREPARATION_TIMEOUT_MS = 4_000;
+const MAX_CONSECUTIVE_SLOW_FRAMES = 2;
 
 export function HomeSandRevealLayer({
   imageRef,
@@ -82,6 +84,7 @@ export function HomeSandRevealLayer({
     let cancelled = false;
     let animationFrame = 0;
     let settleTimer = 0;
+    let preparationTimer = 0;
     let loadListener: (() => void) | null = null;
     let errorListener: (() => void) | null = null;
     const motionQuery = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -94,9 +97,20 @@ export function HomeSandRevealLayer({
     onPhaseChange("waiting");
     context.clearRect(0, 0, canvas.width, canvas.height);
 
+    const clearImageListeners = () => {
+      if (loadListener) image.removeEventListener("load", loadListener);
+      if (errorListener) image.removeEventListener("error", errorListener);
+      loadListener = null;
+      errorListener = null;
+    };
+
     const finishWithFallback = () => {
       if (cancelled) return;
+      cancelled = true;
+      window.cancelAnimationFrame(animationFrame);
+      window.clearTimeout(preparationTimer);
       context.clearRect(0, 0, canvas.width, canvas.height);
+      clearImageListeners();
       hasPlayedRef.current = true;
       onPhaseChange("fallback");
     };
@@ -123,6 +137,7 @@ export function HomeSandRevealLayer({
         finishWithFallback();
         return;
       }
+      if (cancelled) return;
       if (typeof image.decode === "function") {
         try {
           await image.decode();
@@ -134,6 +149,7 @@ export function HomeSandRevealLayer({
         }
       }
       if (cancelled) return;
+      window.clearTimeout(preparationTimer);
       if (motionQuery.matches) {
         hasPlayedRef.current = true;
         onPhaseChange("done");
@@ -271,6 +287,7 @@ export function HomeSandRevealLayer({
 
         let startIndex = 0;
         let landingIndex = 0;
+        let slowFrameStreak = 0;
         const activeParticles: SandParticle[] = [];
         onPhaseChange("playing");
         startedAt = performance.now() + staggerMs;
@@ -290,24 +307,33 @@ export function HomeSandRevealLayer({
           lastFrameAt = time;
           const progress = clamp((time - startedAt) / REVEAL_DURATION_MS, 0, 1);
           const drawStart = performance.now();
+          try {
+            while (startIndex < particlesByStart.length && particlesByStart[startIndex].fallStart <= progress) {
+              activeParticles.push(particlesByStart[startIndex]);
+              startIndex += 1;
+            }
+            landingIndex = depositThrough(progress, landingIndex);
+            compactActiveParticles(activeParticles, progress);
+            if (progress >= 1) {
+              maskContext.fillStyle = "#fff";
+              maskContext.fillRect(0, 0, sampleWidth, sampleHeight);
+            }
 
-          while (startIndex < particlesByStart.length && particlesByStart[startIndex].fallStart <= progress) {
-            activeParticles.push(particlesByStart[startIndex]);
-            startIndex += 1;
+            drawFrame(progress, activeParticles);
+          } catch {
+            finishWithFallback();
+            return;
           }
-          landingIndex = depositThrough(progress, landingIndex);
-          compactActiveParticles(activeParticles, progress);
-          if (progress >= 1) {
-            maskContext.fillStyle = "#fff";
-            maskContext.fillRect(0, 0, sampleWidth, sampleHeight);
-          }
-
-          drawFrame(progress, activeParticles);
           canvas.dataset.deposited = String(progress >= 1 ? particles.length : landingIndex);
           const drawCost = performance.now() - drawStart;
           frameCount += 1;
           totalDrawMs += drawCost;
           maxDrawMs = Math.max(maxDrawMs, drawCost);
+          slowFrameStreak = drawCost >= FRAME_INTERVAL_MS ? slowFrameStreak + 1 : 0;
+          if (slowFrameStreak >= MAX_CONSECUTIVE_SLOW_FRAMES) {
+            finishWithFallback();
+            return;
+          }
 
           if (progress < 1) {
             animationFrame = requestAnimationFrame(animate);
@@ -330,12 +356,15 @@ export function HomeSandRevealLayer({
       }
     };
 
+    preparationTimer = window.setTimeout(finishWithFallback, PREPARATION_TIMEOUT_MS);
     void prepareAndPlay();
     const handleMotionChange = (event: MediaQueryListEvent) => {
       if (!event.matches) return;
       cancelled = true;
       window.cancelAnimationFrame(animationFrame);
       window.clearTimeout(settleTimer);
+      window.clearTimeout(preparationTimer);
+      clearImageListeners();
       context.clearRect(0, 0, canvas.width, canvas.height);
       hasPlayedRef.current = true;
       onPhaseChange("done");
@@ -346,8 +375,8 @@ export function HomeSandRevealLayer({
       cancelled = true;
       window.cancelAnimationFrame(animationFrame);
       window.clearTimeout(settleTimer);
-      if (loadListener) image.removeEventListener("load", loadListener);
-      if (errorListener) image.removeEventListener("error", errorListener);
+      window.clearTimeout(preparationTimer);
+      clearImageListeners();
       motionQuery.removeEventListener("change", handleMotionChange);
     };
   }, [frameOverride, imageRef, mode, onPhaseChange, replayToken, staggerMs, started, motionReduced]);
