@@ -5,6 +5,7 @@ import test from "node:test";
 
 const routes = await readFile(new URL("../routes.ts", import.meta.url), "utf8");
 const home = await readFile(new URL("../routes/home.tsx", import.meta.url), "utf8");
+const homeVisualNavigation = await readFile(new URL("../components/home-visual-navigation.tsx", import.meta.url), "utf8");
 const basePage = await readFile(new URL("../routes/base.tsx", import.meta.url), "utf8");
 const dailySignalRoute = await readFile(new URL("../routes/daily-signal.tsx", import.meta.url), "utf8");
 const dailySignalWorkspace = await readFile(new URL("../components/daily-signal-workspace.tsx", import.meta.url), "utf8");
@@ -86,7 +87,7 @@ test("topic content keeps the five group definitions, dedicated about page, and 
 });
 
 test("the homepage uses six image-led routes, preserves legacy hashes, and keeps reduced-motion video behavior", () => {
-  const modules = home.match(/const homeNavigationModules = \[([\s\S]*?)\n\];/)?.[1] ?? "";
+  const modules = homeVisualNavigation.match(/const homeNavigationModules = \[([\s\S]*?)\n\];/)?.[1] ?? "";
   assert.equal((modules.match(/title: /g) ?? []).length, 6);
   assert.doesNotMatch(home, /25 张荣誉证书原图/);
   for (const path of ["/about", "/robots", "/join", "/events-and-honors", "/team-history", "/micro-specialties/low-altitude-intelligent-sensing-control"]) {
@@ -113,15 +114,15 @@ test("the homepage uses six image-led routes, preserves legacy hashes, and keeps
 });
 
 test("large homepage photos use content-hashed responsive WebP candidates without replacing the original photos", async () => {
-  const modules = home.match(/const homeNavigationModules = \[([\s\S]*?)\n\];/)?.[1] ?? "";
+  const modules = homeVisualNavigation.match(/const homeNavigationModules = \[([\s\S]*?)\n\];/)?.[1] ?? "";
   const candidates = [
     ["about", "381e0fa8", "8e5963df"],
     ["events", "a0240c86", "0a9ecfa8"],
     ["micro", "9613d89c", "d641915f"],
   ];
 
-  assert.match(home, /srcSet=\{module\.imageSrcSet\}/);
-  assert.match(home, /sizes=\{module\.imageSizes\}/);
+  assert.match(homeVisualNavigation, /srcSet=\{module\.imageSrcSet\}/);
+  assert.match(homeVisualNavigation, /sizes=\{module\.imageSizes\}/);
   for (const [name, hash640, hash1280] of candidates) {
     assert.match(
       modules,
@@ -213,6 +214,23 @@ test("the homepage restores its historic photo collage across tablet and desktop
   for (const card of ["about", "robots", "join", "events", "history", "micro"]) {
     assert.match(styles, new RegExp(`\\.home-visual-card--${card} > img \\{ object-position: center \\d+%; \\}`));
   }
+});
+
+test("sand reveal stays on a direct preview route and uses the real homepage gallery", async () => {
+  const previewRoute = await readFile(new URL("../routes/traces-sand-reveal.tsx", import.meta.url), "utf8");
+  assert.match(routes, /route\("experiments\/traces-sand-reveal", "routes\/traces-sand-reveal\.tsx"\)/);
+  assert.match(previewRoute, /<HomeVisualNavigation[\s\S]*?imageTreatment=\{mode\}/);
+  assert.match(previewRoute, /aria-pressed=\{mode === "original"\}/);
+  assert.match(previewRoute, /aria-pressed=\{mode === "sand"\}/);
+  assert.match(previewRoute, /重播沙画/);
+  assert.match(previewRoute, /noindex, nofollow/);
+  assert.match(homeVisualNavigation, /loading="lazy"/);
+  assert.match(homeVisualNavigation, /decoding="async"/);
+  assert.match(homeVisualNavigation, /srcSet=\{module\.imageSrcSet\}/);
+  assert.match(homeVisualNavigation, /new IntersectionObserver/);
+  assert.match(homeVisualNavigation, /<HomeSandRevealLayer/);
+  assert.match(home, /<HomeVisualNavigation \/>/);
+  assert.doesNotMatch(home, /imageTreatment=/);
 });
 
 test("RightAPI is a separate, disclosed alumni recommendation below the unchanged sponsor wall", async () => {
