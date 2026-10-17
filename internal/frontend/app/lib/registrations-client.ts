@@ -52,6 +52,8 @@ export interface AdminWorkbenchSummaryResponse {
   summary: RegistrationSummary;
 }
 
+const pendingWorkbenchSummaryRequests = new Map<number, Promise<AdminWorkbenchSummaryResponse>>();
+
 export interface RegistrationGroupRef {
   id: number;
   name: string;
@@ -330,8 +332,16 @@ export async function listAdminInterviewSessions(): Promise<InterviewSession[]> 
   return data.items;
 }
 
-export async function getAdminWorkbenchSummary(): Promise<AdminWorkbenchSummaryResponse> {
-  return apiRequest<AdminWorkbenchSummaryResponse>("/api/admin/workbench/summary");
+export function getAdminWorkbenchSummary(accountId: number, force = false): Promise<AdminWorkbenchSummaryResponse> {
+  const pending = pendingWorkbenchSummaryRequests.get(accountId);
+  if (pending && !force) return pending;
+
+  const request = apiRequest<AdminWorkbenchSummaryResponse>("/api/admin/workbench/summary")
+    .finally(() => {
+      if (pendingWorkbenchSummaryRequests.get(accountId) === request) pendingWorkbenchSummaryRequests.delete(accountId);
+    });
+  pendingWorkbenchSummaryRequests.set(accountId, request);
+  return request;
 }
 
 export async function createAdminInterviewSession(input: UpsertInterviewSessionInput): Promise<InterviewSession> {

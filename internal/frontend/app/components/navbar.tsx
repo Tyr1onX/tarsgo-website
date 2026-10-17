@@ -136,7 +136,7 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
 
     let active = true;
     setGroupState({ userId, status: "loading" });
-    void getUserGroupConfirmationState()
+    void getUserGroupConfirmationState(userId)
       .then((state) => {
         if (active) setGroupState({ userId, status: "ready", state });
       })
@@ -149,6 +149,13 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
   useEffect(() => {
     if (!menuOpen) return;
 
+    function closeOnOutsidePointer(event: PointerEvent) {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (mobileMenuRef.current?.contains(target) || mobileMenuButtonRef.current?.contains(target)) return;
+      setMenuOpen(false);
+    }
+
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
 
@@ -157,8 +164,12 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
       mobileMenuButtonRef.current?.focus();
     }
 
+    document.addEventListener("pointerdown", closeOnOutsidePointer);
     document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", closeOnOutsidePointer);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, [menuOpen]);
 
   useEffect(() => {
@@ -683,7 +694,7 @@ function NavbarIdentityDetail({
   return (
     <span className={`navbar-identity-detail${compact ? " navbar-identity-detail--compact" : ""}`}>
       {identity ? <GroupIdentityBadge identity={identity} compact={compact} /> : loading ? (
-        <span className="navbar-identity-detail__loading" role="status">正在确认组别</span>
+        <span className="navbar-user-role">{getAuthUserRoleLabel(user)}</span>
       ) : <span className="navbar-user-role">{getAuthUserRoleLabel(user)}</span>}
     </span>
   );

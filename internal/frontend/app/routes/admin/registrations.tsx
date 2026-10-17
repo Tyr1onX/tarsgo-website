@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { useNavigate, useOutletContext, useSearchParams } from "react-router";
 
 import { ApiError, buildApiUrl } from "~/lib/api-client";
 import {
@@ -27,6 +27,7 @@ import { listAdminArchivedForms, type RegistrationFormField, type RegistrationFo
 import { listAdminUserGroupOptions, type AdminUserGroupOption } from "~/lib/admin-user-groups-client";
 import { getShanghaiDate } from "~/lib/admin-workbench";
 import { useModalAccessibility } from "~/components/modal-shell";
+import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 
 export function meta() {
   return [
@@ -71,6 +72,7 @@ const statusOptions: Array<{ value: RecruitmentStatus | ""; label: string }> = [
 
 export default function Registrations() {
   const navigate = useNavigate();
+  const { refreshCandidateTodoCount } = useOutletContext<DashboardLayoutOutletContext>();
   const [searchParams, setSearchParams] = useSearchParams();
   const interviewWorkbench = searchParams.get("view") === "interviews";
   const initialInterviewQueue = searchParams.get("queue") === "processed" ? "processed" : "pending";
@@ -234,6 +236,7 @@ export default function Registrations() {
       setDetail(await getAdminRegistration(selectedId));
     }
     setRefreshToken((current) => current + 1);
+    void refreshCandidateTodoCount(true);
   }
 
   async function runAction(
@@ -282,6 +285,7 @@ export default function Registrations() {
       });
 
       setRefreshToken((current) => current + 1);
+      void refreshCandidateTodoCount(true);
     } catch (error) {
       handleError(error);
     } finally {

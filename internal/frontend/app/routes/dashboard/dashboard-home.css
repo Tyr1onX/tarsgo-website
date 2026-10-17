@@ -2,7 +2,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   width: min(100%, 1120px);
-  gap: 20px;
+  gap: 16px;
   margin-inline: auto;
   padding-block: 4px 24px;
 }
@@ -24,34 +24,8 @@
 }
 .dashboard-home__header > p:last-child { color: var(--admin-muted); font-size: 13px; line-height: 1.5; }
 
-.dashboard-home__shortcuts { display: grid; gap: 10px; margin-top: 3px; }
-.dashboard-home__shortcuts h2 { color: var(--admin-muted); font-size: 12px; font-weight: 550; letter-spacing: .06em; }
-.dashboard-home__shortcut-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 9px; }
-.dashboard-home__shortcut {
-  display: inline-flex;
-  min-height: 48px;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  border: 1px solid var(--admin-border-subtle);
-  border-radius: 8px;
-  padding: 0 13px;
-  background: var(--admin-surface);
-  color: var(--admin-text);
-  font-size: 13px;
-  font-weight: 520;
-  text-align: left;
-  text-decoration: none;
-  transition: border-color 150ms ease, background-color 150ms ease, color 150ms ease;
-}
-.dashboard-home__shortcut:hover { border-color: var(--admin-accent); background: color-mix(in srgb, var(--admin-accent) 8%, var(--admin-surface)); color: var(--admin-accent); }
 .dashboard-home :is(a, button):focus-visible { outline: 2px solid var(--admin-accent); outline-offset: 3px; }
 
 @media (max-width: 639px) {
   .dashboard-home { gap: 16px; padding-top: 0; }
-  .dashboard-home__shortcut-list { grid-template-columns: 1fr; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .dashboard-home__shortcut { transition-duration: .01ms; }
 }

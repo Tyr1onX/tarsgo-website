@@ -64,7 +64,7 @@ export default function AdminDashboard() {
       workbenchCache.set(currentUser.id, next);
     };
 
-    const summaryRequest = getAdminWorkbenchSummary()
+    const summaryRequest = getAdminWorkbenchSummary(currentUser.id)
       .then((result) => {
         updateSnapshot({ summary: result.summary, currentFormAvailable: result.currentFormAvailable });
         setSummary(result.summary);

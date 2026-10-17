@@ -32,6 +32,11 @@ export class AuthSessionCache<T> {
     this.state = { type: "anonymous", expiresAt: now + ANONYMOUS_SESSION_CACHE_TTL_MS };
   }
 
+  clear() {
+    this.generation += 1;
+    this.state = { type: "unknown" };
+  }
+
   acceptAuthenticatedRequest(version: number, user: T): boolean {
     if (version !== this.generation) return false;
     this.state = { type: "authenticated", user };
