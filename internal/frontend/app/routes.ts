@@ -7,6 +7,7 @@ export default [
   route("events-and-honors", "routes/events-and-honors.tsx"),
   route("team-history", "routes/team-history.tsx"),
   route("experiments/traces-of-time", "routes/traces-of-time.tsx"),
+  route("experiments/traces-of-time/study", "routes/traces-of-time-study.tsx"),
   route("join", "routes/join.tsx"),
   route("base", "routes/base.tsx"),
   route("daily-signal", "routes/daily-signal.tsx"),
