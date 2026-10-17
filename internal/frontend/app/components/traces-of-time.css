@@ -1,0 +1,195 @@
+body.traces-of-time-body {
+  min-width: 320px;
+  min-height: 100svh;
+  margin: 0;
+  overflow-x: hidden;
+  background: #080908;
+}
+
+.time-harp {
+  position: relative;
+  display: grid;
+  width: 100%;
+  min-width: 320px;
+  min-height: 100svh;
+  overflow: hidden;
+  place-items: center;
+  color: #f0eee8;
+  background:
+    radial-gradient(ellipse at 50% 45%, rgb(203 173 117 / 4%), transparent 42%),
+    #080908;
+  isolation: isolate;
+}
+
+.time-harp__heading {
+  position: absolute;
+  z-index: 2;
+  top: clamp(2.6rem, 8.2svh, 5.3rem);
+  left: 0;
+  width: 100%;
+  text-align: center;
+}
+
+.time-harp__heading h1 {
+  margin: 0;
+  font-family: "Songti SC", "Noto Serif CJK SC", "STSong", Georgia, serif;
+  font-size: clamp(1.45rem, 3.2vw, 1.8rem);
+  font-weight: 400;
+  letter-spacing: 0.28em;
+  text-indent: 0.28em;
+}
+
+.time-harp__heading p {
+  margin: 0.76rem 0 0;
+  color: rgb(222 210 185 / 54%);
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 0.58rem;
+  font-weight: 400;
+  letter-spacing: 0.34em;
+  text-indent: 0.34em;
+}
+
+.time-harp__string-stage {
+  position: absolute;
+  inset: 23% 0 20%;
+  z-index: 1;
+}
+
+.time-harp__svg {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.time-harp__string {
+  fill: none;
+  stroke: #c7aa73;
+  stroke-width: 1.45;
+  vector-effect: non-scaling-stroke;
+  opacity: 0.78;
+  transition: stroke 180ms ease, stroke-width 180ms ease, opacity 180ms ease;
+}
+
+.time-harp.is-pressed .time-harp__string,
+.time-harp:has(.time-harp__hit-area:focus-visible) .time-harp__string {
+  stroke: #f1ddb0;
+  stroke-width: 1.9;
+  opacity: 1;
+  filter: drop-shadow(0 0 4px rgb(224 192 135 / 34%));
+}
+
+.time-harp__light {
+  fill: none;
+  stroke: #fff0c9;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 4px rgb(230 198 138 / 50%));
+  pointer-events: none;
+}
+
+.time-harp__hit-area {
+  position: absolute;
+  inset: 0 auto 0 calc(50% - 24px);
+  width: min(48px, 16vw);
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  cursor: ew-resize;
+  touch-action: pan-y;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.time-harp__hit-area:focus {
+  outline: none;
+}
+
+.time-harp__year {
+  position: absolute;
+  top: 36%;
+  left: calc(50% + clamp(1.35rem, 4vw, 2.25rem));
+  z-index: 2;
+  color: rgb(222 210 185 / 72%);
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 0.68rem;
+  letter-spacing: 0.12em;
+}
+
+.time-harp__year::before {
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 0.7rem);
+  width: 0.4rem;
+  height: 1px;
+  background: rgb(207 179 125 / 58%);
+  content: "";
+}
+
+.time-harp__prompt {
+  position: absolute;
+  bottom: clamp(2.55rem, 8.5svh, 4.75rem);
+  left: 0;
+  width: 100%;
+  margin: 0;
+  color: rgb(235 230 218 / 72%);
+  font-size: 0.8rem;
+  font-weight: 300;
+  letter-spacing: 0.15em;
+  text-align: center;
+}
+
+.time-harp__prompt::after {
+  display: block;
+  width: 1px;
+  height: 1rem;
+  margin: 1.1rem auto 0;
+  background: linear-gradient(to bottom, rgb(207 179 125 / 52%), transparent);
+  content: "";
+}
+
+@media (max-height: 620px) {
+  .time-harp__heading {
+    top: 2rem;
+  }
+
+  .time-harp__string-stage {
+    inset-block: 26% 22%;
+  }
+
+  .time-harp__prompt {
+    bottom: 1.5rem;
+  }
+}
+
+@media (max-width: 380px) {
+  .time-harp__heading {
+    top: 7svh;
+  }
+
+  .time-harp__string-stage {
+    inset-block: 22% 18%;
+  }
+
+  .time-harp__year {
+    top: 36%;
+    left: calc(50% + 1.3rem);
+    font-size: 0.62rem;
+  }
+
+  .time-harp__prompt {
+    bottom: 7svh;
+    font-size: 0.74rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .time-harp__string {
+    transition: none;
+  }
+}
