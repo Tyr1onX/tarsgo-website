@@ -1,0 +1,741 @@
+body.time-harp-study-body {
+  min-width: 320px;
+  margin: 0;
+  overflow-x: hidden;
+  background: #080908;
+}
+
+.time-harp-study {
+  --study-gold: #c7aa73;
+  --study-gold-bright: #f0d9a7;
+  --study-paper: #ece9e0;
+  --study-muted: rgb(223 216 199 / 54%);
+  min-height: 100svh;
+  padding: clamp(24px, 4vw, 56px) clamp(16px, 5vw, 76px) 30px;
+  color: var(--study-paper);
+  background:
+    radial-gradient(ellipse at 51% 31%, rgb(197 170 115 / 5%), transparent 34%),
+    #080908;
+  font-family: "Geist", "Helvetica Neue", Arial, sans-serif;
+  isolation: isolate;
+}
+
+.time-harp-study__hero,
+.time-harp-study__workspace,
+.time-harp-study__footer {
+  width: min(100%, 1120px);
+  margin-inline: auto;
+}
+
+.time-harp-study__eyebrow,
+.time-harp-study__instrument-heading,
+.time-harp-study__interaction-note,
+.time-harp-study__recommendation,
+.time-harp-study__length-reading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.time-harp-study__eyebrow,
+.time-harp-study__micro-label,
+.time-harp-study__research-key,
+.time-harp-study__footer {
+  color: rgb(222 210 185 / 55%);
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 0.62rem;
+  letter-spacing: 0.18em;
+}
+
+.time-harp-study__hero h1 {
+  margin: clamp(34px, 5vw, 56px) 0 8px;
+  font-family: "Songti SC", "Noto Serif CJK SC", "STSong", Georgia, serif;
+  font-size: clamp(2rem, 4vw, 3rem);
+  font-weight: 400;
+  letter-spacing: 0.3em;
+  text-indent: 0.3em;
+  text-align: center;
+}
+
+.time-harp-study__english {
+  margin: 0;
+  color: rgb(222 210 185 / 58%);
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 0.66rem;
+  letter-spacing: 0.25em;
+  text-align: center;
+}
+
+.time-harp-study__english span {
+  color: var(--study-gold);
+}
+
+.time-harp-study__motto {
+  margin: 25px 0 8px;
+  color: var(--study-gold-bright);
+  font-family: "Songti SC", "Noto Serif CJK SC", "STSong", Georgia, serif;
+  font-size: 0.96rem;
+  letter-spacing: 0.16em;
+  text-align: center;
+}
+
+.time-harp-study__intro {
+  margin: 0;
+  color: var(--study-muted);
+  font-size: 0.78rem;
+  font-weight: 300;
+  letter-spacing: 0.045em;
+  text-align: center;
+}
+
+.time-harp-study__workspace {
+  margin-top: clamp(42px, 6vw, 72px);
+}
+
+.time-harp-study__controls {
+  display: grid;
+  grid-template-columns: 1fr 1.15fr;
+  gap: clamp(14px, 3vw, 38px);
+  padding: 0 0 20px;
+  border-bottom: 1px solid rgb(222 210 185 / 12%);
+}
+
+.time-harp-study__control-heading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 10px;
+  color: rgb(236 233 224 / 78%);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+}
+
+.time-harp-study__step {
+  color: var(--study-gold);
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 0.64rem;
+}
+
+.time-harp-study__segmented {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
+}
+
+.time-harp-study__segmented button {
+  display: flex;
+  min-width: 0;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  color: rgb(236 233 224 / 62%);
+  background: transparent;
+  font: inherit;
+  font-size: 0.74rem;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: border-color 160ms ease, color 160ms ease, background 160ms ease;
+}
+
+.time-harp-study__segmented button:hover,
+.time-harp-study__segmented button:focus-visible {
+  border-color: rgb(199 170 115 / 30%);
+  color: var(--study-paper);
+  outline: none;
+}
+
+.time-harp-study__segmented button.is-active {
+  border-color: rgb(199 170 115 / 37%);
+  color: var(--study-gold-bright);
+  background: rgb(199 170 115 / 7%);
+}
+
+.time-harp-study__option-key {
+  color: var(--study-gold);
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 0.64rem;
+}
+
+.time-harp-study__segmented--arrangement button {
+  flex-direction: column;
+  gap: 3px;
+}
+
+.time-harp-study__segmented--arrangement small {
+  color: rgb(223 216 199 / 44%);
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 0.56rem;
+  letter-spacing: 0.04em;
+}
+
+.time-harp-study__instrument {
+  margin-top: 22px;
+  padding: clamp(14px, 2.4vw, 26px) clamp(8px, 2vw, 24px) 18px;
+  border: 1px solid rgb(222 210 185 / 11%);
+  background: linear-gradient(135deg, rgb(255 255 255 / 1.5%), transparent 50%);
+}
+
+.time-harp-study__instrument-heading {
+  align-items: end;
+  padding: 0 clamp(6px, 1vw, 12px);
+}
+
+.time-harp-study__instrument-heading h2 {
+  margin: 7px 0 0;
+  font-family: "Songti SC", "Noto Serif CJK SC", "STSong", Georgia, serif;
+  font-size: 1.06rem;
+  font-weight: 400;
+  letter-spacing: 0.1em;
+}
+
+.time-harp-study__instrument-heading p {
+  margin: 0 0 2px;
+  color: var(--study-muted);
+  font-size: 0.68rem;
+  letter-spacing: 0.05em;
+}
+
+.time-harp-study__instrument-heading p span {
+  color: var(--study-gold);
+}
+
+.time-harp-study__stage {
+  position: relative;
+  height: clamp(340px, 43vw, 440px);
+  margin: 8px 0 0;
+  overflow: visible;
+}
+
+.time-harp-study__stage svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  touch-action: pan-y;
+  cursor: crosshair;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+
+.time-harp-study__frame,
+.time-harp-study__abstract-neck,
+.time-harp-study__array-guides {
+  pointer-events: none;
+}
+
+.time-harp-study__frame-main,
+.time-harp-study__frame-secondary,
+.time-harp-study__frame-inlay,
+.time-harp-study__neck-main,
+.time-harp-study__neck-ghost,
+.time-harp-study__abstract-axis,
+.time-harp-study__array-guides path {
+  fill: none;
+  vector-effect: non-scaling-stroke;
+}
+
+.time-harp-study__frame-main {
+  stroke: rgb(199 170 115 / 21%);
+  stroke-width: 1.2;
+}
+
+.time-harp-study__frame-secondary {
+  stroke: rgb(199 170 115 / 18%);
+  stroke-width: 0.9;
+}
+
+.time-harp-study__frame-inlay {
+  stroke: rgb(240 217 167 / 26%);
+  stroke-width: 0.65;
+}
+
+.time-harp-study__neck-main {
+  stroke: rgb(199 170 115 / 32%);
+  stroke-width: 1.05;
+}
+
+.time-harp-study__neck-ghost {
+  stroke: rgb(240 217 167 / 10%);
+  stroke-width: 0.7;
+}
+
+.time-harp-study__neck-node {
+  fill: #c7aa73;
+  opacity: 0.54;
+}
+
+.time-harp-study__abstract-axis {
+  stroke: rgb(199 170 115 / 13%);
+  stroke-width: 0.8;
+}
+
+.time-harp-study__array-guides path {
+  stroke: rgb(199 170 115 / 14%);
+  stroke-width: 0.7;
+}
+
+.time-harp-study__string {
+  fill: none;
+  stroke: #c7aa73;
+  stroke-width: 1.15;
+  opacity: 0.77;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.time-harp-study__string-group.is-selected .time-harp-study__string {
+  opacity: 0.9;
+}
+
+.time-harp-study__string-group.is-pressed .time-harp-study__string {
+  stroke: #f2dfb6;
+  stroke-width: 1.75;
+  opacity: 1;
+}
+
+.time-harp-study__string-stop {
+  fill: #d8bd8a;
+  opacity: 0.78;
+  pointer-events: none;
+}
+
+.time-harp-study__string-stop--end {
+  fill: #9e875d;
+  opacity: 0.58;
+}
+
+.time-harp-study__light {
+  fill: none;
+  stroke: #fff0c9;
+  stroke-width: 2;
+  stroke-linecap: round;
+  vector-effect: non-scaling-stroke;
+  filter: drop-shadow(0 0 3px rgb(230 198 138 / 36%));
+  pointer-events: none;
+}
+
+.time-harp-study__time-axis {
+  stroke: rgb(222 210 185 / 17%);
+  stroke-width: 0.7;
+  vector-effect: non-scaling-stroke;
+  pointer-events: none;
+}
+
+.time-harp-study__focus-marker {
+  fill: #f0d9a7;
+  filter: drop-shadow(0 0 3px rgb(224 192 135 / 32%));
+  pointer-events: none;
+}
+
+.time-harp-study__year-row {
+  display: grid;
+  grid-template-columns: repeat(9, minmax(0, 1fr));
+  align-items: start;
+  margin: -44px 0 0;
+  position: relative;
+  pointer-events: none;
+}
+
+.time-harp-study__year-row button {
+  min-width: 0;
+  min-height: 44px;
+  padding: 7px 0;
+  border: 0;
+  color: rgb(222 210 185 / 48%);
+  background: transparent;
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: clamp(0.57rem, 0.82vw, 0.7rem);
+  letter-spacing: 0.03em;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: color 140ms ease;
+}
+
+.time-harp-study__year-row button:hover,
+.time-harp-study__year-row button:focus-visible,
+.time-harp-study__year-row button.is-selected {
+  color: var(--study-gold-bright);
+  outline: none;
+}
+
+.time-harp-study__year-row button:focus-visible {
+  box-shadow: inset 0 -1px var(--study-gold);
+}
+
+.time-harp-study__interaction-note {
+  justify-content: flex-start;
+  gap: 10px;
+  padding: 8px 4px 0;
+  color: var(--study-muted);
+}
+
+.time-harp-study__interaction-note p {
+  margin: 0;
+  font-size: 0.68rem;
+  letter-spacing: 0.025em;
+}
+
+.time-harp-study__interaction-note > span:last-child {
+  margin-left: auto;
+  color: rgb(222 210 185 / 37%);
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 0.57rem;
+  white-space: nowrap;
+}
+
+.time-harp-study__interaction-mark {
+  width: 18px;
+  height: 1px;
+  flex: 0 0 auto;
+  background: var(--study-gold);
+}
+
+.time-harp-study__live-region {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+  border: 0;
+}
+
+.time-harp-study__reading {
+  margin: clamp(48px, 7vw, 82px) 0 0;
+}
+
+.time-harp-study__reading-heading h2 {
+  margin: 10px 0 6px;
+  font-family: "Songti SC", "Noto Serif CJK SC", "STSong", Georgia, serif;
+  font-size: clamp(1.45rem, 2.6vw, 1.9rem);
+  font-weight: 400;
+  letter-spacing: 0.13em;
+}
+
+.time-harp-study__reading-heading p {
+  margin: 0;
+  color: var(--study-muted);
+  font-size: 0.75rem;
+}
+
+.time-harp-study__research-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 22px;
+}
+
+.time-harp-study__research-card {
+  min-height: 198px;
+  padding: 20px 20px 18px;
+  border: 1px solid rgb(222 210 185 / 12%);
+  background: rgb(255 255 255 / 1%);
+  transition: border-color 160ms ease, background 160ms ease;
+}
+
+.time-harp-study__research-card.is-current {
+  border-color: rgb(199 170 115 / 43%);
+  background: linear-gradient(145deg, rgb(199 170 115 / 7%), rgb(255 255 255 / 1%) 65%);
+}
+
+.time-harp-study__research-key {
+  display: flex;
+  min-height: 16px;
+  align-items: center;
+  gap: 9px;
+  font-size: 0.56rem;
+  letter-spacing: 0.12em;
+}
+
+.time-harp-study__research-key i {
+  color: var(--study-gold-bright);
+  font-family: "Geist", "Helvetica Neue", Arial, sans-serif;
+  font-size: 0.59rem;
+  font-style: normal;
+  letter-spacing: 0.06em;
+}
+
+.time-harp-study__research-card h3 {
+  margin: 15px 0 8px;
+  font-family: "Songti SC", "Noto Serif CJK SC", "STSong", Georgia, serif;
+  font-size: 1.04rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+}
+
+.time-harp-study__research-card > p,
+.time-harp-study__tradeoff {
+  color: var(--study-muted);
+  font-size: 0.7rem;
+  line-height: 1.75;
+}
+
+.time-harp-study__research-card > p {
+  min-height: 42px;
+  margin: 0;
+}
+
+.time-harp-study__tradeoff {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgb(222 210 185 / 10%);
+}
+
+.time-harp-study__tradeoff b {
+  margin-right: 5px;
+  color: rgb(240 217 167 / 82%);
+  font-weight: 400;
+}
+
+.time-harp-study__length-reading {
+  align-items: start;
+  gap: 30px;
+  margin-top: 38px;
+  padding-top: 24px;
+  border-top: 1px solid rgb(222 210 185 / 14%);
+}
+
+.time-harp-study__length-reading h3 {
+  margin: 10px 0 0;
+  font-family: "Songti SC", "Noto Serif CJK SC", "STSong", Georgia, serif;
+  font-size: 1.08rem;
+  font-weight: 400;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+}
+
+.time-harp-study__length-cards {
+  display: grid;
+  width: min(100%, 690px);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.time-harp-study__length-cards > div {
+  min-height: 95px;
+  padding: 12px 14px;
+  border-left: 1px solid rgb(222 210 185 / 17%);
+  color: var(--study-muted);
+  transition: border-color 160ms ease, color 160ms ease;
+}
+
+.time-harp-study__length-cards > div.is-current {
+  border-color: var(--study-gold);
+  color: var(--study-paper);
+}
+
+.time-harp-study__length-cards span {
+  display: block;
+  margin-bottom: 6px;
+  color: var(--study-gold);
+  font-family: "Geist Mono", ui-monospace, monospace;
+  font-size: 0.58rem;
+}
+
+.time-harp-study__length-cards b {
+  font-size: 0.74rem;
+  font-weight: 400;
+}
+
+.time-harp-study__length-cards p {
+  margin: 5px 0 0;
+  font-size: 0.65rem;
+  line-height: 1.55;
+}
+
+.time-harp-study__recommendation {
+  align-items: start;
+  gap: 22px;
+  margin-top: 28px;
+  padding: 17px 20px;
+  border: 1px solid rgb(199 170 115 / 21%);
+  background: rgb(199 170 115 / 4%);
+}
+
+.time-harp-study__recommendation > span {
+  flex: 0 0 auto;
+  color: var(--study-gold-bright);
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
+}
+
+.time-harp-study__recommendation p {
+  margin: 0;
+  color: rgb(236 233 224 / 74%);
+  font-size: 0.72rem;
+  line-height: 1.8;
+}
+
+.time-harp-study__recommendation b {
+  color: var(--study-paper);
+  font-weight: 500;
+}
+
+.time-harp-study__footer {
+  margin-top: 48px;
+  padding-top: 16px;
+  border-top: 1px solid rgb(222 210 185 / 11%);
+  font-size: 0.55rem;
+}
+
+.time-harp-study__footer span {
+  color: var(--study-gold);
+}
+
+@media (max-width: 760px) {
+  .time-harp-study {
+    padding-inline: 16px;
+  }
+
+  .time-harp-study__controls {
+    grid-template-columns: 1fr;
+    gap: 16px;
+  }
+
+  .time-harp-study__research-grid {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .time-harp-study__research-card {
+    min-height: 0;
+    padding: 16px;
+  }
+
+  .time-harp-study__research-card > p {
+    min-height: 0;
+  }
+
+  .time-harp-study__length-reading {
+    flex-direction: column;
+    gap: 18px;
+  }
+
+  .time-harp-study__length-cards {
+    width: 100%;
+  }
+}
+
+@media (max-width: 420px) {
+  .time-harp-study {
+    padding: 20px 12px 24px;
+  }
+
+  .time-harp-study__eyebrow {
+    font-size: 0.52rem;
+    letter-spacing: 0.12em;
+  }
+
+  .time-harp-study__hero h1 {
+    margin-top: 36px;
+    font-size: 2rem;
+  }
+
+  .time-harp-study__intro {
+    max-width: 290px;
+    margin-inline: auto;
+    line-height: 1.7;
+  }
+
+  .time-harp-study__workspace {
+    margin-top: 38px;
+  }
+
+  .time-harp-study__segmented {
+    gap: 3px;
+  }
+
+  .time-harp-study__segmented button {
+    min-height: 44px;
+    gap: 5px;
+    padding: 7px 4px;
+    font-size: 0.67rem;
+  }
+
+  .time-harp-study__segmented--arrangement button {
+    font-size: 0.68rem;
+  }
+
+  .time-harp-study__segmented--arrangement small {
+    font-size: 0.49rem;
+  }
+
+  .time-harp-study__instrument {
+    margin-top: 16px;
+    padding: 14px 5px 14px;
+  }
+
+  .time-harp-study__instrument-heading h2 {
+    font-size: 0.95rem;
+  }
+
+  .time-harp-study__instrument-heading p {
+    max-width: 125px;
+    font-size: 0.59rem;
+    text-align: right;
+  }
+
+  .time-harp-study__stage {
+    height: 365px;
+    margin-inline: -1px;
+  }
+
+  .time-harp-study__year-row {
+    margin-top: -45px;
+  }
+
+  .time-harp-study__year-row button {
+    font-size: 0.54rem;
+  }
+
+  .time-harp-study__interaction-note {
+    align-items: flex-start;
+    gap: 7px;
+  }
+
+  .time-harp-study__interaction-note p {
+    font-size: 0.62rem;
+    line-height: 1.55;
+  }
+
+  .time-harp-study__interaction-note > span:last-child {
+    display: none;
+  }
+
+  .time-harp-study__length-cards {
+    gap: 4px;
+  }
+
+  .time-harp-study__length-cards > div {
+    min-height: 110px;
+    padding: 10px 8px;
+  }
+
+  .time-harp-study__length-cards p {
+    font-size: 0.6rem;
+  }
+
+  .time-harp-study__recommendation {
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .time-harp-study *,
+  .time-harp-study *::before,
+  .time-harp-study *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+  }
+}
