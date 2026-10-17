@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { calculateCoverRect, createSandParticles, particleProgress } from "./home-sand-reveal.ts";
+import {
+  calculateCoverRect,
+  createSandParticles,
+  particleFallAtProgress,
+  particleLandingProgress,
+} from "./home-sand-reveal.ts";
 
 test("cover crop follows the same cover scale and focal position as object-fit", () => {
   const centered = calculateCoverRect(1600, 900, 300, 300);
@@ -16,7 +21,7 @@ test("cover crop follows the same cover scale and focal position as object-fit",
   assert.ok(Math.abs(focalCrop.y - -28) < 1e-9);
 });
 
-test("sand particles sample real photo colors, stay bounded, and are repeatable", () => {
+test("sand grains sample real photo colors and are deterministic, bounded, and fine", () => {
   const width = 80;
   const height = 40;
   const pixels = new Uint8ClampedArray(width * height * 4);
@@ -36,39 +41,64 @@ test("sand particles sample real photo colors, stay bounded, and are repeatable"
   assert.deepEqual(first, second);
   assert.ok(first.every((particle) => particle.x >= 0 && particle.x < width));
   assert.ok(first.every((particle) => particle.y >= 0 && particle.y < height));
-  assert.ok(first.every((particle) => particle.delay >= 0.04 && particle.delay <= 0.68));
+  assert.ok(first.every((particle) => particle.startY < 0));
+  assert.ok(first.every((particle) => particle.size >= 0.62 && particle.size <= 1.37));
+  assert.ok(first.every((particle) => particle.fallStart >= 0 && particleLandingProgress(particle) <= 1));
   assert.ok(new Set(first.map((particle) => particle.color)).size >= 4);
 });
 
-test("particle reveal progress is smooth, monotonic, and clamped", () => {
-  assert.equal(particleProgress(-1, 0.2), 0);
-  assert.equal(particleProgress(0.1, 0.2), 0);
-  assert.ok(particleProgress(0.5, 0.2) > 0);
-  assert.ok(particleProgress(0.5, 0.2) < 1);
-  assert.equal(particleProgress(1, 0.2), 1);
-  assert.equal(particleProgress(2, 0.2), 1);
-  assert.ok(particleProgress(0.4, 0.2) < particleProgress(0.6, 0.2));
+test("grain motion accelerates downward, drifts gently, and settles at its sampled photo position", () => {
+  const particle = {
+    x: 40,
+    y: 80,
+    startX: 34,
+    startY: -40,
+    size: 1,
+    aspect: 1,
+    fallStart: 0.2,
+    fallDuration: 0.4,
+    driftX: 3,
+    depositRadius: 2,
+    color: "rgb(20 40 60)",
+    kind: 0,
+  };
+
+  const before = particleFallAtProgress(particle, 0.1);
+  const firstQuarter = particleFallAtProgress(particle, 0.3);
+  const midpoint = particleFallAtProgress(particle, 0.4);
+  const nearLanding = particleFallAtProgress(particle, 0.55);
+  const landed = particleFallAtProgress(particle, 0.6);
+
+  assert.equal(before.visible, false);
+  assert.equal(before.landed, false);
+  assert.ok(firstQuarter.y > particle.startY);
+  assert.ok(midpoint.y > firstQuarter.y);
+  assert.ok(nearLanding.y > midpoint.y);
+  assert.ok(nearLanding.visible);
+  assert.ok(Math.abs(midpoint.x - (particle.startX + (particle.x - particle.startX) * 0.25 + particle.driftX)) < 1e-9);
+  assert.equal(landed.landed, true);
+  assert.equal(landed.visible, false);
+  assert.equal(landed.x, particle.x);
+  assert.equal(landed.y, particle.y);
 });
 
-test("high-contrast contours begin revealing ahead of flat image regions", () => {
-  const width = 120;
-  const height = 60;
-  const pixels = new Uint8ClampedArray(width * height * 4);
-  for (let y = 0; y < height; y += 1) {
-    for (let x = 0; x < width; x += 1) {
-      const offset = (y * width + x) * 4;
-      const value = x < width / 2 ? 28 : 220;
-      pixels[offset] = value;
-      pixels[offset + 1] = value;
-      pixels[offset + 2] = value;
-      pixels[offset + 3] = 255;
-    }
-  }
+test("photo deposits are only eligible after falling completes, with a top-to-bottom arrival wave", () => {
+  const width = 240;
+  const height = 180;
+  const pixels = new Uint8ClampedArray(width * height * 4).fill(255);
+  const particles = createSandParticles(pixels, width, height, 32, 5_400);
+  const top = particles.filter((particle) => particle.y < height * 0.2);
+  const middle = particles.filter((particle) => particle.y > height * 0.4 && particle.y < height * 0.6);
+  const bottom = particles.filter((particle) => particle.y > height * 0.8);
+  const meanLanding = (items) => items.reduce((total, particle) => total + particleLandingProgress(particle), 0) / items.length;
 
-  const particles = createSandParticles(pixels, width, height, 28, 900);
-  const edgeParticles = particles.filter((particle) => particle.x >= 56 && particle.x <= 64);
-  const flatParticles = particles.filter((particle) => particle.x <= 40 || particle.x >= 80);
-  const average = (values) => values.reduce((total, particle) => total + particle.delay, 0) / values.length;
-  assert.ok(edgeParticles.length > 0);
-  assert.ok(average(edgeParticles) < average(flatParticles));
+  assert.equal(particles.length, 5_400);
+  assert.ok(top.length > 0 && middle.length > 0 && bottom.length > 0);
+  assert.ok(meanLanding(top) < meanLanding(middle));
+  assert.ok(meanLanding(middle) < meanLanding(bottom));
+
+  const particle = middle[0];
+  const landing = particleLandingProgress(particle);
+  assert.equal(particleFallAtProgress(particle, landing - 0.001).landed, false);
+  assert.equal(particleFallAtProgress(particle, landing).landed, true);
 });

@@ -86,6 +86,7 @@ type HomeVisualNavigationProps = {
   imageTreatment?: HomeImageTreatment;
   replayToken?: number;
   showHeading?: boolean;
+  frameOverride?: number;
 };
 
 function HomeVisualCard({
@@ -94,12 +95,14 @@ function HomeVisualCard({
   started,
   replayToken,
   staggerMs,
+  frameOverride,
 }: {
   module: (typeof homeNavigationModules)[number];
   imageTreatment?: HomeImageTreatment;
   started: boolean;
   replayToken: number;
   staggerMs: number;
+  frameOverride?: number;
 }) {
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [phase, setPhase] = useState<SandRevealPhase>(imageTreatment ? "idle" : "done");
@@ -129,6 +132,7 @@ function HomeVisualCard({
             started={started}
             replayToken={replayToken}
             staggerMs={staggerMs}
+            frameOverride={frameOverride}
             onPhaseChange={setPhase}
           />
         </Suspense>
@@ -149,12 +153,17 @@ export function HomeVisualNavigation({
   imageTreatment,
   replayToken = 0,
   showHeading = true,
+  frameOverride,
 }: HomeVisualNavigationProps = {}) {
   const sectionRef = useRef<HTMLElement | null>(null);
   const [hasEntered, setHasEntered] = useState(false);
 
   useEffect(() => {
-    if (!imageTreatment || !("IntersectionObserver" in window) || hasEntered) return;
+    if (!imageTreatment || hasEntered) return;
+    if (!("IntersectionObserver" in window)) {
+      setHasEntered(true);
+      return;
+    }
     const section = sectionRef.current;
     if (!section) return;
 
@@ -203,9 +212,10 @@ export function HomeVisualNavigation({
               key={module.href}
               module={module}
               imageTreatment={imageTreatment}
-              started={hasEntered}
+              started={hasEntered || frameOverride !== undefined}
               replayToken={replayToken}
               staggerMs={index * 105}
+              frameOverride={frameOverride}
             />
           ))}
         </nav>

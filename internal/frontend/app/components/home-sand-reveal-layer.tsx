@@ -1,5 +1,11 @@
 import { useEffect, useRef, useState, type RefObject } from "react";
-import { calculateCoverRect, createSandParticles, particleProgress, type SandParticle } from "~/lib/home-sand-reveal";
+import {
+  calculateCoverRect,
+  createSandParticles,
+  particleFallAtProgress,
+  particleLandingProgress,
+  type SandParticle,
+} from "~/lib/home-sand-reveal";
 
 export type HomeImageTreatment = "original" | "sand";
 export type SandRevealPhase = "idle" | "waiting" | "playing" | "settling" | "done" | "fallback";
@@ -10,14 +16,15 @@ type HomeSandRevealLayerProps = {
   started: boolean;
   replayToken: number;
   staggerMs: number;
+  frameOverride?: number;
   onPhaseChange: (phase: SandRevealPhase) => void;
 };
 
-const SAMPLE_MAX_EDGE = 240;
-const SAMPLE_MAX_HEIGHT = 180;
-const REVEAL_DURATION_MS = 1_520;
+const SAMPLE_MAX_EDGE = 320;
+const SAMPLE_MAX_HEIGHT = 240;
+const REVEAL_DURATION_MS = 2_800;
 const FRAME_INTERVAL_MS = 1000 / 30;
-const SETTLE_CROSSFADE_MS = 260;
+const SETTLE_CROSSFADE_MS = 300;
 
 export function HomeSandRevealLayer({
   imageRef,
@@ -25,6 +32,7 @@ export function HomeSandRevealLayer({
   started,
   replayToken,
   staggerMs,
+  frameOverride,
   onPhaseChange,
 }: HomeSandRevealLayerProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -60,7 +68,7 @@ export function HomeSandRevealLayer({
       onPhaseChange("done");
       return;
     }
-    if (hasPlayedRef.current && !replayRequested) return;
+    if (hasPlayedRef.current && !replayRequested && frameOverride === undefined) return;
 
     const image = imageRef.current;
     const canvas = canvasRef.current;
@@ -84,9 +92,11 @@ export function HomeSandRevealLayer({
     let startedAt = 0;
 
     onPhaseChange("waiting");
+    context.clearRect(0, 0, canvas.width, canvas.height);
 
     const finishWithFallback = () => {
       if (cancelled) return;
+      context.clearRect(0, 0, canvas.width, canvas.height);
       hasPlayedRef.current = true;
       onPhaseChange("fallback");
     };
@@ -142,7 +152,11 @@ export function HomeSandRevealLayer({
       sourceCanvas.width = sampleWidth;
       sourceCanvas.height = sampleHeight;
       const sourceContext = sourceCanvas.getContext("2d", { willReadFrequently: true });
-      if (!sourceContext) {
+      const maskCanvas = document.createElement("canvas");
+      maskCanvas.width = sampleWidth;
+      maskCanvas.height = sampleHeight;
+      const maskContext = maskCanvas.getContext("2d");
+      if (!sourceContext || !maskContext) {
         finishWithFallback();
         return;
       }
@@ -159,7 +173,7 @@ export function HomeSandRevealLayer({
       try {
         sourceContext.drawImage(image, coverRect.x, coverRect.y, coverRect.width, coverRect.height);
         const imageData = sourceContext.getImageData(0, 0, sampleWidth, sampleHeight);
-        const particleLimit = Math.min(2_200, Math.max(800, Math.round((sampleWidth * sampleHeight) / 14)));
+        const particleLimit = Math.min(7_200, Math.max(3_200, Math.round((sampleWidth * sampleHeight) / 8)));
         const particles = createSandParticles(
           imageData.data,
           sampleWidth,
@@ -175,16 +189,93 @@ export function HomeSandRevealLayer({
         const pixelRatio = Math.min(1.5, window.devicePixelRatio || 1);
         canvas.width = Math.max(1, Math.round(bounds.width * pixelRatio));
         canvas.height = Math.max(1, Math.round(bounds.height * pixelRatio));
-        canvas.style.width = `${bounds.width}px`;
-        canvas.style.height = `${bounds.height}px`;
+        canvas.style.width = "100%";
+        canvas.style.height = "100%";
         context.setTransform(pixelRatio, 0, 0, pixelRatio, 0, 0);
         canvas.dataset.particleCount = String(particles.length);
         canvas.dataset.staggerMs = String(staggerMs);
-        hasPlayedRef.current = true;
+        canvas.dataset.progress = "0";
+        canvas.dataset.deposited = "0";
+        canvas.dataset.inFlight = "0";
+
+        const scaleX = bounds.width / sampleWidth;
+        const scaleY = bounds.height / sampleHeight;
+        const particlesByStart = [...particles].sort((left, right) => left.fallStart - right.fallStart);
+        const particlesByLanding = [...particles].sort((left, right) => particleLandingProgress(left) - particleLandingProgress(right));
+
+        const drawFrame = (progress: number, activeParticles: SandParticle[]) => {
+          context.clearRect(0, 0, bounds.width, bounds.height);
+          context.globalAlpha = 1;
+          context.globalCompositeOperation = "source-over";
+          context.drawImage(sourceCanvas, 0, 0, bounds.width, bounds.height);
+          context.globalCompositeOperation = "destination-in";
+          context.drawImage(maskCanvas, 0, 0, bounds.width, bounds.height);
+          context.globalCompositeOperation = "source-over";
+
+          let inFlightCount = 0;
+          for (const particle of activeParticles) {
+            const position = particleFallAtProgress(particle, progress);
+            if (!position.visible) continue;
+            inFlightCount += 1;
+            drawFallingParticle(context, particle, position.x * scaleX, position.y * scaleY, position.fallProgress, scaleX, scaleY);
+          }
+          context.globalAlpha = 1;
+          canvas.dataset.progress = progress.toFixed(4);
+          canvas.dataset.revealPercent = String(Math.round(progress * 100));
+          canvas.dataset.inFlight = String(inFlightCount);
+          return inFlightCount;
+        };
+
+        const depositThrough = (progress: number, fromIndex = 0) => {
+          let index = fromIndex;
+          while (index < particlesByLanding.length && particleLandingProgress(particlesByLanding[index]) <= progress) {
+            const particle = particlesByLanding[index];
+            depositParticle(maskContext, particle);
+            index += 1;
+          }
+          return index;
+        };
+
+        const drawStaticFrame = (progress: number) => {
+          const deposited = depositThrough(progress);
+          if (progress >= 1) {
+            maskContext.fillStyle = "#fff";
+            maskContext.fillRect(0, 0, sampleWidth, sampleHeight);
+          }
+          const activeParticles = particles.filter((particle) => {
+            const landing = particleLandingProgress(particle);
+            return particle.fallStart <= progress && landing > progress;
+          });
+          const drawStart = performance.now();
+          const inFlight = drawFrame(progress, activeParticles);
+          const drawCost = performance.now() - drawStart;
+          canvas.dataset.deposited = String(progress >= 1 ? particles.length : deposited);
+          recordFrameMetrics(canvas, 1, drawCost, drawCost);
+          canvas.dataset.inFlight = String(inFlight);
+          hasPlayedRef.current = true;
+          if (progress >= 1) {
+            onPhaseChange("settling");
+            settleTimer = window.setTimeout(() => {
+              context.clearRect(0, 0, bounds.width, bounds.height);
+              onPhaseChange("done");
+            }, SETTLE_CROSSFADE_MS);
+          } else {
+            onPhaseChange("playing");
+          }
+        };
+
+        if (frameOverride !== undefined) {
+          drawStaticFrame(clamp(frameOverride, 0, 1));
+          return;
+        }
+
+        let startIndex = 0;
+        let landingIndex = 0;
+        const activeParticles: SandParticle[] = [];
         onPhaseChange("playing");
         startedAt = performance.now() + staggerMs;
 
-        const drawFrame = (time: number) => {
+        const animate = (time: number) => {
           if (cancelled) return;
           if (motionQuery.matches) {
             context.clearRect(0, 0, bounds.width, bounds.height);
@@ -193,28 +284,39 @@ export function HomeSandRevealLayer({
             return;
           }
           if (time - lastFrameAt < FRAME_INTERVAL_MS && time < startedAt + REVEAL_DURATION_MS) {
-            animationFrame = requestAnimationFrame(drawFrame);
+            animationFrame = requestAnimationFrame(animate);
             return;
           }
           lastFrameAt = time;
-          const progress = Math.min(1, Math.max(0, (time - startedAt) / REVEAL_DURATION_MS));
+          const progress = clamp((time - startedAt) / REVEAL_DURATION_MS, 0, 1);
           const drawStart = performance.now();
-          context.clearRect(0, 0, bounds.width, bounds.height);
-          drawParticles(context, particles, progress, bounds.width / sampleWidth, bounds.height / sampleHeight);
+
+          while (startIndex < particlesByStart.length && particlesByStart[startIndex].fallStart <= progress) {
+            activeParticles.push(particlesByStart[startIndex]);
+            startIndex += 1;
+          }
+          landingIndex = depositThrough(progress, landingIndex);
+          compactActiveParticles(activeParticles, progress);
+          if (progress >= 1) {
+            maskContext.fillStyle = "#fff";
+            maskContext.fillRect(0, 0, sampleWidth, sampleHeight);
+          }
+
+          drawFrame(progress, activeParticles);
+          canvas.dataset.deposited = String(progress >= 1 ? particles.length : landingIndex);
           const drawCost = performance.now() - drawStart;
           frameCount += 1;
           totalDrawMs += drawCost;
           maxDrawMs = Math.max(maxDrawMs, drawCost);
 
           if (progress < 1) {
-            animationFrame = requestAnimationFrame(drawFrame);
+            animationFrame = requestAnimationFrame(animate);
             return;
           }
 
-          canvas.dataset.renderFrames = String(frameCount);
-          canvas.dataset.avgDrawMs = (totalDrawMs / frameCount).toFixed(2);
-          canvas.dataset.maxDrawMs = maxDrawMs.toFixed(2);
+          recordFrameMetrics(canvas, frameCount, totalDrawMs / frameCount, maxDrawMs);
           canvas.dataset.revealMs = String(Math.round(time - startedAt));
+          hasPlayedRef.current = true;
           onPhaseChange("settling");
           settleTimer = window.setTimeout(() => {
             context.clearRect(0, 0, bounds.width, bounds.height);
@@ -222,7 +324,7 @@ export function HomeSandRevealLayer({
           }, SETTLE_CROSSFADE_MS);
         };
 
-        animationFrame = requestAnimationFrame(drawFrame);
+        animationFrame = requestAnimationFrame(animate);
       } catch {
         finishWithFallback();
       }
@@ -248,49 +350,70 @@ export function HomeSandRevealLayer({
       if (errorListener) image.removeEventListener("error", errorListener);
       motionQuery.removeEventListener("change", handleMotionChange);
     };
-  }, [imageRef, mode, onPhaseChange, replayToken, staggerMs, started, motionReduced]);
+  }, [frameOverride, imageRef, mode, onPhaseChange, replayToken, staggerMs, started, motionReduced]);
 
   return <canvas ref={canvasRef} className="home-sand-reveal-canvas" aria-hidden="true" />;
 }
 
-function drawParticles(
+function compactActiveParticles(particles: SandParticle[], progress: number) {
+  let writeIndex = 0;
+  for (const particle of particles) {
+    if (particleLandingProgress(particle) > progress) {
+      particles[writeIndex] = particle;
+      writeIndex += 1;
+    }
+  }
+  particles.length = writeIndex;
+}
+
+function depositParticle(context: CanvasRenderingContext2D, particle: SandParticle) {
+  context.fillStyle = "#fff";
+  context.globalAlpha = 0.88;
+  context.beginPath();
+  context.ellipse(particle.x, particle.y, particle.depositRadius, particle.depositRadius * particle.aspect, 0, 0, Math.PI * 2);
+  context.fill();
+  context.globalAlpha = 1;
+}
+
+function drawFallingParticle(
   context: CanvasRenderingContext2D,
-  particles: SandParticle[],
-  progress: number,
+  particle: SandParticle,
+  x: number,
+  y: number,
+  fallProgress: number,
   scaleX: number,
   scaleY: number,
 ) {
-  for (const particle of particles) {
-    const eased = particleProgress(progress, particle.delay);
-    if (eased <= 0.01) continue;
-    const x = (particle.startX + (particle.x - particle.startX) * eased) * scaleX;
-    const y = (particle.startY + (particle.y - particle.startY) * eased) * scaleY;
-    const size = particle.size * (0.45 + eased * 0.55) * Math.min(scaleX, scaleY);
-    const width = Math.max(0.55, size * particle.aspect);
-    const height = Math.max(0.55, size / particle.aspect);
-    context.globalAlpha = Math.min(1, eased * 1.12);
-    context.fillStyle = particle.color;
+  const size = particle.size * Math.min(scaleX, scaleY);
+  const stretch = 1 + (1 - fallProgress) * 0.42;
+  const width = Math.max(0.55, size * particle.aspect * stretch);
+  const height = Math.max(0.55, size / particle.aspect);
+  context.globalAlpha = 0.9;
+  context.fillStyle = particle.color;
 
-    if (particle.kind === 1) {
-      context.beginPath();
-      context.moveTo(x, y - height * 0.64);
-      context.lineTo(x + width * 0.58, y - height * 0.12);
-      context.lineTo(x + width * 0.16, y + height * 0.58);
-      context.lineTo(x - width * 0.55, y + height * 0.08);
-      context.closePath();
-      context.fill();
-    } else if (particle.kind === 2) {
-      context.beginPath();
-      context.moveTo(x - width * 0.5, y + height * 0.36);
-      context.lineTo(x + width * 0.42, y - height * 0.5);
-      context.lineTo(x + width * 0.58, y + height * 0.36);
-      context.closePath();
-      context.fill();
-    } else {
-      context.fillRect(x - width / 2, y - height / 2, width, height);
-    }
+  if (particle.kind === 1) {
+    context.beginPath();
+    context.moveTo(x, y - height * 0.64);
+    context.lineTo(x + width * 0.58, y - height * 0.12);
+    context.lineTo(x + width * 0.16, y + height * 0.58);
+    context.lineTo(x - width * 0.55, y + height * 0.08);
+    context.closePath();
+    context.fill();
+  } else if (particle.kind === 2) {
+    context.beginPath();
+    context.ellipse(x, y, width * 0.42, height * 0.42, 0, 0, Math.PI * 2);
+    context.fill();
+  } else {
+    context.beginPath();
+    context.ellipse(x, y, width * 0.5, height * 0.5, -0.2, 0, Math.PI * 2);
+    context.fill();
   }
-  context.globalAlpha = 1;
+}
+
+function recordFrameMetrics(canvas: HTMLCanvasElement, frames: number, averageDrawMs: number, maxDrawMs: number) {
+  canvas.dataset.renderFrames = String(frames);
+  canvas.dataset.avgDrawMs = averageDrawMs.toFixed(2);
+  canvas.dataset.maxDrawMs = maxDrawMs.toFixed(2);
 }
 
 function readObjectPosition(image: HTMLImageElement) {
@@ -308,4 +431,8 @@ function parsePosition(value: string, fallback: number) {
     return Number.isFinite(percent) ? percent / 100 : fallback;
   }
   return fallback;
+}
+
+function clamp(value: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, value));
 }

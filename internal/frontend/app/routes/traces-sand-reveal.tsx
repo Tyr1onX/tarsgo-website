@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Route } from "./+types/traces-sand-reveal";
-import { Link } from "react-router";
+import { Link, useSearchParams } from "react-router";
 import { ThemeControl } from "~/components/theme-control";
 import { HomeVisualNavigation } from "~/components/home-visual-navigation";
 import type { HomeImageTreatment } from "~/components/home-sand-reveal-layer";
@@ -15,6 +15,12 @@ export function meta({}: Route.MetaArgs) {
 export default function TracesSandRevealRoute() {
   const [mode, setMode] = useState<HomeImageTreatment>("sand");
   const [replayToken, setReplayToken] = useState(0);
+  const [searchParams] = useSearchParams();
+  const frameParam = searchParams.get("frame");
+  const framePercent = frameParam === null ? Number.NaN : Number(frameParam);
+  const frameOverride = Number.isFinite(framePercent) && framePercent >= 0 && framePercent <= 100
+    ? framePercent / 100
+    : undefined;
 
   return (
     <main className="public-home traces-sand-preview min-h-screen bg-surface-primary text-fg-primary">
@@ -65,6 +71,7 @@ export default function TracesSandRevealRoute() {
         imageTreatment={mode}
         replayToken={replayToken}
         showHeading={false}
+        frameOverride={frameOverride}
       />
     </main>
   );
