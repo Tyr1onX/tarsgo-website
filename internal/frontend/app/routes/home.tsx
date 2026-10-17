@@ -276,21 +276,6 @@ function HomeVisualNavigation() {
           ))}
         </nav>
 
-        <Link to="/base" className="home-base-feature" aria-labelledby="home-base-title">
-          <span className="home-base-feature__copy">
-            <span className="home-base-feature__eyebrow">参与吉甲 · 吉甲基地</span>
-            <span className="home-base-feature__title" id="home-base-title">从每日通信开始</span>
-            <span className="home-base-feature__description">为普通的日子，留下一条自己的信号。</span>
-            <span className="home-base-feature__action">进入基地 <HomeArrowIcon /></span>
-          </span>
-          <span className="home-base-feature__radar" aria-hidden="true">
-            <i /><i /><i /><b />
-            <span className="home-base-feature__radar-axis home-base-feature__radar-axis--horizontal" />
-            <span className="home-base-feature__radar-axis home-base-feature__radar-axis--vertical" />
-            <span className="home-base-feature__radar-register" />
-            <span className="home-base-feature__radar-label">DAILY SIGNAL · BASE 01</span>
-          </span>
-        </Link>
       </div>
     </section>
   );
@@ -397,7 +382,6 @@ export function PublicFooter() {
           <nav aria-labelledby="footer-quick-links-heading" className="flex flex-col items-start gap-2">
             <h2 id="footer-quick-links-heading" className="mb-1 text-sm font-semibold text-fg-primary">快速入口</h2>
             <Link className="footer-link" to="/robots">机器人展示</Link>
-            <Link className="footer-link" to="/base">吉甲基地</Link>
             <Link className="footer-link" to="/events-and-honors">赛事与荣誉</Link>
             <Link className="footer-link" to="/join">加入我们</Link>
             <Link className="footer-link" to="/micro-specialties/low-altitude-intelligent-sensing-control">低空微专业</Link>

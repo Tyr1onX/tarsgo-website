@@ -105,7 +105,7 @@ test("the homepage uses six image-led routes, preserves legacy hashes, and keeps
   assert.match(home, /preload=\{prefersReducedMotion \? "none" : "metadata"\}/);
   assert.match(home, /if \(prefersReducedMotion\) heroVideoRef\.current\?\.pause\(\)/);
   assert.match(home, /<HomeVisualNavigation \/>/);
-  assert.match(home, /home-base-feature/);
+  assert.doesNotMatch(home, /home-base-feature|to="\/base"|从每日通信开始/);
   assert.doesNotMatch(home, /home-space-entry--manage|个人工作台/);
   assert.match(navbar, /label: "加入我们", href: "\/join"/);
   assert.match(styles, /\.home-visual-card:focus-visible/);
@@ -141,25 +141,25 @@ test("large homepage photos use content-hashed responsive WebP candidates withou
   assert.match(modules, /image: "\/assets\/images\/Robot\/aerial-robots\.webp"/);
 });
 
-test("访客保留基地欢迎页，已登录用户在统一工作台使用每日通信", () => {
+test("公开基地入口已移除，旧链接只导向登录或统一工作台", () => {
   assert.match(routes, /route\("base", "routes\/base\.tsx"\)/);
   assert.match(routes, /route\("dashboard", "routes\/dashboard\/layout\.tsx", \[[\s\S]*?route\("base", "routes\/dashboard\/base\.tsx"\)/);
-  assert.match(navbar, /label: "吉甲基地", href: "\/base"/);
-  assert.match(navbar, /pathname === "\/daily-signal"/);
-  assert.match(home, /home-base-feature/);
+  assert.doesNotMatch(navbar, /label: "吉甲基地", href: "\/base"|href: "\/base"/);
+  assert.doesNotMatch(navbar, /pathname === "\/daily-signal"/);
+  assert.doesNotMatch(home, /home-base-feature|to="\/base"|进入基地/);
   assert.doesNotMatch(home, /home-space-entry|个人工作台/);
-  assert.match(basePage, /从每日通信开始，参与吉甲基地的日常/);
-  assert.match(basePage, /<Navigate to=\{`\/dashboard\$\{location\.search\}\$\{location\.hash \|\| "#daily-signal"\}`\} replace \/>/);
-  assert.match(basePage, /currentUser === null \?/);
-  assert.match(basePage, /gijia-base__guest-welcome/);
+  assert.match(basePage, /const dashboardPath = `\/dashboard\$\{location\.search\}\$\{location\.hash\}`/);
+  assert.match(basePage, /const loginPath = `\/login\?redirect=\$\{encodeURIComponent\(dashboardPath\)\}`/);
   assert.match(basePage, /if \(currentUser\)/);
-  assert.doesNotMatch(basePage, /DailySignalWorkspace|gijia-base__sidebar|gijia-base__workspace/);
+  assert.match(basePage, /if \(currentUser === null \|\| authError\)/);
+  assert.match(basePage, /<Navigate to=\{dashboardPath\} replace \/>/);
+  assert.match(basePage, /<Navigate to=\{loginPath\} replace \/>/);
+  assert.doesNotMatch(basePage, /Navbar|PublicFooter|gijia-base|guest-welcome|<Link/);
+  assert.doesNotMatch(styles, /home-base-feature|gijia-base__/);
+  assert.doesNotMatch(home, /to="\/base"/);
   assert.match(routes, /route\("daily-signal", "routes\/daily-signal\.tsx"\)/);
   assert.match(dailySignalRoute, /<Navigate to=\{`\/base\$\{location\.search\}\$\{location\.hash\}`\} replace \/>/);
   assert.match(dailySignalWorkspace, /id="daily-signal"/);
-  assert.match(basePage, /redirect=%2Fdashboard%23daily-signal/);
-  assert.doesNotMatch(basePage, /规则竞技场|基地档案/);
-  assert.doesNotMatch(basePage, /gijia-base__feature/);
   assert.match(dashboardLayout, /getCoreDashboardMenu/);
   assert.doesNotMatch(dashboardNavigation, /href: "\/dashboard\/base"/);
   assert.match(dashboardNavigation, /label: "个人工作台"/);
@@ -172,16 +172,7 @@ test("访客保留基地欢迎页，已登录用户在统一工作台使用每�
   assert.doesNotMatch(dashboardHome, /快捷入口|dashboard-home__shortcuts/);
   assert.doesNotMatch(dashboardHome, /\/api\/daily-signals\?year=/);
   assert.match(home, /<HomeVisualNavigation \/>/);
-  assert.match(styles, /\.home-base-feature\s*\{[\s\S]*?border-block/);
-  assert.match(styles, /\.home-base-feature__radar::before/);
-  assert.match(home, /home-base-feature__radar-axis--horizontal/);
-  assert.match(home, /DAILY SIGNAL · BASE 01/);
-  assert.match(styles, /\.home-base-feature\s*\{[\s\S]*?grid-template-columns:\s*minmax\(0, 1\.2fr\)/);
-  assert.match(styles, /\.home-base-feature__radar-register/);
-  assert.match(styles, /@media \(hover: hover\) and \(prefers-reduced-motion: no-preference\)[\s\S]*?\.home-base-feature:hover \.home-base-feature__radar/);
-  assert.match(styles, /@media \(max-width: 639px\)[\s\S]*?\.home-base-feature__radar \{ width: 10\.5rem/);
   assert.doesNotMatch(styles, /\.home-space-layout|\.home-space-entry/);
-  assert.match(basePage, /<PublicFooter \/>/);
   assert.match(dailySignalWorkspace, /不选择状态，也可以直接签到/);
   assert.doesNotMatch(dailySignalWorkspace, /daily-signal__base-link/);
   assert.doesNotMatch(basePage, /BASE<br \/>01|A PLACE FOR ORDINARY DAYS|TX \/ 01/);
