@@ -52,7 +52,7 @@ function requestArchive(accountId: number, year: number, refreshVersion: number)
 
 export function DailySignalWorkspace({ currentUser }: { currentUser: AuthUser }) {
   const [refreshVersion, setRefreshVersion] = useState(0);
-  const [selectedYear, setSelectedYear] = useState(() => Number(getCurrentBeijingDate().slice(0, 4)));
+  const [today, setToday] = useState(() => getCurrentBeijingDate());
   const [archive, setArchive] = useState<DailySignalArchive | null>(null);
   const [archiveLoading, setArchiveLoading] = useState(true);
   const [archiveError, setArchiveError] = useState("");
@@ -80,7 +80,8 @@ export function DailySignalWorkspace({ currentUser }: { currentUser: AuthUser })
     setArchiveLoading(true);
     setArchiveError("");
 
-    void requestArchive(currentUser.id, selectedYear, refreshVersion)
+    const year = Number(today.slice(0, 4));
+    void requestArchive(currentUser.id, year, refreshVersion)
       .then((result) => {
         if (!active || generation !== requestGenerationRef.current) return;
         setArchive(result);
@@ -96,30 +97,43 @@ export function DailySignalWorkspace({ currentUser }: { currentUser: AuthUser })
       });
 
     return () => { active = false; };
-  }, [currentUser.id, selectedYear, refreshVersion]);
+  }, [currentUser.id, today, refreshVersion]);
 
   useEffect(() => {
-    if (!archive || archive.year !== selectedYear || !pendingScrollDateRef.current) return;
+    if (!archive || archive.year !== Number(today.slice(0, 4)) || !pendingScrollDateRef.current) return;
     const date = pendingScrollDateRef.current;
     pendingScrollDateRef.current = null;
     requestAnimationFrame(() => scrollHeatmapToDate(date, archiveViewportRef.current, reducedMotion() ? "auto" : "smooth"));
-  }, [archive, selectedYear]);
+  }, [archive, today]);
 
   useEffect(() => {
-    const midnightTimer = window.setTimeout(() => {
-      const previousToday = archiveRef.current?.today;
+    const synchronizeToday = () => {
       const nextToday = getCurrentBeijingDate();
-      if (previousToday && selectedDate === previousToday && selectedYear === Number(nextToday.slice(0, 4))) {
-        setSelectedDate(nextToday);
-        setFocusedDate(nextToday);
+      if (nextToday !== today) {
+        const crossedYear = nextToday.slice(0, 4) !== today.slice(0, 4);
+        const selectedDateCrossedYear = selectedDate && selectedDate.slice(0, 4) !== nextToday.slice(0, 4);
+        if (selectedDate === today) {
+          setSelectedDate(nextToday);
+        } else if (selectedDateCrossedYear) {
+          setSelectedDate(null);
+        }
+        if (selectedDate === today || focusedDate === today || crossedYear || selectedDateCrossedYear) {
+          setFocusedDate(nextToday);
+        }
+        pendingScrollDateRef.current = nextToday;
+        setToday(nextToday);
+        setRefreshVersion((version) => version + 1);
+      } else if (archiveRef.current?.today !== nextToday) {
+        setRefreshVersion((version) => version + 1);
       }
-      setRefreshVersion((version) => version + 1);
+    };
+
+    const midnightTimer = window.setTimeout(() => {
+      synchronizeToday();
     }, getMillisecondsUntilBeijingMidnight());
 
     const handleVisibility = () => {
-      if (document.visibilityState === "visible" && archiveRef.current?.today !== getCurrentBeijingDate()) {
-        setRefreshVersion((version) => version + 1);
-      }
+      if (document.visibilityState === "visible") synchronizeToday();
     };
     document.addEventListener("visibilitychange", handleVisibility);
     window.addEventListener("focus", handleVisibility);
@@ -128,21 +142,20 @@ export function DailySignalWorkspace({ currentUser }: { currentUser: AuthUser })
       document.removeEventListener("visibilitychange", handleVisibility);
       window.removeEventListener("focus", handleVisibility);
     };
-  }, [selectedDate, selectedYear]);
+  }, [archive, focusedDate, selectedDate, today]);
 
-  const year = archive?.year ?? selectedYear;
-  const currentYear = Number(archive?.today.slice(0, 4) ?? getCurrentBeijingDate().slice(0, 4));
-  const today = archive?.today ?? getCurrentBeijingDate();
+  const year = Number(today.slice(0, 4));
+  const currentArchive = archive?.year === year ? archive : null;
   const weeks = useMemo(() => getSignalYearWeeks(year), [year]);
   const monthMarkers = useMemo(() => getMonthMarkers(weeks, year), [weeks, year]);
-  const sentDates = useMemo(() => new Set(archive?.days ?? []), [archive?.days]);
-  const moodByDate = useMemo(() => new Map((archive?.moods ?? []).map((item) => [item.date, item.mood])), [archive?.moods]);
+  const sentDates = useMemo(() => new Set(currentArchive?.days ?? []), [currentArchive?.days]);
+  const moodByDate = useMemo(() => new Map((currentArchive?.moods ?? []).map((item) => [item.date, item.mood])), [currentArchive?.moods]);
   const detailStatus = selectedDate ? getStatusForDate(selectedDate, year, today, sentDates) : null;
-  const todaySigned = archive?.signedToday ?? false;
-  const authenticated = archive?.authenticated ?? false;
+  const todaySigned = currentArchive?.signedToday ?? false;
+  const authenticated = currentArchive?.authenticated ?? false;
   const canUseTerminal = authenticated && !archiveLoading;
   const todayReply = todaySigned
-    ? getDailySignalReply(currentUser.id, archive?.today ?? today, archive?.todayMood ?? null)
+    ? getDailySignalReply(currentUser.id, today, currentArchive?.todayMood ?? null)
     : null;
   const historicalReply = selectedDate && detailStatus === "sent" && selectedDate !== today && authenticated
     ? getDailySignalReply(currentUser.id, selectedDate, moodByDate.get(selectedDate) ?? null)
@@ -153,8 +166,8 @@ export function DailySignalWorkspace({ currentUser }: { currentUser: AuthUser })
       setMoodDraft(null);
       return;
     }
-    if (!editingTodayMood) setMoodDraft(archive?.todayMood ?? null);
-  }, [archive?.todayMood, todaySigned, editingTodayMood]);
+    if (!editingTodayMood) setMoodDraft(currentArchive?.todayMood ?? null);
+  }, [currentArchive?.todayMood, todaySigned, editingTodayMood]);
 
   const handleSignToday = async () => {
     if (!canUseTerminal || todaySigned || sending) return;
@@ -179,6 +192,7 @@ export function DailySignalWorkspace({ currentUser }: { currentUser: AuthUser })
           ? [...previous.moods.filter((item) => item.date !== result.date), { date: result.date, mood: result.mood }]
           : previous.moods.filter((item) => item.date !== result.date),
       } : previous);
+      if (result.date !== today) setToday(result.date);
       setFocusedDate(result.date);
       pendingScrollDateRef.current = result.date;
       setTransmitting(result.created);
@@ -210,34 +224,13 @@ export function DailySignalWorkspace({ currentUser }: { currentUser: AuthUser })
             : previous.moods.filter((item) => item.date !== result.date)
           : previous.moods,
       } : previous);
+      if (result.date !== today) setToday(result.date);
       setEditingTodayMood(false);
       setMessage({ tone: "success", text: getDailySignalReply(currentUser.id, result.date, result.mood) });
     } catch (error) {
       setMessage({ tone: "error", text: getRequestMessage(error, "今日状态暂时无法保存，请重试。") });
     } finally {
       setSavingMood(false);
-    }
-  };
-
-  const chooseYear = (nextYear: number) => {
-    if (nextYear === selectedYear) return;
-    const nextDate = nextYear === currentYear ? today : `${nextYear}-01-01`;
-    setSelectedYear(nextYear);
-    setFocusedDate(nextDate);
-    setSelectedDate(null);
-    pendingScrollDateRef.current = nextDate;
-  };
-
-  const returnToToday = () => {
-    const nextYear = currentYear;
-    setSelectedYear(nextYear);
-    setSelectedDate(null);
-    setFocusedDate(today);
-    if (nextYear === selectedYear) {
-      pendingScrollDateRef.current = null;
-      requestAnimationFrame(() => scrollHeatmapToDate(today, archiveViewportRef.current, reducedMotion() ? "auto" : "smooth"));
-    } else {
-      pendingScrollDateRef.current = today;
     }
   };
 
@@ -288,10 +281,10 @@ export function DailySignalWorkspace({ currentUser }: { currentUser: AuthUser })
             <div className="daily-signal__signed-state">
               <span className="daily-signal__signed-label"><span className="daily-signal__online-dot" aria-hidden="true" />今日信号已送达</span>
               <div className="daily-signal__saved-mood">
-                <span className="daily-signal__mood-icon" aria-hidden="true"><MoodGlyph mood={archive?.todayMood ?? null} /></span>
-                <span>{archive?.todayMood ?? "未记录状态"}</span>
-                <button type="button" className="daily-signal__quiet-action" disabled={!canUseTerminal} onClick={() => { setMoodDraft(archive?.todayMood ?? null); setEditingTodayMood(true); setMessage(null); }}>
-                  {archive?.todayMood ? "修改状态" : "添加状态"}
+                <span className="daily-signal__mood-icon" aria-hidden="true"><MoodGlyph mood={currentArchive?.todayMood ?? null} /></span>
+                <span>{currentArchive?.todayMood ?? "未记录状态"}</span>
+                <button type="button" className="daily-signal__quiet-action" disabled={!canUseTerminal} onClick={() => { setMoodDraft(currentArchive?.todayMood ?? null); setEditingTodayMood(true); setMessage(null); }}>
+                  {currentArchive?.todayMood ? "修改状态" : "添加状态"}
                 </button>
               </div>
             </div>
@@ -329,7 +322,7 @@ export function DailySignalWorkspace({ currentUser }: { currentUser: AuthUser })
                   <ArrowIcon />
                 </button>
                 {editingTodayMood ? (
-                  <button type="button" className="daily-signal__quiet-action" disabled={savingMood} onClick={() => { setEditingTodayMood(false); setMoodDraft(archive?.todayMood ?? null); }}>
+                  <button type="button" className="daily-signal__quiet-action" disabled={savingMood} onClick={() => { setEditingTodayMood(false); setMoodDraft(currentArchive?.todayMood ?? null); }}>
                     取消
                   </button>
                 ) : <span>不选择状态，也可以直接签到</span>}
@@ -348,16 +341,6 @@ export function DailySignalWorkspace({ currentUser }: { currentUser: AuthUser })
       <section className="daily-signal__archive" aria-labelledby="daily-signal-archive-title">
         <div className="daily-signal__archive-head">
           <div className="daily-signal__archive-title"><h2 id="daily-signal-archive-title">年度信号</h2><span>{year}</span></div>
-          <div className="daily-signal__archive-actions">
-            <label className="daily-signal__year-control"><span className="sr-only">选择档案年份</span>
-              <select value={selectedYear} onChange={(event) => chooseYear(Number(event.target.value))} aria-label="选择档案年份">
-                {Array.from({ length: Math.max(1, currentYear - 2000 + 1) }, (_, index) => currentYear - index).map((availableYear) => <option key={availableYear} value={availableYear}>{availableYear} 年</option>)}
-              </select>
-            </label>
-            <button type="button" className="daily-signal__today-button" onClick={returnToToday} aria-label="返回今天并定位到今日所在周">
-              <ReturnIcon /><span>回到今天</span>
-            </button>
-          </div>
         </div>
 
         <div className="daily-signal__heatmap-viewport" ref={archiveViewportRef} tabIndex={0} aria-label={`${year} 年信号档案，可横向滚动查看`}>
@@ -466,4 +449,3 @@ function MoodGlyph({ mood }: { mood: Mood | null }) {
 
 function LockIcon() { return <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.25" y="7" width="9.5" height="7" rx="1.6" /><path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7" /></svg>; }
 function ArrowIcon() { return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 10h13m-5-5 5 5-5 5" /></svg>; }
-function ReturnIcon() { return <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.2 6A5.5 5.5 0 1 0 14 9M13 2.5v3.8H9.2" /></svg>; }

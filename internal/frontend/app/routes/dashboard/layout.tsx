@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent } from "react";
 import { Link, NavLink, Outlet, redirect, useLocation, useNavigate, useRevalidator } from "react-router";
 
 import type { Route } from "./+types/layout";
@@ -9,7 +9,6 @@ import {
   getAccountSessions,
   getAuthUserRoleLabel,
   getBootstrapStatus,
-  getCachedCurrentUser,
   getCurrentUser,
   initializeAccountSessions,
   logout,
@@ -22,6 +21,8 @@ import {
 } from "~/lib/auth-client";
 import { resolveDashboardAuth } from "~/lib/dashboard-auth-flow";
 import { confirmUserGroup, getUserGroupConfirmationState, type UserGroupConfirmationState } from "~/lib/user-group-client";
+import { getCandidateTodoCount } from "~/lib/admin-workbench";
+import { getAdminWorkbenchSummary } from "~/lib/registrations-client";
 import {
   canAccessDashboardAdminPath,
   getCoreDashboardMenu,
@@ -36,6 +37,7 @@ import {
 
 export interface DashboardLayoutOutletContext {
   currentUser: AuthUser;
+  refreshCandidateTodoCount: (force?: boolean) => Promise<void>;
 }
 
 const CONTENT_TRANSITION_MS = 180;
@@ -65,8 +67,10 @@ function getIsDesktopDashboardViewport() {
 
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const currentPath = new URL(request.url);
+  const groupRequest = getUserGroupConfirmationState()
+    .then((state) => ({ state, error: null as unknown }))
+    .catch((error: unknown) => ({ state: null, error }));
   const auth = await resolveDashboardAuth({
-    cachedUser: getCachedCurrentUser(),
     getCurrentUser: () => getCurrentUser({ force: true }),
     getBootstrapStatus,
     isUnauthorized: (error) => error instanceof ApiError && error.status === 401,
@@ -89,16 +93,15 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect(getDefaultDashboardPath(currentUser.role.name));
   }
 
-  let groupResolution: UserGroupConfirmationState | null = null;
+  const groupResult = await groupRequest;
+  const groupResolution: UserGroupConfirmationState | null = groupResult.state;
   let groupResolutionError = "";
-  try {
-    groupResolution = await getUserGroupConfirmationState();
-  } catch (error) {
-    if (error instanceof ApiError && error.status === 401) {
+  if (groupResult.error) {
+    if (groupResult.error instanceof ApiError && groupResult.error.status === 401) {
       const redirectTarget = `${currentPath.pathname}${currentPath.search}`;
       throw redirect(`/login?redirect=${encodeURIComponent(redirectTarget)}`);
     }
-    groupResolutionError = error instanceof Error ? error.message : "所属组别暂时无法读取。";
+    groupResolutionError = groupResult.error instanceof Error ? groupResult.error.message : "所属组别暂时无法读取。";
   }
 
   return { currentUser, groupResolution, groupResolutionError };
@@ -146,10 +149,12 @@ function SidebarItem({
   item,
   onNavigate,
   collapsed = false,
+  badgeCount,
 }: {
   item: DashboardMenuLink | VisibleDashboardAdminMenuItem;
   onNavigate: () => void;
   collapsed?: boolean;
+  badgeCount?: number | null;
 }) {
   const location = useLocation();
   const [expanded, setExpanded] = useState(() => {
@@ -240,7 +245,7 @@ function SidebarItem({
       aria-label={item.label}
       title={collapsed ? item.label : undefined}
       className={({ isActive }) =>
-        `flex min-w-0 items-center gap-3 rounded-xl py-2.5 text-sm transition-colors ${collapsed ? "justify-center px-2" : "px-3"} ${
+        `relative flex min-w-0 items-center gap-3 rounded-xl py-2.5 text-sm transition-colors ${collapsed ? "justify-center px-2" : "px-3"} ${
           isActive
           ? "dashboard-nav-link dashboard-nav-link--active"
           : "dashboard-nav-link"
@@ -249,10 +254,16 @@ function SidebarItem({
     >
       {({ isActive }) => (
         <>
-          <span className={isActive ? "dashboard-shell__accent" : ""}>
+          <span className={`relative ${isActive ? "dashboard-shell__accent" : ""}`}>
             <MenuIcon iconKey={item.iconKey} />
+            {item.key === "candidate-processing" && collapsed && (badgeCount ?? 0) > 0 ? (
+              <span className="dashboard-nav-badge dashboard-nav-badge--collapsed" aria-label={`${badgeCount} 项待处理`}>{badgeCount}</span>
+            ) : null}
           </span>
           <span className={`min-w-0 flex-1 truncate ${collapsed ? "sr-only" : ""}`}>{item.label}</span>
+          {item.key === "candidate-processing" && !collapsed && (badgeCount ?? 0) > 0 ? (
+            <span className="dashboard-nav-badge" aria-label={`${badgeCount} 项待处理`}>{badgeCount}</span>
+          ) : null}
         </>
       )}
     </NavLink>
@@ -275,10 +286,12 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const [accountSessionsLoading, setAccountSessionsLoading] = useState(false);
   const [accountSessionsError, setAccountSessionsError] = useState("");
   const [accountActionError, setAccountActionError] = useState("");
+  const [candidateTodoState, setCandidateTodoState] = useState<{ userId: number; roleName: string; count: number | null } | null>(null);
   const contentPanelRef = useRef<HTMLDivElement | null>(null);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const sidebarRef = useRef<HTMLElement | null>(null);
   const sidebarTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const lastAuthRevalidationAtRef = useRef(Date.now());
   const sidebarResizeStartXRef = useRef(0);
   const sidebarResizeStartWidthRef = useRef(SIDEBAR_DEFAULT_WIDTH);
   const { currentUser, groupResolution, groupResolutionError } = loaderData;
@@ -287,9 +300,60 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const userMenuItems = getUserDashboardMenu(currentUser);
   const adminMenuItems = getVisibleAdminDashboardMenu(currentUser);
   const showAdminSection = hasDashboardAdminAccess(currentUser.role.name) && adminMenuItems.length > 0;
+  const refreshCandidateTodoCount = useCallback(async (force = false) => {
+    const userId = currentUser.id;
+    if (!hasDashboardAdminAccess(currentUser.role.name)) {
+      setCandidateTodoState(null);
+      return;
+    }
+
+    try {
+      const response = await getAdminWorkbenchSummary(userId, force);
+      setCandidateTodoState({ userId, roleName: currentUser.role.name, count: getCandidateTodoCount(response.currentFormAvailable, response.summary) });
+    } catch {
+      setCandidateTodoState({ userId, roleName: currentUser.role.name, count: null });
+    }
+  }, [currentUser.id, currentUser.role.name]);
+  const candidateTodoCount = candidateTodoState?.userId === currentUser.id && candidateTodoState.roleName === currentUser.role.name
+    ? candidateTodoState.count
+    : null;
   const userInitial = (currentUser.nickname?.trim() || currentUser.email.trim() || "U")
     .charAt(0)
     .toUpperCase();
+
+  useEffect(() => {
+    void refreshCandidateTodoCount();
+  }, [refreshCandidateTodoCount]);
+
+  useEffect(() => {
+    const revalidateAuthWhenResumed = () => {
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - lastAuthRevalidationAtRef.current < 30_000) return;
+
+      lastAuthRevalidationAtRef.current = Date.now();
+      void revalidator.revalidate();
+    };
+
+    window.addEventListener("focus", revalidateAuthWhenResumed);
+    document.addEventListener("visibilitychange", revalidateAuthWhenResumed);
+    return () => {
+      window.removeEventListener("focus", revalidateAuthWhenResumed);
+      document.removeEventListener("visibilitychange", revalidateAuthWhenResumed);
+    };
+  }, [revalidator]);
+
+  useEffect(() => {
+    if (!showAdminSection) return;
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void refreshCandidateTodoCount(true);
+    };
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [refreshCandidateTodoCount, showAdminSection]);
 
   useEffect(() => {
     let active = true;
@@ -676,6 +740,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
                     item={item}
                     onNavigate={handleSidebarNavigate}
                     collapsed={isSidebarCollapsed}
+                    badgeCount={item.key === "candidate-processing" ? candidateTodoCount : undefined}
                   />
                 ))}
               </div>
@@ -817,7 +882,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
 
         <main className="p-4 sm:p-6 lg:p-8">
           <div ref={contentPanelRef} className="relative">
-            <Outlet context={{ currentUser } satisfies DashboardLayoutOutletContext} />
+            <Outlet context={{ currentUser, refreshCandidateTodoCount } satisfies DashboardLayoutOutletContext} />
           </div>
         </main>
       </div>

@@ -26,6 +26,10 @@ test("mobile navigation exposes its disclosure state and Escape closes with focu
   assert.match(navbar, /className="site-mobile-menu xl:hidden"/);
   assert.match(styles, /\.site-mobile-menu\s*\{[\s\S]*?width:\s*min\(22rem, calc\(100vw - 2rem\)\)[\s\S]*?overflow-y:\s*auto/);
   assert.match(styles, /@media \(min-width: 1280px\)\s*\{[\s\S]*?\.navbar-menu-toggle\s*\{\s*display:\s*none;/);
+  const mobileMenuCloseEffect = navbar.match(/useEffect\(\(\) => \{\s*if \(!menuOpen\) return;([\s\S]*?)\}, \[menuOpen\]\);/)?.[1] ?? "";
+  assert.match(mobileMenuCloseEffect, /document\.addEventListener\("pointerdown", closeOnOutsidePointer\)/);
+  assert.match(mobileMenuCloseEffect, /mobileMenuRef\.current\?\.contains\(target\) \|\| mobileMenuButtonRef\.current\?\.contains\(target\)/);
+  assert.doesNotMatch(mobileMenuCloseEffect, /mousedown|touchstart/);
 });
 
 test("mobile links close the menu and desktop resize moves focus to a visible navigation link", () => {
@@ -72,6 +76,7 @@ test("authentication loading, guest, and member states stay distinct and reserve
   assert.match(navbar, /role="status"[\s\S]*?aria-busy="true"/);
   assert.match(navbar, /groupIdentityLoading/);
   assert.match(navbar, /setGroupState\(\{ userId, status: "loading" \}\)/);
+  assert.doesNotMatch(navbar, /正在确认组别/);
   assert.match(navbar, /setUserMenuOpen\(false\)/);
   assert.match(styles, /\.navbar-auth-loading\s*\{[\s\S]*?min-height:\s*2\.75rem/);
   assert.match(styles, /\.navbar-identity-detail--compact\s*\{\s*min-height:\s*17px/);

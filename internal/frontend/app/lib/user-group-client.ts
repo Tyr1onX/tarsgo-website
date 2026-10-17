@@ -6,8 +6,19 @@ export interface UserGroupConfirmationState {
 	canSelfConfirm: boolean;
 }
 
-export function getUserGroupConfirmationState(): Promise<UserGroupConfirmationState> {
-	return apiRequest<UserGroupConfirmationState>("/api/user-group/confirmation");
+const pendingConfirmationRequests = new Map<number | null, Promise<UserGroupConfirmationState>>();
+
+export function getUserGroupConfirmationState(accountId?: number): Promise<UserGroupConfirmationState> {
+	const key = accountId ?? null;
+	const pending = pendingConfirmationRequests.get(key);
+	if (pending) return pending;
+
+	const request = apiRequest<UserGroupConfirmationState>("/api/user-group/confirmation")
+		.finally(() => {
+			if (pendingConfirmationRequests.get(key) === request) pendingConfirmationRequests.delete(key);
+		});
+	pendingConfirmationRequests.set(key, request);
+	return request;
 }
 
 export function confirmUserGroup(groupId: number): Promise<UserGroupConfirmationState> {

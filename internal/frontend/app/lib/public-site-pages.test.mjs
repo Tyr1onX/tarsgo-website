@@ -169,7 +169,7 @@ test("访客保留基地欢迎页，已登录用户在统一工作台使用每�
   assert.match(dashboardBase, /<Navigate to=\{`\/dashboard\$\{location\.search\}\$\{location\.hash \|\| "#daily-signal"\}`\} replace \/>/);
   assert.match(dailySignalWorkspace, /今日通信/);
   assert.match(dashboardHome, /<DailySignalWorkspace key=\{currentUser\.id\} currentUser=\{currentUser\} \/>/);
-  assert.match(dashboardHome, /快捷入口/);
+  assert.doesNotMatch(dashboardHome, /快捷入口|dashboard-home__shortcuts/);
   assert.doesNotMatch(dashboardHome, /\/api\/daily-signals\?year=/);
   assert.match(home, /<HomeVisualNavigation \/>/);
   assert.match(styles, /\.home-base-feature\s*\{[\s\S]*?border-block/);

@@ -148,6 +148,33 @@
   color: var(--admin-text);
 }
 
+.dashboard-nav-badge {
+  display: inline-flex;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(208, 173, 105, 0.24);
+  border-radius: 999px;
+  padding: 0 0.35rem;
+  background: rgba(208, 173, 105, 0.1);
+  color: var(--admin-accent);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 1;
+}
+
+.dashboard-nav-badge--collapsed {
+  position: absolute;
+  top: -0.55rem;
+  right: -0.7rem;
+  min-width: 1rem;
+  height: 1rem;
+  padding: 0 0.2rem;
+  font-size: 0.5625rem;
+}
+
 .dashboard-shell__accent {
   color: var(--admin-accent);
 }

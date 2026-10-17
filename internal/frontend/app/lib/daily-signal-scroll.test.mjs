@@ -7,7 +7,6 @@ import { scrollHeatmapCellIntoView, scrollHeatmapToDate } from "./daily-signal-s
 const workspace = await readFile(new URL("../components/daily-signal-workspace.tsx", import.meta.url), "utf8");
 const dailySignalStyles = await readFile(new URL("../routes/daily-signal.css", import.meta.url), "utf8");
 const dashboardHomeStyles = await readFile(new URL("../routes/dashboard/dashboard-home.css", import.meta.url), "utf8");
-const appStyles = await readFile(new URL("../app.css", import.meta.url), "utf8");
 
 function makeViewport({ targetLeft = 950, targetRight = 970, scrollLeft = 0 } = {}) {
   const calls = [];
@@ -75,10 +74,16 @@ test("date navigation is isolated from document scrolling and focuses without br
   assert.doesNotMatch(workspace, /window\.scrollTo|document\.scrollTo/);
 });
 
-test("automatic positioning consumes its request once, and returning within the current year clears stale work", () => {
+test("automatic positioning consumes its request once and follows the Beijing date into a new year", () => {
   assert.match(workspace, /const date = pendingScrollDateRef\.current;\s*pendingScrollDateRef\.current = null;\s*requestAnimationFrame\(\(\) => scrollHeatmapToDate/);
-  assert.match(workspace, /if \(nextYear === selectedYear\) \{\s*pendingScrollDateRef\.current = null;\s*requestAnimationFrame\(\(\) => scrollHeatmapToDate/);
-  assert.match(workspace, /const returnToToday = \(\) => \{[\s\S]*?setSelectedDate\(null\);[\s\S]*?setFocusedDate\(today\)/);
+  assert.match(workspace, /const \[today, setToday\] = useState\(\(\) => getCurrentBeijingDate\(\)\)/);
+  assert.match(workspace, /const year = Number\(today\.slice\(0, 4\)\)/);
+  assert.match(workspace, /if \(nextToday !== today\)[\s\S]*?const crossedYear = nextToday\.slice\(0, 4\) !== today\.slice\(0, 4\)/);
+  assert.match(workspace, /if \(selectedDate === today\) \{\s*setSelectedDate\(nextToday\)/);
+  assert.match(workspace, /crossedYear \|\| selectedDateCrossedYear\) \{\s*setFocusedDate\(nextToday\)/);
+  assert.match(workspace, /setToday\(nextToday\)[\s\S]*?setRefreshVersion/);
+  assert.doesNotMatch(workspace, /\bselectedYear\b|chooseYear|returnToToday|回到今天|选择档案年份/);
+  assert.doesNotMatch(workspace, /daily-signal__year-control|daily-signal__today-button/);
 });
 
 test("history only changes on click and the compact detail is closed until a date is selected", () => {
@@ -119,7 +124,7 @@ test("annual archive requests are deduplicated only while the same account/year 
   assert.match(workspace, /const pendingArchiveRequests = new Map<string, Promise<DailySignalArchive>>\(\)/);
   assert.match(workspace, /const key = `\$\{accountId\}:\$\{year\}:\$\{refreshVersion\}`/);
   assert.match(workspace, /const pending = pendingArchiveRequests\.get\(key\);\s*if \(pending\) return pending/);
-  assert.match(workspace, /void requestArchive\(currentUser\.id, selectedYear, refreshVersion\)/);
+  assert.match(workspace, /void requestArchive\(currentUser\.id, year, refreshVersion\)/);
   assert.match(workspace, /if \(pendingArchiveRequests\.get\(key\) === request\) pendingArchiveRequests\.delete\(key\)/);
   assert.doesNotMatch(workspace, /new AbortController\(\)/);
 });
@@ -134,11 +139,9 @@ test("the dashboard grid can shrink around the horizontally scrollable annual ar
   assert.match(dashboardHomeStyles, /\.dashboard-home > \* \{ min-width: 0; \}/);
 });
 
-test("the year selector uses the shared themed arrow once and leaves room for its full label", () => {
-  assert.match(dailySignalStyles, /\.daily-signal__year-control select \{ min-width: 110px; height: 42px; padding: 0 2\.75rem 0 10px;[^}]*background-color: var\(--signal-raised\)/);
-  assert.match(dailySignalStyles, /\.daily-signal__year-control select \{ min-width: 110px; height: 42px; font-size: 12px; \}/);
-  assert.doesNotMatch(dailySignalStyles, /\.daily-signal__year-control svg/);
-  assert.doesNotMatch(workspace, /<ChevronIcon\s*\/>|function ChevronIcon/);
-  assert.match(appStyles, /select\s*\{[^}]*background-image:\s*url\(/);
-  assert.match(appStyles, /:root\[data-theme="light"\]\s+select\s*\{[^}]*background-image:\s*url\(/);
+test("the archive uses the current Beijing year without year navigation controls", () => {
+  assert.match(workspace, /const year = Number\(today\.slice\(0, 4\)\)/);
+  assert.doesNotMatch(workspace, /<select|daily-signal__year-control|daily-signal__today-button/);
+  assert.doesNotMatch(dailySignalStyles, /daily-signal__year-control|daily-signal__today-button/);
+  assert.match(workspace, /pendingScrollDateRef\.current = nextToday/);
 });

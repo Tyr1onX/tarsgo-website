@@ -1,5 +1,13 @@
 import type { InterviewSession } from "~/lib/registrations-client";
 
+export function getCandidateTodoCount(
+  currentFormAvailable: boolean,
+  summary: { pendingScreening: number; pendingInterview: number },
+) {
+  if (!currentFormAvailable) return 0;
+  return Math.max(0, summary.pendingScreening) + Math.max(0, summary.pendingInterview);
+}
+
 export function getShanghaiDate(now = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Shanghai",

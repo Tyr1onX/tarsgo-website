@@ -4,15 +4,10 @@ export type DashboardAuthResolution<T> =
   | { type: "unauthenticated" };
 
 export async function resolveDashboardAuth<T>(options: {
-  cachedUser: T | null;
   getCurrentUser: () => Promise<T>;
   getBootstrapStatus: () => Promise<{ setupRequired: boolean }>;
   isUnauthorized: (error: unknown) => boolean;
 }): Promise<DashboardAuthResolution<T>> {
-  if (options.cachedUser) {
-    return { type: "authenticated", user: options.cachedUser };
-  }
-
   try {
     return { type: "authenticated", user: await options.getCurrentUser() };
   } catch (error) {
