@@ -353,7 +353,6 @@ export function DailySignalWorkspace({ currentUser }: { currentUser: AuthUser })
               <select value={selectedYear} onChange={(event) => chooseYear(Number(event.target.value))} aria-label="选择档案年份">
                 {Array.from({ length: Math.max(1, currentYear - 2000 + 1) }, (_, index) => currentYear - index).map((availableYear) => <option key={availableYear} value={availableYear}>{availableYear} 年</option>)}
               </select>
-              <ChevronIcon />
             </label>
             <button type="button" className="daily-signal__today-button" onClick={returnToToday} aria-label="返回今天并定位到今日所在周">
               <ReturnIcon /><span>回到今天</span>
@@ -467,5 +466,4 @@ function MoodGlyph({ mood }: { mood: Mood | null }) {
 
 function LockIcon() { return <svg viewBox="0 0 16 16" aria-hidden="true"><rect x="3.25" y="7" width="9.5" height="7" rx="1.6" /><path d="M5.5 7V5.2a2.5 2.5 0 0 1 5 0V7" /></svg>; }
 function ArrowIcon() { return <svg viewBox="0 0 20 20" aria-hidden="true"><path d="M3 10h13m-5-5 5 5-5 5" /></svg>; }
-function ChevronIcon() { return <svg viewBox="0 0 16 16" aria-hidden="true"><path d="m4 6 4 4 4-4" /></svg>; }
 function ReturnIcon() { return <svg viewBox="0 0 16 16" aria-hidden="true"><path d="M13.2 6A5.5 5.5 0 1 0 14 9M13 2.5v3.8H9.2" /></svg>; }

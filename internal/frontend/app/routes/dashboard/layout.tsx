@@ -108,14 +108,6 @@ clientLoader.hydrate = true;
 
 function MenuIcon({ iconKey }: { iconKey: DashboardMenuIconKey }) {
   switch (iconKey) {
-    case "signal":
-      return (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-          <circle cx="12" cy="12" r="8.25" />
-          <circle cx="12" cy="12" r="4.5" />
-          <circle cx="12" cy="12" r="1" fill="currentColor" />
-        </svg>
-      );
     case "people":
       return (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">

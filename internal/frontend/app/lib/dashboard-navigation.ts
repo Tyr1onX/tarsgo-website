@@ -1,6 +1,6 @@
 import type { AuthUser } from "~/lib/auth-client";
 
-export type DashboardMenuIconKey = "dashboard" | "signal" | "people" | "registration" | "settings" | "analytics";
+export type DashboardMenuIconKey = "dashboard" | "people" | "registration" | "settings" | "analytics";
 
 type DashboardAllowedRoles = readonly string[];
 
@@ -62,12 +62,6 @@ const CORE_DASHBOARD_MENU: readonly DashboardMenuLink[] = [
     label: "个人工作台",
     href: "/dashboard",
     iconKey: "dashboard",
-  },
-  {
-    key: "daily-signal",
-    label: "每日通信",
-    href: "/dashboard/base",
-    iconKey: "signal",
   },
 ];
 

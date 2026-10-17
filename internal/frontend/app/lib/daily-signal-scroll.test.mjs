@@ -7,6 +7,7 @@ import { scrollHeatmapCellIntoView, scrollHeatmapToDate } from "./daily-signal-s
 const workspace = await readFile(new URL("../components/daily-signal-workspace.tsx", import.meta.url), "utf8");
 const dailySignalStyles = await readFile(new URL("../routes/daily-signal.css", import.meta.url), "utf8");
 const dashboardHomeStyles = await readFile(new URL("../routes/dashboard/dashboard-home.css", import.meta.url), "utf8");
+const appStyles = await readFile(new URL("../app.css", import.meta.url), "utf8");
 
 function makeViewport({ targetLeft = 950, targetRight = 970, scrollLeft = 0 } = {}) {
   const calls = [];
@@ -131,4 +132,13 @@ test("historical mood deletion controls and their request path are removed", () 
 test("the dashboard grid can shrink around the horizontally scrollable annual archive", () => {
   assert.match(dashboardHomeStyles, /grid-template-columns: minmax\(0, 1fr\)/);
   assert.match(dashboardHomeStyles, /\.dashboard-home > \* \{ min-width: 0; \}/);
+});
+
+test("the year selector uses the shared themed arrow once and leaves room for its full label", () => {
+  assert.match(dailySignalStyles, /\.daily-signal__year-control select \{ min-width: 110px; height: 42px; padding: 0 2\.75rem 0 10px;[^}]*background-color: var\(--signal-raised\)/);
+  assert.match(dailySignalStyles, /\.daily-signal__year-control select \{ min-width: 110px; height: 42px; font-size: 12px; \}/);
+  assert.doesNotMatch(dailySignalStyles, /\.daily-signal__year-control svg/);
+  assert.doesNotMatch(workspace, /<ChevronIcon\s*\/>|function ChevronIcon/);
+  assert.match(appStyles, /select\s*\{[^}]*background-image:\s*url\(/);
+  assert.match(appStyles, /:root\[data-theme="light"\]\s+select\s*\{[^}]*background-image:\s*url\(/);
 });
