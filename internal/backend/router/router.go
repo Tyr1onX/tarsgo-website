@@ -103,7 +103,6 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	dailySignalWriteAPI.Use(requireSameOriginRequest(cfg), middleware.RequireAuthenticated(authService))
 	dailySignalWriteAPI.POST("", dailySignalHandler.SendToday)
 	dailySignalWriteAPI.PATCH("/today/mood", dailySignalHandler.SetTodayMood)
-	dailySignalWriteAPI.DELETE("/:date/mood", dailySignalHandler.DeleteHistoricalMood)
 
 	adminAPI := api.Group("/admin")
 	adminAPI.Use(middleware.RequireAdmin(authService))

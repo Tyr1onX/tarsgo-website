@@ -164,28 +164,6 @@ func (s *Service) SetTodayMood(ctx context.Context, userID uint64, mood *string)
 	return &SendResult{Date: date, Mood: cloneString(updated.Mood), Created: false}, nil
 }
 
-func (s *Service) DeleteHistoricalMood(ctx context.Context, userID uint64, date string) error {
-	if userID == 0 {
-		return serviceError(http.StatusUnauthorized, "请先登录", nil)
-	}
-	parsed, err := time.Parse(time.DateOnly, date)
-	if err != nil || parsed.Format(time.DateOnly) != date {
-		return serviceError(http.StatusBadRequest, "日期格式不合法", err)
-	}
-	if date >= s.Today() {
-		return serviceError(http.StatusBadRequest, "今日状态请在终端中修改", nil)
-	}
-	if _, err := s.repo.Find(ctx, userID, date); errors.Is(err, ErrNotFound) {
-		return serviceError(http.StatusNotFound, "没有找到这一天的信号", nil)
-	} else if err != nil {
-		return serviceError(http.StatusInternalServerError, "读取信号失败", err)
-	}
-	if err := s.repo.SetMood(ctx, userID, date, nil); err != nil {
-		return serviceError(http.StatusInternalServerError, "状态暂时无法删除，请稍后重试", err)
-	}
-	return nil
-}
-
 func validateMood(mood *string) error {
 	if mood == nil {
 		return nil

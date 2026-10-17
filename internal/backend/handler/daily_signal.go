@@ -16,7 +16,6 @@ type dailySignalService interface {
 	GetArchive(ctx context.Context, userID *uint64, year int) (*dailysignal.Archive, error)
 	SendToday(ctx context.Context, userID uint64, mood *string) (*dailysignal.SendResult, error)
 	SetTodayMood(ctx context.Context, userID uint64, mood *string) (*dailysignal.SendResult, error)
-	DeleteHistoricalMood(ctx context.Context, userID uint64, date string) error
 }
 
 type DailySignalHandler struct{ service dailySignalService }
@@ -95,20 +94,6 @@ func (h *DailySignalHandler) SetTodayMood(c *gin.Context) {
 		return
 	}
 	writeAPI(c, http.StatusOK, "今日状态已更新", result)
-}
-
-func (h *DailySignalHandler) DeleteHistoricalMood(c *gin.Context) {
-	c.Header("Cache-Control", "no-store")
-	userID, ok := currentDailySignalUserID(c)
-	if !ok {
-		writeAPIError(c, http.StatusUnauthorized, "请先登录")
-		return
-	}
-	if err := h.service.DeleteHistoricalMood(c.Request.Context(), userID, c.Param("date")); err != nil {
-		h.handleServiceError(c, err)
-		return
-	}
-	writeAPI(c, http.StatusOK, "这条状态已删除，签到日期仍会保留", gin.H{"date": c.Param("date")})
 }
 
 func currentDailySignalUserID(c *gin.Context) (uint64, bool) {
