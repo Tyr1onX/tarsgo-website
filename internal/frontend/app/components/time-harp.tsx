@@ -8,6 +8,7 @@ import {
 import {
   beginStringGesture,
   createStringState,
+  getStringDisplacementLimit,
   moveStringGesture,
   releaseStringGesture,
   sampleString,
@@ -144,7 +145,7 @@ export default function TimeHarp() {
     const bounds = hitArea.getBoundingClientRect();
     const position = clamp((event.clientY - bounds.top) / Math.max(1, bounds.height), 0, 1);
     const lineBounds = svg.getBoundingClientRect();
-    const maxDisplacement = clamp(lineBounds.width * 0.12, 42, 88);
+    const maxDisplacement = getStringDisplacementLimit(lineBounds.height);
 
     beamRef.current = null;
     pointerRef.current = {
@@ -164,13 +165,23 @@ export default function TimeHarp() {
     if (!gesture || gesture.pointerId !== event.pointerId) return;
 
     const elapsed = Math.max(1 / 240, (event.timeStamp - gesture.previousTime) / 1000);
-    moveStringGesture(
+    const result = moveStringGesture(
       stateRef.current,
       event.clientX - gesture.startX,
       gesture.maxDisplacement,
       elapsed,
     );
     gesture.previousTime = event.timeStamp;
+
+    if (result.released) {
+      pointerRef.current = null;
+      setPressed(false);
+      beamRef.current = result.releasePosition === null
+        ? null
+        : { startedAt: performance.now(), position: result.releasePosition };
+      scheduleFrame();
+    }
+
     paintString();
   }
 
@@ -187,10 +198,12 @@ export default function TimeHarp() {
     if (pointerRef.current) return;
     event.preventDefault();
 
-    const amplitude = keyboardDirectionRef.current * 42;
+    const stringLength = svgRef.current?.getBoundingClientRect().height ?? 360;
+    const maxDisplacement = getStringDisplacementLimit(stringLength);
+    const dragDistance = keyboardDirectionRef.current * maxDisplacement * 0.72;
     keyboardDirectionRef.current *= -1;
     beginStringGesture(stateRef.current, 0.5);
-    moveStringGesture(stateRef.current, amplitude, 68, 0.11);
+    moveStringGesture(stateRef.current, dragDistance, maxDisplacement, 0.11);
     const releasePosition = releaseStringGesture(stateRef.current);
     beamRef.current = releasePosition === null
       ? null

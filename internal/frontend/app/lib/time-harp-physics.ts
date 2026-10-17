@@ -1,10 +1,13 @@
 export const STRING_SAMPLE_COUNT = 41;
 
-const WAVE_SPEED = 5.4;
-const DAMPING = 6.5;
+const WAVE_SPEED = 9.2;
+const DAMPING = 5.8;
 const MAX_STEP_SECONDS = 1 / 500;
-const MAX_DRAG_SPEED = 1_600;
+const MAX_DRAG_SPEED = 220;
 const REDUCED_MOTION_SETTLE_RATE = 32;
+const DRAG_RESPONSE_RATIO = 0.72;
+const AUTO_RELEASE_DRAG_RATIO = 1.8;
+const AUTO_RELEASE_DISPLACEMENT_RATIO = 1;
 
 export type StringState = {
   displacement: Float64Array;
@@ -31,6 +34,22 @@ export function createStringState(sampleCount = STRING_SAMPLE_COUNT): StringStat
   };
 }
 
+export function getStringDisplacementLimit(stringLength: number) {
+  return clamp(stringLength * 0.028, 10, 18);
+}
+
+export function stringDragAmplitude(deltaX: number, maxDisplacement: number) {
+  const limit = Math.max(0, maxDisplacement);
+  if (limit === 0) return 0;
+
+  const releaseDistance = limit * AUTO_RELEASE_DRAG_RATIO;
+  const distance = Math.min(Math.abs(deltaX), releaseDistance);
+  const response = limit * DRAG_RESPONSE_RATIO;
+  const normalized = (1 - Math.exp(-distance / response)) /
+    (1 - Math.exp(-releaseDistance / response));
+  return Math.sign(deltaX) * limit * AUTO_RELEASE_DISPLACEMENT_RATIO * normalized;
+}
+
 export function beginStringGesture(state: StringState, position: number): number {
   const last = state.displacement.length - 1;
   const index = clamp(Math.round(clamp(position, 0, 1) * last), 1, last - 1);
@@ -53,26 +72,30 @@ export function moveStringGesture(
   deltaSeconds: number,
 ) {
   const gesture = state.gesture;
-  if (!gesture) return;
+  if (!gesture) return { released: false, releasePosition: null };
 
   const limit = Math.max(0, maxDisplacement);
-  state.displacementLimit = Math.max(limit, largestMagnitude(gesture.originDisplacement));
-  const target = clamp(gesture.startDisplacement + deltaX, -limit, limit);
-  const amplitude = target - gesture.startDisplacement;
+  const releaseDistance = limit * AUTO_RELEASE_DRAG_RATIO;
+  const autoRelease = limit > 0 && Math.abs(deltaX) >= releaseDistance;
+  const targetLimit = Math.max(limit, largestMagnitude(gesture.originDisplacement));
+  state.displacementLimit = targetLimit;
+  const amplitude = stringDragAmplitude(deltaX, limit);
+  const target = clamp(gesture.startDisplacement + amplitude, -targetLimit, targetLimit);
+  const appliedAmplitude = target - gesture.startDisplacement;
   const elapsed = Math.max(1 / 240, deltaSeconds);
   const amplitudeVelocity = clamp(
-    (amplitude - gesture.previousAmplitude) / elapsed,
+    (appliedAmplitude - gesture.previousAmplitude) / elapsed,
     -MAX_DRAG_SPEED,
     MAX_DRAG_SPEED,
   );
   const last = state.displacement.length - 1;
 
   for (let index = 0; index <= last; index += 1) {
-    const profile = triangleProfile(index, gesture.index, last);
+    const profile = stringPluckProfile(index / last, gesture.index / last);
     state.displacement[index] = clamp(
-      gesture.originDisplacement[index] + amplitude * profile,
-      -limit,
-      limit,
+      gesture.originDisplacement[index] + appliedAmplitude * profile,
+      -targetLimit,
+      targetLimit,
     );
     state.velocity[index] = gesture.originVelocity[index] + amplitudeVelocity * profile;
   }
@@ -81,7 +104,11 @@ export function moveStringGesture(
   state.displacement[last] = 0;
   state.velocity[0] = 0;
   state.velocity[last] = 0;
-  gesture.previousAmplitude = amplitude;
+  gesture.previousAmplitude = appliedAmplitude;
+
+  const releasePosition = autoRelease ? gesture.index / last : null;
+  if (autoRelease) state.gesture = null;
+  return { released: autoRelease, releasePosition };
 }
 
 export function releaseStringGesture(state: StringState) {
@@ -156,11 +183,13 @@ export function sampleString(state: StringState, position: number) {
   return state.displacement[lower] * (1 - fraction) + state.displacement[upper] * fraction;
 }
 
-function triangleProfile(index: number, anchor: number, last: number) {
-  if (index === 0 || index === last) return 0;
-  if (index === anchor) return 1;
-  if (index < anchor) return index / anchor;
-  return (last - index) / (last - anchor);
+export function stringPluckProfile(position: number, anchor: number) {
+  const safePosition = clamp(position, 0, 1);
+  const safeAnchor = clamp(anchor, Number.EPSILON, 1 - Number.EPSILON);
+  const progress = safePosition <= safeAnchor
+    ? safePosition / safeAnchor
+    : (1 - safePosition) / (1 - safeAnchor);
+  return 0.5 - 0.5 * Math.cos(Math.PI * clamp(progress, 0, 1));
 }
 
 function settleBoundaries(state: StringState) {
