@@ -5,6 +5,8 @@ import test from "node:test";
 
 const routes = await readFile(new URL("../routes.ts", import.meta.url), "utf8");
 const home = await readFile(new URL("../routes/home.tsx", import.meta.url), "utf8");
+const homeVisualNavigation = await readFile(new URL("../components/home-visual-navigation.tsx", import.meta.url), "utf8");
+const homeSandRevealLayer = await readFile(new URL("../components/home-sand-reveal-layer.tsx", import.meta.url), "utf8");
 const basePage = await readFile(new URL("../routes/base.tsx", import.meta.url), "utf8");
 const dailySignalRoute = await readFile(new URL("../routes/daily-signal.tsx", import.meta.url), "utf8");
 const dailySignalWorkspace = await readFile(new URL("../components/daily-signal-workspace.tsx", import.meta.url), "utf8");
@@ -86,7 +88,7 @@ test("topic content keeps the five group definitions, dedicated about page, and 
 });
 
 test("the homepage uses six image-led routes, preserves legacy hashes, and keeps reduced-motion video behavior", () => {
-  const modules = home.match(/const homeNavigationModules = \[([\s\S]*?)\n\];/)?.[1] ?? "";
+  const modules = homeVisualNavigation.match(/const homeNavigationModules = \[([\s\S]*?)\n\];/)?.[1] ?? "";
   assert.equal((modules.match(/title: /g) ?? []).length, 6);
   assert.doesNotMatch(home, /25 张荣誉证书原图/);
   for (const path of ["/about", "/robots", "/join", "/events-and-honors", "/team-history", "/micro-specialties/low-altitude-intelligent-sensing-control"]) {
@@ -104,7 +106,7 @@ test("the homepage uses six image-led routes, preserves legacy hashes, and keeps
   assert.match(home, /autoPlay=\{!prefersReducedMotion\}/);
   assert.match(home, /preload=\{prefersReducedMotion \? "none" : "metadata"\}/);
   assert.match(home, /if \(prefersReducedMotion\) heroVideoRef\.current\?\.pause\(\)/);
-  assert.match(home, /<HomeVisualNavigation \/>/);
+  assert.match(home, /<HomeVisualNavigation imageTreatment="sand" \/>/);
   assert.doesNotMatch(home, /home-base-feature|to="\/base"|从每日通信开始/);
   assert.doesNotMatch(home, /home-space-entry--manage|个人工作台/);
   assert.match(navbar, /label: "加入我们", href: "\/join"/);
@@ -113,15 +115,15 @@ test("the homepage uses six image-led routes, preserves legacy hashes, and keeps
 });
 
 test("large homepage photos use content-hashed responsive WebP candidates without replacing the original photos", async () => {
-  const modules = home.match(/const homeNavigationModules = \[([\s\S]*?)\n\];/)?.[1] ?? "";
+  const modules = homeVisualNavigation.match(/const homeNavigationModules = \[([\s\S]*?)\n\];/)?.[1] ?? "";
   const candidates = [
     ["about", "381e0fa8", "8e5963df"],
     ["events", "a0240c86", "0a9ecfa8"],
     ["micro", "9613d89c", "d641915f"],
   ];
 
-  assert.match(home, /srcSet=\{module\.imageSrcSet\}/);
-  assert.match(home, /sizes=\{module\.imageSizes\}/);
+  assert.match(homeVisualNavigation, /srcSet=\{module\.imageSrcSet\}/);
+  assert.match(homeVisualNavigation, /sizes=\{module\.imageSizes\}/);
   for (const [name, hash640, hash1280] of candidates) {
     assert.match(
       modules,
@@ -171,7 +173,7 @@ test("公开基地入口已移除，旧链接只导向登录或统一工作台",
   assert.match(dashboardHome, /<DailySignalWorkspace key=\{currentUser\.id\} currentUser=\{currentUser\} \/>/);
   assert.doesNotMatch(dashboardHome, /快捷入口|dashboard-home__shortcuts/);
   assert.doesNotMatch(dashboardHome, /\/api\/daily-signals\?year=/);
-  assert.match(home, /<HomeVisualNavigation \/>/);
+  assert.match(home, /<HomeVisualNavigation imageTreatment="sand" \/>/);
   assert.doesNotMatch(styles, /\.home-space-layout|\.home-space-entry/);
   assert.match(dailySignalWorkspace, /不选择状态，也可以直接签到/);
   assert.doesNotMatch(dailySignalWorkspace, /daily-signal__base-link/);
@@ -213,6 +215,40 @@ test("the homepage restores its historic photo collage across tablet and desktop
   for (const card of ["about", "robots", "join", "events", "history", "micro"]) {
     assert.match(styles, new RegExp(`\\.home-visual-card--${card} > img \\{ object-position: center \\d+%; \\}`));
   }
+});
+
+test("sand reveal stays on a direct preview route and uses the real homepage gallery", async () => {
+  const previewRoute = await readFile(new URL("../routes/traces-sand-reveal.tsx", import.meta.url), "utf8");
+  assert.match(routes, /route\("experiments\/traces-sand-reveal", "routes\/traces-sand-reveal\.tsx"\)/);
+  assert.match(previewRoute, /<HomeVisualNavigation[\s\S]*?imageTreatment=\{mode\}/);
+  assert.match(previewRoute, /aria-pressed=\{mode === "original"\}/);
+  assert.match(previewRoute, /aria-pressed=\{mode === "sand"\}/);
+  assert.match(previewRoute, /重播沙画/);
+  assert.match(previewRoute, /searchParams\.get\("frame"\)/);
+  assert.match(previewRoute, /frameOverride=\{frameOverride\}/);
+  assert.match(previewRoute, /noindex, nofollow/);
+  assert.match(homeVisualNavigation, /loading="lazy"/);
+  assert.match(homeVisualNavigation, /decoding="async"/);
+  assert.match(homeVisualNavigation, /srcSet=\{module\.imageSrcSet\}/);
+  assert.match(homeVisualNavigation, /new IntersectionObserver/);
+  assert.match(homeVisualNavigation, /observer\.disconnect\(\)/);
+  assert.match(homeVisualNavigation, /staggerMs=\{index \* 105\}/);
+  assert.match(homeVisualNavigation, /<Link[\s\S]*?to=\{module\.href\}/);
+  assert.match(homeVisualNavigation, /<HomeSandRevealLayer/);
+  assert.match(homeSandRevealLayer, /matchMedia\("\(prefers-reduced-motion: reduce\)"\)/);
+  assert.match(homeSandRevealLayer, /if \(motionReduced\)[\s\S]*?onPhaseChange\("done"\)/);
+  assert.match(homeSandRevealLayer, /cancelAnimationFrame\(animationFrame\)/);
+  assert.match(homeSandRevealLayer, /PREPARATION_TIMEOUT_MS = 4_000/);
+  assert.match(homeSandRevealLayer, /MAX_CONSECUTIVE_SLOW_FRAMES = 2/);
+  assert.match(homeSandRevealLayer, /errorListener = \(\) => finish\(false\)/);
+  assert.match(homeSandRevealLayer, /window\.setTimeout\(finishWithFallback, PREPARATION_TIMEOUT_MS\)/);
+  assert.match(homeSandRevealLayer, /finishWithFallback\(\)/);
+  assert.match(styles, /\.home-sand-reveal-canvas\s*\{[\s\S]*?pointer-events: none;/);
+  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.home-visual-card\[data-sand-mode="sand"\] > img[\s\S]*?opacity: 1 !important;/);
+  assert.match(styles, /\.home-visual-card\[data-sand-mode="sand"\] > img\s*\{\s*filter: none;\s*opacity: 0;/);
+  assert.match(styles, /data-sand-phase="settling"\]\s*> img,[\s\S]*?opacity: 1;/);
+  assert.doesNotMatch(styles, /filter: brightness\(0\.[34]\) saturate\(0\.[68]\) blur\(/);
+  assert.match(home, /<HomeVisualNavigation imageTreatment="sand" \/>/);
 });
 
 test("RightAPI is a separate, disclosed alumni recommendation below the unchanged sponsor wall", async () => {
