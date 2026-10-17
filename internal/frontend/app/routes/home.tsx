@@ -45,6 +45,7 @@ const sponsorLogos = [
 const groups = [
   {
     name: "机械组",
+    aboutSummary: "设计结构、建模加工，把方案做成实物。",
     description: "负责机器人结构设计、建模、加工与装配，将创意变为现实",
     directions: ["结构设计", "建模", "加工与装配"],
     contribution: "把机器人需求转成可制造、可装配的结构与机构。",
@@ -55,6 +56,7 @@ const groups = [
   },
   {
     name: "电控组",
+    aboutSummary: "电路、嵌入式与电机控制。",
     description: "嵌入式系统开发、电路设计、电机控制，让机器人\u201C动\u201D起来",
     directions: ["嵌入式系统开发", "电路设计", "电机控制"],
     contribution: "连接传感器、控制器与执行机构，让机器人按系统要求运行。",
@@ -65,6 +67,7 @@ const groups = [
   },
   {
     name: "视觉组",
+    aboutSummary: "机器视觉与目标识别。",
     description: "机器视觉、目标识别、自动瞄准，赋予机器人\u201C眼睛\u201D",
     directions: ["机器视觉", "目标识别", "自动瞄准"],
     contribution: "从图像与传感信息中提取目标和环境线索。",
@@ -75,6 +78,7 @@ const groups = [
   },
   {
     name: "AI组",
+    aboutSummary: "算法、决策与自主控制。",
     description: "负责智能算法、决策规划与自主控制，让机器人拥有更强的判断力",
     directions: ["智能算法", "决策规划", "自主控制"],
     contribution: "把感知信息和机器人状态转化为算法判断与行动策略。",
@@ -85,6 +89,7 @@ const groups = [
   },
   {
     name: "运营组",
+    aboutSummary: "组织协作、协调资源、记录成果。",
     description: "围绕团队运行识别需求、拆解任务、协调资源、跟进交付，并整理发布与复盘材料。",
     directions: ["组织协调", "活动与赛事运营", "资源支持", "记录与传承"],
     contribution: "让跨组工作有协同、有结果，成果也能被找到和继续使用。",
@@ -100,8 +105,8 @@ export type PublicPage = "home" | "about" | "robots" | "events-and-honors" | "te
 const topicPages: Record<Exclude<PublicPage, "home">, { title: string; eyebrow?: string; description?: string; image: string; alt: string }> = {
   about: {
     title: "认识吉甲",
-    eyebrow: "ABOUT TARSGO",
-    description: "吉甲大师是跨学科工程实践与创新创业平台，TARS-Go 是其中以 RoboMaster 为核心的学生工程战队。",
+    eyebrow: "TARS-GO · SINCE 2018",
+    description: "2018 年底，TARS-Go 在吉林大学组队。名字取自《星际穿越》中的机器人 TARS。",
     image: "/assets/images/ContestMoment/contest-moment-04.webp",
     alt: "队员在 RoboMaster 比赛现场共同检查机器人。",
   },
@@ -431,8 +436,8 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
         <section className={"public-topic-hero relative isolate overflow-hidden " + (routePage === "robots" ? "public-topic-hero--robots" : routePage === "events-and-honors" ? "public-topic-hero--events" : "")}>
           <img
             src={topic?.image}
-            alt=""
-            aria-hidden="true"
+            alt={routePage === "about" ? topic?.alt ?? "" : ""}
+            aria-hidden={routePage !== "about"}
             fetchPriority="high"
             className="absolute inset-0 h-full w-full object-cover"
           />

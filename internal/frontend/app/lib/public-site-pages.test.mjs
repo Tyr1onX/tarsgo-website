@@ -20,7 +20,7 @@ const joinExperience = await readFile(new URL("../components/join-experience.tsx
 const joinStyles = await readFile(new URL("../components/join-experience.css", import.meta.url), "utf8");
 const aboutPage = await readFile(new URL("../components/about-team-page.tsx", import.meta.url), "utf8");
 const aboutStyles = await readFile(new URL("../components/about-team-page.css", import.meta.url), "utf8");
-const aboutData = await readFile(new URL("../data/about-team.ts", import.meta.url), "utf8");
+const joinGrowthData = await readFile(new URL("../data/join-growth.ts", import.meta.url), "utf8");
 const aboutSources = await readFile(new URL("../../../../docs/about-page-fact-sources.md", import.meta.url), "utf8");
 const historyData = await readFile(new URL("../data/team-history.ts", import.meta.url), "utf8");
 const historyArchive = await readFile(new URL("../components/team-history-archive.tsx", import.meta.url), "utf8");
@@ -306,32 +306,30 @@ test("the five uploaded groups keep matching black and white SVG geometry with s
   }
 });
 
-test("the about page explains platform identity, group collaboration, member growth, and traceable sources", async () => {
-  assert.match(aboutPage, /一个实践平台，一支工程战队/);
-  assert.match(aboutPage, /吉甲大师是平台，TARS-Go 是战队/);
-  assert.match(aboutPage, /about-groups-grid/);
-  assert.match(aboutPage, /about-engineering-flow/);
-  assert.match(aboutPage, /about-operations-thread/);
-  assert.match(aboutPage, /about-growth-path/);
-  assert.match(aboutPage, /五个组别/);
-  assert.match(aboutPage, /训练营、校内实践、技术开源和前辈分享/);
-  assert.match(aboutPage, /不是统一课表或固定晋升制度/);
-  assert.match(aboutPage, /to="\/team-history"/);
-  assert.match(aboutPage, /to="\/robots"/);
-  assert.match(aboutPage, /to="\/events-and-honors"/);
-  assert.match(aboutPage, /to="\/join"/);
-  assert.match(aboutPage, /loading="lazy"/);
-  assert.match(aboutData, /teamOutcomes/);
-  assert.match(aboutData, /engineeringStages/);
-  assert.match(aboutData, /memberGrowthStages/);
-  assert.match(aboutSources, /team-foundation-v1\.0\.md/);
-  assert.match(aboutSources, /当前各组实际人员配置/);
-  assert.match(aboutSources, /赛季口号与长期队训/);
+test("the about page tells a sourced team story through real photos, group marks, and public records", async () => {
+  assert.match(aboutPage, /2019 年，TARS-Go 前往加拿大蒙特利尔/);
+  assert.match(aboutPage, /teamHistorySources\.jlu2020Origin/);
+  assert.match(aboutPage, /teamHistorySources\.jlu2019Icra/);
+  assert.match(aboutPage, /teamHistorySources\.rm2022Algorithm/);
+  assert.match(aboutPage, /teamHistorySources\.rm2023Hero/);
+  assert.match(aboutPage, /teamHistorySources\.rm2025OpenSource/);
+  assert.match(aboutPage, /teamHistorySources\.rm2026Engineering/);
+  assert.match(aboutPage, /about-groups-list/);
+  assert.match(aboutPage, /group\.aboutSummary/);
+  assert.match(aboutPage, /about-place-grid/);
+  assert.match(aboutPage, /loading="lazy" decoding="async"/);
+  assert.match(aboutPage, /alt=\{photo\.alt\}/);
+  assert.doesNotMatch(aboutPage, /about-team-related|about-engineering-flow|about-growth-path/);
+  assert.doesNotMatch(aboutPage, /吉甲大师是平台，TARS-Go 是战队/);
+  assert.doesNotMatch(aboutPage, /经纬度|坐标/);
+  assert.match(aboutSources, /没有吉甲基地的可信经纬度/);
+  assert.match(aboutSources, /preparation-01\.webp/);
+  assert.match(aboutSources, /不实现“沙尘坐标”彩蛋/);
   assert.match(aboutStyles, /:root\[data-theme="dark"\] \.about-group-mark__light/);
   assert.match(aboutStyles, /:root\[data-theme="dark"\] \.about-group-mark__dark/);
-  for (const breakpoint of ["640px", "900px", "1200px", "1500px"]) {
-    assert.ok(aboutStyles.includes(`min-width: ${breakpoint}`), `missing about layout breakpoint ${breakpoint}`);
-  }
+  assert.match(aboutStyles, /@media \(max-width: 639px\)/);
+  assert.match(aboutStyles, /grid-template-columns:\s*repeat\(12, minmax\(0, 1fr\)\)/);
+  assert.match(joinGrowthData, /memberGrowthStages/);
 
   const operationsMark = await readFile(new URL("../../../../public/assets/images/Groups/operations-black.svg", import.meta.url));
   assert.equal(
@@ -351,7 +349,7 @@ test("the about page explains platform identity, group collaboration, member gro
   assert.match(joinExperience, /aria-live="polite"/);
   assert.match(joinExperience, /activeGroup\.directions\.map/);
   assert.match(joinExperience, /activeGroup\.collaboration/);
-  assert.match(joinExperience, /import \{ memberGrowthStages \} from "\.\.\/data\/about-team"/);
+  assert.match(joinExperience, /import \{ memberGrowthStages \} from "\.\.\/data\/join-growth"/);
   assert.match(joinStyles, /:root\[data-theme="dark"\] \.join-group-mark__light/);
   assert.match(joinStyles, /:root\[data-theme="dark"\] \.join-group-mark__dark/);
   assert.match(joinStyles, /@media \(prefers-reduced-motion: reduce\)/);

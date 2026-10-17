@@ -1,22 +1,68 @@
-import { Link } from "react-router";
-
-import {
-  engineeringStages,
-  inheritancePractices,
-  memberGrowthStages,
-  teamOutcomes,
-} from "../data/about-team";
+import { teamHistorySources } from "../data/team-history";
 import "./about-team-page.css";
 
 type AboutGroup = {
   name: string;
-  description: string;
-  directions: string[];
+  aboutSummary: string;
   logoBlack: string;
   logoWhite: string;
-  collaboration: string;
-  contribution: string;
 };
+
+const placePhotos = [
+  {
+    image: "/assets/images/Preparation_for_competition/preparation-01.webp",
+    alt: "队员在带有吉甲大师标识的工作空间围绕桌面机器人讨论。",
+    caption: "吉甲大师工作空间",
+    layout: "about-place-photo--space",
+  },
+  {
+    image: "/assets/images/Daily/daily-03.webp",
+    alt: "几名队员围着笔记本电脑讨论设计，其他成员在一旁查看资料。",
+    caption: "围着电脑讨论设计",
+    layout: "about-place-photo--discussion",
+  },
+  {
+    image: "/assets/images/Preparation_for_competition/preparation-02.webp",
+    alt: "队员坐在机器人旁检查整机结构与部件。",
+    caption: "围绕整机检查与装配",
+    layout: "about-place-photo--assembly",
+  },
+  {
+    image: "/assets/images/Daily/daily-08.webp",
+    alt: "吉甲大师标识下，队员围坐在桌旁分享生日蛋糕。",
+    caption: "工作间里的日常",
+    layout: "about-place-photo--daily",
+  },
+  {
+    image: "/assets/images/Preparation_for_competition/preparation-07.webp",
+    alt: "两台机器人在灯光照明的场地中进行测试。",
+    caption: "把机器人放进场地测试",
+    layout: "about-place-photo--testing",
+  },
+];
+
+const archiveRecords = [
+  {
+    year: "2022",
+    title: "人工智能挑战赛算法",
+    source: teamHistorySources.rm2022Algorithm,
+  },
+  {
+    year: "2023",
+    title: "英雄机器人机械设计",
+    source: teamHistorySources.rm2023Hero,
+  },
+  {
+    year: "2025",
+    title: "步兵机器人方案",
+    source: teamHistorySources.rm2025OpenSource,
+  },
+  {
+    year: "2026",
+    title: "工程机器人机械结构",
+    source: teamHistorySources.rm2026Engineering,
+  },
+];
 
 function GroupMark({ group }: { group: AboutGroup }) {
   return (
@@ -28,151 +74,97 @@ function GroupMark({ group }: { group: AboutGroup }) {
 }
 
 export function AboutTeamPage({ groups }: { groups: AboutGroup[] }) {
+  const originSource = teamHistorySources.jlu2020Origin;
+  const firstCompetitionSource = teamHistorySources.jlu2019Icra;
+
   return (
     <main id="about" className="about-team-page">
-      <section className="about-team-identity public-home-container" aria-labelledby="about-identity-heading">
-        <div className="about-section-intro">
-          <p className="about-eyebrow">PLATFORM / TEAM</p>
-          <h2 id="about-identity-heading">一个实践平台，一支工程战队</h2>
+      <section className="about-story-origin public-home-container" aria-labelledby="about-origin-heading">
+        <div className="about-story-origin__copy">
+          <p className="about-eyebrow">2019 / MONTREAL</p>
+          <h2 id="about-origin-heading">一面队旗，第一次走上国际赛场。</h2>
+          <p>
+            2019 年，TARS-Go 前往加拿大蒙特利尔，参加 ICRA RoboMaster AI Challenge。队旗、机器人和这群年轻的工程师，都留在了同一张照片里。
+          </p>
+          <div className="about-source-links" aria-label="起源与赛事资料">
+            {originSource.href ? (
+              <a href={originSource.href} target="_blank" rel="noreferrer">吉林大学起源报道 <span aria-hidden="true">↗</span></a>
+            ) : null}
+            {firstCompetitionSource.href ? (
+              <a href={firstCompetitionSource.href} target="_blank" rel="noreferrer">ICRA 2019 赛事报道 <span aria-hidden="true">↗</span></a>
+            ) : null}
+          </div>
         </div>
-        <div className="about-identity-grid">
-          <article className="about-identity-panel about-identity-panel--platform">
-            <span className="about-identity-panel__index">平台 / JIJIA MASTER</span>
-            <h3>吉甲大师</h3>
-            <p>围绕智能机器、真实竞赛与工程项目开展跨学科实践，也承载创新创业、人才培养和团队经验沉淀。</p>
-          </article>
-          <article className="about-identity-panel about-identity-panel--team">
-            <span className="about-identity-panel__index">战队 / TARS-GO</span>
-            <h3>TARS-Go</h3>
-            <p>吉甲大师体系中面向 RoboMaster 的学生工程战队，通过赛季研发、系统联调和比赛检验工程能力。</p>
-          </article>
-        </div>
-        <p className="about-identity-note">吉甲大师是平台，TARS-Go 是战队；两者相连，但不是同一个组织概念。</p>
+        <figure className="about-origin-photo">
+          <img
+            src="/assets/images/Milestone/2019-breakthrough.webp"
+            alt="TARS-Go 队员在 2019 年 ICRA RoboMaster AI Challenge 场地与队旗、机器人合影。"
+            loading="lazy"
+            decoding="async"
+            width="900"
+            height="550"
+          />
+          <figcaption>2019 · 加拿大蒙特利尔</figcaption>
+        </figure>
       </section>
 
-      <section className="about-team-purpose" aria-labelledby="about-purpose-heading">
+      <section className="about-story-groups" aria-labelledby="about-groups-heading">
         <div className="public-home-container">
-          <div className="about-section-intro about-section-intro--wide">
-            <p className="about-eyebrow">WHY WE BUILD TOGETHER</p>
-            <h2 id="about-purpose-heading">比赛、成长与传承，共同构成团队的价值</h2>
+          <div className="about-section-heading">
+            <p className="about-eyebrow">ONE ROBOT, MANY HANDS</p>
+            <h2 id="about-groups-heading">一台机器人，由五种专长共同完成。</h2>
           </div>
-          <div className="about-outcomes">
-            {teamOutcomes.map((outcome) => (
-              <article className="about-outcome" key={outcome.number}>
-                <span className="about-outcome__number">{outcome.number}</span>
-                <div>
-                  <h3>{outcome.title}</h3>
-                  <p>{outcome.description}</p>
-                </div>
-              </article>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="about-team-groups public-home-container" aria-labelledby="about-groups-heading">
-        <div className="about-section-intro about-section-intro--wide">
-          <p className="about-eyebrow">FIVE GROUPS, ONE SYSTEM</p>
-          <h2 id="about-groups-heading">五个组别，协作完成一套系统</h2>
-          <p>每个组别有清晰的专业方向，机器人能否完成任务，则取决于模块之间能否接上。</p>
-        </div>
-        <div className="about-groups-grid">
-          {groups.map((group, index) => (
-            <article className="about-group" key={group.name}>
-              <div className="about-group__topline">
-                <span className="about-group__number">{String(index + 1).padStart(2, "0")}</span>
+          <ul className="about-groups-list">
+            {groups.map((group, index) => (
+              <li className="about-group" key={group.name}>
+                <span className="about-group__index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
                 <GroupMark group={group} />
-              </div>
-              <h3>{group.name}</h3>
-              <p className="about-group__description">{group.description}</p>
-              <ul className="about-group__directions" aria-label={`${group.name}主要方向`}>
-                {group.directions.map((direction) => <li key={direction}>{direction}</li>)}
-              </ul>
-              <div className="about-group__role">
-                <h4>在协作中的作用</h4>
-                <p>{group.contribution}</p>
-              </div>
-              <p className="about-group__collaboration"><span>协作接口</span>{group.collaboration}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="about-team-engineering" aria-labelledby="about-engineering-heading">
-        <div className="public-home-container">
-          <div className="about-section-intro about-section-intro--wide">
-            <p className="about-eyebrow">FROM REQUIREMENTS TO FIELD TEST</p>
-            <h2 id="about-engineering-heading">工程工作如何接起来</h2>
-          </div>
-          <div className="about-engineering-grid">
-            <figure className="about-engineering-photo">
-              <img
-                src="/assets/images/Preparation_for_competition/preparation-02.webp"
-                alt="TARS-Go 队员围绕机器人开展备赛检查与调试。"
-                loading="lazy"
-                decoding="async"
-                width="2133"
-                height="1600"
-              />
-              <figcaption>团队备赛现场</figcaption>
-            </figure>
-            <div className="about-engineering-content">
-              <ol className="about-engineering-flow">
-                {engineeringStages.map((stage) => (
-                  <li key={stage.number}>
-                    <span className="about-engineering-flow__number">{stage.number}</span>
-                    <div>
-                      <h3>{stage.title}</h3>
-                      <p>{stage.group}</p>
-                    </div>
-                  </li>
-                ))}
-              </ol>
-              <p className="about-operations-thread"><strong>运营贯穿全程</strong>：识别运营需求、拆解任务、协调时间与资源、跟进交付，并让成果得到记录、发布和复盘。它支撑团队运作，不只是宣传。</p>
-              <p className="about-engineering-note">这是常见的协作关系示意；具体项目会按任务调整分工和先后。</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section className="about-team-growth public-home-container" aria-labelledby="about-growth-heading">
-        <div className="about-section-intro about-section-intro--wide">
-          <p className="about-eyebrow">LEARN / BUILD / HAND OVER</p>
-          <h2 id="about-growth-heading">从学习者到能独立承担，再把经验留下</h2>
-        </div>
-        <ol className="about-growth-path">
-          {memberGrowthStages.map((stage) => (
-            <li key={stage.number}>
-              <span className="about-growth-path__number">{stage.number}</span>
-              <h3>{stage.title}</h3>
-              <p>{stage.description}</p>
-            </li>
-          ))}
-        </ol>
-        <div className="about-inheritance">
-          <div className="about-inheritance__heading">
-            <h3>经验会以不同形式留下</h3>
-            <p>训练营、校内实践、技术开源和前辈分享，都曾在不同年份成为学习与交接的载体。具体活动会随组别和赛季变化，不是统一课表或固定晋升制度。</p>
-          </div>
-          <ul>
-            {inheritancePractices.map((practice) => (
-              <li key={practice.title}>
-                <h4>{practice.title}</h4>
-                <p>{practice.description}</p>
+                <h3>{group.name}</h3>
+                <p>{group.aboutSummary}</p>
               </li>
             ))}
           </ul>
         </div>
       </section>
 
-      <nav className="about-team-related" aria-label="继续了解吉甲大师">
-        <div className="public-home-container about-team-related__inner">
-          <Link to="/team-history">团队历程 <span aria-hidden="true">↗</span></Link>
-          <Link to="/robots">机器人展厅 <span aria-hidden="true">↗</span></Link>
-          <Link to="/events-and-honors">赛事与荣誉 <span aria-hidden="true">↗</span></Link>
-          <Link to="/join">加入我们 <span aria-hidden="true">↗</span></Link>
+      <section className="about-story-place public-home-container" aria-labelledby="about-place-heading">
+        <div className="about-section-heading about-section-heading--place">
+          <p className="about-eyebrow">WHERE IDEAS TAKE SHAPE</p>
+          <h2 id="about-place-heading">创造发生在日常里。</h2>
+          <p>讨论、装配、测试，也有一起收工的时刻。</p>
         </div>
-      </nav>
+        <div className="about-place-grid">
+          {placePhotos.map((photo) => (
+            <figure className={`about-place-photo ${photo.layout}`} key={photo.image}>
+              <img src={photo.image} alt={photo.alt} loading="lazy" decoding="async" />
+              <figcaption>{photo.caption}</figcaption>
+            </figure>
+          ))}
+        </div>
+      </section>
+
+      <section className="about-story-traces" aria-labelledby="about-traces-heading">
+        <div className="public-home-container">
+          <div className="about-traces-layout">
+            <div className="about-section-heading about-traces-heading">
+              <p className="about-eyebrow">OPEN RECORDS</p>
+              <h2 id="about-traces-heading">公开的方案，可以继续使用。</h2>
+              <p>算法、图纸和整机资料，记录了当时如何把问题做出来。</p>
+            </div>
+            <ul className="about-archive-list">
+              {archiveRecords.map(({ year, title, source }) => (
+                <li key={year}>
+                  <span className="about-archive-list__year">{year}</span>
+                  <a href={source.href} target="_blank" rel="noreferrer">
+                    <span>{title}</span>
+                    <span className="about-archive-list__arrow" aria-hidden="true">↗</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      </section>
     </main>
   );
 }
