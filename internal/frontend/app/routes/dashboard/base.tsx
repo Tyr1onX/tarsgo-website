@@ -1,4 +1,4 @@
-import { DailySignalWorkspace } from "~/components/daily-signal-workspace";
+import { Navigate, useLocation } from "react-router";
 
 export function meta() {
   return [
@@ -8,9 +8,6 @@ export function meta() {
 }
 
 export default function DashboardDailySignal() {
-  return (
-    <div className="dashboard-daily-signal">
-      <DailySignalWorkspace />
-    </div>
-  );
+  const location = useLocation();
+  return <Navigate to={`/dashboard${location.search}${location.hash || "#daily-signal"}`} replace />;
 }

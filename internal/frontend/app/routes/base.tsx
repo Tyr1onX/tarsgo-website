@@ -66,7 +66,7 @@ export default function BasePage() {
   }, []);
 
   if (currentUser) {
-    return <Navigate to={`/dashboard/base${location.search}${location.hash}`} replace />;
+    return <Navigate to={`/dashboard${location.search}${location.hash || "#daily-signal"}`} replace />;
   }
 
   return (
@@ -82,7 +82,7 @@ export default function BasePage() {
                 <h1 id="gijia-base-guest-title">日常，也值得被认真记下。</h1>
                 <p>每天为基地发送一条信号。状态可以轻轻记下，也可以留白。</p>
                 <div className="gijia-base__guest-actions">
-                  <Link to="/login?redirect=%2Fbase">登录后发送信号 <span aria-hidden="true">→</span></Link>
+                  <Link to="/login?redirect=%2Fdashboard%23daily-signal">登录后发送信号 <span aria-hidden="true">→</span></Link>
                   <Link to="/about">了解吉甲</Link>
                 </div>
               </div>
@@ -97,7 +97,7 @@ export default function BasePage() {
             <span className="gijia-base__auth-pending-mark" aria-hidden="true"><i /><i /><b /></span>
             <h1>{authError ? "暂时无法确认登录状态" : "正在连接吉甲基地"}</h1>
             <p>{authError ? "请登录后重新进入基地。" : "准备好后，基地会为你打开个人通信空间。"}</p>
-            {authError ? <Link to="/login?redirect=%2Fbase">前往登录</Link> : null}
+            {authError ? <Link to="/login?redirect=%2Fdashboard%23daily-signal">前往登录</Link> : null}
           </main>
           <PublicFooter />
         </>

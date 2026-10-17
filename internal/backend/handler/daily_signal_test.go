@@ -25,10 +25,6 @@ func (dailySignalServiceStub) SetTodayMood(context.Context, uint64, *string) (*d
 	return nil, nil
 }
 
-func (dailySignalServiceStub) DeleteHistoricalMood(context.Context, uint64, string) error {
-	return nil
-}
-
 func TestDailySignalArchiveDisablesCaching(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	response := httptest.NewRecorder()

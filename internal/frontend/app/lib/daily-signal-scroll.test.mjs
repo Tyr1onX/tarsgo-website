@@ -6,6 +6,7 @@ import { scrollHeatmapCellIntoView, scrollHeatmapToDate } from "./daily-signal-s
 
 const workspace = await readFile(new URL("../components/daily-signal-workspace.tsx", import.meta.url), "utf8");
 const dailySignalStyles = await readFile(new URL("../routes/daily-signal.css", import.meta.url), "utf8");
+const dashboardHomeStyles = await readFile(new URL("../routes/dashboard/dashboard-home.css", import.meta.url), "utf8");
 
 function makeViewport({ targetLeft = 950, targetRight = 970, scrollLeft = 0 } = {}) {
   const calls = [];
@@ -76,32 +77,58 @@ test("date navigation is isolated from document scrolling and focuses without br
 test("automatic positioning consumes its request once, and returning within the current year clears stale work", () => {
   assert.match(workspace, /const date = pendingScrollDateRef\.current;\s*pendingScrollDateRef\.current = null;\s*requestAnimationFrame\(\(\) => scrollHeatmapToDate/);
   assert.match(workspace, /if \(nextYear === selectedYear\) \{\s*pendingScrollDateRef\.current = null;\s*requestAnimationFrame\(\(\) => scrollHeatmapToDate/);
+  assert.match(workspace, /const returnToToday = \(\) => \{[\s\S]*?setSelectedDate\(null\);[\s\S]*?setFocusedDate\(today\)/);
 });
 
-test("heatmap date details reserve the same mood and action row for every hovered date", () => {
-  assert.match(workspace, /className="daily-signal__detail-extra" aria-hidden=\{!selectedMoodEntry \|\| undefined\}/);
-  assert.match(workspace, /daily-signal__history-mood/);
-  assert.doesNotMatch(workspace, /\{detailStatus === "sent" && selectedMoodEntry \? <div className="daily-signal__history-mood"/);
-  assert.match(dailySignalStyles, /\.daily-signal__date-detail\s*\{[^}]*grid-template-rows:\s*40px 48px/);
-  assert.match(dailySignalStyles, /\.daily-signal__detail-extra\s*\{[^}]*min-height:\s*48px/);
-  assert.match(dailySignalStyles, /@media \(max-width: 700px\)[\s\S]*?\.daily-signal__date-detail\s*\{[^}]*grid-template-rows:\s*24px 40px 48px/);
-  assert.match(dailySignalStyles, /\.daily-signal__detail-copy\s*\{[^}]*-webkit-line-clamp:\s*2/);
+test("history only changes on click and the compact detail is closed until a date is selected", () => {
+  assert.match(workspace, /onFocus=\{\(\) => setFocusedDate\(day\.date\)\}/);
+  assert.match(workspace, /onClick=\{\(\) => \{ setSelectedDate\(day\.date\); setFocusedDate\(day\.date\); \}\}/);
+  assert.doesNotMatch(workspace, /hoveredDate|onPointerEnter|onPointerLeave|title=\{accessibleName\}/);
+  assert.doesNotMatch(workspace, /onFocus=\{\(\) => \{[^}]*setSelectedDate/);
+  assert.match(workspace, /selectedDate && detailStatus \? \(/);
+  assert.match(workspace, /const moveGridFocus = \(event[\s\S]*?setFocusedDate\(nextDate\);\s*nextCell\.focus/);
+  assert.doesNotMatch(workspace.match(/const moveGridFocus[\s\S]*?\n  \};/)?.[0] ?? "", /setSelectedDate/);
+  assert.match(workspace, /data-is-today=\{day\.date === today/);
+  assert.doesNotMatch(dailySignalStyles, /\.daily-signal__date-detail\s*\{[^}]*min-height/);
+  assert.doesNotMatch(dailySignalStyles, /\.daily-signal__detail-extra/);
 });
 
-test("the communication terminal uses static signal detail with a restrained, hover-only response", () => {
+test("the compact communication keeps the signal mark and uses a restrained one-shot response", () => {
   assert.match(dailySignalStyles, /\.daily-signal__orbit::before,[\s\S]*?\.daily-signal__orbit::after/);
   assert.match(dailySignalStyles, /daily-signal__signal-trace/);
-  assert.match(workspace, /aria-label="基地回信终端"/);
+  assert.match(workspace, /className="daily-signal__reply-copy"/);
   assert.match(workspace, /daily-signal__reply-copy/);
-  assert.match(workspace, /getDailySignalReply\(currentUser\?\.id/);
+  assert.match(workspace, /getDailySignalReply\(currentUser\.id/);
   assert.doesNotMatch(workspace, /TX \/ 01|CHANNEL|VISIBILITY|daily-signal__terminal-index/);
   assert.match(dailySignalStyles, /daily-signal__terminal\[data-transmitting="true"\] \.daily-signal__signal-ripple \{ animation: daily-signal-ripple 720ms ease-out 1/);
-  assert.match(dailySignalStyles, /@media \(hover: hover\) and \(prefers-reduced-motion: no-preference\)[\s\S]*?\.daily-signal__terminal:hover \.daily-signal__orbit/);
+  assert.match(dailySignalStyles, /@media \(hover: hover\) and \(prefers-reduced-motion: no-preference\)[\s\S]*?\.daily-signal__orbit:hover/);
   assert.doesNotMatch(dailySignalStyles, /daily-signal__orbit[^\n]*animation:[^\n]*infinite/);
   assert.match(dailySignalStyles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?transition-duration:\s*\.01ms !important/);
+  assert.doesNotMatch(workspace, /<aside className="daily-signal__transmitter"/);
 });
 
-test("switching accounts clears hovered details and pending deletion confirmation", () => {
-  assert.match(workspace, /setHoveredDate\(null\);\s*setConfirmMoodDelete\(false\);\s*setSelectedDate/);
-  assert.match(workspace, /applyIdentity\(null\);\s*void getOptionalCurrentUser\(\{ force: true \}\)/);
+test("the workbench supplies the verified account identity and remounts private signal state per account", async () => {
+  const dashboard = await readFile(new URL("../routes/dashboard/index.tsx", import.meta.url), "utf8");
+  assert.match(dashboard, /<DailySignalWorkspace key=\{currentUser\.id\} currentUser=\{currentUser\} \/>/);
+  assert.match(workspace, /DailySignalWorkspace\(\{ currentUser \}: \{ currentUser: AuthUser \}\)/);
+  assert.doesNotMatch(workspace, /getOptionalCurrentUser|subscribeAccountSessionChange|subscribeAuthStateChange/);
+});
+
+test("annual archive requests are deduplicated only while the same account/year refresh is pending", () => {
+  assert.match(workspace, /const pendingArchiveRequests = new Map<string, Promise<DailySignalArchive>>\(\)/);
+  assert.match(workspace, /const key = `\$\{accountId\}:\$\{year\}:\$\{refreshVersion\}`/);
+  assert.match(workspace, /const pending = pendingArchiveRequests\.get\(key\);\s*if \(pending\) return pending/);
+  assert.match(workspace, /void requestArchive\(currentUser\.id, selectedYear, refreshVersion\)/);
+  assert.match(workspace, /if \(pendingArchiveRequests\.get\(key\) === request\) pendingArchiveRequests\.delete\(key\)/);
+  assert.doesNotMatch(workspace, /new AbortController\(\)/);
+});
+
+test("historical mood deletion controls and their request path are removed", () => {
+  assert.doesNotMatch(workspace, /deleteMood|DeleteMood|confirmMoodDelete|删除状态|确认删除|method: "DELETE"/);
+  assert.doesNotMatch(dailySignalStyles, /daily-signal__delete-mood/);
+});
+
+test("the dashboard grid can shrink around the horizontally scrollable annual archive", () => {
+  assert.match(dashboardHomeStyles, /grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(dashboardHomeStyles, /\.dashboard-home > \* \{ min-width: 0; \}/);
 });

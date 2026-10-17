@@ -234,30 +234,15 @@ func TestMoodCanBeEditedOrClearedOnlyForExistingTodaySignal(t *testing.T) {
 	}
 }
 
-func TestDeleteHistoricalMoodPreservesCheckInAndIsAccountScoped(t *testing.T) {
+func TestHistoricalMoodRemainsAvailableForPrivateArchive(t *testing.T) {
 	service, repo := newServiceAt(time.Date(2026, 10, 16, 4, 0, 0, 0, time.UTC))
 	mood := MoodHighLoad
 	if err := repo.Create(context.Background(), &model.DailySignal{UserID: 5, SignalDate: "2026-10-12", Mood: &mood}); err != nil {
 		t.Fatal(err)
 	}
-	if err := repo.Create(context.Background(), &model.DailySignal{UserID: 6, SignalDate: "2026-10-12", Mood: &mood}); err != nil {
-		t.Fatal(err)
-	}
-	if err := service.DeleteHistoricalMood(context.Background(), 5, "2026-10-12"); err != nil {
-		t.Fatal(err)
-	}
 	archive, err := service.GetArchive(context.Background(), stringUserID(5), 2026)
-	if err != nil || len(archive.Days) != 1 || len(archive.Moods) != 0 {
-		t.Fatalf("deleted mood must keep the check-in date: archive=%#v err=%v", archive, err)
-	}
-	other, err := repo.Find(context.Background(), 6, "2026-10-12")
-	if err != nil || other.Mood == nil || *other.Mood != mood {
-		t.Fatalf("delete crossed account boundary: record=%#v err=%v", other, err)
-	}
-	for _, date := range []string{"2026-10-16", "2026-10-17", "2026-13-50"} {
-		if err := service.DeleteHistoricalMood(context.Background(), 5, date); err == nil {
-			t.Errorf("DeleteHistoricalMood(%q) should fail", date)
-		}
+	if err != nil || len(archive.Days) != 1 || len(archive.Moods) != 1 || archive.Moods[0].Mood != mood {
+		t.Fatalf("historical mood and check-in should remain available to its owner: archive=%#v err=%v", archive, err)
 	}
 }
 

@@ -78,3 +78,29 @@ test("history uses the supplied date and malformed input never exposes mood copy
   assert.equal(missingAccount, "信号已收到。谢谢你愿意把这一程留在这里。");
   assert.doesNotMatch(invalidDate, /疲惫|余地/);
 });
+
+test("existing dates keep the original reply catalog after copy is revised", () => {
+  assert.equal(
+    getDailySignalReply(41, "2026-10-16", "有点疲惫"),
+    "收到啦。可以给自己留一点余地。",
+  );
+});
+
+test("the concise catalog applies from its effective date and stays private and deterministic", () => {
+  const copyByMood = new Map([
+    [null, ["收到，今天也留下了你的信号。", "谢谢你来，今天的信号已收好。", "收到啦，按自己的节奏继续就好。", "收到，基地今天也顺利签收。"]],
+    ["状态不错", ["看来今天不错，替你高兴。", "把这份好心情收下了。"]],
+    ["稳定运行", ["平稳的一天，也很好。", "收到，按自己的节奏就很好。", "运行平稳，值班台记下了。"]],
+    ["有点疲惫", ["辛苦了，今天就好好休息。", "今天先对自己宽容一点。"]],
+    ["高负载中", ["收到了，别忘了给自己留点时间。", "事情可以慢慢来，记得歇一会儿。"]],
+    ["正在调试", ["慢慢来，总会找到答案的。", "先走到这里，也很不错。", "这次调试先到这里，基地帮你按下保存。"]],
+  ]);
+
+  for (const [mood, allowedReplies] of copyByMood) {
+    const reply = getDailySignalReply(41, "2026-10-17", mood);
+    assert.ok(allowedReplies.includes(reply), `unexpected reply for ${mood ?? "neutral"}: ${reply}`);
+    assert.equal(reply, getDailySignalReply(41, "2026-10-17", mood));
+  }
+  assert.equal(getDailySignalReply(41, "2026-10-16", "有点疲惫"), "收到啦。可以给自己留一点余地。");
+  assert.doesNotMatch(getDailySignalReply(41, "2026-10-17", null), /疲惫|负载|调试/);
+});
