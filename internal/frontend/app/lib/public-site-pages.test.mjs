@@ -161,7 +161,8 @@ test("访客保留基地欢迎页，已登录用户在统一工作台使用每�
   assert.doesNotMatch(basePage, /规则竞技场|基地档案/);
   assert.doesNotMatch(basePage, /gijia-base__feature/);
   assert.match(dashboardLayout, /getCoreDashboardMenu/);
-  assert.match(dashboardNavigation, /href: "\/dashboard\/base"/);
+  assert.doesNotMatch(dashboardNavigation, /href: "\/dashboard\/base"/);
+  assert.match(dashboardNavigation, /label: "个人工作台"/);
   assert.match(dashboardLayout, /工作台功能/);
   assert.match(dashboardLayout, /收起侧边栏/);
   assert.match(dashboardLayout, /展开侧边栏/);
