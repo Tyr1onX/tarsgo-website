@@ -123,12 +123,13 @@ test("dashboard route feedback appears immediately and cache invalidation follow
   assert.match(authClientSource, /invalidateUserGroupConfirmationStateCache\(\)/);
 });
 
-test("account-vault setup waits until the user opens account management", () => {
+test("account-vault setup stays on demand and high-priority workbench pages preload early", () => {
   const openAccountModalIndex = dashboardLayoutSource.indexOf("async function openAccountModal");
   assert.ok(openAccountModalIndex > 0);
   assert.doesNotMatch(dashboardLayoutSource.slice(0, openAccountModalIndex), /initializeAccountSessions\(\)/);
   assert.match(dashboardLayoutSource, /async function openAccountModal[\s\S]*?initializeAccountSessions\(\)/);
-  assert.match(dashboardLayoutSource, /new Set\(\["admin-panel", "candidate-processing"\]\)/);
+  assert.match(dashboardLayoutSource, /new Set\(\["admin-panel", "candidate-processing", "recruitment-analytics"\]\)/);
+  assert.match(navbarSource, /requestIdleCallback\([\s\S]*?timeout: 250/);
 });
 
 test("the default homepage preloads the small login route without preloading dashboards for guests", () => {
