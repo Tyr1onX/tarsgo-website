@@ -5,15 +5,22 @@ import {
   Outlet,
   Scripts,
   ScrollRestoration,
+  useLocation,
   useNavigation,
 } from "react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useReducer, useRef } from "react";
 
 import type { Route } from "./+types/root";
 import "./app.css";
 import NotFound, { StatusPage } from "./routes/not-found";
 import fallbackFaviconHref from "../public/favicon.ico";
 import { ThemeProvider } from "./components/theme-provider";
+import {
+  ROUTE_PROGRESS_REVEAL_DELAY_MS,
+  ROUTE_PROGRESS_SETTLE_DELAY_MS,
+  routeProgressReducer,
+} from "./lib/route-progress-state";
+import { startPublicPageTransition } from "./lib/public-page-transition";
 
 const themeBootstrapScript = `(() => {
   let preference = "system";
@@ -66,29 +73,79 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
 export default function App() {
   const navigation = useNavigation();
+  const location = useLocation();
   const navigationPath = navigation.location?.pathname ?? null;
-  const [pendingPath, setPendingPath] = useState<string | null>(null);
+  const isNavigating = navigation.state !== "idle" && Boolean(navigationPath);
+  const [routeProgressPhase, dispatchRouteProgress] = useReducer(routeProgressReducer, "hidden");
+  const previousPathname = useRef(location.pathname);
+  const pageAnimation = useRef<Animation | null>(null);
 
   useEffect(() => {
-    if (navigation.state === "idle" || !navigationPath) {
-      setPendingPath(null);
-      return;
+    dispatchRouteProgress({ type: isNavigating ? "navigation-started" : "navigation-finished" });
+  }, [isNavigating, navigationPath]);
+
+  useEffect(() => {
+    if (routeProgressPhase === "waiting" && isNavigating) {
+      const timeoutId = window.setTimeout(
+        () => dispatchRouteProgress({ type: "reveal" }),
+        ROUTE_PROGRESS_REVEAL_DELAY_MS,
+      );
+      return () => window.clearTimeout(timeoutId);
     }
 
-    const timeoutId = window.setTimeout(() => {
-      setPendingPath(navigationPath);
-    }, 120);
-    return () => window.clearTimeout(timeoutId);
-  }, [navigation.state, navigationPath]);
+    if (routeProgressPhase === "aligned" && !isNavigating) {
+      const timeoutId = window.setTimeout(
+        () => dispatchRouteProgress({ type: "settle" }),
+        ROUTE_PROGRESS_SETTLE_DELAY_MS,
+      );
+      return () => window.clearTimeout(timeoutId);
+    }
+  }, [routeProgressPhase, isNavigating, navigationPath]);
 
-  const showRouteProgress = navigation.state !== "idle" && pendingPath === navigationPath;
+  useLayoutEffect(() => {
+    if (previousPathname.current === location.pathname) return;
+    previousPathname.current = location.pathname;
+
+    pageAnimation.current?.cancel();
+    pageAnimation.current = null;
+
+    const pageContent = document.querySelector<HTMLElement>(".public-route-content");
+    if (!pageContent) return;
+
+    const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const animation = startPublicPageTransition(pageContent, reducedMotion.matches);
+    if (!animation) return;
+
+    pageAnimation.current = animation;
+    const cancelAnimation = () => {
+      animation.cancel();
+      if (pageAnimation.current === animation) pageAnimation.current = null;
+    };
+    const stopForReducedMotion = (event: MediaQueryListEvent) => {
+      if (event.matches) cancelAnimation();
+    };
+    reducedMotion.addEventListener("change", stopForReducedMotion);
+    animation.onfinish = () => {
+      reducedMotion.removeEventListener("change", stopForReducedMotion);
+      cancelAnimation();
+    };
+
+    return () => {
+      reducedMotion.removeEventListener("change", stopForReducedMotion);
+      cancelAnimation();
+    };
+  }, [location.pathname]);
+
+  const showRouteProgress = routeProgressPhase === "moving" || routeProgressPhase === "aligned";
 
   return (
     <>
-      {showRouteProgress && navigationPath ? (
-        <div className="route-progress" role="status" aria-live="polite">
-          <span className="sr-only">{getNavigationMessage(navigationPath)}</span>
-          <span className="route-progress__bar" aria-hidden="true" />
+      {showRouteProgress ? (
+        <div className={`route-progress route-progress--${routeProgressPhase}`} role="status" aria-live="polite">
+          <span className="sr-only">{getNavigationMessage(navigationPath ?? location.pathname)}</span>
+          <span className="route-progress__segment" aria-hidden="true" />
+          <span className="route-progress__segment" aria-hidden="true" />
+          <span className="route-progress__segment" aria-hidden="true" />
         </div>
       ) : null}
       <ThemeProvider>

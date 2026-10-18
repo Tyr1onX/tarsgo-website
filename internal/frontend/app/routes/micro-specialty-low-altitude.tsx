@@ -24,7 +24,7 @@ export default function LowAltitudeMicroSpecialty() {
     <div className="micro-specialty-page min-h-screen overflow-hidden bg-surface-primary text-fg-primary">
       <Navbar />
 
-      <main>
+      <main className="public-route-content">
         <section className="relative isolate overflow-hidden border-b border-border-subtle bg-surface-primary">
           <div aria-hidden className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
             <div className="micro-specialty-glow absolute -right-24 top-20 h-72 w-72 rounded-full bg-sky-400/15 blur-[100px] sm:h-[28rem] sm:w-[28rem]" />
