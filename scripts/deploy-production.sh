@@ -17,6 +17,20 @@ if [[ "$(git -C "$repo_root" rev-parse --is-inside-work-tree)" != true || -n "$(
   echo "Production deploy aborted: run from a clean Git working tree." >&2
   exit 1
 fi
+public_file_count=0
+missing_public_files=()
+while IFS= read -r -d '' public_path; do
+  ((public_file_count += 1))
+  [[ -f "$repo_root/$public_path" ]] || missing_public_files+=("$public_path")
+done < <(git -C "$repo_root" ls-files -z -- public)
+if (( public_file_count == 0 || ${#missing_public_files[@]} > 0 )); then
+  echo "Production deploy aborted: tracked public/ build assets are missing from the working tree; materialize the complete public/ directory before building." >&2
+  if ((${#missing_public_files[@]} > 0)); then
+    printf 'missing_public_asset=%s\n' "${missing_public_files[@]:0:10}" >&2
+  fi
+  (( public_file_count > 0 )) || echo 'missing_public_asset_count=0' >&2
+  exit 1
+fi
 git -C "$repo_root" fetch origin main >/dev/null
 commit_sha="$(git -C "$repo_root" rev-parse HEAD)"
 main_sha="$(git -C "$repo_root" rev-parse origin/main)"
