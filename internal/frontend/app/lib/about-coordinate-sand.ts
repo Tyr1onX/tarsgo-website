@@ -14,13 +14,47 @@ export const coordinateSandCode = {
   precision: 4,
 } as const;
 
+const SAND_GRAIN_COUNT = coordinateSandCode.columns * coordinateSandCode.rows;
+
+function grainNoise(index: number, salt: number): number {
+  let value = Math.imul(index + 1, 0x9e3779b1) ^ Math.imul(salt + 1, 0x85ebca6b);
+  value ^= value >>> 16;
+  value = Math.imul(value, 0x7feb352d);
+  value ^= value >>> 15;
+  value = Math.imul(value, 0x846ca68b);
+  value ^= value >>> 16;
+  return (value >>> 0) / 0x1_0000_0000;
+}
+
+export type CoordinateSandPosition = {
+  x: number;
+  y: number;
+  rotation: number;
+};
+
+/** Place each encoded bit as a grain in an irregular, low-profile dust deposit. */
+export function getCoordinateSandPosition(index: number): CoordinateSandPosition {
+  if (!Number.isInteger(index) || index < 0 || index >= SAND_GRAIN_COUNT) {
+    throw new RangeError(`coordinate sand position index must be between 0 and ${SAND_GRAIN_COUNT - 1}`);
+  }
+
+  const x = 6 + grainNoise(index, 0) * 88;
+  const y = 18 + (1 - (1 - grainNoise(index, 1)) ** 1.45) * 68;
+
+  return {
+    x: Number(x.toFixed(2)),
+    y: Number(y.toFixed(2)),
+    rotation: Number((grainNoise(index, 2) * 90).toFixed(2)),
+  };
+}
+
 const SCALE = 10 ** coordinateSandCode.precision;
 const VERSION = "0001";
 const LONGITUDE_WIDTH = 22;
 const LATITUDE_WIDTH = 21;
 const CRC_WIDTH = 8;
 const PAYLOAD_WIDTH = VERSION.length + LONGITUDE_WIDTH + LATITUDE_WIDTH;
-const CODE_WIDTH = coordinateSandCode.columns * coordinateSandCode.rows;
+const CODE_WIDTH = SAND_GRAIN_COUNT;
 
 function toScaledCoordinate(value: number, limit: number, name: string): number {
   if (!Number.isFinite(value) || value < -limit || value > limit) {

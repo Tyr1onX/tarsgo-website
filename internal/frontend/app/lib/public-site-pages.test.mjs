@@ -325,6 +325,8 @@ test("the about page tells a sourced team story through real photos, group marks
   assert.match(aboutPage, /encodeCoordinateSandBits\(gijiaBaseCoordinate\)/);
   assert.match(aboutPage, /aria-label="解读沙粒中的基地坐标"/);
   assert.match(aboutPage, /data-bit=\{bit\}/);
+  assert.match(aboutPage, /getCoordinateSandPosition\(index\)/);
+  assert.doesNotMatch(aboutPage, /⌖/);
   assert.equal((aboutPage.match(/coordinateCode: true/g) ?? []).length, 1);
   assert.match(aboutSources, /用户提供的 WGS84 坐标/);
   assert.match(aboutSources, /preparation-01\.webp/);
@@ -334,8 +336,9 @@ test("the about page tells a sourced team story through real photos, group marks
   assert.match(aboutStyles, /:root\[data-theme="dark"\] \.about-group-mark__dark/);
   assert.match(aboutStyles, /@media \(max-width: 639px\)/);
   assert.match(aboutStyles, /grid-template-columns:\s*repeat\(12, minmax\(0, 1fr\)\)/);
-  assert.match(aboutStyles, /grid-template-columns:\s*repeat\(8, 5px\)/);
-  assert.match(aboutStyles, /grid-template-rows:\s*repeat\(7, 5px\)/);
+  assert.match(aboutStyles, /about-coordinate-sand__grain\[data-bit="1"\]::after/);
+  assert.doesNotMatch(aboutStyles, /about-coordinate-sand__grains\s*\{[^}]*grid-template/);
+  assert.doesNotMatch(aboutStyles, /\.about-coordinate-sand__grain::before,[^{]*\{[^}]*box-shadow:/);
   assert.match(joinGrowthData, /memberGrowthStages/);
 
   const operationsMark = await readFile(new URL("../../../../public/assets/images/Groups/operations-black.svg", import.meta.url));
