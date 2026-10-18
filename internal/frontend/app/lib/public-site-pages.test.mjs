@@ -361,16 +361,28 @@ test("the about page tells a sourced team story through real photos, group marks
   assert.match(joinStyles, /@media \(prefers-reduced-motion: reduce\)/);
 });
 
-test("the reversible coordinate code is a quiet decorative trace in public footers only", () => {
+test("the 8421 BCD coordinate code is a pair of quiet decorative traces in public footers only", () => {
   assert.match(home, /<FooterCoordinateSandTrace \/>/);
   assert.match(microSpecialty, /<FooterCoordinateSandTrace \/>/);
-  assert.match(footerCoordinateSandTrace, /encodeCoordinateSandBits\(gijiaBaseCoordinate\)/);
+  assert.match(footerCoordinateSandTrace, /encodeCoordinateBcd\(gijiaBaseCoordinate\)/);
   assert.match(footerCoordinateSandTrace, /aria-hidden="true"/);
   assert.match(footerCoordinateSandTrace, /data-bit=\{bit\}/);
-  assert.match(footerCoordinateSandTrace, /getCoordinateSandPosition\(index\)/);
-  assert.doesNotMatch(footerCoordinateSandTrace, /<button|<details|<summary|解读|WGS84|formatCoordinate/);
+  assert.match(footerCoordinateSandTrace, /getCoordinateSandVariation\(index, row\)/);
+  assert.match(footerCoordinateSandTrace, /particlePositions\[bit as "0" \| "1"\]/);
+  assert.match(footerCoordinateSandTrace, /bits\.slice\(index \* coordinateBcdFormat\.bitsPerDigit/);
+  assert.match(footerCoordinateSandTrace, /nibbleIndex === integerDigits/);
+  assert.match(footerCoordinateSandTrace, /°\{hemisphere\}/);
+  assert.match(footerCoordinateSandTrace, /decorativeGrains\.map/);
+  assert.doesNotMatch(footerCoordinateSandTrace, /<button|<details|<summary|解读|WGS84|125\.2852|43\.8468/);
   assert.match(footerCoordinateSandTraceStyles, /var\(--theme-accent\)/);
-  assert.match(footerCoordinateSandTraceStyles, /data-bit="1"\]::after/);
+  assert.match(footerCoordinateSandTraceStyles, /data-bit="0"\]\s*\{\s*width:\s*6\.5px/);
+  assert.match(footerCoordinateSandTraceStyles, /data-bit="1"\]\s*\{\s*width:\s*12px/);
+  assert.match(footerCoordinateSandTraceStyles, /data-bit="0"\]\s*\{\s*width:\s*5\.8px/);
+  assert.match(footerCoordinateSandTraceStyles, /data-bit="1"\]\s*\{\s*width:\s*10\.4px/);
+  assert.match(footerCoordinateSandTraceStyles, /__nibble\s*\{\s*gap:\s*3\.5px/);
+  assert.match(footerCoordinateSandTraceStyles, /__nibble\s*\{\s*gap:\s*2\.5px/);
+  assert.match(footerCoordinateSandTraceStyles, /__bit\[data-bit="1"\]\s+\.footer-coordinate-sand-trace__particle/);
+  assert.match(footerCoordinateSandTraceStyles, /nibble--decimal-break/);
   assert.match(footerCoordinateSandTraceStyles, /@media \(max-width: 639px\)/);
   assert.doesNotMatch(footerCoordinateSandTraceStyles, /animation|transition/);
   assert.match(styles, /\.public-footer-signature/);
