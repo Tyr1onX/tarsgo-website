@@ -41,14 +41,21 @@ test("recruitment administration exposes email management as a first-level entry
   assert.equal(menu.some((item) => item.key === "system-config"), false);
 });
 
-test("candidate navigation has one recruitment destination and admin tools stay restricted", () => {
-  assert.deepEqual(getUserDashboardMenu("user").map((item) => item.href), ["/dashboard/users/registrations"]);
+test("member navigation keeps recruitment and exposes leave while admin tools stay restricted", () => {
+  assert.deepEqual(getUserDashboardMenu("user").map((item) => item.href), ["/dashboard/users/registrations", "/dashboard/leave"]);
   assert.equal(getUserDashboardMenu("user")[0]?.label, "我的招新");
   assert.deepEqual(getUserDashboardMenu("admin"), []);
   assert.deepEqual(getUserDashboardMenu("super_admin"), []);
   const adminMenu = getVisibleAdminDashboardMenu("admin");
   assert.equal(adminMenu.some((item) => item.key === "email-management"), false);
   assert.equal(adminMenu.some((item) => item.key === "recruitment-management" || item.key === "accounts" || item.key === "recruitment-analytics"), false);
+  assert.deepEqual(adminMenu.find((item) => item.key === "leave-management"), {
+    key: "leave-management",
+    label: "请假管理",
+    href: "/dashboard/admin/leave",
+    iconKey: "report",
+  });
+  assert.equal(getVisibleAdminDashboardMenu("super_admin").some((item) => item.key === "leave-management"), true);
 });
 
 test("admin routes require an exact workbench match and each route's own menu permission", () => {
@@ -62,6 +69,7 @@ test("admin routes require an exact workbench match and each route's own menu pe
     ["/dashboard/admin/recruitment-groups", false],
     ["/dashboard/admin/users", false],
     ["/dashboard/admin/email", false],
+    ["/dashboard/admin/leave", true],
     ["/dashboard/admin/system-config/email", false],
     ["/dashboard/admin/system-config/oauth", false],
   ];
@@ -79,6 +87,7 @@ test("super admin can access every listed admin route", () => {
     "/dashboard/admin/recruitment-analytics",
     "/dashboard/admin/users",
     "/dashboard/admin/email",
+    "/dashboard/admin/leave",
   ];
 
   for (const pathname of paths) {

@@ -7,6 +7,7 @@ import (
 	"tarsgo-backend/config"
 	"tarsgo-backend/database"
 	"tarsgo-backend/router"
+	"tarsgo-backend/service/leave"
 )
 
 func main() {
@@ -31,6 +32,10 @@ func main() {
 			log.Fatalf("database migrations: %v", err)
 		}
 	}
+	cleanupContext, cancelCleanup := context.WithCancel(context.Background())
+	defer cancelCleanup()
+	leave.StartResultCleanup(cleanupContext, db)
+	leave.StartDailyCollection(cleanupContext, leave.NewService(db))
 
 	engine := router.New(cfg, db)
 	addr := cfg.App.Address()

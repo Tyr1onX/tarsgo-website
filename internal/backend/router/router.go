@@ -18,6 +18,7 @@ import (
 	"tarsgo-backend/service/dailysignal"
 	"tarsgo-backend/service/email"
 	"tarsgo-backend/service/emailtemplate"
+	"tarsgo-backend/service/leave"
 	"tarsgo-backend/service/recruitmentanalytics"
 	"tarsgo-backend/service/registration"
 	"tarsgo-backend/service/systemconfig"
@@ -77,6 +78,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	systemConfigHandler := handler.NewSystemConfigHandler(systemConfigService, systemConfigService)
 	dailySignalHandler := handler.NewDailySignalHandler(dailysignal.NewService(dailysignal.NewGormRepository(db)))
 	weeklyReportHandler := handler.NewWeeklyReportHandler(weeklyreport.NewService(weeklyreport.NewGormRepository(db)))
+	leaveHandler := handler.NewLeaveHandler(leave.NewService(db))
 
 	engine.GET("/healthz", healthHandler.Get)
 
@@ -106,10 +108,59 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	dailySignalWriteAPI.POST("", dailySignalHandler.SendToday)
 	dailySignalWriteAPI.PATCH("/today/mood", dailySignalHandler.SetTodayMood)
 
+	api.GET("/leave/colleges", leaveHandler.Colleges)
+	api.GET("/daily-leave/public/:token", leaveHandler.PublicDailyWindow)
+	api.POST("/daily-leave/public/:token/document", requireSameOriginRequest(cfg), leaveHandler.PreparePublicDaily)
+	api.GET("/daily-leave/public-download/:credential", leaveHandler.DownloadPublicDaily)
+	api.GET("/camp-leave/public/:token", leaveHandler.PublicCampEvent)
+	api.POST("/camp-leave/public/:token/participants", requireSameOriginRequest(cfg), leaveHandler.PublicJoinCampEvent)
+
+	leaveMemberAPI := api.Group("")
+	leaveMemberAPI.Use(middleware.RequireAuthenticated(authService))
+	leaveMemberAPI.GET("/leave/profile", leaveHandler.GetProfile)
+	leaveMemberAPI.PUT("/leave/profile", requireSameOriginRequest(cfg), leaveHandler.SaveProfile)
+	leaveMemberAPI.GET("/school-leave/requests", leaveHandler.MyRequests)
+	leaveMemberAPI.POST("/school-leave/requests", requireSameOriginRequest(cfg), leaveHandler.CreateRequest)
+	leaveMemberAPI.PATCH("/school-leave/requests/:id", requireSameOriginRequest(cfg), leaveHandler.UpdateRequest)
+	leaveMemberAPI.POST("/school-leave/requests/:id/withdraw", requireSameOriginRequest(cfg), leaveHandler.WithdrawRequest)
+	leaveMemberAPI.GET("/daily-leave/windows", leaveHandler.DailyWindows)
+	leaveMemberAPI.POST("/daily-leave/self-service/document", requireSameOriginRequest(cfg), leaveHandler.PrepareDailySelf)
+	leaveMemberAPI.POST("/daily-leave/windows/:id/document", requireSameOriginRequest(cfg), leaveHandler.PrepareDailyWindow)
+	leaveMemberAPI.GET("/daily-leave/self-service/document/:id", leaveHandler.DownloadDailySelf)
+	leaveMemberAPI.GET("/daily-leave/windows/:id/document", leaveHandler.DownloadDailyWindow)
+	leaveMemberAPI.GET("/daily-leave/records", leaveHandler.MyDailyRecords)
+	leaveMemberAPI.GET("/camp-leave/events", leaveHandler.MemberCampEvents)
+	leaveMemberAPI.POST("/camp-leave/events/:id/join", requireSameOriginRequest(cfg), leaveHandler.JoinCampEvent)
+	leaveMemberAPI.POST("/camp-leave/events/:id/leave", requireSameOriginRequest(cfg), leaveHandler.LeaveCampEvent)
+	leaveMemberAPI.GET("/camp-leave/events/:id/document", leaveHandler.MemberCampDocument)
+
 	adminAPI := api.Group("/admin")
 	adminAPI.Use(middleware.RequireAdmin(authService))
 	adminAPI.GET("/user-groups/options", userGroupHandler.ListGroupOptions)
 	adminAPI.GET("/admission-qr/:filename", userGroupHandler.OpenAdmissionQRCode)
+	adminAPI.GET("/school-leave/summary", leaveHandler.AdminSchoolSummary)
+	adminAPI.GET("/school-leave/requests", leaveHandler.AdminSchoolRequests)
+	adminAPI.POST("/school-leave/admin-records/read", requireSameOriginRequest(cfg), leaveHandler.ReadAdminRecord)
+	adminAPI.GET("/school-leave/runs", leaveHandler.AdminSchoolRuns)
+	adminAPI.POST("/school-leave/runs/collect", requireSameOriginRequest(cfg), leaveHandler.CollectSchoolRequests)
+	adminAPI.GET("/school-leave/runs/:id", leaveHandler.SchoolRunDetail)
+	adminAPI.PATCH("/school-leave/runs/:id/reason", requireSameOriginRequest(cfg), leaveHandler.UpdateSchoolRunReason)
+	adminAPI.POST("/school-leave/runs/:id/cancel", requireSameOriginRequest(cfg), leaveHandler.CancelSchoolRun)
+	adminAPI.DELETE("/school-leave/runs/:id", requireSameOriginRequest(cfg), leaveHandler.DeleteSchoolRun)
+	adminAPI.GET("/school-leave/runs/:id/document", leaveHandler.SchoolRunDocument)
+	adminAPI.POST("/school-leave/runs/:id/groups/:groupIndex/result", requireSameOriginRequest(cfg), leaveHandler.UploadSchoolGroupResult)
+	adminAPI.GET("/school-leave/runs/:id/groups/:groupIndex/result", leaveHandler.SchoolGroupResult)
+	adminAPI.GET("/daily-leave/windows", leaveHandler.AdminDailyWindows)
+	adminAPI.GET("/daily-leave/records", leaveHandler.AdminDailyRecords)
+	adminAPI.POST("/daily-leave/windows", requireSameOriginRequest(cfg), leaveHandler.CreateDailyWindow)
+	adminAPI.POST("/daily-leave/windows/:id/public-link", requireSameOriginRequest(cfg), leaveHandler.EnableDailyPublicLink)
+	adminAPI.POST("/daily-leave/windows/:id/close", requireSameOriginRequest(cfg), leaveHandler.CloseDailyWindow)
+	adminAPI.GET("/camp-leave/events", leaveHandler.AdminCampEvents)
+	adminAPI.POST("/camp-leave/events", requireSameOriginRequest(cfg), leaveHandler.CreateCampEvent)
+	adminAPI.GET("/camp-leave/events/:id", leaveHandler.CampEventDetail)
+	adminAPI.POST("/camp-leave/events/:id/close", requireSameOriginRequest(cfg), leaveHandler.CloseCampEvent)
+	adminAPI.DELETE("/camp-leave/events/:id/participants/:participantId", requireSameOriginRequest(cfg), leaveHandler.RemoveCampParticipant)
+	adminAPI.GET("/camp-leave/events/:id/colleges/:college/document", leaveHandler.AdminCampDocument)
 
 	// System configuration, recruitment configuration, account management, and analytics are super-admin only.
 	superAdminAPI := adminAPI.Group("")
