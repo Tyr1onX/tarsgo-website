@@ -54,6 +54,12 @@ const USER_MENU: readonly DashboardMenuLink[] = [
     href: "/dashboard/users/registrations",
     iconKey: "registration",
   },
+  {
+    key: "leave-workbench",
+    label: "请假工作台",
+    href: "/dashboard/leave",
+    iconKey: "report",
+  },
 ];
 
 const CORE_DASHBOARD_MENU: readonly DashboardMenuLink[] = [
@@ -107,6 +113,13 @@ const ADMIN_MENU: readonly DashboardMenuDefinition[] = [
     href: "/dashboard/admin/email",
     iconKey: "settings",
     allowedRoles: ["super_admin"],
+  },
+  {
+    key: "leave-management",
+    label: "请假管理",
+    href: "/dashboard/admin/leave",
+    iconKey: "report",
+    allowedRoles: ["admin", "super_admin"],
   },
 ];
 

@@ -23,6 +23,7 @@ import { resolveDashboardAuth } from "~/lib/dashboard-auth-flow";
 import { confirmUserGroup, getUserGroupConfirmationState, type UserGroupConfirmationState } from "~/lib/user-group-client";
 import { getCandidateTodoCount } from "~/lib/admin-workbench";
 import { getAdminWorkbenchSummary } from "~/lib/registrations-client";
+import { leaveClient } from "~/lib/leave-client";
 import {
   canAccessDashboardAdminPath,
   getCoreDashboardMenu,
@@ -38,6 +39,7 @@ import {
 export interface DashboardLayoutOutletContext {
   currentUser: AuthUser;
   refreshCandidateTodoCount: (force?: boolean) => Promise<void>;
+  refreshLeaveUnreadCount: () => Promise<void>;
 }
 
 const CONTENT_TRANSITION_MS = 180;
@@ -157,11 +159,13 @@ function SidebarItem({
   onNavigate,
   collapsed = false,
   badgeCount,
+  unreadCount,
 }: {
   item: DashboardMenuLink | VisibleDashboardAdminMenuItem;
   onNavigate: () => void;
   collapsed?: boolean;
   badgeCount?: number | null;
+  unreadCount?: number | null;
 }) {
   const location = useLocation();
   const [expanded, setExpanded] = useState(() => {
@@ -266,10 +270,16 @@ function SidebarItem({
             {item.key === "candidate-processing" && collapsed && (badgeCount ?? 0) > 0 ? (
               <span className="dashboard-nav-badge dashboard-nav-badge--collapsed" aria-label={`${badgeCount} 项待处理`}>{badgeCount}</span>
             ) : null}
+            {item.key === "leave-management" && collapsed && (unreadCount ?? 0) > 0 ? (
+              <span className="dashboard-nav-badge dashboard-nav-badge--collapsed" aria-label={`${unreadCount} 条未读请假事项`}>{unreadCount}</span>
+            ) : null}
           </span>
           <span className={`min-w-0 flex-1 truncate ${collapsed ? "sr-only" : ""}`}>{item.label}</span>
           {item.key === "candidate-processing" && !collapsed && (badgeCount ?? 0) > 0 ? (
             <span className="dashboard-nav-badge" aria-label={`${badgeCount} 项待处理`}>{badgeCount}</span>
+          ) : null}
+          {item.key === "leave-management" && !collapsed && (unreadCount ?? 0) > 0 ? (
+            <span className="dashboard-nav-badge" aria-label={`${unreadCount} 条未读请假事项`}>{unreadCount}</span>
           ) : null}
         </>
       )}
@@ -294,6 +304,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const [accountSessionsError, setAccountSessionsError] = useState("");
   const [accountActionError, setAccountActionError] = useState("");
   const [candidateTodoState, setCandidateTodoState] = useState<{ userId: number; roleName: string; count: number | null } | null>(null);
+  const [leaveUnreadState, setLeaveUnreadState] = useState<{ userId: number; count: number | null } | null>(null);
   const contentPanelRef = useRef<HTMLDivElement | null>(null);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const sidebarRef = useRef<HTMLElement | null>(null);
@@ -325,6 +336,19 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const candidateTodoCount = candidateTodoState?.userId === currentUser.id && candidateTodoState.roleName === currentUser.role.name
     ? candidateTodoState.count
     : null;
+  const refreshLeaveUnreadCount = useCallback(async () => {
+    if (!hasDashboardAdminAccess(currentUser.role.name)) {
+      setLeaveUnreadState(null);
+      return;
+    }
+    try {
+      const summary = await leaveClient.schoolSummary();
+      setLeaveUnreadState({ userId: currentUser.id, count: summary.unreadCount });
+    } catch {
+      setLeaveUnreadState({ userId: currentUser.id, count: null });
+    }
+  }, [currentUser.id, currentUser.role.name]);
+  const leaveUnreadCount = leaveUnreadState?.userId === currentUser.id ? leaveUnreadState.count : null;
   const userInitial = (currentUser.nickname?.trim() || currentUser.email.trim() || "U")
     .charAt(0)
     .toUpperCase();
@@ -332,6 +356,10 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   useEffect(() => {
     void refreshCandidateTodoCount();
   }, [refreshCandidateTodoCount]);
+
+  useEffect(() => {
+    void refreshLeaveUnreadCount();
+  }, [refreshLeaveUnreadCount]);
 
   useEffect(() => {
     const revalidateAuthWhenResumed = () => {
@@ -362,6 +390,19 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, [refreshCandidateTodoCount, showAdminSection]);
+
+  useEffect(() => {
+    if (!showAdminSection) return;
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") void refreshLeaveUnreadCount();
+    };
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
+  }, [refreshLeaveUnreadCount, showAdminSection]);
 
   useEffect(() => {
     let active = true;
@@ -749,6 +790,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
                     onNavigate={handleSidebarNavigate}
                     collapsed={isSidebarCollapsed}
                     badgeCount={item.key === "candidate-processing" ? candidateTodoCount : undefined}
+                    unreadCount={item.key === "leave-management" ? leaveUnreadCount : undefined}
                   />
                 ))}
               </div>
@@ -890,7 +932,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
 
         <main className="p-4 sm:p-6 lg:p-8">
           <div ref={contentPanelRef} className="relative">
-            <Outlet context={{ currentUser, refreshCandidateTodoCount } satisfies DashboardLayoutOutletContext} />
+            <Outlet context={{ currentUser, refreshCandidateTodoCount, refreshLeaveUnreadCount } satisfies DashboardLayoutOutletContext} />
           </div>
         </main>
       </div>

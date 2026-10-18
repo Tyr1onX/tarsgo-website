@@ -63,6 +63,20 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 15, apply: func(db *gorm.DB) error {
 			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.WeeklyReport{})
 		}},
+		{version: 16, apply: func(db *gorm.DB) error {
+			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(
+				&model.LeaveProfile{},
+				&model.SchoolLeaveRequest{},
+				&model.SchoolLeaveRun{},
+				&model.SchoolLeaveGroupResult{},
+				&model.LeaveAdminRead{},
+				&model.DailyLeaveWindow{},
+				&model.DailyLeaveEntry{},
+				&model.DailyLeaveDocumentRequest{},
+				&model.CampLeaveEvent{},
+				&model.CampLeaveParticipant{},
+			)
+		}},
 	}
 }
 
