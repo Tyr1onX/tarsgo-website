@@ -63,7 +63,7 @@ test("home sections share a content width and imagery uses deliberate aspect rat
   assert.match(styles, /\.public-home\s*\{[^}]*--public-content-width:\s*84rem;/);
   assert.match(styles, /\.public-home-container\s*\{[^}]*max-width:\s*var\(--public-content-width\);[^}]*margin-inline:\s*auto;/);
   assert.match(home, /className="public-home-container"/);
-  assert.match(aboutPage, /preparation-02\.webp/);
+  assert.match(aboutPage, /about-assembly-[a-f0-9]{8}\.webp/);
   assert.match(aboutStyles, /\.about-place-grid\s*\{/);
   assert.match(aboutStyles, /grid-template-columns:\s*repeat\(12, minmax\(0, 1fr\)\)/);
   assert.match(historyArchive, /className="team-history-photo"/);

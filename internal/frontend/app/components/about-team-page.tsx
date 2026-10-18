@@ -23,32 +23,32 @@ type PlacePhoto = {
 
 const placePhotos: PlacePhoto[] = [
   {
-    image: "/assets/images/Preparation_for_competition/preparation-01.webp",
+    image: "/assets/images/About/about-workspace-de5f097c.webp",
     alt: "队员在带有吉甲大师标识的工作空间围绕桌面机器人讨论。",
     caption: "吉甲大师工作空间",
     coordinateCode: true,
     layout: "about-place-photo--space",
   },
   {
-    image: "/assets/images/Daily/daily-03.webp",
+    image: "/assets/images/About/about-discussion-bdab72b6.webp",
     alt: "几名队员围着笔记本电脑讨论设计，其他成员在一旁查看资料。",
     caption: "围着电脑讨论设计",
     layout: "about-place-photo--discussion",
   },
   {
-    image: "/assets/images/Preparation_for_competition/preparation-02.webp",
+    image: "/assets/images/About/about-assembly-bb8cdd2d.webp",
     alt: "队员坐在机器人旁检查整机结构与部件。",
     caption: "围绕整机检查与装配",
     layout: "about-place-photo--assembly",
   },
   {
-    image: "/assets/images/Daily/daily-08.webp",
+    image: "/assets/images/About/about-daily-life-685eed01.webp",
     alt: "吉甲大师标识下，队员围坐在桌旁分享生日蛋糕。",
     caption: "工作间里的日常",
     layout: "about-place-photo--daily",
   },
   {
-    image: "/assets/images/Preparation_for_competition/preparation-07.webp",
+    image: "/assets/images/About/about-field-test-1a4ffd56.webp",
     alt: "两台机器人在灯光照明的场地中进行测试。",
     caption: "把机器人放进场地测试",
     layout: "about-place-photo--testing",
@@ -138,7 +138,7 @@ export function AboutTeamPage({ groups }: { groups: AboutGroup[] }) {
         </div>
         <figure className="about-origin-photo">
           <img
-            src="/assets/images/Milestone/2019-breakthrough.webp"
+            src="/assets/images/About/about-origin-2019-b592783b.webp"
             alt="TARS-Go 队员在 2019 年 ICRA RoboMaster AI Challenge 场地与队旗、机器人合影。"
             loading="lazy"
             decoding="async"
