@@ -6,9 +6,9 @@ import { SiteLogo } from "~/components/site-logo";
 import { ThemeControl } from "~/components/theme-control";
 import { ApiError } from "~/lib/api-client";
 import {
-  getAccountSessions,
   getAuthUserRoleLabel,
   getBootstrapStatus,
+  getCachedCurrentUser,
   getCurrentUser,
   initializeAccountSessions,
   logout,
@@ -42,14 +42,13 @@ export interface DashboardLayoutOutletContext {
   refreshLeaveUnreadCount: () => Promise<void>;
 }
 
-const CONTENT_TRANSITION_MS = 180;
 const DESKTOP_DASHBOARD_MEDIA = "(min-width: 1024px)";
 const SUPER_ADMIN_SETUP_PATH = "/dashboard/setup/super-admin";
 const SIDEBAR_DEFAULT_WIDTH = 200;
 const SIDEBAR_COLLAPSED_WIDTH = 80;
 const SIDEBAR_MIN_WIDTH = 160;
 const SIDEBAR_MAX_WIDTH = 420;
-const HIGH_PRIORITY_RENDER_PREFETCH_KEYS = new Set(["admin-panel"]);
+const HIGH_PRIORITY_RENDER_PREFETCH_KEYS = new Set(["admin-panel", "candidate-processing"]);
 
 function getSidebarMaxWidth(viewportWidth: number) {
   return Math.max(SIDEBAR_DEFAULT_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, Math.floor(viewportWidth * 0.4)));
@@ -69,11 +68,12 @@ function getIsDesktopDashboardViewport() {
 
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const currentPath = new URL(request.url);
-  const groupRequest = getUserGroupConfirmationState()
+  const cachedUser = getCachedCurrentUser();
+  const groupRequest = getUserGroupConfirmationState(cachedUser?.id)
     .then((state) => ({ state, error: null as unknown }))
     .catch((error: unknown) => ({ state: null, error }));
   const auth = await resolveDashboardAuth({
-    getCurrentUser: () => getCurrentUser({ force: true }),
+    getCurrentUser: () => getCurrentUser(),
     getBootstrapStatus,
     isUnauthorized: (error) => error instanceof ApiError && error.status === 401,
   });
@@ -305,7 +305,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const [accountActionError, setAccountActionError] = useState("");
   const [candidateTodoState, setCandidateTodoState] = useState<{ userId: number; roleName: string; count: number | null } | null>(null);
   const [leaveUnreadState, setLeaveUnreadState] = useState<{ userId: number; count: number | null } | null>(null);
-  const contentPanelRef = useRef<HTMLDivElement | null>(null);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const sidebarRef = useRef<HTMLElement | null>(null);
   const sidebarTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -403,21 +402,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, [refreshLeaveUnreadCount, showAdminSection]);
-
-  useEffect(() => {
-    let active = true;
-    void initializeAccountSessions()
-      .then((accounts) => {
-        if (active) setAccountSessions(accounts);
-      })
-      .catch((error) => {
-        if (active) setAccountSessionsError(getAccountActionError(error));
-      });
-    return () => {
-      active = false;
-    };
-  }, [currentUser.id]);
-
   useEffect(() => subscribeAccountSessionChange(() => {
     window.location.assign("/dashboard");
   }), []);
@@ -456,47 +440,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
       window.removeEventListener("resize", syncSidebarWidth);
     };
   }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    if (!isDesktopViewport) {
-      return;
-    }
-
-    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-      return;
-    }
-
-    const panel = contentPanelRef.current;
-    if (!panel) {
-      return;
-    }
-
-    const animation = panel.animate(
-      [
-        {
-          opacity: 0,
-          transform: "translateY(10px)",
-        },
-        {
-          opacity: 1,
-          transform: "translateY(0)",
-        },
-      ],
-      {
-        duration: CONTENT_TRANSITION_MS,
-        easing: "cubic-bezier(0.16, 1, 0.3, 1)",
-        fill: "both",
-      },
-    );
-
-    return () => {
-      animation.cancel();
-    };
-  }, [isDesktopViewport, location.pathname]);
 
   useEffect(() => {
     if (!isDesktopViewport) {
@@ -620,7 +563,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
     setAccountSessionsError("");
     setAccountSessionsLoading(true);
     try {
-      setAccountSessions(await getAccountSessions());
+      setAccountSessions(await initializeAccountSessions());
     } catch (error) {
       setAccountSessionsError(getAccountActionError(error));
     } finally {
@@ -931,7 +874,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
         </header>
 
         <main className="p-4 sm:p-6 lg:p-8">
-          <div ref={contentPanelRef} className="relative">
+          <div className="relative">
             <Outlet context={{ currentUser, refreshCandidateTodoCount, refreshLeaveUnreadCount } satisfies DashboardLayoutOutletContext} />
           </div>
         </main>

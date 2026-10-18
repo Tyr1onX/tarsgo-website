@@ -2,10 +2,13 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { ANONYMOUS_SESSION_CACHE_TTL_MS, AuthSessionCache } from "./auth-session-cache.ts";
+import {
+  ANONYMOUS_SESSION_CACHE_TTL_MS,
+  AUTHENTICATED_SESSION_CACHE_TTL_MS,
+  AuthSessionCache,
+} from "./auth-session-cache.ts";
 
 const rootSource = await readFile(new URL("../root.tsx", import.meta.url), "utf8");
-const routeProgressSource = await readFile(new URL("./route-progress-state.ts", import.meta.url), "utf8");
 const navbarSource = await readFile(new URL("../components/navbar.tsx", import.meta.url), "utf8");
 const authClientSource = await readFile(new URL("./auth-client.ts", import.meta.url), "utf8");
 const dashboardLayoutSource = await readFile(new URL("../routes/dashboard/layout.tsx", import.meta.url), "utf8");
@@ -47,6 +50,17 @@ test("accepts the current session lookup and expires its anonymous result", () =
   assert.equal(cache.hasFreshAnonymousResult(30_001), true);
 });
 
+test("reuses a recently verified user only for a bounded period", () => {
+  const cache = new AuthSessionCache();
+  const checkedAt = 40_000;
+  const user = { id: 13, role: "admin" };
+
+  cache.setAuthenticated(user, checkedAt);
+
+  assert.deepEqual(cache.getUser(checkedAt + AUTHENTICATED_SESSION_CACHE_TTL_MS - 1), user);
+  assert.equal(cache.getUser(checkedAt + AUTHENTICATED_SESSION_CACHE_TTL_MS), null);
+});
+
 test("clearing a session cache invalidates both identity and in-flight response generations", () => {
   const cache = new AuthSessionCache();
   const oldRequestVersion = cache.version;
@@ -64,15 +78,18 @@ test("clearing a session cache invalidates both identity and in-flight response 
 test("coalesces active identity checks and invalidates them on cross-tab account changes", () => {
   assert.match(authClientSource, /if \(currentUserRequest\) \{\s*return currentUserRequest;/);
   assert.doesNotMatch(authClientSource, /if \(options\.force\) currentUserRequest = null/);
-  assert.match(authClientSource, /authSessionCache\.clear\(\);\s*invalidateCurrentUserRequest\(\);\s*notifyAuthStateChange\(null\);/);
+  assert.match(authClientSource, /authSessionCache\.clear\(\);\s*invalidateCurrentUserRequest\(\);\s*invalidateUserGroupConfirmationStateCache\(\);\s*notifyAuthStateChange\(null\);/);
   assert.match(authClientSource, /function invalidateCurrentUserRequest\(\)[\s\S]*?currentUserRequestGeneration \+= 1/);
 });
 
-test("dashboard starts group confirmation alongside a server-verified identity lookup", () => {
-  const groupRequestIndex = dashboardLayoutSource.indexOf("const groupRequest = getUserGroupConfirmationState()");
+test("dashboard reuses fresh identity and group checks while starting cold checks in parallel", () => {
+  const groupRequestIndex = dashboardLayoutSource.indexOf("const groupRequest = getUserGroupConfirmationState(cachedUser?.id)");
   const authRequestIndex = dashboardLayoutSource.indexOf("const auth = await resolveDashboardAuth(");
   assert.ok(groupRequestIndex >= 0 && authRequestIndex > groupRequestIndex);
-  assert.doesNotMatch(dashboardLayoutSource, /cachedUser:\s*getCachedCurrentUser/);
+  assert.match(dashboardLayoutSource, /const cachedUser = getCachedCurrentUser\(\)/);
+  assert.match(dashboardLayoutSource, /getUserGroupConfirmationState\(cachedUser\?\.id\)/);
+  assert.match(dashboardLayoutSource, /getCurrentUser: \(\) => getCurrentUser\(\)/);
+  assert.doesNotMatch(dashboardLayoutSource, /getCurrentUser\(\{\s*force:\s*true\s*\}\)/);
 });
 
 test("dashboard revalidates authorization after a resumed session without polling on every focus", () => {
@@ -95,12 +112,23 @@ test("a request from an older session cannot overwrite a newer account", () => {
   assert.deepEqual(cache.getUser(), { id: 2, role: "admin" });
 });
 
-test("global route loading uses delayed segmented lines and no legacy full-screen spinner", () => {
-  assert.match(rootSource, /route-progress/);
-  assert.match(rootSource, /route-progress__segment/);
-  assert.match(rootSource, /#D0AD69/);
-  assert.doesNotMatch(rootSource, /TARS-GO|animate-spin|primary-300/);
-  assert.match(routeProgressSource, /ROUTE_PROGRESS_REVEAL_DELAY_MS = 120/);
+test("dashboard route feedback appears immediately and cache invalidation follows a group confirmation", async () => {
+  const groupClientSource = await readFile(new URL("./user-group-client.ts", import.meta.url), "utf8");
+  assert.match(rootSource, /\{isNavigating \?/);
+  assert.match(rootSource, /route-progress__line/);
+  assert.doesNotMatch(rootSource, /ROUTE_PROGRESS_REVEAL_DELAY_MS|routeProgressReducer/);
+  assert.match(groupClientSource, /CONFIRMATION_CACHE_TTL_MS = 10_000/);
+  assert.match(groupClientSource, /confirmationCacheGeneration \+= 1/);
+  assert.match(groupClientSource, /confirmationCache\.clear\(\)/);
+  assert.match(authClientSource, /invalidateUserGroupConfirmationStateCache\(\)/);
+});
+
+test("account-vault setup waits until the user opens account management", () => {
+  const openAccountModalIndex = dashboardLayoutSource.indexOf("async function openAccountModal");
+  assert.ok(openAccountModalIndex > 0);
+  assert.doesNotMatch(dashboardLayoutSource.slice(0, openAccountModalIndex), /initializeAccountSessions\(\)/);
+  assert.match(dashboardLayoutSource, /async function openAccountModal[\s\S]*?initializeAccountSessions\(\)/);
+  assert.match(dashboardLayoutSource, /new Set\(\["admin-panel", "candidate-processing"\]\)/);
 });
 
 test("the default homepage preloads the small login route without preloading dashboards for guests", () => {
