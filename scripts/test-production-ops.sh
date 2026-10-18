@@ -587,7 +587,8 @@ PY
   local local_only_dir="$case_dir/local-only" local_only_archive remote_count_before remote_count_after
   mkdir -p "$local_only_dir"
   printf 'expired\n' >"$local_only_dir/jijia-old.sql.gz"
-  touch -d '8 days ago' "$local_only_dir/jijia-old.sql.gz"
+  old_backup_time="$(date -d '8 days ago' '+%Y%m%d%H%M.%S' 2>/dev/null || date -v-8d '+%Y%m%d%H%M.%S')"
+  touch -t "$old_backup_time" "$local_only_dir/jijia-old.sql.gz"
   remote_count_before="$(find "$case_dir/remote/store" -type f | wc -l)"
   : >"$case_dir/scp.log"
   output="$(MOCK_LOCAL_BACKUP_DIR="$local_only_dir" run_backup scp-failure --local-only)"

@@ -77,7 +77,7 @@ fmt:
 	@go -C "$(BACKEND_DIR)" fmt ./...
 
 secret-check:
-	@./scripts/check-secrets.sh
+	@bash ./scripts/check-secrets.sh
 
 build: frontend-build
 	@mkdir -p "$(DIST_DIR)"
