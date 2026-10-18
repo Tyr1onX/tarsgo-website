@@ -2,6 +2,7 @@ import { Link } from "react-router";
 
 import type { Route } from "./+types/micro-specialty-low-altitude";
 import { Navbar } from "~/components/navbar";
+import { FooterCoordinateSandTrace } from "~/components/footer-coordinate-sand-trace";
 import {
   lowAltitudeCourseTerms,
   lowAltitudeFaqs,
@@ -190,6 +191,7 @@ export default function LowAltitudeMicroSpecialty() {
       <footer className="border-t border-border-subtle px-5 py-7 text-xs text-fg-dim sm:px-8 lg:px-12">
         <div className="mx-auto flex max-w-7xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <span>吉林大学吉甲大师双创基地 · TARSGO</span>
+          <FooterCoordinateSandTrace />
           <Link to="/" className="min-h-10 self-start py-3 transition hover:text-fg-primary sm:self-auto">返回官网首页</Link>
         </div>
       </footer>

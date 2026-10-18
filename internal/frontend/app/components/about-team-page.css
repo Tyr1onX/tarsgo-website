@@ -273,108 +273,6 @@
   font-size: 0.69rem;
 }
 
-.about-coordinate-sand {
-  position: absolute;
-  top: 70%;
-  left: 33%;
-  z-index: 2;
-  width: clamp(9.5rem, 32%, 14rem);
-  height: 3.25rem;
-  pointer-events: none;
-}
-
-.about-coordinate-sand__grains {
-  position: absolute;
-  inset: 0 3rem 0 0;
-  opacity: 0.62;
-}
-
-.about-coordinate-sand__grain {
-  position: absolute;
-  width: 2px;
-  height: 2px;
-}
-
-.about-coordinate-sand__grain::before,
-.about-coordinate-sand__grain[data-bit="1"]::after {
-  position: absolute;
-  width: 1.55px;
-  height: 1.2px;
-  border-radius: 55% 30% 48% 36%;
-  background: #d8c18e;
-  content: "";
-}
-
-.about-coordinate-sand__grain::before {
-  top: 0.2px;
-  left: 0.15px;
-}
-
-.about-coordinate-sand__grain[data-bit="1"]::after {
-  top: 0.9px;
-  left: 1.1px;
-  width: 0.95px;
-  height: 0.85px;
-  opacity: 0.76;
-}
-
-.about-coordinate-sand__decode {
-  position: absolute;
-  top: 0;
-  right: 0;
-  pointer-events: auto;
-}
-
-.about-coordinate-sand__decode summary {
-  display: grid;
-  min-width: 2.75rem;
-  min-height: 2.75rem;
-  padding-inline: 0.4rem;
-  place-items: center;
-  color: #f2dfb0;
-  cursor: pointer;
-  font-size: 0.68rem;
-  font-weight: 650;
-  letter-spacing: 0.04em;
-  line-height: 1;
-  list-style: none;
-  text-decoration: underline;
-  text-decoration-color: currentColor;
-  text-underline-offset: 0.2rem;
-  text-shadow: 0 1px 2px rgb(12 12 10 / 92%), 0 0 1px rgb(12 12 10 / 78%);
-}
-
-.about-coordinate-sand__decode summary::-webkit-details-marker {
-  display: none;
-}
-
-.about-coordinate-sand__decode summary:hover {
-  color: #f7e8c3;
-  text-decoration-color: currentColor;
-}
-
-.about-coordinate-sand__decode summary:focus-visible {
-  outline: 2px solid #f2dfb0;
-  outline-offset: 3px;
-}
-
-.about-coordinate-sand__coordinates {
-  position: absolute;
-  right: 0;
-  bottom: calc(100% + 0.05rem);
-  z-index: 2;
-  display: flex;
-  gap: 0.75rem;
-  min-width: max-content;
-  color: #f2dfb0;
-  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
-  font-size: 0.68rem;
-  letter-spacing: 0.04em;
-  line-height: 1.45;
-  white-space: nowrap;
-  text-shadow: 0 1px 2px rgb(12 12 10 / 92%), 0 0 1px rgb(12 12 10 / 78%);
-}
-
 .about-traces-layout {
   display: grid;
   grid-template-columns: minmax(0, 0.85fr) minmax(0, 1.15fr);
@@ -598,22 +496,6 @@
   .about-place-photo figcaption {
     padding: 2.75rem 0.55rem 0.55rem;
     font-size: 0.63rem;
-  }
-
-  .about-coordinate-sand {
-    top: 68%;
-    left: 27%;
-    width: clamp(8.25rem, 43%, 11rem);
-    height: 2.75rem;
-  }
-
-  .about-coordinate-sand__coordinates {
-    right: 0;
-    bottom: calc(100% + 0.05rem);
-    flex-wrap: wrap;
-    justify-content: flex-end;
-    gap: 0.25rem 0.65rem;
-    max-width: calc(100vw - 2rem);
   }
 
   .about-traces-layout {

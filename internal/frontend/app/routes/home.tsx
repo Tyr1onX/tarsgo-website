@@ -7,6 +7,7 @@ import { EventsAndHonorsArchive } from "../components/events-and-honors-archive"
 import { RobotPhotoGallery } from "../components/robot-photo-gallery";
 import { TeamHistoryArchive } from "../components/team-history-archive";
 import { HomeVisualNavigation } from "../components/home-visual-navigation";
+import { FooterCoordinateSandTrace } from "../components/footer-coordinate-sand-trace";
 import { SiteLogo } from "~/components/site-logo";
 import { Link, useLocation, useNavigate } from "react-router";
 import {
@@ -268,9 +269,12 @@ export function PublicFooter() {
           </section>
         </div>
 
-        <p className="pt-5 text-xs text-fg-dim">
-          &copy; {new Date().getFullYear()} TARSGO 战队 · 吉林大学吉甲大师双创基地
-        </p>
+        <div className="public-footer-signature">
+          <p className="text-xs text-fg-dim">
+            &copy; {new Date().getFullYear()} TARSGO 战队 · 吉林大学吉甲大师双创基地
+          </p>
+          <FooterCoordinateSandTrace />
+        </div>
       </div>
     </footer>
   );

@@ -9,23 +9,24 @@ import {
   gijiaBaseCoordinate,
 } from "./about-coordinate-sand.ts";
 
-test("the visible 8-by-7 grain field reversibly encodes the supplied WGS84 coordinate", () => {
+test("the 56-grain footer trace reversibly encodes the supplied WGS84 coordinate", () => {
   const bits = encodeCoordinateSandBits(gijiaBaseCoordinate);
 
-  assert.equal(bits.length, coordinateSandCode.columns * coordinateSandCode.rows);
+  assert.equal(bits.length, coordinateSandCode.grainCount);
   assert.equal(bits.slice(-1), "0", "the last grain cell is the fixed padding cell");
   assert.deepEqual(decodeCoordinateSandBits(bits), gijiaBaseCoordinate);
   assert.equal(formatCoordinateHemisphere(gijiaBaseCoordinate.longitude, "longitude"), "125.2852°E");
   assert.equal(formatCoordinateHemisphere(gijiaBaseCoordinate.latitude, "latitude"), "43.8468°N");
 });
 
-test("encoded grains use a deterministic irregular deposit instead of a visible grid", () => {
-  const positions = Array.from({ length: coordinateSandCode.columns * coordinateSandCode.rows }, (_, index) =>
+test("encoded grains follow a deterministic, irregular left-to-right trace", () => {
+  const positions = Array.from({ length: coordinateSandCode.grainCount }, (_, index) =>
     getCoordinateSandPosition(index),
   );
 
   assert.equal(new Set(positions.map(({ x, y }) => `${x}:${y}`)).size, positions.length);
-  assert.ok(positions.every(({ x, y, rotation }) => x > 0 && x < 100 && y > 0 && y < 100 && rotation >= 0 && rotation < 90));
+  assert.ok(positions.every(({ x, y, rotation }) => x > 0 && x < 100 && y > 0 && y < 100 && rotation >= -60 && rotation < 60));
+  assert.ok(positions.every((position, index) => index === 0 || positions[index - 1].x < position.x));
   assert.notDeepEqual(positions[0], positions[1]);
   assert.throws(() => getCoordinateSandPosition(-1), /index/);
   assert.throws(() => getCoordinateSandPosition(56), /index/);
