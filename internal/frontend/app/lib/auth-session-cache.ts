@@ -1,9 +1,10 @@
 export const ANONYMOUS_SESSION_CACHE_TTL_MS = 5_000;
+export const AUTHENTICATED_SESSION_CACHE_TTL_MS = 30_000;
 
 type AuthSessionState<T> =
   | { type: "unknown" }
   | { type: "anonymous"; expiresAt: number }
-  | { type: "authenticated"; user: T };
+  | { type: "authenticated"; user: T; expiresAt: number };
 
 /** Keeps only the current in-memory auth result and rejects responses from older sessions. */
 export class AuthSessionCache<T> {
@@ -14,17 +15,17 @@ export class AuthSessionCache<T> {
     return this.generation;
   }
 
-  getUser(): T | null {
-    return this.state.type === "authenticated" ? this.state.user : null;
+  getUser(now = Date.now()): T | null {
+    return this.state.type === "authenticated" && this.state.expiresAt > now ? this.state.user : null;
   }
 
   hasFreshAnonymousResult(now = Date.now()): boolean {
     return this.state.type === "anonymous" && this.state.expiresAt > now;
   }
 
-  setAuthenticated(user: T) {
+  setAuthenticated(user: T, now = Date.now()) {
     this.generation += 1;
-    this.state = { type: "authenticated", user };
+    this.state = { type: "authenticated", user, expiresAt: now + AUTHENTICATED_SESSION_CACHE_TTL_MS };
   }
 
   setAnonymous(now = Date.now()) {
@@ -37,9 +38,9 @@ export class AuthSessionCache<T> {
     this.state = { type: "unknown" };
   }
 
-  acceptAuthenticatedRequest(version: number, user: T): boolean {
+  acceptAuthenticatedRequest(version: number, user: T, now = Date.now()): boolean {
     if (version !== this.generation) return false;
-    this.state = { type: "authenticated", user };
+    this.state = { type: "authenticated", user, expiresAt: now + AUTHENTICATED_SESSION_CACHE_TTL_MS };
     return true;
   }
 

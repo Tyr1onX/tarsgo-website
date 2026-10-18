@@ -1,5 +1,6 @@
 import { ApiError, apiRequest } from "~/lib/api-client";
 import { AuthSessionCache } from "~/lib/auth-session-cache";
+import { invalidateUserGroupConfirmationStateCache } from "~/lib/user-group-client";
 
 export { ApiError } from "~/lib/api-client";
 
@@ -76,6 +77,7 @@ export function subscribeAccountSessionChange(onChange: () => void): () => void 
     if (event.data?.type !== "identity-changed" || event.data.source === getAccountSessionTabId()) return;
     authSessionCache.clear();
     invalidateCurrentUserRequest();
+    invalidateUserGroupConfirmationStateCache();
     notifyAuthStateChange(null);
     onChange();
   };
@@ -98,6 +100,7 @@ function getAccountSessionTabId() {
 function notifyNewLogin(user: AuthUser) {
   authSessionCache.setAuthenticated(user);
   invalidateCurrentUserRequest();
+  invalidateUserGroupConfirmationStateCache();
   notifyAuthStateChange(user);
   announceAccountSessionChange();
 }
@@ -220,6 +223,7 @@ export async function switchAccountSession(accountId: number): Promise<{ user: A
   });
   authSessionCache.setAuthenticated(result.user);
   invalidateCurrentUserRequest();
+  invalidateUserGroupConfirmationStateCache();
   notifyAuthStateChange(result.user);
   announceAccountSessionChange();
   return result;
@@ -241,6 +245,7 @@ export async function removeAccountSession(accountId: number): Promise<{
   if (result.currentRemoved) {
     authSessionCache.setAnonymous();
     invalidateCurrentUserRequest();
+    invalidateUserGroupConfirmationStateCache();
     notifyAuthStateChange(null);
     announceAccountSessionChange();
   }
@@ -255,6 +260,7 @@ export async function logoutAllAccounts(): Promise<void> {
   });
   authSessionCache.setAnonymous();
   invalidateCurrentUserRequest();
+  invalidateUserGroupConfirmationStateCache();
   notifyAuthStateChange(null);
   announceAccountSessionChange();
 }
@@ -332,6 +338,7 @@ export async function logout(): Promise<void> {
   await apiRequest("/api/logout", { method: "POST", body: {}, accountAction: true });
   authSessionCache.setAnonymous();
   invalidateCurrentUserRequest();
+  invalidateUserGroupConfirmationStateCache();
   notifyAuthStateChange(null);
   announceAccountSessionChange();
 }

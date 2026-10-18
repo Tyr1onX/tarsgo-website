@@ -55,93 +55,19 @@ body {
   position: fixed;
   inset: 0 0 auto;
   z-index: 100;
-  height: 3px;
+  height: 2px;
   overflow: hidden;
   pointer-events: none;
-  opacity: 1;
-  animation: route-progress-complete 240ms linear forwards;
-  animation-play-state: paused;
+  background: rgb(208 173 105 / 12%);
 }
 
-.route-progress--moving {
-  animation: none;
-}
-
-.route-progress--aligned {
-  animation-play-state: running;
-}
-
-.route-progress__segment {
-  position: absolute;
-  left: 0;
+.route-progress__line {
   display: block;
-  height: 1px;
+  width: 100%;
+  height: 2px;
   background: var(--theme-accent, #d0ad69);
-  animation: route-progress-drift 1200ms cubic-bezier(0.45, 0, 0.3, 1) infinite;
-}
-
-.route-progress__segment:nth-of-type(2) {
-  top: 0.1px;
-  width: 14%;
-  opacity: 0.82;
-  animation-delay: -470ms;
-}
-
-.route-progress__segment:nth-of-type(3) {
-  top: 1.1px;
-  width: 22%;
-  opacity: 0.62;
-  animation-delay: -110ms;
-}
-
-.route-progress__segment:nth-of-type(4) {
-  top: 2.1px;
-  width: 10%;
-  opacity: 0.72;
-  animation-delay: -740ms;
-}
-
-.route-progress--aligned .route-progress__segment {
-  animation: none;
-  transform: translateX(calc(50vw - 50%));
-  opacity: 0.84;
-  transition: transform 100ms ease-out, opacity 120ms ease 105ms;
-}
-
-@keyframes route-progress-drift {
-  from {
-    transform: translateX(calc(-100% - 1px));
-    opacity: 0;
-  }
-
-  16% { opacity: 0.82; }
-  72% { opacity: 0.48; }
-
-  to {
-    transform: translateX(calc(100vw + 100%));
-    opacity: 0;
-  }
-}
-
-@keyframes route-progress-complete {
-  0%, 42% { opacity: 1; }
-  100% { opacity: 0; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .route-progress__segment,
-  .route-progress--aligned .route-progress__segment {
-    width: 100%;
-    animation: none;
-    transform: translateX(0);
-    opacity: 0.7;
-    transition: none;
-  }
-
-  .route-progress--aligned {
-    animation: none;
-    opacity: 0;
-  }
+  position: absolute;
+  inset: 0;
 }
 
 select {

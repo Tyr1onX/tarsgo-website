@@ -8,18 +8,13 @@ import {
   useLocation,
   useNavigation,
 } from "react-router";
-import { useEffect, useLayoutEffect, useReducer, useRef } from "react";
+import { useEffect, useLayoutEffect, useRef } from "react";
 
 import type { Route } from "./+types/root";
 import "./app.css";
 import NotFound, { StatusPage } from "./routes/not-found";
 import fallbackFaviconHref from "../public/favicon.ico";
 import { ThemeProvider } from "./components/theme-provider";
-import {
-  ROUTE_PROGRESS_REVEAL_DELAY_MS,
-  ROUTE_PROGRESS_SETTLE_DELAY_MS,
-  routeProgressReducer,
-} from "./lib/route-progress-state";
 import { startPublicPageTransition } from "./lib/public-page-transition";
 
 const themeBootstrapScript = `(() => {
@@ -76,31 +71,8 @@ export default function App() {
   const location = useLocation();
   const navigationPath = navigation.location?.pathname ?? null;
   const isNavigating = navigation.state !== "idle" && Boolean(navigationPath);
-  const [routeProgressPhase, dispatchRouteProgress] = useReducer(routeProgressReducer, "hidden");
   const previousPathname = useRef(location.pathname);
   const pageAnimation = useRef<Animation | null>(null);
-
-  useEffect(() => {
-    dispatchRouteProgress({ type: isNavigating ? "navigation-started" : "navigation-finished" });
-  }, [isNavigating, navigationPath]);
-
-  useEffect(() => {
-    if (routeProgressPhase === "waiting" && isNavigating) {
-      const timeoutId = window.setTimeout(
-        () => dispatchRouteProgress({ type: "reveal" }),
-        ROUTE_PROGRESS_REVEAL_DELAY_MS,
-      );
-      return () => window.clearTimeout(timeoutId);
-    }
-
-    if (routeProgressPhase === "aligned" && !isNavigating) {
-      const timeoutId = window.setTimeout(
-        () => dispatchRouteProgress({ type: "settle" }),
-        ROUTE_PROGRESS_SETTLE_DELAY_MS,
-      );
-      return () => window.clearTimeout(timeoutId);
-    }
-  }, [routeProgressPhase, isNavigating, navigationPath]);
 
   useLayoutEffect(() => {
     if (previousPathname.current === location.pathname) return;
@@ -136,16 +108,12 @@ export default function App() {
     };
   }, [location.pathname]);
 
-  const showRouteProgress = routeProgressPhase === "moving" || routeProgressPhase === "aligned";
-
   return (
     <>
-      {showRouteProgress ? (
-        <div className={`route-progress route-progress--${routeProgressPhase}`} role="status" aria-live="polite">
+      {isNavigating ? (
+        <div className="route-progress" role="status" aria-live="polite">
           <span className="sr-only">{getNavigationMessage(navigationPath ?? location.pathname)}</span>
-          <span className="route-progress__segment" aria-hidden="true" />
-          <span className="route-progress__segment" aria-hidden="true" />
-          <span className="route-progress__segment" aria-hidden="true" />
+          <span className="route-progress__line" aria-hidden="true" />
         </div>
       ) : null}
       <ThemeProvider>
@@ -163,31 +131,7 @@ export function HydrateFallback() {
       aria-busy="true"
       aria-live="polite"
     >
-      <span className="sr-only">正在验证登录并打开工作台…</span>
-      <div aria-hidden="true" className="mx-auto max-w-7xl motion-safe:animate-pulse motion-reduce:animate-none">
-        <div className="flex items-center justify-between border-b border-[#D0AD69]/15 pb-6">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl border border-[#D0AD69]/20 bg-[#D0AD69]/10" />
-            <div className="space-y-2">
-              <div className="h-3 w-24 rounded bg-[#D0AD69]/20" />
-              <div className="h-3 w-36 rounded bg-white/10" />
-            </div>
-          </div>
-          <div className="hidden h-9 w-24 rounded-full bg-white/5 sm:block" />
-        </div>
-        <div className="space-y-6 py-8 sm:py-10">
-          <div className="space-y-3">
-            <div className="h-3 w-28 rounded bg-[#D0AD69]/20" />
-            <div className="h-8 w-52 rounded bg-white/10" />
-            <div className="h-4 w-72 max-w-full rounded bg-white/5" />
-          </div>
-          <div className="grid gap-4 lg:grid-cols-2">
-            <div className="h-36 rounded-2xl border border-white/5 bg-white/[0.03] sm:h-40" />
-            <div className="h-36 rounded-2xl border border-white/5 bg-white/[0.03] sm:h-40" />
-          </div>
-          <div className="h-48 rounded-2xl border border-white/5 bg-white/[0.03] sm:h-56" />
-        </div>
-      </div>
+      <p className="mx-auto max-w-7xl py-8">正在验证登录并打开工作台…</p>
     </main>
   );
 }
