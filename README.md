@@ -117,3 +117,9 @@ pnpm run test:workbench
 - [Actions：自动化检查](https://github.com/Tyr1onX/tarsgo-website/actions)
 - [招新验收环境](docs/acceptance-environment.md)
 - [生产发布与回滚](docs/production-deployment.md)
+
+## 开源许可与素材使用
+
+- 项目代码采用 [MIT 许可证](LICENSE)。
+- 团队名称、标志、组别标识、照片、证书、上传素材及第三方品牌不因代码开源而获得复用许可；详情见[品牌与素材权利说明](docs/brand-and-asset-rights.md)。
+- 提交代码或素材前，请阅读[贡献指南](CONTRIBUTING.md)。
