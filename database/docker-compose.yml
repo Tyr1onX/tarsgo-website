@@ -9,7 +9,7 @@ services:
       MARIADB_PASSWORD: ${MARIADB_PASSWORD:-tarsgo_dev_change_me}
       MARIADB_ROOT_PASSWORD: ${DB_ROOT_PASSWORD:-root_dev_change_me}
     ports:
-      - "${MYSQL_HOST_PORT:-3307}:3306"
+      - "127.0.0.1:${MYSQL_HOST_PORT:-3307}:3306"
     volumes:
       - tarsgo_mariadb_data:/var/lib/mysql
     healthcheck:

@@ -4,6 +4,7 @@
 /dist/
 /internal/frontend/.env
 /internal/backend/.env
+/.claude/settings.local.json
 /internal/frontend/node_modules/
 /internal/frontend/dist/
 
