@@ -2,6 +2,7 @@ import { teamHistorySources } from "../data/team-history";
 import {
   encodeCoordinateSandBits,
   formatCoordinateHemisphere,
+  getCoordinateSandPosition,
   gijiaBaseCoordinate,
 } from "../lib/about-coordinate-sand";
 import "./about-team-page.css";
@@ -61,17 +62,21 @@ function CoordinateSandCode() {
   return (
     <div className="about-coordinate-sand">
       <span className="about-coordinate-sand__grains" aria-hidden="true">
-        {bits.split("").map((bit, index) => (
-          <span
-            className="about-coordinate-sand__grain"
-            data-bit={bit}
-            key={index}
-          />
-        ))}
+        {bits.split("").map((bit, index) => {
+          const position = getCoordinateSandPosition(index);
+          return (
+            <span
+              className="about-coordinate-sand__grain"
+              data-bit={bit}
+              style={{ left: `${position.x}%`, top: `${position.y}%`, rotate: `${position.rotation}deg` }}
+              key={index}
+            />
+          );
+        })}
       </span>
       <details className="about-coordinate-sand__decode">
         <summary aria-label="解读沙粒中的基地坐标">
-          <span aria-hidden="true">⌖</span>
+          <span aria-hidden="true">解读</span>
         </summary>
         <span className="about-coordinate-sand__coordinates" role="group" aria-label="WGS84 坐标">
           <span>{formatCoordinateHemisphere(gijiaBaseCoordinate.longitude, "longitude")}</span>

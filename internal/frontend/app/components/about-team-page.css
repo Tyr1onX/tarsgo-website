@@ -275,85 +275,73 @@
 
 .about-coordinate-sand {
   position: absolute;
-  top: 0.75rem;
-  right: 0.75rem;
+  top: 70%;
+  left: 33%;
   z-index: 2;
-  display: flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.35rem;
-  background: rgb(7 9 10 / 22%);
+  width: clamp(9.5rem, 32%, 14rem);
+  height: 3.25rem;
+  pointer-events: none;
 }
 
 .about-coordinate-sand__grains {
-  display: grid;
-  grid-template-columns: repeat(8, 5px);
-  grid-template-rows: repeat(7, 5px);
-  gap: 1.2px;
-  padding: 0.2rem;
-  opacity: 0.78;
+  position: absolute;
+  inset: 0 3rem 0 0;
+  opacity: 0.62;
 }
 
 .about-coordinate-sand__grain {
-  position: relative;
-  width: 5px;
-  height: 5px;
+  position: absolute;
+  width: 2px;
+  height: 2px;
 }
 
 .about-coordinate-sand__grain::before,
 .about-coordinate-sand__grain[data-bit="1"]::after {
   position: absolute;
-  width: 1.45px;
-  height: 1.45px;
-  border-radius: 50%;
-  background: #ead5a0;
-  box-shadow: 0 0 1.4px rgb(234 213 160 / 70%);
+  width: 1.55px;
+  height: 1.2px;
+  border-radius: 55% 30% 48% 36%;
+  background: #d8c18e;
   content: "";
 }
 
 .about-coordinate-sand__grain::before {
-  top: 1.6px;
-  left: 1px;
-}
-
-.about-coordinate-sand__grain[data-bit="1"]::before {
-  top: 0.8px;
-  left: 1px;
+  top: 0.2px;
+  left: 0.15px;
 }
 
 .about-coordinate-sand__grain[data-bit="1"]::after {
-  top: 2.7px;
-  left: 3px;
-}
-
-.about-coordinate-sand__grain:nth-child(3n)::before {
-  transform: translateY(-0.35px);
-}
-
-.about-coordinate-sand__grain:nth-child(5n)::before {
-  transform: translate(0.3px, 0.25px);
+  top: 0.9px;
+  left: 1.1px;
+  width: 0.95px;
+  height: 0.85px;
+  opacity: 0.76;
 }
 
 .about-coordinate-sand__decode {
-  position: relative;
-  flex: 0 0 auto;
+  position: absolute;
+  top: 0;
+  right: 0;
+  pointer-events: auto;
 }
 
 .about-coordinate-sand__decode summary {
   display: grid;
-  width: 2.75rem;
-  height: 2.75rem;
+  min-width: 2.75rem;
+  min-height: 2.75rem;
+  padding-inline: 0.4rem;
   place-items: center;
-  border: 1px solid rgb(234 213 160 / 48%);
-  border-radius: 50%;
-  background: rgb(8 10 10 / 44%);
-  color: #f1dfb3;
+  color: #f2dfb0;
   cursor: pointer;
-  font-size: 1.15rem;
+  font-size: 0.68rem;
+  font-weight: 650;
+  letter-spacing: 0.04em;
   line-height: 1;
   list-style: none;
-  transition: border-color 160ms ease, background-color 160ms ease;
+  text-decoration: underline;
+  text-decoration-color: currentColor;
+  text-underline-offset: 0.2rem;
+  text-shadow: 0 1px 2px rgb(12 12 10 / 92%), 0 0 1px rgb(12 12 10 / 78%);
 }
 
 .about-coordinate-sand__decode summary::-webkit-details-marker {
@@ -361,32 +349,30 @@
 }
 
 .about-coordinate-sand__decode summary:hover {
-  border-color: #ead5a0;
-  background: rgb(8 10 10 / 78%);
+  color: #f7e8c3;
+  text-decoration-color: currentColor;
 }
 
 .about-coordinate-sand__decode summary:focus-visible {
-  outline: 2px solid #f1dfb3;
+  outline: 2px solid #f2dfb0;
   outline-offset: 3px;
 }
 
 .about-coordinate-sand__coordinates {
   position: absolute;
   right: 0;
-  top: calc(100% + 0.45rem);
+  bottom: calc(100% + 0.05rem);
   z-index: 2;
-  display: grid;
-  gap: 0.2rem;
+  display: flex;
+  gap: 0.75rem;
   min-width: max-content;
-  padding: 0.65rem 0.75rem;
-  border: 1px solid rgb(234 213 160 / 36%);
-  background: rgb(7 9 10 / 94%);
-  color: #f4ead0;
+  color: #f2dfb0;
   font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
   font-size: 0.68rem;
   letter-spacing: 0.04em;
   line-height: 1.45;
   white-space: nowrap;
+  text-shadow: 0 1px 2px rgb(12 12 10 / 92%), 0 0 1px rgb(12 12 10 / 78%);
 }
 
 .about-traces-layout {
@@ -615,15 +601,19 @@
   }
 
   .about-coordinate-sand {
-    top: auto;
-    right: 0.55rem;
-    bottom: 0.55rem;
+    top: 68%;
+    left: 27%;
+    width: clamp(8.25rem, 43%, 11rem);
+    height: 2.75rem;
   }
 
   .about-coordinate-sand__coordinates {
-    top: auto;
-    right: calc(100% + 0.45rem);
-    bottom: 0;
+    right: 0;
+    bottom: calc(100% + 0.05rem);
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.25rem 0.65rem;
+    max-width: calc(100vw - 2rem);
   }
 
   .about-traces-layout {
