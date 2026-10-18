@@ -1,4 +1,9 @@
 import { teamHistorySources } from "../data/team-history";
+import {
+  encodeCoordinateSandBits,
+  formatCoordinateHemisphere,
+  gijiaBaseCoordinate,
+} from "../lib/about-coordinate-sand";
 import "./about-team-page.css";
 
 type AboutGroup = {
@@ -8,11 +13,20 @@ type AboutGroup = {
   logoWhite: string;
 };
 
-const placePhotos = [
+type PlacePhoto = {
+  image: string;
+  alt: string;
+  caption: string;
+  layout: string;
+  coordinateCode?: boolean;
+};
+
+const placePhotos: PlacePhoto[] = [
   {
     image: "/assets/images/Preparation_for_competition/preparation-01.webp",
     alt: "队员在带有吉甲大师标识的工作空间围绕桌面机器人讨论。",
     caption: "吉甲大师工作空间",
+    coordinateCode: true,
     layout: "about-place-photo--space",
   },
   {
@@ -40,6 +54,33 @@ const placePhotos = [
     layout: "about-place-photo--testing",
   },
 ];
+
+function CoordinateSandCode() {
+  const bits = encodeCoordinateSandBits(gijiaBaseCoordinate);
+
+  return (
+    <div className="about-coordinate-sand">
+      <span className="about-coordinate-sand__grains" aria-hidden="true">
+        {bits.split("").map((bit, index) => (
+          <span
+            className="about-coordinate-sand__grain"
+            data-bit={bit}
+            key={index}
+          />
+        ))}
+      </span>
+      <details className="about-coordinate-sand__decode">
+        <summary aria-label="解读沙粒中的基地坐标">
+          <span aria-hidden="true">⌖</span>
+        </summary>
+        <span className="about-coordinate-sand__coordinates" role="group" aria-label="WGS84 坐标">
+          <span>{formatCoordinateHemisphere(gijiaBaseCoordinate.longitude, "longitude")}</span>
+          <span>{formatCoordinateHemisphere(gijiaBaseCoordinate.latitude, "latitude")}</span>
+        </span>
+      </details>
+    </div>
+  );
+}
 
 const archiveRecords = [
   {
@@ -138,6 +179,7 @@ export function AboutTeamPage({ groups }: { groups: AboutGroup[] }) {
             <figure className={`about-place-photo ${photo.layout}`} key={photo.image}>
               <img src={photo.image} alt={photo.alt} loading="lazy" decoding="async" />
               <figcaption>{photo.caption}</figcaption>
+              {photo.coordinateCode ? <CoordinateSandCode /> : null}
             </figure>
           ))}
         </div>
