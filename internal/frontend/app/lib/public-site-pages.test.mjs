@@ -321,14 +321,21 @@ test("the about page tells a sourced team story through real photos, group marks
   assert.match(aboutPage, /alt=\{photo\.alt\}/);
   assert.doesNotMatch(aboutPage, /about-team-related|about-engineering-flow|about-growth-path/);
   assert.doesNotMatch(aboutPage, /吉甲大师是平台，TARS-Go 是战队/);
-  assert.doesNotMatch(aboutPage, /经纬度|坐标/);
-  assert.match(aboutSources, /没有吉甲基地的可信经纬度/);
+  assert.match(aboutPage, /CoordinateSandCode/);
+  assert.match(aboutPage, /encodeCoordinateSandBits\(gijiaBaseCoordinate\)/);
+  assert.match(aboutPage, /aria-label="解读沙粒中的基地坐标"/);
+  assert.match(aboutPage, /data-bit=\{bit\}/);
+  assert.equal((aboutPage.match(/coordinateCode: true/g) ?? []).length, 1);
+  assert.match(aboutSources, /用户提供的 WGS84 坐标/);
   assert.match(aboutSources, /preparation-01\.webp/);
-  assert.match(aboutSources, /不实现“沙尘坐标”彩蛋/);
+  assert.match(aboutSources, /不把图像本身当作地址证明/);
+  assert.match(aboutSources, /不能证明这张照片拍摄于坐标所指的具体房间/);
   assert.match(aboutStyles, /:root\[data-theme="dark"\] \.about-group-mark__light/);
   assert.match(aboutStyles, /:root\[data-theme="dark"\] \.about-group-mark__dark/);
   assert.match(aboutStyles, /@media \(max-width: 639px\)/);
   assert.match(aboutStyles, /grid-template-columns:\s*repeat\(12, minmax\(0, 1fr\)\)/);
+  assert.match(aboutStyles, /grid-template-columns:\s*repeat\(8, 5px\)/);
+  assert.match(aboutStyles, /grid-template-rows:\s*repeat\(7, 5px\)/);
   assert.match(joinGrowthData, /memberGrowthStages/);
 
   const operationsMark = await readFile(new URL("../../../../public/assets/images/Groups/operations-black.svg", import.meta.url));
