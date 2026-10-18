@@ -1,6 +1,6 @@
 import type { AuthUser } from "~/lib/auth-client";
 
-export type DashboardMenuIconKey = "dashboard" | "people" | "registration" | "settings" | "analytics";
+export type DashboardMenuIconKey = "dashboard" | "people" | "registration" | "settings" | "analytics" | "report";
 
 type DashboardAllowedRoles = readonly string[];
 
@@ -137,8 +137,16 @@ export function getUserDashboardMenu(userOrRole: AuthUser | string): DashboardMe
 	return roleName === "user" ? [...USER_MENU] : [];
 }
 
-export function getCoreDashboardMenu(): DashboardMenuLink[] {
-  return [...CORE_DASHBOARD_MENU];
+export function getCoreDashboardMenu(isOperationsMember = false): DashboardMenuLink[] {
+	return [
+		...CORE_DASHBOARD_MENU,
+		...(isOperationsMember ? [{
+			key: "weekly-reports",
+			label: "工作周报",
+			href: "/dashboard/weekly-reports",
+			iconKey: "report" as const,
+		}] : []),
+	];
 }
 
 export function getVisibleAdminDashboardMenu(userOrRole: AuthUser | string): VisibleDashboardAdminMenuItem[] {

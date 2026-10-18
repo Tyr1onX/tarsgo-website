@@ -18,6 +18,7 @@ export default [
     index("routes/dashboard/index.tsx"),
     route("base", "routes/dashboard/base.tsx"),
     route("users/registrations", "routes/users/registrations.tsx"),
+    route("weekly-reports", "routes/dashboard/weekly-reports.tsx"),
     route("admin", "routes/admin/dashboard.tsx"),
     route("admin/users", "routes/admin/users.tsx"),
     route("admin/recruitment", "routes/admin/recruitment-management.tsx"),

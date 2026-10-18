@@ -15,6 +15,14 @@ test("every role has only the personal-workbench core navigation entry", () => {
   ]);
 });
 
+test("weekly reports are visible only to operations group members", () => {
+  assert.deepEqual(getCoreDashboardMenu(true).map(({ key, label, href }) => ({ key, label, href })), [
+    { key: "personal-workspace", label: "个人工作台", href: "/dashboard" },
+    { key: "weekly-reports", label: "工作周报", href: "/dashboard/weekly-reports" },
+  ]);
+  assert.equal(getCoreDashboardMenu(false).some((item) => item.key === "weekly-reports"), false);
+});
+
 test("recruitment administration exposes email management as a first-level entry", () => {
   const menu = getVisibleAdminDashboardMenu("super_admin");
   assert.equal(menu[0]?.label, "招新总览");

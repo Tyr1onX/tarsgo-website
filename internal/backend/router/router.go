@@ -22,6 +22,7 @@ import (
 	"tarsgo-backend/service/registration"
 	"tarsgo-backend/service/systemconfig"
 	"tarsgo-backend/service/usergroup"
+	"tarsgo-backend/service/weeklyreport"
 	"tarsgo-backend/web"
 )
 
@@ -75,6 +76,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	systemConfigService := systemconfig.NewServiceWithTemplateStore(cfg.Email, templateStore, authService)
 	systemConfigHandler := handler.NewSystemConfigHandler(systemConfigService, systemConfigService)
 	dailySignalHandler := handler.NewDailySignalHandler(dailysignal.NewService(dailysignal.NewGormRepository(db)))
+	weeklyReportHandler := handler.NewWeeklyReportHandler(weeklyreport.NewService(weeklyreport.NewGormRepository(db)))
 
 	engine.GET("/healthz", healthHandler.Get)
 
@@ -160,6 +162,10 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	authenticatedAPI.Use(middleware.RequireAuthenticated(authService))
 	authenticatedAPI.GET("/user-group/confirmation", userGroupMembershipHandler.CurrentState)
 	authenticatedAPI.POST("/user-group/confirmation", userGroupMembershipHandler.Confirm)
+	authenticatedAPI.GET("/weekly-reports", weeklyReportHandler.GetDashboard)
+	authenticatedAPI.GET("/weekly-reports/team", weeklyReportHandler.GetTeamWeek)
+	authenticatedAPI.PUT("/weekly-reports/current", requireSameOriginRequest(cfg), weeklyReportHandler.SaveCurrent)
+	authenticatedAPI.PUT("/weekly-reports/:id", requireSameOriginRequest(cfg), weeklyReportHandler.Update)
 	authenticatedAPI.GET("/recruitment/form", registrationFormHandler.GetRecruitmentPageData)
 	authenticatedAPI.POST("/recruitment/registrations", registrationHandler.SubmitRegistration)
 	authenticatedAPI.PATCH("/recruitment/registrations/:id", registrationHandler.UpdateRecruitmentRegistration)
