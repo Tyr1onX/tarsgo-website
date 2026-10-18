@@ -1,10 +1,4 @@
 import { teamHistorySources } from "../data/team-history";
-import {
-  encodeCoordinateSandBits,
-  formatCoordinateHemisphere,
-  getCoordinateSandPosition,
-  gijiaBaseCoordinate,
-} from "../lib/about-coordinate-sand";
 import "./about-team-page.css";
 
 type AboutGroup = {
@@ -19,7 +13,6 @@ type PlacePhoto = {
   alt: string;
   caption: string;
   layout: string;
-  coordinateCode?: boolean;
 };
 
 const placePhotos: PlacePhoto[] = [
@@ -27,7 +20,6 @@ const placePhotos: PlacePhoto[] = [
     image: "/assets/images/About/about-workspace-de5f097c.webp",
     alt: "队员在带有吉甲大师标识的工作空间围绕桌面机器人讨论。",
     caption: "吉甲大师工作空间",
-    coordinateCode: true,
     layout: "about-place-photo--space",
   },
   {
@@ -55,37 +47,6 @@ const placePhotos: PlacePhoto[] = [
     layout: "about-place-photo--testing",
   },
 ];
-
-function CoordinateSandCode() {
-  const bits = encodeCoordinateSandBits(gijiaBaseCoordinate);
-
-  return (
-    <div className="about-coordinate-sand">
-      <span className="about-coordinate-sand__grains" aria-hidden="true">
-        {bits.split("").map((bit, index) => {
-          const position = getCoordinateSandPosition(index);
-          return (
-            <span
-              className="about-coordinate-sand__grain"
-              data-bit={bit}
-              style={{ left: `${position.x}%`, top: `${position.y}%`, rotate: `${position.rotation}deg` }}
-              key={index}
-            />
-          );
-        })}
-      </span>
-      <details className="about-coordinate-sand__decode">
-        <summary aria-label="解读沙粒中的基地坐标">
-          <span aria-hidden="true">解读</span>
-        </summary>
-        <span className="about-coordinate-sand__coordinates" role="group" aria-label="WGS84 坐标">
-          <span>{formatCoordinateHemisphere(gijiaBaseCoordinate.longitude, "longitude")}</span>
-          <span>{formatCoordinateHemisphere(gijiaBaseCoordinate.latitude, "latitude")}</span>
-        </span>
-      </details>
-    </div>
-  );
-}
 
 const archiveRecords = [
   {
@@ -184,7 +145,6 @@ export function AboutTeamPage({ groups }: { groups: AboutGroup[] }) {
             <figure className={`about-place-photo ${photo.layout}`} key={photo.image}>
               <img src={photo.image} alt={photo.alt} loading="lazy" decoding="async" />
               <figcaption>{photo.caption}</figcaption>
-              {photo.coordinateCode ? <CoordinateSandCode /> : null}
             </figure>
           ))}
         </div>

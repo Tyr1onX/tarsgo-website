@@ -20,6 +20,9 @@ const joinExperience = await readFile(new URL("../components/join-experience.tsx
 const joinStyles = await readFile(new URL("../components/join-experience.css", import.meta.url), "utf8");
 const aboutPage = await readFile(new URL("../components/about-team-page.tsx", import.meta.url), "utf8");
 const aboutStyles = await readFile(new URL("../components/about-team-page.css", import.meta.url), "utf8");
+const microSpecialty = await readFile(new URL("../routes/micro-specialty-low-altitude.tsx", import.meta.url), "utf8");
+const footerCoordinateSandTrace = await readFile(new URL("../components/footer-coordinate-sand-trace.tsx", import.meta.url), "utf8");
+const footerCoordinateSandTraceStyles = await readFile(new URL("../components/footer-coordinate-sand-trace.css", import.meta.url), "utf8");
 const joinGrowthData = await readFile(new URL("../data/join-growth.ts", import.meta.url), "utf8");
 const aboutSources = await readFile(new URL("../../../../docs/about-page-fact-sources.md", import.meta.url), "utf8");
 const historyData = await readFile(new URL("../data/team-history.ts", import.meta.url), "utf8");
@@ -321,13 +324,9 @@ test("the about page tells a sourced team story through real photos, group marks
   assert.match(aboutPage, /alt=\{photo\.alt\}/);
   assert.doesNotMatch(aboutPage, /about-team-related|about-engineering-flow|about-growth-path/);
   assert.doesNotMatch(aboutPage, /吉甲大师是平台，TARS-Go 是战队/);
-  assert.match(aboutPage, /CoordinateSandCode/);
-  assert.match(aboutPage, /encodeCoordinateSandBits\(gijiaBaseCoordinate\)/);
-  assert.match(aboutPage, /aria-label="解读沙粒中的基地坐标"/);
-  assert.match(aboutPage, /data-bit=\{bit\}/);
-  assert.match(aboutPage, /getCoordinateSandPosition\(index\)/);
+  assert.doesNotMatch(aboutPage, /CoordinateSandCode|coordinateCode|解读沙粒|WGS84|data-bit/);
+  assert.doesNotMatch(aboutStyles, /about-coordinate-sand/);
   assert.doesNotMatch(aboutPage, /⌖/);
-  assert.equal((aboutPage.match(/coordinateCode: true/g) ?? []).length, 1);
   assert.match(aboutSources, /用户提供的 WGS84 坐标/);
   assert.match(aboutSources, /preparation-01\.webp/);
   assert.match(aboutSources, /不把图像本身当作地址证明/);
@@ -336,9 +335,6 @@ test("the about page tells a sourced team story through real photos, group marks
   assert.match(aboutStyles, /:root\[data-theme="dark"\] \.about-group-mark__dark/);
   assert.match(aboutStyles, /@media \(max-width: 639px\)/);
   assert.match(aboutStyles, /grid-template-columns:\s*repeat\(12, minmax\(0, 1fr\)\)/);
-  assert.match(aboutStyles, /about-coordinate-sand__grain\[data-bit="1"\]::after/);
-  assert.doesNotMatch(aboutStyles, /about-coordinate-sand__grains\s*\{[^}]*grid-template/);
-  assert.doesNotMatch(aboutStyles, /\.about-coordinate-sand__grain::before,[^{]*\{[^}]*box-shadow:/);
   assert.match(joinGrowthData, /memberGrowthStages/);
 
   const operationsMark = await readFile(new URL("../../../../public/assets/images/Groups/operations-black.svg", import.meta.url));
@@ -363,6 +359,21 @@ test("the about page tells a sourced team story through real photos, group marks
   assert.match(joinStyles, /:root\[data-theme="dark"\] \.join-group-mark__light/);
   assert.match(joinStyles, /:root\[data-theme="dark"\] \.join-group-mark__dark/);
   assert.match(joinStyles, /@media \(prefers-reduced-motion: reduce\)/);
+});
+
+test("the reversible coordinate code is a quiet decorative trace in public footers only", () => {
+  assert.match(home, /<FooterCoordinateSandTrace \/>/);
+  assert.match(microSpecialty, /<FooterCoordinateSandTrace \/>/);
+  assert.match(footerCoordinateSandTrace, /encodeCoordinateSandBits\(gijiaBaseCoordinate\)/);
+  assert.match(footerCoordinateSandTrace, /aria-hidden="true"/);
+  assert.match(footerCoordinateSandTrace, /data-bit=\{bit\}/);
+  assert.match(footerCoordinateSandTrace, /getCoordinateSandPosition\(index\)/);
+  assert.doesNotMatch(footerCoordinateSandTrace, /<button|<details|<summary|解读|WGS84|formatCoordinate/);
+  assert.match(footerCoordinateSandTraceStyles, /var\(--theme-accent\)/);
+  assert.match(footerCoordinateSandTraceStyles, /data-bit="1"\]::after/);
+  assert.match(footerCoordinateSandTraceStyles, /@media \(max-width: 639px\)/);
+  assert.doesNotMatch(footerCoordinateSandTraceStyles, /animation|transition/);
+  assert.match(styles, /\.public-footer-signature/);
 });
 
 test("the join guide shows the verified current cycle and only a truthful next action", () => {

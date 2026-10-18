@@ -1,0 +1,45 @@
+.footer-coordinate-sand-trace {
+  position: relative;
+  display: block;
+  width: min(24rem, 100%);
+  height: 1.5rem;
+  flex: none;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0.42;
+}
+
+.footer-coordinate-sand-trace__grain {
+  position: absolute;
+  width: 2px;
+  height: 2px;
+}
+
+.footer-coordinate-sand-trace__grain::before,
+.footer-coordinate-sand-trace__grain[data-bit="1"]::after {
+  position: absolute;
+  border-radius: 62% 34% 57% 39%;
+  background: var(--theme-accent);
+  content: "";
+}
+
+.footer-coordinate-sand-trace__grain::before {
+  top: 0.3px;
+  left: 0.15px;
+  width: 1.2px;
+  height: 0.95px;
+}
+
+.footer-coordinate-sand-trace__grain[data-bit="1"]::after {
+  top: 0.95px;
+  left: 1px;
+  width: 0.75px;
+  height: 0.7px;
+  opacity: 0.72;
+}
+
+@media (max-width: 639px) {
+  .footer-coordinate-sand-trace {
+    width: min(20rem, 100%);
+  }
+}

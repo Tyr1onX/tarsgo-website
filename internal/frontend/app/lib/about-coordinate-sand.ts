@@ -9,12 +9,11 @@ export const gijiaBaseCoordinate: Coordinate = {
 };
 
 export const coordinateSandCode = {
-  columns: 8,
-  rows: 7,
+  grainCount: 56,
   precision: 4,
 } as const;
 
-const SAND_GRAIN_COUNT = coordinateSandCode.columns * coordinateSandCode.rows;
+const SAND_GRAIN_COUNT = coordinateSandCode.grainCount;
 
 function grainNoise(index: number, salt: number): number {
   let value = Math.imul(index + 1, 0x9e3779b1) ^ Math.imul(salt + 1, 0x85ebca6b);
@@ -32,19 +31,23 @@ export type CoordinateSandPosition = {
   rotation: number;
 };
 
-/** Place each encoded bit as a grain in an irregular, low-profile dust deposit. */
+/** Place encoded bits along an irregular, left-to-right dust trace. */
 export function getCoordinateSandPosition(index: number): CoordinateSandPosition {
   if (!Number.isInteger(index) || index < 0 || index >= SAND_GRAIN_COUNT) {
     throw new RangeError(`coordinate sand position index must be between 0 and ${SAND_GRAIN_COUNT - 1}`);
   }
 
-  const x = 6 + grainNoise(index, 0) * 88;
-  const y = 18 + (1 - (1 - grainNoise(index, 1)) ** 1.45) * 68;
+  const progress = (index + 0.5) / SAND_GRAIN_COUNT;
+  const x = 2 + progress * 96 + (grainNoise(index, 0) - 0.5) * 0.35;
+  const y = 50
+    + Math.sin(progress * Math.PI * 2.1) * 18
+    + Math.sin(progress * Math.PI * 4.4 + 0.7) * 7
+    + (grainNoise(index, 1) - 0.5) * 8;
 
   return {
     x: Number(x.toFixed(2)),
     y: Number(y.toFixed(2)),
-    rotation: Number((grainNoise(index, 2) * 90).toFixed(2)),
+    rotation: Number(((grainNoise(index, 2) - 0.5) * 120).toFixed(2)),
   };
 }
 
