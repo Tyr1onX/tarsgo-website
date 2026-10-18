@@ -5,6 +5,7 @@ import test from "node:test";
 import { ANONYMOUS_SESSION_CACHE_TTL_MS, AuthSessionCache } from "./auth-session-cache.ts";
 
 const rootSource = await readFile(new URL("../root.tsx", import.meta.url), "utf8");
+const routeProgressSource = await readFile(new URL("./route-progress-state.ts", import.meta.url), "utf8");
 const navbarSource = await readFile(new URL("../components/navbar.tsx", import.meta.url), "utf8");
 const authClientSource = await readFile(new URL("./auth-client.ts", import.meta.url), "utf8");
 const dashboardLayoutSource = await readFile(new URL("../routes/dashboard/layout.tsx", import.meta.url), "utf8");
@@ -94,11 +95,12 @@ test("a request from an older session cannot overwrite a newer account", () => {
   assert.deepEqual(cache.getUser(), { id: 2, role: "admin" });
 });
 
-test("global route loading uses the gold progress bar and no legacy full-screen spinner", () => {
+test("global route loading uses delayed segmented lines and no legacy full-screen spinner", () => {
   assert.match(rootSource, /route-progress/);
+  assert.match(rootSource, /route-progress__segment/);
   assert.match(rootSource, /#D0AD69/);
   assert.doesNotMatch(rootSource, /TARS-GO|animate-spin|primary-300/);
-  assert.match(rootSource, /setTimeout\([\s\S]*?120/);
+  assert.match(routeProgressSource, /ROUTE_PROGRESS_REVEAL_DELAY_MS = 120/);
 });
 
 test("the default homepage preloads the small login route without preloading dashboards for guests", () => {

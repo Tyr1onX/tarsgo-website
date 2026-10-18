@@ -362,6 +362,8 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
   return (
     <div className="public-home relative min-h-screen overflow-hidden bg-surface-primary text-fg-primary">
       <div className="relative z-10">
+      <Navbar currentUser={currentUser} authError={authError} />
+      <div className="public-route-content">
       {routePage === "home" ? (
       <section
         id="hero"
@@ -455,8 +457,6 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
         </section>
       )}
 
-      <Navbar currentUser={currentUser} authError={authError} />
-
       {routePage === "home" ? <HomeVisualNavigation imageTreatment="sand" /> : null}
 
       {routePage === "events-and-honors" ? <EventsAndHonorsArchive /> : null}
@@ -481,6 +481,7 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
       {/* Footer */}
       {routePage === "home" ? <HomeSponsorSection /> : null}
       <PublicFooter />
+      </div>
       </div>
     </div>
   );

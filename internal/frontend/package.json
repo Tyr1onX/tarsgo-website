@@ -11,6 +11,7 @@
     "test:micro-specialty": "node --test app/lib/micro-specialty-content.test.mjs",
     "test:public-site": "node --experimental-strip-types --test app/lib/public-site-pages.test.mjs app/lib/home-timeline-layout.test.mjs app/lib/robot-photo-gallery.test.mjs app/lib/about-coordinate-sand.test.mjs app/lib/about-image-assets.test.mjs",
     "test:home-sand-reveal": "node --experimental-strip-types --test app/lib/home-sand-reveal.test.mjs",
+    "test:route-motion": "node --experimental-strip-types --test app/lib/route-progress-state.test.mjs app/lib/public-page-transition.test.mjs app/lib/route-motion.test.mjs",
     "test:progress": "node --test app/lib/recruitment-progress.test.mjs",
     "test:workbench": "node --test app/lib/admin-workbench.test.mjs app/lib/dashboard-navigation.test.mjs",
     "test:email-templates": "node --test app/lib/email-templates.test.mjs",
