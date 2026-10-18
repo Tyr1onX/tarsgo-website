@@ -11,13 +11,14 @@ pass() { echo "PASS: $*"; }
 
 test_high_water_abort_precedes_build() {
   local case_dir="$tmp/guard"
-  mkdir -p "$case_dir/repo/scripts" "$case_dir/bin"
+  mkdir -p "$case_dir/repo/scripts" "$case_dir/repo/public/assets/images" "$case_dir/bin"
   cp "$repo_root/scripts/deploy-production.sh" "$repo_root/scripts/production-safe-cleanup.sh" "$case_dir/repo/scripts/"
+  printf 'fixture asset\n' >"$case_dir/repo/public/assets/images/example.webp"
   git init -q --bare "$case_dir/origin.git"
   git -C "$case_dir/repo" init -q -b main
   git -C "$case_dir/repo" config user.name OpsTest
   git -C "$case_dir/repo" config user.email ops-test@example.invalid
-  git -C "$case_dir/repo" add scripts/deploy-production.sh scripts/production-safe-cleanup.sh
+  git -C "$case_dir/repo" add scripts/deploy-production.sh scripts/production-safe-cleanup.sh public/assets/images/example.webp
   git -C "$case_dir/repo" commit -qm fixture
   git -C "$case_dir/repo" remote add origin "$case_dir/origin.git"
   git -C "$case_dir/repo" push -q -u origin main
@@ -51,6 +52,44 @@ MAKE
   [[ "$(wc -l <"$case_dir/ssh.log")" -eq 3 ]] || fail "deploy performed an unexpected production operation after the disk guard"
   cmp -s "$case_dir/repo/scripts/production-safe-cleanup.sh" "$case_dir/received-helper.sh" || fail "safe cleanup was not the first remote operation"
   pass "85% high-water cleanup failure stops before build or production mutation"
+}
+
+test_missing_public_assets_abort_before_remote_or_build() {
+  local case_dir="$tmp/sparse-public" missing_asset='public/assets/images/example.webp'
+  mkdir -p "$case_dir/repo/scripts" "$case_dir/repo/public/assets/images" "$case_dir/bin"
+  cp "$repo_root/scripts/deploy-production.sh" "$case_dir/repo/scripts/"
+  printf 'fixture asset\n' >"$case_dir/repo/$missing_asset"
+  git init -q --bare "$case_dir/origin.git"
+  git -C "$case_dir/repo" init -q -b main
+  git -C "$case_dir/repo" config user.name OpsTest
+  git -C "$case_dir/repo" config user.email ops-test@example.invalid
+  git -C "$case_dir/repo" add scripts/deploy-production.sh "$missing_asset"
+  git -C "$case_dir/repo" commit -qm fixture
+  git -C "$case_dir/repo" remote add origin "$case_dir/origin.git"
+  git -C "$case_dir/repo" push -q -u origin main
+  git -C "$case_dir/repo" sparse-checkout init --cone
+  git -C "$case_dir/repo" sparse-checkout set scripts
+  cat >"$case_dir/bin/ssh" <<'SSH'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+touch "$MOCK_SSH_MARKER"
+exit 90
+SSH
+  cat >"$case_dir/bin/make" <<'MAKE'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+touch "$MOCK_BUILD_MARKER"
+MAKE
+  chmod +x "$case_dir/bin/ssh" "$case_dir/bin/make"
+  local output status
+  set +e
+  output="$(PATH="$case_dir/bin:$PATH" MOCK_SSH_MARKER="$case_dir/ssh-ran" MOCK_BUILD_MARKER="$case_dir/build-ran" SSH_BIN=ssh MAKE_BIN=make "$case_dir/repo/scripts/deploy-production.sh" 2>&1)"
+  status=$?
+  set -e
+  [[ "$status" -ne 0 ]] || fail "deployment unexpectedly accepted a sparse checkout missing public assets"
+  [[ "$output" == *"tracked public/ build assets are missing"* ]] || fail "sparse-checkout failure message was unclear: $output"
+  [[ ! -e "$case_dir/ssh-ran" && ! -e "$case_dir/build-ran" ]] || fail "deployment contacted production or built from an incomplete checkout"
+  pass "sparse checkout missing tracked public assets stops before production access or build"
 }
 
 make_safe_cleanup_mock_bin() {
@@ -610,6 +649,7 @@ PY
 }
 
 test_high_water_abort_precedes_build
+test_missing_public_assets_abort_before_remote_or_build
 test_safe_cleanup_and_fresh_threshold
 test_retention_keeps_two_releases
 test_retention_reclaims_only_retired_jijia_parent_chain
