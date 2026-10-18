@@ -135,6 +135,13 @@ function MenuIcon({ iconKey }: { iconKey: DashboardMenuIconKey }) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 19.5V12m5 7.5V4.5m5 15v-5m5 5V8.25M3 19.5h18" />
         </svg>
       );
+    case "report":
+      return (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 3.75h5.379c.398 0 .78.158 1.06.44l3.121 3.12c.281.282.44.663.44 1.061v10.004a1.875 1.875 0 0 1-1.875 1.875H8.25a1.875 1.875 0 0 1-1.875-1.875V5.625A1.875 1.875 0 0 1 8.25 3.75Z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 3.75v4.5H18m-8.25 4.5h4.5m-4.5 3h4.5" />
+        </svg>
+      );
     case "dashboard":
     default:
       return (
@@ -296,7 +303,8 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const sidebarResizeStartWidthRef = useRef(SIDEBAR_DEFAULT_WIDTH);
   const { currentUser, groupResolution, groupResolutionError } = loaderData;
   const isSidebarCollapsed = isDesktopViewport && sidebarCollapsed;
-  const coreMenuItems = getCoreDashboardMenu();
+  const isOperationsMember = groupResolution?.groups.some((group) => group.name === "运营组") ?? false;
+  const coreMenuItems = getCoreDashboardMenu(isOperationsMember);
   const userMenuItems = getUserDashboardMenu(currentUser);
   const adminMenuItems = getVisibleAdminDashboardMenu(currentUser);
   const showAdminSection = hasDashboardAdminAccess(currentUser.role.name) && adminMenuItems.length > 0;
