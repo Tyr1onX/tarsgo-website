@@ -123,7 +123,9 @@ cp -- "$repo_root/scripts/production.Dockerfile" "$release_dir/Dockerfile"
 printf '%s\n' "$commit_sha" >"$release_dir/commit.txt"
 (cd "$release_dir" && sha256sum Dockerfile commit.txt tarsgo-backend-linux-amd64 tarsgo-migrate-linux-amd64 >SHA256SUMS)
 
-"$rsync_bin" --archive --chmod=D755,F644 "$release_dir/" "$target:$jijia_root/releases/$release_name/"
+chmod 0755 "$release_dir"
+chmod 0644 "$release_dir/Dockerfile" "$release_dir/SHA256SUMS" "$release_dir/commit.txt" "$release_dir/tarsgo-backend-linux-amd64" "$release_dir/tarsgo-migrate-linux-amd64"
+"$rsync_bin" --archive "$release_dir/" "$target:$jijia_root/releases/$release_name/"
 "$rsync_bin" --archive "$repo_root/scripts/backup-production.sh" "$repo_root/scripts/backup-production.service" "$repo_root/scripts/backup-production.timer" "$target:/tmp/"
 "$ssh_bin" -o BatchMode=yes "$target" bash -s -- "$jijia_root" <<'INSTALL_BACKUP'
 set -Eeuo pipefail
