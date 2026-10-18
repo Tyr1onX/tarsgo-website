@@ -1,7 +1,7 @@
 import { useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { Link } from "react-router";
 
-import { memberGrowthStages } from "../data/about-team";
+import { memberGrowthStages } from "../data/join-growth";
 import "./join-experience.css";
 
 type JoinGroup = {

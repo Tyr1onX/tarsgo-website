@@ -4,7 +4,7 @@ import Home from "./home";
 export function meta({}: Route.MetaArgs) {
   return [
     { title: "认识吉甲 | TARSGO" },
-    { name: "description", content: "通过参赛、备赛、训练、创新实践与校企合作，认识吉林大学吉甲大师双创基地。" },
+    { name: "description", content: "从 2018 年底组队、真实的机器人研发现场，到一代代学生留下的公开方案，认识吉林大学吉甲大师与 TARS-Go。" },
   ];
 }
 
