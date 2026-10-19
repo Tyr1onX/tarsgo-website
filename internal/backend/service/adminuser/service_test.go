@@ -231,6 +231,11 @@ func TestListUsersDefaultsToRecentlyConfirmedAccountsAndCanIncludeAll(t *testing
 }
 
 func TestAccountActivityCutoffUsesBothConfirmationStartAndNinetyDays(t *testing.T) {
+	wantLaunch := time.Date(2026, time.October, 19, 11, 19, 8, 0, accountActivityConfirmationStartedAt.Location())
+	if !accountActivityConfirmationStartedAt.Equal(wantLaunch) {
+		t.Fatalf("confirmation start = %s, want production launch %s", accountActivityConfirmationStartedAt, wantLaunch)
+	}
+
 	launchDayNow := time.Date(2026, time.October, 20, 12, 0, 0, 0, accountActivityConfirmationStartedAt.Location())
 	if got := accountActivityCutoff(launchDayNow); !got.Equal(accountActivityConfirmationStartedAt) {
 		t.Fatalf("cutoff shortly after launch = %s, want launch %s", got, accountActivityConfirmationStartedAt)

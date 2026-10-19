@@ -17,8 +17,9 @@ import (
 	"tarsgo-backend/service/usergroup"
 )
 
-// Release baseline: a fresh credential login at or after this time confirms the account.
-var accountActivityConfirmationStartedAt = time.Date(2026, time.October, 19, 11, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+// Release baseline: the first production health check after this feature went live.
+// A fresh credential login at or after this time confirms the account.
+var accountActivityConfirmationStartedAt = time.Date(2026, time.October, 19, 11, 19, 8, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
 
 func accountActivityCutoff(now time.Time) time.Time {
 	cutoff := now.Add(-90 * 24 * time.Hour)
