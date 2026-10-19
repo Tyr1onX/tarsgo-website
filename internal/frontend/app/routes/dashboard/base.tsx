@@ -2,7 +2,7 @@ import { Navigate, useLocation } from "react-router";
 
 export function meta() {
   return [
-    { title: "每日通信 · 个人工作台 | TARSGO" },
+    { title: "每日通信 | TARSGO" },
     { name: "description", content: "查看个人每日通信与年度信号记录。" },
   ];
 }

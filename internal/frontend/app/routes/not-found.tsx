@@ -1,5 +1,9 @@
 import { Link } from "react-router";
 
+export function meta() {
+  return [{ title: "页面未找到 | TARSGO" }];
+}
+
 export function StatusPage({
   status,
   title,

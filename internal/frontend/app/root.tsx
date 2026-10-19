@@ -17,6 +17,10 @@ import fallbackFaviconHref from "../public/favicon.ico";
 import { ThemeProvider } from "./components/theme-provider";
 import { startPublicPageTransition } from "./lib/public-page-transition";
 
+export function meta() {
+  return [{ title: "吉甲大师战队官网 | TARSGO" }];
+}
+
 const themeBootstrapScript = `(() => {
   let preference = "system";
   try {
