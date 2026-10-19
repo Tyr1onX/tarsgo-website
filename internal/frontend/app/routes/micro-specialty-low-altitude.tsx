@@ -9,7 +9,7 @@ import {
   lowAltitudePractices,
 } from "~/lib/micro-specialty-content";
 
-const title = "低空智能感知与控制微专业 | TARSGO 吉甲大师";
+const title = "低空智能感知与控制微专业 | TARSGO";
 const description =
   "了解吉林大学低空智能感知与控制微专业的课程结构、无人机实践内容和常见问题。";
 

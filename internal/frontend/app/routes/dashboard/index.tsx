@@ -4,6 +4,10 @@ import { DailySignalWorkspace } from "~/components/daily-signal-workspace";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import "./dashboard-home.css";
 
+export function meta() {
+  return [{ title: "个人工作台 | TARSGO" }];
+}
+
 export default function DashboardIndex() {
   const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
   const displayName = currentUser.nickname?.trim() || currentUser.email;

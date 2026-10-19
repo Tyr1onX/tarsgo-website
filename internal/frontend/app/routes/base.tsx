@@ -10,6 +10,10 @@ import {
   type AuthUser,
 } from "~/lib/auth-client";
 
+export function meta() {
+  return [{ title: "每日通信 | TARSGO" }];
+}
+
 function getInitialUser() {
   return getCachedCurrentUser() ?? (hasKnownAnonymousSession() ? null : undefined);
 }

@@ -28,7 +28,7 @@ type TemplateKey = (typeof templateOptions)[number]["key"];
 type EditorField = "subject" | "body";
 
 export function meta() {
-  return [{ title: "邮件管理 | 吉甲大师管理后台" }];
+  return [{ title: "邮件管理 | TARSGO" }];
 }
 
 export default function EmailManagementPage() {

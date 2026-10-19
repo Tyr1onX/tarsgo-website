@@ -31,7 +31,7 @@ import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 
 export function meta() {
   return [
-    { title: "报名处理 | TARSGO 管理后台" },
+    { title: "报名处理 | TARSGO" },
     { name: "description", content: "TARSGO 招新候选人处理" },
   ];
 }
