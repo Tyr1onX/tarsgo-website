@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { canAccessDashboardAdminPath, getCoreDashboardMenu, getDefaultDashboardPath, getUserDashboardMenu, getVisibleAdminDashboardMenu, isDashboardMenuPathActive } from "./dashboard-navigation.ts";
+import { canAccessDashboardAdminPath, getCoreDashboardMenu, getDefaultDashboardPath, getUserDashboardMenu, getVisibleAdminDashboardMenu, hasTechnicalGroupAccess, isDashboardMenuPathActive } from "./dashboard-navigation.ts";
 
 test("every authenticated role opens the same personal workbench", () => {
   assert.equal(getDefaultDashboardPath("user"), "/dashboard");
@@ -53,6 +53,22 @@ test("member navigation keeps recruitment and exposes leave while admin tools st
   assert.deepEqual(adminMenu[0]?.children.map(({ key }) => key), ["admin-panel", "candidate-processing"]);
   assert.deepEqual(adminMenu[1]?.children.map(({ key }) => key), ["leave-management"]);
   assert.equal(getVisibleAdminDashboardMenu("user").length, 0);
+});
+
+test("assignment navigation and routes require a technical group membership", () => {
+  for (const name of ["机械组", "电控组", "视觉组", "AI组"]) {
+    assert.equal(hasTechnicalGroupAccess([{ name }]), true, name);
+  }
+  assert.equal(hasTechnicalGroupAccess([{ name: "运营组" }]), false);
+  assert.equal(getUserDashboardMenu("user", true)[1]?.label, "我的作业");
+  assert.deepEqual(getUserDashboardMenu("admin", true).map(({ label }) => label), ["我的作业"]);
+  assert.deepEqual(getUserDashboardMenu("super_admin", false), []);
+  assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/training/assignments", false), false);
+  assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/training/assignments", true), true);
+  assert.equal(canAccessDashboardAdminPath("user", "/dashboard/admin/training/submissions", true), false);
+  const trainingMenu = getVisibleAdminDashboardMenu("admin", true).find(({ key }) => key === "newcomer-training");
+  assert.deepEqual(trainingMenu?.children.map(({ label }) => label), ["作业管理", "提交记录"]);
+  assert.equal(getVisibleAdminDashboardMenu("admin", false).some(({ key }) => key === "newcomer-training"), false);
 });
 
 test("nested admin routes keep their parent submenu active without highlighting the overview", () => {

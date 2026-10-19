@@ -14,6 +14,7 @@ import (
 	"tarsgo-backend/handler"
 	"tarsgo-backend/middleware"
 	"tarsgo-backend/service/adminuser"
+	"tarsgo-backend/service/assignment"
 	"tarsgo-backend/service/auth"
 	"tarsgo-backend/service/dailysignal"
 	"tarsgo-backend/service/email"
@@ -67,6 +68,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	authService := auth.NewService(cfg, db)
 	authHandler := handler.NewAuthHandler(authService)
 	adminUserHandler := handler.NewAdminUserHandler(adminuser.NewService(adminuser.NewRepository(db)))
+	assignmentHandler := handler.NewAssignmentHandler(assignment.NewService(db))
 	userGroupHandler := handler.NewUserGroupHandler(usergroup.NewService(usergroup.NewRepository(db)))
 	userGroupMembershipHandler := handler.NewUserGroupMembershipHandler(usergroup.NewMembershipService(db))
 	registrationFormHandler := handler.NewRegistrationFormHandler(registration.NewRegistrationFormService(db))
@@ -140,8 +142,21 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	leaveMemberAPI.POST("/camp-leave/events/:id/leave", requireSameOriginRequest(cfg), leaveHandler.LeaveCampEvent)
 	leaveMemberAPI.GET("/camp-leave/events/:id/document", leaveHandler.MemberCampDocument)
 
+	assignmentMemberAPI := api.Group("")
+	assignmentMemberAPI.Use(middleware.RequireAuthenticated(authService))
+	assignmentMemberAPI.GET("/assignments", assignmentHandler.ListMine)
+	assignmentMemberAPI.GET("/assignments/:id", assignmentHandler.GetMine)
+	assignmentMemberAPI.POST("/assignments/:id/submissions", requireSameOriginRequest(cfg), assignmentHandler.Submit)
+	assignmentMemberAPI.GET("/assignment-files/:id", assignmentHandler.OpenFile)
+
 	adminAPI := api.Group("/admin")
 	adminAPI.Use(middleware.RequireAdmin(authService))
+	adminAPI.GET("/assignment-members", assignmentHandler.ListGroupMembers)
+	adminAPI.GET("/assignments", assignmentHandler.ListAdmin)
+	adminAPI.POST("/assignments", requireSameOriginRequest(cfg), assignmentHandler.Create)
+	adminAPI.GET("/assignments/:id", assignmentHandler.GetAdmin)
+	adminAPI.PATCH("/assignments/:id", requireSameOriginRequest(cfg), assignmentHandler.Update)
+	adminAPI.POST("/assignments/submissions/:id/reviews", requireSameOriginRequest(cfg), assignmentHandler.Review)
 	adminAPI.GET("/user-groups/options", userGroupHandler.ListGroupOptions)
 	adminAPI.GET("/admission-qr/:filename", userGroupHandler.OpenAdmissionQRCode)
 	adminAPI.GET("/school-leave/summary", leaveHandler.AdminSchoolSummary)

@@ -62,6 +62,15 @@ const USER_MENU: readonly DashboardMenuLink[] = [
   },
 ];
 
+const ASSIGNMENT_MENU_ITEM: DashboardMenuLink = {
+  key: "my-assignments",
+  label: "我的作业",
+  href: "/dashboard/assignments",
+  iconKey: "report",
+};
+
+const TECHNICAL_GROUP_NAMES = new Set(["机械组", "电控组", "视觉组", "AI组"]);
+
 const CORE_DASHBOARD_MENU: readonly DashboardMenuLink[] = [
   {
     key: "personal-workspace",
@@ -104,6 +113,25 @@ const ADMIN_MENU: readonly DashboardMenuDefinition[] = [
     ],
   },
   {
+    key: "newcomer-training",
+    label: "新人培养",
+    iconKey: "report",
+    children: [
+      {
+        key: "assignment-management",
+        label: "作业管理",
+        href: "/dashboard/admin/training/assignments",
+        allowedRoles: ["admin", "super_admin"],
+      },
+      {
+        key: "assignment-submissions",
+        label: "提交记录",
+        href: "/dashboard/admin/training/submissions",
+        allowedRoles: ["admin", "super_admin"],
+      },
+    ],
+  },
+  {
     key: "member-management",
     label: "成员管理",
     iconKey: "people",
@@ -141,8 +169,11 @@ function isDashboardMenuLinkDefinition(
   return typeof item.href === "string";
 }
 
-function getAccessibleAdminPaths(roleName: string) {
+function getAccessibleAdminPaths(roleName: string, hasTechnicalGroup = false) {
   return ADMIN_MENU.flatMap((item) => {
+    if (item.key === "newcomer-training" && !hasTechnicalGroup) {
+      return [];
+    }
     if (isDashboardMenuLinkDefinition(item)) {
       return isRoleAllowed(roleName, item.allowedRoles) ? [item.href] : [];
     }
@@ -153,9 +184,17 @@ function getAccessibleAdminPaths(roleName: string) {
   });
 }
 
-export function getUserDashboardMenu(userOrRole: AuthUser | string): DashboardMenuLink[] {
-	const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
-	return roleName === "user" ? [...USER_MENU] : [];
+export function hasTechnicalGroupAccess(groups: readonly { name: string }[] | null | undefined) {
+  return Boolean(groups?.some((group) => TECHNICAL_GROUP_NAMES.has(group.name)));
+}
+
+export function getUserDashboardMenu(userOrRole: AuthUser | string, hasTechnicalGroup = false): DashboardMenuLink[] {
+  const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
+  const menu = roleName === "user" ? [...USER_MENU] : [];
+  if (hasTechnicalGroup && ["user", "admin", "super_admin"].includes(roleName)) {
+    menu.splice(roleName === "user" ? 1 : 0, 0, ASSIGNMENT_MENU_ITEM);
+  }
+  return menu;
 }
 
 export function getCoreDashboardMenu(isOperationsMember = false): DashboardMenuLink[] {
@@ -170,9 +209,9 @@ export function getCoreDashboardMenu(isOperationsMember = false): DashboardMenuL
 	];
 }
 
-export function getVisibleAdminDashboardMenu(userOrRole: AuthUser | string): VisibleDashboardAdminMenuItem[] {
+export function getVisibleAdminDashboardMenu(userOrRole: AuthUser | string, hasTechnicalGroup = false): VisibleDashboardAdminMenuItem[] {
   const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
-  const accessiblePaths = getAccessibleAdminPaths(roleName);
+  const accessiblePaths = getAccessibleAdminPaths(roleName, hasTechnicalGroup);
   const visibleItems: VisibleDashboardAdminMenuItem[] = [];
 
   for (const item of ADMIN_MENU) {
@@ -220,9 +259,9 @@ export function getDefaultDashboardPath(_roleName: string) {
   return "/dashboard";
 }
 
-export function canAccessDashboardAdminPath(userOrRole: AuthUser | string, pathname: string) {
+export function canAccessDashboardAdminPath(userOrRole: AuthUser | string, pathname: string, hasTechnicalGroup = false) {
   const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
-  const accessiblePaths = getAccessibleAdminPaths(roleName);
+  const accessiblePaths = getAccessibleAdminPaths(roleName, hasTechnicalGroup);
   return accessiblePaths.some(
     (href) => href === "/dashboard/admin"
       ? pathname === href

@@ -22,6 +22,7 @@ export default [
     route("users/registrations", "routes/users/registrations.tsx"),
     route("leave", "routes/leave-workbench.tsx"),
     route("weekly-reports", "routes/dashboard/weekly-reports.tsx"),
+    route("assignments", "routes/dashboard/assignments.tsx"),
     route("admin", "routes/admin/dashboard.tsx"),
     route("admin/users", "routes/admin/users.tsx"),
     route("admin/recruitment", "routes/admin/recruitment-management.tsx"),
@@ -29,6 +30,8 @@ export default [
     route("admin/registrations", "routes/admin/registrations.tsx"),
     route("admin/email", "routes/admin/email-management.tsx"),
     route("admin/leave", "routes/admin/leave-workbench.tsx"),
+    route("admin/training/assignments", "routes/admin/assignment-management.tsx"),
+    route("admin/training/submissions", "routes/admin/assignment-submissions.tsx"),
   ]),
   route("*", "routes/not-found.tsx"),
 ] satisfies RouteConfig;
