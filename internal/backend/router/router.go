@@ -78,7 +78,8 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	systemConfigHandler := handler.NewSystemConfigHandler(systemConfigService, systemConfigService)
 	dailySignalHandler := handler.NewDailySignalHandler(dailysignal.NewService(dailysignal.NewGormRepository(db)))
 	weeklyReportHandler := handler.NewWeeklyReportHandler(weeklyreport.NewService(weeklyreport.NewGormRepository(db)))
-	leaveHandler := handler.NewLeaveHandler(leave.NewService(db))
+	leaveService := leave.NewService(db)
+	leaveHandler := handler.NewLeaveHandler(leaveService)
 
 	engine.GET("/healthz", healthHandler.Get)
 
@@ -115,8 +116,13 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	api.GET("/camp-leave/public/:token", leaveHandler.PublicCampEvent)
 	api.POST("/camp-leave/public/:token/participants", requireSameOriginRequest(cfg), leaveHandler.PublicJoinCampEvent)
 
+	leaveAccessAPI := api.Group("")
+	leaveAccessAPI.Use(middleware.RequireAuthenticated(authService))
+	leaveAccessAPI.GET("/leave/access", leaveHandler.GetLeaveAccess)
+	leaveAccessAPI.POST("/leave/access/request", requireSameOriginRequest(cfg), leaveHandler.RequestLeaveAccess)
+
 	leaveMemberAPI := api.Group("")
-	leaveMemberAPI.Use(middleware.RequireAuthenticated(authService))
+	leaveMemberAPI.Use(middleware.RequireAuthenticated(authService), middleware.RequireLeaveAccess(leaveService))
 	leaveMemberAPI.GET("/leave/profile", leaveHandler.GetProfile)
 	leaveMemberAPI.PUT("/leave/profile", requireSameOriginRequest(cfg), leaveHandler.SaveProfile)
 	leaveMemberAPI.GET("/school-leave/requests", leaveHandler.MyRequests)
@@ -139,6 +145,8 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	adminAPI.GET("/user-groups/options", userGroupHandler.ListGroupOptions)
 	adminAPI.GET("/admission-qr/:filename", userGroupHandler.OpenAdmissionQRCode)
 	adminAPI.GET("/school-leave/summary", leaveHandler.AdminSchoolSummary)
+	adminAPI.GET("/leave/access-requests", leaveHandler.ListPendingLeaveAccessRequests)
+	adminAPI.PATCH("/leave/access-requests/:id", requireSameOriginRequest(cfg), leaveHandler.ReviewLeaveAccessRequest)
 	adminAPI.GET("/school-leave/requests", leaveHandler.AdminSchoolRequests)
 	adminAPI.POST("/school-leave/admin-records/read", requireSameOriginRequest(cfg), leaveHandler.ReadAdminRecord)
 	adminAPI.GET("/school-leave/runs", leaveHandler.AdminSchoolRuns)
