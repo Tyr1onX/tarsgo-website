@@ -50,6 +50,51 @@ func TestAdminCanUseAdminRoutesButNotSuperAdminConfiguration(t *testing.T) {
 	}
 }
 
+func TestLeaveAccessReviewAndAccountDetailsAreSuperAdminOnly(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	request := func(role, method, path string) int {
+		engine := gin.New()
+		adminAPI := engine.Group("/api/admin")
+		adminAPI.Use(RequireAdmin(roleSessionReader{role: role}))
+		adminAPI.GET("/school-leave/summary", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+		superAdminAPI := adminAPI.Group("")
+		superAdminAPI.Use(RequireSuperAdmin(roleSessionReader{role: role}))
+		superAdminAPI.GET("/leave/access-requests", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+		superAdminAPI.PATCH("/leave/access-requests/:id", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+		superAdminAPI.GET("/users/:id", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+
+		req := httptest.NewRequest(method, path, nil)
+		req.AddCookie(&http.Cookie{Name: "session", Value: "test-token"})
+		response := httptest.NewRecorder()
+		engine.ServeHTTP(response, req)
+		return response.Code
+	}
+
+	for _, role := range []string{"user", "admin"} {
+		for _, route := range []struct{ method, path string }{
+			{http.MethodGet, "/api/admin/leave/access-requests"},
+			{http.MethodPatch, "/api/admin/leave/access-requests/8"},
+			{http.MethodGet, "/api/admin/users/22"},
+		} {
+			if got := request(role, route.method, route.path); got != http.StatusForbidden {
+				t.Errorf("%s %s for role %q status = %d, want %d", route.method, route.path, role, got, http.StatusForbidden)
+			}
+		}
+	}
+	if got := request("admin", http.MethodGet, "/api/admin/school-leave/summary"); got != http.StatusNoContent {
+		t.Fatalf("ordinary admin leave management status = %d, want %d", got, http.StatusNoContent)
+	}
+	for _, route := range []struct{ method, path string }{
+		{http.MethodGet, "/api/admin/leave/access-requests"},
+		{http.MethodPatch, "/api/admin/leave/access-requests/8"},
+		{http.MethodGet, "/api/admin/users/22"},
+	} {
+		if got := request("super_admin", route.method, route.path); got != http.StatusNoContent {
+			t.Errorf("%s %s for super_admin status = %d, want %d", route.method, route.path, got, http.StatusNoContent)
+		}
+	}
+}
+
 type leaveAccessStub struct {
 	allowed bool
 	err     error

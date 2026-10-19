@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 
 import { ModalShell } from "~/components/modal-shell";
 import { ApiError } from "~/lib/api-client";
@@ -55,6 +55,8 @@ function recruitmentStatusLabel(status: string) {
 
 export default function AccountManagement() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedUserId = searchParams.get("userId");
   const [roles, setRoles] = useState<AdminUserRoleOption[]>([]);
   const [groupOptions, setGroupOptions] = useState<AdminUserGroupOption[]>([]);
   const [items, setItems] = useState<AdminUserListItem[]>([]);
@@ -133,10 +135,10 @@ export default function AccountManagement() {
     setError("");
   }
 
-  async function openEdit(item: AdminUserListItem) {
+  async function openAccount(userId: number) {
     setError("");
     try {
-      const detail = await getAdminUser(item.id);
+      const detail = await getAdminUser(userId);
       setEditing(detail);
       setEditingIsNew(false);
       setDraft({ name: detail.name, email: detail.email, roleId: String(detail.role.id), status: String(detail.status), password: "" });
@@ -149,6 +151,19 @@ export default function AccountManagement() {
     }
   }
 
+  async function openEdit(item: AdminUserListItem) {
+    await openAccount(item.id);
+  }
+
+  useEffect(() => {
+    if (!requestedUserId) return;
+    if (!/^[1-9]\d*$/.test(requestedUserId) || !Number.isSafeInteger(Number(requestedUserId))) {
+      setError("账号编号无效");
+      return;
+    }
+    void openAccount(Number(requestedUserId));
+  }, [requestedUserId]);
+
   function closeEditor() {
     setEditing(null);
     setEditingIsNew(false);
@@ -156,6 +171,11 @@ export default function AccountManagement() {
     setPreferredGroupId("");
     setUserGroupId("");
     setGroupRoleDrafts({});
+    if (requestedUserId) {
+      const nextSearchParams = new URLSearchParams(searchParams);
+      nextSearchParams.delete("userId");
+      setSearchParams(nextSearchParams, { replace: true });
+    }
   }
 
   async function saveUserGroup(nextGroupID: number | null = userGroupId ? Number(userGroupId) : null) {
@@ -355,6 +375,10 @@ export default function AccountManagement() {
             {editingIsNew ? <label className="block text-xs text-[var(--admin-muted)]">初始密码<input required minLength={8} type="password" autoComplete="new-password" value={draft.password} onChange={(event) => setDraft((current) => ({ ...current, password: event.target.value }))} className="admin-field mt-1" /></label> : <label className="block text-xs text-[var(--admin-muted)]">账号状态<select value={draft.status} onChange={(event) => setDraft((current) => ({ ...current, status: event.target.value }))} className="admin-field mt-1"><option value="1">启用</option><option value="0">停用</option></select></label>}
             {!editingIsNew && editing ? (
               <div className="space-y-4 border-t border-[var(--admin-border-subtle)] pt-4">
+                <section className="space-y-2" aria-label="账号信息">
+                  <h3 className="text-sm font-semibold text-[var(--admin-text)]">账号信息</h3>
+                  <p className="text-xs text-[var(--admin-muted)]">账号 ID：{editing.id} · 最近登录：{formatDate(editing.lastLoginAt)}</p>
+                </section>
                 <section className="space-y-2" aria-label="实名资料">
                   <h3 className="text-sm font-semibold text-[var(--admin-text)]">实名资料</h3>
                   <p className="text-xs text-[var(--admin-muted)]">真实姓名：{editing.realName || "未填写"} · 手机号：{editing.phone || "未填写"}</p>

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { useOutletContext } from "react-router";
+import { Link, useOutletContext } from "react-router";
 
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { downloadLeaveFile, leaveClient, type CampDetail, type CampEvent, type CollegeOption, type DailyEntry, type DailyWindow, type LeaveAccessRequest, type LeaveAccessState, type LeaveProfile, type LeaveRequest, type SchoolRun } from "~/lib/leave-client";
@@ -25,6 +25,7 @@ export function meta() { return [{ title: "请假工作台 | TARSGO" }, { name: 
 export default function LeaveWorkbench() {
   const { currentUser, refreshLeaveUnreadCount } = useOutletContext<DashboardLayoutOutletContext>();
   const isAdmin = currentUser.role.name === "admin" || currentUser.role.name === "super_admin";
+  const isSuperAdmin = currentUser.role.name === "super_admin";
   const [tab, setTab] = useState<Tab>("daily");
   const [accessState, setAccessState] = useState<LeaveAccessState | null>(null);
   const [accessRequests, setAccessRequests] = useState<LeaveAccessRequest[]>([]);
@@ -64,7 +65,7 @@ export default function LeaveWorkbench() {
       }
       const [nextProfile, nextColleges, nextDaily, nextAccessRequests] = await Promise.all([
         leaveClient.profile(), leaveClient.colleges(), isAdmin ? leaveClient.dailyRecords() : leaveClient.myDailyRecords(),
-        isAdmin ? leaveClient.pendingLeaveAccessRequests() : Promise.resolve([]),
+        isSuperAdmin ? leaveClient.pendingLeaveAccessRequests() : Promise.resolve([]),
       ]);
       setProfile(nextProfile);
       setProfileDraft(nextProfile ? { name: nextProfile.name, studentId: nextProfile.studentId, collegeCode: nextProfile.collegeCode, participantType: nextProfile.participantType } : { name: "", studentId: "", collegeCode: "", participantType: "other" });
@@ -169,11 +170,11 @@ export default function LeaveWorkbench() {
     </section> : null}
 
     {!loading && (isAdmin || accessState?.status === "approved") ? <>
-      {isAdmin ? <section className="admin-panel space-y-4 p-4 sm:p-5" aria-labelledby="leave-access-requests-title">
+      {isSuperAdmin ? <section className="admin-panel space-y-4 p-4 sm:p-5" aria-labelledby="leave-access-requests-title">
         <div className="admin-section-heading"><h2 id="leave-access-requests-title">请假开通申请</h2></div>
         <div className="divide-y divide-[var(--admin-border-subtle)]">{accessRequests.map((request) => <article key={request.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
           <div><strong className="text-sm">{request.userName || request.email}</strong><p className="mt-1 text-xs text-[var(--admin-muted)]">{request.email} · {dateText(request.requestedAt)}</p></div>
-          <div className="flex gap-2"><button type="button" className={`${button} admin-button--primary`} disabled={busy} onClick={() => void reviewLeaveAccess(request, "approved")}>批准</button><button type="button" className={`${button} admin-button--quiet`} disabled={busy} onClick={() => void reviewLeaveAccess(request, "rejected")}>拒绝</button></div>
+          <div className="flex flex-wrap gap-2"><Link to={`/dashboard/admin/users?userId=${request.userId}`} className={`${button} admin-button--secondary`}>查看账号</Link><button type="button" className={`${button} admin-button--primary`} disabled={busy} onClick={() => void reviewLeaveAccess(request, "approved")}>批准</button><button type="button" className={`${button} admin-button--quiet`} disabled={busy} onClick={() => void reviewLeaveAccess(request, "rejected")}>拒绝</button></div>
         </article>)}{!accessRequests.length ? <p className="py-2 text-sm text-[var(--admin-muted)]">暂无待审核申请。</p> : null}</div>
       </section> : null}
       <section className="admin-panel space-y-4 p-4 sm:p-5" aria-labelledby="leave-profile-title">
