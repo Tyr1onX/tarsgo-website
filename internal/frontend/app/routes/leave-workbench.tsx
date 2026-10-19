@@ -6,6 +6,7 @@ import { downloadLeaveFile, leaveClient, type CampDetail, type CampEvent, type C
 
 type Tab = "daily" | "camp" | "records";
 type LeaveProfileDraft = Omit<LeaveProfile, "identityLocked">;
+const showExtendedLeaveFeatures = false;
 const inputClass = "admin-field";
 const button = "admin-button admin-button--small";
 
@@ -19,7 +20,7 @@ function statusText(value: string) {
 }
 function publicURL(path?: string) { return path && typeof window !== "undefined" ? new URL(path, window.location.origin).toString() : ""; }
 
-export function meta() { return [{ title: "请假工作台 | TARSGO" }, { name: "description", content: "日常请假、集中请假与请假记录" }]; }
+export function meta() { return [{ title: "请假工作台 | TARSGO" }, { name: "description", content: "日常请假" }]; }
 
 export default function LeaveWorkbench() {
   const { currentUser, refreshLeaveUnreadCount } = useOutletContext<DashboardLayoutOutletContext>();
@@ -52,18 +53,24 @@ export default function LeaveWorkbench() {
   async function load() {
     setLoading(true); setError("");
     try {
-      const [nextProfile, nextColleges, nextRequests, nextWindows, nextDaily, nextCamps] = await Promise.all([
-        leaveClient.profile(), leaveClient.colleges(), leaveClient.schoolRequests(), leaveClient.dailyWindows(), leaveClient.myDailyRecords(), leaveClient.campEvents(),
+      const [nextProfile, nextColleges, nextDaily] = await Promise.all([
+        leaveClient.profile(), leaveClient.colleges(), isAdmin ? leaveClient.dailyRecords() : leaveClient.myDailyRecords(),
       ]);
       setProfile(nextProfile);
       setProfileDraft(nextProfile ? { name: nextProfile.name, studentId: nextProfile.studentId, collegeCode: nextProfile.collegeCode, participantType: nextProfile.participantType } : { name: "", studentId: "", collegeCode: "", participantType: "other" });
-      setColleges(nextColleges); setRequests(nextRequests); setMyWindows(nextWindows); setDailyEntries(nextDaily); setMyCampEvents(nextCamps);
-      if (isAdmin) {
+      setColleges(nextColleges); setDailyEntries(nextDaily.filter((entry) => entry.startAt && entry.endAt));
+      if (showExtendedLeaveFeatures) {
+        const [nextRequests, nextWindows, nextCamps] = await Promise.all([
+          leaveClient.schoolRequests(), leaveClient.dailyWindows(), leaveClient.campEvents(),
+        ]);
+        setRequests(nextRequests); setMyWindows(nextWindows); setMyCampEvents(nextCamps);
+      }
+      if (isAdmin && showExtendedLeaveFeatures) {
         const [nextAdminRequests, nextRuns, nextAdminWindows, nextAdminDaily, nextAdminCamps] = await Promise.all([
           leaveClient.adminSchoolRequests(), leaveClient.schoolRuns(), leaveClient.adminDailyWindows(), leaveClient.dailyRecords(), leaveClient.adminCampEvents(),
         ]);
         setAdminRequests(nextAdminRequests); setRuns(nextRuns); setRunReasonDraft(Object.fromEntries(nextRuns.map((run) => [run.id, run.reason]))); setAdminWindows(nextAdminWindows); setDailyEntries(nextAdminDaily); setCampEvents(nextAdminCamps);
-      } else { setCampEvents(nextCamps); }
+      }
     } catch (reason) { setError(reason instanceof Error ? reason.message : "请假工作台暂时无法加载"); }
     finally { setLoading(false); }
   }
@@ -129,15 +136,13 @@ export default function LeaveWorkbench() {
 
   return <div className="admin-design space-y-5">
     <header className="admin-page-header">
-      <div className="admin-eyebrow">吉甲 · 管理工作台</div>
       <h1 className="admin-page-title">请假工作台</h1>
-      <p className="admin-page-description">日常材料、集中活动报名与历史记录都在这里办理。</p>
     </header>
 
-    <nav aria-label="请假分类" className="flex flex-wrap gap-2 border-b border-[var(--admin-border-subtle)] pb-3">
-      {([ ["daily", "日常请假"], ["camp", "集中请假"], ...(isAdmin ? [["records", "请假记录"]] : []) ] as Array<[Tab, string]>).map(([key, label]) =>
+    {showExtendedLeaveFeatures ? <nav aria-label="请假分类" className="flex flex-wrap gap-2 border-b border-[var(--admin-border-subtle)] pb-3">
+      {([["daily", "日常请假"], ["camp", "集中请假"], ...(isAdmin ? [["records", "请假记录"]] : [])] as Array<[Tab, string]>).map(([key, label]) =>
         <button key={key} type="button" aria-current={tab === key ? "page" : undefined} onClick={() => setTab(key)} className={`${button} ${tab === key ? "admin-button--primary" : "admin-button--secondary"}`}>{label}</button>)}
-    </nav>
+    </nav> : null}
 
     {error ? <p role="alert" className="rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">{error}</p> : null}
     {notice ? <p role="status" className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">{notice}</p> : null}
@@ -145,17 +150,21 @@ export default function LeaveWorkbench() {
 
     {!loading ? <>
       <section className="admin-panel space-y-4 p-4 sm:p-5" aria-labelledby="leave-profile-title">
-        <div className="admin-section-heading"><div><h2 id="leave-profile-title">请假资料</h2><p>此资料仅用于生成请假材料，与登录账号和招新权限分开保存。</p></div>{profile?.identityLocked ? <span className="admin-status">身份信息已锁定</span> : null}</div>
-        <form onSubmit={saveProfile} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <label className="admin-field-label">姓名<input className={inputClass} required minLength={2} maxLength={50} value={profileDraft.name} readOnly={Boolean(profile?.identityLocked)} onChange={(e) => setProfileDraft({ ...profileDraft, name: e.target.value })} /></label>
-          <label className="admin-field-label">学号<input className={inputClass} required inputMode="numeric" pattern="[0-9]{8}" maxLength={8} value={profileDraft.studentId} readOnly={Boolean(profile?.identityLocked)} onChange={(e) => setProfileDraft({ ...profileDraft, studentId: e.target.value })} /></label>
+        <div className="admin-section-heading"><h2 id="leave-profile-title">请假资料</h2></div>
+        {profile ? <dl className="grid gap-3 sm:grid-cols-3">
+          <div><dt className="admin-field-label">姓名</dt><dd className="text-sm">{profile.name}</dd></div>
+          <div><dt className="admin-field-label">学号</dt><dd className="text-sm">{profile.studentId}</dd></div>
+          <div><dt className="admin-field-label">学院</dt><dd className="text-sm">{colleges.find((college) => college.code === profile.collegeCode)?.name ?? profile.collegeCode}</dd></div>
+        </dl> : <form onSubmit={saveProfile} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="admin-field-label">姓名<input className={inputClass} required minLength={2} maxLength={50} value={profileDraft.name} onChange={(e) => setProfileDraft({ ...profileDraft, name: e.target.value })} /></label>
+          <label className="admin-field-label">学号<input className={inputClass} required inputMode="numeric" pattern="[0-9]{8}" maxLength={8} value={profileDraft.studentId} onChange={(e) => setProfileDraft({ ...profileDraft, studentId: e.target.value })} /></label>
           <label className="admin-field-label">学院<select className={inputClass} required value={profileDraft.collegeCode} onChange={(e) => setProfileDraft({ ...profileDraft, collegeCode: e.target.value })}><option value="">选择学院</option>{colleges.map((college) => <option key={college.code} value={college.code}>{college.name}</option>)}</select></label>
           <div className="flex items-end"><button className={`${button} admin-button--primary`} disabled={busy}>保存请假资料</button></div>
-        </form>
+        </form>}
       </section>
 
       {tab === "daily" ? <div className="space-y-4">
-        <section className="admin-panel space-y-4 p-4 sm:p-5">
+        {showExtendedLeaveFeatures ? <section className="admin-panel space-y-4 p-4 sm:p-5">
           <div className="admin-section-heading"><div><h2>学校请假申请</h2><p>申请经管理员汇总后生成学校材料；待汇总前可以修改或撤回。</p></div></div>
           <form onSubmit={(e) => { e.preventDefault(); void runAction(() => leaveClient.createSchoolRequest(schoolDraft), "学校请假申请已提交。"); }} className="grid gap-3 sm:grid-cols-2">
             <label className="admin-field-label">开始时间<input className={inputClass} type="datetime-local" required value={schoolDraft.startAt} onChange={(e) => setSchoolDraft({ ...schoolDraft, startAt: e.target.value })} /></label>
@@ -164,17 +173,18 @@ export default function LeaveWorkbench() {
           </form>
           {!profileReady ? <p className="text-xs text-[var(--admin-muted)]">先完善请假资料，再提交申请。</p> : null}
           <div className="divide-y divide-[var(--admin-border-subtle)]">{requests.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-xs"><span>{dateText(item.startAt)} 至 {dateText(item.endAt)} · {statusText(item.status)}</span>{item.status === "pending" ? <button type="button" className={`${button} admin-button--quiet`} disabled={busy} onClick={() => void runAction(() => leaveClient.withdrawSchoolRequest(item.id), "请假申请已撤回。")}>撤回</button> : null}</div>)}</div>
-        </section>
+        </section> : null}
         <section className="admin-panel space-y-4 p-4 sm:p-5">
-          <div className="admin-section-heading"><div><h2>个人日常请假条</h2><p>填写时段后生成可下载的 Word 材料。再次下载会复用同一条记录。</p></div></div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            <label className="admin-field-label">开始时间<input className={inputClass} type="datetime-local" value={dailyDraft.startAt} onChange={(e) => setDailyDraft({ ...dailyDraft, startAt: e.target.value })} /></label>
-            <label className="admin-field-label">结束时间<input className={inputClass} type="datetime-local" value={dailyDraft.endAt} onChange={(e) => setDailyDraft({ ...dailyDraft, endAt: e.target.value })} /></label>
-          </div>
-          <div className="flex flex-wrap gap-2"><button type="button" className={`${button} admin-button--primary`} disabled={busy} onClick={() => void makeDaily()}>生成并下载</button><button type="button" className={`${button} admin-button--secondary`} disabled={busy} onClick={() => void makeDaily(true)}>线下签章版</button></div>
-          {!profileReady ? <p className="text-xs text-[var(--admin-muted)]">完善上方姓名、学号和学院后即可生成。</p> : null}
+          <div className="admin-section-heading"><h2>生成假条</h2></div>
+          <form onSubmit={(event) => { event.preventDefault(); void makeDaily(); }} className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="admin-field-label">开始时间<input className={inputClass} type="datetime-local" required value={dailyDraft.startAt} onChange={(e) => setDailyDraft({ ...dailyDraft, startAt: e.target.value })} /></label>
+              <label className="admin-field-label">结束时间<input className={inputClass} type="datetime-local" required value={dailyDraft.endAt} onChange={(e) => setDailyDraft({ ...dailyDraft, endAt: e.target.value })} /></label>
+            </div>
+            <div className="flex flex-wrap gap-2"><button type="submit" className={`${button} admin-button--primary`} disabled={busy || !profileReady}>生成并下载</button><button type="button" className={`${button} admin-button--secondary`} disabled={busy || !profileReady} onClick={(event) => { if (event.currentTarget.form?.reportValidity()) void makeDaily(true); }}>线下签章版</button></div>
+          </form>
         </section>
-        {isAdmin ? <section className="admin-panel space-y-4 p-4 sm:p-5">
+        {showExtendedLeaveFeatures && isAdmin ? <section className="admin-panel space-y-4 p-4 sm:p-5">
           <div className="admin-section-heading"><div><h2>共享请假活动</h2><p>活动链接可发给队员；公开链接允许未登录报名并限时下载材料。</p></div></div>
           <form onSubmit={(e) => { e.preventDefault(); void runAction(async () => { await leaveClient.createDailyWindow(windowDraft); setWindowDraft({ title: "", startAt: "", endAt: "", openUntil: "" }); }, "共享活动已创建。"); }} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <label className="admin-field-label">活动名称<input className={inputClass} required maxLength={100} value={windowDraft.title} onChange={(e) => setWindowDraft({ ...windowDraft, title: e.target.value })} /></label>
@@ -187,8 +197,8 @@ export default function LeaveWorkbench() {
             {adminWindows.map((item) => <article key={item.id} className="flex flex-col gap-3 py-3 md:flex-row md:items-center md:justify-between"><div><strong className="text-sm">{item.title}</strong><p className="mt-1 text-xs text-[var(--admin-muted)]">{dateText(item.startAt)} 至 {dateText(item.endAt)} · {item.participantCount ?? 0} 人 · {item.acceptingParticipants ? "开放中" : statusText(item.status)}</p>{item.publicPath ? <p className="mt-1 break-all text-xs text-[var(--admin-muted)]">{publicURL(item.publicPath)}</p> : null}</div><div className="flex flex-wrap gap-2">{item.publicEnabled ? <button className={`${button} admin-button--secondary`} onClick={() => void navigator.clipboard.writeText(publicURL(item.publicPath))}>复制公开链接</button> : item.acceptingParticipants ? <button className={`${button} admin-button--secondary`} disabled={busy} onClick={() => void runAction(() => leaveClient.enableDailyPublicLink(item.id), "临时公开链接已开启。")}>开启公开链接</button> : null}{item.status === "open" ? <button className={`${button} admin-button--danger`} disabled={busy} onClick={() => void runAction(() => leaveClient.closeDailyWindow(item.id), "共享活动已关闭。")}>关闭</button> : null}</div></article>)}
             {!adminWindows.length ? <p className="py-3 text-sm text-[var(--admin-muted)]">还没有共享活动。</p> : null}
           </div>
-        </section> : <section className="admin-panel space-y-4 p-4 sm:p-5"><div className="admin-section-heading"><div><h2>共享请假活动</h2><p>选择活动后生成同一时段的请假材料。</p></div></div><div className="divide-y divide-[var(--admin-border-subtle)]">{myWindows.map((item) => <article key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><div><strong className="text-sm">{item.title}</strong><p className="mt-1 text-xs text-[var(--admin-muted)]">{dateText(item.startAt)} 至 {dateText(item.endAt)}</p></div><button className={`${button} admin-button--primary`} disabled={busy || !item.acceptingParticipants} onClick={() => void makeShared(item)}>{item.acceptingParticipants ? "生成并下载" : "报名已截止"}</button></article>)}{!myWindows.length ? <p className="py-3 text-sm text-[var(--admin-muted)]">目前没有开放的共享活动。</p> : null}</div></section>}
-        <section className="admin-panel p-4 sm:p-5"><div className="admin-section-heading"><div><h2>{isAdmin ? "请假条生成记录" : "我的请假记录"}</h2><p>保留个人与共享活动的材料生成历史。</p></div></div><div className="divide-y divide-[var(--admin-border-subtle)]">{dailyEntries.map((item) => <div key={item.id} className="flex flex-wrap justify-between gap-2 py-3 text-sm"><span>{item.name} · {item.studentId}</span><span className="text-xs text-[var(--admin-muted)]">{item.startAt && item.endAt ? `${dateText(item.startAt)} 至 ${dateText(item.endAt)}` : "共享活动材料"} · {dateText(item.submittedAt)}</span></div>)}{!dailyEntries.length ? <p className="py-3 text-sm text-[var(--admin-muted)]">暂无生成记录。</p> : null}</div></section>
+        </section> : showExtendedLeaveFeatures ? <section className="admin-panel space-y-4 p-4 sm:p-5"><div className="admin-section-heading"><div><h2>共享请假活动</h2><p>选择活动后生成同一时段的请假材料。</p></div></div><div className="divide-y divide-[var(--admin-border-subtle)]">{myWindows.map((item) => <article key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><div><strong className="text-sm">{item.title}</strong><p className="mt-1 text-xs text-[var(--admin-muted)]">{dateText(item.startAt)} 至 {dateText(item.endAt)}</p></div><button className={`${button} admin-button--primary`} disabled={busy || !item.acceptingParticipants} onClick={() => void makeShared(item)}>{item.acceptingParticipants ? "生成并下载" : "报名已截止"}</button></article>)}{!myWindows.length ? <p className="py-3 text-sm text-[var(--admin-muted)]">目前没有开放的共享活动。</p> : null}</div></section> : null}
+        <section className="admin-panel p-4 sm:p-5"><div className="admin-section-heading"><h2>{isAdmin ? "请假条生成记录" : "我的请假记录"}</h2></div><div className="divide-y divide-[var(--admin-border-subtle)]">{dailyEntries.map((item) => <div key={item.id} className="flex flex-wrap justify-between gap-2 py-3 text-sm"><span>{item.name} · {item.studentId}</span><span className="text-xs text-[var(--admin-muted)]">{item.startAt && item.endAt ? `${dateText(item.startAt)} 至 ${dateText(item.endAt)}` : "共享活动材料"} · {dateText(item.submittedAt)}</span></div>)}{!dailyEntries.length ? <p className="py-3 text-sm text-[var(--admin-muted)]">暂无生成记录。</p> : null}</div></section>
       </div> : null}
 
       {tab === "camp" ? <div className="space-y-4">
