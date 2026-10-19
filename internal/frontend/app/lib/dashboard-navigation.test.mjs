@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { canAccessDashboardAdminPath, getCoreDashboardMenu, getDefaultDashboardPath, getUserDashboardMenu, getVisibleAdminDashboardMenu } from "./dashboard-navigation.ts";
+import { canAccessDashboardAdminPath, getCoreDashboardMenu, getDefaultDashboardPath, getUserDashboardMenu, getVisibleAdminDashboardMenu, isDashboardMenuPathActive } from "./dashboard-navigation.ts";
 
 test("every authenticated role opens the same personal workbench", () => {
   assert.equal(getDefaultDashboardPath("user"), "/dashboard");
@@ -23,13 +23,15 @@ test("weekly reports are visible only to operations group members", () => {
   assert.equal(getCoreDashboardMenu(false).some((item) => item.key === "weekly-reports"), false);
 });
 
-test("recruitment administration exposes email management as a first-level entry", () => {
+test("admin navigation groups recruitment and member tools while keeping email standalone", () => {
   const menu = getVisibleAdminDashboardMenu("super_admin");
-  assert.equal(menu[0]?.label, "招新总览");
-  assert.equal(menu.find((item) => item.key === "candidate-processing")?.label, "候选人处理");
-  assert.equal(menu.find((item) => item.key === "recruitment-analytics")?.label, "招新数据分析");
-  assert.equal(menu.find((item) => item.key === "recruitment-management")?.label, "招新管理");
-  assert.equal(menu.find((item) => item.key === "accounts")?.label, "账号与权限");
+  const [recruitment, members] = menu;
+
+  assert.equal(recruitment?.label, "招新事务");
+  assert.deepEqual(recruitment?.children.map(({ label }) => label), ["招新总览", "候选人处理", "招新管理", "招新数据分析"]);
+  assert.equal(members?.label, "成员管理");
+  assert.deepEqual(members?.children.map(({ label }) => label), ["账号与权限", "请假管理"]);
+  assert.equal(menu.length, 3);
   assert.equal(menu.some((item) => item.key === "portal-content" || item.key === "recruitment-statistics"), false);
   const emailManagement = menu.find((item) => item.key === "email-management");
   assert.deepEqual(emailManagement, {
@@ -47,15 +49,17 @@ test("member navigation keeps recruitment and exposes leave while admin tools st
   assert.deepEqual(getUserDashboardMenu("admin"), []);
   assert.deepEqual(getUserDashboardMenu("super_admin"), []);
   const adminMenu = getVisibleAdminDashboardMenu("admin");
-  assert.equal(adminMenu.some((item) => item.key === "email-management"), false);
-  assert.equal(adminMenu.some((item) => item.key === "recruitment-management" || item.key === "accounts" || item.key === "recruitment-analytics"), false);
-  assert.deepEqual(adminMenu.find((item) => item.key === "leave-management"), {
-    key: "leave-management",
-    label: "请假管理",
-    href: "/dashboard/admin/leave",
-    iconKey: "report",
-  });
-  assert.equal(getVisibleAdminDashboardMenu("super_admin").some((item) => item.key === "leave-management"), true);
+  assert.deepEqual(adminMenu.map(({ key }) => key), ["recruitment-operations", "member-management"]);
+  assert.deepEqual(adminMenu[0]?.children.map(({ key }) => key), ["admin-panel", "candidate-processing"]);
+  assert.deepEqual(adminMenu[1]?.children.map(({ key }) => key), ["leave-management"]);
+  assert.equal(getVisibleAdminDashboardMenu("user").length, 0);
+});
+
+test("nested admin routes keep their parent submenu active without highlighting the overview", () => {
+  assert.equal(isDashboardMenuPathActive("/dashboard/admin", "/dashboard/admin"), true);
+  assert.equal(isDashboardMenuPathActive("/dashboard/admin/registrations/42", "/dashboard/admin/registrations"), true);
+  assert.equal(isDashboardMenuPathActive("/dashboard/admin/recruitment/settings", "/dashboard/admin/recruitment"), true);
+  assert.equal(isDashboardMenuPathActive("/dashboard/admin/leave", "/dashboard/admin"), false);
 });
 
 test("admin routes require an exact workbench match and each route's own menu permission", () => {

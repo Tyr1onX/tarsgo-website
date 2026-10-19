@@ -31,6 +31,7 @@ import {
   getUserDashboardMenu,
   getVisibleAdminDashboardMenu,
   hasDashboardAdminAccess,
+  isDashboardMenuPathActive,
   type DashboardMenuIconKey,
   type DashboardMenuLink,
   type VisibleDashboardAdminMenuItem,
@@ -157,42 +158,47 @@ function MenuIcon({ iconKey }: { iconKey: DashboardMenuIconKey }) {
 function SidebarItem({
   item,
   onNavigate,
+  onExpandSidebar,
   collapsed = false,
   badgeCount,
   unreadCount,
 }: {
   item: DashboardMenuLink | VisibleDashboardAdminMenuItem;
   onNavigate: () => void;
+  onExpandSidebar?: () => void;
   collapsed?: boolean;
   badgeCount?: number | null;
   unreadCount?: number | null;
 }) {
   const location = useLocation();
-  const [expanded, setExpanded] = useState(() => {
-    if (!("children" in item)) {
-      return false;
-    }
-    return item.children.some((child) => location.pathname === child.href);
-  });
+  const isActive = "children" in item && item.children.some((child) => isDashboardMenuPathActive(location.pathname, child.href));
+  const [expanded, setExpanded] = useState(() => isActive);
 
   useEffect(() => {
-    if (!("children" in item)) {
-      return;
-    }
-    if (item.children.some((child) => location.pathname === child.href)) {
+    if (isActive) {
       setExpanded(true);
     }
-  }, [item, location.pathname]);
+  }, [isActive, location.pathname]);
 
   if ("children" in item) {
-    const isActive = item.children.some((child) => location.pathname === child.href);
+    const childrenId = `dashboard-menu-${item.key}`;
+    const isExpanded = expanded && !collapsed;
 
     return (
       <div>
         <button
           type="button"
-          onClick={() => setExpanded((current) => !current)}
+          onClick={() => {
+            if (collapsed) {
+              onExpandSidebar?.();
+              setExpanded(true);
+              return;
+            }
+            setExpanded((current) => !current);
+          }}
           aria-label={item.label}
+          aria-expanded={isExpanded}
+          aria-controls={childrenId}
           title={collapsed ? item.label : undefined}
           className={`w-full flex items-center gap-3 rounded-xl py-2.5 text-sm transition-colors ${collapsed ? "justify-center px-2" : "px-3"} ${
             isActive
@@ -205,7 +211,7 @@ function SidebarItem({
           </span>
           <span className={`min-w-0 flex-1 truncate text-left ${collapsed ? "sr-only" : ""}`}>{item.label}</span>
           <svg
-            className={`w-4 h-4 transition-transform duration-300 ease-out ${collapsed ? "hidden" : ""} ${expanded ? "rotate-180" : ""}`}
+            className={`w-4 h-4 transition-transform duration-300 ease-out ${collapsed ? "hidden" : ""} ${isExpanded ? "rotate-180" : ""}`}
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={1.5}
@@ -215,10 +221,11 @@ function SidebarItem({
           </svg>
         </button>
         <div
+          id={childrenId}
           className={`grid transition-all duration-300 ease-out ${
-            expanded ? "grid-rows-[1fr] opacity-100 mt-1" : "grid-rows-[0fr] opacity-0 mt-0"
+            isExpanded ? "grid-rows-[1fr] opacity-100 mt-1" : "grid-rows-[0fr] opacity-0 mt-0"
           }`}
-          aria-hidden={!expanded}
+          aria-hidden={!isExpanded}
         >
           <div className="overflow-hidden">
             <div className="ml-8 space-y-1">
@@ -226,18 +233,25 @@ function SidebarItem({
                 <NavLink
                   key={child.href}
                   to={child.href}
-                  prefetch={expanded ? "render" : "intent"}
+                  end={child.href === "/dashboard/admin"}
+                  prefetch={HIGH_PRIORITY_RENDER_PREFETCH_KEYS.has(child.key) ? "render" : "intent"}
                   onClick={onNavigate}
-                  tabIndex={expanded ? 0 : -1}
+                  tabIndex={isExpanded ? 0 : -1}
                   className={({ isActive }) =>
-                    `block truncate px-3 py-2 text-sm rounded-xl transition-colors ${
+                    `flex min-w-0 items-center gap-2 rounded-xl px-3 py-2 text-sm transition-colors ${
                       isActive
                       ? "dashboard-nav-link dashboard-nav-link--active"
                       : "dashboard-nav-link"
                     }`
                   }
                 >
-                  {child.label}
+                  <span className="min-w-0 flex-1 truncate">{child.label}</span>
+                  {child.key === "candidate-processing" && (badgeCount ?? 0) > 0 ? (
+                    <span className="dashboard-nav-badge" aria-label={`${badgeCount} 项待处理`}>{badgeCount}</span>
+                  ) : null}
+                  {child.key === "leave-management" && (unreadCount ?? 0) > 0 ? (
+                    <span className="dashboard-nav-badge" aria-label={`${unreadCount} 条未读请假事项`}>{unreadCount}</span>
+                  ) : null}
                 </NavLink>
               ))}
             </div>
@@ -731,9 +745,10 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
                     key={item.key}
                     item={item}
                     onNavigate={handleSidebarNavigate}
+                    onExpandSidebar={() => setSidebarCollapsed(false)}
                     collapsed={isSidebarCollapsed}
-                    badgeCount={item.key === "candidate-processing" ? candidateTodoCount : undefined}
-                    unreadCount={item.key === "leave-management" ? leaveUnreadCount : undefined}
+                    badgeCount={"children" in item && item.children.some((child) => child.key === "candidate-processing") ? candidateTodoCount : undefined}
+                    unreadCount={"children" in item && item.children.some((child) => child.key === "leave-management") ? leaveUnreadCount : undefined}
                   />
                 ))}
               </div>
