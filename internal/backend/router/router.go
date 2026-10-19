@@ -145,8 +145,6 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	adminAPI.GET("/user-groups/options", userGroupHandler.ListGroupOptions)
 	adminAPI.GET("/admission-qr/:filename", userGroupHandler.OpenAdmissionQRCode)
 	adminAPI.GET("/school-leave/summary", leaveHandler.AdminSchoolSummary)
-	adminAPI.GET("/leave/access-requests", leaveHandler.ListPendingLeaveAccessRequests)
-	adminAPI.PATCH("/leave/access-requests/:id", requireSameOriginRequest(cfg), leaveHandler.ReviewLeaveAccessRequest)
 	adminAPI.GET("/school-leave/requests", leaveHandler.AdminSchoolRequests)
 	adminAPI.POST("/school-leave/admin-records/read", requireSameOriginRequest(cfg), leaveHandler.ReadAdminRecord)
 	adminAPI.GET("/school-leave/runs", leaveHandler.AdminSchoolRuns)
@@ -173,6 +171,8 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	// System configuration, recruitment configuration, account management, and analytics are super-admin only.
 	superAdminAPI := adminAPI.Group("")
 	superAdminAPI.Use(middleware.RequireSuperAdmin(authService))
+	superAdminAPI.GET("/leave/access-requests", leaveHandler.ListPendingLeaveAccessRequests)
+	superAdminAPI.PATCH("/leave/access-requests/:id", requireSameOriginRequest(cfg), leaveHandler.ReviewLeaveAccessRequest)
 	superAdminAPI.GET("/roles", adminUserHandler.ListRoles)
 	superAdminAPI.GET("/users", adminUserHandler.ListUsers)
 	superAdminAPI.POST("/users", adminUserHandler.CreateUser)

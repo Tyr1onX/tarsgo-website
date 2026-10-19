@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const route = await readFile(new URL("../routes/leave-workbench.tsx", import.meta.url), "utf8");
+const accountsRoute = await readFile(new URL("../routes/admin/users.tsx", import.meta.url), "utf8");
 const api = await readFile(new URL("../../../backend/router/router.go", import.meta.url), "utf8");
 
 test("members see application status before any leave profile or history request", () => {
@@ -23,10 +24,25 @@ test("completed leave profiles stay collapsed behind a concise control", () => {
   assert.ok(route.includes(": <form onSubmit={saveProfile}"), "missing profile data must show the fill-in form");
 });
 
-test("member leave APIs are guarded and admin review stays in the existing admin API", () => {
+test("member leave APIs are guarded and leave-access review is super-admin only", () => {
   assert.match(api, /leaveMemberAPI\.Use\(middleware\.RequireAuthenticated\(authService\), middleware\.RequireLeaveAccess\(leaveService\)\)/);
   assert.match(api, /leaveAccessAPI\.GET\("\/leave\/access", leaveHandler\.GetLeaveAccess\)/);
   assert.match(api, /leaveAccessAPI\.POST\("\/leave\/access\/request"/);
-  assert.match(api, /adminAPI\.GET\("\/leave\/access-requests", leaveHandler\.ListPendingLeaveAccessRequests\)/);
-  assert.match(api, /adminAPI\.PATCH\("\/leave\/access-requests\/:id"/);
+  assert.match(api, /superAdminAPI\.Use\(middleware\.RequireSuperAdmin\(authService\)\)[\s\S]*?superAdminAPI\.GET\("\/leave\/access-requests", leaveHandler\.ListPendingLeaveAccessRequests\)/);
+  assert.match(api, /superAdminAPI\.PATCH\("\/leave\/access-requests\/:id"/);
+  assert.match(api, /superAdminAPI\.GET\("\/users\/:id", adminUserHandler\.GetUser\)/);
+  assert.doesNotMatch(api, /adminAPI\.(?:GET|PATCH)\("\/leave\/access-requests/);
+  assert.match(route, /const isSuperAdmin = currentUser\.role\.name === "super_admin"/);
+  assert.match(route, /isSuperAdmin \? leaveClient\.pendingLeaveAccessRequests\(\)/);
+  assert.match(route, /\{isSuperAdmin \? <section[\s\S]*?请假开通申请/);
+  assert.match(route, /to=\{`\/dashboard\/admin\/users\?userId=\$\{request\.userId\}`\}[^>]*>查看账号/);
+});
+
+test("leave application account link opens the existing account detail by exact ID", () => {
+  assert.match(accountsRoute, /useSearchParams/);
+  assert.match(accountsRoute, /const requestedUserId = searchParams\.get\("userId"\)/);
+  assert.match(accountsRoute, /getAdminUser\(userId\)/);
+  assert.match(accountsRoute, /void openAccount\(Number\(requestedUserId\)\)/);
+  assert.match(accountsRoute, /账号 ID：\{editing\.id\} · 最近登录：\{formatDate\(editing\.lastLoginAt\)\}/);
+  assert.doesNotMatch(accountsRoute, /getAdminUser\([^)]*(?:name|email|keyword)/);
 });
