@@ -206,18 +206,18 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
   }
 
   // Warm the authenticated dashboard route before the user opens the menu.
-  // Defer this work until idle so public homepage resources keep priority.
+  // Keep the idle window short so an early click does not wait for the prefetch.
   useEffect(() => {
     if (!visibleUser || variant !== "default") return;
     const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
     if (connection?.saveData) return;
 
     if (typeof window.requestIdleCallback === "function") {
-      const idleId = window.requestIdleCallback(() => setDashboardPrefetchUserId(visibleUser.id), { timeout: 1500 });
+      const idleId = window.requestIdleCallback(() => setDashboardPrefetchUserId(visibleUser.id), { timeout: 250 });
       return () => window.cancelIdleCallback(idleId);
     }
 
-    const timeoutId = setTimeout(() => setDashboardPrefetchUserId(visibleUser.id), 700);
+    const timeoutId = setTimeout(() => setDashboardPrefetchUserId(visibleUser.id), 250);
     return () => clearTimeout(timeoutId);
   }, [visibleUser?.id, variant]);
 

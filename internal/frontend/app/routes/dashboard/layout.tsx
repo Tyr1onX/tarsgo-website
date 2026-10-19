@@ -48,7 +48,7 @@ const SIDEBAR_DEFAULT_WIDTH = 200;
 const SIDEBAR_COLLAPSED_WIDTH = 80;
 const SIDEBAR_MIN_WIDTH = 160;
 const SIDEBAR_MAX_WIDTH = 420;
-const HIGH_PRIORITY_RENDER_PREFETCH_KEYS = new Set(["admin-panel", "candidate-processing"]);
+const HIGH_PRIORITY_RENDER_PREFETCH_KEYS = new Set(["admin-panel", "candidate-processing", "recruitment-analytics"]);
 
 function getSidebarMaxWidth(viewportWidth: number) {
   return Math.max(SIDEBAR_DEFAULT_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, Math.floor(viewportWidth * 0.4)));
