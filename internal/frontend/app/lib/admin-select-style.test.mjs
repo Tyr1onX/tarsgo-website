@@ -5,6 +5,7 @@ import test from "node:test";
 const appStyles = await readFile(new URL("../app.css", import.meta.url), "utf8");
 const adminStyles = await readFile(new URL("../admin-design.css", import.meta.url), "utf8");
 const adminRouteDirectory = new URL("../routes/admin/", import.meta.url);
+const appDirectory = new URL("../", import.meta.url);
 
 function collectSelectOpeningTags(source) {
   const tags = [];
@@ -38,20 +39,54 @@ function collectSelectOpeningTags(source) {
   return tags;
 }
 
-test("admin native selects retain one non-repeating arrow with room for their text", () => {
-  const selectRule = appStyles.match(/(?:^|\n)select\s*\{([^}]+)\}/)?.[1] ?? "";
-  const lightSelectRule = appStyles.match(/:root\[data-theme="light"\]\s+select\s*\{([^}]+)\}/)?.[1] ?? "";
-  const fieldRule = adminStyles.match(/\.admin-design\s+\.admin-field\s*\{([^}]+)\}/)?.[1] ?? "";
-  const adminSelectRule = adminStyles.match(/\.admin-design\s+select\.admin-field\s*\{([^}]+)\}/)?.[1] ?? "";
+async function listFiles(directory) {
+  const entries = await readdir(directory, { withFileTypes: true });
+  const nested = await Promise.all(entries.map((entry) => {
+    const path = new URL(`${entry.name}${entry.isDirectory() ? "/" : ""}`, directory);
+    return entry.isDirectory() ? listFiles(path) : [path];
+  }));
+  return nested.flat();
+}
 
-  assert.match(selectRule, /appearance:\s*none;/);
-  assert.match(selectRule, /background-position:\s*right\s+0\.9rem\s+center;/);
-  assert.match(selectRule, /background-repeat:\s*no-repeat;/);
-  assert.match(selectRule, /background-size:\s*1rem\s+1rem;/);
-  assert.match(lightSelectRule, /background-image:\s*url\(/);
-  assert.match(fieldRule, /background-color:\s*var\(--admin-input-surface\);/);
-  assert.doesNotMatch(fieldRule, /^\s*background\s*:/m);
-  assert.match(adminSelectRule, /padding-right:\s*2\.75rem;/);
+function collectNativeSelectRules(styles) {
+  const withoutComments = styles.replace(/\/\*[\s\S]*?\*\//g, "");
+  return [...withoutComments.matchAll(/([^{}]+)\{([^{}]*)\}/gs)]
+    .filter(([, selector]) => /(?<![\w-])select(?![\w-])/i.test(selector));
+}
+
+test("native selects keep the browser arrow across global and route styles", async () => {
+  const styleFiles = (await listFiles(appDirectory)).filter((path) => path.pathname.endsWith(".css"));
+  const routeStyles = await Promise.all(styleFiles.map((path) => readFile(path, "utf8")));
+  const selectRules = collectNativeSelectRules([appStyles, adminStyles, ...routeStyles].join("\n"));
+  const arrowOverrides = selectRules.filter(([, selector, declarations]) =>
+    /::-ms-expand/i.test(selector) ||
+    /\bappearance\s*:\s*none\b/i.test(declarations) ||
+    /\bbackground-image\s*:/i.test(declarations),
+  );
+
+  assert.deepEqual(arrowOverrides, [], "native selects must not hide the platform arrow or paint a CSS arrow");
+  assert.doesNotMatch(adminStyles, /\.admin-design\s+select\.admin-field\s*\{/);
+  assert.match(adminStyles, /\.admin-design\s+\.admin-field\s*\{[^}]*background-color:\s*var\(--admin-input-surface\);/s);
+  assert.match(adminStyles, /\.admin-design\s+\.admin-field\s*\{[^}]*color-scheme:\s*var\(--theme-color-scheme\);/s);
+  assert.match(appStyles, /--theme-color-scheme:\s*dark;/);
+  assert.match(appStyles, /--theme-color-scheme:\s*light;/);
+  assert.match(appStyles, /body\s*\{[^}]*color-scheme:\s*var\(--theme-color-scheme,\s*dark\);/s);
+  assert.doesNotMatch(appStyles, /\.motion-select\s*\{/);
+});
+
+test("native selects do not opt out of browser appearance in route markup", async () => {
+  const files = (await listFiles(new URL("../routes/", import.meta.url))).filter((path) => path.pathname.endsWith(".tsx"));
+  const selects = [];
+
+  for (const path of files) {
+    const source = await readFile(path, "utf8");
+    selects.push(...collectSelectOpeningTags(source).map((openingTag) => ({ path, openingTag })));
+  }
+
+  assert.ok(selects.length > 0, "expected routes to contain native selects");
+  for (const { path, openingTag } of selects) {
+    assert.doesNotMatch(openingTag, /appearance-none|bg-\[[^\]]*url\(/, `${path.pathname} select must use the browser arrow`);
+  }
 });
 
 test("every native select in admin routes uses the shared admin-field styles", async () => {

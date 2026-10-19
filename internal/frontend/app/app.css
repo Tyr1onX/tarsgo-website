@@ -70,23 +70,6 @@ body {
   inset: 0;
 }
 
-select {
-  appearance: none;
-  padding-right: 2.75rem;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%2394A3B8' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.75'%3E%3Cpath d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
-  background-position: right 0.9rem center;
-  background-repeat: no-repeat;
-  background-size: 1rem 1rem;
-}
-
-select::-ms-expand {
-  display: none;
-}
-
-:root[data-theme="light"] select {
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%2356584F' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.75'%3E%3Cpath d='m6 8 4 4 4-4'/%3E%3C/svg%3E");
-}
-
 html {
   scroll-behavior: smooth;
   scroll-padding-top: var(--site-nav-height);
@@ -603,19 +586,6 @@ html[data-theme-transition] body *::after {
 .motion-field:hover:not(:disabled):not(:focus-visible) {
   border-color: rgba(77, 148, 219, 0.2);
   background-color: rgba(17, 24, 39, 0.94);
-}
-
-.motion-select {
-  appearance: none;
-  background-image:
-    linear-gradient(45deg, transparent 50%, rgba(203, 213, 225, 0.82) 50%),
-    linear-gradient(135deg, rgba(203, 213, 225, 0.82) 50%, transparent 50%);
-  background-position:
-    calc(100% - 18px) calc(50% - 2px),
-    calc(100% - 12px) calc(50% - 2px);
-  background-repeat: no-repeat;
-  background-size: 6px 6px, 6px 6px;
-  padding-right: 2.75rem;
 }
 
 .motion-select-shell {
