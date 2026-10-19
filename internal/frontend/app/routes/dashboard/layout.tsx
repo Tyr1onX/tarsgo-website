@@ -28,6 +28,7 @@ import {
   canAccessDashboardAdminPath,
   getCoreDashboardMenu,
   getDefaultDashboardPath,
+  hasTechnicalGroupAccess,
   getUserDashboardMenu,
   getVisibleAdminDashboardMenu,
   hasDashboardAdminAccess,
@@ -39,6 +40,7 @@ import {
 
 export interface DashboardLayoutOutletContext {
   currentUser: AuthUser;
+  groupResolution: UserGroupConfirmationState | null;
   refreshCandidateTodoCount: (force?: boolean) => Promise<void>;
   refreshLeaveUnreadCount: () => Promise<void>;
 }
@@ -88,14 +90,6 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   }
   const currentUser = auth.user;
 
-  const pathname = currentPath.pathname;
-  if (
-    pathname.startsWith("/dashboard/admin") &&
-    !canAccessDashboardAdminPath(currentUser, pathname)
-  ) {
-    throw redirect(getDefaultDashboardPath(currentUser.role.name));
-  }
-
   const groupResult = await groupRequest;
   const groupResolution: UserGroupConfirmationState | null = groupResult.state;
   let groupResolutionError = "";
@@ -105,6 +99,18 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
       throw redirect(`/login?redirect=${encodeURIComponent(redirectTarget)}`);
     }
     groupResolutionError = groupResult.error instanceof Error ? groupResult.error.message : "所属组别暂时无法读取。";
+  }
+
+  const pathname = currentPath.pathname;
+  const hasTechnicalGroup = hasTechnicalGroupAccess(groupResolution?.groups);
+  if (
+    pathname.startsWith("/dashboard/admin") &&
+    !canAccessDashboardAdminPath(currentUser, pathname, hasTechnicalGroup)
+  ) {
+    throw redirect(getDefaultDashboardPath(currentUser.role.name));
+  }
+  if (pathname === "/dashboard/assignments" && !hasTechnicalGroup) {
+    throw redirect(getDefaultDashboardPath(currentUser.role.name));
   }
 
   return { currentUser, groupResolution, groupResolutionError };
@@ -328,9 +334,10 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const { currentUser, groupResolution, groupResolutionError } = loaderData;
   const isSidebarCollapsed = isDesktopViewport && sidebarCollapsed;
   const isOperationsMember = groupResolution?.groups.some((group) => group.name === "运营组") ?? false;
+  const isTechnicalGroupMember = hasTechnicalGroupAccess(groupResolution?.groups);
   const coreMenuItems = getCoreDashboardMenu(isOperationsMember);
-  const userMenuItems = getUserDashboardMenu(currentUser);
-  const adminMenuItems = getVisibleAdminDashboardMenu(currentUser);
+  const userMenuItems = getUserDashboardMenu(currentUser, isTechnicalGroupMember);
+  const adminMenuItems = getVisibleAdminDashboardMenu(currentUser, isTechnicalGroupMember);
   const showAdminSection = hasDashboardAdminAccess(currentUser.role.name) && adminMenuItems.length > 0;
   const refreshCandidateTodoCount = useCallback(async (force = false) => {
     const userId = currentUser.id;
@@ -890,7 +897,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
 
         <main className="p-4 sm:p-6 lg:p-8">
           <div className="relative">
-            <Outlet context={{ currentUser, refreshCandidateTodoCount, refreshLeaveUnreadCount } satisfies DashboardLayoutOutletContext} />
+            <Outlet context={{ currentUser, groupResolution, refreshCandidateTodoCount, refreshLeaveUnreadCount } satisfies DashboardLayoutOutletContext} />
           </div>
         </main>
       </div>

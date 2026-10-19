@@ -80,6 +80,15 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 17, apply: func(db *gorm.DB) error {
 			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.LeaveAccessRequest{})
 		}},
+		{version: 18, apply: func(db *gorm.DB) error {
+			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(
+				&model.Assignment{},
+				&model.AssignmentTarget{},
+				&model.AssignmentSubmission{},
+				&model.AssignmentSubmissionFile{},
+				&model.AssignmentReview{},
+			)
+		}},
 	}
 }
 
