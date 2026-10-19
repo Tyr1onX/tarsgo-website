@@ -235,9 +235,9 @@ func (s *Service) ListAdmin(ctx context.Context, actor Actor, groupID uint64) ([
 	if err := requireAdmin(actor); err != nil {
 		return nil, err
 	}
-	groupIDs, err := technicalGroupIDs(s.db.WithContext(ctx), actor.ID)
+	groupIDs, err := managerTechnicalGroupIDs(s.db.WithContext(ctx), actor)
 	if err != nil {
-		return nil, internalError("读取所属技术组失败", err)
+		return nil, internalError("读取可管理技术组失败", err)
 	}
 	if len(groupIDs) == 0 {
 		return nil, forbidden("当前账号没有可管理的技术组")
@@ -268,7 +268,7 @@ func (s *Service) ListGroupMembers(ctx context.Context, actor Actor, groupID uin
 	if err := requireAdmin(actor); err != nil {
 		return nil, err
 	}
-	if err := s.requireGroupAccess(ctx, actor.ID, groupID); err != nil {
+	if err := s.requireManagerGroupAccess(ctx, actor, groupID); err != nil {
 		return nil, err
 	}
 	var rows []struct {
@@ -309,7 +309,7 @@ func (s *Service) GetAdmin(ctx context.Context, actor Actor, assignmentID uint64
 		}
 		return nil, internalError("读取作业失败", err)
 	}
-	if err := s.requireGroupAccess(ctx, actor.ID, item.GroupID); err != nil {
+	if err := s.requireManagerGroupAccess(ctx, actor, item.GroupID); err != nil {
 		return nil, err
 	}
 	groupName, err := s.groupName(ctx, item.GroupID)
@@ -392,7 +392,7 @@ func (s *Service) Create(ctx context.Context, actor Actor, input CreateInput) (*
 		CreatedAt: now, UpdatedAt: now,
 	}
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := s.requireGroupAccessWithDB(tx, actor.ID, input.GroupID); err != nil {
+		if err := s.requireManagerGroupAccessWithDB(tx, actor, input.GroupID); err != nil {
 			return err
 		}
 		resolved, err := s.resolveTargetsWithDB(tx, input.GroupID, input.IsGroupWide, input.TargetUserIDs)
@@ -436,7 +436,7 @@ func (s *Service) Update(ctx context.Context, actor Actor, assignmentID uint64, 
 		}
 		return nil, internalError("读取作业失败", err)
 	}
-	if err := s.requireGroupAccess(ctx, actor.ID, item.GroupID); err != nil {
+	if err := s.requireManagerGroupAccess(ctx, actor, item.GroupID); err != nil {
 		return nil, err
 	}
 	input.GroupID = item.GroupID
@@ -449,7 +449,7 @@ func (s *Service) Update(ctx context.Context, actor Actor, assignmentID uint64, 
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&item, assignmentID).Error; err != nil {
 			return err
 		}
-		if err := s.requireGroupAccessWithDB(tx, actor.ID, item.GroupID); err != nil {
+		if err := s.requireManagerGroupAccessWithDB(tx, actor, item.GroupID); err != nil {
 			return err
 		}
 		resolved, err := s.resolveTargetsWithDB(tx, item.GroupID, input.IsGroupWide, input.TargetUserIDs)
@@ -607,7 +607,7 @@ func (s *Service) Review(ctx context.Context, actor Actor, submissionID uint64, 
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&item, submission.AssignmentID).Error; err != nil {
 			return err
 		}
-		if err := s.requireGroupAccessWithDB(tx, actor.ID, item.GroupID); err != nil {
+		if err := s.requireManagerGroupAccessWithDB(tx, actor, item.GroupID); err != nil {
 			return err
 		}
 		var latest model.AssignmentSubmission
@@ -654,10 +654,19 @@ func (s *Service) OpenFile(ctx context.Context, actor Actor, fileID uint64) (*Do
 	if err := s.db.WithContext(ctx).First(&item, submission.AssignmentID).Error; err != nil {
 		return nil, internalError("读取附件作业失败", err)
 	}
-	if err := s.requireGroupAccess(ctx, actor.ID, item.GroupID); err != nil {
-		return nil, err
-	}
-	if actor.ID != submission.UserID && actor.RoleName != model.RoleNameAdmin && actor.RoleName != model.RoleNameSuperAdmin {
+	switch actor.RoleName {
+	case model.RoleNameAdmin, model.RoleNameSuperAdmin:
+		if err := s.requireManagerGroupAccess(ctx, actor, item.GroupID); err != nil {
+			return nil, err
+		}
+	case model.RoleNameUser:
+		if err := s.requireGroupAccess(ctx, actor.ID, item.GroupID); err != nil {
+			return nil, err
+		}
+		if actor.ID != submission.UserID {
+			return nil, forbidden("无权下载该提交附件")
+		}
+	default:
 		return nil, forbidden("无权下载该提交附件")
 	}
 	content, err := s.files.open(file.StoragePath)
@@ -806,6 +815,24 @@ func (s *Service) requireGroupAccess(ctx context.Context, userID, groupID uint64
 	return s.requireGroupAccessWithDB(s.db.WithContext(ctx), userID, groupID)
 }
 
+func (s *Service) requireManagerGroupAccess(ctx context.Context, actor Actor, groupID uint64) error {
+	return s.requireManagerGroupAccessWithDB(s.db.WithContext(ctx), actor, groupID)
+}
+
+func (s *Service) requireManagerGroupAccessWithDB(db *gorm.DB, actor Actor, groupID uint64) error {
+	if err := requireAdmin(actor); err != nil {
+		return err
+	}
+	ids, err := managerTechnicalGroupIDs(db, actor)
+	if err != nil {
+		return internalError("读取可管理技术组失败", err)
+	}
+	if !containsID(ids, groupID) {
+		return forbidden("无权访问该技术组的作业")
+	}
+	return nil
+}
+
 func (s *Service) requireGroupAccessWithDB(db *gorm.DB, userID, groupID uint64) error {
 	ids, err := technicalGroupIDs(db, userID)
 	if err != nil {
@@ -830,6 +857,24 @@ func technicalGroupIDs(db *gorm.DB, userID uint64) ([]uint64, error) {
 		Joins("JOIN users ON users.id = user_group_members.user_id").
 		Where("user_group_members.user_id = ? AND user_groups.name IN ? AND user_groups.status = ? AND users.status = ?", userID, technicalGroupNames, model.UserGroupStatusActive, model.UserStatusEnabled).
 		Order("user_group_members.group_id ASC").Pluck("user_group_members.group_id", &ids).Error
+	if err != nil {
+		return nil, err
+	}
+	return uniqueSortedIDs(ids), nil
+}
+
+func managerTechnicalGroupIDs(db *gorm.DB, actor Actor) ([]uint64, error) {
+	if actor.RoleName != model.RoleNameSuperAdmin {
+		if actor.RoleName != model.RoleNameAdmin {
+			return nil, forbidden("当前账号无作业管理权限")
+		}
+		return technicalGroupIDs(db, actor.ID)
+	}
+
+	var ids []uint64
+	err := db.Model(&model.UserGroup{}).
+		Where("name IN ? AND status = ?", technicalGroupNames, model.UserGroupStatusActive).
+		Order("id ASC").Pluck("id", &ids).Error
 	if err != nil {
 		return nil, err
 	}
