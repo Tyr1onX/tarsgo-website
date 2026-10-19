@@ -1,9 +1,10 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useOutletContext } from "react-router";
 
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { assignmentClient, formatAssignmentDate, type Assignment, type AssignmentInput, type AssignmentMemberOption } from "~/lib/assignment-client";
-import { hasTechnicalGroupAccess } from "~/lib/dashboard-navigation";
+import { filterAssignmentMembers, toggleAssignmentMemberSelection } from "~/lib/assignment-member-selection";
+import { useAssignmentGroups } from "~/lib/use-assignment-groups";
 
 export function meta() {
   return [{ title: "作业管理 | TARSGO" }];
@@ -40,23 +41,26 @@ function asDraft(item: Assignment): Draft {
 
 export default function AssignmentManagementRoute() {
   const { currentUser, groupResolution } = useOutletContext<DashboardLayoutOutletContext>();
-  const technicalGroups = (groupResolution?.groups ?? []).filter((group) => hasTechnicalGroupAccess([group]));
+  const { technicalGroups, error: groupError, loading: groupsLoading } = useAssignmentGroups(currentUser.id, currentUser.role.name, groupResolution?.groups);
   const [groupId, setGroupId] = useState(0);
   const [items, setItems] = useState<Assignment[]>([]);
   const [members, setMembers] = useState<AssignmentMemberOption[]>([]);
   const [draft, setDraft] = useState<Draft>(emptyDraft);
+  const [memberSearch, setMemberSearch] = useState("");
   const [editing, setEditing] = useState<Assignment | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const filteredMembers = useMemo(() => filterAssignmentMembers(members, memberSearch), [members, memberSearch]);
+  const selectedMembers = useMemo(() => members.filter((member) => draft.targetUserIds.includes(member.userId)), [members, draft.targetUserIds]);
 
   useEffect(() => {
     setItems([]);
     setMembers([]);
     setEditing(null);
     setGroupId((current) => technicalGroups.some((group) => group.groupId === current) ? current : technicalGroups[0]?.groupId ?? 0);
-  }, [currentUser.id, groupResolution]);
+  }, [currentUser.id, groupResolution, technicalGroups]);
 
   useEffect(() => {
     if (!groupId) return;
@@ -80,6 +84,7 @@ export default function AssignmentManagementRoute() {
   function resetDraft() {
     setEditing(null);
     setDraft({ ...emptyDraft, groupId });
+    setMemberSearch("");
   }
 
   function editAssignment(item: Assignment) {
@@ -97,17 +102,13 @@ export default function AssignmentManagementRoute() {
   function toggleMember(userId: number) {
     setDraft((current) => ({
       ...current,
-      targetUserIds: current.targetUserIds.includes(userId)
-        ? current.targetUserIds.filter((id) => id !== userId)
-        : [...current.targetUserIds, userId],
+      targetUserIds: toggleAssignmentMemberSelection(current.targetUserIds, userId),
     }));
   }
 
   async function refresh() {
     if (!groupId) return;
-    const [assignments, groupMembers] = await Promise.all([assignmentClient.listAdmin(groupId), assignmentClient.listGroupMembers(groupId)]);
-    setItems(assignments);
-    setMembers(groupMembers);
+    setItems(await assignmentClient.listAdmin(groupId));
   }
 
   async function save(event: FormEvent<HTMLFormElement>) {
@@ -117,11 +118,21 @@ export default function AssignmentManagementRoute() {
     setNotice("");
     try {
       const input = requestInput({ ...draft, groupId });
-      if (editing) await assignmentClient.update(editing.id, input);
-      else await assignmentClient.create(input);
-      setNotice(editing ? "作业已更新。" : "作业已发布。");
+      const wasEditing = Boolean(editing);
+      const saved = editing
+        ? await assignmentClient.update(editing.id, input)
+        : await assignmentClient.create(input);
+      setItems((current) => wasEditing
+        ? current.map((item) => item.id === saved.id ? saved : item)
+        : [saved, ...current.filter((item) => item.id !== saved.id)]);
+      setNotice(wasEditing ? "作业已更新。" : "作业已发布。");
       resetDraft();
-      await refresh();
+      try {
+        await refresh();
+      } catch (cause) {
+        const detail = cause instanceof Error ? cause.message : "请重新加载页面。";
+        setError(`作业已保存，但列表刷新失败：${detail}；已保存的作业仍显示在当前列表中。`);
+      }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "保存作业失败");
     } finally {
@@ -133,10 +144,11 @@ export default function AssignmentManagementRoute() {
     <section className="admin-design space-y-5" aria-labelledby="assignment-management-title">
       <header className="admin-page-header flex flex-wrap items-center justify-between gap-3">
         <h1 id="assignment-management-title" className="admin-page-title">作业管理</h1>
-        {technicalGroups.length > 1 ? <label className="admin-field-label">技术组<select className="admin-field w-full" value={groupId} onChange={(event) => { setGroupId(Number(event.target.value)); resetDraft(); }}>
+        {groupsLoading ? <p role="status" className="text-sm text-[var(--admin-muted)]">正在加载技术组…</p> : technicalGroups.length > 1 ? <label className="admin-field-label">技术组<select className="admin-field w-full" value={groupId} onChange={(event) => { setGroupId(Number(event.target.value)); resetDraft(); }}>
           {technicalGroups.map((group) => <option key={group.groupId} value={group.groupId}>{group.name}</option>)}
         </select></label> : technicalGroups[0] ? <p className="text-sm text-[var(--admin-muted)]">{technicalGroups[0].name}</p> : null}
       </header>
+      {groupError ? <div role="alert" className="admin-notice admin-notice--error">{groupError}</div> : null}
       {error ? <div role="alert" className="admin-notice admin-notice--error">{error}</div> : null}
       {notice ? <div role="status" className="admin-notice admin-notice--success">{notice}</div> : null}
 
@@ -153,9 +165,20 @@ export default function AssignmentManagementRoute() {
               <label className="inline-flex items-center gap-2"><input type="radio" name="assignment-target" checked={draft.isGroupWide} onChange={() => setDraft({ ...draft, isGroupWide: true, targetUserIds: [] })} />全组成员</label>
               <label className="inline-flex items-center gap-2"><input type="radio" name="assignment-target" checked={!draft.isGroupWide} onChange={() => setDraft({ ...draft, isGroupWide: false })} />指定成员</label>
             </div>
-            {!draft.isGroupWide ? <div className="grid max-h-48 gap-2 overflow-y-auto rounded-xl border border-[var(--admin-border-subtle)] p-3 sm:grid-cols-2 lg:grid-cols-3">
-              {members.map((member) => <label key={member.userId} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.targetUserIds.includes(member.userId)} onChange={() => toggleMember(member.userId)} />{member.name}</label>)}
-              {members.length === 0 ? <p className="text-sm text-[var(--admin-muted)]">当前组暂无可分配成员。</p> : null}
+            {!draft.isGroupWide ? <div className="space-y-2">
+              <div className="flex flex-wrap items-center gap-2">
+                <label className="sr-only" htmlFor="assignment-member-search">搜索组内成员</label>
+                <input id="assignment-member-search" type="search" className="admin-field min-w-48 flex-1" autoComplete="off" placeholder="搜索成员姓名" value={memberSearch} onChange={(event) => setMemberSearch(event.target.value)} />
+                {memberSearch ? <button type="button" className="admin-button admin-button--quiet" onClick={() => setMemberSearch("")}>清空搜索</button> : null}
+                <span className="text-sm text-[var(--admin-muted)]">已选 {draft.targetUserIds.length} 人</span>
+              </div>
+              {selectedMembers.length > 0 ? <div className="flex flex-wrap gap-1" aria-label="已选成员">
+                {selectedMembers.map((member) => <button key={member.userId} type="button" className="rounded-full border border-[var(--admin-border-subtle)] px-2 py-1 text-xs text-[var(--admin-muted)] hover:text-white" aria-label={`取消选择${member.name}`} onClick={() => toggleMember(member.userId)}>× {member.name}</button>)}
+              </div> : null}
+              <div className="grid max-h-48 gap-2 overflow-y-auto rounded-xl border border-[var(--admin-border-subtle)] p-3 sm:grid-cols-2 lg:grid-cols-3">
+                {filteredMembers.map((member) => <label key={member.userId} className="flex items-center gap-2 text-sm"><input type="checkbox" checked={draft.targetUserIds.includes(member.userId)} onChange={() => toggleMember(member.userId)} />{member.name}</label>)}
+                {filteredMembers.length === 0 ? <p className="text-sm text-[var(--admin-muted)]">{memberSearch ? "没有匹配成员。" : "当前组暂无可分配成员。"}</p> : null}
+              </div>
             </div> : null}
           </fieldset>
           <div className="flex flex-wrap gap-2 md:col-span-2"><button type="submit" className="admin-button admin-button--primary" disabled={saving || !groupId || (!draft.isGroupWide && draft.targetUserIds.length === 0)}>{saving ? "保存中…" : editing ? "保存修改" : "发布作业"}</button></div>

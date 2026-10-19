@@ -71,6 +71,10 @@ const ASSIGNMENT_MENU_ITEM: DashboardMenuLink = {
 
 const TECHNICAL_GROUP_NAMES = new Set(["机械组", "电控组", "视觉组", "AI组"]);
 
+export function isTechnicalGroupName(name: string) {
+  return TECHNICAL_GROUP_NAMES.has(name);
+}
+
 const CORE_DASHBOARD_MENU: readonly DashboardMenuLink[] = [
   {
     key: "personal-workspace",
@@ -171,7 +175,7 @@ function isDashboardMenuLinkDefinition(
 
 function getAccessibleAdminPaths(roleName: string, hasTechnicalGroup = false) {
   return ADMIN_MENU.flatMap((item) => {
-    if (item.key === "newcomer-training" && !hasTechnicalGroup) {
+    if (item.key === "newcomer-training" && !hasTechnicalGroup && roleName !== "super_admin") {
       return [];
     }
     if (isDashboardMenuLinkDefinition(item)) {
@@ -185,7 +189,7 @@ function getAccessibleAdminPaths(roleName: string, hasTechnicalGroup = false) {
 }
 
 export function hasTechnicalGroupAccess(groups: readonly { name: string }[] | null | undefined) {
-  return Boolean(groups?.some((group) => TECHNICAL_GROUP_NAMES.has(group.name)));
+  return Boolean(groups?.some((group) => isTechnicalGroupName(group.name)));
 }
 
 export function getUserDashboardMenu(userOrRole: AuthUser | string, hasTechnicalGroup = false): DashboardMenuLink[] {

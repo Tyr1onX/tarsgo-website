@@ -3,7 +3,7 @@ import { useSearchParams, useOutletContext } from "react-router";
 
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { assignmentClient, assignmentDecisionLabel, assignmentStatusLabel, formatAssignmentDate, type AdminAssignmentDetail, type Assignment } from "~/lib/assignment-client";
-import { hasTechnicalGroupAccess } from "~/lib/dashboard-navigation";
+import { useAssignmentGroups } from "~/lib/use-assignment-groups";
 
 export function meta() {
   return [{ title: "提交记录 | TARSGO" }];
@@ -15,7 +15,7 @@ export default function AssignmentSubmissionsRoute() {
   const { currentUser, groupResolution } = useOutletContext<DashboardLayoutOutletContext>();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedID = Number(searchParams.get("assignmentId")) || 0;
-  const technicalGroups = (groupResolution?.groups ?? []).filter((group) => hasTechnicalGroupAccess([group]));
+  const { technicalGroups, error: groupError, loading: groupsLoading } = useAssignmentGroups(currentUser.id, currentUser.role.name, groupResolution?.groups);
   const [groupId, setGroupId] = useState(0);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selectedID, setSelectedID] = useState(requestedID);
@@ -32,7 +32,7 @@ export default function AssignmentSubmissionsRoute() {
     setSelectedID(0);
     setReviewDrafts({});
     setGroupId((current) => technicalGroups.some((group) => group.groupId === current) ? current : technicalGroups[0]?.groupId ?? 0);
-  }, [currentUser.id, groupResolution]);
+  }, [currentUser.id, groupResolution, technicalGroups]);
 
   useEffect(() => {
     if (!groupId) return;
@@ -117,10 +117,11 @@ export default function AssignmentSubmissionsRoute() {
     <section className="admin-design space-y-5" aria-labelledby="assignment-submissions-title">
       <header className="admin-page-header flex flex-wrap items-center justify-between gap-3">
         <h1 id="assignment-submissions-title" className="admin-page-title">提交记录</h1>
-        {technicalGroups.length > 1 ? <label className="admin-field-label">技术组<select className="admin-field w-full" value={groupId} onChange={(event) => { setGroupId(Number(event.target.value)); setSelectedID(0); setDetail(null); }}>
+        {groupsLoading ? <p role="status" className="text-sm text-[var(--admin-muted)]">正在加载技术组…</p> : technicalGroups.length > 1 ? <label className="admin-field-label">技术组<select className="admin-field w-full" value={groupId} onChange={(event) => { setGroupId(Number(event.target.value)); setSelectedID(0); setDetail(null); }}>
           {technicalGroups.map((group) => <option key={group.groupId} value={group.groupId}>{group.name}</option>)}
         </select></label> : technicalGroups[0] ? <p className="text-sm text-[var(--admin-muted)]">{technicalGroups[0].name}</p> : null}
       </header>
+      {groupError ? <div role="alert" className="admin-notice admin-notice--error">{groupError}</div> : null}
       {assignments.length > 0 ? <label className="admin-field-label">作业<select className="admin-field w-full" value={selectedID} onChange={(event) => chooseAssignment(Number(event.target.value))}>
         {assignments.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
       </select></label> : null}

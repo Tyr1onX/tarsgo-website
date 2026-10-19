@@ -6,6 +6,8 @@ import (
 	"errors"
 	"mime/multipart"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
@@ -45,6 +47,15 @@ func expectTechnicalGroupIDs(mock sqlmock.Sqlmock, userID uint64, ids ...uint64)
 	mock.ExpectQuery(pattern).WithArgs(userID, groupMechanical, groupEmbedded, groupVision, groupAI, model.UserGroupStatusActive, model.UserStatusEnabled).WillReturnRows(rows)
 }
 
+func expectSuperAdminTechnicalGroupIDs(mock sqlmock.Sqlmock, ids ...uint64) {
+	pattern := "(?s)SELECT `id` FROM `user_groups` WHERE name IN \\(\\?,\\?,\\?,\\?\\) AND status = \\? ORDER BY id ASC"
+	rows := sqlmock.NewRows([]string{"id"})
+	for _, id := range ids {
+		rows.AddRow(id)
+	}
+	mock.ExpectQuery(pattern).WithArgs(groupMechanical, groupEmbedded, groupVision, groupAI, model.UserGroupStatusActive).WillReturnRows(rows)
+}
+
 func TestListMineRejectsAccountsWithoutTechnicalGroup(t *testing.T) {
 	db, mock := newAssignmentMockGorm(t)
 	expectTechnicalGroupIDs(mock, 22)
@@ -63,6 +74,60 @@ func TestAdminCannotManageAnotherTechnicalGroup(t *testing.T) {
 		GroupID: 42, Title: "测试作业", Description: "说明", DueAt: time.Now().Add(time.Hour), IsGroupWide: true,
 	})
 	assertAssignmentStatus(t, err, 403)
+}
+
+func TestSuperAdminCanManageAllActiveTechnicalGroupsWithoutMembership(t *testing.T) {
+	db, mock := newAssignmentMockGorm(t)
+	expectSuperAdminTechnicalGroupIDs(mock, 2, 4, 7, 9)
+	ids, err := managerTechnicalGroupIDs(db, Actor{ID: 1, RoleName: model.RoleNameSuperAdmin})
+	if err != nil {
+		t.Fatalf("list super-admin groups: %v", err)
+	}
+	if len(ids) != 4 || ids[0] != 2 || ids[1] != 4 || ids[2] != 7 || ids[3] != 9 {
+		t.Fatalf("super-admin group ids = %#v, want all active technical groups", ids)
+	}
+}
+
+func TestRegularAdminManagementRemainsLimitedToItsMembership(t *testing.T) {
+	db, mock := newAssignmentMockGorm(t)
+	expectTechnicalGroupIDs(mock, 8, 41)
+	ids, err := managerTechnicalGroupIDs(db, Actor{ID: 8, RoleName: model.RoleNameAdmin})
+	if err != nil || len(ids) != 1 || ids[0] != 41 {
+		t.Fatalf("regular admin group ids = %#v, %v", ids, err)
+	}
+}
+
+func TestSuperAdminGroupAccessDoesNotRequireTechnicalMembership(t *testing.T) {
+	db, mock := newAssignmentMockGorm(t)
+	expectSuperAdminTechnicalGroupIDs(mock, 2, 4, 7, 9)
+	service := &Service{db: db}
+	if err := service.requireManagerGroupAccess(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 7); err != nil {
+		t.Fatalf("super-admin could not access a technical group without membership: %v", err)
+	}
+}
+
+func TestAdminCanPublishAssignmentForSelf(t *testing.T) {
+	db, mock := newAssignmentMockGorm(t)
+	now := time.Date(2026, 10, 19, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	mock.ExpectBegin()
+	expectTechnicalGroupIDs(mock, 8, 41)
+	mock.ExpectQuery("(?s)SELECT `user_group_members`\\.`user_id` FROM `user_group_members` JOIN user_groups ON .* JOIN users ON .*WHERE user_group_members\\.group_id = \\? AND user_group_members\\.user_id IN \\(\\?\\) AND user_groups\\.status = \\? AND users\\.status = \\?").
+		WillReturnRows(sqlmock.NewRows([]string{"user_id"}).AddRow(8))
+	mock.ExpectExec("INSERT INTO `assignments`").WillReturnResult(sqlmock.NewResult(91, 1))
+	mock.ExpectExec("INSERT INTO `assignment_targets`").WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectCommit()
+	mock.ExpectQuery("SELECT .* FROM `user_groups` WHERE.*").
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(41, groupMechanical))
+	service := &Service{db: db, now: func() time.Time { return now }}
+	view, err := service.Create(context.Background(), Actor{ID: 8, RoleName: model.RoleNameAdmin}, CreateInput{
+		GroupID: 41, Title: "自测作业", Description: "提交一份测试文件", DueAt: now.Add(time.Hour), TargetUserIDs: []uint64{8},
+	})
+	if err != nil {
+		t.Fatalf("admin could not publish to self: %v", err)
+	}
+	if view.ID != 91 || view.CreatorID != 8 || view.TargetCount != 1 {
+		t.Fatalf("self-assignment response = %#v", view)
+	}
 }
 
 func TestOrdinaryMemberCannotUseAdminAssignmentManagement(t *testing.T) {
@@ -92,6 +157,44 @@ func TestGroupAdminCannotDownloadAnotherGroupsSubmissionFile(t *testing.T) {
 	service := &Service{db: db}
 	_, err := service.OpenFile(context.Background(), Actor{ID: 8, RoleName: model.RoleNameAdmin}, 71)
 	assertAssignmentStatus(t, err, 403)
+}
+
+func TestSuperAdminCanDownloadSubmissionFileWithoutTechnicalMembership(t *testing.T) {
+	db, mock := newAssignmentMockGorm(t)
+	created := time.Date(2026, 10, 19, 10, 0, 0, 0, time.UTC)
+	mock.ExpectQuery("(?s)SELECT \\* FROM `assignment_submission_files` WHERE .*id` = \\? ORDER BY.*LIMIT \\?").
+		WithArgs(uint64(71), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "submission_id", "file_name", "storage_path", "content_type", "size", "created_at"}).
+			AddRow(71, 81, "答案.pdf", "81/22/key.pdf", "application/pdf", 15, created))
+	mock.ExpectQuery("(?s)SELECT \\* FROM `assignment_submissions` WHERE .*id` = \\? ORDER BY.*LIMIT \\?").
+		WithArgs(uint64(81), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "assignment_id", "user_id", "attempt", "submitted_at", "is_late", "created_at"}).
+			AddRow(81, 91, 22, 1, created, false, created))
+	mock.ExpectQuery("(?s)SELECT \\* FROM `assignments` WHERE .*id` = \\? ORDER BY.*LIMIT \\?").
+		WithArgs(uint64(91), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "creator_id", "title", "description", "due_at", "attachment_requirements", "is_group_wide", "created_at", "updated_at"}).
+			AddRow(91, 42, 8, "作业", "说明", created.Add(time.Hour), "", true, created, created))
+	expectSuperAdminTechnicalGroupIDs(mock, 2, 4, 42, 93)
+	root := t.TempDir()
+	filePath := filepath.Join(root, "81/22/key.pdf")
+	if err := os.MkdirAll(filepath.Dir(filePath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filePath, []byte("private answer"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store, err := newAssignmentFileStore(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := &Service{db: db, files: store}
+	download, err := service.OpenFile(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 71)
+	if err != nil {
+		t.Fatalf("super-admin could not access another group's submission file: %v", err)
+	}
+	if string(download.Content) != "private answer" {
+		t.Fatalf("download content = %q", download.Content)
+	}
 }
 
 func TestCreateInputUsesShanghaiDeadlineAndRejectsPastTime(t *testing.T) {
