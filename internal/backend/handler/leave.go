@@ -20,6 +20,65 @@ func (h *LeaveHandler) Colleges(c *gin.Context) {
 	writeAPI(c, http.StatusOK, "获取学院列表成功", h.service.Colleges())
 }
 
+func (h *LeaveHandler) GetLeaveAccess(c *gin.Context) {
+	userID, ok := leaveUserID(c)
+	if !ok {
+		return
+	}
+	state, err := h.service.LeaveAccessState(c.Request.Context(), userID)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "获取请假开通状态成功", state)
+}
+
+func (h *LeaveHandler) RequestLeaveAccess(c *gin.Context) {
+	userID, ok := leaveUserID(c)
+	if !ok {
+		return
+	}
+	state, err := h.service.RequestLeaveAccess(c.Request.Context(), userID)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "请假开通申请已提交", state)
+}
+
+func (h *LeaveHandler) ListPendingLeaveAccessRequests(c *gin.Context) {
+	rows, err := h.service.ListPendingLeaveAccessRequests(c.Request.Context())
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "获取请假开通申请成功", rows)
+}
+
+func (h *LeaveHandler) ReviewLeaveAccessRequest(c *gin.Context) {
+	adminID, ok := leaveUserID(c)
+	if !ok {
+		return
+	}
+	requestID, ok := pathID(c, "id")
+	if !ok {
+		return
+	}
+	var input struct {
+		Status string `json:"status"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		writeAPIError(c, http.StatusBadRequest, "审核结果无效")
+		return
+	}
+	state, err := h.service.ReviewLeaveAccessRequest(c.Request.Context(), requestID, adminID, input.Status)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "请假开通申请已审核", state)
+}
+
 func (h *LeaveHandler) GetProfile(c *gin.Context) {
 	userID, ok := leaveUserID(c)
 	if !ok {

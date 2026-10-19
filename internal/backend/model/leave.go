@@ -7,11 +7,26 @@ const (
 	LeaveStatusIncluded  = "included"
 	LeaveStatusWithdrawn = "withdrawn"
 
+	LeaveAccessPending  = "pending"
+	LeaveAccessApproved = "approved"
+	LeaveAccessRejected = "rejected"
+
 	LeaveRunReady          = "ready"
 	LeaveRunAwaitingReturn = "awaiting_return"
 	LeaveRunCompleted      = "completed"
 	LeaveRunCancelled      = "cancelled"
 )
+
+// LeaveAccessRequest stores a member's request to use the authenticated leave
+// workbench. Missing rows mean access has not been requested or granted.
+type LeaveAccessRequest struct {
+	ID          uint64     `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
+	UserID      uint64     `json:"userId" gorm:"column:user_id;type:bigint unsigned;not null;uniqueIndex:uk_leave_access_request_user"`
+	Status      string     `json:"status" gorm:"size:20;not null;index:idx_leave_access_request_status_requested,priority:1"`
+	RequestedAt time.Time  `json:"requestedAt" gorm:"column:requested_at;type:datetime;not null;index:idx_leave_access_request_status_requested,priority:2"`
+	ReviewedAt  *time.Time `json:"reviewedAt,omitempty" gorm:"column:reviewed_at;type:datetime"`
+	ReviewedBy  *uint64    `json:"reviewedBy,omitempty" gorm:"column:reviewed_by;type:bigint unsigned"`
+}
 
 // LeaveProfile stores the school identity required by leave documents without
 // changing the website's login or account model.

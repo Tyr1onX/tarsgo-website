@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useOutletContext } from "react-router";
 
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
-import { downloadLeaveFile, leaveClient, type CampDetail, type CampEvent, type CollegeOption, type DailyEntry, type DailyWindow, type LeaveProfile, type LeaveRequest, type SchoolRun } from "~/lib/leave-client";
+import { downloadLeaveFile, leaveClient, type CampDetail, type CampEvent, type CollegeOption, type DailyEntry, type DailyWindow, type LeaveAccessRequest, type LeaveAccessState, type LeaveProfile, type LeaveRequest, type SchoolRun } from "~/lib/leave-client";
 
 type Tab = "daily" | "camp" | "records";
 type LeaveProfileDraft = Omit<LeaveProfile, "identityLocked">;
@@ -26,7 +26,11 @@ export default function LeaveWorkbench() {
   const { currentUser, refreshLeaveUnreadCount } = useOutletContext<DashboardLayoutOutletContext>();
   const isAdmin = currentUser.role.name === "admin" || currentUser.role.name === "super_admin";
   const [tab, setTab] = useState<Tab>("daily");
+  const [accessState, setAccessState] = useState<LeaveAccessState | null>(null);
+  const [accessRequests, setAccessRequests] = useState<LeaveAccessRequest[]>([]);
   const [profile, setProfile] = useState<LeaveProfile | null>(null);
+  const [profileExpanded, setProfileExpanded] = useState(false);
+  const [profileEditing, setProfileEditing] = useState(false);
   const [profileDraft, setProfileDraft] = useState<LeaveProfileDraft>({ name: "", studentId: "", collegeCode: "", participantType: "other" });
   const [colleges, setColleges] = useState<CollegeOption[]>([]);
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
@@ -53,12 +57,19 @@ export default function LeaveWorkbench() {
   async function load() {
     setLoading(true); setError("");
     try {
-      const [nextProfile, nextColleges, nextDaily] = await Promise.all([
+      if (!isAdmin) {
+        const nextAccessState = await leaveClient.leaveAccess();
+        setAccessState(nextAccessState);
+        if (nextAccessState.status !== "approved") return;
+      }
+      const [nextProfile, nextColleges, nextDaily, nextAccessRequests] = await Promise.all([
         leaveClient.profile(), leaveClient.colleges(), isAdmin ? leaveClient.dailyRecords() : leaveClient.myDailyRecords(),
+        isAdmin ? leaveClient.pendingLeaveAccessRequests() : Promise.resolve([]),
       ]);
       setProfile(nextProfile);
       setProfileDraft(nextProfile ? { name: nextProfile.name, studentId: nextProfile.studentId, collegeCode: nextProfile.collegeCode, participantType: nextProfile.participantType } : { name: "", studentId: "", collegeCode: "", participantType: "other" });
       setColleges(nextColleges); setDailyEntries(nextDaily.filter((entry) => entry.startAt && entry.endAt));
+      setAccessRequests(nextAccessRequests);
       if (showExtendedLeaveFeatures) {
         const [nextRequests, nextWindows, nextCamps] = await Promise.all([
           leaveClient.schoolRequests(), leaveClient.dailyWindows(), leaveClient.campEvents(),
@@ -91,7 +102,11 @@ export default function LeaveWorkbench() {
 
   async function saveProfile(event: FormEvent) {
     event.preventDefault();
-    await runAction(async () => { const saved = await leaveClient.saveProfile(profileDraft); setProfile(saved); }, "请假资料已保存。");
+    await runAction(async () => { const saved = await leaveClient.saveProfile(profileDraft); setProfile(saved); setProfileEditing(false); setProfileExpanded(false); }, "请假资料已保存。");
+  }
+
+  async function reviewLeaveAccess(request: LeaveAccessRequest, status: "approved" | "rejected") {
+    await runAction(() => leaveClient.reviewLeaveAccessRequest(request.id, status), status === "approved" ? "已开通请假功能。" : "已拒绝请假开通申请。");
   }
 
   async function makeDaily(offline = false) {
@@ -148,18 +163,33 @@ export default function LeaveWorkbench() {
     {notice ? <p role="status" className="rounded-xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200">{notice}</p> : null}
     {loading ? <p className="py-8 text-sm text-[var(--admin-muted)]">正在加载请假数据…</p> : null}
 
-    {!loading ? <>
+    {!loading && !isAdmin && accessState && accessState.status !== "approved" ? <section className="admin-panel space-y-4 p-4 sm:p-5" aria-labelledby="leave-access-title">
+      <div className="admin-section-heading"><h2 id="leave-access-title">请假功能</h2></div>
+      {accessState.status === "pending" ? <p role="status" className="text-sm text-[var(--admin-muted)]">申请审核中</p> : <button type="button" className={`${button} admin-button--primary`} disabled={busy} onClick={() => void runAction(() => leaveClient.requestLeaveAccess(), "请假开通申请已提交。")}>{accessState.status === "rejected" ? "重新申请" : "申请开通"}</button>}
+    </section> : null}
+
+    {!loading && (isAdmin || accessState?.status === "approved") ? <>
+      {isAdmin ? <section className="admin-panel space-y-4 p-4 sm:p-5" aria-labelledby="leave-access-requests-title">
+        <div className="admin-section-heading"><h2 id="leave-access-requests-title">请假开通申请</h2></div>
+        <div className="divide-y divide-[var(--admin-border-subtle)]">{accessRequests.map((request) => <article key={request.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+          <div><strong className="text-sm">{request.userName || request.email}</strong><p className="mt-1 text-xs text-[var(--admin-muted)]">{request.email} · {dateText(request.requestedAt)}</p></div>
+          <div className="flex gap-2"><button type="button" className={`${button} admin-button--primary`} disabled={busy} onClick={() => void reviewLeaveAccess(request, "approved")}>批准</button><button type="button" className={`${button} admin-button--quiet`} disabled={busy} onClick={() => void reviewLeaveAccess(request, "rejected")}>拒绝</button></div>
+        </article>)}{!accessRequests.length ? <p className="py-2 text-sm text-[var(--admin-muted)]">暂无待审核申请。</p> : null}</div>
+      </section> : null}
       <section className="admin-panel space-y-4 p-4 sm:p-5" aria-labelledby="leave-profile-title">
-        <div className="admin-section-heading"><h2 id="leave-profile-title">请假资料</h2></div>
-        {profile ? <dl className="grid gap-3 sm:grid-cols-3">
-          <div><dt className="admin-field-label">姓名</dt><dd className="text-sm">{profile.name}</dd></div>
-          <div><dt className="admin-field-label">学号</dt><dd className="text-sm">{profile.studentId}</dd></div>
-          <div><dt className="admin-field-label">学院</dt><dd className="text-sm">{colleges.find((college) => college.code === profile.collegeCode)?.name ?? profile.collegeCode}</dd></div>
-        </dl> : <form onSubmit={saveProfile} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <label className="admin-field-label">姓名<input className={inputClass} required minLength={2} maxLength={50} value={profileDraft.name} onChange={(e) => setProfileDraft({ ...profileDraft, name: e.target.value })} /></label>
-          <label className="admin-field-label">学号<input className={inputClass} required inputMode="numeric" pattern="[0-9]{8}" maxLength={8} value={profileDraft.studentId} onChange={(e) => setProfileDraft({ ...profileDraft, studentId: e.target.value })} /></label>
+        <div className="admin-section-heading"><h2 id="leave-profile-title">请假资料</h2>{profileReady && !profileExpanded ? <button type="button" className={`${button} admin-button--quiet`} onClick={() => setProfileExpanded(true)}>查看/修改资料</button> : null}</div>
+        {profileReady && !profileExpanded ? null : profileReady && !profileEditing ? <>
+          <dl className="grid gap-3 sm:grid-cols-3">
+            <div><dt className="admin-field-label">姓名</dt><dd className="text-sm">{profile?.name}</dd></div>
+            <div><dt className="admin-field-label">学号</dt><dd className="text-sm">{profile?.studentId}</dd></div>
+            <div><dt className="admin-field-label">学院</dt><dd className="text-sm">{colleges.find((college) => college.code === profile?.collegeCode)?.name ?? profile?.collegeCode}</dd></div>
+          </dl>
+          <div className="flex gap-2"><button type="button" className={`${button} admin-button--secondary`} onClick={() => setProfileEditing(true)}>修改资料</button><button type="button" className={`${button} admin-button--quiet`} onClick={() => setProfileExpanded(false)}>收起</button></div>
+        </> : <form onSubmit={saveProfile} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="admin-field-label">姓名<input className={inputClass} required minLength={2} maxLength={50} readOnly={Boolean(profile?.identityLocked)} value={profileDraft.name} onChange={(e) => setProfileDraft({ ...profileDraft, name: e.target.value })} /></label>
+          <label className="admin-field-label">学号<input className={inputClass} required inputMode="numeric" pattern="[0-9]{8}" maxLength={8} readOnly={Boolean(profile?.identityLocked)} value={profileDraft.studentId} onChange={(e) => setProfileDraft({ ...profileDraft, studentId: e.target.value })} /></label>
           <label className="admin-field-label">学院<select className={inputClass} required value={profileDraft.collegeCode} onChange={(e) => setProfileDraft({ ...profileDraft, collegeCode: e.target.value })}><option value="">选择学院</option>{colleges.map((college) => <option key={college.code} value={college.code}>{college.name}</option>)}</select></label>
-          <div className="flex items-end"><button className={`${button} admin-button--primary`} disabled={busy}>保存请假资料</button></div>
+          <div className="flex items-end gap-2"><button className={`${button} admin-button--primary`} disabled={busy}>保存请假资料</button>{profileReady ? <button type="button" className={`${button} admin-button--quiet`} onClick={() => { setProfileEditing(false); setProfileExpanded(true); }}>取消</button> : null}</div>
         </form>}
       </section>
 

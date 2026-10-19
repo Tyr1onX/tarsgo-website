@@ -50,6 +50,51 @@ func TestAdminCanUseAdminRoutesButNotSuperAdminConfiguration(t *testing.T) {
 	}
 }
 
+type leaveAccessStub struct {
+	allowed bool
+	err     error
+	userID  uint64
+}
+
+func (s *leaveAccessStub) HasLeaveAccess(_ context.Context, userID uint64) (bool, error) {
+	s.userID = userID
+	return s.allowed, s.err
+}
+
+func TestLeaveAccessProtectsMemberRoutesAndPreservesAdminAccess(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	request := func(role string, reader *leaveAccessStub) int {
+		engine := gin.New()
+		session := roleSessionReader{role: role}
+		engine.GET("/leave", RequireAuthenticated(session), RequireLeaveAccess(reader), func(c *gin.Context) { c.Status(http.StatusNoContent) })
+		req := httptest.NewRequest(http.MethodGet, "/leave", nil)
+		req.AddCookie(&http.Cookie{Name: "session", Value: "test-token"})
+		response := httptest.NewRecorder()
+		engine.ServeHTTP(response, req)
+		return response.Code
+	}
+
+	denied := &leaveAccessStub{}
+	if got := request("user", denied); got != http.StatusForbidden || denied.userID != 10 {
+		t.Fatalf("unapproved member route status=%d userID=%d, want 403 for user 10", got, denied.userID)
+	}
+	approved := &leaveAccessStub{allowed: true}
+	if got := request("user", approved); got != http.StatusNoContent || approved.userID != 10 {
+		t.Fatalf("approved member route status=%d userID=%d, want 204 for user 10", got, approved.userID)
+	}
+	admin := &leaveAccessStub{}
+	if got := request("admin", admin); got != http.StatusNoContent {
+		t.Fatalf("admin route status=%d, want 204", got)
+	}
+	if admin.userID != 0 {
+		t.Fatalf("admin leave access should bypass the member grant lookup, got userID=%d", admin.userID)
+	}
+	failedClosed := &leaveAccessStub{err: context.DeadlineExceeded}
+	if got := request("user", failedClosed); got != http.StatusInternalServerError {
+		t.Fatalf("access store error status=%d, want 500", got)
+	}
+}
+
 func TestOptionalAuthenticationAllowsVisitorsAndAttachesOnlyAValidSession(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	reader := roleSessionReader{role: "user"}
