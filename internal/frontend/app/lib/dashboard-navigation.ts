@@ -73,39 +73,54 @@ const CORE_DASHBOARD_MENU: readonly DashboardMenuLink[] = [
 
 const ADMIN_MENU: readonly DashboardMenuDefinition[] = [
   {
-    key: "admin-panel",
-    label: "招新总览",
-    href: "/dashboard/admin",
-    iconKey: "dashboard",
-    allowedRoles: ["super_admin", "admin"],
-  },
-  {
-    key: "candidate-processing",
-    label: "候选人处理",
-    href: "/dashboard/admin/registrations",
+    key: "recruitment-operations",
+    label: "招新事务",
     iconKey: "registration",
-    allowedRoles: ["super_admin", "admin"],
+    children: [
+      {
+        key: "admin-panel",
+        label: "招新总览",
+        href: "/dashboard/admin",
+        allowedRoles: ["super_admin", "admin"],
+      },
+      {
+        key: "candidate-processing",
+        label: "候选人处理",
+        href: "/dashboard/admin/registrations",
+        allowedRoles: ["super_admin", "admin"],
+      },
+      {
+        key: "recruitment-management",
+        label: "招新管理",
+        href: "/dashboard/admin/recruitment",
+        allowedRoles: ["super_admin"],
+      },
+      {
+        key: "recruitment-analytics",
+        label: "招新数据分析",
+        href: "/dashboard/admin/recruitment-analytics",
+        allowedRoles: ["super_admin"],
+      },
+    ],
   },
   {
-    key: "recruitment-analytics",
-    label: "招新数据分析",
-    href: "/dashboard/admin/recruitment-analytics",
-    iconKey: "analytics",
-    allowedRoles: ["super_admin"],
-  },
-  {
-	key: "recruitment-management",
-	label: "招新管理",
-	href: "/dashboard/admin/recruitment",
-	iconKey: "registration",
-	allowedRoles: ["super_admin"],
-  },
-  {
-	key: "accounts",
-	label: "账号与权限",
+    key: "member-management",
+    label: "成员管理",
     iconKey: "people",
-    href: "/dashboard/admin/users",
-    allowedRoles: ["super_admin"],
+    children: [
+      {
+        key: "accounts",
+        label: "账号与权限",
+        href: "/dashboard/admin/users",
+        allowedRoles: ["super_admin"],
+      },
+      {
+        key: "leave-management",
+        label: "请假管理",
+        href: "/dashboard/admin/leave",
+        allowedRoles: ["admin", "super_admin"],
+      },
+    ],
   },
   {
     key: "email-management",
@@ -113,13 +128,6 @@ const ADMIN_MENU: readonly DashboardMenuDefinition[] = [
     href: "/dashboard/admin/email",
     iconKey: "settings",
     allowedRoles: ["super_admin"],
-  },
-  {
-    key: "leave-management",
-    label: "请假管理",
-    href: "/dashboard/admin/leave",
-    iconKey: "report",
-    allowedRoles: ["admin", "super_admin"],
   },
 ];
 
@@ -198,6 +206,14 @@ export function getVisibleAdminDashboardMenu(userOrRole: AuthUser | string): Vis
 
 export function hasDashboardAdminAccess(roleName: string) {
   return getAccessibleAdminPaths(roleName).length > 0;
+}
+
+export function isDashboardMenuPathActive(pathname: string, href: string) {
+  if (pathname === href) {
+    return true;
+  }
+
+  return href !== "/dashboard/admin" && pathname.startsWith(`${href}/`);
 }
 
 export function getDefaultDashboardPath(_roleName: string) {

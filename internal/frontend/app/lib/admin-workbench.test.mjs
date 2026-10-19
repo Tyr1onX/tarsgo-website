@@ -18,7 +18,8 @@ test("candidate sidebar count includes only actionable screening and interview q
 test("sidebar todo count reuses the permission-scoped summary and refreshes after candidate actions", () => {
   assert.match(dashboardLayout, /hasDashboardAdminAccess\(currentUser\.role\.name\)[\s\S]*?getAdminWorkbenchSummary\(userId, force\)/);
   assert.match(dashboardLayout, /getCandidateTodoCount\(response\.currentFormAvailable, response\.summary\)/);
-  assert.match(dashboardLayout, /item\.key === "candidate-processing" \? candidateTodoCount : undefined/);
+  assert.match(dashboardLayout, /item\.children\.some\(\(child\) => child\.key === "candidate-processing"\) \? candidateTodoCount : undefined/);
+  assert.match(dashboardLayout, /child\.key === "candidate-processing" && \(badgeCount \?\? 0\) > 0/);
   assert.ok(dashboardLayout.includes("candidateTodoState.roleName === currentUser.role.name"));
   assert.ok(registrationsClient.includes("const pending = pendingWorkbenchSummaryRequests.get(accountId);"));
   assert.ok(registrationsClient.includes("if (pending && !force) return pending;"));
