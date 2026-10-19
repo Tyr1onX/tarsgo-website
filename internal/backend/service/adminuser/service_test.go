@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	mysqlDriver "github.com/go-sql-driver/mysql"
 	"gorm.io/gorm"
@@ -192,11 +193,62 @@ func TestListUsersFiltersBySystemRoleAndStatus(t *testing.T) {
 	}
 }
 
+func TestListUsersDefaultsToRecentlyConfirmedAccountsAndCanIncludeAll(t *testing.T) {
+	repo := newFakeRepository()
+	service := NewService(repo)
+	now := time.Date(2027, time.February, 1, 12, 0, 0, 0, accountActivityConfirmationStartedAt.Location())
+	service.now = func() time.Time { return now }
+	repo.users[1].LastLoginAt = timePtr(time.Date(2026, time.October, 20, 12, 0, 0, 0, now.Location()))
+	repo.users[2].LastLoginAt = timePtr(time.Date(2026, time.November, 3, 12, 0, 0, 0, now.Location()))
+	repo.users[3].LastLoginAt = timePtr(time.Date(2026, time.November, 2, 12, 0, 0, 0, now.Location()))
+	repo.addUser(&model.User{
+		ID:          4,
+		RoleID:      repo.roleID(model.RoleNameUser),
+		Name:        "已停用但近期登录",
+		Email:       "disabled@example.com",
+		Status:      model.UserStatusDisabled,
+		LastLoginAt: timePtr(time.Date(2026, time.December, 1, 12, 0, 0, 0, now.Location())),
+	})
+
+	active, err := service.ListUsers(context.Background(), Actor{RoleName: model.RoleNameSuperAdmin}, ListUsersInput{})
+	if err != nil {
+		t.Fatalf("ListUsers returned error: %v", err)
+	}
+	if len(active.Items) != 1 || active.Items[0].ID != 2 || active.Pagination.Total != 1 {
+		t.Fatalf("default list should include only enabled users who logged in after confirmation and within 90 days: %#v", active)
+	}
+	if active.Summary.Total != 4 || active.Summary.Disabled != 1 {
+		t.Fatalf("activity filtering must not change account summary totals: %#v", active.Summary)
+	}
+
+	all, err := service.ListUsers(context.Background(), Actor{RoleName: model.RoleNameSuperAdmin}, ListUsersInput{IncludeInactive: true})
+	if err != nil {
+		t.Fatalf("ListUsers(include inactive) returned error: %v", err)
+	}
+	if len(all.Items) != 4 || all.Pagination.Total != 4 {
+		t.Fatalf("all-account list omitted an inactive or disabled account: %#v", all)
+	}
+}
+
+func TestAccountActivityCutoffUsesBothConfirmationStartAndNinetyDays(t *testing.T) {
+	launchDayNow := time.Date(2026, time.October, 20, 12, 0, 0, 0, accountActivityConfirmationStartedAt.Location())
+	if got := accountActivityCutoff(launchDayNow); !got.Equal(accountActivityConfirmationStartedAt) {
+		t.Fatalf("cutoff shortly after launch = %s, want launch %s", got, accountActivityConfirmationStartedAt)
+	}
+
+	laterNow := time.Date(2027, time.February, 1, 12, 0, 0, 0, accountActivityConfirmationStartedAt.Location())
+	want := laterNow.Add(-90 * 24 * time.Hour)
+	if got := accountActivityCutoff(laterNow); !got.Equal(want) {
+		t.Fatalf("cutoff after 90 days = %s, want %s", got, want)
+	}
+}
+
 type fakeRepository struct {
 	roles         map[uint64]model.Role
 	roleByName    map[string]uint64
 	users         map[uint64]*model.User
 	nextUserID    uint64
+	lastListInput ListUsersInput
 	createUserErr error
 	updateUserErr error
 }
@@ -215,8 +267,9 @@ func newFakeRepository() *fakeRepository {
 	rootHash, _ := auth.HashPassword("RootPassword123")
 	adminHash, _ := auth.HashPassword("AdminPassword123")
 	memberHash, _ := auth.HashPassword("UserPassword123")
-	repo.addUser(&model.User{ID: 1, RoleID: 1, Name: "Root", Email: "root@example.com", PasswordHash: stringPtr(rootHash), Status: model.UserStatusEnabled})
-	repo.addUser(&model.User{ID: 2, RoleID: 2, Name: "Admin", Email: "admin@example.com", PasswordHash: stringPtr(adminHash), Status: model.UserStatusEnabled})
+	lastLoginAt := accountActivityConfirmationStartedAt.Add(time.Minute)
+	repo.addUser(&model.User{ID: 1, RoleID: 1, Name: "Root", Email: "root@example.com", PasswordHash: stringPtr(rootHash), Status: model.UserStatusEnabled, LastLoginAt: &lastLoginAt})
+	repo.addUser(&model.User{ID: 2, RoleID: 2, Name: "Admin", Email: "admin@example.com", PasswordHash: stringPtr(adminHash), Status: model.UserStatusEnabled, LastLoginAt: &lastLoginAt})
 	repo.addUser(&model.User{
 		ID:           3,
 		RoleID:       3,
@@ -228,13 +281,18 @@ func newFakeRepository() *fakeRepository {
 		PasswordHash: stringPtr(memberHash),
 		GitHubID:     stringPtr("github-3"),
 		Status:       model.UserStatusEnabled,
+		LastLoginAt:  &lastLoginAt,
 	})
 	return repo
 }
 
 func (r *fakeRepository) ListUsers(_ context.Context, input ListUsersInput) ([]model.User, int64, error) {
+	r.lastListInput = input
 	users := make([]model.User, 0, len(r.users))
 	for _, user := range r.users {
+		if !input.IncludeInactive && (user.Status != model.UserStatusEnabled || user.LastLoginAt == nil || user.LastLoginAt.Before(input.ActivitySince)) {
+			continue
+		}
 		if input.Role != "" && user.Role.Name != input.Role {
 			continue
 		}
@@ -419,6 +477,10 @@ func cloneUser(user *model.User) *model.User {
 	cloned.GitHubID = copyStringPointer(user.GitHubID)
 	cloned.Phone = copyStringPointer(user.Phone)
 	cloned.RealName = copyStringPointer(user.RealName)
+	if user.LastLoginAt != nil {
+		lastLoginAt := *user.LastLoginAt
+		cloned.LastLoginAt = &lastLoginAt
+	}
 	return &cloned
 }
 
@@ -429,6 +491,8 @@ func copyStringPointer(value *string) *string {
 	copied := *value
 	return &copied
 }
+
+func timePtr(value time.Time) *time.Time { return &value }
 
 func deref(value *string) string {
 	if value == nil {

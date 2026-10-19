@@ -230,20 +230,25 @@ func TestTeamWeekShowsSubmissionStatusAndReportOnlyToGroupLeaders(t *testing.T) 
 	addMember(repo, 1, 77, model.UserGroupMemberRoleLeader, "负责人")
 	addMember(repo, 2, 77, model.UserGroupMemberRoleMember, "已提交成员")
 	addMember(repo, 3, 77, model.UserGroupMemberRoleMember, "未提交成员")
+	addMember(repo, 4, 77, model.UserGroupMemberRoleMember, "超过活跃期的成员")
+	oldLogin := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
+	staleMember := repo.members[4]
+	staleMember.User.LastLoginAt = &oldLogin
+	repo.members[4] = staleMember
 	repo.reports[5] = model.WeeklyReport{ID: 5, GroupID: 77, UserID: 2, WeekStart: "2026-10-12", Completed: "完成", Blockers: "无", NextPlan: "计划"}
 
 	teamWeek, err := service.GetTeamWeek(context.Background(), 1, "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	if teamWeek.WeekStart != "2026-10-12" || teamWeek.SubmittedCount != 1 || teamWeek.TotalCount != 3 || len(teamWeek.Members) != 3 {
+	if teamWeek.WeekStart != "2026-10-12" || teamWeek.SubmittedCount != 1 || teamWeek.TotalCount != 4 || len(teamWeek.Members) != 4 {
 		t.Fatalf("unexpected team submission status: %#v", teamWeek)
 	}
 	memberReports := map[uint64]TeamMemberReport{}
 	for _, member := range teamWeek.Members {
 		memberReports[member.UserID] = member
 	}
-	if !memberReports[2].Submitted || memberReports[2].Report == nil || memberReports[3].Submitted {
+	if !memberReports[2].Submitted || memberReports[2].Report == nil || memberReports[3].Submitted || memberReports[4].Submitted || memberReports[4].Name != "超过活跃期的成员" {
 		t.Fatalf("team report content or submission state is missing: %#v", teamWeek.Members)
 	}
 	if _, err := service.GetTeamWeek(context.Background(), 2, ""); err == nil {

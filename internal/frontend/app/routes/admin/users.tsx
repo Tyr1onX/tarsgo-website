@@ -65,6 +65,7 @@ export default function AccountManagement() {
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [groupStateFilter, setGroupStateFilter] = useState<"" | "assigned" | "unassigned" | "pending" | "cleanup">("");
+  const [includeInactive, setIncludeInactive] = useState(false);
   const [loading, setLoading] = useState(true);
   const accountRequestId = useRef(0);
   const [error, setError] = useState("");
@@ -103,6 +104,7 @@ export default function AccountManagement() {
         role: roleFilter,
         status: statusFilter === "" ? "" : Number(statusFilter),
         groupState: groupStateFilter,
+        includeInactive,
       });
       if (requestId !== accountRequestId.current) return;
       setItems(result.items);
@@ -122,7 +124,7 @@ export default function AccountManagement() {
   useEffect(() => {
     void loadAccounts(1);
     return () => { accountRequestId.current += 1; };
-  }, [keyword, roleFilter, statusFilter, groupStateFilter]);
+  }, [keyword, roleFilter, statusFilter, groupStateFilter, includeInactive]);
 
   function openCreate() {
     setEditing(null);
@@ -297,7 +299,10 @@ export default function AccountManagement() {
           <label className="text-xs text-[var(--admin-muted)]">系统角色<select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} className="admin-field mt-1"><option value="">全部角色</option>{roles.map((role) => <option key={role.id} value={role.name}>{role.displayName}</option>)}</select></label>
           <label className="text-xs text-[var(--admin-muted)]">账号状态<select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="admin-field mt-1"><option value="">全部状态</option><option value="1">启用</option><option value="0">停用</option></select></label>
           <label className="text-xs text-[var(--admin-muted)]">所属组别<select value={groupStateFilter} onChange={(event) => setGroupStateFilter(event.target.value as typeof groupStateFilter)} className="admin-field mt-1"><option value="">全部组别状态</option><option value="assigned">已分组</option><option value="unassigned">未分组</option><option value="pending">待处理（多组）</option><option value="cleanup">停用组关系待清理</option></select></label>
-          <div className="admin-filter-actions flex items-end"><button type="button" onClick={openCreate} className="admin-button admin-button--primary w-full">新建账号</button></div>
+          <div className="admin-filter-actions flex flex-col justify-end gap-2">
+            <label className="flex min-h-9 items-center gap-2 text-xs text-[var(--admin-muted)]"><input type="checkbox" checked={includeInactive} onChange={(event) => setIncludeInactive(event.target.checked)} />显示全部账号</label>
+            <button type="button" onClick={openCreate} className="admin-button admin-button--primary w-full">新建账号</button>
+          </div>
         </div>
       </section>
 

@@ -96,6 +96,7 @@ export interface ListAdminUsersInput {
   role?: string;
   status?: number | "";
 	groupState?: "" | "assigned" | "unassigned" | "pending" | "cleanup";
+	includeInactive?: boolean;
 }
 
 export interface AdminUserUpsertInput {
@@ -129,6 +130,9 @@ export async function listAdminUsers(input: ListAdminUsersInput): Promise<AdminU
   if (input.groupState) {
     params.set("groupState", input.groupState);
   }
+	if (input.includeInactive) {
+		params.set("includeInactive", "true");
+	}
 
   const query = params.toString();
   return apiRequest<AdminUserListResponse>(`/api/admin/users${query ? `?${query}` : ""}`);
