@@ -136,3 +136,14 @@ test("the default homepage preloads the small login route without preloading das
   assert.match(navbarSource, /<PrefetchPageLinks page="\/login"\s*\/>/);
   assert.match(navbarSource, /variant === "default" && visibleUser && dashboardPrefetchUserId === visibleUser\.id/);
 });
+
+test("critical navigation paths keep route prefetch and load analytics data after render", async () => {
+  const routesSource = await readFile(new URL("../routes.ts", import.meta.url), "utf8");
+  const analyticsSource = await readFile(new URL("../routes/admin/recruitment-analytics.tsx", import.meta.url), "utf8");
+
+  assert.match(navbarSource, /<PrefetchPageLinks page=\{getDefaultDashboardPath\(visibleUser\.role\.name\)\}\s*\/>/);
+  assert.match(dashboardLayoutSource, /prefetch=\{HIGH_PRIORITY_RENDER_PREFETCH_KEYS\.has\(item\.key\) \? "render" : "intent"\}/);
+  assert.match(routesSource, /route\("admin\/recruitment-analytics", "routes\/admin\/recruitment-analytics\.tsx"\)/);
+  assert.match(analyticsSource, /useEffect\(\(\) => \{[\s\S]*?getRecruitmentAnalytics\(controller\.signal\)/);
+  assert.doesNotMatch(analyticsSource, /export\s+(?:async\s+)?function\s+(?:clientLoader|loader)\b/);
+});
