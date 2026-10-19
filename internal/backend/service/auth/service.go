@@ -195,6 +195,7 @@ func (s *Service) RegisterWithEmail(ctx context.Context, input RegisterEmailInpu
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "默认用户角色不存在", Err: err}
 		}
 
+		lastLoginAt := s.now()
 		user := model.User{
 			RoleID: role.ID,
 			// Newly registered accounts are ordinary users. They do not have an
@@ -204,6 +205,7 @@ func (s *Service) RegisterWithEmail(ctx context.Context, input RegisterEmailInpu
 			Email:        normalizedInput.Email,
 			PasswordHash: stringPtr(passwordHash),
 			Status:       1,
+			LastLoginAt:  &lastLoginAt,
 		}
 		assignOptionalString(&user.RealName, normalizedInput.RealName)
 		assignOptionalString(&user.Phone, normalizedInput.Phone)
@@ -310,12 +312,14 @@ func (s *Service) RegisterInitialSuperAdmin(ctx context.Context, input RegisterI
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "检查邮箱注册状态失败", Err: err}
 		}
 
+		lastLoginAt := s.now()
 		user := model.User{
 			RoleID:       role.ID,
 			Name:         deriveDisplayName(email, "", ""),
 			Email:        email,
 			PasswordHash: stringPtr(passwordHash),
 			Status:       model.UserStatusEnabled,
+			LastLoginAt:  &lastLoginAt,
 		}
 		if err := tx.Create(&user).Error; err != nil {
 			if database.IsDuplicateKeyError(err) {

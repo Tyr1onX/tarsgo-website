@@ -32,12 +32,13 @@ type adminUserService interface {
 }
 
 type listUsersQuery struct {
-	Page       int    `form:"page"`
-	PageSize   int    `form:"pageSize"`
-	Keyword    string `form:"keyword"`
-	Role       string `form:"role"`
-	Status     string `form:"status"`
-	GroupState string `form:"groupState"`
+	Page            int    `form:"page"`
+	PageSize        int    `form:"pageSize"`
+	Keyword         string `form:"keyword"`
+	Role            string `form:"role"`
+	Status          string `form:"status"`
+	GroupState      string `form:"groupState"`
+	IncludeInactive bool   `form:"includeInactive"`
 }
 
 type createUserRequest struct {
@@ -91,12 +92,13 @@ func (h *AdminUserHandler) ListUsers(c *gin.Context) {
 		c.Request.Context(),
 		currentActor(c),
 		adminuser.ListUsersInput{
-			Page:       query.Page,
-			PageSize:   query.PageSize,
-			Keyword:    query.Keyword,
-			Role:       query.Role,
-			Status:     status,
-			GroupState: query.GroupState,
+			Page:            query.Page,
+			PageSize:        query.PageSize,
+			Keyword:         query.Keyword,
+			Role:            query.Role,
+			Status:          status,
+			GroupState:      query.GroupState,
+			IncludeInactive: query.IncludeInactive,
 		},
 	)
 	if serviceErr != nil {

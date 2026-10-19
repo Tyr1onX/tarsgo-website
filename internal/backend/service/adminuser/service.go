@@ -17,8 +17,20 @@ import (
 	"tarsgo-backend/service/usergroup"
 )
 
+// Release baseline: a fresh credential login at or after this time confirms the account.
+var accountActivityConfirmationStartedAt = time.Date(2026, time.October, 19, 11, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+
+func accountActivityCutoff(now time.Time) time.Time {
+	cutoff := now.Add(-90 * 24 * time.Hour)
+	if accountActivityConfirmationStartedAt.After(cutoff) {
+		return accountActivityConfirmationStartedAt
+	}
+	return cutoff
+}
+
 type Service struct {
 	repo Repository
+	now  func() time.Time
 }
 
 type ServiceError struct {
@@ -33,12 +45,14 @@ type Actor struct {
 }
 
 type ListUsersInput struct {
-	Page       int
-	PageSize   int
-	Keyword    string
-	Role       string
-	Status     *uint8
-	GroupState string
+	Page            int
+	PageSize        int
+	Keyword         string
+	Role            string
+	Status          *uint8
+	GroupState      string
+	IncludeInactive bool
+	ActivitySince   time.Time
 }
 
 type CreateUserInput struct {
@@ -156,7 +170,7 @@ type ListUsersResult struct {
 }
 
 func NewService(repo Repository) *Service {
-	return &Service{repo: repo}
+	return &Service{repo: repo, now: time.Now}
 }
 
 func (e *ServiceError) Error() string {
@@ -180,6 +194,11 @@ func (s *Service) ListUsers(ctx context.Context, actor Actor, input ListUsersInp
 	input.Keyword = strings.TrimSpace(input.Keyword)
 	input.Role = strings.TrimSpace(input.Role)
 	input.GroupState = strings.TrimSpace(input.GroupState)
+	if input.IncludeInactive {
+		input.ActivitySince = time.Time{}
+	} else {
+		input.ActivitySince = accountActivityCutoff(s.now())
+	}
 	if input.GroupState != "" && input.GroupState != usergroup.MembershipStateAssigned && input.GroupState != usergroup.MembershipStateUnassigned && input.GroupState != usergroup.MembershipStatePending && input.GroupState != "cleanup" {
 		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "所属组别筛选值不合法"}
 	}

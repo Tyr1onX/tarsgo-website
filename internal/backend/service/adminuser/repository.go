@@ -55,6 +55,9 @@ func (r *GormRepository) ListUsers(ctx context.Context, filter ListUsersInput) (
 	if filter.Status != nil {
 		base = base.Where("users.status = ?", *filter.Status)
 	}
+	if !filter.IncludeInactive {
+		base = base.Where("users.status = ? AND users.last_login_at >= ?", model.UserStatusEnabled, filter.ActivitySince)
+	}
 	switch filter.GroupState {
 	case "assigned":
 		base = base.Where("COALESCE(group_counts.group_count, 0) = 1")
