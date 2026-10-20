@@ -70,8 +70,9 @@ function ZoneGlyph({ id, className = "" }: { id: ExpeditionFacilityId; className
 
 function ExpeditionMap({ selectedId, onSelect, masteredFacilityIds, hasPersonalRecord }: { selectedId: ExpeditionFacilityId; onSelect: (id: ExpeditionFacilityId) => void; masteredFacilityIds: readonly ExpeditionFacilityId[]; hasPersonalRecord: boolean }) {
   const stateClass = (id: ExpeditionFacilityId) => masteredFacilityIds.includes(id) ? "has-mastered" : "";
+  const selectedFacility = FACILITIES.find((facility) => facility.id === selectedId) ?? FACILITIES[0];
   return (
-    <div className="expedition-map" aria-label="可探索的基地设施">
+    <div className="expedition-map" aria-label="可探索的基地设施" data-selected={selectedId}>
       <svg className="expedition-map__art" viewBox="0 0 1000 850" role="img" aria-label="总装机库与五座专业设施以道路相连的等距基地地图">
         <defs>
           <linearGradient id="base-ground" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stopColor="#202b2a" /><stop offset=".52" stopColor="#111918" /><stop offset="1" stopColor="#0a1010" /></linearGradient>
@@ -108,6 +109,32 @@ function ExpeditionMap({ selectedId, onSelect, masteredFacilityIds, hasPersonalR
           <path d="M48 92v23M133 113V91" stroke="#edbd68" strokeOpacity=".75" strokeWidth="2" />
           <path d="M204 94V51l11-7v50" fill="#384540" stroke="#8e9f8e" /><path d="M215 48h16v8h-16" fill="#d1ad68" />
           <path d="M108 111v24" stroke="#f2d78f" strokeWidth="2" filter="url(#facility-glow)" />
+          <g className="expedition-machine-tooling" strokeLinejoin="round">
+            <path d="m45 77 29-16 54 15-29 17z" fill="#313d37" stroke="#d0ad68" strokeOpacity=".86" />
+            <path d="m45 77 0 18 29 17V94zM99 93l29-17v18l-29 18z" fill="#202a26" stroke="#846d49" />
+            <path d="m56 76 18-10 35 10-18 10z" fill="#101817" stroke="#8ba398" />
+            <path d="M61 75h36M65 73h27M70 71h18" stroke="#d0ad68" strokeWidth="1.5" />
+            <g transform="translate(117 79)">
+              <g className="expedition-lathe-spindle">
+                <ellipse cx="0" cy="0" rx="7" ry="4" fill="#192321" stroke="#9bd3c6" strokeWidth="1.5" />
+                <path d="M-2 0h18" stroke="#e5c982" strokeWidth="2" />
+                <circle cx="17" cy="0" r="2.4" fill="#dbbc73" />
+              </g>
+            </g>
+            <path d="M50 97h41M51 101h18M87 104h7" stroke="#68847b" strokeWidth="1.3" />
+            <circle className="expedition-mastery-light" cx="54" cy="79" r="2.3" fill="#e8c979" />
+          </g>
+          <g className="expedition-robot-arm" strokeLinejoin="round">
+            <path d="m164 94 13-8 17 8-13 8z" fill="#202a26" stroke="#b28e56" />
+            <path d="M170 91 170 79l8-5 8 5v13" fill="#34423b" stroke="#d0ad68" strokeWidth="2" />
+            <g className="expedition-robot-arm__reach">
+              <path d="m173 78-5-13 9-7 10 8-4 7-6-4 1 10" fill="#92774d" stroke="#efcf81" strokeWidth="2" />
+              <circle cx="177" cy="62" r="4" fill="#19211e" stroke="#e2bd70" strokeWidth="2" />
+              <path d="m184 66 12-8 7 3-8 7M202 60l4-6M202 60l7 1" fill="none" stroke="#e4c77e" strokeWidth="2" />
+              <circle cx="206" cy="53" r="2" fill="#80d4cc" />
+            </g>
+            <path d="M165 97h29" stroke="#63746a" strokeWidth="2" />
+          </g>
         </g>
 
         <g className={`expedition-map__building expedition-map__building--controls ${stateClass("controls")} ${selectedId === "controls" ? "is-selected" : ""}`} transform="translate(645 165)">
@@ -121,6 +148,20 @@ function ExpeditionMap({ selectedId, onSelect, masteredFacilityIds, hasPersonalR
           <path d="M50 92v20M67 102v20M139 101v20M156 110v20" stroke="#6ecbd0" strokeWidth="3" />
           <path d="M25 76h28M213 91h28M96 42v-14M107 45v-8" stroke="#8be4de" strokeWidth="2" />
           <circle cx="96" cy="25" r="3" fill="#8be4de" /><circle cx="107" cy="34" r="2" fill="#d4b76c" />
+          <g className="expedition-control-board" strokeLinejoin="round">
+            <path d="m145 77 23-13 42 12-23 14z" fill="#102020" stroke="#77c8c5" strokeWidth="1.4" />
+            <path d="m150 77 18-10M155 80l17-10M161 83l17-10M175 84l10-6" stroke="#69b8b0" strokeOpacity=".76" strokeWidth="1" />
+            <path d="m173 72 6 2v6l-6-2zM186 76l5 2v5l-5-2zM196 73l5 2v5l-5-2z" fill="#8aab87" stroke="#d8c37f" strokeWidth=".8" />
+            <circle className="expedition-mastery-light" cx="205" cy="83" r="2.2" fill="#e7c878" />
+            <path d="M148 88v6m9-4v6m10-4v6m12-4v6" stroke="#8ae1df" strokeWidth="1" />
+          </g>
+          <g className="expedition-scope" transform="translate(45 54)">
+            <path d="m0 8 15-8 23 7-15 9z" fill="#15201f" stroke="#729a91" />
+            <path d="M0 8v17l23 8V16zM23 16l15-9v17l-15 9z" fill="#202d2a" stroke="#58756c" />
+            <path d="m5 8 10-5 15 5-10 6z" fill="#203b3a" stroke="#80d7cf" />
+            <path d="M8 21h9M8 25h13M27 21h6" stroke="#82d4cd" strokeWidth="1.2" />
+            <circle className="expedition-control-led" cx="31" cy="29" r="1.7" fill="#e8c978" />
+          </g>
         </g>
 
         <g className={`expedition-map__building expedition-map__building--vision ${stateClass("vision")} ${selectedId === "vision" ? "is-selected" : ""}`} transform="translate(70 404)">
@@ -134,6 +175,24 @@ function ExpeditionMap({ selectedId, onSelect, masteredFacilityIds, hasPersonalR
           <circle cx="101" cy="57" r="4" fill="#d5bc7a" filter="url(#facility-glow)" />
           <path d="M232 99V47l14-8v52M246 39l26 4-13 8-27-4" fill="#394851" stroke="#8da7ba" />
           <path d="M254 55 294 68M252 65l40 15M249 77l37 17" stroke="#9be3eb" strokeOpacity=".46" />
+          <g className="expedition-lidar" transform="translate(260 38)">
+            <path d="M-10 18h20l5 5h-30z" fill="#273640" stroke="#8da7ba" />
+            <path d="M0 18V4" stroke="#9db9c5" strokeWidth="2" />
+            <circle cx="0" cy="1" r="11" fill="#17232a" stroke="#9fc6d1" strokeWidth="1.5" />
+            <circle cx="0" cy="1" r="5" fill="#263d47" stroke="#7dd7e1" />
+            <g className="expedition-lidar__sweep">
+              <path d="M0 1 25-8A27 27 0 0 1 17 23Z" fill="#73d7df" fillOpacity=".14" />
+              <path d="M0 1 24-9" stroke="#b2eced" strokeWidth="1.5" />
+            </g>
+            <circle className="expedition-lidar__pulse" cx="0" cy="1" r="17" fill="none" stroke="#83dce1" strokeWidth="1" />
+            <circle className="expedition-mastery-light" cx="0" cy="1" r="2.4" fill="#efcf80" />
+          </g>
+          <g className="expedition-camera-array">
+            <path d="M81 51v-16l13-7 16 7v17" fill="#263644" stroke="#a9c6d1" strokeWidth="1.5" />
+            <path d="m87 37 7-4 8 4v7l-8 4-7-4z" fill="#10191e" stroke="#94cdd6" />
+            <circle cx="95" cy="40" r="3.2" fill="#76c9d8" stroke="#d3edf0" />
+            <path d="M84 52h23M90 56h13" stroke="#d1b875" strokeWidth="1.4" />
+          </g>
         </g>
 
         <g className={`expedition-map__building expedition-map__building--ai ${stateClass("ai")} ${selectedId === "ai" ? "is-selected" : ""}`} transform="translate(658 405)">
@@ -146,6 +205,17 @@ function ExpeditionMap({ selectedId, onSelect, masteredFacilityIds, hasPersonalR
           <path d="M63 44h7M95 37h7M127 46h7M159 54h7M63 53h7M95 48h7M127 57h7M159 65h7" stroke="#83d2df" strokeWidth="2" />
           <path d="M282 78v-40l14-8v41M296 30h18v9h-18" fill="#333849" stroke="#a4a2c8" />
           <circle cx="304" cy="27" r="3" fill="#a2dfe4" filter="url(#facility-glow)" />
+          <g className="expedition-server-fans" fill="#141c25" stroke="#a4aacb" strokeWidth="1.4">
+            <g transform="translate(70 49)"><circle r="7" /><g className="expedition-server-fan"><path d="M0-5v10M-5 0h10M-3.5-3.5l7 7M3.5-3.5l-7 7" stroke="#81d7df" strokeWidth="1" /></g></g>
+            <g transform="translate(104 54)"><circle r="7" /><g className="expedition-server-fan"><path d="M0-5v10M-5 0h10M-3.5-3.5l7 7M3.5-3.5l-7 7" stroke="#81d7df" strokeWidth="1" /></g></g>
+            <g transform="translate(136 63)"><circle r="7" /><g className="expedition-server-fan"><path d="M0-5v10M-5 0h10M-3.5-3.5l7 7M3.5-3.5l-7 7" stroke="#81d7df" strokeWidth="1" /></g></g>
+          </g>
+          <g className="expedition-compute-lights">
+            <circle cx="78" cy="61" r="1.7" /><circle cx="112" cy="66" r="1.7" /><circle cx="144" cy="75" r="1.7" />
+          </g>
+          <path d="m184 65 21-11 22 11-22 11z" fill="#171d29" stroke="#a19ac9" />
+          <path d="m193 65 12-6 12 6-12 6z" fill="#344e64" stroke="#81d6e1" />
+          <circle className="expedition-mastery-light" cx="205" cy="65" r="2.5" fill="#edcc7e" />
         </g>
 
         <g className={`expedition-map__building expedition-map__building--operations ${stateClass("operations")} ${selectedId === "operations" ? "is-selected" : ""}`} transform="translate(373 594)">
@@ -158,6 +228,20 @@ function ExpeditionMap({ selectedId, onSelect, masteredFacilityIds, hasPersonalR
           <circle cx="128" cy="-47" r="5" fill="#e7d79f" filter="url(#facility-glow)" />
           <path d="M89 66V37l16-7 16 7v31M136 75V44l16-7 16 7v31" fill="#171c1a" stroke="#d0ad69" />
           <path d="M94 44h21M141 51h21M100 51v9M147 58v9" stroke="#8cc6c2" strokeWidth="2" />
+          <g className="expedition-comms-dish" transform="translate(248 48)">
+            <path d="M-3 12v17m0-8-13 9m13-9 13 9" stroke="#958764" strokeWidth="2" />
+            <path d="M-17 7a20 20 0 0 0 28 0L-3-5z" fill="#3c4540" stroke="#dec57f" strokeWidth="1.8" />
+            <path d="M-3-4v14m0-1 12-11" stroke="#bce1da" strokeWidth="1.4" />
+            <circle cx="-3" cy="10" r="2.5" fill="#d8c27b" />
+            <path className="expedition-comms-wave" d="M13-3q10 12 0 24M19-9q16 18 0 36" fill="none" stroke="#79d6d0" strokeWidth="1.5" />
+          </g>
+          <g className="expedition-ops-console">
+            <path d="m183 69 22-11 45 11-22 13z" fill="#242b24" stroke="#b8a171" />
+            <path d="M189 68v17l17 8V76zM222 76v17l18-9V68z" fill="#181e1b" stroke="#877853" />
+            <path d="m193 68 12-6 11 4-12 7zM224 69l12-6 10 3-12 7z" fill="#183638" stroke="#80c9c3" />
+            <path d="m196 68 5-2m-1 5 6-3m21 1 5-2m-1 5 6-3" stroke="#9fe2d8" strokeWidth="1" />
+            <circle className="expedition-mastery-light" cx="235" cy="80" r="2.2" fill="#edcc7e" />
+          </g>
         </g>
 
         <g className={`expedition-map__building expedition-map__building--hangar ${hasPersonalRecord ? "has-personal-record" : ""} ${selectedId === "hangar" ? "is-selected" : ""}`} transform="translate(373 326)">
@@ -173,11 +257,34 @@ function ExpeditionMap({ selectedId, onSelect, masteredFacilityIds, hasPersonalR
           <path d="M128 40V18M128 18h31M256 103l22-13 18 7" fill="none" stroke="#9eb8ac" strokeWidth="2" />
           <circle cx="161" cy="18" r="3" fill="#e8d28f" filter="url(#facility-glow)" />
           <path d="m112 159 16-9 16 9v15l-16 9-16-9z" fill="#102022" stroke="#67b9bd" strokeWidth="2" />
+          <g className="expedition-hangar-robot" transform="translate(161 83)" strokeLinejoin="round">
+            <ellipse cx="42" cy="55" rx="49" ry="10" fill="#0d1211" fillOpacity=".72" />
+            <path d="m3 36 32-18 58 17-33 20z" fill="#353a37" stroke="#d0b46f" strokeWidth="1.8" />
+            <path d="M3 36v13l29 18V53zM60 55l33-20v14L64 69z" fill="#1a211f" stroke="#77827a" />
+            <path d="m16 34 19-11 41 12-20 12z" fill="#222f2d" stroke="#9cb8a9" />
+            <path d="M20 50v13m50-8v14" stroke="#121716" strokeWidth="7" />
+            <g transform="translate(20 55)" className="expedition-hangar-robot__wheel" fill="#18201f" stroke="#88c9c3" strokeWidth="1.6">
+              <ellipse rx="5" ry="8" /><g className="expedition-hangar-robot__wheel-spokes"><path d="M-4-3h8m-8 6h8" /></g>
+            </g>
+            <g transform="translate(71 62)" className="expedition-hangar-robot__wheel" fill="#18201f" stroke="#88c9c3" strokeWidth="1.6">
+              <ellipse rx="5" ry="8" /><g className="expedition-hangar-robot__wheel-spokes"><path d="M-4-3h8m-8 6h8" /></g>
+            </g>
+            <path d="m35 20 13-8 20 7-13 9z" fill="#d0ad68" stroke="#f0d895" />
+            <path d="M40 20v-8l8-5 11 4v8" fill="#344642" stroke="#dec77f" strokeWidth="1.5" />
+            <path d="M45 12V4l15-5 13 4v6" fill="#243331" stroke="#9ac8bd" strokeWidth="1.5" />
+            <path d="M72 4 88-1l7 3-18 8" fill="none" stroke="#e7cb80" strokeWidth="3" />
+            <circle cx="88" cy="0" r="2.4" fill="#83d9d2" />
+            <path d="m44 34 13-7 14 5-14 8z" fill="#10282a" stroke="#70c7c5" />
+            <circle className="expedition-mastery-light" cx="58" cy="34" r="3" fill="#edcc7e" />
+            <path d="M29 44h6m20 8h7" stroke="#b8d8ca" strokeWidth="1.5" />
+          </g>
         </g>
 
         <g className="expedition-map__lights"><circle cx="333" cy="315" r="3" /><circle cx="669" cy="306" r="3" /><circle cx="306" cy="510" r="3" /><circle cx="696" cy="510" r="3" /><circle cx="500" cy="574" r="3" /></g>
         <path d="M466 427h68M500 393v68" stroke="#e0c98d" strokeOpacity=".5" strokeWidth="1" />
       </svg>
+
+      <span className="expedition-map__focus-field" aria-hidden="true" style={{ left: `${selectedFacility.x}%`, top: `${selectedFacility.y}%` }} />
 
       <div className="expedition-map__pins">
         {FACILITIES.map((facility) => (
@@ -379,7 +486,7 @@ export default function ExpeditionRoute() {
           <div className="expedition-scene__legend"><span><i className="expedition-state-dot expedition-state-dot--locked" />未解锁</span><span><i className="expedition-state-dot expedition-state-dot--available" />可挑战</span><span><i className="expedition-state-dot expedition-state-dot--practice" />已实践</span><span><i className="expedition-state-dot expedition-state-dot--mastered" />已掌握</span></div>
         </section>
 
-        <aside className="expedition-facility" aria-labelledby="expedition-facility-title" aria-live="polite">
+        <aside key={selectedFacility.id} className="expedition-facility" aria-labelledby="expedition-facility-title" aria-live="polite">
           <div className={`expedition-facility__art expedition-facility__art--${selectedFacility.id}`} aria-hidden="true"><ZoneGlyph id={selectedFacility.id} /></div>
           <p className="expedition-eyebrow">{selectedFacility.englishName}</p>
           <h2 id="expedition-facility-title">{selectedFacility.name}</h2>
