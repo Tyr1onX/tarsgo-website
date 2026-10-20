@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { useOutletContext } from "react-router";
+import { useOutletContext, useSearchParams } from "react-router";
 
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import {
@@ -35,6 +35,8 @@ function reportSection(label: string, content: string) {
 
 export default function WeeklyReportsRoute() {
   const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
+  const [searchParams] = useSearchParams();
+  const requestedWeekStart = /^\d{4}-\d{2}-\d{2}$/.test(searchParams.get("weekStart") ?? "") ? searchParams.get("weekStart") ?? "" : "";
   const [dashboard, setDashboard] = useState<WeeklyReportDashboard | null>(null);
   const [selectedWeekStart, setSelectedWeekStart] = useState("");
   const [form, setForm] = useState<WeeklyReportInput>(emptyReport);
@@ -78,7 +80,8 @@ export default function WeeklyReportsRoute() {
       const result = await getWeeklyReportDashboard();
       if (requestId === dashboardRequestId.current) {
         setDashboard(result);
-        setSelectedWeekStart((current) => current || result.currentWeekStart);
+        const requestedWeekExists = result.reports.some((report) => report.weekStart === requestedWeekStart);
+        setSelectedWeekStart((current) => requestedWeekExists ? requestedWeekStart : current || result.currentWeekStart);
         setTeamWeekValue(isoWeekFromStart(result.currentWeekStart));
       }
     } catch (cause) {
@@ -86,7 +89,7 @@ export default function WeeklyReportsRoute() {
     } finally {
       if (requestId === dashboardRequestId.current) setLoading(false);
     }
-  }, []);
+  }, [requestedWeekStart]);
 
   useEffect(() => {
     teamRequestId.current++;

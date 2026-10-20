@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { useOutletContext } from "react-router";
+import { useOutletContext, useSearchParams } from "react-router";
 
 import { QuestionActionBar, TrainingQuestionThread } from "~/components/training-question-thread";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
@@ -15,6 +15,9 @@ const fieldClass = "admin-field w-full";
 
 export default function TrainingQuestionsRoute() {
   const { currentUser, groupResolution } = useOutletContext<DashboardLayoutOutletContext>();
+  const [searchParams] = useSearchParams();
+  const requestedGroupID = Number(searchParams.get("groupId")) || 0;
+  const requestedQuestionID = Number(searchParams.get("questionId")) || 0;
   const memberGroups = groupResolution?.groups.map(({ groupId, name }) => ({ groupId, name }));
   const { technicalGroups, loading: groupsLoading, error: groupError } = useAssignmentGroups(currentUser.id, currentUser.role.name, memberGroups);
   const [groupId, setGroupId] = useState(0);
@@ -41,9 +44,11 @@ export default function TrainingQuestionsRoute() {
   useEffect(() => {
     setItems([]);
     setDetail(null);
-    setSelectedID(0);
-    setGroupId((current) => activeGroups.some((group) => group.groupId === current) ? current : activeGroups[0]?.groupId ?? 0);
-  }, [currentUser.id, groupResolution, activeGroups]);
+    setSelectedID(requestedQuestionID);
+    setGroupId((current) => activeGroups.some((group) => group.groupId === requestedGroupID)
+      ? requestedGroupID
+      : activeGroups.some((group) => group.groupId === current) ? current : activeGroups[0]?.groupId ?? 0);
+  }, [currentUser.id, groupResolution, activeGroups, requestedGroupID, requestedQuestionID]);
 
   useEffect(() => {
     if (!groupId) return;
@@ -54,12 +59,14 @@ export default function TrainingQuestionsRoute() {
       .then((result) => {
         if (!active) return;
         setItems(result);
-        if (!result.some((item) => item.id === selectedID)) setSelectedID(result[0]?.id ?? 0);
+        if (!result.some((item) => item.id === selectedID) && selectedID !== requestedQuestionID) {
+          setSelectedID(result[0]?.id ?? 0);
+        }
       })
       .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : "问题列表加载失败"); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [groupId, keyword, status, faqOnly, mineOnly, currentUser.id]);
+  }, [groupId, keyword, status, faqOnly, mineOnly, currentUser.id, requestedQuestionID]);
 
   useEffect(() => {
     if (!selectedID) {

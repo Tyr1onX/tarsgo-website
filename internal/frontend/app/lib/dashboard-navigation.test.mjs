@@ -45,11 +45,11 @@ test("admin navigation groups recruitment and member tools while keeping email s
   assert.equal(menu.some((item) => item.key === "system-config"), false);
 });
 
-test("member navigation keeps recruitment and exposes leave while admin tools stay restricted", () => {
-  assert.deepEqual(getUserDashboardMenu("user").map((item) => item.href), ["/dashboard/users/registrations", "/dashboard/leave"]);
+test("member navigation keeps personal growth available to all roles and restricts member tools", () => {
+	assert.deepEqual(getUserDashboardMenu("user").map((item) => item.href), ["/dashboard/users/registrations", "/dashboard/leave", "/dashboard/growth"]);
   assert.equal(getUserDashboardMenu("user")[0]?.label, "我的招新");
-  assert.deepEqual(getUserDashboardMenu("admin"), []);
-  assert.deepEqual(getUserDashboardMenu("super_admin"), []);
+	assert.deepEqual(getUserDashboardMenu("admin").map((item) => item.href), ["/dashboard/growth"]);
+	assert.deepEqual(getUserDashboardMenu("super_admin").map((item) => item.href), ["/dashboard/growth"]);
   const adminMenu = getVisibleAdminDashboardMenu("admin");
   assert.deepEqual(adminMenu.map(({ key }) => key), ["recruitment-operations", "member-management"]);
   assert.deepEqual(adminMenu[0]?.children.map(({ key }) => key), ["admin-panel", "candidate-processing"]);
@@ -62,9 +62,9 @@ test("members need a technical group while super-admins can manage all groups", 
     assert.equal(hasTechnicalGroupAccess([{ name }]), true, name);
   }
   assert.equal(hasTechnicalGroupAccess([{ name: "运营组" }]), false);
-  assert.deepEqual(getUserDashboardMenu("user", true).slice(2).map(({ label }) => label), ["提问答疑", "我的作业"]);
-  assert.deepEqual(getUserDashboardMenu("admin", true).map(({ label }) => label), ["提问答疑", "我的作业"]);
-  assert.deepEqual(getUserDashboardMenu("super_admin", false), []);
+	assert.deepEqual(getUserDashboardMenu("user", true).slice(3).map(({ label }) => label), ["提问答疑", "我的作业"]);
+	assert.deepEqual(getUserDashboardMenu("admin", true).map(({ label }) => label), ["我的成长", "提问答疑", "我的作业"]);
+	assert.deepEqual(getUserDashboardMenu("super_admin", false).map(({ label }) => label), ["我的成长"]);
   assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/training/assignments", false), false);
   assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/training/assignments", true), true);
   assert.equal(canAccessDashboardAdminPath("super_admin", "/dashboard/admin/training/assignments", false), true);

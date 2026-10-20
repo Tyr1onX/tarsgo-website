@@ -62,6 +62,13 @@ const USER_MENU: readonly DashboardMenuLink[] = [
   },
 ];
 
+const GROWTH_MENU_ITEM: DashboardMenuLink = {
+  key: "my-growth",
+  label: "我的成长",
+  href: "/dashboard/growth",
+  iconKey: "report",
+};
+
 const ASSIGNMENT_MENU_ITEM: DashboardMenuLink = {
   key: "my-assignments",
   label: "我的作业",
@@ -207,7 +214,7 @@ export function hasTechnicalGroupAccess(groups: readonly { name: string }[] | nu
 
 export function getUserDashboardMenu(userOrRole: AuthUser | string, hasTechnicalGroup = false): DashboardMenuLink[] {
   const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
-  const menu = roleName === "user" ? [...USER_MENU] : [];
+  const menu = [...(roleName === "user" ? USER_MENU : []), GROWTH_MENU_ITEM];
   if (hasTechnicalGroup && ["user", "admin", "super_admin"].includes(roleName)) {
     menu.push(TRAINING_QUESTIONS_MENU_ITEM, ASSIGNMENT_MENU_ITEM);
   }

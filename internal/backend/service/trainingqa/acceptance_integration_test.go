@@ -40,9 +40,9 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 		t.Fatal("open isolated acceptance SQL connection")
 	}
 	t.Cleanup(func() { _ = sqlDB.Close() })
-	for _, table := range []string{"training_questions", "training_question_posts", "training_question_attachments"} {
+	for _, table := range []string{"training_questions", "training_question_posts", "training_question_attachments", "training_question_growth_events"} {
 		if !db.Migrator().HasTable(table) {
-			t.Fatalf("database migration v19 is missing table %s", table)
+			t.Fatalf("database migration v20 is missing table %s", table)
 		}
 	}
 
@@ -111,7 +111,7 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 	superAdmin := createActor("super-admin", model.RoleNameSuperAdmin, "")
 	t.Cleanup(func() {
 		if len(questionIDs) > 0 {
-			for _, value := range []any{&model.TrainingQuestionAttachment{}, &model.TrainingQuestionPost{}} {
+			for _, value := range []any{&model.TrainingQuestionGrowthEvent{}, &model.TrainingQuestionAttachment{}, &model.TrainingQuestionPost{}} {
 				if err := db.Where("question_id IN ?", questionIDs).Delete(value).Error; err != nil {
 					t.Errorf("clean isolated Q&A history: %v", err)
 				}
@@ -139,6 +139,11 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 	service, err := NewServiceWithFileRoot(db, root)
 	if err != nil {
 		t.Fatal("create isolated Q&A service")
+	}
+	statusClock := time.Date(2026, 10, 20, 8, 0, 0, 0, time.UTC)
+	service.now = func() time.Time {
+		statusClock = statusClock.Add(time.Minute)
+		return statusClock
 	}
 	public, err := service.Create(context.Background(), member, groupIDs["机械组"], "[TEST_QA] 串口报错", "复现过程如下", model.TrainingQuestionPublic, []*multipart.FileHeader{testQuestionUpload(t, "trace.png")})
 	if err != nil {
@@ -233,9 +238,15 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 	if _, err := service.SetSolved(context.Background(), member, public.Question.ID, true); err != nil {
 		t.Fatalf("question owner could not mark solved: %v", err)
 	}
+	if _, err := service.SetSolved(context.Background(), member, public.Question.ID, true); err != nil {
+		t.Fatalf("repeated solved state was not idempotent: %v", err)
+	}
 	faq, err := service.SetFAQ(context.Background(), mechanicalAdmin, public.Question.ID, true)
 	if err != nil || !faq.Question.IsFAQ {
 		t.Fatalf("admin could not mark answered question as FAQ: faq=%v err=%v", faq != nil && faq.Question.IsFAQ, err)
+	}
+	if _, err := service.SetFAQ(context.Background(), mechanicalAdmin, public.Question.ID, true); err != nil {
+		t.Fatalf("repeated FAQ state was not idempotent: %v", err)
 	}
 	faqItems, err := service.ListMember(context.Background(), peer, ListFilter{GroupID: groupIDs["机械组"], FAQOnly: true, Keyword: "串口"})
 	if err != nil || len(faqItems) != 1 || faqItems[0].ID != public.Question.ID {
@@ -243,6 +254,22 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 	}
 	if _, err := service.SetFAQ(context.Background(), mechanicalAdmin, public.Question.ID, false); err != nil {
 		t.Fatalf("admin could not remove FAQ marker: %v", err)
+	}
+	if _, err := service.SetFAQ(context.Background(), mechanicalAdmin, public.Question.ID, true); err != nil {
+		t.Fatalf("admin could not add the resolved question to FAQ again: %v", err)
+	}
+	if _, err := service.SetSolved(context.Background(), member, public.Question.ID, false); err != nil {
+		t.Fatalf("question owner could not reopen the question: %v", err)
+	}
+	var solvedMilestones, faqMilestones int64
+	if err := db.Model(&model.TrainingQuestionGrowthEvent{}).Where("question_id = ? AND kind = ?", public.Question.ID, model.TrainingQuestionGrowthSolved).Count(&solvedMilestones).Error; err != nil {
+		t.Fatalf("count preserved solved milestones: %v", err)
+	}
+	if err := db.Model(&model.TrainingQuestionGrowthEvent{}).Where("question_id = ? AND kind = ?", public.Question.ID, model.TrainingQuestionGrowthFAQ).Count(&faqMilestones).Error; err != nil {
+		t.Fatalf("count preserved FAQ milestones: %v", err)
+	}
+	if solvedMilestones != 1 || faqMilestones != 2 {
+		t.Fatalf("status milestones after reopen/removal = solved:%d FAQ:%d, want one solved and two distinct FAQ inclusions", solvedMilestones, faqMilestones)
 	}
 }
 

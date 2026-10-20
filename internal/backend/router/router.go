@@ -19,6 +19,7 @@ import (
 	"tarsgo-backend/service/dailysignal"
 	"tarsgo-backend/service/email"
 	"tarsgo-backend/service/emailtemplate"
+	"tarsgo-backend/service/growth"
 	"tarsgo-backend/service/leave"
 	"tarsgo-backend/service/recruitmentanalytics"
 	"tarsgo-backend/service/registration"
@@ -71,7 +72,8 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	authService := auth.NewService(cfg, db)
 	authHandler := handler.NewAuthHandler(authService)
 	adminUserHandler := handler.NewAdminUserHandler(adminuser.NewService(adminuser.NewRepository(db)))
-	assignmentHandler := handler.NewAssignmentHandler(assignment.NewService(db))
+	assignmentService := assignment.NewService(db)
+	assignmentHandler := handler.NewAssignmentHandler(assignmentService)
 	trainingQuestionHandler := handler.NewTrainingQuestionHandler(trainingqa.NewService(db))
 	userGroupHandler := handler.NewUserGroupHandler(usergroup.NewService(usergroup.NewRepository(db)))
 	userGroupMembershipHandler := handler.NewUserGroupMembershipHandler(usergroup.NewMembershipService(db))
@@ -84,6 +86,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	systemConfigHandler := handler.NewSystemConfigHandler(systemConfigService, systemConfigService)
 	dailySignalHandler := handler.NewDailySignalHandler(dailysignal.NewService(dailysignal.NewGormRepository(db)))
 	weeklyReportHandler := handler.NewWeeklyReportHandler(weeklyreport.NewService(weeklyreport.NewGormRepository(db)))
+	growthHandler := handler.NewGrowthHandler(growth.NewService(db, assignmentService))
 	leaveService := leave.NewService(db)
 	leaveHandler := handler.NewLeaveHandler(leaveService)
 
@@ -252,6 +255,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	authenticatedAPI.GET("/user-group/confirmation", userGroupMembershipHandler.CurrentState)
 	authenticatedAPI.POST("/user-group/confirmation", userGroupMembershipHandler.Confirm)
 	authenticatedAPI.GET("/weekly-reports", weeklyReportHandler.GetDashboard)
+	authenticatedAPI.GET("/growth/me", growthHandler.GetMine)
 	authenticatedAPI.GET("/weekly-reports/team", weeklyReportHandler.GetTeamWeek)
 	authenticatedAPI.PUT("/weekly-reports/current", requireSameOriginRequest(cfg), weeklyReportHandler.SaveCurrent)
 	authenticatedAPI.PUT("/weekly-reports/:id", requireSameOriginRequest(cfg), weeklyReportHandler.Update)
