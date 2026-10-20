@@ -2,12 +2,15 @@ import type { Assignment } from "~/lib/assignment-client";
 import type { GrowthProfile } from "~/lib/growth-client";
 import type { SkillGroupProgress } from "~/lib/skills-client";
 import type { TrainingQuestion } from "~/lib/training-question-client";
-import type { ExpeditionProject } from "~/lib/expedition-project-client";
+import type { ExpeditionProject, ExpeditionProjectMilestone } from "~/lib/expedition-project-client";
 
 export const EXPEDITION_GROUPS = ["机械组", "电控组", "视觉组", "AI组", "运营组"] as const;
 
 export type ExpeditionFacilityId = "hangar" | "mechanical" | "controls" | "vision" | "ai" | "operations";
 export type ExpeditionChallengeKind = "assignment" | "skill" | "question" | "weekly-report";
+export type ExpeditionEvolutionTarget = NonNullable<ExpeditionProjectMilestone["evolutionTarget"]>;
+
+const EVOLUTION_TARGETS: readonly ExpeditionEvolutionTarget[] = ["chassis", "control", "perception", "decision", "operations", "joint"];
 
 export interface ExpeditionChallenge {
   key: string;
@@ -21,10 +24,14 @@ export interface ExpeditionChallenge {
   priority: number;
 }
 
-export function getExpeditionEvolution(projects: readonly ExpeditionProject[]) {
+export function getExpeditionEvolution(project: ExpeditionProject | null | undefined) {
+  const acceptedTargets = [...new Set((project?.milestones ?? [])
+    .filter((milestone) => milestone.state === "accepted" && Boolean(milestone.acceptedAt))
+    .map((milestone) => milestone.evolutionTarget)
+    .filter((target): target is ExpeditionEvolutionTarget => Boolean(target && EVOLUTION_TARGETS.includes(target))))];
   return {
-    acceptedGroupNames: [...new Set(projects.flatMap((project) => project.acceptedGroupNames))].sort((left, right) => left.localeCompare(right, "zh-CN")),
-    hasAcceptedJoint: projects.some((project) => project.hasAcceptedJoint),
+    acceptedTargets,
+    hasAcceptedJoint: acceptedTargets.includes("joint"),
   };
 }
 

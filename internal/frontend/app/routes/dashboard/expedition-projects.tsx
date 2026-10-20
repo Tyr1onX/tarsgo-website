@@ -3,7 +3,7 @@ import { Link, useLocation, useOutletContext, useSearchParams } from "react-rout
 
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { ApiError } from "~/lib/api-client";
-import { expeditionEventLabel, expeditionMilestoneStateLabel, expeditionProjectClient, formatExpeditionDate, type ExpeditionGroupMemberOption, type ExpeditionProject, type ExpeditionProjectInput, type ExpeditionProjectMilestone } from "~/lib/expedition-project-client";
+import { expeditionEventLabel, expeditionEvolutionTargetLabel, expeditionMilestoneStateLabel, expeditionProjectClient, formatExpeditionDate, type ExpeditionEvolutionTarget, type ExpeditionGroupMemberOption, type ExpeditionProject, type ExpeditionProjectInput, type ExpeditionProjectMilestone } from "~/lib/expedition-project-client";
 import { skillsClient, type SkillGroup } from "~/lib/skills-client";
 import "./expedition-projects.css";
 
@@ -16,10 +16,19 @@ interface MilestoneDraft {
   participantIDs: string[];
   name: string;
   criteria: string;
+  evolutionTarget: ExpeditionEvolutionTarget | "";
   dueAt: string;
 }
 
-const emptyMilestone = (): MilestoneDraft => ({ groupId: "", participantIDs: [], name: "", criteria: "", dueAt: "" });
+const emptyMilestone = (): MilestoneDraft => ({ groupId: "", participantIDs: [], name: "", criteria: "", evolutionTarget: "", dueAt: "" });
+
+const GROUP_EVOLUTION_TARGET: Record<string, ExpeditionEvolutionTarget> = {
+  "机械组": "chassis",
+  "电控组": "control",
+  "视觉组": "perception",
+  "AI组": "decision",
+  "运营组": "operations",
+};
 
 export function ExpeditionProjectsRoute() {
   const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
@@ -35,7 +44,7 @@ export function ExpeditionProjectsRoute() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [refreshKey, setRefreshKey] = useState(0);
-  const [draft, setDraft] = useState({ title: "", objective: "", visibility: "team" as "team" | "participants", milestones: [emptyMilestone(), emptyMilestone()], finalName: "联合成果验收", finalCriteria: "" });
+  const [draft, setDraft] = useState({ title: "", objective: "", visibility: "team" as "team" | "participants", milestones: [emptyMilestone(), emptyMilestone()], finalName: "联合成果验收", finalCriteria: "", finalEvolutionTarget: "" as "" | "joint" });
   const [evidence, setEvidence] = useState<Record<number, string>>({});
   const [reviewNotes, setReviewNotes] = useState<Record<number, string>>({});
   const selectedProjectId = Number(searchParams.get("projectId")) || 0;
@@ -97,7 +106,7 @@ export function ExpeditionProjectsRoute() {
   };
 
   const updateMilestone = (index: number, key: keyof MilestoneDraft, value: string) => {
-    setDraft((current) => ({ ...current, milestones: current.milestones.map((milestone, itemIndex) => itemIndex === index ? { ...milestone, [key]: value, ...(key === "groupId" ? { participantIDs: [] } : {}) } : milestone) }));
+    setDraft((current) => ({ ...current, milestones: current.milestones.map((milestone, itemIndex) => itemIndex === index ? { ...milestone, [key]: value, ...(key === "groupId" ? { participantIDs: [], evolutionTarget: "" } : {}) } : milestone) }));
   };
 
   const toggleMilestoneParticipant = (index: number, userID: number, checked: boolean) => {
@@ -119,8 +128,8 @@ export function ExpeditionProjectsRoute() {
       objective: draft.objective,
       visibility: draft.visibility,
       milestones: [
-        ...draft.milestones.map((milestone) => ({ groupId: Number(milestone.groupId), name: milestone.name, criteria: milestone.criteria, ...(milestone.dueAt ? { dueAt: new Date(milestone.dueAt).toISOString() } : {}) })),
-        { groupId: null, name: draft.finalName, criteria: draft.finalCriteria },
+        ...draft.milestones.map((milestone) => ({ groupId: Number(milestone.groupId), name: milestone.name, criteria: milestone.criteria, ...(milestone.evolutionTarget ? { evolutionTarget: milestone.evolutionTarget } : {}), ...(milestone.dueAt ? { dueAt: new Date(milestone.dueAt).toISOString() } : {}) })),
+        { groupId: null, name: draft.finalName, criteria: draft.finalCriteria, ...(draft.finalEvolutionTarget ? { evolutionTarget: draft.finalEvolutionTarget } : {}) },
       ],
       participants: draft.milestones.flatMap((milestone) => milestone.participantIDs.map((userID) => ({ groupId: Number(milestone.groupId), userId: Number(userID) }))),
     };
@@ -138,7 +147,7 @@ export function ExpeditionProjectsRoute() {
     try {
       const created = await expeditionProjectClient.create(input);
       setProjects((items) => [created, ...items]);
-      setDraft({ title: "", objective: "", visibility: "team", milestones: [emptyMilestone(), emptyMilestone()], finalName: "联合成果验收", finalCriteria: "" });
+      setDraft({ title: "", objective: "", visibility: "team", milestones: [emptyMilestone(), emptyMilestone()], finalName: "联合成果验收", finalCriteria: "", finalEvolutionTarget: "" });
       selectProject(created.id);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "协作项目创建失败。");
@@ -209,18 +218,21 @@ export function ExpeditionProjectsRoute() {
             <label>目标<textarea required maxLength={5000} rows={2} value={draft.objective} onChange={(event) => setDraft((current) => ({ ...current, objective: event.target.value }))} /></label>
             <label>项目可见范围<select value={draft.visibility} onChange={(event) => setDraft((current) => ({ ...current, visibility: event.target.value as "team" | "participants" }))}><option value="team">全队可见</option><option value="participants">仅参与组别可见</option></select></label>
             <div className="expedition-projects__milestone-drafts"><div className="expedition-projects__section-heading"><h2>组别阶段</h2><button type="button" onClick={addMilestone} disabled={draft.milestones.length >= 10}>添加阶段</button></div>
-              {draft.milestones.map((milestone, index) => (
-                <fieldset className="expedition-projects__draft" key={index}><legend>阶段 {index + 1}</legend>
+              {draft.milestones.map((milestone, index) => {
+                const group = groupOptions.find((item) => item.id === Number(milestone.groupId));
+                const target = group ? GROUP_EVOLUTION_TARGET[group.name] : undefined;
+                return <fieldset className="expedition-projects__draft" key={index}><legend>阶段 {index + 1}</legend>
                   <label>负责组别<select required value={milestone.groupId} onChange={(event) => updateMilestone(index, "groupId", event.target.value)}><option value="">选择组别</option>{groupOptions.map((group) => <option value={group.id} key={group.id}>{group.name}</option>)}</select></label>
                   <label>阶段名称<input required maxLength={160} value={milestone.name} onChange={(event) => updateMilestone(index, "name", event.target.value)} /></label>
                   <label>完成标准<textarea required maxLength={5000} rows={2} value={milestone.criteria} onChange={(event) => updateMilestone(index, "criteria", event.target.value)} /></label>
+                  <label>关联基地装置<select value={milestone.evolutionTarget} onChange={(event) => updateMilestone(index, "evolutionTarget", event.target.value)}><option value="">不关联装置</option>{target ? <option value={target}>{expeditionEvolutionTargetLabel(target)}</option> : null}</select></label>
                   <label>截止时间<input type="datetime-local" value={milestone.dueAt} onChange={(event) => updateMilestone(index, "dueAt", event.target.value)} /></label>
                   {milestone.groupId ? <div className="expedition-projects__participants"><span>参与成员</span>{membersByGroup[Number(milestone.groupId)]?.error ? <small>组内成员暂不可读取。</small> : membersByGroup[Number(milestone.groupId)]?.items.length ? <div>{membersByGroup[Number(milestone.groupId)].items.map((member) => <label key={member.userId}><input type="checkbox" checked={milestone.participantIDs.includes(String(member.userId))} onChange={(event) => toggleMilestoneParticipant(index, member.userId, event.target.checked)} />{member.displayName}</label>)}</div> : <small>读取组内成员…</small>}</div> : null}
                   {draft.milestones.length > 2 ? <button className="expedition-projects__remove" type="button" onClick={() => removeMilestone(index)}>移除阶段</button> : null}
-                </fieldset>
-              ))}
+                </fieldset>;
+              })}
             </div>
-            <fieldset className="expedition-projects__draft expedition-projects__draft--joint"><legend>联合验收</legend><label>阶段名称<input required maxLength={160} value={draft.finalName} onChange={(event) => setDraft((current) => ({ ...current, finalName: event.target.value }))} /></label><label>完成标准<textarea required maxLength={5000} rows={2} value={draft.finalCriteria} onChange={(event) => setDraft((current) => ({ ...current, finalCriteria: event.target.value }))} /></label></fieldset>
+            <fieldset className="expedition-projects__draft expedition-projects__draft--joint"><legend>联合验收</legend><label>阶段名称<input required maxLength={160} value={draft.finalName} onChange={(event) => setDraft((current) => ({ ...current, finalName: event.target.value }))} /></label><label>完成标准<textarea required maxLength={5000} rows={2} value={draft.finalCriteria} onChange={(event) => setDraft((current) => ({ ...current, finalCriteria: event.target.value }))} /></label><label>关联基地装置<select value={draft.finalEvolutionTarget} onChange={(event) => setDraft((current) => ({ ...current, finalEvolutionTarget: event.target.value as "" | "joint" }))}><option value="">不关联装置</option><option value="joint">整机联合成果</option></select></label></fieldset>
             <button className="expedition-projects__primary" type="submit" disabled={saving || groupOptions.length < 2}>{saving ? "保存中…" : "创建项目"}</button>
           </form>
         </details>
@@ -251,7 +263,7 @@ export function ExpeditionProjectsRoute() {
                 const canReview = isManager && (isSuperAdmin || Boolean(milestone.groupName && groups.some((group) => group.name === milestone.groupName)));
                 const status = expeditionMilestoneStateLabel(milestone.state);
                 return <li className={`expedition-projects__milestone expedition-projects__milestone--${milestone.state}`} key={milestone.id}>
-                  <div className="expedition-projects__milestone-top"><span className="expedition-projects__node" aria-hidden="true" /><div><small>{isJoint ? "联合验收" : milestone.groupName}{milestone.dueAt ? ` · 截止 ${formatExpeditionDate(milestone.dueAt)}` : ""}</small><h4>{milestone.name}</h4><p>{milestone.criteria}</p></div><span className="expedition-projects__state">{status}</span></div>
+                  <div className="expedition-projects__milestone-top"><span className="expedition-projects__node" aria-hidden="true" /><div><small>{isJoint ? "联合验收" : milestone.groupName}{milestone.dueAt ? ` · 截止 ${formatExpeditionDate(milestone.dueAt)}` : ""}</small><h4>{milestone.name}</h4><p>{milestone.criteria}</p><span className="expedition-projects__evolution-target">{milestone.evolutionTarget ? `关联装置：${expeditionEvolutionTargetLabel(milestone.evolutionTarget)}` : "未关联基地装置"}</span></div><span className="expedition-projects__state">{status}</span></div>
                   {milestone.acceptedAt ? <p className="expedition-projects__accepted">验收于 {formatExpeditionDate(milestone.acceptedAt)}</p> : null}
                   {canSubmit ? <div className="expedition-projects__action"><label htmlFor={`evidence-${milestone.id}`}>成果依据<textarea id={`evidence-${milestone.id}`} rows={2} maxLength={5000} value={evidence[milestone.id] ?? ""} onChange={(event) => setEvidence((items) => ({ ...items, [milestone.id]: event.target.value }))} /></label><button type="button" disabled={saving || !evidence[milestone.id]?.trim()} onClick={() => void submitEvidence(milestone)}>提交成果</button></div> : null}
                   {canReview && milestone.state !== "open" ? <div className="expedition-projects__action expedition-projects__action--review"><label htmlFor={`review-${milestone.id}`}>{milestone.state === "accepted" ? "撤销原因" : "验收依据"}<textarea id={`review-${milestone.id}`} rows={2} maxLength={5000} value={reviewNotes[milestone.id] ?? ""} onChange={(event) => setReviewNotes((items) => ({ ...items, [milestone.id]: event.target.value }))} /></label><div>{milestone.state === "submitted" ? <button type="button" disabled={saving || !reviewNotes[milestone.id]?.trim()} onClick={() => void reviewMilestone(milestone, "accept")}>验收通过</button> : <button className="expedition-projects__secondary" type="button" disabled={saving || !reviewNotes[milestone.id]?.trim()} onClick={() => void reviewMilestone(milestone, "revoke")}>撤销验收</button>}</div></div> : null}

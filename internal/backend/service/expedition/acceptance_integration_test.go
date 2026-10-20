@@ -125,20 +125,26 @@ func TestAcceptanceDatabaseCrossGroupProjectWorkflow(t *testing.T) {
 	mechanicalMember := createActor("mechanical-participant", model.RoleNameUser, "机械组")
 	mechanicalObserver := createActor("mechanical-observer", model.RoleNameUser, "机械组")
 	controlsMember := createActor("controls-participant", model.RoleNameUser, "电控组")
+	visionMember := createActor("vision-participant", model.RoleNameUser, "视觉组")
 	operationsMember := createActor("operations-member", model.RoleNameUser, "运营组")
 
 	service := NewService(db)
 	service.Now = func() time.Time { return time.Date(2026, 10, 20, 9, 0, 0, 0, time.UTC) }
 	mechID, controlsID := groupIDs["机械组"], groupIDs["电控组"]
-	createProject := func(title, visibility string) *ProjectView {
+	createProject := func(title, visibility, secondGroup string) *ProjectView {
+		secondGroupID := groupIDs[secondGroup]
+		secondTarget, secondUserID := model.ExpeditionEvolutionControl, controlsMember.ID
+		if secondGroup == "视觉组" {
+			secondTarget, secondUserID = model.ExpeditionEvolutionPerception, visionMember.ID
+		}
 		result, err := service.CreateProject(context.Background(), super, ProjectInput{
 			Title: title, Objective: "完成两组阶段成果并通过联合验收", Visibility: visibility,
 			Milestones: []MilestoneInput{
-				{GroupID: &mechID, Name: "机械底盘", Criteria: "完成底盘装配并留存验收记录"},
-				{GroupID: &controlsID, Name: "电控系统", Criteria: "完成控制联调并留存测试结果"},
-				{GroupID: nil, Name: "联合验收", Criteria: "两组阶段均验收后完成整机联调"},
+				{GroupID: &mechID, Name: "机械底盘", Criteria: "完成底盘装配并留存验收记录", EvolutionTarget: model.ExpeditionEvolutionChassis},
+				{GroupID: &secondGroupID, Name: secondGroup + "阶段", Criteria: "完成本组成果并留存验收记录", EvolutionTarget: secondTarget},
+				{GroupID: nil, Name: "联合验收", Criteria: "两组阶段均验收后完成整机联调", EvolutionTarget: model.ExpeditionEvolutionJoint},
 			},
-			Participants: []ParticipantInput{{GroupID: mechID, UserID: mechanicalMember.ID}, {GroupID: controlsID, UserID: controlsMember.ID}},
+			Participants: []ParticipantInput{{GroupID: mechID, UserID: mechanicalMember.ID}, {GroupID: secondGroupID, UserID: secondUserID}},
 		})
 		if err != nil {
 			t.Fatalf("create synthetic project %s: %v", title, err)
@@ -146,8 +152,30 @@ func TestAcceptanceDatabaseCrossGroupProjectWorkflow(t *testing.T) {
 		createdProjectIDs = append(createdProjectIDs, result.ID)
 		return result
 	}
-	privateProject := createProject("[P4 TEST] private collaboration", model.ExpeditionVisibilityParticipants)
-	teamProject := createProject("[P4 TEST] team collaboration", model.ExpeditionVisibilityTeam)
+	privateProject := createProject("[P4 TEST] private collaboration", model.ExpeditionVisibilityParticipants, "电控组")
+	teamProject := createProject("[P4 TEST] team collaboration", model.ExpeditionVisibilityTeam, "视觉组")
+	wrongAssociation, err := service.CreateProject(context.Background(), super, ProjectInput{
+		Title: "[P4 TEST] invalid component", Objective: "reject cross-group component association", Visibility: model.ExpeditionVisibilityTeam,
+		Milestones: []MilestoneInput{
+			{GroupID: &mechID, Name: "机械阶段", Criteria: "证据", EvolutionTarget: model.ExpeditionEvolutionControl},
+			{GroupID: &controlsID, Name: "电控阶段", Criteria: "证据"},
+			{Name: "联合阶段", Criteria: "证据"},
+		},
+		Participants: []ParticipantInput{{GroupID: mechID, UserID: mechanicalMember.ID}, {GroupID: controlsID, UserID: controlsMember.ID}},
+	})
+	if wrongAssociation != nil || statusOf(err) != http.StatusBadRequest {
+		t.Fatalf("wrong group-to-component association = %#v, error %v; want 400 and no project", wrongAssociation, err)
+	}
+	if _, err := service.SubmitEvidence(context.Background(), visionMember, teamProject.Milestones[1].ID, "隔离验收：相机标定记录及定位误差实测结果"); err != nil {
+		t.Fatalf("vision participant evidence: %v", err)
+	}
+	teamVisionAccepted, err := service.ReviewMilestone(context.Background(), visionAdmin, teamProject.Milestones[1].ID, ReviewInput{Action: "accept", Content: "标定记录与实测结果已核对"})
+	if err != nil {
+		t.Fatalf("vision group acceptance: %v", err)
+	}
+	if targets := acceptedEvolutionTargets(*teamVisionAccepted); len(targets) != 1 || targets[0] != model.ExpeditionEvolutionPerception {
+		t.Fatalf("vision project accepted targets = %v, want only perception", targets)
+	}
 	if len(privateProject.Participants) != 2 || len(privateProject.Events) != 4 {
 		t.Fatalf("project participants/history = %d/%d, want 2/4", len(privateProject.Participants), len(privateProject.Events))
 	}
@@ -229,12 +257,18 @@ func TestAcceptanceDatabaseCrossGroupProjectWorkflow(t *testing.T) {
 	if !completed.HasAcceptedJoint || len(completed.AcceptedGroupNames) != 2 {
 		t.Fatalf("accepted base evolution = groups %v, joint %v", completed.AcceptedGroupNames, completed.HasAcceptedJoint)
 	}
+	if targets := acceptedEvolutionTargets(*completed); len(targets) != 3 || targets[0] != model.ExpeditionEvolutionChassis || targets[1] != model.ExpeditionEvolutionControl || targets[2] != model.ExpeditionEvolutionJoint {
+		t.Fatalf("fully accepted project targets = %v", targets)
+	}
 	if _, err := service.ReviewMilestone(context.Background(), mechanicalAdmin, mechanicalMilestone.ID, ReviewInput{Action: "revoke", Content: "尝试跳过联合撤销"}); statusOf(err) != http.StatusConflict {
 		t.Fatalf("group revoke before joint revoke status = %d, want 409", statusOf(err))
 	}
-	_, err = service.ReviewMilestone(context.Background(), super, finalMilestone.ID, ReviewInput{Action: "revoke", Content: "联合测试记录需复核"})
+	jointRevoked, err := service.ReviewMilestone(context.Background(), super, finalMilestone.ID, ReviewInput{Action: "revoke", Content: "联合测试记录需复核"})
 	if err != nil {
 		t.Fatalf("joint revoke: %v", err)
+	}
+	if targets := acceptedEvolutionTargets(*jointRevoked); len(targets) != 2 || targets[0] != model.ExpeditionEvolutionChassis || targets[1] != model.ExpeditionEvolutionControl {
+		t.Fatalf("joint revoke did not restore the two accepted components: %v", targets)
 	}
 	_, err = service.ReviewMilestone(context.Background(), mechanicalAdmin, mechanicalMilestone.ID, ReviewInput{Action: "revoke", Content: "底盘验收发现检查遗漏"})
 	if err != nil {
@@ -247,6 +281,16 @@ func TestAcceptanceDatabaseCrossGroupProjectWorkflow(t *testing.T) {
 	state := projectByID(current, privateProject.ID)
 	if state == nil || len(state.AcceptedGroupNames) != 1 || state.AcceptedGroupNames[0] != "电控组" || state.HasAcceptedJoint {
 		t.Fatalf("revoked project state did not update: %#v", state)
+	}
+	if targets := acceptedEvolutionTargets(*state); len(targets) != 1 || targets[0] != model.ExpeditionEvolutionControl {
+		t.Fatalf("group revoke did not clear the chassis component: %v", targets)
+	}
+	otherProject := projectByID(current, teamProject.ID)
+	if otherProject == nil {
+		t.Fatal("the member must see the separately visible second project")
+	}
+	if targets := acceptedEvolutionTargets(*otherProject); len(targets) != 1 || targets[0] != model.ExpeditionEvolutionPerception {
+		t.Fatalf("switching projects mixed accepted components: %v", targets)
 	}
 	var eventCount int64
 	if err := db.Model(&model.ExpeditionProjectEvent{}).Where("project_id = ?", privateProject.ID).Count(&eventCount).Error; err != nil {
@@ -265,6 +309,16 @@ func projectByID(projects []ProjectView, id uint64) *ProjectView {
 		}
 	}
 	return nil
+}
+
+func acceptedEvolutionTargets(project ProjectView) []string {
+	var targets []string
+	for _, milestone := range project.Milestones {
+		if milestone.State == model.ExpeditionMilestoneAccepted && milestone.AcceptedAt != nil && milestone.EvolutionTarget != "" {
+			targets = append(targets, milestone.EvolutionTarget)
+		}
+	}
+	return targets
 }
 func assertExpeditionStatus(t *testing.T, err error, want int) {
 	t.Helper()

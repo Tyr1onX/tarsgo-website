@@ -49,3 +49,31 @@ func TestOnlySuperAdminCanCreateAndOnlyAdminsCanReview(t *testing.T) {
 		t.Fatalf("member review status = %d, want 403", statusOf(err))
 	}
 }
+
+func TestEvolutionTargetMustMatchTheOwningGroupAndExplicitJointStage(t *testing.T) {
+	mechanicalID, visionID := uint64(10), uint64(30)
+	cases := []struct {
+		name      string
+		groupName string
+		groupID   *uint64
+		target    string
+		valid     bool
+	}{
+		{name: "mechanical chassis", groupName: "机械组", groupID: &mechanicalID, target: "chassis", valid: true},
+		{name: "vision perception", groupName: "视觉组", groupID: &visionID, target: "perception", valid: true},
+		{name: "mechanical cannot activate control", groupName: "机械组", groupID: &mechanicalID, target: "control"},
+		{name: "vision cannot activate chassis", groupName: "视觉组", groupID: &visionID, target: "chassis"},
+		{name: "unknown target rejected", groupName: "机械组", groupID: &mechanicalID, target: "robot-complete"},
+		{name: "joint target requires joint stage", groupName: "机械组", groupID: &mechanicalID, target: "joint"},
+		{name: "joint may activate whole robot", target: "joint", valid: true},
+		{name: "joint cannot activate a component", target: "chassis"},
+		{name: "unassociated stages remain valid", groupName: "机械组", groupID: &mechanicalID, valid: true},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := validEvolutionTarget(tc.groupName, tc.groupID, tc.target); got != tc.valid {
+				t.Fatalf("validEvolutionTarget() = %v, want %v", got, tc.valid)
+			}
+		})
+	}
+}

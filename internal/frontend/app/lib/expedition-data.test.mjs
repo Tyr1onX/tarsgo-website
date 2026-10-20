@@ -66,35 +66,41 @@ test("基地知识动态只展示本人所属组的已解决公开 FAQ", () => {
   assert.deepEqual(getPublicFacilityFAQs(questions, null), []);
 });
 
-test("基地设施演化与赛季编年史只读取可见项目中的已验收阶段", () => {
-  const projects = [
-    {
-      id: 1,
-      title: "跨组整机联调",
-      acceptedGroupNames: ["电控组", "机械组"],
-      hasAcceptedJoint: false,
-      milestones: [
-        { id: 1, name: "底盘验收", groupName: "机械组", state: "accepted", acceptedAt: "2026-10-02T00:00:00Z" },
-        { id: 2, name: "控制验收", groupName: "电控组", state: "accepted", acceptedAt: "2026-10-03T00:00:00Z" },
-        { id: 3, name: "整机聯調", state: "submitted" },
-      ],
-    },
-    {
-      id: 2,
-      title: "撤销中的验收",
-      acceptedGroupNames: [],
-      hasAcceptedJoint: false,
-      milestones: [{ id: 4, name: "视觉验收", groupName: "视觉组", state: "submitted", acceptedAt: "2026-10-04T00:00:00Z" }],
-    },
-    {
-      id: 3,
-      title: "联合验收完成",
-      acceptedGroupNames: ["机械组"],
-      hasAcceptedJoint: true,
-      milestones: [{ id: 5, name: "联合验收", state: "accepted", acceptedAt: "2026-10-05T00:00:00Z" }],
-    },
-  ];
+test("基地装配状态严格绑定单个项目和明确关联的已验收部件", () => {
+  const assemblyProject = {
+    id: 1,
+    title: "整机联调 A",
+    milestones: [
+      { id: 1, name: "任意机械任务", groupName: "机械组", state: "accepted", acceptedAt: "2026-10-02T00:00:00Z" },
+      { id: 2, name: "底盘验收", groupName: "机械组", evolutionTarget: "chassis", state: "accepted", acceptedAt: "2026-10-02T00:00:00Z" },
+      { id: 3, name: "控制验收", groupName: "电控组", evolutionTarget: "control", state: "accepted", acceptedAt: "2026-10-03T00:00:00Z" },
+      { id: 4, name: "视觉提交未验收", groupName: "视觉组", evolutionTarget: "perception", state: "submitted", acceptedAt: "2026-10-04T00:00:00Z" },
+      { id: 5, name: "联合验收", evolutionTarget: "joint", state: "submitted" },
+    ],
+  };
+  const anotherProject = {
+    id: 2,
+    title: "感知验证 B",
+    milestones: [
+      { id: 6, name: "感知系统验收", groupName: "视觉组", evolutionTarget: "perception", state: "accepted", acceptedAt: "2026-10-05T00:00:00Z" },
+      { id: 7, name: "整机验收已撤销", evolutionTarget: "joint", state: "submitted", acceptedAt: "2026-10-06T00:00:00Z" },
+    ],
+  };
 
-  assert.deepEqual(getExpeditionEvolution(projects), { acceptedGroupNames: ["电控组", "机械组"], hasAcceptedJoint: true });
-  assert.deepEqual(getAcceptedExpeditionMilestones(projects).map(({ project, milestone }) => `${project.id}:${milestone.id}`), ["3:5", "1:2", "1:1"]);
+  assert.deepEqual(getExpeditionEvolution(assemblyProject), { acceptedTargets: ["chassis", "control"], hasAcceptedJoint: false });
+  assert.deepEqual(getExpeditionEvolution(anotherProject), { acceptedTargets: ["perception"], hasAcceptedJoint: false });
+  assert.deepEqual(getExpeditionEvolution(null), { acceptedTargets: [], hasAcceptedJoint: false });
+  assert.deepEqual(getAcceptedExpeditionMilestones([assemblyProject, anotherProject]).map(({ project, milestone }) => `${project.id}:${milestone.id}`), ["2:6", "1:3", "1:1", "1:2"]);
+});
+
+test("只有指定成果部件被验收时才显示联合机器人", () => {
+  const project = {
+    id: 8,
+    title: "已完成但无联合装置关联",
+    hasAcceptedJoint: true,
+    milestones: [
+      { id: 1, name: "已验收的联合阶段", state: "accepted", acceptedAt: "2026-10-07T00:00:00Z" },
+    ],
+  };
+  assert.deepEqual(getExpeditionEvolution(project), { acceptedTargets: [], hasAcceptedJoint: false });
 });

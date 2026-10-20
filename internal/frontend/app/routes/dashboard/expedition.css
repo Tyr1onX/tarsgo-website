@@ -44,6 +44,14 @@
 .expedition-scene__topline h2 { margin-top: 4px; color: var(--admin-text); font-size: 15px; font-weight: 610; letter-spacing: -.02em; }
 .expedition-scene__coordinates { color: var(--admin-dim); font: 9px/1.3 "Geist Mono", ui-monospace, monospace; letter-spacing: .12em; }
 .expedition-scene__coordinates i { color: var(--admin-accent); font-style: normal; }
+.expedition-scene__project-binding { position: relative; z-index: 2; display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); gap: 8px 14px; align-items: end; margin: 11px 3px 8px; border: 1px solid var(--admin-border-subtle); border-radius: 10px; padding: 9px 11px; background: color-mix(in srgb, var(--admin-surface-rail) 38%, transparent); }
+.expedition-scene__project-binding label { display: grid; min-width: 0; gap: 5px; color: var(--admin-dim); font-size: 9px; }
+.expedition-scene__project-binding select { width: 100%; min-height: 34px; border: 1px solid var(--admin-border); border-radius: 8px; padding: 6px 9px; color: var(--admin-text); background-color: var(--admin-surface); font-size: 11px; }
+.expedition-scene__project-binding select:disabled { color: var(--admin-dim); opacity: .82; }
+.expedition-scene__project-state { display: grid; min-width: 0; gap: 5px; }
+.expedition-scene__project-state > span { color: var(--admin-dim); font-size: 9px; }
+.expedition-scene__project-state > strong { overflow: hidden; color: var(--admin-accent-text); font-size: 10px; font-weight: 560; text-overflow: ellipsis; white-space: nowrap; }
+.expedition-scene__project-binding > p { grid-column: 1 / -1; margin: -1px 0 0; color: var(--admin-dim); font-size: 9px; }
 
 .expedition-map { position: relative; z-index: 1; width: 100%; height: clamp(430px, 48vw, 630px); min-height: 430px; margin-top: 1px; overflow: hidden; border-radius: 12px; isolation: isolate; }
 .expedition-map::after { position: absolute; inset: 0; z-index: -1; background: linear-gradient(180deg, rgb(4 9 9 / 0%) 70%, rgb(4 9 9 / 31%)); content: ""; pointer-events: none; }
@@ -282,6 +290,8 @@
   .expedition-scene { padding: 14px 11px 12px; border-radius: 13px; }
   .expedition-scene__topline { margin-inline: 2px; }
   .expedition-scene__coordinates { font-size: 8px; }
+  .expedition-scene__project-binding { grid-template-columns: minmax(0, 1fr); gap: 7px; margin: 10px 1px 6px; padding: 9px; }
+  .expedition-scene__project-state > strong { white-space: normal; }
   .expedition-map { height: auto; min-height: 0; aspect-ratio: 1000 / 850; margin-inline: -5px; width: calc(100% + 10px); }
   .expedition-map__art { transform: none; }
   .expedition-map__pins { display: none; }

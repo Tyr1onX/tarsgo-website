@@ -15,6 +15,13 @@ const (
 	ExpeditionEventEvidence       = "evidence_submitted"
 	ExpeditionEventAccepted       = "milestone_accepted"
 	ExpeditionEventRevoked        = "acceptance_revoked"
+
+	ExpeditionEvolutionChassis    = "chassis"
+	ExpeditionEvolutionControl    = "control"
+	ExpeditionEvolutionPerception = "perception"
+	ExpeditionEvolutionDecision   = "decision"
+	ExpeditionEvolutionOperations = "operations"
+	ExpeditionEvolutionJoint      = "joint"
 )
 
 // ExpeditionProject stores only cross-group collaboration metadata. Existing
@@ -30,17 +37,18 @@ type ExpeditionProject struct {
 }
 
 type ExpeditionProjectMilestone struct {
-	ID         uint64     `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
-	ProjectID  uint64     `json:"projectId" gorm:"column:project_id;type:bigint unsigned;not null;index:idx_expedition_milestone_project,priority:1"`
-	GroupID    *uint64    `json:"groupId" gorm:"column:group_id;type:bigint unsigned;default:null;index:idx_expedition_milestone_project,priority:2"`
-	Name       string     `json:"name" gorm:"size:160;not null"`
-	Criteria   string     `json:"criteria" gorm:"type:text;not null"`
-	DueAt      *time.Time `json:"dueAt,omitempty" gorm:"column:due_at;type:datetime;default:null"`
-	State      string     `json:"state" gorm:"size:24;not null;default:open;index:idx_expedition_milestone_state"`
-	AcceptedBy *uint64    `json:"acceptedBy,omitempty" gorm:"column:accepted_by;type:bigint unsigned;default:null"`
-	AcceptedAt *time.Time `json:"acceptedAt,omitempty" gorm:"column:accepted_at;type:datetime;default:null"`
-	CreatedAt  time.Time  `json:"createdAt" gorm:"column:created_at;type:datetime;not null;default:CURRENT_TIMESTAMP"`
-	UpdatedAt  time.Time  `json:"updatedAt" gorm:"column:updated_at;type:datetime;not null;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"`
+	ID              uint64     `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
+	ProjectID       uint64     `json:"projectId" gorm:"column:project_id;type:bigint unsigned;not null;index:idx_expedition_milestone_project,priority:1"`
+	GroupID         *uint64    `json:"groupId" gorm:"column:group_id;type:bigint unsigned;default:null;index:idx_expedition_milestone_project,priority:2"`
+	Name            string     `json:"name" gorm:"size:160;not null"`
+	Criteria        string     `json:"criteria" gorm:"type:text;not null"`
+	EvolutionTarget string     `json:"evolutionTarget,omitempty" gorm:"column:evolution_target;size:32;not null;default:''"`
+	DueAt           *time.Time `json:"dueAt,omitempty" gorm:"column:due_at;type:datetime;default:null"`
+	State           string     `json:"state" gorm:"size:24;not null;default:open;index:idx_expedition_milestone_state"`
+	AcceptedBy      *uint64    `json:"acceptedBy,omitempty" gorm:"column:accepted_by;type:bigint unsigned;default:null"`
+	AcceptedAt      *time.Time `json:"acceptedAt,omitempty" gorm:"column:accepted_at;type:datetime;default:null"`
+	CreatedAt       time.Time  `json:"createdAt" gorm:"column:created_at;type:datetime;not null;default:CURRENT_TIMESTAMP"`
+	UpdatedAt       time.Time  `json:"updatedAt" gorm:"column:updated_at;type:datetime;not null;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"`
 }
 
 type ExpeditionProjectParticipant struct {

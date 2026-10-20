@@ -6,6 +6,7 @@ export interface ExpeditionProjectMilestone {
   groupName?: string;
   name: string;
   criteria: string;
+  evolutionTarget?: "chassis" | "control" | "perception" | "decision" | "operations" | "joint";
   dueAt?: string;
   state: "open" | "submitted" | "accepted";
   acceptedAt?: string;
@@ -41,9 +42,11 @@ export interface ExpeditionProjectInput {
   title: string;
   objective: string;
   visibility: "team" | "participants";
-  milestones: { groupId: number | null; name: string; criteria: string; dueAt?: string }[];
+  milestones: { groupId: number | null; name: string; criteria: string; evolutionTarget?: ExpeditionProjectMilestone["evolutionTarget"]; dueAt?: string }[];
   participants: { groupId: number; userId: number }[];
 }
+
+export type ExpeditionEvolutionTarget = NonNullable<ExpeditionProjectMilestone["evolutionTarget"]>;
 
 export interface ExpeditionGroupMemberOption {
   userId: number;
@@ -58,6 +61,17 @@ export const expeditionProjectClient = {
   submitEvidence: (milestoneId: number, content: string) => apiRequest<ExpeditionProject>(`/api/expedition/milestones/${milestoneId}/evidence`, { method: "POST", body: { content } }),
   review: (milestoneId: number, action: "accept" | "revoke", content: string) => apiRequest<ExpeditionProject>(`/api/admin/expedition/milestones/${milestoneId}/review`, { method: "POST", body: { action, content } }),
 };
+
+export function expeditionEvolutionTargetLabel(target: NonNullable<ExpeditionProjectMilestone["evolutionTarget"]>) {
+  switch (target) {
+    case "chassis": return "底盘组件";
+    case "control": return "控制系统";
+    case "perception": return "感知系统";
+    case "decision": return "决策模块";
+    case "operations": return "指挥设施";
+    case "joint": return "整机联合成果";
+  }
+}
 
 export function expeditionMilestoneStateLabel(state: ExpeditionProjectMilestone["state"]) {
   switch (state) {

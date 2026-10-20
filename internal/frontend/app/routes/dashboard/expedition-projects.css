@@ -79,6 +79,7 @@
 .expedition-projects__milestone-top small { color: var(--admin-dim); font-size: 9px; }
 .expedition-projects__milestone-top h4 { margin-top: 4px; color: var(--admin-text); font-size: 12px; font-weight: 590; }
 .expedition-projects__milestone-top p { margin-top: 5px; color: var(--admin-muted); font-size: 10px; line-height: 1.5; white-space: pre-wrap; }
+.expedition-projects__evolution-target { display: inline-block; margin-top: 7px; border-left: 2px solid var(--admin-accent); padding-left: 7px; color: var(--admin-dim); font-size: 9px; }
 .expedition-projects__state { border: 1px solid var(--admin-border); border-radius: 999px; padding: 4px 7px; color: var(--admin-dim); font-size: 9px; white-space: nowrap; }
 .expedition-projects__milestone--submitted .expedition-projects__state { color: #6eb1c1; }
 .expedition-projects__milestone--accepted .expedition-projects__state { color: var(--admin-accent-text); }

@@ -24,10 +24,11 @@ type Actor struct {
 }
 
 type MilestoneInput struct {
-	GroupID  *uint64    `json:"groupId"`
-	Name     string     `json:"name"`
-	Criteria string     `json:"criteria"`
-	DueAt    *time.Time `json:"dueAt"`
+	GroupID         *uint64    `json:"groupId"`
+	Name            string     `json:"name"`
+	Criteria        string     `json:"criteria"`
+	EvolutionTarget string     `json:"evolutionTarget"`
+	DueAt           *time.Time `json:"dueAt"`
 }
 
 type ProjectInput struct {
@@ -44,14 +45,15 @@ type ParticipantInput struct {
 }
 
 type MilestoneView struct {
-	ID         uint64     `json:"id"`
-	GroupID    *uint64    `json:"groupId,omitempty"`
-	GroupName  string     `json:"groupName,omitempty"`
-	Name       string     `json:"name"`
-	Criteria   string     `json:"criteria"`
-	DueAt      *time.Time `json:"dueAt,omitempty"`
-	State      string     `json:"state"`
-	AcceptedAt *time.Time `json:"acceptedAt,omitempty"`
+	ID              uint64     `json:"id"`
+	GroupID         *uint64    `json:"groupId,omitempty"`
+	GroupName       string     `json:"groupName,omitempty"`
+	Name            string     `json:"name"`
+	Criteria        string     `json:"criteria"`
+	EvolutionTarget string     `json:"evolutionTarget,omitempty"`
+	DueAt           *time.Time `json:"dueAt,omitempty"`
+	State           string     `json:"state"`
+	AcceptedAt      *time.Time `json:"acceptedAt,omitempty"`
 }
 
 type EventView struct {
@@ -153,6 +155,23 @@ func (s *Service) CreateProject(ctx context.Context, actor Actor, input ProjectI
 		if count != int64(len(groupIDs)) {
 			return badRequest("项目包含未开放的组别")
 		}
+		var groups []model.UserGroup
+		if err := tx.Select("id, name").Where("id IN ?", groupIDs).Find(&groups).Error; err != nil {
+			return internal("读取项目参与组别失败", err)
+		}
+		groupNameByID := make(map[uint64]string, len(groups))
+		for _, group := range groups {
+			groupNameByID[group.ID] = group.Name
+		}
+		for _, inputMilestone := range input.Milestones {
+			groupName := ""
+			if inputMilestone.GroupID != nil {
+				groupName = groupNameByID[*inputMilestone.GroupID]
+			}
+			if !validEvolutionTarget(groupName, inputMilestone.GroupID, inputMilestone.EvolutionTarget) {
+				return badRequest("基地装置只能关联对应组别负责的成果")
+			}
+		}
 		for _, groupID := range groupIDs {
 			userIDs := uniqueIDs(participantsByGroup[groupID])
 			var memberCount int64
@@ -175,7 +194,7 @@ func (s *Service) CreateProject(ctx context.Context, actor Actor, input ProjectI
 			return internal("记录项目创建历史失败", err)
 		}
 		for _, inputMilestone := range input.Milestones {
-			milestone := model.ExpeditionProjectMilestone{ProjectID: project.ID, GroupID: inputMilestone.GroupID, Name: inputMilestone.Name, Criteria: inputMilestone.Criteria, DueAt: inputMilestone.DueAt, State: model.ExpeditionMilestoneOpen}
+			milestone := model.ExpeditionProjectMilestone{ProjectID: project.ID, GroupID: inputMilestone.GroupID, Name: inputMilestone.Name, Criteria: inputMilestone.Criteria, EvolutionTarget: inputMilestone.EvolutionTarget, DueAt: inputMilestone.DueAt, State: model.ExpeditionMilestoneOpen}
 			if err := tx.Create(&milestone).Error; err != nil {
 				return internal("创建项目阶段失败", err)
 			}
@@ -496,7 +515,7 @@ func (s *Service) loadProject(ctx context.Context, project model.ExpeditionProje
 	}
 	sort.Strings(view.ParticipantGroups)
 	for _, milestone := range milestones {
-		item := MilestoneView{ID: milestone.ID, GroupID: milestone.GroupID, Name: milestone.Name, Criteria: milestone.Criteria, DueAt: milestone.DueAt, State: milestone.State, AcceptedAt: milestone.AcceptedAt}
+		item := MilestoneView{ID: milestone.ID, GroupID: milestone.GroupID, Name: milestone.Name, Criteria: milestone.Criteria, EvolutionTarget: milestone.EvolutionTarget, DueAt: milestone.DueAt, State: milestone.State, AcceptedAt: milestone.AcceptedAt}
 		if milestone.GroupID == nil {
 			if milestone.State == model.ExpeditionMilestoneAccepted {
 				view.HasAcceptedJoint = true
@@ -534,11 +553,17 @@ func normalizeProjectInput(input ProjectInput) (ProjectInput, error) {
 	for index := range input.Milestones {
 		milestone := &input.Milestones[index]
 		milestone.Name, milestone.Criteria = strings.TrimSpace(milestone.Name), strings.TrimSpace(milestone.Criteria)
+		milestone.EvolutionTarget = strings.TrimSpace(milestone.EvolutionTarget)
 		if milestone.Name == "" || utf8.RuneCountInString(milestone.Name) > 160 || milestone.Criteria == "" || utf8.RuneCountInString(milestone.Criteria) > 5000 {
 			return ProjectInput{}, badRequest("阶段名称与完成标准不能为空")
 		}
 		if milestone.GroupID == nil {
 			jointCount++
+			if !validEvolutionTarget("", nil, milestone.EvolutionTarget) {
+				return ProjectInput{}, badRequest("联合阶段只能关联整机联合成果")
+			}
+		} else if milestone.EvolutionTarget == model.ExpeditionEvolutionJoint {
+			return ProjectInput{}, badRequest("组别阶段不能关联整机联合成果")
 		}
 	}
 	if jointCount != 1 {
@@ -569,6 +594,24 @@ func normalizeProjectInput(input ProjectInput) (ProjectInput, error) {
 		}
 	}
 	return input, nil
+}
+
+func validEvolutionTarget(groupName string, groupID *uint64, target string) bool {
+	if target == "" {
+		return true
+	}
+	if groupID == nil {
+		return target == model.ExpeditionEvolutionJoint
+	}
+	wantByGroup := map[string]string{
+		"机械组": model.ExpeditionEvolutionChassis,
+		"电控组": model.ExpeditionEvolutionControl,
+		"视觉组": model.ExpeditionEvolutionPerception,
+		"AI组": model.ExpeditionEvolutionDecision,
+		"运营组": model.ExpeditionEvolutionOperations,
+	}
+	want, exists := wantByGroup[groupName]
+	return exists && target == want
 }
 
 func (s *Service) memberGroupIDs(ctx context.Context, userID uint64) ([]uint64, error) {
