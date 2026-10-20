@@ -30,7 +30,7 @@ test("admin navigation groups recruitment and member tools while keeping email s
   assert.equal(recruitment?.label, "招新事务");
   assert.deepEqual(recruitment?.children.map(({ label }) => label), ["招新总览", "候选人处理", "招新管理", "招新数据分析"]);
   assert.equal(training?.label, "新人培养");
-  assert.deepEqual(training?.children.map(({ label }) => label), ["作业管理", "提交记录", "答疑管理", "技能路线管理"]);
+  assert.deepEqual(training?.children.map(({ label }) => label), ["作业管理", "提交记录", "答疑管理", "技能路线管理", "赛季协作"]);
   assert.equal(members?.label, "成员管理");
   assert.deepEqual(members?.children.map(({ label }) => label), ["账号与权限", "请假管理"]);
   assert.equal(menu.length, 4);
@@ -73,13 +73,16 @@ test("members need a technical group while super-admins can manage all groups", 
   assert.equal(canAccessDashboardAdminPath("super_admin", "/dashboard/admin/training/assignments", false), true);
   assert.equal(canAccessDashboardAdminPath("user", "/dashboard/admin/training/submissions", true), false);
   const trainingMenu = getVisibleAdminDashboardMenu("admin", true).find(({ key }) => key === "newcomer-training");
-	assert.deepEqual(trainingMenu?.children.map(({ label }) => label), ["作业管理", "提交记录", "答疑管理", "技能路线管理"]);
+	assert.deepEqual(trainingMenu?.children.map(({ label }) => label), ["作业管理", "提交记录", "答疑管理", "技能路线管理", "赛季协作"]);
   assert.equal(getVisibleAdminDashboardMenu("admin", false).some(({ key }) => key === "newcomer-training"), false);
-	assert.deepEqual(getVisibleAdminDashboardMenu("admin", false, true).find(({ key }) => key === "newcomer-training")?.children.map(({ label }) => label), ["技能路线管理"]);
-	assert.deepEqual(getVisibleAdminDashboardMenu("super_admin", false).find(({ key }) => key === "newcomer-training")?.children.map(({ label }) => label), ["作业管理", "提交记录", "答疑管理", "技能路线管理"]);
+	assert.deepEqual(getVisibleAdminDashboardMenu("admin", false, true).find(({ key }) => key === "newcomer-training")?.children.map(({ label }) => label), ["技能路线管理", "赛季协作"]);
+	assert.deepEqual(getVisibleAdminDashboardMenu("super_admin", false).find(({ key }) => key === "newcomer-training")?.children.map(({ label }) => label), ["作业管理", "提交记录", "答疑管理", "技能路线管理", "赛季协作"]);
 	assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/training/skills", false, true), true);
 	assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/training/skills", false, false), false);
 	assert.equal(canAccessDashboardAdminPath("super_admin", "/dashboard/admin/training/skills", false), true);
+	assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/training/expedition", false, true), true);
+	assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/training/expedition", false, false), false);
+	assert.equal(canAccessDashboardAdminPath("super_admin", "/dashboard/admin/training/expedition", false), true);
 });
 
 test("TARS BASE requires one of the five supported groups, except for super admins", () => {
@@ -131,6 +134,7 @@ test("super admin can access every listed admin route", () => {
     "/dashboard/admin/training/submissions",
     "/dashboard/admin/training/questions",
     "/dashboard/admin/training/skills",
+    "/dashboard/admin/training/expedition",
   ];
 
   for (const pathname of paths) {

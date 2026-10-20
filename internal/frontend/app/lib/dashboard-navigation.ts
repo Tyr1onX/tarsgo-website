@@ -176,6 +176,12 @@ const ADMIN_MENU: readonly DashboardMenuDefinition[] = [
         href: "/dashboard/admin/training/skills",
         allowedRoles: ["admin", "super_admin"],
       },
+      {
+        key: "expedition-project-management",
+        label: "赛季协作",
+        href: "/dashboard/admin/training/expedition",
+        allowedRoles: ["admin", "super_admin"],
+      },
     ],
   },
   {
@@ -227,6 +233,7 @@ function getAccessibleAdminPaths(roleName: string, hasTechnicalGroup = false, ha
         if (!isRoleAllowed(roleName, child.allowedRoles)) return false;
         if (roleName === "super_admin") return true;
         if (child.key === "skill-route-management") return hasSkillGroup;
+        if (child.key === "expedition-project-management") return hasSkillGroup;
         if (item.key === "newcomer-training") return hasTechnicalGroup;
         return true;
       })

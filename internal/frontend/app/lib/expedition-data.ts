@@ -2,11 +2,15 @@ import type { Assignment } from "~/lib/assignment-client";
 import type { GrowthProfile } from "~/lib/growth-client";
 import type { SkillGroupProgress } from "~/lib/skills-client";
 import type { TrainingQuestion } from "~/lib/training-question-client";
+import type { ExpeditionProject, ExpeditionProjectMilestone } from "~/lib/expedition-project-client";
 
 export const EXPEDITION_GROUPS = ["机械组", "电控组", "视觉组", "AI组", "运营组"] as const;
 
 export type ExpeditionFacilityId = "hangar" | "mechanical" | "controls" | "vision" | "ai" | "operations";
 export type ExpeditionChallengeKind = "assignment" | "skill" | "question" | "weekly-report";
+export type ExpeditionEvolutionTarget = NonNullable<ExpeditionProjectMilestone["evolutionTarget"]>;
+
+const EVOLUTION_TARGETS: readonly ExpeditionEvolutionTarget[] = ["chassis", "control", "perception", "decision", "operations", "joint"];
 
 export interface ExpeditionChallenge {
   key: string;
@@ -18,6 +22,24 @@ export interface ExpeditionChallenge {
   status?: string;
   dueAt?: string;
   priority: number;
+}
+
+export function getExpeditionEvolution(project: ExpeditionProject | null | undefined) {
+  const acceptedTargets = [...new Set((project?.milestones ?? [])
+    .filter((milestone) => milestone.state === "accepted" && Boolean(milestone.acceptedAt))
+    .map((milestone) => milestone.evolutionTarget)
+    .filter((target): target is ExpeditionEvolutionTarget => Boolean(target && EVOLUTION_TARGETS.includes(target))))];
+  return {
+    acceptedTargets,
+    hasAcceptedJoint: acceptedTargets.includes("joint"),
+  };
+}
+
+export function getAcceptedExpeditionMilestones(projects: readonly ExpeditionProject[]) {
+  return projects.flatMap((project) => project.milestones
+    .filter((milestone) => milestone.state === "accepted" && Boolean(milestone.acceptedAt))
+    .map((milestone) => ({ project, milestone })))
+    .sort((left, right) => new Date(right.milestone.acceptedAt!).getTime() - new Date(left.milestone.acceptedAt!).getTime());
 }
 
 const FACILITY_BY_GROUP: Record<(typeof EXPEDITION_GROUPS)[number], ExpeditionFacilityId> = {

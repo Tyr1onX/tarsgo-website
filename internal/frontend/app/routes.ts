@@ -20,6 +20,7 @@ export default [
     index("routes/dashboard/index.tsx"),
     route("base", "routes/dashboard/base.tsx"),
     route("expedition", "routes/dashboard/expedition.tsx"),
+    route("expedition/projects", "routes/dashboard/expedition-projects.tsx"),
     route("users/registrations", "routes/users/registrations.tsx"),
     route("leave", "routes/leave-workbench.tsx"),
     route("weekly-reports", "routes/dashboard/weekly-reports.tsx"),
@@ -38,6 +39,7 @@ export default [
     route("admin/training/submissions", "routes/admin/assignment-submissions.tsx"),
     route("admin/training/questions", "routes/admin/training-question-management.tsx"),
     route("admin/training/skills", "routes/admin/skill-route-management.tsx"),
+    route("admin/training/expedition", "routes/admin/expedition-project-management.tsx"),
   ]),
   route("*", "routes/not-found.tsx"),
 ] satisfies RouteConfig;
