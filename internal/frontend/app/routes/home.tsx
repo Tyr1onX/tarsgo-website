@@ -33,14 +33,14 @@ export function meta({}: Route.MetaArgs) {
 const sponsorLogos = [
   { name: "YELITE", image: "/assets/images/Sponsors/yelite.webp" },
   { name: "AMASS", image: "/assets/images/Sponsors/amass.webp" },
-  { name: "驰翔股份", image: "/assets/images/Sponsors/cxgf.webp" },
-  { name: "金地卓立", image: "/assets/images/Sponsors/jdzl.webp" },
-  { name: "吉利汽车", image: "/assets/images/Sponsors/jlc.webp" },
-  { name: "吉运模压器", image: "/assets/images/Sponsors/jyymq.webp" },
-  { name: "坤乾科技", image: "/assets/images/Sponsors/kqkj.webp" },
-  { name: "联讯科技", image: "/assets/images/Sponsors/lxkj.webp" },
-  { name: "强基装备", image: "/assets/images/Sponsors/qjzb.webp" },
-  { name: "夜河神", image: "/assets/images/Sponsors/yeheshen.webp" },
+  { name: "创芯工坊", image: "/assets/images/Sponsors/cxgf.webp" },
+  { name: "吉地智联", image: "/assets/images/Sponsors/jdzl.webp" },
+  { name: "嘉立创CNC", image: "/assets/images/Sponsors/jlc.webp" },
+  { name: "纪元羽毛球", image: "/assets/images/Sponsors/jyymq.webp" },
+  { name: "快趣科技", image: "/assets/images/Sponsors/kqkj.webp" },
+  { name: "留形科技", image: "/assets/images/Sponsors/lxkj.webp" },
+  { name: "千将资本", image: "/assets/images/Sponsors/qjzb.webp" },
+  { name: "YUHESEN", image: "/assets/images/Sponsors/yeheshen.webp" },
   { name: "长春纳丝精密机械有限公司", image: "/assets/images/Sponsors/nasi-precision.svg" },
 ];
 
