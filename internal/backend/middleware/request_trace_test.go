@@ -59,6 +59,18 @@ func TestRequestTracingLogsCorrelationAndOmitsSecrets(t *testing.T) {
 	}
 }
 
+func TestSafeLogValueRedactsQuotedAndCamelCaseCredentialFields(t *testing.T) {
+	value := safeLogValue(`database error {"refreshToken":"refresh-secret","password": "quoted-password-secret","api_key":"api-secret"} assignmentId=42`)
+	for _, secret := range []string{"refresh-secret", "quoted-password-secret", "api-secret"} {
+		if strings.Contains(value, secret) {
+			t.Fatalf("sanitized log value leaked %q: %s", secret, value)
+		}
+	}
+	if !strings.Contains(value, "assignmentId=42") {
+		t.Fatalf("sanitizer removed non-sensitive context: %s", value)
+	}
+}
+
 func TestInternalErrorLogIncludesContextAndRedactsSecrets(t *testing.T) {
 	previousMode := gin.Mode()
 	previousWriter := gin.DefaultWriter
