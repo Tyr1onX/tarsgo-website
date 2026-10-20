@@ -69,6 +69,13 @@ const ASSIGNMENT_MENU_ITEM: DashboardMenuLink = {
   iconKey: "report",
 };
 
+const TRAINING_QUESTIONS_MENU_ITEM: DashboardMenuLink = {
+  key: "training-questions",
+  label: "提问答疑",
+  href: "/dashboard/questions",
+  iconKey: "report",
+};
+
 const TECHNICAL_GROUP_NAMES = new Set(["机械组", "电控组", "视觉组", "AI组"]);
 
 export function isTechnicalGroupName(name: string) {
@@ -131,6 +138,12 @@ const ADMIN_MENU: readonly DashboardMenuDefinition[] = [
         key: "assignment-submissions",
         label: "提交记录",
         href: "/dashboard/admin/training/submissions",
+        allowedRoles: ["admin", "super_admin"],
+      },
+      {
+        key: "training-question-management",
+        label: "答疑管理",
+        href: "/dashboard/admin/training/questions",
         allowedRoles: ["admin", "super_admin"],
       },
     ],
@@ -196,7 +209,7 @@ export function getUserDashboardMenu(userOrRole: AuthUser | string, hasTechnical
   const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
   const menu = roleName === "user" ? [...USER_MENU] : [];
   if (hasTechnicalGroup && ["user", "admin", "super_admin"].includes(roleName)) {
-    menu.splice(roleName === "user" ? 1 : 0, 0, ASSIGNMENT_MENU_ITEM);
+    menu.push(TRAINING_QUESTIONS_MENU_ITEM, ASSIGNMENT_MENU_ITEM);
   }
   return menu;
 }

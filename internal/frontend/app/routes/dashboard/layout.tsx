@@ -112,6 +112,9 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   if (pathname === "/dashboard/assignments" && !hasTechnicalGroup) {
     throw redirect(getDefaultDashboardPath(currentUser.role.name));
   }
+  if (pathname === "/dashboard/questions" && !hasTechnicalGroup) {
+    throw redirect(getDefaultDashboardPath(currentUser.role.name));
+  }
 
   return { currentUser, groupResolution, groupResolutionError };
 }

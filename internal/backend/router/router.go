@@ -23,6 +23,7 @@ import (
 	"tarsgo-backend/service/recruitmentanalytics"
 	"tarsgo-backend/service/registration"
 	"tarsgo-backend/service/systemconfig"
+	"tarsgo-backend/service/trainingqa"
 	"tarsgo-backend/service/usergroup"
 	"tarsgo-backend/service/weeklyreport"
 	"tarsgo-backend/web"
@@ -71,6 +72,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	authHandler := handler.NewAuthHandler(authService)
 	adminUserHandler := handler.NewAdminUserHandler(adminuser.NewService(adminuser.NewRepository(db)))
 	assignmentHandler := handler.NewAssignmentHandler(assignment.NewService(db))
+	trainingQuestionHandler := handler.NewTrainingQuestionHandler(trainingqa.NewService(db))
 	userGroupHandler := handler.NewUserGroupHandler(usergroup.NewService(usergroup.NewRepository(db)))
 	userGroupMembershipHandler := handler.NewUserGroupMembershipHandler(usergroup.NewMembershipService(db))
 	registrationFormHandler := handler.NewRegistrationFormHandler(registration.NewRegistrationFormService(db))
@@ -150,6 +152,12 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	assignmentMemberAPI.GET("/assignments/:id", assignmentHandler.GetMine)
 	assignmentMemberAPI.POST("/assignments/:id/submissions", requireSameOriginRequest(cfg), assignmentHandler.Submit)
 	assignmentMemberAPI.GET("/assignment-files/:id", assignmentHandler.OpenFile)
+	assignmentMemberAPI.GET("/questions", trainingQuestionHandler.ListMember)
+	assignmentMemberAPI.POST("/questions", requireSameOriginRequest(cfg), trainingQuestionHandler.Create)
+	assignmentMemberAPI.GET("/questions/:id", trainingQuestionHandler.GetMember)
+	assignmentMemberAPI.POST("/questions/:id/posts", requireSameOriginRequest(cfg), trainingQuestionHandler.ReplyMember)
+	assignmentMemberAPI.PATCH("/questions/:id/solved", requireSameOriginRequest(cfg), trainingQuestionHandler.SetSolvedMember)
+	assignmentMemberAPI.GET("/question-files/:id", trainingQuestionHandler.OpenFile)
 
 	adminAPI := api.Group("/admin")
 	adminAPI.Use(middleware.RequireAdmin(authService))
@@ -159,6 +167,11 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	adminAPI.GET("/assignments/:id", assignmentHandler.GetAdmin)
 	adminAPI.PATCH("/assignments/:id", requireSameOriginRequest(cfg), assignmentHandler.Update)
 	adminAPI.POST("/assignments/submissions/:id/reviews", requireSameOriginRequest(cfg), assignmentHandler.Review)
+	adminAPI.GET("/questions", trainingQuestionHandler.ListAdmin)
+	adminAPI.GET("/questions/:id", trainingQuestionHandler.GetAdmin)
+	adminAPI.POST("/questions/:id/posts", requireSameOriginRequest(cfg), trainingQuestionHandler.ReplyAdmin)
+	adminAPI.PATCH("/questions/:id/solved", requireSameOriginRequest(cfg), trainingQuestionHandler.SetSolvedAdmin)
+	adminAPI.PATCH("/questions/:id/faq", requireSameOriginRequest(cfg), trainingQuestionHandler.SetFAQ)
 	adminAPI.GET("/user-groups/options", userGroupHandler.ListGroupOptions)
 	adminAPI.GET("/admission-qr/:filename", userGroupHandler.OpenAdmissionQRCode)
 	adminAPI.GET("/school-leave/summary", leaveHandler.AdminSchoolSummary)
