@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { canAccessDashboardAdminPath, getCoreDashboardMenu, getDefaultDashboardPath, getUserDashboardMenu, getVisibleAdminDashboardMenu, hasSkillGroupAccess, hasTechnicalGroupAccess, isDashboardMenuPathActive } from "./dashboard-navigation.ts";
+import { canAccessDashboardAdminPath, canAccessExpedition, getCoreDashboardMenu, getDefaultDashboardPath, getUserDashboardMenu, getVisibleAdminDashboardMenu, hasSkillGroupAccess, hasTechnicalGroupAccess, isDashboardMenuPathActive } from "./dashboard-navigation.ts";
 
 test("every authenticated role opens the same personal workbench", () => {
   assert.equal(getDefaultDashboardPath("user"), "/dashboard");
@@ -49,8 +49,8 @@ test("member navigation keeps personal growth available to all roles and restric
 	assert.deepEqual(getUserDashboardMenu("user").map((item) => item.href), ["/dashboard/users/registrations", "/dashboard/leave", "/dashboard/growth"]);
   assert.equal(getUserDashboardMenu("user")[0]?.label, "我的招新");
 	assert.deepEqual(getUserDashboardMenu("admin").map((item) => item.href), ["/dashboard/growth"]);
-	assert.deepEqual(getUserDashboardMenu("super_admin").map((item) => item.href), ["/dashboard/growth"]);
-	assert.deepEqual(getUserDashboardMenu("user", false, true).map(({ key }) => key), ["users-registrations", "leave-workbench", "my-growth", "skill-tree"]);
+	assert.deepEqual(getUserDashboardMenu("super_admin").map((item) => item.href), ["/dashboard/growth", "/dashboard/expedition"]);
+	assert.deepEqual(getUserDashboardMenu("user", false, true).map(({ key }) => key), ["users-registrations", "leave-workbench", "my-growth", "tars-base-expedition", "skill-tree"]);
   const adminMenu = getVisibleAdminDashboardMenu("admin");
   assert.deepEqual(adminMenu.map(({ key }) => key), ["recruitment-operations", "member-management"]);
   assert.deepEqual(adminMenu[0]?.children.map(({ key }) => key), ["admin-panel", "candidate-processing"]);
@@ -65,9 +65,9 @@ test("members need a technical group while super-admins can manage all groups", 
   assert.equal(hasTechnicalGroupAccess([{ name: "运营组" }]), false);
 	assert.equal(hasSkillGroupAccess([{ name: "运营组" }]), true);
 	assert.equal(hasSkillGroupAccess([{ name: "临时组" }]), false);
-	assert.deepEqual(getUserDashboardMenu("user", true).slice(3).map(({ label }) => label), ["技能树", "提问答疑", "我的作业"]);
-	assert.deepEqual(getUserDashboardMenu("admin", true).map(({ label }) => label), ["我的成长", "技能树", "提问答疑", "我的作业"]);
-	assert.deepEqual(getUserDashboardMenu("super_admin", false).map(({ label }) => label), ["我的成长"]);
+	assert.deepEqual(getUserDashboardMenu("user", true).slice(3).map(({ label }) => label), ["TARS BASE", "技能树", "提问答疑", "我的作业"]);
+	assert.deepEqual(getUserDashboardMenu("admin", true).map(({ label }) => label), ["我的成长", "TARS BASE", "技能树", "提问答疑", "我的作业"]);
+	assert.deepEqual(getUserDashboardMenu("super_admin", false).map(({ label }) => label), ["我的成长", "TARS BASE"]);
   assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/training/assignments", false), false);
   assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/training/assignments", true), true);
   assert.equal(canAccessDashboardAdminPath("super_admin", "/dashboard/admin/training/assignments", false), true);
@@ -80,6 +80,14 @@ test("members need a technical group while super-admins can manage all groups", 
 	assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/training/skills", false, true), true);
 	assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/training/skills", false, false), false);
 	assert.equal(canAccessDashboardAdminPath("super_admin", "/dashboard/admin/training/skills", false), true);
+});
+
+test("TARS BASE requires one of the five supported groups, except for super admins", () => {
+  assert.equal(canAccessExpedition("user", false), false);
+  assert.equal(canAccessExpedition("admin", false), false);
+  assert.equal(canAccessExpedition("user", true), true);
+  assert.equal(canAccessExpedition("admin", true), true);
+  assert.equal(canAccessExpedition("super_admin", false), true);
 });
 
 test("nested admin routes keep their parent submenu active without highlighting the overview", () => {
