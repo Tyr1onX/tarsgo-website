@@ -1,0 +1,124 @@
+.expedition-projects { width: min(100%, 1380px); margin-inline: auto; padding: 2px 0 32px; color: var(--admin-text); }
+.expedition-projects__header { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.expedition-projects__header h1 { margin-top: 5px; font-size: clamp(25px, 3vw, 34px); font-weight: 650; letter-spacing: -.04em; }
+.expedition-projects__header > div > p:last-child { margin-top: 6px; color: var(--admin-muted); font-size: 12px; }
+.expedition-projects__back { display: inline-flex; gap: 8px; align-items: center; border: 1px solid var(--admin-border); border-radius: 9px; padding: 8px 11px; color: var(--admin-muted); text-decoration: none; }
+.expedition-projects__back:hover { color: var(--admin-text); border-color: var(--admin-accent); }
+.expedition-projects__back span { color: var(--admin-accent); }
+.expedition-projects__error { border: 1px solid color-mix(in srgb, #c47663 55%, transparent); border-radius: 9px; padding: 10px 12px; color: var(--admin-text); background: color-mix(in srgb, #c47663 9%, var(--admin-surface)); }
+.expedition-projects__create,
+.expedition-projects__list,
+.expedition-projects__detail { border: 1px solid var(--admin-border); border-radius: 13px; background: color-mix(in srgb, var(--admin-surface) 90%, transparent); box-shadow: 0 12px 38px rgb(0 0 0 / .07); }
+.expedition-projects__create { margin-bottom: 14px; overflow: hidden; }
+.expedition-projects__create > summary { cursor: pointer; padding: 12px 15px; color: var(--admin-accent-text); font-size: 12px; font-weight: 600; }
+.expedition-projects__create[open] > summary { border-bottom: 1px solid var(--admin-border-subtle); }
+.expedition-projects__create form { display: grid; gap: 12px; padding: 15px; }
+.expedition-projects label { display: grid; gap: 5px; color: var(--admin-muted); font-size: 11px; }
+.expedition-projects input,
+.expedition-projects textarea,
+.expedition-projects select { width: 100%; min-height: 37px; border: 1px solid var(--admin-border); border-radius: 8px; padding: 8px 10px; color: var(--admin-text); background: var(--admin-surface); font: inherit; font-size: 12px; }
+.expedition-projects textarea { min-height: 62px; resize: vertical; line-height: 1.5; }
+.expedition-projects :is(input, textarea, select):focus-visible { outline: 2px solid var(--admin-accent); outline-offset: 1px; }
+.expedition-projects__section-heading { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.expedition-projects__section-heading h2,
+.expedition-projects__section-heading h3 { color: var(--admin-text); font-size: 13px; font-weight: 620; }
+.expedition-projects__section-heading button,
+.expedition-projects__remove,
+.expedition-projects__action button { min-height: 32px; border: 1px solid var(--admin-border); border-radius: 8px; padding: 6px 10px; color: var(--admin-muted); background: var(--admin-surface); font-size: 11px; cursor: pointer; }
+.expedition-projects__section-heading button:hover,
+.expedition-projects__action button:hover { border-color: var(--admin-accent); color: var(--admin-text); }
+.expedition-projects__section-heading button:disabled,
+.expedition-projects__action button:disabled { opacity: .55; cursor: not-allowed; }
+.expedition-projects__milestone-drafts { display: grid; gap: 9px; }
+.expedition-projects__draft { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; border: 1px solid var(--admin-border-subtle); border-radius: 10px; padding: 12px; }
+.expedition-projects__draft legend { padding-inline: 5px; color: var(--admin-accent-text); font-size: 10px; }
+.expedition-projects__draft label:nth-of-type(3) { grid-column: 1 / -1; }
+.expedition-projects__participants { grid-column: 1 / -1; display: grid; gap: 7px; border-top: 1px solid var(--admin-border-subtle); padding-top: 8px; color: var(--admin-muted); font-size: 10px; }
+.expedition-projects__participants > div { display: flex; flex-wrap: wrap; gap: 6px; }
+.expedition-projects__participants > div label { display: inline-flex; align-items: center; gap: 5px; border: 1px solid var(--admin-border-subtle); border-radius: 999px; padding: 5px 8px; color: var(--admin-text); background: color-mix(in srgb, var(--admin-surface-rail) 45%, transparent); font-size: 10px; cursor: pointer; }
+.expedition-projects__participants input[type="checkbox"] { width: 13px; min-height: 13px; height: 13px; margin: 0; accent-color: var(--admin-accent); }
+.expedition-projects__participants-list { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 9px; color: var(--admin-dim); font-size: 9px; }
+.expedition-projects__participants-list > span:not(:first-child) { border: 1px solid var(--admin-border-subtle); border-radius: 999px; padding: 4px 7px; color: var(--admin-muted); background: color-mix(in srgb, var(--admin-surface-rail) 45%, transparent); }
+.expedition-projects__participants-list strong { color: var(--admin-text); font-weight: 570; }
+.expedition-projects__draft--joint { border-color: color-mix(in srgb, var(--admin-accent) 35%, var(--admin-border)); }
+.expedition-projects__remove { justify-self: start; color: #cd8a79; }
+.expedition-projects__primary { justify-self: start; min-height: 37px; border: 1px solid color-mix(in srgb, var(--admin-accent) 68%, transparent); border-radius: 9px; padding: 8px 14px; color: var(--admin-accent-text); background: color-mix(in srgb, var(--admin-accent) 11%, var(--admin-surface)); font-size: 12px; font-weight: 620; cursor: pointer; }
+.expedition-projects__layout { display: grid; grid-template-columns: minmax(230px, .33fr) minmax(0, 1fr); gap: 13px; align-items: start; }
+.expedition-projects__list { padding: 13px; }
+.expedition-projects__list > ul { display: grid; gap: 6px; margin: 12px 0 0; padding: 0; list-style: none; }
+.expedition-projects__list > ul > li > button { display: flex; align-items: center; justify-content: space-between; gap: 9px; width: 100%; border: 1px solid transparent; border-radius: 9px; padding: 10px; text-align: left; color: var(--admin-text); background: transparent; cursor: pointer; }
+.expedition-projects__list > ul > li > button:hover,
+.expedition-projects__list > ul > li > button.is-selected { border-color: color-mix(in srgb, var(--admin-accent) 38%, var(--admin-border)); background: color-mix(in srgb, var(--admin-accent) 7%, var(--admin-surface)); }
+.expedition-projects__list > ul > li > button > span:first-child { display: grid; gap: 5px; min-width: 0; }
+.expedition-projects__list strong { overflow: hidden; font-size: 12px; font-weight: 580; text-overflow: ellipsis; white-space: nowrap; }
+.expedition-projects__list small { color: var(--admin-dim); font-size: 9px; line-height: 1.4; }
+.expedition-projects__count { flex: none; color: var(--admin-accent-text); font: 10px "Geist Mono", ui-monospace, monospace; }
+.expedition-projects__empty { padding: 14px 4px; color: var(--admin-dim); font-size: 11px; }
+.expedition-projects__detail { min-width: 0; padding: 17px; }
+.expedition-projects__empty-state { display: grid; justify-items: center; gap: 8px; min-height: 270px; align-content: center; text-align: center; }
+.expedition-projects__empty-state > span { color: var(--admin-accent); font-size: 25px; }
+.expedition-projects__empty-state h2 { font-size: 16px; }
+.expedition-projects__empty-state p { color: var(--admin-muted); font-size: 11px; }
+.expedition-projects__project-heading { display: flex; align-items: start; justify-content: space-between; gap: 14px; padding-bottom: 13px; border-bottom: 1px solid var(--admin-border-subtle); }
+.expedition-projects__project-heading h2 { margin-top: 5px; color: var(--admin-text); font-size: 21px; font-weight: 620; letter-spacing: -.025em; }
+.expedition-projects__project-heading > div > p:last-child { max-width: 700px; margin-top: 7px; color: var(--admin-muted); font-size: 11px; line-height: 1.55; white-space: pre-wrap; }
+.expedition-projects__overall { flex: none; border: 1px solid var(--admin-border); border-radius: 999px; padding: 6px 9px; color: var(--admin-muted); background: color-mix(in srgb, var(--admin-surface-rail) 55%, transparent); font-size: 10px; }
+.expedition-projects__overall.is-complete { border-color: color-mix(in srgb, var(--admin-accent) 55%, var(--admin-border)); color: var(--admin-accent-text); background: color-mix(in srgb, var(--admin-accent) 9%, transparent); }
+.expedition-projects__facts { display: flex; flex-wrap: wrap; gap: 6px 20px; margin-top: 10px; color: var(--admin-dim); font-size: 10px; }
+.expedition-projects__facts strong { margin-left: 5px; color: var(--admin-muted); font-weight: 550; }
+.expedition-projects__milestones,
+.expedition-projects__history { margin-top: 19px; }
+.expedition-projects__milestones > ol,
+.expedition-projects__history > ol { display: grid; gap: 9px; margin: 10px 0 0; padding: 0; list-style: none; }
+.expedition-projects__milestone { border: 1px solid var(--admin-border-subtle); border-radius: 10px; padding: 12px; background: color-mix(in srgb, var(--admin-surface-rail) 35%, transparent); }
+.expedition-projects__milestone--accepted { border-color: color-mix(in srgb, var(--admin-accent) 32%, var(--admin-border-subtle)); }
+.expedition-projects__milestone-top { display: grid; grid-template-columns: 10px minmax(0, 1fr) auto; gap: 10px; align-items: start; }
+.expedition-projects__node { width: 9px; height: 9px; margin-top: 4px; border: 1px solid var(--admin-dim); border-radius: 50%; background: var(--admin-surface); }
+.expedition-projects__milestone--submitted .expedition-projects__node { border-color: #71b8c8; background: #71b8c8; box-shadow: 0 0 12px color-mix(in srgb, #71b8c8 58%, transparent); }
+.expedition-projects__milestone--accepted .expedition-projects__node { border-color: var(--admin-accent); background: var(--admin-accent); box-shadow: 0 0 13px color-mix(in srgb, var(--admin-accent) 55%, transparent); }
+.expedition-projects__milestone-top small { color: var(--admin-dim); font-size: 9px; }
+.expedition-projects__milestone-top h4 { margin-top: 4px; color: var(--admin-text); font-size: 12px; font-weight: 590; }
+.expedition-projects__milestone-top p { margin-top: 5px; color: var(--admin-muted); font-size: 10px; line-height: 1.5; white-space: pre-wrap; }
+.expedition-projects__state { border: 1px solid var(--admin-border); border-radius: 999px; padding: 4px 7px; color: var(--admin-dim); font-size: 9px; white-space: nowrap; }
+.expedition-projects__milestone--submitted .expedition-projects__state { color: #6eb1c1; }
+.expedition-projects__milestone--accepted .expedition-projects__state { color: var(--admin-accent-text); }
+.expedition-projects__accepted { margin: 8px 0 0 20px; color: var(--admin-accent-text); font-size: 9px; }
+.expedition-projects__action { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 9px; align-items: end; margin: 11px 0 0 20px; }
+.expedition-projects__action textarea { min-height: 56px; }
+.expedition-projects__action--review { padding-top: 10px; border-top: 1px solid var(--admin-border-subtle); }
+.expedition-projects__action button { border-color: color-mix(in srgb, var(--admin-accent) 44%, var(--admin-border)); color: var(--admin-accent-text); }
+.expedition-projects__action button.expedition-projects__secondary { border-color: var(--admin-border); color: var(--admin-muted); }
+.expedition-projects__history > ol { gap: 0; }
+.expedition-projects__history > ol > li { display: grid; grid-template-columns: 8px minmax(0, 1fr); gap: 10px; border-left: 1px solid var(--admin-border); padding: 0 0 12px 12px; margin-left: 3px; }
+.expedition-projects__history-dot { width: 7px; height: 7px; margin-left: -16px; border-radius: 50%; background: var(--admin-accent); box-shadow: 0 0 9px color-mix(in srgb, var(--admin-accent) 45%, transparent); }
+.expedition-projects__history small { color: var(--admin-dim); font-size: 9px; }
+.expedition-projects__history p { margin-top: 4px; color: var(--admin-text); font-size: 10px; line-height: 1.5; white-space: pre-wrap; }
+.expedition-projects__history div > span { color: var(--admin-dim); font-size: 9px; }
+.expedition-projects :is(a, button, summary):focus-visible { outline: 2px solid var(--admin-accent); outline-offset: 2px; }
+
+:root[data-theme="light"] .expedition-projects__create,
+:root[data-theme="light"] .expedition-projects__list,
+:root[data-theme="light"] .expedition-projects__detail { background: var(--admin-surface); }
+
+@media (max-width: 860px) {
+  .expedition-projects__layout { grid-template-columns: minmax(0, 1fr); }
+  .expedition-projects__list > ul { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+@media (max-width: 600px) {
+  .expedition-projects { padding-bottom: 22px; }
+  .expedition-projects__header { align-items: start; }
+  .expedition-projects__header > div > p:last-child { max-width: 245px; }
+  .expedition-projects__back { flex: none; padding: 7px 8px; font-size: 10px; }
+  .expedition-projects__list > ul { grid-template-columns: minmax(0, 1fr); }
+  .expedition-projects__detail { padding: 13px; }
+  .expedition-projects__project-heading { display: grid; }
+  .expedition-projects__overall { justify-self: start; }
+  .expedition-projects__draft { grid-template-columns: minmax(0, 1fr); }
+  .expedition-projects__draft label:nth-of-type(3) { grid-column: auto; }
+  .expedition-projects__participants { grid-column: auto; }
+  .expedition-projects__milestone-top { grid-template-columns: 9px minmax(0, 1fr); }
+  .expedition-projects__state { grid-column: 2; justify-self: start; }
+  .expedition-projects__action { grid-template-columns: minmax(0, 1fr); margin-left: 0; }
+  .expedition-projects__action button { justify-self: start; }
+}

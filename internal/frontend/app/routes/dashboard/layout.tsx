@@ -125,6 +125,9 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   if (pathname === "/dashboard/expedition" && !canAccessExpedition(currentUser, hasSkillGroup)) {
     throw redirect(getDefaultDashboardPath(currentUser.role.name));
   }
+  if (pathname === "/dashboard/expedition/projects" && !canAccessExpedition(currentUser, hasSkillGroup)) {
+    throw redirect(getDefaultDashboardPath(currentUser.role.name));
+  }
 
   return { currentUser, groupResolution, groupResolutionError };
 }

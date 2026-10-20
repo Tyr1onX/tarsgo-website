@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { buildExpeditionChallenges, getPrimaryFacilityId, getPublicFacilityFAQs } from "./expedition-data.ts";
+import { buildExpeditionChallenges, getAcceptedExpeditionMilestones, getExpeditionEvolution, getPrimaryFacilityId, getPublicFacilityFAQs } from "./expedition-data.ts";
 
 test("基地按成员当前组别定位对应设施", () => {
   assert.equal(getPrimaryFacilityId(["运营组"]), "operations");
@@ -64,4 +64,37 @@ test("基地知识动态只展示本人所属组的已解决公开 FAQ", () => {
   assert.deepEqual(getPublicFacilityFAQs(questions, "视觉组").map(({ id }) => id), [1]);
   assert.deepEqual(getPublicFacilityFAQs(questions, "运营组"), []);
   assert.deepEqual(getPublicFacilityFAQs(questions, null), []);
+});
+
+test("基地设施演化与赛季编年史只读取可见项目中的已验收阶段", () => {
+  const projects = [
+    {
+      id: 1,
+      title: "跨组整机联调",
+      acceptedGroupNames: ["电控组", "机械组"],
+      hasAcceptedJoint: false,
+      milestones: [
+        { id: 1, name: "底盘验收", groupName: "机械组", state: "accepted", acceptedAt: "2026-10-02T00:00:00Z" },
+        { id: 2, name: "控制验收", groupName: "电控组", state: "accepted", acceptedAt: "2026-10-03T00:00:00Z" },
+        { id: 3, name: "整机聯調", state: "submitted" },
+      ],
+    },
+    {
+      id: 2,
+      title: "撤销中的验收",
+      acceptedGroupNames: [],
+      hasAcceptedJoint: false,
+      milestones: [{ id: 4, name: "视觉验收", groupName: "视觉组", state: "submitted", acceptedAt: "2026-10-04T00:00:00Z" }],
+    },
+    {
+      id: 3,
+      title: "联合验收完成",
+      acceptedGroupNames: ["机械组"],
+      hasAcceptedJoint: true,
+      milestones: [{ id: 5, name: "联合验收", state: "accepted", acceptedAt: "2026-10-05T00:00:00Z" }],
+    },
+  ];
+
+  assert.deepEqual(getExpeditionEvolution(projects), { acceptedGroupNames: ["电控组", "机械组"], hasAcceptedJoint: true });
+  assert.deepEqual(getAcceptedExpeditionMilestones(projects).map(({ project, milestone }) => `${project.id}:${milestone.id}`), ["3:5", "1:2", "1:1"]);
 });

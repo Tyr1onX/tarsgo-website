@@ -138,6 +138,10 @@
 .expedition-facility__challenge > a:hover { color: var(--admin-accent-highlight); }
 .expedition-facility__challenge small { color: var(--admin-dim); font-size: 9px; font-weight: 400; }
 .expedition-facility__challenge i { color: var(--admin-accent); font-style: normal; }
+.expedition-facility__projects ul { display: grid; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.expedition-facility__projects li a { display: grid; gap: 4px; border-left: 2px solid var(--admin-accent); padding: 3px 0 3px 9px; color: var(--admin-text); font-size: 10px; font-weight: 550; text-decoration: none; }
+.expedition-facility__projects li a:hover { color: var(--admin-accent-highlight); }
+.expedition-facility__projects li small { color: var(--admin-dim); font-size: 9px; font-weight: 400; }
 .expedition-facility__locked { display: flex; align-items: start; gap: 9px; margin-top: 20px; border: 1px solid var(--admin-border-subtle); border-radius: 10px; padding: 11px; color: var(--admin-dim); background: color-mix(in srgb, var(--admin-surface-rail) 55%, transparent); }
 .expedition-facility__locked > span { color: var(--admin-accent); }
 .expedition-facility__locked div { display: grid; gap: 4px; }
@@ -152,6 +156,32 @@
 .expedition-facility__links a span { color: var(--admin-accent); }
 .expedition-facility :is(a, button):focus-visible,
 .expedition-page :is(a, button):focus-visible { outline: 2px solid var(--admin-accent); outline-offset: 3px; }
+
+.expedition-evolution { pointer-events: none; animation: expedition-evolution-arrive 580ms cubic-bezier(.18,.75,.25,1) both; }
+.expedition-evolution text { fill: #ecd58f; stroke: #1b2421; stroke-width: 3px; paint-order: stroke; font: 600 9px "Geist Mono", ui-monospace, monospace; letter-spacing: .04em; }
+.expedition-evolution--mechanical { filter: drop-shadow(0 3px 8px rgb(0 0 0 / .6)); }
+.expedition-evolution--controls { filter: drop-shadow(0 0 12px rgb(101 227 220 / .38)); }
+.expedition-evolution--vision { filter: drop-shadow(0 0 12px rgb(113 219 233 / .48)); }
+.expedition-evolution--ai { filter: drop-shadow(0 0 12px rgb(155 145 218 / .42)); }
+.expedition-evolution--operations { filter: drop-shadow(0 0 12px rgb(208 181 111 / .4)); }
+.expedition-evolution__pulse,
+.expedition-evolution__halo { transform-box: fill-box; transform-origin: center; animation: expedition-evolution-pulse 2.8s ease-out infinite; }
+.expedition-evolution__pulse { fill: none; stroke: #83e7de; stroke-width: 1.4; opacity: .75; }
+.expedition-evolution__halo { animation-delay: 850ms; }
+.expedition-evolution__scan { stroke-dasharray: 3 4; animation: expedition-evolution-scan 4.6s linear infinite; }
+.expedition-evolution__signal { stroke-dasharray: 4 3; animation: expedition-evolution-scan 2.8s linear infinite; }
+.expedition-season-chronicle { margin-top: 14px; padding: 16px 19px; }
+.expedition-season-chronicle > ol { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin: 12px 0 0; padding: 0; list-style: none; }
+.expedition-season-chronicle > ol > li { display: grid; grid-template-columns: 7px minmax(0, 1fr); gap: 9px; border: 1px solid var(--admin-border-subtle); border-radius: 9px; padding: 10px; background: color-mix(in srgb, var(--admin-surface-rail) 35%, transparent); }
+.expedition-season-chronicle__signal { width: 6px; height: 6px; margin-top: 4px; border-radius: 50%; background: var(--admin-accent); box-shadow: 0 0 9px color-mix(in srgb, var(--admin-accent) 65%, transparent); }
+.expedition-season-chronicle > ol a { display: grid; gap: 4px; color: var(--admin-text); text-decoration: none; }
+.expedition-season-chronicle > ol a:hover strong { color: var(--admin-accent-text); }
+.expedition-season-chronicle > ol small { color: var(--admin-dim); font-size: 8px; }
+.expedition-season-chronicle > ol strong { font-size: 10px; font-weight: 570; line-height: 1.4; }
+.expedition-season-chronicle > ol a > span { display: -webkit-box; overflow: hidden; color: var(--admin-muted); font-size: 9px; line-height: 1.4; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+@keyframes expedition-evolution-arrive { from { opacity: 0; translate: 0 6px; scale: .96; } to { opacity: 1; translate: 0 0; scale: 1; } }
+@keyframes expedition-evolution-pulse { 0% { opacity: .7; scale: .72; } 90%, 100% { opacity: 0; scale: 1.55; } }
+@keyframes expedition-evolution-scan { to { stroke-dashoffset: -28; } }
 
 .expedition-lower-grid { display: grid; grid-template-columns: minmax(0, 1.18fr) minmax(280px, .82fr); gap: 14px; margin-top: 14px; align-items: start; }
 .expedition-panel { padding: 17px 19px; }
@@ -237,6 +267,7 @@
   .expedition-facility__description { margin-top: 11px; }
   .expedition-facility__focus { margin-top: 12px; }
   .expedition-lower-grid { grid-template-columns: minmax(0, 1fr); }
+  .expedition-season-chronicle > ol { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 600px) {
@@ -268,6 +299,8 @@
   .expedition-challenge__arrow { display: none; }
   .expedition-challenge__status { font-size: 8px; }
   .expedition-onboarding { margin-top: 10px; }
+  .expedition-season-chronicle { padding: 14px 13px; }
+  .expedition-season-chronicle > ol { grid-template-columns: minmax(0, 1fr); }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -283,6 +316,10 @@
   .expedition-server-fan,
   .expedition-hangar-robot__wheel-spokes,
   .expedition-comms-wave,
+  .expedition-evolution__pulse,
+  .expedition-evolution__halo,
+  .expedition-evolution__scan,
+  .expedition-evolution__signal,
   .expedition-map__focus-field::after { animation: none; }
   .expedition-map__focus-field,
   .expedition-map__building,
@@ -292,4 +329,5 @@
   .expedition-challenge,
   .expedition-facility__links a { transition: none; }
   .expedition-facility { animation: none; }
+  .expedition-evolution { animation: none; }
 }

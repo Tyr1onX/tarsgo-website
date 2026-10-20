@@ -19,6 +19,7 @@ import (
 	"tarsgo-backend/service/dailysignal"
 	"tarsgo-backend/service/email"
 	"tarsgo-backend/service/emailtemplate"
+	"tarsgo-backend/service/expedition"
 	"tarsgo-backend/service/growth"
 	"tarsgo-backend/service/leave"
 	"tarsgo-backend/service/recruitmentanalytics"
@@ -91,6 +92,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	growthHandler := handler.NewGrowthHandler(growth.NewService(db, assignmentService))
 	leaveService := leave.NewService(db)
 	leaveHandler := handler.NewLeaveHandler(leaveService)
+	expeditionHandler := handler.NewExpeditionHandler(expedition.NewService(db))
 
 	engine.GET("/healthz", healthHandler.Get)
 
@@ -165,6 +167,10 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	assignmentMemberAPI.GET("/question-files/:id", trainingQuestionHandler.OpenFile)
 	assignmentMemberAPI.GET("/skills/me", skillsHandler.ListMine)
 	assignmentMemberAPI.POST("/skills/nodes/:id/start", requireSameOriginRequest(cfg), skillsHandler.Start)
+	expeditionMemberAPI := api.Group("/expedition")
+	expeditionMemberAPI.Use(middleware.RequireAuthenticated(authService))
+	expeditionMemberAPI.GET("/projects", expeditionHandler.ListMine)
+	expeditionMemberAPI.POST("/milestones/:id/evidence", requireSameOriginRequest(cfg), expeditionHandler.SubmitEvidence)
 
 	adminAPI := api.Group("/admin")
 	adminAPI.Use(middleware.RequireAdmin(authService))
@@ -189,6 +195,10 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	adminAPI.GET("/skills/members", skillsHandler.ListMembers)
 	adminAPI.GET("/skills/nodes/:id/members/:userId/history", skillsHandler.MemberHistory)
 	adminAPI.POST("/skills/nodes/:id/members/:userId/reviews", requireSameOriginRequest(cfg), skillsHandler.Review)
+	adminAPI.GET("/expedition/projects", expeditionHandler.ListAdmin)
+	adminAPI.GET("/expedition/group-members", expeditionHandler.ListGroupMembers)
+	adminAPI.POST("/expedition/projects", requireSameOriginRequest(cfg), expeditionHandler.CreateProject)
+	adminAPI.POST("/expedition/milestones/:id/review", requireSameOriginRequest(cfg), expeditionHandler.ReviewMilestone)
 	adminAPI.GET("/user-groups/options", userGroupHandler.ListGroupOptions)
 	adminAPI.GET("/admission-qr/:filename", userGroupHandler.OpenAdmissionQRCode)
 	adminAPI.GET("/school-leave/summary", leaveHandler.AdminSchoolSummary)

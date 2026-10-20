@@ -4,7 +4,8 @@ import { Link, useOutletContext } from "react-router";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { assignmentClient, type Assignment } from "~/lib/assignment-client";
 import { getGrowthProfile, growthEventLabel, formatGrowthDate, type GrowthEvent, type GrowthProfile } from "~/lib/growth-client";
-import { buildExpeditionChallenges, getPrimaryFacilityId, getPublicFacilityFAQs, type ExpeditionChallenge, type ExpeditionFacilityId } from "~/lib/expedition-data";
+import { buildExpeditionChallenges, getAcceptedExpeditionMilestones, getExpeditionEvolution, getPrimaryFacilityId, getPublicFacilityFAQs, type ExpeditionChallenge, type ExpeditionFacilityId } from "~/lib/expedition-data";
+import { expeditionProjectClient, type ExpeditionProject } from "~/lib/expedition-project-client";
 import { hasSkillGroupAccess, hasTechnicalGroupAccess, isTechnicalGroupName } from "~/lib/dashboard-navigation";
 import { skillsClient, type SkillGroupProgress } from "~/lib/skills-client";
 import { formatQuestionDate, trainingQuestionClient, type TrainingQuestion } from "~/lib/training-question-client";
@@ -40,8 +41,9 @@ interface ExpeditionData {
   assignments: Assignment[];
   questions: TrainingQuestion[];
   faqs: TrainingQuestion[];
+  projects: ExpeditionProject[];
   loading: boolean;
-  errors: { profile: boolean; skills: boolean; assignments: boolean; questions: boolean; faqs: boolean };
+  errors: { profile: boolean; skills: boolean; assignments: boolean; questions: boolean; faqs: boolean; projects: boolean };
 }
 
 const EMPTY_DATA: ExpeditionData = {
@@ -50,8 +52,9 @@ const EMPTY_DATA: ExpeditionData = {
   assignments: [],
   questions: [],
   faqs: [],
+  projects: [],
   loading: true,
-  errors: { profile: false, skills: false, assignments: false, questions: false, faqs: false },
+  errors: { profile: false, skills: false, assignments: false, questions: false, faqs: false, projects: false },
 };
 
 function ZoneGlyph({ id, className = "" }: { id: ExpeditionFacilityId; className?: string }) {
@@ -68,11 +71,11 @@ function ZoneGlyph({ id, className = "" }: { id: ExpeditionFacilityId; className
   );
 }
 
-function ExpeditionMap({ selectedId, onSelect, masteredFacilityIds, hasPersonalRecord }: { selectedId: ExpeditionFacilityId; onSelect: (id: ExpeditionFacilityId) => void; masteredFacilityIds: readonly ExpeditionFacilityId[]; hasPersonalRecord: boolean }) {
+function ExpeditionMap({ selectedId, onSelect, masteredFacilityIds, hasPersonalRecord, acceptedGroupNames, hasAcceptedJoint }: { selectedId: ExpeditionFacilityId; onSelect: (id: ExpeditionFacilityId) => void; masteredFacilityIds: readonly ExpeditionFacilityId[]; hasPersonalRecord: boolean; acceptedGroupNames: readonly string[]; hasAcceptedJoint: boolean }) {
   const stateClass = (id: ExpeditionFacilityId) => masteredFacilityIds.includes(id) ? "has-mastered" : "";
   const selectedFacility = FACILITIES.find((facility) => facility.id === selectedId) ?? FACILITIES[0];
   return (
-    <div className="expedition-map" aria-label="可探索的基地设施" data-selected={selectedId}>
+    <div className="expedition-map" aria-label="可探索的基地设施" data-selected={selectedId} data-season-joint={hasAcceptedJoint}>
       <svg className="expedition-map__art" viewBox="0 0 1000 850" role="img" aria-label="总装机库与五座专业设施以道路相连的等距基地地图">
         <defs>
           <linearGradient id="base-ground" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stopColor="#202b2a" /><stop offset=".52" stopColor="#111918" /><stop offset="1" stopColor="#0a1010" /></linearGradient>
@@ -280,6 +283,45 @@ function ExpeditionMap({ selectedId, onSelect, masteredFacilityIds, hasPersonalR
           </g>
         </g>
 
+        {acceptedGroupNames.includes("机械组") ? <g className="expedition-evolution expedition-evolution--mechanical" aria-label="机械组阶段已验收">
+          <path d="m453 524 47-26 67 27-49 29z" fill="#18201d" stroke="#e0bd70" strokeWidth="2" />
+          <path d="m466 524 34-18 52 20-35 20z" fill="#344039" stroke="#a9b392" strokeWidth="1.5" />
+          <path d="M475 540v13m62-23v13M482 548l-8 8m70-23 9 8" stroke="#d7b66c" strokeWidth="3" />
+          <circle cx="481" cy="558" r="5" fill="#101716" stroke="#83ccc4" strokeWidth="2" /><circle cx="538" cy="538" r="5" fill="#101716" stroke="#83ccc4" strokeWidth="2" />
+          <text x="461" y="579">底盘阶段</text>
+        </g> : null}
+        {acceptedGroupNames.includes("电控组") ? <g className="expedition-evolution expedition-evolution--controls" aria-label="电控组阶段已验收">
+          <path d="m539 436 20-12 24 12v21l-22 13-22-13z" fill="#0a1c1c" stroke="#74d6d2" strokeWidth="2" />
+          <path d="m548 442 11-6 14 7-13 8z" fill="#25606a" stroke="#9becdf" />
+          <path d="M552 456v7m12-10v9m10-12v8" stroke="#89e7de" strokeWidth="2" />
+          <circle className="expedition-evolution__pulse" cx="561" cy="447" r="23" />
+          <text x="540" y="484">控制系统</text>
+        </g> : null}
+        {acceptedGroupNames.includes("视觉组") ? <g className="expedition-evolution expedition-evolution--vision" aria-label="视觉组阶段已验收">
+          <path d="M498 409v-22l10-8 12 7v23" fill="#253840" stroke="#8ad4e0" strokeWidth="2" />
+          <path d="m503 389 6-5 7 4v7l-7 4-6-4z" fill="#101b23" stroke="#d3e8da" />
+          <circle cx="510" cy="393" r="2.5" fill="#7ee7ef" />
+          <path className="expedition-evolution__scan" d="M510 393q28-18 44 5M510 393q-20-17-33-1" fill="none" stroke="#8de6ef" strokeWidth="1.6" />
+          <text x="489" y="421">感知系统</text>
+        </g> : null}
+        {acceptedGroupNames.includes("AI组") ? <g className="expedition-evolution expedition-evolution--ai" aria-label="AI组阶段已验收">
+          <path d="m588 484 19-11 22 11v18l-21 12-20-11z" fill="#252337" stroke="#b5a9ef" strokeWidth="2" />
+          <path d="m596 484 11-6 13 7-12 7z" fill="#344e67" stroke="#93e1ea" />
+          <path d="M600 497h16m-14 4h12m-10 4h8" stroke="#a4e5eb" strokeWidth="1.6" />
+          <circle cx="608" cy="492" r="15" fill="none" stroke="#a9a1e3" strokeOpacity=".65" />
+          <text x="585" y="526">决策模块</text>
+        </g> : null}
+        {acceptedGroupNames.includes("运营组") ? <g className="expedition-evolution expedition-evolution--operations" aria-label="运营组协作阶段已验收">
+          <path d="M489 376v-31m0 13-14-10m14 10 14-13" stroke="#e3c77d" strokeWidth="2.2" />
+          <circle cx="489" cy="340" r="4" fill="#e9d18d" />
+          <path className="expedition-evolution__signal" d="M500 347q12 9 0 18m6-24q20 15 0 30" fill="none" stroke="#83dcd5" strokeWidth="1.7" />
+          <text x="474" y="399">协作节点</text>
+        </g> : null}
+        {hasAcceptedJoint ? <g className="expedition-evolution expedition-evolution--joint" aria-label="联合成果已验收">
+          <circle cx="536" cy="446" r="38" fill="none" stroke="#efce7c" strokeWidth="2" />
+          <circle className="expedition-evolution__halo" cx="536" cy="446" r="49" fill="none" stroke="#8be3dc" strokeWidth="1.5" />
+          <path d="m536 401 6 12 13 2-9 9 2 13-12-6-12 6 2-13-9-9 13-2z" fill="#efd087" fillOpacity=".92" />
+        </g> : null}
         <g className="expedition-map__lights"><circle cx="333" cy="315" r="3" /><circle cx="669" cy="306" r="3" /><circle cx="306" cy="510" r="3" /><circle cx="696" cy="510" r="3" /><circle cx="500" cy="574" r="3" /></g>
         <path d="M466 427h68M500 393v68" stroke="#e0c98d" strokeOpacity=".5" strokeWidth="1" />
       </svg>
@@ -378,8 +420,9 @@ export default function ExpeditionRoute() {
         .then((values) => ({ value: values.flat(), error: false }))
         .catch(() => ({ value: [] as TrainingQuestion[], error: true }))
       : Promise.resolve({ value: [] as TrainingQuestion[], error: false });
+    const projectsRequest = expeditionProjectClient.listMine().then((value) => ({ value, error: false })).catch(() => ({ value: [] as ExpeditionProject[], error: true }));
 
-    void Promise.all([profileRequest, skillsRequest, assignmentsRequest, questionsRequest, faqsRequest]).then(([profile, skills, assignments, questions, faqs]) => {
+    void Promise.all([profileRequest, skillsRequest, assignmentsRequest, questionsRequest, faqsRequest, projectsRequest]).then(([profile, skills, assignments, questions, faqs, projects]) => {
       if (requestId.current !== activeRequest) return;
       setData({
         profile: profile.value,
@@ -387,8 +430,9 @@ export default function ExpeditionRoute() {
         assignments: assignments.value,
         questions: questions.value,
         faqs: faqs.value,
+        projects: projects.value,
         loading: false,
-        errors: { profile: profile.error, skills: skills.error, assignments: assignments.error, questions: questions.error, faqs: faqs.error },
+        errors: { profile: profile.error, skills: skills.error, assignments: assignments.error, questions: questions.error, faqs: faqs.error, projects: projects.error },
       });
     });
 
@@ -419,14 +463,18 @@ export default function ExpeditionRoute() {
     ? challenges.filter((challenge) => challenge.groupName === selectedFacility.groupName)
     : [];
   const selectedFAQs = getPublicFacilityFAQs(data.faqs, selectedFacility.groupName);
+  const selectedProjects = data.projects.filter((project) => selectedFacility.groupName ? project.participantGroups.includes(selectedFacility.groupName) : true).slice(0, 3);
+  const { acceptedGroupNames, hasAcceptedJoint } = getExpeditionEvolution(data.projects);
+  const acceptedMilestones = getAcceptedExpeditionMilestones(data.projects).slice(0, 4);
   const recentEvents = [...(data.profile?.events ?? [])].reverse().slice(0, 4);
   const availableLinks = selectedFacility.id === "hangar"
-    ? [{ label: "个人成长", href: "/dashboard/growth" }]
+    ? [{ label: "个人成长", href: "/dashboard/growth" }, { label: "赛季协作", href: "/dashboard/expedition/projects" }]
     : selectedFacility.groupName === "运营组" && isMemberOfSelectedGroup
       ? [
           { label: "技能路线", href: "/dashboard/skills" },
           { label: "工作周报", href: "/dashboard/weekly-reports" },
           { label: "个人成长", href: "/dashboard/growth" },
+          { label: "赛季协作", href: "/dashboard/expedition/projects" },
         ]
       : selectedFacility.groupName && isMemberOfSelectedGroup
         ? [
@@ -434,6 +482,7 @@ export default function ExpeditionRoute() {
             { label: "训练作业", href: "/dashboard/assignments" },
             { label: "提问答疑", href: "/dashboard/questions" },
             { label: "个人成长", href: "/dashboard/growth" },
+            { label: "赛季协作", href: "/dashboard/expedition/projects" },
           ]
         : [];
 
@@ -475,7 +524,7 @@ export default function ExpeditionRoute() {
             <div><span>BASE MAP</span><h2 id="expedition-map-title">基地总览</h2></div>
             <span className="expedition-scene__coordinates">SECTOR 01 <i>·</i> TARSGO BASE</span>
           </div>
-          <ExpeditionMap selectedId={selectedId} onSelect={setSelectedId} masteredFacilityIds={masteredFacilityIds} hasPersonalRecord={Boolean(data.profile?.events.length)} />
+          <ExpeditionMap selectedId={selectedId} onSelect={setSelectedId} masteredFacilityIds={masteredFacilityIds} hasPersonalRecord={Boolean(data.profile?.events.length)} acceptedGroupNames={acceptedGroupNames} hasAcceptedJoint={hasAcceptedJoint} />
           <nav className="expedition-zone-strip" aria-label="基地区域">
             {FACILITIES.map((facility) => (
               <button key={facility.id} type="button" aria-pressed={selectedId === facility.id} onClick={() => setSelectedId(facility.id)}>
@@ -515,10 +564,17 @@ export default function ExpeditionRoute() {
                   ) : <small>暂无公开 FAQ。</small>}
                 </div>
               ) : null}
+              <div className="expedition-facility__challenge expedition-facility__projects">
+                <span>相关协作项目</span>
+                {data.loading ? <small>读取中</small> : data.errors.projects ? <small>协作项目暂不可读取。</small> : selectedProjects.length ? <ul>{selectedProjects.map((project) => <li key={project.id}><Link to={`/dashboard/expedition/projects?projectId=${project.id}`}>{project.title}<small>{project.hasAcceptedJoint ? "联合验收完成" : `${project.milestones.filter((milestone) => milestone.state === "accepted").length} 个阶段已验收`} <i aria-hidden="true">↗</i></small></Link></li>)}</ul> : <small>暂无相关协作项目。</small>}
+              </div>
             </>
           ) : null}
           {selectedFacility.id === "hangar" ? (
-            <div className="expedition-hangar-note"><span>个人远征记录</span>{data.loading ? <strong>读取中</strong> : data.errors.profile ? <strong>暂不可读取</strong> : <strong>{data.profile?.events.length ?? 0} 条</strong>}</div>
+            <>
+              <div className="expedition-hangar-note"><span>个人远征记录</span>{data.loading ? <strong>读取中</strong> : data.errors.profile ? <strong>暂不可读取</strong> : <strong>{data.profile?.events.length ?? 0} 条</strong>}</div>
+              <div className="expedition-facility__challenge expedition-facility__projects"><span>赛季协作</span>{data.loading ? <small>读取中</small> : data.errors.projects ? <small>协作项目暂不可读取。</small> : selectedProjects.length ? <ul>{selectedProjects.map((project) => <li key={project.id}><Link to={`/dashboard/expedition/projects?projectId=${project.id}`}>{project.title}<small>{project.hasAcceptedJoint ? "联合验收完成" : `${project.milestones.filter((milestone) => milestone.state === "accepted").length} 个阶段已验收`} <i aria-hidden="true">↗</i></small></Link></li>)}</ul> : <small>暂无协作项目。</small>}</div>
+            </>
           ) : null}
           {availableLinks.length > 0 ? <nav className="expedition-facility__links" aria-label={`${selectedFacility.name}业务入口`}>{availableLinks.map((link) => <Link key={link.href} to={link.href}>{link.label}<span aria-hidden="true">↗</span></Link>)}</nav> : null}
         </aside>
@@ -546,7 +602,7 @@ export default function ExpeditionRoute() {
           ) : (
             <div className="expedition-empty"><span className="expedition-empty__mark" aria-hidden="true">⌁</span><strong>当前没有待处理挑战</strong>{technicalMember ? <Link to="/dashboard/assignments">查看训练作业 <span aria-hidden="true">↗</span></Link> : groupNames.includes("运营组") ? <Link to="/dashboard/weekly-reports">打开工作周报 <span aria-hidden="true">↗</span></Link> : null}</div>
           )}
-          {(data.errors.assignments || data.errors.questions || data.errors.skills || data.errors.faqs) ? <p className="expedition-data-note" role="status">部分个人数据暂不可读取，刷新后可重试。</p> : null}
+          {(data.errors.assignments || data.errors.questions || data.errors.skills || data.errors.faqs || data.errors.projects) ? <p className="expedition-data-note" role="status">部分个人数据暂不可读取，刷新后可重试。</p> : null}
         </section>
 
         <section className="expedition-panel expedition-chronicle" aria-labelledby="expedition-chronicle-title">
@@ -561,6 +617,11 @@ export default function ExpeditionRoute() {
           ) : <div className="expedition-empty"><span className="expedition-empty__mark" aria-hidden="true">＋</span><strong>远征记录从真实行动开始</strong><small>{groupNames.includes("运营组") ? "保存工作周报后，会在个人成长档案中留下记录。" : "完成训练、技能确认或技术讨论后，记录会出现在这里。"}</small>{groupNames.includes("运营组") ? <Link to="/dashboard/weekly-reports">打开工作周报 <span aria-hidden="true">↗</span></Link> : technicalMember ? <Link to="/dashboard/assignments">查看训练作业 <span aria-hidden="true">↗</span></Link> : null}</div>}
         </section>
       </div>
+
+      <section className="expedition-panel expedition-season-chronicle" aria-labelledby="expedition-season-title">
+        <div className="expedition-panel__heading"><div><p className="expedition-eyebrow">SEASON CHRONICLE</p><h2 id="expedition-season-title">赛季编年史</h2></div><Link to="/dashboard/expedition/projects">全部协作项目 <span aria-hidden="true">↗</span></Link></div>
+        {data.loading ? <p className="expedition-empty" role="status">正在读取赛季记录…</p> : data.errors.projects ? <p className="expedition-empty">赛季记录暂不可读取。</p> : acceptedMilestones.length ? <ol>{acceptedMilestones.map(({ project, milestone }) => <li key={`${project.id}:${milestone.id}`}><span className="expedition-season-chronicle__signal" /><Link to={`/dashboard/expedition/projects?projectId=${project.id}`}><small>{milestone.groupName || "联合验收"} · {formatQuestionDate(milestone.acceptedAt!)}</small><strong>{project.title} · {milestone.name}</strong><span>{milestone.criteria}</span></Link></li>)}</ol> : <p className="expedition-empty">真实验收完成后，重要成果会记录在这里。</p>}
+      </section>
 
     </section>
   );
