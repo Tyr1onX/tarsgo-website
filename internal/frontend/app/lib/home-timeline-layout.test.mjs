@@ -184,6 +184,26 @@ test("every sponsor remains in the homepage logo grid without changing source ar
   const sponsorSource = home.match(/const sponsorLogos = \[([\s\S]*?)\n\];/)?.[1] ?? "";
   assert.equal((sponsorSource.match(/name: /g) ?? []).length, 11);
   assert.match(sponsorSource, /长春纳丝精密机械有限公司/);
+  // These display labels are transcribed from the artwork, not inferred from legacy asset filenames.
+  const logoNames = [
+    ["yelite.webp", "YELITE"],
+    ["amass.webp", "AMASS"],
+    ["cxgf.webp", "创芯工坊"],
+    ["jdzl.webp", "吉地智联"],
+    ["jlc.webp", "嘉立创CNC"],
+    ["jyymq.webp", "纪元羽毛球"],
+    ["kqkj.webp", "快趣科技"],
+    ["lxkj.webp", "留形科技"],
+    ["qjzb.webp", "千将资本"],
+    ["yeheshen.webp", "YUHESEN"],
+    ["nasi-precision.svg", "长春纳丝精密机械有限公司"],
+  ];
+  for (const [image, name] of logoNames) {
+    assert.ok(sponsorSource.includes(`{ name: "${name}", image: "/assets/images/Sponsors/${image}" }`), `incorrect sponsor text for ${image}`);
+  }
+  for (const outdatedName of ["驰翔股份", "金地卓立", "吉利汽车", "吉运模压器", "坤乾科技", "联讯科技", "强基装备", "夜河神"]) {
+    assert.ok(!sponsorSource.includes(outdatedName), `outdated sponsor text ${outdatedName}`);
+  }
   assert.match(home, /sponsorLogos\.map\(/);
   assert.match(home, /className="home-sponsor-logo"/);
   assert.match(styles, /\.home-sponsor-logo\s*\{[^}]*min-height:\s*5rem;[^}]*background:\s*#fff;/);
