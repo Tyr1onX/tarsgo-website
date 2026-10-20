@@ -3,6 +3,7 @@ import { Link, useOutletContext } from "react-router";
 
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { formatGrowthDate, getGrowthProfile, growthEventLabel, growthEventTone, type GrowthProfile } from "~/lib/growth-client";
+import { skillsClient, type SkillGroupProgress } from "~/lib/skills-client";
 import "./growth.css";
 
 export function meta() {
@@ -23,6 +24,10 @@ export default function MyGrowthRoute() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const requestId = useRef(0);
+  const skillsRequestId = useRef(0);
+  const [skillGroups, setSkillGroups] = useState<SkillGroupProgress[]>([]);
+  const [skillsLoading, setSkillsLoading] = useState(true);
+  const [skillsError, setSkillsError] = useState(false);
 
   useEffect(() => {
     const activeRequest = ++requestId.current;
@@ -42,10 +47,29 @@ export default function MyGrowthRoute() {
     return () => { requestId.current++; };
   }, [currentUser.id]);
 
+  useEffect(() => {
+    const activeRequest = ++skillsRequestId.current;
+    setSkillGroups([]);
+    setSkillsLoading(true);
+    setSkillsError(false);
+    skillsClient.listMine().then((result) => {
+      if (skillsRequestId.current === activeRequest) setSkillGroups(result.groups);
+    }).catch(() => {
+      if (skillsRequestId.current === activeRequest) setSkillsError(true);
+    }).finally(() => {
+      if (skillsRequestId.current === activeRequest) setSkillsLoading(false);
+    });
+    return () => { skillsRequestId.current++; };
+  }, [currentUser.id]);
+
   const events = profile?.events ?? [];
   const recentEvents = [...events].reverse().slice(0, 3);
   const isTechnicalMember = profile?.groups.some((group) => ["机械组", "电控组", "视觉组", "AI组"].includes(group)) ?? false;
   const isOperationsMember = profile?.groups.includes("运营组") ?? false;
+  const skillNodes = skillGroups.flatMap((group) => group.nodes.map((node) => ({ ...node, groupId: group.id, groupName: group.name })));
+  const masteredSkills = skillNodes.filter((node) => node.state === "mastered");
+  const activeSkills = skillNodes.filter((node) => Boolean(node.startedAt) && node.state !== "mastered");
+  const nextSkill = skillNodes.find((node) => node.state === "available" || node.state === "practiced");
 
   return (
     <section className="growth-page admin-design" aria-labelledby="growth-page-title">
@@ -145,6 +169,16 @@ export default function MyGrowthRoute() {
               ) : isOperationsMember ? (
                 <dl><div><dt>已保存周报</dt><dd>{profile.stats.weeklyReports}</dd></div></dl>
               ) : <p className="growth-next__quiet">暂无可汇总的业务记录。</p>}
+            </section>
+
+            <section className="growth-contributions growth-skill-route" aria-labelledby="growth-skill-route-title">
+              <p className="growth-rail__eyebrow">SKILL ROUTE</p>
+              <h2 id="growth-skill-route-title">成长路径</h2>
+              {skillsLoading ? <p className="growth-next__quiet">正在读取技能路线…</p> : skillsError ? <p className="growth-next__quiet">技能路线暂时无法读取。</p> : skillGroups.length > 0 ? <>
+                <dl><div><dt>已确认掌握</dt><dd>{masteredSkills.length}</dd></div><div><dt>正在挑战</dt><dd>{activeSkills.length}</dd></div></dl>
+                {masteredSkills.length > 0 ? <ul className="growth-skill-route__list">{masteredSkills.slice(0, 3).map((node) => <li key={node.id}><span>{node.groupName}</span><strong>{node.name}</strong></li>)}</ul> : null}
+                {nextSkill ? <Link className="growth-action-link" to={`/dashboard/skills?groupId=${nextSkill.groupId}&nodeId=${nextSkill.id}`}>下一项：{nextSkill.name} <span aria-hidden="true">↗</span></Link> : <Link className="growth-action-link" to="/dashboard/skills">探索技能树 <span aria-hidden="true">↗</span></Link>}
+              </> : <p className="growth-next__quiet">组内路线配置后，技能进展会显示在这里。</p>}
             </section>
 
             <section className="growth-recent" aria-labelledby="growth-recent-title">

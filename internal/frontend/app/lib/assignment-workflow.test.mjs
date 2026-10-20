@@ -17,9 +17,9 @@ test("workbench exposes member work to technical members and all manager routes 
   assert.match(routes, /route\("admin\/training\/assignments", "routes\/admin\/assignment-management\.tsx"\)/);
   assert.match(routes, /route\("admin\/training\/submissions", "routes\/admin\/assignment-submissions\.tsx"\)/);
   assert.match(navigation, /new Set\(\["机械组", "电控组", "视觉组", "AI组"\]\)/);
-  assert.match(navigation, /roleName !== "super_admin"/);
+  assert.match(navigation, /if \(roleName === "super_admin"\) return true/);
   assert.match(layout, /pathname === "\/dashboard\/assignments" && !hasTechnicalGroup/);
-  assert.match(layout, /canAccessDashboardAdminPath\(currentUser, pathname, hasTechnicalGroup\)/);
+  assert.match(layout, /canAccessDashboardAdminPath\(currentUser, pathname, hasTechnicalGroup, hasSkillGroup\)/);
   assert.match(navigation, /hasTechnicalGroup && \["user", "admin", "super_admin"\]/);
   assert.match(assignmentGroups, /roleName === "super_admin"/);
   assert.match(assignmentGroups, /listAdminUserGroupOptions/);

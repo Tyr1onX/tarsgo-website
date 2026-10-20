@@ -25,6 +25,7 @@ export default [
     route("assignments", "routes/dashboard/assignments.tsx"),
     route("questions", "routes/dashboard/training-questions.tsx"),
     route("growth", "routes/dashboard/growth.tsx"),
+    route("skills", "routes/dashboard/skills.tsx"),
     route("admin", "routes/admin/dashboard.tsx"),
     route("admin/users", "routes/admin/users.tsx"),
     route("admin/recruitment", "routes/admin/recruitment-management.tsx"),
@@ -35,6 +36,7 @@ export default [
     route("admin/training/assignments", "routes/admin/assignment-management.tsx"),
     route("admin/training/submissions", "routes/admin/assignment-submissions.tsx"),
     route("admin/training/questions", "routes/admin/training-question-management.tsx"),
+    route("admin/training/skills", "routes/admin/skill-route-management.tsx"),
   ]),
   route("*", "routes/not-found.tsx"),
 ] satisfies RouteConfig;

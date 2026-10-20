@@ -127,6 +127,18 @@ type weeklyReportRow struct {
 	GroupName string
 }
 
+type skillReviewRow struct {
+	ID           uint64
+	SkillNodeID  uint64
+	GroupID      uint64
+	Action       string
+	EvidenceNote string
+	CreatedAt    time.Time
+	NodeName     string
+	GroupName    string
+	ActorName    string
+}
+
 func NewService(db *gorm.DB, assignments AssignmentReader) *Service {
 	return &Service{db: db, assignments: assignments, Now: time.Now}
 }
@@ -174,6 +186,11 @@ func (s *Service) GetMine(ctx context.Context, userID uint64) (*Profile, error) 
 				GroupName:  membership.GroupName,
 				OccurredAt: membership.JoinedAt,
 			})
+		}
+	}
+	if len(groupIDs) > 0 {
+		if err := s.loadSkillEvents(ctx, userID, groupIDs, profile); err != nil {
+			return nil, err
 		}
 	}
 
@@ -467,6 +484,49 @@ func (s *Service) loadWeeklyReportEvents(ctx context.Context, userID uint64, pro
 			GroupName:   row.GroupName,
 			OccurredAt:  row.UpdatedAt,
 			Href:        "/dashboard/weekly-reports?weekStart=" + week,
+		})
+	}
+	return nil
+}
+
+func (s *Service) loadSkillEvents(ctx context.Context, userID uint64, groupIDs []uint64, profile *Profile) error {
+	var rows []skillReviewRow
+	if err := s.db.WithContext(ctx).Table("skill_review_events").
+		Select("skill_review_events.id, skill_review_events.skill_node_id, skill_review_events.group_id, skill_review_events.action, skill_review_events.evidence_note, skill_review_events.created_at, skill_review_events.skill_name AS node_name, user_groups.name AS group_name, skill_review_events.actor_name").
+		Joins("JOIN user_groups ON user_groups.id = skill_review_events.group_id").
+		Where("skill_review_events.user_id = ? AND skill_review_events.group_id IN ?", userID, groupIDs).
+		Order("skill_review_events.created_at ASC, skill_review_events.id ASC").Scan(&rows).Error; err != nil {
+		return internalError("读取技能成长记录失败", err)
+	}
+	for _, row := range rows {
+		if !validEventTime(row.CreatedAt, s.now()) {
+			continue
+		}
+		title := "确认掌握技能 · " + row.NodeName
+		kind := "skill_mastered"
+		if row.Action == "revoked" {
+			title = "技能确认已撤销 · " + row.NodeName
+			kind = "skill_mastery_revoked"
+		}
+		description := strings.TrimSpace(row.EvidenceNote)
+		if row.ActorName != "" {
+			actorLabel := "确认人："
+			if row.Action == "revoked" {
+				actorLabel = "撤销人："
+			}
+			description = actorLabel + row.ActorName
+			if strings.TrimSpace(row.EvidenceNote) != "" {
+				description += " · " + strings.TrimSpace(row.EvidenceNote)
+			}
+		}
+		profile.Events = append(profile.Events, Event{
+			Key:         fmt.Sprintf("skill-review:%d", row.ID),
+			Kind:        kind,
+			Title:       title,
+			Description: description,
+			GroupName:   row.GroupName,
+			OccurredAt:  row.CreatedAt,
+			Href:        fmt.Sprintf("/dashboard/skills?groupId=%d&nodeId=%d", row.GroupID, row.SkillNodeID),
 		})
 	}
 	return nil

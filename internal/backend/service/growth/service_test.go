@@ -61,6 +61,7 @@ func TestGetMineBuildsChronologicalTrainingTimelineFromSourceRows(t *testing.T) 
 	solvedAt := now.Add(-24 * time.Hour)
 	priorFAQAt := now.Add(-13 * time.Hour)
 	faqAt := now.Add(-12 * time.Hour)
+	skillMasteredAt := now.Add(-6 * time.Hour)
 
 	mock.ExpectQuery("SELECT .* FROM `users` WHERE id = \\? AND status = \\?.*LIMIT \\?").
 		WithArgs(uint64(12), model.UserStatusEnabled, 1).
@@ -68,6 +69,10 @@ func TestGetMineBuildsChronologicalTrainingTimelineFromSourceRows(t *testing.T) 
 	mock.ExpectQuery("SELECT .* FROM `user_group_members` JOIN user_groups ON.*WHERE user_group_members\\.user_id = \\? AND user_groups\\.status = \\?.*ORDER BY user_group_members\\.joined_at ASC, user_group_members\\.id ASC").
 		WithArgs(uint64(12), model.UserGroupStatusActive).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "joined_at", "group_name"}).AddRow(501, 41, groupJoinedAt, "机械组"))
+	mock.ExpectQuery("SELECT skill_review_events\\.id, skill_review_events\\.skill_node_id, skill_review_events\\.group_id, skill_review_events\\.action, skill_review_events\\.evidence_note, skill_review_events\\.created_at, skill_review_events\\.skill_name AS node_name, user_groups\\.name AS group_name, skill_review_events\\.actor_name FROM `skill_review_events` JOIN user_groups ON.*WHERE skill_review_events\\.user_id = \\? AND skill_review_events\\.group_id IN \\(\\?\\).*ORDER BY skill_review_events\\.created_at ASC, skill_review_events\\.id ASC").
+		WithArgs(uint64(12), uint64(41)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "skill_node_id", "group_id", "action", "evidence_note", "created_at", "node_name", "group_name", "actor_name"}).
+			AddRow(1101, 77, 41, "mastered", "完成独立实操", skillMasteredAt, "结构建模", "机械组", "张老师"))
 	mock.ExpectQuery("SELECT .* FROM `assignment_submissions` JOIN assignments ON.*JOIN user_groups ON.*WHERE assignment_submissions\\.user_id = \\? AND assignments\\.group_id IN \\(\\?\\).*ORDER BY assignment_submissions\\.submitted_at ASC, assignment_submissions\\.id ASC").
 		WithArgs(uint64(12), uint64(41)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "assignment_id", "attempt", "submitted_at", "title", "group_name"}).
@@ -116,7 +121,7 @@ func TestGetMineBuildsChronologicalTrainingTimelineFromSourceRows(t *testing.T) 
 	if profile.NextAction == nil || profile.NextAction.Href != "/dashboard/assignments?assignmentId=72" {
 		t.Fatalf("next action = %#v", profile.NextAction)
 	}
-	wantKinds := []string{"membership", "assignment_first_submission", "assignment_review_needs_redo", "assignment_resubmission", "assignment_review_passed", "question_asked", "discussion_participation", "question_solved", "question_solved", "faq_contribution", "faq_contribution"}
+	wantKinds := []string{"membership", "assignment_first_submission", "assignment_review_needs_redo", "assignment_resubmission", "assignment_review_passed", "question_asked", "discussion_participation", "question_solved", "question_solved", "faq_contribution", "faq_contribution", "skill_mastered"}
 	if len(profile.Events) != len(wantKinds) {
 		t.Fatalf("events = %#v; want %d events", profile.Events, len(wantKinds))
 	}
@@ -136,6 +141,10 @@ func TestGetMineBuildsChronologicalTrainingTimelineFromSourceRows(t *testing.T) 
 			t.Fatalf("business event %q has no source link", event.Kind)
 		}
 	}
+	skillEvent := profile.Events[len(profile.Events)-1]
+	if skillEvent.Key != "skill-review:1101" || skillEvent.Href != "/dashboard/skills?groupId=41&nodeId=77" || skillEvent.Description != "确认人：张老师 · 完成独立实操" {
+		t.Fatalf("skill review event does not retain its source and basis: %#v", skillEvent)
+	}
 }
 
 func TestGetMineForOperationsMemberIncludesOnlyReportMetadata(t *testing.T) {
@@ -148,6 +157,9 @@ func TestGetMineForOperationsMemberIncludesOnlyReportMetadata(t *testing.T) {
 	mock.ExpectQuery("SELECT .* FROM `user_group_members` JOIN user_groups ON.*WHERE user_group_members\\.user_id = \\? AND user_groups\\.status = \\?.*ORDER BY user_group_members\\.joined_at ASC, user_group_members\\.id ASC").
 		WithArgs(uint64(21), model.UserGroupStatusActive).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "joined_at", "group_name"}).AddRow(510, 45, joinedAt, "运营组"))
+	mock.ExpectQuery("SELECT skill_review_events\\.id, skill_review_events\\.skill_node_id, skill_review_events\\.group_id, skill_review_events\\.action, skill_review_events\\.evidence_note, skill_review_events\\.created_at, skill_review_events\\.skill_name AS node_name, user_groups\\.name AS group_name, skill_review_events\\.actor_name FROM `skill_review_events` JOIN user_groups ON.*WHERE skill_review_events\\.user_id = \\? AND skill_review_events\\.group_id IN \\(\\?\\).*ORDER BY skill_review_events\\.created_at ASC, skill_review_events\\.id ASC").
+		WithArgs(uint64(21), uint64(45)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "skill_node_id", "group_id", "action", "evidence_note", "created_at", "node_name", "group_name", "actor_name"}))
 	mock.ExpectQuery("SELECT .* FROM `weekly_reports` JOIN user_groups ON.*WHERE weekly_reports\\.user_id = \\? AND user_groups\\.name = \\?.*ORDER BY weekly_reports\\.week_start ASC, weekly_reports\\.id ASC").
 		WithArgs(uint64(21), "运营组").
 		WillReturnRows(sqlmock.NewRows([]string{"id", "week_start", "updated_at", "group_name"}).AddRow(330, "2026-10-12", updatedAt, "运营组"))

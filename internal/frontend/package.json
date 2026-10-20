@@ -16,6 +16,7 @@
     "test:workbench": "node --experimental-strip-types --test app/lib/admin-workbench.test.mjs app/lib/dashboard-navigation.test.mjs app/lib/admin-select-style.test.mjs app/lib/leave-access.test.mjs app/lib/account-activity.test.mjs app/lib/assignment-workflow.test.mjs app/lib/assignment-member-selection.test.mjs app/lib/training-question-workflow.test.mjs",
     "test:weekly-reports": "node --experimental-strip-types --test app/lib/weekly-report-calendar.test.mjs",
     "test:growth": "node --experimental-strip-types --test app/lib/growth-client.test.mjs app/lib/dashboard-navigation.test.mjs",
+    "test:skills": "node --experimental-strip-types --test app/lib/skill-tree-layout.test.mjs app/lib/dashboard-navigation.test.mjs",
     "test:email-templates": "node --test app/lib/email-templates.test.mjs",
     "test:auth-flow": "node --test app/lib/auth-session-cache.test.mjs app/lib/dashboard-auth-flow.test.mjs app/lib/user-group-client.test.mjs",
     "test:daily-signal": "node --experimental-strip-types --test app/lib/daily-signal-calendar.test.mjs app/lib/daily-signal-scroll.test.mjs app/lib/daily-signal-reply.test.mjs",

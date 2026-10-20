@@ -21,12 +21,14 @@ export function growthEventLabel(kind: string) {
     case "question_solved": return "问题解决";
     case "faq_contribution": return "知识沉淀";
     case "weekly_report": return "运营记录";
+    case "skill_mastered": return "技能解锁";
+    case "skill_mastery_revoked": return "审核记录";
     default: return "成长记录";
   }
 }
 
 export function growthEventTone(kind: string) {
-  if (kind === "assignment_review_passed" || kind === "question_solved" || kind === "faq_contribution") return "bright";
+  if (kind === "assignment_review_passed" || kind === "question_solved" || kind === "faq_contribution" || kind === "skill_mastered") return "bright";
   if (kind === "assignment_review_needs_redo") return "warm";
   if (kind === "membership") return "origin";
   return "steady";
