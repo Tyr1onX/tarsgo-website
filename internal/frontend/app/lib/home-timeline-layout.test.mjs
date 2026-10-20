@@ -182,7 +182,8 @@ test("the about route renders the brand and group system while the robot route d
 
 test("every sponsor remains in the homepage logo grid without changing source artwork", () => {
   const sponsorSource = home.match(/const sponsorLogos = \[([\s\S]*?)\n\];/)?.[1] ?? "";
-  assert.equal((sponsorSource.match(/name: /g) ?? []).length, 10);
+  assert.equal((sponsorSource.match(/name: /g) ?? []).length, 11);
+  assert.match(sponsorSource, /长春纳丝精密机械有限公司/);
   assert.match(home, /sponsorLogos\.map\(/);
   assert.match(home, /className="home-sponsor-logo"/);
   assert.match(styles, /\.home-sponsor-logo\s*\{[^}]*min-height:\s*5rem;[^}]*background:\s*#fff;/);

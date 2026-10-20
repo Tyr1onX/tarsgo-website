@@ -419,3 +419,15 @@ test("the join guide reuses shared group facts and references existing local pho
 test("the dedicated join guide only renders on its join route", () => {
   assert.match(home, /routePage === "join" \? <JoinExperience groups=\{groups\} \/> : null/);
 });
+
+test("Nasi Precision partner logo is publicly listed with a local, safe SVG asset", async () => {
+  const company = "长春纳丝精密机械有限公司";
+  const partnerEntry = `{ name: "${company}", image: "/assets/images/Sponsors/nasi-precision.svg" }`;
+  const logo = await readFile(new URL("../../../../public/assets/images/Sponsors/nasi-precision.svg", import.meta.url), "utf8");
+
+  assert.equal(home.split(partnerEntry).length - 1, 1, "partner should appear exactly once");
+  assert.match(home, /sponsorLogos\.map\(\(sponsor\) =>/);
+  assert.match(logo, /<svg\b[^>]*viewBox="/);
+  assert.match(logo, /fill="#A2002A"/);
+  assert.doesNotMatch(logo, /<(?:script|foreignObject)\b|\b(?:href|xlink:href)=|\bon\w+\s*=/i);
+});

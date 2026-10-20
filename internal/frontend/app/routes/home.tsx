@@ -41,6 +41,7 @@ const sponsorLogos = [
   { name: "联讯科技", image: "/assets/images/Sponsors/lxkj.webp" },
   { name: "强基装备", image: "/assets/images/Sponsors/qjzb.webp" },
   { name: "夜河神", image: "/assets/images/Sponsors/yeheshen.webp" },
+  { name: "长春纳丝精密机械有限公司", image: "/assets/images/Sponsors/nasi-precision.svg" },
 ];
 
 const groups = [
