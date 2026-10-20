@@ -1,7 +1,6 @@
 package middleware
 
 import (
-	"encoding/json"
 	"net/http"
 	"strings"
 
@@ -29,7 +28,6 @@ func AuditAdministrativeActions(db *gorm.DB) gin.HandlerFunc {
 			id := user.ID
 			actorID = &id
 		}
-		metadata, _ := json.Marshal(gin.H{"query": c.Request.URL.RawQuery})
 		_ = db.WithContext(c.Request.Context()).Create(&model.AuditLog{
 			ActorID:   actorID,
 			Action:    c.Request.Method + " " + c.Request.URL.Path,
@@ -37,7 +35,7 @@ func AuditAdministrativeActions(db *gorm.DB) gin.HandlerFunc {
 			Path:      c.Request.URL.Path,
 			Status:    c.Writer.Status(),
 			IPAddress: c.ClientIP(),
-			Metadata:  string(metadata),
+			Metadata:  "{}",
 		}).Error
 	}
 }

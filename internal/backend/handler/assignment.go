@@ -250,8 +250,12 @@ func currentAssignmentActor(c *gin.Context) assignment.Actor {
 func (h *AssignmentHandler) fail(c *gin.Context, err error) {
 	var serviceErr *assignment.ServiceError
 	if errors.As(err, &serviceErr) {
+		if serviceErr.Status >= http.StatusInternalServerError {
+			middleware.LogInternalError(c, "assignment", serviceErr.Status, err)
+		}
 		writeAPIError(c, serviceErr.Status, serviceErr.Message)
 		return
 	}
+	middleware.LogInternalError(c, "assignment", http.StatusInternalServerError, err)
 	writeAPIError(c, http.StatusInternalServerError, "服务器内部错误")
 }
