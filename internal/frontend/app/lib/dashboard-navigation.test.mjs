@@ -30,7 +30,7 @@ test("admin navigation groups recruitment and member tools while keeping email s
   assert.equal(recruitment?.label, "招新事务");
   assert.deepEqual(recruitment?.children.map(({ label }) => label), ["招新总览", "候选人处理", "招新管理", "招新数据分析"]);
   assert.equal(training?.label, "新人培养");
-  assert.deepEqual(training?.children.map(({ label }) => label), ["作业管理", "提交记录"]);
+  assert.deepEqual(training?.children.map(({ label }) => label), ["作业管理", "提交记录", "答疑管理"]);
   assert.equal(members?.label, "成员管理");
   assert.deepEqual(members?.children.map(({ label }) => label), ["账号与权限", "请假管理"]);
   assert.equal(menu.length, 4);
@@ -62,17 +62,17 @@ test("members need a technical group while super-admins can manage all groups", 
     assert.equal(hasTechnicalGroupAccess([{ name }]), true, name);
   }
   assert.equal(hasTechnicalGroupAccess([{ name: "运营组" }]), false);
-  assert.equal(getUserDashboardMenu("user", true)[1]?.label, "我的作业");
-  assert.deepEqual(getUserDashboardMenu("admin", true).map(({ label }) => label), ["我的作业"]);
+  assert.deepEqual(getUserDashboardMenu("user", true).slice(2).map(({ label }) => label), ["提问答疑", "我的作业"]);
+  assert.deepEqual(getUserDashboardMenu("admin", true).map(({ label }) => label), ["提问答疑", "我的作业"]);
   assert.deepEqual(getUserDashboardMenu("super_admin", false), []);
   assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/training/assignments", false), false);
   assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/training/assignments", true), true);
   assert.equal(canAccessDashboardAdminPath("super_admin", "/dashboard/admin/training/assignments", false), true);
   assert.equal(canAccessDashboardAdminPath("user", "/dashboard/admin/training/submissions", true), false);
   const trainingMenu = getVisibleAdminDashboardMenu("admin", true).find(({ key }) => key === "newcomer-training");
-  assert.deepEqual(trainingMenu?.children.map(({ label }) => label), ["作业管理", "提交记录"]);
+  assert.deepEqual(trainingMenu?.children.map(({ label }) => label), ["作业管理", "提交记录", "答疑管理"]);
   assert.equal(getVisibleAdminDashboardMenu("admin", false).some(({ key }) => key === "newcomer-training"), false);
-  assert.deepEqual(getVisibleAdminDashboardMenu("super_admin", false).find(({ key }) => key === "newcomer-training")?.children.map(({ label }) => label), ["作业管理", "提交记录"]);
+  assert.deepEqual(getVisibleAdminDashboardMenu("super_admin", false).find(({ key }) => key === "newcomer-training")?.children.map(({ label }) => label), ["作业管理", "提交记录", "答疑管理"]);
 });
 
 test("nested admin routes keep their parent submenu active without highlighting the overview", () => {
@@ -114,6 +114,7 @@ test("super admin can access every listed admin route", () => {
     "/dashboard/admin/leave",
     "/dashboard/admin/training/assignments",
     "/dashboard/admin/training/submissions",
+    "/dashboard/admin/training/questions",
   ];
 
   for (const pathname of paths) {
