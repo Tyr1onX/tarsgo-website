@@ -27,7 +27,7 @@ const (
 var (
 	requestIDFallback  atomic.Uint64
 	sensitiveHeaderLog = regexp.MustCompile(`(?i)\b(cookie|set-cookie|authorization)\s*:\s*[^\r\n]*`)
-	sensitiveValueLog  = regexp.MustCompile(`(?i)\b(tarsgo_token|password|passwd|cookie|authorization|token|secret|session)\b["']?\s*([=:])\s*[^\s,;&"']+`)
+	sensitiveValueLog  = regexp.MustCompile(`(?i)(["']?(?:[a-z0-9_-]*token[a-z0-9_-]*|password|passwd|cookie|set-cookie|authorization|secret|session|credential|api[_-]?key)["']?\s*[:=]\s*)(?:"[^"]*"|'[^']*'|[^\s,;&}]+)`)
 	bearerValueLog     = regexp.MustCompile(`(?i)\bbearer\s+[a-z0-9._~+/-]+=*`)
 	jwtValueLog        = regexp.MustCompile(`\beyJ[a-zA-Z0-9_-]{5,}\.[a-zA-Z0-9_-]{5,}\.[a-zA-Z0-9_-]{5,}\b`)
 )
@@ -126,7 +126,7 @@ func timestampValue(value time.Time) string {
 func safeLogValue(value string) string {
 	value = strings.ToValidUTF8(value, "�")
 	value = sensitiveHeaderLog.ReplaceAllString(value, "$1=[REDACTED]")
-	value = sensitiveValueLog.ReplaceAllString(value, "$1$2[REDACTED]")
+	value = sensitiveValueLog.ReplaceAllString(value, "$1[REDACTED]")
 	value = bearerValueLog.ReplaceAllString(value, "Bearer [REDACTED]")
 	value = jwtValueLog.ReplaceAllString(value, "[REDACTED_TOKEN]")
 	var cleaned strings.Builder
