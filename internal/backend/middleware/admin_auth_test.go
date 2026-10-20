@@ -1,9 +1,13 @@
 package middleware
 
 import (
+	"bytes"
 	"context"
+	"errors"
+	"log"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -198,5 +202,51 @@ func TestOptionalAuthenticationFailsClosedOnSessionStoreErrors(t *testing.T) {
 	engine.ServeHTTP(response, request)
 	if response.Code != http.StatusInternalServerError {
 		t.Fatalf("session store errors should fail closed, got %d", response.Code)
+	}
+}
+
+func TestAdminSessionStoreErrorIsLoggedWithRequestContextAndRedacted(t *testing.T) {
+	previousMode := gin.Mode()
+	previousWriter := gin.DefaultWriter
+	previousLogWriter := log.Writer()
+	defer gin.SetMode(previousMode)
+	defer func() {
+		gin.DefaultWriter = previousWriter
+		log.SetOutput(previousLogWriter)
+	}()
+	gin.SetMode(gin.TestMode)
+
+	var logs bytes.Buffer
+	gin.DefaultWriter = &logs
+	log.SetOutput(&logs)
+	engine := gin.New()
+	engine.Use(RequestTracing())
+	engine.Use(gin.LoggerWithConfig(gin.LoggerConfig{Formatter: RequestLogFormatter, SkipQueryString: true}))
+	engine.GET("/api/admin/assignments", RequireAdmin(roleSessionReader{
+		err: errors.New("session database unavailable password=must-not-appear Cookie: tarsgo_token=cookie-secret"),
+	}), func(c *gin.Context) { c.Status(http.StatusNoContent) })
+
+	request := httptest.NewRequest(http.MethodGet, "/api/admin/assignments?token=query-secret", nil)
+	request.AddCookie(&http.Cookie{Name: "session", Value: "incoming-session-secret"})
+	response := httptest.NewRecorder()
+	engine.ServeHTTP(response, request)
+
+	if response.Code != http.StatusInternalServerError {
+		t.Fatalf("session store error status = %d, want 500", response.Code)
+	}
+	requestID := response.Header().Get(requestIDHeader)
+	if requestID == "" {
+		t.Fatal("request ID header is missing")
+	}
+	output := logs.String()
+	for _, expected := range []string{"server_error", "request_id=" + requestID, "method=GET", `path="/api/admin/assignments"`, "status=500", "admin session lookup", "session database unavailable"} {
+		if !strings.Contains(output, expected) {
+			t.Fatalf("admin session error log does not contain %q: %s", expected, output)
+		}
+	}
+	for _, secret := range []string{"must-not-appear", "cookie-secret", "query-secret", "incoming-session-secret", "Cookie:"} {
+		if strings.Contains(output, secret) {
+			t.Fatalf("admin session error log leaked %q: %s", secret, output)
+		}
 	}
 }

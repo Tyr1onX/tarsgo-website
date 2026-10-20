@@ -40,10 +40,12 @@ func OptionalAuthenticated(service sessionReader) gin.HandlerFunc {
 					c.Next()
 					return
 				}
+				logSessionServerError(c, "optional session lookup", err, serviceErr.Status)
 				writeAPIError(c, serviceErr.Status, serviceErr.Message)
 				c.Abort()
 				return
 			}
+			logSessionServerError(c, "optional session lookup", err, http.StatusInternalServerError)
 			writeAPIError(c, http.StatusInternalServerError, "服务器内部错误")
 			c.Abort()
 			return
@@ -70,11 +72,13 @@ func RequireAuthenticated(service sessionReader) gin.HandlerFunc {
 				if serviceErr.Status == http.StatusUnauthorized || serviceErr.Status == http.StatusForbidden {
 					clearAuthCookie(c, service)
 				}
+				logSessionServerError(c, "session lookup", err, serviceErr.Status)
 				writeAPIError(c, serviceErr.Status, serviceErr.Message)
 				c.Abort()
 				return
 			}
 
+			logSessionServerError(c, "session lookup", err, http.StatusInternalServerError)
 			writeAPIError(c, http.StatusInternalServerError, "服务器内部错误")
 			c.Abort()
 			return
@@ -101,11 +105,13 @@ func RequireAdmin(service sessionReader) gin.HandlerFunc {
 				if serviceErr.Status == http.StatusUnauthorized || serviceErr.Status == http.StatusForbidden {
 					clearAuthCookie(c, service)
 				}
+				logSessionServerError(c, "admin session lookup", err, serviceErr.Status)
 				writeAPIError(c, serviceErr.Status, serviceErr.Message)
 				c.Abort()
 				return
 			}
 
+			logSessionServerError(c, "admin session lookup", err, http.StatusInternalServerError)
 			writeAPIError(c, http.StatusInternalServerError, "服务器内部错误")
 			c.Abort()
 			return
@@ -138,11 +144,13 @@ func RequireSuperAdmin(service sessionReader) gin.HandlerFunc {
 				if serviceErr.Status == http.StatusUnauthorized || serviceErr.Status == http.StatusForbidden {
 					clearAuthCookie(c, service)
 				}
+				logSessionServerError(c, "super-admin session lookup", err, serviceErr.Status)
 				writeAPIError(c, serviceErr.Status, serviceErr.Message)
 				c.Abort()
 				return
 			}
 
+			logSessionServerError(c, "super-admin session lookup", err, http.StatusInternalServerError)
 			writeAPIError(c, http.StatusInternalServerError, "服务器内部错误")
 			c.Abort()
 			return
@@ -156,6 +164,12 @@ func RequireSuperAdmin(service sessionReader) gin.HandlerFunc {
 
 		c.Set(sessionUserContextKey, user)
 		c.Next()
+	}
+}
+
+func logSessionServerError(c *gin.Context, operation string, err error, status int) {
+	if status >= http.StatusInternalServerError {
+		LogInternalError(c, operation, status, err)
 	}
 }
 

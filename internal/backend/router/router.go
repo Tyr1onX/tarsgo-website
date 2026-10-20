@@ -32,8 +32,9 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	gin.SetMode(cfg.App.GinMode)
 
 	engine := gin.New()
-	engine.Use(gin.Logger())
-	engine.Use(gin.Recovery())
+	engine.Use(middleware.RequestTracing())
+	engine.Use(gin.LoggerWithConfig(gin.LoggerConfig{Formatter: middleware.RequestLogFormatter, SkipQueryString: true}))
+	engine.Use(middleware.RecoveryWithRequestID())
 	engine.Use(middleware.AuditAdministrativeActions(db))
 	engine.Use(middleware.AttachBusinessActivityRecorder(db))
 	engine.Use(func(c *gin.Context) {
@@ -61,6 +62,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 		},
 		AllowCredentials: true,
 		MaxAge:           12 * time.Hour,
+		ExposeHeaders:    []string{"X-Request-ID"},
 	}))
 	engine.Static("/upload/config/group", filepath.Join("upload", "config", "group"))
 
