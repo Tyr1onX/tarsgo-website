@@ -28,6 +28,7 @@ import {
   canAccessDashboardAdminPath,
   getCoreDashboardMenu,
   getDefaultDashboardPath,
+  hasSkillGroupAccess,
   hasTechnicalGroupAccess,
   getUserDashboardMenu,
   getVisibleAdminDashboardMenu,
@@ -103,9 +104,10 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
 
   const pathname = currentPath.pathname;
   const hasTechnicalGroup = hasTechnicalGroupAccess(groupResolution?.groups);
+  const hasSkillGroup = hasSkillGroupAccess(groupResolution?.groups);
   if (
     pathname.startsWith("/dashboard/admin") &&
-    !canAccessDashboardAdminPath(currentUser, pathname, hasTechnicalGroup)
+    !canAccessDashboardAdminPath(currentUser, pathname, hasTechnicalGroup, hasSkillGroup)
   ) {
     throw redirect(getDefaultDashboardPath(currentUser.role.name));
   }
@@ -113,6 +115,9 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect(getDefaultDashboardPath(currentUser.role.name));
   }
   if (pathname === "/dashboard/questions" && !hasTechnicalGroup) {
+    throw redirect(getDefaultDashboardPath(currentUser.role.name));
+  }
+  if (pathname === "/dashboard/skills" && !hasSkillGroup && currentUser.role.name !== "super_admin") {
     throw redirect(getDefaultDashboardPath(currentUser.role.name));
   }
 
@@ -338,9 +343,10 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const isSidebarCollapsed = isDesktopViewport && sidebarCollapsed;
   const isOperationsMember = groupResolution?.groups.some((group) => group.name === "运营组") ?? false;
   const isTechnicalGroupMember = hasTechnicalGroupAccess(groupResolution?.groups);
+  const hasSkillGroup = hasSkillGroupAccess(groupResolution?.groups);
   const coreMenuItems = getCoreDashboardMenu(isOperationsMember);
-  const userMenuItems = getUserDashboardMenu(currentUser, isTechnicalGroupMember);
-  const adminMenuItems = getVisibleAdminDashboardMenu(currentUser, isTechnicalGroupMember);
+  const userMenuItems = getUserDashboardMenu(currentUser, isTechnicalGroupMember, hasSkillGroup);
+  const adminMenuItems = getVisibleAdminDashboardMenu(currentUser, isTechnicalGroupMember, hasSkillGroup);
   const showAdminSection = hasDashboardAdminAccess(currentUser.role.name) && adminMenuItems.length > 0;
   const refreshCandidateTodoCount = useCallback(async (force = false) => {
     const userId = currentUser.id;

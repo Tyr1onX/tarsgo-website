@@ -84,9 +84,14 @@ const TRAINING_QUESTIONS_MENU_ITEM: DashboardMenuLink = {
 };
 
 const TECHNICAL_GROUP_NAMES = new Set(["机械组", "电控组", "视觉组", "AI组"]);
+const SKILL_GROUP_NAMES = new Set([...TECHNICAL_GROUP_NAMES, "运营组"]);
 
 export function isTechnicalGroupName(name: string) {
   return TECHNICAL_GROUP_NAMES.has(name);
+}
+
+export function hasSkillGroupAccess(groups: readonly { name: string }[] | null | undefined) {
+	return Boolean(groups?.some((group) => SKILL_GROUP_NAMES.has(group.name)));
 }
 
 const CORE_DASHBOARD_MENU: readonly DashboardMenuLink[] = [
@@ -153,6 +158,12 @@ const ADMIN_MENU: readonly DashboardMenuDefinition[] = [
         href: "/dashboard/admin/training/questions",
         allowedRoles: ["admin", "super_admin"],
       },
+      {
+        key: "skill-route-management",
+        label: "技能路线管理",
+        href: "/dashboard/admin/training/skills",
+        allowedRoles: ["admin", "super_admin"],
+      },
     ],
   },
   {
@@ -193,17 +204,20 @@ function isDashboardMenuLinkDefinition(
   return typeof item.href === "string";
 }
 
-function getAccessibleAdminPaths(roleName: string, hasTechnicalGroup = false) {
+function getAccessibleAdminPaths(roleName: string, hasTechnicalGroup = false, hasSkillGroup = hasTechnicalGroup) {
   return ADMIN_MENU.flatMap((item) => {
-    if (item.key === "newcomer-training" && !hasTechnicalGroup && roleName !== "super_admin") {
-      return [];
-    }
     if (isDashboardMenuLinkDefinition(item)) {
       return isRoleAllowed(roleName, item.allowedRoles) ? [item.href] : [];
     }
 
     return item.children
-      .filter((child) => isRoleAllowed(roleName, child.allowedRoles))
+      .filter((child) => {
+        if (!isRoleAllowed(roleName, child.allowedRoles)) return false;
+        if (roleName === "super_admin") return true;
+        if (child.key === "skill-route-management") return hasSkillGroup;
+        if (item.key === "newcomer-training") return hasTechnicalGroup;
+        return true;
+      })
       .map((child) => child.href);
   });
 }
@@ -212,9 +226,12 @@ export function hasTechnicalGroupAccess(groups: readonly { name: string }[] | nu
   return Boolean(groups?.some((group) => isTechnicalGroupName(group.name)));
 }
 
-export function getUserDashboardMenu(userOrRole: AuthUser | string, hasTechnicalGroup = false): DashboardMenuLink[] {
+export function getUserDashboardMenu(userOrRole: AuthUser | string, hasTechnicalGroup = false, hasSkillGroup = hasTechnicalGroup): DashboardMenuLink[] {
   const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
   const menu = [...(roleName === "user" ? USER_MENU : []), GROWTH_MENU_ITEM];
+  if (hasSkillGroup && ["user", "admin", "super_admin"].includes(roleName)) {
+    menu.push({ key: "skill-tree", label: "技能树", href: "/dashboard/skills", iconKey: "report" });
+  }
   if (hasTechnicalGroup && ["user", "admin", "super_admin"].includes(roleName)) {
     menu.push(TRAINING_QUESTIONS_MENU_ITEM, ASSIGNMENT_MENU_ITEM);
   }
@@ -233,9 +250,9 @@ export function getCoreDashboardMenu(isOperationsMember = false): DashboardMenuL
 	];
 }
 
-export function getVisibleAdminDashboardMenu(userOrRole: AuthUser | string, hasTechnicalGroup = false): VisibleDashboardAdminMenuItem[] {
+export function getVisibleAdminDashboardMenu(userOrRole: AuthUser | string, hasTechnicalGroup = false, hasSkillGroup = hasTechnicalGroup): VisibleDashboardAdminMenuItem[] {
   const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
-  const accessiblePaths = getAccessibleAdminPaths(roleName, hasTechnicalGroup);
+  const accessiblePaths = getAccessibleAdminPaths(roleName, hasTechnicalGroup, hasSkillGroup);
   const visibleItems: VisibleDashboardAdminMenuItem[] = [];
 
   for (const item of ADMIN_MENU) {
@@ -283,9 +300,9 @@ export function getDefaultDashboardPath(_roleName: string) {
   return "/dashboard";
 }
 
-export function canAccessDashboardAdminPath(userOrRole: AuthUser | string, pathname: string, hasTechnicalGroup = false) {
+export function canAccessDashboardAdminPath(userOrRole: AuthUser | string, pathname: string, hasTechnicalGroup = false, hasSkillGroup = hasTechnicalGroup) {
   const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
-  const accessiblePaths = getAccessibleAdminPaths(roleName, hasTechnicalGroup);
+  const accessiblePaths = getAccessibleAdminPaths(roleName, hasTechnicalGroup, hasSkillGroup);
   return accessiblePaths.some(
     (href) => href === "/dashboard/admin"
       ? pathname === href

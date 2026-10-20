@@ -99,6 +99,15 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 20, apply: func(db *gorm.DB) error {
 			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.TrainingQuestionGrowthEvent{})
 		}},
+		{version: 21, apply: func(db *gorm.DB) error {
+			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(
+				&model.SkillNode{},
+				&model.SkillNodePrerequisite{},
+				&model.SkillNodeAssignment{},
+				&model.SkillNodeProgress{},
+				&model.SkillReviewEvent{},
+			)
+		}},
 	}
 }
 

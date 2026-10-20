@@ -23,6 +23,7 @@ import (
 	"tarsgo-backend/service/leave"
 	"tarsgo-backend/service/recruitmentanalytics"
 	"tarsgo-backend/service/registration"
+	"tarsgo-backend/service/skills"
 	"tarsgo-backend/service/systemconfig"
 	"tarsgo-backend/service/trainingqa"
 	"tarsgo-backend/service/usergroup"
@@ -75,6 +76,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	assignmentService := assignment.NewService(db)
 	assignmentHandler := handler.NewAssignmentHandler(assignmentService)
 	trainingQuestionHandler := handler.NewTrainingQuestionHandler(trainingqa.NewService(db))
+	skillsHandler := handler.NewSkillsHandler(skills.NewService(db))
 	userGroupHandler := handler.NewUserGroupHandler(usergroup.NewService(usergroup.NewRepository(db)))
 	userGroupMembershipHandler := handler.NewUserGroupMembershipHandler(usergroup.NewMembershipService(db))
 	registrationFormHandler := handler.NewRegistrationFormHandler(registration.NewRegistrationFormService(db))
@@ -161,6 +163,8 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	assignmentMemberAPI.POST("/questions/:id/posts", requireSameOriginRequest(cfg), trainingQuestionHandler.ReplyMember)
 	assignmentMemberAPI.PATCH("/questions/:id/solved", requireSameOriginRequest(cfg), trainingQuestionHandler.SetSolvedMember)
 	assignmentMemberAPI.GET("/question-files/:id", trainingQuestionHandler.OpenFile)
+	assignmentMemberAPI.GET("/skills/me", skillsHandler.ListMine)
+	assignmentMemberAPI.POST("/skills/nodes/:id/start", requireSameOriginRequest(cfg), skillsHandler.Start)
 
 	adminAPI := api.Group("/admin")
 	adminAPI.Use(middleware.RequireAdmin(authService))
@@ -175,6 +179,16 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	adminAPI.POST("/questions/:id/posts", requireSameOriginRequest(cfg), trainingQuestionHandler.ReplyAdmin)
 	adminAPI.PATCH("/questions/:id/solved", requireSameOriginRequest(cfg), trainingQuestionHandler.SetSolvedAdmin)
 	adminAPI.PATCH("/questions/:id/faq", requireSameOriginRequest(cfg), trainingQuestionHandler.SetFAQ)
+	adminAPI.GET("/skills/groups", skillsHandler.ListAdminGroups)
+	adminAPI.GET("/skills/nodes", skillsHandler.ListAdminNodes)
+	adminAPI.POST("/skills/nodes", requireSameOriginRequest(cfg), skillsHandler.CreateNode)
+	adminAPI.PUT("/skills/nodes/:id", requireSameOriginRequest(cfg), skillsHandler.UpdateNode)
+	adminAPI.PATCH("/skills/nodes/:id/active", requireSameOriginRequest(cfg), skillsHandler.SetActive)
+	adminAPI.PUT("/skills/nodes/:id/prerequisites", requireSameOriginRequest(cfg), skillsHandler.SetPrerequisites)
+	adminAPI.PUT("/skills/nodes/:id/assignments", requireSameOriginRequest(cfg), skillsHandler.SetAssignments)
+	adminAPI.GET("/skills/members", skillsHandler.ListMembers)
+	adminAPI.GET("/skills/nodes/:id/members/:userId/history", skillsHandler.MemberHistory)
+	adminAPI.POST("/skills/nodes/:id/members/:userId/reviews", requireSameOriginRequest(cfg), skillsHandler.Review)
 	adminAPI.GET("/user-groups/options", userGroupHandler.ListGroupOptions)
 	adminAPI.GET("/admission-qr/:filename", userGroupHandler.OpenAdmissionQRCode)
 	adminAPI.GET("/school-leave/summary", leaveHandler.AdminSchoolSummary)
