@@ -3,6 +3,7 @@ package assignment
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"mime/multipart"
 	"net/http/httptest"
@@ -62,6 +63,26 @@ func TestListMineRejectsAccountsWithoutTechnicalGroup(t *testing.T) {
 	service := &Service{db: db, now: func() time.Time { return time.Date(2026, 10, 19, 0, 0, 0, 0, time.UTC) }}
 	_, err := service.ListMine(context.Background(), Actor{ID: 22, RoleName: model.RoleNameUser})
 	assertAssignmentStatus(t, err, 403)
+}
+
+func TestLoadSubmissionHistoriesReturnsJSONEmptyArraysForUnsubmittedMembers(t *testing.T) {
+	db, mock := newAssignmentMockGorm(t)
+	mock.ExpectQuery("(?s)SELECT \\* FROM `assignment_submissions` WHERE assignment_id = \\? AND user_id IN \\(\\?\\) ORDER BY user_id ASC, attempt ASC").
+		WithArgs(uint64(10), uint64(42)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "assignment_id", "user_id", "attempt", "submitted_at", "is_late", "created_at"}))
+
+	histories, err := (&Service{db: db}).loadSubmissionHistories(context.Background(), 10, []uint64{42})
+	if err != nil {
+		t.Fatalf("load empty submission history: %v", err)
+	}
+	history, ok := histories[42]
+	if !ok || history == nil || len(history) != 0 {
+		t.Fatalf("empty submission history = %#v, present=%v; want a present empty array", history, ok)
+	}
+	payload, err := json.Marshal(history)
+	if err != nil || string(payload) != "[]" {
+		t.Fatalf("empty submission history JSON = %s, %v; want []", payload, err)
+	}
 }
 
 func TestAdminCannotManageAnotherTechnicalGroup(t *testing.T) {

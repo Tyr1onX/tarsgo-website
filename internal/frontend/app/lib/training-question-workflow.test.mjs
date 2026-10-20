@@ -11,6 +11,8 @@ const files = await source("../../../backend/service/trainingqa/files.go");
 const model = await source("../../../backend/model/training_question.go");
 const migrations = await source("../../../backend/database/migrations.go");
 const thread = await source("../components/training-question-thread.tsx");
+const memberRoute = await source("../routes/dashboard/training-questions.tsx");
+const adminRoute = await source("../routes/admin/training-question-management.tsx");
 
 test("training Q&A is integrated into the existing member and newcomer-training routes", () => {
   assert.match(routes, /route\("questions", "routes\/dashboard\/training-questions\.tsx"\)/);
@@ -18,6 +20,12 @@ test("training Q&A is integrated into the existing member and newcomer-training 
   assert.match(navigation, /label: "提问答疑"[\s\S]*?href: "\/dashboard\/questions"/);
   assert.match(navigation, /label: "答疑管理"[\s\S]*?href: "\/dashboard\/admin\/training\/questions"/);
   assert.match(navigation, /hasTechnicalGroup && \["user", "admin", "super_admin"\]/);
+});
+
+test("member and admin Q&A routes keep derived group options stable during list loading", () => {
+  for (const route of [memberRoute, adminRoute]) {
+    assert.match(route, /const memberGroups = useMemo\([\s\S]*?\[groupResolution\?\.groups\]/);
+  }
 });
 
 test("member writes are authenticated and same-origin; management routes require admin role", () => {

@@ -19,6 +19,7 @@ export default [
   route("dashboard", "routes/dashboard/layout.tsx", [
     index("routes/dashboard/index.tsx"),
     route("base", "routes/dashboard/base.tsx"),
+    route("expedition", "routes/dashboard/expedition.tsx"),
     route("users/registrations", "routes/users/registrations.tsx"),
     route("leave", "routes/leave-workbench.tsx"),
     route("weekly-reports", "routes/dashboard/weekly-reports.tsx"),

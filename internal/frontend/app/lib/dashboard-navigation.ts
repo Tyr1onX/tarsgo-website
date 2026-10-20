@@ -69,6 +69,13 @@ const GROWTH_MENU_ITEM: DashboardMenuLink = {
   iconKey: "report",
 };
 
+const EXPEDITION_MENU_ITEM: DashboardMenuLink = {
+  key: "tars-base-expedition",
+  label: "TARS BASE",
+  href: "/dashboard/expedition",
+  iconKey: "dashboard",
+};
+
 const ASSIGNMENT_MENU_ITEM: DashboardMenuLink = {
   key: "my-assignments",
   label: "我的作业",
@@ -92,6 +99,11 @@ export function isTechnicalGroupName(name: string) {
 
 export function hasSkillGroupAccess(groups: readonly { name: string }[] | null | undefined) {
 	return Boolean(groups?.some((group) => SKILL_GROUP_NAMES.has(group.name)));
+}
+
+export function canAccessExpedition(userOrRole: AuthUser | string, hasSkillGroup: boolean) {
+  const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
+  return hasSkillGroup || roleName === "super_admin";
 }
 
 const CORE_DASHBOARD_MENU: readonly DashboardMenuLink[] = [
@@ -229,6 +241,9 @@ export function hasTechnicalGroupAccess(groups: readonly { name: string }[] | nu
 export function getUserDashboardMenu(userOrRole: AuthUser | string, hasTechnicalGroup = false, hasSkillGroup = hasTechnicalGroup): DashboardMenuLink[] {
   const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
   const menu = [...(roleName === "user" ? USER_MENU : []), GROWTH_MENU_ITEM];
+  if ((hasSkillGroup || roleName === "super_admin") && ["user", "admin", "super_admin"].includes(roleName)) {
+    menu.push(EXPEDITION_MENU_ITEM);
+  }
   if (hasSkillGroup && ["user", "admin", "super_admin"].includes(roleName)) {
     menu.push({ key: "skill-tree", label: "技能树", href: "/dashboard/skills", iconKey: "report" });
   }

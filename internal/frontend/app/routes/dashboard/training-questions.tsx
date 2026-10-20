@@ -18,7 +18,10 @@ export default function TrainingQuestionsRoute() {
   const [searchParams] = useSearchParams();
   const requestedGroupID = Number(searchParams.get("groupId")) || 0;
   const requestedQuestionID = Number(searchParams.get("questionId")) || 0;
-  const memberGroups = groupResolution?.groups.map(({ groupId, name }) => ({ groupId, name }));
+  const memberGroups = useMemo(
+    () => groupResolution?.groups.map(({ groupId, name }) => ({ groupId, name })),
+    [groupResolution?.groups],
+  );
   const { technicalGroups, loading: groupsLoading, error: groupError } = useAssignmentGroups(currentUser.id, currentUser.role.name, memberGroups);
   const [groupId, setGroupId] = useState(0);
   const [items, setItems] = useState<TrainingQuestion[]>([]);

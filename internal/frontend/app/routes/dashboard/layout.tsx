@@ -26,6 +26,7 @@ import { getAdminWorkbenchSummary } from "~/lib/registrations-client";
 import { leaveClient } from "~/lib/leave-client";
 import {
   canAccessDashboardAdminPath,
+  canAccessExpedition,
   getCoreDashboardMenu,
   getDefaultDashboardPath,
   hasSkillGroupAccess,
@@ -42,6 +43,7 @@ import {
 export interface DashboardLayoutOutletContext {
   currentUser: AuthUser;
   groupResolution: UserGroupConfirmationState | null;
+  groupResolutionError: string;
   refreshCandidateTodoCount: (force?: boolean) => Promise<void>;
   refreshLeaveUnreadCount: () => Promise<void>;
 }
@@ -118,6 +120,9 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect(getDefaultDashboardPath(currentUser.role.name));
   }
   if (pathname === "/dashboard/skills" && !hasSkillGroup && currentUser.role.name !== "super_admin") {
+    throw redirect(getDefaultDashboardPath(currentUser.role.name));
+  }
+  if (pathname === "/dashboard/expedition" && !canAccessExpedition(currentUser, hasSkillGroup)) {
     throw redirect(getDefaultDashboardPath(currentUser.role.name));
   }
 
@@ -906,7 +911,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
 
         <main className="p-4 sm:p-6 lg:p-8">
           <div className="relative">
-            <Outlet context={{ currentUser, groupResolution, refreshCandidateTodoCount, refreshLeaveUnreadCount } satisfies DashboardLayoutOutletContext} />
+            <Outlet context={{ currentUser, groupResolution, groupResolutionError, refreshCandidateTodoCount, refreshLeaveUnreadCount } satisfies DashboardLayoutOutletContext} />
           </div>
         </main>
       </div>

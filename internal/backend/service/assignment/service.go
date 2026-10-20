@@ -726,6 +726,9 @@ func (s *Service) loadSubmissionHistories(ctx context.Context, assignmentID uint
 	if len(userIDs) == 0 {
 		return result, nil
 	}
+	for _, userID := range userIDs {
+		result[userID] = []SubmissionView{}
+	}
 	var submissions []model.AssignmentSubmission
 	if err := s.db.WithContext(ctx).Where("assignment_id = ? AND user_id IN ?", assignmentID, userIDs).
 		Order("user_id ASC, attempt ASC").Find(&submissions).Error; err != nil {
