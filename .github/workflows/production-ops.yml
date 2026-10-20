@@ -48,6 +48,8 @@ jobs:
           pnpm run test:route-motion
           pnpm run test:progress
           pnpm run test:workbench
+          pnpm run test:weekly-reports
+          pnpm run test:growth
           pnpm run test:email-templates
           pnpm run test:auth-flow
           pnpm run test:daily-signal

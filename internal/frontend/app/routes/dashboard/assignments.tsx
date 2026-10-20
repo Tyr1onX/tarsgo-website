@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { useOutletContext } from "react-router";
+import { useOutletContext, useSearchParams } from "react-router";
 
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import {
@@ -20,6 +20,8 @@ const inputClass = "admin-field w-full";
 
 export default function MyAssignmentsRoute() {
   const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
+  const [searchParams] = useSearchParams();
+  const requestedAssignmentID = Number(searchParams.get("assignmentId")) || null;
   const [items, setItems] = useState<Assignment[]>([]);
   const [selectedID, setSelectedID] = useState<number | null>(null);
   const [detail, setDetail] = useState<MyAssignmentDetail | null>(null);
@@ -63,8 +65,8 @@ export default function MyAssignmentsRoute() {
     setItems([]);
     setSelectedID(null);
     setDetail(null);
-    void loadAssignments(null);
-  }, [currentUser.id]);
+    void loadAssignments(requestedAssignmentID);
+  }, [currentUser.id, requestedAssignmentID]);
 
   async function selectAssignment(item: Assignment) {
     const activeRequest = ++requestId.current;

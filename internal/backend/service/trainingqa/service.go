@@ -375,11 +375,27 @@ func (s *Service) SetSolved(ctx context.Context, actor Actor, questionID uint64,
 		if actor.ID != question.AskerID && !s.isManager(ctx, tx, actor, question.GroupID) {
 			return forbidden("只有提问者或本组管理员可以更改解决状态")
 		}
+		if question.IsSolved == solved {
+			return nil
+		}
 		updates := map[string]any{"is_solved": solved, "updated_at": s.now().UTC()}
 		if solved {
-			now := s.now().UTC()
+			now := s.now().UTC().Truncate(time.Second)
 			updates["solved_by"], updates["solved_at"] = actor.ID, now
+			if err := recordQuestionGrowthEvent(tx, question.ID, model.TrainingQuestionGrowthSolved, now); err != nil {
+				return err
+			}
 		} else {
+			if question.SolvedAt != nil {
+				if err := recordQuestionGrowthEvent(tx, question.ID, model.TrainingQuestionGrowthSolved, *question.SolvedAt); err != nil {
+					return err
+				}
+			}
+			if question.IsFAQ && question.FAQAt != nil {
+				if err := recordQuestionGrowthEvent(tx, question.ID, model.TrainingQuestionGrowthFAQ, *question.FAQAt); err != nil {
+					return err
+				}
+			}
 			updates["solved_by"], updates["solved_at"], updates["is_faq"], updates["faq_by"], updates["faq_at"] = nil, nil, false, nil, nil
 		}
 		return tx.Model(&question).Updates(updates).Error
@@ -406,6 +422,9 @@ func (s *Service) SetFAQ(ctx context.Context, actor Actor, questionID uint64, is
 		if err := s.requireManagerGroupWithDB(ctx, tx, actor, question.GroupID); err != nil {
 			return err
 		}
+		if question.IsFAQ == isFAQ {
+			return nil
+		}
 		if isFAQ && (!question.IsSolved || question.Visibility != model.TrainingQuestionPublic) {
 			return conflict("只有已解决的公开问题可以加入 FAQ")
 		}
@@ -422,9 +441,17 @@ func (s *Service) SetFAQ(ctx context.Context, actor Actor, questionID uint64, is
 		}
 		updates := map[string]any{"is_faq": isFAQ, "updated_at": s.now().UTC()}
 		if isFAQ {
-			now := s.now().UTC()
+			now := s.now().UTC().Truncate(time.Second)
 			updates["faq_by"], updates["faq_at"] = actor.ID, now
+			if err := recordQuestionGrowthEvent(tx, question.ID, model.TrainingQuestionGrowthFAQ, now); err != nil {
+				return err
+			}
 		} else {
+			if question.FAQAt != nil {
+				if err := recordQuestionGrowthEvent(tx, question.ID, model.TrainingQuestionGrowthFAQ, *question.FAQAt); err != nil {
+					return err
+				}
+			}
 			updates["faq_by"], updates["faq_at"] = nil, nil
 		}
 		return tx.Model(&question).Updates(updates).Error
@@ -440,6 +467,26 @@ func (s *Service) SetFAQ(ctx context.Context, actor Actor, questionID uint64, is
 		return nil, internalError("更新 FAQ 状态失败", err)
 	}
 	return s.GetAdmin(ctx, actor, questionID)
+}
+
+func recordQuestionGrowthEvent(tx *gorm.DB, questionID uint64, kind string, occurredAt time.Time) error {
+	if questionID == 0 || occurredAt.IsZero() {
+		return nil
+	}
+	occurredAt = occurredAt.UTC().Truncate(time.Second)
+	var existing model.TrainingQuestionGrowthEvent
+	err := tx.Where("question_id = ? AND kind = ? AND occurred_at = ?", questionID, kind, occurredAt).Take(&existing).Error
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
+	return tx.Create(&model.TrainingQuestionGrowthEvent{
+		QuestionID: questionID,
+		Kind:       kind,
+		OccurredAt: occurredAt,
+	}).Error
 }
 
 func (s *Service) OpenFile(ctx context.Context, actor Actor, fileID uint64) (*Download, error) {

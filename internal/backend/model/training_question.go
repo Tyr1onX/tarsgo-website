@@ -7,6 +7,9 @@ const (
 	TrainingQuestionPrivate  = "private"
 	TrainingQuestionAnswer   = "answer"
 	TrainingQuestionFollowUp = "follow_up"
+
+	TrainingQuestionGrowthSolved = "solved"
+	TrainingQuestionGrowthFAQ    = "faq"
 )
 
 type TrainingQuestion struct {
@@ -53,3 +56,14 @@ type TrainingQuestionAttachment struct {
 }
 
 func (TrainingQuestionAttachment) TableName() string { return "training_question_attachments" }
+
+// TrainingQuestionGrowthEvent preserves resolved and FAQ milestones when the
+// mutable question status is later reopened or removed from the FAQ.
+type TrainingQuestionGrowthEvent struct {
+	ID         uint64    `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
+	QuestionID uint64    `json:"questionId" gorm:"column:question_id;type:bigint unsigned;not null;index:idx_training_growth_event_question"`
+	Kind       string    `json:"kind" gorm:"size:20;not null;index:idx_training_growth_event_kind"`
+	OccurredAt time.Time `json:"occurredAt" gorm:"column:occurred_at;type:datetime;not null;index:idx_training_growth_event_time"`
+}
+
+func (TrainingQuestionGrowthEvent) TableName() string { return "training_question_growth_events" }

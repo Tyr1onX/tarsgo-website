@@ -24,6 +24,7 @@ export default [
     route("weekly-reports", "routes/dashboard/weekly-reports.tsx"),
     route("assignments", "routes/dashboard/assignments.tsx"),
     route("questions", "routes/dashboard/training-questions.tsx"),
+    route("growth", "routes/dashboard/growth.tsx"),
     route("admin", "routes/admin/dashboard.tsx"),
     route("admin/users", "routes/admin/users.tsx"),
     route("admin/recruitment", "routes/admin/recruitment-management.tsx"),

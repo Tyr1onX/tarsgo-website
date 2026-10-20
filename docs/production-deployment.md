@@ -60,6 +60,8 @@ pnpm install --frozen-lockfile
 pnpm run typecheck
 pnpm run test:progress
 pnpm run test:workbench
+pnpm run test:weekly-reports
+pnpm run test:growth
 ```
 
 `scripts/test-production-ops.sh` 只使用临时目录和 mock 命令，覆盖 85% 高水位清理与提前退出、current/previous retention、健康检查失败回滚，以及复制或远端 checksum 失败时不执行备份 retention。
