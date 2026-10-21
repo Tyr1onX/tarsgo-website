@@ -333,6 +333,7 @@ function ExpeditionMap({ selectedId, onSelect, masteredFacilityIds, hasPersonalR
           <button
             className={`expedition-map__pin ${selectedId === facility.id ? "is-selected" : ""}`}
             key={facility.id}
+            data-facility={facility.id}
             type="button"
             style={{ left: `${facility.x}%`, top: `${facility.y}%` }}
             onClick={() => onSelect(facility.id)}
@@ -623,13 +624,6 @@ export default function ExpeditionRoute() {
           ) : null}
           <div className="expedition-map__legend" aria-label="技能状态"><span><i className="expedition-state-dot expedition-state-dot--locked" />未解锁</span><span><i className="expedition-state-dot expedition-state-dot--available" />可挑战</span><span><i className="expedition-state-dot expedition-state-dot--practice" />已实践</span><span><i className="expedition-state-dot expedition-state-dot--mastered" />已掌握</span></div>
         </ExpeditionMap>
-        <nav className="expedition-zone-strip" aria-label="基地区域">
-          {FACILITIES.map((facility) => (
-            <button key={facility.id} type="button" aria-pressed={selectedId === facility.id} onClick={() => exploreFacility(facility.id)}>
-              <ZoneGlyph id={facility.id} /><span>{facility.name}</span>
-            </button>
-          ))}
-        </nav>
       </section>
 
       <div className="expedition-lower-grid">
