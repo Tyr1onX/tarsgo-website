@@ -63,6 +63,9 @@ func (h *AssignmentHandler) Submit(c *gin.Context) {
 	}
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxAssignmentRequestBody)
 	if err := c.Request.ParseMultipartForm(1 << 20); err != nil {
+		if c.Request.MultipartForm != nil {
+			_ = c.Request.MultipartForm.RemoveAll()
+		}
 		var maxBytesError *http.MaxBytesError
 		if errors.As(err, &maxBytesError) {
 			writeAPIError(c, http.StatusRequestEntityTooLarge, "附件总大小不能超过 50 MB")
