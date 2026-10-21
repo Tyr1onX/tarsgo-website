@@ -134,6 +134,16 @@ export default function MyAssignmentsRoute() {
           <div className="whitespace-pre-wrap text-sm leading-6 text-[var(--admin-text)]">{assignment.description}</div>
           {assignment.attachmentRequirements ? <div className="rounded-lg bg-white/[0.035] px-3 py-2 text-sm"><span className="text-[var(--admin-muted)]">附件要求：</span>{assignment.attachmentRequirements}</div> : null}
 
+          {(assignment.materialFiles ?? []).length > 0 ? <section className="space-y-2" aria-labelledby="assignment-teaching-materials-title">
+            <h3 id="assignment-teaching-materials-title" className="text-sm font-semibold text-white">教学资料</h3>
+            <ul className="divide-y divide-[var(--admin-border-subtle)] rounded-lg border border-[var(--admin-border-subtle)] px-3">
+              {(assignment.materialFiles ?? []).map((file) => <li key={file.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+                <a className="min-w-0 break-all text-amber-300 hover:text-amber-200" href={file.downloadUrl}>{file.fileName}</a>
+                <span className="text-xs text-[var(--admin-muted)]">{file.size >= 1024 * 1024 ? `${(file.size / (1024 * 1024)).toFixed(1)} MB` : `${Math.max(1, Math.ceil(file.size / 1024))} KB`}</span>
+              </li>)}
+            </ul>
+          </section> : null}
+
           <section className="space-y-3" aria-labelledby="assignment-history-title">
             <h3 id="assignment-history-title" className="text-sm font-semibold text-white">提交与批改记录</h3>
             {detail.submissions.length === 0 ? <p className="text-sm text-[var(--admin-muted)]">尚未提交</p> : <div className="space-y-3">

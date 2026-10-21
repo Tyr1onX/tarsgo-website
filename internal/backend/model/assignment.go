@@ -47,6 +47,19 @@ type AssignmentSubmissionFile struct {
 	CreatedAt    time.Time `json:"createdAt" gorm:"column:created_at;type:datetime;not null;default:CURRENT_TIMESTAMP"`
 }
 
+type AssignmentMaterialFile struct {
+	ID           uint64    `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
+	AssignmentID uint64    `json:"assignmentId" gorm:"column:assignment_id;type:bigint unsigned;not null;index:idx_assignment_material_assignment"`
+	UploaderID   uint64    `json:"uploaderId" gorm:"column:uploader_id;type:bigint unsigned;not null;index:idx_assignment_material_uploader"`
+	FileName     string    `json:"fileName" gorm:"column:file_name;size:255;not null"`
+	StoragePath  string    `json:"-" gorm:"column:storage_path;size:500;not null;uniqueIndex:uk_assignment_material_path"`
+	ContentType  string    `json:"contentType" gorm:"column:content_type;size:100;not null"`
+	Size         int64     `json:"size" gorm:"type:bigint;not null"`
+	CreatedAt    time.Time `json:"createdAt" gorm:"column:created_at;type:datetime;not null;default:CURRENT_TIMESTAMP"`
+}
+
+func (AssignmentMaterialFile) TableName() string { return "assignment_material_files" }
+
 type AssignmentReview struct {
 	ID           uint64    `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
 	SubmissionID uint64    `json:"submissionId" gorm:"column:submission_id;type:bigint unsigned;not null;index:idx_assignment_review_submission"`

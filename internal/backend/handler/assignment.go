@@ -147,6 +147,76 @@ func (h *AssignmentHandler) Update(c *gin.Context) {
 	writeAPI(c, http.StatusOK, "作业已更新", item)
 }
 
+func (h *AssignmentHandler) UploadMaterialFiles(c *gin.Context) {
+	assignmentID, ok := parseAssignmentPathID(c)
+	if !ok {
+		return
+	}
+	files, cleanup, ok := parseAssignmentMultipartFiles(c)
+	if !ok {
+		return
+	}
+	defer cleanup()
+	result, err := h.service.UploadMaterialFiles(c.Request.Context(), currentAssignmentActor(c), assignmentID, files)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	writeAPI(c, http.StatusCreated, "教学资料已上传", result)
+}
+
+func (h *AssignmentHandler) RemoveMaterialFile(c *gin.Context) {
+	assignmentID, ok := parseAssignmentPathID(c)
+	if !ok {
+		return
+	}
+	fileID, err := strconv.ParseUint(strings.TrimSpace(c.Param("fileId")), 10, 64)
+	if err != nil || fileID == 0 {
+		writeAPIError(c, http.StatusBadRequest, "教学资料编号不合法")
+		return
+	}
+	result, serviceErr := h.service.RemoveMaterialFile(c.Request.Context(), currentAssignmentActor(c), assignmentID, fileID)
+	if serviceErr != nil {
+		h.fail(c, serviceErr)
+		return
+	}
+	writeAPI(c, http.StatusOK, "教学资料已移除", result)
+}
+
+func (h *AssignmentHandler) OpenMaterialFile(c *gin.Context) {
+	fileID, ok := parseAssignmentPathID(c)
+	if !ok {
+		return
+	}
+	file, err := h.service.OpenMaterialFile(c.Request.Context(), currentAssignmentActor(c), fileID)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	filename := url.PathEscape(file.FileName)
+	c.Header("Content-Type", file.ContentType)
+	c.Header("Content-Disposition", "attachment; filename*=UTF-8''"+filename)
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Data(http.StatusOK, file.ContentType, file.Content)
+}
+
+func parseAssignmentMultipartFiles(c *gin.Context) ([]*multipart.FileHeader, func(), bool) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxAssignmentRequestBody)
+	if err := c.Request.ParseMultipartForm(1 << 20); err != nil {
+		var maxBytesError *http.MaxBytesError
+		if errors.As(err, &maxBytesError) {
+			writeAPIError(c, http.StatusRequestEntityTooLarge, "附件总大小不能超过 50 MB")
+			return nil, func() {}, false
+		}
+		writeAPIError(c, http.StatusBadRequest, "作业附件参数不合法")
+		return nil, func() {}, false
+	}
+	if c.Request.MultipartForm != nil {
+		return c.Request.MultipartForm.File["files"], func() { _ = c.Request.MultipartForm.RemoveAll() }, true
+	}
+	return nil, func() {}, true
+}
+
 func bindAssignmentRequest(c *gin.Context) (assignment.CreateInput, bool) {
 	var request assignmentRequest
 	if err := c.ShouldBindJSON(&request); err != nil {

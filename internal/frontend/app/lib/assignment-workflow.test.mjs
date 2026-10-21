@@ -10,6 +10,8 @@ const assignmentService = await readFile(new URL("../../../backend/service/assig
 const assignmentFiles = await readFile(new URL("../../../backend/service/assignment/file_store.go", import.meta.url), "utf8");
 const migrations = await readFile(new URL("../../../backend/database/migrations.go", import.meta.url), "utf8");
 const assignmentManagement = await readFile(new URL("../routes/admin/assignment-management.tsx", import.meta.url), "utf8");
+const memberAssignments = await readFile(new URL("../routes/dashboard/assignments.tsx", import.meta.url), "utf8");
+const assignmentClient = await readFile(new URL("./assignment-client.ts", import.meta.url), "utf8");
 const assignmentGroups = await readFile(new URL("./use-assignment-groups.ts", import.meta.url), "utf8");
 
 test("workbench exposes member work to technical members and all manager routes to super-admins", () => {
@@ -46,6 +48,33 @@ test("successful publishing remains visible if the following list refresh fails"
   assert.match(assignmentManagement, /async function refresh\(\)[\s\S]*?listAdmin\(groupId\)/);
 });
 
+test("admin teaching materials stay separate from submissions and use permission-checked APIs", () => {
+  assert.match(assignmentManagement, /type="file" multiple accept=\{assignmentMaterialAccept\}/);
+  assert.match(assignmentManagement, /validateAssignmentMaterialSelection\(existingMaterials, pendingMaterials, incoming\)/);
+  assert.match(assignmentManagement, /assignmentClient\.uploadMaterialFiles\(saved\.id, pendingMaterials/);
+  assert.match(assignmentManagement, /已有成员提交，教学资料已锁定/);
+  assert.match(assignmentClient, /\/api\/admin\/assignments\/\$\{id\}\/materials/);
+  assert.match(assignmentClient, /\/api\/admin\/assignments\/\$\{assignmentId\}\/materials\/\$\{fileId\}/);
+  assert.match(backendRoutes, /assignmentMemberAPI\.GET\("\/assignment-materials\/:id", assignmentHandler\.OpenMaterialFile\)/);
+  assert.match(backendRoutes, /adminAPI\.POST\("\/assignments\/:id\/materials"/);
+  assert.match(backendRoutes, /adminAPI\.DELETE\("\/assignments\/:id\/materials\/:fileId"/);
+  assert.match(assignmentService, /if targetCount == 0 \{[\s\S]*?return nil, notFound\("教学资料不存在"\)/);
+  assert.match(memberAssignments, /aria-labelledby="assignment-teaching-materials-title"/);
+  assert.match(memberAssignments, /assignment\.materialFiles \?\? \[\]/);
+});
+
+test("Beijing deadlines default to seven days, support shortcuts, and validate before save", async () => {
+  const deadline = await readFile(new URL("./assignment-deadline.ts", import.meta.url), "utf8");
+  assert.match(assignmentManagement, /dueAt: assignmentDeadlineForShortcut\(new Date\(\), 7\)/);
+  assert.match(assignmentManagement, /assignmentDeadlineShortcuts\.map/);
+  assert.match(assignmentManagement, /onInput=\{\(event\) => updateDeadline\(event\.currentTarget\.value\)\}/);
+  assert.match(assignmentManagement, /function updateDeadline\(value: string\)/);
+  assert.match(assignmentManagement, /requestInput\(\{ \.\.\.draft, groupId \}\)/);
+  assert.match(assignmentService, /if input\.DueAt\.IsZero\(\) \|\| !input\.DueAt\.After\(now\)/);
+  assert.match(deadline, /Date\.UTC\(/);
+  assert.match(deadline, /wallClock - SHANGHAI_OFFSET_MS/);
+});
+
 test("specified recipients can be searched, removed, and retained across search changes", () => {
   assert.match(assignmentManagement, /type="search"[\s\S]*?搜索成员姓名/);
   assert.match(assignmentManagement, /已选 \{draft\.targetUserIds\.length\} 人/);
@@ -74,4 +103,12 @@ test("migration 18 creates only new assignment tables without rewriting existing
   const migration18 = migrations.slice(start, end);
   assert.match(migration18, /AutoMigrate\([\s\S]*&model\.Assignment\{\}[\s\S]*&model\.AssignmentReview\{\}/);
   assert.doesNotMatch(migration18, /UPDATE\s+|DELETE\s+|DROP\s+/i);
+});
+
+test("migration 24 adds only the teaching-material metadata table", () => {
+  const start = migrations.indexOf("{version: 24");
+  const end = migrations.indexOf("\n\t\t}},", start);
+  const migration24 = migrations.slice(start, end);
+  assert.match(migration24, /AutoMigrate\(&model\.AssignmentMaterialFile\{\}\)/);
+  assert.doesNotMatch(migration24, /UPDATE\s+|DELETE\s+|DROP\s+/i);
 });

@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"mime"
@@ -91,10 +92,15 @@ func (s *assignmentFileStore) save(ctx context.Context, assignmentID, userID uin
 	return &storedUpload{fileName: file.fileName, storagePath: relativePath, contentType: file.contentType, size: written}, nil
 }
 
-func (s *assignmentFileStore) remove(relativePath string) {
-	if path, err := s.resolve(relativePath); err == nil {
-		_ = os.Remove(path)
+func (s *assignmentFileStore) remove(relativePath string) error {
+	path, err := s.resolve(relativePath)
+	if err != nil {
+		return err
 	}
+	if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+		return err
+	}
+	return nil
 }
 
 func (s *assignmentFileStore) open(relativePath string) ([]byte, error) {
