@@ -9,6 +9,8 @@ const (
 
 type Assignment struct {
 	ID                     uint64    `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
+	PublishRequestID       *string   `json:"-" gorm:"column:publish_request_id;size:36;uniqueIndex:uk_assignment_publish_request"`
+	PublishRequestHash     *string   `json:"-" gorm:"column:publish_request_hash;size:64"`
 	GroupID                uint64    `json:"groupId" gorm:"column:group_id;type:bigint unsigned;not null;index:idx_assignment_group_due,priority:1"`
 	CreatorID              uint64    `json:"creatorId" gorm:"column:creator_id;type:bigint unsigned;not null;index:idx_assignment_creator"`
 	Title                  string    `json:"title" gorm:"size:120;not null"`
@@ -46,6 +48,19 @@ type AssignmentSubmissionFile struct {
 	Size         int64     `json:"size" gorm:"type:bigint;not null"`
 	CreatedAt    time.Time `json:"createdAt" gorm:"column:created_at;type:datetime;not null;default:CURRENT_TIMESTAMP"`
 }
+
+type AssignmentMaterialFile struct {
+	ID           uint64    `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
+	AssignmentID uint64    `json:"assignmentId" gorm:"column:assignment_id;type:bigint unsigned;not null;index:idx_assignment_material_assignment"`
+	UploaderID   uint64    `json:"uploaderId" gorm:"column:uploader_id;type:bigint unsigned;not null;index:idx_assignment_material_uploader"`
+	FileName     string    `json:"fileName" gorm:"column:file_name;size:255;not null"`
+	StoragePath  string    `json:"-" gorm:"column:storage_path;size:500;not null;uniqueIndex:uk_assignment_material_path"`
+	ContentType  string    `json:"contentType" gorm:"column:content_type;size:100;not null"`
+	Size         int64     `json:"size" gorm:"type:bigint;not null"`
+	CreatedAt    time.Time `json:"createdAt" gorm:"column:created_at;type:datetime;not null;default:CURRENT_TIMESTAMP"`
+}
+
+func (AssignmentMaterialFile) TableName() string { return "assignment_material_files" }
 
 type AssignmentReview struct {
 	ID           uint64    `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`

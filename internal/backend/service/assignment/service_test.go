@@ -233,6 +233,9 @@ func TestCreateInputUsesShanghaiDeadlineAndRejectsPastTime(t *testing.T) {
 	if _, err := normalizeCreateInput(CreateInput{GroupID: 1, Title: "作业", Description: "说明", DueAt: now.Add(-time.Minute), IsGroupWide: true}, now); err == nil {
 		t.Fatal("past deadline was accepted")
 	}
+	if _, err := normalizeCreateInput(CreateInput{GroupID: 1, Title: "作业", Description: "说明", DueAt: now, IsGroupWide: true}, now); err == nil {
+		t.Fatal("deadline equal to current time was accepted")
+	}
 }
 
 func TestAssignmentStateKeepsSubmissionAndReviewOutcomesDistinct(t *testing.T) {
@@ -272,6 +275,139 @@ func TestValidateUploadsAcceptsPDFAndOfficeArchiveAndRejectsMismatchedContent(t 
 	if _, err := validateUploads(make([]*multipart.FileHeader, maxAssignmentFiles+1)); err == nil {
 		t.Fatal("too many attachments were accepted")
 	}
+}
+
+func TestTeachingMaterialUploadAcceptsSupportedFormatsAndEnforcesSizeLimits(t *testing.T) {
+	archive := []byte{'P', 'K', 3, 4, 0, 0, 0, 0}
+	office := []byte{0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1}
+	tests := []struct {
+		name    string
+		content []byte
+	}{
+		{"资料.pdf", []byte("%PDF-1.7\n")},
+		{"资料.doc", office}, {"资料.docx", archive},
+		{"资料.ppt", office}, {"资料.pptx", archive},
+		{"资料.xls", office}, {"资料.xlsx", archive},
+		{"图片.jpg", []byte{0xff, 0xd8, 0xff, 0}}, {"图片.jpeg", []byte{0xff, 0xd8, 0xff, 0}},
+		{"图片.png", []byte{0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a}},
+		{"图片.gif", []byte("GIF89a")}, {"图片.webp", []byte("RIFF0000WEBP")},
+		{"说明.txt", []byte("plain text")}, {"说明.md", []byte("# markdown")},
+		{"资料.zip", archive}, {"资料.7z", []byte{0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c}},
+		{"资料.rar", []byte{'R', 'a', 'r', '!', 0x1a, 0x07, 0}},
+	}
+	for _, item := range tests {
+		t.Run(item.name, func(t *testing.T) {
+			if _, err := validateUploads([]*multipart.FileHeader{multipartHeader(t, item.name, item.content)}); err != nil {
+				t.Fatalf("supported teaching material rejected: %v", err)
+			}
+		})
+	}
+
+	tooLarge := &multipart.FileHeader{Filename: "large.pdf", Size: maxAssignmentFileSize + 1}
+	if _, err := validateUploads([]*multipart.FileHeader{tooLarge}); err == nil {
+		t.Fatal("single file over 20 MB was accepted")
+	}
+	tooMany := make([]*multipart.FileHeader, maxAssignmentFiles+1)
+	for index := range tooMany {
+		tooMany[index] = &multipart.FileHeader{Filename: "small.txt", Size: 1}
+	}
+	if _, err := validateUploads(tooMany); err == nil {
+		t.Fatal("more than ten teaching materials were accepted")
+	}
+	tooMuchTotal := []*multipart.FileHeader{
+		{Filename: "one.pdf", Size: 18 << 20},
+		{Filename: "two.pdf", Size: 18 << 20},
+		{Filename: "three.pdf", Size: 18 << 20},
+	}
+	if _, err := validateUploads(tooMuchTotal); err == nil {
+		t.Fatal("teaching materials above the 50 MB total limit were accepted")
+	}
+}
+
+func TestMemberCannotDownloadTeachingMaterialForUnassignedWork(t *testing.T) {
+	db, mock := newAssignmentMockGorm(t)
+	created := time.Date(2026, 10, 19, 10, 0, 0, 0, time.UTC)
+	mock.ExpectQuery("(?s)SELECT \\* FROM `assignment_material_files` WHERE .*id` = \\? ORDER BY.*LIMIT \\?").
+		WithArgs(uint64(71), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "assignment_id", "uploader_id", "file_name", "storage_path", "content_type", "size", "created_at"}).
+			AddRow(71, 91, 8, "资料.pdf", "91/8/file.pdf", "application/pdf", 12, created))
+	mock.ExpectQuery("(?s)SELECT \\* FROM `assignments` WHERE .*id` = \\? ORDER BY.*LIMIT \\?").
+		WithArgs(uint64(91), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "creator_id", "title", "description", "due_at", "attachment_requirements", "is_group_wide", "created_at", "updated_at"}).
+			AddRow(91, 41, 8, "作业", "说明", created.Add(time.Hour), "", true, created, created))
+	expectTechnicalGroupIDs(mock, 22, 41)
+	mock.ExpectQuery("(?s)SELECT count\\(\\*\\) FROM `assignment_targets` WHERE assignment_id = \\? AND user_id = \\?").
+		WithArgs(uint64(91), uint64(22)).WillReturnRows(sqlmock.NewRows([]string{"count(*)"}).AddRow(0))
+	service := &Service{db: db}
+	_, err := service.OpenMaterialFile(context.Background(), Actor{ID: 22, RoleName: model.RoleNameUser}, 71)
+	assertAssignmentStatus(t, err, 404)
+}
+
+func TestAssignedMemberCanDownloadPrivateTeachingMaterial(t *testing.T) {
+	db, mock := newAssignmentMockGorm(t)
+	created := time.Date(2026, 10, 19, 10, 0, 0, 0, time.UTC)
+	mock.ExpectQuery("(?s)SELECT \\* FROM `assignment_material_files` WHERE .*id` = \\? ORDER BY.*LIMIT \\?").
+		WithArgs(uint64(71), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "assignment_id", "uploader_id", "file_name", "storage_path", "content_type", "size", "created_at"}).
+			AddRow(71, 91, 8, "资料.pdf", "91/8/file.pdf", "application/pdf", 12, created))
+	mock.ExpectQuery("(?s)SELECT \\* FROM `assignments` WHERE .*id` = \\? ORDER BY.*LIMIT \\?").
+		WithArgs(uint64(91), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "creator_id", "title", "description", "due_at", "attachment_requirements", "is_group_wide", "created_at", "updated_at"}).
+			AddRow(91, 41, 8, "作业", "说明", created.Add(time.Hour), "", true, created, created))
+	expectTechnicalGroupIDs(mock, 22, 41)
+	mock.ExpectQuery("(?s)SELECT count\\(\\*\\) FROM `assignment_targets` WHERE assignment_id = \\? AND user_id = \\?").
+		WithArgs(uint64(91), uint64(22)).WillReturnRows(sqlmock.NewRows([]string{"count(*)"}).AddRow(1))
+	root := t.TempDir()
+	filePath := filepath.Join(root, "91/8/file.pdf")
+	if err := os.MkdirAll(filepath.Dir(filePath), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filePath, []byte("teaching material"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	store, err := newAssignmentFileStore(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := &Service{db: db, materials: store}
+	download, err := service.OpenMaterialFile(context.Background(), Actor{ID: 22, RoleName: model.RoleNameUser}, 71)
+	if err != nil || string(download.Content) != "teaching material" {
+		t.Fatalf("assigned member could not download material: download=%v err=%v", download, err)
+	}
+}
+
+func TestTeachingMaterialsAreLockedAfterFirstSubmission(t *testing.T) {
+	db, mock := newAssignmentMockGorm(t)
+	created := time.Date(2026, 10, 19, 10, 0, 0, 0, time.UTC)
+	mock.ExpectBegin()
+	mock.ExpectQuery("(?s)SELECT \\* FROM `assignments` WHERE .*id` = \\? ORDER BY.*LIMIT \\? FOR UPDATE").
+		WithArgs(uint64(91), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "creator_id", "title", "description", "due_at", "attachment_requirements", "is_group_wide", "created_at", "updated_at"}).
+			AddRow(91, 41, 8, "作业", "说明", created.Add(time.Hour), "", true, created, created))
+	expectTechnicalGroupIDs(mock, 8, 41)
+	mock.ExpectQuery("(?s)SELECT count\\(\\*\\) FROM `assignment_submissions` WHERE assignment_id = \\?").
+		WithArgs(uint64(91)).WillReturnRows(sqlmock.NewRows([]string{"count(*)"}).AddRow(1))
+	mock.ExpectRollback()
+	service := &Service{db: db}
+	_, err := service.UploadMaterialFiles(context.Background(), Actor{ID: 8, RoleName: model.RoleNameAdmin}, 91,
+		[]*multipart.FileHeader{multipartHeader(t, "资料.pdf", []byte("%PDF-1.7\n"))})
+	assertAssignmentStatus(t, err, 409)
+}
+
+func TestGroupAdminCannotUploadTeachingMaterialsToAnotherGroup(t *testing.T) {
+	db, mock := newAssignmentMockGorm(t)
+	created := time.Date(2026, 10, 19, 10, 0, 0, 0, time.UTC)
+	mock.ExpectBegin()
+	mock.ExpectQuery("(?s)SELECT \\* FROM `assignments` WHERE .*id` = \\? ORDER BY.*LIMIT \\? FOR UPDATE").
+		WithArgs(uint64(91), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "creator_id", "title", "description", "due_at", "attachment_requirements", "is_group_wide", "created_at", "updated_at"}).
+			AddRow(91, 42, 8, "跨组作业", "说明", created.Add(time.Hour), "", true, created, created))
+	expectTechnicalGroupIDs(mock, 8, 41)
+	mock.ExpectRollback()
+	service := &Service{db: db}
+	_, err := service.UploadMaterialFiles(context.Background(), Actor{ID: 8, RoleName: model.RoleNameAdmin}, 91,
+		[]*multipart.FileHeader{multipartHeader(t, "资料.pdf", []byte("%PDF-1.7\n"))})
+	assertAssignmentStatus(t, err, 403)
 }
 
 func TestFileStoreKeepsFilesInsidePrivateRootAndUsesOpaqueNames(t *testing.T) {

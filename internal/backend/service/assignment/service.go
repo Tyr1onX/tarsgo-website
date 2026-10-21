@@ -2,10 +2,14 @@ package assignment
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"mime/multipart"
 	"net/http"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -31,9 +35,10 @@ var (
 )
 
 type Service struct {
-	db    *gorm.DB
-	files *assignmentFileStore
-	now   func() time.Time
+	db        *gorm.DB
+	files     *assignmentFileStore
+	materials *assignmentFileStore
+	now       func() time.Time
 }
 
 type Actor struct {
@@ -65,6 +70,15 @@ type FileView struct {
 	DownloadURL string `json:"downloadUrl"`
 }
 
+type MaterialFileView struct {
+	ID          uint64    `json:"id"`
+	FileName    string    `json:"fileName"`
+	ContentType string    `json:"contentType"`
+	Size        int64     `json:"size"`
+	DownloadURL string    `json:"downloadUrl"`
+	CreatedAt   time.Time `json:"createdAt"`
+}
+
 type ReviewView struct {
 	ID         uint64    `json:"id"`
 	ReviewerID uint64    `json:"reviewerId"`
@@ -86,23 +100,29 @@ type SubmissionView struct {
 }
 
 type AssignmentView struct {
-	ID                     uint64          `json:"id"`
-	GroupID                uint64          `json:"groupId"`
-	GroupName              string          `json:"groupName"`
-	CreatorID              uint64          `json:"creatorId"`
-	Title                  string          `json:"title"`
-	Description            string          `json:"description"`
-	DueAt                  time.Time       `json:"dueAt"`
-	AttachmentRequirements string          `json:"attachmentRequirements"`
-	IsGroupWide            bool            `json:"isGroupWide"`
-	CreatedAt              time.Time       `json:"createdAt"`
-	Status                 string          `json:"status,omitempty"`
-	IsLate                 bool            `json:"isLate,omitempty"`
-	TargetCount            int             `json:"targetCount"`
-	SubmittedCount         int             `json:"submittedCount"`
-	ReviewedCount          int             `json:"reviewedCount"`
-	PassedCount            int             `json:"passedCount"`
-	LatestSubmission       *SubmissionView `json:"latestSubmission,omitempty"`
+	ID                     uint64             `json:"id"`
+	GroupID                uint64             `json:"groupId"`
+	GroupName              string             `json:"groupName"`
+	CreatorID              uint64             `json:"creatorId"`
+	Title                  string             `json:"title"`
+	Description            string             `json:"description"`
+	DueAt                  time.Time          `json:"dueAt"`
+	AttachmentRequirements string             `json:"attachmentRequirements"`
+	IsGroupWide            bool               `json:"isGroupWide"`
+	CreatedAt              time.Time          `json:"createdAt"`
+	Status                 string             `json:"status,omitempty"`
+	IsLate                 bool               `json:"isLate,omitempty"`
+	TargetCount            int                `json:"targetCount"`
+	SubmittedCount         int                `json:"submittedCount"`
+	ReviewedCount          int                `json:"reviewedCount"`
+	PassedCount            int                `json:"passedCount"`
+	LatestSubmission       *SubmissionView    `json:"latestSubmission,omitempty"`
+	MaterialFiles          []MaterialFileView `json:"materialFiles,omitempty"`
+}
+
+type AssignmentPublishResult struct {
+	Assignment    AssignmentView     `json:"assignment"`
+	MaterialFiles []MaterialFileView `json:"materialFiles"`
 }
 
 type MyAssignmentDetail struct {
@@ -151,19 +171,27 @@ func (e *ServiceError) Error() string {
 func (e *ServiceError) Unwrap() error { return e.Err }
 
 func NewService(db *gorm.DB) *Service {
-	files, err := newAssignmentFileStore("")
+	service, err := newServiceWithFileRoots(db, "", filepath.Join("upload", "assignment-materials"))
 	if err != nil {
 		panic(err)
 	}
-	return &Service{db: db, files: files, now: time.Now}
+	return service
 }
 
 func NewServiceWithFileRoot(db *gorm.DB, root string) (*Service, error) {
-	files, err := newAssignmentFileStore(root)
+	return newServiceWithFileRoots(db, root, filepath.Join(root, "materials"))
+}
+
+func newServiceWithFileRoots(db *gorm.DB, submissionRoot, materialRoot string) (*Service, error) {
+	files, err := newAssignmentFileStore(submissionRoot)
 	if err != nil {
 		return nil, err
 	}
-	return &Service{db: db, files: files, now: time.Now}, nil
+	materials, err := newAssignmentFileStore(materialRoot)
+	if err != nil {
+		return nil, err
+	}
+	return &Service{db: db, files: files, materials: materials, now: time.Now}, nil
 }
 
 func (s *Service) ListMine(ctx context.Context, actor Actor) ([]AssignmentView, error) {
@@ -228,6 +256,10 @@ func (s *Service) GetMine(ctx context.Context, actor Actor, assignmentID uint64)
 		return nil, internalError("读取作业提交记录失败", err)
 	}
 	view := memberAssignmentView(item, groupName, history, s.now())
+	view.MaterialFiles, err = s.loadMaterialFiles(ctx, item.ID)
+	if err != nil {
+		return nil, internalError("读取教学资料失败", err)
+	}
 	return &MyAssignmentDetail{Assignment: view, Submissions: history}, nil
 }
 
@@ -338,7 +370,12 @@ func (s *Service) GetAdmin(ctx context.Context, actor Actor, assignmentID uint64
 	for _, user := range users {
 		usersByID[user.ID] = user
 	}
+	materialFiles, err := s.loadMaterialFiles(ctx, item.ID)
+	if err != nil {
+		return nil, internalError("读取教学资料失败", err)
+	}
 	view := AdminAssignmentDetail{Assignment: assignmentView(item, groupName), Members: make([]AssignmentMemberView, 0, len(targets))}
+	view.Assignment.MaterialFiles = materialFiles
 	for _, target := range targets {
 		user, exists := usersByID[target.UserID]
 		if !exists {
@@ -423,6 +460,212 @@ func (s *Service) Create(ctx context.Context, actor Actor, input CreateInput) (*
 	view := assignmentView(item, groupName)
 	view.TargetCount = len(userIDs)
 	return &view, nil
+}
+
+// CreateWithMaterialFiles publishes the assignment and its teaching materials
+// in one transaction. The assignment remains invisible to members until the
+// complete set of files and metadata has been stored and the transaction commits.
+func (s *Service) CreateWithMaterialFiles(ctx context.Context, actor Actor, input CreateInput, requestID string, headers []*multipart.FileHeader) (*AssignmentPublishResult, error) {
+	if err := requireAdmin(actor); err != nil {
+		return nil, err
+	}
+	requestID = strings.TrimSpace(requestID)
+	if !validPublishRequestID(requestID) {
+		return nil, badRequest("发布请求标识无效，请重新提交")
+	}
+	input, err := normalizeCreateInput(input, s.now())
+	if err != nil {
+		return nil, err
+	}
+	validated, err := validateUploads(headers)
+	if err != nil {
+		return nil, err
+	}
+	for index := range validated {
+		validated[index].contentHash, err = hashAssignmentUpload(validated[index].header)
+		if err != nil {
+			return nil, badRequest("附件内容读取失败，请重新选择文件")
+		}
+	}
+	requestHash, err := assignmentPublishHash(input, validated)
+	if err != nil {
+		return nil, internalError("计算发布请求校验值失败", err)
+	}
+
+	var item model.Assignment
+	var userIDs []uint64
+	var storedPaths []string
+	now := s.now().UTC()
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var existing model.Assignment
+		findErr := tx.Where("publish_request_id = ?", requestID).First(&existing).Error
+		if findErr == nil {
+			if existing.CreatorID != actor.ID {
+				return forbidden("无权使用该发布请求标识")
+			}
+			if existing.PublishRequestHash == nil || *existing.PublishRequestHash != requestHash {
+				return conflict("发布请求内容已变化，请取消后重新发布")
+			}
+			if err := s.requireManagerGroupAccessWithDB(tx, actor, existing.GroupID); err != nil {
+				return err
+			}
+			item = existing
+			return nil
+		}
+		if !errors.Is(findErr, gorm.ErrRecordNotFound) {
+			return findErr
+		}
+		if err := s.requireManagerGroupAccessWithDB(tx, actor, input.GroupID); err != nil {
+			return err
+		}
+		resolved, err := s.resolveTargetsWithDB(tx, input.GroupID, input.IsGroupWide, input.TargetUserIDs)
+		if err != nil {
+			return err
+		}
+		userIDs = resolved
+		requestIDCopy, requestHashCopy := requestID, requestHash
+		item = model.Assignment{
+			PublishRequestID: &requestIDCopy, PublishRequestHash: &requestHashCopy,
+			GroupID: input.GroupID, CreatorID: actor.ID, Title: input.Title, Description: input.Description,
+			DueAt: storeUTCWall(input.DueAt), AttachmentRequirements: input.AttachmentRequirements, IsGroupWide: input.IsGroupWide,
+			CreatedAt: now, UpdatedAt: now,
+		}
+		if err := tx.Create(&item).Error; err != nil {
+			return err
+		}
+		targets := make([]model.AssignmentTarget, 0, len(userIDs))
+		for _, userID := range userIDs {
+			targets = append(targets, model.AssignmentTarget{AssignmentID: item.ID, UserID: userID})
+		}
+		if err := tx.Create(&targets).Error; err != nil {
+			return err
+		}
+
+		materialFiles := make([]model.AssignmentMaterialFile, 0, len(validated))
+		for _, upload := range validated {
+			stored, err := s.materials.save(ctx, item.ID, actor.ID, upload, now)
+			if err != nil {
+				return err
+			}
+			storedPaths = append(storedPaths, stored.storagePath)
+			materialFiles = append(materialFiles, model.AssignmentMaterialFile{
+				AssignmentID: item.ID, UploaderID: actor.ID, FileName: stored.fileName,
+				StoragePath: stored.storagePath, ContentType: stored.contentType, Size: stored.size, CreatedAt: now,
+			})
+		}
+		return tx.Create(&materialFiles).Error
+	})
+	if err != nil {
+		for _, path := range storedPaths {
+			_ = s.materials.remove(path)
+		}
+		// A concurrent retry may have committed while this transaction was
+		// waiting on the unique idempotency key. Return that result only when
+		// both the creator and the complete request fingerprint match.
+		if existing, lookupErr := s.findPublishedRequest(ctx, actor, requestID, requestHash); lookupErr == nil && existing != nil {
+			return existing, nil
+		} else if lookupErr != nil {
+			var serviceErr *ServiceError
+			if errors.As(lookupErr, &serviceErr) {
+				return nil, serviceErr
+			}
+		}
+		var serviceErr *ServiceError
+		if errors.As(err, &serviceErr) {
+			return nil, serviceErr
+		}
+		return nil, internalError("发布作业及教学资料失败", err)
+	}
+
+	result, err := s.buildPublishedResult(ctx, item, userIDs)
+	if err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func (s *Service) findPublishedRequest(ctx context.Context, actor Actor, requestID, requestHash string) (*AssignmentPublishResult, error) {
+	var item model.Assignment
+	if err := s.db.WithContext(ctx).Where("publish_request_id = ?", requestID).First(&item).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, internalError("核对作业发布状态失败", err)
+	}
+	if item.CreatorID != actor.ID {
+		return nil, forbidden("无权使用该发布请求标识")
+	}
+	if item.PublishRequestHash == nil || *item.PublishRequestHash != requestHash {
+		return nil, conflict("发布请求内容已变化，请取消后重新发布")
+	}
+	if err := s.requireManagerGroupAccess(ctx, actor, item.GroupID); err != nil {
+		return nil, err
+	}
+	return s.buildPublishedResult(ctx, item, nil)
+}
+
+func (s *Service) buildPublishedResult(ctx context.Context, item model.Assignment, userIDs []uint64) (*AssignmentPublishResult, error) {
+	view, err := s.adminSummary(ctx, item)
+	if err != nil {
+		return nil, internalError("读取已发布作业统计失败", err)
+	}
+	if userIDs != nil {
+		view.TargetCount = len(userIDs)
+	}
+	materialFiles, err := s.loadMaterialFiles(ctx, item.ID)
+	if err != nil {
+		return nil, internalError("读取已发布教学资料失败", err)
+	}
+	return &AssignmentPublishResult{Assignment: view, MaterialFiles: materialFiles}, nil
+}
+
+func validPublishRequestID(value string) bool {
+	if len(value) != 36 || value[8] != '-' || value[13] != '-' || value[18] != '-' || value[23] != '-' {
+		return false
+	}
+	for index, char := range value {
+		if index == 8 || index == 13 || index == 18 || index == 23 {
+			continue
+		}
+		if !((char >= '0' && char <= '9') || (char >= 'a' && char <= 'f')) {
+			return false
+		}
+	}
+	return true
+}
+
+func assignmentPublishHash(input CreateInput, files []validatedUpload) (string, error) {
+	targetIDs := append([]uint64(nil), input.TargetUserIDs...)
+	sort.Slice(targetIDs, func(i, j int) bool { return targetIDs[i] < targetIDs[j] })
+	type fileFingerprint struct {
+		Name string `json:"name"`
+		Size int64  `json:"size"`
+		Hash string `json:"hash"`
+	}
+	fingerprints := make([]fileFingerprint, 0, len(files))
+	for _, file := range files {
+		fingerprints = append(fingerprints, fileFingerprint{Name: file.fileName, Size: file.header.Size, Hash: file.contentHash})
+	}
+	request := struct {
+		GroupID                uint64            `json:"groupId"`
+		Title                  string            `json:"title"`
+		Description            string            `json:"description"`
+		DueAt                  string            `json:"dueAt"`
+		AttachmentRequirements string            `json:"attachmentRequirements"`
+		IsGroupWide            bool              `json:"isGroupWide"`
+		TargetUserIDs          []uint64          `json:"targetUserIds"`
+		Files                  []fileFingerprint `json:"files"`
+	}{
+		GroupID: input.GroupID, Title: input.Title, Description: input.Description,
+		DueAt: input.DueAt.UTC().Format(time.RFC3339Nano), AttachmentRequirements: input.AttachmentRequirements,
+		IsGroupWide: input.IsGroupWide, TargetUserIDs: targetIDs, Files: fingerprints,
+	}
+	body, err := json.Marshal(request)
+	if err != nil {
+		return "", err
+	}
+	hash := sha256.Sum256(body)
+	return hex.EncodeToString(hash[:]), nil
 }
 
 func (s *Service) Update(ctx context.Context, actor Actor, assignmentID uint64, input CreateInput) (*AssignmentView, error) {
@@ -674,6 +917,177 @@ func (s *Service) OpenFile(ctx context.Context, actor Actor, fileID uint64) (*Do
 		return nil, internalError("读取附件失败", err)
 	}
 	return &Download{FileName: file.FileName, ContentType: file.ContentType, Content: content}, nil
+}
+
+func (s *Service) UploadMaterialFiles(ctx context.Context, actor Actor, assignmentID uint64, headers []*multipart.FileHeader) ([]MaterialFileView, error) {
+	if err := requireAdmin(actor); err != nil {
+		return nil, err
+	}
+	validated, err := validateUploads(headers)
+	if err != nil {
+		return nil, err
+	}
+	storedPaths := make([]string, 0, len(validated))
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var item model.Assignment
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&item, assignmentID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return notFound("作业不存在")
+			}
+			return err
+		}
+		if err := s.requireManagerGroupAccessWithDB(tx, actor, item.GroupID); err != nil {
+			return err
+		}
+		var submissionCount int64
+		if err := tx.Model(&model.AssignmentSubmission{}).Where("assignment_id = ?", item.ID).Count(&submissionCount).Error; err != nil {
+			return err
+		}
+		if submissionCount > 0 {
+			return conflict("已有成员提交，不能再修改教学资料")
+		}
+		var existing []model.AssignmentMaterialFile
+		if err := tx.Where("assignment_id = ?", item.ID).Find(&existing).Error; err != nil {
+			return err
+		}
+		if len(existing)+len(validated) > maxAssignmentFiles {
+			return badRequest("教学资料最多 10 个文件")
+		}
+		totalSize := int64(0)
+		for _, file := range existing {
+			totalSize += file.Size
+		}
+		for _, upload := range validated {
+			totalSize += upload.header.Size
+		}
+		if totalSize > maxAssignmentFilesTotal {
+			return badRequest("教学资料总大小不能超过 50 MB")
+		}
+
+		now := s.now().UTC()
+		files := make([]model.AssignmentMaterialFile, 0, len(validated))
+		for _, upload := range validated {
+			stored, err := s.materials.save(ctx, item.ID, actor.ID, upload, now)
+			if err != nil {
+				return err
+			}
+			storedPaths = append(storedPaths, stored.storagePath)
+			files = append(files, model.AssignmentMaterialFile{
+				AssignmentID: item.ID, UploaderID: actor.ID, FileName: stored.fileName,
+				StoragePath: stored.storagePath, ContentType: stored.contentType, Size: stored.size, CreatedAt: now,
+			})
+		}
+		return tx.Create(&files).Error
+	})
+	if err != nil {
+		for _, path := range storedPaths {
+			_ = s.materials.remove(path)
+		}
+		var serviceErr *ServiceError
+		if errors.As(err, &serviceErr) {
+			return nil, serviceErr
+		}
+		return nil, internalError("上传教学资料失败", err)
+	}
+	return s.loadMaterialFiles(ctx, assignmentID)
+}
+
+func (s *Service) RemoveMaterialFile(ctx context.Context, actor Actor, assignmentID, fileID uint64) ([]MaterialFileView, error) {
+	if err := requireAdmin(actor); err != nil {
+		return nil, err
+	}
+	var removed model.AssignmentMaterialFile
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var item model.Assignment
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&item, assignmentID).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return notFound("作业不存在")
+			}
+			return err
+		}
+		if err := s.requireManagerGroupAccessWithDB(tx, actor, item.GroupID); err != nil {
+			return err
+		}
+		var submissionCount int64
+		if err := tx.Model(&model.AssignmentSubmission{}).Where("assignment_id = ?", item.ID).Count(&submissionCount).Error; err != nil {
+			return err
+		}
+		if submissionCount > 0 {
+			return conflict("已有成员提交，不能删除教学资料")
+		}
+		if err := tx.Where("id = ? AND assignment_id = ?", fileID, item.ID).First(&removed).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return notFound("教学资料不存在")
+			}
+			return err
+		}
+		return tx.Delete(&removed).Error
+	})
+	if err != nil {
+		var serviceErr *ServiceError
+		if errors.As(err, &serviceErr) {
+			return nil, serviceErr
+		}
+		return nil, internalError("移除教学资料失败", err)
+	}
+	if err := s.materials.remove(removed.StoragePath); err != nil {
+		return nil, internalError("教学资料记录已移除，但附件文件清理失败", err)
+	}
+	return s.loadMaterialFiles(ctx, assignmentID)
+}
+
+func (s *Service) OpenMaterialFile(ctx context.Context, actor Actor, fileID uint64) (*Download, error) {
+	var file model.AssignmentMaterialFile
+	if err := s.db.WithContext(ctx).First(&file, fileID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, notFound("教学资料不存在")
+		}
+		return nil, internalError("读取教学资料信息失败", err)
+	}
+	var item model.Assignment
+	if err := s.db.WithContext(ctx).First(&item, file.AssignmentID).Error; err != nil {
+		return nil, internalError("读取教学资料作业失败", err)
+	}
+	switch actor.RoleName {
+	case model.RoleNameAdmin, model.RoleNameSuperAdmin:
+		if err := s.requireManagerGroupAccess(ctx, actor, item.GroupID); err != nil {
+			return nil, err
+		}
+	case model.RoleNameUser:
+		if err := s.requireGroupAccess(ctx, actor.ID, item.GroupID); err != nil {
+			return nil, err
+		}
+		var targetCount int64
+		if err := s.db.WithContext(ctx).Model(&model.AssignmentTarget{}).
+			Where("assignment_id = ? AND user_id = ?", item.ID, actor.ID).Count(&targetCount).Error; err != nil {
+			return nil, internalError("校验教学资料访问权限失败", err)
+		}
+		if targetCount == 0 {
+			return nil, notFound("教学资料不存在")
+		}
+	default:
+		return nil, forbidden("无权下载教学资料")
+	}
+	content, err := s.materials.open(file.StoragePath)
+	if err != nil {
+		return nil, internalError("读取教学资料失败", err)
+	}
+	return &Download{FileName: file.FileName, ContentType: file.ContentType, Content: content}, nil
+}
+
+func (s *Service) loadMaterialFiles(ctx context.Context, assignmentID uint64) ([]MaterialFileView, error) {
+	var files []model.AssignmentMaterialFile
+	if err := s.db.WithContext(ctx).Where("assignment_id = ?", assignmentID).Order("id ASC").Find(&files).Error; err != nil {
+		return nil, err
+	}
+	result := make([]MaterialFileView, 0, len(files))
+	for _, file := range files {
+		result = append(result, MaterialFileView{
+			ID: file.ID, FileName: file.FileName, ContentType: file.ContentType,
+			Size: file.Size, DownloadURL: fmt.Sprintf("/api/assignment-materials/%d", file.ID), CreatedAt: file.CreatedAt,
+		})
+	}
+	return result, nil
 }
 
 func (s *Service) adminSummary(ctx context.Context, item model.Assignment) (AssignmentView, error) {
@@ -937,7 +1351,13 @@ func memberStatus(history []SubmissionView, dueAt, now time.Time) string {
 	return "submitted"
 }
 
-func storeUTCWall(value time.Time) time.Time { return value.UTC() }
+func storeUTCWall(value time.Time) time.Time {
+	utc := value.UTC()
+	// The MySQL driver converts time.Time into loc=Local before writing DATETIME.
+	// Keep the UTC wall-clock fields while using that same location so the row
+	// round-trips unchanged on hosts outside UTC as well.
+	return time.Date(utc.Year(), utc.Month(), utc.Day(), utc.Hour(), utc.Minute(), utc.Second(), utc.Nanosecond(), time.Local)
+}
 
 // MySQL DATETIME has no timezone. Assignment due times are stored as UTC wall-clock values.
 func readStoredUTCWall(value time.Time) time.Time {
