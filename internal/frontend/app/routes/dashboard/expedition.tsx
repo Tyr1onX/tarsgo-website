@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Link, useOutletContext, useSearchParams } from "react-router";
 
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
@@ -71,12 +71,12 @@ function ZoneGlyph({ id, className = "" }: { id: ExpeditionFacilityId; className
   );
 }
 
-function ExpeditionMap({ selectedId, onSelect, masteredFacilityIds, hasPersonalRecord, acceptedEvolutionTargets, hasAcceptedJoint }: { selectedId: ExpeditionFacilityId; onSelect: (id: ExpeditionFacilityId) => void; masteredFacilityIds: readonly ExpeditionFacilityId[]; hasPersonalRecord: boolean; acceptedEvolutionTargets: readonly ExpeditionEvolutionTarget[]; hasAcceptedJoint: boolean }) {
+function ExpeditionMap({ selectedId, onSelect, masteredFacilityIds, hasPersonalRecord, acceptedEvolutionTargets, hasAcceptedJoint, detailsOpen, children }: { selectedId: ExpeditionFacilityId; onSelect: (id: ExpeditionFacilityId) => void; masteredFacilityIds: readonly ExpeditionFacilityId[]; hasPersonalRecord: boolean; acceptedEvolutionTargets: readonly ExpeditionEvolutionTarget[]; hasAcceptedJoint: boolean; detailsOpen: boolean; children?: ReactNode }) {
   const stateClass = (id: ExpeditionFacilityId) => masteredFacilityIds.includes(id) ? "has-mastered" : "";
   const selectedFacility = FACILITIES.find((facility) => facility.id === selectedId) ?? FACILITIES[0];
   return (
-    <div className="expedition-map" aria-label="可探索的基地设施" data-selected={selectedId} data-season-joint={hasAcceptedJoint}>
-      <svg className="expedition-map__art" viewBox="0 0 1000 850" role="img" aria-label="总装机库与五座专业设施以道路相连的等距基地地图">
+    <div className="expedition-map" aria-label="可探索的基地设施" data-selected={selectedId} data-focused={detailsOpen} data-season-joint={hasAcceptedJoint}>
+      <svg className="expedition-map__art" style={{ transformOrigin: `${selectedFacility.x}% ${selectedFacility.y}%` }} viewBox="0 0 1000 850" role="img" aria-label="总装机库与五座专业设施以道路相连的等距基地地图">
         <defs>
           <linearGradient id="base-ground" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stopColor="#202b2a" /><stop offset=".52" stopColor="#111918" /><stop offset="1" stopColor="#0a1010" /></linearGradient>
           <linearGradient id="base-platform" x1=".2" x2=".85" y1="0" y2="1"><stop offset="0" stopColor="#394643" /><stop offset=".42" stopColor="#202b29" /><stop offset="1" stopColor="#141c1b" /></linearGradient>
@@ -328,11 +328,12 @@ function ExpeditionMap({ selectedId, onSelect, masteredFacilityIds, hasPersonalR
 
       <span className="expedition-map__focus-field" aria-hidden="true" style={{ left: `${selectedFacility.x}%`, top: `${selectedFacility.y}%` }} />
 
-      <div className="expedition-map__pins">
+      <div className="expedition-map__pins" style={{ transformOrigin: `${selectedFacility.x}% ${selectedFacility.y}%` }}>
         {FACILITIES.map((facility) => (
           <button
             className={`expedition-map__pin ${selectedId === facility.id ? "is-selected" : ""}`}
             key={facility.id}
+            data-facility={facility.id}
             type="button"
             style={{ left: `${facility.x}%`, top: `${facility.y}%` }}
             onClick={() => onSelect(facility.id)}
@@ -344,6 +345,7 @@ function ExpeditionMap({ selectedId, onSelect, masteredFacilityIds, hasPersonalR
           </button>
         ))}
       </div>
+      {children}
     </div>
   );
 }
@@ -391,13 +393,24 @@ export default function ExpeditionRoute() {
   const skillMember = hasSkillGroupAccess(groupResolution?.groups);
   const canReadBase = skillMember || currentUser.role.name === "super_admin";
   const [selectedId, setSelectedId] = useState<ExpeditionFacilityId>(() => getPrimaryFacilityId(groupNames));
+  const [detailMode, setDetailMode] = useState<"closed" | "collapsed" | "expanded">("closed");
   const [refreshKey, setRefreshKey] = useState(0);
   const [data, setData] = useState<ExpeditionData>(EMPTY_DATA);
   const requestId = useRef(0);
 
   useEffect(() => {
     setSelectedId(getPrimaryFacilityId(groupNames));
+    setDetailMode("closed");
   }, [groupKey]);
+
+  useEffect(() => {
+    if (detailMode === "closed") return;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDetailMode("closed");
+    };
+    window.addEventListener("keydown", closeOnEscape);
+    return () => window.removeEventListener("keydown", closeOnEscape);
+  }, [detailMode]);
 
   useEffect(() => {
     const activeRequest = ++requestId.current;
@@ -458,6 +471,11 @@ export default function ExpeditionRoute() {
     setSearchParams(next);
   };
 
+  const exploreFacility = (facilityId: ExpeditionFacilityId) => {
+    setSelectedId(facilityId);
+    setDetailMode("expanded");
+  };
+
   const selectedFacility = FACILITIES.find((facility) => facility.id === selectedId) ?? FACILITIES[0];
   const isMemberOfSelectedGroup = selectedFacility.groupName === null || groupNames.includes(selectedFacility.groupName);
   const activeSkillGroup = facilityGroupProgress(selectedFacility, data.skills);
@@ -509,7 +527,7 @@ export default function ExpeditionRoute() {
   if (!canReadBase) {
     return (
       <section className="expedition-page admin-design" aria-labelledby="expedition-title">
-        <header className="expedition-heading"><p>TARS BASE <span>·</span> SEASON EXPEDITION</p><h1 id="expedition-title">赛季远征</h1></header>
+        <header className="expedition-heading expedition-heading--brand"><div><h1 id="expedition-title">TARS BASE</h1><span>赛季远征</span></div></header>
         <div className="expedition-access-state" role="status">
           <span className="expedition-access-state__mark" aria-hidden="true">⌁</span>
           <h2>{groupResolutionError ? "基地权限暂不可确认" : "基地尚未开放"}</h2>
@@ -523,8 +541,8 @@ export default function ExpeditionRoute() {
     <section className="expedition-page admin-design" aria-labelledby="expedition-title">
       <header className="expedition-heading">
         <div>
-          <p>TARS BASE <span>·</span> SEASON EXPEDITION</p>
-          <h1 id="expedition-title">赛季远征</h1>
+          <p className="expedition-heading__kicker">SEASON EXPEDITION <span>·</span> 赛季远征</p>
+          <h1 id="expedition-title">TARS BASE</h1>
           <div className="expedition-heading__identity">
             <strong>{data.profile?.displayName ?? currentUser.nickname ?? currentUser.email}</strong>
             <span>{data.profile?.groups.join(" · ") || groupNames.join(" · ") || "基地成员"}</span>
@@ -538,75 +556,75 @@ export default function ExpeditionRoute() {
 
       {groupResolutionError ? <div className="expedition-inline-error" role="status">组别暂时无法确认，业务入口将在权限恢复后显示。</div> : null}
 
-      <div className="expedition-overview">
-        <section className="expedition-scene" aria-labelledby="expedition-map-title">
-          <div className="expedition-scene__topline">
-            <div><span>BASE MAP</span><h2 id="expedition-map-title">基地总览</h2></div>
-            <span className="expedition-scene__coordinates">SECTOR 01 <i>·</i> TARSGO BASE</span>
-          </div>
-          <div className="expedition-scene__project-binding">
-            <label htmlFor="expedition-assembly-project">总装机库项目<select id="expedition-assembly-project" value={assemblyProject ? String(assemblyProject.id) : ""} disabled={data.loading || data.errors.projects || data.projects.length === 0} onChange={(event) => selectAssemblyProject(event.target.value)}>
+      <section className="expedition-scene" aria-labelledby="expedition-map-title">
+        <div className="expedition-scene__topline">
+          <div><span>BASE MAP</span><h2 id="expedition-map-title">基地地图</h2></div>
+          <button type="button" className="expedition-scene__overview" onClick={() => { setSelectedId("hangar"); setDetailMode("closed"); }} aria-label="返回基地总览">总览</button>
+        </div>
+        <ExpeditionMap selectedId={selectedId} onSelect={exploreFacility} masteredFacilityIds={masteredFacilityIds} hasPersonalRecord={Boolean(data.profile?.events.length)} acceptedEvolutionTargets={acceptedEvolutionTargets} hasAcceptedJoint={hasAcceptedJoint} detailsOpen={detailMode !== "closed"}>
+          <div className="expedition-project-control">
+            <label htmlFor="expedition-assembly-project"><span>总装项目</span><select id="expedition-assembly-project" value={assemblyProject ? String(assemblyProject.id) : ""} disabled={data.loading || data.errors.projects || data.projects.length === 0} onChange={(event) => selectAssemblyProject(event.target.value)}>
               {assemblyProject ? null : <option value="">{data.errors.projects ? "项目暂不可读取" : data.loading ? "正在读取项目…" : "当前没有可见项目"}</option>}
               {data.projects.map((project) => <option value={project.id} key={project.id}>{project.title}</option>)}
             </select></label>
-            <div className="expedition-scene__project-state" aria-live="polite"><span>当前项目装配状态</span><strong>{data.loading ? "读取中" : data.errors.projects ? "暂不可读取" : !assemblyProject ? "尚无项目成果" : hasAcceptedJoint ? "整机联合验收完成" : acceptedEvolutionLabels.length ? `已验收：${acceptedEvolutionLabels.join("、")}` : "暂无装置验收"}</strong></div>
-            <p>仅显示此项目中明确关联并通过验收的基地装置。</p>
+            <span className="expedition-project-control__state" aria-live="polite">{data.loading ? "读取中" : data.errors.projects ? "项目暂不可读取" : !assemblyProject ? "尚无项目成果" : hasAcceptedJoint ? "联合验收完成" : acceptedEvolutionLabels.length ? `已验收：${acceptedEvolutionLabels.join("、")}` : "暂无装置验收"}</span>
           </div>
-          <ExpeditionMap selectedId={selectedId} onSelect={setSelectedId} masteredFacilityIds={masteredFacilityIds} hasPersonalRecord={Boolean(data.profile?.events.length)} acceptedEvolutionTargets={acceptedEvolutionTargets} hasAcceptedJoint={hasAcceptedJoint} />
-          <nav className="expedition-zone-strip" aria-label="基地区域">
-            {FACILITIES.map((facility) => (
-              <button key={facility.id} type="button" aria-pressed={selectedId === facility.id} onClick={() => setSelectedId(facility.id)}>
-                <ZoneGlyph id={facility.id} /><span>{facility.name}</span>
-              </button>
-            ))}
-          </nav>
-          <div className="expedition-scene__legend"><span><i className="expedition-state-dot expedition-state-dot--locked" />未解锁</span><span><i className="expedition-state-dot expedition-state-dot--available" />可挑战</span><span><i className="expedition-state-dot expedition-state-dot--practice" />已实践</span><span><i className="expedition-state-dot expedition-state-dot--mastered" />已掌握</span></div>
-        </section>
-
-        <aside key={selectedFacility.id} className="expedition-facility" aria-labelledby="expedition-facility-title" aria-live="polite">
-          <div className={`expedition-facility__art expedition-facility__art--${selectedFacility.id}`} aria-hidden="true"><ZoneGlyph id={selectedFacility.id} /></div>
-          <p className="expedition-eyebrow">{selectedFacility.englishName}</p>
-          <h2 id="expedition-facility-title">{selectedFacility.name}</h2>
-          <p className="expedition-facility__description">{selectedFacility.description}</p>
-          {selectedFacility.groupName && !isMemberOfSelectedGroup ? (
-            <div className="expedition-facility__locked"><span aria-hidden="true">◈</span><div><strong>{selectedFacility.groupName}专属区域</strong><small>加入所属组别后可查看个人训练与成长。</small></div></div>
-          ) : null}
-          {selectedFacility.groupName && isMemberOfSelectedGroup ? (
-            <>
-              <div className="expedition-facility__focus"><span>本区入口</span><strong>{selectedFacility.focus}</strong></div>
-              {data.loading ? <p className="expedition-facility__quiet" role="status">正在读取个人成长状态…</p> : data.errors.skills ? <p className="expedition-facility__quiet">技能路线暂时无法读取。</p> : selectedNodes.length > 0 ? (
-                <div className="expedition-skill-state" aria-label={`${selectedFacility.groupName}技能状态`}>
-                  <div><strong>{lockedCount}</strong><span>未解锁</span></div>
-                  <div><strong>{availableCount}</strong><span>可挑战</span></div>
-                  <div><strong>{practicedCount}</strong><span>已实践</span></div>
-                  <div><strong>{masteredCount}</strong><span>已掌握</span></div>
+          {detailMode !== "closed" ? (
+            <aside key={selectedFacility.id} className={`expedition-facility expedition-facility--${selectedFacility.x > 55 ? "left" : "right"}`} data-mode={detailMode} aria-labelledby="expedition-facility-title" aria-live="polite">
+              <div className="expedition-facility__header">
+                <div className={`expedition-facility__art expedition-facility__art--${selectedFacility.id}`} aria-hidden="true"><ZoneGlyph id={selectedFacility.id} /></div>
+                <div className="expedition-facility__title"><p className="expedition-eyebrow">{selectedFacility.englishName}</p><h2 id="expedition-facility-title">{selectedFacility.name}</h2></div>
+                <div className="expedition-facility__actions">
+                  <button type="button" onClick={() => setDetailMode(detailMode === "expanded" ? "collapsed" : "expanded")} aria-controls="expedition-facility-details" aria-expanded={detailMode === "expanded"} aria-label={detailMode === "expanded" ? "收起设施详情" : "展开设施详情"}>{detailMode === "expanded" ? "收起" : "展开"}</button>
+                  <button type="button" onClick={() => setDetailMode("closed")} aria-label="关闭设施详情">关闭</button>
                 </div>
-              ) : <p className="expedition-facility__quiet">该组技能路线尚未配置。</p>}
-              {masteredNodes.length > 0 ? <div className="expedition-mastered-list"><span>已确认技能</span><ul>{masteredNodes.slice(0, 3).map((node) => <li key={node.id}>{node.name}</li>)}</ul></div> : null}
-              {!data.loading && selectedChallenges.length > 0 ? <div className="expedition-facility__challenge"><span>本区待跟进</span><Link to={selectedChallenges[0].href}>{selectedChallenges[0].title}<small>{challengeStatusLabel(selectedChallenges[0])} <i aria-hidden="true">↗</i></small></Link></div> : null}
-              {isTechnicalGroupName(selectedFacility.groupName!) ? (
-                <div className="expedition-faqs" aria-label={`${selectedFacility.groupName}公开 FAQ`}>
-                  <span>本组知识动态</span>
-                  {data.loading ? <small>读取中</small> : data.errors.faqs ? <small>知识动态暂不可读取。</small> : selectedFAQs.length > 0 ? (
-                    <ul>{selectedFAQs.map((question) => <li key={question.id}><Link to={`/dashboard/questions?groupId=${question.groupId}&questionId=${question.id}`}>{question.title}<small>{question.lastReplyAt ? formatQuestionDate(question.lastReplyAt) : formatQuestionDate(question.createdAt)}</small></Link></li>)}</ul>
-                  ) : <small>暂无公开 FAQ。</small>}
-                </div>
-              ) : null}
-              <div className="expedition-facility__challenge expedition-facility__projects">
-                <span>相关协作项目</span>
-                {data.loading ? <small>读取中</small> : data.errors.projects ? <small>协作项目暂不可读取。</small> : selectedProjects.length ? <ul>{selectedProjects.map((project) => <li key={project.id}><Link to={`/dashboard/expedition/projects?projectId=${project.id}`}>{project.title}<small>{project.hasAcceptedJoint ? "联合验收完成" : `${project.milestones.filter((milestone) => milestone.state === "accepted").length} 个阶段已验收`} <i aria-hidden="true">↗</i></small></Link></li>)}</ul> : <small>暂无相关协作项目。</small>}
               </div>
-            </>
+              {detailMode === "collapsed" ? <p className="expedition-facility__peek">{selectedFacility.description}</p> : null}
+              <div id="expedition-facility-details" className="expedition-facility__body" hidden={detailMode === "collapsed"}>
+                <p className="expedition-facility__description">{selectedFacility.description}</p>
+                {selectedFacility.groupName && !isMemberOfSelectedGroup ? (
+                  <div className="expedition-facility__locked"><span aria-hidden="true">◈</span><div><strong>{selectedFacility.groupName}专属区域</strong><small>加入所属组别后可查看个人训练与成长。</small></div></div>
+                ) : null}
+                {selectedFacility.groupName && isMemberOfSelectedGroup ? (
+                  <>
+                    <div className="expedition-facility__focus"><span>本区入口</span><strong>{selectedFacility.focus}</strong></div>
+                    {data.loading ? <p className="expedition-facility__quiet" role="status">正在读取个人成长状态…</p> : data.errors.skills ? <p className="expedition-facility__quiet">技能路线暂时无法读取。</p> : selectedNodes.length > 0 ? (
+                      <div className="expedition-skill-state" aria-label={`${selectedFacility.groupName}技能状态`}>
+                        <div><strong>{lockedCount}</strong><span>未解锁</span></div>
+                        <div><strong>{availableCount}</strong><span>可挑战</span></div>
+                        <div><strong>{practicedCount}</strong><span>已实践</span></div>
+                        <div><strong>{masteredCount}</strong><span>已掌握</span></div>
+                      </div>
+                    ) : <p className="expedition-facility__quiet">该组技能路线尚未配置。</p>}
+                    {masteredNodes.length > 0 ? <div className="expedition-mastered-list"><span>已确认技能</span><ul>{masteredNodes.slice(0, 3).map((node) => <li key={node.id}>{node.name}</li>)}</ul></div> : null}
+                    {!data.loading && selectedChallenges.length > 0 ? <div className="expedition-facility__challenge"><span>本区待跟进</span><Link to={selectedChallenges[0].href}>{selectedChallenges[0].title}<small>{challengeStatusLabel(selectedChallenges[0])} <i aria-hidden="true">↗</i></small></Link></div> : null}
+                    {isTechnicalGroupName(selectedFacility.groupName!) ? (
+                      <div className="expedition-faqs" aria-label={`${selectedFacility.groupName}公开 FAQ`}>
+                        <span>本组知识动态</span>
+                        {data.loading ? <small>读取中</small> : data.errors.faqs ? <small>知识动态暂不可读取。</small> : selectedFAQs.length > 0 ? (
+                          <ul>{selectedFAQs.map((question) => <li key={question.id}><Link to={`/dashboard/questions?groupId=${question.groupId}&questionId=${question.id}`}>{question.title}<small>{question.lastReplyAt ? formatQuestionDate(question.lastReplyAt) : formatQuestionDate(question.createdAt)}</small></Link></li>)}</ul>
+                        ) : <small>暂无公开 FAQ。</small>}
+                      </div>
+                    ) : null}
+                    <div className="expedition-facility__challenge expedition-facility__projects">
+                      <span>相关协作项目</span>
+                      {data.loading ? <small>读取中</small> : data.errors.projects ? <small>协作项目暂不可读取。</small> : selectedProjects.length ? <ul>{selectedProjects.map((project) => <li key={project.id}><Link to={`/dashboard/expedition/projects?projectId=${project.id}`}>{project.title}<small>{project.hasAcceptedJoint ? "联合验收完成" : `${project.milestones.filter((milestone) => milestone.state === "accepted").length} 个阶段已验收`} <i aria-hidden="true">↗</i></small></Link></li>)}</ul> : <small>暂无相关协作项目。</small>}
+                    </div>
+                  </>
+                ) : null}
+                {selectedFacility.id === "hangar" ? (
+                  <>
+                    <div className="expedition-hangar-note"><span>个人远征记录</span>{data.loading ? <strong>读取中</strong> : data.errors.profile ? <strong>暂不可读取</strong> : <strong>{data.profile?.events.length ?? 0} 条</strong>}</div>
+                    <div className="expedition-facility__challenge expedition-facility__projects"><span>赛季协作</span>{data.loading ? <small>读取中</small> : data.errors.projects ? <small>协作项目暂不可读取。</small> : selectedProjects.length ? <ul>{selectedProjects.map((project) => <li key={project.id}><Link to={`/dashboard/expedition/projects?projectId=${project.id}`}>{project.title}<small>{project.hasAcceptedJoint ? "联合验收完成" : `${project.milestones.filter((milestone) => milestone.state === "accepted").length} 个阶段已验收`} <i aria-hidden="true">↗</i></small></Link></li>)}</ul> : <small>暂无协作项目。</small>}</div>
+                  </>
+                ) : null}
+                {availableLinks.length > 0 ? <nav className="expedition-facility__links" aria-label={`${selectedFacility.name}业务入口`}>{availableLinks.map((link) => <Link key={link.href} to={link.href}>{link.label}<span aria-hidden="true">↗</span></Link>)}</nav> : null}
+              </div>
+            </aside>
           ) : null}
-          {selectedFacility.id === "hangar" ? (
-            <>
-              <div className="expedition-hangar-note"><span>个人远征记录</span>{data.loading ? <strong>读取中</strong> : data.errors.profile ? <strong>暂不可读取</strong> : <strong>{data.profile?.events.length ?? 0} 条</strong>}</div>
-              <div className="expedition-facility__challenge expedition-facility__projects"><span>赛季协作</span>{data.loading ? <small>读取中</small> : data.errors.projects ? <small>协作项目暂不可读取。</small> : selectedProjects.length ? <ul>{selectedProjects.map((project) => <li key={project.id}><Link to={`/dashboard/expedition/projects?projectId=${project.id}`}>{project.title}<small>{project.hasAcceptedJoint ? "联合验收完成" : `${project.milestones.filter((milestone) => milestone.state === "accepted").length} 个阶段已验收`} <i aria-hidden="true">↗</i></small></Link></li>)}</ul> : <small>暂无协作项目。</small>}</div>
-            </>
-          ) : null}
-          {availableLinks.length > 0 ? <nav className="expedition-facility__links" aria-label={`${selectedFacility.name}业务入口`}>{availableLinks.map((link) => <Link key={link.href} to={link.href}>{link.label}<span aria-hidden="true">↗</span></Link>)}</nav> : null}
-        </aside>
-      </div>
+          <div className="expedition-map__legend" aria-label="技能状态"><span><i className="expedition-state-dot expedition-state-dot--locked" />未解锁</span><span><i className="expedition-state-dot expedition-state-dot--available" />可挑战</span><span><i className="expedition-state-dot expedition-state-dot--practice" />已实践</span><span><i className="expedition-state-dot expedition-state-dot--mastered" />已掌握</span></div>
+        </ExpeditionMap>
+      </section>
 
       <div className="expedition-lower-grid">
         <section className="expedition-panel expedition-challenges" aria-labelledby="expedition-challenges-title">

@@ -37,6 +37,16 @@ test("挑战列表只来自待处理作业、可挑战技能和本人未解决�
   assert.equal(tasks.find(({ title }) => title === "我的问题")?.href, "/dashboard/questions?groupId=40&questionId=20");
 });
 
+test("没有个人业务记录时保持空挑战，不生成演示任务", () => {
+  assert.deepEqual(buildExpeditionChallenges({
+    assignments: [],
+    skillGroups: [],
+    questions: [],
+    profile: null,
+    groupNames: ["机械组"],
+  }), []);
+});
+
 test("运营组只看到本人已有周报入口，不生成技术训练事项", () => {
   const tasks = buildExpeditionChallenges({
     assignments: [],
