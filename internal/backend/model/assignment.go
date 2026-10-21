@@ -9,6 +9,8 @@ const (
 
 type Assignment struct {
 	ID                     uint64    `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
+	PublishRequestID       *string   `json:"-" gorm:"column:publish_request_id;size:36;uniqueIndex:uk_assignment_publish_request"`
+	PublishRequestHash     *string   `json:"-" gorm:"column:publish_request_hash;size:64"`
 	GroupID                uint64    `json:"groupId" gorm:"column:group_id;type:bigint unsigned;not null;index:idx_assignment_group_due,priority:1"`
 	CreatorID              uint64    `json:"creatorId" gorm:"column:creator_id;type:bigint unsigned;not null;index:idx_assignment_creator"`
 	Title                  string    `json:"title" gorm:"size:120;not null"`

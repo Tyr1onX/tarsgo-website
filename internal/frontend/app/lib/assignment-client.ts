@@ -77,6 +77,11 @@ export interface AdminAssignmentDetail {
   members: AssignmentMember[];
 }
 
+export interface AssignmentPublishResult {
+  assignment: Assignment;
+  materialFiles: AssignmentMaterialFile[];
+}
+
 export interface AssignmentMemberOption {
   userId: number;
   name: string;
@@ -103,6 +108,36 @@ export const assignmentClient = {
   listAdmin: (groupId?: number) => apiRequest<Assignment[]>(`/api/admin/assignments${groupId ? `?groupId=${groupId}` : ""}`),
   listGroupMembers: (groupId: number) => apiRequest<AssignmentMemberOption[]>(`/api/admin/assignment-members?groupId=${groupId}`),
   create: (input: AssignmentInput) => apiRequest<Assignment>("/api/admin/assignments", { method: "POST", body: input }),
+  publishWithMaterials: (input: AssignmentInput, files: File[], requestId: string, onProgress: (progress: number) => void, onUploadStarted: () => void) => {
+    const body = new FormData();
+    body.append("assignment", JSON.stringify(input));
+    for (const file of files) body.append("files", file, file.name);
+    const request = new XMLHttpRequest();
+    const promise = new Promise<AssignmentPublishResult>((resolve, reject) => {
+      request.open("POST", buildApiUrl("/api/admin/assignments/publish"));
+      request.withCredentials = true;
+      request.setRequestHeader("Accept", "application/json");
+      request.setRequestHeader("Idempotency-Key", requestId);
+      request.upload.onloadstart = onUploadStarted;
+      request.upload.onprogress = (event) => {
+        if (event.lengthComputable && event.total > 0) onProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)));
+      };
+      request.onerror = () => reject(new ApiError("网络中断，发布状态待确认；可以使用相同请求安全重试。", 0));
+      request.onabort = () => reject(new ApiError("上传已中断，发布状态待确认；可以使用相同请求安全重试。", 0));
+      request.onload = () => {
+        let payload: ApiEnvelope<AssignmentPublishResult> | null = null;
+        try { payload = JSON.parse(request.responseText) as ApiEnvelope<AssignmentPublishResult>; } catch { payload = null; }
+        if (request.status < 200 || request.status >= 300 || !payload || payload.code >= 400) {
+          reject(new ApiError(payload?.message ?? "作业及教学资料发布失败，请重试。", payload?.code ?? request.status));
+          return;
+        }
+        onProgress(100);
+        resolve(payload.data);
+      };
+      request.send(body);
+    });
+    return { promise, cancel: () => request?.abort() };
+  },
   update: (id: number, input: AssignmentInput) => apiRequest<Assignment>(`/api/admin/assignments/${id}`, { method: "PATCH", body: input }),
   uploadMaterialFiles: (id: number, files: File[], onProgress: (progress: number) => void) => {
     const body = new FormData();

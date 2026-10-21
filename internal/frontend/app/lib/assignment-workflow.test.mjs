@@ -42,10 +42,27 @@ test("backend applies role, current group, target, and ownership checks to every
 });
 
 test("successful publishing remains visible if the following list refresh fails", () => {
-  assert.match(assignmentManagement, /const saved = editing[\s\S]*?assignmentClient\.create\(input\)/);
-  assert.match(assignmentManagement, /setItems\(\(current\) => wasEditing[\s\S]*?\[saved, \.\.\.current\.filter/);
-  assert.match(assignmentManagement, /作业已保存，但列表刷新失败/);
+  assert.match(assignmentManagement, /if \(!wasEditing && uploadingMaterials\)[\s\S]*?assignmentClient\.publishWithMaterials/);
+  assert.match(assignmentManagement, /setItems\(\(current\) => \[result\.assignment, \.\.\.current\.filter/);
+  assert.match(assignmentManagement, /作业已完整发布，但列表刷新失败/);
+  assert.match(assignmentManagement, /作业及教学资料已完整发布/);
   assert.match(assignmentManagement, /async function refresh\(\)[\s\S]*?listAdmin\(groupId\)/);
+});
+
+test("new assignments with teaching materials publish atomically and retry idempotently", () => {
+  assert.match(backendRoutes, /adminAPI\.POST\("\/assignments\/publish", requireSameOriginRequest\(cfg\), assignmentHandler\.PublishWithMaterials\)/);
+  assert.match(assignmentService, /func \(s \*Service\) CreateWithMaterialFiles/);
+  assert.ok(assignmentService.includes('Where("publish_request_id = ?", requestID)'));
+  assert.match(assignmentService, /storedPaths = append\(storedPaths, stored\.storagePath\)/);
+  assert.match(assignmentService, /发布请求内容已变化/);
+  assert.match(assignmentService, /发布作业及教学资料失败/);
+  assert.match(assignmentClient, /Idempotency-Key/);
+  assert.match(assignmentClient, /publishWithMaterials/);
+  assert.match(assignmentManagement, /发布结果待确认/);
+  assert.match(assignmentManagement, /const definitelyNotPublished = status >= 400 && status < 500 && status !== 409/);
+  assert.match(assignmentManagement, /发布结果待确认：\$\{detail\}/);
+  assert.match(assignmentManagement, /发布失败，作业未开放给成员/);
+  assert.match(assignmentManagement, /取消发布/);
 });
 
 test("admin teaching materials stay separate from submissions and use permission-checked APIs", () => {
@@ -111,4 +128,14 @@ test("migration 24 adds only the teaching-material metadata table", () => {
   const migration24 = migrations.slice(start, end);
   assert.match(migration24, /AutoMigrate\(&model\.AssignmentMaterialFile\{\}\)/);
   assert.doesNotMatch(migration24, /UPDATE\s+|DELETE\s+|DROP\s+/i);
+});
+
+test("migration 25 only adds nullable idempotency metadata to existing assignments", () => {
+  const start = migrations.indexOf("{version: 25");
+  const migration25 = migrations.slice(start);
+  assert.match(migration25, /migrateAssignmentPublishIdempotency/);
+  assert.match(migration25, /AddColumn\(&model\.Assignment\{\}, "PublishRequestID"\)/);
+  assert.match(migration25, /AddColumn\(&model\.Assignment\{\}, "PublishRequestHash"\)/);
+  assert.match(migration25, /CreateIndex\(&model\.Assignment\{\}, "PublishRequestID"\)/);
+  assert.doesNotMatch(migration25, /UPDATE\s+assignments|DELETE\s+FROM\s+assignments|DROP\s+TABLE/i);
 });

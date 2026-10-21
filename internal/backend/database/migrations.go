@@ -122,7 +122,27 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 24, apply: func(db *gorm.DB) error {
 			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.AssignmentMaterialFile{})
 		}},
+		{version: 25, apply: migrateAssignmentPublishIdempotency},
 	}
+}
+
+func migrateAssignmentPublishIdempotency(db *gorm.DB) error {
+	if !db.Migrator().HasColumn(&model.Assignment{}, "PublishRequestID") {
+		if err := db.Migrator().AddColumn(&model.Assignment{}, "PublishRequestID"); err != nil {
+			return err
+		}
+	}
+	if !db.Migrator().HasColumn(&model.Assignment{}, "PublishRequestHash") {
+		if err := db.Migrator().AddColumn(&model.Assignment{}, "PublishRequestHash"); err != nil {
+			return err
+		}
+	}
+	if !db.Migrator().HasIndex(&model.Assignment{}, "uk_assignment_publish_request") {
+		if err := db.Migrator().CreateIndex(&model.Assignment{}, "PublishRequestID"); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func migrateInterviewResultNotifications(db *gorm.DB) error {

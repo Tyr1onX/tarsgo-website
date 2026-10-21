@@ -3,6 +3,7 @@ package assignment
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -30,6 +31,7 @@ type validatedUpload struct {
 	header      *multipart.FileHeader
 	fileName    string
 	contentType string
+	contentHash string
 }
 
 type storedUpload struct {
@@ -77,7 +79,12 @@ func (s *assignmentFileStore) save(ctx context.Context, assignmentID, userID uin
 	if err != nil {
 		return nil, fmt.Errorf("create assignment upload: %w", err)
 	}
-	written, copyErr := io.Copy(destination, &assignmentContextReader{ctx: ctx, source: io.LimitReader(source, maxAssignmentFileSize+1)})
+	var output io.Writer = destination
+	contentHasher := sha256.New()
+	if file.contentHash != "" {
+		output = io.MultiWriter(destination, contentHasher)
+	}
+	written, copyErr := io.Copy(output, &assignmentContextReader{ctx: ctx, source: io.LimitReader(source, maxAssignmentFileSize+1)})
 	closeErr := destination.Close()
 	if copyErr != nil || closeErr != nil || written > maxAssignmentFileSize {
 		_ = os.Remove(targetPath)
@@ -88,6 +95,10 @@ func (s *assignmentFileStore) save(ctx context.Context, assignmentID, userID uin
 			return nil, fmt.Errorf("close assignment upload: %w", closeErr)
 		}
 		return nil, fmt.Errorf("assignment upload exceeds the size limit")
+	}
+	if file.contentHash != "" && hex.EncodeToString(contentHasher.Sum(nil)) != file.contentHash {
+		_ = os.Remove(targetPath)
+		return nil, fmt.Errorf("assignment upload changed after validation")
 	}
 	return &storedUpload{fileName: file.fileName, storagePath: relativePath, contentType: file.contentType, size: written}, nil
 }
@@ -152,6 +163,23 @@ func validateUploads(headers []*multipart.FileHeader) ([]validatedUpload, error)
 		validated = append(validated, validatedUpload{header: header, fileName: fileName, contentType: contentType})
 	}
 	return validated, nil
+}
+
+func hashAssignmentUpload(header *multipart.FileHeader) (string, error) {
+	source, err := header.Open()
+	if err != nil {
+		return "", err
+	}
+	defer source.Close()
+	hash := sha256.New()
+	written, err := io.Copy(hash, io.LimitReader(source, maxAssignmentFileSize+1))
+	if err != nil {
+		return "", err
+	}
+	if written != header.Size || written > maxAssignmentFileSize {
+		return "", fmt.Errorf("assignment upload size changed during validation")
+	}
+	return hex.EncodeToString(hash.Sum(nil)), nil
 }
 
 func validateAssignmentFileContent(header *multipart.FileHeader, fileName string) (string, error) {

@@ -178,6 +178,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	adminAPI.GET("/assignment-members", assignmentHandler.ListGroupMembers)
 	adminAPI.GET("/assignments", assignmentHandler.ListAdmin)
 	adminAPI.POST("/assignments", requireSameOriginRequest(cfg), assignmentHandler.Create)
+	adminAPI.POST("/assignments/publish", requireSameOriginRequest(cfg), assignmentHandler.PublishWithMaterials)
 	adminAPI.GET("/assignments/:id", assignmentHandler.GetAdmin)
 	adminAPI.PATCH("/assignments/:id", requireSameOriginRequest(cfg), assignmentHandler.Update)
 	adminAPI.POST("/assignments/:id/materials", requireSameOriginRequest(cfg), assignmentHandler.UploadMaterialFiles)

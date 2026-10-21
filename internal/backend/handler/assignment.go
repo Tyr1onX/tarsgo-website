@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"mime/multipart"
@@ -130,6 +131,34 @@ func (h *AssignmentHandler) Create(c *gin.Context) {
 	writeAPI(c, http.StatusCreated, "作业已发布", item)
 }
 
+func (h *AssignmentHandler) PublishWithMaterials(c *gin.Context) {
+	files, cleanup, ok := parseAssignmentMultipartFiles(c)
+	if !ok {
+		return
+	}
+	defer cleanup()
+	if len(files) == 0 {
+		writeAPIError(c, http.StatusBadRequest, "请至少添加一个教学资料附件")
+		return
+	}
+	var request assignmentRequest
+	if err := json.Unmarshal([]byte(c.PostForm("assignment")), &request); err != nil {
+		writeAPIError(c, http.StatusBadRequest, "作业信息不合法")
+		return
+	}
+	input, ok := assignmentInput(request)
+	if !ok {
+		writeAPIError(c, http.StatusBadRequest, "请填写有效的北京时间截止时间")
+		return
+	}
+	result, err := h.service.CreateWithMaterialFiles(c.Request.Context(), currentAssignmentActor(c), input, c.GetHeader("Idempotency-Key"), files)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	writeAPI(c, http.StatusCreated, "作业及教学资料已发布", result)
+}
+
 func (h *AssignmentHandler) Update(c *gin.Context) {
 	assignmentID, ok := parseAssignmentPathID(c)
 	if !ok {
@@ -223,9 +252,16 @@ func bindAssignmentRequest(c *gin.Context) (assignment.CreateInput, bool) {
 		writeAPIError(c, http.StatusBadRequest, "作业信息不合法")
 		return assignment.CreateInput{}, false
 	}
+	input, ok := assignmentInput(request)
+	if !ok {
+		writeAPIError(c, http.StatusBadRequest, "请填写有效的北京时间截止时间")
+	}
+	return input, ok
+}
+
+func assignmentInput(request assignmentRequest) (assignment.CreateInput, bool) {
 	dueAt, err := parseAssignmentDueAt(request.DueAt)
 	if err != nil {
-		writeAPIError(c, http.StatusBadRequest, "请填写有效的北京时间截止时间")
 		return assignment.CreateInput{}, false
 	}
 	return assignment.CreateInput{
