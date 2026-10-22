@@ -56,7 +56,7 @@ func TestBuildMembershipResolution(t *testing.T) {
 			canSelfConfirm: false,
 		},
 		{
-			name: "group scoped admin membership cannot be self removed",
+			name: "legacy admin scope does not constrain group identity confirmation",
 			user: model.User{Role: model.Role{Name: model.RoleNameAdmin}, AdminScope: model.AdminScopeGroup},
 			members: []model.UserGroupMember{
 				{GroupID: 1, Group: model.UserGroup{ID: 1, Name: "AI组", Status: model.UserGroupStatusActive}},
@@ -64,7 +64,18 @@ func TestBuildMembershipResolution(t *testing.T) {
 			},
 			state:          MembershipStatePending,
 			groupCount:     2,
-			canSelfConfirm: false,
+			canSelfConfirm: true,
+		},
+		{
+			name: "legacy group administrator title does not grant or constrain confirmation",
+			user: model.User{Role: model.Role{Name: model.RoleNameUser}},
+			members: []model.UserGroupMember{
+				{GroupID: 1, Role: model.UserGroupMemberRoleLegacyAdmin, Group: model.UserGroup{ID: 1, Name: "AI组", Status: model.UserGroupStatusActive}},
+				{GroupID: 2, Group: model.UserGroup{ID: 2, Name: "运营组", Status: model.UserGroupStatusActive}},
+			},
+			state:          MembershipStatePending,
+			groupCount:     2,
+			canSelfConfirm: true,
 		},
 		{
 			name: "super admin membership cannot be self removed",
@@ -94,6 +105,15 @@ func TestBuildMembershipResolution(t *testing.T) {
 				t.Fatalf("canSelfConfirm = %v, want %v", resolution.CanSelfConfirm, test.canSelfConfirm)
 			}
 		})
+	}
+}
+
+func TestOnlyMemberAndLeaderCanBeAssignedAsOrganizationIdentity(t *testing.T) {
+	if !isAssignableOrganizationRole(model.UserGroupMemberRoleMember) || !isAssignableOrganizationRole(model.UserGroupMemberRoleLeader) {
+		t.Fatal("member and leader identities should remain assignable")
+	}
+	if isAssignableOrganizationRole(model.UserGroupMemberRoleLegacyAdmin) || isAssignableOrganizationRole(3) {
+		t.Fatal("legacy group administrator and unknown identity values must not be assignable")
 	}
 }
 

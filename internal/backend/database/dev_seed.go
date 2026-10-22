@@ -83,10 +83,6 @@ func seedDevelopmentMockData(db *gorm.DB, appEnv string) error {
 		if err := seedDevelopmentRecruitmentFixtures(tx, reviewer, groups, users); err != nil {
 			return err
 		}
-		if err := tx.Model(&model.User{}).Where("id = ?", reviewer.ID).Updates(map[string]any{"admin_scope": model.AdminScopeGlobal, "management_group_id": nil}).Error; err != nil {
-			return fmt.Errorf("set mock global admin scope: %w", err)
-		}
-
 		return nil
 	})
 }

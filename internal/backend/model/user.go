@@ -3,6 +3,8 @@ package model
 import "time"
 
 const (
+	// These values are retained to read and replay historical scope migrations.
+	// They are not used to grant or constrain current system permissions.
 	AdminScopeNone   = "none"
 	AdminScopeGlobal = "global"
 	AdminScopeGroup  = "group"
@@ -16,10 +18,10 @@ const (
 type User struct {
 	ID     uint64 `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
 	RoleID uint64 `json:"roleId" gorm:"column:role_id;type:bigint unsigned;not null;index:idx_role_id"`
-	// AdminScope and ManagementGroupID are legacy compatibility / organizational
-	// metadata. Core system authorization is determined by RoleID/Role.Name.
-	AdminScope        string            `json:"adminScope" gorm:"column:admin_scope;type:varchar(20);not null;default:'none';index:idx_admin_scope"`
-	ManagementGroupID *uint64           `json:"managementGroupId,omitempty" gorm:"column:management_group_id;type:bigint unsigned;default:null;index:idx_management_group_id"`
+	// Legacy scope columns remain mapped for database compatibility only. Runtime
+	// authorization uses the system role and active group membership.
+	AdminScope        string            `json:"-" gorm:"column:admin_scope;type:varchar(20);not null;default:'none';index:idx_admin_scope"`
+	ManagementGroupID *uint64           `json:"-" gorm:"column:management_group_id;type:bigint unsigned;default:null;index:idx_management_group_id"`
 	Name              string            `json:"name,omitempty" gorm:"size:100;not null;default:''"`
 	Email             string            `json:"email" gorm:"size:255;not null;uniqueIndex:uk_email"`
 	PasswordHash      *string           `json:"passwordHash,omitempty" gorm:"column:password_hash;size:255;default:null"`

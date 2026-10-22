@@ -153,6 +153,14 @@ func TestUpdateUserGroupRoleKeepsSystemPermissionsSeparate(t *testing.T) {
 	if user.GroupMembers[0].Role != model.UserGroupMemberRoleLeader {
 		t.Fatal("denied role update changed the group membership")
 	}
+	if _, err := service.UpdateUserGroupRole(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, user.ID, groupID, model.UserGroupMemberRoleLegacyAdmin); err == nil {
+		t.Fatal("legacy group administrator must not be assignable")
+	} else if serviceErr, ok := err.(*ServiceError); !ok || serviceErr.Status != http.StatusBadRequest {
+		t.Fatalf("legacy organization title error = %#v, want bad request", err)
+	}
+	if user.GroupMembers[0].Role != model.UserGroupMemberRoleLeader {
+		t.Fatal("rejected legacy organization identity changed the group membership")
+	}
 
 	if _, err := service.UpdateUserGroupRole(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, user.ID, groupID, model.UserGroupMemberRoleMember); err != nil {
 		t.Fatalf("UpdateUserGroupRole returned error: %v", err)
@@ -439,14 +447,6 @@ func (r *fakeRepository) UpdateUser(_ context.Context, userID uint64, updates ma
 			user.Email = value.(string)
 		case "status":
 			user.Status = value.(uint8)
-		case "admin_scope":
-			user.AdminScope = value.(string)
-		case "management_group_id":
-			if value == nil {
-				user.ManagementGroupID = nil
-			} else {
-				user.ManagementGroupID = value.(*uint64)
-			}
 		default:
 			return errors.New("unexpected account update field: " + key)
 		}

@@ -85,11 +85,7 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 		user := model.User{
 			RoleID: roleIDs[roleName], Name: "[TEST_QA] " + label, RealName: strPtr("[TEST_QA] " + label),
 			Email:  fmt.Sprintf("qa-%s-%s@tarsgo.test", nonce, strings.ToLower(strings.ReplaceAll(label, " ", "-"))),
-			Status: model.UserStatusEnabled, AdminScope: model.AdminScopeNone,
-		}
-		if roleName == model.RoleNameAdmin && groupID != nil {
-			user.AdminScope = model.AdminScopeGroup
-			user.ManagementGroupID = groupID
+			Status: model.UserStatusEnabled,
 		}
 		if err := db.Create(&user).Error; err != nil {
 			t.Fatalf("create isolated test account: %v", err)

@@ -123,22 +123,11 @@ func TestAcceptanceDatabaseSkillTreeWorkflow(t *testing.T) {
 	}
 
 	createUser := func(label, roleName, groupName string, groupRole uint8) Actor {
-		var managementGroupID *uint64
-		if groupName != "" && roleName == model.RoleNameAdmin {
-			value := groupIDs[groupName]
-			managementGroupID = &value
-		}
 		realName := "[TEST_SKILL] " + label
 		user := model.User{
 			RoleID: roleIDs[roleName], Name: realName, RealName: &realName,
 			Email:  fmt.Sprintf("skill-%s-%s@tarsgo.test", nonce, strings.ToLower(strings.ReplaceAll(label, " ", "-"))),
-			Status: model.UserStatusEnabled, AdminScope: model.AdminScopeNone,
-		}
-		if roleName == model.RoleNameAdmin {
-			user.AdminScope = model.AdminScopeGroup
-			user.ManagementGroupID = managementGroupID
-		} else if roleName == model.RoleNameSuperAdmin {
-			user.AdminScope = model.AdminScopeGlobal
+			Status: model.UserStatusEnabled,
 		}
 		if err := db.Create(&user).Error; err != nil {
 			t.Fatalf("create synthetic account %q: %v", label, err)
@@ -158,13 +147,17 @@ func TestAcceptanceDatabaseSkillTreeWorkflow(t *testing.T) {
 	for index, name := range groupNames {
 		memberByGroup[name] = createUser(fmt.Sprintf("member-%02d", index+1), model.RoleNameUser, name, model.UserGroupMemberRoleMember)
 	}
-	mechanicalAdmin := createUser("mechanical-admin", model.RoleNameAdmin, "机械组", model.UserGroupMemberRoleGroupAdmin)
-	aiAdmin := createUser("ai-admin", model.RoleNameAdmin, "AI组", model.UserGroupMemberRoleGroupAdmin)
-	operationsAdmin := createUser("operations-admin", model.RoleNameAdmin, "运营组", model.UserGroupMemberRoleGroupAdmin)
+	mechanicalAdmin := createUser("mechanical-admin", model.RoleNameAdmin, "机械组", model.UserGroupMemberRoleLegacyAdmin)
+	aiAdmin := createUser("ai-admin", model.RoleNameAdmin, "AI组", model.UserGroupMemberRoleLegacyAdmin)
+	operationsAdmin := createUser("operations-admin", model.RoleNameAdmin, "运营组", model.UserGroupMemberRoleLegacyAdmin)
+	legacyGroupAdmin := createUser("legacy-group-admin", model.RoleNameUser, "机械组", model.UserGroupMemberRoleLegacyAdmin)
 	superAdmin := createUser("super-admin", model.RoleNameSuperAdmin, "", model.UserGroupMemberRoleMember)
 
 	service := NewService(db)
 	service.Now = func() time.Time { return time.Date(2026, 10, 20, 9, 0, 0, 0, time.UTC) }
+	if _, err := service.ListAdminGroups(context.Background(), legacyGroupAdmin); serviceStatus(err) != http.StatusForbidden {
+		t.Fatalf("legacy group-admin organization title status = %d, want 403", serviceStatus(err))
+	}
 	adminGroups, err := service.ListAdminGroups(context.Background(), superAdmin)
 	if err != nil || len(adminGroups) != 5 {
 		t.Fatalf("super admin route count = %d, err=%v; want all five groups", len(adminGroups), err)

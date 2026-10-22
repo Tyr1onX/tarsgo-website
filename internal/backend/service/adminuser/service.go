@@ -338,11 +338,6 @@ func (s *Service) CreateUser(ctx context.Context, actor Actor, input CreateUserI
 	if !canAssignRole(actor.RoleName, role.Name) {
 		return nil, &ServiceError{Status: http.StatusForbidden, Message: "当前账号无权创建该角色"}
 	}
-	adminScope, managementGroupID, err := scopeForRole(role.Name)
-	if err != nil {
-		return nil, err
-	}
-
 	if _, err := s.repo.GetUserByEmail(ctx, email); err == nil {
 		return nil, &ServiceError{Status: http.StatusConflict, Message: "该邮箱已存在"}
 	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -355,14 +350,12 @@ func (s *Service) CreateUser(ctx context.Context, actor Actor, input CreateUserI
 	}
 
 	user := &model.User{
-		RoleID:            role.ID,
-		Name:              name,
-		Email:             email,
-		PasswordHash:      stringPtr(passwordHash),
-		Status:            model.UserStatusEnabled,
-		Gender:            0,
-		AdminScope:        adminScope,
-		ManagementGroupID: managementGroupID,
+		RoleID:       role.ID,
+		Name:         name,
+		Email:        email,
+		PasswordHash: stringPtr(passwordHash),
+		Status:       model.UserStatusEnabled,
+		Gender:       0,
 	}
 
 	if err := s.repo.CreateUser(ctx, user); err != nil {
@@ -399,7 +392,10 @@ func (s *Service) UpdateUserGroup(ctx context.Context, actor Actor, userID uint6
 
 func (s *Service) UpdateUserGroupRole(ctx context.Context, actor Actor, userID, groupID uint64, role uint8) (*UserDetail, error) {
 	if actor.RoleName != model.RoleNameSuperAdmin {
-		return nil, &ServiceError{Status: http.StatusForbidden, Message: "仅超级管理员可以调整组内角色"}
+		return nil, &ServiceError{Status: http.StatusForbidden, Message: "仅超级管理员可以调整组织身份"}
+	}
+	if role != model.UserGroupMemberRoleMember && role != model.UserGroupMemberRoleLeader {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "仅支持普通成员或组长组织身份"}
 	}
 	if userID == 0 || groupID == 0 {
 		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "用户或组别 ID 不合法"}
@@ -409,7 +405,7 @@ func (s *Service) UpdateUserGroupRole(ctx context.Context, actor Actor, userID, 
 		if errors.As(err, &userGroupError) {
 			return nil, &ServiceError{Status: userGroupError.Status, Message: userGroupError.Message, Err: userGroupError.Err}
 		}
-		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "更新组内角色失败", Err: err}
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "更新组织身份失败", Err: err}
 	}
 	return s.GetUser(ctx, actor, userID)
 }
@@ -442,15 +438,6 @@ func (s *Service) UpdateUser(ctx context.Context, actor Actor, userID uint64, in
 	if !canAssignRole(actor.RoleName, role.Name) {
 		return nil, &ServiceError{Status: http.StatusForbidden, Message: "当前账号无权设置该角色"}
 	}
-	adminScope := target.AdminScope
-	managementGroupID := target.ManagementGroupID
-	if role.Name != target.Role.Name {
-		adminScope, managementGroupID, err = scopeForRole(role.Name)
-		if err != nil {
-			return nil, err
-		}
-	}
-
 	email := auth.NormalizeEmail(input.Email)
 	name := strings.TrimSpace(input.Name)
 	if email == "" || name == "" {
@@ -464,12 +451,10 @@ func (s *Service) UpdateUser(ctx context.Context, actor Actor, userID uint64, in
 	}
 
 	updates := map[string]any{
-		"role_id":             role.ID,
-		"name":                name,
-		"email":               email,
-		"status":              input.Status,
-		"admin_scope":         adminScope,
-		"management_group_id": managementGroupID,
+		"role_id": role.ID,
+		"name":    name,
+		"email":   email,
+		"status":  input.Status,
 	}
 
 	if err := s.repo.UpdateUser(ctx, target.ID, updates); err != nil {
@@ -551,17 +536,6 @@ func ensureTargetMutable(actor Actor, target *model.User) error {
 func canAssignRole(actorRole string, targetRole string) bool {
 	return actorRole == model.RoleNameSuperAdmin &&
 		(targetRole == model.RoleNameAdmin || targetRole == model.RoleNameUser)
-}
-
-func scopeForRole(roleName string) (string, *uint64, error) {
-	switch roleName {
-	case model.RoleNameSuperAdmin, model.RoleNameAdmin:
-		return model.AdminScopeGlobal, nil, nil
-	case model.RoleNameUser:
-		return model.AdminScopeNone, nil, nil
-	default:
-		return model.AdminScopeNone, nil, &ServiceError{Status: http.StatusBadRequest, Message: "角色不合法"}
-	}
 }
 
 func validateStatus(status uint8) error {

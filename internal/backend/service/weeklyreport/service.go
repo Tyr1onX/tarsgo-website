@@ -78,7 +78,7 @@ func NewService(repo Repository) *Service {
 	return &Service{repo: repo, now: time.Now}
 }
 
-func (s *Service) GetDashboard(ctx context.Context, userID uint64) (*Dashboard, error) {
+func (s *Service) GetDashboard(ctx context.Context, userID uint64, systemRole string) (*Dashboard, error) {
 	member, err := s.operationsMembership(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -90,7 +90,7 @@ func (s *Service) GetDashboard(ctx context.Context, userID uint64) (*Dashboard, 
 	result := &Dashboard{
 		GroupName:        OperationsGroupName,
 		CurrentWeekStart: currentWeekStart(s.now()),
-		CanViewTeam:      canViewTeam(member.Role),
+		CanViewTeam:      canViewTeam(systemRole),
 		Reports:          make([]Report, 0, len(reports)),
 	}
 	for _, report := range reports {
@@ -161,13 +161,16 @@ func (s *Service) UpdateReport(ctx context.Context, userID, reportID uint64, inp
 	return &result, nil
 }
 
-func (s *Service) GetTeamWeek(ctx context.Context, userID uint64, requestedWeekStart string) (*TeamWeek, error) {
+func (s *Service) GetTeamWeek(ctx context.Context, userID uint64, systemRole, requestedWeekStart string) (*TeamWeek, error) {
+	if userID == 0 {
+		return nil, serviceError(http.StatusUnauthorized, "请先登录", nil)
+	}
+	if !canViewTeam(systemRole) {
+		return nil, serviceError(http.StatusForbidden, "只有运营组系统管理员可以查看组内周报", nil)
+	}
 	member, err := s.operationsMembership(ctx, userID)
 	if err != nil {
 		return nil, err
-	}
-	if !canViewTeam(member.Role) {
-		return nil, serviceError(http.StatusForbidden, "只有运营组组长可以查看组内周报", nil)
 	}
 	weekStart, err := normalizedWeekStart(requestedWeekStart, s.now())
 	if err != nil {
@@ -212,8 +215,8 @@ func (s *Service) operationsMembership(ctx context.Context, userID uint64) (*mod
 	return member, nil
 }
 
-func canViewTeam(role uint8) bool {
-	return role == model.UserGroupMemberRoleLeader
+func canViewTeam(systemRole string) bool {
+	return systemRole == model.RoleNameAdmin
 }
 
 func currentWeekStart(now time.Time) string {

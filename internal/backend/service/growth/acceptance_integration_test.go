@@ -106,7 +106,7 @@ func TestAcceptanceDatabaseGrowthTimeline(t *testing.T) {
 		user := model.User{
 			RoleID: userRole.ID, Name: name, RealName: &realName,
 			Email:  fmt.Sprintf("growth-%s-%s@tarsgo.test", nonce, strings.ToLower(label)),
-			Status: model.UserStatusEnabled, AdminScope: model.AdminScopeNone,
+			Status: model.UserStatusEnabled,
 		}
 		if err := db.Create(&user).Error; err != nil {
 			t.Fatalf("create synthetic growth account: %v", err)

@@ -76,7 +76,7 @@ func (s *MembershipService) Confirm(ctx context.Context, userID, groupID uint64)
 			return &ServiceError{Status: http.StatusConflict, Message: "组别关系已更新，请刷新后重试"}
 		}
 		if !before.CanSelfConfirm {
-			return &ServiceError{Status: http.StatusConflict, Message: "该账号含有组内管理身份，需由管理员处理组别关系"}
+			return &ServiceError{Status: http.StatusConflict, Message: "该账号含有受保护的组织身份，需由管理员处理组别关系"}
 		}
 		if !containsMembershipGroup(before.Groups, groupID) {
 			return &ServiceError{Status: http.StatusForbidden, Message: "只能确认账号当前已有的有效组别"}
@@ -132,8 +132,8 @@ func UpdateUserGroupRole(ctx context.Context, db *gorm.DB, actorID, userID, grou
 	if actorID == 0 || userID == 0 || groupID == 0 {
 		return &ServiceError{Status: http.StatusBadRequest, Message: "账号或组别信息不合法"}
 	}
-	if role != model.UserGroupMemberRoleMember && role != model.UserGroupMemberRoleGroupAdmin && role != model.UserGroupMemberRoleLeader {
-		return &ServiceError{Status: http.StatusBadRequest, Message: "组内角色不合法"}
+	if !isAssignableOrganizationRole(role) {
+		return &ServiceError{Status: http.StatusBadRequest, Message: "组织身份不合法；仅支持普通成员或组长"}
 	}
 	err := db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		user, err := loadUserMemberships(tx, userID, true)
@@ -141,7 +141,7 @@ func UpdateUserGroupRole(ctx context.Context, db *gorm.DB, actorID, userID, grou
 			return err
 		}
 		if user.Role.Name == model.RoleNameSuperAdmin {
-			return &ServiceError{Status: http.StatusForbidden, Message: "超级管理员账号不能设置组内角色"}
+			return &ServiceError{Status: http.StatusForbidden, Message: "超级管理员账号不能设置组织身份"}
 		}
 		var member model.UserGroupMember
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Preload("Group").
@@ -185,7 +185,7 @@ func UpdateUserGroupRole(ctx context.Context, db *gorm.DB, actorID, userID, grou
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return &ServiceError{Status: http.StatusNotFound, Message: "用户不存在"}
 		}
-		return &ServiceError{Status: http.StatusInternalServerError, Message: "更新组内角色失败", Err: err}
+		return &ServiceError{Status: http.StatusInternalServerError, Message: "更新组织身份失败", Err: err}
 	}
 	return nil
 }
@@ -215,16 +215,8 @@ func ReplaceUserGroupTx(tx *gorm.DB, user *model.User, groupID *uint64, actorID 
 			selectedPresent = true
 			continue
 		}
-		if member.Role != model.UserGroupMemberRoleMember {
-			return &ServiceError{Status: http.StatusConflict, Message: "该账号在待移除组别中担任组长或组管理员，请先由管理员处理组内角色"}
-		}
-	}
-	if user.ManagementGroupID != nil && (groupID == nil || *user.ManagementGroupID != *groupID) {
-		return &ServiceError{Status: http.StatusConflict, Message: "该账号的管理范围绑定了其他组别，请先由管理员处理管理范围"}
-	}
-	if user.AdminScope == model.AdminScopeGroup {
-		if user.ManagementGroupID == nil || groupID == nil || *user.ManagementGroupID != *groupID || !selectedPresent {
-			return &ServiceError{Status: http.StatusConflict, Message: "该账号的组内管理关系不一致，请先由管理员处理管理范围"}
+		if member.Role == model.UserGroupMemberRoleLeader {
+			return &ServiceError{Status: http.StatusConflict, Message: "该账号在待移除组别中担任组长，请先由管理员处理组织身份"}
 		}
 	}
 
@@ -312,17 +304,17 @@ func loadUserMemberships(db *gorm.DB, userID uint64, lock bool) (*model.User, er
 
 func buildMembershipResolution(user *model.User) *MembershipResolution {
 	groups := make([]MembershipOption, 0, len(user.GroupMembers))
-	managerRole := false
+	protectedTitle := false
 	for _, member := range user.GroupMembers {
 		if member.Group.Status != model.UserGroupStatusActive {
-			if member.Role != model.UserGroupMemberRoleMember {
-				managerRole = true
+			if member.Role == model.UserGroupMemberRoleLeader {
+				protectedTitle = true
 			}
 			continue
 		}
 		groups = append(groups, MembershipOption{GroupID: member.GroupID, Name: member.Group.Name, Role: member.Role})
-		if member.Role != model.UserGroupMemberRoleMember {
-			managerRole = true
+		if member.Role == model.UserGroupMemberRoleLeader {
+			protectedTitle = true
 		}
 	}
 	sort.Slice(groups, func(i, j int) bool {
@@ -337,7 +329,7 @@ func buildMembershipResolution(user *model.User) *MembershipResolution {
 	} else if len(groups) > 1 {
 		state = MembershipStatePending
 	}
-	canConfirm := state == MembershipStatePending && !managerRole && user.AdminScope != model.AdminScopeGroup && user.ManagementGroupID == nil && user.Role.Name != model.RoleNameSuperAdmin
+	canConfirm := state == MembershipStatePending && !protectedTitle && user.Role.Name != model.RoleNameSuperAdmin
 	return &MembershipResolution{State: state, Groups: groups, CanSelfConfirm: canConfirm}
 }
 
@@ -348,6 +340,10 @@ func containsMembershipGroup(groups []MembershipOption, groupID uint64) bool {
 		}
 	}
 	return false
+}
+
+func isAssignableOrganizationRole(role uint8) bool {
+	return role == model.UserGroupMemberRoleMember || role == model.UserGroupMemberRoleLeader
 }
 
 func uintToString(value uint64) string {

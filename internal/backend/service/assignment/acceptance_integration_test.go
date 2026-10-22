@@ -120,12 +120,6 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 		user := model.User{
 			RoleID: roleIDs[roleName], Name: "[TEST_ASSIGNMENT] " + label,
 			Email: fmt.Sprintf("assignment-%s-%s@tarsgo.test", nonce, label), Status: model.UserStatusEnabled,
-			AdminScope: model.AdminScopeNone,
-		}
-		if roleName == model.RoleNameAdmin {
-			groupID := groupIDs[groupName]
-			user.AdminScope = model.AdminScopeGroup
-			user.ManagementGroupID = &groupID
 		}
 		if err := db.Create(&user).Error; err != nil {
 			t.Fatalf("create isolated test account: %v", err)
