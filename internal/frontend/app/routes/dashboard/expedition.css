@@ -91,7 +91,7 @@
 @media(max-width:640px) {
  .base-hud { padding: max(14px,env(safe-area-inset-top)) 14px 25px; gap: 8px; }
  .base-hud__brand { gap: 7px; }.base-hud__brand>span { width: 30px; height: 30px; font-size: 17px; }.base-hud__brand h1 { font-size: 10px; letter-spacing: .12em; }
- .base-hud__tools { gap: 0; }.base-hud__tools :is(a,button) { min-height: 44px; padding: 0 8px; font-size: 10px; }.base-hud__tools button:nth-child(2) { display: none; }.base-hud__tools a { margin-left: 2px; }
+ .base-hud__tools { gap: 0; }.base-hud__tools :is(a,button) { min-height: 44px; padding: 0 8px; font-size: 10px; }.base-hud__tools a { margin-left: 2px; }
  .expedition-map { padding: 76px 0 94px; }.expedition-map__art { width: 100%; height: 100%; }
  .world-building-entry text { font-size: 25px; }.world-building-entry__label { x: -91px; width: 182px; height: 44px; }.world-building-entry__beacon { r: 10px; }
  .base-navigation { gap: 8px; align-items: center; padding: 26px 14px max(18px,env(safe-area-inset-bottom)); }.base-navigation__location { gap: 9px; }.base-navigation__location>button,.base-navigation__compass { width: 40px; height: 40px; }.base-navigation__location small { font-size: 6px; max-width: 145px; display: block; }.base-navigation__location h2 { font-size: 18px; margin-top: 4px; }
