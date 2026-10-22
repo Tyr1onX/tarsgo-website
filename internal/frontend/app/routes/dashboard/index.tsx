@@ -3,7 +3,7 @@ import { Link, useOutletContext } from "react-router";
 
 import { DailySignalWorkspace } from "~/components/daily-signal-workspace";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
-import { FEATURE_GUIDE_DATE, FEATURE_GUIDE_TITLE } from "~/lib/workbench-feature-announcement";
+import { FEATURE_GUIDE_DATE, FEATURE_GUIDE_TITLE, GROUP_ACCESS_HELP } from "~/lib/workbench-feature-announcement";
 import "./dashboard-home.css";
 
 export function meta() {
@@ -51,6 +51,7 @@ export default function DashboardIndex() {
           <p className="dashboard-announcement__date">功能更新 · {FEATURE_GUIDE_DATE}</p>
           <h2 id="dashboard-announcement-title"><Link to="/dashboard/updates">{FEATURE_GUIDE_TITLE}</Link></h2>
           <p>了解哪些功能现在可以使用、开放到什么阶段，以及从哪里开始。</p>
+          <p>{GROUP_ACCESS_HELP}</p>
         </div>
         <div className="dashboard-announcement__actions">
           <Link to="/dashboard/updates">阅读公告与使用引导 <span aria-hidden="true">↗</span></Link>

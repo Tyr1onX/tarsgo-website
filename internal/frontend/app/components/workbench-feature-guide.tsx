@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 
-import { getWorkbenchAdminAction, getWorkbenchFeaturesForMember } from "~/lib/workbench-feature-announcement";
+import { getWorkbenchAdminAction, getWorkbenchFeaturesForMember, GROUP_ACCESS_HELP } from "~/lib/workbench-feature-announcement";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { WorkbenchFeatureStatus } from "~/components/workbench-feature-status";
 import "./workbench-feature-guide.css";
@@ -27,7 +27,7 @@ export function WorkbenchFeatureGuide({ currentUser, groupResolution, groupResol
           <p className="workbench-feature-guide__eyebrow">从这里开始</p>
           <h2 id="workbench-feature-guide-start">{isTechnicalMember ? "训练、交流，再回看成长" : isOperationsMember ? "记录工作，探索成长" : "先从个人工作台开始"}</h2>
         </div>
-        {groupResolutionError ? <p role="status">暂时无法确认所属组别，相关功能入口会在组别信息恢复后显示。</p> : isTechnicalMember ? (
+        {groupResolutionError ? <p role="status">暂时无法确认所属组别。{GROUP_ACCESS_HELP}</p> : isTechnicalMember ? (
           <ol>
             <li><Link to="/dashboard">登录后进入个人工作台</Link></li>
             <li><Link to="/dashboard/assignments">打开“我的作业”，下载资料并提交文件</Link></li>
@@ -46,6 +46,7 @@ export function WorkbenchFeatureGuide({ currentUser, groupResolution, groupResol
           <p>确认所属组别后，工作台会显示适用的训练与成长入口。你仍可先查看个人成长档案。</p>
         )}
         {!groupResolutionError && isOperationsMember ? <p className="workbench-feature-guide__scope-note">运营组暂不开放技术组作业和提问答疑。</p> : null}
+        {!groupResolutionError ? <p className="workbench-feature-guide__scope-note">{GROUP_ACCESS_HELP}</p> : null}
         {currentUser.role.name === "admin" || currentUser.role.name === "super_admin" ? <p className="workbench-feature-guide__scope-note">管理入口仅对有相应权限的管理员显示；管理员按已授权组别管理，不会扩大成员功能权限。</p> : null}
       </section>
 

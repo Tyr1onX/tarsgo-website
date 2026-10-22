@@ -1,11 +1,12 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { FEATURE_GUIDE_DATE, FEATURE_GUIDE_TITLE, WORKBENCH_FEATURES, getWorkbenchAdminAction, getWorkbenchFeaturesForMember } from "./workbench-feature-announcement.ts";
+import { FEATURE_GUIDE_DATE, FEATURE_GUIDE_TITLE, GROUP_ACCESS_HELP, WORKBENCH_FEATURES, getWorkbenchAdminAction, getWorkbenchFeaturesForMember } from "./workbench-feature-announcement.ts";
 
 test("feature guide exposes the agreed title, date, statuses, and destinations", () => {
   assert.equal(FEATURE_GUIDE_TITLE, "吉甲大师官网更新｜新人培养与 TARS BASE 使用指南");
   assert.equal(FEATURE_GUIDE_DATE, "2026 年 10 月 22 日");
+  assert.match(GROUP_ACCESS_HELP, /请直接联系战队运营负责人核对处理/);
   assert.deepEqual(WORKBENCH_FEATURES.map(({ status }) => status), [
     "已上线 · 试运行",
     "已上线 · 试运行",

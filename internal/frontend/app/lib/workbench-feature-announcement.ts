@@ -1,5 +1,6 @@
 export const FEATURE_GUIDE_DATE = "2026 年 10 月 22 日";
 export const FEATURE_GUIDE_TITLE = "吉甲大师官网更新｜新人培养与 TARS BASE 使用指南";
+export const GROUP_ACCESS_HELP = "如果没有看到“我的作业”“技能路线”等入口，可能是账号尚未加入对应组别或组别信息异常，请直接联系战队运营负责人核对处理。";
 
 const TECHNICAL_GROUPS = ["机械组", "电控组", "视觉组", "AI组"] as const;
 const ALL_SKILL_GROUPS = [...TECHNICAL_GROUPS, "运营组"] as const;
