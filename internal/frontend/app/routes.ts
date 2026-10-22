@@ -18,6 +18,7 @@ export default [
   route("dashboard/setup/super-admin", "routes/dashboard/setup-super-admin.tsx"),
   route("dashboard", "routes/dashboard/layout.tsx", [
     index("routes/dashboard/index.tsx"),
+    route("updates", "routes/dashboard/updates.tsx"),
     route("base", "routes/dashboard/base.tsx"),
     route("expedition", "routes/dashboard/expedition.tsx"),
     route("expedition/projects", "routes/dashboard/expedition-projects.tsx"),

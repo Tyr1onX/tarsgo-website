@@ -1,0 +1,15 @@
+.workbench-feature-status {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  min-height: 23px;
+  border: 1px solid var(--admin-border-subtle);
+  border-radius: 999px;
+  padding: 3px 8px;
+  color: var(--admin-muted);
+  background: color-mix(in srgb, var(--admin-surface-rail) 42%, transparent);
+  font-size: 10px;
+  font-weight: 520;
+  line-height: 1.35;
+  white-space: nowrap;
+}

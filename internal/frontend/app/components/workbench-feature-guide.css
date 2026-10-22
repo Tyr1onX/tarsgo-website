@@ -1,0 +1,37 @@
+.workbench-feature-guide { display: grid; gap: 18px; width: min(100%, 1120px); margin-inline: auto; padding: 4px 0 30px; }
+.workbench-feature-guide__header { display: flex; align-items: end; justify-content: space-between; gap: 20px; border-bottom: 1px solid var(--admin-border-subtle); padding: 4px 0 18px; }
+.workbench-feature-guide__eyebrow { color: var(--admin-accent-text); font: 550 10px/1.4 "Geist Mono", ui-monospace, monospace; letter-spacing: .1em; }
+.workbench-feature-guide__header h1 { max-width: 760px; margin-top: 7px; color: var(--admin-text); font-size: clamp(23px, 3.5vw, 32px); font-weight: 630; letter-spacing: -.04em; line-height: 1.2; }
+.workbench-feature-guide__header > div > p:last-child { margin-top: 8px; color: var(--admin-muted); font-size: 12px; line-height: 1.6; }
+.workbench-feature-guide__back { flex: none; color: var(--admin-muted); font-size: 11px; text-decoration: none; }
+.workbench-feature-guide__back:hover { color: var(--admin-text); }
+.workbench-feature-guide__start { display: grid; grid-template-columns: minmax(180px, .65fr) minmax(0, 1.35fr); gap: 8px 22px; border: 1px solid var(--admin-border-subtle); border-radius: 14px; padding: 17px 19px; background: color-mix(in srgb, var(--admin-surface-rail) 42%, var(--admin-surface)); }
+.workbench-feature-guide__start h2 { margin-top: 5px; color: var(--admin-text); font-size: 15px; font-weight: 600; }
+.workbench-feature-guide__start ol { display: grid; gap: 8px; margin: 0; padding-left: 20px; color: var(--admin-muted); font-size: 11px; line-height: 1.55; }
+.workbench-feature-guide__start li::marker { color: var(--admin-accent-text); }
+.workbench-feature-guide__start li a { color: inherit; text-decoration: none; }
+.workbench-feature-guide__start li a:hover { color: var(--admin-text); text-decoration: underline; text-underline-offset: 3px; }
+.workbench-feature-guide__start > p:not(.workbench-feature-guide__scope-note) { align-self: center; color: var(--admin-muted); font-size: 12px; line-height: 1.65; }
+.workbench-feature-guide__scope-note { grid-column: 2; color: var(--admin-dim); font-size: 10px; line-height: 1.5; }
+.workbench-feature-guide__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.workbench-feature-guide__item { display: grid; align-content: start; gap: 11px; min-width: 0; border: 1px solid var(--admin-border-subtle); border-radius: 13px; padding: 15px 16px; background: var(--admin-surface); }
+.workbench-feature-guide__item-top { display: flex; align-items: start; justify-content: space-between; gap: 10px; }
+.workbench-feature-guide__item-top > div > p { color: var(--admin-dim); font-size: 9px; line-height: 1.5; }
+.workbench-feature-guide__item h2 { margin-top: 4px; color: var(--admin-text); font-size: 15px; font-weight: 610; letter-spacing: -.02em; }
+.workbench-feature-guide__description { color: var(--admin-muted); font-size: 11px; line-height: 1.7; }
+.workbench-feature-guide__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 9px 16px; border-top: 1px solid var(--admin-border-subtle); padding-top: 10px; }
+.workbench-feature-guide__actions a { color: var(--admin-accent-text); font-size: 10px; font-weight: 570; text-decoration: none; }
+.workbench-feature-guide__actions a:hover { text-decoration: underline; text-underline-offset: 3px; }
+.workbench-feature-guide__actions .workbench-feature-guide__admin-action { color: var(--admin-muted); }
+.workbench-feature-guide :is(a, button):focus-visible { outline: 2px solid var(--admin-accent); outline-offset: 3px; }
+
+@media (max-width: 700px) {
+  .workbench-feature-guide { gap: 13px; padding-top: 0; }
+  .workbench-feature-guide__header { align-items: start; flex-direction: column; gap: 11px; padding-bottom: 13px; }
+  .workbench-feature-guide__header h1 { font-size: 23px; }
+  .workbench-feature-guide__back { min-height: 32px; display: inline-flex; align-items: center; }
+  .workbench-feature-guide__start { grid-template-columns: minmax(0, 1fr); gap: 11px; padding: 14px; }
+  .workbench-feature-guide__scope-note { grid-column: 1; }
+  .workbench-feature-guide__grid { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .workbench-feature-guide__item { padding: 13px; }
+}

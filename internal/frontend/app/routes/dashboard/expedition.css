@@ -52,6 +52,9 @@
 .base-navigation__location > button,.base-navigation__compass { display: grid; place-items: center; width: 43px; height: 43px; border: 1px solid #9aaea34d; border-radius: 6px; color: #d8c389; background: #0e242c99; font-size: 20px; }
 .base-navigation__location small { color: #90aaa6; font: 8px monospace; letter-spacing: .16em; }
 .base-navigation__location h2 { margin-top: 5px; font-size: 24px; letter-spacing: .04em; font-weight: 500; color: #e5e9dd; }
+.base-navigation__title-row { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; }
+.base-navigation__title-row h2 { margin-top: 5px; }
+.base-navigation__title-row .workbench-feature-status { min-height: 20px; border-color: #9aaea34d; padding: 2px 7px; color: #c2c9bd; background: #0e242c99; font-size: 9px; }
 .base-navigation__actions { display: flex; gap: 8px; }
 .base-navigation__actions button { display: inline-flex; gap: 18px; align-items: center; min-height: 42px; max-width: 270px; overflow: hidden; border: 1px solid #a6bcad47; border-radius: 6px; padding: 0 15px; background: #0d222bcc; color: #c1cec5; font-size: 11px; white-space: nowrap; text-overflow: ellipsis; }
 .base-navigation__actions button:hover { border-color: #d4bd7a; color: #f5deb1; }

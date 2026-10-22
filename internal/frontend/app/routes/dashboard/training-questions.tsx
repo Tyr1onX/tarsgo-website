@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useOutletContext, useSearchParams } from "react-router";
 
 import { QuestionActionBar, TrainingQuestionThread } from "~/components/training-question-thread";
+import { WorkbenchFeatureStatus } from "~/components/workbench-feature-status";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { isTechnicalGroupName } from "~/lib/dashboard-navigation";
 import { formatQuestionDate, questionStatusLabel, trainingQuestionClient, type TrainingQuestion, type TrainingQuestionDetail } from "~/lib/training-question-client";
@@ -163,7 +164,7 @@ export default function TrainingQuestionsRoute() {
   return (
     <section className="admin-design space-y-5" aria-labelledby="training-questions-title">
       <header className="admin-page-header flex flex-wrap items-center justify-between gap-3">
-        <h1 id="training-questions-title" className="admin-page-title">提问答疑</h1>
+        <div className="flex flex-wrap items-center gap-2"><h1 id="training-questions-title" className="admin-page-title">提问答疑</h1><WorkbenchFeatureStatus feature="questions" /></div>
         {activeGroups.length > 1 ? <label className="admin-field-label">技术组<select className={fieldClass} value={groupId} onChange={(event) => { setGroupId(Number(event.target.value)); setSelectedID(0); }}>
           {activeGroups.map((group) => <option key={group.groupId} value={group.groupId}>{group.name}</option>)}
         </select></label> : activeGroups[0] ? <p className="text-sm text-[var(--admin-muted)]">{activeGroups[0].name}</p> : null}
@@ -199,14 +200,14 @@ export default function TrainingQuestionsRoute() {
 
       <div className="grid gap-4 lg:grid-cols-[minmax(16rem,0.8fr)_minmax(0,1.7fr)]">
         <section className="admin-panel overflow-hidden" aria-label="问题列表">
-          <div className="flex items-center justify-between border-b border-[var(--admin-border-subtle)] px-4 py-3 text-sm"><strong className="text-white">问题</strong><span className="text-xs text-[var(--admin-muted)]">{loading || groupsLoading ? "加载中" : `${items.length} 条`}</span></div>
+          <div className="flex items-center justify-between border-b border-[var(--admin-border-subtle)] px-4 py-3 text-sm"><strong className="text-white">问题</strong><span className="text-xs text-[var(--admin-muted)]">{loading || groupsLoading ? "加载中" : error || groupError ? "未加载" : `${items.length} 条`}</span></div>
           {items.length ? <div className="divide-y divide-[var(--admin-border-subtle)]">
             {items.map((item) => <button key={item.id} type="button" onClick={() => setSelectedID(item.id)} className={`w-full px-4 py-3 text-left ${selectedID === item.id ? "bg-amber-400/10" : "hover:bg-white/[0.035]"}`}>
               <span className="flex items-start justify-between gap-2"><strong className="line-clamp-2 text-sm text-white">{item.title}</strong><span className="shrink-0 text-[11px] text-[var(--admin-muted)]">{questionStatusLabel(item)}</span></span>
               <span className="mt-1 flex flex-wrap gap-x-2 text-xs text-[var(--admin-muted)]"><span>{item.askerName}</span><span>{formatQuestionDate(item.lastReplyAt ?? item.createdAt)}</span><span>{item.postCount} 条回复</span></span>
               {item.isFaq ? <span className="mt-2 inline-block rounded-full border border-amber-400/30 px-2 py-0.5 text-[10px] text-amber-200">FAQ</span> : null}
             </button>)}
-          </div> : <p className="px-4 py-6 text-sm text-[var(--admin-muted)]">{loading ? "" : "没有匹配的问题"}</p>}
+          </div> : loading || error || groupError ? null : <p className="px-4 py-6 text-sm text-[var(--admin-muted)]">{faqOnly && !keyword.trim() ? "本组 FAQ 还在积累中。" : !keyword.trim() && !status && !mineOnly ? "本组目前还没有问题，可以从“提问”开始。" : "没有匹配的问题"}</p>}
         </section>
 
         <section className="space-y-4">
