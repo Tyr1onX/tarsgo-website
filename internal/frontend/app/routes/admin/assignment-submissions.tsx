@@ -16,51 +16,71 @@ export default function AssignmentSubmissionsRoute() {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedID = Number(searchParams.get("assignmentId")) || 0;
   const { technicalGroups, error: groupError, loading: groupsLoading } = useAssignmentGroups(currentUser.id, currentUser.role.name, groupResolution?.groups);
+  const technicalGroupKey = technicalGroups.map((group) => group.groupId).join(",");
   const [groupId, setGroupId] = useState(0);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selectedID, setSelectedID] = useState(requestedID);
   const [detail, setDetail] = useState<AdminAssignmentDetail | null>(null);
   const [reviewDrafts, setReviewDrafts] = useState<Record<number, { score: string; decision: "passed" | "needs_redo"; comment: string }>>({});
   const [loading, setLoading] = useState(false);
+  const [listLoaded, setListLoaded] = useState(false);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [savingID, setSavingID] = useState(0);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
   useEffect(() => {
     setAssignments([]);
+    setListLoaded(false);
     setDetail(null);
+    setDetailLoading(false);
     setSelectedID(0);
     setReviewDrafts({});
     setGroupId((current) => technicalGroups.some((group) => group.groupId === current) ? current : technicalGroups[0]?.groupId ?? 0);
-  }, [currentUser.id, groupResolution, technicalGroups]);
+  }, [currentUser.id, currentUser.role.name, technicalGroupKey]);
 
   useEffect(() => {
     if (!groupId) return;
     let active = true;
     setLoading(true);
+    setListLoaded(false);
+    setAssignments([]);
+    setDetail(null);
+    setDetailLoading(false);
+    setSelectedID(0);
     setError("");
     assignmentClient.listAdmin(groupId).then((items) => {
       if (!active) return;
       setAssignments(items);
+      setListLoaded(true);
       const nextID = items.some((item) => item.id === requestedID) ? requestedID : items[0]?.id ?? 0;
       setSelectedID(nextID);
       if (nextID) setSearchParams({ assignmentId: String(nextID) }, { replace: true });
-      else setDetail(null);
     }).catch((cause: unknown) => {
-      if (active) setError(cause instanceof Error ? cause.message : "作业列表加载失败");
+      if (active) {
+        setAssignments([]);
+        setListLoaded(false);
+        setError(cause instanceof Error ? cause.message : "作业列表加载失败");
+      }
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [groupId, currentUser.id]);
+  }, [groupId, currentUser.id, currentUser.role.name, technicalGroupKey]);
 
   useEffect(() => {
-    if (!selectedID) return;
+    if (!listLoaded || !selectedID) {
+      setDetail(null);
+      setDetailLoading(false);
+      return;
+    }
     let active = true;
     setDetail(null);
+    setDetailLoading(true);
     setError("");
     assignmentClient.getAdmin(selectedID).then((value) => { if (active) setDetail(value); })
-      .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : "提交记录加载失败"); });
+      .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : "提交记录加载失败"); })
+      .finally(() => { if (active) setDetailLoading(false); });
     return () => { active = false; };
-  }, [selectedID, currentUser.id]);
+  }, [selectedID, currentUser.id, listLoaded]);
 
   function draftFor(submissionID: number) {
     return reviewDrafts[submissionID] ?? { score: "", decision: "passed" as const, comment: "" };
@@ -108,27 +128,34 @@ export default function AssignmentSubmissionsRoute() {
 
   function chooseAssignment(id: number) {
     setSelectedID(id);
+    setDetail(null);
+    setDetailLoading(Boolean(id));
+    setError("");
     setSearchParams(id ? { assignmentId: String(id) } : {}, { replace: true });
     setNotice("");
   }
 
-  const assignment = detail?.assignment;
+  const assignment = listLoaded && assignments.some((item) => item.id === selectedID) && detail?.assignment.id === selectedID
+    ? detail.assignment
+    : null;
   return (
     <section className="admin-design space-y-5" aria-labelledby="assignment-submissions-title">
       <header className="admin-page-header flex flex-wrap items-center justify-between gap-3">
         <h1 id="assignment-submissions-title" className="admin-page-title">提交记录</h1>
-        {groupsLoading ? <p role="status" className="text-sm text-[var(--admin-muted)]">正在加载技术组…</p> : technicalGroups.length > 1 ? <label className="admin-field-label">技术组<select className="admin-field w-full" value={groupId} onChange={(event) => { setGroupId(Number(event.target.value)); setSelectedID(0); setDetail(null); }}>
+        {groupsLoading ? <p role="status" className="text-sm text-[var(--admin-muted)]">正在加载技术组…</p> : technicalGroups.length > 1 ? <label className="admin-field-label">技术组<select className="admin-field w-full" value={groupId} onChange={(event) => { setGroupId(Number(event.target.value)); setAssignments([]); setListLoaded(false); setSelectedID(0); setDetail(null); setDetailLoading(false); setError(""); }}>
           {technicalGroups.map((group) => <option key={group.groupId} value={group.groupId}>{group.name}</option>)}
         </select></label> : technicalGroups[0] ? <p className="text-sm text-[var(--admin-muted)]">{technicalGroups[0].name}</p> : null}
       </header>
       {groupError ? <div role="alert" className="admin-notice admin-notice--error">{groupError}</div> : null}
+      {!groupsLoading && !groupError && technicalGroups.length === 0 ? <section className="admin-panel p-5 text-sm text-[var(--admin-muted)]">没有可管理的技术组。</section> : null}
       {assignments.length > 0 ? <label className="admin-field-label">作业<select className="admin-field w-full" value={selectedID} onChange={(event) => chooseAssignment(Number(event.target.value))}>
         {assignments.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
       </select></label> : null}
       {error ? <div role="alert" className="admin-notice admin-notice--error">{error}</div> : null}
       {notice ? <div role="status" className="admin-notice admin-notice--success">{notice}</div> : null}
-      {loading ? <p role="status" className="py-6 text-sm text-[var(--admin-muted)]">正在加载…</p> : null}
-      {!loading && assignments.length === 0 ? <section className="admin-panel p-5 text-sm text-[var(--admin-muted)]">暂无本组作业。</section> : null}
+      {loading ? <p role="status" className="py-6 text-sm text-[var(--admin-muted)]">正在加载作业列表…</p> : null}
+      {detailLoading ? <p role="status" className="py-4 text-sm text-[var(--admin-muted)]">正在加载提交记录…</p> : null}
+      {listLoaded && !loading && !error && assignments.length === 0 ? <section className="admin-panel p-5 text-sm text-[var(--admin-muted)]">暂无本组作业。</section> : null}
       {assignment ? <>
         <section className="admin-panel flex flex-wrap gap-x-6 gap-y-2 p-4 text-sm" aria-label="作业统计">
           <strong className="text-white">{assignment.title}</strong>
@@ -138,6 +165,8 @@ export default function AssignmentSubmissionsRoute() {
           <span>已通过 {assignment.passedCount}</span>
         </section>
         <section className="admin-panel divide-y divide-[var(--admin-border-subtle)] p-4 sm:p-5" aria-label="成员提交情况">
+          {detail?.members.length === 0 ? <p role="status" className="pb-3 text-sm text-[var(--admin-muted)]">该作业当前没有分配成员。</p> : null}
+          {detail && detail.members.length > 0 && detail.members.every((member) => member.submissions.length === 0) ? <p role="status" className="pb-3 text-sm text-[var(--admin-muted)]">暂无成员提交。</p> : null}
           {detail?.members.map((member) => <article key={member.userId} className="py-4 first:pt-0 last:pb-0">
             <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold text-white">{member.name}</h2><div className="flex items-center gap-2 text-xs text-[var(--admin-muted)]"><span>{assignmentStatusLabel(member.status)}</span>{member.isLate ? <span className="text-amber-300">逾期提交</span> : null}</div></div>
             {!member.latestSubmission ? <p className="mt-2 text-sm text-[var(--admin-muted)]">尚未提交</p> : <>

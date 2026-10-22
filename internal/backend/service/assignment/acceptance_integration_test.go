@@ -139,6 +139,7 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 		return Actor{ID: user.ID, RoleName: roleName}
 	}
 	member := createActor("mechanical-member", model.RoleNameUser, groupMechanical)
+	otherMember := createActor("mechanical-other-member", model.RoleNameUser, groupMechanical)
 	crossMember := createActor("ai-member", model.RoleNameUser, groupAI)
 	admin := createActor("mechanical-admin", model.RoleNameAdmin, groupMechanical)
 	superAdmin := createActor("super-admin", model.RoleNameSuperAdmin, "")
@@ -164,11 +165,42 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	if err != nil || published == nil || len(published.MaterialFiles) != 1 {
 		t.Fatalf("atomic assignment publication failed: result=%v err=%v", published, err)
 	}
+	if published.Assignment.IsGroupWide {
+		t.Fatal("targeted atomic publication was returned as group-wide")
+	}
 	createdAssignmentIDs = append(createdAssignmentIDs, published.Assignment.ID)
 	createdMaterialIDs = append(createdMaterialIDs, published.MaterialFiles[0].ID)
+	var persistedPublished model.Assignment
+	if err := db.First(&persistedPublished, published.Assignment.ID).Error; err != nil || persistedPublished.IsGroupWide {
+		t.Fatalf("targeted atomic publication was not persisted as targeted: record=%#v err=%v", persistedPublished, err)
+	}
+	adminList, err := service.ListAdmin(context.Background(), admin, groupIDs[groupMechanical])
+	if err != nil {
+		t.Fatalf("list the targeted assignment: %v", err)
+	}
+	var listedPublished *AssignmentView
+	for index := range adminList {
+		if adminList[index].ID == published.Assignment.ID {
+			listedPublished = &adminList[index]
+			break
+		}
+	}
+	if listedPublished == nil || listedPublished.IsGroupWide || listedPublished.TargetCount != 1 {
+		t.Fatalf("admin list changed targeted assignment scope: %#v", listedPublished)
+	}
+	adminDetail, err := service.GetAdmin(context.Background(), admin, published.Assignment.ID)
+	if err != nil || adminDetail.Assignment.IsGroupWide || len(adminDetail.Members) != 1 || adminDetail.Members[0].UserID != member.ID {
+		t.Fatalf("admin detail changed targeted assignment scope: detail=%#v err=%v", adminDetail, err)
+	}
 	memberPublished, err := service.GetMine(context.Background(), member, published.Assignment.ID)
 	if err != nil || len(memberPublished.Assignment.MaterialFiles) != 1 {
 		t.Fatalf("member did not see a fully published assignment and its material: detail=%v err=%v", memberPublished, err)
+	}
+	if _, err := service.GetMine(context.Background(), otherMember, published.Assignment.ID); statusOf(err) != http.StatusNotFound {
+		t.Fatalf("another member in the same group accessed a targeted assignment: status=%d", statusOf(err))
+	}
+	if _, err := service.GetMine(context.Background(), crossMember, published.Assignment.ID); statusOf(err) != http.StatusNotFound {
+		t.Fatalf("a cross-group member accessed a targeted assignment: status=%d", statusOf(err))
 	}
 	replayed, err := service.CreateWithMaterialFiles(context.Background(), admin, publishInput, requestID, publishFiles)
 	if err != nil || replayed.Assignment.ID != published.Assignment.ID || len(replayed.MaterialFiles) != 1 {
@@ -306,12 +338,31 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	if err != nil || !updated.DueAt.Equal(initialDueAt) {
 		t.Fatalf("editing an assignment changed its retained deadline: due=%v err=%v", updated, err)
 	}
+	if updated.IsGroupWide {
+		t.Fatal("editing a targeted assignment changed it to group-wide")
+	}
 	var persistedAssignment model.Assignment
 	if err := db.First(&persistedAssignment, assignment.ID).Error; err != nil {
 		t.Fatalf("reload edited assignment deadline: %v", err)
 	}
 	if persistedDueAt := readStoredUTCWall(persistedAssignment.DueAt); !persistedDueAt.Equal(initialDueAt) {
 		t.Fatalf("edited deadline did not round-trip through MySQL: got=%s want=%s", persistedDueAt, initialDueAt)
+	}
+	if persistedAssignment.IsGroupWide {
+		t.Fatal("edited targeted assignment persisted as group-wide")
+	}
+	if _, err := service.Update(context.Background(), admin, assignment.ID, CreateInput{
+		Title: assignment.Title + " 越权扩大范围", Description: assignment.Description, DueAt: initialDueAt,
+		IsGroupWide: true,
+	}); statusOf(err) != http.StatusConflict {
+		t.Fatalf("editing a targeted assignment into group-wide was not rejected: status=%d", statusOf(err))
+	}
+	adminDetailAfterRejectedWidening, err := service.GetAdmin(context.Background(), admin, assignment.ID)
+	if err != nil || adminDetailAfterRejectedWidening.Assignment.IsGroupWide || len(adminDetailAfterRejectedWidening.Members) != 1 || adminDetailAfterRejectedWidening.Members[0].UserID != member.ID {
+		t.Fatalf("rejected edit changed targeted assignment recipients: detail=%#v err=%v", adminDetailAfterRejectedWidening, err)
+	}
+	if _, err := service.GetMine(context.Background(), otherMember, assignment.ID); statusOf(err) != http.StatusNotFound {
+		t.Fatalf("another same-group member gained access after editing a targeted assignment: status=%d", statusOf(err))
 	}
 
 	material, err := service.UploadMaterialFiles(context.Background(), admin, assignment.ID, []*multipart.FileHeader{multipartHeader(t, "教学资料.pdf", []byte("%PDF-1.7\nlesson"))})
@@ -360,6 +411,33 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	graded, err := service.Review(context.Background(), admin, submitted.Submissions[0].ID, ReviewInput{Score: 90, Decision: model.AssignmentReviewPassed, Comment: "[TEST_ASSIGNMENT] 流程通过"})
 	if err != nil || len(graded.Members) != 1 || graded.Members[0].LatestSubmission == nil || graded.Members[0].LatestSubmission.Decision != model.AssignmentReviewPassed {
 		t.Fatalf("assignment review regression: result=%v err=%v", graded, err)
+	}
+
+	fullGroupAssignment, err := service.Create(context.Background(), admin, CreateInput{
+		GroupID: groupIDs[groupMechanical], Title: "[TEST_ASSIGNMENT] 全组范围回归", Description: "全组作业创建及编辑验证",
+		DueAt: now.Add(72 * time.Hour), IsGroupWide: true,
+	})
+	if err != nil || !fullGroupAssignment.IsGroupWide {
+		t.Fatalf("full-group assignment creation failed: assignment=%#v err=%v", fullGroupAssignment, err)
+	}
+	initialFullGroupTargetCount := fullGroupAssignment.TargetCount
+	createdAssignmentIDs = append(createdAssignmentIDs, fullGroupAssignment.ID)
+	if _, err := service.GetMine(context.Background(), member, fullGroupAssignment.ID); err != nil {
+		t.Fatalf("first technical-group member could not access a full-group assignment: %v", err)
+	}
+	if _, err := service.GetMine(context.Background(), otherMember, fullGroupAssignment.ID); err != nil {
+		t.Fatalf("second technical-group member could not access a full-group assignment: %v", err)
+	}
+	lateMember := createActor("mechanical-late-member", model.RoleNameUser, groupMechanical)
+	fullGroupEdited, err := service.Update(context.Background(), admin, fullGroupAssignment.ID, CreateInput{
+		Title: fullGroupAssignment.Title + " 已编辑", Description: fullGroupAssignment.Description,
+		DueAt: now.Add(72 * time.Hour), IsGroupWide: true,
+	})
+	if err != nil || !fullGroupEdited.IsGroupWide || fullGroupEdited.TargetCount != initialFullGroupTargetCount {
+		t.Fatalf("editing a full-group assignment changed its existing recipient snapshot: assignment=%#v err=%v", fullGroupEdited, err)
+	}
+	if _, err := service.GetMine(context.Background(), lateMember, fullGroupAssignment.ID); statusOf(err) != http.StatusNotFound {
+		t.Fatalf("routine edit expanded a full-group assignment to a later member: status=%d", statusOf(err))
 	}
 }
 

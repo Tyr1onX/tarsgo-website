@@ -1,6 +1,8 @@
 package database
 
 import (
+	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -9,10 +11,10 @@ import (
 
 func TestMigrationRegistryIsOrderedAndKeepsBaseVersion(t *testing.T) {
 	items := migrationRegistry("test")
-	if len(items) != 25 {
-		t.Fatalf("expected 25 registered migrations, got %d", len(items))
+	if len(items) != 26 {
+		t.Fatalf("expected 26 registered migrations, got %d", len(items))
 	}
-	wantVersions := []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25}
+	wantVersions := []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26}
 	for index, want := range wantVersions {
 		if items[index].version != want {
 			t.Fatalf("migration %d has version %d, want %d", index, items[index].version, want)
@@ -25,6 +27,27 @@ func TestMigrationRegistryIsOrderedAndKeepsBaseVersion(t *testing.T) {
 		if items[index-1].version >= items[index].version {
 			t.Fatalf("migrations must be strictly ordered at index %d", index)
 		}
+	}
+}
+
+func TestMigration26OnlyCorrectsAssignmentRecipientDefault(t *testing.T) {
+	items := migrationRegistry("test")
+	var migration26 *migration
+	for index := range items {
+		if items[index].version == 26 {
+			migration26 = &items[index]
+			break
+		}
+	}
+	if migration26 == nil {
+		t.Fatal("assignment recipient default migration 26 is missing")
+	}
+	if migration26.apply == nil {
+		t.Fatal("assignment recipient default migration has no implementation")
+	}
+	field, ok := reflect.TypeOf(model.Assignment{}).FieldByName("IsGroupWide")
+	if !ok || !strings.Contains(field.Tag.Get("gorm"), "default:0") {
+		t.Fatalf("IsGroupWide must default to false after migration 26; gorm tag = %q", field.Tag.Get("gorm"))
 	}
 }
 
