@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useOutletContext } from "react-router";
 
+import { WorkbenchFeatureStatus } from "~/components/workbench-feature-status";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { ApiError } from "~/lib/api-client";
 import { assignmentClient, formatAssignmentDate, type Assignment, type AssignmentInput, type AssignmentMaterialFile, type AssignmentMemberOption } from "~/lib/assignment-client";
@@ -263,7 +264,7 @@ export default function AssignmentManagementRoute() {
   return (
     <section className="admin-design space-y-5" aria-labelledby="assignment-management-title">
       <header className="admin-page-header flex flex-wrap items-center justify-between gap-3">
-        <h1 id="assignment-management-title" className="admin-page-title">作业管理</h1>
+        <div className="flex flex-wrap items-center gap-2"><h1 id="assignment-management-title" className="admin-page-title">作业管理</h1><WorkbenchFeatureStatus feature="assignments" /></div>
         {groupsLoading ? <p role="status" className="text-sm text-[var(--admin-muted)]">正在加载技术组…</p> : technicalGroups.length > 1 ? <label className="admin-field-label">技术组<select className="admin-field w-full" value={groupId} disabled={saving || publishStage !== "idle"} onChange={(event) => { const nextGroupID = Number(event.target.value); setGroupId(nextGroupID); resetDraft(nextGroupID); }}>
           {technicalGroups.map((group) => <option key={group.groupId} value={group.groupId}>{group.name}</option>)}
         </select></label> : technicalGroups[0] ? <p className="text-sm text-[var(--admin-muted)]">{technicalGroups[0].name}</p> : null}
@@ -339,7 +340,7 @@ export default function AssignmentManagementRoute() {
       <section className="admin-panel p-4 sm:p-5" aria-labelledby="assignment-list-title">
         <div className="admin-section-heading"><h2 id="assignment-list-title">本组作业</h2></div>
         {loading ? <p role="status" className="py-4 text-sm text-[var(--admin-muted)]">正在加载…</p> : null}
-        {!loading && items.length === 0 ? <p className="py-4 text-sm text-[var(--admin-muted)]">暂无已发布作业。</p> : null}
+        {!loading && !error && !groupError && items.length === 0 ? <p className="py-4 text-sm text-[var(--admin-muted)]">本组尚未发布作业。</p> : null}
         <div className="divide-y divide-[var(--admin-border-subtle)]">{items.map((item) => <article key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
           <div className="min-w-0"><h3 className="truncate text-sm font-medium text-white">{item.title}</h3><p className="mt-1 text-xs text-[var(--admin-muted)]">截止 {formatAssignmentDate(item.dueAt)} · {item.isGroupWide ? "全组" : `${item.targetCount} 人`} · 已提交 {item.submittedCount}/{item.targetCount} · 已通过 {item.passedCount}</p></div>
           <div className="flex gap-2"><a href={`/dashboard/admin/training/submissions?assignmentId=${item.id}`} className="admin-button admin-button--secondary">提交记录</a><button type="button" className="admin-button admin-button--quiet" disabled={item.submittedCount > 0} onClick={() => editAssignment(item)}>{item.submittedCount > 0 ? "已有提交" : "编辑"}</button></div>

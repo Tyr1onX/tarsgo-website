@@ -41,6 +41,7 @@
 .growth-hero__stats,
 .growth-hero__signal { position: relative; z-index: 1; }
 .growth-hero__identity { min-width: 0; }
+.growth-hero__title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
 .growth-hero__eyebrow,
 .growth-rail__eyebrow,
 .growth-section-heading > div > p {
@@ -49,7 +50,7 @@
   letter-spacing: .15em;
 }
 .growth-hero__eyebrow span { color: var(--admin-accent); }
-.growth-hero h1 { margin-top: 14px; color: var(--admin-text); font-size: clamp(26px, 4vw, 36px); font-weight: 650; letter-spacing: -.045em; }
+.growth-hero h1 { color: var(--admin-text); font-size: clamp(26px, 4vw, 36px); font-weight: 650; letter-spacing: -.045em; }
 .growth-hero__name { margin-top: 8px; color: var(--admin-muted); font-size: 15px; }
 .growth-group-list { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 15px; }
 .growth-group { border: 1px solid color-mix(in srgb, var(--growth-signal) 38%, transparent); border-radius: 999px; padding: 4px 10px; color: var(--growth-signal); font-size: 11px; }

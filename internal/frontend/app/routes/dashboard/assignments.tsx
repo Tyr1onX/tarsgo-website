@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useOutletContext, useSearchParams } from "react-router";
 
+import { WorkbenchFeatureStatus } from "~/components/workbench-feature-status";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import {
   assignmentClient,
@@ -113,10 +114,10 @@ export default function MyAssignmentsRoute() {
 
   return (
     <section className="admin-design space-y-5" aria-labelledby="my-assignments-title">
-      <header className="admin-page-header"><h1 id="my-assignments-title" className="admin-page-title">我的作业</h1></header>
+      <header className="admin-page-header"><div className="flex flex-wrap items-center gap-2"><h1 id="my-assignments-title" className="admin-page-title">我的作业</h1><WorkbenchFeatureStatus feature="assignments" /></div></header>
       {error ? <div role="alert" className="admin-notice admin-notice--error">{error}</div> : null}
       {loading ? <p role="status" className="py-6 text-sm text-[var(--admin-muted)]">正在加载作业…</p> : null}
-      {!loading && items.length === 0 ? <section className="admin-panel p-5 text-sm text-[var(--admin-muted)]">暂无分配给你的作业。</section> : null}
+      {!loading && !error && items.length === 0 ? <section className="admin-panel p-5 text-sm text-[var(--admin-muted)]">目前还没有分配给你的作业；作业发布后会显示在这里。</section> : null}
       {!loading && items.length > 0 ? <div className="grid gap-4 xl:grid-cols-[minmax(240px,0.8fr)_minmax(0,1.6fr)]">
         <section className="admin-panel divide-y divide-[var(--admin-border-subtle)] p-3" aria-label="作业列表">
           {items.map((item) => <button key={item.id} type="button" disabled={saving} onClick={() => void selectAssignment(item)} className={`w-full rounded-lg px-3 py-3 text-left transition-colors disabled:cursor-wait ${selectedID === item.id ? "bg-amber-400/10" : "hover:bg-white/[0.04]"}`}>

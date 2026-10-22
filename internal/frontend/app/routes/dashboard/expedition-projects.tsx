@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useLocation, useOutletContext, useSearchParams } from "react-router";
 
+import { WorkbenchFeatureStatus } from "~/components/workbench-feature-status";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { ApiError } from "~/lib/api-client";
 import { expeditionEventLabel, expeditionEvolutionTargetLabel, expeditionMilestoneStateLabel, expeditionProjectClient, formatExpeditionDate, type ExpeditionEvolutionTarget, type ExpeditionGroupMemberOption, type ExpeditionProject, type ExpeditionProjectInput, type ExpeditionProjectMilestone } from "~/lib/expedition-project-client";
@@ -204,7 +205,7 @@ export function ExpeditionProjectsRoute() {
   return (
     <section className="expedition-projects admin-design" aria-labelledby="expedition-projects-title">
       <header className="expedition-projects__header">
-        <div><p className="expedition-eyebrow">SEASON COLLABORATION</p><h1 id="expedition-projects-title">赛季协作</h1><p>真实阶段成果会点亮基地设施，并留在赛季编年史中。</p></div>
+        <div><p className="expedition-eyebrow">SEASON COLLABORATION</p><div className="expedition-projects__title-row"><h1 id="expedition-projects-title">赛季协作</h1><WorkbenchFeatureStatus feature="collaboration" /></div><p>真实阶段成果会点亮基地设施，并留在赛季编年史中。</p></div>
         <Link className="expedition-projects__back" to="/dashboard/expedition">返回基地 <span aria-hidden="true">↗</span></Link>
       </header>
 
@@ -241,12 +242,12 @@ export function ExpeditionProjectsRoute() {
       <div className="expedition-projects__layout">
         <aside className="expedition-projects__list" aria-label="协作项目列表">
           <div className="expedition-projects__section-heading"><h2>{isAdminView ? "可管理项目" : "我的协作"}</h2><button type="button" onClick={refresh} disabled={loading}>{loading ? "读取中" : "刷新"}</button></div>
-          {loading ? <p className="expedition-projects__empty">正在读取项目…</p> : projects.length ? (
+          {loading ? <p className="expedition-projects__empty">正在读取项目…</p> : error ? null : projects.length ? (
             <ul>{projects.map((project) => {
               const accepted = project.milestones.filter((milestone) => milestone.state === "accepted").length;
               return <li key={project.id}><button className={selectedProject?.id === project.id ? "is-selected" : ""} type="button" onClick={() => selectProject(project.id)}><span><strong>{project.title}</strong><small>{project.participantGroups.join(" · ")}</small></span><span className="expedition-projects__count">{accepted}/{project.milestones.length}</span></button></li>;
             })}</ul>
-          ) : <p className="expedition-projects__empty">当前没有协作项目。</p>}
+          ) : <p className="expedition-projects__empty">{isAdminView ? "当前没有可管理的协作项目；待负责人创建和安排后会显示。" : "当前没有对你开放的协作项目；待负责人创建和安排后会显示。"}</p>}
         </aside>
 
         <main className="expedition-projects__detail">

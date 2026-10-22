@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent 
 import { useOutletContext, useSearchParams } from "react-router";
 
 import { SkillTreeGraph } from "~/components/skill-tree-graph";
+import { WorkbenchFeatureStatus } from "~/components/workbench-feature-status";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { assignmentClient, type Assignment } from "~/lib/assignment-client";
 import { formatSkillDate, skillEvidenceHref, skillEvidenceLabel, skillsClient, skillStateLabel, type SkillGroup, type SkillMember, type SkillNode, type SkillNodeInput } from "~/lib/skills-client";
@@ -182,13 +183,13 @@ export default function SkillRouteManagementRoute() {
   return (
     <section className="skills-page admin-design" aria-labelledby="skill-admin-title">
       <header className="skills-hero">
-        <div className="skills-hero__copy"><p className="skills-hero__eyebrow">TARS BASE <span aria-hidden="true">·</span> ROUTE CONTROL</p><h1 id="skill-admin-title">技能路线管理</h1><p>在本组逐步建立学习目标与验收标准。技能确认和撤销都会留下审核依据。</p></div>
+        <div className="skills-hero__copy"><p className="skills-hero__eyebrow">TARS BASE <span aria-hidden="true">·</span> ROUTE CONTROL</p><div className="skills-hero__title-row"><h1 id="skill-admin-title">技能路线管理</h1><WorkbenchFeatureStatus feature="skills" /></div><p>在本组逐步建立学习目标与验收标准。技能确认和撤销都会留下审核依据。</p></div>
         <div className="skills-hero__signal"><span>CONTROL DECK</span><strong>{String(nodes.filter((node) => node.active).length).padStart(2, "0")}</strong><small>启用节点</small></div>
       </header>
       {error ? <div role="alert" className="skills-alert">{error}</div> : null}
       {notice ? <p role="status" className="skills-success">{notice}</p> : null}
       {loading && groups.length === 0 ? <p role="status" className="py-8 text-sm text-[var(--admin-muted)]">正在读取可管理组别…</p> : null}
-      {!loading && groups.length === 0 ? <section className="skills-empty mt-4"><span className="skills-empty__mark" aria-hidden="true">⌁</span><h2>没有可管理的技能路线</h2><p>普通管理员需先拥有有效组别归属；超级管理员可管理全部已启用组别。</p></section> : null}
+      {!loading && !error && groups.length === 0 ? <section className="skills-empty mt-4"><span className="skills-empty__mark" aria-hidden="true">⌁</span><h2>没有可管理的技能路线</h2><p>普通管理员需先拥有有效组别归属；超级管理员可管理全部已启用组别。</p></section> : null}
       {groups.length > 0 ? <>
         <div className="skills-toolbar"><div><h2>成长路线</h2></div><div className="skills-group-tabs" aria-label="选择要管理的组别">{groups.map((group) => <button key={group.id} type="button" aria-pressed={group.id === groupID} onClick={() => selectGroup(group.id)}>{group.name}</button>)}</div></div>
         {selectedNode ? <div className="skills-admin-layout">

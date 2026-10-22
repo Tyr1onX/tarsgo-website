@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useOutletContext } from "react-router";
 
+import { WorkbenchFeatureStatus } from "~/components/workbench-feature-status";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { formatGrowthDate, getGrowthProfile, growthEventLabel, growthEventTone, type GrowthProfile } from "~/lib/growth-client";
 import { skillsClient, type SkillGroupProgress } from "~/lib/skills-client";
@@ -77,7 +78,7 @@ export default function MyGrowthRoute() {
         <div className="growth-hero__orbit" aria-hidden="true"><span /><span /><i /></div>
         <div className="growth-hero__identity">
           <p className="growth-hero__eyebrow">TARS BASE <span>·</span> SEASON EXPEDITION</p>
-          <h1 id="growth-page-title">我的成长</h1>
+          <div className="growth-hero__title-row"><h1 id="growth-page-title">我的成长</h1><WorkbenchFeatureStatus feature="growth" /></div>
           <p className="growth-hero__name">{profile?.displayName ?? "个人档案"}</p>
           <div className="growth-group-list" aria-label="所属组别">
             {profile?.groups.map((group) => <span className="growth-group" key={group}>{group}</span>)}

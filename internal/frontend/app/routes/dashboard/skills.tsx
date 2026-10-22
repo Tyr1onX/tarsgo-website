@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useOutletContext, useSearchParams } from "react-router";
 
 import { SkillTreeGraph } from "~/components/skill-tree-graph";
+import { WorkbenchFeatureStatus } from "~/components/workbench-feature-status";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { assignmentClient, type Assignment } from "~/lib/assignment-client";
 import { formatSkillDate, skillEvidenceHref, skillEvidenceLabel, skillsClient, skillStateLabel, type SkillGroupProgress, type SkillNode } from "~/lib/skills-client";
@@ -102,7 +103,7 @@ export default function SkillsRoute() {
       <header className="skills-hero">
         <div className="skills-hero__copy">
           <p className="skills-hero__eyebrow">TARS BASE <span aria-hidden="true">·</span> SKILL ROUTE</p>
-          <h1 id="skills-page-title">技能树</h1>
+          <div className="skills-hero__title-row"><h1 id="skills-page-title">技能树</h1><WorkbenchFeatureStatus feature="skills" /></div>
           <p>沿着组内路线探索。作业通过可以留下实践记录，技能掌握由本组管理员依据成果确认。</p>
         </div>
         <div className="skills-hero__signal" aria-label={`已掌握 ${masteredCount} 项，正在挑战 ${activeChallenges} 项`}>
@@ -112,11 +113,11 @@ export default function SkillsRoute() {
 
       {error ? <div role="alert" className="skills-alert">{error}</div> : null}
       {loading ? <p role="status" className="py-8 text-sm text-[var(--admin-muted)]">正在同步技能路线…</p> : null}
-      {!loading && groups.length === 0 ? (
+      {!loading && !error && groups.length === 0 ? (
         <section className="skills-empty mt-4">
           <span className="skills-empty__mark" aria-hidden="true">⌁</span>
           <h2>你的路线正在等待组别信标</h2>
-          <p>确认所属组别后，这里会显示对应技能树。当前没有已配置的路线时，不会生成虚假进度。</p>
+          <p>技能路线待配置。各组确认正式技能节点、培养目标和考核标准后，会在这里显示对应路线。</p>
           {currentUser.role.name === "admin" || currentUser.role.name === "super_admin" ? <Link className="skills-admin-link" to="/dashboard/admin/training/skills">前往配置组内路线 <span aria-hidden="true">↗</span></Link> : null}
         </section>
       ) : null}
