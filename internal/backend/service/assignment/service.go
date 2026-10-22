@@ -695,11 +695,31 @@ func (s *Service) Update(ctx context.Context, actor Actor, assignmentID uint64, 
 		if err := s.requireManagerGroupAccessWithDB(tx, actor, item.GroupID); err != nil {
 			return err
 		}
-		resolved, err := s.resolveTargetsWithDB(tx, item.GroupID, input.IsGroupWide, input.TargetUserIDs)
-		if err != nil {
-			return err
+		if input.IsGroupWide && item.IsGroupWide {
+			// An unchanged group-wide scope keeps its original recipient snapshot.
+			// Besides avoiding accidental expansion on a routine edit, this also
+			// protects legacy rows whose stored flag was defaulted incorrectly.
+			var targets []model.AssignmentTarget
+			if err := tx.Where("assignment_id = ?", item.ID).Order("user_id ASC").Find(&targets).Error; err != nil {
+				return err
+			}
+			userIDs = make([]uint64, 0, len(targets))
+			for _, target := range targets {
+				userIDs = append(userIDs, target.UserID)
+			}
+			if len(userIDs) == 0 {
+				return conflict("作业缺少接收成员记录，请重新选择分配范围后再保存")
+			}
+		} else {
+			if !item.IsGroupWide && input.IsGroupWide {
+				return conflict("定向作业不能切换为全组作业")
+			}
+			resolved, err := s.resolveTargetsWithDB(tx, item.GroupID, input.IsGroupWide, input.TargetUserIDs)
+			if err != nil {
+				return err
+			}
+			userIDs = resolved
 		}
-		userIDs = resolved
 		var submissionCount int64
 		if err := tx.Model(&model.AssignmentSubmission{}).Where("assignment_id = ?", item.ID).Count(&submissionCount).Error; err != nil {
 			return err

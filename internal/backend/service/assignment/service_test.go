@@ -149,6 +149,9 @@ func TestAdminCanPublishAssignmentForSelf(t *testing.T) {
 	if view.ID != 91 || view.CreatorID != 8 || view.TargetCount != 1 {
 		t.Fatalf("self-assignment response = %#v", view)
 	}
+	if view.IsGroupWide {
+		t.Fatal("a targeted assignment was returned as group-wide")
+	}
 }
 
 func TestOrdinaryMemberCannotUseAdminAssignmentManagement(t *testing.T) {

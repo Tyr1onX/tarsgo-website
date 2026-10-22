@@ -140,9 +140,7 @@ export default function AssignmentManagementRoute() {
     setLoadingEdit(true);
     void assignmentClient.getAdmin(item.id).then((detail) => {
       if (editRequestID.current !== activeRequest) return;
-      if (!detail.assignment.isGroupWide) {
-        setDraft((current) => ({ ...current, targetUserIds: detail.members.map((member) => member.userId) }));
-      }
+      setDraft((current) => ({ ...current, targetUserIds: detail.members.map((member) => member.userId) }));
       setExistingMaterials(detail.assignment.materialFiles ?? []);
     }).catch((cause: unknown) => {
       if (editRequestID.current === activeRequest) setError(cause instanceof Error ? cause.message : "作业资料加载失败");
@@ -315,7 +313,7 @@ export default function AssignmentManagementRoute() {
           <fieldset className="space-y-2 md:col-span-2">
             <legend className="admin-field-label">作业对象</legend>
             <div className="flex flex-wrap gap-4 text-sm">
-              <label className="inline-flex items-center gap-2"><input type="radio" name="assignment-target" disabled={saving || publishStage !== "idle"} checked={draft.isGroupWide} onChange={() => setDraft({ ...draft, isGroupWide: true, targetUserIds: [] })} />全组成员</label>
+              <label className="inline-flex items-center gap-2"><input type="radio" name="assignment-target" disabled={saving || publishStage !== "idle" || Boolean(editing && !editing.isGroupWide)} checked={draft.isGroupWide} onChange={() => setDraft({ ...draft, isGroupWide: true, targetUserIds: [] })} />全组成员</label>
               <label className="inline-flex items-center gap-2"><input type="radio" name="assignment-target" disabled={saving || publishStage !== "idle"} checked={!draft.isGroupWide} onChange={() => setDraft({ ...draft, isGroupWide: false })} />指定成员</label>
             </div>
             {!draft.isGroupWide ? <div className="space-y-2">

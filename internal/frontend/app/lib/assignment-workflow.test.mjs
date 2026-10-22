@@ -10,6 +10,8 @@ const assignmentService = await readFile(new URL("../../../backend/service/assig
 const assignmentFiles = await readFile(new URL("../../../backend/service/assignment/file_store.go", import.meta.url), "utf8");
 const migrations = await readFile(new URL("../../../backend/database/migrations.go", import.meta.url), "utf8");
 const assignmentManagement = await readFile(new URL("../routes/admin/assignment-management.tsx", import.meta.url), "utf8");
+const assignmentSubmissions = await readFile(new URL("../routes/admin/assignment-submissions.tsx", import.meta.url), "utf8");
+const assignmentModel = await readFile(new URL("../../../backend/model/assignment.go", import.meta.url), "utf8");
 const memberAssignments = await readFile(new URL("../routes/dashboard/assignments.tsx", import.meta.url), "utf8");
 const assignmentClient = await readFile(new URL("./assignment-client.ts", import.meta.url), "utf8");
 const assignmentGroups = await readFile(new URL("./use-assignment-groups.ts", import.meta.url), "utf8");
@@ -100,6 +102,29 @@ test("specified recipients can be searched, removed, and retained across search 
   assert.match(assignmentManagement, /没有匹配成员/);
   assert.match(assignmentManagement, /filterAssignmentMembers\(members, memberSearch\)/);
   assert.match(assignmentManagement, /targetUserIds: toggleAssignmentMemberSelection/);
+});
+
+test("targeted assignments default to false and keep their saved recipients when edited", () => {
+  assert.match(assignmentModel, /IsGroupWide\s+bool[\s\S]*?gorm:"column:is_group_wide;type:tinyint\(1\);not null;default:0"/);
+  assert.match(migrations, /\{version: 26, apply: migrateAssignmentGroupWideDefault\}/);
+  assert.match(migrations, /func migrateAssignmentGroupWideDefault\(db \*gorm\.DB\) error[\s\S]*?AlterColumn\(&model\.Assignment\{\}, "IsGroupWide"\)/);
+  assert.match(assignmentManagement, /setDraft\(\(current\) => \(\{ \.\.\.current, targetUserIds: detail\.members\.map\(\(member\) => member\.userId\) \}\)\)/);
+  assert.match(assignmentService, /if input\.IsGroupWide && item\.IsGroupWide[\s\S]*?original recipient snapshot[\s\S]*?Find\(&targets\)/);
+  assert.match(assignmentService, /if !item\.IsGroupWide && input\.IsGroupWide \{\s*return conflict\("定向作业不能切换为全组作业"\)/);
+  assert.match(assignmentManagement, /editing && !editing\.isGroupWide/);
+});
+
+test("submission page distinguishes list loading, empty lists, detail loading, and no submissions", () => {
+  assert.match(assignmentSubmissions, /const technicalGroupKey = technicalGroups\.map\(\(group\) => group\.groupId\)\.join\(","\)/);
+  assert.match(assignmentSubmissions, /\[currentUser\.id, currentUser\.role\.name, technicalGroupKey\]/);
+  assert.match(assignmentSubmissions, /\[groupId, currentUser\.id, currentUser\.role\.name, technicalGroupKey\]/);
+  assert.match(assignmentSubmissions, /setListLoaded\(true\)/);
+  assert.match(assignmentSubmissions, /listLoaded && !loading && !error && assignments\.length === 0/);
+  assert.match(assignmentSubmissions, /listLoaded && assignments\.some\(\(item\) => item\.id === selectedID\) && detail\?\.assignment\.id === selectedID/);
+  assert.match(assignmentSubmissions, /正在加载作业列表/);
+  assert.match(assignmentSubmissions, /正在加载提交记录/);
+  assert.match(assignmentSubmissions, /暂无成员提交/);
+  assert.match(assignmentSubmissions, /role="alert" className="admin-notice admin-notice--error"/);
 });
 
 test("submissions and grading keep prior attempts, use Beijing deadlines, and protect uploaded files", () => {

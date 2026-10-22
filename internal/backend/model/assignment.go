@@ -17,7 +17,7 @@ type Assignment struct {
 	Description            string    `json:"description" gorm:"type:text;not null"`
 	DueAt                  time.Time `json:"dueAt" gorm:"column:due_at;type:datetime;not null;index:idx_assignment_group_due,priority:2"`
 	AttachmentRequirements string    `json:"attachmentRequirements" gorm:"column:attachment_requirements;type:text;not null"`
-	IsGroupWide            bool      `json:"isGroupWide" gorm:"column:is_group_wide;type:tinyint(1);not null;default:1"`
+	IsGroupWide            bool      `json:"isGroupWide" gorm:"column:is_group_wide;type:tinyint(1);not null;default:0"`
 	CreatedAt              time.Time `json:"createdAt" gorm:"column:created_at;type:datetime;not null;default:CURRENT_TIMESTAMP"`
 	UpdatedAt              time.Time `json:"updatedAt" gorm:"column:updated_at;type:datetime;not null;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"`
 }

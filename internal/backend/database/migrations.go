@@ -123,7 +123,12 @@ func migrationRegistry(appEnv string) []migration {
 			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.AssignmentMaterialFile{})
 		}},
 		{version: 25, apply: migrateAssignmentPublishIdempotency},
+		{version: 26, apply: migrateAssignmentGroupWideDefault},
 	}
+}
+
+func migrateAssignmentGroupWideDefault(db *gorm.DB) error {
+	return db.Migrator().AlterColumn(&model.Assignment{}, "IsGroupWide")
 }
 
 func migrateAssignmentPublishIdempotency(db *gorm.DB) error {
