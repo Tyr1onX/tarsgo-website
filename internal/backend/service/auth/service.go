@@ -197,10 +197,7 @@ func (s *Service) RegisterWithEmail(ctx context.Context, input RegisterEmailInpu
 
 		lastLoginAt := s.now()
 		user := model.User{
-			RoleID: role.ID,
-			// Newly registered accounts are ordinary users. They do not have an
-			// administrator scope until a privileged account assigns one.
-			AdminScope:   model.AdminScopeNone,
+			RoleID:       role.ID,
 			Name:         deriveDisplayName(normalizedInput.Email, normalizedInput.RealName, ""),
 			Email:        normalizedInput.Email,
 			PasswordHash: stringPtr(passwordHash),

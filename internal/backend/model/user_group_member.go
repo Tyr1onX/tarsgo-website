@@ -3,9 +3,9 @@ package model
 import "time"
 
 const (
-	UserGroupMemberRoleMember     uint8 = 0
-	UserGroupMemberRoleGroupAdmin uint8 = 1
-	UserGroupMemberRoleLeader     uint8 = 2
+	UserGroupMemberRoleMember      uint8 = 0
+	UserGroupMemberRoleLegacyAdmin uint8 = 1
+	UserGroupMemberRoleLeader      uint8 = 2
 )
 
 type UserGroupMember struct {

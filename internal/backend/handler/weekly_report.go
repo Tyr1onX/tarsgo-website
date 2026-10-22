@@ -13,10 +13,10 @@ import (
 )
 
 type weeklyReportService interface {
-	GetDashboard(ctx context.Context, userID uint64) (*weeklyreport.Dashboard, error)
+	GetDashboard(ctx context.Context, userID uint64, systemRole string) (*weeklyreport.Dashboard, error)
 	SaveCurrentReport(ctx context.Context, userID uint64, input weeklyreport.ReportInput) (*weeklyreport.Report, error)
 	UpdateReport(ctx context.Context, userID, reportID uint64, input weeklyreport.ReportInput) (*weeklyreport.Report, error)
-	GetTeamWeek(ctx context.Context, userID uint64, weekStart string) (*weeklyreport.TeamWeek, error)
+	GetTeamWeek(ctx context.Context, userID uint64, systemRole, weekStart string) (*weeklyreport.TeamWeek, error)
 }
 
 type WeeklyReportHandler struct{ service weeklyReportService }
@@ -26,12 +26,12 @@ func NewWeeklyReportHandler(service weeklyReportService) *WeeklyReportHandler {
 }
 
 func (h *WeeklyReportHandler) GetDashboard(c *gin.Context) {
-	userID, ok := currentWeeklyReportUserID(c)
+	userID, roleName, ok := currentWeeklyReportActor(c)
 	if !ok {
 		writeAPIError(c, http.StatusUnauthorized, "请先登录")
 		return
 	}
-	result, err := h.service.GetDashboard(c.Request.Context(), userID)
+	result, err := h.service.GetDashboard(c.Request.Context(), userID, roleName)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -45,7 +45,7 @@ func (h *WeeklyReportHandler) SaveCurrent(c *gin.Context) {
 		writeAPIError(c, http.StatusBadRequest, "周报内容不合法")
 		return
 	}
-	userID, ok := currentWeeklyReportUserID(c)
+	userID, _, ok := currentWeeklyReportActor(c)
 	if !ok {
 		writeAPIError(c, http.StatusUnauthorized, "请先登录")
 		return
@@ -69,7 +69,7 @@ func (h *WeeklyReportHandler) Update(c *gin.Context) {
 		writeAPIError(c, http.StatusBadRequest, "周报内容不合法")
 		return
 	}
-	userID, ok := currentWeeklyReportUserID(c)
+	userID, _, ok := currentWeeklyReportActor(c)
 	if !ok {
 		writeAPIError(c, http.StatusUnauthorized, "请先登录")
 		return
@@ -83,12 +83,12 @@ func (h *WeeklyReportHandler) Update(c *gin.Context) {
 }
 
 func (h *WeeklyReportHandler) GetTeamWeek(c *gin.Context) {
-	userID, ok := currentWeeklyReportUserID(c)
+	userID, roleName, ok := currentWeeklyReportActor(c)
 	if !ok {
 		writeAPIError(c, http.StatusUnauthorized, "请先登录")
 		return
 	}
-	result, err := h.service.GetTeamWeek(c.Request.Context(), userID, c.Query("weekStart"))
+	result, err := h.service.GetTeamWeek(c.Request.Context(), userID, roleName, c.Query("weekStart"))
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -96,12 +96,12 @@ func (h *WeeklyReportHandler) GetTeamWeek(c *gin.Context) {
 	writeAPI(c, http.StatusOK, "获取组内周报成功", result)
 }
 
-func currentWeeklyReportUserID(c *gin.Context) (uint64, bool) {
+func currentWeeklyReportActor(c *gin.Context) (uint64, string, bool) {
 	user, ok := middleware.CurrentSessionUser(c)
 	if !ok || user == nil || user.ID == 0 {
-		return 0, false
+		return 0, "", false
 	}
-	return user.ID, true
+	return user.ID, user.Role.Name, true
 }
 
 func (h *WeeklyReportHandler) handleServiceError(c *gin.Context, err error) {

@@ -153,7 +153,7 @@ func (h *AdminUserHandler) UpdateUserGroupRole(c *gin.Context) {
 		h.handleServiceError(c, serviceErr)
 		return
 	}
-	writeAPI(c, http.StatusOK, "组内角色已更新", user)
+	writeAPI(c, http.StatusOK, "组织身份已更新", user)
 }
 
 func (h *AdminUserHandler) GetUser(c *gin.Context) {

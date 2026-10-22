@@ -29,7 +29,7 @@ func newMemoryRepository() *memoryRepository {
 
 func (r *memoryRepository) FindOperationsMembership(_ context.Context, userID uint64) (*model.UserGroupMember, error) {
 	member, ok := r.members[userID]
-	if !ok {
+	if !ok || member.Group.Name != OperationsGroupName {
 		return nil, nil
 	}
 	copy := member
@@ -129,6 +129,7 @@ func addMember(repo *memoryRepository, userID, groupID uint64, role uint8, name 
 		UserID:  userID,
 		GroupID: groupID,
 		Role:    role,
+		Group:   model.UserGroup{ID: groupID, Name: OperationsGroupName},
 		User:    model.User{ID: userID, RealName: &realName, Email: fmt.Sprintf("%d@example.test", userID)},
 	}
 }
@@ -158,7 +159,7 @@ func TestCurrentWeekStartUsesShanghaiMondayAtCalendarBoundaries(t *testing.T) {
 
 func TestDashboardAndSubmissionAreRestrictedToOperationsMembers(t *testing.T) {
 	service, repo := newTestService()
-	if _, err := service.GetDashboard(context.Background(), 1); err == nil {
+	if _, err := service.GetDashboard(context.Background(), 1, model.RoleNameUser); err == nil {
 		t.Fatal("expected a user outside the operations group to be denied")
 	} else if serviceErr, ok := err.(*ServiceError); !ok || serviceErr.Status != http.StatusForbidden {
 		t.Fatalf("error = %#v, want forbidden ServiceError", err)
@@ -168,7 +169,7 @@ func TestDashboardAndSubmissionAreRestrictedToOperationsMembers(t *testing.T) {
 	}
 
 	addMember(repo, 2, 77, model.UserGroupMemberRoleMember, "成员")
-	dashboard, err := service.GetDashboard(context.Background(), 2)
+	dashboard, err := service.GetDashboard(context.Background(), 2, model.RoleNameUser)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -177,6 +178,14 @@ func TestDashboardAndSubmissionAreRestrictedToOperationsMembers(t *testing.T) {
 	}
 	if _, err := service.SaveCurrentReport(context.Background(), 2, validInput()); err != nil {
 		t.Fatalf("operations member could not submit: %v", err)
+	}
+
+	adminDashboard, err := service.GetDashboard(context.Background(), 2, model.RoleNameAdmin)
+	if err != nil {
+		t.Fatalf("operations system admin could not load their dashboard: %v", err)
+	}
+	if !adminDashboard.CanViewTeam {
+		t.Fatalf("operations system admin should see team reports regardless of organization title: %#v", adminDashboard)
 	}
 }
 
@@ -225,7 +234,7 @@ func TestHistoricalReportCanOnlyBeEditedByItsOwner(t *testing.T) {
 	}
 }
 
-func TestTeamWeekShowsSubmissionStatusAndReportOnlyToGroupLeaders(t *testing.T) {
+func TestTeamWeekRequiresOperationsSystemAdminAndShowsSubmissionStatus(t *testing.T) {
 	service, repo := newTestService()
 	addMember(repo, 1, 77, model.UserGroupMemberRoleLeader, "负责人")
 	addMember(repo, 2, 77, model.UserGroupMemberRoleMember, "已提交成员")
@@ -237,7 +246,7 @@ func TestTeamWeekShowsSubmissionStatusAndReportOnlyToGroupLeaders(t *testing.T) 
 	repo.members[4] = staleMember
 	repo.reports[5] = model.WeeklyReport{ID: 5, GroupID: 77, UserID: 2, WeekStart: "2026-10-12", Completed: "完成", Blockers: "无", NextPlan: "计划"}
 
-	teamWeek, err := service.GetTeamWeek(context.Background(), 1, "")
+	teamWeek, err := service.GetTeamWeek(context.Background(), 1, model.RoleNameAdmin, "")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -251,8 +260,8 @@ func TestTeamWeekShowsSubmissionStatusAndReportOnlyToGroupLeaders(t *testing.T) 
 	if !memberReports[2].Submitted || memberReports[2].Report == nil || memberReports[3].Submitted || memberReports[4].Submitted || memberReports[4].Name != "超过活跃期的成员" {
 		t.Fatalf("team report content or submission state is missing: %#v", teamWeek.Members)
 	}
-	if _, err := service.GetTeamWeek(context.Background(), 2, ""); err == nil {
-		t.Fatal("ordinary member must not read team reports")
+	if _, err := service.GetTeamWeek(context.Background(), 2, model.RoleNameUser, ""); err == nil {
+		t.Fatal("ordinary group leader must not read team reports without system admin role")
 	} else if serviceErr, ok := err.(*ServiceError); !ok || serviceErr.Status != http.StatusForbidden {
 		t.Fatalf("member error = %#v, want forbidden", err)
 	}
@@ -260,9 +269,9 @@ func TestTeamWeekShowsSubmissionStatusAndReportOnlyToGroupLeaders(t *testing.T) 
 
 func TestTeamWeekRequiresMondayAndRejectsFutureWeeks(t *testing.T) {
 	service, repo := newTestService()
-	addMember(repo, 1, 77, model.UserGroupMemberRoleLeader, "负责人")
+	addMember(repo, 1, 77, model.UserGroupMemberRoleMember, "运营组管理员")
 	for _, requested := range []string{"2026-10-14", "2026-10-19", "not-a-date"} {
-		if _, err := service.GetTeamWeek(context.Background(), 1, requested); err == nil {
+		if _, err := service.GetTeamWeek(context.Background(), 1, model.RoleNameAdmin, requested); err == nil {
 			t.Fatalf("week %q should have been rejected", requested)
 		} else if serviceErr, ok := err.(*ServiceError); !ok || serviceErr.Status != http.StatusBadRequest {
 			t.Fatalf("week %q error = %#v, want bad request", requested, err)
@@ -270,13 +279,26 @@ func TestTeamWeekRequiresMondayAndRejectsFutureWeeks(t *testing.T) {
 	}
 }
 
-func TestGroupAdminDoesNotInheritTeamReportAccess(t *testing.T) {
+func TestTeamReportsRequireAdminSystemRoleAndOperationsMembership(t *testing.T) {
 	service, repo := newTestService()
-	addMember(repo, 4, 77, model.UserGroupMemberRoleGroupAdmin, "组管理员")
-	if _, err := service.GetTeamWeek(context.Background(), 4, ""); err == nil {
-		t.Fatal("group administrator must not inherit group leader report access")
+	addMember(repo, 4, 77, model.UserGroupMemberRoleLeader, "运营组组长")
+	if _, err := service.GetTeamWeek(context.Background(), 4, model.RoleNameUser, ""); err == nil {
+		t.Fatal("organizational leader title must not grant team report access")
 	} else if serviceErr, ok := err.(*ServiceError); !ok || serviceErr.Status != http.StatusForbidden {
-		t.Fatalf("group admin error = %#v, want forbidden", err)
+		t.Fatalf("ordinary user error = %#v, want forbidden", err)
+	}
+	addMember(repo, 5, 88, model.UserGroupMemberRoleMember, "其他组管理员")
+	otherGroupMembership := repo.members[5]
+	otherGroupMembership.Group.Name = "视觉组"
+	repo.members[5] = otherGroupMembership
+	if _, err := service.GetTeamWeek(context.Background(), 5, model.RoleNameAdmin, ""); err == nil {
+		t.Fatal("admin outside the operations group must not read operations team reports")
+	} else if serviceErr, ok := err.(*ServiceError); !ok || serviceErr.Status != http.StatusForbidden {
+		t.Fatalf("cross-group admin error = %#v, want forbidden", err)
+	}
+	addMember(repo, 6, 77, model.UserGroupMemberRoleMember, "运营组管理员")
+	if _, err := service.GetTeamWeek(context.Background(), 6, model.RoleNameAdmin, ""); err != nil {
+		t.Fatalf("operations system admin with ordinary organizational title should be allowed: %v", err)
 	}
 }
 

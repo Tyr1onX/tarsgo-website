@@ -11,14 +11,14 @@ import (
 )
 
 type weeklyReportServiceStub struct {
-	dashboardFn func(context.Context, uint64) (*weeklyreport.Dashboard, error)
+	dashboardFn func(context.Context, uint64, string) (*weeklyreport.Dashboard, error)
 	saveFn      func(context.Context, uint64, weeklyreport.ReportInput) (*weeklyreport.Report, error)
 	updateFn    func(context.Context, uint64, uint64, weeklyreport.ReportInput) (*weeklyreport.Report, error)
-	teamFn      func(context.Context, uint64, string) (*weeklyreport.TeamWeek, error)
+	teamFn      func(context.Context, uint64, string, string) (*weeklyreport.TeamWeek, error)
 }
 
-func (s weeklyReportServiceStub) GetDashboard(ctx context.Context, userID uint64) (*weeklyreport.Dashboard, error) {
-	return s.dashboardFn(ctx, userID)
+func (s weeklyReportServiceStub) GetDashboard(ctx context.Context, userID uint64, roleName string) (*weeklyreport.Dashboard, error) {
+	return s.dashboardFn(ctx, userID, roleName)
 }
 
 func (s weeklyReportServiceStub) SaveCurrentReport(ctx context.Context, userID uint64, input weeklyreport.ReportInput) (*weeklyreport.Report, error) {
@@ -29,8 +29,8 @@ func (s weeklyReportServiceStub) UpdateReport(ctx context.Context, userID, repor
 	return s.updateFn(ctx, userID, reportID, input)
 }
 
-func (s weeklyReportServiceStub) GetTeamWeek(ctx context.Context, userID uint64, weekStart string) (*weeklyreport.TeamWeek, error) {
-	return s.teamFn(ctx, userID, weekStart)
+func (s weeklyReportServiceStub) GetTeamWeek(ctx context.Context, userID uint64, roleName, weekStart string) (*weeklyreport.TeamWeek, error) {
+	return s.teamFn(ctx, userID, roleName, weekStart)
 }
 
 func TestWeeklyReportHandlerSaveCurrentUsesAuthenticatedUserAndSections(t *testing.T) {
@@ -55,9 +55,9 @@ func TestWeeklyReportHandlerSaveCurrentUsesAuthenticatedUserAndSections(t *testi
 
 func TestWeeklyReportHandlerTeamPassesSelectedWeek(t *testing.T) {
 	handler := NewWeeklyReportHandler(weeklyReportServiceStub{
-		teamFn: func(_ context.Context, userID uint64, weekStart string) (*weeklyreport.TeamWeek, error) {
-			if userID != 1 || weekStart != "2026-10-12" {
-				t.Fatalf("unexpected team query: user=%d week=%q", userID, weekStart)
+		teamFn: func(_ context.Context, userID uint64, roleName, weekStart string) (*weeklyreport.TeamWeek, error) {
+			if userID != 1 || roleName != "admin" || weekStart != "2026-10-12" {
+				t.Fatalf("unexpected team query: user=%d role=%q week=%q", userID, roleName, weekStart)
 			}
 			return &weeklyreport.TeamWeek{WeekStart: weekStart, SubmittedCount: 1, TotalCount: 2}, nil
 		},

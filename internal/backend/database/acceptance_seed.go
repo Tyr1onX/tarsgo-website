@@ -20,13 +20,12 @@ type acceptanceAccount struct {
 	name     string
 	email    string
 	roleName string
-	scope    string
 }
 
 var acceptanceAccounts = []acceptanceAccount{
-	{key: "TARSGO_TEST_USER_PASSWORD", name: "[TEST_USER] 验收账号", email: "test-user@tarsgo.test", roleName: model.RoleNameUser, scope: model.AdminScopeNone},
-	{key: "TARSGO_TEST_ADMIN_PASSWORD", name: "[TEST_ADMIN] 验收账号", email: "test-admin@tarsgo.test", roleName: model.RoleNameAdmin, scope: model.AdminScopeGlobal},
-	{key: "TARSGO_TEST_SUPER_ADMIN_PASSWORD", name: "[TEST_SUPER_ADMIN] 验收账号", email: "test-super-admin@tarsgo.test", roleName: model.RoleNameSuperAdmin, scope: model.AdminScopeNone},
+	{key: "TARSGO_TEST_USER_PASSWORD", name: "[TEST_USER] 验收账号", email: "test-user@tarsgo.test", roleName: model.RoleNameUser},
+	{key: "TARSGO_TEST_ADMIN_PASSWORD", name: "[TEST_ADMIN] 验收账号", email: "test-admin@tarsgo.test", roleName: model.RoleNameAdmin},
+	{key: "TARSGO_TEST_SUPER_ADMIN_PASSWORD", name: "[TEST_SUPER_ADMIN] 验收账号", email: "test-super-admin@tarsgo.test", roleName: model.RoleNameSuperAdmin},
 }
 
 // EnsureAcceptanceEnvironment prevents the acceptance seed and reset command
@@ -89,7 +88,6 @@ func seedAcceptanceTestData(db *gorm.DB, appEnv string) error {
 			user := &model.User{}
 			if err := tx.Where(&model.User{Email: seed.email}).Attrs(map[string]any{
 				"role_id":       role.ID,
-				"admin_scope":   seed.scope,
 				"name":          seed.name,
 				"real_name":     seed.name,
 				"password_hash": passwords[seed.email],
@@ -98,8 +96,8 @@ func seedAcceptanceTestData(db *gorm.DB, appEnv string) error {
 				return fmt.Errorf("seed acceptance account %s: %w", seed.email, err)
 			}
 			updates := map[string]any{
-				"role_id": role.ID, "admin_scope": seed.scope, "management_group_id": nil,
-				"name": seed.name, "real_name": seed.name, "status": model.UserStatusEnabled,
+				"role_id": role.ID,
+				"name":    seed.name, "real_name": seed.name, "status": model.UserStatusEnabled,
 			}
 			if user.PasswordHash == nil || strings.TrimSpace(*user.PasswordHash) == "" {
 				updates["password_hash"] = passwords[seed.email]
