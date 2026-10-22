@@ -5,6 +5,7 @@ import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { assignmentClient, type Assignment } from "~/lib/assignment-client";
 import { getGrowthProfile, growthEventLabel, formatGrowthDate, type GrowthEvent, type GrowthProfile } from "~/lib/growth-client";
 import { buildExpeditionChallenges, getAcceptedExpeditionMilestones, getExpeditionEvolution, getPrimaryFacilityId, getPublicFacilityFAQs, type ExpeditionChallenge, type ExpeditionEvolutionTarget, type ExpeditionFacilityId } from "~/lib/expedition-data";
+import { parseExpeditionArea, withExpeditionArea } from "~/lib/expedition-navigation";
 import { expeditionEvolutionTargetLabel, expeditionProjectClient, type ExpeditionProject } from "~/lib/expedition-project-client";
 import { hasSkillGroupAccess, hasTechnicalGroupAccess, isTechnicalGroupName } from "~/lib/dashboard-navigation";
 import { skillsClient, type SkillGroupProgress } from "~/lib/skills-client";
@@ -24,15 +25,16 @@ interface FacilityInfo {
   focus: string;
   x: number;
   y: number;
+  sceneViewBox: string;
 }
 
 const FACILITIES: readonly FacilityInfo[] = [
-  { id: "hangar", name: "总装机库", englishName: "ASSEMBLY HANGAR", groupName: null, description: "战队共同目标与个人成长记录汇集于此。", focus: "个人成长", x: 50, y: 51 },
-  { id: "mechanical", name: "机械工坊", englishName: "MECHANICAL WORKSHOP", groupName: "机械组", description: "机械设计、建模、加工与结构实践。", focus: "技能路线 · 作业 · 答疑", x: 27, y: 27 },
-  { id: "controls", name: "电控实验室", englishName: "CONTROL LAB", groupName: "电控组", description: "控制器、驱动、通信与整车联调。", focus: "技能路线 · 作业 · 答疑", x: 74, y: 27 },
-  { id: "vision", name: "视觉研究所", englishName: "VISION INSTITUTE", groupName: "视觉组", description: "成像、标定、识别与环境感知。", focus: "技能路线 · 作业 · 答疑", x: 19, y: 58 },
-  { id: "ai", name: "AI 研究中心", englishName: "AI RESEARCH CENTER", groupName: "AI组", description: "算法、仿真、决策与系统集成。", focus: "技能路线 · 作业 · 答疑", x: 81, y: 58 },
-  { id: "operations", name: "战队指挥室", englishName: "TEAM OPERATIONS", groupName: "运营组", description: "活动策划、内容、协调与项目推进。", focus: "技能路线 · 工作周报", x: 50, y: 79 },
+  { id: "hangar", name: "总装机库", englishName: "ASSEMBLY HANGAR", groupName: null, description: "战队共同目标与个人成长记录汇集于此。", focus: "个人成长", x: 50, y: 51, sceneViewBox: "316 285 370 330" },
+  { id: "mechanical", name: "机械工坊", englishName: "MECHANICAL WORKSHOP", groupName: "机械组", description: "机械设计、建模、加工与结构实践。", focus: "技能路线 · 作业 · 答疑", x: 27, y: 27, sceneViewBox: "160 135 310 235" },
+  { id: "controls", name: "电控实验室", englishName: "CONTROL LAB", groupName: "电控组", description: "控制器、驱动、通信与整车联调。", focus: "技能路线 · 作业 · 答疑", x: 74, y: 27, sceneViewBox: "622 126 310 230" },
+  { id: "vision", name: "视觉研究所", englishName: "VISION INSTITUTE", groupName: "视觉组", description: "成像、标定、识别与环境感知。", focus: "技能路线 · 作业 · 答疑", x: 19, y: 58, sceneViewBox: "45 367 365 230" },
+  { id: "ai", name: "AI 研究中心", englishName: "AI RESEARCH CENTER", groupName: "AI组", description: "算法、仿真、决策与系统集成。", focus: "技能路线 · 作业 · 答疑", x: 81, y: 58, sceneViewBox: "630 368 380 235" },
+  { id: "operations", name: "战队指挥室", englishName: "TEAM OPERATIONS", groupName: "运营组", description: "活动策划、内容、协调与项目推进。", focus: "技能路线 · 工作周报", x: 50, y: 79, sceneViewBox: "354 566 435 240" },
 ];
 
 interface ExpeditionData {
@@ -71,12 +73,12 @@ function ZoneGlyph({ id, className = "" }: { id: ExpeditionFacilityId; className
   );
 }
 
-function ExpeditionMap({ selectedId, onSelect, masteredFacilityIds, hasPersonalRecord, acceptedEvolutionTargets, hasAcceptedJoint, detailsOpen, children }: { selectedId: ExpeditionFacilityId; onSelect: (id: ExpeditionFacilityId) => void; masteredFacilityIds: readonly ExpeditionFacilityId[]; hasPersonalRecord: boolean; acceptedEvolutionTargets: readonly ExpeditionEvolutionTarget[]; hasAcceptedJoint: boolean; detailsOpen: boolean; children?: ReactNode }) {
+function ExpeditionMap({ selectedId, onSelect, masteredFacilityIds, hasPersonalRecord, acceptedEvolutionTargets, hasAcceptedJoint, overview, children }: { selectedId: ExpeditionFacilityId; onSelect: (id: ExpeditionFacilityId) => void; masteredFacilityIds: readonly ExpeditionFacilityId[]; hasPersonalRecord: boolean; acceptedEvolutionTargets: readonly ExpeditionEvolutionTarget[]; hasAcceptedJoint: boolean; overview: boolean; children?: ReactNode }) {
   const stateClass = (id: ExpeditionFacilityId) => masteredFacilityIds.includes(id) ? "has-mastered" : "";
   const selectedFacility = FACILITIES.find((facility) => facility.id === selectedId) ?? FACILITIES[0];
   return (
-    <div className="expedition-map" aria-label="可探索的基地设施" data-selected={selectedId} data-focused={detailsOpen} data-season-joint={hasAcceptedJoint}>
-      <svg className="expedition-map__art" style={{ transformOrigin: `${selectedFacility.x}% ${selectedFacility.y}%` }} viewBox="0 0 1000 850" role="img" aria-label="总装机库与五座专业设施以道路相连的等距基地地图">
+    <div className="expedition-map" aria-label={overview ? "可探索的基地设施" : selectedFacility.name} data-scene={overview ? "overview" : "facility"} data-selected={selectedId} data-season-joint={hasAcceptedJoint}>
+      <svg className="expedition-map__art" viewBox={overview ? "0 0 1000 850" : selectedFacility.sceneViewBox} role="img" aria-label={overview ? "总装机库与五座专业设施以道路相连的等距基地地图" : `${selectedFacility.name}内部场景`}>
         <defs>
           <linearGradient id="base-ground" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stopColor="#202b2a" /><stop offset=".52" stopColor="#111918" /><stop offset="1" stopColor="#0a1010" /></linearGradient>
           <linearGradient id="base-platform" x1=".2" x2=".85" y1="0" y2="1"><stop offset="0" stopColor="#394643" /><stop offset=".42" stopColor="#202b29" /><stop offset="1" stopColor="#141c1b" /></linearGradient>
@@ -101,7 +103,7 @@ function ExpeditionMap({ selectedId, onSelect, masteredFacilityIds, hasPersonalR
           <circle cx="121" cy="337" r="3" fill="#d8b96e" /><circle cx="884" cy="603" r="3" fill="#6cc6cf" /><circle cx="839" cy="186" r="3" fill="#6cc6cf" /><circle cx="208" cy="621" r="3" fill="#d8b96e" />
         </g>
 
-        <g className={`expedition-map__building expedition-map__building--mechanical ${stateClass("mechanical")} ${selectedId === "mechanical" ? "is-selected" : ""}`} transform="translate(183 176)">
+        <g className={`expedition-map__building expedition-map__building--mechanical ${stateClass("mechanical")} ${!overview && selectedId === "mechanical" ? "is-selected" : ""}`} transform="translate(183 176)">
           <ellipse className="expedition-map__selection" cx="87" cy="85" rx="112" ry="55" />
           <path d="m0 85 87-48 174 48-87 51z" fill="#283330" stroke="#8d977f" strokeOpacity=".62" />
           <path d="m0 85 0 19 87 51v-19zM174 104l87-19v18l-87 52z" fill="#1b2624" stroke="#4b5b54" />
@@ -140,7 +142,7 @@ function ExpeditionMap({ selectedId, onSelect, masteredFacilityIds, hasPersonalR
           </g>
         </g>
 
-        <g className={`expedition-map__building expedition-map__building--controls ${stateClass("controls")} ${selectedId === "controls" ? "is-selected" : ""}`} transform="translate(645 165)">
+        <g className={`expedition-map__building expedition-map__building--controls ${stateClass("controls")} ${!overview && selectedId === "controls" ? "is-selected" : ""}`} transform="translate(645 165)">
           <ellipse className="expedition-map__selection" cx="89" cy="83" rx="111" ry="52" />
           <path d="m0 82 88-47 176 47-88 51z" fill="#263433" stroke="#658d8a" strokeOpacity=".8" />
           <path d="m0 82 0 18 88 51v-18zM176 100l88-18v18l-88 51z" fill="#182322" stroke="#3b6362" />
@@ -167,7 +169,7 @@ function ExpeditionMap({ selectedId, onSelect, masteredFacilityIds, hasPersonalR
           </g>
         </g>
 
-        <g className={`expedition-map__building expedition-map__building--vision ${stateClass("vision")} ${selectedId === "vision" ? "is-selected" : ""}`} transform="translate(70 404)">
+        <g className={`expedition-map__building expedition-map__building--vision ${stateClass("vision")} ${!overview && selectedId === "vision" ? "is-selected" : ""}`} transform="translate(70 404)">
           <ellipse className="expedition-map__selection" cx="104" cy="74" rx="115" ry="49" />
           <path d="m0 76 101-54 203 54-101 55z" fill="#28333a" stroke="#6d7d89" />
           <path d="m0 76v17l101 57V133zM203 133l101-57v17l-101 57z" fill="#1b2429" stroke="#495761" />
@@ -198,7 +200,7 @@ function ExpeditionMap({ selectedId, onSelect, masteredFacilityIds, hasPersonalR
           </g>
         </g>
 
-        <g className={`expedition-map__building expedition-map__building--ai ${stateClass("ai")} ${selectedId === "ai" ? "is-selected" : ""}`} transform="translate(658 405)">
+        <g className={`expedition-map__building expedition-map__building--ai ${stateClass("ai")} ${!overview && selectedId === "ai" ? "is-selected" : ""}`} transform="translate(658 405)">
           <ellipse className="expedition-map__selection" cx="113" cy="75" rx="125" ry="49" />
           <path d="m0 76 111-57 222 57-111 57z" fill="#292f3a" stroke="#727a91" />
           <path d="m0 76v18l111 58v-19zM222 133l111-57v18l-111 58z" fill="#1a2029" stroke="#4d5364" />
@@ -221,7 +223,7 @@ function ExpeditionMap({ selectedId, onSelect, masteredFacilityIds, hasPersonalR
           <circle className="expedition-mastery-light" cx="205" cy="65" r="2.5" fill="#edcc7e" />
         </g>
 
-        <g className={`expedition-map__building expedition-map__building--operations ${stateClass("operations")} ${selectedId === "operations" ? "is-selected" : ""}`} transform="translate(373 594)">
+        <g className={`expedition-map__building expedition-map__building--operations ${stateClass("operations")} ${!overview && selectedId === "operations" ? "is-selected" : ""}`} transform="translate(373 594)">
           <ellipse className="expedition-map__selection" cx="128" cy="59" rx="142" ry="48" />
           <path d="m0 62 128-58 256 58-128 61z" fill="#37352d" stroke="#a09168" />
           <path d="M0 62v16l128 61V121zM256 121l128-59v16l-128 61z" fill="#23251f" stroke="#70684c" />
@@ -253,7 +255,7 @@ function ExpeditionMap({ selectedId, onSelect, masteredFacilityIds, hasPersonalR
           </g> : null}
         </g>
 
-        <g className={`expedition-map__building expedition-map__building--hangar ${hasPersonalRecord ? "has-personal-record" : ""} ${selectedId === "hangar" ? "is-selected" : ""}`} transform="translate(373 326)">
+        <g className={`expedition-map__building expedition-map__building--hangar ${hasPersonalRecord ? "has-personal-record" : ""} ${!overview && selectedId === "hangar" ? "is-selected" : ""}`} transform="translate(373 326)">
           <ellipse className="expedition-map__selection" cx="128" cy="104" rx="169" ry="78" />
           <path d="m0 112 128-70 256 70-128 75z" fill="#2a3431" stroke="#9c916f" strokeOpacity=".9" />
           <path d="m0 112v22l128 75v-22zM256 187l128-75v22l-128 75z" fill="#1c2523" stroke="#5a6558" />
@@ -326,25 +328,23 @@ function ExpeditionMap({ selectedId, onSelect, masteredFacilityIds, hasPersonalR
         <path d="M466 427h68M500 393v68" stroke="#e0c98d" strokeOpacity=".5" strokeWidth="1" />
       </svg>
 
-      <span className="expedition-map__focus-field" aria-hidden="true" style={{ left: `${selectedFacility.x}%`, top: `${selectedFacility.y}%` }} />
-
-      <div className="expedition-map__pins" style={{ transformOrigin: `${selectedFacility.x}% ${selectedFacility.y}%` }}>
+      {overview ? <div className="expedition-map__pins">
         {FACILITIES.map((facility) => (
           <button
-            className={`expedition-map__pin ${selectedId === facility.id ? "is-selected" : ""}`}
+            className={`expedition-map__pin ${!overview && selectedId === facility.id ? "is-selected" : ""}`}
             key={facility.id}
             data-facility={facility.id}
             type="button"
             style={{ left: `${facility.x}%`, top: `${facility.y}%` }}
             onClick={() => onSelect(facility.id)}
-            aria-pressed={selectedId === facility.id}
+            aria-pressed={!overview && selectedId === facility.id}
             aria-label={`探索${facility.name}`}
           >
             <span className="expedition-map__pin-ring"><span /></span>
             <span className="expedition-map__pin-label">{facility.name}</span>
           </button>
         ))}
-      </div>
+      </div> : null}
       {children}
     </div>
   );
@@ -392,25 +392,21 @@ export default function ExpeditionRoute() {
   const technicalMember = hasTechnicalGroupAccess(groupResolution?.groups);
   const skillMember = hasSkillGroupAccess(groupResolution?.groups);
   const canReadBase = skillMember || currentUser.role.name === "super_admin";
-  const [selectedId, setSelectedId] = useState<ExpeditionFacilityId>(() => getPrimaryFacilityId(groupNames));
-  const [detailMode, setDetailMode] = useState<"closed" | "collapsed" | "expanded">("closed");
+  const selectedSceneId = parseExpeditionArea(searchParams.get("area"));
+  const isOverview = selectedSceneId === null;
+  const selectedId = selectedSceneId ?? getPrimaryFacilityId(groupNames);
   const [refreshKey, setRefreshKey] = useState(0);
   const [data, setData] = useState<ExpeditionData>(EMPTY_DATA);
   const requestId = useRef(0);
 
   useEffect(() => {
-    setSelectedId(getPrimaryFacilityId(groupNames));
-    setDetailMode("closed");
-  }, [groupKey]);
-
-  useEffect(() => {
-    if (detailMode === "closed") return;
+    if (isOverview) return;
     const closeOnEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setDetailMode("closed");
+      if (event.key === "Escape") setSearchParams(withExpeditionArea(searchParams, null));
     };
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [detailMode]);
+  }, [isOverview, searchParams, setSearchParams]);
 
   useEffect(() => {
     const activeRequest = ++requestId.current;
@@ -456,14 +452,22 @@ export default function ExpeditionRoute() {
   const requestedProjectId = Number(searchParams.get("projectId")) || 0;
   const assemblyProject = data.projects.find((project) => project.id === requestedProjectId) ?? data.projects[0] ?? null;
   useEffect(() => {
-    if (data.loading) return;
-    const nextProjectId = assemblyProject?.id;
-    if (nextProjectId === requestedProjectId) return;
     const next = new URLSearchParams(searchParams);
-    if (nextProjectId) next.set("projectId", String(nextProjectId));
-    else next.delete("projectId");
-    setSearchParams(next, { replace: true });
-  }, [assemblyProject, data.loading, requestedProjectId, searchParams, setSearchParams]);
+    let changed = false;
+    if (next.has("area") && !selectedSceneId) {
+      next.delete("area");
+      changed = true;
+    }
+    if (!data.loading) {
+      const nextProjectId = assemblyProject?.id;
+      if (nextProjectId !== requestedProjectId) {
+        if (nextProjectId) next.set("projectId", String(nextProjectId));
+        else next.delete("projectId");
+        changed = true;
+      }
+    }
+    if (changed) setSearchParams(next, { replace: true });
+  }, [assemblyProject, data.loading, requestedProjectId, searchParams, selectedSceneId, setSearchParams]);
 
   const selectAssemblyProject = (projectId: string) => {
     const next = new URLSearchParams(searchParams);
@@ -471,10 +475,8 @@ export default function ExpeditionRoute() {
     setSearchParams(next);
   };
 
-  const exploreFacility = (facilityId: ExpeditionFacilityId) => {
-    setSelectedId(facilityId);
-    setDetailMode("expanded");
-  };
+  const exploreFacility = (facilityId: ExpeditionFacilityId) => setSearchParams(withExpeditionArea(searchParams, facilityId));
+  const returnToOverview = () => setSearchParams(withExpeditionArea(searchParams, null));
 
   const selectedFacility = FACILITIES.find((facility) => facility.id === selectedId) ?? FACILITIES[0];
   const isMemberOfSelectedGroup = selectedFacility.groupName === null || groupNames.includes(selectedFacility.groupName);
@@ -526,8 +528,11 @@ export default function ExpeditionRoute() {
 
   if (!canReadBase) {
     return (
-      <section className="expedition-page admin-design" aria-labelledby="expedition-title">
-        <header className="expedition-heading expedition-heading--brand"><div><h1 id="expedition-title">TARS BASE</h1><span>赛季远征</span></div></header>
+      <section className="expedition-world admin-design expedition-world--closed" aria-labelledby="expedition-title">
+        <header className="expedition-world__hud">
+          <Link className="expedition-world__brand" to="/dashboard"><span className="expedition-world__brand-mark" aria-hidden="true">T</span><span><strong id="expedition-title">TARS BASE</strong><small>SEASON EXPEDITION</small></span></Link>
+          <Link className="expedition-world__exit" to="/dashboard">返回工作台 <span aria-hidden="true">↗</span></Link>
+        </header>
         <div className="expedition-access-state" role="status">
           <span className="expedition-access-state__mark" aria-hidden="true">⌁</span>
           <h2>{groupResolutionError ? "基地权限暂不可确认" : "基地尚未开放"}</h2>
@@ -538,49 +543,51 @@ export default function ExpeditionRoute() {
   }
 
   return (
-    <section className="expedition-page admin-design" aria-labelledby="expedition-title">
-      <header className="expedition-heading">
-        <div>
-          <p className="expedition-heading__kicker">SEASON EXPEDITION <span>·</span> 赛季远征</p>
-          <h1 id="expedition-title">TARS BASE</h1>
-          <div className="expedition-heading__identity">
-            <strong>{data.profile?.displayName ?? currentUser.nickname ?? currentUser.email}</strong>
-            <span>{data.profile?.groups.join(" · ") || groupNames.join(" · ") || "基地成员"}</span>
-          </div>
-        </div>
-        <div className="expedition-heading__signal" aria-label="当前探索区域">
-          <span>当前区域</span>
-          <strong><ZoneGlyph id={selectedFacility.id} />{selectedFacility.name}</strong>
-        </div>
+    <section className="expedition-world admin-design" aria-labelledby="expedition-title" data-scene={isOverview ? "overview" : selectedId}>
+      <header className="expedition-world__hud">
+        <Link className="expedition-world__brand" to="/dashboard" aria-label="TARS BASE，返回工作台">
+          <span className="expedition-world__brand-mark" aria-hidden="true">T</span>
+          <span><strong id="expedition-title">TARS BASE</strong><small>SEASON EXPEDITION</small></span>
+        </Link>
+        <div className="expedition-world__identity"><strong>{data.profile?.displayName ?? currentUser.nickname ?? currentUser.email}</strong><span>{data.profile?.groups.join(" · ") || groupNames.join(" · ") || "基地成员"}</span></div>
+        <nav className="expedition-world__utility" aria-label="基地个人入口">
+          <Link to="/dashboard/growth">成员档案 <span aria-hidden="true">↗</span></Link>
+          <Link to="/dashboard/expedition/projects">远征日志 <span aria-hidden="true">↗</span></Link>
+          <Link className="expedition-world__exit" to="/dashboard">退出基地 <span aria-hidden="true">↗</span></Link>
+        </nav>
       </header>
 
-      {groupResolutionError ? <div className="expedition-inline-error" role="status">组别暂时无法确认，业务入口将在权限恢复后显示。</div> : null}
+      {groupResolutionError ? <div className="expedition-world__warning" role="status">组别暂时无法确认，个人业务入口已隐藏。</div> : null}
 
-      <section className="expedition-scene" aria-labelledby="expedition-map-title">
-        <div className="expedition-scene__topline">
-          <div><span>BASE MAP</span><h2 id="expedition-map-title">基地地图</h2></div>
-          <button type="button" className="expedition-scene__overview" onClick={() => { setSelectedId("hangar"); setDetailMode("closed"); }} aria-label="返回基地总览">总览</button>
+      <div className="expedition-world__main">
+        <div className="expedition-world__toolbar">
+          <div className="expedition-world__coordinates"><span>{isOverview ? "BASE / OVERVIEW" : `BASE / ${selectedFacility.englishName}`}</span><strong>{isOverview ? "远征基地" : selectedFacility.name}</strong></div>
+          {!isOverview ? <button type="button" className="expedition-world__overview" onClick={returnToOverview}><span aria-hidden="true">←</span> 返回基地总览</button> : null}
         </div>
-        <ExpeditionMap selectedId={selectedId} onSelect={exploreFacility} masteredFacilityIds={masteredFacilityIds} hasPersonalRecord={Boolean(data.profile?.events.length)} acceptedEvolutionTargets={acceptedEvolutionTargets} hasAcceptedJoint={hasAcceptedJoint} detailsOpen={detailMode !== "closed"}>
-          <div className="expedition-project-control">
-            <label htmlFor="expedition-assembly-project"><span>总装项目</span><select id="expedition-assembly-project" value={assemblyProject ? String(assemblyProject.id) : ""} disabled={data.loading || data.errors.projects || data.projects.length === 0} onChange={(event) => selectAssemblyProject(event.target.value)}>
-              {assemblyProject ? null : <option value="">{data.errors.projects ? "项目暂不可读取" : data.loading ? "正在读取项目…" : "当前没有可见项目"}</option>}
-              {data.projects.map((project) => <option value={project.id} key={project.id}>{project.title}</option>)}
-            </select></label>
-            <span className="expedition-project-control__state" aria-live="polite">{data.loading ? "读取中" : data.errors.projects ? "项目暂不可读取" : !assemblyProject ? "尚无项目成果" : hasAcceptedJoint ? "联合验收完成" : acceptedEvolutionLabels.length ? `已验收：${acceptedEvolutionLabels.join("、")}` : "暂无装置验收"}</span>
-          </div>
-          {detailMode !== "closed" ? (
-            <aside key={selectedFacility.id} className={`expedition-facility expedition-facility--${selectedFacility.x > 55 ? "left" : "right"}`} data-mode={detailMode} aria-labelledby="expedition-facility-title" aria-live="polite">
+        <nav className="expedition-world__area-nav" aria-label="基地设施导航">
+          {FACILITIES.map((facility, index) => (
+            <button key={facility.id} type="button" className={selectedSceneId === facility.id ? "is-current" : ""} aria-current={selectedSceneId === facility.id ? "page" : undefined} onClick={() => exploreFacility(facility.id)}>
+              <span className="expedition-world__area-index">0{index + 1}</span><ZoneGlyph id={facility.id} /><span>{facility.name}</span><i aria-hidden="true">↗</i>
+            </button>
+          ))}
+        </nav>
+        <section className={`expedition-world__scene ${isOverview ? "expedition-world__scene--overview" : "expedition-world__scene--interior"}`} aria-label={isOverview ? "基地总览场景" : `${selectedFacility.name}场景`} key={selectedId}>
+        <div className="expedition-project-control">
+          <label htmlFor="expedition-assembly-project"><span>总装项目</span><select id="expedition-assembly-project" value={assemblyProject ? String(assemblyProject.id) : ""} disabled={data.loading || data.errors.projects || data.projects.length === 0} onChange={(event) => selectAssemblyProject(event.target.value)}>
+            {assemblyProject ? null : <option value="">{data.errors.projects ? "项目暂不可读取" : data.loading ? "正在读取项目…" : "当前没有可见项目"}</option>}
+            {data.projects.map((project) => <option value={project.id} key={project.id}>{project.title}</option>)}
+          </select></label>
+          <span className="expedition-project-control__state" aria-live="polite">{data.loading ? "读取中" : data.errors.projects ? "项目暂不可读取" : !assemblyProject ? "暂无项目成果" : hasAcceptedJoint ? "联合验收完成" : acceptedEvolutionLabels.length ? `已验收：${acceptedEvolutionLabels.join("、")}` : "暂无装置验收"}</span>
+        </div>
+        <ExpeditionMap key={`${isOverview ? "overview" : selectedId}`} selectedId={selectedId} onSelect={exploreFacility} masteredFacilityIds={masteredFacilityIds} hasPersonalRecord={Boolean(data.profile?.events.length)} acceptedEvolutionTargets={acceptedEvolutionTargets} hasAcceptedJoint={hasAcceptedJoint} overview={isOverview}>
+          {!isOverview ? (
+            <aside key={selectedFacility.id} className={`expedition-facility expedition-facility--${selectedFacility.x > 55 ? "left" : "right"}`} aria-labelledby="expedition-facility-title" aria-live="polite">
               <div className="expedition-facility__header">
                 <div className={`expedition-facility__art expedition-facility__art--${selectedFacility.id}`} aria-hidden="true"><ZoneGlyph id={selectedFacility.id} /></div>
                 <div className="expedition-facility__title"><p className="expedition-eyebrow">{selectedFacility.englishName}</p><h2 id="expedition-facility-title">{selectedFacility.name}</h2></div>
-                <div className="expedition-facility__actions">
-                  <button type="button" onClick={() => setDetailMode(detailMode === "expanded" ? "collapsed" : "expanded")} aria-controls="expedition-facility-details" aria-expanded={detailMode === "expanded"} aria-label={detailMode === "expanded" ? "收起设施详情" : "展开设施详情"}>{detailMode === "expanded" ? "收起" : "展开"}</button>
-                  <button type="button" onClick={() => setDetailMode("closed")} aria-label="关闭设施详情">关闭</button>
-                </div>
+                <button type="button" className="expedition-facility__back" onClick={returnToOverview} aria-label="返回基地总览">← 总览</button>
               </div>
-              {detailMode === "collapsed" ? <p className="expedition-facility__peek">{selectedFacility.description}</p> : null}
-              <div id="expedition-facility-details" className="expedition-facility__body" hidden={detailMode === "collapsed"}>
+              <div className="expedition-facility__body">
                 <p className="expedition-facility__description">{selectedFacility.description}</p>
                 {selectedFacility.groupName && !isMemberOfSelectedGroup ? (
                   <div className="expedition-facility__locked"><span aria-hidden="true">◈</span><div><strong>{selectedFacility.groupName}专属区域</strong><small>加入所属组别后可查看个人训练与成长。</small></div></div>
@@ -622,11 +629,11 @@ export default function ExpeditionRoute() {
               </div>
             </aside>
           ) : null}
-          <div className="expedition-map__legend" aria-label="技能状态"><span><i className="expedition-state-dot expedition-state-dot--locked" />未解锁</span><span><i className="expedition-state-dot expedition-state-dot--available" />可挑战</span><span><i className="expedition-state-dot expedition-state-dot--practice" />已实践</span><span><i className="expedition-state-dot expedition-state-dot--mastered" />已掌握</span></div>
+          {isOverview ? <div className="expedition-map__legend" aria-label="技能状态"><span><i className="expedition-state-dot expedition-state-dot--locked" />未解锁</span><span><i className="expedition-state-dot expedition-state-dot--available" />可挑战</span><span><i className="expedition-state-dot expedition-state-dot--practice" />已实践</span><span><i className="expedition-state-dot expedition-state-dot--mastered" />已掌握</span></div> : null}
         </ExpeditionMap>
       </section>
 
-      <div className="expedition-lower-grid">
+      <div className="expedition-lower-grid expedition-world__briefing">
         <section className="expedition-panel expedition-challenges" aria-labelledby="expedition-challenges-title">
           <div className="expedition-panel__heading">
             <div><p className="expedition-eyebrow">PERSONAL OBJECTIVES</p><h2 id="expedition-challenges-title">我的下一项挑战</h2></div>
@@ -669,6 +676,7 @@ export default function ExpeditionRoute() {
         {data.loading ? <p className="expedition-empty" role="status">正在读取赛季记录…</p> : data.errors.projects ? <p className="expedition-empty">赛季记录暂不可读取。</p> : acceptedMilestones.length ? <ol>{acceptedMilestones.map(({ project, milestone }) => <li key={`${project.id}:${milestone.id}`}><span className="expedition-season-chronicle__signal" /><Link to={`/dashboard/expedition/projects?projectId=${project.id}`}><small>{milestone.groupName || "联合验收"} · {formatQuestionDate(milestone.acceptedAt!)}</small><strong>{project.title} · {milestone.name}</strong><span>{milestone.criteria}</span></Link></li>)}</ol> : <p className="expedition-empty">真实验收完成后，重要成果会记录在这里。</p>}
       </section>
 
+      </div>
     </section>
   );
 }

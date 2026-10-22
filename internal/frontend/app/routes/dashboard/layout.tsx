@@ -348,6 +348,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const sidebarResizeStartXRef = useRef(0);
   const sidebarResizeStartWidthRef = useRef(SIDEBAR_DEFAULT_WIDTH);
   const { currentUser, groupResolution, groupResolutionError } = loaderData;
+  const isImmersiveExpedition = location.pathname.replace(/\/$/, "") === "/dashboard/expedition";
   const isSidebarCollapsed = isDesktopViewport && sidebarCollapsed;
   const isOperationsMember = groupResolution?.groups.some((group) => group.name === "运营组") ?? false;
   const isTechnicalGroupMember = hasTechnicalGroupAccess(groupResolution?.groups);
@@ -688,7 +689,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   }
 
   return (
-    <div className="dashboard-shell admin-design min-h-screen text-white">
+    <div className="dashboard-shell admin-design min-h-screen text-white" data-immersive={isImmersiveExpedition ? "expedition" : undefined}>
       {sidebarOpen ? (
         <button
           type="button"
