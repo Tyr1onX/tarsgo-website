@@ -48,6 +48,8 @@ export interface Assignment {
   attachmentRequirements: string;
   isGroupWide: boolean;
   createdAt: string;
+  publicationStatus?: "published" | "withdrawn";
+  canDelete?: boolean;
   status?: "pending" | "overdue" | "submitted" | "passed" | "needs_redo";
   isLate?: boolean;
   targetCount: number;
@@ -139,6 +141,9 @@ export const assignmentClient = {
     return { promise, cancel: () => request?.abort() };
   },
   update: (id: number, input: AssignmentInput) => apiRequest<Assignment>(`/api/admin/assignments/${id}`, { method: "PATCH", body: input }),
+  setPublicationStatus: (id: number, status: "published" | "withdrawn") =>
+    apiRequest<Assignment>(`/api/admin/assignments/${id}/status`, { method: "PATCH", body: { status } }),
+  delete: (id: number) => apiRequest<{ id: number }>(`/api/admin/assignments/${id}`, { method: "DELETE" }),
   uploadMaterialFiles: (id: number, files: File[], onProgress: (progress: number) => void) => {
     const body = new FormData();
     for (const file of files) body.append("files", file, file.name);
@@ -192,6 +197,10 @@ export function assignmentStatusLabel(status?: string) {
     case "needs_redo": return "需重做";
     default: return "待提交";
   }
+}
+
+export function assignmentPublicationStatusLabel(status?: string) {
+  return status === "withdrawn" ? "已撤回" : "已发布";
 }
 
 export function assignmentDecisionLabel(decision?: string) {

@@ -5,6 +5,7 @@ import { SkillTreeGraph } from "~/components/skill-tree-graph";
 import { WorkbenchFeatureStatus } from "~/components/workbench-feature-status";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { assignmentClient, type Assignment } from "~/lib/assignment-client";
+import { layoutSkillTree } from "~/lib/skill-tree-layout";
 import { formatSkillDate, skillEvidenceHref, skillEvidenceLabel, skillsClient, skillStateLabel, type SkillGroup, type SkillMember, type SkillNode, type SkillNodeInput } from "~/lib/skills-client";
 import "../dashboard/skills.css";
 
@@ -157,6 +158,43 @@ export default function SkillRouteManagementRoute() {
     finally { setSaving(false); }
   }
 
+  async function deleteNode() {
+    if (!selectedNode || !selectedNode.canDelete || saving) return;
+    if (!window.confirm(`确定永久删除空节点「${selectedNode.name}」？该操作不可撤销。`)) return;
+    const removedID = selectedNode.id;
+    setSaving(true); setError(""); setNotice("");
+    try {
+      await skillsClient.deleteNode(removedID);
+      const result = await skillsClient.adminNodes(groupID!);
+      setNodes(result);
+      const next = result.find((item) => item.active) ?? result[0] ?? null;
+      setSelectedNodeID(next?.id ?? null);
+      setSearchParams((params) => { if (groupID) params.set("groupId", String(groupID)); if (next) params.set("nodeId", String(next.id)); else params.delete("nodeId"); return params; }, { replace: true });
+      setNotice("无学习或业务引用的节点已删除。");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "删除技能节点失败"); }
+    finally { setSaving(false); }
+  }
+
+  async function autoArrangeLayout() {
+    if (!groupID || nodes.length < 2 || saving) return;
+    setSaving(true); setError(""); setNotice("");
+    try {
+      const layout = layoutSkillTree(nodes, { autoArrange: true });
+      const layerOrder = new Map<number, number>();
+      const orders = [...layout.positions]
+        .sort((a, b) => a.depth - b.depth || a.y - b.y || a.id - b.id)
+        .map((position) => {
+          const sortOrder = layerOrder.get(position.depth) ?? 0;
+          layerOrder.set(position.depth, sortOrder + 1);
+          return { nodeId: position.id, sortOrder };
+        });
+      await skillsClient.reorderLayout(groupID, orders);
+      setNodes(await skillsClient.adminNodes(groupID));
+      setNotice("路线已按依赖关系自动整理；前置条件未变更。");
+    } catch (cause) { setError(cause instanceof Error ? cause.message : "自动整理路线失败"); }
+    finally { setSaving(false); }
+  }
+
   async function submitReview(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!selectedNode || !selectedMember || saving) return;
@@ -195,7 +233,7 @@ export default function SkillRouteManagementRoute() {
         {selectedNode ? <div className="skills-admin-layout">
           <div className="skills-admin-left">
             <div className="flex flex-wrap items-center justify-between gap-3"><p className="skills-kicker">ROUTE MAP · {nodes.length} NODES</p><button type="button" className="skills-primary-button" onClick={startNewNode}>＋ 新建技能节点</button></div>
-            {nodes.length > 0 ? <SkillTreeGraph nodes={nodes} selectedID={selectedNodeID} onSelect={selectNode} /> : <section className="skills-empty"><span className="skills-empty__mark" aria-hidden="true">＋</span><h2>路线尚未建立</h2><p>先创建第一个技能节点，再根据本组实际标准补充前置关系。</p></section>}
+            {nodes.length > 0 ? <SkillTreeGraph nodes={nodes} selectedID={selectedNodeID} onSelect={selectNode} onAutoArrange={autoArrangeLayout} /> : <section className="skills-empty"><span className="skills-empty__mark" aria-hidden="true">＋</span><h2>路线尚未建立</h2><p>先创建第一个技能节点，再根据本组实际标准补充前置关系。</p></section>}
             <NodeEditor
               groupID={groupID!}
               node={selectedNode}
@@ -210,6 +248,7 @@ export default function SkillRouteManagementRoute() {
               saving={saving}
               onSave={saveNode}
               onToggleActive={toggleActive}
+              onDelete={deleteNode}
             />
           </div>
           <aside className="skills-admin-right">
@@ -244,6 +283,7 @@ export default function SkillRouteManagementRoute() {
           saving={saving}
           onSave={saveNode}
           onToggleActive={toggleActive}
+          onDelete={deleteNode}
         /></section> : null}
       </> : null}
     </section>
@@ -252,7 +292,7 @@ export default function SkillRouteManagementRoute() {
 
 function NodeEditor({
   groupID, node, form, setForm, nodes, prerequisiteIDs, setPrerequisiteIDs,
-  assignments, assignmentIDs, setAssignmentIDs, saving, onSave, onToggleActive,
+  assignments, assignmentIDs, setAssignmentIDs, saving, onSave, onToggleActive, onDelete,
 }: {
   groupID: number;
   node: SkillNode | null;
@@ -267,14 +307,16 @@ function NodeEditor({
   saving: boolean;
   onSave: (event: FormEvent<HTMLFormElement>) => void;
   onToggleActive: () => void;
+  onDelete: () => void;
 }) {
   const textField = (field: keyof FormState) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm({ ...form, [field]: event.target.value });
   return (
     <section className="skills-editor-panel" aria-labelledby="skill-editor-title">
-      <div className="flex items-center justify-between gap-3"><h2 id="skill-editor-title">{node ? "节点配置" : "新建技能节点"}</h2>{node ? <button type="button" className="admin-button admin-button--secondary" onClick={onToggleActive} disabled={saving}>{node.active ? "停用节点" : "重新启用"}</button> : null}</div>
+      <div className="flex flex-wrap items-center justify-between gap-3"><h2 id="skill-editor-title">{node ? "节点配置" : "新建技能节点"}</h2>{node ? <div className="flex flex-wrap gap-2"><button type="button" className="admin-button admin-button--secondary" onClick={onToggleActive} disabled={saving}>{node.active ? "停用节点" : "重新启用"}</button><button type="button" className="admin-button admin-button--quiet text-rose-300" onClick={onDelete} disabled={saving || !node.canDelete} title={node.deleteBlockReason || "仅无学习进度、审核历史、依赖和作业关联的节点可以删除"}>删除空节点</button></div> : null}</div>
+      {node && !node.canDelete ? <p className="mt-2 text-xs text-[var(--admin-muted)]">此节点{node.deleteBlockReason || "已有业务记录"}，只能停用；相关历史与依赖需要先由管理员处理。</p> : null}
       <form className="skills-editor-grid" onSubmit={onSave}>
         <label className="admin-field-group"><span>技能名称</span><input className="admin-field" maxLength={100} required value={form.name} onChange={textField("name")} placeholder="填写本组确认的技能名称" /></label>
-        <label className="admin-field-group"><span>显示顺序</span><input className="admin-field" type="number" min={0} max={100000} value={form.sortOrder} onChange={(event) => setForm({ ...form, sortOrder: Number(event.target.value) })} /></label>
+        <label className="admin-field-group"><span>同层排列顺序</span><input className="admin-field" type="number" min={0} max={100000} value={form.sortOrder} onChange={(event) => setForm({ ...form, sortOrder: Number(event.target.value) })} /><small className="text-xs text-[var(--admin-muted)]">路线默认按前置关系自动排版；此值只微调同层节点位置，也可使用「自动整理布局」。</small></label>
         <label className="admin-field-group wide"><span>节点说明</span><textarea className="admin-field min-h-20" maxLength={5000} value={form.description} onChange={textField("description")} /></label>
         <label className="admin-field-group wide"><span>学习目标</span><textarea className="admin-field min-h-20" maxLength={5000} required value={form.learningGoal} onChange={textField("learningGoal")} placeholder="说明成员完成学习后应能够做到什么" /></label>
         <label className="admin-field-group wide"><span>通过标准</span><textarea className="admin-field min-h-20" maxLength={5000} required value={form.passingCriteria} onChange={textField("passingCriteria")} placeholder="由本组管理员按真实训练要求定义" /></label>

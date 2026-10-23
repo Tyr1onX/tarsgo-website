@@ -1,20 +1,26 @@
 package database
 
 import (
+	"fmt"
+	"os"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
+
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 
 	"tarsgo-backend/model"
 )
 
 func TestMigrationRegistryIsOrderedAndKeepsBaseVersion(t *testing.T) {
 	items := migrationRegistry("test")
-	if len(items) != 26 {
-		t.Fatalf("expected 26 registered migrations, got %d", len(items))
+	if len(items) != 27 {
+		t.Fatalf("expected 27 registered migrations, got %d", len(items))
 	}
-	wantVersions := []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26}
+	wantVersions := []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27}
 	for index, want := range wantVersions {
 		if items[index].version != want {
 			t.Fatalf("migration %d has version %d, want %d", index, items[index].version, want)
@@ -48,6 +54,73 @@ func TestMigration26OnlyCorrectsAssignmentRecipientDefault(t *testing.T) {
 	field, ok := reflect.TypeOf(model.Assignment{}).FieldByName("IsGroupWide")
 	if !ok || !strings.Contains(field.Tag.Get("gorm"), "default:0") {
 		t.Fatalf("IsGroupWide must default to false after migration 26; gorm tag = %q", field.Tag.Get("gorm"))
+	}
+}
+
+func TestMigration27AddsAssignmentPublicationLifecycleWithoutTouchingRecipients(t *testing.T) {
+	items := migrationRegistry("test")
+	var migration27 *migration
+	for index := range items {
+		if items[index].version == 27 {
+			migration27 = &items[index]
+			break
+		}
+	}
+	if migration27 == nil || migration27.apply == nil {
+		t.Fatal("assignment publication lifecycle migration 27 is missing")
+	}
+	field, ok := reflect.TypeOf(model.Assignment{}).FieldByName("PublicationStatus")
+	if !ok || !strings.Contains(field.Tag.Get("gorm"), "default:'published'") {
+		t.Fatalf("new and upgraded assignments must default to published; gorm tag = %q", field.Tag.Get("gorm"))
+	}
+}
+
+func TestAcceptanceDatabaseAssignmentPublicationMigrationPreservesExistingRows(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("TARSGO_QA_TEST_DSN"))
+	if dsn == "" {
+		t.Skip("TARSGO_QA_TEST_DSN is not set")
+	}
+	if !strings.Contains(dsn, "@tcp(127.0.0.1:3317)/tarsgo_acceptance?") {
+		t.Fatal("refusing assignment migration verification outside the isolated local acceptance database")
+	}
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+	if err != nil {
+		t.Fatal("open isolated acceptance database")
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatal("open isolated acceptance SQL connection")
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	tableName := fmt.Sprintf("assignment_migration_probe_%d", time.Now().UnixNano())
+	if err := db.Exec(fmt.Sprintf("CREATE TABLE `%s` (id BIGINT UNSIGNED NOT NULL AUTO_INCREMENT PRIMARY KEY, title VARCHAR(160) NOT NULL) ENGINE=InnoDB", tableName)).Error; err != nil {
+		t.Fatalf("create temporary migration probe table: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS `%s`", tableName)).Error; err != nil {
+			t.Errorf("drop temporary migration probe table: %v", err)
+		}
+	})
+	if err := db.Exec(fmt.Sprintf("INSERT INTO `%s` (title) VALUES (?), (?)", tableName), "legacy full-group assignment", "legacy targeted assignment").Error; err != nil {
+		t.Fatalf("seed migration probe with pre-existing assignments: %v", err)
+	}
+	probeDB := db.Table(tableName)
+	if err := migrateAssignmentPublicationStatus(probeDB); err != nil {
+		t.Fatalf("apply migration 27 to pre-existing rows: %v", err)
+	}
+	if err := migrateAssignmentPublicationStatus(probeDB); err != nil {
+		t.Fatalf("repeat migration 27 idempotently: %v", err)
+	}
+	var rows []struct {
+		ID                uint64
+		Title             string
+		PublicationStatus string
+	}
+	if err := probeDB.Select("id, title, publication_status").Order("id ASC").Find(&rows).Error; err != nil {
+		t.Fatalf("read historical rows after migration: %v", err)
+	}
+	if len(rows) != 2 || rows[0].ID != 1 || rows[0].Title != "legacy full-group assignment" || rows[0].PublicationStatus != model.AssignmentPublicationPublished || rows[1].ID != 2 || rows[1].Title != "legacy targeted assignment" || rows[1].PublicationStatus != model.AssignmentPublicationPublished {
+		t.Fatalf("migration changed or failed to backfill historical assignment rows: %#v", rows)
 	}
 }
 

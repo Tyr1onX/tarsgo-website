@@ -132,7 +132,7 @@ func TestAdminCanPublishAssignmentForSelf(t *testing.T) {
 	now := time.Date(2026, 10, 19, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
 	mock.ExpectBegin()
 	expectTechnicalGroupIDs(mock, 8, 41)
-	mock.ExpectQuery("(?s)SELECT `user_group_members`\\.`user_id` FROM `user_group_members` JOIN user_groups ON .* JOIN users ON .*WHERE user_group_members\\.group_id = \\? AND user_group_members\\.user_id IN \\(\\?\\) AND user_groups\\.status = \\? AND users\\.status = \\?").
+	mock.ExpectQuery("(?s)SELECT `user_group_members`\\.`user_id` FROM `user_group_members` JOIN user_groups ON .* JOIN users ON .* JOIN roles ON .*WHERE user_group_members\\.group_id = \\? AND user_group_members\\.user_id IN \\(\\?\\) AND user_groups\\.status = \\? AND users\\.status = \\? AND roles\\.name = \\?").
 		WillReturnRows(sqlmock.NewRows([]string{"user_id"}).AddRow(8))
 	mock.ExpectExec("INSERT INTO `assignments`").WillReturnResult(sqlmock.NewResult(91, 1))
 	mock.ExpectExec("INSERT INTO `assignment_targets`").WillReturnResult(sqlmock.NewResult(1, 1))

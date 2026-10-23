@@ -42,7 +42,7 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	if err := database.RunMigrations(context.Background(), db, "acceptance"); err != nil {
 		t.Fatalf("apply current migrations to the isolated acceptance database: %v", err)
 	}
-	for _, table := range []string{"users", "roles", "user_groups", "user_group_members", "assignments", "assignment_targets", "assignment_submissions", "assignment_submission_files", "assignment_reviews", "assignment_material_files"} {
+	for _, table := range []string{"users", "roles", "user_groups", "user_group_members", "assignments", "assignment_targets", "assignment_submissions", "assignment_submission_files", "assignment_reviews", "assignment_material_files", "skill_nodes", "skill_node_assignments", "skill_review_events"} {
 		if !db.Migrator().HasTable(table) {
 			t.Fatalf("isolated acceptance database is missing required table %s", table)
 		}
@@ -79,7 +79,8 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	createdUserIDs := make([]uint64, 0, 4)
 	createdAssignmentIDs := make([]uint64, 0, 3)
 	createdSubmissionIDs := make([]uint64, 0, 1)
-	createdMaterialIDs := make([]uint64, 0, 2)
+	createdSkillNodeIDs := make([]uint64, 0, 1)
+	createdSkillReviewEventIDs := make([]uint64, 0, 1)
 	t.Cleanup(func() {
 		if len(createdSubmissionIDs) > 0 {
 			for _, destination := range []any{&model.AssignmentReview{}, &model.AssignmentSubmissionFile{}} {
@@ -92,13 +93,32 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 			}
 		}
 		if len(createdAssignmentIDs) > 0 {
-			for _, destination := range []any{&model.AssignmentTarget{}, &model.AssignmentMaterialFile{}} {
+			for _, destination := range []any{&model.AssignmentTarget{}, &model.AssignmentMaterialFile{}, &model.SkillNodeAssignment{}} {
 				if err := db.Where("assignment_id IN ?", createdAssignmentIDs).Delete(destination).Error; err != nil {
 					t.Errorf("remove synthetic assignment relations: %v", err)
 				}
 			}
+			if err := db.Where("evidence_type = ? AND evidence_id IN ?", model.SkillEvidenceAssignment, createdAssignmentIDs).Delete(&model.SkillReviewEvent{}).Error; err != nil {
+				t.Errorf("remove synthetic assignment skill evidence: %v", err)
+			}
 			if err := db.Where("id IN ?", createdAssignmentIDs).Delete(&model.Assignment{}).Error; err != nil {
 				t.Errorf("remove synthetic assignments: %v", err)
+			}
+		}
+		if len(createdSkillReviewEventIDs) > 0 {
+			if err := db.Where("id IN ?", createdSkillReviewEventIDs).Delete(&model.SkillReviewEvent{}).Error; err != nil {
+				t.Errorf("remove synthetic skill review events: %v", err)
+			}
+		}
+		if len(createdSkillNodeIDs) > 0 {
+			if err := db.Where("skill_node_id IN ? OR prerequisite_node_id IN ?", createdSkillNodeIDs, createdSkillNodeIDs).Delete(&model.SkillNodePrerequisite{}).Error; err != nil {
+				t.Errorf("remove synthetic skill prerequisites: %v", err)
+			}
+			if err := db.Where("skill_node_id IN ?", createdSkillNodeIDs).Delete(&model.SkillNodeProgress{}).Error; err != nil {
+				t.Errorf("remove synthetic skill progress: %v", err)
+			}
+			if err := db.Where("id IN ?", createdSkillNodeIDs).Delete(&model.SkillNode{}).Error; err != nil {
+				t.Errorf("remove synthetic skill nodes: %v", err)
 			}
 		}
 		if len(createdUserIDs) > 0 {
@@ -137,6 +157,7 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	crossMember := createActor("ai-member", model.RoleNameUser, groupAI)
 	admin := createActor("mechanical-admin", model.RoleNameAdmin, groupMechanical)
 	superAdmin := createActor("super-admin", model.RoleNameSuperAdmin, "")
+	superAdminGroupMember := createActor("mechanical-super-admin", model.RoleNameSuperAdmin, groupMechanical)
 
 	root := t.TempDir()
 	service, err := NewServiceWithFileRoot(db, root)
@@ -148,6 +169,51 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	if !db.Migrator().HasColumn(&model.Assignment{}, "PublishRequestID") || !db.Migrator().HasColumn(&model.Assignment{}, "PublishRequestHash") {
 		t.Fatal("isolated acceptance database is missing assignment publication idempotency columns")
 	}
+	if !db.Migrator().HasColumn(&model.Assignment{}, "PublicationStatus") {
+		t.Fatal("isolated acceptance database is missing assignment publication status")
+	}
+	memberOptions, err := service.ListGroupMembers(context.Background(), admin, groupIDs[groupMechanical])
+	if err != nil {
+		t.Fatalf("read assignment recipients: %v", err)
+	}
+	var expectedRecipientCount int64
+	if err := db.Table("user_group_members").Joins("JOIN user_groups ON user_groups.id = user_group_members.group_id").Joins("JOIN users ON users.id = user_group_members.user_id").Joins("JOIN roles ON roles.id = users.role_id").Where("user_group_members.group_id = ? AND user_groups.status = ? AND users.status = ? AND roles.name = ?", groupIDs[groupMechanical], model.UserGroupStatusActive, model.UserStatusEnabled, model.RoleNameUser).Count(&expectedRecipientCount).Error; err != nil {
+		t.Fatalf("count eligible ordinary recipients: %v", err)
+	}
+	recipientIDs := make(map[uint64]bool, len(memberOptions))
+	for _, option := range memberOptions {
+		recipientIDs[option.UserID] = true
+	}
+	if int64(len(memberOptions)) != expectedRecipientCount || !recipientIDs[member.ID] || !recipientIDs[otherMember.ID] || recipientIDs[admin.ID] || recipientIDs[superAdminGroupMember.ID] {
+		t.Fatalf("assignment recipient picker did not match the group's enabled ordinary members: members=%#v wantCount=%d", memberOptions, expectedRecipientCount)
+	}
+	if _, err := service.ListGroupMembers(context.Background(), admin, groupIDs[groupAI]); statusOf(err) != http.StatusForbidden {
+		t.Fatalf("ordinary admin cross-group recipient list status = %d, want 403", statusOf(err))
+	}
+	if _, err := service.Create(context.Background(), admin, CreateInput{
+		GroupID: groupIDs[groupAI], Title: "[TEST_ASSIGNMENT] 跨组拒绝", Description: "普通管理员只能管理本组",
+		DueAt: now.Add(48 * time.Hour), IsGroupWide: true,
+	}); statusOf(err) != http.StatusForbidden {
+		t.Fatalf("ordinary admin cross-group assignment creation status = %d, want 403", statusOf(err))
+	}
+	superAdminAssignment, err := service.Create(context.Background(), superAdmin, CreateInput{
+		GroupID: groupIDs[groupAI], Title: "[TEST_ASSIGNMENT] 超级管理员全组管理", Description: "超级管理员不需要技术组归属",
+		DueAt: now.Add(48 * time.Hour), IsGroupWide: true,
+	})
+	if err != nil {
+		t.Fatalf("super admin without group membership could not publish to a technical group: %v", err)
+	}
+	createdAssignmentIDs = append(createdAssignmentIDs, superAdminAssignment.ID)
+	var superAdminCanRead bool
+	for _, item := range mustListAssignments(t, service, superAdmin, groupIDs[groupAI]) {
+		if item.ID == superAdminAssignment.ID {
+			superAdminCanRead = true
+			break
+		}
+	}
+	if !superAdminCanRead {
+		t.Fatal("super admin could not view the assignment published to another technical group")
+	}
 
 	requestID := "00000000-0000-4000-8000-" + fmt.Sprintf("%012x", time.Now().UnixNano()&0xffffffffffff)
 	publishInput := CreateInput{
@@ -156,17 +222,29 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	}
 	publishFiles := []*multipart.FileHeader{multipartHeader(t, "原子教学资料.pdf", []byte("%PDF-1.7\natomic"))}
 	published, err := service.CreateWithMaterialFiles(context.Background(), admin, publishInput, requestID, publishFiles)
+	if published != nil && published.Assignment.ID != 0 {
+		createdAssignmentIDs = append(createdAssignmentIDs, published.Assignment.ID)
+	}
 	if err != nil || published == nil || len(published.MaterialFiles) != 1 {
 		t.Fatalf("atomic assignment publication failed: result=%v err=%v", published, err)
 	}
 	if published.Assignment.IsGroupWide {
 		t.Fatal("targeted atomic publication was returned as group-wide")
 	}
-	createdAssignmentIDs = append(createdAssignmentIDs, published.Assignment.ID)
-	createdMaterialIDs = append(createdMaterialIDs, published.MaterialFiles[0].ID)
 	var persistedPublished model.Assignment
 	if err := db.First(&persistedPublished, published.Assignment.ID).Error; err != nil || persistedPublished.IsGroupWide {
 		t.Fatalf("targeted atomic publication was not persisted as targeted: record=%#v err=%v", persistedPublished, err)
+	}
+	if persistedPublished.PublicationStatus != model.AssignmentPublicationPublished {
+		t.Fatalf("new assignment publication status = %q, want published", persistedPublished.PublicationStatus)
+	}
+	for _, managerID := range []uint64{admin.ID, superAdminGroupMember.ID} {
+		if _, err := service.Create(context.Background(), admin, CreateInput{
+			GroupID: groupIDs[groupMechanical], Title: "[TEST_ASSIGNMENT] 管理员不可作为接收人", Description: "权限验证",
+			DueAt: now.Add(48 * time.Hour), IsGroupWide: false, TargetUserIDs: []uint64{managerID},
+		}); statusOf(err) != http.StatusForbidden {
+			t.Fatalf("targeted assignment accepted a manager recipient %d: status=%d", managerID, statusOf(err))
+		}
 	}
 	adminList, err := service.ListAdmin(context.Background(), admin, groupIDs[groupMechanical])
 	if err != nil {
@@ -215,6 +293,25 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	if _, err := service.CreateWithMaterialFiles(context.Background(), admin, changedInput, requestID, publishFiles); statusOf(err) != http.StatusConflict {
 		t.Fatalf("reusing a request key with changed content status = %d, want 409", statusOf(err))
 	}
+	changedRecipientsInput := publishInput
+	changedRecipientsInput.Title += " 更换接收人"
+	changedRecipientsInput.TargetUserIDs = []uint64{otherMember.ID}
+	if _, err := service.Update(context.Background(), admin, published.Assignment.ID, changedRecipientsInput); statusOf(err) != http.StatusConflict {
+		t.Fatalf("editing a targeted assignment to another member status = %d, want 409", statusOf(err))
+	}
+	retainedRecipientsInput := publishInput
+	retainedRecipientsInput.Title += " 保留接收人"
+	retained, err := service.Update(context.Background(), admin, published.Assignment.ID, retainedRecipientsInput)
+	if err != nil || retained.TargetCount != 1 || retained.IsGroupWide {
+		t.Fatalf("editing assignment details changed or rejected the original targeted scope: result=%#v err=%v", retained, err)
+	}
+	retainedMemberDetail, err := service.GetMine(context.Background(), member, published.Assignment.ID)
+	if err != nil || retainedMemberDetail.Assignment.Title != retained.Title {
+		t.Fatalf("original targeted recipient lost access after edit: detail=%#v err=%v", retainedMemberDetail, err)
+	}
+	if _, err := service.GetMine(context.Background(), otherMember, published.Assignment.ID); statusOf(err) != http.StatusNotFound {
+		t.Fatalf("editing assignment recipients expanded access to another member: status=%d", statusOf(err))
+	}
 
 	blockedRoot := t.TempDir()
 	if err := os.WriteFile(filepath.Join(blockedRoot, "materials"), []byte("not a directory"), 0o600); err != nil {
@@ -252,11 +349,12 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 		t.Fatalf("member could submit to a failed unpublished assignment: status=%d", statusOf(err))
 	}
 	retriedAfterFailure, err := service.CreateWithMaterialFiles(context.Background(), admin, blockedInput, blockedRequestID, publishFiles)
+	if retriedAfterFailure != nil {
+		createdAssignmentIDs = append(createdAssignmentIDs, retriedAfterFailure.Assignment.ID)
+	}
 	if err != nil || retriedAfterFailure == nil || len(retriedAfterFailure.MaterialFiles) != 1 {
 		t.Fatalf("retry after a confirmed storage failure did not publish cleanly: result=%v err=%v", retriedAfterFailure, err)
 	}
-	createdAssignmentIDs = append(createdAssignmentIDs, retriedAfterFailure.Assignment.ID)
-	createdMaterialIDs = append(createdMaterialIDs, retriedAfterFailure.MaterialFiles[0].ID)
 	retriedMemberDetail, err := service.GetMine(context.Background(), member, retriedAfterFailure.Assignment.ID)
 	if err != nil || len(retriedMemberDetail.Assignment.MaterialFiles) != 1 {
 		t.Fatalf("member could not read the complete retry publication: detail=%v err=%v", retriedMemberDetail, err)
@@ -363,7 +461,6 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	if err != nil || len(material) != 1 {
 		t.Fatalf("upload teaching material: count=%d err=%v", len(material), err)
 	}
-	createdMaterialIDs = append(createdMaterialIDs, material[0].ID)
 	memberDetail, err := service.GetMine(context.Background(), member, assignment.ID)
 	if err != nil || len(memberDetail.Assignment.MaterialFiles) != 1 {
 		t.Fatalf("member could not see teaching material: detail=%v err=%v", memberDetail, err)
@@ -389,7 +486,6 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	if err != nil || len(material) != 1 {
 		t.Fatalf("re-upload teaching material before submissions: count=%d err=%v", len(material), err)
 	}
-	createdMaterialIDs = append(createdMaterialIDs, material[0].ID)
 
 	submitted, err := service.Submit(context.Background(), member, assignment.ID, []*multipart.FileHeader{multipartHeader(t, "成果.pdf", []byte("%PDF-1.7\nresult"))})
 	if err != nil || len(submitted.Submissions) != 1 {
@@ -411,11 +507,17 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 		GroupID: groupIDs[groupMechanical], Title: "[TEST_ASSIGNMENT] 全组范围回归", Description: "全组作业创建及编辑验证",
 		DueAt: now.Add(72 * time.Hour), IsGroupWide: true,
 	})
-	if err != nil || !fullGroupAssignment.IsGroupWide {
+	if err != nil {
 		t.Fatalf("full-group assignment creation failed: assignment=%#v err=%v", fullGroupAssignment, err)
 	}
-	initialFullGroupTargetCount := fullGroupAssignment.TargetCount
 	createdAssignmentIDs = append(createdAssignmentIDs, fullGroupAssignment.ID)
+	if !fullGroupAssignment.IsGroupWide {
+		t.Fatal("full-group assignment creation returned a targeted assignment")
+	}
+	initialFullGroupTargetCount := fullGroupAssignment.TargetCount
+	if initialFullGroupTargetCount != len(memberOptions) {
+		t.Fatalf("full-group assignment recipients = %d, want all %d currently eligible ordinary members", initialFullGroupTargetCount, len(memberOptions))
+	}
 	if _, err := service.GetMine(context.Background(), member, fullGroupAssignment.ID); err != nil {
 		t.Fatalf("first technical-group member could not access a full-group assignment: %v", err)
 	}
@@ -433,6 +535,129 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	if _, err := service.GetMine(context.Background(), lateMember, fullGroupAssignment.ID); statusOf(err) != http.StatusNotFound {
 		t.Fatalf("routine edit expanded a full-group assignment to a later member: status=%d", statusOf(err))
 	}
+
+	withdrawalAssignment, err := service.Create(context.Background(), admin, CreateInput{
+		GroupID: groupIDs[groupMechanical], Title: "[TEST_ASSIGNMENT] 撤回保留历史", Description: "提交后撤回不得删除历史",
+		DueAt: now.Add(96 * time.Hour), IsGroupWide: false, TargetUserIDs: []uint64{member.ID},
+	})
+	if err != nil {
+		t.Fatalf("create withdrawal acceptance assignment: %v", err)
+	}
+	createdAssignmentIDs = append(createdAssignmentIDs, withdrawalAssignment.ID)
+	withdrawnSubmission, err := service.Submit(context.Background(), member, withdrawalAssignment.ID, []*multipart.FileHeader{multipartHeader(t, "退回重做.pdf", []byte("%PDF-1.7\nredo"))})
+	if err != nil || len(withdrawnSubmission.Submissions) != 1 {
+		t.Fatalf("create submission before withdrawal: result=%#v err=%v", withdrawnSubmission, err)
+	}
+	createdSubmissionIDs = append(createdSubmissionIDs, withdrawnSubmission.Submissions[0].ID)
+	if _, err := service.Review(context.Background(), admin, withdrawnSubmission.Submissions[0].ID, ReviewInput{Score: 70, Decision: model.AssignmentReviewNeedsRedo, Comment: "[TEST_ASSIGNMENT] 请重做"}); err != nil {
+		t.Fatalf("return the synthetic submission for redo: %v", err)
+	}
+	resubmitted, err := service.Submit(context.Background(), member, withdrawalAssignment.ID, []*multipart.FileHeader{multipartHeader(t, "重新提交.pdf", []byte("%PDF-1.7\nresubmission"))})
+	if err != nil || len(resubmitted.Submissions) != 2 || resubmitted.Submissions[1].Attempt != 2 || len(resubmitted.Submissions[0].Reviews) != 1 || resubmitted.Submissions[0].Reviews[0].Decision != model.AssignmentReviewNeedsRedo {
+		t.Fatalf("member could not resubmit a returned assignment while it was published: detail=%#v err=%v", resubmitted, err)
+	}
+	createdSubmissionIDs = append(createdSubmissionIDs, resubmitted.Submissions[1].ID)
+	if _, err := service.Review(context.Background(), admin, resubmitted.Submissions[1].ID, ReviewInput{Score: 92, Decision: model.AssignmentReviewPassed, Comment: "[TEST_ASSIGNMENT] 重做后通过"}); err != nil {
+		t.Fatalf("pass the synthetic resubmission: %v", err)
+	}
+	if _, err := service.SetPublicationStatus(context.Background(), admin, withdrawalAssignment.ID, model.AssignmentPublicationWithdrawn); err != nil {
+		t.Fatalf("withdraw submitted assignment: %v", err)
+	}
+	withdrawnDetail, err := service.GetMine(context.Background(), member, withdrawalAssignment.ID)
+	if err != nil || withdrawnDetail.Assignment.PublicationStatus != model.AssignmentPublicationWithdrawn || len(withdrawnDetail.Submissions) != 2 || len(withdrawnDetail.Submissions[0].Reviews) != 1 || len(withdrawnDetail.Submissions[1].Reviews) != 1 || withdrawnDetail.Submissions[1].Reviews[0].Decision != model.AssignmentReviewPassed {
+		t.Fatalf("withdrawal lost member-visible history: detail=%#v err=%v", withdrawnDetail, err)
+	}
+	if _, err := service.Submit(context.Background(), member, withdrawalAssignment.ID, []*multipart.FileHeader{multipartHeader(t, "撤回后重交.pdf", []byte("%PDF-1.7\nblocked"))}); statusOf(err) != http.StatusConflict {
+		t.Fatalf("member submission after withdrawal status = %d, want 409", statusOf(err))
+	}
+	if err := service.Delete(context.Background(), admin, withdrawalAssignment.ID); statusOf(err) != http.StatusConflict {
+		t.Fatalf("assignment with submission/review history was deleted: status=%d", statusOf(err))
+	}
+	if err := service.Delete(context.Background(), member, withdrawalAssignment.ID); statusOf(err) != http.StatusForbidden {
+		t.Fatalf("ordinary member assignment deletion status = %d, want 403", statusOf(err))
+	}
+	adminHistory, err := service.GetAdmin(context.Background(), admin, withdrawalAssignment.ID)
+	if err != nil || len(adminHistory.Members) != 1 || len(adminHistory.Members[0].Submissions) != 2 || adminHistory.Assignment.CanDelete {
+		t.Fatalf("admin could not retain withdrawn submission history: history=%#v err=%v", adminHistory, err)
+	}
+	if _, err := service.SetPublicationStatus(context.Background(), admin, withdrawalAssignment.ID, model.AssignmentPublicationPublished); err != nil {
+		t.Fatalf("republish an unexpired withdrawn assignment: %v", err)
+	}
+
+	deletableAssignment, err := service.Create(context.Background(), admin, CreateInput{
+		GroupID: groupIDs[groupMechanical], Title: "[TEST_ASSIGNMENT] 可安全删除", Description: "没有业务记录",
+		DueAt: now.Add(96 * time.Hour), IsGroupWide: false, TargetUserIDs: []uint64{member.ID},
+	})
+	if err != nil {
+		t.Fatalf("create deletable assignment: %v", err)
+	}
+	createdAssignmentIDs = append(createdAssignmentIDs, deletableAssignment.ID)
+	if _, err := service.SetPublicationStatus(context.Background(), admin, deletableAssignment.ID, model.AssignmentPublicationWithdrawn); err != nil {
+		t.Fatalf("withdraw deletable assignment: %v", err)
+	}
+	deletableSummary, err := service.GetAdmin(context.Background(), admin, deletableAssignment.ID)
+	if err != nil || !deletableSummary.Assignment.CanDelete {
+		t.Fatalf("empty withdrawn assignment was not marked safe for deletion: summary=%#v err=%v", deletableSummary, err)
+	}
+	if err := service.Delete(context.Background(), admin, deletableAssignment.ID); err != nil {
+		t.Fatalf("delete withdrawn assignment without business references: %v", err)
+	}
+	var deletedRows int64
+	if err := db.Model(&model.Assignment{}).Where("id = ?", deletableAssignment.ID).Count(&deletedRows).Error; err != nil || deletedRows != 0 {
+		t.Fatalf("safe assignment delete left a parent row: count=%d err=%v", deletedRows, err)
+	}
+
+	referencedAssignment, err := service.Create(context.Background(), admin, CreateInput{
+		GroupID: groupIDs[groupMechanical], Title: "[TEST_ASSIGNMENT] 技能历史保护", Description: "技能和成长关联必须阻止作业删除",
+		DueAt: now.Add(96 * time.Hour), IsGroupWide: false, TargetUserIDs: []uint64{member.ID},
+	})
+	if err != nil {
+		t.Fatalf("create assignment for skill reference protection: %v", err)
+	}
+	createdAssignmentIDs = append(createdAssignmentIDs, referencedAssignment.ID)
+	if _, err := service.SetPublicationStatus(context.Background(), admin, referencedAssignment.ID, model.AssignmentPublicationWithdrawn); err != nil {
+		t.Fatalf("withdraw assignment for skill reference protection: %v", err)
+	}
+	skillNode := model.SkillNode{
+		GroupID: groupIDs[groupMechanical], Name: "[TEST_ASSIGNMENT] assignment-linked skill",
+		LearningGoal: "Synthetic linked goal", PassingCriteria: "Synthetic linked criteria", CreatedBy: admin.ID,
+	}
+	if err := db.Create(&skillNode).Error; err != nil {
+		t.Fatalf("create synthetic skill node protecting assignment: %v", err)
+	}
+	createdSkillNodeIDs = append(createdSkillNodeIDs, skillNode.ID)
+	if err := db.Create(&model.SkillNodeAssignment{SkillNodeID: skillNode.ID, AssignmentID: referencedAssignment.ID}).Error; err != nil {
+		t.Fatalf("link assignment to synthetic skill node: %v", err)
+	}
+	linkedSummary, err := service.GetAdmin(context.Background(), admin, referencedAssignment.ID)
+	if err != nil || linkedSummary.Assignment.CanDelete {
+		t.Fatalf("assignment with a skill association was marked safe for deletion: summary=%#v err=%v", linkedSummary, err)
+	}
+	if err := service.Delete(context.Background(), admin, referencedAssignment.ID); statusOf(err) != http.StatusConflict {
+		t.Fatalf("assignment linked to a skill node deletion status = %d, want 409", statusOf(err))
+	}
+	var skillEvidenceID = referencedAssignment.ID
+	skillEvidence := model.SkillReviewEvent{
+		GroupID: groupIDs[groupMechanical], SkillNodeID: skillNode.ID, SkillName: skillNode.Name,
+		UserID: member.ID, ActorID: admin.ID, ActorName: "[TEST_ASSIGNMENT] admin", Action: model.SkillReviewMastered,
+		EvidenceType: model.SkillEvidenceAssignment, EvidenceID: &skillEvidenceID, EvidenceNote: "Synthetic linked evidence",
+	}
+	if err := db.Create(&skillEvidence).Error; err != nil {
+		t.Fatalf("create synthetic assignment skill evidence: %v", err)
+	}
+	createdSkillReviewEventIDs = append(createdSkillReviewEventIDs, skillEvidence.ID)
+	if err := service.Delete(context.Background(), admin, referencedAssignment.ID); statusOf(err) != http.StatusConflict {
+		t.Fatalf("assignment referenced by a skill review event deletion status = %d, want 409", statusOf(err))
+	}
+}
+
+func mustListAssignments(t *testing.T, service *Service, actor Actor, groupID uint64) []AssignmentView {
+	t.Helper()
+	items, err := service.ListAdmin(context.Background(), actor, groupID)
+	if err != nil {
+		t.Fatalf("list group assignments: %v", err)
+	}
+	return items
 }
 
 func statusOf(err error) int {

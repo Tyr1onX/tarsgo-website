@@ -18,6 +18,8 @@ export interface SkillNode {
   active: boolean;
   prerequisiteIds: number[];
   assignmentIds: number[];
+  canDelete?: boolean;
+  deleteBlockReason?: string;
   state?: SkillState;
   startedAt?: string;
   reviewHistory?: SkillReviewEvent[];
@@ -65,9 +67,12 @@ export const skillsClient = {
   start: (nodeId: number) => apiRequest<SkillNode>(`/api/skills/nodes/${nodeId}/start`, { method: "POST" }),
   adminGroups: () => apiRequest<SkillGroup[]>("/api/admin/skills/groups"),
   adminNodes: (groupId: number) => apiRequest<SkillNode[]>(`/api/admin/skills/nodes?${query({ groupId })}`),
+  reorderLayout: (groupId: number, orders: Array<{ nodeId: number; sortOrder: number }>) =>
+    apiRequest<{ updated: number }>(`/api/admin/skills/groups/${groupId}/layout`, { method: "PUT", body: { orders } }),
   create: (input: SkillNodeInput) => apiRequest<SkillNode>("/api/admin/skills/nodes", { method: "POST", body: input }),
   update: (nodeId: number, input: SkillNodeInput) => apiRequest<SkillNode>(`/api/admin/skills/nodes/${nodeId}`, { method: "PUT", body: input }),
   setActive: (nodeId: number, active: boolean) => apiRequest<{ active: boolean }>(`/api/admin/skills/nodes/${nodeId}/active`, { method: "PATCH", body: { active } }),
+  deleteNode: (nodeId: number) => apiRequest<{ id: number }>(`/api/admin/skills/nodes/${nodeId}`, { method: "DELETE" }),
   setPrerequisites: (nodeId: number, prerequisiteIds: number[]) => apiRequest<{ prerequisiteIds: number[] }>(`/api/admin/skills/nodes/${nodeId}/prerequisites`, { method: "PUT", body: { prerequisiteIds } }),
   setAssignments: (nodeId: number, assignmentIds: number[]) => apiRequest<{ assignmentIds: number[] }>(`/api/admin/skills/nodes/${nodeId}/assignments`, { method: "PUT", body: { assignmentIds } }),
   members: (groupId: number, skillNodeId: number) => apiRequest<SkillMember[]>(`/api/admin/skills/members?${query({ groupId, skillNodeId })}`),
