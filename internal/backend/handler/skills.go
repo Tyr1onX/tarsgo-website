@@ -123,6 +123,37 @@ func (h *SkillsHandler) SetActive(c *gin.Context) {
 	writeAPI(c, http.StatusOK, "技能节点状态已更新", gin.H{"active": *request.Active})
 }
 
+func (h *SkillsHandler) DeleteNode(c *gin.Context) {
+	nodeID, ok := parseSkillPathID(c, "id")
+	if !ok {
+		return
+	}
+	if err := h.service.DeleteNode(c.Request.Context(), currentSkillsActor(c), nodeID); err != nil {
+		h.fail(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "技能测试节点已删除", gin.H{"id": nodeID})
+}
+
+func (h *SkillsHandler) ReorderNodes(c *gin.Context) {
+	groupID, ok := parseSkillPathID(c, "groupId")
+	if !ok {
+		return
+	}
+	var request struct {
+		Orders []skills.NodeOrder `json:"orders"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		writeAPIError(c, http.StatusBadRequest, "技能路线顺序参数不合法")
+		return
+	}
+	if err := h.service.ReorderNodes(c.Request.Context(), currentSkillsActor(c), groupID, request.Orders); err != nil {
+		h.fail(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "技能路线已自动整理", gin.H{"updated": len(request.Orders)})
+}
+
 func (h *SkillsHandler) SetPrerequisites(c *gin.Context) {
 	nodeID, ok := parseSkillPathID(c, "id")
 	if !ok {

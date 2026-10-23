@@ -179,6 +179,38 @@ func (h *AssignmentHandler) Update(c *gin.Context) {
 	writeAPI(c, http.StatusOK, "作业已更新", item)
 }
 
+func (h *AssignmentHandler) SetPublicationStatus(c *gin.Context) {
+	assignmentID, ok := parseAssignmentPathID(c)
+	if !ok {
+		return
+	}
+	var request struct {
+		Status string `json:"status"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		writeAPIError(c, http.StatusBadRequest, "作业发布状态不合法")
+		return
+	}
+	item, err := h.service.SetPublicationStatus(c.Request.Context(), currentAssignmentActor(c), assignmentID, request.Status)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "作业发布状态已更新", item)
+}
+
+func (h *AssignmentHandler) Delete(c *gin.Context) {
+	assignmentID, ok := parseAssignmentPathID(c)
+	if !ok {
+		return
+	}
+	if err := h.service.Delete(c.Request.Context(), currentAssignmentActor(c), assignmentID); err != nil {
+		h.fail(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "无历史记录的作业已删除", gin.H{"id": assignmentID})
+}
+
 func (h *AssignmentHandler) UploadMaterialFiles(c *gin.Context) {
 	assignmentID, ok := parseAssignmentPathID(c)
 	if !ok {

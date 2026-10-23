@@ -45,16 +45,23 @@ type NodeInput struct {
 }
 
 type Node struct {
-	ID              uint64   `json:"id"`
-	GroupID         uint64   `json:"groupId"`
-	Name            string   `json:"name"`
-	Description     string   `json:"description"`
-	LearningGoal    string   `json:"learningGoal"`
-	PassingCriteria string   `json:"passingCriteria"`
-	SortOrder       uint     `json:"sortOrder"`
-	Active          bool     `json:"active"`
-	PrerequisiteIDs []uint64 `json:"prerequisiteIds"`
-	AssignmentIDs   []uint64 `json:"assignmentIds"`
+	ID                uint64   `json:"id"`
+	GroupID           uint64   `json:"groupId"`
+	Name              string   `json:"name"`
+	Description       string   `json:"description"`
+	LearningGoal      string   `json:"learningGoal"`
+	PassingCriteria   string   `json:"passingCriteria"`
+	SortOrder         uint     `json:"sortOrder"`
+	Active            bool     `json:"active"`
+	PrerequisiteIDs   []uint64 `json:"prerequisiteIds"`
+	AssignmentIDs     []uint64 `json:"assignmentIds"`
+	CanDelete         bool     `json:"canDelete,omitempty"`
+	DeleteBlockReason string   `json:"deleteBlockReason,omitempty"`
+}
+
+type NodeOrder struct {
+	NodeID    uint64 `json:"nodeId"`
+	SortOrder uint   `json:"sortOrder"`
 }
 
 type ReviewEvent struct {
@@ -311,7 +318,111 @@ func (s *Service) ListAdminNodes(ctx context.Context, actor Actor, groupID uint6
 	for _, item := range records {
 		result = append(result, nodeView(item, depMap[item.ID], assignmentMap[item.ID]))
 	}
+	if len(records) > 0 {
+		deleteState, err := s.nodeDeleteState(ctx, ids)
+		if err != nil {
+			return nil, internalError("读取技能节点引用状态失败", err)
+		}
+		for index := range result {
+			result[index].CanDelete = deleteState[result[index].ID] == ""
+			result[index].DeleteBlockReason = deleteState[result[index].ID]
+		}
+	}
 	return result, nil
+}
+
+func (s *Service) nodeDeleteState(ctx context.Context, nodeIDs []uint64) (map[uint64]string, error) {
+	blocked := make(map[uint64]map[string]bool, len(nodeIDs))
+	for _, id := range nodeIDs {
+		blocked[id] = map[string]bool{}
+	}
+	add := func(id uint64, reason string) {
+		if reasons, exists := blocked[id]; exists {
+			reasons[reason] = true
+		}
+	}
+	var progress []struct{ SkillNodeID uint64 }
+	if err := s.db.WithContext(ctx).Model(&model.SkillNodeProgress{}).Select("skill_node_id").Where("skill_node_id IN ?", nodeIDs).Find(&progress).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range progress {
+		add(row.SkillNodeID, "已有学习进度")
+	}
+	var reviews []struct{ SkillNodeID uint64 }
+	if err := s.db.WithContext(ctx).Model(&model.SkillReviewEvent{}).Select("skill_node_id").Where("skill_node_id IN ?", nodeIDs).Find(&reviews).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range reviews {
+		add(row.SkillNodeID, "已有审核历史")
+	}
+	var dependencies []model.SkillNodePrerequisite
+	if err := s.db.WithContext(ctx).Where("skill_node_id IN ? OR prerequisite_node_id IN ?", nodeIDs, nodeIDs).Find(&dependencies).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range dependencies {
+		add(row.SkillNodeID, "存在前置关系")
+		add(row.PrerequisiteNodeID, "存在前置关系")
+	}
+	var assignmentLinks []model.SkillNodeAssignment
+	if err := s.db.WithContext(ctx).Select("skill_node_id").Where("skill_node_id IN ?", nodeIDs).Find(&assignmentLinks).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range assignmentLinks {
+		add(row.SkillNodeID, "关联了训练作业")
+	}
+	result := make(map[uint64]string, len(nodeIDs))
+	for _, id := range nodeIDs {
+		reasons := make([]string, 0, len(blocked[id]))
+		for _, reason := range []string{"已有学习进度", "已有审核历史", "存在前置关系", "关联了训练作业"} {
+			if blocked[id][reason] {
+				reasons = append(reasons, reason)
+			}
+		}
+		result[id] = strings.Join(reasons, "、")
+	}
+	return result, nil
+}
+
+// ReorderNodes stores the automatically computed within-layer order generated
+// by the graph view. It accepts the complete group node set so clients cannot
+// rewrite another group's layout or leave part of a route unsorted.
+func (s *Service) ReorderNodes(ctx context.Context, actor Actor, groupID uint64, orders []NodeOrder) error {
+	if len(orders) == 0 || len(orders) > 1000 {
+		return serviceError(http.StatusBadRequest, "技能路线顺序参数不合法", nil)
+	}
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var group model.UserGroup
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&group, groupID).Error; err != nil {
+			return notFoundOrInternal(err, "技能组别不存在", "锁定技能路线失败")
+		}
+		if err := s.requireManagerGroupWithDB(tx, actor, groupID); err != nil {
+			return err
+		}
+		var records []model.SkillNode
+		if err := tx.Where("group_id = ?", groupID).Find(&records).Error; err != nil {
+			return internalError("读取技能节点失败", err)
+		}
+		if len(records) != len(orders) {
+			return serviceError(http.StatusConflict, "技能路线已变化，请重新加载后整理", nil)
+		}
+		valid := make(map[uint64]bool, len(records))
+		for _, node := range records {
+			valid[node.ID] = true
+		}
+		seen := make(map[uint64]bool, len(orders))
+		for _, order := range orders {
+			if !valid[order.NodeID] || seen[order.NodeID] {
+				return serviceError(http.StatusBadRequest, "技能路线顺序必须包含本组每个节点且不能重复", nil)
+			}
+			seen[order.NodeID] = true
+		}
+		for _, order := range orders {
+			if err := tx.Model(&model.SkillNode{}).Where("id = ? AND group_id = ?", order.NodeID, groupID).Update("sort_order", order.SortOrder).Error; err != nil {
+				return internalError("保存自动整理结果失败", err)
+			}
+		}
+		return nil
+	})
 }
 
 func (s *Service) CreateNode(ctx context.Context, actor Actor, input NodeInput) (*Node, error) {
@@ -391,7 +502,7 @@ func (s *Service) UpdateNode(ctx context.Context, actor Actor, nodeID uint64, in
 
 func (s *Service) SetActive(ctx context.Context, actor Actor, nodeID uint64, active bool) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		item, err := s.getManagedNodeWithDB(tx, actor, nodeID)
+		item, err := s.getManagedNodeForUpdateWithDB(tx, actor, nodeID)
 		if err != nil {
 			return err
 		}
@@ -418,13 +529,54 @@ func (s *Service) SetActive(ctx context.Context, actor Actor, nodeID uint64, act
 	})
 }
 
+// DeleteNode permits physical removal only before a node has acquired learning,
+// assessment, prerequisite, or assignment references. Historic nodes are
+// retained through SetActive(false).
+func (s *Service) DeleteNode(ctx context.Context, actor Actor, nodeID uint64) error {
+	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		item, err := s.getManagedNodeForUpdateWithDB(tx, actor, nodeID)
+		if err != nil {
+			return err
+		}
+		var group model.UserGroup
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&group, item.GroupID).Error; err != nil {
+			return internalError("锁定技能路线失败", err)
+		}
+		var progress, reviews, prerequisites, assignments int64
+		if err := tx.Model(&model.SkillNodeProgress{}).Where("skill_node_id = ?", nodeID).Count(&progress).Error; err != nil {
+			return internalError("检查技能学习历史失败", err)
+		}
+		if err := tx.Model(&model.SkillReviewEvent{}).Where("skill_node_id = ?", nodeID).Count(&reviews).Error; err != nil {
+			return internalError("检查技能审核历史失败", err)
+		}
+		if err := tx.Model(&model.SkillNodePrerequisite{}).
+			Where("skill_node_id = ? OR prerequisite_node_id = ?", nodeID, nodeID).Count(&prerequisites).Error; err != nil {
+			return internalError("检查技能依赖关系失败", err)
+		}
+		if err := tx.Model(&model.SkillNodeAssignment{}).Where("skill_node_id = ?", nodeID).Count(&assignments).Error; err != nil {
+			return internalError("检查关联作业失败", err)
+		}
+		if progress+reviews+prerequisites+assignments > 0 {
+			return serviceError(http.StatusConflict, "该节点已有学习或审核历史、前置关系或关联作业，不能删除；请停用节点以保留记录", nil)
+		}
+		result := tx.Where("id = ? AND group_id = ?", nodeID, item.GroupID).Delete(&model.SkillNode{})
+		if result.Error != nil {
+			return internalError("删除技能节点失败", result.Error)
+		}
+		if result.RowsAffected == 0 {
+			return notFoundOrInternal(gorm.ErrRecordNotFound, "技能节点不存在", "删除技能节点失败")
+		}
+		return nil
+	})
+}
+
 func (s *Service) SetPrerequisites(ctx context.Context, actor Actor, nodeID uint64, prerequisiteIDs []uint64) error {
 	ids, err := normalizeIDs(prerequisiteIDs)
 	if err != nil {
 		return serviceError(http.StatusBadRequest, "前置技能参数不合法", err)
 	}
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		item, err := s.getManagedNodeWithDB(tx, actor, nodeID)
+		item, err := s.getManagedNodeForUpdateWithDB(tx, actor, nodeID)
 		if err != nil {
 			return err
 		}
@@ -479,7 +631,7 @@ func (s *Service) SetAssignments(ctx context.Context, actor Actor, nodeID uint64
 		return serviceError(http.StatusBadRequest, "训练作业参数不合法", err)
 	}
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		item, err := s.getManagedNodeWithDB(tx, actor, nodeID)
+		item, err := s.getManagedNodeForUpdateWithDB(tx, actor, nodeID)
 		if err != nil {
 			return err
 		}
@@ -512,32 +664,39 @@ func (s *Service) Start(ctx context.Context, userID, nodeID uint64) (*NodeProgre
 	if userID == 0 {
 		return nil, serviceError(http.StatusUnauthorized, "请先登录", nil)
 	}
-	var item model.SkillNode
-	if err := s.db.WithContext(ctx).Where("id = ? AND active = ?", nodeID, true).Take(&item).Error; err != nil {
-		return nil, notFoundOrInternal(err, "技能节点不存在", "读取技能节点失败")
-	}
-	if err := s.requireMemberGroup(ctx, userID, item.GroupID); err != nil {
-		return nil, err
-	}
-	status, prereqIDs, err := s.statusForUser(ctx, userID, item)
+	var view NodeProgress
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var item model.SkillNode
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND active = ?", nodeID, true).Take(&item).Error; err != nil {
+			return notFoundOrInternal(err, "技能节点不存在", "读取技能节点失败")
+		}
+		if err := s.requireMemberGroupWithDB(tx, userID, item.GroupID); err != nil {
+			return err
+		}
+		status, prereqIDs, err := s.statusForUser(ctx, userID, item)
+		if err != nil {
+			return err
+		}
+		if status == StateLocked {
+			return serviceError(http.StatusConflict, "请先完成该技能的前置条件", nil)
+		}
+		if status == StateMastered {
+			return serviceError(http.StatusConflict, "该技能已確認掌握", nil)
+		}
+		progress := model.SkillNodeProgress{SkillNodeID: item.ID, UserID: userID, StartedAt: s.now()}
+		if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&progress).Error; err != nil {
+			return internalError("开始技能挑战失败", err)
+		}
+		var existing model.SkillNodeProgress
+		if err := tx.Where("skill_node_id = ? AND user_id = ?", item.ID, userID).Take(&existing).Error; err != nil {
+			return internalError("读取技能挑战状态失败", err)
+		}
+		view = NodeProgress{Node: nodeView(item, prereqIDs, nil), State: status, StartedAt: &existing.StartedAt, ReviewHistory: []ReviewEvent{}}
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-	if status == StateLocked {
-		return nil, serviceError(http.StatusConflict, "请先完成该技能的前置条件", nil)
-	}
-	if status == StateMastered {
-		return nil, serviceError(http.StatusConflict, "该技能已確認掌握", nil)
-	}
-	progress := model.SkillNodeProgress{SkillNodeID: item.ID, UserID: userID, StartedAt: s.now()}
-	if err := s.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&progress).Error; err != nil {
-		return nil, internalError("开始技能挑战失败", err)
-	}
-	var existing model.SkillNodeProgress
-	if err := s.db.WithContext(ctx).Where("skill_node_id = ? AND user_id = ?", item.ID, userID).Take(&existing).Error; err != nil {
-		return nil, internalError("读取技能挑战状态失败", err)
-	}
-	view := NodeProgress{Node: nodeView(item, prereqIDs, nil), State: status, StartedAt: &existing.StartedAt, ReviewHistory: []ReviewEvent{}}
 	return &view, nil
 }
 
@@ -556,15 +715,12 @@ func (s *Service) Review(ctx context.Context, actor Actor, nodeID, userID uint64
 	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var item model.SkillNode
-		if err := tx.First(&item, nodeID).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&item, nodeID).Error; err != nil {
 			return notFoundOrInternal(err, "技能节点不存在", "读取技能节点失败")
 		}
 		var group model.UserGroup
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&group, item.GroupID).Error; err != nil {
 			return internalError("锁定技能路线失败", err)
-		}
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&item, nodeID).Error; err != nil {
-			return notFoundOrInternal(err, "技能节点不存在", "读取技能节点失败")
 		}
 		if err := s.requireManagerGroupWithDB(tx, actor, item.GroupID); err != nil {
 			return err
@@ -869,6 +1025,17 @@ func (s *Service) getManagedNode(ctx context.Context, actor Actor, nodeID uint64
 func (s *Service) getManagedNodeWithDB(db *gorm.DB, actor Actor, nodeID uint64) (*model.SkillNode, error) {
 	var item model.SkillNode
 	if err := db.First(&item, nodeID).Error; err != nil {
+		return nil, notFoundOrInternal(err, "技能节点不存在", "读取技能节点失败")
+	}
+	if err := s.requireManagerGroupWithDB(db, actor, item.GroupID); err != nil {
+		return nil, err
+	}
+	return &item, nil
+}
+
+func (s *Service) getManagedNodeForUpdateWithDB(db *gorm.DB, actor Actor, nodeID uint64) (*model.SkillNode, error) {
+	var item model.SkillNode
+	if err := db.Clauses(clause.Locking{Strength: "UPDATE"}).First(&item, nodeID).Error; err != nil {
 		return nil, notFoundOrInternal(err, "技能节点不存在", "读取技能节点失败")
 	}
 	if err := s.requireManagerGroupWithDB(db, actor, item.GroupID); err != nil {

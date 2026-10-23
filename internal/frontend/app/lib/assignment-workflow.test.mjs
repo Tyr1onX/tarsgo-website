@@ -15,6 +15,11 @@ const assignmentModel = await readFile(new URL("../../../backend/model/assignmen
 const memberAssignments = await readFile(new URL("../routes/dashboard/assignments.tsx", import.meta.url), "utf8");
 const assignmentClient = await readFile(new URL("./assignment-client.ts", import.meta.url), "utf8");
 const assignmentGroups = await readFile(new URL("./use-assignment-groups.ts", import.meta.url), "utf8");
+const skillsManagement = await readFile(new URL("../routes/admin/skill-route-management.tsx", import.meta.url), "utf8");
+const skillGraph = await readFile(new URL("../components/skill-tree-graph.tsx", import.meta.url), "utf8");
+const skillLayout = await readFile(new URL("./skill-tree-layout.ts", import.meta.url), "utf8");
+const skillsClient = await readFile(new URL("./skills-client.ts", import.meta.url), "utf8");
+const skillsService = await readFile(new URL("../../../backend/service/skills/service.go", import.meta.url), "utf8");
 
 test("workbench exposes member work to technical members and all manager routes to super-admins", () => {
   assert.match(routes, /route\("assignments", "routes\/dashboard\/assignments\.tsx"\)/);
@@ -34,6 +39,7 @@ test("backend applies role, current group, target, and ownership checks to every
   assert.match(backendRoutes, /assignmentMemberAPI\.Use\(middleware\.RequireAuthenticated\(authService\)\)/);
   assert.match(backendRoutes, /adminAPI\.Use\(middleware\.RequireAdmin\(authService\)\)[\s\S]*?adminAPI\.POST\("\/assignments"/);
   assert.match(assignmentService, /user_groups\.name IN \? AND user_groups\.status = \? AND users\.status = \?/);
+  assert.match(assignmentService, /JOIN roles ON roles\.id = users\.role_id[\s\S]*?roles\.name = \?"/);
   assert.match(assignmentService, /user_group_members\.user_id = \? AND user_groups\.name IN \?/);
   assert.match(assignmentService, /assignment_targets\.user_id = \? AND assignments\.group_id IN \?/);
   assert.match(assignmentService, /case model\.RoleNameAdmin, model\.RoleNameSuperAdmin:[\s\S]*?case model\.RoleNameUser:/);
@@ -109,9 +115,47 @@ test("targeted assignments default to false and keep their saved recipients when
   assert.match(migrations, /\{version: 26, apply: migrateAssignmentGroupWideDefault\}/);
   assert.match(migrations, /func migrateAssignmentGroupWideDefault\(db \*gorm\.DB\) error[\s\S]*?AlterColumn\(&model\.Assignment\{\}, "IsGroupWide"\)/);
   assert.match(assignmentManagement, /setDraft\(\(current\) => \(\{ \.\.\.current, targetUserIds: detail\.members\.map\(\(member\) => member\.userId\) \}\)\)/);
-  assert.match(assignmentService, /if input\.IsGroupWide && item\.IsGroupWide[\s\S]*?original recipient snapshot[\s\S]*?Find\(&targets\)/);
-  assert.match(assignmentService, /if !item\.IsGroupWide && input\.IsGroupWide \{\s*return conflict\("定向作业不能切换为全组作业"\)/);
-  assert.match(assignmentManagement, /editing && !editing\.isGroupWide/);
+  assert.match(assignmentService, /if input\.IsGroupWide != item\.IsGroupWide[\s\S]*?接收范围在发布时确定/);
+  assert.match(assignmentService, /接收范围在发布时确定/);
+  assert.match(assignmentManagement, /接收范围在发布时确定[\s\S]*?另建作业/);
+  assert.match(assignmentManagement, /Boolean\(editing\)/);
+});
+
+test("assignment lifecycle retains history, blocks submissions after withdrawal, and guards deletion", () => {
+  assert.match(backendRoutes, /adminAPI\.PATCH\("\/assignments\/:id\/status", requireSameOriginRequest\(cfg\), assignmentHandler\.SetPublicationStatus\)/);
+  assert.match(backendRoutes, /adminAPI\.DELETE\("\/assignments\/:id", requireSameOriginRequest\(cfg\), assignmentHandler\.Delete\)/);
+  assert.match(assignmentService, /func \(s \*Service\) SetPublicationStatus/);
+  assert.match(assignmentService, /func \(s \*Service\) Delete/);
+  assert.match(assignmentService, /作业已撤回，当前不能提交或重新提交/);
+  assert.match(assignmentService, /请先撤回作业，再删除/);
+  assert.match(assignmentService, /已有提交、审核、技能关联或成长依据/);
+  assert.match(assignmentService, /PublicationStatus: model\.AssignmentPublicationPublished/);
+  assert.match(assignmentManagement, /assignmentPublicationStatusLabel/);
+  assert.match(assignmentManagement, /确定撤回/);
+  assert.match(assignmentManagement, /确定永久删除/);
+  assert.match(assignmentManagement, /重新发布/);
+  assert.match(memberAssignments, /assignment\.publicationStatus !== "withdrawn"/);
+  assert.match(memberAssignments, /作业已撤回，无法继续提交/);
+});
+
+test("skill graph auto-arranges dependencies, focuses context, and safely handles node removal", () => {
+  assert.match(skillLayout, /barycenter sweeps/);
+  assert.match(skillLayout, /channelX/);
+  assert.match(skillGraph, /定位选中节点/);
+  assert.match(skillGraph, /自动整理布局/);
+  assert.match(skillGraph, /is-dimmed/);
+  assert.match(skillGraph, /prefers-reduced-motion/);
+  assert.match(skillsManagement, /同层排列顺序/);
+  assert.match(skillsManagement, /只微调同层节点位置/);
+  assert.match(skillsManagement, /async function autoArrangeLayout/);
+  assert.match(skillsManagement, /async function deleteNode/);
+  assert.match(skillsManagement, /删除空节点/);
+  assert.match(skillsClient, /reorderLayout/);
+  assert.match(skillsClient, /deleteNode/);
+  assert.match(skillsService, /func \(s \*Service\) ReorderNodes/);
+  assert.match(skillsService, /func \(s \*Service\) DeleteNode/);
+  assert.match(skillsService, /已有学习或审核历史、前置关系或关联作业/);
+  assert.match(skillsService, /hasDependencyCycle\(graph\)/);
 });
 
 test("submission page distinguishes list loading, empty lists, detail loading, and no submissions", () => {

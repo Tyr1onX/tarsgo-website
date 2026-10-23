@@ -1,4 +1,4 @@
-import type { KeyboardEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 
 import { layoutSkillTree } from "~/lib/skill-tree-layout";
 import { skillStateLabel, type SkillNode } from "~/lib/skills-client";
@@ -7,6 +7,7 @@ interface SkillTreeGraphProps {
   nodes: SkillNode[];
   selectedID: number | null;
   onSelect: (node: SkillNode) => void;
+  onAutoArrange?: () => void;
 }
 
 function nodeTone(node: SkillNode) {
@@ -24,20 +25,76 @@ function nodeTitle(value: string) {
   return Array.from(value).length > 15 ? `${Array.from(value).slice(0, 14).join("")}…` : value;
 }
 
-export function SkillTreeGraph({ nodes, selectedID, onSelect }: SkillTreeGraphProps) {
-  const layout = layoutSkillTree(nodes);
-  const positionByID = new Map(layout.positions.map((position) => [position.id, position]));
-  const nodeByID = new Map(nodes.map((node) => [node.id, node]));
+export function SkillTreeGraph({ nodes, selectedID, onSelect, onAutoArrange }: SkillTreeGraphProps) {
+  const layout = useMemo(() => layoutSkillTree(nodes), [nodes]);
+  const positionByID = useMemo(() => new Map(layout.positions.map((position) => [position.id, position])), [layout]);
+  const nodeByID = useMemo(() => new Map(nodes.map((node) => [node.id, node])), [nodes]);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  const [zoom, setZoom] = useState(1);
+  const [reduceMotion, setReduceMotion] = useState(false);
+  const relatedIDs = useMemo(() => {
+    const related = new Set<number>();
+    if (selectedID === null) return related;
+    related.add(selectedID);
+    let changed = true;
+    while (changed) {
+      changed = false;
+      for (const edge of layout.edges) {
+        if (related.has(edge.to) && !related.has(edge.from)) { related.add(edge.from); changed = true; }
+        if (related.has(edge.from) && !related.has(edge.to)) { related.add(edge.to); changed = true; }
+      }
+    }
+    return related;
+  }, [layout, selectedID]);
+
+  useEffect(() => {
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const update = () => setReduceMotion(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  const focusSelected = useCallback(() => {
+    const container = scrollRef.current;
+    const position = selectedID === null ? null : positionByID.get(selectedID);
+    if (!container || !position) {
+      container?.scrollTo({ left: 0, top: 0, behavior: reduceMotion ? "auto" : "smooth" });
+      return;
+    }
+    container.scrollTo({
+      left: Math.max(0, position.x * zoom - container.clientWidth / 2),
+      top: Math.max(0, position.y * zoom - container.clientHeight / 2),
+      behavior: reduceMotion ? "auto" : "smooth",
+    });
+  }, [positionByID, reduceMotion, selectedID, zoom]);
+
+  useEffect(() => {
+    if (selectedID !== null) focusSelected();
+  }, [focusSelected, selectedID]);
+
+  function adjustZoom(delta: number) {
+    setZoom((current) => Math.max(0.65, Math.min(1.6, Math.round((current + delta) * 100) / 100)));
+  }
 
   return (
     <div className="skill-tree-frame">
       <div className="skill-tree-frame__topline"><span>SKILL ROUTE / NODE MAP</span><span>{nodes.length.toString().padStart(2, "0")} NODES</span></div>
-      <div className="skill-tree-scroll" role="region" aria-label="技能树，可横向滑动查看">
+      <div className="skill-tree-controls" aria-label="路线图操作">
+        <div className="skill-tree-controls__zoom" aria-label="缩放路线图">
+          <button type="button" aria-label="缩小路线图" onClick={() => adjustZoom(-0.15)} disabled={zoom <= 0.65}>−</button>
+          <output aria-live="polite">{Math.round(zoom * 100)}%</output>
+          <button type="button" aria-label="放大路线图" onClick={() => adjustZoom(0.15)} disabled={zoom >= 1.6}>＋</button>
+        </div>
+        <button type="button" className="skill-tree-control-button" onClick={focusSelected} disabled={selectedID === null}>定位选中节点</button>
+        {onAutoArrange && nodes.length > 1 ? <button type="button" className="skill-tree-control-button" onClick={() => { setZoom(1); onAutoArrange(); }}>自动整理布局</button> : null}
+      </div>
+      <div ref={scrollRef} className="skill-tree-scroll" role="region" aria-label="技能路线图，可缩放并滚动查看" tabIndex={0}>
         <svg
           className="skill-tree-svg"
           viewBox={`0 0 ${layout.width} ${layout.height}`}
-          width={layout.width}
-          height={layout.height}
+          width={Math.round(layout.width * zoom)}
+          height={Math.round(layout.height * zoom)}
           role="group"
           aria-label="技能节点依赖路线图"
         >
@@ -59,15 +116,21 @@ export function SkillTreeGraph({ nodes, selectedID, onSelect }: SkillTreeGraphPr
             if (!from || !to) return null;
             const fromNode = nodeByID.get(edge.from);
             const toNode = nodeByID.get(edge.to);
-            const x1 = from.x + 88;
-            const x2 = to.x - 88;
             const strength = fromNode?.state === "mastered" && toNode?.state !== "locked" ? "ready" : "quiet";
-            return <path key={`${edge.from}-${edge.to}`} className={`skill-tree-edge skill-tree-edge--${strength}`} d={`M ${x1} ${from.y} C ${x1 + 52} ${from.y}, ${x2 - 52} ${to.y}, ${x2} ${to.y}`} />;
+            const related = selectedID === null || (relatedIDs.has(edge.from) && relatedIDs.has(edge.to));
+            const sourceIsLeft = from.depth > to.depth;
+            const x1 = from.x + (sourceIsLeft ? -94 : 94);
+            const x2 = to.x + (sourceIsLeft ? 94 : -94);
+            const path = edge.routeY !== undefined && edge.targetChannelX !== undefined
+              ? `M ${x1} ${from.y} H ${edge.channelX} V ${edge.routeY} H ${edge.targetChannelX} V ${to.y} H ${x2}`
+              : `M ${x1} ${from.y} H ${edge.channelX} V ${to.y} H ${x2}`;
+            return <path key={`${edge.from}-${edge.to}`} className={`skill-tree-edge skill-tree-edge--${strength}${related ? "" : " is-dimmed"}`} d={path} />;
           })}
           {nodes.map((node) => {
             const position = positionByID.get(node.id);
             if (!position) return null;
             const selected = node.id === selectedID;
+            const related = selectedID === null || relatedIDs.has(node.id);
             const tone = nodeTone(node);
             const onKeyDown = (event: KeyboardEvent<SVGGElement>) => {
               if (event.key === "Enter" || event.key === " ") {
@@ -78,7 +141,7 @@ export function SkillTreeGraph({ nodes, selectedID, onSelect }: SkillTreeGraphPr
             return (
               <g
                 key={node.id}
-                className={`skill-tree-node skill-tree-node--${tone}${selected ? " is-selected" : ""}`}
+                className={`skill-tree-node skill-tree-node--${tone}${selected ? " is-selected" : ""}${related ? "" : " is-dimmed"}`}
                 transform={`translate(${position.x}, ${position.y})`}
                 role="button"
                 tabIndex={0}

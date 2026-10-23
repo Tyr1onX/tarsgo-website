@@ -6,6 +6,7 @@ import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import {
   assignmentClient,
   assignmentDecisionLabel,
+  assignmentPublicationStatusLabel,
   assignmentStatusLabel,
   formatAssignmentDate,
   type Assignment,
@@ -109,6 +110,7 @@ export default function MyAssignmentsRoute() {
 
   const assignment = detail?.assignment;
   const canSubmit = Boolean(assignment
+    && assignment.publicationStatus !== "withdrawn"
     && assignment.status !== "passed"
     && (!detail?.submissions.length || Date.now() <= new Date(assignment.dueAt).getTime()));
 
@@ -121,7 +123,7 @@ export default function MyAssignmentsRoute() {
       {!loading && items.length > 0 ? <div className="grid gap-4 xl:grid-cols-[minmax(240px,0.8fr)_minmax(0,1.6fr)]">
         <section className="admin-panel divide-y divide-[var(--admin-border-subtle)] p-3" aria-label="作业列表">
           {items.map((item) => <button key={item.id} type="button" disabled={saving} onClick={() => void selectAssignment(item)} className={`w-full rounded-lg px-3 py-3 text-left transition-colors disabled:cursor-wait ${selectedID === item.id ? "bg-amber-400/10" : "hover:bg-white/[0.04]"}`}>
-            <span className="flex items-start justify-between gap-2"><strong className="text-sm text-white">{item.title}</strong><span className="shrink-0 text-xs text-[var(--admin-muted)]">{assignmentStatusLabel(item.status)}</span></span>
+            <span className="flex items-start justify-between gap-2"><strong className="text-sm text-white">{item.title}</strong><span className="shrink-0 text-xs text-[var(--admin-muted)]">{item.publicationStatus === "withdrawn" ? "已撤回" : assignmentStatusLabel(item.status)}</span></span>
             <span className="mt-1 block text-xs text-[var(--admin-muted)]">{item.groupName} · 截止 {formatAssignmentDate(item.dueAt)}</span>
             {item.isLate ? <span className="mt-1 block text-xs text-amber-300">逾期提交</span> : null}
           </button>)}
@@ -130,8 +132,9 @@ export default function MyAssignmentsRoute() {
         {assignment ? <section className="admin-panel space-y-4 p-4 sm:p-5" aria-labelledby="assignment-detail-title">
           <header className="flex flex-wrap items-start justify-between gap-3">
             <div><p className="text-xs text-[var(--admin-muted)]">{assignment.groupName} · 截止 {formatAssignmentDate(assignment.dueAt)}</p><h2 id="assignment-detail-title" className="mt-1 text-xl font-semibold text-white">{assignment.title}</h2></div>
-            <span className="rounded-full border border-[var(--admin-border-subtle)] px-3 py-1 text-xs text-[var(--admin-muted)]">{assignmentStatusLabel(assignment.status)}</span>
+            <span className="rounded-full border border-[var(--admin-border-subtle)] px-3 py-1 text-xs text-[var(--admin-muted)]">{assignment.publicationStatus === "withdrawn" ? assignmentPublicationStatusLabel(assignment.publicationStatus) : assignmentStatusLabel(assignment.status)}</span>
           </header>
+          {assignment.publicationStatus === "withdrawn" ? <p role="status" className="rounded-lg border border-[var(--admin-border-subtle)] px-3 py-2 text-sm text-[var(--admin-muted)]">作业已撤回，无法继续提交；已有提交和批改记录仍可查看。</p> : null}
           <div className="whitespace-pre-wrap text-sm leading-6 text-[var(--admin-text)]">{assignment.description}</div>
           {assignment.attachmentRequirements ? <div className="rounded-lg bg-white/[0.035] px-3 py-2 text-sm"><span className="text-[var(--admin-muted)]">附件要求：</span>{assignment.attachmentRequirements}</div> : null}
 

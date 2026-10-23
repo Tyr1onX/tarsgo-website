@@ -124,7 +124,15 @@ func migrationRegistry(appEnv string) []migration {
 		}},
 		{version: 25, apply: migrateAssignmentPublishIdempotency},
 		{version: 26, apply: migrateAssignmentGroupWideDefault},
+		{version: 27, apply: migrateAssignmentPublicationStatus},
 	}
+}
+
+func migrateAssignmentPublicationStatus(db *gorm.DB) error {
+	if db.Migrator().HasColumn(&model.Assignment{}, "PublicationStatus") {
+		return nil
+	}
+	return db.Migrator().AddColumn(&model.Assignment{}, "PublicationStatus")
 }
 
 func migrateAssignmentGroupWideDefault(db *gorm.DB) error {

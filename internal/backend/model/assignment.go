@@ -5,6 +5,9 @@ import "time"
 const (
 	AssignmentReviewPassed    = "passed"
 	AssignmentReviewNeedsRedo = "needs_redo"
+
+	AssignmentPublicationPublished = "published"
+	AssignmentPublicationWithdrawn = "withdrawn"
 )
 
 type Assignment struct {
@@ -18,6 +21,7 @@ type Assignment struct {
 	DueAt                  time.Time `json:"dueAt" gorm:"column:due_at;type:datetime;not null;index:idx_assignment_group_due,priority:2"`
 	AttachmentRequirements string    `json:"attachmentRequirements" gorm:"column:attachment_requirements;type:text;not null"`
 	IsGroupWide            bool      `json:"isGroupWide" gorm:"column:is_group_wide;type:tinyint(1);not null;default:0"`
+	PublicationStatus      string    `json:"publicationStatus" gorm:"column:publication_status;size:20;not null;default:'published'"`
 	CreatedAt              time.Time `json:"createdAt" gorm:"column:created_at;type:datetime;not null;default:CURRENT_TIMESTAMP"`
 	UpdatedAt              time.Time `json:"updatedAt" gorm:"column:updated_at;type:datetime;not null;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"`
 }

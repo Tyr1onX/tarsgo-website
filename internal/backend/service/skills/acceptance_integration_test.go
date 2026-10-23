@@ -81,7 +81,11 @@ func TestAcceptanceDatabaseSkillTreeWorkflow(t *testing.T) {
 		deleteIDs(createdNodeIDs, &model.SkillNode{})
 		deleteIDs(createdReviewIDs, &model.AssignmentReview{})
 		deleteIDs(createdSubmissionIDs, &model.AssignmentSubmission{})
-		deleteIDs(createdAssignmentIDs, &model.AssignmentTarget{})
+		if len(createdAssignmentIDs) > 0 {
+			if err := db.Where("assignment_id IN ?", createdAssignmentIDs).Delete(&model.AssignmentTarget{}).Error; err != nil {
+				t.Errorf("remove synthetic assignment recipient snapshots: %v", err)
+			}
+		}
 		deleteIDs(createdAssignmentIDs, &model.Assignment{})
 		deleteIDs(createdMembershipIDs, &model.UserGroupMember{})
 		deleteIDs(createdUserIDs, &model.User{})
@@ -185,6 +189,9 @@ func TestAcceptanceDatabaseSkillTreeWorkflow(t *testing.T) {
 		}
 		rootByGroup[name] = *node
 		createdNodeIDs = append(createdNodeIDs, node.ID)
+		if err := service.ReorderNodes(context.Background(), superAdmin, groupIDs[name], []NodeOrder{{NodeID: node.ID, SortOrder: 0}}); err != nil {
+			t.Fatalf("super admin could not reorder %s route: %v", name, err)
+		}
 		own, err := service.ListMy(context.Background(), memberByGroup[name].ID)
 		if err != nil || len(own.Groups) != 1 || own.Groups[0].Name != name || len(own.Groups[0].Nodes) != 1 {
 			t.Fatalf("%s member route = %#v, err=%v", name, own, err)
@@ -213,6 +220,23 @@ func TestAcceptanceDatabaseSkillTreeWorkflow(t *testing.T) {
 		t.Fatalf("mechanical admin could not create an own-group node: %v", err)
 	}
 	createdNodeIDs = append(createdNodeIDs, child.ID)
+	emptyNode, err := service.CreateNode(context.Background(), mechanicalAdmin, NodeInput{
+		GroupID: groupIDs["机械组"], Name: "[TEST_SKILL] deletable empty node",
+		LearningGoal: "No history", PassingCriteria: "No business references", SortOrder: 10,
+	})
+	if err != nil {
+		t.Fatalf("create empty node for safe deletion: %v", err)
+	}
+	createdNodeIDs = append(createdNodeIDs, emptyNode.ID)
+	if err := service.DeleteNode(context.Background(), memberByGroup["机械组"], emptyNode.ID); serviceStatus(err) != http.StatusForbidden {
+		t.Fatalf("ordinary member node deletion status = %d, want 403", serviceStatus(err))
+	}
+	if err := service.DeleteNode(context.Background(), mechanicalAdmin, emptyNode.ID); err != nil {
+		t.Fatalf("delete node without history or references: %v", err)
+	}
+	if _, err := service.ListAdminNodes(context.Background(), mechanicalAdmin, groupIDs["AI组"]); serviceStatus(err) != http.StatusForbidden {
+		t.Fatalf("ordinary admin could read cross-group route before layout update: status=%d", serviceStatus(err))
+	}
 	if _, err := service.CreateNode(context.Background(), mechanicalAdmin, NodeInput{
 		GroupID: groupIDs["AI组"], Name: "[TEST_SKILL] denied cross-group node",
 		LearningGoal: "goal", PassingCriteria: "criteria",
@@ -222,6 +246,9 @@ func TestAcceptanceDatabaseSkillTreeWorkflow(t *testing.T) {
 	if err := service.SetPrerequisites(context.Background(), mechanicalAdmin, child.ID, []uint64{root.ID}); err != nil {
 		t.Fatalf("configure same-group prerequisite: %v", err)
 	}
+	if err := service.DeleteNode(context.Background(), mechanicalAdmin, child.ID); serviceStatus(err) != http.StatusConflict {
+		t.Fatalf("node with a prerequisite relation was deleted: status=%d", serviceStatus(err))
+	}
 	if err := service.SetPrerequisites(context.Background(), mechanicalAdmin, root.ID, []uint64{child.ID}); serviceStatus(err) != http.StatusBadRequest {
 		t.Fatalf("cyclic prerequisite status = %d, want 400", serviceStatus(err))
 	}
@@ -230,6 +257,15 @@ func TestAcceptanceDatabaseSkillTreeWorkflow(t *testing.T) {
 	}
 	if _, err := service.Start(context.Background(), memberByGroup["机械组"].ID, child.ID); serviceStatus(err) != http.StatusConflict {
 		t.Fatalf("starting a locked skill status = %d, want 409", serviceStatus(err))
+	}
+	if err := service.ReorderNodes(context.Background(), mechanicalAdmin, groupIDs["机械组"], []NodeOrder{{NodeID: root.ID, SortOrder: 0}, {NodeID: child.ID, SortOrder: 0}}); err != nil {
+		t.Fatalf("persist full route layout order: %v", err)
+	}
+	if err := service.ReorderNodes(context.Background(), mechanicalAdmin, groupIDs["机械组"], []NodeOrder{{NodeID: root.ID, SortOrder: 0}}); serviceStatus(err) != http.StatusConflict {
+		t.Fatalf("partial route order was accepted: status=%d", serviceStatus(err))
+	}
+	if err := service.ReorderNodes(context.Background(), mechanicalAdmin, groupIDs["AI组"], []NodeOrder{{NodeID: rootByGroup["AI组"].ID, SortOrder: 0}}); serviceStatus(err) != http.StatusForbidden {
+		t.Fatalf("ordinary admin changed cross-group route layout: status=%d", serviceStatus(err))
 	}
 
 	assignment := model.Assignment{
@@ -296,6 +332,9 @@ func TestAcceptanceDatabaseSkillTreeWorkflow(t *testing.T) {
 		Action: model.SkillReviewRevoked, EvidenceType: model.SkillEvidenceNote, EvidenceNote: "Synthetic review correction",
 	}); err != nil {
 		t.Fatalf("admin could not append a revocation: %v", err)
+	}
+	if err := service.DeleteNode(context.Background(), mechanicalAdmin, child.ID); serviceStatus(err) != http.StatusConflict {
+		t.Fatalf("node with learning and review history was deleted: status=%d", serviceStatus(err))
 	}
 	history, err := service.MemberHistory(context.Background(), mechanicalAdmin, child.ID, mechanicalMemberID)
 	if err != nil || len(history) != 2 || history[0].Action != model.SkillReviewMastered || history[0].ActorName != "[TEST_SKILL] mechanical-admin" || history[1].Action != model.SkillReviewRevoked {
