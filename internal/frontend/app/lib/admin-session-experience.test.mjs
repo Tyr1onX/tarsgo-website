@@ -47,3 +47,26 @@ test("account switching exposes reauthentication and synchronizes identity chang
   assert.match(auth, /authSessionCache\.clear\(\)/);
   assert.doesNotMatch(auth, /localStorage\.(setItem|getItem)\([^)]*(token|session)/i);
 });
+
+test("newly created accounts open their exact detail without relying on list filters", async () => {
+  const route = await read("routes/admin/users.tsx");
+  assert.match(route, /const created = await createAdminUser\(/);
+  assert.match(route, /showAccountDetail\(created\)/);
+  assert.match(route, /nextSearchParams\.set\("userId", String\(created\.id\)\)/);
+  assert.match(route, /if \(editing\?\.id === Number\(requestedUserId\)\) return/);
+  assert.match(route, /账号已创建，请继续设置所属组别和组织身份/);
+  assert.match(route, /async function openAccount\(userId: number\)[\s\S]*getAdminUser\(userId\)/);
+});
+
+test("full account storage identifies unavailable sessions and only removes the selected account", async () => {
+  const layout = await read("routes/dashboard/layout.tsx");
+  assert.match(layout, /MAX_SAVED_ACCOUNT_SESSIONS = 5/);
+  assert.match(layout, /账号名额已满。过期、已撤销或停用的记录仍占用名额/);
+  assert.match(layout, /会话已过期/);
+  assert.match(layout, /会话已撤销/);
+  assert.match(layout, /账号已停用/);
+  assert.match(layout, /onRemove\(account\.id\)/);
+  assert.match(layout, /释放名额后添加/);
+  assert.match(layout, /确定移除「\$\{accountLabel\}」的已保存登录会话？这只会移除该账号，不会退出其他账号/);
+  assert.match(layout, /mode === "manage" \|\| account\.status !== "available"/);
+});

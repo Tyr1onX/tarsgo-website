@@ -54,6 +54,7 @@ const SIDEBAR_DEFAULT_WIDTH = 200;
 const SIDEBAR_COLLAPSED_WIDTH = 80;
 const SIDEBAR_MIN_WIDTH = 160;
 const SIDEBAR_MAX_WIDTH = 420;
+const MAX_SAVED_ACCOUNT_SESSIONS = 5;
 const HIGH_PRIORITY_RENDER_PREFETCH_KEYS = new Set(["admin-panel", "candidate-processing", "recruitment-analytics"]);
 
 function getSidebarMaxWidth(viewportWidth: number) {
@@ -643,6 +644,13 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   }
 
   async function handleRemoveAccount(accountId: number) {
+    const account = accountSessions.find((item) => item.id === accountId);
+    if (!account) return;
+    const accountLabel = account.user.nickname || account.user.email;
+    const confirmation = account.status === "available"
+      ? `确定移除「${accountLabel}」的已保存登录会话？这只会移除该账号，不会退出其他账号。`
+      : `确定移除「${accountLabel}」的失效账号记录？`;
+    if (!window.confirm(confirmation)) return;
     setAccountActionError("");
     setAccountSessionsError("");
     setLoggingOut(true);
@@ -946,6 +954,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           onSwitch={handleSwitchAccount}
           onReauthenticate={handleReauthenticateAccount}
           onRemove={handleRemoveAccount}
+          onManage={() => setAccountModalMode("manage")}
           onAdd={() => {
             setAccountModalMode(null);
             handleAddAccount();
@@ -969,6 +978,7 @@ function AccountSessionDialog({
   onSwitch,
   onReauthenticate,
   onRemove,
+  onManage,
   onAdd,
   onLogoutCurrent,
   onLogoutAll,
@@ -983,11 +993,13 @@ function AccountSessionDialog({
   onSwitch: (accountId: number) => void;
   onReauthenticate: (email: string) => void;
   onRemove: (accountId: number) => void;
+  onManage: () => void;
   onAdd: () => void;
   onLogoutCurrent: () => void;
   onLogoutAll: () => void;
 }) {
   const title = mode === "manage" ? "管理账号" : "切换账号";
+  const atCapacity = accounts.length >= MAX_SAVED_ACCOUNT_SESSIONS;
 
   useEffect(() => {
     function closeOnEscape(event: KeyboardEvent) {
@@ -1010,11 +1022,17 @@ function AccountSessionDialog({
         <header className="dashboard-shell__account-modal-header">
           <div>
             <h2 id="account-session-dialog-title">{title}</h2>
-            <p>当前账号：{currentUser.nickname || currentUser.email} · {accounts.length} / 5 个</p>
+            <p>当前账号：{currentUser.nickname || currentUser.email} · {accounts.length} / {MAX_SAVED_ACCOUNT_SESSIONS} 个</p>
           </div>
           <button type="button" onClick={onClose} aria-label="关闭" className="dashboard-shell__account-close">×</button>
         </header>
         {error ? <div role="alert" className="admin-notice admin-notice--error mb-3">{error}</div> : null}
+        {!loading && atCapacity ? (
+          <div className="dashboard-shell__account-capacity" role="status">
+            <span>账号名额已满。过期、已撤销或停用的记录仍占用名额；可在此重新验证或移除指定账号。</span>
+            {mode === "switch" ? <button type="button" onClick={onManage} className="admin-button admin-button--quiet admin-button--small">管理已保存账号</button> : null}
+          </div>
+        ) : null}
         <div className="dashboard-shell__account-list" aria-busy={loading}>
           {loading ? <div role="status" className="dashboard-shell__account-empty">正在读取账号…</div> : accounts.length === 0 ? (
             <div className="dashboard-shell__account-empty">当前没有可切换的账号。</div>
@@ -1036,17 +1054,20 @@ function AccountSessionDialog({
                 ) : account.status === "disabled" ? (
                   <span className="dashboard-shell__account-unavailable">账号已停用</span>
                 ) : (
-                  <button type="button" disabled={busy} onClick={() => onReauthenticate(account.user.email)} className="admin-button admin-button--quiet admin-button--small">重新验证</button>
+                  <>
+                    <span className="dashboard-shell__account-unavailable">{account.status === "expired" ? "会话已过期" : "会话已撤销"}</span>
+                    <button type="button" disabled={busy} onClick={() => onReauthenticate(account.user.email)} className="admin-button admin-button--quiet admin-button--small">重新验证</button>
+                  </>
                 )}
-                {mode === "manage" ? (
-                  <button type="button" disabled={busy} onClick={() => onRemove(account.id)} className="dashboard-shell__account-remove">移除</button>
+                {mode === "manage" || account.status !== "available" ? (
+                  <button type="button" disabled={busy} onClick={() => onRemove(account.id)} aria-label={`移除${account.user.nickname || account.user.email}`} className="dashboard-shell__account-remove">移除</button>
                 ) : null}
               </div>
             </div>
           ))}
         </div>
         <footer className="dashboard-shell__account-modal-footer">
-          <button type="button" onClick={onAdd} className="admin-button admin-button--primary">添加账号</button>
+          <button type="button" disabled={atCapacity} onClick={onAdd} className="admin-button admin-button--primary">{atCapacity ? "释放名额后添加" : "添加账号"}</button>
           {mode === "manage" ? (
             <div className="dashboard-shell__account-signout-actions">
               <button type="button" disabled={busy} onClick={onLogoutCurrent} className="admin-button admin-button--quiet">退出当前账号</button>

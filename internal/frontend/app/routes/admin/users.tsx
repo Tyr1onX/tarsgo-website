@@ -145,17 +145,20 @@ export default function AccountManagement() {
     setError("");
   }
 
+  function showAccountDetail(detail: AdminUserDetail) {
+    setEditing(detail);
+    setEditingIsNew(false);
+    setDraft({ name: detail.name, email: detail.email, roleId: String(detail.role.id), status: String(detail.status), password: "" });
+    setPreferredGroupId(detail.currentRecruitmentGroupId == null ? "" : String(detail.currentRecruitmentGroupId));
+    const assignedGroup = detail.groups.find((group) => group.status === 1);
+    setUserGroupId(detail.groupState === "pending" ? "" : String(assignedGroup?.groupId ?? ""));
+    setGroupRoleDrafts(Object.fromEntries(detail.groups.map((group) => [group.groupId, String(group.role)])));
+  }
+
   async function openAccount(userId: number) {
     setError("");
     try {
-      const detail = await getAdminUser(userId);
-      setEditing(detail);
-      setEditingIsNew(false);
-      setDraft({ name: detail.name, email: detail.email, roleId: String(detail.role.id), status: String(detail.status), password: "" });
-      setPreferredGroupId(detail.currentRecruitmentGroupId == null ? "" : String(detail.currentRecruitmentGroupId));
-      const assignedGroup = detail.groups.find((group) => group.status === 1);
-      setUserGroupId(detail.groupState === "pending" ? "" : String(assignedGroup?.groupId ?? ""));
-      setGroupRoleDrafts(Object.fromEntries(detail.groups.map((group) => [group.groupId, String(group.role)])));
+      showAccountDetail(await getAdminUser(userId));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "账号详情加载失败");
     }
@@ -171,8 +174,9 @@ export default function AccountManagement() {
       setError("账号编号无效");
       return;
     }
+    if (editing?.id === Number(requestedUserId)) return;
     void openAccount(Number(requestedUserId));
-  }, [requestedUserId]);
+  }, [requestedUserId, editing?.id]);
 
   function closeEditor() {
     setEditing(null);
@@ -255,13 +259,19 @@ export default function AccountManagement() {
       const selectedRole = roles.find((role) => role.id === Number(draft.roleId));
       if (!selectedRole) throw new Error("请选择系统角色");
       if (editingIsNew) {
-        await createAdminUser({
+        const created = await createAdminUser({
           name: draft.name.trim(),
           email: draft.email.trim(),
           password: draft.password,
           roleId: selectedRole.id,
         });
-        setNotice("账号已创建。");
+        showAccountDetail(created);
+        const nextSearchParams = new URLSearchParams(searchParams);
+        nextSearchParams.set("userId", String(created.id));
+        setSearchParams(nextSearchParams, { replace: true });
+        setNotice("账号已创建，请继续设置所属组别和组织身份。");
+        await loadAccounts();
+        return;
       } else if (editing) {
         await updateAdminUser(editing.id, {
           name: draft.name.trim(),
