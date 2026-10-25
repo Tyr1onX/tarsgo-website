@@ -11,7 +11,7 @@ import {
   type WeeklyReportInput,
   type WeeklyReportTeamWeek,
 } from "~/lib/weekly-report-client";
-import { formatWeekLabel, isoWeekFromStart, weekStartFromISOWeek } from "~/lib/weekly-report-calendar";
+import { formatWeekLabel } from "~/lib/weekly-report-calendar";
 import "./weekly-reports.css";
 
 export function meta() {
@@ -42,7 +42,8 @@ export default function WeeklyReportsRoute() {
   const [reportGroupId, setReportGroupId] = useState("");
   const [form, setForm] = useState<WeeklyReportInput>(emptyReport);
   const [teamWeek, setTeamWeek] = useState<WeeklyReportTeamWeek | null>(null);
-  const [teamWeekValue, setTeamWeekValue] = useState("");
+  const [teamAvailableWeeks, setTeamAvailableWeeks] = useState<string[]>([]);
+  const [teamWeekStart, setTeamWeekStart] = useState("");
   const [teamGroupId, setTeamGroupId] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -58,9 +59,10 @@ export default function WeeklyReportsRoute() {
     if (selectedReportKey === "current") return dashboard.reports.find((report) => report.weekStart === dashboard.currentWeekStart) ?? null;
     return dashboard.reports.find((report) => String(report.id) === selectedReportKey) ?? null;
   }, [dashboard, selectedReportKey]);
-  const isCurrentWeek = selectedReportKey === "current";
-  const selectedWeekStart = selectedReport?.weekStart ?? dashboard?.currentWeekStart ?? "";
   const currentWeekReportID = dashboard?.reports.find((report) => report.weekStart === dashboard.currentWeekStart)?.id;
+  const isCurrentEntry = selectedReportKey === "current";
+  const isCurrentWeek = isCurrentEntry || Boolean(selectedReport && selectedReport.weekStart === dashboard?.currentWeekStart);
+  const selectedWeekStart = selectedReport?.weekStart ?? dashboard?.currentWeekStart ?? "";
 
   const loadTeamWeek = useCallback(async (groupId: number, weekStart: string) => {
     const requestId = ++teamRequestId.current;
@@ -69,7 +71,10 @@ export default function WeeklyReportsRoute() {
     setTeamWeek(null);
     try {
       const result = await getWeeklyReportTeamWeek(groupId, weekStart);
-      if (requestId === teamRequestId.current) setTeamWeek(result);
+      if (requestId === teamRequestId.current) {
+        setTeamWeek(result);
+        setTeamAvailableWeeks(result.availableWeeks);
+      }
     } catch (cause) {
       if (requestId === teamRequestId.current) setTeamError(describeError(cause, "组内周报加载失败"));
     } finally {
@@ -88,7 +93,8 @@ export default function WeeklyReportsRoute() {
         const requestedReport = result.reports.find((report) => report.weekStart === requestedWeekStart);
         setSelectedReportKey(requestedReport && requestedReport.weekStart !== result.currentWeekStart ? String(requestedReport.id) : "current");
         setTeamGroupId(result.teamGroups[0] ? String(result.teamGroups[0].groupId) : "");
-        setTeamWeekValue(isoWeekFromStart(result.currentWeekStart));
+        setTeamWeekStart(result.currentWeekStart);
+        setTeamAvailableWeeks([result.currentWeekStart]);
       }
     } catch (cause) {
       if (requestId === dashboardRequestId.current) setLoadError(describeError(cause, "工作周报加载失败"));
@@ -102,7 +108,8 @@ export default function WeeklyReportsRoute() {
     setDashboard(null);
     setSelectedReportKey("current");
     setTeamWeek(null);
-    setTeamWeekValue("");
+    setTeamAvailableWeeks([]);
+    setTeamWeekStart("");
     setTeamGroupId("");
     setTeamLoading(false);
     setTeamError("");
@@ -121,10 +128,10 @@ export default function WeeklyReportsRoute() {
 
   useEffect(() => {
     const groupId = Number(teamGroupId);
-    if (dashboard?.canViewTeam && groupId > 0 && dashboard.currentWeekStart) {
-      void loadTeamWeek(groupId, dashboard.currentWeekStart);
+    if (dashboard?.canViewTeam && groupId > 0 && teamWeekStart) {
+      void loadTeamWeek(groupId, teamWeekStart);
     }
-  }, [dashboard?.canViewTeam, dashboard?.currentWeekStart, loadTeamWeek, teamGroupId]);
+  }, [dashboard?.canViewTeam, loadTeamWeek, teamGroupId, teamWeekStart]);
 
   const updateForm = (field: "completed" | "gains" | "blockers" | "nextPlan", value: string) => {
     setForm((current) => ({ ...current, [field]: value }));
@@ -141,7 +148,7 @@ export default function WeeklyReportsRoute() {
       setSaveError("请填写本周进展、本周收获、下周计划和需要帮助；如暂无内容，请填写“无”。历史周报未单独记录的收获可保持为空。");
       return;
     }
-    if (isCurrentWeek && !selectedReport && dashboard.groups.length > 1 && !reportGroupId) {
+    if (isCurrentEntry && !selectedReport && dashboard.groups.length > 1 && !reportGroupId) {
       setSaveError("请选择本周周报归属的组别。");
       return;
     }
@@ -156,7 +163,7 @@ export default function WeeklyReportsRoute() {
     try {
       const input: WeeklyReportInput = { ...form };
       if (isCurrentWeek && !selectedReport && reportGroupId) input.groupId = Number(reportGroupId);
-      const saved = isCurrentWeek
+      const saved = isCurrentEntry
         ? await saveCurrentWeeklyReport(input)
         : await updateWeeklyReport(selectedReport!.id, input);
       setDashboard((current) => {
@@ -167,7 +174,7 @@ export default function WeeklyReportsRoute() {
           : [saved, ...current.reports];
         return { ...current, reports: reports.sort((left, right) => right.weekStart.localeCompare(left.weekStart) || right.updatedAt.localeCompare(left.updatedAt)) };
       });
-      setSelectedReportKey("current");
+      setSelectedReportKey(saved.weekStart === dashboard.currentWeekStart && (isCurrentEntry || saved.id === currentWeekReportID) ? "current" : String(saved.id));
       setSuccessMessage("周报已保存。");
       if (dashboard.canViewTeam && teamWeek?.weekStart === saved.weekStart && teamWeek.groupId) {
         void loadTeamWeek(teamWeek.groupId, saved.weekStart);
@@ -180,33 +187,19 @@ export default function WeeklyReportsRoute() {
   }
 
   function changeTeamWeek(value: string) {
-    setTeamWeekValue(value);
+    setTeamWeekStart(value);
+    setTeamWeek(null);
+    setTeamLoading(true);
     setTeamError("");
-    const groupId = Number(teamGroupId);
-    try {
-      if (groupId > 0) void loadTeamWeek(groupId, weekStartFromISOWeek(value));
-    } catch (cause) {
-      teamRequestId.current++;
-      setTeamWeek(null);
-      setTeamLoading(false);
-      setTeamError(describeError(cause, "周次无效"));
-    }
   }
 
   function changeTeamGroup(value: string) {
     setTeamGroupId(value);
+    setTeamWeekStart(dashboard?.currentWeekStart ?? "");
+    setTeamAvailableWeeks(dashboard?.currentWeekStart ? [dashboard.currentWeekStart] : []);
+    setTeamWeek(null);
+    setTeamLoading(true);
     setTeamError("");
-    const groupId = Number(value);
-    if (groupId > 0 && teamWeekValue) {
-      try {
-        void loadTeamWeek(groupId, weekStartFromISOWeek(teamWeekValue));
-      } catch (cause) {
-        teamRequestId.current++;
-        setTeamWeek(null);
-        setTeamLoading(false);
-        setTeamError(describeError(cause, "周次无效"));
-      }
-    }
   }
 
   return (
@@ -227,20 +220,12 @@ export default function WeeklyReportsRoute() {
             <div className="weekly-report__panel-heading">
               <div>
                 <p className="weekly-report__eyebrow">{isCurrentWeek ? "本周" : "历史周报"}</p>
-                <h2 id="my-weekly-report-title">{selectedWeekStart ? formatWeekLabel(selectedWeekStart) : "选择周次"}</h2>
+                <h2 id="my-weekly-report-title">{selectedWeekStart ? formatWeekLabel(selectedWeekStart) : "本周"}</h2>
               </div>
-              <label className="weekly-report__week-select">
-                <span>周次</span>
-                <select aria-label="选择要查看的周报" value={selectedReportKey} onChange={(event) => {
-                  setSelectedReportKey(event.target.value);
-                  setSuccessMessage("");
-                }}>
-                  <option value="current">本周 · {formatWeekLabel(dashboard.currentWeekStart)}</option>
-                  {dashboard.reports
-                    .filter((report) => report.weekStart !== dashboard.currentWeekStart || report.id !== currentWeekReportID)
-                    .map((report) => <option key={report.id} value={String(report.id)}>{report.weekStart === dashboard.currentWeekStart ? "本周其他记录" : formatWeekLabel(report.weekStart)}{report.groupName ? ` · ${report.groupName}` : ""}</option>)}
-                </select>
-              </label>
+              {!isCurrentWeek ? <button className="weekly-report__back-current" type="button" onClick={() => {
+                setSelectedReportKey("current");
+                setSuccessMessage("");
+              }}>返回本周</button> : null}
             </div>
 
             {selectedReport?.groupName ? <p className="weekly-report__scope">记录归属：{selectedReport.groupName}</p> : isCurrentWeek && dashboard.groups.length > 1 && !selectedReport ? (
@@ -276,10 +261,34 @@ export default function WeeklyReportsRoute() {
                   {successMessage ? <p className="weekly-report__inline-success">{successMessage}</p> : null}
                 </div>
                 <button className="admin-button admin-button--primary" type="submit" disabled={saving}>
-                  {saving ? "保存中…" : isCurrentWeek ? (selectedReport ? "保存周报" : "提交周报") : "保存修改"}
+                  {saving ? "保存中…" : isCurrentEntry ? (selectedReport ? "保存周报" : "提交周报") : selectedReport ? "保存修改" : "提交周报"}
                 </button>
               </div>
             </form>
+            {dashboard.reports.length > 0 ? <section className="weekly-report__history" aria-labelledby="weekly-report-history-title">
+              <div className="weekly-report__history-heading">
+                <h3 id="weekly-report-history-title">已有周报</h3>
+                <span>仅显示已保存的记录</span>
+              </div>
+              <div className="weekly-report__history-list">
+                {dashboard.reports.map((report) => {
+                  const isSelected = report.id === selectedReport?.id;
+                  return <button
+                    className="weekly-report__history-item"
+                    type="button"
+                    key={report.id}
+                    aria-pressed={isSelected}
+                    onClick={() => {
+                      setSelectedReportKey(report.id === currentWeekReportID ? "current" : String(report.id));
+                      setSuccessMessage("");
+                    }}
+                  >
+                    <span>{report.weekStart === dashboard.currentWeekStart ? (report.id === currentWeekReportID ? "本周记录" : "本周其他记录") : formatWeekLabel(report.weekStart)}{report.groupName ? ` · ${report.groupName}` : ""}</span>
+                    <span>{isSelected ? "正在编辑" : "查看 / 编辑"}</span>
+                  </button>;
+                })}
+              </div>
+            </section> : null}
           </section>
 
           {dashboard.canViewTeam ? (
@@ -295,7 +304,9 @@ export default function WeeklyReportsRoute() {
                   </label> : null}
                   <label className="weekly-report__week-select">
                     <span>查看周次</span>
-                    <input type="week" aria-label="选择组内周报周次" max={isoWeekFromStart(dashboard.currentWeekStart)} value={teamWeekValue} onChange={(event) => changeTeamWeek(event.target.value)} />
+                    <select aria-label="选择组内周报周次" value={teamWeekStart || dashboard.currentWeekStart} onChange={(event) => changeTeamWeek(event.target.value)}>
+                      {teamAvailableWeeks.map((weekStart) => <option key={weekStart} value={weekStart}>{weekStart === dashboard.currentWeekStart ? `本周 · ${formatWeekLabel(weekStart)}` : formatWeekLabel(weekStart)}</option>)}
+                    </select>
                   </label>
                 </div>
               </div>
@@ -308,23 +319,24 @@ export default function WeeklyReportsRoute() {
                   {teamWeek.members.length === 0 ? <p className="weekly-report__empty">该组暂无有效成员。</p> : (
                     <div className="weekly-report__member-list">
                       {teamWeek.members.map((member) => (
-                        <article className="weekly-report__member" key={member.userId}>
-                          <div className="weekly-report__member-heading">
+                        member.report ? <details className="weekly-report__member weekly-report__member--submitted" key={member.userId}>
+                          <summary className="weekly-report__member-heading">
                             <h3>{member.name}</h3>
-                            <span className={member.submitted ? "weekly-report__status weekly-report__status--submitted" : "weekly-report__status"}>
-                              {member.submitted ? "已提交" : "未提交"}
-                            </span>
-                          </div>
-                          {member.report ? <details className="weekly-report__details">
-                            <summary>查看周报内容</summary>
+                            <span className="weekly-report__status weekly-report__status--submitted">已提交</span>
+                            <span className="weekly-report__member-toggle"><span>展开周报</span><span>收起周报</span></span>
+                          </summary>
                             <div className="weekly-report__content">
                               {reportSection("本周进展", member.report.completed)}
                               {reportSection("本周收获", member.report.gains)}
                               {reportSection("下周计划", member.report.nextPlan)}
                               {reportSection("需要帮助", member.report.blockers)}
                             </div>
-                          </details> : null}
-                        </article>
+                        </details> : <div className="weekly-report__member" key={member.userId}>
+                          <div className="weekly-report__member-heading">
+                            <h3>{member.name}</h3>
+                            <span className="weekly-report__status">未提交</span>
+                          </div>
+                        </div>
                       ))}
                     </div>
                   )}

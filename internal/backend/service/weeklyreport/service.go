@@ -9,6 +9,7 @@ import (
 	"unicode/utf8"
 
 	"tarsgo-backend/model"
+	"tarsgo-backend/service/adminuser"
 )
 
 const (
@@ -83,6 +84,7 @@ type TeamWeek struct {
 	GroupID        uint64             `json:"groupId"`
 	GroupName      string             `json:"groupName"`
 	WeekStart      string             `json:"weekStart"`
+	AvailableWeeks []string           `json:"availableWeeks"`
 	SubmittedCount int                `json:"submittedCount"`
 	TotalCount     int                `json:"totalCount"`
 	Members        []TeamMemberReport `json:"members"`
@@ -230,7 +232,16 @@ func (s *Service) GetTeamWeek(ctx context.Context, userID uint64, systemRole str
 	if err != nil {
 		return nil, err
 	}
-	members, err := s.repo.ListActiveMembers(ctx, group.GroupID)
+	availableWeeks, err := s.repo.ListReportWeeks(ctx, group.GroupID)
+	if err != nil {
+		return nil, internalError("读取已有周报周次失败", err)
+	}
+	currentWeek := currentWeekStart(s.now())
+	if weekStart != currentWeek && !containsWeek(availableWeeks, weekStart) {
+		return nil, serviceError(http.StatusBadRequest, "该组没有此周的周报记录", nil)
+	}
+	availableWeeks = includeCurrentWeek(availableWeeks, currentWeek)
+	members, err := s.repo.ListActiveMembers(ctx, group.GroupID, adminuser.AccountActivityCutoff(s.now()))
 	if err != nil {
 		return nil, internalError("读取组内成员失败", err)
 	}
@@ -242,7 +253,7 @@ func (s *Service) GetTeamWeek(ctx context.Context, userID uint64, systemRole str
 	for _, report := range reports {
 		reportByUser[report.UserID] = toReport(report)
 	}
-	result := &TeamWeek{GroupID: group.GroupID, GroupName: group.Name, WeekStart: weekStart, TotalCount: len(members), Members: make([]TeamMemberReport, 0, len(members))}
+	result := &TeamWeek{GroupID: group.GroupID, GroupName: group.Name, WeekStart: weekStart, AvailableWeeks: availableWeeks, TotalCount: len(members), Members: make([]TeamMemberReport, 0, len(members))}
 	for _, member := range members {
 		entry := TeamMemberReport{UserID: member.UserID, Name: memberDisplayName(member.User)}
 		if report, ok := reportByUser[member.UserID]; ok {
@@ -253,6 +264,26 @@ func (s *Service) GetTeamWeek(ctx context.Context, userID uint64, systemRole str
 		result.Members = append(result.Members, entry)
 	}
 	return result, nil
+}
+
+func containsWeek(weeks []string, target string) bool {
+	for _, week := range weeks {
+		if week == target {
+			return true
+		}
+	}
+	return false
+}
+
+func includeCurrentWeek(weeks []string, currentWeek string) []string {
+	result := make([]string, 0, len(weeks)+1)
+	result = append(result, currentWeek)
+	for _, week := range weeks {
+		if week != currentWeek {
+			result = append(result, week)
+		}
+	}
+	return result
 }
 
 func resolveReportGroup(groups []GroupOption, requested *uint64) (*uint64, error) {

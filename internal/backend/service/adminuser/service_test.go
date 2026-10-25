@@ -275,13 +275,13 @@ func TestAccountActivityCutoffUsesBothConfirmationStartAndNinetyDays(t *testing.
 	}
 
 	launchDayNow := time.Date(2026, time.October, 20, 12, 0, 0, 0, accountActivityConfirmationStartedAt.Location())
-	if got := accountActivityCutoff(launchDayNow); !got.Equal(accountActivityConfirmationStartedAt) {
+	if got := AccountActivityCutoff(launchDayNow); !got.Equal(accountActivityConfirmationStartedAt) {
 		t.Fatalf("cutoff shortly after launch = %s, want launch %s", got, accountActivityConfirmationStartedAt)
 	}
 
 	laterNow := time.Date(2027, time.February, 1, 12, 0, 0, 0, accountActivityConfirmationStartedAt.Location())
 	want := laterNow.Add(-90 * 24 * time.Hour)
-	if got := accountActivityCutoff(laterNow); !got.Equal(want) {
+	if got := AccountActivityCutoff(laterNow); !got.Equal(want) {
 		t.Fatalf("cutoff after 90 days = %s, want %s", got, want)
 	}
 }

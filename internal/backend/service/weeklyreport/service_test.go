@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"testing"
 	"time"
@@ -26,7 +27,7 @@ func newMemoryRepository() *memoryRepository {
 		members: map[uint64][]model.UserGroupMember{},
 		reports: map[uint64]model.WeeklyReport{},
 		nextID:  1,
-		now:     time.Date(2026, 10, 14, 12, 0, 0, 0, time.UTC),
+		now:     time.Date(2026, 10, 20, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60)),
 	}
 }
 
@@ -106,16 +107,34 @@ func (r *memoryRepository) UpdateOwnedReport(_ context.Context, userID, reportID
 	return nil
 }
 
-func (r *memoryRepository) ListActiveMembers(_ context.Context, groupID uint64) ([]model.UserGroupMember, error) {
+func (r *memoryRepository) ListActiveMembers(_ context.Context, groupID uint64, activitySince time.Time) ([]model.UserGroupMember, error) {
 	var result []model.UserGroupMember
 	for _, memberships := range r.members {
 		for _, member := range memberships {
-			if member.GroupID == groupID {
+			if member.GroupID == groupID && member.User.Status == model.UserStatusEnabled && member.User.LastLoginAt != nil && !member.User.LastLoginAt.Before(activitySince) {
 				result = append(result, member)
 			}
 		}
 	}
 	return result, nil
+}
+
+func (r *memoryRepository) ListReportWeeks(_ context.Context, groupID uint64) ([]string, error) {
+	seen := make(map[string]struct{})
+	var weeks []string
+	for _, report := range r.reports {
+		if report.GroupID == nil || *report.GroupID != groupID {
+			continue
+		}
+		week := string(report.WeekStart)
+		if _, ok := seen[week]; ok {
+			continue
+		}
+		seen[week] = struct{}{}
+		weeks = append(weeks, week)
+	}
+	sort.Sort(sort.Reverse(sort.StringSlice(weeks)))
+	return weeks, nil
 }
 
 func (r *memoryRepository) ListReportsForWeek(_ context.Context, groupID uint64, weekStart string) ([]model.WeeklyReport, error) {
@@ -142,6 +161,7 @@ func addMember(repo *memoryRepository, userID, groupID uint64, role uint8, name 
 	}
 	realName := name
 	group := GroupOption{GroupID: groupID, Name: resolvedGroupName}
+	lastLoginAt := repo.now
 	if !containsGroup(repo.allGroups, groupID) {
 		repo.allGroups = append(repo.allGroups, group)
 	}
@@ -153,7 +173,7 @@ func addMember(repo *memoryRepository, userID, groupID uint64, role uint8, name 
 		GroupID: groupID,
 		Role:    role,
 		Group:   model.UserGroup{ID: groupID, Name: resolvedGroupName, Status: model.UserGroupStatusActive},
-		User:    model.User{ID: userID, RealName: &realName, Email: fmt.Sprintf("%d@example.test", userID)},
+		User:    model.User{ID: userID, RealName: &realName, Email: fmt.Sprintf("%d@example.test", userID), Status: model.UserStatusEnabled, LastLoginAt: &lastLoginAt},
 	})
 }
 
@@ -322,6 +342,26 @@ func TestGroupAdminSeesOnlyAuthorizedGroupAndSuperAdminCanChooseAllGroups(t *tes
 	team, err = service.GetTeamWeek(context.Background(), 4, model.RoleNameSuperAdmin, 88, "")
 	if err != nil || team.GroupName != "AI组" {
 		t.Fatalf("super admin must select a team outside their own group: %#v, error=%v", team, err)
+	}
+}
+
+func TestTeamWeekListsOnlyPersistedWeeksAndRejectsArbitraryWeeks(t *testing.T) {
+	service, repo := newTestService()
+	addMember(repo, 1, 77, model.UserGroupMemberRoleMember, "管理员", "机械组")
+	repo.reports[90] = model.WeeklyReport{ID: 90, GroupID: ptrUint64(77), UserID: 1, WeekStart: "2026-10-12", Completed: "历史周报", Gains: "收获", Blockers: "无", NextPlan: "计划"}
+
+	current, err := service.GetTeamWeek(context.Background(), 1, model.RoleNameAdmin, 77, "")
+	if err != nil || current.WeekStart != currentWeekStart(repo.now) || len(current.AvailableWeeks) != 2 || current.AvailableWeeks[0] != currentWeekStart(repo.now) || current.AvailableWeeks[1] != "2026-10-12" {
+		t.Fatalf("team weeks should include current and only persisted history: %#v, error=%v", current, err)
+	}
+	history, err := service.GetTeamWeek(context.Background(), 1, model.RoleNameAdmin, 77, "2026-10-12")
+	if err != nil || history.WeekStart != "2026-10-12" {
+		t.Fatalf("persisted historical week should remain selectable: %#v, error=%v", history, err)
+	}
+	if _, err := service.GetTeamWeek(context.Background(), 1, model.RoleNameAdmin, 77, "2026-10-05"); err == nil {
+		t.Fatal("week without group reports must not be selectable")
+	} else {
+		expectStatus(t, err, http.StatusBadRequest)
 	}
 }
 

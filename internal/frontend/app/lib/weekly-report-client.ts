@@ -40,6 +40,7 @@ export interface WeeklyReportTeamWeek {
   groupId: number;
   groupName: string;
   weekStart: string;
+  availableWeeks: string[];
   submittedCount: number;
   totalCount: number;
   members: WeeklyReportTeamMember[];
