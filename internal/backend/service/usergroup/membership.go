@@ -215,9 +215,6 @@ func ReplaceUserGroupTx(tx *gorm.DB, user *model.User, groupID *uint64, actorID 
 			selectedPresent = true
 			continue
 		}
-		if member.Role == model.UserGroupMemberRoleLeader {
-			return &ServiceError{Status: http.StatusConflict, Message: "该账号在待移除组别中担任组长，请先由管理员处理组织身份"}
-		}
 	}
 
 	if !selectedPresent && groupID != nil {

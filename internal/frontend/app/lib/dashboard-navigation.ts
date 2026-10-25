@@ -260,15 +260,15 @@ export function getUserDashboardMenu(userOrRole: AuthUser | string, hasTechnical
   return menu;
 }
 
-export function getCoreDashboardMenu(isOperationsMember = false): DashboardMenuLink[] {
+export function getCoreDashboardMenu(): DashboardMenuLink[] {
 	return [
 		...CORE_DASHBOARD_MENU,
-		...(isOperationsMember ? [{
+		{
 			key: "weekly-reports",
 			label: "工作周报",
 			href: "/dashboard/weekly-reports",
 			iconKey: "report" as const,
-		}] : []),
+		},
 	];
 }
 

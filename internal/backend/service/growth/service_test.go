@@ -97,6 +97,9 @@ func TestGetMineBuildsChronologicalTrainingTimelineFromSourceRows(t *testing.T) 
 	mock.ExpectQuery("SELECT .* FROM `training_question_posts` JOIN training_questions ON.*WHERE training_question_posts\\.author_id = \\? AND training_question_posts\\.question_id IN \\(\\?\\).*ORDER BY training_question_posts\\.created_at ASC, training_question_posts\\.id ASC").
 		WithArgs(uint64(12), uint64(801)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "question_id", "kind", "created_at"}).AddRow(901, 801, model.TrainingQuestionAnswer, repliedAt))
+	mock.ExpectQuery("SELECT .* FROM `weekly_reports` LEFT JOIN user_groups ON.*WHERE weekly_reports\\.user_id = \\?.*ORDER BY weekly_reports\\.week_start ASC, weekly_reports\\.id ASC").
+		WithArgs(uint64(12)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "week_start", "updated_at", "group_name"}))
 
 	assignments := &assignmentReaderStub{items: []assignment.AssignmentView{
 		{ID: 72, Title: "待完成任务", GroupName: "机械组", DueAt: now.Add(time.Hour), Status: "pending"},
@@ -147,7 +150,7 @@ func TestGetMineBuildsChronologicalTrainingTimelineFromSourceRows(t *testing.T) 
 	}
 }
 
-func TestGetMineForOperationsMemberIncludesOnlyReportMetadata(t *testing.T) {
+func TestGetMineForAnyGroupIncludesOnlyWeeklyReportMetadata(t *testing.T) {
 	db, mock := newGrowthMock(t)
 	joinedAt := time.Date(2026, 6, 1, 8, 0, 0, 0, time.UTC)
 	updatedAt := time.Date(2026, 10, 19, 9, 30, 0, 0, time.UTC)
@@ -160,8 +163,8 @@ func TestGetMineForOperationsMemberIncludesOnlyReportMetadata(t *testing.T) {
 	mock.ExpectQuery("SELECT skill_review_events\\.id, skill_review_events\\.skill_node_id, skill_review_events\\.group_id, skill_review_events\\.action, skill_review_events\\.evidence_note, skill_review_events\\.created_at, skill_review_events\\.skill_name AS node_name, user_groups\\.name AS group_name, skill_review_events\\.actor_name FROM `skill_review_events` JOIN user_groups ON.*WHERE skill_review_events\\.user_id = \\? AND skill_review_events\\.group_id IN \\(\\?\\).*ORDER BY skill_review_events\\.created_at ASC, skill_review_events\\.id ASC").
 		WithArgs(uint64(21), uint64(45)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "skill_node_id", "group_id", "action", "evidence_note", "created_at", "node_name", "group_name", "actor_name"}))
-	mock.ExpectQuery("SELECT .* FROM `weekly_reports` JOIN user_groups ON.*WHERE weekly_reports\\.user_id = \\? AND user_groups\\.name = \\?.*ORDER BY weekly_reports\\.week_start ASC, weekly_reports\\.id ASC").
-		WithArgs(uint64(21), "运营组").
+	mock.ExpectQuery("SELECT .* FROM `weekly_reports` LEFT JOIN user_groups ON.*WHERE weekly_reports\\.user_id = \\?.*ORDER BY weekly_reports\\.week_start ASC, weekly_reports\\.id ASC").
+		WithArgs(uint64(21)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "week_start", "updated_at", "group_name"}).AddRow(330, "2026-10-12", updatedAt, "运营组"))
 	service := NewService(db, nil)
 	service.Now = func() time.Time { return time.Date(2026, 10, 20, 0, 0, 0, 0, time.UTC) }

@@ -11,7 +11,7 @@ export function meta() {
 }
 
 export default function DashboardIndex() {
-  const { currentUser, groupResolution } = useOutletContext<DashboardLayoutOutletContext>();
+  const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
   const displayName = currentUser.nickname?.trim() || currentUser.email;
   const dismissalKey = `workbench-feature-guide-dismissed:${currentUser.id}:${FEATURE_GUIDE_DATE}`;
   const [announcementVisible, setAnnouncementVisible] = useState(true);
@@ -59,7 +59,6 @@ export default function DashboardIndex() {
         </div>
       </aside> : null}
 
-      {groupResolution?.groups.some((group) => group.name === "运营组") ? <p className="dashboard-home__audience-note">工作周报入口位于个人事务；技术组作业与提问答疑暂不对运营组开放。</p> : null}
       <DailySignalWorkspace key={currentUser.id} currentUser={currentUser} />
     </section>
   );

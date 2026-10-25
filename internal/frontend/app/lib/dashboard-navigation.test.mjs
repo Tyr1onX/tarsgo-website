@@ -9,18 +9,11 @@ test("every authenticated role opens the same personal workbench", () => {
   assert.equal(getDefaultDashboardPath("super_admin"), "/dashboard");
 });
 
-test("every role has only the personal-workbench core navigation entry", () => {
+test("every member has the weekly report entry in personal navigation", () => {
   assert.deepEqual(getCoreDashboardMenu().map(({ key, label, href }) => ({ key, label, href })), [
-    { key: "personal-workspace", label: "个人工作台", href: "/dashboard" },
-  ]);
-});
-
-test("weekly reports are visible only to operations group members", () => {
-  assert.deepEqual(getCoreDashboardMenu(true).map(({ key, label, href }) => ({ key, label, href })), [
     { key: "personal-workspace", label: "个人工作台", href: "/dashboard" },
     { key: "weekly-reports", label: "工作周报", href: "/dashboard/weekly-reports" },
   ]);
-  assert.equal(getCoreDashboardMenu(false).some((item) => item.key === "weekly-reports"), false);
 });
 
 test("admin navigation groups recruitment and member tools while keeping email standalone", () => {

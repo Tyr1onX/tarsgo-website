@@ -234,13 +234,11 @@ func (s *Service) GetMine(ctx context.Context, userID uint64) (*Profile, error) 
 		}
 	}
 
-	if hasGroupName(memberships, "运营组") {
-		if err := s.loadWeeklyReportEvents(ctx, userID, profile); err != nil {
-			return nil, err
-		}
-		if profile.NextAction == nil {
-			profile.NextAction = &NextAction{Title: "查看本周工作周报", Href: "/dashboard/weekly-reports"}
-		}
+	if err := s.loadWeeklyReportEvents(ctx, userID, profile); err != nil {
+		return nil, err
+	}
+	if profile.NextAction == nil {
+		profile.NextAction = &NextAction{Title: "填写本周工作周报", Href: "/dashboard/weekly-reports"}
 	}
 
 	profile.Stats.FirstSubmissions = countEvents(profile.Events, "assignment_first_submission")
@@ -465,11 +463,11 @@ func (s *Service) loadQuestionEvents(ctx context.Context, userID uint64, groupID
 func (s *Service) loadWeeklyReportEvents(ctx context.Context, userID uint64, profile *Profile) error {
 	var reports []weeklyReportRow
 	if err := s.db.WithContext(ctx).Table("weekly_reports").
-		Select("weekly_reports.id, weekly_reports.week_start, weekly_reports.updated_at, user_groups.name AS group_name").
-		Joins("JOIN user_groups ON user_groups.id = weekly_reports.group_id").
-		Where("weekly_reports.user_id = ? AND user_groups.name = ?", userID, "运营组").
+		Select("weekly_reports.id, weekly_reports.week_start, weekly_reports.updated_at, COALESCE(user_groups.name, '') AS group_name").
+		Joins("LEFT JOIN user_groups ON user_groups.id = weekly_reports.group_id").
+		Where("weekly_reports.user_id = ?", userID).
 		Order("weekly_reports.week_start ASC, weekly_reports.id ASC").Scan(&reports).Error; err != nil {
-		return internalError("读取运营周报成长记录失败", err)
+		return internalError("读取工作周报成长记录失败", err)
 	}
 	for _, row := range reports {
 		if !validEventTime(row.UpdatedAt, s.now()) {
@@ -479,7 +477,7 @@ func (s *Service) loadWeeklyReportEvents(ctx context.Context, userID uint64, pro
 		profile.Events = append(profile.Events, Event{
 			Key:         fmt.Sprintf("weekly-report:%d", row.ID),
 			Kind:        "weekly_report",
-			Title:       "提交运营周报",
+			Title:       "提交工作周报",
 			Description: week,
 			GroupName:   row.GroupName,
 			OccurredAt:  row.UpdatedAt,

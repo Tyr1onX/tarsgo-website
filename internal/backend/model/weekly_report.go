@@ -43,10 +43,11 @@ func (date WeeklyReportWeekStart) Value() (driver.Value, error) {
 
 type WeeklyReport struct {
 	ID        uint64                `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
-	GroupID   uint64                `json:"-" gorm:"column:group_id;type:bigint unsigned;not null;uniqueIndex:uk_weekly_report_member_week,priority:1;index:idx_weekly_report_group_week,priority:1"`
+	GroupID   *uint64               `json:"groupId,omitempty" gorm:"column:group_id;type:bigint unsigned;default:null;uniqueIndex:uk_weekly_report_member_week,priority:1;index:idx_weekly_report_group_week,priority:1"`
 	UserID    uint64                `json:"-" gorm:"column:user_id;type:bigint unsigned;not null;uniqueIndex:uk_weekly_report_member_week,priority:2;index:idx_weekly_report_user_week,priority:1"`
 	WeekStart WeeklyReportWeekStart `json:"weekStart" gorm:"column:week_start;type:date;not null;uniqueIndex:uk_weekly_report_member_week,priority:3;index:idx_weekly_report_group_week,priority:2;index:idx_weekly_report_user_week,priority:2"`
 	Completed string                `json:"completed" gorm:"type:text;not null"`
+	Gains     string                `json:"gains" gorm:"type:text;not null"`
 	Blockers  string                `json:"blockers" gorm:"type:text;not null"`
 	NextPlan  string                `json:"nextPlan" gorm:"column:next_plan;type:text;not null"`
 	CreatedAt time.Time             `json:"createdAt" gorm:"column:created_at;type:datetime;not null;default:CURRENT_TIMESTAMP"`

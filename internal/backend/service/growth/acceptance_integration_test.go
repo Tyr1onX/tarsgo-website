@@ -190,7 +190,7 @@ func TestAcceptanceDatabaseGrowthTimeline(t *testing.T) {
 	createdQuestionIDs = append(createdQuestionIDs, privateQuestion.ID)
 
 	report := model.WeeklyReport{
-		GroupID: operationsGroup.ID, UserID: operationsMember.ID, WeekStart: model.WeeklyReportWeekStart(now.AddDate(0, 0, -7).Format(time.DateOnly)),
+		GroupID: &operationsGroup.ID, UserID: operationsMember.ID, WeekStart: model.WeeklyReportWeekStart(now.AddDate(0, 0, -7).Format(time.DateOnly)),
 		Completed: "PRIVATE_REPORT_CONTENT_MARKER", Blockers: "Private", NextPlan: "Private",
 	}
 	if err := db.Create(&report).Error; err != nil {

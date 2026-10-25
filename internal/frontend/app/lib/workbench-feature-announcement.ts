@@ -52,7 +52,7 @@ export const WORKBENCH_FEATURES: readonly WorkbenchFeature[] = [
     status: "已上线 · 持续完善",
     audience: "all",
     audienceLabel: "所有成员",
-    description: "根据真实作业、答疑、技能确认等记录形成成长档案；运营组可记录工作周报。",
+    description: "根据真实作业、答疑、技能确认等记录形成成长档案；全体成员可用工作周报记录学习与工作进展。",
     href: "/dashboard/growth",
     action: "查看我的成长",
   },
