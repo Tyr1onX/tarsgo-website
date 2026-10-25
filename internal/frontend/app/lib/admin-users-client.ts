@@ -95,6 +95,7 @@ export interface ListAdminUsersInput {
   keyword?: string;
   role?: string;
   status?: number | "";
+	groupId?: number | "";
 	groupState?: "" | "assigned" | "unassigned" | "pending" | "cleanup";
 	includeInactive?: boolean;
 }
@@ -126,6 +127,9 @@ export async function listAdminUsers(input: ListAdminUsersInput): Promise<AdminU
   }
   if (input.status !== "" && input.status !== undefined) {
     params.set("status", String(input.status));
+  }
+  if (input.groupId !== "" && input.groupId !== undefined) {
+    params.set("groupId", String(input.groupId));
   }
   if (input.groupState) {
     params.set("groupState", input.groupState);

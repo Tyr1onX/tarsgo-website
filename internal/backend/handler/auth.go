@@ -229,8 +229,8 @@ func (h *AuthHandler) InitializeAccountSessions(c *gin.Context) {
 		h.handleServiceError(c, serviceErr)
 		return
 	}
-	h.setAuthCookie(c, result.SessionToken)
-	h.setAccountVaultCookie(c, result.VaultToken)
+	h.setAuthCookieWithAge(c, result.SessionToken, result.SessionCookieMaxAgeSeconds)
+	h.setAccountVaultCookieWithAge(c, result.VaultToken, result.VaultCookieMaxAgeSeconds)
 	writeAPI(c, http.StatusOK, "账号列表已更新", gin.H{
 		"accounts":        result.Accounts,
 		"identityChanged": result.SessionToken != currentToken,
@@ -260,7 +260,8 @@ func (h *AuthHandler) SwitchAccountSession(c *gin.Context) {
 		h.handleServiceError(c, err)
 		return
 	}
-	h.setAuthCookie(c, result.SessionToken)
+	h.setAuthCookieWithAge(c, result.SessionToken, result.SessionCookieMaxAgeSeconds)
+	h.setAccountVaultCookieWithAge(c, result.VaultToken, result.VaultCookieMaxAgeSeconds)
 	writeAPI(c, http.StatusOK, "账号已切换", gin.H{"user": result.User, "accounts": result.Accounts})
 }
 
@@ -314,6 +315,19 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		h.handleServiceError(c, err)
 		return
 	}
+	vaultToken, _ := c.Cookie(accountVaultCookieName)
+	if renewer, ok := h.service.(interface {
+		RenewAccountSession(context.Context, string, string) (*auth.SessionRenewal, error)
+	}); ok {
+		if renewal, renewErr := renewer.RenewAccountSession(c.Request.Context(), token, vaultToken); renewErr == nil && renewal != nil {
+			if renewal.AuthRenewed && renewal.AuthCookieMaxAgeSeconds > 0 {
+				h.setCookie(c, h.service.CookieName(), token, renewal.AuthCookieMaxAgeSeconds, true)
+			}
+			if renewal.VaultRenewed && renewal.VaultCookieMaxAgeSeconds > 0 && strings.TrimSpace(vaultToken) != "" {
+				h.setCookie(c, accountVaultCookieName, vaultToken, renewal.VaultCookieMaxAgeSeconds, true)
+			}
+		}
+	}
 
 	writeAPI(c, http.StatusOK, "获取当前用户成功", gin.H{"user": user})
 }
@@ -332,12 +346,29 @@ func (h *AuthHandler) setAuthCookie(c *gin.Context, token string) {
 	h.setCookie(c, h.service.CookieName(), token, h.service.CookieMaxAgeSeconds(), true)
 }
 
-const accountVaultCookieName = "tarsgo_accounts"
+func (h *AuthHandler) setAuthCookieWithAge(c *gin.Context, token string, maxAge int) {
+	if maxAge <= 0 {
+		maxAge = h.service.CookieMaxAgeSeconds()
+	}
+	h.setCookie(c, h.service.CookieName(), token, maxAge, true)
+}
+
+const accountVaultCookieName = auth.AccountVaultCookieName
 
 func (h *AuthHandler) setAccountVaultCookie(c *gin.Context, token string) {
 	if strings.TrimSpace(token) != "" {
 		h.setCookie(c, accountVaultCookieName, token, h.service.CookieMaxAgeSeconds(), true)
 	}
+}
+
+func (h *AuthHandler) setAccountVaultCookieWithAge(c *gin.Context, token string, maxAge int) {
+	if strings.TrimSpace(token) == "" {
+		return
+	}
+	if maxAge <= 0 {
+		maxAge = h.service.CookieMaxAgeSeconds()
+	}
+	h.setCookie(c, accountVaultCookieName, token, maxAge, true)
 }
 
 func (h *AuthHandler) clearAuthCookie(c *gin.Context) {
@@ -360,8 +391,8 @@ func (h *AuthHandler) finishAuthentication(c *gin.Context, result *auth.AuthResu
 		h.handleServiceError(c, err)
 		return false
 	}
-	h.setAuthCookie(c, accountSessions.SessionToken)
-	h.setAccountVaultCookie(c, accountSessions.VaultToken)
+	h.setAuthCookieWithAge(c, accountSessions.SessionToken, accountSessions.SessionCookieMaxAgeSeconds)
+	h.setAccountVaultCookieWithAge(c, accountSessions.VaultToken, accountSessions.VaultCookieMaxAgeSeconds)
 	return true
 }
 

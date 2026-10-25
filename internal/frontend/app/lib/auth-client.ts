@@ -38,6 +38,7 @@ export interface AccountSessionAccount {
   user: AuthUser;
   expiresAt: string;
   current: boolean;
+  status: "available" | "expired" | "revoked" | "disabled";
 }
 
 const ACCOUNT_SESSION_CHANNEL = "tarsgo:account-session-change";

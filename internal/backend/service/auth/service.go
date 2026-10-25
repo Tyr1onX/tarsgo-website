@@ -8,6 +8,7 @@ import (
 	"net/mail"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode"
 
@@ -27,10 +28,12 @@ const (
 )
 
 type Service struct {
-	db         *gorm.DB
-	authConfig config.AuthConfig
-	now        func() time.Time
-	mailer     email.Mailer
+	db              *gorm.DB
+	authConfig      config.AuthConfig
+	now             func() time.Time
+	mailer          email.Mailer
+	cleanupMu       sync.Mutex
+	lastAuthCleanup time.Time
 }
 
 type ServiceError struct {
@@ -455,7 +458,7 @@ func (s *Service) CurrentUser(ctx context.Context, token string) (*SessionUser, 
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "读取登录会话失败", Err: sessionErr}
 	}
 	if found {
-		if session.RevokedAt != nil || !s.now().Before(session.ExpiresAt) {
+		if session.RevokedAt != nil || !s.now().Before(session.ExpiresAt) || !session.CreatedAt.Add(MaxSessionLifetime).After(s.now()) {
 			return nil, &ServiceError{Status: http.StatusUnauthorized, Message: "登录态已失效"}
 		}
 		userID = session.UserID

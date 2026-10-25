@@ -102,12 +102,14 @@ type SchoolLeaveRunView struct {
 }
 
 type SchoolLeaveSummary struct {
-	PendingCount        int64  `json:"pendingCount"`
-	AwaitingReturnCount int64  `json:"awaitingReturnCount"`
-	TodoCount           int64  `json:"todoCount"`
-	UnreadCount         int64  `json:"unreadCount"`
-	ContactPhoneReady   bool   `json:"contactPhoneReady"`
-	DailyCutoff         string `json:"dailyCutoff"`
+	PendingApprovalCount int64  `json:"pendingApprovalCount"`
+	PendingCount         int64  `json:"pendingCount"`
+	AwaitingReturnCount  int64  `json:"awaitingReturnCount"`
+	TodoCount            int64  `json:"todoCount"`
+	ActionableCount      int64  `json:"actionableCount"`
+	UnreadCount          int64  `json:"unreadCount"`
+	ContactPhoneReady    bool   `json:"contactPhoneReady"`
+	DailyCutoff          string `json:"dailyCutoff"`
 }
 
 type DailyEntryView struct {

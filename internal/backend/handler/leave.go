@@ -9,6 +9,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"tarsgo-backend/middleware"
+	"tarsgo-backend/model"
 	"tarsgo-backend/service/leave"
 )
 
@@ -182,7 +183,9 @@ func (h *LeaveHandler) AdminSchoolSummary(c *gin.Context) {
 	if !ok {
 		return
 	}
-	summary, err := h.service.Summary(c.Request.Context(), id)
+	actor, _ := middleware.CurrentSessionUser(c)
+	canReviewAccessRequests := actor != nil && actor.Role.Name == model.RoleNameSuperAdmin
+	summary, err := h.service.Summary(c.Request.Context(), id, canReviewAccessRequests)
 	if err != nil {
 		h.fail(c, err)
 		return

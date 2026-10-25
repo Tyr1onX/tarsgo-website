@@ -37,6 +37,7 @@ type listUsersQuery struct {
 	Keyword         string `form:"keyword"`
 	Role            string `form:"role"`
 	Status          string `form:"status"`
+	GroupID         uint64 `form:"groupId"`
 	GroupState      string `form:"groupState"`
 	IncludeInactive bool   `form:"includeInactive"`
 }
@@ -97,6 +98,7 @@ func (h *AdminUserHandler) ListUsers(c *gin.Context) {
 			Keyword:         query.Keyword,
 			Role:            query.Role,
 			Status:          status,
+			GroupID:         query.GroupID,
 			GroupState:      query.GroupState,
 			IncludeInactive: query.IncludeInactive,
 		},

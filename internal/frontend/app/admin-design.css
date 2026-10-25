@@ -378,6 +378,23 @@
   font-size: 0.75rem;
 }
 
+.dashboard-shell__account-unavailable {
+  color: var(--admin-muted);
+  font-size: 0.75rem;
+}
+
+.dashboard-shell__account-capacity {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--admin-border-subtle);
+  background: var(--admin-surface-subtle);
+  color: var(--admin-muted);
+  font-size: 0.8rem;
+}
+
 .dashboard-shell__account-remove,
 .dashboard-shell__account-signout-all {
   color: var(--admin-danger);
@@ -425,6 +442,11 @@
   }
 
   .dashboard-shell__account-modal-footer {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .dashboard-shell__account-capacity {
     align-items: stretch;
     flex-direction: column;
   }

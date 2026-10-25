@@ -1380,7 +1380,7 @@ html[data-theme-transition] body *::after {
   transition: background-color 140ms ease;
 }
 
-.auth-saved-account:hover:not(:disabled) {
+.auth-saved-account:hover {
   background: var(--admin-surface-hover);
 }
 
@@ -1435,6 +1435,21 @@ html[data-theme-transition] body *::after {
   flex: 0 0 auto;
   color: var(--admin-accent-text);
   font-size: 0.75rem;
+}
+
+.auth-saved-account__action {
+  flex: 0 0 auto;
+  border: 1px solid var(--admin-border-subtle);
+  border-radius: 0.5rem;
+  padding: 0.35rem 0.6rem;
+  color: var(--admin-text);
+  font-size: 0.6875rem;
+  text-decoration: none;
+}
+
+.auth-saved-account__action:hover {
+  border-color: var(--admin-accent-border);
+  background: var(--admin-surface-hover);
 }
 
 .auth-mode-switch {

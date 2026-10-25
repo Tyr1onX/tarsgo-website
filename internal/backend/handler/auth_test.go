@@ -94,7 +94,10 @@ func (stubAuthService) ListAccountSessions(ctx context.Context, vaultToken, curr
 }
 
 func (stubAuthService) SwitchAccountSession(ctx context.Context, vaultToken string, entryID uint64) (*auth.AccountSessionsResult, error) {
-	return &auth.AccountSessionsResult{SessionToken: "switched-session", User: &auth.SessionUser{}}, nil
+	return &auth.AccountSessionsResult{
+		SessionToken: "switched-session", VaultToken: "switched-vault", User: &auth.SessionUser{},
+		SessionCookieMaxAgeSeconds: 7200, VaultCookieMaxAgeSeconds: 3600,
+	}, nil
 }
 
 func (stubAuthService) RemoveAccountSession(ctx context.Context, vaultToken, currentToken string, entryID uint64) (*auth.AccountSessionsResult, error) {
@@ -452,6 +455,35 @@ func TestLogoutClearsCookie(t *testing.T) {
 	}
 	if !strings.Contains(strings.Join(setCookie, ";"), "tarsgo_token=") {
 		t.Fatalf("expected auth cookie to be cleared, got %v", setCookie)
+	}
+}
+
+func TestSwitchAccountSetsBothRenewedHttpOnlyCookies(t *testing.T) {
+	t.Parallel()
+
+	gin.SetMode(gin.TestMode)
+	handler := NewAuthHandler(stubAuthService{})
+	recorder, ctx := newJSONContext(t, http.MethodPost, "/api/account-sessions/switch", map[string]uint64{"accountId": 17})
+	ctx.Request.AddCookie(&http.Cookie{Name: auth.AccountVaultCookieName, Value: "old-vault"})
+
+	handler.SwitchAccountSession(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	setCookies := recorder.Header().Values("Set-Cookie")
+	if len(setCookies) != 2 {
+		t.Fatalf("expected session and account-container cookies to be renewed, got %v", setCookies)
+	}
+	joined := strings.Join(setCookies, "\n")
+	if !strings.Contains(joined, "tarsgo_token=switched-session") || !strings.Contains(joined, "Max-Age=7200") {
+		t.Fatalf("session cookie did not use its persisted expiry: %v", setCookies)
+	}
+	if !strings.Contains(joined, auth.AccountVaultCookieName+"=switched-vault") || !strings.Contains(joined, "Max-Age=3600") {
+		t.Fatalf("account-container cookie did not use its persisted expiry: %v", setCookies)
+	}
+	if strings.Count(joined, "HttpOnly") != 2 {
+		t.Fatalf("both renewed cookies must remain HttpOnly: %v", setCookies)
 	}
 }
 

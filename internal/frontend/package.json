@@ -19,7 +19,7 @@
     "test:expedition": "node --experimental-strip-types --test app/lib/expedition-data.test.mjs app/lib/expedition-navigation.test.mjs app/lib/dashboard-navigation.test.mjs app/lib/route-titles.test.mjs",
     "test:skills": "node --experimental-strip-types --test app/lib/skill-tree-layout.test.mjs app/lib/dashboard-navigation.test.mjs",
     "test:email-templates": "node --test app/lib/email-templates.test.mjs",
-    "test:auth-flow": "node --test app/lib/auth-session-cache.test.mjs app/lib/dashboard-auth-flow.test.mjs app/lib/user-group-client.test.mjs",
+    "test:auth-flow": "node --test app/lib/auth-session-cache.test.mjs app/lib/dashboard-auth-flow.test.mjs app/lib/user-group-client.test.mjs app/lib/admin-session-experience.test.mjs",
     "test:daily-signal": "node --experimental-strip-types --test app/lib/daily-signal-calendar.test.mjs app/lib/daily-signal-scroll.test.mjs app/lib/daily-signal-reply.test.mjs",
     "typecheck": "react-router typegen && tsc"
   },

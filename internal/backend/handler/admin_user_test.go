@@ -42,6 +42,19 @@ func TestAdminUserListPassesAllAccountsToggleToService(t *testing.T) {
 	}
 }
 
+func TestAdminUserListPassesConcreteGroupID(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/admin/users?groupId=73", nil)
+	ctx.Set("sessionUser", &auth.SessionUser{Role: auth.SessionRole{Name: model.RoleNameSuperAdmin}})
+	service := &captureListUsersService{}
+	NewAdminUserHandler(service).ListUsers(ctx)
+	if recorder.Code != http.StatusOK || service.input.GroupID != 73 {
+		t.Fatalf("group filter response/status = %d, groupId=%d; want 200 and 73", recorder.Code, service.input.GroupID)
+	}
+}
+
 type captureListUsersService struct {
 	adminUserService
 	input adminuser.ListUsersInput
