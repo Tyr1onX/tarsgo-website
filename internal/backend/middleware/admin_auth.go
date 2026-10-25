@@ -21,6 +21,10 @@ type sessionReader interface {
 	CookieSameSite() http.SameSite
 }
 
+type sessionRenewer interface {
+	RenewAccountSession(ctx context.Context, sessionToken, vaultToken string) (*auth.SessionRenewal, error)
+}
+
 // OptionalAuthenticated attaches a valid session when one is present while
 // allowing public pages to continue as anonymous visitors.
 func OptionalAuthenticated(service sessionReader) gin.HandlerFunc {
@@ -51,6 +55,15 @@ func OptionalAuthenticated(service sessionReader) gin.HandlerFunc {
 			return
 		}
 
+		if renewErr := renewSessionCookies(c, service, token); renewErr != nil {
+			var serviceErr *auth.ServiceError
+			if errors.As(renewErr, &serviceErr) && (serviceErr.Status == http.StatusUnauthorized || serviceErr.Status == http.StatusForbidden) {
+				clearAuthCookie(c, service)
+				c.Next()
+				return
+			}
+			logSessionServerError(c, "optional session renewal", renewErr, http.StatusInternalServerError)
+		}
 		c.Set(sessionUserContextKey, user)
 		c.Next()
 	}
@@ -84,6 +97,16 @@ func RequireAuthenticated(service sessionReader) gin.HandlerFunc {
 			return
 		}
 
+		if renewErr := renewSessionCookies(c, service, token); renewErr != nil {
+			var serviceErr *auth.ServiceError
+			if errors.As(renewErr, &serviceErr) && (serviceErr.Status == http.StatusUnauthorized || serviceErr.Status == http.StatusForbidden) {
+				clearAuthCookie(c, service)
+				writeAPIError(c, serviceErr.Status, serviceErr.Message)
+				c.Abort()
+				return
+			}
+			logSessionServerError(c, "session renewal", renewErr, http.StatusInternalServerError)
+		}
 		c.Set(sessionUserContextKey, user)
 		c.Next()
 	}
@@ -123,6 +146,16 @@ func RequireAdmin(service sessionReader) gin.HandlerFunc {
 			return
 		}
 
+		if renewErr := renewSessionCookies(c, service, token); renewErr != nil {
+			var serviceErr *auth.ServiceError
+			if errors.As(renewErr, &serviceErr) && (serviceErr.Status == http.StatusUnauthorized || serviceErr.Status == http.StatusForbidden) {
+				clearAuthCookie(c, service)
+				writeAPIError(c, serviceErr.Status, serviceErr.Message)
+				c.Abort()
+				return
+			}
+			logSessionServerError(c, "admin session renewal", renewErr, http.StatusInternalServerError)
+		}
 		c.Set(sessionUserContextKey, user)
 		c.Next()
 	}
@@ -162,9 +195,40 @@ func RequireSuperAdmin(service sessionReader) gin.HandlerFunc {
 			return
 		}
 
+		if renewErr := renewSessionCookies(c, service, token); renewErr != nil {
+			var serviceErr *auth.ServiceError
+			if errors.As(renewErr, &serviceErr) && (serviceErr.Status == http.StatusUnauthorized || serviceErr.Status == http.StatusForbidden) {
+				clearAuthCookie(c, service)
+				writeAPIError(c, serviceErr.Status, serviceErr.Message)
+				c.Abort()
+				return
+			}
+			logSessionServerError(c, "super-admin session renewal", renewErr, http.StatusInternalServerError)
+		}
 		c.Set(sessionUserContextKey, user)
 		c.Next()
 	}
+}
+
+func renewSessionCookies(c *gin.Context, service sessionReader, sessionToken string) error {
+	renewer, ok := service.(sessionRenewer)
+	if !ok {
+		return nil
+	}
+	vaultToken, _ := c.Cookie(auth.AccountVaultCookieName)
+	renewal, err := renewer.RenewAccountSession(c.Request.Context(), sessionToken, vaultToken)
+	if err != nil || renewal == nil {
+		return err
+	}
+	if renewal.AuthRenewed && renewal.AuthCookieMaxAgeSeconds > 0 {
+		c.SetSameSite(service.CookieSameSite())
+		c.SetCookie(service.CookieName(), sessionToken, renewal.AuthCookieMaxAgeSeconds, "/", "", service.CookieSecure(), true)
+	}
+	if renewal.VaultRenewed && renewal.VaultCookieMaxAgeSeconds > 0 && strings.TrimSpace(vaultToken) != "" {
+		c.SetSameSite(service.CookieSameSite())
+		c.SetCookie(auth.AccountVaultCookieName, vaultToken, renewal.VaultCookieMaxAgeSeconds, "/", "", service.CookieSecure(), true)
+	}
+	return nil
 }
 
 func logSessionServerError(c *gin.Context, operation string, err error, status int) {

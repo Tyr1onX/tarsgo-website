@@ -116,3 +116,33 @@ func TestListPendingLeaveAccessRequestsIncludesOnlyReviewIdentity(t *testing.T) 
 		t.Fatalf("pending requests = %#v, error=%v", rows, err)
 	}
 }
+
+func TestSchoolSummarySeparatesActionableAndUnreadCounts(t *testing.T) {
+	for _, canReview := range []bool{false, true} {
+		db, mock := newLeaveAccessMockGorm(t)
+		if canReview {
+			mock.ExpectQuery(regexp.QuoteMeta("SELECT count(*) FROM `leave_access_requests` WHERE status = ?")).
+				WithArgs(model.LeaveAccessPending).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(3))
+		}
+		mock.ExpectQuery(regexp.QuoteMeta("SELECT count(*) FROM `school_leave_requests` WHERE status = ?")).
+			WithArgs(model.LeaveStatusPending).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(4))
+		mock.ExpectQuery(regexp.QuoteMeta("SELECT count(*) FROM `school_leave_runs` WHERE status = ?")).
+			WithArgs(model.LeaveRunAwaitingReturn).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
+		mock.ExpectQuery("SELECT count\\(\\*\\) FROM `school_leave_requests` WHERE NOT EXISTS").
+			WithArgs(uint64(80)).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(8))
+		mock.ExpectQuery("SELECT count\\(\\*\\) FROM `daily_leave_entries` WHERE NOT EXISTS").
+			WithArgs(uint64(80)).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(5))
+		service := NewService(db)
+		summary, err := service.Summary(context.Background(), 80, canReview)
+		if err != nil {
+			t.Fatalf("Summary(canReview=%t): %v", canReview, err)
+		}
+		wantApproval := int64(0)
+		if canReview {
+			wantApproval = 3
+		}
+		if summary.PendingApprovalCount != wantApproval || summary.TodoCount != 6 || summary.ActionableCount != wantApproval+6 || summary.UnreadCount != 13 {
+			t.Fatalf("summary(canReview=%t) = %#v", canReview, summary)
+		}
+	}
+}

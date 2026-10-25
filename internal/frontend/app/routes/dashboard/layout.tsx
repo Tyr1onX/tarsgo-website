@@ -10,6 +10,7 @@ import {
   getBootstrapStatus,
   getCachedCurrentUser,
   getCurrentUser,
+  getAccountSessions,
   initializeAccountSessions,
   logout,
   logoutAllAccounts,
@@ -23,7 +24,7 @@ import { resolveDashboardAuth } from "~/lib/dashboard-auth-flow";
 import { confirmUserGroup, getUserGroupConfirmationState, type UserGroupConfirmationState } from "~/lib/user-group-client";
 import { getCandidateTodoCount } from "~/lib/admin-workbench";
 import { getAdminWorkbenchSummary } from "~/lib/registrations-client";
-import { leaveClient } from "~/lib/leave-client";
+import { leaveClient, subscribeLeaveSummaryChange } from "~/lib/leave-client";
 import {
   canAccessDashboardAdminPath,
   canAccessExpedition,
@@ -45,7 +46,6 @@ export interface DashboardLayoutOutletContext {
   groupResolution: UserGroupConfirmationState | null;
   groupResolutionError: string;
   refreshCandidateTodoCount: (force?: boolean) => Promise<void>;
-  refreshLeaveUnreadCount: () => Promise<void>;
 }
 
 const DESKTOP_DASHBOARD_MEDIA = "(min-width: 1024px)";
@@ -183,14 +183,18 @@ function SidebarItem({
   onExpandSidebar,
   collapsed = false,
   badgeCount,
-  unreadCount,
+  leavePendingApprovalCount,
+  leaveTodoCount,
+  leaveActionableCount,
 }: {
   item: DashboardMenuLink | VisibleDashboardAdminMenuItem;
   onNavigate: () => void;
   onExpandSidebar?: () => void;
   collapsed?: boolean;
   badgeCount?: number | null;
-  unreadCount?: number | null;
+  leavePendingApprovalCount?: number | null;
+  leaveTodoCount?: number | null;
+  leaveActionableCount?: number | null;
 }) {
   const location = useLocation();
   const isActive = "children" in item && item.children.some((child) => isDashboardMenuPathActive(location.pathname, child.href));
@@ -271,8 +275,8 @@ function SidebarItem({
                   {child.key === "candidate-processing" && (badgeCount ?? 0) > 0 ? (
                     <span className="dashboard-nav-badge" aria-label={`${badgeCount} 项待处理`}>{badgeCount}</span>
                   ) : null}
-                  {child.key === "leave-management" && (unreadCount ?? 0) > 0 ? (
-                    <span className="dashboard-nav-badge" aria-label={`${unreadCount} 条未读请假事项`}>{unreadCount}</span>
+                  {child.key === "leave-management" && (leaveActionableCount ?? 0) > 0 ? (
+                    <span className="dashboard-nav-badge" aria-label={`待审批 ${leavePendingApprovalCount ?? 0} 项，待处理 ${leaveTodoCount ?? 0} 项`}>{leaveActionableCount}</span>
                   ) : null}
                 </NavLink>
               ))}
@@ -306,16 +310,16 @@ function SidebarItem({
             {item.key === "candidate-processing" && collapsed && (badgeCount ?? 0) > 0 ? (
               <span className="dashboard-nav-badge dashboard-nav-badge--collapsed" aria-label={`${badgeCount} 项待处理`}>{badgeCount}</span>
             ) : null}
-            {item.key === "leave-management" && collapsed && (unreadCount ?? 0) > 0 ? (
-              <span className="dashboard-nav-badge dashboard-nav-badge--collapsed" aria-label={`${unreadCount} 条未读请假事项`}>{unreadCount}</span>
+            {item.key === "leave-management" && collapsed && (leaveActionableCount ?? 0) > 0 ? (
+              <span className="dashboard-nav-badge dashboard-nav-badge--collapsed" aria-label={`待审批 ${leavePendingApprovalCount ?? 0} 项，待处理 ${leaveTodoCount ?? 0} 项`}>{leaveActionableCount}</span>
             ) : null}
           </span>
           <span className={`min-w-0 flex-1 truncate ${collapsed ? "sr-only" : ""}`}>{item.label}</span>
           {item.key === "candidate-processing" && !collapsed && (badgeCount ?? 0) > 0 ? (
             <span className="dashboard-nav-badge" aria-label={`${badgeCount} 项待处理`}>{badgeCount}</span>
           ) : null}
-          {item.key === "leave-management" && !collapsed && (unreadCount ?? 0) > 0 ? (
-            <span className="dashboard-nav-badge" aria-label={`${unreadCount} 条未读请假事项`}>{unreadCount}</span>
+          {item.key === "leave-management" && !collapsed && (leaveActionableCount ?? 0) > 0 ? (
+            <span className="dashboard-nav-badge" aria-label={`待审批 ${leavePendingApprovalCount ?? 0} 项，待处理 ${leaveTodoCount ?? 0} 项`}>{leaveActionableCount}</span>
           ) : null}
         </>
       )}
@@ -340,7 +344,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const [accountSessionsError, setAccountSessionsError] = useState("");
   const [accountActionError, setAccountActionError] = useState("");
   const [candidateTodoState, setCandidateTodoState] = useState<{ userId: number; roleName: string; count: number | null } | null>(null);
-  const [leaveUnreadState, setLeaveUnreadState] = useState<{ userId: number; count: number | null } | null>(null);
+  const [leaveActionableState, setLeaveActionableState] = useState<{ userId: number; roleName: string; pendingApprovalCount: number; todoCount: number; actionableCount: number } | null>(null);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const sidebarRef = useRef<HTMLElement | null>(null);
   const sidebarTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -374,19 +378,19 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const candidateTodoCount = candidateTodoState?.userId === currentUser.id && candidateTodoState.roleName === currentUser.role.name
     ? candidateTodoState.count
     : null;
-  const refreshLeaveUnreadCount = useCallback(async () => {
+  const refreshLeaveActionableCount = useCallback(async () => {
     if (!hasDashboardAdminAccess(currentUser.role.name)) {
-      setLeaveUnreadState(null);
+      setLeaveActionableState(null);
       return;
     }
     try {
       const summary = await leaveClient.schoolSummary();
-      setLeaveUnreadState({ userId: currentUser.id, count: summary.unreadCount });
+      setLeaveActionableState({ userId: currentUser.id, roleName: currentUser.role.name, pendingApprovalCount: summary.pendingApprovalCount, todoCount: summary.todoCount, actionableCount: summary.actionableCount });
     } catch {
-      setLeaveUnreadState({ userId: currentUser.id, count: null });
+      setLeaveActionableState(null);
     }
   }, [currentUser.id, currentUser.role.name]);
-  const leaveUnreadCount = leaveUnreadState?.userId === currentUser.id ? leaveUnreadState.count : null;
+  const currentLeaveActionableState = leaveActionableState?.userId === currentUser.id && leaveActionableState.roleName === currentUser.role.name ? leaveActionableState : null;
   const userInitial = (currentUser.nickname?.trim() || currentUser.email.trim() || "U")
     .charAt(0)
     .toUpperCase();
@@ -396,8 +400,8 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   }, [refreshCandidateTodoCount]);
 
   useEffect(() => {
-    void refreshLeaveUnreadCount();
-  }, [refreshLeaveUnreadCount]);
+    void refreshLeaveActionableCount();
+  }, [refreshLeaveActionableCount]);
 
   useEffect(() => {
     const revalidateAuthWhenResumed = () => {
@@ -432,7 +436,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   useEffect(() => {
     if (!showAdminSection) return;
     const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible") void refreshLeaveUnreadCount();
+      if (document.visibilityState === "visible") void refreshLeaveActionableCount();
     };
     window.addEventListener("focus", refreshWhenVisible);
     document.addEventListener("visibilitychange", refreshWhenVisible);
@@ -440,7 +444,8 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
       window.removeEventListener("focus", refreshWhenVisible);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [refreshLeaveUnreadCount, showAdminSection]);
+  }, [refreshLeaveActionableCount, showAdminSection]);
+  useEffect(() => subscribeLeaveSummaryChange(() => { void refreshLeaveActionableCount(); }), [refreshLeaveActionableCount]);
   useEffect(() => subscribeAccountSessionChange(() => {
     window.location.assign("/dashboard");
   }), []);
@@ -617,6 +622,13 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
     navigate(`/login?${query.toString()}`);
   }
 
+  function handleReauthenticateAccount(email: string) {
+    setAccountModalMode(null);
+    const redirectTarget = `${location.pathname}${location.search}`;
+    const query = new URLSearchParams({ email, redirect: redirectTarget, addAccount: "1", reauth: "1" });
+    navigate(`/login?${query.toString()}`);
+  }
+
   async function handleSwitchAccount(accountId: number) {
     setAccountActionError("");
     setLoggingOut(true);
@@ -625,6 +637,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
       window.location.assign(getDefaultDashboardPath(user.role.name));
     } catch (error) {
       setAccountSessionsError(getAccountActionError(error));
+      try { setAccountSessions(await getAccountSessions()); } catch { /* Keep the switch failure visible. */ }
       setLoggingOut(false);
     }
   }
@@ -773,7 +786,9 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
                     onExpandSidebar={() => setSidebarCollapsed(false)}
                     collapsed={isSidebarCollapsed}
                     badgeCount={"children" in item && item.children.some((child) => child.key === "candidate-processing") ? candidateTodoCount : undefined}
-                    unreadCount={"children" in item && item.children.some((child) => child.key === "leave-management") ? leaveUnreadCount : undefined}
+                    leavePendingApprovalCount={"children" in item && item.children.some((child) => child.key === "leave-management") ? currentLeaveActionableState?.pendingApprovalCount : undefined}
+                    leaveTodoCount={"children" in item && item.children.some((child) => child.key === "leave-management") ? currentLeaveActionableState?.todoCount : undefined}
+                    leaveActionableCount={"children" in item && item.children.some((child) => child.key === "leave-management") ? currentLeaveActionableState?.actionableCount : undefined}
                   />
                 ))}
               </div>
@@ -915,7 +930,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
 
         <main className="p-4 sm:p-6 lg:p-8">
           <div className="relative">
-            <Outlet context={{ currentUser, groupResolution, groupResolutionError, refreshCandidateTodoCount, refreshLeaveUnreadCount } satisfies DashboardLayoutOutletContext} />
+            <Outlet context={{ currentUser, groupResolution, groupResolutionError, refreshCandidateTodoCount } satisfies DashboardLayoutOutletContext} />
           </div>
         </main>
       </div>
@@ -929,6 +944,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           currentUser={currentUser}
           onClose={() => setAccountModalMode(null)}
           onSwitch={handleSwitchAccount}
+          onReauthenticate={handleReauthenticateAccount}
           onRemove={handleRemoveAccount}
           onAdd={() => {
             setAccountModalMode(null);
@@ -951,6 +967,7 @@ function AccountSessionDialog({
   currentUser,
   onClose,
   onSwitch,
+  onReauthenticate,
   onRemove,
   onAdd,
   onLogoutCurrent,
@@ -964,6 +981,7 @@ function AccountSessionDialog({
   currentUser: AuthUser;
   onClose: () => void;
   onSwitch: (accountId: number) => void;
+  onReauthenticate: (email: string) => void;
   onRemove: (accountId: number) => void;
   onAdd: () => void;
   onLogoutCurrent: () => void;
@@ -992,7 +1010,7 @@ function AccountSessionDialog({
         <header className="dashboard-shell__account-modal-header">
           <div>
             <h2 id="account-session-dialog-title">{title}</h2>
-            <p>{accounts.length} / 5 个账号</p>
+            <p>当前账号：{currentUser.nickname || currentUser.email} · {accounts.length} / 5 个</p>
           </div>
           <button type="button" onClick={onClose} aria-label="关闭" className="dashboard-shell__account-close">×</button>
         </header>
@@ -1013,8 +1031,12 @@ function AccountSessionDialog({
               <div className="dashboard-shell__account-controls">
                 {account.current || account.user.id === currentUser.id ? (
                   <span className="dashboard-shell__account-current">当前</span>
-                ) : (
+                ) : account.status === "available" ? (
                   <button type="button" disabled={busy} onClick={() => onSwitch(account.id)} className="admin-button admin-button--secondary admin-button--small">切换</button>
+                ) : account.status === "disabled" ? (
+                  <span className="dashboard-shell__account-unavailable">账号已停用</span>
+                ) : (
+                  <button type="button" disabled={busy} onClick={() => onReauthenticate(account.user.email)} className="admin-button admin-button--quiet admin-button--small">重新验证</button>
                 )}
                 {mode === "manage" ? (
                   <button type="button" disabled={busy} onClick={() => onRemove(account.id)} className="dashboard-shell__account-remove">移除</button>

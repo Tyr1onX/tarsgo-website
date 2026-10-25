@@ -65,6 +65,7 @@ export default function AccountManagement() {
   const requestedUserId = searchParams.get("userId");
   const [roles, setRoles] = useState<AdminUserRoleOption[]>([]);
   const [groupOptions, setGroupOptions] = useState<AdminUserGroupOption[]>([]);
+  const [groupFilterOptions, setGroupFilterOptions] = useState<AdminUserGroupOption[]>([]);
   const [items, setItems] = useState<AdminUserListItem[]>([]);
   const [summary, setSummary] = useState(emptySummary);
   const [page, setPage] = useState(1);
@@ -72,6 +73,7 @@ export default function AccountManagement() {
   const [keyword, setKeyword] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
+  const [groupIdFilter, setGroupIdFilter] = useState("");
   const [groupStateFilter, setGroupStateFilter] = useState<"" | "assigned" | "unassigned" | "pending" | "cleanup">("");
   const [includeInactive, setIncludeInactive] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -93,6 +95,7 @@ export default function AccountManagement() {
     try {
       const [result, groups] = await Promise.all([listAdminRoles(), listAdminUserGroupOptions()]);
       setRoles(result.filter((role) => role.editableByCurrentActor));
+      setGroupFilterOptions(groups);
       setGroupOptions(groups.filter((group) => group.status === 1));
     } catch (cause) {
       if (cause instanceof ApiError && cause.status === 401) navigate("/login", { replace: true });
@@ -111,6 +114,7 @@ export default function AccountManagement() {
         keyword,
         role: roleFilter,
         status: statusFilter === "" ? "" : Number(statusFilter),
+        groupId: groupIdFilter === "" ? "" : Number(groupIdFilter),
         groupState: groupStateFilter,
         includeInactive,
       });
@@ -132,7 +136,7 @@ export default function AccountManagement() {
   useEffect(() => {
     void loadAccounts(1);
     return () => { accountRequestId.current += 1; };
-  }, [keyword, roleFilter, statusFilter, groupStateFilter, includeInactive]);
+  }, [keyword, roleFilter, statusFilter, groupIdFilter, groupStateFilter, includeInactive]);
 
   function openCreate() {
     setEditing(null);
@@ -323,13 +327,28 @@ export default function AccountManagement() {
         <div className="admin-filter-grid sm:grid-cols-2 xl:grid-cols-5">
           <label className="text-xs text-[var(--admin-muted)]">搜索账号<input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="姓名或邮箱" className="admin-field mt-1" /></label>
           <label className="text-xs text-[var(--admin-muted)]">系统角色<select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} className="admin-field mt-1"><option value="">全部角色</option>{roles.map((role) => <option key={role.id} value={role.name}>{role.displayName}</option>)}</select></label>
+          <label className="text-xs text-[var(--admin-muted)]">具体组别<select value={groupStateFilter === "unassigned" ? "unassigned" : groupIdFilter} onChange={(event) => {
+            const value = event.target.value;
+            if (value === "unassigned") {
+              setGroupIdFilter("");
+              setGroupStateFilter("unassigned");
+            } else {
+              setGroupIdFilter(value);
+              if (groupStateFilter === "unassigned") setGroupStateFilter("");
+            }
+          }} className="admin-field mt-1"><option value="">全部组别</option><option value="unassigned">未分组</option>{groupFilterOptions.map((group) => <option key={group.id} value={group.id}>{group.name}{group.status === 1 ? "" : "（已停用）"}</option>)}</select></label>
           <label className="text-xs text-[var(--admin-muted)]">账号状态<select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="admin-field mt-1"><option value="">全部状态</option><option value="1">启用</option><option value="0">停用</option></select></label>
-          <label className="text-xs text-[var(--admin-muted)]">所属组别<select value={groupStateFilter} onChange={(event) => setGroupStateFilter(event.target.value as typeof groupStateFilter)} className="admin-field mt-1"><option value="">全部组别状态</option><option value="assigned">已分组</option><option value="unassigned">未分组</option><option value="pending">待处理（多组）</option><option value="cleanup">停用组关系待清理</option></select></label>
           <div className="admin-filter-actions flex flex-col justify-end gap-2">
-            <label className="flex min-h-9 items-center gap-2 text-xs text-[var(--admin-muted)]"><input type="checkbox" checked={includeInactive} onChange={(event) => setIncludeInactive(event.target.checked)} />显示全部账号</label>
             <button type="button" onClick={openCreate} className="admin-button admin-button--primary w-full">新建账号</button>
           </div>
         </div>
+        <details className="mt-3 border-t border-[var(--admin-border-subtle)] pt-3">
+          <summary className="cursor-pointer text-xs font-medium text-[var(--admin-muted)]">高级筛选</summary>
+          <div className="admin-filter-grid mt-3 sm:grid-cols-2 xl:grid-cols-3">
+            <label className="text-xs text-[var(--admin-muted)]">组别关系状态<select value={groupStateFilter} onChange={(event) => setGroupStateFilter(event.target.value as typeof groupStateFilter)} className="admin-field mt-1"><option value="">全部关系状态</option><option value="assigned">单一有效组别</option><option value="unassigned">未分组</option><option value="pending">多组待处理</option><option value="cleanup">停用组关系待清理</option></select></label>
+            <label className="flex min-h-9 items-center gap-2 self-end text-xs text-[var(--admin-muted)]"><input type="checkbox" checked={includeInactive} onChange={(event) => setIncludeInactive(event.target.checked)} />包含停用或超过 90 天未登录的账号</label>
+          </div>
+        </details>
       </section>
 
       <section className="admin-panel overflow-hidden" aria-label="账号列表">

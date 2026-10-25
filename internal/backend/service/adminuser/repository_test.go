@@ -113,4 +113,45 @@ func TestListUsersAppliesActivityFilterUnlessAllAccountsRequested(t *testing.T) 
 	}
 }
 
+func TestListUsersFiltersSpecificGroupWithoutDuplicatingMultiGroupMembers(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("create SQL mock: %v", err)
+	}
+	db, err := gorm.Open(mysql.New(mysql.Config{Conn: sqlDB, SkipInitializeWithVersion: true}), &gorm.Config{DisableAutomaticPing: true})
+	if err != nil {
+		_ = sqlDB.Close()
+		t.Fatalf("open GORM over SQL mock: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unmet SQL expectations: %v", err)
+		}
+		_ = sqlDB.Close()
+	})
+
+	// EXISTS filters memberships without joining the association into the page
+	// query, so users who belong to several groups remain a single result.
+	countArgs := []driver.Value{model.UserGroupStatusActive, uint64(73)}
+	listArgs := []driver.Value{model.UserGroupStatusActive, uint64(73), 20}
+	mock.ExpectQuery("SELECT count.*selected_members.group_id = \\?").
+		WithArgs(countArgs...).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(2))
+	mock.ExpectQuery("SELECT .* FROM `users`.*selected_members.group_id = \\?.*LIMIT \\?").
+		WithArgs(listArgs...).WillReturnRows(sqlmock.NewRows([]string{"id", "role_id", "status", "created_at"}).AddRow(301, 1, 1, time.Now()))
+	mock.ExpectQuery("SELECT \\* FROM `user_group_members` WHERE `user_group_members`.`user_id` = \\?").WithArgs(301).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "group_id", "role", "created_at", "updated_at"}))
+	mock.ExpectQuery("SELECT \\* FROM `roles` WHERE `roles`.`id` = \\?").WithArgs(1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "display_name", "description", "sort_order", "created_at", "updated_at"}).AddRow(1, model.RoleNameUser, "普通用户", nil, 1, time.Now(), time.Now()))
+
+	users, total, err := (&GormRepository{db: db}).ListUsers(context.Background(), ListUsersInput{
+		Page: 1, PageSize: 20, GroupID: 73, IncludeInactive: true,
+	})
+	if err != nil {
+		t.Fatalf("ListUsers(group=73) returned error: %v", err)
+	}
+	if total != 2 || len(users) != 1 {
+		t.Fatalf("filtered result total/items = %d/%d; want distinct total 2 and current-page item count 1", total, len(users))
+	}
+}
+
 var activitySince = time.Date(2026, time.October, 19, 11, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))

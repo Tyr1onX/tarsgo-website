@@ -148,8 +148,13 @@ func (s *Service) ListAdminRequests(ctx context.Context, adminID uint64) ([]Admi
 	return result, nil
 }
 
-func (s *Service) Summary(ctx context.Context, adminID uint64) (*SchoolLeaveSummary, error) {
+func (s *Service) Summary(ctx context.Context, adminID uint64, canReviewAccessRequests bool) (*SchoolLeaveSummary, error) {
 	var summary SchoolLeaveSummary
+	if canReviewAccessRequests {
+		if err := s.db.WithContext(ctx).Model(&model.LeaveAccessRequest{}).Where("status = ?", model.LeaveAccessPending).Count(&summary.PendingApprovalCount).Error; err != nil {
+			return nil, internalError("读取请假开通审批数量失败", err)
+		}
+	}
 	if err := s.db.WithContext(ctx).Model(&model.SchoolLeaveRequest{}).Where("status = ?", model.LeaveStatusPending).Count(&summary.PendingCount).Error; err != nil {
 		return nil, internalError("读取请假汇总失败", err)
 	}
@@ -157,6 +162,7 @@ func (s *Service) Summary(ctx context.Context, adminID uint64) (*SchoolLeaveSumm
 		return nil, internalError("读取请假汇总失败", err)
 	}
 	summary.TodoCount = summary.PendingCount + summary.AwaitingReturnCount
+	summary.ActionableCount = summary.TodoCount + summary.PendingApprovalCount
 	summary.ContactPhoneReady = strings.TrimSpace(os.Getenv("LEAVE_CONTACT_PHONE")) != ""
 	summary.DailyCutoff = strings.TrimSpace(os.Getenv("LEAVE_DAILY_CUTOFF"))
 	if summary.DailyCutoff == "" {

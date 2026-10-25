@@ -51,6 +51,7 @@ type ListUsersInput struct {
 	Keyword         string
 	Role            string
 	Status          *uint8
+	GroupID         uint64
 	GroupState      string
 	IncludeInactive bool
 	ActivitySince   time.Time

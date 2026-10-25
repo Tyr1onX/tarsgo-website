@@ -55,6 +55,12 @@ func (r *GormRepository) ListUsers(ctx context.Context, filter ListUsersInput) (
 	if filter.Status != nil {
 		base = base.Where("users.status = ?", *filter.Status)
 	}
+	if filter.GroupID > 0 {
+		// Use EXISTS so a member with multiple group relations is returned once.
+		// Intentionally include disabled-group relations: this is an administrative
+		// history filter, not an access-control decision.
+		base = base.Where("EXISTS (SELECT 1 FROM user_group_members AS selected_members WHERE selected_members.user_id = users.id AND selected_members.group_id = ?)", filter.GroupID)
+	}
 	if !filter.IncludeInactive {
 		base = base.Where("users.status = ? AND users.last_login_at >= ?", model.UserStatusEnabled, filter.ActivitySince)
 	}

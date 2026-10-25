@@ -8,6 +8,6 @@ const usersClient = await readFile(new URL("./admin-users-client.ts", import.met
 test("account management defaults to active accounts and exposes an all-accounts toggle", () => {
   assert.match(usersRoute, /useState\(false\).*includeInactive/s);
   assert.match(usersRoute, /includeInactive,\s*\}\);/);
-  assert.match(usersRoute, /显示全部账号/);
+  assert.match(usersRoute, /高级筛选[\s\S]*?包含停用或超过 90 天未登录的账号/);
   assert.match(usersClient, /if \(input\.includeInactive\)[\s\S]*?params\.set\("includeInactive", "true"\)/);
 });

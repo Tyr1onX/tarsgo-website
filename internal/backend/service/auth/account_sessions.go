@@ -7,6 +7,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
+	"math"
 	"net/http"
 	"strconv"
 	"strings"
@@ -20,21 +21,39 @@ import (
 
 const MaxAccountSessions = 5
 
+const (
+	MaxSessionLifetime      = 30 * 24 * time.Hour
+	SessionRenewWindow      = 24 * time.Hour
+	ExpiredSessionRetention = 90 * 24 * time.Hour
+)
+
+const AccountVaultCookieName = "tarsgo_accounts"
+
 type AccountSessionAccount struct {
 	ID        uint64      `json:"id"`
 	User      SessionUser `json:"user"`
 	ExpiresAt time.Time   `json:"expiresAt"`
 	Current   bool        `json:"current"`
+	Status    string      `json:"status"`
 }
 
 type AccountSessionsResult struct {
 	Accounts []AccountSessionAccount `json:"accounts"`
 	User     *SessionUser            `json:"user,omitempty"`
 	// Cookie values are returned only to the HTTP handler and are never JSON.
-	SessionToken   string `json:"-"`
-	VaultToken     string `json:"-"`
-	CurrentRemoved bool   `json:"-"`
-	VaultRemoved   bool   `json:"-"`
+	SessionToken               string `json:"-"`
+	VaultToken                 string `json:"-"`
+	CurrentRemoved             bool   `json:"-"`
+	VaultRemoved               bool   `json:"-"`
+	SessionCookieMaxAgeSeconds int    `json:"-"`
+	VaultCookieMaxAgeSeconds   int    `json:"-"`
+}
+
+type SessionRenewal struct {
+	AuthCookieMaxAgeSeconds  int
+	VaultCookieMaxAgeSeconds int
+	AuthRenewed              bool
+	VaultRenewed             bool
 }
 
 // CreateAccountSession runs after a credential login or registration succeeds.
@@ -42,7 +61,18 @@ type AccountSessionsResult struct {
 // the newly authenticated account. A sixth account is rejected without changing
 // the current browser session.
 func (s *Service) CreateAccountSession(ctx context.Context, userID uint64, currentToken, vaultToken string) (*AccountSessionsResult, error) {
+	return s.createAccountSession(ctx, userID, currentToken, vaultToken, true)
+}
+
+func (s *Service) createAccountSession(ctx context.Context, userID uint64, currentToken, vaultToken string, credentialAuthentication bool) (*AccountSessionsResult, error) {
+	if err := s.cleanupExpiredAuthDataIfDue(ctx); err != nil {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "清理过期登录记录失败", Err: err}
+	}
 	currentUser, currentExpiresAt := s.currentUserForVault(ctx, currentToken)
+	currentSession, currentSessionFound, sessionReadErr := s.findAuthSession(ctx, currentToken)
+	if sessionReadErr != nil {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "读取登录会话失败", Err: sessionReadErr}
+	}
 	newToken, err := newOpaqueToken()
 	if err != nil {
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "创建登录会话失败", Err: err}
@@ -50,7 +80,22 @@ func (s *Service) CreateAccountSession(ctx context.Context, userID uint64, curre
 	newVaultToken := ""
 	result := &AccountSessionsResult{SessionToken: newToken}
 	now := s.now()
-	newExpiresAt := now.Add(s.authConfig.TokenTTL)
+	newCreatedAt := now
+	newExpiresAt := boundedSessionExpiry(now, newCreatedAt, s.authConfig.TokenTTL)
+	if !credentialAuthentication && currentUser != nil && currentUser.ID == userID {
+		if currentSessionFound {
+			newCreatedAt = currentSession.CreatedAt
+			newExpiresAt = boundedSessionExpiry(now, newCreatedAt, s.authConfig.TokenTTL)
+		} else if !currentExpiresAt.IsZero() {
+			// Upgrading a legacy signed cookie must not extend its original expiry.
+			newCreatedAt = currentExpiresAt.Add(-MaxSessionLifetime)
+			newExpiresAt = boundedSessionExpiry(now, newCreatedAt, s.authConfig.TokenTTL)
+			if currentExpiresAt.Before(newExpiresAt) {
+				newExpiresAt = currentExpiresAt
+			}
+		}
+	}
+	newVaultExpiresAt := boundedSessionExpiry(now, now, s.authConfig.TokenTTL)
 
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if err := s.revokeLegacyJWTTx(tx, currentToken, 0, now); err != nil {
@@ -76,7 +121,7 @@ func (s *Service) CreateAccountSession(ctx context.Context, userID uint64, curre
 			if err != nil {
 				return &ServiceError{Status: http.StatusInternalServerError, Message: "创建账号列表失败", Err: err}
 			}
-			vault = &model.AccountVault{SecretHash: digestSecret(newVaultToken), ExpiresAt: newExpiresAt}
+			vault = &model.AccountVault{SecretHash: digestSecret(newVaultToken), ExpiresAt: newVaultExpiresAt, CreatedAt: now}
 			if err := tx.Create(vault).Error; err != nil {
 				return &ServiceError{Status: http.StatusInternalServerError, Message: "创建账号列表失败", Err: err}
 			}
@@ -104,7 +149,7 @@ func (s *Service) CreateAccountSession(ctx context.Context, userID uint64, curre
 			if count >= MaxAccountSessions {
 				return &ServiceError{Status: http.StatusConflict, Message: "同一浏览器最多保存 5 个账号，请先移除一个账号。"}
 			}
-			session := model.AuthSession{UserID: user.ID, TokenHash: digestSecret(newToken), ExpiresAt: newExpiresAt}
+			session := model.AuthSession{UserID: user.ID, TokenHash: digestSecret(newToken), ExpiresAt: newExpiresAt, CreatedAt: newCreatedAt}
 			if err := tx.Create(&session).Error; err != nil {
 				return &ServiceError{Status: http.StatusInternalServerError, Message: "创建登录会话失败", Err: err}
 			}
@@ -122,16 +167,19 @@ func (s *Service) CreateAccountSession(ctx context.Context, userID uint64, curre
 				session.TokenHash = digestSecret(newToken)
 				session.ExpiresAt = newExpiresAt
 				session.RevokedAt = nil
+				session.CreatedAt = newCreatedAt
 			} else {
 				session.TokenHash = digestSecret(newToken)
 				session.ExpiresAt = newExpiresAt
+				session.CreatedAt = newCreatedAt
 			}
 			if err := tx.Save(&session).Error; err != nil {
 				return &ServiceError{Status: http.StatusInternalServerError, Message: "更新登录会话失败", Err: err}
 			}
 		}
 
-		vault.ExpiresAt = newExpiresAt
+		vault.ExpiresAt = newVaultExpiresAt
+		vault.CreatedAt = now
 		if err := tx.Save(vault).Error; err != nil {
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "更新账号列表有效期失败", Err: err}
 		}
@@ -140,6 +188,11 @@ func (s *Service) CreateAccountSession(ctx context.Context, userID uint64, curre
 			return err
 		}
 		result.Accounts = accounts
+		if result.VaultToken == "" {
+			result.VaultToken = vaultToken
+		}
+		result.SessionCookieMaxAgeSeconds = s.cookieMaxAgeUntil(newExpiresAt)
+		result.VaultCookieMaxAgeSeconds = s.cookieMaxAgeUntil(vault.ExpiresAt)
 		// Any previous opaque cookie that was not itself rotated into the new
 		// account slot must stop authenticating after this login completes.
 		if err := s.revokeSessionTokenTx(tx, currentToken, now); err != nil {
@@ -168,16 +221,35 @@ func (s *Service) InitializeAccountSessions(ctx context.Context, currentToken, v
 		if err := s.db.WithContext(ctx).Where("secret_hash = ? AND expires_at > ?", digestSecret(vaultToken), s.now()).First(&vault).Error; err == nil {
 			var entry model.AccountVaultEntry
 			if err := s.db.WithContext(ctx).Where("vault_id = ? AND user_id = ? AND session_id = ?", vault.ID, user.ID, session.ID).First(&entry).Error; err == nil && session.RevokedAt == nil && s.now().Before(session.ExpiresAt) {
-				return &AccountSessionsResult{SessionToken: currentToken, VaultToken: vaultToken, Accounts: s.listVaultEntries(ctx, vault.ID, user.ID)}, nil
+				if _, err := s.RenewAccountSession(ctx, currentToken, vaultToken); err != nil {
+					return nil, err
+				}
+				if refreshed, found, err := s.findAuthSession(ctx, currentToken); err != nil {
+					return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "读取登录会话失败", Err: err}
+				} else if found {
+					session = refreshed
+				}
+				if err := s.db.WithContext(ctx).First(&vault, vault.ID).Error; err != nil {
+					return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "读取账号列表失败", Err: err}
+				}
+				return &AccountSessionsResult{
+					SessionToken: currentToken, VaultToken: vaultToken,
+					Accounts:                   s.listVaultEntries(ctx, vault.ID, user.ID),
+					SessionCookieMaxAgeSeconds: s.cookieMaxAgeUntil(session.ExpiresAt),
+					VaultCookieMaxAgeSeconds:   s.cookieMaxAgeUntil(vault.ExpiresAt),
+				}, nil
 			}
 		}
 	}
 
-	return s.CreateAccountSession(ctx, user.ID, currentToken, vaultToken)
+	return s.createAccountSession(ctx, user.ID, currentToken, vaultToken, false)
 }
 
 func (s *Service) ListAccountSessions(ctx context.Context, vaultToken, currentToken string) (*AccountSessionsResult, error) {
 	result := &AccountSessionsResult{Accounts: []AccountSessionAccount{}}
+	if err := s.cleanupExpiredAuthDataIfDue(ctx); err != nil {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "清理过期登录记录失败", Err: err}
+	}
 	if strings.TrimSpace(vaultToken) == "" {
 		return result, nil
 	}
@@ -236,9 +308,18 @@ func (s *Service) SwitchAccountSession(ctx context.Context, vaultToken string, e
 		if err := ensureValidAccount(user); err != nil {
 			return err
 		}
+		newExpiresAt := boundedSessionExpiry(now, session.CreatedAt, s.authConfig.TokenTTL)
+		if !newExpiresAt.After(now) {
+			return &ServiceError{Status: http.StatusUnauthorized, Message: "登录已超过最长有效期，请重新验证"}
+		}
 		session.TokenHash = digestSecret(token)
+		session.ExpiresAt = newExpiresAt
 		if err := tx.Save(&session).Error; err != nil {
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "更新登录会话失败", Err: err}
+		}
+		vault.ExpiresAt = boundedSessionExpiry(now, vault.CreatedAt, s.authConfig.TokenTTL)
+		if err := tx.Save(&vault).Error; err != nil {
+			return &ServiceError{Status: http.StatusInternalServerError, Message: "更新账号列表有效期失败", Err: err}
 		}
 		userView := toSessionUser(user)
 		result.User = &userView
@@ -249,6 +330,9 @@ func (s *Service) SwitchAccountSession(ctx context.Context, vaultToken string, e
 		for index := range result.Accounts {
 			result.Accounts[index].Current = result.Accounts[index].User.ID == user.ID
 		}
+		result.VaultToken = vaultToken
+		result.SessionCookieMaxAgeSeconds = s.cookieMaxAgeUntil(session.ExpiresAt)
+		result.VaultCookieMaxAgeSeconds = s.cookieMaxAgeUntil(vault.ExpiresAt)
 		return nil
 	})
 	if err != nil {
@@ -609,20 +693,13 @@ func (s *Service) listVaultEntriesTx(tx *gorm.DB, vaultID, currentUserID uint64,
 	accounts := make([]AccountSessionAccount, 0, len(entries))
 	for _, entry := range entries {
 		var session model.AuthSession
+		sessionExists := true
 		if err := tx.First(&session, entry.SessionID).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
-				if err := tx.Delete(&entry).Error; err != nil {
-					return nil, err
-				}
-				continue
-			}
-			return nil, err
-		}
-		if session.UserID != entry.UserID || session.RevokedAt != nil || !now.Before(session.ExpiresAt) {
-			if err := tx.Delete(&entry).Error; err != nil {
+				sessionExists = false
+			} else {
 				return nil, err
 			}
-			continue
 		}
 		user, err := s.loadUserWithRoleTx(tx, entry.UserID)
 		if err != nil {
@@ -634,25 +711,142 @@ func (s *Service) listVaultEntriesTx(tx *gorm.DB, vaultID, currentUserID uint64,
 			}
 			return nil, err
 		}
-		if ensureValidAccount(user) != nil {
-			revokedAt := now
-			if err := tx.Model(&model.AuthSession{}).Where("id = ?", session.ID).Update("revoked_at", revokedAt).Error; err != nil {
-				return nil, err
-			}
-			if err := tx.Delete(&entry).Error; err != nil {
-				return nil, err
-			}
-			continue
-		}
+		status := accountSessionStatus(sessionExists, session, user, entry.UserID, now)
 		userView := toSessionUser(user)
 		accounts = append(accounts, AccountSessionAccount{
 			ID:        entry.ID,
 			User:      userView,
 			ExpiresAt: session.ExpiresAt,
 			Current:   user.ID == currentUserID,
+			Status:    status,
 		})
 	}
 	return accounts, nil
+}
+
+func accountSessionStatus(sessionExists bool, session model.AuthSession, user *model.User, entryUserID uint64, now time.Time) string {
+	if ensureValidAccount(user) != nil {
+		return "disabled"
+	}
+	if sessionExists && (session.UserID != entryUserID || session.RevokedAt != nil) {
+		return "revoked"
+	}
+	if !sessionExists || !session.ExpiresAt.After(now) {
+		return "expired"
+	}
+	return "available"
+}
+
+// RenewAccountSession slides the idle expiration only when a valid opaque
+// session is close to expiry. Session and account-vault cookies stay bounded
+// by a fixed 30-day absolute lifetime from the last credential login.
+func (s *Service) RenewAccountSession(ctx context.Context, sessionToken, vaultToken string) (*SessionRenewal, error) {
+	now := s.now()
+	if err := s.cleanupExpiredAuthDataIfDue(ctx); err != nil {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "清理过期登录记录失败", Err: err}
+	}
+	renewal := &SessionRenewal{}
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var session model.AuthSession
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("token_hash = ?", digestSecret(sessionToken)).First(&session).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil // Legacy JWTs are not sliding-renewed.
+		}
+		if err != nil {
+			return err
+		}
+		if session.RevokedAt != nil || !now.Before(session.ExpiresAt) || !session.CreatedAt.Add(MaxSessionLifetime).After(now) {
+			return &ServiceError{Status: http.StatusUnauthorized, Message: "登录态已失效，请重新验证"}
+		}
+		if session.ExpiresAt.Sub(now) <= SessionRenewWindow {
+			session.ExpiresAt = boundedSessionExpiry(now, session.CreatedAt, s.authConfig.TokenTTL)
+			if err := tx.Save(&session).Error; err != nil {
+				return err
+			}
+			renewal.AuthRenewed = true
+		}
+		renewal.AuthCookieMaxAgeSeconds = s.cookieMaxAgeUntil(session.ExpiresAt)
+
+		if strings.TrimSpace(vaultToken) == "" {
+			return nil
+		}
+		var vault model.AccountVault
+		err = tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("secret_hash = ?", digestSecret(vaultToken)).First(&vault).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) || (err == nil && !now.Before(vault.ExpiresAt)) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		vaultDeadline := vault.CreatedAt.Add(MaxSessionLifetime)
+		if vaultDeadline.After(now) && vault.ExpiresAt.Sub(now) <= SessionRenewWindow {
+			vault.ExpiresAt = boundedSessionExpiry(now, vault.CreatedAt, s.authConfig.TokenTTL)
+			if err := tx.Save(&vault).Error; err != nil {
+				return err
+			}
+			renewal.VaultRenewed = true
+		}
+		renewal.VaultCookieMaxAgeSeconds = s.cookieMaxAgeUntil(vault.ExpiresAt)
+		return nil
+	})
+	if err != nil {
+		var serviceErr *ServiceError
+		if errors.As(err, &serviceErr) {
+			return nil, serviceErr
+		}
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "续期登录会话失败", Err: err}
+	}
+	return renewal, nil
+}
+
+func boundedSessionExpiry(now, createdAt time.Time, ttl time.Duration) time.Time {
+	if ttl <= 0 {
+		ttl = 72 * time.Hour
+	}
+	return minTime(now.Add(ttl), createdAt.Add(MaxSessionLifetime))
+}
+
+func minTime(a, b time.Time) time.Time {
+	if a.Before(b) {
+		return a
+	}
+	return b
+}
+
+func (s *Service) cookieMaxAgeUntil(expiresAt time.Time) int {
+	seconds := int(math.Ceil(expiresAt.Sub(s.now()).Seconds()))
+	if seconds < 1 {
+		return 1
+	}
+	if configured := s.authConfig.CookieMaxAgeSeconds; configured > 0 && seconds > configured {
+		return configured
+	}
+	return seconds
+}
+
+func (s *Service) cleanupExpiredAuthDataIfDue(ctx context.Context) error {
+	// Cleanup is opportunistic and throttled per app process. Expired sessions
+	// linked to a live vault remain visible so users can reauthenticate them.
+	s.cleanupMu.Lock()
+	if !s.lastAuthCleanup.IsZero() && s.now().Sub(s.lastAuthCleanup) < time.Hour {
+		s.cleanupMu.Unlock()
+		return nil
+	}
+	s.lastAuthCleanup = s.now()
+	s.cleanupMu.Unlock()
+
+	now := s.now()
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if err := tx.Where("vault_id IN (?)", tx.Model(&model.AccountVault{}).Select("id").Where("expires_at <= ?", now)).Delete(&model.AccountVaultEntry{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("expires_at <= ?", now).Delete(&model.AccountVault{}).Error; err != nil {
+			return err
+		}
+		cutoff := now.Add(-ExpiredSessionRetention)
+		return tx.Where("expires_at <= ? AND NOT EXISTS (SELECT 1 FROM account_vault_entries WHERE account_vault_entries.session_id = auth_sessions.id)", cutoff).Delete(&model.AuthSession{}).Error
+	})
+	return err
 }
 
 func ensureValidAccount(user *model.User) error {

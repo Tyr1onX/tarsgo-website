@@ -20,14 +20,54 @@ export interface DailyEntry { id: number; windowId?: number; userId?: number; st
 export interface CampEvent { id: number; title: string; type: "winter" | "summer"; startDate: string; endDate: string; collectionDeadline: string; status: string; acceptingParticipants: boolean; joined?: boolean; participantType?: string; submittedAt?: string; participantCount?: number; publicPath?: string }
 export interface CampDetail { event: CampEvent; groups: Array<{ college: string; collegeName: string; count: number; participants: Array<{ id: number; name: string; studentId: string; participantType: string; submittedAt: string }> }> }
 export interface ReadyDownload { downloadUrl: string; filename: string }
-export interface SchoolLeaveSummary { pendingCount: number; awaitingReturnCount: number; todoCount: number; unreadCount: number; contactPhoneReady: boolean; dailyCutoff: string }
+export interface SchoolLeaveSummary { pendingApprovalCount: number; pendingCount: number; awaitingReturnCount: number; todoCount: number; actionableCount: number; unreadCount: number; contactPhoneReady: boolean; dailyCutoff: string }
+
+const LEAVE_SUMMARY_CHANGE_EVENT = "tarsgo:leave-admin-summary-change";
+const LEAVE_SUMMARY_CHANNEL = "tarsgo:leave-admin-summary-change";
+let leaveTabId: string | null = null;
+
+function getLeaveTabId() {
+  if (!leaveTabId) leaveTabId = typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+  return leaveTabId;
+}
+
+export function subscribeLeaveSummaryChange(onChange: () => void): () => void {
+  if (typeof window === "undefined") return () => undefined;
+  const handleLocal = () => onChange();
+  window.addEventListener(LEAVE_SUMMARY_CHANGE_EVENT, handleLocal);
+  if (typeof BroadcastChannel === "undefined") return () => window.removeEventListener(LEAVE_SUMMARY_CHANGE_EVENT, handleLocal);
+  const channel = new BroadcastChannel(LEAVE_SUMMARY_CHANNEL);
+  const handleBroadcast = (event: MessageEvent<{ source?: string }>) => { if (event.data?.source !== getLeaveTabId()) onChange(); };
+  channel.addEventListener("message", handleBroadcast);
+  return () => {
+    window.removeEventListener(LEAVE_SUMMARY_CHANGE_EVENT, handleLocal);
+    channel.removeEventListener("message", handleBroadcast);
+    channel.close();
+  };
+}
+
+function announceLeaveSummaryChange() {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new Event(LEAVE_SUMMARY_CHANGE_EVENT));
+  if (typeof BroadcastChannel !== "undefined") {
+    const channel = new BroadcastChannel(LEAVE_SUMMARY_CHANNEL);
+    channel.postMessage({ type: "changed", source: getLeaveTabId() });
+    channel.close();
+  }
+}
+
+async function adminMutation<T>(request: Promise<T>): Promise<T> {
+  const result = await request;
+  announceLeaveSummaryChange();
+  return result;
+}
 
 export const leaveClient = {
   schoolSummary: () => apiRequest<SchoolLeaveSummary>("/api/admin/school-leave/summary"),
   leaveAccess: () => apiRequest<LeaveAccessState>("/api/leave/access"),
   requestLeaveAccess: () => apiRequest<LeaveAccessState>("/api/leave/access/request", { method: "POST" }),
   pendingLeaveAccessRequests: () => apiRequest<LeaveAccessRequest[]>("/api/admin/leave/access-requests"),
-  reviewLeaveAccessRequest: (id: number, status: "approved" | "rejected") => apiRequest<LeaveAccessState>(`/api/admin/leave/access-requests/${id}`, { method: "PATCH", body: { status } }),
+  reviewLeaveAccessRequest: (id: number, status: "approved" | "rejected") => adminMutation(apiRequest<LeaveAccessState>(`/api/admin/leave/access-requests/${id}`, { method: "PATCH", body: { status } })),
   colleges: () => apiRequest<CollegeOption[]>("/api/leave/colleges"),
   profile: () => apiRequest<LeaveProfile | null>("/api/leave/profile"),
   saveProfile: (profile: Omit<LeaveProfile, "identityLocked">) => apiRequest<LeaveProfile>("/api/leave/profile", { method: "PUT", body: profile }),
@@ -38,9 +78,9 @@ export const leaveClient = {
   adminSchoolRequests: () => apiRequest<LeaveRequest[]>("/api/admin/school-leave/requests"),
   markAdminRecordRead: (recordType: string, recordId: number) => apiRequest<void>("/api/admin/school-leave/admin-records/read", { method: "POST", body: { recordType, recordId } }),
   schoolRuns: () => apiRequest<SchoolRun[]>("/api/admin/school-leave/runs"),
-  collectSchool: () => apiRequest<SchoolRun | null>("/api/admin/school-leave/runs/collect", { method: "POST" }),
-  cancelSchoolRun: (id: number) => apiRequest<SchoolRun>(`/api/admin/school-leave/runs/${id}/cancel`, { method: "POST" }),
-  deleteSchoolRun: (id: number) => apiRequest<void>(`/api/admin/school-leave/runs/${id}`, { method: "DELETE" }),
+  collectSchool: () => adminMutation(apiRequest<SchoolRun | null>("/api/admin/school-leave/runs/collect", { method: "POST" })),
+  cancelSchoolRun: (id: number) => adminMutation(apiRequest<SchoolRun>(`/api/admin/school-leave/runs/${id}/cancel`, { method: "POST" })),
+  deleteSchoolRun: (id: number) => adminMutation(apiRequest<void>(`/api/admin/school-leave/runs/${id}`, { method: "DELETE" })),
   updateSchoolReason: (id: number, reason: string) => apiRequest<SchoolRun>(`/api/admin/school-leave/runs/${id}/reason`, { method: "PATCH", body: { reason } }),
   dailyWindows: () => apiRequest<DailyWindow[]>("/api/daily-leave/windows"),
   adminDailyWindows: () => apiRequest<DailyWindow[]>("/api/admin/daily-leave/windows"),

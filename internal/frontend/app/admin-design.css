@@ -378,6 +378,11 @@
   font-size: 0.75rem;
 }
 
+.dashboard-shell__account-unavailable {
+  color: var(--admin-muted);
+  font-size: 0.75rem;
+}
+
 .dashboard-shell__account-remove,
 .dashboard-shell__account-signout-all {
   color: var(--admin-danger);

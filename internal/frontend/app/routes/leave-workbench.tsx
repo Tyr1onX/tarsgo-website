@@ -23,7 +23,7 @@ function publicURL(path?: string) { return path && typeof window !== "undefined"
 export function meta() { return [{ title: "请假工作台 | TARSGO" }, { name: "description", content: "日常请假" }]; }
 
 export default function LeaveWorkbench() {
-  const { currentUser, refreshLeaveUnreadCount } = useOutletContext<DashboardLayoutOutletContext>();
+  const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
   const isAdmin = currentUser.role.name === "admin" || currentUser.role.name === "super_admin";
   const isSuperAdmin = currentUser.role.name === "super_admin";
   const [tab, setTab] = useState<Tab>("daily");
@@ -96,7 +96,7 @@ export default function LeaveWorkbench() {
 
   async function runAction(action: () => Promise<unknown>, success: string) {
     setBusy(true); setError(""); setNotice("");
-    try { await action(); setNotice(success); await load(); if (isAdmin) await refreshLeaveUnreadCount(); }
+    try { await action(); setNotice(success); await load(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "操作失败"); }
     finally { setBusy(false); }
   }

@@ -1,5 +1,5 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { Link, useNavigate, useSearchParams } from "react-router";
 
 import { AuthShell } from "~/components/auth-shell";
 import {
@@ -29,7 +29,7 @@ export default function Login() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const [mode, setMode] = useState<LoginMode>("password");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => searchParams.get("email") ?? "");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -44,6 +44,7 @@ export default function Login() {
     [searchParams],
   );
   const addingAccount = searchParams.get("addAccount") === "1";
+  const reauthenticating = searchParams.get("reauth") === "1";
 
   useEffect(() => {
     let disposed = false;
@@ -72,6 +73,11 @@ export default function Login() {
       disposed = true;
     };
   }, [addingAccount, navigate, redirectTo]);
+
+  useEffect(() => {
+    const emailParam = searchParams.get("email");
+    if (emailParam) setEmail(emailParam);
+  }, [searchParams]);
 
   const canSendCode = isValidEmail(email) && !cooldown.isCoolingDown && !sendingCode;
 
@@ -108,11 +114,11 @@ export default function Login() {
       if (mode === "password") {
         const user = await loginWithPassword({ email, password });
         prefetchDashboardForRole(user.role.name);
-        navigate(getAccountLoginDestination(redirectTo, user.role.name, addingAccount), { replace: true });
+        navigate(getAccountLoginDestination(redirectTo, user.role.name, addingAccount, reauthenticating), { replace: true });
       } else {
         const user = await loginWithCode({ email, code });
         prefetchDashboardForRole(user.role.name);
-        navigate(getAccountLoginDestination(redirectTo, user.role.name, addingAccount), { replace: true });
+        navigate(getAccountLoginDestination(redirectTo, user.role.name, addingAccount, reauthenticating), { replace: true });
       }
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
@@ -125,7 +131,7 @@ export default function Login() {
     setSwitchingAccountId(accountId);
     try {
       const { user } = await switchAccountSession(accountId);
-      window.location.assign(getAccountLoginDestination(redirectTo, user.role.name, addingAccount));
+      window.location.assign(getAccountLoginDestination(redirectTo, user.role.name, addingAccount, reauthenticating));
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
       setSwitchingAccountId(null);
@@ -144,13 +150,7 @@ export default function Login() {
           <h2>已保存账号</h2>
           <div className="auth-saved-accounts__list">
             {savedAccounts.map((account) => (
-              <button
-                key={account.id}
-                type="button"
-                onClick={() => void handleSwitchSavedAccount(account.id)}
-                disabled={account.current || switchingAccountId != null}
-                className="auth-saved-account"
-              >
+              <div key={account.id} className="auth-saved-account">
                 <span className="auth-saved-account__avatar" aria-hidden="true">
                   {(account.user.nickname?.trim() || account.user.email).charAt(0).toUpperCase()}
                 </span>
@@ -159,9 +159,10 @@ export default function Login() {
                   <small>{account.user.email} · {account.user.role.displayName}</small>
                 </span>
                 <span className="auth-saved-account__status">
-                  {account.current ? "当前" : switchingAccountId === account.id ? "切换中…" : "切换"}
+                  {account.current ? "当前账号" : account.status === "available" ? "可切换" : account.status === "disabled" ? "账号已停用" : "会话已失效"}
                 </span>
-              </button>
+                {account.status === "available" ? <button type="button" onClick={() => void handleSwitchSavedAccount(account.id)} disabled={account.current || switchingAccountId != null} className="auth-saved-account__action">{account.current ? "当前" : switchingAccountId === account.id ? "切换中…" : "切换"}</button> : account.status === "disabled" ? null : <Link className="auth-saved-account__action" to={reauthPath(account.user.email, redirectTo, addingAccount)}>重新验证</Link>}
+              </div>
             ))}
           </div>
         </section>
@@ -243,6 +244,13 @@ export default function Login() {
   );
 }
 
+function reauthPath(email: string, redirectTo: string, addingAccount: boolean) {
+  const params = new URLSearchParams({ email, addAccount: "1" });
+  if (redirectTo) params.set("redirect", redirectTo);
+  params.set("reauth", "1");
+  return `/login?${params.toString()}`;
+}
+
 function getErrorMessage(error: unknown) {
   if (error instanceof ApiError) {
     return error.message;
@@ -271,7 +279,8 @@ function resolveAuthDestination(redirectTo: string, roleName: string) {
   return redirectTo === "/dashboard" ? getDefaultDashboardPath(roleName) : redirectTo;
 }
 
-function getAccountLoginDestination(redirectTo: string, roleName: string, addingAccount: boolean) {
+function getAccountLoginDestination(redirectTo: string, roleName: string, addingAccount: boolean, reauthenticating: boolean) {
+  if (reauthenticating) return resolveAuthDestination(redirectTo, roleName);
   return addingAccount ? getDefaultDashboardPath(roleName) : resolveAuthDestination(redirectTo, roleName);
 }
 

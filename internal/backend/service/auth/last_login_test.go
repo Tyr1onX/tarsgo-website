@@ -142,6 +142,7 @@ func TestSwitchAccountSessionDoesNotRefreshLoginConfirmation(t *testing.T) {
 		))
 	expectSwitchUser(mock)
 	mock.ExpectExec("UPDATE `auth_sessions` SET").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("UPDATE `account_vaults` SET").WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectQuery("SELECT \\* FROM `account_vault_entries` WHERE vault_id = \\? ORDER BY created_at ASC, id ASC").
 		WithArgs(uint64(8)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "vault_id", "user_id", "session_id", "created_at"}).AddRow(
@@ -150,7 +151,7 @@ func TestSwitchAccountSessionDoesNotRefreshLoginConfirmation(t *testing.T) {
 	mock.ExpectQuery("SELECT \\* FROM `auth_sessions` WHERE `auth_sessions`.`id` = \\? ORDER BY `auth_sessions`.`id` LIMIT \\?").
 		WithArgs(uint64(9), 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "token_hash", "expires_at", "created_at", "updated_at"}).AddRow(
-			uint64(9), uint64(7), "new-session-hash", now.Add(time.Hour), now, now,
+			uint64(9), uint64(7), "new-session-hash", now.Add(72*time.Hour), now, now,
 		))
 	expectSwitchUser(mock)
 	mock.ExpectCommit()
@@ -162,8 +163,86 @@ func TestSwitchAccountSessionDoesNotRefreshLoginConfirmation(t *testing.T) {
 	if result.User == nil || result.User.ID != 7 || len(result.Accounts) != 1 {
 		t.Fatalf("unexpected switched account result: %#v", result)
 	}
+	if !result.Accounts[0].ExpiresAt.Equal(now.Add(72*time.Hour)) || result.SessionCookieMaxAgeSeconds != int((72*time.Hour)/time.Second) || result.VaultCookieMaxAgeSeconds != int((72*time.Hour)/time.Second) {
+		t.Fatalf("switch renewal/cookie lifetimes are not synchronized: %#v", result)
+	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatalf("unexpected database write while switching accounts: %v", err)
+	}
+}
+
+func TestRenewAccountSessionSlidesIdleExpiryButCapsAbsoluteLifetime(t *testing.T) {
+	for _, testCase := range []struct {
+		name          string
+		createdAt     time.Time
+		wantCookieAge int
+		wantRenewal   bool
+	}{
+		{name: "idle renewal", createdAt: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC), wantRenewal: true},
+		{name: "absolute cap", createdAt: time.Date(2026, 9, 26, 3, 4, 5, 0, time.UTC), wantRenewal: true},
+		{name: "not near expiry", createdAt: time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC), wantRenewal: false},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			db, mock := newAuthSQLMock(t)
+			now := time.Date(2026, 10, 25, 3, 4, 5, 0, time.UTC)
+			createdAt := testCase.createdAt
+			existingExpiry := now.Add(12 * time.Hour)
+			if !testCase.wantRenewal {
+				existingExpiry = now.Add(48 * time.Hour)
+			}
+			wantExpiry := existingExpiry
+			if testCase.wantRenewal {
+				wantExpiry = minTime(now.Add(72*time.Hour), createdAt.Add(MaxSessionLifetime))
+			}
+			service := &Service{db: db, authConfig: config.AuthConfig{TokenTTL: 72 * time.Hour, CookieMaxAgeSeconds: 72 * 60 * 60}, now: func() time.Time { return now }, lastAuthCleanup: now}
+			token := "renewable-session"
+			mock.ExpectBegin()
+			mock.ExpectQuery("SELECT \\* FROM `auth_sessions` WHERE token_hash = \\? ORDER BY `auth_sessions`.`id` LIMIT \\? FOR UPDATE").
+				WithArgs(digestSecret(token), 1).
+				WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "token_hash", "expires_at", "revoked_at", "created_at", "updated_at"}).AddRow(
+					uint64(4), uint64(7), digestSecret(token), existingExpiry, nil, createdAt, now,
+				))
+			if testCase.wantRenewal {
+				mock.ExpectExec("UPDATE `auth_sessions` SET").WillReturnResult(sqlmock.NewResult(0, 1))
+			}
+			mock.ExpectCommit()
+			renewal, err := service.RenewAccountSession(context.Background(), token, "")
+			if err != nil {
+				t.Fatalf("RenewAccountSession returned error: %v", err)
+			}
+			if renewal.AuthRenewed != testCase.wantRenewal || renewal.AuthCookieMaxAgeSeconds != int(wantExpiry.Sub(now).Seconds()) {
+				t.Fatalf("renewal = %#v, want renewed=%t and cookie lifetime=%s", renewal, testCase.wantRenewal, wantExpiry.Sub(now))
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatalf("unmet database expectation: %v", err)
+			}
+		})
+	}
+}
+
+func TestAccountSessionStatusDistinguishesExpiredRevokedAndDisabled(t *testing.T) {
+	now := time.Date(2026, time.October, 25, 3, 4, 5, 0, time.UTC)
+	enabled := &model.User{ID: 7, Status: model.UserStatusEnabled, Role: model.Role{Name: model.RoleNameUser}}
+	disabled := &model.User{ID: 7, Status: model.UserStatusDisabled, Role: model.Role{Name: model.RoleNameUser}}
+
+	for _, testCase := range []struct {
+		name          string
+		sessionExists bool
+		session       model.AuthSession
+		user          *model.User
+		want          string
+	}{
+		{name: "available", sessionExists: true, session: model.AuthSession{UserID: 7, ExpiresAt: now.Add(time.Hour)}, user: enabled, want: "available"},
+		{name: "expired", sessionExists: true, session: model.AuthSession{UserID: 7, ExpiresAt: now}, user: enabled, want: "expired"},
+		{name: "revoked", sessionExists: true, session: model.AuthSession{UserID: 7, ExpiresAt: now.Add(time.Hour), RevokedAt: &now}, user: enabled, want: "revoked"},
+		{name: "disabled account", sessionExists: true, session: model.AuthSession{UserID: 7, ExpiresAt: now}, user: disabled, want: "disabled"},
+		{name: "missing session", user: enabled, want: "expired"},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			if got := accountSessionStatus(testCase.sessionExists, testCase.session, testCase.user, 7, now); got != testCase.want {
+				t.Fatalf("accountSessionStatus = %q, want %q", got, testCase.want)
+			}
+		})
 	}
 }
 
