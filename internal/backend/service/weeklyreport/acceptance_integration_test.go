@@ -60,10 +60,12 @@ func TestWeeklyReportAllMemberAndGroupScopeAcceptance(t *testing.T) {
 		}
 		roleIDs[name] = role.ID
 	}
+	acceptanceNow := time.Date(2026, time.October, 25, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
 	createUser := func(label, roleName string) model.User {
 		t.Helper()
 		name := "[TEST_WEEKLY] " + label
-		user := model.User{RoleID: roleIDs[roleName], Name: name, Email: strings.ToLower(strings.ReplaceAll(name, " ", "")) + "-" + suffix + "@example.test", Status: model.UserStatusEnabled}
+		lastLoginAt := acceptanceNow
+		user := model.User{RoleID: roleIDs[roleName], Name: name, Email: strings.ToLower(strings.ReplaceAll(name, " ", "")) + "-" + suffix + "@example.test", Status: model.UserStatusEnabled, LastLoginAt: &lastLoginAt}
 		if err := db.Create(&user).Error; err != nil {
 			t.Fatalf("create isolated %s account: %v", label, err)
 		}
@@ -75,7 +77,29 @@ func TestWeeklyReportAllMemberAndGroupScopeAcceptance(t *testing.T) {
 	memberB := createUser("member-b", model.RoleNameUser)
 	superAdmin := createUser("super-admin", model.RoleNameSuperAdmin)
 	unassigned := createUser("unassigned", model.RoleNameUser)
-	ids := []uint64{adminA.ID, memberA.ID, adminB.ID, memberB.ID, superAdmin.ID, unassigned.ID}
+	cutoff := adminuser.AccountActivityCutoff(acceptanceNow)
+	boundaryMember := createUser("activity-boundary", model.RoleNameUser)
+	boundaryMember.LastLoginAt = &cutoff
+	if err := db.Save(&boundaryMember).Error; err != nil {
+		t.Fatalf("set boundary member login time: %v", err)
+	}
+	oldLoginMember := createUser("inactive-before-cutoff", model.RoleNameUser)
+	oldLoginAt := cutoff.Add(-time.Second)
+	oldLoginMember.LastLoginAt = &oldLoginAt
+	if err := db.Save(&oldLoginMember).Error; err != nil {
+		t.Fatalf("set inactive member login time: %v", err)
+	}
+	disabledMember := createUser("disabled-recent-login", model.RoleNameUser)
+	disabledMember.Status = model.UserStatusDisabled
+	if err := db.Save(&disabledMember).Error; err != nil {
+		t.Fatalf("disable inactive member: %v", err)
+	}
+	neverLoggedInMember := createUser("never-logged-in", model.RoleNameUser)
+	neverLoggedInMember.LastLoginAt = nil
+	if err := db.Save(&neverLoggedInMember).Error; err != nil {
+		t.Fatalf("clear never-logged-in member time: %v", err)
+	}
+	ids := []uint64{adminA.ID, memberA.ID, adminB.ID, memberB.ID, superAdmin.ID, unassigned.ID, boundaryMember.ID, oldLoginMember.ID, disabledMember.ID, neverLoggedInMember.ID}
 	groupIDs := []uint64{groupA.ID, groupB.ID}
 	cleanup := func() {
 		_ = db.Where("user_id IN ?", ids).Delete(&model.WeeklyReport{}).Error
@@ -88,14 +112,27 @@ func TestWeeklyReportAllMemberAndGroupScopeAcceptance(t *testing.T) {
 	memberships := []model.UserGroupMember{
 		{GroupID: groupA.ID, UserID: adminA.ID, Role: model.UserGroupMemberRoleMember},
 		{GroupID: groupA.ID, UserID: memberA.ID, Role: model.UserGroupMemberRoleLeader},
+		{GroupID: groupA.ID, UserID: boundaryMember.ID, Role: model.UserGroupMemberRoleMember},
+		{GroupID: groupA.ID, UserID: oldLoginMember.ID, Role: model.UserGroupMemberRoleMember},
+		{GroupID: groupA.ID, UserID: disabledMember.ID, Role: model.UserGroupMemberRoleMember},
+		{GroupID: groupA.ID, UserID: neverLoggedInMember.ID, Role: model.UserGroupMemberRoleMember},
 		{GroupID: groupB.ID, UserID: adminB.ID, Role: model.UserGroupMemberRoleMember},
 		{GroupID: groupB.ID, UserID: memberB.ID, Role: model.UserGroupMemberRoleMember},
 	}
 	if err := db.Create(&memberships).Error; err != nil {
 		t.Fatalf("create isolated active memberships: %v", err)
 	}
+	historicalReports := []model.WeeklyReport{
+		{GroupID: &groupA.ID, UserID: oldLoginMember.ID, WeekStart: "2026-10-12", Completed: "旧成员历史记录", Gains: "旧收获", Blockers: "旧问题", NextPlan: "旧计划"},
+		{GroupID: &groupA.ID, UserID: disabledMember.ID, WeekStart: "2026-10-12", Completed: "停用成员历史记录", Gains: "旧收获", Blockers: "旧问题", NextPlan: "旧计划"},
+		{GroupID: &groupA.ID, UserID: neverLoggedInMember.ID, WeekStart: "2026-10-12", Completed: "未登录成员历史记录", Gains: "旧收获", Blockers: "旧问题", NextPlan: "旧计划"},
+	}
+	if err := db.Create(&historicalReports).Error; err != nil {
+		t.Fatalf("create preserved historical reports for inactive accounts: %v", err)
+	}
 
 	service := NewService(NewGormRepository(db))
+	service.now = func() time.Time { return acceptanceNow }
 	input := ReportInput{Completed: "学习并完成底盘设计", Gains: "掌握了装配基准", Blockers: "需要复核公差", NextPlan: "完善图纸"}
 	adminAReport, err := service.SaveCurrentReport(context.Background(), adminA.ID, input)
 	if err != nil || adminAReport.GroupID == nil || *adminAReport.GroupID != groupA.ID {
@@ -128,8 +165,19 @@ func TestWeeklyReportAllMemberAndGroupScopeAcceptance(t *testing.T) {
 	}
 
 	teamA, err := service.GetTeamWeek(context.Background(), adminA.ID, model.RoleNameAdmin, groupA.ID, "")
-	if err != nil || teamA.GroupID != groupA.ID || teamA.TotalCount != 2 || teamA.SubmittedCount != 2 {
+	if err != nil || teamA.GroupID != groupA.ID || teamA.TotalCount != 3 || teamA.SubmittedCount != 2 || len(teamA.AvailableWeeks) != 2 || teamA.AvailableWeeks[0] != "2026-10-19" || teamA.AvailableWeeks[1] != "2026-10-12" {
 		t.Fatalf("group A report view mismatch: %#v, error=%v", teamA, err)
+	}
+	teamHistory, err := service.GetTeamWeek(context.Background(), adminA.ID, model.RoleNameAdmin, groupA.ID, "2026-10-12")
+	if err != nil || teamHistory.TotalCount != 3 || teamHistory.SubmittedCount != 0 {
+		t.Fatalf("inactive members' historical reports must not appear in the active roster: %#v, error=%v", teamHistory, err)
+	}
+	var preservedHistoricalCount int64
+	if err := db.Model(&model.WeeklyReport{}).Where("user_id IN ? AND week_start = ?", []uint64{oldLoginMember.ID, disabledMember.ID, neverLoggedInMember.ID}, "2026-10-12").Count(&preservedHistoricalCount).Error; err != nil {
+		t.Fatalf("count preserved inactive-member history: %v", err)
+	}
+	if preservedHistoricalCount != 3 {
+		t.Fatalf("inactive member history was modified or deleted: got %d rows, want 3", preservedHistoricalCount)
 	}
 	if _, err := service.GetTeamWeek(context.Background(), adminA.ID, model.RoleNameAdmin, groupB.ID, ""); err == nil {
 		t.Fatal("ordinary admin accessed another group's report list")

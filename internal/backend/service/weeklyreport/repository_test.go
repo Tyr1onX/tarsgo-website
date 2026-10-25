@@ -61,6 +61,32 @@ func TestSuperAdminGetsAllActiveGroupsAndMemberDoesNotGetManagementScope(t *test
 	}
 }
 
+func TestListActiveMembersUsesEnabledStatusAndSharedActivityCutoff(t *testing.T) {
+	db, mock := newWeeklyReportMockGorm(t)
+	activitySince := time.Date(2026, time.October, 19, 11, 19, 8, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+	pattern := `(?s)SELECT .* FROM ` + "`user_group_members`" + ` JOIN user_groups ON .*user_groups\.status = \? JOIN users ON .*users\.status = \? AND users\.last_login_at >= \? WHERE user_group_members\.group_id = \? .*ORDER BY users\.real_name ASC, users\.name ASC, users\.id ASC`
+	mock.ExpectQuery(pattern).
+		WithArgs(model.UserGroupStatusActive, model.UserStatusEnabled, activitySince, uint64(77)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "user_id", "role", "joined_at"}))
+
+	members, err := NewGormRepository(db).ListActiveMembers(context.Background(), 77, activitySince)
+	if err != nil || len(members) != 0 {
+		t.Fatalf("expected an empty active roster, got %#v, error=%v", members, err)
+	}
+}
+
+func TestListReportWeeksReturnsOnlyPersistedWeeksNewestFirst(t *testing.T) {
+	db, mock := newWeeklyReportMockGorm(t)
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT DISTINCT `week_start` FROM `weekly_reports` WHERE group_id = ? ORDER BY week_start DESC")).
+		WithArgs(uint64(77)).
+		WillReturnRows(sqlmock.NewRows([]string{"week_start"}).AddRow("2026-10-19").AddRow("2026-10-12"))
+
+	weeks, err := NewGormRepository(db).ListReportWeeks(context.Background(), 77)
+	if err != nil || len(weeks) != 2 || weeks[0] != "2026-10-19" || weeks[1] != "2026-10-12" {
+		t.Fatalf("unexpected persisted weeks: %#v, error=%v", weeks, err)
+	}
+}
+
 func TestFindOwnedReportFiltersByReportIDAndOwnerWithoutCurrentGroup(t *testing.T) {
 	db, mock := newWeeklyReportMockGorm(t)
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `weekly_reports` WHERE id = ? AND user_id = ? ORDER BY `weekly_reports`.`id` LIMIT ?")).

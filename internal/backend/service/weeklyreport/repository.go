@@ -3,6 +3,7 @@ package weeklyreport
 import (
 	"context"
 	"errors"
+	"time"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -18,7 +19,8 @@ type Repository interface {
 	FindByWeek(ctx context.Context, userID uint64, weekStart string) (*model.WeeklyReport, error)
 	FindOwnedReport(ctx context.Context, userID, reportID uint64) (*model.WeeklyReport, error)
 	UpdateOwnedReport(ctx context.Context, userID, reportID uint64, completed, gains, blockers, nextPlan string) error
-	ListActiveMembers(ctx context.Context, groupID uint64) ([]model.UserGroupMember, error)
+	ListActiveMembers(ctx context.Context, groupID uint64, activitySince time.Time) ([]model.UserGroupMember, error)
+	ListReportWeeks(ctx context.Context, groupID uint64) ([]string, error)
 	ListReportsForWeek(ctx context.Context, groupID uint64, weekStart string) ([]model.WeeklyReport, error)
 }
 
@@ -130,16 +132,30 @@ func (r *GormRepository) UpdateOwnedReport(ctx context.Context, userID, reportID
 		Updates(map[string]any{"completed": completed, "gains": gains, "blockers": blockers, "next_plan": nextPlan}).Error
 }
 
-func (r *GormRepository) ListActiveMembers(ctx context.Context, groupID uint64) ([]model.UserGroupMember, error) {
+func (r *GormRepository) ListActiveMembers(ctx context.Context, groupID uint64, activitySince time.Time) ([]model.UserGroupMember, error) {
 	var members []model.UserGroupMember
 	err := r.db.WithContext(ctx).Model(&model.UserGroupMember{}).
 		Joins("JOIN user_groups ON user_groups.id = user_group_members.group_id AND user_groups.status = ?", model.UserGroupStatusActive).
-		Joins("JOIN users ON users.id = user_group_members.user_id AND users.status = ?", model.UserStatusEnabled).
+		Joins("JOIN users ON users.id = user_group_members.user_id AND users.status = ? AND users.last_login_at >= ?", model.UserStatusEnabled, activitySince).
 		Where("user_group_members.group_id = ?", groupID).
 		Preload("User").
 		Order("users.real_name ASC, users.name ASC, users.id ASC").
 		Find(&members).Error
 	return members, err
+}
+
+func (r *GormRepository) ListReportWeeks(ctx context.Context, groupID uint64) ([]string, error) {
+	var storedWeeks []model.WeeklyReportWeekStart
+	err := r.db.WithContext(ctx).Model(&model.WeeklyReport{}).
+		Distinct("week_start").
+		Where("group_id = ?", groupID).
+		Order("week_start DESC").
+		Pluck("week_start", &storedWeeks).Error
+	weeks := make([]string, 0, len(storedWeeks))
+	for _, week := range storedWeeks {
+		weeks = append(weeks, string(week))
+	}
+	return weeks, err
 }
 
 func (r *GormRepository) ListReportsForWeek(ctx context.Context, groupID uint64, weekStart string) ([]model.WeeklyReport, error) {
