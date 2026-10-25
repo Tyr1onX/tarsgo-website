@@ -16,7 +16,7 @@ type weeklyReportService interface {
 	GetDashboard(ctx context.Context, userID uint64, systemRole string) (*weeklyreport.Dashboard, error)
 	SaveCurrentReport(ctx context.Context, userID uint64, input weeklyreport.ReportInput) (*weeklyreport.Report, error)
 	UpdateReport(ctx context.Context, userID, reportID uint64, input weeklyreport.ReportInput) (*weeklyreport.Report, error)
-	GetTeamWeek(ctx context.Context, userID uint64, systemRole, weekStart string) (*weeklyreport.TeamWeek, error)
+	GetTeamWeek(ctx context.Context, userID uint64, systemRole string, groupID uint64, weekStart string) (*weeklyreport.TeamWeek, error)
 }
 
 type WeeklyReportHandler struct{ service weeklyReportService }
@@ -88,7 +88,16 @@ func (h *WeeklyReportHandler) GetTeamWeek(c *gin.Context) {
 		writeAPIError(c, http.StatusUnauthorized, "请先登录")
 		return
 	}
-	result, err := h.service.GetTeamWeek(c.Request.Context(), userID, roleName, c.Query("weekStart"))
+	groupID := uint64(0)
+	if rawGroupID := c.Query("groupId"); rawGroupID != "" {
+		parsed, err := strconv.ParseUint(rawGroupID, 10, 64)
+		if err != nil || parsed == 0 {
+			writeAPIError(c, http.StatusBadRequest, "组别编号无效")
+			return
+		}
+		groupID = parsed
+	}
+	result, err := h.service.GetTeamWeek(c.Request.Context(), userID, roleName, groupID, c.Query("weekStart"))
 	if err != nil {
 		h.handleServiceError(c, err)
 		return

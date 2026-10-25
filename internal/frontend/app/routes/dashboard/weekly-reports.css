@@ -57,6 +57,22 @@
   font-size: 12px;
 }
 
+.weekly-report__team-filters {
+  display: flex;
+  align-items: flex-end;
+  gap: 10px;
+}
+
+.weekly-report__scope {
+  color: var(--admin-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.weekly-report__scope-select {
+  width: min(100%, 360px);
+}
+
 .weekly-report__week-select select,
 .weekly-report__week-select input,
 .weekly-report__field textarea {
@@ -234,6 +250,12 @@
 
   .weekly-report__week-select {
     width: 100%;
+  }
+
+  .weekly-report__team-filters {
+    width: 100%;
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .weekly-report__form-footer {

@@ -173,6 +173,36 @@ func TestUpdateUserGroupRoleKeepsSystemPermissionsSeparate(t *testing.T) {
 	}
 }
 
+func TestSuperAdminCanChangeGroupForAccountWithLeaderOrganizationTitle(t *testing.T) {
+	repo := newFakeRepository()
+	user := repo.users[2]
+	oldGroupID := uint64(11)
+	user.GroupMembers = []model.UserGroupMember{{
+		GroupID: oldGroupID,
+		UserID:  user.ID,
+		Role:    model.UserGroupMemberRoleLeader,
+		Group:   model.UserGroup{ID: oldGroupID, Name: "机械组", Status: model.UserGroupStatusActive},
+	}}
+	service := NewService(repo)
+	newGroupID := uint64(22)
+	if _, err := service.UpdateUserGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameAdmin}, user.ID, &newGroupID); err == nil {
+		t.Fatal("ordinary admin must not modify group assignments")
+	}
+	if repo.users[user.ID].GroupMembers[0].Role != model.UserGroupMemberRoleLeader {
+		t.Fatal("denied group change altered the organizational title")
+	}
+	if _, err := service.UpdateUserGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, user.ID, &newGroupID); err != nil {
+		t.Fatalf("super admin could not change group for a group leader: %v", err)
+	}
+	updated := repo.users[user.ID]
+	if len(updated.GroupMembers) != 1 || updated.GroupMembers[0].GroupID != newGroupID || updated.GroupMembers[0].Role != model.UserGroupMemberRoleMember {
+		t.Fatalf("group membership did not move cleanly: %#v", updated.GroupMembers)
+	}
+	if updated.Role.Name != model.RoleNameAdmin {
+		t.Fatalf("group editing changed system role: %q", updated.Role.Name)
+	}
+}
+
 func TestAccountInputValidation(t *testing.T) {
 	repo := newFakeRepository()
 	service := NewService(repo)

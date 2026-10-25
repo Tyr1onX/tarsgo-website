@@ -38,12 +38,12 @@ export function WorkbenchFeatureGuide({ currentUser, groupResolution, groupResol
         ) : isOperationsMember ? (
           <ol>
             <li><Link to="/dashboard">登录后进入个人工作台</Link></li>
-            <li><Link to="/dashboard/weekly-reports">通过工作周报记录运营工作</Link></li>
+            <li><Link to="/dashboard/weekly-reports">通过工作周报记录学习与运营工作</Link></li>
             <li><Link to="/dashboard/growth">在我的成长查看真实周报记录</Link></li>
             <li><Link to="/dashboard/expedition">进入 TARS BASE 探索战队指挥室</Link></li>
           </ol>
         ) : (
-          <p>确认所属组别后，工作台会显示适用的训练与成长入口。你仍可先查看个人成长档案。</p>
+          <p>确认所属组别后，工作台会显示适用的训练与成长入口。你可以先填写工作周报，记录学习和工作进展。</p>
         )}
         {!groupResolutionError && isOperationsMember ? <p className="workbench-feature-guide__scope-note">运营组暂不开放技术组作业和提问答疑。</p> : null}
         {!groupResolutionError ? <p className="workbench-feature-guide__scope-note">{GROUP_ACCESS_HELP}</p> : null}

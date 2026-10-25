@@ -125,7 +125,39 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 25, apply: migrateAssignmentPublishIdempotency},
 		{version: 26, apply: migrateAssignmentGroupWideDefault},
 		{version: 27, apply: migrateAssignmentPublicationStatus},
+		{version: 28, apply: migrateWeeklyReportExperienceFields},
 	}
+}
+
+func migrateWeeklyReportExperienceFields(db *gorm.DB) error {
+	return migrateWeeklyReportExperienceFieldsForTable(db, model.WeeklyReport{}.TableName())
+}
+
+func migrateWeeklyReportExperienceFieldsForTable(db *gorm.DB, tableName string) error {
+	if tableName == "" {
+		return fmt.Errorf("weekly report table name is empty")
+	}
+	for _, character := range tableName {
+		if !(character == '_' || character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z' || character >= '0' && character <= '9') {
+			return fmt.Errorf("invalid weekly report table name")
+		}
+	}
+	quotedTable := "`" + tableName + "`"
+	if !db.Migrator().HasColumn(tableName, "gains") {
+		if err := db.Exec("ALTER TABLE " + quotedTable + " ADD COLUMN `gains` TEXT NULL").Error; err != nil {
+			return fmt.Errorf("add weekly report gains: %w", err)
+		}
+	}
+	if err := db.Exec("UPDATE " + quotedTable + " SET `gains` = '' WHERE `gains` IS NULL").Error; err != nil {
+		return fmt.Errorf("backfill empty weekly report gains: %w", err)
+	}
+	if err := db.Exec("ALTER TABLE " + quotedTable + " MODIFY COLUMN `gains` TEXT NOT NULL").Error; err != nil {
+		return fmt.Errorf("require weekly report gains: %w", err)
+	}
+	if err := db.Exec("ALTER TABLE " + quotedTable + " MODIFY COLUMN `group_id` BIGINT UNSIGNED NULL DEFAULT NULL").Error; err != nil {
+		return fmt.Errorf("allow ungrouped weekly reports: %w", err)
+	}
+	return nil
 }
 
 func migrateAssignmentPublicationStatus(db *gorm.DB) error {

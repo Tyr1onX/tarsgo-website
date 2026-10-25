@@ -47,7 +47,7 @@ test("没有个人业务记录时保持空挑战，不生成演示任务", () =>
   }), []);
 });
 
-test("运营组只看到本人已有周报入口，不生成技术训练事项", () => {
+test("各组只看到真实提供的本人周报入口，不生成技术训练事项", () => {
   const tasks = buildExpeditionChallenges({
     assignments: [],
     skillGroups: [],
@@ -55,7 +55,7 @@ test("运营组只看到本人已有周报入口，不生成技术训练事项",
     profile: {
       nextAction: { title: "查看本周工作周报", href: "/dashboard/weekly-reports" },
     },
-    groupNames: ["运营组"],
+    groupNames: ["机械组"],
   });
 
   assert.deepEqual(tasks.map(({ kind, href }) => ({ kind, href })), [

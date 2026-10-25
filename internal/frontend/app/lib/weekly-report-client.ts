@@ -2,18 +2,28 @@ import { apiRequest } from "~/lib/api-client";
 
 export interface WeeklyReportInput {
   completed: string;
+  gains: string;
   blockers: string;
   nextPlan: string;
+  groupId?: number;
 }
 
 export interface WeeklyReport extends WeeklyReportInput {
   id: number;
+  groupName?: string;
   weekStart: string;
   updatedAt: string;
 }
 
+export interface WeeklyReportGroup {
+  groupId: number;
+  name: string;
+}
+
 export interface WeeklyReportDashboard {
-  groupName: string;
+  groupName?: string;
+  groups: WeeklyReportGroup[];
+  teamGroups: WeeklyReportGroup[];
   currentWeekStart: string;
   canViewTeam: boolean;
   reports: WeeklyReport[];
@@ -27,6 +37,8 @@ export interface WeeklyReportTeamMember {
 }
 
 export interface WeeklyReportTeamWeek {
+  groupId: number;
+  groupName: string;
   weekStart: string;
   submittedCount: number;
   totalCount: number;
@@ -37,8 +49,8 @@ export function getWeeklyReportDashboard(): Promise<WeeklyReportDashboard> {
   return apiRequest<WeeklyReportDashboard>("/api/weekly-reports");
 }
 
-export function getWeeklyReportTeamWeek(weekStart: string): Promise<WeeklyReportTeamWeek> {
-  const query = new URLSearchParams({ weekStart });
+export function getWeeklyReportTeamWeek(groupId: number, weekStart: string): Promise<WeeklyReportTeamWeek> {
+  const query = new URLSearchParams({ groupId: String(groupId), weekStart });
   return apiRequest<WeeklyReportTeamWeek>(`/api/weekly-reports/team?${query.toString()}`);
 }
 

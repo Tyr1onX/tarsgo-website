@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	OperationsGroupName = "运营组"
+	OperationsGroupName = "运营组" // Retained for reading historical test fixtures and reports.
 	maxSectionRunes     = 5000
 )
 
@@ -39,25 +39,37 @@ type Service struct {
 }
 
 type ReportInput struct {
-	Completed string `json:"completed"`
-	Blockers  string `json:"blockers"`
-	NextPlan  string `json:"nextPlan"`
+	Completed string  `json:"completed"`
+	Gains     string  `json:"gains"`
+	Blockers  string  `json:"blockers"`
+	NextPlan  string  `json:"nextPlan"`
+	GroupID   *uint64 `json:"groupId,omitempty"`
 }
 
 type Report struct {
 	ID        uint64    `json:"id"`
+	GroupID   *uint64   `json:"groupId,omitempty"`
+	GroupName string    `json:"groupName,omitempty"`
 	WeekStart string    `json:"weekStart"`
 	Completed string    `json:"completed"`
+	Gains     string    `json:"gains"`
 	Blockers  string    `json:"blockers"`
 	NextPlan  string    `json:"nextPlan"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
 
+type GroupOption struct {
+	GroupID uint64 `json:"groupId" gorm:"column:group_id"`
+	Name    string `json:"name"`
+}
+
 type Dashboard struct {
-	GroupName        string   `json:"groupName"`
-	CurrentWeekStart string   `json:"currentWeekStart"`
-	CanViewTeam      bool     `json:"canViewTeam"`
-	Reports          []Report `json:"reports"`
+	GroupName        string        `json:"groupName,omitempty"`
+	Groups           []GroupOption `json:"groups"`
+	TeamGroups       []GroupOption `json:"teamGroups"`
+	CurrentWeekStart string        `json:"currentWeekStart"`
+	CanViewTeam      bool          `json:"canViewTeam"`
+	Reports          []Report      `json:"reports"`
 }
 
 type TeamMemberReport struct {
@@ -68,6 +80,8 @@ type TeamMemberReport struct {
 }
 
 type TeamWeek struct {
+	GroupID        uint64             `json:"groupId"`
+	GroupName      string             `json:"groupName"`
 	WeekStart      string             `json:"weekStart"`
 	SubmittedCount int                `json:"submittedCount"`
 	TotalCount     int                `json:"totalCount"`
@@ -79,19 +93,33 @@ func NewService(repo Repository) *Service {
 }
 
 func (s *Service) GetDashboard(ctx context.Context, userID uint64, systemRole string) (*Dashboard, error) {
-	member, err := s.operationsMembership(ctx, userID)
-	if err != nil {
-		return nil, err
+	if userID == 0 {
+		return nil, serviceError(http.StatusUnauthorized, "请先登录", nil)
 	}
-	reports, err := s.repo.ListMine(ctx, member.GroupID, userID)
+	groups, err := s.repo.ListUserGroups(ctx, userID)
+	if err != nil {
+		return nil, internalError("读取所属组别失败", err)
+	}
+	teamGroups := []GroupOption{}
+	if canViewTeam(systemRole) {
+		teamGroups, err = s.repo.ListTeamGroups(ctx, userID, systemRole)
+		if err != nil {
+			return nil, internalError("读取可管理组别失败", err)
+		}
+	}
+	reports, err := s.repo.ListMine(ctx, userID)
 	if err != nil {
 		return nil, internalError("读取周报历史失败", err)
 	}
 	result := &Dashboard{
-		GroupName:        OperationsGroupName,
+		Groups:           groups,
+		TeamGroups:       teamGroups,
 		CurrentWeekStart: currentWeekStart(s.now()),
 		CanViewTeam:      canViewTeam(systemRole),
 		Reports:          make([]Report, 0, len(reports)),
+	}
+	if len(groups) == 1 {
+		result.GroupName = groups[0].Name
 	}
 	for _, report := range reports {
 		result.Reports = append(result.Reports, toReport(report))
@@ -100,27 +128,48 @@ func (s *Service) GetDashboard(ctx context.Context, userID uint64, systemRole st
 }
 
 func (s *Service) SaveCurrentReport(ctx context.Context, userID uint64, input ReportInput) (*Report, error) {
-	input, err := validateInput(input)
-	if err != nil {
-		return nil, err
-	}
-	member, err := s.operationsMembership(ctx, userID)
-	if err != nil {
-		return nil, err
+	if userID == 0 {
+		return nil, serviceError(http.StatusUnauthorized, "请先登录", nil)
 	}
 	weekStart := currentWeekStart(s.now())
+	existing, err := s.repo.FindByWeek(ctx, userID, weekStart)
+	if err != nil {
+		return nil, internalError("读取本周周报失败", err)
+	}
+	// Reports written before v28 have no separately recorded gains. Keep those
+	// history entries editable without inventing a value for that new field.
+	input, err = validateInput(input, existing != nil && existing.Gains == "")
+	if err != nil {
+		return nil, err
+	}
+	var groupID *uint64
+	if existing != nil {
+		// Preserve the group snapshot recorded when this week's report was first
+		// created, even if the member has since changed groups.
+		groupID = existing.GroupID
+	} else {
+		groups, err := s.repo.ListUserGroups(ctx, userID)
+		if err != nil {
+			return nil, internalError("读取所属组别失败", err)
+		}
+		groupID, err = resolveReportGroup(groups, input.GroupID)
+		if err != nil {
+			return nil, err
+		}
+	}
 	report := &model.WeeklyReport{
-		GroupID:   member.GroupID,
+		GroupID:   groupID,
 		UserID:    userID,
 		WeekStart: model.WeeklyReportWeekStart(weekStart),
 		Completed: input.Completed,
+		Gains:     input.Gains,
 		Blockers:  input.Blockers,
 		NextPlan:  input.NextPlan,
 	}
 	if err := s.repo.UpsertCurrent(ctx, report); err != nil {
 		return nil, internalError("保存周报失败", err)
 	}
-	saved, err := s.repo.FindByWeek(ctx, member.GroupID, userID, weekStart)
+	saved, err := s.repo.FindByWeek(ctx, userID, weekStart)
 	if err != nil {
 		return nil, internalError("读取已保存周报失败", err)
 	}
@@ -132,25 +181,26 @@ func (s *Service) SaveCurrentReport(ctx context.Context, userID uint64, input Re
 }
 
 func (s *Service) UpdateReport(ctx context.Context, userID, reportID uint64, input ReportInput) (*Report, error) {
-	input, err := validateInput(input)
-	if err != nil {
-		return nil, err
+	if userID == 0 {
+		return nil, serviceError(http.StatusUnauthorized, "请先登录", nil)
 	}
-	member, err := s.operationsMembership(ctx, userID)
-	if err != nil {
-		return nil, err
-	}
-	existing, err := s.repo.FindOwnedReport(ctx, member.GroupID, userID, reportID)
+	existing, err := s.repo.FindOwnedReport(ctx, userID, reportID)
 	if err != nil {
 		return nil, internalError("读取周报失败", err)
 	}
 	if existing == nil {
 		return nil, serviceError(http.StatusNotFound, "周报不存在或无权编辑", nil)
 	}
-	if err := s.repo.UpdateOwnedReport(ctx, member.GroupID, userID, reportID, input.Completed, input.Blockers, input.NextPlan); err != nil {
+	// Reports written before v28 have no separately recorded gains. Keep those
+	// history entries editable without inventing a value for that new field.
+	input, err = validateInput(input, existing.Gains == "")
+	if err != nil {
+		return nil, err
+	}
+	if err := s.repo.UpdateOwnedReport(ctx, userID, reportID, input.Completed, input.Gains, input.Blockers, input.NextPlan); err != nil {
 		return nil, internalError("更新周报失败", err)
 	}
-	updatedReport, err := s.repo.FindOwnedReport(ctx, member.GroupID, userID, reportID)
+	updatedReport, err := s.repo.FindOwnedReport(ctx, userID, reportID)
 	if err != nil {
 		return nil, internalError("读取已更新周报失败", err)
 	}
@@ -161,14 +211,18 @@ func (s *Service) UpdateReport(ctx context.Context, userID, reportID uint64, inp
 	return &result, nil
 }
 
-func (s *Service) GetTeamWeek(ctx context.Context, userID uint64, systemRole, requestedWeekStart string) (*TeamWeek, error) {
+func (s *Service) GetTeamWeek(ctx context.Context, userID uint64, systemRole string, requestedGroupID uint64, requestedWeekStart string) (*TeamWeek, error) {
 	if userID == 0 {
 		return nil, serviceError(http.StatusUnauthorized, "请先登录", nil)
 	}
 	if !canViewTeam(systemRole) {
-		return nil, serviceError(http.StatusForbidden, "只有运营组系统管理员可以查看组内周报", nil)
+		return nil, serviceError(http.StatusForbidden, "当前账号无权查看成员周报", nil)
 	}
-	member, err := s.operationsMembership(ctx, userID)
+	groups, err := s.repo.ListTeamGroups(ctx, userID, systemRole)
+	if err != nil {
+		return nil, internalError("读取可管理组别失败", err)
+	}
+	group, err := selectTeamGroup(groups, requestedGroupID)
 	if err != nil {
 		return nil, err
 	}
@@ -176,11 +230,11 @@ func (s *Service) GetTeamWeek(ctx context.Context, userID uint64, systemRole, re
 	if err != nil {
 		return nil, err
 	}
-	members, err := s.repo.ListActiveMembers(ctx, member.GroupID)
+	members, err := s.repo.ListActiveMembers(ctx, group.GroupID)
 	if err != nil {
-		return nil, internalError("读取运营组成员失败", err)
+		return nil, internalError("读取组内成员失败", err)
 	}
-	reports, err := s.repo.ListReportsForWeek(ctx, member.GroupID, weekStart)
+	reports, err := s.repo.ListReportsForWeek(ctx, group.GroupID, weekStart)
 	if err != nil {
 		return nil, internalError("读取组内周报失败", err)
 	}
@@ -188,7 +242,7 @@ func (s *Service) GetTeamWeek(ctx context.Context, userID uint64, systemRole, re
 	for _, report := range reports {
 		reportByUser[report.UserID] = toReport(report)
 	}
-	result := &TeamWeek{WeekStart: weekStart, TotalCount: len(members), Members: make([]TeamMemberReport, 0, len(members))}
+	result := &TeamWeek{GroupID: group.GroupID, GroupName: group.Name, WeekStart: weekStart, TotalCount: len(members), Members: make([]TeamMemberReport, 0, len(members))}
 	for _, member := range members {
 		entry := TeamMemberReport{UserID: member.UserID, Name: memberDisplayName(member.User)}
 		if report, ok := reportByUser[member.UserID]; ok {
@@ -201,22 +255,49 @@ func (s *Service) GetTeamWeek(ctx context.Context, userID uint64, systemRole, re
 	return result, nil
 }
 
-func (s *Service) operationsMembership(ctx context.Context, userID uint64) (*model.UserGroupMember, error) {
-	if userID == 0 {
-		return nil, serviceError(http.StatusUnauthorized, "请先登录", nil)
+func resolveReportGroup(groups []GroupOption, requested *uint64) (*uint64, error) {
+	if len(groups) == 0 {
+		if requested != nil {
+			return nil, serviceError(http.StatusForbidden, "只能选择账号当前所属的有效组别", nil)
+		}
+		return nil, nil
 	}
-	member, err := s.repo.FindOperationsMembership(ctx, userID)
-	if err != nil {
-		return nil, internalError("读取运营组权限失败", err)
+	if requested != nil {
+		for _, group := range groups {
+			if group.GroupID == *requested {
+				id := group.GroupID
+				return &id, nil
+			}
+		}
+		return nil, serviceError(http.StatusForbidden, "只能选择账号当前所属的有效组别", nil)
 	}
-	if member == nil {
-		return nil, serviceError(http.StatusForbidden, "当前账号不在运营组，无权访问工作周报", nil)
+	if len(groups) == 1 {
+		id := groups[0].GroupID
+		return &id, nil
 	}
-	return member, nil
+	return nil, serviceError(http.StatusBadRequest, "请选择本周周报归属的组别", nil)
+}
+
+func selectTeamGroup(groups []GroupOption, requestedGroupID uint64) (GroupOption, error) {
+	if len(groups) == 0 {
+		return GroupOption{}, serviceError(http.StatusForbidden, "当前账号没有可查看的组别周报", nil)
+	}
+	if requestedGroupID == 0 {
+		if len(groups) == 1 {
+			return groups[0], nil
+		}
+		return GroupOption{}, serviceError(http.StatusBadRequest, "请选择要查看的组别", nil)
+	}
+	for _, group := range groups {
+		if group.GroupID == requestedGroupID {
+			return group, nil
+		}
+	}
+	return GroupOption{}, serviceError(http.StatusForbidden, "当前账号无权查看该组别周报", nil)
 }
 
 func canViewTeam(systemRole string) bool {
-	return systemRole == model.RoleNameAdmin
+	return systemRole == model.RoleNameAdmin || systemRole == model.RoleNameSuperAdmin
 }
 
 func currentWeekStart(now time.Time) string {
@@ -244,21 +325,26 @@ func normalizedWeekStart(requested string, now time.Time) (string, error) {
 	return weekStart, nil
 }
 
-func validateInput(input ReportInput) (ReportInput, error) {
+func validateInput(input ReportInput, allowEmptyLegacyGains bool) (ReportInput, error) {
 	input.Completed = strings.TrimSpace(input.Completed)
+	input.Gains = strings.TrimSpace(input.Gains)
 	input.Blockers = strings.TrimSpace(input.Blockers)
 	input.NextPlan = strings.TrimSpace(input.NextPlan)
 	sections := []struct {
 		name  string
 		value string
 	}{
-		{name: "本周完成", value: input.Completed},
-		{name: "问题与阻塞", value: input.Blockers},
+		{name: "本周进展", value: input.Completed},
+		{name: "本周收获", value: input.Gains},
+		{name: "需要帮助", value: input.Blockers},
 		{name: "下周计划", value: input.NextPlan},
 	}
 	for _, section := range sections {
+		if section.name == "本周收获" && allowEmptyLegacyGains && section.value == "" {
+			continue
+		}
 		if section.value == "" {
-			return ReportInput{}, serviceError(http.StatusBadRequest, section.name+"不能为空；如无内容请填写“无”", nil)
+			return ReportInput{}, serviceError(http.StatusBadRequest, section.name+"不能为空；如暂无内容请填写“无”", nil)
 		}
 		if utf8.RuneCountInString(section.value) > maxSectionRunes {
 			return ReportInput{}, serviceError(http.StatusBadRequest, section.name+"不能超过 5000 个字符", nil)
@@ -280,10 +366,14 @@ func memberDisplayName(user model.User) string {
 }
 
 func toReport(report model.WeeklyReport) Report {
+	groupName := report.Group.Name
 	return Report{
 		ID:        report.ID,
+		GroupID:   report.GroupID,
+		GroupName: groupName,
 		WeekStart: string(report.WeekStart),
 		Completed: report.Completed,
+		Gains:     report.Gains,
 		Blockers:  report.Blockers,
 		NextPlan:  report.NextPlan,
 		UpdatedAt: report.UpdatedAt,

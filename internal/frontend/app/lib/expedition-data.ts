@@ -125,13 +125,13 @@ export function buildExpeditionChallenges(input: {
   }
 
   const nextAction = input.profile?.nextAction;
-  if (input.groupNames.includes("运营组") && nextAction?.href === "/dashboard/weekly-reports" && isDashboardHref(nextAction.href)) {
+  if (nextAction?.href === "/dashboard/weekly-reports" && isDashboardHref(nextAction.href)) {
     tasks.push({
       key: "weekly-report:current",
       kind: "weekly-report",
       title: nextAction.title,
-      detail: nextAction.detail || "运营组",
-      groupName: "运营组",
+      detail: nextAction.detail || "记录学习与工作进展",
+      groupName: input.groupNames.length === 1 ? input.groupNames[0] : undefined,
       href: nextAction.href,
       status: nextAction.status,
       priority: 2,
