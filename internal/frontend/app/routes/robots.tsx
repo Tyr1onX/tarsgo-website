@@ -1,5 +1,6 @@
 import type { Route } from "./+types/robots";
-import Home from "./home";
+import { PublicHomePage } from "./home";
+import { RobotPhotoGallery } from "~/components/robot-photo-gallery";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -9,5 +10,16 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export default function RobotsPage() {
-  return <Home page="robots" />;
+  return (
+    <PublicHomePage page="robots">
+      <section
+        id="robots"
+        className="border-t border-white/[0.06] bg-transparent py-8 sm:py-10 lg:py-12"
+      >
+        <div className="public-home-container">
+          <RobotPhotoGallery />
+        </div>
+      </section>
+    </PublicHomePage>
+  );
 }

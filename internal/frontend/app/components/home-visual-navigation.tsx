@@ -107,6 +107,7 @@ function HomeVisualCard({
   return (
     <Link
       to={module.href}
+      prefetch="viewport"
       className={`home-visual-card ${module.placement}`}
       aria-label={`${module.title}：${module.description}`}
       data-sand-mode={imageTreatment}

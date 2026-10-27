@@ -1,5 +1,6 @@
 import type { Route } from "./+types/about";
-import Home from "./home";
+import { PublicHomePage, groups } from "./home";
+import { AboutTeamPage } from "~/components/about-team-page";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -9,5 +10,5 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export default function AboutPage() {
-  return <Home page="about" />;
+  return <PublicHomePage page="about"><AboutTeamPage groups={groups} /></PublicHomePage>;
 }

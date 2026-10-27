@@ -1,5 +1,6 @@
 import type { Route } from "./+types/events-and-honors";
-import Home from "./home";
+import { PublicHomePage } from "./home";
+import { EventsAndHonorsArchive } from "~/components/events-and-honors-archive";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -9,5 +10,5 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export default function EventsAndHonorsPage() {
-  return <Home page="events-and-honors" />;
+  return <PublicHomePage page="events-and-honors"><EventsAndHonorsArchive /></PublicHomePage>;
 }
