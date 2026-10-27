@@ -5,6 +5,9 @@ import test from "node:test";
 import { honorAwards, honorMaterials } from "./events-and-honors-data.ts";
 
 const home = await readFile(new URL("../routes/home.tsx", import.meta.url), "utf8");
+const aboutRoute = await readFile(new URL("../routes/about.tsx", import.meta.url), "utf8");
+const robotsRoute = await readFile(new URL("../routes/robots.tsx", import.meta.url), "utf8");
+const eventsRoute = await readFile(new URL("../routes/events-and-honors.tsx", import.meta.url), "utf8");
 const styles = await readFile(new URL("../app.css", import.meta.url), "utf8");
 const aboutPage = await readFile(new URL("../components/about-team-page.tsx", import.meta.url), "utf8");
 const aboutStyles = await readFile(new URL("../components/about-team-page.css", import.meta.url), "utf8");
@@ -75,7 +78,7 @@ test("the honors archive pairs a real competition photo with selected results an
   const archive = await readFile(new URL("../components/events-and-honors-archive.tsx", import.meta.url), "utf8");
   const data = await readFile(new URL("./events-and-honors-data.ts", import.meta.url), "utf8");
   const styles = await readFile(new URL("../components/events-and-honors-archive.css", import.meta.url), "utf8");
-  assert.match(home, /<EventsAndHonorsArchive \/>/);
+  assert.match(eventsRoute, /<PublicHomePage page="events-and-honors"><EventsAndHonorsArchive \/><\/PublicHomePage>/);
   assert.match(archive, /id="highlights"[\s\S]*?id="competition-records"[\s\S]*?id="certificates"/);
   assert.match(home, /routePage === "events-and-honors" \? "public-topic-hero--events"/);
   assert.match(archive, /honors-featured-visual[\s\S]*?2024-national-competition\.webp/);
@@ -170,14 +173,15 @@ test("the honors archive pairs a real competition photo with selected results an
 });
 
 test("the about route renders the brand and group system while the robot route delegates to the photo gallery", () => {
-  assert.match(home, /<AboutTeamPage groups=\{groups\} \/>/);
+  assert.match(aboutRoute, /<PublicHomePage page="about"><AboutTeamPage groups=\{groups\} \/><\/PublicHomePage>/);
+  assert.match(home, /export const groups = \[/);
   assert.match(home, /name: "机械组"/);
   assert.match(home, /name: "电控组"/);
   assert.match(home, /name: "视觉组"/);
   assert.match(home, /name: "AI组"/);
   assert.match(home, /name: "运营组"/);
-  assert.match(home, /import \{ RobotPhotoGallery \} from "\.\.\/components\/robot-photo-gallery"/);
-  assert.match(home, /<RobotPhotoGallery \/>/);
+  assert.match(robotsRoute, /import \{ RobotPhotoGallery \} from "~\/components\/robot-photo-gallery"/);
+  assert.match(robotsRoute, /<PublicHomePage page="robots">[\s\S]*?<RobotPhotoGallery \/>[\s\S]*?<\/PublicHomePage>/);
 });
 
 test("every sponsor remains in the homepage logo grid without changing source artwork", () => {

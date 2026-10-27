@@ -6,6 +6,11 @@ import test from "node:test";
 const routes = await readFile(new URL("../routes.ts", import.meta.url), "utf8");
 const home = await readFile(new URL("../routes/home.tsx", import.meta.url), "utf8");
 const homeVisualNavigation = await readFile(new URL("../components/home-visual-navigation.tsx", import.meta.url), "utf8");
+const aboutRoute = await readFile(new URL("../routes/about.tsx", import.meta.url), "utf8");
+const robotsRoute = await readFile(new URL("../routes/robots.tsx", import.meta.url), "utf8");
+const eventsRoute = await readFile(new URL("../routes/events-and-honors.tsx", import.meta.url), "utf8");
+const historyRoute = await readFile(new URL("../routes/team-history.tsx", import.meta.url), "utf8");
+const joinRoute = await readFile(new URL("../routes/join.tsx", import.meta.url), "utf8");
 const homeSandRevealLayer = await readFile(new URL("../components/home-sand-reveal-layer.tsx", import.meta.url), "utf8");
 const basePage = await readFile(new URL("../routes/base.tsx", import.meta.url), "utf8");
 const dailySignalRoute = await readFile(new URL("../routes/daily-signal.tsx", import.meta.url), "utf8");
@@ -40,10 +45,13 @@ const pages = [
 ];
 
 test("all five new public topic routes are directly registered and share the existing site sections", async () => {
+  assert.match(home, /export function PublicHomePage\(/);
+  assert.match(home, /export default function HomeRoute\(\)[\s\S]*?<PublicHomePage \/>/);
   for (const [path, page] of pages) {
     assert.match(routes, new RegExp(`route\\("${path}", "routes/${path}\\.tsx"\\)`));
     const wrapper = await readFile(new URL(`../routes/${path}.tsx`, import.meta.url), "utf8");
-    assert.match(wrapper, new RegExp(`<Home page="${page}" \\/>`));
+    assert.match(wrapper, /import \{ PublicHomePage/);
+    assert.match(wrapper, new RegExp(`<PublicHomePage page="${page}"`));
   }
   assert.match(routes, /route\("micro-specialties\/low-altitude-intelligent-sensing-control"/);
   for (const [path, page] of pages) {
@@ -53,7 +61,7 @@ test("all five new public topic routes are directly registered and share the exi
 
 test("the original home keeps its video and legacy anchors while archive content lives in its own component", () => {
   for (const anchor of ["hero", "about", "robots"]) {
-    const anchorSource = anchor === "about" ? aboutPage : home;
+    const anchorSource = anchor === "about" ? aboutPage : anchor === "robots" ? robotsRoute : home;
     assert.ok(anchorSource.includes(`id="${anchor}"`), `missing legacy home anchor #${anchor}`);
   }
   assert.ok(historyArchive.includes('id="achievements"'), "missing legacy archive anchor #achievements");
@@ -61,29 +69,33 @@ test("the original home keeps its video and legacy anchors while archive content
   assert.match(home, /"#certificates": "\/events-and-honors#certificates"/);
   assert.ok(joinExperience.includes("id=\"join\""), "missing legacy join anchor #join");
   assert.match(home, /hero-showreel-[a-f0-9]{8}\.mp4/);
-  assert.match(home, /import \{ TeamHistoryArchive \} from "\.\.\/components\/team-history-archive"/);
-  assert.match(home, /<TeamHistoryArchive \/>/);
+  assert.match(historyRoute, /<TeamHistoryArchive \/>/);
   assert.match(historyData, /year: 2018,[\s\S]*?year: 2026,/);
   assert.match(historyArchive, /href=\{`#team-history-\$\{year\}`\}/);
   assert.match(honorsData, /Array\.from\(\{ length: 25 \}/);
   assert.match(eventsArchive, /getMaterialsForYear\(year\)\.map\(/);
   assert.doesNotMatch(home, /timelineMilestones|scrollToTimelineYear/);
-  assert.match(home, /<RobotPhotoGallery \/>/);
+  assert.match(robotsRoute, /<RobotPhotoGallery \/>/);
 });
 
 test("topic content keeps the five group definitions, dedicated about page, and separate evidence-based archives", () => {
-  assert.match(home, /const groups = \[/);
+  assert.match(home, /export const groups = \[/);
   assert.match(home, /机械组/);
   assert.match(home, /电控组/);
   assert.match(home, /视觉组/);
   assert.match(home, /AI组/);
   assert.match(home, /运营组/);
-  assert.match(home, /<AboutTeamPage groups=\{groups\} \/>/);
-  assert.doesNotMatch(home, /const aboutModules = \[/);
+  assert.match(aboutRoute, /<PublicHomePage page="about"><AboutTeamPage groups=\{groups\} \/><\/PublicHomePage>/);
+  assert.doesNotMatch(home, /components\/(?:about-team-page|events-and-honors-archive|join-experience|robot-photo-gallery|team-history-archive)/);
+  assert.match(home, /\{children\}/);
+  assert.match(eventsRoute, /<EventsAndHonorsArchive \/>/);
+  assert.match(historyRoute, /<TeamHistoryArchive \/>/);
+  assert.match(robotsRoute, /<RobotPhotoGallery \/>/);
+  assert.match(joinRoute, /<JoinExperience groups=\{groups\} \/>/);
   assert.match(aboutPage, /吉甲大师/);
   assert.match(aboutPage, /TARS-Go/);
-  assert.match(home, /<EventsAndHonorsArchive \/>/);
-  assert.match(home, /<TeamHistoryArchive \/>/);
+  assert.match(eventsRoute, /<EventsAndHonorsArchive \/>/);
+  assert.match(historyRoute, /<TeamHistoryArchive \/>/);
   assert.match(historyData, /sourceIds: \[/);
   assert.match(eventsArchive, /精选成果[\s\S]*?历年赛事[\s\S]*?荣誉证书/);
   assert.match(honorsData, /source\("RoboMaster 2025 全国赛获奖名单"/);
@@ -237,6 +249,7 @@ test("sand reveal stays on a direct preview route and uses the real homepage gal
   assert.match(homeVisualNavigation, /observer\.disconnect\(\)/);
   assert.match(homeVisualNavigation, /staggerMs=\{index \* 105\}/);
   assert.match(homeVisualNavigation, /<Link[\s\S]*?to=\{module\.href\}/);
+  assert.match(homeVisualNavigation, /prefetch="viewport"/);
   assert.match(homeVisualNavigation, /<HomeSandRevealLayer/);
   assert.match(homeSandRevealLayer, /matchMedia\("\(prefers-reduced-motion: reduce\)"\)/);
   assert.match(homeSandRevealLayer, /if \(motionReduced\)[\s\S]*?onPhaseChange\("done"\)/);
@@ -417,7 +430,7 @@ test("the join guide reuses shared group facts and references existing local pho
 });
 
 test("the dedicated join guide only renders on its join route", () => {
-  assert.match(home, /routePage === "join" \? <JoinExperience groups=\{groups\} \/> : null/);
+  assert.match(joinRoute, /<PublicHomePage page="join"><JoinExperience groups=\{groups\} \/><\/PublicHomePage>/);
 });
 
 test("Nasi Precision partner logo is publicly listed with a local, safe SVG asset", async () => {

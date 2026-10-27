@@ -1,5 +1,6 @@
 import type { Route } from "./+types/team-history";
-import Home from "./home";
+import { PublicHomePage } from "./home";
+import { TeamHistoryArchive } from "~/components/team-history-archive";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -9,5 +10,5 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export default function TeamHistoryPage() {
-  return <Home page="team-history" />;
+  return <PublicHomePage page="team-history"><TeamHistoryArchive /></PublicHomePage>;
 }

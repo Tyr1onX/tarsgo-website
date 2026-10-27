@@ -1,5 +1,6 @@
 import type { Route } from "./+types/join";
-import Home from "./home";
+import { PublicHomePage, groups } from "./home";
+import { JoinExperience } from "~/components/join-experience";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -9,5 +10,5 @@ export function meta({}: Route.MetaArgs) {
 }
 
 export default function JoinPage() {
-  return <Home page="join" />;
+  return <PublicHomePage page="join"><JoinExperience groups={groups} /></PublicHomePage>;
 }

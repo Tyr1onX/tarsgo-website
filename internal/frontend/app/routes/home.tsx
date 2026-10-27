@@ -1,11 +1,6 @@
 import type { Route } from "./+types/home";
 import { useEffect, useRef, useState } from "react";
 import { Navbar } from "../components/navbar";
-import { JoinExperience } from "../components/join-experience";
-import { AboutTeamPage } from "../components/about-team-page";
-import { EventsAndHonorsArchive } from "../components/events-and-honors-archive";
-import { RobotPhotoGallery } from "../components/robot-photo-gallery";
-import { TeamHistoryArchive } from "../components/team-history-archive";
 import { HomeVisualNavigation } from "../components/home-visual-navigation";
 import { FooterCoordinateSandTrace } from "../components/footer-coordinate-sand-trace";
 import { SiteLogo } from "~/components/site-logo";
@@ -44,7 +39,7 @@ const sponsorLogos = [
   { name: "长春纳丝精密机械有限公司", image: "/assets/images/Sponsors/nasi-precision.svg" },
 ];
 
-const groups = [
+export const groups = [
   {
     name: "机械组",
     aboutSummary: "设计结构、建模加工，把方案做成实物。",
@@ -285,7 +280,7 @@ function getNavbarUser(): AuthUser | null | undefined {
   return getCachedCurrentUser() ?? (hasKnownAnonymousSession() ? null : undefined);
 }
 
-export default function Home({ page = "home" }: { page?: PublicPage }) {
+export function PublicHomePage({ page = "home", children }: { page?: PublicPage; children?: React.ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
   const routePage = topicPageByPath[location.pathname] ?? page;
@@ -464,24 +459,7 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
 
       {routePage === "home" ? <HomeVisualNavigation imageTreatment="sand" /> : null}
 
-      {routePage === "events-and-honors" ? <EventsAndHonorsArchive /> : null}
-
-      {routePage === "about" ? <AboutTeamPage groups={groups} /> : null}
-
-      {routePage === "team-history" ? <TeamHistoryArchive /> : null}
-
-      {routePage === "robots" && (
-      <section
-        id="robots"
-        className="border-t border-white/[0.06] bg-transparent py-8 sm:py-10 lg:py-12"
-      >
-        <div className="public-home-container">
-          <RobotPhotoGallery />
-        </div>
-      </section>
-      )}
-
-      {routePage === "join" ? <JoinExperience groups={groups} /> : null}
+      {children}
 
       {/* Footer */}
       {routePage === "home" ? <HomeSponsorSection /> : null}
@@ -490,6 +468,10 @@ export default function Home({ page = "home" }: { page?: PublicPage }) {
       </div>
     </div>
   );
+}
+
+export default function HomeRoute() {
+  return <PublicHomePage />;
 }
 
 function DouyinIcon() {
