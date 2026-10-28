@@ -1,0 +1,404 @@
+[
+  {
+    "event": "request",
+    "t": 4800,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-42.webp"
+  },
+  {
+    "event": "request",
+    "t": 4800,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-43.webp"
+  },
+  {
+    "event": "request",
+    "t": 4801,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-44.webp"
+  },
+  {
+    "event": "request",
+    "t": 4801,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-02.webp"
+  },
+  {
+    "event": "request",
+    "t": 4801,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-10.webp"
+  },
+  {
+    "event": "request",
+    "t": 4801,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-16.webp"
+  },
+  {
+    "event": "request",
+    "t": 4801,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-17.webp"
+  },
+  {
+    "event": "request",
+    "t": 4801,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-23.webp"
+  },
+  {
+    "event": "request",
+    "t": 4801,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-40.webp"
+  },
+  {
+    "event": "request",
+    "t": 4801,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-41.webp"
+  },
+  {
+    "event": "request",
+    "t": 4801,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-04.webp"
+  },
+  {
+    "event": "request",
+    "t": 4801,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-08.webp"
+  },
+  {
+    "event": "request",
+    "t": 4801,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-12.webp"
+  },
+  {
+    "event": "request",
+    "t": 4802,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-13.webp"
+  },
+  {
+    "event": "request",
+    "t": 4802,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-18.webp"
+  },
+  {
+    "event": "request",
+    "t": 4802,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-33.webp"
+  },
+  {
+    "event": "request",
+    "t": 4802,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-34.webp"
+  },
+  {
+    "event": "request",
+    "t": 4802,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-35.webp"
+  },
+  {
+    "event": "response",
+    "t": 7843,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-23.webp",
+    "status": 200,
+    "content-type": "image/webp",
+    "content-length": "193352",
+    "cf-cache-status": "EXPIRED",
+    "cache-control": "max-age=14400",
+    "age": null,
+    "cf-ray": "a51713b18e570462-HKG"
+  },
+  {
+    "event": "response",
+    "t": 7855,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-43.webp",
+    "status": 200,
+    "content-type": "image/webp",
+    "content-length": "141936",
+    "cf-cache-status": "EXPIRED",
+    "cache-control": "max-age=14400",
+    "age": null,
+    "cf-ray": "a51713b18e490462-HKG"
+  },
+  {
+    "event": "response",
+    "t": 7856,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-42.webp",
+    "status": 200,
+    "content-type": "image/webp",
+    "content-length": "588130",
+    "cf-cache-status": "EXPIRED",
+    "cache-control": "max-age=14400",
+    "age": null,
+    "cf-ray": "a51713b18e470462-HKG"
+  },
+  {
+    "event": "response",
+    "t": 7857,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-16.webp",
+    "status": 200,
+    "content-type": "image/webp",
+    "content-length": "182594",
+    "cf-cache-status": "EXPIRED",
+    "cache-control": "max-age=14400",
+    "age": null,
+    "cf-ray": "a51713b18e540462-HKG"
+  },
+  {
+    "event": "response",
+    "t": 7863,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-40.webp",
+    "status": 200,
+    "content-type": "image/webp",
+    "content-length": "353514",
+    "cf-cache-status": "EXPIRED",
+    "cache-control": "max-age=14400",
+    "age": null,
+    "cf-ray": "a51713b18e5a0462-HKG"
+  },
+  {
+    "event": "response",
+    "t": 7863,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-02.webp",
+    "status": 200,
+    "content-type": "image/webp",
+    "content-length": "187030",
+    "cf-cache-status": "EXPIRED",
+    "cache-control": "max-age=14400",
+    "age": null,
+    "cf-ray": "a51713b18e4e0462-HKG"
+  },
+  {
+    "event": "response",
+    "t": 7912,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-08.webp",
+    "status": 200,
+    "content-type": "image/webp",
+    "content-length": "163928",
+    "cf-cache-status": "EXPIRED",
+    "cache-control": "max-age=14400",
+    "age": null,
+    "cf-ray": "a51713b18e5f0462-HKG"
+  },
+  {
+    "event": "response",
+    "t": 8249,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-10.webp",
+    "status": 200,
+    "content-type": "image/webp",
+    "content-length": "187030",
+    "cf-cache-status": "EXPIRED",
+    "cache-control": "max-age=14400",
+    "age": null,
+    "cf-ray": "a51713b18e510462-HKG"
+  },
+  {
+    "event": "response",
+    "t": 8250,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-18.webp",
+    "status": 200,
+    "content-type": "image/webp",
+    "content-length": "319264",
+    "cf-cache-status": "EXPIRED",
+    "cache-control": "max-age=14400",
+    "age": null,
+    "cf-ray": "a51713b1ae730462-HKG"
+  },
+  {
+    "event": "response",
+    "t": 8250,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-41.webp",
+    "status": 200,
+    "content-type": "image/webp",
+    "content-length": "187784",
+    "cf-cache-status": "EXPIRED",
+    "cache-control": "max-age=14400",
+    "age": null,
+    "cf-ray": "a51713b18e5b0462-HKG"
+  },
+  {
+    "event": "response",
+    "t": 8251,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-04.webp",
+    "status": 200,
+    "content-type": "image/webp",
+    "content-length": "331534",
+    "cf-cache-status": "EXPIRED",
+    "cache-control": "max-age=14400",
+    "age": null,
+    "cf-ray": "a51713b18e5d0462-HKG"
+  },
+  {
+    "event": "response",
+    "t": 8251,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-44.webp",
+    "status": 200,
+    "content-type": "image/webp",
+    "content-length": "537564",
+    "cf-cache-status": "EXPIRED",
+    "cache-control": "max-age=14400",
+    "age": null,
+    "cf-ray": "a51713b18e4d0462-HKG"
+  },
+  {
+    "event": "response",
+    "t": 8251,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-17.webp",
+    "status": 200,
+    "content-type": "image/webp",
+    "content-length": "219226",
+    "cf-cache-status": "EXPIRED",
+    "cache-control": "max-age=14400",
+    "age": null,
+    "cf-ray": "a51713b18e560462-HKG"
+  },
+  {
+    "event": "response",
+    "t": 8251,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-13.webp",
+    "status": 200,
+    "content-type": "image/webp",
+    "content-length": "103104",
+    "cf-cache-status": "EXPIRED",
+    "cache-control": "max-age=14400",
+    "age": null,
+    "cf-ray": "a51713b1ae6f0462-HKG"
+  },
+  {
+    "event": "response",
+    "t": 8251,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-33.webp",
+    "status": 200,
+    "content-type": "image/webp",
+    "content-length": "107270",
+    "cf-cache-status": "EXPIRED",
+    "cache-control": "max-age=14400",
+    "age": null,
+    "cf-ray": "a51713b1ae770462-HKG"
+  },
+  {
+    "event": "response",
+    "t": 8251,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-12.webp",
+    "status": 200,
+    "content-type": "image/webp",
+    "content-length": "526684",
+    "cf-cache-status": "EXPIRED",
+    "cache-control": "max-age=14400",
+    "age": null,
+    "cf-ray": "a51713b1ae6d0462-HKG"
+  },
+  {
+    "event": "response",
+    "t": 8254,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-34.webp",
+    "status": 200,
+    "content-type": "image/webp",
+    "content-length": "174022",
+    "cf-cache-status": "EXPIRED",
+    "cache-control": "max-age=14400",
+    "age": null,
+    "cf-ray": "a51713b1ae7b0462-HKG"
+  },
+  {
+    "event": "response",
+    "t": 8317,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-35.webp",
+    "status": 200,
+    "content-type": "image/webp",
+    "content-length": "658032",
+    "cf-cache-status": "EXPIRED",
+    "cache-control": "max-age=14400",
+    "age": null,
+    "cf-ray": "a51713b1ae7c0462-HKG"
+  },
+  {
+    "event": "requestfinished",
+    "t": 21042,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-13.webp",
+    "bodyBytes": 103683
+  },
+  {
+    "event": "requestfinished",
+    "t": 22960,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-33.webp",
+    "bodyBytes": 107847
+  },
+  {
+    "event": "requestfinished",
+    "t": 26895,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-43.webp",
+    "bodyBytes": 142457
+  },
+  {
+    "event": "requestfinished",
+    "t": 29215,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-08.webp",
+    "bodyBytes": 164609
+  },
+  {
+    "event": "requestfinished",
+    "t": 31431,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-16.webp",
+    "bodyBytes": 183163
+  },
+  {
+    "event": "requestfinished",
+    "t": 32115,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-02.webp",
+    "bodyBytes": 187751
+  },
+  {
+    "event": "requestfinished",
+    "t": 32116,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-10.webp",
+    "bodyBytes": 187656
+  },
+  {
+    "event": "requestfinished",
+    "t": 32595,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-41.webp",
+    "bodyBytes": 188382
+  },
+  {
+    "event": "requestfinished",
+    "t": 33304,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-23.webp",
+    "bodyBytes": 194002
+  },
+  {
+    "event": "requestfinished",
+    "t": 33855,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-34.webp",
+    "bodyBytes": 174682
+  },
+  {
+    "event": "requestfinished",
+    "t": 35797,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-17.webp",
+    "bodyBytes": 219874
+  },
+  {
+    "event": "requestfinished",
+    "t": 42096,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-04.webp",
+    "bodyBytes": 332383
+  },
+  {
+    "event": "requestfinished",
+    "t": 42350,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-18.webp",
+    "bodyBytes": 320131
+  },
+  {
+    "event": "requestfinished",
+    "t": 43041,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-40.webp",
+    "bodyBytes": 354290
+  },
+  {
+    "event": "requestfinished",
+    "t": 48965,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-12.webp",
+    "bodyBytes": 527924
+  },
+  {
+    "event": "requestfinished",
+    "t": 48985,
+    "url": "https://jijiamaster.com/assets/images/CertificateOfAchievement/certificate-44.webp",
+    "bodyBytes": 538726
+  }
+]

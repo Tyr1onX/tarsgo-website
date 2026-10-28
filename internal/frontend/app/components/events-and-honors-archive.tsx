@@ -7,6 +7,7 @@ import {
   type HonorCategory,
   type HonorMaterial,
 } from "~/lib/events-and-honors-data";
+import { honorMaterialThumbnails } from "~/lib/honor-material-thumbnails";
 import "./events-and-honors-archive.css";
 
 const featuredAwards = honorAwards.filter((award) => award.featured);
@@ -223,7 +224,7 @@ export function EventsAndHonorsArchive() {
                           aria-label={relationLabel + "：" + material.title + "，查看原图"}
                         >
                           <span className="honors-material-image">
-                            <img src={material.src} alt="" loading="lazy" decoding="async" />
+                            <img src={honorMaterialThumbnails[material.id]} alt="" loading="lazy" decoding="async" />
                           </span>
                           <span className="honors-material-meta">
                             <span className="honors-material-relation">{relationLabel}</span>

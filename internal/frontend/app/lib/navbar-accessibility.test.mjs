@@ -85,3 +85,22 @@ test("authentication loading, guest, and member states stay distinct and reserve
   assert.match(styles, /\.navbar-menu-group-mark\s*\{[\s\S]*?position:\s*absolute/);
   assert.match(styles, /\.navbar-auth-loading__avatar,[\s\S]*?animation:\s*none !important/);
 });
+
+function luminance(hex) {
+  return hex.match(/[a-f\d]{2}/gi).map(value => parseInt(value, 16) / 255)
+    .map(value => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4)
+    .reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0);
+}
+
+test("small theme status and robot counts meet AA on their real theme surfaces", () => {
+  const dark = styles.match(/:root\s*\{([\s\S]*?)\}/)[1];
+  const light = styles.match(/:root\[data-theme="light"\]\s*\{([\s\S]*?)\}/)[1];
+  for (const [selector, surface] of [["navbar-system-theme__state", "card"], ["robot-gallery__filter-count", "surface"]]) {
+    const token = styles.match(new RegExp(`\\.${selector}\\s*\\{[^}]*color:\\s*var\\(--theme-([\\w-]+)\\)`))[1];
+    for (const theme of [dark, light]) {
+      const color = name => theme.match(new RegExp(`--theme-${name}:\\s*(#[a-f\\d]+)`, "i"))[1];
+      const values = [luminance(color(token)), luminance(color(surface))].sort((a,b) => b-a);
+      assert.ok((values[0]+0.05)/(values[1]+0.05) >= 4.5, `${selector} must meet AA`);
+    }
+  }
+});
