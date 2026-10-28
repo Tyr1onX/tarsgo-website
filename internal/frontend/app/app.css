@@ -2916,7 +2916,7 @@ html[data-theme-transition] body *::after {
 }
 
 .navbar-system-theme__state {
-  color: var(--theme-dim);
+  color: var(--theme-muted);
   font-size: 0.68rem;
 }
 
@@ -3141,7 +3141,7 @@ html[data-theme-transition] body *::after {
 }
 
 .robot-gallery__filter-count {
-  color: var(--theme-dim);
+  color: var(--theme-muted);
   font-family: var(--font-mono);
   font-size: 0.68rem;
   font-variant-numeric: tabular-nums;

@@ -643,21 +643,20 @@ function UserAvatar({
   textClassName: string;
 }) {
   const avatarUrl = user.avatarUrl?.trim();
-  if (avatarUrl) {
-    return (
-      <img
-        src={avatarUrl}
-        alt=""
-        aria-hidden="true"
-        referrerPolicy="no-referrer"
-        className={`${className} rounded-full border border-white/10 object-cover`}
-      />
-    );
-  }
-
   return (
-    <div className={`${className} flex items-center justify-center rounded-full bg-accent-primary/15 text-accent-primary`}>
+    <div className={`${className} relative flex items-center justify-center overflow-hidden rounded-full bg-accent-primary/15 text-accent-primary`}>
       <span className={`font-semibold ${textClassName}`}>{getUserInitial(user)}</span>
+      {avatarUrl ? (
+        <img
+          key={avatarUrl}
+          src={avatarUrl}
+          alt=""
+          aria-hidden="true"
+          referrerPolicy="no-referrer"
+          onError={(event) => { event.currentTarget.hidden = true; }}
+          className="absolute inset-0 h-full w-full rounded-full border border-white/10 bg-surface-card object-cover"
+        />
+      ) : null}
     </div>
   );
 }
