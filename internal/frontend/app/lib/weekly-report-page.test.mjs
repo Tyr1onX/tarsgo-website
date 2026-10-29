@@ -38,3 +38,10 @@ test("team roster uses the same enabled-account and last-login boundary as accou
   assert.match(repository, /users\.status = \? AND users\.last_login_at >= \?/);
   assert.match(service, /adminuser\.AccountActivityCutoff\(s\.now\(\)\)/);
 });
+
+test("team filters adapt to the available workbench width", () => {
+  assert.match(style, /\.weekly-report__panel-heading\s*\{[^}]*flex-wrap:\s*wrap/);
+  assert.match(style, /\.weekly-report__team-filters\s*\{[^}]*flex-wrap:\s*wrap/);
+  assert.match(style, /\.weekly-report__team-filters\s+\.weekly-report__week-select\s*\{[^}]*min-width:\s*0/);
+  assert.match(style, /\.weekly-report__week-select select,[\s\S]*?\.weekly-report__field textarea\s*\{[^}]*min-width:\s*0/);
+});
