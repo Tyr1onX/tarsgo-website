@@ -17,6 +17,7 @@ import (
 	"tarsgo-backend/service/adminuser"
 	"tarsgo-backend/service/assignment"
 	"tarsgo-backend/service/auth"
+	"tarsgo-backend/service/availability"
 	"tarsgo-backend/service/dailysignal"
 	"tarsgo-backend/service/email"
 	"tarsgo-backend/service/emailtemplate"
@@ -105,6 +106,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	dailySignalHandler := handler.NewDailySignalHandler(dailysignal.NewService(dailysignal.NewGormRepository(db)))
 	weeklyReportHandler := handler.NewWeeklyReportHandler(weeklyreport.NewService(weeklyreport.NewGormRepository(db)))
 	timetableHandler := handler.NewTimetableHandler(timetable.NewService(db))
+	availabilityHandler := handler.NewAvailabilityHandler(availability.NewService(availability.NewGormRepository(db)))
 	growthHandler := handler.NewGrowthHandler(growth.NewService(db, assignmentService))
 	leaveService := leave.NewService(db)
 	leaveHandler := handler.NewLeaveHandler(leaveService)
@@ -196,6 +198,8 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 
 	adminAPI := api.Group("/admin")
 	adminAPI.Use(middleware.RequireAdmin(authService))
+	adminAPI.GET("/timetable-availability/options", availabilityHandler.Options)
+	adminAPI.GET("/timetable-availability", availabilityHandler.Analyze)
 	adminAPI.GET("/assignment-members", assignmentHandler.ListGroupMembers)
 	adminAPI.GET("/assignments", assignmentHandler.ListAdmin)
 	adminAPI.POST("/assignments", requireSameOriginRequest(cfg), assignmentHandler.Create)

@@ -201,6 +201,12 @@ const ADMIN_MENU: readonly DashboardMenuDefinition[] = [
         href: "/dashboard/admin/leave",
         allowedRoles: ["admin", "super_admin"],
       },
+      {
+        key: "timetable-availability",
+        label: "组内空闲分析",
+        href: "/dashboard/admin/timetable-availability",
+        allowedRoles: ["admin", "super_admin"],
+      },
     ],
   },
   {

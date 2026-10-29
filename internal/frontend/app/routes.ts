@@ -37,6 +37,7 @@ export default [
     route("admin/registrations", "routes/admin/registrations.tsx"),
     route("admin/email", "routes/admin/email-management.tsx"),
     route("admin/leave", "routes/admin/leave-workbench.tsx"),
+    route("admin/timetable-availability", "routes/admin/timetable-availability.tsx"),
     route("admin/training/assignments", "routes/admin/assignment-management.tsx"),
     route("admin/training/submissions", "routes/admin/assignment-submissions.tsx"),
     route("admin/training/questions", "routes/admin/training-question-management.tsx"),
