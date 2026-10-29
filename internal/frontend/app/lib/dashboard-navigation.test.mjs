@@ -13,6 +13,7 @@ test("every member has the weekly report entry in personal navigation", () => {
   assert.deepEqual(getCoreDashboardMenu().map(({ key, label, href }) => ({ key, label, href })), [
     { key: "personal-workspace", label: "个人工作台", href: "/dashboard" },
     { key: "weekly-reports", label: "工作周报", href: "/dashboard/weekly-reports" },
+    { key: "personal-timetable", label: "我的课表", href: "/dashboard/timetable" },
   ]);
 });
 

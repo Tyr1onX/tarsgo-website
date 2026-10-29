@@ -269,6 +269,12 @@ export function getCoreDashboardMenu(): DashboardMenuLink[] {
 			href: "/dashboard/weekly-reports",
 			iconKey: "report" as const,
 		},
+		{
+			key: "personal-timetable",
+			label: "我的课表",
+			href: "/dashboard/timetable",
+			iconKey: "report" as const,
+		},
 	];
 }
 
