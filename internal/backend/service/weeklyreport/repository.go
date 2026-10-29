@@ -9,6 +9,12 @@ import (
 	"gorm.io/gorm/clause"
 
 	"tarsgo-backend/model"
+	"tarsgo-backend/service/privatefile"
+)
+
+var (
+	ErrAttachmentLimit     = errors.New("weekly report attachment count limit reached")
+	ErrAttachmentSizeLimit = errors.New("weekly report attachment size limit reached")
 )
 
 type Repository interface {
@@ -22,6 +28,13 @@ type Repository interface {
 	ListActiveMembers(ctx context.Context, groupID uint64, activitySince time.Time) ([]model.UserGroupMember, error)
 	ListReportWeeks(ctx context.Context, groupID uint64) ([]string, error)
 	ListReportsForWeek(ctx context.Context, groupID uint64, weekStart string) ([]model.WeeklyReport, error)
+}
+
+type AttachmentRepository interface {
+	ListReportAttachments(ctx context.Context, reportIDs []uint64) (map[uint64][]model.WeeklyReportAttachment, error)
+	CreateReportAttachments(ctx context.Context, userID, reportID uint64, files []model.WeeklyReportAttachment) ([]string, error)
+	FindReportAttachment(ctx context.Context, reportID, fileID uint64) (*model.WeeklyReportAttachment, *model.WeeklyReport, error)
+	DeleteReportAttachment(ctx context.Context, userID, reportID, fileID uint64) (*model.WeeklyReportAttachment, error)
 }
 
 type GormRepository struct{ db *gorm.DB }
@@ -164,4 +177,93 @@ func (r *GormRepository) ListReportsForWeek(ctx context.Context, groupID uint64,
 		Where("group_id = ? AND week_start = ?", groupID, weekStart).
 		Find(&reports).Error
 	return reports, err
+}
+
+func (r *GormRepository) ListReportAttachments(ctx context.Context, reportIDs []uint64) (map[uint64][]model.WeeklyReportAttachment, error) {
+	result := make(map[uint64][]model.WeeklyReportAttachment, len(reportIDs))
+	if len(reportIDs) == 0 {
+		return result, nil
+	}
+	var files []model.WeeklyReportAttachment
+	err := r.db.WithContext(ctx).Where("report_id IN ?", reportIDs).
+		Order("created_at ASC, id ASC").Find(&files).Error
+	if err != nil {
+		return nil, err
+	}
+	for _, file := range files {
+		result[file.ReportID] = append(result[file.ReportID], file)
+	}
+	return result, nil
+}
+
+func (r *GormRepository) CreateReportAttachments(ctx context.Context, userID, reportID uint64, files []model.WeeklyReportAttachment) ([]string, error) {
+	registeredPaths := []string{}
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var report model.WeeklyReport
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND user_id = ?", reportID, userID).First(&report).Error; err != nil {
+			return err
+		}
+		if len(files) > 0 {
+			var existing []model.WeeklyReportAttachment
+			if err := tx.Select("content_hash", "size").Where("report_id = ?", reportID).Find(&existing).Error; err != nil {
+				return err
+			}
+			hashes := make(map[string]struct{}, len(existing)+len(files))
+			var totalSize int64
+			for _, file := range existing {
+				hashes[file.ContentHash] = struct{}{}
+				totalSize += file.Size
+			}
+			newCount := 0
+			for _, file := range files {
+				if _, exists := hashes[file.ContentHash]; exists {
+					continue
+				}
+				hashes[file.ContentHash] = struct{}{}
+				newCount++
+				totalSize += file.Size
+			}
+			if len(existing)+newCount > privatefile.MaxFiles {
+				return ErrAttachmentLimit
+			}
+			if totalSize > privatefile.MaxFilesTotal {
+				return ErrAttachmentSizeLimit
+			}
+			if err := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&files).Error; err != nil {
+				return err
+			}
+		}
+		return tx.Model(&model.WeeklyReportAttachment{}).Where("report_id = ?", reportID).Pluck("storage_path", &registeredPaths).Error
+	})
+	return registeredPaths, err
+}
+
+func (r *GormRepository) FindReportAttachment(ctx context.Context, reportID, fileID uint64) (*model.WeeklyReportAttachment, *model.WeeklyReport, error) {
+	var file model.WeeklyReportAttachment
+	if err := r.db.WithContext(ctx).Where("report_id = ? AND id = ?", reportID, fileID).First(&file).Error; err != nil {
+		return nil, nil, err
+	}
+	var report model.WeeklyReport
+	if err := r.db.WithContext(ctx).Where("id = ?", reportID).First(&report).Error; err != nil {
+		return nil, nil, err
+	}
+	return &file, &report, nil
+}
+
+func (r *GormRepository) DeleteReportAttachment(ctx context.Context, userID, reportID, fileID uint64) (*model.WeeklyReportAttachment, error) {
+	var removed model.WeeklyReportAttachment
+	err := r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var report model.WeeklyReport
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND user_id = ?", reportID, userID).First(&report).Error; err != nil {
+			return err
+		}
+		if err := tx.Where("report_id = ? AND id = ?", reportID, fileID).First(&removed).Error; err != nil {
+			return err
+		}
+		return tx.Delete(&removed).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return &removed, nil
 }

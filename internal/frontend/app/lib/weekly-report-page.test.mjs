@@ -45,3 +45,25 @@ test("team filters adapt to the available workbench width", () => {
   assert.match(style, /\.weekly-report__team-filters\s+\.weekly-report__week-select\s*\{[^}]*min-width:\s*0/);
   assert.match(style, /\.weekly-report__week-select select,[\s\S]*?\.weekly-report__field textarea\s*\{[^}]*min-width:\s*0/);
 });
+
+test("weekly reports support retryable private attachment upload, download, and removal", () => {
+  assert.match(route, /uploadWeeklyReportAttachments\(saved\.id, pendingFiles\)/);
+  assert.match(route, /deleteWeeklyReportAttachment\(selectedReport\.id, fileID\)/);
+  assert.match(route, /附件上传失败/);
+  assert.match(route, /file\.downloadUrl/);
+  assert.match(client, /formData\.append\("files", file\)/);
+  assert.match(service, /OpenAttachment\(ctx context\.Context, actor Actor, reportID, fileID uint64\)/);
+  assert.match(service, /CreateReportAttachments\(ctx, actor\.ID, reportID, rows\)/);
+});
+
+test("the in-workbench guide covers the current member and administrator flows", async () => {
+  const guide = await readFile(new URL("../routes/dashboard/guide.tsx", import.meta.url), "utf8");
+  const routeConfig = await readFile(new URL("../routes.ts", import.meta.url), "utf8");
+  assert.match(routeConfig, /route\("guide", "routes\/dashboard\/guide\.tsx"\)/);
+  for (const phrase of ["个人资料", "我的课表", "我的作业", "实践项目", "能力雷达", "我的成长", "组内空闲分析", "能力评价管理", "人员培养"]) {
+    assert.match(guide, new RegExp(phrase));
+  }
+  assert.match(guide, /点击“登录”/);
+  assert.match(guide, /批改意见和完成状态/);
+  assert.doesNotMatch(guide, /原始作业分数|项目内部评分/);
+});

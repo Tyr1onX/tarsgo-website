@@ -3,8 +3,11 @@ package handler
 import (
 	"context"
 	"errors"
+	"mime/multipart"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 
@@ -19,11 +22,23 @@ type weeklyReportService interface {
 	GetTeamWeek(ctx context.Context, userID uint64, systemRole string, groupID uint64, weekStart string) (*weeklyreport.TeamWeek, error)
 }
 
-type WeeklyReportHandler struct{ service weeklyReportService }
+type weeklyReportAttachmentService interface {
+	UploadAttachments(ctx context.Context, actor weeklyreport.Actor, reportID uint64, files []*multipart.FileHeader) ([]weeklyreport.AttachmentView, error)
+	DeleteAttachment(ctx context.Context, actor weeklyreport.Actor, reportID, fileID uint64) error
+	OpenAttachment(ctx context.Context, actor weeklyreport.Actor, reportID, fileID uint64) (*weeklyreport.Download, error)
+}
+
+type WeeklyReportHandler struct {
+	service     weeklyReportService
+	attachments weeklyReportAttachmentService
+}
 
 func NewWeeklyReportHandler(service weeklyReportService) *WeeklyReportHandler {
-	return &WeeklyReportHandler{service: service}
+	attachments, _ := service.(weeklyReportAttachmentService)
+	return &WeeklyReportHandler{service: service, attachments: attachments}
 }
+
+const maxWeeklyReportRequestBody = 52 << 20
 
 func (h *WeeklyReportHandler) GetDashboard(c *gin.Context) {
 	userID, roleName, ok := currentWeeklyReportActor(c)
@@ -103,6 +118,111 @@ func (h *WeeklyReportHandler) GetTeamWeek(c *gin.Context) {
 		return
 	}
 	writeAPI(c, http.StatusOK, "获取组内周报成功", result)
+}
+
+func (h *WeeklyReportHandler) UploadAttachments(c *gin.Context) {
+	if h.attachments == nil {
+		writeAPIError(c, http.StatusServiceUnavailable, "周报附件暂不可用")
+		return
+	}
+	reportID, _, ok := parseWeeklyReportAttachmentPath(c, false)
+	if !ok {
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxWeeklyReportRequestBody)
+	if err := c.Request.ParseMultipartForm(1 << 20); err != nil {
+		if c.Request.MultipartForm != nil {
+			_ = c.Request.MultipartForm.RemoveAll()
+		}
+		var maxBytesError *http.MaxBytesError
+		if errors.As(err, &maxBytesError) {
+			writeAPIError(c, http.StatusRequestEntityTooLarge, "附件总大小不能超过 50 MB")
+			return
+		}
+		writeAPIError(c, http.StatusBadRequest, "周报附件参数不合法")
+		return
+	}
+	if c.Request.MultipartForm != nil {
+		defer c.Request.MultipartForm.RemoveAll()
+	}
+	var files []*multipart.FileHeader
+	if c.Request.MultipartForm != nil {
+		files = c.Request.MultipartForm.File["files"]
+	}
+	userID, roleName, ok := currentWeeklyReportActor(c)
+	if !ok {
+		writeAPIError(c, http.StatusUnauthorized, "请先登录")
+		return
+	}
+	result, err := h.attachments.UploadAttachments(c.Request.Context(), weeklyreport.Actor{ID: userID, RoleName: roleName}, reportID, files)
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+	writeAPI(c, http.StatusCreated, "周报附件已上传", result)
+}
+
+func (h *WeeklyReportHandler) DeleteAttachment(c *gin.Context) {
+	if h.attachments == nil {
+		writeAPIError(c, http.StatusServiceUnavailable, "周报附件暂不可用")
+		return
+	}
+	reportID, fileID, ok := parseWeeklyReportAttachmentPath(c, true)
+	if !ok {
+		return
+	}
+	userID, roleName, ok := currentWeeklyReportActor(c)
+	if !ok {
+		writeAPIError(c, http.StatusUnauthorized, "请先登录")
+		return
+	}
+	if err := h.attachments.DeleteAttachment(c.Request.Context(), weeklyreport.Actor{ID: userID, RoleName: roleName}, reportID, fileID); err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "周报附件已删除", gin.H{"id": fileID})
+}
+
+func (h *WeeklyReportHandler) OpenAttachment(c *gin.Context) {
+	if h.attachments == nil {
+		writeAPIError(c, http.StatusServiceUnavailable, "周报附件暂不可用")
+		return
+	}
+	reportID, fileID, ok := parseWeeklyReportAttachmentPath(c, true)
+	if !ok {
+		return
+	}
+	userID, roleName, ok := currentWeeklyReportActor(c)
+	if !ok {
+		writeAPIError(c, http.StatusUnauthorized, "请先登录")
+		return
+	}
+	file, err := h.attachments.OpenAttachment(c.Request.Context(), weeklyreport.Actor{ID: userID, RoleName: roleName}, reportID, fileID)
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+	c.Header("Content-Type", file.ContentType)
+	c.Header("Content-Disposition", "attachment; filename*=UTF-8''"+url.PathEscape(file.FileName))
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Data(http.StatusOK, file.ContentType, file.Content)
+}
+
+func parseWeeklyReportAttachmentPath(c *gin.Context, requireFileID bool) (uint64, uint64, bool) {
+	reportID, err := strconv.ParseUint(strings.TrimSpace(c.Param("id")), 10, 64)
+	if err != nil || reportID == 0 {
+		writeAPIError(c, http.StatusBadRequest, "周报编号无效")
+		return 0, 0, false
+	}
+	if !requireFileID {
+		return reportID, 0, true
+	}
+	fileID, err := strconv.ParseUint(strings.TrimSpace(c.Param("fileId")), 10, 64)
+	if err != nil || fileID == 0 {
+		writeAPIError(c, http.StatusBadRequest, "附件编号无效")
+		return 0, 0, false
+	}
+	return reportID, fileID, true
 }
 
 func currentWeeklyReportActor(c *gin.Context) (uint64, string, bool) {

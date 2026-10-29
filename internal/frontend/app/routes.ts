@@ -25,6 +25,7 @@ export default [
     route("users/registrations", "routes/users/registrations.tsx"),
     route("leave", "routes/leave-workbench.tsx"),
     route("weekly-reports", "routes/dashboard/weekly-reports.tsx"),
+    route("guide", "routes/dashboard/guide.tsx"),
     route("timetable", "routes/dashboard/timetable.tsx"),
     route("assignments", "routes/dashboard/assignments.tsx"),
     route("practice-projects", "routes/dashboard/practice-projects.tsx"),

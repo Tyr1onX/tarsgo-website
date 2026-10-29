@@ -17,6 +17,7 @@ test("the home entry and daily affairs use their own navigation groups", () => {
     { key: "weekly-reports", label: "工作周报", href: "/dashboard/weekly-reports" },
     { key: "practice-projects", label: "实践项目", href: "/dashboard/practice-projects" },
     { key: "personal-timetable", label: "我的课表", href: "/dashboard/timetable" },
+    { key: "usage-guide", label: "使用指南", href: "/dashboard/guide" },
   ]);
 });
 
