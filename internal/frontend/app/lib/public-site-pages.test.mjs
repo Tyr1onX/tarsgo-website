@@ -183,9 +183,9 @@ test("公开基地入口已移除，旧链接只导向登录或统一工作台",
   assert.match(dashboardLayout, /工作台功能/);
   assert.match(dashboardLayout, /收起侧边栏/);
   assert.match(dashboardLayout, /展开侧边栏/);
-  assert.match(dashboardBase, /<Navigate to=\{`\/dashboard\$\{location\.search\}\$\{location\.hash \|\| "#daily-signal"\}`\} replace \/>/);
+  assert.match(dashboardBase, /<Navigate to=\{`\/dashboard\$\{location\.search\}\$\{location\.hash\}`\} replace \/>/);
   assert.match(dailySignalWorkspace, /今日通信/);
-  assert.match(dashboardHome, /<DailySignalWorkspace key=\{currentUser\.id\} currentUser=\{currentUser\} \/>/);
+  assert.doesNotMatch(dashboardHome, /DailySignalWorkspace|daily-signal/);
   assert.doesNotMatch(dashboardHome, /快捷入口|dashboard-home__shortcuts/);
   assert.doesNotMatch(dashboardHome, /\/api\/daily-signals\?year=/);
   assert.match(home, /<HomeVisualNavigation imageTreatment="sand" \/>/);
