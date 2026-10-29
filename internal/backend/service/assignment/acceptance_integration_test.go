@@ -502,6 +502,21 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	if err != nil || len(graded.Members) != 1 || graded.Members[0].LatestSubmission == nil || graded.Members[0].LatestSubmission.Decision != model.AssignmentReviewPassed {
 		t.Fatalf("assignment review regression: result=%v err=%v", graded, err)
 	}
+	adminReview := graded.Members[0].LatestSubmission.Reviews[0]
+	if adminReview.Score == nil || *adminReview.Score != 90 {
+		t.Fatalf("administrator score missing: %#v", adminReview)
+	}
+	memberReviewed, err := service.GetMine(context.Background(), member, assignment.ID)
+	if err != nil || len(memberReviewed.Submissions) != 1 || len(memberReviewed.Submissions[0].Reviews) != 1 {
+		t.Fatalf("member could not read review feedback: detail=%#v err=%v", memberReviewed, err)
+	}
+	memberReview := memberReviewed.Submissions[0].Reviews[0]
+	if memberReview.Score != nil || memberReview.Decision != model.AssignmentReviewPassed || memberReview.Comment != "[TEST_ASSIGNMENT] 流程通过" {
+		t.Fatalf("member feedback leaked score or lost comments: %#v", memberReview)
+	}
+	if memberReviewed.Assignment.LatestSubmission == nil || memberReviewed.Assignment.LatestSubmission.Reviews[0].Score != nil {
+		t.Fatal("member's latest submission leaked the score")
+	}
 
 	fullGroupAssignment, err := service.Create(context.Background(), admin, CreateInput{
 		GroupID: groupIDs[groupMechanical], Title: "[TEST_ASSIGNMENT] 全组范围回归", Description: "全组作业创建及编辑验证",

@@ -71,7 +71,7 @@ func TestLoadSubmissionHistoriesReturnsJSONEmptyArraysForUnsubmittedMembers(t *t
 		WithArgs(uint64(10), uint64(42)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "assignment_id", "user_id", "attempt", "submitted_at", "is_late", "created_at"}))
 
-	histories, err := (&Service{db: db}).loadSubmissionHistories(context.Background(), 10, []uint64{42})
+	histories, err := (&Service{db: db}).loadSubmissionHistories(context.Background(), 10, []uint64{42}, false)
 	if err != nil {
 		t.Fatalf("load empty submission history: %v", err)
 	}

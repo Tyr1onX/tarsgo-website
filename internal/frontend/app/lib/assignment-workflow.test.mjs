@@ -171,6 +171,16 @@ test("submission page distinguishes list loading, empty lists, detail loading, a
   assert.match(assignmentSubmissions, /role="alert" className="admin-notice admin-notice--error"/);
 });
 
+test("member feedback preserves comments and status without exposing scores", () => {
+  assert.match(assignmentService, /Score\s+\*uint8\s+`json:"score,omitempty"`/);
+  assert.match(assignmentService, /loadSubmissionHistories\(ctx, assignmentID, \[\]uint64\{userID\}, false\)/);
+  assert.match(assignmentService, /s\.loadSubmissionHistories\(ctx, item\.ID, targetUserIDs, true\)/);
+  assert.doesNotMatch(memberAssignments, /review\.score/);
+  assert.match(memberAssignments, /assignmentDecisionLabel\(review\.decision\)/);
+  assert.match(memberAssignments, /review\.comment/);
+  assert.match(assignmentSubmissions, /review\.score/);
+});
+
 test("submissions and grading keep prior attempts, use Beijing deadlines, and protect uploaded files", () => {
   assert.match(assignmentService, /Attempt: attempt/);
   assert.match(assignmentService, /now\.After\(readStoredUTCWall\(item\.DueAt\)\)/);
