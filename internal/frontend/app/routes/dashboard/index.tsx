@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useOutletContext } from "react-router";
 
-import { DailySignalWorkspace } from "~/components/daily-signal-workspace";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { FEATURE_GUIDE_DATE, FEATURE_GUIDE_TITLE, GROUP_ACCESS_HELP } from "~/lib/workbench-feature-announcement";
 import "./dashboard-home.css";
@@ -59,7 +58,6 @@ export default function DashboardIndex() {
         </div>
       </aside> : null}
 
-      <DailySignalWorkspace key={currentUser.id} currentUser={currentUser} />
     </section>
   );
 }
