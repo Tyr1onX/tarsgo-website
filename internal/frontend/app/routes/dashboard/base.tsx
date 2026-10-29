@@ -9,5 +9,5 @@ export function meta() {
 
 export default function DashboardDailySignal() {
   const location = useLocation();
-  return <Navigate to={`/dashboard${location.search}${location.hash || "#daily-signal"}`} replace />;
+  return <Navigate to={`/dashboard${location.search}${location.hash}`} replace />;
 }
