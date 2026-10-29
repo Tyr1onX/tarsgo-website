@@ -38,6 +38,13 @@ export type DashboardMenuLink = {
   iconKey: DashboardMenuIconKey;
 };
 
+export type GrowthDashboardTabKey = "profile" | "capabilities" | "skills";
+
+export type GrowthDashboardTab = {
+  key: GrowthDashboardTabKey;
+  label: string;
+};
+
 export type VisibleDashboardAdminMenuItem =
   | DashboardMenuLink
   | {
@@ -109,9 +116,30 @@ export function canAccessExpedition(userOrRole: AuthUser | string, hasSkillGroup
 const CORE_DASHBOARD_MENU: readonly DashboardMenuLink[] = [
   {
     key: "personal-workspace",
-    label: "个人工作台",
+    label: "首页",
     href: "/dashboard",
     iconKey: "dashboard",
+  },
+];
+
+const DAILY_DASHBOARD_MENU: readonly DashboardMenuLink[] = [
+  {
+    key: "weekly-reports",
+    label: "工作周报",
+    href: "/dashboard/weekly-reports",
+    iconKey: "report",
+  },
+  {
+    key: "practice-projects",
+    label: "实践项目",
+    href: "/dashboard/practice-projects",
+    iconKey: "people",
+  },
+  {
+    key: "personal-timetable",
+    label: "我的课表",
+    href: "/dashboard/timetable",
+    iconKey: "report",
   },
 ];
 
@@ -271,17 +299,11 @@ export function hasTechnicalGroupAccess(groups: readonly { name: string }[] | nu
   return Boolean(groups?.some((group) => isTechnicalGroupName(group.name)));
 }
 
-export function getUserDashboardMenu(userOrRole: AuthUser | string, hasTechnicalGroup = false, hasSkillGroup = hasTechnicalGroup, hasCapabilityGroup = hasSkillGroup): DashboardMenuLink[] {
+export function getUserDashboardMenu(userOrRole: AuthUser | string, hasTechnicalGroup = false, hasSkillGroup = hasTechnicalGroup): DashboardMenuLink[] {
   const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
   const menu = [...(roleName === "user" ? USER_MENU : []), GROWTH_MENU_ITEM];
   if ((hasSkillGroup || roleName === "super_admin") && ["user", "admin", "super_admin"].includes(roleName)) {
     menu.push(EXPEDITION_MENU_ITEM);
-  }
-  if (hasSkillGroup && ["user", "admin", "super_admin"].includes(roleName)) {
-    menu.push({ key: "skill-tree", label: "技能树", href: "/dashboard/skills", iconKey: "report" });
-  }
-  if (hasCapabilityGroup && ["user", "admin", "super_admin"].includes(roleName)) {
-    menu.push({ key: "capability-radar", label: "能力雷达", href: "/dashboard/capabilities", iconKey: "analytics" });
   }
   if (hasTechnicalGroup && ["user", "admin", "super_admin"].includes(roleName)) {
     menu.push(TRAINING_QUESTIONS_MENU_ITEM, ASSIGNMENT_MENU_ITEM);
@@ -289,28 +311,30 @@ export function getUserDashboardMenu(userOrRole: AuthUser | string, hasTechnical
   return menu;
 }
 
+export function getGrowthDashboardTabs(userOrRole: AuthUser | string, hasSkillGroup = false, hasCapabilityGroup = false): GrowthDashboardTab[] {
+  const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
+  const tabs: GrowthDashboardTab[] = [{ key: "profile", label: "成长档案" }];
+  if (hasCapabilityGroup) {
+    tabs.push({ key: "capabilities", label: "能力雷达" });
+  }
+  if (hasSkillGroup || roleName === "super_admin") {
+    tabs.push({ key: "skills", label: "技能树" });
+  }
+  return tabs;
+}
+
+export function getGrowthTabPath(tab: GrowthDashboardTabKey, currentSearch = "") {
+  const search = new URLSearchParams(currentSearch);
+  search.set("tab", tab);
+  return `/dashboard/growth?${search.toString()}`;
+}
+
 export function getCoreDashboardMenu(): DashboardMenuLink[] {
-	return [
-		...CORE_DASHBOARD_MENU,
-		{
-			key: "weekly-reports",
-			label: "工作周报",
-			href: "/dashboard/weekly-reports",
-			iconKey: "report" as const,
-		},
-		{
-			key: "practice-projects",
-			label: "实践项目",
-			href: "/dashboard/practice-projects",
-			iconKey: "report" as const,
-		},
-		{
-			key: "personal-timetable",
-			label: "我的课表",
-			href: "/dashboard/timetable",
-			iconKey: "report" as const,
-		},
-	];
+	return [...CORE_DASHBOARD_MENU];
+}
+
+export function getDailyDashboardMenu(): DashboardMenuLink[] {
+  return [...DAILY_DASHBOARD_MENU];
 }
 
 export function getVisibleAdminDashboardMenu(userOrRole: AuthUser | string, hasTechnicalGroup = false, hasSkillGroup = hasTechnicalGroup, hasCapabilityGroup = hasSkillGroup): VisibleDashboardAdminMenuItem[] {

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { canAccessDashboardAdminPath, canAccessExpedition, getCoreDashboardMenu, getDefaultDashboardPath, getUserDashboardMenu, getVisibleAdminDashboardMenu, hasSkillGroupAccess, hasTechnicalGroupAccess, isDashboardMenuPathActive } from "./dashboard-navigation.ts";
+import { canAccessDashboardAdminPath, canAccessExpedition, getCoreDashboardMenu, getDailyDashboardMenu, getDefaultDashboardPath, getGrowthDashboardTabs, getGrowthTabPath, getUserDashboardMenu, getVisibleAdminDashboardMenu, hasSkillGroupAccess, hasTechnicalGroupAccess, isDashboardMenuPathActive } from "./dashboard-navigation.ts";
 
 test("every authenticated role opens the same personal workbench", () => {
   assert.equal(getDefaultDashboardPath("user"), "/dashboard");
@@ -9,9 +9,11 @@ test("every authenticated role opens the same personal workbench", () => {
   assert.equal(getDefaultDashboardPath("super_admin"), "/dashboard");
 });
 
-test("every member has the weekly report entry in personal navigation", () => {
+test("the home entry and daily affairs use their own navigation groups", () => {
   assert.deepEqual(getCoreDashboardMenu().map(({ key, label, href }) => ({ key, label, href })), [
-    { key: "personal-workspace", label: "个人工作台", href: "/dashboard" },
+    { key: "personal-workspace", label: "首页", href: "/dashboard" },
+  ]);
+  assert.deepEqual(getDailyDashboardMenu().map(({ key, label, href }) => ({ key, label, href })), [
     { key: "weekly-reports", label: "工作周报", href: "/dashboard/weekly-reports" },
     { key: "practice-projects", label: "实践项目", href: "/dashboard/practice-projects" },
     { key: "personal-timetable", label: "我的课表", href: "/dashboard/timetable" },
@@ -45,8 +47,13 @@ test("member navigation keeps personal growth available to all roles and restric
   assert.equal(getUserDashboardMenu("user")[0]?.label, "我的招新");
 	assert.deepEqual(getUserDashboardMenu("admin").map((item) => item.href), ["/dashboard/growth"]);
 	assert.deepEqual(getUserDashboardMenu("super_admin").map((item) => item.href), ["/dashboard/growth", "/dashboard/expedition"]);
-	assert.deepEqual(getUserDashboardMenu("user", false, true).map(({ key }) => key), ["users-registrations", "leave-workbench", "my-growth", "tars-base-expedition", "skill-tree", "capability-radar"]);
-	assert.equal(getUserDashboardMenu("user", false, false, true).at(-1)?.href, "/dashboard/capabilities");
+	assert.deepEqual(getUserDashboardMenu("user", false, true).map(({ key }) => key), ["users-registrations", "leave-workbench", "my-growth", "tars-base-expedition"]);
+	assert.deepEqual(getGrowthDashboardTabs("user").map(({ key }) => key), ["profile"]);
+	assert.deepEqual(getGrowthDashboardTabs("user", false, true).map(({ key }) => key), ["profile", "capabilities"]);
+	assert.deepEqual(getGrowthDashboardTabs("user", true, true).map(({ key }) => key), ["profile", "capabilities", "skills"]);
+	assert.deepEqual(getGrowthDashboardTabs("super_admin").map(({ key }) => key), ["profile", "skills"]);
+	assert.equal(getGrowthTabPath("skills", "?groupId=12&nodeId=34"), "/dashboard/growth?groupId=12&nodeId=34&tab=skills");
+	assert.equal(getGrowthTabPath("capabilities", "tab=skills"), "/dashboard/growth?tab=capabilities");
   const adminMenu = getVisibleAdminDashboardMenu("admin");
   assert.deepEqual(adminMenu.map(({ key }) => key), ["recruitment-operations", "member-management"]);
   assert.deepEqual(adminMenu[0]?.children.map(({ key }) => key), ["admin-panel", "candidate-processing"]);
@@ -64,8 +71,8 @@ test("members need a technical group while super-admins can manage all groups", 
   assert.equal(hasTechnicalGroupAccess([{ name: "运营组" }]), false);
 	assert.equal(hasSkillGroupAccess([{ name: "运营组" }]), true);
 	assert.equal(hasSkillGroupAccess([{ name: "临时组" }]), false);
-	assert.deepEqual(getUserDashboardMenu("user", true).slice(3).map(({ label }) => label), ["TARS BASE", "技能树", "能力雷达", "提问答疑", "我的作业"]);
-	assert.deepEqual(getUserDashboardMenu("admin", true).map(({ label }) => label), ["我的成长", "TARS BASE", "技能树", "能力雷达", "提问答疑", "我的作业"]);
+	assert.deepEqual(getUserDashboardMenu("user", true).slice(3).map(({ label }) => label), ["TARS BASE", "提问答疑", "我的作业"]);
+	assert.deepEqual(getUserDashboardMenu("admin", true).map(({ label }) => label), ["我的成长", "TARS BASE", "提问答疑", "我的作业"]);
 	assert.deepEqual(getUserDashboardMenu("super_admin", false).map(({ label }) => label), ["我的成长", "TARS BASE"]);
   assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/training/assignments", false), false);
   assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/training/assignments", true), true);
