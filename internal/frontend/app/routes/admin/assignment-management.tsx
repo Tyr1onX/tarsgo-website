@@ -82,23 +82,17 @@ export default function AssignmentManagementRoute() {
   const selectedMembers = useMemo(() => members.filter((member) => draft.targetUserIds.includes(member.userId)), [members, draft.targetUserIds]);
 
   useEffect(() => {
-    setItems([]);
-    setMembers([]);
-    setEditing(null);
-    const nextGroupID = technicalGroups.some((group) => group.groupId === groupId) ? groupId : technicalGroups[0]?.groupId ?? 0;
-    setGroupId(nextGroupID);
-    setDraft(emptyDraft(nextGroupID));
-    setQuickDeadline("seven-days");
-    setExistingMaterials([]);
-    setPendingMaterials([]);
-    editRequestID.current += 1;
-  }, [currentUser.id, groupId, groupResolution, technicalGroups]);
+    setGroupId((current) => technicalGroups.some((group) => group.groupId === current)
+      ? current : technicalGroups[0]?.groupId ?? 0);
+  }, [technicalGroups]);
 
   useEffect(() => {
     if (!groupId) return;
     let active = true;
     setLoading(true);
     setError("");
+    setItems([]);
+    setMembers([]);
     Promise.all([assignmentClient.listAdmin(groupId), assignmentClient.listGroupMembers(groupId)])
       .then(([assignments, groupMembers]) => {
         if (!active) return;
@@ -358,7 +352,7 @@ export default function AssignmentManagementRoute() {
               </div> : null}
               <div className="grid max-h-48 gap-2 overflow-y-auto rounded-xl border border-[var(--admin-border-subtle)] p-3 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredMembers.map((member) => <label key={member.userId} className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={saving || publishStage !== "idle" || Boolean(editing)} checked={draft.targetUserIds.includes(member.userId)} onChange={() => toggleMember(member.userId)} />{member.name}</label>)}
-                {filteredMembers.length === 0 ? <p className="text-sm text-[var(--admin-muted)]">{memberSearch ? "没有匹配成员。" : "当前组暂无可分配成员。"}</p> : null}
+                {loading ? <p className="text-sm text-[var(--admin-muted)]">正在加载组内成员…</p> : !error && filteredMembers.length === 0 ? <p className="text-sm text-[var(--admin-muted)]">{memberSearch ? "没有匹配成员。" : "当前组没有可分配的普通成员。"}</p> : null}
               </div>
             </div> : null}
           </fieldset>
