@@ -82,7 +82,7 @@ type MaterialFileView struct {
 type ReviewView struct {
 	ID         uint64    `json:"id"`
 	ReviewerID uint64    `json:"reviewerId"`
-	Score      uint8     `json:"score"`
+	Score      *uint8    `json:"score,omitempty"`
 	Decision   string    `json:"decision"`
 	Comment    string    `json:"comment"`
 	CreatedAt  time.Time `json:"createdAt"`
@@ -359,7 +359,7 @@ func (s *Service) GetAdmin(ctx context.Context, actor Actor, assignmentID uint64
 	for _, target := range targets {
 		targetUserIDs = append(targetUserIDs, target.UserID)
 	}
-	histories, err := s.loadSubmissionHistories(ctx, item.ID, targetUserIDs)
+	histories, err := s.loadSubmissionHistories(ctx, item.ID, targetUserIDs, true)
 	if err != nil {
 		return nil, internalError("读取成员提交记录失败", err)
 	}
@@ -1236,7 +1236,7 @@ func (s *Service) adminSummary(ctx context.Context, item model.Assignment) (Assi
 	for _, target := range targets {
 		targetUserIDs = append(targetUserIDs, target.UserID)
 	}
-	histories, err := s.loadSubmissionHistories(ctx, item.ID, targetUserIDs)
+	histories, err := s.loadSubmissionHistories(ctx, item.ID, targetUserIDs, true)
 	if err != nil {
 		return AssignmentView{}, err
 	}
@@ -1284,14 +1284,14 @@ func (s *Service) assignmentCanDelete(ctx context.Context, item model.Assignment
 }
 
 func (s *Service) loadSubmissions(ctx context.Context, assignmentID, userID uint64) ([]SubmissionView, error) {
-	histories, err := s.loadSubmissionHistories(ctx, assignmentID, []uint64{userID})
+	histories, err := s.loadSubmissionHistories(ctx, assignmentID, []uint64{userID}, false)
 	if err != nil {
 		return nil, err
 	}
 	return histories[userID], nil
 }
 
-func (s *Service) loadSubmissionHistories(ctx context.Context, assignmentID uint64, userIDs []uint64) (map[uint64][]SubmissionView, error) {
+func (s *Service) loadSubmissionHistories(ctx context.Context, assignmentID uint64, userIDs []uint64, includeScores bool) (map[uint64][]SubmissionView, error) {
 	result := make(map[uint64][]SubmissionView, len(userIDs))
 	userIDs = uniqueSortedIDs(userIDs)
 	if len(userIDs) == 0 {
@@ -1337,7 +1337,12 @@ func (s *Service) loadSubmissionHistories(ctx context.Context, assignmentID uint
 			view.Files = append(view.Files, FileView{ID: file.ID, FileName: file.FileName, ContentType: file.ContentType, Size: file.Size, DownloadURL: fmt.Sprintf("/api/assignment-files/%d", file.ID)})
 		}
 		for _, review := range reviewsBySubmission[submission.ID] {
-			view.Reviews = append(view.Reviews, ReviewView{ID: review.ID, ReviewerID: review.ReviewerID, Score: review.Score, Decision: review.Decision, Comment: review.Comment, CreatedAt: readStoredUTCWall(review.CreatedAt)})
+			reviewView := ReviewView{ID: review.ID, ReviewerID: review.ReviewerID, Decision: review.Decision, Comment: review.Comment, CreatedAt: readStoredUTCWall(review.CreatedAt)}
+			if includeScores {
+				score := review.Score
+				reviewView.Score = &score
+			}
+			view.Reviews = append(view.Reviews, reviewView)
 		}
 		if len(view.Reviews) > 0 {
 			view.Status = "graded"

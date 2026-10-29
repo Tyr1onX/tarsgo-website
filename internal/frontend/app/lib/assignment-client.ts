@@ -20,7 +20,7 @@ export interface AssignmentMaterialFile {
 export interface AssignmentReview {
   id: number;
   reviewerId: number;
-  score: number;
+  score?: number;
   decision: "passed" | "needs_redo";
   comment: string;
   createdAt: string;

@@ -155,7 +155,7 @@ export default function MyAssignmentsRoute() {
                 <div className="flex flex-wrap justify-between gap-2 text-sm"><strong>第 {submission.attempt} 次提交</strong><span className="text-xs text-[var(--admin-muted)]">{formatAssignmentDate(submission.submittedAt)}{submission.isLate ? " · 逾期提交" : ""}</span></div>
                 <ul className="mt-2 space-y-1 text-sm">{submission.files.map((file) => <li key={file.id}><a className="text-amber-300 hover:text-amber-200" href={file.downloadUrl}>{file.fileName}</a><span className="ml-2 text-xs text-[var(--admin-muted)]">{Math.ceil(file.size / 1024)} KB</span></li>)}</ul>
                 {submission.reviews.map((review) => <div key={review.id} className="mt-3 rounded-lg bg-white/[0.035] p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><strong>已批改 · {assignmentDecisionLabel(review.decision)}</strong><span className="text-[var(--admin-muted)]">{review.score} 分 · {formatAssignmentDate(review.createdAt)}</span></div>
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><strong>已批改 · {assignmentDecisionLabel(review.decision)}</strong><span className="text-[var(--admin-muted)]">{formatAssignmentDate(review.createdAt)}</span></div>
                   {review.comment ? <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--admin-text)]">{review.comment}</p> : null}
                 </div>)}
               </article>)}

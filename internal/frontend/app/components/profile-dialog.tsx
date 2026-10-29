@@ -95,7 +95,7 @@ export function ProfileDialog({
           </div>
           <div className="flex justify-between gap-4">
             <span className="text-[var(--admin-muted)]">所属组别</span>
-            <span className="text-right text-[var(--admin-text)]">{groups.length ? groups.join("、") : "暂无"}</span>
+            <span className="text-right text-[var(--admin-text)]">{groups.length ? groups.join("、") : "暂无"}<span className="block text-xs text-[var(--admin-muted)]">组别有误请联系管理员</span></span>
           </div>
           <div className="flex justify-between gap-4">
             <span className="text-[var(--admin-muted)]">账号权限</span>
