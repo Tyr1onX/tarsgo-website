@@ -16,6 +16,8 @@ const assignmentModel = await readFile(new URL("../../../backend/model/assignmen
 const memberAssignments = await readFile(new URL("../routes/dashboard/assignments.tsx", import.meta.url), "utf8");
 const assignmentClient = await readFile(new URL("./assignment-client.ts", import.meta.url), "utf8");
 const assignmentGroups = await readFile(new URL("./use-assignment-groups.ts", import.meta.url), "utf8");
+const practicePage = await readFile(new URL("../routes/dashboard/practice-projects.tsx", import.meta.url), "utf8");
+const practiceService = await readFile(new URL("../../../backend/service/assignment/practice.go", import.meta.url), "utf8");
 const skillsManagement = await readFile(new URL("../routes/admin/skill-route-management.tsx", import.meta.url), "utf8");
 const skillGraph = await readFile(new URL("../components/skill-tree-graph.tsx", import.meta.url), "utf8");
 const skillLayout = await readFile(new URL("./skill-tree-layout.ts", import.meta.url), "utf8");
@@ -34,6 +36,22 @@ test("workbench exposes member work to technical members and all manager routes 
   assert.match(assignmentGroups, /roleName === "super_admin"/);
   assert.match(assignmentGroups, /listAdminUserGroupOptions/);
   assert.match(assignmentGroups, /group\.status === 1 && isTechnicalGroupName\(group\.name\)/);
+});
+
+test("assignment member options are not cleared by unrelated loader revalidation", () => {
+  assert.match(assignmentManagement, /setGroupId\(\(current\) => technicalGroups\.some/);
+  assert.doesNotMatch(assignmentManagement, /groupResolution, technicalGroups\]\)/);
+  assert.match(assignmentManagement, /setItems\(\[\]\);\s*setMembers\(\[\]\);\s*Promise\.all/);
+  assert.match(assignmentManagement, /正在加载组内成员/);
+});
+
+test("practice creation validates the field and converts deadlines in Beijing time", () => {
+  assert.match(practicePage, /assignmentDeadlineToISOString\(draft\.dueAt\)/);
+  assert.match(practicePage, /assignmentDeadlineIsFuture\(draft\.dueAt,new Date\(\)\)/);
+  assert.match(practicePage, /shanghaiDateTimeLocal\(selected\.dueAt\)/);
+  assert.match(practicePage, /setDeadlineError\("截止时间必须晚于当前北京时间。"/);
+  assert.doesNotMatch(practicePage, /new Date\(draft\.dueAt\)\.toISOString\(\)/);
+  assert.match(practiceService, /return practiceBad\("截止时间必须晚于当前北京时间"\)/);
 });
 
 test("backend applies role, current group, target, and ownership checks to every operation", () => {

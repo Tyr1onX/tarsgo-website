@@ -138,10 +138,20 @@ func (s *PracticeService) Groups(ctx context.Context, a Actor) ([]PracticeGroup,
 	return result, nil
 }
 func validPractice(in PracticeInput, now time.Time) error {
-	if in.GroupID == 0 || strings.TrimSpace(in.Title) == "" || utf8.RuneCountInString(in.Title) > 120 ||
-		strings.TrimSpace(in.Description) == "" || utf8.RuneCountInString(in.Description) > 10000 ||
-		in.Capacity == 0 || in.Capacity > 500 || in.DueAt.IsZero() || !in.DueAt.After(now) {
-		return practiceBad("请填写有效的组别、名称、说明、人数上限及未来截止时间")
+	if in.GroupID == 0 {
+		return practiceBad("请选择有效的所属组别")
+	}
+	if strings.TrimSpace(in.Title) == "" || utf8.RuneCountInString(in.Title) > 120 {
+		return practiceBad("项目名称不能为空且不能超过 120 字")
+	}
+	if strings.TrimSpace(in.Description) == "" || utf8.RuneCountInString(in.Description) > 10000 {
+		return practiceBad("任务说明不能为空且不能超过 10000 字")
+	}
+	if in.Capacity == 0 || in.Capacity > 500 {
+		return practiceBad("人数上限必须为 1 至 500 人")
+	}
+	if in.DueAt.IsZero() || !in.DueAt.After(now) {
+		return practiceBad("截止时间必须晚于当前北京时间")
 	}
 	return nil
 }

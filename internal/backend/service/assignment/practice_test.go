@@ -34,6 +34,32 @@ func TestPracticeInputRejectsInvalidCapacityDeadlineAndDescription(t *testing.T)
 		t.Fatal(err)
 	}
 }
+func TestPracticeValidationReportsInvalidField(t *testing.T) {
+	now := time.Date(2026, 10, 29, 14, 4, 0, 0, time.UTC)
+	good := PracticeInput{GroupID: 1, Title: "测试", Description: "说明", Capacity: 5, DueAt: now.Add(time.Hour)}
+	cases := []struct {
+		name string
+		message string
+		change func(*PracticeInput)
+	}{
+		{"group", "请选择有效的所属组别", func(in *PracticeInput) { in.GroupID = 0 }},
+		{"title", "项目名称不能为空且不能超过 120 字", func(in *PracticeInput) { in.Title = " " }},
+		{"description", "任务说明不能为空且不能超过 10000 字", func(in *PracticeInput) { in.Description = "" }},
+		{"capacity", "人数上限必须为 1 至 500 人", func(in *PracticeInput) { in.Capacity = 501 }},
+		{"deadline", "截止时间必须晚于当前北京时间", func(in *PracticeInput) { in.DueAt = now }},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			input := good
+			tc.change(&input)
+			var serviceErr *ServiceError
+			if err := validPractice(input, now); !errors.As(err, &serviceErr) || serviceErr.Status != 400 || serviceErr.Message != tc.message {
+				t.Fatalf("validation returned %v, want %q", err, tc.message)
+			}
+		})
+	}
+}
+
 func TestPracticeServiceBlocksUnauthorizedGroupBeforeSensitiveReads(t *testing.T) {
 	db, mock := newAssignmentMockGorm(t)
 	mock.ExpectQuery("(?s)SELECT count\\(\\*\\) FROM \\x60user_group_members\\x60 JOIN user_groups ON .* JOIN users ON .* WHERE user_group_members.group_id = \\? AND user_group_members.user_id = \\?").
