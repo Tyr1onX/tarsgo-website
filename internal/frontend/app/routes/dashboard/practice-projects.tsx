@@ -3,7 +3,9 @@ import {useLocation,useOutletContext} from "react-router";
 import type {DashboardLayoutOutletContext} from "~/routes/dashboard/layout";
 import {practiceClient,type PracticeProject,type PracticeInput,type PracticeMember,type PracticeSubmission,type PracticeGroup} from "~/lib/practice-project-client";
 
-export function meta(){return [{title:"实践项目 | 吉甲工作台"}]}
+export function meta() {
+  return [{ title: "实践项目 | TARSGO" }];
+}
 const statusLabel:Record<string,string>={open:"开放报名",closed:"已关闭",active:"参与中",exit_pending:"待审批退出",exited:"已退出",pending:"待验收",passed:"已通过",needs_redo:"退回修改"};
 const newDraft=():PracticeInput=>({groupId:0,title:"",description:"",capacity:5,dueAt:""});
 const textDate=(value:string)=>new Date(value).toLocaleString("zh-CN",{timeZone:"Asia/Shanghai",hour12:false});
