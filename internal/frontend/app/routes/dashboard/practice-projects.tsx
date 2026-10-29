@@ -2,6 +2,7 @@ import {useEffect,useState,type FormEvent} from "react";
 import {useLocation,useOutletContext} from "react-router";
 import type {DashboardLayoutOutletContext} from "~/routes/dashboard/layout";
 import {practiceClient,type PracticeProject,type PracticeInput,type PracticeMember,type PracticeSubmission,type PracticeGroup} from "~/lib/practice-project-client";
+import {assignmentDeadlineIsFuture,assignmentDeadlineToISOString,shanghaiDateTimeLocal} from "~/lib/assignment-deadline";
 
 export function meta() {
   return [{ title: "实践项目 | TARSGO" }];
@@ -10,7 +11,6 @@ const statusLabel:Record<string,string>={open:"开放报名",closed:"已关闭",
 const newDraft=():PracticeInput=>({groupId:0,title:"",description:"",capacity:5,dueAt:""});
 const textDate=(value:string)=>new Date(value).toLocaleString("zh-CN",{timeZone:"Asia/Shanghai",hour12:false});
 function errorText(error:unknown){return error instanceof Error?error.message:"操作失败，请稍后重试"}
-function dateInput(value:string){const d=new Date(value);if(Number.isNaN(d.valueOf()))return "";return new Date(d.getTime()-d.getTimezoneOffset()*60000).toISOString().slice(0,16)}
 function SubmissionRecord({submission,admin,projectId,onUpdate}:{
  submission:PracticeSubmission;admin:boolean;projectId:number;onUpdate:(value:PracticeProject)=>void;
 }){
@@ -74,6 +74,7 @@ export default function PracticeProjectsPage(){
  const [busy,setBusy]=useState(false);
  const [error,setError]=useState("");
  const [notice,setNotice]=useState("");
+ const [deadlineError,setDeadlineError]=useState("");
  const selected=projects.find(p=>p.id===selectedId)??projects[0]??null;
  const myEntry=selected?.members.find(e=>e.userId===currentUser.id);
  const latest=myEntry?.submissions[0];
@@ -107,7 +108,14 @@ export default function PracticeProjectsPage(){
  };
  const save=async(e:FormEvent)=>{
   e.preventDefault();
-  const success=await run(()=>editing&&selected?practiceClient.edit(selected.id,{...draft,dueAt:new Date(draft.dueAt).toISOString()}):practiceClient.create({...draft,dueAt:new Date(draft.dueAt).toISOString()}),editing?"项目已更新":"项目已创建");
+  const dueAt=assignmentDeadlineToISOString(draft.dueAt);
+  if(!dueAt||!assignmentDeadlineIsFuture(draft.dueAt,new Date())){
+   setError("");setDeadlineError("截止时间必须晚于当前北京时间。");
+   return;
+  }
+  setDeadlineError("");
+  const input={...draft,dueAt};
+  const success=await run(()=>editing&&selected?practiceClient.edit(selected.id,input):practiceClient.create(input),editing?"项目已更新":"项目已创建");
   if(success)setEditing(false);
  };
  const submit=async(e:FormEvent)=>{
@@ -129,12 +137,12 @@ export default function PracticeProjectsPage(){
   {notice?<p className="rounded-lg border p-3 text-sm" role="status">{notice}</p>:null}
   {loading?<p role="status">正在加载项目…</p>:null}
   {admin&&!loading?<section className="rounded-xl border border-[var(--admin-border-subtle)] p-4 space-y-4">
-   <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">{editing?"编辑项目":"创建本组实践项目"}</h2>{editing?<button type="button" className="text-sm underline" onClick={()=>{setEditing(false);setDraft({...newDraft(),groupId:groups[0]?.groupId??0})}}>取消编辑</button>:null}</div>
+   <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">{editing?"编辑项目":"创建本组实践项目"}</h2>{editing?<button type="button" className="text-sm underline" onClick={()=>{setEditing(false);setDeadlineError("");setDraft({...newDraft(),groupId:groups[0]?.groupId??0})}}>取消编辑</button>:null}</div>
    <form className="grid gap-3 sm:grid-cols-2" onSubmit={e=>void save(e)}>
     <label className="text-sm">所属组别 <select className={inputClass} disabled={editing} value={draft.groupId} onChange={e=>setDraft(v=>({...v,groupId:Number(e.target.value)}))}>{groups.map(g=><option value={g.groupId} key={g.groupId}>{g.name}</option>)}</select></label>
     <label className="text-sm">人数上限 <input className={inputClass} type="number" min={1} max={500} required value={draft.capacity} onChange={e=>setDraft(v=>({...v,capacity:Number(e.target.value)}))}/></label>
     <label className="text-sm">项目名称 <input className={inputClass} maxLength={120} required value={draft.title} onChange={e=>setDraft(v=>({...v,title:e.target.value}))}/></label>
-    <label className="text-sm">截止时间 <input className={inputClass} type="datetime-local" required value={draft.dueAt} onChange={e=>setDraft(v=>({...v,dueAt:e.target.value}))}/></label>
+    <div><label className="text-sm">截止时间（北京时间） <input className={inputClass} type="datetime-local" required value={draft.dueAt} aria-invalid={Boolean(deadlineError)} onChange={e=>{setDraft(v=>({...v,dueAt:e.target.value}));setDeadlineError("")}}/></label>{deadlineError?<p role="alert" className="mt-1 text-sm text-red-600">{deadlineError}</p>:null}</div>
     <label className="sm:col-span-2 text-sm">任务说明 <textarea className={inputClass} rows={4} maxLength={10000} required value={draft.description} onChange={e=>setDraft(v=>({...v,description:e.target.value}))}/></label>
     <div><button type="submit" className="rounded-lg border px-4 py-2 text-sm font-semibold" disabled={busy||groups.length===0}>{editing?"保存修改":"创建项目"}</button></div>
    </form>
@@ -150,7 +158,7 @@ export default function PracticeProjectsPage(){
    {selected?<article className="min-w-0 space-y-4 rounded-xl border border-[var(--admin-border-subtle)] p-4">
     <div className="flex flex-wrap items-start justify-between gap-2"><div><h2 className="break-words text-xl font-semibold">{selected.title}</h2><p className="mt-1 text-sm text-[var(--admin-muted)]">{statusLabel[selected.status]} · 已报名 {selected.occupiedCount}/{selected.capacity} 人 · 截止 {textDate(selected.dueAt)}</p></div>
      {admin&&selected.status==="open"?<div className="flex gap-2">
-      <button className="rounded-lg border px-3 py-2 text-sm" type="button" onClick={()=>{setDraft({groupId:selected.groupId,title:selected.title,description:selected.description,capacity:selected.capacity,dueAt:dateInput(selected.dueAt)});setEditing(true)}}>编辑</button>
+      <button className="rounded-lg border px-3 py-2 text-sm" type="button" onClick={()=>{setDraft({groupId:selected.groupId,title:selected.title,description:selected.description,capacity:selected.capacity,dueAt:shanghaiDateTimeLocal(selected.dueAt)});setEditing(true)}}>编辑</button>
       <button className="rounded-lg border px-3 py-2 text-sm" type="button" disabled={busy} onClick={()=>{if(confirm("确定关闭该项目？关闭后不能再报名或提交成果。"))void run(()=>practiceClient.close(selected.id),"项目已关闭")}}>关闭</button>
      </div>:null}
     </div>
