@@ -5,7 +5,9 @@ import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import {
   getWeeklyReportDashboard,
   getWeeklyReportTeamWeek,
+  deleteWeeklyReportAttachment,
   saveCurrentWeeklyReport,
+  uploadWeeklyReportAttachments,
   updateWeeklyReport,
   type WeeklyReportDashboard,
   type WeeklyReportInput,
@@ -41,6 +43,7 @@ export default function WeeklyReportsRoute() {
   const [selectedReportKey, setSelectedReportKey] = useState("current");
   const [reportGroupId, setReportGroupId] = useState("");
   const [form, setForm] = useState<WeeklyReportInput>(emptyReport);
+  const [pendingFiles, setPendingFiles] = useState<File[]>([]);
   const [teamWeek, setTeamWeek] = useState<WeeklyReportTeamWeek | null>(null);
   const [teamAvailableWeeks, setTeamAvailableWeeks] = useState<string[]>([]);
   const [teamWeekStart, setTeamWeekStart] = useState("");
@@ -127,6 +130,10 @@ export default function WeeklyReportsRoute() {
   }, [dashboard?.groups, selectedReport?.id, selectedReport?.completed, selectedReport?.gains, selectedReport?.blockers, selectedReport?.nextPlan, selectedReport?.groupId]);
 
   useEffect(() => {
+    setPendingFiles([]);
+  }, [selectedReportKey]);
+
+  useEffect(() => {
     const groupId = Number(teamGroupId);
     if (dashboard?.canViewTeam && groupId > 0 && teamWeekStart) {
       void loadTeamWeek(groupId, teamWeekStart);
@@ -163,7 +170,7 @@ export default function WeeklyReportsRoute() {
     try {
       const input: WeeklyReportInput = { ...form };
       if (isCurrentWeek && !selectedReport && reportGroupId) input.groupId = Number(reportGroupId);
-      const saved = isCurrentEntry
+      let saved = isCurrentEntry
         ? await saveCurrentWeeklyReport(input)
         : await updateWeeklyReport(selectedReport!.id, input);
       setDashboard((current) => {
@@ -175,12 +182,46 @@ export default function WeeklyReportsRoute() {
         return { ...current, reports: reports.sort((left, right) => right.weekStart.localeCompare(left.weekStart) || right.updatedAt.localeCompare(left.updatedAt)) };
       });
       setSelectedReportKey(saved.weekStart === dashboard.currentWeekStart && (isCurrentEntry || saved.id === currentWeekReportID) ? "current" : String(saved.id));
+      if (pendingFiles.length > 0) {
+        try {
+          const attachments = await uploadWeeklyReportAttachments(saved.id, pendingFiles);
+          saved = { ...saved, attachments };
+          setPendingFiles([]);
+          setDashboard((current) => current ? {
+            ...current,
+            reports: current.reports.map((report) => report.id === saved.id ? saved : report),
+          } : current);
+        } catch (cause) {
+          setSaveError(`周报已保存，附件上传失败：${describeError(cause, "请保留附件后重试")}`);
+          return;
+        }
+      }
       setSuccessMessage("周报已保存。");
       if (dashboard.canViewTeam && teamWeek?.weekStart === saved.weekStart && teamWeek.groupId) {
         void loadTeamWeek(teamWeek.groupId, saved.weekStart);
       }
     } catch (cause) {
       setSaveError(describeError(cause, "周报保存失败"));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeAttachment(fileID: number) {
+    if (!selectedReport) return;
+    setSaving(true);
+    setSaveError("");
+    try {
+      await deleteWeeklyReportAttachment(selectedReport.id, fileID);
+      setDashboard((current) => current ? {
+        ...current,
+        reports: current.reports.map((report) => report.id === selectedReport.id
+          ? { ...report, attachments: (report.attachments ?? []).filter((file) => file.id !== fileID) }
+          : report),
+      } : current);
+      setSuccessMessage("附件已删除。");
+    } catch (cause) {
+      setSaveError(describeError(cause, "附件删除失败"));
     } finally {
       setSaving(false);
     }
@@ -255,6 +296,36 @@ export default function WeeklyReportsRoute() {
                 <span>需要帮助</span>
                 <textarea required maxLength={5000} value={form.blockers} onChange={(event) => updateForm("blockers", event.target.value)} placeholder="遇到的问题、需要的指导或协作支持；如暂无请填写“无”" />
               </label>
+              <div className="weekly-report__attachments">
+                <label className="weekly-report__field">
+                  <span>周报附件</span>
+                  <input
+                    type="file"
+                    multiple
+                    accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.zip,.7z,.rar"
+                    onChange={(event) => {
+                      const files = Array.from(event.currentTarget.files ?? []);
+                      const available = Math.max(0, 10 - (selectedReport?.attachments?.length ?? 0) - pendingFiles.length);
+                      setSaveError(files.length > available ? "每篇周报最多保留 10 个附件；超出部分未添加。" : "");
+                      if (files.length > 0 && available > 0) setPendingFiles((current) => [...current, ...files.slice(0, available)]);
+                      event.currentTarget.value = "";
+                    }}
+                  />
+                </label>
+                <p className="weekly-report__attachment-hint">支持图片及常用文档，每个不超过 20 MB，每篇周报最多 10 个、合计 50 MB。</p>
+                {pendingFiles.length > 0 ? <ul className="weekly-report__attachment-list" aria-label="待上传附件">
+                  {pendingFiles.map((file, index) => <li key={`${file.name}-${file.size}-${index}`}>
+                    <span>{file.name}</span>
+                    <button className="weekly-report__attachment-remove" type="button" aria-label={`移除${file.name}`} onClick={() => setPendingFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))}>移除</button>
+                  </li>)}
+                </ul> : null}
+                {(selectedReport?.attachments?.length ?? 0) > 0 ? <ul className="weekly-report__attachment-list" aria-label="已上传附件">
+                  {selectedReport?.attachments?.map((file) => <li key={file.id}>
+                    <a href={file.downloadUrl}>{file.fileName}</a>
+                    <button className="weekly-report__attachment-remove" type="button" disabled={saving} onClick={() => void removeAttachment(file.id)}>删除</button>
+                  </li>)}
+                </ul> : null}
+              </div>
               <div className="weekly-report__form-footer">
                 <div aria-live="polite">
                   {saveError ? <p className="weekly-report__inline-error">{saveError}</p> : null}
@@ -330,6 +401,12 @@ export default function WeeklyReportsRoute() {
                               {reportSection("本周收获", member.report.gains)}
                               {reportSection("下周计划", member.report.nextPlan)}
                               {reportSection("需要帮助", member.report.blockers)}
+                              {(member.report.attachments?.length ?? 0) > 0 ? <div className="weekly-report__content-section">
+                                <h4>附件</h4>
+                                <ul className="weekly-report__attachment-list">
+                                  {member.report.attachments?.map((file) => <li key={file.id}><a href={file.downloadUrl}>{file.fileName}</a></li>)}
+                                </ul>
+                              </div> : null}
                             </div>
                         </details> : <div className="weekly-report__member" key={member.userId}>
                           <div className="weekly-report__member-heading">

@@ -8,6 +8,7 @@ const navigation = await readFile(new URL("./dashboard-navigation.ts", import.me
 const backendRoutes = await readFile(new URL("../../../backend/router/router.go", import.meta.url), "utf8");
 const assignmentService = await readFile(new URL("../../../backend/service/assignment/service.go", import.meta.url), "utf8");
 const assignmentFiles = await readFile(new URL("../../../backend/service/assignment/file_store.go", import.meta.url), "utf8");
+const privateFiles = await readFile(new URL("../../../backend/service/privatefile/file_store.go", import.meta.url), "utf8");
 const migrations = await readFile(new URL("../../../backend/database/migrations.go", import.meta.url), "utf8");
 const assignmentManagement = await readFile(new URL("../routes/admin/assignment-management.tsx", import.meta.url), "utf8");
 const assignmentSubmissions = await readFile(new URL("../routes/admin/assignment-submissions.tsx", import.meta.url), "utf8");
@@ -186,9 +187,12 @@ test("submissions and grading keep prior attempts, use Beijing deadlines, and pr
   assert.match(assignmentService, /now\.After\(readStoredUTCWall\(item\.DueAt\)\)/);
   assert.match(assignmentService, /tx\.Create\(&review\)/);
   assert.match(assignmentService, /loadSubmissionHistories/);
-  assert.match(assignmentFiles, /maxAssignmentFiles\s*=\s*10/);
-  assert.match(assignmentFiles, /maxAssignmentFileSize\s*=\s*20 << 20/);
-  assert.match(assignmentFiles, /maxAssignmentFilesTotal\s*=\s*50 << 20/);
+  assert.match(assignmentFiles, /maxAssignmentFiles\s*=\s*privatefile\.MaxFiles/);
+  assert.match(assignmentFiles, /maxAssignmentFileSize\s*=\s*privatefile\.MaxFileSize/);
+  assert.match(assignmentFiles, /maxAssignmentFilesTotal\s*=\s*privatefile\.MaxFilesTotal/);
+  assert.match(privateFiles, /MaxFiles\s*=\s*10/);
+  assert.match(privateFiles, /MaxFileSize\s*=\s*20 << 20/);
+  assert.match(privateFiles, /MaxFilesTotal\s*=\s*50 << 20/);
   assert.match(assignmentFiles, /func matchesAssignmentFileSignature/);
   assert.match(assignmentFiles, /func \(s \*assignmentFileStore\) resolve/);
 });

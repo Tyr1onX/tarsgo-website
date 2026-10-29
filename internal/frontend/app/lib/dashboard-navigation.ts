@@ -141,6 +141,12 @@ const DAILY_DASHBOARD_MENU: readonly DashboardMenuLink[] = [
     href: "/dashboard/timetable",
     iconKey: "report",
   },
+  {
+    key: "usage-guide",
+    label: "使用指南",
+    href: "/dashboard/guide",
+    iconKey: "report",
+  },
 ];
 
 const ADMIN_MENU: readonly DashboardMenuDefinition[] = [

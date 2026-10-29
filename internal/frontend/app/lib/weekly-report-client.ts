@@ -13,6 +13,16 @@ export interface WeeklyReport extends WeeklyReportInput {
   groupName?: string;
   weekStart: string;
   updatedAt: string;
+  attachments?: WeeklyReportAttachment[];
+}
+
+export interface WeeklyReportAttachment {
+  id: number;
+  fileName: string;
+  contentType: string;
+  size: number;
+  createdAt: string;
+  downloadUrl: string;
 }
 
 export interface WeeklyReportGroup {
@@ -61,4 +71,14 @@ export function saveCurrentWeeklyReport(input: WeeklyReportInput): Promise<Weekl
 
 export function updateWeeklyReport(id: number, input: WeeklyReportInput): Promise<WeeklyReport> {
   return apiRequest<WeeklyReport>(`/api/weekly-reports/${id}`, { method: "PUT", body: input });
+}
+
+export function uploadWeeklyReportAttachments(reportID: number, files: File[]): Promise<WeeklyReportAttachment[]> {
+  const formData = new FormData();
+  for (const file of files) formData.append("files", file);
+  return apiRequest<WeeklyReportAttachment[]>(`/api/weekly-reports/${reportID}/attachments`, { method: "POST", body: formData });
+}
+
+export function deleteWeeklyReportAttachment(reportID: number, fileID: number): Promise<{ id: number }> {
+  return apiRequest<{ id: number }>(`/api/weekly-reports/${reportID}/attachments/${fileID}`, { method: "DELETE" });
 }

@@ -26,6 +26,7 @@ import (
 	"tarsgo-backend/service/expedition"
 	"tarsgo-backend/service/growth"
 	"tarsgo-backend/service/leave"
+	"tarsgo-backend/service/privatefile"
 	"tarsgo-backend/service/recruitmentanalytics"
 	"tarsgo-backend/service/registration"
 	"tarsgo-backend/service/skills"
@@ -113,7 +114,11 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	systemConfigService := systemconfig.NewServiceWithTemplateStore(cfg.Email, templateStore, authService)
 	systemConfigHandler := handler.NewSystemConfigHandler(systemConfigService, systemConfigService)
 	dailySignalHandler := handler.NewDailySignalHandler(dailysignal.NewService(dailysignal.NewGormRepository(db)))
-	weeklyReportHandler := handler.NewWeeklyReportHandler(weeklyreport.NewService(weeklyreport.NewGormRepository(db)))
+	weeklyReportFiles, err := privatefile.NewStore(filepath.Join("upload", "weekly-reports"))
+	if err != nil {
+		panic(err)
+	}
+	weeklyReportHandler := handler.NewWeeklyReportHandler(weeklyreport.NewService(weeklyreport.NewGormRepository(db), weeklyReportFiles))
 	timetableHandler := handler.NewTimetableHandler(timetable.NewService(db))
 	availabilityHandler := handler.NewAvailabilityHandler(availability.NewService(availability.NewGormRepository(db)))
 	growthService := growth.NewService(db, assignmentService, capabilityService)
@@ -349,6 +354,9 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	authenticatedAPI.GET("/weekly-reports", weeklyReportHandler.GetDashboard)
 	authenticatedAPI.GET("/growth/me", growthHandler.GetMine)
 	authenticatedAPI.GET("/weekly-reports/team", weeklyReportHandler.GetTeamWeek)
+	authenticatedAPI.POST("/weekly-reports/:id/attachments", requireSameOriginRequest(cfg), weeklyReportHandler.UploadAttachments)
+	authenticatedAPI.DELETE("/weekly-reports/:id/attachments/:fileId", requireSameOriginRequest(cfg), weeklyReportHandler.DeleteAttachment)
+	authenticatedAPI.GET("/weekly-reports/:id/attachments/:fileId", weeklyReportHandler.OpenAttachment)
 	authenticatedAPI.PUT("/weekly-reports/current", requireSameOriginRequest(cfg), weeklyReportHandler.SaveCurrent)
 	authenticatedAPI.PUT("/weekly-reports/:id", requireSameOriginRequest(cfg), weeklyReportHandler.Update)
 	authenticatedAPI.GET("/recruitment/form", registrationFormHandler.GetRecruitmentPageData)

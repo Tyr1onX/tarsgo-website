@@ -1,8 +1,13 @@
 package weeklyreport
 
 import (
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
+	"mime/multipart"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"strings"
 	"testing"
@@ -15,6 +20,7 @@ import (
 	"tarsgo-backend/database"
 	"tarsgo-backend/model"
 	"tarsgo-backend/service/adminuser"
+	"tarsgo-backend/service/privatefile"
 )
 
 func TestWeeklyReportAllMemberAndGroupScopeAcceptance(t *testing.T) {
@@ -102,6 +108,9 @@ func TestWeeklyReportAllMemberAndGroupScopeAcceptance(t *testing.T) {
 	ids := []uint64{adminA.ID, memberA.ID, adminB.ID, memberB.ID, superAdmin.ID, unassigned.ID, boundaryMember.ID, oldLoginMember.ID, disabledMember.ID, neverLoggedInMember.ID}
 	groupIDs := []uint64{groupA.ID, groupB.ID}
 	cleanup := func() {
+		var reportIDs []uint64
+		_ = db.Model(&model.WeeklyReport{}).Where("user_id IN ?", ids).Pluck("id", &reportIDs).Error
+		_ = db.Where("report_id IN ?", reportIDs).Delete(&model.WeeklyReportAttachment{}).Error
 		_ = db.Where("user_id IN ?", ids).Delete(&model.WeeklyReport{}).Error
 		_ = db.Where("user_id IN ? OR group_id IN ?", ids, groupIDs).Delete(&model.UserGroupMember{}).Error
 		_ = db.Where("actor_id IN ?", ids).Delete(&model.AuditLog{}).Error
@@ -131,7 +140,11 @@ func TestWeeklyReportAllMemberAndGroupScopeAcceptance(t *testing.T) {
 		t.Fatalf("create preserved historical reports for inactive accounts: %v", err)
 	}
 
-	service := NewService(NewGormRepository(db))
+	attachmentStore, err := privatefile.NewStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := NewService(NewGormRepository(db), attachmentStore)
 	service.now = func() time.Time { return acceptanceNow }
 	input := ReportInput{Completed: "学习并完成底盘设计", Gains: "掌握了装配基准", Blockers: "需要复核公差", NextPlan: "完善图纸"}
 	adminAReport, err := service.SaveCurrentReport(context.Background(), adminA.ID, input)
@@ -141,6 +154,72 @@ func TestWeeklyReportAllMemberAndGroupScopeAcceptance(t *testing.T) {
 	memberReport, err := service.SaveCurrentReport(context.Background(), memberA.ID, input)
 	if err != nil || memberReport.GroupID == nil || *memberReport.GroupID != groupA.ID {
 		t.Fatalf("technical member report was not created in their group: %#v, error=%v", memberReport, err)
+	}
+
+	upload := weeklyReportUpload(t, "设计图.pdf", []byte("%PDF-1.7\nprivate weekly report attachment"))
+	attachments, err := service.UploadAttachments(context.Background(), Actor{ID: memberA.ID, RoleName: model.RoleNameUser}, memberReport.ID, []*multipart.FileHeader{upload})
+	if err != nil || len(attachments) != 1 || attachments[0].FileName != "设计图.pdf" {
+		t.Fatalf("member could not upload a weekly report attachment: %#v, error=%v", attachments, err)
+	}
+	oversizedTotal := model.WeeklyReportAttachment{
+		ReportID: memberReport.ID, FileName: "超过单篇总量.pdf",
+		StoragePath: fmt.Sprintf("%d/%d/rejected.pdf", memberReport.ID, memberA.ID),
+		ContentType: "application/pdf", ContentHash: strings.Repeat("a", 64),
+		Size: privatefile.MaxFilesTotal, CreatedAt: acceptanceNow,
+	}
+	if _, err := NewGormRepository(db).CreateReportAttachments(context.Background(), memberA.ID, memberReport.ID, []model.WeeklyReportAttachment{oversizedTotal}); !errors.Is(err, ErrAttachmentSizeLimit) {
+		t.Fatalf("repository did not recheck the aggregate attachment size inside its transaction: %v", err)
+	}
+	ownerDashboardWithFile, err := service.GetDashboard(context.Background(), memberA.ID, model.RoleNameUser)
+	if err != nil || len(ownerDashboardWithFile.Reports) != 1 || len(ownerDashboardWithFile.Reports[0].Attachments) != 1 {
+		t.Fatalf("member could not see attachment metadata in their own report: %#v, error=%v", ownerDashboardWithFile, err)
+	}
+	teamWithFile, err := service.GetTeamWeek(context.Background(), adminA.ID, model.RoleNameAdmin, groupA.ID, "")
+	if err != nil {
+		t.Fatalf("same-group admin could not read the weekly report list with attachment metadata: %v", err)
+	}
+	teamFoundAttachment := false
+	for _, member := range teamWithFile.Members {
+		if member.UserID == memberA.ID && member.Report != nil && len(member.Report.Attachments) == 1 {
+			teamFoundAttachment = true
+		}
+	}
+	if !teamFoundAttachment {
+		t.Fatalf("authorized group report omitted attachment metadata: %#v", teamWithFile)
+	}
+	// Re-uploading identical content keeps one private file record.
+	attachments, err = service.UploadAttachments(context.Background(), Actor{ID: memberA.ID, RoleName: model.RoleNameUser}, memberReport.ID, []*multipart.FileHeader{weeklyReportUpload(t, "设计图-副本.pdf", []byte("%PDF-1.7\nprivate weekly report attachment"))})
+	if err != nil || len(attachments) != 1 {
+		t.Fatalf("duplicate weekly report content was stored twice: %#v, error=%v", attachments, err)
+	}
+	ownerDownload, err := service.OpenAttachment(context.Background(), Actor{ID: memberA.ID, RoleName: model.RoleNameUser}, memberReport.ID, attachments[0].ID)
+	if err != nil || string(ownerDownload.Content) != "%PDF-1.7\nprivate weekly report attachment" {
+		t.Fatalf("owner could not read their private attachment: %#v, error=%v", ownerDownload, err)
+	}
+	if _, err := service.OpenAttachment(context.Background(), Actor{ID: boundaryMember.ID, RoleName: model.RoleNameUser}, memberReport.ID, attachments[0].ID); weeklyReportStatus(err) != http.StatusNotFound {
+		t.Fatalf("another member read a private weekly report attachment: %v", err)
+	}
+	if _, err := service.OpenAttachment(context.Background(), Actor{ID: adminA.ID, RoleName: model.RoleNameAdmin}, memberReport.ID, attachments[0].ID); err != nil {
+		t.Fatalf("same-group administrator could not read the weekly report attachment: %v", err)
+	}
+	if _, err := service.OpenAttachment(context.Background(), Actor{ID: adminB.ID, RoleName: model.RoleNameAdmin}, memberReport.ID, attachments[0].ID); weeklyReportStatus(err) != http.StatusNotFound {
+		t.Fatalf("cross-group administrator read a private weekly report attachment: %v", err)
+	}
+	if _, err := service.OpenAttachment(context.Background(), Actor{ID: superAdmin.ID, RoleName: model.RoleNameSuperAdmin}, memberReport.ID, attachments[0].ID); err != nil {
+		t.Fatalf("super admin could not read the weekly report attachment: %v", err)
+	}
+	if err := service.DeleteAttachment(context.Background(), Actor{ID: boundaryMember.ID, RoleName: model.RoleNameUser}, memberReport.ID, attachments[0].ID); weeklyReportStatus(err) != http.StatusNotFound {
+		t.Fatalf("another member deleted a private weekly report attachment: %v", err)
+	}
+	if err := service.DeleteAttachment(context.Background(), Actor{ID: memberA.ID, RoleName: model.RoleNameUser}, memberReport.ID, attachments[0].ID); err != nil {
+		t.Fatalf("owner could not delete their weekly report attachment: %v", err)
+	}
+	if _, err := service.OpenAttachment(context.Background(), Actor{ID: memberA.ID, RoleName: model.RoleNameUser}, memberReport.ID, attachments[0].ID); weeklyReportStatus(err) != http.StatusNotFound {
+		t.Fatalf("deleted weekly report attachment remained accessible: %v", err)
+	}
+	attachments, err = service.UploadAttachments(context.Background(), Actor{ID: memberA.ID, RoleName: model.RoleNameUser}, memberReport.ID, []*multipart.FileHeader{weeklyReportUpload(t, "设计图.pdf", []byte("%PDF-1.7\nprivate weekly report attachment"))})
+	if err != nil || len(attachments) != 1 {
+		t.Fatalf("owner could not re-add an attachment after deletion: %#v, error=%v", attachments, err)
 	}
 	if _, err := service.SaveCurrentReport(context.Background(), memberB.ID, input); err != nil {
 		t.Fatalf("member in the second group could not submit: %v", err)
@@ -224,4 +303,35 @@ func TestWeeklyReportAllMemberAndGroupScopeAcceptance(t *testing.T) {
 	if len(changedRoles) != 1 || !strings.Contains(changedRoles[0].Metadata, "\"role\":2") {
 		t.Fatalf("group move did not retain the previous organization identity in audit history: %#v", changedRoles)
 	}
+}
+
+func weeklyReportUpload(t *testing.T, fileName string, content []byte) *multipart.FileHeader {
+	t.Helper()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("files", fileName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := part.Write(content); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/", &body)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	if err := request.ParseMultipartForm(1 << 20); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = request.MultipartForm.RemoveAll() })
+	return request.MultipartForm.File["files"][0]
+}
+
+func weeklyReportStatus(err error) int {
+	var serviceErr *ServiceError
+	if errors.As(err, &serviceErr) {
+		return serviceErr.Status
+	}
+	return 0
 }
