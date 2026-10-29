@@ -17,10 +17,10 @@ import (
 
 func TestMigrationRegistryIsOrderedAndKeepsBaseVersion(t *testing.T) {
 	items := migrationRegistry("test")
-	if len(items) != 28 {
-		t.Fatalf("expected 28 registered migrations, got %d", len(items))
+	if len(items) != 29 {
+		t.Fatalf("expected 29 registered migrations, got %d", len(items))
 	}
-	wantVersions := []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28}
+	wantVersions := []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29}
 	for index, want := range wantVersions {
 		if items[index].version != want {
 			t.Fatalf("migration %d has version %d, want %d", index, items[index].version, want)
@@ -38,7 +38,7 @@ func TestMigrationRegistryIsOrderedAndKeepsBaseVersion(t *testing.T) {
 
 func TestMigration28AddsAllMemberWeeklyReportFields(t *testing.T) {
 	items := migrationRegistry("test")
-	if items[len(items)-1].version != 28 || items[len(items)-1].apply == nil {
+	if items[27].version != 28 || items[27].apply == nil {
 		t.Fatal("weekly report migration 28 is missing")
 	}
 	field, ok := reflect.TypeOf(model.WeeklyReport{}).FieldByName("GroupID")

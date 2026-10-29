@@ -27,6 +27,7 @@ import (
 	"tarsgo-backend/service/registration"
 	"tarsgo-backend/service/skills"
 	"tarsgo-backend/service/systemconfig"
+	"tarsgo-backend/service/timetable"
 	"tarsgo-backend/service/trainingqa"
 	"tarsgo-backend/service/usergroup"
 	"tarsgo-backend/service/weeklyreport"
@@ -103,6 +104,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	systemConfigHandler := handler.NewSystemConfigHandler(systemConfigService, systemConfigService)
 	dailySignalHandler := handler.NewDailySignalHandler(dailysignal.NewService(dailysignal.NewGormRepository(db)))
 	weeklyReportHandler := handler.NewWeeklyReportHandler(weeklyreport.NewService(weeklyreport.NewGormRepository(db)))
+	timetableHandler := handler.NewTimetableHandler(timetable.NewService(db))
 	growthHandler := handler.NewGrowthHandler(growth.NewService(db, assignmentService))
 	leaveService := leave.NewService(db)
 	leaveHandler := handler.NewLeaveHandler(leaveService)
@@ -121,6 +123,10 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	api.POST("/logout", requireAccountActionOrigin(cfg), authHandler.Logout)
 	api.GET("/me", authHandler.Me)
 	api.PUT("/me", requireSameOriginRequest(cfg), middleware.RequireAuthenticated(authService), authHandler.UpdateProfile)
+	timetableAPI := api.Group("/my-timetables")
+	timetableAPI.Use(middleware.RequireAuthenticated(authService))
+	timetableAPI.GET("", timetableHandler.List)
+	timetableAPI.POST("", requireSameOriginRequest(cfg), timetableHandler.Import)
 	api.GET("/account-sessions", authHandler.ListAccountSessions)
 	accountSessionAPI := api.Group("/account-sessions")
 	accountSessionAPI.Use(requireAccountActionOrigin(cfg))

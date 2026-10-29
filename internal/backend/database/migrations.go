@@ -126,6 +126,9 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 26, apply: migrateAssignmentGroupWideDefault},
 		{version: 27, apply: migrateAssignmentPublicationStatus},
 		{version: 28, apply: migrateWeeklyReportExperienceFields},
+		{version: 29, apply: func(db *gorm.DB) error {
+			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.Timetable{})
+		}},
 	}
 }
 
