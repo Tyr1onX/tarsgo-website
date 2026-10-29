@@ -13,6 +13,7 @@ test("every member has the weekly report entry in personal navigation", () => {
   assert.deepEqual(getCoreDashboardMenu().map(({ key, label, href }) => ({ key, label, href })), [
     { key: "personal-workspace", label: "个人工作台", href: "/dashboard" },
     { key: "weekly-reports", label: "工作周报", href: "/dashboard/weekly-reports" },
+    { key: "practice-projects", label: "实践项目", href: "/dashboard/practice-projects" },
     { key: "personal-timetable", label: "我的课表", href: "/dashboard/timetable" },
   ]);
 });
@@ -26,7 +27,7 @@ test("admin navigation groups recruitment and member tools while keeping email s
   assert.equal(training?.label, "新人培养");
   assert.deepEqual(training?.children.map(({ label }) => label), ["作业管理", "提交记录", "答疑管理", "技能路线管理", "赛季协作"]);
   assert.equal(members?.label, "成员管理");
-  assert.deepEqual(members?.children.map(({ label }) => label), ["账号与权限", "请假管理", "组内空闲分析"]);
+  assert.deepEqual(members?.children.map(({ label }) => label), ["账号与权限", "请假管理", "实践项目管理", "组内空闲分析"]);
   assert.equal(menu.length, 4);
   assert.equal(menu.some((item) => item.key === "portal-content" || item.key === "recruitment-statistics"), false);
   const emailManagement = menu.find((item) => item.key === "email-management");
@@ -48,7 +49,7 @@ test("member navigation keeps personal growth available to all roles and restric
   const adminMenu = getVisibleAdminDashboardMenu("admin");
   assert.deepEqual(adminMenu.map(({ key }) => key), ["recruitment-operations", "member-management"]);
   assert.deepEqual(adminMenu[0]?.children.map(({ key }) => key), ["admin-panel", "candidate-processing"]);
-  assert.deepEqual(adminMenu[1]?.children.map(({ key }) => key), ["leave-management", "timetable-availability"]);
+  assert.deepEqual(adminMenu[1]?.children.map(({ key }) => key), ["leave-management", "practice-project-management", "timetable-availability"]);
   assert.equal(getVisibleAdminDashboardMenu("user").length, 0);
 });
 

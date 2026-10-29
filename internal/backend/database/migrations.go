@@ -129,6 +129,11 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 29, apply: func(db *gorm.DB) error {
 			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.Timetable{})
 		}},
+		{version: 30, apply: func(db *gorm.DB) error {
+			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(
+				&model.PracticeProject{}, &model.PracticeEntry{}, &model.PracticeSubmission{}, &model.PracticeFile{},
+			)
+		}},
 	}
 }
 

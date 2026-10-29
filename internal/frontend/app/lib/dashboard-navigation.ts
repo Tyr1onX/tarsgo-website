@@ -202,6 +202,12 @@ const ADMIN_MENU: readonly DashboardMenuDefinition[] = [
         allowedRoles: ["admin", "super_admin"],
       },
       {
+        key: "practice-project-management",
+        label: "实践项目管理",
+        href: "/dashboard/admin/training/practice-projects",
+        allowedRoles: ["admin", "super_admin"],
+      },
+      {
         key: "timetable-availability",
         label: "组内空闲分析",
         href: "/dashboard/admin/timetable-availability",
@@ -273,6 +279,12 @@ export function getCoreDashboardMenu(): DashboardMenuLink[] {
 			key: "weekly-reports",
 			label: "工作周报",
 			href: "/dashboard/weekly-reports",
+			iconKey: "report" as const,
+		},
+		{
+			key: "practice-projects",
+			label: "实践项目",
+			href: "/dashboard/practice-projects",
 			iconKey: "report" as const,
 		},
 		{
