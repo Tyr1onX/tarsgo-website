@@ -16,7 +16,6 @@ test("the home entry and daily affairs use their own navigation groups", () => {
   assert.deepEqual(getDailyDashboardMenu().map(({ key, label, href }) => ({ key, label, href })), [
     { key: "weekly-reports", label: "工作周报", href: "/dashboard/weekly-reports" },
     { key: "practice-projects", label: "实践项目", href: "/dashboard/practice-projects" },
-    { key: "personal-timetable", label: "我的课表", href: "/dashboard/timetable" },
     { key: "usage-guide", label: "使用指南", href: "/dashboard/guide" },
   ]);
 });
@@ -30,7 +29,7 @@ test("admin navigation groups recruitment and member tools while keeping email s
   assert.equal(training?.label, "新人培养");
   assert.deepEqual(training?.children.map(({ label }) => label), ["作业管理", "提交记录", "答疑管理", "技能路线管理", "赛季协作"]);
   assert.equal(members?.label, "成员管理");
-  assert.deepEqual(members?.children.map(({ label }) => label), ["账号与权限", "请假管理", "实践项目管理", "能力评价管理", "人员培养", "组内空闲分析"]);
+  assert.deepEqual(members?.children.map(({ label }) => label), ["账号与权限", "请假管理", "实践项目管理", "能力评价管理", "人员培养", "时间协调"]);
   assert.equal(menu.length, 4);
   assert.equal(menu.some((item) => item.key === "portal-content" || item.key === "recruitment-statistics"), false);
   const emailManagement = menu.find((item) => item.key === "email-management");

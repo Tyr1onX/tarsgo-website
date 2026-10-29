@@ -136,12 +136,6 @@ const DAILY_DASHBOARD_MENU: readonly DashboardMenuLink[] = [
     iconKey: "people",
   },
   {
-    key: "personal-timetable",
-    label: "我的课表",
-    href: "/dashboard/timetable",
-    iconKey: "report",
-  },
-  {
     key: "usage-guide",
     label: "使用指南",
     href: "/dashboard/guide",
@@ -255,7 +249,7 @@ const ADMIN_MENU: readonly DashboardMenuDefinition[] = [
       },
       {
         key: "timetable-availability",
-        label: "组内空闲分析",
+        label: "时间协调",
         href: "/dashboard/admin/timetable-availability",
         allowedRoles: ["admin", "super_admin"],
       },

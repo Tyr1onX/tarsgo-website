@@ -102,14 +102,39 @@ func (s *Service) Options(ctx context.Context, actor Actor) (*Options, error) {
 	return &Options{Groups: groups}, nil
 }
 
-func (s *Service) Analyze(ctx context.Context, actor Actor, f Filter) (*Result, error) {
+type Slot struct {
+	Weekday      int `json:"weekday"`
+	StartSection int `json:"startSection"`
+	EndSection   int `json:"endSection"`
+}
+type WeekMember struct {
+	UserID               uint64 `json:"userId"`
+	Name                 string `json:"name"`
+	MissingReason        string `json:"missingReason,omitempty"`
+	HasUncertainCourses  bool   `json:"hasUncertainCourses"`
+	UncertainCourseCount int    `json:"uncertainCourseCount"`
+	Occupied             []Slot `json:"occupied"`
+}
+type WeekResult struct {
+	GroupID       uint64       `json:"groupId"`
+	GroupName     string       `json:"groupName"`
+	Semester      string       `json:"semester"`
+	Week          int          `json:"week"`
+	TotalCount    int          `json:"totalCount"`
+	ImportedCount int          `json:"importedCount"`
+	MissingCount  int          `json:"missingCount"`
+	Members       []WeekMember `json:"members"`
+}
+
+// AnalyzeWeek reads only the authorized group's roster and timetables once.
+// No course names, locations or private notes are returned.
+func (s *Service) AnalyzeWeek(ctx context.Context, actor Actor, f Filter) (*WeekResult, error) {
 	if !canManage(actor) {
 		return nil, forbidden()
 	}
 	f.Semester = strings.TrimSpace(f.Semester)
-	if f.GroupID == 0 || len(f.Semester) == 0 || len([]rune(f.Semester)) > 40 || f.Week < 1 || f.Week > 30 ||
-		f.Weekday < 1 || f.Weekday > 7 || f.StartSection < 1 || f.EndSection > 24 || f.StartSection > f.EndSection {
-		return nil, invalid("请选择有效的组别、学期、教学周、星期和起止节次")
+	if f.GroupID == 0 || f.Semester == "" || len([]rune(f.Semester)) > 40 || f.Week < 1 || f.Week > 30 {
+		return nil, invalid("请选择有效的组别、学期和教学周")
 	}
 	groups, err := s.repo.Groups(ctx, actor)
 	if err != nil {
@@ -130,7 +155,7 @@ func (s *Service) Analyze(ctx context.Context, actor Actor, f Filter) (*Result, 
 		return nil, internal("读取本组成员失败", err)
 	}
 	ids := make([]uint64, 0, len(roster))
-	seen := map[uint64]bool{}
+	seen := make(map[uint64]bool, len(roster))
 	for _, person := range roster {
 		if !seen[person.UserID] {
 			ids = append(ids, person.UserID)
@@ -146,7 +171,6 @@ func (s *Service) Analyze(ctx context.Context, actor Actor, f Filter) (*Result, 
 	}
 	stored := make(map[uint64]map[string]model.Timetable, len(ids))
 	for _, record := range records {
-		// Treat malformed repository results as out of scope rather than exposing them.
 		if !seen[record.UserID] {
 			continue
 		}
@@ -155,14 +179,13 @@ func (s *Service) Analyze(ctx context.Context, actor Actor, f Filter) (*Result, 
 		}
 		stored[record.UserID][record.Semester] = record
 	}
-	result := &Result{GroupID: group.GroupID, GroupName: group.Name, Semester: f.Semester, Week: f.Week, Weekday: f.Weekday, StartSection: f.StartSection, EndSection: f.EndSection, Members: []Member{}}
+	result := &WeekResult{GroupID: group.GroupID, GroupName: group.Name, Semester: f.Semester, Week: f.Week, Members: []WeekMember{}}
 	for _, person := range roster {
-		// Membership is unique in normal data, but preserve stable counts on unexpected duplicates.
 		if !seen[person.UserID] {
 			continue
 		}
 		delete(seen, person.UserID)
-		member := Member{UserID: person.UserID, Name: displayName(person.User), Status: "missing"}
+		member := WeekMember{UserID: person.UserID, Name: displayName(person.User), Occupied: []Slot{}}
 		sheets := stored[person.UserID]
 		sheet, ok := sheets[f.Semester]
 		if !ok {
@@ -170,7 +193,6 @@ func (s *Service) Analyze(ctx context.Context, actor Actor, f Filter) (*Result, 
 			if len(sheets) > 0 {
 				member.MissingReason = "semester_mismatch"
 			}
-			result.MissingCount++
 		} else {
 			courses := []timetable.Course{}
 			notes := []timetable.Note{}
@@ -178,31 +200,70 @@ func (s *Service) Analyze(ctx context.Context, actor Actor, f Filter) (*Result, 
 			notesErr := json.Unmarshal([]byte(sheet.NotesJSON), &notes)
 			if coursesErr != nil || notesErr != nil || courses == nil || notes == nil || !validCourses(courses) {
 				member.MissingReason = "invalid_data"
-				result.MissingCount++
 			} else {
 				result.ImportedCount++
 				member.HasUncertainCourses = len(notes) > 0
 				member.UncertainCourseCount = len(notes)
-				member.Status = "free"
 				for _, course := range courses {
-					if course.Weekday == f.Weekday && course.Active(f.Week) && overlaps(course.StartSection, course.EndSection, f.StartSection, f.EndSection) {
-						member.Status = "conflict"
-						break
+					if course.Active(f.Week) {
+						member.Occupied = append(member.Occupied, Slot{Weekday: course.Weekday, StartSection: course.StartSection, EndSection: course.EndSection})
 					}
 				}
-				if member.Status == "free" {
-					result.FreeCount++
-				} else {
-					result.ConflictCount++
+			}
+		}
+		if member.MissingReason != "" {
+			result.MissingCount++
+		}
+		result.Members = append(result.Members, member)
+	}
+	sort.SliceStable(result.Members, func(i, j int) bool {
+		a, b := result.Members[i], result.Members[j]
+		if a.Name != b.Name {
+			return a.Name < b.Name
+		}
+		return a.UserID < b.UserID
+	})
+	result.TotalCount = len(result.Members)
+	return result, nil
+}
+
+func (s *Service) Analyze(ctx context.Context, actor Actor, f Filter) (*Result, error) {
+	if !canManage(actor) {
+		return nil, forbidden()
+	}
+	if f.Weekday < 1 || f.Weekday > 7 || f.StartSection < 1 || f.EndSection > 24 || f.StartSection > f.EndSection {
+		return nil, invalid("请选择有效的星期和起止节次")
+	}
+	week, err := s.AnalyzeWeek(ctx, actor, f)
+	if err != nil {
+		return nil, err
+	}
+	result := &Result{GroupID: week.GroupID, GroupName: week.GroupName, Semester: week.Semester, Week: f.Week,
+		Weekday: f.Weekday, StartSection: f.StartSection, EndSection: f.EndSection,
+		TotalCount: week.TotalCount, ImportedCount: week.ImportedCount, MissingCount: week.MissingCount, Members: []Member{}}
+	for _, person := range week.Members {
+		member := Member{UserID: person.UserID, Name: person.Name, Status: "free", MissingReason: person.MissingReason,
+			HasUncertainCourses: person.HasUncertainCourses, UncertainCourseCount: person.UncertainCourseCount}
+		if member.MissingReason != "" {
+			member.Status = "missing"
+		} else {
+			for _, slot := range person.Occupied {
+				if slot.Weekday == f.Weekday && overlaps(slot.StartSection, slot.EndSection, f.StartSection, f.EndSection) {
+					member.Status = "conflict"
+					break
 				}
+			}
+			if member.Status == "free" {
+				result.FreeCount++
+			} else {
+				result.ConflictCount++
 			}
 		}
 		result.Members = append(result.Members, member)
 	}
-	sortedNames(result.Members)
-	result.TotalCount = len(result.Members)
 	return result, nil
 }
+
 func canManage(actor Actor) bool {
 	return actor.UserID > 0 && (actor.Role == model.RoleNameAdmin || actor.Role == model.RoleNameSuperAdmin)
 }

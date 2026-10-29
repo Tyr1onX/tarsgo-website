@@ -31,6 +31,31 @@ func (h *AvailabilityHandler) Options(c *gin.Context) {
 	}
 	writeAPI(c, http.StatusOK, "获取可管理组别成功", result)
 }
+func (h *AvailabilityHandler) Week(c *gin.Context) {
+	actor, ok := availabilityActor(c)
+	if !ok {
+		writeAPIError(c, http.StatusUnauthorized, "请先登录")
+		return
+	}
+	groupID, err := strconv.ParseUint(c.Query("groupId"), 10, 64)
+	if err != nil || groupID == 0 {
+		writeAPIError(c, http.StatusBadRequest, "组别编号不合法")
+		return
+	}
+	week, err := strconv.Atoi(c.Query("week"))
+	if err != nil {
+		writeAPIError(c, http.StatusBadRequest, "教学周无效")
+		return
+	}
+	result, err := h.service.AnalyzeWeek(c.Request.Context(), actor, availability.Filter{
+		GroupID: groupID, Semester: strings.TrimSpace(c.Query("semester")), Week: week,
+	})
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "获取组内时间协调数据成功", result)
+}
 func (h *AvailabilityHandler) Analyze(c *gin.Context) {
 	actor, ok := availabilityActor(c)
 	if !ok {
