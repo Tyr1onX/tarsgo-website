@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 import { ModalShell } from "~/components/modal-shell";
+import { PersonalTimetableUpload } from "~/components/personal-timetable-upload";
 import { getAuthUserRoleLabel, updateProfile, type AuthUser } from "~/lib/auth-client";
 
 export function ProfileDialog({
@@ -44,7 +45,7 @@ export function ProfileDialog({
   }
 
   return (
-    <ModalShell title="个人资料" widthClass="max-w-lg" onClose={onClose}>
+    <ModalShell title="个人资料" widthClass="max-w-lg" bodyClassName="max-h-[calc(100dvh-8rem)] overflow-y-auto px-4 py-5 sm:px-6" onClose={onClose}>
       <form onSubmit={(event) => void handleSubmit(event)} className="space-y-5">
         <div className="flex items-center gap-4">
           <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full bg-[var(--admin-input-surface)] flex items-center justify-center border border-[var(--admin-border-subtle)]">
@@ -108,6 +109,7 @@ export function ProfileDialog({
           <button type="submit" disabled={saving} className="btn-primary rounded-xl px-5 py-2.5 text-sm font-medium disabled:opacity-60">{saving ? "保存中…" : "保存修改"}</button>
         </div>
       </form>
+      <PersonalTimetableUpload userId={user.id} />
     </ModalShell>
   );
 }

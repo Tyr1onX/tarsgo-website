@@ -346,6 +346,9 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const [loggingOut, setLoggingOut] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  useEffect(() => {
+    if (location.pathname === "/dashboard" && new URLSearchParams(location.search).get("profile") === "timetable") setProfileOpen(true);
+  }, [location.pathname, location.search]);
   const [accountModalMode, setAccountModalMode] = useState<"switch" | "manage" | null>(null);
   const [accountSessions, setAccountSessions] = useState<AccountSessionAccount[]>([]);
   const [accountSessionsLoading, setAccountSessionsLoading] = useState(false);

@@ -222,6 +222,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	adminAPI := api.Group("/admin")
 	adminAPI.Use(middleware.RequireAdmin(authService))
 	adminAPI.GET("/timetable-availability/options", availabilityHandler.Options)
+	adminAPI.GET("/timetable-availability/week", availabilityHandler.Week)
 	adminAPI.GET("/timetable-availability", availabilityHandler.Analyze)
 	adminAPI.GET("/practice-projects/groups", practiceHandler.Groups)
 	adminAPI.GET("/practice-projects", practiceHandler.ListAdmin)

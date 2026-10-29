@@ -6,6 +6,7 @@ import (
 	"errors"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 
 	"tarsgo-backend/model"
@@ -202,5 +203,61 @@ func TestOptionsRespectManagerAndSuperAdmin(t *testing.T) {
 	var failure *Error
 	if !errors.As(err, &failure) || failure.Status != 403 {
 		t.Fatalf("user options disclosed: %v", err)
+	}
+}
+func TestWeekOccupancySingleScopedReadAndPrivacy(t *testing.T) {
+	repo := buildRepo()
+	week, err := NewService(repo).AnalyzeWeek(context.Background(), Actor{UserID: 7, Role: model.RoleNameAdmin}, query(1, 1, 1, 6))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if repo.membersCalled != 1 || repo.timetablesCalled != 1 || week.TotalCount != 7 || week.ImportedCount != 4 || week.MissingCount != 3 {
+		t.Fatalf("unexpected scoped week fetch: members=%d tables=%d result=%+v", repo.membersCalled, repo.timetablesCalled, week)
+	}
+	if !reflect.DeepEqual(repo.lastIDs, []uint64{10, 11, 12, 13, 14, 15, 16}) {
+		t.Fatalf("unsafe roster: %v", repo.lastIDs)
+	}
+	byID := map[uint64]WeekMember{}
+	for _, member := range week.Members {
+		byID[member.UserID] = member
+	}
+	if len(byID[10].Occupied) != 0 {
+		t.Fatalf("odd-only course leaked into even week: %+v", byID[10])
+	}
+	if !reflect.DeepEqual(byID[15].Occupied, []Slot{{Weekday: 4, StartSection: 11, EndSection: 12}}) {
+		t.Fatalf("moved class not applied: %+v", byID[15])
+	}
+	if byID[13].MissingReason != "semester_mismatch" || byID[14].MissingReason != "not_imported" || byID[16].MissingReason != "invalid_data" {
+		t.Fatalf("missing users treated as free: %+v", byID)
+	}
+	if byID[11].UncertainCourseCount != 1 {
+		t.Fatalf("missing uncertainty warning: %+v", byID[11])
+	}
+	payload, err := json.Marshal(week)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(payload), "实验课") || strings.Contains(string(payload), "别组成员") || strings.Contains(string(payload), "不定时课程") {
+		t.Fatalf("private course or cross-group data disclosed: %s", payload)
+	}
+}
+
+func TestWeekGroupPermissionsAndValidation(t *testing.T) {
+	for _, actor := range []Actor{{UserID: 8, Role: model.RoleNameUser}, {UserID: 7, Role: model.RoleNameAdmin}} {
+		repo := buildRepo()
+		input := query(1, 1, 1, 3)
+		input.GroupID = 2
+		_, err := NewService(repo).AnalyzeWeek(context.Background(), actor, input)
+		var failure *Error
+		if !errors.As(err, &failure) || failure.Status != http.StatusForbidden || repo.membersCalled != 0 {
+			t.Fatalf("unauthorized week query: %v calls=%d", err, repo.membersCalled)
+		}
+	}
+	repo := buildRepo()
+	input := query(1, 1, 1, 0)
+	_, err := NewService(repo).AnalyzeWeek(context.Background(), Actor{UserID: 7, Role: model.RoleNameAdmin}, input)
+	var failure *Error
+	if !errors.As(err, &failure) || failure.Status != http.StatusBadRequest || repo.membersCalled != 0 {
+		t.Fatalf("invalid week query: %v calls=%d", err, repo.membersCalled)
 	}
 }

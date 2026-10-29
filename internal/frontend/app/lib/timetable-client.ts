@@ -29,8 +29,3 @@ export function importPersonalTimetable(semester: string, file: File) {
  body.append("file", file);
  return apiRequest<PersonalTimetable>("/api/my-timetables", {method:"POST",body});
 }
-
-export function coursesForWeek(courses: TimetableCourse[], week: number) {
- return courses.filter((course) => course.weeks.includes(week) &&
-  (course.parity === "all" || (course.parity === "odd" && week % 2 === 1) || (course.parity === "even" && week % 2 === 0)));
-}
