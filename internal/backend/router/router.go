@@ -18,6 +18,7 @@ import (
 	"tarsgo-backend/service/assignment"
 	"tarsgo-backend/service/auth"
 	"tarsgo-backend/service/availability"
+	"tarsgo-backend/service/capabilities"
 	"tarsgo-backend/service/dailysignal"
 	"tarsgo-backend/service/email"
 	"tarsgo-backend/service/emailtemplate"
@@ -99,6 +100,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	practiceHandler := handler.NewPracticeHandler(practiceService)
 	trainingQuestionHandler := handler.NewTrainingQuestionHandler(trainingqa.NewService(db))
 	skillsHandler := handler.NewSkillsHandler(skills.NewService(db))
+	capabilitiesHandler := handler.NewCapabilitiesHandler(capabilities.NewService(db))
 	userGroupHandler := handler.NewUserGroupHandler(usergroup.NewService(usergroup.NewRepository(db)))
 	userGroupMembershipHandler := handler.NewUserGroupMembershipHandler(usergroup.NewMembershipService(db))
 	registrationFormHandler := handler.NewRegistrationFormHandler(registration.NewRegistrationFormService(db))
@@ -202,6 +204,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	assignmentMemberAPI.GET("/question-files/:id", trainingQuestionHandler.OpenFile)
 	assignmentMemberAPI.GET("/skills/me", skillsHandler.ListMine)
 	assignmentMemberAPI.POST("/skills/nodes/:id/start", requireSameOriginRequest(cfg), skillsHandler.Start)
+	assignmentMemberAPI.GET("/capabilities/me", capabilitiesHandler.ListMine)
 	expeditionMemberAPI := api.Group("/expedition")
 	expeditionMemberAPI.Use(middleware.RequireAuthenticated(authService))
 	expeditionMemberAPI.GET("/projects", expeditionHandler.ListMine)
@@ -246,6 +249,13 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	adminAPI.GET("/skills/members", skillsHandler.ListMembers)
 	adminAPI.GET("/skills/nodes/:id/members/:userId/history", skillsHandler.MemberHistory)
 	adminAPI.POST("/skills/nodes/:id/members/:userId/reviews", requireSameOriginRequest(cfg), skillsHandler.Review)
+	adminAPI.GET("/capabilities/groups", capabilitiesHandler.ListAdminGroups)
+	adminAPI.GET("/capabilities", capabilitiesHandler.AdminGroup)
+	adminAPI.POST("/capabilities/dimensions", requireSameOriginRequest(cfg), capabilitiesHandler.CreateDimension)
+	adminAPI.PUT("/capabilities/dimensions/:id", requireSameOriginRequest(cfg), capabilitiesHandler.UpdateDimension)
+	adminAPI.DELETE("/capabilities/dimensions/:id", requireSameOriginRequest(cfg), capabilitiesHandler.DeleteDimension)
+	adminAPI.GET("/capabilities/groups/:groupId/members/:userId", capabilitiesHandler.AdminMember)
+	adminAPI.POST("/capabilities/groups/:groupId/members/:userId/reviews", requireSameOriginRequest(cfg), capabilitiesHandler.AddManualReview)
 	adminAPI.GET("/expedition/projects", expeditionHandler.ListAdmin)
 	adminAPI.GET("/expedition/group-members", expeditionHandler.ListGroupMembers)
 	adminAPI.POST("/expedition/projects", requireSameOriginRequest(cfg), expeditionHandler.CreateProject)
