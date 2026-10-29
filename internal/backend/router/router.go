@@ -19,6 +19,7 @@ import (
 	"tarsgo-backend/service/auth"
 	"tarsgo-backend/service/availability"
 	"tarsgo-backend/service/capabilities"
+	"tarsgo-backend/service/cultivation"
 	"tarsgo-backend/service/dailysignal"
 	"tarsgo-backend/service/email"
 	"tarsgo-backend/service/emailtemplate"
@@ -100,7 +101,8 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	practiceHandler := handler.NewPracticeHandler(practiceService)
 	trainingQuestionHandler := handler.NewTrainingQuestionHandler(trainingqa.NewService(db))
 	skillsHandler := handler.NewSkillsHandler(skills.NewService(db))
-	capabilitiesHandler := handler.NewCapabilitiesHandler(capabilities.NewService(db))
+	capabilityService := capabilities.NewService(db)
+	capabilitiesHandler := handler.NewCapabilitiesHandler(capabilityService)
 	userGroupHandler := handler.NewUserGroupHandler(usergroup.NewService(usergroup.NewRepository(db)))
 	userGroupMembershipHandler := handler.NewUserGroupMembershipHandler(usergroup.NewMembershipService(db))
 	registrationFormHandler := handler.NewRegistrationFormHandler(registration.NewRegistrationFormService(db))
@@ -114,7 +116,9 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	weeklyReportHandler := handler.NewWeeklyReportHandler(weeklyreport.NewService(weeklyreport.NewGormRepository(db)))
 	timetableHandler := handler.NewTimetableHandler(timetable.NewService(db))
 	availabilityHandler := handler.NewAvailabilityHandler(availability.NewService(availability.NewGormRepository(db)))
-	growthHandler := handler.NewGrowthHandler(growth.NewService(db, assignmentService))
+	growthService := growth.NewService(db, assignmentService, capabilityService)
+	growthHandler := handler.NewGrowthHandler(growthService)
+	cultivationHandler := handler.NewCultivationHandler(cultivation.NewService(db, capabilityService, growthService))
 	leaveService := leave.NewService(db)
 	leaveHandler := handler.NewLeaveHandler(leaveService)
 	expeditionHandler := handler.NewExpeditionHandler(expedition.NewService(db))
@@ -256,6 +260,9 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	adminAPI.DELETE("/capabilities/dimensions/:id", requireSameOriginRequest(cfg), capabilitiesHandler.DeleteDimension)
 	adminAPI.GET("/capabilities/groups/:groupId/members/:userId", capabilitiesHandler.AdminMember)
 	adminAPI.POST("/capabilities/groups/:groupId/members/:userId/reviews", requireSameOriginRequest(cfg), capabilitiesHandler.AddManualReview)
+	adminAPI.GET("/cultivation", cultivationHandler.Group)
+	adminAPI.GET("/cultivation/groups/:groupId/members/:userId", cultivationHandler.Member)
+	adminAPI.PUT("/cultivation/groups/:groupId/members/:userId/focus", requireSameOriginRequest(cfg), cultivationHandler.UpdateFocus)
 	adminAPI.GET("/expedition/projects", expeditionHandler.ListAdmin)
 	adminAPI.GET("/expedition/group-members", expeditionHandler.ListGroupMembers)
 	adminAPI.POST("/expedition/projects", requireSameOriginRequest(cfg), expeditionHandler.CreateProject)

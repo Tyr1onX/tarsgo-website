@@ -84,14 +84,15 @@ export default function MyGrowthRoute() {
             {profile?.groups.map((group) => <span className="growth-group" key={group}>{group}</span>)}
             {!loading && profile?.groups.length === 0 ? <span className="growth-group growth-group--quiet">尚未确认组别</span> : null}
           </div>
+          {profile?.groups.length ? <Link className="growth-action-link" to="/dashboard/capabilities">查看能力雷达 <span aria-hidden="true">↗</span></Link> : null}
         </div>
         <div className="growth-hero__signal" aria-hidden="true"><span>FIELD LOG</span><strong>{String(events.length).padStart(2, "0")}</strong><i>真实成长记录</i></div>
         <div className="growth-hero__stats" aria-label="成长成果统计">
           {isTechnicalMember ? <>
             <div><strong>{profile?.stats.completedChallenges ?? 0}</strong><span>通过训练</span></div>
             <div><strong>{profile?.stats.firstSubmissions ?? 0}</strong><span>训练提交</span></div>
-            <div><strong>{profile?.stats.questionsAsked ?? 0}</strong><span>提出问题</span></div>
-            <div><strong>{profile?.stats.faqContributions ?? 0}</strong><span>FAQ 贡献</span></div>
+            <div><strong>{profile?.stats.practiceProjects ?? 0}</strong><span>参与项目</span></div>
+            <div><strong>{profile?.stats.projectsAccepted ?? 0}</strong><span>项目验收</span></div>
           </> : isOperationsMember ? <>
             <div><strong>{profile?.stats.weeklyReports ?? 0}</strong><span>周报记录</span></div>
             <div><strong>{events.length}</strong><span>成长记录</span></div>

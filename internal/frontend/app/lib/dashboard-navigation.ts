@@ -214,6 +214,12 @@ const ADMIN_MENU: readonly DashboardMenuDefinition[] = [
         allowedRoles: ["admin", "super_admin"],
       },
       {
+        key: "cultivation-view",
+        label: "人员培养",
+        href: "/dashboard/admin/cultivation",
+        allowedRoles: ["admin", "super_admin"],
+      },
+      {
         key: "timetable-availability",
         label: "组内空闲分析",
         href: "/dashboard/admin/timetable-availability",
@@ -251,6 +257,7 @@ function getAccessibleAdminPaths(roleName: string, hasTechnicalGroup = false, ha
         if (!isRoleAllowed(roleName, child.allowedRoles)) return false;
         if (roleName === "super_admin") return true;
         if (child.key === "capability-management") return hasCapabilityGroup;
+        if (child.key === "cultivation-view") return hasCapabilityGroup;
         if (child.key === "skill-route-management") return hasSkillGroup;
         if (child.key === "expedition-project-management") return hasSkillGroup;
         if (item.key === "newcomer-training") return hasTechnicalGroup;
