@@ -4,6 +4,7 @@ import { Link, NavLink, Outlet, redirect, useLocation, useNavigate, useRevalidat
 import type { Route } from "./+types/layout";
 import { SiteLogo } from "~/components/site-logo";
 import { ThemeControl } from "~/components/theme-control";
+import { ProfileDialog } from "~/components/profile-dialog";
 import { ApiError } from "~/lib/api-client";
 import {
   getAuthUserRoleLabel,
@@ -339,6 +340,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [accountModalMode, setAccountModalMode] = useState<"switch" | "manage" | null>(null);
   const [accountSessions, setAccountSessions] = useState<AccountSessionAccount[]>([]);
   const [accountSessionsLoading, setAccountSessionsLoading] = useState(false);
@@ -815,8 +817,11 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
               userMenuOpen ? "dashboard-shell__profile--open" : ""
             }`}
           >
-            <div className="dashboard-shell__avatar w-9 h-9 rounded-full flex items-center justify-center shrink-0">
+            <div className="dashboard-shell__avatar relative w-9 h-9 rounded-full flex items-center justify-center shrink-0 overflow-hidden">
               <span className="text-white text-sm font-semibold">{userInitial}</span>
+              {currentUser.avatarUrl ? (
+                <img key={currentUser.avatarUrl} src={currentUser.avatarUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" onError={(event) => { event.currentTarget.hidden = true; }} />
+              ) : null}
             </div>
             <div className={`flex-1 min-w-0 text-left ${isSidebarCollapsed ? "hidden" : ""}`}>
               <div className="text-sm font-medium text-white truncate">
@@ -851,6 +856,13 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
                 </div>
               </div>
               <div className="p-1.5">
+                <button
+                  type="button"
+                  onClick={() => { setUserMenuOpen(false); setProfileOpen(true); }}
+                  role="menuitem"
+                  className="dashboard-shell__account-action"
+                >个人资料</button>
+                <div className="dashboard-shell__account-divider" />
                 <button
                   type="button"
                   onClick={() => void openAccountModal("switch")}
@@ -941,6 +953,14 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           </div>
         </main>
       </div>
+      {profileOpen ? (
+        <ProfileDialog
+          user={currentUser}
+          groups={groupResolution?.groups.map((group) => group.name) ?? []}
+          onClose={() => setProfileOpen(false)}
+          onSaved={() => { setProfileOpen(false); void revalidator.revalidate(); }}
+        />
+      ) : null}
       {accountModalMode ? (
         <AccountSessionDialog
           mode={accountModalMode}

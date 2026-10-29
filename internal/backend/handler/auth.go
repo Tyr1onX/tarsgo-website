@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"errors"
+	"mime/multipart"
 	"net/http"
 	"strings"
 
@@ -26,6 +27,7 @@ type authService interface {
 	SendLoginCode(ctx context.Context, email string) error
 	LoginWithCode(ctx context.Context, email string, code string) (*auth.AuthResult, error)
 	CurrentUser(ctx context.Context, token string) (*auth.SessionUser, error)
+	UpdateProfile(ctx context.Context, userID uint64, input auth.ProfileInput) (*auth.SessionUser, error)
 	CreateAccountSession(ctx context.Context, userID uint64, currentToken, vaultToken string) (*auth.AccountSessionsResult, error)
 	InitializeAccountSessions(ctx context.Context, currentToken, vaultToken string) (*auth.AccountSessionsResult, error)
 	ListAccountSessions(ctx context.Context, vaultToken, currentToken string) (*auth.AccountSessionsResult, error)
@@ -330,6 +332,54 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	}
 
 	writeAPI(c, http.StatusOK, "获取当前用户成功", gin.H{"user": user})
+}
+
+// UpdateProfile uses the authenticated account ID, never a client-supplied ID.
+func (h *AuthHandler) UpdateProfile(c *gin.Context) {
+	user, ok := middleware.CurrentSessionUser(c)
+	if !ok || user == nil {
+		writeAPIError(c, http.StatusUnauthorized, "未登录")
+		return
+	}
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, (2<<20)+(64<<10))
+	if err := c.Request.ParseMultipartForm(2 << 20); err != nil {
+		writeAPIError(c, http.StatusBadRequest, "个人资料请求无效或文件过大")
+		return
+	}
+	if c.Request.MultipartForm != nil {
+		defer c.Request.MultipartForm.RemoveAll()
+	}
+	form := c.Request.MultipartForm
+	if form == nil || len(form.Value["nickname"]) != 1 || len(form.Value["phone"]) != 1 || len(form.File["avatar"]) > 1 {
+		writeAPIError(c, http.StatusBadRequest, "个人资料请求参数不合法")
+		return
+	}
+	for key := range form.Value {
+		if key != "nickname" && key != "phone" {
+			writeAPIError(c, http.StatusBadRequest, "只能修改头像、昵称和手机号")
+			return
+		}
+	}
+	for key := range form.File {
+		if key != "avatar" {
+			writeAPIError(c, http.StatusBadRequest, "只能修改头像、昵称和手机号")
+			return
+		}
+	}
+	var avatar *multipart.FileHeader
+	if files := form.File["avatar"]; len(files) == 1 {
+		avatar = files[0]
+	}
+	updated, err := h.service.UpdateProfile(c.Request.Context(), user.ID, auth.ProfileInput{
+		Nickname: form.Value["nickname"][0],
+		Phone:    form.Value["phone"][0],
+		Avatar:   avatar,
+	})
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "个人资料已更新", gin.H{"user": updated})
 }
 
 func (h *AuthHandler) handleServiceError(c *gin.Context, err error) {

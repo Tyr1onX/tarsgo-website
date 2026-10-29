@@ -54,6 +54,7 @@ type SessionUser struct {
 	Phone     *string     `json:"phone,omitempty"`
 	Nickname  *string     `json:"nickname,omitempty"`
 	AvatarURL *string     `json:"avatarUrl,omitempty"`
+	RealName  *string     `json:"realName,omitempty"`
 	Role      SessionRole `json:"role"`
 }
 
@@ -700,6 +701,7 @@ func toSessionUser(user *model.User) SessionUser {
 		Phone:     user.Phone,
 		Nickname:  user.Nickname,
 		AvatarURL: user.AvatarURL,
+		RealName:  user.RealName,
 		Role: SessionRole{
 			ID:          user.Role.ID,
 			Name:        user.Role.Name,
