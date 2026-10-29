@@ -1,11 +1,15 @@
-import { useEffect, useRef, useState } from "react";
-import { Link, useOutletContext } from "react-router";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
+import { Link, useOutletContext, useSearchParams } from "react-router";
 
 import { WorkbenchFeatureStatus } from "~/components/workbench-feature-status";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
+import { getGrowthDashboardTabs, getGrowthTabPath, hasSkillGroupAccess } from "~/lib/dashboard-navigation";
 import { formatGrowthDate, getGrowthProfile, growthEventLabel, growthEventTone, type GrowthProfile } from "~/lib/growth-client";
 import { skillsClient, type SkillGroupProgress } from "~/lib/skills-client";
 import "./growth.css";
+
+const CapabilitiesPanel = lazy(() => import("~/routes/dashboard/capabilities").then((module) => ({ default: module.CapabilitiesPanel })));
+const SkillsPanel = lazy(() => import("~/routes/dashboard/skills").then((module) => ({ default: module.SkillsPanel })));
 
 export function meta() {
   return [{ title: "我的成长 | TARSGO" }];
@@ -20,7 +24,28 @@ function dueLabel(value: string) {
 }
 
 export default function MyGrowthRoute() {
-  const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
+  const { currentUser, groupResolution } = useOutletContext<DashboardLayoutOutletContext>();
+  const [searchParams] = useSearchParams();
+  const tabs = getGrowthDashboardTabs(currentUser, hasSkillGroupAccess(groupResolution?.groups), Boolean(groupResolution?.groups?.length));
+  const activeTab = tabs.find((tab) => tab.key === searchParams.get("tab"))?.key ?? "profile";
+
+  return (
+    <div className="growth-workspace">
+      <nav className="growth-tabs" aria-label="我的成长">
+        {tabs.map((tab) => (
+          <Link key={tab.key} to={getGrowthTabPath(tab.key, searchParams.toString())} aria-current={activeTab === tab.key ? "page" : undefined}>
+            {tab.label}
+          </Link>
+        ))}
+      </nav>
+      {activeTab === "profile" ? <GrowthProfilePanel currentUser={currentUser} /> : null}
+      {activeTab === "capabilities" ? <Suspense fallback={<p className="growth-loading" role="status">正在打开能力雷达…</p>}><CapabilitiesPanel /></Suspense> : null}
+      {activeTab === "skills" ? <Suspense fallback={<p className="growth-loading" role="status">正在打开技能树…</p>}><SkillsPanel /></Suspense> : null}
+    </div>
+  );
+}
+
+function GrowthProfilePanel({ currentUser }: { currentUser: DashboardLayoutOutletContext["currentUser"] }) {
   const [profile, setProfile] = useState<GrowthProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -84,7 +109,7 @@ export default function MyGrowthRoute() {
             {profile?.groups.map((group) => <span className="growth-group" key={group}>{group}</span>)}
             {!loading && profile?.groups.length === 0 ? <span className="growth-group growth-group--quiet">尚未确认组别</span> : null}
           </div>
-          {profile?.groups.length ? <Link className="growth-action-link" to="/dashboard/capabilities">查看能力雷达 <span aria-hidden="true">↗</span></Link> : null}
+          {profile?.groups.length ? <Link className="growth-action-link" to="/dashboard/growth?tab=capabilities">查看能力雷达 <span aria-hidden="true">↗</span></Link> : null}
         </div>
         <div className="growth-hero__signal" aria-hidden="true"><span>FIELD LOG</span><strong>{String(events.length).padStart(2, "0")}</strong><i>真实成长记录</i></div>
         <div className="growth-hero__stats" aria-label="成长成果统计">
@@ -179,7 +204,7 @@ export default function MyGrowthRoute() {
               {skillsLoading ? <p className="growth-next__quiet">正在读取技能路线…</p> : skillsError ? <p className="growth-next__quiet">技能路线暂时无法读取。</p> : skillGroups.length > 0 ? <>
                 <dl><div><dt>已确认掌握</dt><dd>{masteredSkills.length}</dd></div><div><dt>正在挑战</dt><dd>{activeSkills.length}</dd></div></dl>
                 {masteredSkills.length > 0 ? <ul className="growth-skill-route__list">{masteredSkills.slice(0, 3).map((node) => <li key={node.id}><span>{node.groupName}</span><strong>{node.name}</strong></li>)}</ul> : null}
-                {nextSkill ? <Link className="growth-action-link" to={`/dashboard/skills?groupId=${nextSkill.groupId}&nodeId=${nextSkill.id}`}>下一项：{nextSkill.name} <span aria-hidden="true">↗</span></Link> : <Link className="growth-action-link" to="/dashboard/skills">探索技能树 <span aria-hidden="true">↗</span></Link>}
+                {nextSkill ? <Link className="growth-action-link" to={`/dashboard/growth?tab=skills&groupId=${nextSkill.groupId}&nodeId=${nextSkill.id}`}>下一项：{nextSkill.name} <span aria-hidden="true">↗</span></Link> : <Link className="growth-action-link" to="/dashboard/growth?tab=skills">探索技能树 <span aria-hidden="true">↗</span></Link>}
               </> : <p className="growth-next__quiet">组内路线配置后，技能进展会显示在这里。</p>}
             </section>
 

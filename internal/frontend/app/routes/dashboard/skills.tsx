@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Link, useOutletContext, useSearchParams } from "react-router";
+import { Link, redirect, useOutletContext, useSearchParams } from "react-router";
 
+import type { Route } from "./+types/skills";
 import { SkillTreeGraph } from "~/components/skill-tree-graph";
 import { WorkbenchFeatureStatus } from "~/components/workbench-feature-status";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
+import { getGrowthTabPath } from "~/lib/dashboard-navigation";
 import { assignmentClient, type Assignment } from "~/lib/assignment-client";
 import { formatSkillDate, skillEvidenceHref, skillEvidenceLabel, skillsClient, skillStateLabel, type SkillGroupProgress, type SkillNode } from "~/lib/skills-client";
 import "./skills.css";
@@ -12,7 +14,17 @@ export function meta() {
   return [{ title: "技能树 | TARSGO" }];
 }
 
+export function clientLoader({ request }: Route.ClientLoaderArgs) {
+  throw redirect(getGrowthTabPath("skills", new URL(request.url).search));
+}
+
+clientLoader.hydrate = true;
+
 export default function SkillsRoute() {
+  return <SkillsPanel />;
+}
+
+export function SkillsPanel() {
   const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [groups, setGroups] = useState<SkillGroupProgress[]>([]);

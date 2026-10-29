@@ -1,8 +1,10 @@
 import { useEffect, useRef, useState } from "react";
-import { useOutletContext } from "react-router";
+import { redirect, useOutletContext } from "react-router";
 
+import type { Route } from "./+types/capabilities";
 import { CapabilityRadar, formatScore } from "~/components/capability-radar";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
+import { getGrowthTabPath } from "~/lib/dashboard-navigation";
 import { capabilitiesClient, capabilitySourceLabel, formatCapabilityDate, type CapabilityGroupResult } from "~/lib/capabilities-client";
 import "./capabilities.css";
 
@@ -10,7 +12,17 @@ export function meta() {
   return [{ title: "能力雷达 | TARSGO" }];
 }
 
+export function clientLoader({ request }: Route.ClientLoaderArgs) {
+  throw redirect(getGrowthTabPath("capabilities", new URL(request.url).search));
+}
+
+clientLoader.hydrate = true;
+
 export default function CapabilitiesRoute() {
+  return <CapabilitiesPanel />;
+}
+
+export function CapabilitiesPanel() {
   const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
   const [groups, setGroups] = useState<CapabilityGroupResult[]>([]);
   const [groupID, setGroupID] = useState<number | null>(null);

@@ -30,6 +30,7 @@ import {
   canAccessDashboardAdminPath,
   canAccessExpedition,
   getCoreDashboardMenu,
+  getDailyDashboardMenu,
   getDefaultDashboardPath,
   hasSkillGroupAccess,
   hasTechnicalGroupAccess,
@@ -144,31 +145,31 @@ function MenuIcon({ iconKey }: { iconKey: DashboardMenuIconKey }) {
   switch (iconKey) {
     case "people":
       return (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <svg className="h-[18px] w-[18px] shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
         </svg>
       );
     case "registration":
       return (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <svg className="h-[18px] w-[18px] shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-1.135-.845-2.098-1.976-2.192a48.424 48.424 0 0 0-1.123-.08m-5.801 0c-.065.21-.1.433-.1.664 0 .414.336.75.75.75h4.5a.75.75 0 0 0 .75-.75 2.25 2.25 0 0 0-.1-.664m-5.8 0A2.251 2.251 0 0 1 13.5 2.25H15a2.25 2.25 0 0 1 2.15 1.586m-5.8 0c-.376.023-.75.05-1.124.08C9.095 4.01 8.25 4.973 8.25 6.108V8.25m0 0H4.875c-.621 0-1.125.504-1.125 1.125v11.25c0 .621.504 1.125 1.125 1.125h9.75c.621 0 1.125-.504 1.125-1.125V9.375c0-.621-.504-1.125-1.125-1.125H8.25ZM6.75 12h.008v.008H6.75V12Zm0 3h.008v.008H6.75V15Zm0 3h.008v.008H6.75V18Z" />
         </svg>
       );
     case "settings":
       return (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <svg className="h-[18px] w-[18px] shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12a7.5 7.5 0 1 1 15 0 7.5 7.5 0 0 1-15 0Zm7.5-9v3m0 12v3m9-9h-3M6 12H3m15.364 6.364-2.122-2.122M7.757 7.757 5.636 5.636m12.728 0-2.122 2.121M7.757 16.243l-2.121 2.121" />
         </svg>
       );
     case "analytics":
       return (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <svg className="h-[18px] w-[18px] shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 19.5V12m5 7.5V4.5m5 15v-5m5 5V8.25M3 19.5h18" />
         </svg>
       );
     case "report":
       return (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <svg className="h-[18px] w-[18px] shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 3.75h5.379c.398 0 .78.158 1.06.44l3.121 3.12c.281.282.44.663.44 1.061v10.004a1.875 1.875 0 0 1-1.875 1.875H8.25a1.875 1.875 0 0 1-1.875-1.875V5.625A1.875 1.875 0 0 1 8.25 3.75Z" />
           <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 3.75v4.5H18m-8.25 4.5h4.5m-4.5 3h4.5" />
         </svg>
@@ -176,7 +177,7 @@ function MenuIcon({ iconKey }: { iconKey: DashboardMenuIconKey }) {
     case "dashboard":
     default:
       return (
-        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+        <svg className="h-[18px] w-[18px] shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955a1.126 1.126 0 0 1 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
         </svg>
       );
@@ -243,7 +244,7 @@ function SidebarItem({
           </span>
           <span className={`min-w-0 flex-1 truncate text-left ${collapsed ? "sr-only" : ""}`}>{item.label}</span>
           <svg
-            className={`w-4 h-4 transition-transform duration-300 ease-out ${collapsed ? "hidden" : ""} ${isExpanded ? "rotate-180" : ""}`}
+            className={`w-4 h-4 transition-transform duration-150 ease-out ${collapsed ? "hidden" : ""} ${isExpanded ? "rotate-180" : ""}`}
             fill="none"
             viewBox="0 0 24 24"
             strokeWidth={1.5}
@@ -254,7 +255,7 @@ function SidebarItem({
         </button>
         <div
           id={childrenId}
-          className={`grid transition-all duration-300 ease-out ${
+          className={`grid transition-all duration-150 ease-out ${
             isExpanded ? "grid-rows-[1fr] opacity-100 mt-1" : "grid-rows-[0fr] opacity-0 mt-0"
           }`}
           aria-hidden={!isExpanded}
@@ -365,7 +366,13 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const hasSkillGroup = hasSkillGroupAccess(groupResolution?.groups);
   const hasCapabilityGroup = Boolean(groupResolution?.groups?.length);
   const coreMenuItems = getCoreDashboardMenu();
-  const userMenuItems = getUserDashboardMenu(currentUser, isTechnicalGroupMember, hasSkillGroup, hasCapabilityGroup);
+  const userMenuItems = getUserDashboardMenu(currentUser, isTechnicalGroupMember, hasSkillGroup);
+  const dailyMenuItems = [
+    ...getDailyDashboardMenu(),
+    ...userMenuItems.filter((item) => item.key !== "my-growth" && item.key !== "tars-base-expedition"),
+  ];
+  const growthMenuItem = userMenuItems.find((item) => item.key === "my-growth");
+  const tarsBaseMenuItem = userMenuItems.find((item) => item.key === "tars-base-expedition");
   const adminMenuItems = getVisibleAdminDashboardMenu(currentUser, isTechnicalGroupMember, hasSkillGroup, hasCapabilityGroup);
   const showAdminSection = hasDashboardAdminAccess(currentUser.role.name) && adminMenuItems.length > 0;
   const refreshCandidateTodoCount = useCallback(async (force = false) => {
@@ -769,28 +776,33 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
         <div className="dashboard-shell__divider mx-4 shrink-0" aria-hidden="true" />
 
         <nav className="dashboard-shell__sidebar-nav flex-1 overflow-y-auto px-3 py-4" aria-label="工作台功能">
-          <div className="space-y-1">
+          <div className="space-y-1" role="group" aria-label="个人工作台">
+            <div className={`dashboard-shell__sidebar-section-title px-3 pb-2 text-[11px] font-semibold tracking-wide text-gray-500 ${isSidebarCollapsed ? "sr-only" : ""}`}>个人工作台</div>
             {coreMenuItems.map((item) => (
               <SidebarItem key={item.key} item={item} onNavigate={handleSidebarNavigate} collapsed={isSidebarCollapsed} />
             ))}
           </div>
-          {userMenuItems.length > 0 ? (
-            <div className={`${isSidebarCollapsed ? "mt-2 border-t border-white/[0.06] pt-2" : "mt-6 border-t border-white/[0.06] pt-5"}`}>
-              <div className={`dashboard-shell__sidebar-section-title px-3 pb-2 text-[11px] uppercase tracking-[0.18em] text-gray-500 ${isSidebarCollapsed ? "sr-only" : ""}`}>个人事务</div>
-              {userMenuItems.map((item) => (
-                <SidebarItem
-                  key={item.key}
-                  item={item}
-                  onNavigate={handleSidebarNavigate}
-                  collapsed={isSidebarCollapsed}
-                />
-              ))}
+          <div className={`${isSidebarCollapsed ? "mt-2 border-t border-white/[0.06] pt-2" : "mt-5 border-t border-white/[0.06] pt-4"}`} role="group" aria-label="日常事务">
+            <div className={`dashboard-shell__sidebar-section-title px-3 pb-2 text-[11px] font-semibold tracking-wide text-gray-500 ${isSidebarCollapsed ? "sr-only" : ""}`}>日常事务</div>
+            {dailyMenuItems.map((item) => (
+              <SidebarItem key={item.key} item={item} onNavigate={handleSidebarNavigate} collapsed={isSidebarCollapsed} />
+            ))}
+          </div>
+          {growthMenuItem ? (
+            <div className={`${isSidebarCollapsed ? "mt-2 border-t border-white/[0.06] pt-2" : "mt-5 border-t border-white/[0.06] pt-4"}`} role="group" aria-label="个人成长">
+              <div className={`dashboard-shell__sidebar-section-title px-3 pb-2 text-[11px] font-semibold tracking-wide text-gray-500 ${isSidebarCollapsed ? "sr-only" : ""}`}>个人成长</div>
+              <SidebarItem item={growthMenuItem} onNavigate={handleSidebarNavigate} collapsed={isSidebarCollapsed} />
+            </div>
+          ) : null}
+          {tarsBaseMenuItem ? (
+            <div className="mt-1">
+              <SidebarItem item={tarsBaseMenuItem} onNavigate={handleSidebarNavigate} collapsed={isSidebarCollapsed} />
             </div>
           ) : null}
 
           {showAdminSection ? (
             <div className={`${isSidebarCollapsed ? "mt-2 border-t border-white/[0.06] pt-2" : "mt-6 border-t border-white/[0.06] pt-5"}`}>
-              <div className={`dashboard-shell__sidebar-section-title px-3 pb-2 text-[11px] uppercase tracking-[0.18em] text-gray-500 ${isSidebarCollapsed ? "sr-only" : ""}`}>管理事务</div>
+              <div className={`dashboard-shell__sidebar-section-title px-3 pb-2 text-[11px] font-semibold tracking-wide text-gray-500 ${isSidebarCollapsed ? "sr-only" : ""}`}>管理事务</div>
               <div className="space-y-1">
                 {adminMenuItems.map((item) => (
                   <SidebarItem
