@@ -83,11 +83,12 @@ export default function PracticeProjectsPage(){
   let live=true;setLoading(true);setError("");
   void Promise.all([admin?practiceClient.adminList():practiceClient.memberList(),admin?practiceClient.groups():Promise.resolve([])]).then(([items,scope])=>{
    if(!live)return;
-   setProjects(items);setGroups(scope);setSelectedId(items[0]?.id??0);
+   const requestedId=Number(new URLSearchParams(location.search).get("projectId"))||0;
+   setProjects(items);setGroups(scope);setSelectedId(items.find(item=>item.id===requestedId)?.id??items[0]?.id??0);
    setDraft(old=>({...old,groupId:scope[0]?.groupId??0}));
   }).catch(e=>{if(live)setError(errorText(e))}).finally(()=>{if(live)setLoading(false)});
   return ()=>{live=false};
- },[currentUser.id,admin]);
+ },[currentUser.id,admin,location.search]);
  useEffect(()=>{
   if(!selectedId)return;
   let live=true;setDetailLoadedId(0);

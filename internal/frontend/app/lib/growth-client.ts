@@ -6,6 +6,7 @@ export interface GrowthEvent {
   kind: string;
   title: string;
   description?: string;
+  groupId?: number;
   groupName?: string;
   occurredAt: string;
   href?: string;
@@ -17,6 +18,8 @@ export interface GrowthProfile {
   stats: {
     completedChallenges: number;
     firstSubmissions: number;
+    practiceProjects: number;
+    projectsAccepted: number;
     questionsAsked: number;
     discussionThreads: number;
     resolvedQuestions: number;

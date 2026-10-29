@@ -46,6 +46,7 @@ export default [
     route("admin/training/questions", "routes/admin/training-question-management.tsx"),
     route("admin/training/skills", "routes/admin/skill-route-management.tsx"),
     route("admin/training/capabilities", "routes/admin/capabilities.tsx"),
+    route("admin/cultivation", "routes/admin/cultivation.tsx"),
     route("admin/training/expedition", "routes/admin/expedition-project-management.tsx"),
   ]),
   route("*", "routes/not-found.tsx"),

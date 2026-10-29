@@ -27,7 +27,7 @@ test("admin navigation groups recruitment and member tools while keeping email s
   assert.equal(training?.label, "新人培养");
   assert.deepEqual(training?.children.map(({ label }) => label), ["作业管理", "提交记录", "答疑管理", "技能路线管理", "赛季协作"]);
   assert.equal(members?.label, "成员管理");
-  assert.deepEqual(members?.children.map(({ label }) => label), ["账号与权限", "请假管理", "实践项目管理", "能力评价管理", "组内空闲分析"]);
+  assert.deepEqual(members?.children.map(({ label }) => label), ["账号与权限", "请假管理", "实践项目管理", "能力评价管理", "人员培养", "组内空闲分析"]);
   assert.equal(menu.length, 4);
   assert.equal(menu.some((item) => item.key === "portal-content" || item.key === "recruitment-statistics"), false);
   const emailManagement = menu.find((item) => item.key === "email-management");
@@ -51,6 +51,9 @@ test("member navigation keeps personal growth available to all roles and restric
   assert.deepEqual(adminMenu.map(({ key }) => key), ["recruitment-operations", "member-management"]);
   assert.deepEqual(adminMenu[0]?.children.map(({ key }) => key), ["admin-panel", "candidate-processing"]);
 	assert.deepEqual(adminMenu[1]?.children.map(({ key }) => key), ["leave-management", "practice-project-management", "timetable-availability"]);
+	assert.equal(getVisibleAdminDashboardMenu("admin", false, false, true).flatMap((item) => "children" in item ? item.children : []).some((item) => item.href === "/dashboard/admin/cultivation"), true);
+	assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/cultivation", false, false, false), false);
+	assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/cultivation", false, false, true), true);
   assert.equal(getVisibleAdminDashboardMenu("user").length, 0);
 });
 
@@ -132,6 +135,7 @@ test("super admin can access every listed admin route", () => {
     "/dashboard/admin/training/submissions",
     "/dashboard/admin/training/questions",
     "/dashboard/admin/training/skills",
+    "/dashboard/admin/cultivation",
     "/dashboard/admin/training/expedition",
   ];
 

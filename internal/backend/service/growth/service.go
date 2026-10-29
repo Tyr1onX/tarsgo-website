@@ -13,6 +13,7 @@ import (
 
 	"tarsgo-backend/model"
 	"tarsgo-backend/service/assignment"
+	"tarsgo-backend/service/capabilities"
 )
 
 var technicalGroupNames = []string{"机械组", "电控组", "视觉组", "AI组"}
@@ -21,10 +22,15 @@ type AssignmentReader interface {
 	ListMine(ctx context.Context, actor assignment.Actor) ([]assignment.AssignmentView, error)
 }
 
+type CapabilityReader interface {
+	ListMine(ctx context.Context, userID uint64) (*capabilities.MineResult, error)
+}
+
 type Service struct {
-	db          *gorm.DB
-	assignments AssignmentReader
-	Now         func() time.Time
+	db           *gorm.DB
+	assignments  AssignmentReader
+	capabilities CapabilityReader
+	Now          func() time.Time
 }
 
 type Profile struct {
@@ -38,6 +44,8 @@ type Profile struct {
 type Statistics struct {
 	CompletedChallenges int `json:"completedChallenges"`
 	FirstSubmissions    int `json:"firstSubmissions"`
+	PracticeProjects    int `json:"practiceProjects"`
+	ProjectsAccepted    int `json:"projectsAccepted"`
 	QuestionsAsked      int `json:"questionsAsked"`
 	DiscussionThreads   int `json:"discussionThreads"`
 	ResolvedQuestions   int `json:"resolvedQuestions"`
@@ -50,6 +58,7 @@ type Event struct {
 	Kind        string    `json:"kind"`
 	Title       string    `json:"title"`
 	Description string    `json:"description,omitempty"`
+	GroupID     uint64    `json:"groupId,omitempty"`
 	GroupName   string    `json:"groupName,omitempty"`
 	OccurredAt  time.Time `json:"occurredAt"`
 	Href        string    `json:"href,omitempty"`
@@ -73,20 +82,41 @@ type membershipRow struct {
 type assignmentEventRow struct {
 	ID           uint64
 	AssignmentID uint64
+	GroupID      uint64
 	Attempt      uint
 	SubmittedAt  time.Time
 	Title        string
 	GroupName    string
 }
 
+type practiceEventRow struct {
+	ID        uint64
+	ProjectID uint64
+	GroupID   uint64
+	JoinedAt  time.Time
+	Project   string
+	GroupName string
+}
+
+type practiceSubmissionEventRow struct {
+	ID         uint64
+	ProjectID  uint64
+	GroupID    uint64
+	Attempt    uint
+	Decision   string
+	CreatedAt  time.Time
+	ReviewedAt *time.Time
+	Project    string
+	GroupName  string
+}
+
 type reviewEventRow struct {
 	ID           uint64
 	AssignmentID uint64
+	GroupID      uint64
 	SubmissionID uint64
 	Attempt      uint
-	Score        uint8
 	Decision     string
-	Comment      string
 	CreatedAt    time.Time
 	Title        string
 	GroupName    string
@@ -122,6 +152,7 @@ type questionGrowthEventRow struct {
 
 type weeklyReportRow struct {
 	ID        uint64
+	GroupID   *uint64
 	WeekStart model.WeeklyReportWeekStart
 	UpdatedAt time.Time
 	GroupName string
@@ -139,8 +170,12 @@ type skillReviewRow struct {
 	ActorName    string
 }
 
-func NewService(db *gorm.DB, assignments AssignmentReader) *Service {
-	return &Service{db: db, assignments: assignments, Now: time.Now}
+func NewService(db *gorm.DB, assignments AssignmentReader, capabilityReaders ...CapabilityReader) *Service {
+	service := &Service{db: db, assignments: assignments, Now: time.Now}
+	if len(capabilityReaders) > 0 {
+		service.capabilities = capabilityReaders[0]
+	}
+	return service
 }
 
 // GetMine builds a private profile from records owned by the authenticated user.
@@ -183,6 +218,7 @@ func (s *Service) GetMine(ctx context.Context, userID uint64) (*Profile, error) 
 				Key:        fmt.Sprintf("membership:%d", membership.ID),
 				Kind:       "membership",
 				Title:      "加入" + membership.GroupName,
+				GroupID:    membership.GroupID,
 				GroupName:  membership.GroupName,
 				OccurredAt: membership.JoinedAt,
 			})
@@ -190,6 +226,9 @@ func (s *Service) GetMine(ctx context.Context, userID uint64) (*Profile, error) 
 	}
 	if len(groupIDs) > 0 {
 		if err := s.loadSkillEvents(ctx, userID, groupIDs, profile); err != nil {
+			return nil, err
+		}
+		if err := s.loadPracticeEvents(ctx, userID, groupIDs, profile); err != nil {
 			return nil, err
 		}
 	}
@@ -201,10 +240,12 @@ func (s *Service) GetMine(ctx context.Context, userID uint64) (*Profile, error) 
 		}
 	}
 
-	if len(technicalGroupIDs) > 0 {
-		if err := s.loadAssignmentEvents(ctx, userID, technicalGroupIDs, profile); err != nil {
+	if len(groupIDs) > 0 {
+		if err := s.loadAssignmentEvents(ctx, userID, groupIDs, profile); err != nil {
 			return nil, err
 		}
+	}
+	if len(technicalGroupIDs) > 0 {
 		if err := s.loadQuestionEvents(ctx, userID, technicalGroupIDs, profile); err != nil {
 			return nil, err
 		}
@@ -237,11 +278,18 @@ func (s *Service) GetMine(ctx context.Context, userID uint64) (*Profile, error) 
 	if err := s.loadWeeklyReportEvents(ctx, userID, profile); err != nil {
 		return nil, err
 	}
+	if s.capabilities != nil {
+		if err := s.loadCapabilityEvents(ctx, userID, profile); err != nil {
+			return nil, err
+		}
+	}
 	if profile.NextAction == nil {
 		profile.NextAction = &NextAction{Title: "填写本周工作周报", Href: "/dashboard/weekly-reports"}
 	}
 
 	profile.Stats.FirstSubmissions = countEvents(profile.Events, "assignment_first_submission")
+	profile.Stats.PracticeProjects = countUniqueProjectEvents(profile.Events, "practice_project_joined")
+	profile.Stats.ProjectsAccepted = countUniqueProjectEvents(profile.Events, "practice_project_review_passed")
 	profile.Stats.QuestionsAsked = countEvents(profile.Events, "question_asked")
 	profile.Stats.ResolvedQuestions = countUniqueQuestionEvents(profile.Events, "question_solved")
 	profile.Stats.FAQContributions = countUniqueQuestionEvents(profile.Events, "faq_contribution")
@@ -258,7 +306,7 @@ func (s *Service) GetMine(ctx context.Context, userID uint64) (*Profile, error) 
 func (s *Service) loadAssignmentEvents(ctx context.Context, userID uint64, groupIDs []uint64, profile *Profile) error {
 	var submissions []assignmentEventRow
 	if err := s.db.WithContext(ctx).Table("assignment_submissions").
-		Select("assignment_submissions.id, assignment_submissions.assignment_id, assignment_submissions.attempt, assignment_submissions.submitted_at, assignments.title, user_groups.name AS group_name").
+		Select("assignment_submissions.id, assignment_submissions.assignment_id, assignments.group_id, assignment_submissions.attempt, assignment_submissions.submitted_at, assignments.title, user_groups.name AS group_name").
 		Joins("JOIN assignments ON assignments.id = assignment_submissions.assignment_id").
 		Joins("JOIN user_groups ON user_groups.id = assignments.group_id").
 		Where("assignment_submissions.user_id = ? AND assignments.group_id IN ?", userID, groupIDs).
@@ -278,6 +326,7 @@ func (s *Service) loadAssignmentEvents(ctx context.Context, userID uint64, group
 			Kind:        kind,
 			Title:       title,
 			Description: row.Title,
+			GroupID:     row.GroupID,
 			GroupName:   row.GroupName,
 			OccurredAt:  row.SubmittedAt,
 			Href:        fmt.Sprintf("/dashboard/assignments?assignmentId=%d", row.AssignmentID),
@@ -286,7 +335,7 @@ func (s *Service) loadAssignmentEvents(ctx context.Context, userID uint64, group
 
 	var reviews []reviewEventRow
 	if err := s.db.WithContext(ctx).Table("assignment_reviews").
-		Select("assignment_reviews.id, assignment_reviews.submission_id, assignment_reviews.score, assignment_reviews.decision, assignment_reviews.comment, assignment_reviews.created_at, assignment_submissions.assignment_id, assignment_submissions.attempt, assignments.title, user_groups.name AS group_name").
+		Select("assignment_reviews.id, assignment_reviews.submission_id, assignment_reviews.decision, assignment_reviews.created_at, assignment_submissions.assignment_id, assignments.group_id, assignment_submissions.attempt, assignments.title, user_groups.name AS group_name").
 		Joins("JOIN assignment_submissions ON assignment_submissions.id = assignment_reviews.submission_id").
 		Joins("JOIN assignments ON assignments.id = assignment_submissions.assignment_id").
 		Joins("JOIN user_groups ON user_groups.id = assignments.group_id").
@@ -304,19 +353,108 @@ func (s *Service) loadAssignmentEvents(ctx context.Context, userID uint64, group
 		} else if row.Decision == model.AssignmentReviewNeedsRedo {
 			title = "作业退回重做"
 		}
-		description := fmt.Sprintf("%s · 第 %d 次提交 · %d 分", row.Title, row.Attempt, row.Score)
-		if comment := strings.TrimSpace(row.Comment); comment != "" {
-			description += " · " + comment
-		}
 		profile.Events = append(profile.Events, Event{
 			Key:         fmt.Sprintf("assignment-review:%d", row.ID),
 			Kind:        "assignment_review_" + row.Decision,
 			Title:       title,
-			Description: description,
+			Description: fmt.Sprintf("%s · 第 %d 次提交", row.Title, row.Attempt),
+			GroupID:     row.GroupID,
 			GroupName:   row.GroupName,
 			OccurredAt:  row.CreatedAt,
 			Href:        fmt.Sprintf("/dashboard/assignments?assignmentId=%d", row.AssignmentID),
 		})
+	}
+	return nil
+}
+
+func (s *Service) loadPracticeEvents(ctx context.Context, userID uint64, groupIDs []uint64, profile *Profile) error {
+	var entries []practiceEventRow
+	if err := s.db.WithContext(ctx).Table("practice_entries").
+		Select("practice_entries.id, practice_entries.project_id, practice_projects.group_id, practice_entries.joined_at, practice_projects.title AS project, user_groups.name AS group_name").
+		Joins("JOIN practice_projects ON practice_projects.id = practice_entries.project_id").
+		Joins("JOIN user_groups ON user_groups.id = practice_projects.group_id").
+		Where("practice_entries.user_id = ? AND practice_projects.group_id IN ?", userID, groupIDs).
+		Order("practice_entries.joined_at ASC, practice_entries.id ASC").Scan(&entries).Error; err != nil {
+		return internalError("读取实践项目成长记录失败", err)
+	}
+	projectIDs := make([]uint64, 0, len(entries))
+	for _, row := range entries {
+		projectIDs = append(projectIDs, row.ProjectID)
+		if validEventTime(row.JoinedAt, s.now()) {
+			profile.Events = append(profile.Events, Event{
+				Key: fmt.Sprintf("practice-entry:%d", row.ID), Kind: "practice_project_joined",
+				Title: "参与实践项目", Description: row.Project, GroupName: row.GroupName,
+				GroupID:    row.GroupID,
+				OccurredAt: row.JoinedAt, Href: fmt.Sprintf("/dashboard/practice-projects?projectId=%d", row.ProjectID),
+			})
+		}
+	}
+	if len(projectIDs) == 0 {
+		return nil
+	}
+	var submissions []practiceSubmissionEventRow
+	if err := s.db.WithContext(ctx).Table("practice_submissions").
+		Select("practice_submissions.id, practice_submissions.project_id, practice_projects.group_id, practice_submissions.attempt, practice_submissions.decision, practice_submissions.created_at, practice_submissions.reviewed_at, practice_projects.title AS project, user_groups.name AS group_name").
+		Joins("JOIN practice_projects ON practice_projects.id = practice_submissions.project_id").
+		Joins("JOIN user_groups ON user_groups.id = practice_projects.group_id").
+		Where("practice_submissions.user_id = ? AND practice_submissions.project_id IN ?", userID, projectIDs).
+		Order("practice_submissions.created_at ASC, practice_submissions.id ASC").Scan(&submissions).Error; err != nil {
+		return internalError("读取实践项目提交成长记录失败", err)
+	}
+	for _, row := range submissions {
+		if validEventTime(row.CreatedAt, s.now()) {
+			profile.Events = append(profile.Events, Event{
+				Key: fmt.Sprintf("practice-submission:%d", row.ID), Kind: "practice_project_submission",
+				Title: "提交实践项目进展", Description: fmt.Sprintf("%s · 第 %d 次提交", row.Project, row.Attempt),
+				GroupName: row.GroupName, OccurredAt: row.CreatedAt,
+				GroupID: row.GroupID,
+				Href:    fmt.Sprintf("/dashboard/practice-projects?projectId=%d", row.ProjectID),
+			})
+		}
+		if row.ReviewedAt == nil || !validEventTime(*row.ReviewedAt, s.now()) {
+			continue
+		}
+		title := "实践项目评价完成"
+		if row.Decision == model.PracticeReviewPassed {
+			title = "实践项目验收通过"
+		} else if row.Decision == model.PracticeReviewRedo {
+			title = "实践项目需要补充"
+		}
+		profile.Events = append(profile.Events, Event{
+			Key: fmt.Sprintf("practice-review:%d", row.ID), Kind: "practice_project_review_" + row.Decision,
+			Title: title, Description: fmt.Sprintf("%s · 第 %d 次提交", row.Project, row.Attempt),
+			GroupName: row.GroupName, OccurredAt: *row.ReviewedAt,
+			GroupID: row.GroupID,
+			Href:    fmt.Sprintf("/dashboard/practice-projects?projectId=%d", row.ProjectID),
+		})
+	}
+	return nil
+}
+
+func (s *Service) loadCapabilityEvents(ctx context.Context, userID uint64, profile *Profile) error {
+	result, err := s.capabilities.ListMine(ctx, userID)
+	if err != nil {
+		return internalError("读取能力变化记录失败", err)
+	}
+	if result == nil {
+		return nil
+	}
+	for _, group := range result.Groups {
+		for _, dimension := range group.Dimensions {
+			for _, history := range dimension.History {
+				if !validEventTime(history.EvaluatedAt, s.now()) {
+					continue
+				}
+				profile.Events = append(profile.Events, Event{
+					Key:  fmt.Sprintf("capability:%d:%s:%d", dimension.ID, history.SourceType, history.ID),
+					Kind: "capability_evaluation", Title: "能力评价更新",
+					Description: fmt.Sprintf("%s · %s", dimension.Name, history.SourceTitle),
+					GroupName:   group.GroupName, OccurredAt: history.EvaluatedAt,
+					GroupID: group.GroupID,
+					Href:    "/dashboard/capabilities",
+				})
+			}
+		}
 	}
 	return nil
 }
@@ -363,6 +501,7 @@ func (s *Service) loadQuestionEvents(ctx context.Context, userID uint64, groupID
 				Kind:        "question_solved",
 				Title:       "自己的问题得到解决",
 				Description: question.Title,
+				GroupID:     question.GroupID,
 				GroupName:   question.GroupName,
 				OccurredAt:  row.OccurredAt,
 				Href:        questionHref(question.GroupID, question.ID),
@@ -376,6 +515,7 @@ func (s *Service) loadQuestionEvents(ctx context.Context, userID uint64, groupID
 				Kind:        "faq_contribution",
 				Title:       "参与的问题收录为组内 FAQ",
 				Description: question.Title,
+				GroupID:     question.GroupID,
 				GroupName:   question.GroupName,
 				OccurredAt:  row.OccurredAt,
 				Href:        questionHref(question.GroupID, question.ID),
@@ -393,6 +533,7 @@ func (s *Service) loadQuestionEvents(ctx context.Context, userID uint64, groupID
 				Kind:        "question_asked",
 				Title:       "提出技术问题",
 				Description: row.Title,
+				GroupID:     row.GroupID,
 				GroupName:   row.GroupName,
 				OccurredAt:  row.CreatedAt,
 				Href:        questionHref(row.GroupID, row.ID),
@@ -406,6 +547,7 @@ func (s *Service) loadQuestionEvents(ctx context.Context, userID uint64, groupID
 					Kind:        "question_solved",
 					Title:       "自己的问题得到解决",
 					Description: row.Title,
+					GroupID:     row.GroupID,
 					GroupName:   row.GroupName,
 					OccurredAt:  *row.SolvedAt,
 					Href:        questionHref(row.GroupID, row.ID),
@@ -420,6 +562,7 @@ func (s *Service) loadQuestionEvents(ctx context.Context, userID uint64, groupID
 					Kind:        "faq_contribution",
 					Title:       "参与的问题收录为组内 FAQ",
 					Description: row.Title,
+					GroupID:     row.GroupID,
 					GroupName:   row.GroupName,
 					OccurredAt:  *row.FAQAt,
 					Href:        questionHref(row.GroupID, row.ID),
@@ -451,6 +594,7 @@ func (s *Service) loadQuestionEvents(ctx context.Context, userID uint64, groupID
 			Kind:        "discussion_participation",
 			Title:       "参与技术讨论",
 			Description: question.Title,
+			GroupID:     question.GroupID,
 			GroupName:   question.GroupName,
 			OccurredAt:  row.CreatedAt,
 			Href:        questionHref(question.GroupID, question.ID),
@@ -463,7 +607,7 @@ func (s *Service) loadQuestionEvents(ctx context.Context, userID uint64, groupID
 func (s *Service) loadWeeklyReportEvents(ctx context.Context, userID uint64, profile *Profile) error {
 	var reports []weeklyReportRow
 	if err := s.db.WithContext(ctx).Table("weekly_reports").
-		Select("weekly_reports.id, weekly_reports.week_start, weekly_reports.updated_at, COALESCE(user_groups.name, '') AS group_name").
+		Select("weekly_reports.id, weekly_reports.group_id, weekly_reports.week_start, weekly_reports.updated_at, COALESCE(user_groups.name, '') AS group_name").
 		Joins("LEFT JOIN user_groups ON user_groups.id = weekly_reports.group_id").
 		Where("weekly_reports.user_id = ?", userID).
 		Order("weekly_reports.week_start ASC, weekly_reports.id ASC").Scan(&reports).Error; err != nil {
@@ -479,6 +623,7 @@ func (s *Service) loadWeeklyReportEvents(ctx context.Context, userID uint64, pro
 			Kind:        "weekly_report",
 			Title:       "提交工作周报",
 			Description: week,
+			GroupID:     uintValue(row.GroupID),
 			GroupName:   row.GroupName,
 			OccurredAt:  row.UpdatedAt,
 			Href:        "/dashboard/weekly-reports?weekStart=" + week,
@@ -522,6 +667,7 @@ func (s *Service) loadSkillEvents(ctx context.Context, userID uint64, groupIDs [
 			Kind:        kind,
 			Title:       title,
 			Description: description,
+			GroupID:     row.GroupID,
 			GroupName:   row.GroupName,
 			OccurredAt:  row.CreatedAt,
 			Href:        fmt.Sprintf("/dashboard/skills?groupId=%d&nodeId=%d", row.GroupID, row.SkillNodeID),
@@ -551,6 +697,13 @@ func displayName(user model.User) string {
 
 func validEventTime(value, now time.Time) bool {
 	return !value.IsZero() && value.Year() >= 2000 && !value.After(now.Add(24*time.Hour))
+}
+
+func uintValue(value *uint64) uint64 {
+	if value == nil {
+		return 0
+	}
+	return *value
 }
 
 func containsGroupName(values []string, target string) bool {
@@ -583,6 +736,21 @@ func countEvents(events []Event, kind string) int {
 		}
 	}
 	return count
+}
+
+func countUniqueProjectEvents(events []Event, kind string) int {
+	seen := make(map[string]struct{})
+	for _, event := range events {
+		if event.Kind != kind {
+			continue
+		}
+		key := event.Href
+		if key == "" {
+			key = event.GroupName + "\x00" + event.Description
+		}
+		seen[key] = struct{}{}
+	}
+	return len(seen)
 }
 
 func countUniqueQuestionEvents(events []Event, kind string) int {

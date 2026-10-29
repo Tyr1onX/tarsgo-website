@@ -16,6 +16,11 @@ export function growthEventLabel(kind: string) {
     case "assignment_resubmission": return "再次挑战";
     case "assignment_review_needs_redo": return "复盘反馈";
     case "assignment_review_passed": return "挑战通过";
+    case "practice_project_joined": return "项目参与";
+    case "practice_project_submission": return "项目进展";
+    case "practice_project_review_passed": return "项目验收";
+    case "practice_project_review_needs_redo": return "项目反馈";
+    case "capability_evaluation": return "能力评价";
     case "question_asked": return "技术探索";
     case "discussion_participation": return "讨论参与";
     case "question_solved": return "问题解决";
@@ -28,7 +33,7 @@ export function growthEventLabel(kind: string) {
 }
 
 export function growthEventTone(kind: string) {
-  if (kind === "assignment_review_passed" || kind === "question_solved" || kind === "faq_contribution" || kind === "skill_mastered") return "bright";
+  if (kind === "assignment_review_passed" || kind === "practice_project_review_passed" || kind === "capability_evaluation" || kind === "question_solved" || kind === "faq_contribution" || kind === "skill_mastered") return "bright";
   if (kind === "assignment_review_needs_redo") return "warm";
   if (kind === "membership") return "origin";
   return "steady";
