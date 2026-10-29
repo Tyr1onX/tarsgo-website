@@ -1,6 +1,7 @@
 package router
 
 import (
+	"encoding/hex"
 	"net/url"
 	"path/filepath"
 	"strings"
@@ -69,6 +70,19 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 		ExposeHeaders:    []string{"X-Request-ID"},
 	}))
 	engine.Static("/upload/config/group", filepath.Join("upload", "config", "group"))
+	engine.GET("/upload/avatars/:filename", func(c *gin.Context) {
+		filename := c.Param("filename")
+		if len(filename) != 36 || filepath.Base(filename) != filename ||
+			(!strings.HasSuffix(filename, ".png") && !strings.HasSuffix(filename, ".jpg")) {
+			c.Status(404)
+			return
+		}
+		if _, err := hex.DecodeString(filename[:32]); err != nil {
+			c.Status(404)
+			return
+		}
+		c.File(filepath.Join("upload", "avatars", filename))
+	})
 
 	healthHandler := handler.NewHealthHandler(db)
 	authService := auth.NewService(cfg, db)
@@ -106,6 +120,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	api.POST("/login/email/code", authHandler.LoginWithCode)
 	api.POST("/logout", requireAccountActionOrigin(cfg), authHandler.Logout)
 	api.GET("/me", authHandler.Me)
+	api.PUT("/me", requireSameOriginRequest(cfg), middleware.RequireAuthenticated(authService), authHandler.UpdateProfile)
 	api.GET("/account-sessions", authHandler.ListAccountSessions)
 	accountSessionAPI := api.Group("/account-sessions")
 	accountSessionAPI.Use(requireAccountActionOrigin(cfg))

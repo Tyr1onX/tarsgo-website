@@ -16,6 +16,7 @@ export interface AuthUser {
   phone?: string | null;
   nickname?: string | null;
   avatarUrl?: string | null;
+  realName?: string | null;
   role: AuthRole;
 }
 
@@ -264,6 +265,19 @@ export async function logoutAllAccounts(): Promise<void> {
   invalidateUserGroupConfirmationStateCache();
   notifyAuthStateChange(null);
   announceAccountSessionChange();
+}
+
+export async function updateProfile(input: { nickname: string; phone: string; avatar: File | null }): Promise<AuthUser> {
+  const body = new FormData();
+  body.set("nickname", input.nickname);
+  body.set("phone", input.phone);
+  if (input.avatar) body.set("avatar", input.avatar);
+  const data = await apiRequest<{ user: AuthUser }>("/api/me", { method: "PUT", body });
+  authSessionCache.setAuthenticated(data.user);
+  invalidateCurrentUserRequest();
+  notifyAuthStateChange(data.user);
+  announceAccountSessionChange();
+  return data.user;
 }
 
 export function getCachedCurrentUser(): AuthUser | null {

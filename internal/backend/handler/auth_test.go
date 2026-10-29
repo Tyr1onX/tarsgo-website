@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -23,6 +24,7 @@ type stubAuthService struct {
 	sendLoginCodeFn             func(ctx context.Context, email string) error
 	loginWithCodeFn             func(ctx context.Context, email string, code string) (*auth.AuthResult, error)
 	currentUserFn               func(ctx context.Context, token string) (*auth.SessionUser, error)
+	updateProfileFn             func(ctx context.Context, userID uint64, input auth.ProfileInput) (*auth.SessionUser, error)
 }
 
 func (s stubAuthService) BootstrapStatus(ctx context.Context) (*auth.BootstrapStatus, error) {
@@ -81,6 +83,13 @@ func (s stubAuthService) CurrentUser(ctx context.Context, token string) (*auth.S
 	return nil, nil
 }
 
+func (s stubAuthService) UpdateProfile(ctx context.Context, userID uint64, input auth.ProfileInput) (*auth.SessionUser, error) {
+	if s.updateProfileFn != nil {
+		return s.updateProfileFn(ctx, userID, input)
+	}
+	return &auth.SessionUser{ID: userID}, nil
+}
+
 func (stubAuthService) CreateAccountSession(ctx context.Context, userID uint64, currentToken, vaultToken string) (*auth.AccountSessionsResult, error) {
 	return &auth.AccountSessionsResult{SessionToken: "opaque-session", VaultToken: "opaque-vault"}, nil
 }
@@ -126,6 +135,72 @@ func (s stubAuthService) CookieSecure() bool {
 
 func (s stubAuthService) CookieSameSite() http.SameSite {
 	return http.SameSiteLaxMode
+}
+
+func TestUpdateProfileUsesAuthenticatedAccountAndRejectsProtectedFields(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+
+	for _, tc := range []struct {
+		name     string
+		extra    string
+		loggedIn bool
+		want     int
+	}{
+		{name: "valid", loggedIn: true, want: http.StatusOK},
+		{name: "missing session", want: http.StatusUnauthorized},
+		{name: "real name", extra: "realName", loggedIn: true, want: http.StatusBadRequest},
+		{name: "email", extra: "email", loggedIn: true, want: http.StatusBadRequest},
+		{name: "group", extra: "groupId", loggedIn: true, want: http.StatusBadRequest},
+		{name: "role", extra: "roleId", loggedIn: true, want: http.StatusBadRequest},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			called := false
+			handler := NewAuthHandler(stubAuthService{
+				updateProfileFn: func(_ context.Context, userID uint64, input auth.ProfileInput) (*auth.SessionUser, error) {
+					called = true
+					if userID != 41 || input.Nickname != "新昵称" || input.Phone != "13900139000" || input.Avatar != nil {
+						t.Fatalf("unexpected update input: user=%d input=%#v", userID, input)
+					}
+					return &auth.SessionUser{ID: userID, Nickname: &input.Nickname}, nil
+				},
+			})
+			router := gin.New()
+			router.PUT("/api/me", func(c *gin.Context) {
+				if tc.loggedIn {
+					c.Set("sessionUser", &auth.SessionUser{ID: 41})
+				}
+				c.Next()
+			}, handler.UpdateProfile)
+
+			var body bytes.Buffer
+			writer := multipart.NewWriter(&body)
+			if err := writer.WriteField("nickname", "新昵称"); err != nil {
+				t.Fatal(err)
+			}
+			if err := writer.WriteField("phone", "13900139000"); err != nil {
+				t.Fatal(err)
+			}
+			if tc.extra != "" {
+				if err := writer.WriteField(tc.extra, "forbidden"); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := writer.Close(); err != nil {
+				t.Fatal(err)
+			}
+			request := httptest.NewRequest(http.MethodPut, "/api/me", &body)
+			request.Header.Set("Content-Type", writer.FormDataContentType())
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, request)
+
+			if recorder.Code != tc.want {
+				t.Fatalf("status=%d, want=%d: %s", recorder.Code, tc.want, recorder.Body.String())
+			}
+			if called != (tc.want == http.StatusOK) {
+				t.Fatalf("service called=%v on status=%d", called, recorder.Code)
+			}
+		})
+	}
 }
 
 func TestSendRegisterCode(t *testing.T) {
