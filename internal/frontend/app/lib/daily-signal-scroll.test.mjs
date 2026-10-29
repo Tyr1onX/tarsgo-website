@@ -113,9 +113,9 @@ test("the compact communication keeps the signal mark and uses a restrained one-
   assert.doesNotMatch(workspace, /<aside className="daily-signal__transmitter"/);
 });
 
-test("the workbench supplies the verified account identity and remounts private signal state per account", async () => {
+test("the daily signal component remains isolated from the workbench home", async () => {
   const dashboard = await readFile(new URL("../routes/dashboard/index.tsx", import.meta.url), "utf8");
-  assert.match(dashboard, /<DailySignalWorkspace key=\{currentUser\.id\} currentUser=\{currentUser\} \/>/);
+  assert.doesNotMatch(dashboard, /DailySignalWorkspace|daily-signal/);
   assert.match(workspace, /DailySignalWorkspace\(\{ currentUser \}: \{ currentUser: AuthUser \}\)/);
   assert.doesNotMatch(workspace, /getOptionalCurrentUser|subscribeAccountSessionChange|subscribeAuthStateChange/);
 });
@@ -134,7 +134,7 @@ test("historical mood deletion controls and their request path are removed", () 
   assert.doesNotMatch(dailySignalStyles, /daily-signal__delete-mood/);
 });
 
-test("the dashboard grid can shrink around the horizontally scrollable annual archive", () => {
+test("the dashboard grid keeps a shrinkable single content column", () => {
   assert.match(dashboardHomeStyles, /grid-template-columns: minmax\(0, 1fr\)/);
   assert.match(dashboardHomeStyles, /\.dashboard-home > \* \{ min-width: 0; \}/);
 });
