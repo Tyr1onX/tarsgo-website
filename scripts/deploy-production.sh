@@ -139,11 +139,10 @@ systemctl enable --now backup-production.timer
 INSTALL_BACKUP
 
 if [[ "$require_offsite_backup" == 1 ]]; then
-  echo "production_backup_mode=offsite (local + Tencent, required before deployment)"
+  echo "production_backup_mode=offsite (explicitly required before deployment)"
   "$ssh_bin" -o BatchMode=yes "$target" "$jijia_root/jijia-backup.sh" --offsite
 else
-  echo "production_backup_mode=local (Tencent transfer skipped for this deployment)"
-  "$ssh_bin" -o BatchMode=yes "$target" "$jijia_root/jijia-backup.sh" --local-only
+  echo "production_backup_mode=skipped (weekly offsite backup remains enabled)"
 fi
 if [[ "$safe_cleanup_performed" == 0 ]]; then
   "$ssh_bin" -o BatchMode=yes "$target" bash -s -- "$jijia_root" "$release_name" <"$repo_root/scripts/production-safe-cleanup.sh"
