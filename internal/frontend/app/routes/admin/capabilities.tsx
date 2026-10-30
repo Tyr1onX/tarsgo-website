@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useOutletContext } from "react-router";
 
-import { CapabilityRadar, formatScore } from "~/components/capability-radar";
+import { formatScore } from "~/components/capability-radar";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import {
   capabilitiesClient,
@@ -200,7 +200,7 @@ export default function CapabilityManagementRoute() {
   return (
     <section className="capability-admin-page" aria-labelledby="capability-admin-title">
       <header className="capability-admin-header">
-        <div><h1 id="capability-admin-title">能力评价管理</h1><p>维护本组维度、关联评价来源并查看成员成长。</p></div>
+        <div><h1 id="capability-admin-title">能力评价管理</h1></div>
         <span className="capability-admin-scale">0–100 分</span>
       </header>
       {error ? <div className="capability-admin-alert" role="alert">{error}</div> : null}
@@ -211,7 +211,6 @@ export default function CapabilityManagementRoute() {
         {groups.length > 1 ? <div className="capability-admin-tabs" role="group" aria-label="选择要管理的组别">{groups.map((item) => <button key={item.id} type="button" aria-pressed={item.id === groupID} onClick={() => selectGroup(item.id)}>{item.name}</button>)}</div> : <p className="capability-admin-group-name">{groups[0]?.name}</p>}
         {loading && !overview ? <p role="status" className="capability-admin-state">正在读取组内评价…</p> : null}
         {overview ? <>
-          <div className="capability-admin-rule">各关联来源按最新有效评分计入，管理员补充评价逐条计入，结果取算术平均。</div>
           <div className="capability-admin-layout">
             <section className="capability-admin-panel" aria-labelledby="dimension-settings-title">
               <div className="capability-admin-panel-heading"><h2 id="dimension-settings-title">能力维度</h2><button className="capability-admin-primary" type="button" onClick={startNewDimension}>＋ 新建维度</button></div>
@@ -248,7 +247,6 @@ export default function CapabilityManagementRoute() {
                 <label className="capability-member-select">选择成员<select className="admin-field" value={selectedUserID ?? ""} onChange={(event) => setSelectedUserID(Number(event.target.value) || null)}>{overview.members.map((item) => <option key={item.userId} value={item.userId}>{item.displayName}</option>)}</select></label>
                 {selectedMemberSummary ? <div className="capability-member-summary">{selectedMemberSummary.dimensions.map((dimension) => <span key={dimension.id}>{dimension.name} <strong>{dimension.score === null ? "暂无评价" : `${formatScore(dimension.score)} 分`}</strong></span>)}</div> : null}
                 {member ? <>
-                  <CapabilityRadar dimensions={member.dimensions.filter((dimension) => overview.dimensions.some((item) => item.id === dimension.id && item.active))} title={`${member.displayName}能力雷達`} />
                   <div className="capability-admin-detail-list">
                     {member.dimensions.map((dimension) => {
                       const dimensionConfig = overview.dimensions.find((item) => item.id === dimension.id);
