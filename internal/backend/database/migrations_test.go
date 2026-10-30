@@ -17,10 +17,10 @@ import (
 
 func TestMigrationRegistryIsOrderedAndKeepsBaseVersion(t *testing.T) {
 	items := migrationRegistry("test")
-	if len(items) != 33 {
-		t.Fatalf("expected 33 registered migrations, got %d", len(items))
+	if len(items) != 34 {
+		t.Fatalf("expected 34 registered migrations, got %d", len(items))
 	}
-	wantVersions := []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33}
+	wantVersions := []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34}
 	for index, want := range wantVersions {
 		if items[index].version != want {
 			t.Fatalf("migration %d has version %d, want %d", index, items[index].version, want)
@@ -34,6 +34,78 @@ func TestMigrationRegistryIsOrderedAndKeepsBaseVersion(t *testing.T) {
 			t.Fatalf("migrations must be strictly ordered at index %d", index)
 		}
 	}
+}
+
+func TestAcceptanceDatabaseUserNameMigrationBackfillsWithoutOverwritingOrTouchingNicknames(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("TARSGO_QA_TEST_DSN"))
+	if dsn == "" {
+		t.Skip("TARSGO_QA_TEST_DSN is not set")
+	}
+	if !strings.Contains(dsn, "@tcp(127.0.0.1:3317)/tarsgo_acceptance?") {
+		t.Fatal("refusing user-name migration verification outside the isolated local acceptance database")
+	}
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+	if err != nil {
+		t.Fatal("open isolated acceptance database")
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatal("open isolated acceptance SQL connection")
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	tableName := fmt.Sprintf("user_name_migration_probe_%d", time.Now().UnixNano())
+	quotedTable := "`" + tableName + "`"
+	if err := db.Exec("CREATE TABLE " + quotedTable + " (id BIGINT UNSIGNED NOT NULL PRIMARY KEY, real_name VARCHAR(100) NULL, nickname VARCHAR(100) NULL, updated_at DATETIME NOT NULL) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").Error; err != nil {
+		t.Fatalf("create user-name migration probe: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Exec("DROP TABLE IF EXISTS " + quotedTable).Error; err != nil {
+			t.Errorf("drop user-name migration probe: %v", err)
+		}
+	})
+	updatedAt := time.Date(2026, time.October, 20, 12, 0, 0, 0, time.UTC)
+	if err := db.Exec("INSERT INTO "+quotedTable+" (id, real_name, nickname, updated_at) VALUES (1, '已有姓名', '不同昵称', ?), (2, '', '旧昵称', ?), (3, NULL, '  新姓名  ', ?), (4, '   ', '姓名四', ?), (5, NULL, NULL, ?), (6, NULL, '   ', ?)", updatedAt, updatedAt, updatedAt, updatedAt, updatedAt, updatedAt).Error; err != nil {
+		t.Fatalf("seed user-name migration probe: %v", err)
+	}
+	if err := backfillCanonicalUserNamesForTable(db, tableName); err != nil {
+		t.Fatalf("apply user-name migration: %v", err)
+	}
+	if err := backfillCanonicalUserNamesForTable(db, tableName); err != nil {
+		t.Fatalf("repeat user-name migration: %v", err)
+	}
+	var rows []struct {
+		ID        uint64
+		RealName  *string
+		Nickname  *string
+		UpdatedAt time.Time
+	}
+	if err := db.Table(tableName).Select("id, real_name, nickname, updated_at").Order("id ASC").Find(&rows).Error; err != nil {
+		t.Fatalf("read migrated users: %v", err)
+	}
+	wantNames := []*string{stringPointer("已有姓名"), stringPointer("旧昵称"), stringPointer("新姓名"), stringPointer("姓名四"), nil, nil}
+	if len(rows) != len(wantNames) {
+		t.Fatalf("migrated %d users, want %d", len(rows), len(wantNames))
+	}
+	for index, row := range rows {
+		if !equalOptionalString(row.RealName, wantNames[index]) {
+			t.Errorf("user %d real_name = %v, want %v", row.ID, row.RealName, wantNames[index])
+		}
+		if row.UpdatedAt.UTC() != updatedAt {
+			t.Errorf("user %d updated_at changed from migration: %s", row.ID, row.UpdatedAt)
+		}
+	}
+	if rows[0].Nickname == nil || *rows[0].Nickname != "不同昵称" || rows[1].Nickname == nil || *rows[1].Nickname != "旧昵称" {
+		t.Fatalf("migration changed historical nickname values: %#v", rows)
+	}
+}
+
+func stringPointer(value string) *string { return &value }
+
+func equalOptionalString(left, right *string) bool {
+	if left == nil || right == nil {
+		return left == right
+	}
+	return *left == *right
 }
 
 func TestMigration28AddsAllMemberWeeklyReportFields(t *testing.T) {

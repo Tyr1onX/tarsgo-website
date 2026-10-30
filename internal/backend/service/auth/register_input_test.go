@@ -77,7 +77,7 @@ func TestNormalizeRegisterEmailInputRequiresRealNameAndPhone(t *testing.T) {
 	if serviceErr.Status != 400 {
 		t.Fatalf("expected status 400, got %d", serviceErr.Status)
 	}
-	if serviceErr.Message != "真实姓名和手机号不能为空" {
+	if serviceErr.Message != "姓名和手机号不能为空" {
 		t.Fatalf("unexpected message: %q", serviceErr.Message)
 	}
 }
@@ -131,11 +131,10 @@ func TestNormalizeRegisterEmailInputRequiresChineseRealName(t *testing.T) {
 	if serviceErr.Status != 400 {
 		t.Fatalf("expected status 400, got %d", serviceErr.Status)
 	}
-	if serviceErr.Message != "真实姓名需为汉字" {
+	if serviceErr.Message != "姓名需为汉字" {
 		t.Fatalf("unexpected message: %q", serviceErr.Message)
 	}
 }
-
 
 // Registration profile fields are contact hints, not verified identity keys.
 func TestNormalizeRegisterInputAllowsSharedNameAndPhoneAcrossEmails(t *testing.T) {

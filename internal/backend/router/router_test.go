@@ -53,6 +53,8 @@ func TestPausedTrainingAPIsAreUnregisteredAndOpenWorkflowsRemain(t *testing.T) {
 		"GET /api/admin/assignments",
 		"POST /api/admin/assignments",
 		"POST /api/admin/assignments/submissions/:id/reviews",
+		"GET /api/admin/timetable-availability/cleanup",
+		"POST /api/admin/timetable-availability/cleanup",
 		"GET /api/admin/timetable-availability/week",
 		"GET /api/weekly-reports",
 		"GET /api/leave/access",

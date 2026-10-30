@@ -15,6 +15,21 @@ import (
 	"tarsgo-backend/service/auth"
 )
 
+func TestAccountListAndDetailsUsePreferredNameWithLegacyFallback(t *testing.T) {
+	user := &model.User{ID: 12, Name: "account", Email: "member@example.test", Nickname: stringPtr("旧昵称"), Role: model.Role{ID: 3, Name: model.RoleNameUser}}
+	listItem := toUserListItem(user)
+	detail := toUserDetail(user)
+	if listItem.Name != "旧昵称" || detail.RealName == nil || *detail.RealName != "旧昵称" {
+		t.Fatalf("nickname fallback was not exposed as the canonical name: list=%#v detail=%#v", listItem, detail)
+	}
+	user.RealName = stringPtr("姓名")
+	listItem = toUserListItem(user)
+	detail = toUserDetail(user)
+	if listItem.Name != "姓名" || detail.RealName == nil || *detail.RealName != "姓名" {
+		t.Fatalf("real name did not take precedence: list=%#v detail=%#v", listItem, detail)
+	}
+}
+
 func TestAccountManagementIsSuperAdminOnly(t *testing.T) {
 	service := NewService(newFakeRepository())
 	actor := Actor{RoleName: model.RoleNameAdmin}

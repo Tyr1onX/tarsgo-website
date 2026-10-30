@@ -47,7 +47,7 @@ export function buildLockedRegistrationFields(): RegistrationFormField[] {
       label: "姓名",
       type: "text",
       required: true,
-      placeholder: "请输入真实姓名",
+		placeholder: "请输入姓名",
     },
     {
       key: "phone",

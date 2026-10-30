@@ -643,10 +643,8 @@ func validateInput(input ReportInput, allowEmptyLegacyGains bool) (ReportInput, 
 }
 
 func memberDisplayName(user model.User) string {
-	for _, value := range []*string{user.RealName, user.Nickname} {
-		if value != nil && strings.TrimSpace(*value) != "" {
-			return strings.TrimSpace(*value)
-		}
+	if name := user.PreferredName(); name != "" {
+		return name
 	}
 	if strings.TrimSpace(user.Name) != "" {
 		return strings.TrimSpace(user.Name)

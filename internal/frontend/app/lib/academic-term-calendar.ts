@@ -1,20 +1,3 @@
-type AcademicTerm = {
-  firstWeekStart: string;
-  teachingWeekCount: number;
-};
-
-const FALL_2026: AcademicTerm = {
-  firstWeekStart: "2026-09-07",
-  teachingWeekCount: 19,
-};
-
-// Source: Jilin University 2026–2027 academic calendar, published by the Undergraduate School.
-// The calendar labels the week starting Sep 7 as week 1 and begins winter break on Jan 18.
-const ACADEMIC_TERMS: Readonly<Record<string, AcademicTerm>> = {
-  "2026-2027学年第1学期": FALL_2026,
-  "2026-2027学年第一学期": FALL_2026,
-};
-
 export type TeachingWeekStatus = "before" | "current" | "after" | "unconfigured";
 
 export interface TeachingWeekResolution {
@@ -51,28 +34,27 @@ export function getBeijingDate(now: Date = new Date()) {
   return `${values.year}-${values.month}-${values.day}`;
 }
 
-export function resolveTeachingWeekForDate(semester: string, date: string): TeachingWeekResolution {
-  const term = ACADEMIC_TERMS[semester.trim()];
+export function resolveTeachingWeekForDate(firstWeekStartDate: string, date: string, teachingWeekCount: number): TeachingWeekResolution {
   const today = dateOrdinal(date);
-  if (!term || today === null) return { week: null, status: "unconfigured" };
-
-  const firstWeekStart = dateOrdinal(term.firstWeekStart);
-  if (firstWeekStart === null) return { week: null, status: "unconfigured" };
-  const lastWeekEnd = firstWeekStart + term.teachingWeekCount * 7 - 1;
+  const firstWeekStart = dateOrdinal(firstWeekStartDate);
+  if (today === null || firstWeekStart === null || !Number.isInteger(teachingWeekCount) || teachingWeekCount < 1) {
+    return { week: null, status: "unconfigured" };
+  }
+  const lastWeekEnd = firstWeekStart + teachingWeekCount * 7 - 1;
   const base = {
-    firstWeekStart: term.firstWeekStart,
+    firstWeekStart: firstWeekStartDate,
     lastWeekEnd: dateFromOrdinal(lastWeekEnd),
-    teachingWeekCount: term.teachingWeekCount,
+    teachingWeekCount,
   };
 
   if (today < firstWeekStart) return { ...base, week: 1, status: "before" };
   const week = Math.floor((today - firstWeekStart) / 7) + 1;
-  if (week > term.teachingWeekCount) {
-    return { ...base, week: term.teachingWeekCount, status: "after" };
+  if (week > teachingWeekCount) {
+    return { ...base, week: teachingWeekCount, status: "after" };
   }
   return { ...base, week, status: "current" };
 }
 
-export function resolveCurrentTeachingWeek(semester: string, now: Date = new Date()) {
-  return resolveTeachingWeekForDate(semester, getBeijingDate(now));
+export function resolveCurrentTeachingWeek(firstWeekStartDate: string, now: Date = new Date(), teachingWeekCount = 19) {
+  return resolveTeachingWeekForDate(firstWeekStartDate, getBeijingDate(now), teachingWeekCount);
 }

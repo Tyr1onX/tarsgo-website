@@ -1284,11 +1284,8 @@ func reviewEventViews(events []model.SkillReviewEvent) []ReviewEvent {
 }
 
 func displayName(user model.User) string {
-	if user.RealName != nil && strings.TrimSpace(*user.RealName) != "" {
-		return strings.TrimSpace(*user.RealName)
-	}
-	if user.Nickname != nil && strings.TrimSpace(*user.Nickname) != "" {
-		return strings.TrimSpace(*user.Nickname)
+	if name := user.PreferredName(); name != "" {
+		return name
 	}
 	if strings.TrimSpace(user.Name) != "" {
 		return strings.TrimSpace(user.Name)

@@ -186,6 +186,8 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	adminAPI.GET("/timetable-availability/options", availabilityHandler.Options)
 	adminAPI.GET("/timetable-availability/week", availabilityHandler.Week)
 	adminAPI.GET("/timetable-availability", availabilityHandler.Analyze)
+	adminAPI.GET("/timetable-availability/cleanup", timetableHandler.CleanupCount)
+	adminAPI.POST("/timetable-availability/cleanup", requireSameOriginRequest(cfg), timetableHandler.ClearAll)
 	adminAPI.GET("/assignment-members", assignmentHandler.ListGroupMembers)
 	adminAPI.GET("/assignments", assignmentHandler.ListAdmin)
 	adminAPI.POST("/assignments", requireSameOriginRequest(cfg), assignmentHandler.Create)

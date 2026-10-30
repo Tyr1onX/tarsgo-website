@@ -29,6 +29,30 @@ func TestToSessionUserIncludesAvatarURL(t *testing.T) {
 	}
 }
 
+func TestToSessionUserUsesRealNameBeforeLegacyNickname(t *testing.T) {
+	t.Parallel()
+
+	user := &model.User{
+		ID:       8,
+		Email:    "user@example.com",
+		RealName: stringPointer("  姓名  "),
+		Nickname: stringPointer("旧昵称"),
+		Role:     model.Role{ID: 3, Name: model.RoleNameUser},
+	}
+	sessionUser := toSessionUser(user)
+	if sessionUser.RealName == nil || *sessionUser.RealName != "姓名" {
+		t.Fatalf("session name = %v, want canonical real name", sessionUser.RealName)
+	}
+
+	user.RealName = stringPointer(" ")
+	sessionUser = toSessionUser(user)
+	if sessionUser.RealName == nil || *sessionUser.RealName != "旧昵称" {
+		t.Fatalf("legacy fallback name = %v, want nickname", sessionUser.RealName)
+	}
+}
+
+func stringPointer(value string) *string { return &value }
+
 func TestToSessionUserExposesOnlyTheSystemRole(t *testing.T) {
 	t.Parallel()
 

@@ -630,7 +630,7 @@ func validRegistrationFields() []model.FormField {
 
 func legacyDualIntentRegistrationFields() []model.FormField {
 	return []model.FormField{
-		{Key: "name", Label: "姓名", Type: "text", Required: true, Placeholder: "请输入真实姓名"},
+		{Key: "name", Label: "姓名", Type: "text", Required: true, Placeholder: "请输入姓名"},
 		{Key: "phone", Label: "手机号", Type: "phone", Required: true, Placeholder: "请输入常用手机号"},
 		{Key: "email", Label: "邮箱", Type: "email", Required: true, Placeholder: "请输入联系邮箱"},
 		{Key: "group_1", Label: "意向组别(1)", Type: "user_group_select", Required: true, Placeholder: "请选择意向组别(1)"},

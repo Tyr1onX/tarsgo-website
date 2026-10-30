@@ -33,16 +33,17 @@ type Actor struct {
 	Role   string
 }
 type Group struct {
-	GroupID   uint64   `json:"groupId" gorm:"column:group_id"`
-	Name      string   `json:"name"`
-	Semesters []string `json:"semesters" gorm:"-"`
+	GroupID uint64 `json:"groupId" gorm:"column:group_id"`
+	Name    string `json:"name"`
 }
 type Options struct {
-	Groups []Group `json:"groups"`
+	Groups            []Group `json:"groups"`
+	CurrentSemester   string  `json:"currentSemester"`
+	FirstWeekStart    string  `json:"firstWeekStart"`
+	TeachingWeekCount int     `json:"teachingWeekCount"`
 }
 type Filter struct {
 	GroupID      uint64
-	Semester     string
 	Week         int
 	Weekday      int
 	StartSection int
@@ -75,7 +76,6 @@ type Repository interface {
 	Groups(ctx context.Context, actor Actor) ([]Group, error)
 	Members(ctx context.Context, groupID uint64) ([]model.UserGroupMember, error)
 	Timetables(ctx context.Context, ids []uint64) ([]model.Timetable, error)
-	Semesters(ctx context.Context, groupID uint64) ([]string, error)
 }
 type Service struct{ repo Repository }
 
@@ -89,17 +89,13 @@ func (s *Service) Options(ctx context.Context, actor Actor) (*Options, error) {
 	if err != nil {
 		return nil, internal("读取可管理组别失败", err)
 	}
-	for i := range groups {
-		semesters, err := s.repo.Semesters(ctx, groups[i].GroupID)
-		if err != nil {
-			return nil, internal("读取组内学期失败", err)
-		}
-		groups[i].Semesters = semesters
-	}
 	if groups == nil {
 		groups = []Group{}
 	}
-	return &Options{Groups: groups}, nil
+	return &Options{
+		Groups: groups, CurrentSemester: timetable.CurrentSemester,
+		FirstWeekStart: timetable.CurrentFirstWeekStart, TeachingWeekCount: timetable.CurrentTeachingWeekCount,
+	}, nil
 }
 
 type Slot struct {
@@ -132,9 +128,8 @@ func (s *Service) AnalyzeWeek(ctx context.Context, actor Actor, f Filter) (*Week
 	if !canManage(actor) {
 		return nil, forbidden()
 	}
-	f.Semester = strings.TrimSpace(f.Semester)
-	if f.GroupID == 0 || f.Semester == "" || len([]rune(f.Semester)) > 40 || f.Week < 1 || f.Week > 30 {
-		return nil, invalid("请选择有效的组别、学期和教学周")
+	if f.GroupID == 0 || f.Week < 1 || f.Week > timetable.CurrentTeachingWeekCount {
+		return nil, invalid("请选择有效的组别和当前教学周")
 	}
 	groups, err := s.repo.Groups(ctx, actor)
 	if err != nil {
@@ -169,45 +164,36 @@ func (s *Service) AnalyzeWeek(ctx context.Context, actor Actor, f Filter) (*Week
 			return nil, internal("读取课表失败", err)
 		}
 	}
-	stored := make(map[uint64]map[string]model.Timetable, len(ids))
+	stored := make(map[uint64]model.Timetable, len(ids))
 	for _, record := range records {
-		if !seen[record.UserID] {
+		if !seen[record.UserID] || record.Semester != timetable.CurrentSemester {
 			continue
 		}
-		if stored[record.UserID] == nil {
-			stored[record.UserID] = map[string]model.Timetable{}
-		}
-		stored[record.UserID][record.Semester] = record
+		stored[record.UserID] = record
 	}
-	result := &WeekResult{GroupID: group.GroupID, GroupName: group.Name, Semester: f.Semester, Week: f.Week, Members: []WeekMember{}}
+	result := &WeekResult{GroupID: group.GroupID, GroupName: group.Name, Semester: timetable.CurrentSemester, Week: f.Week, Members: []WeekMember{}}
 	for _, person := range roster {
 		if !seen[person.UserID] {
 			continue
 		}
 		delete(seen, person.UserID)
 		member := WeekMember{UserID: person.UserID, Name: displayName(person.User), Occupied: []Slot{}}
-		sheets := stored[person.UserID]
-		sheet, ok := sheets[f.Semester]
+		sheet, ok := stored[person.UserID]
 		if !ok {
 			member.MissingReason = "not_imported"
-			if len(sheets) > 0 {
-				member.MissingReason = "semester_mismatch"
-			}
 		} else {
 			courses := []timetable.Course{}
 			notes := []timetable.Note{}
 			coursesErr := json.Unmarshal([]byte(sheet.CoursesJSON), &courses)
 			notesErr := json.Unmarshal([]byte(sheet.NotesJSON), &notes)
-			if coursesErr != nil || notesErr != nil || courses == nil || notes == nil || !validCourses(courses) {
+			validTimetable := coursesErr == nil && notesErr == nil && courses != nil && notes != nil &&
+				(len(courses) > 0 || len(notes) > 0) && validCourses(courses) && validNotes(notes)
+			if !validTimetable {
 				member.MissingReason = "invalid_data"
 			} else {
 				member.HasUncertainCourses = len(notes) > 0
 				member.UncertainCourseCount = len(notes)
-				if member.HasUncertainCourses {
-					member.MissingReason = "uncertain_courses"
-				} else {
-					result.ImportedCount++
-				}
+				result.ImportedCount++
 				for _, course := range courses {
 					if course.Active(f.Week) {
 						member.Occupied = append(member.Occupied, Slot{Weekday: course.Weekday, StartSection: course.StartSection, EndSection: course.EndSection})
@@ -290,15 +276,20 @@ func validCourses(courses []timetable.Course) bool {
 	}
 	return true
 }
+func validNotes(notes []timetable.Note) bool {
+	for _, note := range notes {
+		if strings.TrimSpace(note.Name) == "" || strings.TrimSpace(note.Reason) == "" {
+			return false
+		}
+	}
+	return true
+}
 func displayName(u model.User) string {
-	if u.RealName != nil && strings.TrimSpace(*u.RealName) != "" {
-		return strings.TrimSpace(*u.RealName)
+	if name := u.PreferredName(); name != "" {
+		return name
 	}
-	if strings.TrimSpace(u.Name) != "" {
-		return strings.TrimSpace(u.Name)
-	}
-	if u.Nickname != nil && strings.TrimSpace(*u.Nickname) != "" {
-		return strings.TrimSpace(*u.Nickname)
+	if name := strings.TrimSpace(u.Name); name != "" {
+		return name
 	}
 	return fmt.Sprintf("成员 #%d", u.ID)
 }

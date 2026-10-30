@@ -6,6 +6,7 @@ import {
   ApiError,
   getBootstrapStatus,
   getAccountSessions,
+  getAuthUserName,
   getOptionalCurrentUser,
   loginWithCode,
   loginWithPassword,
@@ -152,10 +153,10 @@ export default function Login() {
             {savedAccounts.map((account) => (
               <div key={account.id} className="auth-saved-account">
                 <span className="auth-saved-account__avatar" aria-hidden="true">
-                  {(account.user.nickname?.trim() || account.user.email).charAt(0).toUpperCase()}
+                  {getAuthUserName(account.user).charAt(0).toUpperCase()}
                 </span>
                 <span className="auth-saved-account__details">
-                  <strong>{account.user.nickname || account.user.email}</strong>
+                  <strong>{getAuthUserName(account.user)}</strong>
                   <small>{account.user.email} · {account.user.role.displayName}</small>
                 </span>
                 <span className="auth-saved-account__status">

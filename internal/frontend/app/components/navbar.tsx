@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 
 import {
   getAuthUserRoleLabel,
+  getAuthUserName,
   getCachedCurrentUser,
   getOptionalCurrentUser,
   hasKnownAnonymousSession,
@@ -696,7 +697,7 @@ function NavbarIdentityDetail({
 }
 
 function getUserDisplayName(user: AuthUser) {
-  return user.nickname?.trim() || user.email.split("@")[0] || "TARSGO 成员";
+  return getAuthUserName(user);
 }
 
 function getUserInitial(user: AuthUser) {

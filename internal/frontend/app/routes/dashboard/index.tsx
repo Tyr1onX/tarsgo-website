@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useOutletContext } from "react-router";
 
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
+import { getAuthUserName } from "~/lib/auth-client";
 import { FEATURE_GUIDE_DATE, FEATURE_GUIDE_TITLE, GROUP_ACCESS_HELP } from "~/lib/workbench-feature-announcement";
 import "./dashboard-home.css";
 
@@ -11,7 +12,7 @@ export function meta() {
 
 export default function DashboardIndex() {
   const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
-  const displayName = currentUser.nickname?.trim() || currentUser.email;
+  const displayName = getAuthUserName(currentUser);
   const dismissalKey = `workbench-feature-guide-dismissed:${currentUser.id}:${FEATURE_GUIDE_DATE}`;
   const [announcementVisible, setAnnouncementVisible] = useState(true);
 

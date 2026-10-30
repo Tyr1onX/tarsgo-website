@@ -356,13 +356,13 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	}
 	for key := range form.Value {
 		if key != "nickname" && key != "phone" {
-			writeAPIError(c, http.StatusBadRequest, "只能修改头像、昵称和手机号")
+			writeAPIError(c, http.StatusBadRequest, "只能修改头像、姓名和手机号")
 			return
 		}
 	}
 	for key := range form.File {
 		if key != "avatar" {
-			writeAPIError(c, http.StatusBadRequest, "只能修改头像、昵称和手机号")
+			writeAPIError(c, http.StatusBadRequest, "只能修改头像、姓名和手机号")
 			return
 		}
 	}

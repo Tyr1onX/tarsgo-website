@@ -9,6 +9,7 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"tarsgo-backend/model"
+	"tarsgo-backend/service/timetable"
 )
 
 func testRepository(t *testing.T) (*GormRepository, sqlmock.Sqlmock) {
@@ -46,8 +47,8 @@ func TestScopedRosterAndTimetableQueries(t *testing.T) {
 	if err != nil || len(roster) != 0 {
 		t.Fatalf("members %v err %v", roster, err)
 	}
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `personal_timetables` WHERE user_id IN (?,?)")).
-		WithArgs(uint64(44), uint64(45)).WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "semester", "courses_json", "notes_json", "updated_at"}))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `personal_timetables` WHERE user_id IN (?,?) AND semester = ?")).
+		WithArgs(uint64(44), uint64(45), timetable.CurrentSemester).WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "semester", "courses_json", "notes_json", "updated_at"}))
 	records, err := repo.Timetables(context.Background(), []uint64{44, 45})
 	if err != nil || len(records) != 0 {
 		t.Fatalf("timetables %v err %v", records, err)
@@ -55,20 +56,6 @@ func TestScopedRosterAndTimetableQueries(t *testing.T) {
 	_, err = repo.Timetables(context.Background(), nil)
 	if err != nil {
 		t.Fatal(err)
-	}
-	if err := mock.ExpectationsWereMet(); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestSemestersAreRestrictedToEnabledMembersOfSelectedGroup(t *testing.T) {
-	repo, mock := testRepository(t)
-	pattern := "(?s)SELECT DISTINCT personal_timetables.* FROM .*personal_timetables.* JOIN user_group_members ON .* JOIN user_groups ON .* JOIN users ON .* WHERE user_group_members.*group_id = .* ORDER BY personal_timetables.*"
-	mock.ExpectQuery(pattern).WithArgs(model.UserGroupStatusActive, model.UserStatusEnabled, uint64(11)).
-		WillReturnRows(sqlmock.NewRows([]string{"semester"}).AddRow("2026-2027学年第1学期"))
-	options, err := repo.Semesters(context.Background(), 11)
-	if err != nil || len(options) != 1 || options[0] != "2026-2027学年第1学期" {
-		t.Fatalf("scoped semesters %v err %v", options, err)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
 		t.Fatal(err)
