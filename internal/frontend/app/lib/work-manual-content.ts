@@ -2,7 +2,7 @@ export type ManualLink = { label: string; href: string };
 
 export type ManualBlock =
   | { type: "paragraph"; text: string }
-  | { type: "step"; title: string; items: string[]; links?: ManualLink[] }
+  | { type: "step"; title: string; items: string[]; completion?: string; links?: ManualLink[] }
   | { type: "list"; label?: string; items: string[] }
   | { type: "note"; text: string }
   | { type: "download"; label: string; href: string }

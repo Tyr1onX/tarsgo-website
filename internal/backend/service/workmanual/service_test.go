@@ -73,6 +73,19 @@ func TestOperationsCatalogueAllowsOperationsMembersAndDeniesOtherGroups(t *testi
 		}
 	})
 
+	t.Run("member outside operations group cannot read the catalogue", func(t *testing.T) {
+		db, mock := newWorkManualMock(t)
+		mock.ExpectQuery(query).
+			WithArgs(uint64(52), OperationsGroupName, model.UserGroupStatusActive, model.UserStatusEnabled).
+			WillReturnRows(sqlmock.NewRows([]string{"count(*)"}).AddRow(0))
+
+		_, err := NewService(db).OperationsCatalogue(context.Background(), Actor{ID: 52, RoleName: model.RoleNameUser})
+		var serviceErr *ServiceError
+		if !errors.As(err, &serviceErr) || serviceErr.Status != http.StatusForbidden {
+			t.Fatalf("catalogue error = %v, want HTTP 403", err)
+		}
+	})
+
 	t.Run("super admin can read without group membership", func(t *testing.T) {
 		db, _ := newWorkManualMock(t)
 		if _, err := NewService(db).OperationsCatalogue(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}); err != nil {
@@ -81,15 +94,26 @@ func TestOperationsCatalogueAllowsOperationsMembersAndDeniesOtherGroups(t *testi
 	})
 }
 
-func TestOperationsCatalogueIncludesEvidenceBoundedRecruitmentBriefingSOP(t *testing.T) {
+func TestOperationsCatalogueContainsFinalRecruitmentBriefingSOP(t *testing.T) {
 	catalogue, err := readContent(operationsCataloguePath)
 	if err != nil {
 		t.Fatalf("read operations catalogue: %v", err)
 	}
 	var parsed struct {
 		Documents []struct {
-			Slug  string `json:"slug"`
-			Title string `json:"title"`
+			Slug     string `json:"slug"`
+			Title    string `json:"title"`
+			Sections []struct {
+				ID     string `json:"id"`
+				Title  string `json:"title"`
+				Blocks []struct {
+					Type       string   `json:"type"`
+					Title      string   `json:"title"`
+					Text       string   `json:"text"`
+					Items      []string `json:"items"`
+					Completion string   `json:"completion"`
+				} `json:"blocks"`
+			} `json:"sections"`
 		} `json:"documents"`
 	}
 	if err := json.Unmarshal(catalogue, &parsed); err != nil {
@@ -101,14 +125,55 @@ func TestOperationsCatalogueIncludesEvidenceBoundedRecruitmentBriefingSOP(t *tes
 	if got := parsed.Documents[1]; got.Slug != "recruitment-briefing" || got.Title != "招新宣讲活动筹备与现场执行" {
 		t.Fatalf("second SOP = %#v", got)
 	}
+	document := parsed.Documents[1]
+	wantSections := []struct{ id, title string }{
+		{"scenario", "适用场景"},
+		{"workflow", "办理流程"},
+		{"notes", "注意事项"},
+	}
+	if len(document.Sections) != len(wantSections) {
+		t.Fatalf("recruitment SOP has %d sections, want %d", len(document.Sections), len(wantSections))
+	}
+	for index, want := range wantSections {
+		if got := document.Sections[index]; got.ID != want.id || got.Title != want.title {
+			t.Errorf("section %d = (%q, %q), want (%q, %q)", index, got.ID, got.Title, want.id, want.title)
+		}
+	}
+	if got := document.Sections[0].Blocks[0].Text; got != "适用于吉甲大师战队年度招新、跨校区宣讲及其他新生介绍活动。" {
+		t.Errorf("scenario text = %q", got)
+	}
+	workflow := document.Sections[1].Blocks
+	wantSteps := []struct {
+		title      string
+		itemCount  int
+		completion string
+	}{
+		{"第一步：确定宣讲时间与场地", 4, "场地已确认，参与人员知道何时、到哪里集合。"},
+		{"第二步：准备宣讲材料", 4, "宣讲人员已经拿到最终版材料，所有需要播放的内容均可正常打开。"},
+		{"第三步：准备报名渠道", 4, "新生能够使用现场展示的报名入口完成相应操作。"},
+		{"第四步：确定现场人员分工", 8, "每位参与人员知道自己的任务及出现问题时应联系谁。"},
+		{"第五步：到场检查设备", 6, "宣讲、播放、报名和拍摄所需设备均已实际测试。"},
+		{"第六步：开展现场宣讲", 5, "完成宣讲、现场问答和报名引导。"},
+		{"第七步：结束活动并整理资料", 5, "活动资料已经归档，报名跟进和遗留问题均有明确负责人。"},
+	}
+	if len(workflow) != len(wantSteps) {
+		t.Fatalf("recruitment SOP has %d workflow blocks, want %d", len(workflow), len(wantSteps))
+	}
+	for index, want := range wantSteps {
+		got := workflow[index]
+		if got.Type != "step" || got.Title != want.title || len(got.Items) != want.itemCount || got.Completion != want.completion {
+			t.Errorf("step %d = %#v, want title %q, %d items, completion %q", index+1, got, want.title, want.itemCount, want.completion)
+		}
+	}
 	for _, expected := range []string{
-		"确认活动安排", "确定人员分工", "准备宣讲材料",
-		"现场设备与入口检查", "进行宣讲与问答",
-		"引导报名并记录素材", "收尾、跟进与复盘",
-		"外部监看", "报名群",
+		"宣讲人员：负责 PPT 讲解、战队介绍及现场答疑。",
+		"设备负责人：负责投影、音响、视频播放等设备。",
+		"直播人员（如有）：负责直播操作和外部观看状态检查。",
+		"直播必须实际监看。此前战队曾出现直播异常未被及时发现的情况。",
+		"不要只检查二维码图片是否存在，应实际打开对应页面。",
 	} {
 		if !strings.Contains(string(catalogue), expected) {
-			t.Errorf("operations catalogue is missing flow step %q", expected)
+			t.Errorf("operations catalogue is missing confirmed SOP detail %q", expected)
 		}
 	}
 }
