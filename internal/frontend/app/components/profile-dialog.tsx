@@ -23,7 +23,6 @@ export function ProfileDialog({
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [phone, setPhone] = useState(user.phone ?? "");
   const [avatar, setAvatar] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -94,7 +93,8 @@ export function ProfileDialog({
         setLeaveProfile(saved);
       }
       // Keep sending the legacy field unchanged so older API contracts remain compatible.
-      await updateProfile({ nickname: user.nickname ?? "", phone, avatar });
+      // The phone field is currently hidden; preserve existing values on profile saves.
+      await updateProfile({ nickname: user.nickname ?? "", phone: user.phone ?? "", avatar });
       onSaved();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "保存失败，请重试");
@@ -117,7 +117,7 @@ export function ProfileDialog({
   return (
     <ModalShell
       title="个人资料"
-      description="统一管理账号信息、学籍资料与课程时间"
+      description="管理个人信息与课程时间"
       widthClass="max-w-2xl"
       bodyClassName="min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 sm:py-6"
       onClose={onClose}
@@ -168,8 +168,8 @@ export function ProfileDialog({
 
           <section aria-labelledby="profile-account-heading" className="min-w-0 space-y-4">
             <div>
-              <h3 id="profile-account-heading" className="text-sm font-semibold text-[var(--admin-text)]">账号信息</h3>
-              <p className="mt-1 text-xs text-[var(--admin-muted)]">姓名及组别由管理员维护，手机号可自行更新。</p>
+              <h3 id="profile-account-heading" className="text-sm font-semibold text-[var(--admin-text)]">个人信息</h3>
+              <p className="mt-1 text-xs text-[var(--admin-muted)]">姓名和组别由管理员维护；学号、学院用于请假材料。</p>
             </div>
             <div className="grid min-w-0 grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
               <div className="min-w-0">
@@ -178,10 +178,25 @@ export function ProfileDialog({
                   <span className="min-w-0 truncate font-medium">{accountName || "未设置"}</span>
                 </div>
               </div>
-              <label className="block min-w-0">
-                <span className={labelClass}>手机号</span>
-                <input className={fieldClass} type="tel" inputMode="numeric" autoComplete="tel" placeholder="填写 11 位手机号" maxLength={11} pattern="1[3-9][0-9]{9}" value={phone} disabled={saving} onChange={(event) => setPhone(event.target.value)} />
-              </label>
+              {leaveLoading ? (
+                <p role="status" className="self-end py-3 text-sm text-[var(--admin-muted)]">正在读取学籍信息…</p>
+              ) : leaveLoadError ? (
+                <p role="alert" className="self-end text-sm text-rose-500">学籍资料暂时无法读取：{leaveLoadError}。仍可保存头像。</p>
+              ) : (
+                <>
+                  <label className="block min-w-0">
+                    <span className={labelClass}>学号</span>
+                    <input className={fieldClass} type="text" inputMode="numeric" autoComplete="off" placeholder="8 位学号" maxLength={8} pattern="[0-9]{8}" value={leaveDraft.studentId} readOnly={Boolean(leaveProfile?.identityLocked)} disabled={saving} onChange={(event) => setLeaveDraft((current) => ({ ...current, studentId: event.target.value }))} />
+                  </label>
+                  <label className="block min-w-0">
+                    <span className={labelClass}>学院</span>
+                    <select className={fieldClass} value={leaveDraft.collegeCode} disabled={saving} onChange={(event) => setLeaveDraft((current) => ({ ...current, collegeCode: event.target.value }))}>
+                      <option value="">请选择学院</option>
+                      {colleges.map((college) => <option key={college.code} value={college.code}>{college.name}</option>)}
+                    </select>
+                  </label>
+                </>
+              )}
               <div className="min-w-0">
                 <span className={labelClass}>邮箱</span>
                 <div className={readOnlyClass} role="textbox" aria-readonly="true" aria-label="邮箱">
@@ -199,48 +214,12 @@ export function ProfileDialog({
                 <div className={readOnlyClass} role="textbox" aria-readonly="true" aria-label="账号权限">{getAuthUserRoleLabel(user)}</div>
               </div>
             </div>
-          </section>
-
-          <section aria-labelledby="profile-school-heading" className="min-w-0 space-y-4 border-t border-[var(--admin-border-subtle)] pt-5">
-            <div>
-              <h3 id="profile-school-heading" className="text-sm font-semibold text-[var(--admin-text)]">学籍与请假信息</h3>
-              <p className="mt-1 text-xs leading-relaxed text-[var(--admin-muted)]">用于生成请假材料，姓名直接使用账号姓名；填写信息不代表已开通请假权限。</p>
-            </div>
-            {leaveLoading ? (
-              <p role="status" className="text-sm text-[var(--admin-muted)]">正在读取学籍信息…</p>
-            ) : leaveLoadError ? (
-              <p role="alert" className="text-sm text-rose-500">学籍资料暂时无法读取：{leaveLoadError}。仍可保存手机号和头像。</p>
-            ) : (
-              <>
-                <div className="grid min-w-0 grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
-                  <label className="block min-w-0">
-                    <span className={labelClass}>学号</span>
-                    <input className={fieldClass} type="text" inputMode="numeric" autoComplete="off" placeholder="8 位学号" maxLength={8} pattern="[0-9]{8}" value={leaveDraft.studentId} readOnly={Boolean(leaveProfile?.identityLocked)} disabled={saving} onChange={(event) => setLeaveDraft((current) => ({ ...current, studentId: event.target.value }))} />
-                  </label>
-                  <label className="block min-w-0">
-                    <span className={labelClass}>学院</span>
-                    <select className={fieldClass} value={leaveDraft.collegeCode} disabled={saving} onChange={(event) => setLeaveDraft((current) => ({ ...current, collegeCode: event.target.value }))}>
-                      <option value="">请选择学院</option>
-                      {colleges.map((college) => <option key={college.code} value={college.code}>{college.name}</option>)}
-                    </select>
-                  </label>
-                  <label className="block min-w-0">
-                    <span className={labelClass}>请假身份</span>
-                    <select className={fieldClass} value={leaveDraft.participantType} disabled={saving} onChange={(event) => setLeaveDraft((current) => ({ ...current, participantType: event.target.value as LeaveDraft["participantType"] }))}>
-                      <option value="formal">正式队员</option>
-                      <option value="reserve">预备队员</option>
-                      <option value="other">其他</option>
-                    </select>
-                  </label>
-                </div>
-                {leaveProfile?.identityLocked ? (
-                  <p className="text-xs leading-relaxed text-[var(--admin-muted)]">
-                    已有请假记录，学号与用于生成假条的姓名已锁定，修改请联系管理员。
-                    {leaveProfile.name !== accountName ? " 当前假条姓名为「" + leaveProfile.name + "」，与账号姓名不一致。" : ""}
-                  </p>
-                ) : null}
-              </>
-            )}
+            {leaveProfile?.identityLocked ? (
+              <p className="text-xs leading-relaxed text-[var(--admin-muted)]">
+                已有请假记录，学号与用于生成假条的姓名已锁定，修改请联系管理员。
+                {leaveProfile.name !== accountName ? " 当前假条姓名为「" + leaveProfile.name + "」，与账号姓名不一致。" : ""}
+              </p>
+            ) : null}
           </section>
 
           {error ? <p role="alert" className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2.5 text-sm text-rose-500">{error}</p> : null}
