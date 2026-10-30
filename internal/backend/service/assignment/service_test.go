@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"mime/multipart"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -63,6 +64,48 @@ func TestListMineRejectsAccountsWithoutTechnicalGroup(t *testing.T) {
 	service := &Service{db: db, now: func() time.Time { return time.Date(2026, 10, 19, 0, 0, 0, 0, time.UTC) }}
 	_, err := service.ListMine(context.Background(), Actor{ID: 22, RoleName: model.RoleNameUser})
 	assertAssignmentStatus(t, err, 403)
+}
+
+func TestListMineOnlyQueriesPublishedAssignments(t *testing.T) {
+	db, mock := newAssignmentMockGorm(t)
+	expectTechnicalGroupIDs(mock, 22, 41)
+	mock.ExpectQuery("(?s)SELECT .* FROM `assignments` JOIN assignment_targets ON .*WHERE assignment_targets\\.user_id = \\? AND assignments\\.group_id IN \\(\\?\\) AND assignments\\.publication_status = \\?.*ORDER BY").
+		WithArgs(uint64(22), uint64(41), model.AssignmentPublicationPublished).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "creator_id", "title", "description", "due_at", "attachment_requirements", "is_group_wide", "publication_status", "created_at", "updated_at"}))
+	items, err := (&Service{db: db}).ListMine(context.Background(), Actor{ID: 22, RoleName: model.RoleNameUser})
+	if err != nil || len(items) != 0 {
+		t.Fatalf("member assignment list = %#v, err=%v; want no visible assignments", items, err)
+	}
+}
+
+func TestGetMineTreatsWithdrawnAssignmentAsNotFound(t *testing.T) {
+	db, mock := newAssignmentMockGorm(t)
+	expectTechnicalGroupIDs(mock, 22, 41)
+	mock.ExpectQuery("(?s)SELECT \\* FROM `assignments` WHERE id = \\? AND group_id IN \\(\\?\\) AND publication_status = \\?.*LIMIT \\?").
+		WithArgs(uint64(91), uint64(41), model.AssignmentPublicationPublished, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "publication_status"}))
+	_, err := (&Service{db: db}).GetMine(context.Background(), Actor{ID: 22, RoleName: model.RoleNameUser}, 91)
+	assertAssignmentStatus(t, err, http.StatusNotFound)
+}
+
+func TestMemberCannotWithdrawOrRepublishAssignment(t *testing.T) {
+	service := &Service{}
+	for _, status := range []string{model.AssignmentPublicationWithdrawn, model.AssignmentPublicationPublished} {
+		_, err := service.SetPublicationStatus(context.Background(), Actor{ID: 22, RoleName: model.RoleNameUser}, 91, status)
+		assertAssignmentStatus(t, err, http.StatusForbidden)
+	}
+}
+
+func TestWithdrawnAssignmentIsNotFoundBeforeSubmissionValidation(t *testing.T) {
+	db, mock := newAssignmentMockGorm(t)
+	expectTechnicalGroupIDs(mock, 22, 41)
+	mock.ExpectBegin()
+	mock.ExpectQuery("(?s)SELECT \\* FROM `assignments` WHERE id = \\? AND group_id IN \\(\\?\\) AND publication_status = \\?.*LIMIT \\?").
+		WithArgs(uint64(91), uint64(41), model.AssignmentPublicationPublished, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "publication_status"}))
+	mock.ExpectRollback()
+	_, err := (&Service{db: db, now: time.Now}).Submit(context.Background(), Actor{ID: 22, RoleName: model.RoleNameUser}, 91, nil)
+	assertAssignmentStatus(t, err, http.StatusNotFound)
 }
 
 func TestLoadSubmissionHistoriesReturnsJSONEmptyArraysForUnsubmittedMembers(t *testing.T) {
@@ -336,8 +379,8 @@ func TestMemberCannotDownloadTeachingMaterialForUnassignedWork(t *testing.T) {
 			AddRow(71, 91, 8, "资料.pdf", "91/8/file.pdf", "application/pdf", 12, created))
 	mock.ExpectQuery("(?s)SELECT \\* FROM `assignments` WHERE .*id` = \\? ORDER BY.*LIMIT \\?").
 		WithArgs(uint64(91), 1).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "creator_id", "title", "description", "due_at", "attachment_requirements", "is_group_wide", "created_at", "updated_at"}).
-			AddRow(91, 41, 8, "作业", "说明", created.Add(time.Hour), "", true, created, created))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "creator_id", "title", "description", "due_at", "attachment_requirements", "is_group_wide", "publication_status", "created_at", "updated_at"}).
+			AddRow(91, 41, 8, "作业", "说明", created.Add(time.Hour), "", true, model.AssignmentPublicationPublished, created, created))
 	expectTechnicalGroupIDs(mock, 22, 41)
 	mock.ExpectQuery("(?s)SELECT count\\(\\*\\) FROM `assignment_targets` WHERE assignment_id = \\? AND user_id = \\?").
 		WithArgs(uint64(91), uint64(22)).WillReturnRows(sqlmock.NewRows([]string{"count(*)"}).AddRow(0))
@@ -355,8 +398,8 @@ func TestAssignedMemberCanDownloadPrivateTeachingMaterial(t *testing.T) {
 			AddRow(71, 91, 8, "资料.pdf", "91/8/file.pdf", "application/pdf", 12, created))
 	mock.ExpectQuery("(?s)SELECT \\* FROM `assignments` WHERE .*id` = \\? ORDER BY.*LIMIT \\?").
 		WithArgs(uint64(91), 1).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "creator_id", "title", "description", "due_at", "attachment_requirements", "is_group_wide", "created_at", "updated_at"}).
-			AddRow(91, 41, 8, "作业", "说明", created.Add(time.Hour), "", true, created, created))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "creator_id", "title", "description", "due_at", "attachment_requirements", "is_group_wide", "publication_status", "created_at", "updated_at"}).
+			AddRow(91, 41, 8, "作业", "说明", created.Add(time.Hour), "", true, model.AssignmentPublicationPublished, created, created))
 	expectTechnicalGroupIDs(mock, 22, 41)
 	mock.ExpectQuery("(?s)SELECT count\\(\\*\\) FROM `assignment_targets` WHERE assignment_id = \\? AND user_id = \\?").
 		WithArgs(uint64(91), uint64(22)).WillReturnRows(sqlmock.NewRows([]string{"count(*)"}).AddRow(1))

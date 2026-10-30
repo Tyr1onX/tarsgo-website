@@ -286,6 +286,7 @@ func TestAcceptanceDatabaseSkillTreeWorkflow(t *testing.T) {
 		GroupID: groupIDs["机械组"], CreatorID: mechanicalAdmin.ID,
 		Title: "[TEST_SKILL] linked practical", Description: "Synthetic acceptance task",
 		DueAt: time.Date(2026, 11, 1, 0, 0, 0, 0, time.UTC), AttachmentRequirements: "", IsGroupWide: true,
+		PublicationStatus: model.AssignmentPublicationPublished,
 	}
 	if err := db.Create(&assignment).Error; err != nil {
 		t.Fatalf("create synthetic assignment: %v", err)
@@ -360,6 +361,27 @@ func TestAcceptanceDatabaseSkillTreeWorkflow(t *testing.T) {
 	progress, err = service.ListMy(context.Background(), mechanicalMemberID)
 	if err != nil || progress.Groups[0].Nodes[1].State != StatePracticed || len(progress.Groups[0].Nodes[1].ReviewHistory) != 2 {
 		t.Fatalf("revocation did not preserve the practice state and history: progress=%#v err=%v", progress, err)
+	}
+	if err := db.Model(&assignment).Update("publication_status", model.AssignmentPublicationWithdrawn).Error; err != nil {
+		t.Fatalf("withdraw the linked assignment: %v", err)
+	}
+	withdrawnProgress, err := service.ListMy(context.Background(), mechanicalMemberID)
+	if err != nil || len(withdrawnProgress.Groups[0].Nodes[1].AssignmentIDs) != 0 || withdrawnProgress.Groups[0].Nodes[1].State == StatePracticed {
+		t.Fatalf("withdrawn assignment remained available in the member skill route: progress=%#v err=%v", withdrawnProgress, err)
+	}
+	if len(withdrawnProgress.Groups[0].Nodes[1].ReviewHistory) != 1 || withdrawnProgress.Groups[0].Nodes[1].ReviewHistory[0].EvidenceID != nil {
+		t.Fatalf("member skill history still exposed withdrawn assignment evidence: %#v", withdrawnProgress.Groups[0].Nodes[1].ReviewHistory)
+	}
+	adminHistory, err := service.MemberHistory(context.Background(), mechanicalAdmin, child.ID, mechanicalMemberID)
+	if err != nil || len(adminHistory) != 2 || adminHistory[0].EvidenceID == nil || *adminHistory[0].EvidenceID != assignment.ID {
+		t.Fatalf("withdrawing the assignment changed administrator skill history: history=%#v err=%v", adminHistory, err)
+	}
+	if err := db.Model(&assignment).Update("publication_status", model.AssignmentPublicationPublished).Error; err != nil {
+		t.Fatalf("republish the linked assignment: %v", err)
+	}
+	republishedProgress, err := service.ListMy(context.Background(), mechanicalMemberID)
+	if err != nil || len(republishedProgress.Groups[0].Nodes[1].AssignmentIDs) != 1 || republishedProgress.Groups[0].Nodes[1].AssignmentIDs[0] != assignment.ID || len(republishedProgress.Groups[0].Nodes[1].ReviewHistory) != 2 {
+		t.Fatalf("republished assignment did not restore the member skill route: progress=%#v err=%v", republishedProgress, err)
 	}
 }
 

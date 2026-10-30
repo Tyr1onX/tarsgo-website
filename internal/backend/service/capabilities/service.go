@@ -175,7 +175,7 @@ func (s *Service) ListMine(ctx context.Context, userID uint64) (*MineResult, err
 		if err != nil {
 			return nil, err
 		}
-		calculated, err := s.calculate(ctx, group.ID, []uint64{userID}, dimensions, false)
+		calculated, err := s.calculate(ctx, group.ID, []uint64{userID}, dimensions, false, true)
 		if err != nil {
 			return nil, err
 		}
@@ -241,7 +241,7 @@ func (s *Service) AdminGroup(ctx context.Context, actor Actor, groupID uint64) (
 			activeDimensions = append(activeDimensions, dimension)
 		}
 	}
-	calculated, err := s.calculate(ctx, groupID, userIDs, activeDimensions, false)
+	calculated, err := s.calculate(ctx, groupID, userIDs, activeDimensions, false, false)
 	if err != nil {
 		return nil, err
 	}
@@ -271,7 +271,7 @@ func (s *Service) AdminMember(ctx context.Context, actor Actor, groupID, userID 
 	if err != nil {
 		return nil, err
 	}
-	calculated, err := s.calculate(ctx, groupID, []uint64{userID}, dimensions, true)
+	calculated, err := s.calculate(ctx, groupID, []uint64{userID}, dimensions, true, false)
 	if err != nil {
 		return nil, err
 	}
@@ -423,7 +423,7 @@ type sourceKey struct {
 	id       uint64
 }
 
-func (s *Service) calculate(ctx context.Context, groupID uint64, userIDs []uint64, dimensions []model.CapabilityDimension, includeAdmin bool) (map[uint64][]DimensionResult, error) {
+func (s *Service) calculate(ctx context.Context, groupID uint64, userIDs []uint64, dimensions []model.CapabilityDimension, includeAdmin, memberVisible bool) (map[uint64][]DimensionResult, error) {
 	result := make(map[uint64][]DimensionResult, len(userIDs))
 	for _, userID := range userIDs {
 		result[userID] = make([]DimensionResult, 0, len(dimensions))
@@ -455,7 +455,7 @@ func (s *Service) calculate(ctx context.Context, groupID uint64, userIDs []uint6
 	latest := make(map[sourceUserKey]ratedObservation)
 	if len(assignmentIDs) > 0 {
 		var rows []assignmentRatingRow
-		err := s.db.WithContext(ctx).Table("assignment_reviews").Select(`
+		query := s.db.WithContext(ctx).Table("assignment_reviews").Select(`
 			assignment_reviews.id AS review_id, assignment_submissions.assignment_id, assignment_submissions.user_id,
 			assignment_submissions.attempt, assignment_reviews.score, assignment_reviews.decision, assignment_reviews.comment,
 			assignment_reviews.reviewer_id, assignment_reviews.created_at AS evaluated_at,
@@ -463,8 +463,11 @@ func (s *Service) calculate(ctx context.Context, groupID uint64, userIDs []uint6
 			Joins("JOIN assignment_submissions ON assignment_submissions.id = assignment_reviews.submission_id").
 			Joins("JOIN assignments ON assignments.id = assignment_submissions.assignment_id").
 			Joins("LEFT JOIN users AS reviewer ON reviewer.id = assignment_reviews.reviewer_id").
-			Where("assignments.group_id = ? AND assignments.id IN ? AND assignment_submissions.user_id IN ? AND assignment_reviews.decision IN ?", groupID, uniqueIDs(assignmentIDs), userIDs, []string{model.AssignmentReviewPassed, model.AssignmentReviewNeedsRedo}).
-			Order("assignment_submissions.attempt DESC, assignment_reviews.created_at DESC, assignment_reviews.id DESC").Find(&rows).Error
+			Where("assignments.group_id = ? AND assignments.id IN ? AND assignment_submissions.user_id IN ? AND assignment_reviews.decision IN ?", groupID, uniqueIDs(assignmentIDs), userIDs, []string{model.AssignmentReviewPassed, model.AssignmentReviewNeedsRedo})
+		if memberVisible {
+			query = query.Where("assignments.publication_status = ?", model.AssignmentPublicationPublished)
+		}
+		err := query.Order("assignment_submissions.attempt DESC, assignment_reviews.created_at DESC, assignment_reviews.id DESC").Find(&rows).Error
 		if err != nil {
 			return nil, internalError("读取作业评分失败", err)
 		}

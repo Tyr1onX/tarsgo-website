@@ -180,7 +180,7 @@ func (s *Service) listMyGroup(ctx context.Context, userID uint64, group Group) (
 		Select("skill_node_assignments.skill_node_id, skill_node_assignments.assignment_id").
 		Joins("JOIN assignments ON assignments.id = skill_node_assignments.assignment_id").
 		Joins("LEFT JOIN assignment_targets ON assignment_targets.assignment_id = assignments.id AND assignment_targets.user_id = ?", userID).
-		Where("skill_node_assignments.skill_node_id IN ? AND assignments.group_id = ? AND (assignments.is_group_wide = ? OR assignment_targets.user_id IS NOT NULL)", nodeIDs, group.ID, true).
+		Where("skill_node_assignments.skill_node_id IN ? AND assignments.group_id = ? AND assignments.publication_status = ? AND (assignments.is_group_wide = ? OR assignment_targets.user_id IS NOT NULL)", nodeIDs, group.ID, model.AssignmentPublicationPublished, true).
 		Find(&assignmentLinks).Error; err != nil {
 		return nil, internalError("读取技能训练关联失败", err)
 	}
@@ -192,6 +192,10 @@ func (s *Service) listMyGroup(ctx context.Context, userID uint64, group Group) (
 	if err := s.db.WithContext(ctx).Where("user_id = ? AND skill_node_id IN ?", userID, nodeIDs).
 		Order("created_at ASC, id ASC").Find(&reviews).Error; err != nil {
 		return nil, internalError("读取技能审核记录失败", err)
+	}
+	memberReviews, err := s.visibleMemberReviews(ctx, reviews)
+	if err != nil {
+		return nil, err
 	}
 	hasHistory := make(map[uint64]bool, len(starts)+len(reviews))
 	for _, item := range starts {
@@ -221,7 +225,7 @@ func (s *Service) listMyGroup(ctx context.Context, userID uint64, group Group) (
 		Joins("JOIN assignments ON assignments.id = skill_node_assignments.assignment_id").
 		Joins("JOIN assignment_submissions ON assignment_submissions.assignment_id = assignments.id AND assignment_submissions.user_id = ?", userID).
 		Joins("JOIN assignment_reviews ON assignment_reviews.submission_id = assignment_submissions.id AND assignment_reviews.decision = ?", model.AssignmentReviewPassed).
-		Where("skill_node_assignments.skill_node_id IN ? AND assignments.group_id = ?", nodeIDs, group.ID).
+		Where("skill_node_assignments.skill_node_id IN ? AND assignments.group_id = ? AND assignments.publication_status = ?", nodeIDs, group.ID, model.AssignmentPublicationPublished).
 		Pluck("skill_node_assignments.skill_node_id", &practicedIDs).Error; err != nil {
 		return nil, internalError("读取技能实践证据失败", err)
 	}
@@ -255,13 +259,43 @@ func (s *Service) listMyGroup(ctx context.Context, userID uint64, group Group) (
 		if !item.Active && state != StateMastered {
 			state = StateLocked
 		}
-		view := NodeProgress{Node: nodeView(item, preIDs, assignmentMap[item.ID]), State: state, ReviewHistory: eventViewsForNode(reviews, item.ID)}
+		view := NodeProgress{Node: nodeView(item, preIDs, assignmentMap[item.ID]), State: state, ReviewHistory: eventViewsForNode(memberReviews, item.ID)}
 		if started, ok := startMap[item.ID]; ok {
 			view.StartedAt = &started
 		}
 		progress.Nodes = append(progress.Nodes, view)
 	}
 	return progress, nil
+}
+
+func (s *Service) visibleMemberReviews(ctx context.Context, reviews []model.SkillReviewEvent) ([]model.SkillReviewEvent, error) {
+	assignmentIDs := make([]uint64, 0)
+	for _, review := range reviews {
+		if review.EvidenceType == model.SkillEvidenceAssignment && review.EvidenceID != nil {
+			assignmentIDs = append(assignmentIDs, *review.EvidenceID)
+		}
+	}
+	if len(assignmentIDs) == 0 {
+		return reviews, nil
+	}
+	var publishedIDs []uint64
+	if err := s.db.WithContext(ctx).Model(&model.Assignment{}).
+		Where("id IN ? AND publication_status = ?", assignmentIDs, model.AssignmentPublicationPublished).
+		Pluck("id", &publishedIDs).Error; err != nil {
+		return nil, internalError("校验技能作业审核记录失败", err)
+	}
+	published := make(map[uint64]bool, len(publishedIDs))
+	for _, id := range publishedIDs {
+		published[id] = true
+	}
+	visible := make([]model.SkillReviewEvent, 0, len(reviews))
+	for _, review := range reviews {
+		if review.EvidenceType == model.SkillEvidenceAssignment && review.EvidenceID != nil && !published[*review.EvidenceID] {
+			continue
+		}
+		visible = append(visible, review)
+	}
+	return visible, nil
 }
 
 func (s *Service) ListAdminGroups(ctx context.Context, actor Actor) ([]Group, error) {
@@ -909,7 +943,7 @@ func (s *Service) statusForUser(ctx context.Context, userID uint64, item model.S
 		Joins("JOIN assignments ON assignments.id = skill_node_assignments.assignment_id").
 		Joins("JOIN assignment_submissions ON assignment_submissions.assignment_id = assignments.id AND assignment_submissions.user_id = ?", userID).
 		Joins("JOIN assignment_reviews ON assignment_reviews.submission_id = assignment_submissions.id AND assignment_reviews.decision = ?", model.AssignmentReviewPassed).
-		Where("skill_node_assignments.skill_node_id = ?", item.ID).Count(&passed).Error
+		Where("skill_node_assignments.skill_node_id = ? AND assignments.publication_status = ?", item.ID, model.AssignmentPublicationPublished).Count(&passed).Error
 	if err != nil {
 		return "", nil, internalError("读取技能实践证据失败", err)
 	}

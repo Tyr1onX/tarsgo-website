@@ -309,7 +309,7 @@ func (s *Service) loadAssignmentEvents(ctx context.Context, userID uint64, group
 		Select("assignment_submissions.id, assignment_submissions.assignment_id, assignments.group_id, assignment_submissions.attempt, assignment_submissions.submitted_at, assignments.title, user_groups.name AS group_name").
 		Joins("JOIN assignments ON assignments.id = assignment_submissions.assignment_id").
 		Joins("JOIN user_groups ON user_groups.id = assignments.group_id").
-		Where("assignment_submissions.user_id = ? AND assignments.group_id IN ?", userID, groupIDs).
+		Where("assignment_submissions.user_id = ? AND assignments.group_id IN ? AND assignments.publication_status = ?", userID, groupIDs, model.AssignmentPublicationPublished).
 		Order("assignment_submissions.submitted_at ASC, assignment_submissions.id ASC").Scan(&submissions).Error; err != nil {
 		return internalError("读取作业提交成长记录失败", err)
 	}
@@ -339,7 +339,7 @@ func (s *Service) loadAssignmentEvents(ctx context.Context, userID uint64, group
 		Joins("JOIN assignment_submissions ON assignment_submissions.id = assignment_reviews.submission_id").
 		Joins("JOIN assignments ON assignments.id = assignment_submissions.assignment_id").
 		Joins("JOIN user_groups ON user_groups.id = assignments.group_id").
-		Where("assignment_submissions.user_id = ? AND assignments.group_id IN ?", userID, groupIDs).
+		Where("assignment_submissions.user_id = ? AND assignments.group_id IN ? AND assignments.publication_status = ?", userID, groupIDs, model.AssignmentPublicationPublished).
 		Order("assignment_reviews.created_at ASC, assignment_reviews.id ASC").Scan(&reviews).Error; err != nil {
 		return internalError("读取作业批改成长记录失败", err)
 	}

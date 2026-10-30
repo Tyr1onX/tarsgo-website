@@ -227,6 +227,32 @@ func TestAcceptanceDatabaseCapabilityWorkflowAndIsolation(t *testing.T) {
 			t.Fatalf("member response leaked internal evaluation detail %q: %s", secret, encodedMember)
 		}
 	}
+	if err := db.Model(&assignment).Update("publication_status", model.AssignmentPublicationWithdrawn).Error; err != nil {
+		t.Fatalf("withdraw capability source assignment: %v", err)
+	}
+	withdrawnMemberView, err := service.ListMine(context.Background(), memberID)
+	if err != nil {
+		t.Fatalf("read member capability view after withdrawal: %v", err)
+	}
+	withdrawnDimension := dimensionByID(withdrawnMemberView.Groups[0].Dimensions, dimension.ID)
+	if len(withdrawnDimension.History) != 1 || withdrawnDimension.History[0].SourceTitle == assignment.Title || withdrawnDimension.Score == nil || *withdrawnDimension.Score != 90 {
+		t.Fatalf("withdrawn assignment remained in member capability history: %#v", withdrawnDimension)
+	}
+	adminAfterWithdrawal, err := service.AdminMember(context.Background(), manager, groupID, memberID)
+	if err != nil {
+		t.Fatalf("read administrator history after assignment withdrawal: %v", err)
+	}
+	assertDimensionScore(t, adminAfterWithdrawal.Dimensions, dimension.ID, 75)
+	if len(dimensionByID(adminAfterWithdrawal.Dimensions, dimension.ID).Sources) != 2 {
+		t.Fatalf("assignment withdrawal removed administrator source history: %#v", dimensionByID(adminAfterWithdrawal.Dimensions, dimension.ID).Sources)
+	}
+	if err := db.Model(&assignment).Update("publication_status", model.AssignmentPublicationPublished).Error; err != nil {
+		t.Fatalf("republish capability source assignment: %v", err)
+	}
+	republishedMemberView, err := service.ListMine(context.Background(), memberID)
+	if err != nil || len(dimensionByID(republishedMemberView.Groups[0].Dimensions, dimension.ID).History) != 2 {
+		t.Fatalf("republishing did not restore member capability history: view=%#v err=%v", republishedMemberView, err)
+	}
 
 	if _, err := service.AdminGroup(context.Background(), otherManager, groupID); serviceStatus(err) != http.StatusForbidden {
 		t.Fatalf("cross-group administrator access status = %d, want 403 (err=%v)", serviceStatus(err), err)
