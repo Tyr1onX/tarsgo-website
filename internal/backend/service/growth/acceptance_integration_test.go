@@ -221,6 +221,28 @@ func TestAcceptanceDatabaseGrowthTimeline(t *testing.T) {
 			t.Fatalf("growth timeline is not chronological: %#v", profile.Events)
 		}
 	}
+	if err := db.Model(&completed).Update("publication_status", model.AssignmentPublicationWithdrawn).Error; err != nil {
+		t.Fatalf("withdraw completed synthetic assignment: %v", err)
+	}
+	withdrawnProfile, err := service.GetMine(context.Background(), member.ID)
+	if err != nil {
+		t.Fatalf("read growth profile after assignment withdrawal: %v", err)
+	}
+	for _, event := range withdrawnProfile.Events {
+		if strings.HasPrefix(event.Kind, "assignment_") {
+			t.Fatalf("withdrawn assignment remained in member growth events: %#v", event)
+		}
+	}
+	if withdrawnProfile.Stats.CompletedChallenges != 0 || withdrawnProfile.Stats.FirstSubmissions != 0 || strings.Contains(fmt.Sprintf("%#v", withdrawnProfile), completed.Title) {
+		t.Fatalf("withdrawn assignment remained visible in the member growth profile: %#v", withdrawnProfile)
+	}
+	if err := db.Model(&completed).Update("publication_status", model.AssignmentPublicationPublished).Error; err != nil {
+		t.Fatalf("republish completed synthetic assignment: %v", err)
+	}
+	republishedProfile, err := service.GetMine(context.Background(), member.ID)
+	if err != nil || republishedProfile.Stats.CompletedChallenges != 1 || !containsEvent(republishedProfile.Events, "assignment_review_passed") {
+		t.Fatalf("republishing did not restore assignment growth history: profile=%#v err=%v", republishedProfile, err)
+	}
 
 	operationsProfile, err := service.GetMine(context.Background(), operationsMember.ID)
 	if err != nil {

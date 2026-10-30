@@ -77,12 +77,12 @@ func TestGetMineBuildsChronologicalTrainingTimelineFromSourceRows(t *testing.T) 
 		WithArgs(uint64(12), uint64(41)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "project_id", "group_id", "joined_at", "project", "group_name"}))
 	mock.ExpectQuery("SELECT .* FROM `assignment_submissions` JOIN assignments ON.*JOIN user_groups ON.*WHERE assignment_submissions\\.user_id = \\? AND assignments\\.group_id IN \\(\\?\\).*ORDER BY assignment_submissions\\.submitted_at ASC, assignment_submissions\\.id ASC").
-		WithArgs(uint64(12), uint64(41)).
+		WithArgs(uint64(12), uint64(41), model.AssignmentPublicationPublished).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "assignment_id", "attempt", "submitted_at", "title", "group_name"}).
 			AddRow(601, 71, 1, firstSubmittedAt, "基础控制任务", "机械组").
 			AddRow(602, 71, 2, resubmittedAt, "基础控制任务", "机械组"))
 	mock.ExpectQuery("SELECT .* FROM `assignment_reviews` JOIN assignment_submissions ON.*JOIN assignments ON.*JOIN user_groups ON.*WHERE assignment_submissions\\.user_id = \\? AND assignments\\.group_id IN \\(\\?\\).*ORDER BY assignment_reviews\\.created_at ASC, assignment_reviews\\.id ASC").
-		WithArgs(uint64(12), uint64(41)).
+		WithArgs(uint64(12), uint64(41), model.AssignmentPublicationPublished).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "submission_id", "score", "decision", "comment", "created_at", "assignment_id", "attempt", "title", "group_name"}).
 			AddRow(701, 601, 62, model.AssignmentReviewNeedsRedo, "补充验证", returnedAt, 71, 1, "基础控制任务", "机械组").
 			AddRow(702, 602, 91, model.AssignmentReviewPassed, "完成扎实", passedAt, 71, 2, "基础控制任务", "机械组"))
@@ -170,10 +170,10 @@ func TestGetMineForAnyGroupIncludesOnlyWeeklyReportMetadata(t *testing.T) {
 		WithArgs(uint64(21), uint64(45)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "project_id", "group_id", "joined_at", "project", "group_name"}))
 	mock.ExpectQuery("SELECT .* FROM `assignment_submissions` JOIN assignments ON.*JOIN user_groups ON.*WHERE assignment_submissions\\.user_id = \\? AND assignments\\.group_id IN \\(\\?\\).*ORDER BY assignment_submissions\\.submitted_at ASC, assignment_submissions\\.id ASC").
-		WithArgs(uint64(21), uint64(45)).
+		WithArgs(uint64(21), uint64(45), model.AssignmentPublicationPublished).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "assignment_id", "group_id", "attempt", "submitted_at", "title", "group_name"}))
 	mock.ExpectQuery("SELECT .* FROM `assignment_reviews` JOIN assignment_submissions ON.*JOIN assignments ON.*JOIN user_groups ON.*WHERE assignment_submissions\\.user_id = \\? AND assignments\\.group_id IN \\(\\?\\).*ORDER BY assignment_reviews\\.created_at ASC, assignment_reviews\\.id ASC").
-		WithArgs(uint64(21), uint64(45)).
+		WithArgs(uint64(21), uint64(45), model.AssignmentPublicationPublished).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "submission_id", "decision", "created_at", "assignment_id", "group_id", "attempt", "title", "group_name"}))
 	mock.ExpectQuery("SELECT .* FROM `weekly_reports` LEFT JOIN user_groups ON.*WHERE weekly_reports\\.user_id = \\?.*ORDER BY weekly_reports\\.week_start ASC, weekly_reports\\.id ASC").
 		WithArgs(uint64(21)).

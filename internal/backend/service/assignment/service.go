@@ -207,7 +207,7 @@ func (s *Service) ListMine(ctx context.Context, actor Actor) ([]AssignmentView, 
 	var items []model.Assignment
 	if err := s.db.WithContext(ctx).Model(&model.Assignment{}).
 		Joins("JOIN assignment_targets ON assignment_targets.assignment_id = assignments.id").
-		Where("assignment_targets.user_id = ? AND assignments.group_id IN ?", actor.ID, groupIDs).
+		Where("assignment_targets.user_id = ? AND assignments.group_id IN ? AND assignments.publication_status = ?", actor.ID, groupIDs, model.AssignmentPublicationPublished).
 		Order("assignments.due_at ASC, assignments.id DESC").Find(&items).Error; err != nil {
 		return nil, internalError("读取我的作业失败", err)
 	}
@@ -235,7 +235,7 @@ func (s *Service) GetMine(ctx context.Context, actor Actor, assignmentID uint64)
 		return nil, forbidden("当前账号没有可用的技术组归属")
 	}
 	var item model.Assignment
-	if err := s.db.WithContext(ctx).Where("id = ? AND group_id IN ?", assignmentID, groupIDs).First(&item).Error; err != nil {
+	if err := s.db.WithContext(ctx).Where("id = ? AND group_id IN ? AND publication_status = ?", assignmentID, groupIDs, model.AssignmentPublicationPublished).First(&item).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, notFound("作业不存在")
 		}
@@ -775,9 +775,6 @@ func (s *Service) SetPublicationStatus(ctx context.Context, actor Actor, assignm
 		if err := s.requireManagerGroupAccessWithDB(tx, actor, item.GroupID); err != nil {
 			return err
 		}
-		if status == model.AssignmentPublicationPublished && !readStoredUTCWall(item.DueAt).After(s.now()) {
-			return conflict("截止时间已过，不能重新发布；请新建作业安排新的训练时间")
-		}
 		if item.PublicationStatus == status {
 			return nil
 		}
@@ -874,10 +871,6 @@ func (s *Service) Delete(ctx context.Context, actor Actor, assignmentID uint64) 
 }
 
 func (s *Service) Submit(ctx context.Context, actor Actor, assignmentID uint64, headers []*multipart.FileHeader) (*MyAssignmentDetail, error) {
-	validated, err := validateUploads(headers)
-	if err != nil {
-		return nil, err
-	}
 	groupIDs, err := technicalGroupIDs(s.db.WithContext(ctx), actor.ID)
 	if err != nil {
 		return nil, internalError("读取所属技术组失败", err)
@@ -886,10 +879,11 @@ func (s *Service) Submit(ctx context.Context, actor Actor, assignmentID uint64, 
 		return nil, forbidden("当前账号没有可用的技术组归属")
 	}
 	var storedPaths []string
+	var validated []validatedUpload
 	now := s.now().In(shanghaiLocation)
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var item model.Assignment
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND group_id IN ?", assignmentID, groupIDs).First(&item).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND group_id IN ? AND publication_status = ?", assignmentID, groupIDs, model.AssignmentPublicationPublished).First(&item).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return notFound("作业不存在")
 			}
@@ -905,8 +899,12 @@ func (s *Service) Submit(ctx context.Context, actor Actor, assignmentID uint64, 
 		if targets == 0 {
 			return notFound("作业不存在")
 		}
-		if item.PublicationStatus != model.AssignmentPublicationPublished {
-			return conflict("作业已撤回，当前不能提交或重新提交")
+		if err := requireMemberAssignmentPublished(item); err != nil {
+			return err
+		}
+		validated, err = validateUploads(headers)
+		if err != nil {
+			return err
 		}
 		var latest model.AssignmentSubmission
 		latestErr := tx.Where("assignment_id = ? AND user_id = ?", item.ID, actor.ID).Order("attempt DESC").First(&latest).Error
@@ -1039,6 +1037,9 @@ func (s *Service) OpenFile(ctx context.Context, actor Actor, fileID uint64) (*Do
 			return nil, err
 		}
 	case model.RoleNameUser:
+		if err := requireMemberAssignmentPublished(item); err != nil {
+			return nil, err
+		}
 		if err := s.requireGroupAccess(ctx, actor.ID, item.GroupID); err != nil {
 			return nil, err
 		}
@@ -1190,6 +1191,9 @@ func (s *Service) OpenMaterialFile(ctx context.Context, actor Actor, fileID uint
 			return nil, err
 		}
 	case model.RoleNameUser:
+		if err := requireMemberAssignmentPublished(item); err != nil {
+			return nil, err
+		}
 		if err := s.requireGroupAccess(ctx, actor.ID, item.GroupID); err != nil {
 			return nil, err
 		}
@@ -1287,6 +1291,13 @@ func (s *Service) assignmentCanDelete(ctx context.Context, item model.Assignment
 		return false, internalError("读取作业能力引用状态失败", err)
 	}
 	return submissions+reviews+skillLinks+skillEvidence+capabilityLinks == 0, nil
+}
+
+func requireMemberAssignmentPublished(item model.Assignment) error {
+	if item.PublicationStatus != model.AssignmentPublicationPublished {
+		return notFound("作业不存在")
+	}
+	return nil
 }
 
 func (s *Service) loadSubmissions(ctx context.Context, assignmentID, userID uint64) ([]SubmissionView, error) {

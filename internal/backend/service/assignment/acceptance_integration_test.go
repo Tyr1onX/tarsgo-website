@@ -156,6 +156,7 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	otherMember := createActor("mechanical-other-member", model.RoleNameUser, groupMechanical)
 	crossMember := createActor("ai-member", model.RoleNameUser, groupAI)
 	admin := createActor("mechanical-admin", model.RoleNameAdmin, groupMechanical)
+	crossAdmin := createActor("ai-admin", model.RoleNameAdmin, groupAI)
 	superAdmin := createActor("super-admin", model.RoleNameSuperAdmin, "")
 	superAdminGroupMember := createActor("mechanical-super-admin", model.RoleNameSuperAdmin, groupMechanical)
 
@@ -559,6 +560,27 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 		t.Fatalf("create withdrawal acceptance assignment: %v", err)
 	}
 	createdAssignmentIDs = append(createdAssignmentIDs, withdrawalAssignment.ID)
+	deadlineAssignment, err := service.Create(context.Background(), admin, CreateInput{
+		GroupID: groupIDs[groupMechanical], Title: "[TEST_ASSIGNMENT] 正常截止仍可查看", Description: "截止只停止提交，不隐藏作业",
+		DueAt: now.Add(time.Hour), IsGroupWide: false, TargetUserIDs: []uint64{member.ID},
+	})
+	if err != nil {
+		t.Fatalf("create normal-deadline acceptance assignment: %v", err)
+	}
+	createdAssignmentIDs = append(createdAssignmentIDs, deadlineAssignment.ID)
+	service.now = func() time.Time { return now.Add(2 * time.Hour) }
+	deadlineDetail, err := service.GetMine(context.Background(), member, deadlineAssignment.ID)
+	if err != nil || deadlineDetail.Assignment.PublicationStatus != model.AssignmentPublicationPublished || deadlineDetail.Assignment.Status != "overdue" {
+		t.Fatalf("normal deadline hid the published assignment: detail=%#v err=%v", deadlineDetail, err)
+	}
+	service.now = func() time.Time { return now }
+	if _, err := service.SetPublicationStatus(context.Background(), crossAdmin, withdrawalAssignment.ID, model.AssignmentPublicationWithdrawn); statusOf(err) != http.StatusForbidden {
+		t.Fatalf("admin outside the assignment group could withdraw it: status=%d, want 403", statusOf(err))
+	}
+	withdrawalMaterials, err := service.UploadMaterialFiles(context.Background(), admin, withdrawalAssignment.ID, []*multipart.FileHeader{multipartHeader(t, "作业说明.pdf", []byte("%PDF-1.7\ninstructions"))})
+	if err != nil || len(withdrawalMaterials) != 1 {
+		t.Fatalf("upload withdrawal assignment material: materials=%#v err=%v", withdrawalMaterials, err)
+	}
 	withdrawnSubmission, err := service.Submit(context.Background(), member, withdrawalAssignment.ID, []*multipart.FileHeader{multipartHeader(t, "退回重做.pdf", []byte("%PDF-1.7\nredo"))})
 	if err != nil || len(withdrawnSubmission.Submissions) != 1 {
 		t.Fatalf("create submission before withdrawal: result=%#v err=%v", withdrawnSubmission, err)
@@ -578,12 +600,30 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	if _, err := service.SetPublicationStatus(context.Background(), admin, withdrawalAssignment.ID, model.AssignmentPublicationWithdrawn); err != nil {
 		t.Fatalf("withdraw submitted assignment: %v", err)
 	}
-	withdrawnDetail, err := service.GetMine(context.Background(), member, withdrawalAssignment.ID)
-	if err != nil || withdrawnDetail.Assignment.PublicationStatus != model.AssignmentPublicationWithdrawn || len(withdrawnDetail.Submissions) != 2 || len(withdrawnDetail.Submissions[0].Reviews) != 1 || len(withdrawnDetail.Submissions[1].Reviews) != 1 || withdrawnDetail.Submissions[1].Reviews[0].Decision != model.AssignmentReviewPassed {
-		t.Fatalf("withdrawal lost member-visible history: detail=%#v err=%v", withdrawnDetail, err)
+	if _, err := service.SetPublicationStatus(context.Background(), member, withdrawalAssignment.ID, model.AssignmentPublicationPublished); statusOf(err) != http.StatusForbidden {
+		t.Fatalf("member could republish an assignment: status=%d, want 403", statusOf(err))
 	}
-	if _, err := service.Submit(context.Background(), member, withdrawalAssignment.ID, []*multipart.FileHeader{multipartHeader(t, "撤回后重交.pdf", []byte("%PDF-1.7\nblocked"))}); statusOf(err) != http.StatusConflict {
-		t.Fatalf("member submission after withdrawal status = %d, want 409", statusOf(err))
+	memberAssignments, err := service.ListMine(context.Background(), member)
+	if err != nil {
+		t.Fatalf("list member assignments after withdrawal: %v", err)
+	}
+	for _, item := range memberAssignments {
+		if item.ID == withdrawalAssignment.ID {
+			t.Fatalf("withdrawn assignment %d remained in member list", item.ID)
+		}
+	}
+	if _, err := service.GetMine(context.Background(), member, withdrawalAssignment.ID); statusOf(err) != http.StatusNotFound {
+		t.Fatalf("member assignment detail after withdrawal status = %d, want 404", statusOf(err))
+	}
+	if _, err := service.Submit(context.Background(), member, withdrawalAssignment.ID, nil); statusOf(err) != http.StatusNotFound {
+		t.Fatalf("member submission after withdrawal status = %d, want 404", statusOf(err))
+	}
+	firstSubmissionFileID := resubmitted.Submissions[0].Files[0].ID
+	if _, err := service.OpenFile(context.Background(), member, firstSubmissionFileID); statusOf(err) != http.StatusNotFound {
+		t.Fatalf("member submission file after withdrawal status = %d, want 404", statusOf(err))
+	}
+	if _, err := service.OpenMaterialFile(context.Background(), member, withdrawalMaterials[0].ID); statusOf(err) != http.StatusNotFound {
+		t.Fatalf("member teaching material after withdrawal status = %d, want 404", statusOf(err))
 	}
 	if err := service.Delete(context.Background(), admin, withdrawalAssignment.ID); statusOf(err) != http.StatusConflict {
 		t.Fatalf("assignment with submission/review history was deleted: status=%d", statusOf(err))
@@ -595,9 +635,47 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	if err != nil || len(adminHistory.Members) != 1 || len(adminHistory.Members[0].Submissions) != 2 || adminHistory.Assignment.CanDelete {
 		t.Fatalf("admin could not retain withdrawn submission history: history=%#v err=%v", adminHistory, err)
 	}
-	if _, err := service.SetPublicationStatus(context.Background(), admin, withdrawalAssignment.ID, model.AssignmentPublicationPublished); err != nil {
-		t.Fatalf("republish an unexpired withdrawn assignment: %v", err)
+	var targetCount, submissionCount, reviewCount, materialCount int64
+	if err := db.Model(&model.AssignmentTarget{}).Where("assignment_id = ?", withdrawalAssignment.ID).Count(&targetCount).Error; err != nil {
+		t.Fatalf("count retained assignment targets: %v", err)
 	}
+	if err := db.Model(&model.AssignmentSubmission{}).Where("assignment_id = ?", withdrawalAssignment.ID).Count(&submissionCount).Error; err != nil {
+		t.Fatalf("count retained submissions: %v", err)
+	}
+	if err := db.Table("assignment_reviews").Joins("JOIN assignment_submissions ON assignment_submissions.id = assignment_reviews.submission_id").Where("assignment_submissions.assignment_id = ?", withdrawalAssignment.ID).Count(&reviewCount).Error; err != nil {
+		t.Fatalf("count retained reviews: %v", err)
+	}
+	if err := db.Model(&model.AssignmentMaterialFile{}).Where("assignment_id = ?", withdrawalAssignment.ID).Count(&materialCount).Error; err != nil {
+		t.Fatalf("count retained teaching materials: %v", err)
+	}
+	if targetCount != 1 || submissionCount != 2 || reviewCount != 2 || materialCount != 1 {
+		t.Fatalf("withdrawal changed retained history: targets=%d submissions=%d reviews=%d materials=%d", targetCount, submissionCount, reviewCount, materialCount)
+	}
+	if _, err := service.OpenFile(context.Background(), admin, firstSubmissionFileID); err != nil {
+		t.Fatalf("admin could not download withdrawn submission history: %v", err)
+	}
+	if _, err := service.OpenMaterialFile(context.Background(), admin, withdrawalMaterials[0].ID); err != nil {
+		t.Fatalf("admin could not download withdrawn assignment material: %v", err)
+	}
+	service.now = func() time.Time { return now.Add(120 * time.Hour) }
+	if _, err := service.SetPublicationStatus(context.Background(), admin, withdrawalAssignment.ID, model.AssignmentPublicationPublished); err != nil {
+		t.Fatalf("republish an expired withdrawn assignment: %v", err)
+	}
+	republishedDetail, err := service.GetMine(context.Background(), member, withdrawalAssignment.ID)
+	if err != nil || republishedDetail.Assignment.PublicationStatus != model.AssignmentPublicationPublished || len(republishedDetail.Submissions) != 2 || len(republishedDetail.Submissions[0].Reviews) != 1 || len(republishedDetail.Submissions[1].Reviews) != 1 || republishedDetail.Submissions[1].Reviews[0].Decision != model.AssignmentReviewPassed {
+		t.Fatalf("republishing did not restore member access and history: detail=%#v err=%v", republishedDetail, err)
+	}
+	republishedAdminHistory, err := service.GetAdmin(context.Background(), admin, withdrawalAssignment.ID)
+	if err != nil || len(republishedAdminHistory.Members) != 1 || republishedAdminHistory.Members[0].UserID != member.ID || len(republishedAdminHistory.Members[0].Submissions) != 2 {
+		t.Fatalf("republishing changed the original recipients or administrator history: history=%#v err=%v", republishedAdminHistory, err)
+	}
+	if _, err := service.OpenFile(context.Background(), member, firstSubmissionFileID); err != nil {
+		t.Fatalf("member could not access restored submission history after republish: %v", err)
+	}
+	if _, err := service.OpenMaterialFile(context.Background(), member, withdrawalMaterials[0].ID); err != nil {
+		t.Fatalf("member could not access teaching materials after republish: %v", err)
+	}
+	service.now = func() time.Time { return now }
 
 	deletableAssignment, err := service.Create(context.Background(), admin, CreateInput{
 		GroupID: groupIDs[groupMechanical], Title: "[TEST_ASSIGNMENT] 可安全删除", Description: "没有业务记录",
