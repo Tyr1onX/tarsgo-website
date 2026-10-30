@@ -1,22 +1,11 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Link, useOutletContext } from "react-router";
+import { Link, useOutletContext, useSearchParams } from "react-router";
 
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { ApiError, apiRequest } from "~/lib/api-client";
 import { hasAssignmentGroupAccess, hasOperationsWorkManualAccess } from "~/lib/dashboard-navigation";
+import type { ManualBlock, OperationsCatalogue } from "~/lib/work-manual-content";
 import "./work-manual.css";
-
-type ManualLink = { label: string; href: string };
-type ManualBlock =
-  | { type: "paragraph"; text: string }
-  | { type: "step"; title: string; items: string[]; links?: ManualLink[] }
-  | { type: "list"; label?: string; items: string[] }
-  | { type: "note"; text: string }
-  | { type: "download"; label: string; href: string }
-  | { type: "links"; items: ManualLink[] };
-type ManualSection = { id: string; title: string; blocks: ManualBlock[] };
-type ManualDocument = { slug: string; title: string; sections: ManualSection[] };
-type OperationsCatalogue = { documents: ManualDocument[] };
 
 export function meta() {
   return [{ title: "工作手册 | TARSGO" }];
@@ -91,19 +80,17 @@ function ManualBlockView({ block }: { block: ManualBlock }) {
   }
 }
 
-function OperationsSOP({ catalogue, selectedSlug, onSelect }: {
-  catalogue: OperationsCatalogue;
-  selectedSlug: string | null;
-  onSelect: (slug: string) => void;
-}) {
-  const document = catalogue.documents.find((item) => item.slug === selectedSlug) ?? catalogue.documents[0];
+function OperationsSOP({ catalogue }: { catalogue: OperationsCatalogue }) {
+  const document = catalogue.documents[0];
   if (!document) return <p className="work-manual__empty">暂无已发布的运营组 SOP。</p>;
 
   return <div className="work-manual__reading-layout">
     <nav className="work-manual__directory" aria-label="运营组 SOP 目录">
       <p className="work-manual__directory-label">运营组 SOP</p>
       <ul className="work-manual__document-list">
-        {catalogue.documents.map((item) => <li key={item.slug}><button type="button" className="work-manual__directory-item" aria-current={item.slug === document.slug ? "page" : undefined} onClick={() => onSelect(item.slug)}>{item.title}</button></li>)}
+        {catalogue.documents.map((item) => <li key={item.slug}>{item.slug === "recruitment-briefing"
+          ? <Link className="work-manual__directory-item" to="/dashboard/guide/recruitment-briefing">{item.title}</Link>
+          : <span className="work-manual__directory-item" aria-current="page">{item.title}</span>}</li>)}
       </ul>
       <ol>
         {document.sections.map((section) => <li key={section.id}><a href={`#${document.slug}-${section.id}`}>{section.title}</a></li>)}
@@ -125,9 +112,9 @@ function OperationsSOP({ catalogue, selectedSlug, onSelect }: {
 export default function GuideRoute() {
   const { currentUser, groupResolution } = useOutletContext<DashboardLayoutOutletContext>();
   const canReadOperationsSOP = hasOperationsWorkManualAccess(currentUser, groupResolution?.groups);
-  const [activeTab, setActiveTab] = useState<"website" | "operations">("website");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get("tab") === "operations" && canReadOperationsSOP ? "operations" : "website";
   const [operationsCatalogue, setOperationsCatalogue] = useState<OperationsCatalogue | null>(null);
-  const [selectedSlug, setSelectedSlug] = useState<string | null>(null);
   const [operationsError, setOperationsError] = useState<{ message: string; status: number } | null>(null);
   const [operationsLoading, setOperationsLoading] = useState(false);
   const [hasRequestedOperations, setHasRequestedOperations] = useState(false);
@@ -158,8 +145,8 @@ export default function GuideRoute() {
     <header className="work-manual__header">
       <h1 className="text-2xl font-semibold">工作手册</h1>
       <div className="work-manual__tabs" role="group" aria-label="工作手册内容">
-        <button type="button" aria-pressed={activeTab === "website"} onClick={() => setActiveTab("website")}>网站使用指南</button>
-        {canReadOperationsSOP ? <button type="button" aria-pressed={activeTab === "operations"} onClick={() => setActiveTab("operations")}>运营组 SOP</button> : null}
+        <button type="button" aria-pressed={activeTab === "website"} onClick={() => setSearchParams({})}>网站使用指南</button>
+        {canReadOperationsSOP ? <button type="button" aria-pressed={activeTab === "operations"} onClick={() => setSearchParams({ tab: "operations" })}>运营组 SOP</button> : null}
       </div>
     </header>
 
@@ -170,7 +157,7 @@ export default function GuideRoute() {
           <p>{operationsError.message}</p>
           {operationsError.status !== 403 && operationsError.status !== 401 ? <button type="button" onClick={retryOperations}>重试</button> : null}
         </div>
-          : operationsCatalogue ? <OperationsSOP catalogue={operationsCatalogue} selectedSlug={selectedSlug} onSelect={setSelectedSlug} />
+          : operationsCatalogue ? <OperationsSOP catalogue={operationsCatalogue} />
             : null : null}
     </div>
   </main>;
