@@ -102,14 +102,13 @@ func TestOperationsCatalogueIncludesEvidenceBoundedRecruitmentBriefingSOP(t *tes
 		t.Fatalf("second SOP = %#v", got)
 	}
 	for _, expected := range []string{
-		"适用场景", "活动筹备", "宣讲前现场检查", "活动现场执行", "宣讲结束后的工作", "历史经验与常见问题", "执行检查清单",
-		"2026 年 9 月 21 日南湖招新宣讲", "2026 年 10 月 11 日曾在南湖、南区、南岭三个校区组织宣讲",
-		"直播中断后未能及时发现", "账号权限检查", "设备测试", "独立监看", "异常反馈", "建议检查项",
-		"未核实该场直播异常的具体原因、实际影响或当时人员分工",
-		"不把它写成 9 月 21 日故障原因", "不估填人数或转化结果",
+		"确认活动安排", "确定人员分工", "准备宣讲材料",
+		"现场设备与入口检查", "进行宣讲与问答",
+		"引导报名并记录素材", "收尾、跟进与复盘",
+		"外部监看", "报名群",
 	} {
 		if !strings.Contains(string(catalogue), expected) {
-			t.Errorf("operations catalogue is missing SOP detail %q", expected)
+			t.Errorf("operations catalogue is missing flow step %q", expected)
 		}
 	}
 }

@@ -26,6 +26,7 @@ export default [
     route("leave", "routes/leave-workbench.tsx"),
     route("weekly-reports", "routes/dashboard/weekly-reports.tsx"),
     route("guide", "routes/dashboard/guide.tsx"),
+    route("guide/recruitment-briefing", "routes/dashboard/recruitment-briefing.tsx"),
     route("timetable", "routes/dashboard/timetable.tsx"),
     route("assignments", "routes/dashboard/assignments.tsx"),
     route("practice-projects", "routes/dashboard/practice-projects.tsx"),

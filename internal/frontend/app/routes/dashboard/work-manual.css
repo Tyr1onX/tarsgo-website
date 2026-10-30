@@ -6,7 +6,7 @@
 .work-manual__reading-layout { display: grid; grid-template-columns: minmax(190px, 230px) minmax(0, 1fr); gap: clamp(20px, 4vw, 48px); align-items: start; }
 .work-manual__directory { position: sticky; top: 20px; display: grid; gap: 9px; padding: 14px 12px; border: 1px solid var(--admin-border-subtle); border-radius: 13px; background: var(--admin-surface); }
 .work-manual__directory-label { padding: 0 8px 5px; color: var(--admin-dim); font-size: 11px; font-weight: 620; letter-spacing: .04em; }
-.work-manual__directory-item { border-radius: 8px; padding: 8px; color: var(--admin-accent-text); text-align: left; font-size: 13px; font-weight: 600; }
+.work-manual__directory-item { display: block; width: 100%; border-radius: 8px; padding: 8px; color: var(--admin-accent-text); text-align: left; font-size: 13px; font-weight: 600; }
 .work-manual__document-list { display: grid; gap: 2px; margin: 0; padding: 0; list-style: none; }
 .work-manual__directory ol { display: grid; gap: 2px; margin: 0; padding: 0 0 0 8px; list-style: none; }
 .work-manual__directory a { display: block; border-radius: 7px; padding: 7px 8px; color: var(--admin-muted); font-size: 12px; line-height: 1.45; text-decoration: none; }
@@ -41,4 +41,22 @@
   .work-manual__article > h2 { margin-bottom: 18px; }
   .work-manual__section { padding: 18px 0 20px; }
   .work-manual__section-content { font-size: 13px; }
+}
+
+
+.briefing-flow { max-width: 780px; width: 100%; margin: 0 auto; padding: 28px 24px 56px; color: var(--admin-text); }
+.briefing-flow__back { display: inline-block; margin-bottom: 20px; color: var(--admin-accent-text); font-size: 13px; text-decoration: none; }
+.briefing-flow__back:hover { text-decoration: underline; }
+.briefing-flow > h1 { margin-bottom: 28px; font-size: clamp(25px, 3vw, 31px); font-weight: 650; line-height: 1.3; }
+.briefing-flow__steps { margin: 0 0 0 21px; padding: 0; border-left: 1px solid var(--admin-border-subtle); list-style: none; }
+.briefing-flow__steps li { position: relative; display: grid; grid-template-columns: minmax(0, 1fr); padding: 0 0 32px 31px; }
+.briefing-flow__steps li:last-child { padding-bottom: 0; }
+.briefing-flow__number { position: absolute; left: -21px; top: 0; display: grid; place-items: center; width: 42px; height: 42px; border: 1px solid var(--admin-border); border-radius: 50%; background: var(--admin-surface); color: var(--admin-accent-text); font-size: 13px; font-weight: 650; font-variant-numeric: tabular-nums; }
+.briefing-flow__steps h2 { padding: 2px 0 7px; font-size: 16px; font-weight: 650; }
+.briefing-flow__steps p { color: var(--admin-muted); font-size: 14px; line-height: 1.8; }
+.briefing-flow a:focus-visible { outline: 2px solid var(--admin-accent); outline-offset: 3px; }
+@media (max-width: 680px) {
+  .briefing-flow { padding: 20px 16px 44px; }
+  .briefing-flow__steps li { padding-left: 26px; padding-bottom: 27px; }
+  .briefing-flow__steps p { font-size: 14px; }
 }
