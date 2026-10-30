@@ -23,7 +23,7 @@ ssh_config="${JIJIA_BACKUP_SSH_CONFIG:-/root/.ssh/jijia-backup-ssh-config}"
 docker_bin="${DOCKER_BIN:-docker}"
 ssh_bin="${SSH_BIN:-ssh}"
 scp_bin="${SCP_BIN:-scp}"
-retention_minutes=10080
+retention_minutes=43200
 
 run_ssh() {
   if [[ -n "$ssh_config" && -f "$ssh_config" ]]; then
@@ -114,7 +114,7 @@ retain_local_backups() {
 
 retain_local_backups
 if [[ "$backup_mode" == offsite ]]; then
-  echo "Production backup verified locally and on Tencent; 7-day local retention completed: $backup_name"
+  echo "Production backup verified locally and on Tencent; 30-day local retention completed: $backup_name"
 else
-  echo "Production backup verified locally (Tencent transfer skipped); 7-day local retention completed: $backup_name"
+  echo "Production backup verified locally (Tencent transfer skipped); 30-day local retention completed: $backup_name"
 fi
