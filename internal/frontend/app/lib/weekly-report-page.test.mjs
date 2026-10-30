@@ -60,7 +60,7 @@ test("the in-workbench guide covers the current member and administrator flows",
   const guide = await readFile(new URL("../routes/dashboard/guide.tsx", import.meta.url), "utf8");
   const routeConfig = await readFile(new URL("../routes.ts", import.meta.url), "utf8");
   assert.match(routeConfig, /route\("guide", "routes\/dashboard\/guide\.tsx"\)/);
-  for (const phrase of ["个人资料", "课程时间", "我的作业", "实践项目", "能力雷达", "我的成长", "时间协调", "能力评价管理", "人员培养"]) {
+  for (const phrase of ["个人资料", "课程时间", "我的作业", "实践项目", "能力评价", "我的成长", "时间协调", "能力评价管理", "人员培养"]) {
     assert.match(guide, new RegExp(phrase));
   }
   assert.match(guide, /点击“登录”/);

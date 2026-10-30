@@ -7,6 +7,7 @@ import { getCandidateTodoCount, getShanghaiDate, getUpcomingInterviewSessions } 
 const dashboardLayout = await readFile(new URL("../routes/dashboard/layout.tsx", import.meta.url), "utf8");
 const registrationsRoute = await readFile(new URL("../routes/admin/registrations.tsx", import.meta.url), "utf8");
 const registrationsClient = await readFile(new URL("./registrations-client.ts", import.meta.url), "utf8");
+const guide = await readFile(new URL("../routes/dashboard/guide.tsx", import.meta.url), "utf8");
 
 test("candidate sidebar count includes only actionable screening and interview queues", () => {
   const summary = { total: 30, pendingScreening: 2, pendingInterview: 1, admitted: 10, rejected: 12, withdrawn: 5 };
@@ -41,4 +42,13 @@ test("workbench shows enabled sessions from today through the next 14 days in lo
   ];
   const visible = getUpcomingInterviewSessions(sessions, new Date("2026-10-05T04:00:00Z"));
   assert.deepEqual(visible.map(({ id }) => id), [2]);
+});
+
+test("workbench guide shows only the signed-in role's instructions", () => {
+  assert.match(guide, /const canManage = \["admin", "super_admin"\]\.includes\(currentUser\.role\.name\)/);
+  assert.match(guide, /\{!canManage \? <section[^>]*aria-labelledby="member-guide-title"/);
+  assert.match(guide, /\{canManage \? <section[^>]*aria-labelledby="admin-guide-title"/);
+  assert.match(guide, /currentUser\.role\.name === "super_admin" \? <li>/);
+  assert.match(guide, /\/dashboard\/growth\?tab=capabilities/);
+  assert.doesNotMatch(guide, /能力雷达/);
 });
