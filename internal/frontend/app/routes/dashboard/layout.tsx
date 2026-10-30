@@ -38,6 +38,7 @@ import {
   getVisibleAdminDashboardMenu,
   hasDashboardAdminAccess,
   isDashboardMenuPathActive,
+  isTemporarilyUnavailableDashboardPath,
   type DashboardMenuIconKey,
   type DashboardMenuLink,
   type VisibleDashboardAdminMenuItem,
@@ -77,10 +78,13 @@ function getIsDesktopDashboardViewport() {
 
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const currentPath = new URL(request.url);
+  const temporarilyUnavailable = isTemporarilyUnavailableDashboardPath(currentPath.pathname);
   const cachedUser = getCachedCurrentUser();
-  const groupRequest = getUserGroupConfirmationState(cachedUser?.id)
-    .then((state) => ({ state, error: null as unknown }))
-    .catch((error: unknown) => ({ state: null, error }));
+  const groupRequest = temporarilyUnavailable
+    ? Promise.resolve({ state: null, error: null as unknown })
+    : getUserGroupConfirmationState(cachedUser?.id)
+      .then((state) => ({ state, error: null as unknown }))
+      .catch((error: unknown) => ({ state: null, error }));
   const auth = await resolveDashboardAuth({
     getCurrentUser: () => getCurrentUser(),
     getBootstrapStatus,
@@ -95,6 +99,9 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect(`/login?redirect=${encodeURIComponent(redirectTarget)}`);
   }
   const currentUser = auth.user;
+  if (temporarilyUnavailable) {
+    throw redirect(getDefaultDashboardPath(currentUser.role.name));
+  }
 
   const groupResult = await groupRequest;
   const groupResolution: UserGroupConfirmationState | null = groupResult.state;

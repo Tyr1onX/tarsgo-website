@@ -83,9 +83,10 @@ test("coalesces active identity checks and invalidates them on cross-tab account
 });
 
 test("dashboard reuses fresh identity and group checks while starting cold checks in parallel", () => {
-  const groupRequestIndex = dashboardLayoutSource.indexOf("const groupRequest = getUserGroupConfirmationState(cachedUser?.id)");
+  const groupRequestIndex = dashboardLayoutSource.indexOf("const groupRequest =");
+  const groupLookupIndex = dashboardLayoutSource.indexOf("getUserGroupConfirmationState(cachedUser?.id)", groupRequestIndex);
   const authRequestIndex = dashboardLayoutSource.indexOf("const auth = await resolveDashboardAuth(");
-  assert.ok(groupRequestIndex >= 0 && authRequestIndex > groupRequestIndex);
+  assert.ok(groupRequestIndex >= 0 && groupLookupIndex > groupRequestIndex && authRequestIndex > groupLookupIndex);
   assert.match(dashboardLayoutSource, /const cachedUser = getCachedCurrentUser\(\)/);
   assert.match(dashboardLayoutSource, /getUserGroupConfirmationState\(cachedUser\?\.id\)/);
   assert.match(dashboardLayoutSource, /getCurrentUser: \(\) => getCurrentUser\(\)/);

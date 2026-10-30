@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { canAccessDashboardAdminPath, canAccessExpedition, getCoreDashboardMenu, getDailyDashboardMenu, getDefaultDashboardPath, getGrowthDashboardTabs, getGrowthTabPath, getUserDashboardMenu, getVisibleAdminDashboardMenu, hasSkillGroupAccess, hasTechnicalGroupAccess, isDashboardMenuPathActive } from "./dashboard-navigation.ts";
+import { canAccessDashboardAdminPath, canAccessExpedition, getCoreDashboardMenu, getDailyDashboardMenu, getDefaultDashboardPath, getGrowthDashboardTabs, getGrowthTabPath, getUserDashboardMenu, getVisibleAdminDashboardMenu, hasSkillGroupAccess, hasTechnicalGroupAccess, isDashboardMenuPathActive, isTemporarilyUnavailableDashboardPath } from "./dashboard-navigation.ts";
 
 test("every authenticated role opens the same personal workbench", () => {
   assert.equal(getDefaultDashboardPath("user"), "/dashboard");
@@ -15,7 +15,6 @@ test("the home entry and daily affairs use their own navigation groups", () => {
   ]);
   assert.deepEqual(getDailyDashboardMenu().map(({ key, label, href }) => ({ key, label, href })), [
     { key: "weekly-reports", label: "工作周报", href: "/dashboard/weekly-reports" },
-    { key: "practice-projects", label: "实践项目", href: "/dashboard/practice-projects" },
     { key: "usage-guide", label: "使用指南", href: "/dashboard/guide" },
   ]);
 });
@@ -42,12 +41,12 @@ test("admin navigation groups recruitment and member tools while keeping email s
   assert.equal(menu.some((item) => item.key === "system-config"), false);
 });
 
-test("member navigation keeps personal growth available to all roles and restricts member tools", () => {
-	assert.deepEqual(getUserDashboardMenu("user").map((item) => item.href), ["/dashboard/users/registrations", "/dashboard/leave", "/dashboard/growth"]);
+test("member navigation hides temporarily unavailable sections and restricts member tools", () => {
+	assert.deepEqual(getUserDashboardMenu("user").map((item) => item.href), ["/dashboard/users/registrations", "/dashboard/leave"]);
   assert.equal(getUserDashboardMenu("user")[0]?.label, "我的招新");
-	assert.deepEqual(getUserDashboardMenu("admin").map((item) => item.href), ["/dashboard/growth"]);
-	assert.deepEqual(getUserDashboardMenu("super_admin").map((item) => item.href), ["/dashboard/growth", "/dashboard/expedition"]);
-	assert.deepEqual(getUserDashboardMenu("user", false, true).map(({ key }) => key), ["users-registrations", "leave-workbench", "my-growth", "tars-base-expedition"]);
+	assert.deepEqual(getUserDashboardMenu("admin").map((item) => item.href), []);
+	assert.deepEqual(getUserDashboardMenu("super_admin").map((item) => item.href), []);
+	assert.deepEqual(getUserDashboardMenu("user", false, true).map(({ key }) => key), ["users-registrations", "leave-workbench"]);
 	assert.deepEqual(getGrowthDashboardTabs("user").map(({ key }) => key), ["profile"]);
 	assert.deepEqual(getGrowthDashboardTabs("user", false, true).map(({ key }) => key), ["profile", "capabilities"]);
 	assert.deepEqual(getGrowthDashboardTabs("user", true, true).map(({ key }) => key), ["profile", "capabilities", "skills"]);
@@ -71,9 +70,9 @@ test("members need a technical group while super-admins can manage all groups", 
   assert.equal(hasTechnicalGroupAccess([{ name: "运营组" }]), false);
 	assert.equal(hasSkillGroupAccess([{ name: "运营组" }]), true);
 	assert.equal(hasSkillGroupAccess([{ name: "临时组" }]), false);
-	assert.deepEqual(getUserDashboardMenu("user", true).slice(3).map(({ label }) => label), ["TARS BASE", "提问答疑", "我的作业"]);
-	assert.deepEqual(getUserDashboardMenu("admin", true).map(({ label }) => label), ["我的成长", "TARS BASE", "提问答疑", "我的作业"]);
-	assert.deepEqual(getUserDashboardMenu("super_admin", false).map(({ label }) => label), ["我的成长", "TARS BASE"]);
+	assert.deepEqual(getUserDashboardMenu("user", true).slice(2).map(({ label }) => label), ["提问答疑", "我的作业"]);
+	assert.deepEqual(getUserDashboardMenu("admin", true).map(({ label }) => label), ["提问答疑", "我的作业"]);
+	assert.deepEqual(getUserDashboardMenu("super_admin", false).map(({ label }) => label), []);
   assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/training/assignments", false), false);
   assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/training/assignments", true), true);
   assert.equal(canAccessDashboardAdminPath("super_admin", "/dashboard/admin/training/assignments", false), true);
@@ -99,6 +98,20 @@ test("TARS BASE requires one of the five supported groups, except for super admi
   assert.equal(canAccessExpedition("user", true), true);
   assert.equal(canAccessExpedition("admin", true), true);
   assert.equal(canAccessExpedition("super_admin", false), true);
+});
+
+test("temporarily unavailable dashboard routes reject direct entry", () => {
+  for (const pathname of [
+    "/dashboard/practice-projects",
+    "/dashboard/practice-projects/",
+    "/dashboard/growth",
+    "/dashboard/expedition",
+    "/dashboard/expedition/projects",
+  ]) {
+    assert.equal(isTemporarilyUnavailableDashboardPath(pathname), true, pathname);
+  }
+  assert.equal(isTemporarilyUnavailableDashboardPath("/dashboard/admin/training/practice-projects"), false);
+  assert.equal(isTemporarilyUnavailableDashboardPath("/dashboard/weekly-reports"), false);
 });
 
 test("nested admin routes keep their parent submenu active without highlighting the overview", () => {
