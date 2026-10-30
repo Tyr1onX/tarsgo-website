@@ -32,20 +32,6 @@ export function SkillTreeGraph({ nodes, selectedID, onSelect, onAutoArrange }: S
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const [zoom, setZoom] = useState(1);
   const [reduceMotion, setReduceMotion] = useState(false);
-  const relatedIDs = useMemo(() => {
-    const related = new Set<number>();
-    if (selectedID === null) return related;
-    related.add(selectedID);
-    let changed = true;
-    while (changed) {
-      changed = false;
-      for (const edge of layout.edges) {
-        if (related.has(edge.to) && !related.has(edge.from)) { related.add(edge.from); changed = true; }
-        if (related.has(edge.from) && !related.has(edge.to)) { related.add(edge.to); changed = true; }
-      }
-    }
-    return related;
-  }, [layout, selectedID]);
 
   useEffect(() => {
     const media = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -70,8 +56,8 @@ export function SkillTreeGraph({ nodes, selectedID, onSelect, onAutoArrange }: S
   }, [positionByID, reduceMotion, selectedID, zoom]);
 
   useEffect(() => {
-    if (selectedID !== null) focusSelected();
-  }, [focusSelected, selectedID]);
+    scrollRef.current?.scrollTo({ left: 0, top: 0, behavior: "auto" });
+  }, [layout.width, layout.height]);
 
   function adjustZoom(delta: number) {
     setZoom((current) => Math.max(0.65, Math.min(1.6, Math.round((current + delta) * 100) / 100)));
@@ -117,20 +103,18 @@ export function SkillTreeGraph({ nodes, selectedID, onSelect, onAutoArrange }: S
             const fromNode = nodeByID.get(edge.from);
             const toNode = nodeByID.get(edge.to);
             const strength = fromNode?.state === "mastered" && toNode?.state !== "locked" ? "ready" : "quiet";
-            const related = selectedID === null || (relatedIDs.has(edge.from) && relatedIDs.has(edge.to));
             const sourceIsLeft = from.depth > to.depth;
             const x1 = from.x + (sourceIsLeft ? -94 : 94);
             const x2 = to.x + (sourceIsLeft ? 94 : -94);
             const path = edge.routeY !== undefined && edge.targetChannelX !== undefined
               ? `M ${x1} ${from.y} H ${edge.channelX} V ${edge.routeY} H ${edge.targetChannelX} V ${to.y} H ${x2}`
               : `M ${x1} ${from.y} H ${edge.channelX} V ${to.y} H ${x2}`;
-            return <path key={`${edge.from}-${edge.to}`} className={`skill-tree-edge skill-tree-edge--${strength}${related ? "" : " is-dimmed"}`} d={path} />;
+            return <path key={`${edge.from}-${edge.to}`} className={`skill-tree-edge skill-tree-edge--${strength}`} d={path} />;
           })}
           {nodes.map((node) => {
             const position = positionByID.get(node.id);
             if (!position) return null;
             const selected = node.id === selectedID;
-            const related = selectedID === null || relatedIDs.has(node.id);
             const tone = nodeTone(node);
             const onKeyDown = (event: KeyboardEvent<SVGGElement>) => {
               if (event.key === "Enter" || event.key === " ") {
@@ -141,7 +125,7 @@ export function SkillTreeGraph({ nodes, selectedID, onSelect, onAutoArrange }: S
             return (
               <g
                 key={node.id}
-                className={`skill-tree-node skill-tree-node--${tone}${selected ? " is-selected" : ""}${related ? "" : " is-dimmed"}`}
+                className={`skill-tree-node skill-tree-node--${tone}${selected ? " is-selected" : ""}`}
                 transform={`translate(${position.x}, ${position.y})`}
                 role="button"
                 tabIndex={0}

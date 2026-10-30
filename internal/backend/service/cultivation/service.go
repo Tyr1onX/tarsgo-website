@@ -75,6 +75,7 @@ type MemberSummary struct {
 	UserID           uint64                         `json:"userId"`
 	DisplayName      string                         `json:"displayName"`
 	GroupRole        string                         `json:"groupRole"`
+	JoinedYear       int                            `json:"joinedYear"`
 	Dimensions       []capabilities.DimensionResult `json:"dimensions"`
 	OverallScore     *float64                       `json:"overallScore"`
 	ScoredDimensions int                            `json:"scoredDimensions"`
@@ -105,6 +106,7 @@ type MemberView struct {
 	UserID       uint64                         `json:"userId"`
 	DisplayName  string                         `json:"displayName"`
 	GroupRole    string                         `json:"groupRole"`
+	JoinedYear  int                            `json:"joinedYear"`
 	Dimensions   []capabilities.DimensionResult `json:"dimensions"`
 	OverallScore *float64                       `json:"overallScore"`
 	Assignments  ActivitySummary                `json:"assignments"`
@@ -127,6 +129,7 @@ type memberRow struct {
 	Nickname *string `gorm:"column:nickname"`
 	RealName *string `gorm:"column:real_name"`
 	Role     uint8   `gorm:"column:group_role"`
+	JoinedAt time.Time `gorm:"column:joined_at"`
 }
 
 type assignmentRow struct {
@@ -153,7 +156,7 @@ func (s *Service) Group(ctx context.Context, actor Actor, groupID uint64) (*Grou
 		return nil, mappedError(err)
 	}
 	var roster []memberRow
-	if err := s.db.WithContext(ctx).Table("users").Select("users.id, users.name, users.nickname, users.real_name, user_group_members.role AS group_role").
+	if err := s.db.WithContext(ctx).Table("users").Select("users.id, users.name, users.nickname, users.real_name, user_group_members.role AS group_role, user_group_members.joined_at").
 		Joins("JOIN user_group_members ON user_group_members.user_id = users.id").
 		Joins("JOIN user_groups ON user_groups.id = user_group_members.group_id").
 		Where("user_group_members.group_id = ? AND user_groups.status = ? AND users.status = ?", groupID, model.UserGroupStatusActive, model.UserStatusEnabled).
@@ -189,7 +192,7 @@ func (s *Service) Group(ctx context.Context, actor Actor, groupID uint64) (*Grou
 			dimensions = []capabilities.DimensionResult{}
 		}
 		member := MemberSummary{
-			UserID: row.ID, DisplayName: memberName(row), GroupRole: groupRole(row.Role),
+			UserID: row.ID, DisplayName: memberName(row), GroupRole: groupRole(row.Role), JoinedYear: row.JoinedAt.Year(),
 			Dimensions: dimensions, TotalDimensions: activeDimensionCount, Assignments: metrics[row.ID].assignments,
 			PracticeProjects: metrics[row.ID].practice, Focused: focusRecords[row.ID].Focused,
 		}
@@ -202,18 +205,7 @@ func (s *Service) Group(ctx context.Context, actor Actor, groupID uint64) (*Grou
 		result.Members = append(result.Members, member)
 	}
 	sort.SliceStable(result.Members, func(i, j int) bool {
-		left, right := result.Members[i], result.Members[j]
-		if left.OverallScore == nil || right.OverallScore == nil {
-			if left.OverallScore == nil && right.OverallScore != nil {
-				return false
-			}
-			if left.OverallScore != nil && right.OverallScore == nil {
-				return true
-			}
-		} else if *left.OverallScore != *right.OverallScore {
-			return *left.OverallScore > *right.OverallScore
-		}
-		return left.DisplayName < right.DisplayName
+		return result.Members[i].DisplayName < result.Members[j].DisplayName
 	})
 	return result, nil
 }
@@ -294,7 +286,7 @@ func (s *Service) Member(ctx context.Context, actor Actor, groupID, userID uint6
 		return nil, mappedError(err)
 	}
 	var rosterEntry memberRow
-	if err := s.db.WithContext(ctx).Table("users").Select("users.id, users.name, users.nickname, users.real_name, user_group_members.role AS group_role").
+	if err := s.db.WithContext(ctx).Table("users").Select("users.id, users.name, users.nickname, users.real_name, user_group_members.role AS group_role, user_group_members.joined_at").
 		Joins("JOIN user_group_members ON user_group_members.user_id = users.id").
 		Joins("JOIN user_groups ON user_groups.id = user_group_members.group_id").
 		Where("users.id = ? AND user_group_members.group_id = ? AND user_groups.status = ? AND users.status = ?", userID, groupID, model.UserGroupStatusActive, model.UserStatusEnabled).Take(&rosterEntry).Error; err != nil {
@@ -313,7 +305,7 @@ func (s *Service) Member(ctx context.Context, actor Actor, groupID, userID uint6
 	}
 	result := &MemberView{
 		GroupID: groupID, GroupName: capabilityView.GroupName, UserID: userID, DisplayName: capabilityView.DisplayName,
-		GroupRole: groupRole(rosterEntry.Role), Dimensions: capabilityView.Dimensions,
+		GroupRole: groupRole(rosterEntry.Role), JoinedYear: rosterEntry.JoinedAt.Year(), Dimensions: capabilityView.Dimensions,
 		Assignments: metrics[userID].assignments, Practice: metrics[userID].practice,
 		Focused: focus.Focused, InternalNote: focus.InternalNote,
 		Events: []growth.Event{},

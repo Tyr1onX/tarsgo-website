@@ -121,3 +121,7 @@ export function formatCapabilityDate(value: string) {
     year: "numeric", month: "2-digit", day: "2-digit",
   }).format(new Date(value));
 }
+
+export function formatScore(score: number) {
+  return Number.isInteger(score) ? String(score) : score.toFixed(1);
+}
