@@ -64,7 +64,11 @@ func TestImportUpsertsSameSemesterAndRejectsInvalidBeforeWriting(t *testing.T) {
 			t.Fatalf("reimport attempt %d: result=%v err=%v", i, result, err)
 		}
 	}
-	for _, data := range [][]byte{[]byte("bad"), schoolWorkbook("C001-课程甲\n8-3周,星期3,第3节-第4节教室A")} {
+	for _, data := range [][]byte{
+		[]byte("bad"),
+		schoolWorkbook("C001-课程甲\n8-3周,星期3,第3节-第4节教室A"),
+		schoolWorkbook("C001-课程甲\n8周,31周,星期3,第3节-第4节教室A"),
+	} {
 		result, err := service.Import(context.Background(), 10, "我的课表.xlsx", data)
 		if err == nil || result != nil {
 			t.Fatalf("invalid workbook wrote data: %v %v", result, err)

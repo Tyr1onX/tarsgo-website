@@ -194,9 +194,15 @@ func (s *Service) AnalyzeWeek(ctx context.Context, actor Actor, f Filter) (*Week
 				member.HasUncertainCourses = len(notes) > 0
 				member.UncertainCourseCount = len(notes)
 				result.ImportedCount++
+				occupiedSlots := map[Slot]struct{}{}
 				for _, course := range courses {
-					if course.Active(f.Week) {
-						member.Occupied = append(member.Occupied, Slot{Weekday: course.Weekday, StartSection: course.StartSection, EndSection: course.EndSection})
+					if !course.Active(f.Week) {
+						continue
+					}
+					slot := Slot{Weekday: course.Weekday, StartSection: course.StartSection, EndSection: course.EndSection}
+					if _, exists := occupiedSlots[slot]; !exists {
+						occupiedSlots[slot] = struct{}{}
+						member.Occupied = append(member.Occupied, slot)
 					}
 				}
 			}
