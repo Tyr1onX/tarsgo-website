@@ -26,12 +26,13 @@ const (
 	groupEmbedded   = "电控组"
 	groupVision     = "视觉组"
 	groupAI         = "AI组"
+	groupOperations = "运营组"
 	maxRecipients   = 500
 )
 
 var (
-	technicalGroupNames = []string{groupMechanical, groupEmbedded, groupVision, groupAI}
-	shanghaiLocation    = time.FixedZone("Asia/Shanghai", 8*60*60)
+	assignmentGroupNames = []string{groupMechanical, groupEmbedded, groupVision, groupAI, groupOperations}
+	shanghaiLocation     = time.FixedZone("Asia/Shanghai", 8*60*60)
 )
 
 type Service struct {
@@ -197,9 +198,9 @@ func newServiceWithFileRoots(db *gorm.DB, submissionRoot, materialRoot string) (
 }
 
 func (s *Service) ListMine(ctx context.Context, actor Actor) ([]AssignmentView, error) {
-	groupIDs, err := technicalGroupIDs(s.db.WithContext(ctx), actor.ID)
+	groupIDs, err := assignmentGroupIDs(s.db.WithContext(ctx), actor.ID)
 	if err != nil {
-		return nil, internalError("读取所属技术组失败", err)
+		return nil, internalError("读取所属组别失败", err)
 	}
 	if len(groupIDs) == 0 {
 		return nil, forbidden("当前账号没有可用的技术组归属")
@@ -227,9 +228,9 @@ func (s *Service) ListMine(ctx context.Context, actor Actor) ([]AssignmentView, 
 }
 
 func (s *Service) GetMine(ctx context.Context, actor Actor, assignmentID uint64) (*MyAssignmentDetail, error) {
-	groupIDs, err := technicalGroupIDs(s.db.WithContext(ctx), actor.ID)
+	groupIDs, err := assignmentGroupIDs(s.db.WithContext(ctx), actor.ID)
 	if err != nil {
-		return nil, internalError("读取所属技术组失败", err)
+		return nil, internalError("读取所属组别失败", err)
 	}
 	if len(groupIDs) == 0 {
 		return nil, forbidden("当前账号没有可用的技术组归属")
@@ -269,9 +270,9 @@ func (s *Service) ListAdmin(ctx context.Context, actor Actor, groupID uint64) ([
 	if err := requireAdmin(actor); err != nil {
 		return nil, err
 	}
-	groupIDs, err := managerTechnicalGroupIDs(s.db.WithContext(ctx), actor)
+	groupIDs, err := managerAssignmentGroupIDs(s.db.WithContext(ctx), actor)
 	if err != nil {
-		return nil, internalError("读取可管理技术组失败", err)
+		return nil, internalError("读取可管理组别失败", err)
 	}
 	if len(groupIDs) == 0 {
 		return nil, forbidden("当前账号没有可管理的技术组")
@@ -871,9 +872,9 @@ func (s *Service) Delete(ctx context.Context, actor Actor, assignmentID uint64) 
 }
 
 func (s *Service) Submit(ctx context.Context, actor Actor, assignmentID uint64, headers []*multipart.FileHeader) (*MyAssignmentDetail, error) {
-	groupIDs, err := technicalGroupIDs(s.db.WithContext(ctx), actor.ID)
+	groupIDs, err := assignmentGroupIDs(s.db.WithContext(ctx), actor.ID)
 	if err != nil {
-		return nil, internalError("读取所属技术组失败", err)
+		return nil, internalError("读取所属组别失败", err)
 	}
 	if len(groupIDs) == 0 {
 		return nil, forbidden("当前账号没有可用的技术组归属")
@@ -1404,7 +1405,7 @@ func (s *Service) resolveTargetsWithDB(db *gorm.DB, groupID uint64, isGroupWide 
 	}
 	found = uniqueSortedIDs(found)
 	if len(found) != len(userIDs) {
-		return nil, forbidden("作业接收人必须是当前技术组的有效成员")
+		return nil, forbidden("作业接收人必须是当前组别的有效成员")
 	}
 	return found, nil
 }
@@ -1421,23 +1422,23 @@ func (s *Service) requireManagerGroupAccessWithDB(db *gorm.DB, actor Actor, grou
 	if err := requireAdmin(actor); err != nil {
 		return err
 	}
-	ids, err := managerTechnicalGroupIDs(db, actor)
+	ids, err := managerAssignmentGroupIDs(db, actor)
 	if err != nil {
-		return internalError("读取可管理技术组失败", err)
+		return internalError("读取可管理组别失败", err)
 	}
 	if !containsID(ids, groupID) {
-		return forbidden("无权访问该技术组的作业")
+		return forbidden("无权访问该组别的作业")
 	}
 	return nil
 }
 
 func (s *Service) requireGroupAccessWithDB(db *gorm.DB, userID, groupID uint64) error {
-	ids, err := technicalGroupIDs(db, userID)
+	ids, err := assignmentGroupIDs(db, userID)
 	if err != nil {
-		return internalError("读取所属技术组失败", err)
+		return internalError("读取所属组别失败", err)
 	}
 	if !containsID(ids, groupID) {
-		return forbidden("无权访问该技术组的作业")
+		return forbidden("无权访问该组别的作业")
 	}
 	return nil
 }
@@ -1448,12 +1449,12 @@ func (s *Service) groupName(ctx context.Context, groupID uint64) (string, error)
 	return group.Name, err
 }
 
-func technicalGroupIDs(db *gorm.DB, userID uint64) ([]uint64, error) {
+func assignmentGroupIDs(db *gorm.DB, userID uint64) ([]uint64, error) {
 	var ids []uint64
 	err := db.Model(&model.UserGroupMember{}).
 		Joins("JOIN user_groups ON user_groups.id = user_group_members.group_id").
 		Joins("JOIN users ON users.id = user_group_members.user_id").
-		Where("user_group_members.user_id = ? AND user_groups.name IN ? AND user_groups.status = ? AND users.status = ?", userID, technicalGroupNames, model.UserGroupStatusActive, model.UserStatusEnabled).
+		Where("user_group_members.user_id = ? AND user_groups.name IN ? AND user_groups.status = ? AND users.status = ?", userID, assignmentGroupNames, model.UserGroupStatusActive, model.UserStatusEnabled).
 		Order("user_group_members.group_id ASC").Pluck("user_group_members.group_id", &ids).Error
 	if err != nil {
 		return nil, err
@@ -1461,17 +1462,17 @@ func technicalGroupIDs(db *gorm.DB, userID uint64) ([]uint64, error) {
 	return uniqueSortedIDs(ids), nil
 }
 
-func managerTechnicalGroupIDs(db *gorm.DB, actor Actor) ([]uint64, error) {
+func managerAssignmentGroupIDs(db *gorm.DB, actor Actor) ([]uint64, error) {
 	if actor.RoleName != model.RoleNameSuperAdmin {
 		if actor.RoleName != model.RoleNameAdmin {
 			return nil, forbidden("当前账号无作业管理权限")
 		}
-		return technicalGroupIDs(db, actor.ID)
+		return assignmentGroupIDs(db, actor.ID)
 	}
 
 	var ids []uint64
 	err := db.Model(&model.UserGroup{}).
-		Where("name IN ? AND status = ?", technicalGroupNames, model.UserGroupStatusActive).
+		Where("name IN ? AND status = ?", assignmentGroupNames, model.UserGroupStatusActive).
 		Order("id ASC").Pluck("id", &ids).Error
 	if err != nil {
 		return nil, err

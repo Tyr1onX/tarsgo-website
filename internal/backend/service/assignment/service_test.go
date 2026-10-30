@@ -40,27 +40,27 @@ func newAssignmentMockGorm(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
 	return db, mock
 }
 
-func expectTechnicalGroupIDs(mock sqlmock.Sqlmock, userID uint64, ids ...uint64) {
-	pattern := "(?s)SELECT `user_group_members`.`group_id` FROM `user_group_members` JOIN user_groups ON .* JOIN users ON .*WHERE user_group_members\\.user_id = \\? AND user_groups\\.name IN \\(\\?,\\?,\\?,\\?\\) AND user_groups\\.status = \\? AND users\\.status = \\?.*ORDER BY user_group_members\\.group_id ASC"
+func expectAssignmentGroupIDs(mock sqlmock.Sqlmock, userID uint64, ids ...uint64) {
+	pattern := "(?s)SELECT `user_group_members`.`group_id` FROM `user_group_members` JOIN user_groups ON .* JOIN users ON .*WHERE user_group_members\\.user_id = \\? AND user_groups\\.name IN \\(\\?,\\?,\\?,\\?,\\?\\) AND user_groups\\.status = \\? AND users\\.status = \\?.*ORDER BY user_group_members\\.group_id ASC"
 	rows := sqlmock.NewRows([]string{"group_id"})
 	for _, id := range ids {
 		rows.AddRow(id)
 	}
-	mock.ExpectQuery(pattern).WithArgs(userID, groupMechanical, groupEmbedded, groupVision, groupAI, model.UserGroupStatusActive, model.UserStatusEnabled).WillReturnRows(rows)
+	mock.ExpectQuery(pattern).WithArgs(userID, groupMechanical, groupEmbedded, groupVision, groupAI, groupOperations, model.UserGroupStatusActive, model.UserStatusEnabled).WillReturnRows(rows)
 }
 
-func expectSuperAdminTechnicalGroupIDs(mock sqlmock.Sqlmock, ids ...uint64) {
-	pattern := "(?s)SELECT `id` FROM `user_groups` WHERE name IN \\(\\?,\\?,\\?,\\?\\) AND status = \\? ORDER BY id ASC"
+func expectSuperAdminAssignmentGroupIDs(mock sqlmock.Sqlmock, ids ...uint64) {
+	pattern := "(?s)SELECT `id` FROM `user_groups` WHERE name IN \\(\\?,\\?,\\?,\\?,\\?\\) AND status = \\? ORDER BY id ASC"
 	rows := sqlmock.NewRows([]string{"id"})
 	for _, id := range ids {
 		rows.AddRow(id)
 	}
-	mock.ExpectQuery(pattern).WithArgs(groupMechanical, groupEmbedded, groupVision, groupAI, model.UserGroupStatusActive).WillReturnRows(rows)
+	mock.ExpectQuery(pattern).WithArgs(groupMechanical, groupEmbedded, groupVision, groupAI, groupOperations, model.UserGroupStatusActive).WillReturnRows(rows)
 }
 
-func TestListMineRejectsAccountsWithoutTechnicalGroup(t *testing.T) {
+func TestListMineRejectsAccountsWithoutAssignmentGroup(t *testing.T) {
 	db, mock := newAssignmentMockGorm(t)
-	expectTechnicalGroupIDs(mock, 22)
+	expectAssignmentGroupIDs(mock, 22)
 	service := &Service{db: db, now: func() time.Time { return time.Date(2026, 10, 19, 0, 0, 0, 0, time.UTC) }}
 	_, err := service.ListMine(context.Background(), Actor{ID: 22, RoleName: model.RoleNameUser})
 	assertAssignmentStatus(t, err, 403)
@@ -68,7 +68,7 @@ func TestListMineRejectsAccountsWithoutTechnicalGroup(t *testing.T) {
 
 func TestListMineOnlyQueriesPublishedAssignments(t *testing.T) {
 	db, mock := newAssignmentMockGorm(t)
-	expectTechnicalGroupIDs(mock, 22, 41)
+	expectAssignmentGroupIDs(mock, 22, 41)
 	mock.ExpectQuery("(?s)SELECT .* FROM `assignments` JOIN assignment_targets ON .*WHERE assignment_targets\\.user_id = \\? AND assignments\\.group_id IN \\(\\?\\) AND assignments\\.publication_status = \\?.*ORDER BY").
 		WithArgs(uint64(22), uint64(41), model.AssignmentPublicationPublished).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "creator_id", "title", "description", "due_at", "attachment_requirements", "is_group_wide", "publication_status", "created_at", "updated_at"}))
@@ -80,7 +80,7 @@ func TestListMineOnlyQueriesPublishedAssignments(t *testing.T) {
 
 func TestGetMineTreatsWithdrawnAssignmentAsNotFound(t *testing.T) {
 	db, mock := newAssignmentMockGorm(t)
-	expectTechnicalGroupIDs(mock, 22, 41)
+	expectAssignmentGroupIDs(mock, 22, 41)
 	mock.ExpectQuery("(?s)SELECT \\* FROM `assignments` WHERE id = \\? AND group_id IN \\(\\?\\) AND publication_status = \\?.*LIMIT \\?").
 		WithArgs(uint64(91), uint64(41), model.AssignmentPublicationPublished, 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "publication_status"}))
@@ -98,7 +98,7 @@ func TestMemberCannotWithdrawOrRepublishAssignment(t *testing.T) {
 
 func TestWithdrawnAssignmentIsNotFoundBeforeSubmissionValidation(t *testing.T) {
 	db, mock := newAssignmentMockGorm(t)
-	expectTechnicalGroupIDs(mock, 22, 41)
+	expectAssignmentGroupIDs(mock, 22, 41)
 	mock.ExpectBegin()
 	mock.ExpectQuery("(?s)SELECT \\* FROM `assignments` WHERE id = \\? AND group_id IN \\(\\?\\) AND publication_status = \\?.*LIMIT \\?").
 		WithArgs(uint64(91), uint64(41), model.AssignmentPublicationPublished, 1).
@@ -128,10 +128,10 @@ func TestLoadSubmissionHistoriesReturnsJSONEmptyArraysForUnsubmittedMembers(t *t
 	}
 }
 
-func TestAdminCannotManageAnotherTechnicalGroup(t *testing.T) {
+func TestAdminCannotManageAnotherAssignmentGroup(t *testing.T) {
 	db, mock := newAssignmentMockGorm(t)
 	mock.ExpectBegin()
-	expectTechnicalGroupIDs(mock, 8, 41)
+	expectAssignmentGroupIDs(mock, 8, 41)
 	mock.ExpectRollback()
 	service := &Service{db: db, now: time.Now}
 	_, err := service.Create(context.Background(), Actor{ID: 8, RoleName: model.RoleNameAdmin}, CreateInput{
@@ -140,22 +140,22 @@ func TestAdminCannotManageAnotherTechnicalGroup(t *testing.T) {
 	assertAssignmentStatus(t, err, 403)
 }
 
-func TestSuperAdminCanManageAllActiveTechnicalGroupsWithoutMembership(t *testing.T) {
+func TestSuperAdminCanManageAllActiveAssignmentGroupsWithoutMembership(t *testing.T) {
 	db, mock := newAssignmentMockGorm(t)
-	expectSuperAdminTechnicalGroupIDs(mock, 2, 4, 7, 9)
-	ids, err := managerTechnicalGroupIDs(db, Actor{ID: 1, RoleName: model.RoleNameSuperAdmin})
+	expectSuperAdminAssignmentGroupIDs(mock, 2, 4, 7, 9)
+	ids, err := managerAssignmentGroupIDs(db, Actor{ID: 1, RoleName: model.RoleNameSuperAdmin})
 	if err != nil {
 		t.Fatalf("list super-admin groups: %v", err)
 	}
 	if len(ids) != 4 || ids[0] != 2 || ids[1] != 4 || ids[2] != 7 || ids[3] != 9 {
-		t.Fatalf("super-admin group ids = %#v, want all active technical groups", ids)
+		t.Fatalf("super-admin group ids = %#v, want all active assignment groups", ids)
 	}
 }
 
 func TestRegularAdminManagementRemainsLimitedToItsMembership(t *testing.T) {
 	db, mock := newAssignmentMockGorm(t)
-	expectTechnicalGroupIDs(mock, 8, 41)
-	ids, err := managerTechnicalGroupIDs(db, Actor{ID: 8, RoleName: model.RoleNameAdmin})
+	expectAssignmentGroupIDs(mock, 8, 41)
+	ids, err := managerAssignmentGroupIDs(db, Actor{ID: 8, RoleName: model.RoleNameAdmin})
 	if err != nil || len(ids) != 1 || ids[0] != 41 {
 		t.Fatalf("regular admin group ids = %#v, %v", ids, err)
 	}
@@ -163,10 +163,10 @@ func TestRegularAdminManagementRemainsLimitedToItsMembership(t *testing.T) {
 
 func TestSuperAdminGroupAccessDoesNotRequireTechnicalMembership(t *testing.T) {
 	db, mock := newAssignmentMockGorm(t)
-	expectSuperAdminTechnicalGroupIDs(mock, 2, 4, 7, 9)
+	expectSuperAdminAssignmentGroupIDs(mock, 2, 4, 7, 9)
 	service := &Service{db: db}
 	if err := service.requireManagerGroupAccess(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 7); err != nil {
-		t.Fatalf("super-admin could not access a technical group without membership: %v", err)
+		t.Fatalf("super-admin could not access an assignment group without membership: %v", err)
 	}
 }
 
@@ -174,7 +174,7 @@ func TestAdminCanPublishAssignmentForSelf(t *testing.T) {
 	db, mock := newAssignmentMockGorm(t)
 	now := time.Date(2026, 10, 19, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
 	mock.ExpectBegin()
-	expectTechnicalGroupIDs(mock, 8, 41)
+	expectAssignmentGroupIDs(mock, 8, 41)
 	mock.ExpectQuery("(?s)SELECT `user_group_members`\\.`user_id` FROM `user_group_members` JOIN user_groups ON .* JOIN users ON .* JOIN roles ON .*WHERE user_group_members\\.group_id = \\? AND user_group_members\\.user_id IN \\(\\?\\) AND user_groups\\.status = \\? AND users\\.status = \\? AND roles\\.name = \\?").
 		WillReturnRows(sqlmock.NewRows([]string{"user_id"}).AddRow(8))
 	mock.ExpectExec("INSERT INTO `assignments`").WillReturnResult(sqlmock.NewResult(91, 1))
@@ -220,7 +220,7 @@ func TestGroupAdminCannotDownloadAnotherGroupsSubmissionFile(t *testing.T) {
 		WithArgs(uint64(91), 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "creator_id", "title", "description", "due_at", "attachment_requirements", "is_group_wide", "created_at", "updated_at"}).
 			AddRow(91, 42, 8, "作业", "说明", created.Add(time.Hour), "", true, created, created))
-	expectTechnicalGroupIDs(mock, 8, 41)
+	expectAssignmentGroupIDs(mock, 8, 41)
 	service := &Service{db: db}
 	_, err := service.OpenFile(context.Background(), Actor{ID: 8, RoleName: model.RoleNameAdmin}, 71)
 	assertAssignmentStatus(t, err, 403)
@@ -241,7 +241,7 @@ func TestSuperAdminCanDownloadSubmissionFileWithoutTechnicalMembership(t *testin
 		WithArgs(uint64(91), 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "creator_id", "title", "description", "due_at", "attachment_requirements", "is_group_wide", "created_at", "updated_at"}).
 			AddRow(91, 42, 8, "作业", "说明", created.Add(time.Hour), "", true, created, created))
-	expectSuperAdminTechnicalGroupIDs(mock, 2, 4, 42, 93)
+	expectSuperAdminAssignmentGroupIDs(mock, 2, 4, 42, 93)
 	root := t.TempDir()
 	filePath := filepath.Join(root, "81/22/key.pdf")
 	if err := os.MkdirAll(filepath.Dir(filePath), 0o700); err != nil {
@@ -381,7 +381,7 @@ func TestMemberCannotDownloadTeachingMaterialForUnassignedWork(t *testing.T) {
 		WithArgs(uint64(91), 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "creator_id", "title", "description", "due_at", "attachment_requirements", "is_group_wide", "publication_status", "created_at", "updated_at"}).
 			AddRow(91, 41, 8, "作业", "说明", created.Add(time.Hour), "", true, model.AssignmentPublicationPublished, created, created))
-	expectTechnicalGroupIDs(mock, 22, 41)
+	expectAssignmentGroupIDs(mock, 22, 41)
 	mock.ExpectQuery("(?s)SELECT count\\(\\*\\) FROM `assignment_targets` WHERE assignment_id = \\? AND user_id = \\?").
 		WithArgs(uint64(91), uint64(22)).WillReturnRows(sqlmock.NewRows([]string{"count(*)"}).AddRow(0))
 	service := &Service{db: db}
@@ -400,7 +400,7 @@ func TestAssignedMemberCanDownloadPrivateTeachingMaterial(t *testing.T) {
 		WithArgs(uint64(91), 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "creator_id", "title", "description", "due_at", "attachment_requirements", "is_group_wide", "publication_status", "created_at", "updated_at"}).
 			AddRow(91, 41, 8, "作业", "说明", created.Add(time.Hour), "", true, model.AssignmentPublicationPublished, created, created))
-	expectTechnicalGroupIDs(mock, 22, 41)
+	expectAssignmentGroupIDs(mock, 22, 41)
 	mock.ExpectQuery("(?s)SELECT count\\(\\*\\) FROM `assignment_targets` WHERE assignment_id = \\? AND user_id = \\?").
 		WithArgs(uint64(91), uint64(22)).WillReturnRows(sqlmock.NewRows([]string{"count(*)"}).AddRow(1))
 	root := t.TempDir()
@@ -430,7 +430,7 @@ func TestTeachingMaterialsAreLockedAfterFirstSubmission(t *testing.T) {
 		WithArgs(uint64(91), 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "creator_id", "title", "description", "due_at", "attachment_requirements", "is_group_wide", "created_at", "updated_at"}).
 			AddRow(91, 41, 8, "作业", "说明", created.Add(time.Hour), "", true, created, created))
-	expectTechnicalGroupIDs(mock, 8, 41)
+	expectAssignmentGroupIDs(mock, 8, 41)
 	mock.ExpectQuery("(?s)SELECT count\\(\\*\\) FROM `assignment_submissions` WHERE assignment_id = \\?").
 		WithArgs(uint64(91)).WillReturnRows(sqlmock.NewRows([]string{"count(*)"}).AddRow(1))
 	mock.ExpectRollback()
@@ -448,7 +448,7 @@ func TestGroupAdminCannotUploadTeachingMaterialsToAnotherGroup(t *testing.T) {
 		WithArgs(uint64(91), 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "creator_id", "title", "description", "due_at", "attachment_requirements", "is_group_wide", "created_at", "updated_at"}).
 			AddRow(91, 42, 8, "跨组作业", "说明", created.Add(time.Hour), "", true, created, created))
-	expectTechnicalGroupIDs(mock, 8, 41)
+	expectAssignmentGroupIDs(mock, 8, 41)
 	mock.ExpectRollback()
 	service := &Service{db: db}
 	_, err := service.UploadMaterialFiles(context.Background(), Actor{ID: 8, RoleName: model.RoleNameAdmin}, 91,
@@ -493,15 +493,21 @@ func TestReadStoredUTCWallPreservesBeijingDeadlineInstant(t *testing.T) {
 	}
 }
 
-func TestTechnicalMembershipQueryOnlyAcceptsFourTechnologyGroups(t *testing.T) {
+func TestAssignmentMembershipQueryIncludesExactlyFiveSupportedGroups(t *testing.T) {
 	db, mock := newAssignmentMockGorm(t)
-	expectTechnicalGroupIDs(mock, 14, 3)
-	ids, err := technicalGroupIDs(db, 14)
+	expectAssignmentGroupIDs(mock, 14, 3)
+	ids, err := assignmentGroupIDs(db, 14)
 	if err != nil || len(ids) != 1 || ids[0] != 3 {
-		t.Fatalf("unexpected technical groups: %#v, %v", ids, err)
+		t.Fatalf("unexpected assignment groups: %#v, %v", ids, err)
 	}
-	if len(technicalGroupNames) != 4 || technicalGroupNames[0] != "机械组" || technicalGroupNames[1] != "电控组" || technicalGroupNames[2] != "视觉组" || technicalGroupNames[3] != "AI组" {
-		t.Fatalf("unexpected technical group allowlist: %#v", technicalGroupNames)
+	want := []string{"机械组", "电控组", "视觉组", "AI组", "运营组"}
+	if len(assignmentGroupNames) != len(want) {
+		t.Fatalf("unexpected assignment group allowlist: %#v", assignmentGroupNames)
+	}
+	for index, name := range want {
+		if assignmentGroupNames[index] != name {
+			t.Fatalf("unexpected assignment group allowlist: %#v", assignmentGroupNames)
+		}
 	}
 }
 

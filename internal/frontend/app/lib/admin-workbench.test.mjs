@@ -49,6 +49,8 @@ test("workbench guide shows only the signed-in role's instructions", () => {
   assert.match(guide, /\{!canManage \? <section[^>]*aria-labelledby="member-guide-title"/);
   assert.match(guide, /\{canManage \? <section[^>]*aria-labelledby="admin-guide-title"/);
   assert.match(guide, /currentUser\.role\.name === "super_admin" \? <li>/);
-  assert.match(guide, /\/dashboard\/growth\?tab=capabilities/);
+  assert.match(guide, /canUseAssignments \? <li>.*\/dashboard\/assignments/s);
+  assert.match(guide, /授权审批仍仅限超级管理员/);
+  assert.match(guide, /其他培养入口和 TARS BASE 暂未开放/);
   assert.doesNotMatch(guide, /能力雷达/);
 });

@@ -32,6 +32,7 @@ import {
   getCoreDashboardMenu,
   getDailyDashboardMenu,
   getDefaultDashboardPath,
+  hasAssignmentGroupAccess,
   hasSkillGroupAccess,
   hasTechnicalGroupAccess,
   getUserDashboardMenu,
@@ -115,16 +116,17 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   }
 
   const pathname = currentPath.pathname;
+  const hasAssignmentGroup = hasAssignmentGroupAccess(groupResolution?.groups);
   const hasTechnicalGroup = hasTechnicalGroupAccess(groupResolution?.groups);
   const hasSkillGroup = hasSkillGroupAccess(groupResolution?.groups);
   const hasCapabilityGroup = Boolean(groupResolution?.groups?.length);
   if (
     pathname.startsWith("/dashboard/admin") &&
-    !canAccessDashboardAdminPath(currentUser, pathname, hasTechnicalGroup, hasSkillGroup, hasCapabilityGroup)
+    !canAccessDashboardAdminPath(currentUser, pathname, hasAssignmentGroup)
   ) {
     throw redirect(getDefaultDashboardPath(currentUser.role.name));
   }
-  if (pathname === "/dashboard/assignments" && !hasTechnicalGroup) {
+  if (pathname === "/dashboard/assignments" && !hasAssignmentGroup) {
     throw redirect(getDefaultDashboardPath(currentUser.role.name));
   }
   if (pathname === "/dashboard/questions" && !hasTechnicalGroup) {
@@ -372,18 +374,11 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const { currentUser, groupResolution, groupResolutionError } = loaderData;
   const isImmersiveExpedition = location.pathname.replace(/\/$/, "") === "/dashboard/expedition";
   const isSidebarCollapsed = isDesktopViewport && sidebarCollapsed;
-  const isTechnicalGroupMember = hasTechnicalGroupAccess(groupResolution?.groups);
-  const hasSkillGroup = hasSkillGroupAccess(groupResolution?.groups);
-  const hasCapabilityGroup = Boolean(groupResolution?.groups?.length);
+  const hasAssignmentGroup = hasAssignmentGroupAccess(groupResolution?.groups);
   const coreMenuItems = getCoreDashboardMenu();
-  const userMenuItems = getUserDashboardMenu(currentUser, isTechnicalGroupMember, hasSkillGroup);
-  const dailyMenuItems = [
-    ...getDailyDashboardMenu(),
-    ...userMenuItems.filter((item) => item.key !== "my-growth" && item.key !== "tars-base-expedition"),
-  ];
-  const growthMenuItem = userMenuItems.find((item) => item.key === "my-growth");
-  const tarsBaseMenuItem = userMenuItems.find((item) => item.key === "tars-base-expedition");
-  const adminMenuItems = getVisibleAdminDashboardMenu(currentUser, isTechnicalGroupMember, hasSkillGroup, hasCapabilityGroup);
+  const userMenuItems = getUserDashboardMenu(currentUser, hasAssignmentGroup);
+  const dailyMenuItems = getDailyDashboardMenu(currentUser);
+  const adminMenuItems = getVisibleAdminDashboardMenu(currentUser, hasAssignmentGroup);
   const showAdminSection = hasDashboardAdminAccess(currentUser.role.name) && adminMenuItems.length > 0;
   const refreshCandidateTodoCount = useCallback(async (force = false) => {
     const userId = currentUser.id;
@@ -795,20 +790,17 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           <div className={`${isSidebarCollapsed ? "mt-2 border-t border-white/[0.06] pt-2" : "mt-5 border-t border-white/[0.06] pt-4"}`} role="group" aria-label="日常事务">
             <div className={`dashboard-shell__sidebar-section-title px-3 pb-2 text-[11px] font-semibold tracking-wide text-gray-500 ${isSidebarCollapsed ? "sr-only" : ""}`}>日常事务</div>
             {dailyMenuItems.map((item) => (
-              <SidebarItem key={item.key} item={item} onNavigate={handleSidebarNavigate} collapsed={isSidebarCollapsed} />
+              <SidebarItem
+                key={item.key}
+                item={item}
+                onNavigate={handleSidebarNavigate}
+                collapsed={isSidebarCollapsed}
+                leavePendingApprovalCount={item.key === "leave-management" ? currentLeaveActionableState?.pendingApprovalCount : undefined}
+                leaveTodoCount={item.key === "leave-management" ? currentLeaveActionableState?.todoCount : undefined}
+                leaveActionableCount={item.key === "leave-management" ? currentLeaveActionableState?.actionableCount : undefined}
+              />
             ))}
           </div>
-          {growthMenuItem ? (
-            <div className={`${isSidebarCollapsed ? "mt-2 border-t border-white/[0.06] pt-2" : "mt-5 border-t border-white/[0.06] pt-4"}`} role="group" aria-label="个人成长">
-              <div className={`dashboard-shell__sidebar-section-title px-3 pb-2 text-[11px] font-semibold tracking-wide text-gray-500 ${isSidebarCollapsed ? "sr-only" : ""}`}>个人成长</div>
-              <SidebarItem item={growthMenuItem} onNavigate={handleSidebarNavigate} collapsed={isSidebarCollapsed} />
-            </div>
-          ) : null}
-          {tarsBaseMenuItem ? (
-            <div className="mt-1">
-              <SidebarItem item={tarsBaseMenuItem} onNavigate={handleSidebarNavigate} collapsed={isSidebarCollapsed} />
-            </div>
-          ) : null}
 
           {showAdminSection ? (
             <div className={`${isSidebarCollapsed ? "mt-2 border-t border-white/[0.06] pt-2" : "mt-6 border-t border-white/[0.06] pt-5"}`}>

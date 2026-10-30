@@ -23,7 +23,7 @@ export default function TrainingQuestionsRoute() {
     () => groupResolution?.groups.map(({ groupId, name }) => ({ groupId, name })),
     [groupResolution?.groups],
   );
-  const { technicalGroups, loading: groupsLoading, error: groupError } = useAssignmentGroups(currentUser.id, currentUser.role.name, memberGroups);
+  const { assignmentGroups, loading: groupsLoading, error: groupError } = useAssignmentGroups(currentUser.id, currentUser.role.name, memberGroups);
   const [groupId, setGroupId] = useState(0);
   const [items, setItems] = useState<TrainingQuestion[]>([]);
   const [detail, setDetail] = useState<TrainingQuestionDetail | null>(null);
@@ -43,7 +43,7 @@ export default function TrainingQuestionsRoute() {
   const [notice, setNotice] = useState("");
   const questionFilesRef = useRef<HTMLInputElement>(null);
   const replyFilesRef = useRef<HTMLInputElement>(null);
-  const activeGroups = useMemo(() => technicalGroups.filter((group) => isTechnicalGroupName(group.name)), [technicalGroups]);
+  const activeGroups = useMemo(() => assignmentGroups.filter((group) => isTechnicalGroupName(group.name)), [assignmentGroups]);
 
   useEffect(() => {
     setItems([]);

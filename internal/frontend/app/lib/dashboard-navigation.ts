@@ -61,12 +61,6 @@ const USER_MENU: readonly DashboardMenuLink[] = [
     href: "/dashboard/users/registrations",
     iconKey: "registration",
   },
-  {
-    key: "leave-workbench",
-    label: "请假工作台",
-    href: "/dashboard/leave",
-    iconKey: "report",
-  },
 ];
 
 const ASSIGNMENT_MENU_ITEM: DashboardMenuLink = {
@@ -76,18 +70,20 @@ const ASSIGNMENT_MENU_ITEM: DashboardMenuLink = {
   iconKey: "report",
 };
 
-const TRAINING_QUESTIONS_MENU_ITEM: DashboardMenuLink = {
-  key: "training-questions",
-  label: "提问答疑",
-  href: "/dashboard/questions",
-  iconKey: "report",
-};
-
 const TECHNICAL_GROUP_NAMES = new Set(["机械组", "电控组", "视觉组", "AI组"]);
+const ASSIGNMENT_GROUP_NAMES = new Set([...TECHNICAL_GROUP_NAMES, "运营组"]);
 const SKILL_GROUP_NAMES = new Set([...TECHNICAL_GROUP_NAMES, "运营组"]);
 
 export function isTechnicalGroupName(name: string) {
   return TECHNICAL_GROUP_NAMES.has(name);
+}
+
+export function hasAssignmentGroupAccess(groups: readonly { name: string }[] | null | undefined) {
+  return Boolean(groups?.some((group) => ASSIGNMENT_GROUP_NAMES.has(group.name)));
+}
+
+export function isAssignmentGroupName(name: string) {
+  return ASSIGNMENT_GROUP_NAMES.has(name);
 }
 
 export function hasSkillGroupAccess(groups: readonly { name: string }[] | null | undefined) {
@@ -101,10 +97,22 @@ export function canAccessExpedition(userOrRole: AuthUser | string, hasSkillGroup
 
 export function isTemporarilyUnavailableDashboardPath(pathname: string) {
   const normalizedPath = pathname.replace(/\/+$/, "");
-  return normalizedPath === "/dashboard/practice-projects"
-    || normalizedPath === "/dashboard/growth"
-    || normalizedPath === "/dashboard/expedition"
-    || normalizedPath.startsWith("/dashboard/expedition/");
+  const unavailablePaths = [
+    "/dashboard/base",
+    "/dashboard/practice-projects",
+    "/dashboard/questions",
+    "/dashboard/growth",
+    "/dashboard/skills",
+    "/dashboard/capabilities",
+    "/dashboard/expedition",
+    "/dashboard/admin/training/practice-projects",
+    "/dashboard/admin/training/questions",
+    "/dashboard/admin/training/skills",
+    "/dashboard/admin/training/capabilities",
+    "/dashboard/admin/training/expedition",
+    "/dashboard/admin/cultivation",
+  ];
+  return unavailablePaths.some((path) => normalizedPath === path || normalizedPath.startsWith(`${path}/`));
 }
 
 const CORE_DASHBOARD_MENU: readonly DashboardMenuLink[] = [
@@ -121,6 +129,12 @@ const DAILY_DASHBOARD_MENU: readonly DashboardMenuLink[] = [
     key: "weekly-reports",
     label: "工作周报",
     href: "/dashboard/weekly-reports",
+    iconKey: "report",
+  },
+  {
+    key: "leave-workbench",
+    label: "请假工作台",
+    href: "/dashboard/leave",
     iconKey: "report",
   },
   {
@@ -180,24 +194,6 @@ const ADMIN_MENU: readonly DashboardMenuDefinition[] = [
         href: "/dashboard/admin/training/submissions",
         allowedRoles: ["admin", "super_admin"],
       },
-      {
-        key: "training-question-management",
-        label: "答疑管理",
-        href: "/dashboard/admin/training/questions",
-        allowedRoles: ["admin", "super_admin"],
-      },
-      {
-        key: "skill-route-management",
-        label: "技能路线管理",
-        href: "/dashboard/admin/training/skills",
-        allowedRoles: ["admin", "super_admin"],
-      },
-      {
-        key: "expedition-project-management",
-        label: "赛季协作",
-        href: "/dashboard/admin/training/expedition",
-        allowedRoles: ["admin", "super_admin"],
-      },
     ],
   },
   {
@@ -210,30 +206,6 @@ const ADMIN_MENU: readonly DashboardMenuDefinition[] = [
         label: "账号与权限",
         href: "/dashboard/admin/users",
         allowedRoles: ["super_admin"],
-      },
-      {
-        key: "leave-management",
-        label: "请假管理",
-        href: "/dashboard/admin/leave",
-        allowedRoles: ["admin", "super_admin"],
-      },
-      {
-        key: "practice-project-management",
-        label: "实践项目管理",
-        href: "/dashboard/admin/training/practice-projects",
-        allowedRoles: ["admin", "super_admin"],
-      },
-      {
-        key: "capability-management",
-        label: "能力评价管理",
-        href: "/dashboard/admin/training/capabilities",
-        allowedRoles: ["admin", "super_admin"],
-      },
-      {
-        key: "cultivation-view",
-        label: "人员培养",
-        href: "/dashboard/admin/cultivation",
-        allowedRoles: ["admin", "super_admin"],
       },
       {
         key: "timetable-availability",
@@ -262,8 +234,8 @@ function isDashboardMenuLinkDefinition(
   return typeof item.href === "string";
 }
 
-function getAccessibleAdminPaths(roleName: string, hasTechnicalGroup = false, hasSkillGroup = hasTechnicalGroup, hasCapabilityGroup = hasSkillGroup) {
-  return ADMIN_MENU.flatMap((item) => {
+function getAccessibleAdminPaths(roleName: string, hasAssignmentGroup = false) {
+  const paths = ADMIN_MENU.flatMap((item) => {
     if (isDashboardMenuLinkDefinition(item)) {
       return isRoleAllowed(roleName, item.allowedRoles) ? [item.href] : [];
     }
@@ -272,26 +244,24 @@ function getAccessibleAdminPaths(roleName: string, hasTechnicalGroup = false, ha
       .filter((child) => {
         if (!isRoleAllowed(roleName, child.allowedRoles)) return false;
         if (roleName === "super_admin") return true;
-        if (child.key === "capability-management") return hasCapabilityGroup;
-        if (child.key === "cultivation-view") return hasCapabilityGroup;
-        if (child.key === "skill-route-management") return hasSkillGroup;
-        if (child.key === "expedition-project-management") return hasSkillGroup;
-        if (item.key === "newcomer-training") return hasTechnicalGroup;
+        if (item.key === "newcomer-training") return hasAssignmentGroup;
         return true;
       })
       .map((child) => child.href);
   });
+  if (["admin", "super_admin"].includes(roleName)) paths.push("/dashboard/admin/leave");
+  return paths;
 }
 
 export function hasTechnicalGroupAccess(groups: readonly { name: string }[] | null | undefined) {
   return Boolean(groups?.some((group) => isTechnicalGroupName(group.name)));
 }
 
-export function getUserDashboardMenu(userOrRole: AuthUser | string, hasTechnicalGroup = false, hasSkillGroup = hasTechnicalGroup): DashboardMenuLink[] {
+export function getUserDashboardMenu(userOrRole: AuthUser | string, hasAssignmentGroup = false): DashboardMenuLink[] {
   const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
   const menu = [...(roleName === "user" ? USER_MENU : [])];
-  if (hasTechnicalGroup && ["user", "admin", "super_admin"].includes(roleName)) {
-    menu.push(TRAINING_QUESTIONS_MENU_ITEM, ASSIGNMENT_MENU_ITEM);
+  if (hasAssignmentGroup && roleName === "user") {
+    menu.push(ASSIGNMENT_MENU_ITEM);
   }
   return menu;
 }
@@ -318,13 +288,23 @@ export function getCoreDashboardMenu(): DashboardMenuLink[] {
 	return [...CORE_DASHBOARD_MENU];
 }
 
-export function getDailyDashboardMenu(): DashboardMenuLink[] {
-  return [...DAILY_DASHBOARD_MENU];
+export function getDailyDashboardMenu(userOrRole: AuthUser | string = "user"): DashboardMenuLink[] {
+  const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
+  const menu = [...DAILY_DASHBOARD_MENU];
+  if (["admin", "super_admin"].includes(roleName)) {
+    menu.splice(2, 0, {
+      key: "leave-management",
+      label: "请假管理",
+      href: "/dashboard/admin/leave",
+      iconKey: "people",
+    });
+  }
+  return menu;
 }
 
-export function getVisibleAdminDashboardMenu(userOrRole: AuthUser | string, hasTechnicalGroup = false, hasSkillGroup = hasTechnicalGroup, hasCapabilityGroup = hasSkillGroup): VisibleDashboardAdminMenuItem[] {
+export function getVisibleAdminDashboardMenu(userOrRole: AuthUser | string, hasAssignmentGroup = false): VisibleDashboardAdminMenuItem[] {
   const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
-  const accessiblePaths = getAccessibleAdminPaths(roleName, hasTechnicalGroup, hasSkillGroup, hasCapabilityGroup);
+  const accessiblePaths = getAccessibleAdminPaths(roleName, hasAssignmentGroup);
   const visibleItems: VisibleDashboardAdminMenuItem[] = [];
 
   for (const item of ADMIN_MENU) {
@@ -372,11 +352,11 @@ export function getDefaultDashboardPath(_roleName: string) {
   return "/dashboard";
 }
 
-export function canAccessDashboardAdminPath(userOrRole: AuthUser | string, pathname: string, hasTechnicalGroup = false, hasSkillGroup = hasTechnicalGroup, hasCapabilityGroup = hasSkillGroup) {
+export function canAccessDashboardAdminPath(userOrRole: AuthUser | string, pathname: string, hasAssignmentGroup = false) {
   const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
-  const accessiblePaths = getAccessibleAdminPaths(roleName, hasTechnicalGroup, hasSkillGroup, hasCapabilityGroup);
+  const accessiblePaths = getAccessibleAdminPaths(roleName, hasAssignmentGroup);
   return accessiblePaths.some(
-    (href) => href === "/dashboard/admin"
+    (href) => href === "/dashboard/admin" || href === "/dashboard/admin/leave"
       ? pathname === href
       : pathname === href || pathname.startsWith(`${href}/`),
   );

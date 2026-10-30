@@ -4,31 +4,29 @@ import test from "node:test";
 import { FEATURE_GUIDE_DATE, FEATURE_GUIDE_TITLE, GROUP_ACCESS_HELP, WORKBENCH_FEATURES, getWorkbenchAdminAction, getWorkbenchFeaturesForMember } from "./workbench-feature-announcement.ts";
 
 test("feature guide exposes the agreed title, date, statuses, and destinations", () => {
-  assert.equal(FEATURE_GUIDE_TITLE, "吉甲大师官网更新｜新人培养与 TARS BASE 使用指南");
-  assert.equal(FEATURE_GUIDE_DATE, "2026 年 10 月 22 日");
-  assert.match(GROUP_ACCESS_HELP, /请直接联系战队运营负责人核对处理/);
+  assert.equal(FEATURE_GUIDE_TITLE, "吉甲大师工作台调整｜日常事务与作业指南");
+  assert.equal(FEATURE_GUIDE_DATE, "2026 年 10 月 30 日");
+  assert.match(GROUP_ACCESS_HELP, /联系战队运营负责人核对/);
   assert.deepEqual(WORKBENCH_FEATURES.map(({ status }) => status), [
-    "已上线 · 试运行",
-    "已上线 · 试运行",
-    "已上线 · 持续完善",
-    "测试阶段 · 待配置",
-    "V1 体验版",
-    "测试阶段 · 待开放",
+    "已开放",
+    "暂未开放",
+    "暂未开放",
+    "暂未开放",
+    "暂未开放",
+    "暂未开放",
   ]);
   assert.ok(WORKBENCH_FEATURES.every(({ href }) => href.startsWith("/dashboard/")));
 });
 
-test("technical members see technical learning features and operations members do not", () => {
-  const technical = getWorkbenchFeaturesForMember("user", ["机械组"]).map(({ key }) => key);
-  assert.deepEqual(technical, ["assignments", "questions", "growth", "skills", "base", "collaboration"]);
-
-  const operations = getWorkbenchFeaturesForMember("user", ["运营组"]).map(({ key }) => key);
-  assert.deepEqual(operations, ["growth", "skills", "base", "collaboration"]);
+test("only assignment workflow is announced and all five groups can use it", () => {
+  for (const group of ["机械组", "电控组", "视觉组", "AI组", "运营组"]) {
+    assert.deepEqual(getWorkbenchFeaturesForMember("user", [group]).map(({ key }) => key), ["assignments"]);
+  }
 });
 
-test("ungrouped members see general growth information and super admins can review all features", () => {
-  assert.deepEqual(getWorkbenchFeaturesForMember("user").map(({ key }) => key), ["growth"]);
-  assert.equal(getWorkbenchFeaturesForMember("super_admin").length, 6);
+test("unassigned members get no assignment card and super admins retain all-group entry", () => {
+  assert.deepEqual(getWorkbenchFeaturesForMember("user").map(({ key }) => key), []);
+  assert.deepEqual(getWorkbenchFeaturesForMember("super_admin").map(({ key }) => key), ["assignments"]);
 });
 
 test("admin-only links are hidden from members and constrained to assigned groups", () => {
@@ -36,8 +34,8 @@ test("admin-only links are hidden from members and constrained to assigned group
   const skills = WORKBENCH_FEATURES.find(({ key }) => key === "skills");
   assert.ok(assignments && skills);
   assert.equal(getWorkbenchAdminAction(assignments, "user", ["机械组"]), null);
-  assert.equal(getWorkbenchAdminAction(assignments, "admin", ["运营组"]), null);
+  assert.equal(getWorkbenchAdminAction(assignments, "admin", ["运营组"])?.href, "/dashboard/admin/training/assignments");
   assert.equal(getWorkbenchAdminAction(assignments, "admin", ["机械组"])?.href, "/dashboard/admin/training/assignments");
-  assert.equal(getWorkbenchAdminAction(skills, "admin", ["运营组"])?.href, "/dashboard/admin/training/skills");
+  assert.equal(getWorkbenchAdminAction(skills, "admin", ["运营组"]), null);
   assert.equal(getWorkbenchAdminAction(assignments, "super_admin")?.href, "/dashboard/admin/training/assignments");
 });

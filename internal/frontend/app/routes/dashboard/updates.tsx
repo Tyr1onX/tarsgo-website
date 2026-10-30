@@ -4,7 +4,7 @@ import { WorkbenchFeatureGuide } from "~/components/workbench-feature-guide";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 
 export function meta() {
-  return [{ title: "新人培养与 TARS BASE 使用指南 | TARSGO" }];
+  return [{ title: "日常事务与作业指南 | TARSGO" }];
 }
 
 export default function WorkbenchUpdatesRoute() {

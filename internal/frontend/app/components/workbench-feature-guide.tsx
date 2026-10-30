@@ -1,6 +1,6 @@
 import { Link } from "react-router";
 
-import { getWorkbenchAdminAction, getWorkbenchFeaturesForMember, GROUP_ACCESS_HELP } from "~/lib/workbench-feature-announcement";
+import { FEATURE_GUIDE_DATE, FEATURE_GUIDE_TITLE, getWorkbenchAdminAction, getWorkbenchFeaturesForMember, GROUP_ACCESS_HELP } from "~/lib/workbench-feature-announcement";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { WorkbenchFeatureStatus } from "~/components/workbench-feature-status";
 import "./workbench-feature-guide.css";
@@ -8,16 +8,15 @@ import "./workbench-feature-guide.css";
 export function WorkbenchFeatureGuide({ currentUser, groupResolution, groupResolutionError }: Pick<DashboardLayoutOutletContext, "currentUser" | "groupResolution" | "groupResolutionError">) {
   const groupNames = groupResolution?.groups.map((group) => group.name) ?? [];
   const features = getWorkbenchFeaturesForMember(currentUser.role.name, groupNames);
-  const isTechnicalMember = features.some((feature) => feature.key === "assignments");
-  const isOperationsMember = groupNames.includes("运营组");
+  const hasAssignmentAccess = features.some((feature) => feature.key === "assignments");
 
   return (
-    <section className="workbench-feature-guide" aria-label="新人培养与 TARS BASE 功能使用指南">
+    <section className="workbench-feature-guide" aria-label="工作台功能公告与使用指南">
       <header className="workbench-feature-guide__header">
         <div>
-          <p className="workbench-feature-guide__eyebrow">功能更新 · 2026.10.22</p>
-          <h1>吉甲大师官网更新｜新人培养与 TARS BASE 使用指南</h1>
-          <p>查看当前对你开放的功能、使用方式和开放状态。</p>
+          <p className="workbench-feature-guide__eyebrow">功能更新 · {FEATURE_GUIDE_DATE}</p>
+          <h1>{FEATURE_GUIDE_TITLE}</h1>
+          <p>工作周报、请假自助和使用指南对所有角色开放；作业按组别权限开放。</p>
         </div>
         <Link className="workbench-feature-guide__back" to="/dashboard">返回个人工作台 <span aria-hidden="true">↗</span></Link>
       </header>
@@ -25,29 +24,25 @@ export function WorkbenchFeatureGuide({ currentUser, groupResolution, groupResol
       <section className="workbench-feature-guide__start" aria-labelledby="workbench-feature-guide-start">
         <div>
           <p className="workbench-feature-guide__eyebrow">从这里开始</p>
-          <h2 id="workbench-feature-guide-start">{isTechnicalMember ? "训练、交流，再回看成长" : isOperationsMember ? "记录工作，探索成长" : "先从个人工作台开始"}</h2>
+          <h2 id="workbench-feature-guide-start">{hasAssignmentAccess ? "先处理日常事务，再完成本组作业" : "先从日常事务开始"}</h2>
         </div>
-        {groupResolutionError ? <p role="status">暂时无法确认所属组别。{GROUP_ACCESS_HELP}</p> : isTechnicalMember ? (
+        {groupResolutionError ? <p role="status">暂时无法确认所属组别。{GROUP_ACCESS_HELP}</p> : hasAssignmentAccess ? (
           <ol>
-            <li><Link to="/dashboard">登录后进入个人工作台</Link></li>
-            <li><Link to="/dashboard/assignments">打开“我的作业”，下载资料并提交文件</Link></li>
-            <li><Link to="/dashboard/assignments">查看批改结果；需要重做时重新提交</Link></li>
-            <li><Link to="/dashboard/questions">使用提问答疑，再到我的成长回看真实记录</Link></li>
-            <li><Link to="/dashboard/expedition">进入 TARS BASE 探索所属区域</Link></li>
-          </ol>
-        ) : isOperationsMember ? (
-          <ol>
-            <li><Link to="/dashboard">登录后进入个人工作台</Link></li>
-            <li><Link to="/dashboard/weekly-reports">通过工作周报记录学习与运营工作</Link></li>
-            <li><Link to="/dashboard/growth">在我的成长查看真实周报记录</Link></li>
-            <li><Link to="/dashboard/expedition">进入 TARS BASE 探索战队指挥室</Link></li>
+            <li><Link to="/dashboard/weekly-reports">使用工作周报记录工作进展</Link></li>
+            <li><Link to="/dashboard/leave">提交、查询和管理自己的请假申请</Link></li>
+            <li>在个人资料的“课程时间”上传教务系统导出的 Excel 课表。</li>
+            <li><Link to="/dashboard/assignments">打开“我的作业”，提交成果并查看批改反馈</Link></li>
           </ol>
         ) : (
-          <p>确认所属组别后，工作台会显示适用的训练与成长入口。你可以先填写工作周报，记录学习和工作进展。</p>
+          <ol>
+            <li><Link to="/dashboard/weekly-reports">使用工作周报记录工作进展</Link></li>
+            <li><Link to="/dashboard/leave">提交、查询和管理自己的请假申请</Link></li>
+            <li><Link to="/dashboard/guide">查看使用指南</Link>；成员上传课表可在个人资料的“课程时间”完成。</li>
+          </ol>
         )}
-        {!groupResolutionError && isOperationsMember ? <p className="workbench-feature-guide__scope-note">运营组暂不开放技术组作业和提问答疑。</p> : null}
         {!groupResolutionError ? <p className="workbench-feature-guide__scope-note">{GROUP_ACCESS_HELP}</p> : null}
-        {currentUser.role.name === "admin" || currentUser.role.name === "super_admin" ? <p className="workbench-feature-guide__scope-note">管理入口仅对有相应权限的管理员显示；管理员按已授权组别管理，不会扩大成员功能权限。</p> : null}
+        <p className="workbench-feature-guide__scope-note">新人培养目前只开放作业发布、提交和批改；其他培养入口暂未开放，历史记录继续保留。</p>
+        {currentUser.role.name === "admin" || currentUser.role.name === "super_admin" ? <p className="workbench-feature-guide__scope-note">管理入口遵循现有组别权限与请假审批规则。</p> : null}
       </section>
 
       <div className="workbench-feature-guide__grid">
