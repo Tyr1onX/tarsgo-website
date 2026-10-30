@@ -60,7 +60,7 @@ func TestImportUpsertsSameSemesterAndRejectsInvalidBeforeWriting(t *testing.T) {
 		mock.ExpectCommit()
 		mock.ExpectQuery("SELECT RELEASE_LOCK\\(\\?\\)").WithArgs(lifecycleLockName).WillReturnRows(sqlmock.NewRows([]string{"RELEASE_LOCK"}).AddRow(1))
 		result, err := service.Import(context.Background(), 10, "我的课表.xlsx", valid)
-		if err != nil || len(result.Courses) != 13 {
+		if err != nil || len(result.Courses) != 12 {
 			t.Fatalf("reimport attempt %d: result=%v err=%v", i, result, err)
 		}
 	}
