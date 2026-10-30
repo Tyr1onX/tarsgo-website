@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 type cellRange struct{ firstRow, lastRow, firstCol, lastCol int }
@@ -43,6 +45,7 @@ var sectionPrefixPatterns = []*regexp.Regexp{
 var singleSectionPrefix = regexp.MustCompile("^(?:第\\s*)?(\\d+)\\s*节")
 var sectionRangeInText = regexp.MustCompile("^(?:第\\s*\\d+|\\d+)\\s*(?:节|[-－—–~～至])")
 var malformedWeekPrefix = regexp.MustCompile("^[0-9第].*周")
+var unparsedWeekField = regexp.MustCompile("(?:^|[,，、;；\\s])(?:上课周次\\s*)?(?:第\\s*)?[0-9][0-9,，、\\-－—–~～至\\s]*周")
 var weekdayHeaderPattern = regexp.MustCompile("^(?:星期|周)([1-7一二三四五六日天])(?:[(][^)]*[)])?$")
 var unknownCourse = regexp.MustCompile("^(.+?)\\s*\\[[A-Za-z0-9]+\\]\\s*(上课周次\\s*[0-9,，、\\-]+周)")
 var adjustment = regexp.MustCompile("^【调课】(.+?)\\[([A-Za-z0-9]+)\\],从(\\d+)周星期([1-7])的(\\d+)-(\\d+)节调整为(\\d+)周星期([1-7])的(\\d+)-(\\d+)节(?:,(.*))?$")
@@ -524,7 +527,7 @@ func parseCourseCellDetailed(value string, context gridContext) ([]Course, []par
 			resolve(info)
 			continue
 		}
-		if currentName != "" && (strings.Contains(line, "周") || strings.Contains(line, "星期")) && !foundForCurrent {
+		if currentName != "" && (strings.Contains(line, "周") || strings.Contains(line, "星期")) {
 			addIssue(currentName, "周次或星期格式无法识别")
 		}
 	}
@@ -543,14 +546,13 @@ func currentNameOrPlaceholder(name string) string {
 }
 
 func parseScheduleLine(line string) (scheduleInfo, bool, error) {
-	match := weekPrefix.FindStringSubmatch(line)
-	if match == nil {
+	weeks, consumed, candidate, err := parseWeekPrefix(line)
+	if !candidate {
 		if malformedWeekPrefix.MatchString(line) {
 			return scheduleInfo{}, true, errors.New("周次格式无法识别")
 		}
 		return scheduleInfo{}, false, nil
 	}
-	weeks, err := parseWeeks(match[1])
 	if err != nil {
 		return scheduleInfo{}, true, err
 	}
@@ -558,16 +560,7 @@ func parseScheduleLine(line string) (scheduleInfo, bool, error) {
 		return scheduleInfo{}, true, errors.New("课程教学周为空")
 	}
 	info := scheduleInfo{weeks: weeks, parity: "all"}
-	parity := match[2]
-	if parity == "" {
-		parity = match[3]
-	}
-	if parity == "单" {
-		info.parity = "odd"
-	} else if parity == "双" {
-		info.parity = "even"
-	}
-	rest := strings.TrimLeft(strings.TrimSpace(line[len(match[0]):]), ",，、;； \t")
+	rest := strings.TrimLeft(strings.TrimSpace(line[consumed:]), ",，、;； \t")
 	if dayMatch := weekdayAnywhere.FindStringSubmatchIndex(rest); dayMatch != nil {
 		info.day = parseDay(rest[dayMatch[2]:dayMatch[3]])
 		info.hasDay = info.day > 0
@@ -590,8 +583,90 @@ func parseScheduleLine(line string) (scheduleInfo, bool, error) {
 	if strings.ContainsAny(rest, "\r\n") {
 		return scheduleInfo{}, true, errors.New("课程地点格式无法识别")
 	}
+	if unparsedWeekField.MatchString(rest) {
+		return scheduleInfo{}, true, errors.New("周次格式无法识别")
+	}
 	info.location = strings.Trim(strings.TrimSpace(rest), ",，、;； ")
 	return info, true, nil
+}
+
+// parseWeekPrefix expands every consecutive week fragment at the beginning of
+// a schedule line. Each fragment has its own optional odd/even restriction.
+func parseWeekPrefix(line string) ([]int, int, bool, error) {
+	match := weekPrefix.FindStringSubmatch(line)
+	if match == nil {
+		return nil, 0, false, nil
+	}
+
+	weeks := map[int]bool{}
+	addFragment := func(raw, parity string) error {
+		fragmentWeeks, err := parseWeeks(raw)
+		if err != nil {
+			return err
+		}
+		included := 0
+		for _, week := range fragmentWeeks {
+			if parity == "单" && week%2 == 0 || parity == "双" && week%2 != 0 {
+				continue
+			}
+			weeks[week] = true
+			included++
+		}
+		if included == 0 {
+			return errors.New("单双周限制后无有效教学周")
+		}
+		return nil
+	}
+	firstParity := match[2]
+	if firstParity == "" {
+		firstParity = match[3]
+	}
+	if err := addFragment(match[1], firstParity); err != nil {
+		return nil, 0, true, err
+	}
+	consumed := len(match[0])
+	for {
+		tail := line[consumed:]
+		trimmed := strings.TrimLeftFunc(tail, unicode.IsSpace)
+		separatorOffset := consumed + len(tail) - len(trimmed)
+		if trimmed == "" {
+			consumed = len(line)
+			break
+		}
+		separator, separatorSize := utf8.DecodeRuneInString(trimmed)
+		if !strings.ContainsRune(",，、;；", separator) {
+			break
+		}
+
+		nextStart := separatorOffset + separatorSize
+		nextTail := strings.TrimLeftFunc(line[nextStart:], unicode.IsSpace)
+		nextStart += len(line[nextStart:]) - len(nextTail)
+		segment := weekPrefix.FindStringSubmatch(line[nextStart:])
+		if segment == nil {
+			if nextTail != "" {
+				first, _ := utf8.DecodeRuneInString(nextTail)
+				if unicode.IsDigit(first) && strings.Contains(nextTail, "周") {
+					return nil, 0, true, errors.New("周次格式无法识别")
+				}
+			}
+			break
+		}
+		parity := segment[2]
+		if parity == "" {
+			parity = segment[3]
+		}
+		if err := addFragment(segment[1], parity); err != nil {
+			return nil, 0, true, err
+		}
+		consumed = nextStart + len(segment[0])
+	}
+
+	result := make([]int, 0, len(weeks))
+	for week := range weeks {
+		result = append(result, week)
+	}
+	sort.Ints(result)
+	return result, consumed, true, nil
 }
 
 func findSectionPrefix(value string) ([]string, int) {

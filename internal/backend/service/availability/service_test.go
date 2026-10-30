@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"os"
 	"reflect"
+	"sort"
 	"strings"
 	"testing"
 
@@ -294,6 +296,143 @@ func TestWeekOccupancySingleScopedReadAndPrivacy(t *testing.T) {
 	if strings.Contains(string(payload), "实验课") || strings.Contains(string(payload), "别组成员") || strings.Contains(string(payload), "不定时课程") {
 		t.Fatalf("private course or cross-group data disclosed: %s", payload)
 	}
+}
+
+func TestExpandedWeeksAndCrossSectionOccupancyInAvailability(t *testing.T) {
+	courses := []timetable.Course{
+		validCourse(1, 5, 8, []int{7, 13}, "all"),
+		validCourse(1, 5, 8, []int{7, 13}, "all"), // repeated merged-grid record
+		validCourse(2, 9, 11, []int{7, 8, 9, 10, 11}, "all"),
+		validCourse(3, 9, 12, []int{7}, "all"),
+	}
+	repo := &fakeRepo{
+		groups:  []Group{{GroupID: 1, Name: "测试组"}},
+		members: map[uint64][]model.UserGroupMember{1: {roster(40, "成员")}},
+		sheets:  []model.Timetable{sheet(40, timetable.CurrentSemester, courses, []timetable.Note{})},
+	}
+	service := NewService(repo)
+	actor := Actor{UserID: 7, Role: model.RoleNameAdmin}
+	week, err := service.AnalyzeWeek(context.Background(), actor, Filter{GroupID: 1, Week: 7})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(week.Members) != 1 || !reflect.DeepEqual(week.Members[0].Occupied, []Slot{
+		{Weekday: 1, StartSection: 5, EndSection: 8},
+		{Weekday: 2, StartSection: 9, EndSection: 11},
+		{Weekday: 3, StartSection: 9, EndSection: 12},
+	}) {
+		t.Fatalf("week-seven occupancy = %+v", week.Members)
+	}
+
+	queries := []struct {
+		filter       Filter
+		wantConflict int
+		wantFree     int
+	}{
+		{query(1, 8, 8, 7), 1, 0},
+		{query(2, 11, 11, 7), 1, 0},
+		{query(3, 12, 12, 7), 1, 0},
+		{query(1, 5, 8, 8), 0, 1}, // week eight is outside the disjoint {7,13} weeks
+	}
+	for _, tt := range queries {
+		result, err := service.Analyze(context.Background(), actor, tt.filter)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result.ConflictCount != tt.wantConflict || result.FreeCount != tt.wantFree {
+			t.Fatalf("query %+v: conflict=%d free=%d, want conflict=%d free=%d", tt.filter, result.ConflictCount, result.FreeCount, tt.wantConflict, tt.wantFree)
+		}
+	}
+}
+
+func TestSuppliedRealTimetablesMatchAdminAvailability(t *testing.T) {
+	paths := []string{
+		os.Getenv("TARSGO_TIMETABLE_SAMPLE_1"),
+		os.Getenv("TARSGO_TIMETABLE_SAMPLE_2"),
+		os.Getenv("TARSGO_TIMETABLE_SAMPLE_3"),
+	}
+	provided := 0
+	for _, path := range paths {
+		if path != "" {
+			provided++
+		}
+	}
+	if provided == 0 {
+		t.Skip("set all three TARSGO_TIMETABLE_SAMPLE_n paths to run the supplied-file availability regression")
+	}
+	if provided != len(paths) {
+		t.Fatal("all three supplied timetable sample paths are required")
+	}
+
+	for index, path := range paths {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("sample %d could not be read", index+1)
+		}
+		courses, notes, err := timetable.ParseXLSX(data)
+		if err != nil {
+			t.Fatalf("sample %d did not parse completely", index+1)
+		}
+		userID := uint64(100 + index)
+		repo := &fakeRepo{
+			groups:  []Group{{GroupID: 1, Name: "回归组"}},
+			members: map[uint64][]model.UserGroupMember{1: {roster(userID, "回归成员")}},
+			sheets:  []model.Timetable{sheet(userID, timetable.CurrentSemester, courses, notes)},
+		}
+		service := NewService(repo)
+		actor := Actor{UserID: 7, Role: model.RoleNameAdmin}
+		expectedByWeek := map[int]map[Slot]bool{}
+		for _, course := range courses {
+			for _, week := range course.Weeks {
+				slot := Slot{Weekday: course.Weekday, StartSection: course.StartSection, EndSection: course.EndSection}
+				if expectedByWeek[week] == nil {
+					expectedByWeek[week] = map[Slot]bool{}
+				}
+				expectedByWeek[week][slot] = true
+			}
+		}
+
+		for week := 1; week <= timetable.CurrentTeachingWeekCount; week++ {
+			result, err := service.AnalyzeWeek(context.Background(), actor, Filter{GroupID: 1, Week: week})
+			if err != nil {
+				t.Fatalf("sample %d week %d availability analysis failed", index+1, week)
+			}
+			if result.ImportedCount != 1 || result.MissingCount != 0 || len(result.Members) != 1 {
+				t.Fatalf("sample %d week %d was not counted as one imported timetable: %+v", index+1, week, result)
+			}
+			got := append([]Slot{}, result.Members[0].Occupied...)
+			want := make([]Slot, 0, len(expectedByWeek[week]))
+			for slot := range expectedByWeek[week] {
+				want = append(want, slot)
+			}
+			sortSlots(got)
+			sortSlots(want)
+			if !reflect.DeepEqual(got, want) {
+				t.Fatalf("sample %d week %d occupied slots differ from parsed records", index+1, week)
+			}
+			for _, slot := range want {
+				stats, err := service.Analyze(context.Background(), actor, Filter{
+					GroupID: 1, Week: week, Weekday: slot.Weekday,
+					StartSection: slot.StartSection, EndSection: slot.EndSection,
+				})
+				if err != nil || stats.ConflictCount != 1 || stats.FreeCount != 0 || stats.MissingCount != 0 {
+					t.Fatalf("sample %d week %d slot %d %d-%d has inconsistent availability stats", index+1, week, slot.Weekday, slot.StartSection, slot.EndSection)
+				}
+			}
+		}
+	}
+}
+
+func sortSlots(slots []Slot) {
+	sort.Slice(slots, func(i, j int) bool {
+		if slots[i].Weekday != slots[j].Weekday {
+			return slots[i].Weekday < slots[j].Weekday
+		}
+		if slots[i].StartSection != slots[j].StartSection {
+			return slots[i].StartSection < slots[j].StartSection
+		}
+		return slots[i].EndSection < slots[j].EndSection
+	})
 }
 
 func TestWeekGroupPermissionsAndValidation(t *testing.T) {
