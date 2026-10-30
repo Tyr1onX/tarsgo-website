@@ -201,9 +201,13 @@ func (s *Service) AnalyzeWeek(ctx context.Context, actor Actor, f Filter) (*Week
 			if coursesErr != nil || notesErr != nil || courses == nil || notes == nil || !validCourses(courses) {
 				member.MissingReason = "invalid_data"
 			} else {
-				result.ImportedCount++
 				member.HasUncertainCourses = len(notes) > 0
 				member.UncertainCourseCount = len(notes)
+				if member.HasUncertainCourses {
+					member.MissingReason = "uncertain_courses"
+				} else {
+					result.ImportedCount++
+				}
 				for _, course := range courses {
 					if course.Active(f.Week) {
 						member.Occupied = append(member.Occupied, Slot{Weekday: course.Weekday, StartSection: course.StartSection, EndSection: course.EndSection})

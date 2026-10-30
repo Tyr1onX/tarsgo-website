@@ -20,6 +20,7 @@ const CATEGORIES: { key: AvailabilityStatus; label: string }[] = [
 function missingReason(reason?: string) {
   if (reason === "semester_mismatch") return "未导入所选学期";
   if (reason === "invalid_data") return "课表数据异常";
+  if (reason === "uncertain_courses") return "课表含时间未确定课程";
   return "未上传课表";
 }
 function statusLabel(status: AvailabilityStatus) {
@@ -258,7 +259,7 @@ export default function TimeCoordinationPage() {
                   {people.map(person => <li key={person.userId} className="border-t border-[var(--admin-border-subtle)] pt-2 first:border-0 first:pt-0">
                     <span className="font-medium">{person.name}</span>
                     {person.missingReason ? <p className="mt-1 text-xs text-[var(--admin-muted)]">{missingReason(person.missingReason)}</p> : null}
-                    {person.hasUncertainCourses ? <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">另有 {person.uncertainCourseCount} 门时间未确定课程</p> : null}
+                    {person.hasUncertainCourses ? <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{person.uncertainCourseCount} 门时间未确定课程，已排除在无冲突统计外</p> : null}
                   </li>)}
                 </ul> : <p className="text-sm text-[var(--admin-muted)]">暂无成员</p>}
               </section>;

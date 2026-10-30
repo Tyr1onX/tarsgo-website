@@ -102,12 +102,12 @@ func TestWholeIntervalWeeksParityRescheduleAndMissing(t *testing.T) {
 		filter                              Filter
 		wantFree, wantConflict, wantMissing int
 	}{
-		{"middle and ending sections both count", query(1, 3, 5, 3), 2, 2, 3},
-		{"even week ignores odd-only course", query(1, 3, 5, 4), 3, 1, 3},
-		{"odd class active in fifth week", query(1, 2, 2, 5), 3, 1, 3},
-		{"rescheduled source is absent in week three", query(1, 1, 2, 3), 3, 1, 3},
-		{"moved target occupies week six", query(4, 11, 12, 6), 3, 1, 3},
-		{"other weekday has no course", query(7, 1, 24, 3), 4, 0, 3},
+		{"middle and ending sections both count", query(1, 3, 5, 3), 1, 2, 4},
+		{"even week ignores odd-only course", query(1, 3, 5, 4), 2, 1, 4},
+		{"odd class active in fifth week", query(1, 2, 2, 5), 2, 1, 4},
+		{"rescheduled source is absent in week three", query(1, 1, 2, 3), 2, 1, 4},
+		{"moved target occupies week six", query(4, 11, 12, 6), 2, 1, 4},
+		{"other weekday has no course", query(7, 1, 24, 3), 3, 0, 4},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -120,8 +120,8 @@ func TestWholeIntervalWeeksParityRescheduleAndMissing(t *testing.T) {
 			if got.FreeCount != tt.wantFree || got.ConflictCount != tt.wantConflict || got.MissingCount != tt.wantMissing || got.TotalCount != 7 {
 				t.Fatalf("counts free=%d conflict=%d missing=%d total=%d", got.FreeCount, got.ConflictCount, got.MissingCount, got.TotalCount)
 			}
-			if got.ImportedCount != 4 {
-				t.Fatalf("imported=%d want4", got.ImportedCount)
+			if got.ImportedCount != 3 {
+				t.Fatalf("imported=%d want3 complete timetables", got.ImportedCount)
 			}
 			if !reflect.DeepEqual(r.lastIDs, []uint64{10, 11, 12, 13, 14, 15, 16}) {
 				t.Fatalf("unscoped query IDs: %v", r.lastIDs)
@@ -132,6 +132,9 @@ func TestWholeIntervalWeeksParityRescheduleAndMissing(t *testing.T) {
 			}
 			if byID[11].UncertainCourseCount != 1 || !byID[11].HasUncertainCourses {
 				t.Fatalf("undetermined course lost: %+v", byID[11])
+			}
+			if byID[11].Status != "missing" || byID[11].MissingReason != "uncertain_courses" {
+				t.Fatalf("uncertain timetable was counted as available: %+v", byID[11])
 			}
 			if byID[13].MissingReason != "semester_mismatch" || byID[14].MissingReason != "not_imported" || byID[16].MissingReason != "invalid_data" {
 				t.Fatalf("missing classifications %+v", byID)
@@ -211,7 +214,7 @@ func TestWeekOccupancySingleScopedReadAndPrivacy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if repo.membersCalled != 1 || repo.timetablesCalled != 1 || week.TotalCount != 7 || week.ImportedCount != 4 || week.MissingCount != 3 {
+	if repo.membersCalled != 1 || repo.timetablesCalled != 1 || week.TotalCount != 7 || week.ImportedCount != 3 || week.MissingCount != 4 {
 		t.Fatalf("unexpected scoped week fetch: members=%d tables=%d result=%+v", repo.membersCalled, repo.timetablesCalled, week)
 	}
 	if !reflect.DeepEqual(repo.lastIDs, []uint64{10, 11, 12, 13, 14, 15, 16}) {
@@ -226,6 +229,9 @@ func TestWeekOccupancySingleScopedReadAndPrivacy(t *testing.T) {
 	}
 	if !reflect.DeepEqual(byID[15].Occupied, []Slot{{Weekday: 4, StartSection: 11, EndSection: 12}}) {
 		t.Fatalf("moved class not applied: %+v", byID[15])
+	}
+	if byID[11].MissingReason != "uncertain_courses" {
+		t.Fatalf("course with an undetermined time was not classified as missing: %+v", byID[11])
 	}
 	if byID[13].MissingReason != "semester_mismatch" || byID[14].MissingReason != "not_imported" || byID[16].MissingReason != "invalid_data" {
 		t.Fatalf("missing users treated as free: %+v", byID)

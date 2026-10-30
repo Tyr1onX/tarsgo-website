@@ -3,7 +3,7 @@ import { apiRequest } from "./api-client.ts";
 export interface AvailabilityGroup {groupId:number;name:string;semesters:string[]}
 export interface AvailabilityOptions {groups:AvailabilityGroup[]}
 export type AvailabilityStatus="free"|"conflict"|"missing";
-export type MissingReason = "not_imported" | "semester_mismatch" | "invalid_data";
+export type MissingReason = "not_imported" | "semester_mismatch" | "invalid_data" | "uncertain_courses";
 export interface WeekSlot { weekday: number; startSection: number; endSection: number }
 export interface WeekMember {
  userId:number; name:string; missingReason?:MissingReason;

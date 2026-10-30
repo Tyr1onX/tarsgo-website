@@ -45,8 +45,8 @@ export function ProfileDialog({
   }
 
   return (
-    <ModalShell title="个人资料" widthClass="max-w-lg" bodyClassName="max-h-[calc(100dvh-8rem)] overflow-y-auto px-4 py-5 sm:px-6" onClose={onClose}>
-      <form onSubmit={(event) => void handleSubmit(event)} className="space-y-5">
+    <ModalShell title="个人资料" widthClass="max-w-lg" bodyClassName="min-w-0 max-h-[calc(100dvh-8rem)] overflow-x-hidden overflow-y-auto overscroll-contain px-4 py-5 sm:px-6" onClose={onClose}>
+      <form onSubmit={(event) => void handleSubmit(event)} className="min-w-0 space-y-5">
         <div className="flex items-center gap-4">
           <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-full bg-[var(--admin-input-surface)] flex items-center justify-center border border-[var(--admin-border-subtle)]">
             <span className="text-xl font-semibold text-[var(--admin-text)]">{(nickname.trim() || user.email).charAt(0).toUpperCase()}</span>
@@ -57,7 +57,7 @@ export function ProfileDialog({
           <label className="admin-field-label flex-1">
             头像
             <input
-              className="admin-field w-full"
+              className="admin-field box-border w-full max-w-full min-w-0"
               type="file"
               accept="image/png,image/jpeg"
               disabled={saving}
