@@ -51,6 +51,8 @@ export interface DashboardLayoutOutletContext {
   groupResolution: UserGroupConfirmationState | null;
   groupResolutionError: string;
   refreshCandidateTodoCount: (force?: boolean) => Promise<void>;
+  openProfile: () => void;
+  profileRevision: number;
 }
 
 const DESKTOP_DASHBOARD_MEDIA = "(min-width: 1024px)";
@@ -347,6 +349,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const revalidator = useRevalidator();
   const [isDesktopViewport, setIsDesktopViewport] = useState(getIsDesktopDashboardViewport);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [profileRevision, setProfileRevision] = useState(0);
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
@@ -964,7 +967,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
 
         <main className="p-4 sm:p-6 lg:p-8">
           <div className="relative">
-            <Outlet context={{ currentUser, groupResolution, groupResolutionError, refreshCandidateTodoCount } satisfies DashboardLayoutOutletContext} />
+            <Outlet context={{ currentUser, groupResolution, groupResolutionError, refreshCandidateTodoCount, openProfile: () => setProfileOpen(true), profileRevision } satisfies DashboardLayoutOutletContext} />
           </div>
         </main>
       </div>
@@ -973,7 +976,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           user={currentUser}
           groups={groupResolution?.groups.map((group) => group.name) ?? []}
           onClose={() => setProfileOpen(false)}
-          onSaved={() => { setProfileOpen(false); void revalidator.revalidate(); }}
+          onSaved={() => { setProfileOpen(false); setProfileRevision((revision) => revision + 1); void revalidator.revalidate(); }}
         />
       ) : null}
       {accountModalMode ? (

@@ -5,7 +5,6 @@ import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { downloadLeaveFile, leaveClient, type CampDetail, type CampEvent, type CollegeOption, type DailyEntry, type DailyWindow, type LeaveAccessRequest, type LeaveAccessState, type LeaveProfile, type LeaveRequest, type SchoolRun } from "~/lib/leave-client";
 
 type Tab = "daily" | "camp" | "records";
-type LeaveProfileDraft = Omit<LeaveProfile, "identityLocked">;
 const showExtendedLeaveFeatures = false;
 const inputClass = "admin-field";
 const button = "admin-button admin-button--small";
@@ -23,16 +22,13 @@ function publicURL(path?: string) { return path && typeof window !== "undefined"
 export function meta() { return [{ title: "请假工作台 | TARSGO" }, { name: "description", content: "日常请假" }]; }
 
 export default function LeaveWorkbench() {
-  const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
+  const { currentUser, openProfile, profileRevision } = useOutletContext<DashboardLayoutOutletContext>();
   const isAdmin = currentUser.role.name === "admin" || currentUser.role.name === "super_admin";
   const isSuperAdmin = currentUser.role.name === "super_admin";
   const [tab, setTab] = useState<Tab>("daily");
   const [accessState, setAccessState] = useState<LeaveAccessState | null>(null);
   const [accessRequests, setAccessRequests] = useState<LeaveAccessRequest[]>([]);
   const [profile, setProfile] = useState<LeaveProfile | null>(null);
-  const [profileExpanded, setProfileExpanded] = useState(false);
-  const [profileEditing, setProfileEditing] = useState(false);
-  const [profileDraft, setProfileDraft] = useState<LeaveProfileDraft>({ name: "", studentId: "", collegeCode: "", participantType: "other" });
   const [colleges, setColleges] = useState<CollegeOption[]>([]);
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
   const [adminRequests, setAdminRequests] = useState<LeaveRequest[]>([]);
@@ -68,7 +64,6 @@ export default function LeaveWorkbench() {
         isSuperAdmin ? leaveClient.pendingLeaveAccessRequests() : Promise.resolve([]),
       ]);
       setProfile(nextProfile);
-      setProfileDraft(nextProfile ? { name: nextProfile.name, studentId: nextProfile.studentId, collegeCode: nextProfile.collegeCode, participantType: nextProfile.participantType } : { name: "", studentId: "", collegeCode: "", participantType: "other" });
       setColleges(nextColleges); setDailyEntries(nextDaily.filter((entry) => entry.startAt && entry.endAt));
       setAccessRequests(nextAccessRequests);
       if (showExtendedLeaveFeatures) {
@@ -87,7 +82,7 @@ export default function LeaveWorkbench() {
     finally { setLoading(false); }
   }
 
-  useEffect(() => { void load(); }, [currentUser.id]);
+  useEffect(() => { void load(); }, [currentUser.id, profileRevision]);
   useEffect(() => {
     const now = new Date();
     setDailyDraft({ startAt: localDateTime(new Date(now.getFullYear(), now.getMonth(), now.getDate(), 8, 0)), endAt: localDateTime(new Date(now.getFullYear(), now.getMonth(), now.getDate(), 17, 10)) });
@@ -101,17 +96,12 @@ export default function LeaveWorkbench() {
     finally { setBusy(false); }
   }
 
-  async function saveProfile(event: FormEvent) {
-    event.preventDefault();
-    await runAction(async () => { const saved = await leaveClient.saveProfile(profileDraft); setProfile(saved); setProfileEditing(false); setProfileExpanded(false); }, "请假资料已保存。");
-  }
-
   async function reviewLeaveAccess(request: LeaveAccessRequest, status: "approved" | "rejected") {
     await runAction(() => leaveClient.reviewLeaveAccessRequest(request.id, status), status === "approved" ? "已开通请假功能。" : "已拒绝请假开通申请。");
   }
 
   async function makeDaily(offline = false) {
-    if (!profileReady) { setError("请先完善请假资料中的姓名、8 位学号和学院。"); return; }
+    if (!profileReady) { setError("请先在「个人资料」中完善学号和学院。"); return; }
     setBusy(true); setError(""); setNotice("");
     try { const ready = await leaveClient.prepareDailySelf(dailyDraft, offline); await downloadLeaveFile(ready.downloadUrl, ready.filename); setNotice("请假条已生成并开始下载。"); await load(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "请假条生成失败"); }
@@ -119,7 +109,7 @@ export default function LeaveWorkbench() {
   }
 
   async function makeShared(window: DailyWindow, offline = false) {
-    if (!profileReady) { setError("请先完善请假资料中的姓名、8 位学号和学院。"); return; }
+    if (!profileReady) { setError("请先在「个人资料」中完善学号和学院。"); return; }
     setBusy(true); setError(""); setNotice("");
     try { const ready = await leaveClient.prepareDailyWindow(window.id, offline); await downloadLeaveFile(ready.downloadUrl, ready.filename); setNotice("共享报名已保存，材料已开始下载。"); await load(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "请假条生成失败"); }
@@ -177,23 +167,6 @@ export default function LeaveWorkbench() {
           <div className="flex flex-wrap gap-2"><Link to={`/dashboard/admin/users?userId=${request.userId}`} className={`${button} admin-button--secondary`}>查看账号</Link><button type="button" className={`${button} admin-button--primary`} disabled={busy} onClick={() => void reviewLeaveAccess(request, "approved")}>批准</button><button type="button" className={`${button} admin-button--quiet`} disabled={busy} onClick={() => void reviewLeaveAccess(request, "rejected")}>拒绝</button></div>
         </article>)}{!accessRequests.length ? <p className="py-2 text-sm text-[var(--admin-muted)]">暂无待审核申请。</p> : null}</div>
       </section> : null}
-      <section className="admin-panel space-y-4 p-4 sm:p-5" aria-labelledby="leave-profile-title">
-        <div className="admin-section-heading"><h2 id="leave-profile-title">请假资料</h2>{profileReady && !profileExpanded ? <button type="button" className={`${button} admin-button--quiet`} onClick={() => setProfileExpanded(true)}>查看/修改资料</button> : null}</div>
-        {profileReady && !profileExpanded ? null : profileReady && !profileEditing ? <>
-          <dl className="grid gap-3 sm:grid-cols-3">
-            <div><dt className="admin-field-label">姓名</dt><dd className="text-sm">{profile?.name}</dd></div>
-            <div><dt className="admin-field-label">学号</dt><dd className="text-sm">{profile?.studentId}</dd></div>
-            <div><dt className="admin-field-label">学院</dt><dd className="text-sm">{colleges.find((college) => college.code === profile?.collegeCode)?.name ?? profile?.collegeCode}</dd></div>
-          </dl>
-          <div className="flex gap-2"><button type="button" className={`${button} admin-button--secondary`} onClick={() => setProfileEditing(true)}>修改资料</button><button type="button" className={`${button} admin-button--quiet`} onClick={() => setProfileExpanded(false)}>收起</button></div>
-        </> : <form onSubmit={saveProfile} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <label className="admin-field-label">姓名<input className={inputClass} required minLength={2} maxLength={50} readOnly={Boolean(profile?.identityLocked)} value={profileDraft.name} onChange={(e) => setProfileDraft({ ...profileDraft, name: e.target.value })} /></label>
-          <label className="admin-field-label">学号<input className={inputClass} required inputMode="numeric" pattern="[0-9]{8}" maxLength={8} readOnly={Boolean(profile?.identityLocked)} value={profileDraft.studentId} onChange={(e) => setProfileDraft({ ...profileDraft, studentId: e.target.value })} /></label>
-          <label className="admin-field-label">学院<select className={inputClass} required value={profileDraft.collegeCode} onChange={(e) => setProfileDraft({ ...profileDraft, collegeCode: e.target.value })}><option value="">选择学院</option>{colleges.map((college) => <option key={college.code} value={college.code}>{college.name}</option>)}</select></label>
-          <div className="flex items-end gap-2"><button className={`${button} admin-button--primary`} disabled={busy}>保存请假资料</button>{profileReady ? <button type="button" className={`${button} admin-button--quiet`} onClick={() => { setProfileEditing(false); setProfileExpanded(true); }}>取消</button> : null}</div>
-        </form>}
-      </section>
-
       {tab === "daily" ? <div className="space-y-4">
         {showExtendedLeaveFeatures ? <section className="admin-panel space-y-4 p-4 sm:p-5">
           <div className="admin-section-heading"><div><h2>学校请假申请</h2><p>申请经管理员汇总后生成学校材料；待汇总前可以修改或撤回。</p></div></div>
@@ -202,7 +175,7 @@ export default function LeaveWorkbench() {
             <label className="admin-field-label">结束时间<input className={inputClass} type="datetime-local" required value={schoolDraft.endAt} onChange={(e) => setSchoolDraft({ ...schoolDraft, endAt: e.target.value })} /></label>
             <div><button className={`${button} admin-button--secondary`} disabled={busy || !profileReady}>提交请假申请</button></div>
           </form>
-          {!profileReady ? <p className="text-xs text-[var(--admin-muted)]">先完善请假资料，再提交申请。</p> : null}
+          {!profileReady ? <p className="text-xs text-[var(--admin-muted)]">请先在个人资料中完善学号和学院，再提交申请。</p> : null}
           <div className="divide-y divide-[var(--admin-border-subtle)]">{requests.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-xs"><span>{dateText(item.startAt)} 至 {dateText(item.endAt)} · {statusText(item.status)}</span>{item.status === "pending" ? <button type="button" className={`${button} admin-button--quiet`} disabled={busy} onClick={() => void runAction(() => leaveClient.withdrawSchoolRequest(item.id), "请假申请已撤回。")}>撤回</button> : null}</div>)}</div>
         </section> : null}
         <section className="admin-panel space-y-4 p-4 sm:p-5">
@@ -214,6 +187,12 @@ export default function LeaveWorkbench() {
             </div>
             <div className="flex flex-wrap gap-2"><button type="submit" className={`${button} admin-button--primary`} disabled={busy || !profileReady}>生成并下载</button><button type="button" className={`${button} admin-button--secondary`} disabled={busy || !profileReady} onClick={(event) => { if (event.currentTarget.form?.reportValidity()) void makeDaily(true); }}>线下签章版</button></div>
           </form>
+          {!profileReady ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--admin-border-subtle)] bg-[var(--admin-surface-subtle)] px-4 py-3">
+              <p className="text-sm text-[var(--admin-muted)]">生成假条前，请先完善个人资料中的学号和学院。</p>
+              <button type="button" className={`${button} admin-button--secondary`} onClick={openProfile}>完善个人资料</button>
+            </div>
+          ) : null}
         </section>
         {showExtendedLeaveFeatures && isAdmin ? <section className="admin-panel space-y-4 p-4 sm:p-5">
           <div className="admin-section-heading"><div><h2>共享请假活动</h2><p>活动链接可发给队员；公开链接允许未登录报名并限时下载材料。</p></div></div>
