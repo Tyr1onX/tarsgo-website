@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useOutletContext } from "react-router";
 
-import { formatScore } from "~/components/capability-radar";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import {
   capabilitiesClient,
   capabilitySourceLabel,
   formatCapabilityDate,
+  formatScore,
   type CapabilityAdminGroup,
   type CapabilityAdminMember,
   type CapabilityDimension,
