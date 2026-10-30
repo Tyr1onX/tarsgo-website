@@ -61,7 +61,7 @@ func TestAssignmentInternalErrorIsLoggedWithRequestIDAndRedacted(t *testing.T) {
 	}
 	requestID := response.Header().Get("X-Request-ID")
 	output := logs.String()
-	for _, expected := range []string{"server_error", "request_id=" + requestID, "method=GET", `path="/api/assignments"`, "status=500", "assignment", "读取所属技术组失败", "database unavailable"} {
+	for _, expected := range []string{"server_error", "request_id=" + requestID, "method=GET", `path="/api/assignments"`, "status=500", "assignment", "读取所属组别失败", "database unavailable"} {
 		if !strings.Contains(output, expected) {
 			t.Fatalf("assignment error log does not contain %q: %s", expected, output)
 		}

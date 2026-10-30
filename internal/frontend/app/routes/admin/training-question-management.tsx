@@ -4,6 +4,7 @@ import { useOutletContext } from "react-router";
 import { QuestionActionBar, TrainingQuestionThread } from "~/components/training-question-thread";
 import { WorkbenchFeatureStatus } from "~/components/workbench-feature-status";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
+import { isTechnicalGroupName } from "~/lib/dashboard-navigation";
 import { formatQuestionDate, questionStatusLabel, trainingQuestionClient, type TrainingQuestion, type TrainingQuestionDetail } from "~/lib/training-question-client";
 import { useAssignmentGroups } from "~/lib/use-assignment-groups";
 
@@ -19,7 +20,7 @@ export default function TrainingQuestionManagementRoute() {
     () => groupResolution?.groups.map(({ groupId, name }) => ({ groupId, name })),
     [groupResolution?.groups],
   );
-  const { technicalGroups, loading: groupsLoading, error: groupError } = useAssignmentGroups(currentUser.id, currentUser.role.name, memberGroups);
+  const { assignmentGroups, loading: groupsLoading, error: groupError } = useAssignmentGroups(currentUser.id, currentUser.role.name, memberGroups);
   const [groupId, setGroupId] = useState(0);
   const [items, setItems] = useState<TrainingQuestion[]>([]);
   const [selectedID, setSelectedID] = useState(0);
@@ -33,7 +34,7 @@ export default function TrainingQuestionManagementRoute() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const filesRef = useRef<HTMLInputElement>(null);
-  const activeGroups = useMemo(() => technicalGroups, [technicalGroups]);
+  const activeGroups = useMemo(() => assignmentGroups.filter((group) => isTechnicalGroupName(group.name)), [assignmentGroups]);
   const isSuperAdmin = currentUser.role.name === "super_admin";
 
   useEffect(() => {

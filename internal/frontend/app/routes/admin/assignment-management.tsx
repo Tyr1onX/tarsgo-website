@@ -56,7 +56,7 @@ function asDraft(item: Assignment): Draft {
 
 export default function AssignmentManagementRoute() {
   const { currentUser, groupResolution } = useOutletContext<DashboardLayoutOutletContext>();
-  const { technicalGroups, error: groupError, loading: groupsLoading } = useAssignmentGroups(currentUser.id, currentUser.role.name, groupResolution?.groups);
+  const { assignmentGroups, error: groupError, loading: groupsLoading } = useAssignmentGroups(currentUser.id, currentUser.role.name, groupResolution?.groups);
   const [groupId, setGroupId] = useState(0);
   const [items, setItems] = useState<Assignment[]>([]);
   const [members, setMembers] = useState<AssignmentMemberOption[]>([]);
@@ -82,9 +82,9 @@ export default function AssignmentManagementRoute() {
   const selectedMembers = useMemo(() => members.filter((member) => draft.targetUserIds.includes(member.userId)), [members, draft.targetUserIds]);
 
   useEffect(() => {
-    setGroupId((current) => technicalGroups.some((group) => group.groupId === current)
-      ? current : technicalGroups[0]?.groupId ?? 0);
-  }, [technicalGroups]);
+    setGroupId((current) => assignmentGroups.some((group) => group.groupId === current)
+      ? current : assignmentGroups[0]?.groupId ?? 0);
+  }, [assignmentGroups]);
 
   useEffect(() => {
     if (!groupId) return;
@@ -287,9 +287,9 @@ export default function AssignmentManagementRoute() {
     <section className="admin-design space-y-5" aria-labelledby="assignment-management-title">
       <header className="admin-page-header flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2"><h1 id="assignment-management-title" className="admin-page-title">作业管理</h1><WorkbenchFeatureStatus feature="assignments" /></div>
-        {groupsLoading ? <p role="status" className="text-sm text-[var(--admin-muted)]">正在加载技术组…</p> : technicalGroups.length > 1 ? <label className="admin-field-label">技术组<select className="admin-field w-full" value={groupId} disabled={saving || publishStage !== "idle"} onChange={(event) => { const nextGroupID = Number(event.target.value); setGroupId(nextGroupID); resetDraft(nextGroupID); }}>
-          {technicalGroups.map((group) => <option key={group.groupId} value={group.groupId}>{group.name}</option>)}
-        </select></label> : technicalGroups[0] ? <p className="text-sm text-[var(--admin-muted)]">{technicalGroups[0].name}</p> : null}
+        {groupsLoading ? <p role="status" className="text-sm text-[var(--admin-muted)]">正在加载组别…</p> : assignmentGroups.length > 1 ? <label className="admin-field-label">组别<select className="admin-field w-full" value={groupId} disabled={saving || publishStage !== "idle"} onChange={(event) => { const nextGroupID = Number(event.target.value); setGroupId(nextGroupID); resetDraft(nextGroupID); }}>
+          {assignmentGroups.map((group) => <option key={group.groupId} value={group.groupId}>{group.name}</option>)}
+        </select></label> : assignmentGroups[0] ? <p className="text-sm text-[var(--admin-muted)]">{assignmentGroups[0].name}</p> : null}
       </header>
       {groupError ? <div role="alert" className="admin-notice admin-notice--error">{groupError}</div> : null}
       {error ? <div role="alert" className="admin-notice admin-notice--error">{error}</div> : null}

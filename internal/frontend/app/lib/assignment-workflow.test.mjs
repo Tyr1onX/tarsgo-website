@@ -26,22 +26,23 @@ const skillsService = await readFile(new URL("../../../backend/service/skills/se
 const cultivationPage = await readFile(new URL("../routes/admin/cultivation.tsx", import.meta.url), "utf8");
 const cultivationService = await readFile(new URL("../../../backend/service/cultivation/service.go", import.meta.url), "utf8");
 
-test("workbench exposes member work to technical members and all manager routes to super-admins", () => {
+test("workbench exposes assignments to all five supported groups", () => {
   assert.match(routes, /route\("assignments", "routes\/dashboard\/assignments\.tsx"\)/);
   assert.match(routes, /route\("admin\/training\/assignments", "routes\/admin\/assignment-management\.tsx"\)/);
   assert.match(routes, /route\("admin\/training\/submissions", "routes\/admin\/assignment-submissions\.tsx"\)/);
-  assert.match(navigation, /new Set\(\["机械组", "电控组", "视觉组", "AI组"\]\)/);
+  assert.match(navigation, /const ASSIGNMENT_GROUP_NAMES = new Set\(\[\.\.\.TECHNICAL_GROUP_NAMES, "运营组"\]\)/);
   assert.match(navigation, /if \(roleName === "super_admin"\) return true/);
-  assert.match(layout, /pathname === "\/dashboard\/assignments" && !hasTechnicalGroup/);
-  assert.match(layout, /canAccessDashboardAdminPath\(currentUser, pathname, hasTechnicalGroup, hasSkillGroup, hasCapabilityGroup\)/);
-  assert.match(navigation, /hasTechnicalGroup && \["user", "admin", "super_admin"\]/);
+  assert.match(layout, /pathname === "\/dashboard\/assignments" && !hasAssignmentGroup/);
+  assert.match(layout, /canAccessDashboardAdminPath\(currentUser, pathname, hasAssignmentGroup\)/);
+  assert.match(navigation, /hasAssignmentGroup && roleName === "user"/);
   assert.match(assignmentGroups, /roleName === "super_admin"/);
   assert.match(assignmentGroups, /listAdminUserGroupOptions/);
-  assert.match(assignmentGroups, /group\.status === 1 && isTechnicalGroupName\(group\.name\)/);
+  assert.match(assignmentGroups, /group\.status === 1 && isAssignmentGroupName\(group\.name\)/);
+  assert.match(assignmentGroups, /return \{ assignmentGroups, error, loading:/);
 });
 
 test("assignment member options are not cleared by unrelated loader revalidation", () => {
-  assert.match(assignmentManagement, /setGroupId\(\(current\) => technicalGroups\.some/);
+  assert.match(assignmentManagement, /setGroupId\(\(current\) => assignmentGroups\.some/);
   assert.doesNotMatch(assignmentManagement, /groupResolution, technicalGroups\]\)/);
   assert.match(assignmentManagement, /setItems\(\[\]\);\s*setMembers\(\[\]\);\s*Promise\.all/);
   assert.match(assignmentManagement, /正在加载组内成员/);
@@ -65,9 +66,19 @@ test("backend applies role, current group, target, and ownership checks to every
   assert.match(assignmentService, /assignment_targets\.user_id = \? AND assignments\.group_id IN \?/);
   assert.match(assignmentService, /case model\.RoleNameAdmin, model\.RoleNameSuperAdmin:[\s\S]*?case model\.RoleNameUser:/);
   assert.match(assignmentService, /if err := s\.requireGroupAccess\(ctx, actor\.ID, item\.GroupID\); err != nil/);
-  assert.match(assignmentService, /func managerTechnicalGroupIDs\(db \*gorm\.DB, actor Actor\)/);
+  assert.match(assignmentService, /func managerAssignmentGroupIDs\(db \*gorm\.DB, actor Actor\)/);
   assert.match(assignmentService, /if actor\.RoleName != model\.RoleNameSuperAdmin/);
   assert.match(assignmentService, /requireManagerGroupAccessWithDB\(tx, actor, item\.GroupID\)/);
+});
+
+test("paused training routes and APIs are not reachable while leave approvals stay super-admin only", () => {
+  assert.match(navigation, /\/dashboard\/admin\/training\/practice-projects/);
+  assert.match(navigation, /\/dashboard\/admin\/training\/questions/);
+  assert.match(layout, /isTemporarilyUnavailableDashboardPath\(currentPath\.pathname\)/);
+  assert.doesNotMatch(backendRoutes, /practiceHandler|trainingQuestionHandler|skillsHandler|capabilitiesHandler|cultivationHandler|expeditionHandler|growthHandler/);
+  assert.match(backendRoutes, /superAdminAPI\.GET\("\/leave\/access-requests"/);
+  assert.match(backendRoutes, /superAdminAPI\.PATCH\("\/leave\/access-requests\/:id"/);
+  assert.match(backendRoutes, /leaveMemberAPI\.GET\("\/school-leave\/requests"/);
 });
 
 test("successful publishing remains visible if the following list refresh fails", () => {
@@ -198,9 +209,9 @@ test("skill graph auto-arranges dependencies, focuses context, and safely handle
 });
 
 test("submission page distinguishes list loading, empty lists, detail loading, and no submissions", () => {
-  assert.match(assignmentSubmissions, /const technicalGroupKey = technicalGroups\.map\(\(group\) => group\.groupId\)\.join\(","\)/);
-  assert.match(assignmentSubmissions, /\[currentUser\.id, currentUser\.role\.name, technicalGroupKey\]/);
-  assert.match(assignmentSubmissions, /\[groupId, currentUser\.id, currentUser\.role\.name, technicalGroupKey\]/);
+  assert.match(assignmentSubmissions, /const assignmentGroupKey = assignmentGroups\.map\(\(group\) => group\.groupId\)\.join\(","\)/);
+  assert.match(assignmentSubmissions, /\[currentUser\.id, currentUser\.role\.name, assignmentGroupKey\]/);
+  assert.match(assignmentSubmissions, /\[groupId, currentUser\.id, currentUser\.role\.name, assignmentGroupKey\]/);
   assert.match(assignmentSubmissions, /setListLoaded\(true\)/);
   assert.match(assignmentSubmissions, /listLoaded && !loading && !error && assignments\.length === 0/);
   assert.match(assignmentSubmissions, /listLoaded && assignments\.some\(\(item\) => item\.id === selectedID\) && detail\?\.assignment\.id === selectedID/);

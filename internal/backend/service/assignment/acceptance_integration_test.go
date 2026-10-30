@@ -50,8 +50,8 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 
 	nonce := time.Now().UTC().Format("20060102T150405.000000000")
 	groupIDs := map[string]uint64{}
-	createdGroupIDs := make([]uint64, 0, 2)
-	for _, name := range []string{groupMechanical, groupAI} {
+	createdGroupIDs := make([]uint64, 0, 3)
+	for _, name := range []string{groupMechanical, groupAI, groupOperations} {
 		var group model.UserGroup
 		queryErr := db.Where("name = ?", name).First(&group).Error
 		if queryErr == gorm.ErrRecordNotFound {
@@ -157,6 +157,9 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	crossMember := createActor("ai-member", model.RoleNameUser, groupAI)
 	admin := createActor("mechanical-admin", model.RoleNameAdmin, groupMechanical)
 	crossAdmin := createActor("ai-admin", model.RoleNameAdmin, groupAI)
+	operationsMember := createActor("operations-member", model.RoleNameUser, groupOperations)
+	operationsOtherMember := createActor("operations-other-member", model.RoleNameUser, groupOperations)
+	operationsAdmin := createActor("operations-admin", model.RoleNameAdmin, groupOperations)
 	superAdmin := createActor("super-admin", model.RoleNameSuperAdmin, "")
 	superAdminGroupMember := createActor("mechanical-super-admin", model.RoleNameSuperAdmin, groupMechanical)
 
@@ -167,6 +170,46 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	}
 	now := time.Now().UTC().Truncate(time.Second)
 	service.now = func() time.Time { return now }
+	operationsMembers, err := service.ListGroupMembers(context.Background(), operationsAdmin, groupIDs[groupOperations])
+	if err != nil {
+		t.Fatalf("operations administrator could not list their own assignment recipients: %v", err)
+	}
+	operationsMemberIDs := map[uint64]bool{}
+	for _, option := range operationsMembers {
+		operationsMemberIDs[option.UserID] = true
+	}
+	if !operationsMemberIDs[operationsMember.ID] || !operationsMemberIDs[operationsOtherMember.ID] || operationsMemberIDs[member.ID] {
+		t.Fatalf("operations recipient list crossed group boundaries: %#v", operationsMembers)
+	}
+	if _, err := service.ListGroupMembers(context.Background(), operationsAdmin, groupIDs[groupMechanical]); statusOf(err) != http.StatusForbidden {
+		t.Fatalf("operations administrator could access a mechanical group: status=%d, want 403", statusOf(err))
+	}
+	operationsAssignment, err := service.Create(context.Background(), operationsAdmin, CreateInput{
+		GroupID: groupIDs[groupOperations], Title: "[TEST_ASSIGNMENT] 运营组作业验收", Description: "运营组可使用同一套作业流程",
+		DueAt: now.Add(24 * time.Hour), IsGroupWide: true,
+	})
+	if err != nil {
+		t.Fatalf("operations administrator could not publish an assignment: %v", err)
+	}
+	createdAssignmentIDs = append(createdAssignmentIDs, operationsAssignment.ID)
+	if _, err := service.GetMine(context.Background(), member, operationsAssignment.ID); statusOf(err) != http.StatusNotFound {
+		t.Fatalf("mechanical member could access an operations assignment: status=%d, want 404", statusOf(err))
+	}
+	operationsSubmission, err := service.Submit(context.Background(), operationsMember, operationsAssignment.ID,
+		[]*multipart.FileHeader{multipartHeader(t, "运营成果.pdf", []byte("%PDF-1.7\noperations result"))})
+	if err != nil {
+		t.Fatalf("operations member could not submit an assignment: %v", err)
+	}
+	createdSubmissionIDs = append(createdSubmissionIDs, operationsSubmission.Submissions[0].ID)
+	operationsReview, err := service.Review(context.Background(), operationsAdmin, operationsSubmission.Submissions[0].ID,
+		ReviewInput{Score: 90, Decision: model.AssignmentReviewPassed, Comment: "[TEST_ASSIGNMENT] 运营组批改通过"})
+	if err != nil || operationsReview.Assignment.ID != operationsAssignment.ID {
+		t.Fatalf("operations administrator could not review the submission: result=%#v err=%v", operationsReview, err)
+	}
+	var operationsReviewRecord model.AssignmentReview
+	if err := db.Where("submission_id = ? AND reviewer_id = ?", operationsSubmission.Submissions[0].ID, operationsAdmin.ID).First(&operationsReviewRecord).Error; err != nil || operationsReviewRecord.Decision != model.AssignmentReviewPassed {
+		t.Fatalf("operations review was not stored for the authorized reviewer: review=%#v err=%v", operationsReviewRecord, err)
+	}
 	if !db.Migrator().HasColumn(&model.Assignment{}, "PublishRequestID") || !db.Migrator().HasColumn(&model.Assignment{}, "PublishRequestHash") {
 		t.Fatal("isolated acceptance database is missing assignment publication idempotency columns")
 	}

@@ -18,21 +18,15 @@ import (
 	"tarsgo-backend/service/assignment"
 	"tarsgo-backend/service/auth"
 	"tarsgo-backend/service/availability"
-	"tarsgo-backend/service/capabilities"
-	"tarsgo-backend/service/cultivation"
 	"tarsgo-backend/service/dailysignal"
 	"tarsgo-backend/service/email"
 	"tarsgo-backend/service/emailtemplate"
-	"tarsgo-backend/service/expedition"
-	"tarsgo-backend/service/growth"
 	"tarsgo-backend/service/leave"
 	"tarsgo-backend/service/privatefile"
 	"tarsgo-backend/service/recruitmentanalytics"
 	"tarsgo-backend/service/registration"
-	"tarsgo-backend/service/skills"
 	"tarsgo-backend/service/systemconfig"
 	"tarsgo-backend/service/timetable"
-	"tarsgo-backend/service/trainingqa"
 	"tarsgo-backend/service/usergroup"
 	"tarsgo-backend/service/weeklyreport"
 	"tarsgo-backend/web"
@@ -95,15 +89,6 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	adminUserHandler := handler.NewAdminUserHandler(adminuser.NewService(adminuser.NewRepository(db)))
 	assignmentService := assignment.NewService(db)
 	assignmentHandler := handler.NewAssignmentHandler(assignmentService)
-	practiceService, err := assignment.NewPracticeService(db)
-	if err != nil {
-		panic(err)
-	}
-	practiceHandler := handler.NewPracticeHandler(practiceService)
-	trainingQuestionHandler := handler.NewTrainingQuestionHandler(trainingqa.NewService(db))
-	skillsHandler := handler.NewSkillsHandler(skills.NewService(db))
-	capabilityService := capabilities.NewService(db)
-	capabilitiesHandler := handler.NewCapabilitiesHandler(capabilityService)
 	userGroupHandler := handler.NewUserGroupHandler(usergroup.NewService(usergroup.NewRepository(db)))
 	userGroupMembershipHandler := handler.NewUserGroupMembershipHandler(usergroup.NewMembershipService(db))
 	registrationFormHandler := handler.NewRegistrationFormHandler(registration.NewRegistrationFormService(db))
@@ -121,12 +106,8 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	weeklyReportHandler := handler.NewWeeklyReportHandler(weeklyreport.NewService(weeklyreport.NewGormRepository(db), weeklyReportFiles))
 	timetableHandler := handler.NewTimetableHandler(timetable.NewService(db))
 	availabilityHandler := handler.NewAvailabilityHandler(availability.NewService(availability.NewGormRepository(db)))
-	growthService := growth.NewService(db, assignmentService, capabilityService)
-	growthHandler := handler.NewGrowthHandler(growthService)
-	cultivationHandler := handler.NewCultivationHandler(cultivation.NewService(db, capabilityService, growthService))
 	leaveService := leave.NewService(db)
 	leaveHandler := handler.NewLeaveHandler(leaveService)
-	expeditionHandler := handler.NewExpeditionHandler(expedition.NewService(db))
 
 	engine.GET("/healthz", healthHandler.Get)
 
@@ -194,43 +175,17 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 
 	assignmentMemberAPI := api.Group("")
 	assignmentMemberAPI.Use(middleware.RequireAuthenticated(authService))
-	assignmentMemberAPI.GET("/practice-projects", practiceHandler.ListMine)
-	assignmentMemberAPI.GET("/practice-projects/:id", practiceHandler.Get)
-	assignmentMemberAPI.POST("/practice-projects/:id/join", requireSameOriginRequest(cfg), practiceHandler.Join)
-	assignmentMemberAPI.POST("/practice-projects/:id/exit", requireSameOriginRequest(cfg), practiceHandler.Exit)
-	assignmentMemberAPI.POST("/practice-projects/:id/submissions", requireSameOriginRequest(cfg), practiceHandler.Submit)
-	assignmentMemberAPI.GET("/practice-files/:fileId", practiceHandler.OpenFile)
 	assignmentMemberAPI.GET("/assignments", assignmentHandler.ListMine)
 	assignmentMemberAPI.GET("/assignments/:id", assignmentHandler.GetMine)
 	assignmentMemberAPI.POST("/assignments/:id/submissions", requireSameOriginRequest(cfg), assignmentHandler.Submit)
 	assignmentMemberAPI.GET("/assignment-files/:id", assignmentHandler.OpenFile)
 	assignmentMemberAPI.GET("/assignment-materials/:id", assignmentHandler.OpenMaterialFile)
-	assignmentMemberAPI.GET("/questions", trainingQuestionHandler.ListMember)
-	assignmentMemberAPI.POST("/questions", requireSameOriginRequest(cfg), trainingQuestionHandler.Create)
-	assignmentMemberAPI.GET("/questions/:id", trainingQuestionHandler.GetMember)
-	assignmentMemberAPI.POST("/questions/:id/posts", requireSameOriginRequest(cfg), trainingQuestionHandler.ReplyMember)
-	assignmentMemberAPI.PATCH("/questions/:id/solved", requireSameOriginRequest(cfg), trainingQuestionHandler.SetSolvedMember)
-	assignmentMemberAPI.GET("/question-files/:id", trainingQuestionHandler.OpenFile)
-	assignmentMemberAPI.GET("/skills/me", skillsHandler.ListMine)
-	assignmentMemberAPI.POST("/skills/nodes/:id/start", requireSameOriginRequest(cfg), skillsHandler.Start)
-	assignmentMemberAPI.GET("/capabilities/me", capabilitiesHandler.ListMine)
-	expeditionMemberAPI := api.Group("/expedition")
-	expeditionMemberAPI.Use(middleware.RequireAuthenticated(authService))
-	expeditionMemberAPI.GET("/projects", expeditionHandler.ListMine)
-	expeditionMemberAPI.POST("/milestones/:id/evidence", requireSameOriginRequest(cfg), expeditionHandler.SubmitEvidence)
 
 	adminAPI := api.Group("/admin")
 	adminAPI.Use(middleware.RequireAdmin(authService))
 	adminAPI.GET("/timetable-availability/options", availabilityHandler.Options)
 	adminAPI.GET("/timetable-availability/week", availabilityHandler.Week)
 	adminAPI.GET("/timetable-availability", availabilityHandler.Analyze)
-	adminAPI.GET("/practice-projects/groups", practiceHandler.Groups)
-	adminAPI.GET("/practice-projects", practiceHandler.ListAdmin)
-	adminAPI.POST("/practice-projects", requireSameOriginRequest(cfg), practiceHandler.Create)
-	adminAPI.PUT("/practice-projects/:id", requireSameOriginRequest(cfg), practiceHandler.Edit)
-	adminAPI.POST("/practice-projects/:id/close", requireSameOriginRequest(cfg), practiceHandler.Close)
-	adminAPI.POST("/practice-projects/:id/members/:userId/exit", requireSameOriginRequest(cfg), practiceHandler.DecideExit)
-	adminAPI.POST("/practice-projects/:id/submissions/:submissionId/review", requireSameOriginRequest(cfg), practiceHandler.Review)
 	adminAPI.GET("/assignment-members", assignmentHandler.ListGroupMembers)
 	adminAPI.GET("/assignments", assignmentHandler.ListAdmin)
 	adminAPI.POST("/assignments", requireSameOriginRequest(cfg), assignmentHandler.Create)
@@ -242,37 +197,6 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	adminAPI.POST("/assignments/:id/materials", requireSameOriginRequest(cfg), assignmentHandler.UploadMaterialFiles)
 	adminAPI.DELETE("/assignments/:id/materials/:fileId", requireSameOriginRequest(cfg), assignmentHandler.RemoveMaterialFile)
 	adminAPI.POST("/assignments/submissions/:id/reviews", requireSameOriginRequest(cfg), assignmentHandler.Review)
-	adminAPI.GET("/questions", trainingQuestionHandler.ListAdmin)
-	adminAPI.GET("/questions/:id", trainingQuestionHandler.GetAdmin)
-	adminAPI.POST("/questions/:id/posts", requireSameOriginRequest(cfg), trainingQuestionHandler.ReplyAdmin)
-	adminAPI.PATCH("/questions/:id/solved", requireSameOriginRequest(cfg), trainingQuestionHandler.SetSolvedAdmin)
-	adminAPI.PATCH("/questions/:id/faq", requireSameOriginRequest(cfg), trainingQuestionHandler.SetFAQ)
-	adminAPI.GET("/skills/groups", skillsHandler.ListAdminGroups)
-	adminAPI.PUT("/skills/groups/:groupId/layout", requireSameOriginRequest(cfg), skillsHandler.ReorderNodes)
-	adminAPI.GET("/skills/nodes", skillsHandler.ListAdminNodes)
-	adminAPI.POST("/skills/nodes", requireSameOriginRequest(cfg), skillsHandler.CreateNode)
-	adminAPI.PUT("/skills/nodes/:id", requireSameOriginRequest(cfg), skillsHandler.UpdateNode)
-	adminAPI.PATCH("/skills/nodes/:id/active", requireSameOriginRequest(cfg), skillsHandler.SetActive)
-	adminAPI.DELETE("/skills/nodes/:id", requireSameOriginRequest(cfg), skillsHandler.DeleteNode)
-	adminAPI.PUT("/skills/nodes/:id/prerequisites", requireSameOriginRequest(cfg), skillsHandler.SetPrerequisites)
-	adminAPI.PUT("/skills/nodes/:id/assignments", requireSameOriginRequest(cfg), skillsHandler.SetAssignments)
-	adminAPI.GET("/skills/members", skillsHandler.ListMembers)
-	adminAPI.GET("/skills/nodes/:id/members/:userId/history", skillsHandler.MemberHistory)
-	adminAPI.POST("/skills/nodes/:id/members/:userId/reviews", requireSameOriginRequest(cfg), skillsHandler.Review)
-	adminAPI.GET("/capabilities/groups", capabilitiesHandler.ListAdminGroups)
-	adminAPI.GET("/capabilities", capabilitiesHandler.AdminGroup)
-	adminAPI.POST("/capabilities/dimensions", requireSameOriginRequest(cfg), capabilitiesHandler.CreateDimension)
-	adminAPI.PUT("/capabilities/dimensions/:id", requireSameOriginRequest(cfg), capabilitiesHandler.UpdateDimension)
-	adminAPI.DELETE("/capabilities/dimensions/:id", requireSameOriginRequest(cfg), capabilitiesHandler.DeleteDimension)
-	adminAPI.GET("/capabilities/groups/:groupId/members/:userId", capabilitiesHandler.AdminMember)
-	adminAPI.POST("/capabilities/groups/:groupId/members/:userId/reviews", requireSameOriginRequest(cfg), capabilitiesHandler.AddManualReview)
-	adminAPI.GET("/cultivation", cultivationHandler.Group)
-	adminAPI.GET("/cultivation/groups/:groupId/members/:userId", cultivationHandler.Member)
-	adminAPI.PUT("/cultivation/groups/:groupId/members/:userId/focus", requireSameOriginRequest(cfg), cultivationHandler.UpdateFocus)
-	adminAPI.GET("/expedition/projects", expeditionHandler.ListAdmin)
-	adminAPI.GET("/expedition/group-members", expeditionHandler.ListGroupMembers)
-	adminAPI.POST("/expedition/projects", requireSameOriginRequest(cfg), expeditionHandler.CreateProject)
-	adminAPI.POST("/expedition/milestones/:id/review", requireSameOriginRequest(cfg), expeditionHandler.ReviewMilestone)
 	adminAPI.GET("/user-groups/options", userGroupHandler.ListGroupOptions)
 	adminAPI.GET("/admission-qr/:filename", userGroupHandler.OpenAdmissionQRCode)
 	adminAPI.GET("/school-leave/summary", leaveHandler.AdminSchoolSummary)
@@ -353,7 +277,6 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	authenticatedAPI.GET("/user-group/confirmation", userGroupMembershipHandler.CurrentState)
 	authenticatedAPI.POST("/user-group/confirmation", userGroupMembershipHandler.Confirm)
 	authenticatedAPI.GET("/weekly-reports", weeklyReportHandler.GetDashboard)
-	authenticatedAPI.GET("/growth/me", growthHandler.GetMine)
 	authenticatedAPI.GET("/weekly-reports/team", weeklyReportHandler.GetTeamWeek)
 	authenticatedAPI.POST("/weekly-reports/:id/attachments", requireSameOriginRequest(cfg), weeklyReportHandler.UploadAttachments)
 	authenticatedAPI.DELETE("/weekly-reports/:id/attachments/:fileId", requireSameOriginRequest(cfg), weeklyReportHandler.DeleteAttachment)

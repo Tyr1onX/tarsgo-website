@@ -56,14 +56,14 @@ test("weekly reports support retryable private attachment upload, download, and 
   assert.match(service, /CreateReportAttachments\(ctx, actor\.ID, reportID, rows\)/);
 });
 
-test("the in-workbench guide covers the current member and administrator flows", async () => {
+test("the in-workbench guide documents open daily and assignment flows", async () => {
   const guide = await readFile(new URL("../routes/dashboard/guide.tsx", import.meta.url), "utf8");
   const routeConfig = await readFile(new URL("../routes.ts", import.meta.url), "utf8");
   assert.match(routeConfig, /route\("guide", "routes\/dashboard\/guide\.tsx"\)/);
-  for (const phrase of ["个人资料", "课程时间", "我的作业", "实践项目", "能力评价", "我的成长", "时间协调", "能力评价管理", "人员培养"]) {
+  for (const phrase of ["个人资料", "课程时间", "工作周报", "请假工作台", "我的作业", "提交记录", "时间协调", "其他培养入口暂未开放"]) {
     assert.match(guide, new RegExp(phrase));
   }
-  assert.match(guide, /点击“登录”/);
-  assert.match(guide, /批改意见和完成状态/);
+  assert.match(guide, /提交成果并查看批改反馈/);
+  assert.doesNotMatch(guide, /to="\/dashboard\/(practice-projects|growth|questions|skills|capabilities|expedition)/);
   assert.doesNotMatch(guide, /原始作业分数|项目内部评分/);
 });

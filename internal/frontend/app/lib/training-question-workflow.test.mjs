@@ -14,12 +14,13 @@ const thread = await source("../components/training-question-thread.tsx");
 const memberRoute = await source("../routes/dashboard/training-questions.tsx");
 const adminRoute = await source("../routes/admin/training-question-management.tsx");
 
-test("training Q&A is integrated into the existing member and newcomer-training routes", () => {
+test("paused Q&A pages remain in source but reject direct frontend entry", () => {
   assert.match(routes, /route\("questions", "routes\/dashboard\/training-questions\.tsx"\)/);
   assert.match(routes, /route\("admin\/training\/questions", "routes\/admin\/training-question-management\.tsx"\)/);
-  assert.match(navigation, /label: "提问答疑"[\s\S]*?href: "\/dashboard\/questions"/);
-  assert.match(navigation, /label: "答疑管理"[\s\S]*?href: "\/dashboard\/admin\/training\/questions"/);
-  assert.match(navigation, /hasTechnicalGroup && \["user", "admin", "super_admin"\]/);
+  assert.doesNotMatch(navigation, /label: "提问答疑"|label: "答疑管理"/);
+  assert.match(navigation, /"\/dashboard\/questions"/);
+  assert.match(navigation, /"\/dashboard\/admin\/training\/questions"/);
+  assert.match(navigation, /isTemporarilyUnavailableDashboardPath/);
 });
 
 test("member and admin Q&A routes keep derived group options stable during list loading", () => {
@@ -28,9 +29,10 @@ test("member and admin Q&A routes keep derived group options stable during list 
   }
 });
 
-test("member writes are authenticated and same-origin; management routes require admin role", () => {
-  assert.match(router, /assignmentMemberAPI\.Use\(middleware\.RequireAuthenticated\(authService\)\)[\s\S]*?GET\("\/questions"[\s\S]*?POST\("\/questions", requireSameOriginRequest/);
-  assert.match(router, /adminAPI\.Use\(middleware\.RequireAdmin\(authService\)\)[\s\S]*?GET\("\/questions"[\s\S]*?PATCH\("\/questions\/:id\/faq", requireSameOriginRequest/);
+test("Q&A APIs are paused while service logic and historical schema remain", () => {
+  assert.doesNotMatch(router, /trainingQuestionHandler|GET\("\/questions"|POST\("\/questions"/);
+  assert.match(service, /func \(s \*Service\) Create/);
+  assert.match(migrations, /&model\.TrainingQuestion\{\}/);
 });
 
 test("service scopes member searches, private reads, manager writes and FAQ eligibility on the backend", () => {
