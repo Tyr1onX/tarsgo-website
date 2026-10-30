@@ -87,7 +87,10 @@ test("admin navigation keeps open recruitment, account, assignment, and timetabl
   const superAdminMenu = getVisibleAdminDashboardMenu("super_admin");
   assert.deepEqual(superAdminMenu.map(({ key }) => key), ["recruitment-operations", "newcomer-training", "member-management", "email-management"]);
   assert.deepEqual(superAdminMenu.find(({ key }) => key === "newcomer-training")?.children.map(({ key }) => key), ["assignment-management", "assignment-submissions"]);
-  assert.deepEqual(superAdminMenu.find(({ key }) => key === "member-management")?.children.map(({ key }) => key), ["accounts", "timetable-availability"]);
+  assert.deepEqual(superAdminMenu.find(({ key }) => key === "member-management")?.children.map(({ key }) => key), ["accounts", "organization-preview", "timetable-availability"]);
+  assert.equal(canAccessDashboardAdminPath("super_admin", "/dashboard/admin/organization-preview"), true);
+  assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/organization-preview"), false);
+  assert.equal(canAccessDashboardAdminPath("user", "/dashboard/admin/organization-preview"), false);
   assert.equal(hasDashboardAdminAccess("admin"), true);
   assert.equal(hasDashboardAdminAccess("user"), false);
 });

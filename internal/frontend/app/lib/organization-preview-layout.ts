@@ -1,4 +1,4 @@
-import { ORGANIZATION_PREVIEW, type OrganizationCategory } from "../data/organization-preview.ts";
+import type { OrganizationCategory } from "../data/organization-preview.ts";
 
 export interface OrganizationBox {
   x: number;
@@ -56,13 +56,12 @@ function categoryHeight(category: OrganizationCategory, isExpanded: boolean) {
  * tallest expanded category, so expanding a group moves later rows instead of
  * letting nodes overlap.
  */
-export function layoutOrganizationPreview(viewportWidth: number, expandedCategoryIDs: ReadonlySet<string>): OrganizationPreviewLayout {
+export function layoutOrganizationPreview(viewportWidth: number, expandedCategoryIDs: ReadonlySet<string>, categories: readonly OrganizationCategory[]): OrganizationPreviewLayout {
   const width = Math.max(320, Math.floor(viewportWidth));
   const columns = width < 760 ? 1 : width < 960 ? 2 : width < 1120 ? 3 : 4;
   const margin = columns === 1 ? MOBILE_MARGIN : WIDE_MARGIN;
   const gap = columns === 1 ? 14 : 16;
   const categoryWidth = (width - margin * 2 - gap * (columns - 1)) / columns;
-  const categories = ORGANIZATION_PREVIEW.categories;
   const panels = categories.map((category, index) => ({
     category,
     index,

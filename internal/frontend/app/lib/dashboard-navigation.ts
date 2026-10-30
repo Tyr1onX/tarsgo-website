@@ -213,6 +213,12 @@ const ADMIN_MENU: readonly DashboardMenuDefinition[] = [
         allowedRoles: ["super_admin"],
       },
       {
+        key: "organization-preview",
+        label: "组织架构预览",
+        href: "/dashboard/admin/organization-preview",
+        allowedRoles: ["super_admin"],
+      },
+      {
         key: "timetable-availability",
         label: "时间协调",
         href: "/dashboard/admin/timetable-availability",

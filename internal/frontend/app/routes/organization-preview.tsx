@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
 import { Link } from "react-router";
 
-import { ORGANIZATION_PREVIEW, type OrganizationCategory } from "~/data/organization-preview";
+import type { OrganizationCategory, OrganizationPreview } from "~/data/organization-preview";
+import { apiRequest } from "~/lib/api-client";
 import { layoutOrganizationPreview, type OrganizationBox } from "~/lib/organization-preview-layout";
 import type { Route } from "./+types/organization-preview";
 import "./organization-preview.css";
@@ -94,10 +95,21 @@ export default function OrganizationPreviewPage() {
   const [viewportHeight, setViewportHeight] = useState(620);
   const [viewportMeasured, setViewportMeasured] = useState(false);
   const [zoom, setZoom] = useState(1);
-  const [expandedIDs, setExpandedIDs] = useState<Set<string>>(() => new Set(ORGANIZATION_PREVIEW.categories.map(({ id }) => id)));
-  const layout = useMemo(() => layoutOrganizationPreview(viewportWidth, expandedIDs), [viewportWidth, expandedIDs]);
+  const [data, setData] = useState<OrganizationPreview | null>(null);
+  const [loadError, setLoadError] = useState("");
+  const [expandedIDs, setExpandedIDs] = useState<Set<string>>(() => new Set());
+  const layout = useMemo(() => layoutOrganizationPreview(viewportWidth, expandedIDs, data?.categories ?? []), [viewportWidth, expandedIDs, data]);
   const layoutRef = useRef(layout);
   layoutRef.current = layout;
+
+  useEffect(() => {
+    apiRequest<OrganizationPreview>("/api/admin/organization-preview")
+      .then((result) => {
+        setData(result);
+        setExpandedIDs(new Set(result.categories.map(({ id }) => id)));
+      })
+      .catch((error: unknown) => setLoadError(error instanceof Error ? error.message : "无法读取组织架构"));
+  }, []);
 
   useEffect(() => {
     const viewport = viewportRef.current;
@@ -109,7 +121,7 @@ export default function OrganizationPreviewPage() {
     });
     resizeObserver.observe(viewport);
     return () => resizeObserver.disconnect();
-  }, []);
+  }, [data]);
 
   const fitToScreen = useCallback((isInitial = false) => {
     const viewport = viewportRef.current;
@@ -164,12 +176,16 @@ export default function OrganizationPreviewPage() {
     setZoom((current) => Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.round((current + amount) * 100) / 100)));
   }
 
+  if (!data) {
+    return <main className="organization-preview" role="status">{loadError || "正在加载组织架构…"}</main>;
+  }
+
   return (
     <main className="organization-preview">
       <header className="organization-preview__header">
         <div className="organization-preview__brandline">
-          <Link to="/" className="organization-preview__back">← 返回官网</Link>
-          <span className="organization-preview__preview-tag">本地预览</span>
+          <Link to="/dashboard" className="organization-preview__back">← 返回工作台</Link>
+          <span className="organization-preview__preview-tag">预览</span>
         </div>
         <p className="organization-preview__eyebrow">TARSGO / TEAM MAP</p>
         <h1>吉甲大师组织架构</h1>
@@ -210,20 +226,20 @@ export default function OrganizationPreviewPage() {
             aria-label="吉甲大师战队负责人和岗位分类"
           >
             <path className="organization-preview__confirmed-link" d={layout.leaderConnector} />
-            <g className="organization-preview__team-root" role="group" aria-label={ORGANIZATION_PREVIEW.team.title}>
+            <g className="organization-preview__team-root" role="group" aria-label={data.team.title}>
               <rect x={layout.team.x} y={layout.team.y} width={layout.team.width} height={layout.team.height} rx="12" />
-              <text x={layout.width / 2} y={layout.team.y + 36}>{ORGANIZATION_PREVIEW.team.title}</text>
+              <text x={layout.width / 2} y={layout.team.y + 36}>{data.team.title}</text>
             </g>
-            <g className="organization-preview__captain" role="group" aria-label={`${ORGANIZATION_PREVIEW.leader.title}：${ORGANIZATION_PREVIEW.leader.name}`}>
+            <g className="organization-preview__captain" role="group" aria-label={`${data.leader.title}：${data.leader.name}`}>
               <rect x={layout.leader.x} y={layout.leader.y} width={layout.leader.width} height={layout.leader.height} rx="11" />
-              <text className="organization-preview__captain-role" x={layout.width / 2} y={layout.leader.y + 28}>{ORGANIZATION_PREVIEW.leader.title}</text>
-              <text className="organization-preview__captain-name" x={layout.width / 2} y={layout.leader.y + 53}>{ORGANIZATION_PREVIEW.leader.name}</text>
+              <text className="organization-preview__captain-role" x={layout.width / 2} y={layout.leader.y + 28}>{data.leader.title}</text>
+              <text className="organization-preview__captain-name" x={layout.width / 2} y={layout.leader.y + 53}>{data.leader.name}</text>
             </g>
-            <text className="organization-preview__classification-note" x={layout.width / 2} y={layout.categories[0].y - 19}>
+            <text className="organization-preview__classification-note" x={layout.width / 2} y={(layout.categories[0]?.y ?? 254) - 19}>
               以下为岗位分类展示 · 分类不代表汇报关系
             </text>
             {layout.categories.map((categoryBox) => {
-              const category = ORGANIZATION_PREVIEW.categories.find(({ id }) => id === categoryBox.id);
+              const category = data.categories.find(({ id }) => id === categoryBox.id);
               if (!category) return null;
               return (
                 <CategoryPanel
