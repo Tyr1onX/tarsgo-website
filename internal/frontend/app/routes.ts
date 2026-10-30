@@ -6,6 +6,7 @@ export default [
   route("robots", "routes/robots.tsx"),
   route("events-and-honors", "routes/events-and-honors.tsx"),
   route("team-history", "routes/team-history.tsx"),
+  route("organization-preview", "routes/organization-preview.tsx"),
   route("join", "routes/join.tsx"),
   route("base", "routes/base.tsx"),
   route("daily-signal", "routes/daily-signal.tsx"),
