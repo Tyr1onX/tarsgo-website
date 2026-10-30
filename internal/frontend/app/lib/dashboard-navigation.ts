@@ -315,7 +315,7 @@ export function getGrowthDashboardTabs(userOrRole: AuthUser | string, hasSkillGr
   const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
   const tabs: GrowthDashboardTab[] = [{ key: "profile", label: "成长档案" }];
   if (hasCapabilityGroup) {
-    tabs.push({ key: "capabilities", label: "能力雷达" });
+    tabs.push({ key: "capabilities", label: "能力评价" });
   }
   if (hasSkillGroup || roleName === "super_admin") {
     tabs.push({ key: "skills", label: "技能树" });
