@@ -147,7 +147,7 @@ test("assignment lifecycle retains history, blocks submissions after withdrawal,
   assert.match(backendRoutes, /adminAPI\.DELETE\("\/assignments\/:id", requireSameOriginRequest\(cfg\), assignmentHandler\.Delete\)/);
   assert.match(assignmentService, /func \(s \*Service\) SetPublicationStatus/);
   assert.match(assignmentService, /func \(s \*Service\) Delete/);
-  assert.match(assignmentService, /作业已撤回，当前不能提交或重新提交/);
+  assert.match(assignmentService, /func requireMemberAssignmentPublished\(item model\.Assignment\) error \{[\s\S]*?notFound\("作业不存在"\)/);
   assert.match(assignmentService, /请先撤回作业，再删除/);
   assert.match(assignmentService, /已有提交、审核、技能关联或成长依据/);
   assert.match(assignmentService, /PublicationStatus: model\.AssignmentPublicationPublished/);
