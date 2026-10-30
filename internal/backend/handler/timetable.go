@@ -60,13 +60,49 @@ func (h *TimetableHandler) Import(c *gin.Context) {
 		writeAPIError(c, 413, "课表文件不能超过5 MB")
 		return
 	}
-	result, err := h.service.Import(c.Request.Context(), timetableUserID(c), c.PostForm("semester"), files[0].Filename, data)
+	result, err := h.service.Import(c.Request.Context(), timetableUserID(c), files[0].Filename, data)
 	if err != nil {
 		h.fail(c, err)
 		return
 	}
 	writeAPI(c, http.StatusOK, "课表已导入", result)
 }
+
+func (h *TimetableHandler) CleanupCount(c *gin.Context) {
+	user, ok := middleware.CurrentSessionUser(c)
+	if !ok || user == nil {
+		writeAPIError(c, http.StatusUnauthorized, "请先登录")
+		return
+	}
+	count, err := h.service.CountAll(c.Request.Context(), user.ID, user.Role.Name)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "获取课表数量成功", gin.H{"count": count})
+}
+
+func (h *TimetableHandler) ClearAll(c *gin.Context) {
+	user, ok := middleware.CurrentSessionUser(c)
+	if !ok || user == nil {
+		writeAPIError(c, http.StatusUnauthorized, "请先登录")
+		return
+	}
+	var input struct {
+		ExpectedCount int64 `json:"expectedCount"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil || input.ExpectedCount < 0 {
+		writeAPIError(c, http.StatusBadRequest, "课表数量无效")
+		return
+	}
+	result, err := h.service.ClearAll(c.Request.Context(), user.ID, user.Role.Name, input.ExpectedCount)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "课表已清空", result)
+}
+
 func (h *TimetableHandler) fail(c *gin.Context, err error) {
 	var serviceErr *timetable.Error
 	if errors.As(err, &serviceErr) {

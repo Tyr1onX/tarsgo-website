@@ -257,10 +257,10 @@ func normalizeRegisterEmailInput(input RegisterEmailInput) (*normalizedRegisterE
 		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "邮箱、密码和验证码不能为空"}
 	}
 	if normalized.RealName == "" || normalized.Phone == "" {
-		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "真实姓名和手机号不能为空"}
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "姓名和手机号不能为空"}
 	}
 	if !isChineseRealName(normalized.RealName) {
-		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "真实姓名需为汉字"}
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "姓名需为汉字"}
 	}
 	if !isValidMainlandMobile(normalized.Phone) {
 		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "请输入正确的 11 位手机号"}
@@ -695,13 +695,17 @@ func (s *Service) loadUserWithRoleTx(tx *gorm.DB, userID uint64) (*model.User, e
 }
 
 func toSessionUser(user *model.User) SessionUser {
+	var realName *string
+	if preferredName := user.PreferredName(); preferredName != "" {
+		realName = &preferredName
+	}
 	return SessionUser{
 		ID:        user.ID,
 		Email:     user.Email,
 		Phone:     user.Phone,
 		Nickname:  user.Nickname,
 		AvatarURL: user.AvatarURL,
-		RealName:  user.RealName,
+		RealName:  realName,
 		Role: SessionRole{
 			ID:          user.Role.ID,
 			Name:        user.Role.Name,

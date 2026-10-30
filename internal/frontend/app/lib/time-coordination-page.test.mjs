@@ -4,11 +4,23 @@ import test from "node:test";
 
 const page = await readFile(new URL("../routes/admin/timetable-availability.tsx", import.meta.url), "utf8");
 
-test("time coordination defaults through the shared term calendar and keeps manual filters", () => {
+test("time coordination uses the configured current term without a semester selector", () => {
   assert.match(page, /resolveCurrentTeachingWeek/);
-  for (const label of ["组别", "学期", "教学周", "查看对象"]) assert.match(page, new RegExp(`aria-label=\"${label}\"`));
+  for (const label of ["组别", "教学周", "查看对象"]) assert.match(page, new RegExp(`aria-label=\"${label}\"`));
+  assert.doesNotMatch(page, /aria-label=\"学期\"|options\.semesters|semester=\{/);
+  assert.match(page, /options\?\.currentSemester/);
+  assert.match(page, /options\.firstWeekStart/);
   assert.match(page, /第 \$\{week\} 周/);
-  assert.match(page, /尚未配置/);
+  assert.match(page, /请选择教学周/);
+});
+
+test("only super admins can open the count-confirmed global timetable cleanup", () => {
+  assert.match(page, /currentUser\.role\.name === "super_admin"/);
+  assert.match(page, /getTimetableCleanupPreview\(\)/);
+  assert.match(page, /即将删除全站/);
+  assert.match(page, /clearAllTimetables\(clearPreview\)/);
+  assert.match(page, /setClearRevision/);
+  assert.match(page, /确认清空/);
 });
 
 test("member details live in an on-demand dialog and the persistent interval controls are removed", () => {

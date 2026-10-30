@@ -1,9 +1,9 @@
 import { apiRequest } from "./api-client.ts";
 
-export interface AvailabilityGroup {groupId:number;name:string;semesters:string[]}
-export interface AvailabilityOptions {groups:AvailabilityGroup[]}
+export interface AvailabilityGroup {groupId:number;name:string}
+export interface AvailabilityOptions {groups:AvailabilityGroup[];currentSemester:string;firstWeekStart:string;teachingWeekCount:number}
 export type AvailabilityStatus="free"|"conflict"|"missing";
-export type MissingReason = "not_imported" | "semester_mismatch" | "invalid_data" | "uncertain_courses";
+export type MissingReason = "not_imported" | "invalid_data";
 export interface WeekSlot { weekday: number; startSection: number; endSection: number }
 export interface WeekMember {
  userId:number; name:string; missingReason?:MissingReason;
@@ -13,7 +13,7 @@ export interface AvailabilityWeek {
  groupId:number; groupName:string; semester:string; week:number;
  totalCount:number; importedCount:number; missingCount:number; members:WeekMember[];
 }
-export function getAvailabilityWeek(input:{groupId:number;semester:string;week:number}){
+export function getAvailabilityWeek(input:{groupId:number;week:number}){
  const params=new URLSearchParams(Object.entries(input).map(([key,value])=>[key,String(value)]));
  return apiRequest<AvailabilityWeek>(`/api/admin/timetable-availability/week?${params}`);
 }
@@ -36,3 +36,8 @@ export function filterAvailabilityMembers(members:WeekMember[],weekday:number,st
  return members.filter(member=>intervalStatus(member,weekday,startSection,endSection)===status);
 }
 export function getAvailabilityOptions(){return apiRequest<AvailabilityOptions>("/api/admin/timetable-availability/options")}
+
+export interface TimetableCleanupPreview {count:number}
+export interface TimetableCleanupResult {deletedCount:number}
+export function getTimetableCleanupPreview(){return apiRequest<TimetableCleanupPreview>("/api/admin/timetable-availability/cleanup")}
+export function clearAllTimetables(expectedCount:number){return apiRequest<TimetableCleanupResult>("/api/admin/timetable-availability/cleanup",{method:"POST",body:JSON.stringify({expectedCount})})}

@@ -459,7 +459,7 @@ func (s *Service) calculate(ctx context.Context, groupID uint64, userIDs []uint6
 			assignment_reviews.id AS review_id, assignment_submissions.assignment_id, assignment_submissions.user_id,
 			assignment_submissions.attempt, assignment_reviews.score, assignment_reviews.decision, assignment_reviews.comment,
 			assignment_reviews.reviewer_id, assignment_reviews.created_at AS evaluated_at,
-			COALESCE(NULLIF(reviewer.nickname, ''), NULLIF(reviewer.real_name, ''), reviewer.name) AS reviewer_name`).
+			COALESCE(NULLIF(TRIM(reviewer.real_name), ''), NULLIF(TRIM(reviewer.nickname), ''), reviewer.name) AS reviewer_name`).
 			Joins("JOIN assignment_submissions ON assignment_submissions.id = assignment_reviews.submission_id").
 			Joins("JOIN assignments ON assignments.id = assignment_submissions.assignment_id").
 			Joins("LEFT JOIN users AS reviewer ON reviewer.id = assignment_reviews.reviewer_id").
@@ -485,7 +485,7 @@ func (s *Service) calculate(ctx context.Context, groupID uint64, userIDs []uint6
 			practice_submissions.id AS submission_id, practice_submissions.project_id, practice_submissions.user_id,
 			practice_submissions.attempt, practice_submissions.score, practice_submissions.decision, practice_submissions.comment,
 			practice_submissions.reviewed_at AS evaluated_at,
-			COALESCE(NULLIF(reviewer.nickname, ''), NULLIF(reviewer.real_name, ''), reviewer.name) AS reviewer_name`).
+			COALESCE(NULLIF(TRIM(reviewer.real_name), ''), NULLIF(TRIM(reviewer.nickname), ''), reviewer.name) AS reviewer_name`).
 			Joins("JOIN practice_projects ON practice_projects.id = practice_submissions.project_id").
 			Joins("LEFT JOIN users AS reviewer ON reviewer.id = practice_submissions.reviewer_id").
 			Where("practice_projects.group_id = ? AND practice_projects.id IN ? AND practice_submissions.user_id IN ? AND practice_submissions.score IS NOT NULL AND practice_submissions.reviewed_at IS NOT NULL AND practice_submissions.decision IN ?", groupID, uniqueIDs(projectIDs), userIDs, []string{model.PracticeReviewPassed, model.PracticeReviewRedo}).
@@ -850,11 +850,8 @@ func notFoundOrInternal(err error, notFoundMessage, internalMessage string) erro
 }
 
 func displayName(name string, nickname, realName *string) string {
-	if realName != nil && strings.TrimSpace(*realName) != "" {
-		return strings.TrimSpace(*realName)
-	}
-	if nickname != nil && strings.TrimSpace(*nickname) != "" {
-		return strings.TrimSpace(*nickname)
+	if preferredName := (model.User{Name: name, Nickname: nickname, RealName: realName}).PreferredName(); preferredName != "" {
+		return preferredName
 	}
 	if strings.TrimSpace(name) != "" {
 		return strings.TrimSpace(name)

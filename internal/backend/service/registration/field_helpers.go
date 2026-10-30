@@ -19,7 +19,7 @@ var registrationLockedFieldSpecs = []lockedRegistrationFieldSpec{
 		Key:         "name",
 		FieldType:   "text",
 		Label:       "姓名",
-		Placeholder: "请输入真实姓名",
+		Placeholder: "请输入姓名",
 	},
 	{
 		Key:         "phone",

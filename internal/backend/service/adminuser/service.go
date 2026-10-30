@@ -574,9 +574,13 @@ func toUserListItem(user *model.User) UserListItem {
 			activeCount++
 		}
 	}
+	name := user.PreferredName()
+	if name == "" {
+		name = strings.TrimSpace(user.Name)
+	}
 	return UserListItem{
 		ID:             user.ID,
-		Name:           user.Name,
+		Name:           name,
 		Email:          user.Email,
 		Role:           toRoleRef(user.Role),
 		Status:         user.Status,
@@ -591,6 +595,10 @@ func toUserListItem(user *model.User) UserListItem {
 }
 
 func toUserDetail(user *model.User) UserDetail {
+	var realName *string
+	if preferredName := user.PreferredName(); preferredName != "" {
+		realName = &preferredName
+	}
 	detail := UserDetail{
 		ID:                 user.ID,
 		Name:               user.Name,
@@ -601,7 +609,7 @@ func toUserDetail(user *model.User) UserDetail {
 		LastLoginAt:        user.LastLoginAt,
 		CreatedAt:          user.CreatedAt,
 		UpdatedAt:          user.UpdatedAt,
-		RealName:           user.RealName,
+		RealName:           realName,
 		Phone:              user.Phone,
 		RecruitmentHistory: []RecruitmentHistoryItem{},
 		Groups:             mapUserGroupMemberships(user.GroupMembers),

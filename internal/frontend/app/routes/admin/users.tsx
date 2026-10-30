@@ -419,9 +419,9 @@ export default function AccountManagement() {
                   <h3 className="text-sm font-semibold text-[var(--admin-text)]">账号信息</h3>
                   <p className="text-xs text-[var(--admin-muted)]">账号 ID：{editing.id} · 最近登录：{formatDate(editing.lastLoginAt)}</p>
                 </section>
-                <section className="space-y-2" aria-label="实名资料">
-                  <h3 className="text-sm font-semibold text-[var(--admin-text)]">实名资料</h3>
-                  <p className="text-xs text-[var(--admin-muted)]">真实姓名：{editing.realName || "未填写"} · 手机号：{editing.phone || "未填写"}</p>
+                <section className="space-y-2" aria-label="姓名">
+                  <h3 className="text-sm font-semibold text-[var(--admin-text)]">姓名</h3>
+                  <p className="text-xs text-[var(--admin-muted)]">{editing.realName || "未填写"} · 手机号：{editing.phone || "未填写"}</p>
                 </section>
                 <section className="space-y-2" aria-label="用户所属组别">
                   <h3 className="text-sm font-semibold text-[var(--admin-text)]">所属组别</h3>

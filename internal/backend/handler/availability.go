@@ -5,7 +5,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"strconv"
-	"strings"
 	"tarsgo-backend/service/availability"
 )
 
@@ -48,7 +47,7 @@ func (h *AvailabilityHandler) Week(c *gin.Context) {
 		return
 	}
 	result, err := h.service.AnalyzeWeek(c.Request.Context(), actor, availability.Filter{
-		GroupID: groupID, Semester: strings.TrimSpace(c.Query("semester")), Week: week,
+		GroupID: groupID, Week: week,
 	})
 	if err != nil {
 		h.fail(c, err)
@@ -79,7 +78,7 @@ func (h *AvailabilityHandler) Analyze(c *gin.Context) {
 		writeAPIError(c, 400, "教学周、星期或节次无效")
 		return
 	}
-	result, err := h.service.Analyze(c.Request.Context(), actor, availability.Filter{GroupID: groupID, Semester: strings.TrimSpace(c.Query("semester")), Week: week, Weekday: weekday, StartSection: start, EndSection: end})
+	result, err := h.service.Analyze(c.Request.Context(), actor, availability.Filter{GroupID: groupID, Week: week, Weekday: weekday, StartSection: start, EndSection: end})
 	if err != nil {
 		h.fail(c, err)
 		return

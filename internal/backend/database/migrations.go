@@ -145,7 +145,29 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 33, apply: func(db *gorm.DB) error {
 			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.WeeklyReportAttachment{})
 		}},
+		{version: 34, apply: migrateCanonicalUserNames},
 	}
+}
+
+func migrateCanonicalUserNames(db *gorm.DB) error {
+	return backfillCanonicalUserNamesForTable(db, "users")
+}
+
+func backfillCanonicalUserNamesForTable(db *gorm.DB, tableName string) error {
+	if tableName == "" {
+		return fmt.Errorf("user table name is empty")
+	}
+	for _, character := range tableName {
+		if !(character == '_' || character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z' || character >= '0' && character <= '9') {
+			return fmt.Errorf("invalid user table name")
+		}
+	}
+	quotedTable := "`" + tableName + "`"
+	query := "UPDATE " + quotedTable + " SET `real_name` = TRIM(`nickname`) WHERE (`real_name` IS NULL OR TRIM(`real_name`) = '') AND `nickname` IS NOT NULL AND TRIM(`nickname`) <> ''"
+	if err := db.Exec(query).Error; err != nil {
+		return fmt.Errorf("backfill canonical user names: %w", err)
+	}
+	return nil
 }
 
 func migrateWeeklyReportExperienceFields(db *gorm.DB) error {

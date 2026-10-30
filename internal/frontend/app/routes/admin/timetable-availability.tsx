@@ -4,6 +4,7 @@ import { useOutletContext } from "react-router";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import {
   getAvailabilityOptions, getAvailabilityWeek, availabilityCounts, availabilityFreeRatio, filterAvailabilityMembers, intervalStatus,
+  clearAllTimetables, getTimetableCleanupPreview,
   type AvailabilityOptions, type AvailabilityWeek, type AvailabilityStatus,
 } from "~/lib/availability-client";
 import { resolveCurrentTeachingWeek } from "~/lib/academic-term-calendar";
@@ -18,9 +19,7 @@ const CATEGORIES: { key: AvailabilityStatus; label: string }[] = [
   { key: "missing", label: "数据缺失" },
 ];
 function missingReason(reason?: string) {
-  if (reason === "semester_mismatch") return "未导入所选学期";
   if (reason === "invalid_data") return "课表数据异常";
-  if (reason === "uncertain_courses") return "课表含时间未确定课程";
   return "未上传课表";
 }
 function statusLabel(status: AvailabilityStatus) {
@@ -35,7 +34,6 @@ export default function TimeCoordinationPage() {
   const [openedAt] = useState(() => new Date());
   const [options, setOptions] = useState<AvailabilityOptions | null>(null);
   const [groupId, setGroupId] = useState(0);
-  const [semester, setSemester] = useState("");
   const [week, setWeek] = useState(0);
   const [result, setResult] = useState<AvailabilityWeek | null>(null);
   const [memberId, setMemberId] = useState(0);
@@ -43,12 +41,17 @@ export default function TimeCoordinationPage() {
   const [loading, setLoading] = useState(true);
   const [querying, setQuerying] = useState(false);
   const [error, setError] = useState("");
+  const [clearPreview, setClearPreview] = useState<number | null>(null);
+  const [clearLoading, setClearLoading] = useState(false);
+  const [clearError, setClearError] = useState("");
+  const [clearNotice, setClearNotice] = useState("");
+  const [clearRevision, setClearRevision] = useState(0);
   const request = useRef(0);
   const optionsRequest = useRef(0);
   const closeButton = useRef<HTMLButtonElement>(null);
-  const calendarWeek = semester.trim() ? resolveCurrentTeachingWeek(semester, openedAt) : null;
+  const calendarWeek = options ? resolveCurrentTeachingWeek(options.firstWeekStart, openedAt, options.teachingWeekCount) : null;
   const weekNotice = calendarWeek?.status === "unconfigured"
-    ? `该学期尚未配置第一教学周日期，无法自动定位。请在统一教学周配置中补充日期；也可手动选择教学周${week > 0 ? `，当前查看第 ${week} 周` : ""}。`
+    ? `当前学期教学周配置无效，暂按手动选择的第 ${week || 1} 周查看。`
     : calendarWeek?.status === "before"
       ? `当前日期早于本学期首周（${calendarWeek.firstWeekStart}），暂按第 ${week || 1} 周查看。`
       : calendarWeek?.status === "after"
@@ -84,10 +87,8 @@ export default function TimeCoordinationPage() {
       if (optionsRequest.current !== id) return;
       setOptions(value);
       const initialGroup = value.groups[0];
-      const initialSemester = initialGroup?.semesters[0] ?? "";
       setGroupId(initialGroup?.groupId ?? 0);
-      setSemester(initialSemester);
-      setWeek(initialSemester ? resolveCurrentTeachingWeek(initialSemester, openedAt).week ?? 0 : 0);
+      setWeek(resolveCurrentTeachingWeek(value.firstWeekStart, openedAt, value.teachingWeekCount).week ?? 0);
     }).catch(cause => {
       if (optionsRequest.current === id) setError(failMessage(cause));
     }).finally(() => { if (optionsRequest.current === id) setLoading(false); });
@@ -97,18 +98,18 @@ export default function TimeCoordinationPage() {
   useEffect(() => {
     const id = ++request.current;
     setResult(null); setQuerying(false); setMemberId(0); setSelectedSlot(null);
-    if (!groupId || !semester.trim() || week < 1) return;
+    if (!groupId || week < 1) return;
     setQuerying(true); setError("");
-    void getAvailabilityWeek({ groupId, semester: semester.trim(), week }).then(value => {
+    void getAvailabilityWeek({ groupId, week }).then(value => {
       if (request.current === id) setResult(value);
     }).catch(cause => {
       if (request.current === id) setError(failMessage(cause));
     }).finally(() => { if (request.current === id) setQuerying(false); });
     return () => { request.current++; };
-  }, [groupId, semester, week]);
+  }, [groupId, week, clearRevision]);
 
-  const group = options?.groups.find(g => g.groupId === groupId);
   const member = result?.members.find(m => m.userId === memberId);
+  const isSuperAdmin = currentUser.role.name === "super_admin";
   const selectedCounts = result && selectedSlot
     ? availabilityCounts(result.members, selectedSlot.weekday, selectedSlot.section, selectedSlot.section)
     : null;
@@ -137,36 +138,65 @@ export default function TimeCoordinationPage() {
     return ratio === null ? undefined : { backgroundColor: `rgb(5 150 105 / ${0.08 + ratio * 0.58})` };
   };
 
+  async function openClearConfirmation() {
+    setClearError("");
+    setClearNotice("");
+    setClearLoading(true);
+    try {
+      const preview = await getTimetableCleanupPreview();
+      setClearPreview(preview.count);
+    } catch (cause) {
+      setClearError(failMessage(cause));
+    } finally {
+      setClearLoading(false);
+    }
+  }
+
+  async function confirmClearAll() {
+    if (clearPreview === null || clearLoading) return;
+    setClearLoading(true);
+    setClearError("");
+    try {
+      const result = await clearAllTimetables(clearPreview);
+      setClearPreview(null);
+      setClearNotice(`已清空 ${result.deletedCount} 份课表`);
+      setClearRevision(value => value + 1);
+    } catch (cause) {
+      setClearPreview(null);
+      setClearError(failMessage(cause));
+    } finally {
+      setClearLoading(false);
+    }
+  }
+
   return <main className="admin-design mx-auto w-full max-w-7xl space-y-5 px-4 py-6 sm:px-6">
-    <header>
-      <h1 className="text-2xl font-semibold">时间协调</h1>
-      <p className="mt-2 text-sm text-[var(--admin-muted)]">无课程冲突仅表示课表中未发现时间重叠，不代表成员已确认可以参加。</p>
+    <header className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <h1 className="text-2xl font-semibold">时间协调</h1>
+        <p className="mt-2 text-sm text-[var(--admin-muted)]">当前学期：{options?.currentSemester ?? "读取中"}</p>
+        <p className="mt-1 text-sm text-[var(--admin-muted)]">无课程冲突仅表示课表中未发现时间重叠，不代表成员已确认可以参加。</p>
+      </div>
+      {isSuperAdmin ? <button type="button" className="btn-glass rounded-lg px-4 py-2 text-sm" disabled={clearLoading} onClick={() => void openClearConfirmation()}>
+        {clearLoading && clearPreview === null ? "读取课表数量…" : "清空课表"}
+      </button> : null}
     </header>
+    {clearError ? <p role="alert" className="rounded-lg border border-red-300 p-3 text-sm text-red-600">{clearError}</p> : null}
+    {clearNotice ? <p role="status" className="rounded-lg bg-emerald-500/10 p-3 text-sm">{clearNotice}</p> : null}
     {loading ? <p role="status">正在读取组别…</p> : null}
     {error ? <p role="alert" className="rounded-lg border border-red-300 p-3 text-sm text-red-600">{error}</p> : null}
     {options && options.groups.length === 0 ? <p className="p-4">没有可管理的组别。</p> : null}
     {options?.groups.length ? <>
-      <section aria-label="时间筛选" className="grid gap-3 rounded-xl border border-[var(--admin-border-subtle)] bg-[var(--admin-surface)] p-4 sm:grid-cols-2 lg:grid-cols-4">
+      <section aria-label="时间筛选" className="grid gap-3 rounded-xl border border-[var(--admin-border-subtle)] bg-[var(--admin-surface)] p-4 sm:grid-cols-2 lg:grid-cols-3">
         <label className="text-sm font-medium">组别
           <select aria-label="组别" className="admin-field mt-2 w-full" value={groupId} onChange={e => {
             const id = Number(e.target.value);
-            const selected = options.groups.find(g => g.groupId === id);
-            const nextSemester = selected?.semesters[0] ?? "";
-            setGroupId(id); setSemester(nextSemester); setWeek(nextSemester ? resolveCurrentTeachingWeek(nextSemester, openedAt).week ?? 0 : 0); setMemberId(0);
+            setGroupId(id); setMemberId(0);
           }}>{options.groups.map(g => <option key={g.groupId} value={g.groupId}>{g.name}</option>)}</select>
-        </label>
-        <label className="text-sm font-medium">学期
-          <input className="admin-field mt-2 w-full" aria-label="学期" list="coordination-semesters" maxLength={40}
-            value={semester} placeholder="选择或输入学期" onChange={e => {
-              const nextSemester = e.target.value;
-              setSemester(nextSemester); setWeek(nextSemester.trim() ? resolveCurrentTeachingWeek(nextSemester, openedAt).week ?? 0 : 0);
-            }} />
-          <datalist id="coordination-semesters">{(group?.semesters ?? []).map(s => <option key={s} value={s} />)}</datalist>
         </label>
         <label className="text-sm font-medium">教学周
           <select aria-label="教学周" className="admin-field mt-2 w-full" value={week} onChange={e => setWeek(Number(e.target.value))}>
             {week === 0 ? <option value={0}>请选择教学周</option> : null}
-            {Array.from({ length: 30 }, (_, i) => <option key={i + 1} value={i + 1}>第 {i + 1} 周</option>)}
+            {Array.from({ length: options.teachingWeekCount }, (_, i) => <option key={i + 1} value={i + 1}>第 {i + 1} 周</option>)}
           </select>
         </label>
         <label className="text-sm font-medium">查看对象
@@ -176,7 +206,6 @@ export default function TimeCoordinationPage() {
           </select>
         </label>
       </section>
-      {!semester.trim() ? <p className="text-sm text-[var(--admin-muted)]">请先选择学期。</p> : null}
       {querying ? <p role="status">正在分析整周时间…</p> : null}
       {result && !querying ? <>
         <section className="rounded-2xl border border-[var(--admin-border-subtle)] bg-[var(--admin-surface)] p-4 sm:p-5">
@@ -194,7 +223,7 @@ export default function TimeCoordinationPage() {
             </div>)}
           </div>
           {result.totalCount === 0 ? <p role="status" className="mb-3 rounded-lg bg-slate-500/10 p-3 text-sm text-[var(--admin-muted)]">组内暂无可统计成员。</p> : result.importedCount === 0 ?
-            <p role="status" className="mb-3 rounded-lg bg-amber-500/10 p-3 text-sm">当前学期没有有效课表，无法统计无课程冲突人数。请在「个人资料 → 课程时间」导入该学期课表。</p> : result.missingCount > 0 ?
+            <p role="status" className="mb-3 rounded-lg bg-amber-500/10 p-3 text-sm">当前学期没有有效课表，无法统计无课程冲突人数。请成员在「个人资料 → 课程时间」重新导入课表。</p> : result.missingCount > 0 ?
             <p role="status" className="mb-3 rounded-lg bg-amber-500/10 p-3 text-sm">无课程冲突人数只按有效课表成员统计，数据缺失成员不会计入无课程冲突。</p> : null}
           <div className="overflow-x-auto">
             <div className="min-w-[600px]">
@@ -233,7 +262,7 @@ export default function TimeCoordinationPage() {
         </section>
       </> : null}
       {weekNotice ? <p role="status" className={`rounded-lg ${weekNoticeTone} p-3 text-sm text-[var(--admin-muted)]`}>{weekNotice}</p> : null}
-      {options && semester.trim() && week === 0 && calendarWeek?.status === "unconfigured" ? <p className="text-sm text-[var(--admin-muted)]">选择教学周后可继续查看该学期课表统计。</p> : null}
+      {options && week === 0 && calendarWeek?.status === "unconfigured" ? <p className="text-sm text-[var(--admin-muted)]">选择教学周后可继续查看当前学期课表统计。</p> : null}
       {result && selectedSlot && !member && selectedCounts && typeof document !== "undefined" ? createPortal(<div
         className="admin-design fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-3 sm:p-6"
         role="presentation"
@@ -259,7 +288,7 @@ export default function TimeCoordinationPage() {
                   {people.map(person => <li key={person.userId} className="border-t border-[var(--admin-border-subtle)] pt-2 first:border-0 first:pt-0">
                     <span className="font-medium">{person.name}</span>
                     {person.missingReason ? <p className="mt-1 text-xs text-[var(--admin-muted)]">{missingReason(person.missingReason)}</p> : null}
-                    {person.hasUncertainCourses ? <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{person.uncertainCourseCount} 门时间未确定课程，已排除在无冲突统计外</p> : null}
+                    {person.hasUncertainCourses ? <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">{person.uncertainCourseCount} 门时间未确定课程未计入时段统计</p> : null}
                   </li>)}
                 </ul> : <p className="text-sm text-[var(--admin-muted)]">暂无成员</p>}
               </section>;
@@ -268,5 +297,20 @@ export default function TimeCoordinationPage() {
         </section>
       </div>, document.body) : null}
     </> : null}
+    {clearPreview !== null && isSuperAdmin && typeof document !== "undefined" ? createPortal(<div
+      className="admin-design fixed inset-0 z-[80] flex items-center justify-center bg-black/55 p-3 sm:p-6"
+      role="presentation"
+      onClick={event => { if (event.target === event.currentTarget && !clearLoading) setClearPreview(null); }}
+    >
+      <section role="dialog" aria-modal="true" aria-labelledby="clear-timetables-title"
+        className="w-full max-w-md rounded-2xl border border-[var(--admin-border-subtle)] bg-[var(--admin-surface)] p-5 shadow-2xl sm:p-6">
+        <h2 id="clear-timetables-title" className="text-lg font-semibold">清空全站课表</h2>
+        <p className="mt-3 text-sm text-[var(--admin-muted)]">即将删除全站 <strong className="text-[var(--admin-text)]">{clearPreview}</strong> 份课表数据。此操作不会删除账号、组别、作业或其他业务数据。</p>
+        <div className="mt-5 flex justify-end gap-2">
+          <button type="button" disabled={clearLoading} onClick={() => setClearPreview(null)} className="btn-glass rounded-lg px-4 py-2 text-sm">取消</button>
+          <button type="button" disabled={clearLoading} onClick={() => void confirmClearAll()} className="btn-primary rounded-lg px-4 py-2 text-sm disabled:opacity-60">{clearLoading ? "正在清空…" : "确认清空"}</button>
+        </div>
+      </section>
+    </div>, document.body) : null}
   </main>;
 }

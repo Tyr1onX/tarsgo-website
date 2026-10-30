@@ -27,3 +27,24 @@ func TestLegacyAdministratorScopeFieldsAreNotSerialized(t *testing.T) {
 		t.Fatalf("serialized user is missing its canonical system role: %s", serialized)
 	}
 }
+
+func TestUserPreferredNameUsesRealNameThenNickname(t *testing.T) {
+	tests := []struct {
+		name     string
+		user     User
+		wantName string
+	}{
+		{name: "real name wins", user: User{RealName: stringPointer("姓名"), Nickname: stringPointer("昵称")}, wantName: "姓名"},
+		{name: "nickname fills empty real name", user: User{RealName: stringPointer("  "), Nickname: stringPointer(" 昵称 ")}, wantName: "昵称"},
+		{name: "blank values stay blank", user: User{RealName: stringPointer(" "), Nickname: stringPointer("\t")}, wantName: ""},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := test.user.PreferredName(); got != test.wantName {
+				t.Fatalf("PreferredName() = %q, want %q", got, test.wantName)
+			}
+		})
+	}
+}
+
+func stringPointer(value string) *string { return &value }

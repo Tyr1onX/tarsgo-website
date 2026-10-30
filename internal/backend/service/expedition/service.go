@@ -290,9 +290,10 @@ func (s *Service) ListGroupMembers(ctx context.Context, actor Actor, groupID uin
 	var rows []struct {
 		UserID   uint64
 		Name     string
+		Nickname *string
 		RealName *string
 	}
-	if err := s.db.WithContext(ctx).Table("user_group_members").Select("users.id AS user_id, users.name, users.real_name").
+	if err := s.db.WithContext(ctx).Table("user_group_members").Select("users.id AS user_id, users.name, users.nickname, users.real_name").
 		Joins("JOIN users ON users.id = user_group_members.user_id").Joins("JOIN user_groups ON user_groups.id = user_group_members.group_id").
 		Where("user_group_members.group_id = ? AND users.status = ? AND user_groups.status = ?", groupID, model.UserStatusEnabled, model.UserGroupStatusActive).
 		Order("users.real_name ASC, users.name ASC, users.id ASC").Scan(&rows).Error; err != nil {
@@ -300,7 +301,7 @@ func (s *Service) ListGroupMembers(ctx context.Context, actor Actor, groupID uin
 	}
 	items := make([]MemberOption, 0, len(rows))
 	for _, row := range rows {
-		items = append(items, MemberOption{UserID: row.UserID, DisplayName: displayName(model.User{Name: row.Name, RealName: row.RealName})})
+		items = append(items, MemberOption{UserID: row.UserID, DisplayName: displayName(model.User{Name: row.Name, Nickname: row.Nickname, RealName: row.RealName})})
 	}
 	return items, nil
 }
@@ -456,7 +457,7 @@ func (s *Service) ReviewMilestone(ctx context.Context, actor Actor, milestoneID 
 
 func (s *Service) loadProject(ctx context.Context, project model.ExpeditionProject, groupScope []uint64) (*ProjectView, error) {
 	var creator model.User
-	if err := s.db.WithContext(ctx).Select("id, name, real_name").First(&creator, project.CreatorID).Error; err != nil {
+	if err := s.db.WithContext(ctx).Select("id, name, nickname, real_name").First(&creator, project.CreatorID).Error; err != nil {
 		return nil, internal("读取项目负责人失败", err)
 	}
 	var milestones []model.ExpeditionProjectMilestone
@@ -497,9 +498,10 @@ func (s *Service) loadProject(ctx context.Context, project model.ExpeditionProje
 		UserID   uint64
 		GroupID  uint64
 		Name     string
+		Nickname *string
 		RealName *string
 	}
-	participantQuery := s.db.WithContext(ctx).Table("expedition_project_participants").Select("expedition_project_participants.user_id, expedition_project_participants.group_id, users.name, users.real_name").
+	participantQuery := s.db.WithContext(ctx).Table("expedition_project_participants").Select("expedition_project_participants.user_id, expedition_project_participants.group_id, users.name, users.nickname, users.real_name").
 		Joins("JOIN users ON users.id = expedition_project_participants.user_id").Where("expedition_project_participants.project_id = ?", project.ID)
 	if len(groupScope) > 0 {
 		participantQuery = participantQuery.Where("expedition_project_participants.group_id IN ?", groupScope)
@@ -508,7 +510,7 @@ func (s *Service) loadProject(ctx context.Context, project model.ExpeditionProje
 		return nil, internal("读取项目成员失败", err)
 	}
 	for _, participant := range participantRows {
-		view.Participants = append(view.Participants, ParticipantView{UserID: participant.UserID, DisplayName: displayName(model.User{Name: participant.Name, RealName: participant.RealName}), GroupName: groupMap[participant.GroupID]})
+		view.Participants = append(view.Participants, ParticipantView{UserID: participant.UserID, DisplayName: displayName(model.User{Name: participant.Name, Nickname: participant.Nickname, RealName: participant.RealName}), GroupName: groupMap[participant.GroupID]})
 	}
 	for _, groupName := range groupMap {
 		view.ParticipantGroups = append(view.ParticipantGroups, groupName)
@@ -673,7 +675,7 @@ func requireManagerGroupWithDB(db *gorm.DB, actor Actor, groupID uint64) error {
 
 func actorDisplay(db *gorm.DB, userID uint64) (string, error) {
 	var user model.User
-	if err := db.Select("id, name, real_name, status").First(&user, userID).Error; err != nil {
+	if err := db.Select("id, name, nickname, real_name, status").First(&user, userID).Error; err != nil {
 		return "", internal("读取操作人失败", err)
 	}
 	if user.Status != model.UserStatusEnabled {
@@ -683,8 +685,8 @@ func actorDisplay(db *gorm.DB, userID uint64) (string, error) {
 }
 
 func displayName(user model.User) string {
-	if user.RealName != nil && strings.TrimSpace(*user.RealName) != "" {
-		return strings.TrimSpace(*user.RealName)
+	if name := user.PreferredName(); name != "" {
+		return name
 	}
 	if strings.TrimSpace(user.Name) != "" {
 		return strings.TrimSpace(user.Name)

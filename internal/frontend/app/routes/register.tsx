@@ -92,11 +92,11 @@ export default function Register() {
       return;
     }
     if (realName.trim() === "") {
-      setErrorMessage("请输入真实姓名。");
+		setErrorMessage("请输入姓名。");
       return;
     }
     if (!isChineseRealName(realName)) {
-      setErrorMessage("真实姓名需为汉字。");
+		setErrorMessage("姓名需为汉字。");
       return;
     }
     if (!/^1[3-9]\d{9}$/.test(phone)) {
@@ -189,7 +189,7 @@ export default function Register() {
             </div>
 
             <div className="auth-field">
-              <label htmlFor="realName">真实姓名</label>
+				<label htmlFor="realName">姓名</label>
               <input
                 id="realName"
                 type="text"
@@ -197,7 +197,7 @@ export default function Register() {
                 required
                 value={realName}
                 onChange={(event) => setRealName(event.target.value)}
-                placeholder="请输入真实姓名"
+					placeholder="请输入姓名"
                 maxLength={100}
                 className="auth-input"
               />

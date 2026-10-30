@@ -294,12 +294,12 @@ func (s *PracticeService) view(ctx context.Context, a Actor, p model.PracticePro
 		member := PracticeMemberView{UserID: entry.UserID, Status: entry.Status, JoinedAt: entry.JoinedAt, Submissions: []PracticeSubmissionView{}}
 		if admin {
 			var user model.User
-			if err := s.db.WithContext(ctx).Select("id", "real_name", "name").First(&user, entry.UserID).Error; err != nil {
+			if err := s.db.WithContext(ctx).Select("id", "real_name", "nickname", "name").First(&user, entry.UserID).Error; err != nil {
 				return nil, practiceFail(err)
 			}
-			member.Name = user.Name
-			if user.RealName != nil && strings.TrimSpace(*user.RealName) != "" {
-				member.Name = *user.RealName
+			member.Name = user.PreferredName()
+			if member.Name == "" {
+				member.Name = user.Name
 			}
 		}
 		var subs []model.PracticeSubmission

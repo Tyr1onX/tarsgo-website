@@ -37,7 +37,7 @@ func (s *Service) UpdateProfile(ctx context.Context, userID uint64, input Profil
 	nickname := strings.TrimSpace(input.Nickname)
 	phone := strings.TrimSpace(input.Phone)
 	if !utf8.ValidString(nickname) || utf8.RuneCountInString(nickname) > 100 || strings.ContainsAny(nickname, "\r\n\t") {
-		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "昵称不能超过 100 字，且不能包含换行或制表符"}
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "姓名不能超过 100 字，且不能包含换行或制表符"}
 	}
 	if phone != "" && !isValidMainlandMobile(phone) {
 		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "请输入正确的 11 位手机号"}

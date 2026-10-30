@@ -20,6 +20,10 @@ export interface AuthUser {
   role: AuthRole;
 }
 
+export function getAuthUserName(user: Pick<AuthUser, "realName" | "nickname" | "email">): string {
+  return user.realName?.trim() || user.nickname?.trim() || user.email.split("@")[0] || "TARSGO 成员";
+}
+
 export function getAuthUserRoleLabel(user: Pick<AuthUser, "role">): string {
   if (user.role.name === "super_admin") {
     return "超级管理员";

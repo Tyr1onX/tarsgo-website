@@ -48,17 +48,11 @@ func (r *fakeRepo) Timetables(_ context.Context, ids []uint64) ([]model.Timetabl
 		allowed[id] = true
 	}
 	for _, s := range r.sheets {
-		if allowed[s.UserID] {
+		if allowed[s.UserID] && s.Semester == timetable.CurrentSemester {
 			result = append(result, s)
 		}
 	}
 	return result, nil
-}
-func (r *fakeRepo) Semesters(_ context.Context, groupID uint64) ([]string, error) {
-	if groupID == 1 {
-		return []string{"2026秋", "2026春"}, nil
-	}
-	return []string{"2027春"}, nil
 }
 func roster(id uint64, name string) model.UserGroupMember {
 	return model.UserGroupMember{UserID: id, User: model.User{ID: id, Name: name}}
@@ -79,21 +73,21 @@ func buildRepo() *fakeRepo {
 			2: {roster(20, "别组成员")},
 		},
 		sheets: []model.Timetable{
-			sheet(10, "2026秋", []timetable.Course{validCourse(1, 2, 4, []int{3, 5, 7}, "odd")}, []timetable.Note{}),
-			sheet(11, "2026秋", []timetable.Course{validCourse(1, 1, 2, []int{3, 5, 7}, "even")}, []timetable.Note{{Name: "不定时课程", Reason: "时间未确定"}}),
-			sheet(12, "2026秋", []timetable.Course{validCourse(1, 3, 4, []int{3, 4, 5}, "all")}, []timetable.Note{}),
+			sheet(10, timetable.CurrentSemester, []timetable.Course{validCourse(1, 2, 4, []int{3, 5, 7}, "odd")}, []timetable.Note{}),
+			sheet(11, timetable.CurrentSemester, []timetable.Course{validCourse(1, 1, 2, []int{3, 5, 7}, "even")}, []timetable.Note{{Name: "不定时课程", Reason: "时间未确定"}}),
+			sheet(12, timetable.CurrentSemester, []timetable.Course{validCourse(1, 3, 4, []int{3, 4, 5}, "all")}, []timetable.Note{}),
 			sheet(13, "2026春", []timetable.Course{validCourse(1, 1, 2, []int{1}, "all")}, []timetable.Note{}),
-			sheet(15, "2026秋", []timetable.Course{
+			sheet(15, timetable.CurrentSemester, []timetable.Course{
 				validCourse(1, 1, 2, []int{4}, "all"),   // original rescheduled class removed from third week
 				validCourse(4, 11, 12, []int{6}, "all"), // one-off moved class
 			}, []timetable.Note{}),
-			{UserID: 16, Semester: "2026秋", CoursesJSON: "not-json", NotesJSON: "[]"},
-			sheet(20, "2026秋", []timetable.Course{validCourse(1, 1, 2, []int{3}, "all")}, []timetable.Note{}),
+			{UserID: 16, Semester: timetable.CurrentSemester, CoursesJSON: "not-json", NotesJSON: "[]"},
+			sheet(20, timetable.CurrentSemester, []timetable.Course{validCourse(1, 1, 2, []int{3}, "all")}, []timetable.Note{}),
 		},
 	}
 }
 func query(weekday, start, end, week int) Filter {
-	return Filter{GroupID: 1, Semester: "2026秋", Week: week, Weekday: weekday, StartSection: start, EndSection: end}
+	return Filter{GroupID: 1, Week: week, Weekday: weekday, StartSection: start, EndSection: end}
 }
 func TestWholeIntervalWeeksParityRescheduleAndMissing(t *testing.T) {
 	ctx := context.Background()
@@ -102,12 +96,12 @@ func TestWholeIntervalWeeksParityRescheduleAndMissing(t *testing.T) {
 		filter                              Filter
 		wantFree, wantConflict, wantMissing int
 	}{
-		{"middle and ending sections both count", query(1, 3, 5, 3), 1, 2, 4},
-		{"even week ignores odd-only course", query(1, 3, 5, 4), 2, 1, 4},
-		{"odd class active in fifth week", query(1, 2, 2, 5), 2, 1, 4},
-		{"rescheduled source is absent in week three", query(1, 1, 2, 3), 2, 1, 4},
-		{"moved target occupies week six", query(4, 11, 12, 6), 2, 1, 4},
-		{"other weekday has no course", query(7, 1, 24, 3), 3, 0, 4},
+		{"middle and ending sections both count", query(1, 3, 5, 3), 2, 2, 3},
+		{"even week ignores odd-only course", query(1, 3, 5, 4), 3, 1, 3},
+		{"odd class active in fifth week", query(1, 2, 2, 5), 3, 1, 3},
+		{"rescheduled source is absent in week three", query(1, 1, 2, 3), 3, 1, 3},
+		{"moved target occupies week six", query(4, 11, 12, 6), 3, 1, 3},
+		{"other weekday has no course", query(7, 1, 24, 3), 4, 0, 3},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -120,8 +114,8 @@ func TestWholeIntervalWeeksParityRescheduleAndMissing(t *testing.T) {
 			if got.FreeCount != tt.wantFree || got.ConflictCount != tt.wantConflict || got.MissingCount != tt.wantMissing || got.TotalCount != 7 {
 				t.Fatalf("counts free=%d conflict=%d missing=%d total=%d", got.FreeCount, got.ConflictCount, got.MissingCount, got.TotalCount)
 			}
-			if got.ImportedCount != 3 {
-				t.Fatalf("imported=%d want3 complete timetables", got.ImportedCount)
+			if got.ImportedCount != 4 {
+				t.Fatalf("imported=%d want4 valid timetables including one with undetermined courses", got.ImportedCount)
 			}
 			if !reflect.DeepEqual(r.lastIDs, []uint64{10, 11, 12, 13, 14, 15, 16}) {
 				t.Fatalf("unscoped query IDs: %v", r.lastIDs)
@@ -133,10 +127,10 @@ func TestWholeIntervalWeeksParityRescheduleAndMissing(t *testing.T) {
 			if byID[11].UncertainCourseCount != 1 || !byID[11].HasUncertainCourses {
 				t.Fatalf("undetermined course lost: %+v", byID[11])
 			}
-			if byID[11].Status != "missing" || byID[11].MissingReason != "uncertain_courses" {
-				t.Fatalf("uncertain timetable was counted as available: %+v", byID[11])
+			if byID[11].Status != "free" || byID[11].MissingReason != "" {
+				t.Fatalf("undetermined courses affected the valid grid timetable: %+v", byID[11])
 			}
-			if byID[13].MissingReason != "semester_mismatch" || byID[14].MissingReason != "not_imported" || byID[16].MissingReason != "invalid_data" {
+			if byID[13].MissingReason != "not_imported" || byID[14].MissingReason != "not_imported" || byID[16].MissingReason != "invalid_data" {
 				t.Fatalf("missing classifications %+v", byID)
 			}
 			if _, ok := byID[20]; ok {
@@ -145,6 +139,61 @@ func TestWholeIntervalWeeksParityRescheduleAndMissing(t *testing.T) {
 		})
 	}
 }
+
+func TestOneValidTimetableWithUndeterminedCoursesCountsWithinTwentyTwoMembers(t *testing.T) {
+	repo := &fakeRepo{
+		groups:  []Group{{GroupID: 1, Name: "运营组"}},
+		members: map[uint64][]model.UserGroupMember{1: {}},
+		sheets: []model.Timetable{
+			sheet(101, timetable.CurrentSemester, []timetable.Course{validCourse(1, 1, 2, []int{3}, "all")}, []timetable.Note{{Name: "不定时课程", Reason: "时间未确定"}}),
+		},
+	}
+	for id := uint64(101); id <= 122; id++ {
+		repo.members[1] = append(repo.members[1], roster(id, "成员"))
+	}
+	service := NewService(repo)
+	actor := Actor{UserID: 7, Role: model.RoleNameAdmin}
+
+	conflict, err := service.Analyze(context.Background(), actor, query(1, 1, 2, 3))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if conflict.TotalCount != 22 || conflict.ImportedCount != 1 || conflict.MissingCount != 21 || conflict.ConflictCount != 1 || conflict.FreeCount != 0 {
+		t.Fatalf("grid-class slot counts = imported:%d missing:%d conflict:%d free:%d total:%d", conflict.ImportedCount, conflict.MissingCount, conflict.ConflictCount, conflict.FreeCount, conflict.TotalCount)
+	}
+	free, err := service.Analyze(context.Background(), actor, query(1, 3, 4, 3))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if free.TotalCount != 22 || free.ImportedCount != 1 || free.MissingCount != 21 || free.ConflictCount != 0 || free.FreeCount != 1 {
+		t.Fatalf("grid-free slot counts = imported:%d missing:%d conflict:%d free:%d total:%d", free.ImportedCount, free.MissingCount, free.ConflictCount, free.FreeCount, free.TotalCount)
+	}
+	for _, result := range []*Result{conflict, free} {
+		for _, member := range result.Members {
+			if member.UserID == 101 {
+				if member.MissingReason != "" || !member.HasUncertainCourses || member.UncertainCourseCount != 1 {
+					t.Fatalf("valid timetable with undetermined courses was misclassified: %+v", member)
+				}
+			}
+		}
+	}
+}
+
+func TestEmptyStoredTimetableIsMissingInsteadOfDefaultingToFree(t *testing.T) {
+	repo := &fakeRepo{
+		groups:  []Group{{GroupID: 1, Name: "运营组"}},
+		members: map[uint64][]model.UserGroupMember{1: {roster(31, "成员")}},
+		sheets:  []model.Timetable{sheet(31, timetable.CurrentSemester, []timetable.Course{}, []timetable.Note{})},
+	}
+	result, err := NewService(repo).Analyze(context.Background(), Actor{UserID: 7, Role: model.RoleNameAdmin}, query(1, 1, 2, 3))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.ImportedCount != 0 || result.MissingCount != 1 || result.Members[0].MissingReason != "invalid_data" || result.FreeCount != 0 {
+		t.Fatalf("empty stored row was treated as reliable free time: %+v", result)
+	}
+}
+
 func TestGroupScopeRejectsBeforeRosterRead(t *testing.T) {
 	for _, actor := range []Actor{{UserID: 8, Role: model.RoleNameUser}, {UserID: 7, Role: model.RoleNameAdmin}} {
 		repo := buildRepo()
@@ -178,7 +227,6 @@ func TestSuperAdminCanSeeAnotherGroupButOnlyItsRoster(t *testing.T) {
 func TestInvalidFilterRejectedAndNoSQL(t *testing.T) {
 	inputs := []Filter{
 		query(1, 4, 3, 3), query(0, 1, 2, 3), query(8, 1, 2, 3), query(1, 0, 2, 3), query(1, 1, 25, 3), query(1, 1, 2, 0), query(1, 1, 2, 31),
-		{GroupID: 1, Semester: "", Week: 1, Weekday: 1, StartSection: 1, EndSection: 2},
 	}
 	for _, input := range inputs {
 		repo := buildRepo()
@@ -195,11 +243,11 @@ func TestInvalidFilterRejectedAndNoSQL(t *testing.T) {
 func TestOptionsRespectManagerAndSuperAdmin(t *testing.T) {
 	r := buildRepo()
 	options, err := NewService(r).Options(context.Background(), Actor{UserID: 7, Role: model.RoleNameAdmin})
-	if err != nil || len(options.Groups) != 1 || len(options.Groups[0].Semesters) != 2 {
+	if err != nil || len(options.Groups) != 1 || options.CurrentSemester != timetable.CurrentSemester || options.FirstWeekStart != timetable.CurrentFirstWeekStart || options.TeachingWeekCount != timetable.CurrentTeachingWeekCount {
 		t.Fatalf("admin options %+v %v", options, err)
 	}
 	options, err = NewService(r).Options(context.Background(), Actor{UserID: 1, Role: model.RoleNameSuperAdmin})
-	if err != nil || len(options.Groups) != 2 {
+	if err != nil || len(options.Groups) != 2 || options.CurrentSemester != timetable.CurrentSemester {
 		t.Fatalf("super options %+v %v", options, err)
 	}
 	_, err = NewService(r).Options(context.Background(), Actor{UserID: 8, Role: model.RoleNameUser})
@@ -214,7 +262,7 @@ func TestWeekOccupancySingleScopedReadAndPrivacy(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if repo.membersCalled != 1 || repo.timetablesCalled != 1 || week.TotalCount != 7 || week.ImportedCount != 3 || week.MissingCount != 4 {
+	if repo.membersCalled != 1 || repo.timetablesCalled != 1 || week.TotalCount != 7 || week.ImportedCount != 4 || week.MissingCount != 3 {
 		t.Fatalf("unexpected scoped week fetch: members=%d tables=%d result=%+v", repo.membersCalled, repo.timetablesCalled, week)
 	}
 	if !reflect.DeepEqual(repo.lastIDs, []uint64{10, 11, 12, 13, 14, 15, 16}) {
@@ -230,10 +278,10 @@ func TestWeekOccupancySingleScopedReadAndPrivacy(t *testing.T) {
 	if !reflect.DeepEqual(byID[15].Occupied, []Slot{{Weekday: 4, StartSection: 11, EndSection: 12}}) {
 		t.Fatalf("moved class not applied: %+v", byID[15])
 	}
-	if byID[11].MissingReason != "uncertain_courses" {
-		t.Fatalf("course with an undetermined time was not classified as missing: %+v", byID[11])
+	if byID[11].MissingReason != "" {
+		t.Fatalf("course with an undetermined time made the grid timetable missing: %+v", byID[11])
 	}
-	if byID[13].MissingReason != "semester_mismatch" || byID[14].MissingReason != "not_imported" || byID[16].MissingReason != "invalid_data" {
+	if byID[13].MissingReason != "not_imported" || byID[14].MissingReason != "not_imported" || byID[16].MissingReason != "invalid_data" {
 		t.Fatalf("missing users treated as free: %+v", byID)
 	}
 	if byID[11].UncertainCourseCount != 1 {

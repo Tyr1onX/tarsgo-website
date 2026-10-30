@@ -23,9 +23,8 @@ export function getPersonalTimetables() {
  return apiRequest<PersonalTimetable[]>("/api/my-timetables");
 }
 
-export function importPersonalTimetable(semester: string, file: File) {
+export function importPersonalTimetable(file: File) {
  const body = new FormData();
- body.append("semester", semester);
  body.append("file", file);
  return apiRequest<PersonalTimetable>("/api/my-timetables", {method:"POST",body});
 }

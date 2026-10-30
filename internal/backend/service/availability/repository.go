@@ -2,8 +2,10 @@ package availability
 
 import (
 	"context"
+
 	"gorm.io/gorm"
 	"tarsgo-backend/model"
+	"tarsgo-backend/service/timetable"
 )
 
 type GormRepository struct{ db *gorm.DB }
@@ -39,17 +41,6 @@ func (r *GormRepository) Timetables(ctx context.Context, ids []uint64) ([]model.
 	if len(ids) == 0 {
 		return result, nil
 	}
-	err := r.db.WithContext(ctx).Where("user_id IN ?", ids).Find(&result).Error
-	return result, err
-}
-func (r *GormRepository) Semesters(ctx context.Context, groupID uint64) ([]string, error) {
-	result := []string{}
-	err := r.db.WithContext(ctx).Model(&model.Timetable{}).
-		Joins("JOIN user_group_members ON user_group_members.user_id = personal_timetables.user_id").
-		Joins("JOIN user_groups ON user_groups.id = user_group_members.group_id AND user_groups.status = ?", model.UserGroupStatusActive).
-		Joins("JOIN users ON users.id = user_group_members.user_id AND users.status = ?", model.UserStatusEnabled).
-		Where("user_group_members.group_id = ?", groupID).
-		Distinct("personal_timetables.semester").
-		Order("personal_timetables.semester DESC").Pluck("personal_timetables.semester", &result).Error
+	err := r.db.WithContext(ctx).Where("user_id IN ? AND semester = ?", ids, timetable.CurrentSemester).Find(&result).Error
 	return result, err
 }

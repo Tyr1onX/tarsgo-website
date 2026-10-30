@@ -106,7 +106,7 @@ type MemberView struct {
 	UserID       uint64                         `json:"userId"`
 	DisplayName  string                         `json:"displayName"`
 	GroupRole    string                         `json:"groupRole"`
-	JoinedYear  int                            `json:"joinedYear"`
+	JoinedYear   int                            `json:"joinedYear"`
 	Dimensions   []capabilities.DimensionResult `json:"dimensions"`
 	OverallScore *float64                       `json:"overallScore"`
 	Assignments  ActivitySummary                `json:"assignments"`
@@ -124,11 +124,11 @@ type FocusInput struct {
 }
 
 type memberRow struct {
-	ID       uint64  `gorm:"column:id"`
-	Name     string  `gorm:"column:name"`
-	Nickname *string `gorm:"column:nickname"`
-	RealName *string `gorm:"column:real_name"`
-	Role     uint8   `gorm:"column:group_role"`
+	ID       uint64    `gorm:"column:id"`
+	Name     string    `gorm:"column:name"`
+	Nickname *string   `gorm:"column:nickname"`
+	RealName *string   `gorm:"column:real_name"`
+	Role     uint8     `gorm:"column:group_role"`
 	JoinedAt time.Time `gorm:"column:joined_at"`
 }
 
@@ -345,12 +345,9 @@ func (s *Service) UpdateFocus(ctx context.Context, actor Actor, groupID, userID 
 		if err := tx.Select("id", "name", "nickname", "real_name").Where("id = ? AND status = ?", actor.ID, model.UserStatusEnabled).Take(&admin).Error; err != nil {
 			return fail(http.StatusInternalServerError, "读取管理员身份失败", err)
 		}
-		name := strings.TrimSpace(admin.Name)
-		if admin.RealName != nil && strings.TrimSpace(*admin.RealName) != "" {
-			name = strings.TrimSpace(*admin.RealName)
-		}
-		if admin.Nickname != nil && strings.TrimSpace(*admin.Nickname) != "" {
-			name = strings.TrimSpace(*admin.Nickname)
+		name := admin.PreferredName()
+		if name == "" {
+			name = strings.TrimSpace(admin.Name)
 		}
 		row := model.MemberCultivationRecord{GroupID: groupID, UserID: userID, Focused: input.Focused, InternalNote: input.InternalNote, UpdatedBy: actor.ID, UpdatedByName: name, UpdatedAt: s.now()}
 		return tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "group_id"}, {Name: "user_id"}}, DoUpdates: clause.AssignmentColumns([]string{"focused", "internal_note", "updated_by", "updated_by_name", "updated_at"})}).Create(&row).Error
@@ -397,10 +394,8 @@ func requireMemberGroup(db *gorm.DB, groupID, userID uint64) error {
 }
 
 func memberName(row memberRow) string {
-	for _, value := range []*string{row.RealName, row.Nickname} {
-		if value != nil && strings.TrimSpace(*value) != "" {
-			return strings.TrimSpace(*value)
-		}
+	if name := (model.User{RealName: row.RealName, Nickname: row.Nickname}).PreferredName(); name != "" {
+		return name
 	}
 	if strings.TrimSpace(row.Name) != "" {
 		return strings.TrimSpace(row.Name)

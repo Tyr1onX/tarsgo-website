@@ -8,6 +8,7 @@ import { ProfileDialog } from "~/components/profile-dialog";
 import { ApiError } from "~/lib/api-client";
 import {
   getAuthUserRoleLabel,
+  getAuthUserName,
   getBootstrapStatus,
   getCachedCurrentUser,
   getCurrentUser,
@@ -410,7 +411,8 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
     }
   }, [currentUser.id, currentUser.role.name]);
   const currentLeaveActionableState = leaveActionableState?.userId === currentUser.id && leaveActionableState.roleName === currentUser.role.name ? leaveActionableState : null;
-  const userInitial = (currentUser.nickname?.trim() || currentUser.email.trim() || "U")
+  const currentUserName = getAuthUserName(currentUser);
+  const userInitial = (currentUserName || "U")
     .charAt(0)
     .toUpperCase();
 
@@ -664,7 +666,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   async function handleRemoveAccount(accountId: number) {
     const account = accountSessions.find((item) => item.id === accountId);
     if (!account) return;
-    const accountLabel = account.user.nickname || account.user.email;
+    const accountLabel = getAuthUserName(account.user);
     const confirmation = account.status === "available"
       ? `确定移除「${accountLabel}」的已保存登录会话？这只会移除该账号，不会退出其他账号。`
       : `确定移除「${accountLabel}」的失效账号记录？`;
@@ -830,8 +832,8 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
             onClick={() => setUserMenuOpen((open) => !open)}
             aria-haspopup="menu"
             aria-expanded={userMenuOpen}
-            aria-label={`${currentUser.nickname || currentUser.email}，打开账号菜单`}
-            title={isSidebarCollapsed ? currentUser.nickname || currentUser.email : undefined}
+            aria-label={`${currentUserName}，打开账号菜单`}
+            title={isSidebarCollapsed ? currentUserName : undefined}
             className={`dashboard-shell__profile group w-full flex items-center gap-3 rounded-lg p-2 transition-colors ${isSidebarCollapsed ? "justify-center" : ""} ${
               userMenuOpen ? "dashboard-shell__profile--open" : ""
             }`}
@@ -844,7 +846,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
             </div>
             <div className={`flex-1 min-w-0 text-left ${isSidebarCollapsed ? "hidden" : ""}`}>
               <div className="text-sm font-medium text-white truncate">
-                {currentUser.nickname || getAuthUserRoleLabel(currentUser)}
+                {currentUserName || getAuthUserRoleLabel(currentUser)}
               </div>
               <div className="text-xs text-gray-500 truncate">{currentUser.email}</div>
             </div>
@@ -1060,7 +1062,7 @@ function AccountSessionDialog({
         <header className="dashboard-shell__account-modal-header">
           <div>
             <h2 id="account-session-dialog-title">{title}</h2>
-            <p>当前账号：{currentUser.nickname || currentUser.email} · {accounts.length} / {MAX_SAVED_ACCOUNT_SESSIONS} 个</p>
+            <p>当前账号：{getAuthUserName(currentUser)} · {accounts.length} / {MAX_SAVED_ACCOUNT_SESSIONS} 个</p>
           </div>
           <button type="button" onClick={onClose} aria-label="关闭" className="dashboard-shell__account-close">×</button>
         </header>
@@ -1077,10 +1079,10 @@ function AccountSessionDialog({
           ) : accounts.map((account) => (
             <div className="dashboard-shell__account-row" key={account.id}>
               <div className="dashboard-shell__account-avatar" aria-hidden="true">
-                {(account.user.nickname?.trim() || account.user.email).charAt(0).toUpperCase()}
+                {getAuthUserName(account.user).charAt(0).toUpperCase()}
               </div>
               <div className="dashboard-shell__account-details">
-                <strong>{account.user.nickname || account.user.email}</strong>
+                <strong>{getAuthUserName(account.user)}</strong>
                 <span>{account.user.email}</span>
                 <small>{getAuthUserRoleLabel(account.user)}</small>
               </div>
@@ -1098,7 +1100,7 @@ function AccountSessionDialog({
                   </>
                 )}
                 {mode === "manage" || account.status !== "available" ? (
-                  <button type="button" disabled={busy} onClick={() => onRemove(account.id)} aria-label={`移除${account.user.nickname || account.user.email}`} className="dashboard-shell__account-remove">移除</button>
+                  <button type="button" disabled={busy} onClick={() => onRemove(account.id)} aria-label={`移除${getAuthUserName(account.user)}`} className="dashboard-shell__account-remove">移除</button>
                 ) : null}
               </div>
             </div>

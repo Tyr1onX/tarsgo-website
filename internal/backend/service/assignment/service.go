@@ -309,10 +309,11 @@ func (s *Service) ListGroupMembers(ctx context.Context, actor Actor, groupID uin
 	var rows []struct {
 		UserID   uint64
 		Name     string
+		Nickname *string
 		RealName *string
 	}
 	if err := s.db.WithContext(ctx).Table("user_group_members").
-		Select("users.id AS user_id, users.name, users.real_name").
+		Select("users.id AS user_id, users.name, users.nickname, users.real_name").
 		Joins("JOIN user_groups ON user_groups.id = user_group_members.group_id").
 		Joins("JOIN users ON users.id = user_group_members.user_id").
 		Joins("JOIN roles ON roles.id = users.role_id").
@@ -322,9 +323,9 @@ func (s *Service) ListGroupMembers(ctx context.Context, actor Actor, groupID uin
 	}
 	result := make([]MemberOption, 0, len(rows))
 	for _, row := range rows {
-		name := strings.TrimSpace(row.Name)
-		if row.RealName != nil && strings.TrimSpace(*row.RealName) != "" {
-			name = strings.TrimSpace(*row.RealName)
+		name := (model.User{Name: row.Name, Nickname: row.Nickname, RealName: row.RealName}).PreferredName()
+		if name == "" {
+			name = strings.TrimSpace(row.Name)
 		}
 		if name == "" {
 			name = fmt.Sprintf("成员 %d", row.UserID)
@@ -366,7 +367,7 @@ func (s *Service) GetAdmin(ctx context.Context, actor Actor, assignmentID uint64
 	}
 	var users []model.User
 	if len(targetUserIDs) > 0 {
-		if err := s.db.WithContext(ctx).Select("id", "name", "real_name").Where("id IN ?", targetUserIDs).Find(&users).Error; err != nil {
+		if err := s.db.WithContext(ctx).Select("id", "name", "nickname", "real_name").Where("id IN ?", targetUserIDs).Find(&users).Error; err != nil {
 			return nil, internalError("读取成员信息失败", err)
 		}
 	}
@@ -386,9 +387,9 @@ func (s *Service) GetAdmin(ctx context.Context, actor Actor, assignmentID uint64
 			continue
 		}
 		history := histories[target.UserID]
-		name := strings.TrimSpace(user.Name)
-		if user.RealName != nil && strings.TrimSpace(*user.RealName) != "" {
-			name = strings.TrimSpace(*user.RealName)
+		name := user.PreferredName()
+		if name == "" {
+			name = strings.TrimSpace(user.Name)
 		}
 		if name == "" {
 			name = fmt.Sprintf("成员 %d", user.ID)

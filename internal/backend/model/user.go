@@ -1,6 +1,9 @@
 package model
 
-import "time"
+import (
+	"strings"
+	"time"
+)
 
 const (
 	// These values are retained to read and replay historical scope migrations.
@@ -39,4 +42,15 @@ type User struct {
 	UpdatedAt         time.Time         `json:"updatedAt" gorm:"column:updated_at;type:datetime;not null;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"`
 	Role              Role              `json:"role,omitempty" gorm:"foreignKey:RoleID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;"`
 	GroupMembers      []UserGroupMember `json:"groupMembers,omitempty" gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
+}
+
+// PreferredName returns the canonical person name, retaining nickname only as
+// a compatibility fallback for older accounts and APIs.
+func (u User) PreferredName() string {
+	for _, value := range []*string{u.RealName, u.Nickname} {
+		if value != nil && strings.TrimSpace(*value) != "" {
+			return strings.TrimSpace(*value)
+		}
+	}
+	return ""
 }
