@@ -10,7 +10,7 @@ jijia_root="$1"
 pending_release="${2:-}"
 backup_dir="$jijia_root/backups"
 apt_lists_dir="${APT_LISTS_DIR:-/var/lib/apt/lists}"
-retention_minutes=10080
+retention_minutes=43200
 release_pattern='^[0-9]{8}-[A-Za-z0-9._-]+-[0-9a-f]{7,40}$'
 if [[ -n "$pending_release" && ! "$pending_release" =~ $release_pattern ]]; then
   echo "Production deploy aborted: invalid pending release name for safe cleanup." >&2
