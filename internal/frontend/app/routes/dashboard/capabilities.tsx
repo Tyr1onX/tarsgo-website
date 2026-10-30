@@ -2,14 +2,14 @@ import { useEffect, useRef, useState } from "react";
 import { redirect, useOutletContext } from "react-router";
 
 import type { Route } from "./+types/capabilities";
-import { CapabilityRadar, formatScore } from "~/components/capability-radar";
+import { formatScore } from "~/lib/capabilities-client";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { getGrowthTabPath } from "~/lib/dashboard-navigation";
 import { capabilitiesClient, capabilitySourceLabel, formatCapabilityDate, type CapabilityGroupResult } from "~/lib/capabilities-client";
 import "./capabilities.css";
 
 export function meta() {
-  return [{ title: "能力雷达 | TARSGO" }];
+  return [{ title: "能力评价 | TARSGO" }];
 }
 
 export function clientLoader({ request }: Route.ClientLoaderArgs) {
@@ -55,7 +55,7 @@ export function CapabilitiesPanel() {
   return (
     <section className="capabilities-page" aria-labelledby="capabilities-title">
       <header className="capabilities-header">
-        <div><h1 id="capabilities-title">能力雷达</h1><p>查看各能力维度结果与成长记录。</p></div>
+        <div><h1 id="capabilities-title">能力评价</h1></div>
       </header>
       {error ? <div className="capabilities-alert" role="alert">{error}</div> : null}
       {loading ? <p className="capabilities-state" role="status">正在读取能力评价…</p> : null}
@@ -67,8 +67,7 @@ export function CapabilitiesPanel() {
         {dimensions.length === 0 ? <div className="capabilities-empty">本组能力维度尚未配置。</div> : <>
           <div className="capabilities-main-grid">
             <section className="capabilities-panel capabilities-radar-panel" aria-labelledby="personal-radar-title">
-              <div className="capabilities-panel-heading"><h2 id="personal-radar-title">个人能力</h2><span>0–100</span></div>
-              <CapabilityRadar dimensions={dimensions} title={`${group.groupName}个人能力`} />
+              <div className="capabilities-panel-heading"><h2 id="personal-radar-title">个人能力</h2></div>
               <div className="capabilities-score-list">
                 {dimensions.map((dimension) => <div className="capabilities-score-row" key={dimension.id}>
                   <div><strong>{dimension.name}</strong>{dimension.description ? <p>{dimension.description}</p> : null}</div>
@@ -87,7 +86,6 @@ export function CapabilitiesPanel() {
               </ol>}
             </section>
           </div>
-          <p className="capabilities-method">已评价的关联来源和管理员补充评价取算术平均；每项作业或项目按最新有效评分计入。</p>
         </>}
       </> : null}
     </section>
