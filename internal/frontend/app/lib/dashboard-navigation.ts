@@ -288,18 +288,9 @@ export function getCoreDashboardMenu(): DashboardMenuLink[] {
 	return [...CORE_DASHBOARD_MENU];
 }
 
-export function getDailyDashboardMenu(userOrRole: AuthUser | string = "user"): DashboardMenuLink[] {
-  const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
-  const menu = [...DAILY_DASHBOARD_MENU];
-  if (["admin", "super_admin"].includes(roleName)) {
-    menu.splice(2, 0, {
-      key: "leave-management",
-      label: "请假管理",
-      href: "/dashboard/admin/leave",
-      iconKey: "people",
-    });
-  }
-  return menu;
+export function getDailyDashboardMenu(_userOrRole: AuthUser | string = "user"): DashboardMenuLink[] {
+  // All roles use the same leave entry; permissions are enforced inside the workbench.
+  return [...DAILY_DASHBOARD_MENU];
 }
 
 export function getVisibleAdminDashboardMenu(userOrRole: AuthUser | string, hasAssignmentGroup = false): VisibleDashboardAdminMenuItem[] {

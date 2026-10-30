@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 import {
@@ -26,16 +27,19 @@ test("all authenticated roles get daily reports, self-service leave, and the gui
     ["usage-guide", "/dashboard/guide"],
   ]);
   for (const role of ["admin", "super_admin"]) {
-    assert.deepEqual(getDailyDashboardMenu(role).map(({ key }) => key), [
-      "weekly-reports", "leave-workbench", "leave-management", "usage-guide",
+    assert.deepEqual(getDailyDashboardMenu(role).map(({ key, href }) => [key, href]), [
+      ["weekly-reports", "/dashboard/weekly-reports"],
+      ["leave-workbench", "/dashboard/leave"],
+      ["usage-guide", "/dashboard/guide"],
     ]);
   }
 });
 
-test("leave management stays with existing admin roles and is placed in daily affairs", () => {
-  assert.equal(getDailyDashboardMenu("admin").find(({ key }) => key === "leave-management")?.href, "/dashboard/admin/leave");
-  assert.equal(getDailyDashboardMenu("super_admin").find(({ key }) => key === "leave-management")?.href, "/dashboard/admin/leave");
-  assert.equal(getDailyDashboardMenu("user").some(({ key }) => key === "leave-management"), false);
+test("legacy admin leave URL retains role restrictions without a duplicate menu entry", () => {
+  for (const role of ["user", "admin", "super_admin"]) {
+    assert.equal(getDailyDashboardMenu(role).filter(({ key }) => key === "leave-workbench").length, 1);
+    assert.equal(getDailyDashboardMenu(role).some(({ key }) => key === "leave-management"), false);
+  }
   assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/leave"), true);
   assert.equal(canAccessDashboardAdminPath("super_admin", "/dashboard/admin/leave"), true);
   assert.equal(canAccessDashboardAdminPath("user", "/dashboard/admin/leave"), false);
@@ -115,4 +119,15 @@ test("nested admin routes keep their parent menu active without broadening acces
   assert.equal(isDashboardMenuPathActive("/dashboard/admin", "/dashboard/admin/registrations"), false);
   assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/interview-sessions"), false);
   assert.equal(canAccessDashboardAdminPath("super_admin", "/dashboard/admin/email"), true);
+});
+
+test("sidebar group and leaf links keep the same icon and text alignment", async () => {
+  const layout = await readFile(new URL("../routes/dashboard/layout.tsx", import.meta.url), "utf8");
+  const legacyLeaveRoute = await readFile(new URL("../routes/admin/leave-workbench.tsx", import.meta.url), "utf8");
+  // Shared fixed icon gutter and line-height for group and direct links.
+  assert.equal((layout.match(/h-\[18px\] w-\[18px\] shrink-0 items-center justify-center/g) ?? []).length, 2);
+  assert.equal((layout.match(/min-h-10 .*?gap-3 rounded-xl py-2\.5 text-sm leading-5/g) ?? []).length, 2);
+  assert.equal(layout.includes('item.key === "leave-workbench"'), true);
+  assert.equal(layout.includes('item.key === "leave-management"'), false);
+  assert.match(legacyLeaveRoute, /<Navigate to="\/dashboard\/leave" replace \/>/);
 });
