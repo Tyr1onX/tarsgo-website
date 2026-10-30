@@ -360,20 +360,12 @@ func (s *Service) nodeDeleteState(ctx context.Context, nodeIDs []uint64) (map[ui
 		return nil, err
 	}
 	for _, row := range dependencies {
-		add(row.SkillNodeID, "存在前置关系")
-		add(row.PrerequisiteNodeID, "存在前置关系")
-	}
-	var assignmentLinks []model.SkillNodeAssignment
-	if err := s.db.WithContext(ctx).Select("skill_node_id").Where("skill_node_id IN ?", nodeIDs).Find(&assignmentLinks).Error; err != nil {
-		return nil, err
-	}
-	for _, row := range assignmentLinks {
-		add(row.SkillNodeID, "关联了训练作业")
+		add(row.PrerequisiteNodeID, "被其他节点依赖")
 	}
 	result := make(map[uint64]string, len(nodeIDs))
 	for _, id := range nodeIDs {
 		reasons := make([]string, 0, len(blocked[id]))
-		for _, reason := range []string{"已有学习进度", "已有审核历史", "存在前置关系", "关联了训练作业"} {
+		for _, reason := range []string{"已有学习进度", "已有审核历史", "被其他节点依赖"} {
 			if blocked[id][reason] {
 				reasons = append(reasons, reason)
 			}
@@ -529,9 +521,8 @@ func (s *Service) SetActive(ctx context.Context, actor Actor, nodeID uint64, act
 	})
 }
 
-// DeleteNode permits physical removal only before a node has acquired learning,
-// assessment, prerequisite, or assignment references. Historic nodes are
-// retained through SetActive(false).
+// DeleteNode removes an unstarted node together with its own configuration links.
+// Nodes referenced as prerequisites or carrying learning/review history are retained.
 func (s *Service) DeleteNode(ctx context.Context, actor Actor, nodeID uint64) error {
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		item, err := s.getManagedNodeForUpdateWithDB(tx, actor, nodeID)
@@ -542,7 +533,7 @@ func (s *Service) DeleteNode(ctx context.Context, actor Actor, nodeID uint64) er
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&group, item.GroupID).Error; err != nil {
 			return internalError("锁定技能路线失败", err)
 		}
-		var progress, reviews, prerequisites, assignments int64
+		var progress, reviews, dependants int64
 		if err := tx.Model(&model.SkillNodeProgress{}).Where("skill_node_id = ?", nodeID).Count(&progress).Error; err != nil {
 			return internalError("检查技能学习历史失败", err)
 		}
@@ -550,14 +541,17 @@ func (s *Service) DeleteNode(ctx context.Context, actor Actor, nodeID uint64) er
 			return internalError("检查技能审核历史失败", err)
 		}
 		if err := tx.Model(&model.SkillNodePrerequisite{}).
-			Where("skill_node_id = ? OR prerequisite_node_id = ?", nodeID, nodeID).Count(&prerequisites).Error; err != nil {
+			Where("prerequisite_node_id = ?", nodeID).Count(&dependants).Error; err != nil {
 			return internalError("检查技能依赖关系失败", err)
 		}
-		if err := tx.Model(&model.SkillNodeAssignment{}).Where("skill_node_id = ?", nodeID).Count(&assignments).Error; err != nil {
-			return internalError("检查关联作业失败", err)
+		if progress+reviews+dependants > 0 {
+			return serviceError(http.StatusConflict, "节点已有学习或审核历史，或被其他节点依赖；请先处理引用关系或停用节点", nil)
 		}
-		if progress+reviews+prerequisites+assignments > 0 {
-			return serviceError(http.StatusConflict, "该节点已有学习或审核历史、前置关系或关联作业，不能删除；请停用节点以保留记录", nil)
+		if err := tx.Where("skill_node_id = ?", nodeID).Delete(&model.SkillNodePrerequisite{}).Error; err != nil {
+			return internalError("移除节点前置配置失败", err)
+		}
+		if err := tx.Where("skill_node_id = ?", nodeID).Delete(&model.SkillNodeAssignment{}).Error; err != nil {
+			return internalError("移除节点作业关联失败", err)
 		}
 		result := tx.Where("id = ? AND group_id = ?", nodeID, item.GroupID).Delete(&model.SkillNode{})
 		if result.Error != nil {
