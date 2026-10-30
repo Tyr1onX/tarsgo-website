@@ -35,6 +35,7 @@ export default [
     route("capabilities", "routes/dashboard/capabilities.tsx"),
     route("admin", "routes/admin/dashboard.tsx"),
     route("admin/users", "routes/admin/users.tsx"),
+    route("admin/organization-preview", "routes/organization-preview.tsx"),
     route("admin/recruitment", "routes/admin/recruitment-management.tsx"),
     route("admin/recruitment-analytics", "routes/admin/recruitment-analytics.tsx"),
     route("admin/registrations", "routes/admin/registrations.tsx"),

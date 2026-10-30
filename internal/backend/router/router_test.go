@@ -67,6 +67,7 @@ func TestPausedTrainingAPIsAreUnregisteredAndOpenWorkflowsRemain(t *testing.T) {
 		"GET /api/admin/leave/access-requests",
 		"PATCH /api/admin/leave/access-requests/:id",
 		"GET /api/admin/registrations",
+		"GET /api/admin/organization-preview",
 	} {
 		if !routes[route] {
 			t.Errorf("open workflow API was unexpectedly removed: %s", route)
@@ -80,6 +81,7 @@ func TestPausedTrainingAPIsAreUnregisteredAndOpenWorkflowsRemain(t *testing.T) {
 		{http.MethodPut, "/api/leave/profile"},
 		{http.MethodPost, "/api/daily-leave/self-service/document"},
 		{http.MethodGet, "/api/work-manual/operations"},
+		{http.MethodGet, "/api/admin/organization-preview"},
 		{http.MethodGet, "/api/work-manual/operations/templates/campus-network-window-application.doc"},
 	} {
 		response := httptest.NewRecorder()

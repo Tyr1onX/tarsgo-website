@@ -232,6 +232,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	// System configuration, recruitment configuration, account management, and analytics are super-admin only.
 	superAdminAPI := adminAPI.Group("")
 	superAdminAPI.Use(middleware.RequireSuperAdmin(authService))
+	superAdminAPI.GET("/organization-preview", handler.OrganizationPreview)
 	superAdminAPI.GET("/leave/access-requests", leaveHandler.ListPendingLeaveAccessRequests)
 	superAdminAPI.PATCH("/leave/access-requests/:id", requireSameOriginRequest(cfg), leaveHandler.ReviewLeaveAccessRequest)
 	superAdminAPI.GET("/roles", adminUserHandler.ListRoles)
