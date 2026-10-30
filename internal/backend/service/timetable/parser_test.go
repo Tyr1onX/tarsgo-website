@@ -8,11 +8,12 @@ import (
 	"io"
 	"regexp"
 	"sort"
+	"strings"
 	"testing"
 )
 
-// Fixture transcribes the actual teaching-week grid, unknown-time list and
-// reschedule entry from the user-provided school export, without student identity.
+// Fixture covers the teaching-week grid, unknown-time list and reschedule entry
+// used by the parser regressions, without student identity.
 func schoolWorkbook(override string) []byte {
 	rows := map[int]map[string]string{
 		3:  {"A3": "　　2026-2027学年第1学期"},
@@ -31,7 +32,7 @@ func schoolWorkbook(override string) []byte {
 		32: {"A32": "第7节-第8节", "F32": "ae22202134-服务机器人[03]\n8-17周,星期4,第7节-第8节南湖-第1教学楼-四阶", "H32": "ae22202059-现场总线技术[03]\n8-17周,星期6,第7节-第8节南湖-第1教学楼-四阶"},
 	}
 	if override != "" {
-		rows[20]["E20"] = override
+		rows[20]["G20"] = override
 	}
 	var buffer bytes.Buffer
 	z := zip.NewWriter(&buffer)
@@ -114,21 +115,115 @@ func TestParityAndRanges(t *testing.T) {
 	if got[0].Active(1) || !got[0].Active(2) || !got[0].Active(8) {
 		t.Fatal("even week filtering failed")
 	}
+	got, e = parseCourseCell("C001-课程甲\n1-8周单 星期一 第1-2节教室A", 1, 1, 2)
+	if e != nil || got[0].Parity != "odd" || got[0].Weekday != 1 || got[0].StartSection != 1 || got[0].EndSection != 2 {
+		t.Fatalf("alternate course text format: %#v err=%v", got, e)
+	}
+	got, e = parseCourseCell("C001-课程甲\n1-8周,第1-2节,星期一教室A", 1, 1, 2)
+	if e != nil || got[0].Weekday != 1 || got[0].StartSection != 1 || got[0].EndSection != 2 || got[0].Location != "教室A" {
+		t.Fatalf("reordered time fields: %#v err=%v", got, e)
+	}
 	for _, bad := range []string{"0周", "8-3周", "31周"} {
 		if _, e := parseWeeks(bad[:len(bad)-len("周")]); e == nil {
 			t.Fatalf("accepted invalid %s", bad)
 		}
 	}
+	if got, err := parseCourseCell("C001-课程甲\n1-8周,星期1,第25-26节", 1, 1, 2); err == nil || len(got) != 0 {
+		t.Fatalf("invalid explicit sections must not be replaced by grid time: courses=%+v err=%v", got, err)
+	}
 }
 
-func TestInvalidGridOrAdjustmentPreservesNoOutput(t *testing.T) {
-	for _, data := range [][]byte{
-		[]byte("not xlsx"), schoolWorkbook("C001-课程\n8-3周,星期3,第3节-第4节教室A"),
-	} {
-		if courses, _, err := ParseXLSX(data); err == nil || len(courses) != 0 {
-			t.Fatalf("accepted bad workbook: courses=%d err=%v", len(courses), err)
+func TestInvalidCourseKeepsOtherParseResultsAndRejectsImport(t *testing.T) {
+	if courses, _, err := ParseXLSX([]byte("not xlsx")); err == nil || len(courses) != 0 {
+		t.Fatalf("accepted invalid workbook: courses=%d err=%v", len(courses), err)
+	}
+	courses, _, err := ParseXLSX(schoolWorkbook("C001-课程甲\n8-3周,星期3,第3节-第4节教室A"))
+	if err == nil || len(courses) < 13 || !strings.Contains(err.Error(), "课程甲") || !strings.Contains(err.Error(), "旧课表未更改") {
+		t.Fatalf("bad course should be reported while preserving other parsed courses: courses=%d err=%v", len(courses), err)
+	}
+}
+
+func TestExplicitCourseTimeResolvesGridMismatch(t *testing.T) {
+	courses, _, err := ParseXLSX(schoolWorkbook("C001-课程甲\n8周,星期4,第5节-第6节南湖-第1教学楼-四阶"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, course := range courses {
+		if course.Code == "C001" {
+			if course.Weekday != 4 || course.StartSection != 5 || course.EndSection != 6 {
+				t.Fatalf("course text should determine explicit time despite grid mismatch: %+v", course)
+			}
+			return
 		}
 	}
+	t.Fatal("mismatched course was not retained")
+}
+
+func TestMissingTimeFieldsAreFilledOnlyFromReliableGrid(t *testing.T) {
+	courses, _, err := ParseXLSX(schoolWorkbook("C001-课程甲\n8周,星期4"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, course := range courses {
+		if course.Code == "C001" {
+			if course.Weekday != 4 || course.StartSection != 3 || course.EndSection != 4 {
+				t.Fatalf("partial text should use its explicit weekday and fill sections from the grid: %+v", course)
+			}
+			return
+		}
+	}
+	t.Fatal("partially specified course was not retained")
+}
+
+func TestMergedGridCellProvidesCombinedSectionRange(t *testing.T) {
+	courses, notes, err := ParseXLSX(mergedGridWorkbook("C001-合并课程\n8周"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(notes) != 0 || len(courses) != 1 {
+		t.Fatalf("merged grid result: courses=%+v notes=%+v", courses, notes)
+	}
+	if course := courses[0]; course.Weekday != 1 || course.StartSection != 1 || course.EndSection != 4 {
+		t.Fatalf("merged cell did not resolve the full grid range: %+v", course)
+	}
+}
+
+func TestMissingTimeWithoutReliableGridContextRemainsUnresolved(t *testing.T) {
+	courses, err := parseCourseCell("C001-课程甲\n8周,星期3", 0, 0, 0)
+	if err == nil || len(courses) != 0 || !strings.Contains(err.Error(), "节次") {
+		t.Fatalf("missing section should remain unresolved: courses=%+v err=%v", courses, err)
+	}
+}
+
+func mergedGridWorkbook(course string) []byte {
+	values := map[string]string{
+		"A13": "节次/星期", "C13": "星期一", "D13": "星期二", "E13": "星期三",
+		"F13": "星期四", "G13": "星期五", "H13": "星期六", "I13": "星期日",
+		"A14": "第1节-第2节", "C14": course, "A15": "第3节-第4节",
+	}
+	var buffer bytes.Buffer
+	z := zip.NewWriter(&buffer)
+	f, _ := z.Create("xl/worksheets/sheet1.xml")
+	_, _ = f.Write([]byte("<worksheet><sheetData>"))
+	for _, row := range []int{13, 14, 15} {
+		_, _ = fmt.Fprintf(f, "<row r=%q>", fmt.Sprint(row))
+		refs := []string{}
+		for ref := range values {
+			if strings.TrimLeft(ref, "ABCDEFGHIJKLMNOPQRSTUVWXYZ") == fmt.Sprint(row) {
+				refs = append(refs, ref)
+			}
+		}
+		sort.Strings(refs)
+		for _, ref := range refs {
+			var escaped bytes.Buffer
+			_ = xml.EscapeText(&escaped, []byte(values[ref]))
+			_, _ = fmt.Fprintf(f, "<c r=%q t=\"inlineStr\"><is><t>%s</t></is></c>", ref, escaped.String())
+		}
+		_, _ = f.Write([]byte("</row>"))
+	}
+	_, _ = f.Write([]byte("</sheetData><mergeCells count=\"1\"><mergeCell ref=\"C14:C15\"/></mergeCells></worksheet>"))
+	_ = z.Close()
+	return buffer.Bytes()
 }
 
 func TestSharedStringCellsLikeRealSchoolExport(t *testing.T) {

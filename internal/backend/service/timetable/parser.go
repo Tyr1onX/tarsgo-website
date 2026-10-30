@@ -13,13 +13,40 @@ import (
 	"strings"
 )
 
-type sheet struct{ rows map[int]map[int]string }
+type cellRange struct{ firstRow, lastRow, firstCol, lastCol int }
+type sheet struct {
+	rows   map[int]map[int]string
+	merged []cellRange
+}
 
-var courseTitle = regexp.MustCompile("(?i)^([a-z][a-z0-9]*)-(.+?)(?:\\[\\d+\\])?$")
-var weekClause = regexp.MustCompile("^([0-9,，、\\-－~～ ]+)周(?:[（(]([单双])[）)]|([单双]))?[,，]?星期([1-7一二三四五六日天])[,，]?第(\\d+)节[-－~～至]第?(\\d+)节(.*)$")
-var sectionLabel = regexp.MustCompile("^第(\\d+)节[-－~～至]第?(\\d+)节$")
+func (s sheet) rangeAt(row, col int) (cellRange, bool) {
+	for _, area := range s.merged {
+		if row >= area.firstRow && row <= area.lastRow && col >= area.firstCol && col <= area.lastCol {
+			return area, true
+		}
+	}
+	return cellRange{firstRow: row, lastRow: row, firstCol: col, lastCol: col}, false
+}
+
+var courseTitle = regexp.MustCompile("(?i)^([a-z][a-z0-9_.]*)\\s*[-－—–]\\s*(.+?)(?:\\s*\\[\\d+\\])?$")
+var weekPrefix = regexp.MustCompile("^(?:上课周次\\s*)?(?:第\\s*)?([0-9,，、\\-－—–~～至\\s]+?)\\s*周(?:\\s*[（(]([单双])(?:周)?[）)]|\\s*([单双])(?:周)?)?")
+var weekdayAnywhere = regexp.MustCompile("(?:^|[,，、;；\\s])(?:星期|周)\\s*([1-7一二三四五六日天])")
+var sectionLabel = regexp.MustCompile("^第\\s*(\\d+)\\s*节\\s*[-－—–~～至]\\s*(?:第\\s*)?(\\d+)\\s*节?$")
+var compactSectionLabel = regexp.MustCompile("^第\\s*(\\d+)\\s*[-－—–~～至]\\s*(\\d+)\\s*节$")
+var bareSectionRange = regexp.MustCompile("^(\\d+)\\s*[-－—–~～至]\\s*(\\d+)\\s*节$")
+var singleSectionLabel = regexp.MustCompile("^(?:第\\s*)?(\\d+)\\s*节$")
+var sectionPrefixPatterns = []*regexp.Regexp{
+	regexp.MustCompile("^第\\s*(\\d+)\\s*节\\s*[-－—–~～至]\\s*(?:第\\s*)?(\\d+)\\s*节?"),
+	regexp.MustCompile("^第\\s*(\\d+)\\s*[-－—–~～至]\\s*(\\d+)\\s*节"),
+	regexp.MustCompile("^(\\d+)\\s*[-－—–~～至]\\s*(\\d+)\\s*节"),
+}
+var singleSectionPrefix = regexp.MustCompile("^(?:第\\s*)?(\\d+)\\s*节")
+var sectionRangeInText = regexp.MustCompile("^(?:第\\s*\\d+|\\d+)\\s*(?:节|[-－—–~～至])")
+var malformedWeekPrefix = regexp.MustCompile("^[0-9第].*周")
+var weekdayHeaderPattern = regexp.MustCompile("^(?:星期|周)([1-7一二三四五六日天])(?:[(][^)]*[)])?$")
 var unknownCourse = regexp.MustCompile("^(.+?)\\s*\\[[A-Za-z0-9]+\\]\\s*(上课周次\\s*[0-9,，、\\-]+周)")
 var adjustment = regexp.MustCompile("^【调课】(.+?)\\[([A-Za-z0-9]+)\\],从(\\d+)周星期([1-7])的(\\d+)-(\\d+)节调整为(\\d+)周星期([1-7])的(\\d+)-(\\d+)节(?:,(.*))?$")
+var cellReference = regexp.MustCompile("^\\$?([A-Za-z]+)\\$?(\\d+)$")
 
 var semesterLabel = regexp.MustCompile("[0-9]{4}-[0-9]{4}学年第[一二12]学期")
 
@@ -82,6 +109,7 @@ func ParseXLSX(data []byte) ([]Course, []Note, error) {
 	courses := []Course{}
 	notes := []Note{}
 	adjustments := []string{}
+	issues := []parseIssue{}
 	gridCount := 0
 	for _, f := range reader.File {
 		if !strings.HasPrefix(f.Name, "xl/worksheets/sheet") || !strings.HasSuffix(f.Name, ".xml") {
@@ -91,18 +119,19 @@ func ParseXLSX(data []byte) ([]Course, []Note, error) {
 		if e != nil {
 			return nil, nil, errors.New("Excel 工作表无法读取，旧课表未更改")
 		}
-		for row, cells := range sh.rows {
-			for _, value := range cells {
+		indices := sortedRows(sh.rows)
+		for _, row := range indices {
+			cells := sh.rows[row]
+			for _, col := range sortedColumns(cells) {
+				value := cells[col]
 				if strings.Contains(value, "上课时间暂未确定的课程：") {
 					for r := row; r <= row+20; r++ {
 						data := sh.rows[r]
-						if data == nil {
+						if r > row && containsLabel(data, "调课信息：") {
 							break
 						}
-						if containsLabel(data, "调课信息：") {
-							break
-						}
-						for _, entry := range data {
+						for _, entryCol := range sortedColumns(data) {
+							entry := data[entryCol]
 							if m := unknownCourse.FindStringSubmatch(strings.TrimSpace(entry)); m != nil {
 								notes = append(notes, Note{Name: strings.TrimSpace(m[1]), Reason: m[2] + "，时间未确定（不计入占用）"})
 							}
@@ -114,47 +143,61 @@ func ParseXLSX(data []byte) ([]Course, []Note, error) {
 				}
 			}
 		}
-		indices := make([]int, 0, len(sh.rows))
-		for row := range sh.rows {
-			indices = append(indices, row)
-		}
-		sort.Ints(indices)
 		for _, headerRow := range indices {
 			weekdays := map[int]int{}
 			for col, value := range sh.rows[headerRow] {
-				if day := weekdayHeader(strings.TrimSpace(value)); day > 0 {
+				if day := weekdayHeader(value); day > 0 {
 					weekdays[col] = day
 				}
 			}
-			if len(weekdays) < 5 {
-				continue
-			}
-			sectionRows := 0
-			for row := headerRow + 1; row <= headerRow+40; row++ {
-				start, end, ok := sectionAt(sh.rows[row], minColumn(weekdays))
-				if !ok {
+			for _, area := range sh.merged {
+				if area.firstRow != headerRow {
 					continue
 				}
-				sectionRows++
-				for col, day := range weekdays {
+				if day := weekdayHeader(sh.rows[area.firstRow][area.firstCol]); day > 0 {
+					for col := area.firstCol; col <= area.lastCol; col++ {
+						weekdays[col] = day
+					}
+				}
+			}
+			if uniqueWeekdays(weekdays) < 5 {
+				continue
+			}
+			weekdayColumns := sortedWeekdayColumns(weekdays)
+			sectionRows := 0
+			for row := headerRow + 1; row <= headerRow+40; row++ {
+				_, _, hasSection := sectionAtSheet(sh, row, minColumn(weekdays))
+				if hasSection {
+					sectionRows++
+				}
+				for _, col := range weekdayColumns {
 					raw := strings.TrimSpace(sh.rows[row][col])
 					if raw == "" || raw == "无" || raw == "暂无" || raw == "调课" {
 						continue
 					}
-					parsed, e := parseCourseCell(raw, day, start, end)
-					if e != nil {
-						return nil, nil, fmt.Errorf("课表第%d行星期%d的课程无法可靠解析：%v；旧课表未更改", row, day, e)
+					if !hasSection && !looksLikeCourseCell(raw) {
+						continue
 					}
+					context := contextAt(sh, weekdays, row, col)
+					parsed, cellIssues := parseCourseCellDetailed(raw, context)
 					courses = append(courses, parsed...)
+					for _, issue := range cellIssues {
+						issue.Row = row
+						issues = append(issues, issue)
+					}
 				}
 			}
-			if sectionRows >= 2 {
+			if sectionRows >= 1 {
 				gridCount++
 			}
 		}
 	}
 	if gridCount == 0 {
 		return nil, nil, errors.New("未找到有效的星期/节次课程网格，旧课表未更改")
+	}
+	notes = uniqueNotes(notes)
+	if len(issues) > 0 {
+		return courses, notes, fmt.Errorf("%s；旧课表未更改", summarizeIssues(issues))
 	}
 	courses = combine(courses)
 	for _, raw := range adjustments {
@@ -172,7 +215,7 @@ func ParseXLSX(data []byte) ([]Course, []Note, error) {
 		}
 	}
 	courses = combine(courses)
-	if len(courses) == 0 {
+	if len(courses) == 0 && len(notes) == 0 {
 		return nil, nil, errors.New("未识别到确定时间的课程，旧课表未更改")
 	}
 	sort.Slice(courses, func(i, j int) bool {
@@ -196,6 +239,61 @@ func containsLabel(cells map[int]string, target string) bool {
 	}
 	return false
 }
+
+type parseIssue struct {
+	Name   string
+	Reason string
+	Row    int
+}
+
+type gridContext struct {
+	day, start, end     int
+	hasDay, hasSections bool
+}
+
+type scheduleInfo struct {
+	weeks               []int
+	parity              string
+	day, start, end     int
+	hasDay, hasSections bool
+	location            string
+}
+
+func sortedRows(rows map[int]map[int]string) []int {
+	indices := make([]int, 0, len(rows))
+	for row := range rows {
+		indices = append(indices, row)
+	}
+	sort.Ints(indices)
+	return indices
+}
+
+func sortedColumns(cells map[int]string) []int {
+	columns := make([]int, 0, len(cells))
+	for col := range cells {
+		columns = append(columns, col)
+	}
+	sort.Ints(columns)
+	return columns
+}
+
+func sortedWeekdayColumns(days map[int]int) []int {
+	columns := make([]int, 0, len(days))
+	for col := range days {
+		columns = append(columns, col)
+	}
+	sort.Ints(columns)
+	return columns
+}
+
+func uniqueWeekdays(days map[int]int) int {
+	seen := map[int]bool{}
+	for _, day := range days {
+		seen[day] = true
+	}
+	return len(seen)
+}
+
 func minColumn(days map[int]int) int {
 	min := 999
 	for col := range days {
@@ -205,118 +303,360 @@ func minColumn(days map[int]int) int {
 	}
 	return min
 }
+
 func sectionAt(cells map[int]string, firstDayCol int) (int, int, bool) {
-	for col, v := range cells {
+	for _, col := range sortedColumns(cells) {
 		if col >= firstDayCol {
 			continue
 		}
-		m := sectionLabel.FindStringSubmatch(strings.TrimSpace(v))
-		if m == nil {
+		start, end, ok := parseSectionLabel(strings.TrimSpace(cells[col]))
+		if !ok {
 			continue
 		}
-		a, _ := strconv.Atoi(m[1])
-		b, _ := strconv.Atoi(m[2])
-		if a > 0 && b >= a && b <= 24 {
-			return a, b, true
+		if start > 0 && end >= start && end <= 24 {
+			return start, end, true
 		}
 	}
 	return 0, 0, false
 }
-func weekdayHeader(value string) int {
-	switch value {
-	case "星期一", "星期1":
-		return 1
-	case "星期二", "星期2":
-		return 2
-	case "星期三", "星期3":
-		return 3
-	case "星期四", "星期4":
-		return 4
-	case "星期五", "星期5":
-		return 5
-	case "星期六", "星期6":
-		return 6
-	case "星期日", "星期天", "星期7":
-		return 7
+
+func sectionAtSheet(sh sheet, row, firstDayCol int) (int, int, bool) {
+	cells := sh.rows[row]
+	for _, area := range sh.merged {
+		if row < area.firstRow || row > area.lastRow || area.firstCol >= firstDayCol {
+			continue
+		}
+		value := sh.rows[area.firstRow][area.firstCol]
+		if value == "" || cells[area.firstCol] != "" {
+			continue
+		}
+		if cells == nil {
+			cells = map[int]string{}
+		} else {
+			copyOfCells := make(map[int]string, len(cells)+1)
+			for col, existing := range cells {
+				copyOfCells[col] = existing
+			}
+			cells = copyOfCells
+		}
+		cells[area.firstCol] = value
 	}
-	return 0
+	return sectionAt(cells, firstDayCol)
 }
-func parseDay(v string) int {
-	if len(v) == 1 {
-		if day, err := strconv.Atoi(v); err == nil {
-			return day
+
+func parseSectionLabel(value string) (int, int, bool) {
+	for _, pattern := range []*regexp.Regexp{sectionLabel, compactSectionLabel, bareSectionRange} {
+		if match := pattern.FindStringSubmatch(value); match != nil {
+			start, _ := strconv.Atoi(match[1])
+			end, _ := strconv.Atoi(match[2])
+			if start > 0 && end >= start && end <= 24 {
+				return start, end, true
+			}
 		}
 	}
-	return weekdayHeader("星期" + v)
+	if match := singleSectionLabel.FindStringSubmatch(value); match != nil {
+		section, _ := strconv.Atoi(match[1])
+		if section > 0 && section <= 24 {
+			return section, section, true
+		}
+	}
+	return 0, 0, false
 }
+
+func weekdayHeader(value string) int {
+	value = strings.NewReplacer("　", "", " ", "", "（", "(", "）", ")").Replace(strings.TrimSpace(value))
+	match := weekdayHeaderPattern.FindStringSubmatch(value)
+	if match == nil {
+		return 0
+	}
+	return parseDay(match[1])
+}
+
+func parseDay(v string) int {
+	switch v {
+	case "一":
+		return 1
+	case "二":
+		return 2
+	case "三":
+		return 3
+	case "四":
+		return 4
+	case "五":
+		return 5
+	case "六":
+		return 6
+	case "日", "天":
+		return 7
+	}
+	day, err := strconv.Atoi(v)
+	if err != nil || day < 1 || day > 7 {
+		return 0
+	}
+	return day
+}
+
 func parseCourseCell(value string, gridDay, gridStart, gridEnd int) ([]Course, error) {
+	context := gridContext{day: gridDay, start: gridStart, end: gridEnd,
+		hasDay:      gridDay >= 1 && gridDay <= 7,
+		hasSections: gridStart >= 1 && gridEnd >= gridStart && gridEnd <= 24}
+	courses, issues := parseCourseCellDetailed(value, context)
+	if len(issues) > 0 {
+		return courses, errors.New(issues[0].Reason)
+	}
+	return courses, nil
+}
+
+func contextAt(sh sheet, weekdays map[int]int, row, col int) gridContext {
+	context := gridContext{}
+	area, _ := sh.rangeAt(row, col)
+	for mergedCol := area.firstCol; mergedCol <= area.lastCol; mergedCol++ {
+		day, ok := weekdays[mergedCol]
+		if !ok {
+			continue
+		}
+		if !context.hasDay {
+			context.day, context.hasDay = day, true
+			continue
+		}
+		if context.day != day {
+			context.hasDay = false
+			break
+		}
+	}
+
+	covered := map[int]bool{}
+	firstDayCol := minColumn(weekdays)
+	for mergedRow := area.firstRow; mergedRow <= area.lastRow; mergedRow++ {
+		start, end, ok := sectionAtSheet(sh, mergedRow, firstDayCol)
+		if !ok {
+			continue
+		}
+		for section := start; section <= end; section++ {
+			covered[section] = true
+		}
+	}
+	if len(covered) == 0 {
+		return context
+	}
+	context.start, context.end = 25, 0
+	for section := range covered {
+		if section < context.start {
+			context.start = section
+		}
+		if section > context.end {
+			context.end = section
+		}
+	}
+	context.hasSections = context.start > 0 && context.end <= 24 && len(covered) == context.end-context.start+1
+	return context
+}
+
+func looksLikeCourseCell(value string) bool {
+	for _, line := range strings.Split(strings.ReplaceAll(value, "\r", ""), "\n") {
+		line = strings.TrimSpace(line)
+		if courseTitle.MatchString(line) || weekPrefix.MatchString(line) || strings.Contains(line, "周") && strings.Contains(line, "星期") {
+			return true
+		}
+	}
+	return false
+}
+
+func parseCourseCellDetailed(value string, context gridContext) ([]Course, []parseIssue) {
 	lines := strings.Split(strings.ReplaceAll(value, "\r", ""), "\n")
 	result := []Course{}
+	issues := []parseIssue{}
 	currentCode, currentName := "", ""
-	found := false
+	foundForCurrent, issueForCurrent := false, false
+	addIssue := func(name, reason string) {
+		issues = append(issues, parseIssue{Name: strings.TrimSpace(name), Reason: reason})
+		issueForCurrent = true
+	}
+	finishCurrent := func() {
+		if currentName != "" && !foundForCurrent && !issueForCurrent {
+			addIssue(currentName, "缺少有效教学周")
+		}
+	}
+	resolve := func(info scheduleInfo) {
+		if currentName == "" {
+			addIssue("未命名课程", "缺少课程名称")
+			return
+		}
+		day, start, end := info.day, info.start, info.end
+		// Explicit course text is the primary time source; the grid only fills missing fields.
+		if !info.hasDay {
+			day = context.day
+		}
+		if !info.hasSections {
+			start, end = context.start, context.end
+		}
+		if day < 1 || day > 7 {
+			addIssue(currentName, "课程文字缺少星期，且网格星期无法可靠确认")
+			return
+		}
+		if start < 1 || end < start || end > 24 {
+			addIssue(currentName, "课程文字缺少节次，且网格节次无法可靠确认")
+			return
+		}
+		result = append(result, Course{Code: currentCode, Name: currentName, Weekday: day, StartSection: start, EndSection: end, Weeks: info.weeks, Parity: info.parity, Location: info.location})
+		foundForCurrent = true
+	}
 	for _, raw := range lines {
 		line := strings.TrimSpace(raw)
 		if line == "" || line == "调课" {
 			continue
 		}
 		if m := courseTitle.FindStringSubmatch(line); m != nil {
+			finishCurrent()
 			currentCode, currentName = m[1], strings.TrimSpace(m[2])
-			found = false
+			foundForCurrent, issueForCurrent = false, false
 			if currentName == "" {
-				return nil, errors.New("课程名称为空")
+				addIssue("未命名课程", "课程名称为空")
 			}
 			continue
 		}
-		if m := weekClause.FindStringSubmatch(line); m != nil {
-			if currentName == "" {
-				return nil, errors.New("缺少课程名称")
+		info, candidate, err := parseScheduleLine(line)
+		if candidate {
+			if err != nil {
+				addIssue(currentNameOrPlaceholder(currentName), err.Error())
+				continue
 			}
-			weeks, e := parseWeeks(m[1])
-			if e != nil {
-				return nil, e
-			}
-			parity := "all"
-			flag := m[2]
-			if flag == "" {
-				flag = m[3]
-			}
-			if flag == "单" {
-				parity = "odd"
-			} else if flag == "双" {
-				parity = "even"
-			}
-			day := parseDay(m[4])
-			start, _ := strconv.Atoi(m[5])
-			end, _ := strconv.Atoi(m[6])
-			if day != gridDay || start != gridStart || end != gridEnd {
-				return nil, errors.New("网格星期或节次与课程文字不一致")
-			}
-			location := strings.Trim(strings.TrimSpace(m[7]), ",，;； ")
-			if strings.Contains(location, "\n") {
-				return nil, errors.New("地点信息无效")
-			}
-			if len(weeks) == 0 {
-				return nil, errors.New("课程教学周为空")
-			}
-			result = append(result, Course{Code: currentCode, Name: currentName, Weekday: day, StartSection: start, EndSection: end, Weeks: weeks, Parity: parity, Location: location})
-			found = true
+			resolve(info)
 			continue
 		}
-		if currentName != "" && !found {
-			return nil, fmt.Errorf("课程 %s 缺少完整周次/节次信息", currentName)
+		if currentName != "" && (strings.Contains(line, "周") || strings.Contains(line, "星期")) && !foundForCurrent {
+			addIssue(currentName, "周次或星期格式无法识别")
 		}
-		// Ignore annotation only after a fully parsed course segment.
 	}
-	if currentName != "" && !found {
-		return nil, errors.New("最后一门课程缺少有效教学周")
+	finishCurrent()
+	if currentName == "" && len(result) == 0 && len(issues) == 0 {
+		issues = append(issues, parseIssue{Name: "未命名课程", Reason: "非空单元格未包含有效课程"})
 	}
-	if len(result) == 0 {
-		return nil, errors.New("非空单元格未包含有效课程")
+	return result, issues
+}
+
+func currentNameOrPlaceholder(name string) string {
+	if strings.TrimSpace(name) == "" {
+		return "未命名课程"
 	}
-	return result, nil
+	return name
+}
+
+func parseScheduleLine(line string) (scheduleInfo, bool, error) {
+	match := weekPrefix.FindStringSubmatch(line)
+	if match == nil {
+		if malformedWeekPrefix.MatchString(line) {
+			return scheduleInfo{}, true, errors.New("周次格式无法识别")
+		}
+		return scheduleInfo{}, false, nil
+	}
+	weeks, err := parseWeeks(match[1])
+	if err != nil {
+		return scheduleInfo{}, true, err
+	}
+	if len(weeks) == 0 {
+		return scheduleInfo{}, true, errors.New("课程教学周为空")
+	}
+	info := scheduleInfo{weeks: weeks, parity: "all"}
+	parity := match[2]
+	if parity == "" {
+		parity = match[3]
+	}
+	if parity == "单" {
+		info.parity = "odd"
+	} else if parity == "双" {
+		info.parity = "even"
+	}
+	rest := strings.TrimLeft(strings.TrimSpace(line[len(match[0]):]), ",，、;； \t")
+	if dayMatch := weekdayAnywhere.FindStringSubmatchIndex(rest); dayMatch != nil {
+		info.day = parseDay(rest[dayMatch[2]:dayMatch[3]])
+		info.hasDay = info.day > 0
+		rest = rest[:dayMatch[0]] + rest[dayMatch[1]:]
+	} else if strings.Contains(rest, "星期") || regexp.MustCompile("(?:^|[,，、;；\\s])周").MatchString(rest) {
+		return scheduleInfo{}, true, errors.New("星期格式无法识别")
+	}
+	rest = strings.TrimLeft(strings.TrimSpace(rest), ",，、;； \t")
+	if sectionMatch, size := findSectionPrefix(rest); size > 0 {
+		info.start, _ = strconv.Atoi(sectionMatch[1])
+		info.end, _ = strconv.Atoi(sectionMatch[2])
+		if info.start < 1 || info.end < info.start || info.end > 24 {
+			return scheduleInfo{}, true, errors.New("课程节次超出1-24或范围倒置")
+		}
+		info.hasSections = true
+		rest = strings.TrimLeft(strings.TrimSpace(rest[size:]), ",，、;； \t")
+	} else if sectionRangeInText.MatchString(rest) {
+		return scheduleInfo{}, true, errors.New("节次格式无法识别")
+	}
+	if strings.ContainsAny(rest, "\r\n") {
+		return scheduleInfo{}, true, errors.New("课程地点格式无法识别")
+	}
+	info.location = strings.Trim(strings.TrimSpace(rest), ",，、;； ")
+	return info, true, nil
+}
+
+func findSectionPrefix(value string) ([]string, int) {
+	for _, pattern := range sectionPrefixPatterns {
+		if loc := pattern.FindStringIndex(value); loc != nil && loc[0] == 0 {
+			return pattern.FindStringSubmatch(value), loc[1]
+		}
+	}
+	if match := singleSectionPrefix.FindStringSubmatchIndex(value); match != nil {
+		submatch := singleSectionPrefix.FindStringSubmatch(value)
+		return []string{submatch[0], submatch[1], submatch[1]}, match[1]
+	}
+	return nil, 0
+}
+
+func summarizeIssues(issues []parseIssue) string {
+	items := make([]string, 0, len(issues))
+	seen := map[string]bool{}
+	for _, issue := range issues {
+		name := strings.TrimSpace(issue.Name)
+		if name == "" {
+			name = "未命名课程"
+		}
+		name = truncateRunes(strings.ReplaceAll(name, "\n", " "), 40)
+		item := fmt.Sprintf("「%s」%s", name, issue.Reason)
+		if issue.Row > 0 {
+			item = fmt.Sprintf("第%d行%s", issue.Row, item)
+		}
+		key := item
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		items = append(items, item)
+	}
+	const maxIssues = 5
+	if len(items) > maxIssues {
+		items = append(items[:maxIssues], fmt.Sprintf("另有%d门课程未能确认", len(items)-maxIssues))
+	}
+	return "以下课程时间无法可靠确认：" + strings.Join(items, "；")
+}
+
+func truncateRunes(value string, max int) string {
+	runes := []rune(value)
+	if len(runes) <= max {
+		return value
+	}
+	return string(runes[:max]) + "…"
+}
+
+func uniqueNotes(notes []Note) []Note {
+	result := make([]Note, 0, len(notes))
+	seen := map[string]bool{}
+	for _, note := range notes {
+		key := note.Name + "\x00" + note.Reason
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		result = append(result, note)
+	}
+	return result
 }
 func parseWeeks(raw string) ([]int, error) {
-	raw = strings.NewReplacer("，", ",", "、", ",", "－", "-", "~", "-", "～", "-", " ", "").Replace(raw)
+	raw = strings.NewReplacer("，", ",", "、", ",", "－", "-", "—", "-", "–", "-", "~", "-", "～", "-", "至", "-", " ", "", "\t", "").Replace(raw)
 	seen := map[int]bool{}
 	for _, part := range strings.Split(raw, ",") {
 		if part == "" {
@@ -513,6 +853,20 @@ func readSheet(f *zip.File, shared []string) (sheet, error) {
 				}
 			case "v", "t":
 				inValue = true
+			case "mergeCell":
+				for _, a := range t.Attr {
+					if a.Name.Local != "ref" {
+						continue
+					}
+					area, ok := parseCellRange(a.Value)
+					if !ok {
+						return sheet{}, errors.New("invalid merged-cell range")
+					}
+					result.merged = append(result.merged, area)
+					if len(result.merged) > 10000 {
+						return sheet{}, errors.New("too many merged-cell ranges")
+					}
+				}
 			}
 		case xml.CharData:
 			if inValue {
@@ -542,9 +896,50 @@ func readSheet(f *zip.File, shared []string) (sheet, error) {
 	}
 	return result, nil
 }
+
+func parseCellRange(ref string) (cellRange, bool) {
+	parts := strings.Split(strings.TrimSpace(ref), ":")
+	if len(parts) == 1 {
+		parts = append(parts, parts[0])
+	}
+	if len(parts) != 2 {
+		return cellRange{}, false
+	}
+	parse := func(value string) (int, int, bool) {
+		match := cellReference.FindStringSubmatch(strings.ToUpper(strings.TrimSpace(value)))
+		if match == nil {
+			return 0, 0, false
+		}
+		row, err := strconv.Atoi(match[2])
+		if err != nil || row < 1 || row > 1048576 {
+			return 0, 0, false
+		}
+		col := cellColumn(match[1])
+		return row, col, col >= 1 && col <= 16384
+	}
+	firstRow, firstCol, ok := parse(parts[0])
+	if !ok {
+		return cellRange{}, false
+	}
+	lastRow, lastCol, ok := parse(parts[1])
+	if !ok {
+		return cellRange{}, false
+	}
+	if firstRow > lastRow {
+		firstRow, lastRow = lastRow, firstRow
+	}
+	if firstCol > lastCol {
+		firstCol, lastCol = lastCol, firstCol
+	}
+	if lastRow-firstRow > 100 || lastCol-firstCol > 60 {
+		return cellRange{}, false
+	}
+	return cellRange{firstRow: firstRow, lastRow: lastRow, firstCol: firstCol, lastCol: lastCol}, true
+}
+
 func cellColumn(ref string) int {
 	col := 0
-	for _, r := range ref {
+	for _, r := range strings.ToUpper(ref) {
 		if r < 'A' || r > 'Z' {
 			break
 		}
