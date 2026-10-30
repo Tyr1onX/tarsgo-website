@@ -11,6 +11,7 @@ export interface CultivationMemberSummary {
   userId: number;
   displayName: string;
   groupRole: string;
+  joinedYear: number;
   dimensions: CapabilityDimensionResult[];
   overallScore: number | null;
   scoredDimensions: number;
