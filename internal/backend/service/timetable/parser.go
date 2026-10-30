@@ -48,7 +48,6 @@ var malformedWeekPrefix = regexp.MustCompile("^[0-9第].*周")
 var unparsedWeekField = regexp.MustCompile("(?:^|[,，、;；\\s])(?:上课周次\\s*)?(?:第\\s*)?[0-9][0-9,，、\\-－—–~～至\\s]*周")
 var weekdayHeaderPattern = regexp.MustCompile("^(?:星期|周)([1-7一二三四五六日天])(?:[(][^)]*[)])?$")
 var unknownCourse = regexp.MustCompile("^(.+?)\\s*\\[[A-Za-z0-9]+\\]\\s*(上课周次\\s*[0-9,，、\\-]+周)")
-var adjustment = regexp.MustCompile("^【调课】(.+?)\\[([A-Za-z0-9]+)\\],从(\\d+)周星期([1-7])的(\\d+)-(\\d+)节调整为(\\d+)周星期([1-7])的(\\d+)-(\\d+)节(?:,(.*))?$")
 var cellReference = regexp.MustCompile("^\\$?([A-Za-z]+)\\$?(\\d+)$")
 
 var semesterLabel = regexp.MustCompile("[0-9]{4}-[0-9]{4}学年第[一二12]学期")
@@ -111,7 +110,6 @@ func ParseXLSX(data []byte) ([]Course, []Note, error) {
 	}
 	courses := []Course{}
 	notes := []Note{}
-	adjustments := []string{}
 	issues := []parseIssue{}
 	gridCount := 0
 	for _, f := range reader.File {
@@ -140,9 +138,6 @@ func ParseXLSX(data []byte) ([]Course, []Note, error) {
 							}
 						}
 					}
-				}
-				if strings.HasPrefix(strings.TrimSpace(value), "【调课】") {
-					adjustments = append(adjustments, strings.TrimSpace(value))
 				}
 			}
 		}
@@ -201,21 +196,6 @@ func ParseXLSX(data []byte) ([]Course, []Note, error) {
 	notes = uniqueNotes(notes)
 	if len(issues) > 0 {
 		return courses, notes, fmt.Errorf("%s；旧课表未更改", summarizeIssues(issues))
-	}
-	courses = combine(courses)
-	for _, raw := range adjustments {
-		for _, line := range strings.Split(raw, "\n") {
-			line = strings.TrimSpace(line)
-			if line == "" {
-				continue
-			}
-			if !strings.HasPrefix(line, "【调课】") {
-				return nil, nil, errors.New("存在无法识别的调课记录，旧课表未更改")
-			}
-			if err := applyAdjustment(&courses, line); err != nil {
-				return nil, nil, fmt.Errorf("%v，旧课表未更改", err)
-			}
-		}
 	}
 	courses = combine(courses)
 	if len(courses) == 0 && len(notes) == 0 {
@@ -791,54 +771,6 @@ func combine(items []Course) []Course {
 		}
 	}
 	return out
-}
-func applyAdjustment(courses *[]Course, raw string) error {
-	m := adjustment.FindStringSubmatch(raw)
-	if m == nil {
-		return errors.New("调课格式无法识别")
-	}
-	code := m[2]
-	fromWeek, _ := strconv.Atoi(m[3])
-	fromDay, _ := strconv.Atoi(m[4])
-	fromStart, _ := strconv.Atoi(m[5])
-	fromEnd, _ := strconv.Atoi(m[6])
-	toWeek, _ := strconv.Atoi(m[7])
-	toDay, _ := strconv.Atoi(m[8])
-	toStart, _ := strconv.Atoi(m[9])
-	toEnd, _ := strconv.Atoi(m[10])
-	if fromWeek < 1 || toWeek < 1 || toWeek > 30 || fromDay < 1 || fromDay > 7 || toDay < 1 || toDay > 7 || fromStart < 1 || fromEnd < fromStart || toStart < 1 || toEnd < toStart || toEnd > 24 {
-		return errors.New("调课日期或节次无效")
-	}
-	for i := range *courses {
-		c := &(*courses)[i]
-		if c.Code != code || c.Weekday != fromDay || c.StartSection != fromStart || c.EndSection != fromEnd {
-			continue
-		}
-		for idx, week := range c.Weeks {
-			if week != fromWeek {
-				continue
-			}
-			if !c.Active(fromWeek) {
-				return errors.New("调课源教学周不在有效单双周内")
-			}
-			moved := *c
-			moved.Weeks = []int{toWeek}
-			moved.Weekday = toDay
-			moved.StartSection = toStart
-			moved.EndSection = toEnd
-			moved.Parity = "all"
-			if suffix := strings.TrimSpace(m[11]); suffix != "" {
-				location := strings.Split(suffix, ",")[0]
-				if location != "" {
-					moved.Location = location
-				}
-			}
-			c.Weeks = append(c.Weeks[:idx], c.Weeks[idx+1:]...)
-			*courses = append(*courses, moved)
-			return nil
-		}
-	}
-	return errors.New("调课源课程或教学周无法匹配")
 }
 func readSharedStrings(f *zip.File) ([]string, error) {
 	r, e := f.Open()

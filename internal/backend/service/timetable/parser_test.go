@@ -20,7 +20,7 @@ import (
 
 // Fixture covers the teaching-week grid, unknown-time list and reschedule entry
 // used by the parser regressions, without student identity.
-func schoolWorkbook(override string) []byte {
+func schoolWorkbook(override string, reschedule ...string) []byte {
 	rows := map[int]map[string]string{
 		3:  {"A3": "　　2026-2027学年第1学期"},
 		4:  {"A4": "上课时间暂未确定的课程：", "D4": "单片机原理实验 [ae22203008] 上课周次 3-8周"},
@@ -39,6 +39,9 @@ func schoolWorkbook(override string) []byte {
 	}
 	if override != "" {
 		rows[20]["G20"] = override
+	}
+	if len(reschedule) > 0 {
+		rows[11]["D11"] = reschedule[0]
 	}
 	var buffer bytes.Buffer
 	z := zip.NewWriter(&buffer)
@@ -69,7 +72,7 @@ func schoolWorkbook(override string) []byte {
 	return buffer.Bytes()
 }
 
-func TestRealSchoolExportStructureWeekAndReschedule(t *testing.T) {
+func TestRealSchoolExportStructureUsesGridInsteadOfReschedule(t *testing.T) {
 	if got := DetectSemester(schoolWorkbook("")); got != "2026-2027学年第1学期" {
 		t.Fatalf("unexpected semester %q", got)
 	}
@@ -77,8 +80,8 @@ func TestRealSchoolExportStructureWeekAndReschedule(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if len(courses) != 13 {
-		t.Fatalf("course positions = %d, want 13", len(courses))
+	if len(courses) != 12 {
+		t.Fatalf("course positions = %d, want 12", len(courses))
 	}
 	if len(notes) != 7 {
 		t.Fatalf("undetermined courses = %d, want 7", len(notes))
@@ -86,23 +89,40 @@ func TestRealSchoolExportStructureWeekAndReschedule(t *testing.T) {
 	if maxWeek(courses) != 17 {
 		t.Fatalf("maxWeek = %d, want 17", maxWeek(courses))
 	}
-	var removed, added, monday bool
+	var sourcePreserved, relocated, monday bool
 	for _, course := range courses {
 		if course.Name != "通信与网络" {
 			continue
 		}
 		if course.Weekday == 3 && course.StartSection == 3 {
-			removed = !course.Active(3) && course.Active(4)
+			sourcePreserved = course.Active(3) && course.Active(4)
 		}
 		if course.Weekday == 4 && course.StartSection == 11 {
-			added = course.Active(6) && !course.Active(3)
+			relocated = true
 		}
 		if course.Weekday == 1 {
 			monday = course.Active(3) && course.Active(9) && course.Active(14) && !course.Active(15)
 		}
 	}
-	if !removed || !added || !monday {
-		t.Fatalf("reschedule/week mapping: removed=%v added=%v monday=%v: %#v", removed, added, monday, courses)
+	if !sourcePreserved || relocated || !monday {
+		t.Fatalf("grid occupancy: sourcePreserved=%v relocated=%v monday=%v: %#v", sourcePreserved, relocated, monday, courses)
+	}
+}
+
+func TestTimetableIgnoresRescheduleMetadata(t *testing.T) {
+	base, notes, err := ParseXLSX(schoolWorkbook(""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, entry := range []string{
+		"【调课】不完整记录",
+		"【调课】课程甲[C001],从6周星期6的1-2节调整为6周星期6的1-2节",
+		"【调课】课程甲[C001],从3周星期1的5-6节调整为6周星期6的1-2节",
+	} {
+		got, gotNotes, err := ParseXLSX(schoolWorkbook("", entry))
+		if err != nil || !reflect.DeepEqual(got, base) || !reflect.DeepEqual(gotNotes, notes) {
+			t.Fatalf("reschedule metadata should not affect grid parsing: courses=%d notes=%d err=%v", len(got), len(gotNotes), err)
+		}
 	}
 }
 
@@ -329,7 +349,7 @@ func TestInvalidCourseKeepsOtherParseResultsAndRejectsImport(t *testing.T) {
 		t.Fatalf("accepted invalid workbook: courses=%d err=%v", len(courses), err)
 	}
 	courses, _, err := ParseXLSX(schoolWorkbook("C001-课程甲\n8-3周,星期3,第3节-第4节教室A"))
-	if err == nil || len(courses) < 13 || !strings.Contains(err.Error(), "课程甲") || !strings.Contains(err.Error(), "旧课表未更改") {
+	if err == nil || len(courses) < 12 || !strings.Contains(err.Error(), "课程甲") || !strings.Contains(err.Error(), "旧课表未更改") {
 		t.Fatalf("bad course should be reported while preserving other parsed courses: courses=%d err=%v", len(courses), err)
 	}
 }
@@ -507,7 +527,7 @@ func TestSharedStringCellsLikeRealSchoolExport(t *testing.T) {
 	_, _ = part.Write([]byte("</sst>"))
 	_ = z.Close()
 	courses, notes, err := ParseXLSX(buffer.Bytes())
-	if err != nil || len(courses) != 13 || len(notes) != 7 {
+	if err != nil || len(courses) != 12 || len(notes) != 7 {
 		t.Fatalf("shared strings workbook: %d courses %d notes err %v", len(courses), len(notes), err)
 	}
 }
