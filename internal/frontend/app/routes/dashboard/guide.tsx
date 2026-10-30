@@ -5,7 +5,7 @@ import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { WorkManualDocument } from "~/components/work-manual-document";
 import { ApiError, apiRequest } from "~/lib/api-client";
 import { hasAssignmentGroupAccess, hasOperationsWorkManualAccess } from "~/lib/dashboard-navigation";
-import type { OperationsCatalogue } from "~/lib/work-manual-content";
+import { resolveManualDocument, type OperationsCatalogue } from "~/lib/work-manual-content";
 import "./work-manual.css";
 
 export function meta() {
@@ -58,16 +58,20 @@ function WebsiteGuide({ currentUser, groupResolution }: Pick<DashboardLayoutOutl
 }
 
 function OperationsSOP({ catalogue }: { catalogue: OperationsCatalogue }) {
-  const document = catalogue.documents[0];
+  const [selectedSlug, setSelectedSlug] = useState(catalogue.documents[0]?.slug ?? "");
+  const document = resolveManualDocument(catalogue.documents, selectedSlug);
   if (!document) return <p className="work-manual__empty">暂无已发布的运营组 SOP。</p>;
 
   return <div className="work-manual__reading-layout">
     <nav className="work-manual__directory" aria-label="运营组 SOP 目录">
       <p className="work-manual__directory-label">运营组 SOP</p>
       <ul className="work-manual__document-list">
-        {catalogue.documents.map((item) => <li key={item.slug}>{item.slug === "recruitment-briefing"
-          ? <Link className="work-manual__directory-item" to="/dashboard/guide/recruitment-briefing">{item.title}</Link>
-          : <span className="work-manual__directory-item" aria-current="page">{item.title}</span>}</li>)}
+        {catalogue.documents.map((item) => <li key={item.slug}><button
+          type="button"
+          className="work-manual__directory-item"
+          aria-current={item.slug === document.slug ? "page" : undefined}
+          onClick={() => setSelectedSlug(item.slug)}
+        >{item.title}</button></li>)}
       </ul>
     </nav>
     <WorkManualDocument document={document} titleLevel={2} />

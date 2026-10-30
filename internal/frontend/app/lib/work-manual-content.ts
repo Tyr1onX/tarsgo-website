@@ -11,3 +11,7 @@ export type ManualBlock =
 export type ManualSection = { id: string; title: string; blocks: ManualBlock[] };
 export type ManualDocument = { slug: string; title: string; sections: ManualSection[] };
 export type OperationsCatalogue = { documents: ManualDocument[] };
+
+export function resolveManualDocument(documents: ManualDocument[], selectedSlug: string): ManualDocument | undefined {
+  return documents.find((document) => document.slug === selectedSlug) ?? documents[0];
+}
