@@ -160,7 +160,7 @@ export default function SkillRouteManagementRoute() {
 
   async function deleteNode() {
     if (!selectedNode || !selectedNode.canDelete || saving) return;
-    if (!window.confirm(`确定永久删除空节点「${selectedNode.name}」？该操作不可撤销。`)) return;
+    if (!window.confirm(`确定删除「${selectedNode.name}」及其前置和作业配置？该操作不可撤销。`)) return;
     const removedID = selectedNode.id;
     setSaving(true); setError(""); setNotice("");
     try {
@@ -170,7 +170,7 @@ export default function SkillRouteManagementRoute() {
       const next = result.find((item) => item.active) ?? result[0] ?? null;
       setSelectedNodeID(next?.id ?? null);
       setSearchParams((params) => { if (groupID) params.set("groupId", String(groupID)); if (next) params.set("nodeId", String(next.id)); else params.delete("nodeId"); return params; }, { replace: true });
-      setNotice("无学习或业务引用的节点已删除。");
+      setNotice("节点及其配置关联已删除。");
     } catch (cause) { setError(cause instanceof Error ? cause.message : "删除技能节点失败"); }
     finally { setSaving(false); }
   }
@@ -312,8 +312,8 @@ function NodeEditor({
   const textField = (field: keyof FormState) => (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setForm({ ...form, [field]: event.target.value });
   return (
     <section className="skills-editor-panel" aria-labelledby="skill-editor-title">
-      <div className="flex flex-wrap items-center justify-between gap-3"><h2 id="skill-editor-title">{node ? "节点配置" : "新建技能节点"}</h2>{node ? <div className="flex flex-wrap gap-2"><button type="button" className="admin-button admin-button--secondary" onClick={onToggleActive} disabled={saving}>{node.active ? "停用节点" : "重新启用"}</button><button type="button" className="admin-button admin-button--quiet text-rose-300" onClick={onDelete} disabled={saving || !node.canDelete} title={node.deleteBlockReason || "仅无学习进度、审核历史、依赖和作业关联的节点可以删除"}>删除空节点</button></div> : null}</div>
-      {node && !node.canDelete ? <p className="mt-2 text-xs text-[var(--admin-muted)]">此节点{node.deleteBlockReason || "已有业务记录"}，只能停用；相关历史与依赖需要先由管理员处理。</p> : null}
+      <div className="flex flex-wrap items-center justify-between gap-3"><h2 id="skill-editor-title">{node ? "节点配置" : "新建技能节点"}</h2>{node ? <div className="flex flex-wrap gap-2"><button type="button" className="admin-button admin-button--secondary" onClick={onToggleActive} disabled={saving}>{node.active ? "停用节点" : "重新启用"}</button><button type="button" className="admin-button admin-button--quiet text-rose-300" onClick={onDelete} disabled={saving || !node.canDelete} title={node.deleteBlockReason || "删除节点及其配置关联"}>删除节点</button></div> : null}</div>
+      {node && !node.canDelete ? <p className="mt-2 text-xs text-[var(--admin-muted)]">此节点{node.deleteBlockReason || "有受保护的记录"}，暂不能删除。若被其他节点依赖，请先在该节点中取消前置关联。</p> : null}
       <form className="skills-editor-grid" onSubmit={onSave}>
         <label className="admin-field-group"><span>技能名称</span><input className="admin-field" maxLength={100} required value={form.name} onChange={textField("name")} placeholder="填写本组确认的技能名称" /></label>
         <label className="admin-field-group"><span>同层排列顺序</span><input className="admin-field" type="number" min={0} max={100000} value={form.sortOrder} onChange={(event) => setForm({ ...form, sortOrder: Number(event.target.value) })} /><small className="text-xs text-[var(--admin-muted)]">路线默认按前置关系自动排版；此值只微调同层节点位置，也可使用「自动整理布局」。</small></label>
