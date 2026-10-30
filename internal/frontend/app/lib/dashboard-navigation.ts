@@ -69,20 +69,6 @@ const USER_MENU: readonly DashboardMenuLink[] = [
   },
 ];
 
-const GROWTH_MENU_ITEM: DashboardMenuLink = {
-  key: "my-growth",
-  label: "我的成长",
-  href: "/dashboard/growth",
-  iconKey: "report",
-};
-
-const EXPEDITION_MENU_ITEM: DashboardMenuLink = {
-  key: "tars-base-expedition",
-  label: "TARS BASE",
-  href: "/dashboard/expedition",
-  iconKey: "dashboard",
-};
-
 const ASSIGNMENT_MENU_ITEM: DashboardMenuLink = {
   key: "my-assignments",
   label: "我的作业",
@@ -113,6 +99,14 @@ export function canAccessExpedition(userOrRole: AuthUser | string, hasSkillGroup
   return hasSkillGroup || roleName === "super_admin";
 }
 
+export function isTemporarilyUnavailableDashboardPath(pathname: string) {
+  const normalizedPath = pathname.replace(/\/+$/, "");
+  return normalizedPath === "/dashboard/practice-projects"
+    || normalizedPath === "/dashboard/growth"
+    || normalizedPath === "/dashboard/expedition"
+    || normalizedPath.startsWith("/dashboard/expedition/");
+}
+
 const CORE_DASHBOARD_MENU: readonly DashboardMenuLink[] = [
   {
     key: "personal-workspace",
@@ -128,12 +122,6 @@ const DAILY_DASHBOARD_MENU: readonly DashboardMenuLink[] = [
     label: "工作周报",
     href: "/dashboard/weekly-reports",
     iconKey: "report",
-  },
-  {
-    key: "practice-projects",
-    label: "实践项目",
-    href: "/dashboard/practice-projects",
-    iconKey: "people",
   },
   {
     key: "usage-guide",
@@ -301,10 +289,7 @@ export function hasTechnicalGroupAccess(groups: readonly { name: string }[] | nu
 
 export function getUserDashboardMenu(userOrRole: AuthUser | string, hasTechnicalGroup = false, hasSkillGroup = hasTechnicalGroup): DashboardMenuLink[] {
   const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
-  const menu = [...(roleName === "user" ? USER_MENU : []), GROWTH_MENU_ITEM];
-  if ((hasSkillGroup || roleName === "super_admin") && ["user", "admin", "super_admin"].includes(roleName)) {
-    menu.push(EXPEDITION_MENU_ITEM);
-  }
+  const menu = [...(roleName === "user" ? USER_MENU : [])];
   if (hasTechnicalGroup && ["user", "admin", "super_admin"].includes(roleName)) {
     menu.push(TRAINING_QUESTIONS_MENU_ITEM, ASSIGNMENT_MENU_ITEM);
   }
