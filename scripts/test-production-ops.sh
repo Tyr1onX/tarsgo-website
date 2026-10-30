@@ -171,7 +171,7 @@ STATE
   python3 - "$case_dir/jijia/backups/jijia-full-20200101T000000Z.tar.gz" "$case_dir/jijia/backups/jijia-full-20200101T000000Z.tar.gz.sha256" <<'PY'
 import os, sys, time
 for path in sys.argv[1:]:
-    old = time.time() - 8 * 86400
+    old = time.time() - 31 * 86400
     os.utime(path, (old, old))
 PY
   : >"$case_dir/docker.log"
@@ -202,7 +202,7 @@ test_safe_cleanup_and_fresh_threshold() {
   grep -Fxq 'jijia-backend:20260901-stale-7654321' "$case_dir/removed-images" || fail "safe cleanup did not remove explicitly stale Jijia image"
   [[ -e "$case_dir/jijia/releases/20261006-current-abcdef1" && -e "$case_dir/jijia/releases/20261001-previous-abcdef0" ]] || fail "safe cleanup removed a protected release"
   [[ -d "$case_dir/jijia/releases/$pending" ]] || fail "safe cleanup removed the release being prepared for deployment"
-  [[ ! -e "$case_dir/jijia/backups/jijia-full-20200101T000000Z.tar.gz" ]] || fail "safe cleanup retained a backup older than 7 days"
+  [[ ! -e "$case_dir/jijia/backups/jijia-full-20200101T000000Z.tar.gz" ]] || fail "safe cleanup retained a backup older than 30 days"
   [[ ! -e "$case_dir/apt/lists/package-index" ]] || fail "safe cleanup retained rebuildable APT lists"
   ! grep -Eq 'system prune|volume prune|image prune' "$case_dir/docker.log" || fail "safe cleanup invoked a forbidden global prune"
   pass "safe cleanup preserves current/previous, removes only eligible cache and stale Jijia artifacts, then accepts usage below 85%"
@@ -512,7 +512,7 @@ test_backup_retention_waits_for_remote_checksum() {
     "$case_dir/local/$retained_name" "$case_dir/local/$retained_name.sha256" \
     "$case_dir/remote/store/$retained_name" "$case_dir/remote/store/$retained_name.sha256" <<'PY'
 import os, sys, time
-for path, days in zip(sys.argv[1:], (8, 8, 31, 31, 6, 6, 29, 29)):
+for path, days in zip(sys.argv[1:], (31, 31, 31, 31, 6, 6, 29, 29)):
     old = time.time() - days * 86400
     os.utime(path, (old, old))
 PY
@@ -626,7 +626,7 @@ PY
   local local_only_dir="$case_dir/local-only" local_only_archive remote_count_before remote_count_after
   mkdir -p "$local_only_dir"
   printf 'expired\n' >"$local_only_dir/jijia-old.sql.gz"
-  old_backup_time="$(date -d '8 days ago' '+%Y%m%d%H%M.%S' 2>/dev/null || date -v-8d '+%Y%m%d%H%M.%S')"
+  old_backup_time="$(date -d '31 days ago' '+%Y%m%d%H%M.%S' 2>/dev/null || date -v-31d '+%Y%m%d%H%M.%S')"
   touch -t "$old_backup_time" "$local_only_dir/jijia-old.sql.gz"
   remote_count_before="$(find "$case_dir/remote/store" -type f | wc -l)"
   : >"$case_dir/scp.log"
@@ -638,14 +638,18 @@ PY
   (cd "$local_only_dir" && sha256sum --check -- "$(basename "$local_only_archive").sha256") >/dev/null || fail "local-only backup checksum failed"
   tar -tzf "$local_only_archive" | grep -Fxq 'database.sql.gz' || fail "local-only backup lost the database dump"
   tar -tzf "$local_only_archive" | grep -Fxq 'uploads.tar.gz' || fail "local-only backup lost uploaded files"
-  [[ ! -e "$local_only_dir/jijia-old.sql.gz" ]] || fail "local-only backup failed 7-day retention"
+  [[ ! -e "$local_only_dir/jijia-old.sql.gz" ]] || fail "local-only backup failed 30-day retention"
   remote_count_after="$(find "$case_dir/remote/store" -type f | wc -l)"
   [[ "$remote_count_after" == "$remote_count_before" ]] || fail "local-only backup changed remote storage"
   [[ "$(grep -Fxc 'ExecStart=/opt/jijia/jijia-backup.sh' "$repo_root/scripts/backup-production.service")" == 1 ]] || fail "scheduled backup must continue using the default offsite mode"
-  grep -Fq '"$jijia_root/jijia-backup.sh" --local-only' "$repo_root/scripts/deploy-production.sh" || fail "standard deployment must use local-only backup"
+  ! grep -Fq '"$jijia_root/jijia-backup.sh" --local-only' "$repo_root/scripts/deploy-production.sh" || fail "standard deployment still forces a local backup"
+  grep -Fq 'production_backup_mode=skipped' "$repo_root/scripts/deploy-production.sh" || fail "standard deployment does not skip backups"
   grep -Fq '"$jijia_root/jijia-backup.sh" --offsite' "$repo_root/scripts/deploy-production.sh" || fail "required offsite deployment mode is missing"
-  pass "local-only deployment backup is complete, checksum-verified and skips Tencent; daily offsite mode remains"
-  pass "archive contents, local/remote permissions and checksums, and 7/30-day retention verified"
+  grep -Fq 'OnCalendar=Sat *-*-* 19:00:00 UTC' "$repo_root/scripts/backup-production.timer" || fail "offsite backup is not scheduled weekly"
+  grep -Fq 'retention_minutes=43200' "$repo_root/scripts/backup-production.sh" || fail "local retention is not 30 days"
+  grep -Fq 'retention_minutes=43200' "$repo_root/scripts/production-safe-cleanup.sh" || fail "disk cleanup retention is not 30 days"
+  pass "normal deployments skip backups; manual local and forced offsite modes remain; weekly timer verified"
+  pass "archive contents, local/remote permissions and checksums, and 30/30-day retention verified"
 }
 
 test_high_water_abort_precedes_build
