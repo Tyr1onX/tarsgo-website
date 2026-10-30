@@ -246,8 +246,22 @@ func TestAcceptanceDatabaseSkillTreeWorkflow(t *testing.T) {
 	if err := service.SetPrerequisites(context.Background(), mechanicalAdmin, child.ID, []uint64{root.ID}); err != nil {
 		t.Fatalf("configure same-group prerequisite: %v", err)
 	}
-	if err := service.DeleteNode(context.Background(), mechanicalAdmin, child.ID); serviceStatus(err) != http.StatusConflict {
-		t.Fatalf("node with a prerequisite relation was deleted: status=%d", serviceStatus(err))
+	if err := service.DeleteNode(context.Background(), mechanicalAdmin, root.ID); serviceStatus(err) != http.StatusConflict {
+		t.Fatalf("node required by another node was deleted: status=%d", serviceStatus(err))
+	}
+	temporary, err := service.CreateNode(context.Background(), mechanicalAdmin, NodeInput{
+		GroupID: groupIDs["机械组"], Name: "[TEST_SKILL] temporary linked node",
+		LearningGoal: "No history", PassingCriteria: "Config only",
+	})
+	if err != nil {
+		t.Fatalf("create linked node for deletion: %v", err)
+	}
+	createdNodeIDs = append(createdNodeIDs, temporary.ID)
+	if err := service.SetPrerequisites(context.Background(), mechanicalAdmin, temporary.ID, []uint64{root.ID}); err != nil {
+		t.Fatalf("set temporary prerequisite: %v", err)
+	}
+	if err := service.DeleteNode(context.Background(), mechanicalAdmin, temporary.ID); err != nil {
+		t.Fatalf("delete unstarted node with its own prerequisite: %v", err)
 	}
 	if err := service.SetPrerequisites(context.Background(), mechanicalAdmin, root.ID, []uint64{child.ID}); serviceStatus(err) != http.StatusBadRequest {
 		t.Fatalf("cyclic prerequisite status = %d, want 400", serviceStatus(err))
