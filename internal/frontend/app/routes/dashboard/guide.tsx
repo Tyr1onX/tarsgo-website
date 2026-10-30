@@ -2,9 +2,10 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useOutletContext, useSearchParams } from "react-router";
 
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
+import { WorkManualDocument } from "~/components/work-manual-document";
 import { ApiError, apiRequest } from "~/lib/api-client";
 import { hasAssignmentGroupAccess, hasOperationsWorkManualAccess } from "~/lib/dashboard-navigation";
-import type { ManualBlock, OperationsCatalogue } from "~/lib/work-manual-content";
+import type { OperationsCatalogue } from "~/lib/work-manual-content";
 import "./work-manual.css";
 
 export function meta() {
@@ -56,30 +57,6 @@ function WebsiteGuide({ currentUser, groupResolution }: Pick<DashboardLayoutOutl
   </section>;
 }
 
-function ManualBlockView({ block }: { block: ManualBlock }) {
-  switch (block.type) {
-    case "paragraph":
-      return <p className="work-manual__paragraph">{block.text}</p>;
-    case "step":
-      return <section className="work-manual__step">
-        <h3>{block.title}</h3>
-        <ol>{block.items.map((item) => <li key={item}>{item}</li>)}</ol>
-        {block.links?.length ? <div className="work-manual__related-links">{block.links.map((link) => <a key={link.href} href={link.href}>{link.label}</a>)}</div> : null}
-      </section>;
-    case "list":
-      return <div className="work-manual__list-block">
-        {block.label ? <h3>{block.label}</h3> : null}
-        <ul>{block.items.map((item) => <li key={item}>{item}</li>)}</ul>
-      </div>;
-    case "note":
-      return <p className="work-manual__note">{block.text}</p>;
-    case "download":
-      return <a className="work-manual__download" href={block.href} download>{block.label}<span aria-hidden="true">↓</span></a>;
-    case "links":
-      return <div className="work-manual__related-links">{block.items.map((link) => <a key={link.href} href={link.href}>{link.label}</a>)}</div>;
-  }
-}
-
 function OperationsSOP({ catalogue }: { catalogue: OperationsCatalogue }) {
   const document = catalogue.documents[0];
   if (!document) return <p className="work-manual__empty">暂无已发布的运营组 SOP。</p>;
@@ -92,20 +69,8 @@ function OperationsSOP({ catalogue }: { catalogue: OperationsCatalogue }) {
           ? <Link className="work-manual__directory-item" to="/dashboard/guide/recruitment-briefing">{item.title}</Link>
           : <span className="work-manual__directory-item" aria-current="page">{item.title}</span>}</li>)}
       </ul>
-      <ol>
-        {document.sections.map((section) => <li key={section.id}><a href={`#${document.slug}-${section.id}`}>{section.title}</a></li>)}
-      </ol>
     </nav>
-
-    <article className="work-manual__article">
-      <h2>{document.title}</h2>
-      {document.sections.map((section) => <section className="work-manual__section" id={`${document.slug}-${section.id}`} key={section.id} aria-labelledby={`${document.slug}-${section.id}-title`}>
-        <h2 id={`${document.slug}-${section.id}-title`}>{section.title}</h2>
-        <div className="work-manual__section-content">
-          {section.blocks.map((block, index) => <ManualBlockView key={`${block.type}-${index}`} block={block} />)}
-        </div>
-      </section>)}
-    </article>
+    <WorkManualDocument document={document} titleLevel={2} />
   </div>;
 }
 
