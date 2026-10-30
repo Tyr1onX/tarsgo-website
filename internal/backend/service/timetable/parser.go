@@ -198,7 +198,6 @@ func ParseXLSX(data []byte) ([]Course, []Note, error) {
 		return courses, notes, fmt.Errorf("%s；旧课表未更改", summarizeIssues(issues))
 	}
 	courses = combine(courses)
-	courses = combine(courses)
 	if len(courses) == 0 && len(notes) == 0 {
 		return nil, nil, errors.New("未识别到确定时间的课程，旧课表未更改")
 	}
