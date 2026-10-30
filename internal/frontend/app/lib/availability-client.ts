@@ -27,4 +27,12 @@ export function availabilityCounts(members:WeekMember[],weekday:number,startSect
   return counts;
  },{free:0,conflict:0,missing:0});
 }
+export function availabilityFreeRatio(members:WeekMember[],weekday:number,startSection:number,endSection:number):number|null{
+ const {free,conflict}=availabilityCounts(members,weekday,startSection,endSection);
+ const validCount=free+conflict;
+ return validCount===0?null:free/validCount;
+}
+export function filterAvailabilityMembers(members:WeekMember[],weekday:number,startSection:number,endSection:number,status:AvailabilityStatus){
+ return members.filter(member=>intervalStatus(member,weekday,startSection,endSection)===status);
+}
 export function getAvailabilityOptions(){return apiRequest<AvailabilityOptions>("/api/admin/timetable-availability/options")}
