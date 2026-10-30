@@ -1,6 +1,8 @@
 package router
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
@@ -58,12 +60,28 @@ func TestPausedTrainingAPIsAreUnregisteredAndOpenWorkflowsRemain(t *testing.T) {
 		"GET /api/admin/timetable-availability/week",
 		"GET /api/weekly-reports",
 		"GET /api/leave/access",
+		"GET /api/leave/profile",
+		"PUT /api/leave/profile",
 		"GET /api/admin/leave/access-requests",
 		"PATCH /api/admin/leave/access-requests/:id",
 		"GET /api/admin/registrations",
 	} {
 		if !routes[route] {
 			t.Errorf("open workflow API was unexpectedly removed: %s", route)
+		}
+	}
+
+	// Moving profile editing into personal settings must not expose unauthenticated
+	// student identifiers or accidentally open leave-document generation.
+	for _, endpoint := range []struct{ method, path string }{
+		{http.MethodGet, "/api/leave/profile"},
+		{http.MethodPut, "/api/leave/profile"},
+		{http.MethodPost, "/api/daily-leave/self-service/document"},
+	} {
+		response := httptest.NewRecorder()
+		engine.ServeHTTP(response, httptest.NewRequest(endpoint.method, endpoint.path, nil))
+		if response.Code != http.StatusUnauthorized {
+			t.Errorf("%s %s without session returned %d, want 401", endpoint.method, endpoint.path, response.Code)
 		}
 	}
 }

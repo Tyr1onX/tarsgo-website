@@ -18,10 +18,14 @@ test("members see application status before any leave profile or history request
   assert.ok(route.includes('accessState.status === "rejected" ? "重新申请" : "申请开通"'), "rejected members must be able to reapply");
 });
 
-test("completed leave profiles stay collapsed behind a concise control", () => {
-  assert.ok(route.includes("查看/修改资料"), "completed profiles must have a concise entry");
-  assert.ok(route.includes("profileReady && !profileExpanded ? null"), "completed profiles must be collapsed by default");
-  assert.ok(route.includes(": <form onSubmit={saveProfile}"), "missing profile data must show the fill-in form");
+test("leave identity details move into personal settings without duplicating the old form", () => {
+  assert.doesNotMatch(route, /<h2 id="leave-profile-title">请假资料<\/h2>/);
+  assert.doesNotMatch(route, /<form onSubmit=\{saveProfile\}/);
+  assert.match(route, /onClick=\{openProfile\}>完善个人资料<\/button>/);
+  assert.match(route, /profileRevision/);
+  assert.match(api, /leaveAccessAPI\.GET\("\/leave\/profile", leaveHandler\.GetProfile\)/);
+  assert.match(api, /leaveAccessAPI\.PUT\("\/leave\/profile", requireSameOriginRequest\(cfg\), leaveHandler\.SaveProfile\)/);
+  assert.doesNotMatch(api, /leaveMemberAPI\.(?:GET|PUT)\("\/leave\/profile"/);
 });
 
 test("member leave APIs are guarded and leave-access review is super-admin only", () => {

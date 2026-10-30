@@ -153,11 +153,13 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	leaveAccessAPI.Use(middleware.RequireAuthenticated(authService))
 	leaveAccessAPI.GET("/leave/access", leaveHandler.GetLeaveAccess)
 	leaveAccessAPI.POST("/leave/access/request", requireSameOriginRequest(cfg), leaveHandler.RequestLeaveAccess)
+	// Identity details belong to personal settings even before leave access is approved.
+	// All document creation and leave activity endpoints remain behind RequireLeaveAccess.
+	leaveAccessAPI.GET("/leave/profile", leaveHandler.GetProfile)
+	leaveAccessAPI.PUT("/leave/profile", requireSameOriginRequest(cfg), leaveHandler.SaveProfile)
 
 	leaveMemberAPI := api.Group("")
 	leaveMemberAPI.Use(middleware.RequireAuthenticated(authService), middleware.RequireLeaveAccess(leaveService))
-	leaveMemberAPI.GET("/leave/profile", leaveHandler.GetProfile)
-	leaveMemberAPI.PUT("/leave/profile", requireSameOriginRequest(cfg), leaveHandler.SaveProfile)
 	leaveMemberAPI.GET("/school-leave/requests", leaveHandler.MyRequests)
 	leaveMemberAPI.POST("/school-leave/requests", requireSameOriginRequest(cfg), leaveHandler.CreateRequest)
 	leaveMemberAPI.PATCH("/school-leave/requests/:id", requireSameOriginRequest(cfg), leaveHandler.UpdateRequest)
