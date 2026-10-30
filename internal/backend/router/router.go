@@ -29,6 +29,7 @@ import (
 	"tarsgo-backend/service/timetable"
 	"tarsgo-backend/service/usergroup"
 	"tarsgo-backend/service/weeklyreport"
+	"tarsgo-backend/service/workmanual"
 	"tarsgo-backend/web"
 )
 
@@ -91,6 +92,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	assignmentHandler := handler.NewAssignmentHandler(assignmentService)
 	userGroupHandler := handler.NewUserGroupHandler(usergroup.NewService(usergroup.NewRepository(db)))
 	userGroupMembershipHandler := handler.NewUserGroupMembershipHandler(usergroup.NewMembershipService(db))
+	workManualHandler := handler.NewWorkManualHandler(workmanual.NewService(db))
 	registrationFormHandler := handler.NewRegistrationFormHandler(registration.NewRegistrationFormService(db))
 	registrationService := registration.NewRegistrationServiceWithMailer(db, email.NewSender(cfg.Email))
 	registrationHandler := handler.NewRegistrationHandler(registrationService)
@@ -280,6 +282,8 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	authenticatedAPI.Use(middleware.RequireAuthenticated(authService))
 	authenticatedAPI.GET("/user-group/confirmation", userGroupMembershipHandler.CurrentState)
 	authenticatedAPI.POST("/user-group/confirmation", userGroupMembershipHandler.Confirm)
+	authenticatedAPI.GET("/work-manual/operations", workManualHandler.OperationsCatalogue)
+	authenticatedAPI.GET("/work-manual/operations/templates/campus-network-window-application.doc", workManualHandler.ApplicationForm)
 	authenticatedAPI.GET("/weekly-reports", weeklyReportHandler.GetDashboard)
 	authenticatedAPI.GET("/weekly-reports/team", weeklyReportHandler.GetTeamWeek)
 	authenticatedAPI.POST("/weekly-reports/:id/attachments", requireSameOriginRequest(cfg), weeklyReportHandler.UploadAttachments)

@@ -1,0 +1,96 @@
+{
+  "documents": [
+    {
+      "slug": "campus-network-window",
+      "title": "校园网之窗宣传申请",
+      "sections": [
+        {
+          "id": "scenario",
+          "title": "适用场景",
+          "blocks": [
+            {
+              "type": "paragraph",
+              "text": "为校内活动申请通过“校园网之窗”进行宣传时，按本流程准备海报和申请表并发送申请邮件。申请应在活动开始前至少 10 天提交。"
+            }
+          ]
+        },
+        {
+          "id": "workflow",
+          "title": "办理流程",
+          "blocks": [
+            {
+              "type": "step",
+              "title": "第一步：制作宣传海报",
+              "items": [
+                "图片尺寸为 592 × 450 px。",
+                "海报最下方不能出现文字，预留约四分之一高度放置网络管理中心图标。",
+                "海报中不得出现二维码或赞助商信息。"
+              ]
+            },
+            {
+              "type": "step",
+              "title": "第二步：填写、打印和盖章申请表",
+              "items": [
+                "填写《校园网之窗宣传申请表》并打印。",
+                "先请指导老师签字，再到行政楼 301 加盖学院公章。",
+                "完成签字和盖章后拍照保存，作为邮件附件。"
+              ]
+            },
+            {
+              "type": "list",
+              "label": "申请表字段",
+              "items": [
+                "填表日期、主办单位、活动名称、活动负责人、电话。",
+                "活动时间、活动地点、活动介绍、主管单位意见（处级单位）。",
+                "拟申请时间、宣传效果反馈（可写之前申请活动）及备注。"
+              ]
+            },
+            {
+              "type": "step",
+              "title": "第三步：发送申请邮件",
+              "items": [
+                "收件邮箱：xywzc@jlu.edu.cn。",
+                "附件包括宣传海报 JPG/PNG 文件和已签字盖章的申请表照片。",
+                "邮件主题参考：校园网之窗申请-学院与社团-活动名称。"
+              ],
+              "links": [
+                {
+                  "label": "发送邮件至 xywzc@jlu.edu.cn",
+                  "href": "mailto:xywzc@jlu.edu.cn"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "id": "notes",
+          "title": "注意事项",
+          "blocks": [
+            {
+              "type": "note",
+              "text": "最晚应在活动开始前 10 天提交申请。"
+            },
+            {
+              "type": "list",
+              "items": [
+                "海报尺寸、底部留白、二维码和赞助商限制均按要求检查后再发送。",
+                "申请表需先由指导老师签字，再加盖学院公章；完成后拍照作为邮件附件。"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "templates",
+          "title": "配套模板",
+          "blocks": [
+            {
+              "type": "download",
+              "label": "下载校园网之窗宣传申请表（DOC）",
+              "href": "/api/work-manual/operations/templates/campus-network-window-application.doc"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

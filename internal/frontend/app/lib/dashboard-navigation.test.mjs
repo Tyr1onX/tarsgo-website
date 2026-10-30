@@ -11,12 +11,13 @@ import {
   getVisibleAdminDashboardMenu,
   hasAssignmentGroupAccess,
   hasDashboardAdminAccess,
+  hasOperationsWorkManualAccess,
   isAssignmentGroupName,
   isDashboardMenuPathActive,
   isTemporarilyUnavailableDashboardPath,
 } from "./dashboard-navigation.ts";
 
-test("all authenticated roles get daily reports, self-service leave, and the guide", () => {
+test("all authenticated roles get daily reports, self-service leave, and one work manual entry", () => {
   for (const role of ["user", "admin", "super_admin"]) {
     assert.equal(getDefaultDashboardPath(role), "/dashboard");
   }
@@ -24,15 +25,23 @@ test("all authenticated roles get daily reports, self-service leave, and the gui
   assert.deepEqual(getDailyDashboardMenu("user").map(({ key, href }) => [key, href]), [
     ["weekly-reports", "/dashboard/weekly-reports"],
     ["leave-workbench", "/dashboard/leave"],
-    ["usage-guide", "/dashboard/guide"],
+    ["work-manual", "/dashboard/guide"],
   ]);
   for (const role of ["admin", "super_admin"]) {
     assert.deepEqual(getDailyDashboardMenu(role).map(({ key, href }) => [key, href]), [
       ["weekly-reports", "/dashboard/weekly-reports"],
       ["leave-workbench", "/dashboard/leave"],
-      ["usage-guide", "/dashboard/guide"],
+      ["work-manual", "/dashboard/guide"],
     ]);
   }
+});
+
+test("operations SOP visibility follows operations membership or super-admin role", () => {
+  assert.equal(hasOperationsWorkManualAccess("user", [{ name: "运营组" }]), true);
+  assert.equal(hasOperationsWorkManualAccess("admin", [{ name: "运营组" }]), true);
+  assert.equal(hasOperationsWorkManualAccess("admin", [{ name: "机械组" }]), false);
+  assert.equal(hasOperationsWorkManualAccess("user", []), false);
+  assert.equal(hasOperationsWorkManualAccess("super_admin", []), true);
 });
 
 test("legacy admin leave URL retains role restrictions without a duplicate menu entry", () => {
@@ -130,4 +139,5 @@ test("sidebar group and leaf links keep the same icon and text alignment", async
   assert.equal(layout.includes('item.key === "leave-workbench"'), true);
   assert.equal(layout.includes('item.key === "leave-management"'), false);
   assert.match(legacyLeaveRoute, /<Navigate to="\/dashboard\/leave" replace \/>/);
+  assert.equal(getDailyDashboardMenu("user").filter(({ label }) => label === "工作手册").length, 1);
 });
