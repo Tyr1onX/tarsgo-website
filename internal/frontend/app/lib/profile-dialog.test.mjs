@@ -28,7 +28,7 @@ test("avatar preview, account save and timetable upload retain separate behavior
   assert.match(profile, /<PersonalTimetableUpload userId=\{user\.id\} \/>/);
   assert.match(profile, /form="profile-dialog-form"/);
   assert.match(profile, /footerClassName=/);
-  assert.match(profile, /updateProfile\(\{ nickname: user\.nickname \?\? "", phone, avatar \}\)/);
+  assert.match(profile, /updateProfile\(\{ nickname: user\.nickname \?\? "", phone: user\.phone \?\? "", avatar \}\)/);
 });
 
 test("leave identity uses account name, restricts edits to locked identifiers, and permits voluntary registration", () => {
@@ -46,4 +46,29 @@ test("leave identity uses account name, restricts edits to locked identifiers, a
   assert.match(leave, /onClick=\{openProfile\}>完善个人资料/);
   assert.match(layout, /openProfile: \(\) => setProfileOpen\(true\)/);
   assert.match(layout, /setProfileRevision\(\(revision\) => revision \+ 1\)/);
+});
+
+test("phone field stays hidden without overwriting existing account phone data", () => {
+  assert.doesNotMatch(profile, /setPhone\(|type="tel"|>手机号<|填写 11 位手机号|手机号可自行更新/);
+  assert.match(profile, /phone: user\.phone \?\? ""/);
+  assert.match(profile, /updateProfile\(/);
+});
+
+
+test("academic fields are part of personal information and leave identity is not shown", () => {
+  assert.match(profile, /id="profile-account-heading"[^>]*>个人信息/);
+  assert.doesNotMatch(profile, /学籍与请假信息|profile-school-heading/);
+  const personalStart = profile.indexOf('<section aria-labelledby="profile-account-heading"');
+  const personalEnd = profile.indexOf("</section>", personalStart);
+  const personalSection = profile.slice(personalStart, personalEnd);
+  assert.match(personalSection, />姓名</);
+  assert.match(personalSection, />学号</);
+  assert.match(personalSection, />学院</);
+  assert.match(personalSection, />邮箱</);
+  assert.match(personalSection, />所属组别</);
+  assert.doesNotMatch(personalSection, />请假身份</);
+  assert.doesNotMatch(profile, /setLeaveDraft\(\(current\) => \(\{ \.\.\.current, participantType:/);
+  // Keep the stored value for legacy leave workflows without exposing an editor.
+  assert.match(profile, /participantType: profile\.participantType/);
+  assert.match(profile, /participantType: leaveDraft\.participantType/);
 });
