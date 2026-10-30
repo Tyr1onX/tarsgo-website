@@ -59,6 +59,8 @@ func TestPausedTrainingAPIsAreUnregisteredAndOpenWorkflowsRemain(t *testing.T) {
 		"POST /api/admin/timetable-availability/cleanup",
 		"GET /api/admin/timetable-availability/week",
 		"GET /api/weekly-reports",
+		"GET /api/work-manual/operations",
+		"GET /api/work-manual/operations/templates/campus-network-window-application.doc",
 		"GET /api/leave/access",
 		"GET /api/leave/profile",
 		"PUT /api/leave/profile",
@@ -77,6 +79,8 @@ func TestPausedTrainingAPIsAreUnregisteredAndOpenWorkflowsRemain(t *testing.T) {
 		{http.MethodGet, "/api/leave/profile"},
 		{http.MethodPut, "/api/leave/profile"},
 		{http.MethodPost, "/api/daily-leave/self-service/document"},
+		{http.MethodGet, "/api/work-manual/operations"},
+		{http.MethodGet, "/api/work-manual/operations/templates/campus-network-window-application.doc"},
 	} {
 		response := httptest.NewRecorder()
 		engine.ServeHTTP(response, httptest.NewRequest(endpoint.method, endpoint.path, nil))

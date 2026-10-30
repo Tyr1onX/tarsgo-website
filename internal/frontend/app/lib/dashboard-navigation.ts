@@ -74,6 +74,11 @@ const TECHNICAL_GROUP_NAMES = new Set(["机械组", "电控组", "视觉组", "A
 const ASSIGNMENT_GROUP_NAMES = new Set([...TECHNICAL_GROUP_NAMES, "运营组"]);
 const SKILL_GROUP_NAMES = new Set([...TECHNICAL_GROUP_NAMES, "运营组"]);
 
+export function hasOperationsWorkManualAccess(userOrRole: AuthUser | string, groups: readonly { name: string }[] | null | undefined) {
+  const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
+  return roleName === "super_admin" || Boolean(groups?.some((group) => group.name === "运营组"));
+}
+
 export function isTechnicalGroupName(name: string) {
   return TECHNICAL_GROUP_NAMES.has(name);
 }
@@ -138,8 +143,8 @@ const DAILY_DASHBOARD_MENU: readonly DashboardMenuLink[] = [
     iconKey: "report",
   },
   {
-    key: "usage-guide",
-    label: "使用指南",
+    key: "work-manual",
+    label: "工作手册",
     href: "/dashboard/guide",
     iconKey: "report",
   },

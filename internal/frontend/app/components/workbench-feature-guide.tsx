@@ -11,12 +11,12 @@ export function WorkbenchFeatureGuide({ currentUser, groupResolution, groupResol
   const hasAssignmentAccess = features.some((feature) => feature.key === "assignments");
 
   return (
-    <section className="workbench-feature-guide" aria-label="工作台功能公告与使用指南">
+    <section className="workbench-feature-guide" aria-label="工作台功能公告与工作手册">
       <header className="workbench-feature-guide__header">
         <div>
           <p className="workbench-feature-guide__eyebrow">功能更新 · {FEATURE_GUIDE_DATE}</p>
           <h1>{FEATURE_GUIDE_TITLE}</h1>
-          <p>工作周报、请假自助和使用指南对所有角色开放；作业按组别权限开放。</p>
+          <p>工作周报、请假自助和网站使用指南对所有角色开放；运营组 SOP 按组别权限开放。</p>
         </div>
         <Link className="workbench-feature-guide__back" to="/dashboard">返回个人工作台 <span aria-hidden="true">↗</span></Link>
       </header>
@@ -37,7 +37,7 @@ export function WorkbenchFeatureGuide({ currentUser, groupResolution, groupResol
           <ol>
             <li><Link to="/dashboard/weekly-reports">使用工作周报记录工作进展</Link></li>
             <li><Link to="/dashboard/leave">提交、查询和管理自己的请假申请</Link></li>
-            <li><Link to="/dashboard/guide">查看使用指南</Link>；成员上传课表可在个人资料的“课程时间”完成。</li>
+            <li><Link to="/dashboard/guide">查看工作手册</Link>；成员上传课表可在个人资料的“课程时间”完成。</li>
           </ol>
         )}
         {!groupResolutionError ? <p className="workbench-feature-guide__scope-note">{GROUP_ACCESS_HELP}</p> : null}
