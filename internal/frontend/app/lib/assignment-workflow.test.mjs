@@ -188,7 +188,7 @@ test("skill graph auto-arranges dependencies, focuses context, and safely handle
   assert.match(skillsManagement, /只微调同层节点位置/);
   assert.match(skillsManagement, /async function autoArrangeLayout/);
   assert.match(skillsManagement, /async function deleteNode/);
-  assert.match(skillsManagement, /删除空节点/);
+  assert.match(skillsManagement, /删除节点/);
   assert.match(skillsClient, /reorderLayout/);
   assert.match(skillsClient, /deleteNode/);
   assert.match(skillsService, /func \(s \*Service\) ReorderNodes/);
