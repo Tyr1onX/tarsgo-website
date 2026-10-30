@@ -243,13 +243,13 @@ function SidebarItem({
           aria-expanded={isExpanded}
           aria-controls={childrenId}
           title={collapsed ? item.label : undefined}
-          className={`w-full flex items-center gap-3 rounded-xl py-2.5 text-sm transition-colors ${collapsed ? "justify-center px-2" : "px-3"} ${
+          className={`flex min-h-10 w-full items-center gap-3 rounded-xl py-2.5 text-sm leading-5 transition-colors ${collapsed ? "justify-center px-2" : "px-3"} ${
             isActive
               ? "dashboard-nav-link dashboard-nav-link--active"
               : "dashboard-nav-link"
           }`}
         >
-          <span className={isActive ? "dashboard-shell__accent" : ""}>
+          <span className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center ${isActive ? "dashboard-shell__accent" : ""}`}>
             <MenuIcon iconKey={item.iconKey} />
           </span>
           <span className={`min-w-0 flex-1 truncate text-left ${collapsed ? "sr-only" : ""}`}>{item.label}</span>
@@ -292,9 +292,6 @@ function SidebarItem({
                   {child.key === "candidate-processing" && (badgeCount ?? 0) > 0 ? (
                     <span className="dashboard-nav-badge" aria-label={`${badgeCount} 项待处理`}>{badgeCount}</span>
                   ) : null}
-                  {child.key === "leave-management" && (leaveActionableCount ?? 0) > 0 ? (
-                    <span className="dashboard-nav-badge" aria-label={`待审批 ${leavePendingApprovalCount ?? 0} 项，待处理 ${leaveTodoCount ?? 0} 项`}>{leaveActionableCount}</span>
-                  ) : null}
                 </NavLink>
               ))}
             </div>
@@ -313,7 +310,7 @@ function SidebarItem({
       aria-label={item.label}
       title={collapsed ? item.label : undefined}
       className={({ isActive }) =>
-        `relative flex min-w-0 items-center gap-3 rounded-xl py-2.5 text-sm transition-colors ${collapsed ? "justify-center px-2" : "px-3"} ${
+        `relative flex min-h-10 min-w-0 items-center gap-3 rounded-xl py-2.5 text-sm leading-5 transition-colors ${collapsed ? "justify-center px-2" : "px-3"} ${
           isActive
           ? "dashboard-nav-link dashboard-nav-link--active"
           : "dashboard-nav-link"
@@ -322,12 +319,12 @@ function SidebarItem({
     >
       {({ isActive }) => (
         <>
-          <span className={`relative ${isActive ? "dashboard-shell__accent" : ""}`}>
+          <span className={`relative flex h-[18px] w-[18px] shrink-0 items-center justify-center ${isActive ? "dashboard-shell__accent" : ""}`}>
             <MenuIcon iconKey={item.iconKey} />
             {item.key === "candidate-processing" && collapsed && (badgeCount ?? 0) > 0 ? (
               <span className="dashboard-nav-badge dashboard-nav-badge--collapsed" aria-label={`${badgeCount} 项待处理`}>{badgeCount}</span>
             ) : null}
-            {item.key === "leave-management" && collapsed && (leaveActionableCount ?? 0) > 0 ? (
+            {item.key === "leave-workbench" && collapsed && (leaveActionableCount ?? 0) > 0 ? (
               <span className="dashboard-nav-badge dashboard-nav-badge--collapsed" aria-label={`待审批 ${leavePendingApprovalCount ?? 0} 项，待处理 ${leaveTodoCount ?? 0} 项`}>{leaveActionableCount}</span>
             ) : null}
           </span>
@@ -335,7 +332,7 @@ function SidebarItem({
           {item.key === "candidate-processing" && !collapsed && (badgeCount ?? 0) > 0 ? (
             <span className="dashboard-nav-badge" aria-label={`${badgeCount} 项待处理`}>{badgeCount}</span>
           ) : null}
-          {item.key === "leave-management" && !collapsed && (leaveActionableCount ?? 0) > 0 ? (
+          {item.key === "leave-workbench" && !collapsed && (leaveActionableCount ?? 0) > 0 ? (
             <span className="dashboard-nav-badge" aria-label={`待审批 ${leavePendingApprovalCount ?? 0} 项，待处理 ${leaveTodoCount ?? 0} 项`}>{leaveActionableCount}</span>
           ) : null}
         </>
@@ -797,9 +794,9 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
                 item={item}
                 onNavigate={handleSidebarNavigate}
                 collapsed={isSidebarCollapsed}
-                leavePendingApprovalCount={item.key === "leave-management" ? currentLeaveActionableState?.pendingApprovalCount : undefined}
-                leaveTodoCount={item.key === "leave-management" ? currentLeaveActionableState?.todoCount : undefined}
-                leaveActionableCount={item.key === "leave-management" ? currentLeaveActionableState?.actionableCount : undefined}
+                leavePendingApprovalCount={item.key === "leave-workbench" ? currentLeaveActionableState?.pendingApprovalCount : undefined}
+                leaveTodoCount={item.key === "leave-workbench" ? currentLeaveActionableState?.todoCount : undefined}
+                leaveActionableCount={item.key === "leave-workbench" ? currentLeaveActionableState?.actionableCount : undefined}
               />
             ))}
           </div>
@@ -816,9 +813,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
                     onExpandSidebar={() => setSidebarCollapsed(false)}
                     collapsed={isSidebarCollapsed}
                     badgeCount={"children" in item && item.children.some((child) => child.key === "candidate-processing") ? candidateTodoCount : undefined}
-                    leavePendingApprovalCount={"children" in item && item.children.some((child) => child.key === "leave-management") ? currentLeaveActionableState?.pendingApprovalCount : undefined}
-                    leaveTodoCount={"children" in item && item.children.some((child) => child.key === "leave-management") ? currentLeaveActionableState?.todoCount : undefined}
-                    leaveActionableCount={"children" in item && item.children.some((child) => child.key === "leave-management") ? currentLeaveActionableState?.actionableCount : undefined}
                   />
                 ))}
               </div>
