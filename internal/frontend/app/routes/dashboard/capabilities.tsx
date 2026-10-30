@@ -2,10 +2,9 @@ import { useEffect, useRef, useState } from "react";
 import { redirect, useOutletContext } from "react-router";
 
 import type { Route } from "./+types/capabilities";
-import { formatScore } from "~/lib/capabilities-client";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { getGrowthTabPath } from "~/lib/dashboard-navigation";
-import { capabilitiesClient, capabilitySourceLabel, formatCapabilityDate, type CapabilityGroupResult } from "~/lib/capabilities-client";
+import { capabilitiesClient, capabilitySourceLabel, formatCapabilityDate, formatScore, type CapabilityGroupResult } from "~/lib/capabilities-client";
 import "./capabilities.css";
 
 export function meta() {
@@ -66,8 +65,8 @@ export function CapabilitiesPanel() {
         </div> : <p className="capabilities-group-name">{group.groupName}</p>}
         {dimensions.length === 0 ? <div className="capabilities-empty">本组能力维度尚未配置。</div> : <>
           <div className="capabilities-main-grid">
-            <section className="capabilities-panel capabilities-radar-panel" aria-labelledby="personal-radar-title">
-              <div className="capabilities-panel-heading"><h2 id="personal-radar-title">个人能力</h2></div>
+            <section className="capabilities-panel" aria-labelledby="personal-capability-title">
+              <div className="capabilities-panel-heading"><h2 id="personal-capability-title">个人能力</h2></div>
               <div className="capabilities-score-list">
                 {dimensions.map((dimension) => <div className="capabilities-score-row" key={dimension.id}>
                   <div><strong>{dimension.name}</strong>{dimension.description ? <p>{dimension.description}</p> : null}</div>
