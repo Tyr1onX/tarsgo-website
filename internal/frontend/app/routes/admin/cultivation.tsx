@@ -5,7 +5,6 @@ import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { capabilitiesClient, capabilitySourceLabel, formatCapabilityDate } from "~/lib/capabilities-client";
 import { cultivationClient, type CultivationGroup, type CultivationMember } from "~/lib/cultivation-client";
 import { formatGrowthDate, growthEventLabel } from "~/lib/growth-presentation";
-import "~/routes/dashboard/capabilities.css";
 import "./cultivation.css";
 
 export function meta() {
