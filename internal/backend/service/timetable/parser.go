@@ -49,6 +49,7 @@ var unparsedWeekField = regexp.MustCompile("(?:^|[,，、;；\\s])(?:上课周�
 var weekdayHeaderPattern = regexp.MustCompile("^(?:星期|周)([1-7一二三四五六日天])(?:[(][^)]*[)])?$")
 var unknownCourse = regexp.MustCompile("^(.+?)\\s*\\[[A-Za-z0-9]+\\]\\s*(上课周次\\s*[0-9,，、\\-]+周)")
 var cellReference = regexp.MustCompile("^\\$?([A-Za-z]+)\\$?(\\d+)$")
+var numericPlaceholder = regexp.MustCompile("^[0-9]+$")
 
 var semesterLabel = regexp.MustCompile("[0-9]{4}-[0-9]{4}学年第[一二12]学期")
 
@@ -170,7 +171,7 @@ func ParseXLSX(data []byte) ([]Course, []Note, error) {
 				}
 				for _, col := range weekdayColumns {
 					raw := strings.TrimSpace(sh.rows[row][col])
-					if raw == "" || raw == "无" || raw == "暂无" || raw == "调课" {
+					if raw == "" || raw == "无" || raw == "暂无" || raw == "调课" || numericPlaceholder.MatchString(raw) {
 						continue
 					}
 					if !hasSection && !looksLikeCourseCell(raw) {
