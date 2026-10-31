@@ -37,6 +37,12 @@ func (r *fakeRepo) Groups(_ context.Context, actor Actor) ([]Group, error) {
 	}
 	return []Group{}, nil
 }
+func (r *fakeRepo) AllGroups(_ context.Context) ([]Group, error) {
+	if r.err != nil {
+		return nil, r.err
+	}
+	return r.groups, nil
+}
 func (r *fakeRepo) Members(_ context.Context, groupID uint64) ([]model.UserGroupMember, error) {
 	r.membersCalled++
 	return r.members[groupID], nil
@@ -196,19 +202,23 @@ func TestEmptyStoredTimetableIsMissingInsteadOfDefaultingToFree(t *testing.T) {
 	}
 }
 
-func TestGroupScopeRejectsBeforeRosterRead(t *testing.T) {
-	for _, actor := range []Actor{{UserID: 8, Role: model.RoleNameUser}, {UserID: 7, Role: model.RoleNameAdmin}} {
-		repo := buildRepo()
-		filter := query(1, 1, 2, 3)
-		filter.GroupID = 2
-		_, err := NewService(repo).Analyze(context.Background(), actor, filter)
-		var failure *Error
-		if !errors.As(err, &failure) || failure.Status != http.StatusForbidden {
-			t.Fatalf("want forbidden for %v got %v", actor, err)
-		}
-		if repo.membersCalled != 0 || repo.timetablesCalled != 0 {
-			t.Fatalf("unauthorized query loaded members: %+v", repo)
-		}
+func TestOrdinaryAdminCanReadAnotherGroupOnlyThroughAvailability(t *testing.T) {
+	repo := buildRepo()
+	filter := query(1, 1, 2, 3)
+	filter.GroupID = 2
+	result, err := NewService(repo).Analyze(context.Background(), Actor{UserID: 7, Role: model.RoleNameAdmin}, filter)
+	if err != nil || result.GroupName != "视觉组" || result.TotalCount != 1 || result.Members[0].UserID != 20 {
+		t.Fatalf("ordinary admin could not read cross-group availability: result=%+v err=%v", result, err)
+	}
+
+	repo = buildRepo()
+	_, err = NewService(repo).Analyze(context.Background(), Actor{UserID: 8, Role: model.RoleNameUser}, filter)
+	var failure *Error
+	if !errors.As(err, &failure) || failure.Status != http.StatusForbidden {
+		t.Fatalf("ordinary member availability status = %v, want forbidden", err)
+	}
+	if repo.membersCalled != 0 || repo.timetablesCalled != 0 {
+		t.Fatalf("non-admin query loaded members: %+v", repo)
 	}
 }
 func TestSuperAdminCanSeeAnotherGroupButOnlyItsRoster(t *testing.T) {
@@ -245,17 +255,55 @@ func TestInvalidFilterRejectedAndNoSQL(t *testing.T) {
 func TestOptionsRespectManagerAndSuperAdmin(t *testing.T) {
 	r := buildRepo()
 	options, err := NewService(r).Options(context.Background(), Actor{UserID: 7, Role: model.RoleNameAdmin})
-	if err != nil || len(options.Groups) != 1 || options.CurrentSemester != timetable.CurrentSemester || options.FirstWeekStart != timetable.CurrentFirstWeekStart || options.TeachingWeekCount != timetable.CurrentTeachingWeekCount {
+	if err != nil || len(options.Groups) != 2 || options.DefaultGroupID != 1 || options.CurrentSemester != timetable.CurrentSemester || options.FirstWeekStart != timetable.CurrentFirstWeekStart || options.TeachingWeekCount != timetable.CurrentTeachingWeekCount {
 		t.Fatalf("admin options %+v %v", options, err)
 	}
 	options, err = NewService(r).Options(context.Background(), Actor{UserID: 1, Role: model.RoleNameSuperAdmin})
-	if err != nil || len(options.Groups) != 2 || options.CurrentSemester != timetable.CurrentSemester {
+	if err != nil || len(options.Groups) != 2 || options.DefaultGroupID != 0 || options.CurrentSemester != timetable.CurrentSemester {
 		t.Fatalf("super options %+v %v", options, err)
 	}
 	_, err = NewService(r).Options(context.Background(), Actor{UserID: 8, Role: model.RoleNameUser})
 	var failure *Error
 	if !errors.As(err, &failure) || failure.Status != 403 {
 		t.Fatalf("user options disclosed: %v", err)
+	}
+}
+
+func TestAllMembersDeduplicateUsersAndKeepMissingTimetablesOutOfFreeCounts(t *testing.T) {
+	repo := &fakeRepo{
+		groups: []Group{{GroupID: 1, Name: "机械组"}, {GroupID: 2, Name: "视觉组"}},
+		members: map[uint64][]model.UserGroupMember{
+			1: {roster(1, "兼任成员"), roster(2, "未导入成员"), roster(3, "无效成员")},
+			2: {roster(1, "重复成员"), roster(4, "冲突成员")},
+		},
+		sheets: []model.Timetable{
+			sheet(1, timetable.CurrentSemester, []timetable.Course{validCourse(2, 4, 5, []int{3}, "all")}, []timetable.Note{}),
+			{UserID: 3, Semester: timetable.CurrentSemester, CoursesJSON: "invalid", NotesJSON: "[]"},
+			sheet(4, timetable.CurrentSemester, []timetable.Course{validCourse(2, 4, 5, []int{3}, "all")}, []timetable.Note{}),
+		},
+	}
+	result, err := NewService(repo).Analyze(context.Background(), Actor{UserID: 7, Role: model.RoleNameAdmin}, Filter{
+		GroupID: 0, Week: 3, Weekday: 2, StartSection: 4, EndSection: 4,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.GroupName != "全部成员" || result.TotalCount != 4 || result.ImportedCount != 2 || result.MissingCount != 2 ||
+		result.FreeCount != 0 || result.ConflictCount != 2 {
+		t.Fatalf("global availability counts are incorrect: %+v", result)
+	}
+	if !reflect.DeepEqual(repo.lastIDs, []uint64{1, 2, 3, 4}) {
+		t.Fatalf("global timetable IDs were not unique: %v", repo.lastIDs)
+	}
+	if len(result.Members) != 4 {
+		t.Fatalf("duplicate memberships produced %d members, want 4", len(result.Members))
+	}
+	byID := map[uint64]Member{}
+	for _, member := range result.Members {
+		byID[member.UserID] = member
+	}
+	if byID[2].MissingReason != "not_imported" || byID[3].MissingReason != "invalid_data" {
+		t.Fatalf("missing timetable reasons were not preserved: %+v", byID)
 	}
 }
 func TestWeekOccupancySingleScopedReadAndPrivacy(t *testing.T) {
@@ -436,7 +484,7 @@ func sortSlots(slots []Slot) {
 }
 
 func TestWeekGroupPermissionsAndValidation(t *testing.T) {
-	for _, actor := range []Actor{{UserID: 8, Role: model.RoleNameUser}, {UserID: 7, Role: model.RoleNameAdmin}} {
+	for _, actor := range []Actor{{UserID: 8, Role: model.RoleNameUser}} {
 		repo := buildRepo()
 		input := query(1, 1, 1, 3)
 		input.GroupID = 2

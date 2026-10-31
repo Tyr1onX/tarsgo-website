@@ -26,6 +26,17 @@ func (r *GormRepository) Groups(ctx context.Context, actor Actor) ([]Group, erro
 	return groups, err
 }
 
+// AllGroups is used only by the admin time-coordination service. Its caller
+// checks the system admin role before using this cross-group roster scope.
+func (r *GormRepository) AllGroups(ctx context.Context) ([]Group, error) {
+	groups := []Group{}
+	err := r.db.WithContext(ctx).Model(&model.UserGroup{}).
+		Select("user_groups.id AS group_id, user_groups.name").
+		Where("user_groups.status = ?", model.UserGroupStatusActive).
+		Order("user_groups.name ASC, user_groups.id ASC").Find(&groups).Error
+	return groups, err
+}
+
 func (r *GormRepository) Members(ctx context.Context, groupID uint64) ([]model.UserGroupMember, error) {
 	result := []model.UserGroupMember{}
 	err := r.db.WithContext(ctx).Model(&model.UserGroupMember{}).

@@ -38,6 +38,7 @@ type Group struct {
 }
 type Options struct {
 	Groups            []Group `json:"groups"`
+	DefaultGroupID    uint64  `json:"defaultGroupId"`
 	CurrentSemester   string  `json:"currentSemester"`
 	FirstWeekStart    string  `json:"firstWeekStart"`
 	TeachingWeekCount int     `json:"teachingWeekCount"`
@@ -74,6 +75,7 @@ type Result struct {
 }
 type Repository interface {
 	Groups(ctx context.Context, actor Actor) ([]Group, error)
+	AllGroups(ctx context.Context) ([]Group, error)
 	Members(ctx context.Context, groupID uint64) ([]model.UserGroupMember, error)
 	Timetables(ctx context.Context, ids []uint64) ([]model.Timetable, error)
 }
@@ -85,15 +87,23 @@ func (s *Service) Options(ctx context.Context, actor Actor) (*Options, error) {
 	if !canManage(actor) {
 		return nil, forbidden()
 	}
-	groups, err := s.repo.Groups(ctx, actor)
+	memberGroups, err := s.repo.Groups(ctx, actor)
 	if err != nil {
-		return nil, internal("读取可管理组别失败", err)
+		return nil, internal("读取管理员所属组别失败", err)
+	}
+	groups, err := s.repo.AllGroups(ctx)
+	if err != nil {
+		return nil, internal("读取组别失败", err)
 	}
 	if groups == nil {
 		groups = []Group{}
 	}
+	defaultGroupID := uint64(0)
+	if actor.Role != model.RoleNameSuperAdmin && len(memberGroups) > 0 {
+		defaultGroupID = memberGroups[0].GroupID
+	}
 	return &Options{
-		Groups: groups, CurrentSemester: timetable.CurrentSemester,
+		Groups: groups, DefaultGroupID: defaultGroupID, CurrentSemester: timetable.CurrentSemester,
 		FirstWeekStart: timetable.CurrentFirstWeekStart, TeachingWeekCount: timetable.CurrentTeachingWeekCount,
 	}, nil
 }
@@ -128,34 +138,47 @@ func (s *Service) AnalyzeWeek(ctx context.Context, actor Actor, f Filter) (*Week
 	if !canManage(actor) {
 		return nil, forbidden()
 	}
-	if f.GroupID == 0 || f.Week < 1 || f.Week > timetable.CurrentTeachingWeekCount {
+	if f.Week < 1 || f.Week > timetable.CurrentTeachingWeekCount {
 		return nil, invalid("请选择有效的组别和当前教学周")
 	}
-	groups, err := s.repo.Groups(ctx, actor)
+	groups, err := s.repo.AllGroups(ctx)
 	if err != nil {
-		return nil, internal("读取可管理组别失败", err)
+		return nil, internal("读取组别失败", err)
 	}
-	var group *Group
-	for i := range groups {
-		if groups[i].GroupID == f.GroupID {
-			group = &groups[i]
-			break
+	selectedGroups := make([]Group, 0, len(groups))
+	groupName := "全部成员"
+	if f.GroupID == 0 {
+		selectedGroups = append(selectedGroups, groups...)
+	} else {
+		for _, group := range groups {
+			if group.GroupID == f.GroupID {
+				selectedGroups = append(selectedGroups, group)
+				groupName = group.Name
+				break
+			}
 		}
 	}
-	if group == nil {
+	if f.GroupID != 0 && len(selectedGroups) == 0 {
 		return nil, forbidden()
 	}
-	roster, err := s.repo.Members(ctx, f.GroupID)
-	if err != nil {
-		return nil, internal("读取本组成员失败", err)
+	roster := make([]model.UserGroupMember, 0)
+	seen := make(map[uint64]struct{})
+	for _, group := range selectedGroups {
+		groupRoster, err := s.repo.Members(ctx, group.GroupID)
+		if err != nil {
+			return nil, internal("读取组别成员失败", err)
+		}
+		for _, person := range groupRoster {
+			if _, exists := seen[person.UserID]; exists {
+				continue
+			}
+			seen[person.UserID] = struct{}{}
+			roster = append(roster, person)
+		}
 	}
 	ids := make([]uint64, 0, len(roster))
-	seen := make(map[uint64]bool, len(roster))
 	for _, person := range roster {
-		if !seen[person.UserID] {
-			ids = append(ids, person.UserID)
-			seen[person.UserID] = true
-		}
+		ids = append(ids, person.UserID)
 	}
 	records := []model.Timetable{}
 	if len(ids) > 0 {
@@ -166,17 +189,13 @@ func (s *Service) AnalyzeWeek(ctx context.Context, actor Actor, f Filter) (*Week
 	}
 	stored := make(map[uint64]model.Timetable, len(ids))
 	for _, record := range records {
-		if !seen[record.UserID] || record.Semester != timetable.CurrentSemester {
+		if _, exists := seen[record.UserID]; !exists || record.Semester != timetable.CurrentSemester {
 			continue
 		}
 		stored[record.UserID] = record
 	}
-	result := &WeekResult{GroupID: group.GroupID, GroupName: group.Name, Semester: timetable.CurrentSemester, Week: f.Week, Members: []WeekMember{}}
+	result := &WeekResult{GroupID: f.GroupID, GroupName: groupName, Semester: timetable.CurrentSemester, Week: f.Week, Members: []WeekMember{}}
 	for _, person := range roster {
-		if !seen[person.UserID] {
-			continue
-		}
-		delete(seen, person.UserID)
 		member := WeekMember{UserID: person.UserID, Name: displayName(person.User), Occupied: []Slot{}}
 		sheet, ok := stored[person.UserID]
 		if !ok {
