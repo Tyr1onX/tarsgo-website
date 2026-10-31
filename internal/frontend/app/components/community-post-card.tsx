@@ -1,5 +1,6 @@
 import { Link, useLocation } from "react-router";
 
+import { CommunityIcon } from "~/components/community-icons";
 import { CommunityImageGallery } from "~/components/community-image-gallery";
 import { communityCategoryLabel, communityPostHref, formatCommunityDate, type CommunityPost } from "~/lib/community-client";
 
@@ -24,8 +25,7 @@ export function CommunityPostCard({
   const location = useLocation();
   const returnTo = `${location.pathname}${location.search}${location.hash}`;
   const postState = { communityReturnTo: returnTo };
-  const excerpt = Array.from(post.body.trim()).slice(0, 240).join("");
-  const hasMoreExcerpt = Array.from(post.body.trim()).length > 240;
+  const excerpt = post.body.trim().replace(/\s+/g, " ");
   const hasRecentReply = Boolean(post.lastReplyAt && new Date(post.lastReplyAt).getTime() > new Date(post.createdAt).getTime());
   return <article className={`community-post${post.isPinned ? " is-pinned" : ""}`}>
     <div className="community-post__author">
@@ -34,13 +34,13 @@ export function CommunityPostCard({
         <strong>{post.authorName}</strong>
         <time dateTime={hasRecentReply ? post.lastReplyAt : post.createdAt}>{hasRecentReply ? `最近回复 ${formatCommunityDate(post.lastReplyAt!)}` : formatCommunityDate(post.createdAt)}{post.editedAt ? " · 已编辑" : ""}</time>
       </div>
+      {post.isPinned ? <span className="community-post__pin">置顶</span> : null}
       <span className="community-post__category">{communityCategoryLabel(post.category)}</span>
     </div>
-    {post.isPinned ? <span className="community-post__pin">置顶</span> : null}
     <h2 className="community-post__title"><Link to={communityPostHref(post.id)} state={postState}>{post.title}</Link></h2>
     {post.isLegacy && post.groupName ? <p className="community-post__scope">{post.visibility === "private" ? "历史私密讨论" : `${post.groupName} · 历史讨论`}</p> : null}
     {post.isFaq ? <span className="community-post__faq">FAQ</span> : null}
-    <p className="community-post__excerpt">{excerpt}{hasMoreExcerpt ? "…" : ""}</p>
+    <p className="community-post__excerpt">{excerpt}</p>
     {post.attachments.length ? <CommunityImageGallery attachments={post.attachments} compact /> : null}
     <footer className="community-post__actions">
       <button type="button" aria-label={`${post.likedByMe ? "取消点赞" : "点赞"}，${post.likeCount} 个赞`} aria-pressed={post.likedByMe} disabled={busy || !onLike} onClick={() => onLike?.(post)}>
@@ -57,10 +57,6 @@ export function CommunityPostCard({
 }
 
 export function CommunityActionIcon({ kind }: { kind: "like" | "comment" | "bookmark" }) {
-  const common = { fill: "none", stroke: "currentColor", strokeWidth: 1.7, strokeLinecap: "round" as const, strokeLinejoin: "round" as const };
-  return <svg aria-hidden="true" viewBox="0 0 24 24" {...common}>
-    {kind === "like" ? <path d="M12 20s-7.2-4.2-8.7-8.5C1.6 6.7 7.3 3.5 12 8c4.7-4.5 10.4-1.3 8.7 3.5C19.2 15.8 12 20 12 20Z" /> : null}
-    {kind === "comment" ? <><path d="M20 11.4a7.4 7.4 0 0 1-7.8 7.4 8.4 8.4 0 0 1-3.6-.8L4 19l1.2-3.9a7.2 7.2 0 0 1-1.4-4.3A7.6 7.6 0 0 1 12 3.5a7.6 7.6 0 0 1 8 7.9Z" /><path d="M8.5 11.5h.01m3.49 0h.01m3.49 0h.01" /></> : null}
-    {kind === "bookmark" ? <path d="M6.5 4.5h11v16L12 17l-5.5 3.5z" /> : null}
-  </svg>;
+  const name = kind === "like" ? "heart" : kind === "comment" ? "messageCircle" : "bookmark";
+  return <CommunityIcon name={name} className="community-action-icon" />;
 }
