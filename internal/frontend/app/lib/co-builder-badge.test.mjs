@@ -26,6 +26,8 @@ test("only super admins see the contribution manager in member editing", () => {
   assert.match(adminPanel, /授予贡献 \+1/);
   assert.match(adminPanel, /留空将使用默认说明：参与吉甲官网测试与反馈/);
   assert.match(adminPanel, /disabled=\{saving\}/);
+  assert.doesNotMatch(adminPanel, /<form/);
+  assert.match(adminPanel, /type="button" onClick=\{\(\) => void grant\(\)\}/);
   assert.doesNotMatch(adminPanel, /<textarea required/);
   assert.match(adminPanel, /撤销这条贡献记录/);
   assert.match(client, /POST[\s\S]*?co-builder-badge\/contributions/);

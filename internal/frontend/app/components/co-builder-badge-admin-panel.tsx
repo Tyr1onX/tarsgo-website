@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 
 import { CoBuilderBadgeSummaryView } from "~/components/co-builder-badge-summary";
 import {
@@ -27,8 +27,7 @@ export function CoBuilderBadgeAdminPanel({ userId }: { userId: number }) {
     return () => { active = false; };
   }, [userId]);
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function grant() {
     const text = description.trim();
     if (saving) return;
     setSaving(true);
@@ -62,15 +61,15 @@ export function CoBuilderBadgeAdminPanel({ userId }: { userId: number }) {
       {loading ? <p role="status" className="text-xs text-[var(--admin-muted)]">正在读取贡献记录…</p> : null}
       {!loading && summary ? <CoBuilderBadgeSummaryView summary={summary} onRevoke={(id) => void revoke(id)} /> : null}
       {!loading ? (
-        <form onSubmit={(event) => void submit(event)} className="space-y-2">
+        <div className="space-y-2">
           <label className="block text-xs text-[var(--admin-muted)]">
             贡献说明（可选）
             <textarea maxLength={500} rows={2} value={description} onChange={(event) => setDescription(event.target.value)} className="admin-field mt-1 min-h-20 resize-y" placeholder="留空将使用默认说明：参与吉甲官网测试与反馈" />
           </label>
-          <button type="submit" disabled={saving} className="admin-button admin-button--secondary admin-button--small">
+          <button type="button" onClick={() => void grant()} disabled={saving} className="admin-button admin-button--secondary admin-button--small">
             {saving ? "处理中…" : "授予贡献 +1"}
           </button>
-        </form>
+        </div>
       ) : null}
       {error ? <p role="alert" className="text-xs text-rose-500">{error}</p> : null}
     </section>
