@@ -13,25 +13,28 @@ const preview = JSON.parse(raw);
 const handler = source("../../../backend/handler/organization_preview.go");
 const expectedPeople = [
   "镇沈晖", "吉荣昌", "孙煦朝", "高畅", "童逸创", "姜昊阳", "张育宁", "沈桂清", "白航铭", "待确认",
-  "张坤杰", "雷韶冉", "曲佳响", "陆广鹏", "王彬赫", "左文添",
+  "张坤杰", "雷韶冉", "曲佳响", "陆广鹏", "王彬赫", "左文添", "玄玉波",
 ];
-const expectedUserIDs = [643, 641, null, 694, 323, 647, 5, 655, 670, null, 24, 644, 10, 631, 22, 630];
+const expectedUserIDs = [643, 641, null, 694, 323, 647, 5, 655, 670, null, 24, 644, 10, 631, 22, 630, 961];
 const allPositions = [preview.leader, ...preview.categories.flatMap((category) => category.positions)];
 
 test("appointment data is complete and has no duplicate positions", () => {
   assert.deepEqual(allPositions.map(({ name }) => name), expectedPeople);
   assert.deepEqual(allPositions.map(({ userId }) => userId ?? null), expectedUserIDs);
-  assert.equal(allPositions.filter(({ userId }) => userId !== null).length, 14);
+  assert.equal(allPositions.filter(({ userId }) => userId !== null).length, 15);
   assert.equal(new Set(allPositions.map(({ id }) => id)).size, allPositions.length);
   assert.equal(new Set(allPositions.map(({ name }) => name)).size, allPositions.length);
   assert.equal(preview.categories.find(({ id }) => id === "technical")?.positions.find(({ id }) => id === "electrical-lead")?.name, "待确认");
-  assert.equal(preview.categories.length, 3);
+  assert.equal(preview.categories.length, 4);
   assert.equal(preview.categories.find(({ id }) => id === "management")?.title, "核心管理层");
   assert.equal(preview.categories.find(({ id }) => id === "technical")?.title, "技术体系");
   const robotProjects = preview.categories.find(({ id }) => id === "robot-classes");
   assert.equal(robotProjects?.title, "兵种项目体系");
   assert.equal(robotProjects?.positions.find(({ id }) => id === "radar-station")?.title, "雷达站负责人");
   assert.equal(robotProjects?.positions.find(({ id }) => id === "aerial-lead")?.title, "飞机组长");
+  const advisors = preview.categories.find(({ id }) => id === "advisors");
+  assert.equal(advisors?.title, "指导教师");
+  assert.deepEqual(advisors?.positions, [{ id: "advisor-xuanyubo", title: "指导老师", name: "玄玉波", userId: 961 }]);
   assert.ok(!allPositions.some(({ id }) => id === "reserve-captain"), "reserve captain appears only after an appointment exists");
 });
 
@@ -87,8 +90,8 @@ test("members see their own organization title on the personal profile", () => {
 test("wide preview places role categories in non-overlapping columns", () => {
   const expanded = new Set(preview.categories.map(({ id }) => id));
   const layout = layoutOrganizationPreview(1280, expanded, preview.categories);
-  assert.equal(layout.columns, 3);
-  assert.equal(layout.categories.length, 3);
+  assert.equal(layout.columns, 4);
+  assert.equal(layout.categories.length, 4);
   for (let left = 0; left < layout.categories.length; left++) {
     for (let right = left + 1; right < layout.categories.length; right++) {
       const a = layout.categories[left], b = layout.categories[right];
