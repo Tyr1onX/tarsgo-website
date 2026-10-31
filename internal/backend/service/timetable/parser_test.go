@@ -126,6 +126,21 @@ func TestTimetableIgnoresRescheduleMetadata(t *testing.T) {
 	}
 }
 
+func TestNumericPlaceholdersInCourseGridAreIgnored(t *testing.T) {
+	wantCourses, wantNotes, err := ParseXLSX(schoolWorkbook(""))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, value := range []string{"3", "7"} {
+		t.Run(value, func(t *testing.T) {
+			courses, notes, err := ParseXLSX(schoolWorkbook(value))
+			if err != nil || !reflect.DeepEqual(courses, wantCourses) || !reflect.DeepEqual(notes, wantNotes) {
+				t.Fatalf("numeric placeholder changed the parsed schedule: courses=%d notes=%d err=%v", len(courses), len(notes), err)
+			}
+		})
+	}
+}
+
 func TestParityAndRanges(t *testing.T) {
 	got, e := parseCourseCell("C001-课程甲\n1-8周(单),星期1,第1节-第2节教室A", 1, 1, 2)
 	if e != nil {
@@ -280,6 +295,93 @@ func TestSuppliedRealTimetableSamples(t *testing.T) {
 			for _, course := range courses {
 				if course.Weekday < 1 || course.Weekday > 7 || course.StartSection < 1 || course.EndSection < course.StartSection || course.EndSection > 24 || course.Parity != "all" || !strictlyIncreasing(course.Weeks) {
 					t.Fatalf("invalid actual-week occupancy: day=%d sections=%d-%d weeks=%v parity=%s", course.Weekday, course.StartSection, course.EndSection, course.Weeks, course.Parity)
+				}
+			}
+			for _, expected := range want.knownCourses {
+				if !hasCourseOccupancy(courses, expected.weekday, expected.start, expected.end, expected.weeks) {
+					t.Fatalf("missing occupancy day=%d sections=%d-%d weeks=%v", expected.weekday, expected.start, expected.end, expected.weeks)
+				}
+			}
+
+			service, mock := mockService(t)
+			mock.ExpectQuery("SELECT GET_LOCK\\(\\?, 30\\)").WithArgs(lifecycleLockName).
+				WillReturnRows(sqlmock.NewRows([]string{"GET_LOCK"}).AddRow(1))
+			mock.ExpectBegin()
+			mock.ExpectExec("INSERT INTO `personal_timetables`").WillReturnResult(sqlmock.NewResult(1, 1))
+			mock.ExpectCommit()
+			mock.ExpectQuery("SELECT RELEASE_LOCK\\(\\?\\)").WithArgs(lifecycleLockName).
+				WillReturnRows(sqlmock.NewRows([]string{"RELEASE_LOCK"}).AddRow(1))
+			stored, err := service.Import(context.Background(), uint64(index+1), filepath.Base(path), data)
+			if err != nil || stored == nil || !reflect.DeepEqual(stored.Courses, courses) || !reflect.DeepEqual(stored.Notes, notes) {
+				t.Fatal("supplied timetable did not preserve parsed occupancy through import")
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatal("supplied timetable import did not complete its storage transaction")
+			}
+		})
+	}
+}
+
+// TestProvidedRealTimetableSamples keeps the two user-provided workbooks outside
+// the repository because they contain personal schedule data. Set both paths to
+// run the import regression against the originals.
+func TestProvidedRealTimetableSamples(t *testing.T) {
+	paths := []string{
+		os.Getenv("TARSGO_TIMETABLE_PLACEHOLDER_SAMPLE_1"),
+		os.Getenv("TARSGO_TIMETABLE_PLACEHOLDER_SAMPLE_2"),
+	}
+	provided := 0
+	for _, path := range paths {
+		if path != "" {
+			provided++
+		}
+	}
+	if provided == 0 {
+		t.Skip("set both TARSGO_TIMETABLE_PLACEHOLDER_SAMPLE_n paths to run the supplied-file regression")
+	}
+	if provided != len(paths) {
+		t.Fatal("both supplied timetable sample paths are required")
+	}
+
+	type expectedCourse struct {
+		weekday, start, end int
+		weeks               []int
+	}
+	tests := []struct {
+		courseCount, noteCount, maxWeek int
+		knownCourses                    []expectedCourse
+	}{
+		{29, 0, 17, []expectedCourse{
+			{1, 3, 4, []int{3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}},
+			{3, 9, 11, []int{3, 4, 13}},
+			{4, 9, 10, []int{6, 9, 10, 13}},
+		}},
+		{28, 1, 17, []expectedCourse{
+			{1, 5, 6, []int{10, 13}},
+			{4, 9, 12, []int{7, 8, 9}},
+			{6, 1, 4, []int{15}},
+		}},
+	}
+	for index, path := range paths {
+		t.Run(fmt.Sprintf("sample_%d", index+1), func(t *testing.T) {
+			data, err := os.ReadFile(path)
+			if err != nil {
+				t.Fatal("could not read supplied timetable sample")
+			}
+			courses, notes, err := ParseXLSX(data)
+			if err != nil {
+				t.Fatal("supplied timetable sample did not parse completely")
+			}
+			if detected := DetectSemester(data); detected != "" && detected != CurrentSemester {
+				t.Fatal("supplied timetable semester differs from current configuration")
+			}
+			want := tests[index]
+			if len(courses) != want.courseCount || len(notes) != want.noteCount || maxWeek(courses) != want.maxWeek {
+				t.Fatalf("parsed courses/notes/maxWeek = %d/%d/%d, want %d/%d/%d", len(courses), len(notes), maxWeek(courses), want.courseCount, want.noteCount, want.maxWeek)
+			}
+			for _, course := range courses {
+				if course.Weekday < 1 || course.Weekday > 7 || course.StartSection < 1 || course.EndSection < course.StartSection || course.EndSection > 24 || !strictlyIncreasing(course.Weeks) {
+					t.Fatalf("invalid actual-week occupancy: day=%d sections=%d-%d weeks=%v", course.Weekday, course.StartSection, course.EndSection, course.Weeks)
 				}
 			}
 			for _, expected := range want.knownCourses {
