@@ -30,7 +30,7 @@ export function CoBuilderBadgeAdminPanel({ userId }: { userId: number }) {
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const text = description.trim();
-    if (!text || saving) return;
+    if (saving) return;
     setSaving(true);
     setError("");
     try {
@@ -64,11 +64,11 @@ export function CoBuilderBadgeAdminPanel({ userId }: { userId: number }) {
       {!loading ? (
         <form onSubmit={(event) => void submit(event)} className="space-y-2">
           <label className="block text-xs text-[var(--admin-muted)]">
-            登记有效贡献（每条计 1 次）
-            <textarea required maxLength={500} rows={2} value={description} onChange={(event) => setDescription(event.target.value)} className="admin-field mt-1 min-h-20 resize-y" placeholder="填写具体贡献说明" />
+            贡献说明（可选）
+            <textarea maxLength={500} rows={2} value={description} onChange={(event) => setDescription(event.target.value)} className="admin-field mt-1 min-h-20 resize-y" placeholder="留空将使用默认说明：参与吉甲官网测试与反馈" />
           </label>
-          <button type="submit" disabled={saving || !description.trim()} className="admin-button admin-button--secondary admin-button--small">
-            {saving ? "处理中…" : "登记贡献"}
+          <button type="submit" disabled={saving} className="admin-button admin-button--secondary admin-button--small">
+            {saving ? "处理中…" : "授予贡献 +1"}
           </button>
         </form>
       ) : null}

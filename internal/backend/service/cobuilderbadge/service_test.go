@@ -95,7 +95,7 @@ func TestGrantValidatesDescriptionAndTargetAccount(t *testing.T) {
 	repo := newFakeRepository()
 	service := NewService(repo)
 	admin := Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}
-	for _, description := range []string{"", "   ", strings.Repeat("字", maxDescriptionRunes+1)} {
+	for _, description := range []string{strings.Repeat("字", maxDescriptionRunes+1)} {
 		if _, err := service.Grant(context.Background(), admin, 2, description); serviceStatus(err) != http.StatusBadRequest {
 			t.Errorf("description length %d status = %d, want 400", len([]rune(description)), serviceStatus(err))
 		}
@@ -105,6 +105,20 @@ func TestGrantValidatesDescriptionAndTargetAccount(t *testing.T) {
 	}
 	if repo.createCalls != 0 {
 		t.Fatalf("invalid grant reached repository %d times", repo.createCalls)
+	}
+}
+
+func TestEmptyContributionDescriptionUsesDefault(t *testing.T) {
+	for _, input := range []string{"", "   "} {
+		repo := newFakeRepository()
+		service := NewService(repo)
+		got, err := service.Grant(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 2, input)
+		if err != nil {
+			t.Fatalf("Grant with blank description returned an error: %v", err)
+		}
+		if got.ContributionCount != 1 || len(got.Contributions) != 1 || got.Contributions[0].Description != defaultContributionDescription {
+			t.Fatalf("blank description should create one default contribution, got %#v", got)
+		}
 	}
 }
 
