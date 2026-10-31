@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -144,6 +145,110 @@ func TestSuperAdminGrantCreatesOneEffectiveContributionAndRecalculatesBadge(t *t
 	}
 }
 
+func TestUnlockNoticesAdvanceOnlyOnUnseenTierAndCanBeRetriedUntilAcknowledged(t *testing.T) {
+	repo := newFakeRepository()
+	base := time.Date(2026, time.October, 31, 3, 0, 0, 0, time.UTC)
+	service := NewService(repo)
+	service.now = func() time.Time { return base }
+	actor := Actor{ID: 7, RoleName: model.RoleNameUser}
+	claim := func(wantCode, wantLabel string) *UnlockNotice {
+		t.Helper()
+		got, err := service.ClaimUnlock(context.Background(), actor)
+		if err != nil || got == nil || got.LevelCode != wantCode || got.LevelLabel != wantLabel || got.ClaimToken == "" {
+			t.Fatalf("ClaimUnlock() = %#v, %v; want %s %s", got, err, wantCode, wantLabel)
+		}
+		return got
+	}
+
+	if got, err := service.ClaimUnlock(context.Background(), actor); err != nil || got != nil {
+		t.Fatalf("no badge should not claim a notice: %#v, %v", got, err)
+	}
+	repo.records[7] = []model.CoBuilderContribution{{ID: 1}}
+	bronze := claim("bronze", "青铜 I")
+	if got, err := service.ClaimUnlock(context.Background(), actor); err != nil || got != nil {
+		t.Fatalf("another tab should not claim an active notice: %#v, %v", got, err)
+	}
+	if err := service.AcknowledgeUnlock(context.Background(), actor, bronze.ClaimToken); err != nil {
+		t.Fatalf("acknowledge bronze: %v", err)
+	}
+	if err := service.AcknowledgeUnlock(context.Background(), actor, bronze.ClaimToken); err != nil {
+		t.Fatalf("repeat acknowledgment should be idempotent: %v", err)
+	}
+	repo.records[7] = append(repo.records[7], model.CoBuilderContribution{ID: 2})
+	if got, err := service.ClaimUnlock(context.Background(), actor); err != nil || got != nil {
+		t.Fatalf("same-tier contribution should not unlock again: %#v, %v", got, err)
+	}
+	repo.records[7] = append(repo.records[7], model.CoBuilderContribution{ID: 3})
+	silver := claim("silver", "白银 II")
+	if err := service.AcknowledgeUnlock(context.Background(), actor, silver.ClaimToken); err != nil {
+		t.Fatalf("acknowledge silver: %v", err)
+	}
+	for id := uint64(4); id <= 10; id++ {
+		repo.records[7] = append(repo.records[7], model.CoBuilderContribution{ID: id})
+	}
+	gold := claim("gold", "黄金 III")
+	if err := service.AcknowledgeUnlock(context.Background(), actor, gold.ClaimToken); err != nil {
+		t.Fatalf("acknowledge gold: %v", err)
+	}
+
+	for index := range repo.records[7] {
+		repo.records[7][index].RevokedAt = &base
+	}
+	if got, err := service.ClaimUnlock(context.Background(), actor); err != nil || got != nil {
+		t.Fatalf("revoked contributions should not unlock a notice: %#v, %v", got, err)
+	}
+}
+
+func TestUnlockNoticeLeaseExpiresWhenItWasNotShown(t *testing.T) {
+	repo := newFakeRepository()
+	repo.records[7] = []model.CoBuilderContribution{{ID: 1}}
+	now := time.Date(2026, time.October, 31, 3, 0, 0, 0, time.UTC)
+	service := NewService(repo)
+	service.now = func() time.Time { return now }
+	actor := Actor{ID: 7, RoleName: model.RoleNameUser}
+	first, err := service.ClaimUnlock(context.Background(), actor)
+	if err != nil || first == nil {
+		t.Fatalf("first claim = %#v, %v", first, err)
+	}
+	now = now.Add(unlockClaimDuration + time.Second)
+	second, err := service.ClaimUnlock(context.Background(), actor)
+	if err != nil || second == nil || second.ClaimToken == first.ClaimToken {
+		t.Fatalf("expired unshown claim should be retried: first=%#v second=%#v err=%v", first, second, err)
+	}
+	if err := service.AcknowledgeUnlock(context.Background(), actor, "forged"); serviceStatus(err) != http.StatusBadRequest {
+		t.Fatalf("invalid acknowledgment token status = %d, want 400", serviceStatus(err))
+	}
+}
+
+func TestConcurrentUnlockClaimsOnlyReturnOneNotice(t *testing.T) {
+	repo := newFakeRepository()
+	repo.records[7] = []model.CoBuilderContribution{{ID: 1}}
+	service := NewService(repo)
+	var wait sync.WaitGroup
+	var claimed sync.Mutex
+	count := 0
+	for range 24 {
+		wait.Add(1)
+		go func() {
+			defer wait.Done()
+			notice, err := service.ClaimUnlock(context.Background(), Actor{ID: 7})
+			if err != nil {
+				t.Errorf("ClaimUnlock: %v", err)
+				return
+			}
+			if notice != nil {
+				claimed.Lock()
+				count++
+				claimed.Unlock()
+			}
+		}()
+	}
+	wait.Wait()
+	if count != 1 {
+		t.Fatalf("concurrent claims returned %d notices, want 1", count)
+	}
+}
+
 func serviceStatus(err error) int {
 	var serviceErr *ServiceError
 	if errors.As(err, &serviceErr) {
@@ -156,8 +261,10 @@ func serviceStatus(err error) int {
 }
 
 type fakeRepository struct {
+	unlockMu       sync.Mutex
 	users          map[uint64]bool
 	records        map[uint64][]model.CoBuilderContribution
+	unlockStates   map[uint64]fakeUnlockState
 	lastListUserID uint64
 	listCalls      int
 	createCalls    int
@@ -165,12 +272,46 @@ type fakeRepository struct {
 	nextID         uint64
 }
 
+type fakeUnlockState struct {
+	highestSeen uint8
+	claimed     uint8
+	token       string
+	expiresAt   time.Time
+}
+
 func newFakeRepository() *fakeRepository {
 	return &fakeRepository{
-		users:   map[uint64]bool{1: true, 2: true, 3: true, 7: true, 8: true},
-		records: map[uint64][]model.CoBuilderContribution{},
-		nextID:  10,
+		users:        map[uint64]bool{1: true, 2: true, 3: true, 7: true, 8: true},
+		records:      map[uint64][]model.CoBuilderContribution{},
+		unlockStates: map[uint64]fakeUnlockState{},
+		nextID:       10,
 	}
+}
+
+func (r *fakeRepository) ClaimUnlock(_ context.Context, userID uint64, level uint8, token string, expiresAt, now time.Time) (bool, error) {
+	r.unlockMu.Lock()
+	defer r.unlockMu.Unlock()
+	state := r.unlockStates[userID]
+	if state.highestSeen >= level || (state.token != "" && state.expiresAt.After(now)) {
+		return false, nil
+	}
+	state.claimed, state.token, state.expiresAt = level, token, expiresAt
+	r.unlockStates[userID] = state
+	return true, nil
+}
+
+func (r *fakeRepository) AcknowledgeUnlock(_ context.Context, userID uint64, token string) error {
+	r.unlockMu.Lock()
+	defer r.unlockMu.Unlock()
+	state := r.unlockStates[userID]
+	if state.token == token && token != "" {
+		if state.claimed > state.highestSeen {
+			state.highestSeen = state.claimed
+		}
+		state.claimed, state.token, state.expiresAt = 0, "", time.Time{}
+		r.unlockStates[userID] = state
+	}
+	return nil
 }
 
 func (r *fakeRepository) UserExists(_ context.Context, userID uint64) (bool, error) {
@@ -178,6 +319,8 @@ func (r *fakeRepository) UserExists(_ context.Context, userID uint64) (bool, err
 }
 
 func (r *fakeRepository) ListContributions(_ context.Context, userID uint64) ([]model.CoBuilderContribution, error) {
+	r.unlockMu.Lock()
+	defer r.unlockMu.Unlock()
 	r.listCalls++
 	r.lastListUserID = userID
 	return append([]model.CoBuilderContribution(nil), r.records[userID]...), nil

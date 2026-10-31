@@ -3,6 +3,7 @@ package cobuilderbadge
 import (
 	"context"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -66,5 +67,35 @@ func TestRevokeContributionUpdatesOnlyAnActiveRecordForItsOwner(t *testing.T) {
 	revoked, err = repo.RevokeContribution(context.Background(), 7, 12, 3, at)
 	if err != nil || revoked {
 		t.Fatalf("repeated revoke result=%t err=%v", revoked, err)
+	}
+}
+
+func TestUnlockClaimIsAtomicAndAcknowledgesOnlyItsClaimToken(t *testing.T) {
+	repo, mock := openRepositoryMock(t)
+	now := time.Date(2026, time.October, 31, 3, 0, 0, 0, time.UTC)
+	expiresAt := now.Add(30 * time.Second)
+	token := strings.Repeat("a", 43)
+	insert := regexp.QuoteMeta("INSERT INTO co_builder_badge_unlock_states (user_id, highest_seen, claimed_level) VALUES (?, 0, 0) ON DUPLICATE KEY UPDATE user_id = VALUES(user_id)")
+	claim := regexp.QuoteMeta("UPDATE co_builder_badge_unlock_states SET claimed_level = ?, claim_token = ?, claim_expires_at = ? WHERE user_id = ? AND highest_seen < ? AND (claim_token IS NULL OR claim_expires_at <= ?)")
+	mock.ExpectExec(insert).WithArgs(uint64(7)).WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec(claim).WithArgs(uint8(1), token, expiresAt, uint64(7), uint8(1), now).WillReturnResult(sqlmock.NewResult(0, 1))
+	claimed, err := repo.ClaimUnlock(context.Background(), 7, 1, token, expiresAt, now)
+	if err != nil || !claimed {
+		t.Fatalf("first claim = %t, %v", claimed, err)
+	}
+	mock.ExpectExec(insert).WithArgs(uint64(7)).WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectExec(claim).WithArgs(uint8(1), token, expiresAt, uint64(7), uint8(1), now).WillReturnResult(sqlmock.NewResult(0, 0))
+	claimed, err = repo.ClaimUnlock(context.Background(), 7, 1, token, expiresAt, now)
+	if err != nil || claimed {
+		t.Fatalf("duplicate claim = %t, %v", claimed, err)
+	}
+	acknowledge := regexp.QuoteMeta("UPDATE co_builder_badge_unlock_states SET highest_seen = GREATEST(highest_seen, claimed_level), claimed_level = 0, claim_token = NULL, claim_expires_at = NULL WHERE user_id = ? AND claim_token = ?")
+	mock.ExpectExec(acknowledge).WithArgs(uint64(7), token).WillReturnResult(sqlmock.NewResult(0, 1))
+	if err := repo.AcknowledgeUnlock(context.Background(), 7, token); err != nil {
+		t.Fatalf("acknowledge current claim: %v", err)
+	}
+	mock.ExpectExec(acknowledge).WithArgs(uint64(7), token).WillReturnResult(sqlmock.NewResult(0, 0))
+	if err := repo.AcknowledgeUnlock(context.Background(), 7, token); err != nil {
+		t.Fatalf("repeat acknowledgment: %v", err)
 	}
 }

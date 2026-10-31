@@ -21,8 +21,28 @@ export interface CoBuilderBadgeSummary {
   contributions: CoBuilderContribution[];
 }
 
+export interface CoBuilderBadgeUnlockNotice {
+  levelCode: Exclude<CoBuilderBadgeSummary["levelCode"], "none">;
+  levelLabel: string;
+  claimToken: string;
+}
+
 export function getMyCoBuilderBadge(): Promise<CoBuilderBadgeSummary> {
   return apiRequest<CoBuilderBadgeSummary>("/api/me/co-builder-badge");
+}
+
+export function claimMyCoBuilderBadgeUnlock(): Promise<CoBuilderBadgeUnlockNotice | null> {
+  return apiRequest<CoBuilderBadgeUnlockNotice | null>("/api/me/co-builder-badge/unlock-notice", {
+    method: "POST",
+    body: {},
+  });
+}
+
+export function acknowledgeMyCoBuilderBadgeUnlock(claimToken: string): Promise<void> {
+  return apiRequest<void>("/api/me/co-builder-badge/unlock-notice/seen", {
+    method: "POST",
+    body: { claimToken },
+  });
 }
 
 export function getAdminCoBuilderBadge(userId: number): Promise<CoBuilderBadgeSummary> {

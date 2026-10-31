@@ -18,6 +18,8 @@ type coBuilderBadgeService interface {
 	GetForAdmin(context.Context, cobuilderbadge.Actor, uint64) (*cobuilderbadge.Summary, error)
 	Grant(context.Context, cobuilderbadge.Actor, uint64, string) (*cobuilderbadge.Summary, error)
 	Revoke(context.Context, cobuilderbadge.Actor, uint64, uint64) (*cobuilderbadge.Summary, error)
+	ClaimUnlock(context.Context, cobuilderbadge.Actor) (*cobuilderbadge.UnlockNotice, error)
+	AcknowledgeUnlock(context.Context, cobuilderbadge.Actor, string) error
 }
 
 type CoBuilderBadgeHandler struct {
@@ -40,6 +42,40 @@ func (h *CoBuilderBadgeHandler) Mine(c *gin.Context) {
 		return
 	}
 	writeAPI(c, http.StatusOK, "获取共建者勋章成功", summary)
+}
+
+func (h *CoBuilderBadgeHandler) ClaimUnlock(c *gin.Context) {
+	actor, ok := currentCoBuilderBadgeActor(c)
+	if !ok {
+		writeAPIError(c, http.StatusUnauthorized, "请先登录")
+		return
+	}
+	notice, err := h.service.ClaimUnlock(c.Request.Context(), actor)
+	if err != nil {
+		h.writeServiceError(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "读取勋章解锁提示成功", notice)
+}
+
+func (h *CoBuilderBadgeHandler) AcknowledgeUnlock(c *gin.Context) {
+	actor, ok := currentCoBuilderBadgeActor(c)
+	if !ok {
+		writeAPIError(c, http.StatusUnauthorized, "请先登录")
+		return
+	}
+	var request struct {
+		ClaimToken string `json:"claimToken"`
+	}
+	if err := c.ShouldBindJSON(&request); err != nil {
+		writeAPIError(c, http.StatusBadRequest, "勋章展示凭证格式不正确")
+		return
+	}
+	if err := h.service.AcknowledgeUnlock(c.Request.Context(), actor, request.ClaimToken); err != nil {
+		h.writeServiceError(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "勋章展示已确认", nil)
 }
 
 func (h *CoBuilderBadgeHandler) ForAdmin(c *gin.Context) {

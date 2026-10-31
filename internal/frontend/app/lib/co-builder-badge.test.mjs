@@ -7,8 +7,11 @@ const adminUsers = await readFile(new URL("../routes/admin/users.tsx", import.me
 const adminPanel = await readFile(new URL("../components/co-builder-badge-admin-panel.tsx", import.meta.url), "utf8");
 const summaryView = await readFile(new URL("../components/co-builder-badge-summary.tsx", import.meta.url), "utf8");
 const badgeMark = await readFile(new URL("../components/co-builder-badge-mark.tsx", import.meta.url), "utf8");
+const unlockToast = await readFile(new URL("../components/co-builder-badge-unlock-toast.tsx", import.meta.url), "utf8");
 const client = await readFile(new URL("./co-builder-badge-client.ts", import.meta.url), "utf8");
 const router = await readFile(new URL("../../../backend/router/router.go", import.meta.url), "utf8");
+const dashboardLayout = await readFile(new URL("../routes/dashboard/layout.tsx", import.meta.url), "utf8");
+const styles = await readFile(new URL("../app.css", import.meta.url), "utf8");
 
 test("personal profile reads the badge only through the signed-in member endpoint", () => {
   assert.match(profile, /<CoBuilderBadgeProfile\s*\/>/);
@@ -52,4 +55,27 @@ test("badge mark uses the shared mechanical silhouette with distinct metal tiers
   assert.match(badgeMark, /level !== "bronze" && level !== "none"/);
   assert.match(badgeMark, /role="img"/);
   assert.doesNotMatch(badgeMark, /<text[\s>]/);
+});
+
+test("workbench unlock notice reuses the current SVG and confirms only after display", () => {
+  assert.match(dashboardLayout, /<CoBuilderBadgeUnlockToast key=\{currentUser\.id\} onOpenProfile=\{\(\) => setProfileOpen\(true\)\} \/>/);
+  assert.match(unlockToast, /<CoBuilderBadgeMark level=\{notice\.levelCode\} size=\{78\}/);
+  assert.match(unlockToast, /ACHIEVEMENT UNLOCKED/);
+  assert.match(unlockToast, /吉甲共建者 <span aria-hidden="true">·<\/span> \{romanLevel\}/);
+  assert.match(unlockToast, /你的贡献，让吉甲变得更好。/);
+  assert.match(unlockToast, /setTimeout\(\(\) => \{[\s\S]*?displayed = true;[\s\S]*?\}, 420\)/);
+  assert.match(unlockToast, /document\.visibilityState === "hidden"/);
+  assert.match(unlockToast, /onClick=\{onOpenProfile\}/);
+  assert.match(client, /POST[\s\S]*?\/api\/me\/co-builder-badge\/unlock-notice/);
+  assert.match(client, /\/api\/me\/co-builder-badge\/unlock-notice\/seen/);
+  assert.match(router, /authenticatedAPI\.POST\("\/me\/co-builder-badge\/unlock-notice", requireSameOriginRequest\(cfg\)/);
+  assert.match(router, /authenticatedAPI\.POST\("\/me\/co-builder-badge\/unlock-notice\/seen", requireSameOriginRequest\(cfg\)/);
+});
+
+test("unlock notice timing, responsive placement, and reduced motion are defined in native CSS", () => {
+  assert.match(styles, /\.co-builder-unlock\s*\{[\s\S]*?animation: co-builder-unlock-card 4\.4s/);
+  assert.match(styles, /\.co-builder-unlock__mark\s*\{[\s\S]*?animation: co-builder-unlock-badge 4\.4s/);
+  assert.match(styles, /\.co-builder-unlock__sheen\s*\{[\s\S]*?animation: co-builder-unlock-sheen 4\.4s/);
+  assert.match(styles, /@media \(max-width: 639px\)\s*\{[\s\S]*?\.co-builder-unlock/);
+  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?\.co-builder-unlock,[\s\S]*?animation: none/);
 });

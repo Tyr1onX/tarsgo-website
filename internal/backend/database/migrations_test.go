@@ -17,10 +17,10 @@ import (
 
 func TestMigrationRegistryIsOrderedAndKeepsBaseVersion(t *testing.T) {
 	items := migrationRegistry("test")
-	if len(items) != 35 {
-		t.Fatalf("expected 35 registered migrations, got %d", len(items))
+	if len(items) != 36 {
+		t.Fatalf("expected 36 registered migrations, got %d", len(items))
 	}
-	wantVersions := []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35}
+	wantVersions := []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36}
 	for index, want := range wantVersions {
 		if items[index].version != want {
 			t.Fatalf("migration %d has version %d, want %d", index, items[index].version, want)
@@ -33,6 +33,16 @@ func TestMigrationRegistryIsOrderedAndKeepsBaseVersion(t *testing.T) {
 		if items[index-1].version >= items[index].version {
 			t.Fatalf("migrations must be strictly ordered at index %d", index)
 		}
+	}
+}
+
+func TestMigration36CreatesCoBuilderBadgeUnlockState(t *testing.T) {
+	items := migrationRegistry("test")
+	if len(items) < 36 || items[35].version != 36 || items[35].apply == nil {
+		t.Fatal("co-builder badge unlock migration 36 is missing")
+	}
+	if got := (model.CoBuilderBadgeUnlockState{}).TableName(); got != "co_builder_badge_unlock_states" {
+		t.Fatalf("unlock state table = %q", got)
 	}
 }
 
