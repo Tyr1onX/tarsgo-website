@@ -1,54 +1,75 @@
 package handler
 
 import (
-	"encoding/json"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
+
+	"tarsgo-backend/model"
+	"tarsgo-backend/service/organization"
 )
 
-// The appointment preview is intentionally served from a super-admin-only API,
-// not bundled into publicly downloadable frontend assets.
-var organizationPreviewData = json.RawMessage(`{
-  "team": {"id": "team", "title": "吉甲大师战队"},
-  "leader": {"id": "captain", "title": "队长", "name": "镇沈晖"},
-  "categories": [
-    {
-      "id": "management",
-      "title": "核心管理层",
-      "positions": [
-        {"id": "vice-captain-project", "title": "副队长（项目管理）", "name": "吉荣昌"},
-        {"id": "project-management", "title": "项目管理", "name": "孙煦朝"},
-        {"id": "vice-captain-training", "title": "副队长（人员培养、校内赛、参观接待）", "name": "高畅"},
-        {"id": "operations-manager", "title": "运营经理", "name": "童逸创"},
-        {"id": "vice-captain-test-safety", "title": "副队长（测试、安全卫生、战术、操作手）", "name": "姜昊阳"}
-      ]
-    },
-    {
-      "id": "technical",
-      "title": "技术体系",
-      "positions": [
-        {"id": "vision-lead", "title": "视觉组长", "name": "张育宁"},
-        {"id": "mechanical-lead", "title": "机械组长", "name": "沈桂清"},
-        {"id": "ai-lead", "title": "AI 组长", "name": "白航铭"},
-        {"id": "electrical-lead", "title": "电控组长", "name": "待确认"}
-      ]
-    },
-    {
-      "id": "robot-classes",
-      "title": "兵种项目体系",
-      "positions": [
-        {"id": "sentry-lead", "title": "哨兵组长", "name": "张坤杰"},
-        {"id": "infantry-lead", "title": "步兵组长", "name": "雷韶冉"},
-        {"id": "dart-lead", "title": "飞镖组长", "name": "曲佳响"},
-        {"id": "heavy-lead", "title": "重装组长", "name": "陆广鹏"},
-        {"id": "aerial-lead", "title": "飞机组长", "name": "王彬赫"},
-        {"id": "radar-station", "title": "雷达站负责人", "name": "左文添"}
-      ]
-    }
-  ]
-}`)
+type organizationAccountProfile struct {
+	ID        uint64  `gorm:"column:id"`
+	RealName  *string `gorm:"column:real_name"`
+	Nickname  *string `gorm:"column:nickname"`
+	AvatarURL *string `gorm:"column:avatar_url"`
+}
 
-func OrganizationPreview(c *gin.Context) {
-	writeAPI(c, http.StatusOK, "获取战队组织架构成功", organizationPreviewData)
+// OrganizationPreview remains behind the existing super-admin route. Its
+// account lookup deliberately selects only the name and avatar used by cards.
+func OrganizationPreview(db *gorm.DB) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		preview := organization.PreviewData()
+		userIDs := make([]uint64, 0, 15)
+		appendUserID := func(position *organization.Position) {
+			if position.UserID != nil {
+				userIDs = append(userIDs, *position.UserID)
+			}
+		}
+		appendUserID(&preview.Leader)
+		for categoryIndex := range preview.Categories {
+			for positionIndex := range preview.Categories[categoryIndex].Positions {
+				appendUserID(&preview.Categories[categoryIndex].Positions[positionIndex])
+			}
+		}
+
+		if len(userIDs) > 0 {
+			var accounts []organizationAccountProfile
+			if err := db.WithContext(c.Request.Context()).
+				Model(&model.User{}).
+				Select("id", "real_name", "nickname", "avatar_url").
+				Where("id IN ?", userIDs).
+				Find(&accounts).Error; err != nil {
+				writeAPIError(c, http.StatusInternalServerError, "读取组织架构成员资料失败")
+				return
+			}
+			profilesByID := make(map[uint64]organizationAccountProfile, len(accounts))
+			for _, account := range accounts {
+				profilesByID[account.ID] = account
+			}
+			applyProfile := func(position *organization.Position) {
+				if position.UserID == nil {
+					return
+				}
+				account, exists := profilesByID[*position.UserID]
+				if !exists {
+					return
+				}
+				if name := (model.User{RealName: account.RealName, Nickname: account.Nickname}).PreferredName(); name != "" {
+					position.Name = name
+				}
+				position.AvatarURL = account.AvatarURL
+			}
+			applyProfile(&preview.Leader)
+			for categoryIndex := range preview.Categories {
+				for positionIndex := range preview.Categories[categoryIndex].Positions {
+					applyProfile(&preview.Categories[categoryIndex].Positions[positionIndex])
+				}
+			}
+		}
+
+		writeAPI(c, http.StatusOK, "获取战队组织架构成功", preview)
+	}
 }

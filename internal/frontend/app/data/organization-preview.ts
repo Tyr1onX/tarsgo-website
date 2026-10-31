@@ -2,6 +2,8 @@ export type OrganizationPosition = {
   id: string;
   title: string;
   name: string;
+  userId: number | null;
+  avatarUrl?: string | null;
 };
 
 export type OrganizationCategory = {

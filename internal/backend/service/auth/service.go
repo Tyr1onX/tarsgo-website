@@ -20,6 +20,7 @@ import (
 	"tarsgo-backend/database"
 	"tarsgo-backend/model"
 	"tarsgo-backend/service/email"
+	"tarsgo-backend/service/organization"
 )
 
 const (
@@ -49,13 +50,14 @@ type SessionRole struct {
 }
 
 type SessionUser struct {
-	ID        uint64      `json:"id"`
-	Email     string      `json:"email"`
-	Phone     *string     `json:"phone,omitempty"`
-	Nickname  *string     `json:"nickname,omitempty"`
-	AvatarURL *string     `json:"avatarUrl,omitempty"`
-	RealName  *string     `json:"realName,omitempty"`
-	Role      SessionRole `json:"role"`
+	ID                    uint64                        `json:"id"`
+	Email                 string                        `json:"email"`
+	Phone                 *string                       `json:"phone,omitempty"`
+	Nickname              *string                       `json:"nickname,omitempty"`
+	AvatarURL             *string                       `json:"avatarUrl,omitempty"`
+	RealName              *string                       `json:"realName,omitempty"`
+	Role                  SessionRole                   `json:"role"`
+	OrganizationPositions []organization.MemberPosition `json:"organizationPositions,omitempty"`
 }
 
 type AuthResult struct {
@@ -700,12 +702,13 @@ func toSessionUser(user *model.User) SessionUser {
 		realName = &preferredName
 	}
 	return SessionUser{
-		ID:        user.ID,
-		Email:     user.Email,
-		Phone:     user.Phone,
-		Nickname:  user.Nickname,
-		AvatarURL: user.AvatarURL,
-		RealName:  realName,
+		ID:                    user.ID,
+		Email:                 user.Email,
+		Phone:                 user.Phone,
+		Nickname:              user.Nickname,
+		AvatarURL:             user.AvatarURL,
+		RealName:              realName,
+		OrganizationPositions: organization.MemberPositions(user.ID),
 		Role: SessionRole{
 			ID:          user.Role.ID,
 			Name:        user.Role.Name,

@@ -6,18 +6,22 @@ import { organizationPositionDuty } from "./organization-preview-duties.ts";
 import { layoutOrganizationPreview } from "./organization-preview-layout.ts";
 
 const source = (relativePath) => readFileSync(new URL(relativePath, import.meta.url), "utf8");
-const backend = source("../../../backend/handler/organization_preview.go");
-const raw = backend.match(/var organizationPreviewData = json\.RawMessage\(`([\s\S]*?)`\)/)?.[1];
-assert.ok(raw, "organization preview must be stored behind the backend API");
+const organizationServer = source("../../../backend/service/organization/organization.go");
+const raw = organizationServer.match(/const organizationPreviewJSON = `([\s\S]*?)`/)?.[1];
+assert.ok(raw, "organization positions must remain in server-owned data");
 const preview = JSON.parse(raw);
+const handler = source("../../../backend/handler/organization_preview.go");
 const expectedPeople = [
   "镇沈晖", "吉荣昌", "孙煦朝", "高畅", "童逸创", "姜昊阳", "张育宁", "沈桂清", "白航铭", "待确认",
   "张坤杰", "雷韶冉", "曲佳响", "陆广鹏", "王彬赫", "左文添",
 ];
+const expectedUserIDs = [643, 641, null, 694, 323, 647, 5, 655, 670, null, 24, 644, 10, 631, 22, 630];
 const allPositions = [preview.leader, ...preview.categories.flatMap((category) => category.positions)];
 
 test("appointment data is complete and has no duplicate positions", () => {
   assert.deepEqual(allPositions.map(({ name }) => name), expectedPeople);
+  assert.deepEqual(allPositions.map(({ userId }) => userId ?? null), expectedUserIDs);
+  assert.equal(allPositions.filter(({ userId }) => userId !== null).length, 14);
   assert.equal(new Set(allPositions.map(({ id }) => id)).size, allPositions.length);
   assert.equal(new Set(allPositions.map(({ name }) => name)).size, allPositions.length);
   assert.equal(preview.categories.find(({ id }) => id === "technical")?.positions.find(({ id }) => id === "electrical-lead")?.name, "待确认");
@@ -31,30 +35,34 @@ test("appointment data is complete and has no duplicate positions", () => {
   assert.ok(!allPositions.some(({ id }) => id === "reserve-captain"), "reserve captain appears only after an appointment exists");
 });
 
-test("preview is restricted to super admins, including its source data", () => {
+test("preview stays super-admin-only and returns only the member identity fields needed by the chart", () => {
   const router = source("../../../backend/router/router.go");
   const routes = source("../routes.ts");
   const navigation = source("./dashboard-navigation.ts");
   const component = source("../routes/organization-preview.tsx");
   const frontendData = source("../data/organization-preview.ts");
 
-  assert.match(router, /superAdminAPI\.Use\(middleware\.RequireSuperAdmin\(authService\)\)[\s\S]*?superAdminAPI\.GET\("\/organization-preview", handler\.OrganizationPreview\)/);
+  assert.match(router, /superAdminAPI\.Use\(middleware\.RequireSuperAdmin\(authService\)\)[\s\S]*?superAdminAPI\.GET\("\/organization-preview", handler\.OrganizationPreview\(db\)\)/);
   assert.match(routes, /route\("admin\/organization-preview", "routes\/organization-preview\.tsx"\)/);
   assert.doesNotMatch(routes, /^\s*route\("organization-preview",/m);
   assert.match(navigation, /key: "organization-preview",[\s\S]*?allowedRoles: \["super_admin"\]/);
   assert.match(component, /apiRequest<OrganizationPreview>\("\/api\/admin\/organization-preview"\)/);
+  assert.match(handler, /Select\("id", "real_name", "nickname", "avatar_url"\)/);
+  assert.doesNotMatch(handler, /Select\([^)]*(email|phone)/);
   for (const { name } of allPositions.filter(({ name }) => name !== "待确认")) {
     assert.ok(!component.includes(name) && !frontendData.includes(name), "names must not be bundled in the frontend: " + name);
   }
 });
 
-test("positions expose inline, keyboard-accessible role details without changing page or permission boundaries", () => {
+test("linked positions expose the existing member detail path while unlinked positions have no profile link", () => {
   const component = source("../routes/organization-preview.tsx");
   const duties = source("./organization-preview-duties.ts");
 
   assert.match(component, /role="button"[\s\S]*?aria-pressed=\{selected\}[\s\S]*?onKeyDown={onKeyDown}/);
   assert.match(component, /aria-label="职位详情"/);
   assert.match(component, /organizationPositionDuty\(selectedPosition\.position\.id, selectedPosition\.categoryID\)/);
+  assert.match(component, /selectedPosition\.position\.userId !== null/);
+  assert.match(component, /dashboard\/admin\/users\?userId=\$\{selectedPosition\.position\.userId\}/);
   assert.match(component, /点击岗位查看职责/);
   assert.match(component, /if \(!window\.matchMedia\("\(max-width: 720px\)"\)\.matches\)\s*\{\s*setViewportHeight/);
   assert.doesNotMatch(component, /role="dialog"/);
@@ -65,6 +73,15 @@ test("positions expose inline, keyboard-accessible role details without changing
   assert.match(organizationPositionDuty("vision-lead", "technical"), /培训和选拔/);
   assert.match(organizationPositionDuty("radar-station", "robot-classes"), /底层架构与关键技术决策/);
   assert.match(organizationPositionDuty("reserve-captain", "management"), /为接任队长积累经验/);
+});
+
+test("members see their own organization title on the personal profile", () => {
+  const authService = source("../../../backend/service/auth/service.go");
+  const profile = source("../components/profile-dialog.tsx");
+  assert.match(authService, /OrganizationPositions:\s*organization\.MemberPositions\(user\.ID\)/);
+  assert.match(profile, /战队职务/);
+  assert.match(profile, /user\.organizationPositions\?\.length/);
+  assert.match(profile, /user\.organizationPositions\.map\(\(\{ title \}\)/);
 });
 
 test("wide preview places role categories in non-overlapping columns", () => {

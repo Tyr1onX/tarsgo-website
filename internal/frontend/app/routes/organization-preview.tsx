@@ -29,16 +29,22 @@ function splitTitle(title: string, width: number) {
 }
 
 function PersonCard({
+  id,
   box,
   title,
   name,
+  userId,
+  avatarUrl,
   vacancy = false,
   selected,
   onSelect,
 }: {
+  id: string;
   box: OrganizationBox;
   title: string;
   name: string;
+  userId: number | null;
+  avatarUrl?: string | null;
   vacancy?: boolean;
   selected: boolean;
   onSelect: () => void;
@@ -57,7 +63,7 @@ function PersonCard({
       tabIndex={0}
       data-org-interactive="true"
       aria-pressed={selected}
-      aria-label={`${title}，负责人${name}，点击查看职责`}
+      aria-label={`${title}，负责人${name}，${userId === null ? "点击查看职责" : "点击查看职责和成员资料"}`}
       onClick={onSelect}
       onKeyDown={onKeyDown}
       className={"organization-preview__person" + (vacancy ? " is-vacant" : "") + (selected ? " is-selected" : "")}
@@ -66,7 +72,14 @@ function PersonCard({
       <text className="organization-preview__position" x={box.x + 12} y={firstBaseline}>
         {titleLines.map((line, index) => <tspan key={`${line}-${index}`} x={box.x + 12} dy={index === 0 ? 0 : 14}>{line}</tspan>)}
       </text>
-      <text className="organization-preview__name" x={box.x + 12} y={box.y + 58}>{name}</text>
+      {userId !== null ? (
+        <g aria-hidden="true">
+          <circle className="organization-preview__avatar-fallback" cx={box.x + 28} cy={box.y + 51} r="16" />
+          <text className="organization-preview__avatar-initial" x={box.x + 28} y={box.y + 51}>{Array.from(name)[0] ?? "?"}</text>
+          {avatarUrl ? <image href={avatarUrl} x={box.x + 12} y={box.y + 35} width="32" height="32" clipPath={`url(#organization-avatar-${id})`} preserveAspectRatio="xMidYMid slice" /> : null}
+        </g>
+      ) : null}
+      <text className="organization-preview__name" x={box.x + (userId !== null ? 54 : 12)} y={box.y + 58}>{name}</text>
     </g>
   );
 }
@@ -119,9 +132,12 @@ function CategoryPanel({
         return (
           <PersonCard
             key={position.id}
+            id={position.id}
             box={positionBox}
             title={position.title}
             name={position.name}
+            userId={position.userId}
+            avatarUrl={position.avatarUrl}
             vacancy={position.name === "待确认"}
             selected={selectedPositionID === position.id}
             onSelect={() => onSelectPosition(position, category)}
@@ -144,6 +160,7 @@ export default function OrganizationPreviewPage() {
   const [loadError, setLoadError] = useState("");
   const [expandedIDs, setExpandedIDs] = useState<Set<string>>(() => new Set());
   const [selectedPosition, setSelectedPosition] = useState<{ position: OrganizationPreview["leader"]; categoryID: string; categoryTitle: string } | null>(null);
+  const allPositions = useMemo(() => data ? [data.leader, ...data.categories.flatMap(({ positions }) => positions)] : [], [data]);
   const layout = useMemo(() => layoutOrganizationPreview(viewportWidth, expandedIDs, data?.categories ?? []), [viewportWidth, expandedIDs, data]);
   const layoutRef = useRef(layout);
   layoutRef.current = layout;
@@ -273,7 +290,20 @@ export default function OrganizationPreviewPage() {
             <div className="organization-preview__details-copy">
               <p className="organization-preview__details-category">{selectedPosition.categoryTitle}</p>
               <h2>{selectedPosition.position.title}</h2>
-              <p className="organization-preview__details-person">负责人：{selectedPosition.position.name}</p>
+              <p className="organization-preview__details-person">
+                {selectedPosition.position.userId !== null ? (
+                  <span className="organization-preview__details-avatar" aria-hidden="true">
+                    <span>{Array.from(selectedPosition.position.name)[0] ?? "?"}</span>
+                    {selectedPosition.position.avatarUrl ? <img src={selectedPosition.position.avatarUrl} alt="" onError={(event) => { event.currentTarget.hidden = true; }} /> : null}
+                  </span>
+                ) : null}
+                <span>负责人：{selectedPosition.position.name}</span>
+              </p>
+              {selectedPosition.position.userId !== null ? (
+                <Link className="organization-preview__member-profile" to={`/dashboard/admin/users?userId=${selectedPosition.position.userId}`}>
+                  查看成员资料 ↗
+                </Link>
+              ) : null}
               <p className="organization-preview__details-duty">{organizationPositionDuty(selectedPosition.position.id, selectedPosition.categoryID)}</p>
             </div>
             <button type="button" className="organization-preview__details-close" aria-label="关闭职位详情" onClick={() => setSelectedPosition(null)}>×</button>
@@ -299,6 +329,13 @@ export default function OrganizationPreviewPage() {
             role="group"
             aria-label="吉甲大师战队负责人和岗位分类"
           >
+            <defs>
+              {allPositions.filter((position) => position.userId !== null).map((position) => (
+                <clipPath key={position.id} id={`organization-avatar-${position.id}`} clipPathUnits="objectBoundingBox">
+                  <circle cx="0.5" cy="0.5" r="0.5" />
+                </clipPath>
+              ))}
+            </defs>
             <path className="organization-preview__confirmed-link" d={layout.leaderConnector} />
             <g className="organization-preview__team-root" role="group" aria-label={data.team.title}>
               <rect x={layout.team.x} y={layout.team.y} width={layout.team.width} height={layout.team.height} rx="12" />
@@ -310,7 +347,7 @@ export default function OrganizationPreviewPage() {
               tabIndex={0}
               data-org-interactive="true"
               aria-pressed={selectedPosition?.position.id === data.leader.id}
-              aria-label={`${data.leader.title}，负责人${data.leader.name}，点击查看职责`}
+              aria-label={`${data.leader.title}，负责人${data.leader.name}，点击查看职责和成员资料`}
               onClick={() => togglePosition(data.leader, "management", "核心管理层")}
               onKeyDown={(event) => {
                 if (event.key === "Enter" || event.key === " ") {
@@ -320,8 +357,11 @@ export default function OrganizationPreviewPage() {
               }}
             >
               <rect x={layout.leader.x} y={layout.leader.y} width={layout.leader.width} height={layout.leader.height} rx="11" />
-              <text className="organization-preview__captain-role" x={layout.width / 2} y={layout.leader.y + 28}>{data.leader.title}</text>
-              <text className="organization-preview__captain-name" x={layout.width / 2} y={layout.leader.y + 53}>{data.leader.name}</text>
+              <circle className="organization-preview__avatar-fallback" cx={layout.leader.x + 36} cy={layout.leader.y + 36} r="18" />
+              <text className="organization-preview__avatar-initial" x={layout.leader.x + 36} y={layout.leader.y + 36}>{Array.from(data.leader.name)[0] ?? "?"}</text>
+              {data.leader.avatarUrl ? <image href={data.leader.avatarUrl} x={layout.leader.x + 18} y={layout.leader.y + 18} width="36" height="36" clipPath="url(#organization-avatar-captain)" preserveAspectRatio="xMidYMid slice" /> : null}
+              <text className="organization-preview__captain-role" x={layout.leader.x + 66} y={layout.leader.y + 29}>{data.leader.title}</text>
+              <text className="organization-preview__captain-name" x={layout.leader.x + 66} y={layout.leader.y + 54}>{data.leader.name}</text>
             </g>
             <text className="organization-preview__classification-note" x={layout.width / 2} y={(layout.categories[0]?.y ?? 254) - 19}>
               以下为岗位分类展示 · 分类不代表汇报关系

@@ -15,7 +15,9 @@ test("profile fields share a fixed 44px control height and common grid baseline"
   assert.match(profile, /aria-label="姓名"/);
   assert.match(profile, /aria-label="邮箱"/);
   assert.match(profile, /aria-label="所属组别"/);
+  assert.match(profile, /aria-label="战队职务"/);
   assert.match(profile, /aria-label="账号权限"/);
+  assert.match(profile, /user\.organizationPositions\?\.length/);
   assert.doesNotMatch(profile, /<div className="mt-1 min-h-10/);
 });
 
