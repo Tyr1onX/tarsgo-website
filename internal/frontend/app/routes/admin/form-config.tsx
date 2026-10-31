@@ -189,22 +189,22 @@ function getStatusMeta(status: number) {
   if (status === 1) {
     return {
       label: "已发布",
-      dotColor: "bg-emerald-400",
+      dotColor: "bg-[var(--admin-success)]",
       className:
-        "text-emerald-300 bg-emerald-500/10 border border-emerald-400/20",
+        "text-[var(--admin-success)] bg-[var(--admin-success-surface)] border border-[var(--admin-success-border)]",
     };
   }
   if (status === 2) {
     return {
       label: "已关闭",
-      dotColor: "bg-gray-400",
-      className: "text-gray-300 bg-gray-500/10 border border-gray-400/20",
+      dotColor: "bg-[var(--admin-muted)]",
+      className: "text-[var(--admin-muted)] bg-[var(--admin-neutral-surface)] border border-[var(--admin-neutral-border)]",
     };
   }
   return {
     label: "草稿",
-    dotColor: "bg-amber-400",
-    className: "text-amber-300 bg-amber-500/10 border border-amber-400/20",
+    dotColor: "bg-[var(--admin-warning)]",
+    className: "text-[var(--admin-warning)] bg-[var(--admin-warning-surface)] border border-[var(--admin-warning-border)]",
   };
 }
 
@@ -890,7 +890,7 @@ export default function FormConfigPage() {
           type="button"
           onClick={() => setCreateOpen(true)}
           disabled={!canCreateOrSave}
-          className="btn-gradient inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-white"
+          className="admin-button admin-button--primary"
         >
           <Icon icon={plus} className="h-4 w-4" />
           新建报名表
@@ -958,7 +958,7 @@ export default function FormConfigPage() {
         className="motion-fade-up glass-panel rounded-2xl p-5"
         style={{ animationDelay: "140ms" }}
       >
-        <div className="mb-4 flex items-center gap-2 border-b border-white/[0.06] pb-4">
+        <div className="mb-4 flex items-center gap-2 border-b border-[var(--admin-border-subtle)] pb-4">
           <Icon icon={searchIcon} className="h-4 w-4 text-fg-dim" />
           <span className="text-xs font-medium uppercase tracking-wider text-fg-dim">
             筛选条件
@@ -1014,8 +1014,8 @@ export default function FormConfigPage() {
       >
         <div className="hidden overflow-x-auto md:block">
           <table className="w-full min-w-[1160px] text-sm">
-            <thead className="bg-white/[0.03] text-left text-xs tracking-wider text-fg-dim">
-              <tr className="border-b border-white/[0.06]">
+            <thead className="bg-[var(--admin-hover-overlay)] text-left text-xs tracking-wider text-fg-dim">
+              <tr className="border-b border-[var(--admin-border-subtle)]">
                 <th className="min-w-60 px-5 py-4 font-medium">标题</th>
                 <th className="w-28 min-w-28 whitespace-nowrap px-5 py-4 font-medium">状态</th>
                 <th className="w-44 min-w-44 whitespace-nowrap px-5 py-4 font-medium">字段</th>
@@ -1173,7 +1173,7 @@ export default function FormConfigPage() {
                     </div>
                   </dl>
 
-                  <div className="mt-3 flex justify-end gap-2 border-t border-white/[0.06] pt-3">
+                  <div className="mt-3 flex justify-end gap-2 border-t border-[var(--admin-border-subtle)] pt-3">
                     <a
                       href={getAdminRegistrationFormExportUrl(form.id)}
                       title="下载报名信息"
@@ -1243,7 +1243,7 @@ export default function FormConfigPage() {
               type="submit"
               form="create-registration-form"
               disabled={creating}
-              className="btn-gradient inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-white"
+              className="admin-button admin-button--primary"
             >
               {creating ? "创建中..." : "创建草稿"}
             </button>
@@ -1299,10 +1299,10 @@ export default function FormConfigPage() {
                 />
               </div>
 
-              <div className="flex items-start gap-3 rounded-xl border border-accent-primary/20 bg-accent-primary/5 p-4 text-sm text-accent-primary/80">
+              <div className="admin-notice admin-notice--warning flex items-start gap-3">
                 <Icon
                   icon={info}
-                  className="mt-0.5 h-4 w-4 shrink-0 text-accent-primary"
+                  className="mt-0.5 h-4 w-4 shrink-0 text-[var(--admin-warning)]"
                 />
                 创建后会自动附带"姓名 / 手机号 / 邮箱 / 意向组"四个系统字段，并以草稿状态保存。
               </div>
@@ -1328,7 +1328,7 @@ export default function FormConfigPage() {
               className="glass-panel glass-panel-strong absolute right-0 top-0 flex h-full w-full max-w-3xl min-h-0 flex-col shadow-2xl"
             >
               {/* Drawer header */}
-              <div className="shrink-0 border-b border-white/[0.06] bg-black/20 backdrop-blur">
+              <div className="shrink-0 border-b border-[var(--admin-border-subtle)] bg-[var(--admin-surface-subtle)] backdrop-blur">
                 <div className="flex items-center justify-between px-6 py-4">
                   <h2 id="form-editor-drawer-title" className="text-lg font-semibold text-fg-primary">
                     编辑报名表
@@ -1338,16 +1338,16 @@ export default function FormConfigPage() {
                     onClick={() => closeDrawer()}
                     title="关闭"
                     aria-label="关闭"
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-fg-dim transition hover:bg-white/5 hover:text-fg-primary"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-fg-dim transition hover:bg-[var(--admin-hover-overlay)] hover:text-fg-primary"
                   >
                     <Icon icon={x} className="h-4 w-4" />
                   </button>
                 </div>
 
                 {editor ? (
-                  <div className="border-t border-white/[0.06] px-6 py-4">
+                  <div className="border-t border-[var(--admin-border-subtle)] px-6 py-4">
                     <div className="flex items-center gap-3">
-                      <div className="chip-gradient-soft flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-primary-200">
+                      <div className="chip-gradient-soft flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold text-[var(--admin-accent-text)]">
                         <Icon icon={fileText} className="h-5 w-5" />
                       </div>
                       <div className="min-w-0 flex-1">
@@ -1539,11 +1539,11 @@ export default function FormConfigPage() {
                                 }
                                 className={`flex w-full cursor-pointer items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all duration-150 ${
                                   active
-                                    ? "border-accent-primary/30 bg-accent-primary/5"
-                                    : "border-white/[0.06] bg-white/[0.03] hover:border-white/[0.1] hover:bg-white/[0.06]"
+                                    ? "border-[var(--admin-accent)] bg-[color-mix(in_srgb,var(--admin-accent)_8%,var(--admin-surface))]"
+                                    : "border-[var(--admin-border-subtle)] bg-[var(--admin-hover-overlay)] hover:border-[var(--admin-border-subtle)] hover:bg-[var(--admin-hover-overlay)]"
                                 }`}
                               >
-                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-black/20 text-[11px] font-semibold tabular-nums text-fg-dim ring-1 ring-white/[0.05]">
+                                <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-xl bg-[var(--admin-surface-subtle)] text-[11px] font-semibold tabular-nums text-fg-dim ring-1 ring-[var(--admin-border-subtle)]">
                                   {index + 1}
                                 </div>
                                 <div className="min-w-0 flex-1">
@@ -1552,12 +1552,12 @@ export default function FormConfigPage() {
                                       {field.label}
                                     </span>
                                     {locked ? (
-                                      <span className="rounded-full border border-accent-primary/20 bg-accent-primary/10 px-2 py-0.5 text-[10px] font-medium text-accent-primary">
+                                      <span className="admin-role--elevated rounded-full px-2 py-0.5 text-[10px] font-medium">
                                         系统字段
                                       </span>
                                     ) : null}
                                     {field.required ? (
-                                      <span className="rounded-full border border-rose-400/20 bg-rose-500/10 px-2 py-0.5 text-[10px] font-medium text-rose-300">
+                                      <span className="rounded-full border border-[var(--admin-danger-border)] bg-[var(--admin-danger-surface)] px-2 py-0.5 text-[10px] font-medium text-[var(--admin-danger)]">
                                         必填
                                       </span>
                                     ) : null}
@@ -1610,7 +1610,7 @@ export default function FormConfigPage() {
                                         e.stopPropagation();
                                         removeField(field.key);
                                       }}
-                                      className="inline-flex h-7 w-7 items-center justify-center rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-300 transition hover:bg-rose-500/20"
+                                      className="inline-flex h-7 w-7 items-center justify-center rounded-xl border border-[var(--admin-danger-border)] bg-[var(--admin-danger-surface)] text-[var(--admin-danger)] transition hover:bg-[color-mix(in_srgb,var(--admin-danger)_18%,var(--admin-surface))]"
                                     >
                                       <Icon
                                         icon={trash2}
@@ -1623,7 +1623,7 @@ export default function FormConfigPage() {
 
                               {/* Expanded field editor */}
                               {active ? (
-                                <div className="mt-2 space-y-4 rounded-xl border border-accent-primary/20 bg-accent-primary/[0.03] p-4">
+                                <div className="mt-2 space-y-4 rounded-xl border border-[color-mix(in_srgb,var(--admin-accent)_42%,var(--admin-border))] bg-[color-mix(in_srgb,var(--admin-accent)_3%,var(--admin-surface))] p-4">
                                   <div className="grid gap-4 sm:grid-cols-2">
                                     <div>
                                       <FieldLabel label="字段名称" />
@@ -1688,7 +1688,7 @@ export default function FormConfigPage() {
                                       />
                                     </div>
                                     <div className="flex items-end">
-                                      <label className="flex w-full cursor-pointer items-center gap-3 rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-fg-primary transition hover:bg-black/20">
+                                      <label className="flex w-full cursor-pointer items-center gap-3 rounded-xl border border-[var(--admin-border-subtle)] bg-[var(--admin-input-surface)] px-3.5 py-2.5 text-sm text-fg-primary transition hover:bg-[var(--admin-surface-hover)]">
                                         <input
                                           type="checkbox"
                                           checked={
@@ -1701,7 +1701,7 @@ export default function FormConfigPage() {
                                               required: event.target.checked,
                                             }))
                                           }
-                                          className="h-4 w-4 rounded border-white/[0.08] bg-black/30 text-accent-primary focus:ring-primary-400/30"
+                                          className="h-4 w-4 rounded border-[var(--admin-border-subtle)] bg-[var(--admin-input-surface)] text-accent-primary focus:ring-[var(--admin-accent)]/30"
                                         />
                                         必填项
                                       </label>
@@ -1820,7 +1820,7 @@ export default function FormConfigPage() {
                                                   onClick={() =>
                                                     removeFieldOption(oi)
                                                   }
-                                                  className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-rose-500/30 bg-rose-500/10 text-rose-300 transition hover:bg-rose-500/20"
+                                                  className="inline-flex h-8 w-8 items-center justify-center rounded-xl border border-[var(--admin-danger-border)] bg-[var(--admin-danger-surface)] text-[var(--admin-danger)] transition hover:bg-[color-mix(in_srgb,var(--admin-danger)_18%,var(--admin-surface))]"
                                                 >
                                                   <Icon
                                                     icon={trash2}
@@ -1834,7 +1834,7 @@ export default function FormConfigPage() {
                                         <button
                                           type="button"
                                           onClick={addFieldOption}
-                                          className="inline-flex items-center gap-1.5 rounded-xl border border-dashed border-white/[0.1] px-3 py-2 text-xs text-fg-muted transition hover:border-accent-primary/40 hover:text-accent-primary"
+                                          className="inline-flex items-center gap-1.5 rounded-xl border border-dashed border-[var(--admin-border-subtle)] px-3 py-2 text-xs text-fg-muted transition hover:border-accent-primary/40 hover:text-accent-primary"
                                         >
                                           <Icon
                                             icon={plus}
@@ -1846,10 +1846,10 @@ export default function FormConfigPage() {
                                     </div>
                                   ) : selectedField?.type ===
                                     "user_group_select" ? (
-                                    <div className="flex items-start gap-3 rounded-xl border border-accent-primary/20 bg-accent-primary/5 p-3 text-xs text-accent-primary/80">
+                                    <div className="admin-notice admin-notice--warning flex items-start gap-3 text-xs">
                                       <Icon
                                         icon={info}
-                                        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-accent-primary"
+                                        className="mt-0.5 h-3.5 w-3.5 shrink-0 text-[var(--admin-warning)]"
                                       />
                                       意向组别字段的下拉选项会自动读取当前"前台展示"状态为展示的用户分组，无需手动维护。
                                     </div>
@@ -1949,7 +1949,7 @@ export default function FormConfigPage() {
 
               {/* Drawer footer */}
               {editor ? (
-                <div className="shrink-0 border-t border-white/[0.06] bg-black/20 px-6 py-4 backdrop-blur">
+                <div className="shrink-0 border-t border-[var(--admin-border-subtle)] bg-[var(--admin-surface-subtle)] px-6 py-4 backdrop-blur">
                   <div className="flex items-center justify-end gap-3">
                     <button
                       type="button"
@@ -1962,13 +1962,13 @@ export default function FormConfigPage() {
                       type="submit"
                       form="form-editor"
                       disabled={saving || !canCreateOrSave}
-                      className="btn-gradient inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-medium text-white"
+                      className="admin-button admin-button--primary"
                     >
                       {saving ? (
                         <>
                           <span
                             aria-hidden="true"
-                            className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-white/20 border-t-white"
+                            className="inline-flex h-4 w-4 animate-spin rounded-full border-2 border-[var(--admin-border)] border-t-[var(--admin-accent)]"
                           />
                           保存中...
                         </>
@@ -2001,7 +2001,7 @@ export default function FormConfigPage() {
               tabIndex={-1}
               className="glass-panel glass-panel-strong absolute right-0 top-0 flex h-full w-full max-w-2xl min-h-0 flex-col shadow-2xl"
             >
-              <div className="shrink-0 border-b border-white/[0.06] bg-black/20 px-6 py-4 backdrop-blur">
+              <div className="shrink-0 border-b border-[var(--admin-border-subtle)] bg-[var(--admin-surface-subtle)] px-6 py-4 backdrop-blur">
                 <div className="flex items-center justify-between">
                   <h2 id="form-preview-drawer-title" className="text-lg font-semibold text-fg-primary">
                     表单预览
@@ -2011,7 +2011,7 @@ export default function FormConfigPage() {
                     onClick={() => closePreview()}
                     title="关闭"
                     aria-label="关闭"
-                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-fg-dim transition hover:bg-white/5 hover:text-fg-primary"
+                    className="inline-flex h-8 w-8 items-center justify-center rounded-xl text-fg-dim transition hover:bg-[var(--admin-hover-overlay)] hover:text-fg-primary"
                   >
                     <Icon icon={x} className="h-4 w-4" />
                   </button>
@@ -2033,7 +2033,7 @@ export default function FormConfigPage() {
                       <img
                         src={previewEditor.coverImageUrl}
                         alt={previewEditor.title}
-                        className="h-44 w-full rounded-2xl object-cover ring-1 ring-white/10"
+                        className="h-44 w-full rounded-2xl object-cover ring-1 ring-[var(--admin-border-subtle)]"
                       />
                     ) : null}
 
@@ -2060,7 +2060,7 @@ export default function FormConfigPage() {
                           <div className="flex items-center gap-2 text-sm font-medium text-fg-primary">
                             {field.label}
                             {field.required ? (
-                              <span className="text-[11px] text-rose-400">*</span>
+                              <span className="text-[11px] text-[var(--admin-danger)]">*</span>
                             ) : null}
                           </div>
                           {field.description ? (
@@ -2089,7 +2089,7 @@ export { FormConfigPage };
 
 function renderPreviewControl(field: RegistrationFormField) {
   const cls =
-    "w-full rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-fg-muted placeholder:text-fg-dim/60";
+    "admin-field w-full rounded-xl placeholder:text-fg-dim/60";
 
   if (field.type === "textarea") {
     return (
@@ -2126,7 +2126,7 @@ function renderPreviewControl(field: RegistrationFormField) {
         {field.options?.map((option) => (
           <label
             key={option.value}
-            className="inline-flex items-center gap-2 rounded-xl border border-white/[0.08] bg-black/30 px-3 py-2 text-sm text-fg-muted"
+            className="inline-flex items-center gap-2 rounded-xl border border-[var(--admin-border-subtle)] bg-[var(--admin-input-surface)] px-3 py-2 text-sm text-fg-muted"
           >
             <input
               type={field.type === "radio" ? "radio" : "checkbox"}
@@ -2141,7 +2141,7 @@ function renderPreviewControl(field: RegistrationFormField) {
 
   if (isFileField(field.type)) {
     return (
-      <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-white/[0.1] bg-black/20 px-4 py-8 text-sm text-fg-dim">
+      <div className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-[var(--admin-border-subtle)] bg-[var(--admin-surface-subtle)] px-4 py-8 text-sm text-fg-dim">
         <Icon icon={fileText} className="h-6 w-6 text-fg-dim/50" />
         <span>
           {field.type === "image" ? "点击或拖拽上传图片" : "点击或拖拽上传文件"}
@@ -2183,7 +2183,7 @@ function OverlayPortal({ children }: { children: ReactNode }) {
 }
 
 function InputClassName(disabled = false) {
-  return `w-full rounded-xl border border-white/[0.08] bg-black/30 px-3.5 py-2.5 text-sm text-fg-primary placeholder:text-fg-dim/60 transition focus:border-primary-400/60 focus:ring-1 focus:ring-primary-400/30 focus:outline-none ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
+  return `admin-field w-full rounded-xl placeholder:text-fg-dim/60 ${disabled ? "cursor-not-allowed opacity-60" : ""}`;
 }
 
 function FieldLabel({ label }: { label: string }) {
@@ -2213,7 +2213,7 @@ function StatCard({ label, value }: { label: string; value: number | null }) {
         {label}
       </div>
       <div className="text-gradient-brand mt-2 font-mono text-xl font-semibold tabular-nums sm:mt-3 sm:text-3xl">
-        {value === null ? <span className="inline-block h-7 w-12 animate-pulse rounded bg-white/[0.08]" role="status" aria-label="正在加载统计" /> : value}
+        {value === null ? <span className="inline-block h-7 w-12 animate-pulse rounded bg-[var(--admin-border-subtle)]" role="status" aria-label="正在加载统计" /> : value}
       </div>
     </div>
   );

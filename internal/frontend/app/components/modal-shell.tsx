@@ -214,28 +214,28 @@ export function ModalShell({
         className={`modal-shell-panel motion-dialog motion-dialog-surface w-full ${widthClass} ${roundedClassName} ${panelClassName}`}
         data-state={open ? "open" : "closed"}
       >
-        <div className="modal-shell-header flex items-start justify-between gap-4 border-b border-white/[0.06] px-4 py-4 sm:px-6 sm:py-5">
+        <div className="modal-shell-header flex items-start justify-between gap-4 border-b border-[var(--admin-border-subtle)] px-4 py-4 sm:px-6 sm:py-5">
           <div className="flex min-w-0 items-start gap-3">
             {headerAccent ? <div className="shrink-0">{headerAccent}</div> : null}
             <div className="min-w-0">
-              <h2 id={titleId} className="text-lg font-semibold text-white">
+              <h2 id={titleId} className="text-lg font-semibold text-[var(--admin-text)]">
                 {title}
               </h2>
-              {description ? <p id={descriptionId} className="mt-1 text-sm text-gray-400">{description}</p> : null}
+              {description ? <p id={descriptionId} className="mt-1 text-sm text-[var(--admin-muted)]">{description}</p> : null}
             </div>
           </div>
           <button
             type="button"
             onClick={onClose}
             aria-label="关闭弹窗"
-            className="btn-glass rounded-xl px-3 py-1.5 text-sm text-gray-300 hover:text-white"
+            className="admin-button admin-button--secondary admin-button--small"
           >
             关闭
           </button>
         </div>
         <div className={`modal-shell-body ${bodyClassName}`}>{children}</div>
         {footer ? (
-          <div className={`modal-shell-footer border-t border-white/[0.06] px-4 py-4 sm:px-6 ${footerClassName}`}>
+          <div className={`modal-shell-footer border-t border-[var(--admin-border-subtle)] px-4 py-4 sm:px-6 ${footerClassName}`}>
             {footer}
           </div>
         ) : null}

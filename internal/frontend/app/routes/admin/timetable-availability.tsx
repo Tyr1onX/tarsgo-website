@@ -68,7 +68,7 @@ export default function TimeCoordinationPage() {
             ? `已按北京时间自动定位到第 ${calendarWeek.week} 周。`
             : `当前日期对应第 ${calendarWeek.week} 周，当前查看第 ${week} 周。`
           : "";
-  const weekNoticeTone = calendarWeek?.status === "current" ? "bg-slate-500/10" : "bg-amber-500/10";
+  const weekNoticeTone = calendarWeek?.status === "current" ? "bg-[var(--admin-neutral-surface)]" : "bg-[var(--admin-warning-surface)]";
 
   useEffect(() => {
     if (!selectedSlot) return;
@@ -189,10 +189,10 @@ export default function TimeCoordinationPage() {
         {clearLoading && clearPreview === null ? "读取课表数量…" : "清空课表"}
       </button> : null}
     </header>
-    {clearError ? <p role="alert" className="rounded-lg border border-red-300 p-3 text-sm text-red-600">{clearError}</p> : null}
-    {clearNotice ? <p role="status" className="rounded-lg bg-emerald-500/10 p-3 text-sm">{clearNotice}</p> : null}
+    {clearError ? <p role="alert" className="admin-notice admin-notice--error">{clearError}</p> : null}
+    {clearNotice ? <p role="status" className="admin-notice admin-notice--success">{clearNotice}</p> : null}
     {loading ? <p role="status">正在读取组别…</p> : null}
-    {error ? <p role="alert" className="rounded-lg border border-red-300 p-3 text-sm text-red-600">{error}</p> : null}
+    {error ? <p role="alert" className="admin-notice admin-notice--error">{error}</p> : null}
     {options && options.groups.length === 0 ? <p className="p-4">没有可统计的组别。</p> : null}
     {options ? <>
       <section aria-label="时间筛选" className="grid gap-3 rounded-xl border border-[var(--admin-border-subtle)] bg-[var(--admin-surface)] p-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -231,9 +231,9 @@ export default function TimeCoordinationPage() {
               <p className="mt-1 text-lg font-semibold tabular-nums">{count}<span className="ml-1 text-xs font-normal text-[var(--admin-muted)]">人</span></p>
             </div>)}
           </div>
-          {result.totalCount === 0 ? <p role="status" className="mb-3 rounded-lg bg-slate-500/10 p-3 text-sm text-[var(--admin-muted)]">组内暂无可统计成员。</p> : result.importedCount === 0 ?
-            <p role="status" className="mb-3 rounded-lg bg-amber-500/10 p-3 text-sm">当前学期没有有效课表，无法统计无课程冲突人数。请成员在「个人资料 → 课程时间」重新导入课表。</p> : result.missingCount > 0 ?
-            <p role="status" className="mb-3 rounded-lg bg-amber-500/10 p-3 text-sm">无课程冲突人数只按有效课表成员统计，数据缺失成员不会计入无课程冲突。</p> : null}
+          {result.totalCount === 0 ? <p role="status" className="admin-notice admin-notice--neutral mb-3">组内暂无可统计成员。</p> : result.importedCount === 0 ?
+            <p role="status" className="admin-notice admin-notice--warning mb-3">当前学期没有有效课表，无法统计无课程冲突人数。请成员在「个人资料 → 课程时间」重新导入课表。</p> : result.missingCount > 0 ?
+            <p role="status" className="admin-notice admin-notice--warning mb-3">无课程冲突人数只按有效课表成员统计，数据缺失成员不会计入无课程冲突。</p> : null}
           <div className="overflow-x-auto">
             <div className="min-w-0">
               <div className="grid grid-cols-[38px_repeat(7,minmax(34px,1fr))] gap-0.5 sm:grid-cols-[54px_repeat(7,minmax(0,1fr))] sm:gap-1">
@@ -257,9 +257,9 @@ export default function TimeCoordinationPage() {
             </div>
           </div>
           {member ? <div className="mt-3 flex flex-wrap gap-3 text-xs text-[var(--admin-muted)]" aria-label="成员时段图例">
-            <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-emerald-500/30" />无课程冲突</span>
-            <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-rose-500/25" />有课程冲突</span>
-            <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-slate-500/20" />数据缺失</span>
+            <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-[var(--admin-success)]" />无课程冲突</span>
+            <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-[var(--admin-danger)]" />有课程冲突</span>
+            <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-[var(--admin-neutral)]" />数据缺失</span>
           </div> : <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-[var(--admin-muted)]" aria-label="无课程冲突比例分级">
             <span className="inline-flex items-center gap-1.5"><span className={`availability-heatmap__swatch ${HEAT_LEVEL_CLASSES.low}`} aria-hidden="true" />低 &lt; 1/3</span>
             <span className="inline-flex items-center gap-1.5"><span className={`availability-heatmap__swatch ${HEAT_LEVEL_CLASSES.medium}`} aria-hidden="true" />中 1/3–&lt;2/3</span>

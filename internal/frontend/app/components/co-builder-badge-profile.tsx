@@ -18,6 +18,6 @@ export function CoBuilderBadgeProfile({ onReplay }: { onReplay: (level: CoBuilde
   }, []);
 
   if (loading) return <p role="status" className="text-xs text-[var(--admin-muted)]">正在读取共建者勋章…</p>;
-  if (error) return <p role="alert" className="text-xs text-rose-500">{error}</p>;
+  if (error) return <p role="alert" className="text-xs text-[var(--theme-danger)]">{error}</p>;
   return summary ? <CoBuilderBadgeSummaryView summary={summary} onReplay={onReplay} /> : null;
 }

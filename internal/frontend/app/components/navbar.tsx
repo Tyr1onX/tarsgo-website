@@ -426,7 +426,7 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
                         prefetch="render"
                         onClick={() => setUserMenuOpen(false)}
                         role="menuitem"
-                        className="group/item flex min-h-10 items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-fg-muted transition-colors hover:bg-white/5 hover:text-fg-primary focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent-primary"
+                        className="group/item flex min-h-10 items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-fg-muted transition-colors hover:bg-[var(--theme-hover-overlay)] hover:text-fg-primary focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent-primary"
                       >
                         <svg
                           className="h-4 w-4 text-fg-dim transition-colors group-hover/item:text-accent-primary"
@@ -447,7 +447,7 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
                         prefetch="render"
                         onClick={() => setUserMenuOpen(false)}
                         role="menuitem"
-                        className="group/item flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm text-fg-muted transition-colors hover:bg-white/5 hover:text-fg-primary focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent-primary"
+                        className="group/item flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm text-fg-muted transition-colors hover:bg-[var(--theme-hover-overlay)] hover:text-fg-primary focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent-primary"
                       >
                         切换或添加账号
                       </Link>
@@ -457,10 +457,10 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
                         onClick={handleLogout}
                         disabled={loggingOut}
                         role="menuitem"
-                        className="group/item flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm text-rose-300 transition-colors hover:bg-rose-500/10 hover:text-rose-200 focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-rose-300 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="group/item flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm text-[var(--theme-danger)] transition-colors hover:bg-[var(--theme-danger-surface)] hover:text-[var(--theme-danger)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--theme-danger)] disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         <svg
-                          className="h-4 w-4 text-rose-400/70 transition-colors group-hover/item:text-rose-300"
+                          className="h-4 w-4 text-[var(--theme-danger)] transition-colors"
                           fill="none"
                           viewBox="0 0 24 24"
                           strokeWidth={1.75}
@@ -655,7 +655,7 @@ function UserAvatar({
           aria-hidden="true"
           referrerPolicy="no-referrer"
           onError={(event) => { event.currentTarget.hidden = true; }}
-          className="absolute inset-0 h-full w-full rounded-full border border-white/10 bg-surface-card object-cover"
+          className="absolute inset-0 h-full w-full rounded-full border border-[var(--theme-border)] bg-surface-card object-cover"
         />
       ) : null}
     </div>

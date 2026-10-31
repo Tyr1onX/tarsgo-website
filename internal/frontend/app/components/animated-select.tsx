@@ -234,12 +234,12 @@ export function AnimatedSelect({
           }
         }}
         onKeyDown={handleTriggerKeyDown}
-        className={`motion-select-trigger motion-field flex items-center justify-between gap-3 border border-white/[0.08] bg-black/30 text-left text-white backdrop-blur focus:border-primary-400/60 focus:outline-none focus:ring-2 focus:ring-primary-400/30 ${triggerWidthClass} ${triggerSizeClass} ${
+        className={`motion-select-trigger motion-field flex items-center justify-between gap-3 border text-left backdrop-blur focus:outline-none ${triggerWidthClass} ${triggerSizeClass} ${
           disabled ? "cursor-not-allowed opacity-60" : ""
         }`}
       >
         <span className={triggerLabelClass}>{triggerLabel}</span>
-        <span className="motion-select-chevron shrink-0 text-gray-400" aria-hidden="true">
+        <span className="motion-select-chevron shrink-0" aria-hidden="true">
           <svg className="h-4 w-4" viewBox="0 0 20 20" fill="none">
             <path
               d="M5 7.5 10 12.5 15 7.5"
@@ -328,13 +328,13 @@ export function AnimatedSelect({
                           triggerRef.current?.focus();
                         }
                       }}
-                      className={`motion-select-option flex w-full items-center justify-between gap-3 rounded-xl text-left text-gray-100 ${optionSizeClass} ${
+                      className={`motion-select-option flex w-full items-center justify-between gap-3 rounded-xl text-left ${optionSizeClass} ${
                         option.disabled ? "cursor-not-allowed opacity-45" : ""
                       }`}
                     >
                       <span className={optionLabelClass}>{option.label}</span>
                       <span
-                        className={`text-primary-300 transition-opacity duration-150 ${
+                        className={`text-[var(--theme-accent-text)] transition-opacity duration-150 ${
                           selected ? "opacity-100" : "opacity-0"
                         }`}
                         aria-hidden="true"

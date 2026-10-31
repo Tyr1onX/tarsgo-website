@@ -8,6 +8,7 @@
     "preview": "vite preview",
     "start": "vite preview",
     "test:navbar": "node --experimental-strip-types --test app/lib/navbar-accessibility.test.mjs app/lib/group-identity.test.mjs",
+    "test:theme": "node --test app/lib/admin-theme-styles.test.mjs",
     "test:micro-specialty": "node --test app/lib/micro-specialty-content.test.mjs",
     "test:public-site": "node --experimental-strip-types --test app/lib/public-site-pages.test.mjs app/lib/home-timeline-layout.test.mjs app/lib/robot-photo-gallery.test.mjs app/lib/coordinate-sand-bcd.test.mjs app/lib/about-image-assets.test.mjs app/lib/honor-material-thumbnails.test.mjs app/lib/route-titles.test.mjs app/lib/organization-preview.test.mjs",
     "test:home-sand-reveal": "node --experimental-strip-types --test app/lib/home-sand-reveal.test.mjs",

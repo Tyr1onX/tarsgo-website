@@ -48,7 +48,7 @@ function HistoryHonor({ awardId, existingSourceHrefs }: { awardId: string; exist
 
 export function TeamHistoryArchive() {
   return (
-    <section id="achievements" className="team-history-archive border-t border-white/[0.06] py-12 sm:py-16">
+    <section id="achievements" className="team-history-archive border-t border-[var(--theme-border-subtle)] py-12 sm:py-16">
       <div className="public-home-container">
         <div className="team-history-identities" aria-label="平台与战队身份">
           <article className="team-history-identity">

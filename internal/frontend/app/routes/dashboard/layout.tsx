@@ -741,7 +741,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   }
 
   return (
-    <div className="dashboard-shell admin-design min-h-screen text-white" data-immersive={isImmersiveExpedition ? "expedition" : undefined}>
+    <div className="dashboard-shell admin-design min-h-screen text-[var(--admin-text)]" data-immersive={isImmersiveExpedition ? "expedition" : undefined}>
       {sidebarOpen ? (
         <button
           type="button"
@@ -781,7 +781,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           </button>
           <button
             type="button"
-            className="lg:hidden ml-auto p-1 text-gray-400 hover:text-white"
+            className="lg:hidden ml-auto p-1 text-[var(--admin-muted)] hover:text-[var(--admin-text)]"
             onClick={closeMobileSidebar}
             aria-label="关闭侧边栏"
           >
@@ -795,13 +795,13 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
 
         <nav className="dashboard-shell__sidebar-nav flex-1 overflow-y-auto px-3 py-4" aria-label="工作台功能">
           <div className="space-y-1" role="group" aria-label="个人工作台">
-            <div className={`dashboard-shell__sidebar-section-title px-3 pb-2 text-[11px] font-semibold tracking-wide text-gray-500 ${isSidebarCollapsed ? "sr-only" : ""}`}>个人工作台</div>
+            <div className={`dashboard-shell__sidebar-section-title px-3 pb-2 text-[11px] font-semibold tracking-wide text-[var(--admin-dim)] ${isSidebarCollapsed ? "sr-only" : ""}`}>个人工作台</div>
             {coreMenuItems.map((item) => (
               <SidebarItem key={item.key} item={item} onNavigate={handleSidebarNavigate} collapsed={isSidebarCollapsed} />
             ))}
           </div>
-          <div className={`${isSidebarCollapsed ? "mt-2 border-t border-white/[0.06] pt-2" : "mt-5 border-t border-white/[0.06] pt-4"}`} role="group" aria-label="日常事务">
-            <div className={`dashboard-shell__sidebar-section-title px-3 pb-2 text-[11px] font-semibold tracking-wide text-gray-500 ${isSidebarCollapsed ? "sr-only" : ""}`}>日常事务</div>
+          <div className={`${isSidebarCollapsed ? "mt-2 border-t border-[var(--admin-border-subtle)] pt-2" : "mt-5 border-t border-[var(--admin-border-subtle)] pt-4"}`} role="group" aria-label="日常事务">
+            <div className={`dashboard-shell__sidebar-section-title px-3 pb-2 text-[11px] font-semibold tracking-wide text-[var(--admin-dim)] ${isSidebarCollapsed ? "sr-only" : ""}`}>日常事务</div>
             {dailyMenuItems.map((item) => (
               <SidebarItem
                 key={item.key}
@@ -816,8 +816,8 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           </div>
 
           {showAdminSection ? (
-            <div className={`${isSidebarCollapsed ? "mt-2 border-t border-white/[0.06] pt-2" : "mt-6 border-t border-white/[0.06] pt-5"}`}>
-              <div className={`dashboard-shell__sidebar-section-title px-3 pb-2 text-[11px] font-semibold tracking-wide text-gray-500 ${isSidebarCollapsed ? "sr-only" : ""}`}>管理事务</div>
+            <div className={`${isSidebarCollapsed ? "mt-2 border-t border-[var(--admin-border-subtle)] pt-2" : "mt-6 border-t border-[var(--admin-border-subtle)] pt-5"}`}>
+              <div className={`dashboard-shell__sidebar-section-title px-3 pb-2 text-[11px] font-semibold tracking-wide text-[var(--admin-dim)] ${isSidebarCollapsed ? "sr-only" : ""}`}>管理事务</div>
               <div className="space-y-1">
                 {adminMenuItems.map((item) => (
                   <SidebarItem
@@ -834,7 +834,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           ) : null}
         </nav>
 
-        <div ref={userMenuRef} className={`dashboard-shell__profile-area relative border-t border-white/[0.06] py-3 ${isSidebarCollapsed ? "px-2" : "px-3"}`}>
+        <div ref={userMenuRef} className={`dashboard-shell__profile-area relative border-t border-[var(--admin-border-subtle)] py-3 ${isSidebarCollapsed ? "px-2" : "px-3"}`}>
           <button
             type="button"
             onClick={() => setUserMenuOpen((open) => !open)}
@@ -847,23 +847,23 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
             }`}
           >
             <div className="dashboard-shell__avatar relative w-9 h-9 rounded-full flex items-center justify-center shrink-0 overflow-hidden">
-              <span className="text-white text-sm font-semibold">{userInitial}</span>
+              <span className="text-[var(--admin-text)] text-sm font-semibold">{userInitial}</span>
               {currentUser.avatarUrl ? (
                 <img key={currentUser.avatarUrl} src={currentUser.avatarUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" onError={(event) => { event.currentTarget.hidden = true; }} />
               ) : null}
             </div>
             <div className={`flex-1 min-w-0 text-left ${isSidebarCollapsed ? "hidden" : ""}`}>
-              <div className="text-sm font-medium text-white truncate">
+              <div className="text-sm font-medium text-[var(--admin-text)] truncate">
                 {currentUserName || getAuthUserRoleLabel(currentUser)}
               </div>
-              <div className="text-xs text-gray-500 truncate">{currentUser.email}</div>
+              <div className="text-xs text-[var(--admin-dim)] truncate">{currentUser.email}</div>
             </div>
             <svg
               aria-hidden="true"
               className={`w-4 h-4 shrink-0 transition-all duration-200 ${isSidebarCollapsed ? "hidden" : ""} ${
                 userMenuOpen
                   ? "rotate-180 dashboard-shell__accent"
-                  : "text-gray-500 group-hover:text-gray-300"
+                  : "text-[var(--admin-dim)] group-hover:text-[var(--admin-muted)]"
               }`}
               fill="none"
               viewBox="0 0 24 24"
@@ -880,7 +880,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
               className="dashboard-shell__user-menu absolute left-3 right-3 bottom-full mb-2 overflow-hidden rounded-lg shadow-xl"
             >
               <div className="dashboard-shell__user-menu-role px-3 py-2.5">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-gray-500">
+                <div className="text-[11px] uppercase tracking-[0.22em] text-[var(--admin-dim)]">
                   {getAuthUserRoleLabel(currentUser)}
                 </div>
               </div>
@@ -916,10 +916,10 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
                   onClick={handleLogout}
                   disabled={loggingOut}
                   role="menuitem"
-                  className="group/item flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-rose-300 transition-colors hover:bg-rose-500/10 hover:text-rose-200 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="group/item flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-[var(--admin-danger)] transition-colors hover:bg-[var(--admin-danger-surface)] hover:text-[var(--admin-danger)] disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <svg
-                    className="w-4 h-4 text-rose-400/70 transition-colors group-hover/item:text-rose-300"
+                    className="w-4 h-4 text-[var(--admin-danger)] transition-colors group-hover/item:text-[var(--admin-danger)]"
                     fill="none"
                     viewBox="0 0 24 24"
                     strokeWidth={1.75}
@@ -942,7 +942,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
         >
           <span
             className={`h-20 w-px rounded-full transition-colors ${
-                  isResizingSidebar ? "bg-amber-300" : "bg-transparent group-hover/sidebar:bg-gray-600"
+                  isResizingSidebar ? "bg-[var(--admin-accent)]" : "bg-transparent group-hover/sidebar:bg-[var(--admin-hover-border)]"
             }`}
           />
         </div>
@@ -953,7 +953,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           <button
             ref={sidebarTriggerRef}
             type="button"
-            className="lg:hidden p-2 -ml-2 text-gray-400 hover:text-white"
+            className="lg:hidden p-2 -ml-2 text-[var(--admin-muted)] hover:text-[var(--admin-text)]"
             onClick={openMobileSidebar}
             aria-label="打开侧边栏"
             aria-controls="dashboard-sidebar"

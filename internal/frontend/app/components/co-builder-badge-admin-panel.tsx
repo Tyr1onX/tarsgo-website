@@ -71,7 +71,7 @@ export function CoBuilderBadgeAdminPanel({ userId }: { userId: number }) {
           </button>
         </div>
       ) : null}
-      {error ? <p role="alert" className="text-xs text-rose-500">{error}</p> : null}
+      {error ? <p role="alert" className="text-xs text-[var(--theme-danger)]">{error}</p> : null}
     </section>
   );
 }

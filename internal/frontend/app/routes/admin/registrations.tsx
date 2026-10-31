@@ -502,7 +502,7 @@ export default function Registrations() {
 
       {currentFormAvailable === null && loading ? (
         <div className="admin-panel flex min-h-32 items-center px-6" role="status" aria-label="正在加载招新届次">
-          <div className="h-4 w-48 animate-pulse rounded bg-white/[0.08]" aria-hidden="true" />
+          <div className="h-4 w-48 animate-pulse rounded bg-[var(--admin-border-subtle)]" aria-hidden="true" />
         </div>
       ) : listError && currentFormAvailable === null ? (
         <div className="admin-panel px-5 py-8 text-center text-fg-muted" role="alert">招新数据加载失败，请重试页面。</div>
@@ -668,10 +668,10 @@ export default function Registrations() {
                     <div role="status" aria-label={interviewWorkbench ? "正在加载今日面试名单" : "正在加载报名名单"} className="space-y-3 py-2 text-left">
                       <span className="sr-only">正在加载候选人…</span>
                       {[0, 1, 2].map((skeleton) => (
-                        <div key={skeleton} aria-hidden="true" className="flex animate-pulse items-center justify-between gap-4 rounded-lg bg-white/[0.03] px-3 py-3">
-                          <span className="h-4 w-32 rounded bg-white/[0.08]" />
-                          <span className="h-4 w-20 rounded bg-white/[0.08]" />
-                          <span className="h-8 w-36 rounded bg-white/[0.08]" />
+                        <div key={skeleton} aria-hidden="true" className="flex animate-pulse items-center justify-between gap-4 rounded-lg bg-[var(--admin-hover-overlay)] px-3 py-3">
+                          <span className="h-4 w-32 rounded bg-[var(--admin-border-subtle)]" />
+                          <span className="h-4 w-20 rounded bg-[var(--admin-border-subtle)]" />
+                          <span className="h-8 w-36 rounded bg-[var(--admin-border-subtle)]" />
                         </div>
                       ))}
                     </div>
@@ -955,11 +955,11 @@ export default function Registrations() {
 
                   {detail.interviewResultHistory.length > 0 ? (
                     <div className="mt-5 space-y-4">
-                      <div className="rounded-xl border border-white/[0.08] p-4">
+                      <div className="rounded-xl border border-[var(--admin-border-subtle)] p-4">
                         <h4 className="font-medium text-fg-primary">结果修改记录与邮件状态</h4>
                         <ol className="mt-3 space-y-3">
                           {detail.interviewResultHistory.map((item) => (
-                            <li key={item.revision} className="rounded-lg bg-white/[0.03] p-3 text-sm">
+                            <li key={item.revision} className="rounded-lg bg-[var(--admin-hover-overlay)] p-3 text-sm">
                               <div className="font-medium text-fg-primary">
                                 第 {item.revision} 次登记：{getInterviewResultLabel(item.resultStatus)}
                                 {item.previousStatus ? `（原状态：${getInterviewResultLabel(item.previousStatus)}）` : "（首次登记）"}
@@ -979,7 +979,7 @@ export default function Registrations() {
                         </ol>
                       </div>
 
-                      <div className="rounded-xl border border-white/[0.08] p-4">
+                      <div className="rounded-xl border border-[var(--admin-border-subtle)] p-4">
                         <div className="flex flex-wrap items-center justify-between gap-3">
                           <div>
                             <h4 className="font-medium text-fg-primary">独立发送结果通知</h4>
@@ -1025,7 +1025,7 @@ export default function Registrations() {
                                 ) : null}
                               </div>
                             ) : null}
-                            <div className="rounded-lg bg-black/20 p-3">
+                            <div className="rounded-lg bg-[var(--admin-surface-subtle)] p-3">
                               <div className="text-xs text-fg-dim">邮件正文</div>
                               <div className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-fg-primary">{notificationPreview.body}</div>
                             </div>
@@ -1064,7 +1064,7 @@ export default function Registrations() {
                       </div>
 
                       {(detail.status === "admitted" || (detail.status === "rejected" && detail.rejectedStage === "interview")) ? (
-                        <div className="rounded-xl border border-amber-300/20 p-4">
+                        <div className="rounded-xl border border-[var(--admin-warning-border)] p-4">
                           <h4 className="font-medium text-fg-primary">纠正面试结果</h4>
                           <p className="mt-1 text-sm text-fg-dim">纠正会新增一条历史记录和对应的新通知，已接受发送的旧通知记录会保留。</p>
                           <textarea
@@ -1103,7 +1103,7 @@ export default function Registrations() {
                   <h3 className="font-medium text-fg-primary">报名资料</h3>
                   <div className="mt-4 grid gap-4">
                     {detail.fieldsSchema.map((field) => (
-                      <div key={field.key} className="border-b border-white/[0.05] pb-4 last:border-b-0 last:pb-0">
+                      <div key={field.key} className="border-b border-[var(--admin-border-subtle)] pb-4 last:border-b-0 last:pb-0">
                         <div className="text-xs text-fg-dim">{field.label}</div>
                         <div className="mt-1 text-sm leading-6 text-fg-primary">
                           <FieldValue
@@ -1206,12 +1206,12 @@ function StatusBadge({
 function QRCodePreviewCard({ title, status, imageUrl }: { title: string; status: string; imageUrl?: string }) {
   const statusLabel = status === "ready" ? "可读取" : status === "missing" ? "未配置" : "读取失败";
   return (
-    <div className="min-w-0 rounded-lg border border-white/[0.08] bg-black/10 p-3">
+    <div className="min-w-0 rounded-lg border border-[var(--admin-border-subtle)] bg-[var(--admin-surface-subtle)] p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h5 className="text-sm font-medium text-fg-primary">{title}</h5>
         <span className="text-xs text-fg-dim">{statusLabel}</span>
       </div>
-      <div className="mt-2 flex min-h-36 items-center justify-center rounded-md bg-black/20 p-2">
+      <div className="mt-2 flex min-h-36 items-center justify-center rounded-md bg-[var(--admin-surface-subtle)] p-2">
         {status === "ready" && imageUrl ? (
           <img src={buildApiUrl(imageUrl)} alt={title} className="max-h-40 max-w-full object-contain" />
         ) : (
