@@ -42,3 +42,16 @@ func (r *GormRepository) RevokeContribution(ctx context.Context, userID, contrib
 		Updates(map[string]any{"revoked_at": at, "revoked_by_id": actorID})
 	return result.RowsAffected > 0, result.Error
 }
+
+func (r *GormRepository) ClaimUnlock(ctx context.Context, userID uint64, level uint8, token string, expiresAt, now time.Time) (bool, error) {
+	db := r.db.WithContext(ctx)
+	if err := db.Exec("INSERT INTO co_builder_badge_unlock_states (user_id, highest_seen, claimed_level) VALUES (?, 0, 0) ON DUPLICATE KEY UPDATE user_id = VALUES(user_id)", userID).Error; err != nil {
+		return false, err
+	}
+	result := db.Exec("UPDATE co_builder_badge_unlock_states SET claimed_level = ?, claim_token = ?, claim_expires_at = ? WHERE user_id = ? AND highest_seen < ? AND (claim_token IS NULL OR claim_expires_at <= ?)", level, token, expiresAt, userID, level, now)
+	return result.RowsAffected > 0, result.Error
+}
+
+func (r *GormRepository) AcknowledgeUnlock(ctx context.Context, userID uint64, token string) error {
+	return r.db.WithContext(ctx).Exec("UPDATE co_builder_badge_unlock_states SET highest_seen = GREATEST(highest_seen, claimed_level), claimed_level = 0, claim_token = NULL, claim_expires_at = NULL WHERE user_id = ? AND claim_token = ?", userID, token).Error
+}

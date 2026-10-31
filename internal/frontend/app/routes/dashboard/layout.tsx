@@ -5,6 +5,7 @@ import type { Route } from "./+types/layout";
 import { SiteLogo } from "~/components/site-logo";
 import { ThemeControl } from "~/components/theme-control";
 import { ProfileDialog } from "~/components/profile-dialog";
+import { CoBuilderBadgeUnlockToast } from "~/components/co-builder-badge-unlock-toast";
 import { ApiError } from "~/lib/api-client";
 import {
   getAuthUserRoleLabel,
@@ -971,6 +972,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           </div>
         </main>
       </div>
+      <CoBuilderBadgeUnlockToast key={currentUser.id} onOpenProfile={() => setProfileOpen(true)} />
       {profileOpen ? (
         <ProfileDialog
           user={currentUser}

@@ -2,6 +2,8 @@ package cobuilderbadge
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base64"
 	"net/http"
 	"strings"
 	"time"
@@ -23,6 +25,8 @@ type Repository interface {
 	ListContributions(context.Context, uint64) ([]model.CoBuilderContribution, error)
 	CreateContribution(context.Context, *model.CoBuilderContribution) error
 	RevokeContribution(context.Context, uint64, uint64, uint64, time.Time) (bool, error)
+	ClaimUnlock(context.Context, uint64, uint8, string, time.Time, time.Time) (bool, error)
+	AcknowledgeUnlock(context.Context, uint64, string) error
 }
 
 type ServiceError struct {
@@ -61,17 +65,26 @@ type Summary struct {
 	Contributions     []Contribution `json:"contributions"`
 }
 
+type UnlockNotice struct {
+	LevelCode  string `json:"levelCode"`
+	LevelLabel string `json:"levelLabel"`
+	ClaimToken string `json:"claimToken"`
+}
+
 type tier struct {
 	code      string
 	label     string
 	threshold int
+	rank      uint8
 }
 
 var tiers = []tier{
-	{code: "bronze", label: "青铜 I", threshold: 1},
-	{code: "silver", label: "白银 II", threshold: 3},
-	{code: "gold", label: "黄金 III", threshold: 10},
+	{code: "bronze", label: "青铜 I", threshold: 1, rank: 1},
+	{code: "silver", label: "白银 II", threshold: 3, rank: 2},
+	{code: "gold", label: "黄金 III", threshold: 10, rank: 3},
 }
+
+const unlockClaimDuration = 30 * time.Second
 
 type Service struct {
 	repo Repository
@@ -87,6 +100,48 @@ func (s *Service) GetMine(ctx context.Context, actor Actor) (*Summary, error) {
 		return nil, &ServiceError{Status: http.StatusUnauthorized, Message: "请先登录"}
 	}
 	return s.summary(ctx, actor.ID)
+}
+
+func (s *Service) ClaimUnlock(ctx context.Context, actor Actor) (*UnlockNotice, error) {
+	if actor.ID == 0 {
+		return nil, &ServiceError{Status: http.StatusUnauthorized, Message: "请先登录"}
+	}
+	records, err := s.repo.ListContributions(ctx, actor.ID)
+	if err != nil {
+		return nil, internal("读取贡献记录失败", err)
+	}
+	current := currentTier(effectiveContributionCount(records))
+	if current == nil {
+		return nil, nil
+	}
+	now := s.now()
+	var tokenBytes [32]byte
+	if _, err := rand.Read(tokenBytes[:]); err != nil {
+		return nil, internal("创建勋章展示凭证失败", err)
+	}
+	token := base64.RawURLEncoding.EncodeToString(tokenBytes[:])
+	claimed, err := s.repo.ClaimUnlock(ctx, actor.ID, current.rank, token, now.Add(unlockClaimDuration), now)
+	if err != nil {
+		return nil, internal("读取勋章解锁状态失败", err)
+	}
+	if !claimed {
+		return nil, nil
+	}
+	return &UnlockNotice{LevelCode: current.code, LevelLabel: current.label, ClaimToken: token}, nil
+}
+
+func (s *Service) AcknowledgeUnlock(ctx context.Context, actor Actor, token string) error {
+	if actor.ID == 0 {
+		return &ServiceError{Status: http.StatusUnauthorized, Message: "请先登录"}
+	}
+	token = strings.TrimSpace(token)
+	if len(token) != 43 {
+		return &ServiceError{Status: http.StatusBadRequest, Message: "勋章展示凭证无效"}
+	}
+	if err := s.repo.AcknowledgeUnlock(ctx, actor.ID, token); err != nil {
+		return internal("确认勋章展示失败", err)
+	}
+	return nil
 }
 
 func (s *Service) GetForAdmin(ctx context.Context, actor Actor, userID uint64) (*Summary, error) {
@@ -161,12 +216,9 @@ func (s *Service) summary(ctx context.Context, userID uint64) (*Summary, error) 
 }
 
 func summarize(records []model.CoBuilderContribution) *Summary {
-	count := 0
+	count := effectiveContributionCount(records)
 	views := make([]Contribution, 0, len(records))
 	for _, record := range records {
-		if record.RevokedAt == nil {
-			count++
-		}
 		views = append(views, Contribution{
 			ID: record.ID, Description: record.Description, GrantedByID: record.GrantedByID,
 			CreatedAt: record.CreatedAt, RevokedAt: record.RevokedAt, RevokedByID: record.RevokedByID,
@@ -177,15 +229,13 @@ func summarize(records []model.CoBuilderContribution) *Summary {
 		Name: "吉甲共建者", LevelCode: "none", LevelLabel: "未获得",
 		ContributionCount: count, Contributions: views,
 	}
-	var current *tier
+	current := currentTier(count)
 	var next *tier
 	for index := range tiers {
-		if count >= tiers[index].threshold {
-			current = &tiers[index]
-			continue
+		if count < tiers[index].threshold {
+			next = &tiers[index]
+			break
 		}
-		next = &tiers[index]
-		break
 	}
 	if current != nil {
 		summary.LevelCode = current.code
@@ -201,6 +251,27 @@ func summarize(records []model.CoBuilderContribution) *Summary {
 	summary.ProgressCount = count
 	summary.ProgressPercent = count * 100 / next.threshold
 	return summary
+}
+
+func effectiveContributionCount(records []model.CoBuilderContribution) int {
+	count := 0
+	for _, record := range records {
+		if record.RevokedAt == nil {
+			count++
+		}
+	}
+	return count
+}
+
+func currentTier(count int) *tier {
+	var current *tier
+	for index := range tiers {
+		if count < tiers[index].threshold {
+			break
+		}
+		current = &tiers[index]
+	}
+	return current
 }
 
 func requireSuperAdmin(actor Actor) error {

@@ -288,6 +288,8 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	authenticatedAPI.Use(middleware.RequireAuthenticated(authService))
 	authenticatedAPI.GET("/user-group/confirmation", userGroupMembershipHandler.CurrentState)
 	authenticatedAPI.GET("/me/co-builder-badge", coBuilderBadgeHandler.Mine)
+	authenticatedAPI.POST("/me/co-builder-badge/unlock-notice", requireSameOriginRequest(cfg), coBuilderBadgeHandler.ClaimUnlock)
+	authenticatedAPI.POST("/me/co-builder-badge/unlock-notice/seen", requireSameOriginRequest(cfg), coBuilderBadgeHandler.AcknowledgeUnlock)
 	authenticatedAPI.POST("/user-group/confirmation", userGroupMembershipHandler.Confirm)
 	authenticatedAPI.GET("/work-manual/operations", workManualHandler.OperationsCatalogue)
 	authenticatedAPI.GET("/work-manual/operations/templates/campus-network-window-application.doc", workManualHandler.ApplicationForm)
