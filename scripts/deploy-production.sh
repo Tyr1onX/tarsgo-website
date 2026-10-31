@@ -125,6 +125,7 @@ printf '%s\n' "$commit_sha" >"$release_dir/commit.txt"
 
 chmod 0755 "$release_dir"
 chmod 0644 "$release_dir/Dockerfile" "$release_dir/SHA256SUMS" "$release_dir/commit.txt" "$release_dir/tarsgo-backend-linux-amd64" "$release_dir/tarsgo-migrate-linux-amd64"
+"$ssh_bin" -o BatchMode=yes "$target" install -d -m 0755 -- "$jijia_root/releases/$release_name"
 "$rsync_bin" --archive "$release_dir/" "$target:$jijia_root/releases/$release_name/"
 "$rsync_bin" --archive "$repo_root/scripts/backup-production.sh" "$repo_root/scripts/backup-production.service" "$repo_root/scripts/backup-production.timer" "$target:/tmp/"
 "$ssh_bin" -o BatchMode=yes "$target" bash -s -- "$jijia_root" <<'INSTALL_BACKUP'
