@@ -15,7 +15,7 @@ var organizationPreviewData = json.RawMessage(`{
   "categories": [
     {
       "id": "management",
-      "title": "管理与运营",
+      "title": "核心管理层",
       "positions": [
         {"id": "vice-captain-project", "title": "副队长（项目管理）", "name": "吉荣昌"},
         {"id": "project-management", "title": "项目管理", "name": "孙煦朝"},
@@ -26,7 +26,7 @@ var organizationPreviewData = json.RawMessage(`{
     },
     {
       "id": "technical",
-      "title": "技术组",
+      "title": "技术体系",
       "positions": [
         {"id": "vision-lead", "title": "视觉组长", "name": "张育宁"},
         {"id": "mechanical-lead", "title": "机械组长", "name": "沈桂清"},
@@ -36,20 +36,14 @@ var organizationPreviewData = json.RawMessage(`{
     },
     {
       "id": "robot-classes",
-      "title": "兵种组",
+      "title": "兵种项目体系",
       "positions": [
         {"id": "sentry-lead", "title": "哨兵组长", "name": "张坤杰"},
         {"id": "infantry-lead", "title": "步兵组长", "name": "雷韶冉"},
         {"id": "dart-lead", "title": "飞镖组长", "name": "曲佳响"},
         {"id": "heavy-lead", "title": "重装组长", "name": "陆广鹏"},
-        {"id": "aerial-lead", "title": "飞机组长", "name": "王彬赫"}
-      ]
-    },
-    {
-      "id": "special-projects",
-      "title": "其他专项",
-      "positions": [
-        {"id": "radar-station", "title": "雷达站", "name": "左文添"}
+        {"id": "aerial-lead", "title": "飞机组长", "name": "王彬赫"},
+        {"id": "radar-station", "title": "雷达站负责人", "name": "左文添"}
       ]
     }
   ]

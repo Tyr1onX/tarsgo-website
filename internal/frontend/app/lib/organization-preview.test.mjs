@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
+import { organizationPositionDuty } from "./organization-preview-duties.ts";
 import { layoutOrganizationPreview } from "./organization-preview-layout.ts";
 
 const source = (relativePath) => readFileSync(new URL(relativePath, import.meta.url), "utf8");
@@ -20,6 +21,14 @@ test("appointment data is complete and has no duplicate positions", () => {
   assert.equal(new Set(allPositions.map(({ id }) => id)).size, allPositions.length);
   assert.equal(new Set(allPositions.map(({ name }) => name)).size, allPositions.length);
   assert.equal(preview.categories.find(({ id }) => id === "technical")?.positions.find(({ id }) => id === "electrical-lead")?.name, "待确认");
+  assert.equal(preview.categories.length, 3);
+  assert.equal(preview.categories.find(({ id }) => id === "management")?.title, "核心管理层");
+  assert.equal(preview.categories.find(({ id }) => id === "technical")?.title, "技术体系");
+  const robotProjects = preview.categories.find(({ id }) => id === "robot-classes");
+  assert.equal(robotProjects?.title, "兵种项目体系");
+  assert.equal(robotProjects?.positions.find(({ id }) => id === "radar-station")?.title, "雷达站负责人");
+  assert.equal(robotProjects?.positions.find(({ id }) => id === "aerial-lead")?.title, "飞机组长");
+  assert.ok(!allPositions.some(({ id }) => id === "reserve-captain"), "reserve captain appears only after an appointment exists");
 });
 
 test("preview is restricted to super admins, including its source data", () => {
@@ -39,11 +48,30 @@ test("preview is restricted to super admins, including its source data", () => {
   }
 });
 
+test("positions expose inline, keyboard-accessible role details without changing page or permission boundaries", () => {
+  const component = source("../routes/organization-preview.tsx");
+  const duties = source("./organization-preview-duties.ts");
+
+  assert.match(component, /role="button"[\s\S]*?aria-pressed=\{selected\}[\s\S]*?onKeyDown={onKeyDown}/);
+  assert.match(component, /aria-label="职位详情"/);
+  assert.match(component, /organizationPositionDuty\(selectedPosition\.position\.id, selectedPosition\.categoryID\)/);
+  assert.match(component, /点击岗位查看职责/);
+  assert.match(component, /if \(!window\.matchMedia\("\(max-width: 720px\)"\)\.matches\)\s*\{\s*setViewportHeight/);
+  assert.doesNotMatch(component, /role="dialog"/);
+  for (const positionID of ["captain", "vice-captain-project", "vice-captain-training", "vice-captain-test-safety", "project-management", "operations-manager", "reserve-captain"]) {
+    const dutyKey = positionID === "captain" ? "captain:" : "\"" + positionID + "\":";
+    assert.ok(duties.includes(dutyKey), "missing duty for " + positionID);
+  }
+  assert.match(organizationPositionDuty("vision-lead", "technical"), /培训和选拔/);
+  assert.match(organizationPositionDuty("radar-station", "robot-classes"), /底层架构与关键技术决策/);
+  assert.match(organizationPositionDuty("reserve-captain", "management"), /为接任队长积累经验/);
+});
+
 test("wide preview places role categories in non-overlapping columns", () => {
   const expanded = new Set(preview.categories.map(({ id }) => id));
   const layout = layoutOrganizationPreview(1280, expanded, preview.categories);
-  assert.equal(layout.columns, 4);
-  assert.equal(layout.categories.length, 4);
+  assert.equal(layout.columns, 3);
+  assert.equal(layout.categories.length, 3);
   for (let left = 0; left < layout.categories.length; left++) {
     for (let right = left + 1; right < layout.categories.length; right++) {
       const a = layout.categories[left], b = layout.categories[right];
@@ -61,7 +89,7 @@ test("wide preview places role categories in non-overlapping columns", () => {
 test("mobile preview stacks categories and collapse removes hidden positions", () => {
   const expanded = new Set(preview.categories.map(({ id }) => id));
   const full = layoutOrganizationPreview(360, expanded, preview.categories);
-  const collapsed = layoutOrganizationPreview(360, new Set(["technical", "special-projects"]), preview.categories);
+  const collapsed = layoutOrganizationPreview(360, new Set(["technical", "robot-classes"]), preview.categories);
   assert.equal(full.columns, 1);
   for (let index = 1; index < full.categories.length; index++) {
     assert.ok(full.categories[index].y >= full.categories[index - 1].y + full.categories[index - 1].height);

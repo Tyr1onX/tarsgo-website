@@ -3,6 +3,7 @@ import { Link } from "react-router";
 
 import type { OrganizationCategory, OrganizationPreview } from "~/data/organization-preview";
 import { apiRequest } from "~/lib/api-client";
+import { organizationPositionDuty } from "~/lib/organization-preview-duties";
 import { layoutOrganizationPreview, type OrganizationBox } from "~/lib/organization-preview-layout";
 import type { Route } from "./+types/organization-preview";
 import "./organization-preview.css";
@@ -27,11 +28,40 @@ function splitTitle(title: string, width: number) {
   return lines.slice(0, 2);
 }
 
-function PersonCard({ box, title, name, vacancy = false }: { box: OrganizationBox; title: string; name: string; vacancy?: boolean }) {
+function PersonCard({
+  box,
+  title,
+  name,
+  vacancy = false,
+  selected,
+  onSelect,
+}: {
+  box: OrganizationBox;
+  title: string;
+  name: string;
+  vacancy?: boolean;
+  selected: boolean;
+  onSelect: () => void;
+}) {
   const titleLines = splitTitle(title, box.width);
   const firstBaseline = titleLines.length > 1 ? box.y + 23 : box.y + 27;
+  const onKeyDown = (event: KeyboardEvent<SVGGElement>) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      onSelect();
+    }
+  };
   return (
-    <g role="group" aria-label={`${title}：${name}`} className={`organization-preview__person${vacancy ? " is-vacant" : ""}`}>
+    <g
+      role="button"
+      tabIndex={0}
+      data-org-interactive="true"
+      aria-pressed={selected}
+      aria-label={`${title}，负责人${name}，点击查看职责`}
+      onClick={onSelect}
+      onKeyDown={onKeyDown}
+      className={"organization-preview__person" + (vacancy ? " is-vacant" : "") + (selected ? " is-selected" : "")}
+    >
       <rect x={box.x} y={box.y} width={box.width} height={box.height} rx="9" />
       <text className="organization-preview__position" x={box.x + 12} y={firstBaseline}>
         {titleLines.map((line, index) => <tspan key={`${line}-${index}`} x={box.x + 12} dy={index === 0 ? 0 : 14}>{line}</tspan>)}
@@ -46,11 +76,15 @@ function CategoryPanel({
   box,
   expanded,
   onToggle,
+  selectedPositionID,
+  onSelectPosition,
 }: {
   category: OrganizationCategory;
   box: ReturnType<typeof layoutOrganizationPreview>["categories"][number];
   expanded: boolean;
   onToggle: () => void;
+  selectedPositionID: string | null;
+  onSelectPosition: (position: OrganizationCategory["positions"][number], category: OrganizationCategory) => void;
 }) {
   const onKeyDown = (event: KeyboardEvent<SVGGElement>) => {
     if (event.key === "Enter" || event.key === " ") {
@@ -82,7 +116,17 @@ function CategoryPanel({
       {expanded ? box.positions.map((positionBox) => {
         const position = positionByID.get(positionBox.id);
         if (!position) return null;
-        return <PersonCard key={position.id} box={positionBox} title={position.title} name={position.name} vacancy={position.name === "待确认"} />;
+        return (
+          <PersonCard
+            key={position.id}
+            box={positionBox}
+            title={position.title}
+            name={position.name}
+            vacancy={position.name === "待确认"}
+            selected={selectedPositionID === position.id}
+            onSelect={() => onSelectPosition(position, category)}
+          />
+        );
       }) : null}
     </g>
   );
@@ -90,6 +134,7 @@ function CategoryPanel({
 
 export default function OrganizationPreviewPage() {
   const viewportRef = useRef<HTMLDivElement | null>(null);
+  const detailsRef = useRef<HTMLElement | null>(null);
   const dragRef = useRef<{ pointerID: number; x: number; y: number; left: number; top: number } | null>(null);
   const [viewportWidth, setViewportWidth] = useState(1280);
   const [viewportHeight, setViewportHeight] = useState(620);
@@ -98,6 +143,7 @@ export default function OrganizationPreviewPage() {
   const [data, setData] = useState<OrganizationPreview | null>(null);
   const [loadError, setLoadError] = useState("");
   const [expandedIDs, setExpandedIDs] = useState<Set<string>>(() => new Set());
+  const [selectedPosition, setSelectedPosition] = useState<{ position: OrganizationPreview["leader"]; categoryID: string; categoryTitle: string } | null>(null);
   const layout = useMemo(() => layoutOrganizationPreview(viewportWidth, expandedIDs, data?.categories ?? []), [viewportWidth, expandedIDs, data]);
   const layoutRef = useRef(layout);
   layoutRef.current = layout;
@@ -116,12 +162,22 @@ export default function OrganizationPreviewPage() {
     if (!viewport) return;
     const resizeObserver = new ResizeObserver(([entry]) => {
       setViewportWidth(Math.max(320, Math.floor(entry.contentRect.width)));
-      setViewportHeight(Math.max(1, Math.floor(entry.contentRect.height)));
+      if (!window.matchMedia("(max-width: 720px)").matches) {
+        setViewportHeight(Math.max(1, Math.floor(entry.contentRect.height)));
+      }
       setViewportMeasured(true);
     });
     resizeObserver.observe(viewport);
     return () => resizeObserver.disconnect();
   }, [data]);
+
+  useEffect(() => {
+    if (!selectedPosition || !window.matchMedia("(max-width: 720px)").matches) return;
+    detailsRef.current?.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      block: "nearest",
+    });
+  }, [selectedPosition]);
 
   const fitToScreen = useCallback((isInitial = false) => {
     const viewport = viewportRef.current;
@@ -148,6 +204,12 @@ export default function OrganizationPreviewPage() {
       return next;
     });
     viewportRef.current?.scrollTo({ left: 0, top: 0, behavior: "smooth" });
+  }
+
+  function togglePosition(position: OrganizationPreview["leader"], categoryID: string, categoryTitle: string) {
+    setSelectedPosition((current) => current?.position.id === position.id
+      ? null
+      : { position, categoryID, categoryTitle });
   }
 
   function onPointerDown(event: PointerEvent<HTMLDivElement>) {
@@ -206,6 +268,18 @@ export default function OrganizationPreviewPage() {
           </div>
         </div>
 
+        {selectedPosition ? (
+          <section ref={detailsRef} className="organization-preview__details" aria-label="职位详情" aria-live="polite">
+            <div className="organization-preview__details-copy">
+              <p className="organization-preview__details-category">{selectedPosition.categoryTitle}</p>
+              <h2>{selectedPosition.position.title}</h2>
+              <p className="organization-preview__details-person">负责人：{selectedPosition.position.name}</p>
+              <p className="organization-preview__details-duty">{organizationPositionDuty(selectedPosition.position.id, selectedPosition.categoryID)}</p>
+            </div>
+            <button type="button" className="organization-preview__details-close" aria-label="关闭职位详情" onClick={() => setSelectedPosition(null)}>×</button>
+          </section>
+        ) : null}
+
         <div
           ref={viewportRef}
           className="organization-preview__viewport"
@@ -230,7 +304,21 @@ export default function OrganizationPreviewPage() {
               <rect x={layout.team.x} y={layout.team.y} width={layout.team.width} height={layout.team.height} rx="12" />
               <text x={layout.width / 2} y={layout.team.y + 36}>{data.team.title}</text>
             </g>
-            <g className="organization-preview__captain" role="group" aria-label={`${data.leader.title}：${data.leader.name}`}>
+            <g
+              className={"organization-preview__captain" + (selectedPosition?.position.id === data.leader.id ? " is-selected" : "")}
+              role="button"
+              tabIndex={0}
+              data-org-interactive="true"
+              aria-pressed={selectedPosition?.position.id === data.leader.id}
+              aria-label={`${data.leader.title}，负责人${data.leader.name}，点击查看职责`}
+              onClick={() => togglePosition(data.leader, "management", "核心管理层")}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  togglePosition(data.leader, "management", "核心管理层");
+                }
+              }}
+            >
               <rect x={layout.leader.x} y={layout.leader.y} width={layout.leader.width} height={layout.leader.height} rx="11" />
               <text className="organization-preview__captain-role" x={layout.width / 2} y={layout.leader.y + 28}>{data.leader.title}</text>
               <text className="organization-preview__captain-name" x={layout.width / 2} y={layout.leader.y + 53}>{data.leader.name}</text>
@@ -248,14 +336,16 @@ export default function OrganizationPreviewPage() {
                   box={categoryBox}
                   expanded={expandedIDs.has(category.id)}
                   onToggle={() => toggleCategory(category.id)}
+                  selectedPositionID={selectedPosition?.position.id ?? null}
+                  onSelectPosition={(position, selectedCategory) => togglePosition(position, selectedCategory.id, selectedCategory.title)}
                 />
               );
             })}
           </svg>
         </div>
-        <p className="organization-preview__help">桌面端可按住画布拖动；点击分类标题展开或收起岗位。手机端可纵向浏览。</p>
+        <p className="organization-preview__help">点击岗位查看职责；桌面端可拖动画布，并点击分类标题展开或收起岗位。手机端可纵向浏览。</p>
       </section>
-      <footer className="organization-preview__footer">管理层岗位信息依据《管理层任命10.7》整理。电控组长待确认。</footer>
+      <footer className="organization-preview__footer">管理层岗位信息依据《管理层任命10.7》整理；技术体系与兵种项目体系为协作分类。</footer>
     </main>
   );
 }
