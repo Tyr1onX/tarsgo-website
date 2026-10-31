@@ -1,5 +1,6 @@
-import { Link } from "react-router";
+import { Link, useLocation } from "react-router";
 
+import { CommunityImageGallery } from "~/components/community-image-gallery";
 import { communityCategoryLabel, communityPostHref, formatCommunityDate, type CommunityPost } from "~/lib/community-client";
 
 export function CommunityAvatar({ name, src, size = "regular" }: { name: string; src?: string; size?: "regular" | "small" }) {
@@ -20,35 +21,35 @@ export function CommunityPostCard({
   onLike?: (post: CommunityPost) => void;
   onBookmark?: (post: CommunityPost) => void;
 }) {
-  const excerpt = Array.from(post.body.trim()).slice(0, 280).join("");
+  const location = useLocation();
+  const returnTo = `${location.pathname}${location.search}${location.hash}`;
+  const postState = { communityReturnTo: returnTo };
+  const excerpt = Array.from(post.body.trim()).slice(0, 240).join("");
+  const hasMoreExcerpt = Array.from(post.body.trim()).length > 240;
+  const hasRecentReply = Boolean(post.lastReplyAt && new Date(post.lastReplyAt).getTime() > new Date(post.createdAt).getTime());
   return <article className={`community-post${post.isPinned ? " is-pinned" : ""}`}>
     <div className="community-post__author">
       <CommunityAvatar name={post.authorName} src={post.authorAvatar} />
       <div className="community-post__byline">
         <strong>{post.authorName}</strong>
-        <time dateTime={post.createdAt}>{formatCommunityDate(post.createdAt)}{post.editedAt ? " · 已编辑" : ""}</time>
+        <time dateTime={hasRecentReply ? post.lastReplyAt : post.createdAt}>{hasRecentReply ? `最近回复 ${formatCommunityDate(post.lastReplyAt!)}` : formatCommunityDate(post.createdAt)}{post.editedAt ? " · 已编辑" : ""}</time>
       </div>
       <span className="community-post__category">{communityCategoryLabel(post.category)}</span>
     </div>
     {post.isPinned ? <span className="community-post__pin">置顶</span> : null}
-    <h2 className="community-post__title"><Link to={communityPostHref(post.id)}>{post.title}</Link></h2>
+    <h2 className="community-post__title"><Link to={communityPostHref(post.id)} state={postState}>{post.title}</Link></h2>
     {post.isLegacy && post.groupName ? <p className="community-post__scope">{post.visibility === "private" ? "历史私密讨论" : `${post.groupName} · 历史讨论`}</p> : null}
     {post.isFaq ? <span className="community-post__faq">FAQ</span> : null}
-    <p className="community-post__excerpt">{excerpt}{Array.from(post.body.trim()).length > 280 ? "…" : ""}</p>
-    {post.attachments.length ? <div className="community-post__images" aria-label="帖子图片">
-      {post.attachments.slice(0, 4).map((file) => <a href={file.url} target="_blank" rel="noreferrer" key={file.id} aria-label={`打开图片：${file.fileName}`}>
-        <img src={file.url} alt={file.fileName} loading="lazy" />
-      </a>)}
-      {post.attachments.length > 4 ? <span>+{post.attachments.length - 4}</span> : null}
-    </div> : null}
+    <p className="community-post__excerpt">{excerpt}{hasMoreExcerpt ? "…" : ""}</p>
+    {post.attachments.length ? <CommunityImageGallery attachments={post.attachments} compact /> : null}
     <footer className="community-post__actions">
-      <button type="button" aria-pressed={post.likedByMe} disabled={busy || !onLike} onClick={() => onLike?.(post)}>
+      <button type="button" aria-label={`${post.likedByMe ? "取消点赞" : "点赞"}，${post.likeCount} 个赞`} aria-pressed={post.likedByMe} disabled={busy || !onLike} onClick={() => onLike?.(post)}>
         <CommunityActionIcon kind="like" /> <span>{post.likeCount}</span> <span className="sr-only">{post.likedByMe ? "取消点赞" : "点赞"}</span>
       </button>
-      <Link to={communityPostHref(post.id)} aria-label={`查看 ${post.commentCount} 条评论`}>
+      <Link to={communityPostHref(post.id)} state={postState} aria-label={`查看 ${post.commentCount} 条评论`}>
         <CommunityActionIcon kind="comment" /> <span>{post.commentCount}</span>
       </Link>
-      <button type="button" aria-pressed={post.savedByMe} disabled={busy || !onBookmark} onClick={() => onBookmark?.(post)}>
+      <button type="button" aria-label={post.savedByMe ? "取消收藏" : "收藏"} aria-pressed={post.savedByMe} disabled={busy || !onBookmark} onClick={() => onBookmark?.(post)}>
         <CommunityActionIcon kind="bookmark" /> <span className="sr-only">{post.savedByMe ? "取消收藏" : "收藏"}</span>
       </button>
     </footer>
