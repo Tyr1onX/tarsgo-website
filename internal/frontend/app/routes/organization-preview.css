@@ -150,6 +150,73 @@
   font-size: 12px;
 }
 
+.organization-preview__details {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  padding: 15px 18px;
+  border-bottom: 1px solid var(--org-border);
+  background: color-mix(in srgb, var(--org-accent) 4%, var(--org-surface));
+}
+
+.organization-preview__details-copy {
+  min-width: 0;
+}
+
+.organization-preview__details-category,
+.organization-preview__details-person,
+.organization-preview__details-duty {
+  margin: 0;
+}
+
+.organization-preview__details-category {
+  margin-bottom: 4px;
+  color: var(--org-accent);
+  font-size: 11px;
+}
+
+.organization-preview__details h2 {
+  margin: 0;
+  color: var(--org-text);
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.organization-preview__details-person {
+  margin-top: 4px;
+  color: var(--org-muted);
+  font-size: 12px;
+}
+
+.organization-preview__details-duty {
+  max-width: 900px;
+  margin-top: 8px;
+  color: var(--org-text);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.organization-preview__details-close {
+  display: grid;
+  width: 30px;
+  height: 30px;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--org-border);
+  border-radius: 8px;
+  color: var(--org-muted);
+  background: transparent;
+  cursor: pointer;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.organization-preview__details-close:hover {
+  border-color: var(--org-accent);
+  color: var(--org-accent);
+}
+
 .organization-preview__viewport {
   height: min(72vh, 780px);
   min-height: 510px;
@@ -206,6 +273,18 @@
   fill: var(--org-surface);
   stroke: color-mix(in srgb, var(--org-accent) 48%, var(--org-border));
   stroke-width: 1.2;
+}
+
+.organization-preview__captain {
+  cursor: pointer;
+  outline: none;
+}
+
+.organization-preview__captain:hover rect,
+.organization-preview__captain:focus-visible rect,
+.organization-preview__captain.is-selected rect {
+  stroke: var(--org-accent);
+  stroke-width: 2;
 }
 
 .organization-preview__captain-role {
@@ -266,6 +345,18 @@
   fill: var(--org-surface);
   stroke: var(--org-border);
   stroke-width: 1;
+}
+
+.organization-preview__person {
+  cursor: pointer;
+  outline: none;
+}
+
+.organization-preview__person:hover rect,
+.organization-preview__person:focus-visible rect,
+.organization-preview__person.is-selected rect {
+  stroke: var(--org-accent);
+  stroke-width: 2;
 }
 
 .organization-preview__person.is-vacant rect {

@@ -58,7 +58,8 @@ function categoryHeight(category: OrganizationCategory, isExpanded: boolean) {
  */
 export function layoutOrganizationPreview(viewportWidth: number, expandedCategoryIDs: ReadonlySet<string>, categories: readonly OrganizationCategory[]): OrganizationPreviewLayout {
   const width = Math.max(320, Math.floor(viewportWidth));
-  const columns = width < 760 ? 1 : width < 960 ? 2 : width < 1120 ? 3 : 4;
+  const desiredColumns = width < 760 ? 1 : width < 960 ? 2 : width < 1120 ? 3 : 4;
+  const columns = Math.min(Math.max(1, categories.length), desiredColumns);
   const margin = columns === 1 ? MOBILE_MARGIN : WIDE_MARGIN;
   const gap = columns === 1 ? 14 : 16;
   const categoryWidth = (width - margin * 2 - gap * (columns - 1)) / columns;
