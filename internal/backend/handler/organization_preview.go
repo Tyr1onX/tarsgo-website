@@ -21,7 +21,7 @@ var organizationPreviewData = json.RawMessage(`{
         {"id": "project-management", "title": "项目管理", "name": "孙煦朝"},
         {"id": "vice-captain-training", "title": "副队长（人员培养、校内赛、参观接待）", "name": "高畅"},
         {"id": "operations-manager", "title": "运营经理", "name": "童逸创"},
-        {"id": "vice-captain-test-safety", "title": "副队长（测试、安全卫生、战术、操作手）", "name": "姜浩洋"}
+        {"id": "vice-captain-test-safety", "title": "副队长（测试、安全卫生、战术、操作手）", "name": "姜昊阳"}
       ]
     },
     {
