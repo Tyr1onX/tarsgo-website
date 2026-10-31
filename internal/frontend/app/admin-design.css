@@ -2643,3 +2643,75 @@
 :root[data-theme="light"] .admin-design .admin-status--interview {
   border-color: color-mix(in srgb, var(--admin-accent) 55%, var(--admin-border));
 }
+
+.admin-design .availability-heatmap__cell {
+  font-weight: 650;
+}
+
+.admin-design .availability-heatmap__cell:focus-visible {
+  outline: 2px solid var(--admin-accent);
+  outline-offset: 1px;
+}
+
+.admin-design .availability-heatmap__swatch {
+  display: inline-block;
+  width: 0.75rem;
+  height: 0.75rem;
+  flex: 0 0 0.75rem;
+  border: 1px solid;
+  border-radius: 0.2rem;
+}
+
+.admin-design .availability-heatmap__level--low,
+.admin-design .availability-heatmap__member-cell--conflict {
+  border-color: #fb7185;
+  background-color: #881337;
+  color: #fff1f2;
+}
+
+.admin-design .availability-heatmap__level--medium {
+  border-color: #fbbf24;
+  background-color: #78350f;
+  color: #fffbeb;
+}
+
+.admin-design .availability-heatmap__level--high,
+.admin-design .availability-heatmap__member-cell--free {
+  border-color: #34d399;
+  background-color: #065f46;
+  color: #ecfdf5;
+}
+
+.admin-design .availability-heatmap__cell--empty,
+.admin-design .availability-heatmap__member-cell--missing {
+  border-color: #56615c;
+  background-color: #252b2a;
+  color: #eef2ed;
+}
+
+:root[data-theme="light"] .admin-design .availability-heatmap__level--low,
+:root[data-theme="light"] .admin-design .availability-heatmap__member-cell--conflict {
+  border-color: #fb7185;
+  background-color: #ffe4e6;
+  color: #4c0519;
+}
+
+:root[data-theme="light"] .admin-design .availability-heatmap__level--medium {
+  border-color: #fbbf24;
+  background-color: #fef3c7;
+  color: #451a03;
+}
+
+:root[data-theme="light"] .admin-design .availability-heatmap__level--high,
+:root[data-theme="light"] .admin-design .availability-heatmap__member-cell--free {
+  border-color: #34d399;
+  background-color: #d1fae5;
+  color: #064e3b;
+}
+
+:root[data-theme="light"] .admin-design .availability-heatmap__cell--empty,
+:root[data-theme="light"] .admin-design .availability-heatmap__member-cell--missing {
+  border-color: #cbd2ca;
+  background-color: #f0efea;
+  color: #42463e;
+}

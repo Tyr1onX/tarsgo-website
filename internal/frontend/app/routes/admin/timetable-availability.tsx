@@ -3,9 +3,9 @@ import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import {
-  getAvailabilityOptions, getAvailabilityWeek, availabilityCounts, availabilityFreeRatio, filterAvailabilityMembers, intervalStatus,
+  getAvailabilityOptions, getAvailabilityWeek, availabilityCounts, availabilityFreeRatio, availabilityHeatLevel, filterAvailabilityMembers, intervalStatus,
   clearAllTimetables, getTimetableCleanupPreview,
-  type AvailabilityOptions, type AvailabilityWeek, type AvailabilityStatus,
+  type AvailabilityOptions, type AvailabilityWeek, type AvailabilityStatus, type AvailabilityHeatLevel,
 } from "~/lib/availability-client";
 import { resolveCurrentTeachingWeek } from "~/lib/academic-term-calendar";
 
@@ -28,6 +28,13 @@ function statusLabel(status: AvailabilityStatus) {
   return "数据缺失";
 }
 function failMessage(error: unknown) { return error instanceof Error ? error.message : "读取失败"; }
+function ratioLabel(ratio: number | null) { return ratio === null ? "暂无有效课表" : `${Math.round(ratio * 100)}%`; }
+
+const HEAT_LEVEL_CLASSES: Record<AvailabilityHeatLevel, string> = {
+  low: "availability-heatmap__level--low",
+  medium: "availability-heatmap__level--medium",
+  high: "availability-heatmap__level--high",
+};
 
 export default function TimeCoordinationPage() {
   const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
@@ -86,8 +93,7 @@ export default function TimeCoordinationPage() {
     void getAvailabilityOptions().then(value => {
       if (optionsRequest.current !== id) return;
       setOptions(value);
-      const initialGroup = value.groups[0];
-      setGroupId(initialGroup?.groupId ?? 0);
+      setGroupId(value.defaultGroupId);
       setWeek(resolveCurrentTeachingWeek(value.firstWeekStart, openedAt, value.teachingWeekCount).week ?? 0);
     }).catch(cause => {
       if (optionsRequest.current === id) setError(failMessage(cause));
@@ -98,7 +104,7 @@ export default function TimeCoordinationPage() {
   useEffect(() => {
     const id = ++request.current;
     setResult(null); setQuerying(false); setMemberId(0); setSelectedSlot(null);
-    if (!groupId || week < 1) return;
+    if (week < 1) return;
     setQuerying(true); setError("");
     void getAvailabilityWeek({ groupId, week }).then(value => {
       if (request.current === id) setResult(value);
@@ -113,6 +119,14 @@ export default function TimeCoordinationPage() {
   const selectedCounts = result && selectedSlot
     ? availabilityCounts(result.members, selectedSlot.weekday, selectedSlot.section, selectedSlot.section)
     : null;
+  const selectedValidCount = selectedCounts ? selectedCounts.free + selectedCounts.conflict : 0;
+  const selectedRatio = selectedValidCount > 0 && selectedCounts ? selectedCounts.free / selectedValidCount : null;
+  const slotSummary = (day: number, period: number) => {
+    const counts = availabilityCounts(result?.members ?? [], day, period, period);
+    const validCount = counts.free + counts.conflict;
+    const ratio = validCount > 0 ? counts.free / validCount : null;
+    return `${DAYS[day - 1]}第${period}节：无课程冲突 ${counts.free} 人，有效课表 ${validCount} 人，空闲比例 ${ratioLabel(ratio)}`;
+  };
   const cellText = (day: number, period: number) => {
     if (!result) return "";
     if (member) {
@@ -126,16 +140,11 @@ export default function TimeCoordinationPage() {
     if (!result) return "";
     if (member) {
       const status = intervalStatus(member, day, period, period);
-      return status === "missing" ? "bg-slate-500/10 text-[var(--admin-muted)]" :
-        status === "free" ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" : "bg-rose-500/15 text-rose-700 dark:text-rose-400";
+      return status === "missing" ? "availability-heatmap__member-cell--missing" :
+        status === "free" ? "availability-heatmap__member-cell--free" : "availability-heatmap__member-cell--conflict";
     }
-    if (availabilityFreeRatio(result.members, day, period, period) === null) return "bg-slate-500/10 text-[var(--admin-muted)]";
-    return "text-[var(--admin-text)]";
-  };
-  const cellStyle = (day: number, period: number) => {
-    if (!result || member) return undefined;
-    const ratio = availabilityFreeRatio(result.members, day, period, period);
-    return ratio === null ? undefined : { backgroundColor: `rgb(5 150 105 / ${0.08 + ratio * 0.58})` };
+    const level = availabilityHeatLevel(availabilityFreeRatio(result.members, day, period, period));
+    return level ? HEAT_LEVEL_CLASSES[level] : "availability-heatmap__cell--empty";
   };
 
   async function openClearConfirmation() {
@@ -184,14 +193,14 @@ export default function TimeCoordinationPage() {
     {clearNotice ? <p role="status" className="rounded-lg bg-emerald-500/10 p-3 text-sm">{clearNotice}</p> : null}
     {loading ? <p role="status">正在读取组别…</p> : null}
     {error ? <p role="alert" className="rounded-lg border border-red-300 p-3 text-sm text-red-600">{error}</p> : null}
-    {options && options.groups.length === 0 ? <p className="p-4">没有可管理的组别。</p> : null}
-    {options?.groups.length ? <>
+    {options && options.groups.length === 0 ? <p className="p-4">没有可统计的组别。</p> : null}
+    {options ? <>
       <section aria-label="时间筛选" className="grid gap-3 rounded-xl border border-[var(--admin-border-subtle)] bg-[var(--admin-surface)] p-4 sm:grid-cols-2 lg:grid-cols-3">
         <label className="text-sm font-medium">组别
           <select aria-label="组别" className="admin-field mt-2 w-full" value={groupId} onChange={e => {
             const id = Number(e.target.value);
             setGroupId(id); setMemberId(0);
-          }}>{options.groups.map(g => <option key={g.groupId} value={g.groupId}>{g.name}</option>)}</select>
+          }}><option value={0}>全部成员</option>{options.groups.map(g => <option key={g.groupId} value={g.groupId}>{g.name}</option>)}</select>
         </label>
         <label className="text-sm font-medium">教学周
           <select aria-label="教学周" className="admin-field mt-2 w-full" value={week} onChange={e => setWeek(Number(e.target.value))}>
@@ -208,13 +217,13 @@ export default function TimeCoordinationPage() {
       </section>
       {querying ? <p role="status">正在分析整周时间…</p> : null}
       {result && !querying ? <>
-        <section className="rounded-2xl border border-[var(--admin-border-subtle)] bg-[var(--admin-surface)] p-4 sm:p-5">
+        <section className="availability-heatmap rounded-2xl border border-[var(--admin-border-subtle)] bg-[var(--admin-surface)] p-4 sm:p-5">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-semibold">{result.groupName} · 第 {result.week} 周 · {member ? member.name : "全组"}</h2>
+            <h2 className="font-semibold">{result.groupId === 0 ? "全部成员" : result.groupName} · 第 {result.week} 周{member ? ` · ${member.name}` : ""}</h2>
           </div>
-          <div className="mb-3 grid grid-cols-3 gap-2" aria-label="组内课表概况">
+          <div className="mb-3 grid grid-cols-3 gap-2" aria-label="成员课表概况">
             {[
-              ["组内成员", result.totalCount],
+              ["统计成员", result.totalCount],
               ["有效课表", result.importedCount],
               ["数据缺失", result.missingCount],
             ].map(([label, count]) => <div key={label} className="rounded-lg border border-[var(--admin-border-subtle)] px-3 py-2">
@@ -226,23 +235,20 @@ export default function TimeCoordinationPage() {
             <p role="status" className="mb-3 rounded-lg bg-amber-500/10 p-3 text-sm">当前学期没有有效课表，无法统计无课程冲突人数。请成员在「个人资料 → 课程时间」重新导入课表。</p> : result.missingCount > 0 ?
             <p role="status" className="mb-3 rounded-lg bg-amber-500/10 p-3 text-sm">无课程冲突人数只按有效课表成员统计，数据缺失成员不会计入无课程冲突。</p> : null}
           <div className="overflow-x-auto">
-            <div className="min-w-[600px]">
-              <div className="grid grid-cols-[54px_repeat(7,minmax(0,1fr))] gap-1">
-                <span className="py-2 text-center text-xs text-[var(--admin-muted)]">节次</span>
+            <div className="min-w-0">
+              <div className="grid grid-cols-[38px_repeat(7,minmax(34px,1fr))] gap-0.5 sm:grid-cols-[54px_repeat(7,minmax(0,1fr))] sm:gap-1">
+                <span className="py-2 text-center text-[10px] text-[var(--admin-muted)] sm:text-xs">节次</span>
                 {DAYS.map(day => <span key={day} className="py-2 text-center text-xs font-semibold">{day}</span>)}
                 {SECTIONS.map(period => [
-                  <span key={`section-${period}`} className="flex items-center justify-center text-xs text-[var(--admin-muted)]">第 {period} 节</span>,
+                  <span key={`section-${period}`} className="flex items-center justify-center text-[10px] text-[var(--admin-muted)] sm:text-xs">第{period}节</span>,
                   ...DAYS.map((day, dayIndex) => {
-                    const label = member
-                      ? statusLabel(intervalStatus(member, dayIndex + 1, period, period))
-                      : cellText(dayIndex + 1, period) === "—"
-                        ? "暂无有效课表，不能统计无课程冲突人数"
-                        : `${cellText(dayIndex + 1, period)}人无课程冲突`;
+                    const details = member
+                      ? `${day}第${period}节：${statusLabel(intervalStatus(member, dayIndex + 1, period, period))}`
+                      : slotSummary(dayIndex + 1, period);
                     return <button key={`${day}-${period}`} type="button" aria-haspopup={member ? undefined : "dialog"}
-                      aria-label={`${day}第${period}节：${label}`}
+                      aria-label={details} title={details}
                       onClick={() => { if (!member) setSelectedSlot({ weekday: dayIndex + 1, section: period }); }}
-                      style={cellStyle(dayIndex + 1, period)}
-                      className={`min-h-9 rounded-md border border-transparent text-sm font-medium tabular-nums ${cellClass(dayIndex + 1, period)}`}>
+                      className={`availability-heatmap__cell min-h-9 min-w-0 rounded-md border px-0.5 text-xs font-semibold tabular-nums sm:text-sm ${cellClass(dayIndex + 1, period)}`}>
                       {cellText(dayIndex + 1, period)}
                     </button>;
                   }),
@@ -254,10 +260,11 @@ export default function TimeCoordinationPage() {
             <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-emerald-500/30" />无课程冲突</span>
             <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-rose-500/25" />有课程冲突</span>
             <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-slate-500/20" />数据缺失</span>
-          </div> : <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-[var(--admin-muted)]" aria-label="无课程冲突比例图例">
-            <span>无课程冲突比例</span><span>低</span>
-            <span className="h-2.5 w-24 rounded-sm" aria-hidden="true" style={{ background: "linear-gradient(90deg, rgb(5 150 105 / 0.08), rgb(5 150 105 / 0.66))" }} />
-            <span>高</span><span className="sm:ml-2">数字表示无课程冲突人数</span>
+          </div> : <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-[var(--admin-muted)]" aria-label="无课程冲突比例分级">
+            <span className="inline-flex items-center gap-1.5"><span className={`availability-heatmap__swatch ${HEAT_LEVEL_CLASSES.low}`} aria-hidden="true" />低 &lt; 1/3</span>
+            <span className="inline-flex items-center gap-1.5"><span className={`availability-heatmap__swatch ${HEAT_LEVEL_CLASSES.medium}`} aria-hidden="true" />中 1/3–&lt;2/3</span>
+            <span className="inline-flex items-center gap-1.5"><span className={`availability-heatmap__swatch ${HEAT_LEVEL_CLASSES.high}`} aria-hidden="true" />高 ≥ 2/3</span>
+            <span>数字为无课程冲突人数</span>
           </div>}
         </section>
       </> : null}
@@ -273,7 +280,7 @@ export default function TimeCoordinationPage() {
           <header className="mb-4 flex items-start justify-between gap-3">
             <div>
               <h2 id="availability-slot-title" className="text-lg font-semibold">{DAYS[selectedSlot.weekday - 1]} 第 {selectedSlot.section} 节 · 成员详情</h2>
-              <p className="mt-1 text-sm text-[var(--admin-muted)]">第 {result.week} 周 · 仅显示课表冲突状态</p>
+              <p className="mt-1 text-sm text-[var(--admin-muted)]">第 {result.week} 周 · 无冲突 {selectedCounts.free} 人 / 有效课表 {selectedValidCount} 人 · 空闲比例 {ratioLabel(selectedRatio)}</p>
             </div>
             <button ref={closeButton} type="button" aria-label="关闭时段详情" onClick={() => setSelectedSlot(null)}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--admin-border-subtle)] text-xl">×</button>

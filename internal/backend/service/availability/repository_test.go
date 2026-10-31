@@ -38,6 +38,19 @@ func TestNormalAdminGroupOptionsRequireOwnEnabledActiveMembership(t *testing.T) 
 		t.Fatal(err)
 	}
 }
+func TestAvailabilityCanLoadActiveGroupsForTimeCoordinationOnly(t *testing.T) {
+	repo, mock := testRepository(t)
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT user_groups.id AS group_id, user_groups.name FROM `user_groups` WHERE user_groups.status = ? ORDER BY user_groups.name ASC, user_groups.id ASC")).
+		WithArgs(model.UserGroupStatusActive).
+		WillReturnRows(sqlmock.NewRows([]string{"group_id", "name"}).AddRow(11, "机械组").AddRow(12, "AI组"))
+	groups, err := repo.AllGroups(context.Background())
+	if err != nil || len(groups) != 2 || groups[0].GroupID != 11 || groups[1].Name != "AI组" {
+		t.Fatalf("active groups %+v err %v", groups, err)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
+	}
+}
 func TestScopedRosterAndTimetableQueries(t *testing.T) {
 	repo, mock := testRepository(t)
 	mock.ExpectQuery(`(?s)SELECT .* FROM `+"\x60"+`user_group_members`+"\x60"+` JOIN user_groups ON .* JOIN users ON .* WHERE user_group_members\.group_id = \? ORDER BY users\.real_name ASC, users\.name ASC, users\.id ASC`).

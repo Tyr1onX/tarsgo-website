@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 const page = await readFile(new URL("../routes/admin/timetable-availability.tsx", import.meta.url), "utf8");
+const adminCss = await readFile(new URL("../admin-design.css", import.meta.url), "utf8");
 
 test("time coordination uses the configured current term without a semester selector", () => {
   assert.match(page, /resolveCurrentTeachingWeek/);
@@ -47,4 +48,28 @@ test("heatmap retains valid-timetable ratios and only opens member details in gr
   assert.match(page, /availabilityCounts/);
   assert.match(page, /filterAvailabilityMembers/);
   assert.match(page, /if \(!member\) setSelectedSlot/);
+});
+
+test("admins can switch between all members and every group without leaving the page", () => {
+  assert.match(page, /setGroupId\(value\.defaultGroupId\)/);
+  assert.match(page, /<option value=\{0\}>全部成员<\/option>/);
+  assert.match(page, /getAvailabilityWeek\(\{ groupId, week \}\)/);
+  assert.match(page, /result\.groupName/);
+});
+
+test("heatmap uses discrete levels and exposes valid-count ratios on hover and click", () => {
+  assert.match(page, /availabilityHeatLevel/);
+  assert.match(page, /low: "availability-heatmap__level--low"/);
+  assert.match(page, /medium: "availability-heatmap__level--medium"/);
+  assert.match(page, /high: "availability-heatmap__level--high"/);
+  assert.match(page, /aria-label=\{details\} title=\{details\}/);
+  assert.match(page, /有效课表 \$\{validCount\} 人，空闲比例/);
+  assert.match(page, /有效课表 \{selectedValidCount\} 人 · 空闲比例/);
+  assert.match(page, /低 &lt; 1\/3/);
+  assert.match(page, /中 1\/3–&lt;2\/3/);
+  assert.match(page, /高 ≥ 2\/3/);
+  assert.doesNotMatch(page, /linear-gradient\(|backgroundColor:/);
+  for (const level of ["low", "medium", "high"]) {
+    assert.ok(adminCss.includes(`:root[data-theme="light"] .admin-design .availability-heatmap__level--${level}`));
+  }
 });

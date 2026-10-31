@@ -37,7 +37,7 @@ func (h *AvailabilityHandler) Week(c *gin.Context) {
 		return
 	}
 	groupID, err := strconv.ParseUint(c.Query("groupId"), 10, 64)
-	if err != nil || groupID == 0 {
+	if err != nil {
 		writeAPIError(c, http.StatusBadRequest, "组别编号不合法")
 		return
 	}
@@ -66,7 +66,7 @@ func (h *AvailabilityHandler) Analyze(c *gin.Context) {
 		return v, err == nil
 	}
 	groupID, err := strconv.ParseUint(c.Query("groupId"), 10, 64)
-	if err != nil || groupID == 0 {
+	if err != nil {
 		writeAPIError(c, 400, "组别编号不合法")
 		return
 	}

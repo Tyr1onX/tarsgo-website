@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { availabilityCounts, availabilityFreeRatio, filterAvailabilityMembers, intervalStatus } from "./availability-client.ts";
+import { availabilityCounts, availabilityFreeRatio, availabilityHeatLevel, filterAvailabilityMembers, intervalStatus } from "./availability-client.ts";
 
 const members = [
   { userId: 1, name: "甲", occupied: [{ weekday: 3, startSection: 3, endSection: 4 }], hasUncertainCourses: false, uncertainCourseCount: 0 },
@@ -22,6 +22,15 @@ test("heatmap proportions use valid timetables as the denominator", () => {
   assert.equal(availabilityFreeRatio(members, 3, 3, 3), 0);
   assert.equal(availabilityFreeRatio(members, 3, 2, 6), 0);
   assert.equal(availabilityFreeRatio([members[2]], 3, 1, 12), null);
+});
+test("heatmap levels use fixed one-third and two-thirds thresholds", () => {
+  assert.equal(availabilityHeatLevel(null), null);
+  assert.equal(availabilityHeatLevel(0), "low");
+  assert.equal(availabilityHeatLevel(1 / 3 - Number.EPSILON), "low");
+  assert.equal(availabilityHeatLevel(1 / 3), "medium");
+  assert.equal(availabilityHeatLevel(2 / 3 - Number.EPSILON), "medium");
+  assert.equal(availabilityHeatLevel(2 / 3), "high");
+  assert.equal(availabilityHeatLevel(1), "high");
 });
 test("member lists use the status of the complete continuous interval", () => {
   assert.deepEqual(filterAvailabilityMembers(members, 3, 2, 6, "conflict").map(({ name }) => name), ["甲"]);

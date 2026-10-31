@@ -1,8 +1,9 @@
 import { apiRequest } from "./api-client.ts";
 
 export interface AvailabilityGroup {groupId:number;name:string}
-export interface AvailabilityOptions {groups:AvailabilityGroup[];currentSemester:string;firstWeekStart:string;teachingWeekCount:number}
+export interface AvailabilityOptions {groups:AvailabilityGroup[];defaultGroupId:number;currentSemester:string;firstWeekStart:string;teachingWeekCount:number}
 export type AvailabilityStatus="free"|"conflict"|"missing";
+export type AvailabilityHeatLevel="low"|"medium"|"high";
 export type MissingReason = "not_imported" | "invalid_data";
 export interface WeekSlot { weekday: number; startSection: number; endSection: number }
 export interface WeekMember {
@@ -31,6 +32,12 @@ export function availabilityFreeRatio(members:WeekMember[],weekday:number,startS
  const {free,conflict}=availabilityCounts(members,weekday,startSection,endSection);
  const validCount=free+conflict;
  return validCount===0?null:free/validCount;
+}
+export function availabilityHeatLevel(ratio:number|null):AvailabilityHeatLevel|null{
+ if(ratio===null||!Number.isFinite(ratio))return null;
+ if(ratio<1/3)return "low";
+ if(ratio<2/3)return "medium";
+ return "high";
 }
 export function filterAvailabilityMembers(members:WeekMember[],weekday:number,startSection:number,endSection:number,status:AvailabilityStatus){
  return members.filter(member=>intervalStatus(member,weekday,startSection,endSection)===status);
