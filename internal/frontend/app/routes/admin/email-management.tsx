@@ -148,31 +148,31 @@ export default function EmailManagementPage() {
 
       <div className="space-y-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-2xl font-bold text-white">邮件管理</h1>
-          <div className="flex items-center gap-4 text-sm text-gray-400">
+          <h1 className="text-2xl font-bold text-[var(--admin-text)]">邮件管理</h1>
+          <div className="flex items-center gap-4 text-sm text-[var(--admin-muted)]">
             <span>{config?.from || (loading ? "加载中..." : "发件邮箱未配置")}</span>
-            <span className={`rounded-full px-2.5 py-1 text-xs ${config?.configured ? "bg-emerald-400/10 text-emerald-200" : "bg-amber-400/10 text-amber-200"}`}>
+            <span className={`rounded-full border px-2.5 py-1 text-xs ${config?.configured ? "border-[var(--admin-success-border)] bg-[var(--admin-success-surface)] text-[var(--admin-success)]" : "border-[var(--admin-warning-border)] bg-[var(--admin-warning-surface)] text-[var(--admin-warning)]"}`}>
               {loading ? "检查中" : config?.configured ? "发信已配置" : "发信未配置"}
             </span>
           </div>
         </div>
 
-        {errorMessage ? <div role="alert" className="rounded-xl border border-rose-500/20 bg-rose-500/10 px-4 py-3 text-sm text-rose-100">{errorMessage}</div> : null}
+        {errorMessage ? <div role="alert" className="admin-notice admin-notice--error">{errorMessage}</div> : null}
 
         <section className="glass-panel overflow-hidden rounded-2xl">
-          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] px-6 py-4">
+          <header className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--admin-border-subtle)] px-6 py-4">
             <div className="flex items-center gap-3">
-              <Icon icon={mail} className="h-5 w-5 text-primary-200" />
-              <h2 className="text-lg font-semibold text-white">通知模板</h2>
+              <Icon icon={mail} className="h-5 w-5 text-[var(--admin-accent)]" />
+              <h2 className="text-lg font-semibold text-[var(--admin-text)]">通知模板</h2>
             </div>
-            <span className="text-xs text-gray-400">验证码模板由系统固定生成</span>
+            <span className="text-xs text-[var(--admin-muted)]">验证码模板由系统固定生成</span>
           </header>
 
           {loading || !templates || !config || !currentTemplate ? (
-            <div className="px-6 py-8 text-sm text-gray-400">{loading ? "正在加载邮件设置..." : "邮件设置加载失败。"}</div>
+            <div className="px-6 py-8 text-sm text-[var(--admin-muted)]">{loading ? "正在加载邮件设置..." : "邮件设置加载失败。"}</div>
           ) : (
             <form onSubmit={(event) => void handleSave(event)} className="space-y-5 px-6 py-5">
-              <label className="block max-w-sm text-sm text-gray-300">
+              <label className="block max-w-sm text-sm text-[var(--admin-muted)]">
                 模板
                 <select
                   value={activeTemplate}
@@ -183,7 +183,7 @@ export default function EmailManagementPage() {
                 </select>
               </label>
 
-              <label className="block text-sm text-gray-300">
+              <label className="block text-sm text-[var(--admin-muted)]">
                 主题
                 <input
                   ref={subjectRef}
@@ -196,7 +196,7 @@ export default function EmailManagementPage() {
                 />
               </label>
 
-              <label className="block text-sm text-gray-300">
+              <label className="block text-sm text-[var(--admin-muted)]">
                 正文
                 <textarea
                   ref={bodyRef}
@@ -211,14 +211,14 @@ export default function EmailManagementPage() {
               </label>
 
               <div className="flex flex-wrap items-center gap-2">
-                <span className="mr-1 text-xs text-gray-400">插入变量</span>
+                <span className="mr-1 text-xs text-[var(--admin-muted)]">插入变量</span>
                 {config.availableVariables.map((variable) => (
                   <button
                     key={variable.token}
                     type="button"
                     onMouseDown={(event) => event.preventDefault()}
                     onClick={() => insertVariable(variable.token)}
-                    className="rounded-lg border border-white/10 px-2.5 py-1.5 text-xs text-gray-200 transition hover:border-primary-300/40 hover:text-white"
+                    className="admin-button admin-button--secondary admin-button--small"
                   >
                     {variable.label}
                   </button>
@@ -226,15 +226,15 @@ export default function EmailManagementPage() {
               </div>
 
               {preview ? (
-                <div className="rounded-xl border border-white/[0.06] bg-black/20 p-4">
-                  <h3 className="text-sm font-medium text-gray-200">实时预览</h3>
-                  <div className="mt-3 text-sm text-gray-300">主题：{preview.subject}</div>
-                  <pre className="mt-2 whitespace-pre-wrap break-words font-sans text-sm leading-6 text-gray-400">{preview.body}</pre>
+                <div className="rounded-xl border border-[var(--admin-border-subtle)] bg-[var(--admin-surface-subtle)] p-4">
+                  <h3 className="text-sm font-medium text-[var(--admin-text)]">实时预览</h3>
+                  <div className="mt-3 text-sm text-[var(--admin-muted)]">主题：{preview.subject}</div>
+                  <pre className="mt-2 whitespace-pre-wrap break-words font-sans text-sm leading-6 text-[var(--admin-muted)]">{preview.body}</pre>
                 </div>
               ) : null}
 
               <div className="flex justify-end">
-                <button type="submit" disabled={saving} className="btn-primary rounded-xl px-5 py-2.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-60">
+                <button type="submit" disabled={saving} className="admin-button admin-button--primary">
                   {saving ? "保存中..." : "保存模板"}
                 </button>
               </div>
@@ -243,12 +243,12 @@ export default function EmailManagementPage() {
         </section>
 
         <section className="glass-panel rounded-2xl">
-          <header className="flex items-center gap-3 border-b border-white/[0.06] px-6 py-4">
-            <Icon icon={send} className="h-5 w-5 text-primary-200" />
-            <h2 className="text-lg font-semibold text-white">发信测试</h2>
+          <header className="flex items-center gap-3 border-b border-[var(--admin-border-subtle)] px-6 py-4">
+            <Icon icon={send} className="h-5 w-5 text-[var(--admin-accent)]" />
+            <h2 className="text-lg font-semibold text-[var(--admin-text)]">发信测试</h2>
           </header>
           <form onSubmit={(event) => void handleSendTest(event)} className="flex flex-wrap items-end gap-3 px-6 py-5">
-            <label className="min-w-64 flex-1 text-sm text-gray-300">
+            <label className="min-w-64 flex-1 text-sm text-[var(--admin-muted)]">
               测试收件邮箱
               <input
                 required
@@ -261,7 +261,7 @@ export default function EmailManagementPage() {
                 placeholder="name@example.com"
               />
             </label>
-            <button type="submit" disabled={sendingTest || loading} className="btn-glass inline-flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium text-gray-100 disabled:cursor-not-allowed disabled:opacity-60">
+            <button type="submit" disabled={sendingTest || loading} className="admin-button admin-button--secondary">
               {sendingTest ? "发送中..." : "发送测试邮件"}
             </button>
           </form>

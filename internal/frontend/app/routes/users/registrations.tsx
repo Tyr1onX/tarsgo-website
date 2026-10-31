@@ -519,7 +519,7 @@ function FormStateView({
             <div className="admin-notice admin-notice--warning candidate-form-notice mx-5 mt-5 sm:mx-7">
               <Icon
                 icon={infoIcon}
-                className="mt-0.5 h-4 w-4 shrink-0 text-primary-300"
+                className="mt-0.5 h-4 w-4 shrink-0 text-[var(--admin-accent-text)]"
               />
               <span>
                 这是你在待初筛阶段保存的报名内容，可在进入后续流程前继续修改。
@@ -643,7 +643,7 @@ function FormCoverCard({
             className="h-48 w-full object-cover sm:h-60"
           />
           <div className="candidate-cover-image-caption absolute bottom-0 left-0 right-0 p-5 sm:p-7">
-            <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-primary-200 sm:text-[11px] sm:tracking-[0.28em]">
+            <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-white/85 sm:text-[11px] sm:tracking-[0.28em]">
               当前报名
             </p>
             <h2 className="mt-1.5 text-xl font-semibold text-white sm:mt-2 sm:text-3xl">
@@ -651,7 +651,7 @@ function FormCoverCard({
             </h2>
           </div>
         </div>
-        <div className="border-t border-white/[0.06] px-5 py-4 sm:px-6 sm:py-5">
+        <div className="border-t border-[var(--admin-border-subtle)] px-5 py-4 sm:px-6 sm:py-5">
           <p className="text-sm leading-6 text-fg-muted sm:leading-7">
             {form.description?.trim() || "请按要求填写纳新报名信息。"}
           </p>
@@ -663,7 +663,7 @@ function FormCoverCard({
   return (
     <section className="admin-panel candidate-cover-card relative overflow-hidden">
       <div className="relative px-5 py-5 sm:px-7 sm:py-8">
-        <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-primary-300 sm:text-[11px] sm:tracking-[0.28em]">
+        <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-[var(--admin-accent-text)] sm:text-[11px] sm:tracking-[0.28em]">
           当前报名
         </p>
         <h2 className="mt-1.5 text-xl font-semibold text-fg-primary sm:mt-2 sm:text-3xl">
@@ -733,7 +733,7 @@ function FieldRow({
   return (
     <div className="space-y-2.5">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-white/[0.03] text-[11px] font-mono text-fg-dim ring-1 ring-inset ring-white/[0.08]">
+        <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-[var(--admin-hover-overlay)] text-[11px] font-mono text-fg-dim ring-1 ring-inset ring-[var(--admin-border-subtle)]">
           {index}
         </span>
         <label
@@ -810,9 +810,9 @@ function CancelConfirmModal({
         className={`admin-panel candidate-modal-panel w-full max-w-md overflow-hidden transition-opacity duration-150 ${visible ? "opacity-100" : "opacity-0"}`}
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="relative flex items-start justify-between gap-4 border-b border-white/[0.06] px-6 py-5">
+        <div className="relative flex items-start justify-between gap-4 border-b border-[var(--admin-border-subtle)] px-6 py-5">
           <div className="flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-rose-500/15 text-rose-300 ring-1 ring-rose-500/20">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[var(--admin-danger-surface)] text-[var(--admin-danger)] ring-1 ring-[var(--admin-danger-border)]">
               <Icon icon={alertTriangle} className="h-5 w-5" />
             </div>
             <div>
@@ -831,31 +831,31 @@ function CancelConfirmModal({
             disabled={cancelling}
             title="关闭"
             aria-label="关闭"
-            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-xl text-fg-dim transition hover:bg-white/5 hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-xl text-fg-dim transition hover:bg-[var(--admin-hover-overlay)] hover:text-fg-primary disabled:cursor-not-allowed disabled:opacity-50"
           >
             <Icon icon={x} className="h-4 w-4" />
           </button>
         </div>
 
         <div id="cancel-registration-description" className="candidate-modal-body relative space-y-4 px-4 py-4 sm:px-6 sm:py-5">
-          <div className="rounded-xl border border-rose-500/20 bg-rose-500/5 px-4 py-3.5 text-sm leading-6 text-rose-100/90">
+          <div className="admin-notice admin-notice--error rounded-xl px-4 py-3.5 text-sm leading-6">
             即将撤回
             <span className="mx-1 font-semibold text-fg-primary">{formTitle}</span>
             的报名记录。撤回后该条记录不再进入后续初筛与面试，但历史记录会继续保留。
           </div>
           <ul className="space-y-2 text-xs leading-6 text-fg-muted">
             <li className="flex items-start gap-2">
-              <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-rose-400/70" />
+              <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-[var(--admin-danger)]" />
               只有待初筛状态可以撤回
             </li>
             <li className="flex items-start gap-2">
-              <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-rose-400/70" />
+              <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-[var(--admin-danger)]" />
               撤回不会删除已提交的报名资料与文件记录
             </li>
           </ul>
         </div>
 
-        <div className="relative flex items-center justify-end gap-3 border-t border-white/[0.06] bg-black/20 px-6 py-4">
+        <div className="relative flex items-center justify-end gap-3 border-t border-[var(--admin-border-subtle)] bg-[var(--admin-surface-subtle)] px-6 py-4">
           <button
             type="button"
             onClick={onClose}
@@ -1098,7 +1098,7 @@ function SubmittedStateCard({
           <p className="candidate-eyebrow">当前报名状态</p>
           <h2 className="candidate-current-status">{progress.currentStage}</h2>
           <p className="candidate-status-summary">
-            <span className="font-medium text-white">{summary.formTitle}</span>
+            <span className="font-medium text-[var(--admin-text)]">{summary.formTitle}</span>
           </p>
         </div>
         <span className={`admin-status ${status.badgeClassName}`}>{progress.isTerminal ? "流程已结束" : "流程进行中"}</span>
@@ -1264,7 +1264,7 @@ function ExistingUploadState({
             className="candidate-upload-file flex items-center justify-between gap-3 rounded-md border px-3 py-2"
           >
             <div className="flex min-w-0 items-center gap-2">
-              <Icon icon={fileTextIcon} className="h-4 w-4 shrink-0 text-primary-300" />
+              <Icon icon={fileTextIcon} className="h-4 w-4 shrink-0 text-[var(--admin-accent-text)]" />
               <span className="truncate text-fg-primary">{file.fileName}</span>
             </div>
             <span className="shrink-0 text-xs text-fg-dim">
@@ -1336,12 +1336,12 @@ function renderFieldControl(
                 <span
                   className={`flex h-4 w-4 items-center justify-center rounded-full border ${
                     checked
-                      ? "border-primary-400 bg-primary-500"
-                      : "border-fg-dim bg-black/20"
+                      ? "border-[var(--admin-accent)] bg-[var(--admin-accent)]"
+                      : "border-fg-dim bg-[var(--admin-surface-subtle)]"
                   }`}
                 >
                   {checked ? (
-                    <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-[var(--admin-accent-on)]" />
                   ) : null}
                 </span>
                 <input
@@ -1372,15 +1372,15 @@ function renderFieldControl(
               key={option.value}
               className={`inline-flex cursor-pointer items-center gap-2 rounded-xl border px-3.5 py-2 text-sm transition-colors ${
                 checked
-                  ? "border-primary-500/50 bg-primary-500/10 text-primary-100"
-                  : "border-white/[0.08] bg-black/20 text-fg-muted hover:border-white/[0.1] hover:bg-white/[0.03] hover:text-fg-primary"
+                  ? "border-[var(--admin-accent)] bg-[color-mix(in_srgb,var(--admin-accent)_10%,var(--admin-surface))] text-[var(--admin-text)]"
+                  : "border-[var(--admin-border-subtle)] bg-[var(--admin-surface-subtle)] text-fg-muted hover:border-[var(--admin-border-subtle)] hover:bg-[var(--admin-hover-overlay)] hover:text-fg-primary"
               }`}
             >
               <span
                 className={`flex h-4 w-4 items-center justify-center rounded border ${
                   checked
-                    ? "border-primary-400 bg-primary-500 text-white"
-                    : "border-fg-dim bg-black/20"
+                    ? "border-[var(--admin-accent)] bg-[var(--admin-accent)] text-[var(--admin-accent-on)]"
+                    : "border-fg-dim bg-[var(--admin-surface-subtle)]"
                 }`}
               >
                 {checked ? <Icon icon={checkIcon} className="h-3 w-3" /> : null}

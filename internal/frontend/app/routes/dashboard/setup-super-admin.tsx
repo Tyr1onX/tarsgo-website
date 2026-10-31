@@ -74,7 +74,7 @@ export default function SetupSuperAdmin() {
         <div className="setup-super-admin__topbar">
           <Link
             to="/"
-            className="group inline-flex items-center gap-2 text-sm text-gray-400 transition-colors hover:text-white"
+            className="group inline-flex items-center gap-2 text-sm text-[var(--admin-muted)] transition-colors hover:text-[var(--admin-text)]"
           >
             <svg
               className="h-4 w-4 auth-back-link-arrow"
@@ -99,15 +99,15 @@ export default function SetupSuperAdmin() {
             <div className="relative mx-auto mb-5 h-14 w-14">
               <div className={`setup-super-admin__mark ${success ? "setup-super-admin__mark--success" : ""}`}>
                 {success ? (
-                  <svg className="h-7 w-7 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
+                  <svg className="h-7 w-7 text-[var(--admin-text)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
                     <path className="auth-success-check" strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                   </svg>
                 ) : (
-                  <span className="text-xl font-bold tracking-tight text-white">T</span>
+                  <span className="text-xl font-bold tracking-tight text-[var(--admin-text)]">T</span>
                 )}
               </div>
             </div>
-            <h1 className="mb-1.5 text-2xl font-bold tracking-tight text-white">
+            <h1 className="mb-1.5 text-2xl font-bold tracking-tight text-[var(--admin-text)]">
               {success ? "初始化完成" : "创建超级管理员"}
             </h1>
             <div className="mx-auto mt-5 h-px w-16 bg-[var(--admin-border)]" />
@@ -138,11 +138,11 @@ export default function SetupSuperAdmin() {
 
           <form className="space-y-5" onSubmit={handleSubmit}>
             <div>
-              <label htmlFor="email" className="mb-2 block text-sm font-medium text-gray-300">
+              <label htmlFor="email" className="mb-2 block text-sm font-medium text-[var(--admin-muted)]">
                 邮箱
               </label>
               <div className="group relative">
-                <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 transition-colors group-focus-within:text-primary-400">
+                <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--admin-dim)] transition-colors group-focus-within:text-[var(--admin-accent)]">
                   <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 6.75A2.25 2.25 0 014.5 4.5h15A2.25 2.25 0 0121.75 6.75v10.5A2.25 2.25 0 0119.5 19.5h-15a2.25 2.25 0 01-2.25-2.25V6.75z" />
                     <path strokeLinecap="round" strokeLinejoin="round" d="M3 7l9 6 9-6" />
@@ -162,11 +162,11 @@ export default function SetupSuperAdmin() {
             </div>
 
             <div>
-              <label htmlFor="password" className="mb-2 block text-sm font-medium text-gray-300">
+              <label htmlFor="password" className="mb-2 block text-sm font-medium text-[var(--admin-muted)]">
                 密码
               </label>
               <div className="group relative">
-                <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 transition-colors group-focus-within:text-primary-400">
+                <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--admin-dim)] transition-colors group-focus-within:text-[var(--admin-accent)]">
                   <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V7.5a4.5 4.5 0 10-9 0v3m-1.5 0h12a1.5 1.5 0 011.5 1.5v7.5a1.5 1.5 0 01-1.5 1.5h-12a1.5 1.5 0 01-1.5-1.5V12a1.5 1.5 0 011.5-1.5z" />
                   </svg>
@@ -184,7 +184,7 @@ export default function SetupSuperAdmin() {
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-gray-500 transition-colors hover:text-gray-300"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-[var(--admin-dim)] transition-colors hover:text-[var(--admin-muted)]"
                   aria-label={showPassword ? "隐藏密码" : "显示密码"}
                   tabIndex={-1}
                 >
@@ -207,7 +207,7 @@ export default function SetupSuperAdmin() {
                       <div
                         key={level}
                         className={`h-1 flex-1 rounded-full transition-all duration-300 ${
-                          passwordStrength.score >= level ? passwordStrength.barColor : "bg-gray-700"
+                          passwordStrength.score >= level ? passwordStrength.barColor : "bg-[var(--admin-border)]"
                         }`}
                       />
                     ))}
@@ -220,11 +220,11 @@ export default function SetupSuperAdmin() {
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="mb-2 block text-sm font-medium text-gray-300">
+              <label htmlFor="confirmPassword" className="mb-2 block text-sm font-medium text-[var(--admin-muted)]">
                 确认密码
               </label>
               <div className="group relative">
-                <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500 transition-colors group-focus-within:text-primary-400">
+                <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[var(--admin-dim)] transition-colors group-focus-within:text-[var(--admin-accent)]">
                   <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.75}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
@@ -246,7 +246,7 @@ export default function SetupSuperAdmin() {
                 <button
                   type="button"
                   onClick={() => setShowConfirmPassword((v) => !v)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-gray-500 transition-colors hover:text-gray-300"
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded p-1 text-[var(--admin-dim)] transition-colors hover:text-[var(--admin-muted)]"
                   aria-label={showConfirmPassword ? "隐藏密码" : "显示密码"}
                   tabIndex={-1}
                 >
@@ -263,14 +263,14 @@ export default function SetupSuperAdmin() {
                 </button>
               </div>
               {passwordsMismatch ? (
-                <p className="mt-2 flex items-center gap-1.5 text-xs text-rose-300">
+                <p className="mt-2 flex items-center gap-1.5 text-xs text-[var(--admin-danger)]">
                   <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
                   </svg>
                   两次输入的密码不一致
                 </p>
               ) : passwordsMatch ? (
-                <p className="mt-2 flex items-center gap-1.5 text-xs text-emerald-300">
+                <p className="mt-2 flex items-center gap-1.5 text-xs text-[var(--admin-success)]">
                   <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5}>
                     <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
                   </svg>
@@ -319,7 +319,7 @@ function isValidEmail(value: string) {
 
 function computePasswordStrength(value: string) {
   if (!value) {
-    return { score: 0, label: "", barColor: "bg-gray-700", textColor: "text-gray-500" };
+    return { score: 0, label: "", barColor: "bg-[var(--admin-border)]", textColor: "text-[var(--admin-dim)]" };
   }
   let score = 0;
   if (value.length >= 6) score += 1;
@@ -329,10 +329,10 @@ function computePasswordStrength(value: string) {
   if (/[^A-Za-z0-9]/.test(value)) score += 1;
 
   if (value.length < 6 || score <= 1) {
-    return { score: 1, label: "弱", barColor: "bg-rose-500", textColor: "text-rose-300" };
+    return { score: 1, label: "弱", barColor: "bg-[var(--admin-danger)]", textColor: "text-[var(--admin-danger)]" };
   }
   if (score <= 3) {
-    return { score: 2, label: "中", barColor: "bg-amber-500", textColor: "text-amber-300" };
+    return { score: 2, label: "中", barColor: "bg-[var(--admin-warning)]", textColor: "text-[var(--admin-warning)]" };
   }
-  return { score: 3, label: "强", barColor: "bg-emerald-500", textColor: "text-emerald-300" };
+  return { score: 3, label: "强", barColor: "bg-[var(--admin-success)]", textColor: "text-[var(--admin-success)]" };
 }

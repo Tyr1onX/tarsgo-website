@@ -125,7 +125,7 @@ export default function AdminDashboard() {
 
         {currentFormAvailable === null ? (
           <div className="admin-workbench__empty flex min-h-32 items-center" role="status" aria-label="正在加载招新状态">
-            {!summaryError ? <span className="h-4 w-44 animate-pulse rounded bg-white/[0.08]" aria-hidden="true" /> : null}
+            {!summaryError ? <span className="h-4 w-44 animate-pulse rounded bg-[var(--admin-border-subtle)]" aria-hidden="true" /> : null}
           </div>
         ) : currentFormAvailable === false ? (
           <div className="admin-workbench__empty" role="status">当前暂无进行中的招新</div>

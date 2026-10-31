@@ -128,8 +128,8 @@ export function ProfileDialog({
       footerClassName="bg-[var(--admin-surface)]"
       footer={(
         <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <button type="button" onClick={onClose} disabled={saving} className="btn-glass min-h-11 rounded-xl px-5 py-2.5 text-sm">取消</button>
-          <button form="profile-dialog-form" type="submit" disabled={saving || leaveLoading} className="btn-primary min-h-11 rounded-xl px-6 py-2.5 text-sm font-medium disabled:opacity-60">
+          <button type="button" onClick={onClose} disabled={saving} className="admin-button admin-button--secondary">取消</button>
+          <button form="profile-dialog-form" type="submit" disabled={saving || leaveLoading} className="admin-button admin-button--primary">
             {saving ? "保存中…" : "保存修改"}
           </button>
         </div>
@@ -185,7 +185,7 @@ export function ProfileDialog({
               {leaveLoading ? (
                 <p role="status" className="self-end py-3 text-sm text-[var(--admin-muted)]">正在读取学籍信息…</p>
               ) : leaveLoadError ? (
-                <p role="alert" className="self-end text-sm text-rose-500">学籍资料暂时无法读取：{leaveLoadError}。仍可保存头像。</p>
+                <p role="alert" className="self-end text-sm text-[var(--theme-danger)]">学籍资料暂时无法读取：{leaveLoadError}。仍可保存头像。</p>
               ) : (
                 <>
                   <label className="block min-w-0">
@@ -236,7 +236,7 @@ export function ProfileDialog({
 
           <CoBuilderBadgeProfile onReplay={onReplayBadge} />
 
-          {error ? <p role="alert" className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2.5 text-sm text-rose-500">{error}</p> : null}
+          {error ? <p role="alert" className="rounded-xl border border-[var(--theme-danger-border)] bg-[var(--theme-danger-surface)] px-3 py-2.5 text-sm text-[var(--theme-danger)]">{error}</p> : null}
         </form>
         <PersonalTimetableUpload userId={user.id} />
       </div>

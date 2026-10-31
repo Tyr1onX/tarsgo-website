@@ -159,7 +159,7 @@ function HomeArrowIcon() {
 function HomeSponsorSection() {
   return (
     <section
-      className="home-sponsors border-t border-white/[0.06] py-12 sm:py-14 lg:py-16"
+      className="home-sponsors border-t border-[var(--theme-border-subtle)] py-12 sm:py-14 lg:py-16"
       aria-labelledby="home-sponsors-heading"
     >
       <div className="public-home-container">
@@ -214,9 +214,9 @@ function HomeSponsorSection() {
 
 export function PublicFooter() {
   return (
-    <footer className="public-site-footer border-t border-white/[0.08] py-9 sm:py-11">
+    <footer className="public-site-footer border-t border-[var(--theme-border-subtle)] py-9 sm:py-11">
       <div className="public-home-container">
-        <div className="grid gap-8 border-b border-white/[0.08] pb-8 sm:grid-cols-2 lg:grid-cols-4 lg:gap-10">
+        <div className="grid gap-8 border-b border-[var(--theme-border-subtle)] pb-8 sm:grid-cols-2 lg:grid-cols-4 lg:gap-10">
           <section aria-labelledby="footer-social-heading">
             <Link to="/" aria-label="TARSGO 首页" className="inline-flex focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary">
               <SiteLogo className="h-11 max-w-[200px]" />

@@ -158,7 +158,7 @@ export default function AssignmentSubmissionsRoute() {
       {listLoaded && !loading && !error && assignments.length === 0 ? <section className="admin-panel p-5 text-sm text-[var(--admin-muted)]">暂无本组作业。</section> : null}
       {assignment ? <>
         <section className="admin-panel flex flex-wrap gap-x-6 gap-y-2 p-4 text-sm" aria-label="作业统计">
-          <strong className="text-white">{assignment.title}</strong>
+          <strong className="text-[var(--admin-text)]">{assignment.title}</strong>
           <span>截止 {formatAssignmentDate(assignment.dueAt)}</span>
           <span>已提交 {assignment.submittedCount}/{assignment.targetCount}</span>
           <span>已批改 {assignment.reviewedCount}</span>
@@ -168,15 +168,15 @@ export default function AssignmentSubmissionsRoute() {
           {detail?.members.length === 0 ? <p role="status" className="pb-3 text-sm text-[var(--admin-muted)]">该作业当前没有分配成员。</p> : null}
           {detail && detail.members.length > 0 && detail.members.every((member) => member.submissions.length === 0) ? <p role="status" className="pb-3 text-sm text-[var(--admin-muted)]">暂无成员提交。</p> : null}
           {detail?.members.map((member) => <article key={member.userId} className="py-4 first:pt-0 last:pb-0">
-            <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold text-white">{member.name}</h2><div className="flex items-center gap-2 text-xs text-[var(--admin-muted)]"><span>{assignmentStatusLabel(member.status)}</span>{member.isLate ? <span className="text-amber-300">逾期提交</span> : null}</div></div>
+            <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold text-[var(--admin-text)]">{member.name}</h2><div className="flex items-center gap-2 text-xs text-[var(--admin-muted)]"><span>{assignmentStatusLabel(member.status)}</span>{member.isLate ? <span className="text-[var(--admin-warning)]">逾期提交</span> : null}</div></div>
             {!member.latestSubmission ? <p className="mt-2 text-sm text-[var(--admin-muted)]">尚未提交</p> : <>
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--admin-muted)]"><span>第 {member.latestSubmission.attempt} 次提交 · {formatAssignmentDate(member.latestSubmission.submittedAt)}{member.latestSubmission.isLate ? " · 逾期" : ""}</span><span>{member.latestSubmission.status === "graded" ? `${assignmentDecisionLabel(member.latestSubmission.decision)} · ${member.latestSubmission.reviews.at(-1)?.score ?? "—"} 分` : "待批改"}</span></div>
-              <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">{member.latestSubmission.files.map((file) => <li key={file.id}><a className="text-amber-300 hover:text-amber-200" href={file.downloadUrl}>{file.fileName}</a></li>)}</ul>
+              <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">{member.latestSubmission.files.map((file) => <li key={file.id}><a className="text-[var(--admin-warning)] hover:text-[var(--admin-warning)]" href={file.downloadUrl}>{file.fileName}</a></li>)}</ul>
               <details className="mt-3 text-sm">
                 <summary className="cursor-pointer text-[var(--admin-muted)]">查看提交与批改历史（{member.submissions.length}）</summary>
                 <div className="mt-3 space-y-3">{member.submissions.map((submission) => <div key={submission.id} className="rounded-lg border border-[var(--admin-border-subtle)] p-3">
                   <p className="text-xs text-[var(--admin-muted)]">第 {submission.attempt} 次 · {formatAssignmentDate(submission.submittedAt)}{submission.isLate ? " · 逾期" : ""}</p>
-                  <ul className="mt-2 space-y-1">{submission.files.map((file) => <li key={file.id}><a className="text-amber-300 hover:text-amber-200" href={file.downloadUrl}>{file.fileName}</a></li>)}</ul>
+                  <ul className="mt-2 space-y-1">{submission.files.map((file) => <li key={file.id}><a className="text-[var(--admin-warning)] hover:text-[var(--admin-warning)]" href={file.downloadUrl}>{file.fileName}</a></li>)}</ul>
                   {submission.reviews.map((review) => <div key={review.id} className="mt-2 border-t border-[var(--admin-border-subtle)] pt-2 text-sm"><p>{review.score} 分 · {assignmentDecisionLabel(review.decision)} · {formatAssignmentDate(review.createdAt)}</p>{review.comment ? <p className="mt-1 whitespace-pre-wrap text-[var(--admin-muted)]">{review.comment}</p> : null}</div>)}
                 </div>)}</div>
               </details>

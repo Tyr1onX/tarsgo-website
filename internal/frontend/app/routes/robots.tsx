@@ -14,7 +14,7 @@ export default function RobotsPage() {
     <PublicHomePage page="robots">
       <section
         id="robots"
-        className="border-t border-white/[0.06] bg-transparent py-8 sm:py-10 lg:py-12"
+        className="border-t border-[var(--theme-border-subtle)] bg-transparent py-8 sm:py-10 lg:py-12"
       >
         <div className="public-home-container">
           <RobotPhotoGallery />

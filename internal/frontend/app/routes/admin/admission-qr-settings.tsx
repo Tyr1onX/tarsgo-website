@@ -102,10 +102,10 @@ export function AdmissionQRCodeSettings() {
 
       {loading ? (
         <div className="grid gap-4 md:grid-cols-2" aria-label="正在加载组别二维码配置" aria-busy="true">
-          {[0, 1, 2, 3].map((item) => <div key={item} className="h-56 animate-pulse rounded-xl border border-white/[0.08] bg-white/[0.03]" />)}
+          {[0, 1, 2, 3].map((item) => <div key={item} className="h-56 animate-pulse rounded-xl border border-[var(--admin-border-subtle)] bg-[var(--admin-hover-overlay)]" />)}
         </div>
       ) : groups.length === 0 ? (
-        <div className="rounded-xl border border-white/[0.08] p-5 text-sm text-fg-dim">当前没有招新组别。</div>
+        <div className="rounded-xl border border-[var(--admin-border-subtle)] p-5 text-sm text-fg-dim">当前没有招新组别。</div>
       ) : (
         <div className="grid gap-4 md:grid-cols-2">
           {groups.map((group) => {
@@ -113,7 +113,7 @@ export function AdmissionQRCodeSettings() {
             const hasPreview = Boolean(group.admissionQrCodeConfigured && url && !failedPreviewUrls.includes(url));
             const busy = busyGroupId === group.id;
             return (
-              <article key={group.id} className="min-w-0 rounded-xl border border-white/[0.08] bg-white/[0.02] p-4 sm:p-5">
+              <article key={group.id} className="min-w-0 rounded-xl border border-[var(--admin-border-subtle)] bg-[var(--admin-hover-overlay)] p-4 sm:p-5">
                 <div className="flex flex-wrap items-start justify-between gap-2">
                   <div className="min-w-0">
                     <h3 className="break-words font-semibold text-fg-primary">{group.name}</h3>
@@ -122,12 +122,12 @@ export function AdmissionQRCodeSettings() {
                       {group.status === 0 ? " · 已停用组别" : ""}
                     </p>
                   </div>
-                  <span className={`rounded-full px-2.5 py-1 text-xs ${group.admissionQrCodeConfigured ? "bg-emerald-400/10 text-emerald-300" : "bg-amber-300/10 text-amber-200"}`}>
+                  <span className={`rounded-full border px-2.5 py-1 text-xs ${group.admissionQrCodeConfigured ? "border-[var(--admin-success-border)] bg-[var(--admin-success-surface)] text-[var(--admin-success)]" : "border-[var(--admin-warning-border)] bg-[var(--admin-warning-surface)] text-[var(--admin-warning)]"}`}>
                     {group.admissionQrCodeConfigured ? "已配置" : "待配置"}
                   </span>
                 </div>
 
-                <div className="mt-4 flex min-h-40 items-center justify-center rounded-lg border border-dashed border-white/[0.12] bg-black/20 p-3">
+                <div className="mt-4 flex min-h-40 items-center justify-center rounded-lg border border-dashed border-[var(--admin-border-subtle)] bg-[var(--admin-surface-subtle)] p-3">
                   {hasPreview ? (
                     <img
                       key={url}

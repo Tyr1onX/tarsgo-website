@@ -43,9 +43,9 @@
   flex: 0 0 auto;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(208, 173, 105, 0.2);
+  border: 1px solid color-mix(in srgb, var(--admin-accent) 42%, var(--admin-border));
   border-radius: 0.625rem;
-  background: rgba(208, 173, 105, 0.08);
+  background: color-mix(in srgb, var(--admin-accent) 8%, var(--admin-surface));
   color: var(--admin-accent-text);
 }
 
@@ -83,10 +83,10 @@
 
 .candidate-next-action {
   margin: 0 1.75rem;
-  border: 1px solid rgba(208, 173, 105, 0.22);
+  border: 1px solid color-mix(in srgb, var(--admin-accent) 42%, var(--admin-border));
   border-radius: 0.75rem;
   padding: 1rem 1.125rem;
-  background: rgba(208, 173, 105, 0.075);
+  background: color-mix(in srgb, var(--admin-accent) 8%, var(--admin-surface));
 }
 
 .candidate-next-action-label {
@@ -206,7 +206,7 @@
 
 .candidate-step--complete .candidate-step-marker {
   border-color: var(--admin-accent-soft);
-  background: rgba(208, 173, 105, 0.14);
+  background: color-mix(in srgb, var(--admin-accent) 14%, var(--admin-surface));
   color: var(--admin-accent-text);
 }
 
@@ -223,7 +223,7 @@
   border-color: var(--admin-accent);
   background: var(--admin-accent);
   color: var(--admin-accent-on);
-  box-shadow: 0 0 0 0.22rem rgba(208, 173, 105, 0.15);
+  box-shadow: 0 0 0 0.22rem color-mix(in srgb, var(--admin-accent) 18%, transparent);
 }
 
 .candidate-step--current .candidate-step-label,
@@ -255,22 +255,24 @@
 }
 
 .candidate-step--withdrawn .candidate-step-marker {
-  border-color: var(--admin-accent-soft);
-  background: rgba(208, 173, 105, 0.12);
-  color: var(--admin-accent-text);
+  border-color: var(--admin-neutral-border);
+  background: var(--admin-neutral-surface);
+  color: var(--admin-neutral);
 }
 
-.candidate-step--withdrawn .candidate-step-state,
+.candidate-step--withdrawn .candidate-step-state {
+  color: var(--admin-neutral);
+}
+
 .candidate-step--admitted .candidate-step-label,
 .candidate-step--admitted .candidate-step-state {
-  color: var(--admin-accent-text);
+  color: var(--admin-success);
 }
 
 .candidate-step--admitted .candidate-step-marker {
-  border-color: var(--admin-accent);
-  background: var(--admin-accent);
-  color: var(--admin-accent-on);
-  box-shadow: 0 0 0 0.22rem rgba(208, 173, 105, 0.15);
+  border-color: var(--admin-success);
+  background: var(--admin-success-surface);
+  color: var(--admin-success);
 }
 
 .candidate-progress-scroll:focus-visible {
@@ -369,14 +371,14 @@
 
 .admin-design.candidate-recruitment .admin-field:focus-visible {
   border-color: var(--admin-accent-soft);
-  outline: 2px solid rgba(208, 173, 105, 0.2);
+  outline: 2px solid color-mix(in srgb, var(--admin-accent) 28%, transparent);
 }
 
 .candidate-required {
-  border: 1px solid rgba(208, 173, 105, 0.28);
+  border: 1px solid color-mix(in srgb, var(--admin-accent) 42%, var(--admin-border));
   border-radius: 999px;
   padding: 0.1rem 0.45rem;
-  background: rgba(208, 173, 105, 0.08);
+  background: color-mix(in srgb, var(--admin-accent) 8%, var(--admin-surface));
   color: var(--admin-accent-text);
   font-size: 0.65rem;
   font-weight: 600;
@@ -403,8 +405,8 @@
 }
 
 .candidate-choice--selected {
-  border-color: rgba(208, 173, 105, 0.58);
-  background: rgba(208, 173, 105, 0.1);
+  border-color: var(--admin-accent);
+  background: color-mix(in srgb, var(--admin-accent) 10%, var(--admin-surface));
   color: var(--admin-text);
 }
 
@@ -451,8 +453,8 @@
 }
 
 .candidate-session-option:has(input:checked) {
-  border-color: rgba(208, 173, 105, 0.58);
-  background: rgba(208, 173, 105, 0.09);
+  border-color: var(--admin-accent);
+  background: color-mix(in srgb, var(--admin-accent) 9%, var(--admin-surface));
 }
 
 .candidate-session-option input[type="radio"] {

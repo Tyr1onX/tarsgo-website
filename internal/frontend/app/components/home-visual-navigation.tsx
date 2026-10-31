@@ -182,7 +182,7 @@ export function HomeVisualNavigation({
       id="home-navigation"
       aria-labelledby={showHeading ? "home-navigation-heading" : undefined}
       aria-label={showHeading ? undefined : "吉甲专题导航预览"}
-      className="border-t border-white/[0.06] py-14 sm:py-16 lg:py-20"
+      className="border-t border-[var(--theme-border-subtle)] py-14 sm:py-16 lg:py-20"
     >
       <div className="public-home-container">
         {showHeading ? (

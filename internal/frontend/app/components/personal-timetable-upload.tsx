@@ -99,8 +99,8 @@ export function PersonalTimetableUpload({ userId }: { userId: number }) {
         </div>
       </form>
       {uploading ? <p role="status" className="text-sm text-[var(--admin-muted)]">正在上传并解析课表…</p> : null}
-      {error ? <p role="alert" className="break-words text-sm text-rose-500 [overflow-wrap:anywhere]">{error}</p> : null}
-      {message ? <p role="status" className="break-words text-sm text-emerald-600 [overflow-wrap:anywhere]">{message}</p> : null}
+      {error ? <p role="alert" className="break-words text-sm text-[var(--theme-danger)] [overflow-wrap:anywhere]">{error}</p> : null}
+      {message ? <p role="status" className="break-words text-sm text-[var(--theme-success)] [overflow-wrap:anywhere]">{message}</p> : null}
     </section>
   );
 }

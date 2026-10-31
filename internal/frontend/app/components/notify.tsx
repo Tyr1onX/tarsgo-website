@@ -60,24 +60,24 @@ export function Notify({
             <button
               type="button"
               onClick={onClose}
-              className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-white/5 hover:text-white"
+              className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--admin-muted)] transition hover:bg-[var(--admin-hover-overlay)] hover:text-[var(--admin-text)]"
               aria-label="关闭提醒"
             >
               <Icon icon={x} className="h-4 w-4" />
             </button>
-            <div className="text-sm font-medium text-white">{title}</div>
+            <div className="text-sm font-medium text-[var(--admin-text)]">{title}</div>
             <div className="mt-2 text-sm leading-6">{message}</div>
           </div>
         ) : (
           <div className="flex items-start gap-3 px-4 py-3">
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-medium text-white">{title}</div>
+              <div className="text-sm font-medium text-[var(--admin-text)]">{title}</div>
               <div className="mt-1 text-sm leading-6">{message}</div>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-gray-400 transition hover:bg-white/5 hover:text-white"
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--admin-muted)] transition hover:bg-[var(--admin-hover-overlay)] hover:text-[var(--admin-text)]"
               aria-label="关闭提醒"
             >
               <Icon icon={x} className="h-4 w-4" />
