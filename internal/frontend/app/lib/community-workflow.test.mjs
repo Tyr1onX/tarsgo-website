@@ -84,9 +84,10 @@ test("post drafts persist text and selected image files per account", () => {
 });
 
 test("community layout follows workbench themes and adapts its reading layout", () => {
-  assert.match(styles, /grid-template-columns: minmax\(0, 1fr\) 238px/);
-  assert.match(styles, /@media \(max-width: 1023px\)[\s\S]*?grid-template-columns: minmax\(0, 1fr\)/);
-  assert.match(styles, /@media \(max-width: 639px\)[\s\S]*?\.community-rail \{ grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(styles, /\.community-page \{[\s\S]*?width: min\(100%, 900px\)/);
+  assert.match(styles, /\.community-post-list \{ border-top: 1px solid var\(--admin-border-subtle\)/);
+  assert.match(styles, /@media \(max-width: 639px\)[\s\S]*?\.community-category-row \{ overflow-x: auto/);
+  assert.doesNotMatch(styles, /\.community-rail/);
   assert.match(styles, /var\(--admin-surface\)/);
   assert.match(styles, /var\(--admin-text\)/);
   assert.match(styles, /prefers-reduced-motion: reduce/);

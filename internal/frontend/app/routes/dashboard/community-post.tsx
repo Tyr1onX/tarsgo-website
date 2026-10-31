@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
 
 import { CommunityImageGallery } from "~/components/community-image-gallery";
+import { CommunityIcon } from "~/components/community-icons";
 import { CommunityActionIcon, CommunityAvatar } from "~/components/community-post-card";
 import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
 import {
@@ -211,19 +212,33 @@ export default function CommunityPostRoute() {
   }
 
   if (loading) return <section className="admin-design community-page"><p className="community-state" role="status">正在加载讨论…</p></section>;
-  if (!detail) return <section className="admin-design community-page"><p className="community-state community-state--error" role="alert">{error || "讨论不存在。"}{error ? <button type="button" className="community-inline-retry" onClick={() => void reload()}>重试</button> : null}</p><button className="community-thread__back" type="button" onClick={backToCommunity}><span aria-hidden="true">←</span> 返回吉甲社区</button></section>;
+  if (!detail) return <section className="admin-design community-page"><p className="community-state community-state--error" role="alert">{error || "讨论不存在。"}{error ? <button type="button" className="community-inline-retry" onClick={() => void reload()}>重试</button> : null}</p><button className="community-thread__back" type="button" onClick={backToCommunity}><CommunityIcon name="arrowLeft" />返回吉甲社区</button></section>;
 
   const { post, comments } = detail;
   const parentByID = new Map(comments.map((item) => [item.id, item]));
+  function commentDepth(comment: CommunityComment) {
+    let depth = 0;
+    let parentID = comment.parentPostId;
+    const visited = new Set([comment.id]);
+    while (parentID && !visited.has(parentID)) {
+      visited.add(parentID);
+      const parent = parentByID.get(parentID);
+      if (!parent) break;
+      depth += 1;
+      parentID = parent.parentPostId;
+    }
+    return Math.min(depth, 3);
+  }
+
   return <section className="admin-design community-page community-thread" aria-labelledby="community-thread-title">
-    <button className="community-thread__back" type="button" onClick={backToCommunity}><span aria-hidden="true">←</span> 返回吉甲社区</button>
+    <button className="community-thread__back" type="button" onClick={backToCommunity}><CommunityIcon name="arrowLeft" />返回吉甲社区</button>
     {error ? <p className="community-state community-state--error" role="alert">{error}{retryAction ? <button type="button" className="community-inline-retry" onClick={() => retryAction()}>重试</button> : null}</p> : null}
     <article className={`community-post${post.isPinned ? " is-pinned" : ""}`}>
       <div className="community-post__author">
         <CommunityAvatar name={post.authorName} src={post.authorAvatar} />
         <div className="community-post__byline"><strong>{post.authorName}</strong><time dateTime={post.createdAt}>{formatCommunityDate(post.createdAt)}{post.editedAt ? " · 已编辑" : ""}</time></div>
-        <span className="community-post__category">{communityCategoryLabel(post.category)}</span>
         {post.isPinned ? <span className="community-post__pin">置顶</span> : null}
+        <span className="community-post__category">{communityCategoryLabel(post.category)}</span>
       </div>
       {post.isLegacy && post.groupName ? <p className="community-post__scope">{post.visibility === "private" ? "历史私密讨论" : `${post.groupName} · 历史讨论`}</p> : null}
       {post.isFaq ? <span className="community-post__faq">FAQ</span> : null}
@@ -252,7 +267,7 @@ export default function CommunityPostRoute() {
       <header className="community-comments__heading"><h2 id="community-comments-title">讨论</h2><span>{comments.length} 条回复</span></header>
       {comments.map((item) => {
         const parent = item.parentPostId ? parentByID.get(item.parentPostId) : null;
-        return <article key={item.id} id={`community-comment-${item.id}`} className="community-comment" data-reply={Boolean(item.parentPostId)}>
+        return <article key={item.id} id={`community-comment-${item.id}`} className="community-comment" data-reply={Boolean(item.parentPostId)} data-depth={commentDepth(item)}>
           <div className="community-comment__head"><CommunityAvatar name={item.authorName} src={item.authorAvatar} size="small" /><strong>{item.authorName}</strong><time dateTime={item.createdAt}>{formatCommunityDate(item.createdAt)}{item.editedAt ? " · 已编辑" : ""}</time></div>
           {parent ? <button type="button" className="community-comment__context" onClick={() => document.getElementById(`community-comment-${parent.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}>
             <span>回复 {parent.authorName}</span><span>{parent.isDeleted ? "该回复已删除" : parent.body}</span>
@@ -268,7 +283,7 @@ export default function CommunityPostRoute() {
     </section>
 
     <form id="community-reply-form" className="community-thread-composer" onSubmit={submitComment} aria-label="发表回复">
-      {replyTarget ? <div className="community-thread-composer__replying"><span>回复 <strong>{replyTarget.authorName}</strong>{replyTarget.isDeleted ? " · 该回复已删除" : ` · ${replyTarget.body}`}</span><button type="button" className="community-icon-button" aria-label="取消回复对象" onClick={() => setReplyTarget(null)}>×</button></div> : null}
+      {replyTarget ? <div className="community-thread-composer__replying"><span>回复 <strong>{replyTarget.authorName}</strong>{replyTarget.isDeleted ? " · 该回复已删除" : ` · ${replyTarget.body}`}</span><button type="button" className="community-icon-button" aria-label="取消回复对象" onClick={() => setReplyTarget(null)}><CommunityIcon name="x" /></button></div> : null}
       <label htmlFor="community-reply-body" className="sr-only">写下你的回复</label>
       <textarea id="community-reply-body" value={comment} onChange={(event) => { setComment(event.target.value); setCommentError(""); setRetryAction(null); }} maxLength={20000} required placeholder="参与讨论…" />
       <FileUploadField label="回复图片" files={commentFiles} onFilesChange={(next) => { setCommentFiles(next); setCommentStatus("pending"); setCommentError(""); }} accept={communityImageAccept} multiple variant="compact" hint={communityImageHint} status={commentStatus} disabled={busy} validateSelection={validateCommunityImages} />

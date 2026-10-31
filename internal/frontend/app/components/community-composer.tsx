@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
+import { CommunityIcon } from "~/components/community-icons";
 import {
   COMMUNITY_CATEGORIES,
   communityImageAccept,
@@ -102,7 +103,7 @@ export function CommunityComposer({ id, accountId, onCancel, onPublish }: {
   return <form id={id} className="community-composer" onSubmit={submit} aria-labelledby="community-composer-title" aria-busy={saving || !draftReady}>
     <div className="community-composer__header">
       <h2 id="community-composer-title">发布帖子</h2>
-      <button className="community-icon-button" type="button" aria-label="收起发帖表单" onClick={onCancel}>×</button>
+      <button className="community-icon-button" type="button" aria-label="收起发帖表单" onClick={onCancel}><CommunityIcon name="x" /></button>
     </div>
     <div className="community-composer__fields">
       <label className="community-field">标题
@@ -117,7 +118,7 @@ export function CommunityComposer({ id, accountId, onCancel, onPublish }: {
         <textarea value={body} onChange={(event) => setBody(event.target.value)} maxLength={20000} required rows={7} placeholder="分享过程、问题或进展…" disabled={!draftReady || saving} />
       </label>
       <div className="community-field">
-        <span>图片</span>
+        <span className="community-field__label"><CommunityIcon name="image" />图片</span>
         <FileUploadField
           label="帖子图片"
           files={files}

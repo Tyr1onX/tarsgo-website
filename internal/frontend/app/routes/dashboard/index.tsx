@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
-import { Link, useLocation, useNavigate, useOutletContext, useSearchParams } from "react-router";
+import { useLocation, useNavigate, useOutletContext, useSearchParams } from "react-router";
 
 import { CommunityComposer } from "~/components/community-composer";
-import { CommunityAvatar, CommunityPostCard } from "~/components/community-post-card";
+import { CommunityIcon } from "~/components/community-icons";
+import { CommunityPostCard } from "~/components/community-post-card";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
-import { getAuthUserName } from "~/lib/auth-client";
 import {
   COMMUNITY_CATEGORIES,
   communityClient,
@@ -36,7 +36,6 @@ export default function DashboardIndex() {
   const navigate = useNavigate();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
-  const displayName = getAuthUserName(currentUser);
   const sort = readSort(searchParams.get("sort"));
   const category = readCategory(searchParams.get("category"));
   const query = searchParams.get("q")?.trim() ?? "";
@@ -46,7 +45,6 @@ export default function DashboardIndex() {
   const [queryDraft, setQueryDraft] = useState(query);
   const [composerOpen, setComposerOpen] = useState(false);
   const [posts, setPosts] = useState<CommunityPost[]>([]);
-  const [hotPosts, setHotPosts] = useState<CommunityPost[]>([]);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -103,12 +101,6 @@ export default function DashboardIndex() {
   useEffect(() => {
     void loadFirstPage(true);
   }, [loadFirstPage]);
-
-  useEffect(() => {
-    let active = true;
-    void communityClient.hot(5).then((items) => { if (active) setHotPosts(items); }).catch(() => { if (active) setHotPosts([]); });
-    return () => { active = false; };
-  }, []);
 
   function updateFilters(next: Partial<{ sort: CommunitySort; category: CommunityCategory | ""; q: string; saved: boolean }>) {
     setError("");
@@ -214,14 +206,18 @@ export default function DashboardIndex() {
 
   return <section className="admin-design community-page" aria-labelledby="community-title">
     <header className="community-header">
-      <div>
-        <p className="community-eyebrow">Jijia · Team</p>
-        <h1 id="community-title">吉甲社区</h1>
-        <p>你好，{displayName}</p>
+      <h1 id="community-title">吉甲社区</h1>
+      <div className="community-header__actions">
+        <form className="community-search" onSubmit={submitSearch} role="search" aria-label="搜索社区帖子">
+          <label className="sr-only" htmlFor="community-search">搜索帖子</label>
+          <input id="community-search" type="search" value={queryDraft} onChange={(event) => setQueryDraft(event.target.value)} placeholder="搜索帖子" maxLength={100} />
+          {queryDraft ? <button type="button" className="community-search__clear" aria-label="清除搜索" onClick={() => { setQueryDraft(""); updateFilters({ q: "" }); }}><CommunityIcon name="x" /></button> : null}
+          <button type="submit" className="community-search__submit" aria-label="搜索"><CommunityIcon name="search" /></button>
+        </form>
+        <button className="community-button community-button--primary community-header__compose" type="button" onClick={() => setComposerOpen((open) => !open)} aria-expanded={composerOpen} aria-controls="community-composer">
+          <CommunityIcon name="plus" /> 发布帖子
+        </button>
       </div>
-      <button className="community-button community-button--primary community-header__compose" type="button" onClick={() => setComposerOpen((open) => !open)} aria-expanded={composerOpen} aria-controls="community-composer">
-        <span aria-hidden="true">＋</span> 发布帖子
-      </button>
     </header>
 
     {composerOpen ? <CommunityComposer key={currentUser.id} id="community-composer" accountId={currentUser.id} onCancel={() => setComposerOpen(false)} onPublish={publish} /> : null}
@@ -234,12 +230,6 @@ export default function DashboardIndex() {
             <button type="button" aria-pressed={!savedOnly && shownSort === "hot"} onClick={() => updateFilters({ sort: "hot", saved: false })}>热门</button>
             <button type="button" aria-pressed={savedOnly} onClick={() => updateFilters({ saved: true })}>我的收藏</button>
           </div>
-          <form className="community-search" onSubmit={submitSearch} role="search">
-            <label className="sr-only" htmlFor="community-search">搜索帖子</label>
-            <input id="community-search" type="search" value={queryDraft} onChange={(event) => setQueryDraft(event.target.value)} placeholder="搜索帖子" maxLength={100} />
-            {queryDraft ? <button type="button" className="community-search__clear" aria-label="清除搜索" onClick={() => { setQueryDraft(""); updateFilters({ q: "" }); }}>×</button> : null}
-            <button type="submit" className="community-search__submit" aria-label="搜索"><SearchIcon /></button>
-          </form>
         </div>
 
         <div className="community-category-row" aria-label="帖子分类">
@@ -248,36 +238,21 @@ export default function DashboardIndex() {
         </div>
 
         {error ? <p className="community-state community-state--error" role="alert">{error}{retry ? <button type="button" className="community-inline-retry" onClick={retryFailedOperation}>重试</button> : null}</p> : null}
-        {loading && posts.length === 0 ? <p className="community-state" role="status">正在加载社区…</p> : posts.length ? <>
+        {loading && posts.length === 0 ? <p className="community-state community-state--loading" role="status"><CommunityIcon name="loader" />正在加载社区…</p> : posts.length ? <>
           {loading ? <p className="community-refresh-status" role="status">正在同步最新内容</p> : null}
           <div className="community-post-list">
             {posts.map((post) => <CommunityPostCard key={post.id} post={post} busy={busyPostId === post.id} onLike={(item) => void toggleReaction(item, "like")} onBookmark={(item) => void toggleReaction(item, "bookmark")} />)}
           </div>
         </> : !loading ? <div className="community-state community-state--empty">
-          <span aria-hidden="true">✳</span>
-          <strong>{query || category ? "没有找到相关帖子" : savedOnly ? "还没有收藏的帖子" : "社区刚刚开始"}</strong>
-          <p>{query || category ? "试试其他关键词或分类。" : savedOnly ? "收藏的讨论会出现在这里。" : "分享一次实践、一个进展，或一个值得讨论的问题。"}</p>
-          {query || category || savedOnly ? <button className="community-button" type="button" onClick={() => { setQueryDraft(""); updateFilters({ q: "", category: "", saved: false, sort: "latest" }); }}>清除筛选</button> : <button className="community-button community-button--primary" type="button" onClick={() => setComposerOpen(true)}>发布第一条帖子</button>}
+          <span className="community-state__icon"><CommunityIcon name="messageCircle" /></span>
+          <strong>{savedOnly ? "还没有收藏的帖子" : query ? "没有找到相关帖子" : category ? "这个分类还没有帖子" : sort === "hot" ? "还没有热门讨论" : "还没有帖子"}</strong>
+          <p>{savedOnly ? "收藏的帖子会集中显示在这里。" : query ? "换个关键词试试，或清除搜索条件。" : category ? "换个分类看看，或发布一条新的讨论。" : sort === "hot" ? "有更多人参与后，热门讨论会出现在这里。" : "分享你的第一个想法或项目进展"}</p>
+          {query || category || savedOnly || sort === "hot" ? <button className="community-button community-button--quiet" type="button" onClick={() => { setQueryDraft(""); updateFilters({ q: "", category: "", saved: false, sort: "latest" }); }}>清除筛选</button> : <button className="community-button community-button--primary" type="button" onClick={() => setComposerOpen(true)}><CommunityIcon name="plus" />发布第一条帖子</button>}
         </div> : null}
         {hasMore && !loading ? <button type="button" className="community-load-more" onClick={() => void loadNextPage()} disabled={loadingMore}>{loadingMore ? "正在加载…" : "加载更多"}</button> : null}
         {loadingMore ? <p className="community-load-more__status" role="status">正在加载更多讨论…</p> : null}
       </main>
 
-      <aside className="community-rail" aria-label="社区浏览">
-        <section className="community-rail-card">
-          <div className="community-rail-card__heading"><h2>热门讨论</h2><button type="button" onClick={() => updateFilters({ sort: "hot", saved: false })}>查看全部</button></div>
-          {hotPosts.length ? <ol className="community-hot-list">{hotPosts.map((post, index) => <li key={post.id}><span>{String(index + 1).padStart(2, "0")}</span><Link to={communityPostHref(post.id)} state={{ communityReturnTo: returnTo }}>{post.title}</Link></li>)}</ol> : <p className="community-rail-empty">暂时没有热门讨论</p>}
-        </section>
-        <section className="community-rail-card">
-          <div className="community-rail-card__heading"><h2>浏览分类</h2></div>
-          <ul className="community-rail-categories">{COMMUNITY_CATEGORIES.map((item) => <li key={item.id}><button type="button" aria-pressed={category === item.id} onClick={() => updateFilters({ category: item.id, saved: false })}><span>{item.label}</span><span aria-hidden="true">↗</span></button></li>)}</ul>
-        </section>
-        <footer className="community-rail-footer"><CommunityAvatar name="吉甲大师" size="small" /><span>吉甲大师 · 机器人战队</span></footer>
-      </aside>
     </div>
   </section>;
-}
-
-function SearchIcon() {
-  return <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"><circle cx="10.8" cy="10.8" r="6.3" /><path d="m15.5 15.5 4.2 4.2" /></svg>;
 }
