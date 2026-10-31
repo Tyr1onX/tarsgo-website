@@ -11,7 +11,7 @@ import { expeditionEvolutionTargetLabel, expeditionProjectClient, type Expeditio
 import { hasSkillGroupAccess, hasTechnicalGroupAccess } from "~/lib/dashboard-navigation";
 import { getAuthUserName } from "~/lib/auth-client";
 import { skillsClient, skillStateLabel, type SkillGroupProgress } from "~/lib/skills-client";
-import { formatQuestionDate, trainingQuestionClient, type TrainingQuestion } from "~/lib/training-question-client";
+import { communityClient, communityPostHref, formatCommunityDate, type CommunityPost } from "~/lib/community-client";
 import { FACILITIES, type FacilityInfo } from "~/components/expedition/facilities";
 import { WorldMap } from "~/components/expedition/world-map";
 import { InteriorScene, getSceneDevices } from "~/components/expedition/interior-scene";
@@ -25,8 +25,8 @@ interface ExpeditionData {
   profile: GrowthProfile | null;
   skills: SkillGroupProgress[];
   assignments: Assignment[];
-  questions: TrainingQuestion[];
-  faqs: TrainingQuestion[];
+  questions: CommunityPost[];
+  faqs: CommunityPost[];
   projects: ExpeditionProject[];
   loading: boolean;
   errors: { profile: boolean; skills: boolean; assignments: boolean; questions: boolean; faqs: boolean; projects: boolean };
@@ -136,15 +136,15 @@ export default function ExpeditionRoute() {
       ? assignmentClient.listMine().then((value) => ({ value, error: false })).catch(() => ({ value: [] as Assignment[], error: true }))
       : Promise.resolve({ value: [] as Assignment[], error: false });
     const questionsRequest = technicalMember
-      ? Promise.all(questionGroups.map((group) => trainingQuestionClient.listMember({ groupId: group.groupId, mineOnly: true, status: "open" })))
-        .then((values) => ({ value: values.flat(), error: false }))
-        .catch(() => ({ value: [] as TrainingQuestion[], error: true }))
-      : Promise.resolve({ value: [] as TrainingQuestion[], error: false });
+      ? Promise.all(questionGroups.map((group) => communityClient.list({ groupId: group.groupId, mineOnly: true, status: "open", pageSize: 40 })))
+        .then((values) => ({ value: values.flatMap((page) => page.items), error: false }))
+        .catch(() => ({ value: [] as CommunityPost[], error: true }))
+      : Promise.resolve({ value: [] as CommunityPost[], error: false });
     const faqsRequest = technicalMember
-      ? Promise.all(questionGroups.map((group) => trainingQuestionClient.listMember({ groupId: group.groupId, faqOnly: true })))
-        .then((values) => ({ value: values.flat(), error: false }))
-        .catch(() => ({ value: [] as TrainingQuestion[], error: true }))
-      : Promise.resolve({ value: [] as TrainingQuestion[], error: false });
+      ? Promise.all(questionGroups.map((group) => communityClient.list({ groupId: group.groupId, faqOnly: true, pageSize: 40 })))
+        .then((values) => ({ value: values.flatMap((page) => page.items), error: false }))
+        .catch(() => ({ value: [] as CommunityPost[], error: true }))
+      : Promise.resolve({ value: [] as CommunityPost[], error: false });
     const projectsRequest = expeditionProjectClient.listMine().then((value) => ({ value, error: false })).catch(() => ({ value: [] as ExpeditionProject[], error: true }));
 
     void Promise.all([profileRequest, skillsRequest, assignmentsRequest, questionsRequest, faqsRequest, projectsRequest]).then(([profile, skills, assignments, questions, faqs, projects]) => {
@@ -248,10 +248,10 @@ export default function ExpeditionRoute() {
           {terminal === "challenges" ? <>{challenges.length ? <ul className="terminal-records">{challenges.map(task=><li key={task.key}><Link to={task.href}><strong>{task.title}</strong><small>{task.detail} · {challengeStatusLabel(task)}</small><span>↗</span></Link></li>)}</ul> : <p className="terminal-empty">当前没有待处理挑战</p>}<button type="button" className="terminal-action" onClick={()=>setRefreshKey(k=>k+1)}>刷新待办</button></> : null}
           {terminal === "assignments" ? <>{selectedAssignments.length ? <ul className="terminal-records">{selectedAssignments.map(a=><li key={a.id}><Link to={`/dashboard/assignments?assignmentId=${a.id}`}><strong>{a.title}</strong><small>截止 {formatDueDate(a.dueAt)} · {({pending:"待提交",overdue:"已逾期",submitted:"已提交",passed:"已通过",needs_redo:"需重做"})[a.status??"pending"]}</small><span>↗</span></Link></li>)}</ul> : <p className="terminal-empty">当前没有分配给你的作业</p>}<Link className="terminal-action" to="/dashboard/assignments">打开我的作业 ↗</Link></> : null}
           {terminal === "skills" ? <>{selectedNodes.length ? <><div className="terminal-skill-counts"><span>未解锁 <b>{lockedCount}</b></span><span>可挑战 <b>{availableCount}</b></span><span>已实践 <b>{practicedCount}</b></span><span>已掌握 <b>{masteredCount}</b></span></div><ul className="terminal-records">{selectedNodes.map(n=><li key={n.id}><Link to="/dashboard/skills"><strong>{n.name}</strong><small>{skillStateLabel(n.state??"locked")}</small><span>↗</span></Link></li>)}</ul></> : <p className="terminal-empty">本组技能路线尚未配置</p>}<Link className="terminal-action" to="/dashboard/skills">进入技能树 ↗</Link></> : null}
-          {terminal === "questions" ? <><h3>待跟进的问题</h3>{selectedQuestions.length ? <ul className="terminal-records">{selectedQuestions.map(q=><li key={q.id}><Link to={`/dashboard/questions?groupId=${q.groupId}&questionId=${q.id}`}><strong>{q.title}</strong><small>{formatQuestionDate(q.createdAt)}</small><span>↗</span></Link></li>)}</ul> : <p className="terminal-empty">没有待跟进的问题</p>}<h3>本组公开 FAQ</h3>{selectedFAQs.length ? <ul className="terminal-records">{selectedFAQs.map(q=><li key={q.id}><Link to={`/dashboard/questions?groupId=${q.groupId}&questionId=${q.id}`}><strong>{q.title}</strong><small>{formatQuestionDate(q.lastReplyAt??q.createdAt)}</small><span>↗</span></Link></li>)}</ul> : <p className="terminal-empty">暂无公开 FAQ</p>}<Link className="terminal-action" to="/dashboard/questions">打开提问答疑 ↗</Link></> : null}
+          {terminal === "questions" ? <><h3>待跟进的讨论</h3>{selectedQuestions.length ? <ul className="terminal-records">{selectedQuestions.map(q=><li key={q.id}><Link to={communityPostHref(q.id)}><strong>{q.title}</strong><small>{formatCommunityDate(q.createdAt)}</small><span>↗</span></Link></li>)}</ul> : <p className="terminal-empty">没有待跟进的讨论</p>}<h3>本组公开 FAQ</h3>{selectedFAQs.length ? <ul className="terminal-records">{selectedFAQs.map(q=><li key={q.id}><Link to={communityPostHref(q.id)}><strong>{q.title}</strong><small>{formatCommunityDate(q.lastReplyAt??q.createdAt)}</small><span>↗</span></Link></li>)}</ul> : <p className="terminal-empty">暂无公开 FAQ</p>}<Link className="terminal-action" to="/dashboard">打开吉甲社区 ↗</Link></> : null}
           {terminal === "projects" ? <><label className="terminal-project-select">总装绑定项目<select value={assemblyProject?String(assemblyProject.id):""} disabled={!data.projects.length} onChange={e=>selectAssemblyProject(e.target.value)}>{!assemblyProject?<option value="">暂无可见项目</option>:null}{data.projects.map(p=><option key={p.id} value={p.id}>{p.title}</option>)}</select></label>{assemblyProject ? <p className="terminal-project-state">{hasAcceptedJoint?"联合验收完成":acceptedEvolutionLabels.length?`已验收：${acceptedEvolutionLabels.join("、")}`:"尚无装置验收"}</p> : null}{(isOverview ? data.projects : selectedProjects).length ? <ul className="terminal-records">{(isOverview?data.projects:selectedProjects).map(p=><li key={p.id}><Link to={`/dashboard/expedition/projects?projectId=${p.id}`}><strong>{p.title}</strong><small>{p.hasAcceptedJoint?"联合验收完成":`${p.milestones.filter(m=>m.state==="accepted").length} 个阶段已验收`}</small><span>↗</span></Link></li>)}</ul>:<p className="terminal-empty">暂无对你开放的协作项目；待负责人创建和安排后会显示。</p>}<Link className="terminal-action" to="/dashboard/expedition/projects">打开赛季协作 ↗</Link></> : null}
           {terminal === "growth" ? <><h3>{data.profile?.displayName??getAuthUserName(currentUser)}</h3>{recentEvents.length ? <ul className="terminal-records">{recentEvents.map(event=><li key={event.key}>{eventHref(event)?<Link to={eventHref(event)!}><strong>{event.title}</strong><small>{growthEventLabel(event.kind)} · {formatGrowthDate(event.occurredAt)}</small><span>↗</span></Link>:<div><strong>{event.title}</strong><small>{formatGrowthDate(event.occurredAt)}</small></div>}</li>)}</ul>:<p className="terminal-empty">尚无成长记录</p>}<Link className="terminal-action" to="/dashboard/growth">打开成长档案 ↗</Link></> : null}
-          {terminal === "journal" ? <><h3>赛季编年史</h3>{acceptedMilestones.length?<ul className="terminal-records">{acceptedMilestones.map(({project,milestone})=><li key={`${project.id}:${milestone.id}`}><Link to={`/dashboard/expedition/projects?projectId=${project.id}`}><strong>{project.title} · {milestone.name}</strong><small>{milestone.groupName||"联合验收"} · {formatQuestionDate(milestone.acceptedAt!)}</small><span>↗</span></Link></li>)}</ul>:<p className="terminal-empty">暂无已验收的赛季成果</p>}<Link className="terminal-action" to="/dashboard/expedition/projects">查看协作历史 ↗</Link></> : null}
+          {terminal === "journal" ? <><h3>赛季编年史</h3>{acceptedMilestones.length?<ul className="terminal-records">{acceptedMilestones.map(({project,milestone})=><li key={`${project.id}:${milestone.id}`}><Link to={`/dashboard/expedition/projects?projectId=${project.id}`}><strong>{project.title} · {milestone.name}</strong><small>{milestone.groupName||"联合验收"} · {formatCommunityDate(milestone.acceptedAt!)}</small><span>↗</span></Link></li>)}</ul>:<p className="terminal-empty">暂无已验收的赛季成果</p>}<Link className="terminal-action" to="/dashboard/expedition/projects">查看协作历史 ↗</Link></> : null}
           {terminal === "weekly" ? <><p className="terminal-empty">{data.profile?.displayName??getAuthUserName(currentUser)}的工作周报</p><Link className="terminal-action" to="/dashboard/weekly-reports">打开我的周报 ↗</Link></> : null}
         </>}
       </TerminalWindow> : null}

@@ -34,7 +34,7 @@ test("挑战列表只来自待处理作业、可挑战技能和本人未解决�
 
   assert.deepEqual(tasks.map(({ title }) => title), ["需重做", "逾期", "待提交", "已实践技能", "可挑战技能", "我的问题"]);
   assert.equal(new Set(tasks.map(({ key }) => key)).size, tasks.length);
-  assert.equal(tasks.find(({ title }) => title === "我的问题")?.href, "/dashboard/questions?groupId=40&questionId=20");
+  assert.equal(tasks.find(({ title }) => title === "我的问题")?.href, "/dashboard/community/20");
 });
 
 test("没有个人业务记录时保持空挑战，不生成演示任务", () => {

@@ -85,8 +85,9 @@ function getIsDesktopDashboardViewport() {
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const currentPath = new URL(request.url);
   const temporarilyUnavailable = isTemporarilyUnavailableDashboardPath(currentPath.pathname);
+  const legacyCommunityAlias = currentPath.pathname === "/dashboard/questions" || currentPath.pathname === "/dashboard/admin/training/questions";
   const cachedUser = getCachedCurrentUser();
-  const groupRequest = temporarilyUnavailable
+  const groupRequest = temporarilyUnavailable || legacyCommunityAlias
     ? Promise.resolve({ state: null, error: null as unknown })
     : getUserGroupConfirmationState(cachedUser?.id)
       .then((state) => ({ state, error: null as unknown }))
@@ -132,9 +133,6 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect(getDefaultDashboardPath(currentUser.role.name));
   }
   if (pathname === "/dashboard/assignments" && !hasAssignmentGroup) {
-    throw redirect(getDefaultDashboardPath(currentUser.role.name));
-  }
-  if (pathname === "/dashboard/questions" && !hasTechnicalGroup) {
     throw redirect(getDefaultDashboardPath(currentUser.role.name));
   }
   if (pathname === "/dashboard/skills" && !hasSkillGroup && currentUser.role.name !== "super_admin") {

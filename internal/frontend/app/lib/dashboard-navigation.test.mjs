@@ -99,13 +99,11 @@ test("paused member and admin routes reject direct entry for every role", () => 
   const pausedPaths = [
     "/dashboard/base",
     "/dashboard/practice-projects",
-    "/dashboard/questions/12",
     "/dashboard/growth?tab=skills",
     "/dashboard/skills",
     "/dashboard/capabilities",
     "/dashboard/expedition/projects",
     "/dashboard/admin/training/practice-projects",
-    "/dashboard/admin/training/questions/12",
     "/dashboard/admin/training/skills",
     "/dashboard/admin/training/capabilities",
     "/dashboard/admin/training/expedition",

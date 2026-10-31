@@ -271,7 +271,7 @@ func (s *Service) GetMine(ctx context.Context, userID uint64) (*Profile, error) 
 			}
 		}
 		if profile.NextAction == nil {
-			profile.NextAction = &NextAction{Title: "继续技术探索", Detail: "查看组内问题与 FAQ", Href: "/dashboard/questions"}
+			profile.NextAction = &NextAction{Title: "继续技术探索", Detail: "查看吉甲社区中的讨论与 FAQ", Href: "/dashboard"}
 		}
 	}
 
@@ -722,8 +722,8 @@ func hasGroupName(rows []membershipRow, target string) bool {
 	return false
 }
 
-func questionHref(groupID, questionID uint64) string {
-	return fmt.Sprintf("/dashboard/questions?groupId=%d&questionId=%d", groupID, questionID)
+func questionHref(_ uint64, questionID uint64) string {
+	return fmt.Sprintf("/dashboard/community/%d", questionID)
 }
 
 func countEvents(events []Event, kind string) int {

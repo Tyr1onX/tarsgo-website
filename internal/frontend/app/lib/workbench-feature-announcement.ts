@@ -5,7 +5,7 @@ export const GROUP_ACCESS_HELP = "工作台入口按账号角色和所属组别�
 const TECHNICAL_GROUPS = ["机械组", "电控组", "视觉组", "AI组"] as const;
 const ASSIGNMENT_GROUPS = [...TECHNICAL_GROUPS, "运营组"] as const;
 
-export type WorkbenchFeatureKey = "assignments" | "questions" | "growth" | "skills" | "base" | "collaboration";
+export type WorkbenchFeatureKey = "assignments" | "community" | "growth" | "skills" | "base" | "collaboration";
 export type WorkbenchFeatureAudience = "all" | "technical" | "skill-groups" | "assignment-groups";
 
 export interface WorkbenchFeature {
@@ -35,16 +35,14 @@ export const WORKBENCH_FEATURES: readonly WorkbenchFeature[] = [
     adminAction: "管理本组作业",
   },
   {
-    key: "questions",
-    title: "提问答疑",
-    status: "暂未开放",
-    audience: "technical",
-    audienceLabel: "机械组、电控组、视觉组、AI组",
-    description: "支持公开或私密提问、图片、追问、解决状态及 FAQ；组内知识内容仍在积累。",
-    href: "/dashboard/questions",
-    action: "进入提问答疑",
-    adminHref: "/dashboard/admin/training/questions",
-    adminAction: "管理本组答疑",
+    key: "community",
+    title: "吉甲社区",
+    status: "已开放",
+    audience: "all",
+    audienceLabel: "所有已启用的战队账号",
+    description: "发布项目进展、交流技术经验、回复讨论并收藏值得回看的内容。历史答疑继续按原组别和私密范围展示。",
+    href: "/dashboard",
+    action: "进入吉甲社区",
   },
   {
     key: "growth",
@@ -97,10 +95,10 @@ export function getWorkbenchFeaturesForMember(roleName: string, groupNames: read
   const hasTechnicalGroup = groupNames.some((name) => TECHNICAL_GROUPS.includes(name as (typeof TECHNICAL_GROUPS)[number]));
   const hasAssignmentGroup = groupNames.some((name) => ASSIGNMENT_GROUPS.includes(name as (typeof ASSIGNMENT_GROUPS)[number]));
 
-  return WORKBENCH_FEATURES.filter((feature) => feature.key === "assignments" && (
+  return WORKBENCH_FEATURES.filter((feature) => feature.key === "community" || (feature.key === "assignments" && (
     isSuperAdmin || feature.audience === "all" || (feature.audience === "technical" && hasTechnicalGroup) ||
     (feature.audience === "assignment-groups" && hasAssignmentGroup)
-  ));
+  )));
 }
 
 export function getWorkbenchAdminAction(feature: WorkbenchFeature, roleName: string, groupNames: readonly string[] = []) {

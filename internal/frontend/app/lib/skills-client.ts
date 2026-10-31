@@ -90,7 +90,7 @@ export function skillStateLabel(state: SkillState) {
   }
 }
 
-export function skillEvidenceHref(event: SkillReviewEvent, groupId: number, admin = false) {
+export function skillEvidenceHref(event: SkillReviewEvent, _groupId: number, admin = false) {
   if (!event.evidenceId) return null;
   if (event.evidenceType === "assignment") {
     return admin
@@ -98,14 +98,14 @@ export function skillEvidenceHref(event: SkillReviewEvent, groupId: number, admi
       : `/dashboard/assignments?assignmentId=${event.evidenceId}`;
   }
   if (event.evidenceType === "question" && !admin) {
-    return `/dashboard/questions?groupId=${groupId}&questionId=${event.evidenceId}`;
+    return `/dashboard/community/${event.evidenceId}`;
   }
   return null;
 }
 
 export function skillEvidenceLabel(event: SkillReviewEvent) {
   if (event.evidenceType === "assignment") return `关联作业 #${event.evidenceId}`;
-  if (event.evidenceType === "question") return `答疑记录 #${event.evidenceId}`;
+  if (event.evidenceType === "question") return `社区讨论 #${event.evidenceId}`;
   return "实操或成果说明";
 }
 

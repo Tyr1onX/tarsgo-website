@@ -179,7 +179,7 @@ test("公开基地入口已移除，旧链接只导向登录或统一工作台",
   assert.match(dailySignalWorkspace, /id="daily-signal"/);
   assert.match(dashboardLayout, /getCoreDashboardMenu/);
   assert.doesNotMatch(dashboardNavigation, /href: "\/dashboard\/base"/);
-  assert.match(dashboardNavigation, /label: "首页"/);
+  assert.match(dashboardNavigation, /label: "吉甲社区"/);
   assert.match(dashboardLayout, /工作台功能/);
   assert.match(dashboardLayout, /收起侧边栏/);
   assert.match(dashboardLayout, /展开侧边栏/);
