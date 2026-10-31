@@ -3820,3 +3820,258 @@ html[data-theme-transition] body *::after {
     display: none;
   }
 }
+
+.file-upload-field {
+  --file-upload-border: var(--admin-border-subtle, rgb(255 255 255 / 0.12));
+  --file-upload-surface: var(--admin-surface, rgb(255 255 255 / 0.035));
+  --file-upload-text: var(--admin-text, #f5f5f5);
+  --file-upload-muted: var(--admin-muted, #a1a1aa);
+  --file-upload-accent: var(--admin-accent, #d3b36b);
+  --file-upload-danger: var(--admin-danger, #ef4444);
+  min-width: 0;
+  color: var(--file-upload-text);
+}
+
+.file-upload-field__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
+
+.file-upload-field__chooser {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.75rem;
+  border: 1px dashed var(--file-upload-border);
+  border-radius: 0.85rem;
+  padding: 0.75rem;
+  background: var(--file-upload-surface);
+  transition: border-color 140ms ease, background-color 140ms ease;
+}
+
+.file-upload-field--dropzone .file-upload-field__chooser {
+  min-height: 4.25rem;
+}
+
+.file-upload-field--compact .file-upload-field__chooser {
+  min-height: 2.75rem;
+  border-style: solid;
+  padding: 0.45rem 0.65rem;
+}
+
+.file-upload-field.is-dragging .file-upload-field__chooser,
+.file-upload-field__chooser:focus-within {
+  border-color: var(--file-upload-accent);
+  background: color-mix(in srgb, var(--file-upload-accent) 8%, var(--file-upload-surface));
+}
+
+.file-upload-field.is-disabled .file-upload-field__chooser {
+  opacity: 0.58;
+}
+
+.file-upload-field__upload-icon {
+  display: grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: 0 0 2.25rem;
+  place-items: center;
+  border: 1px solid var(--file-upload-border);
+  border-radius: 0.7rem;
+  color: var(--file-upload-accent);
+}
+
+.file-upload-field__upload-icon svg {
+  width: 1.15rem;
+  height: 1.15rem;
+}
+
+.file-upload-field__chooser-copy {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 0.12rem;
+  color: var(--file-upload-muted);
+  font-size: 0.75rem;
+  line-height: 1.35;
+}
+
+.file-upload-field__chooser-copy strong {
+  color: var(--file-upload-text);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.file-upload-field__choose-button,
+.file-upload-field__action {
+  display: inline-flex;
+  min-height: 2rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--file-upload-border);
+  border-radius: 0.6rem;
+  padding: 0.35rem 0.65rem;
+  color: var(--file-upload-text);
+  background: transparent;
+  font: inherit;
+  font-size: 0.75rem;
+  line-height: 1.2;
+  transition: border-color 140ms ease, background-color 140ms ease, color 140ms ease;
+  touch-action: manipulation;
+}
+
+.file-upload-field__choose-button:hover,
+.file-upload-field__action:hover {
+  border-color: var(--file-upload-accent);
+  background: color-mix(in srgb, var(--file-upload-accent) 9%, transparent);
+}
+
+.file-upload-field__choose-button:focus-visible,
+.file-upload-field__action:focus-visible {
+  outline: 2px solid var(--file-upload-accent);
+  outline-offset: 2px;
+}
+
+.file-upload-field__choose-button:disabled,
+.file-upload-field__action:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.file-upload-field__list {
+  display: grid;
+  gap: 0.4rem;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.file-upload-field__item {
+  display: flex;
+  min-width: 0;
+  min-height: 3.35rem;
+  align-items: center;
+  gap: 0.55rem;
+  border: 1px solid var(--file-upload-border);
+  border-radius: 0.7rem;
+  padding: 0.45rem 0.55rem;
+  background: var(--file-upload-surface);
+}
+
+.file-upload-field__preview,
+.file-upload-field__file-icon {
+  width: 2.3rem;
+  height: 2.3rem;
+  flex: 0 0 2.3rem;
+  overflow: hidden;
+  border-radius: 0.45rem;
+}
+
+.file-upload-field__preview {
+  object-fit: cover;
+}
+
+.file-upload-field__file-icon {
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--file-upload-border);
+  color: var(--file-upload-accent);
+}
+
+.file-upload-field__file-icon svg {
+  width: 1.3rem;
+  height: 1.3rem;
+}
+
+.file-upload-field__file-icon small {
+  max-width: 2rem;
+  overflow: hidden;
+  color: var(--file-upload-muted);
+  font-size: 0.43rem;
+  line-height: 1;
+  text-overflow: ellipsis;
+}
+
+.file-upload-field__name {
+  min-width: 0;
+  flex: 1 1 7rem;
+  overflow: hidden;
+  font-size: 0.78rem;
+  line-height: 1.35;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.file-upload-field__size,
+.file-upload-field__status {
+  flex: 0 0 auto;
+  color: var(--file-upload-muted);
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
+.file-upload-field__status--uploading {
+  color: var(--file-upload-accent);
+}
+
+.file-upload-field__status--uploaded {
+  color: var(--admin-success, #16a34a);
+}
+
+.file-upload-field__status--failed {
+  color: var(--file-upload-danger);
+}
+
+.file-upload-field__progress {
+  display: grid;
+  gap: 0.3rem;
+  margin-top: 0.45rem;
+  color: var(--file-upload-muted);
+  font-size: 0.7rem;
+}
+
+.file-upload-field__progress > div {
+  display: flex;
+  justify-content: space-between;
+}
+
+.file-upload-field__progress progress {
+  width: 100%;
+  height: 0.4rem;
+  accent-color: var(--file-upload-accent);
+}
+
+.file-upload-field__error {
+  margin: 0.4rem 0 0;
+  color: var(--file-upload-danger);
+  font-size: 0.75rem;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 639px) {
+  .file-upload-field__item {
+    flex-wrap: wrap;
+  }
+
+  .file-upload-field__name {
+    flex-basis: calc(100% - 3rem);
+  }
+
+  .file-upload-field__size {
+    margin-left: 2.85rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .file-upload-field__chooser,
+  .file-upload-field__choose-button,
+  .file-upload-field__action {
+    transition: none;
+  }
+}

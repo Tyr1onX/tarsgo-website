@@ -106,8 +106,8 @@ test("new assignments with teaching materials publish atomically and retry idemp
 });
 
 test("admin teaching materials stay separate from submissions and use permission-checked APIs", () => {
-  assert.match(assignmentManagement, /type="file" multiple accept=\{assignmentMaterialAccept\}/);
-  assert.match(assignmentManagement, /validateAssignmentMaterialSelection\(existingMaterials, pendingMaterials, incoming\)/);
+  assert.match(assignmentManagement, /FileUploadField[\s\S]*?accept=\{assignmentMaterialAccept\}[\s\S]*?multiple/);
+  assert.match(assignmentManagement, /validateSelection=\{\(next\) => validateAssignmentMaterialSelection\(existingMaterials, \[\], next\)/);
   assert.match(assignmentManagement, /assignmentClient\.uploadMaterialFiles\(saved\.id, pendingMaterials/);
   assert.match(assignmentManagement, /已有成员提交，教学资料已锁定/);
   assert.match(assignmentClient, /\/api\/admin\/assignments\/\$\{id\}\/materials/);

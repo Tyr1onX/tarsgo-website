@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useOutletContext, useSearchParams } from "react-router";
 
+import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import {
   getWeeklyReportDashboard,
@@ -21,6 +22,9 @@ export function meta() {
 }
 
 const emptyReport: WeeklyReportInput = { completed: "", gains: "", blockers: "", nextPlan: "" };
+const maxWeeklyReportFiles = 10;
+const maxWeeklyReportFileBytes = 20 * 1024 * 1024;
+const maxWeeklyReportTotalBytes = 50 * 1024 * 1024;
 
 function describeError(cause: unknown, fallback: string) {
   return cause instanceof Error ? cause.message : fallback;
@@ -44,6 +48,7 @@ export default function WeeklyReportsRoute() {
   const [reportGroupId, setReportGroupId] = useState("");
   const [form, setForm] = useState<WeeklyReportInput>(emptyReport);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
+  const [fileUploadStatus, setFileUploadStatus] = useState<FileUploadStatus>("pending");
   const [teamWeek, setTeamWeek] = useState<WeeklyReportTeamWeek | null>(null);
   const [teamAvailableWeeks, setTeamAvailableWeeks] = useState<string[]>([]);
   const [teamWeekStart, setTeamWeekStart] = useState("");
@@ -131,6 +136,7 @@ export default function WeeklyReportsRoute() {
 
   useEffect(() => {
     setPendingFiles([]);
+    setFileUploadStatus("pending");
   }, [selectedReportKey]);
 
   useEffect(() => {
@@ -183,15 +189,18 @@ export default function WeeklyReportsRoute() {
       });
       setSelectedReportKey(saved.weekStart === dashboard.currentWeekStart && (isCurrentEntry || saved.id === currentWeekReportID) ? "current" : String(saved.id));
       if (pendingFiles.length > 0) {
+        setFileUploadStatus("uploading");
         try {
           const attachments = await uploadWeeklyReportAttachments(saved.id, pendingFiles);
           saved = { ...saved, attachments };
           setPendingFiles([]);
+          setFileUploadStatus("pending");
           setDashboard((current) => current ? {
             ...current,
             reports: current.reports.map((report) => report.id === saved.id ? saved : report),
           } : current);
         } catch (cause) {
+          setFileUploadStatus("failed");
           setSaveError(`周报已保存，附件上传失败：${describeError(cause, "请保留附件后重试")}`);
           return;
         }
@@ -297,31 +306,30 @@ export default function WeeklyReportsRoute() {
                 <textarea required maxLength={5000} value={form.blockers} onChange={(event) => updateForm("blockers", event.target.value)} placeholder="遇到的问题、需要的指导或协作支持；如暂无请填写“无”" />
               </label>
               <div className="weekly-report__attachments">
-                <label className="weekly-report__field">
+                <div className="weekly-report__field">
                   <span>周报附件</span>
-                  <input
-                    type="file"
+                  <FileUploadField
+                    label="周报附件"
+                    files={pendingFiles}
+                    onFilesChange={(next) => { setPendingFiles(next); setFileUploadStatus("pending"); setSaveError(""); }}
                     multiple
                     accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.zip,.7z,.rar"
-                    onChange={(event) => {
-                      const files = Array.from(event.currentTarget.files ?? []);
-                      const available = Math.max(0, 10 - (selectedReport?.attachments?.length ?? 0) - pendingFiles.length);
-                      setSaveError(files.length > available ? "每篇周报最多保留 10 个附件；超出部分未添加。" : "");
-                      if (files.length > 0 && available > 0) setPendingFiles((current) => [...current, ...files.slice(0, available)]);
-                      event.currentTarget.value = "";
+                    hint="最多 10 个 · 单个≤20 MB · 总计≤50 MB"
+                    status={fileUploadStatus}
+                    disabled={saving}
+                    validateSelection={(next) => {
+                      const existing = selectedReport?.attachments ?? [];
+                      if (existing.length + next.length > maxWeeklyReportFiles) return "每篇周报最多保留 10 个附件。";
+                      if (next.some((file) => file.size <= 0 || file.size > maxWeeklyReportFileBytes)) return "单个附件不能为空且不能超过 20 MB。";
+                      if (existing.reduce((total, file) => total + file.size, 0) + next.reduce((total, file) => total + file.size, 0) > maxWeeklyReportTotalBytes) return "周报附件总大小不能超过 50 MB。";
+                      return null;
                     }}
                   />
-                </label>
-                <p className="weekly-report__attachment-hint">支持图片及常用文档，每个不超过 20 MB，每篇周报最多 10 个、合计 50 MB。</p>
-                {pendingFiles.length > 0 ? <ul className="weekly-report__attachment-list" aria-label="待上传附件">
-                  {pendingFiles.map((file, index) => <li key={`${file.name}-${file.size}-${index}`}>
-                    <span>{file.name}</span>
-                    <button className="weekly-report__attachment-remove" type="button" aria-label={`移除${file.name}`} onClick={() => setPendingFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))}>移除</button>
-                  </li>)}
-                </ul> : null}
+                </div>
                 {(selectedReport?.attachments?.length ?? 0) > 0 ? <ul className="weekly-report__attachment-list" aria-label="已上传附件">
                   {selectedReport?.attachments?.map((file) => <li key={file.id}>
                     <a href={file.downloadUrl}>{file.fileName}</a>
+                    <span className="text-xs text-[var(--admin-muted)]">已上传 · {Math.max(1, Math.ceil(file.size / 1024))} KB</span>
                     <button className="weekly-report__attachment-remove" type="button" disabled={saving} onClick={() => void removeAttachment(file.id)}>删除</button>
                   </li>)}
                 </ul> : null}

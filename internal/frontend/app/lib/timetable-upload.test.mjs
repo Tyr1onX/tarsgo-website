@@ -16,12 +16,13 @@ test("member timetable management is limited to the configured current semester"
 });
 
 test("timetable picker uses accessible compact upload affordance without altering import semantics", () => {
-  assert.match(component, /id="profile-timetable-file"/);
-  assert.match(component, /htmlFor="profile-timetable-file"/);
-  assert.match(component, /aria-label="选择教务系统课表 Excel"/);
-  assert.match(component, /className="peer sr-only"/);
-  assert.match(component, /peer-focus-visible:outline/);
+  assert.match(component, /<FileUploadField[\s\S]*?label="教务系统课表 Excel"/);
+  assert.match(component, /variant="compact"/);
+  assert.match(component, /triggerLabel=\{file \? "重新选择" : "选择文件"\}/);
+  assert.match(component, /onRetry=\{\(\) => void importSelected\(\)\}/);
+  assert.match(component, /return "请选择 \.xlsx 格式的教务系统课表"/);
   assert.match(component, /MAX_TIMETABLE_BYTES = 5 \* 1024 \* 1024/);
   assert.match(component, /disabled=\{!file \|\| uploading\}/);
-  assert.match(component, /form\.reset\(\)/);
+  assert.match(component, /setUploadStatus\("uploading"\)/);
+  assert.match(component, /setFile\(null\)/);
 });

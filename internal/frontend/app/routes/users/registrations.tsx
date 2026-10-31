@@ -18,7 +18,6 @@ import clockIcon from "@iconify-icons/lucide/clock";
 import usersIcon from "@iconify-icons/lucide/users";
 import shieldCheckIcon from "@iconify-icons/lucide/shield-check";
 import infoIcon from "@iconify-icons/lucide/info";
-import uploadCloudIcon from "@iconify-icons/lucide/upload-cloud";
 import fileTextIcon from "@iconify-icons/lucide/file-text";
 import clipboardListIcon from "@iconify-icons/lucide/clipboard-list";
 import circleSlashIcon from "@iconify-icons/lucide/circle-slash-2";
@@ -33,6 +32,7 @@ import type { ApiEnvelope } from "~/lib/api-client";
 import { ApiError, buildApiUrl } from "~/lib/api-client";
 import { Notify } from "~/components/notify";
 import { useModalAccessibility } from "~/components/modal-shell";
+import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
 import {
   isFileField,
   isOptionField,
@@ -112,6 +112,7 @@ export default function UserRegistrations({
     [pageData.form, pageData.registrationFormData, pageData.registrationSummary?.id, pageData.registrationSummary?.updatedAt],
   );
   const [formValues, setFormValues] = useState<Record<string, unknown>>(initialFormValues);
+  const [fileUploadStatus, setFileUploadStatus] = useState<FileUploadStatus>("pending");
   const [flash, setFlash] = useState<FlashState>(null);
   const [flashVisible, setFlashVisible] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -224,6 +225,9 @@ export default function UserRegistrations({
   }, [pageData.form]);
 
   function updateFieldValue(key: string, value: unknown) {
+    if (pageData.form?.fieldsSchema.some((field) => field.key === key && isFileField(field.type))) {
+      setFileUploadStatus("pending");
+    }
     setFormValues((current) => ({
       ...current,
       [key]: value,
@@ -236,9 +240,11 @@ export default function UserRegistrations({
     if (!targetForm || pageMode !== "form") {
       return;
     }
+    const hasUploadFiles = Object.values(formValues).some((value) => Array.isArray(value) && value.some(isFileValue));
 
     try {
       setSubmitting(true);
+      setFileUploadStatus(hasUploadFiles ? "uploading" : "pending");
       setFlash(null);
       setFlashVisible(false);
       const payload = buildRegistrationSubmitPayload(
@@ -247,6 +253,7 @@ export default function UserRegistrations({
         formValues,
       );
       const result = await submitRecruitmentRegistration(payload);
+      setFileUploadStatus(hasUploadFiles ? "uploaded" : "pending");
       const preferredGroup = resolveSelectedRecruitmentGroup(targetForm.fieldsSchema, "preferred_group", formValues.preferred_group);
       setPageData((current) => ({
         ...current,
@@ -268,6 +275,7 @@ export default function UserRegistrations({
         message: "报名提交成功，当前状态为待初筛。",
       });
     } catch (error) {
+      if (hasUploadFiles) setFileUploadStatus("failed");
       setFlash({
         type: "error",
         message: getErrorMessage(error),
@@ -406,6 +414,7 @@ export default function UserRegistrations({
           onFieldChange={updateFieldValue}
           onSubmit={handleSubmit}
           submitting={submitting}
+          fileUploadStatus={fileUploadStatus}
         />
       ) : (
         <UnavailableStateCard reason="当前暂无可访问的报名表。" />
@@ -471,6 +480,7 @@ function FormStateView({
   onFieldChange,
   onSubmit,
   submitting,
+  fileUploadStatus,
 }: {
   form: NonNullable<RecruitmentPageData["form"]>;
   scheduleText: string;
@@ -479,7 +489,9 @@ function FormStateView({
   onFieldChange: (key: string, value: unknown) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   submitting: boolean;
+  fileUploadStatus: FileUploadStatus;
 }) {
+  const formRef = useRef<HTMLFormElement>(null);
   const totalFields = form.fieldsSchema.length;
   const requiredFields = form.fieldsSchema.filter((f) => f.required).length;
 
@@ -488,7 +500,7 @@ function FormStateView({
       <div className="space-y-6">
         <FormCoverCard form={form} />
 
-        <form className="admin-panel candidate-form" onSubmit={onSubmit}>
+        <form ref={formRef} className="admin-panel candidate-form" onSubmit={onSubmit}>
           <div className="candidate-section-header">
             <div className="flex items-center gap-3">
               <div className="candidate-icon-box h-9 w-9">
@@ -523,7 +535,9 @@ function FormStateView({
                 field={field}
                 value={formValues[field.key]}
                 existingUpload={registrationFormData?.[field.key]}
+                fileUploadStatus={fileUploadStatus}
                 onChange={onFieldChange}
+                onRetry={() => formRef.current?.requestSubmit()}
               />
             ))}
           </div>
@@ -703,13 +717,17 @@ function FieldRow({
   field,
   value,
   existingUpload,
+  fileUploadStatus,
   onChange,
+  onRetry,
 }: {
   index: number;
   field: RegistrationFormField;
   value: unknown;
   existingUpload: unknown;
+  fileUploadStatus: FileUploadStatus;
   onChange: (key: string, value: unknown) => void;
+  onRetry: () => void;
 }) {
   const fieldId = `field-${field.key}`;
   return (
@@ -738,7 +756,7 @@ function FieldRow({
       {isFileField(field.type) ? (
         <ExistingUploadState field={field} value={existingUpload} />
       ) : null}
-      {renderFieldControl(fieldId, field, value, onChange)}
+      {renderFieldControl(fieldId, field, value, onChange, fileUploadStatus, onRetry)}
     </div>
   );
 }
@@ -1267,6 +1285,8 @@ function renderFieldControl(
   field: RegistrationFormField,
   value: unknown,
   onChange: (key: string, value: unknown) => void,
+  fileUploadStatus: FileUploadStatus,
+  onRetry: () => void,
 ) {
   const commonClassName =
     "admin-field candidate-field";
@@ -1390,30 +1410,42 @@ function renderFieldControl(
 
   if (isFileField(field.type)) {
     const isImage = field.type === "image";
+    const selectedFiles = Array.isArray(value) ? value.filter(isFileValue) : [];
+    const fileConfig = field.file_config ?? {};
+    const allowedTypes = Array.isArray(fileConfig.allowed_types)
+      ? fileConfig.allowed_types.filter((item): item is string => typeof item === "string")
+      : [];
+    const accept = allowedTypes.length
+      ? allowedTypes.map((item) => normalizeUploadAcceptType(item)).join(",")
+      : isImage ? "image/*" : undefined;
+    const maxSizeMB = positiveConfigNumber(fileConfig.max_size_mb);
+    const maxCount = isImage ? positiveConfigNumber(fileConfig.max_count) : null;
+    const hint = [isImage ? "图片" : "单个文件", maxSizeMB ? `最大 ${maxSizeMB} MB` : "", maxCount ? `最多 ${maxCount} 张` : ""].filter(Boolean).join(" · ");
     return (
-      <label
-        htmlFor={fieldId}
-        className="candidate-upload-field group flex cursor-pointer items-center gap-3 text-sm text-fg-muted"
-      >
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/[0.06] bg-white/[0.03] text-primary-300 transition-colors group-hover:border-primary-500/30 group-hover:bg-primary-500/10">
-          <Icon icon={uploadCloudIcon} className="h-4.5 w-4.5" />
-        </div>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-fg-primary">
-            {isImage ? "选择图片（可多选）" : "选择文件"}
-          </p>
-          <p className="mt-0.5 truncate text-xs text-fg-dim">
-            点击此区域选择{isImage ? "一张或多张图片" : "一个文件"}进行上传
-          </p>
-        </div>
-        <input
-          id={fieldId}
-          type="file"
-          multiple={isImage}
-          className="sr-only"
-          onChange={(event) => onChange(field.key, event.target.files)}
-        />
-      </label>
+      <FileUploadField
+        label={field.label}
+        id={fieldId}
+        files={selectedFiles}
+        onFilesChange={(files) => onChange(field.key, files)}
+        accept={accept}
+        multiple={isImage}
+        variant="compact"
+        disabled={fileUploadStatus === "uploading"}
+        status={fileUploadStatus}
+        onRetry={onRetry}
+        triggerLabel={selectedFiles.length ? "继续添加" : isImage ? "选择图片" : "选择文件"}
+        hint={hint}
+        validateSelection={(nextFiles, incomingFiles) => {
+          if (!isImage && nextFiles.length > 1) return "单个文件字段只能选择一个文件。";
+          if (maxCount && nextFiles.length > maxCount) return `最多上传 ${maxCount} 张图片。`;
+          for (const file of incomingFiles) {
+            if (maxSizeMB && file.size > maxSizeMB * 1024 * 1024) return `单个文件不能超过 ${maxSizeMB} MB。`;
+            if (isImage && !isRegistrationImageFile(file)) return "请选择图片文件。";
+            if (allowedTypes.length && !isRegistrationAllowedFileType(file, allowedTypes)) return `「${file.name}」的文件类型不符合要求。`;
+          }
+          return null;
+        }}
+      />
     );
   }
 
@@ -1524,11 +1556,8 @@ function buildRegistrationSubmitPayload(
     }
 
     if (isFileField(field.type)) {
-      const fileList = value instanceof FileList ? value : null;
-      if (!fileList) {
-        continue;
-      }
-      Array.from(fileList).forEach((file) => {
+      const files = Array.isArray(value) ? value.filter(isFileValue) : [];
+      files.forEach((file) => {
         payload.append(field.key, file);
       });
       continue;
@@ -1545,6 +1574,34 @@ function buildRegistrationSubmitPayload(
   }
 
   return payload;
+}
+
+function positiveConfigNumber(value: unknown) {
+  return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : null;
+}
+
+function isFileValue(value: unknown): value is File {
+  return typeof File !== "undefined" && value instanceof File;
+}
+
+function normalizeUploadAcceptType(value: string) {
+  const normalized = value.trim();
+  return normalized.includes("/") ? normalized : `.${normalized.replace(/^\./, "")}`;
+}
+
+function isRegistrationImageFile(file: File) {
+  if (file.type.startsWith("image/")) return true;
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  return Boolean(extension && ["jpg", "jpeg", "png", "gif", "webp", "bmp", "svg"].includes(extension));
+}
+
+function isRegistrationAllowedFileType(file: File, allowedTypes: string[]) {
+  const extension = file.name.split(".").pop()?.toLowerCase() ?? "";
+  const contentType = file.type.toLowerCase();
+  return allowedTypes.some((item) => {
+    const allowed = item.trim().toLowerCase().replace(/^\./, "");
+    return allowed === extension || allowed === contentType || (allowed.endsWith("/*") && contentType.startsWith(allowed.slice(0, -1)));
+  });
 }
 
 function formatDateTime(value?: string | null) {

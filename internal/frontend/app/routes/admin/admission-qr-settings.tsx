@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 
+import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
 import { ApiError } from "~/lib/api-client";
 import {
   listAdminUserGroups,
@@ -10,6 +11,7 @@ import {
 } from "~/lib/admin-user-groups-client";
 
 type Flash = { tone: "success" | "error"; message: string } | null;
+const ADMISSION_QR_MAX_BYTES = 2 * 1024 * 1024;
 
 export function AdmissionQRCodeSettings() {
   const navigate = useNavigate();
@@ -18,6 +20,9 @@ export function AdmissionQRCodeSettings() {
   const [busyGroupId, setBusyGroupId] = useState<number | null>(null);
   const [flash, setFlash] = useState<Flash>(null);
   const [failedPreviewUrls, setFailedPreviewUrls] = useState<string[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<Record<number, File[]>>({});
+  const [uploadStatuses, setUploadStatuses] = useState<Record<number, FileUploadStatus>>({});
+  const [uploadErrors, setUploadErrors] = useState<Record<number, string>>({});
 
   async function loadGroups(showLoader = true) {
     if (showLoader) setLoading(true);
@@ -41,19 +46,21 @@ export function AdmissionQRCodeSettings() {
 
   async function upload(group: AdminUserGroupListItem, file: File | undefined) {
     if (!file) return;
-    if (file.type !== "image/png" && file.type !== "image/jpeg") {
-      setFlash({ tone: "error", message: "请选择 PNG 或 JPEG 图片。" });
-      return;
-    }
+    setUploadStatuses((current) => ({ ...current, [group.id]: "uploading" }));
+    setUploadErrors((current) => ({ ...current, [group.id]: "" }));
     setBusyGroupId(group.id);
     setFlash(null);
     try {
       await uploadAdminAdmissionQRCode(group.id, file);
+      setUploadStatuses((current) => ({ ...current, [group.id]: "uploaded" }));
       setFailedPreviewUrls((current) => current.filter((url) => url !== group.admissionQrCodeUrl));
       setFlash({ tone: "success", message: `「${group.name}」的录取群二维码已更新。` });
       await loadGroups(false);
     } catch (error) {
-      setFlash({ tone: "error", message: getErrorMessage(error) });
+      const message = getErrorMessage(error);
+      setUploadStatuses((current) => ({ ...current, [group.id]: "failed" }));
+      setUploadErrors((current) => ({ ...current, [group.id]: message }));
+      setFlash({ tone: "error", message });
     } finally {
       setBusyGroupId(null);
     }
@@ -140,20 +147,34 @@ export function AdmissionQRCodeSettings() {
                   <p className="mt-2 break-all text-xs text-fg-dim">邮件发送时还会重新校验图片文件是否可读取。</p>
                 ) : null}
 
-                <div className="mt-4 flex flex-wrap items-center gap-2">
-                  <label className={`admin-button admin-button--secondary cursor-pointer ${busy ? "pointer-events-none opacity-60" : ""}`}>
-                    {busy ? "正在保存…" : group.admissionQrCodeConfigured ? "更换二维码" : "上传二维码"}
-                    <input
-                      type="file"
-                      accept="image/png,image/jpeg"
-                      className="sr-only"
-                      disabled={busy}
-                      onChange={(event) => {
-                        void upload(group, event.currentTarget.files?.[0]);
-                        event.currentTarget.value = "";
-                      }}
-                    />
-                  </label>
+                <div className="mt-4 space-y-2">
+                  <FileUploadField
+                    label={`${group.name}录取群二维码`}
+                    files={selectedFiles[group.id] ?? []}
+                    onFilesChange={(files) => {
+                      setSelectedFiles((current) => ({ ...current, [group.id]: files }));
+                      setUploadErrors((current) => ({ ...current, [group.id]: "" }));
+                      setUploadStatuses((current) => ({ ...current, [group.id]: "pending" }));
+                      if (files[0]) void upload(group, files[0]);
+                    }}
+                    accept="image/png,image/jpeg"
+                    variant="compact"
+                    triggerLabel={busy ? "正在保存…" : group.admissionQrCodeConfigured ? "更换二维码" : "上传二维码"}
+                    hint="PNG / JPEG，最大 2 MB"
+                    error={uploadErrors[group.id]}
+                    disabled={busy}
+                    status={uploadStatuses[group.id] ?? "pending"}
+                    onRetry={() => void upload(group, selectedFiles[group.id]?.[0])}
+                    validateSelection={(_nextFiles, incomingFiles) => {
+                      const file = incomingFiles[0];
+                      if (!file) return null;
+                      if (file.type !== "image/png" && file.type !== "image/jpeg") return "请选择 PNG 或 JPEG 图片。";
+                      if (file.size > ADMISSION_QR_MAX_BYTES) return "二维码图片不能超过 2 MB。";
+                      return null;
+                    }}
+                  />
+                </div>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
                   {group.admissionQrCodeConfigured ? (
                     <button type="button" disabled={busy} onClick={() => void remove(group)} className="admin-button admin-button--danger">
                       移除二维码

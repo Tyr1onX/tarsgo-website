@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useOutletContext } from "react-router";
 
+import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
 import { WorkbenchFeatureStatus } from "~/components/workbench-feature-status";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { ApiError } from "~/lib/api-client";
@@ -70,11 +71,11 @@ export default function AssignmentManagementRoute() {
   const [loadingEdit, setLoadingEdit] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+  const [materialsUploadStatus, setMaterialsUploadStatus] = useState<FileUploadStatus>("pending");
   const [publishStage, setPublishStage] = useState<"idle" | "saving" | "uploading" | "failed">("idle");
   const [publishCanCancel, setPublishCanCancel] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const materialInputRef = useRef<HTMLInputElement | null>(null);
   const publishRequestID = useRef<string | null>(null);
   const activePublishCancel = useRef<(() => void) | null>(null);
   const editRequestID = useRef(0);
@@ -115,6 +116,7 @@ export default function AssignmentManagementRoute() {
     setMemberSearch("");
     setExistingMaterials([]);
     setPendingMaterials([]);
+    setMaterialsUploadStatus("pending");
     setLoadingEdit(false);
     setUploadProgress(null);
     setPublishStage("idle");
@@ -206,6 +208,7 @@ export default function AssignmentManagementRoute() {
         await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
         setPublishStage("uploading");
         setUploadProgress(0);
+        setMaterialsUploadStatus("uploading");
         const request = assignmentClient.publishWithMaterials(
           input,
           pendingMaterials,
@@ -220,6 +223,7 @@ export default function AssignmentManagementRoute() {
           setItems((current) => [result.assignment, ...current.filter((item) => item.id !== result.assignment.id)]);
           setExistingMaterials(result.materialFiles);
           setPendingMaterials([]);
+          setMaterialsUploadStatus("pending");
           setNotice("作业及教学资料已完整发布。");
           resetDraft();
           try {
@@ -232,6 +236,7 @@ export default function AssignmentManagementRoute() {
         } catch (cause) {
           activePublishCancel.current = null;
           setPublishStage("failed");
+          setMaterialsUploadStatus("failed");
           const status = cause instanceof ApiError ? cause.status : 0;
           const definitelyNotPublished = status >= 400 && status < 500 && status !== 409;
           setPublishCanCancel(definitelyNotPublished);
@@ -254,12 +259,15 @@ export default function AssignmentManagementRoute() {
       if (!wasEditing && pendingMaterials.length > 0) setEditing(saved);
       if (pendingMaterials.length > 0) {
         setUploadProgress(0);
+        setMaterialsUploadStatus("uploading");
         try {
           const materialFiles = await assignmentClient.uploadMaterialFiles(saved.id, pendingMaterials, setUploadProgress);
           setExistingMaterials(materialFiles);
           setPendingMaterials([]);
+          setMaterialsUploadStatus("pending");
           setEditing(saved);
         } catch (cause) {
+          setMaterialsUploadStatus("failed");
           const detail = cause instanceof Error ? cause.message : "请稍后重试。";
           setEditing(saved);
           setError(`作业已保存，教学资料上传失败：${detail} 可在当前表单重试。`);
@@ -309,13 +317,18 @@ export default function AssignmentManagementRoute() {
           <label className="admin-field-label md:col-span-2">附件要求<input className={fieldClass} maxLength={2000} disabled={saving || publishStage !== "idle"} value={draft.attachmentRequirements} onChange={(event) => setDraft({ ...draft, attachmentRequirements: event.target.value })} /></label>
           <section className="space-y-3 md:col-span-2" aria-labelledby="assignment-materials-title">
             <h3 id="assignment-materials-title" className="text-sm font-semibold text-white">教学资料附件</h3>
-            <input ref={materialInputRef} className="admin-field w-full" type="file" multiple accept={assignmentMaterialAccept} disabled={saving || publishStage !== "idle" || loadingEdit || Boolean(editing && editing.submittedCount > 0)} onChange={(event) => {
-              const incoming = Array.from(event.currentTarget.files ?? []);
-              const validationError = validateAssignmentMaterialSelection(existingMaterials, pendingMaterials, incoming);
-              if (validationError) setError(validationError);
-              else { setPendingMaterials((current) => [...current, ...incoming]); setError(""); }
-              event.currentTarget.value = "";
-            }} />
+            <FileUploadField
+              label="教学资料附件"
+              files={pendingMaterials}
+              onFilesChange={(next) => { setPendingMaterials(next); setMaterialsUploadStatus("pending"); setError(""); }}
+              accept={assignmentMaterialAccept}
+              multiple
+              hint="最多 10 个 · 单个≤20 MB · 总计≤50 MB"
+              disabled={saving || publishStage !== "idle" || loadingEdit || Boolean(editing && editing.submittedCount > 0)}
+              status={materialsUploadStatus}
+              progress={uploadProgress}
+              validateSelection={(next) => validateAssignmentMaterialSelection(existingMaterials, [], next) || null}
+            />
             {existingMaterials.length > 0 ? <ul className="divide-y divide-[var(--admin-border-subtle)] rounded-lg border border-[var(--admin-border-subtle)] px-3">
               {existingMaterials.map((file) => <li key={file.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
                 <a className="min-w-0 break-all text-amber-300 hover:text-amber-200" href={file.downloadUrl}>{file.fileName}</a>
@@ -327,10 +340,6 @@ export default function AssignmentManagementRoute() {
                 }}>移除</button></span>
               </li>)}
             </ul> : null}
-            {pendingMaterials.length > 0 ? <ul className="divide-y divide-[var(--admin-border-subtle)] rounded-lg border border-[var(--admin-border-subtle)] px-3" aria-label="待上传教学资料">
-              {pendingMaterials.map((file, index) => <li key={`${file.name}-${file.size}-${index}`} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"><span className="min-w-0 break-all">{file.name}</span><span className="flex items-center gap-2 text-xs text-[var(--admin-muted)]">{formatAssignmentMaterialSize(file.size)}<button type="button" className="admin-button admin-button--quiet" aria-label={`移除待上传${file.name}`} disabled={saving} onClick={() => setPendingMaterials((current) => current.filter((_, currentIndex) => currentIndex !== index))}>移除</button></span></li>)}
-            </ul> : null}
-            {uploadProgress !== null ? <div role="status" className="space-y-1 text-xs text-[var(--admin-muted)]"><div className="flex justify-between"><span>正在上传教学资料</span><span>{uploadProgress}%</span></div><progress className="h-2 w-full accent-amber-400" max={100} value={uploadProgress} /></div> : null}
             {editing?.submittedCount ? <p className="text-xs text-[var(--admin-muted)]">已有成员提交，教学资料已锁定。</p> : null}
           </section>
           <fieldset className="space-y-2 md:col-span-2">

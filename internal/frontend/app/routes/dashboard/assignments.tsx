@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useOutletContext, useSearchParams } from "react-router";
 
 import { WorkbenchFeatureStatus } from "~/components/workbench-feature-status";
+import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import {
   assignmentClient,
@@ -19,6 +20,9 @@ export function meta() {
 
 const fileAccept = ".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.zip,.7z,.rar";
 const inputClass = "admin-field w-full";
+const maxSubmissionFiles = 10;
+const maxSubmissionFileBytes = 20 * 1024 * 1024;
+const maxSubmissionTotalBytes = 50 * 1024 * 1024;
 
 export default function MyAssignmentsRoute() {
   const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
@@ -30,8 +34,8 @@ export default function MyAssignmentsRoute() {
   const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [fileUploadStatus, setFileUploadStatus] = useState<FileUploadStatus>("pending");
   const [error, setError] = useState("");
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const requestId = useRef(0);
   const currentUserId = useRef(currentUser.id);
   currentUserId.current = currentUser.id;
@@ -76,6 +80,7 @@ export default function MyAssignmentsRoute() {
     setSelectedID(item.id);
     setDetail(null);
     setFiles([]);
+    setFileUploadStatus("pending");
     setError("");
     try {
       const nextDetail = await assignmentClient.getMine(item.id);
@@ -93,16 +98,20 @@ export default function MyAssignmentsRoute() {
     const accountId = currentUser.id;
     const activeRequest = ++requestId.current;
     setSaving(true);
+    setFileUploadStatus("uploading");
     setError("");
     try {
       const updated = await assignmentClient.submit(detail.assignment.id, files);
       if (currentUserId.current !== accountId || requestId.current !== activeRequest) return;
       setDetail(updated);
       setFiles([]);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      setFileUploadStatus("pending");
       await loadAssignments(updated.assignment.id);
     } catch (cause) {
-      if (currentUserId.current === accountId) setError(cause instanceof Error ? cause.message : "提交失败，请稍后重试");
+      if (currentUserId.current === accountId && requestId.current === activeRequest) {
+        setFileUploadStatus("failed");
+        setError(cause instanceof Error ? cause.message : "提交失败，请稍后重试");
+      }
     } finally {
       if (currentUserId.current === accountId) setSaving(false);
     }
@@ -163,8 +172,23 @@ export default function MyAssignmentsRoute() {
           </section>
 
           {canSubmit ? <form onSubmit={submit} className="space-y-3 border-t border-[var(--admin-border-subtle)] pt-4">
-            <label className="admin-field-label">提交附件<input ref={fileInputRef} className={inputClass} type="file" multiple required accept={fileAccept} onChange={(event) => setFiles(Array.from(event.currentTarget.files ?? []))} /></label>
-            <div className="flex flex-wrap items-center justify-between gap-3"><p className="text-xs text-[var(--admin-muted)]">最多 10 个文件，单个不超过 20 MB，总计不超过 50 MB。</p><button type="submit" className="admin-button admin-button--primary" disabled={saving || files.length === 0}>{saving ? "提交中…" : detail.submissions.length ? "重新提交" : "提交作业"}</button></div>
+            <div className="admin-field-label">提交附件<FileUploadField
+              label="作业提交附件"
+              files={files}
+              onFilesChange={(next) => { setFiles(next); setFileUploadStatus("pending"); setError(""); }}
+              accept={fileAccept}
+              multiple
+              hint="最多 10 个 · 单个≤20 MB · 总计≤50 MB"
+              status={fileUploadStatus}
+              disabled={saving}
+              validateSelection={(next) => {
+                if (next.length > maxSubmissionFiles) return "最多提交 10 个文件。";
+                if (next.some((file) => file.size <= 0 || file.size > maxSubmissionFileBytes)) return "单个文件不能为空且不能超过 20 MB。";
+                if (next.reduce((total, file) => total + file.size, 0) > maxSubmissionTotalBytes) return "附件总大小不能超过 50 MB。";
+                return null;
+              }}
+            /></div>
+            <div className="flex flex-wrap items-center justify-between gap-3"><button type="submit" className="admin-button admin-button--primary" disabled={saving || files.length === 0}>{saving ? "提交中…" : detail.submissions.length ? "重新提交" : "提交作业"}</button></div>
           </form> : null}
         </section> : selectedID != null && !loading ? <section className="admin-panel p-5 text-sm text-[var(--admin-muted)]">正在读取作业记录…</section> : null}
       </div> : null}

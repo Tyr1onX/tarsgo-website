@@ -1,5 +1,16 @@
 import { apiRequest } from "~/lib/api-client";
 
+export const trainingQuestionImageAccept = "image/jpeg,image/png,image/gif,image/webp";
+const questionImageExtensions = new Set([".jpg", ".jpeg", ".png", ".gif", ".webp"]);
+
+export function validateQuestionImageFiles(files: File[]) {
+  if (files.length > 5) return "图片最多上传 5 张。";
+  if (files.some((file) => file.size <= 0 || file.size > 10 * 1024 * 1024)) return "单张图片不能为空且不能超过 10 MB。";
+  if (files.reduce((total, file) => total + file.size, 0) > 20 * 1024 * 1024) return "图片总大小不能超过 20 MB。";
+  if (files.some((file) => !questionImageExtensions.has(`.${file.name.split(".").pop()?.toLowerCase() ?? ""}`))) return "仅支持 JPG、PNG、GIF 或 WebP 图片。";
+  return null;
+}
+
 export interface QuestionAttachment {
   id: number;
   fileName: string;

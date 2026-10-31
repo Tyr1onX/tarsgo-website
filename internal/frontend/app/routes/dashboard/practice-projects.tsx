@@ -1,5 +1,6 @@
 import {useEffect,useState,type FormEvent} from "react";
 import {useLocation,useOutletContext} from "react-router";
+import {FileUploadField,type FileUploadStatus} from "~/components/file-upload-field";
 import type {DashboardLayoutOutletContext} from "~/routes/dashboard/layout";
 import {practiceClient,type PracticeProject,type PracticeInput,type PracticeMember,type PracticeSubmission,type PracticeGroup} from "~/lib/practice-project-client";
 import {assignmentDeadlineIsFuture,assignmentDeadlineToISOString,shanghaiDateTimeLocal} from "~/lib/assignment-deadline";
@@ -8,6 +9,9 @@ export function meta() {
   return [{ title: "实践项目 | TARSGO" }];
 }
 const statusLabel:Record<string,string>={open:"开放报名",closed:"已关闭",active:"参与中",exit_pending:"待审批退出",exited:"已退出",pending:"待验收",passed:"已通过",needs_redo:"退回修改"};
+const maxPracticeFiles=10;
+const maxPracticeFileBytes=20*1024*1024;
+const maxPracticeTotalBytes=50*1024*1024;
 const newDraft=():PracticeInput=>({groupId:0,title:"",description:"",capacity:5,dueAt:""});
 const textDate=(value:string)=>new Date(value).toLocaleString("zh-CN",{timeZone:"Asia/Shanghai",hour12:false});
 function errorText(error:unknown){return error instanceof Error?error.message:"操作失败，请稍后重试"}
@@ -68,7 +72,8 @@ export default function PracticeProjectsPage(){
  const [editing,setEditing]=useState(false);
  const [progress,setProgress]=useState("");
  const [reflection,setReflection]=useState("");
- const [files,setFiles]=useState<FileList|null>(null);
+ const [files,setFiles]=useState<File[]>([]);
+ const [fileUploadStatus,setFileUploadStatus]=useState<FileUploadStatus>("pending");
  const [loading,setLoading]=useState(true);
  const [detailLoadedId,setDetailLoadedId]=useState(0);
  const [busy,setBusy]=useState(false);
@@ -120,13 +125,14 @@ export default function PracticeProjectsPage(){
  };
  const submit=async(e:FormEvent)=>{
   e.preventDefault();if(!selected)return;
+  if(!files.length){setError("请上传过程照片或成果附件。");return;}
   const form=new FormData();form.set("progress",progress);form.set("reflection",reflection);
-  for(const f of Array.from(files??[]))form.append("files",f);
+  for(const f of files)form.append("files",f);
+  setFileUploadStatus("uploading");
   const success=await run(()=>practiceClient.submit(selected.id,form),"成果提交成功");
   if(success){
-   setProgress("");setReflection("");setFiles(null);
-   const input=document.querySelector<HTMLInputElement>("#practice-upload");if(input)input.value="";
-  }
+   setProgress("");setReflection("");setFiles([]);setFileUploadStatus("pending");
+  } else setFileUploadStatus("failed");
  };
  const inputClass="admin-field mt-1 w-full rounded-lg border border-[var(--admin-border-subtle)] bg-[var(--admin-surface)] p-2";
  return <div className="admin-design mx-auto max-w-6xl space-y-5 p-4 sm:p-6">
@@ -172,7 +178,22 @@ export default function PracticeProjectsPage(){
      <h3 className="font-semibold">{latest?"重新提交成果":"提交实践成果"}</h3>
      <label className="block text-sm">完成情况 <textarea className={inputClass} value={progress} maxLength={10000} required rows={3} onChange={e=>setProgress(e.target.value)}/></label>
      <label className="block text-sm">个人心得 <textarea className={inputClass} value={reflection} maxLength={5000} required rows={3} onChange={e=>setReflection(e.target.value)}/></label>
-     <label className="block text-sm">过程照片或成果附件（最多 10 个，单个不超过 20 MB）<input id="practice-upload" className={inputClass} type="file" multiple required accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.zip,.7z,.rar" onChange={e=>setFiles(e.target.files)}/></label>
+     <div className="block text-sm">过程照片或成果附件<FileUploadField
+      label="实践成果附件"
+      files={files}
+      onFilesChange={(next)=>{setFiles(next);setFileUploadStatus("pending");setError("");}}
+      multiple
+      accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.zip,.7z,.rar"
+      hint="最多 10 个 · 单个≤20 MB · 总计≤50 MB"
+      status={fileUploadStatus}
+      disabled={busy}
+      validateSelection={(next)=>{
+       if(next.length>maxPracticeFiles)return "最多上传 10 个附件。";
+       if(next.some(file=>file.size<=0||file.size>maxPracticeFileBytes))return "单个附件不能为空且不能超过 20 MB。";
+       if(next.reduce((total,file)=>total+file.size,0)>maxPracticeTotalBytes)return "附件总大小不能超过 50 MB。";
+       return null;
+      }}
+     /></div>
      <button type="submit" disabled={busy} className="rounded-lg border px-4 py-2 text-sm">提交成果</button>
     </form>:null}
     {detailLoadedId!==selected.id?<p role="status" className="text-sm">正在加载参与记录…</p>:admin?<section className="space-y-3"><h3 className="font-semibold">参与成员与验收</h3>

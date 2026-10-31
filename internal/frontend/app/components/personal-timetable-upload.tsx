@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
 import { getPersonalTimetables, importPersonalTimetable, type PersonalTimetable } from "~/lib/timetable-client";
 
 const MAX_TIMETABLE_BYTES = 5 * 1024 * 1024;
@@ -6,6 +7,8 @@ const MAX_TIMETABLE_BYTES = 5 * 1024 * 1024;
 export function PersonalTimetableUpload({ userId }: { userId: number }) {
   const [records, setRecords] = useState<PersonalTimetable[]>([]);
   const [file, setFile] = useState<File | null>(null);
+  const [uploadStatus, setUploadStatus] = useState<FileUploadStatus>("pending");
+  const [fileError, setFileError] = useState("");
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
@@ -23,12 +26,11 @@ export function PersonalTimetableUpload({ userId }: { userId: number }) {
     return () => { request.current++; };
   }, [userId]);
 
-  async function submit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
+  async function importSelected() {
     if (!file || uploading) return;
     const id = request.current;
-    const form = event.currentTarget;
     setUploading(true);
+    setUploadStatus("uploading");
     setError("");
     setMessage("");
     try {
@@ -36,13 +38,22 @@ export function PersonalTimetableUpload({ userId }: { userId: number }) {
       if (request.current !== id) return;
       setRecords([result]);
       setFile(null);
-      form.reset();
+      setUploadStatus("pending");
+      setFileError("");
       setMessage("课表已更新");
     } catch (cause) {
-      if (request.current === id) setError(cause instanceof Error ? cause.message : "导入失败，原数据未更改");
+      if (request.current === id) {
+        setUploadStatus("failed");
+        setFileError(cause instanceof Error ? cause.message : "导入失败，原数据未更改");
+      }
     } finally {
       if (request.current === id) setUploading(false);
     }
+  }
+
+  function submit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    void importSelected();
   }
 
   return (
@@ -54,48 +65,32 @@ export function PersonalTimetableUpload({ userId }: { userId: number }) {
         </p>
       </div>
       <form className="min-w-0 space-y-3" onSubmit={(event) => void submit(event)} aria-busy={uploading}>
-        <div className="flex min-w-0 flex-col gap-3 rounded-2xl border border-dashed border-[var(--admin-border)] bg-[var(--admin-surface-subtle)] p-4 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-[var(--admin-text)]">教务系统课表 Excel</p>
-            <p className="mt-1 break-words text-xs text-[var(--admin-muted)] [overflow-wrap:anywhere]">
-              {file ? file.name + " · " + (file.size / 1024 / 1024).toFixed(2) + " MB" : "支持 .xlsx，最大 5 MB"}
-            </p>
-          </div>
-          <div className="shrink-0">
-            <input
-              id="profile-timetable-file"
-              className="peer sr-only"
-              type="file"
-              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-              aria-label="选择教务系统课表 Excel"
-              disabled={uploading}
-              onChange={(event) => {
-                const selected = event.currentTarget.files?.[0] ?? null;
-                setMessage("");
-                if (selected && !selected.name.toLowerCase().endsWith(".xlsx")) {
-                  setFile(null);
-                  setError("请选择 .xlsx 格式的教务系统课表");
-                  event.currentTarget.value = "";
-                  return;
-                }
-                if (selected && selected.size > MAX_TIMETABLE_BYTES) {
-                  setFile(null);
-                  setError("课表文件不能超过 5 MB");
-                  event.currentTarget.value = "";
-                  return;
-                }
-                setError("");
-                setFile(selected);
-              }}
-            />
-            <label
-              htmlFor="profile-timetable-file"
-              className="btn-glass inline-flex min-h-10 cursor-pointer items-center justify-center rounded-xl px-4 py-2 text-sm peer-focus-visible:outline peer-focus-visible:outline-2 peer-focus-visible:outline-offset-2 peer-focus-visible:outline-[var(--admin-accent)]"
-            >
-              {file ? "重新选择" : "选择文件"}
-            </label>
-          </div>
-        </div>
+        <FileUploadField
+          label="教务系统课表 Excel"
+          files={file ? [file] : []}
+          onFilesChange={(files) => {
+            const selected = files[0] ?? null;
+            setMessage("");
+            setError("");
+            setFileError("");
+            setUploadStatus("pending");
+            setFile(selected);
+          }}
+          accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+          variant="compact"
+          triggerLabel={file ? "重新选择" : "选择文件"}
+          hint="XLSX，最大 5 MB"
+          error={fileError}
+          disabled={uploading}
+          status={uploadStatus}
+          onRetry={() => void importSelected()}
+          validateSelection={(_nextFiles, incomingFiles) => {
+            const selected = incomingFiles[0];
+            if (selected && !selected.name.toLowerCase().endsWith(".xlsx")) return "请选择 .xlsx 格式的教务系统课表";
+            if (selected && selected.size > MAX_TIMETABLE_BYTES) return "课表文件不能超过 5 MB";
+            return null;
+          }}
+        />
         <div className="flex flex-wrap items-center gap-3">
           <button className="btn-glass min-h-10 rounded-xl px-4 py-2 text-sm disabled:opacity-50" type="submit" disabled={!file || uploading}>
             {uploading ? "正在导入…" : "上传或更新课表"}
