@@ -84,11 +84,26 @@ wait_for_health() {
     db_id="$(docker compose -f "$compose_file" ps -q db)"
     app_health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$app_id" 2>/dev/null || true)"
     db_health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$db_id" 2>/dev/null || true)"
-    if [[ "$app_health" == healthy && "$db_health" == healthy && "$(docker inspect --format '{{.Config.Image}}' "$app_id")" == "$expected_image" ]] && curl --fail --silent --show-error --max-time 5 http://127.0.0.1:8081/healthz >/dev/null; then
+    if [[ "$app_health" == healthy && "$db_health" == healthy && "$(docker inspect --format '{{.Config.Image}}' "$app_id")" == "$expected_image" ]]; then
+      if health_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 5 http://127.0.0.1:8081/healthz 2>/dev/null)" && [[ "$health_status" == 200 ]]; then
+        return 0
+      fi
+    fi
+    sleep "$health_interval"
+  done
+  return 1
+}
+
+wait_for_database() {
+  local attempt db_id db_health
+  for ((attempt = 1; attempt <= health_attempts; attempt++)); do
+    db_id="$(docker compose -f "$compose_file" ps -q db)"
+    if [[ -n "$db_id" ]] && db_health="$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' "$db_id" 2>/dev/null)" && [[ "$db_health" == healthy ]]; then
       return 0
     fi
     sleep "$health_interval"
   done
+  echo "Production deploy aborted: database did not become healthy before image build or migration." >&2
   return 1
 }
 
@@ -109,6 +124,7 @@ on_exit() {
 }
 trap on_exit EXIT
 
+wait_for_database
 docker build -t "$new_image" "$release_dir"
 db_id="$(docker compose -f "$compose_file" ps -q db)"
 network="$(docker inspect --format '{{range $key, $value := .NetworkSettings.Networks}}{{$key}}{{end}}' "$db_id")"
@@ -248,7 +264,12 @@ fi
 echo "Production verification after retention:"
 df -h /
 docker ps --format '{{.Names}} {{.Image}} {{.Status}}'
-curl --fail --silent --show-error http://127.0.0.1:8081/healthz
+health_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' --max-time 5 http://127.0.0.1:8081/healthz)"
+if [[ "$health_status" != 200 ]]; then
+  echo "Production health verification failed: /healthz returned HTTP ${health_status:-unknown}." >&2
+  exit 1
+fi
+printf 'health_http_status=%s\n' "$health_status"
 printf '\ncurrent_image=%s\nprevious_stable_image=%s\n' "$new_image" "$previous_image"
 printf 'current_release=%s\nprevious_stable_release=%s\n' "$release_name" "$previous_release"
 docker image ls --format '{{.Repository}}:{{.Tag}}' jijia-backend

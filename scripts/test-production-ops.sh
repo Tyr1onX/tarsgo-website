@@ -26,32 +26,139 @@ test_high_water_abort_precedes_build() {
 #!/usr/bin/env bash
 set -Eeuo pipefail
 printf '%s\n' "$*" >>"$MOCK_SSH_LOG"
-if [[ "$(wc -l <"$MOCK_SSH_LOG")" -eq 1 ]]; then
-  printf 'jijia-backend:20260930-admin-design-system-abcdef0\n20260930-admin-design-system-abcdef0\n'
+call_count="$(wc -l <"$MOCK_SSH_LOG")"
+if (( call_count == 1 )); then
   exit 0
 fi
-if [[ "$(wc -l <"$MOCK_SSH_LOG")" -eq 2 ]]; then exit 1; fi
-cat >"$MOCK_RECEIVED_HELPER"
-echo "Production deploy aborted: root filesystem remains at 85% after safe cleanup; deployment requires usage below 85%." >&2
-exit 1
+if (( call_count == 2 )); then
+    printf 'current_image=jijia-backend:20261001-stable-abcdef0\ncurrent_release=20261001-stable-abcdef0\ncurrent_commit=abcdef0123456789012345678901234567890123\ndisk_usage_percent=85\ntarget_release_status=missing\n'
+    exit 0
+fi
+if (( call_count == 3 )); then
+    cat >"$MOCK_RECEIVED_HELPER"
+    echo "Production deploy aborted: root filesystem remains at 85% after safe cleanup; deployment requires usage below 85%." >&2
+    exit 1
+fi
+exit 90
 SSH
   cat >"$case_dir/bin/make" <<'MAKE'
 #!/usr/bin/env bash
 set -Eeuo pipefail
-touch "$MOCK_BUILD_MARKER"
+case "$*" in
+  *frontend-toolchain*) touch "$MOCK_TOOLCHAIN_MARKER" ;;
+  *build-linux-amd64*) touch "$MOCK_BUILD_MARKER" ;;
+  *) exit 0 ;;
+esac
 MAKE
-  chmod +x "$case_dir/bin/ssh" "$case_dir/bin/make"
+  cat >"$case_dir/bin/rsync" <<'RSYNC'
+#!/usr/bin/env bash
+exit 0
+RSYNC
+  chmod +x "$case_dir/bin/ssh" "$case_dir/bin/make" "$case_dir/bin/rsync"
   local output status
   set +e
-  output="$(PATH="$case_dir/bin:$PATH" MOCK_SSH_LOG="$case_dir/ssh.log" MOCK_RECEIVED_HELPER="$case_dir/received-helper.sh" MOCK_BUILD_MARKER="$case_dir/build-ran" SSH_BIN=ssh MAKE_BIN=make "$case_dir/repo/scripts/deploy-production.sh" 2>&1)"
+  output="$(PATH="$case_dir/bin:$PATH" MOCK_SSH_LOG="$case_dir/ssh.log" MOCK_RECEIVED_HELPER="$case_dir/received-helper.sh" MOCK_BUILD_MARKER="$case_dir/build-ran" MOCK_TOOLCHAIN_MARKER="$case_dir/toolchain-ran" SSH_BIN=ssh RSYNC_BIN=rsync MAKE_BIN=make "$case_dir/repo/scripts/deploy-production.sh" 2>&1)"
   status=$?
   set -e
   [[ "$status" -ne 0 ]] || fail "high-water cleanup failure unexpectedly allowed deployment"
   [[ "$output" == *"remains at 85% after safe cleanup"* ]] || fail "high-water deploy message was unclear: $output"
   [[ ! -e "$case_dir/build-ran" ]] || fail "build ran before the disk guard"
+  [[ -e "$case_dir/toolchain-ran" ]] || fail "local toolchain was not checked before safe cleanup"
   [[ "$(wc -l <"$case_dir/ssh.log")" -eq 3 ]] || fail "deploy performed an unexpected production operation after the disk guard"
   cmp -s "$case_dir/repo/scripts/production-safe-cleanup.sh" "$case_dir/received-helper.sh" || fail "safe cleanup was not the first remote operation"
   pass "85% high-water cleanup failure stops before build or production mutation"
+}
+
+test_already_deployed_commit_is_idempotent() {
+  local case_dir="$tmp/already-deployed"
+  mkdir -p "$case_dir/repo/scripts" "$case_dir/repo/public/assets/images" "$case_dir/bin"
+  cp "$repo_root/scripts/deploy-production.sh" "$case_dir/repo/scripts/"
+  printf 'fixture asset\n' >"$case_dir/repo/public/assets/images/example.webp"
+  git init -q --bare "$case_dir/origin.git"
+  git -C "$case_dir/repo" init -q -b main
+  git -C "$case_dir/repo" config user.name OpsTest
+  git -C "$case_dir/repo" config user.email ops-test@example.invalid
+  git -C "$case_dir/repo" add scripts/deploy-production.sh public/assets/images/example.webp
+  git -C "$case_dir/repo" commit -qm fixture
+  git -C "$case_dir/repo" remote add origin "$case_dir/origin.git"
+  git -C "$case_dir/repo" push -q -u origin main
+  local deployed_commit deployed_release
+  deployed_commit="$(git -C "$case_dir/repo" rev-parse HEAD)"
+  deployed_release="20261001-already-${deployed_commit:0:7}"
+  cat >"$case_dir/bin/ssh" <<'SSH'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+printf '%s\n' "$*" >>"$MOCK_SSH_LOG"
+if [[ "$(wc -l <"$MOCK_SSH_LOG")" -eq 1 ]]; then
+  exit 0
+fi
+printf 'current_image=jijia-backend:%s\ncurrent_release=%s\ncurrent_commit=%s\ndisk_usage_percent=50\ntarget_release_status=complete\n' \
+  "$MOCK_RELEASE" "$MOCK_RELEASE" "$MOCK_COMMIT"
+SSH
+  cat >"$case_dir/bin/make" <<'MAKE'
+#!/usr/bin/env bash
+touch "$MOCK_BUILD_MARKER"
+MAKE
+  chmod +x "$case_dir/bin/ssh" "$case_dir/bin/make"
+  local output
+  output="$(PATH="$case_dir/bin:$PATH" MOCK_SSH_LOG="$case_dir/ssh.log" MOCK_BUILD_MARKER="$case_dir/build-ran" MOCK_RELEASE="$deployed_release" MOCK_COMMIT="$deployed_commit" SSH_BIN=ssh RSYNC_BIN=missing-rsync "$case_dir/repo/scripts/deploy-production.sh" 2>&1)" || fail "same-commit deployment status check failed: $output"
+  [[ "$output" == *"Production deployment already healthy"* && "$output" == *"$deployed_commit"* ]] || fail "same-commit deployment was not clearly reported: $output"
+  [[ "$(wc -l <"$case_dir/ssh.log")" -eq 2 ]] || fail "same-commit check continued into deployment operations"
+  [[ ! -e "$case_dir/build-ran" ]] || fail "same-commit check unnecessarily built a release"
+  pass "a healthy already-deployed commit returns success without building or mutating production"
+}
+
+test_missing_rsync_fails_before_cleanup_or_build() {
+  local case_dir="$tmp/missing-rsync"
+  mkdir -p "$case_dir/repo/scripts" "$case_dir/repo/public/assets/images" "$case_dir/bin"
+  cp "$repo_root/scripts/deploy-production.sh" "$case_dir/repo/scripts/"
+  printf 'fixture asset\n' >"$case_dir/repo/public/assets/images/example.webp"
+  git init -q --bare "$case_dir/origin.git"
+  git -C "$case_dir/repo" init -q -b main
+  git -C "$case_dir/repo" config user.name OpsTest
+  git -C "$case_dir/repo" config user.email ops-test@example.invalid
+  git -C "$case_dir/repo" add scripts/deploy-production.sh public/assets/images/example.webp
+  git -C "$case_dir/repo" commit -qm fixture
+  git -C "$case_dir/repo" remote add origin "$case_dir/origin.git"
+  git -C "$case_dir/repo" push -q -u origin main
+  cat >"$case_dir/bin/ssh" <<'SSH'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+printf '%s\n' "$*" >>"$MOCK_SSH_LOG"
+if [[ "$(wc -l <"$MOCK_SSH_LOG")" -eq 1 ]]; then exit 0; fi
+printf 'current_image=jijia-backend:20261001-stable-abcdef0\ncurrent_release=20261001-stable-abcdef0\ncurrent_commit=abcdef0123456789012345678901234567890123\ndisk_usage_percent=90\ntarget_release_status=missing\n'
+SSH
+  chmod +x "$case_dir/bin/ssh"
+  local output status
+  set +e
+  output="$(PATH="$case_dir/bin:$PATH" MOCK_SSH_LOG="$case_dir/ssh.log" SSH_BIN=ssh RSYNC_BIN=missing-rsync "$case_dir/repo/scripts/deploy-production.sh" 2>&1)"
+  status=$?
+  set -e
+  [[ "$status" -ne 0 && "$output" == *"required local tool 'missing-rsync' is unavailable"* ]] || fail "missing rsync was not reported clearly: $output"
+  [[ "$(wc -l <"$case_dir/ssh.log")" -eq 2 ]] || fail "deployment continued after missing rsync"
+  pass "missing transfer tooling fails clearly before cleanup or build"
+}
+
+test_missing_ssh_fails_before_remote_access() {
+  local case_dir="$tmp/missing-ssh"
+  mkdir -p "$case_dir/repo/scripts" "$case_dir/repo/public/assets/images"
+  cp "$repo_root/scripts/deploy-production.sh" "$case_dir/repo/scripts/"
+  printf 'fixture asset\n' >"$case_dir/repo/public/assets/images/example.webp"
+  git init -q --bare "$case_dir/origin.git"
+  git -C "$case_dir/repo" init -q -b main
+  git -C "$case_dir/repo" config user.name OpsTest
+  git -C "$case_dir/repo" config user.email ops-test@example.invalid
+  git -C "$case_dir/repo" add scripts/deploy-production.sh public/assets/images/example.webp
+  git -C "$case_dir/repo" commit -qm fixture
+  git -C "$case_dir/repo" remote add origin "$case_dir/origin.git"
+  git -C "$case_dir/repo" push -q -u origin main
+  local output status
+  set +e
+  output="$(SSH_BIN=missing-ssh "$case_dir/repo/scripts/deploy-production.sh" 2>&1)"
+  status=$?
+  set -e
+  [[ "$status" -ne 0 && "$output" == *"required local tool 'missing-ssh' is unavailable (non-interactive production access)"* ]] || fail "missing SSH was not reported clearly: $output"
+  pass "missing SSH fails immediately with a clear non-interactive access error"
 }
 
 test_missing_public_assets_abort_before_remote_or_build() {
@@ -259,7 +366,10 @@ case "$command" in
       exit 1
     fi
     if [[ "$format" == *".State.Health"* ]]; then
-      if [[ "$object" == db ]]; then echo healthy; exit 0; fi
+      if [[ "$object" == db ]]; then
+        if [[ "$MOCK_FAIL_DATABASE" == 1 ]]; then echo unhealthy; else echo healthy; fi
+        exit 0
+      fi
       running="$(cat "$MOCK_RUNNING_IMAGE")"
       if [[ "$MOCK_FAIL_HEALTH" == 1 && "$running" == "$MOCK_NEW_IMAGE" ]]; then echo unhealthy; else echo healthy; fi
       exit 0
@@ -317,7 +427,13 @@ case "$command" in
     done
     exit 0
     ;;
-  run) exit 0 ;;
+  run)
+    if [[ "$MOCK_FAIL_MIGRATION" == 1 ]]; then
+      echo "mock migration failure" >&2
+      exit 23
+    fi
+    exit 0
+    ;;
   ps)
     if [[ "$*" == "-aq --filter ancestor="* ]]; then
       object="${*: -1}"
@@ -337,7 +453,7 @@ DOCKER
 set -Eeuo pipefail
 running="$(cat "$MOCK_RUNNING_IMAGE")"
 [[ "$MOCK_FAIL_HEALTH" != 1 || "$running" != "$MOCK_NEW_IMAGE" ]] || exit 22
-echo healthy
+printf 200
 CURL
   cat >"$1/df" <<'DF'
 #!/usr/bin/env bash
@@ -383,15 +499,79 @@ COMPOSE
 }
 
 run_remote_deploy() {
-  local case_dir="$1" release="$2" tag="$3" previous="$4" commit="$5" fail_health="$6"
+  local case_dir="$1" release="$2" tag="$3" previous="$4" commit="$5" fail_health="$6" fail_database="${7:-0}" fail_migration="${8:-0}"
   MOCK_DOCKER_LOG="$case_dir/docker.log" MOCK_COMPOSE="$case_dir/jijia/compose.yaml" \
   MOCK_RUNNING_IMAGE="$case_dir/running-image" MOCK_IMAGE_NAMES="$case_dir/image-names" \
   MOCK_REMOVED_IMAGES="$case_dir/removed-images" MOCK_NEW_IMAGE="jijia-backend:$tag" \
   MOCK_IMAGE_GRAPH="$case_dir/image-graph" MOCK_BUSY_PARENTS="$case_dir/busy-parents" \
   MOCK_BLOCKED_PARENTS="$case_dir/blocked-parents" \
-  MOCK_FAIL_HEALTH="$fail_health" PATH="$case_dir/bin:$PATH" \
+  MOCK_FAIL_HEALTH="$fail_health" MOCK_FAIL_DATABASE="$fail_database" MOCK_FAIL_MIGRATION="$fail_migration" PATH="$case_dir/bin:$PATH" \
   HEALTH_ATTEMPTS=2 HEALTH_INTERVAL=0 bash "$repo_root/scripts/deploy-production-remote.sh" \
     "$case_dir/jijia" "$release" "$tag" "jijia-backend:$previous" "$previous" "$commit"
+}
+
+test_database_unready_stops_before_build_or_migration() {
+  local case_dir="$tmp/database-unready" release=20261006-ops-retention-abcdef9 previous=20260930-admin-design-system-abcdef0 commit=abcdef9123456789012345678901234567890123 status
+  init_remote_fixture "$case_dir" "$release" "$previous" "$commit"
+  set +e
+  run_remote_deploy "$case_dir" "$release" "$release" "$previous" "$commit" 0 1 >"$case_dir/output.log" 2>&1
+  status=$?
+  set -e
+  [[ "$status" -ne 0 ]] || fail "deployment unexpectedly proceeded with an unhealthy database"
+  grep -Fq 'database did not become healthy before image build or migration' "$case_dir/output.log" || fail "unhealthy database error was unclear"
+  ! grep -q '^build ' "$case_dir/docker.log" || fail "image build ran before database readiness"
+  ! grep -q '^run ' "$case_dir/docker.log" || fail "migration ran before database readiness"
+  [[ "$(cat "$case_dir/running-image")" == "jijia-backend:$previous" ]] || fail "unready database changed the running application"
+  pass "production waits for database health and stops before image build or migration when it never becomes ready"
+}
+
+test_migration_failure_preserves_previous_release() {
+  local case_dir="$tmp/migration-failure" release=20261006-ops-retention-abcdef8 previous=20260930-admin-design-system-abcdef0 commit=abcdef8123456789012345678901234567890123 status
+  init_remote_fixture "$case_dir" "$release" "$previous" "$commit"
+  set +e
+  run_remote_deploy "$case_dir" "$release" "$release" "$previous" "$commit" 0 0 1 >"$case_dir/output.log" 2>&1
+  status=$?
+  set -e
+  [[ "$status" -ne 0 ]] || fail "deployment unexpectedly succeeded after a failed database migration"
+  grep -Fq 'mock migration failure' "$case_dir/output.log" || fail "migration failure was not preserved in the deployment output"
+  [[ "$(cat "$case_dir/running-image")" == "jijia-backend:$previous" ]] || fail "migration failure changed the running application"
+  grep -Fq "image: jijia-backend:$previous" "$case_dir/jijia/compose.yaml" || fail "migration failure changed production compose configuration"
+  ! grep -q 'compose up -d --no-deps app' "$case_dir/docker.log" || fail "app restart ran after migration failure"
+  [[ ! -s "$case_dir/removed-images" ]] || fail "migration failure invoked retention"
+  pass "a failed database migration stops before switching compose or restarting the current app"
+}
+
+test_interrupted_release_upload_can_be_retried() {
+  local case_dir="$tmp/release-upload-retry" root release commit previous current prepare_script finalize_script payload
+  root="$case_dir/jijia"
+  release=20261031-ops-retention-abcdef0
+  commit=abcdef0123456789012345678901234567890123
+  current=20261020-current-1234567
+  previous=20261010-previous-7654321
+  prepare_script="$case_dir/prepare-release.sh"
+  finalize_script="$case_dir/finalize-release.sh"
+  payload="$case_dir/payload"
+  mkdir -p "$root/releases/$current" "$root/releases/$previous" "$root/releases/$release" "$root/releases/.incoming-$release" "$payload"
+  printf 'services:\n  app:\n    image: jijia-backend:%s\n    build: ./releases/%s\n  db:\n    image: mariadb:11.4\n' "$current" "$current" >"$root/compose.yaml"
+  printf 'previous_release=%s\n' "$previous" >"$root/.production-retention-state"
+  printf 'wrong commit\n' >"$root/releases/$release/commit.txt"
+  printf 'interrupted rsync\n' >"$root/releases/.incoming-$release/partial"
+  printf '%s\n' "$commit" >"$payload/commit.txt"
+  printf 'production dockerfile\n' >"$payload/Dockerfile"
+  printf 'backend artifact\n' >"$payload/tarsgo-backend-linux-amd64"
+  printf 'migration artifact\n' >"$payload/tarsgo-migrate-linux-amd64"
+  (cd "$payload" && sha256sum Dockerfile commit.txt tarsgo-backend-linux-amd64 tarsgo-migrate-linux-amd64 >SHA256SUMS)
+  awk -v marker=PREPARE_RELEASE_UPLOAD '!capturing && index($0, "<<\047" marker "\047") { capturing=1; next } capturing && $0 == marker { exit } capturing { print }' "$repo_root/scripts/deploy-production.sh" >"$prepare_script"
+  awk -v marker=FINALIZE_RELEASE_UPLOAD '!capturing && index($0, "<<\047" marker "\047") { capturing=1; next } capturing && $0 == marker { exit } capturing { print }' "$repo_root/scripts/deploy-production.sh" >"$finalize_script"
+  [[ -s "$prepare_script" && -s "$finalize_script" ]] || fail "release upload steps could not be extracted for recovery verification"
+  bash -s -- "$root" "$release" <"$prepare_script" || fail "retry did not reset the interrupted target and staging directory"
+  [[ ! -e "$root/releases/$release" && ! -e "$root/releases/.incoming-$release/partial" ]] || fail "retry retained partial release data"
+  cp "$payload"/* "$root/releases/.incoming-$release/"
+  bash -s -- "$root" "$release" "$commit" <"$finalize_script" || fail "verified release upload did not finalize"
+  [[ ! -e "$root/releases/.incoming-$release" ]] || fail "finalized staging directory remains"
+  [[ "$(cat "$root/releases/$release/commit.txt")" == "$commit" ]] || fail "finalized release commit metadata is wrong"
+  (cd "$root/releases/$release" && sha256sum --check -- SHA256SUMS >/dev/null) || fail "finalized retry release checksum is invalid"
+  pass "an interrupted upload is reset, re-uploaded to staging, checksum-verified, and atomically finalized"
 }
 
 test_retention_keeps_two_releases() {
@@ -461,19 +641,26 @@ test_retention_skips_referenced_parents() {
 }
 
 test_health_failure_skips_retention() {
-  local case_dir="$tmp/health-failure" release=20261006-ops-retention-abcdef2 previous=20260930-admin-design-system-abcdef0 commit=abcdef2123456789012345678901234567890123 status
+  local case_dir="$tmp/health-failure" release=20261006-ops-retention-abcdef2 previous=20260930-admin-design-system-abcdef0 commit=abcdef2123456789012345678901234567890123 status output
   init_remote_fixture "$case_dir" "$release" "$previous" "$commit"
   set +e
-  run_remote_deploy "$case_dir" "$release" "$release" "$previous" "$commit" 1 >/dev/null 2>&1
+  output="$(run_remote_deploy "$case_dir" "$release" "$release" "$previous" "$commit" 1 2>&1)"
   status=$?
   set -e
   [[ "$status" -ne 0 ]] || fail "unhealthy deployment unexpectedly succeeded"
+  [[ "$output" == *"Production health check failed; no retention will run."* ]] || fail "unhealthy deployment did not report the failed production health check"
+  [[ "$output" != *"health_http_status=200"* ]] || fail "unhealthy deployment printed a successful production health status"
   [[ "$(cat "$case_dir/running-image")" == "jijia-backend:$previous" ]] || fail "previous image was not restored"
   grep -Fxq 'jijia-backend:20260815-stale-tag-1234567' "$case_dir/image-names" || fail "health failure deleted an old image"
   [[ -d "$case_dir/jijia/releases/20260901-old-release-7654321" ]] || fail "health failure deleted an old release"
   [[ ! -s "$case_dir/removed-images" ]] || fail "health failure invoked image retention"
   [[ ! -e "$case_dir/jijia/.production-retention-state" ]] || fail "health failure updated the successful retention state"
+  [[ "$(cat "$case_dir/running-image")" == "jijia-backend:$previous" ]] || fail "health failure did not restore the previous image"
+  run_remote_deploy "$case_dir" "$release" "$release" "$previous" "$commit" 0 >/dev/null
+  [[ "$(cat "$case_dir/running-image")" == "jijia-backend:$release" ]] || fail "retry did not deploy the previously uploaded release"
+  grep -Fxq "current_release=$release" "$case_dir/jijia/.production-retention-state" || fail "successful retry did not record its release"
   pass "health failure restores previous app and skips all retention"
+  pass "a failed release can be retried after rollback and becomes current only after health succeeds"
 }
 
 test_previous_release_sha_mismatch_stops_before_build() {
@@ -642,14 +829,13 @@ PY
   remote_count_after="$(find "$case_dir/remote/store" -type f | wc -l)"
   [[ "$remote_count_after" == "$remote_count_before" ]] || fail "local-only backup changed remote storage"
   [[ "$(grep -Fxc 'ExecStart=/opt/jijia/jijia-backup.sh' "$repo_root/scripts/backup-production.service")" == 1 ]] || fail "scheduled backup must continue using the default offsite mode"
-  ! grep -Fq '"$jijia_root/jijia-backup.sh" --local-only' "$repo_root/scripts/deploy-production.sh" || fail "standard deployment still forces a local backup"
+  ! grep -Fq 'jijia-backup.sh" --local-only' "$repo_root/scripts/deploy-production.sh" || fail "standard deployment still forces a local backup"
   grep -Fq 'production_backup_mode=skipped' "$repo_root/scripts/deploy-production.sh" || fail "standard deployment does not skip backups"
-  grep -Fq '"$jijia_root/jijia-backup.sh" --offsite' "$repo_root/scripts/deploy-production.sh" || fail "required offsite deployment mode is missing"
-  local release_guard_line release_dir_line release_rsync_line
-  release_guard_line="$(grep -nF 'test -e "$jijia_root/releases/$release_name"' "$repo_root/scripts/deploy-production.sh" | head -n 1 | cut -d: -f1)"
-  release_dir_line="$(grep -nF 'install -d -m 0755 -- "$jijia_root/releases/$release_name"' "$repo_root/scripts/deploy-production.sh" | head -n 1 | cut -d: -f1)"
-  release_rsync_line="$(grep -nF '"$rsync_bin" --archive "$release_dir/" "$target:$jijia_root/releases/$release_name/"' "$repo_root/scripts/deploy-production.sh" | head -n 1 | cut -d: -f1)"
-  [[ -n "$release_guard_line" && -n "$release_dir_line" && -n "$release_rsync_line" && "$release_guard_line" -lt "$release_dir_line" && "$release_dir_line" -lt "$release_rsync_line" ]] || fail "release destination must be created after collision checking and before upload"
+  grep -Fq 'ssh_run "$jijia_root/jijia-backup.sh" --offsite' "$repo_root/scripts/deploy-production.sh" || fail "required offsite deployment mode is missing"
+  grep -Fq 'target_release_status=complete' "$repo_root/scripts/deploy-production.sh" || fail "same-commit release reuse is missing"
+  grep -Fq '.incoming-$release_name' "$repo_root/scripts/deploy-production.sh" || fail "resumable staged release upload is missing"
+  grep -Fq -- '--rsh="$rsync_ssh"' "$repo_root/scripts/deploy-production.sh" || fail "rsync does not use the non-interactive SSH options"
+  grep -Fq 'sha256sum --check -- SHA256SUMS' "$repo_root/scripts/deploy-production.sh" || fail "release upload integrity is not verified"
   grep -Fq 'OnCalendar=Sat *-*-* 19:00:00 UTC' "$repo_root/scripts/backup-production.timer" || fail "offsite backup is not scheduled weekly"
   grep -Fq 'retention_minutes=43200' "$repo_root/scripts/backup-production.sh" || fail "local retention is not 30 days"
   grep -Fq 'retention_minutes=43200' "$repo_root/scripts/production-safe-cleanup.sh" || fail "disk cleanup retention is not 30 days"
@@ -658,8 +844,14 @@ PY
 }
 
 test_high_water_abort_precedes_build
+test_already_deployed_commit_is_idempotent
+test_missing_rsync_fails_before_cleanup_or_build
+test_missing_ssh_fails_before_remote_access
 test_missing_public_assets_abort_before_remote_or_build
 test_safe_cleanup_and_fresh_threshold
+test_database_unready_stops_before_build_or_migration
+test_migration_failure_preserves_previous_release
+test_interrupted_release_upload_can_be_retried
 test_retention_keeps_two_releases
 test_retention_reclaims_only_retired_jijia_parent_chain
 test_retention_skips_referenced_parents

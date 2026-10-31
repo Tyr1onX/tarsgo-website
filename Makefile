@@ -10,15 +10,17 @@ EMBED_DIR          := $(BACKEND_DIR)/web/frontend
 ENV_FILE           := $(BACKEND_DIR)/.env
 ENV_EXAMPLE        := $(BACKEND_DIR)/.env.example
 COMPOSE_FILE       := database/docker-compose.yml
-PACKAGE_MANAGER    := $(shell if command -v pnpm >/dev/null 2>&1; then echo pnpm; else echo npm; fi)
+FRONTEND_PNPM      := COREPACK_ENABLE_DOWNLOAD_PROMPT=0 corepack pnpm
+FRONTEND_PNPM_VERSION := 9.15.4
 
-.PHONY: help env install frontend frontend-install frontend-build backend dev backend-up db-up db-down db-logs backend-test frontend-check fmt build build-linux-amd64 migrate-build clean secret-check
+.PHONY: help env install frontend frontend-toolchain frontend-install frontend-build frontend-embed frontend-test backend dev backend-up db-up db-down db-logs backend-test frontend-check fmt build build-linux-amd64 migrate-build clean secret-check
 
 help:
 	@echo ""
 	@echo "TarsGo development commands:"
 	@echo "  make env              Create backend .env from .env.example if absent"
 	@echo "  make install          Install frontend and backend dependencies"
+	@echo "  make frontend-install Install frontend dependencies from the lockfile"
 	@echo "  make dev              Start database and backend in development mode"
 	@echo "  make frontend         Start the frontend Vite dev server"
 	@echo "  make backend          Start the Go backend server"
@@ -27,6 +29,7 @@ help:
 	@echo "  make db-down          Stop the local MariaDB container"
 	@echo "  make db-logs          Follow MariaDB logs"
 	@echo "  make backend-test     Run all Go backend tests"
+	@echo "  make frontend-test    Run all frontend unit tests"
 	@echo "  make frontend-check   Run frontend TypeScript checks"
 	@echo "  make fmt              Format all Go source files"
 	@echo "  make build            Build frontend and embedded backend binary"
@@ -38,17 +41,28 @@ help:
 env:
 	@if [[ -f "$(ENV_FILE)" ]]; then echo "$(ENV_FILE) already exists"; else cp "$(ENV_EXAMPLE)" "$(ENV_FILE)"; echo "Created $(ENV_FILE); review secrets before starting."; fi
 
-frontend-install:
-	@cd "$(FRONTEND_DIR)" && $(PACKAGE_MANAGER) install
+frontend-toolchain:
+	@node -e 'if (process.versions.node !== "22.23.4") { console.error("Frontend requires Node.js 22.23.4 (see internal/frontend/.nvmrc); found " + process.versions.node + "."); process.exit(1); }'
+	@command -v corepack >/dev/null 2>&1 || { echo "Frontend requires Corepack; use the Node.js 22 runtime from internal/frontend/.nvmrc." >&2; exit 1; }
+	@actual="$$(cd "$(FRONTEND_DIR)" && $(FRONTEND_PNPM) --version)"; if [[ "$$actual" != "$(FRONTEND_PNPM_VERSION)" ]]; then echo "Expected pnpm $(FRONTEND_PNPM_VERSION), got $$actual." >&2; exit 1; fi
+
+frontend-install: frontend-toolchain
+	@cd "$(FRONTEND_DIR)" && $(FRONTEND_PNPM) install --frozen-lockfile
 
 install: frontend-install
 	@go -C "$(BACKEND_DIR)" mod download
 
-frontend:
-	@cd "$(FRONTEND_DIR)" && $(PACKAGE_MANAGER) run dev
+frontend: frontend-install
+	@cd "$(FRONTEND_DIR)" && $(FRONTEND_PNPM) run dev
 
-frontend-build:
-	@cd "$(FRONTEND_DIR)" && $(PACKAGE_MANAGER) run build
+frontend-build: frontend-install
+	@cd "$(FRONTEND_DIR)" && $(FRONTEND_PNPM) run build
+
+frontend-embed: frontend-build
+	@rm -rf "$(EMBED_DIR)"
+	@mkdir -p "$(EMBED_DIR)"
+	@cp -R "$(FRONTEND_BUILD_DIR)/." "$(EMBED_DIR)/"
+	@touch "$(EMBED_DIR)/.keep"
 
 backend: env
 	@go -C "$(BACKEND_DIR)" run ./cmd/server
@@ -59,7 +73,7 @@ dev: env
 backend-up: dev
 
 db-up: env
-	@if command -v docker >/dev/null 2>&1; then ./scripts/start-db.sh; else powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\start-db.ps1; fi
+	@./scripts/start-db.sh
 
 db-down:
 	@docker compose -f "$(COMPOSE_FILE)" down
@@ -70,8 +84,11 @@ db-logs:
 backend-test:
 	@go -C "$(BACKEND_DIR)" test ./...
 
-frontend-check:
-	@cd "$(FRONTEND_DIR)" && $(PACKAGE_MANAGER) run typecheck
+frontend-check: frontend-install
+	@cd "$(FRONTEND_DIR)" && $(FRONTEND_PNPM) run typecheck
+
+frontend-test: frontend-install
+	@cd "$(FRONTEND_DIR)" && $(FRONTEND_PNPM) run test
 
 fmt:
 	@go -C "$(BACKEND_DIR)" fmt ./...
@@ -79,12 +96,8 @@ fmt:
 secret-check:
 	@bash ./scripts/check-secrets.sh
 
-build: frontend-build
+build: frontend-embed
 	@mkdir -p "$(DIST_DIR)"
-	@rm -rf "$(EMBED_DIR)"
-	@mkdir -p "$(EMBED_DIR)"
-	@cp -R "$(FRONTEND_BUILD_DIR)/." "$(EMBED_DIR)/"
-	@touch "$(EMBED_DIR)/.keep"
 	@go -C "$(BACKEND_DIR)" build -buildvcs=false -o "../../$(BACKEND_BINARY)" ./cmd/server
 	@go -C "$(BACKEND_DIR)" build -buildvcs=false -o "../../$(DIST_DIR)/tarsgo-migrate" ./cmd/migrate
 	@echo "Built $(BACKEND_BINARY) and $(DIST_DIR)/tarsgo-migrate"
@@ -93,12 +106,8 @@ migrate-build:
 	@mkdir -p "$(DIST_DIR)"
 	@go -C "$(BACKEND_DIR)" build -buildvcs=false -o "../../$(DIST_DIR)/tarsgo-migrate" ./cmd/migrate
 
-build-linux-amd64: frontend-build
+build-linux-amd64: frontend-embed
 	@mkdir -p "$(DIST_DIR)"
-	@rm -rf "$(EMBED_DIR)"
-	@mkdir -p "$(EMBED_DIR)"
-	@cp -R "$(FRONTEND_BUILD_DIR)/." "$(EMBED_DIR)/"
-	@touch "$(EMBED_DIR)/.keep"
 	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go -C "$(BACKEND_DIR)" build -buildvcs=false -o "../../$(DIST_DIR)/tarsgo-backend-linux-amd64" ./cmd/server
 	@GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go -C "$(BACKEND_DIR)" build -buildvcs=false -o "../../$(DIST_DIR)/tarsgo-migrate-linux-amd64" ./cmd/migrate
 	@sha256sum "$(DIST_DIR)/tarsgo-backend-linux-amd64" "$(DIST_DIR)/tarsgo-migrate-linux-amd64"

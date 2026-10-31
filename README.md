@@ -74,7 +74,7 @@ docs/          设计、验收、部署和素材规范
 
 ## 本地运行
 
-适用于 macOS / Linux。需要 Git、Make、Docker Compose v2、Go **1.25+**、Node.js **22** 与 pnpm **9.15.4**。
+适用于 macOS / Linux。需要 Git、Make、Docker Compose v2、Go **1.25+**、Node.js **22.23.4** 和随 Node 提供的 Corepack。前端通过 `package.json` 固定使用 pnpm **9.15.4**。
 
 ```bash
 git clone git@github.com:Tyr1onX/tarsgo-website.git
@@ -107,12 +107,8 @@ make frontend  # 前端：http://localhost:5173
 
 ```bash
 make backend-test
+make frontend-test
 make frontend-check
-# 前端单元测试按修改范围选择对应脚本：
-cd internal/frontend
-pnpm run test:workbench
-pnpm run test:growth
-pnpm run test:skills
 ```
 
 文档修改无需为此启动生产环境；在 PR 中如实说明已执行和未执行的验证。完整规则参见 [贡献指南](CONTRIBUTING.md)，自动化检查见 [Actions](https://github.com/Tyr1onX/tarsgo-website/actions)。

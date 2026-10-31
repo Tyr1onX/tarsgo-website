@@ -4,6 +4,14 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 BACKEND_DIR="$ROOT_DIR/internal/backend"
 cd "$ROOT_DIR"
+if ! command -v go >/dev/null 2>&1; then
+  echo "Cannot start TarsGo: Go is required to run the backend." >&2
+  exit 127
+fi
+if ! command -v docker >/dev/null 2>&1; then
+  echo "Cannot start TarsGo: Docker Compose v2 is required to start the local database." >&2
+  exit 127
+fi
 if [[ ! -f internal/backend/.env ]]; then
   cp internal/backend/.env.example internal/backend/.env
   echo "Created internal/backend/.env from .env.example; review credentials before continuing."
