@@ -1,6 +1,4 @@
-import award from "@iconify-icons/lucide/award";
-import { Icon } from "@iconify/react";
-
+import { CoBuilderBadgeMark } from "~/components/co-builder-badge-mark";
 import type { CoBuilderBadgeSummary } from "~/lib/co-builder-badge-client";
 
 function formatDate(value: string) {
@@ -23,7 +21,7 @@ export function CoBuilderBadgeSummaryView({
   return (
     <section aria-labelledby="co-builder-badge-heading" className="min-w-0 space-y-3 border-t border-[var(--admin-border-subtle)] pt-4">
       <div className="flex min-w-0 items-center gap-3">
-        <Icon icon={award} aria-hidden="true" className="h-6 w-6 shrink-0 text-[var(--admin-accent)]" />
+        <CoBuilderBadgeMark level={summary.levelCode} size={48} className="h-12 w-12 shrink-0" />
         <div className="min-w-0">
           <h3 id="co-builder-badge-heading" className="text-sm font-semibold text-[var(--admin-text)]">{summary.name}</h3>
           <p className="text-xs text-[var(--admin-muted)]">当前等级：{summary.levelLabel}</p>

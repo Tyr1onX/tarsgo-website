@@ -6,6 +6,7 @@ const profile = await readFile(new URL("../components/profile-dialog.tsx", impor
 const adminUsers = await readFile(new URL("../routes/admin/users.tsx", import.meta.url), "utf8");
 const adminPanel = await readFile(new URL("../components/co-builder-badge-admin-panel.tsx", import.meta.url), "utf8");
 const summaryView = await readFile(new URL("../components/co-builder-badge-summary.tsx", import.meta.url), "utf8");
+const badgeMark = await readFile(new URL("../components/co-builder-badge-mark.tsx", import.meta.url), "utf8");
 const client = await readFile(new URL("./co-builder-badge-client.ts", import.meta.url), "utf8");
 const router = await readFile(new URL("../../../backend/router/router.go", import.meta.url), "utf8");
 
@@ -31,9 +32,24 @@ test("only super admins see the contribution manager in member editing", () => {
 });
 
 test("badge summary shows current tier, count, progress, and contribution history", () => {
+  assert.match(summaryView, /<CoBuilderBadgeMark level=\{summary\.levelCode\} size=\{48\}/);
+  assert.doesNotMatch(summaryView, /@iconify-icons\/lucide\/award/);
   assert.match(summaryView, /当前等级/);
   assert.match(summaryView, /summary\.contributionCount/);
   assert.match(summaryView, /role="progressbar"/);
   assert.match(summaryView, /贡献记录/);
   assert.match(summaryView, /已撤销/);
+});
+
+test("badge mark uses the shared mechanical silhouette with distinct metal tiers", () => {
+  assert.match(badgeMark, /viewBox="0 0 96 96"/);
+  assert.match(badgeMark, /height=\{size\}[\s\S]*?width=\{size\}/);
+  assert.match(badgeMark, /linearGradient/);
+  assert.match(badgeMark, /bronze:/);
+  assert.match(badgeMark, /silver:/);
+  assert.match(badgeMark, /gold:/);
+  assert.match(badgeMark, /level === "gold"/);
+  assert.match(badgeMark, /level !== "bronze" && level !== "none"/);
+  assert.match(badgeMark, /role="img"/);
+  assert.doesNotMatch(badgeMark, /<text[\s>]/);
 });
