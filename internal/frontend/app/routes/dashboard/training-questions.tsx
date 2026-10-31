@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useOutletContext, useSearchParams } from "react-router";
 
 import { QuestionActionBar, TrainingQuestionThread } from "~/components/training-question-thread";
+import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
 import { WorkbenchFeatureStatus } from "~/components/workbench-feature-status";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { isTechnicalGroupName } from "~/lib/dashboard-navigation";
-import { formatQuestionDate, questionStatusLabel, trainingQuestionClient, type TrainingQuestion, type TrainingQuestionDetail } from "~/lib/training-question-client";
+import { formatQuestionDate, questionStatusLabel, trainingQuestionClient, trainingQuestionImageAccept, validateQuestionImageFiles, type TrainingQuestion, type TrainingQuestionDetail } from "~/lib/training-question-client";
 import { useAssignmentGroups } from "~/lib/use-assignment-groups";
 
 export function meta() {
@@ -37,12 +38,14 @@ export default function TrainingQuestionsRoute() {
   const [body, setBody] = useState("");
   const [visibility, setVisibility] = useState<"public" | "private">("public");
   const [reply, setReply] = useState("");
+  const [questionFiles, setQuestionFiles] = useState<File[]>([]);
+  const [replyFiles, setReplyFiles] = useState<File[]>([]);
+  const [questionUploadStatus, setQuestionUploadStatus] = useState<FileUploadStatus>("pending");
+  const [replyUploadStatus, setReplyUploadStatus] = useState<FileUploadStatus>("pending");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const questionFilesRef = useRef<HTMLInputElement>(null);
-  const replyFilesRef = useRef<HTMLInputElement>(null);
   const activeGroups = useMemo(() => assignmentGroups.filter((group) => isTechnicalGroupName(group.name)), [assignmentGroups]);
 
   useEffect(() => {
@@ -73,6 +76,8 @@ export default function TrainingQuestionsRoute() {
   }, [groupId, keyword, status, faqOnly, mineOnly, currentUser.id, requestedQuestionID]);
 
   useEffect(() => {
+    setReplyFiles([]);
+    setReplyUploadStatus("pending");
     if (!selectedID) {
       setDetail(null);
       return;
@@ -97,21 +102,24 @@ export default function TrainingQuestionsRoute() {
     setSaving(true);
     setError("");
     setNotice("");
+    setQuestionUploadStatus(questionFiles.length ? "uploading" : "pending");
     try {
       const result = await trainingQuestionClient.create(groupId, {
         title,
         body,
         visibility,
-        files: Array.from(questionFilesRef.current?.files ?? []),
+        files: questionFiles,
       });
       setTitle("");
       setBody("");
       setVisibility("public");
-      if (questionFilesRef.current) questionFilesRef.current.value = "";
+      setQuestionFiles([]);
+      setQuestionUploadStatus("pending");
       setShowComposer(false);
       setNotice("问题已发布。");
       await reload(result.question.id);
     } catch (cause) {
+      if (questionFiles.length) setQuestionUploadStatus("failed");
       setError(cause instanceof Error ? cause.message : "发布问题失败");
     } finally {
       setSaving(false);
@@ -124,18 +132,21 @@ export default function TrainingQuestionsRoute() {
     setSaving(true);
     setError("");
     setNotice("");
+    setReplyUploadStatus(replyFiles.length ? "uploading" : "pending");
     try {
       const result = await trainingQuestionClient.replyMember(detail.question.id, {
         kind: currentUser.id === detail.question.askerId ? "follow_up" : "answer",
         body: reply,
-        files: Array.from(replyFilesRef.current?.files ?? []),
+        files: replyFiles,
       });
       setReply("");
-      if (replyFilesRef.current) replyFilesRef.current.value = "";
+      setReplyFiles([]);
+      setReplyUploadStatus("pending");
       setDetail(result);
       setNotice(currentUser.id === result.question.askerId ? "追问已发布。" : "回答已发布。");
       await reload(result.question.id);
     } catch (cause) {
+      if (replyFiles.length) setReplyUploadStatus("failed");
       setError(cause instanceof Error ? cause.message : "发布回复失败");
     } finally {
       setSaving(false);
@@ -185,14 +196,25 @@ export default function TrainingQuestionsRoute() {
           <button type="button" className={`admin-button ${!faqOnly && !mineOnly ? "admin-button--primary" : "admin-button--secondary"}`} onClick={() => { setFaqOnly(false); setMineOnly(false); }}>全部问题</button>
           <button type="button" className={`admin-button ${faqOnly ? "admin-button--primary" : "admin-button--secondary"}`} onClick={() => { setFaqOnly(true); setMineOnly(false); }}>FAQ</button>
           <button type="button" className={`admin-button ${mineOnly ? "admin-button--primary" : "admin-button--secondary"}`} onClick={() => { setMineOnly(true); setFaqOnly(false); }}>我的问题</button>
-          <button type="button" className="admin-button admin-button--quiet ml-auto" onClick={() => setShowComposer((value) => !value)}>{showComposer ? "收起" : "提问"}</button>
+          <button type="button" className="admin-button admin-button--quiet ml-auto" onClick={() => { if (showComposer) { setQuestionFiles([]); setQuestionUploadStatus("pending"); } setShowComposer((value) => !value); }}>{showComposer ? "收起" : "提问"}</button>
         </div>
         {showComposer ? <form className="grid gap-3 border-t border-[var(--admin-border-subtle)] pt-4" onSubmit={ask}>
           <label className="admin-field-label">标题<input className={fieldClass} value={title} onChange={(event) => setTitle(event.target.value)} maxLength={160} required /></label>
           <label className="admin-field-label">问题<textarea className={`${fieldClass} min-h-36`} value={body} onChange={(event) => setBody(event.target.value)} maxLength={20000} required placeholder="可以粘贴代码块：用三个反引号包住代码" /></label>
           <div className="grid gap-3 sm:grid-cols-[12rem_minmax(0,1fr)] sm:items-end">
             <label className="admin-field-label">范围<select className={fieldClass} value={visibility} onChange={(event) => setVisibility(event.target.value as typeof visibility)}><option value="public">公开给本组</option><option value="private">仅自己和管理员</option></select></label>
-            <label className="admin-field-label">图片<input ref={questionFilesRef} className={fieldClass} type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple /></label>
+            <div className="admin-field-label">图片<FileUploadField
+              label="问题图片"
+              files={questionFiles}
+              onFilesChange={(next) => { setQuestionFiles(next); setQuestionUploadStatus("pending"); setError(""); }}
+              accept={trainingQuestionImageAccept}
+              multiple
+              variant="compact"
+              hint="最多 5 张 · 单张≤10 MB · 总计≤20 MB"
+              status={questionUploadStatus}
+              disabled={saving}
+              validateSelection={validateQuestionImageFiles}
+            /></div>
           </div>
           <div><button type="submit" className="admin-button admin-button--primary" disabled={saving || !groupId}>{saving ? "发布中…" : "发布问题"}</button></div>
         </form> : null}
@@ -218,7 +240,18 @@ export default function TrainingQuestionsRoute() {
             <TrainingQuestionThread detail={detail} />
             {!detail.question.isSolved ? <form className="admin-panel space-y-3 p-4 sm:p-5" onSubmit={postReply}>
               <label className="admin-field-label">{currentUser.id === detail.question.askerId ? "追问" : "回答"}<textarea className={`${fieldClass} min-h-28`} value={reply} onChange={(event) => setReply(event.target.value)} maxLength={20000} required /></label>
-              <div className="flex flex-wrap items-end justify-between gap-3"><label className="admin-field-label">图片<input ref={replyFilesRef} className={fieldClass} type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple /></label><button type="submit" className="admin-button admin-button--primary" disabled={saving}>{saving ? "发布中…" : currentUser.id === detail.question.askerId ? "发布追问" : "发布回答"}</button></div>
+              <div className="flex flex-wrap items-end justify-between gap-3"><div className="admin-field-label">图片<FileUploadField
+                label="回复图片"
+                files={replyFiles}
+                onFilesChange={(next) => { setReplyFiles(next); setReplyUploadStatus("pending"); setError(""); }}
+                accept={trainingQuestionImageAccept}
+                multiple
+                variant="compact"
+                hint="最多 5 张 · 单张≤10 MB · 总计≤20 MB"
+                status={replyUploadStatus}
+                disabled={saving}
+                validateSelection={validateQuestionImageFiles}
+              /></div><button type="submit" className="admin-button admin-button--primary" disabled={saving}>{saving ? "发布中…" : currentUser.id === detail.question.askerId ? "发布追问" : "发布回答"}</button></div>
             </form> : null}
           </> : <div className="admin-panel px-5 py-10 text-center text-sm text-[var(--admin-muted)]">{selectedID ? "正在加载问题…" : "选择一条问题查看讨论"}</div>}
         </section>

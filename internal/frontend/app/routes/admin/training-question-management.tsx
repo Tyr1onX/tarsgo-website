@@ -1,11 +1,12 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useOutletContext } from "react-router";
 
+import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
 import { QuestionActionBar, TrainingQuestionThread } from "~/components/training-question-thread";
 import { WorkbenchFeatureStatus } from "~/components/workbench-feature-status";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { isTechnicalGroupName } from "~/lib/dashboard-navigation";
-import { formatQuestionDate, questionStatusLabel, trainingQuestionClient, type TrainingQuestion, type TrainingQuestionDetail } from "~/lib/training-question-client";
+import { formatQuestionDate, questionStatusLabel, trainingQuestionClient, trainingQuestionImageAccept, validateQuestionImageFiles, type TrainingQuestion, type TrainingQuestionDetail } from "~/lib/training-question-client";
 import { useAssignmentGroups } from "~/lib/use-assignment-groups";
 
 export function meta() {
@@ -29,11 +30,12 @@ export default function TrainingQuestionManagementRoute() {
   const [status, setStatus] = useState<"" | "open" | "solved">("");
   const [faqOnly, setFaqOnly] = useState(false);
   const [reply, setReply] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const [fileUploadStatus, setFileUploadStatus] = useState<FileUploadStatus>("pending");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const filesRef = useRef<HTMLInputElement>(null);
   const activeGroups = useMemo(() => assignmentGroups.filter((group) => isTechnicalGroupName(group.name)), [assignmentGroups]);
   const isSuperAdmin = currentUser.role.name === "super_admin";
 
@@ -63,6 +65,8 @@ export default function TrainingQuestionManagementRoute() {
   }, [groupId, keyword, status, faqOnly, currentUser.id, groupsLoading, isSuperAdmin]);
 
   useEffect(() => {
+    setFiles([]);
+    setFileUploadStatus("pending");
     if (!selectedID) {
       setDetail(null);
       return;
@@ -88,14 +92,17 @@ export default function TrainingQuestionManagementRoute() {
     setSaving(true);
     setError("");
     setNotice("");
+    setFileUploadStatus(files.length ? "uploading" : "pending");
     try {
-      const result = await trainingQuestionClient.replyAdmin(detail.question.id, reply, Array.from(filesRef.current?.files ?? []));
+      const result = await trainingQuestionClient.replyAdmin(detail.question.id, reply, files);
       setReply("");
-      if (filesRef.current) filesRef.current.value = "";
+      setFiles([]);
+      setFileUploadStatus("pending");
       setDetail(result);
       setNotice("回答已发布。");
       await reload(result.question.id);
     } catch (cause) {
+      if (files.length) setFileUploadStatus("failed");
       setError(cause instanceof Error ? cause.message : "发布回答失败");
     } finally {
       setSaving(false);
@@ -177,7 +184,18 @@ export default function TrainingQuestionManagementRoute() {
             <TrainingQuestionThread detail={detail} />
             {!detail.question.isSolved ? <form className="admin-panel space-y-3 p-4 sm:p-5" onSubmit={answer}>
               <label className="admin-field-label">回答<textarea className={`${fieldClass} min-h-28`} value={reply} onChange={(event) => setReply(event.target.value)} maxLength={20000} required /></label>
-              <div className="flex flex-wrap items-end justify-between gap-3"><label className="admin-field-label">图片<input ref={filesRef} className={fieldClass} type="file" accept="image/jpeg,image/png,image/gif,image/webp" multiple /></label><button type="submit" className="admin-button admin-button--primary" disabled={saving}>{saving ? "发布中…" : "发布回答"}</button></div>
+              <div className="flex flex-wrap items-end justify-between gap-3"><div className="admin-field-label">图片<FileUploadField
+                label="答疑图片"
+                files={files}
+                onFilesChange={(next) => { setFiles(next); setFileUploadStatus("pending"); setError(""); }}
+                accept={trainingQuestionImageAccept}
+                multiple
+                variant="compact"
+                hint="最多 5 张 · 单张≤10 MB · 总计≤20 MB"
+                status={fileUploadStatus}
+                disabled={saving}
+                validateSelection={validateQuestionImageFiles}
+              /></div><button type="submit" className="admin-button admin-button--primary" disabled={saving}>{saving ? "发布中…" : "发布回答"}</button></div>
             </form> : null}
           </> : <div className="admin-panel px-5 py-10 text-center text-sm text-[var(--admin-muted)]">{selectedID ? "正在加载问题…" : "选择一条问题查看讨论"}</div>}
         </section>
