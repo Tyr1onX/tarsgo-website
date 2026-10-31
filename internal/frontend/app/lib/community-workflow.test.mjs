@@ -9,6 +9,10 @@ const dashboard = await source("../routes/dashboard/index.tsx");
 const thread = await source("../routes/dashboard/community-post.tsx");
 const styles = await source("../routes/dashboard/community.css");
 const client = await source("./community-client.ts");
+const listCache = await source("./community-list-cache.ts");
+const draft = await source("./community-draft.ts");
+const gallery = await source("../components/community-image-gallery.tsx");
+const composer = await source("../components/community-composer.tsx");
 const handler = await source("../../../backend/handler/community.go");
 const router = await source("../../../backend/router/router.go");
 const service = await source("../../../backend/service/trainingqa/community.go");
@@ -31,10 +35,15 @@ test("legacy question links redirect into community discussions without a second
   assert.doesNotMatch(routes, /training-questions\.tsx|training-question-management\.tsx/);
 });
 
-test("community offers paged browsing, categories, search, saved posts, and a basic discussion loop", () => {
+test("community offers shareable filters, cached browsing, and the post discussion loop", () => {
+  assert.match(dashboard, /useSearchParams/);
   assert.match(dashboard, /sort, category, q: query, saved: savedOnly, page: 1, pageSize: PAGE_SIZE/);
-  assert.match(dashboard, /setSort\("hot"\)/);
-  assert.match(dashboard, /setCategory\(item\.id\)/);
+  assert.match(dashboard, /updateFilters\(\{ sort: "hot", saved: false \}\)/);
+  assert.match(dashboard, /updateFilters\(\{ category: item\.id \}\)/);
+  assert.match(dashboard, /getCommunityListSnapshot/);
+  assert.match(dashboard, /rememberCommunityList/);
+  assert.match(dashboard, /clearOtherCommunityLists/);
+  assert.match(dashboard, /communityReturnTo/);
   assert.match(dashboard, /communityClient\.create/);
   assert.match(client, /addComment/);
   assert.match(client, /updateComment/);
@@ -44,12 +53,40 @@ test("community offers paged browsing, categories, search, saved posts, and a ba
   assert.match(thread, /communityClient\.update\(/);
   assert.match(thread, /communityClient\.remove\(/);
   assert.match(thread, /communityClient\.moderate\(/);
+  assert.match(thread, /community-comment__context/);
+  assert.match(thread, /scrollIntoView/);
+  assert.match(thread, /removeCommunityPostFromLists/);
 });
 
-test("community layout collapses to one column on mobile and follows existing themes", () => {
-  assert.match(styles, /grid-template-columns: minmax\(0,1fr\) 270px/);
-  assert.match(styles, /@media \(max-width: 1023px\)[\s\S]*?grid-template-columns: minmax\(0,1fr\)/);
-  assert.match(styles, /@media \(max-width: 639px\)[\s\S]*?\.community-rail \{ grid-template-columns: minmax\(0,1fr\)/);
+test("community cache remains bounded and invalidates stale favorites and deleted posts", () => {
+  assert.match(listCache, /MAX_CACHED_FILTERS = 10/);
+  assert.match(listCache, /clearOtherCommunityLists/);
+  assert.match(listCache, /removeCommunityPostFromLists/);
+});
+
+test("community images open an accessible gallery with keyboard navigation", () => {
+  assert.match(gallery, /role="dialog" aria-modal="true"/);
+  assert.match(gallery, /ArrowLeft/);
+  assert.match(gallery, /ArrowRight/);
+  assert.match(gallery, /Escape/);
+  assert.match(gallery, /setActiveIndex\(index\)/);
+});
+
+test("post drafts persist text and selected image files per account", () => {
+  assert.match(draft, /indexedDB\.open/);
+  assert.match(draft, /files: File\[\]/);
+  assert.match(draft, /loadCommunityDraft/);
+  assert.match(draft, /saveCommunityDraft/);
+  assert.match(draft, /clearCommunityDraft/);
+  assert.match(composer, /loadCommunityDraft\(accountId\)/);
+  assert.match(composer, /草稿已保存到此设备/);
+  assert.match(composer, /communityImageHint/);
+});
+
+test("community layout follows workbench themes and adapts its reading layout", () => {
+  assert.match(styles, /grid-template-columns: minmax\(0, 1fr\) 238px/);
+  assert.match(styles, /@media \(max-width: 1023px\)[\s\S]*?grid-template-columns: minmax\(0, 1fr\)/);
+  assert.match(styles, /@media \(max-width: 639px\)[\s\S]*?\.community-rail \{ grid-template-columns: minmax\(0, 1fr\)/);
   assert.match(styles, /var\(--admin-surface\)/);
   assert.match(styles, /var\(--admin-text\)/);
   assert.match(styles, /prefers-reduced-motion: reduce/);
