@@ -6,6 +6,7 @@ import { SiteLogo } from "~/components/site-logo";
 import { ThemeControl } from "~/components/theme-control";
 import { ProfileDialog } from "~/components/profile-dialog";
 import { CoBuilderBadgeUnlockToast } from "~/components/co-builder-badge-unlock-toast";
+import type { CoBuilderBadgeLevel, CoBuilderBadgeReplayRequest } from "~/lib/co-builder-badge-client";
 import { ApiError } from "~/lib/api-client";
 import {
   getAuthUserRoleLabel,
@@ -357,6 +358,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const [loggingOut, setLoggingOut] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [badgeReplayRequest, setBadgeReplayRequest] = useState<CoBuilderBadgeReplayRequest | null>(null);
   useEffect(() => {
     if (location.pathname === "/dashboard" && new URLSearchParams(location.search).get("profile") === "timetable") setProfileOpen(true);
   }, [location.pathname, location.search]);
@@ -373,7 +375,17 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const lastAuthRevalidationAtRef = useRef(Date.now());
   const sidebarResizeStartXRef = useRef(0);
   const sidebarResizeStartWidthRef = useRef(SIDEBAR_DEFAULT_WIDTH);
+  const badgeReplaySequenceRef = useRef(0);
   const { currentUser, groupResolution, groupResolutionError } = loaderData;
+  const requestBadgeReplay = useCallback((levelCode: CoBuilderBadgeLevel) => {
+    badgeReplaySequenceRef.current += 1;
+    setBadgeReplayRequest({ levelCode, requestId: badgeReplaySequenceRef.current, userId: currentUser.id });
+  }, [currentUser.id]);
+  const completeBadgeReplay = useCallback((requestId: number) => {
+    setBadgeReplayRequest((current) => current?.requestId === requestId ? null : current);
+  }, []);
+  useEffect(() => { setBadgeReplayRequest(null); }, [currentUser.id]);
+  const currentBadgeReplayRequest = badgeReplayRequest?.userId === currentUser.id ? badgeReplayRequest : null;
   const isImmersiveExpedition = location.pathname.replace(/\/$/, "") === "/dashboard/expedition";
   const isSidebarCollapsed = isDesktopViewport && sidebarCollapsed;
   const hasAssignmentGroup = hasAssignmentGroupAccess(groupResolution?.groups);
@@ -972,13 +984,19 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           </div>
         </main>
       </div>
-      <CoBuilderBadgeUnlockToast key={currentUser.id} onOpenProfile={() => setProfileOpen(true)} />
+      <CoBuilderBadgeUnlockToast
+        key={currentUser.id}
+        onOpenProfile={() => setProfileOpen(true)}
+        replayRequest={currentBadgeReplayRequest}
+        onReplayComplete={completeBadgeReplay}
+      />
       {profileOpen ? (
         <ProfileDialog
           user={currentUser}
           groups={groupResolution?.groups.map((group) => group.name) ?? []}
           onClose={() => setProfileOpen(false)}
           onSaved={() => { setProfileOpen(false); setProfileRevision((revision) => revision + 1); void revalidator.revalidate(); }}
+          onReplayBadge={requestBadgeReplay}
         />
       ) : null}
       {accountModalMode ? (

@@ -14,11 +14,20 @@ export interface CoBuilderBadgeSummary {
   levelCode: "none" | "bronze" | "silver" | "gold";
   levelLabel: string;
   contributionCount: number;
+  awardCounts: Record<CoBuilderBadgeLevel, number>;
   nextLevelLabel?: string;
   nextLevelCount?: number;
   progressCount: number;
   progressPercent: number;
   contributions: CoBuilderContribution[];
+}
+
+export type CoBuilderBadgeLevel = Exclude<CoBuilderBadgeSummary["levelCode"], "none">;
+
+export interface CoBuilderBadgeReplayRequest {
+  levelCode: CoBuilderBadgeLevel;
+  requestId: number;
+  userId: number;
 }
 
 export interface CoBuilderBadgeUnlockNotice {

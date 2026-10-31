@@ -37,6 +37,51 @@ func TestBadgeLevelAndProgressUseEffectiveContributionCount(t *testing.T) {
 	}
 }
 
+func TestMemberSummaryIncludesDistinctTierAwardTotals(t *testing.T) {
+	repo := newFakeRepository()
+	repo.users[9], repo.enabledUsers[9] = true, true
+	repo.users[10], repo.enabledUsers[10] = true, true
+	repo.users[11], repo.enabledUsers[11] = true, false
+	repo.users[12], repo.enabledUsers[12] = true, true
+	for userID, total := range map[uint64]int{8: 1, 9: 3, 10: 10, 11: 10} {
+		for contributionID := 0; contributionID < total; contributionID++ {
+			repo.records[userID] = append(repo.records[userID], model.CoBuilderContribution{ID: uint64(contributionID + 1), UserID: userID})
+		}
+	}
+	revokedAt := time.Date(2026, time.October, 31, 0, 0, 0, 0, time.UTC)
+	repo.records[12] = []model.CoBuilderContribution{
+		{ID: 1, UserID: 12}, {ID: 2, UserID: 12}, {ID: 3, UserID: 12}, {ID: 4, UserID: 12, RevokedAt: &revokedAt},
+	}
+	service := NewService(repo)
+
+	got, err := service.GetMine(context.Background(), Actor{ID: 7, RoleName: model.RoleNameUser})
+	if err != nil {
+		t.Fatalf("GetMine returned an error: %v", err)
+	}
+	if got.AwardCounts != (AwardCounts{Bronze: 4, Silver: 3, Gold: 1}) {
+		t.Fatalf("award counts = %#v, want bronze=4 silver=3 gold=1", got.AwardCounts)
+	}
+}
+
+func TestGrantAndRevokeRecalculateAwardTotalsFromEffectiveContributions(t *testing.T) {
+	repo := newFakeRepository()
+	repo.records[7] = []model.CoBuilderContribution{{ID: 1, UserID: 7}}
+	repo.records[8] = []model.CoBuilderContribution{{ID: 2, UserID: 8}, {ID: 3, UserID: 8}}
+	service := NewService(repo)
+	admin := Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}
+
+	got, err := service.Grant(context.Background(), admin, 8, "第三次贡献")
+	if err != nil || got.AwardCounts != (AwardCounts{Bronze: 2, Silver: 1}) {
+		t.Fatalf("grant award counts = %#v, %v", got, err)
+	}
+
+	contributionID := got.Contributions[len(got.Contributions)-1].ID
+	got, err = service.Revoke(context.Background(), admin, 8, contributionID)
+	if err != nil || got.AwardCounts != (AwardCounts{Bronze: 2}) {
+		t.Fatalf("revoke award counts = %#v, %v", got, err)
+	}
+}
+
 func TestOnlySuperAdminCanReadOtherMembersGrantAndRevoke(t *testing.T) {
 	repo := newFakeRepository()
 	service := NewService(repo)
@@ -263,6 +308,7 @@ func serviceStatus(err error) int {
 type fakeRepository struct {
 	unlockMu       sync.Mutex
 	users          map[uint64]bool
+	enabledUsers   map[uint64]bool
 	records        map[uint64][]model.CoBuilderContribution
 	unlockStates   map[uint64]fakeUnlockState
 	lastListUserID uint64
@@ -282,6 +328,7 @@ type fakeUnlockState struct {
 func newFakeRepository() *fakeRepository {
 	return &fakeRepository{
 		users:        map[uint64]bool{1: true, 2: true, 3: true, 7: true, 8: true},
+		enabledUsers: map[uint64]bool{1: true, 2: true, 3: true, 7: true, 8: true},
 		records:      map[uint64][]model.CoBuilderContribution{},
 		unlockStates: map[uint64]fakeUnlockState{},
 		nextID:       10,
@@ -324,6 +371,23 @@ func (r *fakeRepository) ListContributions(_ context.Context, userID uint64) ([]
 	r.listCalls++
 	r.lastListUserID = userID
 	return append([]model.CoBuilderContribution(nil), r.records[userID]...), nil
+}
+
+func (r *fakeRepository) ListEnabledContributionCounts(_ context.Context) ([]int, error) {
+	counts := make([]int, 0, len(r.enabledUsers))
+	for userID, enabled := range r.enabledUsers {
+		if !enabled {
+			continue
+		}
+		count := 0
+		for _, record := range r.records[userID] {
+			if record.RevokedAt == nil {
+				count++
+			}
+		}
+		counts = append(counts, count)
+	}
+	return counts, nil
 }
 
 func (r *fakeRepository) CreateContribution(_ context.Context, record *model.CoBuilderContribution) error {

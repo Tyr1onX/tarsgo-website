@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
 
 import { CoBuilderBadgeSummaryView } from "~/components/co-builder-badge-summary";
-import { getMyCoBuilderBadge, type CoBuilderBadgeSummary } from "~/lib/co-builder-badge-client";
+import { getMyCoBuilderBadge, type CoBuilderBadgeLevel, type CoBuilderBadgeSummary } from "~/lib/co-builder-badge-client";
 
-export function CoBuilderBadgeProfile() {
+export function CoBuilderBadgeProfile({ onReplay }: { onReplay: (level: CoBuilderBadgeLevel) => void }) {
   const [summary, setSummary] = useState<CoBuilderBadgeSummary | null>(null);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
@@ -19,5 +19,5 @@ export function CoBuilderBadgeProfile() {
 
   if (loading) return <p role="status" className="text-xs text-[var(--admin-muted)]">正在读取共建者勋章…</p>;
   if (error) return <p role="alert" className="text-xs text-rose-500">{error}</p>;
-  return summary ? <CoBuilderBadgeSummaryView summary={summary} /> : null;
+  return summary ? <CoBuilderBadgeSummaryView summary={summary} onReplay={onReplay} /> : null;
 }

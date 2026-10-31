@@ -46,6 +46,19 @@ func TestListContributionsIsScopedAndChronological(t *testing.T) {
 	}
 }
 
+func TestListEnabledContributionCountsFiltersDisabledAccountsAndRevokedRecords(t *testing.T) {
+	repo, mock := openRepositoryMock(t)
+	query := "SELECT COUNT(co_builder_contributions.id) AS total FROM `users` LEFT JOIN co_builder_contributions ON co_builder_contributions.user_id = users.id AND co_builder_contributions.revoked_at IS NULL WHERE users.status = ? GROUP BY `users`.`id`"
+	mock.ExpectQuery(regexp.QuoteMeta(query)).
+		WithArgs(uint8(1)).
+		WillReturnRows(sqlmock.NewRows([]string{"total"}).AddRow(0).AddRow(1).AddRow(3).AddRow(10))
+
+	counts, err := repo.ListEnabledContributionCounts(context.Background())
+	if err != nil || len(counts) != 4 || counts[0] != 0 || counts[1] != 1 || counts[2] != 3 || counts[3] != 10 {
+		t.Fatalf("effective contribution counts = %#v, %v", counts, err)
+	}
+}
+
 func TestRevokeContributionUpdatesOnlyAnActiveRecordForItsOwner(t *testing.T) {
 	repo, mock := openRepositoryMock(t)
 	at := time.Date(2026, time.October, 31, 1, 0, 0, 0, time.UTC)

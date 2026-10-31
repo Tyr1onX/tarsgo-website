@@ -32,6 +32,27 @@ func (r *GormRepository) ListContributions(ctx context.Context, userID uint64) (
 	return records, err
 }
 
+func (r *GormRepository) ListEnabledContributionCounts(ctx context.Context) ([]int, error) {
+	var rows []struct {
+		Total int64 `gorm:"column:total"`
+	}
+	err := r.db.WithContext(ctx).
+		Table("users").
+		Select("COUNT(co_builder_contributions.id) AS total").
+		Joins("LEFT JOIN co_builder_contributions ON co_builder_contributions.user_id = users.id AND co_builder_contributions.revoked_at IS NULL").
+		Where("users.status = ?", model.UserStatusEnabled).
+		Group("users.id").
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	counts := make([]int, 0, len(rows))
+	for _, row := range rows {
+		counts = append(counts, int(row.Total))
+	}
+	return counts, nil
+}
+
 func (r *GormRepository) CreateContribution(ctx context.Context, record *model.CoBuilderContribution) error {
 	return r.db.WithContext(ctx).Create(record).Error
 }

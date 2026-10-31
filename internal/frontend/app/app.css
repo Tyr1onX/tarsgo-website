@@ -3615,6 +3615,71 @@ html[data-theme-transition] body *::after {
   }
 }
 
+.co-builder-badge-tiers {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+.co-builder-badge-tier {
+  display: flex;
+  min-width: 0;
+  min-height: 7.5rem;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  border: 1px solid var(--admin-border-subtle);
+  border-radius: 0.85rem;
+  padding: 0.65rem 0.35rem;
+  background: var(--admin-surface);
+  color: var(--admin-text);
+  font: inherit;
+  text-align: center;
+  transition: border-color 140ms ease, background-color 140ms ease, opacity 140ms ease;
+  touch-action: manipulation;
+}
+
+.co-builder-badge-tier--earned {
+  cursor: pointer;
+}
+
+.co-builder-badge-tier--earned:hover {
+  border-color: var(--admin-accent);
+  background: var(--admin-surface-hover);
+}
+
+.co-builder-badge-tier:focus-visible {
+  outline: 2px solid var(--admin-accent);
+  outline-offset: 3px;
+}
+
+.co-builder-badge-tier--locked {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.co-builder-badge-tier__mark {
+  display: block;
+  width: 2.75rem;
+  height: 2.75rem;
+  flex: 0 0 2.75rem;
+  filter: drop-shadow(0 2px 5px rgb(0 0 0 / 0.18));
+}
+
+.co-builder-badge-tier strong {
+  font-size: 0.72rem;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.co-builder-badge-tier span {
+  color: var(--admin-muted);
+  font-size: 0.62rem;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
 .co-builder-unlock {
   position: fixed;
   z-index: 45;
@@ -3622,6 +3687,10 @@ html[data-theme-transition] body *::after {
   right: max(1rem, env(safe-area-inset-right, 0px));
   width: min(23rem, calc(100vw - 2rem));
   animation: co-builder-unlock-card 4.4s linear both;
+}
+
+.co-builder-unlock--replay {
+  z-index: 90;
 }
 
 .co-builder-unlock__button {
@@ -3732,6 +3801,10 @@ html[data-theme-transition] body *::after {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .co-builder-badge-tier {
+    transition: none;
+  }
+
   .co-builder-unlock,
   .co-builder-unlock__mark,
   .co-builder-unlock__sheen {

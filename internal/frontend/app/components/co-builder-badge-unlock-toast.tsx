@@ -4,10 +4,27 @@ import { CoBuilderBadgeMark } from "~/components/co-builder-badge-mark";
 import {
   acknowledgeMyCoBuilderBadgeUnlock,
   claimMyCoBuilderBadgeUnlock,
+  type CoBuilderBadgeReplayRequest,
   type CoBuilderBadgeUnlockNotice,
 } from "~/lib/co-builder-badge-client";
 
-export function CoBuilderBadgeUnlockToast({ onOpenProfile }: { onOpenProfile: () => void }) {
+const replayLevelLabels = {
+  bronze: "青铜 I",
+  silver: "白银 II",
+  gold: "黄金 III",
+} as const;
+
+const unlockAnimationDuration = 4400;
+
+export function CoBuilderBadgeUnlockToast({
+  onOpenProfile,
+  replayRequest,
+  onReplayComplete,
+}: {
+  onOpenProfile: () => void;
+  replayRequest: CoBuilderBadgeReplayRequest | null;
+  onReplayComplete: (requestId: number) => void;
+}) {
   const [notice, setNotice] = useState<CoBuilderBadgeUnlockNotice | null>(null);
 
   useEffect(() => {
@@ -40,19 +57,32 @@ export function CoBuilderBadgeUnlockToast({ onOpenProfile }: { onOpenProfile: ()
     };
   }, [notice]);
 
-  if (!notice) return null;
-  const romanLevel = notice.levelLabel.split(" ").at(-1) ?? "";
+  useEffect(() => {
+    if (!replayRequest || notice) return;
+    const replayTimer = window.setTimeout(() => onReplayComplete(replayRequest.requestId), unlockAnimationDuration);
+    return () => window.clearTimeout(replayTimer);
+  }, [notice, onReplayComplete, replayRequest]);
+
+  const activeReplay = notice ? null : replayRequest;
+  const replaying = Boolean(activeReplay);
+  const levelCode = activeReplay?.levelCode ?? notice?.levelCode;
+  const levelLabel = activeReplay ? replayLevelLabels[activeReplay.levelCode] : notice?.levelLabel;
+  if (!levelCode || !levelLabel) return null;
+  const animationKey = activeReplay ? `replay-${activeReplay.requestId}` : `unlock-${notice?.claimToken ?? "pending"}`;
+  const romanLevel = levelLabel.split(" ").at(-1) ?? "";
 
   return (
-    <div className="co-builder-unlock" role="status" aria-live="polite">
+    <div key={animationKey} className={`co-builder-unlock${replaying ? " co-builder-unlock--replay" : ""}`} role="status" aria-live="polite">
       <button
         type="button"
         className="co-builder-unlock__button"
         onClick={onOpenProfile}
-        aria-label={`吉甲共建者 ${notice.levelLabel}勋章，点击查看个人资料中的勋章和贡献记录`}
+        aria-label={replaying
+          ? `正在重播吉甲共建者 ${levelLabel}勋章解锁动画`
+          : `吉甲共建者 ${levelLabel}勋章，点击查看个人资料中的勋章和贡献记录`}
       >
         <span className="co-builder-unlock__emblem">
-          <CoBuilderBadgeMark level={notice.levelCode} size={78} className="co-builder-unlock__mark" />
+          <CoBuilderBadgeMark level={levelCode} size={78} className="co-builder-unlock__mark" />
           <span className="co-builder-unlock__sheen" aria-hidden="true" />
         </span>
         <span className="co-builder-unlock__copy">
