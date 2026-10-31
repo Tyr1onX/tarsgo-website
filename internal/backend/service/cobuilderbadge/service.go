@@ -11,6 +11,7 @@ import (
 )
 
 const maxDescriptionRunes = 500
+const defaultContributionDescription = "参与吉甲官网测试与反馈"
 
 type Actor struct {
 	ID       uint64
@@ -110,8 +111,11 @@ func (s *Service) Grant(ctx context.Context, actor Actor, userID uint64, descrip
 		return nil, err
 	}
 	description = strings.TrimSpace(description)
-	if userID == 0 || description == "" || utf8.RuneCountInString(description) > maxDescriptionRunes {
-		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "请填写有效的贡献说明（1-500 字）"}
+	if description == "" {
+		description = defaultContributionDescription
+	}
+	if userID == 0 || utf8.RuneCountInString(description) > maxDescriptionRunes {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "贡献说明不能超过 500 字"}
 	}
 	exists, err := s.repo.UserExists(ctx, userID)
 	if err != nil {
