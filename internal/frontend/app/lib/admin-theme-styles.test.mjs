@@ -5,6 +5,7 @@ import test from "node:test";
 const appCss = readFileSync(new URL("../app.css", import.meta.url), "utf8");
 const adminCss = readFileSync(new URL("../admin-design.css", import.meta.url), "utf8");
 const homeRoute = readFileSync(new URL("../routes/home.tsx", import.meta.url), "utf8");
+const timeCoordinationRoute = readFileSync(new URL("../routes/admin/timetable-availability.tsx", import.meta.url), "utf8");
 
 test("both themes provide semantic foreground and status tokens", () => {
   for (const token of ["--theme-accent-text", "--theme-success", "--theme-warning", "--theme-danger", "--theme-neutral"]) {
@@ -28,6 +29,16 @@ test("admin theme no longer overrides ordinary utility colors by class substring
 
 test("shared button hover shadow follows the selected theme accent", () => {
   assert.match(appCss, /\.motion-button:hover\s*\{[^}]*box-shadow:[^;]*var\(--theme-accent-contrast\)/s);
+});
+
+test("workbench status colors use semantic tokens without a duplicate light palette", () => {
+  for (const token of ["--admin-danger-border", "--admin-warning-surface", "--admin-success", "--admin-neutral-surface"]) {
+    assert.ok(adminCss.includes(token), token);
+  }
+  assert.match(adminCss, /\.admin-notice--neutral\s*\{[^}]*var\(--admin-neutral-surface\)/s);
+  assert.doesNotMatch(adminCss, /:root\[data-theme="light"\]\s+\.admin-design\s+\.availability-heatmap__/);
+  assert.match(timeCoordinationRoute, /admin-notice--error/);
+  assert.match(timeCoordinationRoute, /admin-notice--warning/);
 });
 
 test("public image hero keeps its intentionally light text over the dark shade", () => {
