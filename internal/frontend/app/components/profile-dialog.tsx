@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 
 import { ModalShell } from "~/components/modal-shell";
+import { CoBuilderBadgeProfile } from "~/components/co-builder-badge-profile";
 import { PersonalTimetableUpload } from "~/components/personal-timetable-upload";
 import { getAuthUserName, getAuthUserRoleLabel, updateProfile, type AuthUser } from "~/lib/auth-client";
 import { leaveClient, type CollegeOption, type LeaveProfile } from "~/lib/leave-client";
@@ -221,6 +222,8 @@ export function ProfileDialog({
               </p>
             ) : null}
           </section>
+
+          <CoBuilderBadgeProfile />
 
           {error ? <p role="alert" className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2.5 text-sm text-rose-500">{error}</p> : null}
         </form>

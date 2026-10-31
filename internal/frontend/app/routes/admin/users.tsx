@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { useNavigate, useOutletContext, useSearchParams } from "react-router";
 
 import { ModalShell } from "~/components/modal-shell";
+import { CoBuilderBadgeAdminPanel } from "~/components/co-builder-badge-admin-panel";
 import { ApiError } from "~/lib/api-client";
 import {
   createAdminUser,
@@ -19,6 +20,7 @@ import {
   type AdminUserSummary,
 } from "~/lib/admin-users-client";
 import { listAdminUserGroupOptions, type AdminUserGroupOption } from "~/lib/admin-user-groups-client";
+import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 
 export function meta() {
   return [{ title: "账号与权限 | TARSGO" }, { name: "description", content: "管理招新账号、系统角色和访问状态" }];
@@ -61,6 +63,7 @@ function organizationTitleLabel(role: number) {
 
 export default function AccountManagement() {
   const navigate = useNavigate();
+  const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedUserId = searchParams.get("userId");
   const [roles, setRoles] = useState<AdminUserRoleOption[]>([]);
@@ -423,6 +426,7 @@ export default function AccountManagement() {
                   <h3 className="text-sm font-semibold text-[var(--admin-text)]">姓名</h3>
                   <p className="text-xs text-[var(--admin-muted)]">{editing.realName || "未填写"} · 手机号：{editing.phone || "未填写"}</p>
                 </section>
+                {currentUser.role.name === "super_admin" ? <CoBuilderBadgeAdminPanel userId={editing.id} /> : null}
                 <section className="space-y-2" aria-label="用户所属组别">
                   <h3 className="text-sm font-semibold text-[var(--admin-text)]">所属组别</h3>
                   {editing.groups.length ? <ul className="space-y-2">{editing.groups.map((group) => (

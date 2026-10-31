@@ -61,6 +61,10 @@ func TestPausedTrainingAPIsAreUnregisteredAndOpenWorkflowsRemain(t *testing.T) {
 		"GET /api/weekly-reports",
 		"GET /api/work-manual/operations",
 		"GET /api/work-manual/operations/templates/campus-network-window-application.doc",
+		"GET /api/me/co-builder-badge",
+		"GET /api/admin/users/:id/co-builder-badge",
+		"POST /api/admin/users/:id/co-builder-badge/contributions",
+		"DELETE /api/admin/users/:id/co-builder-badge/contributions/:contributionID",
 		"GET /api/leave/access",
 		"GET /api/leave/profile",
 		"PUT /api/leave/profile",
@@ -83,6 +87,10 @@ func TestPausedTrainingAPIsAreUnregisteredAndOpenWorkflowsRemain(t *testing.T) {
 		{http.MethodGet, "/api/work-manual/operations"},
 		{http.MethodGet, "/api/admin/organization-preview"},
 		{http.MethodGet, "/api/work-manual/operations/templates/campus-network-window-application.doc"},
+		{http.MethodGet, "/api/me/co-builder-badge"},
+		{http.MethodGet, "/api/admin/users/12/co-builder-badge"},
+		{http.MethodPost, "/api/admin/users/12/co-builder-badge/contributions"},
+		{http.MethodDelete, "/api/admin/users/12/co-builder-badge/contributions/3"},
 	} {
 		response := httptest.NewRecorder()
 		engine.ServeHTTP(response, httptest.NewRequest(endpoint.method, endpoint.path, nil))

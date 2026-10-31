@@ -18,6 +18,7 @@ import (
 	"tarsgo-backend/service/assignment"
 	"tarsgo-backend/service/auth"
 	"tarsgo-backend/service/availability"
+	"tarsgo-backend/service/cobuilderbadge"
 	"tarsgo-backend/service/dailysignal"
 	"tarsgo-backend/service/email"
 	"tarsgo-backend/service/emailtemplate"
@@ -88,6 +89,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	authService := auth.NewService(cfg, db)
 	authHandler := handler.NewAuthHandler(authService)
 	adminUserHandler := handler.NewAdminUserHandler(adminuser.NewService(adminuser.NewRepository(db)))
+	coBuilderBadgeHandler := handler.NewCoBuilderBadgeHandler(cobuilderbadge.NewService(cobuilderbadge.NewRepository(db)))
 	assignmentService := assignment.NewService(db)
 	assignmentHandler := handler.NewAssignmentHandler(assignmentService)
 	userGroupHandler := handler.NewUserGroupHandler(usergroup.NewService(usergroup.NewRepository(db)))
@@ -244,6 +246,9 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	superAdminAPI.PATCH("/users/:id/group-role", adminUserHandler.UpdateUserGroupRole)
 	superAdminAPI.PATCH("/users/:id/recruitment-group", adminUserHandler.UpdateRecruitmentGroup)
 	superAdminAPI.POST("/users/:id/reset-password", adminUserHandler.ResetPassword)
+	superAdminAPI.GET("/users/:id/co-builder-badge", coBuilderBadgeHandler.ForAdmin)
+	superAdminAPI.POST("/users/:id/co-builder-badge/contributions", requireSameOriginRequest(cfg), coBuilderBadgeHandler.Grant)
+	superAdminAPI.DELETE("/users/:id/co-builder-badge/contributions/:contributionID", requireSameOriginRequest(cfg), coBuilderBadgeHandler.Revoke)
 	superAdminAPI.GET("/user-groups", userGroupHandler.ListGroups)
 	superAdminAPI.POST("/user-groups", userGroupHandler.CreateGroup)
 	superAdminAPI.PATCH("/user-groups/:id", userGroupHandler.UpdateGroup)
@@ -282,6 +287,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	authenticatedAPI := api.Group("")
 	authenticatedAPI.Use(middleware.RequireAuthenticated(authService))
 	authenticatedAPI.GET("/user-group/confirmation", userGroupMembershipHandler.CurrentState)
+	authenticatedAPI.GET("/me/co-builder-badge", coBuilderBadgeHandler.Mine)
 	authenticatedAPI.POST("/user-group/confirmation", userGroupMembershipHandler.Confirm)
 	authenticatedAPI.GET("/work-manual/operations", workManualHandler.OperationsCatalogue)
 	authenticatedAPI.GET("/work-manual/operations/templates/campus-network-window-application.doc", workManualHandler.ApplicationForm)
