@@ -645,6 +645,11 @@ PY
   ! grep -Fq '"$jijia_root/jijia-backup.sh" --local-only' "$repo_root/scripts/deploy-production.sh" || fail "standard deployment still forces a local backup"
   grep -Fq 'production_backup_mode=skipped' "$repo_root/scripts/deploy-production.sh" || fail "standard deployment does not skip backups"
   grep -Fq '"$jijia_root/jijia-backup.sh" --offsite' "$repo_root/scripts/deploy-production.sh" || fail "required offsite deployment mode is missing"
+  local release_guard_line release_dir_line release_rsync_line
+  release_guard_line="$(grep -nF 'test -e "$jijia_root/releases/$release_name"' "$repo_root/scripts/deploy-production.sh" | head -n 1 | cut -d: -f1)"
+  release_dir_line="$(grep -nF 'install -d -m 0755 -- "$jijia_root/releases/$release_name"' "$repo_root/scripts/deploy-production.sh" | head -n 1 | cut -d: -f1)"
+  release_rsync_line="$(grep -nF '"$rsync_bin" --archive "$release_dir/" "$target:$jijia_root/releases/$release_name/"' "$repo_root/scripts/deploy-production.sh" | head -n 1 | cut -d: -f1)"
+  [[ -n "$release_guard_line" && -n "$release_dir_line" && -n "$release_rsync_line" && "$release_guard_line" -lt "$release_dir_line" && "$release_dir_line" -lt "$release_rsync_line" ]] || fail "release destination must be created after collision checking and before upload"
   grep -Fq 'OnCalendar=Sat *-*-* 19:00:00 UTC' "$repo_root/scripts/backup-production.timer" || fail "offsite backup is not scheduled weekly"
   grep -Fq 'retention_minutes=43200' "$repo_root/scripts/backup-production.sh" || fail "local retention is not 30 days"
   grep -Fq 'retention_minutes=43200' "$repo_root/scripts/production-safe-cleanup.sh" || fail "disk cleanup retention is not 30 days"
