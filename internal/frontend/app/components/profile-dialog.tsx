@@ -4,6 +4,7 @@ import { ModalShell } from "~/components/modal-shell";
 import { CoBuilderBadgeProfile } from "~/components/co-builder-badge-profile";
 import { PersonalTimetableUpload } from "~/components/personal-timetable-upload";
 import { getAuthUserName, getAuthUserRoleLabel, updateProfile, type AuthUser } from "~/lib/auth-client";
+import type { CoBuilderBadgeLevel } from "~/lib/co-builder-badge-client";
 import { leaveClient, type CollegeOption, type LeaveProfile } from "~/lib/leave-client";
 
 type LeaveDraft = Pick<LeaveProfile, "studentId" | "collegeCode" | "participantType">;
@@ -18,11 +19,13 @@ export function ProfileDialog({
   groups,
   onClose,
   onSaved,
+  onReplayBadge,
 }: {
   user: AuthUser;
   groups: string[];
   onClose: () => void;
   onSaved: () => void;
+  onReplayBadge: (level: CoBuilderBadgeLevel) => void;
 }) {
   const [avatar, setAvatar] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
@@ -223,7 +226,7 @@ export function ProfileDialog({
             ) : null}
           </section>
 
-          <CoBuilderBadgeProfile />
+          <CoBuilderBadgeProfile onReplay={onReplayBadge} />
 
           {error ? <p role="alert" className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-3 py-2.5 text-sm text-rose-500">{error}</p> : null}
         </form>

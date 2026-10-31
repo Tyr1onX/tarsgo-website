@@ -1,5 +1,11 @@
 import { CoBuilderBadgeMark } from "~/components/co-builder-badge-mark";
-import type { CoBuilderBadgeSummary } from "~/lib/co-builder-badge-client";
+import type { CoBuilderBadgeLevel, CoBuilderBadgeSummary } from "~/lib/co-builder-badge-client";
+
+const badgeTiers: Array<{ level: CoBuilderBadgeLevel; label: string; threshold: number }> = [
+  { level: "bronze", label: "青铜 I", threshold: 1 },
+  { level: "silver", label: "白银 II", threshold: 3 },
+  { level: "gold", label: "黄金 III", threshold: 10 },
+];
 
 function formatDate(value: string) {
   const date = new Date(value);
@@ -9,9 +15,11 @@ function formatDate(value: string) {
 export function CoBuilderBadgeSummaryView({
   summary,
   onRevoke,
+  onReplay,
 }: {
   summary: CoBuilderBadgeSummary;
   onRevoke?: (contributionId: number) => void;
+  onReplay?: (level: CoBuilderBadgeLevel) => void;
 }) {
   const nextLevelCount = summary.nextLevelCount ?? 0;
   const progressLabel = summary.nextLevelLabel
@@ -21,13 +29,34 @@ export function CoBuilderBadgeSummaryView({
   return (
     <section aria-labelledby="co-builder-badge-heading" className="min-w-0 space-y-3 border-t border-[var(--admin-border-subtle)] pt-4">
       <div className="flex min-w-0 items-center gap-3">
-        <CoBuilderBadgeMark level={summary.levelCode} size={48} className="h-12 w-12 shrink-0" />
+        {!onReplay ? <CoBuilderBadgeMark level={summary.levelCode} size={48} className="h-12 w-12 shrink-0" /> : null}
         <div className="min-w-0">
           <h3 id="co-builder-badge-heading" className="text-sm font-semibold text-[var(--admin-text)]">{summary.name}</h3>
           <p className="text-xs text-[var(--admin-muted)]">当前等级：{summary.levelLabel}</p>
         </div>
         <strong className="ml-auto shrink-0 text-sm text-[var(--admin-text)]">{summary.contributionCount} 次</strong>
       </div>
+      {onReplay ? (
+        <div className="co-builder-badge-tiers" aria-label="吉甲共建者勋章等级">
+          {badgeTiers.map(({ level, label, threshold }) => {
+            const earned = summary.contributionCount >= threshold;
+            return (
+              <button
+                key={level}
+                type="button"
+                disabled={!earned}
+                onClick={() => onReplay(level)}
+                className={`co-builder-badge-tier${earned ? " co-builder-badge-tier--earned" : " co-builder-badge-tier--locked"}`}
+                aria-label={`${label}勋章，已有 ${summary.awardCounts[level]} 人获得${earned ? "，点击重播解锁动画" : "，尚未解锁"}`}
+              >
+                <CoBuilderBadgeMark level={level} size={44} className="co-builder-badge-tier__mark" />
+                <strong>{label}</strong>
+                <span>已有 {summary.awardCounts[level]} 人获得</span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
       <div className="space-y-1.5">
         <div className="flex justify-between gap-3 text-xs text-[var(--admin-muted)]">
           <span>累计有效贡献</span>

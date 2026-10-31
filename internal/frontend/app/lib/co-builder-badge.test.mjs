@@ -6,6 +6,7 @@ const profile = await readFile(new URL("../components/profile-dialog.tsx", impor
 const adminUsers = await readFile(new URL("../routes/admin/users.tsx", import.meta.url), "utf8");
 const adminPanel = await readFile(new URL("../components/co-builder-badge-admin-panel.tsx", import.meta.url), "utf8");
 const summaryView = await readFile(new URL("../components/co-builder-badge-summary.tsx", import.meta.url), "utf8");
+const profileBadge = await readFile(new URL("../components/co-builder-badge-profile.tsx", import.meta.url), "utf8");
 const badgeMark = await readFile(new URL("../components/co-builder-badge-mark.tsx", import.meta.url), "utf8");
 const unlockToast = await readFile(new URL("../components/co-builder-badge-unlock-toast.tsx", import.meta.url), "utf8");
 const client = await readFile(new URL("./co-builder-badge-client.ts", import.meta.url), "utf8");
@@ -14,7 +15,7 @@ const dashboardLayout = await readFile(new URL("../routes/dashboard/layout.tsx",
 const styles = await readFile(new URL("../app.css", import.meta.url), "utf8");
 
 test("personal profile reads the badge only through the signed-in member endpoint", () => {
-  assert.match(profile, /<CoBuilderBadgeProfile\s*\/>/);
+  assert.match(profile, /<CoBuilderBadgeProfile onReplay=\{onReplayBadge\} \/>/);
   assert.match(client, /getMyCoBuilderBadge\(\)[\s\S]*?"\/api\/me\/co-builder-badge"/);
   assert.doesNotMatch(client, /getMyCoBuilderBadge\([^)]*userId/);
   assert.match(router, /authenticatedAPI\.GET\("\/me\/co-builder-badge"/);
@@ -46,6 +47,19 @@ test("badge summary shows current tier, count, progress, and contribution histor
   assert.match(summaryView, /已撤销/);
 });
 
+test("personal profile shows all tier totals and only replays earned badges", () => {
+  assert.match(profileBadge, /<CoBuilderBadgeSummaryView summary=\{summary\} onReplay=\{onReplay\} \/>/);
+  assert.match(profile, /<CoBuilderBadgeProfile onReplay=\{onReplayBadge\} \/>/);
+  assert.match(summaryView, /level: "bronze", label: "青铜 I", threshold: 1/);
+  assert.match(summaryView, /level: "silver", label: "白银 II", threshold: 3/);
+  assert.match(summaryView, /level: "gold", label: "黄金 III", threshold: 10/);
+  assert.match(summaryView, /disabled=\{!earned\}/);
+  assert.match(summaryView, /onClick=\{\(\) => onReplay\(level\)\}/);
+  assert.match(summaryView, /summary\.awardCounts\[level\]/);
+  assert.match(summaryView, /<CoBuilderBadgeMark level=\{level\} size=\{44\}/);
+  assert.match(summaryView, /<strong>\{label\}<\/strong>\s*<span>已有 \{summary\.awardCounts\[level\]\} 人获得<\/span>/);
+});
+
 test("badge mark uses the shared mechanical silhouette with distinct metal tiers", () => {
   assert.match(badgeMark, /viewBox="0 0 96 96"/);
   assert.match(badgeMark, /height=\{size\}[\s\S]*?width=\{size\}/);
@@ -60,8 +74,8 @@ test("badge mark uses the shared mechanical silhouette with distinct metal tiers
 });
 
 test("workbench unlock notice reuses the current SVG and confirms only after display", () => {
-  assert.match(dashboardLayout, /<CoBuilderBadgeUnlockToast key=\{currentUser\.id\} onOpenProfile=\{\(\) => setProfileOpen\(true\)\} \/>/);
-  assert.match(unlockToast, /<CoBuilderBadgeMark level=\{notice\.levelCode\} size=\{78\}/);
+  assert.match(dashboardLayout, /<CoBuilderBadgeUnlockToast[\s\S]*?replayRequest=\{currentBadgeReplayRequest\}[\s\S]*?onReplayComplete=\{completeBadgeReplay\}/);
+  assert.match(unlockToast, /<CoBuilderBadgeMark level=\{levelCode\} size=\{78\}/);
   assert.match(unlockToast, /ACHIEVEMENT UNLOCKED/);
   assert.match(unlockToast, /吉甲共建者 <span aria-hidden="true">·<\/span> \{romanLevel\}/);
   assert.match(unlockToast, /你的贡献，让吉甲变得更好。/);
@@ -80,4 +94,16 @@ test("unlock notice timing, responsive placement, and reduced motion are defined
   assert.match(styles, /\.co-builder-unlock__sheen\s*\{[\s\S]*?animation: co-builder-unlock-sheen 4\.4s/);
   assert.match(styles, /@media \(max-width: 639px\)\s*\{[\s\S]*?\.co-builder-unlock/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?\.co-builder-unlock,[\s\S]*?animation: none/);
+});
+
+test("manual replay is timed locally and leaves the one-time unlock claim flow intact", () => {
+  assert.match(unlockToast, /if \(!replayRequest \|\| notice\) return;[\s\S]*?onReplayComplete\(replayRequest\.requestId\)/);
+  assert.match(unlockToast, /claimMyCoBuilderBadgeUnlock\(\)/);
+  assert.match(unlockToast, /acknowledgeMyCoBuilderBadgeUnlock\(notice\.claimToken\)/);
+  assert.match(unlockToast, /const animationKey = activeReplay \? `replay-\$\{activeReplay\.requestId\}`/);
+  assert.match(dashboardLayout, /setBadgeReplayRequest\(\{ levelCode, requestId: badgeReplaySequenceRef\.current, userId: currentUser\.id \}\)/);
+  assert.match(dashboardLayout, /setBadgeReplayRequest\(\(current\) => current\?\.requestId === requestId \? null : current\)/);
+  assert.match(styles, /\.co-builder-badge-tier--locked\s*\{[\s\S]*?opacity:/);
+  assert.match(styles, /\.co-builder-badge-tier:focus-visible/);
+  assert.match(styles, /\.co-builder-badge-tier\s*\{[\s\S]*?touch-action: manipulation/);
 });

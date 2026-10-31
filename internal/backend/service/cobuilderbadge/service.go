@@ -23,6 +23,7 @@ type Actor struct {
 type Repository interface {
 	UserExists(context.Context, uint64) (bool, error)
 	ListContributions(context.Context, uint64) ([]model.CoBuilderContribution, error)
+	ListEnabledContributionCounts(context.Context) ([]int, error)
 	CreateContribution(context.Context, *model.CoBuilderContribution) error
 	RevokeContribution(context.Context, uint64, uint64, uint64, time.Time) (bool, error)
 	ClaimUnlock(context.Context, uint64, uint8, string, time.Time, time.Time) (bool, error)
@@ -58,11 +59,18 @@ type Summary struct {
 	LevelCode         string         `json:"levelCode"`
 	LevelLabel        string         `json:"levelLabel"`
 	ContributionCount int            `json:"contributionCount"`
+	AwardCounts       AwardCounts    `json:"awardCounts"`
 	NextLevelLabel    string         `json:"nextLevelLabel,omitempty"`
 	NextLevelCount    int            `json:"nextLevelCount,omitempty"`
 	ProgressCount     int            `json:"progressCount"`
 	ProgressPercent   int            `json:"progressPercent"`
 	Contributions     []Contribution `json:"contributions"`
+}
+
+type AwardCounts struct {
+	Bronze int `json:"bronze"`
+	Silver int `json:"silver"`
+	Gold   int `json:"gold"`
 }
 
 type UnlockNotice struct {
@@ -212,7 +220,32 @@ func (s *Service) summary(ctx context.Context, userID uint64) (*Summary, error) 
 	if err != nil {
 		return nil, internal("读取贡献记录失败", err)
 	}
-	return summarize(records), nil
+	effectiveCounts, err := s.repo.ListEnabledContributionCounts(ctx)
+	if err != nil {
+		return nil, internal("统计共建者勋章人数失败", err)
+	}
+	summary := summarize(records)
+	summary.AwardCounts = countAwards(effectiveCounts)
+	return summary, nil
+}
+
+func countAwards(effectiveCounts []int) AwardCounts {
+	var counts AwardCounts
+	for _, count := range effectiveCounts {
+		for _, level := range tiers {
+			if count >= level.threshold {
+				switch level.code {
+				case "bronze":
+					counts.Bronze++
+				case "silver":
+					counts.Silver++
+				case "gold":
+					counts.Gold++
+				}
+			}
+		}
+	}
+	return counts
 }
 
 func summarize(records []model.CoBuilderContribution) *Summary {
