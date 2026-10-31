@@ -151,18 +151,7 @@ SQL
 }
 
 build_binaries() {
-  local shim_dir
-  shim_dir="$(mktemp -d "${TMPDIR:-/tmp}/tarsgo-pnpm.XXXXXX")"
-  cat > "$shim_dir/pnpm" <<'SHIM'
-#!/usr/bin/env bash
-exec npm exec --yes --package=pnpm@9.15.4 -- pnpm "$@"
-SHIM
-  chmod 700 "$shim_dir/pnpm"
-  if ! (cd "$ROOT_DIR" && PATH="$shim_dir:$PATH" make build && go -C internal/backend build -buildvcs=false -o ../../dist/tarsgo-test-mailbox ./cmd/test-mailbox && go -C internal/backend build -buildvcs=false -o ../../dist/tarsgo-acceptance-data ./cmd/acceptance-data); then
-    rm -rf "$shim_dir"
-    return 1
-  fi
-  rm -rf "$shim_dir"
+  (cd "$ROOT_DIR" && make build && go -C internal/backend build -buildvcs=false -o ../../dist/tarsgo-test-mailbox ./cmd/test-mailbox && go -C internal/backend build -buildvcs=false -o ../../dist/tarsgo-acceptance-data ./cmd/acceptance-data)
 }
 
 start_mailbox() {

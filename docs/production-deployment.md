@@ -48,20 +48,16 @@ systemd timer 每周六 19:00 UTC（北京时间周日 03:00）运行 `backup-pr
 
 提交前运行：
 
-前端依赖使用 pnpm 9.15.4，CI 固定使用该版本。
+前端使用 Node.js 22.23.4 和 pnpm 9.15.4。`.nvmrc` 与 `package.json` 固定 Node 版本，`package.json` 声明固定包管理器；Corepack 下载时关闭交互提示。CI、本地 Make 目标和发布构建共用同一锁文件与入口。
 
 ```bash
 for file in scripts/*.sh; do bash -n "$file"; done
 scripts/test-production-ops.sh
 git diff --check
 make backend-test
-cd internal/frontend
-pnpm install --frozen-lockfile
-pnpm run typecheck
-pnpm run test:progress
-pnpm run test:workbench
-pnpm run test:weekly-reports
-pnpm run test:growth
+make frontend-test
+make frontend-check
+make build-linux-amd64
 ```
 
 `scripts/test-production-ops.sh` 只使用临时目录和 mock 命令，覆盖 85% 高水位清理与提前退出、current/previous retention、健康检查失败回滚，以及复制或远端 checksum 失败时不执行备份 retention。

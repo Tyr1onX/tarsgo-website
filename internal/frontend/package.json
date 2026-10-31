@@ -2,11 +2,16 @@
   "name": "tarsgo",
   "private": true,
   "type": "module",
+  "packageManager": "pnpm@9.15.4",
+  "engines": {
+    "node": "22.23.4"
+  },
   "scripts": {
     "build": "react-router build",
     "dev": "react-router dev",
     "preview": "vite preview",
     "start": "vite preview",
+    "test": "node --experimental-strip-types --test",
     "test:navbar": "node --experimental-strip-types --test app/lib/navbar-accessibility.test.mjs app/lib/group-identity.test.mjs",
     "test:theme": "node --test app/lib/admin-theme-styles.test.mjs",
     "test:micro-specialty": "node --test app/lib/micro-specialty-content.test.mjs",

@@ -42,13 +42,16 @@ function Get-EnvValueFromFile {
 if (-not (Test-Path $composeFile)) {
     throw "Compose file not found: $composeFile"
 }
+if (-not (Get-Command "docker" -ErrorAction SilentlyContinue)) {
+    throw "Cannot start the local database: Docker Compose v2 is required."
+}
 
 $hostPort = Get-EnvValueFromFile -Path $backendEnvFile -Name "DB_PORT"
 if (-not $hostPort) {
     $hostPort = Get-EnvValueFromFile -Path $backendEnvExampleFile -Name "DB_PORT"
 }
 if (-not $hostPort) {
-    $hostPort = "4306"
+    $hostPort = "3307"
 }
 
 $env:MYSQL_HOST_PORT = $hostPort
@@ -62,18 +65,14 @@ if ($dbName) { $env:MARIADB_DATABASE = $dbName }
 if ($dbUser) { $env:MARIADB_USER = $dbUser }
 if ($dbPassword) { $env:MARIADB_PASSWORD = $dbPassword }
 
-Write-Host "Starting MySQL with $composeFile"
-docker compose -f $composeFile up -d
-
-$maxAttempts = 30
-for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
-    $result = Test-NetConnection -ComputerName 127.0.0.1 -Port ([int]$hostPort) -WarningAction SilentlyContinue
-    if ($result.TcpTestSucceeded) {
-        Write-Host "MySQL is reachable on 127.0.0.1:$hostPort"
-        exit 0
-    }
-
-    Start-Sleep -Seconds 2
+Write-Host "Starting MariaDB with $composeFile"
+$readyTimeout = if ([string]::IsNullOrWhiteSpace($env:DB_READY_TIMEOUT)) { "120" } else { $env:DB_READY_TIMEOUT }
+if ($readyTimeout -notmatch '^[1-9]\d*$') {
+    throw "DB_READY_TIMEOUT must be a positive number of seconds."
+}
+& docker compose -f $composeFile up -d --wait --wait-timeout $readyTimeout
+if ($LASTEXITCODE -ne 0) {
+    throw "MariaDB did not become healthy within $($readyTimeout)s. Check Docker Desktop and the container logs."
 }
 
-throw "MySQL did not become reachable on 127.0.0.1:$hostPort in time."
+Write-Host "MariaDB is healthy and ready on 127.0.0.1:$hostPort."
