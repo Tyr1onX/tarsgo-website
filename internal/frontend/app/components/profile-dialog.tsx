@@ -214,6 +214,14 @@ export function ProfileDialog({
                 </div>
               </div>
               <div className="min-w-0">
+                <span className={labelClass}>战队职务</span>
+                <div className={readOnlyClass} role="textbox" aria-readonly="true" aria-label="战队职务">
+                  <span className="min-w-0 truncate" title={(user.organizationPositions ?? []).map(({ title }) => title).join("、")}>
+                    {user.organizationPositions?.length ? user.organizationPositions.map(({ title }) => title).join("、") : "暂无"}
+                  </span>
+                </div>
+              </div>
+              <div className="min-w-0">
                 <span className={labelClass}>账号权限</span>
                 <div className={readOnlyClass} role="textbox" aria-readonly="true" aria-label="账号权限">{getAuthUserRoleLabel(user)}</div>
               </div>

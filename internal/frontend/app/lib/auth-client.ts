@@ -17,6 +17,12 @@ export interface AuthUser {
   nickname?: string | null;
   avatarUrl?: string | null;
   realName?: string | null;
+  organizationPositions?: Array<{
+    id: string;
+    title: string;
+    categoryId: string;
+    categoryTitle: string;
+  }>;
   role: AuthRole;
 }
 

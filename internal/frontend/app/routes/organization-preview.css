@@ -184,9 +184,47 @@
 }
 
 .organization-preview__details-person {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-top: 4px;
   color: var(--org-muted);
   font-size: 12px;
+}
+
+.organization-preview__details-avatar {
+  position: relative;
+  display: grid;
+  width: 26px;
+  height: 26px;
+  flex: 0 0 26px;
+  place-items: center;
+  overflow: hidden;
+  border: 1px solid var(--org-border);
+  border-radius: 50%;
+  color: var(--org-accent);
+  background: color-mix(in srgb, var(--org-accent) 10%, var(--org-surface));
+  font-weight: 650;
+}
+
+.organization-preview__details-avatar img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.organization-preview__member-profile {
+  display: inline-flex;
+  margin-top: 7px;
+  color: var(--org-accent);
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.organization-preview__member-profile:hover {
+  text-decoration: underline;
 }
 
 .organization-preview__details-duty {
@@ -290,14 +328,26 @@
 .organization-preview__captain-role {
   fill: var(--org-muted);
   font-size: 12px;
-  text-anchor: middle;
+  text-anchor: start;
 }
 
 .organization-preview__captain-name {
   fill: var(--org-text);
   font-size: 17px;
   font-weight: 650;
+  text-anchor: start;
+}
+
+.organization-preview__avatar-fallback {
+  fill: color-mix(in srgb, var(--org-accent) 12%, var(--org-surface));
+}
+
+.organization-preview__avatar-initial {
+  fill: var(--org-accent);
+  font-size: 13px;
+  font-weight: 650;
   text-anchor: middle;
+  dominant-baseline: middle;
 }
 
 .organization-preview__classification-note {
