@@ -226,7 +226,11 @@ func (s *Service) GetAdmin(ctx context.Context, actor Actor, questionID uint64) 
 	if err != nil {
 		return nil, err
 	}
-	if err := s.requireManagerGroup(ctx, actor, question.GroupID); err != nil {
+	groupID := communityGroupID(question.GroupID)
+	if groupID == 0 {
+		return nil, notFound("问题不存在")
+	}
+	if err := s.requireManagerGroup(ctx, actor, groupID); err != nil {
 		return nil, err
 	}
 	return s.detail(ctx, *question)
@@ -248,7 +252,7 @@ func (s *Service) Create(ctx context.Context, actor Actor, groupID uint64, title
 		return nil, err
 	}
 	question := model.TrainingQuestion{
-		GroupID: groupID, AskerID: actor.ID, Title: title, Body: body, Visibility: visibility,
+		GroupID: &groupID, AskerID: actor.ID, Title: title, Body: body, Visibility: visibility,
 	}
 	var stored []*storedQuestionFile
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -287,7 +291,7 @@ func (s *Service) Create(ctx context.Context, actor Actor, groupID uint64, title
 
 func (s *Service) Reply(ctx context.Context, actor Actor, questionID uint64, input PostInput) (*QuestionDetail, error) {
 	input.Kind, input.Body = strings.TrimSpace(input.Kind), strings.TrimSpace(input.Body)
-	if input.Kind != model.TrainingQuestionAnswer && input.Kind != model.TrainingQuestionFollowUp {
+	if input.Kind != model.TrainingQuestionAnswer && input.Kind != model.TrainingQuestionFollowUp && input.Kind != model.TrainingQuestionComment {
 		return nil, badRequest("回复类型不合法")
 	}
 	if input.Body == "" || utf8.RuneCountInString(input.Body) > 20000 {
@@ -306,9 +310,6 @@ func (s *Service) Reply(ctx context.Context, actor Actor, questionID uint64, inp
 		if err := s.requireVisibleWithDB(ctx, tx, actor, &question); err != nil {
 			return err
 		}
-		if question.IsSolved {
-			return conflict("已解决的问题不能继续回复")
-		}
 		if input.Kind == model.TrainingQuestionFollowUp {
 			if actor.ID != question.AskerID {
 				return forbidden("只有提问者可以追问")
@@ -326,7 +327,7 @@ func (s *Service) Reply(ctx context.Context, actor Actor, questionID uint64, inp
 			return err
 		}
 		for _, upload := range uploads {
-			file, err := s.files.save(ctx, question.GroupID, question.ID, upload)
+			file, err := s.files.save(ctx, communityGroupID(question.GroupID), question.ID, upload)
 			if err != nil {
 				if errors.Is(err, errQuestionFileTooLarge) {
 					return badRequest("单张图片不能超过 10 MB")
@@ -372,7 +373,7 @@ func (s *Service) SetSolved(ctx context.Context, actor Actor, questionID uint64,
 		if err := s.requireVisibleWithDB(ctx, tx, actor, &question); err != nil {
 			return err
 		}
-		if actor.ID != question.AskerID && !s.isManager(ctx, tx, actor, question.GroupID) {
+		if actor.ID != question.AskerID && !s.isManager(ctx, tx, actor, communityGroupID(question.GroupID)) {
 			return forbidden("只有提问者或本组管理员可以更改解决状态")
 		}
 		if question.IsSolved == solved {
@@ -419,7 +420,11 @@ func (s *Service) SetFAQ(ctx context.Context, actor Actor, questionID uint64, is
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&question, questionID).Error; err != nil {
 			return err
 		}
-		if err := s.requireManagerGroupWithDB(ctx, tx, actor, question.GroupID); err != nil {
+		groupID := communityGroupID(question.GroupID)
+		if groupID == 0 {
+			return notFound("问题不存在")
+		}
+		if err := s.requireManagerGroupWithDB(ctx, tx, actor, groupID); err != nil {
 			return err
 		}
 		if question.IsFAQ == isFAQ {
@@ -501,8 +506,17 @@ func (s *Service) OpenFile(ctx context.Context, actor Actor, fileID uint64) (*Do
 	if err != nil {
 		return nil, err
 	}
+	if question.DeletedAt != nil {
+		return nil, notFound("图片不存在")
+	}
 	if err := s.requireVisible(ctx, actor, question); err != nil {
 		return nil, err
+	}
+	if file.PostID != nil {
+		var comment model.TrainingQuestionPost
+		if err := s.db.WithContext(ctx).Select("id", "deleted_at").First(&comment, *file.PostID).Error; err != nil || comment.DeletedAt != nil {
+			return nil, notFound("图片不存在")
+		}
 	}
 	content, err := s.files.open(file.StoragePath)
 	if err != nil {
@@ -574,7 +588,7 @@ func (s *Service) questionViews(ctx context.Context, rows []questionListRow) ([]
 	result := make([]QuestionView, 0, len(rows))
 	for _, row := range rows {
 		view := QuestionView{
-			ID: row.ID, GroupID: row.GroupID, GroupName: row.GroupName, AskerID: row.AskerID,
+			ID: row.ID, GroupID: communityGroupID(row.GroupID), GroupName: row.GroupName, AskerID: row.AskerID,
 			AskerName: row.AskerName, Title: row.Title, Body: row.Body, Visibility: row.Visibility,
 			IsSolved: row.IsSolved, SolvedAt: row.SolvedAt, IsFAQ: row.IsFAQ, CreatedAt: row.CreatedAt,
 			LastReplyAt: row.LastReplyAt, PostCount: row.PostCount, Attachments: []AttachmentView{},
@@ -630,15 +644,25 @@ func (s *Service) requireVisibleWithDB(ctx context.Context, db *gorm.DB, actor A
 	if actor.ID == 0 {
 		return forbidden("当前账号无权查看该问题")
 	}
+	if question.IsHidden && actor.RoleName != model.RoleNameAdmin && actor.RoleName != model.RoleNameSuperAdmin {
+		return notFound("问题不存在")
+	}
 	if question.Visibility == model.TrainingQuestionPrivate && question.AskerID == actor.ID {
 		return nil
 	}
+	if question.GroupID == nil {
+		if question.Visibility == model.TrainingQuestionPublic {
+			return nil
+		}
+		return notFound("问题不存在")
+	}
+	groupID := *question.GroupID
 	if actor.RoleName == model.RoleNameSuperAdmin {
 		ids, err := activeTechnicalGroupIDs(db)
 		if err != nil {
 			return internalError("读取有效技术组失败", err)
 		}
-		if contains(ids, question.GroupID) {
+		if contains(ids, groupID) {
 			return nil
 		}
 		return notFound("问题不存在")
@@ -647,7 +671,7 @@ func (s *Service) requireVisibleWithDB(ctx context.Context, db *gorm.DB, actor A
 	if err != nil {
 		return internalError("读取所属技术组失败", err)
 	}
-	if !contains(ids, question.GroupID) {
+	if !contains(ids, groupID) {
 		return notFound("问题不存在")
 	}
 	if question.Visibility == model.TrainingQuestionPrivate && question.AskerID != actor.ID && actor.RoleName != model.RoleNameAdmin {
@@ -657,10 +681,20 @@ func (s *Service) requireVisibleWithDB(ctx context.Context, db *gorm.DB, actor A
 }
 
 func (s *Service) canAnswer(ctx context.Context, db *gorm.DB, actor Actor, question *model.TrainingQuestion) bool {
+	if question.GroupID == nil {
+		return question.Visibility == model.TrainingQuestionPublic
+	}
 	if actor.RoleName == model.RoleNameAdmin || actor.RoleName == model.RoleNameSuperAdmin {
 		return true
 	}
-	return question.Visibility == model.TrainingQuestionPublic && s.requireGroupMemberWithDB(ctx, db, actor, question.GroupID) == nil
+	return question.Visibility == model.TrainingQuestionPublic && s.requireGroupMemberWithDB(ctx, db, actor, *question.GroupID) == nil
+}
+
+func communityGroupID(groupID *uint64) uint64 {
+	if groupID == nil {
+		return 0
+	}
+	return *groupID
 }
 
 func (s *Service) requireGroupMember(ctx context.Context, actor Actor, groupID uint64) error {

@@ -9,30 +9,32 @@ test("feature guide exposes the agreed title, date, statuses, and destinations",
   assert.match(GROUP_ACCESS_HELP, /联系战队运营负责人核对/);
   assert.deepEqual(WORKBENCH_FEATURES.map(({ status }) => status), [
     "已开放",
-    "暂未开放",
+    "已开放",
     "暂未开放",
     "暂未开放",
     "暂未开放",
     "暂未开放",
   ]);
-  assert.ok(WORKBENCH_FEATURES.every(({ href }) => href.startsWith("/dashboard/")));
+  assert.ok(WORKBENCH_FEATURES.every(({ href }) => href.startsWith("/dashboard")));
 });
 
-test("only assignment workflow is announced and all five groups can use it", () => {
+test("community is available to every active member while assignments remain group-scoped", () => {
   for (const group of ["机械组", "电控组", "视觉组", "AI组", "运营组"]) {
-    assert.deepEqual(getWorkbenchFeaturesForMember("user", [group]).map(({ key }) => key), ["assignments"]);
+    assert.deepEqual(getWorkbenchFeaturesForMember("user", [group]).map(({ key }) => key), ["assignments", "community"]);
   }
+  assert.deepEqual(getWorkbenchFeaturesForMember("user").map(({ key }) => key), ["community"]);
 });
 
-test("unassigned members get no assignment card and super admins retain all-group entry", () => {
-  assert.deepEqual(getWorkbenchFeaturesForMember("user").map(({ key }) => key), []);
-  assert.deepEqual(getWorkbenchFeaturesForMember("super_admin").map(({ key }) => key), ["assignments"]);
+test("super admins retain assignment management entry and every audience gets community", () => {
+  assert.deepEqual(getWorkbenchFeaturesForMember("super_admin").map(({ key }) => key), ["assignments", "community"]);
 });
 
 test("admin-only links are hidden from members and constrained to assigned groups", () => {
   const assignments = WORKBENCH_FEATURES.find(({ key }) => key === "assignments");
+  const community = WORKBENCH_FEATURES.find(({ key }) => key === "community");
   const skills = WORKBENCH_FEATURES.find(({ key }) => key === "skills");
-  assert.ok(assignments && skills);
+  assert.ok(assignments && community && skills);
+  assert.equal(community.href, "/dashboard");
   assert.equal(getWorkbenchAdminAction(assignments, "user", ["机械组"]), null);
   assert.equal(getWorkbenchAdminAction(assignments, "admin", ["运营组"])?.href, "/dashboard/admin/training/assignments");
   assert.equal(getWorkbenchAdminAction(assignments, "admin", ["机械组"])?.href, "/dashboard/admin/training/assignments");

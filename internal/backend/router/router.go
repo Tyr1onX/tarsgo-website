@@ -28,6 +28,7 @@ import (
 	"tarsgo-backend/service/registration"
 	"tarsgo-backend/service/systemconfig"
 	"tarsgo-backend/service/timetable"
+	"tarsgo-backend/service/trainingqa"
 	"tarsgo-backend/service/usergroup"
 	"tarsgo-backend/service/weeklyreport"
 	"tarsgo-backend/service/workmanual"
@@ -92,6 +93,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	coBuilderBadgeHandler := handler.NewCoBuilderBadgeHandler(cobuilderbadge.NewService(cobuilderbadge.NewRepository(db)))
 	assignmentService := assignment.NewService(db)
 	assignmentHandler := handler.NewAssignmentHandler(assignmentService)
+	communityHandler := handler.NewCommunityHandler(trainingqa.NewService(db))
 	userGroupHandler := handler.NewUserGroupHandler(usergroup.NewService(usergroup.NewRepository(db)))
 	userGroupMembershipHandler := handler.NewUserGroupMembershipHandler(usergroup.NewMembershipService(db))
 	workManualHandler := handler.NewWorkManualHandler(workmanual.NewService(db))
@@ -286,6 +288,22 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 
 	authenticatedAPI := api.Group("")
 	authenticatedAPI.Use(middleware.RequireAuthenticated(authService))
+	communityAPI := authenticatedAPI.Group("/community")
+	communityAPI.GET("/posts", communityHandler.List)
+	communityAPI.GET("/hot", communityHandler.Hot)
+	communityAPI.POST("/posts", requireSameOriginRequest(cfg), communityHandler.Create)
+	communityAPI.GET("/posts/:id", communityHandler.Get)
+	communityAPI.PATCH("/posts/:id", requireSameOriginRequest(cfg), communityHandler.Update)
+	communityAPI.DELETE("/posts/:id", requireSameOriginRequest(cfg), communityHandler.Delete)
+	communityAPI.POST("/posts/:id/comments", requireSameOriginRequest(cfg), communityHandler.AddComment)
+	communityAPI.PATCH("/comments/:id", requireSameOriginRequest(cfg), communityHandler.UpdateComment)
+	communityAPI.DELETE("/comments/:id", requireSameOriginRequest(cfg), communityHandler.DeleteComment)
+	communityAPI.PUT("/posts/:id/like", requireSameOriginRequest(cfg), communityHandler.SetLike)
+	communityAPI.DELETE("/posts/:id/like", requireSameOriginRequest(cfg), communityHandler.SetLike)
+	communityAPI.PUT("/posts/:id/bookmark", requireSameOriginRequest(cfg), communityHandler.SetBookmark)
+	communityAPI.DELETE("/posts/:id/bookmark", requireSameOriginRequest(cfg), communityHandler.SetBookmark)
+	communityAPI.PATCH("/posts/:id/moderation", requireSameOriginRequest(cfg), communityHandler.Moderate)
+	communityAPI.GET("/files/:id", communityHandler.OpenFile)
 	authenticatedAPI.GET("/user-group/confirmation", userGroupMembershipHandler.CurrentState)
 	authenticatedAPI.GET("/me/co-builder-badge", coBuilderBadgeHandler.Mine)
 	authenticatedAPI.POST("/me/co-builder-badge/unlock-notice", requireSameOriginRequest(cfg), coBuilderBadgeHandler.ClaimUnlock)

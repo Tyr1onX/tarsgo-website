@@ -163,8 +163,9 @@ func TestAcceptanceDatabaseGrowthTimeline(t *testing.T) {
 	}
 	solvedAt := now.Add(-2 * 24 * time.Hour)
 	faqAt := now.Add(-24 * time.Hour)
+	technicalGroupID := technicalGroup.ID
 	question := model.TrainingQuestion{
-		GroupID: technicalGroup.ID, AskerID: member.ID, Title: "[TEST_GROWTH] 公开问题",
+		GroupID: &technicalGroupID, AskerID: member.ID, Title: "[TEST_GROWTH] 公开问题",
 		Body: "Synthetic acceptance question", Visibility: model.TrainingQuestionPublic,
 		IsSolved: true, SolvedBy: &peer.ID, SolvedAt: &solvedAt, IsFAQ: true, FAQBy: &peer.ID, FAQAt: &faqAt,
 	}
@@ -181,7 +182,7 @@ func TestAcceptanceDatabaseGrowthTimeline(t *testing.T) {
 		createdQuestionPostIDs = append(createdQuestionPostIDs, post.ID)
 	}
 	privateQuestion := model.TrainingQuestion{
-		GroupID: technicalGroup.ID, AskerID: peer.ID, Title: "[TEST_GROWTH] PRIVATE_MARKER",
+		GroupID: &technicalGroupID, AskerID: peer.ID, Title: "[TEST_GROWTH] PRIVATE_MARKER",
 		Body: "Private question", Visibility: model.TrainingQuestionPrivate,
 	}
 	if err := db.Create(&privateQuestion).Error; err != nil {

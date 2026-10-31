@@ -179,7 +179,7 @@ function GrowthProfilePanel({ currentUser }: { currentUser: DashboardLayoutOutle
                   <span className="growth-next__open">打开记录 <span aria-hidden="true">↗</span></span>
                 </Link>
               ) : <p className="growth-next__quiet">确认组别后，下一步会显示在这里。</p>}
-              {!profile.nextAction && isTechnicalMember ? <Link className="growth-action-link" to="/dashboard/questions">探索技术答疑 <span aria-hidden="true">↗</span></Link> : null}
+              {!profile.nextAction && isTechnicalMember ? <Link className="growth-action-link" to="/dashboard">进入吉甲社区 <span aria-hidden="true">↗</span></Link> : null}
               {!profile.nextAction && isOperationsMember ? <Link className="growth-action-link" to="/dashboard/weekly-reports">查看工作周报 <span aria-hidden="true">↗</span></Link> : null}
             </section>
 

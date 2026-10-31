@@ -105,13 +105,11 @@ export function isTemporarilyUnavailableDashboardPath(pathname: string) {
   const unavailablePaths = [
     "/dashboard/base",
     "/dashboard/practice-projects",
-    "/dashboard/questions",
     "/dashboard/growth",
     "/dashboard/skills",
     "/dashboard/capabilities",
     "/dashboard/expedition",
     "/dashboard/admin/training/practice-projects",
-    "/dashboard/admin/training/questions",
     "/dashboard/admin/training/skills",
     "/dashboard/admin/training/capabilities",
     "/dashboard/admin/training/expedition",
@@ -123,7 +121,7 @@ export function isTemporarilyUnavailableDashboardPath(pathname: string) {
 const CORE_DASHBOARD_MENU: readonly DashboardMenuLink[] = [
   {
     key: "personal-workspace",
-    label: "首页",
+    label: "吉甲社区",
     href: "/dashboard",
     iconKey: "dashboard",
   },

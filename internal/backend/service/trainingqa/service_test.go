@@ -72,7 +72,8 @@ func TestSuperAdminCanManageTechnicalGroupsWithoutMembership(t *testing.T) {
 }
 
 func TestPrivateQuestionIsVisibleOnlyToItsAskerOrGroupAdmin(t *testing.T) {
-	question := &model.TrainingQuestion{ID: 9, GroupID: 41, AskerID: 20, Visibility: model.TrainingQuestionPrivate}
+	groupID := uint64(41)
+	question := &model.TrainingQuestion{ID: 9, GroupID: &groupID, AskerID: 20, Visibility: model.TrainingQuestionPrivate}
 	db, mock := newQuestionMockGorm(t)
 	service := &Service{db: db}
 	if err := service.requireVisible(context.Background(), Actor{ID: 20, RoleName: model.RoleNameUser}, question); err != nil {

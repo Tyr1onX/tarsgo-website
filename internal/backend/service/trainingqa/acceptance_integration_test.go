@@ -107,7 +107,7 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 	superAdmin := createActor("super-admin", model.RoleNameSuperAdmin, "")
 	t.Cleanup(func() {
 		if len(questionIDs) > 0 {
-			for _, value := range []any{&model.TrainingQuestionGrowthEvent{}, &model.TrainingQuestionAttachment{}, &model.TrainingQuestionPost{}} {
+			for _, value := range []any{&model.CommunityPostReaction{}, &model.TrainingQuestionGrowthEvent{}, &model.TrainingQuestionAttachment{}, &model.TrainingQuestionPost{}} {
 				if err := db.Where("question_id IN ?", questionIDs).Delete(value).Error; err != nil {
 					t.Errorf("clean isolated Q&A history: %v", err)
 				}
@@ -267,6 +267,141 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 	if solvedMilestones != 1 || faqMilestones != 2 {
 		t.Fatalf("status milestones after reopen/removal = solved:%d FAQ:%d, want one solved and two distinct FAQ inclusions", solvedMilestones, faqMilestones)
 	}
+
+	communityPost, err := service.CreateCommunityPost(context.Background(), operationsMember, CommunityPostInput{
+		Category: model.CommunityCategoryProject, Title: "[TEST_QA] 全组协作记录", Body: "运营成员也可以发布项目进展。",
+		Files: []*multipart.FileHeader{testQuestionUpload(t, "community.png")},
+	})
+	if err != nil {
+		t.Fatalf("operations member could not publish community post: %v", err)
+	}
+	communityID := communityPost.Post.ID
+	questionIDs = append(questionIDs, communityID)
+	if communityPost.Post.IsLegacy || communityPost.Post.GroupID != 0 {
+		t.Fatalf("new community post unexpectedly has a group scope: %#v", communityPost.Post)
+	}
+	if len(communityPost.Post.Attachments) != 1 || !strings.HasPrefix(communityPost.Post.Attachments[0].URL, "/api/community/files/") {
+		t.Fatalf("community image did not use the protected community file route: %#v", communityPost.Post.Attachments)
+	}
+	communityImage, err := service.OpenFile(context.Background(), crossMember, communityPost.Post.Attachments[0].ID)
+	if err != nil || communityImage.ContentType != "image/png" || len(communityImage.Content) == 0 {
+		t.Fatalf("cross-group member could not read public community image: file=%v err=%v", communityImage != nil, err)
+	}
+	secondCommunityPost, err := service.CreateCommunityPost(context.Background(), crossMember, CommunityPostInput{
+		Category: model.CommunityCategoryExperience, Title: "[TEST_QA] 社区经验分享", Body: "另一位成员的实践体会。",
+	})
+	if err != nil {
+		t.Fatalf("cross-group member could not create a second community post: %v", err)
+	}
+	questionIDs = append(questionIDs, secondCommunityPost.Post.ID)
+	if _, err := service.GetCommunityPost(context.Background(), crossMember, public.Question.ID); questionStatus(err) != http.StatusNotFound {
+		t.Fatalf("community view expanded historical technical-group visibility: status=%d, want 404", questionStatus(err))
+	}
+	if _, err := service.GetCommunityPost(context.Background(), crossMember, private.Question.ID); questionStatus(err) != http.StatusNotFound {
+		t.Fatalf("community view expanded historical private visibility: status=%d, want 404", questionStatus(err))
+	}
+
+	if _, err := service.SetSolved(context.Background(), member, public.Question.ID, true); err != nil {
+		t.Fatalf("could not set historical discussion to solved for reply check: %v", err)
+	}
+	legacyComment, err := service.AddCommunityComment(context.Background(), peer, public.Question.ID, CommunityCommentInput{Body: "解决后仍可继续讨论。"})
+	if err != nil || len(legacyComment.Comments) < 3 {
+		t.Fatalf("solved historical thread rejected a normal comment: comments=%d err=%v", lenOrZeroCommunity(legacyComment), err)
+	}
+	if _, err := service.AddCommunityComment(context.Background(), crossMember, public.Question.ID, CommunityCommentInput{Body: "越组访问"}); questionStatus(err) != http.StatusNotFound {
+		t.Fatalf("cross-group reply to historical thread status=%d, want 404", questionStatus(err))
+	}
+
+	liked, err := service.SetCommunityReaction(context.Background(), crossMember, communityID, "like", true)
+	if err != nil || liked.LikeCount != 1 {
+		t.Fatalf("community like failed: state=%#v err=%v", liked, err)
+	}
+	liked, err = service.SetCommunityReaction(context.Background(), crossMember, communityID, "like", true)
+	if err != nil || liked.LikeCount != 1 {
+		t.Fatalf("repeated community like counted twice: state=%#v err=%v", liked, err)
+	}
+	if _, err := service.SetCommunityReaction(context.Background(), crossMember, communityID, "bookmark", true); err != nil {
+		t.Fatalf("community bookmark failed: %v", err)
+	}
+	saved, err := service.ListCommunity(context.Background(), crossMember, CommunityListFilter{Sort: "latest", Page: 1, PageSize: 10, Saved: true})
+	if err != nil || len(saved.Items) != 1 || saved.Items[0].ID != communityID {
+		t.Fatalf("saved post list mismatch: items=%d err=%v", lenOrZeroCommunityList(saved), err)
+	}
+	if _, err := service.SetCommunityReaction(context.Background(), crossMember, communityID, "like", false); err != nil {
+		t.Fatalf("community unlike failed: %v", err)
+	}
+
+	firstComment, err := service.AddCommunityComment(context.Background(), peer, communityID, CommunityCommentInput{Body: "项目记录的补充说明。"})
+	if err != nil || len(firstComment.Comments) != 1 {
+		t.Fatalf("cross-group member could not comment on community post: comments=%d err=%v", lenOrZeroCommunity(firstComment), err)
+	}
+	parentID := firstComment.Comments[0].ID
+	reply, err := service.AddCommunityComment(context.Background(), crossMember, communityID, CommunityCommentInput{Body: "回复上面的说明。", ParentPostID: &parentID})
+	if err != nil || len(reply.Comments) != 2 || reply.Comments[1].ParentPostID == nil || *reply.Comments[1].ParentPostID != parentID {
+		t.Fatalf("nested community reply failed: comments=%d err=%v", lenOrZeroCommunity(reply), err)
+	}
+	if _, err := service.UpdateCommunityComment(context.Background(), peer, parentID, "更新后的说明"); err != nil {
+		t.Fatalf("comment author could not edit their own comment: %v", err)
+	}
+	if _, err := service.DeleteCommunityComment(context.Background(), peer, parentID); err != nil {
+		t.Fatalf("comment author could not delete their own comment: %v", err)
+	}
+
+	updated, err := service.UpdateCommunityPost(context.Background(), operationsMember, communityID, CommunityPostUpdate{
+		Category: model.CommunityCategoryExperience, Title: "[TEST_QA] 更新后的社区记录", Body: "已修订的正文。",
+	})
+	if err != nil || updated.Post.Title != "[TEST_QA] 更新后的社区记录" || updated.Post.EditedAt == nil {
+		t.Fatalf("post author could not edit their post: post=%#v err=%v", updated, err)
+	}
+	if _, err := service.UpdateCommunityPost(context.Background(), crossMember, communityID, CommunityPostUpdate{
+		Category: model.CommunityCategoryExperience, Title: "越权标题", Body: "越权正文",
+	}); questionStatus(err) != http.StatusForbidden {
+		t.Fatalf("non-author edit status=%d, want 403", questionStatus(err))
+	}
+
+	pinned, hidden := true, true
+	moderated, err := service.ModerateCommunityPost(context.Background(), mechanicalAdmin, communityID, CommunityModerationUpdate{Pinned: &pinned, Hidden: &hidden})
+	if err != nil || !moderated.Post.IsPinned || !moderated.Post.IsHidden {
+		t.Fatalf("admin moderation failed: post=%#v err=%v", moderated, err)
+	}
+	if _, err := service.GetCommunityPost(context.Background(), crossMember, communityID); questionStatus(err) != http.StatusNotFound {
+		t.Fatalf("hidden community post remained visible to a member: status=%d", questionStatus(err))
+	}
+	visibleToAdmin, err := service.ListCommunity(context.Background(), mechanicalAdmin, CommunityListFilter{Sort: "latest", Page: 1, PageSize: 1})
+	if err != nil || len(visibleToAdmin.Items) != 1 || visibleToAdmin.Items[0].ID != communityID || !visibleToAdmin.Items[0].IsHidden {
+		t.Fatalf("admin could not review hidden community post: items=%d err=%v", lenOrZeroCommunityList(visibleToAdmin), err)
+	}
+	if _, err := service.ModerateCommunityPost(context.Background(), crossMember, communityID, CommunityModerationUpdate{Hidden: &pinned}); questionStatus(err) != http.StatusForbidden {
+		t.Fatalf("member moderation status=%d, want 403", questionStatus(err))
+	}
+	unhidden := false
+	if _, err := service.ModerateCommunityPost(context.Background(), mechanicalAdmin, communityID, CommunityModerationUpdate{Hidden: &unhidden}); err != nil {
+		t.Fatalf("admin could not unhide community post: %v", err)
+	}
+	if page, err := service.ListCommunity(context.Background(), crossMember, CommunityListFilter{Sort: "latest", Category: model.CommunityCategoryExperience, Page: 1, PageSize: 1}); err != nil || len(page.Items) != 1 || page.Items[0].ID != communityID || !page.HasMore {
+		t.Fatalf("category filter and pagination mismatch: page=%#v err=%v", page, err)
+	}
+	if err := service.DeleteCommunityPost(context.Background(), operationsMember, communityID); err != nil {
+		t.Fatalf("post author could not delete their post: %v", err)
+	}
+	var retained model.TrainingQuestion
+	if err := db.First(&retained, communityID).Error; err != nil || retained.DeletedAt == nil {
+		t.Fatalf("deleted post history was not retained: post=%#v err=%v", retained, err)
+	}
+}
+
+func lenOrZeroCommunity(value *CommunityPostDetail) int {
+	if value == nil {
+		return 0
+	}
+	return len(value.Comments)
+}
+
+func lenOrZeroCommunityList(value *CommunityListResult) int {
+	if value == nil {
+		return 0
+	}
+	return len(value.Items)
 }
 
 func testQuestionUpload(t *testing.T, fileName string) *multipart.FileHeader {

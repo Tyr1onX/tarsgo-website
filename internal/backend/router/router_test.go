@@ -13,7 +13,7 @@ import (
 	"tarsgo-backend/config"
 )
 
-func TestPausedTrainingAPIsAreUnregisteredAndOpenWorkflowsRemain(t *testing.T) {
+func TestCommunityAPIsRequireAuthenticationAndOpenWorkflowsRemain(t *testing.T) {
 	sqlDB, _, err := sqlmock.New()
 	if err != nil {
 		t.Fatalf("create SQL mock: %v", err)
@@ -50,6 +50,21 @@ func TestPausedTrainingAPIsAreUnregisteredAndOpenWorkflowsRemain(t *testing.T) {
 	}
 
 	for _, route := range []string{
+		"GET /api/community/posts",
+		"GET /api/community/hot",
+		"POST /api/community/posts",
+		"GET /api/community/posts/:id",
+		"PATCH /api/community/posts/:id",
+		"DELETE /api/community/posts/:id",
+		"POST /api/community/posts/:id/comments",
+		"PATCH /api/community/comments/:id",
+		"DELETE /api/community/comments/:id",
+		"PUT /api/community/posts/:id/like",
+		"DELETE /api/community/posts/:id/like",
+		"PUT /api/community/posts/:id/bookmark",
+		"DELETE /api/community/posts/:id/bookmark",
+		"PATCH /api/community/posts/:id/moderation",
+		"GET /api/community/files/:id",
 		"GET /api/assignments",
 		"POST /api/assignments/:id/submissions",
 		"GET /api/admin/assignments",
@@ -90,6 +105,10 @@ func TestPausedTrainingAPIsAreUnregisteredAndOpenWorkflowsRemain(t *testing.T) {
 		{http.MethodGet, "/api/admin/organization-preview"},
 		{http.MethodGet, "/api/work-manual/operations/templates/campus-network-window-application.doc"},
 		{http.MethodGet, "/api/me/co-builder-badge"},
+		{http.MethodGet, "/api/community/posts"},
+		{http.MethodPost, "/api/community/posts"},
+		{http.MethodGet, "/api/community/posts/12"},
+		{http.MethodGet, "/api/community/files/12"},
 		{http.MethodPost, "/api/me/co-builder-badge/unlock-notice"},
 		{http.MethodPost, "/api/me/co-builder-badge/unlock-notice/seen"},
 		{http.MethodGet, "/api/admin/users/12/co-builder-badge"},
