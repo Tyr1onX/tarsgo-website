@@ -71,6 +71,13 @@ const organizationPreviewJSON = `{
         {"id": "aerial-lead", "title": "飞机组长", "name": "王彬赫", "userId": 22},
         {"id": "radar-station", "title": "雷达站负责人", "name": "左文添", "userId": 630}
       ]
+    },
+    {
+      "id": "advisors",
+      "title": "指导教师",
+      "positions": [
+        {"id": "advisor-xuanyubo", "title": "指导老师", "name": "玄玉波", "userId": 961}
+      ]
     }
   ]
 }`

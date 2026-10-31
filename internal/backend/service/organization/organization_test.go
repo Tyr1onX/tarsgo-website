@@ -33,6 +33,7 @@ func TestPreviewDataHasConfirmedMemberAssociations(t *testing.T) {
 		{"陆广鹏", uint64Pointer(631)},
 		{"王彬赫", uint64Pointer(22)},
 		{"左文添", uint64Pointer(630)},
+		{"玄玉波", uint64Pointer(961)},
 	}
 	if len(positions) != len(expected) {
 		t.Fatalf("positions = %d, want %d", len(positions), len(expected))
@@ -58,6 +59,11 @@ func TestMemberPositionsReturnsOnlyTheCurrentMemberTitles(t *testing.T) {
 	}
 	if got := MemberPositions(999); len(got) != 0 {
 		t.Fatalf("unassociated member positions = %#v, want empty", got)
+	}
+
+	advisorPositions := MemberPositions(961)
+	if len(advisorPositions) != 1 || advisorPositions[0].Title != "指导老师" || advisorPositions[0].CategoryTitle != "指导教师" {
+		t.Fatalf("advisor positions = %#v, want the linked teacher title", advisorPositions)
 	}
 }
 

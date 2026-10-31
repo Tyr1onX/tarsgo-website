@@ -79,6 +79,27 @@ func TestToSessionUserIncludesOnlyTheCurrentMembersOrganizationTitles(t *testing
 	}
 }
 
+func TestAdvisorTitleDoesNotChangeSystemRole(t *testing.T) {
+	t.Parallel()
+
+	user := &model.User{
+		ID:    961,
+		Email: "advisor@example.com",
+		Role:  model.Role{ID: 1, Name: model.RoleNameSuperAdmin, DisplayName: "超级管理员"},
+	}
+	sessionUser := toSessionUser(user)
+	if sessionUser.Role.Name != model.RoleNameSuperAdmin {
+		t.Fatalf("advisor title changed the system role: %#v", sessionUser.Role)
+	}
+	if len(sessionUser.OrganizationPositions) != 1 {
+		t.Fatalf("advisor positions = %#v, want one team title", sessionUser.OrganizationPositions)
+	}
+	position := sessionUser.OrganizationPositions[0]
+	if position.ID != "advisor-xuanyubo" || position.Title != "指导老师" || position.CategoryTitle != "指导教师" {
+		t.Fatalf("advisor position = %#v", position)
+	}
+}
+
 func stringPointer(value string) *string { return &value }
 
 func TestToSessionUserExposesOnlyTheSystemRole(t *testing.T) {
