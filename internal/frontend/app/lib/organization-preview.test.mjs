@@ -11,7 +11,7 @@ const raw = backend.match(/var organizationPreviewData = json\.RawMessage\(`([\s
 assert.ok(raw, "organization preview must be stored behind the backend API");
 const preview = JSON.parse(raw);
 const expectedPeople = [
-  "镇沈晖", "吉荣昌", "孙煦朝", "高畅", "童逸创", "姜浩洋", "张育宁", "沈桂清", "白航铭", "待确认",
+  "镇沈晖", "吉荣昌", "孙煦朝", "高畅", "童逸创", "姜昊阳", "张育宁", "沈桂清", "白航铭", "待确认",
   "张坤杰", "雷韶冉", "曲佳响", "陆广鹏", "王彬赫", "左文添",
 ];
 const allPositions = [preview.leader, ...preview.categories.flatMap((category) => category.positions)];
