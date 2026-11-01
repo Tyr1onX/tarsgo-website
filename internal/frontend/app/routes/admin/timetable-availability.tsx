@@ -13,6 +13,12 @@ export function meta() { return [{ title: "时间协调 | TARSGO" }]; }
 
 const DAYS = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
 const SECTIONS = Array.from({ length: 12 }, (_, i) => i + 1);
+// 吉林大学本科生院《吉林大学本科教学作息时间表》：https://jwc.jlu.edu.cn/sksj.htm
+const SECTION_TIMES = [
+  ["08:00", "08:45"], ["08:55", "09:40"], ["10:00", "10:45"], ["10:55", "11:40"],
+  ["13:30", "14:15"], ["14:25", "15:10"], ["15:30", "16:15"], ["16:25", "17:10"],
+  ["18:20", "19:05"], ["19:05", "19:50"], ["20:00", "20:45"], ["20:45", "21:30"],
+] as const;
 const CATEGORIES: { key: AvailabilityStatus; label: string }[] = [
   { key: "free", label: "无课程冲突" },
   { key: "conflict", label: "有课程冲突" },
@@ -29,6 +35,10 @@ function statusLabel(status: AvailabilityStatus) {
 }
 function failMessage(error: unknown) { return error instanceof Error ? error.message : "读取失败"; }
 function ratioLabel(ratio: number | null) { return ratio === null ? "暂无有效课表" : `${Math.round(ratio * 100)}%`; }
+function sectionTimeLabel(section: number) {
+  const range = SECTION_TIMES[section - 1];
+  return range ? `${range[0]}–${range[1]}` : `第${section}节`;
+}
 
 const HEAT_LEVEL_CLASSES: Record<AvailabilityHeatLevel, string> = {
   low: "availability-heatmap__level--low",
@@ -125,7 +135,7 @@ export default function TimeCoordinationPage() {
     const counts = availabilityCounts(result?.members ?? [], day, period, period);
     const validCount = counts.free + counts.conflict;
     const ratio = validCount > 0 ? counts.free / validCount : null;
-    return `${DAYS[day - 1]}第${period}节：无课程冲突 ${counts.free} 人，有效课表 ${validCount} 人，空闲比例 ${ratioLabel(ratio)}`;
+    return `${DAYS[day - 1]} · ${sectionTimeLabel(period)}（第${period}节）：无课程冲突 ${counts.free} 人，有效课表 ${validCount} 人，空闲比例 ${ratioLabel(ratio)}`;
   };
   const cellText = (day: number, period: number) => {
     if (!result) return "";
@@ -236,19 +246,22 @@ export default function TimeCoordinationPage() {
             <p role="status" className="admin-notice admin-notice--warning mb-3">无课程冲突人数只按有效课表成员统计，数据缺失成员不会计入无课程冲突。</p> : null}
           <div className="overflow-x-auto">
             <div className="min-w-0">
-              <div className="grid grid-cols-[38px_repeat(7,minmax(34px,1fr))] gap-0.5 sm:grid-cols-[54px_repeat(7,minmax(0,1fr))] sm:gap-1">
-                <span className="py-2 text-center text-[10px] text-[var(--admin-muted)] sm:text-xs">节次</span>
+              <div className="grid min-w-[660px] grid-cols-[108px_repeat(7,minmax(0,1fr))] gap-x-1 gap-y-1 sm:gap-y-1.5">
+                <span className="availability-heatmap__time-header py-2 text-center text-xs font-medium text-[var(--admin-muted)]">时间</span>
                 {DAYS.map(day => <span key={day} className="py-2 text-center text-xs font-semibold">{day}</span>)}
                 {SECTIONS.map(period => [
-                  <span key={`section-${period}`} className="flex items-center justify-center text-[10px] text-[var(--admin-muted)] sm:text-xs">第{period}节</span>,
+                  <span key={`section-${period}`} className={`availability-heatmap__time-label${period === 5 || period === 9 ? " availability-heatmap__row-break" : ""}`}>
+                    <span>{sectionTimeLabel(period)}</span>
+                    <small>第 {period} 节</small>
+                  </span>,
                   ...DAYS.map((day, dayIndex) => {
                     const details = member
-                      ? `${day}第${period}节：${statusLabel(intervalStatus(member, dayIndex + 1, period, period))}`
+                      ? `${day} · ${sectionTimeLabel(period)}（第${period}节）：${statusLabel(intervalStatus(member, dayIndex + 1, period, period))}`
                       : slotSummary(dayIndex + 1, period);
                     return <button key={`${day}-${period}`} type="button" aria-haspopup={member ? undefined : "dialog"}
                       aria-label={details} title={details}
                       onClick={() => { if (!member) setSelectedSlot({ weekday: dayIndex + 1, section: period }); }}
-                      className={`availability-heatmap__cell min-h-9 min-w-0 rounded-md border px-0.5 text-xs font-semibold tabular-nums sm:text-sm ${cellClass(dayIndex + 1, period)}`}>
+                      className={`availability-heatmap__cell min-h-9 min-w-0 rounded-md border px-0.5 text-xs font-semibold tabular-nums sm:text-sm${period === 5 || period === 9 ? " availability-heatmap__row-break" : ""} ${cellClass(dayIndex + 1, period)}`}>
                       {cellText(dayIndex + 1, period)}
                     </button>;
                   }),
@@ -279,8 +292,8 @@ export default function TimeCoordinationPage() {
           className="max-h-[85vh] w-full max-w-2xl overflow-y-auto rounded-2xl border border-[var(--admin-border-subtle)] bg-[var(--admin-surface)] p-4 shadow-2xl sm:p-6">
           <header className="mb-4 flex items-start justify-between gap-3">
             <div>
-              <h2 id="availability-slot-title" className="text-lg font-semibold">{DAYS[selectedSlot.weekday - 1]} 第 {selectedSlot.section} 节 · 成员详情</h2>
-              <p className="mt-1 text-sm text-[var(--admin-muted)]">第 {result.week} 周 · 无冲突 {selectedCounts.free} 人 / 有效课表 {selectedValidCount} 人 · 空闲比例 {ratioLabel(selectedRatio)}</p>
+              <h2 id="availability-slot-title" className="text-lg font-semibold">{DAYS[selectedSlot.weekday - 1]} · {sectionTimeLabel(selectedSlot.section)}</h2>
+              <p className="mt-1 text-sm text-[var(--admin-muted)]">第 {selectedSlot.section} 节 · 第 {result.week} 周 · 无冲突 {selectedCounts.free} 人 / 有效课表 {selectedValidCount} 人 · 空闲比例 {ratioLabel(selectedRatio)}</p>
             </div>
             <button ref={closeButton} type="button" aria-label="关闭时段详情" onClick={() => setSelectedSlot(null)}
               className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-[var(--admin-border-subtle)] text-xl">×</button>
