@@ -216,14 +216,14 @@ function SidebarItem({
   leaveActionableCount?: number | null;
 }) {
   const location = useLocation();
-  const isActive = "children" in item && item.children.some((child) => isDashboardMenuPathActive(location.pathname, child.href));
-  const [expanded, setExpanded] = useState(() => isActive);
+  const hasActiveChild = "children" in item && item.children.some((child) => isDashboardMenuPathActive(location.pathname, child.href));
+  const [expanded, setExpanded] = useState(() => hasActiveChild);
 
   useEffect(() => {
-    if (isActive) {
+    if (hasActiveChild) {
       setExpanded(true);
     }
-  }, [isActive, location.pathname]);
+  }, [hasActiveChild, location.pathname]);
 
   if ("children" in item) {
     const childrenId = `dashboard-menu-${item.key}`;
@@ -246,12 +246,12 @@ function SidebarItem({
           aria-controls={childrenId}
           title={collapsed ? item.label : undefined}
           className={`flex min-h-10 w-full items-center gap-3 rounded-xl py-2.5 text-sm leading-5 transition-colors ${collapsed ? "justify-center px-2" : "px-3"} ${
-            isActive
-              ? "dashboard-nav-link dashboard-nav-link--active"
+            isExpanded
+              ? "dashboard-nav-link dashboard-nav-link--expanded"
               : "dashboard-nav-link"
           }`}
         >
-          <span className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center ${isActive ? "dashboard-shell__accent" : ""}`}>
+          <span className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center ${hasActiveChild ? "dashboard-shell__accent" : ""}`}>
             <MenuIcon iconKey={item.iconKey} />
           </span>
           <span className={`min-w-0 flex-1 truncate text-left ${collapsed ? "sr-only" : ""}`}>{item.label}</span>
