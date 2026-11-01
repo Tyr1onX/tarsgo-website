@@ -5,6 +5,7 @@ import bookmark from "@iconify-icons/lucide/bookmark";
 import calendarCheck from "@iconify-icons/lucide/calendar-check";
 import check from "@iconify-icons/lucide/check";
 import chevronDown from "@iconify-icons/lucide/chevron-down";
+import cornerDownRight from "@iconify-icons/lucide/corner-down-right";
 import flame from "@iconify-icons/lucide/flame";
 import chevronLeft from "@iconify-icons/lucide/chevron-left";
 import chevronRight from "@iconify-icons/lucide/chevron-right";
@@ -23,6 +24,7 @@ const communityIcons = {
   calendarCheck,
   check,
   chevronDown,
+  cornerDownRight,
   flame,
   chevronLeft,
   chevronRight,

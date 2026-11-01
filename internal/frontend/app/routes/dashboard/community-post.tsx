@@ -4,9 +4,9 @@ import { useLocation, useNavigate, useParams } from "react-router";
 import { CommunityImageGallery } from "~/components/community-image-gallery";
 import { type CommunityPendingImage } from "~/components/community-markdown-editor";
 import { CommunityMarkdown } from "~/components/community-markdown";
-import { CommunityLevelBadge } from "~/components/community-growth";
+import { CommunityAuthorProfile } from "~/components/community-author-profile";
 import { CommunityIcon } from "~/components/community-icons";
-import { CommunityActionIcon, CommunityAvatar } from "~/components/community-post-card";
+import { CommunityActionIcon } from "~/components/community-post-card";
 import {
   COMMUNITY_CATEGORIES,
   communityCategoryLabel,
@@ -49,8 +49,8 @@ export default function CommunityPostRoute() {
   const [editCommentBody, setEditCommentBody] = useState("");
   const [editCommentUploads, setEditCommentUploads] = useState<CommunityPendingImage[]>([]);
   const returnTarget = (location.state as { communityReturnTo?: unknown } | null)?.communityReturnTo;
-  const hasCommunityReturnLocation = typeof returnTarget === "string" && (returnTarget === "/dashboard" || returnTarget.startsWith("/dashboard?"));
-  const returnTo = typeof returnTarget === "string" && (returnTarget === "/dashboard" || returnTarget.startsWith("/dashboard?"))
+  const hasCommunityReturnLocation = typeof returnTarget === "string" && (returnTarget === "/dashboard" || returnTarget.startsWith("/dashboard/") || returnTarget.startsWith("/dashboard?"));
+  const returnTo = typeof returnTarget === "string" && (returnTarget === "/dashboard" || returnTarget.startsWith("/dashboard/") || returnTarget.startsWith("/dashboard?"))
     ? returnTarget
     : "/dashboard";
 
@@ -78,6 +78,21 @@ export default function CommunityPostRoute() {
   }, [postID]);
 
   useEffect(() => { void reload(); }, [reload]);
+
+  useEffect(() => {
+    const hash = location.hash || window.location.hash;
+    if (!detail || !hash.startsWith("#community-comment-")) return;
+    let finalFrame = 0;
+    const restoreFrame = window.requestAnimationFrame(() => {
+      finalFrame = window.requestAnimationFrame(() => {
+        document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView({ block: "start" });
+      });
+    });
+    return () => {
+      window.cancelAnimationFrame(restoreFrame);
+      window.cancelAnimationFrame(finalFrame);
+    };
+  }, [detail, location.hash]);
 
   async function toggleReaction(kind: "like" | "bookmark") {
     if (!detail || busy) return;
@@ -270,8 +285,8 @@ export default function CommunityPostRoute() {
     {error ? <p className="community-state community-state--error" role="alert">{error}{retryAction ? <button type="button" className="community-inline-retry" onClick={() => retryAction()}>重试</button> : null}</p> : null}
     <article className={`community-post${post.isPinned ? " is-pinned" : ""}`}>
       <div className="community-post__author">
-        <CommunityAvatar name={post.authorName} src={post.authorAvatar} />
-        <div className="community-post__byline"><strong>{post.authorName}</strong><CommunityLevelBadge level={post.authorLevel} /><time dateTime={post.createdAt}>{formatCommunityDate(post.createdAt)}{post.editedAt ? " · 已编辑" : ""}</time></div>
+        <CommunityAuthorProfile id={post.authorId} name={post.authorName} avatar={post.authorAvatar} level={post.authorLevel} featuredBadge={post.authorFeaturedBadge} />
+        <div className="community-post__byline"><time dateTime={post.createdAt}>{formatCommunityDate(post.createdAt)}{post.editedAt ? " · 已编辑" : ""}</time></div>
         {post.isPinned ? <span className="community-post__pin">置顶</span> : null}
         <span className="community-post__category">{communityCategoryLabel(post.category)}</span>
       </div>
@@ -302,8 +317,8 @@ export default function CommunityPostRoute() {
       <header className="community-comments__heading"><h2 id="community-comments-title">讨论</h2><span>{comments.length} 条回复</span></header>
       {comments.map((item) => {
         const parent = item.parentPostId ? parentByID.get(item.parentPostId) : null;
-        return <article key={item.id} id={`community-comment-${item.id}`} className="community-comment" data-reply={Boolean(item.parentPostId)} data-depth={commentDepth(item)}>
-          <div className="community-comment__head"><CommunityAvatar name={item.authorName} src={item.authorAvatar} size="small" /><strong>{item.authorName}</strong><CommunityLevelBadge level={item.authorLevel} />{item.isAcceptedSolution ? <span className="community-comment__solution"><CommunityIcon name="check" />已采纳</span> : null}<time dateTime={item.createdAt}>{formatCommunityDate(item.createdAt)}{item.editedAt ? " · 已编辑" : ""}</time></div>
+        return <article key={item.id} id={`community-comment-${item.id}`} className={`community-comment${location.hash === `#community-comment-${item.id}` ? " is-targeted" : ""}`} data-reply={Boolean(item.parentPostId)} data-depth={commentDepth(item)}>
+          <div className="community-comment__head"><CommunityAuthorProfile id={item.authorId} name={item.authorName} avatar={item.authorAvatar} level={item.authorLevel} featuredBadge={item.authorFeaturedBadge} size="small" />{item.isAcceptedSolution ? <span className="community-comment__solution"><CommunityIcon name="check" />已采纳</span> : null}<time dateTime={item.createdAt}>{formatCommunityDate(item.createdAt)}{item.editedAt ? " · 已编辑" : ""}</time></div>
           {parent ? <button type="button" className="community-comment__context" onClick={() => document.getElementById(`community-comment-${parent.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}>
             <span>回复 {parent.authorName}</span><span>{parent.isDeleted ? "该回复已删除" : stripCommunityMarkdown(parent.body)}</span>
           </button> : null}

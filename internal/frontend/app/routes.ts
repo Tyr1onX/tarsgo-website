@@ -31,6 +31,7 @@ export default [
     route("practice-projects", "routes/dashboard/practice-projects.tsx"),
     route("questions", "routes/dashboard/community-question-redirect.tsx"),
     route("community/:id", "routes/dashboard/community-post.tsx"),
+    route("members/:id", "routes/dashboard/community-member-profile.tsx"),
     route("growth", "routes/dashboard/growth.tsx"),
     route("skills", "routes/dashboard/skills.tsx"),
     route("capabilities", "routes/dashboard/capabilities.tsx"),

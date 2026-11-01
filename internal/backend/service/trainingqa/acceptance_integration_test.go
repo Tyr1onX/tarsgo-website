@@ -40,7 +40,7 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 		t.Fatal("open isolated acceptance SQL connection")
 	}
 	t.Cleanup(func() { _ = sqlDB.Close() })
-	for _, table := range []string{"training_questions", "training_question_posts", "training_question_attachments", "training_question_growth_events", "community_experience_events", "community_check_ins", "community_comment_reactions"} {
+	for _, table := range []string{"training_questions", "training_question_posts", "training_question_attachments", "training_question_growth_events", "community_experience_events", "community_check_ins", "community_comment_reactions", "community_member_profiles", "co_builder_contributions"} {
 		if !db.Migrator().HasTable(table) {
 			t.Fatalf("community growth migrations are missing table %s", table)
 		}
@@ -123,6 +123,12 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 			}
 		}
 		if len(actorUserIDs) > 0 {
+			if err := db.Where("user_id IN ?", actorUserIDs).Delete(&model.CommunityMemberProfile{}).Error; err != nil {
+				t.Errorf("clean isolated community member profiles: %v", err)
+			}
+			if err := db.Where("user_id IN ?", actorUserIDs).Delete(&model.CoBuilderContribution{}).Error; err != nil {
+				t.Errorf("clean isolated badge contributions: %v", err)
+			}
 			if err := db.Where("user_id IN ?", actorUserIDs).Delete(&model.CommunityCheckIn{}).Error; err != nil {
 				t.Errorf("clean isolated check-ins: %v", err)
 			}
@@ -369,6 +375,43 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 	if reply.Comments[0].AuthorLevel != operationsGrowth.Level || reply.Post.AuthorLevel != operationsGrowth.Level {
 		t.Fatalf("author levels differ between post, reply and profile: post=%d reply=%d profile=%d", reply.Post.AuthorLevel, reply.Comments[0].AuthorLevel, operationsGrowth.Level)
 	}
+
+	if err := db.Create(&model.CoBuilderContribution{
+		UserID: member.ID, Description: "[TEST_QA] 社区主页徽章验证", GrantedByID: superAdmin.ID, CreatedAt: statusClock,
+	}).Error; err != nil {
+		t.Fatalf("create isolated member badge contribution: %v", err)
+	}
+	bio := "[TEST_QA] 仅展示在社区个人主页的公开介绍。"
+	featuredBadge := "co_builder"
+	if _, err := service.UpdateMyCommunityMemberProfile(context.Background(), member, CommunityMemberProfileInput{
+		Bio: &bio, FeaturedBadgeKey: &featuredBadge,
+	}); err != nil {
+		t.Fatalf("member could not update public profile fields: %v", err)
+	}
+	memberPosts, err := service.GetCommunityMemberProfile(context.Background(), peer, member.ID, CommunityMemberTabPosts, 1)
+	if err != nil {
+		t.Fatalf("same-group member could not read the community profile: %v", err)
+	}
+	if memberPosts.Member.Bio != bio || memberPosts.Member.FeaturedBadge == nil || memberPosts.Member.FeaturedBadge.LevelCode != "bronze" {
+		t.Fatalf("community profile public identity or earned badge mismatch: member=%#v", memberPosts.Member)
+	}
+	if memberPosts.Stats.PostCount != 1 || memberPosts.Stats.ReplyCount != 1 || len(memberPosts.Posts) != 1 || memberPosts.Posts[0].ID != public.Question.ID {
+		t.Fatalf("member profile did not respect visible discussion scope: stats=%#v posts=%#v", memberPosts.Stats, memberPosts.Posts)
+	}
+	badgeTab, err := service.GetCommunityMemberProfile(context.Background(), peer, member.ID, CommunityMemberTabBadges, 1)
+	if err != nil || len(badgeTab.Badges) != 1 || len(badgeTab.Badges[0].TierHistory) != 1 || badgeTab.Badges[0].TierHistory[0].LevelCode != "bronze" {
+		t.Fatalf("community profile did not show the earned badge history: badges=%#v err=%v", badgeTab.Badges, err)
+	}
+	privateReplies, err := service.GetCommunityMemberProfile(context.Background(), peer, mechanicalAdmin.ID, CommunityMemberTabReplies, 1)
+	if err != nil {
+		t.Fatalf("read replies profile for access check: %v", err)
+	}
+	for _, item := range privateReplies.Replies {
+		if strings.Contains(item.PostTitle, "secret-alpha") || strings.Contains(item.Body, "管理员答复私密问题") {
+			t.Fatalf("member profile exposed a private discussion reply: %#v", item)
+		}
+	}
+
 	commentLiked, err := service.SetCommunityCommentReaction(context.Background(), crossMember, parentID, true)
 	if err != nil || commentLiked.LikeCount != 1 {
 		t.Fatalf("comment like failed: state=%#v err=%v", commentLiked, err)

@@ -2,7 +2,7 @@ import { Link, useLocation } from "react-router";
 
 import { CommunityIcon } from "~/components/community-icons";
 import { CommunityImageGallery } from "~/components/community-image-gallery";
-import { CommunityLevelBadge } from "~/components/community-growth";
+import { CommunityAuthorProfile } from "~/components/community-author-profile";
 import { communityStandaloneAttachments, stripCommunityMarkdown } from "~/lib/community-markdown";
 import { communityCategoryLabel, communityPostHref, formatCommunityDate, type CommunityPost } from "~/lib/community-client";
 
@@ -32,11 +32,8 @@ export function CommunityPostCard({
   const hasRecentReply = Boolean(post.lastReplyAt && new Date(post.lastReplyAt).getTime() > new Date(post.createdAt).getTime());
   return <article className={`community-post${post.isPinned ? " is-pinned" : ""}`}>
     <div className="community-post__author">
-      <CommunityAvatar name={post.authorName} src={post.authorAvatar} />
-      <div className="community-post__byline">
-        <strong>{post.authorName}</strong><CommunityLevelBadge level={post.authorLevel} />
-        <time dateTime={hasRecentReply ? post.lastReplyAt : post.createdAt}>{hasRecentReply ? `最近回复 ${formatCommunityDate(post.lastReplyAt!)}` : formatCommunityDate(post.createdAt)}{post.editedAt ? " · 已编辑" : ""}</time>
-      </div>
+      <CommunityAuthorProfile id={post.authorId} name={post.authorName} avatar={post.authorAvatar} level={post.authorLevel} featuredBadge={post.authorFeaturedBadge} />
+      <div className="community-post__byline"><time dateTime={hasRecentReply ? post.lastReplyAt : post.createdAt}>{hasRecentReply ? `最近回复 ${formatCommunityDate(post.lastReplyAt!)}` : formatCommunityDate(post.createdAt)}{post.editedAt ? " · 已编辑" : ""}</time></div>
       {post.isPinned ? <span className="community-post__pin">置顶</span> : null}
       <span className="community-post__category">{communityCategoryLabel(post.category)}</span>
     </div>

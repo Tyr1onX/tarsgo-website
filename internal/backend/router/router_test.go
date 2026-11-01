@@ -52,6 +52,8 @@ func TestCommunityAPIsRequireAuthenticationAndOpenWorkflowsRemain(t *testing.T) 
 	for _, route := range []string{
 		"GET /api/community/posts",
 		"GET /api/community/hot",
+		"GET /api/community/members/:id",
+		"PUT /api/community/me/profile",
 		"POST /api/community/posts",
 		"GET /api/community/posts/:id",
 		"PATCH /api/community/posts/:id",
@@ -106,6 +108,8 @@ func TestCommunityAPIsRequireAuthenticationAndOpenWorkflowsRemain(t *testing.T) 
 		{http.MethodGet, "/api/work-manual/operations/templates/campus-network-window-application.doc"},
 		{http.MethodGet, "/api/me/co-builder-badge"},
 		{http.MethodGet, "/api/community/posts"},
+		{http.MethodGet, "/api/community/members/12"},
+		{http.MethodPut, "/api/community/me/profile"},
 		{http.MethodPost, "/api/community/posts"},
 		{http.MethodGet, "/api/community/posts/12"},
 		{http.MethodGet, "/api/community/files/12"},
