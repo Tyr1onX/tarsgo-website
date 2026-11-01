@@ -364,7 +364,6 @@
   .community-post__title { margin-top: 9px; font-size: 16px; line-height: 1.48; }
   .community-post__excerpt { margin-top: 5px; font-size: 13px; line-height: 1.68; -webkit-line-clamp: 3; }
   .community-post__category { padding: 3px 6px; font-size: 10px; }
-  .community-post-menu { margin-left: auto; }
   .community-post__byline { display: grid; gap: 2px; }
   .community-post__byline strong { font-size: 12px; }
   .community-post__byline time { font-size: 10px; }
@@ -573,6 +572,7 @@
   .community-comment__head time { margin-left: auto; }
   .community-post__author { flex-wrap: wrap; gap: 6px; }
   .community-post__byline { min-width: 0; flex: 0 1 auto; }
+  .community-post-menu { margin-left: auto; }
   .community-post-menu__items { right: 0; }
   .community-member-hero { grid-template-columns: 54px minmax(0, 1fr); gap: 12px; border-radius: 12px; padding: 15px 13px; }
   .community-member-hero > .community-avatar { width: 52px; height: 52px; font-size: 18px; }
