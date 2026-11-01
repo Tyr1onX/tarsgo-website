@@ -295,7 +295,7 @@ export default function CommunityPostRoute() {
       {editingPost ? <form id="community-post-edit" className="community-composer" onSubmit={savePostEdit}>
         <label className="community-field">标题<input value={editTitle} onChange={(event) => setEditTitle(event.target.value)} maxLength={160} required /></label>
         <label className="community-field">分类<select value={editCategory} onChange={(event) => setEditCategory(event.target.value as CommunityCategory)}>{COMMUNITY_CATEGORIES.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
-        <label className="community-field community-field--editor">正文<Suspense fallback={<div className="community-markdown-editor__loading" role="status">正在打开编辑器…</div>}><CommunityMarkdownEditor value={editBody} onChange={setEditBody} uploads={editPostUploads} onUploadsChange={setEditPostUploads} attachments={post.attachments} required placeholder="继续完善这条帖子…" /></Suspense></label>
+        <div className="community-field community-field--editor"><span>正文</span><Suspense fallback={<div className="community-markdown-editor__loading" role="status">正在打开编辑器…</div>}><CommunityMarkdownEditor value={editBody} onChange={setEditBody} uploads={editPostUploads} onUploadsChange={setEditPostUploads} attachments={post.attachments} required placeholder="继续完善这条帖子…" /></Suspense></div>
         <div className="community-composer__actions"><button type="button" className="community-button community-button--quiet" onClick={() => setEditingPost(false)}>取消</button><button type="submit" className="community-button community-button--primary" disabled={busy}>保存修改</button></div>
       </form> : <>
         <h1 className="community-post__title" id="community-thread-title">{post.title}</h1>

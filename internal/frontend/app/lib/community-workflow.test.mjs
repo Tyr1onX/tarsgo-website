@@ -108,6 +108,13 @@ test("the same Markdown editor is used for publishing, post edits, replies, and 
   assert.match(postCard, /stripCommunityMarkdown\(post\.body\)/);
 });
 
+test("rich editor surfaces are not nested in labels that steal focus from paste", () => {
+  assert.match(composer, /<div className="community-field community-field--editor"><span>正文<\/span>/);
+  assert.match(thread, /<div className="community-field community-field--editor"><span>正文<\/span>/);
+  assert.doesNotMatch(composer, /<label className="community-field community-field--editor"/);
+  assert.doesNotMatch(thread, /<label className="community-field community-field--editor"/);
+});
+
 test("the editor offers WYSIWYG and source preview, image upload, tables, tasks, undo, and image controls", () => {
   assert.match(markdownEditor, /@milkdown\/crepe/);
   assert.match(markdownEditor, /所见即所得/);
