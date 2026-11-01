@@ -60,7 +60,7 @@ export function CommunityAuthorProfile({ id, name, avatar, level, featuredBadge,
   const groups = member?.groups ?? [];
   const positions = member?.positions ?? authorPositions;
   const primaryPosition = positions[0];
-  const positionLabel = primaryPosition ? `${primaryPosition.categoryTitle} · ${primaryPosition.title}` : "";
+  const positionLabel = primaryPosition?.title ?? "";
   return <div
     className={`community-author-profile${size === "small" ? " community-author-profile--small" : ""}`}
     ref={rootRef}
@@ -81,7 +81,7 @@ export function CommunityAuthorProfile({ id, name, avatar, level, featuredBadge,
       </span>
       <strong>{name}</strong>
       <CommunityLevelBadge level={member?.level.level ?? level} />
-      {positionLabel ? <span className="community-author-profile__position" title={positions.map((position) => `${position.categoryTitle} · ${position.title}`).join("；")}>{positionLabel}</span> : null}
+      {positionLabel ? <span className="community-author-profile__position" title={positions.map((position) => position.title).join("；")}>{positionLabel}</span> : null}
     </button>
     {badge ? <CommunityBadgeInfo className="community-author-profile__badge" badge={badge} size={18} /> : null}
     {open ? <section className="community-author-profile__popover" role="dialog" aria-label={`${name} 的社区资料卡`}>
@@ -100,7 +100,7 @@ export function CommunityAuthorProfile({ id, name, avatar, level, featuredBadge,
       {member?.bio ? <p className="community-author-profile__bio">{member.bio}</p> : null}
       {groups.length || positions.length ? <div className="community-author-profile__groups">
         {groups.map((group) => <span key={`${group.name}-${group.role}`}>{group.name} · {group.role}</span>)}
-        {positions.map((position) => <span key={position.id}>{position.categoryTitle} · {position.title}</span>)}
+        {positions.map((position) => <span key={position.id}>{position.title}</span>)}
       </div> : null}
       {member ? <p className="community-author-profile__stats">{member.level.totalXp.toLocaleString("zh-CN")} XP · Lv.{member.level.level}</p> : null}
       <Link

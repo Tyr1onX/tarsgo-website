@@ -17,10 +17,10 @@ import (
 
 func TestMigrationRegistryIsOrderedAndKeepsBaseVersion(t *testing.T) {
 	items := migrationRegistry("test")
-	if len(items) != 39 {
-		t.Fatalf("expected 39 registered migrations, got %d", len(items))
+	if len(items) != 40 {
+		t.Fatalf("expected 40 registered migrations, got %d", len(items))
 	}
-	wantVersions := []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39}
+	wantVersions := []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40}
 	for index, want := range wantVersions {
 		if items[index].version != want {
 			t.Fatalf("migration %d has version %d, want %d", index, items[index].version, want)
@@ -92,6 +92,22 @@ func TestMigration39CreatesPublicCommunityMemberProfiles(t *testing.T) {
 	}
 	if _, ok := reflect.TypeOf(model.CommunityMemberProfile{}).FieldByName("FeaturedBadgeKey"); !ok {
 		t.Fatal("community member profile must store its selected representative badge")
+	}
+}
+
+func TestMigration40CreatesDeduplicatedCommunityPostViews(t *testing.T) {
+	items := migrationRegistry("test")
+	if len(items) < 40 || items[39].version != 40 || items[39].apply == nil {
+		t.Fatal("community post view migration 40 is missing")
+	}
+	if got := (model.CommunityPostViewRecord{}).TableName(); got != "community_post_views" {
+		t.Fatalf("community post view table = %q", got)
+	}
+	for _, name := range []string{"QuestionID", "UserID"} {
+		field, ok := reflect.TypeOf(model.CommunityPostViewRecord{}).FieldByName(name)
+		if !ok || !strings.Contains(field.Tag.Get("gorm"), "primaryKey") {
+			t.Fatalf("community post view %s must be part of the unique key", name)
+		}
 	}
 }
 

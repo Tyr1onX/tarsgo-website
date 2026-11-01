@@ -56,7 +56,6 @@ test("community offers shareable filters, cached browsing, and the post discussi
   assert.match(dashboard, /updateFilters\(\{ category: item\.id \}\)/);
   assert.match(dashboard, /getCommunityListSnapshot/);
   assert.match(dashboard, /rememberCommunityList/);
-  assert.match(dashboard, /clearOtherCommunityLists/);
   assert.match(dashboard, /communityReturnTo/);
   assert.match(dashboard, /communityClient\.create/);
   assert.match(client, /addComment/);
@@ -74,6 +73,7 @@ test("community offers shareable filters, cached browsing, and the post discussi
 
 test("community cache remains bounded and invalidates stale favorites and deleted posts", () => {
   assert.match(listCache, /MAX_CACHED_FILTERS = 10/);
+  assert.match(listCache, /export function clearCommunityLists/);
   assert.match(listCache, /clearOtherCommunityLists/);
   assert.match(listCache, /removeCommunityPostFromLists/);
 });
@@ -107,7 +107,26 @@ test("the same Markdown editor is used for publishing, post edits, replies, and 
   assert.match(thread, /uploads=\{editCommentUploads\}/);
   assert.match(thread, /<CommunityMarkdown source=\{post\.body\}/);
   assert.match(thread, /<CommunityMarkdown source=\{item\.body\}/);
-  assert.match(postCard, /stripCommunityMarkdown\(post\.body\)/);
+  assert.match(postCard, /community-topic-row__title/);
+  assert.doesNotMatch(postCard, /stripCommunityMarkdown|communityStandaloneAttachments|community-post__excerpt/);
+});
+
+test("community home shows compact topic rows with recent linked participants and server view counts", () => {
+  assert.match(postCard, /post\.participants\?\.slice\(0, 5\)/);
+  assert.match(postCard, /dashboard\/members\/\$\{participant\.id\}/);
+  assert.match(postCard, /communityProfileReturnTo/);
+  assert.match(postCard, /\{post\.commentCount\} 回复/);
+  assert.match(postCard, /post\.viewCount \?\? 0/);
+  assert.match(postCard, /post\.lastReplyAt \?\? post\.createdAt/);
+  assert.doesNotMatch(postCard, /community-post__actions|community-image-gallery|post\.body/);
+  assert.match(client, /viewCount\?: number/);
+  assert.match(client, /participants\?: CommunityParticipant\[\]/);
+  assert.match(service, /ROW_NUMBER\(\) OVER/);
+  assert.match(service, /participant_rank <= 5/);
+  assert.match(service, /COUNT\(\*\) FROM community_post_views pv/);
+  assert.match(service, /CommunityPostViewRecord/);
+  assert.match(styles, /\.community-topic-row \{/);
+  assert.match(styles, /@media \(max-width: 639px\)[\s\S]*?\.community-topic-row \{ grid-template-columns: minmax\(0, 1fr\)/);
 });
 
 test("rich editor surfaces are not nested in labels that steal focus from paste", () => {
@@ -122,7 +141,6 @@ test("pinned posts expose an admin-only keyboard-accessible menu and keep pinned
   assert.match(postCard, /aria-label="更多帖子操作"/);
   assert.match(postCard, /role="menuitem"/);
   assert.match(postCard, /onModerate\(\{ pinned: !post\.isPinned \}\)/);
-  assert.match(dashboard, /\.sort\(\(left, right\) => Number\(right\.isPinned\) - Number\(left\.isPinned\)\)/);
   assert.match(service, /q\.is_pinned DESC, recent_interactions DESC/);
   assert.match(service, /q\.is_pinned DESC, COALESCE\(q\.last_reply_at, q\.created_at\) DESC/);
   assert.match(thread, /<CommunityPostMenu/);
@@ -132,7 +150,9 @@ test("pinned posts expose an admin-only keyboard-accessible menu and keep pinned
 test("community identity uses current positions and offers badge details with automatic highest-tier selection", () => {
   assert.match(client, /authorPositions\?: import\("~\/lib\/community-member-profile-client"\)\.CommunityMemberPosition\[\]/);
   assert.match(authorProfile, /positions: authorPositions = \[\]/);
-  assert.match(authorProfile, /position\.categoryTitle.*position\.title/);
+  assert.match(authorProfile, /const positionLabel = primaryPosition\?\.title/);
+  assert.match(authorProfile, /positions\.map\(\(position\) => position\.title\)/);
+  assert.doesNotMatch(authorProfile, /position\.categoryTitle/);
   assert.match(authorProfile, /CommunityBadgeInfo/);
   assert.match(badgeInfo, /role="dialog"/);
   assert.match(badgeInfo, /badge\.description/);
@@ -178,6 +198,7 @@ test("uploaded images remain bound to Markdown and are removed with deleted inli
 test("community layout follows workbench themes and adapts its reading layout", () => {
   assert.match(styles, /\.community-page \{[\s\S]*?width: min\(100%, 900px\)/);
   assert.match(styles, /\.community-post-list \{ border-top: 1px solid var\(--admin-border-subtle\)/);
+  assert.match(styles, /\.community-topic-row__activity \{ display: flex/);
   assert.match(styles, /@media \(max-width: 639px\)[\s\S]*?\.community-category-row \{ overflow-x: auto/);
   assert.doesNotMatch(styles, /\.community-rail/);
   assert.match(styles, /var\(--admin-surface\)/);
@@ -193,6 +214,8 @@ test("mutations are authenticated and reaction uniqueness prevents duplicate cou
   assert.match(service, /clause\.OnConflict\{DoNothing: true\}/);
   assert.match(model, /type CommunityPostReaction struct/);
   assert.match(model, /QuestionID\s+uint64[\s\S]*UserID\s+uint64[\s\S]*Kind\s+string/);
+  assert.match(model, /type CommunityPostViewRecord struct/);
+  assert.match(service, /Clauses\(clause\.OnConflict\{DoNothing: true\}\)\.Create\(&model\.CommunityPostViewRecord/);
 });
 
 test("community extends training Q&A storage and keeps migration additive", () => {
@@ -201,6 +224,7 @@ test("community extends training Q&A storage and keeps migration additive", () =
   assert.match(service, /question\.Visibility == model\.TrainingQuestionPrivate/);
   assert.match(service, /DeletedAt/);
   assert.match(migrations, /version: 37/);
+  assert.match(migrations, /version: 40/);
   const start = migrations.indexOf("{version: 37");
   const end = migrations.indexOf("\n\t\t}},", start);
   const migration = migrations.slice(start, end);
@@ -214,7 +238,6 @@ test("community growth shows Beijing check-ins, author levels, and idempotent in
   const growthService = service + await source("../../../backend/service/trainingqa/community_growth.go");
   assert.match(dashboard, /<CommunityGrowthBar profile=\{growthProfile\}/);
   assert.match(profile, /<CommunityGrowthProfileSection\s*\/>/);
-  assert.match(postCard, /CommunityAuthorProfile id=\{post\.authorId\}/);
   assert.match(thread, /CommunityAuthorProfile id=\{item\.authorId\}/);
   assert.match(thread, /likeComment\(item\.id, active\)/);
   assert.match(thread, /setSolution\(item\.isAcceptedSolution \? null : item\.id\)/);

@@ -4,18 +4,18 @@ import { useLocation, useNavigate, useOutletContext, useSearchParams } from "rea
 import { CommunityComposer } from "~/components/community-composer";
 import { CommunityGrowthBar } from "~/components/community-growth";
 import { CommunityIcon } from "~/components/community-icons";
-import { CommunityPostCard, type CommunityModerationChange } from "~/components/community-post-card";
+import { CommunityPostCard } from "~/components/community-post-card";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import {
   COMMUNITY_CATEGORIES,
   communityClient,
   communityPostHref,
+  type CommunityPost,
   type CommunityGrowthProfile,
   type CommunityCategory,
-  type CommunityPost,
   type CommunitySort,
 } from "~/lib/community-client";
-import { clearOtherCommunityLists, getCommunityListSnapshot, rememberCommunityList } from "~/lib/community-list-cache";
+import { getCommunityListSnapshot, rememberCommunityList } from "~/lib/community-list-cache";
 import "./community.css";
 
 export function meta() {
@@ -23,7 +23,7 @@ export function meta() {
 }
 
 const PAGE_SIZE = 20;
-type CommunityRetry = { kind: "first" } | { kind: "more" } | { kind: "reaction"; post: CommunityPost; reaction: "like" | "bookmark" } | { kind: "moderation"; post: CommunityPost; change: CommunityModerationChange };
+type CommunityRetry = { kind: "first" } | { kind: "more" };
 
 function readCategory(value: string | null): CommunityCategory | "" {
   return COMMUNITY_CATEGORIES.some((item) => item.id === value) ? value as CommunityCategory : "";
@@ -54,7 +54,6 @@ export default function DashboardIndex() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState<CommunityRetry | null>(null);
-  const [busyPostId, setBusyPostId] = useState<number | null>(null);
   const requestRef = useRef(0);
 
   useEffect(() => { setQueryDraft(query); }, [query]);
@@ -156,99 +155,12 @@ export default function DashboardIndex() {
     navigate(communityPostHref(created.post.id), { state: { communityReturnTo: returnTo } });
   }
 
-  async function toggleReaction(post: CommunityPost, kind: "like" | "bookmark") {
-    if (busyPostId !== null) return;
-    const wasActive = kind === "like" ? post.likedByMe : post.savedByMe;
-    const active = !wasActive;
-    const previousPosts = posts;
-    const optimisticPosts = savedOnly && kind === "bookmark" && !active
-      ? posts.filter((item) => item.id !== post.id)
-      : posts.map((item) => item.id === post.id ? {
-        ...item,
-        likedByMe: kind === "like" ? active : item.likedByMe,
-        savedByMe: kind === "bookmark" ? active : item.savedByMe,
-        likeCount: kind === "like" ? Math.max(0, item.likeCount + (active ? 1 : -1)) : item.likeCount,
-      } : item);
-    setBusyPostId(post.id);
-    setError("");
-    setRetry(null);
-    setPosts(optimisticPosts);
-    rememberCommunityList(cacheKey, { posts: optimisticPosts, page, hasMore });
-    try {
-      const state = kind === "like"
-        ? await communityClient.like(post.id, active)
-        : await communityClient.bookmark(post.id, active);
-      if (kind === "bookmark") clearOtherCommunityLists(cacheKey);
-      const confirmed = optimisticPosts.map((item) => item.id === post.id ? {
-        ...item,
-        likedByMe: kind === "like" ? state.active : item.likedByMe,
-        savedByMe: kind === "bookmark" ? state.active : item.savedByMe,
-        likeCount: state.likeCount,
-      } : item);
-      setPosts(confirmed);
-      rememberCommunityList(cacheKey, { posts: confirmed, page, hasMore });
-    } catch (cause) {
-      setPosts(previousPosts);
-      rememberCommunityList(cacheKey, { posts: previousPosts, page, hasMore });
-      setError(cause instanceof Error ? cause.message : "操作失败，请稍后重试。");
-      setRetry({ kind: "reaction", post, reaction: kind });
-    } finally {
-      setBusyPostId(null);
-    }
-  }
-
-  async function moderatePost(post: CommunityPost, change: CommunityModerationChange) {
-    if (busyPostId !== null || !post.canModerate) return;
-    const previousPosts = posts;
-    const optimisticPosts = posts.map((item) => item.id === post.id ? {
-      ...item,
-      isPinned: change.pinned ?? item.isPinned,
-      isHidden: change.hidden ?? item.isHidden,
-    } : item).sort((left, right) => Number(right.isPinned) - Number(left.isPinned));
-    setBusyPostId(post.id);
-    setError("");
-    setRetry(null);
-    setPosts(optimisticPosts);
-    rememberCommunityList(cacheKey, { posts: optimisticPosts, page, hasMore });
-    try {
-      const detail = await communityClient.moderate(post.id, change);
-      if (change.pinned !== undefined) {
-        clearOtherCommunityLists(cacheKey);
-        try {
-          const refreshed = await communityClient.list({ sort, category, q: query, saved: savedOnly, page: 1, pageSize: PAGE_SIZE });
-          setPosts(refreshed.items);
-          setPage(1);
-          setHasMore(refreshed.hasMore);
-          rememberCommunityList(cacheKey, { posts: refreshed.items, page: 1, hasMore: refreshed.hasMore });
-        } catch (cause) {
-          setPosts(optimisticPosts);
-          rememberCommunityList(cacheKey, { posts: optimisticPosts, page, hasMore });
-          setError(cause instanceof Error ? `置顶状态已更新，但列表排序暂未同步：${cause.message}` : "置顶状态已更新，但列表排序暂未同步。");
-          setRetry({ kind: "first" });
-        }
-      } else {
-        const confirmedPosts = optimisticPosts.map((item) => item.id === post.id ? detail.post : item);
-        setPosts(confirmedPosts);
-        rememberCommunityList(cacheKey, { posts: confirmedPosts, page, hasMore });
-      }
-    } catch (cause) {
-      setPosts(previousPosts);
-      rememberCommunityList(cacheKey, { posts: previousPosts, page, hasMore });
-      setError(cause instanceof Error ? cause.message : "社区管理操作失败。");
-      setRetry({ kind: "moderation", post, change });
-    } finally {
-      setBusyPostId(null);
-    }
-  }
-
   function retryFailedOperation() {
     if (!retry) return;
     const failed = retry;
     setRetry(null);
     if (failed.kind === "first") void loadFirstPage(true);
     if (failed.kind === "more") void loadNextPage();
-    if (failed.kind === "reaction") void toggleReaction(failed.post, failed.reaction);
-    if (failed.kind === "moderation") void moderatePost(failed.post, failed.change);
   }
 
   const shownSort: CommunitySort = savedOnly ? "latest" : sort;
@@ -292,7 +204,7 @@ export default function DashboardIndex() {
         {loading && posts.length === 0 ? <p className="community-state community-state--loading" role="status"><CommunityIcon name="loader" />正在加载社区…</p> : posts.length ? <>
           {loading ? <p className="community-refresh-status" role="status">正在同步最新内容</p> : null}
           <div className="community-post-list">
-            {posts.map((post) => <CommunityPostCard key={post.id} post={post} busy={busyPostId === post.id} onLike={(item) => void toggleReaction(item, "like")} onBookmark={(item) => void toggleReaction(item, "bookmark")} onModerate={(item, change) => void moderatePost(item, change)} />)}
+            {posts.map((post) => <CommunityPostCard key={post.id} post={post} />)}
           </div>
         </> : !loading ? <div className="community-state community-state--empty">
           <span className="community-state__icon"><CommunityIcon name="messageCircle" /></span>

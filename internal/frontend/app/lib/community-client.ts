@@ -18,6 +18,12 @@ export interface CommunityAttachment {
   url: string;
 }
 
+export interface CommunityParticipant {
+  id: number;
+  name: string;
+  avatarUrl?: string;
+}
+
 export interface CommunityPost {
   id: number;
   groupId: number;
@@ -42,6 +48,8 @@ export interface CommunityPost {
   editedAt?: string;
   lastReplyAt?: string;
   commentCount: number;
+  viewCount?: number;
+  participants?: CommunityParticipant[];
   likeCount: number;
   likedByMe: boolean;
   savedByMe: boolean;

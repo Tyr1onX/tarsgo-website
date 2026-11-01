@@ -16,7 +16,7 @@ import {
   type CommunityComment,
   type CommunityDetail,
 } from "~/lib/community-client";
-import { removeCommunityPostFromLists } from "~/lib/community-list-cache";
+import { clearCommunityLists, removeCommunityPostFromLists } from "~/lib/community-list-cache";
 import { communityStandaloneAttachments, stripCommunityMarkdown } from "~/lib/community-markdown";
 import "./community.css";
 
@@ -111,6 +111,7 @@ export default function CommunityPostRoute() {
       const state = kind === "like"
         ? await communityClient.like(postID, active)
         : await communityClient.bookmark(postID, active);
+      clearCommunityLists();
       setDetail((current) => current ? { ...current, post: {
         ...current.post,
         likedByMe: kind === "like" ? state.active : current.post.likedByMe,
@@ -170,6 +171,7 @@ export default function CommunityPostRoute() {
     setRetryAction(null);
     try {
       const result = await communityClient.addComment(postID, { body: comment, parentPostId: replyTarget?.id, files: commentUploads.map((item) => item.file), uploadTokens: commentUploads.map((item) => item.token) });
+      clearCommunityLists();
       setDetail(result);
       setComment("");
       setCommentUploads([]);
@@ -191,7 +193,9 @@ export default function CommunityPostRoute() {
     setError("");
     setRetryAction(null);
     try {
-      setDetail(await communityClient.update(postID, { title: editTitle, body: editBody, category: editCategory, files: editPostUploads.map((item) => item.file), uploadTokens: editPostUploads.map((item) => item.token) }));
+      const updated = await communityClient.update(postID, { title: editTitle, body: editBody, category: editCategory, files: editPostUploads.map((item) => item.file), uploadTokens: editPostUploads.map((item) => item.token) });
+      clearCommunityLists();
+      setDetail(updated);
       setEditingPost(false);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "帖子更新失败。");
@@ -223,7 +227,9 @@ export default function CommunityPostRoute() {
     setBusy(true);
     setRetryAction(null);
     try {
-      setDetail(await communityClient.updateComment(commentID, { body: editCommentBody, files: editCommentUploads.map((item) => item.file), uploadTokens: editCommentUploads.map((item) => item.token) }));
+      const updated = await communityClient.updateComment(commentID, { body: editCommentBody, files: editCommentUploads.map((item) => item.file), uploadTokens: editCommentUploads.map((item) => item.token) });
+      clearCommunityLists();
+      setDetail(updated);
       setEditingCommentID(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "回复更新失败。");
@@ -238,7 +244,9 @@ export default function CommunityPostRoute() {
     setBusy(true);
     setRetryAction(null);
     try {
-      setDetail(await communityClient.removeComment(commentID));
+      const updated = await communityClient.removeComment(commentID);
+      clearCommunityLists();
+      setDetail(updated);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "回复删除失败。");
       setRetryAction(() => () => { void deleteComment(commentID); });
@@ -252,7 +260,9 @@ export default function CommunityPostRoute() {
     setBusy(true);
     setRetryAction(null);
     try {
-      setDetail(await communityClient.moderate(postID, change));
+      const updated = await communityClient.moderate(postID, change);
+      clearCommunityLists();
+      setDetail(updated);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "社区管理操作失败。");
       setRetryAction(() => () => { void moderate(change); });
