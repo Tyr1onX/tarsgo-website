@@ -40,7 +40,7 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 		t.Fatal("open isolated acceptance SQL connection")
 	}
 	t.Cleanup(func() { _ = sqlDB.Close() })
-	for _, table := range []string{"training_questions", "training_question_posts", "training_question_attachments", "training_question_growth_events", "community_experience_events", "community_check_ins", "community_comment_reactions", "community_member_profiles", "co_builder_contributions"} {
+	for _, table := range []string{"training_questions", "training_question_posts", "training_question_attachments", "training_question_growth_events", "community_experience_events", "community_check_ins", "community_comment_reactions", "community_post_views", "community_member_profiles", "co_builder_contributions"} {
 		if !db.Migrator().HasTable(table) {
 			t.Fatalf("community growth migrations are missing table %s", table)
 		}
@@ -110,7 +110,7 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 			if err := db.Where("comment_id IN (?)", db.Model(&model.TrainingQuestionPost{}).Select("id").Where("question_id IN ?", questionIDs)).Delete(&model.CommunityCommentReaction{}).Error; err != nil {
 				t.Errorf("clean isolated comment reactions: %v", err)
 			}
-			for _, value := range []any{&model.CommunityPostReaction{}, &model.TrainingQuestionGrowthEvent{}, &model.TrainingQuestionAttachment{}, &model.TrainingQuestionPost{}} {
+			for _, value := range []any{&model.CommunityPostViewRecord{}, &model.CommunityPostReaction{}, &model.TrainingQuestionGrowthEvent{}, &model.TrainingQuestionAttachment{}, &model.TrainingQuestionPost{}} {
 				if err := db.Where("question_id IN ?", questionIDs).Delete(value).Error; err != nil {
 					t.Errorf("clean isolated Q&A history: %v", err)
 				}
@@ -296,12 +296,23 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 	if communityPost.Post.AuthorLevel != 1 {
 		t.Fatalf("new member should start at level 1, got level %d", communityPost.Post.AuthorLevel)
 	}
+	if communityPost.Post.ViewCount != 1 || len(communityPost.Post.Participants) != 1 || communityPost.Post.Participants[0].ID != operationsMember.ID {
+		t.Fatalf("new topic should count its author's page view and participant: post=%#v", communityPost.Post)
+	}
 	growthPage, err := service.ListCommunity(context.Background(), operationsMember, CommunityListFilter{Sort: "latest", Page: 1, PageSize: 10, IncludeGrowth: true})
 	if err != nil || growthPage.GrowthProfile == nil || growthPage.GrowthProfile.Level != communityPost.Post.AuthorLevel {
 		t.Fatalf("homepage growth profile and author level disagree: page=%#v err=%v", growthPage, err)
 	}
 	communityID := communityPost.Post.ID
 	questionIDs = append(questionIDs, communityID)
+	firstView, err := service.GetCommunityPost(context.Background(), crossMember, communityID)
+	if err != nil || firstView.Post.ViewCount != 2 {
+		t.Fatalf("first distinct member view = %v, want 2 total views: err=%v", firstView, err)
+	}
+	refreshedView, err := service.GetCommunityPost(context.Background(), crossMember, communityID)
+	if err != nil || refreshedView.Post.ViewCount != 2 {
+		t.Fatalf("repeated refresh changed the deduplicated view count: post=%v err=%v", refreshedView, err)
+	}
 	if communityPost.Post.IsLegacy || communityPost.Post.GroupID != 0 {
 		t.Fatalf("new community post unexpectedly has a group scope: %#v", communityPost.Post)
 	}
@@ -371,6 +382,9 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 	reply, err := service.AddCommunityComment(context.Background(), crossMember, communityID, CommunityCommentInput{Body: "回复上面的说明。", ParentPostID: &parentID})
 	if err != nil || len(reply.Comments) != 2 || reply.Comments[1].ParentPostID == nil || *reply.Comments[1].ParentPostID != parentID {
 		t.Fatalf("nested community reply failed: comments=%d err=%v", lenOrZeroCommunity(reply), err)
+	}
+	if len(reply.Post.Participants) != 3 || reply.Post.Participants[0].ID != crossMember.ID || reply.Post.Participants[1].ID != peer.ID {
+		t.Fatalf("topic participants should be unique and ordered by latest activity: %#v", reply.Post.Participants)
 	}
 	if reply.Comments[0].AuthorLevel != operationsGrowth.Level || reply.Post.AuthorLevel != operationsGrowth.Level {
 		t.Fatalf("author levels differ between post, reply and profile: post=%d reply=%d profile=%d", reply.Post.AuthorLevel, reply.Comments[0].AuthorLevel, operationsGrowth.Level)

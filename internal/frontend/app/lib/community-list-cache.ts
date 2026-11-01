@@ -19,6 +19,10 @@ export function rememberCommunityList(key: string, snapshot: CommunityListSnapsh
   }
 }
 
+export function clearCommunityLists() {
+  snapshots.clear();
+}
+
 export function clearOtherCommunityLists(keepKey: string) {
   for (const key of snapshots.keys()) {
     if (key !== keepKey) snapshots.delete(key);

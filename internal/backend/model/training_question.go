@@ -94,6 +94,16 @@ type CommunityPostReaction struct {
 
 func (CommunityPostReaction) TableName() string { return "community_post_reactions" }
 
+// CommunityPostViewRecord stores one view per signed-in member and topic.
+// The composite primary key makes page refreshes idempotent.
+type CommunityPostViewRecord struct {
+	QuestionID uint64    `json:"questionId" gorm:"column:question_id;type:bigint unsigned;primaryKey;autoIncrement:false"`
+	UserID     uint64    `json:"userId" gorm:"column:user_id;type:bigint unsigned;primaryKey;autoIncrement:false"`
+	ViewedAt   time.Time `json:"viewedAt" gorm:"column:viewed_at;type:datetime;not null;default:CURRENT_TIMESTAMP"`
+}
+
+func (CommunityPostViewRecord) TableName() string { return "community_post_views" }
+
 // CommunityCommentReaction stores one like per member and comment.
 type CommunityCommentReaction struct {
 	CommentID uint64    `json:"commentId" gorm:"column:comment_id;type:bigint unsigned;primaryKey;autoIncrement:false"`

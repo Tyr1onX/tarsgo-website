@@ -69,12 +69,20 @@ type CommunityPostView struct {
 	EditedAt            *time.Time                    `json:"editedAt,omitempty"`
 	LastReplyAt         *time.Time                    `json:"lastReplyAt,omitempty"`
 	CommentCount        int                           `json:"commentCount"`
+	ViewCount           int                           `json:"viewCount"`
+	Participants        []CommunityParticipant        `json:"participants"`
 	LikeCount           int                           `json:"likeCount"`
 	LikedByMe           bool                          `json:"likedByMe"`
 	SavedByMe           bool                          `json:"savedByMe"`
 	CanEdit             bool                          `json:"canEdit"`
 	CanModerate         bool                          `json:"canModerate"`
 	Attachments         []AttachmentView              `json:"attachments"`
+}
+
+type CommunityParticipant struct {
+	ID        uint64  `json:"id"`
+	Name      string  `json:"name"`
+	AvatarURL *string `json:"avatarUrl,omitempty"`
 }
 
 type CommunityCommentView struct {
@@ -158,6 +166,7 @@ type communityPostRow struct {
 	AuthorName   string  `gorm:"column:author_name"`
 	AuthorAvatar *string `gorm:"column:author_avatar"`
 	CommentCount int     `gorm:"column:comment_count"`
+	ViewCount    int     `gorm:"column:view_count"`
 	LikeCount    int     `gorm:"column:like_count"`
 	LikedByMe    bool    `gorm:"column:liked_by_me"`
 	SavedByMe    bool    `gorm:"column:saved_by_me"`
@@ -303,6 +312,12 @@ func (s *Service) GetCommunityPost(ctx context.Context, actor Actor, postID uint
 	}
 	if question.DeletedAt != nil {
 		return nil, notFound("帖子不存在")
+	}
+	if err := s.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&model.CommunityPostViewRecord{
+		QuestionID: postID,
+		UserID:     actor.ID,
+	}).Error; err != nil {
+		return nil, internalError("记录社区浏览失败", err)
 	}
 	rows := []communityPostRow{}
 	query, err := s.communityPostQuery(ctx, actor)
@@ -1022,6 +1037,7 @@ func (s *Service) communityPostQuery(ctx context.Context, actor Actor) (*gorm.DB
 			COALESCE(NULLIF(TRIM(author.real_name), ''), NULLIF(TRIM(author.nickname), ''), NULLIF(TRIM(author.name), ''), CONCAT('成员 ', author.id)) AS author_name,
 			author.avatar_url AS author_avatar,
 			(SELECT COUNT(*) FROM training_question_posts cp WHERE cp.question_id = q.id AND cp.deleted_at IS NULL) AS comment_count,
+			(SELECT COUNT(*) FROM community_post_views pv WHERE pv.question_id = q.id) AS view_count,
 			(SELECT COUNT(*) FROM community_post_reactions lr WHERE lr.question_id = q.id AND lr.kind = 'like') AS like_count,
 			EXISTS (SELECT 1 FROM community_post_reactions ml WHERE ml.question_id = q.id AND ml.user_id = ? AND ml.kind = 'like') AS liked_by_me,
 			EXISTS (SELECT 1 FROM community_post_reactions mb WHERE mb.question_id = q.id AND mb.user_id = ? AND mb.kind = 'bookmark') AS saved_by_me,
@@ -1082,6 +1098,10 @@ func (s *Service) communityPostViews(ctx context.Context, actor Actor, rows []co
 	if err != nil {
 		return nil, internalError("读取社区附件失败", err)
 	}
+	participants, err := s.communityPostParticipants(ctx, ids)
+	if err != nil {
+		return nil, internalError("读取社区参与成员失败", err)
+	}
 	views := make([]CommunityPostView, 0, len(rows))
 	for _, row := range rows {
 		view := CommunityPostView{
@@ -1091,7 +1111,8 @@ func (s *Service) communityPostViews(ctx context.Context, actor Actor, rows []co
 			AuthorFeaturedBadge: authorBadges[row.AskerID], AuthorPositions: authorPositions[row.AskerID], Visibility: row.Visibility,
 			IsSolved: row.IsSolved, AcceptedSolutionID: row.AcceptedSolutionID, IsFAQ: row.IsFAQ, IsPinned: row.IsPinned, IsHidden: row.IsHidden,
 			IsLegacy: row.GroupID != nil, CreatedAt: row.CreatedAt,
-			EditedAt: row.EditedAt, LastReplyAt: row.LastReplyAt, CommentCount: row.CommentCount, LikeCount: row.LikeCount,
+			EditedAt: row.EditedAt, LastReplyAt: row.LastReplyAt, CommentCount: row.CommentCount, ViewCount: row.ViewCount,
+			Participants: participants[row.ID], LikeCount: row.LikeCount,
 			LikedByMe: row.LikedByMe, SavedByMe: row.SavedByMe, CanEdit: row.AskerID == actor.ID && row.DeletedAt == nil,
 			CanModerate: isCommunityAdmin(actor), Attachments: []AttachmentView{},
 		}
@@ -1103,6 +1124,53 @@ func (s *Service) communityPostViews(ctx context.Context, actor Actor, rows []co
 		views = append(views, view)
 	}
 	return views, nil
+}
+
+type communityParticipantRow struct {
+	QuestionID uint64  `gorm:"column:question_id"`
+	UserID     uint64  `gorm:"column:user_id"`
+	Name       string  `gorm:"column:author_name"`
+	AvatarURL  *string `gorm:"column:avatar_url"`
+}
+
+func (s *Service) communityPostParticipants(ctx context.Context, questionIDs []uint64) (map[uint64][]CommunityParticipant, error) {
+	result := make(map[uint64][]CommunityParticipant, len(questionIDs))
+	if len(questionIDs) == 0 {
+		return result, nil
+	}
+	var rows []communityParticipantRow
+	query := `SELECT ranked.question_id, ranked.user_id, ranked.author_name, ranked.avatar_url
+		FROM (
+			SELECT latest_per_member.*,
+				ROW_NUMBER() OVER (PARTITION BY latest_per_member.question_id ORDER BY latest_per_member.activity_at DESC, latest_per_member.activity_kind DESC, latest_per_member.activity_id DESC, latest_per_member.user_id) AS participant_rank
+			FROM (
+				SELECT activity.*,
+					ROW_NUMBER() OVER (PARTITION BY activity.question_id, activity.user_id ORDER BY activity.activity_at DESC, activity.activity_kind DESC, activity.activity_id DESC) AS member_rank
+				FROM (
+				SELECT q.id AS question_id, q.asker_id AS user_id,
+						COALESCE(NULLIF(TRIM(u.real_name), ''), NULLIF(TRIM(u.nickname), ''), NULLIF(TRIM(u.name), ''), CONCAT('成员 ', u.id)) AS author_name,
+						u.avatar_url, q.created_at AS activity_at, q.id AS activity_id, 0 AS activity_kind
+					FROM training_questions q JOIN users u ON u.id = q.asker_id
+					WHERE q.id IN ? AND q.deleted_at IS NULL
+					UNION ALL
+					SELECT p.question_id, p.author_id AS user_id,
+						COALESCE(NULLIF(TRIM(u.real_name), ''), NULLIF(TRIM(u.nickname), ''), NULLIF(TRIM(u.name), ''), CONCAT('成员 ', u.id)) AS author_name,
+						u.avatar_url, p.created_at AS activity_at, p.id AS activity_id, 1 AS activity_kind
+					FROM training_question_posts p JOIN users u ON u.id = p.author_id
+					WHERE p.question_id IN ? AND p.deleted_at IS NULL
+				) AS activity
+			) AS latest_per_member
+			WHERE latest_per_member.member_rank = 1
+		) AS ranked
+		WHERE ranked.participant_rank <= 5
+		ORDER BY ranked.question_id, ranked.participant_rank`
+	if err := s.db.WithContext(ctx).Raw(query, questionIDs, questionIDs).Scan(&rows).Error; err != nil {
+		return nil, err
+	}
+	for _, row := range rows {
+		result[row.QuestionID] = append(result[row.QuestionID], CommunityParticipant{ID: row.UserID, Name: row.Name, AvatarURL: row.AvatarURL})
+	}
+	return result, nil
 }
 
 func communityAuthorPositions(userIDs []uint64) map[uint64][]organization.MemberPosition {
