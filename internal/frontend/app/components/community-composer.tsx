@@ -107,9 +107,9 @@ export function CommunityComposer({ id, accountId, onCancel, onPublish }: {
           {COMMUNITY_CATEGORIES.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
         </select>
       </label>
-      <label className="community-field community-field--editor">正文
+      <div className="community-field community-field--editor"><span>正文</span>
         {draftReady ? <Suspense fallback={<div className="community-markdown-editor__loading" role="status">正在打开编辑器…</div>}><CommunityMarkdownEditor value={body} onChange={setBody} uploads={uploads} onUploadsChange={setUploads} required disabled={saving} placeholder="分享过程、问题或进展…" /></Suspense> : <div className="community-markdown-editor__loading" role="status">正在恢复草稿…</div>}
-      </label>
+      </div>
     </div>
     <div className="community-composer__actions">
       <span className={`community-draft-status${draftStatus === "failed" ? " is-error" : ""}`} role="status">{draftStatus === "saving" ? "正在保存草稿" : draftStatus === "saved" ? "草稿已保存到此设备" : draftStatus === "failed" ? "草稿保存失败" : ""}</span>
