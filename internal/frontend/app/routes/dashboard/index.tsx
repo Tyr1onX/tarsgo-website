@@ -4,7 +4,7 @@ import { useLocation, useNavigate, useOutletContext, useSearchParams } from "rea
 import { CommunityComposer } from "~/components/community-composer";
 import { CommunityGrowthBar } from "~/components/community-growth";
 import { CommunityIcon } from "~/components/community-icons";
-import { CommunityPostCard } from "~/components/community-post-card";
+import { CommunityPostCard, type CommunityModerationChange } from "~/components/community-post-card";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import {
   COMMUNITY_CATEGORIES,
@@ -23,7 +23,7 @@ export function meta() {
 }
 
 const PAGE_SIZE = 20;
-type CommunityRetry = { kind: "first" } | { kind: "more" } | { kind: "reaction"; post: CommunityPost; reaction: "like" | "bookmark" };
+type CommunityRetry = { kind: "first" } | { kind: "more" } | { kind: "reaction"; post: CommunityPost; reaction: "like" | "bookmark" } | { kind: "moderation"; post: CommunityPost; change: CommunityModerationChange };
 
 function readCategory(value: string | null): CommunityCategory | "" {
   return COMMUNITY_CATEGORIES.some((item) => item.id === value) ? value as CommunityCategory : "";
@@ -197,6 +197,50 @@ export default function DashboardIndex() {
     }
   }
 
+  async function moderatePost(post: CommunityPost, change: CommunityModerationChange) {
+    if (busyPostId !== null || !post.canModerate) return;
+    const previousPosts = posts;
+    const optimisticPosts = posts.map((item) => item.id === post.id ? {
+      ...item,
+      isPinned: change.pinned ?? item.isPinned,
+      isHidden: change.hidden ?? item.isHidden,
+    } : item).sort((left, right) => Number(right.isPinned) - Number(left.isPinned));
+    setBusyPostId(post.id);
+    setError("");
+    setRetry(null);
+    setPosts(optimisticPosts);
+    rememberCommunityList(cacheKey, { posts: optimisticPosts, page, hasMore });
+    try {
+      const detail = await communityClient.moderate(post.id, change);
+      if (change.pinned !== undefined) {
+        clearOtherCommunityLists(cacheKey);
+        try {
+          const refreshed = await communityClient.list({ sort, category, q: query, saved: savedOnly, page: 1, pageSize: PAGE_SIZE });
+          setPosts(refreshed.items);
+          setPage(1);
+          setHasMore(refreshed.hasMore);
+          rememberCommunityList(cacheKey, { posts: refreshed.items, page: 1, hasMore: refreshed.hasMore });
+        } catch (cause) {
+          setPosts(optimisticPosts);
+          rememberCommunityList(cacheKey, { posts: optimisticPosts, page, hasMore });
+          setError(cause instanceof Error ? `置顶状态已更新，但列表排序暂未同步：${cause.message}` : "置顶状态已更新，但列表排序暂未同步。");
+          setRetry({ kind: "first" });
+        }
+      } else {
+        const confirmedPosts = optimisticPosts.map((item) => item.id === post.id ? detail.post : item);
+        setPosts(confirmedPosts);
+        rememberCommunityList(cacheKey, { posts: confirmedPosts, page, hasMore });
+      }
+    } catch (cause) {
+      setPosts(previousPosts);
+      rememberCommunityList(cacheKey, { posts: previousPosts, page, hasMore });
+      setError(cause instanceof Error ? cause.message : "社区管理操作失败。");
+      setRetry({ kind: "moderation", post, change });
+    } finally {
+      setBusyPostId(null);
+    }
+  }
+
   function retryFailedOperation() {
     if (!retry) return;
     const failed = retry;
@@ -204,6 +248,7 @@ export default function DashboardIndex() {
     if (failed.kind === "first") void loadFirstPage(true);
     if (failed.kind === "more") void loadNextPage();
     if (failed.kind === "reaction") void toggleReaction(failed.post, failed.reaction);
+    if (failed.kind === "moderation") void moderatePost(failed.post, failed.change);
   }
 
   const shownSort: CommunitySort = savedOnly ? "latest" : sort;
@@ -247,7 +292,7 @@ export default function DashboardIndex() {
         {loading && posts.length === 0 ? <p className="community-state community-state--loading" role="status"><CommunityIcon name="loader" />正在加载社区…</p> : posts.length ? <>
           {loading ? <p className="community-refresh-status" role="status">正在同步最新内容</p> : null}
           <div className="community-post-list">
-            {posts.map((post) => <CommunityPostCard key={post.id} post={post} busy={busyPostId === post.id} onLike={(item) => void toggleReaction(item, "like")} onBookmark={(item) => void toggleReaction(item, "bookmark")} />)}
+            {posts.map((post) => <CommunityPostCard key={post.id} post={post} busy={busyPostId === post.id} onLike={(item) => void toggleReaction(item, "like")} onBookmark={(item) => void toggleReaction(item, "bookmark")} onModerate={(item, change) => void moderatePost(item, change)} />)}
           </div>
         </> : !loading ? <div className="community-state community-state--empty">
           <span className="community-state__icon"><CommunityIcon name="messageCircle" /></span>

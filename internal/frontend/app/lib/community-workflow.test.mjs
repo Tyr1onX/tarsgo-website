@@ -18,6 +18,7 @@ const growthStyles = await source("../components/community-growth.css");
 const profile = await source("../components/profile-dialog.tsx");
 const postCard = await source("../components/community-post-card.tsx");
 const authorProfile = await source("../components/community-author-profile.tsx");
+const badgeInfo = await source("../components/community-badge-mark.tsx");
 const memberProfilePage = await source("../routes/dashboard/community-member-profile.tsx");
 const memberProfileClient = await source("./community-member-profile-client.ts");
 const markdownEditor = await source("../components/community-markdown-editor.tsx");
@@ -27,6 +28,7 @@ const communityUploads = await source("../../../backend/service/trainingqa/commu
 const handler = await source("../../../backend/handler/community.go");
 const router = await source("../../../backend/router/router.go");
 const service = await source("../../../backend/service/trainingqa/community.go");
+const memberProfileService = await source("../../../backend/service/trainingqa/community_member_profile.go");
 const model = await source("../../../backend/model/training_question.go");
 const migrations = await source("../../../backend/database/migrations.go");
 
@@ -113,6 +115,31 @@ test("rich editor surfaces are not nested in labels that steal focus from paste"
   assert.match(thread, /<div className="community-field community-field--editor"><span>正文<\/span>/);
   assert.doesNotMatch(composer, /<label className="community-field community-field--editor"/);
   assert.doesNotMatch(thread, /<label className="community-field community-field--editor"/);
+});
+
+test("pinned posts expose an admin-only keyboard-accessible menu and keep pinned-first ordering", () => {
+  assert.match(postCard, /post\.canModerate && onModerate/);
+  assert.match(postCard, /aria-label="更多帖子操作"/);
+  assert.match(postCard, /role="menuitem"/);
+  assert.match(postCard, /onModerate\(\{ pinned: !post\.isPinned \}\)/);
+  assert.match(dashboard, /\.sort\(\(left, right\) => Number\(right\.isPinned\) - Number\(left\.isPinned\)\)/);
+  assert.match(service, /q\.is_pinned DESC, recent_interactions DESC/);
+  assert.match(service, /q\.is_pinned DESC, COALESCE\(q\.last_reply_at, q\.created_at\) DESC/);
+  assert.match(thread, /<CommunityPostMenu/);
+});
+
+test("community identity uses current positions and offers badge details with automatic highest-tier selection", () => {
+  assert.match(client, /authorPositions\?: import\("~\/lib\/community-member-profile-client"\)\.CommunityMemberPosition\[\]/);
+  assert.match(authorProfile, /positions: authorPositions = \[\]/);
+  assert.match(authorProfile, /position\.categoryTitle.*position\.title/);
+  assert.match(authorProfile, /CommunityBadgeInfo/);
+  assert.match(badgeInfo, /role="dialog"/);
+  assert.match(badgeInfo, /badge\.description/);
+  assert.match(badgeInfo, /badge\.earnedAt/);
+  assert.match(memberProfilePage, /setSelectedBadge\(next\.member\.featuredBadgeKey \?\? ""\)/);
+  assert.match(memberProfilePage, /自动选择最高等级/);
+  assert.match(memberProfileService, /resolveCommunityFeaturedBadge\(badge, publicProfile\.FeaturedBadgeKey\)/);
+  assert.match(memberProfileService, /if badge == nil \|\| !badge\.IsEarned/);
 });
 
 test("the editor offers WYSIWYG and source preview, image upload, tables, tasks, undo, and image controls", () => {

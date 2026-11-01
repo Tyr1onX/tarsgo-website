@@ -13,6 +13,7 @@ import (
 	"gorm.io/gorm/clause"
 
 	"tarsgo-backend/model"
+	"tarsgo-backend/service/organization"
 )
 
 const (
@@ -45,55 +46,57 @@ type CommunityListResult struct {
 }
 
 type CommunityPostView struct {
-	ID                  uint64                  `json:"id"`
-	GroupID             uint64                  `json:"groupId"`
-	GroupName           string                  `json:"groupName,omitempty"`
-	Category            string                  `json:"category"`
-	Title               string                  `json:"title"`
-	Body                string                  `json:"body"`
-	AuthorID            uint64                  `json:"authorId"`
-	AuthorName          string                  `json:"authorName"`
-	AuthorAvatar        *string                 `json:"authorAvatar,omitempty"`
-	AuthorLevel         int                     `json:"authorLevel"`
-	AuthorFeaturedBadge *CommunityFeaturedBadge `json:"authorFeaturedBadge,omitempty"`
-	Visibility          string                  `json:"visibility"`
-	IsSolved            bool                    `json:"isSolved,omitempty"`
-	AcceptedSolutionID  *uint64                 `json:"acceptedSolutionId,omitempty"`
-	IsFAQ               bool                    `json:"isFaq,omitempty"`
-	IsPinned            bool                    `json:"isPinned"`
-	IsHidden            bool                    `json:"isHidden"`
-	IsLegacy            bool                    `json:"isLegacy"`
-	CreatedAt           time.Time               `json:"createdAt"`
-	EditedAt            *time.Time              `json:"editedAt,omitempty"`
-	LastReplyAt         *time.Time              `json:"lastReplyAt,omitempty"`
-	CommentCount        int                     `json:"commentCount"`
-	LikeCount           int                     `json:"likeCount"`
-	LikedByMe           bool                    `json:"likedByMe"`
-	SavedByMe           bool                    `json:"savedByMe"`
-	CanEdit             bool                    `json:"canEdit"`
-	CanModerate         bool                    `json:"canModerate"`
-	Attachments         []AttachmentView        `json:"attachments"`
+	ID                  uint64                        `json:"id"`
+	GroupID             uint64                        `json:"groupId"`
+	GroupName           string                        `json:"groupName,omitempty"`
+	Category            string                        `json:"category"`
+	Title               string                        `json:"title"`
+	Body                string                        `json:"body"`
+	AuthorID            uint64                        `json:"authorId"`
+	AuthorName          string                        `json:"authorName"`
+	AuthorAvatar        *string                       `json:"authorAvatar,omitempty"`
+	AuthorLevel         int                           `json:"authorLevel"`
+	AuthorFeaturedBadge *CommunityFeaturedBadge       `json:"authorFeaturedBadge,omitempty"`
+	AuthorPositions     []organization.MemberPosition `json:"authorPositions,omitempty"`
+	Visibility          string                        `json:"visibility"`
+	IsSolved            bool                          `json:"isSolved,omitempty"`
+	AcceptedSolutionID  *uint64                       `json:"acceptedSolutionId,omitempty"`
+	IsFAQ               bool                          `json:"isFaq,omitempty"`
+	IsPinned            bool                          `json:"isPinned"`
+	IsHidden            bool                          `json:"isHidden"`
+	IsLegacy            bool                          `json:"isLegacy"`
+	CreatedAt           time.Time                     `json:"createdAt"`
+	EditedAt            *time.Time                    `json:"editedAt,omitempty"`
+	LastReplyAt         *time.Time                    `json:"lastReplyAt,omitempty"`
+	CommentCount        int                           `json:"commentCount"`
+	LikeCount           int                           `json:"likeCount"`
+	LikedByMe           bool                          `json:"likedByMe"`
+	SavedByMe           bool                          `json:"savedByMe"`
+	CanEdit             bool                          `json:"canEdit"`
+	CanModerate         bool                          `json:"canModerate"`
+	Attachments         []AttachmentView              `json:"attachments"`
 }
 
 type CommunityCommentView struct {
-	ID                  uint64                  `json:"id"`
-	ParentPostID        *uint64                 `json:"parentPostId,omitempty"`
-	AuthorID            uint64                  `json:"authorId"`
-	AuthorName          string                  `json:"authorName"`
-	AuthorAvatar        *string                 `json:"authorAvatar,omitempty"`
-	AuthorLevel         int                     `json:"authorLevel"`
-	AuthorFeaturedBadge *CommunityFeaturedBadge `json:"authorFeaturedBadge,omitempty"`
-	Body                string                  `json:"body"`
-	CreatedAt           time.Time               `json:"createdAt"`
-	EditedAt            *time.Time              `json:"editedAt,omitempty"`
-	IsDeleted           bool                    `json:"isDeleted"`
-	CanEdit             bool                    `json:"canEdit"`
-	CanLike             bool                    `json:"canLike"`
-	LikedByMe           bool                    `json:"likedByMe"`
-	LikeCount           int                     `json:"likeCount"`
-	IsAcceptedSolution  bool                    `json:"isAcceptedSolution"`
-	CanAcceptSolution   bool                    `json:"canAcceptSolution"`
-	Attachments         []AttachmentView        `json:"attachments"`
+	ID                  uint64                        `json:"id"`
+	ParentPostID        *uint64                       `json:"parentPostId,omitempty"`
+	AuthorID            uint64                        `json:"authorId"`
+	AuthorName          string                        `json:"authorName"`
+	AuthorAvatar        *string                       `json:"authorAvatar,omitempty"`
+	AuthorLevel         int                           `json:"authorLevel"`
+	AuthorFeaturedBadge *CommunityFeaturedBadge       `json:"authorFeaturedBadge,omitempty"`
+	AuthorPositions     []organization.MemberPosition `json:"authorPositions,omitempty"`
+	Body                string                        `json:"body"`
+	CreatedAt           time.Time                     `json:"createdAt"`
+	EditedAt            *time.Time                    `json:"editedAt,omitempty"`
+	IsDeleted           bool                          `json:"isDeleted"`
+	CanEdit             bool                          `json:"canEdit"`
+	CanLike             bool                          `json:"canLike"`
+	LikedByMe           bool                          `json:"likedByMe"`
+	LikeCount           int                           `json:"likeCount"`
+	IsAcceptedSolution  bool                          `json:"isAcceptedSolution"`
+	CanAcceptSolution   bool                          `json:"canAcceptSolution"`
+	Attachments         []AttachmentView              `json:"attachments"`
 }
 
 type CommunityPostDetail struct {
@@ -339,6 +342,7 @@ func (s *Service) GetCommunityPost(ctx context.Context, actor Actor, postID uint
 	if err != nil {
 		return nil, internalError("读取社区回复作者徽章失败", err)
 	}
+	commentPositions := communityAuthorPositions(commentAuthorIDs)
 	attachments, err := s.loadAttachments(ctx, []uint64{postID})
 	if err != nil {
 		return nil, internalError("读取社区附件失败", err)
@@ -347,7 +351,7 @@ func (s *Service) GetCommunityPost(ctx context.Context, actor Actor, postID uint
 		view := CommunityCommentView{
 			ID: comment.ID, ParentPostID: comment.ParentPostID, AuthorID: comment.AuthorID,
 			AuthorName: comment.AuthorName, AuthorAvatar: comment.AuthorAvatar, AuthorLevel: commentLevels[comment.AuthorID],
-			AuthorFeaturedBadge: commentBadges[comment.AuthorID], Body: comment.Body,
+			AuthorFeaturedBadge: commentBadges[comment.AuthorID], AuthorPositions: commentPositions[comment.AuthorID], Body: comment.Body,
 			CreatedAt: comment.CreatedAt, EditedAt: comment.EditedAt, IsDeleted: comment.DeletedAt != nil,
 			CanEdit: comment.AuthorID == actor.ID && comment.DeletedAt == nil, CanLike: actor.ID != comment.AuthorID && comment.DeletedAt == nil && !question.IsHidden,
 			LikedByMe: comment.LikedByMe, LikeCount: comment.LikeCount,
@@ -1073,6 +1077,7 @@ func (s *Service) communityPostViews(ctx context.Context, actor Actor, rows []co
 	if err != nil {
 		return nil, internalError("读取社区作者徽章失败", err)
 	}
+	authorPositions := communityAuthorPositions(authorIDs)
 	attachments, err := s.loadAttachments(ctx, ids)
 	if err != nil {
 		return nil, internalError("读取社区附件失败", err)
@@ -1083,7 +1088,7 @@ func (s *Service) communityPostViews(ctx context.Context, actor Actor, rows []co
 			ID: row.ID, GroupID: communityGroupID(row.GroupID), GroupName: row.GroupName,
 			Category: row.Category, Title: row.Title, Body: row.Body, AuthorID: row.AskerID,
 			AuthorName: row.AuthorName, AuthorAvatar: row.AuthorAvatar, AuthorLevel: authorLevels[row.AskerID],
-			AuthorFeaturedBadge: authorBadges[row.AskerID], Visibility: row.Visibility,
+			AuthorFeaturedBadge: authorBadges[row.AskerID], AuthorPositions: authorPositions[row.AskerID], Visibility: row.Visibility,
 			IsSolved: row.IsSolved, AcceptedSolutionID: row.AcceptedSolutionID, IsFAQ: row.IsFAQ, IsPinned: row.IsPinned, IsHidden: row.IsHidden,
 			IsLegacy: row.GroupID != nil, CreatedAt: row.CreatedAt,
 			EditedAt: row.EditedAt, LastReplyAt: row.LastReplyAt, CommentCount: row.CommentCount, LikeCount: row.LikeCount,
@@ -1098,6 +1103,22 @@ func (s *Service) communityPostViews(ctx context.Context, actor Actor, rows []co
 		views = append(views, view)
 	}
 	return views, nil
+}
+
+func communityAuthorPositions(userIDs []uint64) map[uint64][]organization.MemberPosition {
+	result := make(map[uint64][]organization.MemberPosition, len(userIDs))
+	for _, userID := range userIDs {
+		if userID == 0 {
+			continue
+		}
+		if _, exists := result[userID]; exists {
+			continue
+		}
+		if positions := organization.MemberPositions(userID); len(positions) > 0 {
+			result[userID] = positions
+		}
+	}
+	return result
 }
 
 func (s *Service) canCommunityComment(ctx context.Context, db *gorm.DB, actor Actor, question *model.TrainingQuestion) bool {

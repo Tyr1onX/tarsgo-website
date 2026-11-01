@@ -6,7 +6,7 @@ import { type CommunityPendingImage } from "~/components/community-markdown-edit
 import { CommunityMarkdown } from "~/components/community-markdown";
 import { CommunityAuthorProfile } from "~/components/community-author-profile";
 import { CommunityIcon } from "~/components/community-icons";
-import { CommunityActionIcon } from "~/components/community-post-card";
+import { CommunityActionIcon, CommunityPostMenu } from "~/components/community-post-card";
 import {
   COMMUNITY_CATEGORIES,
   communityCategoryLabel,
@@ -285,10 +285,17 @@ export default function CommunityPostRoute() {
     {error ? <p className="community-state community-state--error" role="alert">{error}{retryAction ? <button type="button" className="community-inline-retry" onClick={() => retryAction()}>重试</button> : null}</p> : null}
     <article className={`community-post${post.isPinned ? " is-pinned" : ""}`}>
       <div className="community-post__author">
-        <CommunityAuthorProfile id={post.authorId} name={post.authorName} avatar={post.authorAvatar} level={post.authorLevel} featuredBadge={post.authorFeaturedBadge} />
+        <CommunityAuthorProfile id={post.authorId} name={post.authorName} avatar={post.authorAvatar} level={post.authorLevel} featuredBadge={post.authorFeaturedBadge} positions={post.authorPositions} />
         <div className="community-post__byline"><time dateTime={post.createdAt}>{formatCommunityDate(post.createdAt)}{post.editedAt ? " · 已编辑" : ""}</time></div>
-        {post.isPinned ? <span className="community-post__pin">置顶</span> : null}
+        {post.isPinned ? <span className="community-post__pin"><CommunityIcon name="pin" />置顶</span> : null}
         <span className="community-post__category">{communityCategoryLabel(post.category)}</span>
+        <CommunityPostMenu
+          post={post}
+          busy={busy}
+          onModerate={(change) => void moderate(change)}
+          onEdit={!editingPost ? () => { setEditTitle(post.title); setEditBody(post.body); setEditCategory(post.category); setEditPostUploads([]); setEditingPost(true); } : undefined}
+          onDelete={() => void deletePost()}
+        />
       </div>
       {post.isLegacy && post.groupName ? <p className="community-post__scope">{post.visibility === "private" ? "历史私密讨论" : `${post.groupName} · 历史讨论`}</p> : null}
       {post.isFaq ? <span className="community-post__faq">FAQ</span> : null}
@@ -306,10 +313,6 @@ export default function CommunityPostRoute() {
         <button type="button" aria-pressed={post.likedByMe} disabled={busy} onClick={() => void toggleReaction("like")}><CommunityActionIcon kind="like" /><span>{post.likeCount}</span>{post.likedByMe ? "已赞" : "点赞"}</button>
         <a href="#community-comments"><CommunityActionIcon kind="comment" /><span>{post.commentCount}</span>评论</a>
         <button type="button" aria-pressed={post.savedByMe} disabled={busy} onClick={() => void toggleReaction("bookmark")}><CommunityActionIcon kind="bookmark" />{post.savedByMe ? "已收藏" : "收藏"}</button>
-        <div className="community-thread__tools">
-            {post.canEdit && !editingPost ? <><button type="button" onClick={() => { setEditTitle(post.title); setEditBody(post.body); setEditCategory(post.category); setEditPostUploads([]); setEditingPost(true); }}>编辑</button><button type="button" onClick={() => void deletePost()}>删除</button></> : null}
-          {post.canModerate ? <><button type="button" onClick={() => void moderate({ pinned: !post.isPinned })}>{post.isPinned ? "取消置顶" : "置顶"}</button><button type="button" onClick={() => void moderate({ hidden: !post.isHidden })}>{post.isHidden ? "取消隐藏" : "隐藏"}</button></> : null}
-        </div>
       </footer>
     </article>
 
@@ -318,7 +321,7 @@ export default function CommunityPostRoute() {
       {comments.map((item) => {
         const parent = item.parentPostId ? parentByID.get(item.parentPostId) : null;
         return <article key={item.id} id={`community-comment-${item.id}`} className={`community-comment${location.hash === `#community-comment-${item.id}` ? " is-targeted" : ""}`} data-reply={Boolean(item.parentPostId)} data-depth={commentDepth(item)}>
-          <div className="community-comment__head"><CommunityAuthorProfile id={item.authorId} name={item.authorName} avatar={item.authorAvatar} level={item.authorLevel} featuredBadge={item.authorFeaturedBadge} size="small" />{item.isAcceptedSolution ? <span className="community-comment__solution"><CommunityIcon name="check" />已采纳</span> : null}<time dateTime={item.createdAt}>{formatCommunityDate(item.createdAt)}{item.editedAt ? " · 已编辑" : ""}</time></div>
+          <div className="community-comment__head"><CommunityAuthorProfile id={item.authorId} name={item.authorName} avatar={item.authorAvatar} level={item.authorLevel} featuredBadge={item.authorFeaturedBadge} positions={item.authorPositions} size="small" />{item.isAcceptedSolution ? <span className="community-comment__solution"><CommunityIcon name="check" />已采纳</span> : null}<time dateTime={item.createdAt}>{formatCommunityDate(item.createdAt)}{item.editedAt ? " · 已编辑" : ""}</time></div>
           {parent ? <button type="button" className="community-comment__context" onClick={() => document.getElementById(`community-comment-${parent.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}>
             <span>回复 {parent.authorName}</span><span>{parent.isDeleted ? "该回复已删除" : stripCommunityMarkdown(parent.body)}</span>
           </button> : null}

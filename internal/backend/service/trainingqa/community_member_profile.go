@@ -51,16 +51,17 @@ type CommunityMemberProfileResult struct {
 }
 
 type CommunityMemberView struct {
-	ID            uint64                        `json:"id"`
-	DisplayName   string                        `json:"displayName"`
-	AvatarURL     *string                       `json:"avatarUrl,omitempty"`
-	Bio           string                        `json:"bio"`
-	Groups        []CommunityMemberGroup        `json:"groups"`
-	Positions     []organization.MemberPosition `json:"positions"`
-	TeamJoinedAt  *time.Time                    `json:"teamJoinedAt,omitempty"`
-	Level         CommunityMemberLevel          `json:"level"`
-	FeaturedBadge *CommunityFeaturedBadge       `json:"featuredBadge,omitempty"`
-	IsSelf        bool                          `json:"isSelf"`
+	ID               uint64                        `json:"id"`
+	DisplayName      string                        `json:"displayName"`
+	AvatarURL        *string                       `json:"avatarUrl,omitempty"`
+	Bio              string                        `json:"bio"`
+	Groups           []CommunityMemberGroup        `json:"groups"`
+	Positions        []organization.MemberPosition `json:"positions"`
+	TeamJoinedAt     *time.Time                    `json:"teamJoinedAt,omitempty"`
+	Level            CommunityMemberLevel          `json:"level"`
+	FeaturedBadgeKey string                        `json:"featuredBadgeKey,omitempty"`
+	FeaturedBadge    *CommunityFeaturedBadge       `json:"featuredBadge,omitempty"`
+	IsSelf           bool                          `json:"isSelf"`
 }
 
 type CommunityMemberGroup struct {
@@ -79,10 +80,12 @@ type CommunityMemberLevel struct {
 }
 
 type CommunityFeaturedBadge struct {
-	Key        string `json:"key"`
-	Name       string `json:"name"`
-	LevelCode  string `json:"levelCode"`
-	LevelLabel string `json:"levelLabel"`
+	Key         string     `json:"key"`
+	Name        string     `json:"name"`
+	Description string     `json:"description,omitempty"`
+	LevelCode   string     `json:"levelCode"`
+	LevelLabel  string     `json:"levelLabel"`
+	EarnedAt    *time.Time `json:"earnedAt,omitempty"`
 }
 
 type CommunityMemberStats struct {
@@ -229,9 +232,7 @@ func (s *Service) GetCommunityMemberProfile(ctx context.Context, actor Actor, me
 	if err != nil {
 		return nil, internalError("读取成员徽章失败", err)
 	}
-	if badge != nil && publicProfile.FeaturedBadgeKey == badge.Key && badge.IsEarned {
-		member.FeaturedBadge = featuredBadgeView(badge)
-	}
+	member.FeaturedBadge, member.FeaturedBadgeKey = resolveCommunityFeaturedBadge(badge, publicProfile.FeaturedBadgeKey)
 
 	result := &CommunityMemberProfileResult{
 		Member: member, Tab: tab, Page: page, Badges: []cobuilderbadge.PublicBadge{},
@@ -394,7 +395,18 @@ func featuredBadgeView(badge *cobuilderbadge.PublicBadge) *CommunityFeaturedBadg
 	if badge == nil || !badge.IsEarned {
 		return nil
 	}
-	return &CommunityFeaturedBadge{Key: badge.Key, Name: badge.Name, LevelCode: badge.LevelCode, LevelLabel: badge.LevelLabel}
+	return &CommunityFeaturedBadge{Key: badge.Key, Name: badge.Name, Description: badge.Description, LevelCode: badge.LevelCode, LevelLabel: badge.LevelLabel, EarnedAt: badge.EarnedAt}
+}
+
+func resolveCommunityFeaturedBadge(badge *cobuilderbadge.PublicBadge, selectedKey string) (*CommunityFeaturedBadge, string) {
+	view := featuredBadgeView(badge)
+	if view == nil {
+		return nil, ""
+	}
+	if selectedKey == badge.Key {
+		return view, selectedKey
+	}
+	return view, ""
 }
 
 func communityAuthorFeaturedBadges(ctx context.Context, db *gorm.DB, userIDs []uint64) (map[uint64]*CommunityFeaturedBadge, error) {
@@ -423,36 +435,24 @@ func communityAuthorFeaturedBadges(ctx context.Context, db *gorm.DB, userIDs []u
 	}
 	var choices []profileChoice
 	if err := db.WithContext(ctx).Table("community_member_profiles").Select("user_id, featured_badge_key").
-		Where("user_id IN ? AND featured_badge_key <> ''", uniqueIDs).Find(&choices).Error; err != nil {
+		Where("user_id IN ?", uniqueIDs).Find(&choices).Error; err != nil {
 		return nil, err
 	}
 	selected := make(map[uint64]string, len(choices))
 	for _, choice := range choices {
 		selected[choice.UserID] = choice.FeaturedBadgeKey
 	}
-	if len(selected) == 0 {
-		return result, nil
-	}
-	selectedIDs := make([]uint64, 0, len(selected))
-	for userID := range selected {
-		selectedIDs = append(selectedIDs, userID)
-	}
 	var records []model.CoBuilderContribution
-	if err := db.WithContext(ctx).Where("user_id IN ?", selectedIDs).Order("user_id ASC, created_at DESC, id DESC").Find(&records).Error; err != nil {
+	if err := db.WithContext(ctx).Where("user_id IN ?", uniqueIDs).Order("user_id ASC, created_at DESC, id DESC").Find(&records).Error; err != nil {
 		return nil, err
 	}
-	byUser := make(map[uint64][]model.CoBuilderContribution, len(selectedIDs))
+	byUser := make(map[uint64][]model.CoBuilderContribution, len(uniqueIDs))
 	for _, record := range records {
 		byUser[record.UserID] = append(byUser[record.UserID], record)
 	}
-	for userID, key := range selected {
-		if key != "co_builder" {
-			continue
-		}
+	for _, userID := range uniqueIDs {
 		badge := cobuilderbadge.PublicBadgeFromContributions(byUser[userID])
-		if badge != nil && badge.Key == key && badge.IsEarned {
-			result[userID] = featuredBadgeView(badge)
-		}
+		result[userID], _ = resolveCommunityFeaturedBadge(badge, selected[userID])
 	}
 	return result, nil
 }

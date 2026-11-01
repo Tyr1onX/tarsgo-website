@@ -5,7 +5,54 @@ import (
 	"net/http"
 	"strings"
 	"testing"
+	"time"
+
+	"tarsgo-backend/model"
+	"tarsgo-backend/service/cobuilderbadge"
 )
+
+func TestCommunityFeaturedBadgeDefaultsToCurrentHighestAndTracksRevocation(t *testing.T) {
+	base := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	revokedAt := base.AddDate(0, 0, 20)
+	records := make([]model.CoBuilderContribution, 10)
+	for index := range records {
+		records[index] = model.CoBuilderContribution{
+			ID: uint64(index + 1), UserID: 7, Description: "有效社区贡献",
+			GrantedByID: 9, CreatedAt: base.AddDate(0, 0, index),
+		}
+	}
+	records[0].RevokedAt = &revokedAt
+	current := cobuilderbadge.PublicBadgeFromContributions(records)
+	if current == nil || !current.IsEarned {
+		t.Fatal("expected the remaining contributions to keep a badge earned")
+	}
+
+	defaultBadge, selectedKey := resolveCommunityFeaturedBadge(current, "")
+	if defaultBadge == nil || defaultBadge.LevelCode != current.LevelCode || selectedKey != "" {
+		t.Fatalf("automatic selection = %#v, selected key %q; want the current highest tier with no custom key", defaultBadge, selectedKey)
+	}
+	selectedBadge, selectedKey := resolveCommunityFeaturedBadge(current, "co_builder")
+	if selectedBadge == nil || selectedBadge.LevelCode != current.LevelCode || selectedKey != "co_builder" {
+		t.Fatalf("explicit selection = %#v, selected key %q; want the earned badge", selectedBadge, selectedKey)
+	}
+
+	for index := range records {
+		revoked := base.AddDate(0, 1, index+1)
+		records[index].RevokedAt = &revoked
+	}
+	revokedBadge := cobuilderbadge.PublicBadgeFromContributions(records)
+	featured, selectedKey := resolveCommunityFeaturedBadge(revokedBadge, "co_builder")
+	if featured != nil || selectedKey != "" {
+		t.Fatalf("revoked badge remained visible: badge=%#v selected key=%q", featured, selectedKey)
+	}
+}
+
+func TestCommunityAuthorPositionsUsesCurrentOrganizationAssignments(t *testing.T) {
+	positions := communityAuthorPositions([]uint64{323, 323, 0})[323]
+	if len(positions) != 1 || positions[0].CategoryTitle != "核心管理层" || positions[0].Title != "运营经理" {
+		t.Fatalf("community author positions = %#v, want the current operations manager assignment once", positions)
+	}
+}
 
 func TestCommunityMemberProfileValidatesAccessAndRequestBeforeDatabaseReads(t *testing.T) {
 	service := &Service{}
