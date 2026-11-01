@@ -5,6 +5,7 @@ export interface CommunityDraft {
   title: string;
   body: string;
   files: File[];
+  uploadTokens?: string[];
   updatedAt: number;
 }
 

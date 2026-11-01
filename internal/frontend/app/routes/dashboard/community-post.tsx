@@ -1,25 +1,26 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { lazy, Suspense, useCallback, useEffect, useState, type FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
 
 import { CommunityImageGallery } from "~/components/community-image-gallery";
+import { type CommunityPendingImage } from "~/components/community-markdown-editor";
+import { CommunityMarkdown } from "~/components/community-markdown";
 import { CommunityLevelBadge } from "~/components/community-growth";
 import { CommunityIcon } from "~/components/community-icons";
 import { CommunityActionIcon, CommunityAvatar } from "~/components/community-post-card";
-import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
 import {
   COMMUNITY_CATEGORIES,
   communityCategoryLabel,
   communityClient,
-  communityImageAccept,
-  communityImageHint,
   formatCommunityDate,
-  validateCommunityImages,
   type CommunityCategory,
   type CommunityComment,
   type CommunityDetail,
 } from "~/lib/community-client";
 import { removeCommunityPostFromLists } from "~/lib/community-list-cache";
+import { communityStandaloneAttachments, stripCommunityMarkdown } from "~/lib/community-markdown";
 import "./community.css";
+
+const CommunityMarkdownEditor = lazy(() => import("~/components/community-markdown-editor").then((module) => ({ default: module.CommunityMarkdownEditor })));
 
 export function meta() {
   return [{ title: "社区讨论 | TARSGO" }];
@@ -37,15 +38,16 @@ export default function CommunityPostRoute() {
   const [busy, setBusy] = useState(false);
   const [replyTarget, setReplyTarget] = useState<CommunityComment | null>(null);
   const [comment, setComment] = useState("");
-  const [commentFiles, setCommentFiles] = useState<File[]>([]);
-  const [commentStatus, setCommentStatus] = useState<FileUploadStatus>("pending");
+  const [commentUploads, setCommentUploads] = useState<CommunityPendingImage[]>([]);
   const [commentError, setCommentError] = useState("");
   const [editingPost, setEditingPost] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
   const [editCategory, setEditCategory] = useState<CommunityCategory>("technology");
+  const [editPostUploads, setEditPostUploads] = useState<CommunityPendingImage[]>([]);
   const [editingCommentID, setEditingCommentID] = useState<number | null>(null);
   const [editCommentBody, setEditCommentBody] = useState("");
+  const [editCommentUploads, setEditCommentUploads] = useState<CommunityPendingImage[]>([]);
   const returnTarget = (location.state as { communityReturnTo?: unknown } | null)?.communityReturnTo;
   const hasCommunityReturnLocation = typeof returnTarget === "string" && (returnTarget === "/dashboard" || returnTarget.startsWith("/dashboard?"));
   const returnTo = typeof returnTarget === "string" && (returnTarget === "/dashboard" || returnTarget.startsWith("/dashboard?"))
@@ -151,18 +153,15 @@ export default function CommunityPostRoute() {
     setError("");
     setCommentError("");
     setRetryAction(null);
-    setCommentStatus(commentFiles.length ? "uploading" : "pending");
     try {
-      const result = await communityClient.addComment(postID, { body: comment, parentPostId: replyTarget?.id, files: commentFiles });
+      const result = await communityClient.addComment(postID, { body: comment, parentPostId: replyTarget?.id, files: commentUploads.map((item) => item.file), uploadTokens: commentUploads.map((item) => item.token) });
       setDetail(result);
       setComment("");
-      setCommentFiles([]);
+      setCommentUploads([]);
       setReplyTarget(null);
-      setCommentStatus("pending");
       const createdComment = result.comments.at(-1);
       if (createdComment) requestAnimationFrame(() => document.getElementById(`community-comment-${createdComment.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }));
     } catch (cause) {
-      setCommentStatus(commentFiles.length ? "failed" : "pending");
       setCommentError(cause instanceof Error ? cause.message : "回复失败，请稍后重试。");
       setRetryAction(() => () => (document.getElementById("community-reply-form") as HTMLFormElement | null)?.requestSubmit());
     } finally {
@@ -177,7 +176,7 @@ export default function CommunityPostRoute() {
     setError("");
     setRetryAction(null);
     try {
-      setDetail(await communityClient.update(postID, { title: editTitle, body: editBody, category: editCategory }));
+      setDetail(await communityClient.update(postID, { title: editTitle, body: editBody, category: editCategory, files: editPostUploads.map((item) => item.file), uploadTokens: editPostUploads.map((item) => item.token) }));
       setEditingPost(false);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "帖子更新失败。");
@@ -209,7 +208,7 @@ export default function CommunityPostRoute() {
     setBusy(true);
     setRetryAction(null);
     try {
-      setDetail(await communityClient.updateComment(commentID, editCommentBody));
+      setDetail(await communityClient.updateComment(commentID, { body: editCommentBody, files: editCommentUploads.map((item) => item.file), uploadTokens: editCommentUploads.map((item) => item.token) }));
       setEditingCommentID(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "回复更新失败。");
@@ -281,19 +280,19 @@ export default function CommunityPostRoute() {
       {editingPost ? <form id="community-post-edit" className="community-composer" onSubmit={savePostEdit}>
         <label className="community-field">标题<input value={editTitle} onChange={(event) => setEditTitle(event.target.value)} maxLength={160} required /></label>
         <label className="community-field">分类<select value={editCategory} onChange={(event) => setEditCategory(event.target.value as CommunityCategory)}>{COMMUNITY_CATEGORIES.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
-        <label className="community-field">正文<textarea value={editBody} onChange={(event) => setEditBody(event.target.value)} maxLength={20000} required rows={8} /></label>
+        <label className="community-field community-field--editor">正文<Suspense fallback={<div className="community-markdown-editor__loading" role="status">正在打开编辑器…</div>}><CommunityMarkdownEditor value={editBody} onChange={setEditBody} uploads={editPostUploads} onUploadsChange={setEditPostUploads} attachments={post.attachments} required placeholder="继续完善这条帖子…" /></Suspense></label>
         <div className="community-composer__actions"><button type="button" className="community-button community-button--quiet" onClick={() => setEditingPost(false)}>取消</button><button type="submit" className="community-button community-button--primary" disabled={busy}>保存修改</button></div>
       </form> : <>
         <h1 className="community-post__title" id="community-thread-title">{post.title}</h1>
-        <p className="community-thread__body">{post.body}</p>
-        {post.attachments.length ? <CommunityImageGallery attachments={post.attachments} /> : null}
+        <CommunityMarkdown source={post.body} className="community-thread__body" />
+        {communityStandaloneAttachments(post.body, post.attachments).length ? <CommunityImageGallery attachments={communityStandaloneAttachments(post.body, post.attachments)} /> : null}
       </>}
       <footer className="community-post__actions">
         <button type="button" aria-pressed={post.likedByMe} disabled={busy} onClick={() => void toggleReaction("like")}><CommunityActionIcon kind="like" /><span>{post.likeCount}</span>{post.likedByMe ? "已赞" : "点赞"}</button>
         <a href="#community-comments"><CommunityActionIcon kind="comment" /><span>{post.commentCount}</span>评论</a>
         <button type="button" aria-pressed={post.savedByMe} disabled={busy} onClick={() => void toggleReaction("bookmark")}><CommunityActionIcon kind="bookmark" />{post.savedByMe ? "已收藏" : "收藏"}</button>
         <div className="community-thread__tools">
-          {post.canEdit && !editingPost ? <><button type="button" onClick={() => { setEditTitle(post.title); setEditBody(post.body); setEditCategory(post.category); setEditingPost(true); }}>编辑</button><button type="button" onClick={() => void deletePost()}>删除</button></> : null}
+            {post.canEdit && !editingPost ? <><button type="button" onClick={() => { setEditTitle(post.title); setEditBody(post.body); setEditCategory(post.category); setEditPostUploads([]); setEditingPost(true); }}>编辑</button><button type="button" onClick={() => void deletePost()}>删除</button></> : null}
           {post.canModerate ? <><button type="button" onClick={() => void moderate({ pinned: !post.isPinned })}>{post.isPinned ? "取消置顶" : "置顶"}</button><button type="button" onClick={() => void moderate({ hidden: !post.isHidden })}>{post.isHidden ? "取消隐藏" : "隐藏"}</button></> : null}
         </div>
       </footer>
@@ -306,25 +305,23 @@ export default function CommunityPostRoute() {
         return <article key={item.id} id={`community-comment-${item.id}`} className="community-comment" data-reply={Boolean(item.parentPostId)} data-depth={commentDepth(item)}>
           <div className="community-comment__head"><CommunityAvatar name={item.authorName} src={item.authorAvatar} size="small" /><strong>{item.authorName}</strong><CommunityLevelBadge level={item.authorLevel} />{item.isAcceptedSolution ? <span className="community-comment__solution"><CommunityIcon name="check" />已采纳</span> : null}<time dateTime={item.createdAt}>{formatCommunityDate(item.createdAt)}{item.editedAt ? " · 已编辑" : ""}</time></div>
           {parent ? <button type="button" className="community-comment__context" onClick={() => document.getElementById(`community-comment-${parent.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}>
-            <span>回复 {parent.authorName}</span><span>{parent.isDeleted ? "该回复已删除" : parent.body}</span>
+            <span>回复 {parent.authorName}</span><span>{parent.isDeleted ? "该回复已删除" : stripCommunityMarkdown(parent.body)}</span>
           </button> : null}
-          {editingCommentID === item.id ? <form id={`community-comment-edit-${item.id}`} className="community-comment-edit" onSubmit={(event) => void saveCommentEdit(event, item.id)}><textarea value={editCommentBody} onChange={(event) => setEditCommentBody(event.target.value)} maxLength={20000} required /><button className="community-button community-button--primary" disabled={busy}>保存</button></form> : <p className="community-comment__body">{item.body}</p>}
-          {item.attachments.length ? <CommunityImageGallery attachments={item.attachments} /> : null}
+          {editingCommentID === item.id ? <form id={`community-comment-edit-${item.id}`} className="community-comment-edit" onSubmit={(event) => void saveCommentEdit(event, item.id)}><Suspense fallback={<div className="community-markdown-editor__loading" role="status">正在打开编辑器…</div>}><CommunityMarkdownEditor value={editCommentBody} onChange={setEditCommentBody} uploads={editCommentUploads} onUploadsChange={setEditCommentUploads} attachments={item.attachments} compact required placeholder="编辑回复…" /></Suspense><button className="community-button community-button--primary" disabled={busy}>保存</button></form> : <CommunityMarkdown source={item.body} className="community-comment__body" />}
+          {communityStandaloneAttachments(item.body, item.attachments).length ? <CommunityImageGallery attachments={communityStandaloneAttachments(item.body, item.attachments)} compact /> : null}
           {!item.isDeleted && <div className="community-comment__actions">
-            <button type="button" onClick={() => { setReplyTarget(item); document.getElementById("community-reply-body")?.focus(); document.getElementById("community-reply-form")?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }}>回复</button>
+            <button type="button" onClick={() => { setReplyTarget(item); document.querySelector<HTMLElement>("#community-reply-form .ProseMirror")?.focus(); document.getElementById("community-reply-form")?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }}>回复</button>
             <button type="button" className={item.likedByMe ? "is-liked" : ""} aria-label={`${item.likedByMe ? "取消点赞" : "点赞"}，${item.likeCount} 个赞`} aria-pressed={item.likedByMe} disabled={busy || !item.canLike} onClick={() => void toggleCommentLike(item)}><CommunityActionIcon kind="like" /><span>{item.likeCount || "赞"}</span></button>
             {item.canAcceptSolution ? <button type="button" className={item.isAcceptedSolution ? "is-solution" : ""} disabled={busy} onClick={() => void setSolution(item.isAcceptedSolution ? null : item.id)}>{item.isAcceptedSolution ? "取消采纳" : "采纳为解决方案"}</button> : null}
-            {item.canEdit ? <><button type="button" onClick={() => { setEditingCommentID(item.id); setEditCommentBody(item.body); }}>编辑</button><button type="button" onClick={() => void deleteComment(item.id)}>删除</button></> : null}
+            {item.canEdit ? <><button type="button" onClick={() => { setEditingCommentID(item.id); setEditCommentBody(item.body); setEditCommentUploads([]); }}>编辑</button><button type="button" onClick={() => void deleteComment(item.id)}>删除</button></> : null}
           </div>}
         </article>;
       })}
     </section>
 
     <form id="community-reply-form" className="community-thread-composer" onSubmit={submitComment} aria-label="发表回复">
-      {replyTarget ? <div className="community-thread-composer__replying"><span>回复 <strong>{replyTarget.authorName}</strong>{replyTarget.isDeleted ? " · 该回复已删除" : ` · ${replyTarget.body}`}</span><button type="button" className="community-icon-button" aria-label="取消回复对象" onClick={() => setReplyTarget(null)}><CommunityIcon name="x" /></button></div> : null}
-      <label htmlFor="community-reply-body" className="sr-only">写下你的回复</label>
-      <textarea id="community-reply-body" value={comment} onChange={(event) => { setComment(event.target.value); setCommentError(""); setRetryAction(null); }} maxLength={20000} required placeholder="参与讨论…" />
-      <FileUploadField label="回复图片" files={commentFiles} onFilesChange={(next) => { setCommentFiles(next); setCommentStatus("pending"); setCommentError(""); }} accept={communityImageAccept} multiple variant="compact" hint={communityImageHint} status={commentStatus} disabled={busy} validateSelection={validateCommunityImages} />
+      {replyTarget ? <div className="community-thread-composer__replying"><span>回复 <strong>{replyTarget.authorName}</strong>{replyTarget.isDeleted ? " · 该回复已删除" : ` · ${stripCommunityMarkdown(replyTarget.body)}`}</span><button type="button" className="community-icon-button" aria-label="取消回复对象" onClick={() => setReplyTarget(null)}><CommunityIcon name="x" /></button></div> : null}
+      <Suspense fallback={<div className="community-markdown-editor__loading" role="status">正在打开编辑器…</div>}><CommunityMarkdownEditor value={comment} onChange={(next) => { setComment(next); setCommentError(""); setRetryAction(null); }} uploads={commentUploads} onUploadsChange={setCommentUploads} compact required disabled={busy} placeholder="参与讨论…" /></Suspense>
       <div className="community-thread-composer__actions">{commentError ? <p className="community-error" role="alert">{commentError}{retryAction ? <button type="button" className="community-inline-retry" onClick={() => retryAction()}>重试</button> : null}</p> : null}<button type="submit" className="community-button community-button--primary" disabled={busy || !comment.trim()}>{busy ? "提交中…" : "回复"}</button></div>
     </form>
   </section>;

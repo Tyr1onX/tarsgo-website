@@ -45,14 +45,20 @@ test("all native upload entry points use the shared field except the existing av
     "../routes/dashboard/assignments.tsx",
     "../routes/admin/assignment-management.tsx",
     "../routes/dashboard/practice-projects.tsx",
-    "../components/community-composer.tsx",
-    "../routes/dashboard/community-post.tsx",
     "../routes/users/registrations.tsx",
     "../components/personal-timetable-upload.tsx",
     "../routes/admin/admission-qr-settings.tsx",
     "../routes/leave-workbench.tsx",
   ];
   for (const path of paths) assert.match(await source(path), /FileUploadField/);
+
+  const communityEditor = await source("../components/community-markdown-editor.tsx");
+  const composer = await source("../components/community-composer.tsx");
+  const thread = await source("../routes/dashboard/community-post.tsx");
+  assert.match(composer, /CommunityMarkdownEditor/);
+  assert.match(thread, /CommunityMarkdownEditor/);
+  assert.match(communityEditor, /uploadConfig\.key/);
+  assert.match(communityEditor, /type="file" accept=\{accept\}/);
 
   const layout = await source("../routes/dashboard/layout.tsx");
   assert.match(layout, /import \{ ProfileDialog \} from "~\/components\/profile-dialog"/);

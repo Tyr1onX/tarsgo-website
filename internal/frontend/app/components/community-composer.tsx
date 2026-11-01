@@ -1,34 +1,29 @@
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { lazy, Suspense, useEffect, useRef, useState, type FormEvent } from "react";
 
-import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
 import { CommunityIcon } from "~/components/community-icons";
-import {
-  COMMUNITY_CATEGORIES,
-  communityImageAccept,
-  communityImageHint,
-  validateCommunityImages,
-  type CommunityCategory,
-} from "~/lib/community-client";
+import type { CommunityPendingImage } from "~/components/community-markdown-editor";
+import { COMMUNITY_CATEGORIES, type CommunityCategory } from "~/lib/community-client";
 import { clearCommunityDraft, loadCommunityDraft, saveCommunityDraft } from "~/lib/community-draft";
+
+const CommunityMarkdownEditor = lazy(() => import("~/components/community-markdown-editor").then((module) => ({ default: module.CommunityMarkdownEditor })));
 
 export function CommunityComposer({ id, accountId, onCancel, onPublish }: {
   id: string;
   accountId: number;
   onCancel: () => void;
-  onPublish: (input: { category: CommunityCategory; title: string; body: string; files: File[] }) => Promise<void>;
+  onPublish: (input: { category: CommunityCategory; title: string; body: string; files: File[]; uploadTokens: string[] }) => Promise<void>;
 }) {
   const titleRef = useRef<HTMLInputElement>(null);
   const [category, setCategory] = useState<CommunityCategory>("technology");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
-  const [files, setFiles] = useState<File[]>([]);
-  const [status, setStatus] = useState<FileUploadStatus>("pending");
+  const [uploads, setUploads] = useState<CommunityPendingImage[]>([]);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [draftReady, setDraftReady] = useState(false);
   const [draftStatus, setDraftStatus] = useState<"empty" | "saving" | "saved" | "failed">("empty");
-  const latestDraftRef = useRef({ accountId, category, title, body, files, draftReady, saving });
-  latestDraftRef.current = { accountId, category, title, body, files, draftReady, saving };
+  const latestDraftRef = useRef({ accountId, category, title, body, uploads, draftReady, saving });
+  latestDraftRef.current = { accountId, category, title, body, uploads, draftReady, saving };
 
   useEffect(() => {
     let active = true;
@@ -39,13 +34,13 @@ export function CommunityComposer({ id, accountId, onCancel, onPublish }: {
         setCategory(draft.category);
         setTitle(draft.title);
         setBody(draft.body);
-        setFiles(draft.files);
+        setUploads(draft.files.map((file, index) => ({ file, token: draft.uploadTokens?.[index] ?? "" })));
         setDraftStatus("saved");
       } else {
         setCategory("technology");
         setTitle("");
         setBody("");
-        setFiles([]);
+        setUploads([]);
         setDraftStatus("empty");
       }
       setDraftReady(true);
@@ -63,37 +58,35 @@ export function CommunityComposer({ id, accountId, onCancel, onPublish }: {
 
   useEffect(() => () => {
     const draft = latestDraftRef.current;
-    if (draft.draftReady && !draft.saving && (draft.title.trim() || draft.body.trim() || draft.files.length || draft.category !== "technology")) {
-      void saveCommunityDraft(draft.accountId, { category: draft.category, title: draft.title, body: draft.body, files: draft.files, updatedAt: Date.now() });
+    if (draft.draftReady && !draft.saving && (draft.title.trim() || draft.body.trim() || draft.uploads.length || draft.category !== "technology")) {
+      void saveCommunityDraft(draft.accountId, { category: draft.category, title: draft.title, body: draft.body, files: draft.uploads.map((item) => item.file), uploadTokens: draft.uploads.map((item) => item.token), updatedAt: Date.now() });
     }
   }, []);
 
   useEffect(() => {
     if (!draftReady || saving) return;
-    const hasContent = Boolean(title.trim() || body.trim() || files.length || category !== "technology");
+    const hasContent = Boolean(title.trim() || body.trim() || uploads.length || category !== "technology");
     const timer = window.setTimeout(() => {
       if (!hasContent) {
         void clearCommunityDraft(accountId).then(() => setDraftStatus("empty")).catch(() => setDraftStatus("failed"));
         return;
       }
       setDraftStatus("saving");
-      void saveCommunityDraft(accountId, { category, title, body, files, updatedAt: Date.now() })
+      void saveCommunityDraft(accountId, { category, title, body, files: uploads.map((item) => item.file), uploadTokens: uploads.map((item) => item.token), updatedAt: Date.now() })
         .then(() => setDraftStatus("saved"))
         .catch(() => setDraftStatus("failed"));
     }, 420);
     return () => window.clearTimeout(timer);
-  }, [accountId, body, category, draftReady, files, saving, title]);
+  }, [accountId, body, category, draftReady, uploads, saving, title]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
     setError("");
-    setStatus(files.length ? "uploading" : "pending");
     try {
-      await onPublish({ category, title, body, files });
+      await onPublish({ category, title, body, files: uploads.map((item) => item.file), uploadTokens: uploads.map((item) => item.token) });
       await clearCommunityDraft(accountId).catch(() => undefined);
     } catch (cause) {
-      setStatus(files.length ? "failed" : "pending");
       setError(cause instanceof Error ? cause.message : "帖子发布失败");
     } finally {
       setSaving(false);
@@ -114,30 +107,15 @@ export function CommunityComposer({ id, accountId, onCancel, onPublish }: {
           {COMMUNITY_CATEGORIES.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
         </select>
       </label>
-      <label className="community-field">正文
-        <textarea value={body} onChange={(event) => setBody(event.target.value)} maxLength={20000} required rows={7} placeholder="分享过程、问题或进展…" disabled={!draftReady || saving} />
+      <label className="community-field community-field--editor">正文
+        {draftReady ? <Suspense fallback={<div className="community-markdown-editor__loading" role="status">正在打开编辑器…</div>}><CommunityMarkdownEditor value={body} onChange={setBody} uploads={uploads} onUploadsChange={setUploads} required disabled={saving} placeholder="分享过程、问题或进展…" /></Suspense> : <div className="community-markdown-editor__loading" role="status">正在恢复草稿…</div>}
       </label>
-      <div className="community-field">
-        <span className="community-field__label"><CommunityIcon name="image" />图片</span>
-        <FileUploadField
-          label="帖子图片"
-          files={files}
-          onFilesChange={(next) => { setFiles(next); setStatus("pending"); setError(""); }}
-          accept={communityImageAccept}
-          multiple
-          variant="compact"
-          hint={communityImageHint}
-          status={status}
-          disabled={!draftReady || saving}
-          validateSelection={validateCommunityImages}
-        />
-      </div>
     </div>
     <div className="community-composer__actions">
       <span className={`community-draft-status${draftStatus === "failed" ? " is-error" : ""}`} role="status">{draftStatus === "saving" ? "正在保存草稿" : draftStatus === "saved" ? "草稿已保存到此设备" : draftStatus === "failed" ? "草稿保存失败" : ""}</span>
       {error ? <p className="community-error" role="alert">{error}</p> : null}
       <button type="button" className="community-button community-button--quiet" onClick={onCancel} disabled={saving}>取消</button>
-      <button type="submit" className="community-button community-button--primary" disabled={saving || !draftReady}>{saving ? "发布中…" : "发布"}</button>
+      <button type="submit" className="community-button community-button--primary" disabled={saving || !draftReady || !title.trim() || !body.trim()}>{saving ? "发布中…" : "发布"}</button>
     </div>
   </form>;
 }
