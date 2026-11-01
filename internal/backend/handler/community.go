@@ -29,6 +29,43 @@ func (h *CommunityHandler) Growth(c *gin.Context) {
 	writeAPI(c, http.StatusOK, "获取社区成长档案成功", profile)
 }
 
+func (h *CommunityHandler) GetMemberProfile(c *gin.Context) {
+	memberID, ok := parseCommunityID(c, "id", "成员编号")
+	if !ok {
+		return
+	}
+	page := 1
+	if raw := strings.TrimSpace(c.Query("page")); raw != "" {
+		parsed, err := strconv.Atoi(raw)
+		if err != nil || parsed < 1 || parsed > 10000 {
+			writeAPIError(c, http.StatusBadRequest, "成员主页页码不合法")
+			return
+		}
+		page = parsed
+	}
+	result, err := h.service.GetCommunityMemberProfile(c.Request.Context(), currentTrainingQuestionActor(c), memberID,
+		trainingqa.CommunityMemberProfileTab(strings.TrimSpace(c.Query("tab"))), page)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "获取成员主页成功", result)
+}
+
+func (h *CommunityHandler) UpdateMyMemberProfile(c *gin.Context) {
+	var request trainingqa.CommunityMemberProfileInput
+	if err := c.ShouldBindJSON(&request); err != nil {
+		writeAPIError(c, http.StatusBadRequest, "社区资料格式不正确")
+		return
+	}
+	result, err := h.service.UpdateMyCommunityMemberProfile(c.Request.Context(), currentTrainingQuestionActor(c), request)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "社区资料已更新", result)
+}
+
 func (h *CommunityHandler) CheckIn(c *gin.Context) {
 	result, err := h.service.CheckInCommunity(c.Request.Context(), currentTrainingQuestionActor(c))
 	if err != nil {

@@ -17,6 +17,9 @@ const growthUI = await source("../components/community-growth.tsx");
 const growthStyles = await source("../components/community-growth.css");
 const profile = await source("../components/profile-dialog.tsx");
 const postCard = await source("../components/community-post-card.tsx");
+const authorProfile = await source("../components/community-author-profile.tsx");
+const memberProfilePage = await source("../routes/dashboard/community-member-profile.tsx");
+const memberProfileClient = await source("./community-member-profile-client.ts");
 const markdownEditor = await source("../components/community-markdown-editor.tsx");
 const markdownRenderer = await source("../components/community-markdown.tsx");
 const markdown = await source("./community-markdown.ts");
@@ -31,6 +34,7 @@ test("workbench home is the community and public home stays separately routed", 
   assert.match(routes, /index\("routes\/home\.tsx"\)/);
   assert.match(routes, /index\("routes\/dashboard\/index\.tsx"\)/);
   assert.match(routes, /route\("community\/:id", "routes\/dashboard\/community-post\.tsx"\)/);
+  assert.match(routes, /route\("members\/:id", "routes\/dashboard\/community-member-profile\.tsx"\)/);
   assert.match(dashboard, /吉甲社区/);
   assert.match(navigation, /label: "吉甲社区"/);
   assert.doesNotMatch(navigation, /"\/dashboard\/questions"/);
@@ -175,8 +179,8 @@ test("community growth shows Beijing check-ins, author levels, and idempotent in
   const growthService = service + await source("../../../backend/service/trainingqa/community_growth.go");
   assert.match(dashboard, /<CommunityGrowthBar profile=\{growthProfile\}/);
   assert.match(profile, /<CommunityGrowthProfileSection\s*\/>/);
-  assert.match(postCard, /CommunityLevelBadge level=\{post\.authorLevel\}/);
-  assert.match(thread, /CommunityLevelBadge level=\{item\.authorLevel\}/);
+  assert.match(postCard, /CommunityAuthorProfile id=\{post\.authorId\}/);
+  assert.match(thread, /CommunityAuthorProfile id=\{item\.authorId\}/);
   assert.match(thread, /likeComment\(item\.id, active\)/);
   assert.match(thread, /setSolution\(item\.isAcceptedSolution \? null : item\.id\)/);
   assert.match(growthUI, /communityClient\.checkIn\(\)/);
@@ -194,4 +198,25 @@ test("community growth shows Beijing check-ins, author levels, and idempotent in
   assert.match(router, /communityAPI\.PUT\("\/comments\/:id\/like"/);
   assert.match(router, /communityAPI\.PATCH\("\/posts\/:id\/solution"/);
   assert.match(migrations, /version: 38/);
+});
+
+test("member profiles reuse community permissions, XP, and public badge records", async () => {
+  const memberService = await source("../../../backend/service/trainingqa/community_member_profile.go");
+  const badgeProjection = await source("../../../backend/service/cobuilderbadge/public.go");
+  assert.match(router, /communityAPI\.GET\("\/members\/:id", communityHandler\.GetMemberProfile\)/);
+  assert.match(router, /communityAPI\.PUT\("\/me\/profile", requireSameOriginRequest/);
+  assert.match(memberProfileClient, /\/api\/community\/members\/\$\{memberID\}/);
+  assert.match(memberService, /s\.communityPostQuery\(ctx, actor\)/);
+  assert.match(memberService, /CommunityLevelForXP\(totalXP\)/);
+  assert.match(memberService, /organization\.MemberPositions\(memberID\)/);
+  assert.match(memberService, /FeaturedBadgeKey/);
+  assert.doesNotMatch(badgeProjection, /GrantedByID|RevokedByID/);
+  assert.match(authorProfile, /communityMemberProfileClient\.get\(id, "card"\)/);
+  assert.match(authorProfile, /communityProfileReturnTo/);
+  assert.match(memberProfilePage, /概览[\s\S]*帖子[\s\S]*回复[\s\S]*徽章/);
+  assert.match(memberProfilePage, /featuredBadgeKey: key/);
+  assert.match(memberProfilePage, /preventScrollReset: true/);
+  assert.match(memberProfilePage, /navigate\(-1\)/);
+  assert.match(styles, /\.community-member-hero/);
+  assert.match(styles, /@media \(max-width: 639px\)[\s\S]*?\.community-member-overview/);
 });

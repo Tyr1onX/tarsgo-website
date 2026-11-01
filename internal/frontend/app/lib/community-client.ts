@@ -29,6 +29,7 @@ export interface CommunityPost {
   authorName: string;
   authorAvatar?: string;
   authorLevel: number;
+  authorFeaturedBadge?: import("~/lib/community-member-profile-client").CommunityFeaturedBadge;
   visibility: "public" | "private";
   isSolved?: boolean;
   acceptedSolutionId?: number;
@@ -55,6 +56,7 @@ export interface CommunityComment {
   authorName: string;
   authorAvatar?: string;
   authorLevel: number;
+  authorFeaturedBadge?: import("~/lib/community-member-profile-client").CommunityFeaturedBadge;
   body: string;
   createdAt: string;
   editedAt?: string;

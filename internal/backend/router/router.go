@@ -290,6 +290,8 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	authenticatedAPI.Use(middleware.RequireAuthenticated(authService))
 	communityAPI := authenticatedAPI.Group("/community")
 	communityAPI.GET("/growth", communityHandler.Growth)
+	communityAPI.GET("/members/:id", communityHandler.GetMemberProfile)
+	communityAPI.PUT("/me/profile", requireSameOriginRequest(cfg), communityHandler.UpdateMyMemberProfile)
 	communityAPI.POST("/check-in", requireSameOriginRequest(cfg), communityHandler.CheckIn)
 	communityAPI.GET("/posts", communityHandler.List)
 	communityAPI.GET("/hot", communityHandler.Hot)
