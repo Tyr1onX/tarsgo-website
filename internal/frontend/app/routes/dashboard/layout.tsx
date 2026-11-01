@@ -4,7 +4,6 @@ import { Link, NavLink, Outlet, redirect, useLocation, useNavigate, useRevalidat
 import type { Route } from "./+types/layout";
 import { SiteLogo } from "~/components/site-logo";
 import { ThemeControl } from "~/components/theme-control";
-import { ProfileDialog } from "~/components/profile-dialog";
 import { CoBuilderBadgeUnlockToast } from "~/components/co-builder-badge-unlock-toast";
 import type { CoBuilderBadgeLevel, CoBuilderBadgeReplayRequest } from "~/lib/co-builder-badge-client";
 import { ApiError } from "~/lib/api-client";
@@ -53,7 +52,9 @@ export interface DashboardLayoutOutletContext {
   groupResolution: UserGroupConfirmationState | null;
   groupResolutionError: string;
   refreshCandidateTodoCount: (force?: boolean) => Promise<void>;
-  openProfile: () => void;
+  openMyProfile: (tab?: "overview" | "settings" | "badges") => void;
+  refreshAccountProfile: () => void;
+  requestBadgeReplay: (levelCode: CoBuilderBadgeLevel) => void;
   profileRevision: number;
 }
 
@@ -355,11 +356,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
-  const [profileOpen, setProfileOpen] = useState(false);
   const [badgeReplayRequest, setBadgeReplayRequest] = useState<CoBuilderBadgeReplayRequest | null>(null);
-  useEffect(() => {
-    if (location.pathname === "/dashboard" && new URLSearchParams(location.search).get("profile") === "timetable") setProfileOpen(true);
-  }, [location.pathname, location.search]);
   const [accountModalMode, setAccountModalMode] = useState<"switch" | "manage" | null>(null);
   const [accountSessions, setAccountSessions] = useState<AccountSessionAccount[]>([]);
   const [accountSessionsLoading, setAccountSessionsLoading] = useState(false);
@@ -375,10 +372,22 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const sidebarResizeStartWidthRef = useRef(SIDEBAR_DEFAULT_WIDTH);
   const badgeReplaySequenceRef = useRef(0);
   const { currentUser, groupResolution, groupResolutionError } = loaderData;
+  useEffect(() => {
+    if (location.pathname === "/dashboard" && new URLSearchParams(location.search).get("profile") === "timetable") {
+      navigate(`/dashboard/members/${currentUser.id}?tab=settings#timetable`, { replace: true });
+    }
+  }, [currentUser.id, location.pathname, location.search, navigate]);
   const requestBadgeReplay = useCallback((levelCode: CoBuilderBadgeLevel) => {
     badgeReplaySequenceRef.current += 1;
     setBadgeReplayRequest({ levelCode, requestId: badgeReplaySequenceRef.current, userId: currentUser.id });
   }, [currentUser.id]);
+  const openMyProfile = useCallback((tab: "overview" | "settings" | "badges" = "overview") => {
+    navigate(`/dashboard/members/${currentUser.id}${tab === "overview" ? "" : `?tab=${tab}`}`);
+  }, [currentUser.id, navigate]);
+  const refreshAccountProfile = useCallback(() => {
+    setProfileRevision((revision) => revision + 1);
+    void revalidator.revalidate();
+  }, [revalidator]);
   const completeBadgeReplay = useCallback((requestId: number) => {
     setBadgeReplayRequest((current) => current?.requestId === requestId ? null : current);
   }, []);
@@ -887,10 +896,10 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
               <div className="p-1.5">
                 <button
                   type="button"
-                  onClick={() => { setUserMenuOpen(false); setProfileOpen(true); }}
+                  onClick={() => { setUserMenuOpen(false); openMyProfile(); }}
                   role="menuitem"
                   className="dashboard-shell__account-action"
-                >个人资料</button>
+                >我的主页</button>
                 <div className="dashboard-shell__account-divider" />
                 <button
                   type="button"
@@ -978,25 +987,16 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
 
         <main className="p-4 sm:p-6 lg:p-8">
           <div className="relative">
-            <Outlet context={{ currentUser, groupResolution, groupResolutionError, refreshCandidateTodoCount, openProfile: () => setProfileOpen(true), profileRevision } satisfies DashboardLayoutOutletContext} />
+            <Outlet context={{ currentUser, groupResolution, groupResolutionError, refreshCandidateTodoCount, openMyProfile, refreshAccountProfile, requestBadgeReplay, profileRevision } satisfies DashboardLayoutOutletContext} />
           </div>
         </main>
       </div>
       <CoBuilderBadgeUnlockToast
         key={currentUser.id}
-        onOpenProfile={() => setProfileOpen(true)}
+        onOpenProfile={() => openMyProfile("badges")}
         replayRequest={currentBadgeReplayRequest}
         onReplayComplete={completeBadgeReplay}
       />
-      {profileOpen ? (
-        <ProfileDialog
-          user={currentUser}
-          groups={groupResolution?.groups.map((group) => group.name) ?? []}
-          onClose={() => setProfileOpen(false)}
-          onSaved={() => { setProfileOpen(false); setProfileRevision((revision) => revision + 1); void revalidator.revalidate(); }}
-          onReplayBadge={requestBadgeReplay}
-        />
-      ) : null}
       {accountModalMode ? (
         <AccountSessionDialog
           mode={accountModalMode}

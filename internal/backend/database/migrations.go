@@ -173,7 +173,27 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 40, apply: func(db *gorm.DB) error {
 			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.CommunityPostViewRecord{})
 		}},
+		{version: 41, apply: func(db *gorm.DB) error {
+			return migrateTeamIdentity(db)
+		}},
 	}
+}
+
+func migrateTeamIdentity(db *gorm.DB) error {
+	if err := db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.TeamIdentityChange{}); err != nil {
+		return err
+	}
+	if !db.Migrator().HasColumn(&model.User{}, "TeamIdentityStatus") {
+		if err := db.Migrator().AddColumn(&model.User{}, "TeamIdentityStatus"); err != nil {
+			return err
+		}
+	}
+	if !db.Migrator().HasIndex(&model.User{}, "idx_team_identity_status") {
+		if err := db.Migrator().CreateIndex(&model.User{}, "TeamIdentityStatus"); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func migrateCanonicalUserNames(db *gorm.DB) error {

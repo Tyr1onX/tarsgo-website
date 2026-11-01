@@ -80,7 +80,7 @@ test("linked positions expose the existing member detail path while unlinked pos
 
 test("members see their own organization title on the personal profile", () => {
   const authService = source("../../../backend/service/auth/service.go");
-  const profile = source("../components/profile-dialog.tsx");
+  const profile = source("../components/personal-profile-settings.tsx");
   assert.match(authService, /OrganizationPositions:\s*organization\.MemberPositions\(user\.ID\)/);
   assert.match(profile, /战队职务/);
   assert.match(profile, /user\.organizationPositions\?\.length/);

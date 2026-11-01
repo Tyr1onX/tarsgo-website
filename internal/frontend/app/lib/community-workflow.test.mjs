@@ -13,9 +13,12 @@ const listCache = await source("./community-list-cache.ts");
 const draft = await source("./community-draft.ts");
 const gallery = await source("../components/community-image-gallery.tsx");
 const composer = await source("../components/community-composer.tsx");
+const editorDialog = await source("../components/community-editor-dialog.tsx");
+const replyComposer = await source("../components/community-reply-composer.tsx");
+const relatedTopics = await source("../components/community-related-topics.tsx");
 const growthUI = await source("../components/community-growth.tsx");
 const growthStyles = await source("../components/community-growth.css");
-const profile = await source("../components/profile-dialog.tsx");
+const profile = await source("../components/personal-profile-settings.tsx");
 const postCard = await source("../components/community-post-card.tsx");
 const authorProfile = await source("../components/community-author-profile.tsx");
 const badgeInfo = await source("../components/community-badge-mark.tsx");
@@ -62,7 +65,7 @@ test("community offers shareable filters, cached browsing, and the post discussi
   assert.match(client, /updateComment/);
   assert.match(client, /bookmark/);
   assert.match(client, /moderate/);
-  assert.match(thread, /parentPostId: replyTarget\?\.id/);
+  assert.match(replyComposer, /parentPostId: replyTarget\?\.id/);
   assert.match(thread, /communityClient\.update\(/);
   assert.match(thread, /communityClient\.remove\(/);
   assert.match(thread, /communityClient\.moderate\(/);
@@ -97,13 +100,47 @@ test("post drafts persist text and selected image files per account", () => {
   assert.match(composer, /草稿已保存到此设备/);
   assert.match(composer, /CommunityMarkdownEditor/);
   assert.match(composer, /uploadTokens: draft\.uploads\.map/);
+  assert.match(dashboard, /CommunityEditorDialog/);
+  assert.match(editorDialog, /aria-modal="true"/);
+  assert.match(editorDialog, /event\.key === "Escape"/);
+  assert.match(editorDialog, /onMouseDown/);
+});
+
+test("reply editor floats above the thread and restores drafts by account and topic", () => {
+  assert.match(replyComposer, /loadCommunityReplyDraft\(accountId, postId\)/);
+  assert.match(replyComposer, /saveCommunityReplyDraft\(accountId, postId/);
+  assert.match(replyComposer, /clearCommunityReplyDraft\(accountId, postId\)/);
+  assert.match(replyComposer, /parentPostId: replyTarget\?\.id/);
+  assert.match(replyComposer, /CommunityMarkdownEditor/);
+  assert.match(replyComposer, /uploads=\{uploads\}/);
+  assert.match(thread, /CommunityReplyComposer accountId=\{currentUser\.id\}/);
+  assert.match(thread, /navigate\(\{ pathname: location\.pathname, search: location\.search, hash: `#community-comment-/);
+  assert.doesNotMatch(thread, /className="community-thread-composer"/);
+  assert.match(styles, /\.community-reply-panel \{ position: fixed/);
+  assert.match(styles, /@media \(max-width: 639px\)[\s\S]*?\.community-reply-panel \{ right: 0; bottom: 0/);
+});
+
+test("related topics load near the end and stay inside the server visibility scope", () => {
+  assert.match(client, /related: \(id: number\) => apiRequest/);
+  assert.match(relatedTopics, /rootMargin: "480px 0px"/);
+  assert.match(relatedTopics, /communityClient\.related\(postId\)/);
+  assert.match(relatedTopics, /相关话题/);
+  assert.match(relatedTopics, /推荐话题/);
+  assert.match(relatedTopics, /item\.commentCount/);
+  assert.match(relatedTopics, /item\.viewCount/);
+  assert.match(relatedTopics, /communityPostHref\(item\.id\)/);
+  assert.match(router, /communityAPI\.GET\("\/posts\/:id\/related", communityHandler\.Related\)/);
+  assert.match(service, /func \(s \*Service\) RelatedCommunityPosts/);
+  assert.match(service, /s\.requireVisible\(ctx, actor, question\)/);
+  assert.match(service, /s\.communityPostQuery\(ctx, actor\)/);
+  assert.match(service, /query = query\.Where\("q\.is_hidden = \?", false\)/);
 });
 
 test("the same Markdown editor is used for publishing, post edits, replies, and comment edits", () => {
   assert.match(composer, /<CommunityMarkdownEditor/);
   assert.match(thread, /<CommunityMarkdownEditor[^>]+attachments=\{post\.attachments\}/);
   assert.match(thread, /<CommunityMarkdownEditor[^>]+attachments=\{item\.attachments\}/);
-  assert.match(thread, /uploads=\{commentUploads\}/);
+  assert.match(replyComposer, /uploads=\{uploads\}/);
   assert.match(thread, /uploads=\{editCommentUploads\}/);
   assert.match(thread, /<CommunityMarkdown source=\{post\.body\}/);
   assert.match(thread, /<CommunityMarkdown source=\{item\.body\}/);
@@ -272,7 +309,7 @@ test("member profiles reuse community permissions, XP, and public badge records"
   assert.match(authorProfile, /communityMemberProfileClient\.get\(id, "card"\)/);
   assert.match(authorProfile, /communityProfileReturnTo/);
   assert.match(memberProfilePage, /概览[\s\S]*帖子[\s\S]*回复[\s\S]*徽章/);
-  assert.match(memberProfilePage, /featuredBadgeKey: key/);
+  assert.match(memberProfilePage, /updateMine\(\{ bio: bioDraft, featuredBadgeKey: selectedBadge \}\)/);
   assert.match(memberProfilePage, /preventScrollReset: true/);
   assert.match(memberProfilePage, /navigate\(-1\)/);
   assert.match(styles, /\.community-member-hero/);

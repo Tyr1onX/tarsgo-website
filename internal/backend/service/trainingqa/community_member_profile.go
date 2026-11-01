@@ -51,17 +51,18 @@ type CommunityMemberProfileResult struct {
 }
 
 type CommunityMemberView struct {
-	ID               uint64                        `json:"id"`
-	DisplayName      string                        `json:"displayName"`
-	AvatarURL        *string                       `json:"avatarUrl,omitempty"`
-	Bio              string                        `json:"bio"`
-	Groups           []CommunityMemberGroup        `json:"groups"`
-	Positions        []organization.MemberPosition `json:"positions"`
-	TeamJoinedAt     *time.Time                    `json:"teamJoinedAt,omitempty"`
-	Level            CommunityMemberLevel          `json:"level"`
-	FeaturedBadgeKey string                        `json:"featuredBadgeKey,omitempty"`
-	FeaturedBadge    *CommunityFeaturedBadge       `json:"featuredBadge,omitempty"`
-	IsSelf           bool                          `json:"isSelf"`
+	ID                 uint64                        `json:"id"`
+	DisplayName        string                        `json:"displayName"`
+	AvatarURL          *string                       `json:"avatarUrl,omitempty"`
+	TeamIdentityStatus string                        `json:"teamIdentityStatus"`
+	Bio                string                        `json:"bio"`
+	Groups             []CommunityMemberGroup        `json:"groups"`
+	Positions          []organization.MemberPosition `json:"positions"`
+	TeamJoinedAt       *time.Time                    `json:"teamJoinedAt,omitempty"`
+	Level              CommunityMemberLevel          `json:"level"`
+	FeaturedBadgeKey   string                        `json:"featuredBadgeKey,omitempty"`
+	FeaturedBadge      *CommunityFeaturedBadge       `json:"featuredBadge,omitempty"`
+	IsSelf             bool                          `json:"isSelf"`
 }
 
 type CommunityMemberGroup struct {
@@ -128,11 +129,12 @@ type CommunityMemberActivity struct {
 }
 
 type communityMemberRow struct {
-	ID        uint64  `gorm:"column:id"`
-	Name      string  `gorm:"column:name"`
-	RealName  *string `gorm:"column:real_name"`
-	Nickname  *string `gorm:"column:nickname"`
-	AvatarURL *string `gorm:"column:avatar_url"`
+	ID                 uint64  `gorm:"column:id"`
+	Name               string  `gorm:"column:name"`
+	RealName           *string `gorm:"column:real_name"`
+	Nickname           *string `gorm:"column:nickname"`
+	AvatarURL          *string `gorm:"column:avatar_url"`
+	TeamIdentityStatus string  `gorm:"column:team_identity_status"`
 }
 
 type communityMemberGroupRow struct {
@@ -184,7 +186,7 @@ func (s *Service) GetCommunityMemberProfile(ctx context.Context, actor Actor, me
 
 	db := s.db.WithContext(ctx)
 	var record communityMemberRow
-	if err := db.Table("users").Select("id, name, real_name, nickname, avatar_url").Where("id = ? AND status = ?", memberID, model.UserStatusEnabled).Take(&record).Error; err != nil {
+	if err := db.Table("users").Select("id, name, real_name, nickname, avatar_url, team_identity_status").Where("id = ? AND status = ?", memberID, model.UserStatusEnabled).Take(&record).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, notFound("成员主页不存在")
 		}
@@ -196,7 +198,8 @@ func (s *Service) GetCommunityMemberProfile(ctx context.Context, actor Actor, me
 	}
 	member := CommunityMemberView{
 		ID: record.ID, DisplayName: displayName, AvatarURL: record.AvatarURL,
-		Bio: "", Groups: []CommunityMemberGroup{}, Positions: organization.MemberPositions(memberID),
+		TeamIdentityStatus: model.NormalizeTeamIdentityStatus(record.TeamIdentityStatus),
+		Bio:                "", Groups: []CommunityMemberGroup{}, Positions: organization.MemberPositions(memberID),
 		Level: CommunityMemberLevel{Level: 1}, IsSelf: actor.ID == memberID,
 	}
 	var publicProfile model.CommunityMemberProfile

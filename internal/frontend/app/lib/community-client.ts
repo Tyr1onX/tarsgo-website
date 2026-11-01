@@ -37,6 +37,7 @@ export interface CommunityPost {
   authorLevel: number;
   authorFeaturedBadge?: import("~/lib/community-member-profile-client").CommunityFeaturedBadge;
   authorPositions?: import("~/lib/community-member-profile-client").CommunityMemberPosition[];
+  authorTeamIdentityStatus?: import("~/components/community-team-identity").TeamIdentityStatus;
   visibility: "public" | "private";
   isSolved?: boolean;
   acceptedSolutionId?: number;
@@ -67,6 +68,7 @@ export interface CommunityComment {
   authorLevel: number;
   authorFeaturedBadge?: import("~/lib/community-member-profile-client").CommunityFeaturedBadge;
   authorPositions?: import("~/lib/community-member-profile-client").CommunityMemberPosition[];
+  authorTeamIdentityStatus?: import("~/components/community-team-identity").TeamIdentityStatus;
   body: string;
   createdAt: string;
   editedAt?: string;
@@ -83,6 +85,21 @@ export interface CommunityComment {
 export interface CommunityDetail {
   post: CommunityPost;
   comments: CommunityComment[];
+}
+
+export interface CommunityTopicSummary {
+  id: number;
+  category: CommunityCategory;
+  title: string;
+  createdAt: string;
+  lastReplyAt?: string;
+  commentCount: number;
+  viewCount: number;
+}
+
+export interface CommunityTopicRecommendations {
+  related: CommunityTopicSummary[];
+  recommended: CommunityTopicSummary[];
 }
 
 export interface CommunityPage {
@@ -167,6 +184,7 @@ export const communityClient = {
   list: (filter: CommunityFilter) => apiRequest<CommunityPage>(`/api/community/posts?${queryString(filter)}`),
   hot: (limit = 5) => apiRequest<CommunityPost[]>(`/api/community/hot?limit=${limit}`),
   get: (id: number) => apiRequest<CommunityDetail>(`/api/community/posts/${id}`),
+  related: (id: number) => apiRequest<CommunityTopicRecommendations>(`/api/community/posts/${id}/related`),
   create: (input: { category: CommunityCategory; title: string; body: string; files: File[]; uploadTokens?: string[] }) =>
     apiRequest<CommunityDetail>("/api/community/posts", {
       method: "POST",

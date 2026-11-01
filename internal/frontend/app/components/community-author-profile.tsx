@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
 
 import { CommunityBadgeInfo } from "~/components/community-badge-mark";
+import { TeamIdentityBadge } from "~/components/community-team-identity";
 import { CommunityLevelBadge } from "~/components/community-growth";
 import { communityMemberProfileClient, type CommunityMemberPosition, type CommunityMemberProfileResult, type CommunityFeaturedBadge } from "~/lib/community-member-profile-client";
 
@@ -12,10 +13,11 @@ type AuthorProfileProps = {
   level: number;
   featuredBadge?: CommunityFeaturedBadge;
   positions?: CommunityMemberPosition[];
+  teamIdentityStatus?: string;
   size?: "regular" | "small";
 };
 
-export function CommunityAuthorProfile({ id, name, avatar, level, featuredBadge, positions: authorPositions = [], size = "regular" }: AuthorProfileProps) {
+export function CommunityAuthorProfile({ id, name, avatar, level, featuredBadge, positions: authorPositions = [], teamIdentityStatus, size = "regular" }: AuthorProfileProps) {
   const location = useLocation();
   const rootRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
@@ -81,6 +83,7 @@ export function CommunityAuthorProfile({ id, name, avatar, level, featuredBadge,
       </span>
       <strong>{name}</strong>
       <CommunityLevelBadge level={member?.level.level ?? level} />
+      <TeamIdentityBadge status={member?.teamIdentityStatus ?? teamIdentityStatus} />
       {positionLabel ? <span className="community-author-profile__position" title={positions.map((position) => position.title).join("；")}>{positionLabel}</span> : null}
     </button>
     {badge ? <CommunityBadgeInfo className="community-author-profile__badge" badge={badge} size={18} /> : null}
@@ -92,6 +95,7 @@ export function CommunityAuthorProfile({ id, name, avatar, level, featuredBadge,
         <div className="community-author-profile__identity">
           <strong>{member?.displayName ?? name}</strong>
           <CommunityLevelBadge level={member?.level.level ?? level} />
+          <TeamIdentityBadge status={member?.teamIdentityStatus ?? teamIdentityStatus} />
         </div>
         {badge ? <CommunityBadgeInfo className="community-author-profile__card-badge" badge={badge} size={28} /> : null}
       </header>

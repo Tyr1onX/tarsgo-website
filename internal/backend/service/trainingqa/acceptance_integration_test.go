@@ -3,6 +3,7 @@ package trainingqa
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"mime/multipart"
@@ -123,6 +124,9 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 			}
 		}
 		if len(actorUserIDs) > 0 {
+			if err := db.Where("user_id IN ?", actorUserIDs).Delete(&model.TeamIdentityChange{}).Error; err != nil {
+				t.Errorf("clean isolated team identity history: %v", err)
+			}
 			if err := db.Where("user_id IN ?", actorUserIDs).Delete(&model.CommunityMemberProfile{}).Error; err != nil {
 				t.Errorf("clean isolated community member profiles: %v", err)
 			}
@@ -305,9 +309,15 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 	}
 	communityID := communityPost.Post.ID
 	questionIDs = append(questionIDs, communityID)
+	if err := db.Model(&model.User{}).Where("id = ?", operationsMember.ID).Update("team_identity_status", model.TeamIdentityFormalMember).Error; err != nil {
+		t.Fatalf("set isolated formal-member identity for community display: %v", err)
+	}
 	firstView, err := service.GetCommunityPost(context.Background(), crossMember, communityID)
 	if err != nil || firstView.Post.ViewCount != 2 {
 		t.Fatalf("first distinct member view = %v, want 2 total views: err=%v", firstView, err)
+	}
+	if firstView.Post.AuthorTeamIdentityStatus != model.TeamIdentityFormalMember {
+		t.Fatalf("post author identity was not returned from the authoritative user record: %q", firstView.Post.AuthorTeamIdentityStatus)
 	}
 	refreshedView, err := service.GetCommunityPost(context.Background(), crossMember, communityID)
 	if err != nil || refreshedView.Post.ViewCount != 2 {
@@ -330,6 +340,38 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 		t.Fatalf("cross-group member could not create a second community post: %v", err)
 	}
 	questionIDs = append(questionIDs, secondCommunityPost.Post.ID)
+	relatedCommunityPost, err := service.CreateCommunityPost(context.Background(), crossMember, CommunityPostInput{
+		Category: model.CommunityCategoryProject, Title: "[TEST_QA] 相关项目记录", Body: "与当前项目记录同类的讨论。",
+	})
+	if err != nil {
+		t.Fatalf("cross-group member could not create a related community post: %v", err)
+	}
+	questionIDs = append(questionIDs, relatedCommunityPost.Post.ID)
+	recommendations, err := service.RelatedCommunityPosts(context.Background(), crossMember, communityID)
+	if err != nil {
+		t.Fatalf("read visible related community topics: %v", err)
+	}
+	if len(recommendations.Related) == 0 || recommendations.Related[0].ID != relatedCommunityPost.Post.ID {
+		t.Fatalf("same-category topic was not prioritized as related: %#v", recommendations)
+	}
+	foundRecentlyActiveTopic := false
+	for _, topic := range recommendations.Recommended {
+		if topic.ID == secondCommunityPost.Post.ID {
+			foundRecentlyActiveTopic = true
+			break
+		}
+	}
+	if !foundRecentlyActiveTopic {
+		t.Fatalf("recently active topic was not included as a recommendation: %#v", recommendations)
+	}
+	for _, topic := range append(recommendations.Related, recommendations.Recommended...) {
+		if topic.ID == communityID || topic.ID == private.Question.ID {
+			t.Fatalf("recommendations exposed the current or an inaccessible topic: %#v", topic)
+		}
+	}
+	if _, err := service.RelatedCommunityPosts(context.Background(), crossMember, private.Question.ID); questionStatus(err) != http.StatusNotFound {
+		t.Fatalf("cross-group recommendation source status=%d, want 404", questionStatus(err))
+	}
 	if _, err := service.GetCommunityPost(context.Background(), crossMember, public.Question.ID); questionStatus(err) != http.StatusNotFound {
 		t.Fatalf("community view expanded historical technical-group visibility: status=%d, want 404", questionStatus(err))
 	}
@@ -378,13 +420,22 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 	if err != nil || len(firstComment.Comments) != 1 {
 		t.Fatalf("cross-group member could not comment on community post: comments=%d err=%v", lenOrZeroCommunity(firstComment), err)
 	}
+	if firstComment.Comments[0].AuthorTeamIdentityStatus != model.TeamIdentityCommunityMember {
+		t.Fatalf("unverified commenter identity = %q, want community_member", firstComment.Comments[0].AuthorTeamIdentityStatus)
+	}
 	parentID := firstComment.Comments[0].ID
+	if err := db.Model(&model.User{}).Where("id = ?", crossMember.ID).Update("team_identity_status", model.TeamIdentityReserveMember).Error; err != nil {
+		t.Fatalf("set isolated reserve-member identity for community display: %v", err)
+	}
 	reply, err := service.AddCommunityComment(context.Background(), crossMember, communityID, CommunityCommentInput{Body: "回复上面的说明。", ParentPostID: &parentID})
 	if err != nil || len(reply.Comments) != 2 || reply.Comments[1].ParentPostID == nil || *reply.Comments[1].ParentPostID != parentID {
 		t.Fatalf("nested community reply failed: comments=%d err=%v", lenOrZeroCommunity(reply), err)
 	}
 	if len(reply.Post.Participants) != 3 || reply.Post.Participants[0].ID != crossMember.ID || reply.Post.Participants[1].ID != peer.ID {
 		t.Fatalf("topic participants should be unique and ordered by latest activity: %#v", reply.Post.Participants)
+	}
+	if reply.Comments[1].AuthorTeamIdentityStatus != model.TeamIdentityReserveMember {
+		t.Fatalf("reserve-member reply identity = %q, want reserve_member", reply.Comments[1].AuthorTeamIdentityStatus)
 	}
 	if reply.Comments[0].AuthorLevel != operationsGrowth.Level || reply.Post.AuthorLevel != operationsGrowth.Level {
 		t.Fatalf("author levels differ between post, reply and profile: post=%d reply=%d profile=%d", reply.Post.AuthorLevel, reply.Comments[0].AuthorLevel, operationsGrowth.Level)
@@ -406,8 +457,17 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("same-group member could not read the community profile: %v", err)
 	}
-	if memberPosts.Member.Bio != bio || memberPosts.Member.FeaturedBadge == nil || memberPosts.Member.FeaturedBadge.LevelCode != "bronze" {
+	if memberPosts.Member.Bio != bio || memberPosts.Member.FeaturedBadge == nil || memberPosts.Member.FeaturedBadge.LevelCode != "bronze" || memberPosts.Member.TeamIdentityStatus != model.TeamIdentityCommunityMember {
 		t.Fatalf("community profile public identity or earned badge mismatch: member=%#v", memberPosts.Member)
+	}
+	encodedMember, err := json.Marshal(memberPosts.Member)
+	if err != nil {
+		t.Fatalf("marshal public member profile: %v", err)
+	}
+	for _, privateField := range []string{"email", "phone", "studentId", "timetable"} {
+		if strings.Contains(string(encodedMember), `"`+privateField+`"`) {
+			t.Fatalf("public member profile leaked private field %q: %s", privateField, encodedMember)
+		}
 	}
 	if memberPosts.Stats.PostCount != 1 || memberPosts.Stats.ReplyCount != 1 || len(memberPosts.Posts) != 1 || memberPosts.Posts[0].ID != public.Question.ID {
 		t.Fatalf("member profile did not respect visible discussion scope: stats=%#v posts=%#v", memberPosts.Stats, memberPosts.Posts)

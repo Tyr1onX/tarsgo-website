@@ -47,6 +47,7 @@ export interface CommunityMemberProfile {
   id: number;
   displayName: string;
   avatarUrl?: string;
+  teamIdentityStatus: import("~/components/community-team-identity").TeamIdentityStatus;
   bio: string;
   groups: CommunityMemberGroup[];
   positions: CommunityMemberPosition[];

@@ -1,6 +1,8 @@
 import { lazy, Suspense, useCallback, useEffect, useState, type FormEvent } from "react";
-import { useLocation, useNavigate, useParams } from "react-router";
+import { useLocation, useNavigate, useOutletContext, useParams } from "react-router";
 
+import { CommunityRelatedTopics } from "~/components/community-related-topics";
+import { CommunityReplyComposer } from "~/components/community-reply-composer";
 import { CommunityImageGallery } from "~/components/community-image-gallery";
 import { type CommunityPendingImage } from "~/components/community-markdown-editor";
 import { CommunityMarkdown } from "~/components/community-markdown";
@@ -18,6 +20,7 @@ import {
 } from "~/lib/community-client";
 import { clearCommunityLists, removeCommunityPostFromLists } from "~/lib/community-list-cache";
 import { communityStandaloneAttachments, stripCommunityMarkdown } from "~/lib/community-markdown";
+import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import "./community.css";
 
 const CommunityMarkdownEditor = lazy(() => import("~/components/community-markdown-editor").then((module) => ({ default: module.CommunityMarkdownEditor })));
@@ -31,15 +34,16 @@ export default function CommunityPostRoute() {
   const postID = Number(rawID);
   const location = useLocation();
   const navigate = useNavigate();
+  const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
   const [detail, setDetail] = useState<CommunityDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [retryAction, setRetryAction] = useState<(() => void) | null>(null);
   const [busy, setBusy] = useState(false);
   const [replyTarget, setReplyTarget] = useState<CommunityComment | null>(null);
-  const [comment, setComment] = useState("");
-  const [commentUploads, setCommentUploads] = useState<CommunityPendingImage[]>([]);
-  const [commentError, setCommentError] = useState("");
+  const [replyOpen, setReplyOpen] = useState(false);
+  const [focusedCommentID, setFocusedCommentID] = useState<number | null>(null);
+  const [shareStatus, setShareStatus] = useState("");
   const [editingPost, setEditingPost] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
@@ -85,7 +89,7 @@ export default function CommunityPostRoute() {
     let finalFrame = 0;
     const restoreFrame = window.requestAnimationFrame(() => {
       finalFrame = window.requestAnimationFrame(() => {
-        document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView({ block: "start" });
+        document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView({ behavior: "smooth", block: "center" });
       });
     });
     return () => {
@@ -162,28 +166,50 @@ export default function CommunityPostRoute() {
     }
   }
 
-  async function submitComment(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!comment.trim() || busy) return;
+  function openReply(target: CommunityComment | null = null) {
+    setReplyTarget(target);
+    setReplyOpen(true);
+  }
+
+  async function submitComment(input: { body: string; parentPostId?: number; files: File[]; uploadTokens: string[] }) {
+    if (!input.body.trim() || busy) return;
     setBusy(true);
     setError("");
-    setCommentError("");
     setRetryAction(null);
     try {
-      const result = await communityClient.addComment(postID, { body: comment, parentPostId: replyTarget?.id, files: commentUploads.map((item) => item.file), uploadTokens: commentUploads.map((item) => item.token) });
+      const result = await communityClient.addComment(postID, input);
       clearCommunityLists();
       setDetail(result);
-      setComment("");
-      setCommentUploads([]);
-      setReplyTarget(null);
       const createdComment = result.comments.at(-1);
-      if (createdComment) requestAnimationFrame(() => document.getElementById(`community-comment-${createdComment.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" }));
+      if (createdComment) {
+        setFocusedCommentID(createdComment.id);
+        navigate({ pathname: location.pathname, search: location.search, hash: `#community-comment-${createdComment.id}` }, {
+          replace: true, state: location.state, preventScrollReset: true,
+        });
+      }
     } catch (cause) {
-      setCommentError(cause instanceof Error ? cause.message : "回复失败，请稍后重试。");
-      setRetryAction(() => () => (document.getElementById("community-reply-form") as HTMLFormElement | null)?.requestSubmit());
+      throw new Error(cause instanceof Error ? cause.message : "回复失败，请稍后重试。");
     } finally {
       setBusy(false);
     }
+  }
+
+  async function sharePost() {
+    if (!detail) return;
+    const url = new URL(`/dashboard/community/${detail.post.id}`, window.location.origin).toString();
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: detail.post.title, url });
+        setShareStatus("已打开分享面板");
+      } else {
+        await navigator.clipboard.writeText(url);
+        setShareStatus("链接已复制");
+      }
+    } catch (cause) {
+      if (cause instanceof DOMException && cause.name === "AbortError") return;
+      setShareStatus("分享失败，请重试");
+    }
+    window.setTimeout(() => setShareStatus(""), 2200);
   }
 
   async function savePostEdit(event: FormEvent<HTMLFormElement>) {
@@ -295,8 +321,8 @@ export default function CommunityPostRoute() {
     {error ? <p className="community-state community-state--error" role="alert">{error}{retryAction ? <button type="button" className="community-inline-retry" onClick={() => retryAction()}>重试</button> : null}</p> : null}
     <article className={`community-post${post.isPinned ? " is-pinned" : ""}`}>
       <div className="community-post__author">
-        <CommunityAuthorProfile id={post.authorId} name={post.authorName} avatar={post.authorAvatar} level={post.authorLevel} featuredBadge={post.authorFeaturedBadge} positions={post.authorPositions} />
-        <div className="community-post__byline"><time dateTime={post.createdAt}>{formatCommunityDate(post.createdAt)}{post.editedAt ? " · 已编辑" : ""}</time></div>
+        <CommunityAuthorProfile id={post.authorId} name={post.authorName} avatar={post.authorAvatar} level={post.authorLevel} featuredBadge={post.authorFeaturedBadge} positions={post.authorPositions} teamIdentityStatus={post.authorTeamIdentityStatus} />
+        <div className="community-post__byline"><time dateTime={post.createdAt}>{formatCommunityDate(post.createdAt)}{post.editedAt ? " · 已编辑" : ""} · {post.viewCount ?? 0} 浏览</time></div>
         {post.isPinned ? <span className="community-post__pin"><CommunityIcon name="pin" />置顶</span> : null}
         <span className="community-post__category">{communityCategoryLabel(post.category)}</span>
         <CommunityPostMenu
@@ -321,8 +347,10 @@ export default function CommunityPostRoute() {
       </>}
       <footer className="community-post__actions">
         <button type="button" aria-pressed={post.likedByMe} disabled={busy} onClick={() => void toggleReaction("like")}><CommunityActionIcon kind="like" /><span>{post.likeCount}</span>{post.likedByMe ? "已赞" : "点赞"}</button>
-        <a href="#community-comments"><CommunityActionIcon kind="comment" /><span>{post.commentCount}</span>评论</a>
+        <button type="button" onClick={() => openReply()}><CommunityActionIcon kind="comment" /><span>{post.commentCount}</span>回复</button>
         <button type="button" aria-pressed={post.savedByMe} disabled={busy} onClick={() => void toggleReaction("bookmark")}><CommunityActionIcon kind="bookmark" />{post.savedByMe ? "已收藏" : "收藏"}</button>
+        <button type="button" onClick={() => void sharePost()}><CommunityIcon name="share2" />分享</button>
+        {shareStatus ? <span className="community-share-status" role="status">{shareStatus}</span> : null}
       </footer>
     </article>
 
@@ -330,15 +358,15 @@ export default function CommunityPostRoute() {
       <header className="community-comments__heading"><h2 id="community-comments-title">讨论</h2><span>{comments.length} 条回复</span></header>
       {comments.map((item) => {
         const parent = item.parentPostId ? parentByID.get(item.parentPostId) : null;
-        return <article key={item.id} id={`community-comment-${item.id}`} className={`community-comment${location.hash === `#community-comment-${item.id}` ? " is-targeted" : ""}`} data-reply={Boolean(item.parentPostId)} data-depth={commentDepth(item)}>
-          <div className="community-comment__head"><CommunityAuthorProfile id={item.authorId} name={item.authorName} avatar={item.authorAvatar} level={item.authorLevel} featuredBadge={item.authorFeaturedBadge} positions={item.authorPositions} size="small" />{item.isAcceptedSolution ? <span className="community-comment__solution"><CommunityIcon name="check" />已采纳</span> : null}<time dateTime={item.createdAt}>{formatCommunityDate(item.createdAt)}{item.editedAt ? " · 已编辑" : ""}</time></div>
+        return <article key={item.id} id={`community-comment-${item.id}`} className={`community-comment${location.hash === `#community-comment-${item.id}` || focusedCommentID === item.id ? " is-targeted" : ""}`} data-reply={Boolean(item.parentPostId)} data-depth={commentDepth(item)}>
+          <div className="community-comment__head"><CommunityAuthorProfile id={item.authorId} name={item.authorName} avatar={item.authorAvatar} level={item.authorLevel} featuredBadge={item.authorFeaturedBadge} positions={item.authorPositions} teamIdentityStatus={item.authorTeamIdentityStatus} size="small" />{item.isAcceptedSolution ? <span className="community-comment__solution"><CommunityIcon name="check" />已采纳</span> : null}<time dateTime={item.createdAt}>{formatCommunityDate(item.createdAt)}{item.editedAt ? " · 已编辑" : ""}</time></div>
           {parent ? <button type="button" className="community-comment__context" onClick={() => document.getElementById(`community-comment-${parent.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}>
             <span>回复 {parent.authorName}</span><span>{parent.isDeleted ? "该回复已删除" : stripCommunityMarkdown(parent.body)}</span>
           </button> : null}
           {editingCommentID === item.id ? <form id={`community-comment-edit-${item.id}`} className="community-comment-edit" onSubmit={(event) => void saveCommentEdit(event, item.id)}><Suspense fallback={<div className="community-markdown-editor__loading" role="status">正在打开编辑器…</div>}><CommunityMarkdownEditor value={editCommentBody} onChange={setEditCommentBody} uploads={editCommentUploads} onUploadsChange={setEditCommentUploads} attachments={item.attachments} compact required placeholder="编辑回复…" /></Suspense><button className="community-button community-button--primary" disabled={busy}>保存</button></form> : <CommunityMarkdown source={item.body} className="community-comment__body" />}
           {communityStandaloneAttachments(item.body, item.attachments).length ? <CommunityImageGallery attachments={communityStandaloneAttachments(item.body, item.attachments)} compact /> : null}
           {!item.isDeleted && <div className="community-comment__actions">
-            <button type="button" onClick={() => { setReplyTarget(item); document.querySelector<HTMLElement>("#community-reply-form .ProseMirror")?.focus(); document.getElementById("community-reply-form")?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }}>回复</button>
+            <button type="button" onClick={() => openReply(item)}>回复</button>
             <button type="button" className={item.likedByMe ? "is-liked" : ""} aria-label={`${item.likedByMe ? "取消点赞" : "点赞"}，${item.likeCount} 个赞`} aria-pressed={item.likedByMe} disabled={busy || !item.canLike} onClick={() => void toggleCommentLike(item)}><CommunityActionIcon kind="like" /><span>{item.likeCount || "赞"}</span></button>
             {item.canAcceptSolution ? <button type="button" className={item.isAcceptedSolution ? "is-solution" : ""} disabled={busy} onClick={() => void setSolution(item.isAcceptedSolution ? null : item.id)}>{item.isAcceptedSolution ? "取消采纳" : "采纳为解决方案"}</button> : null}
             {item.canEdit ? <><button type="button" onClick={() => { setEditingCommentID(item.id); setEditCommentBody(item.body); setEditCommentUploads([]); }}>编辑</button><button type="button" onClick={() => void deleteComment(item.id)}>删除</button></> : null}
@@ -347,10 +375,7 @@ export default function CommunityPostRoute() {
       })}
     </section>
 
-    <form id="community-reply-form" className="community-thread-composer" onSubmit={submitComment} aria-label="发表回复">
-      {replyTarget ? <div className="community-thread-composer__replying"><span>回复 <strong>{replyTarget.authorName}</strong>{replyTarget.isDeleted ? " · 该回复已删除" : ` · ${stripCommunityMarkdown(replyTarget.body)}`}</span><button type="button" className="community-icon-button" aria-label="取消回复对象" onClick={() => setReplyTarget(null)}><CommunityIcon name="x" /></button></div> : null}
-      <Suspense fallback={<div className="community-markdown-editor__loading" role="status">正在打开编辑器…</div>}><CommunityMarkdownEditor value={comment} onChange={(next) => { setComment(next); setCommentError(""); setRetryAction(null); }} uploads={commentUploads} onUploadsChange={setCommentUploads} compact required disabled={busy} placeholder="参与讨论…" /></Suspense>
-      <div className="community-thread-composer__actions">{commentError ? <p className="community-error" role="alert">{commentError}{retryAction ? <button type="button" className="community-inline-retry" onClick={() => retryAction()}>重试</button> : null}</p> : null}<button type="submit" className="community-button community-button--primary" disabled={busy || !comment.trim()}>{busy ? "提交中…" : "回复"}</button></div>
-    </form>
+    <CommunityRelatedTopics postId={post.id} returnTo={returnTo} />
+    {replyOpen ? <CommunityReplyComposer accountId={currentUser.id} postId={post.id} comments={comments} busy={busy} replyTarget={replyTarget} onReplyTargetChange={setReplyTarget} onClose={() => setReplyOpen(false)} onSubmit={submitComment} /> : <button type="button" className="community-reply-launcher" onClick={() => openReply()} aria-controls="community-reply-form"><CommunityIcon name="messageCircle" />回复话题</button>}
   </section>;
 }

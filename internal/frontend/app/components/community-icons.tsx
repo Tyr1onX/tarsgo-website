@@ -17,6 +17,7 @@ import moreVertical from "@iconify-icons/lucide/more-vertical";
 import pin from "@iconify-icons/lucide/pin";
 import plus from "@iconify-icons/lucide/plus";
 import search from "@iconify-icons/lucide/search";
+import share2 from "@iconify-icons/lucide/share-2";
 import x from "@iconify-icons/lucide/x";
 
 const communityIcons = {
@@ -38,6 +39,7 @@ const communityIcons = {
   pin,
   plus,
   search,
+  share2,
   x,
 } satisfies Record<string, IconifyIcon>;
 

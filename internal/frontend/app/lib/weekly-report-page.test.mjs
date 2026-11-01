@@ -60,7 +60,7 @@ test("the in-workbench guide documents open daily and assignment flows", async (
   const guide = await readFile(new URL("../routes/dashboard/guide.tsx", import.meta.url), "utf8");
   const routeConfig = await readFile(new URL("../routes.ts", import.meta.url), "utf8");
   assert.match(routeConfig, /route\("guide", "routes\/dashboard\/guide\.tsx"\)/);
-  for (const phrase of ["个人资料", "课程时间", "工作周报", "请假工作台", "我的作业", "提交记录", "时间协调", "其他培养入口暂未开放"]) {
+  for (const phrase of ["我的主页", "资料设置", "课程时间", "工作周报", "请假工作台", "我的作业", "提交记录", "时间协调", "其他培养入口暂未开放"]) {
     assert.match(guide, new RegExp(phrase));
   }
   assert.match(guide, /提交成果并查看批改反馈/);

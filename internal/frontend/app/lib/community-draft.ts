@@ -9,6 +9,14 @@ export interface CommunityDraft {
   updatedAt: number;
 }
 
+export interface CommunityReplyDraft {
+  body: string;
+  files: File[];
+  uploadTokens?: string[];
+  parentPostId?: number;
+  updatedAt: number;
+}
+
 const DATABASE_NAME = "tarsgo-community-drafts";
 const STORE_NAME = "drafts";
 const DATABASE_VERSION = 1;
@@ -64,5 +72,48 @@ export async function clearCommunityDraft(accountId: number) {
     transaction.oncomplete = () => { database.close(); resolve(); };
     transaction.onerror = () => { database.close(); reject(transaction.error ?? new Error("无法清除已发布草稿。")); };
     transaction.onabort = () => { database.close(); reject(transaction.error ?? new Error("草稿清除已取消。")); };
+  });
+}
+
+function replyDraftKey(accountId: number, postId: number) {
+  return `reply:${accountId}:${postId}`;
+}
+
+export async function loadCommunityReplyDraft(accountId: number, postId: number) {
+  const database = await openDraftDatabase();
+  if (!database) return null;
+
+  return new Promise<CommunityReplyDraft | null>((resolve, reject) => {
+    const transaction = database.transaction(STORE_NAME, "readonly");
+    const request = transaction.objectStore(STORE_NAME).get(replyDraftKey(accountId, postId));
+    request.onsuccess = () => resolve((request.result as CommunityReplyDraft | undefined) ?? null);
+    request.onerror = () => reject(request.error ?? new Error("无法读取回复草稿。"));
+    transaction.oncomplete = () => database.close();
+  });
+}
+
+export async function saveCommunityReplyDraft(accountId: number, postId: number, draft: CommunityReplyDraft) {
+  const database = await openDraftDatabase();
+  if (!database) return false;
+
+  return new Promise<boolean>((resolve, reject) => {
+    const transaction = database.transaction(STORE_NAME, "readwrite");
+    transaction.objectStore(STORE_NAME).put(draft, replyDraftKey(accountId, postId));
+    transaction.oncomplete = () => { database.close(); resolve(true); };
+    transaction.onerror = () => { database.close(); reject(transaction.error ?? new Error("无法保存回复草稿。")); };
+    transaction.onabort = () => { database.close(); reject(transaction.error ?? new Error("回复草稿保存已取消。")); };
+  });
+}
+
+export async function clearCommunityReplyDraft(accountId: number, postId: number) {
+  const database = await openDraftDatabase();
+  if (!database) return;
+
+  await new Promise<void>((resolve, reject) => {
+    const transaction = database.transaction(STORE_NAME, "readwrite");
+    transaction.objectStore(STORE_NAME).delete(replyDraftKey(accountId, postId));
+    transaction.oncomplete = () => { database.close(); resolve(); };
+    transaction.onerror = () => { database.close(); reject(transaction.error ?? new Error("无法清除已发布回复草稿。")); };
+    transaction.onabort = () => { database.close(); reject(transaction.error ?? new Error("回复草稿清除已取消。")); };
   });
 }

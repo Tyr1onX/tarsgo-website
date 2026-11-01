@@ -24,7 +24,7 @@ function publicURL(path?: string) { return path && typeof window !== "undefined"
 export function meta() { return [{ title: "请假工作台 | TARSGO" }, { name: "description", content: "日常请假" }]; }
 
 export default function LeaveWorkbench() {
-  const { currentUser, openProfile, profileRevision } = useOutletContext<DashboardLayoutOutletContext>();
+  const { currentUser, openMyProfile, profileRevision } = useOutletContext<DashboardLayoutOutletContext>();
   const isAdmin = currentUser.role.name === "admin" || currentUser.role.name === "super_admin";
   const isSuperAdmin = currentUser.role.name === "super_admin";
   const [tab, setTab] = useState<Tab>("daily");
@@ -106,7 +106,7 @@ export default function LeaveWorkbench() {
   }
 
   async function makeDaily(offline = false) {
-    if (!profileReady) { setError("请先在「个人资料」中完善学号和学院。"); return; }
+    if (!profileReady) { setError("请先在「我的主页 → 资料设置」中完善学号和学院。"); return; }
     setBusy(true); setError(""); setNotice("");
     try { const ready = await leaveClient.prepareDailySelf(dailyDraft, offline); await downloadLeaveFile(ready.downloadUrl, ready.filename); setNotice("请假条已生成并开始下载。"); await load(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "请假条生成失败"); }
@@ -114,7 +114,7 @@ export default function LeaveWorkbench() {
   }
 
   async function makeShared(window: DailyWindow, offline = false) {
-    if (!profileReady) { setError("请先在「个人资料」中完善学号和学院。"); return; }
+    if (!profileReady) { setError("请先在「我的主页 → 资料设置」中完善学号和学院。"); return; }
     setBusy(true); setError(""); setNotice("");
     try { const ready = await leaveClient.prepareDailyWindow(window.id, offline); await downloadLeaveFile(ready.downloadUrl, ready.filename); setNotice("共享报名已保存，材料已开始下载。"); await load(); }
     catch (reason) { setError(reason instanceof Error ? reason.message : "请假条生成失败"); }
@@ -190,7 +190,7 @@ export default function LeaveWorkbench() {
             <label className="admin-field-label">结束时间<input className={inputClass} type="datetime-local" required value={schoolDraft.endAt} onChange={(e) => setSchoolDraft({ ...schoolDraft, endAt: e.target.value })} /></label>
             <div><button className={`${button} admin-button--secondary`} disabled={busy || !profileReady}>提交请假申请</button></div>
           </form>
-          {!profileReady ? <p className="text-xs text-[var(--admin-muted)]">请先在个人资料中完善学号和学院，再提交申请。</p> : null}
+          {!profileReady ? <p className="text-xs text-[var(--admin-muted)]">请先在我的主页资料设置中完善学号和学院，再提交申请。</p> : null}
           <div className="divide-y divide-[var(--admin-border-subtle)]">{requests.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-xs"><span>{dateText(item.startAt)} 至 {dateText(item.endAt)} · {statusText(item.status)}</span>{item.status === "pending" ? <button type="button" className={`${button} admin-button--quiet`} disabled={busy} onClick={() => void runAction(() => leaveClient.withdrawSchoolRequest(item.id), "请假申请已撤回。")}>撤回</button> : null}</div>)}</div>
         </section> : null}
         <section className="admin-panel space-y-4 p-4 sm:p-5">
@@ -204,8 +204,8 @@ export default function LeaveWorkbench() {
           </form>
           {!profileReady ? (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--admin-border-subtle)] bg-[var(--admin-surface-subtle)] px-4 py-3">
-              <p className="text-sm text-[var(--admin-muted)]">生成假条前，请先完善个人资料中的学号和学院。</p>
-              <button type="button" className={`${button} admin-button--secondary`} onClick={openProfile}>完善个人资料</button>
+              <p className="text-sm text-[var(--admin-muted)]">生成假条前，请先完善我的主页中的学号和学院。</p>
+              <button type="button" className={`${button} admin-button--secondary`} onClick={() => openMyProfile("settings")}>完善学籍资料</button>
             </div>
           ) : null}
         </section>
