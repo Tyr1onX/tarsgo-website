@@ -215,6 +215,8 @@ test("member profiles reuse community permissions, XP, and public badge records"
   assert.match(authorProfile, /communityProfileReturnTo/);
   assert.match(memberProfilePage, /概览[\s\S]*帖子[\s\S]*回复[\s\S]*徽章/);
   assert.match(memberProfilePage, /featuredBadgeKey: key/);
+  assert.match(memberProfilePage, /preventScrollReset: true/);
+  assert.match(memberProfilePage, /navigate\(-1\)/);
   assert.match(styles, /\.community-member-hero/);
   assert.match(styles, /@media \(max-width: 639px\)[\s\S]*?\.community-member-overview/);
 });

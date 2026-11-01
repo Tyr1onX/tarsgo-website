@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 
 import { CommunityBadgeMark } from "~/components/community-badge-mark";
@@ -47,10 +47,15 @@ export default function CommunityMemberProfileRoute() {
   const [selectedBadge, setSelectedBadge] = useState("");
   const [saving, setSaving] = useState(false);
   const returnTarget = (location.state as { communityProfileReturnTo?: unknown } | null)?.communityProfileReturnTo;
-  const returnTo = typeof returnTarget === "string" && (returnTarget === "/dashboard" || returnTarget.startsWith("/dashboard/") || returnTarget.startsWith("/dashboard?"))
-    ? returnTarget
-    : "/dashboard";
+  const hasReturnLocation = typeof returnTarget === "string" && (returnTarget === "/dashboard" || returnTarget.startsWith("/dashboard/") || returnTarget.startsWith("/dashboard?"));
+  const returnTo = hasReturnLocation ? returnTarget : "/dashboard";
   const currentPath = `${location.pathname}${location.search}${location.hash}`;
+
+  function returnToSource(event: MouseEvent<HTMLAnchorElement>) {
+    if (!hasReturnLocation) return;
+    event.preventDefault();
+    navigate(-1);
+  }
 
   useEffect(() => {
     let active = true;
@@ -76,7 +81,7 @@ export default function CommunityMemberProfileRoute() {
     if (nextPage > 1) params.set("page", String(nextPage));
     else params.delete("page");
     const query = params.toString();
-    navigate(`${location.pathname}${query ? `?${query}` : ""}`, { state: location.state });
+    navigate(`${location.pathname}${query ? `?${query}` : ""}`, { state: location.state, preventScrollReset: true });
   }
 
   async function saveBio(event: FormEvent<HTMLFormElement>) {
@@ -117,7 +122,7 @@ export default function CommunityMemberProfileRoute() {
   }
 
   if (loading && !result) return <section className="admin-design community-page"><p className="community-state" role="status">正在读取成员主页…</p></section>;
-  if (!result) return <section className="admin-design community-page"><p className="community-state community-state--error" role="alert">{error || "成员主页不存在。"}</p><Link className="community-thread__back" to={returnTo}><CommunityIcon name="arrowLeft" />返回</Link></section>;
+  if (!result) return <section className="admin-design community-page"><p className="community-state community-state--error" role="alert">{error || "成员主页不存在。"}</p><Link className="community-thread__back" to={returnTo} onClick={returnToSource}><CommunityIcon name="arrowLeft" />返回</Link></section>;
 
   const { member, stats } = result;
   const visibleBadges = result.badges ?? [];
@@ -125,7 +130,7 @@ export default function CommunityMemberProfileRoute() {
   const currentlyEarnedBadges = visibleBadges.filter((badge) => badge.isEarned);
 
   return <section className="admin-design community-page community-member-page" aria-labelledby="community-member-title">
-    <Link className="community-thread__back" to={returnTo}><CommunityIcon name="arrowLeft" />返回</Link>
+    <Link className="community-thread__back" to={returnTo} onClick={returnToSource}><CommunityIcon name="arrowLeft" />返回</Link>
     {error ? <p className="community-state community-state--error" role="alert">{error}</p> : null}
 
     <header className="community-member-hero">
