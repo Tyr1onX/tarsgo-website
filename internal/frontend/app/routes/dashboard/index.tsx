@@ -149,7 +149,7 @@ export default function DashboardIndex() {
     updateFilters({ q: queryDraft });
   }
 
-  async function publish(input: { category: CommunityCategory; title: string; body: string; files: File[] }) {
+  async function publish(input: { category: CommunityCategory; title: string; body: string; files: File[]; uploadTokens: string[] }) {
     const created = await communityClient.create(input);
     setComposerOpen(false);
     await loadFirstPage(true);

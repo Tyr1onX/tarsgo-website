@@ -17,6 +17,10 @@ const growthUI = await source("../components/community-growth.tsx");
 const growthStyles = await source("../components/community-growth.css");
 const profile = await source("../components/profile-dialog.tsx");
 const postCard = await source("../components/community-post-card.tsx");
+const markdownEditor = await source("../components/community-markdown-editor.tsx");
+const markdownRenderer = await source("../components/community-markdown.tsx");
+const markdown = await source("./community-markdown.ts");
+const communityUploads = await source("../../../backend/service/trainingqa/community_uploads.go");
 const handler = await source("../../../backend/handler/community.go");
 const router = await source("../../../backend/router/router.go");
 const service = await source("../../../backend/service/trainingqa/community.go");
@@ -79,12 +83,57 @@ test("community images open an accessible gallery with keyboard navigation", () 
 test("post drafts persist text and selected image files per account", () => {
   assert.match(draft, /indexedDB\.open/);
   assert.match(draft, /files: File\[\]/);
+  assert.match(draft, /uploadTokens\?: string\[\]/);
   assert.match(draft, /loadCommunityDraft/);
   assert.match(draft, /saveCommunityDraft/);
   assert.match(draft, /clearCommunityDraft/);
   assert.match(composer, /loadCommunityDraft\(accountId\)/);
   assert.match(composer, /草稿已保存到此设备/);
-  assert.match(composer, /communityImageHint/);
+  assert.match(composer, /CommunityMarkdownEditor/);
+  assert.match(composer, /uploadTokens: draft\.uploads\.map/);
+});
+
+test("the same Markdown editor is used for publishing, post edits, replies, and comment edits", () => {
+  assert.match(composer, /<CommunityMarkdownEditor/);
+  assert.match(thread, /<CommunityMarkdownEditor[^>]+attachments=\{post\.attachments\}/);
+  assert.match(thread, /<CommunityMarkdownEditor[^>]+attachments=\{item\.attachments\}/);
+  assert.match(thread, /uploads=\{commentUploads\}/);
+  assert.match(thread, /uploads=\{editCommentUploads\}/);
+  assert.match(thread, /<CommunityMarkdown source=\{post\.body\}/);
+  assert.match(thread, /<CommunityMarkdown source=\{item\.body\}/);
+  assert.match(postCard, /stripCommunityMarkdown\(post\.body\)/);
+});
+
+test("the editor offers WYSIWYG and source preview, image upload, tables, tasks, undo, and image controls", () => {
+  assert.match(markdownEditor, /@milkdown\/crepe/);
+  assert.match(markdownEditor, /所见即所得/);
+  assert.match(markdownEditor, /Markdown/);
+  assert.match(markdownEditor, /uploadConfig\.key/);
+  assert.match(markdownEditor, /community-upload:\/\//);
+  assert.match(markdownEditor, /createTable\(ctx, 3, 3\)/);
+  assert.match(markdownEditor, /任务清单/);
+  assert.match(markdownEditor, /undoCommand/);
+  assert.match(markdownEditor, /redoCommand/);
+  assert.match(markdownEditor, /替代文本/);
+  assert.match(markdownEditor, /对齐方式/);
+  assert.match(markdownEditor, /实时预览/);
+  assert.match(markdownRenderer, /remarkGfm/);
+  assert.match(markdownRenderer, /skipHtml/);
+  assert.match(markdownRenderer, /highlightedCode/);
+  assert.match(markdownRenderer, /clipboard\.writeText/);
+  assert.match(markdownRenderer, /role="dialog"/);
+  assert.match(markdown, /safeCommunityMarkdownUrl/);
+});
+
+test("uploaded images remain bound to Markdown and are removed with deleted inline references", () => {
+  assert.match(client, /uploadTokens: string\[\]/);
+  assert.match(client, /body: postForm\(\{ category: input\.category/);
+  assert.match(client, /body: postForm\(\{ body: value\.body/);
+  assert.match(handler, /communityMultipartUploadTokens/);
+  assert.match(communityUploads, /validateCommunityUploadBindings/);
+  assert.match(communityUploads, /replaceCommunityUploadTokens/);
+  assert.match(communityUploads, /removeDeletedInlineAttachments/);
+  assert.match(communityUploads, /正文中的临时图片未随请求上传/);
 });
 
 test("community layout follows workbench themes and adapts its reading layout", () => {

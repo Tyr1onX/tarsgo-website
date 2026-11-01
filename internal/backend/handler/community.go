@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"encoding/json"
 	"errors"
 	"mime/multipart"
 	"net/http"
@@ -93,8 +94,12 @@ func (h *CommunityHandler) Create(c *gin.Context) {
 		defer c.Request.MultipartForm.RemoveAll()
 	}
 	files := communityMultipartFiles(c)
+	uploadTokens, ok := communityMultipartUploadTokens(c)
+	if !ok {
+		return
+	}
 	item, err := h.service.CreateCommunityPost(c.Request.Context(), currentTrainingQuestionActor(c), trainingqa.CommunityPostInput{
-		Category: c.PostForm("category"), Title: c.PostForm("title"), Body: c.PostForm("body"), Files: files,
+		Category: c.PostForm("category"), Title: c.PostForm("title"), Body: c.PostForm("body"), Files: files, UploadTokens: uploadTokens,
 	})
 	if err != nil {
 		h.fail(c, err)
@@ -109,7 +114,22 @@ func (h *CommunityHandler) Update(c *gin.Context) {
 		return
 	}
 	var request trainingqa.CommunityPostUpdate
-	if err := c.ShouldBindJSON(&request); err != nil {
+	if strings.HasPrefix(strings.ToLower(c.GetHeader("Content-Type")), "multipart/form-data") {
+		if !parseQuestionMultipart(c) {
+			return
+		}
+		if c.Request.MultipartForm != nil {
+			defer c.Request.MultipartForm.RemoveAll()
+		}
+		uploadTokens, valid := communityMultipartUploadTokens(c)
+		if !valid {
+			return
+		}
+		request = trainingqa.CommunityPostUpdate{
+			Category: c.PostForm("category"), Title: c.PostForm("title"), Body: c.PostForm("body"),
+			Files: communityMultipartFiles(c), UploadTokens: uploadTokens,
+		}
+	} else if err := c.ShouldBindJSON(&request); err != nil {
 		writeAPIError(c, http.StatusBadRequest, "帖子信息不合法")
 		return
 	}
@@ -153,8 +173,12 @@ func (h *CommunityHandler) AddComment(c *gin.Context) {
 		}
 		parentPostID = &value
 	}
+	uploadTokens, ok := communityMultipartUploadTokens(c)
+	if !ok {
+		return
+	}
 	item, err := h.service.AddCommunityComment(c.Request.Context(), currentTrainingQuestionActor(c), postID, trainingqa.CommunityCommentInput{
-		Body: c.PostForm("body"), ParentPostID: parentPostID, Files: communityMultipartFiles(c),
+		Body: c.PostForm("body"), ParentPostID: parentPostID, Files: communityMultipartFiles(c), UploadTokens: uploadTokens,
 	})
 	if err != nil {
 		h.fail(c, err)
@@ -168,14 +192,30 @@ func (h *CommunityHandler) UpdateComment(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var request struct {
-		Body string `json:"body"`
+	var request trainingqa.CommunityCommentUpdate
+	if strings.HasPrefix(strings.ToLower(c.GetHeader("Content-Type")), "multipart/form-data") {
+		if !parseQuestionMultipart(c) {
+			return
+		}
+		if c.Request.MultipartForm != nil {
+			defer c.Request.MultipartForm.RemoveAll()
+		}
+		uploadTokens, valid := communityMultipartUploadTokens(c)
+		if !valid {
+			return
+		}
+		request = trainingqa.CommunityCommentUpdate{Body: c.PostForm("body"), Files: communityMultipartFiles(c), UploadTokens: uploadTokens}
+	} else {
+		var jsonRequest struct {
+			Body string `json:"body"`
+		}
+		if err := c.ShouldBindJSON(&jsonRequest); err != nil {
+			writeAPIError(c, http.StatusBadRequest, "回复内容不合法")
+			return
+		}
+		request.Body = jsonRequest.Body
 	}
-	if err := c.ShouldBindJSON(&request); err != nil {
-		writeAPIError(c, http.StatusBadRequest, "回复内容不合法")
-		return
-	}
-	item, err := h.service.UpdateCommunityComment(c.Request.Context(), currentTrainingQuestionActor(c), commentID, request.Body)
+	item, err := h.service.UpdateCommunityCommentContent(c.Request.Context(), currentTrainingQuestionActor(c), commentID, request)
 	if err != nil {
 		h.fail(c, err)
 		return
@@ -312,6 +352,19 @@ func communityMultipartFiles(c *gin.Context) []*multipart.FileHeader {
 		return nil
 	}
 	return c.Request.MultipartForm.File["files"]
+}
+
+func communityMultipartUploadTokens(c *gin.Context) ([]string, bool) {
+	raw := strings.TrimSpace(c.PostForm("uploadTokens"))
+	if raw == "" {
+		return nil, true
+	}
+	var tokens []string
+	if err := json.Unmarshal([]byte(raw), &tokens); err != nil || tokens == nil || len(tokens) > 5 {
+		writeAPIError(c, http.StatusBadRequest, "图片引用信息不合法")
+		return nil, false
+	}
+	return tokens, true
 }
 
 func parseCommunityID(c *gin.Context, parameter, label string) (uint64, bool) {

@@ -100,22 +100,32 @@ type CommunityPostDetail struct {
 }
 
 type CommunityPostInput struct {
-	Category string
-	Title    string
-	Body     string
-	Files    []*multipart.FileHeader
+	Category     string
+	Title        string
+	Body         string
+	Files        []*multipart.FileHeader
+	UploadTokens []string
 }
 
 type CommunityCommentInput struct {
 	Body         string
 	ParentPostID *uint64
 	Files        []*multipart.FileHeader
+	UploadTokens []string
 }
 
 type CommunityPostUpdate struct {
-	Category string
-	Title    string
-	Body     string
+	Category     string
+	Title        string
+	Body         string
+	Files        []*multipart.FileHeader
+	UploadTokens []string
+}
+
+type CommunityCommentUpdate struct {
+	Body         string
+	Files        []*multipart.FileHeader
+	UploadTokens []string
 }
 
 type CommunityModerationUpdate struct {
@@ -361,6 +371,9 @@ func (s *Service) CreateCommunityPost(ctx context.Context, actor Actor, input Co
 	if !IsCommunityCategory(category) || title == "" || utf8.RuneCountInString(title) > 160 || body == "" || utf8.RuneCountInString(body) > 20000 {
 		return nil, badRequest("帖子标题、正文或分类不合法")
 	}
+	if err := validateCommunityUploadBindings(body, input.Files, input.UploadTokens); err != nil {
+		return nil, err
+	}
 	uploads, err := validateQuestionUploads(input.Files)
 	if err != nil {
 		return nil, err
@@ -374,22 +387,21 @@ func (s *Service) CreateCommunityPost(ctx context.Context, actor Actor, input Co
 		if err := tx.Create(&question).Error; err != nil {
 			return err
 		}
-		for _, upload := range uploads {
-			file, err := s.files.save(ctx, 0, question.ID, upload)
-			if err != nil {
-				if errors.Is(err, errQuestionFileTooLarge) {
-					return badRequest("单张图片不能超过 10 MB")
-				}
-				return err
+		urls, saved, err := saveCommunityAttachments(ctx, tx, s.files, actor.ID, 0, question.ID, nil, uploads, input.UploadTokens)
+		stored = append(stored, saved...)
+		if err != nil {
+			if errors.Is(err, errQuestionFileTooLarge) {
+				return badRequest("单张图片不能超过 10 MB")
 			}
-			stored = append(stored, file)
-			if storedQuestionFileTotal(stored) > maxQuestionFilesTotal {
-				return badRequest("图片总大小不能超过 20 MB")
-			}
-			if err := tx.Create(&model.TrainingQuestionAttachment{
-				QuestionID: question.ID, UploaderID: actor.ID, FileName: file.fileName,
-				StoragePath: file.storagePath, ContentType: file.contentType, Size: file.size,
-			}).Error; err != nil {
+			return err
+		}
+		finalBody, err := replaceCommunityUploadTokens(body, urls)
+		if err != nil {
+			return err
+		}
+		if finalBody != question.Body {
+			question.Body = finalBody
+			if err := tx.Model(&question).Update("body", finalBody).Error; err != nil {
 				return err
 			}
 		}
@@ -413,6 +425,13 @@ func (s *Service) UpdateCommunityPost(ctx context.Context, actor Actor, postID u
 	if !IsCommunityCategory(category) || title == "" || utf8.RuneCountInString(title) > 160 || body == "" || utf8.RuneCountInString(body) > 20000 {
 		return nil, badRequest("帖子标题、正文或分类不合法")
 	}
+	if err := validateCommunityUploadBindings(body, input.Files, input.UploadTokens); err != nil {
+		return nil, err
+	}
+	uploads, err := validateQuestionUploads(input.Files)
+	if err != nil {
+		return nil, err
+	}
 	question, err := s.loadQuestion(ctx, postID)
 	if err != nil {
 		return nil, err
@@ -424,9 +443,46 @@ func (s *Service) UpdateCommunityPost(ctx context.Context, actor Actor, postID u
 		return nil, forbidden("只能编辑自己的帖子")
 	}
 	now := s.now().UTC()
-	if err := s.db.WithContext(ctx).Model(&model.TrainingQuestion{}).Where("id = ? AND asker_id = ? AND deleted_at IS NULL", postID, actor.ID).
-		Updates(map[string]any{"category": category, "title": title, "body": body, "edited_at": now, "updated_at": now}).Error; err != nil {
+	var stored []*storedQuestionFile
+	var removed []string
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var current model.TrainingQuestion
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&current, postID).Error; err != nil {
+			return err
+		}
+		if current.DeletedAt != nil || current.AskerID != actor.ID {
+			return forbidden("只能编辑自己的帖子")
+		}
+		if err := s.requireVisibleWithDB(ctx, tx, actor, &current); err != nil {
+			return err
+		}
+		urls, saved, err := saveCommunityAttachments(ctx, tx, s.files, actor.ID, communityGroupID(current.GroupID), postID, nil, uploads, input.UploadTokens)
+		stored = append(stored, saved...)
+		if err != nil {
+			return err
+		}
+		finalBody, err := replaceCommunityUploadTokens(body, urls)
+		if err != nil {
+			return err
+		}
+		removed, err = removeDeletedInlineAttachments(tx, postID, nil, current.Body, finalBody)
+		if err != nil {
+			return err
+		}
+		return tx.Model(&current).Updates(map[string]any{"category": category, "title": title, "body": finalBody, "edited_at": now, "updated_at": now}).Error
+	})
+	if err != nil {
+		for _, file := range stored {
+			s.files.remove(file.storagePath)
+		}
+		var serviceErr *ServiceError
+		if errors.As(err, &serviceErr) {
+			return nil, serviceErr
+		}
 		return nil, internalError("编辑社区帖子失败", err)
+	}
+	for _, path := range removed {
+		s.files.remove(path)
 	}
 	return s.GetCommunityPost(ctx, actor, postID)
 }
@@ -467,6 +523,9 @@ func (s *Service) AddCommunityComment(ctx context.Context, actor Actor, postID u
 	body := strings.TrimSpace(input.Body)
 	if body == "" || utf8.RuneCountInString(body) > 20000 {
 		return nil, badRequest("回复内容不合法")
+	}
+	if err := validateCommunityUploadBindings(body, input.Files, input.UploadTokens); err != nil {
+		return nil, err
 	}
 	uploads, err := validateQuestionUploads(input.Files)
 	if err != nil {
@@ -510,23 +569,18 @@ func (s *Service) AddCommunityComment(ctx context.Context, actor Actor, postID u
 		if err := tx.Model(&question).Updates(map[string]any{"last_reply_at": now, "updated_at": now}).Error; err != nil {
 			return err
 		}
-		for _, upload := range uploads {
-			file, err := s.files.save(ctx, communityGroupID(question.GroupID), question.ID, upload)
-			if err != nil {
-				if errors.Is(err, errQuestionFileTooLarge) {
-					return badRequest("单张图片不能超过 10 MB")
-				}
-				return err
-			}
-			stored = append(stored, file)
-			if storedQuestionFileTotal(stored) > maxQuestionFilesTotal {
-				return badRequest("图片总大小不能超过 20 MB")
-			}
-			commentID := comment.ID
-			if err := tx.Create(&model.TrainingQuestionAttachment{
-				QuestionID: postID, PostID: &commentID, UploaderID: actor.ID,
-				FileName: file.fileName, StoragePath: file.storagePath, ContentType: file.contentType, Size: file.size,
-			}).Error; err != nil {
+		commentID := comment.ID
+		urls, saved, err := saveCommunityAttachments(ctx, tx, s.files, actor.ID, communityGroupID(question.GroupID), question.ID, &commentID, uploads, input.UploadTokens)
+		stored = append(stored, saved...)
+		if err != nil {
+			return err
+		}
+		finalBody, err := replaceCommunityUploadTokens(body, urls)
+		if err != nil {
+			return err
+		}
+		if finalBody != comment.Body {
+			if err := tx.Model(&comment).Update("body", finalBody).Error; err != nil {
 				return err
 			}
 		}
@@ -549,9 +603,21 @@ func (s *Service) AddCommunityComment(ctx context.Context, actor Actor, postID u
 }
 
 func (s *Service) UpdateCommunityComment(ctx context.Context, actor Actor, commentID uint64, body string) (*CommunityPostDetail, error) {
+	return s.UpdateCommunityCommentContent(ctx, actor, commentID, CommunityCommentUpdate{Body: body})
+}
+
+func (s *Service) UpdateCommunityCommentContent(ctx context.Context, actor Actor, commentID uint64, input CommunityCommentUpdate) (*CommunityPostDetail, error) {
+	body := input.Body
 	body = strings.TrimSpace(body)
 	if body == "" || utf8.RuneCountInString(body) > 20000 {
 		return nil, badRequest("回复内容不合法")
+	}
+	if err := validateCommunityUploadBindings(body, input.Files, input.UploadTokens); err != nil {
+		return nil, err
+	}
+	uploads, err := validateQuestionUploads(input.Files)
+	if err != nil {
+		return nil, err
 	}
 	var comment model.TrainingQuestionPost
 	if err := s.db.WithContext(ctx).First(&comment, commentID).Error; err != nil {
@@ -570,10 +636,53 @@ func (s *Service) UpdateCommunityComment(ctx context.Context, actor Actor, comme
 	if comment.AuthorID != actor.ID || comment.DeletedAt != nil || question.DeletedAt != nil {
 		return nil, forbidden("只能编辑自己的回复")
 	}
-	if err := s.db.WithContext(ctx).Model(&model.TrainingQuestionPost{}).
-		Where("id = ? AND author_id = ? AND deleted_at IS NULL", commentID, actor.ID).
-		Updates(map[string]any{"body": body, "edited_at": s.now().UTC()}).Error; err != nil {
+	var stored []*storedQuestionFile
+	var removed []string
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var current model.TrainingQuestionPost
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&current, commentID).Error; err != nil {
+			return err
+		}
+		if current.AuthorID != actor.ID || current.DeletedAt != nil {
+			return forbidden("只能编辑自己的回复")
+		}
+		var currentQuestion model.TrainingQuestion
+		if err := tx.First(&currentQuestion, current.QuestionID).Error; err != nil {
+			return err
+		}
+		if currentQuestion.DeletedAt != nil {
+			return notFound("帖子不存在")
+		}
+		if err := s.requireVisibleWithDB(ctx, tx, actor, &currentQuestion); err != nil {
+			return err
+		}
+		urls, saved, err := saveCommunityAttachments(ctx, tx, s.files, actor.ID, communityGroupID(currentQuestion.GroupID), current.QuestionID, &current.ID, uploads, input.UploadTokens)
+		stored = append(stored, saved...)
+		if err != nil {
+			return err
+		}
+		finalBody, err := replaceCommunityUploadTokens(body, urls)
+		if err != nil {
+			return err
+		}
+		removed, err = removeDeletedInlineAttachments(tx, current.QuestionID, &current.ID, current.Body, finalBody)
+		if err != nil {
+			return err
+		}
+		return tx.Model(&current).Updates(map[string]any{"body": finalBody, "edited_at": s.now().UTC()}).Error
+	})
+	if err != nil {
+		for _, file := range stored {
+			s.files.remove(file.storagePath)
+		}
+		var serviceErr *ServiceError
+		if errors.As(err, &serviceErr) {
+			return nil, serviceErr
+		}
 		return nil, internalError("编辑社区回复失败", err)
+	}
+	for _, path := range removed {
+		s.files.remove(path)
 	}
 	return s.GetCommunityPost(ctx, actor, question.ID)
 }

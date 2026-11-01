@@ -3,6 +3,7 @@ import { Link, useLocation } from "react-router";
 import { CommunityIcon } from "~/components/community-icons";
 import { CommunityImageGallery } from "~/components/community-image-gallery";
 import { CommunityLevelBadge } from "~/components/community-growth";
+import { communityStandaloneAttachments, stripCommunityMarkdown } from "~/lib/community-markdown";
 import { communityCategoryLabel, communityPostHref, formatCommunityDate, type CommunityPost } from "~/lib/community-client";
 
 export function CommunityAvatar({ name, src, size = "regular" }: { name: string; src?: string; size?: "regular" | "small" }) {
@@ -26,7 +27,8 @@ export function CommunityPostCard({
   const location = useLocation();
   const returnTo = `${location.pathname}${location.search}${location.hash}`;
   const postState = { communityReturnTo: returnTo };
-  const excerpt = post.body.trim().replace(/\s+/g, " ");
+  const excerpt = stripCommunityMarkdown(post.body);
+  const galleryAttachments = communityStandaloneAttachments(post.body, post.attachments);
   const hasRecentReply = Boolean(post.lastReplyAt && new Date(post.lastReplyAt).getTime() > new Date(post.createdAt).getTime());
   return <article className={`community-post${post.isPinned ? " is-pinned" : ""}`}>
     <div className="community-post__author">
@@ -42,7 +44,7 @@ export function CommunityPostCard({
     {post.isLegacy && post.groupName ? <p className="community-post__scope">{post.visibility === "private" ? "历史私密讨论" : `${post.groupName} · 历史讨论`}</p> : null}
     {post.isFaq ? <span className="community-post__faq">FAQ</span> : null}
     <p className="community-post__excerpt">{excerpt}</p>
-    {post.attachments.length ? <CommunityImageGallery attachments={post.attachments} compact /> : null}
+    {galleryAttachments.length ? <CommunityImageGallery attachments={galleryAttachments} compact /> : null}
     <footer className="community-post__actions">
       <button type="button" aria-label={`${post.likedByMe ? "取消点赞" : "点赞"}，${post.likeCount} 个赞`} aria-pressed={post.likedByMe} disabled={busy || !onLike} onClick={() => onLike?.(post)}>
         <CommunityActionIcon kind="like" /> <span>{post.likeCount}</span> <span className="sr-only">{post.likedByMe ? "取消点赞" : "点赞"}</span>

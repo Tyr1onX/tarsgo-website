@@ -141,10 +141,11 @@ function queryString(filter: CommunityFilter) {
   return params.toString();
 }
 
-function postForm(fields: Record<string, string>, files: File[] = []) {
+function postForm(fields: Record<string, string>, files: File[] = [], uploadTokens: string[] = []) {
   const body = new FormData();
   for (const [key, value] of Object.entries(fields)) body.append(key, value);
   for (const file of files) body.append("files", file, file.name);
+  body.append("uploadTokens", JSON.stringify(uploadTokens.length ? uploadTokens : files.map(() => "")));
   return body;
 }
 
@@ -154,21 +155,23 @@ export const communityClient = {
   list: (filter: CommunityFilter) => apiRequest<CommunityPage>(`/api/community/posts?${queryString(filter)}`),
   hot: (limit = 5) => apiRequest<CommunityPost[]>(`/api/community/hot?limit=${limit}`),
   get: (id: number) => apiRequest<CommunityDetail>(`/api/community/posts/${id}`),
-  create: (input: { category: CommunityCategory; title: string; body: string; files: File[] }) =>
+  create: (input: { category: CommunityCategory; title: string; body: string; files: File[]; uploadTokens?: string[] }) =>
     apiRequest<CommunityDetail>("/api/community/posts", {
       method: "POST",
-      body: postForm({ category: input.category, title: input.title, body: input.body }, input.files),
+      body: postForm({ category: input.category, title: input.title, body: input.body }, input.files, input.uploadTokens),
     }),
-  update: (id: number, input: { category: CommunityCategory; title: string; body: string }) =>
-    apiRequest<CommunityDetail>(`/api/community/posts/${id}`, { method: "PATCH", body: input }),
+  update: (id: number, input: { category: CommunityCategory; title: string; body: string; files?: File[]; uploadTokens?: string[] }) =>
+    apiRequest<CommunityDetail>(`/api/community/posts/${id}`, { method: "PATCH", body: postForm({ category: input.category, title: input.title, body: input.body }, input.files, input.uploadTokens) }),
   remove: (id: number) => apiRequest<{ id: number }>(`/api/community/posts/${id}`, { method: "DELETE" }),
-  addComment: (id: number, input: { body: string; parentPostId?: number; files?: File[] }) =>
+  addComment: (id: number, input: { body: string; parentPostId?: number; files?: File[]; uploadTokens?: string[] }) =>
     apiRequest<CommunityDetail>(`/api/community/posts/${id}/comments`, {
       method: "POST",
-      body: postForm({ body: input.body, ...(input.parentPostId ? { parentPostId: String(input.parentPostId) } : {}) }, input.files),
+      body: postForm({ body: input.body, ...(input.parentPostId ? { parentPostId: String(input.parentPostId) } : {}) }, input.files, input.uploadTokens),
     }),
-  updateComment: (id: number, body: string) =>
-    apiRequest<CommunityDetail>(`/api/community/comments/${id}`, { method: "PATCH", body: { body } }),
+  updateComment: (id: number, input: string | { body: string; files?: File[]; uploadTokens?: string[] }) => {
+    const value = typeof input === "string" ? { body: input } : input;
+    return apiRequest<CommunityDetail>(`/api/community/comments/${id}`, { method: "PATCH", body: postForm({ body: value.body }, value.files, value.uploadTokens) });
+  },
   removeComment: (id: number) => apiRequest<CommunityDetail>(`/api/community/comments/${id}`, { method: "DELETE" }),
   likeComment: (id: number, active: boolean) =>
     apiRequest<CommunityCommentReactionState>(`/api/community/comments/${id}/like`, { method: active ? "PUT" : "DELETE" }),
