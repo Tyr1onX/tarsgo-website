@@ -13,6 +13,8 @@ import heart from "@iconify-icons/lucide/heart";
 import image from "@iconify-icons/lucide/image";
 import loader from "@iconify-icons/lucide/loader-2";
 import messageCircle from "@iconify-icons/lucide/message-circle";
+import moreVertical from "@iconify-icons/lucide/more-vertical";
+import pin from "@iconify-icons/lucide/pin";
 import plus from "@iconify-icons/lucide/plus";
 import search from "@iconify-icons/lucide/search";
 import x from "@iconify-icons/lucide/x";
@@ -32,6 +34,8 @@ const communityIcons = {
   image,
   loader,
   messageCircle,
+  moreVertical,
+  pin,
   plus,
   search,
   x,

@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from "react-router";
 
-import { CommunityBadgeMark } from "~/components/community-badge-mark";
+import { CommunityBadgeInfo } from "~/components/community-badge-mark";
 import { CommunityIcon } from "~/components/community-icons";
 import { CommunityLevelBadge } from "~/components/community-growth";
 import { CommunityAvatar } from "~/components/community-post-card";
@@ -65,7 +65,7 @@ export default function CommunityMemberProfileRoute() {
       if (!active) return;
       setResult(next);
       setBioDraft(next.member.bio);
-      setSelectedBadge(next.member.featuredBadge?.key ?? "");
+      setSelectedBadge(next.member.featuredBadgeKey ?? "");
     }).catch((cause) => {
       if (active) setError(cause instanceof Error ? cause.message : "成员主页暂时无法读取。");
     }).finally(() => {
@@ -112,7 +112,7 @@ export default function CommunityMemberProfileRoute() {
       await communityMemberProfileClient.updateMine({ featuredBadgeKey: key });
       const next = await communityMemberProfileClient.get(memberID, tab, page);
       setResult(next);
-      setSelectedBadge(next.member.featuredBadge?.key ?? "");
+      setSelectedBadge(next.member.featuredBadgeKey ?? "");
     } catch (cause) {
       setSelectedBadge(previous);
       setError(cause instanceof Error ? cause.message : "代表徽章更新失败，请稍后重试。");
@@ -136,10 +136,10 @@ export default function CommunityMemberProfileRoute() {
     <header className="community-member-hero">
       <CommunityAvatar name={member.displayName} src={member.avatarUrl} />
       <div className="community-member-hero__identity">
-        <div className="community-member-hero__name"><h1 id="community-member-title">{member.displayName}</h1><CommunityLevelBadge level={member.level.level} />{member.featuredBadge ? <CommunityBadgeMark badge={member.featuredBadge} size={24} /> : null}</div>
+        <div className="community-member-hero__name"><h1 id="community-member-title">{member.displayName}</h1><CommunityLevelBadge level={member.level.level} />{member.featuredBadge ? <CommunityBadgeInfo badge={member.featuredBadge} size={24} /> : null}</div>
         <div className="community-member-hero__groups">
           {member.groups.map((group) => <span key={`${group.name}-${group.role}`}>{group.name} · {group.role}</span>)}
-          {member.positions.map((position) => <span key={position.id}>{position.title}</span>)}
+          {member.positions.map((position) => <span key={position.id}>{position.categoryTitle} · {position.title}</span>)}
           {member.teamJoinedAt ? <span>加入战队 {formatLongDate(member.teamJoinedAt)}</span> : null}
         </div>
         {editingBio && member.isSelf ? <form className="community-member-bio-editor" onSubmit={(event) => void saveBio(event)}>
@@ -183,7 +183,7 @@ export default function CommunityMemberProfileRoute() {
       </section>
       <section className="community-member-section" aria-labelledby="community-member-honors-title">
         <header><h2 id="community-member-honors-title">代表荣誉</h2><button type="button" className="community-inline-link" onClick={() => changeTab("badges")}>全部徽章</button></header>
-        {member.featuredBadge ? <div className="community-member-featured-honor"><CommunityBadgeMark badge={member.featuredBadge} size={54} /><div><strong>{member.featuredBadge.name}</strong><span>{member.featuredBadge.levelLabel}</span></div></div> : <EmptyState>尚未设置代表徽章</EmptyState>}
+        {member.featuredBadge ? <div className="community-member-featured-honor"><CommunityBadgeInfo badge={member.featuredBadge} size={54} /><div><strong>{member.featuredBadge.name}</strong><span>{member.featuredBadge.levelLabel}</span></div></div> : <EmptyState>尚未获得徽章</EmptyState>}
       </section>
     </div> : null}
 
@@ -208,7 +208,7 @@ export default function CommunityMemberProfileRoute() {
 
     {tab === "badges" ? <section className="community-member-badges" aria-label="已获得的徽章">
       {member.isSelf ? <div className="community-member-badges__selection"><label htmlFor="community-featured-badge">代表徽章</label><select id="community-featured-badge" value={selectedBadge} disabled={saving} onChange={(event) => void selectFeaturedBadge(event.target.value)}>
-        <option value="">不展示代表徽章</option>{currentlyEarnedBadges.map((badge) => <option key={badge.key} value={badge.key}>{badge.name} · {badge.levelLabel}</option>)}
+        <option value="">自动选择最高等级</option>{currentlyEarnedBadges.map((badge) => <option key={badge.key} value={badge.key}>{badge.name} · {badge.levelLabel}</option>)}
       </select></div> : null}
       {visibleBadges.length ? visibleBadges.map((badge) => <BadgeCard key={badge.key} badge={badge} featured={member.featuredBadge?.key === badge.key} />) : <EmptyState>{loading ? "" : "还没有获得徽章"}</EmptyState>}
     </section> : null}
@@ -233,7 +233,7 @@ function Pagination({ page, hasMore, onChange }: { page: number; hasMore: boolea
 function BadgeCard({ badge, featured }: { badge: CommunityPublicBadge; featured: boolean }) {
   return <article className="community-member-badge-card">
     <div className="community-member-badge-card__intro">
-      <CommunityBadgeMark badge={badge} size={64} />
+      <CommunityBadgeInfo badge={badge} size={64} />
       <div><div className="community-member-badge-card__title"><h2>{badge.name}</h2>{featured ? <span>代表徽章</span> : null}</div><strong>{badge.levelLabel}</strong>{badge.earnedAt ? <time dateTime={badge.earnedAt}>当前等级获得于 {formatLongDate(badge.earnedAt)}</time> : null}<p>{badge.description} {badge.condition}</p></div>
     </div>
     <section className="community-member-badge-card__history"><h3>等级记录</h3>

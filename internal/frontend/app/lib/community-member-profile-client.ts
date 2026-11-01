@@ -3,8 +3,17 @@ import { apiRequest } from "~/lib/api-client";
 export interface CommunityFeaturedBadge {
   key: string;
   name: string;
+  description?: string;
   levelCode: "none" | "bronze" | "silver" | "gold";
   levelLabel: string;
+  earnedAt?: string;
+}
+
+export interface CommunityMemberPosition {
+  id: string;
+  title: string;
+  categoryId: string;
+  categoryTitle: string;
 }
 
 export interface CommunityPublicBadgeTier {
@@ -40,7 +49,7 @@ export interface CommunityMemberProfile {
   avatarUrl?: string;
   bio: string;
   groups: CommunityMemberGroup[];
-  positions: Array<{ id: string; title: string; categoryId: string; categoryTitle: string }>;
+  positions: CommunityMemberPosition[];
   teamJoinedAt?: string;
   level: {
     level: number;
@@ -50,6 +59,7 @@ export interface CommunityMemberProfile {
     xpToNextLevel: number;
     progress: number;
   };
+  featuredBadgeKey?: string;
   featuredBadge?: CommunityFeaturedBadge;
   isSelf: boolean;
 }

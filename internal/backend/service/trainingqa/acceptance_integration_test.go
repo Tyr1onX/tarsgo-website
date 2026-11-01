@@ -474,6 +474,10 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 	if err != nil || !moderated.Post.IsPinned || !moderated.Post.IsHidden {
 		t.Fatalf("admin moderation failed: post=%#v err=%v", moderated, err)
 	}
+	adminPinnedPage, err := service.ListCommunity(context.Background(), mechanicalAdmin, CommunityListFilter{Sort: "hot", Category: model.CommunityCategoryExperience, Page: 1, PageSize: 10})
+	if err != nil || len(adminPinnedPage.Items) < 2 || adminPinnedPage.Items[0].ID != communityID || !adminPinnedPage.Items[0].IsPinned {
+		t.Fatalf("pinned post did not lead the filtered hot list: page=%#v err=%v", adminPinnedPage, err)
+	}
 	if _, err := service.GetCommunityPost(context.Background(), crossMember, communityID); questionStatus(err) != http.StatusNotFound {
 		t.Fatalf("hidden community post remained visible to a member: status=%d", questionStatus(err))
 	}
@@ -495,6 +499,12 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 	unhidden := false
 	if _, err := service.ModerateCommunityPost(context.Background(), mechanicalAdmin, communityID, CommunityModerationUpdate{Hidden: &unhidden}); err != nil {
 		t.Fatalf("admin could not unhide community post: %v", err)
+	}
+	for _, sort := range []string{"latest", "hot"} {
+		pinnedPage, listErr := service.ListCommunity(context.Background(), crossMember, CommunityListFilter{Sort: sort, Category: model.CommunityCategoryExperience, Page: 1, PageSize: 10})
+		if listErr != nil || len(pinnedPage.Items) < 2 || pinnedPage.Items[0].ID != communityID || !pinnedPage.Items[0].IsPinned {
+			t.Fatalf("pinned post did not lead the filtered %s list: page=%#v err=%v", sort, pinnedPage, listErr)
+		}
 	}
 	if page, err := service.ListCommunity(context.Background(), crossMember, CommunityListFilter{Sort: "latest", Category: model.CommunityCategoryExperience, Page: 1, PageSize: 1}); err != nil || len(page.Items) != 1 || page.Items[0].ID != communityID || !page.HasMore {
 		t.Fatalf("category filter and pagination mismatch: page=%#v err=%v", page, err)
