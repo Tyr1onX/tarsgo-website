@@ -387,6 +387,11 @@ func (s *Service) SetSolved(ctx context.Context, actor Actor, questionID uint64,
 				return err
 			}
 		} else {
+			if question.AcceptedSolutionID != nil {
+				if err := revokeCommunityXP(tx, fmt.Sprintf("solution:%d:%d", question.ID, *question.AcceptedSolutionID), s.now()); err != nil {
+					return err
+				}
+			}
 			if question.SolvedAt != nil {
 				if err := recordQuestionGrowthEvent(tx, question.ID, model.TrainingQuestionGrowthSolved, *question.SolvedAt); err != nil {
 					return err
@@ -397,7 +402,7 @@ func (s *Service) SetSolved(ctx context.Context, actor Actor, questionID uint64,
 					return err
 				}
 			}
-			updates["solved_by"], updates["solved_at"], updates["is_faq"], updates["faq_by"], updates["faq_at"] = nil, nil, false, nil, nil
+			updates["solved_by"], updates["solved_at"], updates["accepted_solution_id"], updates["is_faq"], updates["faq_by"], updates["faq_at"] = nil, nil, nil, false, nil, nil
 		}
 		return tx.Model(&question).Updates(updates).Error
 	})

@@ -40,9 +40,9 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 		t.Fatal("open isolated acceptance SQL connection")
 	}
 	t.Cleanup(func() { _ = sqlDB.Close() })
-	for _, table := range []string{"training_questions", "training_question_posts", "training_question_attachments", "training_question_growth_events"} {
+	for _, table := range []string{"training_questions", "training_question_posts", "training_question_attachments", "training_question_growth_events", "community_experience_events", "community_check_ins", "community_comment_reactions"} {
 		if !db.Migrator().HasTable(table) {
-			t.Fatalf("database migration v20 is missing table %s", table)
+			t.Fatalf("community growth migrations are missing table %s", table)
 		}
 	}
 
@@ -107,16 +107,28 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 	superAdmin := createActor("super-admin", model.RoleNameSuperAdmin, "")
 	t.Cleanup(func() {
 		if len(questionIDs) > 0 {
+			if err := db.Where("comment_id IN (?)", db.Model(&model.TrainingQuestionPost{}).Select("id").Where("question_id IN ?", questionIDs)).Delete(&model.CommunityCommentReaction{}).Error; err != nil {
+				t.Errorf("clean isolated comment reactions: %v", err)
+			}
 			for _, value := range []any{&model.CommunityPostReaction{}, &model.TrainingQuestionGrowthEvent{}, &model.TrainingQuestionAttachment{}, &model.TrainingQuestionPost{}} {
 				if err := db.Where("question_id IN ?", questionIDs).Delete(value).Error; err != nil {
 					t.Errorf("clean isolated Q&A history: %v", err)
 				}
+			}
+			if err := db.Where("related_id IN ?", questionIDs).Delete(&model.CommunityExperienceEvent{}).Error; err != nil {
+				t.Errorf("clean isolated community experience: %v", err)
 			}
 			if err := db.Where("id IN ?", questionIDs).Delete(&model.TrainingQuestion{}).Error; err != nil {
 				t.Errorf("clean isolated Q&A questions: %v", err)
 			}
 		}
 		if len(actorUserIDs) > 0 {
+			if err := db.Where("user_id IN ?", actorUserIDs).Delete(&model.CommunityCheckIn{}).Error; err != nil {
+				t.Errorf("clean isolated check-ins: %v", err)
+			}
+			if err := db.Where("user_id IN ?", actorUserIDs).Delete(&model.CommunityExperienceEvent{}).Error; err != nil {
+				t.Errorf("clean isolated member experience: %v", err)
+			}
 			if err := db.Where("user_id IN ?", actorUserIDs).Delete(&model.UserGroupMember{}).Error; err != nil {
 				t.Errorf("clean isolated memberships: %v", err)
 			}
@@ -275,6 +287,13 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 	if err != nil {
 		t.Fatalf("operations member could not publish community post: %v", err)
 	}
+	if communityPost.Post.AuthorLevel != 1 {
+		t.Fatalf("new member should start at level 1, got level %d", communityPost.Post.AuthorLevel)
+	}
+	growthPage, err := service.ListCommunity(context.Background(), operationsMember, CommunityListFilter{Sort: "latest", Page: 1, PageSize: 10, IncludeGrowth: true})
+	if err != nil || growthPage.GrowthProfile == nil || growthPage.GrowthProfile.Level != communityPost.Post.AuthorLevel {
+		t.Fatalf("homepage growth profile and author level disagree: page=%#v err=%v", growthPage, err)
+	}
 	communityID := communityPost.Post.ID
 	questionIDs = append(questionIDs, communityID)
 	if communityPost.Post.IsLegacy || communityPost.Post.GroupID != 0 {
@@ -330,6 +349,13 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 	if _, err := service.SetCommunityReaction(context.Background(), crossMember, communityID, "like", false); err != nil {
 		t.Fatalf("community unlike failed: %v", err)
 	}
+	if _, err := service.SetCommunityReaction(context.Background(), crossMember, communityID, "like", true); err != nil {
+		t.Fatalf("community re-like failed: %v", err)
+	}
+	operationsGrowth, err := service.GetCommunityGrowth(context.Background(), operationsMember)
+	if err != nil || operationsGrowth.TotalXP != 0 {
+		t.Fatalf("unlike then re-like granted duplicate XP: profile=%#v err=%v", operationsGrowth, err)
+	}
 
 	firstComment, err := service.AddCommunityComment(context.Background(), peer, communityID, CommunityCommentInput{Body: "项目记录的补充说明。"})
 	if err != nil || len(firstComment.Comments) != 1 {
@@ -340,11 +366,52 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 	if err != nil || len(reply.Comments) != 2 || reply.Comments[1].ParentPostID == nil || *reply.Comments[1].ParentPostID != parentID {
 		t.Fatalf("nested community reply failed: comments=%d err=%v", lenOrZeroCommunity(reply), err)
 	}
+	if reply.Comments[0].AuthorLevel != operationsGrowth.Level || reply.Post.AuthorLevel != operationsGrowth.Level {
+		t.Fatalf("author levels differ between post, reply and profile: post=%d reply=%d profile=%d", reply.Post.AuthorLevel, reply.Comments[0].AuthorLevel, operationsGrowth.Level)
+	}
+	commentLiked, err := service.SetCommunityCommentReaction(context.Background(), crossMember, parentID, true)
+	if err != nil || commentLiked.LikeCount != 1 {
+		t.Fatalf("comment like failed: state=%#v err=%v", commentLiked, err)
+	}
+	commentLiked, err = service.SetCommunityCommentReaction(context.Background(), crossMember, parentID, true)
+	if err != nil || commentLiked.LikeCount != 1 {
+		t.Fatalf("repeated comment like was not idempotent: state=%#v err=%v", commentLiked, err)
+	}
+	peerGrowth, err := service.GetCommunityGrowth(context.Background(), peer)
+	if err != nil || peerGrowth.TotalXP != 1 {
+		t.Fatalf("receiving a comment like should award one XP: profile=%#v err=%v", peerGrowth, err)
+	}
+	if _, err := service.SetCommunityCommentReaction(context.Background(), crossMember, parentID, false); err != nil {
+		t.Fatalf("comment unlike failed: %v", err)
+	}
+	if _, err := service.SetCommunityCommentReaction(context.Background(), crossMember, parentID, true); err != nil {
+		t.Fatalf("comment re-like failed: %v", err)
+	}
+	peerGrowth, err = service.GetCommunityGrowth(context.Background(), peer)
+	if err != nil || peerGrowth.TotalXP != 0 {
+		t.Fatalf("comment unlike then re-like granted XP again: profile=%#v err=%v", peerGrowth, err)
+	}
+	acceptedCommentID := reply.Comments[1].ID
+	accepted, err := service.SetCommunitySolution(context.Background(), operationsMember, communityID, CommunitySolutionUpdate{CommentID: &acceptedCommentID})
+	if err != nil || accepted.Post.AcceptedSolutionID == nil || *accepted.Post.AcceptedSolutionID != acceptedCommentID || !accepted.Comments[1].IsAcceptedSolution {
+		t.Fatalf("post author could not accept a reply as the solution: detail=%#v err=%v", accepted, err)
+	}
+	if _, err := service.SetCommunitySolution(context.Background(), operationsMember, communityID, CommunitySolutionUpdate{CommentID: &acceptedCommentID}); err != nil {
+		t.Fatalf("repeated solution acceptance failed: %v", err)
+	}
+	crossGrowth, err := service.GetCommunityGrowth(context.Background(), crossMember)
+	if err != nil || crossGrowth.TotalXP != 10 {
+		t.Fatalf("accepted reply should award ten XP once: profile=%#v err=%v", crossGrowth, err)
+	}
 	if _, err := service.UpdateCommunityComment(context.Background(), peer, parentID, "更新后的说明"); err != nil {
 		t.Fatalf("comment author could not edit their own comment: %v", err)
 	}
 	if _, err := service.DeleteCommunityComment(context.Background(), peer, parentID); err != nil {
 		t.Fatalf("comment author could not delete their own comment: %v", err)
+	}
+	peerGrowth, err = service.GetCommunityGrowth(context.Background(), peer)
+	if err != nil || peerGrowth.TotalXP != 0 {
+		t.Fatalf("deleting the liked comment did not revoke its reward: profile=%#v err=%v", peerGrowth, err)
 	}
 
 	updated, err := service.UpdateCommunityPost(context.Background(), operationsMember, communityID, CommunityPostUpdate{
@@ -367,6 +434,14 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 	if _, err := service.GetCommunityPost(context.Background(), crossMember, communityID); questionStatus(err) != http.StatusNotFound {
 		t.Fatalf("hidden community post remained visible to a member: status=%d", questionStatus(err))
 	}
+	operationsGrowth, err = service.GetCommunityGrowth(context.Background(), operationsMember)
+	if err != nil || operationsGrowth.TotalXP != 0 {
+		t.Fatalf("hiding a post did not revoke reply XP: profile=%#v err=%v", operationsGrowth, err)
+	}
+	crossGrowth, err = service.GetCommunityGrowth(context.Background(), crossMember)
+	if err != nil || crossGrowth.TotalXP != 0 {
+		t.Fatalf("hiding a post did not revoke accepted-solution XP: profile=%#v err=%v", crossGrowth, err)
+	}
 	visibleToAdmin, err := service.ListCommunity(context.Background(), mechanicalAdmin, CommunityListFilter{Sort: "latest", Page: 1, PageSize: 1})
 	if err != nil || len(visibleToAdmin.Items) != 1 || visibleToAdmin.Items[0].ID != communityID || !visibleToAdmin.Items[0].IsHidden {
 		t.Fatalf("admin could not review hidden community post: items=%d err=%v", lenOrZeroCommunityList(visibleToAdmin), err)
@@ -387,6 +462,85 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 	var retained model.TrainingQuestion
 	if err := db.First(&retained, communityID).Error; err != nil || retained.DeletedAt == nil {
 		t.Fatalf("deleted post history was not retained: post=%#v err=%v", retained, err)
+	}
+	deleteTestPost, err := service.CreateCommunityPost(context.Background(), operationsMember, CommunityPostInput{
+		Category: model.CommunityCategoryProject, Title: "[TEST_QA] deletion reward probe", Body: "A reply reward should be removed when this post is deleted.",
+	})
+	if err != nil {
+		t.Fatalf("create deletion reward probe: %v", err)
+	}
+	questionIDs = append(questionIDs, deleteTestPost.Post.ID)
+	if _, err := service.AddCommunityComment(context.Background(), peer, deleteTestPost.Post.ID, CommunityCommentInput{Body: "Temporary reply for deletion verification."}); err != nil {
+		t.Fatalf("create deletion reward probe reply: %v", err)
+	}
+	operationsGrowth, err = service.GetCommunityGrowth(context.Background(), operationsMember)
+	if err != nil || operationsGrowth.TotalXP != 1 {
+		t.Fatalf("reply reward was not granted before post deletion: profile=%#v err=%v", operationsGrowth, err)
+	}
+	if err := service.DeleteCommunityPost(context.Background(), operationsMember, deleteTestPost.Post.ID); err != nil {
+		t.Fatalf("delete the reward probe post: %v", err)
+	}
+	operationsGrowth, err = service.GetCommunityGrowth(context.Background(), operationsMember)
+	if err != nil || operationsGrowth.TotalXP != 0 {
+		t.Fatalf("deleting the source post did not revoke its reply reward: profile=%#v err=%v", operationsGrowth, err)
+	}
+
+	checkInActor := createActor("community-check-in", model.RoleNameUser, "")
+	checkInTime := time.Date(2026, time.October, 31, 15, 59, 0, 0, time.UTC) // 23:59 in Beijing.
+	service.now = func() time.Time { return checkInTime }
+	firstCheckIn, err := service.CheckInCommunity(context.Background(), checkInActor)
+	if err != nil || firstCheckIn.EarnedXP != 10 || firstCheckIn.StreakDay != 1 || firstCheckIn.Profile.TotalXP != 10 {
+		t.Fatalf("first Beijing-day check-in incorrect: result=%#v err=%v", firstCheckIn, err)
+	}
+	repeatedCheckIn, err := service.CheckInCommunity(context.Background(), checkInActor)
+	if err != nil || !repeatedCheckIn.Already || repeatedCheckIn.EarnedXP != 0 || repeatedCheckIn.Profile.TotalXP != 10 {
+		t.Fatalf("duplicate same-day check-in granted XP: result=%#v err=%v", repeatedCheckIn, err)
+	}
+	for day := 2; day <= 7; day++ {
+		checkInTime = checkInTime.Add(24 * time.Hour)
+		result, err := service.CheckInCommunity(context.Background(), checkInActor)
+		if err != nil || result.StreakDay != day || result.EarnedXP != communityCheckInXP(day) {
+			t.Fatalf("consecutive check-in day %d incorrect: result=%#v err=%v", day, result, err)
+		}
+	}
+	checkInProfile, err := service.GetCommunityGrowth(context.Background(), checkInActor)
+	if err != nil || checkInProfile.TotalXP != 83 || checkInProfile.Level != 1 || checkInProfile.StreakDays != 7 || !checkInProfile.CheckedInToday || len(checkInProfile.UpcomingCheckIns) != 7 {
+		t.Fatalf("seven-day check-in profile incorrect: profile=%#v err=%v", checkInProfile, err)
+	}
+	checkInTime = checkInTime.Add(48 * time.Hour)
+	missedCheckIn, err := service.CheckInCommunity(context.Background(), checkInActor)
+	if err != nil || missedCheckIn.StreakDay != 1 || missedCheckIn.EarnedXP != 10 || missedCheckIn.Profile.StreakDays != 1 {
+		t.Fatalf("a missed day did not restart the streak: result=%#v err=%v", missedCheckIn, err)
+	}
+	checkInTime = checkInTime.Add(24 * time.Hour)
+	type checkInAttempt struct {
+		result *CommunityCheckInResult
+		err    error
+	}
+	const concurrentCheckIns = 8
+	attempts := make(chan checkInAttempt, concurrentCheckIns)
+	for index := 0; index < concurrentCheckIns; index++ {
+		go func() {
+			result, err := service.CheckInCommunity(context.Background(), checkInActor)
+			attempts <- checkInAttempt{result: result, err: err}
+		}()
+	}
+	newAwards := 0
+	for index := 0; index < concurrentCheckIns; index++ {
+		attempt := <-attempts
+		if attempt.err != nil {
+			t.Fatalf("concurrent check-in request failed: %v", attempt.err)
+		}
+		if attempt.result.EarnedXP > 0 {
+			newAwards++
+		}
+	}
+	if newAwards != 1 {
+		t.Fatalf("concurrent check-ins awarded XP %d times, want once", newAwards)
+	}
+	checkInProfile, err = service.GetCommunityGrowth(context.Background(), checkInActor)
+	if err != nil || checkInProfile.TotalXP != 103 || checkInProfile.StreakDays != 2 {
+		t.Fatalf("concurrent check-in did not create one day-2 reward: profile=%#v err=%v", checkInProfile, err)
 	}
 }
 

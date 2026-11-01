@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useLocation, useNavigate, useParams } from "react-router";
 
 import { CommunityImageGallery } from "~/components/community-image-gallery";
+import { CommunityLevelBadge } from "~/components/community-growth";
 import { CommunityIcon } from "~/components/community-icons";
 import { CommunityActionIcon, CommunityAvatar } from "~/components/community-post-card";
 import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
@@ -103,6 +104,41 @@ export default function CommunityPostRoute() {
       setDetail(previous);
       setError(cause instanceof Error ? cause.message : "操作失败，请稍后重试。");
       setRetryAction(() => () => { void toggleReaction(kind); });
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleCommentLike(item: CommunityComment) {
+    if (!detail || busy || !item.canLike) return;
+    const active = !item.likedByMe;
+    const previous = detail;
+    setBusy(true);
+    setError("");
+    setDetail({ ...detail, comments: detail.comments.map((commentItem) => commentItem.id === item.id ? {
+      ...commentItem, likedByMe: active, likeCount: Math.max(0, commentItem.likeCount + (active ? 1 : -1)),
+    } : commentItem) });
+    try {
+      const result = await communityClient.likeComment(item.id, active);
+      setDetail((current) => current ? { ...current, comments: current.comments.map((commentItem) => commentItem.id === item.id ? {
+        ...commentItem, likedByMe: result.active, likeCount: result.likeCount,
+      } : commentItem) } : current);
+    } catch (cause) {
+      setDetail(previous);
+      setError(cause instanceof Error ? cause.message : "回复点赞失败，请稍后重试。");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function setSolution(commentID: number | null) {
+    if (!detail || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      setDetail(await communityClient.setSolution(postID, commentID));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "解决方案状态更新失败。");
     } finally {
       setBusy(false);
     }
@@ -236,7 +272,7 @@ export default function CommunityPostRoute() {
     <article className={`community-post${post.isPinned ? " is-pinned" : ""}`}>
       <div className="community-post__author">
         <CommunityAvatar name={post.authorName} src={post.authorAvatar} />
-        <div className="community-post__byline"><strong>{post.authorName}</strong><time dateTime={post.createdAt}>{formatCommunityDate(post.createdAt)}{post.editedAt ? " · 已编辑" : ""}</time></div>
+        <div className="community-post__byline"><strong>{post.authorName}</strong><CommunityLevelBadge level={post.authorLevel} /><time dateTime={post.createdAt}>{formatCommunityDate(post.createdAt)}{post.editedAt ? " · 已编辑" : ""}</time></div>
         {post.isPinned ? <span className="community-post__pin">置顶</span> : null}
         <span className="community-post__category">{communityCategoryLabel(post.category)}</span>
       </div>
@@ -268,7 +304,7 @@ export default function CommunityPostRoute() {
       {comments.map((item) => {
         const parent = item.parentPostId ? parentByID.get(item.parentPostId) : null;
         return <article key={item.id} id={`community-comment-${item.id}`} className="community-comment" data-reply={Boolean(item.parentPostId)} data-depth={commentDepth(item)}>
-          <div className="community-comment__head"><CommunityAvatar name={item.authorName} src={item.authorAvatar} size="small" /><strong>{item.authorName}</strong><time dateTime={item.createdAt}>{formatCommunityDate(item.createdAt)}{item.editedAt ? " · 已编辑" : ""}</time></div>
+          <div className="community-comment__head"><CommunityAvatar name={item.authorName} src={item.authorAvatar} size="small" /><strong>{item.authorName}</strong><CommunityLevelBadge level={item.authorLevel} />{item.isAcceptedSolution ? <span className="community-comment__solution"><CommunityIcon name="check" />已采纳</span> : null}<time dateTime={item.createdAt}>{formatCommunityDate(item.createdAt)}{item.editedAt ? " · 已编辑" : ""}</time></div>
           {parent ? <button type="button" className="community-comment__context" onClick={() => document.getElementById(`community-comment-${parent.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}>
             <span>回复 {parent.authorName}</span><span>{parent.isDeleted ? "该回复已删除" : parent.body}</span>
           </button> : null}
@@ -276,6 +312,8 @@ export default function CommunityPostRoute() {
           {item.attachments.length ? <CommunityImageGallery attachments={item.attachments} /> : null}
           {!item.isDeleted && <div className="community-comment__actions">
             <button type="button" onClick={() => { setReplyTarget(item); document.getElementById("community-reply-body")?.focus(); document.getElementById("community-reply-form")?.scrollIntoView({ behavior: "smooth", block: "nearest" }); }}>回复</button>
+            <button type="button" className={item.likedByMe ? "is-liked" : ""} aria-label={`${item.likedByMe ? "取消点赞" : "点赞"}，${item.likeCount} 个赞`} aria-pressed={item.likedByMe} disabled={busy || !item.canLike} onClick={() => void toggleCommentLike(item)}><CommunityActionIcon kind="like" /><span>{item.likeCount || "赞"}</span></button>
+            {item.canAcceptSolution ? <button type="button" className={item.isAcceptedSolution ? "is-solution" : ""} disabled={busy} onClick={() => void setSolution(item.isAcceptedSolution ? null : item.id)}>{item.isAcceptedSolution ? "取消采纳" : "采纳为解决方案"}</button> : null}
             {item.canEdit ? <><button type="button" onClick={() => { setEditingCommentID(item.id); setEditCommentBody(item.body); }}>编辑</button><button type="button" onClick={() => void deleteComment(item.id)}>删除</button></> : null}
           </div>}
         </article>;

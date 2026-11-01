@@ -24,64 +24,74 @@ const (
 const CommunityDefaultPageSize = communityDefaultPageSize
 
 type CommunityListFilter struct {
-	Sort     string
-	Category string
-	Keyword  string
-	Page     int
-	PageSize int
-	Saved    bool
-	GroupID  uint64 // Used only by existing group specific FAQ and growth views.
-	MineOnly bool
-	FAQOnly  bool
-	Status   string
+	Sort          string
+	Category      string
+	Keyword       string
+	Page          int
+	PageSize      int
+	Saved         bool
+	GroupID       uint64 // Used only by existing group specific FAQ and growth views.
+	MineOnly      bool
+	FAQOnly       bool
+	IncludeGrowth bool
+	Status        string
 }
 
 type CommunityListResult struct {
-	Items   []CommunityPostView `json:"items"`
-	Page    int                 `json:"page"`
-	HasMore bool                `json:"hasMore"`
+	Items         []CommunityPostView     `json:"items"`
+	Page          int                     `json:"page"`
+	HasMore       bool                    `json:"hasMore"`
+	GrowthProfile *CommunityGrowthProfile `json:"growthProfile,omitempty"`
 }
 
 type CommunityPostView struct {
-	ID           uint64           `json:"id"`
-	GroupID      uint64           `json:"groupId"`
-	GroupName    string           `json:"groupName,omitempty"`
-	Category     string           `json:"category"`
-	Title        string           `json:"title"`
-	Body         string           `json:"body"`
-	AuthorID     uint64           `json:"authorId"`
-	AuthorName   string           `json:"authorName"`
-	AuthorAvatar *string          `json:"authorAvatar,omitempty"`
-	Visibility   string           `json:"visibility"`
-	IsSolved     bool             `json:"isSolved,omitempty"`
-	IsFAQ        bool             `json:"isFaq,omitempty"`
-	IsPinned     bool             `json:"isPinned"`
-	IsHidden     bool             `json:"isHidden"`
-	IsLegacy     bool             `json:"isLegacy"`
-	CreatedAt    time.Time        `json:"createdAt"`
-	EditedAt     *time.Time       `json:"editedAt,omitempty"`
-	LastReplyAt  *time.Time       `json:"lastReplyAt,omitempty"`
-	CommentCount int              `json:"commentCount"`
-	LikeCount    int              `json:"likeCount"`
-	LikedByMe    bool             `json:"likedByMe"`
-	SavedByMe    bool             `json:"savedByMe"`
-	CanEdit      bool             `json:"canEdit"`
-	CanModerate  bool             `json:"canModerate"`
-	Attachments  []AttachmentView `json:"attachments"`
+	ID                 uint64           `json:"id"`
+	GroupID            uint64           `json:"groupId"`
+	GroupName          string           `json:"groupName,omitempty"`
+	Category           string           `json:"category"`
+	Title              string           `json:"title"`
+	Body               string           `json:"body"`
+	AuthorID           uint64           `json:"authorId"`
+	AuthorName         string           `json:"authorName"`
+	AuthorAvatar       *string          `json:"authorAvatar,omitempty"`
+	AuthorLevel        int              `json:"authorLevel"`
+	Visibility         string           `json:"visibility"`
+	IsSolved           bool             `json:"isSolved,omitempty"`
+	AcceptedSolutionID *uint64          `json:"acceptedSolutionId,omitempty"`
+	IsFAQ              bool             `json:"isFaq,omitempty"`
+	IsPinned           bool             `json:"isPinned"`
+	IsHidden           bool             `json:"isHidden"`
+	IsLegacy           bool             `json:"isLegacy"`
+	CreatedAt          time.Time        `json:"createdAt"`
+	EditedAt           *time.Time       `json:"editedAt,omitempty"`
+	LastReplyAt        *time.Time       `json:"lastReplyAt,omitempty"`
+	CommentCount       int              `json:"commentCount"`
+	LikeCount          int              `json:"likeCount"`
+	LikedByMe          bool             `json:"likedByMe"`
+	SavedByMe          bool             `json:"savedByMe"`
+	CanEdit            bool             `json:"canEdit"`
+	CanModerate        bool             `json:"canModerate"`
+	Attachments        []AttachmentView `json:"attachments"`
 }
 
 type CommunityCommentView struct {
-	ID           uint64           `json:"id"`
-	ParentPostID *uint64          `json:"parentPostId,omitempty"`
-	AuthorID     uint64           `json:"authorId"`
-	AuthorName   string           `json:"authorName"`
-	AuthorAvatar *string          `json:"authorAvatar,omitempty"`
-	Body         string           `json:"body"`
-	CreatedAt    time.Time        `json:"createdAt"`
-	EditedAt     *time.Time       `json:"editedAt,omitempty"`
-	IsDeleted    bool             `json:"isDeleted"`
-	CanEdit      bool             `json:"canEdit"`
-	Attachments  []AttachmentView `json:"attachments"`
+	ID                 uint64           `json:"id"`
+	ParentPostID       *uint64          `json:"parentPostId,omitempty"`
+	AuthorID           uint64           `json:"authorId"`
+	AuthorName         string           `json:"authorName"`
+	AuthorAvatar       *string          `json:"authorAvatar,omitempty"`
+	AuthorLevel        int              `json:"authorLevel"`
+	Body               string           `json:"body"`
+	CreatedAt          time.Time        `json:"createdAt"`
+	EditedAt           *time.Time       `json:"editedAt,omitempty"`
+	IsDeleted          bool             `json:"isDeleted"`
+	CanEdit            bool             `json:"canEdit"`
+	CanLike            bool             `json:"canLike"`
+	LikedByMe          bool             `json:"likedByMe"`
+	LikeCount          int              `json:"likeCount"`
+	IsAcceptedSolution bool             `json:"isAcceptedSolution"`
+	CanAcceptSolution  bool             `json:"canAcceptSolution"`
+	Attachments        []AttachmentView `json:"attachments"`
 }
 
 type CommunityPostDetail struct {
@@ -118,6 +128,15 @@ type CommunityReactionState struct {
 	LikeCount int  `json:"likeCount"`
 }
 
+type CommunityCommentReactionState struct {
+	Active    bool `json:"active"`
+	LikeCount int  `json:"likeCount"`
+}
+
+type CommunitySolutionUpdate struct {
+	CommentID *uint64 `json:"commentId"`
+}
+
 type communityPostRow struct {
 	model.TrainingQuestion
 	GroupName    string  `gorm:"column:group_name"`
@@ -133,6 +152,8 @@ type communityCommentRow struct {
 	model.TrainingQuestionPost
 	AuthorName   string  `gorm:"column:author_name"`
 	AuthorAvatar *string `gorm:"column:author_avatar"`
+	LikeCount    int     `gorm:"column:like_count"`
+	LikedByMe    bool    `gorm:"column:liked_by_me"`
 }
 
 func IsCommunityCategory(category string) bool {
@@ -234,6 +255,12 @@ func (s *Service) ListCommunity(ctx context.Context, actor Actor, filter Communi
 	if err != nil {
 		return nil, err
 	}
+	if filter.IncludeGrowth {
+		result.GrowthProfile, err = s.communityGrowthProfile(ctx, s.db.WithContext(ctx), actor.ID, s.now())
+		if err != nil {
+			return nil, internalError("读取社区成长档案失败", err)
+		}
+	}
 	return result, nil
 }
 
@@ -280,11 +307,21 @@ func (s *Service) GetCommunityPost(ctx context.Context, actor Actor, postID uint
 	detail := &CommunityPostDetail{Post: views[0], Comments: []CommunityCommentView{}}
 	var comments []communityCommentRow
 	if err := s.db.WithContext(ctx).Table("training_question_posts AS p").
-		Select(`p.*, COALESCE(NULLIF(TRIM(u.real_name), ''), NULLIF(TRIM(u.nickname), ''), NULLIF(TRIM(u.name), ''), CONCAT('成员 ', u.id)) AS author_name, u.avatar_url AS author_avatar`).
+		Select(`p.*, COALESCE(NULLIF(TRIM(u.real_name), ''), NULLIF(TRIM(u.nickname), ''), NULLIF(TRIM(u.name), ''), CONCAT('成员 ', u.id)) AS author_name, u.avatar_url AS author_avatar,
+			(SELECT COUNT(*) FROM community_comment_reactions cr WHERE cr.comment_id = p.id) AS like_count,
+			EXISTS (SELECT 1 FROM community_comment_reactions mr WHERE mr.comment_id = p.id AND mr.user_id = ?) AS liked_by_me`, actor.ID).
 		Joins("JOIN users AS u ON u.id = p.author_id").
 		Where("p.question_id = ?", postID).
 		Order("p.created_at ASC, p.id ASC").Find(&comments).Error; err != nil {
 		return nil, internalError("读取社区回复失败", err)
+	}
+	commentAuthorIDs := make([]uint64, 0, len(comments))
+	for _, comment := range comments {
+		commentAuthorIDs = append(commentAuthorIDs, comment.AuthorID)
+	}
+	commentLevels, err := communityAuthorLevels(ctx, s.db, commentAuthorIDs)
+	if err != nil {
+		return nil, internalError("读取社区回复作者等级失败", err)
 	}
 	attachments, err := s.loadAttachments(ctx, []uint64{postID})
 	if err != nil {
@@ -293,9 +330,13 @@ func (s *Service) GetCommunityPost(ctx context.Context, actor Actor, postID uint
 	for _, comment := range comments {
 		view := CommunityCommentView{
 			ID: comment.ID, ParentPostID: comment.ParentPostID, AuthorID: comment.AuthorID,
-			AuthorName: comment.AuthorName, AuthorAvatar: comment.AuthorAvatar, Body: comment.Body,
+			AuthorName: comment.AuthorName, AuthorAvatar: comment.AuthorAvatar, AuthorLevel: commentLevels[comment.AuthorID], Body: comment.Body,
 			CreatedAt: comment.CreatedAt, EditedAt: comment.EditedAt, IsDeleted: comment.DeletedAt != nil,
-			CanEdit: comment.AuthorID == actor.ID && comment.DeletedAt == nil, Attachments: []AttachmentView{},
+			CanEdit: comment.AuthorID == actor.ID && comment.DeletedAt == nil, CanLike: actor.ID != comment.AuthorID && comment.DeletedAt == nil && !question.IsHidden,
+			LikedByMe: comment.LikedByMe, LikeCount: comment.LikeCount,
+			IsAcceptedSolution: question.AcceptedSolutionID != nil && *question.AcceptedSolutionID == comment.ID,
+			CanAcceptSolution:  question.GroupID == nil && question.AskerID == actor.ID && !question.IsHidden && comment.DeletedAt == nil && comment.AuthorID != actor.ID,
+			Attachments:        []AttachmentView{},
 		}
 		if view.IsDeleted {
 			view.Body = "该回复已删除"
@@ -402,9 +443,21 @@ func (s *Service) DeleteCommunityPost(ctx context.Context, actor Actor, postID u
 		return forbidden("只能删除自己的帖子")
 	}
 	now := s.now().UTC()
-	if err := s.db.WithContext(ctx).Model(&model.TrainingQuestion{}).
-		Where("id = ? AND asker_id = ? AND deleted_at IS NULL", postID, actor.ID).
-		Updates(map[string]any{"deleted_at": now, "updated_at": now}).Error; err != nil {
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&model.TrainingQuestion{}).
+			Where("id = ? AND asker_id = ? AND deleted_at IS NULL", postID, actor.ID).
+			Updates(map[string]any{"deleted_at": now, "updated_at": now})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return revokeCommunityQuestionXP(tx, postID, now)
+	}); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return notFound("帖子不存在")
+		}
 		return internalError("删除社区帖子失败", err)
 	}
 	return nil
@@ -446,6 +499,12 @@ func (s *Service) AddCommunityComment(ctx context.Context, actor Actor, postID u
 		comment := model.TrainingQuestionPost{QuestionID: postID, ParentPostID: input.ParentPostID, AuthorID: actor.ID, Kind: model.TrainingQuestionComment, Body: body}
 		if err := tx.Create(&comment).Error; err != nil {
 			return err
+		}
+		if actor.ID != question.AskerID && !question.IsHidden {
+			if err := recordCommunityXP(tx, question.AskerID, &actor.ID, communityXPReply, comment.ID, question.ID,
+				fmt.Sprintf("reply:%d", comment.ID), 1, s.now()); err != nil {
+				return err
+			}
 		}
 		now := s.now().UTC()
 		if err := tx.Model(&question).Updates(map[string]any{"last_reply_at": now, "updated_at": now}).Error; err != nil {
@@ -539,9 +598,36 @@ func (s *Service) DeleteCommunityComment(ctx context.Context, actor Actor, comme
 	}
 	now := s.now().UTC()
 	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var lockedQuestion model.TrainingQuestion
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&lockedQuestion, question.ID).Error; err != nil {
+			return err
+		}
+		var lockedComment model.TrainingQuestionPost
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&lockedComment, commentID).Error; err != nil {
+			return err
+		}
+		if lockedComment.AuthorID != actor.ID || lockedComment.DeletedAt != nil || lockedQuestion.DeletedAt != nil {
+			return gorm.ErrRecordNotFound
+		}
 		if err := tx.Model(&model.TrainingQuestionPost{}).
 			Where("id = ? AND author_id = ? AND deleted_at IS NULL", commentID, actor.ID).
 			Updates(map[string]any{"body": "", "deleted_at": now}).Error; err != nil {
+			return err
+		}
+		if lockedQuestion.AcceptedSolutionID != nil && *lockedQuestion.AcceptedSolutionID == commentID {
+			if err := revokeCommunityXP(tx, fmt.Sprintf("solution:%d:%d", question.ID, commentID), now); err != nil {
+				return err
+			}
+			if err := tx.Model(&lockedQuestion).Updates(map[string]any{
+				"accepted_solution_id": nil, "is_solved": false, "solved_by": nil, "solved_at": nil,
+			}).Error; err != nil {
+				return err
+			}
+		}
+		if err := revokeCommunityCommentXP(tx, question.ID, commentID, now); err != nil {
+			return err
+		}
+		if err := tx.Where("comment_id = ?", commentID).Delete(&model.CommunityCommentReaction{}).Error; err != nil {
 			return err
 		}
 		var latest *time.Time
@@ -553,6 +639,13 @@ func (s *Service) DeleteCommunityComment(ctx context.Context, actor Actor, comme
 		return tx.Model(&model.TrainingQuestion{}).Where("id = ?", question.ID).
 			Updates(map[string]any{"last_reply_at": latest, "updated_at": now}).Error
 	}); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, notFound("回复不存在")
+		}
+		var serviceErr *ServiceError
+		if errors.As(err, &serviceErr) {
+			return nil, serviceErr
+		}
 		return nil, internalError("删除社区回复失败", err)
 	}
 	return s.GetCommunityPost(ctx, actor, question.ID)
@@ -562,31 +655,124 @@ func (s *Service) SetCommunityReaction(ctx context.Context, actor Actor, postID 
 	if kind != "like" && kind != "bookmark" {
 		return nil, badRequest("互动类型不合法")
 	}
-	question, err := s.loadQuestion(ctx, postID)
-	if err != nil {
-		return nil, err
+	if actor.ID == 0 {
+		return nil, forbidden("请先登录后参与互动")
 	}
-	if question.DeletedAt != nil {
-		return nil, notFound("帖子不存在")
-	}
-	if err := s.requireVisible(ctx, actor, question); err != nil {
-		return nil, err
-	}
-	if active {
-		reaction := model.CommunityPostReaction{QuestionID: postID, UserID: actor.ID, Kind: kind, CreatedAt: s.now().UTC()}
-		if err := s.db.WithContext(ctx).Clauses(clause.OnConflict{DoNothing: true}).Create(&reaction).Error; err != nil {
-			return nil, internalError("保存社区互动失败", err)
-		}
-	} else if err := s.db.WithContext(ctx).Where("question_id = ? AND user_id = ? AND kind = ?", postID, actor.ID, kind).
-		Delete(&model.CommunityPostReaction{}).Error; err != nil {
-		return nil, internalError("取消社区互动失败", err)
-	}
+	now := s.now().UTC()
+	state := &CommunityReactionState{Active: active}
 	var count int64
-	if err := s.db.WithContext(ctx).Model(&model.CommunityPostReaction{}).
-		Where("question_id = ? AND kind = ?", postID, "like").Count(&count).Error; err != nil {
-		return nil, internalError("读取社区点赞数失败", err)
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var question model.TrainingQuestion
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&question, postID).Error; err != nil {
+			return err
+		}
+		if question.DeletedAt != nil || question.IsHidden {
+			return notFound("帖子不存在")
+		}
+		if err := s.requireVisibleWithDB(ctx, tx, actor, &question); err != nil {
+			return err
+		}
+		if active {
+			reaction := model.CommunityPostReaction{QuestionID: postID, UserID: actor.ID, Kind: kind, CreatedAt: now}
+			result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&reaction)
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected > 0 && kind == "like" && actor.ID != question.AskerID {
+				if err := recordCommunityXP(tx, question.AskerID, &actor.ID, communityXPPostLike, postID, postID,
+					fmt.Sprintf("post_like:%d:%d", postID, actor.ID), 1, now); err != nil {
+					return err
+				}
+			}
+		} else {
+			result := tx.Where("question_id = ? AND user_id = ? AND kind = ?", postID, actor.ID, kind).Delete(&model.CommunityPostReaction{})
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected > 0 && kind == "like" && actor.ID != question.AskerID {
+				if err := revokeCommunityXP(tx, fmt.Sprintf("post_like:%d:%d", postID, actor.ID), now); err != nil {
+					return err
+				}
+			}
+		}
+		return tx.Model(&model.CommunityPostReaction{}).Where("question_id = ? AND kind = ?", postID, "like").Count(&count).Error
+	})
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, notFound("帖子不存在")
+		}
+		var serviceErr *ServiceError
+		if errors.As(err, &serviceErr) {
+			return nil, serviceErr
+		}
+		return nil, internalError("保存社区互动失败", err)
 	}
-	return &CommunityReactionState{Active: active, LikeCount: int(count)}, nil
+	state.LikeCount = int(count)
+	return state, nil
+}
+
+func (s *Service) SetCommunityCommentReaction(ctx context.Context, actor Actor, commentID uint64, active bool) (*CommunityCommentReactionState, error) {
+	if actor.ID == 0 {
+		return nil, forbidden("请先登录后参与互动")
+	}
+	now := s.now().UTC()
+	state := &CommunityCommentReactionState{Active: active}
+	var count int64
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var comment model.TrainingQuestionPost
+		if err := tx.First(&comment, commentID).Error; err != nil {
+			return err
+		}
+		var question model.TrainingQuestion
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&question, comment.QuestionID).Error; err != nil {
+			return err
+		}
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&comment, commentID).Error; err != nil {
+			return err
+		}
+		if comment.DeletedAt != nil || question.DeletedAt != nil || question.IsHidden {
+			return notFound("回复不存在")
+		}
+		if err := s.requireVisibleWithDB(ctx, tx, actor, &question); err != nil {
+			return err
+		}
+		if active {
+			reaction := model.CommunityCommentReaction{CommentID: commentID, UserID: actor.ID, CreatedAt: now}
+			result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&reaction)
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected > 0 && actor.ID != comment.AuthorID {
+				if err := recordCommunityXP(tx, comment.AuthorID, &actor.ID, communityXPCommentLike, commentID, question.ID,
+					fmt.Sprintf("comment_like:%d:%d", commentID, actor.ID), 1, now); err != nil {
+					return err
+				}
+			}
+		} else {
+			result := tx.Where("comment_id = ? AND user_id = ?", commentID, actor.ID).Delete(&model.CommunityCommentReaction{})
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected > 0 && actor.ID != comment.AuthorID {
+				if err := revokeCommunityXP(tx, fmt.Sprintf("comment_like:%d:%d", commentID, actor.ID), now); err != nil {
+					return err
+				}
+			}
+		}
+		return tx.Model(&model.CommunityCommentReaction{}).Where("comment_id = ?", commentID).Count(&count).Error
+	})
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, notFound("回复不存在")
+		}
+		var serviceErr *ServiceError
+		if errors.As(err, &serviceErr) {
+			return nil, serviceErr
+		}
+		return nil, internalError("保存回复点赞失败", err)
+	}
+	state.LikeCount = int(count)
+	return state, nil
 }
 
 func (s *Service) ModerateCommunityPost(ctx context.Context, actor Actor, postID uint64, update CommunityModerationUpdate) (*CommunityPostDetail, error) {
@@ -610,8 +796,100 @@ func (s *Service) ModerateCommunityPost(ctx context.Context, actor Actor, postID
 	if update.Hidden != nil {
 		updates["is_hidden"] = *update.Hidden
 	}
-	if err := s.db.WithContext(ctx).Model(&model.TrainingQuestion{}).Where("id = ? AND deleted_at IS NULL", postID).Updates(updates).Error; err != nil {
+	if err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var locked model.TrainingQuestion
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&locked, postID).Error; err != nil {
+			return err
+		}
+		if locked.DeletedAt != nil {
+			return gorm.ErrRecordNotFound
+		}
+		if err := tx.Model(&locked).Updates(updates).Error; err != nil {
+			return err
+		}
+		if update.Hidden != nil && *update.Hidden {
+			return revokeCommunityQuestionXP(tx, postID, s.now())
+		}
+		return nil
+	}); err != nil {
 		return nil, internalError("更新社区管理状态失败", err)
+	}
+	return s.GetCommunityPost(ctx, actor, postID)
+}
+
+// SetCommunitySolution records an explicitly accepted community reply. Older
+// group Q&A keeps its separate resolved state because it has no accepted-reply
+// pointer and must not guess which answer earned the reward.
+func (s *Service) SetCommunitySolution(ctx context.Context, actor Actor, postID uint64, update CommunitySolutionUpdate) (*CommunityPostDetail, error) {
+	if actor.ID == 0 {
+		return nil, forbidden("请先登录后采纳解决方案")
+	}
+	now := s.now().UTC()
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var question model.TrainingQuestion
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&question, postID).Error; err != nil {
+			return err
+		}
+		if question.DeletedAt != nil || question.IsHidden {
+			return notFound("帖子不存在")
+		}
+		if err := s.requireVisibleWithDB(ctx, tx, actor, &question); err != nil {
+			return err
+		}
+		if question.GroupID != nil || question.Visibility != model.TrainingQuestionPublic {
+			return badRequest("仅支持在公开社区帖子中采纳解决方案")
+		}
+		if question.AskerID != actor.ID {
+			return forbidden("只有帖子作者可以采纳解决方案")
+		}
+		if update.CommentID == nil {
+			if question.AcceptedSolutionID == nil {
+				return nil
+			}
+			acceptedID := *question.AcceptedSolutionID
+			if err := revokeCommunityXP(tx, fmt.Sprintf("solution:%d:%d", postID, acceptedID), now); err != nil {
+				return err
+			}
+			return tx.Model(&question).Updates(map[string]any{
+				"accepted_solution_id": nil, "is_solved": false, "solved_by": nil, "solved_at": nil, "updated_at": now,
+			}).Error
+		}
+		var answer model.TrainingQuestionPost
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND question_id = ? AND deleted_at IS NULL", *update.CommentID, postID).Take(&answer).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return badRequest("采纳的回复不存在")
+			}
+			return err
+		}
+		if answer.AuthorID == question.AskerID {
+			return badRequest("不能将自己的回复采纳为解决方案")
+		}
+		if question.AcceptedSolutionID != nil && *question.AcceptedSolutionID == answer.ID {
+			return nil
+		}
+		if question.AcceptedSolutionID != nil {
+			previousID := *question.AcceptedSolutionID
+			if err := revokeCommunityXP(tx, fmt.Sprintf("solution:%d:%d", postID, previousID), now); err != nil {
+				return err
+			}
+		}
+		if err := recordCommunityXP(tx, answer.AuthorID, &actor.ID, communityXPSolution, answer.ID, postID,
+			fmt.Sprintf("solution:%d:%d", postID, answer.ID), 10, now); err != nil {
+			return err
+		}
+		return tx.Model(&question).Updates(map[string]any{
+			"accepted_solution_id": answer.ID, "is_solved": true, "solved_by": actor.ID, "solved_at": now, "updated_at": now,
+		}).Error
+	})
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, notFound("帖子不存在")
+		}
+		var serviceErr *ServiceError
+		if errors.As(err, &serviceErr) {
+			return nil, serviceErr
+		}
+		return nil, internalError("更新解决方案失败", err)
 	}
 	return s.GetCommunityPost(ctx, actor, postID)
 }
@@ -667,6 +945,14 @@ func (s *Service) communityPostViews(ctx context.Context, actor Actor, rows []co
 	for _, row := range rows {
 		ids = append(ids, row.ID)
 	}
+	authorIDs := make([]uint64, 0, len(rows))
+	for _, row := range rows {
+		authorIDs = append(authorIDs, row.AskerID)
+	}
+	authorLevels, err := communityAuthorLevels(ctx, s.db, authorIDs)
+	if err != nil {
+		return nil, internalError("读取社区作者等级失败", err)
+	}
 	attachments, err := s.loadAttachments(ctx, ids)
 	if err != nil {
 		return nil, internalError("读取社区附件失败", err)
@@ -676,8 +962,8 @@ func (s *Service) communityPostViews(ctx context.Context, actor Actor, rows []co
 		view := CommunityPostView{
 			ID: row.ID, GroupID: communityGroupID(row.GroupID), GroupName: row.GroupName,
 			Category: row.Category, Title: row.Title, Body: row.Body, AuthorID: row.AskerID,
-			AuthorName: row.AuthorName, AuthorAvatar: row.AuthorAvatar, Visibility: row.Visibility,
-			IsSolved: row.IsSolved, IsFAQ: row.IsFAQ, IsPinned: row.IsPinned, IsHidden: row.IsHidden,
+			AuthorName: row.AuthorName, AuthorAvatar: row.AuthorAvatar, AuthorLevel: authorLevels[row.AskerID], Visibility: row.Visibility,
+			IsSolved: row.IsSolved, AcceptedSolutionID: row.AcceptedSolutionID, IsFAQ: row.IsFAQ, IsPinned: row.IsPinned, IsHidden: row.IsHidden,
 			IsLegacy: row.GroupID != nil, CreatedAt: row.CreatedAt,
 			EditedAt: row.EditedAt, LastReplyAt: row.LastReplyAt, CommentCount: row.CommentCount, LikeCount: row.LikeCount,
 			LikedByMe: row.LikedByMe, SavedByMe: row.SavedByMe, CanEdit: row.AskerID == actor.ID && row.DeletedAt == nil,
