@@ -126,6 +126,7 @@ test("pinned posts expose an admin-only keyboard-accessible menu and keep pinned
   assert.match(service, /q\.is_pinned DESC, recent_interactions DESC/);
   assert.match(service, /q\.is_pinned DESC, COALESCE\(q\.last_reply_at, q\.created_at\) DESC/);
   assert.match(thread, /<CommunityPostMenu/);
+  assert.match(styles, /@media \(max-width: 639px\)[\s\S]*?\.community-post-menu \{ margin-left: auto; \}/);
 });
 
 test("community identity uses current positions and offers badge details with automatic highest-tier selection", () => {
