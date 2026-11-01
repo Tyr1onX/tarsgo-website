@@ -308,27 +308,22 @@ func (s *Service) ListGroupMembers(ctx context.Context, actor Actor, groupID uin
 	}
 	var rows []struct {
 		UserID   uint64
-		Name     string
-		Nickname *string
 		RealName *string
 	}
 	if err := s.db.WithContext(ctx).Table("user_group_members").
-		Select("users.id AS user_id, users.name, users.nickname, users.real_name").
+		Select("users.id AS user_id, users.real_name").
 		Joins("JOIN user_groups ON user_groups.id = user_group_members.group_id").
 		Joins("JOIN users ON users.id = user_group_members.user_id").
 		Joins("JOIN roles ON roles.id = users.role_id").
 		Where("user_group_members.group_id = ? AND user_groups.status = ? AND users.status = ? AND roles.name = ?", groupID, model.UserGroupStatusActive, model.UserStatusEnabled, model.RoleNameUser).
-		Order("users.real_name ASC, users.name ASC, users.id ASC").Scan(&rows).Error; err != nil {
+		Order("users.real_name ASC, users.id ASC").Scan(&rows).Error; err != nil {
 		return nil, internalError("读取组内成员失败", err)
 	}
 	result := make([]MemberOption, 0, len(rows))
 	for _, row := range rows {
-		name := (model.User{Name: row.Name, Nickname: row.Nickname, RealName: row.RealName}).PreferredName()
-		if name == "" {
-			name = strings.TrimSpace(row.Name)
-		}
-		if name == "" {
-			name = fmt.Sprintf("成员 %d", row.UserID)
+		name := "姓名待核实"
+		if row.RealName != nil && strings.TrimSpace(*row.RealName) != "" {
+			name = strings.TrimSpace(*row.RealName)
 		}
 		result = append(result, MemberOption{UserID: row.UserID, Name: name})
 	}
@@ -367,7 +362,7 @@ func (s *Service) GetAdmin(ctx context.Context, actor Actor, assignmentID uint64
 	}
 	var users []model.User
 	if len(targetUserIDs) > 0 {
-		if err := s.db.WithContext(ctx).Select("id", "name", "nickname", "real_name").Where("id IN ?", targetUserIDs).Find(&users).Error; err != nil {
+		if err := s.db.WithContext(ctx).Select("id", "real_name").Where("id IN ?", targetUserIDs).Find(&users).Error; err != nil {
 			return nil, internalError("读取成员信息失败", err)
 		}
 	}
@@ -387,12 +382,9 @@ func (s *Service) GetAdmin(ctx context.Context, actor Actor, assignmentID uint64
 			continue
 		}
 		history := histories[target.UserID]
-		name := user.PreferredName()
-		if name == "" {
-			name = strings.TrimSpace(user.Name)
-		}
-		if name == "" {
-			name = fmt.Sprintf("成员 %d", user.ID)
+		name := "姓名待核实"
+		if user.RealName != nil && strings.TrimSpace(*user.RealName) != "" {
+			name = strings.TrimSpace(*user.RealName)
 		}
 		member := AssignmentMemberView{UserID: user.ID, Name: name, Submissions: history, Status: memberStatus(history, item.DueAt, s.now())}
 		if len(history) > 0 {

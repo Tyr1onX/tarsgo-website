@@ -1,6 +1,10 @@
 package registration
 
-import "tarsgo-backend/model"
+import (
+	"strings"
+
+	"tarsgo-backend/model"
+)
 
 type RegistrationGroupRef struct {
 	ID   uint64 `json:"id"`
@@ -45,5 +49,9 @@ func toRegistrationReviewerRef(user *model.User) *RegistrationReviewerRef {
 	if user == nil || user.ID == 0 {
 		return nil
 	}
-	return &RegistrationReviewerRef{ID: user.ID, Name: user.Name, Email: user.Email}
+	name := "姓名待核实"
+	if user.RealName != nil && strings.TrimSpace(*user.RealName) != "" {
+		name = strings.TrimSpace(*user.RealName)
+	}
+	return &RegistrationReviewerRef{ID: user.ID, Name: name, Email: user.Email}
 }

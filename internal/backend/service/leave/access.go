@@ -85,7 +85,7 @@ func (s *Service) RequestLeaveAccess(ctx context.Context, userID uint64) (*Leave
 func (s *Service) ListPendingLeaveAccessRequests(ctx context.Context) ([]LeaveAccessRequestView, error) {
 	rows := make([]LeaveAccessRequestView, 0)
 	err := s.db.WithContext(ctx).Table("leave_access_requests AS requests").
-		Select("requests.id, requests.user_id, users.name AS user_name, users.email, requests.status, requests.requested_at").
+		Select("requests.id, requests.user_id, COALESCE(NULLIF(TRIM(users.real_name), ''), '姓名待核实') AS user_name, users.email, requests.status, requests.requested_at").
 		Joins("JOIN users ON users.id = requests.user_id").
 		Where("requests.status = ?", model.LeaveAccessPending).
 		Order("requests.requested_at ASC, requests.id ASC").Scan(&rows).Error

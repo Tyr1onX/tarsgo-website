@@ -135,7 +135,7 @@ func TestMigration35CreatesCoBuilderContributionSourceOfTruth(t *testing.T) {
 	}
 }
 
-func TestAcceptanceDatabaseUserNameMigrationBackfillsWithoutOverwritingOrTouchingNicknames(t *testing.T) {
+func TestAcceptanceDatabaseCanonicalNameMigrationNeverInfersFromLegacyValues(t *testing.T) {
 	dsn := strings.TrimSpace(os.Getenv("TARSGO_QA_TEST_DSN"))
 	if dsn == "" {
 		t.Skip("TARSGO_QA_TEST_DSN is not set")
@@ -166,11 +166,15 @@ func TestAcceptanceDatabaseUserNameMigrationBackfillsWithoutOverwritingOrTouchin
 	if err := db.Exec("INSERT INTO "+quotedTable+" (id, real_name, nickname, updated_at) VALUES (1, '已有姓名', '不同昵称', ?), (2, '', '旧昵称', ?), (3, NULL, '  新姓名  ', ?), (4, '   ', '姓名四', ?), (5, NULL, NULL, ?), (6, NULL, '   ', ?)", updatedAt, updatedAt, updatedAt, updatedAt, updatedAt, updatedAt).Error; err != nil {
 		t.Fatalf("seed user-name migration probe: %v", err)
 	}
-	if err := backfillCanonicalUserNamesForTable(db, tableName); err != nil {
-		t.Fatalf("apply user-name migration: %v", err)
+	items := migrationRegistry("test")
+	if items[33].version != 34 || items[33].apply == nil {
+		t.Fatal("historical migration 34 is missing")
 	}
-	if err := backfillCanonicalUserNamesForTable(db, tableName); err != nil {
-		t.Fatalf("repeat user-name migration: %v", err)
+	if err := items[33].apply(db); err != nil {
+		t.Fatalf("apply canonical-name migration: %v", err)
+	}
+	if err := items[33].apply(db); err != nil {
+		t.Fatalf("repeat canonical-name migration: %v", err)
 	}
 	var rows []struct {
 		ID        uint64
@@ -181,7 +185,7 @@ func TestAcceptanceDatabaseUserNameMigrationBackfillsWithoutOverwritingOrTouchin
 	if err := db.Table(tableName).Select("id, real_name, nickname, updated_at").Order("id ASC").Find(&rows).Error; err != nil {
 		t.Fatalf("read migrated users: %v", err)
 	}
-	wantNames := []*string{stringPointer("已有姓名"), stringPointer("旧昵称"), stringPointer("新姓名"), stringPointer("姓名四"), nil, nil}
+	wantNames := []*string{stringPointer("已有姓名"), stringPointer(""), nil, stringPointer("   "), nil, nil}
 	if len(rows) != len(wantNames) {
 		t.Fatalf("migrated %d users, want %d", len(rows), len(wantNames))
 	}
@@ -193,8 +197,11 @@ func TestAcceptanceDatabaseUserNameMigrationBackfillsWithoutOverwritingOrTouchin
 			t.Errorf("user %d updated_at changed from migration: %s", row.ID, row.UpdatedAt)
 		}
 	}
-	if rows[0].Nickname == nil || *rows[0].Nickname != "不同昵称" || rows[1].Nickname == nil || *rows[1].Nickname != "旧昵称" {
-		t.Fatalf("migration changed historical nickname values: %#v", rows)
+	wantLegacyValues := []*string{stringPointer("不同昵称"), stringPointer("旧昵称"), stringPointer("  新姓名  "), stringPointer("姓名四"), nil, stringPointer("   ")}
+	for index, row := range rows {
+		if !equalOptionalString(row.Nickname, wantLegacyValues[index]) {
+			t.Errorf("user %d legacy value changed by migration: %v", row.ID, row.Nickname)
+		}
 	}
 }
 

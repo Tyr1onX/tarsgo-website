@@ -15,7 +15,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"unicode/utf8"
 
 	"tarsgo-backend/model"
 )
@@ -26,19 +25,14 @@ const (
 )
 
 type ProfileInput struct {
-	Nickname string
-	Phone    string
-	Avatar   *multipart.FileHeader
+	Phone  string
+	Avatar *multipart.FileHeader
 }
 
 // UpdateProfile deliberately updates only self-service fields. Identity, email,
 // role and group membership remain under administrator control.
 func (s *Service) UpdateProfile(ctx context.Context, userID uint64, input ProfileInput) (*SessionUser, error) {
-	nickname := strings.TrimSpace(input.Nickname)
 	phone := strings.TrimSpace(input.Phone)
-	if !utf8.ValidString(nickname) || utf8.RuneCountInString(nickname) > 100 || strings.ContainsAny(nickname, "\r\n\t") {
-		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "姓名不能超过 100 字，且不能包含换行或制表符"}
-	}
 	if phone != "" && !isValidMainlandMobile(phone) {
 		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "请输入正确的 11 位手机号"}
 	}
@@ -51,10 +45,7 @@ func (s *Service) UpdateProfile(ctx context.Context, userID uint64, input Profil
 		return nil, err
 	}
 
-	updates := map[string]any{"nickname": nil, "phone": nil}
-	if nickname != "" {
-		updates["nickname"] = nickname
-	}
+	updates := map[string]any{"phone": nil}
 	if phone != "" {
 		updates["phone"] = phone
 	}
@@ -91,10 +82,7 @@ func (s *Service) UpdateProfile(ctx context.Context, userID uint64, input Profil
 	}
 
 	oldAvatar := user.AvatarURL
-	user.Nickname, user.Phone = nil, nil
-	if nickname != "" {
-		user.Nickname = &nickname
-	}
+	user.Phone = nil
 	if phone != "" {
 		user.Phone = &phone
 	}

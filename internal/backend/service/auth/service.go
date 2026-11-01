@@ -53,7 +53,6 @@ type SessionUser struct {
 	ID                    uint64                        `json:"id"`
 	Email                 string                        `json:"email"`
 	Phone                 *string                       `json:"phone,omitempty"`
-	Nickname              *string                       `json:"nickname,omitempty"`
 	AvatarURL             *string                       `json:"avatarUrl,omitempty"`
 	RealName              *string                       `json:"realName,omitempty"`
 	Role                  SessionRole                   `json:"role"`
@@ -78,6 +77,7 @@ type RegisterEmailInput struct {
 
 type RegisterInitialSuperAdminInput struct {
 	Email           string
+	RealName        string
 	Password        string
 	ConfirmPassword string
 }
@@ -204,7 +204,6 @@ func (s *Service) RegisterWithEmail(ctx context.Context, input RegisterEmailInpu
 		lastLoginAt := s.now()
 		user := model.User{
 			RoleID:       role.ID,
-			Name:         deriveDisplayName(normalizedInput.Email, normalizedInput.RealName, ""),
 			Email:        normalizedInput.Email,
 			PasswordHash: stringPtr(passwordHash),
 			Status:       1,
@@ -273,11 +272,15 @@ func normalizeRegisterEmailInput(input RegisterEmailInput) (*normalizedRegisterE
 
 func (s *Service) RegisterInitialSuperAdmin(ctx context.Context, input RegisterInitialSuperAdminInput) (*AuthResult, error) {
 	email := NormalizeEmail(input.Email)
+	realName := strings.TrimSpace(input.RealName)
 	password := strings.TrimSpace(input.Password)
 	confirmPassword := strings.TrimSpace(input.ConfirmPassword)
 
-	if email == "" || password == "" || confirmPassword == "" {
-		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "邮箱、密码和确认密码不能为空"}
+	if email == "" || realName == "" || password == "" || confirmPassword == "" {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "真实姓名、邮箱、密码和确认密码不能为空"}
+	}
+	if !isChineseRealName(realName) {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "姓名需为汉字"}
 	}
 	if !isValidEmail(email) {
 		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "邮箱格式不合法"}
@@ -318,12 +321,12 @@ func (s *Service) RegisterInitialSuperAdmin(ctx context.Context, input RegisterI
 		lastLoginAt := s.now()
 		user := model.User{
 			RoleID:       role.ID,
-			Name:         deriveDisplayName(email, "", ""),
 			Email:        email,
 			PasswordHash: stringPtr(passwordHash),
 			Status:       model.UserStatusEnabled,
 			LastLoginAt:  &lastLoginAt,
 		}
+		assignOptionalString(&user.RealName, realName)
 		if err := tx.Create(&user).Error; err != nil {
 			if database.IsDuplicateKeyError(err) {
 				return duplicateEmailConflict()
@@ -698,14 +701,16 @@ func (s *Service) loadUserWithRoleTx(tx *gorm.DB, userID uint64) (*model.User, e
 
 func toSessionUser(user *model.User) SessionUser {
 	var realName *string
-	if preferredName := user.PreferredName(); preferredName != "" {
-		realName = &preferredName
+	if user.RealName != nil {
+		trimmed := strings.TrimSpace(*user.RealName)
+		if trimmed != "" {
+			realName = &trimmed
+		}
 	}
 	return SessionUser{
 		ID:                    user.ID,
 		Email:                 user.Email,
 		Phone:                 user.Phone,
-		Nickname:              user.Nickname,
 		AvatarURL:             user.AvatarURL,
 		RealName:              realName,
 		OrganizationPositions: organization.MemberPositions(user.ID),
@@ -774,18 +779,6 @@ func stringValue(value *string) string {
 		return ""
 	}
 	return strings.TrimSpace(*value)
-}
-
-func deriveDisplayName(email string, preferred string, fallback string) string {
-	for _, candidate := range []string{preferred, fallback} {
-		if trimmed := strings.TrimSpace(candidate); trimmed != "" {
-			return trimmed
-		}
-	}
-	if name, _, ok := strings.Cut(strings.TrimSpace(email), "@"); ok && name != "" {
-		return name
-	}
-	return strings.TrimSpace(email)
 }
 
 func isValidEmail(email string) bool {

@@ -643,13 +643,10 @@ func validateInput(input ReportInput, allowEmptyLegacyGains bool) (ReportInput, 
 }
 
 func memberDisplayName(user model.User) string {
-	if name := user.PreferredName(); name != "" {
-		return name
+	if user.RealName != nil && strings.TrimSpace(*user.RealName) != "" {
+		return strings.TrimSpace(*user.RealName)
 	}
-	if strings.TrimSpace(user.Name) != "" {
-		return strings.TrimSpace(user.Name)
-	}
-	return user.Email
+	return "姓名待核实"
 }
 
 func toReport(report model.WeeklyReport) Report {

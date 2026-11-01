@@ -45,16 +45,16 @@ type listUsersQuery struct {
 
 type createUserRequest struct {
 	RoleID   uint64 `json:"roleId" binding:"required"`
-	Name     string `json:"name" binding:"required,max=100"`
+	RealName string `json:"realName" binding:"required,max=100"`
 	Email    string `json:"email" binding:"required,email,max=255"`
 	Password string `json:"password" binding:"required,min=6,max=72"`
 }
 
 type updateUserRequest struct {
-	RoleID uint64 `json:"roleId" binding:"required"`
-	Name   string `json:"name" binding:"required,max=100"`
-	Email  string `json:"email" binding:"required,email,max=255"`
-	Status uint8  `json:"status"`
+	RoleID   uint64 `json:"roleId" binding:"required"`
+	RealName string `json:"realName" binding:"max=100"`
+	Email    string `json:"email" binding:"required,email,max=255"`
+	Status   uint8  `json:"status"`
 }
 
 type resetPasswordRequest struct {
@@ -228,7 +228,7 @@ func (h *AdminUserHandler) CreateUser(c *gin.Context) {
 		currentActor(c),
 		adminuser.CreateUserInput{
 			RoleID:   request.RoleID,
-			Name:     request.Name,
+			RealName: request.RealName,
 			Email:    request.Email,
 			Password: request.Password,
 		},
@@ -260,10 +260,10 @@ func (h *AdminUserHandler) UpdateUser(c *gin.Context) {
 		currentActor(c),
 		userID,
 		adminuser.UpdateUserInput{
-			RoleID: request.RoleID,
-			Name:   request.Name,
-			Email:  request.Email,
-			Status: request.Status,
+			RoleID:   request.RoleID,
+			RealName: request.RealName,
+			Email:    request.Email,
+			Status:   request.Status,
 		},
 	)
 	if serviceErr != nil {

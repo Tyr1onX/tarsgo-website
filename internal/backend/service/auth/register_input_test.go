@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"testing"
 
 	"tarsgo-backend/model"
@@ -133,6 +134,20 @@ func TestNormalizeRegisterEmailInputRequiresChineseRealName(t *testing.T) {
 	}
 	if serviceErr.Message != "姓名需为汉字" {
 		t.Fatalf("unexpected message: %q", serviceErr.Message)
+	}
+}
+
+func TestInitialSuperAdminRequiresChineseRealName(t *testing.T) {
+	service := &Service{}
+	for _, realName := range []string{"", "Admin"} {
+		_, err := service.RegisterInitialSuperAdmin(context.Background(), RegisterInitialSuperAdminInput{
+			Email: "root@example.com", RealName: realName,
+			Password: "Password123", ConfirmPassword: "Password123",
+		})
+		serviceErr, ok := err.(*ServiceError)
+		if !ok || serviceErr.Status != 400 {
+			t.Fatalf("initial super-admin registration accepted realName %q: %v", realName, err)
+		}
 	}
 }
 

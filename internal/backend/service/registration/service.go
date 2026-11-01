@@ -1516,9 +1516,6 @@ func registrationContactName(reg *model.Registration) string {
 	if reg.User.RealName != nil && strings.TrimSpace(*reg.User.RealName) != "" {
 		return strings.TrimSpace(*reg.User.RealName)
 	}
-	if strings.TrimSpace(reg.User.Name) != "" {
-		return strings.TrimSpace(reg.User.Name)
-	}
 	return "同学"
 }
 
@@ -2404,10 +2401,10 @@ func registrationExportReviewerName(user *model.User) string {
 	if user == nil {
 		return ""
 	}
-	if name := strings.TrimSpace(user.Name); name != "" {
-		return name
+	if user.RealName != nil && strings.TrimSpace(*user.RealName) != "" {
+		return strings.TrimSpace(*user.RealName)
 	}
-	return strings.TrimSpace(user.Email)
+	return "姓名待核实"
 }
 
 func registrationExportOptionalString(value *string) string {

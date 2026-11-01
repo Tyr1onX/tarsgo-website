@@ -185,7 +185,7 @@ func (s *Service) GetMine(ctx context.Context, userID uint64) (*Profile, error) 
 		return nil, serviceError(http.StatusUnauthorized, "请先登录", nil)
 	}
 	var user model.User
-	if err := s.db.WithContext(ctx).Select("id", "name", "nickname", "real_name", "status").
+	if err := s.db.WithContext(ctx).Select("id", "real_name", "status").
 		Where("id = ? AND status = ?", userID, model.UserStatusEnabled).Take(&user).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, serviceError(http.StatusNotFound, "成长档案不存在", nil)
@@ -684,13 +684,10 @@ func (s *Service) now() time.Time {
 }
 
 func displayName(user model.User) string {
-	if name := user.PreferredName(); name != "" {
-		return name
+	if user.RealName != nil && strings.TrimSpace(*user.RealName) != "" {
+		return strings.TrimSpace(*user.RealName)
 	}
-	if value := strings.TrimSpace(user.Name); value != "" {
-		return value
-	}
-	return fmt.Sprintf("成员 %d", user.ID)
+	return "姓名待核实"
 }
 
 func validEventTime(value, now time.Time) bool {

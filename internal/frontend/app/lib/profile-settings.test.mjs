@@ -7,6 +7,8 @@ const memberProfile = await readFile(new URL("../routes/dashboard/community-memb
 const layout = await readFile(new URL("../routes/dashboard/layout.tsx", import.meta.url), "utf8");
 const leave = await readFile(new URL("../routes/leave-workbench.tsx", import.meta.url), "utf8");
 const api = await readFile(new URL("../../../backend/router/router.go", import.meta.url), "utf8");
+const authClient = await readFile(new URL("./auth-client.ts", import.meta.url), "utf8");
+const registrationReviews = await readFile(new URL("../routes/admin/registrations.tsx", import.meta.url), "utf8");
 
 test("profile fields share a fixed 44px control height and common grid baseline", () => {
   assert.match(profile, /const fieldClass = "admin-field box-border h-11 min-h-11/);
@@ -31,11 +33,12 @@ test("avatar preview, account save and timetable upload retain separate behavior
   assert.match(profile, /id="timetable"[\s\S]*?<PersonalTimetableUpload userId=\{user\.id\} \/>/);
   assert.match(profile, /id="profile-account-form"/);
   assert.match(profile, /保存账号与学籍信息/);
-  assert.match(profile, /updateProfile\(\{ nickname: user\.nickname \?\? "", phone: user\.phone \?\? "", avatar \}\)/);
+  assert.match(profile, /updateProfile\(\{ phone: user\.phone \?\? "", avatar \}\)/);
+  assert.doesNotMatch(profile, /nickname|昵称/);
 });
 
 test("leave identity uses account name, restricts edits to locked identifiers, and permits voluntary registration", () => {
-  assert.match(profile, /user\.realName\?\.trim\(\) \|\| user\.nickname\?\.trim\(\)/);
+  assert.match(profile, /user\.realName\?\.trim\(\) \|\| ""/);
   assert.match(profile, /leaveProfile\?\.identityLocked \? leaveProfile\.name : accountName/);
   assert.match(profile, /readOnly=\{Boolean\(leaveProfile\?\.identityLocked\)\}/);
   assert.match(profile, /leaveClient\.saveProfile/);
@@ -50,6 +53,21 @@ test("leave identity uses account name, restricts edits to locked identifiers, a
   assert.match(layout, /openMyProfile: \(tab\?\: "overview" \| "settings" \| "badges"\) => void/);
   assert.match(layout, /refreshAccountProfile: \(\) => void/);
   assert.match(layout, /setProfileRevision\(\(revision\) => revision \+ 1\)/);
+});
+
+test("account identity display uses only the canonical real name", () => {
+  const start = authClient.indexOf("export function getAuthUserName");
+  const end = authClient.indexOf("export function getAuthUserRoleLabel", start);
+  const displayName = authClient.slice(start, end);
+  assert.match(displayName, /user\.realName\?\.trim\(\) \|\| "姓名待核实"/);
+  assert.doesNotMatch(displayName, /nickname|email/);
+});
+
+test("registration reviewers and audit actors never fall back to account email", () => {
+  assert.match(registrationReviews, /detail\.screener\?\.name \|\| "姓名待核实"/);
+  assert.match(registrationReviews, /detail\.interviewer\?\.name \|\| "姓名待核实"/);
+  assert.match(registrationReviews, /item\.actor\?\.name \|\| "历史记录"/);
+  assert.doesNotMatch(registrationReviews, /(?:screener|interviewer|actor)\?\.email/);
 });
 
 test("phone field stays hidden without overwriting existing account phone data", () => {

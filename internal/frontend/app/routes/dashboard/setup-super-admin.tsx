@@ -27,6 +27,7 @@ clientLoader.hydrate = true;
 export default function SetupSuperAdmin() {
   const navigate = useNavigate();
   const [email, setEmail] = useState("");
+  const [realName, setRealName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
@@ -46,6 +47,10 @@ export default function SetupSuperAdmin() {
       setErrorMessage("请输入有效邮箱地址。");
       return;
     }
+    if (!isChineseRealName(realName)) {
+      setErrorMessage("请输入真实姓名（汉字）。");
+      return;
+    }
     if (password.trim().length < 6) {
       setErrorMessage("密码长度至少为 6 位。");
       return;
@@ -58,7 +63,7 @@ export default function SetupSuperAdmin() {
     try {
       setSubmitting(true);
       setErrorMessage("");
-      await registerInitialSuperAdmin({ email, password, confirmPassword });
+      await registerInitialSuperAdmin({ email, realName: realName.trim(), password, confirmPassword });
       setSubmitting(false);
       setSuccess(true);
       setTimeout(() => navigate("/dashboard", { replace: true }), 900);
@@ -137,6 +142,21 @@ export default function SetupSuperAdmin() {
           </div>
 
           <form className="space-y-5" onSubmit={handleSubmit}>
+            <div>
+              <label htmlFor="realName" className="mb-2 block text-sm font-medium text-[var(--admin-muted)]">
+                真实姓名
+              </label>
+              <input
+                id="realName"
+                autoComplete="name"
+                required
+                maxLength={100}
+                value={realName}
+                onChange={(event) => setRealName(event.target.value)}
+                placeholder="请输入汉字姓名"
+                className="admin-field setup-super-admin__field"
+              />
+            </div>
             <div>
               <label htmlFor="email" className="mb-2 block text-sm font-medium text-[var(--admin-muted)]">
                 邮箱
@@ -304,6 +324,11 @@ export default function SetupSuperAdmin() {
       </div>
     </div>
   );
+}
+
+function isChineseRealName(value: string) {
+  const trimmed = value.trim();
+  return trimmed.length > 0 && [...trimmed].every((character) => /\p{Script=Han}/u.test(character));
 }
 
 function getErrorMessage(error: unknown) {

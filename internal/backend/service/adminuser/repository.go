@@ -51,7 +51,7 @@ func (r *GormRepository) ListUsers(ctx context.Context, filter ListUsersInput) (
 
 	if keyword := strings.TrimSpace(filter.Keyword); keyword != "" {
 		like := "%" + keyword + "%"
-		base = base.Where("users.name LIKE ? OR users.email LIKE ?", like, like)
+		base = base.Where("users.real_name LIKE ? OR users.email LIKE ?", like, like)
 	}
 
 	if roleName := strings.TrimSpace(filter.Role); roleName != "" {
@@ -210,12 +210,12 @@ func (r *GormRepository) UpdateTeamIdentity(ctx context.Context, userID, actorID
 			return ErrTeamIdentityConflict
 		}
 		var actor model.User
-		if err := tx.Select("id", "name", "real_name", "nickname").First(&actor, actorID).Error; err != nil {
+		if err := tx.Select("id", "real_name").First(&actor, actorID).Error; err != nil {
 			return err
 		}
-		actorName := actor.PreferredName()
-		if actorName == "" {
-			actorName = strings.TrimSpace(actor.Name)
+		actorName := ""
+		if actor.RealName != nil {
+			actorName = strings.TrimSpace(*actor.RealName)
 		}
 		if actorName == "" {
 			actorName = "管理员"

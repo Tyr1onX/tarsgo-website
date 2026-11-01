@@ -152,7 +152,7 @@ func (r *GormRepository) ListActiveMembers(ctx context.Context, groupID uint64, 
 		Joins("JOIN users ON users.id = user_group_members.user_id AND users.status = ? AND users.last_login_at >= ?", model.UserStatusEnabled, activitySince).
 		Where("user_group_members.group_id = ?", groupID).
 		Preload("User").
-		Order("users.real_name ASC, users.name ASC, users.id ASC").
+		Order("users.real_name ASC, users.id ASC").
 		Find(&members).Error
 	return members, err
 }

@@ -423,7 +423,7 @@ func (s *Service) GetCommunityPost(ctx context.Context, actor Actor, postID uint
 	detail := &CommunityPostDetail{Post: views[0], Comments: []CommunityCommentView{}}
 	var comments []communityCommentRow
 	if err := s.db.WithContext(ctx).Table("training_question_posts AS p").
-		Select(`p.*, COALESCE(NULLIF(TRIM(u.real_name), ''), NULLIF(TRIM(u.nickname), ''), NULLIF(TRIM(u.name), ''), CONCAT('成员 ', u.id)) AS author_name, u.avatar_url AS author_avatar, u.team_identity_status AS author_team_identity_status,
+		Select(`p.*, COALESCE(NULLIF(TRIM(u.real_name), ''), '姓名待核实') AS author_name, u.avatar_url AS author_avatar, u.team_identity_status AS author_team_identity_status,
 			(SELECT COUNT(*) FROM community_comment_reactions cr WHERE cr.comment_id = p.id) AS like_count,
 			EXISTS (SELECT 1 FROM community_comment_reactions mr WHERE mr.comment_id = p.id AND mr.user_id = ?) AS liked_by_me`, actor.ID).
 		Joins("JOIN users AS u ON u.id = p.author_id").
@@ -1121,7 +1121,7 @@ func (s *Service) communityPostQuery(ctx context.Context, actor Actor) (*gorm.DB
 	query := s.db.WithContext(ctx).Table("training_questions AS q").
 		Select(`q.*,
 			COALESCE(ug.name, '') AS group_name,
-			COALESCE(NULLIF(TRIM(author.real_name), ''), NULLIF(TRIM(author.nickname), ''), NULLIF(TRIM(author.name), ''), CONCAT('成员 ', author.id)) AS author_name,
+			COALESCE(NULLIF(TRIM(author.real_name), ''), '姓名待核实') AS author_name,
 			author.avatar_url AS author_avatar, author.team_identity_status AS author_team_identity_status,
 			(SELECT COUNT(*) FROM training_question_posts cp WHERE cp.question_id = q.id AND cp.deleted_at IS NULL) AS comment_count,
 			(SELECT COUNT(*) FROM community_post_views pv WHERE pv.question_id = q.id) AS view_count,
@@ -1236,13 +1236,13 @@ func (s *Service) communityPostParticipants(ctx context.Context, questionIDs []u
 					ROW_NUMBER() OVER (PARTITION BY activity.question_id, activity.user_id ORDER BY activity.activity_at DESC, activity.activity_kind DESC, activity.activity_id DESC) AS member_rank
 				FROM (
 				SELECT q.id AS question_id, q.asker_id AS user_id,
-						COALESCE(NULLIF(TRIM(u.real_name), ''), NULLIF(TRIM(u.nickname), ''), NULLIF(TRIM(u.name), ''), CONCAT('成员 ', u.id)) AS author_name,
+						COALESCE(NULLIF(TRIM(u.real_name), ''), '姓名待核实') AS author_name,
 						u.avatar_url, q.created_at AS activity_at, q.id AS activity_id, 0 AS activity_kind
 					FROM training_questions q JOIN users u ON u.id = q.asker_id
 					WHERE q.id IN ? AND q.deleted_at IS NULL
 					UNION ALL
 					SELECT p.question_id, p.author_id AS user_id,
-						COALESCE(NULLIF(TRIM(u.real_name), ''), NULLIF(TRIM(u.nickname), ''), NULLIF(TRIM(u.name), ''), CONCAT('成员 ', u.id)) AS author_name,
+						COALESCE(NULLIF(TRIM(u.real_name), ''), '姓名待核实') AS author_name,
 						u.avatar_url, p.created_at AS activity_at, p.id AS activity_id, 1 AS activity_kind
 					FROM training_question_posts p JOIN users u ON u.id = p.author_id
 					WHERE p.question_id IN ? AND p.deleted_at IS NULL

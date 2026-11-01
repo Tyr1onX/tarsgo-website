@@ -130,9 +130,7 @@ type CommunityMemberActivity struct {
 
 type communityMemberRow struct {
 	ID                 uint64  `gorm:"column:id"`
-	Name               string  `gorm:"column:name"`
 	RealName           *string `gorm:"column:real_name"`
-	Nickname           *string `gorm:"column:nickname"`
 	AvatarURL          *string `gorm:"column:avatar_url"`
 	TeamIdentityStatus string  `gorm:"column:team_identity_status"`
 }
@@ -186,15 +184,15 @@ func (s *Service) GetCommunityMemberProfile(ctx context.Context, actor Actor, me
 
 	db := s.db.WithContext(ctx)
 	var record communityMemberRow
-	if err := db.Table("users").Select("id, name, real_name, nickname, avatar_url, team_identity_status").Where("id = ? AND status = ?", memberID, model.UserStatusEnabled).Take(&record).Error; err != nil {
+	if err := db.Table("users").Select("id, real_name, avatar_url, team_identity_status").Where("id = ? AND status = ?", memberID, model.UserStatusEnabled).Take(&record).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, notFound("成员主页不存在")
 		}
 		return nil, internalError("读取成员资料失败", err)
 	}
-	displayName := firstCommunityName(record.RealName, record.Nickname, record.Name)
-	if displayName == "" {
-		displayName = "成员 " + formatCommunityID(record.ID)
+	displayName := "姓名待核实"
+	if record.RealName != nil && strings.TrimSpace(*record.RealName) != "" {
+		displayName = strings.TrimSpace(*record.RealName)
 	}
 	member := CommunityMemberView{
 		ID: record.ID, DisplayName: displayName, AvatarURL: record.AvatarURL,
@@ -458,24 +456,6 @@ func communityAuthorFeaturedBadges(ctx context.Context, db *gorm.DB, userIDs []u
 		result[userID], _ = resolveCommunityFeaturedBadge(badge, selected[userID])
 	}
 	return result, nil
-}
-
-func firstCommunityName(values ...any) string {
-	for _, value := range values {
-		var text string
-		switch typed := value.(type) {
-		case string:
-			text = typed
-		case *string:
-			if typed != nil {
-				text = *typed
-			}
-		}
-		if text = strings.TrimSpace(text); text != "" {
-			return text
-		}
-	}
-	return ""
 }
 
 func formatCommunityID(id uint64) string {

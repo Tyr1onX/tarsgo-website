@@ -55,6 +55,7 @@ type registerEmailRequest struct {
 
 type bootstrapSuperAdminRequest struct {
 	Email           string `json:"email" binding:"required,email,max=255"`
+	RealName        string `json:"realName" binding:"required,max=100"`
 	Password        string `json:"password" binding:"required,min=6,max=72"`
 	ConfirmPassword string `json:"confirmPassword" binding:"required,min=6,max=72"`
 }
@@ -137,6 +138,7 @@ func (h *AuthHandler) RegisterInitialSuperAdmin(c *gin.Context) {
 
 	result, err := h.service.RegisterInitialSuperAdmin(c.Request.Context(), auth.RegisterInitialSuperAdminInput{
 		Email:           request.Email,
+		RealName:        request.RealName,
 		Password:        request.Password,
 		ConfirmPassword: request.ConfirmPassword,
 	})
@@ -350,19 +352,19 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 		defer c.Request.MultipartForm.RemoveAll()
 	}
 	form := c.Request.MultipartForm
-	if form == nil || len(form.Value["nickname"]) != 1 || len(form.Value["phone"]) != 1 || len(form.File["avatar"]) > 1 {
+	if form == nil || len(form.Value["phone"]) != 1 || len(form.File["avatar"]) > 1 {
 		writeAPIError(c, http.StatusBadRequest, "个人资料请求参数不合法")
 		return
 	}
 	for key := range form.Value {
-		if key != "nickname" && key != "phone" {
-			writeAPIError(c, http.StatusBadRequest, "只能修改头像、姓名和手机号")
+		if key != "phone" {
+			writeAPIError(c, http.StatusBadRequest, "只能修改头像和手机号")
 			return
 		}
 	}
 	for key := range form.File {
 		if key != "avatar" {
-			writeAPIError(c, http.StatusBadRequest, "只能修改头像、姓名和手机号")
+			writeAPIError(c, http.StatusBadRequest, "只能修改头像和手机号")
 			return
 		}
 	}
@@ -371,9 +373,8 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 		avatar = files[0]
 	}
 	updated, err := h.service.UpdateProfile(c.Request.Context(), user.ID, auth.ProfileInput{
-		Nickname: form.Value["nickname"][0],
-		Phone:    form.Value["phone"][0],
-		Avatar:   avatar,
+		Phone:  form.Value["phone"][0],
+		Avatar: avatar,
 	})
 	if err != nil {
 		h.handleServiceError(c, err)

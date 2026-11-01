@@ -44,7 +44,7 @@ func (r *GormRepository) Members(ctx context.Context, groupID uint64) ([]model.U
 		Joins("JOIN users ON users.id = user_group_members.user_id AND users.status = ?", model.UserStatusEnabled).
 		Where("user_group_members.group_id = ?", groupID).
 		Preload("User").
-		Order("users.real_name ASC, users.name ASC, users.id ASC").Find(&result).Error
+		Order("users.real_name ASC, users.id ASC").Find(&result).Error
 	return result, err
 }
 func (r *GormRepository) Timetables(ctx context.Context, ids []uint64) ([]model.Timetable, error) {

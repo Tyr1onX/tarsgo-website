@@ -31,7 +31,7 @@ test("post, reply, author card and member homepage share one identity display", 
   assert.match(memberProfile, /<TeamIdentityBadge status=\{member\.teamIdentityStatus\} \/>/);
   assert.match(communityService, /author\.team_identity_status AS author_team_identity_status/);
   assert.match(communityService, /u\.team_identity_status AS author_team_identity_status/);
-  assert.match(profileService, /Select\("id, name, real_name, nickname, avatar_url, team_identity_status"\)/);
+  assert.match(profileService, /Select\("id, real_name, avatar_url, team_identity_status"\)/);
 });
 
 test("identity is an audited source independent of account roles and organization membership", () => {

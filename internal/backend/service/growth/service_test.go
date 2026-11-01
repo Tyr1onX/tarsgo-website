@@ -65,7 +65,7 @@ func TestGetMineBuildsChronologicalTrainingTimelineFromSourceRows(t *testing.T) 
 
 	mock.ExpectQuery("SELECT .* FROM `users` WHERE id = \\? AND status = \\?.*LIMIT \\?").
 		WithArgs(uint64(12), model.UserStatusEnabled, 1).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "nickname", "real_name", "status"}).AddRow(12, "account", "昵称", "成员甲", model.UserStatusEnabled))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "real_name", "status"}).AddRow(12, "成员甲", model.UserStatusEnabled))
 	mock.ExpectQuery("SELECT .* FROM `user_group_members` JOIN user_groups ON.*WHERE user_group_members\\.user_id = \\? AND user_groups\\.status = \\?.*ORDER BY user_group_members\\.joined_at ASC, user_group_members\\.id ASC").
 		WithArgs(uint64(12), model.UserGroupStatusActive).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "joined_at", "group_name"}).AddRow(501, 41, groupJoinedAt, "机械组"))
@@ -159,7 +159,7 @@ func TestGetMineForAnyGroupIncludesOnlyWeeklyReportMetadata(t *testing.T) {
 	updatedAt := time.Date(2026, 10, 19, 9, 30, 0, 0, time.UTC)
 	mock.ExpectQuery("SELECT .* FROM `users` WHERE id = \\? AND status = \\?.*LIMIT \\?").
 		WithArgs(uint64(21), model.UserStatusEnabled, 1).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "nickname", "real_name", "status"}).AddRow(21, "ops", nil, nil, model.UserStatusEnabled))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "real_name", "status"}).AddRow(21, nil, model.UserStatusEnabled))
 	mock.ExpectQuery("SELECT .* FROM `user_group_members` JOIN user_groups ON.*WHERE user_group_members\\.user_id = \\? AND user_groups\\.status = \\?.*ORDER BY user_group_members\\.joined_at ASC, user_group_members\\.id ASC").
 		WithArgs(uint64(21), model.UserGroupStatusActive).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "joined_at", "group_name"}).AddRow(510, 45, joinedAt, "运营组"))

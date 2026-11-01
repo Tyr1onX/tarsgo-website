@@ -826,7 +826,7 @@ export default function Registrations() {
                   <h3 className="font-medium text-fg-primary">初筛</h3>
                   {detail.screenedAt ? (
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      <InfoItem label="初筛人" value={detail.screener?.name || detail.screener?.email || "—"} />
+                      <InfoItem label="初筛人" value={detail.screener?.name || "姓名待核实"} />
                       <InfoItem label="初筛时间" value={formatDateTime(detail.screenedAt)} />
                       <div className="sm:col-span-2">
                         <InfoItem label="初筛备注" value={detail.screeningRemark || "无"} />
@@ -902,7 +902,7 @@ export default function Registrations() {
                   </div>
                   {detail.interviewedAt ? (
                     <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                      <InfoItem label="面试人" value={detail.interviewer?.name || detail.interviewer?.email || "—"} />
+                      <InfoItem label="面试人" value={detail.interviewer?.name || "姓名待核实"} />
                       <InfoItem label="面试时间" value={formatDateTime(detail.interviewedAt)} />
                       <div className="sm:col-span-2">
                         <InfoItem label="面试备注" value={detail.interviewRemark || "无"} />
@@ -965,7 +965,7 @@ export default function Registrations() {
                                 {item.previousStatus ? `（原状态：${getInterviewResultLabel(item.previousStatus)}）` : "（首次登记）"}
                               </div>
                               <div className="mt-1 text-fg-dim">
-                                操作人：{item.actor?.name || item.actor?.email || "历史记录"} · {formatDateTime(item.createdAt)}
+                                操作人：{item.actor?.name || "历史记录"} · {formatDateTime(item.createdAt)}
                               </div>
                               {item.reason ? <div className="mt-1 text-fg-muted">修改原因：{item.reason}</div> : null}
                               <div className="mt-1 text-fg-muted">

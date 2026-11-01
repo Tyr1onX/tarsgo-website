@@ -50,7 +50,7 @@ test("preview stays super-admin-only and returns only the member identity fields
   assert.doesNotMatch(routes, /^\s*route\("organization-preview",/m);
   assert.match(navigation, /key: "organization-preview",[\s\S]*?allowedRoles: \["super_admin"\]/);
   assert.match(component, /apiRequest<OrganizationPreview>\("\/api\/admin\/organization-preview"\)/);
-  assert.match(handler, /Select\("id", "real_name", "nickname", "avatar_url"\)/);
+  assert.match(handler, /Select\("id", "real_name", "avatar_url"\)/);
   assert.doesNotMatch(handler, /Select\([^)]*(email|phone)/);
   for (const { name } of allPositions.filter(({ name }) => name !== "待确认")) {
     assert.ok(!component.includes(name) && !frontendData.includes(name), "names must not be bundled in the frontend: " + name);

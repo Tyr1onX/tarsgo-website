@@ -125,8 +125,6 @@ type FocusInput struct {
 
 type memberRow struct {
 	ID       uint64    `gorm:"column:id"`
-	Name     string    `gorm:"column:name"`
-	Nickname *string   `gorm:"column:nickname"`
 	RealName *string   `gorm:"column:real_name"`
 	Role     uint8     `gorm:"column:group_role"`
 	JoinedAt time.Time `gorm:"column:joined_at"`
@@ -156,7 +154,7 @@ func (s *Service) Group(ctx context.Context, actor Actor, groupID uint64) (*Grou
 		return nil, mappedError(err)
 	}
 	var roster []memberRow
-	if err := s.db.WithContext(ctx).Table("users").Select("users.id, users.name, users.nickname, users.real_name, user_group_members.role AS group_role, user_group_members.joined_at").
+	if err := s.db.WithContext(ctx).Table("users").Select("users.id, users.real_name, user_group_members.role AS group_role, user_group_members.joined_at").
 		Joins("JOIN user_group_members ON user_group_members.user_id = users.id").
 		Joins("JOIN user_groups ON user_groups.id = user_group_members.group_id").
 		Where("user_group_members.group_id = ? AND user_groups.status = ? AND users.status = ?", groupID, model.UserGroupStatusActive, model.UserStatusEnabled).
@@ -286,7 +284,7 @@ func (s *Service) Member(ctx context.Context, actor Actor, groupID, userID uint6
 		return nil, mappedError(err)
 	}
 	var rosterEntry memberRow
-	if err := s.db.WithContext(ctx).Table("users").Select("users.id, users.name, users.nickname, users.real_name, user_group_members.role AS group_role, user_group_members.joined_at").
+	if err := s.db.WithContext(ctx).Table("users").Select("users.id, users.real_name, user_group_members.role AS group_role, user_group_members.joined_at").
 		Joins("JOIN user_group_members ON user_group_members.user_id = users.id").
 		Joins("JOIN user_groups ON user_groups.id = user_group_members.group_id").
 		Where("users.id = ? AND user_group_members.group_id = ? AND user_groups.status = ? AND users.status = ?", userID, groupID, model.UserGroupStatusActive, model.UserStatusEnabled).Take(&rosterEntry).Error; err != nil {
@@ -342,12 +340,12 @@ func (s *Service) UpdateFocus(ctx context.Context, actor Actor, groupID, userID 
 			return err
 		}
 		var admin model.User
-		if err := tx.Select("id", "name", "nickname", "real_name").Where("id = ? AND status = ?", actor.ID, model.UserStatusEnabled).Take(&admin).Error; err != nil {
+		if err := tx.Select("id", "real_name").Where("id = ? AND status = ?", actor.ID, model.UserStatusEnabled).Take(&admin).Error; err != nil {
 			return fail(http.StatusInternalServerError, "读取管理员身份失败", err)
 		}
-		name := admin.PreferredName()
-		if name == "" {
-			name = strings.TrimSpace(admin.Name)
+		name := "姓名待核实"
+		if admin.RealName != nil && strings.TrimSpace(*admin.RealName) != "" {
+			name = strings.TrimSpace(*admin.RealName)
 		}
 		row := model.MemberCultivationRecord{GroupID: groupID, UserID: userID, Focused: input.Focused, InternalNote: input.InternalNote, UpdatedBy: actor.ID, UpdatedByName: name, UpdatedAt: s.now()}
 		return tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "group_id"}, {Name: "user_id"}}, DoUpdates: clause.AssignmentColumns([]string{"focused", "internal_note", "updated_by", "updated_by_name", "updated_at"})}).Create(&row).Error
@@ -394,13 +392,10 @@ func requireMemberGroup(db *gorm.DB, groupID, userID uint64) error {
 }
 
 func memberName(row memberRow) string {
-	if name := (model.User{RealName: row.RealName, Nickname: row.Nickname}).PreferredName(); name != "" {
-		return name
+	if row.RealName != nil && strings.TrimSpace(*row.RealName) != "" {
+		return strings.TrimSpace(*row.RealName)
 	}
-	if strings.TrimSpace(row.Name) != "" {
-		return strings.TrimSpace(row.Name)
-	}
-	return "成员"
+	return "姓名待核实"
 }
 
 func groupRole(role uint8) string {
