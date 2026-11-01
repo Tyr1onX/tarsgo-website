@@ -777,7 +777,7 @@ func (s *Service) Review(ctx context.Context, actor Actor, nodeID, userID uint64
 			return err
 		}
 		var reviewer model.User
-		if err := tx.Select("id, name, nickname, real_name").Where("id = ? AND status = ?", actor.ID, model.UserStatusEnabled).Take(&reviewer).Error; err != nil {
+		if err := tx.Select("id, real_name").Where("id = ? AND status = ?", actor.ID, model.UserStatusEnabled).Take(&reviewer).Error; err != nil {
 			return internalError("读取技能确认人失败", err)
 		}
 		event := model.SkillReviewEvent{
@@ -805,7 +805,7 @@ func (s *Service) ListAdminMembers(ctx context.Context, actor Actor, groupID, no
 		return nil, notFoundOrInternal(err, "技能节点不存在", "读取技能节点失败")
 	}
 	var users []model.User
-	if err := s.db.WithContext(ctx).Table("users").Select("users.id, users.name, users.nickname, users.real_name").
+	if err := s.db.WithContext(ctx).Table("users").Select("users.id, users.real_name").
 		Joins("JOIN user_group_members ON user_group_members.user_id = users.id").
 		Where("user_group_members.group_id = ? AND users.status = ?", groupID, model.UserStatusEnabled).
 		Order("users.id ASC").Scan(&users).Error; err != nil {
@@ -1284,13 +1284,10 @@ func reviewEventViews(events []model.SkillReviewEvent) []ReviewEvent {
 }
 
 func displayName(user model.User) string {
-	if name := user.PreferredName(); name != "" {
-		return name
+	if user.RealName != nil && strings.TrimSpace(*user.RealName) != "" {
+		return strings.TrimSpace(*user.RealName)
 	}
-	if strings.TrimSpace(user.Name) != "" {
-		return strings.TrimSpace(user.Name)
-	}
-	return "成员"
+	return "姓名待核实"
 }
 
 func isDuplicate(err error) bool {

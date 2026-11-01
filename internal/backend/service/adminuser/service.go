@@ -62,16 +62,16 @@ type ListUsersInput struct {
 
 type CreateUserInput struct {
 	RoleID   uint64
-	Name     string
+	RealName string
 	Email    string
 	Password string
 }
 
 type UpdateUserInput struct {
-	RoleID uint64
-	Name   string
-	Email  string
-	Status uint8
+	RoleID   uint64
+	RealName string
+	Email    string
+	Status   uint8
 }
 
 type UpdateTeamIdentityInput struct {
@@ -101,7 +101,7 @@ type AuthMethods struct {
 
 type UserListItem struct {
 	ID                 uint64                `json:"id"`
-	Name               string                `json:"name"`
+	RealName           string                `json:"realName"`
 	Email              string                `json:"email"`
 	Role               RoleRef               `json:"role"`
 	Status             uint8                 `json:"status"`
@@ -117,7 +117,6 @@ type UserListItem struct {
 
 type UserDetail struct {
 	ID                        uint64                    `json:"id"`
-	Name                      string                    `json:"name"`
 	Email                     string                    `json:"email"`
 	Status                    uint8                     `json:"status"`
 	Role                      RoleRef                   `json:"role"`
@@ -406,9 +405,12 @@ func (s *Service) CreateUser(ctx context.Context, actor Actor, input CreateUserI
 
 	email := auth.NormalizeEmail(input.Email)
 	password := strings.TrimSpace(input.Password)
-	name := strings.TrimSpace(input.Name)
-	if email == "" || password == "" || name == "" {
+	realName := strings.TrimSpace(input.RealName)
+	if email == "" || password == "" || realName == "" {
 		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "姓名、邮箱和密码不能为空"}
+	}
+	if utf8.RuneCountInString(realName) > 100 || strings.ContainsAny(realName, "\r\n\t") {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "真实姓名不能超过 100 字，且不能包含换行或制表符"}
 	}
 
 	role, err := s.repo.GetRoleByID(ctx, input.RoleID)
@@ -434,11 +436,11 @@ func (s *Service) CreateUser(ctx context.Context, actor Actor, input CreateUserI
 
 	user := &model.User{
 		RoleID:       role.ID,
-		Name:         name,
 		Email:        email,
 		PasswordHash: stringPtr(passwordHash),
 		Status:       model.UserStatusEnabled,
 		Gender:       0,
+		RealName:     &realName,
 	}
 
 	if err := s.repo.CreateUser(ctx, user); err != nil {
@@ -522,9 +524,12 @@ func (s *Service) UpdateUser(ctx context.Context, actor Actor, userID uint64, in
 		return nil, &ServiceError{Status: http.StatusForbidden, Message: "当前账号无权设置该角色"}
 	}
 	email := auth.NormalizeEmail(input.Email)
-	name := strings.TrimSpace(input.Name)
-	if email == "" || name == "" {
-		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "姓名和邮箱不能为空"}
+	realName := strings.TrimSpace(input.RealName)
+	if email == "" {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "邮箱不能为空"}
+	}
+	if utf8.RuneCountInString(realName) > 100 || strings.ContainsAny(realName, "\r\n\t") {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "真实姓名不能超过 100 字，且不能包含换行或制表符"}
 	}
 
 	if existing, err := s.repo.GetUserByEmail(ctx, email); err == nil && existing.ID != target.ID {
@@ -535,9 +540,11 @@ func (s *Service) UpdateUser(ctx context.Context, actor Actor, userID uint64, in
 
 	updates := map[string]any{
 		"role_id": role.ID,
-		"name":    name,
 		"email":   email,
 		"status":  input.Status,
+	}
+	if realName != "" {
+		updates["real_name"] = realName
 	}
 
 	if err := s.repo.UpdateUser(ctx, target.ID, updates); err != nil {
@@ -654,13 +661,13 @@ func toUserListItem(user *model.User) UserListItem {
 			activeCount++
 		}
 	}
-	name := user.PreferredName()
-	if name == "" {
-		name = strings.TrimSpace(user.Name)
+	realName := ""
+	if user.RealName != nil {
+		realName = strings.TrimSpace(*user.RealName)
 	}
 	return UserListItem{
 		ID:                 user.ID,
-		Name:               name,
+		RealName:           realName,
 		Email:              user.Email,
 		Role:               toRoleRef(user.Role),
 		Status:             user.Status,
@@ -676,13 +683,8 @@ func toUserListItem(user *model.User) UserListItem {
 }
 
 func toUserDetail(user *model.User) UserDetail {
-	var realName *string
-	if preferredName := user.PreferredName(); preferredName != "" {
-		realName = &preferredName
-	}
 	detail := UserDetail{
 		ID:                  user.ID,
-		Name:                user.Name,
 		Email:               user.Email,
 		Status:              user.Status,
 		Role:                toRoleRef(user.Role),
@@ -690,7 +692,7 @@ func toUserDetail(user *model.User) UserDetail {
 		LastLoginAt:         user.LastLoginAt,
 		CreatedAt:           user.CreatedAt,
 		UpdatedAt:           user.UpdatedAt,
-		RealName:            realName,
+		RealName:            user.RealName,
 		Phone:               user.Phone,
 		RecruitmentHistory:  []RecruitmentHistoryItem{},
 		Groups:              mapUserGroupMemberships(user.GroupMembers),

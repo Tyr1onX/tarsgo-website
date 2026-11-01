@@ -197,23 +197,8 @@ func migrateTeamIdentity(db *gorm.DB) error {
 }
 
 func migrateCanonicalUserNames(db *gorm.DB) error {
-	return backfillCanonicalUserNamesForTable(db, "users")
-}
-
-func backfillCanonicalUserNamesForTable(db *gorm.DB, tableName string) error {
-	if tableName == "" {
-		return fmt.Errorf("user table name is empty")
-	}
-	for _, character := range tableName {
-		if !(character == '_' || character >= 'a' && character <= 'z' || character >= 'A' && character <= 'Z' || character >= '0' && character <= '9') {
-			return fmt.Errorf("invalid user table name")
-		}
-	}
-	quotedTable := "`" + tableName + "`"
-	query := "UPDATE " + quotedTable + " SET `real_name` = TRIM(`nickname`) WHERE (`real_name` IS NULL OR TRIM(`real_name`) = '') AND `nickname` IS NOT NULL AND TRIM(`nickname`) <> ''"
-	if err := db.Exec(query).Error; err != nil {
-		return fmt.Errorf("backfill canonical user names: %w", err)
-	}
+	// Keep historical migration version 34 in place, but do not infer identity
+	// data. Accounts with missing real names must be checked against an authority.
 	return nil
 }
 

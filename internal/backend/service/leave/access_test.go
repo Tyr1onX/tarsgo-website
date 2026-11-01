@@ -106,7 +106,7 @@ func TestReviewLeaveAccessRequestRecordsAdminAndApproval(t *testing.T) {
 
 func TestListPendingLeaveAccessRequestsIncludesOnlyReviewIdentity(t *testing.T) {
 	db, mock := newLeaveAccessMockGorm(t)
-	mock.ExpectQuery("SELECT requests\\.id, requests\\.user_id, users\\.name AS user_name, users\\.email, requests\\.status, requests\\.requested_at FROM leave_access_requests AS requests JOIN users ON users\\.id = requests\\.user_id WHERE requests\\.status = \\? ORDER BY requests\\.requested_at ASC, requests\\.id ASC").
+	mock.ExpectQuery("SELECT requests\\.id, requests\\.user_id, COALESCE\\(NULLIF\\(TRIM\\(users\\.real_name\\), ''\\), '姓名待核实'\\) AS user_name, users\\.email, requests\\.status, requests\\.requested_at FROM leave_access_requests AS requests JOIN users ON users\\.id = requests\\.user_id WHERE requests\\.status = \\? ORDER BY requests\\.requested_at ASC, requests\\.id ASC").
 		WithArgs(model.LeaveAccessPending).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "user_name", "email", "status", "requested_at"}).
 			AddRow(8, 22, "成员甲", "member@example.com", model.LeaveAccessPending, time.Date(2026, 10, 18, 10, 0, 0, 0, time.UTC)))

@@ -64,7 +64,7 @@ func TestSuperAdminGetsAllActiveGroupsAndMemberDoesNotGetManagementScope(t *test
 func TestListActiveMembersUsesEnabledStatusAndSharedActivityCutoff(t *testing.T) {
 	db, mock := newWeeklyReportMockGorm(t)
 	activitySince := time.Date(2026, time.October, 19, 11, 19, 8, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
-	pattern := `(?s)SELECT .* FROM ` + "`user_group_members`" + ` JOIN user_groups ON .*user_groups\.status = \? JOIN users ON .*users\.status = \? AND users\.last_login_at >= \? WHERE user_group_members\.group_id = \? .*ORDER BY users\.real_name ASC, users\.name ASC, users\.id ASC`
+	pattern := `(?s)SELECT .* FROM ` + "`user_group_members`" + ` JOIN user_groups ON .*user_groups\.status = \? JOIN users ON .*users\.status = \? AND users\.last_login_at >= \? WHERE user_group_members\.group_id = \? .*ORDER BY users\.real_name ASC, users\.id ASC`
 	mock.ExpectQuery(pattern).
 		WithArgs(model.UserGroupStatusActive, model.UserStatusEnabled, activitySince, uint64(77)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "user_id", "role", "joined_at"}))

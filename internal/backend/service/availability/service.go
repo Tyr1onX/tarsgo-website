@@ -3,7 +3,6 @@ package availability
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"sort"
 	"strings"
@@ -310,13 +309,10 @@ func validNotes(notes []timetable.Note) bool {
 	return true
 }
 func displayName(u model.User) string {
-	if name := u.PreferredName(); name != "" {
-		return name
+	if u.RealName != nil && strings.TrimSpace(*u.RealName) != "" {
+		return strings.TrimSpace(*u.RealName)
 	}
-	if name := strings.TrimSpace(u.Name); name != "" {
-		return name
-	}
-	return fmt.Sprintf("成员 #%d", u.ID)
+	return "姓名待核实"
 }
 
 // Sort for deterministic output; no personal email or timetable details are returned.

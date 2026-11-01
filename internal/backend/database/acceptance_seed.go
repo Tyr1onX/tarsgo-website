@@ -88,7 +88,6 @@ func seedAcceptanceTestData(db *gorm.DB, appEnv string) error {
 			user := &model.User{}
 			if err := tx.Where(&model.User{Email: seed.email}).Attrs(map[string]any{
 				"role_id":       role.ID,
-				"name":          seed.name,
 				"real_name":     seed.name,
 				"password_hash": passwords[seed.email],
 				"status":        model.UserStatusEnabled,
@@ -96,8 +95,8 @@ func seedAcceptanceTestData(db *gorm.DB, appEnv string) error {
 				return fmt.Errorf("seed acceptance account %s: %w", seed.email, err)
 			}
 			updates := map[string]any{
-				"role_id": role.ID,
-				"name":    seed.name, "real_name": seed.name, "status": model.UserStatusEnabled,
+				"role_id":   role.ID,
+				"real_name": seed.name, "status": model.UserStatusEnabled,
 			}
 			if user.PasswordHash == nil || strings.TrimSpace(*user.PasswordHash) == "" {
 				updates["password_hash"] = passwords[seed.email]
@@ -197,7 +196,7 @@ func seedAcceptanceCandidates(tx *gorm.DB, form *model.RegistrationForm, group *
 		email := "test-candidate-" + testCase.key + "@tarsgo.test"
 		candidate := &model.User{}
 		if err := tx.Where(&model.User{Email: email}).Attrs(map[string]any{
-			"role_id": userRole.ID, "name": testCase.name, "real_name": testCase.name,
+			"role_id": userRole.ID, "real_name": testCase.name,
 			"status": model.UserStatusEnabled,
 		}).FirstOrCreate(candidate).Error; err != nil {
 			return fmt.Errorf("seed acceptance candidate %s: %w", email, err)

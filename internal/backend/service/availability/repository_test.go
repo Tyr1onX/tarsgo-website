@@ -53,7 +53,7 @@ func TestAvailabilityCanLoadActiveGroupsForTimeCoordinationOnly(t *testing.T) {
 }
 func TestScopedRosterAndTimetableQueries(t *testing.T) {
 	repo, mock := testRepository(t)
-	mock.ExpectQuery(`(?s)SELECT .* FROM `+"\x60"+`user_group_members`+"\x60"+` JOIN user_groups ON .* JOIN users ON .* WHERE user_group_members\.group_id = \? ORDER BY users\.real_name ASC, users\.name ASC, users\.id ASC`).
+	mock.ExpectQuery(`(?s)SELECT .* FROM `+"\x60"+`user_group_members`+"\x60"+` JOIN user_groups ON .* JOIN users ON .* WHERE user_group_members\.group_id = \? ORDER BY users\.real_name ASC, users\.id ASC`).
 		WithArgs(model.UserGroupStatusActive, model.UserStatusEnabled, uint64(4)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "user_id", "role", "joined_at"}))
 	roster, err := repo.Members(context.Background(), 4)

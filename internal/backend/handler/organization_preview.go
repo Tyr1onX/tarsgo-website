@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -13,7 +14,6 @@ import (
 type organizationAccountProfile struct {
 	ID        uint64  `gorm:"column:id"`
 	RealName  *string `gorm:"column:real_name"`
-	Nickname  *string `gorm:"column:nickname"`
 	AvatarURL *string `gorm:"column:avatar_url"`
 }
 
@@ -39,7 +39,7 @@ func OrganizationPreview(db *gorm.DB) gin.HandlerFunc {
 			var accounts []organizationAccountProfile
 			if err := db.WithContext(c.Request.Context()).
 				Model(&model.User{}).
-				Select("id", "real_name", "nickname", "avatar_url").
+				Select("id", "real_name", "avatar_url").
 				Where("id IN ?", userIDs).
 				Find(&accounts).Error; err != nil {
 				writeAPIError(c, http.StatusInternalServerError, "读取组织架构成员资料失败")
@@ -57,8 +57,10 @@ func OrganizationPreview(db *gorm.DB) gin.HandlerFunc {
 				if !exists {
 					return
 				}
-				if name := (model.User{RealName: account.RealName, Nickname: account.Nickname}).PreferredName(); name != "" {
-					position.Name = name
+				if account.RealName != nil && strings.TrimSpace(*account.RealName) != "" {
+					position.Name = strings.TrimSpace(*account.RealName)
+				} else {
+					position.Name = "姓名待核实"
 				}
 				position.AvatarURL = account.AvatarURL
 			}

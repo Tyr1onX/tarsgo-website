@@ -32,7 +32,7 @@ export function PersonalProfileSettings({
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
   // Leave documents use the verified account name, never a second editable name.
-  const accountName = user.realName?.trim() || user.nickname?.trim() || "";
+  const accountName = user.realName?.trim() || "";
   const leaveName = leaveProfile?.identityLocked ? leaveProfile.name : accountName;
   const leaveChanged = leaveDraft.studentId.trim() !== (leaveProfile?.studentId ?? "") ||
     leaveDraft.collegeCode !== (leaveProfile?.collegeCode ?? "") ||
@@ -90,9 +90,8 @@ export function PersonalProfileSettings({
         });
         setLeaveProfile(saved);
       }
-      // Keep sending the legacy field unchanged so older API contracts remain compatible.
-      // The phone field is currently hidden; preserve existing values on profile saves.
-      await updateProfile({ nickname: user.nickname ?? "", phone: user.phone ?? "", avatar });
+      // The phone field is currently hidden; preserve its existing value on profile saves.
+      await updateProfile({ phone: user.phone ?? "", avatar });
       onSaved();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "保存失败，请重试");

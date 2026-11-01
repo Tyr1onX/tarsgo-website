@@ -16,7 +16,7 @@ export interface AdminUserAuthMethods {
 
 export interface AdminUserListItem {
   id: number;
-  name: string;
+  realName: string;
   email: string;
   role: AdminUserRole;
   status: number;
@@ -39,7 +39,6 @@ export interface AdminUserGroupMembership {
 
 export interface AdminUserDetail {
   id: number;
-  name: string;
   email: string;
   status: number;
   role: AdminUserRole;
@@ -116,7 +115,7 @@ export interface ListAdminUsersInput {
 
 export interface AdminUserUpsertInput {
   roleId: number;
-  name: string;
+  realName: string;
   email: string;
 }
 

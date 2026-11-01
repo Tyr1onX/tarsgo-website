@@ -170,7 +170,7 @@ func (s *Service) list(ctx context.Context, actor Actor, filter ListFilter, incl
 func (s *Service) listForGroups(ctx context.Context, actor Actor, filter ListFilter, groupIDs []uint64, includePrivate bool) ([]QuestionView, error) {
 	query := s.db.WithContext(ctx).Table("training_questions").
 		Select(`training_questions.*, user_groups.name AS group_name,
-			COALESCE(NULLIF(TRIM(askers.real_name), ''), NULLIF(TRIM(askers.nickname), ''), NULLIF(TRIM(askers.name), ''), CONCAT('成员 ', askers.id)) AS asker_name,
+			COALESCE(NULLIF(TRIM(askers.real_name), ''), '姓名待核实') AS asker_name,
 			(SELECT COUNT(*) FROM training_question_posts WHERE training_question_posts.question_id = training_questions.id) AS post_count`).
 		Joins("JOIN user_groups ON user_groups.id = training_questions.group_id").
 		Joins("JOIN users AS askers ON askers.id = training_questions.asker_id").
@@ -534,7 +534,7 @@ func (s *Service) detail(ctx context.Context, question model.TrainingQuestion) (
 	rows := []questionListRow{}
 	if err := s.db.WithContext(ctx).Table("training_questions").
 		Select(`training_questions.*, user_groups.name AS group_name,
-			COALESCE(NULLIF(TRIM(askers.real_name), ''), NULLIF(TRIM(askers.nickname), ''), NULLIF(TRIM(askers.name), ''), CONCAT('成员 ', askers.id)) AS asker_name,
+			COALESCE(NULLIF(TRIM(askers.real_name), ''), '姓名待核实') AS asker_name,
 			(SELECT COUNT(*) FROM training_question_posts WHERE training_question_posts.question_id = training_questions.id) AS post_count`).
 		Joins("JOIN user_groups ON user_groups.id = training_questions.group_id").
 		Joins("JOIN users AS askers ON askers.id = training_questions.asker_id").
@@ -550,7 +550,7 @@ func (s *Service) detail(ctx context.Context, question model.TrainingQuestion) (
 	}
 	var posts []postListRow
 	if err := s.db.WithContext(ctx).Table("training_question_posts").
-		Select(`training_question_posts.*, COALESCE(NULLIF(TRIM(users.real_name), ''), NULLIF(TRIM(users.nickname), ''), NULLIF(TRIM(users.name), ''), CONCAT('成员 ', users.id)) AS author_name`).
+		Select(`training_question_posts.*, COALESCE(NULLIF(TRIM(users.real_name), ''), '姓名待核实') AS author_name`).
 		Joins("JOIN users ON users.id = training_question_posts.author_id").
 		Where("training_question_posts.question_id = ?", question.ID).
 		Order("training_question_posts.created_at ASC, training_question_posts.id ASC").Find(&posts).Error; err != nil {

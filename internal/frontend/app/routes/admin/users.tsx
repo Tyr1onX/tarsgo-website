@@ -29,14 +29,14 @@ export function meta() {
 }
 
 type AccountDraft = {
-  name: string;
+  realName: string;
   email: string;
   roleId: string;
   status: string;
   password: string;
 };
 
-const emptyDraft: AccountDraft = { name: "", email: "", roleId: "", status: "1", password: "" };
+const emptyDraft: AccountDraft = { realName: "", email: "", roleId: "", status: "1", password: "" };
 const emptySummary: AdminUserSummary = { total: 0, enabled: 0, disabled: 0, admins: 0, grouped: 0, unassigned: 0, pending: 0, cleanupPending: 0, groupDistribution: [] };
 
 function formatDate(value?: string | null) {
@@ -158,7 +158,7 @@ export default function AccountManagement() {
   function showAccountDetail(detail: AdminUserDetail) {
     setEditing(detail);
     setEditingIsNew(false);
-    setDraft({ name: detail.name, email: detail.email, roleId: String(detail.role.id), status: String(detail.status), password: "" });
+    setDraft({ realName: detail.realName ?? "", email: detail.email, roleId: String(detail.role.id), status: String(detail.status), password: "" });
     setPreferredGroupId(detail.currentRecruitmentGroupId == null ? "" : String(detail.currentRecruitmentGroupId));
     const assignedGroup = detail.groups.find((group) => group.status === 1);
     setUserGroupId(detail.groupState === "pending" ? "" : String(assignedGroup?.groupId ?? ""));
@@ -303,7 +303,7 @@ export default function AccountManagement() {
       if (!selectedRole) throw new Error("请选择系统角色");
       if (editingIsNew) {
         const created = await createAdminUser({
-          name: draft.name.trim(),
+          realName: draft.realName.trim(),
           email: draft.email.trim(),
           password: draft.password,
           roleId: selectedRole.id,
@@ -317,7 +317,7 @@ export default function AccountManagement() {
         return;
       } else if (editing) {
         await updateAdminUser(editing.id, {
-          name: draft.name.trim(),
+          realName: draft.realName.trim(),
           email: draft.email.trim(),
           roleId: selectedRole.id,
           status: Number(draft.status),
@@ -412,7 +412,7 @@ export default function AccountManagement() {
               <tbody>
                 {items.map((item) => (
                   <tr key={item.id} className="admin-table-row">
-                    <td><div className="font-medium text-[var(--admin-text)]">{item.name || "未设置名称"}</div><div className="mt-0.5 truncate text-xs text-[var(--admin-muted)]">{item.email}</div></td>
+                    <td><div className="font-medium text-[var(--admin-text)]">{item.realName || "姓名待核实"}</div><div className="mt-0.5 truncate text-xs text-[var(--admin-muted)]">{item.email}</div></td>
                     <td><span className="text-sm text-[var(--admin-text)]">{teamIdentityLabel(item.teamIdentityStatus)}</span></td>
                     <td>{item.groupState === "pending" ? <><span className="admin-status admin-status--screening">待确认（双组异常）</span><div className="mt-1 text-xs text-[var(--admin-muted)]">{item.groups.filter((group) => group.status === 1).map((group) => group.name).join("、")}</div></> : item.groupState === "assigned" ? <><span className="text-sm text-[var(--admin-text)]">{item.groupName}</span>{item.cleanupPending ? <div className="mt-1 text-xs text-[var(--admin-warning)]">停用组关系待清理</div> : null}</> : <><span className="text-sm text-[var(--admin-muted)]">未分组</span>{item.cleanupPending ? <div className="mt-1 text-xs text-[var(--admin-warning)]">停用组关系待清理</div> : null}</>}</td>
                     <td>{item.groups.length ? <div className="space-y-1 text-xs text-[var(--admin-text)]">{item.groups.map((group) => <div key={group.groupId}>{group.name} · {organizationTitleLabel(group.role)}</div>)}</div> : <span className="text-xs text-[var(--admin-muted)]">—</span>}</td>
@@ -449,7 +449,7 @@ export default function AccountManagement() {
           )}
         >
           <form id="account-editor-form" onSubmit={submit} className="space-y-4">
-            <label className="block text-xs text-[var(--admin-muted)]">显示名称<input required maxLength={100} value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} className="admin-field mt-1" /></label>
+            <label className="block text-xs text-[var(--admin-muted)]">真实姓名<input required={editingIsNew} maxLength={100} value={draft.realName} onChange={(event) => setDraft((current) => ({ ...current, realName: event.target.value }))} className="admin-field mt-1" placeholder={editing && !editing.realName ? "核对后填写真实姓名" : undefined} /></label>
             <label className="block text-xs text-[var(--admin-muted)]">登录邮箱<input required type="email" maxLength={255} value={draft.email} onChange={(event) => setDraft((current) => ({ ...current, email: event.target.value }))} className="admin-field mt-1" /></label>
             <section className="space-y-2" aria-label="系统权限">
               <h3 className="text-sm font-semibold text-[var(--admin-text)]">系统权限</h3>

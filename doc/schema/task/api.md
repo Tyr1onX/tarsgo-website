@@ -370,7 +370,7 @@ GET http://127.0.0.1:8080/api/admin/users 获取用户分页列表
  - 查询参数：
 - `page`：页码，默认 `1`
 - `pageSize`：每页条数，默认 `10`，最大 `100`
-- `keyword`：模糊匹配 `name / email / phone / real_name / nickname`
+- `keyword`：模糊匹配 `real_name / email / phone`
 - `role`：人员身份筛选，支持 `member`、`group_admin`、`leader`、`global`（兼容 `global_admin`）和 `super_admin`
 - `groupId`：按所属用户组筛选，传入用户组 ID
 - `status`：账号状态，`1=启用`、`0=停用`
@@ -447,9 +447,7 @@ GET http://127.0.0.1:8080/api/admin/users/:id 获取用户详情
      "message": "获取用户详情成功",
      "data": {
        "id": 3,
-       "name": "Member",
        "email": "member@example.com",
-       "nickname": "member",
        "avatarUrl": "https://example.com/avatar.png",
        "phone": "13800138000",
        "realName": "张三",
@@ -513,13 +511,11 @@ POST http://127.0.0.1:8080/api/admin/users 创建用户账号
    ```json
    {
      "roleId": 3,
-     "name": "New User",
+     "realName": "张三",
      "email": "new-user@example.com",
      "password": "Password123",
-     "nickname": "newbie",
      "avatarUrl": "https://example.com/avatar.png",
      "phone": "13800138000",
-     "realName": "李四",
      "gender": 1,
      "birthday": "1999-03-12",
      "adminScope": "none"
@@ -543,12 +539,10 @@ PATCH http://127.0.0.1:8080/api/admin/users/:id 更新用户
    ```json
    {
      "roleId": 3,
-     "name": "Updated User",
+     "realName": "李四",
      "email": "updated-user@example.com",
-     "nickname": "updated",
      "avatarUrl": "https://example.com/avatar-updated.png",
      "phone": "13800138001",
-     "realName": "李四",
      "gender": 2,
      "birthday": "1999-03-12",
      "status": 0

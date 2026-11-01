@@ -2608,15 +2608,15 @@ type fakeRegistrationListRepository struct {
 	items                   []model.Registration
 	createdRegistration     *model.Registration
 	registrationsByFormUser map[[2]uint64]*model.Registration
-	forms               map[uint64]*model.RegistrationForm
-	shownGroups         []model.UserGroup
-	total               int64
-	stats               RegistrationStats
-	leaderGroupIDs      map[uint64][]uint64
-	listFilters         []ListRegistrationsInput
-	exportFilters       []ListRegistrationsInput
-	countFilters        []ListRegistrationsInput
-	statsFilters        []ListRegistrationsInput
+	forms                   map[uint64]*model.RegistrationForm
+	shownGroups             []model.UserGroup
+	total                   int64
+	stats                   RegistrationStats
+	leaderGroupIDs          map[uint64][]uint64
+	listFilters             []ListRegistrationsInput
+	exportFilters           []ListRegistrationsInput
+	countFilters            []ListRegistrationsInput
+	statsFilters            []ListRegistrationsInput
 }
 
 func newFakeRegistrationListRepository() *fakeRegistrationListRepository {
@@ -2716,8 +2716,8 @@ func newFakeRegistrationListRepository() *fakeRegistrationListRepository {
 				Status:            model.RegistrationStatusApproved,
 				SubmittedAt:       now.Add(-2 * time.Hour),
 				UpdatedAt:         now.Add(-20 * time.Minute),
-				Screener:          &model.User{ID: 9001, Name: "审核管理员", Email: "admin@example.com"},
-				Interviewer:       &model.User{ID: 9002, Name: "面试管理员", Email: "interviewer@example.com"},
+				Screener:          &model.User{ID: 9001, Name: "旧审核标签", RealName: stringPtr("审核管理员"), Email: "admin@example.com"},
+				Interviewer:       &model.User{ID: 9002, Name: "旧面试标签", RealName: stringPtr("面试管理员"), Email: "interviewer@example.com"},
 				Form:              *cloneRegistrationFormModel(form),
 				PreferredGroup:    &model.UserGroup{ID: group1ID, Name: "机械组", Show: 1},
 				Group1:            &model.UserGroup{ID: group1ID, Name: "机械组", Show: 1},
@@ -2740,7 +2740,7 @@ func newFakeRegistrationListRepository() *fakeRegistrationListRepository {
 			Rejected:         5,
 			Withdrawn:        2,
 		},
-		leaderGroupIDs:           map[uint64][]uint64{},
+		leaderGroupIDs:          map[uint64][]uint64{},
 		registrationsByFormUser: map[[2]uint64]*model.Registration{},
 	}
 }
@@ -2913,7 +2913,6 @@ func cloneUserModel(user *model.User) *model.User {
 		return nil
 	}
 	cloned := *user
-	cloned.Name = user.Name
 	cloned.Email = user.Email
 	cloned.PasswordHash = user.PasswordHash
 	cloned.GitHubID = copyStringPtr(user.GitHubID)

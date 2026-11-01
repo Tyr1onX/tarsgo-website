@@ -148,6 +148,7 @@ func TestUpdateProfileUsesAuthenticatedAccountAndRejectsProtectedFields(t *testi
 	}{
 		{name: "valid", loggedIn: true, want: http.StatusOK},
 		{name: "missing session", want: http.StatusUnauthorized},
+		{name: "nickname removed", extra: "nickname", loggedIn: true, want: http.StatusBadRequest},
 		{name: "real name", extra: "realName", loggedIn: true, want: http.StatusBadRequest},
 		{name: "email", extra: "email", loggedIn: true, want: http.StatusBadRequest},
 		{name: "group", extra: "groupId", loggedIn: true, want: http.StatusBadRequest},
@@ -158,10 +159,10 @@ func TestUpdateProfileUsesAuthenticatedAccountAndRejectsProtectedFields(t *testi
 			handler := NewAuthHandler(stubAuthService{
 				updateProfileFn: func(_ context.Context, userID uint64, input auth.ProfileInput) (*auth.SessionUser, error) {
 					called = true
-					if userID != 41 || input.Nickname != "新昵称" || input.Phone != "13900139000" || input.Avatar != nil {
+					if userID != 41 || input.Phone != "13900139000" || input.Avatar != nil {
 						t.Fatalf("unexpected update input: user=%d input=%#v", userID, input)
 					}
-					return &auth.SessionUser{ID: userID, Nickname: &input.Nickname}, nil
+					return &auth.SessionUser{ID: userID}, nil
 				},
 			})
 			router := gin.New()
@@ -174,9 +175,6 @@ func TestUpdateProfileUsesAuthenticatedAccountAndRejectsProtectedFields(t *testi
 
 			var body bytes.Buffer
 			writer := multipart.NewWriter(&body)
-			if err := writer.WriteField("nickname", "新昵称"); err != nil {
-				t.Fatal(err)
-			}
 			if err := writer.WriteField("phone", "13900139000"); err != nil {
 				t.Fatal(err)
 			}
@@ -351,6 +349,9 @@ func TestRegisterInitialSuperAdminSetsCookie(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	handler := NewAuthHandler(stubAuthService{
 		registerInitialSuperAdminFn: func(ctx context.Context, input auth.RegisterInitialSuperAdminInput) (*auth.AuthResult, error) {
+			if input.RealName != "管理员" {
+				t.Fatalf("bootstrap real name = %q, want 管理员", input.RealName)
+			}
 			return &auth.AuthResult{
 				User: &auth.SessionUser{
 					ID:    1,
@@ -366,6 +367,7 @@ func TestRegisterInitialSuperAdminSetsCookie(t *testing.T) {
 	})
 	recorder, ctx := newJSONContext(t, http.MethodPost, "/api/bootstrap/super-admin", map[string]string{
 		"email":           "root@example.com",
+		"realName":        "管理员",
 		"password":        "Password123",
 		"confirmPassword": "Password123",
 	})
@@ -406,6 +408,7 @@ func TestRegisterInitialSuperAdminReturnsServiceError(t *testing.T) {
 			})
 			recorder, ctx := newJSONContext(t, http.MethodPost, "/api/bootstrap/super-admin", map[string]string{
 				"email":           "root@example.com",
+				"realName":        "管理员",
 				"password":        "Password123",
 				"confirmPassword": "Password123",
 			})

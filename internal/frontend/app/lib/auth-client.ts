@@ -14,7 +14,6 @@ export interface AuthUser {
   id: number;
   email: string;
   phone?: string | null;
-  nickname?: string | null;
   avatarUrl?: string | null;
   realName?: string | null;
   organizationPositions?: Array<{
@@ -26,8 +25,8 @@ export interface AuthUser {
   role: AuthRole;
 }
 
-export function getAuthUserName(user: Pick<AuthUser, "realName" | "nickname" | "email">): string {
-  return user.realName?.trim() || user.nickname?.trim() || user.email.split("@")[0] || "TARSGO 成员";
+export function getAuthUserName(user: Pick<AuthUser, "realName">): string {
+  return user.realName?.trim() || "姓名待核实";
 }
 
 export function getAuthUserRoleLabel(user: Pick<AuthUser, "role">): string {
@@ -168,6 +167,7 @@ export async function registerWithEmail(input: {
 
 export async function registerInitialSuperAdmin(input: {
   email: string;
+  realName: string;
   password: string;
   confirmPassword: string;
 }): Promise<AuthUser> {
@@ -277,9 +277,8 @@ export async function logoutAllAccounts(): Promise<void> {
   announceAccountSessionChange();
 }
 
-export async function updateProfile(input: { nickname: string; phone: string; avatar: File | null }): Promise<AuthUser> {
+export async function updateProfile(input: { phone: string; avatar: File | null }): Promise<AuthUser> {
   const body = new FormData();
-  body.set("nickname", input.nickname);
   body.set("phone", input.phone);
   if (input.avatar) body.set("avatar", input.avatar);
   const data = await apiRequest<{ user: AuthUser }>("/api/me", { method: "PUT", body });

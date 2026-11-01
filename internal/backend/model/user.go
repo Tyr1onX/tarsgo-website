@@ -1,9 +1,6 @@
 package model
 
-import (
-	"strings"
-	"time"
-)
+import "time"
 
 const (
 	// These values are retained to read and replay historical scope migrations.
@@ -23,14 +20,14 @@ type User struct {
 	RoleID uint64 `json:"roleId" gorm:"column:role_id;type:bigint unsigned;not null;index:idx_role_id"`
 	// Legacy scope columns remain mapped for database compatibility only. Runtime
 	// authorization uses the system role and active group membership.
-	AdminScope         string            `json:"-" gorm:"column:admin_scope;type:varchar(20);not null;default:'none';index:idx_admin_scope"`
-	ManagementGroupID  *uint64           `json:"-" gorm:"column:management_group_id;type:bigint unsigned;default:null;index:idx_management_group_id"`
-	Name               string            `json:"name,omitempty" gorm:"size:100;not null;default:''"`
+	AdminScope        string  `json:"-" gorm:"column:admin_scope;type:varchar(20);not null;default:'none';index:idx_admin_scope"`
+	ManagementGroupID *uint64 `json:"-" gorm:"column:management_group_id;type:bigint unsigned;default:null;index:idx_management_group_id"`
+	// Name is inert legacy storage retained to preserve historical account data.
+	Name               string            `json:"-" gorm:"column:name;size:100;not null;default:''"`
 	Email              string            `json:"email" gorm:"size:255;not null;uniqueIndex:uk_email"`
 	PasswordHash       *string           `json:"passwordHash,omitempty" gorm:"column:password_hash;size:255;default:null"`
 	GitHubID           *string           `json:"githubId,omitempty" gorm:"column:github_id;size:100;uniqueIndex:uk_github_id"`
 	GitHubUsername     *string           `json:"githubUsername,omitempty" gorm:"column:github_username;size:100;default:null"`
-	Nickname           *string           `json:"nickname,omitempty" gorm:"size:100;default:null"`
 	AvatarURL          *string           `json:"avatarUrl,omitempty" gorm:"column:avatar_url;size:500;default:null"`
 	Phone              *string           `json:"phone,omitempty" gorm:"size:20;default:null;index:idx_phone"`
 	RealName           *string           `json:"realName,omitempty" gorm:"column:real_name;size:100;default:null"`
@@ -43,15 +40,4 @@ type User struct {
 	UpdatedAt          time.Time         `json:"updatedAt" gorm:"column:updated_at;type:datetime;not null;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"`
 	Role               Role              `json:"role,omitempty" gorm:"foreignKey:RoleID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:RESTRICT;"`
 	GroupMembers       []UserGroupMember `json:"groupMembers,omitempty" gorm:"foreignKey:UserID;references:ID;constraint:OnUpdate:CASCADE,OnDelete:CASCADE;"`
-}
-
-// PreferredName returns the canonical person name, retaining nickname only as
-// a compatibility fallback for older accounts and APIs.
-func (u User) PreferredName() string {
-	for _, value := range []*string{u.RealName, u.Nickname} {
-		if value != nil && strings.TrimSpace(*value) != "" {
-			return strings.TrimSpace(*value)
-		}
-	}
-	return ""
 }

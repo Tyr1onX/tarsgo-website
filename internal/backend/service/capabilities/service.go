@@ -247,7 +247,7 @@ func (s *Service) AdminGroup(ctx context.Context, actor Actor, groupID uint64) (
 	}
 	members := make([]MemberSummary, 0, len(users))
 	for _, user := range users {
-		members = append(members, MemberSummary{UserID: user.ID, DisplayName: displayName(user.Name, user.Nickname, user.RealName), Dimensions: calculated[user.ID]})
+		members = append(members, MemberSummary{UserID: user.ID, DisplayName: displayName(model.User{RealName: user.RealName}), Dimensions: calculated[user.ID]})
 	}
 	return &AdminGroupView{GroupID: group.ID, GroupName: group.Name, Dimensions: dimensions, Sources: sources, Members: members}, nil
 }
@@ -264,7 +264,7 @@ func (s *Service) AdminMember(ctx context.Context, actor Actor, groupID, userID 
 		return nil, notFoundOrInternal(err, "组别不存在", "读取能力组别失败")
 	}
 	var user capabilityUser
-	if err := s.db.WithContext(ctx).Table("users").Select("id, name, nickname, real_name").Where("id = ? AND status = ?", userID, model.UserStatusEnabled).Take(&user).Error; err != nil {
+	if err := s.db.WithContext(ctx).Table("users").Select("id, real_name").Where("id = ? AND status = ?", userID, model.UserStatusEnabled).Take(&user).Error; err != nil {
 		return nil, notFoundOrInternal(err, "成员不存在", "读取能力成员失败")
 	}
 	dimensions, err := s.dimensions(ctx, groupID, false)
@@ -275,7 +275,7 @@ func (s *Service) AdminMember(ctx context.Context, actor Actor, groupID, userID 
 	if err != nil {
 		return nil, err
 	}
-	return &AdminMemberView{GroupResult: GroupResult{GroupID: groupID, GroupName: group.Name, Dimensions: calculated[userID]}, UserID: userID, DisplayName: displayName(user.Name, user.Nickname, user.RealName)}, nil
+	return &AdminMemberView{GroupResult: GroupResult{GroupID: groupID, GroupName: group.Name, Dimensions: calculated[userID]}, UserID: userID, DisplayName: displayName(model.User{RealName: user.RealName})}, nil
 }
 
 func (s *Service) CreateDimension(ctx context.Context, actor Actor, input DimensionInput) (*Dimension, error) {
@@ -378,13 +378,13 @@ func (s *Service) AddManualReview(ctx context.Context, actor Actor, groupID, use
 			return notFoundOrInternal(err, "能力维度不存在", "读取能力维度失败")
 		}
 		var reviewer capabilityUser
-		if err := tx.Table("users").Select("id, name, nickname, real_name").Where("id = ? AND status = ?", actor.ID, model.UserStatusEnabled).Take(&reviewer).Error; err != nil {
+		if err := tx.Table("users").Select("id, real_name").Where("id = ? AND status = ?", actor.ID, model.UserStatusEnabled).Take(&reviewer).Error; err != nil {
 			return internalError("读取评价管理员失败", err)
 		}
 		event := model.CapabilityManualReview{
 			GroupID: groupID, DimensionID: dimension.ID, DimensionName: dimension.Name, UserID: userID,
 			Score: input.Score, Comment: input.Comment, ActorID: actor.ID,
-			ActorName: displayName(reviewer.Name, reviewer.Nickname, reviewer.RealName), CreatedAt: s.now(),
+			ActorName: displayName(model.User{RealName: reviewer.RealName}), CreatedAt: s.now(),
 		}
 		if err := tx.Create(&event).Error; err != nil {
 			return internalError("保存人工评价失败", err)
@@ -399,8 +399,6 @@ func (s *Service) AddManualReview(ctx context.Context, actor Actor, groupID, use
 
 type capabilityUser struct {
 	ID       uint64  `gorm:"column:id"`
-	Name     string  `gorm:"column:name"`
-	Nickname *string `gorm:"column:nickname"`
 	RealName *string `gorm:"column:real_name"`
 }
 
@@ -459,7 +457,7 @@ func (s *Service) calculate(ctx context.Context, groupID uint64, userIDs []uint6
 			assignment_reviews.id AS review_id, assignment_submissions.assignment_id, assignment_submissions.user_id,
 			assignment_submissions.attempt, assignment_reviews.score, assignment_reviews.decision, assignment_reviews.comment,
 			assignment_reviews.reviewer_id, assignment_reviews.created_at AS evaluated_at,
-			COALESCE(NULLIF(TRIM(reviewer.real_name), ''), NULLIF(TRIM(reviewer.nickname), ''), reviewer.name) AS reviewer_name`).
+			COALESCE(NULLIF(TRIM(reviewer.real_name), ''), '姓名待核实') AS reviewer_name`).
 			Joins("JOIN assignment_submissions ON assignment_submissions.id = assignment_reviews.submission_id").
 			Joins("JOIN assignments ON assignments.id = assignment_submissions.assignment_id").
 			Joins("LEFT JOIN users AS reviewer ON reviewer.id = assignment_reviews.reviewer_id").
@@ -485,7 +483,7 @@ func (s *Service) calculate(ctx context.Context, groupID uint64, userIDs []uint6
 			practice_submissions.id AS submission_id, practice_submissions.project_id, practice_submissions.user_id,
 			practice_submissions.attempt, practice_submissions.score, practice_submissions.decision, practice_submissions.comment,
 			practice_submissions.reviewed_at AS evaluated_at,
-			COALESCE(NULLIF(TRIM(reviewer.real_name), ''), NULLIF(TRIM(reviewer.nickname), ''), reviewer.name) AS reviewer_name`).
+			COALESCE(NULLIF(TRIM(reviewer.real_name), ''), '姓名待核实') AS reviewer_name`).
 			Joins("JOIN practice_projects ON practice_projects.id = practice_submissions.project_id").
 			Joins("LEFT JOIN users AS reviewer ON reviewer.id = practice_submissions.reviewer_id").
 			Where("practice_projects.group_id = ? AND practice_projects.id IN ? AND practice_submissions.user_id IN ? AND practice_submissions.score IS NOT NULL AND practice_submissions.reviewed_at IS NOT NULL AND practice_submissions.decision IN ?", groupID, uniqueIDs(projectIDs), userIDs, []string{model.PracticeReviewPassed, model.PracticeReviewRedo}).
@@ -693,7 +691,7 @@ func (s *Service) sourceOptions(ctx context.Context, groupID uint64) ([]SourceOp
 
 func (s *Service) groupUsers(ctx context.Context, groupID uint64) ([]capabilityUser, error) {
 	var users []capabilityUser
-	err := s.db.WithContext(ctx).Table("users").Select("users.id, users.name, users.nickname, users.real_name").
+	err := s.db.WithContext(ctx).Table("users").Select("users.id, users.real_name").
 		Joins("JOIN user_group_members ON user_group_members.user_id = users.id").
 		Where("user_group_members.group_id = ? AND users.status = ?", groupID, model.UserStatusEnabled).
 		Order("users.id ASC").Scan(&users).Error
@@ -849,14 +847,11 @@ func notFoundOrInternal(err error, notFoundMessage, internalMessage string) erro
 	return internalError(internalMessage, err)
 }
 
-func displayName(name string, nickname, realName *string) string {
-	if preferredName := (model.User{Name: name, Nickname: nickname, RealName: realName}).PreferredName(); preferredName != "" {
-		return preferredName
+func displayName(user model.User) string {
+	if user.RealName != nil && strings.TrimSpace(*user.RealName) != "" {
+		return strings.TrimSpace(*user.RealName)
 	}
-	if strings.TrimSpace(name) != "" {
-		return strings.TrimSpace(name)
-	}
-	return "成员"
+	return "姓名待核实"
 }
 
 func uniqueIDs(values []uint64) []uint64 {

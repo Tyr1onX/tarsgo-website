@@ -15,18 +15,18 @@ import (
 	"tarsgo-backend/service/auth"
 )
 
-func TestAccountListAndDetailsUsePreferredNameWithLegacyFallback(t *testing.T) {
-	user := &model.User{ID: 12, Name: "account", Email: "member@example.test", Nickname: stringPtr("旧昵称"), Role: model.Role{ID: 3, Name: model.RoleNameUser}}
+func TestAccountListAndDetailsUseOnlyRealName(t *testing.T) {
+	user := &model.User{ID: 12, Name: "legacy account label", Email: "member@example.test", Role: model.Role{ID: 3, Name: model.RoleNameUser}}
 	listItem := toUserListItem(user)
 	detail := toUserDetail(user)
-	if listItem.Name != "旧昵称" || detail.RealName == nil || *detail.RealName != "旧昵称" {
-		t.Fatalf("nickname fallback was not exposed as the canonical name: list=%#v detail=%#v", listItem, detail)
+	if listItem.RealName != "" || detail.RealName != nil {
+		t.Fatalf("legacy account label must not be exposed as a real name: list=%#v detail=%#v", listItem, detail)
 	}
 	user.RealName = stringPtr("姓名")
 	listItem = toUserListItem(user)
 	detail = toUserDetail(user)
-	if listItem.Name != "姓名" || detail.RealName == nil || *detail.RealName != "姓名" {
-		t.Fatalf("real name did not take precedence: list=%#v detail=%#v", listItem, detail)
+	if listItem.RealName != "姓名" || detail.RealName == nil || *detail.RealName != "姓名" {
+		t.Fatalf("real name was not used as the only name source: list=%#v detail=%#v", listItem, detail)
 	}
 }
 
@@ -37,7 +37,7 @@ func TestAccountManagementIsSuperAdminOnly(t *testing.T) {
 	if _, err := service.ListUsers(context.Background(), actor, ListUsersInput{}); err == nil {
 		t.Fatal("expected regular admin account listing to be denied")
 	}
-	if _, err := service.CreateUser(context.Background(), actor, CreateUserInput{RoleID: 3, Name: "Candidate", Email: "candidate@example.com", Password: "Password123"}); err == nil {
+	if _, err := service.CreateUser(context.Background(), actor, CreateUserInput{RoleID: 3, RealName: "Candidate", Email: "candidate@example.com", Password: "Password123"}); err == nil {
 		t.Fatal("expected regular admin account creation to be denied")
 	}
 }
@@ -48,7 +48,7 @@ func TestCreateUserKeepsOnlyAccountFieldsAndLeavesUserUngrouped(t *testing.T) {
 
 	detail, err := service.CreateUser(context.Background(), Actor{RoleName: model.RoleNameSuperAdmin}, CreateUserInput{
 		RoleID:   repo.roleID(model.RoleNameUser),
-		Name:     "Candidate",
+		RealName: "Candidate",
 		Email:    "candidate@example.com",
 		Password: "Password123",
 	})
@@ -62,8 +62,8 @@ func TestCreateUserKeepsOnlyAccountFieldsAndLeavesUserUngrouped(t *testing.T) {
 	if len(created.GroupMembers) != 0 {
 		t.Fatalf("new accounts should remain ungrouped, got %#v", created.GroupMembers)
 	}
-	if created.Gender != 0 || created.Nickname != nil || created.Phone != nil || created.RealName != nil {
-		t.Fatalf("account creation should leave profile fields at their defaults: %#v", created)
+	if created.Gender != 0 || created.Phone != nil || deref(created.RealName) != "Candidate" {
+		t.Fatalf("account creation must persist the canonical real name only: %#v", created)
 	}
 }
 
@@ -74,7 +74,7 @@ func TestUniqueEmailConstraintRaceReturnsConflictInAccountManagement(t *testing.
 		service := NewService(repo)
 
 		_, err := service.CreateUser(context.Background(), Actor{RoleName: model.RoleNameSuperAdmin}, CreateUserInput{
-			RoleID: repo.roleID(model.RoleNameUser), Name: "Candidate",
+			RoleID: repo.roleID(model.RoleNameUser), RealName: "Candidate",
 			Email: "candidate@example.com", Password: "Password123",
 		})
 		assertServiceError(t, err, http.StatusConflict, "邮箱")
@@ -86,7 +86,7 @@ func TestUniqueEmailConstraintRaceReturnsConflictInAccountManagement(t *testing.
 		service := NewService(repo)
 
 		_, err := service.UpdateUser(context.Background(), Actor{RoleName: model.RoleNameSuperAdmin}, 3, UpdateUserInput{
-			RoleID: repo.roleID(model.RoleNameUser), Name: "Candidate",
+			RoleID: repo.roleID(model.RoleNameUser), RealName: "Candidate",
 			Email: "new-candidate@example.com", Status: model.UserStatusEnabled,
 		})
 		assertServiceError(t, err, http.StatusConflict, "邮箱")
@@ -98,20 +98,37 @@ func TestUpdateAccountChangesIdentityRoleAndStatusWithoutChangingMemberProfile(t
 	service := NewService(repo)
 
 	updated, err := service.UpdateUser(context.Background(), Actor{RoleName: model.RoleNameSuperAdmin}, 3, UpdateUserInput{
-		RoleID: repo.roleID(model.RoleNameUser),
-		Name:   "Updated Candidate",
-		Email:  "updated@example.com",
-		Status: model.UserStatusDisabled,
+		RoleID:   repo.roleID(model.RoleNameUser),
+		RealName: "Updated Candidate",
+		Email:    "updated@example.com",
+		Status:   model.UserStatusDisabled,
 	})
 	if err != nil {
 		t.Fatalf("UpdateUser returned error: %v", err)
 	}
-	if updated.Name != "Updated Candidate" || updated.Email != "updated@example.com" || updated.Status != model.UserStatusDisabled {
+	if updated.RealName == nil || *updated.RealName != "Updated Candidate" || updated.Email != "updated@example.com" || updated.Status != model.UserStatusDisabled {
 		t.Fatalf("account fields were not updated: %#v", updated)
 	}
 	member := repo.users[3]
-	if deref(member.RealName) != "Candidate Real Name" || deref(member.Phone) != "13800138000" || member.Gender != 2 {
+	if deref(member.RealName) != "Updated Candidate" || deref(member.Phone) != "13800138000" || member.Gender != 2 {
 		t.Fatalf("member profile fields must remain untouched: %#v", member)
+	}
+}
+
+func TestEditingMissingRealNameDoesNotInferAnotherIdentity(t *testing.T) {
+	repo := newFakeRepository()
+	user := repo.users[3]
+	user.RealName = nil
+	service := NewService(repo)
+
+	updated, err := service.UpdateUser(context.Background(), Actor{RoleName: model.RoleNameSuperAdmin}, user.ID, UpdateUserInput{
+		RoleID: repo.roleID(model.RoleNameUser), Email: user.Email, Status: model.UserStatusEnabled,
+	})
+	if err != nil {
+		t.Fatalf("UpdateUser returned error: %v", err)
+	}
+	if updated.RealName != nil || repo.users[user.ID].RealName != nil {
+		t.Fatalf("blank canonical real name must not be inferred or overwritten: %#v", updated)
 	}
 }
 
@@ -197,10 +214,10 @@ func TestSuperAdminAccountCannotBeChanged(t *testing.T) {
 	service := NewService(repo)
 
 	_, err := service.UpdateUser(context.Background(), Actor{RoleName: model.RoleNameSuperAdmin}, 1, UpdateUserInput{
-		RoleID: repo.roleID(model.RoleNameSuperAdmin),
-		Name:   "Changed Root",
-		Email:  "root@example.com",
-		Status: model.UserStatusEnabled,
+		RoleID:   repo.roleID(model.RoleNameSuperAdmin),
+		RealName: "Changed Root",
+		Email:    "root@example.com",
+		Status:   model.UserStatusEnabled,
 	})
 	assertServiceError(t, err, http.StatusForbidden, "超级管理员")
 }
@@ -300,10 +317,10 @@ func TestAccountInputValidation(t *testing.T) {
 	service := NewService(repo)
 
 	_, err := service.UpdateUser(context.Background(), Actor{RoleName: model.RoleNameSuperAdmin}, 3, UpdateUserInput{
-		RoleID: repo.roleID(model.RoleNameUser),
-		Name:   "Invalid Status",
-		Email:  "member@example.com",
-		Status: 9,
+		RoleID:   repo.roleID(model.RoleNameUser),
+		RealName: "Invalid Status",
+		Email:    "member@example.com",
+		Status:   9,
 	})
 	assertServiceError(t, err, http.StatusBadRequest, "状态")
 }
@@ -405,8 +422,8 @@ func newFakeRepository() *fakeRepository {
 	adminHash, _ := auth.HashPassword("AdminPassword123")
 	memberHash, _ := auth.HashPassword("UserPassword123")
 	lastLoginAt := accountActivityConfirmationStartedAt.Add(time.Minute)
-	repo.addUser(&model.User{ID: 1, RoleID: 1, Name: "Root", Email: "root@example.com", PasswordHash: stringPtr(rootHash), Status: model.UserStatusEnabled, LastLoginAt: &lastLoginAt})
-	repo.addUser(&model.User{ID: 2, RoleID: 2, Name: "Admin", Email: "admin@example.com", PasswordHash: stringPtr(adminHash), Status: model.UserStatusEnabled, LastLoginAt: &lastLoginAt})
+	repo.addUser(&model.User{ID: 1, RoleID: 1, Name: "legacy root label", RealName: stringPtr("Root"), Email: "root@example.com", PasswordHash: stringPtr(rootHash), Status: model.UserStatusEnabled, LastLoginAt: &lastLoginAt})
+	repo.addUser(&model.User{ID: 2, RoleID: 2, Name: "legacy admin label", RealName: stringPtr("Admin"), Email: "admin@example.com", PasswordHash: stringPtr(adminHash), Status: model.UserStatusEnabled, LastLoginAt: &lastLoginAt})
 	repo.addUser(&model.User{
 		ID:           3,
 		RoleID:       3,
@@ -485,9 +502,9 @@ func (r *fakeRepository) UpdateTeamIdentity(_ context.Context, userID, actorID u
 	if model.NormalizeTeamIdentityStatus(user.TeamIdentityStatus) != expectedStatus {
 		return ErrTeamIdentityConflict
 	}
-	actorName := actor.PreferredName()
-	if actorName == "" {
-		actorName = actor.Name
+	actorName := "姓名待核实"
+	if actor.RealName != nil && strings.TrimSpace(*actor.RealName) != "" {
+		actorName = strings.TrimSpace(*actor.RealName)
 	}
 	r.identityChanges[userID] = append(r.identityChanges[userID], model.TeamIdentityChange{
 		UserID: userID, ActorUserID: actorID, ActorName: actorName,
@@ -595,8 +612,8 @@ func (r *fakeRepository) UpdateUser(_ context.Context, userID uint64, updates ma
 			roleID := value.(uint64)
 			user.RoleID = roleID
 			user.Role = r.roles[roleID]
-		case "name":
-			user.Name = value.(string)
+		case "real_name":
+			user.RealName = stringPtr(value.(string))
 		case "email":
 			user.Email = value.(string)
 		case "status":

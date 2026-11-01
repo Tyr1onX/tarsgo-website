@@ -24,7 +24,6 @@ type mockGroupSeed struct {
 type mockUserSeed struct {
 	Name       string
 	RealName   string
-	Nickname   string
 	Email      string
 	MemberRole uint8
 }
@@ -74,7 +73,6 @@ func seedDevelopmentMockData(db *gorm.DB, appEnv string) error {
 		reviewer, err := ensureMockUser(tx, adminRole.ID, string(passwordHash), mockUserSeed{
 			Name:     "开发审核员",
 			RealName: "开发审核员",
-			Nickname: "审核测试",
 			Email:    "reviewer@tarsgo.test",
 		})
 		if err != nil {
@@ -124,9 +122,7 @@ func ensureMockUser(tx *gorm.DB, roleID uint64, passwordHash string, seed mockUs
 		Where(&model.User{Email: email}).
 		Attrs(map[string]any{
 			"role_id":       roleID,
-			"name":          seed.Name,
 			"password_hash": passwordHash,
-			"nickname":      nullableSeedString(seed.Nickname),
 			"real_name":     nullableSeedString(seed.RealName),
 			"status":        model.UserStatusEnabled,
 		}).
@@ -172,16 +168,16 @@ func developmentMockGroupSeeds() []mockGroupSeed {
 			Tags:        []string{"开发演示", "虚假数据", "视觉"},
 			Show:        1,
 			Users: []mockUserSeed{
-				{Name: "林知夏", RealName: "林知夏", Nickname: "视觉01", Email: "vision01@tarsgo.test", MemberRole: model.UserGroupMemberRoleLeader},
-				{Name: "许星野", RealName: "许星野", Nickname: "视觉02", Email: "vision02@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
-				{Name: "沈明澈", RealName: "沈明澈", Nickname: "视觉03", Email: "vision03@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
-				{Name: "顾晚晴", RealName: "顾晚晴", Nickname: "视觉04", Email: "vision04@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
-				{Name: "周映雪", RealName: "周映雪", Nickname: "视觉05", Email: "vision05@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
-				{Name: "宋南栀", RealName: "宋南栀", Nickname: "视觉06", Email: "vision06@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
-				{Name: "江语晨", RealName: "江语晨", Nickname: "视觉07", Email: "vision07@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
-				{Name: "唐若川", RealName: "唐若川", Nickname: "视觉08", Email: "vision08@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
-				{Name: "叶清和", RealName: "叶清和", Nickname: "视觉09", Email: "vision09@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
-				{Name: "陆景初", RealName: "陆景初", Nickname: "视觉10", Email: "vision10@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
+				{Name: "林知夏", RealName: "林知夏", Email: "vision01@tarsgo.test", MemberRole: model.UserGroupMemberRoleLeader},
+				{Name: "许星野", RealName: "许星野", Email: "vision02@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
+				{Name: "沈明澈", RealName: "沈明澈", Email: "vision03@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
+				{Name: "顾晚晴", RealName: "顾晚晴", Email: "vision04@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
+				{Name: "周映雪", RealName: "周映雪", Email: "vision05@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
+				{Name: "宋南栀", RealName: "宋南栀", Email: "vision06@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
+				{Name: "江语晨", RealName: "江语晨", Email: "vision07@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
+				{Name: "唐若川", RealName: "唐若川", Email: "vision08@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
+				{Name: "叶清和", RealName: "叶清和", Email: "vision09@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
+				{Name: "陆景初", RealName: "陆景初", Email: "vision10@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
 			},
 		},
 		{
@@ -190,16 +186,16 @@ func developmentMockGroupSeeds() []mockGroupSeed {
 			Tags:        []string{"开发演示", "虚假数据", "电控"},
 			Show:        1,
 			Users: []mockUserSeed{
-				{Name: "陈向北", RealName: "陈向北", Nickname: "电控01", Email: "electrical01@tarsgo.test", MemberRole: model.UserGroupMemberRoleLeader},
-				{Name: "韩启航", RealName: "韩启航", Nickname: "电控02", Email: "electrical02@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
-				{Name: "郑泽远", RealName: "郑泽远", Nickname: "电控03", Email: "electrical03@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
-				{Name: "孙牧川", RealName: "孙牧川", Nickname: "电控04", Email: "electrical04@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
-				{Name: "高以恒", RealName: "高以恒", Nickname: "电控05", Email: "electrical05@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
-				{Name: "何景行", RealName: "何景行", Nickname: "电控06", Email: "electrical06@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
-				{Name: "曹星河", RealName: "曹星河", Nickname: "电控07", Email: "electrical07@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
-				{Name: "罗子昂", RealName: "罗子昂", Nickname: "电控08", Email: "electrical08@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
-				{Name: "邓嘉树", RealName: "邓嘉树", Nickname: "电控09", Email: "electrical09@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
-				{Name: "彭书远", RealName: "彭书远", Nickname: "电控10", Email: "electrical10@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
+				{Name: "陈向北", RealName: "陈向北", Email: "electrical01@tarsgo.test", MemberRole: model.UserGroupMemberRoleLeader},
+				{Name: "韩启航", RealName: "韩启航", Email: "electrical02@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
+				{Name: "郑泽远", RealName: "郑泽远", Email: "electrical03@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
+				{Name: "孙牧川", RealName: "孙牧川", Email: "electrical04@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
+				{Name: "高以恒", RealName: "高以恒", Email: "electrical05@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
+				{Name: "何景行", RealName: "何景行", Email: "electrical06@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
+				{Name: "曹星河", RealName: "曹星河", Email: "electrical07@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
+				{Name: "罗子昂", RealName: "罗子昂", Email: "electrical08@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
+				{Name: "邓嘉树", RealName: "邓嘉树", Email: "electrical09@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
+				{Name: "彭书远", RealName: "彭书远", Email: "electrical10@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
 			},
 		},
 		{
@@ -208,10 +204,10 @@ func developmentMockGroupSeeds() []mockGroupSeed {
 			Tags:        []string{"开发演示", "招新测试"},
 			Show:        0,
 			Users: []mockUserSeed{
-				{Name: "待初筛测试", RealName: "待初筛测试", Nickname: "待初筛", Email: "review-pending@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
-				{Name: "待面试测试", RealName: "待面试测试", Nickname: "待面试", Email: "review-approved@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
-				{Name: "未通过测试", RealName: "未通过测试", Nickname: "未通过", Email: "review-rejected@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
-				{Name: "已录取测试", RealName: "已录取测试", Nickname: "已录取", Email: "review-mixed@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
+				{Name: "待初筛测试", RealName: "待初筛测试", Email: "review-pending@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
+				{Name: "待面试测试", RealName: "待面试测试", Email: "review-approved@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
+				{Name: "未通过测试", RealName: "未通过测试", Email: "review-rejected@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
+				{Name: "已录取测试", RealName: "已录取测试", Email: "review-mixed@tarsgo.test", MemberRole: model.UserGroupMemberRoleMember},
 			},
 		},
 	}

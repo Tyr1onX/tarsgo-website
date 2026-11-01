@@ -46,7 +46,6 @@
 | `github_id` | VARCHAR(100) | DEFAULT NULL, UNIQUE | GitHub 用户 ID，用于 OAuth 登录绑定 |
 | `github_username` | VARCHAR(100) | DEFAULT NULL | GitHub 用户名，用于展示 |
 | **个人信息** ||||
-| `nickname` | VARCHAR(100) | DEFAULT NULL | 昵称 |
 | `avatar_url` | VARCHAR(500) | DEFAULT NULL | 头像 URL |
 | `phone` | VARCHAR(20) | DEFAULT NULL | 手机号 |
 | `real_name` | VARCHAR(100) | DEFAULT NULL | 真实姓名 |
@@ -57,6 +56,8 @@
 | `last_login_at` | DATETIME | DEFAULT NULL | 最后登录时间 |
 | `created_at` | DATETIME | NOT NULL DEFAULT CURRENT_TIMESTAMP | 注册时间 |
 | `updated_at` | DATETIME | NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP | 更新时间 |
+
+`real_name` 是账号唯一的姓名来源。既有数据库中的 `name`、`nickname` 不作为姓名输入、展示或接口字段；`name` 仅保留为隐藏的历史存储映射，`nickname` 不再映射。为保护历史数据，数据库中的原列和值均不自动复制或删除。
 
 ### 索引
 

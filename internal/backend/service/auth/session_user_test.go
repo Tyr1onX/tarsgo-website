@@ -29,14 +29,13 @@ func TestToSessionUserIncludesAvatarURL(t *testing.T) {
 	}
 }
 
-func TestToSessionUserUsesRealNameBeforeLegacyNickname(t *testing.T) {
+func TestToSessionUserUsesOnlyRealName(t *testing.T) {
 	t.Parallel()
 
 	user := &model.User{
 		ID:       8,
 		Email:    "user@example.com",
 		RealName: stringPointer("  姓名  "),
-		Nickname: stringPointer("旧昵称"),
 		Role:     model.Role{ID: 3, Name: model.RoleNameUser},
 	}
 	sessionUser := toSessionUser(user)
@@ -46,8 +45,15 @@ func TestToSessionUserUsesRealNameBeforeLegacyNickname(t *testing.T) {
 
 	user.RealName = stringPointer(" ")
 	sessionUser = toSessionUser(user)
-	if sessionUser.RealName == nil || *sessionUser.RealName != "旧昵称" {
-		t.Fatalf("legacy fallback name = %v, want nickname", sessionUser.RealName)
+	if sessionUser.RealName != nil {
+		t.Fatalf("blank canonical real name should remain unset: %v", sessionUser.RealName)
+	}
+	encoded, err := json.Marshal(sessionUser)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(encoded), "nickname") {
+		t.Fatalf("session response still contains a nickname field: %s", encoded)
 	}
 }
 

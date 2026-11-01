@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/json"
+	"reflect"
 	"strings"
 	"testing"
 )
@@ -28,22 +29,18 @@ func TestLegacyAdministratorScopeFieldsAreNotSerialized(t *testing.T) {
 	}
 }
 
-func TestUserPreferredNameUsesRealNameThenNickname(t *testing.T) {
-	tests := []struct {
-		name     string
-		user     User
-		wantName string
-	}{
-		{name: "real name wins", user: User{RealName: stringPointer("姓名"), Nickname: stringPointer("昵称")}, wantName: "姓名"},
-		{name: "nickname fills empty real name", user: User{RealName: stringPointer("  "), Nickname: stringPointer(" 昵称 ")}, wantName: "昵称"},
-		{name: "blank values stay blank", user: User{RealName: stringPointer(" "), Nickname: stringPointer("\t")}, wantName: ""},
+func TestUserIdentityHasOnlyTheRealNameField(t *testing.T) {
+	typeOfUser := reflect.TypeOf(User{})
+	if _, exists := typeOfUser.FieldByName("Nickname"); exists {
+		t.Fatal("user model must not expose a nickname field")
 	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			if got := test.user.PreferredName(); got != test.wantName {
-				t.Fatalf("PreferredName() = %q, want %q", got, test.wantName)
-			}
-		})
+	legacyName, exists := typeOfUser.FieldByName("Name")
+	if !exists || legacyName.Tag.Get("json") != "-" {
+		t.Fatal("legacy name storage must remain hidden from the account API")
+	}
+	realName, exists := typeOfUser.FieldByName("RealName")
+	if !exists || !strings.Contains(realName.Tag.Get("gorm"), "column:real_name") {
+		t.Fatal("real_name must be the only canonical person name field")
 	}
 }
 
