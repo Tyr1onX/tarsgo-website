@@ -123,6 +123,19 @@ func (h *CommunityHandler) Get(c *gin.Context) {
 	writeAPI(c, http.StatusOK, "获取社区讨论成功", item)
 }
 
+func (h *CommunityHandler) Related(c *gin.Context) {
+	postID, ok := parseCommunityID(c, "id", "帖子编号")
+	if !ok {
+		return
+	}
+	items, err := h.service.RelatedCommunityPosts(c.Request.Context(), currentTrainingQuestionActor(c), postID)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "获取推荐话题成功", items)
+}
+
 func (h *CommunityHandler) Create(c *gin.Context) {
 	if !parseQuestionMultipart(c) {
 		return

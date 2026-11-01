@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const profile = await readFile(new URL("../components/profile-dialog.tsx", import.meta.url), "utf8");
+const profile = await readFile(new URL("../routes/dashboard/community-member-profile.tsx", import.meta.url), "utf8");
 const adminUsers = await readFile(new URL("../routes/admin/users.tsx", import.meta.url), "utf8");
 const adminPanel = await readFile(new URL("../components/co-builder-badge-admin-panel.tsx", import.meta.url), "utf8");
 const summaryView = await readFile(new URL("../components/co-builder-badge-summary.tsx", import.meta.url), "utf8");
@@ -15,7 +15,7 @@ const dashboardLayout = await readFile(new URL("../routes/dashboard/layout.tsx",
 const styles = await readFile(new URL("../app.css", import.meta.url), "utf8");
 
 test("personal profile reads the badge only through the signed-in member endpoint", () => {
-  assert.match(profile, /<CoBuilderBadgeProfile onReplay=\{onReplayBadge\} \/>/);
+  assert.match(profile, /<CoBuilderBadgeProfile onReplay=\{[\s\S]*?requestBadgeReplay\(level\)/);
   assert.match(client, /getMyCoBuilderBadge\(\)[\s\S]*?"\/api\/me\/co-builder-badge"/);
   assert.doesNotMatch(client, /getMyCoBuilderBadge\([^)]*userId/);
   assert.match(router, /authenticatedAPI\.GET\("\/me\/co-builder-badge"/);
@@ -49,7 +49,7 @@ test("badge summary shows current tier, count, progress, and contribution histor
 
 test("personal profile shows all tier totals and only replays earned badges", () => {
   assert.match(profileBadge, /<CoBuilderBadgeSummaryView summary=\{summary\} onReplay=\{onReplay\} \/>/);
-  assert.match(profile, /<CoBuilderBadgeProfile onReplay=\{onReplayBadge\} \/>/);
+  assert.match(profile, /<CoBuilderBadgeProfile onReplay=\{[\s\S]*?requestBadgeReplay\(level\)/);
   assert.match(summaryView, /level: "bronze", label: "青铜 I", threshold: 1/);
   assert.match(summaryView, /level: "silver", label: "白银 II", threshold: 3/);
   assert.match(summaryView, /level: "gold", label: "黄金 III", threshold: 10/);

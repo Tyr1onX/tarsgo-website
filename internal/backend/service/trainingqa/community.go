@@ -46,37 +46,38 @@ type CommunityListResult struct {
 }
 
 type CommunityPostView struct {
-	ID                  uint64                        `json:"id"`
-	GroupID             uint64                        `json:"groupId"`
-	GroupName           string                        `json:"groupName,omitempty"`
-	Category            string                        `json:"category"`
-	Title               string                        `json:"title"`
-	Body                string                        `json:"body"`
-	AuthorID            uint64                        `json:"authorId"`
-	AuthorName          string                        `json:"authorName"`
-	AuthorAvatar        *string                       `json:"authorAvatar,omitempty"`
-	AuthorLevel         int                           `json:"authorLevel"`
-	AuthorFeaturedBadge *CommunityFeaturedBadge       `json:"authorFeaturedBadge,omitempty"`
-	AuthorPositions     []organization.MemberPosition `json:"authorPositions,omitempty"`
-	Visibility          string                        `json:"visibility"`
-	IsSolved            bool                          `json:"isSolved,omitempty"`
-	AcceptedSolutionID  *uint64                       `json:"acceptedSolutionId,omitempty"`
-	IsFAQ               bool                          `json:"isFaq,omitempty"`
-	IsPinned            bool                          `json:"isPinned"`
-	IsHidden            bool                          `json:"isHidden"`
-	IsLegacy            bool                          `json:"isLegacy"`
-	CreatedAt           time.Time                     `json:"createdAt"`
-	EditedAt            *time.Time                    `json:"editedAt,omitempty"`
-	LastReplyAt         *time.Time                    `json:"lastReplyAt,omitempty"`
-	CommentCount        int                           `json:"commentCount"`
-	ViewCount           int                           `json:"viewCount"`
-	Participants        []CommunityParticipant        `json:"participants"`
-	LikeCount           int                           `json:"likeCount"`
-	LikedByMe           bool                          `json:"likedByMe"`
-	SavedByMe           bool                          `json:"savedByMe"`
-	CanEdit             bool                          `json:"canEdit"`
-	CanModerate         bool                          `json:"canModerate"`
-	Attachments         []AttachmentView              `json:"attachments"`
+	ID                       uint64                        `json:"id"`
+	GroupID                  uint64                        `json:"groupId"`
+	GroupName                string                        `json:"groupName,omitempty"`
+	Category                 string                        `json:"category"`
+	Title                    string                        `json:"title"`
+	Body                     string                        `json:"body"`
+	AuthorID                 uint64                        `json:"authorId"`
+	AuthorName               string                        `json:"authorName"`
+	AuthorAvatar             *string                       `json:"authorAvatar,omitempty"`
+	AuthorLevel              int                           `json:"authorLevel"`
+	AuthorFeaturedBadge      *CommunityFeaturedBadge       `json:"authorFeaturedBadge,omitempty"`
+	AuthorPositions          []organization.MemberPosition `json:"authorPositions,omitempty"`
+	AuthorTeamIdentityStatus string                        `json:"authorTeamIdentityStatus"`
+	Visibility               string                        `json:"visibility"`
+	IsSolved                 bool                          `json:"isSolved,omitempty"`
+	AcceptedSolutionID       *uint64                       `json:"acceptedSolutionId,omitempty"`
+	IsFAQ                    bool                          `json:"isFaq,omitempty"`
+	IsPinned                 bool                          `json:"isPinned"`
+	IsHidden                 bool                          `json:"isHidden"`
+	IsLegacy                 bool                          `json:"isLegacy"`
+	CreatedAt                time.Time                     `json:"createdAt"`
+	EditedAt                 *time.Time                    `json:"editedAt,omitempty"`
+	LastReplyAt              *time.Time                    `json:"lastReplyAt,omitempty"`
+	CommentCount             int                           `json:"commentCount"`
+	ViewCount                int                           `json:"viewCount"`
+	Participants             []CommunityParticipant        `json:"participants"`
+	LikeCount                int                           `json:"likeCount"`
+	LikedByMe                bool                          `json:"likedByMe"`
+	SavedByMe                bool                          `json:"savedByMe"`
+	CanEdit                  bool                          `json:"canEdit"`
+	CanModerate              bool                          `json:"canModerate"`
+	Attachments              []AttachmentView              `json:"attachments"`
 }
 
 type CommunityParticipant struct {
@@ -86,30 +87,46 @@ type CommunityParticipant struct {
 }
 
 type CommunityCommentView struct {
-	ID                  uint64                        `json:"id"`
-	ParentPostID        *uint64                       `json:"parentPostId,omitempty"`
-	AuthorID            uint64                        `json:"authorId"`
-	AuthorName          string                        `json:"authorName"`
-	AuthorAvatar        *string                       `json:"authorAvatar,omitempty"`
-	AuthorLevel         int                           `json:"authorLevel"`
-	AuthorFeaturedBadge *CommunityFeaturedBadge       `json:"authorFeaturedBadge,omitempty"`
-	AuthorPositions     []organization.MemberPosition `json:"authorPositions,omitempty"`
-	Body                string                        `json:"body"`
-	CreatedAt           time.Time                     `json:"createdAt"`
-	EditedAt            *time.Time                    `json:"editedAt,omitempty"`
-	IsDeleted           bool                          `json:"isDeleted"`
-	CanEdit             bool                          `json:"canEdit"`
-	CanLike             bool                          `json:"canLike"`
-	LikedByMe           bool                          `json:"likedByMe"`
-	LikeCount           int                           `json:"likeCount"`
-	IsAcceptedSolution  bool                          `json:"isAcceptedSolution"`
-	CanAcceptSolution   bool                          `json:"canAcceptSolution"`
-	Attachments         []AttachmentView              `json:"attachments"`
+	ID                       uint64                        `json:"id"`
+	ParentPostID             *uint64                       `json:"parentPostId,omitempty"`
+	AuthorID                 uint64                        `json:"authorId"`
+	AuthorName               string                        `json:"authorName"`
+	AuthorAvatar             *string                       `json:"authorAvatar,omitempty"`
+	AuthorLevel              int                           `json:"authorLevel"`
+	AuthorFeaturedBadge      *CommunityFeaturedBadge       `json:"authorFeaturedBadge,omitempty"`
+	AuthorPositions          []organization.MemberPosition `json:"authorPositions,omitempty"`
+	AuthorTeamIdentityStatus string                        `json:"authorTeamIdentityStatus"`
+	Body                     string                        `json:"body"`
+	CreatedAt                time.Time                     `json:"createdAt"`
+	EditedAt                 *time.Time                    `json:"editedAt,omitempty"`
+	IsDeleted                bool                          `json:"isDeleted"`
+	CanEdit                  bool                          `json:"canEdit"`
+	CanLike                  bool                          `json:"canLike"`
+	LikedByMe                bool                          `json:"likedByMe"`
+	LikeCount                int                           `json:"likeCount"`
+	IsAcceptedSolution       bool                          `json:"isAcceptedSolution"`
+	CanAcceptSolution        bool                          `json:"canAcceptSolution"`
+	Attachments              []AttachmentView              `json:"attachments"`
 }
 
 type CommunityPostDetail struct {
 	Post     CommunityPostView      `json:"post"`
 	Comments []CommunityCommentView `json:"comments"`
+}
+
+type CommunityTopicSummary struct {
+	ID           uint64     `json:"id"`
+	Category     string     `json:"category"`
+	Title        string     `json:"title"`
+	CreatedAt    time.Time  `json:"createdAt"`
+	LastReplyAt  *time.Time `json:"lastReplyAt,omitempty"`
+	CommentCount int        `json:"commentCount"`
+	ViewCount    int        `json:"viewCount"`
+}
+
+type CommunityTopicRecommendations struct {
+	Related     []CommunityTopicSummary `json:"related"`
+	Recommended []CommunityTopicSummary `json:"recommended"`
 }
 
 type CommunityPostInput struct {
@@ -162,22 +179,24 @@ type CommunitySolutionUpdate struct {
 
 type communityPostRow struct {
 	model.TrainingQuestion
-	GroupName    string  `gorm:"column:group_name"`
-	AuthorName   string  `gorm:"column:author_name"`
-	AuthorAvatar *string `gorm:"column:author_avatar"`
-	CommentCount int     `gorm:"column:comment_count"`
-	ViewCount    int     `gorm:"column:view_count"`
-	LikeCount    int     `gorm:"column:like_count"`
-	LikedByMe    bool    `gorm:"column:liked_by_me"`
-	SavedByMe    bool    `gorm:"column:saved_by_me"`
+	GroupName                string  `gorm:"column:group_name"`
+	AuthorName               string  `gorm:"column:author_name"`
+	AuthorAvatar             *string `gorm:"column:author_avatar"`
+	AuthorTeamIdentityStatus string  `gorm:"column:author_team_identity_status"`
+	CommentCount             int     `gorm:"column:comment_count"`
+	ViewCount                int     `gorm:"column:view_count"`
+	LikeCount                int     `gorm:"column:like_count"`
+	LikedByMe                bool    `gorm:"column:liked_by_me"`
+	SavedByMe                bool    `gorm:"column:saved_by_me"`
 }
 
 type communityCommentRow struct {
 	model.TrainingQuestionPost
-	AuthorName   string  `gorm:"column:author_name"`
-	AuthorAvatar *string `gorm:"column:author_avatar"`
-	LikeCount    int     `gorm:"column:like_count"`
-	LikedByMe    bool    `gorm:"column:liked_by_me"`
+	AuthorName               string  `gorm:"column:author_name"`
+	AuthorAvatar             *string `gorm:"column:author_avatar"`
+	AuthorTeamIdentityStatus string  `gorm:"column:author_team_identity_status"`
+	LikeCount                int     `gorm:"column:like_count"`
+	LikedByMe                bool    `gorm:"column:liked_by_me"`
 }
 
 func IsCommunityCategory(category string) bool {
@@ -299,6 +318,73 @@ func (s *Service) HotCommunityPosts(ctx context.Context, actor Actor, limit int)
 	return page.Items, nil
 }
 
+func (s *Service) RelatedCommunityPosts(ctx context.Context, actor Actor, postID uint64) (*CommunityTopicRecommendations, error) {
+	if actor.ID == 0 {
+		return nil, forbidden("请先登录后查看吉甲社区")
+	}
+	question, err := s.loadQuestion(ctx, postID)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.requireVisible(ctx, actor, question); err != nil {
+		return nil, err
+	}
+	if question.DeletedAt != nil {
+		return nil, notFound("帖子不存在")
+	}
+
+	baseQuery := func() (*gorm.DB, error) {
+		query, queryErr := s.communityPostQuery(ctx, actor)
+		if queryErr != nil {
+			return nil, internalError("读取社区访问范围失败", queryErr)
+		}
+		if actor.RoleName != model.RoleNameAdmin && actor.RoleName != model.RoleNameSuperAdmin {
+			query = query.Where("q.is_hidden = ?", false)
+		}
+		return query.Where("q.id <> ?", postID), nil
+	}
+	query, err := baseQuery()
+	if err != nil {
+		return nil, err
+	}
+	var relatedRows []communityPostRow
+	if err := query.Where("q.category = ?", question.Category).
+		Order("q.is_pinned DESC, recent_interactions DESC, COALESCE(q.last_reply_at, q.created_at) DESC, q.id DESC").
+		Limit(5).Find(&relatedRows).Error; err != nil {
+		return nil, internalError("读取相关社区话题失败", err)
+	}
+
+	excludedIDs := []uint64{postID}
+	for _, row := range relatedRows {
+		excludedIDs = append(excludedIDs, row.ID)
+	}
+	query, err = baseQuery()
+	if err != nil {
+		return nil, err
+	}
+	var recommendedRows []communityPostRow
+	if err := query.Where("q.id NOT IN ?", excludedIDs).
+		Order("recent_interactions DESC, COALESCE(q.last_reply_at, q.created_at) DESC, q.id DESC").
+		Limit(5).Find(&recommendedRows).Error; err != nil {
+		return nil, internalError("读取推荐社区话题失败", err)
+	}
+
+	return &CommunityTopicRecommendations{
+		Related: summarizeCommunityTopics(relatedRows), Recommended: summarizeCommunityTopics(recommendedRows),
+	}, nil
+}
+
+func summarizeCommunityTopics(rows []communityPostRow) []CommunityTopicSummary {
+	items := make([]CommunityTopicSummary, 0, len(rows))
+	for _, row := range rows {
+		items = append(items, CommunityTopicSummary{
+			ID: row.ID, Category: row.Category, Title: row.Title, CreatedAt: row.CreatedAt,
+			LastReplyAt: row.LastReplyAt, CommentCount: row.CommentCount, ViewCount: row.ViewCount,
+		})
+	}
+	return items
+}
+
 func (s *Service) GetCommunityPost(ctx context.Context, actor Actor, postID uint64) (*CommunityPostDetail, error) {
 	if actor.ID == 0 {
 		return nil, forbidden("请先登录后查看吉甲社区")
@@ -337,7 +423,7 @@ func (s *Service) GetCommunityPost(ctx context.Context, actor Actor, postID uint
 	detail := &CommunityPostDetail{Post: views[0], Comments: []CommunityCommentView{}}
 	var comments []communityCommentRow
 	if err := s.db.WithContext(ctx).Table("training_question_posts AS p").
-		Select(`p.*, COALESCE(NULLIF(TRIM(u.real_name), ''), NULLIF(TRIM(u.nickname), ''), NULLIF(TRIM(u.name), ''), CONCAT('成员 ', u.id)) AS author_name, u.avatar_url AS author_avatar,
+		Select(`p.*, COALESCE(NULLIF(TRIM(u.real_name), ''), NULLIF(TRIM(u.nickname), ''), NULLIF(TRIM(u.name), ''), CONCAT('成员 ', u.id)) AS author_name, u.avatar_url AS author_avatar, u.team_identity_status AS author_team_identity_status,
 			(SELECT COUNT(*) FROM community_comment_reactions cr WHERE cr.comment_id = p.id) AS like_count,
 			EXISTS (SELECT 1 FROM community_comment_reactions mr WHERE mr.comment_id = p.id AND mr.user_id = ?) AS liked_by_me`, actor.ID).
 		Joins("JOIN users AS u ON u.id = p.author_id").
@@ -366,7 +452,8 @@ func (s *Service) GetCommunityPost(ctx context.Context, actor Actor, postID uint
 		view := CommunityCommentView{
 			ID: comment.ID, ParentPostID: comment.ParentPostID, AuthorID: comment.AuthorID,
 			AuthorName: comment.AuthorName, AuthorAvatar: comment.AuthorAvatar, AuthorLevel: commentLevels[comment.AuthorID],
-			AuthorFeaturedBadge: commentBadges[comment.AuthorID], AuthorPositions: commentPositions[comment.AuthorID], Body: comment.Body,
+			AuthorFeaturedBadge: commentBadges[comment.AuthorID], AuthorPositions: commentPositions[comment.AuthorID],
+			AuthorTeamIdentityStatus: model.NormalizeTeamIdentityStatus(comment.AuthorTeamIdentityStatus), Body: comment.Body,
 			CreatedAt: comment.CreatedAt, EditedAt: comment.EditedAt, IsDeleted: comment.DeletedAt != nil,
 			CanEdit: comment.AuthorID == actor.ID && comment.DeletedAt == nil, CanLike: actor.ID != comment.AuthorID && comment.DeletedAt == nil && !question.IsHidden,
 			LikedByMe: comment.LikedByMe, LikeCount: comment.LikeCount,
@@ -1035,7 +1122,7 @@ func (s *Service) communityPostQuery(ctx context.Context, actor Actor) (*gorm.DB
 		Select(`q.*,
 			COALESCE(ug.name, '') AS group_name,
 			COALESCE(NULLIF(TRIM(author.real_name), ''), NULLIF(TRIM(author.nickname), ''), NULLIF(TRIM(author.name), ''), CONCAT('成员 ', author.id)) AS author_name,
-			author.avatar_url AS author_avatar,
+			author.avatar_url AS author_avatar, author.team_identity_status AS author_team_identity_status,
 			(SELECT COUNT(*) FROM training_question_posts cp WHERE cp.question_id = q.id AND cp.deleted_at IS NULL) AS comment_count,
 			(SELECT COUNT(*) FROM community_post_views pv WHERE pv.question_id = q.id) AS view_count,
 			(SELECT COUNT(*) FROM community_post_reactions lr WHERE lr.question_id = q.id AND lr.kind = 'like') AS like_count,
@@ -1108,7 +1195,8 @@ func (s *Service) communityPostViews(ctx context.Context, actor Actor, rows []co
 			ID: row.ID, GroupID: communityGroupID(row.GroupID), GroupName: row.GroupName,
 			Category: row.Category, Title: row.Title, Body: row.Body, AuthorID: row.AskerID,
 			AuthorName: row.AuthorName, AuthorAvatar: row.AuthorAvatar, AuthorLevel: authorLevels[row.AskerID],
-			AuthorFeaturedBadge: authorBadges[row.AskerID], AuthorPositions: authorPositions[row.AskerID], Visibility: row.Visibility,
+			AuthorFeaturedBadge: authorBadges[row.AskerID], AuthorPositions: authorPositions[row.AskerID],
+			AuthorTeamIdentityStatus: model.NormalizeTeamIdentityStatus(row.AuthorTeamIdentityStatus), Visibility: row.Visibility,
 			IsSolved: row.IsSolved, AcceptedSolutionID: row.AcceptedSolutionID, IsFAQ: row.IsFAQ, IsPinned: row.IsPinned, IsHidden: row.IsHidden,
 			IsLegacy: row.GroupID != nil, CreatedAt: row.CreatedAt,
 			EditedAt: row.EditedAt, LastReplyAt: row.LastReplyAt, CommentCount: row.CommentCount, ViewCount: row.ViewCount,

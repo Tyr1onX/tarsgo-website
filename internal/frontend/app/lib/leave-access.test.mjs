@@ -21,7 +21,7 @@ test("members see application status before any leave profile or history request
 test("leave identity details move into personal settings without duplicating the old form", () => {
   assert.doesNotMatch(route, /<h2 id="leave-profile-title">请假资料<\/h2>/);
   assert.doesNotMatch(route, /<form onSubmit=\{saveProfile\}/);
-  assert.match(route, /onClick=\{openProfile\}>完善个人资料<\/button>/);
+  assert.match(route, /onClick=\{\(\) => openMyProfile\("settings"\)\}>完善学籍资料<\/button>/);
   assert.match(route, /profileRevision/);
   assert.match(api, /leaveAccessAPI\.GET\("\/leave\/profile", leaveHandler\.GetProfile\)/);
   assert.match(api, /leaveAccessAPI\.PUT\("\/leave\/profile", requireSameOriginRequest\(cfg\), leaveHandler\.SaveProfile\)/);

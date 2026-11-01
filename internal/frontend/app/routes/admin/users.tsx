@@ -3,6 +3,7 @@ import { useNavigate, useOutletContext, useSearchParams } from "react-router";
 
 import { ModalShell } from "~/components/modal-shell";
 import { CoBuilderBadgeAdminPanel } from "~/components/co-builder-badge-admin-panel";
+import { teamIdentityLabel, teamIdentityOptions, type TeamIdentityStatus } from "~/components/community-team-identity";
 import { ApiError } from "~/lib/api-client";
 import {
   createAdminUser,
@@ -14,6 +15,7 @@ import {
   updateAdminUserGroupRole,
   updateAdminUser,
   updateAdminUserRecruitmentGroup,
+  updateAdminUserTeamIdentity,
   type AdminUserDetail,
   type AdminUserListItem,
   type AdminUserRoleOption,
@@ -88,6 +90,11 @@ export default function AccountManagement() {
   const [preferredGroupId, setPreferredGroupId] = useState("");
   const [userGroupId, setUserGroupId] = useState("");
   const [groupRoleDrafts, setGroupRoleDrafts] = useState<Record<number, string>>({});
+  const [teamIdentityDraft, setTeamIdentityDraft] = useState<TeamIdentityStatus>("community_member");
+  const [teamIdentityReason, setTeamIdentityReason] = useState("");
+  const [assessmentPassed, setAssessmentPassed] = useState(false);
+  const [leaderConfirmed, setLeaderConfirmed] = useState(false);
+  const [priorFormalMembershipConfirmed, setPriorFormalMembershipConfirmed] = useState(false);
   const [draft, setDraft] = useState<AccountDraft>(emptyDraft);
   const [saving, setSaving] = useState(false);
   const [resetTarget, setResetTarget] = useState<AdminUserListItem | null>(null);
@@ -156,6 +163,11 @@ export default function AccountManagement() {
     const assignedGroup = detail.groups.find((group) => group.status === 1);
     setUserGroupId(detail.groupState === "pending" ? "" : String(assignedGroup?.groupId ?? ""));
     setGroupRoleDrafts(Object.fromEntries(detail.groups.map((group) => [group.groupId, String(group.role)])));
+    setTeamIdentityDraft(detail.teamIdentityStatus ?? "community_member");
+    setTeamIdentityReason("");
+    setAssessmentPassed(false);
+    setLeaderConfirmed(false);
+    setPriorFormalMembershipConfirmed(false);
   }
 
   async function openAccount(userId: number) {
@@ -253,6 +265,34 @@ export default function AccountManagement() {
     }
   }
 
+  async function saveTeamIdentity() {
+    if (!editing || teamIdentityDraft === editing.teamIdentityStatus) return;
+    setSaving(true);
+    setError("");
+    try {
+      const detail = await updateAdminUserTeamIdentity(editing.id, {
+        status: teamIdentityDraft,
+        reason: teamIdentityReason.trim(),
+        assessmentPassed,
+        leaderConfirmed,
+        priorFormalMembershipConfirmed,
+      });
+      setEditing(detail);
+      setTeamIdentityDraft(detail.teamIdentityStatus);
+      setTeamIdentityReason("");
+      setAssessmentPassed(false);
+      setLeaderConfirmed(false);
+      setPriorFormalMembershipConfirmed(false);
+      setNotice(`成员身份已更新为「${teamIdentityLabel(detail.teamIdentityStatus)}」，变更依据已记录。`);
+      await loadAccounts();
+    } catch (cause) {
+      if (cause instanceof ApiError && cause.status === 401) navigate("/login", { replace: true });
+      else setError(cause instanceof Error ? cause.message : "成员身份更新失败");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
@@ -317,7 +357,7 @@ export default function AccountManagement() {
       <header className="admin-page-header">
         <div className="admin-eyebrow">吉甲 · 系统管理</div>
         <h1 className="admin-page-title">账号与权限</h1>
-        <p className="admin-page-description">管理系统权限、所属组别、组织身份和历史报名记录。</p>
+        <p className="admin-page-description">管理系统权限、所属组别、战队成员身份、组织头衔和历史报名记录。</p>
       </header>
 
       {error ? <div role="alert" className="admin-notice admin-notice--error">{error}</div> : null}
@@ -368,11 +408,12 @@ export default function AccountManagement() {
         {loading ? <div role="status" className="admin-table-empty">正在加载账号…</div> : items.length === 0 ? <div className="admin-table-empty">没有符合条件的账号。</div> : (
           <div className="overflow-x-auto">
             <table className="admin-table admin-table--users">
-              <thead><tr><th>账号</th><th>所属组别</th><th>组织身份</th><th>系统权限</th><th>状态</th><th>登录方式 · 最近登录</th><th className="text-right">操作</th></tr></thead>
+              <thead><tr><th>账号</th><th>成员身份</th><th>所属组别</th><th>组织头衔</th><th>系统权限</th><th>状态</th><th>登录方式 · 最近登录</th><th className="text-right">操作</th></tr></thead>
               <tbody>
                 {items.map((item) => (
                   <tr key={item.id} className="admin-table-row">
                     <td><div className="font-medium text-[var(--admin-text)]">{item.name || "未设置名称"}</div><div className="mt-0.5 truncate text-xs text-[var(--admin-muted)]">{item.email}</div></td>
+                    <td><span className="text-sm text-[var(--admin-text)]">{teamIdentityLabel(item.teamIdentityStatus)}</span></td>
                     <td>{item.groupState === "pending" ? <><span className="admin-status admin-status--screening">待确认（双组异常）</span><div className="mt-1 text-xs text-[var(--admin-muted)]">{item.groups.filter((group) => group.status === 1).map((group) => group.name).join("、")}</div></> : item.groupState === "assigned" ? <><span className="text-sm text-[var(--admin-text)]">{item.groupName}</span>{item.cleanupPending ? <div className="mt-1 text-xs text-[var(--admin-warning)]">停用组关系待清理</div> : null}</> : <><span className="text-sm text-[var(--admin-muted)]">未分组</span>{item.cleanupPending ? <div className="mt-1 text-xs text-[var(--admin-warning)]">停用组关系待清理</div> : null}</>}</td>
                     <td>{item.groups.length ? <div className="space-y-1 text-xs text-[var(--admin-text)]">{item.groups.map((group) => <div key={group.groupId}>{group.name} · {organizationTitleLabel(group.role)}</div>)}</div> : <span className="text-xs text-[var(--admin-muted)]">—</span>}</td>
                     <td><span className={`admin-role ${item.role.name === "user" ? "" : "admin-role--elevated"}`}>{item.role.displayName}</span></td>
@@ -425,6 +466,27 @@ export default function AccountManagement() {
                 <section className="space-y-2" aria-label="姓名">
                   <h3 className="text-sm font-semibold text-[var(--admin-text)]">姓名</h3>
                   <p className="text-xs text-[var(--admin-muted)]">{editing.realName || "未填写"} · 手机号：{editing.phone || "未填写"}</p>
+                </section>
+                <section className="space-y-3 rounded-lg border border-[var(--admin-border-subtle)] p-3" aria-label="战队成员身份">
+                  <div>
+                    <h3 className="text-sm font-semibold text-[var(--admin-text)]">战队成员身份</h3>
+                    <p className="mt-1 text-xs leading-5 text-[var(--admin-muted)]">独立于系统权限、所属组别、组织头衔、社区等级和勋章。年级、招新结果或作业完成情况不会自动认定队员身份。</p>
+                  </div>
+                  <div className="flex flex-wrap items-end gap-2">
+                    <label className="min-w-48 flex-1 text-xs text-[var(--admin-muted)]">当前身份<select value={teamIdentityDraft} onChange={(event) => setTeamIdentityDraft(event.target.value as TeamIdentityStatus)} className="admin-field mt-1">{teamIdentityOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
+                    <button type="button" disabled={saving || teamIdentityDraft === editing.teamIdentityStatus || teamIdentityReason.trim().length < 5 || (teamIdentityDraft === "formal_member" && (!assessmentPassed || !leaderConfirmed)) || (teamIdentityDraft === "former_member" && editing.teamIdentityStatus !== "formal_member" && !priorFormalMembershipConfirmed)} onClick={() => void saveTeamIdentity()} className="admin-button admin-button--secondary admin-button--small">{saving ? "保存中…" : "保存成员身份"}</button>
+                  </div>
+                  {teamIdentityDraft !== editing.teamIdentityStatus ? (
+                    <div className="space-y-2">
+                      <label className="block text-xs text-[var(--admin-muted)]">变更依据（必填）<textarea required minLength={5} maxLength={500} rows={2} value={teamIdentityReason} onChange={(event) => setTeamIdentityReason(event.target.value)} placeholder="填写考核、负责人确认或历史名册核验依据" className="admin-field mt-1 min-h-20 resize-y" /></label>
+                      {teamIdentityDraft === "formal_member" ? <div className="grid gap-2 sm:grid-cols-2"><label className="flex items-start gap-2 text-xs leading-5 text-[var(--admin-muted)]"><input type="checkbox" checked={assessmentPassed} onChange={(event) => setAssessmentPassed(event.target.checked)} />已通过战队正式考核</label><label className="flex items-start gap-2 text-xs leading-5 text-[var(--admin-muted)]"><input type="checkbox" checked={leaderConfirmed} onChange={(event) => setLeaderConfirmed(event.target.checked)} />负责人已确认正式队员身份</label></div> : null}
+                      {teamIdentityDraft === "former_member" && editing.teamIdentityStatus !== "formal_member" ? <label className="flex items-start gap-2 text-xs leading-5 text-[var(--admin-muted)]"><input type="checkbox" checked={priorFormalMembershipConfirmed} onChange={(event) => setPriorFormalMembershipConfirmed(event.target.checked)} />已按真实历史名册确认其曾是正式队员</label> : null}
+                    </div>
+                  ) : null}
+                  <div className="border-t border-[var(--admin-border-subtle)] pt-2">
+                    <h4 className="text-xs font-semibold text-[var(--admin-text)]">身份变更记录</h4>
+                    {editing.teamIdentityHistory.length ? <ol className="mt-2 max-h-44 space-y-2 overflow-y-auto">{editing.teamIdentityHistory.map((change) => <li key={change.id} className="rounded border border-[var(--admin-border-subtle)] px-3 py-2 text-xs"><div className="flex flex-wrap justify-between gap-2"><strong className="text-[var(--admin-text)]">{teamIdentityLabel(change.previousStatus)} → {teamIdentityLabel(change.nextStatus)}</strong><time className="text-[var(--admin-dim)]">{formatDate(change.createdAt)}</time></div><p className="mt-1 whitespace-pre-wrap text-[var(--admin-muted)]">{change.reason}</p><div className="mt-1 text-[var(--admin-dim)]">操作人：{change.actorName} · {change.assessmentPassed ? "考核已通过 · " : ""}{change.leaderConfirmed ? "负责人已确认 · " : ""}{change.priorFormalMembershipConfirmed ? "历史正式身份已核验 · " : ""}</div></li>)}</ol> : <p className="mt-1 text-xs text-[var(--admin-muted)]">暂无变更记录；存量账号默认按社区成员展示。</p>}
+                  </div>
                 </section>
                 {currentUser.role.name === "super_admin" ? <CoBuilderBadgeAdminPanel userId={editing.id} /> : null}
                 <section className="space-y-2" aria-label="用户所属组别">

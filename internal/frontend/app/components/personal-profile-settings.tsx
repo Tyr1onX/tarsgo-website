@@ -1,11 +1,8 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent } from "react";
 
-import { ModalShell } from "~/components/modal-shell";
-import { CoBuilderBadgeProfile } from "~/components/co-builder-badge-profile";
 import { CommunityGrowthProfileSection } from "~/components/community-growth";
 import { PersonalTimetableUpload } from "~/components/personal-timetable-upload";
 import { getAuthUserName, getAuthUserRoleLabel, updateProfile, type AuthUser } from "~/lib/auth-client";
-import type { CoBuilderBadgeLevel } from "~/lib/co-builder-badge-client";
 import { leaveClient, type CollegeOption, type LeaveProfile } from "~/lib/leave-client";
 
 type LeaveDraft = Pick<LeaveProfile, "studentId" | "collegeCode" | "participantType">;
@@ -15,18 +12,14 @@ const fieldClass = "admin-field box-border h-11 min-h-11 w-full text-sm";
 const readOnlyClass = "flex h-11 min-h-11 min-w-0 items-center rounded-lg border border-[var(--admin-border)] bg-[var(--admin-surface-subtle)] px-3 text-sm text-[var(--admin-text)]";
 const labelClass = "mb-2 block text-xs font-medium text-[var(--admin-muted)]";
 
-export function ProfileDialog({
+export function PersonalProfileSettings({
   user,
   groups,
-  onClose,
   onSaved,
-  onReplayBadge,
 }: {
   user: AuthUser;
   groups: string[];
-  onClose: () => void;
   onSaved: () => void;
-  onReplayBadge: (level: CoBuilderBadgeLevel) => void;
 }) {
   const [avatar, setAvatar] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
@@ -120,24 +113,8 @@ export function ProfileDialog({
   }
 
   return (
-    <ModalShell
-      title="个人资料"
-      description="管理个人信息与课程时间"
-      widthClass="max-w-2xl"
-      bodyClassName="min-w-0 overflow-x-hidden overflow-y-auto overscroll-contain px-4 py-5 sm:px-6 sm:py-6"
-      onClose={onClose}
-      footerClassName="bg-[var(--admin-surface)]"
-      footer={(
-        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-          <button type="button" onClick={onClose} disabled={saving} className="admin-button admin-button--secondary">取消</button>
-          <button form="profile-dialog-form" type="submit" disabled={saving || leaveLoading} className="admin-button admin-button--primary">
-            {saving ? "保存中…" : "保存修改"}
-          </button>
-        </div>
-      )}
-    >
-      <div className="min-w-0 space-y-6">
-        <form id="profile-dialog-form" onSubmit={(event) => void handleSubmit(event)} className="min-w-0 space-y-6">
+      <div className="personal-profile-settings min-w-0 space-y-6">
+        <form id="profile-account-form" onSubmit={(event) => void handleSubmit(event)} className="min-w-0 space-y-6">
           <div className="flex min-w-0 items-center gap-4 rounded-2xl border border-[var(--admin-border-subtle)] bg-[var(--admin-surface-subtle)] p-4">
             <button
               type="button"
@@ -173,7 +150,7 @@ export function ProfileDialog({
 
           <section aria-labelledby="profile-account-heading" className="min-w-0 space-y-4">
             <div>
-              <h3 id="profile-account-heading" className="text-sm font-semibold text-[var(--admin-text)]">个人信息</h3>
+            <h3 id="profile-account-heading" className="text-sm font-semibold text-[var(--admin-text)]">账号与学籍信息</h3>
               <p className="mt-1 text-xs text-[var(--admin-muted)]">姓名和组别由管理员维护；学号、学院用于请假材料。</p>
             </div>
             <div className="grid min-w-0 grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
@@ -235,14 +212,13 @@ export function ProfileDialog({
             ) : null}
           </section>
 
-          <CommunityGrowthProfileSection />
-
-          <CoBuilderBadgeProfile onReplay={onReplayBadge} />
-
           {error ? <p role="alert" className="rounded-xl border border-[var(--theme-danger-border)] bg-[var(--theme-danger-surface)] px-3 py-2.5 text-sm text-[var(--theme-danger)]">{error}</p> : null}
+          <div className="flex flex-wrap justify-end gap-2">
+            <button type="submit" disabled={saving || leaveLoading} className="admin-button admin-button--primary">{saving ? "保存中…" : "保存账号与学籍信息"}</button>
+          </div>
         </form>
-        <PersonalTimetableUpload userId={user.id} />
+        <CommunityGrowthProfileSection />
+        <div id="timetable" className="scroll-mt-8"><PersonalTimetableUpload userId={user.id} /></div>
       </div>
-    </ModalShell>
   );
 }

@@ -8,6 +8,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
 	"gorm.io/gorm"
 
@@ -73,6 +74,14 @@ type UpdateUserInput struct {
 	Status uint8
 }
 
+type UpdateTeamIdentityInput struct {
+	Status                         string
+	Reason                         string
+	AssessmentPassed               bool
+	LeaderConfirmed                bool
+	PriorFormalMembershipConfirmed bool
+}
+
 type RoleRef struct {
 	ID          uint64 `json:"id"`
 	Name        string `json:"name"`
@@ -91,37 +100,53 @@ type AuthMethods struct {
 }
 
 type UserListItem struct {
-	ID             uint64                `json:"id"`
-	Name           string                `json:"name"`
-	Email          string                `json:"email"`
-	Role           RoleRef               `json:"role"`
-	Status         uint8                 `json:"status"`
-	AuthMethods    AuthMethods           `json:"authMethods"`
-	LastLoginAt    *time.Time            `json:"lastLoginAt,omitempty"`
-	CreatedAt      time.Time             `json:"createdAt"`
-	GroupState     string                `json:"groupState"`
-	GroupName      string                `json:"groupName,omitempty"`
-	Groups         []UserGroupMembership `json:"groups"`
-	CleanupPending bool                  `json:"cleanupPending"`
+	ID                 uint64                `json:"id"`
+	Name               string                `json:"name"`
+	Email              string                `json:"email"`
+	Role               RoleRef               `json:"role"`
+	Status             uint8                 `json:"status"`
+	AuthMethods        AuthMethods           `json:"authMethods"`
+	LastLoginAt        *time.Time            `json:"lastLoginAt,omitempty"`
+	CreatedAt          time.Time             `json:"createdAt"`
+	GroupState         string                `json:"groupState"`
+	TeamIdentityStatus string                `json:"teamIdentityStatus"`
+	GroupName          string                `json:"groupName,omitempty"`
+	Groups             []UserGroupMembership `json:"groups"`
+	CleanupPending     bool                  `json:"cleanupPending"`
 }
 
 type UserDetail struct {
-	ID                        uint64                   `json:"id"`
-	Name                      string                   `json:"name"`
-	Email                     string                   `json:"email"`
-	Status                    uint8                    `json:"status"`
-	Role                      RoleRef                  `json:"role"`
-	AuthMethods               AuthMethods              `json:"authMethods"`
-	LastLoginAt               *time.Time               `json:"lastLoginAt,omitempty"`
-	CreatedAt                 time.Time                `json:"createdAt"`
-	UpdatedAt                 time.Time                `json:"updatedAt"`
-	RealName                  *string                  `json:"realName,omitempty"`
-	Phone                     *string                  `json:"phone,omitempty"`
-	RecruitmentHistory        []RecruitmentHistoryItem `json:"recruitmentHistory"`
-	CurrentRecruitmentGroupID *uint64                  `json:"currentRecruitmentGroupId,omitempty"`
-	GroupState                string                   `json:"groupState"`
-	Groups                    []UserGroupMembership    `json:"groups"`
-	CleanupPending            bool                     `json:"cleanupPending"`
+	ID                        uint64                    `json:"id"`
+	Name                      string                    `json:"name"`
+	Email                     string                    `json:"email"`
+	Status                    uint8                     `json:"status"`
+	Role                      RoleRef                   `json:"role"`
+	AuthMethods               AuthMethods               `json:"authMethods"`
+	LastLoginAt               *time.Time                `json:"lastLoginAt,omitempty"`
+	CreatedAt                 time.Time                 `json:"createdAt"`
+	UpdatedAt                 time.Time                 `json:"updatedAt"`
+	RealName                  *string                   `json:"realName,omitempty"`
+	Phone                     *string                   `json:"phone,omitempty"`
+	RecruitmentHistory        []RecruitmentHistoryItem  `json:"recruitmentHistory"`
+	CurrentRecruitmentGroupID *uint64                   `json:"currentRecruitmentGroupId,omitempty"`
+	GroupState                string                    `json:"groupState"`
+	TeamIdentityStatus        string                    `json:"teamIdentityStatus"`
+	TeamIdentityHistory       []TeamIdentityHistoryItem `json:"teamIdentityHistory"`
+	Groups                    []UserGroupMembership     `json:"groups"`
+	CleanupPending            bool                      `json:"cleanupPending"`
+}
+
+type TeamIdentityHistoryItem struct {
+	ID                             uint64    `json:"id"`
+	ActorUserID                    uint64    `json:"actorUserId"`
+	ActorName                      string    `json:"actorName"`
+	PreviousStatus                 string    `json:"previousStatus"`
+	NextStatus                     string    `json:"nextStatus"`
+	Reason                         string    `json:"reason"`
+	AssessmentPassed               bool      `json:"assessmentPassed"`
+	LeaderConfirmed                bool      `json:"leaderConfirmed"`
+	PriorFormalMembershipConfirmed bool      `json:"priorFormalMembershipConfirmed"`
+	CreatedAt                      time.Time `json:"createdAt"`
 }
 
 type UserGroupMembership struct {
@@ -252,6 +277,19 @@ func (s *Service) GetUser(ctx context.Context, actor Actor, userID uint64) (*Use
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载用户详情失败", Err: err}
 	}
 	detail := toUserDetail(user)
+	identityChanges, err := s.repo.ListTeamIdentityChanges(ctx, userID)
+	if err != nil {
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载成员身份变更记录失败", Err: err}
+	}
+	detail.TeamIdentityHistory = make([]TeamIdentityHistoryItem, 0, len(identityChanges))
+	for _, change := range identityChanges {
+		detail.TeamIdentityHistory = append(detail.TeamIdentityHistory, TeamIdentityHistoryItem{
+			ID: change.ID, ActorUserID: change.ActorUserID, ActorName: change.ActorName,
+			PreviousStatus: change.PreviousStatus, NextStatus: change.NextStatus, Reason: change.Reason,
+			AssessmentPassed: change.AssessmentPassed, LeaderConfirmed: change.LeaderConfirmed,
+			PriorFormalMembershipConfirmed: change.PriorFormalMembershipConfirm, CreatedAt: change.CreatedAt,
+		})
+	}
 	registrations, err := s.repo.ListRecruitmentHistory(ctx, userID)
 	if err != nil {
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载历史报名失败", Err: err}
@@ -273,6 +311,48 @@ func (s *Service) GetUser(ctx context.Context, actor Actor, userID uint64) (*Use
 		}
 	}
 	return &detail, nil
+}
+
+func (s *Service) UpdateTeamIdentity(ctx context.Context, actor Actor, userID uint64, input UpdateTeamIdentityInput) (*UserDetail, error) {
+	if err := ensureUserAdminActor(actor); err != nil {
+		return nil, err
+	}
+	if userID == 0 {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "账号编号不合法"}
+	}
+	input.Status = strings.TrimSpace(input.Status)
+	input.Reason = strings.TrimSpace(input.Reason)
+	if !model.IsTeamIdentityStatus(input.Status) || utf8.RuneCountInString(input.Reason) < 5 || utf8.RuneCountInString(input.Reason) > 500 {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "成员身份或变更依据不合法"}
+	}
+	user, err := s.repo.GetUserByID(ctx, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, &ServiceError{Status: http.StatusNotFound, Message: "用户不存在"}
+		}
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载用户失败", Err: err}
+	}
+	previousStatus := model.NormalizeTeamIdentityStatus(user.TeamIdentityStatus)
+	if previousStatus == input.Status {
+		return s.GetUser(ctx, actor, userID)
+	}
+	if input.Status == model.TeamIdentityFormalMember && (!input.AssessmentPassed || !input.LeaderConfirmed) {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "认定正式队员必须确认已通过正式考核并经负责人确认"}
+	}
+	if input.Status == model.TeamIdentityFormerMember && previousStatus != model.TeamIdentityFormalMember && !input.PriorFormalMembershipConfirmed {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "认定往届队员必须确认其曾获得正式队员身份"}
+	}
+	if err := s.repo.UpdateTeamIdentity(ctx, userID, actor.ID, previousStatus, input.Status, input.Reason,
+		input.AssessmentPassed, input.LeaderConfirmed, input.PriorFormalMembershipConfirmed); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, &ServiceError{Status: http.StatusNotFound, Message: "用户或操作人不存在"}
+		}
+		if errors.Is(err, ErrTeamIdentityConflict) {
+			return nil, &ServiceError{Status: http.StatusConflict, Message: "成员身份已被其他管理员更新，请刷新后重试"}
+		}
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "更新成员身份失败", Err: err}
+	}
+	return s.GetUser(ctx, actor, userID)
 }
 
 func (s *Service) UpdateCurrentRecruitmentGroup(ctx context.Context, actor Actor, userID uint64, groupID uint64) (*UserDetail, error) {
@@ -579,18 +659,19 @@ func toUserListItem(user *model.User) UserListItem {
 		name = strings.TrimSpace(user.Name)
 	}
 	return UserListItem{
-		ID:             user.ID,
-		Name:           name,
-		Email:          user.Email,
-		Role:           toRoleRef(user.Role),
-		Status:         user.Status,
-		AuthMethods:    toAuthMethods(user),
-		LastLoginAt:    user.LastLoginAt,
-		CreatedAt:      user.CreatedAt,
-		GroupState:     state,
-		GroupName:      groupName,
-		Groups:         groups,
-		CleanupPending: len(groups) >= 2 && activeCount < 2,
+		ID:                 user.ID,
+		Name:               name,
+		Email:              user.Email,
+		Role:               toRoleRef(user.Role),
+		Status:             user.Status,
+		AuthMethods:        toAuthMethods(user),
+		LastLoginAt:        user.LastLoginAt,
+		CreatedAt:          user.CreatedAt,
+		GroupState:         state,
+		TeamIdentityStatus: model.NormalizeTeamIdentityStatus(user.TeamIdentityStatus),
+		GroupName:          groupName,
+		Groups:             groups,
+		CleanupPending:     len(groups) >= 2 && activeCount < 2,
 	}
 }
 
@@ -600,19 +681,21 @@ func toUserDetail(user *model.User) UserDetail {
 		realName = &preferredName
 	}
 	detail := UserDetail{
-		ID:                 user.ID,
-		Name:               user.Name,
-		Email:              user.Email,
-		Status:             user.Status,
-		Role:               toRoleRef(user.Role),
-		AuthMethods:        toAuthMethods(user),
-		LastLoginAt:        user.LastLoginAt,
-		CreatedAt:          user.CreatedAt,
-		UpdatedAt:          user.UpdatedAt,
-		RealName:           realName,
-		Phone:              user.Phone,
-		RecruitmentHistory: []RecruitmentHistoryItem{},
-		Groups:             mapUserGroupMemberships(user.GroupMembers),
+		ID:                  user.ID,
+		Name:                user.Name,
+		Email:               user.Email,
+		Status:              user.Status,
+		Role:                toRoleRef(user.Role),
+		AuthMethods:         toAuthMethods(user),
+		LastLoginAt:         user.LastLoginAt,
+		CreatedAt:           user.CreatedAt,
+		UpdatedAt:           user.UpdatedAt,
+		RealName:            realName,
+		Phone:               user.Phone,
+		RecruitmentHistory:  []RecruitmentHistoryItem{},
+		Groups:              mapUserGroupMemberships(user.GroupMembers),
+		TeamIdentityStatus:  model.NormalizeTeamIdentityStatus(user.TeamIdentityStatus),
+		TeamIdentityHistory: []TeamIdentityHistoryItem{},
 	}
 	detail.GroupState, _ = membershipStateAndName(detail.Groups)
 	activeCount := 0

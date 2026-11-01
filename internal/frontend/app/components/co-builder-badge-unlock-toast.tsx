@@ -79,7 +79,7 @@ export function CoBuilderBadgeUnlockToast({
         onClick={onOpenProfile}
         aria-label={replaying
           ? `正在重播吉甲共建者 ${levelLabel}勋章解锁动画`
-          : `吉甲共建者 ${levelLabel}勋章，点击查看个人资料中的勋章和贡献记录`}
+          : `吉甲共建者 ${levelLabel}勋章，点击查看我的主页中的徽章和贡献记录`}
       >
         <span className="co-builder-unlock__emblem">
           <CoBuilderBadgeMark level={levelCode} size={78} className="co-builder-unlock__mark" />

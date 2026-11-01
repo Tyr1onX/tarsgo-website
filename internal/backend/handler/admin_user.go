@@ -27,6 +27,7 @@ type adminUserService interface {
 	UpdateUser(ctx context.Context, actor adminuser.Actor, userID uint64, input adminuser.UpdateUserInput) (*adminuser.UserDetail, error)
 	UpdateUserGroup(ctx context.Context, actor adminuser.Actor, userID uint64, groupID *uint64) (*adminuser.UserDetail, error)
 	UpdateUserGroupRole(ctx context.Context, actor adminuser.Actor, userID, groupID uint64, role uint8) (*adminuser.UserDetail, error)
+	UpdateTeamIdentity(ctx context.Context, actor adminuser.Actor, userID uint64, input adminuser.UpdateTeamIdentityInput) (*adminuser.UserDetail, error)
 	UpdateCurrentRecruitmentGroup(ctx context.Context, actor adminuser.Actor, userID uint64, groupID uint64) (*adminuser.UserDetail, error)
 	ResetPassword(ctx context.Context, actor adminuser.Actor, userID uint64, password string) error
 }
@@ -71,6 +72,14 @@ type updateUserGroupRequest struct {
 type updateUserGroupRoleRequest struct {
 	GroupID uint64 `json:"groupId" binding:"required"`
 	Role    *uint8 `json:"role" binding:"required"`
+}
+
+type updateTeamIdentityRequest struct {
+	Status                         string `json:"status"`
+	Reason                         string `json:"reason"`
+	AssessmentPassed               bool   `json:"assessmentPassed"`
+	LeaderConfirmed                bool   `json:"leaderConfirmed"`
+	PriorFormalMembershipConfirmed bool   `json:"priorFormalMembershipConfirmed"`
 }
 
 func NewAdminUserHandler(service adminUserService) *AdminUserHandler {
@@ -156,6 +165,29 @@ func (h *AdminUserHandler) UpdateUserGroupRole(c *gin.Context) {
 		return
 	}
 	writeAPI(c, http.StatusOK, "组织身份已更新", user)
+}
+
+func (h *AdminUserHandler) UpdateTeamIdentity(c *gin.Context) {
+	userID, err := parsePathUserID(c.Param("id"))
+	if err != nil {
+		writeAPIError(c, http.StatusBadRequest, "无效的用户 ID")
+		return
+	}
+	var request updateTeamIdentityRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		writeAPIError(c, http.StatusBadRequest, "成员身份信息不合法")
+		return
+	}
+	user, serviceErr := h.service.UpdateTeamIdentity(c.Request.Context(), currentActor(c), userID, adminuser.UpdateTeamIdentityInput{
+		Status: request.Status, Reason: request.Reason,
+		AssessmentPassed: request.AssessmentPassed, LeaderConfirmed: request.LeaderConfirmed,
+		PriorFormalMembershipConfirmed: request.PriorFormalMembershipConfirmed,
+	})
+	if serviceErr != nil {
+		h.handleServiceError(c, serviceErr)
+		return
+	}
+	writeAPI(c, http.StatusOK, "成员身份已更新", user)
 }
 
 func (h *AdminUserHandler) GetUser(c *gin.Context) {

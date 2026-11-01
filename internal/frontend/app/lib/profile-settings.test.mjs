@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-const profile = await readFile(new URL("../components/profile-dialog.tsx", import.meta.url), "utf8");
+const profile = await readFile(new URL("../components/personal-profile-settings.tsx", import.meta.url), "utf8");
+const memberProfile = await readFile(new URL("../routes/dashboard/community-member-profile.tsx", import.meta.url), "utf8");
 const layout = await readFile(new URL("../routes/dashboard/layout.tsx", import.meta.url), "utf8");
 const leave = await readFile(new URL("../routes/leave-workbench.tsx", import.meta.url), "utf8");
 const api = await readFile(new URL("../../../backend/router/router.go", import.meta.url), "utf8");
@@ -27,9 +28,9 @@ test("avatar preview, account save and timetable upload retain separate behavior
   assert.match(profile, /avatarInputRef\.current\?\.click\(\)/);
   assert.match(profile, /group-hover:opacity-100 group-focus-visible:opacity-100/);
   assert.match(profile, /file\.size > 2 \* 1024 \* 1024/);
-  assert.match(profile, /<PersonalTimetableUpload userId=\{user\.id\} \/>/);
-  assert.match(profile, /form="profile-dialog-form"/);
-  assert.match(profile, /footerClassName=/);
+  assert.match(profile, /id="timetable"[\s\S]*?<PersonalTimetableUpload userId=\{user\.id\} \/>/);
+  assert.match(profile, /id="profile-account-form"/);
+  assert.match(profile, /保存账号与学籍信息/);
   assert.match(profile, /updateProfile\(\{ nickname: user\.nickname \?\? "", phone: user\.phone \?\? "", avatar \}\)/);
 });
 
@@ -45,8 +46,9 @@ test("leave identity uses account name, restricts edits to locked identifiers, a
   assert.match(api, /leaveAccessAPI\.GET\("\/leave\/profile"/);
   assert.match(api, /leaveAccessAPI\.PUT\("\/leave\/profile", requireSameOriginRequest\(cfg\)/);
   assert.match(api, /leaveMemberAPI\.Use\(middleware\.RequireAuthenticated\(authService\), middleware\.RequireLeaveAccess\(leaveService\)\)/);
-  assert.match(leave, /onClick=\{openProfile\}>完善个人资料/);
-  assert.match(layout, /openProfile: \(\) => setProfileOpen\(true\)/);
+  assert.match(leave, /onClick=\{\(\) => openMyProfile\("settings"\)\}>完善学籍资料/);
+  assert.match(layout, /openMyProfile: \(tab\?\: "overview" \| "settings" \| "badges"\) => void/);
+  assert.match(layout, /refreshAccountProfile: \(\) => void/);
   assert.match(layout, /setProfileRevision\(\(revision\) => revision \+ 1\)/);
 });
 
@@ -58,7 +60,7 @@ test("phone field stays hidden without overwriting existing account phone data",
 
 
 test("academic fields are part of personal information and leave identity is not shown", () => {
-  assert.match(profile, /id="profile-account-heading"[^>]*>个人信息/);
+  assert.match(profile, /id="profile-account-heading"[^>]*>账号与学籍信息/);
   assert.doesNotMatch(profile, /学籍与请假信息|profile-school-heading/);
   const personalStart = profile.indexOf('<section aria-labelledby="profile-account-heading"');
   const personalEnd = profile.indexOf("</section>", personalStart);
@@ -73,4 +75,14 @@ test("academic fields are part of personal information and leave identity is not
   // Keep the stored value for legacy leave workflows without exposing an editor.
   assert.match(profile, /participantType: profile\.participantType/);
   assert.match(profile, /participantType: leaveDraft\.participantType/);
+});
+
+test("old profile entry points now resolve to the private settings tab without mounting a dialog", () => {
+  assert.match(layout, />我的主页<\/button>/);
+  assert.match(layout, /navigate\(`\/dashboard\/members\/\$\{currentUser\.id\}\?tab=settings#timetable`/);
+  assert.match(memberProfile, /{tab === "settings" && isSelf/);
+  assert.match(memberProfile, /<PersonalProfileSettings user=\{currentUser\}/);
+  assert.match(memberProfile, /<CoBuilderBadgeProfile onReplay=/);
+  assert.doesNotMatch(layout, /ProfileDialog|setProfileOpen/);
+  assert.doesNotMatch(layout, /import \{ ProfileDialog \}/);
 });

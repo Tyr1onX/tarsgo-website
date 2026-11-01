@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { useLocation, useNavigate, useOutletContext, useSearchParams } from "react-router";
 
 import { CommunityComposer } from "~/components/community-composer";
+import { CommunityEditorDialog } from "~/components/community-editor-dialog";
 import { CommunityGrowthBar } from "~/components/community-growth";
 import { CommunityIcon } from "~/components/community-icons";
 import { CommunityPostCard } from "~/components/community-post-card";
@@ -15,7 +16,7 @@ import {
   type CommunityCategory,
   type CommunitySort,
 } from "~/lib/community-client";
-import { getCommunityListSnapshot, rememberCommunityList } from "~/lib/community-list-cache";
+import { clearCommunityLists, getCommunityListSnapshot, rememberCommunityList } from "~/lib/community-list-cache";
 import "./community.css";
 
 export function meta() {
@@ -55,6 +56,7 @@ export default function DashboardIndex() {
   const [error, setError] = useState("");
   const [retry, setRetry] = useState<CommunityRetry | null>(null);
   const requestRef = useRef(0);
+  const closeComposer = useCallback(() => setComposerOpen(false), []);
 
   useEffect(() => { setQueryDraft(query); }, [query]);
 
@@ -150,8 +152,8 @@ export default function DashboardIndex() {
 
   async function publish(input: { category: CommunityCategory; title: string; body: string; files: File[]; uploadTokens: string[] }) {
     const created = await communityClient.create(input);
-    setComposerOpen(false);
-    await loadFirstPage(true);
+    clearCommunityLists();
+    closeComposer();
     navigate(communityPostHref(created.post.id), { state: { communityReturnTo: returnTo } });
   }
 
@@ -175,7 +177,7 @@ export default function DashboardIndex() {
           {queryDraft ? <button type="button" className="community-search__clear" aria-label="清除搜索" onClick={() => { setQueryDraft(""); updateFilters({ q: "" }); }}><CommunityIcon name="x" /></button> : null}
           <button type="submit" className="community-search__submit" aria-label="搜索"><CommunityIcon name="search" /></button>
         </form>
-        <button className="community-button community-button--primary community-header__compose" type="button" onClick={() => setComposerOpen((open) => !open)} aria-expanded={composerOpen} aria-controls="community-composer">
+        <button className="community-button community-button--primary community-header__compose" type="button" onClick={() => setComposerOpen(true)} aria-expanded={composerOpen} aria-haspopup="dialog" aria-controls="community-composer">
           <CommunityIcon name="plus" /> 发布帖子
         </button>
       </div>
@@ -183,7 +185,7 @@ export default function DashboardIndex() {
 
     <CommunityGrowthBar profile={growthProfile} onProfileChange={setGrowthProfile} loading={loading} onRetry={() => void loadFirstPage(true)} />
 
-    {composerOpen ? <CommunityComposer key={currentUser.id} id="community-composer" accountId={currentUser.id} onCancel={() => setComposerOpen(false)} onPublish={publish} /> : null}
+    {composerOpen ? <CommunityEditorDialog labelledBy="community-composer-title" onClose={closeComposer}><CommunityComposer key={currentUser.id} id="community-composer" accountId={currentUser.id} onCancel={closeComposer} onPublish={publish} /></CommunityEditorDialog> : null}
 
     <div className="community-layout">
       <main className="community-feed" aria-label="社区帖子">

@@ -23,6 +23,7 @@ export interface AdminUserListItem {
   authMethods: AdminUserAuthMethods;
   lastLoginAt?: string | null;
   createdAt: string;
+	teamIdentityStatus: import("~/components/community-team-identity").TeamIdentityStatus;
 	groupState: "assigned" | "unassigned" | "pending";
 	groupName?: string;
 	groups: AdminUserGroupMembership[];
@@ -46,6 +47,19 @@ export interface AdminUserDetail {
   lastLoginAt?: string | null;
   createdAt: string;
   updatedAt: string;
+	teamIdentityStatus: import("~/components/community-team-identity").TeamIdentityStatus;
+	teamIdentityHistory: Array<{
+		id: number;
+		actorUserId: number;
+		actorName: string;
+		previousStatus: import("~/components/community-team-identity").TeamIdentityStatus;
+		nextStatus: import("~/components/community-team-identity").TeamIdentityStatus;
+		reason: string;
+		assessmentPassed: boolean;
+		leaderConfirmed: boolean;
+		priorFormalMembershipConfirmed: boolean;
+		createdAt: string;
+	}>;
   realName?: string | null;
   phone?: string | null;
   currentRecruitmentGroupId?: number | null;
@@ -106,6 +120,14 @@ export interface AdminUserUpsertInput {
   email: string;
 }
 
+export interface UpdateAdminUserTeamIdentityInput {
+	status: import("~/components/community-team-identity").TeamIdentityStatus;
+	reason: string;
+	assessmentPassed?: boolean;
+	leaderConfirmed?: boolean;
+	priorFormalMembershipConfirmed?: boolean;
+}
+
 export interface CreateAdminUserInput extends AdminUserUpsertInput {
   password: string;
 }
@@ -163,6 +185,13 @@ export async function updateAdminUser(userId: number, input: AdminUserUpsertInpu
     method: "PATCH",
     body: input,
   });
+}
+
+export async function updateAdminUserTeamIdentity(userId: number, input: UpdateAdminUserTeamIdentityInput): Promise<AdminUserDetail> {
+	return apiRequest<AdminUserDetail>(`/api/admin/users/${userId}/team-identity`, {
+		method: "PATCH",
+		body: input,
+	});
 }
 
 export async function updateAdminUserRecruitmentGroup(userId: number, groupId: number): Promise<AdminUserDetail> {

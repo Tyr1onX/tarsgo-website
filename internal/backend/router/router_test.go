@@ -56,6 +56,7 @@ func TestCommunityAPIsRequireAuthenticationAndOpenWorkflowsRemain(t *testing.T) 
 		"PUT /api/community/me/profile",
 		"POST /api/community/posts",
 		"GET /api/community/posts/:id",
+		"GET /api/community/posts/:id/related",
 		"PATCH /api/community/posts/:id",
 		"DELETE /api/community/posts/:id",
 		"POST /api/community/posts/:id/comments",
@@ -84,6 +85,7 @@ func TestCommunityAPIsRequireAuthenticationAndOpenWorkflowsRemain(t *testing.T) 
 		"GET /api/admin/users/:id/co-builder-badge",
 		"POST /api/admin/users/:id/co-builder-badge/contributions",
 		"DELETE /api/admin/users/:id/co-builder-badge/contributions/:contributionID",
+		"PATCH /api/admin/users/:id/team-identity",
 		"GET /api/leave/access",
 		"GET /api/leave/profile",
 		"PUT /api/leave/profile",
@@ -118,6 +120,7 @@ func TestCommunityAPIsRequireAuthenticationAndOpenWorkflowsRemain(t *testing.T) 
 		{http.MethodGet, "/api/admin/users/12/co-builder-badge"},
 		{http.MethodPost, "/api/admin/users/12/co-builder-badge/contributions"},
 		{http.MethodDelete, "/api/admin/users/12/co-builder-badge/contributions/3"},
+		{http.MethodPatch, "/api/admin/users/12/team-identity"},
 	} {
 		response := httptest.NewRecorder()
 		engine.ServeHTTP(response, httptest.NewRequest(endpoint.method, endpoint.path, nil))
