@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { useLocation, useNavigate, useOutletContext, useSearchParams } from "react-router";
 
 import { CommunityComposer } from "~/components/community-composer";
+import { CommunityGrowthBar } from "~/components/community-growth";
 import { CommunityIcon } from "~/components/community-icons";
 import { CommunityPostCard } from "~/components/community-post-card";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
@@ -9,6 +10,7 @@ import {
   COMMUNITY_CATEGORIES,
   communityClient,
   communityPostHref,
+  type CommunityGrowthProfile,
   type CommunityCategory,
   type CommunityPost,
   type CommunitySort,
@@ -45,6 +47,7 @@ export default function DashboardIndex() {
   const [queryDraft, setQueryDraft] = useState(query);
   const [composerOpen, setComposerOpen] = useState(false);
   const [posts, setPosts] = useState<CommunityPost[]>([]);
+  const [growthProfile, setGrowthProfile] = useState<CommunityGrowthProfile | null>(null);
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -74,8 +77,9 @@ export default function DashboardIndex() {
     setRetry(null);
 
     try {
-      const result = await communityClient.list({ sort, category, q: query, saved: savedOnly, page: 1, pageSize: PAGE_SIZE });
+      const result = await communityClient.list({ sort, category, q: query, saved: savedOnly, page: 1, pageSize: PAGE_SIZE, includeGrowth: true });
       if (requestRef.current !== requestID) return;
+      setGrowthProfile(result.growthProfile ?? null);
       const postsToKeep = keepCachedPosts && cached
         ? [...result.items, ...cached.posts.filter((post) => !result.items.some((fresh) => fresh.id === post.id))]
         : result.items;
@@ -219,6 +223,8 @@ export default function DashboardIndex() {
         </button>
       </div>
     </header>
+
+    <CommunityGrowthBar profile={growthProfile} onProfileChange={setGrowthProfile} loading={loading} onRetry={() => void loadFirstPage(true)} />
 
     {composerOpen ? <CommunityComposer key={currentUser.id} id="community-composer" accountId={currentUser.id} onCancel={() => setComposerOpen(false)} onPublish={publish} /> : null}
 

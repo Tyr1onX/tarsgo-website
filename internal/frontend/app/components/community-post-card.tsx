@@ -2,6 +2,7 @@ import { Link, useLocation } from "react-router";
 
 import { CommunityIcon } from "~/components/community-icons";
 import { CommunityImageGallery } from "~/components/community-image-gallery";
+import { CommunityLevelBadge } from "~/components/community-growth";
 import { communityCategoryLabel, communityPostHref, formatCommunityDate, type CommunityPost } from "~/lib/community-client";
 
 export function CommunityAvatar({ name, src, size = "regular" }: { name: string; src?: string; size?: "regular" | "small" }) {
@@ -31,7 +32,7 @@ export function CommunityPostCard({
     <div className="community-post__author">
       <CommunityAvatar name={post.authorName} src={post.authorAvatar} />
       <div className="community-post__byline">
-        <strong>{post.authorName}</strong>
+        <strong>{post.authorName}</strong><CommunityLevelBadge level={post.authorLevel} />
         <time dateTime={hasRecentReply ? post.lastReplyAt : post.createdAt}>{hasRecentReply ? `最近回复 ${formatCommunityDate(post.lastReplyAt!)}` : formatCommunityDate(post.createdAt)}{post.editedAt ? " · 已编辑" : ""}</time>
       </div>
       {post.isPinned ? <span className="community-post__pin">置顶</span> : null}

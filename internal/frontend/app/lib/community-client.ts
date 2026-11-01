@@ -28,8 +28,10 @@ export interface CommunityPost {
   authorId: number;
   authorName: string;
   authorAvatar?: string;
+  authorLevel: number;
   visibility: "public" | "private";
   isSolved?: boolean;
+  acceptedSolutionId?: number;
   isFaq?: boolean;
   isPinned: boolean;
   isHidden: boolean;
@@ -52,11 +54,17 @@ export interface CommunityComment {
   authorId: number;
   authorName: string;
   authorAvatar?: string;
+  authorLevel: number;
   body: string;
   createdAt: string;
   editedAt?: string;
   isDeleted: boolean;
   canEdit: boolean;
+  canLike: boolean;
+  likedByMe: boolean;
+  likeCount: number;
+  isAcceptedSolution: boolean;
+  canAcceptSolution: boolean;
   attachments: CommunityAttachment[];
 }
 
@@ -69,6 +77,7 @@ export interface CommunityPage {
   items: CommunityPost[];
   page: number;
   hasMore: boolean;
+  growthProfile?: CommunityGrowthProfile;
 }
 
 export interface CommunityFilter {
@@ -82,9 +91,36 @@ export interface CommunityFilter {
   mineOnly?: boolean;
   faqOnly?: boolean;
   status?: "open" | "solved" | "";
+  includeGrowth?: boolean;
 }
 
 export interface CommunityReactionState {
+  active: boolean;
+  likeCount: number;
+}
+
+export interface CommunityGrowthProfile {
+  level: number;
+  totalXp: number;
+  levelStartXp: number;
+  nextLevelXp: number;
+  xpToNextLevel: number;
+  progress: number;
+  streakDays: number;
+  checkedInToday: boolean;
+  lastCheckInDay?: string;
+  upcomingCheckIns: Array<{ day: string; streakDay: number; rewardXp: number; isToday: boolean; completed: boolean }>;
+  recentEvents: Array<{ id: number; type: string; label: string; points: number; revoked: boolean; createdAt: string }>;
+}
+
+export interface CommunityCheckInResult {
+  profile: CommunityGrowthProfile;
+  earnedXp: number;
+  streakDay: number;
+  alreadyCheckedIn: boolean;
+}
+
+export interface CommunityCommentReactionState {
   active: boolean;
   likeCount: number;
 }
@@ -101,6 +137,7 @@ function queryString(filter: CommunityFilter) {
   if (filter.mineOnly) params.set("mineOnly", "true");
   if (filter.faqOnly) params.set("faqOnly", "true");
   if (filter.status) params.set("status", filter.status);
+  if (filter.includeGrowth) params.set("includeGrowth", "true");
   return params.toString();
 }
 
@@ -112,6 +149,8 @@ function postForm(fields: Record<string, string>, files: File[] = []) {
 }
 
 export const communityClient = {
+  growth: () => apiRequest<CommunityGrowthProfile>("/api/community/growth"),
+  checkIn: () => apiRequest<CommunityCheckInResult>("/api/community/check-in", { method: "POST" }),
   list: (filter: CommunityFilter) => apiRequest<CommunityPage>(`/api/community/posts?${queryString(filter)}`),
   hot: (limit = 5) => apiRequest<CommunityPost[]>(`/api/community/hot?limit=${limit}`),
   get: (id: number) => apiRequest<CommunityDetail>(`/api/community/posts/${id}`),
@@ -131,6 +170,10 @@ export const communityClient = {
   updateComment: (id: number, body: string) =>
     apiRequest<CommunityDetail>(`/api/community/comments/${id}`, { method: "PATCH", body: { body } }),
   removeComment: (id: number) => apiRequest<CommunityDetail>(`/api/community/comments/${id}`, { method: "DELETE" }),
+  likeComment: (id: number, active: boolean) =>
+    apiRequest<CommunityCommentReactionState>(`/api/community/comments/${id}/like`, { method: active ? "PUT" : "DELETE" }),
+  setSolution: (postID: number, commentID: number | null) =>
+    apiRequest<CommunityDetail>(`/api/community/posts/${postID}/solution`, { method: "PATCH", body: { commentId: commentID } }),
   like: (id: number, active: boolean) =>
     apiRequest<CommunityReactionState>(`/api/community/posts/${id}/like`, { method: active ? "PUT" : "DELETE" }),
   bookmark: (id: number, active: boolean) =>

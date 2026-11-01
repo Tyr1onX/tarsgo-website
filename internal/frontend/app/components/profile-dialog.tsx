@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent 
 
 import { ModalShell } from "~/components/modal-shell";
 import { CoBuilderBadgeProfile } from "~/components/co-builder-badge-profile";
+import { CommunityGrowthProfileSection } from "~/components/community-growth";
 import { PersonalTimetableUpload } from "~/components/personal-timetable-upload";
 import { getAuthUserName, getAuthUserRoleLabel, updateProfile, type AuthUser } from "~/lib/auth-client";
 import type { CoBuilderBadgeLevel } from "~/lib/co-builder-badge-client";
@@ -233,6 +234,8 @@ export function ProfileDialog({
               </p>
             ) : null}
           </section>
+
+          <CommunityGrowthProfileSection />
 
           <CoBuilderBadgeProfile onReplay={onReplayBadge} />
 

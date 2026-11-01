@@ -1,6 +1,11 @@
 import { Icon, type IconifyIcon } from "@iconify/react";
 import arrowLeft from "@iconify-icons/lucide/arrow-left";
+import award from "@iconify-icons/lucide/award";
 import bookmark from "@iconify-icons/lucide/bookmark";
+import calendarCheck from "@iconify-icons/lucide/calendar-check";
+import check from "@iconify-icons/lucide/check";
+import chevronDown from "@iconify-icons/lucide/chevron-down";
+import flame from "@iconify-icons/lucide/flame";
 import chevronLeft from "@iconify-icons/lucide/chevron-left";
 import chevronRight from "@iconify-icons/lucide/chevron-right";
 import heart from "@iconify-icons/lucide/heart";
@@ -13,7 +18,12 @@ import x from "@iconify-icons/lucide/x";
 
 const communityIcons = {
   arrowLeft,
+  award,
   bookmark,
+  calendarCheck,
+  check,
+  chevronDown,
+  flame,
   chevronLeft,
   chevronRight,
   heart,

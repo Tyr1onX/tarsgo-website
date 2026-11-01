@@ -19,6 +19,28 @@ func NewCommunityHandler(service *trainingqa.Service) *CommunityHandler {
 	return &CommunityHandler{service: service}
 }
 
+func (h *CommunityHandler) Growth(c *gin.Context) {
+	profile, err := h.service.GetCommunityGrowth(c.Request.Context(), currentTrainingQuestionActor(c))
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "获取社区成长档案成功", profile)
+}
+
+func (h *CommunityHandler) CheckIn(c *gin.Context) {
+	result, err := h.service.CheckInCommunity(c.Request.Context(), currentTrainingQuestionActor(c))
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	message := "每日签到成功"
+	if result.Already {
+		message = "今天已经签到"
+	}
+	writeAPI(c, http.StatusOK, message, result)
+}
+
 func (h *CommunityHandler) List(c *gin.Context) {
 	filter, ok := communityFilter(c)
 	if !ok {
@@ -177,6 +199,37 @@ func (h *CommunityHandler) DeleteComment(c *gin.Context) {
 func (h *CommunityHandler) SetLike(c *gin.Context)     { h.setReaction(c, "like") }
 func (h *CommunityHandler) SetBookmark(c *gin.Context) { h.setReaction(c, "bookmark") }
 
+func (h *CommunityHandler) SetCommentLike(c *gin.Context) {
+	commentID, ok := parseCommunityID(c, "id", "回复编号")
+	if !ok {
+		return
+	}
+	state, err := h.service.SetCommunityCommentReaction(c.Request.Context(), currentTrainingQuestionActor(c), commentID, c.Request.Method != http.MethodDelete)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "回复点赞状态已更新", state)
+}
+
+func (h *CommunityHandler) SetSolution(c *gin.Context) {
+	postID, ok := parseCommunityID(c, "id", "帖子编号")
+	if !ok {
+		return
+	}
+	var request trainingqa.CommunitySolutionUpdate
+	if err := c.ShouldBindJSON(&request); err != nil {
+		writeAPIError(c, http.StatusBadRequest, "解决方案信息不合法")
+		return
+	}
+	item, err := h.service.SetCommunitySolution(c.Request.Context(), currentTrainingQuestionActor(c), postID, request)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "解决方案状态已更新", item)
+}
+
 func (h *CommunityHandler) setReaction(c *gin.Context, kind string) {
 	postID, ok := parseCommunityID(c, "id", "帖子编号")
 	if !ok {
@@ -230,7 +283,8 @@ func communityFilter(c *gin.Context) (trainingqa.CommunityListFilter, bool) {
 		Sort: strings.TrimSpace(c.DefaultQuery("sort", "latest")), Category: strings.TrimSpace(c.Query("category")),
 		Keyword: strings.TrimSpace(c.Query("q")), Saved: c.Query("saved") == "true",
 		MineOnly: c.Query("mineOnly") == "true", FAQOnly: c.Query("faqOnly") == "true",
-		Status: strings.TrimSpace(c.Query("status")), Page: 1, PageSize: trainingqa.CommunityDefaultPageSize,
+		IncludeGrowth: c.Query("includeGrowth") == "true",
+		Status:        strings.TrimSpace(c.Query("status")), Page: 1, PageSize: trainingqa.CommunityDefaultPageSize,
 	}
 	for key, target := range map[string]*int{"page": &filter.Page, "pageSize": &filter.PageSize} {
 		if raw := strings.TrimSpace(c.Query(key)); raw != "" {
