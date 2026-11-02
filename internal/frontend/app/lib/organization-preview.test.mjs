@@ -45,26 +45,53 @@ test("all authenticated members can read the workbench directory, while the lega
   assert.doesNotMatch(handler, /Select\([^)]*(email|phone)/);
 });
 
-test("directory opens on the leader and category names;岗位 and member details expand on demand", () => {
+test("organization is an avatar tree with the leader above collapsible categories", () => {
   assert.match(component, /useState<Set<string>>\(\(\) => new Set\(\)\)/);
   assert.match(component, /setExpandedIDs\(new Set\(\)\)/);
   assert.match(component, /aria-expanded=\{expanded\}/);
-  assert.match(component, /expanded \? \([\s\S]*?category\.positions\.map/);
-  assert.match(component, /onSelectPosition\(position, category\)/);
+  assert.match(component, /expanded \? \([\s\S]*?organization-directory__members/);
   assert.match(component, /<section className="organization-directory__leader"/);
+  assert.match(component, /<LeaderNode position=\{data\.leader\} members=\{members\} \/>/);
+  assert.match(component, /addPosition\(data\.leader, null, null\)/);
+  assert.doesNotMatch(component, /核心管理层/);
   assert.match(component, /<section className="organization-directory__groups"/);
-  assert.doesNotMatch(component, /<svg|layoutOrganizationPreview|organization-preview__confirmed-link/);
-  assert.doesNotMatch(component, /setExpandedIDs\(new Set\(result\.categories\.map/);
+  assert.match(component, /for \(const position of category\.positions\) addPosition\(position, category\.id, category\.title\)/);
+  assert.match(component, /new Set\(category\.positions\.flatMap/);
+  assert.match(component, /members\.get\(userId\)/);
+  assert.doesNotMatch(component, /layoutOrganizationPreview|organization-preview__confirmed-link|setExpandedIDs\(new Set\(result\.categories\.map/);
 });
 
-test("assigned members link directly to their personal homepage; vacant posts do not invent a member", () => {
-  assert.match(component, /position\.userId === null \? "待确认" : "查看成员"/);
-  assert.match(component, /selectedPosition\.position\.userId === null \? "负责人待确认"/);
-  assert.match(component, /dashboard\/members\/\$\{selectedPosition\.position\.userId\}/);
-  assert.match(component, /dashboard\/members\/\$\{data\.leader\.userId\}/);
-  assert.match(component, /organizationPositionDuty\(selectedPosition\.position\.id, selectedPosition\.categoryId\)/);
+test("real member avatars link to profiles and show keyboard-accessible position context", () => {
+  assert.match(component, /to=\{`\/dashboard\/members\/\$\{member\.id\}`\}/);
+  assert.match(component, /aria-label=\{`查看 \$\{member\.name\} 的个人主页`\}/);
+  assert.match(component, /Array\.from\(member\.name\.trim\(\)\)\[0\] \?\? "吉"/);
+  assert.match(component, /member\.avatarUrl \? <img/);
+  assert.match(component, /organization-directory__member-tooltip" role="tooltip"/);
+  assert.match(component, /position\.title/);
+  assert.match(component, /position\.categoryTitle/);
+  assert.match(component, /organizationPositionDuty\(positions\[0\]\.id, positions\[0\]\.categoryId\)/);
+  assert.match(style, /\.organization-directory__member:hover \.organization-directory__member-tooltip/);
+  assert.match(style, /\.organization-directory__member:focus-within \.organization-directory__member-tooltip/);
+  assert.match(style, /@media \(max-width: 639px\)[\s\S]*?\.organization-directory__member-roles \{\s*display: grid/);
+  assert.match(style, /prefers-reduced-motion: reduce/);
   assert.match(style, /grid-template-columns: repeat\(auto-fit, minmax/);
-  assert.match(style, /@media \(max-width: 520px\)/);
+  assert.doesNotMatch(style, /transform:\s*scale\(/);
+});
+
+test("vacant roles stay compact and never render a placeholder member avatar", () => {
+  assert.match(component, /const vacancies = category\.positions\.filter\(\(position\) => position\.userId === null\)/);
+  assert.match(component, /organization-directory__vacancies/);
+  assert.match(component, /<small>待确认<\/small>/);
+  assert.match(component, /if \(position\.userId === null\) return/);
+  assert.match(style, /\.organization-directory__vacancies \{/);
+  assert.doesNotMatch(component, /selectedPosition|leader-card|member-detail/);
+});
+
+test("tree connects category branches without claiming that roles report to the leader", () => {
+  assert.match(style, /\.organization-directory__category-content\.has-members::before/);
+  assert.match(style, /\.organization-directory__members::before/);
+  assert.match(style, /\.organization-directory__member::before/);
+  assert.doesNotMatch(style, /organization-directory__leader::after/);
   assert.match(authService, /OrganizationPositions:\s*organization\.MemberPositions\(user\.ID\)/);
   assert.match(profile, /战队职务/);
   assert.match(profile, /user\.organizationPositions\?\.length/);
