@@ -183,6 +183,9 @@ func migrationRegistry(appEnv string) []migration {
 			)
 		}},
 		{version: 43, apply: migrateCommunityAvatarExperienceBackfill},
+		{version: 44, apply: func(db *gorm.DB) error {
+			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.EmailCode{}, &model.User{})
+		}},
 	}
 }
 

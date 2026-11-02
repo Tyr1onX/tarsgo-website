@@ -26,6 +26,7 @@ type User struct {
 	Name               string            `json:"-" gorm:"column:name;size:100;not null;default:''"`
 	Email              string            `json:"email" gorm:"size:255;not null;uniqueIndex:uk_email"`
 	PasswordHash       *string           `json:"passwordHash,omitempty" gorm:"column:password_hash;size:255;default:null"`
+	PasswordResetAt    *time.Time        `json:"-" gorm:"column:password_reset_at;type:datetime;default:null"`
 	GitHubID           *string           `json:"githubId,omitempty" gorm:"column:github_id;size:100;uniqueIndex:uk_github_id"`
 	GitHubUsername     *string           `json:"githubUsername,omitempty" gorm:"column:github_username;size:100;default:null"`
 	AvatarURL          *string           `json:"avatarUrl,omitempty" gorm:"column:avatar_url;size:500;default:null"`

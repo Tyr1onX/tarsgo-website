@@ -17,10 +17,10 @@ import (
 
 func TestMigrationRegistryIsOrderedAndKeepsBaseVersion(t *testing.T) {
 	items := migrationRegistry("test")
-	if len(items) != 43 {
-		t.Fatalf("expected 43 registered migrations, got %d", len(items))
+	if len(items) != 44 {
+		t.Fatalf("expected 44 registered migrations, got %d", len(items))
 	}
-	wantVersions := []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43}
+	wantVersions := []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44}
 	for index, want := range wantVersions {
 		if items[index].version != want {
 			t.Fatalf("migration %d has version %d, want %d", index, items[index].version, want)
@@ -142,6 +142,19 @@ func TestMigration43BackfillsExistingCustomAvatars(t *testing.T) {
 	items := migrationRegistry("test")
 	if len(items) < 43 || items[42].version != 43 || items[42].apply == nil {
 		t.Fatal("community avatar reward migration 43 is missing")
+	}
+}
+
+func TestMigration44AddsEmailPasswordResetState(t *testing.T) {
+	items := migrationRegistry("test")
+	if len(items) < 44 || items[43].version != 44 || items[43].apply == nil {
+		t.Fatal("email password reset migration 44 is missing")
+	}
+	if _, ok := reflect.TypeOf(model.User{}).FieldByName("PasswordResetAt"); !ok {
+		t.Fatal("password reset migration must persist the legacy JWT invalidation timestamp")
+	}
+	if _, ok := reflect.TypeOf(model.EmailCode{}).FieldByName("FailedAttempts"); !ok {
+		t.Fatal("password reset migration must persist verification attempt limits")
 	}
 }
 

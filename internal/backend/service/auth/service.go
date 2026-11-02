@@ -2,8 +2,10 @@ package auth
 
 import (
 	"context"
+	"crypto/subtle"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/mail"
 	"strconv"
@@ -24,8 +26,9 @@ import (
 )
 
 const (
-	codeTTL      = 10 * time.Minute
-	codeCooldown = 60 * time.Second
+	codeTTL                  = 10 * time.Minute
+	codeCooldown             = 60 * time.Second
+	passwordResetMaxAttempts = 5
 )
 
 type Service struct {
@@ -409,6 +412,103 @@ func (s *Service) SendLoginCode(ctx context.Context, email string) error {
 	return s.sendCode(ctx, email, model.EmailCodePurposeLogin, "TARS-GO 登录验证码", "你的登录验证码为：%s，10 分钟内有效。")
 }
 
+// SendPasswordResetCode does not reveal if the email belongs to an active account.
+// Existing email-code storage enforces 10-minute expiry and 60-second resends.
+func (s *Service) SendPasswordResetCode(ctx context.Context, address string) error {
+	if err := s.ensureBootstrapCompleted(ctx); err != nil {
+		return err
+	}
+	address = NormalizeEmail(address)
+	if !isValidEmail(address) {
+		return &ServiceError{Status: http.StatusBadRequest, Message: "邮箱格式不合法"}
+	}
+	user, err := s.findUserByEmail(ctx, address)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return nil
+	}
+	if err != nil {
+		return &ServiceError{Status: http.StatusInternalServerError, Message: "无法处理重置请求", Err: err}
+	}
+	if user.Status != model.UserStatusEnabled {
+		return nil
+	}
+	if err := s.sendCode(ctx, address, model.EmailCodePurposePasswordReset,
+		"TARS-GO 重置密码验证码", "你的密码重置验证码为：%s，10 分钟内有效。如果不是你本人操作，请忽略此邮件。"); err != nil {
+		// Mail-provider errors and cooldowns must not disclose account existence.
+		log.Printf("password reset email request could not be delivered")
+	}
+	return nil
+}
+
+// ResetPassword consumes one code, limits guesses and invalidates browser sessions
+// in a single transaction. The caller remains logged out after a successful reset.
+func (s *Service) ResetPassword(ctx context.Context, address, code, newPassword string) error {
+	if err := s.ensureBootstrapCompleted(ctx); err != nil {
+		return err
+	}
+	address, code = NormalizeEmail(address), strings.TrimSpace(code)
+	if !isValidEmail(address) || len(code) != 6 || len(newPassword) < 8 || len(newPassword) > 72 {
+		return &ServiceError{Status: http.StatusBadRequest, Message: "邮箱、验证码或密码格式不合法"}
+	}
+	for _, digit := range code {
+		if digit < '0' || digit > '9' {
+			return &ServiceError{Status: http.StatusBadRequest, Message: "验证码格式不合法"}
+		}
+	}
+	invalid := false
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var record model.EmailCode
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("email = ? AND purpose = ?", address, model.EmailCodePurposePasswordReset).First(&record).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				invalid = true
+				return nil
+			}
+			return err
+		}
+		now := s.now().UTC()
+		if record.ConsumedAt != nil || !now.Before(record.ExpiresAt) || record.FailedAttempts >= passwordResetMaxAttempts {
+			invalid = true
+			return nil
+		}
+		expected := HashVerificationCode(address, model.EmailCodePurposePasswordReset, code)
+		if subtle.ConstantTimeCompare([]byte(record.CodeHash), []byte(expected)) != 1 {
+			invalid = true
+			// Commit the failed-attempt counter even when the request fails.
+			return tx.Model(&record).Update("failed_attempts", record.FailedAttempts+1).Error
+		}
+		var user model.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("email = ? AND status = ?", address, model.UserStatusEnabled).First(&user).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				invalid = true
+				return nil
+			}
+			return err
+		}
+		hash, err := HashPassword(newPassword)
+		if err != nil {
+			return err
+		}
+		if err := tx.Model(&record).Update("consumed_at", now).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&user).Updates(map[string]any{"password_hash": hash, "password_reset_at": now}).Error; err != nil {
+			return err
+		}
+		if err := tx.Model(&model.AuthSession{}).Where("user_id = ? AND revoked_at IS NULL", user.ID).Update("revoked_at", now).Error; err != nil {
+			return err
+		}
+		return tx.Where("user_id = ?", user.ID).Delete(&model.AccountVaultEntry{}).Error
+	})
+	if err != nil {
+		return &ServiceError{Status: http.StatusInternalServerError, Message: "重置密码失败", Err: err}
+	}
+	if invalid {
+		return &ServiceError{Status: http.StatusBadRequest, Message: "验证码错误、已过期或尝试次数过多"}
+	}
+	return nil
+}
+
 func (s *Service) LoginWithCode(ctx context.Context, email string, code string) (*AuthResult, error) {
 	if err := s.ensureBootstrapCompleted(ctx); err != nil {
 		return nil, err
@@ -459,6 +559,7 @@ func (s *Service) CurrentUser(ctx context.Context, token string) (*SessionUser, 
 	}
 
 	userID := uint64(0)
+	legacyIssuedAt := int64(-1)
 	session, found, sessionErr := s.findAuthSession(ctx, token)
 	if sessionErr != nil {
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "读取登录会话失败", Err: sessionErr}
@@ -475,6 +576,7 @@ func (s *Service) CurrentUser(ctx context.Context, token string) (*SessionUser, 
 		if err != nil {
 			return nil, &ServiceError{Status: http.StatusUnauthorized, Message: "登录态已失效", Err: err}
 		}
+		legacyIssuedAt = claims.IssuedAt
 		userID, err = strconv.ParseUint(claims.Subject, 10, 64)
 		if err != nil {
 			return nil, &ServiceError{Status: http.StatusUnauthorized, Message: "登录态无效", Err: err}
@@ -490,6 +592,9 @@ func (s *Service) CurrentUser(ctx context.Context, token string) (*SessionUser, 
 	}
 	if err := ensureUserEnabled(user); err != nil {
 		return nil, err
+	}
+	if legacyIssuedAt >= 0 && user.PasswordResetAt != nil && legacyIssuedAt <= user.PasswordResetAt.Unix() {
+		return nil, &ServiceError{Status: http.StatusUnauthorized, Message: "登录态已失效，请重新登录"}
 	}
 	if err := validateIdentityConsistency(user); err != nil {
 		return nil, err
@@ -528,10 +633,11 @@ func (s *Service) sendCode(ctx context.Context, email string, purpose string, su
 
 	if hasPrevious {
 		if err := s.db.WithContext(ctx).Model(&model.EmailCode{}).Where("id = ?", previous.ID).Updates(map[string]any{
-			"code_hash":    record.CodeHash,
-			"expires_at":   record.ExpiresAt,
-			"last_sent_at": record.LastSentAt,
-			"consumed_at":  nil,
+			"code_hash":       record.CodeHash,
+			"expires_at":      record.ExpiresAt,
+			"last_sent_at":    record.LastSentAt,
+			"consumed_at":     nil,
+			"failed_attempts": 0,
 		}).Error; err != nil {
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "保存验证码失败", Err: err}
 		}
@@ -645,10 +751,11 @@ func (s *Service) getCodeRecord(ctx context.Context, email string, purpose strin
 func (s *Service) restoreCodeRecord(ctx context.Context, previous model.EmailCode, hasPrevious bool, createdID uint64) error {
 	if hasPrevious {
 		return s.db.WithContext(ctx).Model(&model.EmailCode{}).Where("id = ?", previous.ID).Updates(map[string]any{
-			"code_hash":    previous.CodeHash,
-			"expires_at":   previous.ExpiresAt,
-			"last_sent_at": previous.LastSentAt,
-			"consumed_at":  previous.ConsumedAt,
+			"code_hash":       previous.CodeHash,
+			"expires_at":      previous.ExpiresAt,
+			"last_sent_at":    previous.LastSentAt,
+			"consumed_at":     previous.ConsumedAt,
+			"failed_attempts": previous.FailedAttempts,
 		}).Error
 	}
 
