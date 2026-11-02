@@ -17,6 +17,7 @@ import {
 import { assignmentMaterialAccept, formatAssignmentMaterialSize, validateAssignmentMaterialSelection } from "~/lib/assignment-materials";
 import { filterAssignmentMembers, toggleAssignmentMemberSelection } from "~/lib/assignment-member-selection";
 import { useAssignmentGroups } from "~/lib/use-assignment-groups";
+import "./assignment-management.css";
 
 export function meta() {
   return [{ title: "作业管理 | TARSGO" }];
@@ -65,6 +66,7 @@ export default function AssignmentManagementRoute() {
   const [quickDeadline, setQuickDeadline] = useState<AssignmentDeadlineShortcut | null>("seven-days");
   const [memberSearch, setMemberSearch] = useState("");
   const [editing, setEditing] = useState<Assignment | null>(null);
+  const [composerOpen, setComposerOpen] = useState(false);
   const [existingMaterials, setExistingMaterials] = useState<AssignmentMaterialFile[]>([]);
   const [pendingMaterials, setPendingMaterials] = useState<File[]>([]);
   const [loading, setLoading] = useState(false);
@@ -111,6 +113,7 @@ export default function AssignmentManagementRoute() {
   function resetDraft(nextGroupID = groupId) {
     editRequestID.current += 1;
     setEditing(null);
+    setComposerOpen(false);
     setDraft(emptyDraft(nextGroupID));
     setQuickDeadline("seven-days");
     setMemberSearch("");
@@ -128,6 +131,7 @@ export default function AssignmentManagementRoute() {
   function editAssignment(item: Assignment) {
     const activeRequest = ++editRequestID.current;
     setEditing(item);
+    setComposerOpen(true);
     setDraft(asDraft(item));
     setQuickDeadline(null);
     setExistingMaterials([]);
@@ -292,30 +296,33 @@ export default function AssignmentManagementRoute() {
   }
 
   return (
-    <section className="admin-design space-y-5" aria-labelledby="assignment-management-title">
-      <header className="admin-page-header flex flex-wrap items-center justify-between gap-3">
+    <section className="admin-design assignment-management space-y-5" aria-labelledby="assignment-management-title">
+      <header className="admin-page-header assignment-management__header flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2"><h1 id="assignment-management-title" className="admin-page-title">作业管理</h1><WorkbenchFeatureStatus feature="assignments" /></div>
-        {groupsLoading ? <p role="status" className="text-sm text-[var(--admin-muted)]">正在加载组别…</p> : assignmentGroups.length > 1 ? <label className="admin-field-label">组别<select className="admin-field w-full" value={groupId} disabled={saving || publishStage !== "idle"} onChange={(event) => { const nextGroupID = Number(event.target.value); setGroupId(nextGroupID); resetDraft(nextGroupID); }}>
+        <div className="assignment-management__header-actions">
+        {groupsLoading ? <p role="status" className="text-sm text-[var(--admin-muted)]">正在加载组别…</p> : assignmentGroups.length > 1 ? <label className="admin-field-label assignment-management__group-select">组别<select className="admin-field w-full" value={groupId} disabled={saving || publishStage !== "idle"} onChange={(event) => { const nextGroupID = Number(event.target.value); setGroupId(nextGroupID); resetDraft(nextGroupID); setComposerOpen(true); }}>
           {assignmentGroups.map((group) => <option key={group.groupId} value={group.groupId}>{group.name}</option>)}
         </select></label> : assignmentGroups[0] ? <p className="text-sm text-[var(--admin-muted)]">{assignmentGroups[0].name}</p> : null}
+        {!composerOpen ? <button type="button" className="admin-button admin-button--primary" onClick={() => { resetDraft(); setComposerOpen(true); }} disabled={!groupId || Boolean(groupError)}>发布作业</button> : null}
+        </div>
       </header>
       {groupError ? <div role="alert" className="admin-notice admin-notice--error">{groupError}</div> : null}
       {error ? <div role="alert" className="admin-notice admin-notice--error">{error}</div> : null}
       {notice ? <div role="status" className="admin-notice admin-notice--success">{notice}</div> : null}
 
-      <section className="admin-panel space-y-4 p-4 sm:p-5" aria-labelledby="assignment-editor-title">
-        <div className="admin-section-heading"><h2 id="assignment-editor-title">{editing ? "编辑作业" : "发布作业"}</h2>{editing ? <button type="button" className="admin-button admin-button--quiet" onClick={() => resetDraft()}>取消编辑</button> : null}</div>
-        <form onSubmit={save} className="grid gap-3 md:grid-cols-2">
-          <label className="admin-field-label">标题<input className={fieldClass} required maxLength={120} disabled={saving || publishStage !== "idle"} value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label>
-          <div className="space-y-2">
+      {composerOpen ? <section className="admin-panel assignment-editor" aria-labelledby="assignment-editor-title">
+        <div className="admin-section-heading"><h2 id="assignment-editor-title">{editing ? "编辑作业" : "发布作业"}</h2><button type="button" className="admin-button admin-button--quiet admin-button--small" onClick={() => resetDraft()} disabled={saving}>取消</button></div>
+        <form onSubmit={save} className="assignment-editor__form">
+          <label className="admin-field-label assignment-editor__title">标题<input className={fieldClass} required maxLength={120} disabled={saving || publishStage !== "idle"} value={draft.title} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label>
+          <div className="assignment-editor__deadline">
             <label className="admin-field-label">截止时间（北京时间）<input className={fieldClass} type="datetime-local" required disabled={saving || publishStage !== "idle"} value={draft.dueAt} onInput={(event) => updateDeadline(event.currentTarget.value)} onChange={(event) => updateDeadline(event.currentTarget.value)} /></label>
-            <div className="flex flex-wrap gap-2" aria-label="快捷截止时间">
-              {assignmentDeadlineShortcuts.map((shortcut) => <button key={shortcut.id} type="button" disabled={saving || publishStage !== "idle"} className={`admin-button ${quickDeadline === shortcut.id ? "admin-button--secondary" : "admin-button--quiet"}`} aria-pressed={quickDeadline === shortcut.id} onClick={() => { setDraft((current) => ({ ...current, dueAt: assignmentDeadlineForShortcut(new Date(), shortcut.days) })); setQuickDeadline(shortcut.id); }}>{shortcut.label}</button>)}
+            <div className="assignment-deadline-shortcuts" aria-label="快捷截止时间">
+              {assignmentDeadlineShortcuts.map((shortcut) => <button key={shortcut.id} type="button" disabled={saving || publishStage !== "idle"} className={`admin-button admin-button--small ${quickDeadline === shortcut.id ? "admin-button--secondary" : "admin-button--quiet"}`} aria-pressed={quickDeadline === shortcut.id} onClick={() => { setDraft((current) => ({ ...current, dueAt: assignmentDeadlineForShortcut(new Date(), shortcut.days) })); setQuickDeadline(shortcut.id); }}>{shortcut.label}</button>)}
             </div>
           </div>
-          <label className="admin-field-label md:col-span-2">作业说明<textarea className={fieldClass} required rows={4} maxLength={10000} disabled={saving || publishStage !== "idle"} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
-          <label className="admin-field-label md:col-span-2">附件要求<input className={fieldClass} maxLength={2000} disabled={saving || publishStage !== "idle"} value={draft.attachmentRequirements} onChange={(event) => setDraft({ ...draft, attachmentRequirements: event.target.value })} /></label>
-          <section className="space-y-3 md:col-span-2" aria-labelledby="assignment-materials-title">
+          <label className="admin-field-label assignment-editor__description">作业说明<textarea className={fieldClass} required rows={4} maxLength={10000} disabled={saving || publishStage !== "idle"} value={draft.description} onChange={(event) => setDraft({ ...draft, description: event.target.value })} /></label>
+          <label className="admin-field-label assignment-editor__requirements">附件要求<input className={fieldClass} maxLength={2000} disabled={saving || publishStage !== "idle"} value={draft.attachmentRequirements} onChange={(event) => setDraft({ ...draft, attachmentRequirements: event.target.value })} /></label>
+          <section className="assignment-editor__materials" aria-labelledby="assignment-materials-title">
             <h3 id="assignment-materials-title" className="text-sm font-semibold text-[var(--admin-text)]">教学资料附件</h3>
             <FileUploadField
               label="教学资料附件"
@@ -342,7 +349,7 @@ export default function AssignmentManagementRoute() {
             </ul> : null}
             {editing?.submittedCount ? <p className="text-xs text-[var(--admin-muted)]">已有成员提交，教学资料已锁定。</p> : null}
           </section>
-          <fieldset className="space-y-2 md:col-span-2">
+          <fieldset className="assignment-editor__recipients">
             <legend className="admin-field-label">作业对象</legend>
             {editing ? <p className="text-xs text-[var(--admin-muted)]">接收范围在发布时确定，编辑不会改动历史接收名单；需要调整时请另建作业。</p> : null}
             <div className="flex flex-wrap gap-4 text-sm">
@@ -365,17 +372,17 @@ export default function AssignmentManagementRoute() {
               </div>
             </div> : null}
           </fieldset>
-          <div className="flex flex-wrap gap-2 md:col-span-2"><button type="submit" className="admin-button admin-button--primary" disabled={saving || loadingEdit || !groupId || (!draft.isGroupWide && draft.targetUserIds.length === 0)}>{saving ? publishStage === "saving" ? "保存作业信息中…" : uploadProgress === null ? "正在上传教学资料…" : `正在上传教学资料 ${uploadProgress}%` : editing ? "保存修改" : publishStage === "failed" ? "重试发布" : "发布作业"}</button>{saving && publishStage === "uploading" ? <button type="button" className="admin-button admin-button--quiet" onClick={() => activePublishCancel.current?.()}>停止上传</button> : null}{publishStage === "failed" && publishCanCancel ? <button type="button" className="admin-button admin-button--quiet" onClick={() => { setError(""); resetDraft(); }}>取消发布</button> : null}</div>
+          <div className="assignment-editor__actions"><button type="submit" className="admin-button admin-button--primary" disabled={saving || loadingEdit || !groupId || (!draft.isGroupWide && draft.targetUserIds.length === 0)}>{saving ? publishStage === "saving" ? "保存作业信息中…" : uploadProgress === null ? "正在上传教学资料…" : `正在上传教学资料 ${uploadProgress}%` : editing ? "保存修改" : publishStage === "failed" ? "重试发布" : "发布作业"}</button>{saving && publishStage === "uploading" ? <button type="button" className="admin-button admin-button--quiet" onClick={() => activePublishCancel.current?.()}>停止上传</button> : null}{publishStage === "failed" && publishCanCancel ? <button type="button" className="admin-button admin-button--quiet" onClick={() => { setError(""); resetDraft(); }}>取消发布</button> : null}</div>
         </form>
-      </section>
+      </section> : null}
 
-      <section className="admin-panel p-4 sm:p-5" aria-labelledby="assignment-list-title">
+      <section className="admin-panel assignment-list" aria-labelledby="assignment-list-title">
         <div className="admin-section-heading"><h2 id="assignment-list-title">本组作业</h2></div>
         {loading ? <p role="status" className="py-4 text-sm text-[var(--admin-muted)]">正在加载…</p> : null}
         {!loading && !error && !groupError && items.length === 0 ? <p className="py-4 text-sm text-[var(--admin-muted)]">本组尚未发布作业。</p> : null}
-        <div className="divide-y divide-[var(--admin-border-subtle)]">{items.map((item) => <article key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-          <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><h3 className="truncate text-sm font-medium text-[var(--admin-text)]">{item.title}</h3><span className={`rounded-full border px-2 py-0.5 text-xs ${item.publicationStatus === "withdrawn" ? "border-[var(--admin-border)] text-[var(--admin-muted)]" : "border-[var(--admin-success-border)] text-[var(--admin-success)]"}`}>{assignmentPublicationStatusLabel(item.publicationStatus)}</span></div><p className="mt-1 text-xs text-[var(--admin-muted)]">截止 {formatAssignmentDate(item.dueAt)} · {item.isGroupWide ? "全组普通成员" : `${item.targetCount} 人`} · 已提交 {item.submittedCount}/{item.targetCount} · 已通过 {item.passedCount}</p></div>
-          <div className="flex flex-wrap gap-2"><a href={`/dashboard/admin/training/submissions?assignmentId=${item.id}`} className="admin-button admin-button--secondary">提交记录</a><button type="button" className="admin-button admin-button--quiet" disabled={saving || item.submittedCount > 0} onClick={() => editAssignment(item)}>{item.submittedCount > 0 ? "已有提交" : "编辑"}</button>{item.publicationStatus === "withdrawn" ? <button type="button" className="admin-button admin-button--quiet" disabled={saving} onClick={() => void changePublicationStatus(item, "published")}>重新发布</button> : <button type="button" className="admin-button admin-button--quiet" disabled={saving} onClick={() => void changePublicationStatus(item, "withdrawn")}>撤回</button>}{item.canDelete ? <button type="button" className="admin-button admin-button--quiet text-[var(--admin-danger)]" disabled={saving} onClick={() => void deleteAssignment(item)}>删除</button> : item.publicationStatus === "withdrawn" ? <span className="self-center text-xs text-[var(--admin-muted)]">历史或技能关联已保留</span> : null}</div>
+        <div className="assignment-list__items">{items.map((item) => <article key={item.id} className="assignment-list__item">
+          <div className="assignment-list__summary"><div className="assignment-list__title"><h3>{item.title}</h3><span className={`rounded-full border px-2 py-0.5 text-xs ${item.publicationStatus === "withdrawn" ? "border-[var(--admin-border)] text-[var(--admin-muted)]" : "border-[var(--admin-success-border)] text-[var(--admin-success)]"}`}>{assignmentPublicationStatusLabel(item.publicationStatus)}</span></div><p>截止 {formatAssignmentDate(item.dueAt)} · {item.isGroupWide ? "全组普通成员" : `${item.targetCount} 人`} · 已提交 {item.submittedCount}/{item.targetCount} · 已通过 {item.passedCount}</p></div>
+          <div className="assignment-list__actions"><a href={`/dashboard/admin/training/submissions?assignmentId=${item.id}`} className="admin-button admin-button--secondary admin-button--small">提交记录</a><button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={saving || item.submittedCount > 0} onClick={() => editAssignment(item)}>{item.submittedCount > 0 ? "已有提交" : "编辑"}</button>{item.publicationStatus === "withdrawn" ? <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={saving} onClick={() => void changePublicationStatus(item, "published")}>重新发布</button> : <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={saving} onClick={() => void changePublicationStatus(item, "withdrawn")}>撤回</button>}{item.canDelete ? <button type="button" className="admin-button admin-button--quiet admin-button--small text-[var(--admin-danger)]" disabled={saving} onClick={() => void deleteAssignment(item)}>删除</button> : item.publicationStatus === "withdrawn" ? <span className="assignment-list__retained">历史或技能关联已保留</span> : null}</div>
         </article>)}</div>
       </section>
     </section>

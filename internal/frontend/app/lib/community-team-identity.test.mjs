@@ -48,7 +48,7 @@ test("identity is an audited source independent of account roles and organizatio
 });
 
 test("account management keeps system permission separate and requires evidence plus reason", () => {
-  assert.match(adminPage, /<th>成员身份<\/th>/);
+  assert.match(adminPage, /<th>身份与权限<\/th>/);
   assert.match(adminPage, /独立于系统权限、所属组别、组织头衔、社区等级和勋章/);
   assert.match(adminPage, /年级、招新结果或作业完成情况不会自动认定队员身份/);
   assert.match(adminPage, /reason: teamIdentityReason\.trim\(\)/);

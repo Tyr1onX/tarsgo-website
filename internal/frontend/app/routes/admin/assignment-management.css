@@ -1,0 +1,219 @@
+.assignment-management__header {
+  margin-bottom: 0;
+}
+
+.assignment-management__header .admin-page-title {
+  margin-top: 0;
+}
+
+.assignment-management__header-actions {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.assignment-management__group-select {
+  min-width: 10rem;
+  margin: 0;
+}
+
+.assignment-editor {
+  padding: 1.1rem 1.25rem 1.25rem;
+}
+
+.assignment-editor .admin-section-heading {
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--admin-border-subtle);
+  padding-bottom: 0.7rem;
+}
+
+.assignment-editor__form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(18rem, 0.82fr);
+  align-items: start;
+  gap: 1rem 1.25rem;
+}
+
+.assignment-editor__form > :is(.assignment-editor__description, .assignment-editor__requirements, .assignment-editor__materials, .assignment-editor__recipients, .assignment-editor__actions) {
+  grid-column: 1 / -1;
+  min-width: 0;
+}
+
+.assignment-editor__deadline {
+  display: grid;
+  gap: 0.55rem;
+}
+
+.assignment-deadline-shortcuts {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.assignment-deadline-shortcuts .admin-button {
+  min-width: 0;
+  white-space: nowrap;
+}
+
+.assignment-editor__description textarea {
+  min-height: 7.5rem;
+  resize: vertical;
+}
+
+.assignment-editor__materials {
+  display: grid;
+  gap: 0.6rem;
+  border-top: 1px solid var(--admin-border-subtle);
+  padding-top: 0.9rem;
+}
+
+.assignment-editor__materials h3 {
+  margin: 0;
+}
+
+.assignment-editor__recipients {
+  display: grid;
+  gap: 0.65rem;
+  border: 0;
+  border-top: 1px solid var(--admin-border-subtle);
+  margin: 0;
+  padding: 0.9rem 0 0;
+}
+
+.assignment-editor__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  border-top: 1px solid var(--admin-border-subtle);
+  padding-top: 0.9rem;
+}
+
+.assignment-list {
+  overflow: hidden;
+  padding: 0 1.25rem 0.25rem;
+}
+
+.assignment-list .admin-section-heading {
+  margin: 0;
+  padding: 1rem 0 0.45rem;
+}
+
+.assignment-list__item {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-top: 1px solid var(--admin-border-subtle);
+  padding: 0.9rem 0;
+}
+
+.assignment-list__summary {
+  min-width: 0;
+}
+
+.assignment-list__title {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.assignment-list__title h3 {
+  min-width: 0;
+  margin: 0;
+  color: var(--admin-text);
+  font-size: 0.875rem;
+  font-weight: 560;
+  overflow-wrap: anywhere;
+}
+
+.assignment-list__title > span {
+  flex: none;
+  white-space: nowrap;
+}
+
+.assignment-list__summary p {
+  margin: 0.3rem 0 0;
+  color: var(--admin-muted);
+  font-size: 0.73rem;
+  line-height: 1.45;
+}
+
+.assignment-list__actions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.2rem;
+}
+
+.assignment-list__actions .admin-button {
+  white-space: nowrap;
+}
+
+.assignment-list__retained {
+  max-width: 10rem;
+  color: var(--admin-muted);
+  font-size: 0.68rem;
+  line-height: 1.3;
+}
+
+@media (max-width: 900px) {
+  .assignment-deadline-shortcuts {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .assignment-list__item {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.65rem;
+  }
+
+  .assignment-list__actions {
+    width: 100%;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(6.25rem, 1fr));
+    gap: 0.35rem;
+  }
+
+  .assignment-list__actions .admin-button {
+    width: 100%;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 639px) {
+  .assignment-management__header {
+    align-items: flex-start;
+  }
+
+  .assignment-management__header-actions {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .assignment-editor {
+    padding: 0.9rem;
+  }
+
+  .assignment-editor__form {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.9rem;
+  }
+
+  .assignment-editor__form > :is(.assignment-editor__title, .assignment-editor__deadline, .assignment-editor__description, .assignment-editor__requirements, .assignment-editor__materials, .assignment-editor__recipients, .assignment-editor__actions) {
+    grid-column: 1;
+  }
+
+  .assignment-list {
+    padding-inline: 0.9rem;
+  }
+
+  .assignment-list__actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

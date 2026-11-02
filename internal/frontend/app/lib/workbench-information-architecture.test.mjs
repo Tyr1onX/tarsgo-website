@@ -16,8 +16,10 @@ test("the personal landing route is a status-first overview backed by existing u
   assert.match(personalWorkbench, /assignmentClient\.listMine\(\)/);
   assert.match(personalWorkbench, /leaveClient\.leaveAccess\(\)/);
   assert.match(personalWorkbench, /hasAssignmentGroupAccess\(groupResolution\?\.groups\)/);
-  assert.match(personalWorkbench, /"已提交" : "待填写"/);
-  assert.match(personalWorkbench, /填写周报/);
+  assert.match(personalWorkbench, /本周已提交/);
+  assert.match(personalWorkbench, /本周待填写/);
+  assert.match(personalWorkbench, /填写本周工作周报/);
+  assert.match(personalWorkbench, /待处理/);
   assert.match(personalWorkbench, /我的作业/);
   assert.match(personalWorkbench, /请假事务/);
   assert.doesNotMatch(personalWorkbench, /<form|<textarea/);

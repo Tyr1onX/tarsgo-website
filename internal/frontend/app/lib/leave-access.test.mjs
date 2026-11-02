@@ -47,6 +47,7 @@ test("leave application account link opens the existing account detail by exact 
   assert.match(accountsRoute, /const requestedUserId = searchParams\.get\("userId"\)/);
   assert.match(accountsRoute, /getAdminUser\(userId\)/);
   assert.match(accountsRoute, /void openAccount\(Number\(requestedUserId\)\)/);
-  assert.match(accountsRoute, /账号 ID：\{editing\.id\} · 最近登录：\{formatDate\(editing\.lastLoginAt\)\}/);
+  assert.match(accountsRoute, /账号 ID <strong>\{editing\.id\}<\/strong>/);
+  assert.match(accountsRoute, /最近登录 <strong>\{formatDate\(editing\.lastLoginAt\)\}<\/strong>/);
   assert.doesNotMatch(accountsRoute, /getAdminUser\([^)]*(?:name|email|keyword)/);
 });

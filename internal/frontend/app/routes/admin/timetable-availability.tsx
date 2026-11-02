@@ -8,6 +8,7 @@ import {
   type AvailabilityOptions, type AvailabilityWeek, type AvailabilityStatus, type AvailabilityHeatLevel,
 } from "~/lib/availability-client";
 import { resolveCurrentTeachingWeek } from "~/lib/academic-term-calendar";
+import "./time-coordination.css";
 
 export function meta() { return [{ title: "时间协调 | TARSGO" }]; }
 
@@ -73,12 +74,10 @@ export default function TimeCoordinationPage() {
       ? `当前日期早于本学期首周（${calendarWeek.firstWeekStart}），暂按第 ${week || 1} 周查看。`
       : calendarWeek?.status === "after"
         ? `当前学期已结束（${calendarWeek.lastWeekEnd}），暂按第 ${week || calendarWeek.teachingWeekCount} 周查看。`
-        : calendarWeek?.week
-          ? week === calendarWeek.week
-            ? `已按北京时间自动定位到第 ${calendarWeek.week} 周。`
-            : `当前日期对应第 ${calendarWeek.week} 周，当前查看第 ${week} 周。`
+        : calendarWeek?.week && week !== calendarWeek.week
+          ? `当前日期对应第 ${calendarWeek.week} 周，当前查看第 ${week} 周。`
           : "";
-  const weekNoticeTone = calendarWeek?.status === "current" ? "bg-[var(--admin-neutral-surface)]" : "bg-[var(--admin-warning-surface)]";
+  const weekNoticeTone = calendarWeek?.status === "current" ? "is-neutral" : "is-warning";
 
   useEffect(() => {
     if (!selectedSlot) return;
@@ -188,65 +187,37 @@ export default function TimeCoordinationPage() {
     }
   }
 
-  return <main className="admin-design mx-auto w-full max-w-7xl space-y-5 px-4 py-6 sm:px-6">
-    <header className="flex flex-wrap items-start justify-between gap-3">
-      <div>
-        <h1 className="text-2xl font-semibold">时间协调</h1>
-        <p className="mt-2 text-sm text-[var(--admin-muted)]">当前学期：{options?.currentSemester ?? "读取中"}</p>
-        <p className="mt-1 text-sm text-[var(--admin-muted)]">无课程冲突仅表示课表中未发现时间重叠，不代表成员已确认可以参加。</p>
-      </div>
-      {isSuperAdmin ? <button type="button" className="btn-glass rounded-lg px-4 py-2 text-sm" disabled={clearLoading} onClick={() => void openClearConfirmation()}>
-        {clearLoading && clearPreview === null ? "读取课表数量…" : "清空课表"}
-      </button> : null}
+  return <main className="admin-design time-coordination-page">
+    <header className="time-coordination__header">
+      <h1 className="admin-page-title">时间协调</h1>
+      {options?.currentSemester ? <span>{options.currentSemester}</span> : null}
     </header>
-    {clearError ? <p role="alert" className="admin-notice admin-notice--error">{clearError}</p> : null}
-    {clearNotice ? <p role="status" className="admin-notice admin-notice--success">{clearNotice}</p> : null}
     {loading ? <p role="status">正在读取组别…</p> : null}
     {error ? <p role="alert" className="admin-notice admin-notice--error">{error}</p> : null}
     {options && options.groups.length === 0 ? <p className="p-4">没有可统计的组别。</p> : null}
     {options ? <>
-      <section aria-label="时间筛选" className="grid gap-3 rounded-xl border border-[var(--admin-border-subtle)] bg-[var(--admin-surface)] p-4 sm:grid-cols-2 lg:grid-cols-3">
-        <label className="text-sm font-medium">组别
-          <select aria-label="组别" className="admin-field mt-2 w-full" value={groupId} onChange={e => {
-            const id = Number(e.target.value);
-            setGroupId(id); setMemberId(0);
-          }}><option value={0}>全部成员</option>{options.groups.map(g => <option key={g.groupId} value={g.groupId}>{g.name}</option>)}</select>
-        </label>
-        <label className="text-sm font-medium">教学周
-          <select aria-label="教学周" className="admin-field mt-2 w-full" value={week} onChange={e => setWeek(Number(e.target.value))}>
-            {week === 0 ? <option value={0}>请选择教学周</option> : null}
-            {Array.from({ length: options.teachingWeekCount }, (_, i) => <option key={i + 1} value={i + 1}>第 {i + 1} 周</option>)}
-          </select>
-        </label>
-        <label className="text-sm font-medium">查看对象
-          <select aria-label="查看对象" className="admin-field mt-2 w-full" value={memberId} onChange={e => setMemberId(Number(e.target.value))}>
-            <option value={0}>全组</option>
-            {result?.members.map(person => <option key={person.userId} value={person.userId}>{person.name}</option>)}
-          </select>
-        </label>
-      </section>
       {querying ? <p role="status">正在分析整周时间…</p> : null}
       {result && !querying ? <>
-        <section className="availability-heatmap rounded-2xl border border-[var(--admin-border-subtle)] bg-[var(--admin-surface)] p-4 sm:p-5">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-semibold">{result.groupId === 0 ? "全部成员" : result.groupName} · 第 {result.week} 周{member ? ` · ${member.name}` : ""}</h2>
-          </div>
-          <div className="mb-3 grid grid-cols-3 gap-2" aria-label="成员课表概况">
+        <section className="availability-heatmap border border-[var(--admin-border-subtle)] bg-[var(--admin-surface)]">
+          <header className="availability-heatmap__heading">
+            <h2>{result.groupId === 0 ? "全部成员" : result.groupName} · 第 {result.week} 周{member ? ` · ${member.name}` : ""}</h2>
+            <span>{options.currentSemester}</span>
+          </header>
+          <div className="availability-heatmap__metrics" aria-label="成员课表概况">
             {[
               ["统计成员", result.totalCount],
               ["有效课表", result.importedCount],
               ["数据缺失", result.missingCount],
-            ].map(([label, count]) => <div key={label} className="rounded-lg border border-[var(--admin-border-subtle)] px-3 py-2">
-              <p className="text-xs text-[var(--admin-muted)]">{label}</p>
-              <p className="mt-1 text-lg font-semibold tabular-nums">{count}<span className="ml-1 text-xs font-normal text-[var(--admin-muted)]">人</span></p>
+            ].map(([label, count]) => <div key={label}>
+              <span>{label}</span>
+              <strong>{count}<small>人</small></strong>
             </div>)}
           </div>
           {result.totalCount === 0 ? <p role="status" className="admin-notice admin-notice--neutral mb-3">组内暂无可统计成员。</p> : result.importedCount === 0 ?
             <p role="status" className="admin-notice admin-notice--warning mb-3">当前学期没有有效课表，无法统计无课程冲突人数。请成员在「我的主页 → 资料设置 → 课程时间」重新导入课表。</p> : result.missingCount > 0 ?
             <p role="status" className="admin-notice admin-notice--warning mb-3">无课程冲突人数只按有效课表成员统计，数据缺失成员不会计入无课程冲突。</p> : null}
-          <div className="overflow-x-auto">
-            <div className="min-w-0">
-              <div className="grid min-w-[660px] grid-cols-[108px_repeat(7,minmax(0,1fr))] gap-x-1 gap-y-1 sm:gap-y-1.5">
+          <div className="availability-heatmap__scroll">
+              <div className="availability-heatmap__grid">
                 <span className="availability-heatmap__time-header py-2 text-center text-xs font-medium text-[var(--admin-muted)]">时间</span>
                 {DAYS.map(day => <span key={day} className="py-2 text-center text-xs font-semibold">{day}</span>)}
                 {SECTIONS.map(period => [
@@ -261,13 +232,12 @@ export default function TimeCoordinationPage() {
                     return <button key={`${day}-${period}`} type="button" aria-haspopup={member ? undefined : "dialog"}
                       aria-label={details} title={details}
                       onClick={() => { if (!member) setSelectedSlot({ weekday: dayIndex + 1, section: period }); }}
-                      className={`availability-heatmap__cell min-h-9 min-w-0 rounded-md border px-0.5 text-xs font-semibold tabular-nums sm:text-sm${period === 5 || period === 9 ? " availability-heatmap__row-break" : ""} ${cellClass(dayIndex + 1, period)}`}>
+                      className={`availability-heatmap__cell min-h-7 min-w-0 rounded-md border text-[10px] font-semibold tabular-nums sm:min-h-9 sm:text-xs${period === 5 || period === 9 ? " availability-heatmap__row-break" : ""} ${cellClass(dayIndex + 1, period)}`}>
                       {cellText(dayIndex + 1, period)}
                     </button>;
                   }),
                 ])}
               </div>
-            </div>
           </div>
           {member ? <div className="mt-3 flex flex-wrap gap-3 text-xs text-[var(--admin-muted)]" aria-label="成员时段图例">
             <span><span className="mr-1 inline-block h-2.5 w-2.5 rounded-sm bg-[var(--admin-success)]" />无课程冲突</span>
@@ -279,10 +249,45 @@ export default function TimeCoordinationPage() {
             <span className="inline-flex items-center gap-1.5"><span className={`availability-heatmap__swatch ${HEAT_LEVEL_CLASSES.high}`} aria-hidden="true" />高 ≥ 2/3</span>
             <span>数字为无课程冲突人数</span>
           </div>}
+          <details className="time-coordination__definition">
+            <summary>统计口径</summary>
+            <p>无课程冲突表示课表中未发现时间重叠，不代表成员已确认可以参加。数据缺失成员不会计入无冲突人数。</p>
+          </details>
         </section>
       </> : null}
-      {weekNotice ? <p role="status" className={`rounded-lg ${weekNoticeTone} p-3 text-sm text-[var(--admin-muted)]`}>{weekNotice}</p> : null}
+      <details className="time-coordination__filters">
+        <summary>调整查看范围<span>{groupId === 0 ? "全部成员" : options.groups.find((group) => group.groupId === groupId)?.name ?? "当前组别"} · {week ? `第 ${week} 周` : "请选择教学周"}{member ? ` · ${member.name}` : ""}</span></summary>
+        <div className="time-coordination__filter-grid">
+          <label>组别
+            <select aria-label="组别" className="admin-field" value={groupId} onChange={e => {
+              const id = Number(e.target.value);
+              setGroupId(id); setMemberId(0);
+            }}><option value={0}>全部成员</option>{options.groups.map(g => <option key={g.groupId} value={g.groupId}>{g.name}</option>)}</select>
+          </label>
+          <label>教学周
+            <select aria-label="教学周" className="admin-field" value={week} onChange={e => setWeek(Number(e.target.value))}>
+              {week === 0 ? <option value={0}>请选择教学周</option> : null}
+              {Array.from({ length: options.teachingWeekCount }, (_, i) => <option key={i + 1} value={i + 1}>第 {i + 1} 周</option>)}
+            </select>
+          </label>
+          <label>查看对象
+            <select aria-label="查看对象" className="admin-field" value={memberId} onChange={e => setMemberId(Number(e.target.value))}>
+              <option value={0}>全组</option>
+              {result?.members.map(person => <option key={person.userId} value={person.userId}>{person.name}</option>)}
+            </select>
+          </label>
+        </div>
+      </details>
+      {weekNotice ? <p role="status" className={`time-coordination__week-notice ${weekNoticeTone}`}>{weekNotice}</p> : null}
       {options && week === 0 && calendarWeek?.status === "unconfigured" ? <p className="text-sm text-[var(--admin-muted)]">选择教学周后可继续查看当前学期课表统计。</p> : null}
+      {isSuperAdmin ? <details className="time-coordination__admin-actions">
+        <summary>管理操作</summary>
+        {clearNotice ? <p role="status" className="admin-notice admin-notice--success">{clearNotice}</p> : null}
+        {clearError ? <p role="alert" className="admin-notice admin-notice--error">{clearError}</p> : null}
+        <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={clearLoading} onClick={() => void openClearConfirmation()}>
+          {clearLoading && clearPreview === null ? "读取课表数量…" : "清空课表"}
+        </button>
+      </details> : null}
       {result && selectedSlot && !member && selectedCounts && typeof document !== "undefined" ? createPortal(<div
         className="admin-design fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-3 sm:p-6"
         role="presentation"

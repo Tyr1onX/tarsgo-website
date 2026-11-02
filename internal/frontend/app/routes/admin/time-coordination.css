@@ -1,0 +1,263 @@
+.time-coordination-page {
+  display: grid;
+  gap: 1rem;
+  width: 100%;
+  max-width: 80rem;
+  margin-inline: auto;
+}
+
+.time-coordination__header {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.time-coordination__header .admin-page-title {
+  margin: 0;
+}
+
+.time-coordination__header > span {
+  color: var(--admin-muted);
+  font-size: 0.8rem;
+  text-align: right;
+}
+
+.time-coordination-page > [role="status"] {
+  margin: 0;
+  color: var(--admin-muted);
+  font-size: 0.85rem;
+}
+
+.time-coordination-page > .admin-notice {
+  margin: 0;
+}
+
+.availability-heatmap {
+  display: grid;
+  gap: 0.75rem;
+  border-radius: var(--admin-radius-lg);
+  padding: clamp(0.75rem, 2vw, 1.25rem);
+}
+
+.availability-heatmap__heading {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.availability-heatmap__heading h2 {
+  min-width: 0;
+  margin: 0;
+  color: var(--admin-text);
+  font-size: clamp(0.95rem, 1.6vw, 1.1rem);
+  font-weight: 640;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.availability-heatmap__heading > span {
+  flex: none;
+  color: var(--admin-dim);
+  font-size: 0.72rem;
+}
+
+.availability-heatmap__metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-bottom: 1px solid var(--admin-border-subtle);
+  padding-bottom: 0.7rem;
+}
+
+.availability-heatmap__metrics > div {
+  display: grid;
+  gap: 0.2rem;
+  padding-inline: 0.75rem;
+}
+
+.availability-heatmap__metrics > div:first-child {
+  padding-left: 0;
+}
+
+.availability-heatmap__metrics > div + div {
+  border-left: 1px solid var(--admin-border-subtle);
+}
+
+.availability-heatmap__metrics span {
+  color: var(--admin-muted);
+  font-size: 0.7rem;
+}
+
+.availability-heatmap__metrics strong {
+  color: var(--admin-text);
+  font-size: 1.2rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 650;
+  line-height: 1.15;
+}
+
+.availability-heatmap__metrics small {
+  margin-left: 0.25rem;
+  color: var(--admin-muted);
+  font-size: 0.7rem;
+  font-weight: 450;
+}
+
+.availability-heatmap__scroll {
+  width: 100%;
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+}
+
+.availability-heatmap__grid {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 68px repeat(7, minmax(0, 1fr));
+  gap: 2px;
+}
+
+.admin-design .availability-heatmap__grid > :is(.availability-heatmap__time-header, .availability-heatmap__time-label) {
+  font-size: 0.58rem;
+}
+
+.admin-design .availability-heatmap__grid .availability-heatmap__time-label small {
+  font-size: 0.53rem;
+}
+
+.admin-design .availability-heatmap__grid .availability-heatmap__cell {
+  padding-inline: 0;
+  font-size: 0.66rem;
+}
+
+.time-coordination__filters,
+.time-coordination__admin-actions {
+  border-top: 1px solid var(--admin-border-subtle);
+  padding-top: 0.75rem;
+}
+
+.time-coordination__filters > summary,
+.time-coordination__admin-actions > summary,
+.time-coordination__definition > summary {
+  display: flex;
+  min-width: 0;
+  align-items: baseline;
+  gap: 0.5rem;
+  color: var(--admin-muted);
+  font-size: 0.78rem;
+  font-weight: 560;
+  cursor: pointer;
+}
+
+.time-coordination__filters > summary span {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--admin-dim);
+  font-size: 0.72rem;
+  font-weight: 450;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.time-coordination__filter-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.8rem;
+  padding-top: 0.85rem;
+}
+
+.time-coordination__filter-grid label {
+  display: grid;
+  min-width: 0;
+  gap: 0.35rem;
+  color: var(--admin-muted);
+  font-size: 0.72rem;
+}
+
+.time-coordination__week-notice {
+  margin: 0;
+  border: 1px solid var(--admin-warning-border);
+  border-radius: var(--admin-radius-md);
+  padding: 0.65rem 0.8rem;
+  color: var(--admin-warning);
+  font-size: 0.78rem;
+}
+
+.time-coordination__week-notice.is-neutral {
+  border-color: var(--admin-border-subtle);
+  color: var(--admin-muted);
+}
+
+.time-coordination__week-notice.is-warning {
+  background: var(--admin-warning-surface);
+}
+
+.time-coordination__definition {
+  border-top: 1px solid var(--admin-border-subtle);
+  padding-top: 0.65rem;
+}
+
+.time-coordination__definition > summary {
+  color: var(--admin-dim);
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.time-coordination__definition p {
+  margin: 0.45rem 0 0;
+  color: var(--admin-muted);
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.time-coordination__admin-actions > button {
+  margin-top: 0.65rem;
+}
+
+@media (min-width: 768px) {
+  .availability-heatmap__grid {
+    grid-template-columns: 100px repeat(7, minmax(0, 1fr));
+    gap: 4px;
+  }
+
+  .admin-design .availability-heatmap__grid > :is(.availability-heatmap__time-header, .availability-heatmap__time-label) {
+    font-size: 0.68rem;
+  }
+
+  .admin-design .availability-heatmap__grid .availability-heatmap__time-label small {
+    font-size: 0.62rem;
+  }
+
+  .admin-design .availability-heatmap__grid .availability-heatmap__cell {
+    font-size: 0.8rem;
+  }
+}
+
+@media (max-width: 520px) {
+  .availability-heatmap__grid {
+    min-width: 20rem;
+  }
+
+  .time-coordination__header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.25rem;
+  }
+
+  .time-coordination__header > span {
+    text-align: left;
+  }
+
+  .availability-heatmap__heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.2rem;
+  }
+
+  .time-coordination__filter-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.65rem;
+  }
+}

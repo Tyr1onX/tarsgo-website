@@ -349,7 +349,6 @@ export default function CommunityPostRoute() {
       </>}
       <footer className="community-post__actions">
         <button type="button" aria-pressed={post.likedByMe} disabled={busy} onClick={() => void toggleReaction("like")}><CommunityActionIcon kind="like" /><span>{post.likeCount}</span>{post.likedByMe ? "已赞" : "点赞"}</button>
-        <button type="button" onClick={() => openReply()}><CommunityActionIcon kind="comment" /><span>{post.commentCount}</span>回复</button>
         <button type="button" aria-pressed={post.savedByMe} disabled={busy} onClick={() => void toggleReaction("bookmark")}><CommunityActionIcon kind="bookmark" />{post.savedByMe ? "已收藏" : "收藏"}</button>
         <button type="button" onClick={() => void sharePost()}><CommunityIcon name="share2" />分享</button>
         {shareStatus ? <span className="community-share-status" role="status">{shareStatus}</span> : null}
@@ -357,7 +356,12 @@ export default function CommunityPostRoute() {
     </article>
 
     <section className="community-comments" id="community-comments" aria-labelledby="community-comments-title">
-      <header className="community-comments__heading"><h2 id="community-comments-title">讨论</h2><span>{comments.length} 条回复</span></header>
+      <header className="community-comments__heading">
+        <div className="community-comments__heading-copy"><h2 id="community-comments-title">讨论</h2><span>· {comments.length} 条回复</span></div>
+        <button type="button" className="community-button community-button--primary community-comments__reply" onClick={() => openReply()} aria-controls="community-reply-form">
+          <CommunityIcon name="messageCircle" />回复话题
+        </button>
+      </header>
       {comments.map((item) => {
         const parent = item.parentPostId ? parentByID.get(item.parentPostId) : null;
         return <article key={item.id} id={`community-comment-${item.id}`} className={`community-comment${location.hash === `#community-comment-${item.id}` || focusedCommentID === item.id ? " is-targeted" : ""}`} data-reply={Boolean(item.parentPostId)} data-depth={commentDepth(item)}>
@@ -378,6 +382,6 @@ export default function CommunityPostRoute() {
     </section>
 
     <CommunityRelatedTopics postId={post.id} returnTo={returnTo} />
-    {replyOpen ? <CommunityReplyComposer accountId={currentUser.id} postId={post.id} comments={comments} busy={busy} replyTarget={replyTarget} onReplyTargetChange={setReplyTarget} onClose={() => setReplyOpen(false)} onSubmit={submitComment} /> : <button type="button" className="community-reply-launcher" onClick={() => openReply()} aria-controls="community-reply-form"><CommunityIcon name="messageCircle" />回复话题</button>}
+    {replyOpen ? <CommunityReplyComposer accountId={currentUser.id} postId={post.id} comments={comments} busy={busy} replyTarget={replyTarget} onReplyTargetChange={setReplyTarget} onClose={() => setReplyOpen(false)} onSubmit={submitComment} /> : null}
   </section>;
 }

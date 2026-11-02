@@ -123,6 +123,16 @@ test("reply editor floats above the thread and restores drafts by account and to
   assert.match(styles, /@media \(max-width: 639px\)[\s\S]*?\.community-reply-panel \{ right: 0; bottom: 0/);
 });
 
+test("topic reply starts in the discussion heading and secondary actions stay with the post", () => {
+  assert.match(thread, /community-comments__heading-copy[\s\S]*?· \{comments\.length\} 条回复[\s\S]*?community-comments__reply/);
+  assert.match(thread, /className="[^"]*community-comments__reply[^"]*"[^>]*onClick=\{\(\) => openReply\(\)\}/);
+  assert.match(thread, /community-post__actions[\s\S]*?toggleReaction\("like"\)[\s\S]*?toggleReaction\("bookmark"\)[\s\S]*?sharePost/);
+  assert.doesNotMatch(thread, /community-reply-launcher/);
+  assert.doesNotMatch(styles, /\.community-reply-launcher/);
+  assert.match(styles, /margin-inline: var\(--community-thread-inset\)/);
+  assert.match(styles, /community-comments__reply/);
+});
+
 test("related topics load near the end and stay inside the server visibility scope", () => {
   assert.match(client, /related: \(id: number\) => apiRequest/);
   assert.match(relatedTopics, /rootMargin: "480px 0px"/);
