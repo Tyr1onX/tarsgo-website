@@ -21,7 +21,7 @@ test("fast navigation completion cancels the indicator without replacing route s
   assert.match(root, /useLayoutEffect/);
   assert.match(root, /location\.pathname/);
   assert.match(root, /startPublicPageTransition/);
-  assert.match(root, /<ScrollRestoration \/>/);
+  assert.match(root, /<ScrollRestoration storageKey=/);
   assert.match(root, /navigationPath \?\? location\.pathname/);
 });
 

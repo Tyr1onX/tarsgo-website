@@ -24,6 +24,7 @@ export function CommunityPostCard({ post }: { post: CommunityPost }) {
       <div className="community-topic-row__labels">
         {post.isPinned ? <span className="community-post__pin"><CommunityIcon name="pin" />置顶</span> : null}
         <CommunityFeaturedMark featured={post.isFeatured} />
+        {post.isSolved ? <span className="community-post__resolved"><CommunityIcon name="check" />已解决</span> : null}
         <span className="community-post__category">{communityCategoryLabel(post.category)}</span>
       </div>
     </div>
@@ -50,13 +51,17 @@ export type CommunityModerationChange = { pinned?: boolean; hidden?: boolean };
 export function CommunityPostMenu({
   post,
   busy = false,
+  canManageFeatured = false,
   onModerate,
+  onToggleFeatured,
   onEdit,
   onDelete,
 }: {
   post: CommunityPost;
   busy?: boolean;
+  canManageFeatured?: boolean;
   onModerate?: (change: CommunityModerationChange) => void;
+  onToggleFeatured?: () => void;
   onEdit?: () => void;
   onDelete?: () => void;
 }) {
@@ -64,7 +69,7 @@ export function CommunityPostMenu({
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [open, setOpen] = useState(false);
-  const hasActions = Boolean((post.canModerate && onModerate) || (post.canEdit && (onEdit || onDelete)));
+  const hasActions = Boolean((canManageFeatured && onToggleFeatured) || (post.canModerate && onModerate) || (post.canEdit && (onEdit || onDelete)));
 
   useEffect(() => {
     if (!open) return;
@@ -122,6 +127,9 @@ export function CommunityPostMenu({
       }}
     ><CommunityIcon name="moreVertical" /></button>
     {open ? <div className="community-post-menu__items" role="menu" aria-label="帖子操作" ref={menuRef} onKeyDown={handleMenuKeyDown}>
+      {canManageFeatured && onToggleFeatured ? <button type="button" role="menuitem" disabled={busy} aria-pressed={post.isFeatured} onClick={() => run(onToggleFeatured)}>
+        <CommunityIcon name="star" />{post.isFeatured ? "取消精华" : "设为精华"}
+      </button> : null}
       {post.canModerate && onModerate ? <>
         <button type="button" role="menuitem" disabled={busy} onClick={() => run(() => onModerate({ pinned: !post.isPinned }))}>
           <CommunityIcon name="pin" />{post.isPinned ? "取消置顶" : "置顶"}

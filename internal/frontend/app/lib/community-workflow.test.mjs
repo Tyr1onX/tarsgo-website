@@ -6,6 +6,8 @@ const source = async (path) => readFile(new URL(path, import.meta.url), "utf8");
 const routes = await source("../routes.ts");
 const navigation = await source("./dashboard-navigation.ts");
 const dashboard = await source("../routes/dashboard/index.tsx");
+const root = await source("../root.tsx");
+const scrollRestoration = await source("./community-scroll-restoration.ts");
 const thread = await source("../routes/dashboard/community-post.tsx");
 const styles = await source("../routes/dashboard/community.css");
 const client = await source("./community-client.ts");
@@ -61,6 +63,9 @@ test("community offers shareable filters, cached browsing, and the post discussi
   assert.match(dashboard, /updateFilters\(\{ sort: "hot", saved: false \}\)/);
   assert.match(dashboard, /updateFilters\(\{ category: item\.id \}\)/);
   assert.match(dashboard, /getCommunityListSnapshot/);
+  assert.match(dashboard, /const nextHasMore = nextPage > 1 && cached \? cached\.hasMore : result\.hasMore/);
+  assert.match(dashboard, /const cacheMatchesLoadedState = loadedCacheKey === cacheKey/);
+  assert.match(dashboard, /const visiblePosts = cacheMatchesLoadedState \? posts : cachedList\?\.posts/);
   assert.match(dashboard, /rememberCommunityList/);
   assert.match(dashboard, /communityReturnTo/);
   assert.match(dashboard, /communityClient\.create/);
@@ -75,6 +80,16 @@ test("community offers shareable filters, cached browsing, and the post discussi
   assert.match(thread, /community-comment__context/);
   assert.match(thread, /scrollIntoView/);
   assert.match(thread, /removeCommunityPostFromLists/);
+});
+
+test("community scroll restoration waits for async route data and reuses router positions", () => {
+  assert.match(root, /<ScrollRestoration storageKey=\{communityScrollRestorationStorageKey\} \/>/);
+  assert.match(scrollRestoration, /react-router-scroll-positions/);
+  assert.match(scrollRestoration, /navigationType !== "POP"/);
+  assert.match(scrollRestoration, /requestAnimationFrame/);
+  assert.match(thread, /useDeferredCommunityScrollRestoration\(location\.key, navigationType, detail !== null, location\.hash\)/);
+  assert.match(memberProfilePage, /useDeferredCommunityScrollRestoration\(location\.key, navigationType, result !== null, location\.hash\)/);
+  assert.doesNotMatch(dashboard, /preventScrollReset/);
 });
 
 test("community cache remains bounded and invalidates stale favorites and deleted posts", () => {
@@ -266,6 +281,11 @@ test("featured state is server-gated, independently audited, visible throughout 
   assert.match(memberProfileService, /IsFeatured: post\.IsFeatured/);
   assert.match(service, /IsFeatured: row\.IsFeatured/);
   assert.match(featuredMark, /aria-label="精华"/);
+  assert.match(thread, /canManageFeatured = currentUser\.role\.name === "super_admin"/);
+  assert.match(postCard, /canManageFeatured && onToggleFeatured/);
+  assert.match(thread, /<CommunityReplyFeatureMenu featured=\{item\.isFeatured\}/);
+  assert.match(thread, /communityClient\.setPostFeatured\(postID/);
+  assert.match(thread, /communityClient\.setReplyFeatured\(commentID/);
 });
 
 test("the editor offers WYSIWYG and source preview, image upload, tables, tasks, undo, and image controls", () => {
@@ -364,6 +384,11 @@ test("community growth shows Beijing check-ins, author levels, and idempotent in
   assert.match(router, /communityAPI\.POST\("\/check-in"/);
   assert.match(router, /communityAPI\.PUT\("\/comments\/:id\/like"/);
   assert.match(router, /communityAPI\.PATCH\("\/posts\/:id\/solution"/);
+  assert.match(thread, /设为最佳答案/);
+  assert.match(thread, /最佳答案<\/span>/);
+  assert.match(postCard, /post\.isSolved/);
+  assert.match(service, /question\.AskerID == actor\.ID \|\| actor\.RoleName == model\.RoleNameSuperAdmin/);
+  assert.match(service, /question\.Visibility == model\.TrainingQuestionPublic/);
   assert.match(migrations, /version: 38/);
 });
 

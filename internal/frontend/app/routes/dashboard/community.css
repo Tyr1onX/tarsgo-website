@@ -252,6 +252,8 @@
 .community-post__pin .community-icon { width: 11px; height: 11px; }
 .community-featured-mark { display: inline-flex; flex: none; align-items: center; gap: 3px; border: 1px solid color-mix(in srgb, var(--admin-accent) 31%, var(--admin-border-subtle)); border-radius: 999px; padding: 3px 7px; color: var(--admin-accent-text); background: color-mix(in srgb, var(--admin-accent) 8%, var(--admin-surface)); font-size: 10px; font-weight: 570; line-height: 1.2; white-space: nowrap; }
 .community-featured-mark .community-icon { width: 11px; height: 11px; }
+.community-post__resolved { display: inline-flex; flex: none; align-items: center; gap: 4px; border: 1px solid color-mix(in srgb, var(--admin-accent) 28%, var(--admin-border-subtle)); border-radius: 999px; padding: 3px 7px; color: var(--admin-accent-text); background: color-mix(in srgb, var(--admin-accent) 7%, var(--admin-surface)); font-size: 10px; font-weight: 570; line-height: 1.2; white-space: nowrap; }
+.community-post__resolved .community-icon { width: 11px; height: 11px; }
 
 .community-image-gallery { display: grid; max-width: 720px; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-top: 13px; }
 .community-image-gallery__thumb { position: relative; display: grid; width: 100%; height: 188px; place-items: center; overflow: hidden; border: 1px solid var(--admin-border-subtle); border-radius: 9px; padding: 0; background: var(--admin-surface-hover); cursor: zoom-in; }
@@ -338,6 +340,11 @@
 .community-thread > .community-post .community-post__actions :is(button, a) { white-space: nowrap; }
 .community-thread > .community-post .community-share-status { margin-left: auto; text-align: right; }
 .community-thread__body { max-width: 66ch; color: var(--admin-text); font-size: 15px; line-height: 1.9; overflow-wrap: anywhere; }
+.community-post__resolved-callout { display: flex; min-height: 29px; align-items: center; gap: 9px; margin-top: 11px; }
+.community-post__resolved-callout button { display: inline-flex; align-items: center; gap: 4px; border: 0; border-radius: 6px; padding: 4px 7px; color: var(--admin-accent-text); background: color-mix(in srgb, var(--admin-accent) 6%, transparent); font-size: 11px; font-weight: 560; }
+.community-post__resolved-callout button:hover { background: color-mix(in srgb, var(--admin-accent) 11%, var(--admin-surface)); }
+.community-post__resolved-callout button .community-icon { width: 12px; height: 12px; }
+.community-post__resolved-callout + .community-thread__body { margin-top: 8px; }
 .community-comments { display: grid; gap: 0; margin-inline: var(--community-thread-inset); scroll-margin-top: 24px; }
 .community-comments__heading { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; border-bottom: 1px solid var(--admin-border-subtle); padding: 7px 0 12px; }
 .community-comments__heading-copy { display: flex; min-width: 0; align-items: baseline; gap: 9px; }
@@ -356,6 +363,7 @@
 .community-comment__head .community-level-badge { margin-left: -2px; }
 .community-comment__solution { display: inline-flex; min-height: 19px; flex: none; align-items: center; gap: 4px; border: 1px solid color-mix(in srgb, var(--admin-accent) 31%, var(--admin-border-subtle)); border-radius: 999px; padding: 1px 7px; color: var(--admin-accent-text); background: color-mix(in srgb, var(--admin-accent) 7%, var(--admin-surface)); font-size: 9px; font-weight: 570; }
 .community-comment__solution .community-icon { width: 11px; height: 11px; }
+.community-reply-feature-menu { margin-left: -4px; }
 .community-comment__context { display: grid; max-width: 100%; gap: 3px; margin: 9px 0 0 34px; border: 0; border-inline-start: 2px solid color-mix(in srgb, var(--admin-accent) 44%, var(--admin-border-subtle)); border-radius: 0 5px 5px 0; padding: 6px 9px; color: var(--admin-dim); background: color-mix(in srgb, var(--admin-surface-hover) 68%, transparent); font-size: 11px; text-align: left; }
 .community-comment__context span:first-child { color: var(--admin-accent-text); font-size: 10px; }
 .community-comment__context span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -368,6 +376,8 @@
 .community-comment__actions button .community-action-icon { width: 14px; height: 14px; vertical-align: -2px; }
 .community-comment__actions button.is-liked,
 .community-comment__actions button.is-solution { color: var(--admin-accent-text); }
+.community-comment__actions button.community-best-answer-action { border: 1px solid color-mix(in srgb, var(--admin-accent) 29%, var(--admin-border-subtle)); color: var(--admin-accent-text); background: color-mix(in srgb, var(--admin-accent) 7%, var(--admin-surface)); font-weight: 570; }
+.community-comment__actions button.community-best-answer-action:hover { background: color-mix(in srgb, var(--admin-accent) 12%, var(--admin-surface)); }
 .community-comment-edit { display: grid; gap: 8px; margin: 9px 0 0 34px; }
 .community-comment-edit textarea { min-height: 88px; border: 1px solid var(--admin-border-subtle); border-radius: 8px; padding: 10px; color: var(--admin-text); background: var(--admin-input-surface); font-size: 14px; line-height: 1.65; }
 .community-comment-edit button { justify-self: end; }

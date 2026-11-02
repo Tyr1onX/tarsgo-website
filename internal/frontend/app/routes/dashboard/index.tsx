@@ -45,24 +45,31 @@ export default function DashboardIndex() {
   const savedOnly = searchParams.get("saved") === "true";
   const returnTo = `${location.pathname}${location.search}${location.hash}`;
   const cacheKey = useMemo(() => JSON.stringify([currentUser.id, sort, category, query, savedOnly]), [currentUser.id, sort, category, query, savedOnly]);
+  const [loadedCacheKey, setLoadedCacheKey] = useState(cacheKey);
   const [queryDraft, setQueryDraft] = useState(query);
   const [composerOpen, setComposerOpen] = useState(false);
-  const [posts, setPosts] = useState<CommunityPost[]>([]);
+  const [posts, setPosts] = useState<CommunityPost[]>(() => getCommunityListSnapshot(cacheKey)?.posts ?? []);
   const [growthProfile, setGrowthProfile] = useState<CommunityGrowthProfile | null>(null);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
+  const [page, setPage] = useState(() => getCommunityListSnapshot(cacheKey)?.page ?? 1);
+  const [hasMore, setHasMore] = useState(() => getCommunityListSnapshot(cacheKey)?.hasMore ?? false);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState("");
   const [retry, setRetry] = useState<CommunityRetry | null>(null);
   const requestRef = useRef(0);
   const closeComposer = useCallback(() => setComposerOpen(false), []);
+  const cachedList = getCommunityListSnapshot(cacheKey);
+  const cacheMatchesLoadedState = loadedCacheKey === cacheKey;
+  const visiblePosts = cacheMatchesLoadedState ? posts : cachedList?.posts ?? [];
+  const visibleLoading = loading || !cacheMatchesLoadedState;
+  const visibleHasMore = cacheMatchesLoadedState ? hasMore : cachedList?.hasMore ?? false;
 
   useEffect(() => { setQueryDraft(query); }, [query]);
 
   const loadFirstPage = useCallback(async (keepCachedPosts = false) => {
     const requestID = ++requestRef.current;
     const cached = getCommunityListSnapshot(cacheKey);
+    setLoadedCacheKey(cacheKey);
     if (keepCachedPosts && cached) {
       setPosts(cached.posts);
       setPage(cached.page);
@@ -85,7 +92,7 @@ export default function DashboardIndex() {
         ? [...result.items, ...cached.posts.filter((post) => !result.items.some((fresh) => fresh.id === post.id))]
         : result.items;
       const nextPage = keepCachedPosts && cached ? cached.page : 1;
-      const nextHasMore = result.hasMore || (nextPage > 1 && Boolean(cached?.hasMore));
+      const nextHasMore = nextPage > 1 && cached ? cached.hasMore : result.hasMore;
       setPosts(postsToKeep);
       setHasMore(nextHasMore);
       setPage(nextPage);
@@ -116,7 +123,12 @@ export default function DashboardIndex() {
     if (next.category !== undefined) next.category ? params.set("category", next.category) : params.delete("category");
     if (next.q !== undefined) next.q.trim() ? params.set("q", next.q.trim()) : params.delete("q");
     if (next.saved !== undefined) next.saved ? params.set("saved", "true") : params.delete("saved");
-    setSearchParams(params, { replace: true, preventScrollReset: true });
+    if (params.toString() === searchParams.toString()) return;
+    setPosts([]);
+    setPage(1);
+    setHasMore(false);
+    setLoading(true);
+    setSearchParams(params, { replace: true });
   }
 
   async function loadNextPage() {
@@ -204,18 +216,18 @@ export default function DashboardIndex() {
         </div>
 
         {error ? <p className="community-state community-state--error" role="alert">{error}{retry ? <button type="button" className="community-inline-retry" onClick={retryFailedOperation}>重试</button> : null}</p> : null}
-        {loading && posts.length === 0 ? <p className="community-state community-state--loading" role="status"><CommunityIcon name="loader" />正在加载社区…</p> : posts.length ? <>
-          {loading ? <p className="community-refresh-status" role="status">正在同步最新内容</p> : null}
+        {visibleLoading && visiblePosts.length === 0 ? <p className="community-state community-state--loading" role="status"><CommunityIcon name="loader" />正在加载社区…</p> : visiblePosts.length ? <>
+          {visibleLoading ? <p className="community-refresh-status" role="status">正在同步最新内容</p> : null}
           <div className="community-post-list">
-            {posts.map((post) => <CommunityPostCard key={post.id} post={post} />)}
+            {visiblePosts.map((post) => <CommunityPostCard key={post.id} post={post} />)}
           </div>
-        </> : !loading ? <div className="community-state community-state--empty">
+        </> : !visibleLoading ? <div className="community-state community-state--empty">
           <span className="community-state__icon"><CommunityIcon name="messageCircle" /></span>
           <strong>{savedOnly ? "还没有收藏的帖子" : query ? "没有找到相关帖子" : category ? "这个分类还没有帖子" : sort === "hot" ? "还没有热门讨论" : "还没有帖子"}</strong>
           <p>{savedOnly ? "收藏的帖子会集中显示在这里。" : query ? "换个关键词试试，或清除搜索条件。" : category ? "换个分类看看，或发布一条新的讨论。" : sort === "hot" ? "有更多人参与后，热门讨论会出现在这里。" : "分享你的第一个想法或项目进展"}</p>
           {query || category || savedOnly || sort === "hot" ? <button className="community-button community-button--quiet" type="button" onClick={() => { setQueryDraft(""); updateFilters({ q: "", category: "", saved: false, sort: "latest" }); }}>清除筛选</button> : <button className="community-button community-button--primary" type="button" onClick={() => setComposerOpen(true)}><CommunityIcon name="plus" />发布第一条帖子</button>}
         </div> : null}
-        {hasMore && !loading ? <button type="button" className="community-load-more" onClick={() => void loadNextPage()} disabled={loadingMore}>{loadingMore ? "正在加载…" : "加载更多"}</button> : null}
+        {visibleHasMore && !visibleLoading ? <button type="button" className="community-load-more" onClick={() => void loadNextPage()} disabled={loadingMore}>{loadingMore ? "正在加载…" : "加载更多"}</button> : null}
         {loadingMore ? <p className="community-load-more__status" role="status">正在加载更多讨论…</p> : null}
       </main>
 
