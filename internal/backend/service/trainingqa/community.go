@@ -461,7 +461,7 @@ func (s *Service) GetCommunityPost(ctx context.Context, actor Actor, postID uint
 			CanEdit: comment.AuthorID == actor.ID && comment.DeletedAt == nil, CanLike: actor.ID != comment.AuthorID && comment.DeletedAt == nil && !question.IsHidden,
 			LikedByMe: comment.LikedByMe, LikeCount: comment.LikeCount,
 			IsAcceptedSolution: question.AcceptedSolutionID != nil && *question.AcceptedSolutionID == comment.ID,
-			CanAcceptSolution:  question.GroupID == nil && question.Visibility == model.TrainingQuestionPublic && (question.AskerID == actor.ID || actor.RoleName == model.RoleNameSuperAdmin) && !question.IsHidden && comment.DeletedAt == nil && comment.AuthorID != actor.ID,
+			CanAcceptSolution:  question.GroupID == nil && question.Visibility == model.TrainingQuestionPublic && (question.AskerID == actor.ID || actor.RoleName == model.RoleNameSuperAdmin) && !question.IsHidden && comment.DeletedAt == nil && comment.AuthorID != actor.ID && comment.AuthorID != question.AskerID,
 			Attachments:        []AttachmentView{},
 		}
 		if view.IsDeleted {

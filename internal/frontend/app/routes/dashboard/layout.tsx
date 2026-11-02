@@ -49,6 +49,7 @@ import {
 
 export interface DashboardLayoutOutletContext {
   currentUser: AuthUser;
+  setPageTitle: (title: string) => void;
   groupResolution: UserGroupConfirmationState | null;
   groupResolutionError: string;
   refreshCandidateTodoCount: (force?: boolean) => Promise<void>;
@@ -332,6 +333,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const [isDesktopViewport, setIsDesktopViewport] = useState(getIsDesktopDashboardViewport);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileRevision, setProfileRevision] = useState(0);
+  const [pageTitle, setPageTitle] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
   const [isResizingSidebar, setIsResizingSidebar] = useState(false);
@@ -372,9 +374,11 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const completeBadgeReplay = useCallback((requestId: number) => {
     setBadgeReplayRequest((current) => current?.requestId === requestId ? null : current);
   }, []);
+  const updatePageTitle = useCallback((title: string) => setPageTitle(title), []);
   useEffect(() => { setBadgeReplayRequest(null); }, [currentUser.id]);
   const currentBadgeReplayRequest = badgeReplayRequest?.userId === currentUser.id ? badgeReplayRequest : null;
   const isImmersiveExpedition = location.pathname.replace(/\/$/, "") === "/dashboard/expedition";
+  const isCommunityPostRoute = /^\/dashboard\/community\/\d+$/.test(location.pathname);
   const isSidebarCollapsed = isDesktopViewport && sidebarCollapsed;
   const hasAssignmentGroup = hasAssignmentGroupAccess(groupResolution?.groups);
   const sectionMenuItems = getDashboardSectionMenu(currentUser);
@@ -954,12 +958,14 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
             <SiteLogo className="h-6 max-w-[88px] sm:h-7 sm:max-w-[104px]" />
           </Link>
 
+          {isCommunityPostRoute && pageTitle ? <div className="dashboard-shell__page-title" title={pageTitle} aria-label={pageTitle}>{pageTitle}</div> : null}
+
           <ThemeControl className="ml-auto" />
         </header>
 
         <main className="p-4 sm:p-6 lg:p-8">
           <div className="dashboard-shell__content relative">
-            <Outlet context={{ currentUser, groupResolution, groupResolutionError, refreshCandidateTodoCount, openMyProfile, refreshAccountProfile, requestBadgeReplay, profileRevision } satisfies DashboardLayoutOutletContext} />
+            <Outlet context={{ currentUser, setPageTitle: updatePageTitle, groupResolution, groupResolutionError, refreshCandidateTodoCount, openMyProfile, refreshAccountProfile, requestBadgeReplay, profileRevision } satisfies DashboardLayoutOutletContext} />
           </div>
         </main>
         <CommunityExperienceToastHost key={currentUser.id} userID={currentUser.id} />

@@ -441,6 +441,27 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 	if reply.Comments[0].AuthorLevel != operationsGrowth.Level || reply.Post.AuthorLevel != operationsGrowth.Level {
 		t.Fatalf("author levels differ between post, reply and profile: post=%d reply=%d profile=%d", reply.Post.AuthorLevel, reply.Comments[0].AuthorLevel, operationsGrowth.Level)
 	}
+	postAuthorReply, err := service.AddCommunityComment(context.Background(), operationsMember, communityID, CommunityCommentInput{Body: "帖子作者补充说明。"})
+	if err != nil || len(postAuthorReply.Comments) != 3 {
+		t.Fatalf("post author could not add a reply for best-answer permission check: comments=%d err=%v", lenOrZeroCommunity(postAuthorReply), err)
+	}
+	postAuthorReplyID := postAuthorReply.Comments[2].ID
+	superAdminDetail, err := service.GetCommunityPost(context.Background(), superAdmin, communityID)
+	if err != nil {
+		t.Fatalf("super admin could not read best-answer permissions: %v", err)
+	}
+	var peerCanBeAccepted, authorReplyCanBeAccepted bool
+	for _, comment := range superAdminDetail.Comments {
+		if comment.ID == parentID {
+			peerCanBeAccepted = comment.CanAcceptSolution
+		}
+		if comment.ID == postAuthorReplyID {
+			authorReplyCanBeAccepted = comment.CanAcceptSolution
+		}
+	}
+	if !peerCanBeAccepted || authorReplyCanBeAccepted {
+		t.Fatalf("super-admin best-answer controls do not match service permissions: peer=%t post-author=%t", peerCanBeAccepted, authorReplyCanBeAccepted)
+	}
 
 	if err := db.Create(&model.CoBuilderContribution{
 		UserID: member.ID, Description: "[TEST_QA] 社区主页徽章验证", GrantedByID: superAdmin.ID, CreatedAt: statusClock,

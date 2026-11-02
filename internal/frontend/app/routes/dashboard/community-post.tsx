@@ -1,13 +1,14 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
 import { useLocation, useNavigate, useNavigationType, useOutletContext, useParams } from "react-router";
 
 import { CommunityRelatedTopics } from "~/components/community-related-topics";
 import { CommunityReplyComposer } from "~/components/community-reply-composer";
 import { CommunityImageGallery } from "~/components/community-image-gallery";
+import { CommunityCommentManagementMenu } from "~/components/community-comment-management-menu";
+import { CommunityReadingTimeline } from "~/components/community-reading-timeline";
 import { type CommunityPendingImage } from "~/components/community-markdown-editor";
 import { CommunityMarkdown } from "~/components/community-markdown";
 import { CommunityAuthorProfile } from "~/components/community-author-profile";
-import { CommunityReplyFeatureMenu } from "~/components/community-reply-feature-menu";
 import { CommunityFeaturedMark } from "~/components/community-featured-mark";
 import { CommunityIcon } from "~/components/community-icons";
 import { CommunityActionIcon, CommunityPostMenu } from "~/components/community-post-card";
@@ -29,6 +30,7 @@ import {
   type CommunityReactionOverride,
 } from "~/lib/community-client";
 import { clearCommunityLists, invalidateCommunitySavedLists, removeCommunityPostFromLists, updateCommunityPostInLists } from "~/lib/community-list-cache";
+import { buildCommunityReadingEntries, findHotCommunityReply, groupCommunityReplies } from "~/lib/community-discussion-model";
 import { useDeferredCommunityScrollRestoration } from "~/lib/community-scroll-restoration";
 import { communityStandaloneAttachments, stripCommunityMarkdown } from "~/lib/community-markdown";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
@@ -49,6 +51,12 @@ function mergeDetailReactions(
   return { ...detail, post: post ?? detail.post, comments };
 }
 
+function communityReplyPreviewText(body: string) {
+  const text = stripCommunityMarkdown(body).replace(/\s+/g, " ").trim();
+  const characters = Array.from(text || "图片回复");
+  return characters.length > 88 ? `${characters.slice(0, 88).join("")}…` : characters.join("");
+}
+
 export function meta() {
   return [{ title: "社区讨论 | TARSGO" }];
 }
@@ -59,7 +67,7 @@ export default function CommunityPostRoute() {
   const location = useLocation();
   const navigate = useNavigate();
   const navigationType = useNavigationType();
-  const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
+  const { currentUser, setPageTitle } = useOutletContext<DashboardLayoutOutletContext>();
   const [detail, setDetail] = useState<CommunityDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -70,6 +78,7 @@ export default function CommunityPostRoute() {
   const [replyTarget, setReplyTarget] = useState<CommunityComment | null>(null);
   const [replyOpen, setReplyOpen] = useState(false);
   const [focusedCommentID, setFocusedCommentID] = useState<number | null>(null);
+  const [expandedReplyPreviewParentIDs, setExpandedReplyPreviewParentIDs] = useState<Set<number>>(() => new Set());
   const [shareStatus, setShareStatus] = useState("");
   const [editingPost, setEditingPost] = useState(false);
   const [editTitle, setEditTitle] = useState("");
@@ -80,6 +89,7 @@ export default function CommunityPostRoute() {
   const [editingCommentID, setEditingCommentID] = useState<number | null>(null);
   const [editCommentBody, setEditCommentBody] = useState("");
   const editCommentFlushRef = useRef<() => string>(() => editCommentBody);
+  const focusedCommentTimeoutRef = useRef<number | null>(null);
   const [editCommentUploads, setEditCommentUploads] = useState<CommunityPendingImage[]>([]);
   const detailRequestRef = useRef(0);
   const reactionVersionRef = useRef(0);
@@ -124,6 +134,35 @@ export default function CommunityPostRoute() {
 
   useEffect(() => { void reload(); }, [reload]);
 
+  const pageTitle = !loading && detail?.post.id === postID ? detail.post.title : "";
+  useLayoutEffect(() => {
+    setPageTitle(pageTitle);
+  }, [pageTitle, setPageTitle]);
+  useLayoutEffect(() => () => setPageTitle(""), [setPageTitle]);
+
+  useEffect(() => () => {
+    if (focusedCommentTimeoutRef.current !== null) window.clearTimeout(focusedCommentTimeoutRef.current);
+  }, []);
+
+  function focusComment(commentID: number) {
+    setFocusedCommentID(commentID);
+    if (focusedCommentTimeoutRef.current !== null) window.clearTimeout(focusedCommentTimeoutRef.current);
+    focusedCommentTimeoutRef.current = window.setTimeout(() => {
+      setFocusedCommentID((current) => current === commentID ? null : current);
+      focusedCommentTimeoutRef.current = null;
+    }, 2400);
+    document.getElementById(`community-comment-${commentID}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  function toggleReplyPreview(parentID: number) {
+    setExpandedReplyPreviewParentIDs((current) => {
+      const next = new Set(current);
+      if (next.has(parentID)) next.delete(parentID);
+      else next.add(parentID);
+      return next;
+    });
+  }
+
   function syncPostReactionCache(reaction: CommunityPostReactionSnapshot, invalidateSaved = false) {
     updateCommunityPostInLists(currentUser.id, postID, (cachedPost) => withCommunityPostReactions(cachedPost, reaction));
     if (invalidateSaved) invalidateCommunitySavedLists(currentUser.id);
@@ -135,7 +174,7 @@ export default function CommunityPostRoute() {
     let finalFrame = 0;
     const restoreFrame = window.requestAnimationFrame(() => {
       finalFrame = window.requestAnimationFrame(() => {
-        document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView({ behavior: "smooth", block: "center" });
+        document.getElementById(decodeURIComponent(hash.slice(1)))?.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     });
     return () => {
@@ -290,7 +329,7 @@ export default function CommunityPostRoute() {
       setDetail(mergeDetailReactions(result, postReactionOverridesRef.current, commentReactionOverridesRef.current, startedAtVersion));
       const createdComment = result.comments.at(-1);
       if (createdComment) {
-        setFocusedCommentID(createdComment.id);
+        focusComment(createdComment.id);
         navigate({ pathname: location.pathname, search: location.search, hash: `#community-comment-${createdComment.id}` }, {
           replace: true, state: location.state, preventScrollReset: true,
         });
@@ -417,6 +456,13 @@ export default function CommunityPostRoute() {
   const { post, comments } = detail;
   const canManageFeatured = currentUser.role.name === "super_admin" && post.groupId === 0 && post.visibility === "public";
   const parentByID = new Map(comments.map((item) => [item.id, item]));
+  const repliesByParentID = groupCommunityReplies(comments);
+  const readingEntries = buildCommunityReadingEntries(post, comments);
+  const readingIndexByCommentID = new Map<number, number>();
+  readingEntries.forEach((entry, index) => {
+    if (entry.commentId !== undefined) readingIndexByCommentID.set(entry.commentId, index);
+  });
+  const hotReply = findHotCommunityReply(comments);
   function commentDepth(comment: CommunityComment) {
     let depth = 0;
     let parentID = comment.parentPostId;
@@ -432,9 +478,11 @@ export default function CommunityPostRoute() {
   }
 
   return <section className="admin-design community-page community-thread" aria-labelledby="community-thread-title">
-    <button className="community-thread__back" type="button" onClick={backToCommunity}><CommunityIcon name="arrowLeft" />返回吉甲社区</button>
-    {error ? <p className="community-state community-state--error" role="alert">{error}{retryAction ? <button type="button" className="community-inline-retry" onClick={() => retryAction()}>重试</button> : null}</p> : null}
-    <article className={`community-post${post.isPinned ? " is-pinned" : ""}`}>
+    <div className="community-thread__layout">
+      <div className="community-thread__content">
+        <button className="community-thread__back" type="button" onClick={backToCommunity}><CommunityIcon name="arrowLeft" />返回吉甲社区</button>
+        {error ? <p className="community-state community-state--error" role="alert">{error}{retryAction ? <button type="button" className="community-inline-retry" onClick={() => retryAction()}>重试</button> : null}</p> : null}
+    <article id={`community-post-${post.id}`} data-community-reading-index="0" className={`community-post${post.isPinned ? " is-pinned" : ""}`}>
       <div className="community-post__author">
         <CommunityAuthorProfile id={post.authorId} name={post.authorName} avatar={post.authorAvatar} level={post.authorLevel} featuredBadge={post.authorFeaturedBadge} positions={post.authorPositions} teamIdentityStatus={post.authorTeamIdentityStatus} />
         <div className="community-post__byline"><time dateTime={post.createdAt}>{formatCommunityDate(post.createdAt)}{post.editedAt ? " · 已编辑" : ""} · {post.viewCount ?? 0} 浏览</time></div>
@@ -462,7 +510,7 @@ export default function CommunityPostRoute() {
         <h1 className="community-post__title" id="community-thread-title">{post.title}</h1>
         {post.isSolved ? <div className="community-post__resolved-callout" role="status">
           <span className="community-post__resolved"><CommunityIcon name="check" />已解决</span>
-          {post.acceptedSolutionId ? <button type="button" onClick={() => document.getElementById(`community-comment-${post.acceptedSolutionId}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}>查看最佳答案<CommunityIcon name="chevronDown" /></button> : null}
+          {post.acceptedSolutionId ? <button type="button" onClick={() => focusComment(post.acceptedSolutionId!)}>查看最佳答案<CommunityIcon name="chevronDown" /></button> : null}
         </div> : null}
         <CommunityMarkdown source={post.body} className="community-thread__body" />
         {communityStandaloneAttachments(post.body, post.attachments).length ? <CommunityImageGallery attachments={communityStandaloneAttachments(post.body, post.attachments)} /> : null}
@@ -477,24 +525,54 @@ export default function CommunityPostRoute() {
 
     <section className="community-comments" id="community-comments" aria-labelledby="community-comments-title">
       <header className="community-comments__heading">
-        <div className="community-comments__heading-copy"><h2 id="community-comments-title">讨论</h2><span>· {comments.length} 条回复</span></div>
+        <div className="community-comments__heading-copy"><h2 id="community-comments-title">讨论</h2><span>· {comments.filter((comment) => !comment.isDeleted).length} 条回复</span></div>
         <button type="button" className="community-button community-button--primary community-comments__reply" onClick={() => openReply()} aria-controls="community-reply-form">
           <CommunityIcon name="messageCircle" />回复话题
         </button>
       </header>
       {comments.map((item) => {
         const parent = item.parentPostId ? parentByID.get(item.parentPostId) : null;
-        return <article key={item.id} id={`community-comment-${item.id}`} className={`community-comment${location.hash === `#community-comment-${item.id}` || focusedCommentID === item.id ? " is-targeted" : ""}`} data-reply={Boolean(item.parentPostId)} data-depth={commentDepth(item)}>
-          <div className="community-comment__head"><CommunityAuthorProfile id={item.authorId} name={item.authorName} avatar={item.authorAvatar} level={item.authorLevel} featuredBadge={item.authorFeaturedBadge} positions={item.authorPositions} teamIdentityStatus={item.authorTeamIdentityStatus} size="small" />{item.isAcceptedSolution ? <span className="community-comment__solution"><CommunityIcon name="check" />最佳答案</span> : null}<CommunityFeaturedMark featured={item.isFeatured} /><time dateTime={item.createdAt}>{formatCommunityDate(item.createdAt)}{item.editedAt ? " · 已编辑" : ""}</time>{!item.isDeleted && canManageFeatured ? <CommunityReplyFeatureMenu featured={item.isFeatured} busy={busy} onToggle={() => void toggleReplyFeatured(item.id, item.isFeatured)} /> : null}</div>
-          {parent ? <button type="button" className="community-comment__context" onClick={() => document.getElementById(`community-comment-${parent.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}>
+        const replies = repliesByParentID.get(item.id) ?? [];
+        const previewsExpanded = expandedReplyPreviewParentIDs.has(item.id);
+        const visibleReplies = previewsExpanded ? replies : replies.slice(0, 2);
+        const readingIndex = readingIndexByCommentID.get(item.id);
+        return <article key={item.id} id={`community-comment-${item.id}`} data-community-reading-index={readingIndex} className={`community-comment${location.hash === `#community-comment-${item.id}` || focusedCommentID === item.id ? " is-targeted" : ""}`} data-reply={Boolean(item.parentPostId)} data-depth={commentDepth(item)}>
+          <div className="community-comment__head">
+            <CommunityAuthorProfile id={item.authorId} name={item.authorName} avatar={item.authorAvatar} level={item.authorLevel} featuredBadge={item.authorFeaturedBadge} positions={item.authorPositions} teamIdentityStatus={item.authorTeamIdentityStatus} size="small" />
+            {item.isAcceptedSolution ? <><span className="community-comment__solution"><CommunityIcon name="check" />最佳答案</span>{item.isFeatured ? <span className="community-comment__secondary-featured" aria-label="同时为精华" title="同时为精华"><CommunityIcon name="star" /></span> : null}</> : <CommunityFeaturedMark featured={item.isFeatured} />}
+            <time dateTime={item.createdAt}>{formatCommunityDate(item.createdAt)}{item.editedAt ? " · 已编辑" : ""}</time>
+            {!item.isDeleted && (item.canAcceptSolution || canManageFeatured) ? <CommunityCommentManagementMenu
+              canManageSolution={item.canAcceptSolution}
+              acceptedSolution={item.isAcceptedSolution}
+              onToggleSolution={() => void setSolution(item.isAcceptedSolution ? null : item.id)}
+              canManageFeatured={canManageFeatured}
+              featured={item.isFeatured}
+              onToggleFeatured={() => void toggleReplyFeatured(item.id, item.isFeatured)}
+              busy={busy}
+            /> : null}
+          </div>
+          {parent ? <button type="button" className="community-comment__context" onClick={() => focusComment(parent.id)}>
             <span>回复 {parent.authorName}</span><span>{parent.isDeleted ? "该回复已删除" : stripCommunityMarkdown(parent.body)}</span>
           </button> : null}
           {editingCommentID === item.id ? <form id={`community-comment-edit-${item.id}`} className="community-comment-edit" onSubmit={(event) => void saveCommentEdit(event, item.id)}><Suspense fallback={<div className="community-markdown-editor__loading" role="status">正在打开编辑器…</div>}><CommunityMarkdownEditor value={editCommentBody} onChange={setEditCommentBody} flushRef={editCommentFlushRef} uploads={editCommentUploads} onUploadsChange={setEditCommentUploads} attachments={item.attachments} compact required placeholder="编辑回复…" /></Suspense><button className="community-button community-button--primary" disabled={busy}>保存</button></form> : <CommunityMarkdown source={item.body} className="community-comment__body" />}
           {communityStandaloneAttachments(item.body, item.attachments).length ? <CommunityImageGallery attachments={communityStandaloneAttachments(item.body, item.attachments)} compact /> : null}
+          {replies.length ? <div className="community-reply-preview">
+            <div className="community-reply-preview__heading">
+              <span>{replies.length} 条回复</span>
+              <div className="community-reply-preview__avatars" role="list" aria-label="回复成员">
+                {replies.slice(0, 3).map((reply) => <span key={reply.id} role="listitem" title={reply.authorName}><CommunityAuthorProfile id={reply.authorId} name={reply.authorName} avatar={reply.authorAvatar} level={reply.authorLevel} featuredBadge={reply.authorFeaturedBadge} positions={reply.authorPositions} teamIdentityStatus={reply.authorTeamIdentityStatus} size="small" /></span>)}
+              </div>
+            </div>
+            <div className="community-reply-preview__items">
+              {visibleReplies.map((reply) => <button key={reply.id} type="button" className="community-reply-preview__item" onClick={() => focusComment(reply.id)} aria-label={`定位到 ${reply.authorName} 的回复：${communityReplyPreviewText(reply.body)}`}>
+                <strong>{reply.authorName}</strong><span>{communityReplyPreviewText(reply.body)}</span>
+              </button>)}
+            </div>
+            {replies.length > 2 ? <button type="button" className="community-reply-preview__toggle" aria-expanded={previewsExpanded} onClick={() => toggleReplyPreview(item.id)}>{previewsExpanded ? "收起回复预览" : `查看另外 ${replies.length - 2} 条回复`}</button> : null}
+          </div> : null}
           {!item.isDeleted && <div className="community-comment__actions">
             <button type="button" onClick={() => openReply(item)}>回复</button>
             <button type="button" className={item.likedByMe ? "is-liked" : ""} aria-label={`${item.likedByMe ? "取消点赞" : "点赞"}，${item.likeCount} 个赞`} aria-pressed={item.likedByMe} disabled={busy || commentReactionBusyIDs.has(item.id) || !item.canLike} onClick={() => void toggleCommentLike(item)}><CommunityActionIcon kind="like" active={item.likedByMe} /><span>{item.likeCount || "赞"}</span></button>
-            {item.canAcceptSolution ? <button type="button" className={item.isAcceptedSolution ? "community-best-answer-action is-solution" : "community-best-answer-action"} disabled={busy} onClick={() => void setSolution(item.isAcceptedSolution ? null : item.id)}>{item.isAcceptedSolution ? "取消最佳答案" : "设为最佳答案"}</button> : null}
             {item.canEdit ? <><button type="button" onClick={() => { setEditingCommentID(item.id); setEditCommentBody(item.body); setEditCommentUploads([]); }}>编辑</button><button type="button" onClick={() => void deleteComment(item.id)}>删除</button></> : null}
           </div>}
         </article>;
@@ -503,5 +581,8 @@ export default function CommunityPostRoute() {
 
     <CommunityRelatedTopics postId={post.id} returnTo={returnTo} />
     {replyOpen ? <CommunityReplyComposer accountId={currentUser.id} postId={post.id} comments={comments} busy={busy} replyTarget={replyTarget} onReplyTargetChange={setReplyTarget} onClose={() => setReplyOpen(false)} onSubmit={submitComment} /> : null}
+      </div>
+      <CommunityReadingTimeline entries={readingEntries} hotReplyID={hotReply?.id ?? null} />
+    </div>
   </section>;
 }
