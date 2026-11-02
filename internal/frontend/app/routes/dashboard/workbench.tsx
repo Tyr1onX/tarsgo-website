@@ -5,7 +5,7 @@ import { assignmentClient, assignmentStatusLabel, formatAssignmentDate, type Ass
 import { hasAssignmentGroupAccess } from "~/lib/dashboard-navigation";
 import { leaveClient, type LeaveAccessState, type LeaveRequest } from "~/lib/leave-client";
 import { formatWeekLabel } from "~/lib/weekly-report-calendar";
-import { getWeeklyReportDashboard, type WeeklyReportDashboard } from "~/lib/weekly-report-client";
+import type { WeeklyReportDashboard } from "~/lib/weekly-report-client";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import "./workbench.css";
 
@@ -68,8 +68,9 @@ export default function PersonalWorkbench() {
       access,
       requests: access.status === "approved" || isAdmin ? await leaveClient.schoolRequests() : [],
     }));
+    const weeklyRequest = import("~/lib/weekly-report-client").then(({ getWeeklyReportDashboard }) => getWeeklyReportDashboard());
     const [weekly, assignments, leave] = await Promise.allSettled([
-      getWeeklyReportDashboard(),
+      weeklyRequest,
       hasAssignments ? assignmentClient.listMine() : Promise.resolve([]),
       leaveRequest,
     ]);
