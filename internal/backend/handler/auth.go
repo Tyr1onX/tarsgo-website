@@ -25,6 +25,8 @@ type authService interface {
 	RegisterInitialSuperAdmin(ctx context.Context, input auth.RegisterInitialSuperAdminInput) (*auth.AuthResult, error)
 	LoginWithPassword(ctx context.Context, email string, password string) (*auth.AuthResult, error)
 	SendLoginCode(ctx context.Context, email string) error
+	SendPasswordResetCode(ctx context.Context, email string) error
+	ResetPassword(ctx context.Context, email, code, newPassword string) error
 	LoginWithCode(ctx context.Context, email string, code string) (*auth.AuthResult, error)
 	CurrentUser(ctx context.Context, token string) (*auth.SessionUser, error)
 	UpdateProfile(ctx context.Context, userID uint64, input auth.ProfileInput) (*auth.SessionUser, error)
@@ -68,6 +70,13 @@ type loginPasswordRequest struct {
 type loginCodeRequest struct {
 	Email string `json:"email" binding:"required,email,max=255"`
 	Code  string `json:"code" binding:"required,len=6,numeric"`
+}
+
+type emailPasswordResetRequest struct {
+	Email           string `json:"email" binding:"required,email,max=255"`
+	Code            string `json:"code" binding:"required,len=6,numeric"`
+	Password        string `json:"password" binding:"required,min=8,max=72"`
+	ConfirmPassword string `json:"confirmPassword" binding:"required"`
 }
 
 type switchAccountRequest struct {
@@ -185,6 +194,36 @@ func (h *AuthHandler) SendLoginCode(c *gin.Context) {
 	}
 
 	writeAPI(c, http.StatusOK, "验证码已发送", nil)
+}
+
+func (h *AuthHandler) SendPasswordResetCode(c *gin.Context) {
+	var request emailRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		writeAPIError(c, http.StatusBadRequest, "邮箱格式不合法")
+		return
+	}
+	if err := h.service.SendPasswordResetCode(c.Request.Context(), request.Email); err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "如该邮箱已注册且可用，验证码将发送至该邮箱", nil)
+}
+
+func (h *AuthHandler) ResetPassword(c *gin.Context) {
+	var request emailPasswordResetRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		writeAPIError(c, http.StatusBadRequest, "请求参数不合法")
+		return
+	}
+	if request.Password != request.ConfirmPassword {
+		writeAPIError(c, http.StatusBadRequest, "两次输入的密码不一致")
+		return
+	}
+	if err := h.service.ResetPassword(c.Request.Context(), request.Email, request.Code, request.Password); err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "密码已重置，请重新登录", nil)
 }
 
 func (h *AuthHandler) LoginWithCode(c *gin.Context) {

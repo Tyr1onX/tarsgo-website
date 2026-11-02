@@ -22,6 +22,8 @@ type stubAuthService struct {
 	registerInitialSuperAdminFn func(ctx context.Context, input auth.RegisterInitialSuperAdminInput) (*auth.AuthResult, error)
 	loginWithPasswordFn         func(ctx context.Context, email string, password string) (*auth.AuthResult, error)
 	sendLoginCodeFn             func(ctx context.Context, email string) error
+	sendPasswordResetCodeFn     func(ctx context.Context, email string) error
+	resetPasswordFn             func(ctx context.Context, email, code, newPassword string) error
 	loginWithCodeFn             func(ctx context.Context, email string, code string) (*auth.AuthResult, error)
 	currentUserFn               func(ctx context.Context, token string) (*auth.SessionUser, error)
 	updateProfileFn             func(ctx context.Context, userID uint64, input auth.ProfileInput) (*auth.SessionUser, error)
@@ -65,6 +67,19 @@ func (s stubAuthService) LoginWithPassword(ctx context.Context, email string, pa
 func (s stubAuthService) SendLoginCode(ctx context.Context, email string) error {
 	if s.sendLoginCodeFn != nil {
 		return s.sendLoginCodeFn(ctx, email)
+	}
+	return nil
+}
+
+func (s stubAuthService) SendPasswordResetCode(ctx context.Context, email string) error {
+	if s.sendPasswordResetCodeFn != nil {
+		return s.sendPasswordResetCodeFn(ctx, email)
+	}
+	return nil
+}
+func (s stubAuthService) ResetPassword(ctx context.Context, email, code, password string) error {
+	if s.resetPasswordFn != nil {
+		return s.resetPasswordFn(ctx, email, code, password)
 	}
 	return nil
 }
@@ -229,6 +244,32 @@ func TestSendRegisterCode(t *testing.T) {
 	}
 	if payload["message"] != "验证码已发送" {
 		t.Fatalf("unexpected message: %v", payload["message"])
+	}
+}
+
+func TestSendPasswordResetCodeAlwaysUsesGenericResponse(t *testing.T) {
+	t.Parallel()
+	gin.SetMode(gin.TestMode)
+	for _, emailAddress := range []string{"member@example.test", "missing@example.test"} {
+		t.Run(emailAddress, func(t *testing.T) {
+			calledWith := ""
+			handler := NewAuthHandler(stubAuthService{sendPasswordResetCodeFn: func(_ context.Context, email string) error {
+				calledWith = email
+				return nil
+			}})
+			recorder, ctx := newJSONContext(t, http.MethodPost, "/api/password-reset/send-code", map[string]string{"email": emailAddress})
+			handler.SendPasswordResetCode(ctx)
+			if recorder.Code != http.StatusOK || calledWith != emailAddress {
+				t.Fatalf("status=%d service email=%q body=%s", recorder.Code, calledWith, recorder.Body.String())
+			}
+			var payload map[string]any
+			if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("decode response: %v", err)
+			}
+			if payload["message"] != "如该邮箱已注册且可用，验证码将发送至该邮箱" {
+				t.Fatalf("unexpected account-neutral response: %v", payload["message"])
+			}
+		})
 	}
 }
 

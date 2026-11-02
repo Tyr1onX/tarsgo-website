@@ -200,6 +200,19 @@ export async function sendLoginCode(email: string): Promise<void> {
   });
 }
 
+export async function sendPasswordResetCode(email: string): Promise<void> {
+  await apiRequest("/api/password-reset/send-code", { method: "POST", body: { email } });
+}
+
+export async function resetPasswordWithEmail(input: {
+  email: string;
+  code: string;
+  password: string;
+  confirmPassword: string;
+}): Promise<void> {
+  await apiRequest("/api/password-reset", { method: "POST", body: input });
+}
+
 export async function loginWithCode(input: {
   email: string;
   code: string;

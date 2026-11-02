@@ -125,6 +125,8 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	api.POST("/login/email/password", authHandler.LoginWithPassword)
 	api.POST("/login/email/send-code", authHandler.SendLoginCode)
 	api.POST("/login/email/code", authHandler.LoginWithCode)
+	api.POST("/password-reset/send-code", requireSameOriginRequest(cfg), authHandler.SendPasswordResetCode)
+	api.POST("/password-reset", requireSameOriginRequest(cfg), authHandler.ResetPassword)
 	api.POST("/logout", requireAccountActionOrigin(cfg), authHandler.Logout)
 	api.GET("/me", authHandler.Me)
 	api.PUT("/me", requireSameOriginRequest(cfg), middleware.RequireAuthenticated(authService), authHandler.UpdateProfile)

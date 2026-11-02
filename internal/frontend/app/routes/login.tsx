@@ -11,13 +11,15 @@ import {
   loginWithCode,
   loginWithPassword,
   sendLoginCode,
+  sendPasswordResetCode,
+  resetPasswordWithEmail,
   switchAccountSession,
   type AccountSessionAccount,
 } from "~/lib/auth-client";
 import { getDefaultDashboardPath } from "~/lib/dashboard-navigation";
 import { useCooldown } from "~/lib/use-cooldown";
 
-type LoginMode = "password" | "code";
+type LoginMode = "password" | "code" | "reset";
 
 export function meta() {
   return [
@@ -32,13 +34,18 @@ export default function Login() {
   const [mode, setMode] = useState<LoginMode>("password");
   const [email, setEmail] = useState(() => searchParams.get("email") ?? "");
   const [password, setPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [notice, setNotice] = useState("");
   const [code, setCode] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [sendingCode, setSendingCode] = useState(false);
   const [savedAccounts, setSavedAccounts] = useState<AccountSessionAccount[]>([]);
   const [switchingAccountId, setSwitchingAccountId] = useState<number | null>(null);
-  const cooldown = useCooldown();
+  const loginCodeCooldown = useCooldown();
+  const passwordResetCooldown = useCooldown();
+  const activeCooldown = mode === "reset" ? passwordResetCooldown : loginCodeCooldown;
 
   const redirectTo = useMemo(
     () => getSafeRedirectPath(searchParams.get("redirect")),
@@ -80,7 +87,7 @@ export default function Login() {
     if (emailParam) setEmail(emailParam);
   }, [searchParams]);
 
-  const canSendCode = isValidEmail(email) && !cooldown.isCoolingDown && !sendingCode;
+  const canSendCode = isValidEmail(email) && !activeCooldown.isCoolingDown && !sendingCode;
 
   async function handleSendCode() {
     if (!isValidEmail(email)) {
@@ -91,8 +98,13 @@ export default function Login() {
     try {
       setSendingCode(true);
       setErrorMessage("");
-      await sendLoginCode(email);
-      cooldown.start(60);
+      if (mode === "reset") {
+        await sendPasswordResetCode(email);
+        setNotice("如果该邮箱已注册且可用，验证码将发送至该邮箱，请查收。");
+      } else {
+        await sendLoginCode(email);
+      }
+      activeCooldown.start(60);
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
     } finally {
@@ -108,11 +120,24 @@ export default function Login() {
       return;
     }
 
+    if (mode === "reset" && newPassword !== confirmPassword) {
+      setErrorMessage("两次输入的密码不一致。");
+      return;
+    }
+
     try {
       setSubmitting(true);
       setErrorMessage("");
 
-      if (mode === "password") {
+      if (mode === "reset") {
+        await resetPasswordWithEmail({ email, code, password: newPassword, confirmPassword });
+        setMode("password");
+        setPassword("");
+        setNewPassword("");
+        setConfirmPassword("");
+        setCode("");
+        setNotice("密码已重置，请使用新密码登录。");
+      } else if (mode === "password") {
         const user = await loginWithPassword({ email, password });
         prefetchDashboardForRole(user.role.name);
         navigate(getAccountLoginDestination(redirectTo, user.role.name, addingAccount, reauthenticating), { replace: true });
@@ -123,6 +148,7 @@ export default function Login() {
       }
     } catch (error) {
       setErrorMessage(getErrorMessage(error));
+    } finally {
       setSubmitting(false);
     }
   }
@@ -169,14 +195,17 @@ export default function Login() {
         </section>
       ) : null}
 
-      <div className="auth-mode-switch" aria-label="登录方式">
-        <button type="button" aria-pressed={mode === "password"} onClick={() => setMode("password")}>
-          密码登录
-        </button>
-        <button type="button" aria-pressed={mode === "code"} onClick={() => setMode("code")}>
-          验证码登录
-        </button>
-      </div>
+      {mode === "reset" ? (
+        <div className="flex items-center justify-between gap-3 text-sm">
+          <strong>通过邮箱重置密码</strong>
+          <button type="button" className="text-[var(--admin-accent-text)]" onClick={() => { setMode("password"); setErrorMessage(""); setNotice(""); }}>返回登录</button>
+        </div>
+      ) : (
+        <div className="auth-mode-switch" aria-label="登录方式">
+          <button type="button" aria-pressed={mode === "password"} onClick={() => { setMode("password"); setErrorMessage(""); }}>密码登录</button>
+          <button type="button" aria-pressed={mode === "code"} onClick={() => { setMode("code"); setErrorMessage(""); }}>验证码登录</button>
+        </div>
+      )}
 
       <form className="auth-form" onSubmit={handleSubmit} aria-busy={submitting}>
         <div className="auth-field">
@@ -195,7 +224,10 @@ export default function Login() {
 
         {mode === "password" ? (
           <div key="password-field" className="auth-field animate-auth-slide-in">
-            <label htmlFor="password">密码</label>
+            <div className="flex items-center justify-between gap-3">
+              <label htmlFor="password">密码</label>
+              <button type="button" className="text-sm text-[var(--admin-accent-text)]" onClick={() => { setMode("reset"); setErrorMessage(""); setNotice(""); setCode(""); }}>忘记密码？</button>
+            </div>
             <input
               id="password"
               type="password"
@@ -224,8 +256,8 @@ export default function Login() {
                 className="auth-input"
               />
               <button type="button" onClick={handleSendCode} disabled={!canSendCode} className="auth-code-send">
-                {cooldown.isCoolingDown
-                  ? `${cooldown.remainingSeconds}s 后重发`
+                {activeCooldown.isCoolingDown
+                  ? `${activeCooldown.remainingSeconds}s 后重发`
                   : sendingCode
                     ? "发送中..."
                     : "发送验证码"}
@@ -234,10 +266,23 @@ export default function Login() {
           </div>
         )}
 
+        {mode === "reset" ? (
+          <>
+            <div className="auth-field">
+              <label htmlFor="reset-password">新密码</label>
+              <input id="reset-password" type="password" autoComplete="new-password" required minLength={8} maxLength={72} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} placeholder="至少 8 位" className="auth-input" />
+            </div>
+            <div className="auth-field">
+              <label htmlFor="reset-password-confirm">确认新密码</label>
+              <input id="reset-password-confirm" type="password" autoComplete="new-password" required minLength={8} maxLength={72} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} className="auth-input" />
+            </div>
+          </>
+        ) : null}
+        {notice ? <p role="status" className="text-sm text-[var(--admin-accent-text)]">{notice}</p> : null}
         {errorMessage ? <div className="auth-error animate-auth-fade-in" role="alert" aria-live="polite">{errorMessage}</div> : null}
 
         <button type="submit" disabled={submitting} className="auth-submit">
-          {submitting ? "登录中..." : "登录"}
+          {submitting ? (mode === "reset" ? "重置中..." : "登录中...") : mode === "reset" ? "重置密码" : "登录"}
         </button>
       </form>
 
