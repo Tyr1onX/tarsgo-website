@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useState, type FormEvent } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { useLocation, useNavigate, useOutletContext, useParams } from "react-router";
 
 import { CommunityRelatedTopics } from "~/components/community-related-topics";
@@ -14,17 +14,38 @@ import {
   COMMUNITY_CATEGORIES,
   communityCategoryLabel,
   communityClient,
+  communityPostReactionSnapshot,
   formatCommunityDate,
+  mergeCommunityReactionOverrides,
+  releaseCommunityReactionLock,
+  setCommunityPostReaction,
+  tryAcquireCommunityReactionLock,
+  withCommunityPostReactions,
   type CommunityCategory,
   type CommunityComment,
   type CommunityDetail,
+  type CommunityPostReactionSnapshot,
+  type CommunityReactionOverride,
 } from "~/lib/community-client";
-import { clearCommunityLists, removeCommunityPostFromLists } from "~/lib/community-list-cache";
+import { clearCommunityLists, invalidateCommunitySavedLists, removeCommunityPostFromLists, updateCommunityPostInLists } from "~/lib/community-list-cache";
 import { communityStandaloneAttachments, stripCommunityMarkdown } from "~/lib/community-markdown";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import "./community.css";
 
 const CommunityMarkdownEditor = lazy(() => import("~/components/community-markdown-editor").then((module) => ({ default: module.CommunityMarkdownEditor })));
+
+type CommunityCommentReactionSnapshot = Pick<CommunityComment, "likedByMe" | "likeCount">;
+
+function mergeDetailReactions(
+  detail: CommunityDetail,
+  postOverrides: Map<number, CommunityReactionOverride<CommunityPostReactionSnapshot>>,
+  commentOverrides: Map<number, CommunityReactionOverride<CommunityCommentReactionSnapshot>>,
+  startedAtVersion: number,
+) {
+  const [post] = mergeCommunityReactionOverrides([detail.post], postOverrides, startedAtVersion, withCommunityPostReactions);
+  const comments = mergeCommunityReactionOverrides(detail.comments, commentOverrides, startedAtVersion, (comment, reaction) => ({ ...comment, ...reaction }));
+  return { ...detail, post: post ?? detail.post, comments };
+}
 
 export function meta() {
   return [{ title: "社区讨论 | TARSGO" }];
@@ -41,6 +62,8 @@ export default function CommunityPostRoute() {
   const [error, setError] = useState("");
   const [retryAction, setRetryAction] = useState<(() => void) | null>(null);
   const [busy, setBusy] = useState(false);
+  const [postReactionBusy, setPostReactionBusy] = useState(false);
+  const [commentReactionBusyIDs, setCommentReactionBusyIDs] = useState<Set<number>>(() => new Set());
   const [replyTarget, setReplyTarget] = useState<CommunityComment | null>(null);
   const [replyOpen, setReplyOpen] = useState(false);
   const [focusedCommentID, setFocusedCommentID] = useState<number | null>(null);
@@ -53,6 +76,12 @@ export default function CommunityPostRoute() {
   const [editingCommentID, setEditingCommentID] = useState<number | null>(null);
   const [editCommentBody, setEditCommentBody] = useState("");
   const [editCommentUploads, setEditCommentUploads] = useState<CommunityPendingImage[]>([]);
+  const detailRequestRef = useRef(0);
+  const reactionVersionRef = useRef(0);
+  const postReactionLocksRef = useRef(new Set<number>());
+  const commentReactionLocksRef = useRef(new Set<number>());
+  const postReactionOverridesRef = useRef(new Map<number, CommunityReactionOverride<CommunityPostReactionSnapshot>>());
+  const commentReactionOverridesRef = useRef(new Map<number, CommunityReactionOverride<CommunityCommentReactionSnapshot>>());
   const returnTarget = (location.state as { communityReturnTo?: unknown } | null)?.communityReturnTo;
   const hasCommunityReturnLocation = typeof returnTarget === "string" && (returnTarget === "/dashboard" || returnTarget.startsWith("/dashboard/") || returnTarget.startsWith("/dashboard?"));
   const returnTo = typeof returnTarget === "string" && (returnTarget === "/dashboard" || returnTarget.startsWith("/dashboard/") || returnTarget.startsWith("/dashboard?"))
@@ -65,6 +94,8 @@ export default function CommunityPostRoute() {
   }
 
   const reload = useCallback(async () => {
+    const requestID = ++detailRequestRef.current;
+    const startedAtVersion = reactionVersionRef.current;
     if (!Number.isSafeInteger(postID) || postID < 1) {
       setError("帖子地址无效。");
       setLoading(false);
@@ -73,16 +104,24 @@ export default function CommunityPostRoute() {
     setLoading(true);
     setError("");
     try {
-      setDetail(await communityClient.get(postID));
+      const result = await communityClient.get(postID);
+      if (detailRequestRef.current !== requestID) return;
+      setDetail(mergeDetailReactions(result, postReactionOverridesRef.current, commentReactionOverridesRef.current, startedAtVersion));
     } catch (cause) {
+      if (detailRequestRef.current !== requestID) return;
       setError(cause instanceof Error ? cause.message : "讨论内容暂时无法读取。");
       setDetail(null);
     } finally {
-      setLoading(false);
+      if (detailRequestRef.current === requestID) setLoading(false);
     }
   }, [postID]);
 
   useEffect(() => { void reload(); }, [reload]);
+
+  function syncPostReactionCache(reaction: CommunityPostReactionSnapshot, invalidateSaved = false) {
+    updateCommunityPostInLists(currentUser.id, postID, (cachedPost) => withCommunityPostReactions(cachedPost, reaction));
+    if (invalidateSaved) invalidateCommunitySavedLists(currentUser.id);
+  }
 
   useEffect(() => {
     const hash = location.hash || window.location.hash;
@@ -100,57 +139,79 @@ export default function CommunityPostRoute() {
   }, [detail, location.hash]);
 
   async function toggleReaction(kind: "like" | "bookmark") {
-    if (!detail || busy) return;
-    setBusy(true);
+    if (!detail || busy || !tryAcquireCommunityReactionLock(postReactionLocksRef.current, postID)) return;
+    setPostReactionBusy(true);
     setError("");
     setRetryAction(null);
     const active = kind === "like" ? !detail.post.likedByMe : !detail.post.savedByMe;
-    const previous = detail;
-    setDetail({ ...detail, post: {
-      ...detail.post,
-      likedByMe: kind === "like" ? active : detail.post.likedByMe,
-      savedByMe: kind === "bookmark" ? active : detail.post.savedByMe,
+    const previousReaction = communityPostReactionSnapshot(detail.post);
+    const optimisticPost = setCommunityPostReaction(detail.post, kind, {
+      active,
       likeCount: kind === "like" ? Math.max(0, detail.post.likeCount + (active ? 1 : -1)) : detail.post.likeCount,
-    } });
+    });
+    const optimisticReaction = communityPostReactionSnapshot(optimisticPost);
+    const optimisticVersion = ++reactionVersionRef.current;
+    postReactionOverridesRef.current.set(postID, { reaction: optimisticReaction, version: optimisticVersion, pending: true });
+    setDetail((current) => current ? { ...current, post: setCommunityPostReaction(current.post, kind, {
+      active,
+      likeCount: optimisticPost.likeCount,
+    }) } : current);
+    syncPostReactionCache(optimisticReaction, kind === "bookmark" && active);
     try {
       const state = kind === "like"
         ? await communityClient.like(postID, active)
         : await communityClient.bookmark(postID, active);
-      clearCommunityLists();
-      setDetail((current) => current ? { ...current, post: {
-        ...current.post,
-        likedByMe: kind === "like" ? state.active : current.post.likedByMe,
-        savedByMe: kind === "bookmark" ? state.active : current.post.savedByMe,
-        likeCount: state.likeCount,
-      } } : current);
+      const settledPost = setCommunityPostReaction(optimisticPost, kind, state);
+      const settledReaction = communityPostReactionSnapshot(settledPost);
+      const settledVersion = ++reactionVersionRef.current;
+      postReactionOverridesRef.current.set(postID, { reaction: settledReaction, version: settledVersion, pending: false });
+      setDetail((current) => current ? { ...current, post: setCommunityPostReaction(current.post, kind, state) } : current);
+      syncPostReactionCache(settledReaction, kind === "bookmark" && state.active);
     } catch (cause) {
-      setDetail(previous);
+      const rollbackVersion = ++reactionVersionRef.current;
+      postReactionOverridesRef.current.set(postID, { reaction: previousReaction, version: rollbackVersion, pending: false });
+      setDetail((current) => current ? { ...current, post: withCommunityPostReactions(current.post, previousReaction) } : current);
+      syncPostReactionCache(previousReaction, kind === "bookmark" && previousReaction.savedByMe);
       setError(cause instanceof Error ? cause.message : "操作失败，请稍后重试。");
       setRetryAction(() => () => { void toggleReaction(kind); });
     } finally {
-      setBusy(false);
+      releaseCommunityReactionLock(postReactionLocksRef.current, postID);
+      setPostReactionBusy(false);
     }
   }
 
   async function toggleCommentLike(item: CommunityComment) {
-    if (!detail || busy || !item.canLike) return;
+    if (!detail || busy || !item.canLike || !tryAcquireCommunityReactionLock(commentReactionLocksRef.current, item.id)) return;
     const active = !item.likedByMe;
-    const previous = detail;
-    setBusy(true);
+    const previousReaction: CommunityCommentReactionSnapshot = { likedByMe: item.likedByMe, likeCount: item.likeCount };
+    const optimisticReaction: CommunityCommentReactionSnapshot = {
+      likedByMe: active,
+      likeCount: Math.max(0, item.likeCount + (active ? 1 : -1)),
+    };
+    const optimisticVersion = ++reactionVersionRef.current;
+    commentReactionOverridesRef.current.set(item.id, { reaction: optimisticReaction, version: optimisticVersion, pending: true });
+    setCommentReactionBusyIDs((current) => new Set(current).add(item.id));
     setError("");
-    setDetail({ ...detail, comments: detail.comments.map((commentItem) => commentItem.id === item.id ? {
-      ...commentItem, likedByMe: active, likeCount: Math.max(0, commentItem.likeCount + (active ? 1 : -1)),
-    } : commentItem) });
+    setDetail((current) => current ? { ...current, comments: current.comments.map((commentItem) => commentItem.id === item.id ? { ...commentItem, ...optimisticReaction } : commentItem) } : current);
     try {
       const result = await communityClient.likeComment(item.id, active);
-      setDetail((current) => current ? { ...current, comments: current.comments.map((commentItem) => commentItem.id === item.id ? {
-        ...commentItem, likedByMe: result.active, likeCount: result.likeCount,
-      } : commentItem) } : current);
+      const settledReaction = { likedByMe: result.active, likeCount: result.likeCount };
+      const settledVersion = ++reactionVersionRef.current;
+      commentReactionOverridesRef.current.set(item.id, { reaction: settledReaction, version: settledVersion, pending: false });
+      setDetail((current) => current ? { ...current, comments: current.comments.map((commentItem) => commentItem.id === item.id ? { ...commentItem, ...settledReaction } : commentItem) } : current);
     } catch (cause) {
-      setDetail(previous);
+      const rollbackVersion = ++reactionVersionRef.current;
+      commentReactionOverridesRef.current.set(item.id, { reaction: previousReaction, version: rollbackVersion, pending: false });
+      setDetail((current) => current ? { ...current, comments: current.comments.map((commentItem) => commentItem.id === item.id ? { ...commentItem, ...previousReaction } : commentItem) } : current);
       setError(cause instanceof Error ? cause.message : "回复点赞失败，请稍后重试。");
+      setRetryAction(() => () => { void toggleCommentLike(item); });
     } finally {
-      setBusy(false);
+      releaseCommunityReactionLock(commentReactionLocksRef.current, item.id);
+      setCommentReactionBusyIDs((current) => {
+        const next = new Set(current);
+        next.delete(item.id);
+        return next;
+      });
     }
   }
 
@@ -158,8 +219,10 @@ export default function CommunityPostRoute() {
     if (!detail || busy) return;
     setBusy(true);
     setError("");
+    const startedAtVersion = reactionVersionRef.current;
     try {
-      setDetail(await communityClient.setSolution(postID, commentID));
+      const updated = await communityClient.setSolution(postID, commentID);
+      setDetail(mergeDetailReactions(updated, postReactionOverridesRef.current, commentReactionOverridesRef.current, startedAtVersion));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "解决方案状态更新失败。");
     } finally {
@@ -177,10 +240,11 @@ export default function CommunityPostRoute() {
     setBusy(true);
     setError("");
     setRetryAction(null);
+    const startedAtVersion = reactionVersionRef.current;
     try {
       const result = await communityClient.addComment(postID, input);
       clearCommunityLists();
-      setDetail(result);
+      setDetail(mergeDetailReactions(result, postReactionOverridesRef.current, commentReactionOverridesRef.current, startedAtVersion));
       const createdComment = result.comments.at(-1);
       if (createdComment) {
         setFocusedCommentID(createdComment.id);
@@ -219,10 +283,11 @@ export default function CommunityPostRoute() {
     setBusy(true);
     setError("");
     setRetryAction(null);
+    const startedAtVersion = reactionVersionRef.current;
     try {
       const updated = await communityClient.update(postID, { title: editTitle, body: editBody, category: editCategory, files: editPostUploads.map((item) => item.file), uploadTokens: editPostUploads.map((item) => item.token) });
       clearCommunityLists();
-      setDetail(updated);
+      setDetail(mergeDetailReactions(updated, postReactionOverridesRef.current, commentReactionOverridesRef.current, startedAtVersion));
       setEditingPost(false);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "帖子更新失败。");
@@ -253,10 +318,11 @@ export default function CommunityPostRoute() {
     if (busy) return;
     setBusy(true);
     setRetryAction(null);
+    const startedAtVersion = reactionVersionRef.current;
     try {
       const updated = await communityClient.updateComment(commentID, { body: editCommentBody, files: editCommentUploads.map((item) => item.file), uploadTokens: editCommentUploads.map((item) => item.token) });
       clearCommunityLists();
-      setDetail(updated);
+      setDetail(mergeDetailReactions(updated, postReactionOverridesRef.current, commentReactionOverridesRef.current, startedAtVersion));
       setEditingCommentID(null);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "回复更新失败。");
@@ -270,10 +336,11 @@ export default function CommunityPostRoute() {
     if (busy || !window.confirm("确定删除这条回复吗？")) return;
     setBusy(true);
     setRetryAction(null);
+    const startedAtVersion = reactionVersionRef.current;
     try {
       const updated = await communityClient.removeComment(commentID);
       clearCommunityLists();
-      setDetail(updated);
+      setDetail(mergeDetailReactions(updated, postReactionOverridesRef.current, commentReactionOverridesRef.current, startedAtVersion));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "回复删除失败。");
       setRetryAction(() => () => { void deleteComment(commentID); });
@@ -286,10 +353,11 @@ export default function CommunityPostRoute() {
     if (!detail || busy) return;
     setBusy(true);
     setRetryAction(null);
+    const startedAtVersion = reactionVersionRef.current;
     try {
       const updated = await communityClient.moderate(postID, change);
       clearCommunityLists();
-      setDetail(updated);
+      setDetail(mergeDetailReactions(updated, postReactionOverridesRef.current, commentReactionOverridesRef.current, startedAtVersion));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "社区管理操作失败。");
       setRetryAction(() => () => { void moderate(change); });
@@ -329,7 +397,7 @@ export default function CommunityPostRoute() {
         <span className="community-post__category">{communityCategoryLabel(post.category)}</span>
         <CommunityPostMenu
           post={post}
-          busy={busy}
+          busy={busy || postReactionBusy}
           onModerate={(change) => void moderate(change)}
           onEdit={!editingPost ? () => { setEditTitle(post.title); setEditBody(post.body); setEditCategory(post.category); setEditPostUploads([]); setEditingPost(true); } : undefined}
           onDelete={() => void deletePost()}
@@ -348,8 +416,8 @@ export default function CommunityPostRoute() {
         {communityStandaloneAttachments(post.body, post.attachments).length ? <CommunityImageGallery attachments={communityStandaloneAttachments(post.body, post.attachments)} /> : null}
       </>}
       <footer className="community-post__actions">
-        <button type="button" aria-pressed={post.likedByMe} disabled={busy} onClick={() => void toggleReaction("like")}><CommunityActionIcon kind="like" /><span>{post.likeCount}</span>{post.likedByMe ? "已赞" : "点赞"}</button>
-        <button type="button" aria-pressed={post.savedByMe} disabled={busy} onClick={() => void toggleReaction("bookmark")}><CommunityActionIcon kind="bookmark" />{post.savedByMe ? "已收藏" : "收藏"}</button>
+        <button type="button" aria-pressed={post.likedByMe} disabled={busy || postReactionBusy} onClick={() => void toggleReaction("like")}><CommunityActionIcon kind="like" active={post.likedByMe} /><span>{post.likeCount}</span>{post.likedByMe ? "已赞" : "点赞"}</button>
+        <button type="button" aria-pressed={post.savedByMe} disabled={busy || postReactionBusy} onClick={() => void toggleReaction("bookmark")}><CommunityActionIcon kind="bookmark" active={post.savedByMe} />{post.savedByMe ? "已收藏" : "收藏"}</button>
         <button type="button" onClick={() => void sharePost()}><CommunityIcon name="share2" />分享</button>
         {shareStatus ? <span className="community-share-status" role="status">{shareStatus}</span> : null}
       </footer>
@@ -373,7 +441,7 @@ export default function CommunityPostRoute() {
           {communityStandaloneAttachments(item.body, item.attachments).length ? <CommunityImageGallery attachments={communityStandaloneAttachments(item.body, item.attachments)} compact /> : null}
           {!item.isDeleted && <div className="community-comment__actions">
             <button type="button" onClick={() => openReply(item)}>回复</button>
-            <button type="button" className={item.likedByMe ? "is-liked" : ""} aria-label={`${item.likedByMe ? "取消点赞" : "点赞"}，${item.likeCount} 个赞`} aria-pressed={item.likedByMe} disabled={busy || !item.canLike} onClick={() => void toggleCommentLike(item)}><CommunityActionIcon kind="like" /><span>{item.likeCount || "赞"}</span></button>
+            <button type="button" className={item.likedByMe ? "is-liked" : ""} aria-label={`${item.likedByMe ? "取消点赞" : "点赞"}，${item.likeCount} 个赞`} aria-pressed={item.likedByMe} disabled={busy || commentReactionBusyIDs.has(item.id) || !item.canLike} onClick={() => void toggleCommentLike(item)}><CommunityActionIcon kind="like" active={item.likedByMe} /><span>{item.likeCount || "赞"}</span></button>
             {item.canAcceptSolution ? <button type="button" className={item.isAcceptedSolution ? "is-solution" : ""} disabled={busy} onClick={() => void setSolution(item.isAcceptedSolution ? null : item.id)}>{item.isAcceptedSolution ? "取消采纳" : "采纳为解决方案"}</button> : null}
             {item.canEdit ? <><button type="button" onClick={() => { setEditingCommentID(item.id); setEditCommentBody(item.body); setEditCommentUploads([]); }}>编辑</button><button type="button" onClick={() => void deleteComment(item.id)}>删除</button></> : null}
           </div>}
