@@ -10,8 +10,8 @@ import "./organization-preview.css";
 
 export function meta({}: Route.MetaArgs) {
   return [
-    { title: "战队组织架构预览 | TARSGO" },
-    { name: "description", content: "吉甲大师战队真实管理岗位与岗位分类预览。" },
+    { title: "团队组织架构 | TARSGO" },
+    { name: "description", content: "吉甲大师团队成员、岗位与职责。" },
   ];
 }
 
@@ -166,7 +166,7 @@ export default function OrganizationPreviewPage() {
   layoutRef.current = layout;
 
   useEffect(() => {
-    apiRequest<OrganizationPreview>("/api/admin/organization-preview")
+    apiRequest<OrganizationPreview>("/api/team/organization-preview")
       .then((result) => {
         setData(result);
         setExpandedIDs(new Set(result.categories.map(({ id }) => id)));
@@ -256,18 +256,13 @@ export default function OrganizationPreviewPage() {
   }
 
   if (!data) {
-    return <main className="organization-preview" role="status">{loadError || "正在加载组织架构…"}</main>;
+    return <section className="organization-preview" role="status">{loadError || "正在加载组织架构…"}</section>;
   }
 
   return (
-    <main className="organization-preview">
+    <section className="organization-preview" aria-labelledby="team-organization-title">
       <header className="organization-preview__header">
-        <div className="organization-preview__brandline">
-          <Link to="/dashboard" className="organization-preview__back">← 返回工作台</Link>
-          <span className="organization-preview__preview-tag">预览</span>
-        </div>
-        <p className="organization-preview__eyebrow">TARSGO / TEAM MAP</p>
-        <h1>吉甲大师组织架构</h1>
+        <h1 id="team-organization-title">吉甲大师组织架构</h1>
         <p className="organization-preview__intro">先认识负责人，再按岗位类别找到对应同学。</p>
       </header>
 
@@ -300,8 +295,8 @@ export default function OrganizationPreviewPage() {
                 <span>负责人：{selectedPosition.position.name}</span>
               </p>
               {selectedPosition.position.userId !== null ? (
-                <Link className="organization-preview__member-profile" to={`/dashboard/admin/users?userId=${selectedPosition.position.userId}`}>
-                  查看成员资料 ↗
+                <Link className="organization-preview__member-profile" to={`/dashboard/members/${selectedPosition.position.userId}`}>
+                  查看成员主页 ↗
                 </Link>
               ) : null}
               <p className="organization-preview__details-duty">{organizationPositionDuty(selectedPosition.position.id, selectedPosition.categoryID)}</p>
@@ -385,7 +380,6 @@ export default function OrganizationPreviewPage() {
         </div>
         <p className="organization-preview__help">点击岗位查看职责；桌面端可拖动画布，并点击分类标题展开或收起岗位。手机端可纵向浏览。</p>
       </section>
-      <footer className="organization-preview__footer">管理层岗位信息依据《管理层任命10.7》整理；技术体系与兵种项目体系为协作分类。</footer>
-    </main>
+    </section>
   );
 }

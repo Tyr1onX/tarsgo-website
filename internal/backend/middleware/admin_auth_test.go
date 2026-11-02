@@ -54,6 +54,37 @@ func TestAdminCanUseAdminRoutesButNotSuperAdminConfiguration(t *testing.T) {
 	}
 }
 
+func TestTeamOrganizationPreviewAllowsEveryAuthenticatedRole(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, role := range []string{"user", "admin", "super_admin"} {
+		engine := gin.New()
+		engine.GET("/api/team/organization-preview", RequireAuthenticated(roleSessionReader{role: role}), func(c *gin.Context) {
+			user, ok := CurrentSessionUser(c)
+			if !ok || user.Role.Name != role {
+				t.Errorf("team preview received session %#v, want role %q", user, role)
+			}
+			c.Status(http.StatusNoContent)
+		})
+		request := httptest.NewRequest(http.MethodGet, "/api/team/organization-preview", nil)
+		request.AddCookie(&http.Cookie{Name: "session", Value: "test-token"})
+		response := httptest.NewRecorder()
+		engine.ServeHTTP(response, request)
+		if response.Code != http.StatusNoContent {
+			t.Errorf("team preview for role %q returned %d, want %d", role, response.Code, http.StatusNoContent)
+		}
+	}
+
+	engine := gin.New()
+	engine.GET("/api/team/organization-preview", RequireAuthenticated(roleSessionReader{role: "user"}), func(c *gin.Context) {
+		c.Status(http.StatusNoContent)
+	})
+	response := httptest.NewRecorder()
+	engine.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/team/organization-preview", nil))
+	if response.Code != http.StatusUnauthorized {
+		t.Fatalf("team preview without a session returned %d, want %d", response.Code, http.StatusUnauthorized)
+	}
+}
+
 func TestLeaveAccessReviewAndAccountDetailsAreSuperAdminOnly(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	request := func(role, method, path string) int {

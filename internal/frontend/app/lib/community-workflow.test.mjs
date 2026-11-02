@@ -41,8 +41,9 @@ test("workbench home is the community and public home stays separately routed", 
   assert.match(routes, /route\("community\/:id", "routes\/dashboard\/community-post\.tsx"\)/);
   assert.match(routes, /route\("members\/:id", "routes\/dashboard\/community-member-profile\.tsx"\)/);
   assert.match(dashboard, /吉甲社区/);
-  assert.match(navigation, /label: "吉甲社区"/);
-  assert.doesNotMatch(navigation, /"\/dashboard\/questions"/);
+  assert.match(navigation, /key: "community", label: "社区", href: "\/dashboard", iconKey: "community"/);
+  const primaryNavigation = navigation.match(/const DASHBOARD_SECTION_MENU:[\s\S]*?\];/)?.[0] ?? "";
+  assert.doesNotMatch(primaryNavigation, /"\/dashboard\/questions"/);
 });
 
 test("legacy question links redirect into community discussions without a second Q&A area", async () => {

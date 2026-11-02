@@ -8,6 +8,7 @@ const dashboardLayout = await readFile(new URL("../routes/dashboard/layout.tsx",
 const registrationsRoute = await readFile(new URL("../routes/admin/registrations.tsx", import.meta.url), "utf8");
 const registrationsClient = await readFile(new URL("./registrations-client.ts", import.meta.url), "utf8");
 const guide = await readFile(new URL("../routes/dashboard/guide.tsx", import.meta.url), "utf8");
+const sectionNavigation = await readFile(new URL("../components/dashboard-section-navigation.tsx", import.meta.url), "utf8");
 
 test("candidate sidebar count includes only actionable screening and interview queues", () => {
   const summary = { total: 30, pendingScreening: 2, pendingInterview: 1, admitted: 10, rejected: 12, withdrawn: 5 };
@@ -19,8 +20,8 @@ test("candidate sidebar count includes only actionable screening and interview q
 test("sidebar todo count reuses the permission-scoped summary and refreshes after candidate actions", () => {
   assert.match(dashboardLayout, /hasDashboardAdminAccess\(currentUser\.role\.name\)[\s\S]*?getAdminWorkbenchSummary\(userId, force\)/);
   assert.match(dashboardLayout, /getCandidateTodoCount\(response\.currentFormAvailable, response\.summary\)/);
-  assert.match(dashboardLayout, /item\.children\.some\(\(child\) => child\.key === "candidate-processing"\) \? candidateTodoCount : undefined/);
-  assert.match(dashboardLayout, /child\.key === "candidate-processing" && \(badgeCount \?\? 0\) > 0/);
+  assert.match(dashboardLayout, /candidateTodoCount !== null \? `\$\{candidateTodoCount\} 项报名待处理`/);
+  assert.match(sectionNavigation, /item\.key === "candidate-processing" \? candidateTodoCount/);
   assert.ok(dashboardLayout.includes("candidateTodoState.roleName === currentUser.role.name"));
   assert.ok(registrationsClient.includes("const pending = pendingWorkbenchSummaryRequests.get(accountId);"));
   assert.ok(registrationsClient.includes("if (pending && !force) return pending;"));
