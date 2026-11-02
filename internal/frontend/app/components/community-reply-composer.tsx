@@ -94,17 +94,23 @@ export function CommunityReplyComposer({ accountId, postId, busy = false, commen
   useEffect(() => {
     const panel = panelRef.current;
     if (!panel) return;
+    let clampFrame = 0;
 
     function keepMovedPanelInViewport() {
+      clampFrame = 0;
       const activePanel = panelRef.current;
       if (!activePanel) return;
       if (window.matchMedia("(max-width: 767px)").matches) {
-        activePanel.style.removeProperty("left");
-        activePanel.style.removeProperty("top");
-        activePanel.style.removeProperty("right");
-        activePanel.style.removeProperty("bottom");
-        dragRef.current = null;
-        setDragging(false);
+        if (activePanel.style.left || activePanel.style.top || activePanel.style.right || activePanel.style.bottom) {
+          activePanel.style.removeProperty("left");
+          activePanel.style.removeProperty("top");
+          activePanel.style.removeProperty("right");
+          activePanel.style.removeProperty("bottom");
+        }
+        if (dragRef.current) {
+          dragRef.current = null;
+          setDragging(false);
+        }
         return;
       }
       if (!activePanel.style.left || !activePanel.style.top) return;
@@ -112,16 +118,22 @@ export function CommunityReplyComposer({ accountId, postId, busy = false, commen
       const margin = 12;
       const left = Math.max(margin, Math.min(rect.left, window.innerWidth - rect.width - margin));
       const top = Math.max(margin, Math.min(rect.top, window.innerHeight - rect.height - margin));
-      activePanel.style.left = `${left}px`;
-      activePanel.style.top = `${top}px`;
+      if (Math.abs(left - rect.left) > 0.5) activePanel.style.left = `${left}px`;
+      if (Math.abs(top - rect.top) > 0.5) activePanel.style.top = `${top}px`;
     }
 
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(keepMovedPanelInViewport);
+    function scheduleViewportClamp() {
+      if (clampFrame) return;
+      clampFrame = window.requestAnimationFrame(keepMovedPanelInViewport);
+    }
+
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(scheduleViewportClamp);
     observer?.observe(panel);
-    window.addEventListener("resize", keepMovedPanelInViewport);
+    window.addEventListener("resize", scheduleViewportClamp);
     return () => {
       observer?.disconnect();
-      window.removeEventListener("resize", keepMovedPanelInViewport);
+      window.removeEventListener("resize", scheduleViewportClamp);
+      if (clampFrame) window.cancelAnimationFrame(clampFrame);
     };
   }, []);
 
