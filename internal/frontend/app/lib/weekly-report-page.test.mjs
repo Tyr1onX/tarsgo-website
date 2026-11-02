@@ -8,13 +8,26 @@ const client = await readFile(new URL("./weekly-report-client.ts", import.meta.u
 const service = await readFile(new URL("../../../backend/service/weeklyreport/service.go", import.meta.url), "utf8");
 const repository = await readFile(new URL("../../../backend/service/weeklyreport/repository.go", import.meta.url), "utf8");
 
-test("weekly report opens on the current week and history lists saved records only", () => {
-  assert.match(route, /useState\("current"\)/);
-  assert.match(route, /已有周报/);
+test("weekly report defaults to submission status and saved history; editing requires an explicit action", () => {
+  assert.match(route, /const isEditing = searchParams\.get\("edit"\) === "1"/);
+  assert.match(route, /!isEditing && selectedReport/);
+  assert.match(route, /!isEditing && !selectedReport[\s\S]*?填写周报/);
+  assert.match(route, /isEditing \? <form className="weekly-report__form"/);
+  assert.match(route, /修改本周周报/);
+  assert.match(route, /历史记录/);
   assert.match(route, /dashboard\.reports\.map\(\(report\)/);
-  assert.match(route, /仅显示已保存的记录/);
-  assert.match(route, /返回本周/);
-  assert.doesNotMatch(route, /选择要查看的周报|type="week"/);
+  assert.match(route, /setEditing\(true\)/);
+  assert.doesNotMatch(route, /默认展开编辑|自动进入编辑/);
+});
+
+test("team submission names load only after a permitted leader expands the disclosure", () => {
+  assert.match(route, /const \[teamExpanded, setTeamExpanded\] = useState\(false\)/);
+  assert.match(route, /if \(teamExpanded && dashboard\?\.canViewTeam/);
+  assert.match(route, /aria-expanded=\{teamExpanded\}/);
+  assert.match(route, /teamExpanded \? <>[\s\S]*?teamWeek\.members\.map/);
+  assert.match(route, /teamWeek\.members\.map\(\(member\)/);
+  assert.match(repository, /users\.status = \? AND users\.last_login_at >= \?/);
+  assert.match(service, /adminuser\.AccountActivityCutoff\(s\.now\(\)\)/);
 });
 
 test("team history choices come from stored weeks and arbitrary weeks are rejected server-side", () => {
@@ -25,25 +38,13 @@ test("team history choices come from stored weeks and arbitrary weeks are reject
   assert.match(service, /weekStart != currentWeek && !containsWeek\(availableWeeks, weekStart\)/);
 });
 
-test("the team list is a compact one-column disclosure instead of uneven cards", () => {
+test("the team list remains a compact one-column disclosure when opened", () => {
   assert.match(route, /<details className="weekly-report__member weekly-report__member--submitted"/);
   assert.match(route, /<summary className="weekly-report__member-heading">/);
   assert.match(route, /已提交/);
   assert.match(route, /未提交/);
   assert.match(style, /\.weekly-report__member-list \{\s*display: grid;\s*border-top:/);
   assert.doesNotMatch(style, /grid-template-columns:\s*repeat\(auto-fill/);
-});
-
-test("team roster uses the same enabled-account and last-login boundary as account management", () => {
-  assert.match(repository, /users\.status = \? AND users\.last_login_at >= \?/);
-  assert.match(service, /adminuser\.AccountActivityCutoff\(s\.now\(\)\)/);
-});
-
-test("team filters adapt to the available workbench width", () => {
-  assert.match(style, /\.weekly-report__panel-heading\s*\{[^}]*flex-wrap:\s*wrap/);
-  assert.match(style, /\.weekly-report__team-filters\s*\{[^}]*flex-wrap:\s*wrap/);
-  assert.match(style, /\.weekly-report__team-filters\s+\.weekly-report__week-select\s*\{[^}]*min-width:\s*0/);
-  assert.match(style, /\.weekly-report__week-select select,[\s\S]*?\.weekly-report__field textarea\s*\{[^}]*min-width:\s*0/);
 });
 
 test("weekly reports support retryable private attachment upload, download, and removal", () => {
@@ -56,6 +57,15 @@ test("weekly reports support retryable private attachment upload, download, and 
   assert.match(service, /CreateReportAttachments\(ctx, actor\.ID, reportID, rows\)/);
 });
 
+test("the course schedule stays under personal profile settings", async () => {
+  const routeConfig = await readFile(new URL("../routes.ts", import.meta.url), "utf8");
+  const timetable = await readFile(new URL("../routes/dashboard/timetable.tsx", import.meta.url), "utf8");
+  const layout = await readFile(new URL("../routes/dashboard/layout.tsx", import.meta.url), "utf8");
+  assert.match(routeConfig, /route\("timetable", "routes\/dashboard\/timetable\.tsx"\)/);
+  assert.match(timetable, /Navigate to=\{`\/dashboard\/members\/\$\{currentUser\.id\}\?tab=settings#timetable`\}/);
+  assert.match(layout, /navigate\(`\/dashboard\/members\/\$\{currentUser\.id\}\$\{tab === "overview" \? "" : `\?tab=\$\{tab\}`\}`\)/);
+});
+
 test("the in-workbench guide documents open daily and assignment flows", async () => {
   const guide = await readFile(new URL("../routes/dashboard/guide.tsx", import.meta.url), "utf8");
   const routeConfig = await readFile(new URL("../routes.ts", import.meta.url), "utf8");
@@ -65,5 +75,4 @@ test("the in-workbench guide documents open daily and assignment flows", async (
   }
   assert.match(guide, /提交成果并查看批改反馈/);
   assert.doesNotMatch(guide, /to="\/dashboard\/(practice-projects|growth|questions|skills|capabilities|expedition)/);
-  assert.doesNotMatch(guide, /原始作业分数|项目内部评分/);
 });

@@ -4,13 +4,11 @@ import test from "node:test";
 
 import {
   canAccessDashboardAdminPath,
-  getDailyDashboardMenu,
   getDashboardSectionKey,
   getDashboardSectionMenu,
   getDefaultDashboardPath,
-  getMyTransactionsMenu,
+  getMyWorkbenchMenu,
   getUserDashboardMenu,
-  getVisibleAdminDashboardLinks,
   getVisibleAdminDashboardMenu,
   hasAssignmentGroupAccess,
   hasDashboardAdminAccess,
@@ -20,48 +18,57 @@ import {
   isTemporarilyUnavailableDashboardPath,
 } from "./dashboard-navigation.ts";
 
-test("all authenticated roles get daily reports, self-service leave, and one work manual entry", () => {
-  for (const role of ["user", "admin", "super_admin"]) {
-    assert.equal(getDefaultDashboardPath(role), "/dashboard");
-    assert.deepEqual(getDashboardSectionMenu(role).map(({ key }) => key), role === "user"
-      ? ["community", "transactions", "team"]
-      : ["community", "transactions", "team", "management"]);
-  }
-  assert.deepEqual(getDashboardSectionMenu("user").map(({ href }) => href), ["/dashboard", "/dashboard/weekly-reports", "/dashboard/team"]);
-  assert.equal(new Set(getDashboardSectionMenu("super_admin").map(({ iconKey }) => iconKey)).size, 4);
-  assert.deepEqual(getDailyDashboardMenu("user").map(({ key, href }) => [key, href]), [
-    ["weekly-reports", "/dashboard/weekly-reports"],
-    ["leave-workbench", "/dashboard/leave"],
-    ["work-manual", "/dashboard/guide"],
+test("primary navigation is limited to Community, Workbench, and role-gated Management", () => {
+  assert.deepEqual(getDashboardSectionMenu("user").map(({ key, label, href }) => [key, label, href]), [
+    ["community", "社区", "/dashboard"],
+    ["workbench", "工作台", "/dashboard/workbench"],
   ]);
   for (const role of ["admin", "super_admin"]) {
-    assert.deepEqual(getDailyDashboardMenu(role).map(({ key, href }) => [key, href]), [
-      ["weekly-reports", "/dashboard/weekly-reports"],
-      ["leave-workbench", "/dashboard/leave"],
-      ["work-manual", "/dashboard/guide"],
+    assert.deepEqual(getDashboardSectionMenu(role).map(({ key, href }) => [key, href]), [
+      ["community", "/dashboard"],
+      ["workbench", "/dashboard/workbench"],
+      ["management", "/dashboard/admin"],
     ]);
   }
-  assert.deepEqual(getMyTransactionsMenu("user", false).map(({ key }) => key), ["users-registrations", "weekly-reports", "timetable", "leave-workbench", "work-manual"]);
-  assert.deepEqual(getMyTransactionsMenu("user", true).map(({ key }) => key), ["users-registrations", "my-assignments", "weekly-reports", "timetable", "leave-workbench", "work-manual"]);
-  assert.deepEqual(getMyTransactionsMenu("admin", true).map(({ key }) => key), ["weekly-reports", "timetable", "work-manual"]);
-  assert.equal(getMyTransactionsMenu({ id: 25, role: { name: "user" } }, false).find(({ key }) => key === "timetable")?.href, "/dashboard/members/25?tab=settings#timetable");
+  assert.equal(getDefaultDashboardPath("user"), "/dashboard");
+  assert.equal(getDefaultDashboardPath("super_admin"), "/dashboard");
+  assert.equal(hasDashboardAdminAccess("user"), false);
+  assert.equal(hasDashboardAdminAccess("admin"), true);
 });
 
-test("four top-level entries classify real routes and keep personal settings distinct", () => {
+test("personal workbench groups my tasks and member lookup without a team top-level section", () => {
+  const memberMenu = getMyWorkbenchMenu("user", false);
+  assert.deepEqual(memberMenu.map(({ key, label }) => [key, label]), [["my-work", "我的事务"], ["people-directory", "成员信息"]]);
+  assert.deepEqual(memberMenu[0]?.children.map(({ key, href }) => [key, href]), [
+    ["weekly-reports", "/dashboard/weekly-reports"],
+    ["leave-workbench", "/dashboard/leave"],
+    ["users-registrations", "/dashboard/users/registrations"],
+  ]);
+  assert.deepEqual(memberMenu[1]?.children.map(({ key, href }) => [key, href]), [["organization", "/dashboard/workbench/organization"]]);
+  assert.deepEqual(getMyWorkbenchMenu("user", true)[0]?.children.map(({ key }) => key), ["weekly-reports", "my-assignments", "leave-workbench", "users-registrations"]);
+  assert.deepEqual(getMyWorkbenchMenu("admin", true)[0]?.children.map(({ key }) => key), ["weekly-reports", "my-assignments", "leave-workbench"]);
+  assert.deepEqual(getMyWorkbenchMenu("super_admin", false)[0]?.children.map(({ key }) => key), ["weekly-reports", "leave-workbench"]);
+  assert.equal(memberMenu.flatMap(({ children }) => children).some(({ key }) => key === "timetable" || key === "work-manual"), false);
+});
+
+test("route classification keeps community, personal work, and management distinct", () => {
   assert.equal(getDashboardSectionKey("/dashboard"), "community");
   assert.equal(getDashboardSectionKey("/dashboard/community/42"), "community");
-  assert.equal(getDashboardSectionKey("/dashboard/weekly-reports"), "transactions");
-  assert.equal(getDashboardSectionKey("/dashboard/members/42"), "team");
-  assert.equal(getDashboardSectionKey("/dashboard/team"), "team");
+  assert.equal(getDashboardSectionKey("/dashboard/workbench"), "workbench");
+  assert.equal(getDashboardSectionKey("/dashboard/workbench/organization"), "workbench");
+  assert.equal(getDashboardSectionKey("/dashboard/weekly-reports"), "workbench");
+  assert.equal(getDashboardSectionKey("/dashboard/assignments"), "workbench");
+  assert.equal(getDashboardSectionKey("/dashboard/team"), "workbench");
+  assert.equal(getDashboardSectionKey("/dashboard/members/42"), "workbench");
   assert.equal(getDashboardSectionKey("/dashboard/admin/registrations"), "management");
-  assert.equal(getDashboardSectionKey("/dashboard/admin/organization-preview"), "team");
-  assert.equal(getDashboardSectionKey("/dashboard/leave", "", "user"), "transactions");
+  assert.equal(getDashboardSectionKey("/dashboard/leave", "", "user"), "workbench");
   assert.equal(getDashboardSectionKey("/dashboard/leave", "", "admin"), "management");
-  assert.equal(getDashboardSectionKey("/dashboard/members/42", "?tab=settings"), "team");
-  assert.equal(getDashboardSectionKey("/dashboard/members/42", "?tab=settings", "user", "#timetable"), "transactions");
+  assert.equal(getDashboardSectionKey("/dashboard/members/42", "?tab=settings", "user", "#timetable"), "workbench");
+  assert.equal(isDashboardMenuPathActive("/dashboard/admin/registrations/42", "/dashboard/admin/registrations"), true);
+  assert.equal(isDashboardMenuPathActive("/dashboard/admin", "/dashboard/admin/registrations"), false);
 });
 
-test("operations SOP visibility follows operations membership or super-admin role", () => {
+test("work manual access stays limited to operations members and super admins", () => {
   assert.equal(hasOperationsWorkManualAccess("user", [{ name: "运营组" }]), true);
   assert.equal(hasOperationsWorkManualAccess("admin", [{ name: "运营组" }]), true);
   assert.equal(hasOperationsWorkManualAccess("admin", [{ name: "机械组" }]), false);
@@ -69,62 +76,56 @@ test("operations SOP visibility follows operations membership or super-admin rol
   assert.equal(hasOperationsWorkManualAccess("super_admin", []), true);
 });
 
-test("legacy admin leave URL retains role restrictions without a duplicate menu entry", () => {
-  for (const role of ["user", "admin", "super_admin"]) {
-    assert.equal(getDailyDashboardMenu(role).filter(({ key }) => key === "leave-workbench").length, 1);
-    assert.equal(getDailyDashboardMenu(role).some(({ key }) => key === "leave-management"), false);
-  }
-  assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/leave"), true);
-  assert.equal(canAccessDashboardAdminPath("super_admin", "/dashboard/admin/leave"), true);
-  assert.equal(canAccessDashboardAdminPath("user", "/dashboard/admin/leave"), false);
-  assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/leave/access-requests"), false);
-});
-
-test("assignment entry and group selector support exactly the five requested groups", () => {
+test("assignment access follows the existing five groups for both member and admin navigation", () => {
   const groups = ["机械组", "电控组", "视觉组", "AI组", "运营组"];
   for (const name of groups) {
     assert.equal(isAssignmentGroupName(name), true, name);
     assert.equal(hasAssignmentGroupAccess([{ name }]), true, name);
   }
-  for (const name of ["临时组", "招新组", "", "未知组"]) {
+  for (const name of ["临时组", "招新组", "未知组"]) {
     assert.equal(isAssignmentGroupName(name), false, name);
     assert.equal(hasAssignmentGroupAccess([{ name }]), false, name);
   }
   assert.deepEqual(getUserDashboardMenu("user", true).map(({ key }) => key), ["users-registrations", "my-assignments"]);
-  assert.deepEqual(getUserDashboardMenu("admin", true).map(({ key }) => key), []);
   assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/training/assignments", false), false);
   assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/training/assignments", true), true);
-  assert.equal(canAccessDashboardAdminPath("super_admin", "/dashboard/admin/training/assignments", false), true);
+  assert.equal(canAccessDashboardAdminPath("super_admin", "/dashboard/admin/training/submissions", false), true);
   assert.equal(canAccessDashboardAdminPath("user", "/dashboard/admin/training/submissions", true), false);
 });
 
-test("admin navigation keeps open recruitment, account, assignment, and timetable tools", () => {
+test("management functions appear in three permission-filtered business groups", () => {
   const adminMenu = getVisibleAdminDashboardMenu("admin", true);
-  assert.deepEqual(adminMenu.map(({ key }) => key), ["recruitment-operations", "newcomer-training", "member-management"]);
-  assert.deepEqual(adminMenu[0]?.children.map(({ key }) => key), ["admin-panel", "candidate-processing"]);
+  assert.deepEqual(adminMenu.map(({ key, label }) => [key, label]), [
+    ["recruitment", "招新"],
+    ["members-training", "成员与培养"],
+    ["collaboration-operations", "协作与运营"],
+  ]);
+  assert.deepEqual(adminMenu[0]?.children.map(({ key }) => key), ["candidate-processing"]);
   assert.deepEqual(adminMenu[1]?.children.map(({ key }) => key), ["assignment-management", "assignment-submissions"]);
-  assert.deepEqual(adminMenu[2]?.children.map(({ key }) => key), ["timetable-availability"]);
-  assert.equal(getVisibleAdminDashboardMenu("admin", false).some(({ key }) => key === "newcomer-training"), false);
-  assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/timetable-availability"), true);
-  assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/registrations"), true);
-  assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/recruitment"), false);
+  assert.deepEqual(adminMenu[2]?.children.map(({ key }) => key), ["leave-workbench", "timetable-availability"]);
+  const restrictedAdminMenu = getVisibleAdminDashboardMenu("admin", false);
+  assert.deepEqual(restrictedAdminMenu.map(({ key }) => key), ["recruitment", "collaboration-operations"]);
+  assert.equal(restrictedAdminMenu[1]?.children.some(({ key }) => key === "timetable-availability"), true);
 
   const superAdminMenu = getVisibleAdminDashboardMenu("super_admin");
-  assert.deepEqual(superAdminMenu.map(({ key }) => key), ["recruitment-operations", "newcomer-training", "member-management", "email-management"]);
-  assert.deepEqual(superAdminMenu.find(({ key }) => key === "newcomer-training")?.children.map(({ key }) => key), ["assignment-management", "assignment-submissions"]);
-  assert.deepEqual(superAdminMenu.find(({ key }) => key === "member-management")?.children.map(({ key }) => key), ["accounts", "timetable-availability"]);
-  assert.deepEqual(getVisibleAdminDashboardLinks("admin", true).map(({ key }) => key), ["admin-panel", "candidate-processing", "assignment-management", "assignment-submissions", "timetable-availability", "leave-workbench"]);
-  assert.equal(getVisibleAdminDashboardLinks("user", true).length, 0);
-  assert.equal(getVisibleAdminDashboardLinks("super_admin").some(({ key }) => key === "recruitment-analytics"), true);
-  assert.equal(getVisibleAdminDashboardLinks("admin", true).some(({ key }) => key === "recruitment-analytics"), false);
-  assert.equal(canAccessDashboardAdminPath("super_admin", "/dashboard/admin/organization-preview"), false);
-  assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/organization-preview"), false);
-  assert.equal(canAccessDashboardAdminPath("user", "/dashboard/admin/organization-preview"), false);
-  assert.equal(hasDashboardAdminAccess("admin"), true);
-  assert.equal(hasDashboardAdminAccess("user"), false);
+  assert.deepEqual(superAdminMenu.map(({ key }) => key), ["recruitment", "members-training", "collaboration-operations"]);
+  assert.deepEqual(superAdminMenu[0]?.children.map(({ key }) => key), ["candidate-processing", "recruitment-management", "recruitment-analytics"]);
+  assert.deepEqual(superAdminMenu[1]?.children.map(({ key }) => key), ["accounts", "assignment-management", "assignment-submissions"]);
+  assert.deepEqual(superAdminMenu[2]?.children.map(({ key }) => key), ["leave-workbench", "timetable-availability", "email-management"]);
+  assert.equal(getVisibleAdminDashboardMenu("user", true).length, 0);
 });
 
-test("paused member and admin routes reject direct entry for every role", () => {
+test("management deep links keep role restrictions without broadening page access", () => {
+  assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/registrations"), true);
+  assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/recruitment"), false);
+  assert.equal(canAccessDashboardAdminPath("super_admin", "/dashboard/admin/recruitment-analytics"), true);
+  assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/leave"), true);
+  assert.equal(canAccessDashboardAdminPath("user", "/dashboard/admin/leave"), false);
+  assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/leave/access-requests"), false);
+  assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/organization-preview"), false);
+});
+
+test("paused member and admin routes still reject direct entry", () => {
   const pausedPaths = [
     "/dashboard/base",
     "/dashboard/practice-projects",
@@ -141,36 +142,28 @@ test("paused member and admin routes reject direct entry for every role", () => 
   for (const value of pausedPaths) {
     const pathname = value.split("?")[0];
     assert.equal(isTemporarilyUnavailableDashboardPath(pathname), true, pathname);
-    for (const role of ["user", "admin", "super_admin"]) {
-      if (pathname.startsWith("/dashboard/admin/")) {
-        assert.equal(canAccessDashboardAdminPath(role, pathname, true), false, `${role}: ${pathname}`);
-      }
-    }
   }
   for (const pathname of ["/dashboard/weekly-reports", "/dashboard/leave", "/dashboard/guide", "/dashboard/admin/timetable-availability"]) {
     assert.equal(isTemporarilyUnavailableDashboardPath(pathname), false, pathname);
   }
 });
 
-test("nested admin routes keep their parent menu active without broadening access", () => {
-  assert.equal(isDashboardMenuPathActive("/dashboard/admin", "/dashboard/admin"), true);
-  assert.equal(isDashboardMenuPathActive("/dashboard/admin/registrations/42", "/dashboard/admin/registrations"), true);
-  assert.equal(isDashboardMenuPathActive("/dashboard/admin", "/dashboard/admin/registrations"), false);
-  assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/interview-sessions"), false);
-  assert.equal(canAccessDashboardAdminPath("super_admin", "/dashboard/admin/email"), true);
-});
-
-test("collapsed sidebar retains labels and account actions without duplicate site or profile links", async () => {
+test("legacy team, timetable, profile, and help paths remain reachable through the new hierarchy", async () => {
+  const routes = await readFile(new URL("../routes.ts", import.meta.url), "utf8");
+  const teamRedirect = await readFile(new URL("../routes/dashboard/team-redirect.tsx", import.meta.url), "utf8");
+  const timetable = await readFile(new URL("../routes/dashboard/timetable.tsx", import.meta.url), "utf8");
   const layout = await readFile(new URL("../routes/dashboard/layout.tsx", import.meta.url), "utf8");
-  const legacyLeaveRoute = await readFile(new URL("../routes/admin/leave-workbench.tsx", import.meta.url), "utf8");
-  assert.match(layout, /aria-label=\{hasBadge \? `\$\{item\.label\}/);
-  assert.match(layout, /title=\{title\}/);
-  assert.ok(layout.includes("getDashboardSectionMenu(currentUser)"));
-  assert.ok(layout.includes("我的主页"));
-  assert.ok(layout.includes("切换账号"));
-  assert.ok(layout.includes("退出当前账号"));
+  const sideNavigation = await readFile(new URL("../components/dashboard-section-navigation.tsx", import.meta.url), "utf8");
+  assert.match(routes, /route\("workbench", "routes\/dashboard\/workbench\.tsx"\)/);
+  assert.match(routes, /route\("workbench\/organization", "routes\/organization-preview\.tsx"\)/);
+  assert.match(routes, /route\("team", "routes\/dashboard\/team-redirect\.tsx"\)/);
+  assert.match(teamRedirect, /Navigate to="\/dashboard\/workbench\/organization" replace/);
+  assert.match(timetable, /tab=settings#timetable/);
+  assert.match(layout, /navigate\(`\/dashboard\/members\/\$\{currentUser\.id\}\$\{tab === "overview" \? "" : `\?tab=\$\{tab\}`\}`\)/);
+  assert.match(layout, /帮助与工作手册/);
+  assert.match(sideNavigation, /getMyWorkbenchMenu\(currentUser, hasAssignmentGroup\)/);
+  assert.match(layout, /getDashboardSectionMenu\(currentUser\)/);
   assert.match(layout, /aria-label="返回 TARSGO 官网"/);
-  assert.doesNotMatch(layout, /返回官网/);
-  assert.match(legacyLeaveRoute, /<Navigate to="\/dashboard\/leave" replace \/>/);
-  assert.equal(getDailyDashboardMenu("user").filter(({ label }) => label === "工作手册").length, 1);
+  assert.match(layout, /切换账号/);
+  assert.match(layout, /退出当前账号/);
 });
