@@ -13,6 +13,9 @@ const timetable = await readFile(new URL("../routes/dashboard/timetable.tsx", im
 test("the personal landing route is a status-first overview backed by existing user data", () => {
   assert.match(routeConfig, /route\("workbench", "routes\/dashboard\/workbench\.tsx"\)/);
   assert.match(personalWorkbench, /getWeeklyReportDashboard\(\)/);
+  assert.match(personalWorkbench, /import\("~\/lib\/weekly-report-client"\)/);
+  assert.match(personalWorkbench, /import type \{ WeeklyReportDashboard \} from "~\/lib\/weekly-report-client"/);
+  assert.doesNotMatch(personalWorkbench, /^import \{[^\n]*getWeeklyReportDashboard[^\n]*\} from "~\/lib\/weekly-report-client"/m);
   assert.match(personalWorkbench, /assignmentClient\.listMine\(\)/);
   assert.match(personalWorkbench, /leaveClient\.leaveAccess\(\)/);
   assert.match(personalWorkbench, /hasAssignmentGroupAccess\(groupResolution\?\.groups\)/);
