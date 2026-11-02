@@ -60,14 +60,14 @@
 .community-markdown-editor__file { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; clip-path: inset(50%); }
 .community-markdown-editor__error { margin: 0; border-top: 1px solid var(--editor-border); padding: 7px 10px; color: var(--admin-danger); font-size: 11px; }
 .community-markdown-editor__footer { display: flex; min-height: 30px; align-items: center; justify-content: space-between; gap: 8px; border-top: 1px solid var(--editor-border); padding: 5px 10px; color: var(--admin-dim); font-size: 10px; }
-.community-editor-dialog { position: fixed; z-index: 1100; inset: 0; display: grid; place-items: center; padding: 20px; background: color-mix(in srgb, #080808 44%, transparent); }
-.community-editor-dialog form { display: grid; width: min(100%, 380px); gap: 13px; border: 1px solid var(--admin-border); border-radius: 13px; padding: 20px; background: var(--admin-surface); box-shadow: 0 16px 44px color-mix(in srgb, #000 22%, transparent); }
-.community-editor-dialog h3 { margin: 0; color: var(--admin-text); font-size: 16px; font-weight: 620; }
-.community-editor-dialog label { display: grid; gap: 6px; color: var(--admin-muted); font-size: 11px; }
-.community-editor-dialog input,.community-editor-dialog select { width: 100%; min-height: 39px; border: 1px solid var(--admin-border-subtle); border-radius: 7px; padding: 8px 10px; color: var(--admin-text); background: var(--admin-input-surface); font: inherit; font-size: 13px; }
-.community-editor-dialog input:focus,.community-editor-dialog select:focus { border-color: var(--admin-accent); outline: 0; box-shadow: 0 0 0 3px color-mix(in srgb, var(--admin-accent) 10%, transparent); }
-.community-editor-dialog form > div { display: flex; justify-content: flex-end; gap: 8px; margin-top: 2px; }
-.community-editor-dialog form > div > button:not(.community-button) { min-height: 36px; border: 1px solid var(--admin-border-subtle); border-radius: 7px; padding: 6px 12px; color: var(--admin-muted); background: transparent; font-size: 12px; }
+.community-markdown-editor__dialog { position: fixed; z-index: 1400; inset: 0; display: grid; place-items: center; padding: 20px; background: color-mix(in srgb, #080808 44%, transparent); }
+.community-markdown-editor__dialog-panel { display: grid; width: min(100%, 380px); max-height: calc(100dvh - 40px); gap: 13px; overflow: auto; border: 1px solid var(--admin-border); border-radius: 13px; padding: 20px; background: var(--admin-surface); box-shadow: 0 16px 44px color-mix(in srgb, #000 22%, transparent); }
+.community-markdown-editor__dialog-panel h3 { margin: 0; color: var(--admin-text); font-size: 16px; font-weight: 620; }
+.community-markdown-editor__dialog-panel label { display: grid; gap: 6px; color: var(--admin-muted); font-size: 11px; }
+.community-markdown-editor__dialog-panel input,.community-markdown-editor__dialog-panel select { width: 100%; min-height: 39px; border: 1px solid var(--admin-border-subtle); border-radius: 7px; padding: 8px 10px; color: var(--admin-text); background: var(--admin-input-surface); font: inherit; font-size: 13px; }
+.community-markdown-editor__dialog-panel input:focus,.community-markdown-editor__dialog-panel select:focus { border-color: var(--admin-accent); outline: 0; box-shadow: 0 0 0 3px color-mix(in srgb, var(--admin-accent) 10%, transparent); }
+.community-markdown-editor__dialog-panel > div { display: flex; justify-content: flex-end; gap: 8px; margin-top: 2px; }
+.community-markdown-editor__dialog-panel > div > button:not(.community-button) { min-height: 36px; border: 1px solid var(--admin-border-subtle); border-radius: 7px; padding: 6px 12px; color: var(--admin-muted); background: transparent; font-size: 12px; }
 
 .community-markdown { min-width: 0; color: var(--admin-text); font-size: 14px; line-height: 1.85; overflow-wrap: anywhere; }
 .community-markdown > :first-child { margin-top: 0; }
