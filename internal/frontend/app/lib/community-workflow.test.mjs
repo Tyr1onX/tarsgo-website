@@ -8,6 +8,7 @@ const navigation = await source("./dashboard-navigation.ts");
 const dashboard = await source("../routes/dashboard/index.tsx");
 const root = await source("../root.tsx");
 const scrollRestoration = await source("./community-scroll-restoration.ts");
+const dashboardLayout = await source("../routes/dashboard/layout.tsx");
 const thread = await source("../routes/dashboard/community-post.tsx");
 const styles = await source("../routes/dashboard/community.css");
 const client = await source("./community-client.ts");
@@ -17,6 +18,8 @@ const gallery = await source("../components/community-image-gallery.tsx");
 const composer = await source("../components/community-composer.tsx");
 const editorDialog = await source("../components/community-editor-dialog.tsx");
 const replyComposer = await source("../components/community-reply-composer.tsx");
+const experienceToastHost = await source("../components/community-experience-toast-host.tsx");
+const experienceToastStyles = await source("../components/community-experience-toast.css");
 const relatedTopics = await source("../components/community-related-topics.tsx");
 const growthUI = await source("../components/community-growth.tsx");
 const growthStyles = await source("../components/community-growth.css");
@@ -157,7 +160,26 @@ test("reply editor floats above the thread and restores drafts by account and to
   assert.match(thread, /navigate\(\{ pathname: location\.pathname, search: location\.search, hash: `#community-comment-/);
   assert.doesNotMatch(thread, /className="community-thread-composer"/);
   assert.match(styles, /\.community-reply-panel \{ position: fixed/);
-  assert.match(styles, /@media \(max-width: 639px\)[\s\S]*?\.community-reply-panel \{ right: 0; bottom: 0/);
+  assert.match(styles, /\.community-reply-panel \{ position: fixed; z-index: var\(--community-layer-reply-panel\)[\s\S]*?height: min\(560px/);
+  assert.match(styles, /\.community-reply-panel__form \{[\s\S]*?grid-template-rows: auto minmax\(0, 1fr\) auto;[\s\S]*?overflow: hidden/);
+  assert.match(styles, /\.community-reply-panel__editor \{ min-width: 0; min-height: 0; overflow: auto/);
+  assert.match(styles, /@media \(max-width: 767px\)[\s\S]*?\.community-reply-panel \{ top: auto; right: 0; bottom: 0;[\s\S]*?resize: none/);
+  assert.match(replyComposer, /onPointerDown=\{startPanelDrag\}/);
+  assert.match(replyComposer, /matchMedia\("\(min-width: 768px\) and \(pointer: fine\)"\)/);
+  assert.match(replyComposer, /writeCommunityReplyDraft|saveCommunityReplyDraft\(draft\.accountId, draft\.postId/);
+});
+
+test("community toast, reply panel, and editor share intentional overlay layers", () => {
+  assert.match(dashboardLayout, /<main[\s\S]*?<\/main>\s*<CommunityExperienceToastHost[\s\S]*?<\/div>\s*<CoBuilderBadgeUnlockToast/);
+  assert.match(experienceToastStyles, /--community-layer-reply-panel: 40/);
+  assert.match(experienceToastStyles, /--community-layer-editor-dialog: 50/);
+  assert.match(experienceToastStyles, /--community-layer-toast: 60/);
+  assert.match(styles, /\.community-editor-dialog \{ position: fixed; z-index: var\(--community-layer-editor-dialog\)/);
+  assert.match(experienceToastStyles, /z-index: var\(--community-layer-toast\)/);
+  assert.match(experienceToastHost, /readDismissedCommunityExperienceToasts/);
+  assert.match(experienceToastHost, /writeDismissedCommunityExperienceToasts/);
+  assert.match(experienceToastHost, /dismissedEventIDsRef\.current\.has\(toast\.id\)/);
+  assert.match(styles, /\.community-editor-dialog__panel \{ width: min\(100%, 860px\); max-height: min\(92dvh, 940px\); overflow: auto/);
 });
 
 test("topic reply starts in the discussion heading and secondary actions stay with the post", () => {

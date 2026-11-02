@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 
 import { CommunityIcon } from "~/components/community-icons";
 import type { CommunityPendingImage } from "~/components/community-markdown-editor";
@@ -26,6 +26,9 @@ export function CommunityReplyComposer({ accountId, postId, busy = false, commen
   const [error, setError] = useState("");
   const commentsRef = useRef(comments);
   commentsRef.current = comments;
+  const panelRef = useRef<HTMLElement>(null);
+  const dragRef = useRef<{ pointerId: number; startX: number; startY: number; startLeft: number; startTop: number; header: HTMLElement } | null>(null);
+  const [dragging, setDragging] = useState(false);
   const latestDraftRef = useRef({ accountId, postId, body, uploads, ready, saving, replyTarget });
   const completedRef = useRef(false);
   const persistedOnCloseRef = useRef(false);
@@ -88,6 +91,82 @@ export function CommunityReplyComposer({ accountId, postId, busy = false, commen
     return () => window.clearTimeout(timer);
   }, [accountId, body, postId, ready, replyTarget, saving, uploads]);
 
+  useEffect(() => {
+    const panel = panelRef.current;
+    if (!panel) return;
+
+    function keepMovedPanelInViewport() {
+      const activePanel = panelRef.current;
+      if (!activePanel) return;
+      if (window.matchMedia("(max-width: 767px)").matches) {
+        activePanel.style.removeProperty("left");
+        activePanel.style.removeProperty("top");
+        activePanel.style.removeProperty("right");
+        activePanel.style.removeProperty("bottom");
+        dragRef.current = null;
+        setDragging(false);
+        return;
+      }
+      if (!activePanel.style.left || !activePanel.style.top) return;
+      const rect = activePanel.getBoundingClientRect();
+      const margin = 12;
+      const left = Math.max(margin, Math.min(rect.left, window.innerWidth - rect.width - margin));
+      const top = Math.max(margin, Math.min(rect.top, window.innerHeight - rect.height - margin));
+      activePanel.style.left = `${left}px`;
+      activePanel.style.top = `${top}px`;
+    }
+
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(keepMovedPanelInViewport);
+    observer?.observe(panel);
+    window.addEventListener("resize", keepMovedPanelInViewport);
+    return () => {
+      observer?.disconnect();
+      window.removeEventListener("resize", keepMovedPanelInViewport);
+    };
+  }, []);
+
+  function startPanelDrag(event: ReactPointerEvent<HTMLElement>) {
+    if (event.button !== 0 || !window.matchMedia("(min-width: 768px) and (pointer: fine)").matches) return;
+    if (event.target instanceof Element && event.target.closest("button, a, input, textarea, select")) return;
+    const panel = panelRef.current;
+    if (!panel) return;
+    const rect = panel.getBoundingClientRect();
+    panel.style.left = `${rect.left}px`;
+    panel.style.top = `${rect.top}px`;
+    panel.style.right = "auto";
+    panel.style.bottom = "auto";
+    dragRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startLeft: rect.left,
+      startTop: rect.top,
+      header: event.currentTarget,
+    };
+    event.preventDefault();
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDragging(true);
+  }
+
+  function movePanelDrag(event: ReactPointerEvent<HTMLElement>) {
+    const drag = dragRef.current;
+    const panel = panelRef.current;
+    if (!drag || !panel || drag.pointerId !== event.pointerId) return;
+    const margin = 12;
+    const maxLeft = Math.max(margin, window.innerWidth - panel.offsetWidth - margin);
+    const maxTop = Math.max(margin, window.innerHeight - panel.offsetHeight - margin);
+    panel.style.left = `${Math.max(margin, Math.min(drag.startLeft + event.clientX - drag.startX, maxLeft))}px`;
+    panel.style.top = `${Math.max(margin, Math.min(drag.startTop + event.clientY - drag.startY, maxTop))}px`;
+  }
+
+  function endPanelDrag(event: ReactPointerEvent<HTMLElement>) {
+    const drag = dragRef.current;
+    if (!drag || drag.pointerId !== event.pointerId) return;
+    if (drag.header.hasPointerCapture(event.pointerId)) drag.header.releasePointerCapture(event.pointerId);
+    dragRef.current = null;
+    setDragging(false);
+  }
+
   async function close() {
     if (busy || saving) return;
     setSaving(true);
@@ -123,14 +202,14 @@ export function CommunityReplyComposer({ accountId, postId, busy = false, commen
     }
   }
 
-  return <aside className={`community-reply-panel${replyTarget ? " has-context" : ""}`} role="dialog" aria-modal="false" aria-labelledby="community-reply-panel-title" aria-busy={!ready || busy || saving} onKeyDown={(event) => {
+  return <aside ref={panelRef} className={`admin-design community-reply-panel${replyTarget ? " has-context" : ""}${dragging ? " is-dragging" : ""}`} role="dialog" aria-modal="false" aria-labelledby="community-reply-panel-title" aria-busy={!ready || busy || saving} onKeyDown={(event) => {
     if (event.key === "Escape" && !event.defaultPrevented) {
       event.preventDefault();
       void close();
     }
   }}>
     <form id="community-reply-form" className="community-reply-panel__form" onSubmit={(event) => void submit(event)} aria-labelledby="community-reply-panel-title">
-      <header className="community-reply-panel__header">
+      <header className="community-reply-panel__header" onPointerDown={startPanelDrag} onPointerMove={movePanelDrag} onPointerUp={endPanelDrag} onPointerCancel={endPanelDrag}>
         <div><h2 id="community-reply-panel-title">回复讨论</h2>{replyTarget ? <span>回复 {replyTarget.authorName}</span> : <span>继续阅读原帖并参与讨论</span>}</div>
         <button type="button" className="community-icon-button" aria-label="收起回复编辑器" onClick={() => void close()} disabled={busy || saving}><CommunityIcon name="x" /></button>
       </header>

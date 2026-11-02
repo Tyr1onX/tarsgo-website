@@ -54,8 +54,16 @@ export function subscribeToCommunityExperienceRefresh(listener: () => void) {
 
 export function newCommunityExperienceEvents(profile: CommunityGrowthProfile, afterID: number): CommunityExperienceEntry[] {
   return profile.recentEvents
-    .filter((event) => event.id > afterID && event.points > 0 && !event.revoked)
-    .sort((left, right) => left.id - right.id);
+    .filter((event) => {
+      const id = normalizeCommunityExperienceEventID(event.id);
+      return id !== null && id > afterID && event.points > 0 && !event.revoked;
+    })
+    .sort((left, right) => (normalizeCommunityExperienceEventID(left.id) ?? 0) - (normalizeCommunityExperienceEventID(right.id) ?? 0));
+}
+
+export function normalizeCommunityExperienceEventID(value: unknown): number | null {
+  const id = typeof value === "number" || typeof value === "string" ? Number(value) : Number.NaN;
+  return Number.isSafeInteger(id) && id > 0 ? id : null;
 }
 
 export function communityExperienceToastLabel(event: CommunityExperienceEntry) {
@@ -88,19 +96,52 @@ export function communityExperiencePendingStorageKey(userID: number) {
   return `community-experience-pending-toasts:${userID}`;
 }
 
+export function communityExperienceDismissedStorageKey(userID: number) {
+  return `community-experience-dismissed-toasts:${userID}`;
+}
+
+const maximumRememberedDismissedEvents = 200;
+
+export function readDismissedCommunityExperienceToasts(userID: number): number[] {
+  try {
+    const serialized = window.sessionStorage.getItem(communityExperienceDismissedStorageKey(userID));
+    if (!serialized) return [];
+    const dismissed: unknown = JSON.parse(serialized);
+    if (!Array.isArray(dismissed)) return [];
+    return [...new Set(dismissed.map(normalizeCommunityExperienceEventID).filter((id): id is number => id !== null))].slice(-maximumRememberedDismissedEvents);
+  } catch {
+    return [];
+  }
+}
+
+export function writeDismissedCommunityExperienceToasts(userID: number, ids: Iterable<number>) {
+  try {
+    const dismissed = [...new Set([...ids].map(normalizeCommunityExperienceEventID).filter((id): id is number => id !== null))]
+      .slice(-maximumRememberedDismissedEvents);
+    const key = communityExperienceDismissedStorageKey(userID);
+    if (dismissed.length) window.sessionStorage.setItem(key, JSON.stringify(dismissed));
+    else window.sessionStorage.removeItem(key);
+  } catch {
+    // Keep the in-memory dismissal even when session storage is unavailable.
+  }
+}
+
 export function readPendingCommunityExperienceToasts(userID: number, now = Date.now()): PendingCommunityExperienceToast[] {
   try {
     const serialized = window.sessionStorage.getItem(communityExperiencePendingStorageKey(userID));
     if (!serialized) return [];
     const pending: unknown = JSON.parse(serialized);
     if (!Array.isArray(pending)) return [];
-    return pending.filter((item): item is PendingCommunityExperienceToast => {
-      if (item === null || typeof item !== "object") return false;
+    return pending.flatMap((item): PendingCommunityExperienceToast[] => {
+      if (item === null || typeof item !== "object") return [];
       const candidate = item as Record<string, unknown>;
-      return Number.isSafeInteger(candidate.id) && Number(candidate.id) > 0 &&
-        typeof candidate.label === "string" && typeof candidate.points === "number" && Number.isFinite(candidate.points) && candidate.points > 0 &&
-        typeof candidate.expiresAt === "number" && candidate.expiresAt > now &&
-        (candidate.levelUp === undefined || Number.isSafeInteger(candidate.levelUp));
+      const id = normalizeCommunityExperienceEventID(candidate.id);
+      if (!id || typeof candidate.label !== "string" || typeof candidate.points !== "number" || !Number.isFinite(candidate.points) || candidate.points <= 0 ||
+        typeof candidate.expiresAt !== "number" || candidate.expiresAt <= now ||
+        (candidate.levelUp !== undefined && (!Number.isSafeInteger(candidate.levelUp) || Number(candidate.levelUp) <= 0))) return [];
+      const toast: PendingCommunityExperienceToast = { id, label: candidate.label, points: candidate.points, expiresAt: candidate.expiresAt };
+      if (typeof candidate.levelUp === "number") toast.levelUp = candidate.levelUp;
+      return [toast];
     });
   } catch {
     return [];
