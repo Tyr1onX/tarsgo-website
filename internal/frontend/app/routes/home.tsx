@@ -183,6 +183,31 @@ function HomeSponsorSection() {
           ))}
         </ul>
 
+        <aside className="home-community-recommendation" aria-labelledby="home-community-recommendation-heading">
+          <div className="home-alumni-recommendation__label">
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent-primary">CAMPUS AI COMMUNITY</p>
+            <h3 id="home-community-recommendation-heading" className="mt-2 text-base font-semibold tracking-tight text-fg-primary sm:text-lg">
+              校园共创社区
+            </h3>
+          </div>
+          <a
+            href="https://jluai.cn/"
+            target="_blank"
+            rel="noopener noreferrer"
+            aria-label="访问 JLUAI 校园 AI 社区"
+            className="home-alumni-recommendation__card"
+          >
+            <span className="home-alumni-recommendation__logo" aria-hidden="true">
+              <img src="/assets/images/Community/jluai.png" alt="" loading="lazy" decoding="async" />
+            </span>
+            <span className="home-alumni-recommendation__copy">
+              <span className="home-alumni-recommendation__name">JLUAI</span>
+              <span className="home-alumni-recommendation__description">面向大学师生的 AI 交流社区，分享作品与实践经验，一起共创校园 AI 项目。</span>
+            </span>
+            <span className="home-alumni-recommendation__arrow" aria-hidden="true"><HomeArrowIcon /></span>
+          </a>
+        </aside>
+
         <aside className="home-alumni-recommendation" aria-labelledby="home-alumni-recommendation-heading">
           <div className="home-alumni-recommendation__label">
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent-primary">ALUMNI PROJECT</p>
