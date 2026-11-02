@@ -59,6 +59,20 @@ test("all five new public topic routes are directly registered and share the exi
   }
 });
 
+test("homepage separates the campus AI community card from commercial sponsor logos", () => {
+  const sponsorList = home.indexOf('className="home-sponsor-grid"');
+  const communityStart = home.indexOf('className="home-community-recommendation"');
+  const alumniStart = home.indexOf('className="home-alumni-recommendation"');
+  const communityCard = home.match(/<aside className="home-community-recommendation"[\s\S]*?<\/aside>/)?.[0] ?? "";
+
+  assert.ok(sponsorList >= 0 && sponsorList < communityStart, "community feature follows the sponsor logo grid");
+  assert.ok(communityStart < alumniStart, "community feature has its own area before the alumni recommendation");
+  assert.match(communityCard, /校园共创社区[\s\S]*?JLUAI/);
+  assert.match(communityCard, /src="\/assets\/images\/Community\/jluai\.png"/);
+  assert.match(communityCard, /href="https:\/\/jluai\.cn\/"/);
+  assert.match(communityCard, /AI 交流社区，分享作品与实践经验，一起共创校园 AI 项目/);
+});
+
 test("the original home keeps its video and legacy anchors while archive content lives in its own component", () => {
   for (const anchor of ["hero", "about", "robots"]) {
     const anchorSource = anchor === "about" ? aboutPage : anchor === "robots" ? robotsRoute : home;
