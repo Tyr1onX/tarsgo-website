@@ -13,10 +13,15 @@ import (
 )
 
 var communityUploadTokenPattern = regexp.MustCompile(`community-upload://([A-Za-z0-9_-]{16,64})`)
+var communityUploadImageDestinationPattern = regexp.MustCompile(`(?i)!\[[^\]]*\]\(\s*<?community-upload://([A-Za-z0-9_-]{16,64})[\s)>]`)
+var communityUnpersistableImagePattern = regexp.MustCompile(`(?i)!\[[^\]]*\]\(\s*<?(?:blob:|data:image/|file:|filesystem:|cid:|content:)|<img\b[^>]*\bsrc\s*=\s*["']?\s*(?:blob:|data:image/|file:|filesystem:|cid:|content:)`)
 
 // validateCommunityUploadBindings ensures temporary image references in the
 // Markdown body can only resolve to files submitted in the same request.
 func validateCommunityUploadBindings(body string, files []*multipart.FileHeader, tokens []string) error {
+	if communityUnpersistableImagePattern.MatchString(body) {
+		return badRequest("正文中包含无法保存的本地图片，请重新粘贴或使用插入图片选择文件")
+	}
 	if len(tokens) == 0 {
 		if strings.Contains(body, "community-upload://") {
 			return badRequest("正文中的临时图片未随请求上传")
@@ -44,7 +49,9 @@ func validateCommunityUploadBindings(body string, files []*multipart.FileHeader,
 		}
 		known[token] = struct{}{}
 	}
-	for _, match := range communityUploadTokenPattern.FindAllStringSubmatch(body, -1) {
+	references := communityUploadTokenPattern.FindAllStringSubmatch(body, -1)
+	imageReferences := communityUploadImageDestinationPattern.FindAllStringSubmatch(body, -1)
+	for _, match := range references {
 		if _, exists := known[match[1]]; !exists {
 			return badRequest("正文引用了不存在的图片附件")
 		}
@@ -53,8 +60,20 @@ func validateCommunityUploadBindings(body string, files []*multipart.FileHeader,
 		return badRequest("正文中的图片引用格式不合法")
 	}
 	for token := range known {
-		if !strings.Contains(body, "community-upload://"+token) {
-			return badRequest("图片附件没有插入正文")
+		bodyCount := 0
+		for _, match := range references {
+			if match[1] == token {
+				bodyCount++
+			}
+		}
+		imageCount := 0
+		for _, match := range imageReferences {
+			if match[1] == token {
+				imageCount++
+			}
+		}
+		if bodyCount != 1 || imageCount != 1 {
+			return badRequest("图片附件与正文引用不匹配")
 		}
 	}
 	return nil

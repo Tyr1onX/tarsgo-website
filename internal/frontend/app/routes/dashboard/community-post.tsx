@@ -74,10 +74,12 @@ export default function CommunityPostRoute() {
   const [editingPost, setEditingPost] = useState(false);
   const [editTitle, setEditTitle] = useState("");
   const [editBody, setEditBody] = useState("");
+  const editPostFlushRef = useRef<() => string>(() => editBody);
   const [editCategory, setEditCategory] = useState<CommunityCategory>("technology");
   const [editPostUploads, setEditPostUploads] = useState<CommunityPendingImage[]>([]);
   const [editingCommentID, setEditingCommentID] = useState<number | null>(null);
   const [editCommentBody, setEditCommentBody] = useState("");
+  const editCommentFlushRef = useRef<() => string>(() => editCommentBody);
   const [editCommentUploads, setEditCommentUploads] = useState<CommunityPendingImage[]>([]);
   const detailRequestRef = useRef(0);
   const reactionVersionRef = useRef(0);
@@ -321,12 +323,13 @@ export default function CommunityPostRoute() {
   async function savePostEdit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!detail || busy) return;
+    const currentBody = editPostFlushRef.current();
     setBusy(true);
     setError("");
     setRetryAction(null);
     const startedAtVersion = reactionVersionRef.current;
     try {
-      const updated = await communityClient.update(postID, { title: editTitle, body: editBody, category: editCategory, files: editPostUploads.map((item) => item.file), uploadTokens: editPostUploads.map((item) => item.token) });
+      const updated = await communityClient.update(postID, { title: editTitle, body: currentBody, category: editCategory, files: editPostUploads.map((item) => item.file), uploadTokens: editPostUploads.map((item) => item.token) });
       clearCommunityLists();
       setDetail(mergeDetailReactions(updated, postReactionOverridesRef.current, commentReactionOverridesRef.current, startedAtVersion));
       setEditingPost(false);
@@ -357,11 +360,12 @@ export default function CommunityPostRoute() {
   async function saveCommentEdit(event: FormEvent<HTMLFormElement>, commentID: number) {
     event.preventDefault();
     if (busy) return;
+    const currentBody = editCommentFlushRef.current();
     setBusy(true);
     setRetryAction(null);
     const startedAtVersion = reactionVersionRef.current;
     try {
-      const updated = await communityClient.updateComment(commentID, { body: editCommentBody, files: editCommentUploads.map((item) => item.file), uploadTokens: editCommentUploads.map((item) => item.token) });
+      const updated = await communityClient.updateComment(commentID, { body: currentBody, files: editCommentUploads.map((item) => item.file), uploadTokens: editCommentUploads.map((item) => item.token) });
       clearCommunityLists();
       setDetail(mergeDetailReactions(updated, postReactionOverridesRef.current, commentReactionOverridesRef.current, startedAtVersion));
       setEditingCommentID(null);
@@ -452,7 +456,7 @@ export default function CommunityPostRoute() {
       {editingPost ? <form id="community-post-edit" className="community-composer" onSubmit={savePostEdit}>
         <label className="community-field">标题<input value={editTitle} onChange={(event) => setEditTitle(event.target.value)} maxLength={160} required /></label>
         <label className="community-field">分类<select value={editCategory} onChange={(event) => setEditCategory(event.target.value as CommunityCategory)}>{COMMUNITY_CATEGORIES.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
-        <div className="community-field community-field--editor"><span>正文</span><Suspense fallback={<div className="community-markdown-editor__loading" role="status">正在打开编辑器…</div>}><CommunityMarkdownEditor value={editBody} onChange={setEditBody} uploads={editPostUploads} onUploadsChange={setEditPostUploads} attachments={post.attachments} required placeholder="继续完善这条帖子…" /></Suspense></div>
+        <div className="community-field community-field--editor"><span>正文</span><Suspense fallback={<div className="community-markdown-editor__loading" role="status">正在打开编辑器…</div>}><CommunityMarkdownEditor value={editBody} onChange={setEditBody} flushRef={editPostFlushRef} uploads={editPostUploads} onUploadsChange={setEditPostUploads} attachments={post.attachments} required placeholder="继续完善这条帖子…" /></Suspense></div>
         <div className="community-composer__actions"><button type="button" className="community-button community-button--quiet" onClick={() => setEditingPost(false)}>取消</button><button type="submit" className="community-button community-button--primary" disabled={busy}>保存修改</button></div>
       </form> : <>
         <h1 className="community-post__title" id="community-thread-title">{post.title}</h1>
@@ -485,7 +489,7 @@ export default function CommunityPostRoute() {
           {parent ? <button type="button" className="community-comment__context" onClick={() => document.getElementById(`community-comment-${parent.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}>
             <span>回复 {parent.authorName}</span><span>{parent.isDeleted ? "该回复已删除" : stripCommunityMarkdown(parent.body)}</span>
           </button> : null}
-          {editingCommentID === item.id ? <form id={`community-comment-edit-${item.id}`} className="community-comment-edit" onSubmit={(event) => void saveCommentEdit(event, item.id)}><Suspense fallback={<div className="community-markdown-editor__loading" role="status">正在打开编辑器…</div>}><CommunityMarkdownEditor value={editCommentBody} onChange={setEditCommentBody} uploads={editCommentUploads} onUploadsChange={setEditCommentUploads} attachments={item.attachments} compact required placeholder="编辑回复…" /></Suspense><button className="community-button community-button--primary" disabled={busy}>保存</button></form> : <CommunityMarkdown source={item.body} className="community-comment__body" />}
+          {editingCommentID === item.id ? <form id={`community-comment-edit-${item.id}`} className="community-comment-edit" onSubmit={(event) => void saveCommentEdit(event, item.id)}><Suspense fallback={<div className="community-markdown-editor__loading" role="status">正在打开编辑器…</div>}><CommunityMarkdownEditor value={editCommentBody} onChange={setEditCommentBody} flushRef={editCommentFlushRef} uploads={editCommentUploads} onUploadsChange={setEditCommentUploads} attachments={item.attachments} compact required placeholder="编辑回复…" /></Suspense><button className="community-button community-button--primary" disabled={busy}>保存</button></form> : <CommunityMarkdown source={item.body} className="community-comment__body" />}
           {communityStandaloneAttachments(item.body, item.attachments).length ? <CommunityImageGallery attachments={communityStandaloneAttachments(item.body, item.attachments)} compact /> : null}
           {!item.isDeleted && <div className="community-comment__actions">
             <button type="button" onClick={() => openReply(item)}>回复</button>

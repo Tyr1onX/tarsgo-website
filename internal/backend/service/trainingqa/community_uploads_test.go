@@ -18,13 +18,22 @@ func TestValidateCommunityUploadBindings(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "matching inline image", body: validBody, files: []*multipart.FileHeader{file}, tokens: []string{validToken}},
+		{name: "matching inline image title", body: "![diagram](community-upload://" + validToken + " \"caption\")", files: []*multipart.FileHeader{file}, tokens: []string{validToken}},
 		{name: "legacy standalone attachment", body: "An older attachment", files: []*multipart.FileHeader{file}},
+		{name: "persisted image URL", body: "![diagram](/api/community/files/42)", files: []*multipart.FileHeader{file}},
+		{name: "remote image URL", body: "![diagram](https://example.com/diagram.png)"},
 		{name: "unknown temporary image", body: strings.ReplaceAll(validBody, validToken, "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"), files: []*multipart.FileHeader{file}, tokens: []string{validToken}, wantErr: true},
 		{name: "missing upload", body: validBody, wantErr: true},
 		{name: "token has no file", body: validBody, tokens: []string{validToken}, wantErr: true},
 		{name: "duplicate token", body: validBody, files: []*multipart.FileHeader{file, file}, tokens: []string{validToken, validToken}, wantErr: true},
+		{name: "duplicate body reference", body: validBody + "\n\n" + validBody, files: []*multipart.FileHeader{file}, tokens: []string{validToken}, wantErr: true},
+		{name: "temporary token outside image", body: "community-upload://" + validToken, files: []*multipart.FileHeader{file}, tokens: []string{validToken}, wantErr: true},
 		{name: "malformed token", body: "![bad](community-upload://short)", files: []*multipart.FileHeader{file}, tokens: []string{validToken}, wantErr: true},
 		{name: "unused token", body: "plain text", files: []*multipart.FileHeader{file}, tokens: []string{validToken}, wantErr: true},
+		{name: "blob image URL rejected", body: "![diagram](blob:https://example.test/temporary)", wantErr: true},
+		{name: "data image URL rejected", body: "![diagram](data:image/png;base64,AAAA)", wantErr: true},
+		{name: "file image URL rejected", body: "![diagram](file:///tmp/diagram.png)", wantErr: true},
+		{name: "HTML blob image URL rejected", body: `<img src="blob:https://example.test/temporary">`, wantErr: true},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
