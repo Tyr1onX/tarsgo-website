@@ -521,6 +521,29 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 	if err != nil || crossGrowth.TotalXP != 32 {
 		t.Fatalf("accepted reply should award ten XP once: profile=%#v err=%v", crossGrowth, err)
 	}
+	if _, err := service.SetCommunitySolution(context.Background(), member, communityID, CommunitySolutionUpdate{CommentID: &parentID}); questionStatus(err) != http.StatusForbidden {
+		t.Fatalf("non-owner non-admin could manage a best answer: status=%d", questionStatus(err))
+	}
+	adminAccepted, err := service.SetCommunitySolution(context.Background(), superAdmin, communityID, CommunitySolutionUpdate{CommentID: &parentID})
+	if err != nil || adminAccepted.Post.AcceptedSolutionID == nil || *adminAccepted.Post.AcceptedSolutionID != parentID || !adminAccepted.Comments[0].IsAcceptedSolution {
+		t.Fatalf("super admin could not replace the best answer: detail=%#v err=%v", adminAccepted, err)
+	}
+	crossGrowth, err = service.GetCommunityGrowth(context.Background(), crossMember)
+	if err != nil || crossGrowth.TotalXP != 22 {
+		t.Fatalf("replacing the best answer did not revoke the previous reward: profile=%#v err=%v", crossGrowth, err)
+	}
+	peerGrowth, err = service.GetCommunityGrowth(context.Background(), peer)
+	if err != nil || peerGrowth.TotalXP != 12 {
+		t.Fatalf("replacement best answer did not award its author once: profile=%#v err=%v", peerGrowth, err)
+	}
+	adminUnset, err := service.SetCommunitySolution(context.Background(), superAdmin, communityID, CommunitySolutionUpdate{})
+	if err != nil || adminUnset.Post.AcceptedSolutionID != nil || adminUnset.Post.IsSolved {
+		t.Fatalf("super admin could not unset the best answer: detail=%#v err=%v", adminUnset, err)
+	}
+	peerGrowth, err = service.GetCommunityGrowth(context.Background(), peer)
+	if err != nil || peerGrowth.TotalXP != 2 {
+		t.Fatalf("unsetting the best answer did not revoke its reward: profile=%#v err=%v", peerGrowth, err)
+	}
 	if _, err := service.UpdateCommunityComment(context.Background(), peer, parentID, "更新后的说明"); err != nil {
 		t.Fatalf("comment author could not edit their own comment: %v", err)
 	}

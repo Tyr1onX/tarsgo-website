@@ -16,6 +16,7 @@ import NotFound, { StatusPage } from "./routes/not-found";
 import fallbackFaviconHref from "../public/favicon.ico";
 import { ThemeProvider } from "./components/theme-provider";
 import { startPublicPageTransition } from "./lib/public-page-transition";
+import { communityScrollRestorationStorageKey } from "./lib/community-scroll-restoration";
 
 export function meta() {
   return [{ title: "吉甲大师战队官网 | TARSGO" }];
@@ -63,7 +64,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
       </head>
       <body>
         {children}
-        <ScrollRestoration />
+        <ScrollRestoration storageKey={communityScrollRestorationStorageKey} />
         <Scripts />
       </body>
     </html>

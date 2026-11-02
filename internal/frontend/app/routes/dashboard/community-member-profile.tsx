@@ -1,5 +1,5 @@
 import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
-import { Link, useLocation, useNavigate, useOutletContext, useParams, useSearchParams } from "react-router";
+import { Link, useLocation, useNavigate, useNavigationType, useOutletContext, useParams, useSearchParams } from "react-router";
 
 import { CommunityBadgeInfo } from "~/components/community-badge-mark";
 import { CommunityFeaturedMark } from "~/components/community-featured-mark";
@@ -18,6 +18,7 @@ import {
   type CommunityPublicBadge,
 } from "~/lib/community-member-profile-client";
 import { clearCommunityLists } from "~/lib/community-list-cache";
+import { useDeferredCommunityScrollRestoration } from "~/lib/community-scroll-restoration";
 import { communityCategoryLabel, communityClient, formatCommunityDate } from "~/lib/community-client";
 import { stripCommunityMarkdown } from "~/lib/community-markdown";
 import "./community.css";
@@ -46,6 +47,7 @@ export default function CommunityMemberProfileRoute() {
   const memberID = Number(rawID);
   const location = useLocation();
   const navigate = useNavigate();
+  const navigationType = useNavigationType();
   const [searchParams] = useSearchParams();
   const { currentUser, groupResolution, profileRevision, refreshAccountProfile, requestBadgeReplay } = useOutletContext<DashboardLayoutOutletContext>();
   const tab = profileTab(searchParams.get("tab"));
@@ -64,6 +66,7 @@ export default function CommunityMemberProfileRoute() {
   const returnTo = hasReturnLocation ? returnTarget : "/dashboard";
   const currentPath = `${location.pathname}${location.search}${location.hash}`;
   const isSuperAdmin = currentUser.role.name === "super_admin";
+  useDeferredCommunityScrollRestoration(location.key, navigationType, result !== null, location.hash);
 
   function returnToSource(event: MouseEvent<HTMLAnchorElement>) {
     if (!hasReturnLocation) return;

@@ -461,7 +461,7 @@ func (s *Service) GetCommunityPost(ctx context.Context, actor Actor, postID uint
 			CanEdit: comment.AuthorID == actor.ID && comment.DeletedAt == nil, CanLike: actor.ID != comment.AuthorID && comment.DeletedAt == nil && !question.IsHidden,
 			LikedByMe: comment.LikedByMe, LikeCount: comment.LikeCount,
 			IsAcceptedSolution: question.AcceptedSolutionID != nil && *question.AcceptedSolutionID == comment.ID,
-			CanAcceptSolution:  question.GroupID == nil && question.AskerID == actor.ID && !question.IsHidden && comment.DeletedAt == nil && comment.AuthorID != actor.ID,
+			CanAcceptSolution:  question.GroupID == nil && question.Visibility == model.TrainingQuestionPublic && (question.AskerID == actor.ID || actor.RoleName == model.RoleNameSuperAdmin) && !question.IsHidden && comment.DeletedAt == nil && comment.AuthorID != actor.ID,
 			Attachments:        []AttachmentView{},
 		}
 		if view.IsDeleted {
@@ -1148,8 +1148,8 @@ func (s *Service) SetCommunitySolution(ctx context.Context, actor Actor, postID 
 		if question.GroupID != nil || question.Visibility != model.TrainingQuestionPublic {
 			return badRequest("仅支持在公开社区帖子中采纳解决方案")
 		}
-		if question.AskerID != actor.ID {
-			return forbidden("只有帖子作者可以采纳解决方案")
+		if question.AskerID != actor.ID && actor.RoleName != model.RoleNameSuperAdmin {
+			return forbidden("只有帖子作者或超级管理员可以管理最佳答案")
 		}
 		if update.CommentID == nil {
 			if question.AcceptedSolutionID == nil {
@@ -1170,8 +1170,8 @@ func (s *Service) SetCommunitySolution(ctx context.Context, actor Actor, postID 
 			}
 			return err
 		}
-		if answer.AuthorID == question.AskerID {
-			return badRequest("不能将自己的回复采纳为解决方案")
+		if answer.AuthorID == question.AskerID || answer.AuthorID == actor.ID {
+			return badRequest("不能采纳自己的回复")
 		}
 		if question.AcceptedSolutionID != nil && *question.AcceptedSolutionID == answer.ID {
 			return nil

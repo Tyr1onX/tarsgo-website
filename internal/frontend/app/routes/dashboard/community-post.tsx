@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type FormEvent } from "react";
-import { useLocation, useNavigate, useOutletContext, useParams } from "react-router";
+import { useLocation, useNavigate, useNavigationType, useOutletContext, useParams } from "react-router";
 
 import { CommunityRelatedTopics } from "~/components/community-related-topics";
 import { CommunityReplyComposer } from "~/components/community-reply-composer";
@@ -7,6 +7,7 @@ import { CommunityImageGallery } from "~/components/community-image-gallery";
 import { type CommunityPendingImage } from "~/components/community-markdown-editor";
 import { CommunityMarkdown } from "~/components/community-markdown";
 import { CommunityAuthorProfile } from "~/components/community-author-profile";
+import { CommunityReplyFeatureMenu } from "~/components/community-reply-feature-menu";
 import { CommunityFeaturedMark } from "~/components/community-featured-mark";
 import { CommunityIcon } from "~/components/community-icons";
 import { CommunityActionIcon, CommunityPostMenu } from "~/components/community-post-card";
@@ -28,6 +29,7 @@ import {
   type CommunityReactionOverride,
 } from "~/lib/community-client";
 import { clearCommunityLists, invalidateCommunitySavedLists, removeCommunityPostFromLists, updateCommunityPostInLists } from "~/lib/community-list-cache";
+import { useDeferredCommunityScrollRestoration } from "~/lib/community-scroll-restoration";
 import { communityStandaloneAttachments, stripCommunityMarkdown } from "~/lib/community-markdown";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import "./community.css";
@@ -56,6 +58,7 @@ export default function CommunityPostRoute() {
   const postID = Number(rawID);
   const location = useLocation();
   const navigate = useNavigate();
+  const navigationType = useNavigationType();
   const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
   const [detail, setDetail] = useState<CommunityDetail | null>(null);
   const [loading, setLoading] = useState(true);
@@ -82,6 +85,7 @@ export default function CommunityPostRoute() {
   const commentReactionLocksRef = useRef(new Set<number>());
   const postReactionOverridesRef = useRef(new Map<number, CommunityReactionOverride<CommunityPostReactionSnapshot>>());
   const commentReactionOverridesRef = useRef(new Map<number, CommunityReactionOverride<CommunityCommentReactionSnapshot>>());
+  useDeferredCommunityScrollRestoration(location.key, navigationType, detail !== null, location.hash);
   const returnTarget = (location.state as { communityReturnTo?: unknown } | null)?.communityReturnTo;
   const hasCommunityReturnLocation = typeof returnTarget === "string" && (returnTarget === "/dashboard" || returnTarget.startsWith("/dashboard/") || returnTarget.startsWith("/dashboard?"));
   const returnTo = typeof returnTarget === "string" && (returnTarget === "/dashboard" || returnTarget.startsWith("/dashboard/") || returnTarget.startsWith("/dashboard?"))
@@ -223,8 +227,45 @@ export default function CommunityPostRoute() {
     try {
       const updated = await communityClient.setSolution(postID, commentID);
       setDetail(mergeDetailReactions(updated, postReactionOverridesRef.current, commentReactionOverridesRef.current, startedAtVersion));
+      updateCommunityPostInLists(currentUser.id, postID, (cachedPost) => ({
+        ...cachedPost,
+        isSolved: updated.post.isSolved,
+        acceptedSolutionId: updated.post.acceptedSolutionId,
+      }));
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "解决方案状态更新失败。");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function togglePostFeatured() {
+    if (!detail || busy || currentUser.role.name !== "super_admin") return;
+    setBusy(true);
+    setError("");
+    try {
+      const state = await communityClient.setPostFeatured(postID, !detail.post.isFeatured);
+      setDetail((current) => current ? { ...current, post: { ...current.post, isFeatured: state.isFeatured } } : current);
+      updateCommunityPostInLists(currentUser.id, postID, (cachedPost) => ({ ...cachedPost, isFeatured: state.isFeatured }));
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "帖子精华状态更新失败。");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function toggleReplyFeatured(commentID: number, featured: boolean) {
+    if (!detail || busy || currentUser.role.name !== "super_admin") return;
+    setBusy(true);
+    setError("");
+    try {
+      const state = await communityClient.setReplyFeatured(commentID, !featured);
+      setDetail((current) => current ? {
+        ...current,
+        comments: current.comments.map((comment) => comment.id === commentID ? { ...comment, isFeatured: state.isFeatured } : comment),
+      } : current);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "回复精华状态更新失败。");
     } finally {
       setBusy(false);
     }
@@ -370,6 +411,7 @@ export default function CommunityPostRoute() {
   if (!detail) return <section className="admin-design community-page"><p className="community-state community-state--error" role="alert">{error || "讨论不存在。"}{error ? <button type="button" className="community-inline-retry" onClick={() => void reload()}>重试</button> : null}</p><button className="community-thread__back" type="button" onClick={backToCommunity}><CommunityIcon name="arrowLeft" />返回吉甲社区</button></section>;
 
   const { post, comments } = detail;
+  const canManageFeatured = currentUser.role.name === "super_admin" && post.groupId === 0 && post.visibility === "public";
   const parentByID = new Map(comments.map((item) => [item.id, item]));
   function commentDepth(comment: CommunityComment) {
     let depth = 0;
@@ -398,7 +440,9 @@ export default function CommunityPostRoute() {
         <CommunityPostMenu
           post={post}
           busy={busy || postReactionBusy}
+          canManageFeatured={canManageFeatured}
           onModerate={(change) => void moderate(change)}
+          onToggleFeatured={() => void togglePostFeatured()}
           onEdit={!editingPost ? () => { setEditTitle(post.title); setEditBody(post.body); setEditCategory(post.category); setEditPostUploads([]); setEditingPost(true); } : undefined}
           onDelete={() => void deletePost()}
         />
@@ -412,6 +456,10 @@ export default function CommunityPostRoute() {
         <div className="community-composer__actions"><button type="button" className="community-button community-button--quiet" onClick={() => setEditingPost(false)}>取消</button><button type="submit" className="community-button community-button--primary" disabled={busy}>保存修改</button></div>
       </form> : <>
         <h1 className="community-post__title" id="community-thread-title">{post.title}</h1>
+        {post.isSolved ? <div className="community-post__resolved-callout" role="status">
+          <span className="community-post__resolved"><CommunityIcon name="check" />已解决</span>
+          {post.acceptedSolutionId ? <button type="button" onClick={() => document.getElementById(`community-comment-${post.acceptedSolutionId}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}>查看最佳答案<CommunityIcon name="chevronDown" /></button> : null}
+        </div> : null}
         <CommunityMarkdown source={post.body} className="community-thread__body" />
         {communityStandaloneAttachments(post.body, post.attachments).length ? <CommunityImageGallery attachments={communityStandaloneAttachments(post.body, post.attachments)} /> : null}
       </>}
@@ -433,7 +481,7 @@ export default function CommunityPostRoute() {
       {comments.map((item) => {
         const parent = item.parentPostId ? parentByID.get(item.parentPostId) : null;
         return <article key={item.id} id={`community-comment-${item.id}`} className={`community-comment${location.hash === `#community-comment-${item.id}` || focusedCommentID === item.id ? " is-targeted" : ""}`} data-reply={Boolean(item.parentPostId)} data-depth={commentDepth(item)}>
-          <div className="community-comment__head"><CommunityAuthorProfile id={item.authorId} name={item.authorName} avatar={item.authorAvatar} level={item.authorLevel} featuredBadge={item.authorFeaturedBadge} positions={item.authorPositions} teamIdentityStatus={item.authorTeamIdentityStatus} size="small" />{item.isAcceptedSolution ? <span className="community-comment__solution"><CommunityIcon name="check" />已采纳</span> : null}<CommunityFeaturedMark featured={item.isFeatured} /><time dateTime={item.createdAt}>{formatCommunityDate(item.createdAt)}{item.editedAt ? " · 已编辑" : ""}</time></div>
+          <div className="community-comment__head"><CommunityAuthorProfile id={item.authorId} name={item.authorName} avatar={item.authorAvatar} level={item.authorLevel} featuredBadge={item.authorFeaturedBadge} positions={item.authorPositions} teamIdentityStatus={item.authorTeamIdentityStatus} size="small" />{item.isAcceptedSolution ? <span className="community-comment__solution"><CommunityIcon name="check" />最佳答案</span> : null}<CommunityFeaturedMark featured={item.isFeatured} /><time dateTime={item.createdAt}>{formatCommunityDate(item.createdAt)}{item.editedAt ? " · 已编辑" : ""}</time>{!item.isDeleted && canManageFeatured ? <CommunityReplyFeatureMenu featured={item.isFeatured} busy={busy} onToggle={() => void toggleReplyFeatured(item.id, item.isFeatured)} /> : null}</div>
           {parent ? <button type="button" className="community-comment__context" onClick={() => document.getElementById(`community-comment-${parent.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}>
             <span>回复 {parent.authorName}</span><span>{parent.isDeleted ? "该回复已删除" : stripCommunityMarkdown(parent.body)}</span>
           </button> : null}
@@ -442,7 +490,7 @@ export default function CommunityPostRoute() {
           {!item.isDeleted && <div className="community-comment__actions">
             <button type="button" onClick={() => openReply(item)}>回复</button>
             <button type="button" className={item.likedByMe ? "is-liked" : ""} aria-label={`${item.likedByMe ? "取消点赞" : "点赞"}，${item.likeCount} 个赞`} aria-pressed={item.likedByMe} disabled={busy || commentReactionBusyIDs.has(item.id) || !item.canLike} onClick={() => void toggleCommentLike(item)}><CommunityActionIcon kind="like" active={item.likedByMe} /><span>{item.likeCount || "赞"}</span></button>
-            {item.canAcceptSolution ? <button type="button" className={item.isAcceptedSolution ? "is-solution" : ""} disabled={busy} onClick={() => void setSolution(item.isAcceptedSolution ? null : item.id)}>{item.isAcceptedSolution ? "取消采纳" : "采纳为解决方案"}</button> : null}
+            {item.canAcceptSolution ? <button type="button" className={item.isAcceptedSolution ? "community-best-answer-action is-solution" : "community-best-answer-action"} disabled={busy} onClick={() => void setSolution(item.isAcceptedSolution ? null : item.id)}>{item.isAcceptedSolution ? "取消最佳答案" : "设为最佳答案"}</button> : null}
             {item.canEdit ? <><button type="button" onClick={() => { setEditingCommentID(item.id); setEditCommentBody(item.body); setEditCommentUploads([]); }}>编辑</button><button type="button" onClick={() => void deleteComment(item.id)}>删除</button></> : null}
           </div>}
         </article>;
