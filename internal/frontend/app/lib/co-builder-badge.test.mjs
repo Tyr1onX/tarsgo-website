@@ -11,6 +11,7 @@ const badgeMark = await readFile(new URL("../components/co-builder-badge-mark.ts
 const unlockToast = await readFile(new URL("../components/co-builder-badge-unlock-toast.tsx", import.meta.url), "utf8");
 const client = await readFile(new URL("./co-builder-badge-client.ts", import.meta.url), "utf8");
 const router = await readFile(new URL("../../../backend/router/router.go", import.meta.url), "utf8");
+const badgeService = await readFile(new URL("../../../backend/service/cobuilderbadge/service.go", import.meta.url), "utf8");
 const dashboardLayout = await readFile(new URL("../routes/dashboard/layout.tsx", import.meta.url), "utf8");
 const styles = await readFile(new URL("../app.css", import.meta.url), "utf8");
 
@@ -23,15 +24,16 @@ test("personal profile reads the badge only through the signed-in member endpoin
 
 test("only super admins see the contribution manager in member editing", () => {
   assert.match(adminUsers, /currentUser\.role\.name === "super_admin" \? <CoBuilderBadgeAdminPanel userId=\{editing\.id\}/);
-  assert.match(adminPanel, /本次贡献说明/);
   assert.match(adminPanel, /授予贡献 \+1/);
-  assert.match(adminPanel, /placeholder="填写已完成的具体贡献"/);
-  assert.match(adminPanel, /disabled=\{saving \|\| !description\.trim\(\)\}/);
+  assert.doesNotMatch(adminPanel, /description|textarea|本次贡献说明/);
+  assert.match(adminPanel, /disabled=\{saving\}/);
   assert.doesNotMatch(adminPanel, /<form/);
   assert.match(adminPanel, /type="button" onClick=\{\(\) => void grant\(\)\}/);
-  assert.match(adminPanel, /<textarea required/);
   assert.match(adminPanel, /撤销这条贡献记录/);
-  assert.match(client, /POST[\s\S]*?co-builder-badge\/contributions/);
+  assert.match(client, /grantCoBuilderContribution\(userId: number\)[\s\S]*?method: "POST"/);
+  assert.doesNotMatch(client.slice(client.indexOf("export function grantCoBuilderContribution"), client.indexOf("export function revokeCoBuilderContribution")), /body:/);
+  assert.match(badgeService, /genericContributionDescription = "吉甲共建贡献"/);
+  assert.match(badgeService, /Description: genericContributionDescription/);
   assert.match(client, /co-builder-badge\/contributions\/\$\{contributionId\}[\s\S]*?method: "DELETE"/);
   assert.match(router, /superAdminAPI\.POST\("\/users\/:id\/co-builder-badge\/contributions"/);
   assert.match(router, /superAdminAPI\.DELETE\("\/users\/:id\/co-builder-badge\/contributions\/:contributionID"/);

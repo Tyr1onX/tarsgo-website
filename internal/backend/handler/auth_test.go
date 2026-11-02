@@ -143,13 +143,15 @@ func TestUpdateProfileUsesAuthenticatedAccountAndRejectsProtectedFields(t *testi
 	for _, tc := range []struct {
 		name     string
 		extra    string
+		omitName bool
 		loggedIn bool
 		want     int
 	}{
-		{name: "valid", loggedIn: true, want: http.StatusOK},
+		{name: "super admin can edit own name", loggedIn: true, want: http.StatusOK},
 		{name: "missing session", want: http.StatusUnauthorized},
 		{name: "nickname removed", extra: "nickname", loggedIn: true, want: http.StatusBadRequest},
-		{name: "real name", extra: "realName", loggedIn: true, want: http.StatusBadRequest},
+		{name: "missing real name", omitName: true, loggedIn: true, want: http.StatusBadRequest},
+		{name: "legacy name field", extra: "name", loggedIn: true, want: http.StatusBadRequest},
 		{name: "email", extra: "email", loggedIn: true, want: http.StatusBadRequest},
 		{name: "group", extra: "groupId", loggedIn: true, want: http.StatusBadRequest},
 		{name: "role", extra: "roleId", loggedIn: true, want: http.StatusBadRequest},
@@ -159,7 +161,7 @@ func TestUpdateProfileUsesAuthenticatedAccountAndRejectsProtectedFields(t *testi
 			handler := NewAuthHandler(stubAuthService{
 				updateProfileFn: func(_ context.Context, userID uint64, input auth.ProfileInput) (*auth.SessionUser, error) {
 					called = true
-					if userID != 41 || input.Phone != "13900139000" || input.Avatar != nil {
+					if userID != 41 || input.RealName != "李四" || input.Phone != "13900139000" || input.Avatar != nil {
 						t.Fatalf("unexpected update input: user=%d input=%#v", userID, input)
 					}
 					return &auth.SessionUser{ID: userID}, nil
@@ -168,7 +170,7 @@ func TestUpdateProfileUsesAuthenticatedAccountAndRejectsProtectedFields(t *testi
 			router := gin.New()
 			router.PUT("/api/me", func(c *gin.Context) {
 				if tc.loggedIn {
-					c.Set("sessionUser", &auth.SessionUser{ID: 41})
+					c.Set("sessionUser", &auth.SessionUser{ID: 41, Role: auth.SessionRole{Name: "super_admin"}})
 				}
 				c.Next()
 			}, handler.UpdateProfile)
@@ -177,6 +179,11 @@ func TestUpdateProfileUsesAuthenticatedAccountAndRejectsProtectedFields(t *testi
 			writer := multipart.NewWriter(&body)
 			if err := writer.WriteField("phone", "13900139000"); err != nil {
 				t.Fatal(err)
+			}
+			if !tc.omitName {
+				if err := writer.WriteField("realName", "李四"); err != nil {
+					t.Fatal(err)
+				}
 			}
 			if tc.extra != "" {
 				if err := writer.WriteField(tc.extra, "forbidden"); err != nil {

@@ -256,7 +256,7 @@ export default function CommunityMemberProfileRoute() {
         <h3>公开资料</h3>
         <label htmlFor="community-member-bio">个人简介</label>
         <textarea id="community-member-bio" value={bioDraft} onChange={(event) => setBioDraft(event.target.value)} maxLength={160} rows={4} />
-        <p>简介和代表徽章会展示给社区成员。姓名、组别、职位和战队身份由权威资料维护。</p>
+        <p>简介和代表徽章会展示给社区成员。组别、职位和战队身份由权威资料维护。</p>
         <div className="community-member-public-settings__badge"><label htmlFor="community-featured-badge">代表徽章</label><select id="community-featured-badge" value={selectedBadge} disabled={saving} onChange={(event) => setSelectedBadge(event.target.value)}>
           <option value="">自动选择最高等级</option>{currentlyEarnedBadges.map((badge) => <option key={badge.key} value={badge.key}>{badge.name} · {badge.levelLabel}</option>)}
         </select></div>

@@ -10,7 +10,6 @@ import {
 
 export function CoBuilderBadgeAdminPanel({ userId, onUpdated }: { userId: number; onUpdated?: () => void }) {
   const [summary, setSummary] = useState<CoBuilderBadgeSummary | null>(null);
-  const [description, setDescription] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -28,17 +27,11 @@ export function CoBuilderBadgeAdminPanel({ userId, onUpdated }: { userId: number
   }, [userId]);
 
   async function grant() {
-    const text = description.trim();
     if (saving) return;
-    if (!text) {
-      setError("请填写本次具体贡献。");
-      return;
-    }
     setSaving(true);
     setError("");
     try {
-      setSummary(await grantCoBuilderContribution(userId, text));
-      setDescription("");
+      setSummary(await grantCoBuilderContribution(userId));
       onUpdated?.();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "登记贡献失败");
@@ -68,11 +61,7 @@ export function CoBuilderBadgeAdminPanel({ userId, onUpdated }: { userId: number
       {!loading && summary ? <CoBuilderBadgeSummaryView summary={summary} onRevoke={(id) => void revoke(id)} /> : null}
       {!loading ? (
         <div className="space-y-2">
-          <label className="block text-xs text-[var(--admin-muted)]">
-            本次贡献说明
-            <textarea required maxLength={500} rows={2} value={description} onChange={(event) => { setDescription(event.target.value); setError(""); }} className="admin-field mt-1 min-h-20 resize-y" placeholder="填写已完成的具体贡献" />
-          </label>
-          <button type="button" onClick={() => void grant()} disabled={saving || !description.trim()} className="admin-button admin-button--secondary admin-button--small">
+          <button type="button" onClick={() => void grant()} disabled={saving} className="admin-button admin-button--secondary admin-button--small">
             {saving ? "处理中…" : "授予贡献 +1"}
           </button>
         </div>
