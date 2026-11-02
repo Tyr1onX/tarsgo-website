@@ -1,5 +1,7 @@
 import { apiRequest } from "~/lib/api-client";
 import { reportCommunityGrowthProfile, requestCommunityExperienceRefresh } from "~/lib/community-experience-sync";
+import { validateCommunityImageBindings } from "~/lib/community-image-bindings";
+import { withCommunityImageSubmission } from "~/lib/community-image-submit";
 import type { CommunityReactionState } from "~/lib/community-reaction-state";
 
 export { communityPostReactionSnapshot, mergeCommunityReactionOverrides, releaseCommunityReactionLock, setCommunityPostReaction, tryAcquireCommunityReactionLock, withCommunityPostReactions } from "~/lib/community-reaction-state";
@@ -186,6 +188,9 @@ function queryString(filter: CommunityFilter) {
 }
 
 function postForm(fields: Record<string, string>, files: File[] = [], uploadTokens: string[] = []) {
+  const bodyText = fields.body ?? "";
+  const validationError = validateCommunityImageBindings(bodyText, files.length, uploadTokens);
+  if (validationError) throw new Error(validationError);
   const body = new FormData();
   for (const [key, value] of Object.entries(fields)) body.append(key, value);
   for (const file of files) body.append("files", file, file.name);
@@ -205,21 +210,21 @@ export const communityClient = {
   get: (id: number) => apiRequest<CommunityDetail>(`/api/community/posts/${id}`),
   related: (id: number) => apiRequest<CommunityTopicRecommendations>(`/api/community/posts/${id}/related`),
   create: (input: { category: CommunityCategory; title: string; body: string; files: File[]; uploadTokens?: string[] }) =>
-    syncCommunityExperience(apiRequest<CommunityDetail>("/api/community/posts", {
+    withCommunityImageSubmission(syncCommunityExperience(apiRequest<CommunityDetail>("/api/community/posts", {
       method: "POST",
       body: postForm({ category: input.category, title: input.title, body: input.body }, input.files, input.uploadTokens),
-    })),
+    })), input.files.length),
   update: (id: number, input: { category: CommunityCategory; title: string; body: string; files?: File[]; uploadTokens?: string[] }) =>
-    apiRequest<CommunityDetail>(`/api/community/posts/${id}`, { method: "PATCH", body: postForm({ category: input.category, title: input.title, body: input.body }, input.files, input.uploadTokens) }),
+    withCommunityImageSubmission(apiRequest<CommunityDetail>(`/api/community/posts/${id}`, { method: "PATCH", body: postForm({ category: input.category, title: input.title, body: input.body }, input.files, input.uploadTokens) }), input.files?.length ?? 0),
   remove: (id: number) => syncCommunityExperience(apiRequest<{ id: number }>(`/api/community/posts/${id}`, { method: "DELETE" })),
   addComment: (id: number, input: { body: string; parentPostId?: number; files?: File[]; uploadTokens?: string[] }) =>
-    syncCommunityExperience(apiRequest<CommunityDetail>(`/api/community/posts/${id}/comments`, {
+    withCommunityImageSubmission(syncCommunityExperience(apiRequest<CommunityDetail>(`/api/community/posts/${id}/comments`, {
       method: "POST",
       body: postForm({ body: input.body, ...(input.parentPostId ? { parentPostId: String(input.parentPostId) } : {}) }, input.files, input.uploadTokens),
-    })),
+    })), input.files?.length ?? 0),
   updateComment: (id: number, input: string | { body: string; files?: File[]; uploadTokens?: string[] }) => {
     const value = typeof input === "string" ? { body: input } : input;
-    return apiRequest<CommunityDetail>(`/api/community/comments/${id}`, { method: "PATCH", body: postForm({ body: value.body }, value.files, value.uploadTokens) });
+    return withCommunityImageSubmission(apiRequest<CommunityDetail>(`/api/community/comments/${id}`, { method: "PATCH", body: postForm({ body: value.body }, value.files, value.uploadTokens) }), value.files?.length ?? 0);
   },
   removeComment: (id: number) => syncCommunityExperience(apiRequest<CommunityDetail>(`/api/community/comments/${id}`, { method: "DELETE" })),
   likeComment: (id: number, active: boolean) =>

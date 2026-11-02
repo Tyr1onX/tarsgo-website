@@ -19,6 +19,7 @@ export function CommunityReplyComposer({ accountId, postId, busy = false, commen
   onSubmit: (input: { body: string; parentPostId?: number; files: File[]; uploadTokens: string[] }) => Promise<void>;
 }) {
   const [body, setBody] = useState("");
+  const editorFlushRef = useRef<() => string>(() => body);
   const [uploads, setUploads] = useState<CommunityPendingImage[]>([]);
   const [ready, setReady] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -181,11 +182,12 @@ export function CommunityReplyComposer({ accountId, postId, busy = false, commen
 
   async function close() {
     if (busy || saving) return;
+    const currentBody = editorFlushRef.current();
     setSaving(true);
     setError("");
     try {
       await persistDraft({
-        body, files: uploads.map((item) => item.file), uploadTokens: uploads.map((item) => item.token),
+        body: currentBody, files: uploads.map((item) => item.file), uploadTokens: uploads.map((item) => item.token),
         parentPostId: replyTarget?.id, updatedAt: Date.now(),
       });
       persistedOnCloseRef.current = true;
@@ -199,11 +201,12 @@ export function CommunityReplyComposer({ accountId, postId, busy = false, commen
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (!body.trim() || busy || saving || !ready) return;
+    const currentBody = editorFlushRef.current();
+    if (!currentBody.trim() || busy || saving || !ready) return;
     setSaving(true);
     setError("");
     try {
-      await onSubmit({ body, parentPostId: replyTarget?.id, files: uploads.map((item) => item.file), uploadTokens: uploads.map((item) => item.token) });
+      await onSubmit({ body: currentBody, parentPostId: replyTarget?.id, files: uploads.map((item) => item.file), uploadTokens: uploads.map((item) => item.token) });
       completedRef.current = true;
       await clearCommunityReplyDraft(accountId, postId).catch(() => undefined);
       onClose();
@@ -227,7 +230,7 @@ export function CommunityReplyComposer({ accountId, postId, busy = false, commen
       </header>
       {replyTarget ? <div className="community-reply-panel__context"><span>{replyTarget.isDeleted ? "该回复已删除" : stripCommunityMarkdown(replyTarget.body)}</span><button type="button" onClick={() => onReplyTargetChange(null)} aria-label="改为回复话题">回复话题</button></div> : null}
       <div className="community-reply-panel__editor">
-        {ready ? <Suspense fallback={<div className="community-markdown-editor__loading" role="status">正在打开编辑器…</div>}><CommunityMarkdownEditor value={body} onChange={(next) => { setBody(next); setError(""); }} uploads={uploads} onUploadsChange={setUploads} compact required disabled={busy || saving} placeholder="参与讨论…" /></Suspense> : <div className="community-markdown-editor__loading" role="status">正在恢复回复草稿…</div>}
+        {ready ? <Suspense fallback={<div className="community-markdown-editor__loading" role="status">正在打开编辑器…</div>}><CommunityMarkdownEditor value={body} onChange={(next) => { setBody(next); setError(""); }} flushRef={editorFlushRef} uploads={uploads} onUploadsChange={setUploads} compact required disabled={busy || saving} placeholder="参与讨论…" /></Suspense> : <div className="community-markdown-editor__loading" role="status">正在恢复回复草稿…</div>}
       </div>
       <footer className="community-reply-panel__footer">
         <span className={`community-draft-status${draftStatus === "failed" ? " is-error" : ""}`} role="status">{draftStatus === "saving" ? "正在保存草稿" : draftStatus === "saved" ? "草稿已保存到此设备" : draftStatus === "failed" ? "草稿保存失败" : ""}</span>

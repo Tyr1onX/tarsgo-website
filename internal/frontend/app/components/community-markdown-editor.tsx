@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ChangeEvent, type DragEvent as ReactDragEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type ClipboardEvent as ReactClipboardEvent, type DragEvent as ReactDragEvent, type MutableRefObject } from "react";
 import { Icon, type IconifyIcon } from "@iconify/react";
 import boldIcon from "@iconify-icons/lucide/bold";
 import italicIcon from "@iconify-icons/lucide/italic";
@@ -18,6 +18,7 @@ import imageSettingsIcon from "@iconify-icons/lucide/image-plus";
 import { Crepe } from "@milkdown/crepe";
 import type { Ctx } from "@milkdown/kit/ctx";
 import { commandsCtx, editorViewCtx } from "@milkdown/kit/core";
+import { DOMParser as ProseMirrorDOMParser, Fragment, Slice, type Schema } from "@milkdown/kit/prose/model";
 import { NodeSelection } from "@milkdown/kit/prose/state";
 import {
   addBlockTypeCommand,
@@ -45,6 +46,7 @@ import { getMarkdown, insert } from "@milkdown/kit/utils";
 import { CommunityIcon } from "~/components/community-icons";
 import { CommunityMarkdown } from "~/components/community-markdown";
 import { validateCommunityImages, type CommunityAttachment } from "~/lib/community-client";
+import { bindCommunityClipboardImages, communityEnableHtmlFileUploader, isUnpersistableCommunityImageSource, matchCommunityClipboardImageFiles, removeUnpersistableCommunityClipboardImages } from "~/lib/community-image-paste";
 import { encodeCommunityImageTitle, type CommunityImageLayout } from "~/lib/community-markdown";
 import "@milkdown/crepe/theme/common/style.css";
 import "@milkdown/crepe/theme/frame.css";
@@ -53,6 +55,7 @@ import "./community-markdown-editor.css";
 const UPLOAD_PREFIX = "community-upload://";
 
 export type CommunityPendingImage = { token: string; file: File };
+type StagedUploads = { previous: CommunityPendingImage[]; next: CommunityPendingImage[]; entries: Array<{ upload: CommunityPendingImage; url: string }> };
 
 type ToolName = "bold" | "italic" | "strike" | "inlineCode" | "bullets" | "numbers" | "tasks" | "quote" | "code" | "table" | "rule" | "undo" | "redo";
 const toolIcons: Record<ToolName | "link" | "imageSettings", IconifyIcon> = {
@@ -88,6 +91,55 @@ function restorePendingImages(markdown: string, uploads: CommunityPendingImage[]
   return value;
 }
 
+function isCommunityImageFile(file: File) {
+  return file.type.startsWith("image/") || /\.(?:jpe?g|png|gif|webp)$/i.test(file.name);
+}
+
+function clipboardImageFiles(data: DataTransfer) {
+  const files = [
+    ...Array.from(data.items).filter((item) => item.kind === "file").map((item) => item.getAsFile()).filter((file): file is File => Boolean(file)),
+    ...Array.from(data.files),
+  ].filter(isCommunityImageFile);
+  const seen = new Set<File>();
+  return files.filter((file) => {
+    if (seen.has(file)) return false;
+    seen.add(file);
+    return true;
+  });
+}
+
+function clipboardImagePlan(images: HTMLImageElement[], files: File[]) {
+  const matches = matchCommunityClipboardImageFiles(images.map((image) => image.getAttribute("src")), files);
+  const assignments = new Map(matches.assignments);
+  const stagedFiles: File[] = [];
+  for (const [index, image] of images.entries()) {
+    let file = assignments.get(index);
+    const source = image.getAttribute("src")?.trim() ?? "";
+    const dataImage = /^data:image\/(jpeg|png|gif|webp);base64,([a-z0-9+/=]+)$/i.exec(source);
+    if (!file && dataImage) {
+      try {
+        const mimeType = `image/${dataImage[1]!.toLowerCase()}`;
+        const binary = atob(dataImage[2]!);
+        const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
+        const extension = dataImage[1]!.toLowerCase() === "jpeg" ? "jpg" : dataImage[1]!.toLowerCase();
+        const altName = image.getAttribute("alt")?.trim() ?? "";
+        const name = /\.(?:jpe?g|png|gif|webp)$/i.test(altName) ? altName : `pasted-image-${index + 1}.${extension}`;
+        file = new File([bytes], name, { type: mimeType });
+        assignments.set(index, file);
+      } catch {
+        // The unsupported or malformed data URL is reported by the normal image cleanup path.
+      }
+    }
+    if (file) stagedFiles.push(file);
+  }
+  stagedFiles.push(...matches.extraFiles);
+  return { assignments, files: stagedFiles, extraFiles: matches.extraFiles };
+}
+
+function escapeMarkdownImageAlt(value: string) {
+  return value.replace(/[\\\[\]]/g, "\\$&");
+}
+
 function selectionTextArea(textarea: HTMLTextAreaElement, prefix: string, suffix = "", block = false) {
   const { value, selectionStart, selectionEnd } = textarea;
   const before = value.slice(0, selectionStart);
@@ -113,6 +165,7 @@ function ToolbarButton({ label, name, onClick, disabled = false }: { label: stri
 export function CommunityMarkdownEditor({
   value,
   onChange,
+  flushRef,
   uploads,
   onUploadsChange,
   attachments = [],
@@ -123,6 +176,7 @@ export function CommunityMarkdownEditor({
 }: {
   value: string;
   onChange: (value: string) => void;
+  flushRef: MutableRefObject<() => string>;
   uploads: CommunityPendingImage[];
   onUploadsChange: (uploads: CommunityPendingImage[]) => void;
   attachments?: CommunityAttachment[];
@@ -177,18 +231,19 @@ export function CommunityMarkdownEditor({
     });
     editor.editor.config((ctx) => ctx.update(uploadConfig.key, (previous) => ({
       ...previous,
+      enableHtmlFileUploader: communityEnableHtmlFileUploader,
       uploader: async (files, schema) => {
-        const nodes = [];
-        for (let index = 0; index < files.length; index++) {
-          const file = files.item(index);
-          if (!file || !file.type.startsWith("image/")) continue;
-          try {
-            const url = addUpload(file);
-            const image = schema.nodes.image?.createAndFill({ src: url, alt: file.name, title: "" });
-            if (image) nodes.push(image);
-          } catch { /* The inline error explains why this image could not be added. */ }
+        const batch = stageUploads(Array.from(files));
+        if (!batch) return [];
+        try {
+          const nodes = createUploadNodes(batch, schema);
+          commitUploads(batch);
+          return nodes;
+        } catch (cause) {
+          discardUploads(batch);
+          setImageError(cause instanceof Error ? cause.message : "图片无法插入正文，请重试。");
+          return [];
         }
-        return nodes;
       },
     })));
     editor.on((listener) => listener.markdownUpdated((_ctx, markdown) => {
@@ -249,21 +304,59 @@ export function CommunityMarkdownEditor({
     setMode(nextMode);
   }
 
-  function addUpload(file: File) {
-    const nextUploads = [...uploadsRef.current, { token: newToken(), file }];
-    const validationError = validateCommunityImages(nextUploads.map((item) => item.file));
+  function stageUploads(files: File[]) {
+    const imageFiles = files.filter(isCommunityImageFile);
+    if (!imageFiles.length) return null;
+    const previous = uploadsRef.current;
+    const validationError = validateCommunityImages([...previous.map((item) => item.file), ...imageFiles]);
     if (validationError) {
       setImageError(validationError);
-      throw new Error(validationError);
+      return null;
     }
-    const upload = nextUploads.at(-1)!;
-    const url = URL.createObjectURL(file);
-    tokenUrlsRef.current.set(upload.token, url);
-    urlTokensRef.current.set(url, upload.token);
-    uploadsRef.current = nextUploads;
-    onUploadsChange(nextUploads);
+
+    const entries: Array<{ upload: CommunityPendingImage; url: string }> = [];
+    try {
+      for (const file of imageFiles) {
+        const upload = { token: newToken(), file };
+        entries.push({ upload, url: URL.createObjectURL(file) });
+      }
+    } catch {
+      for (const entry of entries) URL.revokeObjectURL(entry.url);
+      setImageError("图片无法加入正文，请重试。");
+      return null;
+    }
+
+    return { previous, next: [...previous, ...entries.map((entry) => entry.upload)], entries };
+  }
+
+  function createUploadNodes(batch: StagedUploads, schema: Schema) {
+    const imageType = schema.nodes.image;
+    if (!imageType) throw new Error("编辑器暂时无法插入图片，请切换到 Markdown 模式重试。");
+    return batch.entries.map(({ upload, url }) => {
+      const node = imageType.createAndFill({ src: url, alt: upload.file.name, title: "" });
+      if (!node) throw new Error("图片无法插入正文，请重试。");
+      return node;
+    });
+  }
+
+  function commitUploads(batch: StagedUploads) {
+    for (const { upload, url } of batch.entries) {
+      tokenUrlsRef.current.set(upload.token, url);
+      urlTokensRef.current.set(url, upload.token);
+    }
+    uploadsRef.current = batch.next;
+    onUploadsChange(batch.next);
     setImageError("");
-    return url;
+  }
+
+  function discardUploads(batch: StagedUploads) {
+    for (const { upload, url } of batch.entries) {
+      URL.revokeObjectURL(url);
+      tokenUrlsRef.current.delete(upload.token);
+      urlTokensRef.current.delete(url);
+    }
+    uploadsRef.current = batch.previous;
+    onUploadsChange(batch.previous);
   }
 
   function refreshSelectedImage(editor: Crepe) {
@@ -433,45 +526,267 @@ export function CommunityMarkdownEditor({
     else insertMarkdownSource(markdown);
   }
 
-  async function insertFile(file: File) {
+  function insertMarkdownTextAtSelection(text: string) {
+    const textarea = sourceRef.current;
+    if (!textarea) return false;
+    const { value: source, selectionStart, selectionEnd } = textarea;
+    const next = `${source.slice(0, selectionStart)}${text}${source.slice(selectionEnd)}`;
+    sourceHistoryRef.current.push(currentValueRef.current);
+    if (sourceHistoryRef.current.length > 120) sourceHistoryRef.current.shift();
+    sourceRedoRef.current = [];
+    notifyChange(next);
+    const cursor = selectionStart + text.length;
+    requestAnimationFrame(() => { textarea.focus(); textarea.setSelectionRange(cursor, cursor); });
+    return true;
+  }
+
+  function markdownImageReference(fileName: string, token: string) {
+    const alt = fileName.replace(/\.[^.]+$/, "");
+    return `![${escapeMarkdownImageAlt(alt)}](${UPLOAD_PREFIX}${token})`;
+  }
+
+  function insertSourceUploads(batch: StagedUploads, text = "") {
+    if (!sourceRef.current) {
+      discardUploads(batch);
+      setImageError("Markdown 编辑器尚未就绪，请重试。");
+      return;
+    }
+    commitUploads(batch);
+    const references = batch.entries.map(({ upload }) => markdownImageReference(upload.file.name, upload.token));
+    const insertion = [text.trim(), ...references].filter(Boolean).join("\n\n");
+    if (!insertMarkdownTextAtSelection(insertion)) {
+      discardUploads(batch);
+      setImageError("图片无法插入正文，请重试。");
+    }
+  }
+
+  function pasteHtmlAsMarkdown(html: string, plainText: string, files: File[]) {
+    const document = html && typeof DOMParser !== "undefined" ? new DOMParser().parseFromString(html, "text/html") : null;
+    const images = document ? Array.from(document.querySelectorAll("img")) : [];
+    const plan = clipboardImagePlan(images, files);
+    const batch = plan.files.length ? stageUploads(plan.files) : null;
+    if (plan.files.length && !batch) return;
+
+    const fileEntries = new Map((batch?.entries ?? []).map((entry) => [entry.upload.file, entry]));
+    let droppedUnpersistableImage = false;
+    const references: string[] = [];
+    for (const [imageIndex, image] of images.entries()) {
+      const file = plan.assignments.get(imageIndex);
+      const fileEntry = file ? fileEntries.get(file) : undefined;
+      if (fileEntry) {
+        const alt = image.getAttribute("alt") || fileEntry.upload.file.name.replace(/\.[^.]+$/, "");
+        image.replaceWith(document!.createTextNode(`![${escapeMarkdownImageAlt(alt)}](${UPLOAD_PREFIX}${fileEntry.upload.token})`));
+        continue;
+      }
+      const source = image.getAttribute("src")?.trim() ?? "";
+      const alt = escapeMarkdownImageAlt(image.getAttribute("alt") || "图片");
+      if (isUnpersistableCommunityImageSource(source)) {
+        droppedUnpersistableImage = true;
+        image.remove();
+      } else if (/^(?:https?:\/\/|\/)/i.test(source)) {
+        references.push(`![${alt}](<${source}>)`);
+        image.remove();
+      } else {
+        droppedUnpersistableImage = true;
+        image.remove();
+      }
+    }
+
+    for (const file of plan.extraFiles) {
+      const entry = fileEntries.get(file);
+      if (!entry) continue;
+      references.push(markdownImageReference(entry.upload.file.name, entry.upload.token));
+    }
+    const text = document ? (document.body.innerText ?? document.body.textContent ?? "").replace(/\u00a0/g, " ").trim() : plainText.trim();
+    if (batch) commitUploads(batch);
+    const insertion = [text, ...references].filter(Boolean).join("\n\n");
+    if (insertion && !insertMarkdownTextAtSelection(insertion)) {
+      if (batch) discardUploads(batch);
+      setImageError("图片无法插入正文，请重试。");
+      return;
+    }
+    if (droppedUnpersistableImage) setImageError("剪贴板没有提供可上传的图片文件；请重新复制图片或使用“插入图片”选择文件。");
+    else setImageError("");
+  }
+
+  function pasteRichContent(event: ReactClipboardEvent<HTMLDivElement>, files: File[], html: string) {
+    const editor = editorRef.current;
+    if (!editor) {
+      setImageError("编辑器尚未就绪，请稍后重新粘贴。");
+      return;
+    }
+
+    const clipboardDocument = html && typeof DOMParser !== "undefined" ? new DOMParser().parseFromString(html, "text/html") : null;
+    const clipboardImages = clipboardDocument ? Array.from(clipboardDocument.querySelectorAll("img")) : [];
+    const plan = clipboardImagePlan(clipboardImages, files);
+
+    if (plan.files.length) {
+      event.preventDefault();
+      event.stopPropagation();
+      const batch = stageUploads(plan.files);
+      if (!batch) return;
+      let committed = false;
+      let skippedUnpersistableImage = false;
+      try {
+        editor.editor.action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          const schema = view.state.schema;
+          const imageType = schema.nodes.image;
+          if (!imageType) throw new Error("编辑器暂时无法插入图片，请切换到 Markdown 模式重试。");
+          let transaction = view.state.tr;
+          if (html) {
+            const container = document.createElement("div");
+            container.innerHTML = html;
+            const parsed = ProseMirrorDOMParser.fromSchema(schema).parseSlice(container, { preserveWhitespace: true });
+            let entryIndex = 0;
+            const bound = bindCommunityClipboardImages(parsed, imageType, batch.entries.map((entry) => entry.upload.file), (file, source) => {
+              const entry = batch.entries[entryIndex++];
+              if (!entry) throw new Error("剪贴板图片与文件没有正确对应，请重新粘贴。");
+              return imageType.create({ ...source.attrs, src: entry.url, alt: String(source.attrs.alt || file.name) });
+            });
+            const extraNodes = bound.extraFiles.map((file) => {
+              const entry = batch.entries[entryIndex++];
+              if (!entry) throw new Error("剪贴板图片与文件没有正确对应，请重新粘贴。");
+              const node = imageType.createAndFill({ src: entry.url, alt: file.name, title: "" });
+              if (!node) throw new Error("图片无法插入正文，请重试。");
+              return node;
+            });
+            const stagedImageUrls = new Set(batch.entries.map((entry) => entry.url));
+            const cleaned = removeUnpersistableCommunityClipboardImages(
+              bound.slice,
+              imageType,
+              (source) => typeof source === "string" && (stagedImageUrls.has(source) || urlTokensRef.current.has(source)),
+            );
+            skippedUnpersistableImage = cleaned.removed > 0;
+            transaction = transaction.replaceSelection(cleaned.slice);
+            if (extraNodes.length) transaction = transaction.replaceWith(transaction.selection.from, transaction.selection.from, Fragment.fromArray(extraNodes));
+          } else {
+            const nodes = createUploadNodes(batch, schema);
+            transaction = transaction.replaceSelection(new Slice(Fragment.fromArray(nodes), 0, 0));
+          }
+          commitUploads(batch);
+          committed = true;
+          view.dispatch(transaction.scrollIntoView());
+        });
+      } catch (cause) {
+        discardUploads(batch);
+        setImageError(cause instanceof Error ? cause.message : "图片无法插入正文，请重试。");
+      }
+      if (committed) setImageError(skippedUnpersistableImage ? "剪贴板中有图片数据未随文件复制；该图片已跳过，请重新复制或使用“插入图片”选择文件。" : "");
+      return;
+    }
+
+    if (!html || !/<img\b/i.test(html)) return;
+    let unsafeSlice: Slice | null = null;
+    editor.editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      const imageType = view.state.schema.nodes.image;
+      if (!imageType) return;
+      const container = document.createElement("div");
+      container.innerHTML = html;
+      const parsed = ProseMirrorDOMParser.fromSchema(view.state.schema).parseSlice(container, { preserveWhitespace: true });
+      const cleaned = removeUnpersistableCommunityClipboardImages(parsed, imageType);
+      if (cleaned.removed) unsafeSlice = cleaned.slice;
+    });
+    if (!unsafeSlice) return;
+    event.preventDefault();
+    event.stopPropagation();
+    editor.editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      view.dispatch(view.state.tr.replaceSelection(unsafeSlice!).scrollIntoView());
+    });
+    setImageError("剪贴板没有提供可上传的图片文件；未保存的图片已跳过，请重新复制或使用“插入图片”选择文件。");
+  }
+
+  function handlePasteCapture(event: ReactClipboardEvent<HTMLDivElement>) {
+    const target = event.target;
+    const editingSurface = mode === "rich" ? rootRef.current?.contains(target as Node) : sourceRef.current === target;
+    if (!editingSurface) return;
+    const files = clipboardImageFiles(event.clipboardData);
+    const html = event.clipboardData.getData("text/html");
+    const hasHtmlImages = /<img\b/i.test(html);
+    if (mode === "markdown") {
+      if (!files.length && !hasHtmlImages) return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (files.length || hasHtmlImages) pasteHtmlAsMarkdown(html, event.clipboardData.getData("text/plain"), files);
+      return;
+    }
+    if (files.length || hasHtmlImages) pasteRichContent(event, files, html);
+  }
+
+  function handleDragOverCapture(event: ReactDragEvent<HTMLDivElement>) {
+    const target = event.target;
+    const editingSurface = mode === "rich" ? rootRef.current?.contains(target as Node) : sourceRef.current === target;
+    if (!editingSurface || !Array.from(event.dataTransfer.types).includes("Files")) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+  }
+
+  function handleDropCapture(event: ReactDragEvent<HTMLDivElement>) {
+    const target = event.target;
+    const editingSurface = mode === "rich" ? rootRef.current?.contains(target as Node) : sourceRef.current === target;
+    if (!editingSurface) return;
+    const files = clipboardImageFiles(event.dataTransfer);
+    if (!files.length) return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (mode === "markdown") {
+      const batch = stageUploads(files);
+      if (batch) insertSourceUploads(batch);
+      return;
+    }
+    const editor = editorRef.current;
+    if (!editor) {
+      setImageError("编辑器尚未就绪，请稍后重新拖入图片。");
+      return;
+    }
+    const batch = stageUploads(files);
+    if (!batch) return;
     try {
-      const url = addUpload(file);
-      const token = urlTokensRef.current.get(url)!;
-      const alt = file.name.replace(/\.[^.]+$/, "");
-      if (mode === "rich" && editorRef.current) editorRef.current.editor.action(insert(`![${alt.replace(/[\]\[]/g, "\\$&")}](${url})`, true));
-      else insertMarkdownSource(`![${alt.replace(/[\]\[]/g, "\\$&")}](${UPLOAD_PREFIX}${token})`);
+      editor.editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const nodes = createUploadNodes(batch, view.state.schema);
+        const position = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ?? view.state.selection.from;
+        commitUploads(batch);
+        view.dispatch(view.state.tr.replaceWith(position, position, Fragment.fromArray(nodes)).scrollIntoView());
+      });
     } catch (cause) {
-      setImageError(cause instanceof Error ? cause.message : "图片无法加入正文");
+      discardUploads(batch);
+      setImageError(cause instanceof Error ? cause.message : "图片无法插入正文，请重试。");
+    }
+  }
+
+  function insertFile(file: File) {
+    const batch = stageUploads([file]);
+    if (!batch) return;
+    if (mode === "markdown") {
+      insertSourceUploads(batch);
+      return;
+    }
+    const editor = editorRef.current;
+    if (!editor) {
+      discardUploads(batch);
+      setImageError("编辑器尚未就绪，请稍后重新插入图片。");
+      return;
+    }
+    try {
+      editor.editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const nodes = createUploadNodes(batch, view.state.schema);
+        commitUploads(batch);
+        view.dispatch(view.state.tr.replaceSelection(new Slice(Fragment.fromArray(nodes), 0, 0)).scrollIntoView());
+      });
+    } catch (cause) {
+      discardUploads(batch);
+      setImageError(cause instanceof Error ? cause.message : "图片无法插入正文，请重试。");
     }
   }
 
   function handleImageSelection(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
-    if (file) void insertFile(file);
-  }
-
-  function handleEditorDrop(event: ReactDragEvent<HTMLDivElement>) {
-    if (event.defaultPrevented || !event.dataTransfer.files.length) return;
-    const files = Array.from(event.dataTransfer.files).filter((file) => file.type.startsWith("image/"));
-    if (!files.length) return;
-    event.preventDefault();
-    event.stopPropagation();
-    const editor = editorRef.current;
-    if (!editor) return;
-    editor.editor.action((ctx) => {
-      const view = ctx.get(editorViewCtx);
-      let position = view.posAtCoords({ left: event.clientX, top: event.clientY })?.pos ?? view.state.selection.from;
-      for (const file of files) {
-        try {
-          const url = addUpload(file);
-          const image = imageSchema.type(ctx).createAndFill({ src: url, alt: file.name, title: "" });
-          if (!image) continue;
-          view.dispatch(view.state.tr.insert(position, image).scrollIntoView());
-          position += image.nodeSize;
-        } catch { /* The inline error explains why this image could not be added. */ }
-      }
-    });
+    if (file) insertFile(file);
   }
 
   function applySourceTool(action: ToolName) {
@@ -504,6 +819,18 @@ export function CommunityMarkdownEditor({
     notifyChange(withTokens);
   }
 
+  function flushCurrentValue() {
+    if (mode === "rich" && editorRef.current) {
+      const markdown = editorRef.current.editor.action(getMarkdown());
+      const normalized = normalizePendingImages(markdown, urlTokensRef.current);
+      notifyChange(normalized);
+      return normalized;
+    }
+    return currentValueRef.current;
+  }
+
+  flushRef.current = flushCurrentValue;
+
   function editorToolbar() {
     const tools: Array<[ToolName, string]> = [["undo", "撤销"], ["redo", "重做"], ["bold", "加粗"], ["italic", "斜体"], ["strike", "删除线"], ["inlineCode", "行内代码"], ["bullets", "无序列表"], ["numbers", "有序列表"], ["tasks", "任务清单"], ["quote", "引用"], ["code", "代码块"], ["table", "插入表格"], ["rule", "分隔线"]];
     return <div className="community-editor-toolbar" role="toolbar" aria-label="Markdown 格式工具">
@@ -518,7 +845,7 @@ export function CommunityMarkdownEditor({
   const previewValue = restorePendingImages(value, uploads, tokenUrlsRef.current, urlTokensRef.current);
   const accept = "image/jpeg,image/png,image/gif,image/webp";
 
-  return <div className={`community-markdown-editor${compact ? " is-compact" : ""}${disabled ? " is-disabled" : ""}`}>
+  return <div className={`community-markdown-editor${compact ? " is-compact" : ""}${disabled ? " is-disabled" : ""}`} onPasteCapture={handlePasteCapture} onDragOverCapture={handleDragOverCapture} onDropCapture={handleDropCapture}>
     <div className="community-markdown-editor__topline">
       <div className="community-markdown-editor__modes" role="tablist" aria-label="编辑模式">
         <button type="button" role="tab" aria-selected={mode === "rich"} className={mode === "rich" ? "is-active" : ""} onClick={() => changeMode("rich")} disabled={disabled}>所见即所得</button>
@@ -527,7 +854,7 @@ export function CommunityMarkdownEditor({
       <span className="community-markdown-editor__hint">支持 Markdown · 图片可粘贴或拖入</span>
     </div>
     {mode === "rich" ? editorToolbar() : null}
-    {mode === "rich" ? <div ref={rootRef} className="community-markdown-editor__surface" aria-label={placeholder} onMouseUp={() => { if (editorRef.current) refreshSelectedImage(editorRef.current); }} onKeyUp={() => { if (editorRef.current) refreshSelectedImage(editorRef.current); }} onClick={(event) => selectImage(event.target)} onDragOver={(event) => { if (Array.from(event.dataTransfer.types).includes("Files")) { event.preventDefault(); event.dataTransfer.dropEffect = "copy"; } }} onDrop={handleEditorDrop} /> : <div className="community-markdown-source">
+    {mode === "rich" ? <div ref={rootRef} className="community-markdown-editor__surface" aria-label={placeholder} onMouseUp={() => { if (editorRef.current) refreshSelectedImage(editorRef.current); }} onKeyUp={() => { if (editorRef.current) refreshSelectedImage(editorRef.current); }} onClick={(event) => selectImage(event.target)} /> : <div className="community-markdown-source">
       <div className="community-markdown-source__tools" role="toolbar" aria-label="Markdown 格式工具">
         <label className="community-editor-toolbar__heading"><span className="sr-only">插入标题</span><select aria-label="插入标题" defaultValue="" onChange={(event) => { const level = Number(event.target.value); if (level) insertMarkdownSource(`${"#".repeat(level)} `, "", true); event.target.value = ""; }} disabled={disabled}><option value="" disabled>标题</option><option value="1">标题 1</option><option value="2">标题 2</option><option value="3">标题 3</option></select></label>
         {(["undo", "redo", "bold", "italic", "strike", "inlineCode", "bullets", "numbers", "tasks", "quote", "code", "table", "rule"] as ToolName[]).map((name) => <ToolbarButton key={name} label={({ undo: "撤销", redo: "重做", bold: "加粗", italic: "斜体", strike: "删除线", inlineCode: "行内代码", bullets: "无序列表", numbers: "有序列表", tasks: "任务清单", quote: "引用", code: "代码块", table: "插入表格", rule: "分隔线" } as Record<ToolName, string>)[name]} name={name} onClick={() => applySourceTool(name)} disabled={disabled} />)}

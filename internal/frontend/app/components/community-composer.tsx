@@ -17,11 +17,13 @@ export function CommunityComposer({ id, accountId, onCancel, onPublish }: {
   const [category, setCategory] = useState<CommunityCategory>("technology");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const editorFlushRef = useRef<() => string>(() => body);
   const [uploads, setUploads] = useState<CommunityPendingImage[]>([]);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [draftReady, setDraftReady] = useState(false);
   const [draftStatus, setDraftStatus] = useState<"empty" | "saving" | "saved" | "failed">("empty");
+  const persistedOnCloseRef = useRef(false);
   const latestDraftRef = useRef({ accountId, category, title, body, uploads, draftReady, saving });
   latestDraftRef.current = { accountId, category, title, body, uploads, draftReady, saving };
 
@@ -57,6 +59,7 @@ export function CommunityComposer({ id, accountId, onCancel, onPublish }: {
   }, [draftReady]);
 
   useEffect(() => () => {
+    if (persistedOnCloseRef.current) return;
     const draft = latestDraftRef.current;
     if (draft.draftReady && !draft.saving && (draft.title.trim() || draft.body.trim() || draft.uploads.length || draft.category !== "technology")) {
       void saveCommunityDraft(draft.accountId, { category: draft.category, title: draft.title, body: draft.body, files: draft.uploads.map((item) => item.file), uploadTokens: draft.uploads.map((item) => item.token), updatedAt: Date.now() });
@@ -81,10 +84,11 @@ export function CommunityComposer({ id, accountId, onCancel, onPublish }: {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const currentBody = editorFlushRef.current();
     setSaving(true);
     setError("");
     try {
-      await onPublish({ category, title, body, files: uploads.map((item) => item.file), uploadTokens: uploads.map((item) => item.token) });
+      await onPublish({ category, title, body: currentBody, files: uploads.map((item) => item.file), uploadTokens: uploads.map((item) => item.token) });
       await clearCommunityDraft(accountId).catch(() => undefined);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "帖子发布失败");
@@ -93,10 +97,34 @@ export function CommunityComposer({ id, accountId, onCancel, onPublish }: {
     }
   }
 
+  async function cancel() {
+    if (!draftReady) {
+      onCancel();
+      return;
+    }
+    const currentBody = editorFlushRef.current();
+    const hasContent = Boolean(title.trim() || currentBody.trim() || uploads.length || category !== "technology");
+    setDraftStatus("saving");
+    try {
+      if (hasContent) {
+        await saveCommunityDraft(accountId, { category, title, body: currentBody, files: uploads.map((item) => item.file), uploadTokens: uploads.map((item) => item.token), updatedAt: Date.now() });
+        setDraftStatus("saved");
+      } else {
+        await clearCommunityDraft(accountId);
+        setDraftStatus("empty");
+      }
+      persistedOnCloseRef.current = true;
+      onCancel();
+    } catch {
+      setDraftStatus("failed");
+      setError("草稿保存失败，请重试后再收起。");
+    }
+  }
+
   return <form id={id} className="community-composer" onSubmit={submit} aria-labelledby="community-composer-title" aria-busy={saving || !draftReady}>
     <div className="community-composer__header">
       <h2 id="community-composer-title">发布帖子</h2>
-      <button className="community-icon-button" type="button" aria-label="收起发帖表单" onClick={onCancel}><CommunityIcon name="x" /></button>
+      <button className="community-icon-button" type="button" aria-label="收起发帖表单" onClick={() => void cancel()}><CommunityIcon name="x" /></button>
     </div>
     <div className="community-composer__fields">
       <label className="community-field">标题
@@ -108,13 +136,13 @@ export function CommunityComposer({ id, accountId, onCancel, onPublish }: {
         </select>
       </label>
       <div className="community-field community-field--editor"><span>正文</span>
-        {draftReady ? <Suspense fallback={<div className="community-markdown-editor__loading" role="status">正在打开编辑器…</div>}><CommunityMarkdownEditor value={body} onChange={setBody} uploads={uploads} onUploadsChange={setUploads} required disabled={saving} placeholder="分享过程、问题或进展…" /></Suspense> : <div className="community-markdown-editor__loading" role="status">正在恢复草稿…</div>}
+        {draftReady ? <Suspense fallback={<div className="community-markdown-editor__loading" role="status">正在打开编辑器…</div>}><CommunityMarkdownEditor value={body} onChange={setBody} flushRef={editorFlushRef} uploads={uploads} onUploadsChange={setUploads} required disabled={saving} placeholder="分享过程、问题或进展…" /></Suspense> : <div className="community-markdown-editor__loading" role="status">正在恢复草稿…</div>}
       </div>
     </div>
     <div className="community-composer__actions">
       <span className={`community-draft-status${draftStatus === "failed" ? " is-error" : ""}`} role="status">{draftStatus === "saving" ? "正在保存草稿" : draftStatus === "saved" ? "草稿已保存到此设备" : draftStatus === "failed" ? "草稿保存失败" : ""}</span>
       {error ? <p className="community-error" role="alert">{error}</p> : null}
-      <button type="button" className="community-button community-button--quiet" onClick={onCancel} disabled={saving}>取消</button>
+      <button type="button" className="community-button community-button--quiet" onClick={() => void cancel()} disabled={saving}>取消</button>
       <button type="submit" className="community-button community-button--primary" disabled={saving || !draftReady || !title.trim() || !body.trim()}>{saving ? "发布中…" : "发布"}</button>
     </div>
   </form>;
