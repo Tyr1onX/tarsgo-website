@@ -80,6 +80,11 @@
 .community-growth-progress { height: 5px; overflow: hidden; border-radius: 999px; background: var(--admin-surface-hover); }
 .community-growth-progress span { display: block; height: 100%; border-radius: inherit; background: var(--admin-accent); transition: width 260ms ease; }
 .community-growth-details__caption { margin-top: -6px; color: var(--admin-dim); font: 10px/1.3 "Geist Mono", ui-monospace, monospace; text-align: right; }
+.community-growth-rewards { display: grid; gap: 5px; border: 1px solid var(--admin-border-subtle); border-radius: 9px; padding: 10px; background: var(--admin-surface-subtle); }
+.community-growth-rewards__heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; }
+.community-growth-rewards__heading strong { color: var(--admin-text); font-size: 11px; font-weight: 620; }
+.community-growth-rewards__heading span { color: var(--admin-accent-text); font: 600 10px/1.3 "Geist Mono", ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+.community-growth-rewards p { color: var(--admin-muted); font-size: 10px; line-height: 1.5; }
 .community-growth-week,
 .community-growth-events { display: grid; gap: 9px; }
 .community-growth-week__heading { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }

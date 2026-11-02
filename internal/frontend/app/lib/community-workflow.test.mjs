@@ -341,14 +341,18 @@ test("community extends training Q&A storage and keeps migration additive", () =
 
 test("community growth shows Beijing check-ins, author levels, and idempotent interaction rewards", async () => {
   const growthService = service + await source("../../../backend/service/trainingqa/community_growth.go");
+  const growthToast = await source("../components/community-experience-toast-host.tsx");
   assert.match(dashboard, /<CommunityGrowthBar profile=\{growthProfile\}/);
   assert.match(profile, /<CommunityGrowthProfileSection\s*\/>/);
   assert.match(thread, /CommunityAuthorProfile id=\{item\.authorId\}/);
   assert.match(thread, /likeComment\(item\.id, active\)/);
   assert.match(thread, /setSolution\(item\.isAcceptedSolution \? null : item\.id\)/);
   assert.match(growthUI, /communityClient\.checkIn\(\)/);
-  assert.match(growthUI, /升级成功，现为 Lv\./);
-  assert.match(growthUI, /window\.addEventListener\("focus", refreshOnReturn\)/);
+  assert.doesNotMatch(growthUI, /升级成功.*签到获得/);
+  assert.match(growthUI, /requestCommunityExperienceRefresh/);
+  assert.match(growthToast, /communityClient\.growth\(\)/);
+  assert.match(growthToast, /升级成功 · Lv\./);
+  assert.match(growthToast, /window\.addEventListener\("focus", syncWhenVisible\)/);
   assert.match(client, /includeGrowth/);
   assert.match(growthUI, /upcomingCheckIns\.map/);
   assert.match(growthUI, /xpToNextLevel/);

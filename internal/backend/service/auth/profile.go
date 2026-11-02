@@ -17,6 +17,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
 	"tarsgo-backend/model"
 )
 
@@ -57,6 +60,7 @@ func (s *Service) UpdateProfile(ctx context.Context, userID uint64, input Profil
 	}
 
 	newAvatarPath := ""
+	newAvatarURL := ""
 	if input.Avatar != nil {
 		data, extension, err := readProfileAvatar(input.Avatar)
 		if err != nil {
@@ -75,28 +79,54 @@ func (s *Service) UpdateProfile(ctx context.Context, userID uint64, input Profil
 		if err := os.WriteFile(newAvatarPath, data, 0o644); err != nil {
 			return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "保存头像失败", Err: err}
 		}
-		updates["avatar_url"] = avatarURLPrefix + filename
-	}
-
-	result := s.db.WithContext(ctx).Model(&model.User{}).
-		Where("id = ? AND status = ?", userID, model.UserStatusEnabled).Updates(updates)
-	if result.Error != nil {
-		if newAvatarPath != "" {
-			_ = os.Remove(newAvatarPath)
-		}
-		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "保存个人资料失败", Err: result.Error}
+		newAvatarURL = avatarURLPrefix + filename
+		updates["avatar_url"] = newAvatarURL
 	}
 
 	oldAvatar := user.AvatarURL
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		var current model.User
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ? AND status = ?", userID, model.UserStatusEnabled).Take(&current).Error; err != nil {
+			return err
+		}
+		oldAvatar = current.AvatarURL
+		result := tx.Model(&model.User{}).
+			Where("id = ? AND status = ?", userID, model.UserStatusEnabled).Updates(updates)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		// A successful avatar upload grants the reward, while custom avatars
+		// already present in the database are safely backfilled if migration 43
+		// and a concurrent legacy profile update crossed during deployment.
+		if newAvatarPath != "" || isCustomAvatarURL(current.AvatarURL) {
+			actorID := userID
+			event := model.CommunityExperienceEvent{
+				UserID: userID, ActorID: &actorID, SourceType: "avatar", SourceID: userID,
+				SourceKey: fmt.Sprintf("avatar:first:%d", userID), Points: 20, CreatedAt: s.now().UTC(),
+			}
+			if err := tx.Clauses(clause.OnConflict{Columns: []clause.Column{{Name: "source_key"}}, DoNothing: true}).Create(&event).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		if newAvatarPath != "" {
+			_ = os.Remove(newAvatarPath)
+		}
+		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "保存个人资料失败", Err: err}
+	}
 	user.RealName = &realName
 	user.Phone = nil
 	if phone != "" {
 		user.Phone = &phone
 	}
 	if newAvatarPath != "" {
-		newURL := updates["avatar_url"].(string)
-		user.AvatarURL = &newURL
-		if oldAvatar != nil && strings.HasPrefix(*oldAvatar, avatarURLPrefix) {
+		user.AvatarURL = &newAvatarURL
+		if isCustomAvatarURL(oldAvatar) {
 			oldFile := strings.TrimPrefix(*oldAvatar, avatarURLPrefix)
 			if filepath.Base(oldFile) == oldFile && oldFile != "" {
 				_ = os.Remove(filepath.Join("upload", "avatars", oldFile))
@@ -105,6 +135,10 @@ func (s *Service) UpdateProfile(ctx context.Context, userID uint64, input Profil
 	}
 	sessionUser := toSessionUser(user)
 	return &sessionUser, nil
+}
+
+func isCustomAvatarURL(value *string) bool {
+	return value != nil && strings.HasPrefix(strings.TrimSpace(*value), avatarURLPrefix)
 }
 
 func readProfileAvatar(file *multipart.FileHeader) ([]byte, string, error) {

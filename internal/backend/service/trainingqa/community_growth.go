@@ -15,26 +15,35 @@ import (
 )
 
 const (
-	communityXPCheckIn       = "check_in"
-	communityXPPostLike      = "post_like"
-	communityXPCommentLike   = "comment_like"
-	communityXPReply         = "reply"
-	communityXPSolution      = "accepted_solution"
-	communityCheckInLocation = "Asia/Shanghai"
+	communityXPCheckIn                = "check_in"
+	communityXPPost                   = "post"
+	communityXPComment                = "comment"
+	communityXPAvatar                 = "avatar"
+	communityXPPostLike               = "post_like"
+	communityXPCommentLike            = "comment_like"
+	communityXPReply                  = "reply"
+	communityXPSolution               = "accepted_solution"
+	communityCheckInLocation          = "Asia/Shanghai"
+	communityPostDailyLimit           = 2
+	communityCommentDailyLimit        = 5
+	communityContributionDailyXPLimit = 30
 )
 
 type CommunityGrowthProfile struct {
-	Level            int                        `json:"level"`
-	TotalXP          int64                      `json:"totalXp"`
-	LevelStartXP     int64                      `json:"levelStartXp"`
-	NextLevelXP      int64                      `json:"nextLevelXp"`
-	XPToNextLevel    int64                      `json:"xpToNextLevel"`
-	Progress         float64                    `json:"progress"`
-	StreakDays       int                        `json:"streakDays"`
-	CheckedInToday   bool                       `json:"checkedInToday"`
-	LastCheckInDay   string                     `json:"lastCheckInDay,omitempty"`
-	UpcomingCheckIns []CommunityCheckInPreview  `json:"upcomingCheckIns"`
-	RecentEvents     []CommunityExperienceEntry `json:"recentEvents"`
+	Level               int                        `json:"level"`
+	TotalXP             int64                      `json:"totalXp"`
+	LevelStartXP        int64                      `json:"levelStartXp"`
+	NextLevelXP         int64                      `json:"nextLevelXp"`
+	XPToNextLevel       int64                      `json:"xpToNextLevel"`
+	Progress            float64                    `json:"progress"`
+	StreakDays          int                        `json:"streakDays"`
+	CheckedInToday      bool                       `json:"checkedInToday"`
+	LastCheckInDay      string                     `json:"lastCheckInDay,omitempty"`
+	DailyPostsUsed      int                        `json:"dailyPostsUsed"`
+	DailyRepliesUsed    int                        `json:"dailyRepliesUsed"`
+	DailyContributionXP int64                      `json:"dailyContributionXp"`
+	UpcomingCheckIns    []CommunityCheckInPreview  `json:"upcomingCheckIns"`
+	RecentEvents        []CommunityExperienceEntry `json:"recentEvents"`
 }
 
 type CommunityCheckInPreview struct {
@@ -100,6 +109,54 @@ func communityGrowthLocation() (*time.Location, error) {
 		return nil, fmt.Errorf("load community check-in timezone: %w", err)
 	}
 	return location, nil
+}
+
+func lockCommunityXPAwardUser(tx *gorm.DB, userID uint64) error {
+	var member struct{ ID uint64 }
+	return tx.Table("users").Select("id").Clauses(clause.Locking{Strength: "UPDATE"}).Where("id = ?", userID).Take(&member).Error
+}
+
+// grantCommunityContributionXP counts every ledger row, including revoked rows,
+// so deleting and recreating content cannot restore a spent daily reward slot.
+// Callers must lock the contributor row before any consistent reads in the tx.
+func grantCommunityContributionXP(tx *gorm.DB, userID uint64, sourceType string, sourceID, relatedID uint64, sourceKey string, now time.Time) error {
+	location, err := communityGrowthLocation()
+	if err != nil {
+		return err
+	}
+	localNow := now.In(location)
+	dayStart := time.Date(localNow.Year(), localNow.Month(), localNow.Day(), 0, 0, 0, 0, location).UTC()
+	dayEnd := dayStart.AddDate(0, 0, 1)
+	var usage struct {
+		Posts   int64 `gorm:"column:posts"`
+		Replies int64 `gorm:"column:replies"`
+		Points  int64 `gorm:"column:points"`
+	}
+	if err := tx.Model(&model.CommunityExperienceEvent{}).
+		Select("COALESCE(SUM(CASE WHEN source_type = ? THEN 1 ELSE 0 END), 0) AS posts, COALESCE(SUM(CASE WHEN source_type = ? THEN 1 ELSE 0 END), 0) AS replies, COALESCE(SUM(points), 0) AS points", communityXPPost, communityXPComment).
+		Where("user_id = ? AND source_type IN ? AND created_at >= ? AND created_at < ?", userID, []string{communityXPPost, communityXPComment}, dayStart, dayEnd).
+		Scan(&usage).Error; err != nil {
+		return err
+	}
+	points := 0
+	switch sourceType {
+	case communityXPPost:
+		if usage.Posts >= communityPostDailyLimit {
+			return nil
+		}
+		points = 10
+	case communityXPComment:
+		if usage.Replies >= communityCommentDailyLimit {
+			return nil
+		}
+		points = 2
+	default:
+		return fmt.Errorf("unsupported daily community XP source %q", sourceType)
+	}
+	if usage.Points+int64(points) > communityContributionDailyXPLimit {
+		return nil
+	}
+	return recordCommunityXP(tx, userID, nil, sourceType, sourceID, relatedID, sourceKey, points, now)
 }
 
 func (s *Service) GetCommunityGrowth(ctx context.Context, actor Actor) (*CommunityGrowthProfile, error) {
@@ -222,6 +279,22 @@ func (s *Service) communityGrowthProfile(ctx context.Context, db *gorm.DB, userI
 		StreakDays: streakDays, CheckedInToday: checkedIn,
 		UpcomingCheckIns: make([]CommunityCheckInPreview, 0, 7), RecentEvents: []CommunityExperienceEntry{},
 	}
+	dayStart := time.Date(todayDate.Year(), todayDate.Month(), todayDate.Day(), 0, 0, 0, 0, location).UTC()
+	dayEnd := dayStart.AddDate(0, 0, 1)
+	var dailyRewards struct {
+		Posts   int64 `gorm:"column:posts"`
+		Replies int64 `gorm:"column:replies"`
+		XP      int64 `gorm:"column:xp"`
+	}
+	if err := db.Model(&model.CommunityExperienceEvent{}).
+		Select("COALESCE(SUM(CASE WHEN source_type = ? THEN 1 ELSE 0 END), 0) AS posts, COALESCE(SUM(CASE WHEN source_type = ? THEN 1 ELSE 0 END), 0) AS replies, COALESCE(SUM(CASE WHEN revoked_at IS NULL THEN points ELSE 0 END), 0) AS xp", communityXPPost, communityXPComment).
+		Where("user_id = ? AND source_type IN ? AND created_at >= ? AND created_at < ?", userID, []string{communityXPPost, communityXPComment}, dayStart, dayEnd).
+		Scan(&dailyRewards).Error; err != nil {
+		return nil, err
+	}
+	profile.DailyPostsUsed = int(dailyRewards.Posts)
+	profile.DailyRepliesUsed = int(dailyRewards.Replies)
+	profile.DailyContributionXP = dailyRewards.XP
 	if latestErr == nil {
 		profile.LastCheckInDay = latest.Day
 	}
@@ -277,6 +350,12 @@ func communityXPLabel(sourceType string) string {
 	switch sourceType {
 	case communityXPCheckIn:
 		return "每日签到"
+	case communityXPPost:
+		return "发布帖子"
+	case communityXPComment:
+		return "发表评论"
+	case communityXPAvatar:
+		return "首次设置头像"
 	case communityXPPostLike:
 		return "帖子获得点赞"
 	case communityXPCommentLike:
@@ -313,7 +392,7 @@ func revokeCommunityQuestionXP(tx *gorm.DB, questionID uint64, now time.Time) er
 func revokeCommunityCommentXP(tx *gorm.DB, questionID, commentID uint64, now time.Time) error {
 	return tx.Model(&model.CommunityExperienceEvent{}).
 		Where("related_id = ? AND source_id = ? AND source_type IN ? AND revoked_at IS NULL", questionID, commentID,
-			[]string{communityXPCommentLike, communityXPReply, communityXPSolution}).
+			[]string{communityXPComment, communityXPCommentLike, communityXPReply, communityXPSolution}).
 		Update("revoked_at", now.UTC()).Error
 }
 
