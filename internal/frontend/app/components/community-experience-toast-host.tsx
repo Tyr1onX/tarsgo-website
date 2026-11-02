@@ -3,13 +3,16 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { communityClient, type CommunityExperienceEntry, type CommunityGrowthProfile } from "~/lib/community-client";
 import {
   communityExperienceStorageKey,
+  normalizeCommunityExperienceEventID,
   communityExperienceToastLabel,
   newCommunityExperienceEvents,
+  readDismissedCommunityExperienceToasts,
   readPendingCommunityExperienceToasts,
   publishCommunityGrowthError,
   publishCommunityGrowthProfile,
   subscribeToCommunityExperienceRefresh,
   subscribeToCommunityGrowthServerProfile,
+  writeDismissedCommunityExperienceToasts,
   writePendingCommunityExperienceToasts,
   type PendingCommunityExperienceToast,
 } from "~/lib/community-experience-sync";
@@ -29,14 +32,19 @@ export function CommunityExperienceToastHost({ userID }: { userID: number }) {
   const refreshQueuedRef = useRef(false);
   const timersRef = useRef(new Map<number, number>());
   const pendingToastsRef = useRef(new Map<number, PendingCommunityExperienceToast>());
+  const dismissedEventIDsRef = useRef(new Set<number>());
 
   const dismissToast = useCallback((id: number) => {
-    const timer = timersRef.current.get(id);
+    const eventID = normalizeCommunityExperienceEventID(id);
+    if (eventID === null) return;
+    dismissedEventIDsRef.current.add(eventID);
+    writeDismissedCommunityExperienceToasts(userID, dismissedEventIDsRef.current);
+    const timer = timersRef.current.get(eventID);
     if (timer !== undefined) window.clearTimeout(timer);
-    timersRef.current.delete(id);
-    pendingToastsRef.current.delete(id);
+    timersRef.current.delete(eventID);
+    pendingToastsRef.current.delete(eventID);
     writePendingCommunityExperienceToasts(userID, [...pendingToastsRef.current.values()]);
-    setToasts((current) => current.filter((toast) => toast.id !== id));
+    setToasts((current) => current.filter((toast) => normalizeCommunityExperienceEventID(toast.id) !== eventID));
   }, [userID]);
 
   useEffect(() => {
@@ -47,13 +55,14 @@ export function CommunityExperienceToastHost({ userID }: { userID: number }) {
     } catch {
       // Session storage is optional; the in-memory cursor still prevents duplicate events.
     }
+    dismissedEventIDsRef.current = new Set(readDismissedCommunityExperienceToasts(userID));
 
     function scheduleDismiss(toast: PendingCommunityExperienceToast) {
       const delay = Math.max(0, toast.expiresAt - Date.now());
       timersRef.current.set(toast.id, window.setTimeout(() => dismissToast(toast.id), delay));
     }
 
-    const pending = readPendingCommunityExperienceToasts(userID);
+    const pending = readPendingCommunityExperienceToasts(userID).filter((toast) => !dismissedEventIDsRef.current.has(toast.id));
     pendingToastsRef.current = new Map(pending.map((toast) => [toast.id, toast]));
     writePendingCommunityExperienceToasts(userID, pending);
     if (pending.length) {
@@ -64,7 +73,7 @@ export function CommunityExperienceToastHost({ userID }: { userID: number }) {
     function acceptProfile(profile: CommunityGrowthProfile) {
       if (!active) return;
       const previous = profileRef.current;
-      const maximumEventID = profile.recentEvents.reduce((maximum, event) => Math.max(maximum, event.id), 0);
+      const maximumEventID = profile.recentEvents.reduce((maximum, event) => Math.max(maximum, normalizeCommunityExperienceEventID(event.id) ?? 0), 0);
       let newEvents: CommunityExperienceEntry[] = [];
       if (lastSeenEventIDRef.current === null) {
         const now = Date.now();
@@ -76,18 +85,27 @@ export function CommunityExperienceToastHost({ userID }: { userID: number }) {
         newEvents = newCommunityExperienceEvents(profile, lastSeenEventIDRef.current);
       }
 
+      const visibleEvents = newEvents.filter((event) => {
+        const eventID = normalizeCommunityExperienceEventID(event.id);
+        return eventID !== null && !dismissedEventIDsRef.current.has(eventID);
+      });
+
       const upgradedLevel = previous && profile.level > previous.level ? profile.level : undefined;
-      const lastNewEventID = newEvents.at(-1)?.id;
-      const additions = newEvents.map((event) => ({
-        id: event.id,
+      const lastNewEventID = normalizeCommunityExperienceEventID(visibleEvents.at(-1)?.id);
+      const additions = visibleEvents.flatMap((event) => {
+        const id = normalizeCommunityExperienceEventID(event.id);
+        if (id === null) return [];
+        return [{
+        id,
         label: communityExperienceToastLabel(event),
         points: event.points,
-        levelUp: upgradedLevel && event.id === lastNewEventID ? upgradedLevel : undefined,
+        levelUp: upgradedLevel && id === lastNewEventID ? upgradedLevel : undefined,
         expiresAt: Date.now() + 3_000,
-      }));
+        }];
+      });
       if (additions.length) {
         for (const toast of additions) {
-          if (!pendingToastsRef.current.has(toast.id)) {
+          if (!dismissedEventIDsRef.current.has(toast.id) && !pendingToastsRef.current.has(toast.id)) {
             pendingToastsRef.current.set(toast.id, toast);
             scheduleDismiss(toast);
           }
@@ -95,7 +113,7 @@ export function CommunityExperienceToastHost({ userID }: { userID: number }) {
         writePendingCommunityExperienceToasts(userID, [...pendingToastsRef.current.values()]);
         setToasts((current) => {
           const existing = new Set(current.map((toast) => toast.id));
-          return [...current, ...additions.filter((toast) => !existing.has(toast.id)).map(({ expiresAt: _expiresAt, ...toast }) => toast)];
+          return [...current, ...additions.filter((toast) => !dismissedEventIDsRef.current.has(toast.id) && !existing.has(toast.id)).map(({ expiresAt: _expiresAt, ...toast }) => toast)];
         });
       }
 

@@ -962,8 +962,8 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
             <Outlet context={{ currentUser, groupResolution, groupResolutionError, refreshCandidateTodoCount, openMyProfile, refreshAccountProfile, requestBadgeReplay, profileRevision } satisfies DashboardLayoutOutletContext} />
           </div>
         </main>
+        <CommunityExperienceToastHost key={currentUser.id} userID={currentUser.id} />
       </div>
-      <CommunityExperienceToastHost key={currentUser.id} userID={currentUser.id} />
       <CoBuilderBadgeUnlockToast
         key={currentUser.id}
         onOpenProfile={() => openMyProfile("badges")}

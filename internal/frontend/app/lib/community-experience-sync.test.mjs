@@ -2,11 +2,15 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  communityExperienceDismissedStorageKey,
   communityExperiencePendingStorageKey,
   communityExperienceStorageKey,
   communityExperienceToastLabel,
+  normalizeCommunityExperienceEventID,
+  readDismissedCommunityExperienceToasts,
   newCommunityExperienceEvents,
   readPendingCommunityExperienceToasts,
+  writeDismissedCommunityExperienceToasts,
   writePendingCommunityExperienceToasts,
 } from "./community-experience-sync.ts";
 
@@ -31,6 +35,9 @@ test("only newly created, positive, active XP events are eligible for toasts", (
   };
 
   assert.deepEqual(newCommunityExperienceEvents(profile, 7).map(({ id }) => id), [8, 11]);
+  assert.equal(normalizeCommunityExperienceEventID("12"), 12);
+  assert.equal(normalizeCommunityExperienceEventID("12.5"), null);
+  assert.deepEqual(newCommunityExperienceEvents({ recentEvents: [event("13", "comment", 2)] }, 12).map(({ id }) => id), ["13"]);
 });
 
 test("XP toast labels cover new contribution rewards and existing community rewards", () => {
@@ -45,6 +52,31 @@ test("XP toast labels cover new contribution rewards and existing community rewa
 test("experience cursors are scoped to the active account", () => {
   assert.equal(communityExperienceStorageKey(42), "community-experience-last-event:42");
   assert.equal(communityExperiencePendingStorageKey(42), "community-experience-pending-toasts:42");
+  assert.equal(communityExperienceDismissedStorageKey(42), "community-experience-dismissed-toasts:42");
+});
+
+test("dismissed XP events stay dismissed for the tab and normalize event IDs", () => {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const values = new Map();
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: { sessionStorage: {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => values.set(key, value),
+      removeItem: (key) => values.delete(key),
+    } },
+  });
+
+  try {
+    writeDismissedCommunityExperienceToasts(42, [12, "13", 0, Number.NaN]);
+    assert.deepEqual(readDismissedCommunityExperienceToasts(42), [12, 13]);
+    assert.equal(values.get(communityExperienceDismissedStorageKey(42)), "[12,13]");
+    writeDismissedCommunityExperienceToasts(42, []);
+    assert.equal(values.has(communityExperienceDismissedStorageKey(42)), false);
+  } finally {
+    if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow);
+    else delete globalThis.window;
+  }
 });
 
 test("pending XP toasts survive route changes only until their original expiry", () => {
@@ -68,6 +100,31 @@ test("pending XP toasts survive route changes only until their original expiry",
     assert.deepEqual(JSON.parse(values.get(communityExperiencePendingStorageKey(42))), [active]);
     writePendingCommunityExperienceToasts(42, []);
     assert.equal(values.has(communityExperiencePendingStorageKey(42)), false);
+  } finally {
+    if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow);
+    else delete globalThis.window;
+  }
+});
+
+test("pending XP toast IDs from storage are normalized before dismissal lookups", () => {
+  const originalWindow = Object.getOwnPropertyDescriptor(globalThis, "window");
+  const values = new Map([[communityExperiencePendingStorageKey(42), JSON.stringify([
+    { id: "15", label: "收到回复", points: 1, expiresAt: 4_000 },
+    { id: "invalid", label: "无效事件", points: 1, expiresAt: 4_000 },
+  ])]]);
+  Object.defineProperty(globalThis, "window", {
+    configurable: true,
+    value: { sessionStorage: {
+      getItem: (key) => values.get(key) ?? null,
+      setItem: (key, value) => values.set(key, value),
+      removeItem: (key) => values.delete(key),
+    } },
+  });
+
+  try {
+    assert.deepEqual(readPendingCommunityExperienceToasts(42, 3_000), [
+      { id: 15, label: "收到回复", points: 1, expiresAt: 4_000 },
+    ]);
   } finally {
     if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow);
     else delete globalThis.window;

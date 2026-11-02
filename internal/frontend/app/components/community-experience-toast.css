@@ -1,6 +1,13 @@
+:root {
+  --community-layer-reply-panel: 40;
+  --community-layer-editor-dialog: 50;
+  --community-layer-toast: 60;
+  --community-layer-image-viewer: 70;
+}
+
 .community-xp-toasts {
   position: fixed;
-  z-index: 100;
+  z-index: var(--community-layer-toast);
   right: max(1rem, env(safe-area-inset-right, 0px));
   bottom: max(1rem, env(safe-area-inset-bottom, 0px));
   display: flex;
