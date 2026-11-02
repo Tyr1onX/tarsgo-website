@@ -351,6 +351,40 @@ func (h *CommunityHandler) Moderate(c *gin.Context) {
 	writeAPI(c, http.StatusOK, "帖子管理状态已更新", item)
 }
 
+func (h *CommunityHandler) FeaturePost(c *gin.Context) {
+	postID, ok := parseCommunityID(c, "id", "帖子编号")
+	if !ok {
+		return
+	}
+	featured := c.Request.Method == http.MethodPut
+	if err := h.service.SetCommunityPostFeatured(c.Request.Context(), currentTrainingQuestionActor(c), postID, featured); err != nil {
+		h.fail(c, err)
+		return
+	}
+	message := "已取消帖子精华"
+	if featured {
+		message = "帖子已设为精华"
+	}
+	writeAPI(c, http.StatusOK, message, gin.H{"isFeatured": featured})
+}
+
+func (h *CommunityHandler) FeatureReply(c *gin.Context) {
+	replyID, ok := parseCommunityID(c, "id", "回复编号")
+	if !ok {
+		return
+	}
+	featured := c.Request.Method == http.MethodPut
+	if err := h.service.SetCommunityReplyFeatured(c.Request.Context(), currentTrainingQuestionActor(c), replyID, featured); err != nil {
+		h.fail(c, err)
+		return
+	}
+	message := "已取消回复精华"
+	if featured {
+		message = "回复已设为精华"
+	}
+	writeAPI(c, http.StatusOK, message, gin.H{"isFeatured": featured})
+}
+
 func (h *CommunityHandler) OpenFile(c *gin.Context) {
 	fileID, ok := parseCommunityID(c, "id", "附件编号")
 	if !ok {

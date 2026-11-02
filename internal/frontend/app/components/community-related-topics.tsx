@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
+import { CommunityFeaturedMark } from "~/components/community-featured-mark";
 import { communityCategoryLabel, communityClient, communityPostHref, formatCommunityDate, type CommunityTopicRecommendations, type CommunityTopicSummary } from "~/lib/community-client";
 
 export function CommunityRelatedTopics({ postId, returnTo }: { postId: number; returnTo: string }) {
@@ -48,7 +49,7 @@ export function CommunityRelatedTopics({ postId, returnTo }: { postId: number; r
       const lastActivity = item.lastReplyAt ?? item.createdAt;
       return <article key={item.id} className="community-related-topic">
         <h3><Link to={communityPostHref(item.id)} state={{ communityReturnTo: returnTo }}>{item.title}</Link></h3>
-        <span className="community-post__category">{communityCategoryLabel(item.category)}</span>
+        <span className="community-related-topic__labels"><CommunityFeaturedMark featured={item.isFeatured} /><span className="community-post__category">{communityCategoryLabel(item.category)}</span></span>
         <span aria-label={`${item.commentCount} 条回复`}>{item.commentCount} 回复</span>
         <span aria-label={`${item.viewCount} 次浏览`}>{item.viewCount} 浏览</span>
         <time dateTime={lastActivity} title={`最近活动 ${formatCommunityDate(lastActivity)}`}>{formatCommunityDate(lastActivity)}</time>

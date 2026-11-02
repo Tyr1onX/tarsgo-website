@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent }
 import { Link, useLocation } from "react-router";
 
 import { CommunityIcon } from "~/components/community-icons";
+import { CommunityFeaturedMark } from "~/components/community-featured-mark";
 import { communityCategoryLabel, communityPostHref, formatCommunityDate, type CommunityPost } from "~/lib/community-client";
 
 export function CommunityAvatar({ name, src, size = "regular" }: { name: string; src?: string; size?: "regular" | "small" }) {
@@ -22,6 +23,7 @@ export function CommunityPostCard({ post }: { post: CommunityPost }) {
       <h2 className="community-topic-row__title"><Link to={communityPostHref(post.id)} state={postState}>{post.title}</Link></h2>
       <div className="community-topic-row__labels">
         {post.isPinned ? <span className="community-post__pin"><CommunityIcon name="pin" />置顶</span> : null}
+        <CommunityFeaturedMark featured={post.isFeatured} />
         <span className="community-post__category">{communityCategoryLabel(post.category)}</span>
       </div>
     </div>

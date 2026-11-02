@@ -2,7 +2,9 @@ import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
 import { Link, useLocation, useNavigate, useOutletContext, useParams, useSearchParams } from "react-router";
 
 import { CommunityBadgeInfo } from "~/components/community-badge-mark";
+import { CommunityFeaturedMark } from "~/components/community-featured-mark";
 import { TeamIdentityBadge } from "~/components/community-team-identity";
+import { CoBuilderBadgeAdminPanel } from "~/components/co-builder-badge-admin-panel";
 import { CoBuilderBadgeProfile } from "~/components/co-builder-badge-profile";
 import { CommunityIcon } from "~/components/community-icons";
 import { CommunityLevelBadge } from "~/components/community-growth";
@@ -15,7 +17,8 @@ import {
   type CommunityMemberProfileResult,
   type CommunityPublicBadge,
 } from "~/lib/community-member-profile-client";
-import { communityCategoryLabel, formatCommunityDate } from "~/lib/community-client";
+import { clearCommunityLists } from "~/lib/community-list-cache";
+import { communityCategoryLabel, communityClient, formatCommunityDate } from "~/lib/community-client";
 import { stripCommunityMarkdown } from "~/lib/community-markdown";
 import "./community.css";
 
@@ -25,6 +28,7 @@ const tabs = [
   { id: "replies", label: "回复" },
   { id: "badges", label: "徽章" },
   { id: "settings", label: "资料设置" },
+  { id: "management", label: "成员管理" },
 ] as const;
 
 type ProfileTab = (typeof tabs)[number]["id"];
@@ -53,11 +57,13 @@ export default function CommunityMemberProfileRoute() {
   const [bioDraft, setBioDraft] = useState("");
   const [selectedBadge, setSelectedBadge] = useState("");
   const [saving, setSaving] = useState(false);
+  const [featureAction, setFeatureAction] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
   const returnTarget = (location.state as { communityProfileReturnTo?: unknown } | null)?.communityProfileReturnTo;
   const hasReturnLocation = typeof returnTarget === "string" && (returnTarget === "/dashboard" || returnTarget.startsWith("/dashboard/") || returnTarget.startsWith("/dashboard?"));
   const returnTo = hasReturnLocation ? returnTarget : "/dashboard";
   const currentPath = `${location.pathname}${location.search}${location.hash}`;
+  const isSuperAdmin = currentUser.role.name === "super_admin";
 
   function returnToSource(event: MouseEvent<HTMLAnchorElement>) {
     if (!hasReturnLocation) return;
@@ -69,13 +75,13 @@ export default function CommunityMemberProfileRoute() {
     let active = true;
     setLoading(true);
     setError("");
-    const apiTab = tab === "settings" ? "badges" : tab;
+    const apiTab = tab === "settings" ? "badges" : tab === "management" ? "card" : tab;
     communityMemberProfileClient.get(memberID, apiTab, tab === "settings" ? 1 : page).then((next) => {
       if (!active) return;
       setResult(next);
       setBioDraft(next.member.bio);
       setSelectedBadge(next.member.featuredBadgeKey ?? "");
-      if (tab === "settings" && (next.member.id !== currentUser.id || !next.member.isSelf)) {
+      if ((tab === "settings" && (next.member.id !== currentUser.id || !next.member.isSelf)) || (tab === "management" && !isSuperAdmin)) {
         const params = new URLSearchParams(location.search);
         params.delete("tab");
         params.delete("page");
@@ -88,7 +94,7 @@ export default function CommunityMemberProfileRoute() {
       if (active) setLoading(false);
     });
     return () => { active = false; };
-  }, [memberID, tab, page, currentUser.id, profileRevision]);
+  }, [memberID, tab, page, currentUser.id, isSuperAdmin, profileRevision]);
 
   function changeTab(next: ProfileTab, nextPage = 1) {
     const params = new URLSearchParams(location.search);
@@ -117,6 +123,42 @@ export default function CommunityMemberProfileRoute() {
       setError(cause instanceof Error ? cause.message : "公开资料保存失败，请稍后重试。");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function setFeatured(kind: "post" | "reply", id: number, currentValue: boolean) {
+    if (!isSuperAdmin || featureAction) return;
+    const actionKey = `${kind}-${id}`;
+    const nextValue = !currentValue;
+    setFeatureAction(actionKey);
+    setError("");
+    setNotice("");
+    try {
+      const state = kind === "post"
+        ? await communityClient.setPostFeatured(id, nextValue)
+        : await communityClient.setReplyFeatured(id, nextValue);
+      setResult((current) => {
+        if (!current) return current;
+        return kind === "post"
+          ? { ...current, posts: current.posts?.map((item) => item.id === id ? { ...item, isFeatured: state.isFeatured } : item) }
+          : { ...current, replies: current.replies?.map((item) => item.id === id ? { ...item, isFeatured: state.isFeatured } : item) };
+      });
+      clearCommunityLists();
+      setNotice(state.isFeatured ? "已设为精华。" : "已取消精华。");
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "精华状态更新失败，请稍后重试。");
+    } finally {
+      setFeatureAction(null);
+    }
+  }
+
+  async function refreshManagedMember() {
+    clearCommunityLists();
+    try {
+      const next = await communityMemberProfileClient.get(memberID, "badges", 1);
+      setResult((current) => current ? { ...current, member: next.member, badges: next.badges } : next);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "贡献已更新，但成员主页同步失败。");
     }
   }
 
@@ -161,7 +203,7 @@ export default function CommunityMemberProfileRoute() {
     </section>
 
     <nav className="community-member-tabs" aria-label="成员主页栏目">
-      {tabs.filter((item) => item.id !== "settings" || isSelf).map((item) => <button key={item.id} type="button" aria-current={tab === item.id ? "page" : undefined} onClick={() => changeTab(item.id)}>{item.label}</button>)}
+      {tabs.filter((item) => (item.id !== "settings" || isSelf) && (item.id !== "management" || isSuperAdmin)).map((item) => <button key={item.id} type="button" aria-current={tab === item.id ? "page" : undefined} onClick={() => changeTab(item.id)}>{item.label}</button>)}
     </nav>
     {loading ? <p className="community-member-loading" role="status">正在更新内容…</p> : null}
     {notice ? <p className="community-state" role="status">{notice}</p> : null}
@@ -172,7 +214,7 @@ export default function CommunityMemberProfileRoute() {
         {result.activities?.length ? <ol className="community-member-activity">{result.activities.map((activity) => <li key={`${activity.kind}-${activity.id}`}>
           <span className="community-member-activity__marker"><CommunityIcon name={activity.kind === "post" ? "messageCircle" : "cornerDownRight"} /></span>
           <div><p><strong>{activity.kind === "post" ? "发布了帖子" : "回复了讨论"}</strong><time dateTime={activity.createdAt}>{formatCommunityDate(activity.createdAt)}</time></p>
-            <Link to={activity.href} state={postHrefState}>{activity.title || activity.body}</Link>
+            <div className="community-member-activity__content"><Link to={activity.href} state={postHrefState}>{activity.title || activity.body}</Link><CommunityFeaturedMark featured={activity.isFeatured} /></div>
             {activity.title ? <p className="community-member-activity__excerpt">{stripCommunityMarkdown(activity.body)}</p> : null}
           </div>
         </li>)}</ol> : <EmptyState>还没有可展示的社区活动</EmptyState>}
@@ -185,7 +227,7 @@ export default function CommunityMemberProfileRoute() {
 
     {tab === "posts" ? <section className="community-member-section community-member-content-list" aria-label="成员发布的帖子">
       {result.posts?.length ? result.posts.map((post) => <article key={post.id} className="community-member-post-item">
-        <div className="community-member-post-item__meta"><span>{communityCategoryLabel(post.category)}</span><time dateTime={post.createdAt}>{formatCommunityDate(post.createdAt)}</time></div>
+        <div className="community-member-post-item__meta"><span>{communityCategoryLabel(post.category)}</span><time dateTime={post.createdAt}>{formatCommunityDate(post.createdAt)}</time><CommunityFeaturedMark featured={post.isFeatured} />{isSuperAdmin ? <button type="button" className="community-member-feature-action" disabled={featureAction !== null} aria-pressed={post.isFeatured} aria-label={`${post.isFeatured ? "取消" : "设为"}精华：${post.title}`} onClick={() => void setFeatured("post", post.id, post.isFeatured)}><CommunityIcon name="star" />{post.isFeatured ? "取消精华" : "设为精华"}</button> : null}</div>
         <h2><Link to={`/dashboard/community/${post.id}`} state={postHrefState}>{post.title}</Link></h2>
         <p>{stripCommunityMarkdown(post.body)}</p>
         <footer><span><CommunityIcon name="heart" />{post.likeCount}</span><span><CommunityIcon name="messageCircle" />{post.commentCount}</span></footer>
@@ -196,6 +238,7 @@ export default function CommunityMemberProfileRoute() {
     {tab === "replies" ? <section className="community-member-section community-member-content-list" aria-label="成员参与的讨论">
       {result.replies?.length ? result.replies.map((reply) => <article key={reply.id} className="community-member-reply-item">
         <p><span>回复了</span><Link to={reply.href} state={postHrefState}>{reply.postTitle}</Link><time dateTime={reply.createdAt}>{formatCommunityDate(reply.createdAt)}</time></p>
+        <div className="community-member-reply-item__meta"><CommunityFeaturedMark featured={reply.isFeatured} />{isSuperAdmin ? <button type="button" className="community-member-feature-action" disabled={featureAction !== null} aria-pressed={reply.isFeatured} aria-label={`${reply.isFeatured ? "取消" : "设为"}精华：${reply.postTitle} 中的回复`} onClick={() => void setFeatured("reply", reply.id, reply.isFeatured)}><CommunityIcon name="star" />{reply.isFeatured ? "取消精华" : "设为精华"}</button> : null}</div>
         <Link className="community-member-reply-item__body" to={reply.href} state={postHrefState}>{stripCommunityMarkdown(reply.body)}</Link>
         <footer><span><CommunityIcon name="heart" />{reply.likeCount}</span></footer>
       </article>) : <EmptyState>{loading ? "" : "还没有可展示的回复"}</EmptyState>}
@@ -219,6 +262,10 @@ export default function CommunityMemberProfileRoute() {
         <div className="community-member-bio-editor__actions"><span>{Array.from(bioDraft).length}/160</span><button type="submit" className="community-button community-button--primary" disabled={saving}>{saving ? "保存中…" : "保存公开资料"}</button></div>
       </form>
       <PersonalProfileSettings user={currentUser} groups={groupResolution?.groups.map((group) => group.name) ?? []} onSaved={refreshAccountProfile} />
+    </section> : null}
+    {tab === "management" && isSuperAdmin ? <section className="community-member-section community-member-admin" aria-labelledby="community-member-admin-title">
+      <header><h2 id="community-member-admin-title">成员管理</h2></header>
+      <CoBuilderBadgeAdminPanel userId={member.id} onUpdated={() => void refreshManagedMember()} />
     </section> : null}
   </section>;
 }

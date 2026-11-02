@@ -79,6 +79,7 @@ export interface CommunityMemberReply {
   createdAt: string;
   editedAt?: string;
   likeCount: number;
+  isFeatured: boolean;
   href: string;
 }
 
@@ -92,6 +93,7 @@ export interface CommunityMemberPost {
   commentCount: number;
   likeCount: number;
   isPinned: boolean;
+  isFeatured: boolean;
 }
 
 export interface CommunityMemberActivity {
@@ -100,6 +102,7 @@ export interface CommunityMemberActivity {
   postId: number;
   title?: string;
   body: string;
+  isFeatured: boolean;
   createdAt: string;
   href: string;
 }

@@ -23,13 +23,13 @@ test("personal profile reads the badge only through the signed-in member endpoin
 
 test("only super admins see the contribution manager in member editing", () => {
   assert.match(adminUsers, /currentUser\.role\.name === "super_admin" \? <CoBuilderBadgeAdminPanel userId=\{editing\.id\}/);
-  assert.match(adminPanel, /贡献说明（可选）/);
+  assert.match(adminPanel, /本次贡献说明/);
   assert.match(adminPanel, /授予贡献 \+1/);
-  assert.match(adminPanel, /留空将使用默认说明：参与吉甲官网测试与反馈/);
-  assert.match(adminPanel, /disabled=\{saving\}/);
+  assert.match(adminPanel, /placeholder="填写已完成的具体贡献"/);
+  assert.match(adminPanel, /disabled=\{saving \|\| !description\.trim\(\)\}/);
   assert.doesNotMatch(adminPanel, /<form/);
   assert.match(adminPanel, /type="button" onClick=\{\(\) => void grant\(\)\}/);
-  assert.doesNotMatch(adminPanel, /<textarea required/);
+  assert.match(adminPanel, /<textarea required/);
   assert.match(adminPanel, /撤销这条贡献记录/);
   assert.match(client, /POST[\s\S]*?co-builder-badge\/contributions/);
   assert.match(client, /co-builder-badge\/contributions\/\$\{contributionId\}[\s\S]*?method: "DELETE"/);

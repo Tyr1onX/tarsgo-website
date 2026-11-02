@@ -17,10 +17,10 @@ import (
 
 func TestMigrationRegistryIsOrderedAndKeepsBaseVersion(t *testing.T) {
 	items := migrationRegistry("test")
-	if len(items) != 41 {
-		t.Fatalf("expected 41 registered migrations, got %d", len(items))
+	if len(items) != 42 {
+		t.Fatalf("expected 42 registered migrations, got %d", len(items))
 	}
-	wantVersions := []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41}
+	wantVersions := []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42}
 	for index, want := range wantVersions {
 		if items[index].version != want {
 			t.Fatalf("migration %d has version %d, want %d", index, items[index].version, want)
@@ -122,6 +122,19 @@ func TestMigration41CreatesDefaultedTeamIdentityAndAuditHistory(t *testing.T) {
 	field, ok := reflect.TypeOf(model.User{}).FieldByName("TeamIdentityStatus")
 	if !ok || !strings.Contains(field.Tag.Get("gorm"), "default:'community_member'") {
 		t.Fatal("existing and newly registered accounts must default to unverified community members")
+	}
+}
+
+func TestMigration42AddsIndependentCommunityFeaturedState(t *testing.T) {
+	items := migrationRegistry("test")
+	if len(items) < 42 || items[41].version != 42 || items[41].apply == nil {
+		t.Fatal("community featured migration 42 is missing")
+	}
+	for _, modelType := range []reflect.Type{reflect.TypeOf(model.TrainingQuestion{}), reflect.TypeOf(model.TrainingQuestionPost{})} {
+		field, ok := modelType.FieldByName("IsFeatured")
+		if !ok || field.Type.Kind() != reflect.Bool || !strings.Contains(field.Tag.Get("gorm"), "column:is_featured") || !strings.Contains(field.Tag.Get("gorm"), "default:0") {
+			t.Fatalf("%s must store an independent default-off featured state", modelType.Name())
+		}
 	}
 }
 

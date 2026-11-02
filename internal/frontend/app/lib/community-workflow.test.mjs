@@ -22,6 +22,8 @@ const profile = await source("../components/personal-profile-settings.tsx");
 const postCard = await source("../components/community-post-card.tsx");
 const authorProfile = await source("../components/community-author-profile.tsx");
 const badgeInfo = await source("../components/community-badge-mark.tsx");
+const featuredMark = await source("../components/community-featured-mark.tsx");
+const adminPanel = await source("../components/co-builder-badge-admin-panel.tsx");
 const memberProfilePage = await source("../routes/dashboard/community-member-profile.tsx");
 const memberProfileClient = await source("./community-member-profile-client.ts");
 const markdownEditor = await source("../components/community-markdown-editor.tsx");
@@ -199,6 +201,38 @@ test("community identity uses current positions and offers badge details with au
   assert.match(memberProfilePage, /自动选择最高等级/);
   assert.match(memberProfileService, /resolveCommunityFeaturedBadge\(badge, publicProfile\.FeaturedBadgeKey\)/);
   assert.match(memberProfileService, /if badge == nil \|\| !badge\.IsEarned/);
+});
+
+test("member management is super-admin-only and reuses contribution controls with live profile refresh", () => {
+  assert.match(memberProfilePage, /currentUser\.role\.name === "super_admin"/);
+  assert.match(memberProfilePage, /\{ id: "management", label: "成员管理" \}/);
+  assert.match(memberProfilePage, /item\.id !== "management" \|\| isSuperAdmin/);
+  assert.match(memberProfilePage, /<CoBuilderBadgeAdminPanel userId=\{member\.id\} onUpdated=/);
+  assert.match(memberProfilePage, /communityMemberProfileClient\.get\(memberID, "badges", 1\)/);
+  assert.match(memberProfilePage, /clearCommunityLists\(\)/);
+  assert.match(adminPanel, /onUpdated\?\.\(\)/);
+});
+
+test("featured state is server-gated, independently audited, visible throughout community content, and does not change sorting", () => {
+  assert.match(client, /setPostFeatured:[\s\S]*?\/api\/admin\/community\/posts\/\$\{id\}\/featured/);
+  assert.match(client, /setReplyFeatured:[\s\S]*?\/api\/admin\/community\/replies\/\$\{id\}\/featured/);
+  assert.match(router, /superAdminAPI\.PUT\("\/community\/posts\/:id\/featured", requireSameOriginRequest\(cfg\)/);
+  assert.match(router, /superAdminAPI\.DELETE\("\/community\/replies\/:id\/featured", requireSameOriginRequest\(cfg\)/);
+  assert.match(service, /actor\.RoleName != model\.RoleNameSuperAdmin/);
+  assert.match(service, /Update\("is_featured", featured\)/);
+  assert.doesNotMatch(service.slice(service.indexOf("func (s *Service) ListCommunity"), service.indexOf("func (s *Service) HotCommunityPosts")), /Order\([^\n]*is_featured/);
+  assert.match(model, /IsFeatured\s+bool\s+`json:"isFeatured" gorm:"column:is_featured;type:tinyint\(1\);not null;default:0"`/);
+  assert.match(migrations, /version: 42[\s\S]*?TrainingQuestionPost/);
+  assert.match(memberProfileService, /q\.is_featured AS is_featured/);
+  assert.match(memberProfileService, /cp\.is_featured AS is_featured/);
+  assert.match(postCard, /<CommunityFeaturedMark featured=\{post\.isFeatured\} \/>/);
+  assert.match(thread, /<CommunityFeaturedMark featured=\{item\.isFeatured\} \/>/);
+  assert.match(relatedTopics, /<CommunityFeaturedMark featured=\{item\.isFeatured\} \/>/);
+  assert.match(memberProfilePage, /<CommunityFeaturedMark featured=\{activity\.isFeatured\} \/>/);
+  assert.match(memberProfilePage, /<CommunityFeaturedMark featured=\{post\.isFeatured\} \/>/);
+  assert.match(memberProfileService, /IsFeatured: post\.IsFeatured/);
+  assert.match(service, /IsFeatured: row\.IsFeatured/);
+  assert.match(featuredMark, /aria-label="精华"/);
 });
 
 test("the editor offers WYSIWYG and source preview, image upload, tables, tasks, undo, and image controls", () => {

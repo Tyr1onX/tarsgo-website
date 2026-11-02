@@ -7,6 +7,7 @@ import { CommunityImageGallery } from "~/components/community-image-gallery";
 import { type CommunityPendingImage } from "~/components/community-markdown-editor";
 import { CommunityMarkdown } from "~/components/community-markdown";
 import { CommunityAuthorProfile } from "~/components/community-author-profile";
+import { CommunityFeaturedMark } from "~/components/community-featured-mark";
 import { CommunityIcon } from "~/components/community-icons";
 import { CommunityActionIcon, CommunityPostMenu } from "~/components/community-post-card";
 import {
@@ -324,6 +325,7 @@ export default function CommunityPostRoute() {
         <CommunityAuthorProfile id={post.authorId} name={post.authorName} avatar={post.authorAvatar} level={post.authorLevel} featuredBadge={post.authorFeaturedBadge} positions={post.authorPositions} teamIdentityStatus={post.authorTeamIdentityStatus} />
         <div className="community-post__byline"><time dateTime={post.createdAt}>{formatCommunityDate(post.createdAt)}{post.editedAt ? " · 已编辑" : ""} · {post.viewCount ?? 0} 浏览</time></div>
         {post.isPinned ? <span className="community-post__pin"><CommunityIcon name="pin" />置顶</span> : null}
+        <CommunityFeaturedMark featured={post.isFeatured} />
         <span className="community-post__category">{communityCategoryLabel(post.category)}</span>
         <CommunityPostMenu
           post={post}
@@ -359,7 +361,7 @@ export default function CommunityPostRoute() {
       {comments.map((item) => {
         const parent = item.parentPostId ? parentByID.get(item.parentPostId) : null;
         return <article key={item.id} id={`community-comment-${item.id}`} className={`community-comment${location.hash === `#community-comment-${item.id}` || focusedCommentID === item.id ? " is-targeted" : ""}`} data-reply={Boolean(item.parentPostId)} data-depth={commentDepth(item)}>
-          <div className="community-comment__head"><CommunityAuthorProfile id={item.authorId} name={item.authorName} avatar={item.authorAvatar} level={item.authorLevel} featuredBadge={item.authorFeaturedBadge} positions={item.authorPositions} teamIdentityStatus={item.authorTeamIdentityStatus} size="small" />{item.isAcceptedSolution ? <span className="community-comment__solution"><CommunityIcon name="check" />已采纳</span> : null}<time dateTime={item.createdAt}>{formatCommunityDate(item.createdAt)}{item.editedAt ? " · 已编辑" : ""}</time></div>
+          <div className="community-comment__head"><CommunityAuthorProfile id={item.authorId} name={item.authorName} avatar={item.authorAvatar} level={item.authorLevel} featuredBadge={item.authorFeaturedBadge} positions={item.authorPositions} teamIdentityStatus={item.authorTeamIdentityStatus} size="small" />{item.isAcceptedSolution ? <span className="community-comment__solution"><CommunityIcon name="check" />已采纳</span> : null}<CommunityFeaturedMark featured={item.isFeatured} /><time dateTime={item.createdAt}>{formatCommunityDate(item.createdAt)}{item.editedAt ? " · 已编辑" : ""}</time></div>
           {parent ? <button type="button" className="community-comment__context" onClick={() => document.getElementById(`community-comment-${parent.id}`)?.scrollIntoView({ behavior: "smooth", block: "center" })}>
             <span>回复 {parent.authorName}</span><span>{parent.isDeleted ? "该回复已删除" : stripCommunityMarkdown(parent.body)}</span>
           </button> : null}

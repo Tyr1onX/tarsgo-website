@@ -105,27 +105,30 @@ type CommunityMemberPost struct {
 	CommentCount int        `json:"commentCount"`
 	LikeCount    int        `json:"likeCount"`
 	IsPinned     bool       `json:"isPinned"`
+	IsFeatured   bool       `json:"isFeatured"`
 }
 
 type CommunityMemberReply struct {
-	ID        uint64     `json:"id"`
-	PostID    uint64     `json:"postId"`
-	PostTitle string     `json:"postTitle"`
-	Body      string     `json:"body"`
-	CreatedAt time.Time  `json:"createdAt"`
-	EditedAt  *time.Time `json:"editedAt,omitempty"`
-	LikeCount int        `json:"likeCount"`
-	Href      string     `json:"href"`
+	ID         uint64     `json:"id"`
+	PostID     uint64     `json:"postId"`
+	PostTitle  string     `json:"postTitle"`
+	Body       string     `json:"body"`
+	CreatedAt  time.Time  `json:"createdAt"`
+	EditedAt   *time.Time `json:"editedAt,omitempty"`
+	LikeCount  int        `json:"likeCount"`
+	IsFeatured bool       `json:"isFeatured"`
+	Href       string     `json:"href"`
 }
 
 type CommunityMemberActivity struct {
-	Kind      string    `json:"kind"`
-	ID        uint64    `json:"id"`
-	PostID    uint64    `json:"postId"`
-	Title     string    `json:"title,omitempty"`
-	Body      string    `json:"body"`
-	CreatedAt time.Time `json:"createdAt"`
-	Href      string    `json:"href"`
+	Kind       string    `json:"kind"`
+	ID         uint64    `json:"id"`
+	PostID     uint64    `json:"postId"`
+	Title      string    `json:"title,omitempty"`
+	Body       string    `json:"body"`
+	IsFeatured bool      `json:"isFeatured"`
+	CreatedAt  time.Time `json:"createdAt"`
+	Href       string    `json:"href"`
 }
 
 type communityMemberRow struct {
@@ -142,13 +145,14 @@ type communityMemberGroupRow struct {
 }
 
 type communityMemberReplyRow struct {
-	ID        uint64     `gorm:"column:id"`
-	PostID    uint64     `gorm:"column:post_id"`
-	PostTitle string     `gorm:"column:post_title"`
-	Body      string     `gorm:"column:body"`
-	CreatedAt time.Time  `gorm:"column:created_at"`
-	EditedAt  *time.Time `gorm:"column:edited_at"`
-	LikeCount int        `gorm:"column:like_count"`
+	ID         uint64     `gorm:"column:id"`
+	PostID     uint64     `gorm:"column:post_id"`
+	PostTitle  string     `gorm:"column:post_title"`
+	Body       string     `gorm:"column:body"`
+	CreatedAt  time.Time  `gorm:"column:created_at"`
+	EditedAt   *time.Time `gorm:"column:edited_at"`
+	LikeCount  int        `gorm:"column:like_count"`
+	IsFeatured bool       `gorm:"column:is_featured"`
 }
 
 type communityMemberPostRow struct {
@@ -161,6 +165,7 @@ type communityMemberPostRow struct {
 	CommentCount int        `gorm:"column:comment_count"`
 	LikeCount    int        `gorm:"column:like_count"`
 	IsPinned     bool       `gorm:"column:is_pinned"`
+	IsFeatured   bool       `gorm:"column:is_featured"`
 }
 
 func (s *Service) GetCommunityMemberProfile(ctx context.Context, actor Actor, memberID uint64, tab CommunityMemberProfileTab, page int) (*CommunityMemberProfileResult, error) {
@@ -280,7 +285,7 @@ func (s *Service) GetCommunityMemberProfile(ctx context.Context, actor Actor, me
 			return nil, queryErr
 		}
 		if err := query.Select(`q.id AS id, q.category AS category, q.title AS title, LEFT(q.body, 2000) AS body,
-			q.created_at AS created_at, q.edited_at AS edited_at, q.is_pinned AS is_pinned,
+			q.created_at AS created_at, q.edited_at AS edited_at, q.is_pinned AS is_pinned, q.is_featured AS is_featured,
 			(SELECT COUNT(*) FROM training_question_posts cp WHERE cp.question_id = q.id AND cp.deleted_at IS NULL) AS comment_count,
 			(SELECT COUNT(*) FROM community_post_reactions lr WHERE lr.question_id = q.id AND lr.kind = 'like') AS like_count`).
 			Where("q.asker_id = ?", memberID).Order("q.is_pinned DESC, COALESCE(q.last_reply_at, q.created_at) DESC, q.id DESC").
@@ -295,7 +300,7 @@ func (s *Service) GetCommunityMemberProfile(ctx context.Context, actor Actor, me
 			result.Posts = append(result.Posts, CommunityMemberPost{
 				ID: row.ID, Category: row.Category, Title: row.Title, Body: communityTextPreview(row.Body, 480),
 				CreatedAt: row.CreatedAt, EditedAt: row.EditedAt, CommentCount: row.CommentCount,
-				LikeCount: row.LikeCount, IsPinned: row.IsPinned,
+				LikeCount: row.LikeCount, IsPinned: row.IsPinned, IsFeatured: row.IsFeatured,
 			})
 		}
 	case CommunityMemberTabReplies:
@@ -468,7 +473,7 @@ func (s *Service) communityMemberRepliesQuery(ctx context.Context, actor Actor, 
 		return nil, err
 	}
 	return s.db.WithContext(ctx).Table("training_question_posts AS cp").
-		Select(`cp.id AS id, cp.question_id AS post_id, parent_q.title AS post_title, cp.body AS body,
+		Select(`cp.id AS id, cp.question_id AS post_id, parent_q.title AS post_title, cp.body AS body, cp.is_featured AS is_featured,
 			cp.created_at AS created_at, cp.edited_at AS edited_at,
 			(SELECT COUNT(*) FROM community_comment_reactions cr WHERE cr.comment_id = cp.id) AS like_count`).
 		Joins("JOIN (?) AS visible_q ON visible_q.id = cp.question_id", visiblePosts.Select("q.id")).
@@ -500,7 +505,7 @@ func (s *Service) communityMemberReplyPage(ctx context.Context, actor Actor, mem
 func communityMemberReplyView(row communityMemberReplyRow) CommunityMemberReply {
 	return CommunityMemberReply{
 		ID: row.ID, PostID: row.PostID, PostTitle: row.PostTitle, Body: communityTextPreview(row.Body, 360),
-		CreatedAt: row.CreatedAt, EditedAt: row.EditedAt, LikeCount: row.LikeCount,
+		CreatedAt: row.CreatedAt, EditedAt: row.EditedAt, LikeCount: row.LikeCount, IsFeatured: row.IsFeatured,
 		Href: "/dashboard/community/" + formatCommunityID(row.PostID) + "#community-comment-" + formatCommunityID(row.ID),
 	}
 }
@@ -530,7 +535,7 @@ func (s *Service) communityMemberRecentActivities(ctx context.Context, actor Act
 	for _, post := range posts {
 		activities = append(activities, CommunityMemberActivity{
 			Kind: "post", ID: post.ID, PostID: post.ID, Title: post.Title,
-			Body: communityTextPreview(post.Body, 260), CreatedAt: post.CreatedAt,
+			Body: communityTextPreview(post.Body, 260), IsFeatured: post.IsFeatured, CreatedAt: post.CreatedAt,
 			Href: "/dashboard/community/" + formatCommunityID(post.ID),
 		})
 	}
@@ -538,7 +543,7 @@ func (s *Service) communityMemberRecentActivities(ctx context.Context, actor Act
 		view := communityMemberReplyView(reply)
 		activities = append(activities, CommunityMemberActivity{
 			Kind: "reply", ID: view.ID, PostID: view.PostID, Title: view.PostTitle,
-			Body: view.Body, CreatedAt: view.CreatedAt, Href: view.Href,
+			Body: view.Body, IsFeatured: view.IsFeatured, CreatedAt: view.CreatedAt, Href: view.Href,
 		})
 	}
 	sort.SliceStable(activities, func(i, j int) bool {
