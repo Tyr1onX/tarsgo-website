@@ -1,5 +1,6 @@
 import { ApiError, apiRequest } from "~/lib/api-client";
 import { AuthSessionCache } from "~/lib/auth-session-cache";
+import { requestCommunityExperienceRefresh } from "~/lib/community-experience-sync";
 import { invalidateUserGroupConfirmationStateCache } from "~/lib/user-group-client";
 
 export { ApiError } from "~/lib/api-client";
@@ -287,6 +288,7 @@ export async function updateProfile(input: { realName: string; phone: string; av
   invalidateCurrentUserRequest();
   notifyAuthStateChange(data.user);
   announceAccountSessionChange();
+  if (input.avatar) requestCommunityExperienceRefresh();
   return data.user;
 }
 

@@ -6,6 +6,7 @@ import { SiteLogo } from "~/components/site-logo";
 import { ThemeControl } from "~/components/theme-control";
 import { DashboardSectionNavigation } from "~/components/dashboard-section-navigation";
 import { CoBuilderBadgeUnlockToast } from "~/components/co-builder-badge-unlock-toast";
+import { CommunityExperienceToastHost } from "~/components/community-experience-toast-host";
 import type { CoBuilderBadgeLevel, CoBuilderBadgeReplayRequest } from "~/lib/co-builder-badge-client";
 import { ApiError } from "~/lib/api-client";
 import {
@@ -909,6 +910,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           </div>
         </main>
       </div>
+      <CommunityExperienceToastHost key={currentUser.id} userID={currentUser.id} />
       <CoBuilderBadgeUnlockToast
         key={currentUser.id}
         onOpenProfile={() => openMyProfile("badges")}

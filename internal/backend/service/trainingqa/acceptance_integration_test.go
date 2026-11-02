@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -412,7 +413,7 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 		t.Fatalf("community re-like failed: %v", err)
 	}
 	operationsGrowth, err := service.GetCommunityGrowth(context.Background(), operationsMember)
-	if err != nil || operationsGrowth.TotalXP != 0 {
+	if err != nil || operationsGrowth.TotalXP != 10 {
 		t.Fatalf("unlike then re-like granted duplicate XP: profile=%#v err=%v", operationsGrowth, err)
 	}
 
@@ -495,7 +496,7 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 		t.Fatalf("repeated comment like was not idempotent: state=%#v err=%v", commentLiked, err)
 	}
 	peerGrowth, err := service.GetCommunityGrowth(context.Background(), peer)
-	if err != nil || peerGrowth.TotalXP != 1 {
+	if err != nil || peerGrowth.TotalXP != 3 {
 		t.Fatalf("receiving a comment like should award one XP: profile=%#v err=%v", peerGrowth, err)
 	}
 	if _, err := service.SetCommunityCommentReaction(context.Background(), crossMember, parentID, false); err != nil {
@@ -505,7 +506,7 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 		t.Fatalf("comment re-like failed: %v", err)
 	}
 	peerGrowth, err = service.GetCommunityGrowth(context.Background(), peer)
-	if err != nil || peerGrowth.TotalXP != 0 {
+	if err != nil || peerGrowth.TotalXP != 2 {
 		t.Fatalf("comment unlike then re-like granted XP again: profile=%#v err=%v", peerGrowth, err)
 	}
 	acceptedCommentID := reply.Comments[1].ID
@@ -517,7 +518,7 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 		t.Fatalf("repeated solution acceptance failed: %v", err)
 	}
 	crossGrowth, err := service.GetCommunityGrowth(context.Background(), crossMember)
-	if err != nil || crossGrowth.TotalXP != 10 {
+	if err != nil || crossGrowth.TotalXP != 32 {
 		t.Fatalf("accepted reply should award ten XP once: profile=%#v err=%v", crossGrowth, err)
 	}
 	if _, err := service.UpdateCommunityComment(context.Background(), peer, parentID, "更新后的说明"); err != nil {
@@ -560,7 +561,7 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 		t.Fatalf("hiding a post did not revoke reply XP: profile=%#v err=%v", operationsGrowth, err)
 	}
 	crossGrowth, err = service.GetCommunityGrowth(context.Background(), crossMember)
-	if err != nil || crossGrowth.TotalXP != 0 {
+	if err != nil || crossGrowth.TotalXP != 20 {
 		t.Fatalf("hiding a post did not revoke accepted-solution XP: profile=%#v err=%v", crossGrowth, err)
 	}
 	visibleToAdmin, err := service.ListCommunity(context.Background(), mechanicalAdmin, CommunityListFilter{Sort: "latest", Page: 1, PageSize: 1})
@@ -601,8 +602,8 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 		t.Fatalf("create deletion reward probe reply: %v", err)
 	}
 	operationsGrowth, err = service.GetCommunityGrowth(context.Background(), operationsMember)
-	if err != nil || operationsGrowth.TotalXP != 1 {
-		t.Fatalf("reply reward was not granted before post deletion: profile=%#v err=%v", operationsGrowth, err)
+	if err != nil || operationsGrowth.TotalXP != 11 {
+		t.Fatalf("post and reply rewards were not granted before deletion: profile=%#v err=%v", operationsGrowth, err)
 	}
 	if err := service.DeleteCommunityPost(context.Background(), operationsMember, deleteTestPost.Post.ID); err != nil {
 		t.Fatalf("delete the reward probe post: %v", err)
@@ -610,6 +611,128 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 	operationsGrowth, err = service.GetCommunityGrowth(context.Background(), operationsMember)
 	if err != nil || operationsGrowth.TotalXP != 0 {
 		t.Fatalf("deleting the source post did not revoke its reply reward: profile=%#v err=%v", operationsGrowth, err)
+	}
+
+	growthActor := createActor("community-contribution-rewards", model.RoleNameUser, "")
+	growthTime := time.Date(2026, time.October, 31, 15, 59, 0, 0, time.UTC) // 23:59 in Beijing.
+	service.now = func() time.Time { return growthTime }
+	createGrowthPost := func(title string, author Actor) *CommunityPostDetail {
+		t.Helper()
+		created, createErr := service.CreateCommunityPost(context.Background(), author, CommunityPostInput{
+			Category: model.CommunityCategoryExperience, Title: "[TEST_QA] " + title, Body: "用于验证社区成长奖励。",
+		})
+		if createErr != nil {
+			t.Fatalf("create contribution reward post: %v", createErr)
+		}
+		questionIDs = append(questionIDs, created.Post.ID)
+		return created
+	}
+	firstGrowthPost := createGrowthPost("first contribution", growthActor)
+	createGrowthPost("second contribution", growthActor)
+	createGrowthPost("daily post cap", growthActor)
+	growthProfile, err := service.GetCommunityGrowth(context.Background(), growthActor)
+	if err != nil || growthProfile.TotalXP != 20 || growthProfile.DailyPostsUsed != 2 || growthProfile.DailyRepliesUsed != 0 || growthProfile.DailyContributionXP != 20 {
+		t.Fatalf("daily post reward limit incorrect: profile=%#v err=%v", growthProfile, err)
+	}
+	if _, err := service.UpdateCommunityPost(context.Background(), growthActor, firstGrowthPost.Post.ID, CommunityPostUpdate{
+		Category: model.CommunityCategoryExperience, Title: "[TEST_QA] edited contribution", Body: "编辑不能重复获得经验。",
+	}); err != nil {
+		t.Fatalf("edit an already rewarded post: %v", err)
+	}
+	for index := 0; index < communityCommentDailyLimit; index++ {
+		if _, err := service.AddCommunityComment(context.Background(), growthActor, firstGrowthPost.Post.ID, CommunityCommentInput{Body: fmt.Sprintf("[TEST_QA] contribution reply %d", index+1)}); err != nil {
+			t.Fatalf("create contribution reply %d: %v", index+1, err)
+		}
+	}
+	if _, err := service.AddCommunityComment(context.Background(), growthActor, firstGrowthPost.Post.ID, CommunityCommentInput{Body: "[TEST_QA] reply beyond daily cap"}); err != nil {
+		t.Fatalf("create reply beyond daily reward cap: %v", err)
+	}
+	growthProfile, err = service.GetCommunityGrowth(context.Background(), growthActor)
+	if err != nil || growthProfile.TotalXP != 30 || growthProfile.DailyPostsUsed != 2 || growthProfile.DailyRepliesUsed != 5 || growthProfile.DailyContributionXP != 30 {
+		t.Fatalf("daily post and reply reward cap incorrect: profile=%#v err=%v", growthProfile, err)
+	}
+	var firstReply model.TrainingQuestionPost
+	if err := db.Where("question_id = ? AND author_id = ? AND deleted_at IS NULL", firstGrowthPost.Post.ID, growthActor.ID).Order("id ASC").Take(&firstReply).Error; err != nil {
+		t.Fatalf("load a rewarded reply for revocation verification: %v", err)
+	}
+	if _, err := service.DeleteCommunityComment(context.Background(), growthActor, firstReply.ID); err != nil {
+		t.Fatalf("delete a rewarded reply: %v", err)
+	}
+	if _, err := service.AddCommunityComment(context.Background(), growthActor, firstGrowthPost.Post.ID, CommunityCommentInput{Body: "[TEST_QA] no reward after deleting a reply"}); err != nil {
+		t.Fatalf("create replacement reply after daily quota: %v", err)
+	}
+	growthProfile, err = service.GetCommunityGrowth(context.Background(), growthActor)
+	if err != nil || growthProfile.TotalXP != 28 || growthProfile.DailyRepliesUsed != 5 || growthProfile.DailyContributionXP != 28 {
+		t.Fatalf("deleting a reply restored its daily reward slot: profile=%#v err=%v", growthProfile, err)
+	}
+	if err := service.DeleteCommunityPost(context.Background(), growthActor, firstGrowthPost.Post.ID); err != nil {
+		t.Fatalf("delete a post with contribution rewards: %v", err)
+	}
+	growthProfile, err = service.GetCommunityGrowth(context.Background(), growthActor)
+	if err != nil || growthProfile.TotalXP != 10 || growthProfile.DailyPostsUsed != 2 || growthProfile.DailyRepliesUsed != 5 || growthProfile.DailyContributionXP != 10 {
+		t.Fatalf("deleting a post did not revoke its post and reply rewards: profile=%#v err=%v", growthProfile, err)
+	}
+
+	// The reward date changes at midnight in Asia/Shanghai, not UTC.
+	growthTime = time.Date(2026, time.October, 31, 16, 0, 0, 0, time.UTC)
+	newBeijingDayPost := createGrowthPost("Beijing-day reset", growthActor)
+	if _, err := service.AddCommunityComment(context.Background(), growthActor, newBeijingDayPost.Post.ID, CommunityCommentInput{Body: "[TEST_QA] first reply after Beijing midnight"}); err != nil {
+		t.Fatalf("create first reply after Beijing midnight: %v", err)
+	}
+	growthProfile, err = service.GetCommunityGrowth(context.Background(), growthActor)
+	if err != nil || growthProfile.TotalXP != 22 || growthProfile.DailyPostsUsed != 1 || growthProfile.DailyRepliesUsed != 1 || growthProfile.DailyContributionXP != 12 {
+		t.Fatalf("Beijing-day reward counters did not reset: profile=%#v err=%v", growthProfile, err)
+	}
+
+	growthTime = time.Date(2026, time.November, 1, 16, 0, 0, 0, time.UTC)
+	concurrentReplyTargets := make([]*CommunityPostDetail, 0, 8)
+	for index := 0; index < 8; index++ {
+		concurrentReplyTargets = append(concurrentReplyTargets, createGrowthPost(fmt.Sprintf("concurrent reply target %d", index+1), peer))
+	}
+	type contributionAttempt struct{ err error }
+	const concurrentReplies = 8
+	contributionAttempts := make(chan contributionAttempt, concurrentReplies)
+	for index := 0; index < concurrentReplies; index++ {
+		go func(index int) {
+			_, err := service.AddCommunityComment(context.Background(), growthActor, concurrentReplyTargets[index].Post.ID, CommunityCommentInput{Body: fmt.Sprintf("[TEST_QA] concurrent reply %d", index)})
+			contributionAttempts <- contributionAttempt{err: err}
+		}(index)
+	}
+	for index := 0; index < concurrentReplies; index++ {
+		if attempt := <-contributionAttempts; attempt.err != nil {
+			t.Fatalf("concurrent contribution reply failed: %v", attempt.err)
+		}
+	}
+	growthProfile, err = service.GetCommunityGrowth(context.Background(), growthActor)
+	if err != nil || growthProfile.TotalXP != 32 || growthProfile.DailyPostsUsed != 0 || growthProfile.DailyRepliesUsed != 5 || growthProfile.DailyContributionXP != 10 {
+		t.Fatalf("concurrent contribution replies exceeded or missed the daily cap: profile=%#v err=%v", growthProfile, err)
+	}
+
+	concurrentPostActor := createActor("concurrent-community-posts", model.RoleNameUser, "")
+	const concurrentPosts = 6
+	postAttempts := make(chan contributionAttempt, concurrentPosts)
+	var questionIDsMutex sync.Mutex
+	for index := 0; index < concurrentPosts; index++ {
+		go func(index int) {
+			post, err := service.CreateCommunityPost(context.Background(), concurrentPostActor, CommunityPostInput{
+				Category: model.CommunityCategoryExperience, Title: fmt.Sprintf("[TEST_QA] concurrent post %d", index), Body: "并发发帖只能占用两个奖励名额。",
+			})
+			if post != nil {
+				questionIDsMutex.Lock()
+				questionIDs = append(questionIDs, post.Post.ID)
+				questionIDsMutex.Unlock()
+			}
+			postAttempts <- contributionAttempt{err: err}
+		}(index)
+	}
+	for index := 0; index < concurrentPosts; index++ {
+		if attempt := <-postAttempts; attempt.err != nil {
+			t.Fatalf("concurrent community post failed: %v", attempt.err)
+		}
+	}
+	postGrowth, err := service.GetCommunityGrowth(context.Background(), concurrentPostActor)
+	if err != nil || postGrowth.TotalXP != 20 || postGrowth.DailyPostsUsed != 2 || postGrowth.DailyContributionXP != 20 {
+		t.Fatalf("concurrent community posts exceeded or missed the daily cap: profile=%#v err=%v", postGrowth, err)
 	}
 
 	checkInActor := createActor("community-check-in", model.RoleNameUser, "")

@@ -5,9 +5,9 @@ import { CommunityIcon } from "~/components/community-icons";
 import { CommunityFeaturedMark } from "~/components/community-featured-mark";
 import { communityCategoryLabel, communityPostHref, formatCommunityDate, type CommunityPost } from "~/lib/community-client";
 
-export function CommunityAvatar({ name, src, size = "regular" }: { name: string; src?: string; size?: "regular" | "small" }) {
+export function CommunityAvatar({ name, src, size = "regular", className }: { name: string; src?: string; size?: "regular" | "small"; className?: string }) {
   const initial = Array.from(name.trim())[0] ?? "吉";
-  return <span className={`community-avatar community-avatar--${size}`} aria-hidden="true">
+  return <span className={`community-avatar community-avatar--${size}${className ? ` ${className}` : ""}`} aria-hidden="true">
     {src ? <img src={src} alt="" loading="lazy" /> : initial}
   </span>;
 }

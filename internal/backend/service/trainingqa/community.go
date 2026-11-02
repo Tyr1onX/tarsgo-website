@@ -500,7 +500,15 @@ func (s *Service) CreateCommunityPost(ctx context.Context, actor Actor, input Co
 	}
 	var stored []*storedQuestionFile
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Serialize this member's daily reward check before any consistent reads.
+		if err := lockCommunityXPAwardUser(tx, actor.ID); err != nil {
+			return err
+		}
 		if err := tx.Create(&question).Error; err != nil {
+			return err
+		}
+		if err := grantCommunityContributionXP(tx, actor.ID, communityXPPost, question.ID, question.ID,
+			fmt.Sprintf("post:%d", question.ID), s.now()); err != nil {
 			return err
 		}
 		urls, saved, err := saveCommunityAttachments(ctx, tx, s.files, actor.ID, 0, question.ID, nil, uploads, input.UploadTokens)
@@ -649,6 +657,11 @@ func (s *Service) AddCommunityComment(ctx context.Context, actor Actor, postID u
 	}
 	var stored []*storedQuestionFile
 	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		// Lock the contributor before reads so two comments on different posts
+		// cannot both pass the same daily XP quota concurrently.
+		if err := lockCommunityXPAwardUser(tx, actor.ID); err != nil {
+			return err
+		}
 		var question model.TrainingQuestion
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&question, postID).Error; err != nil {
 			return err
@@ -674,6 +687,12 @@ func (s *Service) AddCommunityComment(ctx context.Context, actor Actor, postID u
 		comment := model.TrainingQuestionPost{QuestionID: postID, ParentPostID: input.ParentPostID, AuthorID: actor.ID, Kind: model.TrainingQuestionComment, Body: body}
 		if err := tx.Create(&comment).Error; err != nil {
 			return err
+		}
+		if question.GroupID == nil && question.Visibility == model.TrainingQuestionPublic {
+			if err := grantCommunityContributionXP(tx, actor.ID, communityXPComment, comment.ID, question.ID,
+				fmt.Sprintf("comment:%d", comment.ID), s.now()); err != nil {
+				return err
+			}
 		}
 		if actor.ID != question.AskerID && !question.IsHidden {
 			if err := recordCommunityXP(tx, question.AskerID, &actor.ID, communityXPReply, comment.ID, question.ID,

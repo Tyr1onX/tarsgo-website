@@ -17,10 +17,10 @@ import (
 
 func TestMigrationRegistryIsOrderedAndKeepsBaseVersion(t *testing.T) {
 	items := migrationRegistry("test")
-	if len(items) != 42 {
-		t.Fatalf("expected 42 registered migrations, got %d", len(items))
+	if len(items) != 43 {
+		t.Fatalf("expected 43 registered migrations, got %d", len(items))
 	}
-	wantVersions := []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42}
+	wantVersions := []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43}
 	for index, want := range wantVersions {
 		if items[index].version != want {
 			t.Fatalf("migration %d has version %d, want %d", index, items[index].version, want)
@@ -135,6 +135,66 @@ func TestMigration42AddsIndependentCommunityFeaturedState(t *testing.T) {
 		if !ok || field.Type.Kind() != reflect.Bool || !strings.Contains(field.Tag.Get("gorm"), "column:is_featured") || !strings.Contains(field.Tag.Get("gorm"), "default:0") {
 			t.Fatalf("%s must store an independent default-off featured state", modelType.Name())
 		}
+	}
+}
+
+func TestMigration43BackfillsExistingCustomAvatars(t *testing.T) {
+	items := migrationRegistry("test")
+	if len(items) < 43 || items[42].version != 43 || items[42].apply == nil {
+		t.Fatal("community avatar reward migration 43 is missing")
+	}
+}
+
+func TestAcceptanceDatabaseCommunityAvatarBackfillIsIdempotent(t *testing.T) {
+	dsn := strings.TrimSpace(os.Getenv("TARSGO_QA_TEST_DSN"))
+	if dsn == "" {
+		t.Skip("TARSGO_QA_TEST_DSN is not set")
+	}
+	if !strings.Contains(dsn, "@tcp(127.0.0.1:3317)/tarsgo_acceptance?") {
+		t.Fatal("refusing to run the community avatar backfill test outside the isolated local acceptance database")
+	}
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{Logger: logger.Default.LogMode(logger.Silent)})
+	if err != nil {
+		t.Fatal("open isolated acceptance database")
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatal("open isolated acceptance SQL connection")
+	}
+	t.Cleanup(func() { _ = sqlDB.Close() })
+	if !db.Migrator().HasTable(&model.CommunityExperienceEvent{}) {
+		t.Fatal("community experience ledger is missing")
+	}
+	var role model.Role
+	if err := db.Where("name = ?", model.RoleNameUser).Take(&role).Error; err != nil {
+		t.Fatalf("load member role: %v", err)
+	}
+	nonce := fmt.Sprintf("%d", time.Now().UnixNano())
+	avatarURL := "/upload/avatars/legacy-" + nonce + ".png"
+	user := model.User{RoleID: role.ID, Name: "[TEST_QA] legacy-avatar", Email: "qa-avatar-" + nonce + "@tarsgo.test", AvatarURL: &avatarURL, Status: model.UserStatusEnabled}
+	if err := db.Create(&user).Error; err != nil {
+		t.Fatalf("create legacy avatar probe account: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := db.Where("user_id = ?", user.ID).Delete(&model.CommunityExperienceEvent{}).Error; err != nil {
+			t.Errorf("clean avatar reward probe: %v", err)
+		}
+		if err := db.Delete(&user).Error; err != nil {
+			t.Errorf("clean avatar probe account: %v", err)
+		}
+	})
+	if err := migrateCommunityAvatarExperienceBackfill(db); err != nil {
+		t.Fatalf("apply avatar reward backfill: %v", err)
+	}
+	if err := migrateCommunityAvatarExperienceBackfill(db); err != nil {
+		t.Fatalf("repeat avatar reward backfill: %v", err)
+	}
+	var events []model.CommunityExperienceEvent
+	if err := db.Where("user_id = ? AND source_type = ?", user.ID, "avatar").Find(&events).Error; err != nil {
+		t.Fatalf("read avatar reward events: %v", err)
+	}
+	if len(events) != 1 || events[0].Points != 20 || events[0].SourceKey != fmt.Sprintf("avatar:first:%d", user.ID) {
+		t.Fatalf("avatar reward backfill = %#v, want one idempotent 20 XP event", events)
 	}
 }
 

@@ -182,7 +182,19 @@ func migrationRegistry(appEnv string) []migration {
 				&model.TrainingQuestionPost{},
 			)
 		}},
+		{version: 43, apply: migrateCommunityAvatarExperienceBackfill},
 	}
+}
+
+func migrateCommunityAvatarExperienceBackfill(db *gorm.DB) error {
+	return db.Exec(`
+		INSERT INTO community_experience_events
+			(user_id, actor_id, source_type, source_id, related_id, source_key, points, created_at)
+		SELECT id, NULL, 'avatar', id, 0, CONCAT('avatar:first:', id), 20, UTC_TIMESTAMP()
+		FROM users
+		WHERE avatar_url LIKE '/upload/avatars/%'
+		ON DUPLICATE KEY UPDATE source_key = VALUES(source_key)
+	`).Error
 }
 
 func migrateTeamIdentity(db *gorm.DB) error {

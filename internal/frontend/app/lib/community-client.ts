@@ -1,4 +1,5 @@
 import { apiRequest } from "~/lib/api-client";
+import { reportCommunityGrowthProfile, requestCommunityExperienceRefresh } from "~/lib/community-experience-sync";
 import type { CommunityReactionState } from "~/lib/community-reaction-state";
 
 export { communityPostReactionSnapshot, mergeCommunityReactionOverrides, releaseCommunityReactionLock, setCommunityPostReaction, tryAcquireCommunityReactionLock, withCommunityPostReactions } from "~/lib/community-reaction-state";
@@ -140,8 +141,20 @@ export interface CommunityGrowthProfile {
   streakDays: number;
   checkedInToday: boolean;
   lastCheckInDay?: string;
+  dailyPostsUsed: number;
+  dailyRepliesUsed: number;
+  dailyContributionXp: number;
   upcomingCheckIns: Array<{ day: string; streakDay: number; rewardXp: number; isToday: boolean; completed: boolean }>;
-  recentEvents: Array<{ id: number; type: string; label: string; points: number; revoked: boolean; createdAt: string }>;
+  recentEvents: CommunityExperienceEntry[];
+}
+
+export interface CommunityExperienceEntry {
+  id: number;
+  type: string;
+  label: string;
+  points: number;
+  revoked: boolean;
+  createdAt: string;
 }
 
 export interface CommunityCheckInResult {
@@ -182,44 +195,55 @@ function postForm(fields: Record<string, string>, files: File[] = [], uploadToke
 
 export const communityClient = {
   growth: () => apiRequest<CommunityGrowthProfile>("/api/community/growth"),
-  checkIn: () => apiRequest<CommunityCheckInResult>("/api/community/check-in", { method: "POST" }),
+  checkIn: async () => {
+    const result = await apiRequest<CommunityCheckInResult>("/api/community/check-in", { method: "POST" });
+    reportCommunityGrowthProfile(result.profile);
+    return result;
+  },
   list: (filter: CommunityFilter) => apiRequest<CommunityPage>(`/api/community/posts?${queryString(filter)}`),
   hot: (limit = 5) => apiRequest<CommunityPost[]>(`/api/community/hot?limit=${limit}`),
   get: (id: number) => apiRequest<CommunityDetail>(`/api/community/posts/${id}`),
   related: (id: number) => apiRequest<CommunityTopicRecommendations>(`/api/community/posts/${id}/related`),
   create: (input: { category: CommunityCategory; title: string; body: string; files: File[]; uploadTokens?: string[] }) =>
-    apiRequest<CommunityDetail>("/api/community/posts", {
+    syncCommunityExperience(apiRequest<CommunityDetail>("/api/community/posts", {
       method: "POST",
       body: postForm({ category: input.category, title: input.title, body: input.body }, input.files, input.uploadTokens),
-    }),
+    })),
   update: (id: number, input: { category: CommunityCategory; title: string; body: string; files?: File[]; uploadTokens?: string[] }) =>
     apiRequest<CommunityDetail>(`/api/community/posts/${id}`, { method: "PATCH", body: postForm({ category: input.category, title: input.title, body: input.body }, input.files, input.uploadTokens) }),
-  remove: (id: number) => apiRequest<{ id: number }>(`/api/community/posts/${id}`, { method: "DELETE" }),
+  remove: (id: number) => syncCommunityExperience(apiRequest<{ id: number }>(`/api/community/posts/${id}`, { method: "DELETE" })),
   addComment: (id: number, input: { body: string; parentPostId?: number; files?: File[]; uploadTokens?: string[] }) =>
-    apiRequest<CommunityDetail>(`/api/community/posts/${id}/comments`, {
+    syncCommunityExperience(apiRequest<CommunityDetail>(`/api/community/posts/${id}/comments`, {
       method: "POST",
       body: postForm({ body: input.body, ...(input.parentPostId ? { parentPostId: String(input.parentPostId) } : {}) }, input.files, input.uploadTokens),
-    }),
+    })),
   updateComment: (id: number, input: string | { body: string; files?: File[]; uploadTokens?: string[] }) => {
     const value = typeof input === "string" ? { body: input } : input;
     return apiRequest<CommunityDetail>(`/api/community/comments/${id}`, { method: "PATCH", body: postForm({ body: value.body }, value.files, value.uploadTokens) });
   },
-  removeComment: (id: number) => apiRequest<CommunityDetail>(`/api/community/comments/${id}`, { method: "DELETE" }),
+  removeComment: (id: number) => syncCommunityExperience(apiRequest<CommunityDetail>(`/api/community/comments/${id}`, { method: "DELETE" })),
   likeComment: (id: number, active: boolean) =>
-    apiRequest<CommunityCommentReactionState>(`/api/community/comments/${id}/like`, { method: active ? "PUT" : "DELETE" }),
+    syncCommunityExperience(apiRequest<CommunityCommentReactionState>(`/api/community/comments/${id}/like`, { method: active ? "PUT" : "DELETE" })),
   setSolution: (postID: number, commentID: number | null) =>
-    apiRequest<CommunityDetail>(`/api/community/posts/${postID}/solution`, { method: "PATCH", body: { commentId: commentID } }),
+    syncCommunityExperience(apiRequest<CommunityDetail>(`/api/community/posts/${postID}/solution`, { method: "PATCH", body: { commentId: commentID } })),
   like: (id: number, active: boolean) =>
-    apiRequest<CommunityReactionState>(`/api/community/posts/${id}/like`, { method: active ? "PUT" : "DELETE" }),
+    syncCommunityExperience(apiRequest<CommunityReactionState>(`/api/community/posts/${id}/like`, { method: active ? "PUT" : "DELETE" })),
   bookmark: (id: number, active: boolean) =>
     apiRequest<CommunityReactionState>(`/api/community/posts/${id}/bookmark`, { method: active ? "PUT" : "DELETE" }),
   moderate: (id: number, input: { pinned?: boolean; hidden?: boolean }) =>
-    apiRequest<CommunityDetail>(`/api/community/posts/${id}/moderation`, { method: "PATCH", body: input }),
+    syncCommunityExperience(apiRequest<CommunityDetail>(`/api/community/posts/${id}/moderation`, { method: "PATCH", body: input })),
   setPostFeatured: (id: number, featured: boolean) =>
     apiRequest<{ isFeatured: boolean }>(`/api/admin/community/posts/${id}/featured`, { method: featured ? "PUT" : "DELETE" }),
   setReplyFeatured: (id: number, featured: boolean) =>
     apiRequest<{ isFeatured: boolean }>(`/api/admin/community/replies/${id}/featured`, { method: featured ? "PUT" : "DELETE" }),
 };
+
+function syncCommunityExperience<T>(request: Promise<T>) {
+  return request.then((result) => {
+    requestCommunityExperienceRefresh();
+    return result;
+  });
+}
 
 export function communityCategoryLabel(category: string) {
   return COMMUNITY_CATEGORIES.find((item) => item.id === category)?.label ?? "技术交流";

@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { CommunityIcon } from "~/components/community-icons";
 import { communityClient, type CommunityGrowthProfile } from "~/lib/community-client";
+import { requestCommunityExperienceRefresh, subscribeCommunityGrowthError, subscribeCommunityGrowthProfile } from "~/lib/community-experience-sync";
 import "./community-growth.css";
 
 export function CommunityLevelBadge({ level }: { level: number }) {
@@ -22,6 +23,12 @@ export function CommunityGrowthDetails({ profile }: { profile: CommunityGrowthPr
       <span style={{ width: `${Math.round(profile.progress * 100)}%` }} />
     </div>
     <p className="community-growth-details__caption">{profile.totalXp.toLocaleString("zh-CN")} / {profile.nextLevelXp.toLocaleString("zh-CN")} XP</p>
+    <section className="community-growth-rewards" aria-label="经验规则和今日奖励进度">
+      <div className="community-growth-rewards__heading"><strong>每日奖励进度</strong><span>当前有效 {profile.dailyContributionXp}/30 XP</span></div>
+      <p>发帖奖励 {Math.min(profile.dailyPostsUsed, 2)}/2 · 回复奖励 {Math.min(profile.dailyRepliesUsed, 5)}/5</p>
+      <p>发帖 +10/篇 · 回复 +2/条 · 首次上传自定义头像 +20 XP</p>
+      <p>签到 10/12/15 XP · 收到点赞 +1 · 收到回复 +1 · 回答被采纳 +10 XP</p>
+    </section>
     <div className="community-growth-week">
       <div className="community-growth-week__heading"><strong>连续签到奖励</strong><span>第 3 天起奖励增加</span></div>
       <ol>
@@ -57,43 +64,20 @@ export function CommunityGrowthBar({
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
-  const profileRef = useRef(profile);
-  profileRef.current = profile;
 
-  function updateProfile(next: CommunityGrowthProfile, announceLevelUp = true) {
-    const previousLevel = profileRef.current?.level;
-    profileRef.current = next;
-    onProfileChange(next);
-    if (announceLevelUp && previousLevel && next.level > previousLevel) {
-      setNotice(`恭喜升级到 Lv.${next.level}！继续参与社区讨论吧。`);
-    }
-  }
-
-  async function loadProfile() {
+  function loadProfile() {
     setError("");
-    try {
-      const next = await communityClient.growth();
-      updateProfile(next);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "社区成长信息暂时无法读取。");
-    }
+    requestCommunityExperienceRefresh();
   }
 
   useEffect(() => {
-    let lastRefreshAt = Date.now();
-    const refreshOnReturn = () => {
-      const now = Date.now();
-      if (document.visibilityState !== "visible" || now - lastRefreshAt < 1200) return;
-      lastRefreshAt = now;
-      void loadProfile();
-    };
-    document.addEventListener("visibilitychange", refreshOnReturn);
-    window.addEventListener("focus", refreshOnReturn);
-    return () => {
-      document.removeEventListener("visibilitychange", refreshOnReturn);
-      window.removeEventListener("focus", refreshOnReturn);
-    };
-  }, []);
+    const stopProfile = subscribeCommunityGrowthProfile((next) => {
+      onProfileChange(next);
+      setError("");
+    });
+    const stopError = subscribeCommunityGrowthError(setError);
+    return () => { stopProfile(); stopError(); };
+  }, [onProfileChange]);
 
   async function checkIn() {
     if (checkingIn || profile?.checkedInToday) return;
@@ -102,13 +86,7 @@ export function CommunityGrowthBar({
     setError("");
     try {
       const result = await communityClient.checkIn();
-      const previousLevel = profileRef.current?.level;
-      updateProfile(result.profile, false);
-      setNotice(result.alreadyCheckedIn
-        ? "今天已经签到。"
-        : previousLevel && result.profile.level > previousLevel
-          ? `升级成功，现为 Lv.${result.profile.level} · 签到获得 ${result.earnedXp} XP`
-          : `签到成功，获得 ${result.earnedXp} XP · 连续第 ${result.streakDay} 天`);
+      setNotice(result.earnedXp > 0 ? "" : "今天已经签到。");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "签到失败，请稍后重试。");
     } finally {
@@ -142,13 +120,17 @@ export function CommunityGrowthProfileSection() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
   useEffect(() => {
-    let active = true;
-    void communityClient.growth().then((result) => {
-      if (active) setProfile(result);
-    }).catch((cause) => {
-      if (active) setError(cause instanceof Error ? cause.message : "社区成长信息暂时无法读取。");
-    }).finally(() => { if (active) setLoading(false); });
-    return () => { active = false; };
+    const stopProfile = subscribeCommunityGrowthProfile((next) => {
+      setProfile(next);
+      setError("");
+      setLoading(false);
+    });
+    const stopError = subscribeCommunityGrowthError((message) => {
+      setError(message);
+      setLoading(false);
+    });
+    requestCommunityExperienceRefresh();
+    return () => { stopProfile(); stopError(); };
   }, []);
   return <section className="community-growth-profile" aria-labelledby="community-growth-profile-heading">
     <div className="community-growth-profile__heading">
