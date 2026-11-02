@@ -904,7 +904,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
         </header>
 
         <main className="p-4 sm:p-6 lg:p-8">
-          <div className="relative">
+          <div className="dashboard-shell__content relative">
             <Outlet context={{ currentUser, groupResolution, groupResolutionError, refreshCandidateTodoCount, openMyProfile, refreshAccountProfile, requestBadgeReplay, profileRevision } satisfies DashboardLayoutOutletContext} />
           </div>
         </main>

@@ -325,19 +325,25 @@
 .community-editor-dialog__panel > .community-composer { min-height: 0; margin: 0; border: 0; border-radius: inherit; box-shadow: none; }
 .community-editor-dialog__panel .community-composer__fields { grid-template-columns: minmax(0, 1fr) 214px; }
 
-.community-thread { display: grid; gap: 0; width: min(100%, 820px); margin: 0 auto; }
+.community-thread { --community-thread-inset: 26px; display: grid; gap: 0; width: min(100%, 820px); margin: 0 auto; }
 .community-thread__back { display: inline-flex; width: fit-content; min-height: 40px; align-items: center; gap: 8px; margin: 0 0 14px; border: 0; border-radius: 7px; padding: 5px 8px; color: var(--admin-muted); background: transparent; font: inherit; font-size: 13px; text-decoration: none; cursor: pointer; }
 .community-thread__back:hover { color: var(--admin-accent-text); background: var(--admin-surface-hover); }
 .community-thread__back .community-icon { width: 17px; height: 17px; }
-.community-thread > .community-post { margin-bottom: 25px; border: 1px solid var(--admin-border-subtle); border-radius: 14px; padding: 24px 26px 16px; background: var(--admin-surface); }
+.community-thread > .community-post { margin-bottom: 23px; border: 1px solid var(--admin-border-subtle); border-radius: 14px; padding: 24px var(--community-thread-inset) 15px; background: var(--admin-surface); }
 .community-thread > .community-post:hover { background: var(--admin-surface); }
 .community-thread > .community-post .community-post__title { margin-top: 20px; font-size: clamp(23px, 2.7vw, 30px); font-weight: 630; line-height: 1.4; letter-spacing: -.03em; }
 .community-thread > .community-post .community-post__title + .community-thread__body { margin-top: 17px; }
+.community-thread > .community-post .community-post__actions { flex-wrap: nowrap; gap: 5px; margin-top: 20px; border-top: 1px solid var(--admin-border-subtle); padding-top: 10px; }
+.community-thread > .community-post .community-post__actions :is(button, a) { white-space: nowrap; }
+.community-thread > .community-post .community-share-status { margin-left: auto; text-align: right; }
 .community-thread__body { max-width: 66ch; color: var(--admin-text); font-size: 15px; line-height: 1.9; overflow-wrap: anywhere; }
-.community-comments { display: grid; gap: 0; scroll-margin-top: 24px; }
-.community-comments__heading { display: flex; align-items: baseline; gap: 9px; margin-bottom: 4px; border-bottom: 1px solid var(--admin-border-subtle); padding: 7px 2px 12px; }
+.community-comments { display: grid; gap: 0; margin-inline: var(--community-thread-inset); scroll-margin-top: 24px; }
+.community-comments__heading { display: flex; min-width: 0; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 4px; border-bottom: 1px solid var(--admin-border-subtle); padding: 7px 0 12px; }
+.community-comments__heading-copy { display: flex; min-width: 0; align-items: baseline; gap: 9px; }
 .community-comments__heading h2 { color: var(--admin-text); font-size: 17px; font-weight: 620; }
-.community-comments__heading span { color: var(--admin-dim); font-size: 12px; }
+.community-comments__heading-copy span { color: var(--admin-dim); font-size: 12px; white-space: nowrap; }
+.community-comments__reply { min-height: 36px; flex: none; padding: 6px 11px; font-size: 12px; }
+.community-comments__reply .community-icon { width: 15px; height: 15px; }
 .community-comment { min-width: 0; border-bottom: 1px solid var(--admin-border-subtle); padding: 15px 0 13px; scroll-margin: 30vh 0; }
 .community-comment[data-depth="1"],.community-comment[data-depth="2"],.community-comment[data-depth="3"] { margin-inline-start: 26px; border-inline-start: 1px solid color-mix(in srgb, var(--admin-accent) 33%, var(--admin-border-subtle)); padding-inline-start: 14px; }
 .community-comment[data-depth="2"] { margin-inline-start: 52px; }
@@ -373,9 +379,6 @@
 .community-thread-composer__actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; }
 .community-thread-composer__actions .community-error { margin-right: auto; color: var(--admin-danger); font-size: 12px; }
 
-.community-reply-launcher { position: fixed; z-index: 1050; right: max(24px, calc((100vw - 860px) / 2)); bottom: calc(20px + env(safe-area-inset-bottom)); display: inline-flex; min-height: 42px; align-items: center; justify-content: center; gap: 8px; border: 1px solid var(--admin-accent); border-radius: 999px; padding: 8px 15px; color: var(--admin-accent-on); background: var(--admin-accent); box-shadow: 0 6px 22px color-mix(in srgb, var(--admin-text) 19%, transparent); font-size: 13px; font-weight: 570; }
-.community-reply-launcher:hover { background: var(--admin-accent-bright); }
-.community-reply-launcher .community-icon { width: 16px; height: 16px; }
 .community-reply-panel { position: fixed; z-index: 1100; right: max(24px, calc((100vw - 860px) / 2)); bottom: calc(20px + env(safe-area-inset-bottom)); display: grid; width: min(560px, calc(100vw - 36px)); max-height: min(78dvh, 760px); overflow: hidden; border: 1px solid var(--admin-border); border-radius: 14px; color: var(--admin-text); background: var(--admin-surface); box-shadow: 0 18px 55px color-mix(in srgb, var(--admin-text) 23%, transparent); }
 .community-reply-panel__form { display: grid; min-height: 0; grid-template-rows: auto minmax(180px, 1fr) auto; gap: 10px; overflow: auto; padding: 14px; }
 .community-reply-panel.has-context .community-reply-panel__form { grid-template-rows: auto auto minmax(180px, 1fr) auto; }
@@ -418,7 +421,8 @@
   .community-page { width: min(100%, 900px); }
   .community-header { align-items: flex-start; }
   .community-search { width: 198px; }
-  .community-thread > .community-post { padding: 21px 22px 15px; }
+  .community-thread { --community-thread-inset: 22px; }
+  .community-thread > .community-post { padding-top: 21px; }
 }
 
 @media (max-width: 639px) {
@@ -468,11 +472,16 @@
   .community-draft-status { flex-basis: 100%; }
   .community-thread { gap: 0; }
   .community-thread__back { margin-bottom: 8px; }
-  .community-thread > .community-post { margin-bottom: 19px; border-radius: 12px; padding: 16px 14px 11px; }
+  .community-thread { --community-thread-inset: 14px; }
+  .community-thread > .community-post { margin-bottom: 19px; border-radius: 12px; padding: 16px var(--community-thread-inset) 11px; }
   .community-thread > .community-post .community-post__title { margin-top: 15px; font-size: 23px; }
   .community-thread__body { font-size: 14px; line-height: 1.82; }
-  .community-thread > .community-post .community-post__actions { flex-wrap: wrap; gap: 2px; }
-  .community-comments__heading { padding-bottom: 10px; }
+  .community-thread > .community-post .community-post__actions { gap: 2px; margin-top: 14px; }
+  .community-thread > .community-post .community-post__actions :is(button, a) { min-width: 0; min-height: 40px; gap: 5px; padding-inline: 5px; font-size: 11px; }
+  .community-comments__heading { gap: 7px; padding-bottom: 10px; }
+  .community-comments__heading h2 { font-size: 16px; }
+  .community-comments__heading-copy span { font-size: 10px; }
+  .community-comments__reply { min-height: 36px; gap: 5px; padding-inline: 8px; font-size: 11px; }
   .community-comment { padding-block: 13px 11px; }
   .community-comment[data-depth="1"],.community-comment[data-depth="2"],.community-comment[data-depth="3"] { margin-inline-start: 12px; padding-inline-start: 9px; }
   .community-comment[data-depth="2"] { margin-inline-start: 24px; }
@@ -488,7 +497,6 @@
   .community-editor-dialog__panel > .community-composer { min-height: 100%; gap: 12px; padding: max(14px, env(safe-area-inset-top)) 14px max(14px, env(safe-area-inset-bottom)); }
   .community-editor-dialog__panel .community-composer__fields { grid-template-columns: minmax(0, 1fr); }
   .community-editor-dialog__panel .community-composer__fields .community-field { grid-column: 1; grid-row: auto; }
-  .community-reply-launcher { right: 14px; bottom: calc(12px + env(safe-area-inset-bottom)); min-height: 46px; }
   .community-reply-panel { right: 0; bottom: 0; width: 100%; max-height: min(82dvh, 780px); border-right: 0; border-bottom: 0; border-left: 0; border-radius: 16px 16px 0 0; padding-bottom: env(safe-area-inset-bottom); }
   .community-reply-panel__form { grid-template-rows: auto minmax(170px, 1fr) auto; gap: 8px; padding: 10px 12px 8px; }
   .community-reply-panel.has-context .community-reply-panel__form { grid-template-rows: auto auto minmax(170px, 1fr) auto; }

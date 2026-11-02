@@ -272,3 +272,12 @@ test("migration 25 only adds nullable idempotency metadata to existing assignmen
   assert.match(migration25, /CreateIndex\(&model\.Assignment\{\}, "PublishRequestID"\)/);
   assert.doesNotMatch(migration25, /UPDATE\s+assignments|DELETE\s+FROM\s+assignments|DROP\s+TABLE/i);
 });
+
+test("assignment management lists current work before opening the editor", () => {
+  assert.match(assignmentManagement, /const \[composerOpen, setComposerOpen\] = useState\(false\)/);
+  assert.match(assignmentManagement, /\{!composerOpen \? <button type="button" className="admin-button admin-button--primary"[\s\S]*?>发布作业<\/button> : null\}/);
+  assert.match(assignmentManagement, /\{composerOpen \? <section className="admin-panel assignment-editor"/);
+  assert.match(assignmentManagement, /assignment-editor__description[\s\S]*?assignment-editor__requirements[\s\S]*?assignment-editor__materials[\s\S]*?assignment-editor__recipients/);
+  assert.match(assignmentManagement, /assignment-deadline-shortcuts/);
+  assert.match(assignmentManagement, /assignment-list__actions/);
+});

@@ -39,12 +39,18 @@ function getLeaveStatus(access: LeaveAccessState | null, requests: LeaveRequest[
     };
     return labels[latest.status] ?? latest.status;
   }
-  if (isAdmin) return "可办理请假事项";
-  if (access?.status === "approved") return "请假功能已开通";
-  if (access?.status === "pending") return "开通申请审核中";
-  if (access?.status === "rejected") return "开通申请未通过";
-  if (access?.status === "not_requested") return "尚未开通";
+  if (isAdmin) return "可办理";
+  if (access?.status === "approved") return "已开通";
+  if (access?.status === "pending") return "审核中";
+  if (access?.status === "rejected") return "未通过";
+  if (access?.status === "not_requested") return "未开通";
   return "状态暂不可用";
+}
+
+function assignmentPriority(status: string | undefined) {
+  if (status === "overdue") return 0;
+  if (status === "needs_redo") return 1;
+  return 2;
 }
 
 export default function PersonalWorkbench() {
@@ -88,9 +94,27 @@ export default function PersonalWorkbench() {
   }, [currentUser.id, load]);
 
   const currentReport = snapshot.weekly?.reports.find((report) => report.weekStart === snapshot.weekly?.currentWeekStart) ?? null;
-  const assignmentTodos = (snapshot.assignments ?? []).filter((assignment) => ["pending", "overdue", "needs_redo"].includes(assignment.status ?? ""));
-  const overdueAssignments = assignmentTodos.filter(({ status }) => status === "overdue").length;
+  const assignmentTodos = (snapshot.assignments ?? [])
+    .filter((assignment) => ["pending", "overdue", "needs_redo"].includes(assignment.status ?? ""))
+    .sort((left, right) => assignmentPriority(left.status) - assignmentPriority(right.status) || left.dueAt.localeCompare(right.dueAt));
+  const urgentAssignments = assignmentTodos.filter(({ status }) => status === "overdue" || status === "needs_redo");
+  const upcomingAssignments = assignmentTodos.filter(({ status }) => status === "pending");
   const hasErrors = Object.values(snapshot.errors).some(Boolean);
+  const taskCount = urgentAssignments.length + upcomingAssignments.length + (snapshot.weekly && !currentReport ? 1 : 0);
+  const leaveStatus = loading ? "读取中" : snapshot.errors.leave ? "读取失败" : getLeaveStatus(snapshot.leaveAccess, snapshot.leaveRequests, isAdmin);
+
+  function renderAssignments(items: Assignment[]) {
+    return items.map((assignment) => (
+      <li key={assignment.id} className="personal-workbench__task">
+        <span className={`personal-workbench__priority${assignment.status === "overdue" ? " is-overdue" : assignment.status === "needs_redo" ? " is-review" : ""}`} aria-hidden="true" />
+        <Link to={`/dashboard/assignments?assignmentId=${assignment.id}`}>
+          <span className="personal-workbench__task-title">{assignment.title}</span>
+          <span className="personal-workbench__task-status">{assignmentStatusLabel(assignment.status)}</span>
+        </Link>
+        <time dateTime={assignment.dueAt}>{formatAssignmentDate(assignment.dueAt)}</time>
+      </li>
+    ));
+  }
 
   return (
     <main className="personal-workbench admin-design" aria-labelledby="personal-workbench-title">
@@ -100,77 +124,38 @@ export default function PersonalWorkbench() {
       </header>
 
       {loading ? <p className="personal-workbench__loading" role="status">正在读取个人事务状态…</p> : null}
+      {!loading && hasErrors ? <div className="personal-workbench__errors" role="status">
+        {snapshot.errors.weekly ? <span>{snapshot.errors.weekly}</span> : null}
+        {snapshot.errors.assignments ? <span>{snapshot.errors.assignments}</span> : null}
+        {snapshot.errors.leave ? <span>{snapshot.errors.leave}</span> : null}
+      </div> : null}
 
-      <div className="personal-workbench__grid">
-        <section className="personal-workbench__card" aria-labelledby="personal-weekly-title">
-          <div className="personal-workbench__card-head">
-            <div>
-              <h2 id="personal-weekly-title">工作周报</h2>
-              <p>{snapshot.weekly ? formatWeekLabel(snapshot.weekly.currentWeekStart) : "本周"}</p>
-            </div>
-            <span className={`personal-workbench__status${currentReport ? " is-complete" : " is-action"}`}>
-              {loading ? "读取中" : snapshot.errors.weekly ? "状态未知" : currentReport ? "已提交" : "待填写"}
-            </span>
-          </div>
-          {snapshot.errors.weekly ? <p className="personal-workbench__error" role="status">{snapshot.errors.weekly}</p> : null}
-          {snapshot.weekly ? <p className="personal-workbench__detail">{snapshot.weekly.reports.length ? `已有 ${snapshot.weekly.reports.length} 篇周报记录` : "暂无历史记录"}</p> : null}
-          {!loading ? <div className="personal-workbench__actions">
-            <Link className="admin-button admin-button--primary" to={currentReport ? "/dashboard/weekly-reports" : "/dashboard/weekly-reports?edit=1"}>
-              {currentReport ? "查看本周周报" : "填写周报"}
+      <section className="personal-workbench__tasks" aria-labelledby="personal-workbench-tasks-title">
+        <div className="personal-workbench__section-heading">
+          <h2 id="personal-workbench-tasks-title">待处理</h2>
+          {!loading ? <span>{hasErrors ? "部分状态未读取" : `${taskCount} 项`}</span> : null}
+        </div>
+        {!loading && taskCount === 0 && !hasErrors ? <p className="personal-workbench__empty">当前没有待处理事项。</p> : null}
+        {!loading && taskCount > 0 ? <ul className="personal-workbench__task-list">
+          {renderAssignments(urgentAssignments)}
+          {snapshot.weekly && !currentReport ? <li className="personal-workbench__task">
+            <span className="personal-workbench__priority is-review" aria-hidden="true" />
+            <Link to="/dashboard/weekly-reports?edit=1">
+              <span className="personal-workbench__task-title">填写本周工作周报</span>
+              <span className="personal-workbench__task-status">待填写</span>
             </Link>
-            {currentReport ? <Link className="personal-workbench__text-link" to="/dashboard/weekly-reports?edit=1">修改</Link> : null}
-          </div> : null}
-        </section>
+            <time>{formatWeekLabel(snapshot.weekly.currentWeekStart)}</time>
+          </li> : null}
+          {renderAssignments(upcomingAssignments)}
+        </ul> : null}
+      </section>
 
-        {hasAssignments ? (
-          <section className="personal-workbench__card" aria-labelledby="personal-assignments-title">
-            <div className="personal-workbench__card-head">
-              <div>
-                <h2 id="personal-assignments-title">我的作业</h2>
-                <p>{snapshot.assignments ? `${assignmentTodos.length} 项待处理` : "个人提交"}</p>
-              </div>
-              {loading ? <span className="personal-workbench__status">读取中</span> : snapshot.errors.assignments ? <span className="personal-workbench__status">状态未知</span> : snapshot.assignments ? (
-                <span className={`personal-workbench__status${assignmentTodos.length ? " is-action" : " is-complete"}`}>
-                  {overdueAssignments ? `${overdueAssignments} 项逾期` : assignmentTodos.length ? "待处理" : "已完成"}
-                </span>
-              ) : null}
-            </div>
-            {snapshot.errors.assignments ? <p className="personal-workbench__error" role="status">{snapshot.errors.assignments}</p> : null}
-            {snapshot.assignments ? assignmentTodos.length ? (
-              <ul className="personal-workbench__assignment-list">
-                {assignmentTodos.slice(0, 3).map((assignment) => (
-                  <li key={assignment.id}>
-                    <Link to={`/dashboard/assignments?assignmentId=${assignment.id}`}>
-                      <span>{assignment.title}</span>
-                      <span>{assignmentStatusLabel(assignment.status)}</span>
-                    </Link>
-                    <time dateTime={assignment.dueAt}>{formatAssignmentDate(assignment.dueAt)}</time>
-                  </li>
-                ))}
-              </ul>
-            ) : <p className="personal-workbench__detail">目前没有待处理作业。</p> : null}
-            {!loading ? <div className="personal-workbench__actions">
-              <Link className="admin-button admin-button--secondary" to="/dashboard/assignments">查看作业</Link>
-            </div> : null}
-          </section>
-        ) : null}
-
-        <section className="personal-workbench__card" aria-labelledby="personal-leave-title">
-          <div className="personal-workbench__card-head">
-            <div>
-              <h2 id="personal-leave-title">请假事务</h2>
-              <p>个人申请与请假条</p>
-            </div>
-            <span className={`personal-workbench__status${snapshot.leaveAccess?.status === "approved" ? " is-complete" : snapshot.leaveAccess ? " is-action" : ""}`}>
-              {loading ? "读取中" : snapshot.errors.leave ? "状态未知" : getLeaveStatus(snapshot.leaveAccess, snapshot.leaveRequests, isAdmin)}
-            </span>
-          </div>
-          {snapshot.errors.leave ? <p className="personal-workbench__error" role="status">{snapshot.errors.leave}</p> : null}
-          <div className="personal-workbench__actions">
-            <Link className="admin-button admin-button--secondary" to="/dashboard/leave">打开请假事务</Link>
-          </div>
-        </section>
-      </div>
+      <nav className="personal-workbench__links" aria-label="常用入口">
+        <h2>常用入口</h2>
+        <Link to="/dashboard/weekly-reports"><span>工作周报</span><span>{loading ? "读取中" : snapshot.errors.weekly ? "状态未知" : currentReport ? "本周已提交" : "本周待填写"}</span></Link>
+        {hasAssignments ? <Link to="/dashboard/assignments"><span>我的作业</span><span>{loading ? "读取中" : snapshot.errors.assignments ? "状态未知" : assignmentTodos.length ? `${assignmentTodos.length} 项待处理` : "暂无待处理"}</span></Link> : null}
+        <Link to="/dashboard/leave"><span>请假事务</span><span>{leaveStatus}</span></Link>
+      </nav>
     </main>
   );
 }

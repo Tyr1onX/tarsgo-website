@@ -34,34 +34,30 @@ export function DashboardSectionNavigation({
       ? getVisibleAdminDashboardMenu(currentUser, hasAssignmentGroup)
       : [];
   const activeGroup = groups.find(({ children }) => children.some((item) => isDashboardMenuPathActive(location.pathname, item.href)))?.key ?? null;
-  const [expandedAdminGroup, setExpandedAdminGroup] = useState<string | null>(activeGroup);
+  const defaultExpandedGroup = activeGroup ?? (section === "workbench" ? groups[0]?.key ?? null : null);
+  const [expandedGroup, setExpandedGroup] = useState<string | null>(defaultExpandedGroup);
 
   useEffect(() => {
-    if (section === "management") setExpandedAdminGroup(activeGroup);
-  }, [activeGroup, section]);
+    setExpandedGroup(defaultExpandedGroup);
+  }, [defaultExpandedGroup]);
 
   if (collapsed || groups.length === 0) return null;
 
   return (
     <div className="dashboard-subnav" role="group" aria-label={section === "workbench" ? "工作台功能" : "管理功能"} data-section={section}>
       {groups.map((group) => {
-        const isWorkbench = section === "workbench";
-        const isExpanded = isWorkbench || expandedAdminGroup === group.key;
+        const isExpanded = expandedGroup === group.key;
         return (
           <section className="dashboard-subnav__group" key={group.key} aria-label={group.label}>
-            {isWorkbench ? (
-              <h2 className="dashboard-subnav__heading">{group.label}</h2>
-            ) : (
-              <button
-                type="button"
-                className="dashboard-subnav__heading dashboard-subnav__heading-button"
-                aria-expanded={isExpanded}
-                onClick={() => setExpandedAdminGroup((current) => current === group.key ? null : group.key)}
-              >
-                <span>{group.label}</span>
-                <span className="dashboard-subnav__chevron" aria-hidden="true">{isExpanded ? "−" : "+"}</span>
-              </button>
-            )}
+            <button
+              type="button"
+              className="dashboard-subnav__heading dashboard-subnav__heading-button"
+              aria-expanded={isExpanded}
+              onClick={() => setExpandedGroup((current) => current === group.key ? null : group.key)}
+            >
+              <span>{group.label}</span>
+              <span className="dashboard-subnav__chevron" aria-hidden="true">{isExpanded ? "−" : "+"}</span>
+            </button>
             {isExpanded ? (
               <div className="dashboard-subnav__links">
                 {group.children.map((item) => {

@@ -4,6 +4,7 @@ import test from "node:test";
 
 const page = await readFile(new URL("../routes/admin/timetable-availability.tsx", import.meta.url), "utf8");
 const adminCss = await readFile(new URL("../admin-design.css", import.meta.url), "utf8");
+const pageCss = await readFile(new URL("../routes/admin/time-coordination.css", import.meta.url), "utf8");
 
 test("heatmap shows the official JLU start and end times for all 12 periods", () => {
   const match = page.match(/const SECTION_TIMES = \[([\s\S]*?)\] as const;/);
@@ -98,7 +99,22 @@ test("slot descriptions and detail headings include real times and their section
 });
 
 test("the time labels stay visible while the mobile heatmap scrolls horizontally", () => {
+  assert.match(pageCss, /\.availability-heatmap__scroll\s*\{[\s\S]*?overflow-x: auto/);
+  assert.match(pageCss, /@media \(max-width: 520px\)[\s\S]*?\.availability-heatmap__grid\s*\{[\s\S]*?min-width: 20rem/);
   assert.match(page, /availability-heatmap__time-header[^>]*>时间<\/span>/);
   assert.match(adminCss, /\.admin-design \.availability-heatmap__time-label\s*\{[\s\S]*?position: sticky;[\s\S]*?left: 0;[\s\S]*?background: var\(--admin-surface\)/);
   assert.match(adminCss, /\.admin-design \.availability-heatmap__time-header\s*\{[\s\S]*?position: sticky;[\s\S]*?left: 0;[\s\S]*?z-index: 2/);
+});
+
+test("time coordination leads with the current heatmap and keeps filters and cleanup secondary", () => {
+  const chartIndex = page.indexOf('className="availability-heatmap border');
+  const filtersIndex = page.indexOf('className="time-coordination__filters"');
+  assert.ok(chartIndex >= 0 && filtersIndex > chartIndex, "heatmap is rendered before range filters");
+  assert.match(page, /setGroupId\(value\.defaultGroupId\)/);
+  assert.match(page, /resolveCurrentTeachingWeek\(value\.firstWeekStart, openedAt, value\.teachingWeekCount\)\.week/);
+  assert.match(page, /<details className="time-coordination__admin-actions">[\s\S]*?清空课表/);
+  assert.match(page, /<summary>统计口径<\/summary>/);
+  const renderedPageStart = page.indexOf("return <main");
+  assert.ok(renderedPageStart >= 0);
+  assert.doesNotMatch(page.slice(renderedPageStart, chartIndex), /清空课表/);
 });

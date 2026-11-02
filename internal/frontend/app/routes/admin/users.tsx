@@ -97,7 +97,7 @@ export default function AccountManagement() {
   const [priorFormalMembershipConfirmed, setPriorFormalMembershipConfirmed] = useState(false);
   const [draft, setDraft] = useState<AccountDraft>(emptyDraft);
   const [saving, setSaving] = useState(false);
-  const [resetTarget, setResetTarget] = useState<AdminUserListItem | null>(null);
+  const [resetTarget, setResetTarget] = useState<Pick<AdminUserListItem, "id" | "email"> | null>(null);
   const [newPassword, setNewPassword] = useState("");
   const [resetting, setResetting] = useState(false);
 
@@ -120,7 +120,7 @@ export default function AccountManagement() {
     try {
       const result = await listAdminUsers({
         page: nextPage,
-        pageSize: 20,
+        pageSize: 10,
         keyword,
         role: roleFilter,
         status: statusFilter === "" ? "" : Number(statusFilter),
@@ -354,10 +354,9 @@ export default function AccountManagement() {
 
   return (
     <div className="admin-design admin-users space-y-5">
-      <header className="admin-page-header">
-        <div className="admin-eyebrow">吉甲 · 系统管理</div>
+      <header className="admin-page-header admin-users__header">
         <h1 className="admin-page-title">账号与权限</h1>
-        <p className="admin-page-description">管理系统权限、所属组别、战队成员身份、组织头衔和历史报名记录。</p>
+        <button type="button" onClick={openCreate} className="admin-button admin-button--primary">新建账号</button>
       </header>
 
       {error ? <div role="alert" className="admin-notice admin-notice--error">{error}</div> : null}
@@ -365,21 +364,18 @@ export default function AccountManagement() {
 
       <div className="admin-users__summary" aria-label="账号概况">
         <span>用户总数 <strong>{summary.total}</strong></span>
-        <span>正常账号 <strong>{summary.enabled}</strong></span>
-        <span>已停用 <strong>{summary.disabled}</strong></span>
-        <span>已分组 <strong>{summary.grouped}</strong></span>
-        <span>未分组 <strong>{summary.unassigned}</strong></span>
-        <span>组别待处理 <strong>{summary.pending}</strong></span>
-        <span>停用组关系待清理 <strong>{summary.cleanupPending}</strong></span>
+        <span>启用 <strong>{summary.enabled}</strong></span>
+        <span>停用 <strong>{summary.disabled}</strong></span>
+        <span>组别待处理 <strong>{summary.pending + summary.cleanupPending}</strong></span>
       </div>
-      <section className="admin-users__distribution" aria-label="组别分布">
-        {summary.groupDistribution.map((group) => <div key={group.groupId} className="admin-panel px-4 py-3"><div className="text-xs text-[var(--admin-muted)]">{group.name}</div><strong className="mt-1 block text-xl text-[var(--admin-text)]">{group.userCount}</strong></div>)}
-      </section>
+      {summary.groupDistribution.length ? <details className="admin-users__distribution">
+        <summary>查看组别分布</summary>
+        <div>{summary.groupDistribution.map((group) => <span key={group.groupId}>{group.name}<strong>{group.userCount}</strong></span>)}</div>
+      </details> : null}
 
       <section className="admin-filter-panel">
-        <div className="admin-filter-grid sm:grid-cols-2 xl:grid-cols-5">
-          <label className="text-xs text-[var(--admin-muted)]">搜索账号<input value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="姓名或邮箱" className="admin-field mt-1" /></label>
-          <label className="text-xs text-[var(--admin-muted)]">系统角色<select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} className="admin-field mt-1"><option value="">全部角色</option>{roles.map((role) => <option key={role.id} value={role.name}>{role.displayName}</option>)}</select></label>
+        <div className="admin-filter-grid admin-users__filters">
+          <label className="text-xs text-[var(--admin-muted)]">搜索成员<input type="search" value={keyword} onChange={(event) => setKeyword(event.target.value)} placeholder="姓名或邮箱" className="admin-field mt-1" /></label>
           <label className="text-xs text-[var(--admin-muted)]">具体组别<select value={groupStateFilter === "unassigned" ? "unassigned" : groupIdFilter} onChange={(event) => {
             const value = event.target.value;
             if (value === "unassigned") {
@@ -391,13 +387,11 @@ export default function AccountManagement() {
             }
           }} className="admin-field mt-1"><option value="">全部组别</option><option value="unassigned">未分组</option>{groupFilterOptions.map((group) => <option key={group.id} value={group.id}>{group.name}{group.status === 1 ? "" : "（已停用）"}</option>)}</select></label>
           <label className="text-xs text-[var(--admin-muted)]">账号状态<select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="admin-field mt-1"><option value="">全部状态</option><option value="1">启用</option><option value="0">停用</option></select></label>
-          <div className="admin-filter-actions flex flex-col justify-end gap-2">
-            <button type="button" onClick={openCreate} className="admin-button admin-button--primary w-full">新建账号</button>
-          </div>
         </div>
         <details className="mt-3 border-t border-[var(--admin-border-subtle)] pt-3">
           <summary className="cursor-pointer text-xs font-medium text-[var(--admin-muted)]">高级筛选</summary>
           <div className="admin-filter-grid mt-3 sm:grid-cols-2 xl:grid-cols-3">
+            <label className="text-xs text-[var(--admin-muted)]">系统角色<select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} className="admin-field mt-1"><option value="">全部角色</option>{roles.map((role) => <option key={role.id} value={role.name}>{role.displayName}</option>)}</select></label>
             <label className="text-xs text-[var(--admin-muted)]">组别关系状态<select value={groupStateFilter} onChange={(event) => setGroupStateFilter(event.target.value as typeof groupStateFilter)} className="admin-field mt-1"><option value="">全部关系状态</option><option value="assigned">单一有效组别</option><option value="unassigned">未分组</option><option value="pending">多组待处理</option><option value="cleanup">停用组关系待清理</option></select></label>
             <label className="flex min-h-9 items-center gap-2 self-end text-xs text-[var(--admin-muted)]"><input type="checkbox" checked={includeInactive} onChange={(event) => setIncludeInactive(event.target.checked)} />包含停用或超过 90 天未登录的账号</label>
           </div>
@@ -406,20 +400,16 @@ export default function AccountManagement() {
 
       <section className="admin-panel overflow-hidden" aria-label="账号列表">
         {loading ? <div role="status" className="admin-table-empty">正在加载账号…</div> : items.length === 0 ? <div className="admin-table-empty">没有符合条件的账号。</div> : (
-          <div className="overflow-x-auto">
-            <table className="admin-table admin-table--users">
-              <thead><tr><th>账号</th><th>成员身份</th><th>所属组别</th><th>组织头衔</th><th>系统权限</th><th>状态</th><th>登录方式 · 最近登录</th><th className="text-right">操作</th></tr></thead>
+          <div className="admin-users__table-wrap">
+            <table className="admin-table admin-users__table">
+              <thead><tr><th>成员</th><th>组别</th><th>身份与权限</th><th>状态</th></tr></thead>
               <tbody>
                 {items.map((item) => (
                   <tr key={item.id} className="admin-table-row">
-                    <td><div className="font-medium text-[var(--admin-text)]">{item.realName || "姓名待核实"}</div><div className="mt-0.5 truncate text-xs text-[var(--admin-muted)]">{item.email}</div></td>
-                    <td><span className="text-sm text-[var(--admin-text)]">{teamIdentityLabel(item.teamIdentityStatus)}</span></td>
-                    <td>{item.groupState === "pending" ? <><span className="admin-status admin-status--screening">待确认（双组异常）</span><div className="mt-1 text-xs text-[var(--admin-muted)]">{item.groups.filter((group) => group.status === 1).map((group) => group.name).join("、")}</div></> : item.groupState === "assigned" ? <><span className="text-sm text-[var(--admin-text)]">{item.groupName}</span>{item.cleanupPending ? <div className="mt-1 text-xs text-[var(--admin-warning)]">停用组关系待清理</div> : null}</> : <><span className="text-sm text-[var(--admin-muted)]">未分组</span>{item.cleanupPending ? <div className="mt-1 text-xs text-[var(--admin-warning)]">停用组关系待清理</div> : null}</>}</td>
-                    <td>{item.groups.length ? <div className="space-y-1 text-xs text-[var(--admin-text)]">{item.groups.map((group) => <div key={group.groupId}>{group.name} · {organizationTitleLabel(group.role)}</div>)}</div> : <span className="text-xs text-[var(--admin-muted)]">—</span>}</td>
-                    <td><span className={`admin-role ${item.role.name === "user" ? "" : "admin-role--elevated"}`}>{item.role.displayName}</span></td>
+                    <td><button type="button" className="admin-users__member-link" onClick={() => void openEdit(item)}><strong>{item.realName || "姓名待核实"}</strong><span>查看详情</span></button></td>
+                    <td>{item.groupState === "pending" ? <><span className="admin-status admin-status--screening">待确认</span><span className="admin-users__group-name">{item.groups.filter((group) => group.status === 1).map((group) => group.name).join("、")}</span></> : item.groupState === "assigned" ? <><span className="admin-users__group-name">{item.groupName}</span>{item.cleanupPending ? <span className="admin-users__group-warning">待清理停用关系</span> : null}</> : <><span className="admin-users__group-name is-muted">未分组</span>{item.cleanupPending ? <span className="admin-users__group-warning">待清理停用关系</span> : null}</>}</td>
+                    <td><div className="admin-users__identity"><span>{teamIdentityLabel(item.teamIdentityStatus)}</span><span className={`admin-role ${item.role.name === "user" ? "" : "admin-role--elevated"}`}>{item.role.displayName}</span></div></td>
                     <td><span className={`admin-status ${item.status === 1 ? "admin-status--account-enabled" : "admin-status--account-disabled"}`}>{item.status === 1 ? "启用" : "停用"}</span></td>
-                    <td><div className="text-xs text-[var(--admin-muted)]">{item.authMethods.hasPassword ? "邮箱密码" : "未设置密码"}</div><div className="mt-0.5 text-xs text-[var(--admin-dim)]">{formatDate(item.lastLoginAt)}</div></td>
-                    <td><div className="admin-operation-group justify-end"><button type="button" onClick={() => void openEdit(item)} className="admin-button admin-button--secondary admin-button--small">编辑账号</button><button type="button" onClick={() => setResetTarget(item)} className="admin-button admin-button--quiet admin-button--small">重置密码</button></div></td>
                   </tr>
                 ))}
               </tbody>
@@ -459,13 +449,15 @@ export default function AccountManagement() {
             </section>
             {!editingIsNew && editing ? (
               <div className="space-y-4 border-t border-[var(--admin-border-subtle)] pt-4">
-                <section className="space-y-2" aria-label="账号信息">
+                <section className="admin-users__account-overview" aria-label="账号信息">
                   <h3 className="text-sm font-semibold text-[var(--admin-text)]">账号信息</h3>
-                  <p className="text-xs text-[var(--admin-muted)]">账号 ID：{editing.id} · 最近登录：{formatDate(editing.lastLoginAt)}</p>
-                </section>
-                <section className="space-y-2" aria-label="姓名">
-                  <h3 className="text-sm font-semibold text-[var(--admin-text)]">姓名</h3>
-                  <p className="text-xs text-[var(--admin-muted)]">{editing.realName || "未填写"} · 手机号：{editing.phone || "未填写"}</p>
+                  <div className="admin-users__account-facts">
+                    <span>账号 ID <strong>{editing.id}</strong></span>
+                    <span>登录方式 <strong>{editing.authMethods.hasPassword ? "邮箱密码" : "未设置密码"}</strong></span>
+                    <span>最近登录 <strong>{formatDate(editing.lastLoginAt)}</strong></span>
+                    <span>手机号 <strong>{editing.phone || "未填写"}</strong></span>
+                  </div>
+                  <button type="button" className="admin-button admin-button--quiet admin-button--small" onClick={() => setResetTarget({ id: editing.id, email: editing.email })}>重置登录密码</button>
                 </section>
                 <section className="space-y-3 rounded-lg border border-[var(--admin-border-subtle)] p-3" aria-label="战队成员身份">
                   <div>
