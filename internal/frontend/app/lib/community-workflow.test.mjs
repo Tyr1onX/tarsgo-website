@@ -210,6 +210,7 @@ test("member management is super-admin-only and reuses contribution controls wit
   assert.match(memberProfilePage, /<CoBuilderBadgeAdminPanel userId=\{member\.id\} onUpdated=/);
   assert.match(memberProfilePage, /communityMemberProfileClient\.get\(memberID, "badges", 1\)/);
   assert.match(memberProfilePage, /clearCommunityLists\(\)/);
+  assert.match(memberProfilePage, /\{error \? <p className="community-state community-state--error" role="alert">\{error\}<\/p> : null\}/);
   assert.match(adminPanel, /onUpdated\?\.\(\)/);
 });
 
