@@ -207,6 +207,7 @@ export default function CommunityMemberProfileRoute() {
     </nav>
     {loading ? <p className="community-member-loading" role="status">正在更新内容…</p> : null}
     {notice ? <p className="community-state" role="status">{notice}</p> : null}
+    {error ? <p className="community-state community-state--error" role="alert">{error}</p> : null}
 
     {tab === "overview" ? <div className="community-member-overview">
       <section className="community-member-section" aria-labelledby="community-member-activity-title">
