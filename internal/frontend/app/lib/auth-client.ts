@@ -277,8 +277,9 @@ export async function logoutAllAccounts(): Promise<void> {
   announceAccountSessionChange();
 }
 
-export async function updateProfile(input: { phone: string; avatar: File | null }): Promise<AuthUser> {
+export async function updateProfile(input: { realName: string; phone: string; avatar: File | null }): Promise<AuthUser> {
   const body = new FormData();
+  body.set("realName", input.realName);
   body.set("phone", input.phone);
   if (input.avatar) body.set("avatar", input.avatar);
   const data = await apiRequest<{ user: AuthUser }>("/api/me", { method: "PUT", body });

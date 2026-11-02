@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"net/http"
-	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -70,7 +69,7 @@ func TestGrantAndRevokeRecalculateAwardTotalsFromEffectiveContributions(t *testi
 	service := NewService(repo)
 	admin := Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}
 
-	got, err := service.Grant(context.Background(), admin, 8, "第三次贡献")
+	got, err := service.Grant(context.Background(), admin, 8)
 	if err != nil || got.AwardCounts != (AwardCounts{Bronze: 2, Silver: 1}) {
 		t.Fatalf("grant award counts = %#v, %v", got, err)
 	}
@@ -92,7 +91,7 @@ func TestOnlySuperAdminCanReadOtherMembersGrantAndRevoke(t *testing.T) {
 		if _, err := service.GetForAdmin(context.Background(), actor, 1); serviceStatus(err) != http.StatusForbidden {
 			t.Errorf("GetForAdmin actor %#v status = %d, want 403", actor, serviceStatus(err))
 		}
-		if _, err := service.Grant(context.Background(), actor, 1, "协助完成基地整理"); serviceStatus(err) != http.StatusForbidden {
+		if _, err := service.Grant(context.Background(), actor, 1); serviceStatus(err) != http.StatusForbidden {
 			t.Errorf("Grant actor %#v status = %d, want 403", actor, serviceStatus(err))
 		}
 		if _, err := service.Revoke(context.Background(), actor, 1, 1); serviceStatus(err) != http.StatusForbidden {
@@ -104,7 +103,7 @@ func TestOnlySuperAdminCanReadOtherMembersGrantAndRevoke(t *testing.T) {
 	}
 	for _, action := range []func() error{
 		func() error { _, err := service.GetForAdmin(context.Background(), Actor{}, 1); return err },
-		func() error { _, err := service.Grant(context.Background(), Actor{}, 1, "有效贡献"); return err },
+		func() error { _, err := service.Grant(context.Background(), Actor{}, 1); return err },
 		func() error { _, err := service.Revoke(context.Background(), Actor{}, 1, 1); return err },
 	} {
 		if status := serviceStatus(action()); status != http.StatusUnauthorized {
@@ -137,34 +136,18 @@ func TestMemberReadsOnlyOwnContributionsAndRevokedRecordDoesNotCount(t *testing.
 	}
 }
 
-func TestGrantValidatesDescriptionAndTargetAccount(t *testing.T) {
+func TestGrantValidatesTargetAccount(t *testing.T) {
 	repo := newFakeRepository()
 	service := NewService(repo)
 	admin := Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}
-	for _, description := range []string{strings.Repeat("字", maxDescriptionRunes+1)} {
-		if _, err := service.Grant(context.Background(), admin, 2, description); serviceStatus(err) != http.StatusBadRequest {
-			t.Errorf("description length %d status = %d, want 400", len([]rune(description)), serviceStatus(err))
-		}
+	if _, err := service.Grant(context.Background(), admin, 0); serviceStatus(err) != http.StatusBadRequest {
+		t.Fatalf("zero target status = %d, want 400", serviceStatus(err))
 	}
-	if _, err := service.Grant(context.Background(), admin, 999, "完成公共资料归档"); serviceStatus(err) != http.StatusNotFound {
+	if _, err := service.Grant(context.Background(), admin, 999); serviceStatus(err) != http.StatusNotFound {
 		t.Fatalf("unknown target status = %d, want 404", serviceStatus(err))
 	}
 	if repo.createCalls != 0 {
 		t.Fatalf("invalid grant reached repository %d times", repo.createCalls)
-	}
-}
-
-func TestEmptyContributionDescriptionUsesDefault(t *testing.T) {
-	for _, input := range []string{"", "   "} {
-		repo := newFakeRepository()
-		service := NewService(repo)
-		got, err := service.Grant(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 2, input)
-		if err != nil {
-			t.Fatalf("Grant with blank description returned an error: %v", err)
-		}
-		if got.ContributionCount != 1 || len(got.Contributions) != 1 || got.Contributions[0].Description != defaultContributionDescription {
-			t.Fatalf("blank description should create one default contribution, got %#v", got)
-		}
 	}
 }
 
@@ -174,7 +157,7 @@ func TestSuperAdminGrantCreatesOneEffectiveContributionAndRecalculatesBadge(t *t
 	createdAt := time.Date(2026, time.October, 31, 2, 30, 0, 0, time.UTC)
 	service.now = func() time.Time { return createdAt }
 
-	got, err := service.Grant(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 2, "  完成公共资料归档  ")
+	got, err := service.Grant(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 2)
 	if err != nil {
 		t.Fatalf("Grant returned an error: %v", err)
 	}
@@ -182,7 +165,7 @@ func TestSuperAdminGrantCreatesOneEffectiveContributionAndRecalculatesBadge(t *t
 		t.Fatalf("grant did not recalculate badge from the new record: %#v", got)
 	}
 	created := got.Contributions[0]
-	if created.Description != "完成公共资料归档" || created.GrantedByID != 1 || !created.CreatedAt.Equal(createdAt) || created.RevokedAt != nil {
+	if created.Description != genericContributionDescription || created.GrantedByID != 1 || !created.CreatedAt.Equal(createdAt) || created.RevokedAt != nil {
 		t.Fatalf("created contribution = %#v", created)
 	}
 	if repo.createCalls != 1 {

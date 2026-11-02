@@ -15,6 +15,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"unicode/utf8"
 
 	"tarsgo-backend/model"
 )
@@ -25,13 +26,18 @@ const (
 )
 
 type ProfileInput struct {
-	Phone  string
-	Avatar *multipart.FileHeader
+	RealName string
+	Phone    string
+	Avatar   *multipart.FileHeader
 }
 
-// UpdateProfile deliberately updates only self-service fields. Identity, email,
-// role and group membership remain under administrator control.
+// UpdateProfile deliberately updates only self-service fields. Email, role and
+// group membership remain under administrator control.
 func (s *Service) UpdateProfile(ctx context.Context, userID uint64, input ProfileInput) (*SessionUser, error) {
+	realName := strings.TrimSpace(input.RealName)
+	if runeCount := utf8.RuneCountInString(realName); runeCount > 100 || !isChineseRealName(realName) {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "姓名需为 1 至 100 个汉字"}
+	}
 	phone := strings.TrimSpace(input.Phone)
 	if phone != "" && !isValidMainlandMobile(phone) {
 		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "请输入正确的 11 位手机号"}
@@ -45,7 +51,7 @@ func (s *Service) UpdateProfile(ctx context.Context, userID uint64, input Profil
 		return nil, err
 	}
 
-	updates := map[string]any{"phone": nil}
+	updates := map[string]any{"phone": nil, "real_name": realName}
 	if phone != "" {
 		updates["phone"] = phone
 	}
@@ -82,6 +88,7 @@ func (s *Service) UpdateProfile(ctx context.Context, userID uint64, input Profil
 	}
 
 	oldAvatar := user.AvatarURL
+	user.RealName = &realName
 	user.Phone = nil
 	if phone != "" {
 		user.Phone = &phone

@@ -16,7 +16,7 @@ import (
 type coBuilderBadgeService interface {
 	GetMine(context.Context, cobuilderbadge.Actor) (*cobuilderbadge.Summary, error)
 	GetForAdmin(context.Context, cobuilderbadge.Actor, uint64) (*cobuilderbadge.Summary, error)
-	Grant(context.Context, cobuilderbadge.Actor, uint64, string) (*cobuilderbadge.Summary, error)
+	Grant(context.Context, cobuilderbadge.Actor, uint64) (*cobuilderbadge.Summary, error)
 	Revoke(context.Context, cobuilderbadge.Actor, uint64, uint64) (*cobuilderbadge.Summary, error)
 	ClaimUnlock(context.Context, cobuilderbadge.Actor) (*cobuilderbadge.UnlockNotice, error)
 	AcknowledgeUnlock(context.Context, cobuilderbadge.Actor, string) error
@@ -103,19 +103,12 @@ func (h *CoBuilderBadgeHandler) Grant(c *gin.Context) {
 		writeAPIError(c, http.StatusBadRequest, "无效的用户 ID")
 		return
 	}
-	var request struct {
-		Description string `json:"description"`
-	}
-	if err := c.ShouldBindJSON(&request); err != nil {
-		writeAPIError(c, http.StatusBadRequest, "贡献说明格式不正确")
-		return
-	}
 	actor, ok := currentCoBuilderBadgeActor(c)
 	if !ok {
 		writeAPIError(c, http.StatusUnauthorized, "请先登录")
 		return
 	}
-	summary, err := h.service.Grant(c.Request.Context(), actor, userID, request.Description)
+	summary, err := h.service.Grant(c.Request.Context(), actor, userID)
 	if err != nil {
 		h.writeServiceError(c, err)
 		return

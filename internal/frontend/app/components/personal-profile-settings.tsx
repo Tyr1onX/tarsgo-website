@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState, type ChangeEvent, type FormEvent 
 
 import { CommunityGrowthProfileSection } from "~/components/community-growth";
 import { PersonalTimetableUpload } from "~/components/personal-timetable-upload";
-import { getAuthUserName, getAuthUserRoleLabel, updateProfile, type AuthUser } from "~/lib/auth-client";
+import { getAuthUserRoleLabel, updateProfile, type AuthUser } from "~/lib/auth-client";
 import { leaveClient, type CollegeOption, type LeaveProfile } from "~/lib/leave-client";
 
 type LeaveDraft = Pick<LeaveProfile, "studentId" | "collegeCode" | "participantType">;
@@ -22,6 +22,7 @@ export function PersonalProfileSettings({
   onSaved: () => void;
 }) {
   const [avatar, setAvatar] = useState<File | null>(null);
+  const [realNameDraft, setRealNameDraft] = useState(user.realName?.trim() ?? "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [leaveProfile, setLeaveProfile] = useState<LeaveProfile | null>(null);
@@ -31,8 +32,12 @@ export function PersonalProfileSettings({
   const [leaveLoadError, setLeaveLoadError] = useState("");
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
-  // Leave documents use the verified account name, never a second editable name.
-  const accountName = user.realName?.trim() || "";
+  useEffect(() => {
+    setRealNameDraft(user.realName?.trim() ?? "");
+  }, [user.id, user.realName]);
+
+  // Leave documents use the account name until an existing request locks its snapshot.
+  const accountName = realNameDraft.trim();
   const leaveName = leaveProfile?.identityLocked ? leaveProfile.name : accountName;
   const leaveChanged = leaveDraft.studentId.trim() !== (leaveProfile?.studentId ?? "") ||
     leaveDraft.collegeCode !== (leaveProfile?.collegeCode ?? "") ||
@@ -73,8 +78,17 @@ export function PersonalProfileSettings({
     event.preventDefault();
     setError("");
     if (leaveLoading) return;
+    const nextRealName = realNameDraft.trim();
+    if (!isChineseRealName(nextRealName)) {
+      setError("姓名需为 1 至 100 个汉字。");
+      return;
+    }
     setSaving(true);
     try {
+      const updatedUser = await updateProfile({ realName: nextRealName, phone: user.phone ?? "", avatar });
+      setRealNameDraft(updatedUser.realName?.trim() ?? nextRealName);
+      setAvatar(null);
+      onSaved();
       if (!leaveLoadError && leaveChanged) {
         if (!leaveName || [...leaveName].length < 2) {
           throw new Error("请先联系管理员完善账号姓名，再保存学籍资料");
@@ -90,9 +104,6 @@ export function PersonalProfileSettings({
         });
         setLeaveProfile(saved);
       }
-      // The phone field is currently hidden; preserve its existing value on profile saves.
-      await updateProfile({ phone: user.phone ?? "", avatar });
-      onSaved();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "保存失败，请重试");
     } finally {
@@ -124,7 +135,7 @@ export function PersonalProfileSettings({
               onClick={() => avatarInputRef.current?.click()}
               className="group relative flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-full border-2 border-[var(--admin-border)] bg-[var(--admin-input-surface)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--admin-accent)] disabled:cursor-not-allowed"
             >
-              <span className="text-2xl font-semibold text-[var(--admin-text)]">{getAuthUserName(user).charAt(0).toUpperCase()}</span>
+              <span className="text-2xl font-semibold text-[var(--admin-text)]">{(accountName || "姓名待核实").charAt(0).toUpperCase()}</span>
               {avatarPreview ? (
                 <img key={avatarPreview} src={avatarPreview} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" onError={(event) => { event.currentTarget.hidden = true; }} />
               ) : null}
@@ -150,15 +161,13 @@ export function PersonalProfileSettings({
           <section aria-labelledby="profile-account-heading" className="min-w-0 space-y-4">
             <div>
             <h3 id="profile-account-heading" className="text-sm font-semibold text-[var(--admin-text)]">账号与学籍信息</h3>
-              <p className="mt-1 text-xs text-[var(--admin-muted)]">姓名和组别由管理员维护；学号、学院用于请假材料。</p>
+              <p className="mt-1 text-xs text-[var(--admin-muted)]">姓名用于社区展示；学号、学院用于请假材料。</p>
             </div>
             <div className="grid min-w-0 grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
-              <div className="min-w-0">
+              <label className="block min-w-0">
                 <span className={labelClass}>姓名</span>
-                <div className={readOnlyClass} role="textbox" aria-readonly="true" aria-label="姓名">
-                  <span className="min-w-0 truncate font-medium">{accountName || "未设置"}</span>
-                </div>
-              </div>
+                <input className={fieldClass} type="text" autoComplete="name" required maxLength={100} value={realNameDraft} disabled={saving} onChange={(event) => setRealNameDraft(event.target.value)} aria-label="姓名" />
+              </label>
               {leaveLoading ? (
                 <p role="status" className="self-end py-3 text-sm text-[var(--admin-muted)]">正在读取学籍信息…</p>
               ) : leaveLoadError ? (
@@ -205,7 +214,7 @@ export function PersonalProfileSettings({
             </div>
             {leaveProfile?.identityLocked ? (
               <p className="text-xs leading-relaxed text-[var(--admin-muted)]">
-                已有请假记录，学号与用于生成假条的姓名已锁定，修改请联系管理员。
+                已有请假记录，学号和假条姓名已锁定；修改账号姓名不会改动已提交的请假记录。
                 {leaveProfile.name !== accountName ? " 当前假条姓名为「" + leaveProfile.name + "」，与账号姓名不一致。" : ""}
               </p>
             ) : null}
@@ -220,4 +229,9 @@ export function PersonalProfileSettings({
         <div id="timetable" className="scroll-mt-8"><PersonalTimetableUpload userId={user.id} /></div>
       </div>
   );
+}
+
+function isChineseRealName(value: string) {
+  const characters = [...value];
+  return characters.length >= 1 && characters.length <= 100 && characters.every((character) => /\p{Script=Han}/u.test(character));
 }

@@ -58,10 +58,9 @@ export function getAdminCoBuilderBadge(userId: number): Promise<CoBuilderBadgeSu
   return apiRequest<CoBuilderBadgeSummary>(`/api/admin/users/${userId}/co-builder-badge`);
 }
 
-export function grantCoBuilderContribution(userId: number, description: string): Promise<CoBuilderBadgeSummary> {
+export function grantCoBuilderContribution(userId: number): Promise<CoBuilderBadgeSummary> {
   return apiRequest<CoBuilderBadgeSummary>(`/api/admin/users/${userId}/co-builder-badge/contributions`, {
     method: "POST",
-    body: { description },
   });
 }
 

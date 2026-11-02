@@ -7,13 +7,11 @@ import (
 	"net/http"
 	"strings"
 	"time"
-	"unicode/utf8"
 
 	"tarsgo-backend/model"
 )
 
-const maxDescriptionRunes = 500
-const defaultContributionDescription = "参与吉甲官网测试与反馈"
+const genericContributionDescription = "吉甲共建贡献"
 
 type Actor struct {
 	ID       uint64
@@ -169,16 +167,12 @@ func (s *Service) GetForAdmin(ctx context.Context, actor Actor, userID uint64) (
 	return s.summary(ctx, userID)
 }
 
-func (s *Service) Grant(ctx context.Context, actor Actor, userID uint64, description string) (*Summary, error) {
+func (s *Service) Grant(ctx context.Context, actor Actor, userID uint64) (*Summary, error) {
 	if err := requireSuperAdmin(actor); err != nil {
 		return nil, err
 	}
-	description = strings.TrimSpace(description)
-	if description == "" {
-		description = defaultContributionDescription
-	}
-	if userID == 0 || utf8.RuneCountInString(description) > maxDescriptionRunes {
-		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "贡献说明不能超过 500 字"}
+	if userID == 0 {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "用户编号无效"}
 	}
 	exists, err := s.repo.UserExists(ctx, userID)
 	if err != nil {
@@ -189,7 +183,7 @@ func (s *Service) Grant(ctx context.Context, actor Actor, userID uint64, descrip
 	}
 	if err := s.repo.CreateContribution(ctx, &model.CoBuilderContribution{
 		UserID:      userID,
-		Description: description,
+		Description: genericContributionDescription,
 		GrantedByID: actor.ID,
 		CreatedAt:   s.now(),
 	}); err != nil {

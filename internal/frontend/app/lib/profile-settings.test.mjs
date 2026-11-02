@@ -15,7 +15,7 @@ test("profile fields share a fixed 44px control height and common grid baseline"
   assert.match(profile, /const readOnlyClass = "flex h-11 min-h-11/);
   assert.match(profile, /const labelClass = "mb-2 block text-xs/);
   assert.match(profile, /grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2/);
-  assert.match(profile, /aria-label="姓名"/);
+  assert.match(profile, /<input[^>]*autoComplete="name"[^>]*value=\{realNameDraft\}/);
   assert.match(profile, /aria-label="邮箱"/);
   assert.match(profile, /aria-label="所属组别"/);
   assert.match(profile, /aria-label="战队职务"/);
@@ -33,12 +33,12 @@ test("avatar preview, account save and timetable upload retain separate behavior
   assert.match(profile, /id="timetable"[\s\S]*?<PersonalTimetableUpload userId=\{user\.id\} \/>/);
   assert.match(profile, /id="profile-account-form"/);
   assert.match(profile, /保存账号与学籍信息/);
-  assert.match(profile, /updateProfile\(\{ phone: user\.phone \?\? "", avatar \}\)/);
+  assert.match(profile, /updateProfile\(\{ realName: nextRealName, phone: user\.phone \?\? "", avatar \}\)/);
   assert.doesNotMatch(profile, /nickname|昵称/);
 });
 
-test("leave identity uses account name, restricts edits to locked identifiers, and permits voluntary registration", () => {
-  assert.match(profile, /user\.realName\?\.trim\(\) \|\| ""/);
+test("leave identity follows the editable canonical name until the business snapshot is locked", () => {
+  assert.match(profile, /const accountName = realNameDraft\.trim\(\)/);
   assert.match(profile, /leaveProfile\?\.identityLocked \? leaveProfile\.name : accountName/);
   assert.match(profile, /readOnly=\{Boolean\(leaveProfile\?\.identityLocked\)\}/);
   assert.match(profile, /leaveClient\.saveProfile/);

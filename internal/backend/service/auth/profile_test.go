@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"regexp"
+	"strings"
 	"testing"
 
 	"github.com/DATA-DOG/go-sqlmock"
@@ -17,32 +18,33 @@ import (
 	"tarsgo-backend/model"
 )
 
-func TestUpdateProfileOnlyWritesEditableFields(t *testing.T) {
+func TestUpdateProfileAllowsSuperAdminToChangeCanonicalName(t *testing.T) {
 	db, mock := newAuthSQLMock(t)
 	service := &Service{db: db}
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `users` WHERE `users`.`id` = ? ORDER BY `users`.`id` LIMIT ?")).
 		WithArgs(uint64(7), 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "role_id", "email", "real_name", "status"}).
-			AddRow(uint64(7), uint64(3), "member@example.test", "张三", model.UserStatusEnabled))
+			AddRow(uint64(7), uint64(3), "admin@example.test", "张三", model.UserStatusEnabled))
 	mock.ExpectQuery("SELECT \\* FROM `roles` WHERE `roles`.`id` = \\?").
 		WithArgs(uint64(3)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "display_name"}).
-			AddRow(uint64(3), model.RoleNameUser, "成员"))
+			AddRow(uint64(3), model.RoleNameSuperAdmin, "超级管理员"))
 	mock.ExpectBegin()
-	mock.ExpectExec("UPDATE `users` SET `phone`=\\?,`updated_at`=\\? WHERE id = \\? AND status = \\?").
-		WithArgs("13900139000", sqlmock.AnyArg(), uint64(7), model.UserStatusEnabled).
+	mock.ExpectExec("UPDATE `users` SET `phone`=\\?,`real_name`=\\?,`updated_at`=\\? WHERE id = \\? AND status = \\?").
+		WithArgs("13900139000", "李四", sqlmock.AnyArg(), uint64(7), model.UserStatusEnabled).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
 
 	updated, err := service.UpdateProfile(context.Background(), 7, ProfileInput{
-		Phone: "13900139000",
+		RealName: "李四",
+		Phone:    "13900139000",
 	})
 	if err != nil {
 		t.Fatalf("update profile: %v", err)
 	}
 	if updated.ID != 7 || updated.Phone == nil || *updated.Phone != "13900139000" ||
-		updated.RealName == nil || *updated.RealName != "张三" ||
-		updated.Email != "member@example.test" || updated.Role.Name != model.RoleNameUser {
+		updated.RealName == nil || *updated.RealName != "李四" ||
+		updated.Email != "admin@example.test" || updated.Role.Name != model.RoleNameSuperAdmin {
 		t.Fatalf("unexpected profile: %#v", updated)
 	}
 	if err := mock.ExpectationsWereMet(); err != nil {
@@ -53,7 +55,11 @@ func TestUpdateProfileOnlyWritesEditableFields(t *testing.T) {
 func TestUpdateProfileRejectsInvalidInputsBeforeDatabaseAccess(t *testing.T) {
 	service := &Service{}
 	for _, input := range []ProfileInput{
-		{Phone: "12345"},
+		{RealName: "李四", Phone: "12345"},
+		{RealName: " "},
+		{RealName: "LiSi"},
+		{RealName: "李 A"},
+		{RealName: strings.Repeat("李", 101)},
 	} {
 		_, err := service.UpdateProfile(context.Background(), 7, input)
 		if serviceErr, ok := err.(*ServiceError); !ok || serviceErr.Status != http.StatusBadRequest {
