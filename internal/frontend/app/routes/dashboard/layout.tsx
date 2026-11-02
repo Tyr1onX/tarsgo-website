@@ -84,7 +84,7 @@ function getIsDesktopDashboardViewport() {
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const currentPath = new URL(request.url);
   const temporarilyUnavailable = isTemporarilyUnavailableDashboardPath(currentPath.pathname);
-  const legacyTeamAlias = currentPath.pathname === "/dashboard/admin/organization-preview";
+  const legacyTeamAlias = currentPath.pathname === "/dashboard/team" || currentPath.pathname === "/dashboard/admin/organization-preview";
   const legacyCommunityAlias = currentPath.pathname === "/dashboard/questions" || currentPath.pathname === "/dashboard/admin/training/questions";
   const legacyDashboardAlias = legacyTeamAlias || legacyCommunityAlias;
   const cachedUser = getCachedCurrentUser();
@@ -111,7 +111,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect(getDefaultDashboardPath(currentUser.role.name));
   }
   if (legacyTeamAlias) {
-    throw redirect("/dashboard/team");
+    throw redirect("/dashboard/workbench/organization");
   }
 
   const groupResult = await groupRequest;
@@ -261,7 +261,7 @@ function SidebarSectionItem({
       }`}
     >
       <span className={`relative flex h-[18px] w-[18px] shrink-0 items-center justify-center ${active ? "dashboard-shell__accent" : ""}`}>
-        <MenuIcon iconKey={item.iconKey} />
+        <MenuIcon iconKey={item.iconKey ?? "dashboard"} />
         {collapsed && hasBadge ? <span className="dashboard-nav-badge dashboard-nav-badge--collapsed" aria-label={badgeLabel ?? `${badgeCount} 项待处理`}>{badgeCount}</span> : null}
       </span>
       <span className={`min-w-0 flex-1 truncate ${collapsed ? "sr-only" : ""}`}>{item.label}</span>
@@ -730,7 +730,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           <div className="space-y-1.5" role="group" aria-label="工作台分区">
             {sectionMenuItems.map((item) => {
               const isActive = getDashboardSectionKey(location.pathname, location.search, currentUser.role.name, location.hash) === item.key;
-              const isTransactions = item.key === "transactions";
+              const isWorkbench = item.key === "workbench";
               const isManagement = item.key === "management";
               const managementCount = (candidateTodoCount ?? 0) + (currentLeaveActionableState?.actionableCount ?? 0);
               const managementLabel = [
@@ -747,12 +747,20 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
                   active={isActive}
                   onNavigate={handleSidebarNavigate}
                   collapsed={isSidebarCollapsed}
-                  badgeCount={isManagement ? (candidateTodoCount !== null || currentLeaveActionableState ? managementCount : null) : isTransactions && !showAdminSection ? currentLeaveActionableState?.actionableCount : undefined}
-                  badgeLabel={isManagement ? (managementLabel || undefined) : isTransactions ? leaveLabel : undefined}
+                  badgeCount={isManagement ? (candidateTodoCount !== null || currentLeaveActionableState ? managementCount : null) : isWorkbench && !showAdminSection ? currentLeaveActionableState?.actionableCount : undefined}
+                  badgeLabel={isManagement ? (managementLabel || undefined) : isWorkbench ? leaveLabel : undefined}
                 />
               );
             })}
           </div>
+          <DashboardSectionNavigation
+            currentUser={currentUser}
+            hasAssignmentGroup={hasAssignmentGroup}
+            candidateTodoCount={candidateTodoCount}
+            leaveActionableCount={currentLeaveActionableState?.actionableCount ?? null}
+            collapsed={isSidebarCollapsed}
+            onNavigate={handleSidebarNavigate}
+          />
         </nav>
 
         <div ref={userMenuRef} className={`dashboard-shell__profile-area relative border-t border-[var(--admin-border-subtle)] py-3 ${isSidebarCollapsed ? "px-2" : "px-3"}`}>
@@ -812,6 +820,13 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
                   role="menuitem"
                   className="dashboard-shell__account-action"
                 >我的主页</button>
+                <div className="dashboard-shell__account-divider" />
+                <button
+                  type="button"
+                  onClick={() => { setUserMenuOpen(false); navigate("/dashboard/guide"); }}
+                  role="menuitem"
+                  className="dashboard-shell__account-action"
+                >帮助与工作手册</button>
                 <div className="dashboard-shell__account-divider" />
                 <button
                   type="button"
@@ -889,12 +904,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
         </header>
 
         <main className="p-4 sm:p-6 lg:p-8">
-          <DashboardSectionNavigation
-            currentUser={currentUser}
-            hasAssignmentGroup={hasAssignmentGroup}
-            candidateTodoCount={candidateTodoCount}
-            leaveActionableCount={currentLeaveActionableState?.actionableCount ?? null}
-          />
           <div className="relative">
             <Outlet context={{ currentUser, groupResolution, groupResolutionError, refreshCandidateTodoCount, openMyProfile, refreshAccountProfile, requestBadgeReplay, profileRevision } satisfies DashboardLayoutOutletContext} />
           </div>

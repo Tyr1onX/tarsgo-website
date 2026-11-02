@@ -1,220 +1,103 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useOutletContext } from "react-router";
 
-import { getUpcomingInterviewSessions } from "~/lib/admin-workbench";
-import { getAdminWorkbenchSummary, listAdminInterviewSessions, type InterviewSession, type RegistrationSummary, type RecruitmentStatus } from "~/lib/registrations-client";
+import { assignmentClient } from "~/lib/assignment-client";
+import { hasAssignmentGroupAccess } from "~/lib/dashboard-navigation";
+import { leaveClient } from "~/lib/leave-client";
+import { getAdminWorkbenchSummary, type AdminWorkbenchSummaryResponse } from "~/lib/registrations-client";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 
 export function meta() {
-  return [{ title: "招新总览 | TARSGO" }, { name: "description", content: "TARSGO 当前招新概况及待处理事项" }];
+  return [{ title: "管理工作台 | TARSGO" }];
 }
 
-const autoRefreshIntervalMs = 30_000;
-const duplicateRefreshWindowMs = 3_000;
-const statusItems: Array<{ status: RecruitmentStatus; label: string; countKey: keyof RegistrationSummary; hrefLabel: string }> = [
-  { status: "pending_screening", label: "待初筛", countKey: "pendingScreening", hrefLabel: "进入初筛队列" },
-  { status: "pending_interview", label: "待面试", countKey: "pendingInterview", hrefLabel: "进入面试队列" },
-  { status: "admitted", label: "已录取", countKey: "admitted", hrefLabel: "查看已录取" },
-  { status: "rejected", label: "未通过", countKey: "rejected", hrefLabel: "查看未通过" },
-  { status: "withdrawn", label: "已撤回", countKey: "withdrawn", hrefLabel: "查看已撤回" },
-];
+type WorkbenchState = {
+  recruitment: AdminWorkbenchSummaryResponse | null;
+  assignmentReviewCount: number | null;
+  leaveActionableCount: number | null;
+  errors: string[];
+};
 
-interface WorkbenchSnapshot {
-  summary: RegistrationSummary | null;
-  currentFormAvailable: boolean | null;
-  sessions: InterviewSession[] | null;
-}
+const emptyState: WorkbenchState = {
+  recruitment: null,
+  assignmentReviewCount: null,
+  leaveActionableCount: null,
+  errors: [],
+};
 
-const workbenchCache = new Map<number, WorkbenchSnapshot>();
-
-function describeLoadError(cause: unknown, fallback: string) {
+function describeError(cause: unknown, fallback: string) {
   return cause instanceof Error ? cause.message : fallback;
 }
 
 export default function AdminDashboard() {
-  const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
-  const cachedSnapshot = workbenchCache.get(currentUser.id) ?? {
-    summary: null,
-    currentFormAvailable: null,
-    sessions: null,
-  };
-  const snapshotRef = useRef(cachedSnapshot);
-  const [summary, setSummary] = useState(cachedSnapshot.summary);
-  const [currentFormAvailable, setCurrentFormAvailable] = useState(cachedSnapshot.currentFormAvailable);
-  const [sessions, setSessions] = useState(cachedSnapshot.sessions ?? []);
-  const [summaryLoading, setSummaryLoading] = useState(cachedSnapshot.summary === null);
-  const [sessionsLoading, setSessionsLoading] = useState(cachedSnapshot.sessions === null);
-  const [summaryError, setSummaryError] = useState("");
-  const [sessionsError, setSessionsError] = useState("");
-  const requestInFlight = useRef(false);
-  const lastRefreshStartedAt = useRef(0);
+  const { currentUser, groupResolution } = useOutletContext<DashboardLayoutOutletContext>();
+  const canManageAssignments = currentUser.role.name === "super_admin" || hasAssignmentGroupAccess(groupResolution?.groups);
+  const [state, setState] = useState<WorkbenchState>(emptyState);
+  const [loading, setLoading] = useState(true);
+  const requestSequence = useRef(0);
 
-  const load = useCallback(async (force = false) => {
-    if (requestInFlight.current) return;
-    const startedAt = Date.now();
-    if (!force && startedAt - lastRefreshStartedAt.current < duplicateRefreshWindowMs) return;
-    requestInFlight.current = true;
-    lastRefreshStartedAt.current = startedAt;
-    if (snapshotRef.current.summary === null) setSummaryLoading(true);
-    if (snapshotRef.current.sessions === null) setSessionsLoading(true);
+  const load = useCallback(async () => {
+    const requestId = ++requestSequence.current;
+    setLoading(true);
+    const [recruitment, assignments, leave] = await Promise.allSettled([
+      getAdminWorkbenchSummary(currentUser.id),
+      canManageAssignments ? assignmentClient.listAdmin() : Promise.resolve(null),
+      leaveClient.schoolSummary(),
+    ]);
+    if (requestSequence.current !== requestId) return;
 
-    const updateSnapshot = (patch: Partial<WorkbenchSnapshot>) => {
-      const next = { ...snapshotRef.current, ...patch };
-      snapshotRef.current = next;
-      workbenchCache.set(currentUser.id, next);
-    };
-
-    const summaryRequest = getAdminWorkbenchSummary(currentUser.id)
-      .then((result) => {
-        updateSnapshot({ summary: result.summary, currentFormAvailable: result.currentFormAvailable });
-        setSummary(result.summary);
-        setCurrentFormAvailable(result.currentFormAvailable);
-        setSummaryError("");
-      })
-      .catch((cause: unknown) => setSummaryError(describeLoadError(cause, "工作台统计加载失败")))
-      .finally(() => setSummaryLoading(false));
-
-    const sessionsRequest = listAdminInterviewSessions()
-      .then((result) => {
-        updateSnapshot({ sessions: result });
-        setSessions(result);
-        setSessionsError("");
-      })
-      .catch((cause: unknown) => setSessionsError(describeLoadError(cause, "面试场次加载失败")))
-      .finally(() => setSessionsLoading(false));
-
-    await Promise.all([summaryRequest, sessionsRequest]);
-    requestInFlight.current = false;
-  }, [currentUser.id]);
+    const next: WorkbenchState = { ...emptyState, errors: [] };
+    if (recruitment.status === "fulfilled") next.recruitment = recruitment.value;
+    else next.errors.push(describeError(recruitment.reason, "招新待办暂时无法读取。"));
+    if (assignments.status === "fulfilled" && assignments.value) {
+      next.assignmentReviewCount = assignments.value
+        .filter((assignment) => assignment.publicationStatus !== "withdrawn")
+        .reduce((total, assignment) => total + Math.max(0, assignment.submittedCount - assignment.reviewedCount), 0);
+    } else if (assignments.status === "rejected") next.errors.push(describeError(assignments.reason, "作业批改待办暂时无法读取。"));
+    if (leave.status === "fulfilled") next.leaveActionableCount = leave.value.actionableCount;
+    else next.errors.push(describeError(leave.reason, "请假待办暂时无法读取。"));
+    setState(next);
+    setLoading(false);
+  }, [canManageAssignments, currentUser.id]);
 
   useEffect(() => {
-    void load(true);
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible") void load(false);
-    };
-    const timer = window.setInterval(refreshWhenVisible, autoRefreshIntervalMs);
-    window.addEventListener("focus", refreshWhenVisible);
-    document.addEventListener("visibilitychange", refreshWhenVisible);
-    return () => {
-      window.clearInterval(timer);
-      window.removeEventListener("focus", refreshWhenVisible);
-      document.removeEventListener("visibilitychange", refreshWhenVisible);
-    };
+    setState(emptyState);
+    void load();
   }, [load]);
 
-  const upcomingSessions = useMemo(() => getUpcomingInterviewSessions(sessions), [sessions]);
+  const pendingScreening = state.recruitment?.currentFormAvailable ? state.recruitment.summary.pendingScreening : 0;
+  const pendingInterview = state.recruitment?.currentFormAvailable ? state.recruitment.summary.pendingInterview : 0;
+  const hasTodos = pendingScreening > 0 || pendingInterview > 0 || (state.assignmentReviewCount ?? 0) > 0 || (state.leaveActionableCount ?? 0) > 0;
 
   return (
-    <div className="admin-design admin-workbench">
+    <main className="admin-design admin-workbench" aria-labelledby="admin-workbench-title">
       <div className="admin-workbench__content">
         <header className="admin-workbench__header">
-          <div>
-            <div className="admin-workbench__eyebrow">吉甲 · 招新处理</div>
-            <h1 className="admin-workbench__title">招新总览</h1>
-            <p className="admin-workbench__description">先处理候选人初筛与面试安排，再查看近期业务动态。</p>
-          </div>
-          <Link to="/dashboard/admin/registrations" className="admin-button admin-button--primary">进入报名处理 <span aria-hidden="true">→</span></Link>
+          <h1 id="admin-workbench-title" className="admin-workbench__title">管理工作台</h1>
+          {!loading && state.errors.length > 0 ? <button type="button" className="admin-button admin-button--quiet" onClick={() => void load()}>重试</button> : null}
         </header>
 
-        {(summaryError || sessionsError) && (
-          <div role="status" className="admin-notice admin-notice--warning flex flex-wrap items-center justify-between gap-3 mb-5">
-            <span>部分工作台数据加载失败：{[summaryError, sessionsError].filter(Boolean).join("；")}。已加载的数据仍可使用。</span>
-            <button type="button" onClick={() => void load(true)} className="admin-button admin-button--quiet">重试</button>
-          </div>
-        )}
-
-        {currentFormAvailable === null ? (
-          <div className="admin-workbench__empty flex min-h-32 items-center" role="status" aria-label="正在加载招新状态">
-            {!summaryError ? <span className="h-4 w-44 animate-pulse rounded bg-[var(--admin-border-subtle)]" aria-hidden="true" /> : null}
-          </div>
-        ) : currentFormAvailable === false ? (
-          <div className="admin-workbench__empty" role="status">当前暂无进行中的招新</div>
-        ) : <>
-        <section aria-label="当前待处理招新阶段" className="admin-workbench__queues">
-          {summaryLoading && !summary ? (
-            <div className="grid gap-4 lg:grid-cols-2" role="status" aria-label="正在加载招新统计">
-              <div className="admin-workbench__skeleton-queue" />
-              <div className="admin-workbench__skeleton-queue" />
-            </div>
-          ) : statusItems.slice(0, 2).map((item, index) => (
-            <Link
-              key={item.status}
-              to={item.status === "pending_interview"
-                ? "/dashboard/admin/registrations?view=interviews"
-                : `/dashboard/admin/registrations?status=${item.status}`}
-              className="admin-workbench__queue"
-            >
-              <div className="admin-workbench__queue-topline">
-                <span className="admin-workbench__queue-index">0{index + 1}</span>
-                <span className="admin-workbench__queue-kicker">当前队列</span>
-              </div>
-              <div className="admin-workbench__queue-main">
-                <div>
-                  <h2 className="admin-workbench__queue-title">{item.label}</h2>
-                  <p className="admin-workbench__queue-count"><span className="admin-count admin-count--hero">{summary?.[item.countKey] ?? "—"}</span> 位候选人</p>
-                </div>
-                <span className="admin-workbench__queue-arrow" aria-hidden="true">→</span>
-              </div>
-              <div className="admin-workbench__queue-action">{item.hrefLabel}</div>
-            </Link>
-          ))}
+        <section className="admin-workbench__todos" aria-labelledby="admin-workbench-todos-title">
+          <h2 id="admin-workbench-todos-title">待处理事项</h2>
+          {loading ? <p className="admin-workbench__state" role="status">正在检查待办…</p> : null}
+          {!loading && state.errors.length > 0 ? <p className="admin-workbench__read-error" role="status">{state.errors.join("；")}</p> : null}
+          {!loading && state.errors.length === 0 && !hasTodos ? <p className="admin-workbench__state">目前没有待处理事项。</p> : null}
+          {hasTodos ? <div className="admin-workbench__todo-list">
+            {pendingScreening > 0 ? <Link className="admin-workbench__todo" to="/dashboard/admin/registrations?status=pending_screening">
+              <span><strong>候选人待初筛</strong><small>招新</small></span><b>{pendingScreening}</b>
+            </Link> : null}
+            {pendingInterview > 0 ? <Link className="admin-workbench__todo" to="/dashboard/admin/registrations?view=interviews">
+              <span><strong>候选人待面试</strong><small>招新</small></span><b>{pendingInterview}</b>
+            </Link> : null}
+            {(state.assignmentReviewCount ?? 0) > 0 ? <Link className="admin-workbench__todo" to="/dashboard/admin/training/submissions">
+              <span><strong>作业待批改</strong><small>成员与培养</small></span><b>{state.assignmentReviewCount}</b>
+            </Link> : null}
+            {(state.leaveActionableCount ?? 0) > 0 ? <Link className="admin-workbench__todo" to="/dashboard/leave">
+              <span><strong>请假事项待处理</strong><small>协作与运营</small></span><b>{state.leaveActionableCount}</b>
+            </Link> : null}
+          </div> : null}
         </section>
-
-        <section aria-label="招新结果阶段" className="admin-workbench__results">
-          <div className="admin-section-heading">
-            <div>
-              <h2>流程结果</h2>
-              <p>已完成处理的报名</p>
-            </div>
-            <Link to="/dashboard/admin/registrations">全部报名 <span aria-hidden="true">→</span></Link>
-          </div>
-          {summaryLoading && !summary ? <div className="admin-workbench__skeleton-list" role="status" aria-label="正在加载招新结果统计" /> : <div className="admin-workbench__result-list">
-            {statusItems.slice(2).map((item) => (
-              <Link key={item.status} to={`/dashboard/admin/registrations?status=${item.status}`} className="admin-workbench__result">
-                <span className="admin-workbench__result-label">{item.label}</span>
-                <span className="admin-workbench__result-count">{summary?.[item.countKey] ?? "—"}</span>
-              </Link>
-            ))}
-          </div>}
-        </section>
-
-        <section aria-label="当前及近期面试场次" className="admin-workbench__section">
-          <div className="admin-section-heading">
-            <div>
-              <h2>近期面试场次</h2>
-              <p>已启用，今天至未来 14 天</p>
-            </div>
-            {currentUser.role.name === "super_admin" ? (
-              <Link to="/dashboard/admin/recruitment?tab=sessions">管理场次 <span aria-hidden="true">→</span></Link>
-            ) : null}
-          </div>
-          {sessionsLoading && sessions.length === 0 ? (
-            <div className="admin-workbench__skeleton-list" role="status" aria-label="正在加载面试场次" />
-          ) : upcomingSessions.length === 0 ? (
-            <div className="admin-workbench__empty">暂无近期开放场次</div>
-          ) : (
-            <div className="admin-list admin-workbench__session-list">
-              {upcomingSessions.slice(0, 5).map((session) => <InterviewSessionRow key={session.id} session={session} />)}
-            </div>
-          )}
-        </section>
-
-          </>}
-
       </div>
-    </div>
-  );
-}
-
-function InterviewSessionRow({ session }: { session: InterviewSession }) {
-  return (
-    <div className="admin-list-row admin-workbench__session-row">
-      <div className="admin-workbench__session-time">
-        <div>{session.date} · {session.label}</div>
-        <div className="admin-workbench__meta">{session.startTime}–{session.endTime}</div>
-      </div>
-      <div className="admin-workbench__session-location">{session.location || "地点待定"}</div>
-      <div className="admin-workbench__session-count">已确认 <strong>{session.confirmedCount}</strong> 人</div>
-    </div>
+    </main>
   );
 }

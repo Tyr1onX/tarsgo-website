@@ -2,48 +2,20 @@ import type { AuthUser } from "~/lib/auth-client";
 
 export type DashboardMenuIconKey = "community" | "transactions" | "team" | "management" | "dashboard" | "people" | "registration" | "settings" | "analytics" | "report";
 
-export type DashboardSectionKey = "community" | "transactions" | "team" | "management";
-
-export type DashboardSectionLink = {
-  key: string;
-  label: string;
-  href: string;
-};
-
-type DashboardAllowedRoles = readonly string[];
-
-export type DashboardMenuLeaf = {
-  key: string;
-  label: string;
-  href: string;
-  allowedRoles: DashboardAllowedRoles;
-};
-
-type DashboardMenuGroupDefinition = {
-  key: string;
-  label: string;
-  iconKey: DashboardMenuIconKey;
-  children: readonly DashboardMenuLeaf[];
-  href?: undefined;
-  allowedRoles?: undefined;
-};
-
-type DashboardMenuLinkDefinition = {
-  key: string;
-  label: string;
-  href: string;
-  iconKey: DashboardMenuIconKey;
-  allowedRoles: DashboardAllowedRoles;
-  children?: undefined;
-};
-
-type DashboardMenuDefinition = DashboardMenuLinkDefinition | DashboardMenuGroupDefinition;
+export type DashboardSectionKey = "community" | "workbench" | "management";
 
 export type DashboardMenuLink = {
   key: string;
   label: string;
   href: string;
-  iconKey: DashboardMenuIconKey;
+  iconKey?: DashboardMenuIconKey;
+};
+
+export type DashboardMenuGroup = {
+  key: string;
+  label: string;
+  iconKey?: DashboardMenuIconKey;
+  children: readonly DashboardMenuLink[];
 };
 
 export type GrowthDashboardTabKey = "profile" | "capabilities" | "skills";
@@ -53,22 +25,19 @@ export type GrowthDashboardTab = {
   label: string;
 };
 
-export type VisibleDashboardAdminMenuItem =
-  | DashboardMenuLink
-  | {
-      key: string;
-      label: string;
-      iconKey: DashboardMenuIconKey;
-      children: readonly DashboardMenuLeaf[];
-    };
+type DashboardAllowedRoles = readonly string[];
+
+type AdminMenuLeaf = DashboardMenuLink & {
+  allowedRoles: DashboardAllowedRoles;
+  requiresAssignmentGroup?: boolean;
+};
+
+type AdminMenuGroup = Omit<DashboardMenuGroup, "children"> & {
+  children: readonly AdminMenuLeaf[];
+};
 
 const USER_MENU: readonly DashboardMenuLink[] = [
-  {
-    key: "users-registrations",
-    label: "我的招新",
-    href: "/dashboard/users/registrations",
-    iconKey: "registration",
-  },
+  { key: "users-registrations", label: "我的报名", href: "/dashboard/users/registrations", iconKey: "registration" },
 ];
 
 const ASSIGNMENT_MENU_ITEM: DashboardMenuLink = {
@@ -81,6 +50,62 @@ const ASSIGNMENT_MENU_ITEM: DashboardMenuLink = {
 const TECHNICAL_GROUP_NAMES = new Set(["机械组", "电控组", "视觉组", "AI组"]);
 const ASSIGNMENT_GROUP_NAMES = new Set([...TECHNICAL_GROUP_NAMES, "运营组"]);
 const SKILL_GROUP_NAMES = new Set([...TECHNICAL_GROUP_NAMES, "运营组"]);
+
+const DASHBOARD_SECTION_MENU: readonly DashboardMenuLink[] = [
+  { key: "community", label: "社区", href: "/dashboard", iconKey: "community" },
+  { key: "workbench", label: "工作台", href: "/dashboard/workbench", iconKey: "transactions" },
+  { key: "management", label: "管理", href: "/dashboard/admin", iconKey: "management" },
+];
+
+const ADMIN_MENU: readonly AdminMenuGroup[] = [
+  {
+    key: "recruitment",
+    label: "招新",
+    iconKey: "registration",
+    children: [
+      { key: "candidate-processing", label: "候选人处理", href: "/dashboard/admin/registrations", allowedRoles: ["admin", "super_admin"] },
+      { key: "recruitment-management", label: "招新设置", href: "/dashboard/admin/recruitment", allowedRoles: ["super_admin"] },
+      { key: "recruitment-analytics", label: "招新数据", href: "/dashboard/admin/recruitment-analytics", allowedRoles: ["super_admin"] },
+    ],
+  },
+  {
+    key: "members-training",
+    label: "成员与培养",
+    iconKey: "people",
+    children: [
+      { key: "accounts", label: "账号与权限", href: "/dashboard/admin/users", allowedRoles: ["super_admin"] },
+      { key: "assignment-management", label: "作业管理", href: "/dashboard/admin/training/assignments", allowedRoles: ["admin", "super_admin"], requiresAssignmentGroup: true },
+      { key: "assignment-submissions", label: "提交批改", href: "/dashboard/admin/training/submissions", allowedRoles: ["admin", "super_admin"], requiresAssignmentGroup: true },
+    ],
+  },
+  {
+    key: "collaboration-operations",
+    label: "协作与运营",
+    iconKey: "settings",
+    children: [
+      { key: "leave-workbench", label: "请假处理", href: "/dashboard/leave", allowedRoles: ["admin", "super_admin"] },
+      { key: "timetable-availability", label: "时间协调", href: "/dashboard/admin/timetable-availability", allowedRoles: ["admin", "super_admin"] },
+      { key: "email-management", label: "邮件管理", href: "/dashboard/admin/email", allowedRoles: ["super_admin"] },
+    ],
+  },
+];
+
+const WORKBENCH_MENU: readonly DashboardMenuGroup[] = [
+  {
+    key: "my-work",
+    label: "我的事务",
+    iconKey: "report",
+    children: [],
+  },
+  {
+    key: "people-directory",
+    label: "成员信息",
+    iconKey: "people",
+    children: [
+      { key: "organization", label: "成员与岗位", href: "/dashboard/workbench/organization", iconKey: "team" },
+    ],
+  },
+];
 
 export function hasOperationsWorkManualAccess(userOrRole: AuthUser | string, groups: readonly { name: string }[] | null | undefined) {
   const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
@@ -100,7 +125,7 @@ export function isAssignmentGroupName(name: string) {
 }
 
 export function hasSkillGroupAccess(groups: readonly { name: string }[] | null | undefined) {
-	return Boolean(groups?.some((group) => SKILL_GROUP_NAMES.has(group.name)));
+  return Boolean(groups?.some((group) => SKILL_GROUP_NAMES.has(group.name)));
 }
 
 export function canAccessExpedition(userOrRole: AuthUser | string, hasSkillGroup: boolean) {
@@ -126,164 +151,40 @@ export function isTemporarilyUnavailableDashboardPath(pathname: string) {
   return unavailablePaths.some((path) => normalizedPath === path || normalizedPath.startsWith(`${path}/`));
 }
 
-const DASHBOARD_SECTION_MENU: readonly DashboardMenuLink[] = [
-  { key: "community", label: "社区", href: "/dashboard", iconKey: "community" },
-  { key: "transactions", label: "我的事务", href: "/dashboard/weekly-reports", iconKey: "transactions" },
-  { key: "team", label: "团队", href: "/dashboard/team", iconKey: "team" },
-  { key: "management", label: "管理", href: "/dashboard/admin", iconKey: "management" },
-];
-
-const DAILY_DASHBOARD_MENU: readonly DashboardMenuLink[] = [
-  {
-    key: "weekly-reports",
-    label: "工作周报",
-    href: "/dashboard/weekly-reports",
-    iconKey: "report",
-  },
-  {
-    key: "leave-workbench",
-    label: "请假工作台",
-    href: "/dashboard/leave",
-    iconKey: "report",
-  },
-  {
-    key: "work-manual",
-    label: "工作手册",
-    href: "/dashboard/guide",
-    iconKey: "report",
-  },
-];
-
-const ADMIN_MENU: readonly DashboardMenuDefinition[] = [
-  {
-    key: "recruitment-operations",
-    label: "招新事务",
-    iconKey: "registration",
-    children: [
-      {
-        key: "admin-panel",
-        label: "招新总览",
-        href: "/dashboard/admin",
-        allowedRoles: ["super_admin", "admin"],
-      },
-      {
-        key: "candidate-processing",
-        label: "候选人处理",
-        href: "/dashboard/admin/registrations",
-        allowedRoles: ["super_admin", "admin"],
-      },
-      {
-        key: "recruitment-management",
-        label: "招新管理",
-        href: "/dashboard/admin/recruitment",
-        allowedRoles: ["super_admin"],
-      },
-      {
-        key: "recruitment-analytics",
-        label: "招新数据分析",
-        href: "/dashboard/admin/recruitment-analytics",
-        allowedRoles: ["super_admin"],
-      },
-    ],
-  },
-  {
-    key: "newcomer-training",
-    label: "新人培养",
-    iconKey: "report",
-    children: [
-      {
-        key: "assignment-management",
-        label: "作业管理",
-        href: "/dashboard/admin/training/assignments",
-        allowedRoles: ["admin", "super_admin"],
-      },
-      {
-        key: "assignment-submissions",
-        label: "提交记录",
-        href: "/dashboard/admin/training/submissions",
-        allowedRoles: ["admin", "super_admin"],
-      },
-    ],
-  },
-  {
-    key: "member-management",
-    label: "成员管理",
-    iconKey: "people",
-    children: [
-      {
-        key: "accounts",
-        label: "账号与权限",
-        href: "/dashboard/admin/users",
-        allowedRoles: ["super_admin"],
-      },
-      {
-        key: "timetable-availability",
-        label: "时间协调",
-        href: "/dashboard/admin/timetable-availability",
-        allowedRoles: ["admin", "super_admin"],
-      },
-    ],
-  },
-  {
-    key: "email-management",
-    label: "邮件管理",
-    href: "/dashboard/admin/email",
-    iconKey: "settings",
-    allowedRoles: ["super_admin"],
-  },
-];
-
 function isRoleAllowed(roleName: string, allowedRoles: DashboardAllowedRoles) {
   return allowedRoles.includes(roleName);
 }
 
-function isDashboardMenuLinkDefinition(
-  item: DashboardMenuDefinition,
-): item is DashboardMenuLinkDefinition {
-  return typeof item.href === "string";
+function getAccessibleAdminMenu(roleName: string, hasAssignmentGroup = false): DashboardMenuGroup[] {
+  return ADMIN_MENU.map((group) => ({
+    ...group,
+    children: group.children.filter((item) => isRoleAllowed(roleName, item.allowedRoles)
+      && (!item.requiresAssignmentGroup || roleName === "super_admin" || hasAssignmentGroup)),
+  })).filter(({ children }) => children.length > 0);
 }
 
 function getAccessibleAdminPaths(roleName: string, hasAssignmentGroup = false) {
-  const paths = ADMIN_MENU.flatMap((item) => {
-    if (isDashboardMenuLinkDefinition(item)) {
-      return isRoleAllowed(roleName, item.allowedRoles) ? [item.href] : [];
-    }
-
-    return item.children
-      .filter((child) => {
-        if (!isRoleAllowed(roleName, child.allowedRoles)) return false;
-        if (roleName === "super_admin") return true;
-        if (item.key === "newcomer-training") return hasAssignmentGroup;
-        return true;
-      })
-      .map((child) => child.href);
-  });
+  const paths = getAccessibleAdminMenu(roleName, hasAssignmentGroup).flatMap(({ children }) => children.map(({ href }) => href));
   if (["admin", "super_admin"].includes(roleName)) paths.push("/dashboard/admin/leave");
   return paths;
 }
 
 export function hasTechnicalGroupAccess(groups: readonly { name: string }[] | null | undefined) {
-  return Boolean(groups?.some((group) => isTechnicalGroupName(group.name)));
+  return Boolean(groups?.some(({ name }) => isTechnicalGroupName(name)));
 }
 
 export function getUserDashboardMenu(userOrRole: AuthUser | string, hasAssignmentGroup = false): DashboardMenuLink[] {
   const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
   const menu = [...(roleName === "user" ? USER_MENU : [])];
-  if (hasAssignmentGroup && roleName === "user") {
-    menu.push(ASSIGNMENT_MENU_ITEM);
-  }
+  if (hasAssignmentGroup && roleName === "user") menu.push(ASSIGNMENT_MENU_ITEM);
   return menu;
 }
 
 export function getGrowthDashboardTabs(userOrRole: AuthUser | string, hasSkillGroup = false, hasCapabilityGroup = false): GrowthDashboardTab[] {
   const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
   const tabs: GrowthDashboardTab[] = [{ key: "profile", label: "成长档案" }];
-  if (hasCapabilityGroup) {
-    tabs.push({ key: "capabilities", label: "能力评价" });
-  }
-  if (hasSkillGroup || roleName === "super_admin") {
-    tabs.push({ key: "skills", label: "技能树" });
-  }
+  if (hasCapabilityGroup) tabs.push({ key: "capabilities", label: "能力评价" });
+  if (hasSkillGroup || roleName === "super_admin") tabs.push({ key: "skills", label: "技能树" });
   return tabs;
 }
 
@@ -300,110 +201,59 @@ export function getDashboardSectionMenu(userOrRole: AuthUser | string): Dashboar
 
 export function getDashboardSectionKey(pathname: string, search = "", roleName = "user", hash = ""): DashboardSectionKey | null {
   const normalizedPath = pathname.replace(/\/+$/, "") || "/";
-  const query = new URLSearchParams(search);
-
   if (normalizedPath === "/dashboard" || normalizedPath.startsWith("/dashboard/community/") || normalizedPath === "/dashboard/questions") {
     return "community";
   }
-  if (normalizedPath === "/dashboard/team" || normalizedPath.startsWith("/dashboard/members/") || normalizedPath === "/dashboard/admin/organization-preview") {
-    return normalizedPath.startsWith("/dashboard/members/") && query.get("tab") === "settings" && hash === "#timetable" ? "transactions" : "team";
-  }
-  if (normalizedPath === "/dashboard/admin" || normalizedPath.startsWith("/dashboard/admin/")) {
-    return "management";
-  }
-  if (normalizedPath === "/dashboard/leave" && hasDashboardAdminAccess(roleName)) {
-    return "management";
-  }
-  if ([
-    "/dashboard/weekly-reports",
-    "/dashboard/leave",
-    "/dashboard/guide",
-    "/dashboard/timetable",
-    "/dashboard/assignments",
-    "/dashboard/users/registrations",
-  ].includes(normalizedPath)) {
-    return "transactions";
+  if (normalizedPath === "/dashboard/admin" || normalizedPath.startsWith("/dashboard/admin/")) return "management";
+  if (normalizedPath === "/dashboard/leave" && hasDashboardAdminAccess(roleName)) return "management";
+
+  const query = new URLSearchParams(search);
+  if (
+    normalizedPath === "/dashboard/workbench"
+    || normalizedPath.startsWith("/dashboard/workbench/")
+    || normalizedPath === "/dashboard/team"
+    || normalizedPath.startsWith("/dashboard/members/")
+    || [
+      "/dashboard/weekly-reports",
+      "/dashboard/updates",
+      "/dashboard/leave",
+      "/dashboard/guide",
+      "/dashboard/timetable",
+      "/dashboard/assignments",
+      "/dashboard/users/registrations",
+    ].includes(normalizedPath)
+  ) {
+    // Course timetable is a profile settings anchor, but remains in the workbench section.
+    if (normalizedPath.startsWith("/dashboard/members/") && query.get("tab") === "settings" && hash === "#timetable") return "workbench";
+    return "workbench";
   }
   return null;
 }
 
-export function getMyTransactionsMenu(userOrRole: AuthUser | string, hasAssignmentGroup = false): DashboardSectionLink[] {
+export function getMyWorkbenchMenu(userOrRole: AuthUser | string, hasAssignmentGroup = false): DashboardMenuGroup[] {
+  const myWorkLinks: DashboardMenuLink[] = [
+    { key: "weekly-reports", label: "工作周报", href: "/dashboard/weekly-reports", iconKey: "report" },
+    ...(hasAssignmentGroup ? [ASSIGNMENT_MENU_ITEM] : []),
+    { key: "leave-workbench", label: "请假事务", href: "/dashboard/leave", iconKey: "report" },
+    ...getUserDashboardMenu(userOrRole),
+  ];
+  return WORKBENCH_MENU.map((group) => group.key === "my-work" ? { ...group, children: myWorkLinks } : { ...group, children: [...group.children] });
+}
+
+export function getVisibleAdminDashboardMenu(userOrRole: AuthUser | string, hasAssignmentGroup = false): DashboardMenuGroup[] {
   const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
-  const currentUserID = typeof userOrRole === "string" ? null : userOrRole.id;
-  const links: DashboardSectionLink[] = [];
-  if (roleName === "user") {
-    links.push(...getUserDashboardMenu(userOrRole, hasAssignmentGroup).map(({ key, label, href }) => ({ key, label, href })));
-  }
-  const dailyLinks = getDailyDashboardMenu(userOrRole)
-    .filter(({ key }) => key !== "leave-workbench" || !hasDashboardAdminAccess(roleName))
-    .map(({ key, label, href }) => ({ key, label, href }));
-  const [weeklyReports, ...otherDailyLinks] = dailyLinks;
-  if (weeklyReports) links.push(weeklyReports);
-  links.push({ key: "timetable", label: "课程表", href: currentUserID === null ? "/dashboard/timetable" : `/dashboard/members/${currentUserID}?tab=settings#timetable` });
-  links.push(...otherDailyLinks);
-  return links;
-}
-
-export function getVisibleAdminDashboardLinks(userOrRole: AuthUser | string, hasAssignmentGroup = false): DashboardSectionLink[] {
-  const links = getVisibleAdminDashboardMenu(userOrRole, hasAssignmentGroup).flatMap((item) =>
-    "children" in item
-      ? item.children.filter((child) => child.key !== "organization-preview").map(({ key, label, href }) => ({ key, label, href }))
-      : [{ key: item.key, label: item.label, href: item.href }],
-  );
-  if (hasDashboardAdminAccess(typeof userOrRole === "string" ? userOrRole : userOrRole.role.name)) {
-    links.push({ key: "leave-workbench", label: "请假审批", href: "/dashboard/leave" });
-  }
-  return links;
-}
-
-export function getDailyDashboardMenu(_userOrRole: AuthUser | string = "user"): DashboardMenuLink[] {
-  // All roles use the same leave entry; permissions are enforced inside the workbench.
-  return [...DAILY_DASHBOARD_MENU];
-}
-
-export function getVisibleAdminDashboardMenu(userOrRole: AuthUser | string, hasAssignmentGroup = false): VisibleDashboardAdminMenuItem[] {
-  const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
-  const accessiblePaths = getAccessibleAdminPaths(roleName, hasAssignmentGroup);
-  const visibleItems: VisibleDashboardAdminMenuItem[] = [];
-
-  for (const item of ADMIN_MENU) {
-    if (isDashboardMenuLinkDefinition(item)) {
-      if (accessiblePaths.includes(item.href)) {
-        visibleItems.push({
-          key: item.key,
-          label: item.label,
-          href: item.href,
-          iconKey: item.iconKey,
-        });
-      }
-      continue;
-    }
-
-    const children = item.children.filter((child) => accessiblePaths.includes(child.href));
-    if (children.length === 0) {
-      continue;
-    }
-
-    visibleItems.push({
-      key: item.key,
-      label: item.label,
-      iconKey: item.iconKey,
-      children,
-    });
-  }
-
-  return visibleItems;
+  return getAccessibleAdminMenu(roleName, hasAssignmentGroup).map((group) => ({
+    ...group,
+    children: group.children.map(({ key, label, href, iconKey }) => ({ key, label, href, iconKey })),
+  }));
 }
 
 export function hasDashboardAdminAccess(roleName: string) {
-  return getAccessibleAdminPaths(roleName).length > 0;
+  return getAccessibleAdminPaths(roleName).some((path) => path.startsWith("/dashboard/admin/"));
 }
 
 export function isDashboardMenuPathActive(pathname: string, href: string) {
-  if (pathname === href) {
-    return true;
-  }
-
+  if (pathname === href) return true;
   return href !== "/dashboard/admin" && pathname.startsWith(`${href}/`);
 }
 
@@ -413,10 +263,9 @@ export function getDefaultDashboardPath(_roleName: string) {
 
 export function canAccessDashboardAdminPath(userOrRole: AuthUser | string, pathname: string, hasAssignmentGroup = false) {
   const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
+  if (pathname === "/dashboard/leave") return hasDashboardAdminAccess(roleName);
+  if (pathname === "/dashboard/admin/leave") return ["admin", "super_admin"].includes(roleName);
+  if (pathname.startsWith("/dashboard/admin/leave/")) return false;
   const accessiblePaths = getAccessibleAdminPaths(roleName, hasAssignmentGroup);
-  return accessiblePaths.some(
-    (href) => href === "/dashboard/admin" || href === "/dashboard/admin/leave"
-      ? pathname === href
-      : pathname === href || pathname.startsWith(`${href}/`),
-  );
+  return accessiblePaths.some((href) => pathname === href || pathname.startsWith(`${href}/`));
 }

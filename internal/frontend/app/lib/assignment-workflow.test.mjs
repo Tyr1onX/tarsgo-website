@@ -31,7 +31,7 @@ test("workbench exposes assignments to all five supported groups", () => {
   assert.match(routes, /route\("admin\/training\/assignments", "routes\/admin\/assignment-management\.tsx"\)/);
   assert.match(routes, /route\("admin\/training\/submissions", "routes\/admin\/assignment-submissions\.tsx"\)/);
   assert.match(navigation, /const ASSIGNMENT_GROUP_NAMES = new Set\(\[\.\.\.TECHNICAL_GROUP_NAMES, "运营组"\]\)/);
-  assert.match(navigation, /if \(roleName === "super_admin"\) return true/);
+  assert.match(navigation, /!item\.requiresAssignmentGroup \|\| roleName === "super_admin" \|\| hasAssignmentGroup/);
   assert.match(layout, /pathname === "\/dashboard\/assignments" && !hasAssignmentGroup/);
   assert.match(layout, /canAccessDashboardAdminPath\(currentUser, pathname, hasAssignmentGroup\)/);
   assert.match(navigation, /hasAssignmentGroup && roleName === "user"/);
