@@ -8,7 +8,7 @@ import {
   type CoBuilderBadgeSummary,
 } from "~/lib/co-builder-badge-client";
 
-export function CoBuilderBadgeAdminPanel({ userId }: { userId: number }) {
+export function CoBuilderBadgeAdminPanel({ userId, onUpdated }: { userId: number; onUpdated?: () => void }) {
   const [summary, setSummary] = useState<CoBuilderBadgeSummary | null>(null);
   const [description, setDescription] = useState("");
   const [error, setError] = useState("");
@@ -30,11 +30,16 @@ export function CoBuilderBadgeAdminPanel({ userId }: { userId: number }) {
   async function grant() {
     const text = description.trim();
     if (saving) return;
+    if (!text) {
+      setError("请填写本次具体贡献。");
+      return;
+    }
     setSaving(true);
     setError("");
     try {
       setSummary(await grantCoBuilderContribution(userId, text));
       setDescription("");
+      onUpdated?.();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "登记贡献失败");
     } finally {
@@ -48,6 +53,7 @@ export function CoBuilderBadgeAdminPanel({ userId }: { userId: number }) {
     setError("");
     try {
       setSummary(await revokeCoBuilderContribution(userId, contributionId));
+      onUpdated?.();
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "撤销贡献失败");
     } finally {
@@ -63,10 +69,10 @@ export function CoBuilderBadgeAdminPanel({ userId }: { userId: number }) {
       {!loading ? (
         <div className="space-y-2">
           <label className="block text-xs text-[var(--admin-muted)]">
-            贡献说明（可选）
-            <textarea maxLength={500} rows={2} value={description} onChange={(event) => setDescription(event.target.value)} className="admin-field mt-1 min-h-20 resize-y" placeholder="留空将使用默认说明：参与吉甲官网测试与反馈" />
+            本次贡献说明
+            <textarea required maxLength={500} rows={2} value={description} onChange={(event) => { setDescription(event.target.value); setError(""); }} className="admin-field mt-1 min-h-20 resize-y" placeholder="填写已完成的具体贡献" />
           </label>
-          <button type="button" onClick={() => void grant()} disabled={saving} className="admin-button admin-button--secondary admin-button--small">
+          <button type="button" onClick={() => void grant()} disabled={saving || !description.trim()} className="admin-button admin-button--secondary admin-button--small">
             {saving ? "处理中…" : "授予贡献 +1"}
           </button>
         </div>

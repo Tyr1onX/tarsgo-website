@@ -64,6 +64,7 @@ type CommunityPostView struct {
 	AcceptedSolutionID       *uint64                       `json:"acceptedSolutionId,omitempty"`
 	IsFAQ                    bool                          `json:"isFaq,omitempty"`
 	IsPinned                 bool                          `json:"isPinned"`
+	IsFeatured               bool                          `json:"isFeatured"`
 	IsHidden                 bool                          `json:"isHidden"`
 	IsLegacy                 bool                          `json:"isLegacy"`
 	CreatedAt                time.Time                     `json:"createdAt"`
@@ -100,6 +101,7 @@ type CommunityCommentView struct {
 	CreatedAt                time.Time                     `json:"createdAt"`
 	EditedAt                 *time.Time                    `json:"editedAt,omitempty"`
 	IsDeleted                bool                          `json:"isDeleted"`
+	IsFeatured               bool                          `json:"isFeatured"`
 	CanEdit                  bool                          `json:"canEdit"`
 	CanLike                  bool                          `json:"canLike"`
 	LikedByMe                bool                          `json:"likedByMe"`
@@ -118,6 +120,7 @@ type CommunityTopicSummary struct {
 	ID           uint64     `json:"id"`
 	Category     string     `json:"category"`
 	Title        string     `json:"title"`
+	IsFeatured   bool       `json:"isFeatured"`
 	CreatedAt    time.Time  `json:"createdAt"`
 	LastReplyAt  *time.Time `json:"lastReplyAt,omitempty"`
 	CommentCount int        `json:"commentCount"`
@@ -378,7 +381,7 @@ func summarizeCommunityTopics(rows []communityPostRow) []CommunityTopicSummary {
 	items := make([]CommunityTopicSummary, 0, len(rows))
 	for _, row := range rows {
 		items = append(items, CommunityTopicSummary{
-			ID: row.ID, Category: row.Category, Title: row.Title, CreatedAt: row.CreatedAt,
+			ID: row.ID, Category: row.Category, Title: row.Title, IsFeatured: row.IsFeatured, CreatedAt: row.CreatedAt,
 			LastReplyAt: row.LastReplyAt, CommentCount: row.CommentCount, ViewCount: row.ViewCount,
 		})
 	}
@@ -454,7 +457,7 @@ func (s *Service) GetCommunityPost(ctx context.Context, actor Actor, postID uint
 			AuthorName: comment.AuthorName, AuthorAvatar: comment.AuthorAvatar, AuthorLevel: commentLevels[comment.AuthorID],
 			AuthorFeaturedBadge: commentBadges[comment.AuthorID], AuthorPositions: commentPositions[comment.AuthorID],
 			AuthorTeamIdentityStatus: model.NormalizeTeamIdentityStatus(comment.AuthorTeamIdentityStatus), Body: comment.Body,
-			CreatedAt: comment.CreatedAt, EditedAt: comment.EditedAt, IsDeleted: comment.DeletedAt != nil,
+			CreatedAt: comment.CreatedAt, EditedAt: comment.EditedAt, IsDeleted: comment.DeletedAt != nil, IsFeatured: comment.IsFeatured,
 			CanEdit: comment.AuthorID == actor.ID && comment.DeletedAt == nil, CanLike: actor.ID != comment.AuthorID && comment.DeletedAt == nil && !question.IsHidden,
 			LikedByMe: comment.LikedByMe, LikeCount: comment.LikeCount,
 			IsAcceptedSolution: question.AcceptedSolutionID != nil && *question.AcceptedSolutionID == comment.ID,
@@ -1039,6 +1042,71 @@ func (s *Service) ModerateCommunityPost(ctx context.Context, actor Actor, postID
 	return s.GetCommunityPost(ctx, actor, postID)
 }
 
+// SetCommunityPostFeatured changes the independent editorial feature state.
+// It intentionally does not modify pinning or any community ordering fields.
+func (s *Service) SetCommunityPostFeatured(ctx context.Context, actor Actor, postID uint64, featured bool) error {
+	if actor.ID == 0 || actor.RoleName != model.RoleNameSuperAdmin {
+		return forbidden("仅超级管理员可管理社区精华")
+	}
+	if postID == 0 {
+		return badRequest("帖子编号不合法")
+	}
+	return s.setCommunityFeatured(ctx, func(tx *gorm.DB) error {
+		var post model.TrainingQuestion
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("id, is_featured").
+			Where("id = ? AND deleted_at IS NULL AND visibility = ? AND category IN ?", postID, model.TrainingQuestionPublic, communityFeatureCategories()).
+			Take(&post).Error; err != nil {
+			return err
+		}
+		if post.IsFeatured == featured {
+			return nil
+		}
+		return tx.Model(&post).Update("is_featured", featured).Error
+	})
+}
+
+// SetCommunityReplyFeatured applies the same service-side authorization and
+// audit-backed route to an individual reply, without changing its parent post.
+func (s *Service) SetCommunityReplyFeatured(ctx context.Context, actor Actor, replyID uint64, featured bool) error {
+	if actor.ID == 0 || actor.RoleName != model.RoleNameSuperAdmin {
+		return forbidden("仅超级管理员可管理社区精华")
+	}
+	if replyID == 0 {
+		return badRequest("回复编号不合法")
+	}
+	return s.setCommunityFeatured(ctx, func(tx *gorm.DB) error {
+		var reply model.TrainingQuestionPost
+		if err := tx.Table("training_question_posts AS cp").
+			Clauses(clause.Locking{Strength: "UPDATE"}).
+			Select("cp.id, cp.is_featured").
+			Joins("JOIN training_questions AS q ON q.id = cp.question_id").
+			Where("cp.id = ? AND cp.deleted_at IS NULL AND q.deleted_at IS NULL AND q.visibility = ? AND q.category IN ?", replyID, model.TrainingQuestionPublic, communityFeatureCategories()).
+			Take(&reply).Error; err != nil {
+			return err
+		}
+		if reply.IsFeatured == featured {
+			return nil
+		}
+		return tx.Model(&reply).Update("is_featured", featured).Error
+	})
+}
+
+func (s *Service) setCommunityFeatured(ctx context.Context, update func(*gorm.DB) error) error {
+	err := s.db.WithContext(ctx).Transaction(update)
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return notFound("社区内容不存在")
+	}
+	if err != nil {
+		return internalError("更新社区精华状态失败", err)
+	}
+	return nil
+}
+
+func communityFeatureCategories() []string {
+	return []string{model.CommunityCategoryTechnology, model.CommunityCategoryProject, model.CommunityCategoryExperience, model.CommunityCategoryTeam}
+}
+
 // SetCommunitySolution records an explicitly accepted community reply. Older
 // group Q&A keeps its separate resolved state because it has no accepted-reply
 // pointer and must not guess which answer earned the reward.
@@ -1197,7 +1265,7 @@ func (s *Service) communityPostViews(ctx context.Context, actor Actor, rows []co
 			AuthorName: row.AuthorName, AuthorAvatar: row.AuthorAvatar, AuthorLevel: authorLevels[row.AskerID],
 			AuthorFeaturedBadge: authorBadges[row.AskerID], AuthorPositions: authorPositions[row.AskerID],
 			AuthorTeamIdentityStatus: model.NormalizeTeamIdentityStatus(row.AuthorTeamIdentityStatus), Visibility: row.Visibility,
-			IsSolved: row.IsSolved, AcceptedSolutionID: row.AcceptedSolutionID, IsFAQ: row.IsFAQ, IsPinned: row.IsPinned, IsHidden: row.IsHidden,
+			IsSolved: row.IsSolved, AcceptedSolutionID: row.AcceptedSolutionID, IsFAQ: row.IsFAQ, IsPinned: row.IsPinned, IsFeatured: row.IsFeatured, IsHidden: row.IsHidden,
 			IsLegacy: row.GroupID != nil, CreatedAt: row.CreatedAt,
 			EditedAt: row.EditedAt, LastReplyAt: row.LastReplyAt, CommentCount: row.CommentCount, ViewCount: row.ViewCount,
 			Participants: participants[row.ID], LikeCount: row.LikeCount,

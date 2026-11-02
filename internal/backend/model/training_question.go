@@ -27,6 +27,7 @@ type TrainingQuestion struct {
 	Category           string     `json:"category" gorm:"size:20;not null;default:technology;index:idx_training_question_community_category"`
 	Visibility         string     `json:"visibility" gorm:"size:12;not null;default:public;index:idx_training_question_visibility"`
 	IsPinned           bool       `json:"isPinned" gorm:"column:is_pinned;type:tinyint(1);not null;default:0"`
+	IsFeatured         bool       `json:"isFeatured" gorm:"column:is_featured;type:tinyint(1);not null;default:0"`
 	IsHidden           bool       `json:"isHidden" gorm:"column:is_hidden;type:tinyint(1);not null;default:0"`
 	DeletedAt          *time.Time `json:"deletedAt,omitempty" gorm:"column:deleted_at;type:datetime;default:null;index:idx_training_question_deleted"`
 	EditedAt           *time.Time `json:"editedAt,omitempty" gorm:"column:edited_at;type:datetime;default:null"`
@@ -51,6 +52,7 @@ type TrainingQuestionPost struct {
 	AuthorID     uint64     `json:"authorId" gorm:"column:author_id;type:bigint unsigned;not null;index:idx_training_question_post_author"`
 	Kind         string     `json:"kind" gorm:"size:12;not null"`
 	Body         string     `json:"body" gorm:"type:text;not null"`
+	IsFeatured   bool       `json:"isFeatured" gorm:"column:is_featured;type:tinyint(1);not null;default:0"`
 	EditedAt     *time.Time `json:"editedAt,omitempty" gorm:"column:edited_at;type:datetime;default:null"`
 	DeletedAt    *time.Time `json:"deletedAt,omitempty" gorm:"column:deleted_at;type:datetime;default:null;index:idx_training_question_post_deleted"`
 	CreatedAt    time.Time  `json:"createdAt" gorm:"column:created_at;type:datetime;not null;default:CURRENT_TIMESTAMP;index:idx_training_question_post_order,priority:2"`

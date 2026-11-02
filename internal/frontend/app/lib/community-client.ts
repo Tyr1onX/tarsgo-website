@@ -43,6 +43,7 @@ export interface CommunityPost {
   acceptedSolutionId?: number;
   isFaq?: boolean;
   isPinned: boolean;
+  isFeatured: boolean;
   isHidden: boolean;
   isLegacy: boolean;
   createdAt: string;
@@ -73,6 +74,7 @@ export interface CommunityComment {
   createdAt: string;
   editedAt?: string;
   isDeleted: boolean;
+  isFeatured: boolean;
   canEdit: boolean;
   canLike: boolean;
   likedByMe: boolean;
@@ -91,6 +93,7 @@ export interface CommunityTopicSummary {
   id: number;
   category: CommunityCategory;
   title: string;
+  isFeatured: boolean;
   createdAt: string;
   lastReplyAt?: string;
   commentCount: number;
@@ -213,6 +216,10 @@ export const communityClient = {
     apiRequest<CommunityReactionState>(`/api/community/posts/${id}/bookmark`, { method: active ? "PUT" : "DELETE" }),
   moderate: (id: number, input: { pinned?: boolean; hidden?: boolean }) =>
     apiRequest<CommunityDetail>(`/api/community/posts/${id}/moderation`, { method: "PATCH", body: input }),
+  setPostFeatured: (id: number, featured: boolean) =>
+    apiRequest<{ isFeatured: boolean }>(`/api/admin/community/posts/${id}/featured`, { method: featured ? "PUT" : "DELETE" }),
+  setReplyFeatured: (id: number, featured: boolean) =>
+    apiRequest<{ isFeatured: boolean }>(`/api/admin/community/replies/${id}/featured`, { method: featured ? "PUT" : "DELETE" }),
 };
 
 export function communityCategoryLabel(category: string) {
