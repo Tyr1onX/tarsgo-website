@@ -129,7 +129,7 @@ test("account-vault setup stays on demand and high-priority workbench pages prel
   assert.ok(openAccountModalIndex > 0);
   assert.doesNotMatch(dashboardLayoutSource.slice(0, openAccountModalIndex), /initializeAccountSessions\(\)/);
   assert.match(dashboardLayoutSource, /async function openAccountModal[\s\S]*?initializeAccountSessions\(\)/);
-  assert.match(dashboardLayoutSource, /new Set\(\["admin-panel", "candidate-processing", "recruitment-analytics"\]\)/);
+  assert.match(dashboardLayoutSource, /new Set\(\["management"\]\)/);
   assert.match(navbarSource, /requestIdleCallback\([\s\S]*?timeout: 250/);
 });
 

@@ -38,18 +38,20 @@ test("appointment data is complete and has no duplicate positions", () => {
   assert.ok(!allPositions.some(({ id }) => id === "reserve-captain"), "reserve captain appears only after an appointment exists");
 });
 
-test("preview stays super-admin-only and returns only the member identity fields needed by the chart", () => {
+test("team members can read the organization chart while the legacy admin endpoint stays restricted", () => {
   const router = source("../../../backend/router/router.go");
   const routes = source("../routes.ts");
   const navigation = source("./dashboard-navigation.ts");
   const component = source("../routes/organization-preview.tsx");
   const frontendData = source("../data/organization-preview.ts");
 
+  assert.match(router, /teamAPI\.Use\(middleware\.RequireAuthenticated\(authService\)\)[\s\S]*?teamAPI\.GET\("\/organization-preview", handler\.OrganizationPreview\(db\)\)/);
   assert.match(router, /superAdminAPI\.Use\(middleware\.RequireSuperAdmin\(authService\)\)[\s\S]*?superAdminAPI\.GET\("\/organization-preview", handler\.OrganizationPreview\(db\)\)/);
-  assert.match(routes, /route\("admin\/organization-preview", "routes\/organization-preview\.tsx"\)/);
+  assert.match(routes, /route\("team", "routes\/organization-preview\.tsx"\)/);
+  assert.match(routes, /route\("admin\/organization-preview", "routes\/dashboard\/team-redirect\.tsx"\)/);
   assert.doesNotMatch(routes, /^\s*route\("organization-preview",/m);
-  assert.match(navigation, /key: "organization-preview",[\s\S]*?allowedRoles: \["super_admin"\]/);
-  assert.match(component, /apiRequest<OrganizationPreview>\("\/api\/admin\/organization-preview"\)/);
+  assert.match(navigation, /key: "team", label: "团队", href: "\/dashboard\/team"/);
+  assert.match(component, /apiRequest<OrganizationPreview>\("\/api\/team\/organization-preview"\)/);
   assert.match(handler, /Select\("id", "real_name", "avatar_url"\)/);
   assert.doesNotMatch(handler, /Select\([^)]*(email|phone)/);
   for (const { name } of allPositions.filter(({ name }) => name !== "待确认")) {
@@ -65,7 +67,7 @@ test("linked positions expose the existing member detail path while unlinked pos
   assert.match(component, /aria-label="职位详情"/);
   assert.match(component, /organizationPositionDuty\(selectedPosition\.position\.id, selectedPosition\.categoryID\)/);
   assert.match(component, /selectedPosition\.position\.userId !== null/);
-  assert.match(component, /dashboard\/admin\/users\?userId=\$\{selectedPosition\.position\.userId\}/);
+  assert.match(component, /dashboard\/members\/\$\{selectedPosition\.position\.userId\}/);
   assert.match(component, /点击岗位查看职责/);
   assert.match(component, /if \(!window\.matchMedia\("\(max-width: 720px\)"\)\.matches\)\s*\{\s*setViewportHeight/);
   assert.doesNotMatch(component, /role="dialog"/);

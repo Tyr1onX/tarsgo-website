@@ -1,9 +1,10 @@
 import { useCallback, useEffect, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent } from "react";
-import { Link, NavLink, Outlet, redirect, useLocation, useNavigate, useRevalidator } from "react-router";
+import { Link, Outlet, redirect, useLocation, useNavigate, useRevalidator } from "react-router";
 
 import type { Route } from "./+types/layout";
 import { SiteLogo } from "~/components/site-logo";
 import { ThemeControl } from "~/components/theme-control";
+import { DashboardSectionNavigation } from "~/components/dashboard-section-navigation";
 import { CoBuilderBadgeUnlockToast } from "~/components/co-builder-badge-unlock-toast";
 import type { CoBuilderBadgeLevel, CoBuilderBadgeReplayRequest } from "~/lib/co-builder-badge-client";
 import { ApiError } from "~/lib/api-client";
@@ -31,20 +32,17 @@ import { leaveClient, subscribeLeaveSummaryChange } from "~/lib/leave-client";
 import {
   canAccessDashboardAdminPath,
   canAccessExpedition,
-  getCoreDashboardMenu,
-  getDailyDashboardMenu,
+  getDashboardSectionKey,
+  getDashboardSectionMenu,
   getDefaultDashboardPath,
   hasAssignmentGroupAccess,
   hasSkillGroupAccess,
   hasTechnicalGroupAccess,
-  getUserDashboardMenu,
   getVisibleAdminDashboardMenu,
   hasDashboardAdminAccess,
-  isDashboardMenuPathActive,
   isTemporarilyUnavailableDashboardPath,
   type DashboardMenuIconKey,
   type DashboardMenuLink,
-  type VisibleDashboardAdminMenuItem,
 } from "~/lib/dashboard-navigation";
 
 export interface DashboardLayoutOutletContext {
@@ -65,7 +63,7 @@ const SIDEBAR_COLLAPSED_WIDTH = 80;
 const SIDEBAR_MIN_WIDTH = 160;
 const SIDEBAR_MAX_WIDTH = 420;
 const MAX_SAVED_ACCOUNT_SESSIONS = 5;
-const HIGH_PRIORITY_RENDER_PREFETCH_KEYS = new Set(["admin-panel", "candidate-processing", "recruitment-analytics"]);
+const HIGH_PRIORITY_RENDER_PREFETCH_KEYS = new Set(["management"]);
 
 function getSidebarMaxWidth(viewportWidth: number) {
   return Math.max(SIDEBAR_DEFAULT_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, Math.floor(viewportWidth * 0.4)));
@@ -86,9 +84,11 @@ function getIsDesktopDashboardViewport() {
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const currentPath = new URL(request.url);
   const temporarilyUnavailable = isTemporarilyUnavailableDashboardPath(currentPath.pathname);
+  const legacyTeamAlias = currentPath.pathname === "/dashboard/admin/organization-preview";
   const legacyCommunityAlias = currentPath.pathname === "/dashboard/questions" || currentPath.pathname === "/dashboard/admin/training/questions";
+  const legacyDashboardAlias = legacyTeamAlias || legacyCommunityAlias;
   const cachedUser = getCachedCurrentUser();
-  const groupRequest = temporarilyUnavailable || legacyCommunityAlias
+  const groupRequest = temporarilyUnavailable || legacyDashboardAlias
     ? Promise.resolve({ state: null, error: null as unknown })
     : getUserGroupConfirmationState(cachedUser?.id)
       .then((state) => ({ state, error: null as unknown }))
@@ -109,6 +109,9 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const currentUser = auth.user;
   if (temporarilyUnavailable) {
     throw redirect(getDefaultDashboardPath(currentUser.role.name));
+  }
+  if (legacyTeamAlias) {
+    throw redirect("/dashboard/team");
   }
 
   const groupResult = await groupRequest;
@@ -156,6 +159,36 @@ clientLoader.hydrate = true;
 
 function MenuIcon({ iconKey }: { iconKey: DashboardMenuIconKey }) {
   switch (iconKey) {
+    case "community":
+      return (
+        <svg className="h-[18px] w-[18px] shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.7} stroke="currentColor" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M7.25 18.25 4 20l.85-3.7A8.5 8.5 0 1 1 7.25 18.25Z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 10.5h.01m3.74 0h.01m3.74 0h.01" />
+        </svg>
+      );
+    case "transactions":
+      return (
+        <svg className="h-[18px] w-[18px] shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.7} stroke="currentColor" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M8 4.75h8A2.25 2.25 0 0 1 18.25 7v12A2.25 2.25 0 0 1 16 21.25H8A2.25 2.25 0 0 1 5.75 19V7A2.25 2.25 0 0 1 8 4.75Z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="M9 3.75h6m-5.5 8 1.5 1.5 3.5-3.5m-5 7h5" />
+        </svg>
+      );
+    case "team":
+      return (
+        <svg className="h-[18px] w-[18px] shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.7} stroke="currentColor" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4m0 0H6m6 0h6m-12 0v4m12-4v4" />
+          <rect x="9" y="3" width="6" height="5" rx="1.5" />
+          <rect x="3" y="16" width="6" height="5" rx="1.5" />
+          <rect x="15" y="16" width="6" height="5" rx="1.5" />
+        </svg>
+      );
+    case "management":
+      return (
+        <svg className="h-[18px] w-[18px] shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.7} stroke="currentColor" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M12 3 20 6v5.2c0 4.65-3.1 8.2-8 9.8-4.9-1.6-8-5.15-8-9.8V6l8-3Z" />
+          <path strokeLinecap="round" strokeLinejoin="round" d="m8.5 11.75 2.25 2.25 4.75-4.75" />
+        </svg>
+      );
     case "people":
       return (
         <svg className="h-[18px] w-[18px] shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -197,150 +230,43 @@ function MenuIcon({ iconKey }: { iconKey: DashboardMenuIconKey }) {
   }
 }
 
-function SidebarItem({
+function SidebarSectionItem({
   item,
-  onNavigate,
-  onExpandSidebar,
-  collapsed = false,
+  active,
+  collapsed,
   badgeCount,
-  leavePendingApprovalCount,
-  leaveTodoCount,
-  leaveActionableCount,
+  badgeLabel,
+  onNavigate,
 }: {
-  item: DashboardMenuLink | VisibleDashboardAdminMenuItem;
-  onNavigate: () => void;
-  onExpandSidebar?: () => void;
-  collapsed?: boolean;
+  item: DashboardMenuLink;
+  active: boolean;
+  collapsed: boolean;
   badgeCount?: number | null;
-  leavePendingApprovalCount?: number | null;
-  leaveTodoCount?: number | null;
-  leaveActionableCount?: number | null;
+  badgeLabel?: string;
+  onNavigate: () => void;
 }) {
-  const location = useLocation();
-  const hasActiveChild = "children" in item && item.children.some((child) => isDashboardMenuPathActive(location.pathname, child.href));
-  const [expanded, setExpanded] = useState(() => hasActiveChild);
-
-  useEffect(() => {
-    if (hasActiveChild) {
-      setExpanded(true);
-    }
-  }, [hasActiveChild, location.pathname]);
-
-  if ("children" in item) {
-    const childrenId = `dashboard-menu-${item.key}`;
-    const isExpanded = expanded && !collapsed;
-
-    return (
-      <div>
-        <button
-          type="button"
-          onClick={() => {
-            if (collapsed) {
-              onExpandSidebar?.();
-              setExpanded(true);
-              return;
-            }
-            setExpanded((current) => !current);
-          }}
-          aria-label={item.label}
-          aria-expanded={isExpanded}
-          aria-controls={childrenId}
-          title={collapsed ? item.label : undefined}
-          className={`flex min-h-10 w-full items-center gap-3 rounded-xl py-2.5 text-sm leading-5 transition-colors ${collapsed ? "justify-center px-2" : "px-3"} ${
-            isExpanded
-              ? "dashboard-nav-link dashboard-nav-link--expanded"
-              : "dashboard-nav-link"
-          }`}
-        >
-          <span className={`flex h-[18px] w-[18px] shrink-0 items-center justify-center ${hasActiveChild ? "dashboard-shell__accent" : ""}`}>
-            <MenuIcon iconKey={item.iconKey} />
-          </span>
-          <span className={`min-w-0 flex-1 truncate text-left ${collapsed ? "sr-only" : ""}`}>{item.label}</span>
-          <svg
-            className={`w-4 h-4 transition-transform duration-150 ease-out ${collapsed ? "hidden" : ""} ${isExpanded ? "rotate-180" : ""}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={1.5}
-            stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-          </svg>
-        </button>
-        <div
-          id={childrenId}
-          className={`grid transition-all duration-150 ease-out ${
-            isExpanded ? "grid-rows-[1fr] opacity-100 mt-1" : "grid-rows-[0fr] opacity-0 mt-0"
-          }`}
-          aria-hidden={!isExpanded}
-        >
-          <div className="overflow-hidden">
-            <div className="ml-8 space-y-1">
-              {item.children.map((child) => (
-                <NavLink
-                  key={child.href}
-                  to={child.href}
-                  end={child.href === "/dashboard/admin"}
-                  prefetch={HIGH_PRIORITY_RENDER_PREFETCH_KEYS.has(child.key) ? "render" : "intent"}
-                  onClick={onNavigate}
-                  tabIndex={isExpanded ? 0 : -1}
-                  className={({ isActive }) =>
-                    `flex min-w-0 items-center gap-2 rounded-xl px-3 py-2 text-sm transition-colors ${
-                      isActive
-                      ? "dashboard-nav-link dashboard-nav-link--active"
-                      : "dashboard-nav-link"
-                    }`
-                  }
-                >
-                  <span className="min-w-0 flex-1 truncate">{child.label}</span>
-                  {child.key === "candidate-processing" && (badgeCount ?? 0) > 0 ? (
-                    <span className="dashboard-nav-badge" aria-label={`${badgeCount} 项待处理`}>{badgeCount}</span>
-                  ) : null}
-                </NavLink>
-              ))}
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const hasBadge = (badgeCount ?? 0) > 0;
+  const title = collapsed ? `${item.label}${hasBadge ? ` · ${badgeLabel ?? `${badgeCount} 项待处理`}` : ""}` : undefined;
 
   return (
-    <NavLink
+    <Link
       to={item.href}
-      end
       prefetch={HIGH_PRIORITY_RENDER_PREFETCH_KEYS.has(item.key) ? "render" : "intent"}
       onClick={onNavigate}
-      aria-label={item.label}
-      title={collapsed ? item.label : undefined}
-      className={({ isActive }) =>
-        `relative flex min-h-10 min-w-0 items-center gap-3 rounded-xl py-2.5 text-sm leading-5 transition-colors ${collapsed ? "justify-center px-2" : "px-3"} ${
-          isActive
-          ? "dashboard-nav-link dashboard-nav-link--active"
-          : "dashboard-nav-link"
-        }`
-      }
+      aria-label={hasBadge ? `${item.label}，${badgeLabel ?? `${badgeCount} 项待处理`}` : item.label}
+      aria-current={active ? "page" : undefined}
+      title={title}
+      className={`relative flex min-h-11 min-w-0 items-center gap-3 rounded-xl px-3 py-2.5 text-sm leading-5 transition-colors ${collapsed ? "justify-center px-2" : ""} ${
+        active ? "dashboard-nav-link dashboard-nav-link--active" : "dashboard-nav-link"
+      }`}
     >
-      {({ isActive }) => (
-        <>
-          <span className={`relative flex h-[18px] w-[18px] shrink-0 items-center justify-center ${isActive ? "dashboard-shell__accent" : ""}`}>
-            <MenuIcon iconKey={item.iconKey} />
-            {item.key === "candidate-processing" && collapsed && (badgeCount ?? 0) > 0 ? (
-              <span className="dashboard-nav-badge dashboard-nav-badge--collapsed" aria-label={`${badgeCount} 项待处理`}>{badgeCount}</span>
-            ) : null}
-            {item.key === "leave-workbench" && collapsed && (leaveActionableCount ?? 0) > 0 ? (
-              <span className="dashboard-nav-badge dashboard-nav-badge--collapsed" aria-label={`待审批 ${leavePendingApprovalCount ?? 0} 项，待处理 ${leaveTodoCount ?? 0} 项`}>{leaveActionableCount}</span>
-            ) : null}
-          </span>
-          <span className={`min-w-0 flex-1 truncate ${collapsed ? "sr-only" : ""}`}>{item.label}</span>
-          {item.key === "candidate-processing" && !collapsed && (badgeCount ?? 0) > 0 ? (
-            <span className="dashboard-nav-badge" aria-label={`${badgeCount} 项待处理`}>{badgeCount}</span>
-          ) : null}
-          {item.key === "leave-workbench" && !collapsed && (leaveActionableCount ?? 0) > 0 ? (
-            <span className="dashboard-nav-badge" aria-label={`待审批 ${leavePendingApprovalCount ?? 0} 项，待处理 ${leaveTodoCount ?? 0} 项`}>{leaveActionableCount}</span>
-          ) : null}
-        </>
-      )}
-    </NavLink>
+      <span className={`relative flex h-[18px] w-[18px] shrink-0 items-center justify-center ${active ? "dashboard-shell__accent" : ""}`}>
+        <MenuIcon iconKey={item.iconKey} />
+        {collapsed && hasBadge ? <span className="dashboard-nav-badge dashboard-nav-badge--collapsed" aria-label={badgeLabel ?? `${badgeCount} 项待处理`}>{badgeCount}</span> : null}
+      </span>
+      <span className={`min-w-0 flex-1 truncate ${collapsed ? "sr-only" : ""}`}>{item.label}</span>
+      {!collapsed && hasBadge ? <span className="dashboard-nav-badge" aria-label={badgeLabel ?? `${badgeCount} 项待处理`}>{badgeCount}</span> : null}
+    </Link>
   );
 }
 
@@ -396,9 +322,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const isImmersiveExpedition = location.pathname.replace(/\/$/, "") === "/dashboard/expedition";
   const isSidebarCollapsed = isDesktopViewport && sidebarCollapsed;
   const hasAssignmentGroup = hasAssignmentGroupAccess(groupResolution?.groups);
-  const coreMenuItems = getCoreDashboardMenu();
-  const userMenuItems = getUserDashboardMenu(currentUser, hasAssignmentGroup);
-  const dailyMenuItems = getDailyDashboardMenu(currentUser);
+  const sectionMenuItems = getDashboardSectionMenu(currentUser);
   const adminMenuItems = getVisibleAdminDashboardMenu(currentUser, hasAssignmentGroup);
   const showAdminSection = hasDashboardAdminAccess(currentUser.role.name) && adminMenuItems.length > 0;
   const refreshCandidateTodoCount = useCallback(async (force = false) => {
@@ -802,45 +726,33 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
 
         <div className="dashboard-shell__divider mx-4 shrink-0" aria-hidden="true" />
 
-        <nav className="dashboard-shell__sidebar-nav flex-1 overflow-y-auto px-3 py-4" aria-label="工作台功能">
-          <div className="space-y-1" role="group" aria-label="个人工作台">
-            <div className={`dashboard-shell__sidebar-section-title px-3 pb-2 text-[11px] font-semibold tracking-wide text-[var(--admin-dim)] ${isSidebarCollapsed ? "sr-only" : ""}`}>个人工作台</div>
-            {coreMenuItems.map((item) => (
-              <SidebarItem key={item.key} item={item} onNavigate={handleSidebarNavigate} collapsed={isSidebarCollapsed} />
-            ))}
+        <nav className="dashboard-shell__sidebar-nav flex-1 overflow-y-auto px-3 py-4" aria-label="工作台分区">
+          <div className="space-y-1.5" role="group" aria-label="工作台分区">
+            {sectionMenuItems.map((item) => {
+              const isActive = getDashboardSectionKey(location.pathname, location.search, currentUser.role.name, location.hash) === item.key;
+              const isTransactions = item.key === "transactions";
+              const isManagement = item.key === "management";
+              const managementCount = (candidateTodoCount ?? 0) + (currentLeaveActionableState?.actionableCount ?? 0);
+              const managementLabel = [
+                candidateTodoCount !== null ? `${candidateTodoCount} 项报名待处理` : "",
+                currentLeaveActionableState ? `请假待审批 ${currentLeaveActionableState.pendingApprovalCount} 项、待处理 ${currentLeaveActionableState.todoCount} 项` : "",
+              ].filter(Boolean).join("；");
+              const leaveLabel = currentLeaveActionableState
+                ? `待审批 ${currentLeaveActionableState.pendingApprovalCount} 项，待处理 ${currentLeaveActionableState.todoCount} 项`
+                : undefined;
+              return (
+                <SidebarSectionItem
+                  key={item.key}
+                  item={item}
+                  active={isActive}
+                  onNavigate={handleSidebarNavigate}
+                  collapsed={isSidebarCollapsed}
+                  badgeCount={isManagement ? (candidateTodoCount !== null || currentLeaveActionableState ? managementCount : null) : isTransactions && !showAdminSection ? currentLeaveActionableState?.actionableCount : undefined}
+                  badgeLabel={isManagement ? (managementLabel || undefined) : isTransactions ? leaveLabel : undefined}
+                />
+              );
+            })}
           </div>
-          <div className={`${isSidebarCollapsed ? "mt-2 border-t border-[var(--admin-border-subtle)] pt-2" : "mt-5 border-t border-[var(--admin-border-subtle)] pt-4"}`} role="group" aria-label="日常事务">
-            <div className={`dashboard-shell__sidebar-section-title px-3 pb-2 text-[11px] font-semibold tracking-wide text-[var(--admin-dim)] ${isSidebarCollapsed ? "sr-only" : ""}`}>日常事务</div>
-            {dailyMenuItems.map((item) => (
-              <SidebarItem
-                key={item.key}
-                item={item}
-                onNavigate={handleSidebarNavigate}
-                collapsed={isSidebarCollapsed}
-                leavePendingApprovalCount={item.key === "leave-workbench" ? currentLeaveActionableState?.pendingApprovalCount : undefined}
-                leaveTodoCount={item.key === "leave-workbench" ? currentLeaveActionableState?.todoCount : undefined}
-                leaveActionableCount={item.key === "leave-workbench" ? currentLeaveActionableState?.actionableCount : undefined}
-              />
-            ))}
-          </div>
-
-          {showAdminSection ? (
-            <div className={`${isSidebarCollapsed ? "mt-2 border-t border-[var(--admin-border-subtle)] pt-2" : "mt-6 border-t border-[var(--admin-border-subtle)] pt-5"}`}>
-              <div className={`dashboard-shell__sidebar-section-title px-3 pb-2 text-[11px] font-semibold tracking-wide text-[var(--admin-dim)] ${isSidebarCollapsed ? "sr-only" : ""}`}>管理事务</div>
-              <div className="space-y-1">
-                {adminMenuItems.map((item) => (
-                  <SidebarItem
-                    key={item.key}
-                    item={item}
-                    onNavigate={handleSidebarNavigate}
-                    onExpandSidebar={() => setSidebarCollapsed(false)}
-                    collapsed={isSidebarCollapsed}
-                    badgeCount={"children" in item && item.children.some((child) => child.key === "candidate-processing") ? candidateTodoCount : undefined}
-                  />
-                ))}
-              </div>
-            </div>
-          ) : null}
         </nav>
 
         <div ref={userMenuRef} className={`dashboard-shell__profile-area relative border-t border-[var(--admin-border-subtle)] py-3 ${isSidebarCollapsed ? "px-2" : "px-3"}`}>
@@ -974,18 +886,15 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           </button>
 
           <ThemeControl className="ml-auto" />
-          <Link
-            to="/"
-            className="dashboard-shell__site-link inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-md"
-          >
-            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-            </svg>
-            返回官网
-          </Link>
         </header>
 
         <main className="p-4 sm:p-6 lg:p-8">
+          <DashboardSectionNavigation
+            currentUser={currentUser}
+            hasAssignmentGroup={hasAssignmentGroup}
+            candidateTodoCount={candidateTodoCount}
+            leaveActionableCount={currentLeaveActionableState?.actionableCount ?? null}
+          />
           <div className="relative">
             <Outlet context={{ currentUser, groupResolution, groupResolutionError, refreshCandidateTodoCount, openMyProfile, refreshAccountProfile, requestBadgeReplay, profileRevision } satisfies DashboardLayoutOutletContext} />
           </div>

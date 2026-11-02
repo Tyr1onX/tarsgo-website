@@ -17,8 +17,9 @@ type organizationAccountProfile struct {
 	AvatarURL *string `gorm:"column:avatar_url"`
 }
 
-// OrganizationPreview remains behind the existing super-admin route. Its
-// account lookup deliberately selects only the name and avatar used by cards.
+// OrganizationPreview exposes only team position data and the public name and
+// avatar needed by the organization chart. Routes decide which signed-in
+// audiences may read this view.
 func OrganizationPreview(db *gorm.DB) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		preview := organization.PreviewData()

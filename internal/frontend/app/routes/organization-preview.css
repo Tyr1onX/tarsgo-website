@@ -12,49 +12,13 @@
 }
 
 .organization-preview__header,
-.organization-preview__workspace,
-.organization-preview__footer {
+.organization-preview__workspace {
   width: min(100%, 1480px);
   margin-inline: auto;
 }
 
 .organization-preview__header {
   padding-bottom: 24px;
-}
-
-.organization-preview__brandline {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 24px;
-}
-
-.organization-preview__back {
-  color: var(--org-muted);
-  font-size: 13px;
-  text-decoration: none;
-}
-
-.organization-preview__back:hover {
-  color: var(--org-accent);
-}
-
-.organization-preview__preview-tag {
-  padding: 5px 10px;
-  border: 1px solid color-mix(in srgb, var(--org-accent) 35%, var(--org-border));
-  border-radius: 999px;
-  color: var(--org-accent);
-  font-size: 11px;
-  line-height: 1;
-}
-
-.organization-preview__eyebrow {
-  margin: 0 0 8px;
-  color: var(--org-accent);
-  font-family: "Geist Mono", monospace;
-  font-size: 10px;
-  letter-spacing: .14em;
 }
 
 .organization-preview__header h1 {
@@ -433,13 +397,6 @@
   line-height: 1.5;
 }
 
-.organization-preview__footer {
-  padding-top: 14px;
-  color: var(--org-muted);
-  font-size: 11px;
-  line-height: 1.5;
-}
-
 @media (max-width: 720px) {
   .organization-preview {
     padding: 18px 12px 24px;
@@ -447,10 +404,6 @@
 
   .organization-preview__header {
     padding-bottom: 18px;
-  }
-
-  .organization-preview__brandline {
-    margin-bottom: 20px;
   }
 
   .organization-preview__toolbar {

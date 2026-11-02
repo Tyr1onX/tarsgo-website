@@ -1,6 +1,14 @@
 import type { AuthUser } from "~/lib/auth-client";
 
-export type DashboardMenuIconKey = "dashboard" | "people" | "registration" | "settings" | "analytics" | "report";
+export type DashboardMenuIconKey = "community" | "transactions" | "team" | "management" | "dashboard" | "people" | "registration" | "settings" | "analytics" | "report";
+
+export type DashboardSectionKey = "community" | "transactions" | "team" | "management";
+
+export type DashboardSectionLink = {
+  key: string;
+  label: string;
+  href: string;
+};
 
 type DashboardAllowedRoles = readonly string[];
 
@@ -118,13 +126,11 @@ export function isTemporarilyUnavailableDashboardPath(pathname: string) {
   return unavailablePaths.some((path) => normalizedPath === path || normalizedPath.startsWith(`${path}/`));
 }
 
-const CORE_DASHBOARD_MENU: readonly DashboardMenuLink[] = [
-  {
-    key: "personal-workspace",
-    label: "吉甲社区",
-    href: "/dashboard",
-    iconKey: "dashboard",
-  },
+const DASHBOARD_SECTION_MENU: readonly DashboardMenuLink[] = [
+  { key: "community", label: "社区", href: "/dashboard", iconKey: "community" },
+  { key: "transactions", label: "我的事务", href: "/dashboard/weekly-reports", iconKey: "transactions" },
+  { key: "team", label: "团队", href: "/dashboard/team", iconKey: "team" },
+  { key: "management", label: "管理", href: "/dashboard/admin", iconKey: "management" },
 ];
 
 const DAILY_DASHBOARD_MENU: readonly DashboardMenuLink[] = [
@@ -211,12 +217,6 @@ const ADMIN_MENU: readonly DashboardMenuDefinition[] = [
         allowedRoles: ["super_admin"],
       },
       {
-        key: "organization-preview",
-        label: "组织架构预览",
-        href: "/dashboard/admin/organization-preview",
-        allowedRoles: ["super_admin"],
-      },
-      {
         key: "timetable-availability",
         label: "时间协调",
         href: "/dashboard/admin/timetable-availability",
@@ -293,8 +293,67 @@ export function getGrowthTabPath(tab: GrowthDashboardTabKey, currentSearch = "")
   return `/dashboard/growth?${search.toString()}`;
 }
 
-export function getCoreDashboardMenu(): DashboardMenuLink[] {
-	return [...CORE_DASHBOARD_MENU];
+export function getDashboardSectionMenu(userOrRole: AuthUser | string): DashboardMenuLink[] {
+  const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
+  return DASHBOARD_SECTION_MENU.filter((item) => item.key !== "management" || hasDashboardAdminAccess(roleName)).map((item) => ({ ...item }));
+}
+
+export function getDashboardSectionKey(pathname: string, search = "", roleName = "user", hash = ""): DashboardSectionKey | null {
+  const normalizedPath = pathname.replace(/\/+$/, "") || "/";
+  const query = new URLSearchParams(search);
+
+  if (normalizedPath === "/dashboard" || normalizedPath.startsWith("/dashboard/community/") || normalizedPath === "/dashboard/questions") {
+    return "community";
+  }
+  if (normalizedPath === "/dashboard/team" || normalizedPath.startsWith("/dashboard/members/") || normalizedPath === "/dashboard/admin/organization-preview") {
+    return normalizedPath.startsWith("/dashboard/members/") && query.get("tab") === "settings" && hash === "#timetable" ? "transactions" : "team";
+  }
+  if (normalizedPath === "/dashboard/admin" || normalizedPath.startsWith("/dashboard/admin/")) {
+    return "management";
+  }
+  if (normalizedPath === "/dashboard/leave" && hasDashboardAdminAccess(roleName)) {
+    return "management";
+  }
+  if ([
+    "/dashboard/weekly-reports",
+    "/dashboard/leave",
+    "/dashboard/guide",
+    "/dashboard/timetable",
+    "/dashboard/assignments",
+    "/dashboard/users/registrations",
+  ].includes(normalizedPath)) {
+    return "transactions";
+  }
+  return null;
+}
+
+export function getMyTransactionsMenu(userOrRole: AuthUser | string, hasAssignmentGroup = false): DashboardSectionLink[] {
+  const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
+  const currentUserID = typeof userOrRole === "string" ? null : userOrRole.id;
+  const links: DashboardSectionLink[] = [];
+  if (roleName === "user") {
+    links.push(...getUserDashboardMenu(userOrRole, hasAssignmentGroup).map(({ key, label, href }) => ({ key, label, href })));
+  }
+  const dailyLinks = getDailyDashboardMenu(userOrRole)
+    .filter(({ key }) => key !== "leave-workbench" || !hasDashboardAdminAccess(roleName))
+    .map(({ key, label, href }) => ({ key, label, href }));
+  const [weeklyReports, ...otherDailyLinks] = dailyLinks;
+  if (weeklyReports) links.push(weeklyReports);
+  links.push({ key: "timetable", label: "课程表", href: currentUserID === null ? "/dashboard/timetable" : `/dashboard/members/${currentUserID}?tab=settings#timetable` });
+  links.push(...otherDailyLinks);
+  return links;
+}
+
+export function getVisibleAdminDashboardLinks(userOrRole: AuthUser | string, hasAssignmentGroup = false): DashboardSectionLink[] {
+  const links = getVisibleAdminDashboardMenu(userOrRole, hasAssignmentGroup).flatMap((item) =>
+    "children" in item
+      ? item.children.filter((child) => child.key !== "organization-preview").map(({ key, label, href }) => ({ key, label, href }))
+      : [{ key: item.key, label: item.label, href: item.href }],
+  );
+  if (hasDashboardAdminAccess(typeof userOrRole === "string" ? userOrRole : userOrRole.role.name)) {
+    links.push({ key: "leave-workbench", label: "请假审批", href: "/dashboard/leave" });
+  }
+  return links;
 }
 
 export function getDailyDashboardMenu(_userOrRole: AuthUser | string = "user"): DashboardMenuLink[] {

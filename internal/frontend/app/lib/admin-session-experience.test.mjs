@@ -27,7 +27,8 @@ test("leave navigation counts approvals and actionable work, not unread rows", a
   assert.match(leave, /actionableCount: number/);
   assert.match(layout, /actionableCount: summary\.actionableCount/);
   assert.match(layout, /pendingApprovalCount: summary\.pendingApprovalCount, todoCount: summary\.todoCount/);
-  assert.match(layout, /leaveActionableCount \?\? 0/);
+  assert.match(layout, /currentLeaveActionableState\?\.actionableCount \?\? 0/);
+  assert.match(layout, /leaveActionableCount=\{currentLeaveActionableState\?\.actionableCount \?\? null\}/);
   assert.match(layout, /subscribeLeaveSummaryChange/);
   assert.doesNotMatch(layout, /summary\.unreadCount/);
 });

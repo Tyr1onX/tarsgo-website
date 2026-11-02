@@ -115,15 +115,6 @@
   color: var(--admin-text);
 }
 
-.dashboard-nav-link--expanded {
-  background: color-mix(in srgb, var(--admin-text) 4%, transparent);
-  color: var(--admin-text);
-}
-
-.dashboard-nav-link--expanded:hover {
-  background: color-mix(in srgb, var(--admin-text) 7%, transparent);
-}
-
 .dashboard-nav-link--active {
   border-color: transparent;
   background: color-mix(in srgb, var(--admin-accent) 11%, var(--admin-surface));
@@ -146,6 +137,65 @@
   z-index: 1;
   outline: 2px solid var(--admin-accent);
   outline-offset: 2px;
+}
+
+.dashboard-section-nav {
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  margin: -0.25rem 0 1.5rem;
+  border-bottom: 1px solid var(--admin-border-subtle);
+  padding: 0 0.125rem 0.375rem;
+  scrollbar-width: thin;
+  overscroll-behavior-x: contain;
+}
+
+.dashboard-section-nav__link {
+  position: relative;
+  display: inline-flex;
+  min-height: 2.5rem;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 0.5rem;
+  border-radius: var(--admin-radius-md);
+  padding: 0.5rem 0.75rem;
+  color: var(--admin-muted);
+  font-size: 0.875rem;
+  white-space: nowrap;
+  transition: background-color 140ms ease, color 140ms ease;
+}
+
+.dashboard-section-nav__link:hover {
+  background: var(--admin-hover-overlay);
+  color: var(--admin-text);
+}
+
+.dashboard-section-nav__link.is-active {
+  color: var(--admin-accent-text);
+  font-weight: 620;
+}
+
+.dashboard-section-nav__link.is-active::after {
+  position: absolute;
+  right: 0.75rem;
+  bottom: -0.4375rem;
+  left: 0.75rem;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--admin-accent);
+  content: "";
+}
+
+.dashboard-section-nav__link:focus-visible {
+  outline: 2px solid var(--admin-accent);
+  outline-offset: 2px;
+}
+
+@media (min-width: 768px) {
+  .dashboard-section-nav {
+    flex-wrap: wrap;
+    overflow: visible;
+  }
 }
 
 .dashboard-nav-badge {
@@ -454,17 +504,6 @@
   .dashboard-shell__account-signout-actions {
     justify-content: space-between;
   }
-}
-
-.dashboard-shell__site-link {
-  border: 1px solid var(--admin-border);
-  background: var(--admin-surface);
-  color: var(--admin-muted);
-}
-
-.dashboard-shell__site-link:hover {
-  border-color: var(--admin-accent-soft);
-  color: var(--admin-text);
 }
 
 /* Flatten shared legacy utility classes inside the unified design scope. */
