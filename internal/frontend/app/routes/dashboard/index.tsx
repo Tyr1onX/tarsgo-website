@@ -105,6 +105,7 @@ export default function DashboardIndex() {
 
   useEffect(() => {
     void loadFirstPage(true);
+    return () => { requestRef.current += 1; };
   }, [loadFirstPage]);
 
   function updateFilters(next: Partial<{ sort: CommunitySort; category: CommunityCategory | ""; q: string; saved: boolean }>) {

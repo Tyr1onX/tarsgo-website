@@ -1,4 +1,8 @@
 import { apiRequest } from "~/lib/api-client";
+import type { CommunityReactionState } from "~/lib/community-reaction-state";
+
+export { communityPostReactionSnapshot, mergeCommunityReactionOverrides, releaseCommunityReactionLock, setCommunityPostReaction, tryAcquireCommunityReactionLock, withCommunityPostReactions } from "~/lib/community-reaction-state";
+export type { CommunityPostReactionSnapshot, CommunityReactionOverride, CommunityReactionState } from "~/lib/community-reaction-state";
 
 export const COMMUNITY_CATEGORIES = [
   { id: "technology", label: "技术交流" },
@@ -124,11 +128,6 @@ export interface CommunityFilter {
   faqOnly?: boolean;
   status?: "open" | "solved" | "";
   includeGrowth?: boolean;
-}
-
-export interface CommunityReactionState {
-  active: boolean;
-  likeCount: number;
 }
 
 export interface CommunityGrowthProfile {

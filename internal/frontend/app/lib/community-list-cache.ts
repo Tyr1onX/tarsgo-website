@@ -30,8 +30,44 @@ export function clearOtherCommunityLists(keepKey: string) {
 }
 
 export function removeCommunityPostFromLists(postId: number) {
-  for (const [key, snapshot] of snapshots) {
+  for (const [key, snapshot] of [...snapshots]) {
     const posts = snapshot.posts.filter((post) => post.id !== postId);
     if (posts.length !== snapshot.posts.length) rememberCommunityList(key, { ...snapshot, posts });
+  }
+}
+
+function communityListScope(key: string) {
+  try {
+    const value: unknown = JSON.parse(key);
+    if (!Array.isArray(value) || !Number.isSafeInteger(value[0])) return null;
+    return { accountID: value[0] as number, savedOnly: value[4] === true };
+  } catch {
+    return null;
+  }
+}
+
+export function updateCommunityPostInLists(
+  accountID: number,
+  postID: number,
+  update: (post: CommunityPost) => CommunityPost | null,
+) {
+  for (const [key, snapshot] of [...snapshots]) {
+    const scope = communityListScope(key);
+    if (scope?.accountID !== accountID) continue;
+    let changed = false;
+    const posts = snapshot.posts.flatMap((post) => {
+      if (post.id !== postID) return [post];
+      changed = true;
+      const updated = update(post);
+      return updated && !(scope.savedOnly && !updated.savedByMe) ? [updated] : [];
+    });
+    if (changed) rememberCommunityList(key, { ...snapshot, posts });
+  }
+}
+
+export function invalidateCommunitySavedLists(accountID: number) {
+  for (const key of snapshots.keys()) {
+    const scope = communityListScope(key);
+    if (scope?.accountID === accountID && scope.savedOnly) snapshots.delete(key);
   }
 }

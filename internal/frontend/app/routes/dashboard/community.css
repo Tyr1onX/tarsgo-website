@@ -279,6 +279,7 @@
 .community-post__actions button:disabled { cursor: wait; opacity: .65; }
 .community-post__actions [aria-pressed="true"] { color: var(--admin-accent-text); }
 .community-post__actions .community-action-icon { width: 16px; height: 16px; }
+.community-action-icon.is-active path { fill: currentColor; }
 
 .community-state { margin: 16px 0; border: 1px solid var(--admin-border-subtle); border-radius: 11px; padding: 16px; color: var(--admin-muted); background: var(--admin-surface); font-size: 13px; }
 .community-state--error { border-color: color-mix(in srgb, var(--admin-danger) 36%, var(--admin-border-subtle)); color: var(--admin-danger); background: var(--admin-danger-surface); }

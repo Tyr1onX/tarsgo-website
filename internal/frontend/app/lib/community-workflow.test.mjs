@@ -84,6 +84,28 @@ test("community cache remains bounded and invalidates stale favorites and delete
   assert.match(listCache, /removeCommunityPostFromLists/);
 });
 
+test("post and comment reactions share filled selected states and independent operation locks", () => {
+  assert.match(postCard, /active = false/);
+  assert.match(postCard, /active \? " is-active" : ""/);
+  assert.match(thread, /CommunityActionIcon kind="like" active=\{post\.likedByMe\}/);
+  assert.match(thread, /CommunityActionIcon kind="bookmark" active=\{post\.savedByMe\}/);
+  assert.match(thread, /CommunityActionIcon kind="like" active=\{item\.likedByMe\}/);
+  assert.doesNotMatch(dashboard, /CommunityActionIcon kind="like"/);
+  assert.match(thread, /tryAcquireCommunityReactionLock\(postReactionLocksRef\.current, postID\)/);
+  assert.match(thread, /tryAcquireCommunityReactionLock\(commentReactionLocksRef\.current, item\.id\)/);
+  assert.match(thread, /mergeDetailReactions/);
+  assert.doesNotMatch(thread, /setDetail\(previous\)/);
+  assert.match(styles, /\.community-action-icon\.is-active path \{ fill: currentColor; \}/);
+  assert.match(thread, /withCommunityPostReactions\(current\.post, previousReaction\)/);
+  assert.match(thread, /syncPostReactionCache\(previousReaction, kind === "bookmark" && previousReaction\.savedByMe\)/);
+  assert.match(thread, /updateCommunityPostInLists\(currentUser\.id, postID/);
+  assert.match(thread, /invalidateCommunitySavedLists\(currentUser\.id\)/);
+  assert.match(listCache, /scope\?\.accountID !== accountID/);
+  assert.match(listCache, /scope\.savedOnly && !updated\.savedByMe/);
+  assert.match(dashboard, /return \(\) => \{ requestRef\.current \+= 1; \};/);
+  assert.match(dashboard, /requestRef\.current !== requestID/);
+});
+
 test("community images open an accessible gallery with keyboard navigation", () => {
   assert.match(gallery, /role="dialog" aria-modal="true"/);
   assert.match(gallery, /ArrowLeft/);

@@ -136,7 +136,7 @@ export function CommunityPostMenu({
   </div>;
 }
 
-export function CommunityActionIcon({ kind }: { kind: "like" | "comment" | "bookmark" }) {
+export function CommunityActionIcon({ kind, active = false }: { kind: "like" | "comment" | "bookmark"; active?: boolean }) {
   const name = kind === "like" ? "heart" : kind === "comment" ? "messageCircle" : "bookmark";
-  return <CommunityIcon name={name} className="community-action-icon" />;
+  return <CommunityIcon name={name} className={`community-action-icon${active ? " is-active" : ""}`} />;
 }
