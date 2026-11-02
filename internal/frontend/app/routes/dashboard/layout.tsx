@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useRef, useState, type FormEvent, type MouseEvent as ReactMouseEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type FocusEvent as ReactFocusEvent, type FormEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { createPortal } from "react-dom";
 import { Link, Outlet, redirect, useLocation, useNavigate, useRevalidator } from "react-router";
 
 import type { Route } from "./+types/layout";
@@ -65,6 +66,58 @@ const SIDEBAR_MIN_WIDTH = 160;
 const SIDEBAR_MAX_WIDTH = 420;
 const MAX_SAVED_ACCOUNT_SESSIONS = 5;
 const HIGH_PRIORITY_RENDER_PREFETCH_KEYS = new Set(["management"]);
+
+type TooltipPlacement = { left: number; top: number };
+
+function DashboardTooltip({ label, children }: { label?: string; children: React.ReactNode }) {
+  const rootRef = useRef<HTMLSpanElement>(null);
+  const tooltipRef = useRef<HTMLSpanElement>(null);
+  const [placement, setPlacement] = useState<TooltipPlacement | null>(null);
+
+  function show(event: ReactPointerEvent<HTMLSpanElement> | ReactFocusEvent<HTMLSpanElement>) {
+    if (!label || ("pointerType" in event && event.pointerType === "touch")) return;
+    const anchor = rootRef.current?.querySelector<HTMLElement>("a, button");
+    const bounds = anchor?.getBoundingClientRect() ?? event.currentTarget.getBoundingClientRect();
+    setPlacement({ left: bounds.right + 10, top: bounds.top + bounds.height / 2 });
+  }
+
+  function hideOnPointerLeave(event: ReactPointerEvent<HTMLSpanElement>) {
+    if (event.relatedTarget instanceof Node && tooltipRef.current?.contains(event.relatedTarget)) return;
+    setPlacement(null);
+  }
+
+  function hideOnBlur(event: ReactFocusEvent<HTMLSpanElement>) {
+    if (event.relatedTarget instanceof Node && (rootRef.current?.contains(event.relatedTarget) || tooltipRef.current?.contains(event.relatedTarget))) return;
+    setPlacement(null);
+  }
+
+  useEffect(() => {
+    if (!placement) return;
+    const hide = () => setPlacement(null);
+    window.addEventListener("scroll", hide, true);
+    window.addEventListener("resize", hide);
+    return () => {
+      window.removeEventListener("scroll", hide, true);
+      window.removeEventListener("resize", hide);
+    };
+  }, [placement]);
+
+  const style = placement ? { left: placement.left, top: placement.top } satisfies CSSProperties : undefined;
+  return <span
+    className="dashboard-tooltip-anchor"
+    ref={rootRef}
+    onPointerEnter={show}
+    onPointerLeave={hideOnPointerLeave}
+    onFocus={show}
+    onBlur={hideOnBlur}
+  >
+    {children}
+    {placement && label && typeof document !== "undefined" ? createPortal(
+      <span className="dashboard-navigation-tooltip" role="tooltip" ref={tooltipRef} style={style} onPointerLeave={() => setPlacement(null)}>{label}</span>,
+      document.body,
+    ) : null}
+  </span>;
+}
 
 function getSidebarMaxWidth(viewportWidth: number) {
   return Math.max(SIDEBAR_DEFAULT_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, Math.floor(viewportWidth * 0.4)));
@@ -247,16 +300,16 @@ function SidebarSectionItem({
   onNavigate: () => void;
 }) {
   const hasBadge = (badgeCount ?? 0) > 0;
-  const title = collapsed ? `${item.label}${hasBadge ? ` · ${badgeLabel ?? `${badgeCount} 项待处理`}` : ""}` : undefined;
+  const tooltip = `${item.label}${hasBadge ? ` · ${badgeLabel ?? `${badgeCount} 项待处理`}` : ""}`;
 
   return (
+    <DashboardTooltip label={collapsed ? tooltip : undefined}>
     <Link
       to={item.href}
       prefetch={HIGH_PRIORITY_RENDER_PREFETCH_KEYS.has(item.key) ? "render" : "intent"}
       onClick={onNavigate}
       aria-label={hasBadge ? `${item.label}，${badgeLabel ?? `${badgeCount} 项待处理`}` : item.label}
       aria-current={active ? "page" : undefined}
-      title={title}
       className={`relative flex min-h-11 min-w-0 items-center gap-3 rounded-xl px-3 py-2.5 text-sm leading-5 transition-colors ${collapsed ? "justify-center px-2" : ""} ${
         active ? "dashboard-nav-link dashboard-nav-link--active" : "dashboard-nav-link"
       }`}
@@ -268,6 +321,7 @@ function SidebarSectionItem({
       <span className={`min-w-0 flex-1 truncate ${collapsed ? "sr-only" : ""}`}>{item.label}</span>
       {!collapsed && hasBadge ? <span className="dashboard-nav-badge" aria-label={badgeLabel ?? `${badgeCount} 项待处理`}>{badgeCount}</span> : null}
     </Link>
+    </DashboardTooltip>
   );
 }
 
@@ -697,17 +751,13 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
         style={{ width: isDesktopViewport ? (isSidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : sidebarWidth) : "min(84vw, 320px)" }}
         data-collapsed={isSidebarCollapsed}
       >
-        <div className={`flex shrink-0 items-center ${isSidebarCollapsed ? "h-20 flex-col justify-center gap-1 px-2" : "h-16 gap-3 px-5"}`}>
-          <Link to="/" aria-label="返回 TARSGO 官网" title="返回 TARSGO 官网" className={`flex min-w-0 items-center ${isSidebarCollapsed ? "h-8 w-full flex-none justify-center" : "flex-1"}`}>
-            <SiteLogo className={isSidebarCollapsed ? "h-7 max-w-[58px]" : "h-10 max-w-full"} />
-          </Link>
+        <div className={`flex h-16 w-full shrink-0 items-center ${isSidebarCollapsed ? "justify-center px-2" : "justify-start px-3"}`}>
           <button
             type="button"
-            className={`dashboard-shell__sidebar-toggle hidden shrink-0 place-items-center rounded-md lg:grid ${isSidebarCollapsed ? "h-7 w-8" : "h-8 w-8"}`}
+            className={`dashboard-shell__sidebar-toggle hidden h-10 w-10 shrink-0 place-items-center rounded-md lg:grid ${isSidebarCollapsed ? "mx-auto" : ""}`}
             onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
             aria-label={isSidebarCollapsed ? "展开侧边栏" : "收起侧边栏"}
             aria-expanded={!isSidebarCollapsed}
-            title={isSidebarCollapsed ? "展开侧边栏" : "收起侧边栏"}
           >
             <svg className="h-4 w-4" fill="none" viewBox="0 0 20 20" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
               {isSidebarCollapsed ? <path strokeLinecap="round" strokeLinejoin="round" d="m7 4 6 6-6 6M3 4v12" /> : <path strokeLinecap="round" strokeLinejoin="round" d="m13 4-6 6 6 6M17 4v12" />}
@@ -765,13 +815,12 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
         </nav>
 
         <div ref={userMenuRef} className={`dashboard-shell__profile-area relative border-t border-[var(--admin-border-subtle)] py-3 ${isSidebarCollapsed ? "px-2" : "px-3"}`}>
-          <button
+          <DashboardTooltip label={isSidebarCollapsed && !userMenuOpen ? `${currentUserName} · 账号菜单` : undefined}><button
             type="button"
             onClick={() => setUserMenuOpen((open) => !open)}
             aria-haspopup="menu"
             aria-expanded={userMenuOpen}
             aria-label={`${currentUserName}，打开账号菜单`}
-            title={isSidebarCollapsed ? currentUserName : undefined}
             className={`dashboard-shell__profile group w-full flex items-center gap-3 rounded-lg p-2 transition-colors ${isSidebarCollapsed ? "justify-center" : ""} ${
               userMenuOpen ? "dashboard-shell__profile--open" : ""
             }`}
@@ -802,7 +851,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
             >
               <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
             </svg>
-          </button>
+          </button></DashboardTooltip>
 
           {userMenuOpen ? (
             <div
@@ -900,6 +949,10 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
               <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
             </svg>
           </button>
+
+          <Link to="/" aria-label="返回 TARSGO 官网" className="dashboard-shell__topbar-logo inline-flex shrink-0 items-center">
+            <SiteLogo className="h-6 max-w-[88px] sm:h-7 sm:max-w-[104px]" />
+          </Link>
 
           <ThemeControl className="ml-auto" />
         </header>
