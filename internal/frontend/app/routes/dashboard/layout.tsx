@@ -28,9 +28,6 @@ import {
 } from "~/lib/auth-client";
 import { resolveDashboardAuth } from "~/lib/dashboard-auth-flow";
 import { confirmUserGroup, getUserGroupConfirmationState, type UserGroupConfirmationState } from "~/lib/user-group-client";
-import { getCandidateTodoCount } from "~/lib/admin-workbench";
-import { getAdminWorkbenchSummary } from "~/lib/registrations-client";
-import { leaveClient, subscribeLeaveSummaryChange } from "~/lib/leave-client";
 import {
   canAccessDashboardAdminPath,
   canAccessExpedition,
@@ -40,8 +37,6 @@ import {
   hasAssignmentGroupAccess,
   hasSkillGroupAccess,
   hasTechnicalGroupAccess,
-  getVisibleAdminDashboardMenu,
-  hasDashboardAdminAccess,
   isTemporarilyUnavailableDashboardPath,
   type DashboardMenuIconKey,
   type DashboardMenuLink,
@@ -52,7 +47,6 @@ export interface DashboardLayoutOutletContext {
   setPageTitle: (title: string) => void;
   groupResolution: UserGroupConfirmationState | null;
   groupResolutionError: string;
-  refreshCandidateTodoCount: (force?: boolean) => Promise<void>;
   openMyProfile: (tab?: "overview" | "settings" | "badges") => void;
   refreshAccountProfile: () => void;
   requestBadgeReplay: (levelCode: CoBuilderBadgeLevel) => void;
@@ -283,27 +277,20 @@ function SidebarSectionItem({
   item,
   active,
   compact,
-  badgeCount,
-  badgeLabel,
   onNavigate,
 }: {
   item: DashboardMenuLink;
   active: boolean;
   compact: boolean;
-  badgeCount?: number | null;
-  badgeLabel?: string;
   onNavigate: () => void;
 }) {
-  const hasBadge = (badgeCount ?? 0) > 0;
-  const tooltip = `${item.label}${hasBadge ? ` · ${badgeLabel ?? `${badgeCount} 项待处理`}` : ""}`;
-
   return (
-    <DashboardTooltip label={compact ? tooltip : undefined}>
+    <DashboardTooltip label={compact ? item.label : undefined}>
     <Link
       to={item.href}
       prefetch={HIGH_PRIORITY_RENDER_PREFETCH_KEYS.has(item.key) ? "render" : "intent"}
       onClick={onNavigate}
-      aria-label={hasBadge ? `${item.label}，${badgeLabel ?? `${badgeCount} 项待处理`}` : item.label}
+      aria-label={item.label}
       aria-current={active ? "page" : undefined}
       className={`relative flex min-h-11 min-w-0 items-center gap-3 rounded-xl px-3 py-2.5 text-sm leading-5 transition-colors ${compact ? "justify-center px-2" : ""} ${
         active ? "dashboard-nav-link dashboard-nav-link--active" : "dashboard-nav-link"
@@ -311,10 +298,8 @@ function SidebarSectionItem({
     >
       <span className={`relative flex h-[18px] w-[18px] shrink-0 items-center justify-center ${active ? "dashboard-shell__accent" : ""}`}>
         <MenuIcon iconKey={item.iconKey ?? "dashboard"} />
-        {compact && hasBadge ? <span className="dashboard-nav-badge dashboard-nav-badge--compact" aria-label={badgeLabel ?? `${badgeCount} 项待处理`}>{badgeCount}</span> : null}
       </span>
       <span className={`min-w-0 flex-1 truncate ${compact ? "sr-only" : ""}`}>{item.label}</span>
-      {!compact && hasBadge ? <span className="dashboard-nav-badge" aria-label={badgeLabel ?? `${badgeCount} 项待处理`}>{badgeCount}</span> : null}
     </Link>
     </DashboardTooltip>
   );
@@ -336,8 +321,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const [accountSessionsLoading, setAccountSessionsLoading] = useState(false);
   const [accountSessionsError, setAccountSessionsError] = useState("");
   const [accountActionError, setAccountActionError] = useState("");
-  const [candidateTodoState, setCandidateTodoState] = useState<{ userId: number; roleName: string; count: number | null } | null>(null);
-  const [leaveActionableState, setLeaveActionableState] = useState<{ userId: number; roleName: string; pendingApprovalCount: number; todoCount: number; actionableCount: number } | null>(null);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const sidebarRef = useRef<HTMLElement | null>(null);
   const sidebarTriggerRef = useRef<HTMLButtonElement | null>(null);
@@ -370,50 +353,10 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const isCommunityPostRoute = /^\/dashboard\/community\/\d+$/.test(location.pathname);
   const hasAssignmentGroup = hasAssignmentGroupAccess(groupResolution?.groups);
   const sectionMenuItems = getDashboardSectionMenu(currentUser);
-  const adminMenuItems = getVisibleAdminDashboardMenu(currentUser, hasAssignmentGroup);
-  const showAdminSection = hasDashboardAdminAccess(currentUser.role.name) && adminMenuItems.length > 0;
-  const refreshCandidateTodoCount = useCallback(async (force = false) => {
-    const userId = currentUser.id;
-    if (!hasDashboardAdminAccess(currentUser.role.name)) {
-      setCandidateTodoState(null);
-      return;
-    }
-
-    try {
-      const response = await getAdminWorkbenchSummary(userId, force);
-      setCandidateTodoState({ userId, roleName: currentUser.role.name, count: getCandidateTodoCount(response.currentFormAvailable, response.summary) });
-    } catch {
-      setCandidateTodoState({ userId, roleName: currentUser.role.name, count: null });
-    }
-  }, [currentUser.id, currentUser.role.name]);
-  const candidateTodoCount = candidateTodoState?.userId === currentUser.id && candidateTodoState.roleName === currentUser.role.name
-    ? candidateTodoState.count
-    : null;
-  const refreshLeaveActionableCount = useCallback(async () => {
-    if (!hasDashboardAdminAccess(currentUser.role.name)) {
-      setLeaveActionableState(null);
-      return;
-    }
-    try {
-      const summary = await leaveClient.schoolSummary();
-      setLeaveActionableState({ userId: currentUser.id, roleName: currentUser.role.name, pendingApprovalCount: summary.pendingApprovalCount, todoCount: summary.todoCount, actionableCount: summary.actionableCount });
-    } catch {
-      setLeaveActionableState(null);
-    }
-  }, [currentUser.id, currentUser.role.name]);
-  const currentLeaveActionableState = leaveActionableState?.userId === currentUser.id && leaveActionableState.roleName === currentUser.role.name ? leaveActionableState : null;
   const currentUserName = getAuthUserName(currentUser);
   const userInitial = (currentUserName || "U")
     .charAt(0)
     .toUpperCase();
-
-  useEffect(() => {
-    void refreshCandidateTodoCount();
-  }, [refreshCandidateTodoCount]);
-
-  useEffect(() => {
-    void refreshLeaveActionableCount();
-  }, [refreshLeaveActionableCount]);
 
   useEffect(() => {
     const revalidateAuthWhenResumed = () => {
@@ -432,32 +375,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
     };
   }, [revalidator]);
 
-  useEffect(() => {
-    if (!showAdminSection) return;
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible") void refreshCandidateTodoCount(true);
-    };
-    window.addEventListener("focus", refreshWhenVisible);
-    document.addEventListener("visibilitychange", refreshWhenVisible);
-    return () => {
-      window.removeEventListener("focus", refreshWhenVisible);
-      document.removeEventListener("visibilitychange", refreshWhenVisible);
-    };
-  }, [refreshCandidateTodoCount, showAdminSection]);
-
-  useEffect(() => {
-    if (!showAdminSection) return;
-    const refreshWhenVisible = () => {
-      if (document.visibilityState === "visible") void refreshLeaveActionableCount();
-    };
-    window.addEventListener("focus", refreshWhenVisible);
-    document.addEventListener("visibilitychange", refreshWhenVisible);
-    return () => {
-      window.removeEventListener("focus", refreshWhenVisible);
-      document.removeEventListener("visibilitychange", refreshWhenVisible);
-    };
-  }, [refreshLeaveActionableCount, showAdminSection]);
-  useEffect(() => subscribeLeaveSummaryChange(() => { void refreshLeaveActionableCount(); }), [refreshLeaveActionableCount]);
   useEffect(() => subscribeAccountSessionChange(() => {
     window.location.assign("/dashboard");
   }), []);
@@ -699,16 +616,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           <div className="space-y-1.5" role="group" aria-label="工作台分区">
             {sectionMenuItems.map((item) => {
               const isActive = getDashboardSectionKey(location.pathname, currentUser.role.name, currentUser.id) === item.key;
-              const isWorkbench = item.key === "workbench";
-              const isManagement = item.key === "management";
-              const managementCount = (candidateTodoCount ?? 0) + (currentLeaveActionableState?.actionableCount ?? 0);
-              const managementLabel = [
-                candidateTodoCount !== null ? `${candidateTodoCount} 项报名待处理` : "",
-                currentLeaveActionableState ? `请假待审批 ${currentLeaveActionableState.pendingApprovalCount} 项、待处理 ${currentLeaveActionableState.todoCount} 项` : "",
-              ].filter(Boolean).join("；");
-              const leaveLabel = currentLeaveActionableState
-                ? `待审批 ${currentLeaveActionableState.pendingApprovalCount} 项，待处理 ${currentLeaveActionableState.todoCount} 项`
-                : undefined;
               return (
                 <SidebarSectionItem
                   key={item.key}
@@ -716,8 +623,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
                   active={isActive}
                   onNavigate={handleSidebarNavigate}
                   compact={isDesktopViewport}
-                  badgeCount={isManagement ? (candidateTodoCount !== null || currentLeaveActionableState ? managementCount : null) : isWorkbench && !showAdminSection ? currentLeaveActionableState?.actionableCount : undefined}
-                  badgeLabel={isManagement ? (managementLabel || undefined) : isWorkbench ? leaveLabel : undefined}
                 />
               );
             })}
@@ -725,8 +630,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           <DashboardSectionNavigation
             currentUser={currentUser}
             hasAssignmentGroup={hasAssignmentGroup}
-            candidateTodoCount={candidateTodoCount}
-            leaveActionableCount={currentLeaveActionableState?.actionableCount ?? null}
             compact={isDesktopViewport}
             onNavigate={handleSidebarNavigate}
           />
@@ -865,7 +768,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
 
         <main className="p-4 sm:p-6 lg:p-8">
           <div className="dashboard-shell__content relative">
-            <Outlet context={{ currentUser, setPageTitle: updatePageTitle, groupResolution, groupResolutionError, refreshCandidateTodoCount, openMyProfile, refreshAccountProfile, requestBadgeReplay, profileRevision } satisfies DashboardLayoutOutletContext} />
+            <Outlet context={{ currentUser, setPageTitle: updatePageTitle, groupResolution, groupResolutionError, openMyProfile, refreshAccountProfile, requestBadgeReplay, profileRevision } satisfies DashboardLayoutOutletContext} />
           </div>
         </main>
         <CommunityExperienceToastHost key={currentUser.id} userID={currentUser.id} />

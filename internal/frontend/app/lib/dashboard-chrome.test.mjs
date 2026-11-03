@@ -7,10 +7,10 @@ const source = async (path) => readFile(new URL(path, import.meta.url), "utf8");
 test("compact sidebar labels appear beside icons on hover and keyboard focus", async () => {
   const layout = await source("../routes/dashboard/layout.tsx");
   const styles = await source("../admin-design.css");
-  assert.match(layout, /<DashboardTooltip label=\{compact \? tooltip : undefined\}>/);
-  assert.match(layout, /badgeLabel \?\? `\$\{badgeCount\} 项待处理`/);
+  assert.match(layout, /<DashboardTooltip label=\{compact \? item\.label : undefined\}>/);
   assert.doesNotMatch(layout, /sidebarCollapsed|sidebarWidth|isResizingSidebar|展开侧边栏|收起侧边栏|cursor-col-resize/);
-  assert.match(layout, /aria-label=\{hasBadge \? `\$\{item\.label\}，/);
+  assert.match(layout, /aria-label=\{item\.label\}/);
+  assert.doesNotMatch(layout, /candidateTodoCount|leaveActionableCount|managementLabel|badgeLabel/);
   assert.match(layout, /<DashboardTooltip label=\{isDesktopViewport && !userMenuOpen \? `\$\{currentUserName\} · 账号管理` : undefined\}>/);
   assert.match(layout, /dashboard-shell__user-menu-role[\s\S]*?\{currentUserName \|\| getAuthUserRoleLabel\(currentUser\)\}[\s\S]*?\{currentUser\.email\}/);
   assert.doesNotMatch(layout, />我的主页<\/button>/);

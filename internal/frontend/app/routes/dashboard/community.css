@@ -632,41 +632,48 @@
 .community-author-profile__link:hover { background: color-mix(in srgb, var(--admin-accent) 13%, var(--admin-surface)); }
 
 .community-member-page { padding-top: 0; }
-.community-member-hero { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 20px; border: 1px solid var(--admin-border-subtle); border-radius: 15px; padding: 24px; background: color-mix(in srgb, var(--admin-surface) 93%, var(--admin-accent)); }
-.community-member-hero > .community-avatar { width: 72px; height: 72px; font-size: 25px; }
+.community-member-hero { display: grid; grid-template-columns: 78px minmax(0, 1fr); align-items: start; gap: 18px; border-bottom: 1px solid var(--admin-border-subtle); padding: 21px 0 18px; }
+.community-member-hero__avatar-wrap { display: grid; align-content: start; justify-items: start; gap: 5px; }
+.community-member-hero__avatar-button { position: relative; display: block; width: 72px; height: 72px; flex: none; overflow: hidden; border: 0; border-radius: 50%; padding: 0; background: transparent; cursor: pointer; }
+.community-member-hero__avatar-button .community-avatar,.community-member-hero__avatar-wrap > .community-avatar { width: 72px; height: 72px; font-size: 25px; }
+.community-member-hero__avatar-button:focus-visible,.community-member-name-trigger:focus-visible,.community-member-bio-trigger:focus-visible { outline: 2px solid var(--admin-accent); outline-offset: 3px; }
+.community-member-hero__avatar-button:disabled { cursor: wait; }
+.community-member-hero__avatar-overlay { position: absolute; inset: 0; display: grid; place-items: center; border-radius: inherit; color: #fff; background: rgb(0 0 0 / 54%); font-size: 10px; opacity: 0; transition: opacity 120ms ease; }
+.community-member-hero__avatar-button:hover .community-member-hero__avatar-overlay,.community-member-hero__avatar-button:focus-visible .community-member-hero__avatar-overlay { opacity: 1; }
+.community-member-hero__avatar-status { color: var(--admin-muted); font-size: 9px; white-space: nowrap; }
 .community-member-hero__identity { min-width: 0; }
 .community-member-hero__name { display: flex; min-width: 0; align-items: center; flex-wrap: wrap; gap: 9px; }
-.community-member-hero__name h1 { margin: 0; color: var(--admin-text); font-size: clamp(23px, 3vw, 29px); font-weight: 640; letter-spacing: -.035em; line-height: 1.2; }
-.community-member-hero__groups { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
-.community-member-hero__groups span { border: 1px solid var(--admin-border-subtle); border-radius: 999px; padding: 4px 8px; color: var(--admin-muted); background: color-mix(in srgb, var(--admin-surface) 86%, transparent); font-size: 10px; }
-.community-member-hero__bio-row { display: flex; min-width: 0; align-items: flex-start; gap: 10px; margin-top: 12px; }
-.community-member-hero__bio-row p { min-width: 0; flex: 1; margin: 0; color: var(--admin-muted); font-size: 13px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
-.community-member-hero__bio-row p.is-empty { color: var(--admin-dim); }
-.community-member-edit-bio { min-height: 30px; flex: none; padding: 5px 8px; font-size: 11px; }
-.community-member-bio-editor { display: grid; gap: 7px; margin-top: 12px; }
-.community-member-bio-editor label { color: var(--admin-muted); font-size: 11px; font-weight: 580; }
-.community-member-bio-editor > p { margin: 0; color: var(--admin-dim); font-size: 10px; line-height: 1.5; }
-.community-member-bio-editor textarea { width: 100%; border: 1px solid var(--admin-border); border-radius: 8px; padding: 9px 10px; color: var(--admin-text); background: var(--admin-input-surface); font: inherit; font-size: 12px; line-height: 1.6; resize: vertical; }
+.community-member-hero__name h1 { min-width: 0; margin: 0; color: var(--admin-text); font-size: clamp(23px, 3vw, 29px); font-weight: 640; letter-spacing: -.035em; line-height: 1.2; }
+.community-member-name-trigger { max-width: 100%; border: 0; border-radius: 4px; padding: 0; color: inherit; background: transparent; font: inherit; letter-spacing: inherit; text-align: left; cursor: pointer; }
+.community-member-name-trigger:hover { color: var(--admin-accent-text); }
+.community-member-name-editor { display: grid; gap: 7px; }
+.community-member-name-editor input { width: min(360px, 100%); min-width: 160px; min-height: 40px; border: 1px solid var(--admin-border); border-radius: 8px; padding: 5px 9px; color: var(--admin-text); background: var(--admin-input-surface); font: inherit; font-size: 19px; letter-spacing: normal; }
+.community-member-name-editor input:focus-visible,.community-member-bio-editor textarea:focus-visible { outline: 2px solid var(--admin-accent); outline-offset: 2px; }
+.community-member-name-editor__actions { display: flex; gap: 6px; }
+.community-member-name-editor__actions .community-button,.community-member-bio-editor__actions .community-button { min-height: 32px; padding: 6px 10px; font-size: 11px; }
+.community-member-inline-error,.community-member-avatar-error { margin: 0; color: var(--theme-danger); font-size: 11px; line-height: 1.5; overflow-wrap: anywhere; }
+.community-member-avatar-error { grid-column: 1 / -1; }
+.community-member-hero__bio-row { min-width: 0; margin-top: 10px; }
+.community-member-hero__bio-row > p { margin: 0; color: var(--admin-muted); font-size: 13px; line-height: 1.65; white-space: pre-wrap; overflow-wrap: anywhere; }
+.community-member-bio-trigger { display: block; max-width: 100%; border: 0; border-radius: 5px; padding: 0; color: var(--admin-muted); background: transparent; font: inherit; font-size: 13px; line-height: 1.65; text-align: left; white-space: pre-wrap; overflow-wrap: anywhere; cursor: text; }
+.community-member-bio-trigger:hover { color: var(--admin-text); }
+.community-member-bio-trigger.is-empty { color: var(--admin-dim); }
+.community-member-bio-editor { display: grid; gap: 7px; max-width: 620px; }
+.community-member-bio-editor textarea { width: 100%; min-height: 78px; border: 1px solid var(--admin-border); border-radius: 8px; padding: 9px 10px; color: var(--admin-text); background: var(--admin-input-surface); font: inherit; font-size: 12px; line-height: 1.6; resize: vertical; }
 .community-member-bio-editor__actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; }
 .community-member-bio-editor__actions > span { margin-right: auto; color: var(--admin-dim); font-size: 10px; }
-.community-member-bio-editor__actions .community-button { min-height: 32px; padding: 6px 10px; font-size: 11px; }
-.community-member-level { display: grid; gap: 5px; margin-top: 15px; }
-.community-member-level__label { display: flex; justify-content: space-between; color: var(--admin-muted); font-size: 10px; font-weight: 600; }
+.community-member-level { display: grid; gap: 6px; max-width: 620px; margin-top: 13px; }
+.community-member-level__label { display: flex; justify-content: space-between; gap: 10px; color: var(--admin-muted); font-size: 11px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .community-member-level__track { height: 5px; overflow: hidden; border-radius: 99px; background: color-mix(in srgb, var(--admin-text) 10%, transparent); }
 .community-member-level__track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--admin-accent), var(--admin-accent-bright)); transition: width 220ms ease; }
 .community-member-level__next { color: var(--admin-dim); font-size: 10px; }
-.community-member-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-top: 14px; border: 1px solid var(--admin-border-subtle); border-radius: 12px; background: var(--admin-surface); }
-.community-member-stat { display: grid; min-height: 69px; align-content: center; justify-items: center; gap: 3px; }
-.community-member-stat + .community-member-stat { border-inline-start: 1px solid var(--admin-border-subtle); }
-.community-member-stat strong { color: var(--admin-text); font-size: 19px; font-weight: 640; font-variant-numeric: tabular-nums; }
-.community-member-stat span { color: var(--admin-dim); font-size: 10px; }
 .community-member-tabs { display: flex; min-height: 47px; align-items: stretch; gap: 24px; margin-top: 18px; border-bottom: 1px solid var(--admin-border-subtle); }
 .community-member-tabs button { position: relative; min-width: 44px; border: 0; padding: 4px 1px; color: var(--admin-muted); background: transparent; font-size: 13px; font-weight: 530; cursor: pointer; }
 .community-member-tabs button:hover { color: var(--admin-text); }
 .community-member-tabs button[aria-current="page"] { color: var(--admin-accent-text); font-weight: 630; }
 .community-member-tabs button[aria-current="page"]::after { position: absolute; right: 0; bottom: -1px; left: 0; height: 2px; border-radius: 2px 2px 0 0; background: var(--admin-accent); content: ""; }
 .community-member-loading { margin: 9px 0 0; color: var(--admin-dim); font-size: 10px; }
-.community-member-overview { display: grid; grid-template-columns: minmax(0, 1.35fr) minmax(220px, .85fr); gap: 18px; padding-top: 18px; }
+.community-member-overview { display: block; padding-top: 16px; }
 .community-member-section { min-width: 0; }
 .community-member-section > header { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 9px; }
 .community-member-section > header h2 { margin: 0; color: var(--admin-text); font-size: 14px; font-weight: 620; }
@@ -684,11 +691,7 @@
 .community-member-activity__content a:hover { color: var(--admin-accent-text); }
 .community-member-activity__content .community-featured-mark { padding: 2px 6px; font-size: 9px; }
 .community-member-activity__excerpt { display: -webkit-box; overflow: hidden; margin: 3px 0 0; color: var(--admin-dim); font-size: 10px; line-height: 1.5; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
-.community-member-featured-honor { display: flex; min-height: 104px; align-items: center; gap: 13px; border: 1px solid var(--admin-border-subtle); border-radius: 12px; padding: 14px; background: var(--admin-surface); }
-.community-member-featured-honor div { display: grid; gap: 4px; }
-.community-member-featured-honor strong { color: var(--admin-text); font-size: 13px; font-weight: 620; }
-.community-member-featured-honor span { color: var(--admin-accent-text); font-size: 11px; font-weight: 570; }
-.community-member-empty { margin: 0; border: 1px dashed var(--admin-border-subtle); border-radius: 10px; padding: 23px 12px; color: var(--admin-dim); font-size: 11px; text-align: center; }
+.community-member-empty { margin: 0; padding: 12px 0; color: var(--admin-dim); font-size: 11px; }
 .community-member-content-list { padding-top: 14px; }
 .community-member-post-item,.community-member-reply-item { border-bottom: 1px solid var(--admin-border-subtle); padding: 15px 3px; }
 .community-member-post-item__meta { display: flex; align-items: center; gap: 9px; color: var(--admin-dim); font-size: 10px; }
@@ -713,21 +716,13 @@
 .community-member-pagination button { min-height: 32px; border: 1px solid var(--admin-border-subtle); border-radius: 7px; padding: 5px 9px; color: var(--admin-muted); background: var(--admin-surface); font-size: 10px; cursor: pointer; }
 .community-member-pagination button:disabled { cursor: default; opacity: .45; }
 .community-member-badges { display: grid; gap: 12px; padding-top: 16px; }
-.community-member-badges__selection { display: flex; align-items: center; gap: 10px; }
-.community-member-settings { display: grid; gap: 18px; }
-.community-member-settings > header { border-bottom: 1px solid var(--admin-border-subtle); padding-bottom: 12px; }
-.community-member-settings > header h2 { margin: 0; color: var(--admin-text); font-size: 17px; font-weight: 650; }
-.community-member-public-settings { display: grid; gap: 9px; border: 1px solid var(--admin-border-subtle); border-radius: 12px; padding: 15px; background: var(--admin-surface); }
-.community-member-public-settings h3 { margin: 0 0 2px; color: var(--admin-text); font-size: 14px; }
-.community-member-public-settings > label,
-.community-member-public-settings__badge > label { color: var(--admin-muted); font-size: 12px; font-weight: 580; }
-.community-member-public-settings textarea { width: 100%; min-height: 96px; resize: vertical; border: 1px solid var(--admin-border); border-radius: 9px; padding: 10px 11px; color: var(--admin-text); background: var(--admin-input-surface); font: inherit; font-size: 13px; line-height: 1.6; }
-.community-member-public-settings p { margin: 0; color: var(--admin-muted); font-size: 11px; line-height: 1.55; }
-.community-member-public-settings__badge { display: grid; max-width: 420px; gap: 6px; }
-.community-member-public-settings__badge select { min-height: 40px; border: 1px solid var(--admin-border); border-radius: 9px; padding: 0 10px; color: var(--admin-text); background: var(--admin-input-surface); font: inherit; font-size: 13px; }
-.community-member-settings .community-growth { border: 1px solid var(--admin-border-subtle); border-radius: 12px; padding: 14px; }
+.community-member-badges__selection { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.community-member-badges__selection .community-member-inline-error { flex-basis: 100%; }
+.community-member-badges__edit { justify-self: start; }
+.community-member-settings { padding-top: 16px; }
+.community-member-settings > header { margin-bottom: 16px; }
+.community-member-settings > header h2 { margin: 0; color: var(--admin-text); font-size: 15px; font-weight: 620; }
 .personal-profile-settings { min-width: 0; }
-.personal-profile-settings .community-growth { border: 1px solid var(--admin-border-subtle); border-radius: 12px; padding: 14px; }
 .community-member-badges__selection label { color: var(--admin-muted); font-size: 11px; font-weight: 590; }
 .community-member-badges__selection select { min-width: 210px; min-height: 36px; border: 1px solid var(--admin-border); border-radius: 8px; padding: 5px 9px; color: var(--admin-text); background: var(--admin-input-surface); font: inherit; font-size: 11px; }
 .community-member-badge-card { display: grid; gap: 14px; border: 1px solid var(--admin-border-subtle); border-radius: 13px; padding: 17px; background: var(--admin-surface); }
@@ -767,22 +762,21 @@
   .community-post__byline { min-width: 0; flex: 0 1 auto; }
   .community-post-menu { margin-left: auto; }
   .community-post-menu__items { right: 0; }
-  .community-member-hero { grid-template-columns: 54px minmax(0, 1fr); gap: 12px; border-radius: 12px; padding: 15px 13px; }
-  .community-member-hero > .community-avatar { width: 52px; height: 52px; font-size: 18px; }
+  .community-member-hero { grid-template-columns: 54px minmax(0, 1fr); gap: 12px; padding: 15px 0; }
+  .community-member-hero__avatar-button,.community-member-hero__avatar-button .community-avatar,.community-member-hero__avatar-wrap > .community-avatar { width: 52px; height: 52px; font-size: 18px; }
   .community-member-hero__name h1 { font-size: 22px; }
-  .community-member-hero__groups { gap: 5px; margin-top: 7px; }
-  .community-member-hero__groups span { padding: 3px 6px; font-size: 9px; }
-  .community-member-overview { grid-template-columns: minmax(0, 1fr); gap: 20px; padding-top: 15px; }
-  .community-member-tabs { gap: 21px; }
+  .community-member-name-editor input { width: min(100%, 300px); min-width: 140px; font-size: 17px; }
+  .community-member-tabs { gap: 18px; overflow-x: auto; }
   .community-member-badge-card { padding: 13px; }
   .community-member-badge-card__intro { gap: 10px; }
 }
 
 @media (max-width: 380px) {
-  .community-member-hero { grid-template-columns: 44px minmax(0, 1fr); gap: 10px; padding-inline: 10px; }
-  .community-member-hero > .community-avatar { width: 42px; height: 42px; font-size: 15px; }
+  .community-member-hero { grid-template-columns: 44px minmax(0, 1fr); gap: 10px; }
+  .community-member-hero__avatar-button,.community-member-hero__avatar-button .community-avatar,.community-member-hero__avatar-wrap > .community-avatar { width: 42px; height: 42px; font-size: 15px; }
   .community-member-hero__name h1 { font-size: 20px; }
-  .community-member-tabs { gap: 15px; }
+  .community-member-name-editor input { min-width: 0; }
+  .community-member-tabs { gap: 14px; }
   .community-member-badges__selection { align-items: flex-start; flex-direction: column; }
   .community-member-badges__selection select { width: 100%; }
 }

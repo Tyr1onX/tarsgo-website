@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent, type MouseEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type FocusEvent as ReactFocusEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from "react";
 import { Link, useLocation, useNavigate, useNavigationType, useOutletContext, useParams, useSearchParams } from "react-router";
 
 import { CommunityBadgeInfo } from "~/components/community-badge-mark";
@@ -7,7 +7,6 @@ import { TeamIdentityBadge } from "~/components/community-team-identity";
 import { CoBuilderBadgeAdminPanel } from "~/components/co-builder-badge-admin-panel";
 import { CoBuilderBadgeProfile } from "~/components/co-builder-badge-profile";
 import { CommunityIcon } from "~/components/community-icons";
-import { CommunityLevelBadge } from "~/components/community-growth";
 import { CommunityAvatar } from "~/components/community-post-card";
 import { PersonalProfileSettings } from "~/components/personal-profile-settings";
 import type { CoBuilderBadgeLevel } from "~/lib/co-builder-badge-client";
@@ -20,6 +19,7 @@ import {
 import { clearCommunityLists } from "~/lib/community-list-cache";
 import { useDeferredCommunityScrollRestoration } from "~/lib/community-scroll-restoration";
 import { communityCategoryLabel, communityClient, formatCommunityDate } from "~/lib/community-client";
+import { updateProfile } from "~/lib/auth-client";
 import { stripCommunityMarkdown } from "~/lib/community-markdown";
 import "./community.css";
 
@@ -28,13 +28,13 @@ const tabs = [
   { id: "posts", label: "帖子" },
   { id: "replies", label: "回复" },
   { id: "badges", label: "徽章" },
-  { id: "settings", label: "资料设置" },
   { id: "management", label: "成员管理" },
 ] as const;
 
-type ProfileTab = (typeof tabs)[number]["id"];
+type ProfileTab = (typeof tabs)[number]["id"] | "settings";
 
 function profileTab(value: string | null): ProfileTab {
+  if (value === "settings") return value;
   return tabs.some((tab) => tab.id === value) ? (value as ProfileTab) : "overview";
 }
 
@@ -49,7 +49,7 @@ export default function CommunityMemberProfileRoute() {
   const navigate = useNavigate();
   const navigationType = useNavigationType();
   const [searchParams] = useSearchParams();
-  const { currentUser, groupResolution, profileRevision, refreshAccountProfile, requestBadgeReplay } = useOutletContext<DashboardLayoutOutletContext>();
+  const { currentUser, refreshAccountProfile, requestBadgeReplay } = useOutletContext<DashboardLayoutOutletContext>();
   const tab = profileTab(searchParams.get("tab"));
   const page = Math.max(1, Number(searchParams.get("page")) || 1);
   const [result, setResult] = useState<CommunityMemberProfileResult | null>(null);
@@ -57,10 +57,23 @@ export default function CommunityMemberProfileRoute() {
   const [error, setError] = useState("");
   const [editingBio, setEditingBio] = useState(false);
   const [bioDraft, setBioDraft] = useState("");
+  const [bioError, setBioError] = useState("");
+  const [bioSaving, setBioSaving] = useState(false);
+  const [editingName, setEditingName] = useState(false);
+  const [nameDraft, setNameDraft] = useState("");
+  const [nameError, setNameError] = useState("");
+  const [nameSaving, setNameSaving] = useState(false);
+  const [avatarError, setAvatarError] = useState("");
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [editingFeaturedBadge, setEditingFeaturedBadge] = useState(false);
   const [selectedBadge, setSelectedBadge] = useState("");
-  const [saving, setSaving] = useState(false);
+  const [badgeError, setBadgeError] = useState("");
+  const [badgeSaving, setBadgeSaving] = useState(false);
   const [featureAction, setFeatureAction] = useState<string | null>(null);
   const [notice, setNotice] = useState("");
+  const skipNameBlurRef = useRef(false);
+  const nameSaveLockRef = useRef(false);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
   const returnTarget = (location.state as { communityProfileReturnTo?: unknown } | null)?.communityProfileReturnTo;
   const hasReturnLocation = typeof returnTarget === "string" && (returnTarget === "/dashboard" || returnTarget.startsWith("/dashboard/") || returnTarget.startsWith("/dashboard?"));
   const returnTo = hasReturnLocation ? returnTarget : "/dashboard";
@@ -82,8 +95,15 @@ export default function CommunityMemberProfileRoute() {
     communityMemberProfileClient.get(memberID, apiTab, tab === "settings" ? 1 : page).then((next) => {
       if (!active) return;
       setResult(next);
+      setNameDraft(next.member.displayName);
       setBioDraft(next.member.bio);
       setSelectedBadge(next.member.featuredBadgeKey ?? "");
+      setEditingName(false);
+      setEditingBio(false);
+      setEditingFeaturedBadge(false);
+      setNameError("");
+      setBioError("");
+      setBadgeError("");
       if ((tab === "settings" && (next.member.id !== currentUser.id || !next.member.isSelf)) || (tab === "management" && !isSuperAdmin)) {
         const params = new URLSearchParams(location.search);
         params.delete("tab");
@@ -97,7 +117,7 @@ export default function CommunityMemberProfileRoute() {
       if (active) setLoading(false);
     });
     return () => { active = false; };
-  }, [memberID, tab, page, currentUser.id, isSuperAdmin, profileRevision]);
+  }, [memberID, tab, page, currentUser.id, isSuperAdmin]);
 
   function changeTab(next: ProfileTab, nextPage = 1) {
     const params = new URLSearchParams(location.search);
@@ -109,23 +129,143 @@ export default function CommunityMemberProfileRoute() {
     navigate(`${location.pathname}${query ? `?${query}` : ""}`, { state: location.state, preventScrollReset: true });
   }
 
-  async function savePublicProfile(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!result || saving) return;
-    setSaving(true);
-    setError("");
-    setNotice("");
+  async function saveBio() {
+    if (!result || bioSaving) return;
+    setBioSaving(true);
+    setBioError("");
     try {
-      await communityMemberProfileClient.updateMine({ bio: bioDraft, featuredBadgeKey: selectedBadge });
-      const next = await communityMemberProfileClient.get(memberID, "badges", 1);
-      setResult(next);
-      setBioDraft(next.member.bio);
-      setSelectedBadge(next.member.featuredBadgeKey ?? "");
-      setNotice("公开资料已更新。");
+      const updated = await communityMemberProfileClient.updateMine({ bio: bioDraft, featuredBadgeKey: member.featuredBadgeKey ?? "" });
+      setResult((current) => current ? { ...current, member: updated.member, badges: updated.badges ?? current.badges } : updated);
+      setBioDraft(updated.member.bio);
+      setEditingBio(false);
+      clearCommunityLists();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "公开资料保存失败，请稍后重试。");
+      setBioError(cause instanceof Error ? cause.message : "个人介绍保存失败，请稍后重试。");
     } finally {
-      setSaving(false);
+      setBioSaving(false);
+    }
+  }
+
+  function cancelBioEdit() {
+    setBioDraft(member.bio);
+    setBioError("");
+    setEditingBio(false);
+  }
+
+  function handleBioKeyDown(event: ReactKeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key === "Escape") {
+      event.preventDefault();
+      cancelBioEdit();
+    } else if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      void saveBio();
+    }
+  }
+
+  async function saveName() {
+    if (!result || nameSaveLockRef.current) return;
+    const nextName = nameDraft.trim();
+    if (!isChineseRealName(nextName)) {
+      setNameError("姓名需为 1 至 100 个汉字。");
+      return;
+    }
+    if (nextName === member.displayName) {
+      setNameError("");
+      setEditingName(false);
+      return;
+    }
+
+    nameSaveLockRef.current = true;
+    setNameSaving(true);
+    setNameError("");
+    try {
+      const updatedUser = await updateProfile({ realName: nextName, phone: currentUser.phone ?? "", avatar: null });
+      const savedName = updatedUser.realName?.trim() ?? nextName;
+      setResult((current) => current ? { ...current, member: { ...current.member, displayName: savedName } } : current);
+      setNameDraft(savedName);
+      setEditingName(false);
+      clearCommunityLists();
+      refreshAccountProfile();
+    } catch (cause) {
+      setNameError(cause instanceof Error ? cause.message : "姓名保存失败，请稍后重试。");
+    } finally {
+      nameSaveLockRef.current = false;
+      setNameSaving(false);
+    }
+  }
+
+  function cancelNameEdit() {
+    skipNameBlurRef.current = true;
+    setNameDraft(member.displayName);
+    setNameError("");
+    setEditingName(false);
+  }
+
+  function handleNameBlur(event: ReactFocusEvent<HTMLSpanElement>) {
+    if (skipNameBlurRef.current) {
+      skipNameBlurRef.current = false;
+      return;
+    }
+    if (event.relatedTarget instanceof Node && event.currentTarget.contains(event.relatedTarget)) return;
+    void saveName();
+  }
+
+  function handleNameKeyDown(event: ReactKeyboardEvent<HTMLInputElement>) {
+    if (event.key === "Enter") {
+      event.preventDefault();
+      void saveName();
+    } else if (event.key === "Escape") {
+      event.preventDefault();
+      cancelNameEdit();
+    }
+  }
+
+  async function uploadAvatar(file: File) {
+    setAvatarUploading(true);
+    setAvatarError("");
+    try {
+      const updatedUser = await updateProfile({ realName: member.displayName.trim(), phone: currentUser.phone ?? "", avatar: file });
+      const avatarUrl = updatedUser.avatarUrl?.trim() || undefined;
+      setResult((current) => current ? { ...current, member: { ...current.member, displayName: updatedUser.realName?.trim() ?? current.member.displayName, avatarUrl } } : current);
+      clearCommunityLists();
+      refreshAccountProfile();
+    } catch (cause) {
+      setAvatarError(cause instanceof Error ? cause.message : "头像上传失败，请稍后重试。");
+    } finally {
+      setAvatarUploading(false);
+    }
+  }
+
+  function handleAvatarChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.currentTarget.files?.[0] ?? null;
+    event.currentTarget.value = "";
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      setAvatarError("头像不能超过 2 MB。");
+      return;
+    }
+    if (!["image/jpeg", "image/png"].includes(file.type)) {
+      setAvatarError("头像仅支持 JPG 或 PNG。");
+      return;
+    }
+    void uploadAvatar(file);
+  }
+
+  async function saveFeaturedBadge(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!result || badgeSaving) return;
+    setBadgeSaving(true);
+    setBadgeError("");
+    try {
+      const updated = await communityMemberProfileClient.updateMine({ bio: member.bio, featuredBadgeKey: selectedBadge });
+      setResult((current) => current ? { ...current, member: updated.member, badges: updated.badges ?? current.badges } : updated);
+      setSelectedBadge(updated.member.featuredBadgeKey ?? "");
+      setEditingFeaturedBadge(false);
+      clearCommunityLists();
+    } catch (cause) {
+      setBadgeError(cause instanceof Error ? cause.message : "代表徽章保存失败，请稍后重试。");
+    } finally {
+      setBadgeSaving(false);
     }
   }
 
@@ -168,7 +308,7 @@ export default function CommunityMemberProfileRoute() {
   if (loading && !result) return <section className="admin-design community-page"><p className="community-state" role="status">正在读取成员主页…</p></section>;
   if (!result) return <section className="admin-design community-page"><p className="community-state community-state--error" role="alert">{error || "成员主页不存在。"}</p><Link className="community-thread__back" to={returnTo} onClick={returnToSource}><CommunityIcon name="arrowLeft" />返回</Link></section>;
 
-  const { member, stats } = result;
+  const { member } = result;
   const isSelf = member.isSelf && member.id === currentUser.id;
   const visibleBadges = result.badges ?? [];
   const postHrefState = { communityReturnTo: currentPath };
@@ -179,54 +319,68 @@ export default function CommunityMemberProfileRoute() {
     {error ? <p className="community-state community-state--error" role="alert">{error}</p> : null}
 
     <header className="community-member-hero">
-      <CommunityAvatar name={member.displayName} src={member.avatarUrl} />
+      <div className="community-member-hero__avatar-wrap">
+        {isSelf ? <>
+          <button type="button" className="community-member-hero__avatar-button" aria-label="更换头像" aria-controls="community-member-avatar-file" disabled={avatarUploading} onClick={() => avatarInputRef.current?.click()}>
+            <CommunityAvatar name={member.displayName} src={member.avatarUrl} />
+            <span className="community-member-hero__avatar-overlay" aria-hidden="true">{avatarUploading ? "上传中…" : "更换"}</span>
+          </button>
+          <input ref={avatarInputRef} id="community-member-avatar-file" className="sr-only" type="file" accept="image/png,image/jpeg" tabIndex={-1} disabled={avatarUploading} onChange={handleAvatarChange} />
+          {avatarUploading ? <span className="community-member-hero__avatar-status" role="status">正在更新头像…</span> : null}
+        </> : <CommunityAvatar name={member.displayName} src={member.avatarUrl} />}
+      </div>
       <div className="community-member-hero__identity">
-        <div className="community-member-hero__name"><h1 id="community-member-title">{member.displayName}</h1><TeamIdentityBadge status={member.teamIdentityStatus} /><CommunityLevelBadge level={member.level.level} />{member.featuredBadge ? <CommunityBadgeInfo badge={member.featuredBadge} size={24} /> : null}</div>
-        <div className="community-member-hero__groups">
-          {member.groups.map((group) => <span key={`${group.name}-${group.role}`}>{group.name} · {group.role}</span>)}
-          {member.positions.map((position) => <span key={position.id}>{position.title}</span>)}
-          {member.teamJoinedAt ? <span>加入战队 {formatLongDate(member.teamJoinedAt)}</span> : null}
+        <div className="community-member-hero__name">
+          <h1 id="community-member-title">
+            {editingName ? <span className="community-member-name-editor" onBlur={handleNameBlur}>
+              <input type="text" autoComplete="name" autoFocus required maxLength={100} aria-label="姓名" value={nameDraft} disabled={nameSaving} onChange={(event) => setNameDraft(event.target.value)} onKeyDown={handleNameKeyDown} />
+              <span className="community-member-name-editor__actions">
+                <button type="button" className="community-button community-button--primary" disabled={nameSaving} onClick={() => void saveName()}>{nameSaving ? "保存中…" : "保存"}</button>
+                <button type="button" className="community-button community-button--quiet" disabled={nameSaving} onClick={cancelNameEdit}>取消</button>
+              </span>
+              {nameError ? <span className="community-member-inline-error" role="alert">{nameError}</span> : null}
+            </span> : isSelf ? <button type="button" className="community-member-name-trigger" aria-label="编辑姓名" onClick={() => { skipNameBlurRef.current = false; setNameDraft(member.displayName); setNameError(""); setEditingName(true); }}>{member.displayName}</button> : member.displayName}
+          </h1>
+          <TeamIdentityBadge status={member.teamIdentityStatus} />
         </div>
         <div className="community-member-hero__bio-row">
-          <p className={member.bio ? "" : "is-empty"}>{member.bio || (member.isSelf ? "添加一段个人介绍" : "暂无个人介绍")}</p>
-          {isSelf ? <button type="button" className="community-button community-button--quiet community-member-edit-bio" onClick={() => changeTab("settings")}>编辑资料</button> : null}
+          {editingBio ? <div className="community-member-bio-editor">
+            <textarea aria-label="个人介绍" autoFocus maxLength={160} rows={3} value={bioDraft} disabled={bioSaving} onChange={(event) => setBioDraft(event.target.value)} onKeyDown={handleBioKeyDown} />
+            <div className="community-member-bio-editor__actions">
+              <span>{Array.from(bioDraft).length}/160</span>
+              <button type="button" className="community-button community-button--primary" disabled={bioSaving} onClick={() => void saveBio()}>{bioSaving ? "保存中…" : "保存"}</button>
+              <button type="button" className="community-button community-button--quiet" disabled={bioSaving} onClick={cancelBioEdit}>取消</button>
+            </div>
+            {bioError ? <p className="community-member-inline-error" role="alert">{bioError}</p> : null}
+          </div> : isSelf ? <button type="button" className={`community-member-bio-trigger${member.bio ? "" : " is-empty"}`} aria-label="编辑个人介绍" onClick={() => { setBioDraft(member.bio); setBioError(""); setEditingBio(true); }}>{member.bio || "添加一段个人介绍"}</button> : member.bio ? <p>{member.bio}</p> : null}
         </div>
-        <div className="community-member-level" aria-label={`社区等级 Lv.${member.level.level}，经验进度 ${Math.round(member.level.progress * 100)}%`}>
-          <div className="community-member-level__label"><span>Lv.{member.level.level}</span><span>{member.level.totalXp.toLocaleString("zh-CN")} XP</span></div>
-          <div className="community-member-level__track"><span style={{ width: `${Math.round(member.level.progress * 100)}%` }} /></div>
+        <div className="community-member-level" aria-label={`社区等级 Lv.${member.level.level}，总经验 ${member.level.totalXp} XP，距离下一级还差 ${Math.max(0, member.level.xpToNextLevel)} XP`}>
+          <div className="community-member-level__label"><span>社区等级 Lv.{member.level.level}</span><span>{member.level.totalXp.toLocaleString("zh-CN")} XP</span></div>
+          <div className="community-member-level__track" role="progressbar" aria-label="升级进度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(member.level.progress * 100)}><span style={{ width: `${Math.round(member.level.progress * 100)}%` }} /></div>
           <span className="community-member-level__next">距离 Lv.{member.level.level + 1} 还差 {Math.max(0, member.level.xpToNextLevel).toLocaleString("zh-CN")} XP</span>
         </div>
       </div>
+      {avatarError ? <p className="community-member-avatar-error" role="alert">{avatarError}</p> : null}
     </header>
 
-    <section className="community-member-stats" aria-label="社区活动统计">
-      <Stat label="帖子" value={stats.postCount} />
-      <Stat label="回复" value={stats.replyCount} />
-      <Stat label="获赞" value={stats.likeCount} />
-    </section>
-
-    <nav className="community-member-tabs" aria-label="成员主页栏目">
-      {tabs.filter((item) => (item.id !== "settings" || isSelf) && (item.id !== "management" || isSuperAdmin)).map((item) => <button key={item.id} type="button" aria-current={tab === item.id ? "page" : undefined} onClick={() => changeTab(item.id)}>{item.label}</button>)}
-    </nav>
+    {tab !== "settings" ? <nav className="community-member-tabs" aria-label="成员主页栏目">
+      {tabs.filter((item) => item.id !== "management" || isSuperAdmin).map((item) => <button key={item.id} type="button" aria-current={tab === item.id ? "page" : undefined} onClick={() => changeTab(item.id)}>{item.label}</button>)}
+    </nav> : null}
     {loading ? <p className="community-member-loading" role="status">正在更新内容…</p> : null}
     {notice ? <p className="community-state" role="status">{notice}</p> : null}
     {error ? <p className="community-state community-state--error" role="alert">{error}</p> : null}
 
     {tab === "overview" ? <div className="community-member-overview">
-      <section className="community-member-section" aria-labelledby="community-member-activity-title">
+      {result.activities?.length ? <section className="community-member-section" aria-labelledby="community-member-activity-title">
         <header><h2 id="community-member-activity-title">近期活动</h2></header>
-        {result.activities?.length ? <ol className="community-member-activity">{result.activities.map((activity) => <li key={`${activity.kind}-${activity.id}`}>
+        <ol className="community-member-activity">{result.activities.map((activity) => <li key={`${activity.kind}-${activity.id}`}>
           <span className="community-member-activity__marker"><CommunityIcon name={activity.kind === "post" ? "messageCircle" : "cornerDownRight"} /></span>
           <div><p><strong>{activity.kind === "post" ? "发布了帖子" : "回复了讨论"}</strong><time dateTime={activity.createdAt}>{formatCommunityDate(activity.createdAt)}</time></p>
             <div className="community-member-activity__content"><Link to={activity.href} state={postHrefState}>{activity.title || activity.body}</Link><CommunityFeaturedMark featured={activity.isFeatured} /></div>
             {activity.title ? <p className="community-member-activity__excerpt">{stripCommunityMarkdown(activity.body)}</p> : null}
           </div>
-        </li>)}</ol> : <EmptyState>还没有可展示的社区活动</EmptyState>}
-      </section>
-      <section className="community-member-section" aria-labelledby="community-member-honors-title">
-        <header><h2 id="community-member-honors-title">代表荣誉</h2><button type="button" className="community-inline-link" onClick={() => changeTab("badges")}>全部徽章</button></header>
-        {member.featuredBadge ? <div className="community-member-featured-honor"><CommunityBadgeInfo badge={member.featuredBadge} size={54} /><div><strong>{member.featuredBadge.name}</strong><span>{member.featuredBadge.levelLabel}</span></div></div> : <EmptyState>尚未获得徽章</EmptyState>}
-      </section>
+        </li>)}</ol>
+      </section> : null}
     </div> : null}
 
     {tab === "posts" ? <section className="community-member-section community-member-content-list" aria-label="成员发布的帖子">
@@ -250,32 +404,27 @@ export default function CommunityMemberProfileRoute() {
     </section> : null}
 
     {tab === "badges" ? <section className="community-member-badges" aria-label="已获得的徽章">
+      {isSelf ? editingFeaturedBadge ? <form className="community-member-badges__selection" onSubmit={(event) => void saveFeaturedBadge(event)}>
+        <label htmlFor="community-featured-badge">代表徽章</label>
+        <select id="community-featured-badge" value={selectedBadge} disabled={badgeSaving} onChange={(event) => setSelectedBadge(event.target.value)}>
+          <option value="">自动选择最高等级</option>{currentlyEarnedBadges.map((badge) => <option key={badge.key} value={badge.key}>{badge.name} · {badge.levelLabel}</option>)}
+        </select>
+        <button type="submit" className="community-button community-button--primary" disabled={badgeSaving}>{badgeSaving ? "保存中…" : "保存"}</button>
+        <button type="button" className="community-button community-button--quiet" disabled={badgeSaving} onClick={() => { setSelectedBadge(member.featuredBadgeKey ?? ""); setBadgeError(""); setEditingFeaturedBadge(false); }}>取消</button>
+        {badgeError ? <p className="community-member-inline-error" role="alert">{badgeError}</p> : null}
+      </form> : <button type="button" className="community-inline-link community-member-badges__edit" onClick={() => { setSelectedBadge(member.featuredBadgeKey ?? ""); setBadgeError(""); setEditingFeaturedBadge(true); }}>设置代表徽章</button> : null}
       {isSelf ? <CoBuilderBadgeProfile onReplay={(level: CoBuilderBadgeLevel) => requestBadgeReplay(level)} /> : null}
       {visibleBadges.length ? visibleBadges.map((badge) => <BadgeCard key={badge.key} badge={badge} featured={member.featuredBadge?.key === badge.key} />) : <EmptyState>{loading ? "" : "还没有获得徽章"}</EmptyState>}
     </section> : null}
     {tab === "settings" && isSelf ? <section className="community-member-section community-member-settings" aria-labelledby="community-member-settings-title">
-      <header><h2 id="community-member-settings-title">资料设置</h2></header>
-      <form className="community-member-public-settings" onSubmit={(event) => void savePublicProfile(event)}>
-        <h3>公开资料</h3>
-        <label htmlFor="community-member-bio">个人简介</label>
-        <textarea id="community-member-bio" value={bioDraft} onChange={(event) => setBioDraft(event.target.value)} maxLength={160} rows={4} />
-        <p>简介和代表徽章会展示给社区成员。组别、职位和战队身份由权威资料维护。</p>
-        <div className="community-member-public-settings__badge"><label htmlFor="community-featured-badge">代表徽章</label><select id="community-featured-badge" value={selectedBadge} disabled={saving} onChange={(event) => setSelectedBadge(event.target.value)}>
-          <option value="">自动选择最高等级</option>{currentlyEarnedBadges.map((badge) => <option key={badge.key} value={badge.key}>{badge.name} · {badge.levelLabel}</option>)}
-        </select></div>
-        <div className="community-member-bio-editor__actions"><span>{Array.from(bioDraft).length}/160</span><button type="submit" className="community-button community-button--primary" disabled={saving}>{saving ? "保存中…" : "保存公开资料"}</button></div>
-      </form>
-      <PersonalProfileSettings user={currentUser} groups={groupResolution?.groups.map((group) => group.name) ?? []} onSaved={refreshAccountProfile} />
+      <header><h2 id="community-member-settings-title">其他设置</h2></header>
+      <PersonalProfileSettings user={currentUser} />
     </section> : null}
     {tab === "management" && isSuperAdmin ? <section className="community-member-section community-member-admin" aria-labelledby="community-member-admin-title">
       <header><h2 id="community-member-admin-title">成员管理</h2></header>
       <CoBuilderBadgeAdminPanel userId={member.id} onUpdated={() => void refreshManagedMember()} />
     </section> : null}
   </section>;
-}
-
-function Stat({ label, value }: { label: string; value: number }) {
-  return <div className="community-member-stat"><strong>{value.toLocaleString("zh-CN")}</strong><span>{label}</span></div>;
 }
 
 function EmptyState({ children }: { children: string }) {
@@ -308,4 +457,9 @@ function formatLongDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "";
   return new Intl.DateTimeFormat("zh-CN", { year: "numeric", month: "long", day: "numeric" }).format(date);
+}
+
+function isChineseRealName(value: string) {
+  const characters = [...value];
+  return characters.length >= 1 && characters.length <= 100 && characters.every((character) => /\p{Script=Han}/u.test(character));
 }

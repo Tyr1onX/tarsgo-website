@@ -214,7 +214,7 @@ export default function TimeCoordinationPage() {
             </div>)}
           </div>
           {result.totalCount === 0 ? <p role="status" className="admin-notice admin-notice--neutral mb-3">组内暂无可统计成员。</p> : result.importedCount === 0 ?
-            <p role="status" className="admin-notice admin-notice--warning mb-3">当前学期没有有效课表，无法统计无课程冲突人数。请成员在「我的主页 → 资料设置 → 课程时间」重新导入课表。</p> : result.missingCount > 0 ?
+            <p role="status" className="admin-notice admin-notice--warning mb-3">当前学期没有有效课表，无法统计无课程冲突人数。请成员通过「课程时间」重新导入课表。</p> : result.missingCount > 0 ?
             <p role="status" className="admin-notice admin-notice--warning mb-3">无课程冲突人数只按有效课表成员统计，数据缺失成员不会计入无课程冲突。</p> : null}
           <div className="availability-heatmap__scroll">
               <div className="availability-heatmap__grid">
