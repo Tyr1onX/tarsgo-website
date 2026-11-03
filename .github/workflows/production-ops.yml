@@ -59,3 +59,36 @@ jobs:
           name: tarsgo-production-release
           path: dist/production-release/
           if-no-files-found: error
+
+  publish-production-release:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: verify
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      contents: write
+    steps:
+      - name: Download verified production release
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: tarsgo-production-release
+          path: dist/production-release
+      - name: Package production release archive
+        run: |
+          tar -czf dist/tarsgo-production-release.tar.gz -C dist/production-release \
+            Dockerfile SHA256SUMS commit.txt tarsgo-backend-linux-amd64 tarsgo-migrate-linux-amd64
+      - name: Publish public production release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if ! gh release view production-artifacts --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release create production-artifacts \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --prerelease \
+              --title "Production build artifact" \
+              --notes "由 production-ops.yml 自动更新。部署前会校验构建提交和 SHA-256。"
+          fi
+          gh release upload production-artifacts dist/tarsgo-production-release.tar.gz \
+            --repo "$GITHUB_REPOSITORY" --clobber
