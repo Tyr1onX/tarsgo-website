@@ -21,7 +21,18 @@ const noResponsiveHomeImage = {
   imageSizes: undefined as string | undefined,
 };
 
-const homeNavigationModules = [
+type HomeNavigationModule = {
+  title: string;
+  description: string;
+  href: string;
+  placement: string;
+  image?: string;
+  imageSrcSet?: string;
+  imageSizes?: string;
+  alt?: string;
+};
+
+const homeNavigationModules: HomeNavigationModule[] = [
   {
     title: "认识吉甲",
     description: "从训练日常和团队文化，认识工程实践如何走进赛场。",
@@ -49,6 +60,18 @@ const homeNavigationModules = [
     ...noResponsiveHomeImage,
     alt: "队员围绕笔记本和工程模型交流。",
     placement: "home-visual-card--join",
+  },
+  {
+    title: "吉甲社区",
+    description: "分享想法，交流经验，找到同行的人。",
+    href: "/dashboard",
+    placement: "home-visual-card--cocreation home-visual-card--community",
+  },
+  {
+    title: "AI 沙龙",
+    description: "从一个想法开始，一起做出作品。",
+    href: "/programs/ai-salon",
+    placement: "home-visual-card--cocreation home-visual-card--salon",
   },
   {
     title: "赛事与荣誉",
@@ -107,33 +130,37 @@ function HomeVisualCard({
   return (
     <Link
       to={module.href}
-      prefetch="viewport"
+      prefetch={module.image ? "viewport" : "intent"}
       className={`home-visual-card ${module.placement}`}
       aria-label={`${module.title}：${module.description}`}
-      data-sand-mode={imageTreatment}
-      data-sand-phase={imageTreatment ? phase : undefined}
+      data-sand-mode={module.image ? imageTreatment : undefined}
+      data-sand-phase={module.image && imageTreatment ? phase : undefined}
     >
-      <img
-        ref={imageRef}
-        src={module.image}
-        srcSet={module.imageSrcSet}
-        sizes={module.imageSizes}
-        alt={module.alt}
-        loading="lazy"
-        decoding="async"
-      />
-      {imageTreatment ? (
-        <HomeSandRevealLayer
-          imageRef={imageRef}
-          mode={imageTreatment}
-          started={started}
-          replayToken={replayToken}
-          staggerMs={staggerMs}
-          frameOverride={frameOverride}
-          onPhaseChange={setPhase}
-        />
+      {module.image ? (
+        <>
+          <img
+            ref={imageRef}
+            src={module.image}
+            srcSet={module.imageSrcSet}
+            sizes={module.imageSizes}
+            alt={module.alt}
+            loading="lazy"
+            decoding="async"
+          />
+          {imageTreatment ? (
+            <HomeSandRevealLayer
+              imageRef={imageRef}
+              mode={imageTreatment}
+              started={started}
+              replayToken={replayToken}
+              staggerMs={staggerMs}
+              frameOverride={frameOverride}
+              onPhaseChange={setPhase}
+            />
+          ) : null}
+          <span className="home-visual-card-shade" aria-hidden="true" />
+        </>
       ) : null}
-      <span className="home-visual-card-shade" aria-hidden="true" />
       <div className="home-visual-card-copy">
         <h3>{module.title}</h3>
         <p>{module.description}</p>
@@ -210,7 +237,7 @@ export function HomeVisualNavigation({
               imageTreatment={imageTreatment}
               started={hasEntered || frameOverride !== undefined}
               replayToken={replayToken}
-              staggerMs={index * 105}
+              staggerMs={(index > 4 ? index - 2 : index) * 105}
               frameOverride={frameOverride}
             />
           ))}

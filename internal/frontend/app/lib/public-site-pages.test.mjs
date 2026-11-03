@@ -115,9 +115,18 @@ test("topic content keeps the five group definitions, dedicated about page, and 
   assert.match(joinExperience, /memberGrowthStages\.map/);
 });
 
-test("the homepage uses six image-led routes, preserves legacy hashes, and keeps reduced-motion video behavior", () => {
-  const modules = homeVisualNavigation.match(/const homeNavigationModules = \[([\s\S]*?)\n\];/)?.[1] ?? "";
-  assert.equal((modules.match(/title: /g) ?? []).length, 6);
+test("the homepage keeps six photos around two co-creation entries and preserves legacy navigation", () => {
+  const modules = homeVisualNavigation.match(/const homeNavigationModules: HomeNavigationModule\[\] = \[([\s\S]*?)\n\];/)?.[1] ?? "";
+  assert.deepEqual(Array.from(modules.matchAll(/title: "([^"]+)"/g), ([, title]) => title), [
+    "认识吉甲", "机器人展示", "加入吉甲", "吉甲社区", "AI 沙龙", "赛事与荣誉", "团队历程", "低空微专业",
+  ]);
+  assert.equal((modules.match(/image: /g) ?? []).length, 6);
+  assert.equal((modules.match(/href: "\/dashboard"/g) ?? []).length, 1);
+  assert.equal((modules.match(/href: "\/programs\/ai-salon"/g) ?? []).length, 1);
+  assert.match(modules, /分享想法，交流经验，找到同行的人。/);
+  assert.match(modules, /从一个想法开始，一起做出作品。/);
+  assert.match(homeVisualNavigation, /prefetch=\{module\.image \? "viewport" : "intent"\}/);
+  assert.match(routes, /route\("programs\/ai-salon",/);
   assert.doesNotMatch(home, /25 张荣誉证书原图/);
   for (const path of ["/about", "/robots", "/join", "/events-and-honors", "/team-history", "/micro-specialties/low-altitude-intelligent-sensing-control"]) {
     assert.ok(modules.includes(`href: "${path}"`), `missing homepage route ${path}`);
@@ -143,7 +152,7 @@ test("the homepage uses six image-led routes, preserves legacy hashes, and keeps
 });
 
 test("large homepage photos use content-hashed responsive WebP candidates without replacing the original photos", async () => {
-  const modules = homeVisualNavigation.match(/const homeNavigationModules = \[([\s\S]*?)\n\];/)?.[1] ?? "";
+  const modules = homeVisualNavigation.match(/const homeNavigationModules: HomeNavigationModule\[\] = \[([\s\S]*?)\n\];/)?.[1] ?? "";
   const candidates = [
     ["about", "381e0fa8", "8e5963df"],
     ["events", "a0240c86", "0a9ecfa8"],
@@ -169,6 +178,8 @@ test("large homepage photos use content-hashed responsive WebP candidates withou
   assert.match(modules, /href: "\/robots"[\s\S]*?image: "\/assets\/images\/Robot\/hero-robot\.webp"[\s\S]*?\.\.\.noResponsiveHomeImage/);
   assert.match(modules, /image: "\/assets\/images\/ContestMoment\/contest-moment-02\.webp"/);
   assert.match(modules, /image: "\/assets\/images\/Robot\/aerial-robots\.webp"/);
+  assert.match(modules, /image: "\/assets\/images\/Daily\/daily-02\.webp"/);
+  assert.match(modules, /image: "\/assets\/images\/Milestone\/2019-breakthrough\.webp"/);
 });
 
 test("公开基地入口已移除，旧链接只导向登录或统一工作台", () => {
@@ -205,36 +216,43 @@ test("公开基地入口已移除，旧链接只导向登录或统一工作台",
   assert.doesNotMatch(basePage, /BASE<br \/>01|A PLACE FOR ORDINARY DAYS|TX \/ 01/);
 });
 
-test("the homepage restores its historic photo collage across tablet and desktop widths", () => {
+test("the homepage preserves photo proportions and inserts a shorter equal-width co-creation row", () => {
   const desktopGrid = styles.match(/@media \(min-width: 1024px\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
   const tabletGrid = styles.match(/@media \(min-width: 768px\) and \(max-width: 1023px\) \{([\s\S]*?)\n\}/)?.[1] ?? "";
   assert.match(desktopGrid, /grid-template-columns: repeat\(4, minmax\(0, 1fr\)\)/);
-  assert.match(desktopGrid, /grid-template-rows: repeat\(2, clamp\(17\.5rem, 21vw, 20rem\)\)/);
+  assert.match(desktopGrid, /--home-photo-height: clamp\(17\.5rem, 21vw, 20rem\)/);
+  for (const grid of [desktopGrid, tabletGrid]) {
+    assert.match(grid, /grid-template-rows: var\(--home-photo-height\) calc\(var\(--home-photo-height\) \* 0\.7\) var\(--home-photo-height\)/);
+  }
   for (const [card, placement] of [
     ["about", /grid-column: 1; grid-row: 1;/],
     ["robots", /grid-column: 2; grid-row: 1;/],
     ["join", /grid-column: 3 \/ span 2; grid-row: 1;/],
-    ["events", /grid-column: 1 \/ span 2; grid-row: 2;/],
-    ["history", /grid-column: 3; grid-row: 2;/],
-    ["micro", /grid-column: 4; grid-row: 2;/],
+    ["events", /grid-column: 1 \/ span 2; grid-row: 3;/],
+    ["history", /grid-column: 3; grid-row: 3;/],
+    ["micro", /grid-column: 4; grid-row: 3;/],
+    ["community", /grid-column: 1 \/ span 2; grid-row: 2;/],
+    ["salon", /grid-column: 3 \/ span 2; grid-row: 2;/],
   ]) {
     assert.match(desktopGrid, new RegExp(`\\.home-visual-card--${card} \\{[^}]*${placement.source}[^}]*\\}`));
   }
 
-  assert.match(tabletGrid, /grid-template-columns: repeat\(3, minmax\(0, 1fr\)\)/);
-  assert.match(tabletGrid, /grid-template-rows: repeat\(2, clamp\(17rem, 28vw, 19rem\)\)/);
+  assert.match(tabletGrid, /grid-template-columns: repeat\(6, minmax\(0, 1fr\)\)/);
+  assert.match(tabletGrid, /--home-photo-height: clamp\(17rem, 28vw, 19rem\)/);
   for (const [card, placement] of [
-    ["about", /grid-column: 1; grid-row: 1;/],
-    ["robots", /grid-column: 2; grid-row: 1;/],
-    ["join", /grid-column: 3; grid-row: 1;/],
-    ["events", /grid-column: 1; grid-row: 2;/],
-    ["history", /grid-column: 2; grid-row: 2;/],
-    ["micro", /grid-column: 3; grid-row: 2;/],
+    ["about", /grid-column: 1 \/ span 2; grid-row: 1;/],
+    ["robots", /grid-column: 3 \/ span 2; grid-row: 1;/],
+    ["join", /grid-column: 5 \/ span 2; grid-row: 1;/],
+    ["events", /grid-column: 1 \/ span 2; grid-row: 3;/],
+    ["history", /grid-column: 3 \/ span 2; grid-row: 3;/],
+    ["micro", /grid-column: 5 \/ span 2; grid-row: 3;/],
+    ["community", /grid-column: 1 \/ span 3; grid-row: 2;/],
+    ["salon", /grid-column: 4 \/ span 3; grid-row: 2;/],
   ]) {
     assert.match(tabletGrid, new RegExp(`\\.home-visual-card--${card} \\{[^}]*${placement.source}[^}]*\\}`));
   }
 
-  assert.match(styles, /@media \(min-width: 640px\) \{[\s\S]*?\.home-visual-grid \{\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
+  assert.match(styles, /@media \(min-width: 640px\) \{[\s\S]*?\.home-visual-grid \{\s*--home-photo-height: 18rem;\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
   assert.match(styles, /@media \(min-width: 768px\) and \(max-width: 1023px\)/);
   assert.match(styles, /@media \(min-width: 1024px\) \{\s*\.home-visual-grid/);
   for (const card of ["about", "robots", "join", "events", "history", "micro"]) {
@@ -257,9 +275,9 @@ test("sand reveal stays on a direct preview route and uses the real homepage gal
   assert.match(homeVisualNavigation, /srcSet=\{module\.imageSrcSet\}/);
   assert.match(homeVisualNavigation, /new IntersectionObserver/);
   assert.match(homeVisualNavigation, /observer\.disconnect\(\)/);
-  assert.match(homeVisualNavigation, /staggerMs=\{index \* 105\}/);
+  assert.match(homeVisualNavigation, /staggerMs=\{\(index > 4 \? index - 2 : index\) \* 105\}/);
   assert.match(homeVisualNavigation, /<Link[\s\S]*?to=\{module\.href\}/);
-  assert.match(homeVisualNavigation, /prefetch="viewport"/);
+  assert.match(homeVisualNavigation, /prefetch=\{module\.image \? "viewport" : "intent"\}/);
   assert.match(homeVisualNavigation, /<HomeSandRevealLayer/);
   assert.match(homeSandRevealLayer, /matchMedia\("\(prefers-reduced-motion: reduce\)"\)/);
   assert.match(homeSandRevealLayer, /if \(motionReduced\)[\s\S]*?onPhaseChange\("done"\)/);
