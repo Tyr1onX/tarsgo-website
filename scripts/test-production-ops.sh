@@ -237,13 +237,12 @@ init_ci_deploy_fixture() {
   (cd "$artifact_dir" && tar -czf "$case_dir/artifact.tar.gz" "${archive_files[@]}" 2>/dev/null)
   asset_digest="$(perl -MDigest::SHA -e 'my $sha = Digest::SHA->new(256); open my $file, "<:raw", $ARGV[0] or die $!; $sha->addfile($file); print $sha->hexdigest' "$case_dir/artifact.tar.gz")"
   cp "$case_dir/artifact.tar.gz" "$case_dir/download.tar.gz"
+  printf '%s  tarsgo-production-release.tar.gz\n' "$asset_digest" >"$case_dir/download.tar.gz.sha256"
   [[ "$mode" != download-corrupt ]] || printf 'transport corruption\n' >>"$case_dir/download.tar.gz"
-  [[ "$mode" != release-download-missing ]] || rm "$case_dir/download.tar.gz"
-  if [[ "$mode" == artifact-missing ]]; then
-    printf '{"tag_name":"production-artifacts","draft":false,"prerelease":true,"assets":[]}\n' >"$case_dir/release.json"
-  else
-    printf '{"tag_name":"production-artifacts","draft":false,"prerelease":true,"assets":[{"name":"tarsgo-production-release.tar.gz","state":"uploaded","size":100,"digest":"sha256:%s","browser_download_url":"https://github.com/Tyr1onX/tarsgo-website/releases/download/production-artifacts/tarsgo-production-release.tar.gz"}]}\n' "$asset_digest" >"$case_dir/release.json"
-  fi
+  [[ "$mode" != checksum-malformed ]] || printf 'not-a-checksum\n' >"$case_dir/download.tar.gz.sha256"
+  [[ "$mode" != checksum-mismatch ]] || printf '%064d  tarsgo-production-release.tar.gz\n' 0 >"$case_dir/download.tar.gz.sha256"
+  [[ "$mode" != artifact-missing ]] || rm "$case_dir/download.tar.gz"
+  [[ "$mode" != checksum-missing ]] || rm "$case_dir/download.tar.gz.sha256"
 
   cat >"$case_dir/client-bin/curl" <<'CURL'
 #!/usr/bin/env bash
@@ -258,8 +257,10 @@ while (($#)); do
   esac
 done
 case "$url" in
-  "https://api.github.com/repos/Tyr1onX/tarsgo-website/releases/tags/production-artifacts")
-    cat "$MOCK_RELEASE_METADATA" ;;
+  "https://github.com/Tyr1onX/tarsgo-website/releases/download/production-artifacts/tarsgo-production-release.tar.gz.sha256")
+    [[ -n "$output" ]] || { echo "missing release asset checksum output path" >&2; exit 2; }
+    [[ -s "$MOCK_RELEASE_ASSET_CHECKSUM" ]] || exit 22
+    cp "$MOCK_RELEASE_ASSET_CHECKSUM" "$output" ;;
   "https://github.com/Tyr1onX/tarsgo-website/releases/download/production-artifacts/tarsgo-production-release.tar.gz")
     [[ -n "$output" ]] || { echo "missing release asset output path" >&2; exit 2; }
     [[ -s "$MOCK_RELEASE_ASSET_DOWNLOAD" ]] || exit 22
@@ -350,8 +351,8 @@ run_ci_deploy_fixture() {
   CI_DEPLOY_STATUS=0
   set +e
   CI_DEPLOY_OUTPUT="$(PATH="$case_dir/client-bin:$case_dir/client-system-bin" \
-    MOCK_EXPECTED_COMMIT="$commit" MOCK_RELEASE_METADATA="$case_dir/release.json" \
-    MOCK_RELEASE_ASSET_DOWNLOAD="$case_dir/download.tar.gz" \
+    MOCK_EXPECTED_COMMIT="$commit" MOCK_RELEASE_ASSET_DOWNLOAD="$case_dir/download.tar.gz" \
+    MOCK_RELEASE_ASSET_CHECKSUM="$case_dir/download.tar.gz.sha256" \
     MOCK_REMOTE_ROOT="$case_dir/remote" MOCK_REMOTE_BIN="$case_dir/remote-bin" MOCK_TEST_TOOLS="$test_tools" \
     MOCK_SSH_COUNT="$case_dir/ssh-count" MOCK_RSYNC_LOG="$case_dir/rsync.log" MOCK_RELEASE_NAME="$case_dir/release-name" \
     MOCK_DEPLOY_REACHED="$case_dir/deploy-reached" MOCK_NODE_INVOKED="$case_dir/node-invoked" \
@@ -395,18 +396,20 @@ test_ci_artifact_deployment_ignores_local_toolchain() {
 
 test_ci_artifact_rejections_precede_production_mutation() {
   local mode case_dir
-  for mode in artifact-missing release-download-missing download-corrupt package-corrupt package-missing-file commit-mismatch; do
+  for mode in artifact-missing checksum-missing checksum-malformed checksum-mismatch download-corrupt package-corrupt package-missing-file commit-mismatch; do
     case_dir="$tmp/ci-artifact-$mode"
     init_ci_deploy_fixture "$case_dir" "$mode"
     run_ci_deploy_fixture "$case_dir"
     [[ "$CI_DEPLOY_STATUS" -ne 0 ]] || fail "$mode CI artifact unexpectedly proceeded to deployment"
     case "$mode" in
       artifact-missing)
-        [[ "$CI_DEPLOY_OUTPUT" == *"does not contain exactly one complete"* ]] || fail "missing release asset was rejected for the wrong reason: $CI_DEPLOY_OUTPUT" ;;
-      release-download-missing)
-        [[ "$CI_DEPLOY_OUTPUT" == *"unable to anonymously download the public CI release asset"* ]] || fail "unavailable release asset was rejected for the wrong reason: $CI_DEPLOY_OUTPUT" ;;
-      download-corrupt)
-        [[ "$CI_DEPLOY_OUTPUT" == *"release asset SHA-256 does not match GitHub metadata"* ]] || fail "corrupt release download was rejected for the wrong reason: $CI_DEPLOY_OUTPUT" ;;
+        [[ "$CI_DEPLOY_OUTPUT" == *"unable to anonymously download the public CI release asset"* ]] || fail "missing release asset was rejected for the wrong reason: $CI_DEPLOY_OUTPUT" ;;
+      checksum-missing)
+        [[ "$CI_DEPLOY_OUTPUT" == *"unable to anonymously download the CI release asset SHA-256 sidecar"* ]] || fail "missing release checksum was rejected for the wrong reason: $CI_DEPLOY_OUTPUT" ;;
+      checksum-malformed)
+        [[ "$CI_DEPLOY_OUTPUT" == *"sidecar is missing or malformed"* ]] || fail "malformed release checksum was rejected for the wrong reason: $CI_DEPLOY_OUTPUT" ;;
+      checksum-mismatch|download-corrupt)
+        [[ "$CI_DEPLOY_OUTPUT" == *"release asset SHA-256 does not match its sidecar"* ]] || fail "corrupt release download was rejected for the wrong reason: $CI_DEPLOY_OUTPUT" ;;
       package-corrupt|package-missing-file|commit-mismatch)
         [[ "$CI_DEPLOY_OUTPUT" == *"CI release asset is incomplete, damaged, or does not match commit"* ]] || fail "$mode release asset was rejected for the wrong reason: $CI_DEPLOY_OUTPUT" ;;
     esac
@@ -1058,7 +1061,10 @@ PY
   grep -Fq 'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9' "$repo_root/.github/workflows/production-ops.yml" || fail "CI does not upload the built production artifact"
   grep -Fq 'actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333' "$repo_root/.github/workflows/production-ops.yml" || fail "CI does not transfer the built artifact to the release publisher"
   grep -Fq 'gh release upload production-artifacts' "$repo_root/.github/workflows/production-ops.yml" || fail "CI does not publish an unauthenticated production release asset"
+  grep -Fq 'sha256sum tarsgo-production-release.tar.gz >tarsgo-production-release.tar.gz.sha256' "$repo_root/.github/workflows/production-ops.yml" || fail "CI does not publish a SHA-256 sidecar for the release archive"
   ! grep -Fq '/actions/artifacts/' "$repo_root/scripts/deploy-production.sh" || fail "deployment still attempts the login-protected Actions artifact download"
+  ! grep -Fq 'api.github.com' "$repo_root/scripts/deploy-production.sh" || fail "deployment still depends on the rate-limited GitHub REST API"
+  ! grep -Fq 'JSON::PP' "$repo_root/scripts/deploy-production.sh" || fail "deployment still depends on the JSON::PP module"
   grep -Fq 'OnCalendar=Sat *-*-* 19:00:00 UTC' "$repo_root/scripts/backup-production.timer" || fail "offsite backup is not scheduled weekly"
   grep -Fq 'retention_minutes=43200' "$repo_root/scripts/backup-production.sh" || fail "local retention is not 30 days"
   grep -Fq 'retention_minutes=43200' "$repo_root/scripts/production-safe-cleanup.sh" || fail "disk cleanup retention is not 30 days"
