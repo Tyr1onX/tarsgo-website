@@ -70,3 +70,17 @@ test("full account storage identifies unavailable sessions and only removes the 
   assert.match(layout, /确定移除「\$\{accountLabel\}」的已保存登录会话？这只会移除该账号，不会退出其他账号/);
   assert.match(layout, /mode === "manage" \|\| account\.status !== "available"/);
 });
+
+test("account and group permission changes publish targeted or global invalidation", async () => {
+  const [users, groups, auth, groupCache] = await Promise.all([
+    read("lib/admin-users-client.ts"),
+    read("lib/admin-user-groups-client.ts"),
+    read("lib/auth-client.ts"),
+    read("lib/user-group-client.ts"),
+  ]);
+  assert.match(users, /announcePermissionChange\(userId\)/);
+  assert.match(groups, /announcePermissionChange\(null\)/);
+  assert.match(auth, /type: "permissions-changed"/);
+  assert.match(groupCache, /markUserGroupConfirmationStateStale\(accountId: number \| null\)/);
+  assert.match(groupCache, /if \(accountId === null\)[\s\S]*?cached, stale: true/);
+});

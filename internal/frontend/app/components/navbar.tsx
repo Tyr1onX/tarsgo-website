@@ -10,11 +10,18 @@ import {
   logout,
   subscribeAccountSessionChange,
   subscribeAuthStateChange,
+  subscribePermissionChange,
   type AuthUser,
 } from "~/lib/auth-client";
 import { getDefaultDashboardPath } from "~/lib/dashboard-navigation";
 import { resolveGroupIdentity, type GroupIdentity } from "~/lib/group-identity";
-import { getUserGroupConfirmationState, type UserGroupConfirmationState } from "~/lib/user-group-client";
+import {
+  getCachedUserGroupConfirmationState,
+  getUserGroupConfirmationState,
+  needsUserGroupConfirmationRefresh,
+  refreshUserGroupConfirmationState,
+  type UserGroupConfirmationState,
+} from "~/lib/user-group-client";
 import { SiteLogo } from "./site-logo";
 import { ThemeControl } from "./theme-control";
 import { useTheme } from "./theme-provider";
@@ -132,7 +139,8 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
     }
 
     let active = true;
-    setGroupState({ userId, status: "loading" });
+    const cachedGroup = getCachedUserGroupConfirmationState(userId);
+    setGroupState(cachedGroup ? { userId, status: "ready", state: cachedGroup } : { userId, status: "loading" });
     void getUserGroupConfirmationState(userId)
       .then((state) => {
         if (active) setGroupState({ userId, status: "ready", state });
@@ -141,6 +149,41 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
         if (active) setGroupState({ userId, status: "error" });
       });
     return () => { active = false; };
+  }, [visibleUser?.id]);
+
+  useEffect(() => {
+    const userId = visibleUser?.id;
+    if (!userId) return;
+    const refreshGroupOnResume = () => {
+      if (document.visibilityState !== "visible" || !needsUserGroupConfirmationRefresh(userId)) return;
+      const previous = getCachedUserGroupConfirmationState(userId);
+      void refreshUserGroupConfirmationState(userId)
+        .then((state) => setGroupState({ userId, status: "ready", state }))
+        .catch(() => {
+          if (!previous) setGroupState({ userId, status: "error" });
+        });
+    };
+    window.addEventListener("focus", refreshGroupOnResume);
+    document.addEventListener("visibilitychange", refreshGroupOnResume);
+    return () => {
+      window.removeEventListener("focus", refreshGroupOnResume);
+      document.removeEventListener("visibilitychange", refreshGroupOnResume);
+    };
+  }, [visibleUser?.id]);
+
+  useEffect(() => {
+    const userId = visibleUser?.id;
+    if (!userId) return;
+    return subscribePermissionChange((changedUserId) => {
+      if (changedUserId !== null && changedUserId !== userId) return;
+      const cachedGroup = getCachedUserGroupConfirmationState(userId);
+      if (cachedGroup) setGroupState({ userId, status: "ready", state: cachedGroup });
+      void refreshUserGroupConfirmationState(userId)
+        .then((state) => setGroupState({ userId, status: "ready", state }))
+        .catch(() => {
+          if (!cachedGroup) setGroupState({ userId, status: "error" });
+        });
+    });
   }, [visibleUser?.id]);
 
   useEffect(() => {

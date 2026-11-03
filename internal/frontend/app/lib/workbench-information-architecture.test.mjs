@@ -6,6 +6,7 @@ const navigation = await readFile(new URL("./dashboard-navigation.ts", import.me
 const layout = await readFile(new URL("../routes/dashboard/layout.tsx", import.meta.url), "utf8");
 const routeConfig = await readFile(new URL("../routes.ts", import.meta.url), "utf8");
 const personalWorkbench = await readFile(new URL("../routes/dashboard/workbench.tsx", import.meta.url), "utf8");
+const personalWorkbenchCache = await readFile(new URL("./personal-workbench-cache.ts", import.meta.url), "utf8");
 const weeklyReports = await readFile(new URL("../routes/dashboard/weekly-reports.tsx", import.meta.url), "utf8");
 const adminWorkbench = await readFile(new URL("../routes/admin/dashboard.tsx", import.meta.url), "utf8");
 const timetable = await readFile(new URL("../routes/dashboard/timetable.tsx", import.meta.url), "utf8");
@@ -14,7 +15,7 @@ test("the personal landing route is a status-first overview backed by existing u
   assert.match(routeConfig, /route\("workbench", "routes\/dashboard\/workbench\.tsx"\)/);
   assert.match(personalWorkbench, /getWeeklyReportDashboard\(\)/);
   assert.match(personalWorkbench, /import\("~\/lib\/weekly-report-client"\)/);
-  assert.match(personalWorkbench, /import type \{ WeeklyReportDashboard \} from "~\/lib\/weekly-report-client"/);
+  assert.match(personalWorkbenchCache, /import type \{ WeeklyReportDashboard \} from "\.\/weekly-report-client\.ts"/);
   assert.doesNotMatch(personalWorkbench, /^import \{[^\n]*getWeeklyReportDashboard[^\n]*\} from "~\/lib\/weekly-report-client"/m);
   assert.match(personalWorkbench, /assignmentClient\.listMine\(\)/);
   assert.match(personalWorkbench, /leaveClient\.leaveAccess\(\)/);
@@ -23,6 +24,10 @@ test("the personal landing route is a status-first overview backed by existing u
   assert.match(personalWorkbench, /本周待填写/);
   assert.match(personalWorkbench, /填写本周工作周报/);
   assert.match(personalWorkbench, /待处理/);
+  assert.match(personalWorkbench, /getPersonalWorkbenchSnapshot\(snapshotKey\)/);
+  assert.match(personalWorkbench, /rememberPersonalWorkbenchSnapshot\(snapshotKey, next\)/);
+  assert.doesNotMatch(personalWorkbench, /setSnapshot\(emptySnapshot\)/);
+  assert.match(personalWorkbench, /getPersonalWorkbenchSnapshot\(snapshotKey\) \?\? emptyPersonalSnapshot/);
   assert.match(personalWorkbench, /我的作业/);
   assert.match(personalWorkbench, /请假事务/);
   assert.doesNotMatch(personalWorkbench, /<form|<textarea/);
@@ -57,7 +62,7 @@ test("personal timetable and help content are reachable outside permanent busine
 
 test("personal and team weekly data stay independent and loads remain deferred past route auth", () => {
   assert.match(personalWorkbench, /Promise\.allSettled\(\[/);
-  assert.match(personalWorkbench, /setLoading\(false\)/);
+  assert.match(personalWorkbench, /setView\(\{ key: snapshotKey, snapshot: next, refreshing: false \}\)/);
   assert.match(weeklyReports, /if \(teamExpanded && dashboard\?\.canViewTeam/);
   assert.match(weeklyReports, /const isEditing = searchParams\.get\("edit"\) === "1"/);
   assert.match(layout, /export async function clientLoader/);

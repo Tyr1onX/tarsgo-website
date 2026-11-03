@@ -5,14 +5,6 @@ import { HomeVisualNavigation } from "../components/home-visual-navigation";
 import { FooterCoordinateSandTrace } from "../components/footer-coordinate-sand-trace";
 import { SiteLogo } from "~/components/site-logo";
 import { Link, useLocation, useNavigate } from "react-router";
-import {
-  getCachedCurrentUser,
-  getOptionalCurrentUser,
-  hasKnownAnonymousSession,
-  subscribeAccountSessionChange,
-  subscribeAuthStateChange,
-  type AuthUser,
-} from "~/lib/auth-client";
 
 export function meta({}: Route.MetaArgs) {
   return [
@@ -301,10 +293,6 @@ export function PublicFooter() {
   );
 }
 
-function getNavbarUser(): AuthUser | null | undefined {
-  return getCachedCurrentUser() ?? (hasKnownAnonymousSession() ? null : undefined);
-}
-
 export function PublicHomePage({ page = "home", children }: { page?: PublicPage; children?: React.ReactNode }) {
   const location = useLocation();
   const navigate = useNavigate();
@@ -317,8 +305,6 @@ export function PublicHomePage({ page = "home", children }: { page?: PublicPage;
     () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches,
   );
 
-  const [currentUser, setCurrentUser] = useState<AuthUser | null | undefined>(getNavbarUser);
-  const [authError, setAuthError] = useState(false);
   const topic = routePage === "home" ? null : topicPages[routePage];
 
   useEffect(() => {
@@ -338,56 +324,10 @@ export function PublicHomePage({ page = "home", children }: { page?: PublicPage;
     if (prefersReducedMotion) heroVideoRef.current?.pause();
   }, [prefersReducedMotion]);
 
-  useEffect(() => {
-    let disposed = false;
-    let identityGeneration = 0;
-    const unsubscribeAuth = subscribeAuthStateChange((user) => {
-      identityGeneration += 1;
-      if (!disposed) {
-        setCurrentUser(user);
-        setAuthError(false);
-      }
-    });
-    const unsubscribeAccount = subscribeAccountSessionChange(() => {
-      const requestGeneration = ++identityGeneration;
-      setCurrentUser(undefined);
-      setAuthError(false);
-      void getOptionalCurrentUser({ force: true })
-        .then((user) => {
-          if (!disposed && requestGeneration === identityGeneration) setCurrentUser(user);
-        })
-        .catch(() => {
-          if (!disposed && requestGeneration === identityGeneration) setAuthError(true);
-        });
-    });
-
-    const initialGeneration = identityGeneration;
-    void getOptionalCurrentUser()
-      .then((user) => {
-        if (!disposed && initialGeneration === identityGeneration) {
-          setCurrentUser(user);
-          setAuthError(false);
-        }
-      })
-      .catch(() => {
-        if (!disposed && initialGeneration === identityGeneration) {
-          setAuthError(true);
-        }
-      });
-
-    return () => {
-      disposed = true;
-      unsubscribeAuth();
-      unsubscribeAccount();
-    };
-  }, []);
-
-
-
   return (
     <div className="public-home relative min-h-screen overflow-hidden bg-surface-primary text-fg-primary">
       <div className="relative z-10">
-      <Navbar currentUser={currentUser} authError={authError} />
+      <Navbar />
       <div className="public-route-content">
       {routePage === "home" ? (
       <section

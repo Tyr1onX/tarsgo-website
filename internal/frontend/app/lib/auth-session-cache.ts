@@ -1,10 +1,10 @@
 export const ANONYMOUS_SESSION_CACHE_TTL_MS = 5_000;
-export const AUTHENTICATED_SESSION_CACHE_TTL_MS = 30_000;
+export const AUTH_SESSION_REVALIDATE_AFTER_MS = 30_000;
 
 type AuthSessionState<T> =
   | { type: "unknown" }
   | { type: "anonymous"; expiresAt: number }
-  | { type: "authenticated"; user: T; expiresAt: number };
+  | { type: "authenticated"; user: T; verifiedAt: number };
 
 /** Keeps only the current in-memory auth result and rejects responses from older sessions. */
 export class AuthSessionCache<T> {
@@ -15,8 +15,8 @@ export class AuthSessionCache<T> {
     return this.generation;
   }
 
-  getUser(now = Date.now()): T | null {
-    return this.state.type === "authenticated" && this.state.expiresAt > now ? this.state.user : null;
+  getUser(): T | null {
+    return this.state.type === "authenticated" ? this.state.user : null;
   }
 
   hasFreshAnonymousResult(now = Date.now()): boolean {
@@ -25,7 +25,11 @@ export class AuthSessionCache<T> {
 
   setAuthenticated(user: T, now = Date.now()) {
     this.generation += 1;
-    this.state = { type: "authenticated", user, expiresAt: now + AUTHENTICATED_SESSION_CACHE_TTL_MS };
+    this.state = { type: "authenticated", user, verifiedAt: now };
+  }
+
+  needsRevalidation(now = Date.now()): boolean {
+    return this.state.type === "authenticated" && now - this.state.verifiedAt >= AUTH_SESSION_REVALIDATE_AFTER_MS;
   }
 
   setAnonymous(now = Date.now()) {
@@ -40,20 +44,15 @@ export class AuthSessionCache<T> {
 
   acceptAuthenticatedRequest(version: number, user: T, now = Date.now()): boolean {
     if (version !== this.generation) return false;
-    this.state = { type: "authenticated", user, expiresAt: now + AUTHENTICATED_SESSION_CACHE_TTL_MS };
+    this.generation += 1;
+    this.state = { type: "authenticated", user, verifiedAt: now };
     return true;
   }
 
   acceptAnonymousRequest(version: number, now = Date.now()): boolean {
     if (version !== this.generation) return false;
-    this.state = { type: "anonymous", expiresAt: now + ANONYMOUS_SESSION_CACHE_TTL_MS };
-    return true;
-  }
-
-  acceptFailedRequest(version: number): boolean {
-    if (version !== this.generation) return false;
     this.generation += 1;
-    this.state = { type: "unknown" };
+    this.state = { type: "anonymous", expiresAt: now + ANONYMOUS_SESSION_CACHE_TTL_MS };
     return true;
   }
 }

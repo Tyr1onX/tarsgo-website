@@ -75,7 +75,7 @@ test("authentication loading, guest, and member states stay distinct and reserve
   assert.match(navbar, /<NavbarAuthLoadingStatus \/>/);
   assert.match(navbar, /role="status"[\s\S]*?aria-busy="true"/);
   assert.match(navbar, /groupIdentityLoading/);
-  assert.match(navbar, /setGroupState\(\{ userId, status: "loading" \}\)/);
+  assert.match(navbar, /cachedGroup \? \{ userId, status: "ready", state: cachedGroup \} : \{ userId, status: "loading" \}/);
   assert.doesNotMatch(navbar, /正在确认组别/);
   assert.match(navbar, /setUserMenuOpen\(false\)/);
   assert.match(styles, /\.navbar-auth-loading\s*\{[\s\S]*?min-height:\s*2\.75rem/);

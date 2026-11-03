@@ -68,7 +68,8 @@ test("community offers shareable filters, cached browsing, and the post discussi
   assert.match(dashboard, /updateFilters\(\{ sort: "hot", saved: false \}\)/);
   assert.match(dashboard, /updateFilters\(\{ category: item\.id \}\)/);
   assert.match(dashboard, /getCommunityListSnapshot/);
-  assert.match(dashboard, /const nextHasMore = nextPage > 1 && cached \? cached\.hasMore : result\.hasMore/);
+  assert.match(dashboard, /const nextHasMore = nextPage > 1 && latest \? latest\.hasMore : result\.hasMore/);
+  assert.match(dashboard, /preserveCommunityReactionUpdates\(cached\?\.posts \?\? \[\], latest\?\.posts \?\? \[\], result\.items\)/);
   assert.match(dashboard, /const cacheMatchesLoadedState = loadedCacheKey === cacheKey/);
   assert.match(dashboard, /const visiblePosts = cacheMatchesLoadedState \? posts : cachedList\?\.posts/);
   assert.match(dashboard, /rememberCommunityList/);
