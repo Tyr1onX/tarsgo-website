@@ -419,7 +419,11 @@ func (s *Service) GetCommunityPost(ctx context.Context, actor Actor, postID uint
 	if len(rows) == 0 {
 		return nil, notFound("帖子不存在")
 	}
-	views, err := s.communityPostViews(ctx, actor, rows)
+	attachments, err := s.loadAttachments(ctx, []uint64{postID})
+	if err != nil {
+		return nil, internalError("读取社区附件失败", err)
+	}
+	views, err := s.communityPostViewsWithAttachments(ctx, actor, rows, attachments)
 	if err != nil {
 		return nil, err
 	}
@@ -447,9 +451,11 @@ func (s *Service) GetCommunityPost(ctx context.Context, actor Actor, postID uint
 		return nil, internalError("读取社区回复作者徽章失败", err)
 	}
 	commentPositions := communityAuthorPositions(commentAuthorIDs)
-	attachments, err := s.loadAttachments(ctx, []uint64{postID})
-	if err != nil {
-		return nil, internalError("读取社区附件失败", err)
+	commentAttachments := make(map[uint64][]model.TrainingQuestionAttachment)
+	for _, file := range attachments[postID] {
+		if file.PostID != nil {
+			commentAttachments[*file.PostID] = append(commentAttachments[*file.PostID], file)
+		}
 	}
 	for _, comment := range comments {
 		view := CommunityCommentView{
@@ -467,10 +473,8 @@ func (s *Service) GetCommunityPost(ctx context.Context, actor Actor, postID uint
 		if view.IsDeleted {
 			view.Body = "该回复已删除"
 		} else {
-			for _, file := range attachments[postID] {
-				if file.PostID != nil && *file.PostID == comment.ID {
-					view.Attachments = append(view.Attachments, communityAttachmentView(file))
-				}
+			for _, file := range commentAttachments[comment.ID] {
+				view.Attachments = append(view.Attachments, communityAttachmentView(file))
 			}
 		}
 		detail.Comments = append(detail.Comments, view)
@@ -1253,6 +1257,18 @@ func (s *Service) communityVisibleLegacyGroupIDs(ctx context.Context, actor Acto
 }
 
 func (s *Service) communityPostViews(ctx context.Context, actor Actor, rows []communityPostRow) ([]CommunityPostView, error) {
+	ids := make([]uint64, 0, len(rows))
+	for _, row := range rows {
+		ids = append(ids, row.ID)
+	}
+	attachments, err := s.loadAttachments(ctx, ids)
+	if err != nil {
+		return nil, internalError("读取社区附件失败", err)
+	}
+	return s.communityPostViewsWithAttachments(ctx, actor, rows, attachments)
+}
+
+func (s *Service) communityPostViewsWithAttachments(ctx context.Context, actor Actor, rows []communityPostRow, attachments map[uint64][]model.TrainingQuestionAttachment) ([]CommunityPostView, error) {
 	if len(rows) == 0 {
 		return []CommunityPostView{}, nil
 	}
@@ -1273,10 +1289,7 @@ func (s *Service) communityPostViews(ctx context.Context, actor Actor, rows []co
 		return nil, internalError("读取社区作者徽章失败", err)
 	}
 	authorPositions := communityAuthorPositions(authorIDs)
-	attachments, err := s.loadAttachments(ctx, ids)
-	if err != nil {
-		return nil, internalError("读取社区附件失败", err)
-	}
+
 	participants, err := s.communityPostParticipants(ctx, ids)
 	if err != nil {
 		return nil, internalError("读取社区参与成员失败", err)

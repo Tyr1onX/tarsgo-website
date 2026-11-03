@@ -228,12 +228,33 @@ func (s *Service) ListRuns(ctx context.Context) ([]SchoolLeaveRunView, error) {
 		return nil, internalError("读取请假历史失败", err)
 	}
 	result := make([]SchoolLeaveRunView, 0, len(runs))
-	for _, run := range runs {
-		view, err := s.runView(ctx, run)
-		if err != nil {
-			return nil, err
+	for start := 0; start < len(runs); start += 100 {
+		batch := runs[start:min(start+100, len(runs))]
+		ids := make([]uint64, 0, len(batch))
+		for _, run := range batch {
+			ids = append(ids, run.ID)
 		}
-		result = append(result, *view)
+		var requests []model.SchoolLeaveRequest
+		if err := s.db.WithContext(ctx).Where("run_id IN ? AND status = ?", ids, model.LeaveStatusIncluded).Order("start_at, end_at, student_id_snapshot, id").Find(&requests).Error; err != nil {
+			return nil, internalError("读取请假名单失败", err)
+		}
+		requestsByRun := make(map[uint64][]model.SchoolLeaveRequest, len(batch))
+		for _, request := range requests {
+			if request.RunID != nil {
+				requestsByRun[*request.RunID] = append(requestsByRun[*request.RunID], request)
+			}
+		}
+		var materials []model.SchoolLeaveGroupResult
+		if err := s.db.WithContext(ctx).Select("run_id", "group_index", "original_filename", "expires_at").Where("run_id IN ? AND expires_at > ?", ids, s.nowShanghai()).Find(&materials).Error; err != nil {
+			return nil, internalError("读取签回材料状态失败", err)
+		}
+		materialsByRun := make(map[uint64][]model.SchoolLeaveGroupResult, len(batch))
+		for _, material := range materials {
+			materialsByRun[material.RunID] = append(materialsByRun[material.RunID], material)
+		}
+		for _, run := range batch {
+			result = append(result, *schoolRunView(run, requestsByRun[run.ID], materialsByRun[run.ID]))
+		}
 	}
 	return result, nil
 }
@@ -254,25 +275,27 @@ func (s *Service) runView(ctx context.Context, run model.SchoolLeaveRun) (*Schoo
 	if err := s.db.WithContext(ctx).Where("run_id = ? AND status = ?", run.ID, model.LeaveStatusIncluded).Order("start_at, end_at, student_id_snapshot, id").Find(&requests).Error; err != nil {
 		return nil, internalError("读取请假名单失败", err)
 	}
-	groups := groupRequests(requests)
 	var results []model.SchoolLeaveGroupResult
 	if err := s.db.WithContext(ctx).Select("group_index", "original_filename", "expires_at").Where("run_id = ? AND expires_at > ?", run.ID, s.nowShanghai()).Find(&results).Error; err != nil {
 		return nil, internalError("读取签回材料状态失败", err)
 	}
+	return schoolRunView(run, requests, results), nil
+}
+
+func schoolRunView(run model.SchoolLeaveRun, requests []model.SchoolLeaveRequest, results []model.SchoolLeaveGroupResult) *SchoolLeaveRunView {
+	groups := groupRequests(requests)
 	for _, result := range results {
-		for index := range groups {
-			if groups[index].Index == result.GroupIndex {
-				expires := result.ExpiresAt
-				groups[index].Result = LeaveGroupResultView{Available: true, Filename: result.OriginalFilename, ExpiresAt: &expires}
-				break
-			}
+		index := result.GroupIndex - 1
+		if index >= 0 && index < len(groups) {
+			expires := result.ExpiresAt
+			groups[index].Result = LeaveGroupResultView{Available: true, Filename: result.OriginalFilename, ExpiresAt: &expires}
 		}
 	}
 	var memberCount int
 	for _, group := range groups {
 		memberCount += group.Count
 	}
-	return &SchoolLeaveRunView{SchoolLeaveRun: run, RequestCount: len(requests), MemberCount: memberCount, Groups: groups, DocumentReady: len(groups) > 0 && run.Status != model.LeaveRunCancelled}, nil
+	return &SchoolLeaveRunView{SchoolLeaveRun: run, RequestCount: len(requests), MemberCount: memberCount, Groups: groups, DocumentReady: len(groups) > 0 && run.Status != model.LeaveRunCancelled}
 }
 
 func (s *Service) UploadGroupResult(ctx context.Context, adminID, runID uint64, groupIndex int, filename, contentType string, reader io.Reader) (*LeaveGroupResultView, error) {
