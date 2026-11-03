@@ -16,6 +16,7 @@ import (
 	"unicode"
 
 	"github.com/gin-gonic/gin"
+	"tarsgo-backend/requestmetrics"
 )
 
 const (
@@ -38,6 +39,7 @@ func RequestTracing() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		startedAt := time.Now().UTC()
 		requestID := newRequestID(startedAt)
+		c.Request = c.Request.WithContext(requestmetrics.WithSQL(c.Request.Context()))
 		c.Set(requestIDContextKey, requestID)
 		c.Set(requestStartedContextKey, startedAt)
 		c.Header(requestIDHeader, requestID)
@@ -51,8 +53,12 @@ func RequestLogFormatter(param gin.LogFormatterParams) string {
 	if param.Request != nil && param.Request.URL != nil && param.Request.URL.Path != "" {
 		path = param.Request.URL.Path
 	}
-	return fmt.Sprintf("time=%s request_id=%s method=%s path=%q status=%d latency=%s\n",
-		param.TimeStamp.UTC().Format(time.RFC3339Nano), requestID, param.Method, path, param.StatusCode, param.Latency)
+	metrics := requestmetrics.Snapshot{}
+	if param.Request != nil {
+		metrics = requestmetrics.ReadSQL(param.Request.Context())
+	}
+	return fmt.Sprintf("time=%s request_id=%s method=%s path=%q status=%d latency=%s sql_count=%d sql_elapsed=%s sql_errors=%d\n",
+		param.TimeStamp.UTC().Format(time.RFC3339Nano), requestID, param.Method, path, param.StatusCode, param.Latency, metrics.Count, metrics.Elapsed, metrics.Errors)
 }
 
 // LogInternalError writes diagnostic context without logging request headers,

@@ -10,7 +10,11 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/gin-gonic/gin"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
+	"tarsgo-backend/requestmetrics"
 )
 
 func TestRequestTracingLogsCorrelationAndOmitsSecrets(t *testing.T) {
@@ -155,5 +159,44 @@ func TestRecoveryLogsRequestIDWithoutDumpingCookieOrPanicValue(t *testing.T) {
 		if strings.Contains(output, secret) {
 			t.Fatalf("panic log leaked %q: %s", secret, output)
 		}
+	}
+}
+
+func TestRequestSQLMetricsReachHTTPLog(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqlDB.Close()
+	db, err := gorm.Open(mysql.New(mysql.Config{Conn: sqlDB, SkipInitializeWithVersion: true}), &gorm.Config{DisableAutomaticPing: true, Logger: requestmetrics.NewSQLLogger()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mock.ExpectQuery("SELECT 1").WillReturnRows(sqlmock.NewRows([]string{"value"}).AddRow(1))
+	previous := gin.DefaultWriter
+	defer func() { gin.DefaultWriter = previous }()
+	var output bytes.Buffer
+	gin.DefaultWriter = &output
+	engine := gin.New()
+	engine.Use(RequestTracing(), gin.LoggerWithConfig(gin.LoggerConfig{Formatter: RequestLogFormatter}))
+	engine.GET("/query", func(c *gin.Context) {
+		var value int
+		if err := db.WithContext(c.Request.Context()).Raw("SELECT 1").Scan(&value).Error; err != nil {
+			t.Error(err)
+		}
+		c.Status(204)
+	})
+	engine.GET("/empty", func(c *gin.Context) { c.Status(204) })
+	engine.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/query", nil))
+	if !strings.Contains(output.String(), "sql_count=1") || !strings.Contains(output.String(), "sql_errors=0") {
+		t.Fatalf("missing totals: %s", output.String())
+	}
+	output.Reset()
+	engine.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/empty", nil))
+	if !strings.Contains(output.String(), "sql_count=0") {
+		t.Fatal("counts leaked between requests")
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatal(err)
 	}
 }

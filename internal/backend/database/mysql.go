@@ -8,10 +8,11 @@ import (
 
 	"tarsgo-backend/config"
 	"tarsgo-backend/model"
+	"tarsgo-backend/requestmetrics"
 )
 
 func New(cfg config.DatabaseConfig) (*gorm.DB, error) {
-	db, err := gorm.Open(mysql.Open(cfg.DSN()), &gorm.Config{})
+	db, err := gorm.Open(mysql.Open(cfg.DSN()), &gorm.Config{Logger: requestmetrics.NewSQLLogger()})
 	if err != nil {
 		return nil, fmt.Errorf("open gorm connection: %w", err)
 	}
