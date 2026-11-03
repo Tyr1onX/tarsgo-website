@@ -163,8 +163,10 @@ type RegistrationDetail struct {
 	NotificationWarning    string                       `json:"notificationWarning,omitempty"`
 	InterviewResultHistory []InterviewResultHistoryItem `json:"interviewResultHistory"`
 	ID                     uint64                       `json:"id"`
+	UserID                 uint64                       `json:"userId"`
 	FormID                 uint64                       `json:"formId"`
 	FormTitle              string                       `json:"formTitle"`
+	FormStatus             uint8                        `json:"formStatus"`
 	ContactName            *string                      `json:"contactName,omitempty"`
 	ContactPhone           *string                      `json:"contactPhone,omitempty"`
 	ContactEmail           *string                      `json:"contactEmail,omitempty"`
@@ -664,8 +666,10 @@ func (s *RegistrationService) GetRegistration(ctx context.Context, actor Registr
 	detail := RegistrationDetail{
 		InterviewResultHistory: make([]InterviewResultHistoryItem, 0),
 		ID:                     registration.ID,
+		UserID:                 registration.UserID,
 		FormID:                 registration.FormID,
 		FormTitle:              registration.Form.Title,
+		FormStatus:             registration.Form.Status,
 		ContactName:            copyStringPtr(registration.ContactName),
 		ContactPhone:           copyStringPtr(registration.ContactPhone),
 		ContactEmail:           copyStringPtr(registration.ContactEmail),

@@ -181,6 +181,13 @@ export async function updateAdminUserTeamIdentity(userId: number, input: UpdateA
 	});
 }
 
+export async function updateAdminUserRecruitmentGroup(userId: number, groupId: number): Promise<AdminUserDetail> {
+  return apiRequest<AdminUserDetail>(`/api/admin/users/${userId}/recruitment-group`, {
+    method: "PATCH",
+    body: { groupId },
+  });
+}
+
 export async function updateAdminUserGroup(userId: number, groupId: number | null): Promise<AdminUserDetail> {
 	const user = await apiRequest<AdminUserDetail>(`/api/admin/users/${userId}/group`, {
 		method: "PATCH",

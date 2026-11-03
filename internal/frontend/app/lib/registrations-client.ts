@@ -109,8 +109,10 @@ export interface RegistrationDetail {
   notificationWarning?: string;
   interviewResultHistory: InterviewResultHistoryItem[];
   id: number;
+  userId: number;
   formId: number;
   formTitle: string;
+  formStatus: number;
   contactName?: string | null;
   contactPhone?: string | null;
   contactEmail?: string | null;
