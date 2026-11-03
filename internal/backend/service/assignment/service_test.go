@@ -58,6 +58,15 @@ func expectSuperAdminAssignmentGroupIDs(mock sqlmock.Sqlmock, ids ...uint64) {
 	mock.ExpectQuery(pattern).WithArgs(groupMechanical, groupEmbedded, groupVision, groupAI, groupOperations, model.UserGroupStatusActive).WillReturnRows(rows)
 }
 
+func TestFullGroupAssignmentDoesNotRequireOriginalTargetRow(t *testing.T) {
+	db, _ := newAssignmentMockGorm(t)
+	service := &Service{db: db}
+	assigned, err := service.memberHasAssignment(db, Actor{ID: 22, RoleName: model.RoleNameUser}, model.Assignment{ID: 91, IsGroupWide: true})
+	if err != nil || !assigned {
+		t.Fatalf("current group member should receive full-group work after publication: assigned=%v err=%v", assigned, err)
+	}
+}
+
 func TestListMineRejectsAccountsWithoutAssignmentGroup(t *testing.T) {
 	db, mock := newAssignmentMockGorm(t)
 	expectAssignmentGroupIDs(mock, 22)
@@ -69,8 +78,8 @@ func TestListMineRejectsAccountsWithoutAssignmentGroup(t *testing.T) {
 func TestListMineOnlyQueriesPublishedAssignments(t *testing.T) {
 	db, mock := newAssignmentMockGorm(t)
 	expectAssignmentGroupIDs(mock, 22, 41)
-	mock.ExpectQuery("(?s)SELECT .* FROM `assignments` JOIN assignment_targets ON .*WHERE assignment_targets\\.user_id = \\? AND assignments\\.group_id IN \\(\\?\\) AND assignments\\.publication_status = \\?.*ORDER BY").
-		WithArgs(uint64(22), uint64(41), model.AssignmentPublicationPublished).
+	mock.ExpectQuery("(?s)SELECT .* FROM `assignments` WHERE assignments\\.group_id IN .*assignments\\.publication_status = .*assignments\\.is_group_wide = 1.*assignment_targets.*ORDER BY").
+		WithArgs(uint64(41), model.AssignmentPublicationPublished, true, uint64(22)).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "creator_id", "title", "description", "due_at", "attachment_requirements", "is_group_wide", "publication_status", "created_at", "updated_at"}))
 	items, err := (&Service{db: db}).ListMine(context.Background(), Actor{ID: 22, RoleName: model.RoleNameUser})
 	if err != nil || len(items) != 0 {
@@ -410,7 +419,7 @@ func TestMemberCannotDownloadTeachingMaterialForUnassignedWork(t *testing.T) {
 	mock.ExpectQuery("(?s)SELECT \\* FROM `assignments` WHERE .*id` = \\? ORDER BY.*LIMIT \\?").
 		WithArgs(uint64(91), 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "creator_id", "title", "description", "due_at", "attachment_requirements", "is_group_wide", "publication_status", "created_at", "updated_at"}).
-			AddRow(91, 41, 8, "作业", "说明", created.Add(time.Hour), "", true, model.AssignmentPublicationPublished, created, created))
+			AddRow(91, 41, 8, "作业", "说明", created.Add(time.Hour), "", false, model.AssignmentPublicationPublished, created, created))
 	expectAssignmentGroupIDs(mock, 22, 41)
 	mock.ExpectQuery("(?s)SELECT count\\(\\*\\) FROM `assignment_targets` WHERE assignment_id = \\? AND user_id = \\?").
 		WithArgs(uint64(91), uint64(22)).WillReturnRows(sqlmock.NewRows([]string{"count(*)"}).AddRow(0))
@@ -419,7 +428,7 @@ func TestMemberCannotDownloadTeachingMaterialForUnassignedWork(t *testing.T) {
 	assertAssignmentStatus(t, err, 404)
 }
 
-func TestAssignedMemberCanDownloadPrivateTeachingMaterial(t *testing.T) {
+func TestCurrentGroupMemberCanDownloadFullGroupMaterialWithoutSnapshot(t *testing.T) {
 	db, mock := newAssignmentMockGorm(t)
 	created := time.Date(2026, 10, 19, 10, 0, 0, 0, time.UTC)
 	mock.ExpectQuery("(?s)SELECT \\* FROM `assignment_material_files` WHERE .*id` = \\? ORDER BY.*LIMIT \\?").
@@ -431,8 +440,6 @@ func TestAssignedMemberCanDownloadPrivateTeachingMaterial(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "group_id", "creator_id", "title", "description", "due_at", "attachment_requirements", "is_group_wide", "publication_status", "created_at", "updated_at"}).
 			AddRow(91, 41, 8, "作业", "说明", created.Add(time.Hour), "", true, model.AssignmentPublicationPublished, created, created))
 	expectAssignmentGroupIDs(mock, 22, 41)
-	mock.ExpectQuery("(?s)SELECT count\\(\\*\\) FROM `assignment_targets` WHERE assignment_id = \\? AND user_id = \\?").
-		WithArgs(uint64(91), uint64(22)).WillReturnRows(sqlmock.NewRows([]string{"count(*)"}).AddRow(1))
 	root := t.TempDir()
 	filePath := filepath.Join(root, "91/8/file.pdf")
 	if err := os.MkdirAll(filepath.Dir(filePath), 0o700); err != nil {

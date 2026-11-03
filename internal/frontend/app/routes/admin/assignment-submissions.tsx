@@ -160,6 +160,7 @@ export default function AssignmentSubmissionsRoute() {
         <section className="admin-panel flex flex-wrap gap-x-6 gap-y-2 p-4 text-sm" aria-label="作业统计">
           <strong className="text-[var(--admin-text)]">{assignment.title}</strong>
           <span>截止 {formatAssignmentDate(assignment.dueAt)}</span>
+          <span>{assignment.isGroupWide ? "全组实时接收" : "指定成员"} · 接收 {assignment.targetCount} 人</span>
           <span>已提交 {assignment.submittedCount}/{assignment.targetCount}</span>
           <span>已批改 {assignment.reviewedCount}</span>
           <span>已通过 {assignment.passedCount}</span>
@@ -168,7 +169,7 @@ export default function AssignmentSubmissionsRoute() {
           {detail?.members.length === 0 ? <p role="status" className="pb-3 text-sm text-[var(--admin-muted)]">该作业当前没有分配成员。</p> : null}
           {detail && detail.members.length > 0 && detail.members.every((member) => member.submissions.length === 0) ? <p role="status" className="pb-3 text-sm text-[var(--admin-muted)]">暂无成员提交。</p> : null}
           {detail?.members.map((member) => <article key={member.userId} className="py-4 first:pt-0 last:pb-0">
-            <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold text-[var(--admin-text)]">{member.name}</h2><div className="flex items-center gap-2 text-xs text-[var(--admin-muted)]"><span>{assignmentStatusLabel(member.status)}</span>{member.isLate ? <span className="text-[var(--admin-warning)]">逾期提交</span> : null}</div></div>
+            <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold text-[var(--admin-text)]">{member.name} <span className="text-xs font-normal text-[var(--admin-muted)]">#{member.userId}</span></h2><div className="flex items-center gap-2 text-xs text-[var(--admin-muted)]"><span>{assignmentStatusLabel(member.status)}</span>{member.isLate ? <span className="text-[var(--admin-warning)]">逾期提交</span> : null}</div></div>
             {!member.latestSubmission ? <p className="mt-2 text-sm text-[var(--admin-muted)]">尚未提交</p> : <>
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--admin-muted)]"><span>第 {member.latestSubmission.attempt} 次提交 · {formatAssignmentDate(member.latestSubmission.submittedAt)}{member.latestSubmission.isLate ? " · 逾期" : ""}</span><span>{member.latestSubmission.status === "graded" ? `${assignmentDecisionLabel(member.latestSubmission.decision)} · ${member.latestSubmission.reviews.at(-1)?.score ?? "—"} 分` : "待批改"}</span></div>
               <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">{member.latestSubmission.files.map((file) => <li key={file.id}><a className="text-[var(--admin-warning)] hover:text-[var(--admin-warning)]" href={file.downloadUrl}>{file.fileName}</a></li>)}</ul>
