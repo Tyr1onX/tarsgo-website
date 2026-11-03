@@ -17,6 +17,7 @@ import {
   type CommunitySort,
 } from "~/lib/community-client";
 import { clearCommunityLists, getCommunityListSnapshot, preserveCommunityReactionUpdates, rememberCommunityList, refreshedCommunitySnapshot, COMMUNITY_CACHE_PAGE_SIZE } from "~/lib/community-list-cache";
+import { requestCommunityExperienceRefresh } from "~/lib/community-experience-sync";
 import "./community.css";
 
 export function meta() {
@@ -49,7 +50,9 @@ export default function DashboardIndex() {
   const [queryDraft, setQueryDraft] = useState(query);
   const [composerOpen, setComposerOpen] = useState(false);
   const [posts, setPosts] = useState<CommunityListItem[]>(() => getCommunityListSnapshot(cacheKey)?.posts ?? []);
-  const [growthProfile, setGrowthProfile] = useState<CommunityGrowthProfile | null>(null);
+  const [growthState, setGrowthState] = useState<{ userID: number; profile: CommunityGrowthProfile } | null>(null);
+  const growthProfile = growthState?.userID === currentUser.id ? growthState.profile : null;
+  const setGrowthProfile = useCallback((profile: CommunityGrowthProfile) => setGrowthState({ userID: currentUser.id, profile }), [currentUser.id]);
   const [page, setPage] = useState(() => getCommunityListSnapshot(cacheKey)?.page ?? 1);
   const [hasMore, setHasMore] = useState(() => getCommunityListSnapshot(cacheKey)?.hasMore ?? false);
   const [loading, setLoading] = useState(true);
@@ -87,10 +90,9 @@ export default function DashboardIndex() {
     try {
       const pageCount = keepCachedPosts && cached ? cached.page : 1;
       const pages = await Promise.all(Array.from({ length: pageCount }, (_, index) =>
-        communityClient.list({ sort, category, q: query, saved: savedOnly, page: index + 1, pageSize: PAGE_SIZE, includeGrowth: index === 0 }),
+        communityClient.list({ sort, category, q: query, saved: savedOnly, page: index + 1, pageSize: PAGE_SIZE }),
       ));
       if (requestRef.current !== requestID) return;
-      setGrowthProfile(pages[0].growthProfile ?? null);
       const result = refreshedCommunitySnapshot(pages);
       const latest = keepCachedPosts ? getCommunityListSnapshot(cacheKey) ?? cached : undefined;
       const freshItems = preserveCommunityReactionUpdates(cached?.posts ?? [], latest?.posts ?? [], result.posts)
@@ -198,7 +200,7 @@ export default function DashboardIndex() {
       </div>
     </header>
 
-    <CommunityGrowthBar profile={growthProfile} onProfileChange={setGrowthProfile} loading={loading} onRetry={() => void loadFirstPage(true)} />
+    <CommunityGrowthBar profile={growthProfile} key={currentUser.id} onProfileChange={setGrowthProfile} loading={!growthProfile} onRetry={requestCommunityExperienceRefresh} />
 
     {composerOpen ? <CommunityEditorDialog labelledBy="community-composer-title" onClose={closeComposer}><CommunityComposer key={currentUser.id} id="community-composer" accountId={currentUser.id} onCancel={closeComposer} onPublish={publish} /></CommunityEditorDialog> : null}
 

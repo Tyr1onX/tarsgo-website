@@ -1,5 +1,17 @@
 import type { CommunityExperienceEntry, CommunityGrowthProfile } from "~/lib/community-client";
 
+const snapshotEventName = "community:experience-snapshot";
+
+// A late-mounted view can reuse the host's current profile without another API call.
+export function requestCommunityGrowthSnapshot() {
+ if (typeof window !== "undefined") window.dispatchEvent(new Event(snapshotEventName));
+}
+export function subscribeToCommunityGrowthSnapshot(listener: () => void) {
+ if (typeof window === "undefined") return () => {};
+ window.addEventListener(snapshotEventName, listener);
+ return () => window.removeEventListener(snapshotEventName, listener);
+}
+
 const refreshEventName = "community:experience-refresh";
 const serverProfileEventName = "community:experience-server-profile";
 const profileUpdatedEventName = "community:experience-profile-updated";
