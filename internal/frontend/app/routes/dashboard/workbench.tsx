@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useOutletContext } from "react-router";
 
-import { assignmentClient, assignmentStatusLabel, formatAssignmentDate, type Assignment } from "~/lib/assignment-client";
+import { assignmentClient, assignmentStatusLabel, formatAssignmentDate, type AssignmentTodo } from "~/lib/assignment-client";
 import { hasAssignmentGroupAccess } from "~/lib/dashboard-navigation";
-import { leaveClient, type LeaveAccessState, type LeaveRequest } from "~/lib/leave-client";
+import { leaveClient, type LeaveAccessState, type LatestLeaveStatus } from "~/lib/leave-client";
 import { formatWeekLabel } from "~/lib/weekly-report-calendar";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import {
@@ -19,8 +19,7 @@ export function meta() {
   return [{ title: "我的工作台 | TARSGO" }];
 }
 
-function getLeaveStatus(access: LeaveAccessState | null, requests: LeaveRequest[] | null, isAdmin: boolean) {
-  const latest = requests?.slice().sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
+function getLeaveStatus(access: LeaveAccessState | null, latest: LatestLeaveStatus | null, isAdmin: boolean) {
   if (latest) {
     const labels: Record<string, string> = {
       pending: "待汇总",
@@ -57,7 +56,7 @@ export default function PersonalWorkbench() {
   }));
   const snapshot = view.key === snapshotKey ? view.snapshot : getPersonalWorkbenchSnapshot(snapshotKey) ?? emptyPersonalSnapshot;
   const requestSequence = useRef(0);
-  const hasSnapshot = snapshot.weekly !== null || snapshot.assignments !== null || snapshot.leaveAccess !== null || snapshot.leaveRequests !== null;
+  const hasSnapshot = snapshot.weekly !== null || snapshot.assignments !== null || snapshot.leaveAccess !== null || snapshot.leaveLatest !== null;
   const loading = view.key !== snapshotKey ? !getPersonalWorkbenchSnapshot(snapshotKey) : view.refreshing && !hasSnapshot;
   const refreshing = view.key !== snapshotKey ? Boolean(getPersonalWorkbenchSnapshot(snapshotKey)) : view.refreshing && hasSnapshot;
 
@@ -67,12 +66,12 @@ export default function PersonalWorkbench() {
     setView({ key: snapshotKey, snapshot: previous, refreshing: true });
     const leaveRequest = leaveClient.leaveAccess().then(async (access) => ({
       access,
-      requests: access.status === "approved" || isAdmin ? await leaveClient.schoolRequests() : [],
+      latest: access.status === "approved" || isAdmin ? await leaveClient.latestSchoolStatus() : null,
     }));
-    const weeklyRequest = import("~/lib/weekly-report-client").then(({ getWeeklyReportDashboard }) => getWeeklyReportDashboard());
+    const weeklyRequest = import("~/lib/weekly-report-client").then(({ getWeeklyReportStatus }) => getWeeklyReportStatus());
     const [weekly, assignments, leave] = await Promise.allSettled([
       weeklyRequest,
-      hasAssignments ? assignmentClient.listMine() : Promise.resolve([]),
+      hasAssignments ? assignmentClient.listTodos() : Promise.resolve([]),
       leaveRequest,
     ]);
     if (requestSequence.current !== requestId) return;
@@ -84,7 +83,7 @@ export default function PersonalWorkbench() {
     else next.errors.assignments = assignments.reason instanceof Error ? assignments.reason.message : "作业状态暂时无法读取。";
     if (leave.status === "fulfilled") {
       next.leaveAccess = leave.value.access;
-      next.leaveRequests = leave.value.requests;
+      next.leaveLatest = leave.value.latest;
     } else next.errors.leave = leave.reason instanceof Error ? leave.reason.message : "请假状态暂时无法读取。";
     rememberPersonalWorkbenchSnapshot(snapshotKey, next);
     setView({ key: snapshotKey, snapshot: next, refreshing: false });
@@ -95,7 +94,7 @@ export default function PersonalWorkbench() {
     return () => { requestSequence.current += 1; };
   }, [load]);
 
-  const currentReport = snapshot.weekly?.reports.find((report) => report.weekStart === snapshot.weekly?.currentWeekStart) ?? null;
+  const currentReport = snapshot.weekly?.submitted ?? false;
   const assignmentTodos = (snapshot.assignments ?? [])
     .filter((assignment) => ["pending", "overdue", "needs_redo"].includes(assignment.status ?? ""))
     .sort((left, right) => assignmentPriority(left.status) - assignmentPriority(right.status) || left.dueAt.localeCompare(right.dueAt));
@@ -103,9 +102,9 @@ export default function PersonalWorkbench() {
   const upcomingAssignments = assignmentTodos.filter(({ status }) => status === "pending");
   const hasErrors = Object.values(snapshot.errors).some(Boolean);
   const taskCount = urgentAssignments.length + upcomingAssignments.length + (snapshot.weekly && !currentReport ? 1 : 0);
-  const leaveStatus = loading ? "读取中" : snapshot.errors.leave ? (snapshot.leaveAccess ? "暂用上次状态" : "读取失败") : getLeaveStatus(snapshot.leaveAccess, snapshot.leaveRequests, isAdmin);
+  const leaveStatus = loading ? "读取中" : snapshot.errors.leave ? (snapshot.leaveAccess ? "暂用上次状态" : "读取失败") : getLeaveStatus(snapshot.leaveAccess, snapshot.leaveLatest, isAdmin);
 
-  function renderAssignments(items: Assignment[]) {
+  function renderAssignments(items: AssignmentTodo[]) {
     return items.map((assignment) => (
       <li key={assignment.id} className="personal-workbench__task">
         <span className={`personal-workbench__priority${assignment.status === "overdue" ? " is-overdue" : assignment.status === "needs_redo" ? " is-review" : ""}`} aria-hidden="true" />

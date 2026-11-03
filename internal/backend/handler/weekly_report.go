@@ -16,6 +16,7 @@ import (
 )
 
 type weeklyReportService interface {
+	GetCurrentStatus(ctx context.Context, userID uint64) (*weeklyreport.CurrentStatus, error)
 	GetDashboard(ctx context.Context, userID uint64, systemRole string) (*weeklyreport.Dashboard, error)
 	SaveCurrentReport(ctx context.Context, userID uint64, input weeklyreport.ReportInput) (*weeklyreport.Report, error)
 	UpdateReport(ctx context.Context, userID, reportID uint64, input weeklyreport.ReportInput) (*weeklyreport.Report, error)
@@ -240,4 +241,18 @@ func (h *WeeklyReportHandler) handleServiceError(c *gin.Context, err error) {
 		return
 	}
 	writeAPIError(c, http.StatusInternalServerError, "服务器内部错误")
+}
+
+func (h *WeeklyReportHandler) GetCurrentStatus(c *gin.Context) {
+	userID, _, ok := currentWeeklyReportActor(c)
+	if !ok {
+		writeAPIError(c, http.StatusUnauthorized, "请先登录")
+		return
+	}
+	result, err := h.service.GetCurrentStatus(c.Request.Context(), userID)
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "获取周报状态成功", result)
 }

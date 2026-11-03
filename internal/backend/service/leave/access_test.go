@@ -172,3 +172,14 @@ func TestRunViewLoadsMetadataWithoutSignedFileContent(t *testing.T) {
 		t.Fatalf("result metadata changed: %#v", result)
 	}
 }
+
+func TestLatestLeaveStatusIsOwnedBoundedAndMetadataOnly(t *testing.T) {
+	db, mock := newLeaveAccessMockGorm(t)
+	now := time.Date(2026, 11, 3, 0, 0, 0, 0, time.UTC)
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT `status`,`created_at` FROM `school_leave_requests` WHERE user_id = ? ORDER BY created_at DESC, id DESC LIMIT ?")).WithArgs(uint64(22), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"status", "created_at"}).AddRow(model.LeaveStatusPending, now))
+	result, err := NewService(db).LatestRequestStatus(context.Background(), 22)
+	if err != nil || result == nil || result.Status != model.LeaveStatusPending || !result.CreatedAt.Equal(now) {
+		t.Fatalf("latest=%#v err=%v", result, err)
+	}
+}

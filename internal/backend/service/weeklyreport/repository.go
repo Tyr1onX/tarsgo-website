@@ -18,6 +18,7 @@ var (
 )
 
 type Repository interface {
+	HasReportForWeek(ctx context.Context, userID uint64, weekStart string) (bool, error)
 	ListUserGroups(ctx context.Context, userID uint64) ([]GroupOption, error)
 	ListTeamGroups(ctx context.Context, userID uint64, systemRole string) ([]GroupOption, error)
 	ListMine(ctx context.Context, userID uint64) ([]model.WeeklyReport, error)
@@ -266,4 +267,10 @@ func (r *GormRepository) DeleteReportAttachment(ctx context.Context, userID, rep
 		return nil, err
 	}
 	return &removed, nil
+}
+
+func (r *GormRepository) HasReportForWeek(ctx context.Context, userID uint64, weekStart string) (bool, error) {
+	var ids []uint64
+	err := r.db.WithContext(ctx).Model(&model.WeeklyReport{}).Where("user_id = ? AND week_start = ?", userID, weekStart).Limit(1).Pluck("id", &ids).Error
+	return len(ids) > 0, err
 }

@@ -198,6 +198,14 @@ func newServiceWithFileRoots(db *gorm.DB, submissionRoot, materialRoot string) (
 }
 
 func (s *Service) ListMine(ctx context.Context, actor Actor) ([]AssignmentView, error) {
+	items, err := s.memberListItems(ctx, actor, false)
+	if err != nil {
+		return nil, err
+	}
+	return s.memberListViews(ctx, actor.ID, items)
+}
+
+func (s *Service) memberListItems(ctx context.Context, actor Actor, summary bool) ([]model.Assignment, error) {
 	groupIDs, err := assignmentGroupIDs(s.db.WithContext(ctx), actor.ID)
 	if err != nil {
 		return nil, internalError("读取所属组别失败", err)
@@ -206,13 +214,17 @@ func (s *Service) ListMine(ctx context.Context, actor Actor) ([]AssignmentView, 
 		return nil, forbidden("当前账号没有可用的技术组归属")
 	}
 	var items []model.Assignment
-	if err := s.db.WithContext(ctx).Model(&model.Assignment{}).
+	query := s.db.WithContext(ctx).Model(&model.Assignment{})
+	if summary {
+		query = query.Select("assignments.id", "assignments.title", "assignments.due_at")
+	}
+	if err := query.
 		Joins("JOIN assignment_targets ON assignment_targets.assignment_id = assignments.id").
 		Where("assignment_targets.user_id = ? AND assignments.group_id IN ? AND assignments.publication_status = ?", actor.ID, groupIDs, model.AssignmentPublicationPublished).
 		Order("assignments.due_at ASC, assignments.id DESC").Find(&items).Error; err != nil {
 		return nil, internalError("读取我的作业失败", err)
 	}
-	return s.memberListViews(ctx, actor.ID, items)
+	return items, nil
 }
 
 func (s *Service) GetMine(ctx context.Context, actor Actor, assignmentID uint64) (*MyAssignmentDetail, error) {

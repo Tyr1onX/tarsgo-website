@@ -400,3 +400,12 @@ func (h *AssignmentHandler) fail(c *gin.Context, err error) {
 	middleware.LogInternalError(c, "assignment", http.StatusInternalServerError, err)
 	writeAPIError(c, http.StatusInternalServerError, "服务器内部错误")
 }
+
+func (h *AssignmentHandler) ListTodos(c *gin.Context) {
+	result, err := h.service.ListTodos(c.Request.Context(), currentAssignmentActor(c))
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "获取作业待办成功", result)
+}

@@ -82,3 +82,8 @@ export function uploadWeeklyReportAttachments(reportID: number, files: File[]): 
 export function deleteWeeklyReportAttachment(reportID: number, fileID: number): Promise<{ id: number }> {
   return apiRequest<{ id: number }>(`/api/weekly-reports/${reportID}/attachments/${fileID}`, { method: "DELETE" });
 }
+
+export interface WeeklyReportStatus { currentWeekStart: string; submitted: boolean }
+export function getWeeklyReportStatus(): Promise<WeeklyReportStatus> {
+ return apiRequest<WeeklyReportStatus>("/api/weekly-reports/current-status");
+}

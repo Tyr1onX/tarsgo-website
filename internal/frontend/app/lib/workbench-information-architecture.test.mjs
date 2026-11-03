@@ -13,11 +13,11 @@ const timetable = await readFile(new URL("../routes/dashboard/timetable.tsx", im
 
 test("the personal landing route is a status-first overview backed by existing user data", () => {
   assert.match(routeConfig, /route\("workbench", "routes\/dashboard\/workbench\.tsx"\)/);
-  assert.match(personalWorkbench, /getWeeklyReportDashboard\(\)/);
+  assert.match(personalWorkbench, /getWeeklyReportStatus\(\)/);
   assert.match(personalWorkbench, /import\("~\/lib\/weekly-report-client"\)/);
-  assert.match(personalWorkbenchCache, /import type \{ WeeklyReportDashboard \} from "\.\/weekly-report-client\.ts"/);
-  assert.doesNotMatch(personalWorkbench, /^import \{[^\n]*getWeeklyReportDashboard[^\n]*\} from "~\/lib\/weekly-report-client"/m);
-  assert.match(personalWorkbench, /assignmentClient\.listMine\(\)/);
+  assert.match(personalWorkbenchCache, /import type \{ WeeklyReportStatus \} from "\.\/weekly-report-client\.ts"/);
+  assert.doesNotMatch(personalWorkbench, /^import \{[^\n]*getWeeklyReportStatus[^\n]*\} from "~\/lib\/weekly-report-client"/m);
+  assert.match(personalWorkbench, /assignmentClient\.listTodos\(\)/);
   assert.match(personalWorkbench, /leaveClient\.leaveAccess\(\)/);
   assert.match(personalWorkbench, /hasAssignmentGroupAccess\(groupResolution\?\.groups\)/);
   assert.match(personalWorkbench, /本周已提交/);
@@ -66,5 +66,5 @@ test("personal and team weekly data stay independent and loads remain deferred p
   assert.match(weeklyReports, /if \(teamExpanded && dashboard\?\.canViewTeam/);
   assert.match(weeklyReports, /const isEditing = searchParams\.get\("edit"\) === "1"/);
   assert.match(layout, /export async function clientLoader/);
-  assert.doesNotMatch(layout.slice(layout.indexOf("export async function clientLoader"), layout.indexOf("clientLoader.hydrate")), /getWeeklyReportDashboard|getAdminWorkbenchSummary|assignmentClient/);
+  assert.doesNotMatch(layout.slice(layout.indexOf("export async function clientLoader"), layout.indexOf("clientLoader.hydrate")), /getWeeklyReportStatus|getAdminWorkbenchSummary|assignmentClient/);
 });

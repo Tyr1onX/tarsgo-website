@@ -99,7 +99,10 @@ export interface AssignmentInput {
   targetUserIds: number[];
 }
 
+export type AssignmentTodo = Pick<Assignment, "id" | "title" | "dueAt" | "status">;
+
 export const assignmentClient = {
+ listTodos: () => apiRequest<AssignmentTodo[]>("/api/assignments/todos"),
   listMine: () => apiRequest<Assignment[]>("/api/assignments"),
   getMine: (id: number) => apiRequest<MyAssignmentDetail>(`/api/assignments/${id}`),
   submit: (id: number, files: File[]) => {

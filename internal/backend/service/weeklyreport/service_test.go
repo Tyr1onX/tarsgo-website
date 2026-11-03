@@ -404,3 +404,8 @@ func TestLegacyHistoryCanBeEditedWithoutInventingGains(t *testing.T) {
 }
 
 func ptrUint64(value uint64) *uint64 { return &value }
+
+func (r *memoryRepository) HasReportForWeek(ctx context.Context, userID uint64, weekStart string) (bool, error) {
+	report, err := r.FindByWeek(ctx, userID, weekStart)
+	return report != nil, err
+}

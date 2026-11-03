@@ -671,3 +671,20 @@ func serviceError(status int, message string, err error) *ServiceError {
 func internalError(message string, err error) *ServiceError {
 	return serviceError(http.StatusInternalServerError, message, err)
 }
+
+type CurrentStatus struct {
+	CurrentWeekStart string `json:"currentWeekStart"`
+	Submitted        bool   `json:"submitted"`
+}
+
+func (s *Service) GetCurrentStatus(ctx context.Context, userID uint64) (*CurrentStatus, error) {
+	if userID == 0 {
+		return nil, serviceError(http.StatusUnauthorized, "请先登录", nil)
+	}
+	week := currentWeekStart(s.now())
+	submitted, err := s.repo.HasReportForWeek(ctx, userID, week)
+	if err != nil {
+		return nil, internalError("读取本周周报状态失败", err)
+	}
+	return &CurrentStatus{CurrentWeekStart: week, Submitted: submitted}, nil
+}

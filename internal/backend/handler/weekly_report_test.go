@@ -11,6 +11,7 @@ import (
 )
 
 type weeklyReportServiceStub struct {
+	statusFn    func(context.Context, uint64) (*weeklyreport.CurrentStatus, error)
 	dashboardFn func(context.Context, uint64, string) (*weeklyreport.Dashboard, error)
 	saveFn      func(context.Context, uint64, weeklyreport.ReportInput) (*weeklyreport.Report, error)
 	updateFn    func(context.Context, uint64, uint64, weeklyreport.ReportInput) (*weeklyreport.Report, error)
@@ -89,4 +90,8 @@ func TestWeeklyReportHandlerRejectsInvalidReportIDs(t *testing.T) {
 	if recorder.Code != http.StatusBadRequest || called {
 		t.Fatalf("invalid report id status=%d called=%t body=%s", recorder.Code, called, recorder.Body.String())
 	}
+}
+
+func (s weeklyReportServiceStub) GetCurrentStatus(ctx context.Context, userID uint64) (*weeklyreport.CurrentStatus, error) {
+	return s.statusFn(ctx, userID)
 }

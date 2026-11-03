@@ -156,6 +156,14 @@ func TestWeeklyReportAllMemberAndGroupScopeAcceptance(t *testing.T) {
 		t.Fatalf("technical member report was not created in their group: %#v, error=%v", memberReport, err)
 	}
 
+	status, err := service.GetCurrentStatus(context.Background(), memberA.ID)
+	if err != nil || !status.Submitted || status.CurrentWeekStart != memberReport.WeekStart {
+		t.Fatalf("submitted status: %#v err=%v", status, err)
+	}
+	missing, err := service.GetCurrentStatus(context.Background(), boundaryMember.ID)
+	if err != nil || missing.Submitted {
+		t.Fatalf("another user's status leaked: %#v err=%v", missing, err)
+	}
 	upload := weeklyReportUpload(t, "设计图.pdf", []byte("%PDF-1.7\nprivate weekly report attachment"))
 	attachments, err := service.UploadAttachments(context.Background(), Actor{ID: memberA.ID, RoleName: model.RoleNameUser}, memberReport.ID, []*multipart.FileHeader{upload})
 	if err != nil || len(attachments) != 1 || attachments[0].FileName != "设计图.pdf" {
