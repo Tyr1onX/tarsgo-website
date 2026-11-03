@@ -1,6 +1,7 @@
 import { ApiError, apiRequest, registerApiAuthLifecycle } from "./api-client.ts";
 import { AuthSessionCache } from "./auth-session-cache.ts";
 import { requestCommunityExperienceRefresh } from "./community-experience-sync.ts";
+import { clearPersonalWorkbenchSnapshots } from "./personal-workbench-cache.ts";
 import {
   invalidateUserGroupConfirmationStateCache,
   markUserGroupConfirmationStateStale,
@@ -81,6 +82,11 @@ function notifyAuthStateChange(user: AuthUser | null) {
   }
 }
 
+function clearCurrentAccountPrivateData() {
+  const currentUser = authSessionCache.getUser();
+  if (currentUser) clearPersonalWorkbenchSnapshots(currentUser.id);
+}
+
 type AccountSessionMessage =
   | { type: "identity-changed"; source: string }
   | { type: "profile-updated"; source: string; user: AuthUser }
@@ -97,6 +103,7 @@ function ensureAccountSessionChannel() {
     if (!message || message.source === getAccountSessionTabId()) return;
 
     if (message.type === "identity-changed") {
+      clearCurrentAccountPrivateData();
       authSessionCache.clear();
       invalidateCurrentUserRequest();
       invalidateUserGroupConfirmationStateCache();
@@ -113,6 +120,7 @@ function ensureAccountSessionChannel() {
     }
 
     markUserGroupConfirmationStateStale(message.userId);
+    clearPersonalWorkbenchSnapshots(message.userId ?? undefined);
     for (const listener of permissionChangeListeners) listener(message.userId);
   });
 }
@@ -154,6 +162,7 @@ function closeAccountSessionChannelWhenUnused() {
 
 export function announcePermissionChange(userId: number | null, options: { notifyLocal?: boolean; markStale?: boolean } = {}) {
   if (options.markStale !== false) markUserGroupConfirmationStateStale(userId);
+  clearPersonalWorkbenchSnapshots(userId ?? undefined);
   if (options.notifyLocal !== false) {
     for (const listener of permissionChangeListeners) listener(userId);
   }
@@ -174,6 +183,12 @@ function getAccountSessionTabId() {
 }
 
 function notifyNewLogin(user: AuthUser) {
+  const previousUser = authSessionCache.getUser();
+  if (previousUser && (
+    previousUser.id !== user.id
+    || previousUser.role.id !== user.role.id
+    || previousUser.role.name !== user.role.name
+  )) clearPersonalWorkbenchSnapshots(previousUser.id);
   authSessionCache.setAuthenticated(user);
   invalidateCurrentUserRequest();
   invalidateUserGroupConfirmationStateCache();
@@ -184,6 +199,7 @@ function notifyNewLogin(user: AuthUser) {
 function expireSessionAfterUnauthorized(version: number) {
   if (version < 0 || authSessionCache.version !== version) return;
   const wasAuthenticated = authSessionCache.getUser() !== null;
+  clearCurrentAccountPrivateData();
   if (!authSessionCache.acceptAnonymousRequest(version)) return;
   invalidateCurrentUserRequest();
   invalidateUserGroupConfirmationStateCache();
@@ -325,6 +341,7 @@ export async function switchAccountSession(accountId: number): Promise<{ user: A
     body: { accountId },
     accountAction: true,
   });
+  clearCurrentAccountPrivateData();
   authSessionCache.setAuthenticated(result.user);
   invalidateCurrentUserRequest();
   invalidateUserGroupConfirmationStateCache();
@@ -347,6 +364,7 @@ export async function removeAccountSession(accountId: number): Promise<{
     accountAction: true,
   });
   if (result.currentRemoved) {
+    clearCurrentAccountPrivateData();
     authSessionCache.setAnonymous();
     invalidateCurrentUserRequest();
     invalidateUserGroupConfirmationStateCache();
@@ -362,6 +380,7 @@ export async function logoutAllAccounts(): Promise<void> {
     body: {},
     accountAction: true,
   });
+  clearCurrentAccountPrivateData();
   authSessionCache.setAnonymous();
   invalidateCurrentUserRequest();
   invalidateUserGroupConfirmationStateCache();
@@ -421,16 +440,23 @@ export async function getCurrentUser(options: { force?: boolean } = {}): Promise
   const requestVersion = authSessionCache.version;
   const request = apiRequest<{ user: AuthUser }>("/api/me")
     .then((data) => {
+      const previousUser = authSessionCache.getUser();
       if (requestGeneration === currentUserRequestGeneration && authSessionCache.acceptAuthenticatedRequest(requestVersion, data.user)) {
+        if (previousUser && (
+          previousUser.id !== data.user.id
+          || previousUser.role.id !== data.user.role.id
+          || previousUser.role.name !== data.user.role.name
+        )) clearPersonalWorkbenchSnapshots(previousUser.id);
         notifyAuthStateChange(data.user);
       }
       return data.user;
     })
     .catch((error) => {
-      const stateChanged = requestGeneration === currentUserRequestGeneration
+      const isCurrentUnauthorizedRequest = requestGeneration === currentUserRequestGeneration
         && error instanceof ApiError
-        && (error.status === 401 || error.status === 403)
-        && authSessionCache.acceptAnonymousRequest(requestVersion);
+        && (error.status === 401 || error.status === 403);
+      if (isCurrentUnauthorizedRequest && authSessionCache.version === requestVersion) clearCurrentAccountPrivateData();
+      const stateChanged = isCurrentUnauthorizedRequest && authSessionCache.acceptAnonymousRequest(requestVersion);
       if (stateChanged) {
         invalidateCurrentUserRequest();
         invalidateUserGroupConfirmationStateCache();
@@ -462,6 +488,7 @@ export async function getOptionalCurrentUser(
 
 export async function logout(): Promise<void> {
   await apiRequest("/api/logout", { method: "POST", body: {}, accountAction: true });
+  clearCurrentAccountPrivateData();
   authSessionCache.setAnonymous();
   invalidateCurrentUserRequest();
   invalidateUserGroupConfirmationStateCache();

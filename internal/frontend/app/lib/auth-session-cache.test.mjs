@@ -7,8 +7,18 @@ import {
   AUTH_SESSION_REVALIDATE_AFTER_MS,
   AuthSessionCache,
 } from "./auth-session-cache.ts";
-import { getCachedCurrentUser, getCurrentUser } from "./auth-client.ts";
+import {
+  getCachedCurrentUser,
+  getCurrentUser,
+  loginWithPassword,
+  logout,
+  subscribeAccountSessionChange,
+  subscribeAuthStateChange,
+  subscribePermissionChange,
+  switchAccountSession,
+} from "./auth-client.ts";
 import { apiRequest } from "./api-client.ts";
+import { getPersonalWorkbenchSnapshot, rememberPersonalWorkbenchSnapshot } from "./personal-workbench-cache.ts";
 
 const rootSource = await readFile(new URL("../root.tsx", import.meta.url), "utf8");
 const navbarSource = await readFile(new URL("../components/navbar.tsx", import.meta.url), "utf8");
@@ -123,11 +133,100 @@ test("auth identity requests are deduplicated and API 500 keeps the last verifie
     assert.equal(requests, 4);
 
     failWith401 = true;
+    const privateSnapshotKey = JSON.stringify([user.id, "member", false, false, "none"]);
+    rememberPersonalWorkbenchSnapshot(privateSnapshotKey, { private: true });
     await assert.rejects(getCurrentUser({ force: true }), /session expired/);
     assert.equal(getCachedCurrentUser(), null);
+    assert.equal(getPersonalWorkbenchSnapshot(privateSnapshotKey), undefined);
     assert.equal(requests, 5);
   } finally {
     globalThis.fetch = originalFetch;
+  }
+});
+
+test("logout clears the previous account's in-memory workbench snapshot", async () => {
+  const originalFetch = globalThis.fetch;
+  const user = { id: 91_323, email: "logout@example.test", role: { id: 1, name: "admin", displayName: "管理员" } };
+  const snapshotKey = JSON.stringify([user.id, "admin", true, true, "8:1"]);
+  globalThis.fetch = async (url) => String(url) === "/api/me"
+    ? new Response(JSON.stringify({ code: 0, message: "ok", data: { user } }), { status: 200 })
+    : new Response(JSON.stringify({ code: 0, message: "ok", data: null }), { status: 200 });
+  try {
+    assert.deepEqual(await getCurrentUser({ force: true }), user);
+    rememberPersonalWorkbenchSnapshot(snapshotKey, { private: true });
+    await logout();
+    assert.equal(getCachedCurrentUser(), null);
+    assert.equal(getPersonalWorkbenchSnapshot(snapshotKey), undefined);
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("login, account switching, and cross-tab messages keep identity, profile, and permissions distinct", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalBroadcastChannel = globalThis.BroadcastChannel;
+  const firstUser = { id: 91_324, email: "first@example.test", realName: "First", role: { id: 1, name: "admin", displayName: "管理员" } };
+  const secondUser = { id: 91_325, email: "second@example.test", realName: "Second", role: { id: 2, name: "member", displayName: "成员" } };
+  class BroadcastChannelMock {
+    static active = new Set();
+    listeners = new Set();
+    constructor(name) { this.name = name; BroadcastChannelMock.active.add(this); }
+    addEventListener(_type, listener) { this.listeners.add(listener); }
+    removeEventListener(_type, listener) { this.listeners.delete(listener); }
+    postMessage(message) {
+      for (const channel of BroadcastChannelMock.active) {
+        if (channel !== this && channel.name === this.name) channel.dispatch(message);
+      }
+    }
+    dispatch(data) { for (const listener of this.listeners) listener({ data }); }
+    close() { BroadcastChannelMock.active.delete(this); }
+    static sendFromAnotherTab(data) {
+      for (const channel of BroadcastChannelMock.active) channel.dispatch(data);
+    }
+  }
+  let accountChanges = 0;
+  let permissionChanges = [];
+  const observedUsers = [];
+  globalThis.BroadcastChannel = BroadcastChannelMock;
+  globalThis.fetch = async (url) => {
+    if (String(url) === "/api/login/email/password") {
+      return new Response(JSON.stringify({ code: 0, message: "ok", data: { user: firstUser } }), { status: 200 });
+    }
+    if (String(url) === "/api/account-sessions/switch") {
+      return new Response(JSON.stringify({ code: 0, message: "ok", data: { user: secondUser, accounts: [] } }), { status: 200 });
+    }
+    throw new Error(`Unexpected request: ${String(url)}`);
+  };
+  const unsubscribeAccount = subscribeAccountSessionChange(() => { accountChanges += 1; });
+  const unsubscribeAuth = subscribeAuthStateChange((user) => observedUsers.push(user));
+  const unsubscribePermission = subscribePermissionChange((userId) => permissionChanges.push(userId));
+  try {
+    assert.deepEqual(await loginWithPassword({ email: firstUser.email, password: "not-stored" }), firstUser);
+    assert.deepEqual(getCachedCurrentUser(), firstUser);
+    const oldSnapshotKey = JSON.stringify([firstUser.id, "admin", true, true, "8:1"]);
+    rememberPersonalWorkbenchSnapshot(oldSnapshotKey, { private: true });
+    assert.deepEqual((await switchAccountSession(44)).user, secondUser);
+    assert.deepEqual(getCachedCurrentUser(), secondUser);
+    assert.equal(getPersonalWorkbenchSnapshot(oldSnapshotKey), undefined);
+
+    BroadcastChannelMock.sendFromAnotherTab({ type: "profile-updated", source: "other-tab", user: { ...secondUser, realName: "Updated" } });
+    assert.equal(getCachedCurrentUser()?.realName, "Updated");
+    assert.equal(accountChanges, 0);
+    assert.equal(observedUsers.at(-1)?.realName, "Updated");
+
+    BroadcastChannelMock.sendFromAnotherTab({ type: "permissions-changed", source: "other-tab", userId: secondUser.id });
+    assert.deepEqual(permissionChanges, [secondUser.id]);
+    assert.equal(accountChanges, 0);
+
+    BroadcastChannelMock.sendFromAnotherTab({ type: "identity-changed", source: "other-tab" });
+    assert.equal(getCachedCurrentUser(), null);
+    assert.equal(accountChanges, 1);
+  } finally {
+    unsubscribeAccount();
+    unsubscribeAuth();
+    unsubscribePermission();
+    globalThis.fetch = originalFetch;
+    globalThis.BroadcastChannel = originalBroadcastChannel;
   }
 });
 

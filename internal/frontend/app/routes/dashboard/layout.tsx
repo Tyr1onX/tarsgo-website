@@ -30,6 +30,7 @@ import {
   type AuthUser,
 } from "~/lib/auth-client";
 import { resolveDashboardAuth } from "~/lib/dashboard-auth-flow";
+import { clearPersonalWorkbenchSnapshots } from "~/lib/personal-workbench-cache";
 import {
   confirmUserGroup,
   getCachedUserGroupConfirmationState,
@@ -38,7 +39,6 @@ import {
   refreshUserGroupConfirmationState,
   type UserGroupConfirmationState,
 } from "~/lib/user-group-client";
-import { clearPersonalWorkbenchSnapshots } from "~/lib/personal-workbench-cache";
 import {
   canAccessDashboardAdminPath,
   canAccessExpedition,
@@ -290,7 +290,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
     const requestId = ++identitySyncSequenceRef.current;
     setAccountSyncing(true);
     setAccountSyncError("");
-    clearPersonalWorkbenchSnapshots(currentUser.id);
     try {
       const user = await getCurrentUser({ force: true });
       if (identitySyncSequenceRef.current !== requestId) return;
@@ -356,7 +355,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
       return;
     }
     if (user.id !== loaderData.currentUser.id) {
-      clearPersonalWorkbenchSnapshots(loaderData.currentUser.id);
       setAccountSyncing(true);
     }
     setDisplayUser(user);
@@ -369,7 +367,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   useEffect(() => subscribePermissionChange((userId) => {
     if (userId !== null && userId !== currentUser.id) return;
     const affectedUserId = currentUser.id;
-    clearPersonalWorkbenchSnapshots(affectedUserId);
     const requestId = ++identitySyncSequenceRef.current;
     void Promise.all([
       getCurrentUser({ force: true }),
@@ -424,7 +421,9 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
         }
         if (groupResult.status === "fulfilled" && groupResult.value) {
           const nextGroups = groupResult.value;
-          routeAuthorizationChanged ||= JSON.stringify(previousGroups) !== JSON.stringify(nextGroups);
+          const groupAuthorizationChanged = JSON.stringify(previousGroups) !== JSON.stringify(nextGroups);
+          routeAuthorizationChanged ||= groupAuthorizationChanged;
+          if (groupAuthorizationChanged) clearPersonalWorkbenchSnapshots(currentUser.id);
           setDisplayGroupResolution(nextGroups);
           setDisplayGroupResolutionError("");
         } else if (groupResult.status === "rejected") {
@@ -601,7 +600,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
     setLoggingOut(true);
     try {
       const { user } = await switchAccountSession(accountId);
-      clearPersonalWorkbenchSnapshots(currentUser.id);
       setDisplayUser(user);
       setAccountModalMode(null);
       await navigate(getDefaultDashboardPath(user.role.name), { replace: true });
