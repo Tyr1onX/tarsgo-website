@@ -173,7 +173,7 @@ test("legacy team, timetable, profile, and help paths remain reachable through t
   assert.match(timetable, /tab=settings#timetable/);
   assert.match(layout, /navigate\(`\/dashboard\/members\/\$\{currentUser\.id\}\$\{tab === "overview" \? "" : `\?tab=\$\{tab\}`\}`\)/);
   assert.match(layout, /帮助与工作手册/);
-  assert.match(layout, /我的主页/);
+  assert.doesNotMatch(layout, />我的主页<\/button>/);
   assert.match(sideNavigation, /getMyWorkbenchMenu\(currentUser, hasAssignmentGroup\)/);
   assert.match(layout, /getDashboardSectionMenu\(currentUser\)/);
   assert.match(layout, /aria-label="返回 TARSGO 官网"/);

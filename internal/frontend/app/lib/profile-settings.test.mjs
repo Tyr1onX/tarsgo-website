@@ -80,7 +80,7 @@ test("phone remains out of the editor and the existing value is sent to the prof
 
 test("independent settings stay reachable without a profile settings tab", () => {
   assert.match(dashboardNavigation, /key: "my-profile", label: "我的主页", href: `\/dashboard\/members\/\$\{currentUser\.id\}`, iconKey: "user"/);
-  assert.match(layout, /dashboard-shell__user-menu-actions[\s\S]*?>我的主页<\/button>/);
+  assert.doesNotMatch(layout, /dashboard-shell__user-menu-actions[\s\S]*?>我的主页<\/button>/);
   assert.match(layout, /navigate\(`\/dashboard\/members\/\$\{currentUser\.id\}\?tab=settings#timetable`/);
   assert.match(memberProfile, /{tab === "settings" && isSelf/);
   assert.match(memberProfile, /<PersonalProfileSettings user=\{currentUser\} \/>/);

@@ -843,7 +843,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           id="dashboard-user-menu"
           role="menu"
           aria-label="账号菜单"
-          className="dashboard-shell__user-menu"
+          className="admin-design dashboard-shell__user-menu"
           style={{
             left: userMenuPosition?.left ?? 12,
             top: userMenuPosition?.top ?? 12,
@@ -873,12 +873,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
             </div>
           </div>
           <div className="dashboard-shell__user-menu-actions">
-            <button
-              type="button"
-              onClick={() => { setUserMenuOpen(false); openMyProfile(); }}
-              role="menuitem"
-              className="dashboard-shell__account-action"
-            >我的主页</button>
             <button
               type="button"
               onClick={() => { setUserMenuOpen(false); navigate("/dashboard/guide"); }}

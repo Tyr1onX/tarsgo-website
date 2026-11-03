@@ -42,10 +42,10 @@ test("the avatar menu is anchored, viewport-clamped, keyboard dismissible, and u
   assert.match(layout, /createPortal\([\s\S]*?dashboard-user-menu[\s\S]*?document\.body/);
   assert.match(layout, /const resizeObserver = new ResizeObserver\(updatePosition\)/);
   assert.match(layout, /event\.key === "Escape"/);
-  for (const label of ["我的主页", "帮助与工作手册", "切换账号", "添加账号", "管理账号", "退出当前账号"]) {
+  for (const label of ["帮助与工作手册", "切换账号", "添加账号", "管理账号", "退出当前账号"]) {
     assert.ok(layout.includes(label), `missing account menu action: ${label}`);
   }
-  assert.equal((layout.match(/className="dashboard-shell__user-menu"/g) ?? []).length, 1);
+  assert.equal((layout.match(/className="admin-design dashboard-shell__user-menu"/g) ?? []).length, 1);
   assert.doesNotMatch(layout, /dashboard-shell__profile-area/);
 });
 
