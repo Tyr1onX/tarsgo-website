@@ -255,6 +255,8 @@ test("the homepage preserves photo proportions and inserts a shorter equal-width
   assert.match(styles, /@media \(min-width: 640px\) \{[\s\S]*?\.home-visual-grid \{\s*--home-photo-height: 18rem;\s*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\);/);
   assert.match(styles, /@media \(min-width: 768px\) and \(max-width: 1023px\)/);
   assert.match(styles, /@media \(min-width: 1024px\) \{\s*\.home-visual-grid/);
+  assert.match(styles, /--home-photo-height: 16rem;/);
+  assert.doesNotMatch(styles, /\.home-visual-card \{\s*min-height: 16rem;/);
   for (const card of ["about", "robots", "join", "events", "history", "micro"]) {
     assert.match(styles, new RegExp(`\\.home-visual-card--${card} > img \\{ object-position: center \\d+%; \\}`));
   }
