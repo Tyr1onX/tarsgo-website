@@ -6,7 +6,8 @@ const { chromium } = await import(
 const base = process.env.TARSGO_SALON_BROWSER_BASE || "http://127.0.0.1:8194";
 if (new URL(base).hostname !== "127.0.0.1")
   throw new Error("Local synthetic browser server required");
-const out = process.cwd() + "/docs/qa/ai-salon";
+const out = process.env.TARSGO_SALON_BROWSER_OUT || process.cwd() + "/docs/qa/ai-salon";
+await fs.mkdir(out, { recursive: true });
 const browser = await chromium.launch({
   headless: true,
   executablePath:
@@ -23,6 +24,10 @@ async function page(actor, mobile = false) {
       ? { width: 390, height: 844 }
       : { width: 1440, height: 1000 },
   });
+  await c.route("https://salon-assets.tarsgo.test/poster.svg", (route) => route.fulfill({
+    contentType: "image/svg+xml",
+    body: '<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540"><rect width="960" height="540" fill="#151a19"/><path d="M180 400 480 100 780 400Z" fill="none" stroke="#d0ad69" stroke-width="3"/><text x="480" y="320" text-anchor="middle" fill="#edf1ed" font-size="40">TEST POSTER</text></svg>',
+  }));
   contexts.push(c);
   const p = await c.newPage();
   p.on("pageerror", (e) => errors.push(e.message));
@@ -53,6 +58,23 @@ async function fillProfile(p, name, id) {
   await field(p, "校区", "南岭校区");
   await p.getByLabel("性别", { exact: true }).selectOption("1");
 }
+const visualChecks = [];
+async function capture(p, name) {
+  const viewport = p.viewportSize();
+  for (const width of [1440, 390]) for (const theme of ["light", "dark"]) {
+    await p.setViewportSize({ width, height: 1000 });
+    if (await p.locator("html").getAttribute("data-theme") !== theme)
+      await p.getByRole("button", { name: /^切换到.*模式$/ }).click();
+    await p.waitForFunction(theme => document.documentElement.dataset.theme === theme, theme);
+    await p.waitForTimeout(260);
+    assert(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth), `${name} overflow at ${width}`);
+    assert.equal(await p.locator("nav[aria-label='主导航'] a").filter({ hasText: /^(首页|认识吉甲|机器人|赛事与荣誉|基地项目|吉甲社区|加入我们)$/ }).count(), 0);
+    await p.evaluate(() => scrollTo(0, 0));
+    await p.screenshot({ path: `${out}/${name}-${width}-${theme}.png`, fullPage: true });
+    visualChecks.push({ name, width, theme });
+  }
+  await p.setViewportSize(viewport);
+}
 async function registered(p, status) {
   await p
     .getByRole("paragraph")
@@ -62,18 +84,11 @@ async function registered(p, status) {
 try {
   const anon = await page(null);
   await anon.goto(base + "/programs");
-  await anon.getByRole("heading", { name: "基地项目", exact: true }).waitFor();
-  assert.equal(
-    await anon
-      .getByRole("link", { name: /低空智能感知与控制微专业/ })
-      .getAttribute("href"),
-    "/micro-specialties/low-altitude-intelligent-sensing-control",
-  );
-  await anon.screenshot({
-    path: out + "/programs-desktop.png",
-    fullPage: true,
-  });
-  checks.push("匿名项目入口、微专业原地址");
+  await anon.waitForURL(base + "/programs/ai-salon");
+  await anon.getByRole("heading", { name: "吉甲 AI 沙龙", exact: true }).waitFor();
+  await anon.getByText("新一期活动筹备中", { exact: true }).waitFor();
+  await capture(anon, "home-empty");
+  checks.push("旧聚合页重定向、无活动品牌主页");
   const admin = await page(0);
   await admin.goto(base + "/programs/ai-salon");
   await admin.getByRole("link", { name: "管理活动", exact: true }).click();
@@ -94,9 +109,19 @@ try {
   await admin.getByRole("button", { name: "保存活动", exact: true }).click();
   await admin.getByRole("status").filter({ hasText: "活动已保存" }).waitFor();
   await anon.goto(base + "/programs/ai-salon");
+  await capture(anon, "home-event");
+  await admin.getByRole("button", { name: "编辑", exact: true }).click();
+  await field(admin, "海报地址（选填）", "https://salon-assets.tarsgo.test/poster.svg");
+  await admin.getByRole("button", { name: "保存活动", exact: true }).click();
+  await admin.getByRole("status").filter({ hasText: "活动已保存" }).waitFor();
+  await anon.reload();
+  await anon.locator(".salon-event-cover img").waitFor();
+  await anon.waitForFunction(() => document.querySelector(".salon-event-cover img")?.naturalWidth > 0);
+  await capture(anon, "home-poster");
   await anon.getByRole("link", { name: /吉甲 AI 沙龙 · 线下实践/ }).click();
   await anon.getByRole("heading", { name: "线下报名" }).waitFor();
   await anon.getByRole("paragraph").filter({ hasText: "登录后报名" }).waitFor();
+  await capture(anon, "detail-guest");
   const detail = anon.url();
   const id = detail.split("/").pop();
   assert(!(await anon.getByText("人数上限").count()));
@@ -118,6 +143,11 @@ try {
     0,
   );
   checks.push("普通管理员浏览器管理隔离");
+  const identityBefore = await a.evaluate(async () => ({
+    user: (await (await fetch("/api/me")).json()).data.user,
+    group: (await (await fetch("/api/user-group/confirmation")).json()).data,
+  }));
+  assert.equal(identityBefore.user.workbenchAccess, false);
   await a.goto(detail);
   await fillProfile(a, "甲测试同学", "SALON001");
   await a.getByRole("button", { name: "提交报名", exact: true }).click();
@@ -126,6 +156,16 @@ try {
   await registered(a, "已报名");
   await a.getByText("SALON001", { exact: true }).waitFor();
   await a.screenshot({ path: out + "/registered-desktop.png", fullPage: true });
+  const identityAfter = await a.evaluate(async () => ({
+    user: (await (await fetch("/api/me")).json()).data.user,
+    group: (await (await fetch("/api/user-group/confirmation")).json()).data,
+  }));
+  assert.equal(identityAfter.user.workbenchAccess, false);
+  assert.equal(identityAfter.user.teamIdentityStatus, identityBefore.user.teamIdentityStatus);
+  assert.deepEqual(identityAfter.user.role, identityBefore.user.role);
+  assert.deepEqual(identityAfter.group, identityBefore.group);
+  checks.push("报名未授予战队身份、组别或工作台权限");
+  await capture(a, "detail-registered");
   checks.push("普通账号无战队身份报名、返回页面显示报名及资料");
   await b.goto(detail);
   await fillProfile(b, "乙测试同学", "SALON001");
@@ -143,6 +183,7 @@ try {
     await b.evaluate(() => document.documentElement.scrollWidth <= innerWidth),
   );
   await b.screenshot({ path: out + "/waitlist-mobile.png", fullPage: true });
+  await capture(b, "detail-waitlist");
   checks.push("学号重复拒绝、满员候补、候补无签到与排位、移动端无横向溢出");
   await c.goto(detail);
   await fillProfile(c, "丙测试同学", "SALON003");
@@ -177,7 +218,7 @@ try {
     .filter({ hasText: "已提前关闭报名" })
     .waitFor();
   await d.goto(detail);
-  await d.getByRole("paragraph").filter({ hasText: "报名已关闭" }).waitFor();
+  await d.getByRole("region", { name: "线下报名" }).getByRole("paragraph").filter({ hasText: "报名已关闭" }).waitFor();
   await admin
     .getByRole("button", { name: "重新开放报名", exact: true })
     .click();
@@ -235,6 +276,7 @@ try {
   assert(
     await d.getByRole("button", { name: "取消报名", exact: true }).isDisabled(),
   );
+  await capture(c, "detail-checked-in");
   checks.push("截止后取消关闭、活动中签到一次、候补不可签到");
   await admin.getByRole("button", { name: "名单与统计", exact: true }).click();
   await admin.getByRole("heading", { name: /名单与统计/ }).waitFor();
@@ -282,7 +324,7 @@ try {
   assert.deepEqual(errors, []);
   await fs.writeFile(
     out + "/browser-results.json",
-    JSON.stringify({ base, checks, pageErrors: errors }, null, 2),
+    JSON.stringify({ base, checks, visualChecks, pageErrors: errors }, null, 2),
   );
   console.log(JSON.stringify({ checks, pageErrors: errors }, null, 2));
 } catch (e) {

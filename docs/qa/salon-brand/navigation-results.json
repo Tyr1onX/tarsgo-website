@@ -1,0 +1,733 @@
+{
+  "base": "http://127.0.0.1:8194",
+  "results": [
+    {
+      "width": 320,
+      "theme": "light",
+      "minimalHeader": true,
+      "eightHomeEntries": true,
+      "ctaColors": {
+        "normal": {
+          "text": "rgb(255, 253, 247)",
+          "background": "rgb(128, 98, 41)"
+        },
+        "hover": {
+          "text": "rgb(255, 253, 247)",
+          "background": "rgb(116, 86, 31)"
+        }
+      }
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "minimalHeader": true,
+      "eightHomeEntries": true,
+      "ctaColors": {
+        "normal": {
+          "text": "rgb(23, 25, 21)",
+          "background": "rgb(208, 173, 105)"
+        },
+        "hover": {
+          "text": "rgb(23, 25, 21)",
+          "background": "rgb(223, 189, 124)"
+        }
+      }
+    },
+    {
+      "width": 390,
+      "clicked": "/about",
+      "landed": "/about"
+    },
+    {
+      "width": 390,
+      "clicked": "/robots",
+      "landed": "/robots"
+    },
+    {
+      "width": 390,
+      "clicked": "/join",
+      "landed": "/join"
+    },
+    {
+      "width": 390,
+      "clicked": "/dashboard",
+      "landed": "/login"
+    },
+    {
+      "width": 390,
+      "clicked": "/programs/ai-salon",
+      "landed": "/programs/ai-salon"
+    },
+    {
+      "width": 390,
+      "clicked": "/events-and-honors",
+      "landed": "/events-and-honors"
+    },
+    {
+      "width": 390,
+      "clicked": "/team-history",
+      "landed": "/team-history"
+    },
+    {
+      "width": 390,
+      "clicked": "/micro-specialties/low-altitude-intelligent-sensing-control",
+      "landed": "/micro-specialties/low-altitude-intelligent-sensing-control"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "minimalHeader": true,
+      "eightHomeEntries": true,
+      "ctaColors": {
+        "normal": {
+          "text": "rgb(255, 253, 247)",
+          "background": "rgb(128, 98, 41)"
+        },
+        "hover": {
+          "text": "rgb(255, 253, 247)",
+          "background": "rgb(116, 86, 31)"
+        }
+      }
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "minimalHeader": true,
+      "eightHomeEntries": true,
+      "ctaColors": {
+        "normal": {
+          "text": "rgb(23, 25, 21)",
+          "background": "rgb(208, 173, 105)"
+        },
+        "hover": {
+          "text": "rgb(23, 25, 21)",
+          "background": "rgb(223, 189, 124)"
+        }
+      }
+    },
+    {
+      "width": 768,
+      "theme": "light",
+      "minimalHeader": true,
+      "eightHomeEntries": true,
+      "ctaColors": {
+        "normal": {
+          "text": "rgb(255, 253, 247)",
+          "background": "rgb(128, 98, 41)"
+        },
+        "hover": {
+          "text": "rgb(255, 253, 247)",
+          "background": "rgb(116, 86, 31)"
+        }
+      }
+    },
+    {
+      "width": 768,
+      "theme": "dark",
+      "minimalHeader": true,
+      "eightHomeEntries": true,
+      "ctaColors": {
+        "normal": {
+          "text": "rgb(23, 25, 21)",
+          "background": "rgb(208, 173, 105)"
+        },
+        "hover": {
+          "text": "rgb(23, 25, 21)",
+          "background": "rgb(223, 189, 124)"
+        }
+      }
+    },
+    {
+      "width": 1440,
+      "clicked": "/about",
+      "landed": "/about"
+    },
+    {
+      "width": 1440,
+      "clicked": "/robots",
+      "landed": "/robots"
+    },
+    {
+      "width": 1440,
+      "clicked": "/join",
+      "landed": "/join"
+    },
+    {
+      "width": 1440,
+      "clicked": "/dashboard",
+      "landed": "/login"
+    },
+    {
+      "width": 1440,
+      "clicked": "/programs/ai-salon",
+      "landed": "/programs/ai-salon"
+    },
+    {
+      "width": 1440,
+      "clicked": "/events-and-honors",
+      "landed": "/events-and-honors"
+    },
+    {
+      "width": 1440,
+      "clicked": "/team-history",
+      "landed": "/team-history"
+    },
+    {
+      "width": 1440,
+      "clicked": "/micro-specialties/low-altitude-intelligent-sensing-control",
+      "landed": "/micro-specialties/low-altitude-intelligent-sensing-control"
+    },
+    {
+      "width": 1440,
+      "theme": "light",
+      "minimalHeader": true,
+      "eightHomeEntries": true,
+      "ctaColors": {
+        "normal": {
+          "text": "rgb(255, 253, 247)",
+          "background": "rgb(128, 98, 41)"
+        },
+        "hover": {
+          "text": "rgb(255, 253, 247)",
+          "background": "rgb(116, 86, 31)"
+        }
+      }
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "minimalHeader": true,
+      "eightHomeEntries": true,
+      "ctaColors": {
+        "normal": {
+          "text": "rgb(23, 25, 21)",
+          "background": "rgb(208, 173, 105)"
+        },
+        "hover": {
+          "text": "rgb(23, 25, 21)",
+          "background": "rgb(223, 189, 124)"
+        }
+      }
+    },
+    {
+      "actor": 1,
+      "width": 390,
+      "menu": [
+        "我的主页",
+        "切换账号",
+        "退出登录"
+      ],
+      "permissionChecks": true,
+      "switchAccount": true,
+      "logout": true
+    },
+    {
+      "actor": 1,
+      "width": 1440,
+      "menu": [
+        "我的主页",
+        "切换账号",
+        "退出登录"
+      ],
+      "permissionChecks": true,
+      "switchAccount": true,
+      "logout": true
+    },
+    {
+      "actor": 5,
+      "width": 390,
+      "menu": [
+        "我的主页",
+        "工作台",
+        "管理后台",
+        "切换账号",
+        "退出登录"
+      ],
+      "permissionChecks": true,
+      "switchAccount": true,
+      "logout": true
+    },
+    {
+      "actor": 5,
+      "width": 1440,
+      "menu": [
+        "我的主页",
+        "工作台",
+        "管理后台",
+        "切换账号",
+        "退出登录"
+      ],
+      "permissionChecks": true,
+      "switchAccount": true,
+      "logout": true
+    },
+    {
+      "actor": 0,
+      "width": 390,
+      "menu": [
+        "我的主页",
+        "工作台",
+        "管理后台",
+        "切换账号",
+        "退出登录"
+      ],
+      "permissionChecks": true,
+      "switchAccount": true,
+      "logout": true
+    },
+    {
+      "actor": 0,
+      "width": 1440,
+      "menu": [
+        "我的主页",
+        "工作台",
+        "管理后台",
+        "切换账号",
+        "退出登录"
+      ],
+      "permissionChecks": true,
+      "switchAccount": true,
+      "logout": true
+    }
+  ],
+  "timings": [
+    {
+      "name": "官网→工作台 首次 0",
+      "routeCommitMs": 18.899999976158142,
+      "titleVisibleMs": 30.600000023841858,
+      "requests": [
+        {
+          "path": "/assets/workbench-BmemM-Os.css",
+          "kind": "asset",
+          "durationMs": 1
+        },
+        {
+          "path": "/assets/layout-Y9IBogIF.css",
+          "kind": "asset",
+          "durationMs": 0
+        },
+        {
+          "path": "/assets/workbench-Dgd-hDZr.js",
+          "kind": "asset",
+          "durationMs": 0
+        },
+        {
+          "path": "/assets/assignment-client-B32jHdZt.js",
+          "kind": "asset",
+          "durationMs": 1
+        },
+        {
+          "path": "/assets/leave-client-B5SNXbkJ.js",
+          "kind": "asset",
+          "durationMs": 1
+        },
+        {
+          "path": "/assets/weekly-report-calendar-BTOgLMVj.js",
+          "kind": "asset",
+          "durationMs": 1
+        },
+        {
+          "path": "/assets/workbench-BmemM-Os.css",
+          "kind": "asset",
+          "durationMs": 0
+        },
+        {
+          "path": "/assets/weekly-report-client-GANlolpL.js",
+          "kind": "asset",
+          "durationMs": 1
+        },
+        {
+          "path": "/assets/images/Logo/tarsgo-robot-v5.svg",
+          "kind": "asset",
+          "durationMs": 0
+        },
+        {
+          "path": "/assets/dashboard-Bbqk_vp3.js",
+          "kind": "asset",
+          "durationMs": 0
+        },
+        {
+          "path": "/assets/dashboard-twKoEzoq.js",
+          "kind": "asset",
+          "durationMs": 0
+        },
+        {
+          "path": "/assets/registrations-client-BtcSFuXk.js",
+          "kind": "asset",
+          "durationMs": 0
+        },
+        {
+          "path": "/api/leave/access",
+          "kind": "api",
+          "durationMs": 2
+        },
+        {
+          "path": "/api/me/co-builder-badge/unlock-notice",
+          "kind": "api",
+          "durationMs": 1
+        },
+        {
+          "path": "/api/community/growth",
+          "kind": "api",
+          "durationMs": 2
+        },
+        {
+          "path": "/assets/favicon-BAmN4Vxr.ico",
+          "kind": "asset",
+          "durationMs": 0
+        }
+      ]
+    },
+    {
+      "name": "工作台→管理 首次 0",
+      "routeCommitMs": 0.9000000357627869,
+      "titleVisibleMs": 31.5,
+      "requests": [
+        {
+          "path": "/assets/images/Logo/tarsgo-robot-v5.svg",
+          "kind": "asset",
+          "durationMs": 1
+        },
+        {
+          "path": "/assets/favicon-BAmN4Vxr.ico",
+          "kind": "asset",
+          "durationMs": 0
+        },
+        {
+          "path": "/api/admin/workbench/summary",
+          "kind": "api",
+          "durationMs": 3
+        },
+        {
+          "path": "/api/admin/assignments/todos",
+          "kind": "api",
+          "durationMs": 3
+        }
+      ]
+    },
+    {
+      "name": "官网→工作台 已加载 1",
+      "routeCommitMs": 17.80000001192093,
+      "titleVisibleMs": 29.100000023841858,
+      "requests": [
+        {
+          "path": "/assets/workbench-BmemM-Os.css",
+          "kind": "asset",
+          "durationMs": 2
+        },
+        {
+          "path": "/assets/images/Logo/tarsgo-robot-v5.svg",
+          "kind": "asset",
+          "durationMs": 1
+        },
+        {
+          "path": "/api/leave/access",
+          "kind": "api",
+          "durationMs": 3
+        },
+        {
+          "path": "/api/me/co-builder-badge/unlock-notice",
+          "kind": "api",
+          "durationMs": 3
+        },
+        {
+          "path": "/api/community/growth",
+          "kind": "api",
+          "durationMs": 4
+        },
+        {
+          "path": "/api/weekly-reports/current-status",
+          "kind": "api",
+          "durationMs": 2
+        },
+        {
+          "path": "/assets/favicon-BAmN4Vxr.ico",
+          "kind": "asset",
+          "durationMs": 0
+        }
+      ]
+    },
+    {
+      "name": "工作台→管理 已加载 1",
+      "routeCommitMs": 1,
+      "titleVisibleMs": 32.89999997615814,
+      "requests": [
+        {
+          "path": "/assets/images/Logo/tarsgo-robot-v5.svg",
+          "kind": "asset",
+          "durationMs": 1
+        },
+        {
+          "path": "/assets/favicon-BAmN4Vxr.ico",
+          "kind": "asset",
+          "durationMs": 0
+        },
+        {
+          "path": "/api/admin/workbench/summary",
+          "kind": "api",
+          "durationMs": 3
+        },
+        {
+          "path": "/api/admin/assignments/todos",
+          "kind": "api",
+          "durationMs": 3
+        }
+      ]
+    },
+    {
+      "name": "官网→工作台 已加载 2",
+      "routeCommitMs": 17.69999998807907,
+      "titleVisibleMs": 29.399999976158142,
+      "requests": [
+        {
+          "path": "/assets/workbench-BmemM-Os.css",
+          "kind": "asset",
+          "durationMs": 2
+        },
+        {
+          "path": "/assets/images/Logo/tarsgo-robot-v5.svg",
+          "kind": "asset",
+          "durationMs": 1
+        },
+        {
+          "path": "/api/leave/access",
+          "kind": "api",
+          "durationMs": 3
+        },
+        {
+          "path": "/api/me/co-builder-badge/unlock-notice",
+          "kind": "api",
+          "durationMs": 2
+        },
+        {
+          "path": "/api/weekly-reports/current-status",
+          "kind": "api",
+          "durationMs": 2
+        },
+        {
+          "path": "/assets/favicon-BAmN4Vxr.ico",
+          "kind": "asset",
+          "durationMs": 0
+        },
+        {
+          "path": "/api/community/growth",
+          "kind": "api",
+          "durationMs": 4
+        }
+      ]
+    },
+    {
+      "name": "工作台→管理 已加载 2",
+      "routeCommitMs": 0.7000000476837158,
+      "titleVisibleMs": 28.30000001192093,
+      "requests": [
+        {
+          "path": "/assets/images/Logo/tarsgo-robot-v5.svg",
+          "kind": "asset",
+          "durationMs": 1
+        },
+        {
+          "path": "/api/admin/workbench/summary",
+          "kind": "api",
+          "durationMs": 2
+        },
+        {
+          "path": "/assets/favicon-BAmN4Vxr.ico",
+          "kind": "asset",
+          "durationMs": 0
+        },
+        {
+          "path": "/api/admin/assignments/todos",
+          "kind": "api",
+          "durationMs": 2
+        }
+      ]
+    },
+    {
+      "name": "官网→工作台 已加载 3",
+      "routeCommitMs": 15.600000023841858,
+      "titleVisibleMs": 26.80000001192093,
+      "requests": [
+        {
+          "path": "/assets/workbench-BmemM-Os.css",
+          "kind": "asset",
+          "durationMs": 1
+        },
+        {
+          "path": "/assets/images/Logo/tarsgo-robot-v5.svg",
+          "kind": "asset",
+          "durationMs": 1
+        },
+        {
+          "path": "/api/leave/access",
+          "kind": "api",
+          "durationMs": 3
+        },
+        {
+          "path": "/api/me/co-builder-badge/unlock-notice",
+          "kind": "api",
+          "durationMs": 3
+        },
+        {
+          "path": "/api/weekly-reports/current-status",
+          "kind": "api",
+          "durationMs": 2
+        },
+        {
+          "path": "/assets/favicon-BAmN4Vxr.ico",
+          "kind": "asset",
+          "durationMs": 0
+        },
+        {
+          "path": "/api/community/growth",
+          "kind": "api",
+          "durationMs": 5
+        }
+      ]
+    },
+    {
+      "name": "工作台→管理 已加载 3",
+      "routeCommitMs": 0.5,
+      "titleVisibleMs": 27.80000001192093,
+      "requests": [
+        {
+          "path": "/assets/images/Logo/tarsgo-robot-v5.svg",
+          "kind": "asset",
+          "durationMs": 1
+        },
+        {
+          "path": "/assets/favicon-BAmN4Vxr.ico",
+          "kind": "asset",
+          "durationMs": 0
+        },
+        {
+          "path": "/api/admin/workbench/summary",
+          "kind": "api",
+          "durationMs": 2
+        },
+        {
+          "path": "/api/admin/assignments/todos",
+          "kind": "api",
+          "durationMs": 2
+        }
+      ]
+    },
+    {
+      "name": "首页→沙龙路由",
+      "routeCommitMs": 3.5,
+      "titleVisibleMs": 11.199999988079071,
+      "requests": [
+        {
+          "path": "/assets/images/Sponsors/lxkj.webp",
+          "kind": "asset",
+          "durationMs": 2
+        },
+        {
+          "path": "/assets/images/Sponsors/kqkj.webp",
+          "kind": "asset",
+          "durationMs": 2
+        },
+        {
+          "path": "/assets/images/Sponsors/jyymq.webp",
+          "kind": "asset",
+          "durationMs": 3
+        },
+        {
+          "path": "/assets/images/Sponsors/qjzb.webp",
+          "kind": "asset",
+          "durationMs": 3
+        },
+        {
+          "path": "/assets/images/Sponsors/yeheshen.webp",
+          "kind": "asset",
+          "durationMs": 3
+        },
+        {
+          "path": "/assets/images/Community/jluai.png",
+          "kind": "asset",
+          "durationMs": 3
+        },
+        {
+          "path": "/assets/images/Partners/rightapi.jpg",
+          "kind": "asset",
+          "durationMs": 3
+        },
+        {
+          "path": "/assets/about-CE0Vfe7H.js",
+          "kind": "asset",
+          "durationMs": 2
+        },
+        {
+          "path": "/assets/events-and-honors-CRxrHq3-.js",
+          "kind": "asset",
+          "durationMs": 3
+        },
+        {
+          "path": "/assets/join-BfkeyZyW.js",
+          "kind": "asset",
+          "durationMs": 3
+        },
+        {
+          "path": "/assets/robots-srQqC-q0.js",
+          "kind": "asset",
+          "durationMs": 3
+        },
+        {
+          "path": "/assets/micro-specialty-low-altitude-BuVAfiQW.js",
+          "kind": "asset",
+          "durationMs": 3
+        },
+        {
+          "path": "/assets/events-and-honors-data-FbS6Ea4s.js",
+          "kind": "asset",
+          "durationMs": 3
+        },
+        {
+          "path": "/assets/team-history-CFA9ttzN.js",
+          "kind": "asset",
+          "durationMs": 3
+        },
+        {
+          "path": "/assets/team-history-B9A852HS.js",
+          "kind": "asset",
+          "durationMs": 4
+        },
+        {
+          "path": "/assets/salon-CiPOY5Xi.css",
+          "kind": "asset",
+          "durationMs": 0
+        },
+        {
+          "path": "/assets/ai-salon-B_Bi-xGq.js",
+          "kind": "asset",
+          "durationMs": 1
+        },
+        {
+          "path": "/assets/ai-salon-shared-BJzFRIjM.js",
+          "kind": "asset",
+          "durationMs": 0
+        },
+        {
+          "path": "/assets/salon-DWviUcwq.js",
+          "kind": "asset",
+          "durationMs": 0
+        },
+        {
+          "path": "/api/ai-salon/events",
+          "kind": "api",
+          "durationMs": 1
+        },
+        {
+          "path": "/assets/images/Logo/tarsgo-robot-v5.svg",
+          "kind": "asset",
+          "durationMs": 0
+        }
+      ]
+    },
+    {
+      "name": "独立文档冷加载",
+      "titleVisibleMs": 63.199791999999434
+    }
+  ],
+  "pageErrors": []
+}

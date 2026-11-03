@@ -1,0 +1,66 @@
+.salon-home { --salon-art-top: #e8d6ad; --salon-art-side: #736044; --salon-art-front: #b99a60; }
+.salon-hero { border-bottom: 1px solid var(--theme-border); padding-bottom: 3rem; }
+.salon-hero-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 1.5rem; }
+.salon-hero-heading h1 { display: flex; align-items: center; gap: 0.8rem; font-size: 1.125rem; font-weight: 600; letter-spacing: 0.05em; }
+.salon-brand-mark { width: 1.1rem; height: 1.1rem; border: 1px solid var(--theme-accent-contrast); box-shadow: 5px -5px 0 -1px var(--theme-canvas), 5px -5px 0 0 var(--theme-accent-contrast); transform: rotate(-12deg); }
+.salon-personal-links { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.salon-personal-links a { font-size: 0.75rem; padding-inline: 1rem; }
+.salon-hero-content { display: grid; grid-template-columns: 1.2fr 1fr; align-items: center; gap: 1rem; padding-top: 3rem; }
+.salon-manifesto { font-size: clamp(3rem, 5.7vw, 5.25rem); line-height: 1.24; font-weight: 600; letter-spacing: -0.06em; }
+.salon-manifesto > span { color: var(--theme-accent-contrast); }
+.salon-intro { margin: 1.75rem 0 2rem; color: var(--theme-muted); font-size: 0.9375rem; line-height: 1.9; }
+.salon-hero-art { color: var(--theme-accent-contrast); }
+.salon-artwork { display: block; width: 100%; height: auto; }
+.salon-events, .salon-format, .salon-past { padding-top: 3.5rem; scroll-margin-top: calc(var(--site-nav-height) + 1.5rem); }
+.salon-section-heading { margin-bottom: 1.5rem; }
+.salon-section-heading h2 { font-size: 1.5rem; font-weight: 600; letter-spacing: -0.035em; }
+.salon-empty { display: flex; align-items: center; gap: 0.85rem; border-block: 1px solid var(--theme-border); padding: 1.75rem 0; color: var(--theme-muted); font-size: 0.9375rem; }
+.salon-empty-dot { width: 0.4rem; height: 0.4rem; border-radius: 50%; background: var(--theme-accent-contrast); }
+.salon-event-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; }
+.salon-event-card { display: flex; flex-direction: column; min-width: 0; border: 1px solid var(--theme-border); border-radius: 1rem; overflow: hidden; background: var(--theme-surface); transition: border-color 180ms ease; }
+.salon-event-card:hover { border-color: var(--theme-accent-contrast); }
+.salon-event-card:focus-visible { outline: 2px solid var(--theme-accent-contrast); outline-offset: 4px; }
+.salon-event-cover { display: grid; place-items: center; aspect-ratio: 16 / 9; overflow: hidden; color: #d0ad69; background: #151a19; }
+.salon-event-cover img { display: block; width: 100%; height: 100%; object-fit: contain; min-height: 0; }
+.salon-event-cover .salon-artwork { width: 62%; max-height: 100%; }
+.salon-event-body { display: flex; flex: 1; flex-direction: column; align-items: flex-start; padding: 1.5rem; }
+.salon-event-status { display: inline-flex; color: var(--theme-muted); font-size: 0.75rem; }
+.salon-event-status--open { color: var(--theme-accent-contrast); }
+.salon-event-body h3 { margin-block: 0.75rem 1rem; font-size: 1.35rem; line-height: 1.5; font-weight: 600; overflow-wrap: anywhere; }
+.salon-event-meta { display: grid; gap: 0.4rem; font-size: 0.8125rem; line-height: 1.8; color: var(--theme-muted); }
+.salon-event-meta > div { display: flex; gap: 0.85rem; }
+.salon-event-meta dt { flex-shrink: 0; }
+.salon-event-meta dd { overflow-wrap: anywhere; }
+.salon-event-summary { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; margin-top: 1rem; color: var(--theme-muted); font-size: 0.875rem; line-height: 1.8; white-space: pre-wrap; overflow-wrap: anywhere; }
+.salon-event-link { display: flex; width: 100%; justify-content: space-between; gap: 1rem; margin-top: auto; padding-top: 1.5rem; color: var(--theme-accent-contrast); font-size: 0.875rem; }
+.salon-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); border-top: 1px solid var(--theme-border); }
+.salon-steps li { position: relative; padding: 1.75rem 2rem 0 0; }
+.salon-steps li + li { padding-left: 2rem; border-left: 1px solid var(--theme-border); }
+.salon-step-number { display: block; margin-bottom: 1.5rem; color: var(--theme-accent-contrast); font: 0.75rem var(--font-mono); }
+.salon-steps h3 { font-size: 1.125rem; font-weight: 600; }
+.salon-steps p { margin-top: 0.75rem; color: var(--theme-muted); font-size: 0.875rem; line-height: 1.9; }
+.salon-detail-heading { max-width: 52rem; margin-top: 1rem; font-size: clamp(2rem, 4vw, 3.25rem); line-height: 1.3; letter-spacing: -0.04em; font-weight: 600; overflow-wrap: anywhere; }
+.salon-detail-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); align-items: start; gap: 3rem; margin-top: 2.5rem; }
+.salon-detail-content { min-width: 0; }
+.salon-detail-poster { width: 100%; max-height: 650px; object-fit: contain; border: 1px solid var(--theme-border); border-radius: 1rem; margin-bottom: 2rem; background: var(--theme-surface); }
+.salon-detail-description h2 { margin-bottom: 1rem; font-size: 1.125rem; font-weight: 600; }
+.salon-detail-description p { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 2; color: var(--theme-muted); }
+.salon-registration { min-width: 0; padding: 1.5rem; border: 1px solid var(--theme-border); border-top: 2px solid var(--theme-accent-contrast); border-radius: 0.75rem; background: var(--theme-surface); }
+.salon-detail-facts { display: grid; gap: 1.25rem; margin: 1.5rem 0; padding-bottom: 1.5rem; border-bottom: 1px solid var(--theme-border); font-size: 0.875rem; }
+.salon-detail-facts dt { color: var(--theme-muted); font-size: 0.75rem; }
+.salon-detail-facts dd { margin-top: 0.4rem; line-height: 1.8; overflow-wrap: anywhere; }
+@media (max-width: 767px) {
+  .salon-hero { padding-bottom: 1.5rem; }
+  .salon-hero-content { grid-template-columns: 1fr; gap: 0; padding-top: 2.5rem; }
+  .salon-manifesto { font-size: clamp(2.75rem, 10vw, 4.5rem); }
+  .salon-hero-art { width: min(100%, 24rem); justify-self: center; margin-block: 0.5rem -1rem; }
+  .salon-intro { margin-top: 1.25rem; }
+  .salon-events, .salon-format, .salon-past { padding-top: 2.5rem; }
+  .salon-section-heading h2 { font-size: 1.3rem; }
+  .salon-event-grid, .salon-detail-layout { grid-template-columns: 1fr; }
+  .salon-detail-layout { gap: 2rem; margin-top: 2rem; }
+  .salon-steps { grid-template-columns: 1fr; }
+  .salon-steps li, .salon-steps li + li { padding: 1.5rem 0; border: 0; border-bottom: 1px solid var(--theme-border); }
+  .salon-step-number { float: left; width: 3rem; padding-top: 0.25rem; margin-bottom: 0; }
+  .salon-steps h3, .salon-steps p { margin-left: 3rem; }
+}

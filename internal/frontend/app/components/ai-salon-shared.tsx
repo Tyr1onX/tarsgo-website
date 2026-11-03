@@ -13,10 +13,10 @@ import { type AcademicInfo } from "~/lib/ai-salon-client";
 import { type CollegeOption } from "~/lib/leave-client";
 
 export const salonPanel =
-  "rounded-2xl border border-border-subtle bg-surface-secondary p-5 sm:p-8";
+  "rounded-2xl border border-border-subtle bg-surface-light p-5 sm:p-8";
 export const salonButton =
   "inline-flex min-h-11 items-center justify-center rounded-lg border border-border-subtle px-5 py-2 text-sm font-medium text-fg-primary transition hover:bg-surface-dark disabled:cursor-not-allowed disabled:opacity-50";
-export const salonPrimaryButton = `${salonButton} bg-accent-primary text-[var(--color-surface-primary)] hover:opacity-90`;
+export const salonPrimaryButton = `${salonButton.replace("text-fg-primary", "text-fg-inverse").replace("hover:bg-surface-dark", "hover:bg-[var(--theme-accent-button-hover)]")} bg-[var(--theme-accent-button)]`;
 export const salonField =
   "min-h-11 w-full rounded-lg border border-border-subtle bg-surface-primary px-3 py-2 text-base text-fg-primary";
 export function useSalonIdentity() {

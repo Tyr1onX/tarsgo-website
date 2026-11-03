@@ -6,66 +6,31 @@ const navbar = await readFile(new URL("../components/navbar.tsx", import.meta.ur
 const themeControl = await readFile(new URL("../components/theme-control.tsx", import.meta.url), "utf8");
 const styles = await readFile(new URL("../app.css", import.meta.url), "utf8");
 
-test("desktop links and authentication controls share the wide-screen breakpoint", () => {
-  assert.match(navbar, /className="hidden xl:flex items-center gap-5 2xl:gap-8"/);
-  assert.match(navbar, /className="hidden w-\[220px\] shrink-0 items-center justify-end gap-3 xl:flex"/);
-  assert.match(navbar, /navbar-menu-toggle xl:hidden/);
-  assert.doesNotMatch(navbar, /navbar-micro-specialty/);
-  assert.match(navbar, /SiteLogo/);
-  assert.match(navbar, /matchMedia\("\(min-width: 1280px\)"\)/);
+test("the same compact header serves every viewport without public or hidden navigation", () => {
+  assert.doesNotMatch(navbar, /navLinks|microSpecialtyNavLinks|visibleNavLinks|menuOpen|mobileMenu|desktopNavLinks|closeMobileMenu|variant/);
+  assert.doesNotMatch(navbar, /to="\/(?:about|robots|events-and-honors|programs|join)"/);
+  assert.doesNotMatch(styles, /site-mobile-menu|navbar-mobile-|navbar-menu-toggle|motion-nav-link/);
+  assert.match(navbar, /to="\/"[\s\S]*?aria-label="TARSGO 首页"/);
+  assert.match(navbar, /className="navbar-auth-area"/);
+  assert.match(navbar, /to="\/login"/);
 });
 
-test("mobile navigation exposes its disclosure state and Escape closes with focus restored", () => {
-  assert.match(navbar, /aria-label=\{visibleUser[\s\S]*?展开导航菜单/);
-  assert.match(navbar, /aria-expanded=\{menuOpen\}/);
-  assert.match(navbar, /aria-controls="site-mobile-menu"/);
-  assert.match(navbar, /id="site-mobile-menu"[\s\S]*?hidden=\{!menuOpen\}/);
-  assert.match(navbar, /event\.key !== "Escape"/);
-  assert.match(navbar, /mobileMenuButtonRef\.current\?\.focus\(\)/);
-  assert.match(navbar, /focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-\[#D0AD69\]/);
-  assert.match(navbar, /className="site-mobile-menu xl:hidden"/);
-  assert.match(styles, /\.site-mobile-menu\s*\{[\s\S]*?width:\s*min\(22rem, calc\(100vw - 2rem\)\)[\s\S]*?overflow-y:\s*auto/);
-  assert.match(styles, /@media \(min-width: 1280px\)\s*\{[\s\S]*?\.navbar-menu-toggle\s*\{\s*display:\s*none;/);
-  const mobileMenuCloseEffect = navbar.match(/useEffect\(\(\) => \{\s*if \(!menuOpen\) return;([\s\S]*?)\}, \[menuOpen\]\);/)?.[1] ?? "";
-  assert.match(mobileMenuCloseEffect, /document\.addEventListener\("pointerdown", closeOnOutsidePointer\)/);
-  assert.match(mobileMenuCloseEffect, /mobileMenuRef\.current\?\.contains\(target\) \|\| mobileMenuButtonRef\.current\?\.contains\(target\)/);
-  assert.doesNotMatch(mobileMenuCloseEffect, /mousedown|touchstart/);
-});
-
-test("mobile links close the menu and desktop resize moves focus to a visible navigation link", () => {
-  assert.match(navbar, /function closeMobileMenu\(\)[\s\S]*?setMenuOpen\(false\)[\s\S]*?mobileMenuButtonRef\.current\?\.focus\(\)/);
-  assert.match(navbar, /onClick=\{closeMobileMenu\}/);
-  assert.match(navbar, /desktopNavLinksRef\.current\?\.querySelector<HTMLAnchorElement>\("a"\)\?\.focus\(\)/);
-  assert.match(navbar, /desktopAuthAreaRef\.current\?\.contains\(activeElement\)/);
-  assert.match(navbar, /if \(focusedDesktopControl\) \{\s*mobileMenuButtonRef\.current\?\.focus\(\)/);
-});
-
-test("the header uses a role-aware identity menu and keeps account switching keyboard accessible", () => {
-  const mainLinks = navbar.match(/const navLinks = \[([\s\S]*?)\];/)?.[1] ?? "";
-  assert.doesNotMatch(mainLinks, /低空微专业/);
-  assert.doesNotMatch(navbar, /navbar-micro-specialty|to=.*micro-specialties/);
-  assert.match(navbar, /NavbarIdentityDetail user=\{visibleUser\} identity=\{groupIdentity\}/);
-  assert.match(navbar, /resolveGroupIdentity/);
+test("account actions reuse existing permissions and retain keyboard navigation", () => {
   assert.match(navbar, /getDashboardSectionMenu\(visibleUser\)/);
-  assert.match(navbar, /社区/);
+  assert.match(navbar, /filter\(\(item\) => item.key !== "community"\)/);
   assert.match(navbar, /切换账号/);
   assert.match(navbar, /退出登录/);
   assert.match(navbar, /getAccountSwitchHref/);
   assert.match(navbar, /subscribeAccountSessionChange/);
+  assert.match(navbar, /aria-expanded=\{userMenuOpen\}/);
+  assert.match(navbar, /aria-haspopup="menu"/);
   assert.match(navbar, /profileButtonRef\.current\?\.focus\(\)/);
   assert.match(navbar, /event\.key !== "ArrowDown" && event\.key !== "ArrowUp" && event\.key !== "Home" && event\.key !== "End"/);
   assert.match(navbar, /items\[nextIndex\]\.focus\(\)/);
-  assert.match(navbar, /跟随系统主题/);
-  assert.match(navbar, /setPreference\("system"\)/);
-  assert.match(navbar, /className="navbar-mobile-account"/);
-  assert.match(navbar, /className="navbar-mobile-account__name navbar-account-header__name"/);
-  assert.match(themeControl, /aria-label=\{`切换到\$\{nextTheme/);
   assert.match(themeControl, /onClick=\{\(\) => setPreference\(nextTheme\)\}/);
-  assert.match(styles, /\.theme-control--navbar \.theme-control__toggle\s*\{[\s\S]*?width:\s*2\.75rem;[\s\S]*?height:\s*2\.75rem;/);
-  assert.match(styles, /\.navbar-menu-toggle,\s*\.theme-control--navbar \.theme-control__toggle\s*\{[\s\S]*?width:\s*2\.75rem;[\s\S]*?height:\s*2\.75rem;/);
-  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?\.theme-control__toggle svg[\s\S]*?transition-duration:\s*0\.01ms !important;/);
-  assert.match(styles, /\.navbar-group-badge\s*\{[\s\S]*?border-radius:\s*999px/);
-  assert.match(styles, /\.navbar-mobile-account__actions\s*\{[^}]*?flex-direction:\s*column/);
+  assert.match(navbar, /<ThemeControl className="theme-control--navbar" systemOnly \/>/);
+  assert.match(styles, /\.navbar-account-action\s*\{[\s\S]*?min-height:\s*2\.75rem/);
+  assert.match(styles, /\.navbar-user-menu\s*\{[\s\S]*?width: min\(18rem, calc\(100vw - 2rem\)\)/);
 });
 
 test("authentication loading, guest, and member states stay distinct and reserve identity space", () => {
@@ -83,8 +48,7 @@ test("authentication loading, guest, and member states stay distinct and reserve
   assert.match(styles, /\.navbar-identity-detail--compact\s*\{\s*min-height:\s*17px/);
   assert.match(styles, /\.navbar-user-menu\s*\{/);
   assert.match(styles, /\.navbar-user-menu\s+\[role="menuitem"\]:focus-visible/);
-  assert.match(styles, /\.navbar-menu-group-mark\s*\{[\s\S]*?position:\s*absolute/);
-  assert.match(styles, /\.navbar-auth-loading__avatar,[\s\S]*?animation:\s*none !important/);
+  assert.match(styles, /\.navbar-auth-loading__avatar\s*\{\s*animation:\s*none !important/);
 });
 
 function luminance(hex) {
@@ -93,10 +57,10 @@ function luminance(hex) {
     .reduce((sum, value, index) => sum + value * [0.2126, 0.7152, 0.0722][index], 0);
 }
 
-test("small theme status and robot counts meet AA on their real theme surfaces", () => {
+test("robot counts meet AA on their real theme surfaces", () => {
   const dark = styles.match(/:root\s*\{([\s\S]*?)\}/)[1];
   const light = styles.match(/:root\[data-theme="light"\]\s*\{([\s\S]*?)\}/)[1];
-  for (const [selector, surface] of [["navbar-system-theme__state", "card"], ["robot-gallery__filter-count", "surface"]]) {
+  for (const [selector, surface] of [["robot-gallery__filter-count", "surface"]]) {
     const token = styles.match(new RegExp(`\\.${selector}\\s*\\{[^}]*color:\\s*var\\(--theme-([\\w-]+)\\)`))[1];
     for (const theme of [dark, light]) {
       const color = name => theme.match(new RegExp(`--theme-${name}:\\s*(#[a-f\\d]+)`, "i"))[1];

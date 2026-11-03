@@ -322,7 +322,7 @@ test("account-vault setup stays on demand and high-priority workbench pages prel
 
 test("the default homepage preloads the small login route without preloading dashboards for guests", () => {
   assert.match(navbarSource, /<PrefetchPageLinks page="\/login"\s*\/>/);
-  assert.match(navbarSource, /variant === "default" && visibleUser && dashboardPrefetchUserId === visibleUser\.id/);
+  assert.match(navbarSource, /visibleUser && dashboardPrefetchUserId === visibleUser\.id/);
 });
 
 test("critical navigation paths keep route prefetch and load analytics data after render", async () => {
