@@ -15,6 +15,7 @@ import {
   hasOperationsWorkManualAccess,
   isAssignmentGroupName,
   isDashboardMenuPathActive,
+  isDashboardSectionItemActive,
   isTemporarilyUnavailableDashboardPath,
 } from "./dashboard-navigation.ts";
 
@@ -39,15 +40,16 @@ test("primary navigation adds the signed-in member profile before role-gated Man
   assert.equal(hasDashboardAdminAccess("admin"), true);
 });
 
-test("personal workbench groups my tasks and member lookup without a team top-level section", () => {
+test("personal workbench groups my tasks and provides one direct member-and-role entry", () => {
   const memberMenu = getMyWorkbenchMenu("user", false);
-  assert.deepEqual(memberMenu.map(({ key, label }) => [key, label]), [["my-work", "我的事务"], ["people-directory", "成员信息"]]);
+  assert.deepEqual(memberMenu.map(({ key, label }) => [key, label]), [["my-work", "我的事务"], ["people-directory", "成员与岗位"]]);
   assert.deepEqual(memberMenu[0]?.children.map(({ key, href }) => [key, href]), [
     ["weekly-reports", "/dashboard/weekly-reports"],
     ["leave-workbench", "/dashboard/leave"],
     ["users-registrations", "/dashboard/users/registrations"],
   ]);
-  assert.deepEqual(memberMenu[1]?.children.map(({ key, href }) => [key, href]), [["organization", "/dashboard/workbench/organization"]]);
+  assert.equal(memberMenu[1]?.href, "/dashboard/workbench/organization");
+  assert.deepEqual(memberMenu[1]?.children, []);
   assert.deepEqual(getMyWorkbenchMenu("user", true)[0]?.children.map(({ key }) => key), ["weekly-reports", "my-assignments", "leave-workbench", "users-registrations"]);
   assert.deepEqual(getMyWorkbenchMenu("admin", true)[0]?.children.map(({ key }) => key), ["weekly-reports", "my-assignments", "leave-workbench"]);
   assert.deepEqual(getMyWorkbenchMenu("super_admin", false)[0]?.children.map(({ key }) => key), ["weekly-reports", "leave-workbench"]);
@@ -71,6 +73,11 @@ test("route classification keeps community, personal work, and management distin
   assert.equal(getDashboardSectionKey("/dashboard/members/42", "user", 42), "profile");
   assert.equal(isDashboardMenuPathActive("/dashboard/admin/registrations/42", "/dashboard/admin/registrations"), true);
   assert.equal(isDashboardMenuPathActive("/dashboard/admin", "/dashboard/admin/registrations"), false);
+});
+
+test("the personal profile route highlights its top-level navigation entry", () => {
+  assert.equal(isDashboardSectionItemActive("profile", "my-profile"), true);
+  assert.equal(isDashboardSectionItemActive("community", "my-profile"), false);
 });
 
 test("work manual access stays limited to operations members and super admins", () => {
@@ -166,6 +173,7 @@ test("legacy team, timetable, profile, and help paths remain reachable through t
   assert.match(timetable, /tab=settings#timetable/);
   assert.match(layout, /navigate\(`\/dashboard\/members\/\$\{currentUser\.id\}\$\{tab === "overview" \? "" : `\?tab=\$\{tab\}`\}`\)/);
   assert.match(layout, /帮助与工作手册/);
+  assert.match(layout, /我的主页/);
   assert.match(sideNavigation, /getMyWorkbenchMenu\(currentUser, hasAssignmentGroup\)/);
   assert.match(layout, /getDashboardSectionMenu\(currentUser\)/);
   assert.match(layout, /aria-label="返回 TARSGO 官网"/);

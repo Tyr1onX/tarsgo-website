@@ -15,6 +15,7 @@ export type DashboardMenuGroup = {
   key: string;
   label: string;
   iconKey?: DashboardMenuIconKey;
+  href?: string;
   children: readonly DashboardMenuLink[];
 };
 
@@ -99,11 +100,10 @@ const WORKBENCH_MENU: readonly DashboardMenuGroup[] = [
   },
   {
     key: "people-directory",
-    label: "成员信息",
-    iconKey: "people",
-    children: [
-      { key: "organization", label: "成员与岗位", href: "/dashboard/workbench/organization", iconKey: "team" },
-    ],
+    label: "成员与岗位",
+    iconKey: "team",
+    href: "/dashboard/workbench/organization",
+    children: [],
   },
 ];
 
@@ -201,6 +201,10 @@ export function getDashboardSectionMenu(currentUser: AuthUser): DashboardMenuLin
     { key: "my-profile", label: "我的主页", href: `/dashboard/members/${currentUser.id}`, iconKey: "user" },
     ...(managementItem && hasDashboardAdminAccess(currentUser.role.name) ? [{ ...managementItem }] : []),
   ];
+}
+
+export function isDashboardSectionItemActive(sectionKey: DashboardSectionKey | null, itemKey: string) {
+  return sectionKey === itemKey || (itemKey === "my-profile" && sectionKey === "profile");
 }
 
 export function getDashboardSectionKey(pathname: string, roleName = "user", currentUserID?: number): DashboardSectionKey | null {

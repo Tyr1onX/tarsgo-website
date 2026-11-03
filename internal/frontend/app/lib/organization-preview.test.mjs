@@ -39,7 +39,7 @@ test("all authenticated members can read the workbench directory, while the lega
   assert.match(router, /superAdminAPI\.Use\(middleware\.RequireSuperAdmin\(authService\)\)[\s\S]*?superAdminAPI\.GET\("\/organization-preview", handler\.OrganizationPreview\(db\)\)/);
   assert.match(routes, /route\("workbench\/organization", "routes\/organization-preview\.tsx"\)/);
   assert.match(routes, /route\("team", "routes\/dashboard\/team-redirect\.tsx"\)/);
-  assert.match(navigation, /label: "成员与岗位", href: "\/dashboard\/workbench\/organization"/);
+  assert.match(navigation, /label: "成员与岗位",[\s\S]*?iconKey: "team",[\s\S]*?href: "\/dashboard\/workbench\/organization"/);
   assert.match(component, /apiRequest<OrganizationPreview>\("\/api\/team\/organization-preview"\)/);
   assert.match(handler, /Select\("id", "real_name", "avatar_url"\)/);
   assert.doesNotMatch(handler, /Select\([^)]*(email|phone)/);
