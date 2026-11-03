@@ -206,6 +206,7 @@ func migrationRegistry(appEnv string) []migration {
 		}},
 		{version: 45, apply: dropTeamIdentityChanges},
 		{version: 46, apply: migrateWeeklyUniqueV46},
+		{version: 47, apply: migrateCheckinIndexV47},
 	}
 }
 
