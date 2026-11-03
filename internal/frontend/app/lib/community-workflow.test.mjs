@@ -330,9 +330,7 @@ test("featured state is server-gated, independently audited, visible throughout 
   assert.match(postCard, /<CommunityFeaturedMark featured=\{post\.isFeatured\} \/>/);
   assert.match(thread, /<CommunityFeaturedMark featured=\{item\.isFeatured\} \/>/);
   assert.match(relatedTopics, /<CommunityFeaturedMark featured=\{item\.isFeatured\} \/>/);
-  assert.match(memberProfilePage, /<CommunityFeaturedMark featured=\{activity\.isFeatured\} \/>/);
   assert.match(memberProfilePage, /<CommunityFeaturedMark featured=\{post\.isFeatured\} \/>/);
-  assert.match(memberProfileService, /IsFeatured: post\.IsFeatured/);
   assert.match(service, /IsFeatured: row\.IsFeatured/);
   assert.match(featuredMark, /aria-label="精华"/);
   assert.match(thread, /canManageFeatured = currentUser\.role\.name === "super_admin"/);
@@ -466,12 +464,13 @@ test("member profiles reuse community permissions, XP, and public badge records"
   assert.match(authorProfile, /communityMemberProfileClient\.get\(id, "card"\)/);
   assert.match(authorProfile, /communityProfileReturnTo/);
   assert.match(memberProfilePage, /概览[\s\S]*帖子[\s\S]*回复[\s\S]*徽章/);
-  assert.match(memberProfilePage, /updateMine\(\{ bio: bioDraft, featuredBadgeKey: member\.featuredBadgeKey \?\? "" \}\)/);
+  assert.match(memberProfilePage, /updateMine\(\{ bio: nextBio \}\)/);
   assert.match(memberProfilePage, /updateProfile\(\{ realName: nextName, phone: currentUser\.phone \?\? "", avatar: null \}\)/);
   assert.match(memberProfilePage, /updateProfile\(\{ realName: member\.displayName\.trim\(\), phone: currentUser\.phone \?\? "", avatar: file \}\)/);
-  assert.doesNotMatch(memberProfilePage, /CommunityGrowthProfileSection|community-member-stats/);
+  assert.doesNotMatch(memberProfilePage, /CommunityGrowthProfileSection|result\.activities/);
+  assert.match(memberProfilePage, /community-member-stats/);
   assert.match(memberProfilePage, /preventScrollReset: true/);
   assert.match(memberProfilePage, /navigate\(-1\)/);
   assert.match(styles, /\.community-member-hero/);
-  assert.match(styles, /@media \(max-width: 639px\)[\s\S]*?\.community-member-overview/);
+  assert.match(styles, /\.community-member-details/);
 });

@@ -9,7 +9,7 @@ import (
 	"tarsgo-backend/model"
 )
 
-func TestPublicBadgeKeepsTierHistoryAndOmitsAdministrativeIdentities(t *testing.T) {
+func TestPublicBadgeUsesEffectiveTierAndOmitsManagementHistory(t *testing.T) {
 	base := time.Date(2026, time.January, 1, 8, 0, 0, 0, time.UTC)
 	revokedAt := base.AddDate(0, 0, 11)
 	revokedBy := uint64(9001)
@@ -33,19 +33,13 @@ func TestPublicBadgeKeepsTierHistoryAndOmitsAdministrativeIdentities(t *testing.
 	if badge.EarnedAt == nil || !badge.EarnedAt.Equal(base.AddDate(0, 0, 2)) {
 		t.Fatalf("current tier earned at = %v, want %v", badge.EarnedAt, base.AddDate(0, 0, 2))
 	}
-	if len(badge.TierHistory) != 3 {
-		t.Fatalf("tier history has %d entries, want bronze, silver, gold", len(badge.TierHistory))
-	}
-	if badge.TierHistory[2].LevelCode != "gold" || badge.TierHistory[2].RevokedAt == nil || !badge.TierHistory[2].RevokedAt.Equal(revokedAt) {
-		t.Fatalf("gold tier history did not retain its revocation: %#v", badge.TierHistory[2])
-	}
 
 	encoded, err := json.Marshal(badge)
 	if err != nil {
 		t.Fatalf("marshal public badge: %v", err)
 	}
 	serialized := string(encoded)
-	for _, privateField := range []string{"grantedById", "revokedById", "8001", "9001"} {
+	for _, privateField := range []string{"grantedById", "revokedById", "8001", "9001", "contributions", "tierHistory", "revokedAt", "condition"} {
 		if strings.Contains(serialized, privateField) {
 			t.Errorf("public badge leaked administrative field %q: %s", privateField, serialized)
 		}
@@ -55,5 +49,18 @@ func TestPublicBadgeKeepsTierHistoryAndOmitsAdministrativeIdentities(t *testing.
 func TestPublicBadgeIsEmptyUntilAContributionIsGranted(t *testing.T) {
 	if badge := PublicBadgeFromContributions(nil); badge != nil {
 		t.Fatalf("empty contribution history returned a badge: %#v", badge)
+	}
+}
+
+func TestPublicBadgeDisappearsWhenAllContributionsAreRevoked(t *testing.T) {
+	created := time.Date(2026, time.January, 1, 0, 0, 0, 0, time.UTC)
+	revoked := created.Add(time.Hour)
+	if badge := PublicBadgeFromContributions([]model.CoBuilderContribution{{ID: 1, CreatedAt: created, RevokedAt: &revoked}}); badge != nil {
+		t.Fatalf("historical grant kept a revoked badge visible: %#v", badge)
+	}
+	regained := revoked.Add(time.Hour)
+	badge := PublicBadgeFromContributions([]model.CoBuilderContribution{{ID: 1, CreatedAt: created, RevokedAt: &revoked}, {ID: 2, CreatedAt: regained}})
+	if badge == nil || badge.LevelCode != "bronze" || badge.EarnedAt == nil || !badge.EarnedAt.Equal(regained) {
+		t.Fatalf("regained badge did not use its new earned date: %#v", badge)
 	}
 }

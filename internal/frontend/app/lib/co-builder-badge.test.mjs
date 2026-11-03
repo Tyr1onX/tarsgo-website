@@ -6,7 +6,7 @@ const profile = await readFile(new URL("../routes/dashboard/community-member-pro
 const adminUsers = await readFile(new URL("../routes/admin/users.tsx", import.meta.url), "utf8");
 const adminPanel = await readFile(new URL("../components/co-builder-badge-admin-panel.tsx", import.meta.url), "utf8");
 const summaryView = await readFile(new URL("../components/co-builder-badge-summary.tsx", import.meta.url), "utf8");
-const profileBadge = await readFile(new URL("../components/co-builder-badge-profile.tsx", import.meta.url), "utf8");
+const badgeInfo = await readFile(new URL("../components/community-badge-mark.tsx", import.meta.url), "utf8");
 const badgeMark = await readFile(new URL("../components/co-builder-badge-mark.tsx", import.meta.url), "utf8");
 const unlockToast = await readFile(new URL("../components/co-builder-badge-unlock-toast.tsx", import.meta.url), "utf8");
 const client = await readFile(new URL("./co-builder-badge-client.ts", import.meta.url), "utf8");
@@ -15,8 +15,9 @@ const badgeService = await readFile(new URL("../../../backend/service/cobuilderb
 const dashboardLayout = await readFile(new URL("../routes/dashboard/layout.tsx", import.meta.url), "utf8");
 const styles = await readFile(new URL("../app.css", import.meta.url), "utf8");
 
-test("personal profile reads the badge only through the signed-in member endpoint", () => {
-  assert.match(profile, /<CoBuilderBadgeProfile onReplay=\{[\s\S]*?requestBadgeReplay\(level\)/);
+test("member showcase uses the profile response without a second badge request", () => {
+  assert.doesNotMatch(profile, /CoBuilderBadgeProfile|getMyCoBuilderBadge/);
+  assert.match(profile, /result\.badges \?\? \[\]\)\.filter\(\(badge\) => badge\.isEarned\)/);
   assert.match(client, /getMyCoBuilderBadge\(\)[\s\S]*?"\/api\/me\/co-builder-badge"/);
   assert.doesNotMatch(client, /getMyCoBuilderBadge\([^)]*userId/);
   assert.match(router, /authenticatedAPI\.GET\("\/me\/co-builder-badge"/);
@@ -49,17 +50,11 @@ test("badge summary shows current tier, count, progress, and contribution histor
   assert.match(summaryView, /已撤销/);
 });
 
-test("personal profile shows all tier totals and only replays earned badges", () => {
-  assert.match(profileBadge, /<CoBuilderBadgeSummaryView summary=\{summary\} onReplay=\{onReplay\} \/>/);
-  assert.match(profile, /<CoBuilderBadgeProfile onReplay=\{[\s\S]*?requestBadgeReplay\(level\)/);
-  assert.match(summaryView, /level: "bronze", label: "青铜 I", threshold: 1/);
-  assert.match(summaryView, /level: "silver", label: "白银 II", threshold: 3/);
-  assert.match(summaryView, /level: "gold", label: "黄金 III", threshold: 10/);
-  assert.match(summaryView, /disabled=\{!earned\}/);
-  assert.match(summaryView, /onClick=\{\(\) => onReplay\(level\)\}/);
-  assert.match(summaryView, /summary\.awardCounts\[level\]/);
-  assert.match(summaryView, /<CoBuilderBadgeMark level=\{level\} size=\{44\}/);
-  assert.match(summaryView, /<strong>\{label\}<\/strong>\s*<span>已有 \{summary\.awardCounts\[level\]\} 人获得<\/span>/);
+test("member showcase keeps replay inside earned badge details and admin history separate", () => {
+  assert.match(profile, /onReplay=\{isSelf \? requestBadgeReplay : undefined\}/);
+  assert.match(badgeInfo, /onReplay \? <button[\s\S]*?重播解锁动画/);
+  assert.doesNotMatch(summaryView, /onReplay|尚未解锁|awardCounts/);
+  assert.match(adminPanel, /<CoBuilderBadgeSummaryView summary=\{summary\} onRevoke=/);
 });
 
 test("badge mark uses the shared mechanical silhouette with distinct metal tiers", () => {
@@ -105,7 +100,4 @@ test("manual replay is timed locally and leaves the one-time unlock claim flow i
   assert.match(unlockToast, /const animationKey = activeReplay \? `replay-\$\{activeReplay\.requestId\}`/);
   assert.match(dashboardLayout, /setBadgeReplayRequest\(\{ levelCode, requestId: badgeReplaySequenceRef\.current, userId: currentUser\.id \}\)/);
   assert.match(dashboardLayout, /setBadgeReplayRequest\(\(current\) => current\?\.requestId === requestId \? null : current\)/);
-  assert.match(styles, /\.co-builder-badge-tier--locked\s*\{[\s\S]*?opacity:/);
-  assert.match(styles, /\.co-builder-badge-tier:focus-visible/);
-  assert.match(styles, /\.co-builder-badge-tier\s*\{[\s\S]*?touch-action: manipulation/);
 });

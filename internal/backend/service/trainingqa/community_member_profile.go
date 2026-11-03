@@ -3,7 +3,6 @@ package trainingqa
 import (
 	"context"
 	"errors"
-	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -39,15 +38,14 @@ type CommunityMemberProfileInput struct {
 }
 
 type CommunityMemberProfileResult struct {
-	Member     CommunityMemberView          `json:"member"`
-	Stats      CommunityMemberStats         `json:"stats"`
-	Badges     []cobuilderbadge.PublicBadge `json:"badges,omitempty"`
-	Activities []CommunityMemberActivity    `json:"activities,omitempty"`
-	Posts      []CommunityMemberPost        `json:"posts,omitempty"`
-	Replies    []CommunityMemberReply       `json:"replies,omitempty"`
-	Tab        CommunityMemberProfileTab    `json:"tab"`
-	Page       int                          `json:"page"`
-	HasMore    bool                         `json:"hasMore"`
+	Member  CommunityMemberView          `json:"member"`
+	Stats   CommunityMemberStats         `json:"stats"`
+	Badges  []cobuilderbadge.PublicBadge `json:"badges,omitempty"`
+	Posts   []CommunityMemberPost        `json:"posts,omitempty"`
+	Replies []CommunityMemberReply       `json:"replies,omitempty"`
+	Tab     CommunityMemberProfileTab    `json:"tab"`
+	Page    int                          `json:"page"`
+	HasMore bool                         `json:"hasMore"`
 }
 
 type CommunityMemberView struct {
@@ -118,17 +116,6 @@ type CommunityMemberReply struct {
 	LikeCount  int        `json:"likeCount"`
 	IsFeatured bool       `json:"isFeatured"`
 	Href       string     `json:"href"`
-}
-
-type CommunityMemberActivity struct {
-	Kind       string    `json:"kind"`
-	ID         uint64    `json:"id"`
-	PostID     uint64    `json:"postId"`
-	Title      string    `json:"title,omitempty"`
-	Body       string    `json:"body"`
-	IsFeatured bool      `json:"isFeatured"`
-	CreatedAt  time.Time `json:"createdAt"`
-	Href       string    `json:"href"`
 }
 
 type communityMemberRow struct {
@@ -224,7 +211,7 @@ func (s *Service) GetCommunityMemberProfile(ctx context.Context, actor Actor, me
 			role = "组长"
 		}
 		member.Groups = append(member.Groups, CommunityMemberGroup{Name: group.Name, Role: role, JoinedAt: group.JoinedAt})
-		if member.TeamJoinedAt == nil || group.JoinedAt.Before(*member.TeamJoinedAt) {
+		if !group.JoinedAt.IsZero() && (member.TeamJoinedAt == nil || group.JoinedAt.Before(*member.TeamJoinedAt)) {
 			joinedAt := group.JoinedAt
 			member.TeamJoinedAt = &joinedAt
 		}
@@ -242,7 +229,7 @@ func (s *Service) GetCommunityMemberProfile(ctx context.Context, actor Actor, me
 
 	result := &CommunityMemberProfileResult{
 		Member: member, Tab: tab, Page: page, Badges: []cobuilderbadge.PublicBadge{},
-		Activities: []CommunityMemberActivity{}, Posts: []CommunityMemberPost{}, Replies: []CommunityMemberReply{},
+		Posts: []CommunityMemberPost{}, Replies: []CommunityMemberReply{},
 	}
 	if tab != CommunityMemberTabCard {
 		visiblePosts, err := s.communityPostQuery(ctx, actor)
@@ -275,7 +262,7 @@ func (s *Service) GetCommunityMemberProfile(ctx context.Context, actor Actor, me
 
 	switch tab {
 	case CommunityMemberTabBadges:
-		if badge != nil && len(badge.TierHistory) > 0 {
+		if badge != nil && badge.IsEarned {
 			result.Badges = append(result.Badges, *badge)
 		}
 	case CommunityMemberTabPosts:
@@ -305,11 +292,6 @@ func (s *Service) GetCommunityMemberProfile(ctx context.Context, actor Actor, me
 		}
 	case CommunityMemberTabReplies:
 		result.Replies, result.HasMore, err = s.communityMemberReplyPage(ctx, actor, memberID, page, communityMemberProfilePageSize)
-		if err != nil {
-			return nil, err
-		}
-	case CommunityMemberTabOverview:
-		result.Activities, err = s.communityMemberRecentActivities(ctx, actor, memberID)
 		if err != nil {
 			return nil, err
 		}
@@ -508,54 +490,6 @@ func communityMemberReplyView(row communityMemberReplyRow) CommunityMemberReply 
 		CreatedAt: row.CreatedAt, EditedAt: row.EditedAt, LikeCount: row.LikeCount, IsFeatured: row.IsFeatured,
 		Href: "/dashboard/community/" + formatCommunityID(row.PostID) + "#community-comment-" + formatCommunityID(row.ID),
 	}
-}
-
-func (s *Service) communityMemberRecentActivities(ctx context.Context, actor Actor, memberID uint64) ([]CommunityMemberActivity, error) {
-	postRows := make([]communityPostRow, 0, 6)
-	postQuery, err := s.communityPostQuery(ctx, actor)
-	if err != nil {
-		return nil, err
-	}
-	if err := postQuery.Where("q.asker_id = ?", memberID).Order("q.created_at DESC, q.id DESC").Limit(6).Find(&postRows).Error; err != nil {
-		return nil, internalError("读取成员近期帖子失败", err)
-	}
-	posts, err := s.communityPostViews(ctx, actor, postRows)
-	if err != nil {
-		return nil, err
-	}
-	replies := make([]communityMemberReplyRow, 0, 6)
-	replyQuery, err := s.communityMemberRepliesQuery(ctx, actor, memberID)
-	if err != nil {
-		return nil, err
-	}
-	if err := replyQuery.Order("cp.created_at DESC, cp.id DESC").Limit(6).Find(&replies).Error; err != nil {
-		return nil, internalError("读取成员近期回复失败", err)
-	}
-	activities := make([]CommunityMemberActivity, 0, len(posts)+len(replies))
-	for _, post := range posts {
-		activities = append(activities, CommunityMemberActivity{
-			Kind: "post", ID: post.ID, PostID: post.ID, Title: post.Title,
-			Body: communityTextPreview(post.Body, 260), IsFeatured: post.IsFeatured, CreatedAt: post.CreatedAt,
-			Href: "/dashboard/community/" + formatCommunityID(post.ID),
-		})
-	}
-	for _, reply := range replies {
-		view := communityMemberReplyView(reply)
-		activities = append(activities, CommunityMemberActivity{
-			Kind: "reply", ID: view.ID, PostID: view.PostID, Title: view.PostTitle,
-			Body: view.Body, IsFeatured: view.IsFeatured, CreatedAt: view.CreatedAt, Href: view.Href,
-		})
-	}
-	sort.SliceStable(activities, func(i, j int) bool {
-		if activities[i].CreatedAt.Equal(activities[j].CreatedAt) {
-			return activities[i].ID > activities[j].ID
-		}
-		return activities[i].CreatedAt.After(activities[j].CreatedAt)
-	})
-	if len(activities) > 8 {
-		activities = activities[:8]
-	}
-	return activities, nil
 }
 
 func communityTextPreview(value string, maxRunes int) string {
