@@ -104,20 +104,7 @@ func mergeLockedRegistrationFields(fields []model.FormField) []model.FormField {
 	return cloneRegistrationFields(merged)
 }
 
-func hasLegacyDualIntentFields(fields []model.FormField) bool {
-	keys := make(map[string]struct{}, len(fields))
-	for _, field := range fields {
-		keys[field.Key] = struct{}{}
-	}
-	_, hasFirst := keys["group_1"]
-	_, hasSecond := keys["group_2"]
-	return hasFirst && hasSecond
-}
-
 func registrationFormEditorFields(fields []model.FormField) []model.FormField {
-	if hasLegacyDualIntentFields(fields) {
-		return cloneRegistrationFields(fields)
-	}
 	return mergeLockedRegistrationFields(fields)
 }
 

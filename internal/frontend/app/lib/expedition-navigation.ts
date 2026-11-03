@@ -21,7 +21,7 @@ export function withExpeditionArea(params: URLSearchParams, area: ExpeditionFaci
   return next;
 }
 
-export const EXPEDITION_TERMINALS = ["assignments", "skills", "questions", "projects", "weekly", "growth", "journal", "challenges"] as const;
+export const EXPEDITION_TERMINALS = ["assignments", "questions", "projects", "weekly", "journal", "challenges"] as const;
 export type ExpeditionTerminal = (typeof EXPEDITION_TERMINALS)[number];
 
 export function parseExpeditionTerminal(value: string | null): ExpeditionTerminal | null {

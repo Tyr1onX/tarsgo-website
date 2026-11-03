@@ -122,7 +122,7 @@ test("management functions appear in three permission-filtered business groups",
   const superAdminMenu = getVisibleAdminDashboardMenu("super_admin");
   assert.deepEqual(superAdminMenu.map(({ key }) => key), ["recruitment", "members-training", "collaboration-operations"]);
   assert.deepEqual(superAdminMenu[0]?.children.map(({ key }) => key), ["candidate-processing", "recruitment-management", "recruitment-analytics"]);
-  assert.deepEqual(superAdminMenu[1]?.children.map(({ key }) => key), ["accounts", "assignment-management", "assignment-submissions"]);
+  assert.deepEqual(superAdminMenu[1]?.children.map(({ key }) => key), ["history-archive", "accounts", "assignment-management", "assignment-submissions"]);
   assert.deepEqual(superAdminMenu[2]?.children.map(({ key }) => key), ["leave-workbench", "timetable-availability", "email-management"]);
   assert.equal(getVisibleAdminDashboardMenu("user", true).length, 0);
 });
@@ -184,4 +184,10 @@ test("legacy team, timetable, profile, and help paths remain reachable through t
   assert.match(layout, /aria-label="返回 TARSGO 官网"/);
   assert.match(layout, /切换账号/);
   assert.match(layout, /退出当前账号/);
+});
+
+test("historical archive is restricted to super administrators", () => {
+  assert.equal(canAccessDashboardAdminPath("super_admin", "/dashboard/admin/history"), true);
+  assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/history"), false);
+  assert.equal(canAccessDashboardAdminPath("user", "/dashboard/admin/history"), false);
 });

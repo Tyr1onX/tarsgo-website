@@ -3,7 +3,6 @@ package registration
 import (
 	"context"
 	"encoding/json"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -102,7 +101,7 @@ func TestRegistrationFormServiceUpdateFormRejectsPublishConflict(t *testing.T) {
 	assertRegistrationFormServiceError(t, err, 409, "已有已发布报名表")
 }
 
-func TestRegistrationFormServiceUpdatePreservesLegacySchemaWhenOnlyClosingForm(t *testing.T) {
+func TestRegistrationFormServiceClosingLegacyFormUsesSingleIntentSchema(t *testing.T) {
 	repo := newFakeRegistrationFormRepository()
 	legacyFields := legacyDualIntentRegistrationFields()
 	repo.forms[1].FieldsSchema = cloneRegistrationFields(legacyFields)
@@ -113,8 +112,8 @@ func TestRegistrationFormServiceUpdatePreservesLegacySchemaWhenOnlyClosingForm(t
 	if err != nil {
 		t.Fatalf("GetForm returned error: %v", err)
 	}
-	if len(detail.FieldsSchema) != len(legacyFields) || detail.FieldsSchema[3].Key != "group_1" || detail.FieldsSchema[4].Key != "group_2" {
-		t.Fatalf("admin detail should preserve the original dual-intent schema, got %#v", detail.FieldsSchema)
+	if detail.FieldsSchema[3].Key != "preferred_group" {
+		t.Fatal("editor must use current single intent")
 	}
 
 	_, err = service.UpdateForm(context.Background(), actor, 1, UpsertRegistrationFormInput{
@@ -125,32 +124,20 @@ func TestRegistrationFormServiceUpdatePreservesLegacySchemaWhenOnlyClosingForm(t
 	if err != nil {
 		t.Fatalf("closing legacy form returned error: %v", err)
 	}
-	if !reflect.DeepEqual(repo.forms[1].FieldsSchema, legacyFields) {
-		t.Fatalf("closing a form rewrote its fields: got %#v want %#v", repo.forms[1].FieldsSchema, legacyFields)
+	if hasLegacyDualIntentFields(repo.forms[1].FieldsSchema) {
+		t.Fatal("editor restored retired dual intent")
 	}
 	if repo.forms[1].Status != model.RegistrationFormStatusClosed {
 		t.Fatalf("expected closed status, got %d", repo.forms[1].Status)
 	}
 }
 
-func TestRegistrationFormServiceCanRestoreLegacyDualIntentSchema(t *testing.T) {
+func TestRegistrationFormServiceRejectsRestoringLegacyDualIntentSchema(t *testing.T) {
 	repo := newFakeRegistrationFormRepository()
 	service := newRegistrationFormServiceWithRepo(repo)
-	legacyFields := legacyDualIntentRegistrationFields()
-
-	updated, err := service.UpdateForm(context.Background(), RegistrationFormActor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 1, UpsertRegistrationFormInput{
-		Title:        "草稿表单",
-		FieldsSchema: legacyFields,
-		Status:       model.RegistrationFormStatusClosed,
-	})
-	if err != nil {
-		t.Fatalf("restoring legacy dual-intent fields returned error: %v", err)
-	}
-	if !reflect.DeepEqual(repo.forms[1].FieldsSchema, legacyFields) {
-		t.Fatalf("legacy field restore was not retained: got %#v want %#v", repo.forms[1].FieldsSchema, legacyFields)
-	}
-	if len(updated.FieldsSchema) != len(legacyFields) || updated.FieldsSchema[3].Key != "group_1" || updated.FieldsSchema[4].Key != "group_2" {
-		t.Fatalf("updated detail did not expose the legacy fields: %#v", updated.FieldsSchema)
+	_, err := service.UpdateForm(context.Background(), RegistrationFormActor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 1, UpsertRegistrationFormInput{Title: "草稿表单", FieldsSchema: legacyDualIntentRegistrationFields(), Status: model.RegistrationFormStatusClosed})
+	if err == nil {
+		t.Fatal("retired dual-intent schema restored")
 	}
 }
 
@@ -670,4 +657,14 @@ func assertRegistrationFormServiceError(t *testing.T, err error, status int, con
 	if !strings.Contains(serviceErr.Message, contains) {
 		t.Fatalf("expected message %q to contain %q", serviceErr.Message, contains)
 	}
+}
+
+func hasLegacyDualIntentFields(fields []model.FormField) bool {
+	keys := make(map[string]struct{}, len(fields))
+	for _, field := range fields {
+		keys[field.Key] = struct{}{}
+	}
+	_, hasFirst := keys["group_1"]
+	_, hasSecond := keys["group_2"]
+	return hasFirst && hasSecond
 }

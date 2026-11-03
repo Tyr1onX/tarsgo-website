@@ -1,13 +1,11 @@
 import type { Assignment } from "~/lib/assignment-client";
-import type { GrowthProfile } from "~/lib/growth-client";
-import type { SkillGroupProgress } from "~/lib/skills-client";
 import type { CommunityListItem } from "~/lib/community-client";
 import type { ExpeditionProject, ExpeditionProjectMilestone } from "~/lib/expedition-project-client";
 
 export const EXPEDITION_GROUPS = ["机械组", "电控组", "视觉组", "AI组", "运营组"] as const;
 
 export type ExpeditionFacilityId = "hangar" | "mechanical" | "controls" | "vision" | "ai" | "operations";
-export type ExpeditionChallengeKind = "assignment" | "skill" | "question" | "weekly-report";
+export type ExpeditionChallengeKind = "assignment" | "question";
 export type ExpeditionEvolutionTarget = NonNullable<ExpeditionProjectMilestone["evolutionTarget"]>;
 
 const EVOLUTION_TARGETS: readonly ExpeditionEvolutionTarget[] = ["chassis", "control", "perception", "decision", "operations", "joint"];
@@ -71,10 +69,7 @@ function isDashboardHref(href: string) {
 
 export function buildExpeditionChallenges(input: {
   assignments: readonly Assignment[];
-  skillGroups: readonly SkillGroupProgress[];
   questions: readonly CommunityListItem[];
-  profile: GrowthProfile | null;
-  groupNames: readonly string[];
 }): ExpeditionChallenge[] {
   const tasks: ExpeditionChallenge[] = [];
 
@@ -94,22 +89,6 @@ export function buildExpeditionChallenges(input: {
     });
   }
 
-  for (const group of input.skillGroups) {
-    for (const node of group.nodes) {
-      if (node.state !== "available" && node.state !== "practiced") continue;
-      tasks.push({
-        key: `skill:${group.id}:${node.id}`,
-        kind: "skill",
-        title: node.name,
-        detail: group.name,
-        groupName: group.name,
-        href: `/dashboard/skills?groupId=${group.id}&nodeId=${node.id}`,
-        status: node.state,
-        priority: node.state === "practiced" ? 3 : 4,
-      });
-    }
-  }
-
   for (const question of input.questions) {
     if (question.isSolved) continue;
     tasks.push({
@@ -121,20 +100,6 @@ export function buildExpeditionChallenges(input: {
       href: `/dashboard/community/${question.id}`,
       status: "open",
       priority: 5,
-    });
-  }
-
-  const nextAction = input.profile?.nextAction;
-  if (nextAction?.href === "/dashboard/weekly-reports" && isDashboardHref(nextAction.href)) {
-    tasks.push({
-      key: "weekly-report:current",
-      kind: "weekly-report",
-      title: nextAction.title,
-      detail: nextAction.detail || "记录学习与工作进展",
-      groupName: input.groupNames.length === 1 ? input.groupNames[0] : undefined,
-      href: nextAction.href,
-      status: nextAction.status,
-      priority: 2,
     });
   }
 

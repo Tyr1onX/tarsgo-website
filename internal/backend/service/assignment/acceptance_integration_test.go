@@ -43,7 +43,7 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	if err := database.RunMigrations(context.Background(), db, "acceptance"); err != nil {
 		t.Fatalf("apply current migrations to the isolated acceptance database: %v", err)
 	}
-	for _, table := range []string{"users", "roles", "user_groups", "user_group_members", "assignments", "assignment_targets", "assignment_submissions", "assignment_submission_files", "assignment_reviews", "assignment_material_files", "skill_nodes", "skill_node_assignments", "skill_review_events"} {
+	for _, table := range []string{"users", "roles", "user_groups", "user_group_members", "assignments", "assignment_targets", "assignment_submissions", "assignment_submission_files", "assignment_reviews", "assignment_material_files"} {
 		if !db.Migrator().HasTable(table) {
 			t.Fatalf("isolated acceptance database is missing required table %s", table)
 		}
@@ -80,8 +80,6 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	createdUserIDs := make([]uint64, 0, 4)
 	createdAssignmentIDs := make([]uint64, 0, 3)
 	createdSubmissionIDs := make([]uint64, 0, 1)
-	createdSkillNodeIDs := make([]uint64, 0, 1)
-	createdSkillReviewEventIDs := make([]uint64, 0, 1)
 	t.Cleanup(func() {
 		if len(createdSubmissionIDs) > 0 {
 			for _, destination := range []any{&model.AssignmentReview{}, &model.AssignmentSubmissionFile{}} {
@@ -94,32 +92,13 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 			}
 		}
 		if len(createdAssignmentIDs) > 0 {
-			for _, destination := range []any{&model.AssignmentTarget{}, &model.AssignmentMaterialFile{}, &model.SkillNodeAssignment{}} {
+			for _, destination := range []any{&model.AssignmentTarget{}, &model.AssignmentMaterialFile{}} {
 				if err := db.Where("assignment_id IN ?", createdAssignmentIDs).Delete(destination).Error; err != nil {
 					t.Errorf("remove synthetic assignment relations: %v", err)
 				}
 			}
-			if err := db.Where("evidence_type = ? AND evidence_id IN ?", model.SkillEvidenceAssignment, createdAssignmentIDs).Delete(&model.SkillReviewEvent{}).Error; err != nil {
-				t.Errorf("remove synthetic assignment skill evidence: %v", err)
-			}
 			if err := db.Where("id IN ?", createdAssignmentIDs).Delete(&model.Assignment{}).Error; err != nil {
 				t.Errorf("remove synthetic assignments: %v", err)
-			}
-		}
-		if len(createdSkillReviewEventIDs) > 0 {
-			if err := db.Where("id IN ?", createdSkillReviewEventIDs).Delete(&model.SkillReviewEvent{}).Error; err != nil {
-				t.Errorf("remove synthetic skill review events: %v", err)
-			}
-		}
-		if len(createdSkillNodeIDs) > 0 {
-			if err := db.Where("skill_node_id IN ? OR prerequisite_node_id IN ?", createdSkillNodeIDs, createdSkillNodeIDs).Delete(&model.SkillNodePrerequisite{}).Error; err != nil {
-				t.Errorf("remove synthetic skill prerequisites: %v", err)
-			}
-			if err := db.Where("skill_node_id IN ?", createdSkillNodeIDs).Delete(&model.SkillNodeProgress{}).Error; err != nil {
-				t.Errorf("remove synthetic skill progress: %v", err)
-			}
-			if err := db.Where("id IN ?", createdSkillNodeIDs).Delete(&model.SkillNode{}).Error; err != nil {
-				t.Errorf("remove synthetic skill nodes: %v", err)
 			}
 		}
 		if len(createdUserIDs) > 0 {
@@ -786,48 +765,6 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 		t.Fatalf("safe assignment delete left a parent row: count=%d err=%v", deletedRows, err)
 	}
 
-	referencedAssignment, err := service.Create(context.Background(), admin, CreateInput{
-		GroupID: groupIDs[groupMechanical], Title: "[TEST_ASSIGNMENT] 技能历史保护", Description: "技能和成长关联必须阻止作业删除",
-		DueAt: now.Add(96 * time.Hour), IsGroupWide: false, TargetUserIDs: []uint64{member.ID},
-	})
-	if err != nil {
-		t.Fatalf("create assignment for skill reference protection: %v", err)
-	}
-	createdAssignmentIDs = append(createdAssignmentIDs, referencedAssignment.ID)
-	if _, err := service.SetPublicationStatus(context.Background(), admin, referencedAssignment.ID, model.AssignmentPublicationWithdrawn); err != nil {
-		t.Fatalf("withdraw assignment for skill reference protection: %v", err)
-	}
-	skillNode := model.SkillNode{
-		GroupID: groupIDs[groupMechanical], Name: "[TEST_ASSIGNMENT] assignment-linked skill",
-		LearningGoal: "Synthetic linked goal", PassingCriteria: "Synthetic linked criteria", CreatedBy: admin.ID,
-	}
-	if err := db.Create(&skillNode).Error; err != nil {
-		t.Fatalf("create synthetic skill node protecting assignment: %v", err)
-	}
-	createdSkillNodeIDs = append(createdSkillNodeIDs, skillNode.ID)
-	if err := db.Create(&model.SkillNodeAssignment{SkillNodeID: skillNode.ID, AssignmentID: referencedAssignment.ID}).Error; err != nil {
-		t.Fatalf("link assignment to synthetic skill node: %v", err)
-	}
-	linkedSummary, err := service.GetAdmin(context.Background(), admin, referencedAssignment.ID)
-	if err != nil || linkedSummary.Assignment.CanDelete {
-		t.Fatalf("assignment with a skill association was marked safe for deletion: summary=%#v err=%v", linkedSummary, err)
-	}
-	if err := service.Delete(context.Background(), admin, referencedAssignment.ID); statusOf(err) != http.StatusConflict {
-		t.Fatalf("assignment linked to a skill node deletion status = %d, want 409", statusOf(err))
-	}
-	var skillEvidenceID = referencedAssignment.ID
-	skillEvidence := model.SkillReviewEvent{
-		GroupID: groupIDs[groupMechanical], SkillNodeID: skillNode.ID, SkillName: skillNode.Name,
-		UserID: member.ID, ActorID: admin.ID, ActorName: "[TEST_ASSIGNMENT] admin", Action: model.SkillReviewMastered,
-		EvidenceType: model.SkillEvidenceAssignment, EvidenceID: &skillEvidenceID, EvidenceNote: "Synthetic linked evidence",
-	}
-	if err := db.Create(&skillEvidence).Error; err != nil {
-		t.Fatalf("create synthetic assignment skill evidence: %v", err)
-	}
-	createdSkillReviewEventIDs = append(createdSkillReviewEventIDs, skillEvidence.ID)
-	if err := service.Delete(context.Background(), admin, referencedAssignment.ID); statusOf(err) != http.StatusConflict {
-		t.Fatalf("assignment referenced by a skill review event deletion status = %d, want 409", statusOf(err))
-	}
 }
 
 func mustListAssignments(t *testing.T, service *Service, actor Actor, groupID uint64) []AssignmentView {

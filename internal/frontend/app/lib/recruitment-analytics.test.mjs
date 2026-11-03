@@ -35,7 +35,7 @@ test("cohort selection and group comparison have accessible table alternatives a
   assert.match(route, /aria-label="各届招新报名记录与录取记录对比柱状图"/);
   assert.match(route, /caption className="sr-only"/);
   assert.match(route, /暂无数据/);
-  assert.match(route, /各届组别意向变化/);
+  assert.match(route, /各届主要组别变化/);
   assert.match(route, /generatedAt/);
   assert.match(styles, /\.recruitment-analytics__chart-scroll[\s\S]*?overflow-x: auto/);
   assert.match(styles, /@media \(max-width: 640px\)[\s\S]*?\.recruitment-analytics__overview[\s\S]*?grid-template-columns: 1fr/);

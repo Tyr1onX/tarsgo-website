@@ -246,16 +246,16 @@ func (r gormRepository) GroupAggregates(ctx context.Context, formIDs []uint64) (
 	if len(formIDs) == 0 {
 		return nil, nil
 	}
-	const query = "SELECT intents.form_id, COALESCE(NULLIF(user_groups.name, ''), ?) AS name, " +
-		"COUNT(DISTINCT intents.registration_id) AS count FROM (" +
-		"SELECT form_id, id AS registration_id, group_1 AS group_id FROM registrations WHERE form_id IN ? AND group_1 IS NOT NULL " +
-		"UNION SELECT form_id, id AS registration_id, group_2 AS group_id FROM registrations WHERE form_id IN ? AND group_2 IS NOT NULL " +
-		"UNION SELECT form_id, id AS registration_id, preferred_group_id AS group_id FROM registrations " +
-		"WHERE form_id IN ? AND preferred_group_id IS NOT NULL AND group_1 IS NULL AND group_2 IS NULL" +
-		") AS intents LEFT JOIN user_groups ON user_groups.id = intents.group_id " +
-		"GROUP BY intents.form_id, user_groups.name ORDER BY intents.form_id, name"
+	const query = `SELECT r.form_id,
+ COALESCE(NULLIF(CASE WHEN archive.id IS NOT NULL THEN archive.main_group_name ELSE user_groups.name END,''), ?) AS name,
+ COUNT(DISTINCT r.id) AS count
+ FROM registrations r
+ LEFT JOIN registration_legacy_archives archive ON archive.id=r.id
+ LEFT JOIN user_groups ON user_groups.id=r.preferred_group_id
+ WHERE r.form_id IN ? AND (archive.main_group_id IS NOT NULL OR (archive.id IS NULL AND r.preferred_group_id IS NOT NULL))
+ GROUP BY r.form_id, name ORDER BY r.form_id, name`
 	var rows []groupAggregate
-	err := r.db.WithContext(ctx).Raw(query, "历史组别（名称不可恢复）", formIDs, formIDs, formIDs).Scan(&rows).Error
+	err := r.db.WithContext(ctx).Raw(query, "历史组别（名称不可恢复）", formIDs).Scan(&rows).Error
 	return rows, err
 }
 
@@ -266,7 +266,8 @@ func (r gormRepository) MatchedFormalMembers(ctx context.Context, formIDs []uint
 	var rows []memberAggregate
 	err := r.db.WithContext(ctx).Table("registrations AS r").
 		Select("r.form_id, COUNT(DISTINCT r.id) AS count").
-		Joins("JOIN user_group_members AS members ON members.user_id = r.user_id AND members.group_id = COALESCE(NULLIF(r.final_group_id, 0), r.preferred_group_id) AND members.joined_at >= r.submitted_at").
+		Joins("LEFT JOIN registration_legacy_archives archive ON archive.id=r.id").
+		Joins("JOIN user_group_members AS members ON members.user_id = r.user_id AND members.group_id = CASE WHEN archive.id IS NOT NULL THEN archive.main_group_id ELSE r.preferred_group_id END AND members.joined_at >= r.submitted_at").
 		Where("r.form_id IN ? AND r.recruitment_status = ?", formIDs, statusAdmitted).
 		Group("r.form_id").Scan(&rows).Error
 	return rows, err

@@ -807,24 +807,15 @@ func (s *Service) Delete(ctx context.Context, actor Actor, assignmentID uint64) 
 		if item.PublicationStatus != model.AssignmentPublicationWithdrawn {
 			return conflict("请先撤回作业，再删除无历史记录的作业")
 		}
-		var submissions, reviews, skillLinks, skillEvidence, capabilityLinks int64
+		var submissions, reviews int64
 		if err := tx.Model(&model.AssignmentSubmission{}).Where("assignment_id = ?", item.ID).Count(&submissions).Error; err != nil {
 			return err
 		}
 		if err := tx.Table("assignment_reviews").Joins("JOIN assignment_submissions ON assignment_submissions.id = assignment_reviews.submission_id").Where("assignment_submissions.assignment_id = ?", item.ID).Count(&reviews).Error; err != nil {
 			return err
 		}
-		if err := tx.Model(&model.SkillNodeAssignment{}).Where("assignment_id = ?", item.ID).Count(&skillLinks).Error; err != nil {
-			return err
-		}
-		if err := tx.Model(&model.SkillReviewEvent{}).Where("evidence_type = ? AND evidence_id = ?", model.SkillEvidenceAssignment, item.ID).Count(&skillEvidence).Error; err != nil {
-			return err
-		}
-		if err := tx.Model(&model.CapabilityDimensionSource{}).Where("source_type = ? AND source_id = ?", model.CapabilitySourceAssignment, item.ID).Count(&capabilityLinks).Error; err != nil {
-			return err
-		}
-		if submissions+reviews+skillLinks+skillEvidence+capabilityLinks > 0 {
-			return conflict("该作业已有提交、审核、技能关联或成长依据，或被能力维度关联，只能保留并撤回")
+		if submissions+reviews > 0 {
+			return conflict("该作业已有提交或审核记录，只能保留并撤回")
 		}
 		var materials []model.AssignmentMaterialFile
 		if err := tx.Where("assignment_id = ?", item.ID).Find(&materials).Error; err != nil {
@@ -1260,23 +1251,14 @@ func (s *Service) assignmentCanDelete(ctx context.Context, item model.Assignment
 	if item.PublicationStatus != model.AssignmentPublicationWithdrawn {
 		return false, nil
 	}
-	var submissions, reviews, skillLinks, skillEvidence, capabilityLinks int64
+	var submissions, reviews int64
 	if err := s.db.WithContext(ctx).Model(&model.AssignmentSubmission{}).Where("assignment_id = ?", item.ID).Count(&submissions).Error; err != nil {
 		return false, err
 	}
 	if err := s.db.WithContext(ctx).Table("assignment_reviews").Joins("JOIN assignment_submissions ON assignment_submissions.id = assignment_reviews.submission_id").Where("assignment_submissions.assignment_id = ?", item.ID).Count(&reviews).Error; err != nil {
 		return false, err
 	}
-	if err := s.db.WithContext(ctx).Model(&model.SkillNodeAssignment{}).Where("assignment_id = ?", item.ID).Count(&skillLinks).Error; err != nil {
-		return false, err
-	}
-	if err := s.db.WithContext(ctx).Model(&model.SkillReviewEvent{}).Where("evidence_type = ? AND evidence_id = ?", model.SkillEvidenceAssignment, item.ID).Count(&skillEvidence).Error; err != nil {
-		return false, err
-	}
-	if err := s.db.WithContext(ctx).Model(&model.CapabilityDimensionSource{}).Where("source_type = ? AND source_id = ?", model.CapabilitySourceAssignment, item.ID).Count(&capabilityLinks).Error; err != nil {
-		return false, internalError("读取作业能力引用状态失败", err)
-	}
-	return submissions+reviews+skillLinks+skillEvidence+capabilityLinks == 0, nil
+	return submissions+reviews == 0, nil
 }
 
 func requireMemberAssignmentPublished(item model.Assignment) error {

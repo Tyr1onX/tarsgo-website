@@ -119,11 +119,11 @@ func migrationRegistry(appEnv string) []migration {
 		}},
 		{version: 21, apply: func(db *gorm.DB) error {
 			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(
-				&model.SkillNode{},
-				&model.SkillNodePrerequisite{},
-				&model.SkillNodeAssignment{},
-				&model.SkillNodeProgress{},
-				&model.SkillReviewEvent{},
+				&skillNodeLegacy{},
+				&skillNodePrerequisiteLegacy{},
+				&skillNodeAssignmentLegacy{},
+				&skillNodeProgressLegacy{},
+				&skillReviewEventLegacy{},
 			)
 		}},
 		{version: 22, apply: func(db *gorm.DB) error {
@@ -154,7 +154,7 @@ func migrationRegistry(appEnv string) []migration {
 		}},
 		{version: 31, apply: func(db *gorm.DB) error {
 			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(
-				&model.CapabilityDimension{}, &model.CapabilityDimensionSource{}, &model.CapabilityManualReview{},
+				&capabilityDimensionLegacy{}, &capabilityDimensionSourceLegacy{}, &capabilityManualReviewLegacy{},
 			)
 		}},
 		{version: 32, apply: func(db *gorm.DB) error {
@@ -210,6 +210,9 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 48, apply: func(db *gorm.DB) error {
 			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.User{}, &model.AISalonEvent{}, &model.AISalonRegistration{})
 		}},
+		{version: 49, apply: clearRetiredLearningData},
+		{version: 50, apply: createLegacyRecruitmentArchive},
+		{version: 51, apply: archiveRetiredRecruitment},
 	}
 }
 
