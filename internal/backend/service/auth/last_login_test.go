@@ -119,6 +119,37 @@ func TestCurrentSessionDoesNotRefreshLoginConfirmation(t *testing.T) {
 	}
 }
 
+func TestCurrentUserAndRenewalReusesTheAuthenticatedSessionRead(t *testing.T) {
+	db, mock := newAuthSQLMock(t)
+	now := time.Date(2026, time.October, 20, 3, 4, 5, 0, time.UTC)
+	token := "existing-session-token"
+	service := &Service{db: db, authConfig: config.AuthConfig{}, now: func() time.Time { return now }, lastAuthCleanup: now}
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `auth_sessions` WHERE token_hash = ? ORDER BY `auth_sessions`.`id` LIMIT ?")).
+		WithArgs(digestSecret(token), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "token_hash", "expires_at", "created_at", "updated_at"}).AddRow(
+			uint64(2), uint64(7), digestSecret(token), now.Add(48*time.Hour), now, now,
+		))
+	mock.ExpectQuery("SELECT \\* FROM `users` WHERE `users`.`id` = \\? ORDER BY `users`.`id` LIMIT \\?").
+		WithArgs(uint64(7), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "role_id", "name", "email", "status"}).AddRow(
+			uint64(7), uint64(3), "member", "member@example.test", model.UserStatusEnabled,
+		))
+	mock.ExpectQuery("SELECT \\* FROM `roles` WHERE `roles`.`id` = \\?").
+		WithArgs(uint64(3)).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "display_name"}).AddRow(uint64(3), model.RoleNameUser, "普通用户"))
+
+	result, err := service.CurrentUserAndRenewal(context.Background(), token, "")
+	if err != nil {
+		t.Fatalf("CurrentUserAndRenewal returned error: %v", err)
+	}
+	if result == nil || result.User == nil || result.User.ID != 7 || result.Renewal == nil || result.Renewal.AuthRenewed {
+		t.Fatalf("CurrentUserAndRenewal result = %#v, want authenticated user and no renewal", result)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("current-user renewal repeated the session read or opened a transaction: %v", err)
+	}
+}
+
 func TestSwitchAccountSessionDoesNotRefreshLoginConfirmation(t *testing.T) {
 	db, mock := newAuthSQLMock(t)
 	now := time.Date(2026, time.October, 20, 3, 4, 5, 0, time.UTC)
@@ -217,6 +248,81 @@ func TestRenewAccountSessionSlidesIdleExpiryButCapsAbsoluteLifetime(t *testing.T
 				t.Fatalf("unmet database expectation: %v", err)
 			}
 		})
+	}
+}
+
+func TestCurrentUserRenewalSkipsDatabaseTransactionWhenSessionIsNotNearExpiry(t *testing.T) {
+	db, mock := newAuthSQLMock(t)
+	now := time.Date(2026, time.October, 25, 3, 4, 5, 0, time.UTC)
+	service := &Service{db: db, now: func() time.Time { return now }, lastAuthCleanup: now}
+	session := &model.AuthSession{CreatedAt: now.Add(-time.Hour), ExpiresAt: now.Add(48 * time.Hour)}
+
+	renewal, err := service.renewAccountSession(context.Background(), "current-session", "", session, true)
+	if err != nil {
+		t.Fatalf("renew current session: %v", err)
+	}
+	if renewal.AuthRenewed || renewal.AuthCookieMaxAgeSeconds != int((48*time.Hour)/time.Second) {
+		t.Fatalf("renewal = %#v, want no renewal and a 48-hour cookie lifetime", renewal)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unexpected database operation for a session outside the renewal window: %v", err)
+	}
+}
+
+func TestCurrentUserRenewalChecksDistantVaultWithoutTransaction(t *testing.T) {
+	db, mock := newAuthSQLMock(t)
+	now := time.Date(2026, time.October, 25, 3, 4, 5, 0, time.UTC)
+	service := &Service{db: db, now: func() time.Time { return now }, lastAuthCleanup: now}
+	session := &model.AuthSession{CreatedAt: now.Add(-time.Hour), ExpiresAt: now.Add(48 * time.Hour)}
+	vaultToken := "current-vault"
+	mock.ExpectQuery("SELECT \\* FROM `account_vaults` WHERE secret_hash = \\? ORDER BY `account_vaults`.`id` LIMIT \\?").
+		WithArgs(digestSecret(vaultToken), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "secret_hash", "expires_at", "created_at", "updated_at"}).AddRow(
+			uint64(5), digestSecret(vaultToken), now.Add(48*time.Hour), now.Add(-time.Hour), now,
+		))
+
+	renewal, err := service.renewAccountSession(context.Background(), "current-session", vaultToken, session, true)
+	if err != nil {
+		t.Fatalf("renew current session and vault: %v", err)
+	}
+	if renewal.AuthRenewed || renewal.VaultRenewed || renewal.AuthCookieMaxAgeSeconds != int((48*time.Hour)/time.Second) || renewal.VaultCookieMaxAgeSeconds != int((48*time.Hour)/time.Second) {
+		t.Fatalf("renewal = %#v, want no renewal with synchronized 48-hour lifetimes", renewal)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unexpected database operation for credentials outside the renewal window: %v", err)
+	}
+}
+
+func TestCurrentUserRenewalRechecksSessionUnderLockBeforeSlidingExpiry(t *testing.T) {
+	db, mock := newAuthSQLMock(t)
+	now := time.Date(2026, time.October, 25, 3, 4, 5, 0, time.UTC)
+	service := &Service{
+		db:              db,
+		authConfig:      config.AuthConfig{TokenTTL: 72 * time.Hour},
+		now:             func() time.Time { return now },
+		lastAuthCleanup: now,
+	}
+	token := "renewable-session"
+	createdAt := now.Add(-24 * time.Hour)
+	session := &model.AuthSession{UserID: 7, TokenHash: digestSecret(token), CreatedAt: createdAt, ExpiresAt: now.Add(12 * time.Hour)}
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT \\* FROM `auth_sessions` WHERE token_hash = \\? ORDER BY `auth_sessions`.`id` LIMIT \\? FOR UPDATE").
+		WithArgs(digestSecret(token), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "token_hash", "expires_at", "revoked_at", "created_at", "updated_at"}).AddRow(
+			uint64(4), uint64(7), digestSecret(token), now.Add(12*time.Hour), nil, createdAt, now,
+		))
+	mock.ExpectExec("UPDATE `auth_sessions` SET").WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	renewal, err := service.renewAccountSession(context.Background(), token, "", session, true)
+	if err != nil {
+		t.Fatalf("renew current session: %v", err)
+	}
+	if !renewal.AuthRenewed || renewal.AuthCookieMaxAgeSeconds != int((72*time.Hour)/time.Second) {
+		t.Fatalf("renewal = %#v, want renewal capped at 72 hours", renewal)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet database expectation: %v", err)
 	}
 }
 

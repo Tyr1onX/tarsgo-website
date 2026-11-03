@@ -30,6 +30,49 @@ func (roleSessionReader) CookieName() string            { return "session" }
 func (roleSessionReader) CookieSecure() bool            { return false }
 func (roleSessionReader) CookieSameSite() http.SameSite { return http.SameSiteLaxMode }
 
+type combinedSessionReader struct {
+	roleSessionReader
+	result *auth.CurrentUserRenewalResult
+	calls  int
+}
+
+func (r *combinedSessionReader) CurrentUserAndRenewal(context.Context, string, string) (*auth.CurrentUserRenewalResult, error) {
+	r.calls++
+	return r.result, nil
+}
+
+func TestRequireAuthenticatedUsesCombinedSessionLookupAndAppliesRenewedCookies(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	service := &combinedSessionReader{
+		roleSessionReader: roleSessionReader{role: "user"},
+		result: &auth.CurrentUserRenewalResult{
+			User: &auth.SessionUser{ID: 10, Role: auth.SessionRole{Name: "user"}},
+			Renewal: &auth.SessionRenewal{
+				AuthCookieMaxAgeSeconds:  3_600,
+				VaultCookieMaxAgeSeconds: 1_800,
+				AuthRenewed:              true,
+				VaultRenewed:             true,
+			},
+		},
+	}
+	engine := gin.New()
+	engine.GET("/authenticated", RequireAuthenticated(service), func(c *gin.Context) { c.Status(http.StatusNoContent) })
+	request := httptest.NewRequest(http.MethodGet, "/authenticated", nil)
+	request.AddCookie(&http.Cookie{Name: "session", Value: "session-token"})
+	request.AddCookie(&http.Cookie{Name: auth.AccountVaultCookieName, Value: "vault-token"})
+	response := httptest.NewRecorder()
+	engine.ServeHTTP(response, request)
+	if response.Code != http.StatusNoContent {
+		t.Fatalf("authenticated route status = %d, want %d: %s", response.Code, http.StatusNoContent, response.Body.String())
+	}
+	if service.calls != 1 {
+		t.Fatalf("combined session lookup calls = %d, want 1", service.calls)
+	}
+	if got := response.Header().Values("Set-Cookie"); len(got) != 2 || !strings.Contains(strings.Join(got, "\n"), "session=session-token") || !strings.Contains(strings.Join(got, "\n"), "tarsgo_accounts=vault-token") {
+		t.Fatalf("renewed cookies = %v, want current session and account vault cookies", got)
+	}
+}
+
 func TestAdminCanUseAdminRoutesButNotSuperAdminConfiguration(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	request := func(middleware gin.HandlerFunc) int {

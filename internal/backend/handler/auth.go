@@ -353,21 +353,46 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		return
 	}
 
-	user, err := h.service.CurrentUser(c.Request.Context(), token)
-	if err != nil {
-		h.handleServiceError(c, err)
-		return
-	}
 	vaultToken, _ := c.Cookie(accountVaultCookieName)
-	if renewer, ok := h.service.(interface {
-		RenewAccountSession(context.Context, string, string) (*auth.SessionRenewal, error)
+	var user *auth.SessionUser
+	if resolver, ok := h.service.(interface {
+		CurrentUserAndRenewal(context.Context, string, string) (*auth.CurrentUserRenewalResult, error)
 	}); ok {
-		if renewal, renewErr := renewer.RenewAccountSession(c.Request.Context(), token, vaultToken); renewErr == nil && renewal != nil {
+		result, resolveErr := resolver.CurrentUserAndRenewal(c.Request.Context(), token, vaultToken)
+		if resolveErr != nil {
+			h.handleServiceError(c, resolveErr)
+			return
+		}
+		if result == nil || result.User == nil {
+			h.handleServiceError(c, &auth.ServiceError{Status: http.StatusInternalServerError, Message: "加载当前用户失败"})
+			return
+		}
+		user = result.User
+		if result.RenewalError == nil && result.Renewal != nil {
+			renewal := result.Renewal
 			if renewal.AuthRenewed && renewal.AuthCookieMaxAgeSeconds > 0 {
 				h.setCookie(c, h.service.CookieName(), token, renewal.AuthCookieMaxAgeSeconds, true)
 			}
 			if renewal.VaultRenewed && renewal.VaultCookieMaxAgeSeconds > 0 && strings.TrimSpace(vaultToken) != "" {
 				h.setCookie(c, accountVaultCookieName, vaultToken, renewal.VaultCookieMaxAgeSeconds, true)
+			}
+		}
+	} else {
+		user, err = h.service.CurrentUser(c.Request.Context(), token)
+		if err != nil {
+			h.handleServiceError(c, err)
+			return
+		}
+		if renewer, ok := h.service.(interface {
+			RenewAccountSession(context.Context, string, string) (*auth.SessionRenewal, error)
+		}); ok {
+			if renewal, renewErr := renewer.RenewAccountSession(c.Request.Context(), token, vaultToken); renewErr == nil && renewal != nil {
+				if renewal.AuthRenewed && renewal.AuthCookieMaxAgeSeconds > 0 {
+					h.setCookie(c, h.service.CookieName(), token, renewal.AuthCookieMaxAgeSeconds, true)
+				}
+				if renewal.VaultRenewed && renewal.VaultCookieMaxAgeSeconds > 0 && strings.TrimSpace(vaultToken) != "" {
+					h.setCookie(c, accountVaultCookieName, vaultToken, renewal.VaultCookieMaxAgeSeconds, true)
+				}
 			}
 		}
 	}

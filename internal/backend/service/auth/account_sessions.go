@@ -56,6 +56,12 @@ type SessionRenewal struct {
 	VaultRenewed             bool
 }
 
+type CurrentUserRenewalResult struct {
+	User         *SessionUser
+	Renewal      *SessionRenewal
+	RenewalError error
+}
+
 // CreateAccountSession runs after a credential login or registration succeeds.
 // It keeps a live prior account in the same browser vault, then adds or refreshes
 // the newly authenticated account. A sixth account is rejected without changing
@@ -741,37 +747,76 @@ func accountSessionStatus(sessionExists bool, session model.AuthSession, user *m
 // session is close to expiry. Session and account-vault cookies stay bounded
 // by a fixed 30-day absolute lifetime from the last credential login.
 func (s *Service) RenewAccountSession(ctx context.Context, sessionToken, vaultToken string) (*SessionRenewal, error) {
+	return s.renewAccountSession(ctx, sessionToken, vaultToken, nil, false)
+}
+
+// renewAccountSession reuses a session already checked by CurrentUser. When
+// neither cookie is near expiry, it avoids opening a transaction or taking row
+// locks. Near-expiry rows are still re-read under lock before they are changed.
+func (s *Service) renewAccountSession(ctx context.Context, sessionToken, vaultToken string, session *model.AuthSession, sessionKnown bool) (*SessionRenewal, error) {
 	now := s.now()
 	if err := s.cleanupExpiredAuthDataIfDue(ctx); err != nil {
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "清理过期登录记录失败", Err: err}
 	}
 	renewal := &SessionRenewal{}
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		var session model.AuthSession
-		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("token_hash = ?", digestSecret(sessionToken)).First(&session).Error
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil // Legacy JWTs are not sliding-renewed.
-		}
-		if err != nil {
-			return err
-		}
+	authDue := !sessionKnown
+	if sessionKnown && session != nil {
 		if session.RevokedAt != nil || !now.Before(session.ExpiresAt) || !session.CreatedAt.Add(MaxSessionLifetime).After(now) {
-			return &ServiceError{Status: http.StatusUnauthorized, Message: "登录态已失效，请重新验证"}
-		}
-		if session.ExpiresAt.Sub(now) <= SessionRenewWindow {
-			session.ExpiresAt = boundedSessionExpiry(now, session.CreatedAt, s.authConfig.TokenTTL)
-			if err := tx.Save(&session).Error; err != nil {
-				return err
-			}
-			renewal.AuthRenewed = true
+			return nil, &ServiceError{Status: http.StatusUnauthorized, Message: "登录态已失效，请重新验证"}
 		}
 		renewal.AuthCookieMaxAgeSeconds = s.cookieMaxAgeUntil(session.ExpiresAt)
+		authDue = session.ExpiresAt.Sub(now) <= SessionRenewWindow
+	}
 
-		if strings.TrimSpace(vaultToken) == "" {
+	vaultToken = strings.TrimSpace(vaultToken)
+	vaultDue := false
+	if sessionKnown && !authDue && vaultToken != "" {
+		var vault model.AccountVault
+		err := s.db.WithContext(ctx).Where("secret_hash = ?", digestSecret(vaultToken)).First(&vault).Error
+		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "续期登录会话失败", Err: err}
+		}
+		if err == nil && now.Before(vault.ExpiresAt) {
+			renewal.VaultCookieMaxAgeSeconds = s.cookieMaxAgeUntil(vault.ExpiresAt)
+			vaultDue = vault.CreatedAt.Add(MaxSessionLifetime).After(now) && vault.ExpiresAt.Sub(now) <= SessionRenewWindow
+		}
+	}
+	if sessionKnown && !authDue && !vaultDue {
+		return renewal, nil
+	}
+
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		if !sessionKnown || authDue {
+			var current model.AuthSession
+			err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("token_hash = ?", digestSecret(sessionToken)).First(&current).Error
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				if sessionKnown {
+					return &ServiceError{Status: http.StatusUnauthorized, Message: "登录态已失效，请重新验证"}
+				}
+			} else if err != nil {
+				return err
+			} else {
+				if current.RevokedAt != nil || !now.Before(current.ExpiresAt) || !current.CreatedAt.Add(MaxSessionLifetime).After(now) {
+					return &ServiceError{Status: http.StatusUnauthorized, Message: "登录态已失效，请重新验证"}
+				}
+				if current.ExpiresAt.Sub(now) <= SessionRenewWindow {
+					current.ExpiresAt = boundedSessionExpiry(now, current.CreatedAt, s.authConfig.TokenTTL)
+					if err := tx.Save(&current).Error; err != nil {
+						return err
+					}
+					renewal.AuthRenewed = true
+				}
+				renewal.AuthCookieMaxAgeSeconds = s.cookieMaxAgeUntil(current.ExpiresAt)
+			}
+		} else if session != nil {
+			renewal.AuthCookieMaxAgeSeconds = s.cookieMaxAgeUntil(session.ExpiresAt)
+		}
+
+		if vaultToken == "" {
 			return nil
 		}
 		var vault model.AccountVault
-		err = tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("secret_hash = ?", digestSecret(vaultToken)).First(&vault).Error
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("secret_hash = ?", digestSecret(vaultToken)).First(&vault).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) || (err == nil && !now.Before(vault.ExpiresAt)) {
 			return nil
 		}

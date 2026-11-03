@@ -553,20 +553,36 @@ func (s *Service) LoginWithCode(ctx context.Context, email string, code string) 
 }
 
 func (s *Service) CurrentUser(ctx context.Context, token string) (*SessionUser, error) {
+	user, _, err := s.currentUserWithSession(ctx, token)
+	return user, err
+}
+
+// CurrentUserAndRenewal authenticates once and reuses the validated opaque
+// session when deciding whether its idle expiry needs renewal.
+func (s *Service) CurrentUserAndRenewal(ctx context.Context, token, vaultToken string) (*CurrentUserRenewalResult, error) {
+	user, session, err := s.currentUserWithSession(ctx, token)
+	if err != nil {
+		return nil, err
+	}
+	renewal, renewalErr := s.renewAccountSession(ctx, token, vaultToken, session, true)
+	return &CurrentUserRenewalResult{User: user, Renewal: renewal, RenewalError: renewalErr}, nil
+}
+
+func (s *Service) currentUserWithSession(ctx context.Context, token string) (*SessionUser, *model.AuthSession, error) {
 	token = strings.TrimSpace(token)
 	if token == "" {
-		return nil, &ServiceError{Status: http.StatusUnauthorized, Message: "未登录"}
+		return nil, nil, &ServiceError{Status: http.StatusUnauthorized, Message: "未登录"}
 	}
 
 	userID := uint64(0)
 	legacyIssuedAt := int64(-1)
 	session, found, sessionErr := s.findAuthSession(ctx, token)
 	if sessionErr != nil {
-		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "读取登录会话失败", Err: sessionErr}
+		return nil, nil, &ServiceError{Status: http.StatusInternalServerError, Message: "读取登录会话失败", Err: sessionErr}
 	}
 	if found {
 		if session.RevokedAt != nil || !s.now().Before(session.ExpiresAt) || !session.CreatedAt.Add(MaxSessionLifetime).After(s.now()) {
-			return nil, &ServiceError{Status: http.StatusUnauthorized, Message: "登录态已失效"}
+			return nil, nil, &ServiceError{Status: http.StatusUnauthorized, Message: "登录态已失效"}
 		}
 		userID = session.UserID
 	} else {
@@ -574,34 +590,37 @@ func (s *Service) CurrentUser(ctx context.Context, token string) (*SessionUser, 
 		// until their original expiry, then all new logins use opaque sessions.
 		claims, err := ParseToken(s.authConfig.JWTSecret, token)
 		if err != nil {
-			return nil, &ServiceError{Status: http.StatusUnauthorized, Message: "登录态已失效", Err: err}
+			return nil, nil, &ServiceError{Status: http.StatusUnauthorized, Message: "登录态已失效", Err: err}
 		}
 		legacyIssuedAt = claims.IssuedAt
 		userID, err = strconv.ParseUint(claims.Subject, 10, 64)
 		if err != nil {
-			return nil, &ServiceError{Status: http.StatusUnauthorized, Message: "登录态无效", Err: err}
+			return nil, nil, &ServiceError{Status: http.StatusUnauthorized, Message: "登录态无效", Err: err}
 		}
 	}
 
 	user, err := s.loadUserWithRole(ctx, userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, &ServiceError{Status: http.StatusUnauthorized, Message: "当前用户不存在"}
+			return nil, nil, &ServiceError{Status: http.StatusUnauthorized, Message: "当前用户不存在"}
 		}
-		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载当前用户失败", Err: err}
+		return nil, nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载当前用户失败", Err: err}
 	}
 	if err := ensureUserEnabled(user); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if legacyIssuedAt >= 0 && user.PasswordResetAt != nil && legacyIssuedAt <= user.PasswordResetAt.Unix() {
-		return nil, &ServiceError{Status: http.StatusUnauthorized, Message: "登录态已失效，请重新登录"}
+		return nil, nil, &ServiceError{Status: http.StatusUnauthorized, Message: "登录态已失效，请重新登录"}
 	}
 	if err := validateIdentityConsistency(user); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
 	sessionUser := toSessionUser(user)
-	return &sessionUser, nil
+	if !found {
+		session = nil
+	}
+	return &sessionUser, session, nil
 }
 
 func (s *Service) sendCode(ctx context.Context, email string, purpose string, subject string, bodyTemplate string) error {
