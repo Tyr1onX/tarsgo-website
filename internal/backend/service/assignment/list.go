@@ -87,16 +87,27 @@ func (s *Service) adminListViews(ctx context.Context, items []model.Assignment) 
 			AssignmentID                                            uint64
 			TargetCount, SubmittedCount, ReviewedCount, PassedCount int
 		}
-		// Unique targets and anti-joins select exactly one latest attempt/review.
+		// Combine the original recipient snapshot with current eligible group members.
+		// UNION prevents counting an original member twice; targeted scope stays fixed.
 		err = s.db.WithContext(ctx).Raw(`SELECT t.assignment_id, COUNT(*) AS target_count,
    COUNT(s.id) AS submitted_count, COUNT(r.id) AS reviewed_count,
    COALESCE(SUM(r.decision = ?), 0) AS passed_count
-   FROM assignment_targets t
+   FROM (
+     SELECT assignment_id, user_id FROM assignment_targets WHERE assignment_id IN ?
+     UNION
+     SELECT a.id AS assignment_id, gm.user_id FROM assignments a
+     JOIN user_group_members gm ON gm.group_id = a.group_id
+     JOIN user_groups g ON g.id = gm.group_id AND g.status = ?
+     JOIN users u ON u.id = gm.user_id AND u.status = ?
+     JOIN roles role ON role.id = u.role_id AND role.name = ?
+     WHERE a.id IN ? AND a.is_group_wide = 1
+   ) t
    LEFT JOIN assignment_submissions s ON s.assignment_id = t.assignment_id AND s.user_id = t.user_id
     AND NOT EXISTS (SELECT 1 FROM assignment_submissions newer WHERE newer.assignment_id = s.assignment_id AND newer.user_id = s.user_id AND newer.attempt > s.attempt)
    LEFT JOIN assignment_reviews r ON r.submission_id = s.id
     AND NOT EXISTS (SELECT 1 FROM assignment_reviews newer_review WHERE newer_review.submission_id = r.submission_id AND newer_review.id > r.id)
-   WHERE t.assignment_id IN ? GROUP BY t.assignment_id`, model.AssignmentReviewPassed, ids).Scan(&counts).Error
+   GROUP BY t.assignment_id`, model.AssignmentReviewPassed, ids,
+			model.UserGroupStatusActive, model.UserStatusEnabled, model.RoleNameUser, ids).Scan(&counts).Error
 		if err != nil {
 			return nil, internalError("读取作业统计失败", err)
 		}
@@ -198,15 +209,23 @@ func (s *Service) AdminTodos(ctx context.Context, actor Actor) (*AdminTodoSummar
 		return nil, forbidden("当前账号没有可管理的技术组")
 	}
 	result := &AdminTodoSummary{}
-	// Match list semantics: current targets, latest attempt, no review of that
-	// attempt, and exclude withdrawn assignments. Do not load files or content.
+	// Include submissions from later group members, while preserving historical
+	// snapshots for earlier members and fixed targeted assignments.
 	err = s.db.WithContext(ctx).Raw(`SELECT COUNT(*) AS review_count
  FROM assignments a
- JOIN assignment_targets t ON t.assignment_id=a.id
- JOIN assignment_submissions s ON s.assignment_id=t.assignment_id AND s.user_id=t.user_id
+ JOIN assignment_submissions s ON s.assignment_id=a.id
  WHERE a.group_id IN ? AND a.publication_status <> ?
+ AND (EXISTS (SELECT 1 FROM assignment_targets t WHERE t.assignment_id=a.id AND t.user_id=s.user_id)
+      OR (a.is_group_wide = 1 AND EXISTS (
+        SELECT 1 FROM user_group_members gm
+        JOIN user_groups g ON g.id=gm.group_id AND g.status=?
+        JOIN users u ON u.id=gm.user_id AND u.status=?
+        JOIN roles role ON role.id=u.role_id AND role.name=?
+        WHERE gm.group_id=a.group_id AND gm.user_id=s.user_id)))
  AND NOT EXISTS (SELECT 1 FROM assignment_submissions ns WHERE ns.assignment_id=s.assignment_id AND ns.user_id=s.user_id AND ns.attempt>s.attempt)
- AND NOT EXISTS (SELECT 1 FROM assignment_reviews r WHERE r.submission_id=s.id)`, groupIDs, model.AssignmentPublicationWithdrawn).Scan(result).Error
+ AND NOT EXISTS (SELECT 1 FROM assignment_reviews r WHERE r.submission_id=s.id)`,
+		groupIDs, model.AssignmentPublicationWithdrawn,
+		model.UserGroupStatusActive, model.UserStatusEnabled, model.RoleNameUser).Scan(result).Error
 	if err != nil {
 		return nil, internalError("读取作业批改待办失败", err)
 	}

@@ -568,11 +568,33 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 		Title: fullGroupAssignment.Title + " 已编辑", Description: fullGroupAssignment.Description,
 		DueAt: now.Add(72 * time.Hour), IsGroupWide: true,
 	})
-	if err != nil || !fullGroupEdited.IsGroupWide || fullGroupEdited.TargetCount != initialFullGroupTargetCount {
-		t.Fatalf("editing a full-group assignment changed its existing recipient snapshot: assignment=%#v err=%v", fullGroupEdited, err)
+	if err != nil || !fullGroupEdited.IsGroupWide || fullGroupEdited.TargetCount != initialFullGroupTargetCount+1 {
+		t.Fatalf("full-group assignment did not include a later member: assignment=%#v err=%v", fullGroupEdited, err)
 	}
-	if _, err := service.GetMine(context.Background(), lateMember, fullGroupAssignment.ID); statusOf(err) != http.StatusNotFound {
-		t.Fatalf("routine edit expanded a full-group assignment to a later member: status=%d", statusOf(err))
+	lateAssignments, err := service.ListMine(context.Background(), lateMember)
+	lateListed := false
+	for _, item := range lateAssignments {
+		lateListed = lateListed || item.ID == fullGroupAssignment.ID
+	}
+	if err != nil || !lateListed {
+		t.Fatalf("late member cannot list earlier full-group assignment: items=%#v err=%v", lateAssignments, err)
+	}
+	if _, err := service.GetMine(context.Background(), lateMember, fullGroupAssignment.ID); err != nil {
+		t.Fatalf("late member cannot read earlier full-group assignment: %v", err)
+	}
+	lateAdminDetail, err := service.GetAdmin(context.Background(), admin, fullGroupAssignment.ID)
+	if err != nil || lateAdminDetail.Assignment.TargetCount != initialFullGroupTargetCount+1 {
+		t.Fatalf("admin roster did not update for late member: detail=%#v err=%v", lateAdminDetail, err)
+	}
+	lateInRoster := false
+	for _, member := range lateAdminDetail.Members {
+		lateInRoster = lateInRoster || member.UserID == lateMember.ID
+	}
+	if !lateInRoster {
+		t.Fatalf("late member missing from admin roster: %#v", lateAdminDetail.Members)
+	}
+	if _, err := service.GetMine(context.Background(), crossMember, fullGroupAssignment.ID); statusOf(err) != http.StatusNotFound {
+		t.Fatalf("cross-group member accessed mechanical assignment: status=%d", statusOf(err))
 	}
 
 	withdrawalAssignment, err := service.Create(context.Background(), admin, CreateInput{

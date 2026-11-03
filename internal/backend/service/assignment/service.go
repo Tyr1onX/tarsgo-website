@@ -219,8 +219,10 @@ func (s *Service) memberListItems(ctx context.Context, actor Actor, summary bool
 		query = query.Select("assignments.id", "assignments.title", "assignments.due_at")
 	}
 	if err := query.
-		Joins("JOIN assignment_targets ON assignment_targets.assignment_id = assignments.id").
-		Where("assignment_targets.user_id = ? AND assignments.group_id IN ? AND assignments.publication_status = ?", actor.ID, groupIDs, model.AssignmentPublicationPublished).
+		Where(`assignments.group_id IN ? AND assignments.publication_status = ?
+          AND ((assignments.is_group_wide = 1 AND ?) OR EXISTS
+          (SELECT 1 FROM assignment_targets t WHERE t.assignment_id = assignments.id AND t.user_id = ?))`,
+			groupIDs, model.AssignmentPublicationPublished, actor.RoleName == model.RoleNameUser, actor.ID).
 		Order("assignments.due_at ASC, assignments.id DESC").Find(&items).Error; err != nil {
 		return nil, internalError("读取我的作业失败", err)
 	}
@@ -242,12 +244,11 @@ func (s *Service) GetMine(ctx context.Context, actor Actor, assignmentID uint64)
 		}
 		return nil, internalError("读取作业失败", err)
 	}
-	var targetCount int64
-	if err := s.db.WithContext(ctx).Model(&model.AssignmentTarget{}).
-		Where("assignment_id = ? AND user_id = ?", item.ID, actor.ID).Count(&targetCount).Error; err != nil {
+	assigned, err := s.memberHasAssignment(s.db.WithContext(ctx), actor, item)
+	if err != nil {
 		return nil, internalError("校验作业分配失败", err)
 	}
-	if targetCount == 0 {
+	if !assigned {
 		return nil, notFound("作业不存在")
 	}
 	groupName, err := s.groupName(ctx, item.GroupID)
@@ -340,13 +341,9 @@ func (s *Service) GetAdmin(ctx context.Context, actor Actor, assignmentID uint64
 	if err != nil {
 		return nil, internalError("读取作业组别失败", err)
 	}
-	var targets []model.AssignmentTarget
-	if err := s.db.WithContext(ctx).Where("assignment_id = ?", item.ID).Order("user_id ASC").Find(&targets).Error; err != nil {
+	targetUserIDs, err := s.assignmentRecipientIDs(s.db.WithContext(ctx), item)
+	if err != nil {
 		return nil, internalError("读取作业成员失败", err)
-	}
-	targetUserIDs := make([]uint64, 0, len(targets))
-	for _, target := range targets {
-		targetUserIDs = append(targetUserIDs, target.UserID)
 	}
 	histories, err := s.loadSubmissionHistories(ctx, item.ID, targetUserIDs, true)
 	if err != nil {
@@ -366,14 +363,14 @@ func (s *Service) GetAdmin(ctx context.Context, actor Actor, assignmentID uint64
 	if err != nil {
 		return nil, internalError("读取教学资料失败", err)
 	}
-	view := AdminAssignmentDetail{Assignment: assignmentView(item, groupName), Members: make([]AssignmentMemberView, 0, len(targets))}
+	view := AdminAssignmentDetail{Assignment: assignmentView(item, groupName), Members: make([]AssignmentMemberView, 0, len(targetUserIDs))}
 	view.Assignment.MaterialFiles = materialFiles
-	for _, target := range targets {
-		user, exists := usersByID[target.UserID]
+	for _, userID := range targetUserIDs {
+		user, exists := usersByID[userID]
 		if !exists {
 			continue
 		}
-		history := histories[target.UserID]
+		history := histories[userID]
 		name := "姓名待核实"
 		if user.RealName != nil && strings.TrimSpace(*user.RealName) != "" {
 			name = strings.TrimSpace(*user.RealName)
@@ -732,17 +729,16 @@ func (s *Service) Update(ctx context.Context, actor Actor, assignmentID uint64, 
 		}
 		return nil, internalError("更新作业失败", err)
 	}
-	groupName, err := s.groupName(ctx, item.GroupID)
+	view, err := s.adminSummary(ctx, item)
 	if err != nil {
-		return nil, internalError("读取作业组别失败", err)
+		return nil, internalError("读取作业状态失败", err)
 	}
-	view := assignmentView(item, groupName)
-	view.TargetCount = len(userIDs)
 	return &view, nil
 }
 
 // SetPublicationStatus withdraws a published assignment or republishes a
-// withdrawn one. Recipient snapshots and all submission history stay intact.
+// withdrawn one. Historical targets and submissions stay intact; active
+// group-wide recipients are resolved from current membership on every read.
 func (s *Service) SetPublicationStatus(ctx context.Context, actor Actor, assignmentID uint64, status string) (*AssignmentView, error) {
 	if err := requireAdmin(actor); err != nil {
 		return nil, err
@@ -869,11 +865,11 @@ func (s *Service) Submit(ctx context.Context, actor Actor, assignmentID uint64, 
 		if err := s.requireGroupAccessWithDB(tx, actor.ID, item.GroupID); err != nil {
 			return err
 		}
-		var targets int64
-		if err := tx.Model(&model.AssignmentTarget{}).Where("assignment_id = ? AND user_id = ?", item.ID, actor.ID).Count(&targets).Error; err != nil {
+		assigned, err := s.memberHasAssignment(tx, actor, item)
+		if err != nil {
 			return err
 		}
-		if targets == 0 {
+		if !assigned {
 			return notFound("作业不存在")
 		}
 		if err := requireMemberAssignmentPublished(item); err != nil {
@@ -1174,12 +1170,11 @@ func (s *Service) OpenMaterialFile(ctx context.Context, actor Actor, fileID uint
 		if err := s.requireGroupAccess(ctx, actor.ID, item.GroupID); err != nil {
 			return nil, err
 		}
-		var targetCount int64
-		if err := s.db.WithContext(ctx).Model(&model.AssignmentTarget{}).
-			Where("assignment_id = ? AND user_id = ?", item.ID, actor.ID).Count(&targetCount).Error; err != nil {
+		assigned, err := s.memberHasAssignment(s.db.WithContext(ctx), actor, item)
+		if err != nil {
 			return nil, internalError("校验教学资料访问权限失败", err)
 		}
-		if targetCount == 0 {
+		if !assigned {
 			return nil, notFound("教学资料不存在")
 		}
 	default:
@@ -1212,22 +1207,18 @@ func (s *Service) adminSummary(ctx context.Context, item model.Assignment) (Assi
 	if err != nil {
 		return AssignmentView{}, err
 	}
-	var targets []model.AssignmentTarget
-	if err := s.db.WithContext(ctx).Where("assignment_id = ?", item.ID).Find(&targets).Error; err != nil {
+	targetUserIDs, err := s.assignmentRecipientIDs(s.db.WithContext(ctx), item)
+	if err != nil {
 		return AssignmentView{}, err
-	}
-	targetUserIDs := make([]uint64, 0, len(targets))
-	for _, target := range targets {
-		targetUserIDs = append(targetUserIDs, target.UserID)
 	}
 	histories, err := s.loadSubmissionHistories(ctx, item.ID, targetUserIDs, true)
 	if err != nil {
 		return AssignmentView{}, err
 	}
 	view := assignmentView(item, groupName)
-	view.TargetCount = len(targets)
-	for _, target := range targets {
-		history := histories[target.UserID]
+	view.TargetCount = len(targetUserIDs)
+	for _, userID := range targetUserIDs {
+		history := histories[userID]
 		if len(history) == 0 {
 			continue
 		}
@@ -1354,19 +1345,51 @@ func (s *Service) submissionViews(ctx context.Context, submissions []model.Assig
 	return result, nil
 }
 
+// Full-group assignments include eligible members who joined after publishing.
+// Stored targets remain historical recipients; targeted assignments stay fixed.
+func (s *Service) memberHasAssignment(db *gorm.DB, actor Actor, item model.Assignment) (bool, error) {
+	if item.IsGroupWide && actor.RoleName == model.RoleNameUser {
+		return true, nil
+	}
+	var count int64
+	err := db.Model(&model.AssignmentTarget{}).
+		Where("assignment_id = ? AND user_id = ?", item.ID, actor.ID).Count(&count).Error
+	return count > 0, err
+}
+
+func currentGroupAssignmentRecipients(db *gorm.DB, groupID uint64) ([]uint64, error) {
+	var userIDs []uint64
+	err := db.Model(&model.UserGroupMember{}).
+		Joins("JOIN user_groups ON user_groups.id = user_group_members.group_id").
+		Joins("JOIN users ON users.id = user_group_members.user_id").
+		Joins("JOIN roles ON roles.id = users.role_id").
+		Where("user_group_members.group_id = ? AND user_groups.status = ? AND users.status = ? AND roles.name = ?", groupID, model.UserGroupStatusActive, model.UserStatusEnabled, model.RoleNameUser).
+		Pluck("user_group_members.user_id", &userIDs).Error
+	return uniqueSortedIDs(userIDs), err
+}
+
+func (s *Service) assignmentRecipientIDs(db *gorm.DB, item model.Assignment) ([]uint64, error) {
+	var userIDs []uint64
+	if err := db.Model(&model.AssignmentTarget{}).Where("assignment_id = ?", item.ID).
+		Pluck("user_id", &userIDs).Error; err != nil {
+		return nil, err
+	}
+	if item.IsGroupWide {
+		current, err := currentGroupAssignmentRecipients(db, item.GroupID)
+		if err != nil {
+			return nil, err
+		}
+		userIDs = append(userIDs, current...)
+	}
+	return uniqueSortedIDs(userIDs), nil
+}
+
 func (s *Service) resolveTargetsWithDB(db *gorm.DB, groupID uint64, isGroupWide bool, requested []uint64) ([]uint64, error) {
 	if isGroupWide {
-		var userIDs []uint64
-		err := db.Model(&model.UserGroupMember{}).
-			Joins("JOIN user_groups ON user_groups.id = user_group_members.group_id").
-			Joins("JOIN users ON users.id = user_group_members.user_id").
-			Joins("JOIN roles ON roles.id = users.role_id").
-			Where("user_group_members.group_id = ? AND user_groups.status = ? AND users.status = ? AND roles.name = ?", groupID, model.UserGroupStatusActive, model.UserStatusEnabled, model.RoleNameUser).
-			Pluck("user_group_members.user_id", &userIDs).Error
+		userIDs, err := currentGroupAssignmentRecipients(db, groupID)
 		if err != nil {
 			return nil, internalError("读取组内成员失败", err)
 		}
-		userIDs = uniqueSortedIDs(userIDs)
 		if len(userIDs) == 0 || len(userIDs) > maxRecipients {
 			return nil, badRequest("当前组内可分配成员数量不合法")
 		}

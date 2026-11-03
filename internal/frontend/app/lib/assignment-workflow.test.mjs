@@ -56,7 +56,9 @@ test("backend applies role, current group, target, and ownership checks to every
   assert.match(assignmentService, /user_groups\.name IN \? AND user_groups\.status = \? AND users\.status = \?/);
   assert.match(assignmentService, /JOIN roles ON roles\.id = users\.role_id[\s\S]*?roles\.name = \?"/);
   assert.match(assignmentService, /user_group_members\.user_id = \? AND user_groups\.name IN \?/);
-  assert.match(assignmentService, /assignment_targets\.user_id = \? AND assignments\.group_id IN \?/);
+  assert.match(assignmentService, /assignments\.is_group_wide = 1 AND \?/);
+  assert.match(assignmentService, /SELECT 1 FROM assignment_targets t WHERE t\.assignment_id = assignments\.id AND t\.user_id = \?/);
+  assert.match(assignmentService, /actor\.RoleName == model\.RoleNameUser/);
   assert.match(assignmentService, /case model\.RoleNameAdmin, model\.RoleNameSuperAdmin:[\s\S]*?case model\.RoleNameUser:/);
   assert.match(assignmentService, /if err := s\.requireGroupAccess\(ctx, actor\.ID, item\.GroupID\); err != nil/);
   assert.match(assignmentService, /func managerAssignmentGroupIDs\(db \*gorm\.DB, actor Actor\)/);
@@ -109,7 +111,8 @@ test("admin teaching materials stay separate from submissions and use permission
   assert.match(backendRoutes, /assignmentMemberAPI\.GET\("\/assignment-materials\/:id", assignmentHandler\.OpenMaterialFile\)/);
   assert.match(backendRoutes, /adminAPI\.POST\("\/assignments\/:id\/materials"/);
   assert.match(backendRoutes, /adminAPI\.DELETE\("\/assignments\/:id\/materials\/:fileId"/);
-  assert.match(assignmentService, /if targetCount == 0 \{[\s\S]*?return nil, notFound\("教学资料不存在"\)/);
+  assert.match(assignmentService, /assigned, err := s\.memberHasAssignment\(s\.db\.WithContext\(ctx\), actor, item\)/);
+  assert.match(assignmentService, /if !assigned \{[\s\S]*?return nil, notFound\("教学资料不存在"\)/);
   assert.match(memberAssignments, /aria-labelledby="assignment-teaching-materials-title"/);
   assert.match(memberAssignments, /assignment\.materialFiles \?\? \[\]/);
 });
@@ -143,8 +146,18 @@ test("targeted assignments default to false and keep their saved recipients when
   assert.match(assignmentManagement, /setDraft\(\(current\) => \(\{ \.\.\.current, targetUserIds: detail\.members\.map\(\(member\) => member\.userId\) \}\)\)/);
   assert.match(assignmentService, /if input\.IsGroupWide != item\.IsGroupWide[\s\S]*?接收范围在发布时确定/);
   assert.match(assignmentService, /接收范围在发布时确定/);
-  assert.match(assignmentManagement, /接收范围在发布时确定[\s\S]*?另建作业/);
+  assert.match(assignmentManagement, /指定成员名单已锁定。需要调整请另建作业。/);
+  assert.match(assignmentManagement, /全组范围持续同步/);
   assert.match(assignmentManagement, /Boolean\(editing\)/);
+});
+
+test("latest targeted recipient shortcut reads the latest group assignment without extra persistence", () => {
+  assert.match(assignmentManagement, /items\.find\(\(item\) => !item\.isGroupWide\)/);
+  assert.match(assignmentManagement, /assignmentClient\.getAdmin\(lastTargetedAssignment\.id\)/);
+  assert.match(assignmentManagement, /currentIDs\.has\(id\)/);
+  assert.match(assignmentManagement, /上次指定的成员/);
+  assert.match(assignmentManagement, /#\{member\.userId\}/);
+  assert.match(assignmentSubmissions, /#\{member\.userId\}/);
 });
 
 test("assignment lifecycle retains history, blocks submissions after withdrawal, and guards deletion", () => {

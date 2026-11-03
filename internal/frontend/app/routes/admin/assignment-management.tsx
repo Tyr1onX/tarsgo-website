@@ -83,6 +83,7 @@ export default function AssignmentManagementRoute() {
   const editRequestID = useRef(0);
   const filteredMembers = useMemo(() => filterAssignmentMembers(members, memberSearch), [members, memberSearch]);
   const selectedMembers = useMemo(() => members.filter((member) => draft.targetUserIds.includes(member.userId)), [members, draft.targetUserIds]);
+  const lastTargetedAssignment = items.find((item) => !item.isGroupWide);
 
   useEffect(() => {
     setGroupId((current) => assignmentGroups.some((group) => group.groupId === current)
@@ -157,6 +158,24 @@ export default function AssignmentManagementRoute() {
     }));
   }
 
+  async function usePreviousRecipients() {
+    if (!lastTargetedAssignment) return;
+    setError("");
+    try {
+      const detail = await assignmentClient.getAdmin(lastTargetedAssignment.id);
+      const currentIDs = new Set(members.map((member) => member.userId));
+      const selected = detail.members.map((member) => member.userId).filter((id) => currentIDs.has(id));
+      if (selected.length === 0) {
+        setError("上次指定的成员已不在当前组，请重新选择。");
+        return;
+      }
+      setDraft((current) => current.groupId === groupId && !current.isGroupWide
+        ? { ...current, targetUserIds: selected } : current);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "读取上次指定成员失败");
+    }
+  }
+
   function updateDeadline(value: string) {
     setDraft((current) => ({ ...current, dueAt: value }));
     setQuickDeadline(null);
@@ -171,13 +190,13 @@ export default function AssignmentManagementRoute() {
     const action = status === "withdrawn" ? "撤回" : "重新发布";
     const message = status === "withdrawn"
       ? `确定撤回「${item.title}」？成员将不能继续提交，历史记录会保留。`
-      : `确定重新发布「${item.title}」？原接收名单和历史记录会保留。`;
+      : `确定重新发布「${item.title}」？历史记录保留；全组作业继续按当前成员生效。`;
     if (!window.confirm(message)) return;
     setSaving(true); setError(""); setNotice("");
     try {
       const updated = await assignmentClient.setPublicationStatus(item.id, status);
       setItems((current) => current.map((entry) => entry.id === item.id ? updated : entry));
-      setNotice(status === "withdrawn" ? "作业已撤回，历史记录已保留。" : "作业已重新发布。接收名单保持不变。");
+      setNotice(status === "withdrawn" ? "作业已撤回，历史记录已保留。" : "作业已重新发布。");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : `${action}作业失败`);
     } finally { setSaving(false); }
@@ -351,9 +370,9 @@ export default function AssignmentManagementRoute() {
           </section>
           <fieldset className="assignment-editor__recipients">
             <legend className="admin-field-label">作业对象</legend>
-            {editing ? <p className="text-xs text-[var(--admin-muted)]">接收范围在发布时确定，编辑不会改动历史接收名单；需要调整时请另建作业。</p> : null}
+            {editing ? <p className="text-xs text-[var(--admin-muted)]">{draft.isGroupWide ? "全组范围持续同步，当前成员和原接收成员均可在提交记录中查看。" : "指定成员名单已锁定。需要调整请另建作业。"}</p> : null}
             <div className="flex flex-wrap gap-4 text-sm">
-              <label className="inline-flex items-center gap-2"><input type="radio" name="assignment-target" disabled={saving || publishStage !== "idle" || Boolean(editing)} checked={draft.isGroupWide} onChange={() => setDraft({ ...draft, isGroupWide: true, targetUserIds: [] })} />全组普通成员</label>
+              <label className="inline-flex items-center gap-2"><input type="radio" name="assignment-target" disabled={saving || publishStage !== "idle" || Boolean(editing)} checked={draft.isGroupWide} onChange={() => setDraft({ ...draft, isGroupWide: true, targetUserIds: [] })} />全组普通成员（实时）</label>
               <label className="inline-flex items-center gap-2"><input type="radio" name="assignment-target" disabled={saving || publishStage !== "idle" || Boolean(editing)} checked={!draft.isGroupWide} onChange={() => setDraft({ ...draft, isGroupWide: false })} />指定成员</label>
             </div>
             {!draft.isGroupWide ? <div className="space-y-2">
@@ -361,13 +380,14 @@ export default function AssignmentManagementRoute() {
                 <label className="sr-only" htmlFor="assignment-member-search">搜索组内成员</label>
                 <input id="assignment-member-search" type="search" disabled={saving || publishStage !== "idle" || Boolean(editing)} className="admin-field min-w-48 flex-1" autoComplete="off" placeholder="搜索成员姓名" value={memberSearch} onChange={(event) => setMemberSearch(event.target.value)} />
                 {memberSearch ? <button type="button" disabled={saving || publishStage !== "idle" || Boolean(editing)} className="admin-button admin-button--quiet" onClick={() => setMemberSearch("")}>清空搜索</button> : null}
+                {!editing && lastTargetedAssignment ? <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={saving || publishStage !== "idle"} onClick={() => void usePreviousRecipients()}>上次指定的成员</button> : null}
                 <span className="text-sm text-[var(--admin-muted)]">已选 {draft.targetUserIds.length} 人</span>
               </div>
               {selectedMembers.length > 0 ? <div className="flex flex-wrap gap-1" aria-label="已选成员">
-                {selectedMembers.map((member) => <button key={member.userId} type="button" disabled={saving || publishStage !== "idle" || Boolean(editing)} className="rounded-full border border-[var(--admin-border-subtle)] px-2 py-1 text-xs text-[var(--admin-muted)] hover:text-[var(--admin-text)]" aria-label={`取消选择${member.name}`} onClick={() => toggleMember(member.userId)}>× {member.name}</button>)}
+                {selectedMembers.map((member) => <button key={member.userId} type="button" disabled={saving || publishStage !== "idle" || Boolean(editing)} className="rounded-full border border-[var(--admin-border-subtle)] px-2 py-1 text-xs text-[var(--admin-muted)] hover:text-[var(--admin-text)]" aria-label={`取消选择${member.name}（账号 ${member.userId}）`} onClick={() => toggleMember(member.userId)}>× {member.name} #{member.userId}</button>)}
               </div> : null}
               <div className="grid max-h-48 gap-2 overflow-y-auto rounded-xl border border-[var(--admin-border-subtle)] p-3 sm:grid-cols-2 lg:grid-cols-3">
-                {filteredMembers.map((member) => <label key={member.userId} className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={saving || publishStage !== "idle" || Boolean(editing)} checked={draft.targetUserIds.includes(member.userId)} onChange={() => toggleMember(member.userId)} />{member.name}</label>)}
+                {filteredMembers.map((member) => <label key={member.userId} className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={saving || publishStage !== "idle" || Boolean(editing)} checked={draft.targetUserIds.includes(member.userId)} onChange={() => toggleMember(member.userId)} />{member.name} <span className="text-xs text-[var(--admin-muted)]">#{member.userId}</span></label>)}
                 {loading ? <p className="text-sm text-[var(--admin-muted)]">正在加载组内成员…</p> : !error && filteredMembers.length === 0 ? <p className="text-sm text-[var(--admin-muted)]">{memberSearch ? "没有匹配成员。" : "当前组没有可分配的普通成员。"}</p> : null}
               </div>
             </div> : null}
@@ -381,7 +401,7 @@ export default function AssignmentManagementRoute() {
         {loading ? <p role="status" className="py-4 text-sm text-[var(--admin-muted)]">正在加载…</p> : null}
         {!loading && !error && !groupError && items.length === 0 ? <p className="py-4 text-sm text-[var(--admin-muted)]">本组尚未发布作业。</p> : null}
         <div className="assignment-list__items">{items.map((item) => <article key={item.id} className="assignment-list__item">
-          <div className="assignment-list__summary"><div className="assignment-list__title"><h3>{item.title}</h3><span className={`rounded-full border px-2 py-0.5 text-xs ${item.publicationStatus === "withdrawn" ? "border-[var(--admin-border)] text-[var(--admin-muted)]" : "border-[var(--admin-success-border)] text-[var(--admin-success)]"}`}>{assignmentPublicationStatusLabel(item.publicationStatus)}</span></div><p>截止 {formatAssignmentDate(item.dueAt)} · {item.isGroupWide ? "全组普通成员" : `${item.targetCount} 人`} · 已提交 {item.submittedCount}/{item.targetCount} · 已通过 {item.passedCount}</p></div>
+          <div className="assignment-list__summary"><div className="assignment-list__title"><h3>{item.title}</h3><span className={`rounded-full border px-2 py-0.5 text-xs ${item.publicationStatus === "withdrawn" ? "border-[var(--admin-border)] text-[var(--admin-muted)]" : "border-[var(--admin-success-border)] text-[var(--admin-success)]"}`}>{assignmentPublicationStatusLabel(item.publicationStatus)}</span></div><p>截止 {formatAssignmentDate(item.dueAt)} · {item.isGroupWide ? "全组（实时）" : "指定成员"} · 接收 {item.targetCount} 人 · 已提交 {item.submittedCount}/{item.targetCount} · 已通过 {item.passedCount}</p></div>
           <div className="assignment-list__actions"><a href={`/dashboard/admin/training/submissions?assignmentId=${item.id}`} className="admin-button admin-button--secondary admin-button--small">提交记录</a><button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={saving || item.submittedCount > 0} onClick={() => editAssignment(item)}>{item.submittedCount > 0 ? "已有提交" : "编辑"}</button>{item.publicationStatus === "withdrawn" ? <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={saving} onClick={() => void changePublicationStatus(item, "published")}>重新发布</button> : <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={saving} onClick={() => void changePublicationStatus(item, "withdrawn")}>撤回</button>}{item.canDelete ? <button type="button" className="admin-button admin-button--quiet admin-button--small text-[var(--admin-danger)]" disabled={saving} onClick={() => void deleteAssignment(item)}>删除</button> : item.publicationStatus === "withdrawn" ? <span className="assignment-list__retained">历史或技能关联已保留</span> : null}</div>
         </article>)}</div>
       </section>
