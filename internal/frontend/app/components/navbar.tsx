@@ -13,7 +13,7 @@ import {
   subscribePermissionChange,
   type AuthUser,
 } from "~/lib/auth-client";
-import { getDashboardSectionMenu, getDefaultDashboardPath } from "~/lib/dashboard-navigation";
+import { getDashboardSectionKey, getDashboardSectionMenu, getDefaultDashboardPath } from "~/lib/dashboard-navigation";
 import { resolveGroupIdentity, type GroupIdentity } from "~/lib/group-identity";
 import {
   getCachedUserGroupConfirmationState,
@@ -22,6 +22,7 @@ import {
   refreshUserGroupConfirmationState,
   type UserGroupConfirmationState,
 } from "~/lib/user-group-client";
+import { teamIdentityLabel } from "./community-team-identity";
 import { SiteLogo } from "./site-logo";
 import { ThemeControl } from "./theme-control";
 import { useTheme } from "./theme-provider";
@@ -86,6 +87,14 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
   const desktopAuthAreaRef = useRef<HTMLDivElement | null>(null);
   const identityRequestGenerationRef = useRef(0);
   const location = useLocation();
+  const accountMenuItems = visibleUser
+    ? getDashboardSectionMenu(visibleUser)
+      .filter((item) => item.key !== "community")
+      .sort((a, b) => Number(b.key === "my-profile") - Number(a.key === "my-profile"))
+    : [];
+  const accountSection = visibleUser
+    ? getDashboardSectionKey(location.pathname, visibleUser.role.name, visibleUser.id)
+    : null;
   const navigate = useNavigate();
   const revalidator = useRevalidator();
 
@@ -454,69 +463,49 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
                 {userMenuOpen ? (
                   <div
                     role="menu"
-                    className="navbar-user-menu animate-user-menu-in absolute right-0 z-20 mt-2.5 w-60 overflow-hidden rounded-xl border border-border-subtle bg-surface-primary/95 shadow-2xl shadow-black/40 backdrop-blur-xl"
+                    className="navbar-user-menu animate-user-menu-in absolute right-0 z-20 mt-2.5 overflow-hidden rounded-xl border border-border-subtle bg-surface-primary/95 shadow-2xl shadow-black/40 backdrop-blur-xl"
                   >
-                    <div className="flex items-center gap-2.5 border-b border-border-subtle/80 bg-gradient-to-b from-accent-primary/5 to-transparent px-3 py-2">
-                      <UserAvatar user={visibleUser} className="h-8 w-8" textClassName="text-sm" />
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-semibold text-fg-primary">{getUserDisplayName(visibleUser)}</div>
-                        <div className="truncate text-xs text-fg-muted">{visibleUser.email}</div>
-                        <div className="mt-1"><NavbarIdentityDetail user={visibleUser} identity={groupIdentity} loading={groupIdentityLoading} /></div>
+                    <div className="navbar-account-header">
+                      <UserAvatar user={visibleUser} className="h-10 w-10 shrink-0" textClassName="text-sm" />
+                      <div className="navbar-account-header__identity">
+                        <div className="navbar-account-header__name">{getUserDisplayName(visibleUser)}</div>
+                        <div className="navbar-account-header__email">{visibleUser.email}</div>
+                        <div className="navbar-account-header__detail">
+                          <span className="navbar-user-role">{teamIdentityLabel(visibleUser.teamIdentityStatus)}</span>
+                          <NavbarIdentityDetail user={visibleUser} identity={groupIdentity} loading={groupIdentityLoading} />
+                        </div>
                       </div>
                     </div>
 
-                    <div className="p-1">
-                      {getDashboardSectionMenu(visibleUser).filter((item) => item.key !== "community").map((item) => (
-                        <Link key={item.key} to={item.href} role="menuitem" onClick={() => setUserMenuOpen(false)} className="flex min-h-10 items-center rounded-lg px-2.5 text-sm text-fg-muted hover:text-fg-primary">{item.label}</Link>
+                    <div className="navbar-account-actions">
+                      {accountMenuItems.map((item) => (
+                        <Link key={item.key} to={item.href} role="menuitem" onClick={() => setUserMenuOpen(false)}
+                          aria-current={accountSection === (item.key === "my-profile" ? "profile" : item.key) ? "page" : undefined}
+                          className="navbar-account-action">
+                          <NavbarAccountIcon name={item.key} />
+                          {item.key === "management" ? "管理后台" : item.label}
+                        </Link>
                       ))}
-                      <Link
-                        to={getDefaultDashboardPath(visibleUser.role.name)}
-                        prefetch="render"
-                        onClick={() => setUserMenuOpen(false)}
-                        role="menuitem"
-                        className="group/item flex min-h-10 items-center gap-2 rounded-lg px-2.5 py-1.5 text-sm text-fg-muted transition-colors hover:bg-[var(--theme-hover-overlay)] hover:text-fg-primary focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent-primary"
-                      >
-                        <svg
-                          className="h-4 w-4 text-fg-dim transition-colors group-hover/item:text-accent-primary"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          strokeWidth={1.75}
-                          stroke="currentColor"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955a1.126 1.126 0 0 1 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75" />
-                        </svg>
-                        社区
-                      </Link>
-
-                      <div className="my-0.5 h-px bg-border-subtle/70" />
-
+                      <div className="navbar-account-separator" role="separator" />
                       <Link
                         to={getAccountSwitchHref()}
                         prefetch="render"
                         onClick={() => setUserMenuOpen(false)}
                         role="menuitem"
-                        className="group/item flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm text-fg-muted transition-colors hover:bg-[var(--theme-hover-overlay)] hover:text-fg-primary focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent-primary"
+                        className="navbar-account-action"
                       >
-                        切换或添加账号
+                        <NavbarAccountIcon name="switch" />
+                        切换账号
                       </Link>
-
                       <button
                         type="button"
                         onClick={handleLogout}
                         disabled={loggingOut}
                         role="menuitem"
-                        className="group/item flex min-h-10 w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm text-[var(--theme-danger)] transition-colors hover:bg-[var(--theme-danger-surface)] hover:text-[var(--theme-danger)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-[var(--theme-danger)] disabled:cursor-not-allowed disabled:opacity-60"
+                        className="navbar-account-action navbar-account-action--danger"
                       >
-                        <svg
-                          className="h-4 w-4 text-[var(--theme-danger)] transition-colors"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                          strokeWidth={1.75}
-                          stroke="currentColor"
-                        >
-                          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6A2.25 2.25 0 0 0 5.25 5.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
-                        </svg>
-                        {loggingOut ? "退出中..." : "登出"}
+                        <NavbarAccountIcon name="logout" />
+                        {loggingOut ? "退出中..." : "退出登录"}
                       </button>
                     </div>
                   </div>
@@ -614,38 +603,43 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
               <NavbarAuthLoadingStatus mobile />
           ) : variant === "default" && visibleUser ? (
             <div className="navbar-mobile-account">
-              <UserAvatar user={visibleUser} className="h-8 w-8" textClassName="text-xs" />
-              <span className="navbar-mobile-account__identity">
-                <span className="navbar-mobile-account__name">{getUserDisplayName(visibleUser)}</span>
-                <NavbarIdentityDetail user={visibleUser} identity={groupIdentity} loading={groupIdentityLoading} />
-              </span>
-              <div className="navbar-mobile-account__actions">
-                {getDashboardSectionMenu(visibleUser).filter((item) => item.key !== "community").map((item) => (
-                  <Link key={item.key} to={item.href} onClick={closeMobileMenu} className="navbar-mobile-account__action">{item.label}</Link>
+              <div className="navbar-account-header">
+                <UserAvatar user={visibleUser} className="h-10 w-10 shrink-0" textClassName="text-sm" />
+                <div className="navbar-mobile-account__identity navbar-account-header__identity">
+                  <span className="navbar-mobile-account__name navbar-account-header__name">{getUserDisplayName(visibleUser)}</span>
+                  <span className="navbar-account-header__email">{visibleUser.email}</span>
+                  <div className="navbar-account-header__detail">
+                    <span className="navbar-user-role">{teamIdentityLabel(visibleUser.teamIdentityStatus)}</span>
+                    <NavbarIdentityDetail user={visibleUser} identity={groupIdentity} loading={groupIdentityLoading} />
+                  </div>
+                </div>
+              </div>
+              <div className="navbar-mobile-account__actions navbar-account-actions">
+                {accountMenuItems.map((item) => (
+                  <Link key={item.key} to={item.href} onClick={closeMobileMenu} className="navbar-account-action"
+                    aria-current={accountSection === (item.key === "my-profile" ? "profile" : item.key) ? "page" : undefined}>
+                    <NavbarAccountIcon name={item.key} />
+                    {item.key === "management" ? "管理后台" : item.label}
+                  </Link>
                 ))}
-                <Link
-                  to={getDefaultDashboardPath(visibleUser.role.name)}
-                  prefetch="render"
-                  className="navbar-mobile-account__action navbar-mobile-account__action--primary"
-                  onClick={closeMobileMenu}
-                >
-                  社区
-                </Link>
+                <div className="navbar-account-separator" role="separator" />
                 <Link
                   to={getAccountSwitchHref()}
                   prefetch="render"
-                  className="navbar-mobile-account__action navbar-mobile-account__action--quiet"
+                  className="navbar-account-action"
                   onClick={closeMobileMenu}
                 >
-                  切换
+                  <NavbarAccountIcon name="switch" />
+                  切换账号
                 </Link>
                 <button
                   type="button"
                   onClick={handleLogout}
                   disabled={loggingOut}
-                  className="navbar-mobile-account__action navbar-mobile-account__action--quiet"
+                  className="navbar-account-action navbar-account-action--danger"
                 >
-                  {loggingOut ? "退出中..." : "登出"}
+                  <NavbarAccountIcon name="logout" />
+                  {loggingOut ? "退出中..." : "退出登录"}
                 </button>
               </div>
             </div>
@@ -682,6 +676,21 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
         </div>
       </div>
     </nav>
+  );
+}
+
+function NavbarAccountIcon({ name }: { name: string }) {
+  const paths: Record<string, string> = {
+    "my-profile": "M20 21v-2a7 7 0 0 0-14 0v2 M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z",
+    workbench: "M9 6V4h6v2 M3 7h18v14H3Z M3 12a22 22 0 0 0 18 0 M12 11v4",
+    management: "m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6Z m-4 9 3 3 5-5",
+    switch: "M4 7h16m-4-4 4 4-4 4 M20 17H4m4-4-4 4 4 4",
+    logout: "M9 3H4v18h5 M14 7l5 5-5 5 M8 12h11",
+  };
+  return (
+    <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d={paths[name]} />
+    </svg>
   );
 }
 
