@@ -1,8 +1,7 @@
 /* The authenticated expedition route owns its viewport; other workbench pages keep their shell. */
-.dashboard-shell[data-immersive="expedition"] > .dashboard-shell__sidebar,
-.dashboard-shell[data-immersive="expedition"] > .fixed,
+.dashboard-shell[data-immersive="expedition"] .dashboard-shell__sidebar,
+.dashboard-shell[data-immersive="expedition"] .dashboard-shell__sidebar-backdrop,
 .dashboard-shell[data-immersive="expedition"] .dashboard-shell__topbar { display: none !important; }
-.dashboard-shell[data-immersive="expedition"] > .dashboard-shell__main-frame { padding-left: 0 !important; }
 .base-experience { position: fixed; z-index: 30; inset: 0; overflow: hidden; color: #dde8e5; background: radial-gradient(ellipse at 50% 40%, #203635 0, #0a171b 52%, #071016 100%); font-family: Inter, "PingFang SC", sans-serif; }
 .base-experience button,.base-experience a { -webkit-tap-highlight-color: transparent; }
 .base-experience button { cursor: pointer; }

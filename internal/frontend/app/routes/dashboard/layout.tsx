@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type FocusEvent as ReactFocusEvent, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type FormEvent } from "react";
 import { createPortal } from "react-dom";
 import { Link, Outlet, redirect, useLocation, useNavigate, useRevalidator } from "react-router";
 
@@ -37,6 +37,7 @@ import {
   hasAssignmentGroupAccess,
   hasSkillGroupAccess,
   hasTechnicalGroupAccess,
+  isDashboardSectionItemActive,
   isTemporarilyUnavailableDashboardPath,
   type DashboardMenuIconKey,
   type DashboardMenuLink,
@@ -58,65 +59,7 @@ const SUPER_ADMIN_SETUP_PATH = "/dashboard/setup/super-admin";
 const MAX_SAVED_ACCOUNT_SESSIONS = 5;
 const HIGH_PRIORITY_RENDER_PREFETCH_KEYS = new Set(["management"]);
 
-type TooltipPlacement = { left: number; top: number };
-
-function DashboardTooltip({ label, children }: { label?: string; children: React.ReactNode }) {
-  const rootRef = useRef<HTMLSpanElement>(null);
-  const tooltipRef = useRef<HTMLSpanElement>(null);
-  const [placement, setPlacement] = useState<TooltipPlacement | null>(null);
-
-  function show(event: ReactPointerEvent<HTMLSpanElement> | ReactFocusEvent<HTMLSpanElement>) {
-    if (!label || ("pointerType" in event && event.pointerType === "touch")) return;
-    const anchor = rootRef.current?.querySelector<HTMLElement>("a, button");
-    const bounds = anchor?.getBoundingClientRect() ?? event.currentTarget.getBoundingClientRect();
-    setPlacement({ left: bounds.right + 10, top: bounds.top + bounds.height / 2 });
-  }
-
-  function hideOnPointerLeave(event: ReactPointerEvent<HTMLSpanElement>) {
-    if (event.relatedTarget instanceof Node && tooltipRef.current?.contains(event.relatedTarget)) return;
-    setPlacement(null);
-  }
-
-  function hideOnBlur(event: ReactFocusEvent<HTMLSpanElement>) {
-    if (event.relatedTarget instanceof Node && (rootRef.current?.contains(event.relatedTarget) || tooltipRef.current?.contains(event.relatedTarget))) return;
-    setPlacement(null);
-  }
-
-  useEffect(() => {
-    if (!placement) return;
-    const hide = () => setPlacement(null);
-    window.addEventListener("scroll", hide, true);
-    window.addEventListener("resize", hide);
-    return () => {
-      window.removeEventListener("scroll", hide, true);
-      window.removeEventListener("resize", hide);
-    };
-  }, [placement]);
-
-  const style = placement ? { left: placement.left, top: placement.top } satisfies CSSProperties : undefined;
-  return <span
-    className="dashboard-tooltip-anchor"
-    ref={rootRef}
-    onPointerEnter={show}
-    onPointerLeave={hideOnPointerLeave}
-    onFocus={show}
-    onBlur={hideOnBlur}
-  >
-    {children}
-    {placement && label && typeof document !== "undefined" ? createPortal(
-      <span className="dashboard-navigation-tooltip" role="tooltip" ref={tooltipRef} style={style} onPointerLeave={() => setPlacement(null)}>{label}</span>,
-      document.body,
-    ) : null}
-  </span>;
-}
-
-function getIsDesktopDashboardViewport() {
-  if (typeof window === "undefined") {
-    return true;
-  }
-
-  return window.matchMedia(DESKTOP_DASHBOARD_MEDIA).matches;
-}
+type UserMenuPosition = { left: number; top: number };
 
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const currentPath = new URL(request.url);
@@ -276,32 +219,28 @@ function MenuIcon({ iconKey }: { iconKey: DashboardMenuIconKey }) {
 function SidebarSectionItem({
   item,
   active,
-  compact,
   onNavigate,
 }: {
   item: DashboardMenuLink;
   active: boolean;
-  compact: boolean;
   onNavigate: () => void;
 }) {
   return (
-    <DashboardTooltip label={compact ? item.label : undefined}>
     <Link
       to={item.href}
       prefetch={HIGH_PRIORITY_RENDER_PREFETCH_KEYS.has(item.key) ? "render" : "intent"}
       onClick={onNavigate}
       aria-label={item.label}
       aria-current={active ? "page" : undefined}
-      className={`relative flex min-h-11 min-w-0 items-center gap-3 rounded-xl px-3 py-2.5 text-sm leading-5 transition-colors ${compact ? "justify-center px-2" : ""} ${
+      className={`relative flex min-h-11 min-w-0 items-center gap-3 rounded-xl px-3 py-2.5 text-sm leading-5 transition-colors ${
         active ? "dashboard-nav-link dashboard-nav-link--active" : "dashboard-nav-link"
       }`}
     >
       <span className={`relative flex h-[18px] w-[18px] shrink-0 items-center justify-center ${active ? "dashboard-shell__accent" : ""}`}>
         <MenuIcon iconKey={item.iconKey ?? "dashboard"} />
       </span>
-      <span className={`min-w-0 flex-1 truncate ${compact ? "sr-only" : ""}`}>{item.label}</span>
+      <span className="min-w-0 flex-1 truncate">{item.label}</span>
     </Link>
-    </DashboardTooltip>
   );
 }
 
@@ -309,7 +248,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const revalidator = useRevalidator();
-  const [isDesktopViewport, setIsDesktopViewport] = useState(getIsDesktopDashboardViewport);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileRevision, setProfileRevision] = useState(0);
   const [pageTitle, setPageTitle] = useState("");
@@ -321,7 +259,11 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const [accountSessionsLoading, setAccountSessionsLoading] = useState(false);
   const [accountSessionsError, setAccountSessionsError] = useState("");
   const [accountActionError, setAccountActionError] = useState("");
+  const [userMenuPosition, setUserMenuPosition] = useState<UserMenuPosition | null>(null);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
+  const userMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const userMenuPanelRef = useRef<HTMLDivElement | null>(null);
+  const focusUserMenuItemRef = useRef(false);
   const sidebarRef = useRef<HTMLElement | null>(null);
   const sidebarTriggerRef = useRef<HTMLButtonElement | null>(null);
   const lastAuthRevalidationAtRef = useRef(Date.now());
@@ -353,6 +295,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const isCommunityPostRoute = /^\/dashboard\/community\/\d+$/.test(location.pathname);
   const hasAssignmentGroup = hasAssignmentGroupAccess(groupResolution?.groups);
   const sectionMenuItems = getDashboardSectionMenu(currentUser);
+  const activeSectionKey = getDashboardSectionKey(location.pathname, currentUser.role.name, currentUser.id);
   const currentUserName = getAuthUserName(currentUser);
   const userInitial = (currentUserName || "U")
     .charAt(0)
@@ -380,75 +323,110 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   }), []);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const mediaQuery = window.matchMedia(DESKTOP_DASHBOARD_MEDIA);
-    const syncViewport = () => {
-      setIsDesktopViewport(mediaQuery.matches);
-    };
-
-    syncViewport();
-    mediaQuery.addEventListener("change", syncViewport);
-
-    return () => {
-      mediaQuery.removeEventListener("change", syncViewport);
-    };
-  }, []);
+    if (!userMenuOpen || !userMenuPosition || !focusUserMenuItemRef.current) return;
+    focusUserMenuItemRef.current = false;
+    userMenuPanelRef.current?.querySelector<HTMLElement>('[role="menuitem"]')?.focus();
+  }, [userMenuOpen, userMenuPosition]);
 
   useEffect(() => {
     if (!userMenuOpen) {
       return;
     }
 
-    function handlePointerDown(event: MouseEvent) {
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target as Node)) {
+    function handlePointerDown(event: PointerEvent) {
+      const target = event.target;
+      if (target instanceof Node && !userMenuRef.current?.contains(target) && !userMenuPanelRef.current?.contains(target)) {
         setUserMenuOpen(false);
       }
     }
 
     function handleKeyDown(event: KeyboardEvent) {
       if (event.key === "Escape") {
+        event.preventDefault();
         setUserMenuOpen(false);
+        userMenuTriggerRef.current?.focus();
       }
     }
 
-    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
 
     return () => {
-      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
   }, [userMenuOpen]);
 
   useEffect(() => {
-    if (!sidebarOpen || isDesktopViewport) return;
+    if (!sidebarOpen) return;
     function closeOnEscape(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
+      if (
+        event.key !== "Escape"
+        || event.defaultPrevented
+        || userMenuOpen
+        || document.querySelector('[role="dialog"]')
+      ) return;
       event.preventDefault();
       setSidebarOpen(false);
       sidebarTriggerRef.current?.focus();
     }
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [isDesktopViewport, sidebarOpen]);
+  }, [sidebarOpen, userMenuOpen]);
+
+  useLayoutEffect(() => {
+    if (!userMenuOpen) {
+      setUserMenuPosition(null);
+      return;
+    }
+
+    const updatePosition = () => {
+      const anchor = userMenuTriggerRef.current?.getBoundingClientRect();
+      const panel = userMenuPanelRef.current;
+      if (!anchor || !panel) return;
+
+      const bounds = panel.getBoundingClientRect();
+      const margin = 12;
+      const gap = 8;
+      const left = Math.max(margin, Math.min(anchor.right - bounds.width, window.innerWidth - bounds.width - margin));
+      const below = anchor.bottom + gap;
+      const above = anchor.top - bounds.height - gap;
+      const top = below + bounds.height <= window.innerHeight - margin
+        ? below
+        : Math.max(margin, Math.min(above, window.innerHeight - bounds.height - margin));
+      setUserMenuPosition({ left, top });
+    };
+
+    updatePosition();
+    const resizeObserver = new ResizeObserver(updatePosition);
+    if (userMenuTriggerRef.current) resizeObserver.observe(userMenuTriggerRef.current);
+    if (userMenuPanelRef.current) resizeObserver.observe(userMenuPanelRef.current);
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, [userMenuOpen]);
 
   function handleSidebarNavigate() {
-    if (!isDesktopViewport) {
-      setSidebarOpen(false);
-    }
-  }
-
-  function openMobileSidebar() {
-    setSidebarOpen(true);
-    requestAnimationFrame(() => sidebarRef.current?.querySelector<HTMLElement>("a, button")?.focus());
+    if (!window.matchMedia(DESKTOP_DASHBOARD_MEDIA).matches) setSidebarOpen(false);
   }
 
   function closeMobileSidebar() {
     setSidebarOpen(false);
     requestAnimationFrame(() => sidebarTriggerRef.current?.focus());
+  }
+
+  function toggleSidebar() {
+    setSidebarOpen((open) => {
+      const nextOpen = !open;
+      if (nextOpen && !window.matchMedia(DESKTOP_DASHBOARD_MEDIA).matches) {
+        requestAnimationFrame(() => sidebarRef.current?.querySelector<HTMLElement>("a, button")?.focus());
+      }
+      return nextOpen;
+    });
   }
 
   async function handleLogout() {
@@ -577,178 +555,13 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
 
   return (
     <div className="dashboard-shell admin-design min-h-screen text-[var(--admin-text)]" data-immersive={isImmersiveExpedition ? "expedition" : undefined}>
-      {sidebarOpen ? (
-        <button
-          type="button"
-          className="fixed inset-0 z-40 bg-black/70 lg:hidden"
-          aria-label="关闭侧边栏"
-          onClick={closeMobileSidebar}
-        />
-      ) : null}
-
-      <aside
-        ref={sidebarRef}
-        id="dashboard-sidebar"
-        aria-label="统一工作台导航"
-        aria-hidden={!isDesktopViewport && !sidebarOpen}
-        inert={!isDesktopViewport && !sidebarOpen}
-        className={`dashboard-shell__sidebar fixed top-0 left-0 z-50 flex h-full w-20 flex-col border-r transition-transform duration-200 lg:translate-x-0 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-        style={isDesktopViewport ? undefined : { width: "min(84vw, 320px)" }}
-      >
-        <div className="flex h-16 w-full shrink-0 items-center px-3 lg:hidden">
-          <button
-            type="button"
-            className="lg:hidden ml-auto p-1 text-[var(--admin-muted)] hover:text-[var(--admin-text)]"
-            onClick={closeMobileSidebar}
-            aria-label="关闭侧边栏"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18 18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
-        <div className="dashboard-shell__divider mx-4 shrink-0 lg:hidden" aria-hidden="true" />
-
-        <nav className="dashboard-shell__sidebar-nav flex-1 overflow-y-auto px-3 py-4 lg:px-2 lg:py-3" aria-label="工作台分区">
-          <div className="space-y-1.5" role="group" aria-label="工作台分区">
-            {sectionMenuItems.map((item) => {
-              const isActive = getDashboardSectionKey(location.pathname, currentUser.role.name, currentUser.id) === item.key;
-              return (
-                <SidebarSectionItem
-                  key={item.key}
-                  item={item}
-                  active={isActive}
-                  onNavigate={handleSidebarNavigate}
-                  compact={isDesktopViewport}
-                />
-              );
-            })}
-          </div>
-          <DashboardSectionNavigation
-            currentUser={currentUser}
-            hasAssignmentGroup={hasAssignmentGroup}
-            compact={isDesktopViewport}
-            onNavigate={handleSidebarNavigate}
-          />
-        </nav>
-
-        <div ref={userMenuRef} className={`dashboard-shell__profile-area relative border-t border-[var(--admin-border-subtle)] px-3 py-3 lg:px-2`}>
-          <DashboardTooltip label={isDesktopViewport && !userMenuOpen ? `${currentUserName} · 账号管理` : undefined}><button
-            type="button"
-            onClick={() => setUserMenuOpen((open) => !open)}
-            aria-haspopup="menu"
-            aria-expanded={userMenuOpen}
-            aria-label={`${currentUserName}，打开账号管理`}
-            className={`dashboard-shell__profile group w-full flex items-center gap-3 rounded-lg p-2 transition-colors ${isDesktopViewport ? "justify-center" : ""} ${
-              userMenuOpen ? "dashboard-shell__profile--open" : ""
-            }`}
-          >
-            <div className="dashboard-shell__avatar relative w-9 h-9 rounded-full flex items-center justify-center shrink-0 overflow-hidden">
-              <span className="text-[var(--admin-text)] text-sm font-semibold">{userInitial}</span>
-              {currentUser.avatarUrl ? (
-                <img key={currentUser.avatarUrl} src={currentUser.avatarUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" onError={(event) => { event.currentTarget.hidden = true; }} />
-              ) : null}
-            </div>
-            <div className={`flex-1 min-w-0 text-left ${isDesktopViewport ? "hidden" : ""}`}>
-              <div className="text-sm font-medium text-[var(--admin-text)] truncate">
-                {currentUserName || getAuthUserRoleLabel(currentUser)}
-              </div>
-              <div className="text-xs text-[var(--admin-dim)] truncate">{currentUser.email}</div>
-            </div>
-            <svg
-              aria-hidden="true"
-              className={`w-4 h-4 shrink-0 transition-all duration-200 ${isDesktopViewport ? "hidden" : ""} ${
-                userMenuOpen
-                  ? "rotate-180 dashboard-shell__accent"
-                  : "text-[var(--admin-dim)] group-hover:text-[var(--admin-muted)]"
-              }`}
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.75}
-              stroke="currentColor"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" d="m4.5 15.75 7.5-7.5 7.5 7.5" />
-            </svg>
-          </button></DashboardTooltip>
-
-          {userMenuOpen ? (
-            <div
-              role="menu"
-              className="dashboard-shell__user-menu absolute left-3 right-3 bottom-full mb-2 overflow-hidden rounded-lg shadow-xl"
-            >
-              <div className="dashboard-shell__user-menu-role px-3 py-2.5">
-                <div className="truncate text-sm font-medium text-[var(--admin-text)]">
-                  {currentUserName || getAuthUserRoleLabel(currentUser)}
-                </div>
-                <div className="truncate text-xs text-[var(--admin-muted)]">{currentUser.email}</div>
-                <div className="mt-1 text-[11px] uppercase tracking-[0.22em] text-[var(--admin-dim)]">
-                  {getAuthUserRoleLabel(currentUser)}
-                </div>
-              </div>
-              <div className="p-1.5">
-                <button
-                  type="button"
-                  onClick={() => { setUserMenuOpen(false); navigate("/dashboard/guide"); }}
-                  role="menuitem"
-                  className="dashboard-shell__account-action"
-                >帮助与工作手册</button>
-                <div className="dashboard-shell__account-divider" />
-                <button
-                  type="button"
-                  onClick={() => void openAccountModal("switch")}
-                  role="menuitem"
-                  className="dashboard-shell__account-action"
-                >切换账号</button>
-                <button
-                  type="button"
-                  onClick={handleAddAccount}
-                  role="menuitem"
-                  className="dashboard-shell__account-action"
-                >添加账号</button>
-                <button
-                  type="button"
-                  onClick={() => void openAccountModal("manage")}
-                  role="menuitem"
-                  className="dashboard-shell__account-action"
-                >管理账号</button>
-                <div className="dashboard-shell__account-divider" />
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  disabled={loggingOut}
-                  role="menuitem"
-                  className="group/item flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-left text-sm text-[var(--admin-danger)] transition-colors hover:bg-[var(--admin-danger-surface)] hover:text-[var(--admin-danger)] disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  <svg
-                    className="w-4 h-4 text-[var(--admin-danger)] transition-colors group-hover/item:text-[var(--admin-danger)]"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    strokeWidth={1.75}
-                    stroke="currentColor"
-                  >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6A2.25 2.25 0 0 0 5.25 5.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
-                  </svg>
-                  {loggingOut ? "退出中..." : "退出当前账号"}
-                </button>
-                {accountActionError ? <p role="alert" className="dashboard-shell__account-error mx-2 mt-2">{accountActionError}</p> : null}
-              </div>
-            </div>
-          ) : null}
-        </div>
-
-      </aside>
-
-      <div className="dashboard-shell__main-frame relative z-10 lg:pl-20">
-        <header className="dashboard-shell__topbar sticky top-0 z-30 flex items-center gap-4 h-16 px-4 sm:px-6 border-b">
+      <header className="dashboard-shell__topbar sticky top-0 z-[60] flex h-16 min-w-0 items-center gap-3 border-b px-4 sm:gap-4 sm:px-6">
           <button
             ref={sidebarTriggerRef}
             type="button"
-            className="lg:hidden p-2 -ml-2 text-[var(--admin-muted)] hover:text-[var(--admin-text)]"
-            onClick={openMobileSidebar}
-            aria-label="打开侧边栏"
+            className="dashboard-shell__sidebar-toggle -ml-2 grid h-10 w-10 shrink-0 place-items-center rounded-lg text-[var(--admin-muted)] transition-colors hover:bg-[var(--admin-hover-overlay)] hover:text-[var(--admin-text)]"
+            onClick={toggleSidebar}
+            aria-label={sidebarOpen ? "收起侧边栏" : "展开侧边栏"}
             aria-controls="dashboard-sidebar"
             aria-expanded={sidebarOpen}
           >
@@ -761,17 +574,86 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
             <SiteLogo className="h-6 max-w-[88px] sm:h-7 sm:max-w-[104px]" />
           </Link>
 
-          {isCommunityPostRoute && pageTitle ? <div className="dashboard-shell__page-title" title={pageTitle} aria-label={pageTitle}>{pageTitle}</div> : null}
+          {isCommunityPostRoute && pageTitle ? <div className="dashboard-shell__page-title" title={pageTitle}>{pageTitle}</div> : null}
 
-          <ThemeControl className="ml-auto" />
-        </header>
+          <div className="dashboard-shell__header-actions ml-auto flex shrink-0 items-center gap-2 sm:gap-3">
+            <ThemeControl />
+            <div ref={userMenuRef}>
+              <button
+                ref={userMenuTriggerRef}
+                type="button"
+                onClick={(event) => {
+                  const willOpen = !userMenuOpen;
+                  setUserMenuOpen(willOpen);
+                  focusUserMenuItemRef.current = willOpen && event.detail === 0;
+                }}
+                aria-haspopup="menu"
+                aria-expanded={userMenuOpen}
+                aria-controls="dashboard-user-menu"
+                aria-label={`${currentUserName}，打开账号菜单`}
+                className={`dashboard-shell__avatar-button ${userMenuOpen ? "is-open" : ""}`}
+              >
+                <span className="dashboard-shell__avatar">
+                  <span aria-hidden="true" className="text-sm font-semibold">{userInitial}</span>
+                  {currentUser.avatarUrl ? (
+                    <img key={currentUser.avatarUrl} src={currentUser.avatarUrl} alt="" aria-hidden="true" onError={(event) => { event.currentTarget.hidden = true; }} />
+                  ) : null}
+                </span>
+              </button>
+            </div>
+          </div>
+      </header>
 
+      <div className="dashboard-shell__body">
+        {sidebarOpen ? (
+          <button
+            type="button"
+            className="dashboard-shell__sidebar-backdrop fixed inset-x-0 bottom-0 top-16 z-40 bg-black/55 lg:hidden"
+            aria-label="关闭侧边栏"
+            onClick={closeMobileSidebar}
+          />
+        ) : null}
+
+        <aside
+          ref={sidebarRef}
+          id="dashboard-sidebar"
+          aria-label="统一工作台导航"
+          aria-hidden={!sidebarOpen}
+          inert={!sidebarOpen}
+          className={`dashboard-shell__sidebar fixed inset-y-16 left-0 z-50 flex h-[calc(100dvh-4rem)] w-[min(84vw,320px)] flex-col border-r transition-transform duration-200 lg:sticky lg:top-16 lg:bottom-auto lg:z-auto lg:h-[calc(100dvh-4rem)] lg:transform-none lg:transition-[width] lg:duration-200 ${
+            sidebarOpen ? "translate-x-0 lg:w-64 lg:visible" : "-translate-x-full lg:w-0 lg:invisible lg:overflow-hidden lg:border-0"
+          }`}
+        >
+          <nav className="dashboard-shell__sidebar-nav min-h-0 flex-1 overflow-y-auto px-3 py-4" aria-label="工作台分区">
+            <div className="space-y-1.5" role="group" aria-label="工作台分区">
+              {sectionMenuItems.map((item) => {
+                const isActive = isDashboardSectionItemActive(activeSectionKey, item.key);
+                return (
+                  <SidebarSectionItem
+                    key={item.key}
+                    item={item}
+                    active={isActive}
+                    onNavigate={handleSidebarNavigate}
+                  />
+                );
+              })}
+            </div>
+            <DashboardSectionNavigation
+              currentUser={currentUser}
+              hasAssignmentGroup={hasAssignmentGroup}
+              onNavigate={handleSidebarNavigate}
+            />
+          </nav>
+        </aside>
+
+        <div className="dashboard-shell__main-frame relative z-10 min-w-0 flex-1">
         <main className="p-4 sm:p-6 lg:p-8">
           <div className="dashboard-shell__content relative">
             <Outlet context={{ currentUser, setPageTitle: updatePageTitle, groupResolution, groupResolutionError, openMyProfile, refreshAccountProfile, requestBadgeReplay, profileRevision } satisfies DashboardLayoutOutletContext} />
           </div>
         </main>
         <CommunityExperienceToastHost key={currentUser.id} userID={currentUser.id} />
+        </div>
       </div>
       <CoBuilderBadgeUnlockToast
         key={currentUser.id}
@@ -799,6 +681,86 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           onLogoutCurrent={() => void handleLogout()}
           onLogoutAll={() => void handleLogoutAll()}
         />
+      ) : null}
+      {userMenuOpen && typeof document !== "undefined" ? createPortal(
+        <div
+          ref={userMenuPanelRef}
+          id="dashboard-user-menu"
+          role="menu"
+          aria-label="账号菜单"
+          className="dashboard-shell__user-menu"
+          style={{
+            left: userMenuPosition?.left ?? 12,
+            top: userMenuPosition?.top ?? 12,
+            visibility: userMenuPosition ? "visible" : "hidden",
+          } satisfies CSSProperties}
+          onKeyDown={(event) => {
+            if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) return;
+            const items = Array.from(event.currentTarget.querySelectorAll<HTMLElement>('[role="menuitem"]:not(:disabled)'));
+            if (items.length === 0) return;
+            event.preventDefault();
+            const currentIndex = items.indexOf(document.activeElement as HTMLElement);
+            const nextIndex = event.key === "Home" ? 0
+              : event.key === "End" ? items.length - 1
+                : currentIndex < 0
+                  ? (event.key === "ArrowDown" ? 0 : items.length - 1)
+                  : (currentIndex + (event.key === "ArrowDown" ? 1 : -1) + items.length) % items.length;
+            items[nextIndex]?.focus();
+          }}
+        >
+          <div className="dashboard-shell__user-menu-role">
+            <div className="truncate text-sm font-medium text-[var(--admin-text)]">
+              {currentUserName || getAuthUserRoleLabel(currentUser)}
+            </div>
+            <div className="truncate text-xs text-[var(--admin-muted)]">{currentUser.email}</div>
+            <div className="mt-1 text-[11px] uppercase tracking-[0.22em] text-[var(--admin-dim)]">
+              {getAuthUserRoleLabel(currentUser)}
+            </div>
+          </div>
+          <div className="dashboard-shell__user-menu-actions">
+            <button
+              type="button"
+              onClick={() => { setUserMenuOpen(false); openMyProfile(); }}
+              role="menuitem"
+              className="dashboard-shell__account-action"
+            >我的主页</button>
+            <button
+              type="button"
+              onClick={() => { setUserMenuOpen(false); navigate("/dashboard/guide"); }}
+              role="menuitem"
+              className="dashboard-shell__account-action"
+            >帮助与工作手册</button>
+            <div className="dashboard-shell__account-divider" />
+            <button
+              type="button"
+              onClick={() => void openAccountModal("switch")}
+              role="menuitem"
+              className="dashboard-shell__account-action"
+            >切换账号</button>
+            <button
+              type="button"
+              onClick={handleAddAccount}
+              role="menuitem"
+              className="dashboard-shell__account-action"
+            >添加账号</button>
+            <button
+              type="button"
+              onClick={() => void openAccountModal("manage")}
+              role="menuitem"
+              className="dashboard-shell__account-action"
+            >管理账号</button>
+            <div className="dashboard-shell__account-divider" />
+            <button
+              type="button"
+              onClick={handleLogout}
+              disabled={loggingOut}
+              role="menuitem"
+              className="dashboard-shell__account-action dashboard-shell__account-action--danger"
+            >{loggingOut ? "退出中..." : "退出当前账号"}</button>
+            {accountActionError ? <p role="alert" className="dashboard-shell__account-error mx-2 mt-2">{accountActionError}</p> : null}
+          </div>
+        </div>,
+        document.body,
       ) : null}
     </div>
   );
