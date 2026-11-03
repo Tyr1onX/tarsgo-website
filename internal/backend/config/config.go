@@ -38,6 +38,7 @@ type DatabaseConfig struct {
 	MaxIdleConns    int
 	MaxOpenConns    int
 	ConnMaxLifetime time.Duration
+	ConnectTimeout  time.Duration
 }
 
 type CORSConfig struct {
@@ -93,6 +94,7 @@ func Load() (*Config, error) {
 			MaxIdleConns:    getEnvAsInt("DB_MAX_IDLE_CONNS", 10),
 			MaxOpenConns:    getEnvAsInt("DB_MAX_OPEN_CONNS", 20),
 			ConnMaxLifetime: time.Duration(getEnvAsInt("DB_CONN_MAX_LIFETIME_MINUTES", 30)) * time.Minute,
+			ConnectTimeout:  5 * time.Second,
 		},
 		CORS: CORSConfig{
 			AllowedOrigins: splitAndClean(getEnv(
@@ -179,8 +181,12 @@ func (c AppConfig) Address() string {
 }
 
 func (c DatabaseConfig) DSN() string {
+	timeout := c.ConnectTimeout
+	if timeout <= 0 {
+		timeout = 5 * time.Second
+	}
 	return fmt.Sprintf(
-		"%s:%s@tcp(%s:%s)/%s?charset=%s&parseTime=%t&loc=%s",
+		"%s:%s@tcp(%s:%s)/%s?charset=%s&parseTime=%t&loc=%s&timeout=%s",
 		c.User,
 		c.Password,
 		c.Host,
@@ -189,6 +195,7 @@ func (c DatabaseConfig) DSN() string {
 		c.Charset,
 		c.ParseTime,
 		c.Loc,
+		timeout,
 	)
 }
 

@@ -3,6 +3,10 @@ package main
 import (
 	"context"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
+	"tarsgo-backend/serverruntime"
 
 	"tarsgo-backend/config"
 	"tarsgo-backend/database"
@@ -12,29 +16,39 @@ import (
 )
 
 func main() {
+	if err := run(); err != nil {
+		log.Printf("server stopped: %v", err)
+		os.Exit(1)
+	}
+}
+
+func run() error {
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("load config: %v", err)
+		return err
 	}
 
 	db, err := database.New(cfg.Database)
 	if err != nil {
-		log.Fatalf("connect database: %v", err)
+		return err
 	}
 
 	sqlDB, err := db.DB()
 	if err != nil {
-		log.Fatalf("get sql db: %v", err)
+		return err
 	}
 	defer sqlDB.Close()
 
 	if cfg.App.AutoMigrate {
 		if err := database.RunMigrations(context.Background(), db, cfg.App.Env); err != nil {
-			log.Fatalf("database migrations: %v", err)
+			return err
 		}
 	}
-	cleanupContext, cancelCleanup := context.WithCancel(context.Background())
+	shutdownContext, stopSignals := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stopSignals()
+	cleanupContext, cancelCleanup := context.WithCancel(shutdownContext)
 	defer cancelCleanup()
+	serverruntime.StartPoolStats(cleanupContext, sqlDB, log.Printf)
 	auth.StartSessionCleanup(cleanupContext, db)
 	leave.StartResultCleanup(cleanupContext, db)
 	leave.StartDailyCollection(cleanupContext, leave.NewService(db))
@@ -43,7 +57,5 @@ func main() {
 	addr := cfg.App.Address()
 
 	log.Printf("backend started on %s (%s)", addr, cfg.App.Env)
-	if err := engine.Run(addr); err != nil {
-		log.Fatalf("run server: %v", err)
-	}
+	return serverruntime.Serve(shutdownContext, addr, engine)
 }
