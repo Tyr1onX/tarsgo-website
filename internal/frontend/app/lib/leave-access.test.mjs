@@ -10,7 +10,7 @@ test("members see application status before any leave profile or history request
   const statusCheck = route.indexOf("const nextAccessState = await leaveClient.leaveAccess()");
   const earlyReturn = route.indexOf("if (nextAccessState.status !== \"approved\") return;");
   const profileFetch = route.indexOf("leaveClient.profile()");
-  const recordsFetch = route.indexOf("leaveClient.dailyRecords() : leaveClient.myDailyRecords()");
+  const recordsFetch = route.indexOf("leaveClient.dailyRecordsPage(isAdmin)");
 
   assert.ok(statusCheck >= 0 && earlyReturn > statusCheck, "member access must be checked before loading the workbench");
   assert.ok(profileFetch > earlyReturn && recordsFetch > earlyReturn, "unapproved members must not load leave profile or records");

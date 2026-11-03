@@ -570,6 +570,15 @@ func (h *LeaveHandler) MyDailyRecords(c *gin.Context) {
 	if !ok {
 		return
 	}
+	if c.Query("paged") == "true" {
+		page, err := h.service.ListDailyRecordsPage(c.Request.Context(), &id, nil, c.Query("cursor"), c.Query("selfService") == "true")
+		if err != nil {
+			h.fail(c, err)
+			return
+		}
+		writeAPI(c, 200, "获取日常请假历史成功", page)
+		return
+	}
 	rows, err := h.service.ListDailyRecords(c.Request.Context(), &id, nil)
 	if err != nil {
 		h.fail(c, err)
@@ -580,6 +589,15 @@ func (h *LeaveHandler) MyDailyRecords(c *gin.Context) {
 func (h *LeaveHandler) AdminDailyRecords(c *gin.Context) {
 	adminID, ok := leaveUserID(c)
 	if !ok {
+		return
+	}
+	if c.Query("paged") == "true" {
+		page, err := h.service.ListDailyRecordsPage(c.Request.Context(), nil, &adminID, c.Query("cursor"), c.Query("selfService") == "true")
+		if err != nil {
+			h.fail(c, err)
+			return
+		}
+		writeAPI(c, 200, "获取日常请假历史成功", page)
 		return
 	}
 	rows, err := h.service.ListDailyRecords(c.Request.Context(), nil, &adminID)

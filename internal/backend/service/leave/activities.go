@@ -729,6 +729,10 @@ func (s *Service) ListDailyRecords(ctx context.Context, userID, adminID *uint64)
 	if err := query.Order("submitted_at DESC,id DESC").Find(&rows).Error; err != nil {
 		return nil, internalError("读取日常请假历史失败", err)
 	}
+	return s.dailyRecordViews(ctx, rows, adminID)
+}
+
+func (s *Service) dailyRecordViews(ctx context.Context, rows []model.DailyLeaveEntry, adminID *uint64) ([]DailyEntryView, error) {
 	if len(rows) == 0 {
 		return []DailyEntryView{}, nil
 	}
