@@ -7,6 +7,7 @@ import (
 	"tarsgo-backend/config"
 	"tarsgo-backend/database"
 	"tarsgo-backend/router"
+	"tarsgo-backend/service/auth"
 	"tarsgo-backend/service/leave"
 )
 
@@ -34,6 +35,7 @@ func main() {
 	}
 	cleanupContext, cancelCleanup := context.WithCancel(context.Background())
 	defer cancelCleanup()
+	auth.StartSessionCleanup(cleanupContext, db)
 	leave.StartResultCleanup(cleanupContext, db)
 	leave.StartDailyCollection(cleanupContext, leave.NewService(db))
 

@@ -123,7 +123,7 @@ func TestCurrentUserAndRenewalReusesTheAuthenticatedSessionRead(t *testing.T) {
 	db, mock := newAuthSQLMock(t)
 	now := time.Date(2026, time.October, 20, 3, 4, 5, 0, time.UTC)
 	token := "existing-session-token"
-	service := &Service{db: db, authConfig: config.AuthConfig{}, now: func() time.Time { return now }, lastAuthCleanup: now}
+	service := &Service{db: db, authConfig: config.AuthConfig{}, now: func() time.Time { return now }}
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `auth_sessions` WHERE token_hash = ? ORDER BY `auth_sessions`.`id` LIMIT ?")).
 		WithArgs(digestSecret(token), 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "token_hash", "expires_at", "created_at", "updated_at"}).AddRow(
@@ -225,7 +225,7 @@ func TestRenewAccountSessionSlidesIdleExpiryButCapsAbsoluteLifetime(t *testing.T
 			if testCase.wantRenewal {
 				wantExpiry = minTime(now.Add(72*time.Hour), createdAt.Add(MaxSessionLifetime))
 			}
-			service := &Service{db: db, authConfig: config.AuthConfig{TokenTTL: 72 * time.Hour, CookieMaxAgeSeconds: 72 * 60 * 60}, now: func() time.Time { return now }, lastAuthCleanup: now}
+			service := &Service{db: db, authConfig: config.AuthConfig{TokenTTL: 72 * time.Hour, CookieMaxAgeSeconds: 72 * 60 * 60}, now: func() time.Time { return now }}
 			token := "renewable-session"
 			mock.ExpectBegin()
 			mock.ExpectQuery("SELECT \\* FROM `auth_sessions` WHERE token_hash = \\? ORDER BY `auth_sessions`.`id` LIMIT \\? FOR UPDATE").
@@ -254,7 +254,7 @@ func TestRenewAccountSessionSlidesIdleExpiryButCapsAbsoluteLifetime(t *testing.T
 func TestCurrentUserRenewalSkipsDatabaseTransactionWhenSessionIsNotNearExpiry(t *testing.T) {
 	db, mock := newAuthSQLMock(t)
 	now := time.Date(2026, time.October, 25, 3, 4, 5, 0, time.UTC)
-	service := &Service{db: db, now: func() time.Time { return now }, lastAuthCleanup: now}
+	service := &Service{db: db, now: func() time.Time { return now }}
 	session := &model.AuthSession{CreatedAt: now.Add(-time.Hour), ExpiresAt: now.Add(48 * time.Hour)}
 
 	renewal, err := service.renewAccountSession(context.Background(), "current-session", "", session, true)
@@ -272,7 +272,7 @@ func TestCurrentUserRenewalSkipsDatabaseTransactionWhenSessionIsNotNearExpiry(t 
 func TestCurrentUserRenewalChecksDistantVaultWithoutTransaction(t *testing.T) {
 	db, mock := newAuthSQLMock(t)
 	now := time.Date(2026, time.October, 25, 3, 4, 5, 0, time.UTC)
-	service := &Service{db: db, now: func() time.Time { return now }, lastAuthCleanup: now}
+	service := &Service{db: db, now: func() time.Time { return now }}
 	session := &model.AuthSession{CreatedAt: now.Add(-time.Hour), ExpiresAt: now.Add(48 * time.Hour)}
 	vaultToken := "current-vault"
 	mock.ExpectQuery("SELECT \\* FROM `account_vaults` WHERE secret_hash = \\? ORDER BY `account_vaults`.`id` LIMIT \\?").
@@ -297,10 +297,9 @@ func TestCurrentUserRenewalRechecksSessionUnderLockBeforeSlidingExpiry(t *testin
 	db, mock := newAuthSQLMock(t)
 	now := time.Date(2026, time.October, 25, 3, 4, 5, 0, time.UTC)
 	service := &Service{
-		db:              db,
-		authConfig:      config.AuthConfig{TokenTTL: 72 * time.Hour},
-		now:             func() time.Time { return now },
-		lastAuthCleanup: now,
+		db:         db,
+		authConfig: config.AuthConfig{TokenTTL: 72 * time.Hour},
+		now:        func() time.Time { return now },
 	}
 	token := "renewable-session"
 	createdAt := now.Add(-24 * time.Hour)
