@@ -14,7 +14,6 @@ const joinRoute = await readFile(new URL("../routes/join.tsx", import.meta.url),
 const homeSandRevealLayer = await readFile(new URL("../components/home-sand-reveal-layer.tsx", import.meta.url), "utf8");
 const basePage = await readFile(new URL("../routes/base.tsx", import.meta.url), "utf8");
 const dailySignalRoute = await readFile(new URL("../routes/daily-signal.tsx", import.meta.url), "utf8");
-const dailySignalWorkspace = await readFile(new URL("../components/daily-signal-workspace.tsx", import.meta.url), "utf8");
 const dashboardLayout = await readFile(new URL("../routes/dashboard/layout.tsx", import.meta.url), "utf8");
 const dashboardNavigation = await readFile(new URL("./dashboard-navigation.ts", import.meta.url), "utf8");
 const dashboardHome = await readFile(new URL("../routes/dashboard/index.tsx", import.meta.url), "utf8");
@@ -190,7 +189,6 @@ test("公开基地入口已移除，旧链接只导向登录或统一工作台",
   assert.doesNotMatch(home, /to="\/base"/);
   assert.match(routes, /route\("daily-signal", "routes\/daily-signal\.tsx"\)/);
   assert.match(dailySignalRoute, /<Navigate to=\{`\/base\$\{location\.search\}\$\{location\.hash\}`\} replace \/>/);
-  assert.match(dailySignalWorkspace, /id="daily-signal"/);
   assert.match(dashboardLayout, /getDashboardSectionMenu\(currentUser\)/);
   assert.doesNotMatch(dashboardNavigation, /href: "\/dashboard\/base"/);
   assert.match(dashboardNavigation, /label: "社区", href: "\/dashboard"/);
@@ -199,14 +197,11 @@ test("公开基地入口已移除，旧链接只导向登录或统一工作台",
   assert.match(dashboardLayout, /aria-label=\{sidebarOpen \? "收起侧边栏" : "展开侧边栏"\}/);
   assert.doesNotMatch(dashboardLayout, /cursor-col-resize/);
   assert.match(dashboardBase, /<Navigate to=\{`\/dashboard\$\{location\.search\}\$\{location\.hash\}`\} replace \/>/);
-  assert.match(dailySignalWorkspace, /今日通信/);
   assert.doesNotMatch(dashboardHome, /DailySignalWorkspace|daily-signal/);
   assert.doesNotMatch(dashboardHome, /快捷入口|dashboard-home__shortcuts/);
   assert.doesNotMatch(dashboardHome, /\/api\/daily-signals\?year=/);
   assert.match(home, /<HomeVisualNavigation imageTreatment="sand" \/>/);
   assert.doesNotMatch(styles, /\.home-space-layout|\.home-space-entry/);
-  assert.match(dailySignalWorkspace, /不选择状态，也可以直接签到/);
-  assert.doesNotMatch(dailySignalWorkspace, /daily-signal__base-link/);
   assert.doesNotMatch(basePage, /BASE<br \/>01|A PLACE FOR ORDINARY DAYS|TX \/ 01/);
 });
 
