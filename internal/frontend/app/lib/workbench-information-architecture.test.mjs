@@ -61,8 +61,8 @@ test("personal timetable and help content are reachable outside permanent busine
 });
 
 test("personal and team weekly data stay independent and loads remain deferred past route auth", () => {
-  assert.match(personalWorkbench, /Promise\.allSettled\(\[/);
-  assert.match(personalWorkbench, /setView\(\{ key: snapshotKey, snapshot: next, refreshing: false \}\)/);
+  // Settlement order and partial failures are exercised with deferred promises
+  // in personal-workbench-cache.test.mjs, not source-shape assertions.
   assert.match(weeklyReports, /if \(teamExpanded && dashboard\?\.canViewTeam/);
   assert.match(weeklyReports, /const isEditing = searchParams\.get\("edit"\) === "1"/);
   assert.match(layout, /export async function clientLoader/);
