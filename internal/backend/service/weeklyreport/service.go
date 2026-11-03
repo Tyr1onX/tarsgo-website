@@ -105,6 +105,7 @@ type Dashboard struct {
 	CurrentWeekStart string        `json:"currentWeekStart"`
 	CanViewTeam      bool          `json:"canViewTeam"`
 	Reports          []Report      `json:"reports"`
+	NextCursor       string        `json:"nextCursor,omitempty"`
 }
 
 type TeamMemberReport struct {
@@ -134,6 +135,10 @@ func NewService(repo Repository, stores ...PrivateFileStore) *Service {
 }
 
 func (s *Service) GetDashboard(ctx context.Context, userID uint64, systemRole string) (*Dashboard, error) {
+	return s.dashboard(ctx, userID, systemRole, nil)
+}
+
+func (s *Service) dashboard(ctx context.Context, userID uint64, systemRole string, page *HistoryQuery) (*Dashboard, error) {
 	if userID == 0 {
 		return nil, serviceError(http.StatusUnauthorized, "请先登录", nil)
 	}
@@ -148,11 +153,22 @@ func (s *Service) GetDashboard(ctx context.Context, userID uint64, systemRole st
 			return nil, internalError("读取可管理组别失败", err)
 		}
 	}
-	reports, err := s.repo.ListMine(ctx, userID)
+	var reports []model.WeeklyReport
+	nextCursor := ""
+	if page == nil {
+		reports, err = s.repo.ListMine(ctx, userID)
+	} else {
+		reports, nextCursor, err = s.historyPage(ctx, userID, *page)
+	}
 	if err != nil {
+		var validation *ServiceError
+		if errors.As(err, &validation) {
+			return nil, err
+		}
 		return nil, internalError("读取周报历史失败", err)
 	}
 	result := &Dashboard{
+		NextCursor:       nextCursor,
 		Groups:           groups,
 		TeamGroups:       teamGroups,
 		CurrentWeekStart: currentWeekStart(s.now()),
