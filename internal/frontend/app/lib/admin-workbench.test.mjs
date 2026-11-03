@@ -20,9 +20,9 @@ test("candidate todo totals include only actionable screening and interview queu
 
 test("management todos stay in the home modules and do not appear in navigation", () => {
   assert.match(adminDashboard, /getAdminWorkbenchSummary\(currentUser\.id\)/);
-  assert.match(adminDashboard, /leaveClient\.schoolSummary\(\)/);
+  assert.doesNotMatch(adminDashboard, /leaveClient|schoolSummary|leaveActionableCount/);
   assert.match(adminDashboard, /pendingScreening > 0[\s\S]*?候选人待初筛/);
-  assert.match(adminDashboard, /state\.leaveActionableCount[\s\S]*?请假事项待处理/);
+  assert.doesNotMatch(adminDashboard, /Promise\.allSettled/);
   assert.doesNotMatch(dashboardLayout, /managementLabel|报名待处理|请假待审批|leaveActionableState|candidateTodoCount/);
   assert.doesNotMatch(sectionNavigation, /candidateTodoCount|leaveActionableCount|dashboard-nav-badge/);
   assert.ok(registrationsClient.includes("const pending = pendingWorkbenchSummaryRequests.get(accountId);"));

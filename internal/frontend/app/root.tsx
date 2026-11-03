@@ -40,16 +40,7 @@ const themeBootstrapScript = `(() => {
 export const links: Route.LinksFunction = () => [
   { rel: "icon", href: fallbackFaviconHref, type: "image/x-icon" },
   { rel: "icon", href: "/assets/images/Logo/tarsgo-robot-v5.svg", type: "image/svg+xml" },
-  { rel: "preconnect", href: "https://fonts.googleapis.com" },
-  {
-    rel: "preconnect",
-    href: "https://fonts.gstatic.com",
-    crossOrigin: "anonymous",
-  },
-  {
-    rel: "stylesheet",
-    href: "https://fonts.googleapis.com/css2?family=Anton&family=Geist+Mono:wght@400;500;600;700&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap",
-  },
+
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
