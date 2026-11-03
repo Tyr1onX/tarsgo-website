@@ -422,7 +422,7 @@ export function PublicHomePage({ page = "home", children }: { page?: PublicPage;
         </section>
       )}
 
-      {routePage === "home" ? <HomeVisualNavigation imageTreatment="sand" /> : null}
+      {routePage === "home" ? <HomeVisualNavigation imageTreatment="sand" playOnce /> : null}
 
       {children}
 

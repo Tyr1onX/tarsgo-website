@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { HomeSandRevealLayer } from "./home-sand-reveal-layer";
 import type { HomeImageTreatment, SandRevealPhase } from "./home-sand-reveal-layer";
+import { claimHomeSandPlayback, hasHomeSandPlayed, HOME_SAND_PLAYED_KEY } from "~/lib/home-sand-playback";
 
 const responsiveHomeImage = (
   name: string,
@@ -107,6 +108,7 @@ type HomeVisualNavigationProps = {
   replayToken?: number;
   showHeading?: boolean;
   frameOverride?: number;
+  playOnce?: boolean;
 };
 
 function HomeVisualCard({
@@ -116,6 +118,7 @@ function HomeVisualCard({
   replayToken,
   staggerMs,
   frameOverride,
+  showFinalImage,
 }: {
   module: (typeof homeNavigationModules)[number];
   imageTreatment?: HomeImageTreatment;
@@ -123,6 +126,7 @@ function HomeVisualCard({
   replayToken: number;
   staggerMs: number;
   frameOverride?: number;
+  showFinalImage: boolean;
 }) {
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [phase, setPhase] = useState<SandRevealPhase>(imageTreatment ? "idle" : "done");
@@ -134,7 +138,7 @@ function HomeVisualCard({
       className={`home-visual-card ${module.placement}`}
       aria-label={`${module.title}：${module.description}`}
       data-sand-mode={module.image ? imageTreatment : undefined}
-      data-sand-phase={module.image && imageTreatment ? phase : undefined}
+      data-sand-phase={module.image && imageTreatment ? (showFinalImage ? "done" : phase) : undefined}
     >
       {module.image ? (
         <>
@@ -147,7 +151,7 @@ function HomeVisualCard({
             loading="lazy"
             decoding="async"
           />
-          {imageTreatment ? (
+          {imageTreatment && !showFinalImage ? (
             <HomeSandRevealLayer
               imageRef={imageRef}
               mode={imageTreatment}
@@ -177,14 +181,43 @@ export function HomeVisualNavigation({
   replayToken = 0,
   showHeading = true,
   frameOverride,
+  playOnce = false,
 }: HomeVisualNavigationProps = {}) {
   const sectionRef = useRef<HTMLElement | null>(null);
   const [hasEntered, setHasEntered] = useState(false);
+  const [playbackStatus, setPlaybackStatus] = useState<"checking" | "ready" | "skipped">("checking");
 
   useEffect(() => {
-    if (!imageTreatment || hasEntered) return;
-    if (!("IntersectionObserver" in window)) {
+    if (!playOnce || imageTreatment !== "sand") return;
+    try {
+      setPlaybackStatus(hasHomeSandPlayed(window.localStorage) ? "skipped" : "ready");
+    } catch {
+      setPlaybackStatus("ready");
+    }
+    const handleStorage = (event: StorageEvent) => {
+      if (event.key === HOME_SAND_PLAYED_KEY && event.newValue === "1") setPlaybackStatus("skipped");
+    };
+    window.addEventListener("storage", handleStorage);
+    return () => window.removeEventListener("storage", handleStorage);
+  }, [imageTreatment, playOnce]);
+
+  useEffect(() => {
+    if (!imageTreatment || hasEntered || (playOnce && playbackStatus !== "ready")) return;
+    const startReveal = () => {
+      if (playOnce) {
+        try {
+          if (!claimHomeSandPlayback(window.localStorage)) {
+            setPlaybackStatus("skipped");
+            return;
+          }
+        } catch {
+          // Storage may be disabled; keep the existing animation available.
+        }
+      }
       setHasEntered(true);
+    };
+    if (!("IntersectionObserver" in window)) {
+      startReveal();
       return;
     }
     const section = sectionRef.current;
@@ -193,7 +226,7 @@ export function HomeVisualNavigation({
     const observer = new IntersectionObserver(
       (entries) => {
         if (entries.some((entry) => entry.isIntersecting)) {
-          setHasEntered(true);
+          startReveal();
           observer.disconnect();
         }
       },
@@ -201,7 +234,7 @@ export function HomeVisualNavigation({
     );
     observer.observe(section);
     return () => observer.disconnect();
-  }, [hasEntered, imageTreatment]);
+  }, [hasEntered, imageTreatment, playOnce, playbackStatus]);
 
   return (
     <section
@@ -239,6 +272,7 @@ export function HomeVisualNavigation({
               replayToken={replayToken}
               staggerMs={(index > 4 ? index - 2 : index) * 105}
               frameOverride={frameOverride}
+              showFinalImage={playOnce && playbackStatus !== "ready"}
             />
           ))}
         </nav>

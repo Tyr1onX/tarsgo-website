@@ -1,12 +1,35 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import { claimHomeSandPlayback, hasHomeSandPlayed, HOME_SAND_PLAYED_KEY } from "./home-sand-playback.ts";
 import {
   calculateCoverRect,
   createSandParticles,
   particleFallAtProgress,
   particleLandingProgress,
 } from "./home-sand-reveal.ts";
+
+test("homepage sand reveal runs once per browser storage and resets after clearing it", () => {
+  const makeStorage = (data) => ({
+    getItem: (key) => data.get(key) ?? null,
+    setItem: (key, value) => data.set(key, value),
+  });
+  const data = new Map();
+  const firstTab = makeStorage(data);
+  const anotherTab = makeStorage(data);
+
+  assert.equal(hasHomeSandPlayed(firstTab), false);
+  assert.equal(claimHomeSandPlayback(firstTab), true);
+  assert.equal(data.get(HOME_SAND_PLAYED_KEY), "1", "mark immediately on first trigger");
+  assert.equal(claimHomeSandPlayback(firstTab), false, "refresh and homepage return must skip");
+  assert.equal(claimHomeSandPlayback(anotherTab), false, "new tab shares the browser state");
+
+  const differentBrowser = makeStorage(new Map());
+  assert.equal(claimHomeSandPlayback(differentBrowser), true, "other browser storage is independent");
+
+  data.clear();
+  assert.equal(claimHomeSandPlayback(anotherTab), true, "clearing storage allows a new playback");
+});
 
 test("cover crop follows the same cover scale and focal position as object-fit", () => {
   const centered = calculateCoverRect(1600, 900, 300, 300);
