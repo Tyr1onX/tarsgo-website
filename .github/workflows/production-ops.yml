@@ -78,6 +78,10 @@ jobs:
         run: |
           tar -czf dist/tarsgo-production-release.tar.gz -C dist/production-release \
             Dockerfile SHA256SUMS commit.txt tarsgo-backend-linux-amd64 tarsgo-migrate-linux-amd64
+          (
+            cd dist
+            sha256sum tarsgo-production-release.tar.gz >tarsgo-production-release.tar.gz.sha256
+          )
       - name: Publish public production release asset
         env:
           GH_TOKEN: ${{ github.token }}
@@ -91,4 +95,5 @@ jobs:
               --notes "由 production-ops.yml 自动更新。部署前会校验构建提交和 SHA-256。"
           fi
           gh release upload production-artifacts dist/tarsgo-production-release.tar.gz \
+            dist/tarsgo-production-release.tar.gz.sha256 \
             --repo "$GITHUB_REPOSITORY" --clobber

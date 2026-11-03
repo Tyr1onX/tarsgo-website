@@ -10,11 +10,11 @@
 
 ## 构建产物来源
 
-`production-ops.yml` 在固定的 Ubuntu 24.04 runner 上安装锁定的 Node.js/pnpm 工具链、运行检查并构建 Linux amd64 后端和迁移程序。只有 `main` 的 push 在全部检查成功后，才会把名为 `tarsgo-production-release` 的 Actions artifact 交给独立发布 job；该 job 使用仅限自身的 `GITHUB_TOKEN` `contents:write` 权限，将归档发布为 `production-artifacts` 预发布版本下的单一公开资产 `tarsgo-production-release.tar.gz`。资产包含 Dockerfile、两个二进制、完整提交 SHA 和 SHA256 清单。后续成功的 main 构建会替换这个资产。
+`production-ops.yml` 在固定的 Ubuntu 24.04 runner 上安装锁定的 Node.js/pnpm 工具链、运行检查并构建 Linux amd64 后端和迁移程序。只有 `main` 的 push 在全部检查成功后，才会把名为 `tarsgo-production-release` 的 Actions artifact 交给独立发布 job；该 job 使用仅限自身的 `GITHUB_TOKEN` `contents:write` 权限，将归档和 `.sha256` 校验文件发布为 `production-artifacts` 预发布版本下的公开资产。归档包含 Dockerfile、两个二进制、完整提交 SHA 和 SHA256 清单。后续成功的 main 构建会替换这两个资产。
 
-生产脚本按当前 `origin/main` 查询公开 Release 资产元数据并要求唯一、已上传的目标资产，读取 GitHub 提供的资产 SHA256，然后通过无需登录的 Release 下载链接取回归档。脚本校验归档 SHA256、归档文件清单、每个文件的 SHA256 和完整提交 SHA；随后仍通过原有非交互式 SSH/rsync 上传到临时目录，由生产机再次校验 SHA256 后原子转正。资产缺失、损坏或提交不匹配时，会在生产清理、上传、迁移和版本切换前停止。
+生产脚本不调用 GitHub REST API，而是从固定的公开 Release 下载链接获取归档及其 `.sha256` 文件。脚本先校验归档 SHA256，再检查归档文件清单、每个文件的 SHA256 和完整提交 SHA；随后仍通过原有非交互式 SSH/rsync 上传到临时目录，由生产机再次校验 SHA256 后原子转正。任一资产缺失、损坏或提交不匹配时，会在生产清理、上传、迁移和版本切换前停止。
 
-生产访问仍由运行脚本的受控机器通过既有 SSH alias `racknerd` 完成，GitHub Actions 不获得生产服务器凭据；发布 job 只在通过完整 CI 验证后获得仓库内容写权限，不接触生产 SSH 凭据。部署机器需要 Git、SSH、rsync、curl、tar、gzip 和带有 `JSON::PP`/`Digest::SHA` 标准模块的 Perl；生产发布不再需要本机 Node.js、Corepack、pnpm、Go、Make、unzip 或 `sha256sum`。
+生产访问仍由运行脚本的受控机器通过既有 SSH alias `racknerd` 完成，GitHub Actions 不获得生产服务器凭据；发布 job 只在通过完整 CI 验证后获得仓库内容写权限，不接触生产 SSH 凭据。部署机器需要 Git、SSH、rsync、curl、tar、gzip 和带有 `Digest::SHA` 标准模块的 Perl；生产发布不再需要本机 Node.js、Corepack、pnpm、Go、Make、unzip、`sha256sum` 或 GitHub REST API 配额。
 
 ## 首次异机备份配置
 

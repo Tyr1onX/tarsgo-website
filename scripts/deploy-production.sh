@@ -25,48 +25,32 @@ require_command() {
   fi
 }
 
-github_api="https://api.github.com/repos/Tyr1onX/tarsgo-website"
 production_release_tag="production-artifacts"
 production_release_asset="tarsgo-production-release.tar.gz"
-github_api_headers=(--header 'Accept: application/vnd.github+json' --header 'X-GitHub-Api-Version: 2022-11-28')
-
-github_api_get() {
-  curl --fail --silent --show-error --location --connect-timeout 15 --max-time 60 --retry 3 --retry-delay 2 \
-    "${github_api_headers[@]}" "$1"
-}
 
 download_production_release_asset() {
   local expected_commit="$1" archive_path="$2" destination="$3"
-  local release_json asset_metadata expected_url actual_digest
+  local expected_url checksum_path expected_digest actual_digest
   expected_url="https://github.com/Tyr1onX/tarsgo-website/releases/download/$production_release_tag/$production_release_asset"
+  checksum_path="$archive_path.sha256"
 
-  if ! release_json="$(github_api_get "$github_api/releases/tags/$production_release_tag")"; then
-    echo "Production deploy aborted: unable to query the public production release metadata." >&2
+  if ! curl --fail --silent --show-error --location --connect-timeout 15 --max-time 60 --retry 3 --retry-delay 2 \
+    "$expected_url.sha256" --output "$checksum_path"; then
+    echo "Production deploy aborted: unable to anonymously download the CI release asset SHA-256 sidecar." >&2
     return 1
   fi
-  if ! asset_metadata="$(printf '%s' "$release_json" | perl -MJSON::PP -e '
+  if ! expected_digest="$(perl -e '
     use strict;
     use warnings;
-    my ($expected_tag, $expected_name, $expected_url) = @ARGV;
+    my $path = shift @ARGV;
+    open my $file, "<:raw", $path or die "cannot read release SHA-256 sidecar: $!\n";
     local $/;
-    my $release = decode_json(<STDIN>);
-    exit 1 unless ($release->{tag_name} // "") eq $expected_tag;
-    exit 1 if $release->{draft} || !$release->{prerelease};
-    my @matches = grep {
-      ($_->{name} // "") eq $expected_name &&
-      ($_->{state} // "") eq "uploaded" &&
-      ($_->{size} // 0) > 0 &&
-      ($_->{digest} // "") =~ /^sha256:[0-9a-f]{64}$/ &&
-      ($_->{browser_download_url} // "") eq $expected_url
-    } @{ $release->{assets} // [] };
-    exit 1 unless @matches == 1;
-    print $matches[0]->{digest}, "\n";
-  ' "$production_release_tag" "$production_release_asset" "$expected_url")"; then
-    echo "Production deploy aborted: the public production release does not contain exactly one complete $production_release_asset asset with a SHA-256 digest." >&2
-    return 1
-  fi
-  if [[ ! "$asset_metadata" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-    echo "Production deploy aborted: GitHub returned invalid production asset metadata." >&2
+    my $line = <$file>;
+    my ($digest) = ($line // "") =~ /\A([0-9a-f]{64})  tarsgo-production-release\.tar\.gz\n\z/;
+    die "invalid release SHA-256 sidecar\n" unless defined $digest;
+    print "$digest\n";
+  ' "$checksum_path")"; then
+    echo "Production deploy aborted: the CI release asset SHA-256 sidecar is missing or malformed." >&2
     return 1
   fi
 
@@ -89,8 +73,8 @@ download_production_release_asset() {
     $sha->addfile($file);
     print $sha->hexdigest;
   ' "$archive_path")"
-  if [[ "sha256:$actual_digest" != "$asset_metadata" ]]; then
-    echo "Production deploy aborted: downloaded CI release asset SHA-256 does not match GitHub metadata." >&2
+  if [[ "$actual_digest" != "$expected_digest" ]]; then
+    echo "Production deploy aborted: downloaded CI release asset SHA-256 does not match its sidecar." >&2
     return 1
   fi
   if ! tar -tzf "$archive_path" >"$destination/.archive-contents"; then
@@ -157,7 +141,7 @@ download_production_release_asset() {
     return 1
   fi
   printf 'Production CI release asset verified: commit=%s digest=%s\n' \
-    "$expected_commit" "$asset_metadata"
+    "$expected_commit" "$expected_digest"
 }
 
 require_command git "Git checkout validation"
@@ -329,7 +313,7 @@ run_safe_cleanup() {
 
 if [[ "$target_release_status" != complete ]]; then
   require_command curl "public production release download"
-  require_command perl "release metadata and SHA-256 verification"
+  require_command perl "release sidecar and SHA-256 verification"
   require_command tar "production release archive extraction"
   require_command gzip "gzip-compressed production release archive extraction"
   require_command mktemp "temporary production release storage"
