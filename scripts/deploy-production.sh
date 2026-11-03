@@ -6,7 +6,6 @@ target="${DEPLOY_TARGET:-racknerd}"
 jijia_root="${JIJIA_ROOT:-/opt/jijia}"
 ssh_bin="${SSH_BIN:-ssh}"
 rsync_bin="${RSYNC_BIN:-rsync}"
-make_bin="${MAKE_BIN:-make}"
 require_offsite_backup="${DEPLOY_REQUIRE_OFFSITE_BACKUP:-0}"
 if [[ "$require_offsite_backup" != 0 && "$require_offsite_backup" != 1 ]]; then
   echo "Production deploy aborted: DEPLOY_REQUIRE_OFFSITE_BACKUP must be 0 or 1." >&2
@@ -26,6 +25,146 @@ require_command() {
   fi
 }
 
+github_api="https://api.github.com/repos/Tyr1onX/tarsgo-website"
+production_artifact_name="tarsgo-production-release"
+github_api_headers=(--header 'Accept: application/vnd.github+json' --header 'X-GitHub-Api-Version: 2022-11-28')
+
+github_api_get() {
+  curl --fail --silent --show-error --location --connect-timeout 15 --max-time 60 --retry 3 --retry-delay 2 \
+    "${github_api_headers[@]}" "$1"
+}
+
+download_production_artifact() {
+  local expected_commit="$1" archive_path="$2" destination="$3"
+  local workflow_runs_json run_id artifacts_json artifact_metadata artifact_id artifact_digest actual_digest
+
+  if ! workflow_runs_json="$(github_api_get "$github_api/actions/workflows/production-ops.yml/runs?branch=main&event=push&head_sha=$expected_commit&per_page=100")"; then
+    echo "Production deploy aborted: unable to query GitHub Actions for commit $expected_commit." >&2
+    return 1
+  fi
+  if ! run_id="$(printf '%s' "$workflow_runs_json" | perl -MJSON::PP -e '
+    use strict;
+    use warnings;
+    my $expected_commit = shift @ARGV;
+    local $/;
+    my $document = decode_json(<STDIN>);
+    for my $run (@{ $document->{workflow_runs} // [] }) {
+      next unless ($run->{head_sha} // "") eq $expected_commit;
+      next unless ($run->{head_branch} // "") eq "main";
+      next unless ($run->{event} // "") eq "push";
+      next unless ($run->{status} // "") eq "completed";
+      next unless ($run->{conclusion} // "") eq "success";
+      print $run->{id}, "\n";
+      exit 0;
+    }
+    exit 1;
+  ' "$expected_commit")"; then
+    echo "Production deploy aborted: no successful production-ops workflow run exists for commit $expected_commit." >&2
+    return 1
+  fi
+  if [[ ! "$run_id" =~ ^[0-9]+$ ]]; then
+    echo "Production deploy aborted: GitHub returned an invalid workflow run ID for commit $expected_commit." >&2
+    return 1
+  fi
+
+  if ! artifacts_json="$(github_api_get "$github_api/actions/runs/$run_id/artifacts?per_page=100")"; then
+    echo "Production deploy aborted: unable to list artifacts for GitHub Actions run $run_id." >&2
+    return 1
+  fi
+  if ! artifact_metadata="$(printf '%s' "$artifacts_json" | perl -MJSON::PP -e '
+    use strict;
+    use warnings;
+    my $expected_name = shift @ARGV;
+    local $/;
+    my $document = decode_json(<STDIN>);
+    my @matches = grep {
+      ($_->{name} // "") eq $expected_name &&
+      !$_->{expired} &&
+      ($_->{size_in_bytes} // 0) > 0 &&
+      ($_->{digest} // "") =~ /^sha256:[0-9a-f]{64}$/
+    } @{ $document->{artifacts} // [] };
+    exit 1 unless @matches == 1;
+    print $matches[0]->{id}, "\t", $matches[0]->{digest}, "\n";
+  ' "$production_artifact_name")"; then
+    echo "Production deploy aborted: run $run_id does not contain exactly one complete $production_artifact_name artifact with a SHA-256 digest." >&2
+    return 1
+  fi
+  IFS=$'\t' read -r artifact_id artifact_digest <<<"$artifact_metadata"
+  if [[ ! "$artifact_id" =~ ^[0-9]+$ || ! "$artifact_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+    echo "Production deploy aborted: GitHub returned invalid artifact metadata for commit $expected_commit." >&2
+    return 1
+  fi
+
+  if ! curl --fail --silent --show-error --location --connect-timeout 15 --max-time 300 --retry 3 --retry-delay 2 \
+    "${github_api_headers[@]}" \
+    "$github_api/actions/artifacts/$artifact_id/zip" --output "$archive_path"; then
+    echo "Production deploy aborted: unable to download the verified CI artifact for commit $expected_commit." >&2
+    return 1
+  fi
+  if [[ ! -s "$archive_path" ]]; then
+    echo "Production deploy aborted: the CI artifact archive for commit $expected_commit is empty." >&2
+    return 1
+  fi
+
+  actual_digest="$(perl -MDigest::SHA -e '
+    use strict;
+    use warnings;
+    my $path = shift @ARGV;
+    open my $file, "<:raw", $path or die "cannot read artifact archive: $!\n";
+    my $sha = Digest::SHA->new(256);
+    $sha->addfile($file);
+    print $sha->hexdigest;
+  ' "$archive_path")"
+  if [[ "sha256:$actual_digest" != "$artifact_digest" ]]; then
+    echo "Production deploy aborted: downloaded CI artifact SHA-256 does not match GitHub metadata." >&2
+    return 1
+  fi
+  if ! unzip -q "$archive_path" -d "$destination"; then
+    echo "Production deploy aborted: CI artifact archive for commit $expected_commit is invalid." >&2
+    return 1
+  fi
+
+  if ! perl -MDigest::SHA -e '
+    use strict;
+    use warnings;
+    my ($directory, $expected_commit) = @ARGV;
+    my @expected = qw(Dockerfile SHA256SUMS commit.txt tarsgo-backend-linux-amd64 tarsgo-migrate-linux-amd64);
+    my %expected = map { $_ => 1 } @expected;
+    opendir my $dir, $directory or die "cannot read extracted CI artifact: $!\n";
+    my @entries = grep { $_ ne "." && $_ ne ".." } readdir $dir;
+    closedir $dir;
+    die "unexpected files in CI artifact\n" unless @entries == @expected && !grep { !$expected{$_} } @entries;
+    for my $name (@expected) {
+      my $path = "$directory/$name";
+      die "missing or invalid CI artifact file: $name\n" unless -f $path && !-l $path && -s $path;
+    }
+    open my $manifest, "<", "$directory/SHA256SUMS" or die "cannot read CI artifact checksum manifest: $!\n";
+    my %seen;
+    while (my $line = <$manifest>) {
+      chomp $line;
+      $line =~ s/\r\z//;
+      my ($expected_hash, $name) = $line =~ /\A([0-9a-f]{64})  ([A-Za-z0-9._-]+)\z/
+        or die "invalid CI artifact checksum manifest\n";
+      die "unexpected or duplicate file in CI artifact checksum manifest\n" unless $expected{$name} && !$seen{$name}++;
+      open my $file, "<:raw", "$directory/$name" or die "cannot read CI artifact file $name: $!\n";
+      my $sha = Digest::SHA->new(256);
+      $sha->addfile($file);
+      die "CI artifact SHA-256 verification failed for $name\n" unless $sha->hexdigest eq $expected_hash;
+    }
+    close $manifest;
+    die "CI artifact checksum manifest is incomplete\n" unless keys(%seen) == @expected - 1;
+    open my $commit_file, "<:raw", "$directory/commit.txt" or die "cannot read CI artifact commit metadata: $!\n";
+    local $/;
+    my $artifact_commit = <$commit_file>;
+    die "CI artifact commit does not match the requested main commit\n" unless $artifact_commit eq "$expected_commit\n";
+  ' "$destination" "$expected_commit"; then
+    echo "Production deploy aborted: CI release artifact is incomplete, damaged, or does not match commit $expected_commit." >&2
+    return 1
+  fi
+  printf 'Production CI artifact verified: commit=%s run=%s artifact=%s digest=%s\n' \
+    "$expected_commit" "$run_id" "$artifact_id" "$artifact_digest"
+}
+
 require_command git "Git checkout validation"
 require_command "$ssh_bin" "non-interactive production access"
 ssh_options=(-o BatchMode=yes -o ConnectTimeout=15)
@@ -39,21 +178,6 @@ if ! git -C "$repo_root" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
 fi
 if [[ -n "$(git -C "$repo_root" status --porcelain)" ]]; then
   echo "Production deploy aborted: run from a clean Git working tree." >&2
-  exit 1
-fi
-
-public_file_count=0
-missing_public_files=()
-while IFS= read -r -d '' public_path; do
-  ((public_file_count += 1))
-  [[ -f "$repo_root/$public_path" ]] || missing_public_files+=("$public_path")
-done < <(git -C "$repo_root" ls-files -z -- public)
-if (( public_file_count == 0 || ${#missing_public_files[@]} > 0 )); then
-  echo "Production deploy aborted: tracked public/ build assets are missing from the working tree; materialize the complete public/ directory before building." >&2
-  if ((${#missing_public_files[@]} > 0)); then
-    printf 'missing_public_asset=%s\n' "${missing_public_files[@]:0:10}" >&2
-  fi
-  (( public_file_count > 0 )) || echo 'missing_public_asset_count=0' >&2
   exit 1
 fi
 
@@ -209,40 +333,20 @@ run_safe_cleanup() {
 }
 
 if [[ "$target_release_status" != complete ]]; then
-  require_command "$make_bin" "release build"
-  require_command go "Linux backend release build"
-  require_command sha256sum "release package integrity checks"
-  require_command mktemp "temporary release packaging"
-  if ! "$make_bin" -C "$repo_root" frontend-toolchain; then
-    echo "Production deploy aborted: local Node.js/Corepack/pnpm toolchain is unavailable or unsupported." >&2
-    exit 1
-  fi
+  require_command curl "GitHub Actions release artifact download"
+  require_command unzip "GitHub Actions release artifact extraction"
+  require_command perl "GitHub Actions metadata and SHA-256 verification"
+  require_command mktemp "temporary release artifact storage"
 fi
-if (( disk_usage_percent >= 85 )); then
-  run_safe_cleanup
-fi
-
+temporary_dir=""
 release_dir=""
-build_started=0
 cleanup() {
   local deploy_status=$?
   local cleanup_status=0
   trap - EXIT
-  if [[ -n "$release_dir" ]] && ! rm -rf -- "$release_dir"; then
-    echo "Production deploy cleanup failed: local temporary release directory remains at $release_dir." >&2
+  if [[ -n "$temporary_dir" ]] && ! rm -rf -- "$temporary_dir"; then
+    echo "Production deploy cleanup failed: temporary CI artifact directory remains at $temporary_dir." >&2
     cleanup_status=1
-  fi
-  if (( build_started == 1 )); then
-    if ! "$make_bin" -C "$repo_root" clean >/dev/null; then
-      echo "Production deploy cleanup failed: make clean did not complete." >&2
-      cleanup_status=1
-    fi
-    if git -C "$repo_root" ls-files --error-unmatch internal/backend/web/frontend/.keep >/dev/null 2>&1; then
-      if ! mkdir -p "$repo_root/internal/backend/web/frontend" || ! git -C "$repo_root" show "$commit_sha:internal/backend/web/frontend/.keep" >"$repo_root/internal/backend/web/frontend/.keep"; then
-        echo "Production deploy cleanup failed: the tracked frontend embed placeholder could not be restored." >&2
-        cleanup_status=1
-      fi
-    fi
   fi
   if (( deploy_status == 0 && cleanup_status != 0 )); then
     deploy_status=1
@@ -251,22 +355,16 @@ cleanup() {
 }
 
 if [[ "$target_release_status" != complete ]]; then
-  release_dir="$(mktemp -d "${TMPDIR:-/tmp}/tarsgo-release.XXXXXXXX")"
+  temporary_dir="$(mktemp -d "${TMPDIR:-/tmp}/tarsgo-release.XXXXXXXX")"
+  release_dir="$temporary_dir/release"
+  mkdir -m 0755 "$release_dir"
   trap cleanup EXIT
-  build_started=1
-  "$make_bin" -C "$repo_root" build-linux-amd64
-  for artifact in tarsgo-backend-linux-amd64 tarsgo-migrate-linux-amd64; do
-    if [[ ! -s "$repo_root/dist/$artifact" ]]; then
-      echo "Production deploy aborted: release build did not produce $artifact." >&2
-      exit 1
-    fi
-    cp -- "$repo_root/dist/$artifact" "$release_dir/"
-  done
-  cp -- "$repo_root/scripts/production.Dockerfile" "$release_dir/Dockerfile"
-  printf '%s\n' "$commit_sha" >"$release_dir/commit.txt"
-  (cd "$release_dir" && sha256sum Dockerfile commit.txt tarsgo-backend-linux-amd64 tarsgo-migrate-linux-amd64 >SHA256SUMS && sha256sum --check -- SHA256SUMS)
+  download_production_artifact "$commit_sha" "$temporary_dir/production-release.zip" "$release_dir"
   chmod 0755 "$release_dir"
   chmod 0644 "$release_dir/Dockerfile" "$release_dir/SHA256SUMS" "$release_dir/commit.txt" "$release_dir/tarsgo-backend-linux-amd64" "$release_dir/tarsgo-migrate-linux-amd64"
+fi
+if (( disk_usage_percent >= 85 )); then
+  run_safe_cleanup
 fi
 
 printf 'previous_stable_image=%s\nprevious_stable_release=%s\n' "$previous_image" "$previous_release"
