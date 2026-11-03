@@ -16,7 +16,7 @@ import {
   type CommunityCategory,
   type CommunitySort,
 } from "~/lib/community-client";
-import { clearCommunityLists, getCommunityListSnapshot, rememberCommunityList } from "~/lib/community-list-cache";
+import { clearCommunityLists, getCommunityListSnapshot, preserveCommunityReactionUpdates, rememberCommunityList } from "~/lib/community-list-cache";
 import "./community.css";
 
 export function meta() {
@@ -88,11 +88,13 @@ export default function DashboardIndex() {
       const result = await communityClient.list({ sort, category, q: query, saved: savedOnly, page: 1, pageSize: PAGE_SIZE, includeGrowth: true });
       if (requestRef.current !== requestID) return;
       setGrowthProfile(result.growthProfile ?? null);
-      const postsToKeep = keepCachedPosts && cached
-        ? [...result.items, ...cached.posts.filter((post) => !result.items.some((fresh) => fresh.id === post.id))]
-        : result.items;
-      const nextPage = keepCachedPosts && cached ? cached.page : 1;
-      const nextHasMore = nextPage > 1 && cached ? cached.hasMore : result.hasMore;
+      const latest = keepCachedPosts ? getCommunityListSnapshot(cacheKey) ?? cached : undefined;
+      const freshItems = preserveCommunityReactionUpdates(cached?.posts ?? [], latest?.posts ?? [], result.items);
+      const postsToKeep = keepCachedPosts && latest
+        ? [...freshItems, ...latest.posts.filter((post) => !freshItems.some((fresh) => fresh.id === post.id))]
+        : freshItems;
+      const nextPage = keepCachedPosts && latest ? latest.page : 1;
+      const nextHasMore = nextPage > 1 && latest ? latest.hasMore : result.hasMore;
       setPosts(postsToKeep);
       setHasMore(nextHasMore);
       setPage(nextPage);

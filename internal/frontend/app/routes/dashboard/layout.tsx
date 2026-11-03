@@ -13,21 +13,32 @@ import { ApiError } from "~/lib/api-client";
 import {
   getAuthUserRoleLabel,
   getAuthUserName,
+  announcePermissionChange,
   getBootstrapStatus,
-  getCachedCurrentUser,
   getCurrentUser,
   getAccountSessions,
+  needsCurrentUserRevalidation,
   initializeAccountSessions,
   logout,
   logoutAllAccounts,
   removeAccountSession,
+  subscribeAuthStateChange,
   subscribeAccountSessionChange,
+  subscribePermissionChange,
   switchAccountSession,
   type AccountSessionAccount,
   type AuthUser,
 } from "~/lib/auth-client";
 import { resolveDashboardAuth } from "~/lib/dashboard-auth-flow";
-import { confirmUserGroup, getUserGroupConfirmationState, type UserGroupConfirmationState } from "~/lib/user-group-client";
+import {
+  confirmUserGroup,
+  getCachedUserGroupConfirmationState,
+  getUserGroupConfirmationState,
+  needsUserGroupConfirmationRefresh,
+  refreshUserGroupConfirmationState,
+  type UserGroupConfirmationState,
+} from "~/lib/user-group-client";
+import { clearPersonalWorkbenchSnapshots } from "~/lib/personal-workbench-cache";
 import {
   canAccessDashboardAdminPath,
   canAccessExpedition,
@@ -67,16 +78,10 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const legacyTeamAlias = currentPath.pathname === "/dashboard/team" || currentPath.pathname === "/dashboard/admin/organization-preview";
   const legacyCommunityAlias = currentPath.pathname === "/dashboard/questions" || currentPath.pathname === "/dashboard/admin/training/questions";
   const legacyDashboardAlias = legacyTeamAlias || legacyCommunityAlias;
-  const cachedUser = getCachedCurrentUser();
-  const groupRequest = temporarilyUnavailable || legacyDashboardAlias
-    ? Promise.resolve({ state: null, error: null as unknown })
-    : getUserGroupConfirmationState(cachedUser?.id)
-      .then((state) => ({ state, error: null as unknown }))
-      .catch((error: unknown) => ({ state: null, error }));
   const auth = await resolveDashboardAuth({
     getCurrentUser: () => getCurrentUser(),
     getBootstrapStatus,
-    isUnauthorized: (error) => error instanceof ApiError && error.status === 401,
+    isUnauthorized: (error) => error instanceof ApiError && (error.status === 401 || error.status === 403),
   });
 
   if (auth.type === "setup-required") {
@@ -94,15 +99,19 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect("/dashboard/workbench/organization");
   }
 
-  const groupResult = await groupRequest;
-  const groupResolution: UserGroupConfirmationState | null = groupResult.state;
+  let groupResolution: UserGroupConfirmationState | null = null;
   let groupResolutionError = "";
-  if (groupResult.error) {
-    if (groupResult.error instanceof ApiError && groupResult.error.status === 401) {
-      const redirectTarget = `${currentPath.pathname}${currentPath.search}`;
-      throw redirect(`/login?redirect=${encodeURIComponent(redirectTarget)}`);
+  if (!legacyDashboardAlias) {
+    try {
+      groupResolution = await getUserGroupConfirmationState(currentUser.id);
+    } catch (error) {
+      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+        const redirectTarget = `${currentPath.pathname}${currentPath.search}`;
+        throw redirect(`/login?redirect=${encodeURIComponent(redirectTarget)}`);
+      }
+      groupResolution = getCachedUserGroupConfirmationState(currentUser.id);
+      groupResolutionError = error instanceof Error ? error.message : "所属组别暂时无法读取。";
     }
-    groupResolutionError = groupResult.error instanceof Error ? groupResult.error.message : "所属组别暂时无法读取。";
   }
 
   const pathname = currentPath.pathname;
@@ -260,15 +269,55 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const [accountSessionsError, setAccountSessionsError] = useState("");
   const [accountActionError, setAccountActionError] = useState("");
   const [userMenuPosition, setUserMenuPosition] = useState<UserMenuPosition | null>(null);
+  const [displayUser, setDisplayUser] = useState(loaderData.currentUser);
+  const [accountSyncing, setAccountSyncing] = useState(false);
+  const [accountSyncError, setAccountSyncError] = useState("");
+  const [displayGroupResolution, setDisplayGroupResolution] = useState(loaderData.groupResolution);
+  const [displayGroupResolutionError, setDisplayGroupResolutionError] = useState(loaderData.groupResolutionError);
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const userMenuTriggerRef = useRef<HTMLButtonElement | null>(null);
   const userMenuPanelRef = useRef<HTMLDivElement | null>(null);
   const focusUserMenuItemRef = useRef(false);
   const sidebarRef = useRef<HTMLElement | null>(null);
   const sidebarTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const lastAuthRevalidationAtRef = useRef(Date.now());
   const badgeReplaySequenceRef = useRef(0);
-  const { currentUser, groupResolution, groupResolutionError } = loaderData;
+  const currentUser = displayUser;
+  const groupResolution = displayGroupResolution;
+  const groupResolutionError = displayGroupResolutionError;
+  const identitySyncSequenceRef = useRef(0);
+
+  const refreshAccountIdentity = useCallback(async () => {
+    const requestId = ++identitySyncSequenceRef.current;
+    setAccountSyncing(true);
+    setAccountSyncError("");
+    clearPersonalWorkbenchSnapshots(currentUser.id);
+    try {
+      const user = await getCurrentUser({ force: true });
+      if (identitySyncSequenceRef.current !== requestId) return;
+      setDisplayUser(user);
+      const groups = await refreshUserGroupConfirmationState(user.id);
+      if (identitySyncSequenceRef.current !== requestId) return;
+      setDisplayGroupResolution(groups);
+      setDisplayGroupResolutionError("");
+      await revalidator.revalidate();
+      if (identitySyncSequenceRef.current === requestId) setAccountSyncing(false);
+    } catch (error) {
+      if (identitySyncSequenceRef.current !== requestId) return;
+      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+        navigate("/login", { replace: true });
+        return;
+      }
+      setAccountSyncError(error instanceof Error ? error.message : "账号状态暂时无法确认。");
+    }
+  }, [currentUser.id, navigate, revalidator]);
+
+  useEffect(() => {
+    setDisplayUser(loaderData.currentUser);
+    setAccountSyncing(false);
+    setAccountSyncError("");
+    setDisplayGroupResolution(loaderData.groupResolution);
+    setDisplayGroupResolutionError(loaderData.groupResolutionError);
+  }, [loaderData.currentUser, loaderData.groupResolution, loaderData.groupResolutionError]);
   useEffect(() => {
     if (location.pathname === "/dashboard" && new URLSearchParams(location.search).get("profile") === "timetable") {
       navigate(`/dashboard/members/${currentUser.id}?tab=settings#timetable`, { replace: true });
@@ -301,26 +350,99 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
     .charAt(0)
     .toUpperCase();
 
-  useEffect(() => {
-    const revalidateAuthWhenResumed = () => {
-      if (document.visibilityState !== "visible") return;
-      if (Date.now() - lastAuthRevalidationAtRef.current < 30_000) return;
-
-      lastAuthRevalidationAtRef.current = Date.now();
-      void revalidator.revalidate();
-    };
-
-    window.addEventListener("focus", revalidateAuthWhenResumed);
-    document.addEventListener("visibilitychange", revalidateAuthWhenResumed);
-    return () => {
-      window.removeEventListener("focus", revalidateAuthWhenResumed);
-      document.removeEventListener("visibilitychange", revalidateAuthWhenResumed);
-    };
-  }, [revalidator]);
+  useEffect(() => subscribeAuthStateChange((user) => {
+    if (!user) {
+      navigate("/login", { replace: true });
+      return;
+    }
+    if (user.id !== loaderData.currentUser.id) {
+      clearPersonalWorkbenchSnapshots(loaderData.currentUser.id);
+      setAccountSyncing(true);
+    }
+    setDisplayUser(user);
+  }), [loaderData.currentUser.id, navigate]);
 
   useEffect(() => subscribeAccountSessionChange(() => {
-    window.location.assign("/dashboard");
-  }), []);
+    void refreshAccountIdentity();
+  }), [refreshAccountIdentity]);
+
+  useEffect(() => subscribePermissionChange((userId) => {
+    if (userId !== null && userId !== currentUser.id) return;
+    const affectedUserId = currentUser.id;
+    clearPersonalWorkbenchSnapshots(affectedUserId);
+    const requestId = ++identitySyncSequenceRef.current;
+    void Promise.all([
+      getCurrentUser({ force: true }),
+      refreshUserGroupConfirmationState(affectedUserId),
+    ]).then(async ([user, groups]) => {
+      if (identitySyncSequenceRef.current !== requestId) return;
+      setDisplayUser(user);
+      setDisplayGroupResolution(groups);
+      setDisplayGroupResolutionError("");
+      await revalidator.revalidate();
+    }).catch((error: unknown) => {
+      if (identitySyncSequenceRef.current !== requestId) return;
+      if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+        navigate("/login", { replace: true });
+        return;
+      }
+      setDisplayGroupResolutionError(error instanceof Error ? error.message : "所属组别暂时无法读取。");
+    });
+  }), [currentUser.id, navigate, revalidator]);
+
+  useEffect(() => {
+    let active = true;
+    const revalidateOnResume = () => {
+      if (document.visibilityState !== "visible") return;
+      const recheckUser = needsCurrentUserRevalidation();
+      const recheckGroups = needsUserGroupConfirmationRefresh(currentUser.id);
+      if (!recheckUser && !recheckGroups) return;
+
+      const previousGroups = getCachedUserGroupConfirmationState(currentUser.id);
+      const userRequest = recheckUser ? getCurrentUser({ force: true }) : Promise.resolve(currentUser);
+      const groupRequest = recheckGroups
+        ? refreshUserGroupConfirmationState(currentUser.id)
+        : Promise.resolve(previousGroups);
+      void Promise.allSettled([userRequest, groupRequest]).then(([userResult, groupResult]) => {
+        if (!active) return;
+        if (userResult.status === "rejected" && userResult.reason instanceof ApiError && (userResult.reason.status === 401 || userResult.reason.status === 403)) {
+          navigate("/login", { replace: true });
+          return;
+        }
+        if (groupResult.status === "rejected" && groupResult.reason instanceof ApiError && (groupResult.reason.status === 401 || groupResult.reason.status === 403)) {
+          navigate("/login", { replace: true });
+          return;
+        }
+
+        let routeAuthorizationChanged = false;
+        if (userResult.status === "fulfilled") {
+          const nextUser = userResult.value;
+          routeAuthorizationChanged = nextUser.id !== currentUser.id
+            || nextUser.role.id !== currentUser.role.id
+            || nextUser.role.name !== currentUser.role.name;
+          setDisplayUser(nextUser);
+        }
+        if (groupResult.status === "fulfilled" && groupResult.value) {
+          const nextGroups = groupResult.value;
+          routeAuthorizationChanged ||= JSON.stringify(previousGroups) !== JSON.stringify(nextGroups);
+          setDisplayGroupResolution(nextGroups);
+          setDisplayGroupResolutionError("");
+        } else if (groupResult.status === "rejected") {
+          setDisplayGroupResolutionError(groupResult.reason instanceof Error ? groupResult.reason.message : "所属组别暂时无法读取。");
+        }
+        if (routeAuthorizationChanged) void revalidator.revalidate();
+      });
+    };
+
+    revalidateOnResume();
+    window.addEventListener("focus", revalidateOnResume);
+    document.addEventListener("visibilitychange", revalidateOnResume);
+    return () => {
+      active = false;
+      window.removeEventListener("focus", revalidateOnResume);
+      document.removeEventListener("visibilitychange", revalidateOnResume);
+    };
+  }, [currentUser, location.key, navigate, revalidator]);
 
   useEffect(() => {
     if (!userMenuOpen || !userMenuPosition || !focusUserMenuItemRef.current) return;
@@ -479,10 +601,17 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
     setLoggingOut(true);
     try {
       const { user } = await switchAccountSession(accountId);
-      window.location.assign(getDefaultDashboardPath(user.role.name));
+      clearPersonalWorkbenchSnapshots(currentUser.id);
+      setDisplayUser(user);
+      setAccountModalMode(null);
+      await navigate(getDefaultDashboardPath(user.role.name), { replace: true });
+      await revalidator.revalidate();
+      setAccountSyncing(false);
     } catch (error) {
       setAccountSessionsError(getAccountActionError(error));
       try { setAccountSessions(await getAccountSessions()); } catch { /* Keep the switch failure visible. */ }
+      setLoggingOut(false);
+    } finally {
       setLoggingOut(false);
     }
   }
@@ -526,6 +655,19 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
     }
   }
 
+  if (accountSyncing) {
+    return (
+      <main className="admin-design min-h-screen px-4 py-8 sm:px-6 sm:py-12" role="status" aria-live="polite">
+        <section className="admin-panel mx-auto w-full max-w-xl space-y-4 p-5 sm:p-7">
+          <h1 className="admin-page-title">正在同步账号状态</h1>
+          <p className="text-sm leading-6 text-[var(--admin-muted)]">账号或权限刚刚发生变化，正在确认当前可访问范围。</p>
+          {accountSyncError ? <p className="admin-notice admin-notice--error">{accountSyncError}</p> : null}
+          {accountSyncError ? <button type="button" className="admin-button admin-button--secondary" onClick={() => void refreshAccountIdentity()}>重试</button> : null}
+        </section>
+      </main>
+    );
+  }
+
   if (!groupResolution || groupResolution.state === "pending") {
     return (
       <GroupConfirmationGate
@@ -533,10 +675,11 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
         loadError={groupResolutionError}
         onConfirm={async (groupID) => {
           try {
-            await confirmUserGroup(groupID);
+            await confirmUserGroup(groupID, currentUser.id);
+            announcePermissionChange(currentUser.id, { notifyLocal: false, markStale: false });
             await revalidator.revalidate();
           } catch (error) {
-            if (error instanceof ApiError && error.status === 401) {
+            if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
               navigate("/login", { replace: true });
               return error.message;
             }
@@ -547,7 +690,20 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           }
           return "";
         }}
-        onRefresh={() => revalidator.revalidate()}
+        onRefresh={async () => {
+          try {
+            const state = await refreshUserGroupConfirmationState(currentUser.id);
+            setDisplayGroupResolution(state);
+            setDisplayGroupResolutionError("");
+            await revalidator.revalidate();
+          } catch (error) {
+            if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
+              navigate("/login", { replace: true });
+              return;
+            }
+            setDisplayGroupResolutionError(error instanceof Error ? error.message : "所属组别暂时无法读取。");
+          }
+        }}
         refreshing={revalidator.state !== "idle"}
       />
     );
@@ -649,6 +805,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
         <div className="dashboard-shell__main-frame relative z-10 min-w-0 flex-1">
         <main className="p-4 sm:p-6 lg:p-8">
           <div className="dashboard-shell__content relative">
+            {groupResolutionError ? <div className="admin-notice admin-notice--error mb-4" role="status">所属组别暂时无法刷新，仍使用最近一次成功结果：{groupResolutionError}</div> : null}
             <Outlet context={{ currentUser, setPageTitle: updatePageTitle, groupResolution, groupResolutionError, openMyProfile, refreshAccountProfile, requestBadgeReplay, profileRevision } satisfies DashboardLayoutOutletContext} />
           </div>
         </main>

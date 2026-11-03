@@ -1,4 +1,5 @@
 import { apiRequest } from "~/lib/api-client";
+import { announcePermissionChange } from "~/lib/auth-client";
 
 export interface AdminUserGroupSummary {
   total: number;
@@ -69,10 +70,12 @@ export async function createAdminUserGroup(input: UpsertAdminUserGroupBody): Pro
 }
 
 export async function updateAdminUserGroup(groupId: number, input: UpsertAdminUserGroupBody): Promise<AdminUserGroupListItem> {
-  return apiRequest<AdminUserGroupListItem>(`/api/admin/user-groups/${groupId}`, {
+  const group = await apiRequest<AdminUserGroupListItem>(`/api/admin/user-groups/${groupId}`, {
     method: "PATCH",
     body: input,
   });
+  announcePermissionChange(null);
+  return group;
 }
 
 export interface AdmissionQRCodeConfiguration {

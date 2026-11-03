@@ -1,4 +1,5 @@
 import { apiRequest } from "~/lib/api-client";
+import { announcePermissionChange } from "~/lib/auth-client";
 
 export interface AdminUserRole {
   id: number;
@@ -164,10 +165,12 @@ export async function createAdminUser(input: CreateAdminUserInput): Promise<Admi
 }
 
 export async function updateAdminUser(userId: number, input: AdminUserUpsertInput & { status: number }): Promise<AdminUserDetail> {
-  return apiRequest<AdminUserDetail>(`/api/admin/users/${userId}`, {
+  const user = await apiRequest<AdminUserDetail>(`/api/admin/users/${userId}`, {
     method: "PATCH",
     body: input,
   });
+  announcePermissionChange(userId);
+  return user;
 }
 
 export async function updateAdminUserTeamIdentity(userId: number, input: UpdateAdminUserTeamIdentityInput): Promise<AdminUserDetail> {
@@ -185,17 +188,21 @@ export async function updateAdminUserRecruitmentGroup(userId: number, groupId: n
 }
 
 export async function updateAdminUserGroup(userId: number, groupId: number | null): Promise<AdminUserDetail> {
-	return apiRequest<AdminUserDetail>(`/api/admin/users/${userId}/group`, {
+	const user = await apiRequest<AdminUserDetail>(`/api/admin/users/${userId}/group`, {
 		method: "PATCH",
 		body: { groupId },
 	});
+	announcePermissionChange(userId);
+	return user;
 }
 
 export async function updateAdminUserGroupRole(userId: number, groupId: number, role: number): Promise<AdminUserDetail> {
-	return apiRequest<AdminUserDetail>(`/api/admin/users/${userId}/group-role`, {
+	const user = await apiRequest<AdminUserDetail>(`/api/admin/users/${userId}/group-role`, {
 		method: "PATCH",
 		body: { groupId, role },
 	});
+	announcePermissionChange(userId);
+	return user;
 }
 
 export async function resetAdminUserPassword(userId: number, password: string): Promise<void> {

@@ -26,7 +26,7 @@ test("fast navigation completion cancels the indicator without replacing route s
 });
 
 test("public page content transitions independently of the stable navigation bar", () => {
-  const navbarIndex = home.indexOf("<Navbar currentUser={currentUser} authError={authError} />");
+  const navbarIndex = home.indexOf("<Navbar />");
   const contentIndex = home.indexOf('<div className="public-route-content">');
   assert.ok(navbarIndex >= 0 && contentIndex > navbarIndex);
   assert.match(microSpecialty, /<Navbar \/>[\s\S]*?<main className="public-route-content">/);

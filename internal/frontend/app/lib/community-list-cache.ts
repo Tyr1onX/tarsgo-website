@@ -2,6 +2,30 @@ import type { CommunityPost } from "~/lib/community-client";
 
 export type CommunityListSnapshot = { posts: CommunityPost[]; page: number; hasMore: boolean };
 
+export function preserveCommunityReactionUpdates(
+	requestStart: readonly CommunityPost[],
+	latest: readonly CommunityPost[],
+	fresh: readonly CommunityPost[],
+): CommunityPost[] {
+	const startedById = new Map(requestStart.map((post) => [post.id, post]));
+	const latestById = new Map(latest.map((post) => [post.id, post]));
+	return fresh.map((post) => {
+		const started = startedById.get(post.id);
+		const current = latestById.get(post.id);
+		if (!started || !current) return post;
+		const likedChanged = current.likedByMe !== started.likedByMe;
+		const savedChanged = current.savedByMe !== started.savedByMe;
+		const likeCountChanged = current.likeCount !== started.likeCount;
+		if (!likedChanged && !savedChanged && !likeCountChanged) return post;
+		return {
+			...post,
+			...(likedChanged ? { likedByMe: current.likedByMe } : {}),
+			...(savedChanged ? { savedByMe: current.savedByMe } : {}),
+			...(likeCountChanged ? { likeCount: current.likeCount } : {}),
+		};
+	});
+}
+
 const MAX_CACHED_FILTERS = 10;
 const snapshots = new Map<string, CommunityListSnapshot>();
 

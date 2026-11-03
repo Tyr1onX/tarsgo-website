@@ -1,9 +1,12 @@
-import { ApiError, apiRequest } from "~/lib/api-client";
-import { AuthSessionCache } from "~/lib/auth-session-cache";
-import { requestCommunityExperienceRefresh } from "~/lib/community-experience-sync";
-import { invalidateUserGroupConfirmationStateCache } from "~/lib/user-group-client";
+import { ApiError, apiRequest, registerApiAuthLifecycle } from "./api-client.ts";
+import { AuthSessionCache } from "./auth-session-cache.ts";
+import { requestCommunityExperienceRefresh } from "./community-experience-sync.ts";
+import {
+  invalidateUserGroupConfirmationStateCache,
+  markUserGroupConfirmationStateStale,
+} from "./user-group-client.ts";
 
-export { ApiError } from "~/lib/api-client";
+export { ApiError } from "./api-client.ts";
 
 export interface AuthRole {
   id: number;
@@ -63,6 +66,9 @@ let bootstrapStatusCache: { value: BootstrapStatus; expiresAt: number } | null =
 let bootstrapStatusRequest: Promise<BootstrapStatus> | null = null;
 let bootstrapStatusGeneration = 0;
 const authStateListeners = new Set<(user: AuthUser | null) => void>();
+const accountSessionListeners = new Set<() => void>();
+const permissionChangeListeners = new Set<(userId: number | null) => void>();
+let accountSessionChannel: BroadcastChannel | null = null;
 
 function invalidateCurrentUserRequest() {
   currentUserRequestGeneration += 1;
@@ -75,29 +81,87 @@ function notifyAuthStateChange(user: AuthUser | null) {
   }
 }
 
-export function announceAccountSessionChange() {
+type AccountSessionMessage =
+  | { type: "identity-changed"; source: string }
+  | { type: "profile-updated"; source: string; user: AuthUser }
+  | { type: "permissions-changed"; source: string; userId: number | null };
+type AccountSessionMessageInput = AccountSessionMessage extends infer Message
+  ? Message extends { source: string } ? Omit<Message, "source"> : never
+  : never;
+
+function ensureAccountSessionChannel() {
+  if (typeof BroadcastChannel === "undefined" || accountSessionChannel) return;
+  accountSessionChannel = new BroadcastChannel(ACCOUNT_SESSION_CHANNEL);
+  accountSessionChannel.addEventListener("message", (event: MessageEvent<AccountSessionMessage>) => {
+    const message = event.data;
+    if (!message || message.source === getAccountSessionTabId()) return;
+
+    if (message.type === "identity-changed") {
+      authSessionCache.clear();
+      invalidateCurrentUserRequest();
+      invalidateUserGroupConfirmationStateCache();
+      for (const listener of accountSessionListeners) listener();
+      return;
+    }
+
+    if (message.type === "profile-updated") {
+      if (authSessionCache.getUser()?.id !== message.user.id) return;
+      authSessionCache.setAuthenticated(message.user);
+      invalidateCurrentUserRequest();
+      notifyAuthStateChange(message.user);
+      return;
+    }
+
+    markUserGroupConfirmationStateStale(message.userId);
+    for (const listener of permissionChangeListeners) listener(message.userId);
+  });
+}
+
+function broadcastAccountSessionMessage(message: AccountSessionMessageInput) {
   if (typeof BroadcastChannel === "undefined") return;
   const channel = new BroadcastChannel(ACCOUNT_SESSION_CHANNEL);
-  channel.postMessage({ type: "identity-changed", source: getAccountSessionTabId() });
+  channel.postMessage({ ...message, source: getAccountSessionTabId() });
   channel.close();
 }
 
+export function announceAccountSessionChange() {
+  broadcastAccountSessionMessage({ type: "identity-changed" });
+}
+
 export function subscribeAccountSessionChange(onChange: () => void): () => void {
-  if (typeof BroadcastChannel === "undefined") return () => undefined;
-  const channel = new BroadcastChannel(ACCOUNT_SESSION_CHANNEL);
-  const handleMessage = (event: MessageEvent<{ type?: string; source?: string }>) => {
-    if (event.data?.type !== "identity-changed" || event.data.source === getAccountSessionTabId()) return;
-    authSessionCache.clear();
-    invalidateCurrentUserRequest();
-    invalidateUserGroupConfirmationStateCache();
-    notifyAuthStateChange(null);
-    onChange();
-  };
-  channel.addEventListener("message", handleMessage);
+  accountSessionListeners.add(onChange);
+  ensureAccountSessionChannel();
   return () => {
-    channel.removeEventListener("message", handleMessage);
-    channel.close();
+    accountSessionListeners.delete(onChange);
+    closeAccountSessionChannelWhenUnused();
   };
+}
+
+export function subscribePermissionChange(onChange: (userId: number | null) => void): () => void {
+  permissionChangeListeners.add(onChange);
+  ensureAccountSessionChannel();
+  return () => {
+    permissionChangeListeners.delete(onChange);
+    closeAccountSessionChannelWhenUnused();
+  };
+}
+
+function closeAccountSessionChannelWhenUnused() {
+  if (accountSessionListeners.size || permissionChangeListeners.size || !accountSessionChannel) return;
+  accountSessionChannel.close();
+  accountSessionChannel = null;
+}
+
+export function announcePermissionChange(userId: number | null, options: { notifyLocal?: boolean; markStale?: boolean } = {}) {
+  if (options.markStale !== false) markUserGroupConfirmationStateStale(userId);
+  if (options.notifyLocal !== false) {
+    for (const listener of permissionChangeListeners) listener(userId);
+  }
+  broadcastAccountSessionMessage({ type: "permissions-changed", userId });
+}
+
+function announceProfileUpdate(user: AuthUser) {
+  broadcastAccountSessionMessage({ type: "profile-updated", user });
 }
 
 function getAccountSessionTabId() {
@@ -116,6 +180,21 @@ function notifyNewLogin(user: AuthUser) {
   notifyAuthStateChange(user);
   announceAccountSessionChange();
 }
+
+function expireSessionAfterUnauthorized(version: number) {
+  if (version < 0 || authSessionCache.version !== version) return;
+  const wasAuthenticated = authSessionCache.getUser() !== null;
+  if (!authSessionCache.acceptAnonymousRequest(version)) return;
+  invalidateCurrentUserRequest();
+  invalidateUserGroupConfirmationStateCache();
+  notifyAuthStateChange(null);
+  if (wasAuthenticated) announceAccountSessionChange();
+}
+
+registerApiAuthLifecycle({
+  getSessionVersion: () => authSessionCache.version,
+  onUnauthorized: expireSessionAfterUnauthorized,
+});
 
 export async function getBootstrapStatus(): Promise<BootstrapStatus> {
   if (bootstrapStatusCache && bootstrapStatusCache.expiresAt > Date.now()) {
@@ -232,7 +311,6 @@ export async function initializeAccountSessions(): Promise<AccountSessionAccount
     accountAction: true,
     cache: "no-store",
   });
-  if (data.identityChanged) announceAccountSessionChange();
   return data.accounts;
 }
 
@@ -300,13 +378,17 @@ export async function updateProfile(input: { realName: string; phone: string; av
   authSessionCache.setAuthenticated(data.user);
   invalidateCurrentUserRequest();
   notifyAuthStateChange(data.user);
-  announceAccountSessionChange();
+  announceProfileUpdate(data.user);
   if (input.avatar) requestCommunityExperienceRefresh();
   return data.user;
 }
 
 export function getCachedCurrentUser(): AuthUser | null {
   return authSessionCache.getUser();
+}
+
+export function needsCurrentUserRevalidation(): boolean {
+  return authSessionCache.needsRevalidation();
 }
 
 export function hasKnownAnonymousSession(): boolean {
@@ -345,12 +427,16 @@ export async function getCurrentUser(options: { force?: boolean } = {}): Promise
       return data.user;
     })
     .catch((error) => {
-      const stateChanged = requestGeneration !== currentUserRequestGeneration
-        ? false
-        : error instanceof ApiError && error.status === 401
-          ? authSessionCache.acceptAnonymousRequest(requestVersion)
-          : authSessionCache.acceptFailedRequest(requestVersion);
-      if (stateChanged) notifyAuthStateChange(null);
+      const stateChanged = requestGeneration === currentUserRequestGeneration
+        && error instanceof ApiError
+        && (error.status === 401 || error.status === 403)
+        && authSessionCache.acceptAnonymousRequest(requestVersion);
+      if (stateChanged) {
+        invalidateCurrentUserRequest();
+        invalidateUserGroupConfirmationStateCache();
+        notifyAuthStateChange(null);
+        announceAccountSessionChange();
+      }
       throw error;
     })
     .finally(() => {
@@ -367,7 +453,7 @@ export async function getOptionalCurrentUser(
   try {
     return await getCurrentUser(options);
   } catch (error) {
-    if (error instanceof ApiError && error.status === 401) {
+    if (error instanceof ApiError && (error.status === 401 || error.status === 403)) {
       return null;
     }
     throw error;

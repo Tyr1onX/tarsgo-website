@@ -5,29 +5,19 @@ import { assignmentClient, assignmentStatusLabel, formatAssignmentDate, type Ass
 import { hasAssignmentGroupAccess } from "~/lib/dashboard-navigation";
 import { leaveClient, type LeaveAccessState, type LeaveRequest } from "~/lib/leave-client";
 import { formatWeekLabel } from "~/lib/weekly-report-calendar";
-import type { WeeklyReportDashboard } from "~/lib/weekly-report-client";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
+import {
+  emptyPersonalSnapshot,
+  getPersonalWorkbenchSnapshot,
+  hasPersonalWorkbenchData,
+  rememberPersonalWorkbenchSnapshot,
+  type PersonalSnapshot,
+} from "~/lib/personal-workbench-cache";
 import "./workbench.css";
 
 export function meta() {
   return [{ title: "我的工作台 | TARSGO" }];
 }
-
-type PersonalSnapshot = {
-  weekly: WeeklyReportDashboard | null;
-  assignments: Assignment[] | null;
-  leaveAccess: LeaveAccessState | null;
-  leaveRequests: LeaveRequest[] | null;
-  errors: { weekly?: string; assignments?: string; leave?: string };
-};
-
-const emptySnapshot: PersonalSnapshot = {
-  weekly: null,
-  assignments: null,
-  leaveAccess: null,
-  leaveRequests: null,
-  errors: {},
-};
 
 function getLeaveStatus(access: LeaveAccessState | null, requests: LeaveRequest[] | null, isAdmin: boolean) {
   const latest = requests?.slice().sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0];
@@ -57,13 +47,24 @@ export default function PersonalWorkbench() {
   const { currentUser, groupResolution } = useOutletContext<DashboardLayoutOutletContext>();
   const hasAssignments = hasAssignmentGroupAccess(groupResolution?.groups);
   const isAdmin = currentUser.role.name === "admin" || currentUser.role.name === "super_admin";
-  const [snapshot, setSnapshot] = useState<PersonalSnapshot>(emptySnapshot);
-  const [loading, setLoading] = useState(true);
+  const permissionScope = groupResolution?.groups.map((group) => `${group.groupId}:${group.role}`).sort().join(",") ?? groupResolution?.state ?? "unknown";
+  const snapshotKey = JSON.stringify([currentUser.id, currentUser.role.name, hasAssignments, isAdmin, permissionScope]);
+  const initialSnapshot = getPersonalWorkbenchSnapshot(snapshotKey);
+  const [view, setView] = useState<{ key: string; snapshot: PersonalSnapshot; refreshing: boolean }>(() => ({
+    key: snapshotKey,
+    snapshot: initialSnapshot ?? emptyPersonalSnapshot,
+    refreshing: !hasPersonalWorkbenchData(initialSnapshot),
+  }));
+  const snapshot = view.key === snapshotKey ? view.snapshot : getPersonalWorkbenchSnapshot(snapshotKey) ?? emptyPersonalSnapshot;
   const requestSequence = useRef(0);
+  const hasSnapshot = snapshot.weekly !== null || snapshot.assignments !== null || snapshot.leaveAccess !== null || snapshot.leaveRequests !== null;
+  const loading = view.key !== snapshotKey ? !getPersonalWorkbenchSnapshot(snapshotKey) : view.refreshing && !hasSnapshot;
+  const refreshing = view.key !== snapshotKey ? Boolean(getPersonalWorkbenchSnapshot(snapshotKey)) : view.refreshing && hasSnapshot;
 
   const load = useCallback(async () => {
     const requestId = ++requestSequence.current;
-    setLoading(true);
+    const previous = getPersonalWorkbenchSnapshot(snapshotKey) ?? emptyPersonalSnapshot;
+    setView({ key: snapshotKey, snapshot: previous, refreshing: true });
     const leaveRequest = leaveClient.leaveAccess().then(async (access) => ({
       access,
       requests: access.status === "approved" || isAdmin ? await leaveClient.schoolRequests() : [],
@@ -76,7 +77,7 @@ export default function PersonalWorkbench() {
     ]);
     if (requestSequence.current !== requestId) return;
 
-    const next: PersonalSnapshot = { ...emptySnapshot };
+    const next: PersonalSnapshot = { ...previous, errors: {} };
     if (weekly.status === "fulfilled") next.weekly = weekly.value;
     else next.errors.weekly = weekly.reason instanceof Error ? weekly.reason.message : "周报状态暂时无法读取。";
     if (assignments.status === "fulfilled") next.assignments = assignments.value;
@@ -85,14 +86,14 @@ export default function PersonalWorkbench() {
       next.leaveAccess = leave.value.access;
       next.leaveRequests = leave.value.requests;
     } else next.errors.leave = leave.reason instanceof Error ? leave.reason.message : "请假状态暂时无法读取。";
-    setSnapshot(next);
-    setLoading(false);
-  }, [hasAssignments, isAdmin]);
+    rememberPersonalWorkbenchSnapshot(snapshotKey, next);
+    setView({ key: snapshotKey, snapshot: next, refreshing: false });
+  }, [hasAssignments, isAdmin, snapshotKey]);
 
   useEffect(() => {
-    setSnapshot(emptySnapshot);
     void load();
-  }, [currentUser.id, load]);
+    return () => { requestSequence.current += 1; };
+  }, [load]);
 
   const currentReport = snapshot.weekly?.reports.find((report) => report.weekStart === snapshot.weekly?.currentWeekStart) ?? null;
   const assignmentTodos = (snapshot.assignments ?? [])
@@ -102,7 +103,7 @@ export default function PersonalWorkbench() {
   const upcomingAssignments = assignmentTodos.filter(({ status }) => status === "pending");
   const hasErrors = Object.values(snapshot.errors).some(Boolean);
   const taskCount = urgentAssignments.length + upcomingAssignments.length + (snapshot.weekly && !currentReport ? 1 : 0);
-  const leaveStatus = loading ? "读取中" : snapshot.errors.leave ? "读取失败" : getLeaveStatus(snapshot.leaveAccess, snapshot.leaveRequests, isAdmin);
+  const leaveStatus = loading ? "读取中" : snapshot.errors.leave ? (snapshot.leaveAccess ? "暂用上次状态" : "读取失败") : getLeaveStatus(snapshot.leaveAccess, snapshot.leaveRequests, isAdmin);
 
   function renderAssignments(items: Assignment[]) {
     return items.map((assignment) => (
@@ -121,11 +122,12 @@ export default function PersonalWorkbench() {
     <main className="personal-workbench admin-design" aria-labelledby="personal-workbench-title">
       <header className="personal-workbench__header">
         <h1 id="personal-workbench-title">我的工作台</h1>
+        {refreshing ? <span className="personal-workbench__sync" role="status">正在同步最新状态…</span> : null}
         {!loading && hasErrors ? <button type="button" className="personal-workbench__retry" onClick={() => void load()}>重试</button> : null}
       </header>
 
       {loading ? <p className="personal-workbench__loading" role="status">正在读取个人事务状态…</p> : null}
-      {!loading && hasErrors ? <div className="personal-workbench__errors" role="status">
+      {hasErrors ? <div className="personal-workbench__errors" role="status">
         {snapshot.errors.weekly ? <span>{snapshot.errors.weekly}</span> : null}
         {snapshot.errors.assignments ? <span>{snapshot.errors.assignments}</span> : null}
         {snapshot.errors.leave ? <span>{snapshot.errors.leave}</span> : null}
