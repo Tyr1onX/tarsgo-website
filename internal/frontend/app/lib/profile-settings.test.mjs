@@ -5,6 +5,7 @@ import test from "node:test";
 const profile = await readFile(new URL("../components/personal-profile-settings.tsx", import.meta.url), "utf8");
 const memberProfile = await readFile(new URL("../routes/dashboard/community-member-profile.tsx", import.meta.url), "utf8");
 const layout = await readFile(new URL("../routes/dashboard/layout.tsx", import.meta.url), "utf8");
+const dashboardNavigation = await readFile(new URL("./dashboard-navigation.ts", import.meta.url), "utf8");
 const leave = await readFile(new URL("../routes/leave-workbench.tsx", import.meta.url), "utf8");
 const api = await readFile(new URL("../../../backend/router/router.go", import.meta.url), "utf8");
 const authClient = await readFile(new URL("./auth-client.ts", import.meta.url), "utf8");
@@ -95,8 +96,9 @@ test("academic fields are part of personal information and leave identity is not
   assert.match(profile, /participantType: leaveDraft\.participantType/);
 });
 
-test("old profile entry points now resolve to the private settings tab without mounting a dialog", () => {
-  assert.match(layout, />我的主页<\/button>/);
+test("personal profile is a first-level link and legacy profile entry points keep the private settings tab", () => {
+  assert.match(dashboardNavigation, /key: "my-profile", label: "我的主页", href: `\/dashboard\/members\/\$\{currentUser\.id\}`, iconKey: "user"/);
+  assert.doesNotMatch(layout, />我的主页<\/button>/);
   assert.match(layout, /navigate\(`\/dashboard\/members\/\$\{currentUser\.id\}\?tab=settings#timetable`/);
   assert.match(memberProfile, /{tab === "settings" && isSelf/);
   assert.match(memberProfile, /<PersonalProfileSettings user=\{currentUser\}/);

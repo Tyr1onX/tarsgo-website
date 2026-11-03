@@ -194,9 +194,9 @@ test("公开基地入口已移除，旧链接只导向登录或统一工作台",
   assert.match(dashboardLayout, /getDashboardSectionMenu\(currentUser\)/);
   assert.doesNotMatch(dashboardNavigation, /href: "\/dashboard\/base"/);
   assert.match(dashboardNavigation, /label: "社区", href: "\/dashboard"/);
+  assert.match(dashboardNavigation, /key: "my-profile", label: "我的主页", href: `\/dashboard\/members\/\$\{currentUser\.id\}`, iconKey: "user"/);
   assert.match(dashboardLayout, /工作台分区/);
-  assert.match(dashboardLayout, /收起侧边栏/);
-  assert.match(dashboardLayout, /展开侧边栏/);
+  assert.doesNotMatch(dashboardLayout, /展开侧边栏|收起侧边栏|cursor-col-resize/);
   assert.match(dashboardBase, /<Navigate to=\{`\/dashboard\$\{location\.search\}\$\{location\.hash\}`\} replace \/>/);
   assert.match(dailySignalWorkspace, /今日通信/);
   assert.doesNotMatch(dashboardHome, /DailySignalWorkspace|daily-signal/);

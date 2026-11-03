@@ -18,15 +18,18 @@ import {
   isTemporarilyUnavailableDashboardPath,
 } from "./dashboard-navigation.ts";
 
-test("primary navigation is limited to Community, Workbench, and role-gated Management", () => {
-  assert.deepEqual(getDashboardSectionMenu("user").map(({ key, label, href }) => [key, label, href]), [
+test("primary navigation adds the signed-in member profile before role-gated Management", () => {
+  const account = (name, id = 42) => ({ id, role: { name } });
+  assert.deepEqual(getDashboardSectionMenu(account("user")).map(({ key, label, href }) => [key, label, href]), [
     ["community", "社区", "/dashboard"],
     ["workbench", "工作台", "/dashboard/workbench"],
+    ["my-profile", "我的主页", "/dashboard/members/42"],
   ]);
   for (const role of ["admin", "super_admin"]) {
-    assert.deepEqual(getDashboardSectionMenu(role).map(({ key, href }) => [key, href]), [
+    assert.deepEqual(getDashboardSectionMenu(account(role)).map(({ key, href }) => [key, href]), [
       ["community", "/dashboard"],
       ["workbench", "/dashboard/workbench"],
+      ["my-profile", "/dashboard/members/42"],
       ["management", "/dashboard/admin"],
     ]);
   }
@@ -60,10 +63,12 @@ test("route classification keeps community, personal work, and management distin
   assert.equal(getDashboardSectionKey("/dashboard/assignments"), "workbench");
   assert.equal(getDashboardSectionKey("/dashboard/team"), "workbench");
   assert.equal(getDashboardSectionKey("/dashboard/members/42"), "workbench");
+  assert.equal(getDashboardSectionKey("/dashboard/members/42", "user", 42), "profile");
+  assert.equal(getDashboardSectionKey("/dashboard/members/43", "user", 42), "workbench");
   assert.equal(getDashboardSectionKey("/dashboard/admin/registrations"), "management");
-  assert.equal(getDashboardSectionKey("/dashboard/leave", "", "user"), "workbench");
-  assert.equal(getDashboardSectionKey("/dashboard/leave", "", "admin"), "management");
-  assert.equal(getDashboardSectionKey("/dashboard/members/42", "?tab=settings", "user", "#timetable"), "workbench");
+  assert.equal(getDashboardSectionKey("/dashboard/leave", "user"), "workbench");
+  assert.equal(getDashboardSectionKey("/dashboard/leave", "admin"), "management");
+  assert.equal(getDashboardSectionKey("/dashboard/members/42", "user", 42), "profile");
   assert.equal(isDashboardMenuPathActive("/dashboard/admin/registrations/42", "/dashboard/admin/registrations"), true);
   assert.equal(isDashboardMenuPathActive("/dashboard/admin", "/dashboard/admin/registrations"), false);
 });

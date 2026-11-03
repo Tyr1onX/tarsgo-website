@@ -115,6 +115,11 @@ test("discussion reading navigation uses the loaded post and flat reply data wit
   assert.match(readingTimeline, /hotReplyID/);
   assert.match(thread, /groupCommunityReplies\(comments\)/);
   assert.match(thread, /community-reply-preview__items/);
+  assert.match(thread, /CommunityAvatar name=\{reply\.authorName\} src=\{reply\.authorAvatar\} size="small"/);
+  assert.match(thread, /new Map\(replies\.map\(\(reply\) => \[reply\.authorId, reply\]\)\)/);
+  assert.match(thread, /state=\{\{ communityProfileReturnTo: profileReturnTo \}\}/);
+  assert.match(thread, /title=\{reply\.authorName\}/);
+  assert.doesNotMatch(thread, /community-reply-preview__avatars[^\n]*CommunityAuthorProfile/);
   assert.match(thread, /focusComment\(reply\.id\)/);
   assert.match(authorProfile, /communityProfileReturnTo: returnTo/);
   assert.equal(thread.match(/communityClient\.get\(/g)?.length, 1);
