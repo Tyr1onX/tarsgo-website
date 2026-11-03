@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { preserveCommunityReactionUpdates } from "./community-list-cache.ts";
+import { preserveCommunityReactionUpdates, refreshedCommunitySnapshot, clearCommunityLists, getCommunityListSnapshot, rememberCommunityList } from "./community-list-cache.ts";
 
 function post(overrides = {}) {
   return {
@@ -46,4 +46,31 @@ test("a refresh keeps its server reaction state when no local reaction changed",
   const fresh = [post({ likeCount: 8, likedByMe: true })];
 
   assert.deepEqual(preserveCommunityReactionUpdates(before, latest, fresh), fresh);
+});
+
+
+test("refresh replaces all retained pages and removes remote deletions", () => {
+  const snapshot = refreshedCommunitySnapshot([
+    { items: [post({ id: 3 }), post({ id: 2 })], page: 1, hasMore: true },
+    { items: [post({ id: 2 }), post({ id: 4 })], page: 2, hasMore: false },
+    { items: [post({ id: 99 })], page: 3, hasMore: false },
+  ]);
+  assert.deepEqual(snapshot.posts.map(item => item.id), [3, 2, 4]);
+  assert.equal(snapshot.page, 2);
+  assert.equal(snapshot.hasMore, false);
+});
+
+test("retained windows are bounded and expired snapshots are discarded", () => {
+  clearCommunityLists();
+  const originalNow = Date.now;
+  try {
+    Date.now = () => 1000;
+    rememberCommunityList("bounded", {posts: Array.from({length: 140}, (_, id) => post({id})), page: 7, hasMore: false});
+    const cached = getCommunityListSnapshot("bounded");
+    assert.equal(cached.posts.length, 100);
+    assert.equal(cached.page, 5);
+    assert.equal(cached.hasMore, true);
+    Date.now = () => 121001;
+    assert.equal(getCommunityListSnapshot("bounded"), undefined);
+  } finally { Date.now = originalNow; clearCommunityLists(); }
 });

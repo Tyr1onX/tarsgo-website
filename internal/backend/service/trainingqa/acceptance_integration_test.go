@@ -305,6 +305,18 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 	if err != nil || growthPage.GrowthProfile == nil || growthPage.GrowthProfile.Level != communityPost.Post.AuthorLevel {
 		t.Fatalf("homepage growth profile and author level disagree: page=%#v err=%v", growthPage, err)
 	}
+	listPayload, err := json.Marshal(growthPage.Items)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{`"body":`, `"attachments":`, `"authorLevel":`, `"authorPositions":`} {
+		if bytes.Contains(listPayload, []byte(key)) {
+			t.Fatalf("list includes detail-only field %s", key)
+		}
+	}
+	if len(communityPost.Post.Attachments) == 0 || communityPost.Post.Body == "" {
+		t.Fatal("detail lost body or attachments during list projection")
+	}
 	communityID := communityPost.Post.ID
 	questionIDs = append(questionIDs, communityID)
 	if err := db.Model(&model.User{}).Where("id = ?", operationsMember.ID).Update("team_identity_status", model.TeamIdentityFormalMember).Error; err != nil {

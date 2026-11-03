@@ -1,7 +1,7 @@
 import type { Assignment } from "~/lib/assignment-client";
 import type { GrowthProfile } from "~/lib/growth-client";
 import type { SkillGroupProgress } from "~/lib/skills-client";
-import type { CommunityPost } from "~/lib/community-client";
+import type { CommunityListItem } from "~/lib/community-client";
 import type { ExpeditionProject, ExpeditionProjectMilestone } from "~/lib/expedition-project-client";
 
 export const EXPEDITION_GROUPS = ["机械组", "电控组", "视觉组", "AI组", "运营组"] as const;
@@ -57,7 +57,7 @@ export function getPrimaryFacilityId(groupNames: readonly string[] | null | unde
   return "hangar";
 }
 
-export function getPublicFacilityFAQs(questions: readonly CommunityPost[] | null | undefined, groupName: string | null): CommunityPost[] {
+export function getPublicFacilityFAQs(questions: readonly CommunityListItem[] | null | undefined, groupName: string | null): CommunityListItem[] {
   if (!groupName) return [];
   return (questions ?? [])
     .filter((question) => question.groupName === groupName && question.visibility === "public" && question.isSolved && question.isFaq)
@@ -72,7 +72,7 @@ function isDashboardHref(href: string) {
 export function buildExpeditionChallenges(input: {
   assignments: readonly Assignment[];
   skillGroups: readonly SkillGroupProgress[];
-  questions: readonly CommunityPost[];
+  questions: readonly CommunityListItem[];
   profile: GrowthProfile | null;
   groupNames: readonly string[];
 }): ExpeditionChallenge[] {

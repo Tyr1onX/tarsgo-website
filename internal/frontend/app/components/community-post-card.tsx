@@ -3,7 +3,7 @@ import { Link, useLocation } from "react-router";
 
 import { CommunityIcon } from "~/components/community-icons";
 import { CommunityFeaturedMark } from "~/components/community-featured-mark";
-import { communityCategoryLabel, communityPostHref, formatCommunityDate, type CommunityPost } from "~/lib/community-client";
+import { communityCategoryLabel, communityPostHref, formatCommunityDate, type CommunityPost, type CommunityListItem } from "~/lib/community-client";
 
 export function CommunityAvatar({ name, src, size = "regular", className }: { name: string; src?: string; size?: "regular" | "small"; className?: string }) {
   const initial = Array.from(name.trim())[0] ?? "吉";
@@ -12,7 +12,7 @@ export function CommunityAvatar({ name, src, size = "regular", className }: { na
   </span>;
 }
 
-export function CommunityPostCard({ post }: { post: CommunityPost }) {
+export function CommunityPostCard({ post }: { post: CommunityListItem }) {
   const location = useLocation();
   const returnTo = `${location.pathname}${location.search}${location.hash}`;
   const postState = { communityReturnTo: returnTo };

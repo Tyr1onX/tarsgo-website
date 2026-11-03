@@ -67,6 +67,13 @@ export interface CommunityPost {
   attachments: CommunityAttachment[];
 }
 
+export type CommunityListItem = Pick<CommunityPost,
+  "id" | "groupId" | "groupName" | "category" | "title" | "visibility" |
+  "isSolved" | "isFaq" | "isPinned" | "isFeatured" | "isHidden" | "isLegacy" |
+  "createdAt" | "lastReplyAt" | "commentCount" | "viewCount" | "participants" |
+  "likeCount" | "likedByMe" | "savedByMe"
+>;
+
 export interface CommunityComment {
   id: number;
   parentPostId?: number;
@@ -113,7 +120,7 @@ export interface CommunityTopicRecommendations {
 }
 
 export interface CommunityPage {
-  items: CommunityPost[];
+  items: CommunityListItem[];
   page: number;
   hasMore: boolean;
   growthProfile?: CommunityGrowthProfile;
@@ -206,7 +213,7 @@ export const communityClient = {
     return result;
   },
   list: (filter: CommunityFilter) => apiRequest<CommunityPage>(`/api/community/posts?${queryString(filter)}`),
-  hot: (limit = 5) => apiRequest<CommunityPost[]>(`/api/community/hot?limit=${limit}`),
+  hot: (limit = 5) => apiRequest<CommunityListItem[]>(`/api/community/hot?limit=${limit}`),
   get: (id: number) => apiRequest<CommunityDetail>(`/api/community/posts/${id}`),
   related: (id: number) => apiRequest<CommunityTopicRecommendations>(`/api/community/posts/${id}/related`),
   create: (input: { category: CommunityCategory; title: string; body: string; files: File[]; uploadTokens?: string[] }) =>

@@ -11,7 +11,7 @@ import { expeditionEvolutionTargetLabel, expeditionProjectClient, type Expeditio
 import { hasSkillGroupAccess, hasTechnicalGroupAccess } from "~/lib/dashboard-navigation";
 import { getAuthUserName } from "~/lib/auth-client";
 import { skillsClient, skillStateLabel, type SkillGroupProgress } from "~/lib/skills-client";
-import { communityClient, communityPostHref, formatCommunityDate, type CommunityPost } from "~/lib/community-client";
+import { communityClient, communityPostHref, formatCommunityDate, type CommunityListItem } from "~/lib/community-client";
 import { FACILITIES, type FacilityInfo } from "~/components/expedition/facilities";
 import { WorldMap } from "~/components/expedition/world-map";
 import { InteriorScene, getSceneDevices } from "~/components/expedition/interior-scene";
@@ -25,8 +25,8 @@ interface ExpeditionData {
   profile: GrowthProfile | null;
   skills: SkillGroupProgress[];
   assignments: Assignment[];
-  questions: CommunityPost[];
-  faqs: CommunityPost[];
+  questions: CommunityListItem[];
+  faqs: CommunityListItem[];
   projects: ExpeditionProject[];
   loading: boolean;
   errors: { profile: boolean; skills: boolean; assignments: boolean; questions: boolean; faqs: boolean; projects: boolean };
@@ -138,13 +138,13 @@ export default function ExpeditionRoute() {
     const questionsRequest = technicalMember
       ? Promise.all(questionGroups.map((group) => communityClient.list({ groupId: group.groupId, mineOnly: true, status: "open", pageSize: 40 })))
         .then((values) => ({ value: values.flatMap((page) => page.items), error: false }))
-        .catch(() => ({ value: [] as CommunityPost[], error: true }))
-      : Promise.resolve({ value: [] as CommunityPost[], error: false });
+        .catch(() => ({ value: [] as CommunityListItem[], error: true }))
+      : Promise.resolve({ value: [] as CommunityListItem[], error: false });
     const faqsRequest = technicalMember
       ? Promise.all(questionGroups.map((group) => communityClient.list({ groupId: group.groupId, faqOnly: true, pageSize: 40 })))
         .then((values) => ({ value: values.flatMap((page) => page.items), error: false }))
-        .catch(() => ({ value: [] as CommunityPost[], error: true }))
-      : Promise.resolve({ value: [] as CommunityPost[], error: false });
+        .catch(() => ({ value: [] as CommunityListItem[], error: true }))
+      : Promise.resolve({ value: [] as CommunityListItem[], error: false });
     const projectsRequest = expeditionProjectClient.listMine().then((value) => ({ value, error: false })).catch(() => ({ value: [] as ExpeditionProject[], error: true }));
 
     void Promise.all([profileRequest, skillsRequest, assignmentsRequest, questionsRequest, faqsRequest, projectsRequest]).then(([profile, skills, assignments, questions, faqs, projects]) => {

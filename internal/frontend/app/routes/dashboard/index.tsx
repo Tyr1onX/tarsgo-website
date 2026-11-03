@@ -11,19 +11,19 @@ import {
   COMMUNITY_CATEGORIES,
   communityClient,
   communityPostHref,
-  type CommunityPost,
+  type CommunityListItem,
   type CommunityGrowthProfile,
   type CommunityCategory,
   type CommunitySort,
 } from "~/lib/community-client";
-import { clearCommunityLists, getCommunityListSnapshot, preserveCommunityReactionUpdates, rememberCommunityList } from "~/lib/community-list-cache";
+import { clearCommunityLists, getCommunityListSnapshot, preserveCommunityReactionUpdates, rememberCommunityList, refreshedCommunitySnapshot, COMMUNITY_CACHE_PAGE_SIZE } from "~/lib/community-list-cache";
 import "./community.css";
 
 export function meta() {
   return [{ title: "吉甲社区 | TARSGO" }];
 }
 
-const PAGE_SIZE = 20;
+const PAGE_SIZE = COMMUNITY_CACHE_PAGE_SIZE;
 type CommunityRetry = { kind: "first" } | { kind: "more" };
 
 function readCategory(value: string | null): CommunityCategory | "" {
@@ -48,7 +48,7 @@ export default function DashboardIndex() {
   const [loadedCacheKey, setLoadedCacheKey] = useState(cacheKey);
   const [queryDraft, setQueryDraft] = useState(query);
   const [composerOpen, setComposerOpen] = useState(false);
-  const [posts, setPosts] = useState<CommunityPost[]>(() => getCommunityListSnapshot(cacheKey)?.posts ?? []);
+  const [posts, setPosts] = useState<CommunityListItem[]>(() => getCommunityListSnapshot(cacheKey)?.posts ?? []);
   const [growthProfile, setGrowthProfile] = useState<CommunityGrowthProfile | null>(null);
   const [page, setPage] = useState(() => getCommunityListSnapshot(cacheKey)?.page ?? 1);
   const [hasMore, setHasMore] = useState(() => getCommunityListSnapshot(cacheKey)?.hasMore ?? false);
@@ -85,20 +85,20 @@ export default function DashboardIndex() {
     setRetry(null);
 
     try {
-      const result = await communityClient.list({ sort, category, q: query, saved: savedOnly, page: 1, pageSize: PAGE_SIZE, includeGrowth: true });
+      const pageCount = keepCachedPosts && cached ? cached.page : 1;
+      const pages = await Promise.all(Array.from({ length: pageCount }, (_, index) =>
+        communityClient.list({ sort, category, q: query, saved: savedOnly, page: index + 1, pageSize: PAGE_SIZE, includeGrowth: index === 0 }),
+      ));
       if (requestRef.current !== requestID) return;
-      setGrowthProfile(result.growthProfile ?? null);
+      setGrowthProfile(pages[0].growthProfile ?? null);
+      const result = refreshedCommunitySnapshot(pages);
       const latest = keepCachedPosts ? getCommunityListSnapshot(cacheKey) ?? cached : undefined;
-      const freshItems = preserveCommunityReactionUpdates(cached?.posts ?? [], latest?.posts ?? [], result.items);
-      const postsToKeep = keepCachedPosts && latest
-        ? [...freshItems, ...latest.posts.filter((post) => !freshItems.some((fresh) => fresh.id === post.id))]
-        : freshItems;
-      const nextPage = keepCachedPosts && latest ? latest.page : 1;
-      const nextHasMore = nextPage > 1 && latest ? latest.hasMore : result.hasMore;
-      setPosts(postsToKeep);
-      setHasMore(nextHasMore);
-      setPage(nextPage);
-      rememberCommunityList(cacheKey, { posts: postsToKeep, page: nextPage, hasMore: nextHasMore });
+      const freshItems = preserveCommunityReactionUpdates(cached?.posts ?? [], latest?.posts ?? [], result.posts)
+        .filter((post) => !savedOnly || post.savedByMe);
+      setPosts(freshItems);
+      setHasMore(result.hasMore);
+      setPage(result.page);
+      rememberCommunityList(cacheKey, { posts: freshItems, page: result.page, hasMore: result.hasMore });
     } catch (cause) {
       if (requestRef.current !== requestID) return;
       setError(cause instanceof Error ? cause.message : "社区内容暂时无法读取。");
