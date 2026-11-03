@@ -47,7 +47,20 @@ func (h *WeeklyReportHandler) GetDashboard(c *gin.Context) {
 		writeAPIError(c, http.StatusUnauthorized, "请先登录")
 		return
 	}
-	result, err := h.service.GetDashboard(c.Request.Context(), userID, roleName)
+	var result *weeklyreport.Dashboard
+	var err error
+	if c.Query("paged") == "true" {
+		paged, ok := h.service.(interface {
+			GetDashboardPage(context.Context, uint64, string, weeklyreport.HistoryQuery) (*weeklyreport.Dashboard, error)
+		})
+		if !ok {
+			writeAPIError(c, http.StatusServiceUnavailable, "分页服务暂不可用")
+			return
+		}
+		result, err = paged.GetDashboardPage(c.Request.Context(), userID, roleName, weeklyreport.HistoryQuery{Cursor: c.Query("cursor"), WeekStart: c.Query("weekStart")})
+	} else {
+		result, err = h.service.GetDashboard(c.Request.Context(), userID, roleName)
+	}
 	if err != nil {
 		h.handleServiceError(c, err)
 		return

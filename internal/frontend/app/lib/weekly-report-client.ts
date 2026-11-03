@@ -37,6 +37,7 @@ export interface WeeklyReportDashboard {
   currentWeekStart: string;
   canViewTeam: boolean;
   reports: WeeklyReport[];
+  nextCursor?: string;
 }
 
 export interface WeeklyReportTeamMember {
@@ -56,8 +57,11 @@ export interface WeeklyReportTeamWeek {
   members: WeeklyReportTeamMember[];
 }
 
-export function getWeeklyReportDashboard(): Promise<WeeklyReportDashboard> {
-  return apiRequest<WeeklyReportDashboard>("/api/weekly-reports");
+export function getWeeklyReportDashboard(cursor = "", weekStart = ""): Promise<WeeklyReportDashboard> {
+  const query = new URLSearchParams({ paged: "true" });
+  if (cursor) query.set("cursor", cursor);
+  if (weekStart) query.set("weekStart", weekStart);
+  return apiRequest<WeeklyReportDashboard>(`/api/weekly-reports?${query}`);
 }
 
 export function getWeeklyReportTeamWeek(groupId: number, weekStart: string): Promise<WeeklyReportTeamWeek> {

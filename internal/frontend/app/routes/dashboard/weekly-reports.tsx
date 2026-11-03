@@ -55,6 +55,9 @@ export default function WeeklyReportsRoute() {
   const [teamWeekStart, setTeamWeekStart] = useState("");
   const [teamGroupId, setTeamGroupId] = useState("");
   const [loading, setLoading] = useState(true);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const historyRequestId = useRef(0);
   const [saving, setSaving] = useState(false);
   const [teamLoading, setTeamLoading] = useState(false);
   const [teamExpanded, setTeamExpanded] = useState(false);
@@ -92,12 +95,34 @@ export default function WeeklyReportsRoute() {
     }
   }, []);
 
+  async function loadOlderReports() {
+    if (!dashboard?.nextCursor || historyLoading) return;
+    const id = ++historyRequestId.current;
+    setHistoryLoading(true);
+    setHistoryError("");
+    try {
+      const page = await getWeeklyReportDashboard(dashboard.nextCursor);
+      if (id !== historyRequestId.current) return;
+      setDashboard(current => {
+        if (!current) return current;
+        const known = new Set(current.reports.map(report => report.id));
+        const reports = [...current.reports, ...page.reports.filter(report => !known.has(report.id))]
+          .sort((a, b) => b.weekStart.localeCompare(a.weekStart) || b.id - a.id);
+        return { ...current, nextCursor: page.nextCursor, reports };
+      });
+    } catch (cause) {
+      if (id === historyRequestId.current) setHistoryError(describeError(cause, "历史周报加载失败"));
+    } finally {
+      if (id === historyRequestId.current) setHistoryLoading(false);
+    }
+  }
+
   const loadDashboard = useCallback(async () => {
     const requestId = ++dashboardRequestId.current;
     setLoading(true);
     setLoadError("");
     try {
-      const result = await getWeeklyReportDashboard();
+      const result = await getWeeklyReportDashboard("", requestedWeekStart);
       if (requestId === dashboardRequestId.current) {
         setDashboard(result);
         const requestedReport = result.reports.find((report) => report.weekStart === requestedWeekStart);
@@ -115,6 +140,9 @@ export default function WeeklyReportsRoute() {
 
   useEffect(() => {
     teamRequestId.current++;
+    historyRequestId.current++;
+    setHistoryLoading(false);
+    setHistoryError("");
     setDashboard(null);
     setSelectedReportKey("current");
     setTeamWeek(null);
@@ -125,6 +153,7 @@ export default function WeeklyReportsRoute() {
     setTeamError("");
     setTeamExpanded(false);
     void loadDashboard();
+    return () => { dashboardRequestId.current++; historyRequestId.current++; };
   }, [currentUser.id, loadDashboard]);
 
   useEffect(() => {
@@ -387,6 +416,7 @@ export default function WeeklyReportsRoute() {
               <div className="weekly-report__history-heading">
                 <h3 id="weekly-report-history-title">历史记录</h3>
               </div>
+              {historyError ? <p role="alert">{historyError}</p> : null}
               <div className="weekly-report__history-list">
                 {dashboard.reports.map((report) => {
                   const isSelected = report.id === selectedReport?.id;
@@ -406,6 +436,7 @@ export default function WeeklyReportsRoute() {
                   </button>;
                 })}
               </div>
+              {dashboard.nextCursor ? <button type="button" className="admin-button admin-button--quiet" disabled={historyLoading} onClick={() => void loadOlderReports()}>{historyLoading ? "读取中…" : historyError ? "重试加载历史" : "加载更早周报"}</button> : null}
             </section> : null}
           </section>
 
