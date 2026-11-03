@@ -44,14 +44,11 @@ func TestAdminUserListPassesAllAccountsToggleToService(t *testing.T) {
 	}
 }
 
-func TestAdminUserTeamIdentityBindsManualEvidenceAndReason(t *testing.T) {
+func TestAdminUserTeamIdentityBindsSelectedStatus(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
-	body, _ := json.Marshal(map[string]any{
-		"status": "formal_member", "reason": "正式考核通过，负责人已核验",
-		"assessmentPassed": true, "leaderConfirmed": true,
-	})
+	body, _ := json.Marshal(map[string]any{"status": "formal_member"})
 	ctx.Request = httptest.NewRequest(http.MethodPatch, "/api/admin/users/12/team-identity", bytes.NewReader(body))
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	ctx.Params = gin.Params{{Key: "id", Value: "12"}}
@@ -63,8 +60,8 @@ func TestAdminUserTeamIdentityBindsManualEvidenceAndReason(t *testing.T) {
 	if recorder.Code != http.StatusOK {
 		t.Fatalf("UpdateTeamIdentity status = %d, want %d: %s", recorder.Code, http.StatusOK, recorder.Body.String())
 	}
-	if service.userID != 12 || service.actor.ID != 3 || service.input.Status != model.TeamIdentityFormalMember || service.input.Reason != "正式考核通过，负责人已核验" || !service.input.AssessmentPassed || !service.input.LeaderConfirmed {
-		t.Fatalf("handler did not pass the administrator evidence to the service: %#v", service)
+	if service.userID != 12 || service.actor.ID != 3 || service.input.Status != model.TeamIdentityFormalMember {
+		t.Fatalf("handler did not pass the selected identity to the service: %#v", service)
 	}
 }
 
@@ -95,7 +92,7 @@ type captureTeamIdentityService struct {
 
 func (s *captureTeamIdentityService) UpdateTeamIdentity(_ context.Context, actor adminuser.Actor, userID uint64, input adminuser.UpdateTeamIdentityInput) (*adminuser.UserDetail, error) {
 	s.actor, s.userID, s.input = actor, userID, input
-	return &adminuser.UserDetail{ID: userID, TeamIdentityStatus: input.Status, TeamIdentityHistory: []adminuser.TeamIdentityHistoryItem{}}, nil
+	return &adminuser.UserDetail{ID: userID, TeamIdentityStatus: input.Status}, nil
 }
 
 func (s *captureListUsersService) ListUsers(_ context.Context, _ adminuser.Actor, input adminuser.ListUsersInput) (*adminuser.ListUsersResult, error) {

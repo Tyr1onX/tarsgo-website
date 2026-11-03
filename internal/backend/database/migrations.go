@@ -15,6 +15,24 @@ type migration struct {
 	apply   func(db *gorm.DB) error
 }
 
+// teamIdentityChangeV41 preserves the schema created by historical migration 41.
+// It is not used by runtime identity management and migration 45 drops the table.
+type teamIdentityChangeV41 struct {
+	ID                           uint64    `gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
+	UserID                       uint64    `gorm:"column:user_id;type:bigint unsigned;not null;index:idx_team_identity_user_created"`
+	ActorUserID                  uint64    `gorm:"column:actor_user_id;type:bigint unsigned;not null"`
+	ActorName                    string    `gorm:"column:actor_name;size:120;not null;default:''"`
+	PreviousStatus               string    `gorm:"column:previous_status;size:32;not null"`
+	NextStatus                   string    `gorm:"column:next_status;size:32;not null"`
+	Reason                       string    `gorm:"type:varchar(500);not null"`
+	AssessmentPassed             bool      `gorm:"column:assessment_passed;not null;default:false"`
+	LeaderConfirmed              bool      `gorm:"column:leader_confirmed;not null;default:false"`
+	PriorFormalMembershipConfirm bool      `gorm:"column:prior_formal_membership_confirmed;not null;default:false"`
+	CreatedAt                    time.Time `gorm:"column:created_at;type:datetime;not null;default:CURRENT_TIMESTAMP;index:idx_team_identity_user_created"`
+}
+
+func (teamIdentityChangeV41) TableName() string { return "team_identity_changes" }
+
 func migrationRegistry(appEnv string) []migration {
 	return []migration{
 		{version: 1, apply: func(db *gorm.DB) error { return AutoMigrate(db, appEnv) }},
@@ -186,7 +204,12 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 44, apply: func(db *gorm.DB) error {
 			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.EmailCode{}, &model.User{})
 		}},
+		{version: 45, apply: dropTeamIdentityChanges},
 	}
+}
+
+func dropTeamIdentityChanges(db *gorm.DB) error {
+	return db.Exec("DROP TABLE IF EXISTS team_identity_changes").Error
 }
 
 func migrateCommunityAvatarExperienceBackfill(db *gorm.DB) error {
@@ -201,7 +224,7 @@ func migrateCommunityAvatarExperienceBackfill(db *gorm.DB) error {
 }
 
 func migrateTeamIdentity(db *gorm.DB) error {
-	if err := db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.TeamIdentityChange{}); err != nil {
+	if err := db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&teamIdentityChangeV41{}); err != nil {
 		return err
 	}
 	if !db.Migrator().HasColumn(&model.User{}, "TeamIdentityStatus") {

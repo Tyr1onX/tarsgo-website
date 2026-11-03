@@ -265,7 +265,10 @@ test("migration 24 adds only the teaching-material metadata table", () => {
 
 test("migration 25 only adds nullable idempotency metadata to existing assignments", () => {
   const start = migrations.indexOf("{version: 25");
-  const migration25 = migrations.slice(start);
+  const end = migrations.indexOf("\n\t\t{version: 26", start);
+  const helperStart = migrations.indexOf("func migrateAssignmentPublishIdempotency");
+  const helperEnd = migrations.indexOf("\nfunc ", helperStart + 1);
+  const migration25 = `${migrations.slice(start, end)}\n${migrations.slice(helperStart, helperEnd)}`;
   assert.match(migration25, /migrateAssignmentPublishIdempotency/);
   assert.match(migration25, /AddColumn\(&model\.Assignment\{\}, "PublishRequestID"\)/);
   assert.match(migration25, /AddColumn\(&model\.Assignment\{\}, "PublishRequestHash"\)/);

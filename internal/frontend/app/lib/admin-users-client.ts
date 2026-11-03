@@ -47,18 +47,6 @@ export interface AdminUserDetail {
   createdAt: string;
   updatedAt: string;
 	teamIdentityStatus: import("~/components/community-team-identity").TeamIdentityStatus;
-	teamIdentityHistory: Array<{
-		id: number;
-		actorUserId: number;
-		actorName: string;
-		previousStatus: import("~/components/community-team-identity").TeamIdentityStatus;
-		nextStatus: import("~/components/community-team-identity").TeamIdentityStatus;
-		reason: string;
-		assessmentPassed: boolean;
-		leaderConfirmed: boolean;
-		priorFormalMembershipConfirmed: boolean;
-		createdAt: string;
-	}>;
   realName?: string | null;
   phone?: string | null;
   currentRecruitmentGroupId?: number | null;
@@ -121,10 +109,6 @@ export interface AdminUserUpsertInput {
 
 export interface UpdateAdminUserTeamIdentityInput {
 	status: import("~/components/community-team-identity").TeamIdentityStatus;
-	reason: string;
-	assessmentPassed?: boolean;
-	leaderConfirmed?: boolean;
-	priorFormalMembershipConfirmed?: boolean;
 }
 
 export interface CreateAdminUserInput extends AdminUserUpsertInput {
