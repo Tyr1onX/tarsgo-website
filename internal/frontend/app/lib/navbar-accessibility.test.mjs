@@ -48,7 +48,8 @@ test("the header uses a role-aware identity menu and keeps account switching key
   assert.match(navbar, /resolveGroupIdentity/);
   assert.match(navbar, /getDashboardSectionMenu\(visibleUser\)/);
   assert.match(navbar, /社区/);
-  assert.match(navbar, /切换或添加账号/);
+  assert.match(navbar, /切换账号/);
+  assert.match(navbar, /退出登录/);
   assert.match(navbar, /getAccountSwitchHref/);
   assert.match(navbar, /subscribeAccountSessionChange/);
   assert.match(navbar, /profileButtonRef\.current\?\.focus\(\)/);
@@ -57,14 +58,14 @@ test("the header uses a role-aware identity menu and keeps account switching key
   assert.match(navbar, /跟随系统主题/);
   assert.match(navbar, /setPreference\("system"\)/);
   assert.match(navbar, /className="navbar-mobile-account"/);
-  assert.match(navbar, /className="navbar-mobile-account__name"/);
+  assert.match(navbar, /className="navbar-mobile-account__name navbar-account-header__name"/);
   assert.match(themeControl, /aria-label=\{`切换到\$\{nextTheme/);
   assert.match(themeControl, /onClick=\{\(\) => setPreference\(nextTheme\)\}/);
   assert.match(styles, /\.theme-control--navbar \.theme-control__toggle\s*\{[\s\S]*?width:\s*2\.75rem;[\s\S]*?height:\s*2\.75rem;/);
   assert.match(styles, /\.navbar-menu-toggle,\s*\.theme-control--navbar \.theme-control__toggle\s*\{[\s\S]*?width:\s*2\.75rem;[\s\S]*?height:\s*2\.75rem;/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)\s*\{[\s\S]*?\.theme-control__toggle svg[\s\S]*?transition-duration:\s*0\.01ms !important;/);
   assert.match(styles, /\.navbar-group-badge\s*\{[\s\S]*?border-radius:\s*999px/);
-  assert.match(styles, /\.navbar-mobile-account__actions\s*\{[\s\S]*?grid-template-columns:\s*repeat\(3/);
+  assert.match(styles, /\.navbar-mobile-account__actions\s*\{[^}]*?flex-direction:\s*column/);
 });
 
 test("authentication loading, guest, and member states stay distinct and reserve identity space", () => {
