@@ -47,10 +47,10 @@ test("leave identity follows the canonical name and keeps its server-side access
   assert.match(profile, /leaveClient\.profile\(\)/);
   assert.match(profile, /leaveClient\.colleges\(\)/);
   assert.match(profile, /\^\[0-9\]\{8\}\$/);
-  assert.match(api, /leaveAccessAPI\.Use\(middleware\.RequireAuthenticated\(authService\)\)/);
-  assert.match(api, /leaveAccessAPI\.GET\("\/leave\/profile"/);
-  assert.match(api, /leaveAccessAPI\.PUT\("\/leave\/profile", requireSameOriginRequest\(cfg\)/);
-  assert.match(api, /leaveMemberAPI\.Use\(middleware\.RequireAuthenticated\(authService\), middleware\.RequireLeaveAccess\(leaveService\)\)/);
+  assert.match(api, /leaveAccessAPI\.Use\(middleware\.RequireAuthenticated\(authService\), middleware\.RequireWorkbench\(\)\)/);
+  assert.match(api, /api\.GET\("\/leave\/profile"/);
+  assert.match(api, /api\.PUT\("\/leave\/profile", middleware\.RequireAuthenticated\(authService\), requireSameOriginRequest\(cfg\)/);
+  assert.match(api, /leaveMemberAPI\.Use\(middleware\.RequireAuthenticated\(authService\), middleware\.RequireWorkbench\(\), middleware\.RequireLeaveAccess\(leaveService\)\)/);
   assert.match(leave, /onClick=\{\(\) => openMyProfile\("settings"\)\}>完善学籍资料/);
   assert.match(layout, /openMyProfile: \(tab\?\: "overview" \| "settings" \| "badges"\) => void/);
   assert.match(layout, /refreshAccountProfile: \(\) => void/);

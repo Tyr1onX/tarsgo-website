@@ -49,7 +49,7 @@ func TestPasswordResetRequestDoesNotSendForDisabledAccount(t *testing.T) {
 	mailer := &passwordResetMailerStub{}
 	service := &Service{db: db, authConfig: config.AuthConfig{}, now: time.Now, mailer: mailer}
 	expectBootstrapCompleted(mock)
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `users` WHERE email = ? ORDER BY `users`.`id` LIMIT ?")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT users.*, "+strings.Join(strings.Fields(model.WorkbenchAccessSQL), " ")+" FROM `users` WHERE email = ? ORDER BY `users`.`id` LIMIT ?")).
 		WithArgs("disabled@example.test", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "role_id", "email", "status"}).AddRow(uint64(19), uint64(3), "disabled@example.test", model.UserStatusDisabled))
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `roles` WHERE `roles`.`id` = ?")).
@@ -73,7 +73,7 @@ func TestPasswordResetMailFailureKeepsGenericSuccessAndSafeLogs(t *testing.T) {
 	now := time.Date(2026, 11, 2, 10, 0, 0, 0, time.UTC)
 	service := &Service{db: db, authConfig: config.AuthConfig{}, now: func() time.Time { return now }, mailer: mailer}
 	expectBootstrapCompleted(mock)
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `users` WHERE email = ? ORDER BY `users`.`id` LIMIT ?")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT users.*, "+strings.Join(strings.Fields(model.WorkbenchAccessSQL), " ")+" FROM `users` WHERE email = ? ORDER BY `users`.`id` LIMIT ?")).
 		WithArgs("member@example.test", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "role_id", "email", "status"}).AddRow(uint64(7), uint64(3), "member@example.test", model.UserStatusEnabled))
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `roles` WHERE `roles`.`id` = ?")).
@@ -231,7 +231,7 @@ func TestPasswordResetInvalidatesLegacyJWTIssuedBeforeReset(t *testing.T) {
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `auth_sessions` WHERE token_hash = ? ORDER BY `auth_sessions`.`id` LIMIT ?")).
 		WithArgs(digestSecret(token), 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "token_hash", "expires_at", "revoked_at", "created_at", "updated_at"}))
-	mock.ExpectQuery("SELECT \\* FROM `users` WHERE `users`.`id` = \\? ORDER BY `users`.`id` LIMIT \\?").
+	mock.ExpectQuery("SELECT users\\.\\*, .* AS workbench_access FROM `users` WHERE `users`.`id` = \\? ORDER BY `users`.`id` LIMIT \\?").
 		WithArgs(uint64(7), 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "role_id", "name", "email", "status", "password_reset_at"}).
 			AddRow(uint64(7), uint64(3), "member", "member@example.test", model.UserStatusEnabled, now))

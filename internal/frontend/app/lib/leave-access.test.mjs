@@ -23,13 +23,13 @@ test("leave identity details move into personal settings without duplicating the
   assert.doesNotMatch(route, /<form onSubmit=\{saveProfile\}/);
   assert.match(route, /onClick=\{\(\) => openMyProfile\("settings"\)\}>完善学籍资料<\/button>/);
   assert.match(route, /profileRevision/);
-  assert.match(api, /leaveAccessAPI\.GET\("\/leave\/profile", leaveHandler\.GetProfile\)/);
-  assert.match(api, /leaveAccessAPI\.PUT\("\/leave\/profile", requireSameOriginRequest\(cfg\), leaveHandler\.SaveProfile\)/);
+  assert.match(api, /api\.GET\("\/leave\/profile", middleware\.RequireAuthenticated\(authService\), leaveHandler\.GetProfile\)/);
+  assert.match(api, /api\.PUT\("\/leave\/profile", middleware\.RequireAuthenticated\(authService\), requireSameOriginRequest\(cfg\), leaveHandler\.SaveProfile\)/);
   assert.doesNotMatch(api, /leaveMemberAPI\.(?:GET|PUT)\("\/leave\/profile"/);
 });
 
 test("member leave APIs are guarded and leave-access review is super-admin only", () => {
-  assert.match(api, /leaveMemberAPI\.Use\(middleware\.RequireAuthenticated\(authService\), middleware\.RequireLeaveAccess\(leaveService\)\)/);
+  assert.match(api, /leaveMemberAPI\.Use\(middleware\.RequireAuthenticated\(authService\), middleware\.RequireWorkbench\(\), middleware\.RequireLeaveAccess\(leaveService\)\)/);
   assert.match(api, /leaveAccessAPI\.GET\("\/leave\/access", leaveHandler\.GetLeaveAccess\)/);
   assert.match(api, /leaveAccessAPI\.POST\("\/leave\/access\/request"/);
   assert.match(api, /superAdminAPI\.Use\(middleware\.RequireSuperAdmin\(authService\)\)[\s\S]*?superAdminAPI\.GET\("\/leave\/access-requests", leaveHandler\.ListPendingLeaveAccessRequests\)/);

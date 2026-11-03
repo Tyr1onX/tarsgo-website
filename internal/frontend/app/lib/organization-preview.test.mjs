@@ -34,8 +34,8 @@ test("organization directory retains all server-owned positions without duplicat
   }
 });
 
-test("all authenticated members can read the workbench directory, while the legacy admin endpoint stays restricted", () => {
-  assert.match(router, /teamAPI\.Use\(middleware\.RequireAuthenticated\(authService\)\)[\s\S]*?teamAPI\.GET\("\/organization-preview", handler\.OrganizationPreview\(db\)\)/);
+test("eligible workbench members can read the workbench directory, while the legacy admin endpoint stays restricted", () => {
+  assert.match(router, /teamAPI\.Use\(middleware\.RequireAuthenticated\(authService\), middleware\.RequireWorkbench\(\)\)[\s\S]*?teamAPI\.GET\("\/organization-preview", handler\.OrganizationPreview\(db\)\)/);
   assert.match(router, /superAdminAPI\.Use\(middleware\.RequireSuperAdmin\(authService\)\)[\s\S]*?superAdminAPI\.GET\("\/organization-preview", handler\.OrganizationPreview\(db\)\)/);
   assert.match(routes, /route\("workbench\/organization", "routes\/organization-preview\.tsx"\)/);
   assert.match(routes, /route\("team", "routes\/dashboard\/team-redirect\.tsx"\)/);

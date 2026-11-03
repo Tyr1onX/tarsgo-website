@@ -34,7 +34,7 @@ test("selecting another SOP resolves that document in the existing reading pane"
 
 test("all SOPs use the same authorized catalogue and document renderer", () => {
   assert.match(router, /authenticatedAPI\.Use\(middleware\.RequireAuthenticated\(authService\)\)/);
-  assert.match(router, /authenticatedAPI\.GET\("\/work-manual\/operations", workManualHandler\.OperationsCatalogue\)/);
+  assert.match(router, /workbenchAPI\.GET\("\/work-manual\/operations", workManualHandler\.OperationsCatalogue\)/);
   assert.match(service, /authorizeOperations\(ctx, actor\)/);
   assert.match(guide, /hasOperationsWorkManualAccess\(currentUser, groupResolution\?\.groups\)/);
   assert.match(guide, /apiRequest<OperationsCatalogue>\("\/api\/work-manual\/operations"\)/);

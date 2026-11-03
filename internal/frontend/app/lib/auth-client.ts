@@ -16,6 +16,8 @@ export interface AuthRole {
 }
 
 export interface AuthUser {
+  workbenchAccess?: boolean;
+  teamIdentityStatus?: string;
   id: number;
   email: string;
   phone?: string | null;
