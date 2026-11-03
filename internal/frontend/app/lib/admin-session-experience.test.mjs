@@ -18,7 +18,7 @@ test("account filtering uses database group options and a concrete group query",
   assert.doesNotMatch(route, /groupId\s*===\s*(1|2|3|4|5)/);
 });
 
-test("leave actionable totals remain in the admin home instead of the navigation", async () => {
+test("paused school leave does not load in the admin home or navigation", async () => {
   const [layout, leave, adminDashboard] = await Promise.all([
     read("routes/dashboard/layout.tsx"),
     read("lib/leave-client.ts"),
@@ -26,8 +26,8 @@ test("leave actionable totals remain in the admin home instead of the navigation
   ]);
   assert.match(leave, /pendingApprovalCount: number/);
   assert.match(leave, /actionableCount: number/);
-  assert.match(adminDashboard, /leaveClient\.schoolSummary\(\)/);
-  assert.match(adminDashboard, /state\.leaveActionableCount/);
+  assert.doesNotMatch(adminDashboard, /leaveClient|schoolSummary/);
+  assert.doesNotMatch(adminDashboard, /leaveActionableCount/);
   assert.doesNotMatch(layout, /leaveActionableState|leaveClient|subscribeLeaveSummaryChange|请假待审批/);
   assert.doesNotMatch(layout, /summary\.unreadCount/);
 });

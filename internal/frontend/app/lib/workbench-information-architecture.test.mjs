@@ -34,14 +34,14 @@ test("the personal landing route is a status-first overview backed by existing u
   assert.doesNotMatch(personalWorkbench, /课程表|工作手册/);
 });
 
-test("the management landing route prioritizes real candidate, assignment, and leave work", () => {
+test("the management landing route prioritizes real candidate and assignment work", () => {
   assert.match(adminWorkbench, /getAdminWorkbenchSummary\(currentUser\.id\)/);
   assert.match(adminWorkbench, /assignmentClient\.adminTodos\(\)/);
-  assert.match(adminWorkbench, /leaveClient\.schoolSummary\(\)/);
+  assert.doesNotMatch(adminWorkbench, /leaveClient|schoolSummary/);
   assert.match(adminWorkbench, /候选人待初筛/);
   assert.match(adminWorkbench, /候选人待面试/);
   assert.match(adminWorkbench, /作业待批改/);
-  assert.match(adminWorkbench, /请假事项待处理/);
+  assert.doesNotMatch(adminWorkbench, /请假事项待处理/);
   assert.match(adminWorkbench, /目前没有待处理事项/);
   assert.doesNotMatch(adminWorkbench, /listAdminInterviewSessions|近期面试场次|招新总览/);
   assert.match(navigation, /label: "招新"/);

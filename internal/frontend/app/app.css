@@ -1,5 +1,6 @@
 @import "tailwindcss";
 @import "./admin-design.css";
+@import "./fonts.css";
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif,
