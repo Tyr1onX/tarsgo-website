@@ -128,6 +128,11 @@ test("management functions appear in three permission-filtered business groups",
 });
 
 test("management deep links keep role restrictions without broadening page access", () => {
+  for (const path of ["/dashboard/admin", "/dashboard/admin/"]) {
+    assert.equal(canAccessDashboardAdminPath("admin", path), true);
+    assert.equal(canAccessDashboardAdminPath("super_admin", path), true);
+    assert.equal(canAccessDashboardAdminPath("user", path), false);
+  }
   assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/registrations"), true);
   assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/recruitment"), false);
   assert.equal(canAccessDashboardAdminPath("super_admin", "/dashboard/admin/recruitment-analytics"), true);
