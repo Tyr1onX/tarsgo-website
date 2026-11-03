@@ -25,6 +25,10 @@ type sessionRenewer interface {
 	RenewAccountSession(ctx context.Context, sessionToken, vaultToken string) (*auth.SessionRenewal, error)
 }
 
+type currentUserRenewalResolver interface {
+	CurrentUserAndRenewal(ctx context.Context, sessionToken, vaultToken string) (*auth.CurrentUserRenewalResult, error)
+}
+
 // OptionalAuthenticated attaches a valid session when one is present while
 // allowing public pages to continue as anonymous visitors.
 func OptionalAuthenticated(service sessionReader) gin.HandlerFunc {
@@ -35,27 +39,27 @@ func OptionalAuthenticated(service sessionReader) gin.HandlerFunc {
 			return
 		}
 
-		user, err := service.CurrentUser(c.Request.Context(), token)
-		if err != nil {
+		user, authErr, renewErr := currentUserAndRenewSession(c, service, token)
+		if authErr != nil {
 			var serviceErr *auth.ServiceError
-			if errors.As(err, &serviceErr) {
+			if errors.As(authErr, &serviceErr) {
 				if serviceErr.Status == http.StatusUnauthorized || serviceErr.Status == http.StatusForbidden {
 					clearAuthCookie(c, service)
 					c.Next()
 					return
 				}
-				logSessionServerError(c, "optional session lookup", err, serviceErr.Status)
+				logSessionServerError(c, "optional session lookup", authErr, serviceErr.Status)
 				writeAPIError(c, serviceErr.Status, serviceErr.Message)
 				c.Abort()
 				return
 			}
-			logSessionServerError(c, "optional session lookup", err, http.StatusInternalServerError)
+			logSessionServerError(c, "optional session lookup", authErr, http.StatusInternalServerError)
 			writeAPIError(c, http.StatusInternalServerError, "服务器内部错误")
 			c.Abort()
 			return
 		}
 
-		if renewErr := renewSessionCookies(c, service, token); renewErr != nil {
+		if renewErr != nil {
 			var serviceErr *auth.ServiceError
 			if errors.As(renewErr, &serviceErr) && (serviceErr.Status == http.StatusUnauthorized || serviceErr.Status == http.StatusForbidden) {
 				clearAuthCookie(c, service)
@@ -78,26 +82,26 @@ func RequireAuthenticated(service sessionReader) gin.HandlerFunc {
 			return
 		}
 
-		user, err := service.CurrentUser(c.Request.Context(), token)
-		if err != nil {
+		user, authErr, renewErr := currentUserAndRenewSession(c, service, token)
+		if authErr != nil {
 			var serviceErr *auth.ServiceError
-			if errors.As(err, &serviceErr) {
+			if errors.As(authErr, &serviceErr) {
 				if serviceErr.Status == http.StatusUnauthorized || serviceErr.Status == http.StatusForbidden {
 					clearAuthCookie(c, service)
 				}
-				logSessionServerError(c, "session lookup", err, serviceErr.Status)
+				logSessionServerError(c, "session lookup", authErr, serviceErr.Status)
 				writeAPIError(c, serviceErr.Status, serviceErr.Message)
 				c.Abort()
 				return
 			}
 
-			logSessionServerError(c, "session lookup", err, http.StatusInternalServerError)
+			logSessionServerError(c, "session lookup", authErr, http.StatusInternalServerError)
 			writeAPIError(c, http.StatusInternalServerError, "服务器内部错误")
 			c.Abort()
 			return
 		}
 
-		if renewErr := renewSessionCookies(c, service, token); renewErr != nil {
+		if renewErr != nil {
 			var serviceErr *auth.ServiceError
 			if errors.As(renewErr, &serviceErr) && (serviceErr.Status == http.StatusUnauthorized || serviceErr.Status == http.StatusForbidden) {
 				clearAuthCookie(c, service)
@@ -220,6 +224,33 @@ func renewSessionCookies(c *gin.Context, service sessionReader, sessionToken str
 	if err != nil || renewal == nil {
 		return err
 	}
+	applySessionRenewalCookies(c, service, sessionToken, vaultToken, renewal)
+	return nil
+}
+
+func currentUserAndRenewSession(c *gin.Context, service sessionReader, sessionToken string) (*auth.SessionUser, error, error) {
+	vaultToken, _ := c.Cookie(auth.AccountVaultCookieName)
+	if resolver, ok := service.(currentUserRenewalResolver); ok {
+		result, err := resolver.CurrentUserAndRenewal(c.Request.Context(), sessionToken, vaultToken)
+		if err != nil {
+			return nil, err, nil
+		}
+		if result == nil || result.User == nil {
+			return nil, &auth.ServiceError{Status: http.StatusInternalServerError, Message: "加载当前用户失败"}, nil
+		}
+		if result.RenewalError == nil && result.Renewal != nil {
+			applySessionRenewalCookies(c, service, sessionToken, vaultToken, result.Renewal)
+		}
+		return result.User, nil, result.RenewalError
+	}
+	user, err := service.CurrentUser(c.Request.Context(), sessionToken)
+	if err != nil {
+		return nil, err, nil
+	}
+	return user, nil, renewSessionCookies(c, service, sessionToken)
+}
+
+func applySessionRenewalCookies(c *gin.Context, service sessionReader, sessionToken, vaultToken string, renewal *auth.SessionRenewal) {
 	if renewal.AuthRenewed && renewal.AuthCookieMaxAgeSeconds > 0 {
 		c.SetSameSite(service.CookieSameSite())
 		c.SetCookie(service.CookieName(), sessionToken, renewal.AuthCookieMaxAgeSeconds, "/", "", service.CookieSecure(), true)
@@ -228,7 +259,6 @@ func renewSessionCookies(c *gin.Context, service sessionReader, sessionToken str
 		c.SetSameSite(service.CookieSameSite())
 		c.SetCookie(auth.AccountVaultCookieName, vaultToken, renewal.VaultCookieMaxAgeSeconds, "/", "", service.CookieSecure(), true)
 	}
-	return nil
 }
 
 func logSessionServerError(c *gin.Context, operation string, err error, status int) {
