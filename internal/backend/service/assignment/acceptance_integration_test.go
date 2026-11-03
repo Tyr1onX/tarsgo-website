@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -637,6 +638,27 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 		t.Fatalf("member could not resubmit a returned assignment while it was published: detail=%#v err=%v", resubmitted, err)
 	}
 	createdSubmissionIDs = append(createdSubmissionIDs, resubmitted.Submissions[1].ID)
+	// Compare the optimized list against the detail path after a returned first
+	// attempt and an unreviewed resubmission; old feedback must not win.
+	listed, err := service.ListMine(context.Background(), member)
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, item := range listed {
+		if item.ID != withdrawalAssignment.ID {
+			continue
+		}
+		found = true
+		if item.Status != "submitted" || item.LatestSubmission == nil || item.LatestSubmission.Attempt != 2 || !reflect.DeepEqual(item.LatestSubmission, resubmitted.Assignment.LatestSubmission) {
+			t.Fatalf("list differs from latest detail: %#v / %#v", item, resubmitted.Assignment)
+		}
+	}
+	if !found {
+		t.Fatal("published resubmission missing from list")
+	}
+	mustListAssignments(t, service, admin, groupIDs[groupMechanical])
+
 	if _, err := service.Review(context.Background(), admin, resubmitted.Submissions[1].ID, ReviewInput{Score: 92, Decision: model.AssignmentReviewPassed, Comment: "[TEST_ASSIGNMENT] 重做后通过"}); err != nil {
 		t.Fatalf("pass the synthetic resubmission: %v", err)
 	}
@@ -792,6 +814,16 @@ func mustListAssignments(t *testing.T, service *Service, actor Actor, groupID ui
 	items, err := service.ListAdmin(context.Background(), actor, groupID)
 	if err != nil {
 		t.Fatalf("list group assignments: %v", err)
+	}
+	for _, item := range items {
+		var stored model.Assignment
+		if err := service.db.First(&stored, item.ID).Error; err != nil {
+			t.Fatal(err)
+		}
+		legacy, err := service.adminSummary(context.Background(), stored)
+		if err != nil || !reflect.DeepEqual(item, legacy) {
+			t.Fatalf("batched statistics differ from detail summary: got=%#v want=%#v err=%v", item, legacy, err)
+		}
 	}
 	return items
 }

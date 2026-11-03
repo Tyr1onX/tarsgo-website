@@ -212,19 +212,7 @@ func (s *Service) ListMine(ctx context.Context, actor Actor) ([]AssignmentView, 
 		Order("assignments.due_at ASC, assignments.id DESC").Find(&items).Error; err != nil {
 		return nil, internalError("读取我的作业失败", err)
 	}
-	result := make([]AssignmentView, 0, len(items))
-	for _, item := range items {
-		groupName, err := s.groupName(ctx, item.GroupID)
-		if err != nil {
-			return nil, internalError("读取作业组别失败", err)
-		}
-		history, err := s.loadSubmissions(ctx, item.ID, actor.ID)
-		if err != nil {
-			return nil, internalError("读取作业提交记录失败", err)
-		}
-		result = append(result, memberAssignmentView(item, groupName, history, s.now()))
-	}
-	return result, nil
+	return s.memberListViews(ctx, actor.ID, items)
 }
 
 func (s *Service) GetMine(ctx context.Context, actor Actor, assignmentID uint64) (*MyAssignmentDetail, error) {
@@ -288,15 +276,7 @@ func (s *Service) ListAdmin(ctx context.Context, actor Actor, groupID uint64) ([
 		Order("created_at DESC, id DESC").Find(&items).Error; err != nil {
 		return nil, internalError("读取组内作业失败", err)
 	}
-	result := make([]AssignmentView, 0, len(items))
-	for _, item := range items {
-		view, err := s.adminSummary(ctx, item)
-		if err != nil {
-			return nil, internalError("读取作业统计失败", err)
-		}
-		result = append(result, view)
-	}
-	return result, nil
+	return s.adminListViews(ctx, items)
 }
 
 func (s *Service) ListGroupMembers(ctx context.Context, actor Actor, groupID uint64) ([]MemberOption, error) {
@@ -1319,6 +1299,22 @@ func (s *Service) loadSubmissionHistories(ctx context.Context, assignmentID uint
 	if len(submissions) == 0 {
 		return result, nil
 	}
+	views, err := s.submissionViews(ctx, submissions, includeScores)
+	if err != nil {
+		return nil, err
+	}
+	for _, submission := range submissions {
+		result[submission.UserID] = append(result[submission.UserID], views[submission.ID])
+	}
+	return result, nil
+}
+
+// Hydrates only the requested submissions; list callers pass latest attempts.
+func (s *Service) submissionViews(ctx context.Context, submissions []model.AssignmentSubmission, includeScores bool) (map[uint64]SubmissionView, error) {
+	result := make(map[uint64]SubmissionView, len(submissions))
+	if len(submissions) == 0 {
+		return result, nil
+	}
 	submissionIDs := make([]uint64, 0, len(submissions))
 	for _, submission := range submissions {
 		submissionIDs = append(submissionIDs, submission.ID)
@@ -1359,7 +1355,7 @@ func (s *Service) loadSubmissionHistories(ctx context.Context, assignmentID uint
 			view.Status = "graded"
 			view.Decision = view.Reviews[len(view.Reviews)-1].Decision
 		}
-		result[submission.UserID] = append(result[submission.UserID], view)
+		result[submission.ID] = view
 	}
 	return result, nil
 }
