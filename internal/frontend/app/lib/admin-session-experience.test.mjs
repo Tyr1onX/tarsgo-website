@@ -52,10 +52,10 @@ test("newly created accounts open their exact detail without relying on list fil
   const route = await read("routes/admin/users.tsx");
   assert.match(route, /const created = await createAdminUser\(/);
   assert.match(route, /showAccountDetail\(created\)/);
-  assert.match(route, /nextSearchParams\.set\("userId", String\(created\.id\)\)/);
+  assert.match(route, /next\.set\("userId", String\(created\.id\)\)/);
   assert.match(route, /if \(editing\?\.id === Number\(requestedUserId\)\) return/);
-  assert.match(route, /账号已创建，请继续设置所属组别和组织身份/);
-  assert.match(route, /async function openAccount\(userId: number\)[\s\S]*getAdminUser\(userId\)/);
+  assert.match(route, /账号已创建。/);
+  assert.match(route, /getAdminUser\(Number\(requestedUserId\)\)/);
 });
 
 test("full account storage identifies unavailable sessions and only removes the selected account", async () => {

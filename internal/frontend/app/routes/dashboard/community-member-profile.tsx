@@ -4,7 +4,6 @@ import { Link, useLocation, useNavigate, useNavigationType, useOutletContext, us
 import { CommunityBadgeInfo } from "~/components/community-badge-mark";
 import { CommunityFeaturedMark } from "~/components/community-featured-mark";
 import { TeamIdentityBadge } from "~/components/community-team-identity";
-import { CoBuilderBadgeAdminPanel } from "~/components/co-builder-badge-admin-panel";
 import { CommunityIcon } from "~/components/community-icons";
 import { CommunityAvatar } from "~/components/community-post-card";
 import { PersonalProfileSettings } from "~/components/personal-profile-settings";
@@ -27,7 +26,6 @@ const tabs = [
   { id: "posts", label: "帖子" },
   { id: "replies", label: "回复" },
   { id: "badges", label: "徽章" },
-  { id: "management", label: "成员管理" },
 ] as const;
 
 type ProfileTab = (typeof tabs)[number]["id"] | "settings";
@@ -92,7 +90,7 @@ export default function CommunityMemberProfileRoute() {
     let active = true;
     setLoading(true);
     setError("");
-    const apiTab = tab === "settings" || tab === "management" ? "card" : tab;
+    const apiTab = tab === "settings" ? "card" : tab;
     communityMemberProfileClient.get(memberID, apiTab, tab === "settings" ? 1 : page).then((next) => {
       if (!active) return;
       setResult(next);
@@ -105,7 +103,7 @@ export default function CommunityMemberProfileRoute() {
       setNameError("");
       setBioError("");
       setBadgeError("");
-      if ((tab === "settings" && (next.member.id !== currentUser.id || !next.member.isSelf)) || (tab === "management" && !isSuperAdmin)) {
+      if (tab === "settings" && (next.member.id !== currentUser.id || !next.member.isSelf)) {
         const params = new URLSearchParams(location.search);
         params.delete("tab");
         params.delete("page");
@@ -118,7 +116,7 @@ export default function CommunityMemberProfileRoute() {
       if (active) setLoading(false);
     });
     return () => { active = false; };
-  }, [memberID, tab, page, currentUser.id, isSuperAdmin]);
+  }, [memberID, tab, page, currentUser.id]);
 
   function changeTab(next: ProfileTab, nextPage = 1) {
     const params = new URLSearchParams(location.search);
@@ -310,16 +308,6 @@ export default function CommunityMemberProfileRoute() {
     }
   }
 
-  async function refreshManagedMember() {
-    clearCommunityLists();
-    try {
-      const next = await communityMemberProfileClient.get(memberID, "badges", 1);
-      setResult((current) => current ? { ...current, member: next.member, badges: next.badges } : next);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "贡献已更新，但成员主页同步失败。");
-    }
-  }
-
   if (loading && !result) return <section className="admin-design community-page"><p className="community-state" role="status">正在读取成员主页…</p></section>;
   if (!result) return <section className="admin-design community-page"><p className="community-state community-state--error" role="alert">{error || "成员主页不存在。"}</p><Link className="community-thread__back" to={returnTo} onClick={returnToSource}><CommunityIcon name="arrowLeft" />返回</Link></section>;
 
@@ -371,7 +359,7 @@ export default function CommunityMemberProfileRoute() {
     </header>
 
     {tab !== "settings" ? <nav className="community-member-tabs" aria-label="成员主页栏目">
-      {tabs.filter((item) => item.id !== "management" || isSuperAdmin).map((item) => <button key={item.id} type="button" aria-current={tab === item.id ? "page" : undefined} onClick={() => changeTab(item.id)}>{item.label}</button>)}
+      {tabs.map((item) => <button key={item.id} type="button" aria-current={tab === item.id ? "page" : undefined} onClick={() => changeTab(item.id)}>{item.label}</button>)}
     </nav> : null}
     {loading ? <p className="community-member-loading" role="status">正在更新内容…</p> : null}
     {notice ? <p className="community-state" role="status">{notice}</p> : null}
@@ -425,10 +413,6 @@ export default function CommunityMemberProfileRoute() {
     {tab === "settings" && isSelf ? <section className="community-member-section community-member-settings" aria-labelledby="community-member-settings-title">
       <header><h2 id="community-member-settings-title">其他设置</h2></header>
       <PersonalProfileSettings user={currentUser} />
-    </section> : null}
-    {tab === "management" && isSuperAdmin ? <section className="community-member-section community-member-admin" aria-labelledby="community-member-admin-title">
-      <header><h2 id="community-member-admin-title">成员管理</h2></header>
-      <CoBuilderBadgeAdminPanel userId={member.id} onUpdated={() => void refreshManagedMember()} />
     </section> : null}
   </section>;
 }

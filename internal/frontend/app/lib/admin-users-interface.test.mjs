@@ -4,6 +4,10 @@ import test from "node:test";
 
 const page = await readFile(new URL("../routes/admin/users.tsx", import.meta.url), "utf8");
 const styles = await readFile(new URL("../admin-design.css", import.meta.url), "utf8");
+const registrations = await readFile(new URL("../routes/admin/registrations.tsx", import.meta.url), "utf8");
+const adminClient = await readFile(new URL("./admin-users-client.ts", import.meta.url), "utf8");
+const registrationClient = await readFile(new URL("./registrations-client.ts", import.meta.url), "utf8");
+const registrationService = await readFile(new URL("../../../backend/service/registration/service.go", import.meta.url), "utf8");
 
 test("account list uses ten-row server pagination and keeps the search server-backed", () => {
   assert.match(page, /pageSize: 10/);
@@ -26,7 +30,40 @@ test("account table stays compact and opens full details from the member name", 
   assert.doesNotMatch(table, /item\.email|item\.authMethods|lastLoginAt|organizationTitleLabel/);
   assert.match(page, /editing\.authMethods\.hasPassword/);
   assert.match(page, /editing\.groups\.map/);
-  assert.match(page, /重置登录密码/);
+  assert.match(page, /登录密码/);
+  assert.match(page, /确认重置/);
+});
+
+test("member detail has three read-only sections and one local editor at a time", () => {
+  assert.match(page, /detailSection === "account"/);
+  assert.match(page, /detailSection === "organization"/);
+  assert.match(page, /detailSection === "records"/);
+  assert.match(page, /const \[activeEditor, setActiveEditor\]/);
+  assert.match(page, /activeEditor === "profile"/);
+  assert.match(page, /activeEditor === "access"/);
+  assert.match(page, /activeEditor === "password"/);
+  assert.doesNotMatch(page, /保存修改|修正意向组|updateAdminUserRecruitmentGroup/);
+  assert.match(page, /set\("userId", String\(item\.id\)\)/);
+  assert.match(page, /getAdminUser\(detail\.id\)/);
+});
+
+test("membership changes cannot overwrite multiple existing groups", () => {
+  assert.match(page, /editing\.groups\.length > 1/);
+  assert.match(page, /latest\.groups\.length > 1/);
+  assert.match(page, /JSON\.stringify\(latest\.groups\) !== JSON\.stringify\(editing\.groups\)/);
+  assert.match(page, /window\.confirm\("调整组别将移除/);
+  assert.match(page, /editing\.groups\.map\(\(group\) =>/);
+  assert.match(page, /updateAdminUserGroupRole\(editing\.id, groupId, role\)/);
+});
+
+test("recruitment intention correction has one admin entry in recruitment details", () => {
+  assert.doesNotMatch(page, /updateAdminUserRecruitmentGroup|修正意向组/);
+  assert.match(registrations, /updateAdminUserRecruitmentGroup\(detail\.userId, Number\(preferredGroupDraft\)\)/);
+  assert.match(registrations, /currentUser\.role\.name === "super_admin" && detail\.formStatus === 1 && detail\.status !== "admitted"/);
+  assert.match(registrations, /preferredGroupError \? <p role="alert"/);
+  assert.match(adminClient, /updateAdminUserRecruitmentGroup\(userId: number, groupId: number\)/);
+  assert.match(registrationClient, /userId: number;[\s\S]*?formStatus: number;/);
+  assert.match(registrationService, /UserID:\s+registration\.UserID,[\s\S]*?FormStatus:\s+registration\.Form\.Status/);
 });
 
 test("account filters, key metrics, group distribution, and create action have distinct priority", () => {

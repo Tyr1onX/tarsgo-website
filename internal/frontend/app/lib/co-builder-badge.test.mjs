@@ -24,7 +24,8 @@ test("member showcase uses the profile response without a second badge request",
 });
 
 test("only super admins see the contribution manager in member editing", () => {
-  assert.match(adminUsers, /currentUser\.role\.name === "super_admin" \? <CoBuilderBadgeAdminPanel userId=\{editing\.id\}/);
+  assert.match(adminUsers, /currentUser\.role\.name === "super_admin" \? <section[\s\S]*?<CoBuilderBadgeAdminPanel userId=\{editing\.id\}/);
+  assert.doesNotMatch(profile, /CoBuilderBadgeAdminPanel|id: "management"/);
   assert.match(adminPanel, /授予贡献 \+1/);
   assert.doesNotMatch(adminPanel, /description|textarea|本次贡献说明/);
   assert.match(adminPanel, /disabled=\{saving\}/);

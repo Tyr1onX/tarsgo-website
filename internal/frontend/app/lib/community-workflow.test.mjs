@@ -31,6 +31,7 @@ const featuredMark = await source("../components/community-featured-mark.tsx");
 const commentManagementMenu = await source("../components/community-comment-management-menu.tsx");
 const readingTimeline = await source("../components/community-reading-timeline.tsx");
 const adminPanel = await source("../components/co-builder-badge-admin-panel.tsx");
+const adminUsers = await source("../routes/admin/users.tsx");
 const memberProfilePage = await source("../routes/dashboard/community-member-profile.tsx");
 const memberProfileClient = await source("./community-member-profile-client.ts");
 const markdownEditor = await source("../components/community-markdown-editor.tsx");
@@ -304,14 +305,12 @@ test("community identity uses current positions and offers badge details with au
   assert.match(memberProfileService, /if badge == nil \|\| !badge\.IsEarned/);
 });
 
-test("member management is super-admin-only and reuses contribution controls with live profile refresh", () => {
-  assert.match(memberProfilePage, /currentUser\.role\.name === "super_admin"/);
-  assert.match(memberProfilePage, /\{ id: "management", label: "成员管理" \}/);
-  assert.match(memberProfilePage, /item\.id !== "management" \|\| isSuperAdmin/);
-  assert.match(memberProfilePage, /<CoBuilderBadgeAdminPanel userId=\{member\.id\} onUpdated=/);
-  assert.match(memberProfilePage, /communityMemberProfileClient\.get\(memberID, "badges", 1\)/);
-  assert.match(memberProfilePage, /clearCommunityLists\(\)/);
-  assert.match(memberProfilePage, /\{error \? <p className="community-state community-state--error" role="alert">\{error\}<\/p> : null\}/);
+test("contribution editing is removed from community profiles and remains in account management", () => {
+  assert.doesNotMatch(memberProfilePage, /<CoBuilderBadgeAdminPanel|id: "management"|refreshManagedMember/);
+  assert.match(memberProfilePage, /tabs\.map\(\(item\) =>/);
+  assert.match(memberProfilePage, /isSelf && visibleBadges\.length > 0 \? editingFeaturedBadge/);
+  assert.match(memberProfilePage, /community-member-badge-grid/);
+  assert.match(adminUsers, /<CoBuilderBadgeAdminPanel userId=\{editing\.id\}/);
   assert.match(adminPanel, /onUpdated\?\.\(\)/);
 });
 

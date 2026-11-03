@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import { useNavigate, useOutletContext, useSearchParams } from "react-router";
 
 import { ApiError, buildApiUrl } from "~/lib/api-client";
+import { updateAdminUserRecruitmentGroup } from "~/lib/admin-users-client";
+import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import {
   getAdminRegistration,
   getAdminInterviewNotificationPreview,
@@ -71,6 +73,7 @@ const statusOptions: Array<{ value: RecruitmentStatus | ""; label: string }> = [
 
 export default function Registrations() {
   const navigate = useNavigate();
+  const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
   const [searchParams, setSearchParams] = useSearchParams();
   const interviewWorkbench = searchParams.get("view") === "interviews";
   const initialInterviewQueue = searchParams.get("queue") === "processed" ? "processed" : "pending";
@@ -115,6 +118,9 @@ export default function Registrations() {
   const [screeningRemark, setScreeningRemark] = useState("");
   const [interviewRemark, setInterviewRemark] = useState("");
   const [correctionReason, setCorrectionReason] = useState("");
+  const [editingPreferredGroup, setEditingPreferredGroup] = useState(false);
+  const [preferredGroupDraft, setPreferredGroupDraft] = useState("");
+  const [preferredGroupError, setPreferredGroupError] = useState("");
   const [notificationPreview, setNotificationPreview] = useState<InterviewNotificationPreview | null>(null);
   const [notificationLoading, setNotificationLoading] = useState(false);
   const [confirmUncertainNotification, setConfirmUncertainNotification] = useState(false);
@@ -187,6 +193,7 @@ export default function Registrations() {
   useEffect(() => {
     if (selectedId == null) {
       setDetail(null);
+      setEditingPreferredGroup(false);
       return;
     }
     let cancelled = false;
@@ -195,6 +202,9 @@ export default function Registrations() {
       .then((result) => {
         if (cancelled) return;
         setDetail(result);
+        setPreferredGroupDraft(String(result.preferredGroup?.id ?? ""));
+        setEditingPreferredGroup(false);
+        setPreferredGroupError("");
         setScreeningRemark(result.screeningRemark ?? "");
         setInterviewRemark(result.interviewRemark ?? "");
         setCorrectionReason("");
@@ -234,6 +244,23 @@ export default function Registrations() {
       setDetail(await getAdminRegistration(selectedId));
     }
     setRefreshToken((current) => current + 1);
+  }
+
+  async function savePreferredGroup() {
+    if (!detail || actionLoading || !preferredGroupDraft || Number(preferredGroupDraft) === detail.preferredGroup?.id) return;
+    setActionLoading(true);
+    setPreferredGroupError("");
+    try {
+      await updateAdminUserRecruitmentGroup(detail.userId, Number(preferredGroupDraft));
+      await refreshAfterAction();
+      setEditingPreferredGroup(false);
+      setFlash({ type: "success", message: "招新意向组已修正。" });
+    } catch (cause) {
+      if (cause instanceof ApiError && cause.status === 401) navigate("/login", { replace: true });
+      else setPreferredGroupError(cause instanceof Error ? cause.message : "意向组修正失败");
+    } finally {
+      setActionLoading(false);
+    }
   }
 
   async function runAction(
@@ -811,7 +838,23 @@ export default function Registrations() {
                     <StatusBadge status={detail.status} rejectedStage={detail.rejectedStage} />
                   </div>
                   <dl className="mt-4 grid gap-3 sm:grid-cols-2">
-                    <InfoItem label="意向组" value={detail.preferredGroup?.name ?? "未设置"} />
+                    <div className="min-w-0">
+                      {editingPreferredGroup ? <div className="space-y-2">
+                        <label className="block text-xs text-fg-muted">意向组
+                          <select className="admin-field mt-1" value={preferredGroupDraft} onChange={(event) => setPreferredGroupDraft(event.target.value)}>
+                            <option value="">请选择组别</option>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}
+                          </select>
+                        </label>
+                        {preferredGroupError ? <p role="alert" className="text-xs text-[var(--theme-danger)]">{preferredGroupError}</p> : null}
+                        <div className="flex gap-2">
+                          <button type="button" className="admin-button admin-button--primary admin-button--small" disabled={actionLoading || !groups.some((group) => String(group.id) === preferredGroupDraft) || Number(preferredGroupDraft) === detail.preferredGroup?.id} onClick={() => void savePreferredGroup()}>保存</button>
+                          <button type="button" className="admin-button admin-button--secondary admin-button--small" disabled={actionLoading} onClick={() => { setEditingPreferredGroup(false); setPreferredGroupError(""); }}>取消</button>
+                        </div>
+                      </div> : <div className="flex items-end justify-between gap-2">
+                        <InfoItem label="意向组" value={detail.preferredGroup?.name ?? "未设置"} />
+                        {currentUser.role.name === "super_admin" && detail.formStatus === 1 && detail.status !== "admitted" ? <button type="button" className="admin-button admin-button--quiet admin-button--small" onClick={() => { setPreferredGroupDraft(String(detail.preferredGroup?.id ?? "")); setPreferredGroupError(""); setEditingPreferredGroup(true); }}>修改</button> : null}
+                      </div>}
+                    </div>
                     <InfoItem label="报名表" value={detail.formTitle} />
                     <InfoItem label="提交时间" value={formatDateTime(detail.submittedAt)} />
                     <InfoItem label="最近更新" value={formatDateTime(detail.updatedAt)} />

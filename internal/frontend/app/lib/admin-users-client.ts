@@ -41,6 +41,7 @@ export interface AdminUserGroupMembership {
 export interface AdminUserDetail {
   id: number;
   email: string;
+  avatarUrl?: string | null;
   status: number;
   role: AdminUserRole;
   authMethods: AdminUserAuthMethods;
