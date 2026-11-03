@@ -1,12 +1,12 @@
-import type { CommunityPost } from "~/lib/community-client";
+import type { CommunityListItem } from "~/lib/community-client";
 
-export type CommunityListSnapshot = { posts: CommunityPost[]; page: number; hasMore: boolean };
+export type CommunityListSnapshot = { posts: CommunityListItem[]; page: number; hasMore: boolean };
 
 export function preserveCommunityReactionUpdates(
-	requestStart: readonly CommunityPost[],
-	latest: readonly CommunityPost[],
-	fresh: readonly CommunityPost[],
-): CommunityPost[] {
+	requestStart: readonly CommunityListItem[],
+	latest: readonly CommunityListItem[],
+	fresh: readonly CommunityListItem[],
+): CommunityListItem[] {
 	const startedById = new Map(requestStart.map((post) => [post.id, post]));
 	const latestById = new Map(latest.map((post) => [post.id, post]));
 	return fresh.map((post) => {
@@ -27,29 +27,45 @@ export function preserveCommunityReactionUpdates(
 }
 
 const MAX_CACHED_FILTERS = 10;
+export const COMMUNITY_CACHE_PAGE_SIZE = 20;
+const MAX_CACHED_PAGES = 5;
+const CACHE_TTL_MS = 120_000;
 const snapshots = new Map<string, CommunityListSnapshot>();
+const expiresAt = new Map<string, number>();
 
 export function getCommunityListSnapshot(key: string) {
+  if ((expiresAt.get(key) ?? 0) <= Date.now()) {
+    snapshots.delete(key);
+    expiresAt.delete(key);
+    return undefined;
+  }
   return snapshots.get(key);
 }
 
 export function rememberCommunityList(key: string, snapshot: CommunityListSnapshot) {
   snapshots.delete(key);
-  snapshots.set(key, snapshot);
+  const page = Math.min(snapshot.page, MAX_CACHED_PAGES);
+  snapshots.set(key, { ...snapshot, page,
+    posts: snapshot.posts.slice(0, MAX_CACHED_PAGES * COMMUNITY_CACHE_PAGE_SIZE),
+    hasMore: snapshot.hasMore || snapshot.page > MAX_CACHED_PAGES,
+  });
+  expiresAt.set(key, Date.now() + CACHE_TTL_MS);
   while (snapshots.size > MAX_CACHED_FILTERS) {
     const oldestKey = snapshots.keys().next().value;
     if (oldestKey === undefined) break;
     snapshots.delete(oldestKey);
+    expiresAt.delete(oldestKey);
   }
 }
 
 export function clearCommunityLists() {
   snapshots.clear();
+  expiresAt.clear();
 }
 
 export function clearOtherCommunityLists(keepKey: string) {
   for (const key of snapshots.keys()) {
-    if (key !== keepKey) snapshots.delete(key);
+    if (key !== keepKey) { snapshots.delete(key); expiresAt.delete(key); }
   }
 }
 
@@ -73,7 +89,7 @@ function communityListScope(key: string) {
 export function updateCommunityPostInLists(
   accountID: number,
   postID: number,
-  update: (post: CommunityPost) => CommunityPost | null,
+  update: (post: CommunityListItem) => CommunityListItem | null,
 ) {
   for (const [key, snapshot] of [...snapshots]) {
     const scope = communityListScope(key);
@@ -92,6 +108,22 @@ export function updateCommunityPostInLists(
 export function invalidateCommunitySavedLists(accountID: number) {
   for (const key of snapshots.keys()) {
     const scope = communityListScope(key);
-    if (scope?.accountID === accountID && scope.savedOnly) snapshots.delete(key);
+    if (scope?.accountID === accountID && scope.savedOnly) { snapshots.delete(key); expiresAt.delete(key); }
   }
+}
+
+// A refresh is authoritative for the entire retained page window. Never append
+// missing old rows: they may have been deleted, hidden or moved by new activity.
+export function refreshedCommunitySnapshot(pages: { items: CommunityListItem[]; page: number; hasMore: boolean }[]): CommunityListSnapshot {
+  const posts: CommunityListItem[] = [];
+  const seen = new Set<number>();
+  let last = { page: 1, hasMore: false };
+  for (const result of pages) {
+    for (const post of result.items) {
+      if (!seen.has(post.id)) { posts.push(post); seen.add(post.id); }
+    }
+    last = result;
+    if (!result.hasMore) break;
+  }
+  return { posts, page: last.page, hasMore: last.hasMore };
 }

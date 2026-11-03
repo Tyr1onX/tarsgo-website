@@ -64,12 +64,12 @@ test("legacy question links redirect into community discussions without a second
 
 test("community offers shareable filters, cached browsing, and the post discussion loop", () => {
   assert.match(dashboard, /useSearchParams/);
-  assert.match(dashboard, /sort, category, q: query, saved: savedOnly, page: 1, pageSize: PAGE_SIZE/);
+  assert.match(dashboard, /sort, category, q: query, saved: savedOnly, page: index \+ 1, pageSize: PAGE_SIZE/);
   assert.match(dashboard, /updateFilters\(\{ sort: "hot", saved: false \}\)/);
   assert.match(dashboard, /updateFilters\(\{ category: item\.id \}\)/);
   assert.match(dashboard, /getCommunityListSnapshot/);
-  assert.match(dashboard, /const nextHasMore = nextPage > 1 && latest \? latest\.hasMore : result\.hasMore/);
-  assert.match(dashboard, /preserveCommunityReactionUpdates\(cached\?\.posts \?\? \[\], latest\?\.posts \?\? \[\], result\.items\)/);
+  assert.match(dashboard, /refreshedCommunitySnapshot\(pages\)/);
+  assert.match(dashboard, /preserveCommunityReactionUpdates\(cached\?\.posts \?\? \[\], latest\?\.posts \?\? \[\], result\.posts\)/);
   assert.match(dashboard, /const cacheMatchesLoadedState = loadedCacheKey === cacheKey/);
   assert.match(dashboard, /const visiblePosts = cacheMatchesLoadedState \? posts : cachedList\?\.posts/);
   assert.match(dashboard, /rememberCommunityList/);

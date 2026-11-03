@@ -39,7 +39,7 @@ type CommunityListFilter struct {
 }
 
 type CommunityListResult struct {
-	Items         []CommunityPostView     `json:"items"`
+	Items         []CommunityListItem     `json:"items"`
 	Page          int                     `json:"page"`
 	HasMore       bool                    `json:"hasMore"`
 	GrowthProfile *CommunityGrowthProfile `json:"growthProfile,omitempty"`
@@ -245,7 +245,7 @@ func (s *Service) ListCommunity(ctx context.Context, actor Actor, filter Communi
 		}
 	}
 
-	query, err := s.communityPostQuery(ctx, actor)
+	query, err := s.communityListQuery(ctx, actor, filter.Sort == "hot")
 	if err != nil {
 		return nil, internalError("读取社区访问范围失败", err)
 	}
@@ -297,7 +297,7 @@ func (s *Service) ListCommunity(ctx context.Context, actor Actor, filter Communi
 	if result.HasMore {
 		rows = rows[:filter.PageSize]
 	}
-	result.Items, err = s.communityPostViews(ctx, actor, rows)
+	result.Items, err = s.communityListViews(ctx, rows)
 	if err != nil {
 		return nil, err
 	}
@@ -310,7 +310,7 @@ func (s *Service) ListCommunity(ctx context.Context, actor Actor, filter Communi
 	return result, nil
 }
 
-func (s *Service) HotCommunityPosts(ctx context.Context, actor Actor, limit int) ([]CommunityPostView, error) {
+func (s *Service) HotCommunityPosts(ctx context.Context, actor Actor, limit int) ([]CommunityListItem, error) {
 	if limit < 1 || limit > 10 {
 		limit = 5
 	}
@@ -1221,6 +1221,11 @@ func (s *Service) communityPostQuery(ctx context.Context, actor Actor) (*gorm.DB
 		Joins("LEFT JOIN user_groups AS ug ON ug.id = q.group_id").
 		Joins("JOIN users AS author ON author.id = q.asker_id").
 		Where("q.deleted_at IS NULL")
+	return s.communityPostAccess(ctx, actor, query)
+}
+
+// Shared by list/detail so projection changes cannot broaden visibility.
+func (s *Service) communityPostAccess(ctx context.Context, actor Actor, query *gorm.DB) (*gorm.DB, error) {
 	groupIDs, err := s.communityVisibleLegacyGroupIDs(ctx, actor)
 	if err != nil {
 		return nil, err
