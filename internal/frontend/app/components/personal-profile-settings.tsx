@@ -104,6 +104,14 @@ export function PersonalProfileSettings({ user }: { user: AuthUser }) {
           <button type="submit" disabled={saving || !leaveChanged} className="admin-button admin-button--primary">{saving ? "保存中…" : "保存学籍资料"}</button>
         </div>
       </form> : null}
+      <div className="mt-4 max-w-xl">
+        <span className={labelClass}>战队职务</span>
+        <div className="flex min-h-11 min-w-0 items-center rounded-lg border border-[var(--admin-border)] bg-[var(--admin-surface-subtle)] px-3 text-sm text-[var(--admin-text)]" role="textbox" aria-readonly="true" aria-label="战队职务">
+          <span className="min-w-0 truncate" title={(user.organizationPositions ?? []).map(({ title }) => title).join("、")}>
+            {user.organizationPositions?.length ? user.organizationPositions.map(({ title }) => title).join("、") : "暂无"}
+          </span>
+        </div>
+      </div>
     </section>
     <div id="timetable" className="scroll-mt-8"><PersonalTimetableUpload userId={user.id} /></div>
   </div>;
