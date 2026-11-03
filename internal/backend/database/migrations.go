@@ -207,6 +207,9 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 45, apply: dropTeamIdentityChanges},
 		{version: 46, apply: migrateWeeklyUniqueV46},
 		{version: 47, apply: migrateCheckinIndexV47},
+		{version: 48, apply: func(db *gorm.DB) error {
+			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.User{}, &model.AISalonEvent{}, &model.AISalonRegistration{})
+		}},
 	}
 }
 
