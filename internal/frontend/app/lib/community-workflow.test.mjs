@@ -152,7 +152,7 @@ test("post and comment reactions share filled selected states and independent op
   assert.match(thread, /invalidateCommunitySavedLists\(currentUser\.id\)/);
   assert.match(listCache, /scope\?\.accountID !== accountID/);
   assert.match(listCache, /scope\.savedOnly && !updated\.savedByMe/);
-  assert.match(dashboard, /return \(\) => \{ requestRef\.current \+= 1; \};/);
+  assert.match(dashboard, /return \(\) => \{ requestRef\.current \+= 1; listAbortRef\.current\?\.abort\(\); \};/);
   assert.match(dashboard, /requestRef\.current !== requestID/);
 });
 

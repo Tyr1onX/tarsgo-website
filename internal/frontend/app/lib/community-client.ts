@@ -212,7 +212,7 @@ export const communityClient = {
     reportCommunityGrowthProfile(result.profile);
     return result;
   },
-  list: (filter: CommunityFilter) => apiRequest<CommunityPage>(`/api/community/posts?${queryString(filter)}`),
+  list: (filter: CommunityFilter, signal?: AbortSignal) => apiRequest<CommunityPage>(`/api/community/posts?${queryString(filter)}`, { signal }),
   hot: (limit = 5) => apiRequest<CommunityListItem[]>(`/api/community/hot?limit=${limit}`),
   get: (id: number) => apiRequest<CommunityDetail>(`/api/community/posts/${id}`),
   related: (id: number) => apiRequest<CommunityTopicRecommendations>(`/api/community/posts/${id}/related`),
