@@ -28,6 +28,8 @@ const postCard = await source("../components/community-post-card.tsx");
 const authorProfile = await source("../components/community-author-profile.tsx");
 const badgeInfo = await source("../components/community-badge-mark.tsx");
 const featuredMark = await source("../components/community-featured-mark.tsx");
+const commentManagementMenu = await source("../components/community-comment-management-menu.tsx");
+const readingTimeline = await source("../components/community-reading-timeline.tsx");
 const adminPanel = await source("../components/co-builder-badge-admin-panel.tsx");
 const memberProfilePage = await source("../routes/dashboard/community-member-profile.tsx");
 const memberProfileClient = await source("./community-member-profile-client.ts");
@@ -93,6 +95,30 @@ test("community scroll restoration waits for async route data and reuses router 
   assert.match(thread, /useDeferredCommunityScrollRestoration\(location\.key, navigationType, detail !== null, location\.hash\)/);
   assert.match(memberProfilePage, /useDeferredCommunityScrollRestoration\(location\.key, navigationType, result !== null, location\.hash\)/);
   assert.doesNotMatch(dashboard, /preventScrollReset/);
+});
+
+test("discussion reading navigation uses the loaded post and flat reply data without new requests", () => {
+  assert.match(dashboardLayout, /setPageTitle: \(title: string\) => void/);
+  assert.match(dashboardLayout, /isCommunityPostRoute && pageTitle/);
+  assert.match(dashboardLayout, /<SiteLogo/);
+  assert.match(thread, /setPageTitle\(pageTitle\)/);
+  assert.match(thread, /detail\?\.post\.id === postID/);
+  assert.match(thread, /buildCommunityReadingEntries\(post, comments\)/);
+  assert.match(thread, /data-community-reading-index="0"/);
+  assert.match(thread, /<CommunityReadingTimeline entries=\{readingEntries\}/);
+  assert.match(readingTimeline, /new IntersectionObserver/);
+  assert.match(readingTimeline, /const readingLine = 100/);
+  assert.match(readingTimeline, /setActiveIndex\(index\)/);
+  assert.match(readingTimeline, /window\.addEventListener\("resize", observeReadingTargets/);
+  assert.doesNotMatch(readingTimeline, /rootMargin: .*%/);
+  assert.match(readingTimeline, /formatCommunityDate\(entry\.createdAt\)/);
+  assert.match(readingTimeline, /hotReplyID/);
+  assert.match(thread, /groupCommunityReplies\(comments\)/);
+  assert.match(thread, /community-reply-preview__items/);
+  assert.match(thread, /focusComment\(reply\.id\)/);
+  assert.match(authorProfile, /communityProfileReturnTo: returnTo/);
+  assert.equal(thread.match(/communityClient\.get\(/g)?.length, 1);
+  assert.doesNotMatch(readingTimeline, /communityClient\./);
 });
 
 test("community cache remains bounded and invalidates stale favorites and deleted posts", () => {
@@ -183,7 +209,7 @@ test("community toast, reply panel, and editor share intentional overlay layers"
 });
 
 test("topic reply starts in the discussion heading and secondary actions stay with the post", () => {
-  assert.match(thread, /community-comments__heading-copy[\s\S]*?· \{comments\.length\} 条回复[\s\S]*?community-comments__reply/);
+  assert.match(thread, /community-comments__heading-copy[\s\S]*?comments\.filter\(\(comment\) => !comment\.isDeleted\)\.length[\s\S]*?community-comments__reply/);
   assert.match(thread, /className="[^"]*community-comments__reply[^"]*"[^>]*onClick=\{\(\) => openReply\(\)\}/);
   assert.match(thread, /community-post__actions[\s\S]*?toggleReaction\("like"\)[\s\S]*?toggleReaction\("bookmark"\)[\s\S]*?sharePost/);
   assert.doesNotMatch(thread, /community-reply-launcher/);
@@ -305,7 +331,12 @@ test("featured state is server-gated, independently audited, visible throughout 
   assert.match(featuredMark, /aria-label="精华"/);
   assert.match(thread, /canManageFeatured = currentUser\.role\.name === "super_admin"/);
   assert.match(postCard, /canManageFeatured && onToggleFeatured/);
-  assert.match(thread, /<CommunityReplyFeatureMenu featured=\{item\.isFeatured\}/);
+  assert.match(thread, /<CommunityCommentManagementMenu/);
+  assert.match(thread, /canManageSolution=\{item\.canAcceptSolution\}/);
+  assert.match(thread, /canManageFeatured=\{canManageFeatured\}/);
+  assert.match(commentManagementMenu, /取消最佳答案/);
+  assert.match(commentManagementMenu, /取消精华/);
+  assert.doesNotMatch(thread, /CommunityReplyFeatureMenu|community-best-answer-action/);
   assert.match(thread, /communityClient\.setPostFeatured\(postID/);
   assert.match(thread, /communityClient\.setReplyFeatured\(commentID/);
 });
@@ -406,7 +437,7 @@ test("community growth shows Beijing check-ins, author levels, and idempotent in
   assert.match(router, /communityAPI\.POST\("\/check-in"/);
   assert.match(router, /communityAPI\.PUT\("\/comments\/:id\/like"/);
   assert.match(router, /communityAPI\.PATCH\("\/posts\/:id\/solution"/);
-  assert.match(thread, /设为最佳答案/);
+  assert.match(commentManagementMenu, /设为最佳答案/);
   assert.match(thread, /最佳答案<\/span>/);
   assert.match(postCard, /post\.isSolved/);
   assert.match(service, /question\.AskerID == actor\.ID \|\| actor\.RoleName == model\.RoleNameSuperAdmin/);
