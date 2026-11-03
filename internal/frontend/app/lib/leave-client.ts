@@ -94,6 +94,7 @@ export const leaveClient = {
   prepareDailyWindow: (id: number, offline: boolean) => apiRequest<ReadyDownload>(`/api/daily-leave/windows/${id}/document${offline ? "?offline=true" : ""}`, { method: "POST" }),
   publicDailyWindow: (token: string) => apiRequest<DailyWindow>(`/api/daily-leave/public/${token}`),
   preparePublicDaily: (token: string, body: { name: string; studentId: string; collegeCode: string }, offline: boolean) => apiRequest<ReadyDownload>(`/api/daily-leave/public/${token}/document${offline ? "?offline=true" : ""}`, { method: "POST", body }),
+  dailyRecordsPage: (admin: boolean, cursor = "") => apiRequest<{ items: DailyEntry[]; nextCursor?: string }>(`/api/${admin ? "admin/" : ""}daily-leave/records?${new URLSearchParams({ paged: "true", selfService: "true", ...(cursor ? { cursor } : {}) })}`),
   dailyRecords: () => apiRequest<DailyEntry[]>("/api/admin/daily-leave/records"),
   myDailyRecords: () => apiRequest<DailyEntry[]>("/api/daily-leave/records"),
   campEvents: () => apiRequest<CampEvent[]>("/api/camp-leave/events"),

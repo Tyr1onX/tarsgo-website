@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useOutletContext } from "react-router";
 
 import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
@@ -39,6 +39,11 @@ export default function LeaveWorkbench() {
   const [myWindows, setMyWindows] = useState<DailyWindow[]>([]);
   const [adminWindows, setAdminWindows] = useState<DailyWindow[]>([]);
   const [dailyEntries, setDailyEntries] = useState<DailyEntry[]>([]);
+  const [historyCursor, setHistoryCursor] = useState("");
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState("");
+  const loadSequence = useRef(0);
+  const historySequence = useRef(0);
   const [campEvents, setCampEvents] = useState<CampEvent[]>([]);
   const [myCampEvents, setMyCampEvents] = useState<CampEvent[]>([]);
   const [selectedCamp, setSelectedCamp] = useState<CampDetail | null>(null);
@@ -57,37 +62,67 @@ export default function LeaveWorkbench() {
   const profileReady = useMemo(() => Boolean(profile?.name && /^[0-9]{8}$/.test(profile.studentId) && profile.collegeCode), [profile]);
 
   async function load() {
+    const generation = ++loadSequence.current;
+    historySequence.current++;
+    setHistoryLoading(false); setHistoryError("");
     setLoading(true); setError("");
     try {
       if (!isAdmin) {
         const nextAccessState = await leaveClient.leaveAccess();
+        if (generation !== loadSequence.current) return;
         setAccessState(nextAccessState);
         if (nextAccessState.status !== "approved") return;
       }
       const [nextProfile, nextColleges, nextDaily, nextAccessRequests] = await Promise.all([
-        leaveClient.profile(), leaveClient.colleges(), isAdmin ? leaveClient.dailyRecords() : leaveClient.myDailyRecords(),
+        leaveClient.profile(), leaveClient.colleges(), leaveClient.dailyRecordsPage(isAdmin),
         isSuperAdmin ? leaveClient.pendingLeaveAccessRequests() : Promise.resolve([]),
       ]);
+      if (generation !== loadSequence.current) return;
       setProfile(nextProfile);
-      setColleges(nextColleges); setDailyEntries(nextDaily.filter((entry) => entry.startAt && entry.endAt));
+      setColleges(nextColleges); setDailyEntries(nextDaily.items); setHistoryCursor(nextDaily.nextCursor ?? "");
       setAccessRequests(nextAccessRequests);
       if (showExtendedLeaveFeatures) {
         const [nextRequests, nextWindows, nextCamps] = await Promise.all([
           leaveClient.schoolRequests(), leaveClient.dailyWindows(), leaveClient.campEvents(),
         ]);
+        if (generation !== loadSequence.current) return;
         setRequests(nextRequests); setMyWindows(nextWindows); setMyCampEvents(nextCamps);
       }
       if (isAdmin && showExtendedLeaveFeatures) {
         const [nextAdminRequests, nextRuns, nextAdminWindows, nextAdminDaily, nextAdminCamps] = await Promise.all([
           leaveClient.adminSchoolRequests(), leaveClient.schoolRuns(), leaveClient.adminDailyWindows(), leaveClient.dailyRecords(), leaveClient.adminCampEvents(),
         ]);
+        if (generation !== loadSequence.current) return;
         setAdminRequests(nextAdminRequests); setRuns(nextRuns); setRunReasonDraft(Object.fromEntries(nextRuns.map((run) => [run.id, run.reason]))); setAdminWindows(nextAdminWindows); setDailyEntries(nextAdminDaily); setCampEvents(nextAdminCamps);
       }
-    } catch (reason) { setError(reason instanceof Error ? reason.message : "请假工作台暂时无法加载"); }
-    finally { setLoading(false); }
+    } catch (reason) { if (generation === loadSequence.current) setError(reason instanceof Error ? reason.message : "请假工作台暂时无法加载"); }
+    finally { if (generation === loadSequence.current) setLoading(false); }
   }
 
-  useEffect(() => { void load(); }, [currentUser.id, profileRevision]);
+  async function loadOlderHistory() {
+    if (!historyCursor || historyLoading) return;
+    const generation = ++historySequence.current;
+    setHistoryLoading(true); setHistoryError("");
+    try {
+      const page = await leaveClient.dailyRecordsPage(isAdmin, historyCursor);
+      if (generation !== historySequence.current) return;
+      setDailyEntries(current => {
+        const ids = new Set(current.map(entry => entry.id));
+        return [...current, ...page.items.filter(entry => !ids.has(entry.id))];
+      });
+      setHistoryCursor(page.nextCursor ?? "");
+    } catch (cause) {
+      if (generation === historySequence.current) setHistoryError(cause instanceof Error ? cause.message : "请假历史加载失败");
+    } finally {
+      if (generation === historySequence.current) setHistoryLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    setDailyEntries([]); setHistoryCursor(""); setProfile(null); setAccessState(null);
+    void load();
+    return () => { loadSequence.current++; historySequence.current++; };
+  }, [currentUser.id, profileRevision]);
   useEffect(() => {
     const now = new Date();
     setDailyDraft({ startAt: localDateTime(new Date(now.getFullYear(), now.getMonth(), now.getDate(), 8, 0)), endAt: localDateTime(new Date(now.getFullYear(), now.getMonth(), now.getDate(), 17, 10)) });
@@ -223,7 +258,7 @@ export default function LeaveWorkbench() {
             {!adminWindows.length ? <p className="py-3 text-sm text-[var(--admin-muted)]">还没有共享活动。</p> : null}
           </div>
         </section> : showExtendedLeaveFeatures ? <section className="admin-panel space-y-4 p-4 sm:p-5"><div className="admin-section-heading"><div><h2>共享请假活动</h2><p>选择活动后生成同一时段的请假材料。</p></div></div><div className="divide-y divide-[var(--admin-border-subtle)]">{myWindows.map((item) => <article key={item.id} className="flex flex-wrap items-center justify-between gap-3 py-3"><div><strong className="text-sm">{item.title}</strong><p className="mt-1 text-xs text-[var(--admin-muted)]">{dateText(item.startAt)} 至 {dateText(item.endAt)}</p></div><button className={`${button} admin-button--primary`} disabled={busy || !item.acceptingParticipants} onClick={() => void makeShared(item)}>{item.acceptingParticipants ? "生成并下载" : "报名已截止"}</button></article>)}{!myWindows.length ? <p className="py-3 text-sm text-[var(--admin-muted)]">目前没有开放的共享活动。</p> : null}</div></section> : null}
-        <section className="admin-panel p-4 sm:p-5"><div className="admin-section-heading"><h2>{isAdmin ? "请假条生成记录" : "我的请假记录"}</h2></div><div className="divide-y divide-[var(--admin-border-subtle)]">{dailyEntries.map((item) => <div key={item.id} className="flex flex-wrap justify-between gap-2 py-3 text-sm"><span>{item.name} · {item.studentId}</span><span className="text-xs text-[var(--admin-muted)]">{item.startAt && item.endAt ? `${dateText(item.startAt)} 至 ${dateText(item.endAt)}` : "共享活动材料"} · {dateText(item.submittedAt)}</span></div>)}{!dailyEntries.length ? <p className="py-3 text-sm text-[var(--admin-muted)]">暂无生成记录。</p> : null}</div></section>
+        <section className="admin-panel p-4 sm:p-5"><div className="admin-section-heading"><h2>{isAdmin ? "请假条生成记录" : "我的请假记录"}</h2></div><div className="divide-y divide-[var(--admin-border-subtle)]">{dailyEntries.map((item) => <div key={item.id} className="flex flex-wrap justify-between gap-2 py-3 text-sm"><span>{item.name} · {item.studentId}</span><span className="text-xs text-[var(--admin-muted)]">{item.startAt && item.endAt ? `${dateText(item.startAt)} 至 ${dateText(item.endAt)}` : "共享活动材料"} · {dateText(item.submittedAt)}</span></div>)}{!dailyEntries.length ? <p className="py-3 text-sm text-[var(--admin-muted)]">暂无生成记录。</p> : null}</div>{historyError ? <p role="alert">{historyError}</p> : null}{historyCursor ? <button type="button" className="admin-button admin-button--quiet" disabled={historyLoading} onClick={() => void loadOlderHistory()}>{historyLoading ? "读取中…" : historyError ? "重试加载历史" : "加载更早记录"}</button> : null}</section>
       </div> : null}
 
       {tab === "camp" ? <div className="space-y-4">
