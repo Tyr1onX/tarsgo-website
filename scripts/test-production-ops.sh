@@ -5,11 +5,51 @@ script_dir="$(cd "$(dirname "$0")" && pwd)"
 repo_root="$(cd "$script_dir/.." && pwd)"
 tmp="$(mktemp -d)"
 trap 'rm -rf -- "$tmp"' EXIT
+test_tools="$tmp/test-tools"
+mkdir -p "$test_tools"
+cat >"$test_tools/sha256sum" <<'SHA256SUM'
+#!/usr/bin/env perl
+use strict;
+use warnings;
+use Digest::SHA;
+
+if (@ARGV && $ARGV[0] eq "--check") {
+    shift @ARGV;
+    shift @ARGV if @ARGV && $ARGV[0] eq "--";
+    my $status = 0;
+    for my $manifest (@ARGV) {
+        open my $input, "<", $manifest or die "cannot read $manifest: $!\n";
+        while (my $line = <$input>) {
+            chomp $line;
+            my ($expected, $path) = $line =~ /\A([0-9a-f]{64})  (.+)\z/
+                or die "invalid checksum line in $manifest\n";
+            open my $file, "<:raw", $path or die "cannot read $path: $!\n";
+            my $sha = Digest::SHA->new(256);
+            $sha->addfile($file);
+            if ($sha->hexdigest ne $expected) {
+                print "$path: FAILED\n";
+                $status = 1;
+            }
+        }
+    }
+    exit $status;
+}
+
+shift @ARGV if @ARGV && $ARGV[0] eq "--";
+for my $path (@ARGV) {
+    open my $file, "<:raw", $path or die "cannot read $path: $!\n";
+    my $sha = Digest::SHA->new(256);
+    $sha->addfile($file);
+    print $sha->hexdigest, "  ", $path, "\n";
+}
+SHA256SUM
+chmod +x "$test_tools/sha256sum"
+export PATH="$test_tools:$PATH"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
 pass() { echo "PASS: $*"; }
 
-test_high_water_abort_precedes_build() {
+test_high_water_abort_precedes_release_operations() {
   local case_dir="$tmp/guard"
   mkdir -p "$case_dir/repo/scripts" "$case_dir/repo/public/assets/images" "$case_dir/bin"
   cp "$repo_root/scripts/deploy-production.sh" "$repo_root/scripts/production-safe-cleanup.sh" "$case_dir/repo/scripts/"
@@ -31,7 +71,7 @@ if (( call_count == 1 )); then
   exit 0
 fi
 if (( call_count == 2 )); then
-    printf 'current_image=jijia-backend:20261001-stable-abcdef0\ncurrent_release=20261001-stable-abcdef0\ncurrent_commit=abcdef0123456789012345678901234567890123\ndisk_usage_percent=85\ntarget_release_status=missing\n'
+    printf 'current_image=jijia-backend:20261001-stable-abcdef0\ncurrent_release=20261001-stable-abcdef0\ncurrent_commit=abcdef0123456789012345678901234567890123\ndisk_usage_percent=85\ntarget_release_status=complete\n'
     exit 0
 fi
 if (( call_count == 3 )); then
@@ -41,32 +81,22 @@ if (( call_count == 3 )); then
 fi
 exit 90
 SSH
-  cat >"$case_dir/bin/make" <<'MAKE'
-#!/usr/bin/env bash
-set -Eeuo pipefail
-case "$*" in
-  *frontend-toolchain*) touch "$MOCK_TOOLCHAIN_MARKER" ;;
-  *build-linux-amd64*) touch "$MOCK_BUILD_MARKER" ;;
-  *) exit 0 ;;
-esac
-MAKE
   cat >"$case_dir/bin/rsync" <<'RSYNC'
 #!/usr/bin/env bash
 exit 0
 RSYNC
-  chmod +x "$case_dir/bin/ssh" "$case_dir/bin/make" "$case_dir/bin/rsync"
+  chmod +x "$case_dir/bin/ssh" "$case_dir/bin/rsync"
   local output status
   set +e
-  output="$(PATH="$case_dir/bin:$PATH" MOCK_SSH_LOG="$case_dir/ssh.log" MOCK_RECEIVED_HELPER="$case_dir/received-helper.sh" MOCK_BUILD_MARKER="$case_dir/build-ran" MOCK_TOOLCHAIN_MARKER="$case_dir/toolchain-ran" SSH_BIN=ssh RSYNC_BIN=rsync MAKE_BIN=make "$case_dir/repo/scripts/deploy-production.sh" 2>&1)"
+  output="$(PATH="$case_dir/bin:$PATH" MOCK_SSH_LOG="$case_dir/ssh.log" MOCK_RECEIVED_HELPER="$case_dir/received-helper.sh" SSH_BIN=ssh RSYNC_BIN=rsync "$case_dir/repo/scripts/deploy-production.sh" 2>&1)"
   status=$?
   set -e
   [[ "$status" -ne 0 ]] || fail "high-water cleanup failure unexpectedly allowed deployment"
   [[ "$output" == *"remains at 85% after safe cleanup"* ]] || fail "high-water deploy message was unclear: $output"
-  [[ ! -e "$case_dir/build-ran" ]] || fail "build ran before the disk guard"
-  [[ -e "$case_dir/toolchain-ran" ]] || fail "local toolchain was not checked before safe cleanup"
+  [[ ! -e "$case_dir/build-ran" ]] || fail "release operations ran before the disk guard"
   [[ "$(wc -l <"$case_dir/ssh.log")" -eq 3 ]] || fail "deploy performed an unexpected production operation after the disk guard"
   cmp -s "$case_dir/repo/scripts/production-safe-cleanup.sh" "$case_dir/received-helper.sh" || fail "safe cleanup was not the first remote operation"
-  pass "85% high-water cleanup failure stops before build or production mutation"
+  pass "85% high-water cleanup failure stops before release upload or production mutation"
 }
 
 test_already_deployed_commit_is_idempotent() {
@@ -161,42 +191,234 @@ test_missing_ssh_fails_before_remote_access() {
   pass "missing SSH fails immediately with a clear non-interactive access error"
 }
 
-test_missing_public_assets_abort_before_remote_or_build() {
-  local case_dir="$tmp/sparse-public" missing_asset='public/assets/images/example.webp'
-  mkdir -p "$case_dir/repo/scripts" "$case_dir/repo/public/assets/images" "$case_dir/bin"
-  cp "$repo_root/scripts/deploy-production.sh" "$case_dir/repo/scripts/"
-  printf 'fixture asset\n' >"$case_dir/repo/$missing_asset"
+make_ci_client_system_bin() {
+  local destination="$1" tool source
+  mkdir -p "$destination"
+  for tool in bash env git date mktemp mkdir cp chmod rm cat wc awk sed tail perl unzip install mv dirname touch; do
+    source="$(command -v "$tool")" || fail "required test fixture command is unavailable: $tool"
+    ln -s "$source" "$destination/$tool"
+  done
+}
+
+init_ci_deploy_fixture() {
+  local case_dir="$1" mode="$2" repo="$1/repo" artifact_dir="$1/artifact" remote_root="$1/remote"
+  local commit artifact_commit artifact_digest
+  mkdir -p "$repo/scripts" "$case_dir/client-bin" "$case_dir/remote-bin" "$artifact_dir" "$remote_root/releases/20261001-stable-abcdef0"
+  make_ci_client_system_bin "$case_dir/client-system-bin"
+  cp "$repo_root/scripts/deploy-production.sh" "$repo_root/scripts/production-safe-cleanup.sh" \
+    "$repo_root/scripts/backup-production.sh" "$repo_root/scripts/backup-production.service" \
+    "$repo_root/scripts/backup-production.timer" "$repo_root/scripts/deploy-production-remote.sh" "$repo/scripts/"
   git init -q --bare "$case_dir/origin.git"
-  git -C "$case_dir/repo" init -q -b main
-  git -C "$case_dir/repo" config user.name OpsTest
-  git -C "$case_dir/repo" config user.email ops-test@example.invalid
-  git -C "$case_dir/repo" add scripts/deploy-production.sh "$missing_asset"
-  git -C "$case_dir/repo" commit -qm fixture
-  git -C "$case_dir/repo" remote add origin "$case_dir/origin.git"
-  git -C "$case_dir/repo" push -q -u origin main
-  git -C "$case_dir/repo" sparse-checkout init --cone
-  git -C "$case_dir/repo" sparse-checkout set scripts
-  cat >"$case_dir/bin/ssh" <<'SSH'
+  git -C "$repo" init -q -b main
+  git -C "$repo" config user.name OpsTest
+  git -C "$repo" config user.email ops-test@example.invalid
+  git -C "$repo" add scripts
+  git -C "$repo" commit -qm fixture
+  git -C "$repo" remote add origin "$case_dir/origin.git"
+  git -C "$repo" push -q -u origin main
+  commit="$(git -C "$repo" rev-parse HEAD)"
+  printf '%s\n' "$commit" >"$case_dir/commit"
+
+  artifact_commit="$commit"
+  [[ "$mode" != commit-mismatch ]] || artifact_commit=deadbeef0123456789012345678901234567890123
+  printf 'production Dockerfile fixture\n' >"$artifact_dir/Dockerfile"
+  printf '%s\n' "$artifact_commit" >"$artifact_dir/commit.txt"
+  printf 'linux amd64 backend fixture\n' >"$artifact_dir/tarsgo-backend-linux-amd64"
+  printf 'linux amd64 migration fixture\n' >"$artifact_dir/tarsgo-migrate-linux-amd64"
+  [[ "$mode" != package-missing-file ]] || rm "$artifact_dir/tarsgo-migrate-linux-amd64"
+  local manifest_files=(Dockerfile commit.txt tarsgo-backend-linux-amd64)
+  [[ ! -f "$artifact_dir/tarsgo-migrate-linux-amd64" ]] || manifest_files+=(tarsgo-migrate-linux-amd64)
+  (cd "$artifact_dir" && sha256sum "${manifest_files[@]}" >SHA256SUMS)
+  [[ "$mode" != package-corrupt ]] || printf 'damaged binary fixture\n' >"$artifact_dir/tarsgo-backend-linux-amd64"
+
+  python3 - "$artifact_dir" "$case_dir/artifact.zip" <<'PY'
+import os
+import sys
+import zipfile
+
+source, destination = sys.argv[1:]
+with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
+    for name in sorted(os.listdir(source)):
+        archive.write(os.path.join(source, name), name)
+PY
+  artifact_digest="$(perl -MDigest::SHA -e 'my $sha = Digest::SHA->new(256); open my $file, "<:raw", $ARGV[0] or die $!; $sha->addfile($file); print $sha->hexdigest' "$case_dir/artifact.zip")"
+  cp "$case_dir/artifact.zip" "$case_dir/download.zip"
+  [[ "$mode" != download-corrupt ]] || printf 'transport corruption\n' >>"$case_dir/download.zip"
+  printf '{"total_count":1,"workflow_runs":[{"id":42001,"head_sha":"%s","head_branch":"main","event":"push","status":"completed","conclusion":"success"}]}\n' "$commit" >"$case_dir/workflow-runs.json"
+  if [[ "$mode" == artifact-missing ]]; then
+    printf '{"total_count":0,"artifacts":[]}\n' >"$case_dir/artifacts.json"
+  else
+    printf '{"total_count":1,"artifacts":[{"id":42002,"name":"tarsgo-production-release","size_in_bytes":100,"expired":false,"digest":"sha256:%s"}]}\n' "$artifact_digest" >"$case_dir/artifacts.json"
+  fi
+
+  cat >"$case_dir/client-bin/curl" <<'CURL'
 #!/usr/bin/env bash
 set -Eeuo pipefail
-touch "$MOCK_SSH_MARKER"
-exit 90
+url=""
+output=""
+while (($#)); do
+  case "$1" in
+    --output|-o) output="$2"; shift 2 ;;
+    https://*) url="$1"; shift ;;
+    *) shift ;;
+  esac
+done
+case "$url" in
+  *"/actions/workflows/production-ops.yml/runs?branch=main&event=push&head_sha=$MOCK_EXPECTED_COMMIT&per_page=100")
+    cat "$MOCK_WORKFLOW_RUNS" ;;
+  *"/actions/runs/42001/artifacts?per_page=100")
+    cat "$MOCK_ARTIFACTS" ;;
+  *"/actions/artifacts/42002/zip")
+    [[ -n "$output" ]] || { echo "missing artifact output path" >&2; exit 2; }
+    cp "$MOCK_ARTIFACT_DOWNLOAD" "$output" ;;
+  *) echo "unexpected GitHub API request: $url" >&2; exit 90 ;;
+esac
+CURL
+  cat >"$case_dir/client-bin/ssh" <<'SSH'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+while [[ "${1:-}" == -o ]]; do shift 2; done
+[[ "${1:-}" == racknerd ]] || { echo "unexpected SSH target: ${1:-}" >&2; exit 90; }
+shift
+command="${1:-}"
+shift || true
+count=0
+[[ ! -f "$MOCK_SSH_COUNT" ]] || read -r count <"$MOCK_SSH_COUNT"
+((count += 1))
+printf '%s\n' "$count" >"$MOCK_SSH_COUNT"
+case "$count" in
+  1) [[ "$command" == true ]] ;;
+  2)
+    printf 'current_image=jijia-backend:20261001-stable-abcdef0\ncurrent_release=20261001-stable-abcdef0\ncurrent_commit=abcdef0123456789012345678901234567890123\ndisk_usage_percent=50\ntarget_release_status=missing\n'
+    ;;
+  3)
+    cat >/dev/null
+    printf 'safe_cleanup_performed=1\n'
+    ;;
+  4|5)
+    [[ "$command" == bash && "${1:-}" == -s ]] || { echo "unexpected remote shell request" >&2; exit 90; }
+    PATH="$MOCK_REMOTE_BIN:$MOCK_TEST_TOOLS:/usr/bin:/bin" "$command" "$@"
+    ;;
+  6) cat >/dev/null ;;
+  7)
+    cat >/dev/null
+    touch "$MOCK_DEPLOY_REACHED"
+    printf 'mock production deployment completed\n'
+    ;;
+  *) echo "unexpected SSH call $count: $command $*" >&2; exit 90 ;;
+esac
 SSH
-  cat >"$case_dir/bin/make" <<'MAKE'
+  cat >"$case_dir/client-bin/rsync" <<'RSYNC'
 #!/usr/bin/env bash
 set -Eeuo pipefail
-touch "$MOCK_BUILD_MARKER"
-MAKE
-  chmod +x "$case_dir/bin/ssh" "$case_dir/bin/make"
-  local output status
+printf '%s\n' "$*" >>"$MOCK_RSYNC_LOG"
+source_path="${@: -2:1}"
+destination="${@: -1}"
+case "$destination" in
+  racknerd:*/.incoming-*/)
+    remote_path="${destination#racknerd:}"
+    staging_name="${remote_path%/}"
+    staging_name="${staging_name##*/}"
+    mkdir -p "$MOCK_REMOTE_ROOT/releases/$staging_name"
+    cp -R "${source_path%/}/." "$MOCK_REMOTE_ROOT/releases/$staging_name/"
+    printf '%s\n' "${staging_name#.incoming-}" >"$MOCK_RELEASE_NAME" ;;
+  racknerd:/tmp/) ;;
+  *) echo "unexpected rsync destination: $destination" >&2; exit 90 ;;
+esac
+RSYNC
+  if [[ "$mode" == success-node26 ]]; then
+    cat >"$case_dir/client-bin/node" <<'NODE'
+#!/usr/bin/env bash
+printf 'Node 26 dynamic library error: simdjson not loaded\n' >&2
+touch "$MOCK_NODE_INVOKED"
+exit 127
+NODE
+  fi
+  cat >"$case_dir/remote-bin/sha256sum" <<'REMOTE_SHA256SUM'
+#!/usr/bin/env bash
+exec "$MOCK_TEST_TOOLS/sha256sum" "$@"
+REMOTE_SHA256SUM
+  mkdir -p "$remote_root/releases/20261001-stable-abcdef0"
+  cat >"$remote_root/compose.yaml" <<'COMPOSE'
+services:
+  app:
+    image: jijia-backend:20261001-stable-abcdef0
+    build: ./releases/20261001-stable-abcdef0
+  db:
+    image: mariadb:11.4
+COMPOSE
+  chmod +x "$case_dir/client-bin/curl" "$case_dir/client-bin/ssh" "$case_dir/client-bin/rsync" "$case_dir/remote-bin/sha256sum"
+  [[ ! -e "$case_dir/client-bin/node" ]] || chmod +x "$case_dir/client-bin/node"
+}
+
+run_ci_deploy_fixture() {
+  local case_dir="$1" commit
+  commit="$(cat "$case_dir/commit")"
+  CI_DEPLOY_STATUS=0
   set +e
-  output="$(PATH="$case_dir/bin:$PATH" MOCK_SSH_MARKER="$case_dir/ssh-ran" MOCK_BUILD_MARKER="$case_dir/build-ran" SSH_BIN=ssh MAKE_BIN=make "$case_dir/repo/scripts/deploy-production.sh" 2>&1)"
-  status=$?
+  CI_DEPLOY_OUTPUT="$(PATH="$case_dir/client-bin:$case_dir/client-system-bin" \
+    MOCK_EXPECTED_COMMIT="$commit" MOCK_WORKFLOW_RUNS="$case_dir/workflow-runs.json" \
+    MOCK_ARTIFACTS="$case_dir/artifacts.json" MOCK_ARTIFACT_DOWNLOAD="$case_dir/download.zip" \
+    MOCK_REMOTE_ROOT="$case_dir/remote" MOCK_REMOTE_BIN="$case_dir/remote-bin" MOCK_TEST_TOOLS="$test_tools" \
+    MOCK_SSH_COUNT="$case_dir/ssh-count" MOCK_RSYNC_LOG="$case_dir/rsync.log" MOCK_RELEASE_NAME="$case_dir/release-name" \
+    MOCK_DEPLOY_REACHED="$case_dir/deploy-reached" MOCK_NODE_INVOKED="$case_dir/node-invoked" \
+    SSH_BIN=ssh RSYNC_BIN=rsync JIJIA_ROOT="$case_dir/remote" \
+    "$case_dir/repo/scripts/deploy-production.sh" 2>&1)"
+  CI_DEPLOY_STATUS=$?
   set -e
-  [[ "$status" -ne 0 ]] || fail "deployment unexpectedly accepted a sparse checkout missing public assets"
-  [[ "$output" == *"tracked public/ build assets are missing"* ]] || fail "sparse-checkout failure message was unclear: $output"
-  [[ ! -e "$case_dir/ssh-ran" && ! -e "$case_dir/build-ran" ]] || fail "deployment contacted production or built from an incomplete checkout"
-  pass "sparse checkout missing tracked public assets stops before production access or build"
+}
+
+test_ci_artifact_deployment_ignores_local_toolchain() {
+  local case_dir="$tmp/ci-artifact-node26" commit release client_path
+  case_dir="$tmp/ci-artifact-node26"
+  init_ci_deploy_fixture "$case_dir" success-node26
+  commit="$(cat "$case_dir/commit")"
+  client_path="$case_dir/client-bin:$case_dir/client-system-bin"
+  if PATH="$client_path" command -v sha256sum >/dev/null 2>&1; then
+    fail "client regression PATH unexpectedly contains sha256sum"
+  fi
+  [[ ":$client_path:" != *":/sbin:"* ]] || fail "client regression PATH unexpectedly contains /sbin"
+  run_ci_deploy_fixture "$case_dir"
+  [[ "$CI_DEPLOY_STATUS" -eq 0 ]] || fail "CI artifact deployment failed without local build/hash tools: $CI_DEPLOY_OUTPUT"
+  [[ -e "$case_dir/deploy-reached" ]] || fail "mock production cutover did not run with the CI artifact"
+  [[ ! -e "$case_dir/node-invoked" ]] || fail "local Node 26 was invoked during production deployment"
+  [[ "$(cat "$case_dir/ssh-count")" == 7 ]] || fail "CI artifact deployment did not complete all mocked remote stages"
+  release="$(cat "$case_dir/release-name")"
+  [[ "$(cat "$case_dir/remote/releases/$release/commit.txt")" == "$commit" ]] || fail "uploaded CI artifact commit does not match the clean main checkout"
+  (cd "$case_dir/remote/releases/$release" && sha256sum --check -- SHA256SUMS) >/dev/null || fail "uploaded CI artifact failed the production-side SHA256 check"
+  pass "fixed CI artifact completes the mocked production release when Node 26 is broken and local sha256sum, /sbin, Go, and Corepack are absent"
+
+  local no_frontend="$tmp/ci-artifact-no-frontend"
+  init_ci_deploy_fixture "$no_frontend" success-no-frontend
+  for tool in node corepack pnpm go make; do
+    if PATH="$no_frontend/client-bin:$no_frontend/client-system-bin" command -v "$tool" >/dev/null 2>&1; then
+      fail "no-frontend regression PATH unexpectedly contains $tool"
+    fi
+  done
+  run_ci_deploy_fixture "$no_frontend"
+  [[ "$CI_DEPLOY_STATUS" -eq 0 && -e "$no_frontend/deploy-reached" ]] || fail "CI artifact deployment required a local frontend build environment: $CI_DEPLOY_OUTPUT"
+  pass "CI artifact deployment succeeds with no local Node, Corepack, pnpm, Go, or Make"
+}
+
+test_ci_artifact_rejections_precede_production_mutation() {
+  local mode case_dir
+  for mode in artifact-missing download-corrupt package-corrupt package-missing-file commit-mismatch; do
+    case_dir="$tmp/ci-artifact-$mode"
+    init_ci_deploy_fixture "$case_dir" "$mode"
+    run_ci_deploy_fixture "$case_dir"
+    [[ "$CI_DEPLOY_STATUS" -ne 0 ]] || fail "$mode CI artifact unexpectedly proceeded to deployment"
+    case "$mode" in
+      artifact-missing)
+        [[ "$CI_DEPLOY_OUTPUT" == *"does not contain exactly one complete"* ]] || fail "missing artifact was rejected for the wrong reason: $CI_DEPLOY_OUTPUT" ;;
+      download-corrupt)
+        [[ "$CI_DEPLOY_OUTPUT" == *"artifact SHA-256 does not match GitHub metadata"* ]] || fail "corrupt download was rejected for the wrong reason: $CI_DEPLOY_OUTPUT" ;;
+      package-corrupt|package-missing-file|commit-mismatch)
+        [[ "$CI_DEPLOY_OUTPUT" == *"CI release artifact is incomplete, damaged, or does not match commit"* ]] || fail "$mode artifact was rejected for the wrong reason: $CI_DEPLOY_OUTPUT" ;;
+    esac
+    [[ "$(cat "$case_dir/ssh-count")" == 2 ]] || fail "$mode CI artifact reached production cleanup or upload"
+    [[ ! -e "$case_dir/rsync.log" && ! -e "$case_dir/deploy-reached" ]] || fail "$mode CI artifact caused production transfer or cutover"
+  done
+  pass "missing, damaged, incomplete, and commit-mismatched CI artifacts are rejected before production mutation"
 }
 
 make_safe_cleanup_mock_bin() {
@@ -836,6 +1058,9 @@ PY
   grep -Fq '.incoming-$release_name' "$repo_root/scripts/deploy-production.sh" || fail "resumable staged release upload is missing"
   grep -Fq -- '--rsh="$rsync_ssh"' "$repo_root/scripts/deploy-production.sh" || fail "rsync does not use the non-interactive SSH options"
   grep -Fq 'sha256sum --check -- SHA256SUMS' "$repo_root/scripts/deploy-production.sh" || fail "release upload integrity is not verified"
+  grep -Fq 'download_production_artifact "$commit_sha"' "$repo_root/scripts/deploy-production.sh" || fail "deployment does not download the artifact for the verified main commit"
+  ! grep -Eq 'make_bin|build-linux-amd64|frontend-toolchain|require_command sha256sum' "$repo_root/scripts/deploy-production.sh" || fail "production deployment still depends on local build or checksum tools"
+  grep -Fq 'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9' "$repo_root/.github/workflows/production-ops.yml" || fail "CI does not upload the built production artifact"
   grep -Fq 'OnCalendar=Sat *-*-* 19:00:00 UTC' "$repo_root/scripts/backup-production.timer" || fail "offsite backup is not scheduled weekly"
   grep -Fq 'retention_minutes=43200' "$repo_root/scripts/backup-production.sh" || fail "local retention is not 30 days"
   grep -Fq 'retention_minutes=43200' "$repo_root/scripts/production-safe-cleanup.sh" || fail "disk cleanup retention is not 30 days"
@@ -843,11 +1068,12 @@ PY
   pass "archive contents, local/remote permissions and checksums, and 30/30-day retention verified"
 }
 
-test_high_water_abort_precedes_build
+test_high_water_abort_precedes_release_operations
 test_already_deployed_commit_is_idempotent
 test_missing_rsync_fails_before_cleanup_or_build
 test_missing_ssh_fails_before_remote_access
-test_missing_public_assets_abort_before_remote_or_build
+test_ci_artifact_deployment_ignores_local_toolchain
+test_ci_artifact_rejections_precede_production_mutation
 test_safe_cleanup_and_fresh_threshold
 test_database_unready_stops_before_build_or_migration
 test_migration_failure_preserves_previous_release
