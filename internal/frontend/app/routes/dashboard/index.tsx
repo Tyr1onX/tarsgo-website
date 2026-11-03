@@ -60,6 +60,7 @@ export default function DashboardIndex() {
   const [error, setError] = useState("");
   const [retry, setRetry] = useState<CommunityRetry | null>(null);
   const requestRef = useRef(0);
+  const listAbortRef = useRef<AbortController | null>(null);
   const closeComposer = useCallback(() => setComposerOpen(false), []);
   const cachedList = getCommunityListSnapshot(cacheKey);
   const cacheMatchesLoadedState = loadedCacheKey === cacheKey;
@@ -71,6 +72,10 @@ export default function DashboardIndex() {
 
   const loadFirstPage = useCallback(async (keepCachedPosts = false) => {
     const requestID = ++requestRef.current;
+    listAbortRef.current?.abort();
+    const controller = new AbortController();
+    listAbortRef.current = controller;
+    setLoadingMore(false);
     const cached = getCommunityListSnapshot(cacheKey);
     setLoadedCacheKey(cacheKey);
     if (keepCachedPosts && cached) {
@@ -90,7 +95,7 @@ export default function DashboardIndex() {
     try {
       const pageCount = keepCachedPosts && cached ? cached.page : 1;
       const pages = await Promise.all(Array.from({ length: pageCount }, (_, index) =>
-        communityClient.list({ sort, category, q: query, saved: savedOnly, page: index + 1, pageSize: PAGE_SIZE }),
+        communityClient.list({ sort, category, q: query, saved: savedOnly, page: index + 1, pageSize: PAGE_SIZE }, controller.signal),
       ));
       if (requestRef.current !== requestID) return;
       const result = refreshedCommunitySnapshot(pages);
@@ -103,6 +108,7 @@ export default function DashboardIndex() {
       rememberCommunityList(cacheKey, { posts: freshItems, page: result.page, hasMore: result.hasMore });
     } catch (cause) {
       if (requestRef.current !== requestID) return;
+      controller.abort();
       setError(cause instanceof Error ? cause.message : "社区内容暂时无法读取。");
       setRetry({ kind: "first" });
       if (!keepCachedPosts || !cached) {
@@ -116,7 +122,7 @@ export default function DashboardIndex() {
 
   useEffect(() => {
     void loadFirstPage(true);
-    return () => { requestRef.current += 1; };
+    return () => { requestRef.current += 1; listAbortRef.current?.abort(); };
   }, [loadFirstPage]);
 
   function updateFilters(next: Partial<{ sort: CommunitySort; category: CommunityCategory | ""; q: string; saved: boolean }>) {
@@ -139,11 +145,13 @@ export default function DashboardIndex() {
     if (loadingMore || !hasMore) return;
     const nextPage = page + 1;
     const requestID = requestRef.current;
+    const controller = listAbortRef.current && !listAbortRef.current.signal.aborted ? listAbortRef.current : new AbortController();
+    listAbortRef.current = controller;
     setLoadingMore(true);
     setError("");
     setRetry(null);
     try {
-      const result = await communityClient.list({ sort, category, q: query, saved: savedOnly, page: nextPage, pageSize: PAGE_SIZE });
+      const result = await communityClient.list({ sort, category, q: query, saved: savedOnly, page: nextPage, pageSize: PAGE_SIZE }, controller.signal);
       if (requestRef.current !== requestID) return;
       setPosts((current) => {
         const existing = new Set(current.map((post) => post.id));
@@ -158,7 +166,7 @@ export default function DashboardIndex() {
       setError(cause instanceof Error ? cause.message : "加载更多帖子失败。");
       setRetry({ kind: "more" });
     } finally {
-      setLoadingMore(false);
+      if (requestRef.current === requestID) setLoadingMore(false);
     }
   }
 
