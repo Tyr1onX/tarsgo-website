@@ -53,3 +53,32 @@ export function clearPersonalWorkbenchSnapshots(accountId?: number) {
 		}
 	}
 }
+
+// Publish each independent section as it settles. Callers guard publication by
+// request/account generation so old requests cannot repopulate an invalid cache.
+export async function loadPersonalWorkbenchSections(
+  previous: PersonalSnapshot,
+  requests: {
+    weekly: Promise<WeeklyReportStatus>;
+    assignments: Promise<AssignmentTodo[]>;
+    leave: Promise<{ access: LeaveAccessState; latest: LatestLeaveStatus | null }>;
+  },
+  publish: (snapshot: PersonalSnapshot, pending: number) => void,
+) {
+  let next: PersonalSnapshot = { ...previous, errors: {} };
+  let pending = 3;
+  const run = async <T>(key: keyof PersonalSnapshot["errors"], request: Promise<T>, apply: (value: T) => Partial<PersonalSnapshot>, fallback: string) => {
+    try {
+      const value = await request;
+      next = { ...next, ...apply(value) };
+    } catch (error) {
+      next = { ...next, errors: { ...next.errors, [key]: error instanceof Error ? error.message : fallback } };
+    }
+    publish(next, --pending);
+  };
+  await Promise.all([
+    run("weekly", requests.weekly, (weekly) => ({ weekly }), "周报状态暂时无法读取。"),
+    run("assignments", requests.assignments, (assignments) => ({ assignments }), "作业状态暂时无法读取。"),
+    run("leave", requests.leave, ({ access, latest }) => ({ leaveAccess: access, leaveLatest: latest }), "请假状态暂时无法读取。"),
+  ]);
+}

@@ -9,8 +9,8 @@ import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import {
   emptyPersonalSnapshot,
   getPersonalWorkbenchSnapshot,
-  hasPersonalWorkbenchData,
   rememberPersonalWorkbenchSnapshot,
+  loadPersonalWorkbenchSections,
   type PersonalSnapshot,
 } from "~/lib/personal-workbench-cache";
 import "./workbench.css";
@@ -52,7 +52,7 @@ export default function PersonalWorkbench() {
   const [view, setView] = useState<{ key: string; snapshot: PersonalSnapshot; refreshing: boolean }>(() => ({
     key: snapshotKey,
     snapshot: initialSnapshot ?? emptyPersonalSnapshot,
-    refreshing: !hasPersonalWorkbenchData(initialSnapshot),
+    refreshing: true,
   }));
   const snapshot = view.key === snapshotKey ? view.snapshot : getPersonalWorkbenchSnapshot(snapshotKey) ?? emptyPersonalSnapshot;
   const requestSequence = useRef(0);
@@ -69,24 +69,15 @@ export default function PersonalWorkbench() {
       latest: access.status === "approved" || isAdmin ? await leaveClient.latestSchoolStatus() : null,
     }));
     const weeklyRequest = import("~/lib/weekly-report-client").then(({ getWeeklyReportStatus }) => getWeeklyReportStatus());
-    const [weekly, assignments, leave] = await Promise.allSettled([
-      weeklyRequest,
-      hasAssignments ? assignmentClient.listTodos() : Promise.resolve([]),
-      leaveRequest,
-    ]);
-    if (requestSequence.current !== requestId) return;
-
-    const next: PersonalSnapshot = { ...previous, errors: {} };
-    if (weekly.status === "fulfilled") next.weekly = weekly.value;
-    else next.errors.weekly = weekly.reason instanceof Error ? weekly.reason.message : "周报状态暂时无法读取。";
-    if (assignments.status === "fulfilled") next.assignments = assignments.value;
-    else next.errors.assignments = assignments.reason instanceof Error ? assignments.reason.message : "作业状态暂时无法读取。";
-    if (leave.status === "fulfilled") {
-      next.leaveAccess = leave.value.access;
-      next.leaveLatest = leave.value.latest;
-    } else next.errors.leave = leave.reason instanceof Error ? leave.reason.message : "请假状态暂时无法读取。";
-    rememberPersonalWorkbenchSnapshot(snapshotKey, next);
-    setView({ key: snapshotKey, snapshot: next, refreshing: false });
+    await loadPersonalWorkbenchSections(previous, {
+      weekly: weeklyRequest,
+      assignments: hasAssignments ? assignmentClient.listTodos() : Promise.resolve([]),
+      leave: leaveRequest,
+    }, (next, pending) => {
+      if (requestSequence.current !== requestId) return;
+      rememberPersonalWorkbenchSnapshot(snapshotKey, next);
+      setView({ key: snapshotKey, snapshot: next, refreshing: pending > 0 });
+    });
   }, [hasAssignments, isAdmin, snapshotKey]);
 
   useEffect(() => {
@@ -94,6 +85,10 @@ export default function PersonalWorkbench() {
     return () => { requestSequence.current += 1; };
   }, [load]);
 
+  const weeklyLoading = snapshot.weekly === null && !snapshot.errors.weekly && (loading || refreshing);
+  const assignmentsLoading = snapshot.assignments === null && !snapshot.errors.assignments && (loading || refreshing);
+  const leaveLoading = snapshot.leaveAccess === null && !snapshot.errors.leave && (loading || refreshing);
+  const tasksPending = weeklyLoading || assignmentsLoading;
   const currentReport = snapshot.weekly?.submitted ?? false;
   const assignmentTodos = (snapshot.assignments ?? [])
     .filter((assignment) => ["pending", "overdue", "needs_redo"].includes(assignment.status ?? ""))
@@ -102,7 +97,7 @@ export default function PersonalWorkbench() {
   const upcomingAssignments = assignmentTodos.filter(({ status }) => status === "pending");
   const hasErrors = Object.values(snapshot.errors).some(Boolean);
   const taskCount = urgentAssignments.length + upcomingAssignments.length + (snapshot.weekly && !currentReport ? 1 : 0);
-  const leaveStatus = loading ? "读取中" : snapshot.errors.leave ? (snapshot.leaveAccess ? "暂用上次状态" : "读取失败") : getLeaveStatus(snapshot.leaveAccess, snapshot.leaveLatest, isAdmin);
+  const leaveStatus = leaveLoading ? "读取中" : snapshot.errors.leave ? (snapshot.leaveAccess ? "暂用上次状态" : "读取失败") : getLeaveStatus(snapshot.leaveAccess, snapshot.leaveLatest, isAdmin);
 
   function renderAssignments(items: AssignmentTodo[]) {
     return items.map((assignment) => (
@@ -135,9 +130,9 @@ export default function PersonalWorkbench() {
       <section className="personal-workbench__tasks" aria-labelledby="personal-workbench-tasks-title">
         <div className="personal-workbench__section-heading">
           <h2 id="personal-workbench-tasks-title">待处理</h2>
-          {!loading ? <span>{hasErrors ? "部分状态未读取" : `${taskCount} 项`}</span> : null}
+          {!loading ? <span>{tasksPending ? "读取中" : hasErrors ? "部分状态未读取" : `${taskCount} 项`}</span> : null}
         </div>
-        {!loading && taskCount === 0 && !hasErrors ? <p className="personal-workbench__empty">当前没有待处理事项。</p> : null}
+        {!loading && !tasksPending && taskCount === 0 && !hasErrors ? <p className="personal-workbench__empty">当前没有待处理事项。</p> : null}
         {!loading && taskCount > 0 ? <ul className="personal-workbench__task-list">
           {renderAssignments(urgentAssignments)}
           {snapshot.weekly && !currentReport ? <li className="personal-workbench__task">
@@ -154,8 +149,8 @@ export default function PersonalWorkbench() {
 
       <nav className="personal-workbench__links" aria-label="常用入口">
         <h2>常用入口</h2>
-        <Link to="/dashboard/weekly-reports"><span>工作周报</span><span>{loading ? "读取中" : snapshot.errors.weekly ? "状态未知" : currentReport ? "本周已提交" : "本周待填写"}</span></Link>
-        {hasAssignments ? <Link to="/dashboard/assignments"><span>我的作业</span><span>{loading ? "读取中" : snapshot.errors.assignments ? "状态未知" : assignmentTodos.length ? `${assignmentTodos.length} 项待处理` : "暂无待处理"}</span></Link> : null}
+        <Link to="/dashboard/weekly-reports"><span>工作周报</span><span>{weeklyLoading ? "读取中" : snapshot.errors.weekly ? "状态未知" : currentReport ? "本周已提交" : "本周待填写"}</span></Link>
+        {hasAssignments ? <Link to="/dashboard/assignments"><span>我的作业</span><span>{assignmentsLoading ? "读取中" : snapshot.errors.assignments ? "状态未知" : assignmentTodos.length ? `${assignmentTodos.length} 项待处理` : "暂无待处理"}</span></Link> : null}
         <Link to="/dashboard/leave"><span>请假事务</span><span>{leaveStatus}</span></Link>
       </nav>
     </main>
