@@ -1938,7 +1938,7 @@ html[data-theme-transition] body *::after {
 
 .home-visual-card--community {
   color: #f5f1e7;
-  background: #192823;
+  background: #192823 url("/assets/images/Home/community-concept.svg") center / cover no-repeat;
 }
 
 .home-visual-card--community .home-visual-card-arrow {
@@ -1946,16 +1946,16 @@ html[data-theme-transition] body *::after {
 }
 
 .home-visual-card--salon {
-  color: #292c26;
-  background: #eee8dc;
+  color: #f5f1e7;
+  background: #1a201d url("/assets/images/Home/salon-concept.svg") center / cover no-repeat;
 }
 
 .home-visual-card--salon .home-visual-card-copy > p {
-  color: #5d6055;
+  color: rgb(255 255 255 / 0.82);
 }
 
 .home-visual-card--salon .home-visual-card-arrow {
-  color: #826426;
+  color: #d7b56d;
 }
 
 .home-visual-card > img {
