@@ -71,9 +71,6 @@ func (s *Service) CreateAccountSession(ctx context.Context, userID uint64, curre
 }
 
 func (s *Service) createAccountSession(ctx context.Context, userID uint64, currentToken, vaultToken string, credentialAuthentication bool) (*AccountSessionsResult, error) {
-	if err := s.cleanupExpiredAuthDataIfDue(ctx); err != nil {
-		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "清理过期登录记录失败", Err: err}
-	}
 	currentUser, currentExpiresAt := s.currentUserForVault(ctx, currentToken)
 	currentSession, currentSessionFound, sessionReadErr := s.findAuthSession(ctx, currentToken)
 	if sessionReadErr != nil {
@@ -253,9 +250,6 @@ func (s *Service) InitializeAccountSessions(ctx context.Context, currentToken, v
 
 func (s *Service) ListAccountSessions(ctx context.Context, vaultToken, currentToken string) (*AccountSessionsResult, error) {
 	result := &AccountSessionsResult{Accounts: []AccountSessionAccount{}}
-	if err := s.cleanupExpiredAuthDataIfDue(ctx); err != nil {
-		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "清理过期登录记录失败", Err: err}
-	}
 	if strings.TrimSpace(vaultToken) == "" {
 		return result, nil
 	}
@@ -755,9 +749,6 @@ func (s *Service) RenewAccountSession(ctx context.Context, sessionToken, vaultTo
 // locks. Near-expiry rows are still re-read under lock before they are changed.
 func (s *Service) renewAccountSession(ctx context.Context, sessionToken, vaultToken string, session *model.AuthSession, sessionKnown bool) (*SessionRenewal, error) {
 	now := s.now()
-	if err := s.cleanupExpiredAuthDataIfDue(ctx); err != nil {
-		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "清理过期登录记录失败", Err: err}
-	}
 	renewal := &SessionRenewal{}
 	authDue := !sessionKnown
 	if sessionKnown && session != nil {
@@ -867,31 +858,6 @@ func (s *Service) cookieMaxAgeUntil(expiresAt time.Time) int {
 		return configured
 	}
 	return seconds
-}
-
-func (s *Service) cleanupExpiredAuthDataIfDue(ctx context.Context) error {
-	// Cleanup is opportunistic and throttled per app process. Expired sessions
-	// linked to a live vault remain visible so users can reauthenticate them.
-	s.cleanupMu.Lock()
-	if !s.lastAuthCleanup.IsZero() && s.now().Sub(s.lastAuthCleanup) < time.Hour {
-		s.cleanupMu.Unlock()
-		return nil
-	}
-	s.lastAuthCleanup = s.now()
-	s.cleanupMu.Unlock()
-
-	now := s.now()
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		if err := tx.Where("vault_id IN (?)", tx.Model(&model.AccountVault{}).Select("id").Where("expires_at <= ?", now)).Delete(&model.AccountVaultEntry{}).Error; err != nil {
-			return err
-		}
-		if err := tx.Where("expires_at <= ?", now).Delete(&model.AccountVault{}).Error; err != nil {
-			return err
-		}
-		cutoff := now.Add(-ExpiredSessionRetention)
-		return tx.Where("expires_at <= ? AND NOT EXISTS (SELECT 1 FROM account_vault_entries WHERE account_vault_entries.session_id = auth_sessions.id)", cutoff).Delete(&model.AuthSession{}).Error
-	})
-	return err
 }
 
 func ensureValidAccount(user *model.User) error {

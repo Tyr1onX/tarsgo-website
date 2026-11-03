@@ -45,10 +45,9 @@ func TestMariaDBSessionRenewalIntegration(t *testing.T) {
 	}
 
 	service := &Service{
-		db:              tx,
-		authConfig:      config.AuthConfig{TokenTTL: 72 * time.Hour, CookieMaxAgeSeconds: 72 * 60 * 60},
-		now:             func() time.Time { return now },
-		lastAuthCleanup: now,
+		db:         tx,
+		authConfig: config.AuthConfig{TokenTTL: 72 * time.Hour, CookieMaxAgeSeconds: 72 * 60 * 60},
+		now:        func() time.Time { return now },
 	}
 	renewal, err := service.RenewAccountSession(context.Background(), sessionToken, vaultToken)
 	if err != nil {
@@ -71,5 +70,73 @@ func TestMariaDBSessionRenewalIntegration(t *testing.T) {
 	want := now.Add(72 * time.Hour)
 	if !savedSession.ExpiresAt.Equal(want) || !savedVault.ExpiresAt.Equal(want) {
 		t.Fatalf("persisted session/vault expiry = %s/%s, want %s/%s", savedSession.ExpiresAt, savedVault.ExpiresAt, want, want)
+	}
+}
+
+func TestMariaDBSessionCleanupPreservesLiveVaultReferences(t *testing.T) {
+	dsn := os.Getenv("TARSGO_INTEGRATION_MYSQL_DSN")
+	if dsn == "" {
+		t.Skip("set TARSGO_INTEGRATION_MYSQL_DSN")
+	}
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	sqlDB, err := db.DB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer sqlDB.Close()
+	tx := db.Begin()
+	if tx.Error != nil {
+		t.Fatal(tx.Error)
+	}
+	defer tx.Rollback()
+	now := time.Now().UTC().Truncate(time.Second)
+	marker := fmt.Sprint(now.UnixNano())
+	expired := model.AccountVault{SecretHash: digestSecret(marker + "expired"), ExpiresAt: now.Add(-time.Hour)}
+	live := model.AccountVault{SecretHash: digestSecret(marker + "live"), ExpiresAt: now.Add(time.Hour)}
+	for _, vault := range []*model.AccountVault{&expired, &live} {
+		if err := tx.Create(vault).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	old := now.Add(-ExpiredSessionRetention - time.Hour)
+	sessions := []model.AuthSession{
+		{UserID: 98765001, TokenHash: digestSecret(marker + "orphan"), ExpiresAt: old},
+		{UserID: 98765002, TokenHash: digestSecret(marker + "linked-expired"), ExpiresAt: old},
+		{UserID: 98765003, TokenHash: digestSecret(marker + "linked-live"), ExpiresAt: old},
+		{UserID: 98765004, TokenHash: digestSecret(marker + "recent"), ExpiresAt: now.Add(-time.Hour)},
+		{UserID: 98765005, TokenHash: digestSecret(marker + "active"), ExpiresAt: now.Add(time.Hour)},
+	}
+	for i := range sessions {
+		if err := tx.Create(&sessions[i]).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	for _, entry := range []model.AccountVaultEntry{{VaultID: expired.ID, UserID: sessions[1].UserID, SessionID: sessions[1].ID}, {VaultID: live.ID, UserID: sessions[2].UserID, SessionID: sessions[2].ID}} {
+		if err := tx.Create(&entry).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := cleanupSessionBatch(context.Background(), tx, now); err != nil {
+		t.Fatal(err)
+	}
+	for i, session := range sessions {
+		var count int64
+		if err := tx.Model(&model.AuthSession{}).Where("id = ?", session.ID).Count(&count).Error; err != nil {
+			t.Fatal(err)
+		}
+		want := int64(1)
+		if i < 2 {
+			want = 0
+		}
+		if count != want {
+			t.Fatalf("session %d count=%d want=%d", i, count, want)
+		}
+	}
+	var count int64
+	if err := tx.Model(&model.AccountVault{}).Where("id = ?", expired.ID).Count(&count).Error; err != nil || count != 0 {
+		t.Fatalf("expired vault retained count=%d err=%v", count, err)
 	}
 }

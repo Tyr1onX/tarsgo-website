@@ -10,7 +10,6 @@ import (
 	"net/mail"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 	"unicode"
 
@@ -32,12 +31,10 @@ const (
 )
 
 type Service struct {
-	db              *gorm.DB
-	authConfig      config.AuthConfig
-	now             func() time.Time
-	mailer          email.Mailer
-	cleanupMu       sync.Mutex
-	lastAuthCleanup time.Time
+	db         *gorm.DB
+	authConfig config.AuthConfig
+	now        func() time.Time
+	mailer     email.Mailer
 }
 
 type ServiceError struct {
