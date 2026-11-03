@@ -11,6 +11,7 @@ import {
   publishCommunityGrowthError,
   publishCommunityGrowthProfile,
   subscribeToCommunityExperienceRefresh,
+  subscribeToCommunityGrowthSnapshot,
   subscribeToCommunityGrowthServerProfile,
   writeDismissedCommunityExperienceToasts,
   writePendingCommunityExperienceToasts,
@@ -141,6 +142,7 @@ export function CommunityExperienceToastHost({ userID }: { userID: number }) {
         acceptProfile(await communityClient.growth());
       } catch (cause) {
         // XP feedback is best-effort; the next mutation or visible-page sync retries.
+        if (!active) return;
         publishCommunityGrowthError(cause instanceof Error ? cause.message : "社区成长信息暂时无法读取。");
       } finally {
         requestRunningRef.current = false;
@@ -151,6 +153,10 @@ export function CommunityExperienceToastHost({ userID }: { userID: number }) {
       }
     }
 
+    const stopSnapshot = subscribeToCommunityGrowthSnapshot(() => {
+      if (profileRef.current) publishCommunityGrowthProfile(profileRef.current);
+      else if (!requestRunningRef.current) void refresh();
+    });
     const stopRefresh = subscribeToCommunityExperienceRefresh(() => { void refresh(); });
     const stopServerProfiles = subscribeToCommunityGrowthServerProfile(acceptProfile);
     const syncWhenVisible = () => {
@@ -164,6 +170,7 @@ export function CommunityExperienceToastHost({ userID }: { userID: number }) {
     return () => {
       active = false;
       stopRefresh();
+      stopSnapshot();
       stopServerProfiles();
       document.removeEventListener("visibilitychange", syncWhenVisible);
       window.removeEventListener("focus", syncWhenVisible);

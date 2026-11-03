@@ -2,6 +2,10 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  requestCommunityGrowthSnapshot,
+  subscribeToCommunityGrowthSnapshot,
+  publishCommunityGrowthProfile,
+  subscribeCommunityGrowthProfile,
   communityExperienceDismissedStorageKey,
   communityExperiencePendingStorageKey,
   communityExperienceStorageKey,
@@ -129,4 +133,25 @@ test("pending XP toast IDs from storage are normalized before dismissal lookups"
     if (originalWindow) Object.defineProperty(globalThis, "window", originalWindow);
     else delete globalThis.window;
   }
+});
+
+
+test("late growth subscriber reuses host snapshot and unsubscribes", () => {
+ const original = Object.getOwnPropertyDescriptor(globalThis, "window");
+ Object.defineProperty(globalThis,"window",{configurable:true,value:new EventTarget()});
+ try {
+  const profile={level:3,totalXp:80};
+  let requests=0;
+  const stopHost=subscribeToCommunityGrowthSnapshot(()=>{requests++;publishCommunityGrowthProfile(profile)});
+  const seen=[];
+  const stopView=subscribeCommunityGrowthProfile(value=>seen.push(value));
+  requestCommunityGrowthSnapshot();
+  assert.deepEqual(seen,[profile]);
+  stopView();requestCommunityGrowthSnapshot();
+  assert.equal(seen.length,1);
+  stopHost();requestCommunityGrowthSnapshot();
+  assert.equal(requests,2);
+ } finally {
+  if(original) Object.defineProperty(globalThis,"window",original);else delete globalThis.window;
+ }
 });

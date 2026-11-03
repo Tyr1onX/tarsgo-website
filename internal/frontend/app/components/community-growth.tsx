@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 
 import { CommunityIcon } from "~/components/community-icons";
 import { communityClient, type CommunityGrowthProfile } from "~/lib/community-client";
-import { requestCommunityExperienceRefresh, subscribeCommunityGrowthError, subscribeCommunityGrowthProfile } from "~/lib/community-experience-sync";
+import { requestCommunityGrowthSnapshot, requestCommunityExperienceRefresh, subscribeCommunityGrowthError, subscribeCommunityGrowthProfile } from "~/lib/community-experience-sync";
 import "./community-growth.css";
 
 export function CommunityLevelBadge({ level }: { level: number }) {
@@ -76,6 +76,7 @@ export function CommunityGrowthBar({
       setError("");
     });
     const stopError = subscribeCommunityGrowthError(setError);
+    requestCommunityGrowthSnapshot();
     return () => { stopProfile(); stopError(); };
   }, [onProfileChange]);
 
@@ -96,9 +97,9 @@ export function CommunityGrowthBar({
 
   return <section className="community-growth" aria-label="社区成长">
     <div className="community-growth__bar">
-      <button type="button" className={`community-growth__checkin${profile?.checkedInToday ? " is-complete" : ""}`} onClick={() => void checkIn()} disabled={loading || checkingIn || profile?.checkedInToday}>
+      <button type="button" className={`community-growth__checkin${profile?.checkedInToday ? " is-complete" : ""}`} onClick={() => void checkIn()} disabled={(loading && !error) || checkingIn || profile?.checkedInToday}>
         <CommunityIcon name={profile?.checkedInToday ? "check" : "calendarCheck"} />
-        <span>{loading ? "读取签到状态…" : checkingIn ? "签到中…" : profile?.checkedInToday ? "今日已签到" : "每日签到"}</span>
+        <span>{loading && !error ? "读取签到状态…" : checkingIn ? "签到中…" : profile?.checkedInToday ? "今日已签到" : "每日签到"}</span>
         {profile && !profile.checkedInToday ? <strong>+{profile.upcomingCheckIns[0]?.rewardXp ?? 10} XP</strong> : null}
       </button>
       <span className="community-growth__summary" aria-live="polite">
