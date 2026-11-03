@@ -205,6 +205,7 @@ func migrationRegistry(appEnv string) []migration {
 			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.EmailCode{}, &model.User{})
 		}},
 		{version: 45, apply: dropTeamIdentityChanges},
+		{version: 46, apply: migrateWeeklyUniqueV46},
 	}
 }
 

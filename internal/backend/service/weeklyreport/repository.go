@@ -83,7 +83,8 @@ func (r *GormRepository) ListMine(ctx context.Context, userID uint64) ([]model.W
 // UpsertCurrent serializes writes on the user row. The legacy unique key is
 // scoped by group, but one person must have only one active report per week;
 // locking the authenticated user's row also covers ungrouped and moved users
-// without rewriting historical rows or changing that legacy index.
+// without rewriting history. Migration 46 adds a user/week constraint as a
+// database backstop; retain the lock to serialize application upserts.
 func (r *GormRepository) UpsertCurrent(ctx context.Context, report *model.WeeklyReport) error {
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var user model.User
