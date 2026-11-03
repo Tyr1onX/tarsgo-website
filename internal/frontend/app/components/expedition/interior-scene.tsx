@@ -4,12 +4,12 @@ import type { ExpeditionTerminal } from "~/lib/expedition-navigation";
 
 export interface SceneDevice { terminal: ExpeditionTerminal; name: string; x: number; y: number }
 const DEVICES: Record<ExpeditionFacilityId, readonly SceneDevice[]> = {
-  hangar: [{ terminal: "projects", name: "装配控制台", x: 815, y: 580 }, { terminal: "growth", name: "成员档案终端", x: 275, y: 485 }, { terminal: "journal", name: "赛季记录仪", x: 925, y: 295 }],
-  mechanical: [{ terminal: "assignments", name: "加工工作台", x: 590, y: 570 }, { terminal: "skills", name: "设计终端", x: 260, y: 355 }, { terminal: "questions", name: "工艺资料库", x: 935, y: 280 }, { terminal: "projects", name: "协作调度台", x: 990, y: 565 }],
-  controls: [{ terminal: "assignments", name: "电子实验台", x: 565, y: 545 }, { terminal: "skills", name: "控制系统终端", x: 255, y: 340 }, { terminal: "questions", name: "故障诊断台", x: 925, y: 320 }, { terminal: "projects", name: "系统联调站", x: 930, y: 575 }],
-  vision: [{ terminal: "assignments", name: "标定工作台", x: 565, y: 575 }, { terminal: "skills", name: "感知终端", x: 280, y: 340 }, { terminal: "questions", name: "视觉档案库", x: 940, y: 320 }, { terminal: "projects", name: "感知协作站", x: 925, y: 580 }],
-  ai: [{ terminal: "assignments", name: "仿真工作台", x: 580, y: 560 }, { terminal: "skills", name: "算法终端", x: 265, y: 340 }, { terminal: "questions", name: "研究资料库", x: 940, y: 320 }, { terminal: "projects", name: "系统集成站", x: 930, y: 580 }],
-  operations: [{ terminal: "weekly", name: "周报终端", x: 570, y: 560 }, { terminal: "skills", name: "行动规划台", x: 265, y: 340 }, { terminal: "growth", name: "个人档案库", x: 940, y: 320 }, { terminal: "projects", name: "协作指挥台", x: 940, y: 580 }],
+  hangar: [{ terminal: "projects", name: "装配控制台", x: 815, y: 580 }, { terminal: "journal", name: "赛季记录仪", x: 925, y: 295 }],
+  mechanical: [{ terminal: "assignments", name: "加工工作台", x: 590, y: 570 }, { terminal: "questions", name: "工艺资料库", x: 935, y: 280 }, { terminal: "projects", name: "协作调度台", x: 990, y: 565 }],
+  controls: [{ terminal: "assignments", name: "电子实验台", x: 565, y: 545 }, { terminal: "questions", name: "故障诊断台", x: 925, y: 320 }, { terminal: "projects", name: "系统联调站", x: 930, y: 575 }],
+  vision: [{ terminal: "assignments", name: "标定工作台", x: 565, y: 575 }, { terminal: "questions", name: "视觉档案库", x: 940, y: 320 }, { terminal: "projects", name: "感知协作站", x: 925, y: 580 }],
+  ai: [{ terminal: "assignments", name: "仿真工作台", x: 580, y: 560 }, { terminal: "questions", name: "研究资料库", x: 940, y: 320 }, { terminal: "projects", name: "系统集成站", x: 930, y: 580 }],
+  operations: [{ terminal: "weekly", name: "周报终端", x: 570, y: 560 }, { terminal: "projects", name: "协作指挥台", x: 940, y: 580 }],
 };
 export function getSceneDevices(id: ExpeditionFacilityId) { return DEVICES[id]; }
 const ACCENTS: Record<ExpeditionFacilityId, string> = { hangar: "#e5bd75", mechanical: "#e5b271", controls: "#70d6cf", vision: "#8cbfe9", ai: "#afa4ec", operations: "#d7c68a" };

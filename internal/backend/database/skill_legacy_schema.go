@@ -1,19 +1,11 @@
-package model
+// Frozen schema for historical migrations only. Retired data is cleared by v49.
+package database
 
 import "time"
 
-const (
-	SkillReviewMastered = "mastered"
-	SkillReviewRevoked  = "revoked"
-
-	SkillEvidenceAssignment = "assignment"
-	SkillEvidenceQuestion   = "question"
-	SkillEvidenceNote       = "note"
-)
-
-// SkillNode is a configurable learning objective owned by one existing group.
+// skillNodeLegacy is a configurable learning objective owned by one existing group.
 // No node is seeded by migration; each group route is built by its admins.
-type SkillNode struct {
+type skillNodeLegacy struct {
 	ID              uint64    `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
 	GroupID         uint64    `json:"groupId" gorm:"column:group_id;type:bigint unsigned;not null;uniqueIndex:uk_skill_group_name,priority:1;index:idx_skill_group_active,priority:1"`
 	Name            string    `json:"name" gorm:"size:100;not null;uniqueIndex:uk_skill_group_name,priority:2"`
@@ -27,38 +19,38 @@ type SkillNode struct {
 	UpdatedAt       time.Time `json:"updatedAt" gorm:"column:updated_at;type:datetime;not null;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"`
 }
 
-func (SkillNode) TableName() string { return "skill_nodes" }
+func (skillNodeLegacy) TableName() string { return "skill_nodes" }
 
-type SkillNodePrerequisite struct {
+type skillNodePrerequisiteLegacy struct {
 	ID                 uint64 `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
 	SkillNodeID        uint64 `json:"skillNodeId" gorm:"column:skill_node_id;type:bigint unsigned;not null;uniqueIndex:uk_skill_prerequisite,priority:1;index:idx_skill_prerequisite_target"`
 	PrerequisiteNodeID uint64 `json:"prerequisiteNodeId" gorm:"column:prerequisite_node_id;type:bigint unsigned;not null;uniqueIndex:uk_skill_prerequisite,priority:2;index:idx_skill_prerequisite_target"`
 }
 
-func (SkillNodePrerequisite) TableName() string { return "skill_node_prerequisites" }
+func (skillNodePrerequisiteLegacy) TableName() string { return "skill_node_prerequisites" }
 
-type SkillNodeAssignment struct {
+type skillNodeAssignmentLegacy struct {
 	ID           uint64 `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
 	SkillNodeID  uint64 `json:"skillNodeId" gorm:"column:skill_node_id;type:bigint unsigned;not null;uniqueIndex:uk_skill_assignment,priority:1;index:idx_skill_assignment_assignment"`
 	AssignmentID uint64 `json:"assignmentId" gorm:"column:assignment_id;type:bigint unsigned;not null;uniqueIndex:uk_skill_assignment,priority:2;index:idx_skill_assignment_assignment"`
 }
 
-func (SkillNodeAssignment) TableName() string { return "skill_node_assignments" }
+func (skillNodeAssignmentLegacy) TableName() string { return "skill_node_assignments" }
 
-// SkillNodeProgress contains only a member's explicit start marker. Challenge,
+// skillNodeProgressLegacy contains only a member's explicit start marker. Challenge,
 // practice and mastery are derived from this marker and existing business data.
-type SkillNodeProgress struct {
+type skillNodeProgressLegacy struct {
 	ID          uint64    `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
 	SkillNodeID uint64    `json:"skillNodeId" gorm:"column:skill_node_id;type:bigint unsigned;not null;uniqueIndex:uk_skill_progress,priority:1;index:idx_skill_progress_user,priority:2"`
 	UserID      uint64    `json:"userId" gorm:"column:user_id;type:bigint unsigned;not null;uniqueIndex:uk_skill_progress,priority:2;index:idx_skill_progress_user,priority:1"`
 	StartedAt   time.Time `json:"startedAt" gorm:"column:started_at;type:datetime;not null;default:CURRENT_TIMESTAMP"`
 }
 
-func (SkillNodeProgress) TableName() string { return "skill_node_progress" }
+func (skillNodeProgressLegacy) TableName() string { return "skill_node_progress" }
 
-// SkillReviewEvent is append-only. Revocation adds an event instead of erasing
+// skillReviewEventLegacy is append-only. Revocation adds an event instead of erasing
 // who confirmed a skill and on what basis.
-type SkillReviewEvent struct {
+type skillReviewEventLegacy struct {
 	ID           uint64    `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
 	GroupID      uint64    `json:"groupId" gorm:"column:group_id;type:bigint unsigned;not null;index:idx_skill_review_group_user,priority:1"`
 	SkillNodeID  uint64    `json:"skillNodeId" gorm:"column:skill_node_id;type:bigint unsigned;not null;index:idx_skill_review_user_node,priority:2"`
@@ -73,4 +65,4 @@ type SkillReviewEvent struct {
 	CreatedAt    time.Time `json:"createdAt" gorm:"column:created_at;type:datetime;not null;default:CURRENT_TIMESTAMP;index:idx_skill_review_user_node,priority:4"`
 }
 
-func (SkillReviewEvent) TableName() string { return "skill_review_events" }
+func (skillReviewEventLegacy) TableName() string { return "skill_review_events" }

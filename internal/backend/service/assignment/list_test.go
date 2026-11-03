@@ -45,7 +45,7 @@ func TestAdminListBatchesStatsAndProtectsReferencedAssignments(t *testing.T) {
 	}
 	mock.ExpectQuery("SELECT .* FROM `user_groups` WHERE id IN").WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(41, "机械组"))
 	mock.ExpectQuery("(?s)SELECT t.assignment_id, COUNT.*FROM assignment_targets").WillReturnRows(sqlmock.NewRows([]string{"assignment_id", "target_count", "submitted_count", "reviewed_count", "passed_count"}).AddRow(2, 10, 5, 4, 3))
-	mock.ExpectQuery("(?s)SELECT a.id FROM assignments a.*skill_node_assignments.*skill_review_events.*capability_dimension_sources").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
+	mock.ExpectQuery("(?s)SELECT a.id FROM assignments a.*assignment_submissions").WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(1))
 	views, err := (&Service{db: db}).adminListViews(context.Background(), items)
 	if err != nil {
 		t.Fatal(err)

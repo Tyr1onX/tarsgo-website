@@ -108,12 +108,9 @@ func (s *Service) adminListViews(ctx context.Context, items []model.Assignment) 
 		if len(withdrawn) > 0 {
 			var safeIDs []uint64
 			// A review always references a submission; blocking all submissions also
-			// blocks reviews. Historical skill/capability references remain protected.
+			// blocks reviews. Retired skill/capability associations have been removed.
 			err = s.db.WithContext(ctx).Raw(`SELECT a.id FROM assignments a WHERE a.id IN ?
-    AND NOT EXISTS (SELECT 1 FROM assignment_submissions s WHERE s.assignment_id = a.id)
-    AND NOT EXISTS (SELECT 1 FROM skill_node_assignments l WHERE l.assignment_id = a.id)
-    AND NOT EXISTS (SELECT 1 FROM skill_review_events e WHERE e.evidence_type = ? AND e.evidence_id = a.id)
-    AND NOT EXISTS (SELECT 1 FROM capability_dimension_sources c WHERE c.source_type = ? AND c.source_id = a.id)`, withdrawn, model.SkillEvidenceAssignment, model.CapabilitySourceAssignment).Scan(&safeIDs).Error
+    AND NOT EXISTS (SELECT 1 FROM assignment_submissions s WHERE s.assignment_id = a.id)`, withdrawn).Scan(&safeIDs).Error
 			if err != nil {
 				return nil, internalError("读取作业引用状态失败", err)
 			}

@@ -5,7 +5,7 @@ export const GROUP_ACCESS_HELP = "工作台入口按账号角色和所属组别�
 const TECHNICAL_GROUPS = ["机械组", "电控组", "视觉组", "AI组"] as const;
 const ASSIGNMENT_GROUPS = [...TECHNICAL_GROUPS, "运营组"] as const;
 
-export type WorkbenchFeatureKey = "assignments" | "community" | "growth" | "skills" | "base" | "collaboration";
+export type WorkbenchFeatureKey = "assignments" | "community" | "base" | "collaboration";
 export type WorkbenchFeatureAudience = "all" | "technical" | "skill-groups" | "assignment-groups";
 
 export interface WorkbenchFeature {
@@ -43,28 +43,6 @@ export const WORKBENCH_FEATURES: readonly WorkbenchFeature[] = [
     description: "发布项目进展、交流技术经验、回复讨论并收藏值得回看的内容。历史答疑继续按原组别和私密范围展示。",
     href: "/dashboard",
     action: "进入吉甲社区",
-  },
-  {
-    key: "growth",
-    title: "我的成长",
-    status: "暂未开放",
-    audience: "all",
-    audienceLabel: "所有成员",
-    description: "根据真实作业、答疑、技能确认等记录形成成长档案；全体成员可用工作周报记录学习与工作进展。",
-    href: "/dashboard/growth",
-    action: "查看我的成长",
-  },
-  {
-    key: "skills",
-    title: "技能路线",
-    status: "暂未开放",
-    audience: "skill-groups",
-    audienceLabel: "机械组、电控组、视觉组、AI组及运营组",
-    description: "技能树、挑战和审核功能已开发，但各组正式技能节点、培养目标及考核标准尚待配置，不代表正式考核已经开始。",
-    href: "/dashboard/skills",
-    action: "查看技能路线",
-    adminHref: "/dashboard/admin/training/skills",
-    adminAction: "配置本组路线",
   },
   {
     key: "base",

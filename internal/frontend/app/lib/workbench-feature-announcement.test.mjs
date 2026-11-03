@@ -12,8 +12,6 @@ test("feature guide exposes the agreed title, date, statuses, and destinations",
     "已开放",
     "暂未开放",
     "暂未开放",
-    "暂未开放",
-    "暂未开放",
   ]);
   assert.ok(WORKBENCH_FEATURES.every(({ href }) => href.startsWith("/dashboard")));
 });
@@ -32,12 +30,10 @@ test("super admins retain assignment management entry and every audience gets co
 test("admin-only links are hidden from members and constrained to assigned groups", () => {
   const assignments = WORKBENCH_FEATURES.find(({ key }) => key === "assignments");
   const community = WORKBENCH_FEATURES.find(({ key }) => key === "community");
-  const skills = WORKBENCH_FEATURES.find(({ key }) => key === "skills");
-  assert.ok(assignments && community && skills);
+  assert.ok(assignments && community);
   assert.equal(community.href, "/dashboard");
   assert.equal(getWorkbenchAdminAction(assignments, "user", ["机械组"]), null);
   assert.equal(getWorkbenchAdminAction(assignments, "admin", ["运营组"])?.href, "/dashboard/admin/training/assignments");
   assert.equal(getWorkbenchAdminAction(assignments, "admin", ["机械组"])?.href, "/dashboard/admin/training/assignments");
-  assert.equal(getWorkbenchAdminAction(skills, "admin", ["运营组"]), null);
   assert.equal(getWorkbenchAdminAction(assignments, "super_admin")?.href, "/dashboard/admin/training/assignments");
 });

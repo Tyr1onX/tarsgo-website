@@ -1,15 +1,11 @@
-package model
+// Frozen schema for historical migrations only. Retired data is cleared by v49.
+package database
 
 import "time"
 
-const (
-	CapabilitySourceAssignment = "assignment"
-	CapabilitySourcePractice   = "practice_project"
-)
-
-// CapabilityDimension is a numeric assessment dimension owned by one group.
+// capabilityDimensionLegacy is a numeric assessment dimension owned by one group.
 // Inactive dimensions are retained so historical manual reviews remain auditable.
-type CapabilityDimension struct {
+type capabilityDimensionLegacy struct {
 	ID          uint64    `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
 	GroupID     uint64    `json:"groupId" gorm:"column:group_id;type:bigint unsigned;not null;index:idx_capability_dimension_group"`
 	Name        string    `json:"name" gorm:"size:100;not null"`
@@ -21,12 +17,12 @@ type CapabilityDimension struct {
 	UpdatedAt   time.Time `json:"updatedAt" gorm:"column:updated_at;type:datetime;not null;default:CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP"`
 }
 
-func (CapabilityDimension) TableName() string { return "capability_dimensions" }
+func (capabilityDimensionLegacy) TableName() string { return "capability_dimensions" }
 
-// CapabilityDimensionSource maps an existing assignment or practice project
+// capabilityDimensionSourceLegacy maps an existing assignment or practice project
 // to a dimension. Scores remain in their source tables and are read at request
 // time, so regrading automatically changes the derived capability result.
-type CapabilityDimensionSource struct {
+type capabilityDimensionSourceLegacy struct {
 	ID          uint64 `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
 	GroupID     uint64 `json:"groupId" gorm:"column:group_id;type:bigint unsigned;not null;index:idx_capability_source_group"`
 	DimensionID uint64 `json:"dimensionId" gorm:"column:dimension_id;type:bigint unsigned;not null;uniqueIndex:uk_capability_source,priority:1;index:idx_capability_source_group,priority:2"`
@@ -34,11 +30,11 @@ type CapabilityDimensionSource struct {
 	SourceID    uint64 `json:"sourceId" gorm:"column:source_id;type:bigint unsigned;not null;uniqueIndex:uk_capability_source,priority:3"`
 }
 
-func (CapabilityDimensionSource) TableName() string { return "capability_dimension_sources" }
+func (capabilityDimensionSourceLegacy) TableName() string { return "capability_dimension_sources" }
 
-// CapabilityManualReview is append-only. Its dimension name snapshot and
+// capabilityManualReviewLegacy is append-only. Its dimension name snapshot and
 // reviewer identity preserve the context of the evaluation over time.
-type CapabilityManualReview struct {
+type capabilityManualReviewLegacy struct {
 	ID            uint64    `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
 	GroupID       uint64    `json:"groupId" gorm:"column:group_id;type:bigint unsigned;not null;index:idx_capability_review_scope,priority:1"`
 	DimensionID   uint64    `json:"dimensionId" gorm:"column:dimension_id;type:bigint unsigned;not null;index:idx_capability_review_scope,priority:2"`
@@ -51,4 +47,4 @@ type CapabilityManualReview struct {
 	CreatedAt     time.Time `json:"createdAt" gorm:"column:created_at;type:datetime;not null;default:CURRENT_TIMESTAMP;index:idx_capability_review_created"`
 }
 
-func (CapabilityManualReview) TableName() string { return "capability_manual_reviews" }
+func (capabilityManualReviewLegacy) TableName() string { return "capability_manual_reviews" }

@@ -5,7 +5,7 @@ import { WorkbenchFeatureStatus } from "~/components/workbench-feature-status";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { ApiError } from "~/lib/api-client";
 import { expeditionEventLabel, expeditionEvolutionTargetLabel, expeditionMilestoneStateLabel, expeditionProjectClient, formatExpeditionDate, type ExpeditionEvolutionTarget, type ExpeditionGroupMemberOption, type ExpeditionProject, type ExpeditionProjectInput, type ExpeditionProjectMilestone } from "~/lib/expedition-project-client";
-import { skillsClient, type SkillGroup } from "~/lib/skills-client";
+import { listAdminUserGroupOptions, type AdminUserGroupOption } from "~/lib/admin-user-groups-client";
 import "./expedition-projects.css";
 
 export function meta() {
@@ -39,7 +39,7 @@ export function ExpeditionProjectsRoute() {
   const isSuperAdmin = currentUser.role.name === "super_admin";
   const isManager = isSuperAdmin || currentUser.role.name === "admin";
   const [projects, setProjects] = useState<ExpeditionProject[]>([]);
-  const [groups, setGroups] = useState<SkillGroup[]>([]);
+  const [groups, setGroups] = useState<AdminUserGroupOption[]>([]);
   const [membersByGroup, setMembersByGroup] = useState<Record<number, { items: ExpeditionGroupMemberOption[]; error: boolean }>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -59,8 +59,8 @@ export function ExpeditionProjectsRoute() {
       .then((value) => ({ value, error: "" }))
       .catch((cause: unknown) => ({ value: [] as ExpeditionProject[], error: cause instanceof ApiError ? cause.message : "协作项目暂时无法读取。" }));
     const groupRequest = isManager
-      ? skillsClient.adminGroups().then((value) => ({ value, error: "" })).catch(() => ({ value: [] as SkillGroup[], error: "" }))
-      : Promise.resolve({ value: [] as SkillGroup[], error: "" });
+      ? listAdminUserGroupOptions().then((value) => ({ value, error: "" })).catch(() => ({ value: [] as AdminUserGroupOption[], error: "" }))
+      : Promise.resolve({ value: [] as AdminUserGroupOption[], error: "" });
     void Promise.all([projectRequest, groupRequest]).then(([projectResult, groupResult]) => {
       if (!active) return;
       setProjects(projectResult.value);

@@ -18,13 +18,6 @@ const assignmentClient = await readFile(new URL("./assignment-client.ts", import
 const assignmentGroups = await readFile(new URL("./use-assignment-groups.ts", import.meta.url), "utf8");
 const practicePage = await readFile(new URL("../routes/dashboard/practice-projects.tsx", import.meta.url), "utf8");
 const practiceService = await readFile(new URL("../../../backend/service/assignment/practice.go", import.meta.url), "utf8");
-const skillsManagement = await readFile(new URL("../routes/admin/skill-route-management.tsx", import.meta.url), "utf8");
-const skillGraph = await readFile(new URL("../components/skill-tree-graph.tsx", import.meta.url), "utf8");
-const skillLayout = await readFile(new URL("./skill-tree-layout.ts", import.meta.url), "utf8");
-const skillsClient = await readFile(new URL("./skills-client.ts", import.meta.url), "utf8");
-const skillsService = await readFile(new URL("../../../backend/service/skills/service.go", import.meta.url), "utf8");
-const cultivationPage = await readFile(new URL("../routes/admin/cultivation.tsx", import.meta.url), "utf8");
-const cultivationService = await readFile(new URL("../../../backend/service/cultivation/service.go", import.meta.url), "utf8");
 
 test("workbench exposes assignments to all five supported groups", () => {
   assert.match(routes, /route\("assignments", "routes\/dashboard\/assignments\.tsx"\)/);
@@ -161,7 +154,7 @@ test("assignment lifecycle retains history, blocks submissions after withdrawal,
   assert.match(assignmentService, /func \(s \*Service\) Delete/);
   assert.match(assignmentService, /func requireMemberAssignmentPublished\(item model\.Assignment\) error \{[\s\S]*?notFound\("作业不存在"\)/);
   assert.match(assignmentService, /请先撤回作业，再删除/);
-  assert.match(assignmentService, /已有提交、审核、技能关联或成长依据/);
+  assert.match(assignmentService, /已有提交或审核记录/);
   assert.match(assignmentService, /PublicationStatus: model\.AssignmentPublicationPublished/);
   assert.match(assignmentManagement, /assignmentPublicationStatusLabel/);
   assert.match(assignmentManagement, /确定撤回/);
@@ -171,43 +164,8 @@ test("assignment lifecycle retains history, blocks submissions after withdrawal,
   assert.match(memberAssignments, /作业已撤回，无法继续提交/);
 });
 
-test("cultivation shows joining years and activity instead of incomplete score rankings", () => {
-  assert.match(cultivationService, /user_group_members\.joined_at/);
-  assert.match(cultivationService, /JoinedYear: row\.JoinedAt\.Year\(\)/);
-  assert.doesNotMatch(cultivationService, /left\.OverallScore > \*right\.OverallScore/);
-  assert.match(cultivationPage, /item\.joinedYear === activeYear/);
-  assert.match(cultivationPage, /入组年份/);
-  assert.doesNotMatch(cultivationPage, /<CapabilityRadar/);
-  assert.doesNotMatch(cultivationPage, /item\.overallScore === null/);
-});
 
-test("skill graph shows the start on load and only blocks deletion for protected history or dependants", () => {
-  assert.match(skillGraph, /scrollTo\(\{ left: 0, top: 0, behavior: "auto" \}\)/);
-  assert.doesNotMatch(skillGraph, /if \(selectedID !== null\) focusSelected\(\)/);
-  assert.match(skillsService, /Where\("prerequisite_node_id = \?", nodeID\)/);
-  assert.match(skillsService, /Delete\(&model\.SkillNodePrerequisite\{\}\)/);
-  assert.match(skillsService, /Delete\(&model\.SkillNodeAssignment\{\}\)/);
-});
 
-test("skill graph auto-arranges dependencies, focuses context, and safely handles node removal", () => {
-  assert.match(skillLayout, /barycenter sweeps/);
-  assert.match(skillLayout, /channelX/);
-  assert.match(skillGraph, /定位选中节点/);
-  assert.match(skillGraph, /自动整理布局/);
-  assert.doesNotMatch(skillGraph, /is-dimmed/);
-  assert.match(skillGraph, /prefers-reduced-motion/);
-  assert.match(skillsManagement, /同层排列顺序/);
-  assert.match(skillsManagement, /只微调同层节点位置/);
-  assert.match(skillsManagement, /async function autoArrangeLayout/);
-  assert.match(skillsManagement, /async function deleteNode/);
-  assert.match(skillsManagement, /删除节点/);
-  assert.match(skillsClient, /reorderLayout/);
-  assert.match(skillsClient, /deleteNode/);
-  assert.match(skillsService, /func \(s \*Service\) ReorderNodes/);
-  assert.match(skillsService, /func \(s \*Service\) DeleteNode/);
-  assert.match(skillsService, /已有学习或审核历史，或被其他节点依赖/);
-  assert.match(skillsService, /hasDependencyCycle\(graph\)/);
-});
 
 test("submission page distinguishes list loading, empty lists, detail loading, and no submissions", () => {
   assert.match(assignmentSubmissions, /const assignmentGroupKey = assignmentGroups\.map\(\(group\) => group\.groupId\)\.join\(","\)/);

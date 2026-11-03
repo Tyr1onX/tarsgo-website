@@ -552,14 +552,8 @@ func normalizeRegistrationFields(fields []model.FormField) ([]model.FormField, e
 		normalized = append(normalized, item)
 	}
 
-	_, hasLegacyFirst := seen["group_1"]
-	_, hasLegacySecond := seen["group_2"]
-	hasLegacyDualIntent := hasLegacyFirst && hasLegacySecond
 	for key := range registrationLockedFields {
 		if !lockedSeen[key] {
-			if key == "preferred_group" && hasLegacyDualIntent {
-				continue
-			}
 			return nil, &FormServiceError{Status: http.StatusBadRequest, Message: "姓名、手机号、邮箱、意向组四个系统字段必须保留且为必填项"}
 		}
 	}
@@ -569,6 +563,9 @@ func normalizeRegistrationFields(fields []model.FormField) ([]model.FormField, e
 
 func normalizeRegistrationField(field model.FormField, seen map[string]struct{}) (model.FormField, error) {
 	key := strings.TrimSpace(field.Key)
+	if key == "group_1" || key == "group_2" {
+		return model.FormField{}, &FormServiceError{Status: http.StatusBadRequest, Message: "双志愿字段已停用，请使用意向组字段"}
+	}
 	label := strings.TrimSpace(field.Label)
 	fieldType := strings.TrimSpace(field.Type)
 

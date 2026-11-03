@@ -19,13 +19,6 @@ export type DashboardMenuGroup = {
   children: readonly DashboardMenuLink[];
 };
 
-export type GrowthDashboardTabKey = "profile" | "capabilities" | "skills";
-
-export type GrowthDashboardTab = {
-  key: GrowthDashboardTabKey;
-  label: string;
-};
-
 type DashboardAllowedRoles = readonly string[];
 
 type AdminMenuLeaf = DashboardMenuLink & {
@@ -50,7 +43,6 @@ const ASSIGNMENT_MENU_ITEM: DashboardMenuLink = {
 
 const TECHNICAL_GROUP_NAMES = new Set(["机械组", "电控组", "视觉组", "AI组"]);
 const ASSIGNMENT_GROUP_NAMES = new Set([...TECHNICAL_GROUP_NAMES, "运营组"]);
-const SKILL_GROUP_NAMES = new Set([...TECHNICAL_GROUP_NAMES, "运营组"]);
 
 const DASHBOARD_SECTION_MENU: readonly DashboardMenuLink[] = [
   { key: "community", label: "社区", href: "/dashboard", iconKey: "community" },
@@ -74,6 +66,7 @@ const ADMIN_MENU: readonly AdminMenuGroup[] = [
     label: "成员与培养",
     iconKey: "people",
     children: [
+      { key: "history-archive", label: "历史档案", href: "/dashboard/admin/history", allowedRoles: ["super_admin"] },
       { key: "accounts", label: "账号与权限", href: "/dashboard/admin/users", allowedRoles: ["super_admin"] },
       { key: "assignment-management", label: "作业管理", href: "/dashboard/admin/training/assignments", allowedRoles: ["admin", "super_admin"], requiresAssignmentGroup: true },
       { key: "assignment-submissions", label: "提交批改", href: "/dashboard/admin/training/submissions", allowedRoles: ["admin", "super_admin"], requiresAssignmentGroup: true },
@@ -124,13 +117,9 @@ export function isAssignmentGroupName(name: string) {
   return ASSIGNMENT_GROUP_NAMES.has(name);
 }
 
-export function hasSkillGroupAccess(groups: readonly { name: string }[] | null | undefined) {
-  return Boolean(groups?.some((group) => SKILL_GROUP_NAMES.has(group.name)));
-}
-
-export function canAccessExpedition(userOrRole: AuthUser | string, hasSkillGroup: boolean) {
+export function canAccessExpedition(userOrRole: AuthUser | string, hasAssignmentGroup: boolean) {
   const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
-  return hasSkillGroup || roleName === "super_admin";
+  return hasAssignmentGroup || roleName === "super_admin";
 }
 
 export function isTemporarilyUnavailableDashboardPath(pathname: string) {
@@ -178,20 +167,6 @@ export function getUserDashboardMenu(userOrRole: AuthUser | string, hasAssignmen
   const menu = [...(roleName === "user" ? USER_MENU : [])];
   if (hasAssignmentGroup && roleName === "user") menu.push(ASSIGNMENT_MENU_ITEM);
   return menu;
-}
-
-export function getGrowthDashboardTabs(userOrRole: AuthUser | string, hasSkillGroup = false, hasCapabilityGroup = false): GrowthDashboardTab[] {
-  const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
-  const tabs: GrowthDashboardTab[] = [{ key: "profile", label: "成长档案" }];
-  if (hasCapabilityGroup) tabs.push({ key: "capabilities", label: "能力评价" });
-  if (hasSkillGroup || roleName === "super_admin") tabs.push({ key: "skills", label: "技能树" });
-  return tabs;
-}
-
-export function getGrowthTabPath(tab: GrowthDashboardTabKey, currentSearch = "") {
-  const search = new URLSearchParams(currentSearch);
-  search.set("tab", tab);
-  return `/dashboard/growth?${search.toString()}`;
 }
 
 export function getDashboardSectionMenu(currentUser: AuthUser): DashboardMenuLink[] {

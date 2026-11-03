@@ -4,13 +4,11 @@ import { Link, useOutletContext, useSearchParams } from "react-router";
 import { WorkbenchFeatureStatus } from "~/components/workbench-feature-status";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { assignmentClient, type Assignment } from "~/lib/assignment-client";
-import { getGrowthProfile, growthEventLabel, formatGrowthDate, type GrowthEvent, type GrowthProfile } from "~/lib/growth-client";
 import { buildExpeditionChallenges, getAcceptedExpeditionMilestones, getExpeditionEvolution, getPrimaryFacilityId, getPublicFacilityFAQs, type ExpeditionChallenge, type ExpeditionFacilityId } from "~/lib/expedition-data";
 import { parseExpeditionArea, withExpeditionArea, parseExpeditionTerminal, withExpeditionTerminal, type ExpeditionTerminal } from "~/lib/expedition-navigation";
 import { expeditionEvolutionTargetLabel, expeditionProjectClient, type ExpeditionProject } from "~/lib/expedition-project-client";
-import { hasSkillGroupAccess, hasTechnicalGroupAccess } from "~/lib/dashboard-navigation";
+import { hasAssignmentGroupAccess, hasTechnicalGroupAccess } from "~/lib/dashboard-navigation";
 import { getAuthUserName } from "~/lib/auth-client";
-import { skillsClient, skillStateLabel, type SkillGroupProgress } from "~/lib/skills-client";
 import { communityClient, communityPostHref, formatCommunityDate, type CommunityListItem } from "~/lib/community-client";
 import { FACILITIES, type FacilityInfo } from "~/components/expedition/facilities";
 import { WorldMap } from "~/components/expedition/world-map";
@@ -22,25 +20,21 @@ export function meta() {
 }
 
 interface ExpeditionData {
-  profile: GrowthProfile | null;
-  skills: SkillGroupProgress[];
   assignments: Assignment[];
   questions: CommunityListItem[];
   faqs: CommunityListItem[];
   projects: ExpeditionProject[];
   loading: boolean;
-  errors: { profile: boolean; skills: boolean; assignments: boolean; questions: boolean; faqs: boolean; projects: boolean };
+  errors: { assignments: boolean; questions: boolean; faqs: boolean; projects: boolean };
 }
 
 const EMPTY_DATA: ExpeditionData = {
-  profile: null,
-  skills: [],
   assignments: [],
   questions: [],
   faqs: [],
   projects: [],
   loading: true,
-  errors: { profile: false, skills: false, assignments: false, questions: false, faqs: false, projects: false },
+  errors: { assignments: false, questions: false, faqs: false, projects: false },
 };
 
 function ZoneGlyph({ id, className = "" }: { id: ExpeditionFacilityId; className?: string }) {
@@ -63,7 +57,6 @@ function challengeStatusLabel(task: ExpeditionChallenge) {
     if (task.status === "overdue") return "已逾期";
     return "待提交";
   }
-  if (task.kind === "skill") return task.status === "practiced" ? "继续实践" : "可挑战";
   if (task.kind === "question") return "待跟进";
   return "本周";
 }
@@ -73,15 +66,6 @@ function formatDueDate(value?: string) {
   const parsed = new Date(value);
   if (!Number.isFinite(parsed.getTime())) return "";
   return new Intl.DateTimeFormat("zh-CN", { timeZone: "Asia/Shanghai", month: "numeric", day: "numeric" }).format(parsed);
-}
-
-function eventHref(event: GrowthEvent) {
-  return event.href?.startsWith("/dashboard/") && !event.href.startsWith("//") ? event.href : undefined;
-}
-
-function facilityGroupProgress(facility: FacilityInfo, groups: readonly SkillGroupProgress[]) {
-  if (!facility.groupName) return null;
-  return groups.find((group) => group.name === facility.groupName) ?? null;
 }
 
 function TerminalWindow({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
@@ -99,13 +83,13 @@ export default function ExpeditionRoute() {
   const groupNames = groupResolution?.groups.map((group) => group.name) ?? [];
   const groupKey = groupNames.join("|");
   const technicalMember = hasTechnicalGroupAccess(groupResolution?.groups);
-  const skillMember = hasSkillGroupAccess(groupResolution?.groups);
-  const canReadBase = skillMember || currentUser.role.name === "super_admin";
+  const assignmentMember = hasAssignmentGroupAccess(groupResolution?.groups);
+  const canReadBase = assignmentMember || currentUser.role.name === "super_admin";
   const selectedSceneId = parseExpeditionArea(searchParams.get("area"));
   const isOverview = selectedSceneId === null;
   const selectedId = selectedSceneId ?? getPrimaryFacilityId(groupNames);
   const requestedTerminal = parseExpeditionTerminal(searchParams.get("terminal"));
-  const globalTerminal = requestedTerminal && ["growth", "journal", "challenges", "projects"].includes(requestedTerminal);
+  const globalTerminal = requestedTerminal && ["journal", "challenges", "projects"].includes(requestedTerminal);
   const terminal = requestedTerminal && (globalTerminal || (selectedSceneId && getSceneDevices(selectedSceneId).some((device) => device.terminal === requestedTerminal))) ? requestedTerminal : null;
   const [regionMenuOpen, setRegionMenuOpen] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
@@ -128,10 +112,6 @@ export default function ExpeditionRoute() {
     const questionGroups = groupResolution?.groups.filter((group) => ["机械组", "电控组", "视觉组", "AI组"].includes(group.name)) ?? [];
     setData({ ...EMPTY_DATA, loading: true });
 
-    const profileRequest = getGrowthProfile().then((value) => ({ value, error: false })).catch(() => ({ value: null, error: true }));
-    const skillsRequest = skillMember
-      ? skillsClient.listMine().then((value) => ({ value: value.groups, error: false })).catch(() => ({ value: [] as SkillGroupProgress[], error: true }))
-      : Promise.resolve({ value: [] as SkillGroupProgress[], error: false });
     const assignmentsRequest = technicalMember
       ? assignmentClient.listMine().then((value) => ({ value, error: false })).catch(() => ({ value: [] as Assignment[], error: true }))
       : Promise.resolve({ value: [] as Assignment[], error: false });
@@ -147,22 +127,20 @@ export default function ExpeditionRoute() {
       : Promise.resolve({ value: [] as CommunityListItem[], error: false });
     const projectsRequest = expeditionProjectClient.listMine().then((value) => ({ value, error: false })).catch(() => ({ value: [] as ExpeditionProject[], error: true }));
 
-    void Promise.all([profileRequest, skillsRequest, assignmentsRequest, questionsRequest, faqsRequest, projectsRequest]).then(([profile, skills, assignments, questions, faqs, projects]) => {
+    void Promise.all([assignmentsRequest, questionsRequest, faqsRequest, projectsRequest]).then(([assignments, questions, faqs, projects]) => {
       if (requestId.current !== activeRequest) return;
       setData({
-        profile: profile.value,
-        skills: skills.value,
         assignments: assignments.value,
         questions: questions.value,
         faqs: faqs.value,
         projects: projects.value,
         loading: false,
-        errors: { profile: profile.error, skills: skills.error, assignments: assignments.error, questions: questions.error, faqs: faqs.error, projects: projects.error },
+        errors: { assignments: assignments.error, questions: questions.error, faqs: faqs.error, projects: projects.error },
       });
     });
 
     return () => { requestId.current++; };
-  }, [currentUser.id, groupKey, refreshKey, skillMember, technicalMember]);
+  }, [currentUser.id, groupKey, refreshKey, assignmentMember, technicalMember]);
 
   const requestedProjectId = Number(searchParams.get("projectId")) || 0;
   const assemblyProject = data.projects.find((project) => project.id === requestedProjectId) ?? data.projects[0] ?? null;
@@ -198,44 +176,31 @@ export default function ExpeditionRoute() {
 
   const selectedFacility = FACILITIES.find((facility) => facility.id === selectedId) ?? FACILITIES[0];
   const isMemberOfSelectedGroup = selectedFacility.groupName === null || groupNames.includes(selectedFacility.groupName);
-  const activeSkillGroup = facilityGroupProgress(selectedFacility, data.skills);
-  const selectedNodes = activeSkillGroup?.nodes ?? [];
-  const masteredCount = selectedNodes.filter((node) => node.state === "mastered").length;
-  const practicedCount = selectedNodes.filter((node) => node.state === "practiced").length;
-  const availableCount = selectedNodes.filter((node) => node.state === "available").length;
-  const lockedCount = selectedNodes.filter((node) => node.state === "locked").length;
-  const masteredFacilityIds = data.skills
-    .filter((group) => group.nodes.some((node) => node.state === "mastered"))
-    .map((group) => FACILITIES.find((facility) => facility.groupName === group.name)?.id)
-    .filter((id): id is ExpeditionFacilityId => Boolean(id));
+  const masteredFacilityIds: ExpeditionFacilityId[] = [];
   const challenges = useMemo(() => buildExpeditionChallenges({
     assignments: data.assignments,
-    skillGroups: data.skills,
     questions: data.questions,
-    profile: data.profile,
-    groupNames,
-  }), [data.assignments, data.profile, data.questions, data.skills, groupKey]);
+  }), [data.assignments, data.questions, groupKey]);
   const selectedFAQs = getPublicFacilityFAQs(data.faqs, selectedFacility.groupName);
   const selectedProjects = data.projects.filter((project) => selectedFacility.groupName ? project.participantGroups.includes(selectedFacility.groupName) : true).slice(0, 3);
   const { acceptedTargets: acceptedEvolutionTargets, hasAcceptedJoint } = getExpeditionEvolution(assemblyProject);
   const acceptedEvolutionLabels = acceptedEvolutionTargets.map(expeditionEvolutionTargetLabel);
   const acceptedMilestones = getAcceptedExpeditionMilestones(data.projects).slice(0, 4);
-  const recentEvents = [...(data.profile?.events ?? [])].reverse().slice(0, 4);
   const device = getSceneDevices(selectedId).find((item) => item.terminal === terminal);
-  const terminalTitle = device?.name ?? ({ challenges: "我的待办", growth: "成员档案", journal: "远征日志", projects: "总装控制台" } as Record<string,string>)[terminal ?? ""] ?? "基地终端";
+  const terminalTitle = device?.name ?? ({ challenges: "我的待办", journal: "远征日志", projects: "总装控制台" } as Record<string,string>)[terminal ?? ""] ?? "基地终端";
   const selectedAssignments = data.assignments.filter((item) => item.groupName === selectedFacility.groupName);
   const selectedQuestions = data.questions.filter((item) => item.groupName === selectedFacility.groupName);
   const denied = !globalTerminal && !isMemberOfSelectedGroup;
-  const terminalError = terminal === "assignments" ? data.errors.assignments : terminal === "skills" ? data.errors.skills : terminal === "questions" ? data.errors.questions || data.errors.faqs : terminal === "projects" || terminal === "journal" ? data.errors.projects : terminal === "growth" ? data.errors.profile : terminal === "challenges" ? data.errors.assignments || data.errors.skills || data.errors.questions : false;
+  const terminalError = terminal === "assignments" ? data.errors.assignments : terminal === "questions" ? data.errors.questions || data.errors.faqs : terminal === "projects" || terminal === "journal" ? data.errors.projects : terminal === "challenges" ? data.errors.assignments || data.errors.questions : false;
 
   return <section className="base-experience" data-scene={isOverview ? "overview" : selectedId} aria-label="TARS BASE">
     <header className="base-hud">
       <Link className="base-hud__brand" to="/dashboard" aria-label="返回工作台"><span aria-hidden="true">T</span><h1>TARS BASE</h1></Link>
-      <div className="base-hud__tools"><button type="button" onClick={()=>openTerminal("challenges")}>待办{challenges.length ? <i>{challenges.length}</i> : null}</button><button type="button" onClick={()=>openTerminal("growth")}>档案</button><button type="button" onClick={()=>openTerminal("journal")}>日志</button><Link to="/dashboard">退出基地 ↗</Link></div>
+      <div className="base-hud__tools"><button type="button" onClick={()=>openTerminal("challenges")}>待办{challenges.length ? <i>{challenges.length}</i> : null}</button><button type="button" onClick={()=>openTerminal("journal")}>日志</button><Link to="/dashboard">退出基地 ↗</Link></div>
     </header>
     {canReadBase ? <>
       <div className="base-stage" key={selectedSceneId ?? "world"}>
-        {isOverview ? <WorldMap onSelect={exploreFacility} masteredFacilityIds={masteredFacilityIds} hasPersonalRecord={Boolean(data.profile?.events.length)} acceptedEvolutionTargets={acceptedEvolutionTargets} hasAcceptedJoint={hasAcceptedJoint}/> : <InteriorScene key={selectedId} id={selectedId} name={selectedFacility.name} targets={acceptedEvolutionTargets} joint={hasAcceptedJoint} mastered={masteredFacilityIds.includes(selectedId)} onOpen={openTerminal}/>}
+        {isOverview ? <WorldMap onSelect={exploreFacility} masteredFacilityIds={masteredFacilityIds} hasPersonalRecord={false} acceptedEvolutionTargets={acceptedEvolutionTargets} hasAcceptedJoint={hasAcceptedJoint}/> : <InteriorScene key={selectedId} id={selectedId} name={selectedFacility.name} targets={acceptedEvolutionTargets} joint={hasAcceptedJoint} mastered={masteredFacilityIds.includes(selectedId)} onOpen={openTerminal}/>}
       </div>
       <footer className="base-navigation">
         <div className="base-navigation__location">{!isOverview ? <button type="button" onClick={returnToOverview} aria-label="返回基地世界地图">←</button> : <span className="base-navigation__compass" aria-hidden="true">⌖</span>}<div><small>{isOverview ? "TARS BASE" : selectedFacility.englishName}</small><div className="base-navigation__title-row"><h2>{isOverview ? "基地总览" : selectedFacility.name}</h2><WorkbenchFeatureStatus feature="base" /></div></div></div>
@@ -247,12 +212,10 @@ export default function ExpeditionRoute() {
         {denied ? <div className="terminal-empty">{selectedFacility.groupName}专属终端</div> : data.loading ? <div className="terminal-empty" role="status">正在读取…</div> : terminalError ? <div className="terminal-empty" role="alert"><p>终端数据暂不可读取</p><button type="button" onClick={()=>setRefreshKey(k=>k+1)}>重新读取</button></div> : <>
           {terminal === "challenges" ? <>{challenges.length ? <ul className="terminal-records">{challenges.map(task=><li key={task.key}><Link to={task.href}><strong>{task.title}</strong><small>{task.detail} · {challengeStatusLabel(task)}</small><span>↗</span></Link></li>)}</ul> : <p className="terminal-empty">当前没有待处理挑战</p>}<button type="button" className="terminal-action" onClick={()=>setRefreshKey(k=>k+1)}>刷新待办</button></> : null}
           {terminal === "assignments" ? <>{selectedAssignments.length ? <ul className="terminal-records">{selectedAssignments.map(a=><li key={a.id}><Link to={`/dashboard/assignments?assignmentId=${a.id}`}><strong>{a.title}</strong><small>截止 {formatDueDate(a.dueAt)} · {({pending:"待提交",overdue:"已逾期",submitted:"已提交",passed:"已通过",needs_redo:"需重做"})[a.status??"pending"]}</small><span>↗</span></Link></li>)}</ul> : <p className="terminal-empty">当前没有分配给你的作业</p>}<Link className="terminal-action" to="/dashboard/assignments">打开我的作业 ↗</Link></> : null}
-          {terminal === "skills" ? <>{selectedNodes.length ? <><div className="terminal-skill-counts"><span>未解锁 <b>{lockedCount}</b></span><span>可挑战 <b>{availableCount}</b></span><span>已实践 <b>{practicedCount}</b></span><span>已掌握 <b>{masteredCount}</b></span></div><ul className="terminal-records">{selectedNodes.map(n=><li key={n.id}><Link to="/dashboard/skills"><strong>{n.name}</strong><small>{skillStateLabel(n.state??"locked")}</small><span>↗</span></Link></li>)}</ul></> : <p className="terminal-empty">本组技能路线尚未配置</p>}<Link className="terminal-action" to="/dashboard/skills">进入技能树 ↗</Link></> : null}
           {terminal === "questions" ? <><h3>待跟进的讨论</h3>{selectedQuestions.length ? <ul className="terminal-records">{selectedQuestions.map(q=><li key={q.id}><Link to={communityPostHref(q.id)}><strong>{q.title}</strong><small>{formatCommunityDate(q.createdAt)}</small><span>↗</span></Link></li>)}</ul> : <p className="terminal-empty">没有待跟进的讨论</p>}<h3>本组公开 FAQ</h3>{selectedFAQs.length ? <ul className="terminal-records">{selectedFAQs.map(q=><li key={q.id}><Link to={communityPostHref(q.id)}><strong>{q.title}</strong><small>{formatCommunityDate(q.lastReplyAt??q.createdAt)}</small><span>↗</span></Link></li>)}</ul> : <p className="terminal-empty">暂无公开 FAQ</p>}<Link className="terminal-action" to="/dashboard">打开吉甲社区 ↗</Link></> : null}
           {terminal === "projects" ? <><label className="terminal-project-select">总装绑定项目<select value={assemblyProject?String(assemblyProject.id):""} disabled={!data.projects.length} onChange={e=>selectAssemblyProject(e.target.value)}>{!assemblyProject?<option value="">暂无可见项目</option>:null}{data.projects.map(p=><option key={p.id} value={p.id}>{p.title}</option>)}</select></label>{assemblyProject ? <p className="terminal-project-state">{hasAcceptedJoint?"联合验收完成":acceptedEvolutionLabels.length?`已验收：${acceptedEvolutionLabels.join("、")}`:"尚无装置验收"}</p> : null}{(isOverview ? data.projects : selectedProjects).length ? <ul className="terminal-records">{(isOverview?data.projects:selectedProjects).map(p=><li key={p.id}><Link to={`/dashboard/expedition/projects?projectId=${p.id}`}><strong>{p.title}</strong><small>{p.hasAcceptedJoint?"联合验收完成":`${p.milestones.filter(m=>m.state==="accepted").length} 个阶段已验收`}</small><span>↗</span></Link></li>)}</ul>:<p className="terminal-empty">暂无对你开放的协作项目；待负责人创建和安排后会显示。</p>}<Link className="terminal-action" to="/dashboard/expedition/projects">打开赛季协作 ↗</Link></> : null}
-          {terminal === "growth" ? <><h3>{data.profile?.displayName??getAuthUserName(currentUser)}</h3>{recentEvents.length ? <ul className="terminal-records">{recentEvents.map(event=><li key={event.key}>{eventHref(event)?<Link to={eventHref(event)!}><strong>{event.title}</strong><small>{growthEventLabel(event.kind)} · {formatGrowthDate(event.occurredAt)}</small><span>↗</span></Link>:<div><strong>{event.title}</strong><small>{formatGrowthDate(event.occurredAt)}</small></div>}</li>)}</ul>:<p className="terminal-empty">尚无成长记录</p>}<Link className="terminal-action" to="/dashboard/growth">打开成长档案 ↗</Link></> : null}
           {terminal === "journal" ? <><h3>赛季编年史</h3>{acceptedMilestones.length?<ul className="terminal-records">{acceptedMilestones.map(({project,milestone})=><li key={`${project.id}:${milestone.id}`}><Link to={`/dashboard/expedition/projects?projectId=${project.id}`}><strong>{project.title} · {milestone.name}</strong><small>{milestone.groupName||"联合验收"} · {formatCommunityDate(milestone.acceptedAt!)}</small><span>↗</span></Link></li>)}</ul>:<p className="terminal-empty">暂无已验收的赛季成果</p>}<Link className="terminal-action" to="/dashboard/expedition/projects">查看协作历史 ↗</Link></> : null}
-          {terminal === "weekly" ? <><p className="terminal-empty">{data.profile?.displayName??getAuthUserName(currentUser)}的工作周报</p><Link className="terminal-action" to="/dashboard/weekly-reports">打开我的周报 ↗</Link></> : null}
+          {terminal === "weekly" ? <><p className="terminal-empty">{getAuthUserName(currentUser)}的工作周报</p><Link className="terminal-action" to="/dashboard/weekly-reports">打开我的周报 ↗</Link></> : null}
         </>}
       </TerminalWindow> : null}
     </> : <div className="base-closed" role="status"><h2>{groupResolutionError?"基地权限暂不可确认":"基地尚未开放"}</h2><Link to="/dashboard">返回工作台 ↗</Link></div>}

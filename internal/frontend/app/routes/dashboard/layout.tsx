@@ -46,7 +46,6 @@ import {
   getDashboardSectionMenu,
   getDefaultDashboardPath,
   hasAssignmentGroupAccess,
-  hasSkillGroupAccess,
   hasTechnicalGroupAccess,
   isDashboardSectionItemActive,
   isTemporarilyUnavailableDashboardPath,
@@ -117,8 +116,6 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const pathname = currentPath.pathname;
   const hasAssignmentGroup = hasAssignmentGroupAccess(groupResolution?.groups);
   const hasTechnicalGroup = hasTechnicalGroupAccess(groupResolution?.groups);
-  const hasSkillGroup = hasSkillGroupAccess(groupResolution?.groups);
-  const hasCapabilityGroup = Boolean(groupResolution?.groups?.length);
   if (
     pathname.startsWith("/dashboard/admin") &&
     !canAccessDashboardAdminPath(currentUser, pathname, hasAssignmentGroup)
@@ -128,16 +125,10 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   if (pathname === "/dashboard/assignments" && !hasAssignmentGroup) {
     throw redirect(getDefaultDashboardPath(currentUser.role.name));
   }
-  if (pathname === "/dashboard/skills" && !hasSkillGroup && currentUser.role.name !== "super_admin") {
+  if (pathname === "/dashboard/expedition" && !canAccessExpedition(currentUser, hasAssignmentGroup)) {
     throw redirect(getDefaultDashboardPath(currentUser.role.name));
   }
-  if (pathname === "/dashboard/capabilities" && !hasCapabilityGroup) {
-    throw redirect(getDefaultDashboardPath(currentUser.role.name));
-  }
-  if (pathname === "/dashboard/expedition" && !canAccessExpedition(currentUser, hasSkillGroup)) {
-    throw redirect(getDefaultDashboardPath(currentUser.role.name));
-  }
-  if (pathname === "/dashboard/expedition/projects" && !canAccessExpedition(currentUser, hasSkillGroup)) {
+  if (pathname === "/dashboard/expedition/projects" && !canAccessExpedition(currentUser, hasAssignmentGroup)) {
     throw redirect(getDefaultDashboardPath(currentUser.role.name));
   }
 
