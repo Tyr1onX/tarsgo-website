@@ -143,7 +143,7 @@ test("the homepage keeps six photos around two co-creation entries and preserves
   assert.match(home, /autoPlay=\{!prefersReducedMotion\}/);
   assert.match(home, /preload=\{prefersReducedMotion \? "none" : "metadata"\}/);
   assert.match(home, /if \(prefersReducedMotion\) heroVideoRef\.current\?\.pause\(\)/);
-  assert.match(home, /<HomeVisualNavigation imageTreatment="sand" \/>/);
+  assert.match(home, /<HomeVisualNavigation imageTreatment="sand" playOnce \/>/);
   assert.doesNotMatch(home, /home-base-feature|to="\/base"|从每日通信开始/);
   assert.doesNotMatch(home, /home-space-entry--manage|个人工作台/);
   assert.doesNotMatch(navbar, /const navLinks|site-mobile-menu/);
@@ -211,7 +211,7 @@ test("公开基地入口已移除，旧链接只导向登录或统一工作台",
   assert.doesNotMatch(dashboardHome, /DailySignalWorkspace|daily-signal/);
   assert.doesNotMatch(dashboardHome, /快捷入口|dashboard-home__shortcuts/);
   assert.doesNotMatch(dashboardHome, /\/api\/daily-signals\?year=/);
-  assert.match(home, /<HomeVisualNavigation imageTreatment="sand" \/>/);
+  assert.match(home, /<HomeVisualNavigation imageTreatment="sand" playOnce \/>/);
   assert.doesNotMatch(styles, /\.home-space-layout|\.home-space-entry/);
   assert.doesNotMatch(basePage, /BASE<br \/>01|A PLACE FOR ORDINARY DAYS|TX \/ 01/);
 });
@@ -281,6 +281,11 @@ test("sand reveal stays on a direct preview route and uses the real homepage gal
   assert.match(homeVisualNavigation, /<Link[\s\S]*?to=\{module\.href\}/);
   assert.match(homeVisualNavigation, /prefetch=\{module\.image \? "viewport" : "intent"\}/);
   assert.match(homeVisualNavigation, /<HomeSandRevealLayer/);
+  assert.match(homeVisualNavigation, /claimHomeSandPlayback\(window\.localStorage\)/);
+  assert.match(homeVisualNavigation, /window\.addEventListener\("storage", handleStorage\)/);
+  assert.match(homeVisualNavigation, /showFinalImage=\{playOnce && playbackStatus !== "ready"\}/);
+  assert.match(homeVisualNavigation, /showFinalImage \? "done" : phase/);
+  assert.match(homeVisualNavigation, /imageTreatment && !showFinalImage/);
   assert.match(homeSandRevealLayer, /matchMedia\("\(prefers-reduced-motion: reduce\)"\)/);
   assert.match(homeSandRevealLayer, /if \(motionReduced\)[\s\S]*?onPhaseChange\("done"\)/);
   assert.match(homeSandRevealLayer, /cancelAnimationFrame\(animationFrame\)/);
@@ -294,7 +299,7 @@ test("sand reveal stays on a direct preview route and uses the real homepage gal
   assert.match(styles, /\.home-visual-card\[data-sand-mode="sand"\] > img\s*\{\s*filter: none;\s*opacity: 0;/);
   assert.match(styles, /data-sand-phase="settling"\]\s*> img,[\s\S]*?opacity: 1;/);
   assert.doesNotMatch(styles, /filter: brightness\(0\.[34]\) saturate\(0\.[68]\) blur\(/);
-  assert.match(home, /<HomeVisualNavigation imageTreatment="sand" \/>/);
+  assert.match(home, /<HomeVisualNavigation imageTreatment="sand" playOnce \/>/);
 });
 
 test("RightAPI is a separate, disclosed alumni recommendation below the unchanged sponsor wall", async () => {
