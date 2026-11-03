@@ -26,7 +26,30 @@ test("account table stays compact and opens full details from the member name", 
   assert.doesNotMatch(table, /item\.email|item\.authMethods|lastLoginAt|organizationTitleLabel/);
   assert.match(page, /editing\.authMethods\.hasPassword/);
   assert.match(page, /editing\.groups\.map/);
-  assert.match(page, /重置登录密码/);
+  assert.match(page, /登录密码/);
+  assert.match(page, /确认重置/);
+});
+
+test("member detail has three read-only sections and one local editor at a time", () => {
+  assert.match(page, /detailSection === "account"/);
+  assert.match(page, /detailSection === "organization"/);
+  assert.match(page, /detailSection === "records"/);
+  assert.match(page, /const \[activeEditor, setActiveEditor\]/);
+  assert.match(page, /activeEditor === "profile"/);
+  assert.match(page, /activeEditor === "access"/);
+  assert.match(page, /activeEditor === "password"/);
+  assert.doesNotMatch(page, /保存修改|修正意向组|updateAdminUserRecruitmentGroup/);
+  assert.match(page, /set\("userId", String\(item\.id\)\)/);
+  assert.match(page, /getAdminUser\(detail\.id\)/);
+});
+
+test("membership changes cannot overwrite multiple existing groups", () => {
+  assert.match(page, /editing\.groups\.length > 1/);
+  assert.match(page, /latest\.groups\.length > 1/);
+  assert.match(page, /JSON\.stringify\(latest\.groups\) !== JSON\.stringify\(editing\.groups\)/);
+  assert.match(page, /window\.confirm\("调整组别将移除/);
+  assert.match(page, /editing\.groups\.map\(\(group\) =>/);
+  assert.match(page, /updateAdminUserGroupRole\(editing\.id, groupId, role\)/);
 });
 
 test("account filters, key metrics, group distribution, and create action have distinct priority", () => {

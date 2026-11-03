@@ -114,6 +114,7 @@ type UserListItem struct {
 type UserDetail struct {
 	ID                        uint64                   `json:"id"`
 	Email                     string                   `json:"email"`
+	AvatarURL                 *string                  `json:"avatarUrl,omitempty"`
 	Status                    uint8                    `json:"status"`
 	Role                      RoleRef                  `json:"role"`
 	AuthMethods               AuthMethods              `json:"authMethods"`
@@ -651,6 +652,7 @@ func toUserDetail(user *model.User) UserDetail {
 	detail := UserDetail{
 		ID:                 user.ID,
 		Email:              user.Email,
+		AvatarURL:          user.AvatarURL,
 		Status:             user.Status,
 		Role:               toRoleRef(user.Role),
 		AuthMethods:        toAuthMethods(user),

@@ -52,8 +52,9 @@ test("identity remains independent of account roles and organization membership"
 
 test("super-admin account management saves only the selected identity status", () => {
   assert.match(adminPage, /<th>身份与权限<\/th>/);
-  assert.match(adminPage, /独立于系统权限、所属组别、组织头衔、社区等级和勋章/);
-  assert.match(adminPage, /年级、招新结果或作业完成情况不会自动认定队员身份/);
+  assert.match(adminPage, /detailSection === "organization"/);
+  assert.match(adminPage, /saveTeamIdentity\(\)[\s\S]*?updateAdminUserTeamIdentity\(editing\.id/);
+  assert.match(adminPage, /detailSection === "account"/);
   assert.match(adminPage, /status: teamIdentityDraft/);
   assert.match(adminPage, /teamIdentityDraft === editing\.teamIdentityStatus/);
   assert.doesNotMatch(adminPage, /teamIdentityReason|assessmentPassed|leaderConfirmed|priorFormalMembershipConfirmed|身份变更记录|变更依据/);
