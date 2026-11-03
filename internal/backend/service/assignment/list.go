@@ -184,3 +184,34 @@ func (s *Service) ListTodos(ctx context.Context, actor Actor) ([]Todo, error) {
 	}
 	return result, nil
 }
+
+type AdminTodoSummary struct {
+	ReviewCount int64 `json:"reviewCount"`
+}
+
+func (s *Service) AdminTodos(ctx context.Context, actor Actor) (*AdminTodoSummary, error) {
+	if err := requireAdmin(actor); err != nil {
+		return nil, err
+	}
+	groupIDs, err := managerAssignmentGroupIDs(s.db.WithContext(ctx), actor)
+	if err != nil {
+		return nil, internalError("读取可管理组别失败", err)
+	}
+	if len(groupIDs) == 0 {
+		return nil, forbidden("当前账号没有可管理的技术组")
+	}
+	result := &AdminTodoSummary{}
+	// Match list semantics: current targets, latest attempt, no review of that
+	// attempt, and exclude withdrawn assignments. Do not load files or content.
+	err = s.db.WithContext(ctx).Raw(`SELECT COUNT(*) AS review_count
+ FROM assignments a
+ JOIN assignment_targets t ON t.assignment_id=a.id
+ JOIN assignment_submissions s ON s.assignment_id=t.assignment_id AND s.user_id=t.user_id
+ WHERE a.group_id IN ? AND a.publication_status <> ?
+ AND NOT EXISTS (SELECT 1 FROM assignment_submissions ns WHERE ns.assignment_id=s.assignment_id AND ns.user_id=s.user_id AND ns.attempt>s.attempt)
+ AND NOT EXISTS (SELECT 1 FROM assignment_reviews r WHERE r.submission_id=s.id)`, groupIDs, model.AssignmentPublicationWithdrawn).Scan(result).Error
+	if err != nil {
+		return nil, internalError("读取作业批改待办失败", err)
+	}
+	return result, nil
+}

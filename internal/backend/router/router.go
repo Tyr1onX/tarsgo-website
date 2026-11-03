@@ -205,6 +205,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	adminAPI.POST("/timetable-availability/cleanup", requireSameOriginRequest(cfg), timetableHandler.ClearAll)
 	adminAPI.GET("/assignment-members", assignmentHandler.ListGroupMembers)
 	adminAPI.GET("/assignments", assignmentHandler.ListAdmin)
+	adminAPI.GET("/assignments/todos", assignmentHandler.AdminTodos)
 	adminAPI.POST("/assignments", requireSameOriginRequest(cfg), assignmentHandler.Create)
 	adminAPI.POST("/assignments/publish", requireSameOriginRequest(cfg), assignmentHandler.PublishWithMaterials)
 	adminAPI.GET("/assignments/:id", assignmentHandler.GetAdmin)

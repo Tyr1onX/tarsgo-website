@@ -409,3 +409,12 @@ func (h *AssignmentHandler) ListTodos(c *gin.Context) {
 	}
 	writeAPI(c, http.StatusOK, "获取作业待办成功", result)
 }
+
+func (h *AssignmentHandler) AdminTodos(c *gin.Context) {
+	result, err := h.service.AdminTodos(c.Request.Context(), currentAssignmentActor(c))
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "获取作业批改待办成功", result)
+}

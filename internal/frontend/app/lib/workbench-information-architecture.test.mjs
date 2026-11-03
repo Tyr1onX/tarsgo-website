@@ -36,7 +36,7 @@ test("the personal landing route is a status-first overview backed by existing u
 
 test("the management landing route prioritizes real candidate, assignment, and leave work", () => {
   assert.match(adminWorkbench, /getAdminWorkbenchSummary\(currentUser\.id\)/);
-  assert.match(adminWorkbench, /assignmentClient\.listAdmin\(\)/);
+  assert.match(adminWorkbench, /assignmentClient\.adminTodos\(\)/);
   assert.match(adminWorkbench, /leaveClient\.schoolSummary\(\)/);
   assert.match(adminWorkbench, /候选人待初筛/);
   assert.match(adminWorkbench, /候选人待面试/);
