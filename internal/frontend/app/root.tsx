@@ -37,18 +37,6 @@ const themeBootstrapScript = `(() => {
   root.style.colorScheme = resolved;
 })();`;
 
-const dashboardAuthPreloadScript = `(() => {
-  const path = window.location.pathname;
-  if ((path !== "/dashboard" && !path.startsWith("/dashboard/")) || path === "/dashboard/setup/super-admin") return;
-
-  const request = document.createElement("link");
-  request.rel = "preload";
-  request.as = "fetch";
-  request.crossOrigin = "use-credentials";
-  request.href = "/api/me";
-  document.head.appendChild(request);
-})();`;
-
 export const links: Route.LinksFunction = () => [
   { rel: "icon", href: fallbackFaviconHref, type: "image/x-icon" },
   { rel: "icon", href: "/assets/images/Logo/tarsgo-robot-v5.svg", type: "image/svg+xml" },
@@ -71,7 +59,6 @@ export function Layout({ children }: { children: React.ReactNode }) {
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
-        <script dangerouslySetInnerHTML={{ __html: dashboardAuthPreloadScript }} />
         <Meta />
         <Links />
       </head>
