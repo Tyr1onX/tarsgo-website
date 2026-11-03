@@ -91,10 +91,6 @@ export default function AccountManagement() {
   const [userGroupId, setUserGroupId] = useState("");
   const [groupRoleDrafts, setGroupRoleDrafts] = useState<Record<number, string>>({});
   const [teamIdentityDraft, setTeamIdentityDraft] = useState<TeamIdentityStatus>("community_member");
-  const [teamIdentityReason, setTeamIdentityReason] = useState("");
-  const [assessmentPassed, setAssessmentPassed] = useState(false);
-  const [leaderConfirmed, setLeaderConfirmed] = useState(false);
-  const [priorFormalMembershipConfirmed, setPriorFormalMembershipConfirmed] = useState(false);
   const [draft, setDraft] = useState<AccountDraft>(emptyDraft);
   const [saving, setSaving] = useState(false);
   const [resetTarget, setResetTarget] = useState<Pick<AdminUserListItem, "id" | "email"> | null>(null);
@@ -164,10 +160,6 @@ export default function AccountManagement() {
     setUserGroupId(detail.groupState === "pending" ? "" : String(assignedGroup?.groupId ?? ""));
     setGroupRoleDrafts(Object.fromEntries(detail.groups.map((group) => [group.groupId, String(group.role)])));
     setTeamIdentityDraft(detail.teamIdentityStatus ?? "community_member");
-    setTeamIdentityReason("");
-    setAssessmentPassed(false);
-    setLeaderConfirmed(false);
-    setPriorFormalMembershipConfirmed(false);
   }
 
   async function openAccount(userId: number) {
@@ -272,18 +264,10 @@ export default function AccountManagement() {
     try {
       const detail = await updateAdminUserTeamIdentity(editing.id, {
         status: teamIdentityDraft,
-        reason: teamIdentityReason.trim(),
-        assessmentPassed,
-        leaderConfirmed,
-        priorFormalMembershipConfirmed,
       });
       setEditing(detail);
       setTeamIdentityDraft(detail.teamIdentityStatus);
-      setTeamIdentityReason("");
-      setAssessmentPassed(false);
-      setLeaderConfirmed(false);
-      setPriorFormalMembershipConfirmed(false);
-      setNotice(`成员身份已更新为「${teamIdentityLabel(detail.teamIdentityStatus)}」，变更依据已记录。`);
+      setNotice(`成员身份已更新为「${teamIdentityLabel(detail.teamIdentityStatus)}」。`);
       await loadAccounts();
     } catch (cause) {
       if (cause instanceof ApiError && cause.status === 401) navigate("/login", { replace: true });
@@ -466,18 +450,7 @@ export default function AccountManagement() {
                   </div>
                   <div className="flex flex-wrap items-end gap-2">
                     <label className="min-w-48 flex-1 text-xs text-[var(--admin-muted)]">当前身份<select value={teamIdentityDraft} onChange={(event) => setTeamIdentityDraft(event.target.value as TeamIdentityStatus)} className="admin-field mt-1">{teamIdentityOptions.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-                    <button type="button" disabled={saving || teamIdentityDraft === editing.teamIdentityStatus || teamIdentityReason.trim().length < 5 || (teamIdentityDraft === "formal_member" && (!assessmentPassed || !leaderConfirmed)) || (teamIdentityDraft === "former_member" && editing.teamIdentityStatus !== "formal_member" && !priorFormalMembershipConfirmed)} onClick={() => void saveTeamIdentity()} className="admin-button admin-button--secondary admin-button--small">{saving ? "保存中…" : "保存成员身份"}</button>
-                  </div>
-                  {teamIdentityDraft !== editing.teamIdentityStatus ? (
-                    <div className="space-y-2">
-                      <label className="block text-xs text-[var(--admin-muted)]">变更依据（必填）<textarea required minLength={5} maxLength={500} rows={2} value={teamIdentityReason} onChange={(event) => setTeamIdentityReason(event.target.value)} placeholder="填写考核、负责人确认或历史名册核验依据" className="admin-field mt-1 min-h-20 resize-y" /></label>
-                      {teamIdentityDraft === "formal_member" ? <div className="grid gap-2 sm:grid-cols-2"><label className="flex items-start gap-2 text-xs leading-5 text-[var(--admin-muted)]"><input type="checkbox" checked={assessmentPassed} onChange={(event) => setAssessmentPassed(event.target.checked)} />已通过战队正式考核</label><label className="flex items-start gap-2 text-xs leading-5 text-[var(--admin-muted)]"><input type="checkbox" checked={leaderConfirmed} onChange={(event) => setLeaderConfirmed(event.target.checked)} />负责人已确认正式队员身份</label></div> : null}
-                      {teamIdentityDraft === "former_member" && editing.teamIdentityStatus !== "formal_member" ? <label className="flex items-start gap-2 text-xs leading-5 text-[var(--admin-muted)]"><input type="checkbox" checked={priorFormalMembershipConfirmed} onChange={(event) => setPriorFormalMembershipConfirmed(event.target.checked)} />已按真实历史名册确认其曾是正式队员</label> : null}
-                    </div>
-                  ) : null}
-                  <div className="border-t border-[var(--admin-border-subtle)] pt-2">
-                    <h4 className="text-xs font-semibold text-[var(--admin-text)]">身份变更记录</h4>
-                    {editing.teamIdentityHistory.length ? <ol className="mt-2 max-h-44 space-y-2 overflow-y-auto">{editing.teamIdentityHistory.map((change) => <li key={change.id} className="rounded border border-[var(--admin-border-subtle)] px-3 py-2 text-xs"><div className="flex flex-wrap justify-between gap-2"><strong className="text-[var(--admin-text)]">{teamIdentityLabel(change.previousStatus)} → {teamIdentityLabel(change.nextStatus)}</strong><time className="text-[var(--admin-dim)]">{formatDate(change.createdAt)}</time></div><p className="mt-1 whitespace-pre-wrap text-[var(--admin-muted)]">{change.reason}</p><div className="mt-1 text-[var(--admin-dim)]">操作人：{change.actorName} · {change.assessmentPassed ? "考核已通过 · " : ""}{change.leaderConfirmed ? "负责人已确认 · " : ""}{change.priorFormalMembershipConfirmed ? "历史正式身份已核验 · " : ""}</div></li>)}</ol> : <p className="mt-1 text-xs text-[var(--admin-muted)]">暂无变更记录；存量账号默认按社区成员展示。</p>}
+                    <button type="button" disabled={saving || teamIdentityDraft === editing.teamIdentityStatus} onClick={() => void saveTeamIdentity()} className="admin-button admin-button--secondary admin-button--small">{saving ? "保存中…" : "保存成员身份"}</button>
                   </div>
                 </section>
                 {currentUser.role.name === "super_admin" ? <CoBuilderBadgeAdminPanel userId={editing.id} /> : null}

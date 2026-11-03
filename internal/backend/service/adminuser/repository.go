@@ -17,8 +17,7 @@ type Repository interface {
 	GetUserStats(ctx context.Context) (UserStats, error)
 	GetUserByID(ctx context.Context, userID uint64) (*model.User, error)
 	ListRecruitmentHistory(ctx context.Context, userID uint64) ([]model.Registration, error)
-	ListTeamIdentityChanges(ctx context.Context, userID uint64) ([]model.TeamIdentityChange, error)
-	UpdateTeamIdentity(ctx context.Context, userID, actorID uint64, expectedStatus, nextStatus, reason string, assessmentPassed, leaderConfirmed, priorFormalMembershipConfirmed bool) error
+	UpdateTeamIdentity(ctx context.Context, userID uint64, expectedStatus, nextStatus string) error
 	UpdateCurrentRecruitmentGroup(ctx context.Context, userID uint64, groupID uint64) error
 	GetUserByEmail(ctx context.Context, email string) (*model.User, error)
 	ListRoles(ctx context.Context) ([]model.Role, error)
@@ -187,17 +186,8 @@ func (r *GormRepository) ListRecruitmentHistory(ctx context.Context, userID uint
 	return registrations, err
 }
 
-func (r *GormRepository) ListTeamIdentityChanges(ctx context.Context, userID uint64) ([]model.TeamIdentityChange, error) {
-	var changes []model.TeamIdentityChange
-	err := r.db.WithContext(ctx).
-		Where("user_id = ?", userID).
-		Order("created_at DESC").Order("id DESC").
-		Find(&changes).Error
-	return changes, err
-}
-
-func (r *GormRepository) UpdateTeamIdentity(ctx context.Context, userID, actorID uint64, expectedStatus, nextStatus, reason string, assessmentPassed, leaderConfirmed, priorFormalMembershipConfirmed bool) error {
-	if userID == 0 || actorID == 0 {
+func (r *GormRepository) UpdateTeamIdentity(ctx context.Context, userID uint64, expectedStatus, nextStatus string) error {
+	if userID == 0 {
 		return gorm.ErrInvalidData
 	}
 	return r.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
@@ -209,30 +199,14 @@ func (r *GormRepository) UpdateTeamIdentity(ctx context.Context, userID, actorID
 		if currentStatus != expectedStatus {
 			return ErrTeamIdentityConflict
 		}
-		var actor model.User
-		if err := tx.Select("id", "real_name").First(&actor, actorID).Error; err != nil {
-			return err
-		}
-		actorName := ""
-		if actor.RealName != nil {
-			actorName = strings.TrimSpace(*actor.RealName)
-		}
-		if actorName == "" {
-			actorName = "管理员"
-		}
-		result := tx.Model(&user).Update("team_identity_status", nextStatus)
+		result := tx.Model(&user).UpdateColumn("team_identity_status", nextStatus)
 		if result.Error != nil {
 			return result.Error
 		}
 		if result.RowsAffected == 0 {
 			return ErrTeamIdentityConflict
 		}
-		return tx.Create(&model.TeamIdentityChange{
-			UserID: userID, ActorUserID: actorID, ActorName: actorName,
-			PreviousStatus: currentStatus, NextStatus: nextStatus, Reason: reason,
-			AssessmentPassed: assessmentPassed, LeaderConfirmed: leaderConfirmed,
-			PriorFormalMembershipConfirm: priorFormalMembershipConfirmed,
-		}).Error
+		return nil
 	})
 }
 

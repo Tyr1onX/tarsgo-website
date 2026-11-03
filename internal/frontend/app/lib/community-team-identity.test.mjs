@@ -12,6 +12,7 @@ const backendModel = await readFile(new URL("../../../backend/model/user.go", im
 const backendIdentity = await readFile(new URL("../../../backend/model/team_identity.go", import.meta.url), "utf8");
 const backendAdmin = await readFile(new URL("../../../backend/service/adminuser/service.go", import.meta.url), "utf8");
 const backendRepository = await readFile(new URL("../../../backend/service/adminuser/repository.go", import.meta.url), "utf8");
+const backendHandler = await readFile(new URL("../../../backend/handler/admin_user.go", import.meta.url), "utf8");
 const router = await readFile(new URL("../../../backend/router/router.go", import.meta.url), "utf8");
 const communityService = await readFile(new URL("../../../backend/service/trainingqa/community.go", import.meta.url), "utf8");
 const profileService = await readFile(new URL("../../../backend/service/trainingqa/community_member_profile.go", import.meta.url), "utf8");
@@ -34,26 +35,28 @@ test("post, reply, author card and member homepage share one identity display", 
   assert.match(profileService, /Select\("id, real_name, avatar_url, team_identity_status"\)/);
 });
 
-test("identity is an audited source independent of account roles and organization membership", () => {
+test("identity remains independent of account roles and organization membership", () => {
   assert.match(backendModel, /TeamIdentityStatus string\s+`json:"-" gorm:"column:team_identity_status;size:32;not null;default:'community_member'/);
-  assert.match(backendIdentity, /type TeamIdentityChange struct/);
-  assert.match(backendRepository, /Update\("team_identity_status", nextStatus\)/);
-  assert.match(backendRepository, /tx\.Create\(&model\.TeamIdentityChange/);
+  assert.match(backendIdentity, /TeamIdentityCommunityMember = "community_member"/);
+  assert.match(backendIdentity, /TeamIdentityReserveMember\s+= "reserve_member"/);
+  assert.match(backendIdentity, /TeamIdentityFormalMember\s+= "formal_member"/);
+  assert.match(backendIdentity, /TeamIdentityFormerMember\s+= "former_member"/);
+  assert.match(backendRepository, /UpdateColumn\("team_identity_status", nextStatus\)/);
   const update = backendAdmin.slice(backendAdmin.indexOf("func (s *Service) UpdateTeamIdentity"), backendAdmin.indexOf("func (s *Service) UpdateCurrentRecruitmentGroup"));
   assert.match(update, /ensureUserAdminActor\(actor\)/);
-  assert.match(update, /input\.AssessmentPassed \|\| !input\.LeaderConfirmed/);
-  assert.match(update, /input\.PriorFormalMembershipConfirmed/);
+  assert.match(update, /IsTeamIdentityStatus\(input\.Status\)/);
+  assert.doesNotMatch(`${backendRepository}\n${backendAdmin}\n${backendHandler}`, /TeamIdentityChange|team_identity_changes|TeamIdentityHistory|AssessmentPassed|LeaderConfirmed|PriorFormalMembershipConfirmed|Reason/);
   assert.doesNotMatch(update, /UpdateUserGroup|UpdateUser\(|RoleID|GroupMembers|XP/);
   assert.match(router, /superAdminAPI\.PATCH\("\/users\/:id\/team-identity", requireSameOriginRequest\(cfg\), adminUserHandler\.UpdateTeamIdentity\)/);
 });
 
-test("account management keeps system permission separate and requires evidence plus reason", () => {
+test("super-admin account management saves only the selected identity status", () => {
   assert.match(adminPage, /<th>身份与权限<\/th>/);
   assert.match(adminPage, /独立于系统权限、所属组别、组织头衔、社区等级和勋章/);
   assert.match(adminPage, /年级、招新结果或作业完成情况不会自动认定队员身份/);
-  assert.match(adminPage, /reason: teamIdentityReason\.trim\(\)/);
-  assert.match(adminPage, /teamIdentityDraft === "formal_member" && \(!assessmentPassed \|\| !leaderConfirmed\)/);
-  assert.match(adminPage, /teamIdentityDraft === "former_member" && editing\.teamIdentityStatus !== "formal_member" && !priorFormalMembershipConfirmed/);
-  assert.match(adminPage, /身份变更记录/);
+  assert.match(adminPage, /status: teamIdentityDraft/);
+  assert.match(adminPage, /teamIdentityDraft === editing\.teamIdentityStatus/);
+  assert.doesNotMatch(adminPage, /teamIdentityReason|assessmentPassed|leaderConfirmed|priorFormalMembershipConfirmed|身份变更记录|变更依据/);
+  assert.doesNotMatch(adminClient, /teamIdentityHistory|assessmentPassed|leaderConfirmed|priorFormalMembershipConfirmed|reason:/);
   assert.match(adminClient, /`\/api\/admin\/users\/\$\{userId\}\/team-identity`/);
 });

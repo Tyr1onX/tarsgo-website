@@ -54,6 +54,37 @@ func TestGetUserStatsUsesUniqueMembershipBuckets(t *testing.T) {
 	}
 }
 
+func TestUpdateTeamIdentityOnlyWritesTheUserStatus(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("create SQL mock: %v", err)
+	}
+	db, err := gorm.Open(mysql.New(mysql.Config{Conn: sqlDB, SkipInitializeWithVersion: true}), &gorm.Config{DisableAutomaticPing: true})
+	if err != nil {
+		_ = sqlDB.Close()
+		t.Fatalf("open GORM over SQL mock: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unmet SQL expectation: %v", err)
+		}
+		_ = sqlDB.Close()
+	})
+
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT \\* FROM `users` WHERE `users`.`id` = \\? ORDER BY `users`.`id` LIMIT \\? FOR UPDATE").
+		WithArgs(uint64(12), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "team_identity_status"}).AddRow(12, model.TeamIdentityCommunityMember))
+	mock.ExpectExec("UPDATE `users` SET `team_identity_status`=\\? WHERE `id` = \\?").
+		WithArgs(model.TeamIdentityFormalMember, uint64(12)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+
+	if err := (&GormRepository{db: db}).UpdateTeamIdentity(context.Background(), 12, model.TeamIdentityCommunityMember, model.TeamIdentityFormalMember); err != nil {
+		t.Fatalf("UpdateTeamIdentity returned error: %v", err)
+	}
+}
+
 func TestListUsersAppliesActivityFilterUnlessAllAccountsRequested(t *testing.T) {
 	for _, testCase := range []struct {
 		name            string

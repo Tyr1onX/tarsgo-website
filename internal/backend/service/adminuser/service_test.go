@@ -132,36 +132,25 @@ func TestEditingMissingRealNameDoesNotInferAnotherIdentity(t *testing.T) {
 	}
 }
 
-func TestTeamIdentityRequiresManualEvidenceAndKeepsAnIndependentAuditTrail(t *testing.T) {
+func TestSuperAdminCanSetTeamIdentityWithoutChangingRolesOrGroups(t *testing.T) {
 	repo := newFakeRepository()
 	service := NewService(repo)
 	actor := Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}
 	memberBefore := cloneUser(repo.users[3])
 
 	if _, err := service.UpdateTeamIdentity(context.Background(), Actor{ID: 2, RoleName: model.RoleNameAdmin}, 3, UpdateTeamIdentityInput{
-		Status: model.TeamIdentityFormalMember, Reason: "升入大二",
+		Status: model.TeamIdentityFormalMember,
 	}); err == nil {
 		t.Fatal("ordinary administrators must not edit team-wide identity in the super-admin account manager")
 	}
-	_, err := service.UpdateTeamIdentity(context.Background(), actor, 3, UpdateTeamIdentityInput{
-		Status: model.TeamIdentityFormalMember, Reason: "正式考核通过，负责人确认",
-	})
-	assertServiceError(t, err, http.StatusBadRequest, "正式考核")
-
 	updated, err := service.UpdateTeamIdentity(context.Background(), actor, 3, UpdateTeamIdentityInput{
-		Status: model.TeamIdentityFormalMember, Reason: "2026 正式考核通过，负责人已确认",
-		AssessmentPassed: true, LeaderConfirmed: true,
+		Status: model.TeamIdentityFormalMember,
 	})
 	if err != nil {
-		t.Fatalf("confirmed formal-member update returned error: %v", err)
+		t.Fatalf("formal-member update returned error: %v", err)
 	}
-	if updated.TeamIdentityStatus != model.TeamIdentityFormalMember || len(updated.TeamIdentityHistory) != 1 {
-		t.Fatalf("team identity or audit history was not returned: %#v", updated)
-	}
-	change := updated.TeamIdentityHistory[0]
-	if change.PreviousStatus != model.TeamIdentityCommunityMember || change.NextStatus != model.TeamIdentityFormalMember ||
-		change.ActorUserID != actor.ID || change.ActorName != "Root" || !change.AssessmentPassed || !change.LeaderConfirmed {
-		t.Fatalf("formal-member change must preserve its evidence and administrator: %#v", change)
+	if updated.TeamIdentityStatus != model.TeamIdentityFormalMember {
+		t.Fatalf("team identity was not returned: %#v", updated)
 	}
 	memberAfter := repo.users[3]
 	if memberAfter.RoleID != memberBefore.RoleID || memberAfter.Status != memberBefore.Status ||
@@ -188,24 +177,18 @@ func TestTeamIdentityRequiresManualEvidenceAndKeepsAnIndependentAuditTrail(t *te
 	}
 }
 
-func TestFormerMemberRequiresPreviousFormalMembershipConfirmation(t *testing.T) {
+func TestSuperAdminCanSetFormerMemberWithoutHistoricalConfirmation(t *testing.T) {
 	repo := newFakeRepository()
 	service := NewService(repo)
 	actor := Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}
-	_, err := service.UpdateTeamIdentity(context.Background(), actor, 3, UpdateTeamIdentityInput{
-		Status: model.TeamIdentityFormerMember, Reason: "已毕业，名单核验",
-	})
-	assertServiceError(t, err, http.StatusBadRequest, "曾获得正式队员身份")
-
 	updated, err := service.UpdateTeamIdentity(context.Background(), actor, 3, UpdateTeamIdentityInput{
-		Status: model.TeamIdentityFormerMember, Reason: "按 2024 正式队员历史名册核验",
-		PriorFormalMembershipConfirmed: true,
+		Status: model.TeamIdentityFormerMember,
 	})
 	if err != nil {
-		t.Fatalf("confirmed former-member update returned error: %v", err)
+		t.Fatalf("former-member update returned error: %v", err)
 	}
-	if updated.TeamIdentityStatus != model.TeamIdentityFormerMember || len(updated.TeamIdentityHistory) != 1 || !updated.TeamIdentityHistory[0].PriorFormalMembershipConfirmed {
-		t.Fatalf("former-member confirmation must be persisted: %#v", updated)
+	if updated.TeamIdentityStatus != model.TeamIdentityFormerMember {
+		t.Fatalf("former-member identity was not returned: %#v", updated)
 	}
 }
 
@@ -396,23 +379,21 @@ func TestAccountActivityCutoffUsesBothConfirmationStartAndNinetyDays(t *testing.
 }
 
 type fakeRepository struct {
-	roles           map[uint64]model.Role
-	roleByName      map[string]uint64
-	users           map[uint64]*model.User
-	identityChanges map[uint64][]model.TeamIdentityChange
-	nextUserID      uint64
-	lastListInput   ListUsersInput
-	createUserErr   error
-	updateUserErr   error
+	roles         map[uint64]model.Role
+	roleByName    map[string]uint64
+	users         map[uint64]*model.User
+	nextUserID    uint64
+	lastListInput ListUsersInput
+	createUserErr error
+	updateUserErr error
 }
 
 func newFakeRepository() *fakeRepository {
 	repo := &fakeRepository{
-		roles:           map[uint64]model.Role{},
-		roleByName:      map[string]uint64{},
-		users:           map[uint64]*model.User{},
-		identityChanges: map[uint64][]model.TeamIdentityChange{},
-		nextUserID:      4,
+		roles:      map[uint64]model.Role{},
+		roleByName: map[string]uint64{},
+		users:      map[uint64]*model.User{},
+		nextUserID: 4,
 	}
 	repo.addRole(model.Role{ID: 1, Name: model.RoleNameSuperAdmin, DisplayName: "超级管理员"})
 	repo.addRole(model.Role{ID: 2, Name: model.RoleNameAdmin, DisplayName: "管理员"})
@@ -486,32 +467,14 @@ func (r *fakeRepository) ListRecruitmentHistory(context.Context, uint64) ([]mode
 	return []model.Registration{}, nil
 }
 
-func (r *fakeRepository) ListTeamIdentityChanges(_ context.Context, userID uint64) ([]model.TeamIdentityChange, error) {
-	return append([]model.TeamIdentityChange(nil), r.identityChanges[userID]...), nil
-}
-
-func (r *fakeRepository) UpdateTeamIdentity(_ context.Context, userID, actorID uint64, expectedStatus, nextStatus, reason string, assessmentPassed, leaderConfirmed, priorFormalMembershipConfirmed bool) error {
+func (r *fakeRepository) UpdateTeamIdentity(_ context.Context, userID uint64, expectedStatus, nextStatus string) error {
 	user, ok := r.users[userID]
-	if !ok {
-		return gorm.ErrRecordNotFound
-	}
-	actor, ok := r.users[actorID]
 	if !ok {
 		return gorm.ErrRecordNotFound
 	}
 	if model.NormalizeTeamIdentityStatus(user.TeamIdentityStatus) != expectedStatus {
 		return ErrTeamIdentityConflict
 	}
-	actorName := "姓名待核实"
-	if actor.RealName != nil && strings.TrimSpace(*actor.RealName) != "" {
-		actorName = strings.TrimSpace(*actor.RealName)
-	}
-	r.identityChanges[userID] = append(r.identityChanges[userID], model.TeamIdentityChange{
-		UserID: userID, ActorUserID: actorID, ActorName: actorName,
-		PreviousStatus: expectedStatus, NextStatus: nextStatus, Reason: reason,
-		AssessmentPassed: assessmentPassed, LeaderConfirmed: leaderConfirmed,
-		PriorFormalMembershipConfirm: priorFormalMembershipConfirmed,
-	})
 	user.TeamIdentityStatus = nextStatus
 	return nil
 }

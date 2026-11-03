@@ -125,9 +125,6 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 			}
 		}
 		if len(actorUserIDs) > 0 {
-			if err := db.Where("user_id IN ?", actorUserIDs).Delete(&model.TeamIdentityChange{}).Error; err != nil {
-				t.Errorf("clean isolated team identity history: %v", err)
-			}
 			if err := db.Where("user_id IN ?", actorUserIDs).Delete(&model.CommunityMemberProfile{}).Error; err != nil {
 				t.Errorf("clean isolated community member profiles: %v", err)
 			}

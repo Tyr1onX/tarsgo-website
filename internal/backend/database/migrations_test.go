@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
@@ -17,10 +18,10 @@ import (
 
 func TestMigrationRegistryIsOrderedAndKeepsBaseVersion(t *testing.T) {
 	items := migrationRegistry("test")
-	if len(items) != 44 {
-		t.Fatalf("expected 44 registered migrations, got %d", len(items))
+	if len(items) != 45 {
+		t.Fatalf("expected 45 registered migrations, got %d", len(items))
 	}
-	wantVersions := []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44}
+	wantVersions := []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45}
 	for index, want := range wantVersions {
 		if items[index].version != want {
 			t.Fatalf("migration %d has version %d, want %d", index, items[index].version, want)
@@ -111,17 +112,48 @@ func TestMigration40CreatesDeduplicatedCommunityPostViews(t *testing.T) {
 	}
 }
 
-func TestMigration41CreatesDefaultedTeamIdentityAndAuditHistory(t *testing.T) {
+func TestMigration41CreatesDefaultedTeamIdentityStatus(t *testing.T) {
 	items := migrationRegistry("test")
 	if len(items) < 41 || items[40].version != 41 || items[40].apply == nil {
 		t.Fatal("team identity migration 41 is missing")
 	}
-	if got := (model.TeamIdentityChange{}).TableName(); got != "team_identity_changes" {
-		t.Fatalf("team identity history table = %q", got)
-	}
 	field, ok := reflect.TypeOf(model.User{}).FieldByName("TeamIdentityStatus")
 	if !ok || !strings.Contains(field.Tag.Get("gorm"), "default:'community_member'") {
 		t.Fatal("existing and newly registered accounts must default to unverified community members")
+	}
+}
+
+func TestMigration45DropsObsoleteTeamIdentityHistory(t *testing.T) {
+	items := migrationRegistry("test")
+	if len(items) < 45 || items[44].version != 45 || items[44].apply == nil {
+		t.Fatal("team identity history removal migration 45 is missing")
+	}
+	if got := (teamIdentityChangeV41{}).TableName(); got != "team_identity_changes" {
+		t.Fatalf("historical migration table = %q", got)
+	}
+	field, ok := reflect.TypeOf(model.User{}).FieldByName("TeamIdentityStatus")
+	if !ok || !strings.Contains(field.Tag.Get("gorm"), "column:team_identity_status") {
+		t.Fatal("migration 45 must preserve the current identity status column")
+	}
+
+	sqlDB, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("create SQL mock: %v", err)
+	}
+	db, err := gorm.Open(mysql.New(mysql.Config{Conn: sqlDB, SkipInitializeWithVersion: true}), &gorm.Config{DisableAutomaticPing: true})
+	if err != nil {
+		_ = sqlDB.Close()
+		t.Fatalf("open GORM over SQL mock: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := mock.ExpectationsWereMet(); err != nil {
+			t.Errorf("unmet SQL expectation: %v", err)
+		}
+		_ = sqlDB.Close()
+	})
+	mock.ExpectExec("DROP TABLE IF EXISTS team_identity_changes").WillReturnResult(sqlmock.NewResult(0, 0))
+	if err := items[44].apply(db); err != nil {
+		t.Fatalf("apply migration 45: %v", err)
 	}
 }
 

@@ -75,11 +75,7 @@ type updateUserGroupRoleRequest struct {
 }
 
 type updateTeamIdentityRequest struct {
-	Status                         string `json:"status"`
-	Reason                         string `json:"reason"`
-	AssessmentPassed               bool   `json:"assessmentPassed"`
-	LeaderConfirmed                bool   `json:"leaderConfirmed"`
-	PriorFormalMembershipConfirmed bool   `json:"priorFormalMembershipConfirmed"`
+	Status string `json:"status" binding:"required"`
 }
 
 func NewAdminUserHandler(service adminUserService) *AdminUserHandler {
@@ -179,9 +175,7 @@ func (h *AdminUserHandler) UpdateTeamIdentity(c *gin.Context) {
 		return
 	}
 	user, serviceErr := h.service.UpdateTeamIdentity(c.Request.Context(), currentActor(c), userID, adminuser.UpdateTeamIdentityInput{
-		Status: request.Status, Reason: request.Reason,
-		AssessmentPassed: request.AssessmentPassed, LeaderConfirmed: request.LeaderConfirmed,
-		PriorFormalMembershipConfirmed: request.PriorFormalMembershipConfirmed,
+		Status: request.Status,
 	})
 	if serviceErr != nil {
 		h.handleServiceError(c, serviceErr)
