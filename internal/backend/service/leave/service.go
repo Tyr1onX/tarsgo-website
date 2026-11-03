@@ -332,14 +332,9 @@ func groupRequests(requests []model.SchoolLeaveRequest) []LeaveGroup {
 	})
 	groups := make([]LeaveGroup, 0)
 	for _, request := range requests {
-		index := -1
-		for i := range groups {
-			if groups[i].StartAt.Equal(request.StartAt) && groups[i].EndAt.Equal(request.EndAt) {
-				index = i
-				break
-			}
-		}
-		if index < 0 {
+		// Requests are sorted by interval, so equal intervals are contiguous.
+		index := len(groups) - 1
+		if index < 0 || !groups[index].StartAt.Equal(request.StartAt) || !groups[index].EndAt.Equal(request.EndAt) {
 			groups = append(groups, LeaveGroup{Index: len(groups) + 1, StartAt: request.StartAt, EndAt: request.EndAt, TimeText: formatSchoolLeaveTime(request.StartAt, request.EndAt)})
 			index = len(groups) - 1
 		}
