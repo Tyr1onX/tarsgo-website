@@ -589,6 +589,7 @@
 .community-author-profile__trigger .community-avatar { pointer-events: none; }
 .community-author-profile__position { display: inline-block; max-width: 180px; overflow: hidden; color: var(--admin-dim); font-size: 10px; font-weight: 450; text-overflow: ellipsis; white-space: nowrap; }
 .community-team-identity { display: inline-flex; min-height: 19px; align-items: center; border: 1px solid var(--admin-border-subtle); border-radius: 999px; padding: 2px 7px; color: var(--admin-muted); background: var(--admin-surface-subtle); font-size: 9px; font-weight: 620; line-height: 1.15; white-space: nowrap; }
+.community-team-identity--trainee_member,
 .community-team-identity--reserve_member { border-color: color-mix(in srgb, var(--admin-accent) 28%, var(--admin-border-subtle)); color: var(--admin-muted); }
 .community-team-identity--formal_member { border-color: color-mix(in srgb, var(--admin-accent) 48%, var(--admin-border-subtle)); color: var(--admin-accent-text); background: color-mix(in srgb, var(--admin-accent) 10%, var(--admin-surface)); }
 .community-team-identity--former_member { color: var(--admin-dim); background: color-mix(in srgb, var(--admin-surface-subtle) 70%, transparent); }

@@ -13,7 +13,7 @@ import {
   subscribePermissionChange,
   type AuthUser,
 } from "~/lib/auth-client";
-import { getDefaultDashboardPath } from "~/lib/dashboard-navigation";
+import { getDashboardSectionMenu, getDefaultDashboardPath } from "~/lib/dashboard-navigation";
 import { resolveGroupIdentity, type GroupIdentity } from "~/lib/group-identity";
 import {
   getCachedUserGroupConfirmationState,
@@ -32,6 +32,7 @@ const navLinks = [
   { label: "机器人", href: "/robots", active: false },
   { label: "赛事与荣誉", href: "/events-and-honors", active: false },
   { label: "基地项目", href: "/programs", active: false },
+  { label: "吉甲社区", href: "/dashboard", active: false },
   { label: "加入我们", href: "/join", active: false },
 ];
 
@@ -465,6 +466,9 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
                     </div>
 
                     <div className="p-1">
+                      {getDashboardSectionMenu(visibleUser).filter((item) => item.key !== "community").map((item) => (
+                        <Link key={item.key} to={item.href} role="menuitem" onClick={() => setUserMenuOpen(false)} className="flex min-h-10 items-center rounded-lg px-2.5 text-sm text-fg-muted hover:text-fg-primary">{item.label}</Link>
+                      ))}
                       <Link
                         to={getDefaultDashboardPath(visibleUser.role.name)}
                         prefetch="render"
@@ -481,7 +485,7 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
                         >
                           <path strokeLinecap="round" strokeLinejoin="round" d="m2.25 12 8.954-8.955a1.126 1.126 0 0 1 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75" />
                         </svg>
-                        {visibleUser.role.name === "admin" || visibleUser.role.name === "super_admin" ? "管理工作台" : "个人工作台"}
+                        社区
                       </Link>
 
                       <div className="my-0.5 h-px bg-border-subtle/70" />
@@ -616,13 +620,16 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
                 <NavbarIdentityDetail user={visibleUser} identity={groupIdentity} loading={groupIdentityLoading} />
               </span>
               <div className="navbar-mobile-account__actions">
+                {getDashboardSectionMenu(visibleUser).filter((item) => item.key !== "community").map((item) => (
+                  <Link key={item.key} to={item.href} onClick={closeMobileMenu} className="navbar-mobile-account__action">{item.label}</Link>
+                ))}
                 <Link
                   to={getDefaultDashboardPath(visibleUser.role.name)}
                   prefetch="render"
                   className="navbar-mobile-account__action navbar-mobile-account__action--primary"
                   onClick={closeMobileMenu}
                 >
-                  工作台
+                  社区
                 </Link>
                 <Link
                   to={getAccountSwitchHref()}

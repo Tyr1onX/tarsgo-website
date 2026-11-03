@@ -20,7 +20,7 @@ import {
 } from "./dashboard-navigation.ts";
 
 test("primary navigation adds the signed-in member profile before role-gated Management", () => {
-  const account = (name, id = 42) => ({ id, role: { name } });
+  const account = (name, id = 42) => ({ id, workbenchAccess: true, role: { name } });
   assert.deepEqual(getDashboardSectionMenu(account("user")).map(({ key, label, href }) => [key, label, href]), [
     ["community", "社区", "/dashboard"],
     ["workbench", "工作台", "/dashboard/workbench"],

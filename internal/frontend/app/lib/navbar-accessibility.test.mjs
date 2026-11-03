@@ -46,8 +46,8 @@ test("the header uses a role-aware identity menu and keeps account switching key
   assert.doesNotMatch(navbar, /navbar-micro-specialty|to=.*micro-specialties/);
   assert.match(navbar, /NavbarIdentityDetail user=\{visibleUser\} identity=\{groupIdentity\}/);
   assert.match(navbar, /resolveGroupIdentity/);
-  assert.match(navbar, /管理工作台/);
-  assert.match(navbar, /个人工作台/);
+  assert.match(navbar, /getDashboardSectionMenu\(visibleUser\)/);
+  assert.match(navbar, /社区/);
   assert.match(navbar, /切换或添加账号/);
   assert.match(navbar, /getAccountSwitchHref/);
   assert.match(navbar, /subscribeAccountSessionChange/);

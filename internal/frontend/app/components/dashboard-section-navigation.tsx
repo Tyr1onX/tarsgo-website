@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router";
 
 import {
+  hasWorkbenchAccess,
   getDashboardSectionKey,
   getMyWorkbenchMenu,
   getVisibleAdminDashboardMenu,
@@ -22,7 +23,7 @@ export function DashboardSectionNavigation({
 }: Props) {
   const location = useLocation();
   const section = getDashboardSectionKey(location.pathname, currentUser.role.name, currentUser.id);
-  const groups = section === "workbench"
+  const groups = section === "workbench" && hasWorkbenchAccess(currentUser)
     ? getMyWorkbenchMenu(currentUser, hasAssignmentGroup)
     : section === "management"
       ? getVisibleAdminDashboardMenu(currentUser, hasAssignmentGroup)

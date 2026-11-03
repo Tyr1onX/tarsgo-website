@@ -2990,3 +2990,10 @@ func assertRemovedMemberships(t *testing.T, actual []fakeAddedMembership, expect
 		}
 	}
 }
+
+func (r *fakeRegistrationReviewRepository) SyncAdmissionMembership(context.Context, *model.Registration, string, uint64, time.Time) error {
+	return nil
+}
+func (r *fakeRegistrationListRepository) SyncAdmissionMembership(context.Context, *model.Registration, string, uint64, time.Time) error {
+	return nil
+}

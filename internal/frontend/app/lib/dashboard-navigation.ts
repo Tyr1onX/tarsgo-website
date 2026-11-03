@@ -169,10 +169,24 @@ export function getUserDashboardMenu(userOrRole: AuthUser | string, hasAssignmen
   return menu;
 }
 
+export function hasWorkbenchAccess(user: Pick<AuthUser, "workbenchAccess">) {
+  return user.workbenchAccess === true;
+}
+
+// Community, member profiles and recruitment remain available independently.
+export function isInternalDashboardPath(pathname: string) {
+  const path = pathname.replace(/\/+$/, "") || "/";
+  return path.startsWith("/dashboard/")
+    && !/^\/dashboard\/(community|members)\/[^/]+$/.test(path)
+    && path !== "/dashboard/users/registrations"
+    && path !== "/dashboard/questions"
+    && !path.startsWith("/dashboard/admin/") && path !== "/dashboard/admin";
+}
+
 export function getDashboardSectionMenu(currentUser: AuthUser): DashboardMenuLink[] {
   const managementItem = DASHBOARD_SECTION_MENU.find((item) => item.key === "management");
   return [
-    ...DASHBOARD_SECTION_MENU.filter((item) => item.key !== "management").map((item) => ({ ...item })),
+    ...DASHBOARD_SECTION_MENU.filter((item) => item.key !== "management" && (item.key !== "workbench" || hasWorkbenchAccess(currentUser))).map((item) => ({ ...item })),
     { key: "my-profile", label: "我的主页", href: `/dashboard/members/${currentUser.id}`, iconKey: "user" },
     ...(managementItem && hasDashboardAdminAccess(currentUser.role.name) ? [{ ...managementItem }] : []),
   ];

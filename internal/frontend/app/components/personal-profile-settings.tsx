@@ -1,3 +1,4 @@
+import { hasWorkbenchAccess } from "~/lib/dashboard-navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
 import { PersonalTimetableUpload } from "~/components/personal-timetable-upload";
@@ -113,6 +114,6 @@ export function PersonalProfileSettings({ user }: { user: AuthUser }) {
         </div>
       </div>
     </section>
-    <div id="timetable" className="scroll-mt-8"><PersonalTimetableUpload userId={user.id} /></div>
+    {hasWorkbenchAccess(user) ? <div id="timetable" className="scroll-mt-8"><PersonalTimetableUpload userId={user.id} /></div> : null}
   </div>;
 }

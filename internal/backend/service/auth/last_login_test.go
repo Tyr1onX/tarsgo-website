@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -24,7 +25,7 @@ func TestLoginWithPasswordRecordsCredentialLoginTime(t *testing.T) {
 	service := &Service{db: db, authConfig: config.AuthConfig{}, now: func() time.Time { return now }}
 
 	expectBootstrapCompleted(mock)
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `users` WHERE email = ? ORDER BY `users`.`id` LIMIT ?")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT users.*, "+strings.Join(strings.Fields(model.WorkbenchAccessSQL), " ")+" FROM `users` WHERE email = ? ORDER BY `users`.`id` LIMIT ?")).
 		WithArgs("member@example.test", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "role_id", "name", "email", "password_hash", "status"}).AddRow(
 			uint64(7), uint64(3), "member", "member@example.test", passwordHash, model.UserStatusEnabled,
@@ -63,7 +64,7 @@ func TestLoginWithCodeRecordsCredentialLoginTime(t *testing.T) {
 			HashVerificationCode("member@example.test", model.EmailCodePurposeLogin, "123456"), now.Add(time.Minute), now, now, now,
 		))
 	mock.ExpectExec("UPDATE `email_codes`").WillReturnResult(sqlmock.NewResult(0, 1))
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `users` WHERE email = ? ORDER BY `users`.`id` LIMIT ?")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT users.*, "+strings.Join(strings.Fields(model.WorkbenchAccessSQL), " ")+" FROM `users` WHERE email = ? ORDER BY `users`.`id` LIMIT ?")).
 		WithArgs("member@example.test", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "role_id", "name", "email", "status"}).AddRow(
 			uint64(7), uint64(3), "member", "member@example.test", model.UserStatusEnabled,
@@ -98,7 +99,7 @@ func TestCurrentSessionDoesNotRefreshLoginConfirmation(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "token_hash", "expires_at", "created_at", "updated_at"}).AddRow(
 			uint64(2), uint64(7), digestSecret(token), now.Add(time.Hour), now, now,
 		))
-	mock.ExpectQuery("SELECT \\* FROM `users` WHERE `users`.`id` = \\? ORDER BY `users`.`id` LIMIT \\?").
+	mock.ExpectQuery("SELECT users\\.\\*, .* AS workbench_access FROM `users` WHERE `users`.`id` = \\? ORDER BY `users`.`id` LIMIT \\?").
 		WithArgs(uint64(7), 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "role_id", "name", "email", "status"}).AddRow(
 			uint64(7), uint64(3), "member", "member@example.test", model.UserStatusEnabled,
@@ -129,7 +130,7 @@ func TestCurrentUserAndRenewalReusesTheAuthenticatedSessionRead(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "token_hash", "expires_at", "created_at", "updated_at"}).AddRow(
 			uint64(2), uint64(7), digestSecret(token), now.Add(48*time.Hour), now, now,
 		))
-	mock.ExpectQuery("SELECT \\* FROM `users` WHERE `users`.`id` = \\? ORDER BY `users`.`id` LIMIT \\?").
+	mock.ExpectQuery("SELECT users\\.\\*, .* AS workbench_access FROM `users` WHERE `users`.`id` = \\? ORDER BY `users`.`id` LIMIT \\?").
 		WithArgs(uint64(7), 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "role_id", "name", "email", "status"}).AddRow(
 			uint64(7), uint64(3), "member", "member@example.test", model.UserStatusEnabled,
@@ -368,7 +369,7 @@ func TestRegisterWithEmailStoresInitialLoginTime(t *testing.T) {
 	}
 
 	expectBootstrapCompleted(mock)
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `users` WHERE email = ? ORDER BY `users`.`id` LIMIT ?")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT users.*, "+strings.Join(strings.Fields(model.WorkbenchAccessSQL), " ")+" FROM `users` WHERE email = ? ORDER BY `users`.`id` LIMIT ?")).
 		WithArgs("new@example.test", 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id"}))
 	mock.ExpectBegin()
@@ -383,7 +384,7 @@ func TestRegisterWithEmailStoresInitialLoginTime(t *testing.T) {
 		WithArgs(model.RoleNameUser, 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "display_name"}).AddRow(uint64(3), model.RoleNameUser, "普通用户"))
 	mock.ExpectExec("INSERT INTO `users`.*last_login_at").WillReturnResult(sqlmock.NewResult(41, 1))
-	mock.ExpectQuery("SELECT \\* FROM `users` WHERE `users`.`id` = \\? ORDER BY `users`.`id` LIMIT \\?").
+	mock.ExpectQuery("SELECT users\\.\\*, .* AS workbench_access FROM `users` WHERE `users`.`id` = \\? ORDER BY `users`.`id` LIMIT \\?").
 		WithArgs(uint64(41), 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "role_id", "admin_scope", "name", "email", "password_hash", "status", "last_login_at"}).AddRow(
 			uint64(41), uint64(3), model.AdminScopeNone, "new", "new@example.test", "hash", model.UserStatusEnabled, now,
@@ -434,7 +435,7 @@ func expectBootstrapCompleted(mock sqlmock.Sqlmock) {
 }
 
 func expectSwitchUser(mock sqlmock.Sqlmock) {
-	mock.ExpectQuery("SELECT \\* FROM `users` WHERE `users`.`id` = \\? ORDER BY `users`.`id` LIMIT \\?").
+	mock.ExpectQuery("SELECT users\\.\\*, .* AS workbench_access FROM `users` WHERE `users`.`id` = \\? ORDER BY `users`.`id` LIMIT \\?").
 		WithArgs(uint64(7), 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "role_id", "name", "email", "status"}).AddRow(
 			uint64(7), uint64(3), "member", "member@example.test", model.UserStatusEnabled,

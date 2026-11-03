@@ -1,3 +1,4 @@
+import { announcePermissionChange } from "~/lib/auth-client";
 import { apiRequest } from "~/lib/api-client";
 import type { RegistrationFormField } from "~/lib/registration-forms-client";
 
@@ -287,20 +288,24 @@ export async function recordAdminRegistrationInterview(
   registrationId: number,
   input: InterviewDecisionInput,
 ): Promise<RegistrationDetail> {
-  return apiRequest<RegistrationDetail>(`/api/admin/registrations/${registrationId}/interview`, {
+  const updated = await apiRequest<RegistrationDetail>(`/api/admin/registrations/${registrationId}/interview`, {
     method: "POST",
     body: input,
   });
+  announcePermissionChange(null);
+  return updated;
 }
 
 export async function correctAdminRegistrationInterview(
   registrationId: number,
   input: InterviewResultCorrectionInput,
 ): Promise<RegistrationDetail> {
-  return apiRequest<RegistrationDetail>(`/api/admin/registrations/${registrationId}/interview`, {
+  const updated = await apiRequest<RegistrationDetail>(`/api/admin/registrations/${registrationId}/interview`, {
     method: "PUT",
     body: input,
   });
+  announcePermissionChange(null);
+  return updated;
 }
 
 export async function getAdminInterviewNotificationPreview(

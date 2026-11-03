@@ -2,6 +2,7 @@ package model
 
 const (
 	TeamIdentityCommunityMember = "community_member"
+	TeamIdentityTraineeMember   = "trainee_member"
 	TeamIdentityReserveMember   = "reserve_member"
 	TeamIdentityFormalMember    = "formal_member"
 	TeamIdentityFormerMember    = "former_member"
@@ -9,7 +10,7 @@ const (
 
 func NormalizeTeamIdentityStatus(status string) string {
 	switch status {
-	case TeamIdentityReserveMember, TeamIdentityFormalMember, TeamIdentityFormerMember:
+	case TeamIdentityTraineeMember, TeamIdentityReserveMember, TeamIdentityFormalMember, TeamIdentityFormerMember:
 		return status
 	default:
 		return TeamIdentityCommunityMember
@@ -18,7 +19,7 @@ func NormalizeTeamIdentityStatus(status string) string {
 
 func IsTeamIdentityStatus(status string) bool {
 	switch status {
-	case TeamIdentityCommunityMember, TeamIdentityReserveMember, TeamIdentityFormalMember, TeamIdentityFormerMember:
+	case TeamIdentityCommunityMember, TeamIdentityTraineeMember, TeamIdentityReserveMember, TeamIdentityFormalMember, TeamIdentityFormerMember:
 		return true
 	default:
 		return false

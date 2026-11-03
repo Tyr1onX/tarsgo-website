@@ -77,6 +77,22 @@ func RequireAuthenticated(service sessionReader) gin.HandlerFunc {
 	return requireSessionRole(service, "")
 }
 
+// RequireWorkbench composes with authentication and existing group/owner checks.
+func RequireWorkbench() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		user, ok := CurrentSessionUser(c)
+		if !ok || user == nil {
+			c.AbortWithStatusJSON(401, gin.H{"code": 401, "message": "未登录", "data": nil})
+			return
+		}
+		if !user.WorkbenchAccess {
+			c.AbortWithStatusJSON(403, gin.H{"code": 403, "message": "当前账号无工作台访问权限", "data": nil})
+			return
+		}
+		c.Next()
+	}
+}
+
 func RequireAdmin(service sessionReader) gin.HandlerFunc {
 	return requireSessionRole(service, model.RoleNameAdmin)
 }

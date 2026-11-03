@@ -43,6 +43,7 @@ type RegistrationService struct {
 }
 
 type registrationRepository interface {
+	SyncAdmissionMembership(context.Context, *model.Registration, string, uint64, time.Time) error
 	RunInTx(ctx context.Context, fn func(repo registrationRepository) error) error
 	ListPublishedForms(ctx context.Context) ([]model.RegistrationForm, error)
 	GetFormByID(ctx context.Context, formID uint64) (*model.RegistrationForm, error)
@@ -739,6 +740,9 @@ func (s *RegistrationService) RecordInterviewResult(ctx context.Context, actor R
 		if !scope.canAccessRegistration(reg) {
 			return &ServiceError{Status: http.StatusForbidden, Message: "当前账号无权操作该报名记录"}
 		}
+		if (decision == "admit" && reg.RecruitmentStatus == model.RecruitmentStatusAdmitted) || (decision == "reject" && reg.RecruitmentStatus == model.RecruitmentStatusRejected && valueOrEmpty(reg.RejectedStage) == model.RecruitmentRejectedStageInterview) {
+			return nil
+		}
 		if reg.RecruitmentStatus != model.RecruitmentStatusPendingInterview {
 			return &ServiceError{Status: http.StatusConflict, Message: "只有待面试候选人可以录入面试结果"}
 		}
@@ -769,6 +773,9 @@ func (s *RegistrationService) RecordInterviewResult(ctx context.Context, actor R
 		newStatus := model.RecruitmentStatusAdmitted
 		if decision == "reject" {
 			newStatus = model.RecruitmentStatusRejected
+		}
+		if err := repo.SyncAdmissionMembership(ctx, reg, newStatus, actor.ID, now); err != nil {
+			return err
 		}
 		if err := createInterviewResultRevision(ctx, resultStore, reg, actor.ID, nil, newStatus, nil, now, templates); err != nil {
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "保存面试结果追溯记录失败", Err: err}
@@ -1343,6 +1350,13 @@ func (s *RegistrationService) CorrectInterviewResult(ctx context.Context, actor 
 		if !ok {
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "面试结果记录服务不可用"}
 		}
+		desired := model.RecruitmentStatusAdmitted
+		if decision == "reject" {
+			desired = model.RecruitmentStatusRejected
+		}
+		if reg.RecruitmentStatus == desired && valueOrEmpty(reg.InterviewRemark) == strings.TrimSpace(input.Remark) {
+			return nil
+		}
 		previous := reg.RecruitmentStatus
 		if previousNotification, loadErr := resultStore.GetLatestInterviewResultNotificationForUpdate(ctx, registrationID); loadErr == nil {
 			if previousNotification.Status == model.InterviewNotificationSending {
@@ -1366,6 +1380,9 @@ func (s *RegistrationService) CorrectInterviewResult(ctx context.Context, actor 
 		}
 		if err := repo.UpdateRegistration(ctx, reg.ID, updates); err != nil {
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "保存面试结果修改失败", Err: err}
+		}
+		if err := repo.SyncAdmissionMembership(ctx, reg, newStatus, actor.ID, now); err != nil {
+			return err
 		}
 		if err := createInterviewResultRevision(ctx, resultStore, reg, actor.ID, &previous, newStatus, &reason, now, templates); err != nil {
 			return &ServiceError{Status: http.StatusInternalServerError, Message: "保存面试结果追溯记录失败", Err: err}

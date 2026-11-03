@@ -40,7 +40,7 @@ func (h *DailySignalHandler) GetArchive(c *gin.Context) {
 		year = parsedYear
 	}
 	var userID *uint64
-	if user, ok := middleware.CurrentSessionUser(c); ok && user != nil {
+	if user, ok := middleware.CurrentSessionUser(c); ok && user != nil && user.WorkbenchAccess {
 		id := user.ID
 		userID = &id
 	}

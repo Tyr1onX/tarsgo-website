@@ -22,7 +22,7 @@ import (
 func TestUpdateProfileAllowsSuperAdminToChangeCanonicalName(t *testing.T) {
 	db, mock := newAuthSQLMock(t)
 	service := &Service{db: db}
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `users` WHERE `users`.`id` = ? ORDER BY `users`.`id` LIMIT ?")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT users.*, "+strings.Join(strings.Fields(model.WorkbenchAccessSQL), " ")+" FROM `users` WHERE `users`.`id` = ? ORDER BY `users`.`id` LIMIT ?")).
 		WithArgs(uint64(7), 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "role_id", "email", "real_name", "status"}).
 			AddRow(uint64(7), uint64(3), "admin@example.test", "张三", model.UserStatusEnabled))
@@ -151,7 +151,7 @@ func TestReadProfileAvatarValidatesImageContentsAndSize(t *testing.T) {
 }
 
 func expectProfileAvatarLoad(mock sqlmock.Sqlmock, avatarURL *string) {
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `users` WHERE `users`.`id` = ? ORDER BY `users`.`id` LIMIT ?")).
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT users.*, "+strings.Join(strings.Fields(model.WorkbenchAccessSQL), " ")+" FROM `users` WHERE `users`.`id` = ? ORDER BY `users`.`id` LIMIT ?")).
 		WithArgs(uint64(7), 1).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "role_id", "email", "real_name", "status", "avatar_url"}).AddRow(
 			uint64(7), uint64(3), "member@example.test", "张三", model.UserStatusEnabled, avatarURL,

@@ -50,6 +50,8 @@ type SessionRole struct {
 }
 
 type SessionUser struct {
+	WorkbenchAccess       bool                          `json:"workbenchAccess"`
+	TeamIdentityStatus    string                        `json:"teamIdentityStatus"`
 	ID                    uint64                        `json:"id"`
 	Email                 string                        `json:"email"`
 	Phone                 *string                       `json:"phone,omitempty"`
@@ -787,11 +789,7 @@ func (s *Service) findUserByEmail(ctx context.Context, email string) (*model.Use
 }
 
 func (s *Service) findUserByEmailTx(tx *gorm.DB, email string) (*model.User, error) {
-	var user model.User
-	if err := tx.Preload("Role").Where("email = ?", email).First(&user).Error; err != nil {
-		return nil, err
-	}
-	return &user, nil
+	return loadSessionUser(tx.Where("email = ?", email))
 }
 
 func (s *Service) findRoleByNameTx(tx *gorm.DB, name string) (*model.Role, error) {
@@ -815,11 +813,19 @@ func (s *Service) loadUserWithRole(ctx context.Context, userID uint64) (*model.U
 }
 
 func (s *Service) loadUserWithRoleTx(tx *gorm.DB, userID uint64) (*model.User, error) {
-	var user model.User
-	if err := tx.Preload("Role").First(&user, userID).Error; err != nil {
+	return loadSessionUser(tx.Where("`users`.`id` = ?", userID))
+}
+
+func loadSessionUser(tx *gorm.DB) (*model.User, error) {
+	var row struct {
+		model.User
+		Eligible bool `gorm:"column:workbench_access"`
+	}
+	if err := tx.Model(&model.User{}).Select("users.*, " + model.WorkbenchAccessSQL).Preload("Role").First(&row).Error; err != nil {
 		return nil, err
 	}
-	return &user, nil
+	row.User.WorkbenchAccess = row.Eligible
+	return &row.User, nil
 }
 
 func toSessionUser(user *model.User) SessionUser {
@@ -831,6 +837,8 @@ func toSessionUser(user *model.User) SessionUser {
 		}
 	}
 	return SessionUser{
+		WorkbenchAccess:       user.WorkbenchAccess,
+		TeamIdentityStatus:    model.NormalizeTeamIdentityStatus(user.TeamIdentityStatus),
 		ID:                    user.ID,
 		Email:                 user.Email,
 		Phone:                 user.Phone,

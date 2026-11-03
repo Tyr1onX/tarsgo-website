@@ -51,7 +51,7 @@ test("practice creation validates the field and converts deadlines in Beijing ti
 });
 
 test("backend applies role, current group, target, and ownership checks to every operation", () => {
-  assert.match(backendRoutes, /assignmentMemberAPI\.Use\(middleware\.RequireAuthenticated\(authService\)\)/);
+  assert.match(backendRoutes, /assignmentMemberAPI\.Use\(middleware\.RequireAuthenticated\(authService\), middleware\.RequireWorkbench\(\)\)/);
   assert.match(backendRoutes, /adminAPI\.Use\(middleware\.RequireAdmin\(authService\)\)[\s\S]*?adminAPI\.POST\("\/assignments"/);
   assert.match(assignmentService, /user_groups\.name IN \? AND user_groups\.status = \? AND users\.status = \?/);
   assert.match(assignmentService, /JOIN roles ON roles\.id = users\.role_id[\s\S]*?roles\.name = \?"/);

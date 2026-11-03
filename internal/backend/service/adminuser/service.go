@@ -329,6 +329,10 @@ func (s *Service) UpdateCurrentRecruitmentGroup(ctx context.Context, actor Actor
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "加载用户失败", Err: err}
 	}
 	if err := s.repo.UpdateCurrentRecruitmentGroup(ctx, userID, groupID); err != nil {
+		var serviceErr *ServiceError
+		if errors.As(err, &serviceErr) {
+			return nil, serviceErr
+		}
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, &ServiceError{Status: http.StatusConflict, Message: "当前账号没有可修正的当届报名记录或组别已停用"}
 		}

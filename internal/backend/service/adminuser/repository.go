@@ -3,6 +3,7 @@ package adminuser
 import (
 	"context"
 	"errors"
+	"net/http"
 	"strings"
 
 	"gorm.io/gorm"
@@ -224,11 +225,14 @@ func (r *GormRepository) UpdateCurrentRecruitmentGroup(ctx context.Context, user
 			return err
 		}
 		var registration model.Registration
-		if err := tx.Where("user_id = ? AND form_id = ?", userID, forms[0].ID).First(&registration).Error; err != nil {
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ? AND form_id = ?", userID, forms[0].ID).First(&registration).Error; err != nil {
 			return err
 		}
 		if registration.PreferredGroupID != nil && *registration.PreferredGroupID == groupID {
 			return nil
+		}
+		if registration.RecruitmentStatus == model.RecruitmentStatusAdmitted {
+			return &ServiceError{Status: http.StatusConflict, Message: "已录取报名需先纠正面试结果，再修改意向组并重新录取"}
 		}
 		result := tx.Model(&model.Registration{}).
 			Where("user_id = ? AND form_id = ?", userID, forms[0].ID).
