@@ -146,7 +146,7 @@ test("the homepage keeps six photos around two co-creation entries and preserves
   assert.match(home, /<HomeVisualNavigation imageTreatment="sand" \/>/);
   assert.doesNotMatch(home, /home-base-feature|to="\/base"|从每日通信开始/);
   assert.doesNotMatch(home, /home-space-entry--manage|个人工作台/);
-  assert.match(navbar, /label: "加入我们", href: "\/join"/);
+  assert.doesNotMatch(navbar, /const navLinks|site-mobile-menu/);
   assert.match(styles, /\.home-visual-card:focus-visible/);
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.home-visual-card:hover > img[\s\S]*?transform: none;/);
 });

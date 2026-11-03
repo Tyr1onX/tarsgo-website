@@ -5,7 +5,6 @@ import {
   AcademicSummary,
   SalonBackLink,
   SalonShell,
-  salonPanel,
   salonButton,
   salonPrimaryButton,
   useSalonIdentity,
@@ -21,6 +20,9 @@ import {
   type SalonRecord,
 } from "~/lib/ai-salon-client";
 import { leaveClient, type CollegeOption } from "~/lib/leave-client";
+import { salonEventStatus } from "~/lib/salon-event-status";
+import "~/salon.css";
+
 export function meta() {
   return [{ title: "活动报名 | 吉甲 AI 沙龙 | TARSGO" }];
 }
@@ -177,23 +179,33 @@ export default function AISalonDetail() {
         ) : null
       ) : (
         <>
-          <h1 className="break-words text-3xl font-semibold leading-tight sm:text-5xl">
+          <p className="text-sm text-accent-primary">{salonEventStatus(event, now)}</p>
+          <h1 className="salon-detail-heading">
             {event.title}
           </h1>
-          <div className="mt-8 grid items-start gap-8 lg:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)]">
-            <section className="min-w-0">
+          <div className="salon-detail-layout">
+            <section className="salon-detail-content" aria-label="活动介绍">
               {event.posterUrl ? (
                 <img
                   src={event.posterUrl}
                   alt={`${event.title}海报`}
                   referrerPolicy="no-referrer"
-                  className="mb-7 max-h-[650px] w-full rounded-2xl object-contain"
+                  className="salon-detail-poster"
                 />
               ) : null}
-              <p className="whitespace-pre-wrap break-words leading-8">
-                {event.summary}
-              </p>
-              <dl className="mt-8 space-y-5 border-t border-border-subtle pt-7 text-sm">
+              {event.summary ? <div className="salon-detail-description"><h2>活动内容</h2><p>{event.summary}</p></div> : null}
+            </section>
+            <section
+              className="salon-registration"
+              aria-labelledby="salon-registration-heading"
+            >
+              <h2
+                id="salon-registration-heading"
+                className="text-xl font-semibold"
+              >
+                线下报名
+              </h2>
+              <dl className="salon-detail-facts">
                 {[
                   [
                     "活动时间",
@@ -203,22 +215,11 @@ export default function AISalonDetail() {
                   ["报名截止", `${salonDate(event.deadline)}（北京时间）`],
                 ].map(([label, value]) => (
                   <div key={label}>
-                    <dt className="text-fg-muted">{label}</dt>
-                    <dd className="mt-2 break-words leading-6">{value}</dd>
+                    <dt>{label}</dt>
+                    <dd>{value}</dd>
                   </div>
                 ))}
               </dl>
-            </section>
-            <section
-              className={`${salonPanel} min-w-0`}
-              aria-labelledby="salon-registration-heading"
-            >
-              <h2
-                id="salon-registration-heading"
-                className="text-xl font-semibold"
-              >
-                线下报名
-              </h2>
               {notice ? (
                 <p role="status" className="mt-4 text-accent-primary">
                   {notice}
@@ -306,7 +307,7 @@ export default function AISalonDetail() {
                   <p className="break-all text-sm text-fg-muted">
                     邮箱：{user.email}
                   </p>
-                  <button className={salonPrimaryButton} disabled={busy}>
+                  <button className={`${salonPrimaryButton} w-full`} disabled={busy}>
                     {busy ? "提交中…" : "提交报名"}
                   </button>
                 </form>

@@ -25,33 +25,10 @@ import {
 import { teamIdentityLabel } from "./community-team-identity";
 import { SiteLogo } from "./site-logo";
 import { ThemeControl } from "./theme-control";
-import { useTheme } from "./theme-provider";
-
-const navLinks = [
-  { label: "首页", href: "/", active: true },
-  { label: "认识吉甲", href: "/about", active: false },
-  { label: "机器人", href: "/robots", active: false },
-  { label: "赛事与荣誉", href: "/events-and-honors", active: false },
-  { label: "基地项目", href: "/programs", active: false },
-  { label: "吉甲社区", href: "/dashboard", active: false },
-  { label: "加入我们", href: "/join", active: false },
-];
-
-function isNavigationLinkActive(href: string, pathname: string) {
-  return pathname === href || (href === "/programs" && pathname.startsWith("/programs/"));
-}
-
-const microSpecialtyNavLinks = [
-  { label: "项目介绍", href: "#introduction", active: false },
-  { label: "课程安排", href: "#curriculum", active: false },
-  { label: "实践内容", href: "#practice", active: false },
-  { label: "常见问题", href: "#faq", active: false },
-];
 
 type NavbarProps = {
   currentUser?: AuthUser | null;
   authError?: boolean;
-  variant?: "default" | "micro-specialty";
 };
 
 type GroupIdentityStatus =
@@ -59,8 +36,7 @@ type GroupIdentityStatus =
   | { userId: number; status: "ready"; state: UserGroupConfirmationState }
   | { userId: number; status: "error" };
 
-export function Navbar({ currentUser, authError = false, variant = "default" }: NavbarProps) {
-  const visibleNavLinks = variant === "micro-specialty" ? microSpecialtyNavLinks : navLinks;
+export function Navbar({ currentUser, authError = false }: NavbarProps) {
   const [observedUser, setObservedUser] = useState<AuthUser | null | undefined>(() =>
     currentUser !== undefined ? currentUser : getCachedCurrentUser() ?? (hasKnownAnonymousSession() ? null : undefined),
   );
@@ -73,18 +49,12 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
     ? resolveGroupIdentity(groupState.state)
     : null;
   const visibleAuthError = visibleUser === undefined && (authError || identityRefreshError);
-  const [menuOpen, setMenuOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [dashboardPrefetchUserId, setDashboardPrefetchUserId] = useState<number | null>(null);
-  const { preference, setPreference } = useTheme();
   const userMenuRef = useRef<HTMLDivElement | null>(null);
   const profileButtonRef = useRef<HTMLButtonElement | null>(null);
-  const mobileMenuButtonRef = useRef<HTMLButtonElement | null>(null);
-  const mobileMenuRef = useRef<HTMLDivElement | null>(null);
-  const desktopNavLinksRef = useRef<HTMLDivElement | null>(null);
-  const desktopAuthAreaRef = useRef<HTMLDivElement | null>(null);
   const identityRequestGenerationRef = useRef(0);
   const location = useLocation();
   const accountMenuItems = visibleUser
@@ -197,73 +167,10 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
     });
   }, [visibleUser?.id]);
 
-  useEffect(() => {
-    if (!menuOpen) return;
-
-    function closeOnOutsidePointer(event: PointerEvent) {
-      const target = event.target;
-      if (!(target instanceof Node)) return;
-      if (mobileMenuRef.current?.contains(target) || mobileMenuButtonRef.current?.contains(target)) return;
-      setMenuOpen(false);
-    }
-
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key !== "Escape") return;
-
-      event.preventDefault();
-      setMenuOpen(false);
-      mobileMenuButtonRef.current?.focus();
-    }
-
-    document.addEventListener("pointerdown", closeOnOutsidePointer);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", closeOnOutsidePointer);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [menuOpen]);
-
-  useEffect(() => {
-    const desktopViewport = window.matchMedia("(min-width: 1280px)");
-
-    function handleNavBreakpointChange() {
-      const activeElement = document.activeElement;
-
-      if (desktopViewport.matches) {
-        const focusedMobileControl =
-          activeElement === mobileMenuButtonRef.current ||
-          Boolean(mobileMenuRef.current?.contains(activeElement));
-
-        if (menuOpen) setMenuOpen(false);
-        if (focusedMobileControl) {
-          desktopNavLinksRef.current?.querySelector<HTMLAnchorElement>("a")?.focus();
-        }
-        return;
-      }
-
-      const focusedDesktopControl =
-        Boolean(desktopNavLinksRef.current?.contains(activeElement)) ||
-        Boolean(desktopAuthAreaRef.current?.contains(activeElement));
-
-      setUserMenuOpen(false);
-      if (focusedDesktopControl) {
-        mobileMenuButtonRef.current?.focus();
-      }
-    }
-
-    desktopViewport.addEventListener("change", handleNavBreakpointChange);
-    return () => desktopViewport.removeEventListener("change", handleNavBreakpointChange);
-  }, [menuOpen]);
-
-  function closeMobileMenu() {
-    setMenuOpen(false);
-    mobileMenuButtonRef.current?.focus();
-  }
-
   // Warm the authenticated dashboard route before the user opens the menu.
   // Keep the idle window short so an early click does not wait for the prefetch.
   useEffect(() => {
-    if (!visibleUser || variant !== "default") return;
+    if (!visibleUser) return;
     const connection = (navigator as Navigator & { connection?: { saveData?: boolean } }).connection;
     if (connection?.saveData) return;
 
@@ -274,7 +181,7 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
 
     const timeoutId = setTimeout(() => setDashboardPrefetchUserId(visibleUser.id), 250);
     return () => clearTimeout(timeoutId);
-  }, [visibleUser?.id, variant]);
+  }, [visibleUser?.id]);
 
   useEffect(() => {
     function handleScroll() {
@@ -338,8 +245,6 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
       setLoggingOut(true);
       await logout();
       setUserMenuOpen(false);
-      setMenuOpen(false);
-      if (menuOpen) mobileMenuButtonRef.current?.focus();
       revalidator.revalidate();
       navigate("/", { replace: true });
     } finally {
@@ -369,13 +274,13 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
 
   return (
     <nav
-      aria-label={variant === "micro-specialty" ? "低空微专业导航" : "主导航"}
+      aria-label="主导航"
       className="pointer-events-none fixed inset-x-0 top-0 z-50"
     >
-      {variant === "default" && visibleUser && dashboardPrefetchUserId === visibleUser.id ? (
+      {visibleUser && dashboardPrefetchUserId === visibleUser.id ? (
         <PrefetchPageLinks page={getDefaultDashboardPath(visibleUser.role.name)} />
       ) : null}
-      {variant === "default" ? <PrefetchPageLinks page="/login" /> : null}
+      <PrefetchPageLinks page="/login" />
       <div className={`site-navbar pointer-events-auto w-full overflow-visible ${isScrolled ? "site-navbar--scrolled" : ""}`}>
         <div className="max-w-[1440px] mx-auto flex h-[var(--site-nav-height)] items-center justify-between px-6 sm:px-10 lg:px-20">
           {/* Logo */}
@@ -387,292 +292,119 @@ export function Navbar({ currentUser, authError = false, variant = "default" }: 
             <SiteLogo className="h-[48px] sm:h-[54px]" />
           </Link>
 
-          {/* Desktop nav links */}
-          <div ref={desktopNavLinksRef} className="hidden xl:flex items-center gap-5 2xl:gap-8">
-            {visibleNavLinks.map((link) => {
-              const active = link.href.startsWith("#")
-                ? location.hash === link.href
-                : isNavigationLinkActive(link.href, location.pathname);
-              return (
-                <Link
-                  key={link.href}
-                  to={link.href}
-                  aria-current={active ? "page" : undefined}
-                  className={`motion-nav-link text-base font-semibold transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#D0AD69] ${
-                    active ? "text-accent-primary" : "text-fg-primary hover:text-accent-primary"
-                  }`}
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
-          </div>
-
           <div className="navbar-actions">
-          <ThemeControl className="theme-control--navbar" systemOnly />
+            <ThemeControl className="theme-control--navbar" systemOnly />
 
-          {/* Auth area */}
-          {variant === "default" ? <div ref={desktopAuthAreaRef} className="hidden w-[220px] shrink-0 items-center justify-end gap-3 xl:flex">
-            {visibleUser === undefined ? (
-              visibleAuthError ? <button type="button" onClick={retryIdentityCheck} className="navbar-auth-loading navbar-auth-loading--error">重新确认登录状态</button> :
-                <NavbarAuthLoadingStatus />
-            ) : visibleUser ? (
-              <div ref={userMenuRef} className="relative">
-                <button
-                  ref={profileButtonRef}
-                  type="button"
-                  onClick={() => setUserMenuOpen((open) => !open)}
-                  onKeyDown={(event) => {
-                    if (userMenuOpen || (event.key !== "ArrowDown" && event.key !== "ArrowUp")) return;
-                    event.preventDefault();
-                    setUserMenuOpen(true);
-                    requestAnimationFrame(() => {
-                      const items = userMenuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])');
-                      items?.[event.key === "ArrowDown" ? 0 : items.length - 1]?.focus();
-                    });
-                  }}
-                  className={`navbar-profile-button group flex items-center gap-2 rounded-full border p-1 pr-2.5 transition-all duration-200 ${
-                    userMenuOpen
-                      ? "border-accent-primary/60 bg-surface-light shadow-lg shadow-accent-primary/10"
-                      : "border-border-subtle bg-surface-light/60 hover:border-accent-primary/40 hover:bg-surface-light hover:shadow-md hover:shadow-black/20"
-                  }`}
-                  aria-label={`打开${getUserDisplayName(visibleUser)}的用户菜单${groupIdentity ? `，${groupIdentity.name}` : `，${getAuthUserRoleLabel(visibleUser)}`}`}
-                  aria-expanded={userMenuOpen}
-                  aria-haspopup="menu"
-                >
-                  <UserAvatar user={visibleUser} className="h-8 w-8" textClassName="text-sm" />
-                  <span className="navbar-profile-identity">
-                    <span className="navbar-profile-identity__name">{getUserDisplayName(visibleUser)}</span>
-                    <NavbarIdentityDetail user={visibleUser} identity={groupIdentity} loading={groupIdentityLoading} compact />
-                  </span>
-                  <svg
-                    className={`h-4 w-4 transition-all duration-200 ${
+            {/* Auth area */}
+            <div className="navbar-auth-area">
+              {visibleUser === undefined ? (
+                visibleAuthError ? <button type="button" onClick={retryIdentityCheck} className="navbar-auth-loading navbar-auth-loading--error">重新确认登录状态</button> :
+                  <NavbarAuthLoadingStatus />
+              ) : visibleUser ? (
+                <div ref={userMenuRef} className="relative">
+                  <button
+                    ref={profileButtonRef}
+                    type="button"
+                    onClick={() => setUserMenuOpen((open) => !open)}
+                    onKeyDown={(event) => {
+                      if (userMenuOpen || (event.key !== "ArrowDown" && event.key !== "ArrowUp")) return;
+                      event.preventDefault();
+                      setUserMenuOpen(true);
+                      requestAnimationFrame(() => {
+                        const items = userMenuRef.current?.querySelectorAll<HTMLElement>('[role="menuitem"]:not([disabled])');
+                        items?.[event.key === "ArrowDown" ? 0 : items.length - 1]?.focus();
+                      });
+                    }}
+                    className={`navbar-profile-button group flex items-center gap-2 rounded-full border p-1 pr-2.5 transition-all duration-200 ${
                       userMenuOpen
-                        ? "rotate-180 text-accent-primary"
-                        : "text-fg-muted group-hover:text-fg-primary"
+                        ? "border-accent-primary/60 bg-surface-light shadow-lg shadow-accent-primary/10"
+                        : "border-border-subtle bg-surface-light/60 hover:border-accent-primary/40 hover:bg-surface-light hover:shadow-md hover:shadow-black/20"
                     }`}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    strokeWidth={1.75}
-                    stroke="currentColor"
+                    aria-label={`打开${getUserDisplayName(visibleUser)}的用户菜单${groupIdentity ? `，${groupIdentity.name}` : `，${getAuthUserRoleLabel(visibleUser)}`}`}
+                    aria-expanded={userMenuOpen}
+                    aria-haspopup="menu"
                   >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
-                  </svg>
-                </button>
+                    <UserAvatar user={visibleUser} className="h-8 w-8" textClassName="text-sm" />
+                    <span className="navbar-profile-identity">
+                      <span className="navbar-profile-identity__name">{getUserDisplayName(visibleUser)}</span>
+                      <NavbarIdentityDetail user={visibleUser} identity={groupIdentity} loading={groupIdentityLoading} compact />
+                    </span>
+                    <svg
+                      className={`h-4 w-4 transition-all duration-200 ${
+                        userMenuOpen
+                          ? "rotate-180 text-accent-primary"
+                          : "text-fg-muted group-hover:text-fg-primary"
+                      }`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      strokeWidth={1.75}
+                      stroke="currentColor"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                    </svg>
+                  </button>
 
-                {userMenuOpen ? (
-                  <div
-                    role="menu"
-                    className="navbar-user-menu animate-user-menu-in absolute right-0 z-20 mt-2.5 overflow-hidden rounded-xl border border-border-subtle bg-surface-primary/95 shadow-2xl shadow-black/40 backdrop-blur-xl"
-                  >
-                    <div className="navbar-account-header">
-                      <UserAvatar user={visibleUser} className="h-10 w-10 shrink-0" textClassName="text-sm" />
-                      <div className="navbar-account-header__identity">
-                        <div className="navbar-account-header__name">{getUserDisplayName(visibleUser)}</div>
-                        <div className="navbar-account-header__email">{visibleUser.email}</div>
-                        <div className="navbar-account-header__detail">
-                          <span className="navbar-user-role">{teamIdentityLabel(visibleUser.teamIdentityStatus)}</span>
-                          <NavbarIdentityDetail user={visibleUser} identity={groupIdentity} loading={groupIdentityLoading} />
+                  {userMenuOpen ? (
+                    <div
+                      role="menu"
+                      className="navbar-user-menu animate-user-menu-in absolute right-0 z-20 mt-2.5 overflow-hidden rounded-xl border border-border-subtle bg-surface-primary/95 shadow-2xl shadow-black/40 backdrop-blur-xl"
+                    >
+                      <div className="navbar-account-header">
+                        <UserAvatar user={visibleUser} className="h-10 w-10 shrink-0" textClassName="text-sm" />
+                        <div className="navbar-account-header__identity">
+                          <div className="navbar-account-header__name">{getUserDisplayName(visibleUser)}</div>
+                          <div className="navbar-account-header__email">{visibleUser.email}</div>
+                          <div className="navbar-account-header__detail">
+                            <span className="navbar-user-role">{teamIdentityLabel(visibleUser.teamIdentityStatus)}</span>
+                            <NavbarIdentityDetail user={visibleUser} identity={groupIdentity} loading={groupIdentityLoading} />
+                          </div>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="navbar-account-actions">
-                      {accountMenuItems.map((item) => (
-                        <Link key={item.key} to={item.href} role="menuitem" onClick={() => setUserMenuOpen(false)}
-                          aria-current={accountSection === (item.key === "my-profile" ? "profile" : item.key) ? "page" : undefined}
-                          className="navbar-account-action">
-                          <NavbarAccountIcon name={item.key} />
-                          {item.key === "management" ? "管理后台" : item.label}
+                      <div className="navbar-account-actions">
+                        {accountMenuItems.map((item) => (
+                          <Link key={item.key} to={item.href} role="menuitem" onClick={() => setUserMenuOpen(false)}
+                            aria-current={accountSection === (item.key === "my-profile" ? "profile" : item.key) ? "page" : undefined}
+                            className="navbar-account-action">
+                            <NavbarAccountIcon name={item.key} />
+                            {item.key === "management" ? "管理后台" : item.label}
+                          </Link>
+                        ))}
+                        <div className="navbar-account-separator" role="separator" />
+                        <Link
+                          to={getAccountSwitchHref()}
+                          prefetch="render"
+                          onClick={() => setUserMenuOpen(false)}
+                          role="menuitem"
+                          className="navbar-account-action"
+                        >
+                          <NavbarAccountIcon name="switch" />
+                          切换账号
                         </Link>
-                      ))}
-                      <div className="navbar-account-separator" role="separator" />
-                      <Link
-                        to={getAccountSwitchHref()}
-                        prefetch="render"
-                        onClick={() => setUserMenuOpen(false)}
-                        role="menuitem"
-                        className="navbar-account-action"
-                      >
-                        <NavbarAccountIcon name="switch" />
-                        切换账号
-                      </Link>
-                      <button
-                        type="button"
-                        onClick={handleLogout}
-                        disabled={loggingOut}
-                        role="menuitem"
-                        className="navbar-account-action navbar-account-action--danger"
-                      >
-                        <NavbarAccountIcon name="logout" />
-                        {loggingOut ? "退出中..." : "退出登录"}
-                      </button>
+                        <button
+                          type="button"
+                          onClick={handleLogout}
+                          disabled={loggingOut}
+                          role="menuitem"
+                          className="navbar-account-action navbar-account-action--danger"
+                        >
+                          <NavbarAccountIcon name="logout" />
+                          {loggingOut ? "退出中..." : "退出登录"}
+                        </button>
+                      </div>
                     </div>
-                  </div>
-                ) : null}
-              </div>
-            ) : (
-              <>
+                  ) : null}
+                </div>
+              ) : (
                 <Link
                   to="/login"
-                  className="px-5 py-2 text-sm font-medium text-accent-primary border-[1.5px] border-accent-primary rounded-full transition-colors hover:bg-accent-primary/10"
+                  className="inline-flex min-h-11 items-center rounded-full border border-accent-primary px-5 text-sm font-medium text-accent-primary hover:bg-accent-primary/10"
                 >
                   登录
                 </Link>
-                <Link
-                  to="/register"
-                  className="px-5 py-2 text-sm font-medium text-fg-inverse bg-accent-primary rounded-full transition-colors hover:bg-accent-primary/90"
-                >
-                  注册
-                </Link>
-              </>
-            )}
-          </div> : null}
-
-          <button
-            ref={mobileMenuButtonRef}
-            type="button"
-            className={"navbar-menu-toggle xl:hidden" + (visibleUser ? " navbar-menu-toggle--identity" : visibleUser === undefined ? " navbar-menu-toggle--loading" : "")}
-            onClick={() => setMenuOpen((open) => !open)}
-            aria-label={visibleUser
-              ? (menuOpen ? "关闭导航菜单" : "展开导航菜单") + "，" + getUserDisplayName(visibleUser) + "，" + (groupIdentity?.name ?? getAuthUserRoleLabel(visibleUser))
-              : visibleUser === undefined
-                ? (menuOpen ? "关闭导航菜单" : "展开导航菜单") + "，正在确认登录状态"
-              : menuOpen ? "关闭导航菜单" : "展开导航菜单"}
-            aria-expanded={menuOpen}
-            aria-controls="site-mobile-menu"
-          >
-            {visibleUser ? (
-              <span className="navbar-menu-avatar">
-                <UserAvatar user={visibleUser} className="h-7 w-7" textClassName="text-xs" />
-                {groupIdentity ? <span className="navbar-menu-group-mark" aria-hidden="true"><img src={`/assets/images/Groups/${groupIdentity.mark}-black.svg`} alt="" /></span> : groupIdentityLoading ? <span className="navbar-menu-group-mark navbar-menu-group-mark--loading" aria-hidden="true" /> : null}
-              </span>
-            ) : visibleUser === undefined ? <span className="navbar-menu-loading-avatar" aria-hidden="true" /> : null}
-            <svg
-              className="w-6 h-6"
-              fill="none"
-              viewBox="0 0 24 24"
-              strokeWidth={1.5}
-              stroke="currentColor"
-            >
-              {menuOpen ? (
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              ) : (
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"
-                />
               )}
-            </svg>
-          </button>
-          </div>
-        </div>
-
-        {/* Mobile menu */}
-        <div
-          id="site-mobile-menu"
-          ref={mobileMenuRef}
-          hidden={!menuOpen}
-          className="site-mobile-menu xl:hidden"
-        >
-          <div className="navbar-mobile-links">
-            {visibleNavLinks.map((link) => {
-              const active = link.href.startsWith("#")
-                ? location.hash === link.href
-                : isNavigationLinkActive(link.href, location.pathname);
-              return (
-                <Link
-                  key={link.href}
-                  to={link.href}
-                  aria-current={active ? "page" : undefined}
-                  className={`navbar-mobile-link ${active ? "navbar-mobile-link--active" : ""}`}
-                  onClick={closeMobileMenu}
-                >
-                  {link.label}
-                </Link>
-              );
-            })}
-          </div>
-          {variant === "default" && visibleUser === undefined ? (
-            visibleAuthError ? <button type="button" className="navbar-auth-loading navbar-auth-loading--mobile navbar-auth-loading--error" onClick={retryIdentityCheck}>重新确认登录状态</button> :
-              <NavbarAuthLoadingStatus mobile />
-          ) : variant === "default" && visibleUser ? (
-            <div className="navbar-mobile-account">
-              <div className="navbar-account-header">
-                <UserAvatar user={visibleUser} className="h-10 w-10 shrink-0" textClassName="text-sm" />
-                <div className="navbar-mobile-account__identity navbar-account-header__identity">
-                  <span className="navbar-mobile-account__name navbar-account-header__name">{getUserDisplayName(visibleUser)}</span>
-                  <span className="navbar-account-header__email">{visibleUser.email}</span>
-                  <div className="navbar-account-header__detail">
-                    <span className="navbar-user-role">{teamIdentityLabel(visibleUser.teamIdentityStatus)}</span>
-                    <NavbarIdentityDetail user={visibleUser} identity={groupIdentity} loading={groupIdentityLoading} />
-                  </div>
-                </div>
-              </div>
-              <div className="navbar-mobile-account__actions navbar-account-actions">
-                {accountMenuItems.map((item) => (
-                  <Link key={item.key} to={item.href} onClick={closeMobileMenu} className="navbar-account-action"
-                    aria-current={accountSection === (item.key === "my-profile" ? "profile" : item.key) ? "page" : undefined}>
-                    <NavbarAccountIcon name={item.key} />
-                    {item.key === "management" ? "管理后台" : item.label}
-                  </Link>
-                ))}
-                <div className="navbar-account-separator" role="separator" />
-                <Link
-                  to={getAccountSwitchHref()}
-                  prefetch="render"
-                  className="navbar-account-action"
-                  onClick={closeMobileMenu}
-                >
-                  <NavbarAccountIcon name="switch" />
-                  切换账号
-                </Link>
-                <button
-                  type="button"
-                  onClick={handleLogout}
-                  disabled={loggingOut}
-                  className="navbar-account-action navbar-account-action--danger"
-                >
-                  <NavbarAccountIcon name="logout" />
-                  {loggingOut ? "退出中..." : "退出登录"}
-                </button>
-              </div>
             </div>
-          ) : variant === "default" ? (
-            <div className="flex gap-3 mt-4 px-3">
-              <Link
-                to="/login"
-                className="flex-1 text-center px-4 py-2 text-sm font-medium text-accent-primary border-[1.5px] border-accent-primary rounded-full"
-                onClick={closeMobileMenu}
-              >
-                登录
-              </Link>
-              <Link
-                to="/register"
-                className="flex-1 text-center px-4 py-2 text-sm font-medium text-fg-inverse bg-accent-primary rounded-full"
-                onClick={closeMobileMenu}
-              >
-                注册
-              </Link>
-            </div>
-          ) : null}
-          <button
-            type="button"
-            className="navbar-system-theme"
-            aria-pressed={preference === "system"}
-            onClick={() => {
-              setPreference("system");
-              closeMobileMenu();
-            }}
-          >
-            <span>跟随系统主题</span>
-            <span className="navbar-system-theme__state">{preference === "system" ? "已启用" : "恢复自动"}</span>
-          </button>
+          </div>
         </div>
       </div>
     </nav>
@@ -722,10 +454,10 @@ function UserAvatar({
   );
 }
 
-function NavbarAuthLoadingStatus({ mobile = false }: { mobile?: boolean }) {
+function NavbarAuthLoadingStatus() {
   return (
     <div
-      className={`navbar-auth-loading${mobile ? " navbar-auth-loading--mobile" : ""}`}
+      className="navbar-auth-loading"
       role="status"
       aria-label="正在确认登录状态"
       aria-busy="true"

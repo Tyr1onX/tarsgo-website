@@ -76,11 +76,9 @@ test("micro-specialty page is informational and has no registration or recruitme
   assert.doesNotMatch(route, /招新/);
   assert.match(lowAltitudeFaqs.at(-1).answer, /不提供报名、登录、注册或招生管理功能，也不收集个人资料/);
   assert.doesNotMatch(lowAltitudeFaqs.map(({ question, answer }) => `${question} ${answer}`).join("\n"), /请使用.{0,20}(?:报名|注册)|报名入口|现有报名流程/);
-  assert.match(navbar, /variant\s*===\s*"default"\s*\?/);
-  assert.match(navbar, /microSpecialtyNavLinks/);
-  assert.doesNotMatch(navbar.match(/const microSpecialtyNavLinks = \[([\s\S]*?)\];/)?.[1] ?? "", /register|login|加入我们|招新/i);
-  assert.match(navbar, /to="\/register"/);
-  assert.match(navbar, /label: "加入我们"/);
+  assert.doesNotMatch(navbar, /microSpecialtyNavLinks|const navLinks|site-mobile-menu/);
+  assert.match(navbar, /aria-label="TARSGO 首页"/);
+
 });
 
 test("page layout remains responsive across mobile and desktop widths", () => {

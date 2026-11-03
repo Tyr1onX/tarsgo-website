@@ -1,124 +1,100 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
-import {
-  SalonBackLink,
-  SalonShell,
-  salonPanel,
-  salonButton,
-  useSalonIdentity,
-} from "~/components/ai-salon-shared";
-import {
-  salonClient,
-  salonDate,
-  salonError,
-  type SalonEvent,
-} from "~/lib/ai-salon-client";
+import { SalonShell, salonButton, salonPrimaryButton, useSalonIdentity } from "~/components/ai-salon-shared";
+import { SalonArtwork } from "~/components/salon-artwork";
+import { salonClient, salonDate, salonError, type SalonEvent } from "~/lib/ai-salon-client";
+import { salonEventStatus } from "~/lib/salon-event-status";
+import "~/salon.css";
+
 export function meta() {
-  return [{ title: "吉甲 AI 沙龙 | TARSGO" }];
+  return [
+    { title: "吉甲 AI 沙龙 | TARSGO" },
+    { name: "description", content: "让想法，成为作品。面向吉林大学同学的 AI 创作实践与交流活动。" },
+  ];
 }
+
+function EventCard({ event }: { event: SalonEvent }) {
+  const status = salonEventStatus(event, Date.parse(event.serverNow));
+  return (
+    <Link to={`/programs/ai-salon/${event.id}`} className="salon-event-card">
+      <div className="salon-event-cover">
+        {event.posterUrl ? (
+          <img src={event.posterUrl} alt={`${event.title}海报`} loading="lazy" referrerPolicy="no-referrer" />
+        ) : <SalonArtwork />}
+      </div>
+      <div className="salon-event-body">
+        <span className={`salon-event-status${event.registrationOpen ? " salon-event-status--open" : ""}`}>{status}</span>
+        <h3>{event.title}</h3>
+        <dl className="salon-event-meta">
+          <div><dt>时间</dt><dd>{salonDate(event.startAt)}（北京时间）</dd></div>
+          {event.location ? <div><dt>地点</dt><dd>{event.location}</dd></div> : null}
+        </dl>
+        {event.summary ? <p className="salon-event-summary">{event.summary}</p> : null}
+        <span className="salon-event-link">{event.registrationOpen ? "了解活动与报名" : "查看活动"}<span aria-hidden="true">↗</span></span>
+      </div>
+    </Link>
+  );
+}
+
 export default function AISalon() {
   const { user } = useSalonIdentity();
   const [events, setEvents] = useState<SalonEvent[] | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
     let active = true;
-    void salonClient
-      .list()
-      .then((rows) => {
-        if (active) setEvents(rows);
-      })
-      .catch((e) => {
-        if (active) setError(salonError(e));
-      });
-    return () => {
-      active = false;
-    };
+    void salonClient.list().then((rows) => { if (active) setEvents(rows); })
+      .catch((e) => { if (active) setError(salonError(e)); });
+    return () => { active = false; };
   }, []);
-  const now = events?.[0] ? Date.parse(events[0].serverNow) : Date.now();
-  const groups = [
-    {
-      title: "即将举行",
-      rows: events?.filter((e) => Date.parse(e.endAt) > now) ?? [],
-    },
-    {
-      title: "往期活动",
-      rows: events?.filter((e) => Date.parse(e.endAt) <= now).reverse() ?? [],
-    },
-  ];
+  const upcoming = events?.filter((e) => Date.parse(e.endAt) > Date.parse(e.serverNow)) ?? [];
+  const past = events?.filter((e) => Date.parse(e.endAt) <= Date.parse(e.serverNow)).reverse() ?? [];
   return (
     <SalonShell>
-      <SalonBackLink to="/programs">基地项目</SalonBackLink>
-      <div className="mb-10 flex flex-wrap items-center justify-between gap-5">
-        <h1 className="text-4xl font-semibold tracking-tight sm:text-5xl">
-          吉甲 AI 沙龙
-        </h1>
-        <div className="flex flex-wrap gap-3">
-          {user ? (
-            <Link className={salonButton} to="/programs/ai-salon/registrations">
-              我的报名
-            </Link>
-          ) : null}
-          {user?.role.name === "super_admin" ? (
-            <Link className={salonButton} to="/programs/ai-salon/manage">
-              管理活动
-            </Link>
-          ) : null}
-        </div>
-      </div>
-      {error ? (
-        <p role="alert">{error}</p>
-      ) : !events ? (
-        <p role="status" className="text-fg-muted">
-          正在读取活动…
-        </p>
-      ) : (
-        groups.map((group) => (
-          <section key={group.title} className="mb-12">
-            <h2 className="mb-5 text-xl font-semibold">{group.title}</h2>
-            {group.rows.length ? (
-              <div className="grid gap-5 sm:grid-cols-2">
-                {group.rows.map((e) => (
-                  <Link
-                    to={`/programs/ai-salon/${e.id}`}
-                    key={e.id}
-                    className={`${salonPanel} min-w-0 hover:border-accent-primary`}
-                  >
-                    {e.posterUrl ? (
-                      <img
-                        src={e.posterUrl}
-                        alt={`${e.title}海报`}
-                        loading="lazy"
-                        referrerPolicy="no-referrer"
-                        className="mb-5 max-h-72 w-full rounded-lg object-contain"
-                      />
-                    ) : null}
-                    <h3 className="break-words text-xl font-semibold">
-                      {e.title}
-                    </h3>
-                    <p className="mt-4 text-sm leading-7 text-fg-muted">
-                      {salonDate(e.startAt)}
-                      <br />
-                      {e.location}
-                    </p>
-                    <p className="mt-3 line-clamp-3 whitespace-pre-wrap text-sm leading-7">
-                      {e.summary}
-                    </p>
-                    <p className="mt-5 text-sm text-accent-primary">
-                      查看活动 →
-                    </p>
-                  </Link>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-fg-muted">
-                {group.title === "即将举行"
-                  ? "暂无即将举行的活动"
-                  : "暂无往期活动"}
-              </p>
-            )}
+      <div className="salon-home">
+        <section className="salon-hero" aria-labelledby="salon-title">
+          <div className="salon-hero-heading">
+            <h1 id="salon-title"><span className="salon-brand-mark" aria-hidden="true" />吉甲 AI 沙龙</h1>
+            <div className="salon-personal-links">
+              {user ? <Link className={salonButton} to="/programs/ai-salon/registrations">我的报名</Link> : null}
+              {user?.role.name === "super_admin" ? <Link className={salonButton} to="/programs/ai-salon/manage">管理活动</Link> : null}
+            </div>
+          </div>
+          <div className="salon-hero-content">
+            <div className="salon-hero-copy">
+              <p className="salon-manifesto">让想法，<br /><span>成为作品。</span></p>
+              <p className="salon-intro">面向吉林大学同学的<br className="sm:hidden" /> AI 创作实践与交流活动。</p>
+              <a className={salonPrimaryButton} href="#salon-events">查看近期活动 <span className="ml-6" aria-hidden="true">↓</span></a>
+            </div>
+            <div className="salon-hero-art"><SalonArtwork /></div>
+          </div>
+        </section>
+        <section id="salon-events" className="salon-events" aria-labelledby="salon-events-title">
+          <div className="salon-section-heading"><h2 id="salon-events-title">近期活动</h2></div>
+          {error ? <p className="salon-empty" role="alert">{error}</p> : !events ? (
+            <p className="salon-empty" role="status">正在读取活动…</p>
+          ) : upcoming.length ? (
+            <div className="salon-event-grid">{upcoming.map((event) => <EventCard key={event.id} event={event} />)}</div>
+          ) : <div className="salon-empty"><span className="salon-empty-dot" aria-hidden="true" /><p>新一期活动筹备中</p></div>}
+        </section>
+        <section className="salon-format" aria-labelledby="salon-format-title">
+          <div className="salon-section-heading"><h2 id="salon-format-title">从想法到作品，一起实践。</h2></div>
+          <ol className="salon-steps">
+            {[
+              ["发现创意", "从感兴趣的问题出发，探索 AI 能做什么。"],
+              ["动手实现", "尝试工具、搭建原型，让想法落地。"],
+              ["交流分享", "展示作品，聊聊过程中的发现与困惑。"],
+            ].map(([title, description], index) => (
+              <li key={title}><span className="salon-step-number" aria-hidden="true">0{index + 1}</span><h3>{title}</h3><p>{description}</p></li>
+            ))}
+          </ol>
+        </section>
+        {past.length ? (
+          <section className="salon-past" aria-labelledby="salon-past-title">
+            <div className="salon-section-heading"><h2 id="salon-past-title">往期活动</h2></div>
+            <div className="salon-event-grid">{past.map((event) => <EventCard key={event.id} event={event} />)}</div>
           </section>
-        ))
-      )}
+        ) : null}
+      </div>
     </SalonShell>
   );
 }
