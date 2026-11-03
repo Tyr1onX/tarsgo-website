@@ -12,6 +12,7 @@ import (
 	"gorm.io/gorm"
 	"tarsgo-backend/model"
 	"tarsgo-backend/service/historyarchive"
+	"tarsgo-backend/service/recruitmentanalytics"
 )
 
 func TestMariaDBRetirementPreservesRecruitmentAndAssignmentHistory(t *testing.T) {
@@ -136,6 +137,25 @@ func TestMariaDBRetirementPreservesRecruitmentAndAssignmentHistory(t *testing.T)
 		if archive.FinalStatus != 1 {
 			t.Fatal("final outcome lost")
 		}
+	}
+	// Public report must still count each archived synthetic registration once,
+	// using retained main-group snapshots rather than cleared legacy columns.
+	report, err := recruitmentanalytics.NewService(tx).GetReport(context.Background(), "super_admin")
+	must(err)
+	total := int64(0)
+	for _, cohort := range report.Cohorts {
+		for _, id := range ids {
+			var formID uint64
+			must(tx.Model(&model.Registration{}).Select("form_id").Where("id=?", id).Scan(&formID).Error)
+			if cohort.FormID == formID {
+				for _, group := range cohort.Groups {
+					total += group.RegistrationCount
+				}
+			}
+		}
+	}
+	if total != 27 {
+		t.Fatalf("archived group aggregate=%d want27", total)
 	}
 	svc := historyarchive.NewService(tx)
 	for _, role := range []string{"user", "admin", ""} {

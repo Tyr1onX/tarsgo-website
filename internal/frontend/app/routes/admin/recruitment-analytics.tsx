@@ -5,7 +5,7 @@ import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { getRecruitmentAnalytics, type RecruitmentAnalyticsCohort, type RecruitmentAnalyticsReport } from "~/lib/recruitment-analytics-client";
 
 export function meta() {
-  return [{ title: "招新数据分析 | TARSGO" }, { name: "description", content: "按报名表查看招新届次、录取和组别意向变化" }];
+  return [{ title: "招新数据分析 | TARSGO" }, { name: "description", content: "按报名表查看招新届次、录取和主要组别变化" }];
 }
 
 function formatCount(value: number, hasData: boolean) {
@@ -140,9 +140,9 @@ function CohortDetails({ cohort }: { cohort: RecruitmentAnalyticsCohort }) {
             “已匹配正式成员关系”仅统计已录取报名记录中，同一用户在目标组存在且加入时间不早于报名提交时间的成员关系；系统没有独立的入队事件与报名表关联，此项用于区分录取和成员关系，不代表单独登记的入队事件。
           </p>
           <div className="recruitment-analytics__group-detail">
-            <h3>组别报名意向</h3>
+            <h3>报名主要组别</h3>
             {cohort.groups.length === 0 ? (
-              <p className="recruitment-analytics__empty">暂无可识别的组别意向数据。</p>
+              <p className="recruitment-analytics__empty">暂无可识别的主要组别数据。</p>
             ) : (
               <ul>
                 {cohort.groups.map((group) => (
@@ -172,16 +172,16 @@ function GroupTrendTable({ cohorts }: { cohorts: RecruitmentAnalyticsCohort[] })
       <div className="recruitment-analytics__section-heading">
         <div>
           <p className="admin-eyebrow">跨届比较</p>
-          <h2 id="analytics-groups-heading">各届组别意向变化</h2>
+          <h2 id="analytics-groups-heading">各届主要组别变化</h2>
         </div>
       </div>
       {groupNames.length === 0 ? (
-        <p className="recruitment-analytics__empty">暂无可比较的组别意向数据。</p>
+        <p className="recruitment-analytics__empty">暂无可比较的主要组别数据。</p>
       ) : (
         <>
           <div className="recruitment-analytics__table-wrap">
             <table className="admin-table recruitment-analytics__table recruitment-analytics__comparison">
-              <caption className="sr-only">各组报名意向记录数跨届比较表</caption>
+              <caption className="sr-only">各组主要组别记录数跨届比较表</caption>
               <thead>
                 <tr><th scope="col">组别</th>{cohorts.map((cohort) => <th scope="col" key={cohort.formId}>{cohort.title}</th>)}</tr>
               </thead>
@@ -199,7 +199,7 @@ function GroupTrendTable({ cohorts }: { cohorts: RecruitmentAnalyticsCohort[] })
             </table>
           </div>
           <p className="recruitment-analytics__note">
-            每条报名记录的历史双志愿字段和当前主意向字段按记录与组别去重；同一报名记录可计入多个组别，因此各组人数不可相加作为总报名人数。组别名称按当前组别档案显示。
+            历史报名按保留的主要组别快照统计，当前报名按意向组统计；每条记录只计入一个组别，未记录组别的报名不计入本表。
           </p>
         </>
       )}
@@ -244,7 +244,7 @@ export default function RecruitmentAnalytics() {
       <header className="admin-page-header">
         <div className="admin-eyebrow">吉甲 · 招新数据</div>
         <h1 className="admin-page-title">招新数据分析</h1>
-        <p className="admin-page-description">按每张招新报名表独立查看报名、录取、组别意向和成员关系变化。</p>
+        <p className="admin-page-description">按每张招新报名表独立查看报名、录取、主要组别和成员关系变化。</p>
       </header>
 
       {loading ? <p className="recruitment-analytics__state" role="status">正在读取汇总统计…</p> : null}
@@ -305,7 +305,7 @@ export default function RecruitmentAnalytics() {
               <li>统计届次以实际报名表为单位；同一年多个批次分别统计，不按年份合并。只纳入已发布、已关闭的报名表，以及仍为草稿但已有真实报名记录的表单。</li>
               <li>报名数是报名表中的记录数，跨届累计不做用户去重。录取、未通过、撤回及待处理按当前标准流程状态统计；录取率为录取记录除以本届报名记录，包含撤回记录在分母中。</li>
               <li>正式入队不是录取的同义词。由于系统没有独立入队事件和报名届次外键，详情中的成员关系数仅按同一用户、目标组及成员关系加入时间匹配已录取记录；不作为独立登记的入队人数。</li>
-              <li>旧招新记录使用两个志愿组字段，当前记录使用主意向组字段；每条记录对同一组只计一次，可计入多个组。未能关联当前组别档案的历史组别会单列，不能将各组计数相加作为总人数。</li>
+              <li>历史报名主要组别依次取最终录取组、意向组、第一志愿，并保留名称快照；当前报名取意向组。每条报名只计入一个组别，缺失名称的历史组别单列。</li>
               <li>页面只接收数据库聚合后的届次、状态、组别和成员关系数量，不读取或传输姓名、邮箱、手机号或表单答案。未覆盖的年份不补造记录；无报名数据的表单显示“暂无数据”。</li>
             </ul>
             <p>数据覆盖：{report.hasCohorts ? formatDate(report.coverageStart) + " 至 " + formatDate(report.coverageEnd) + "（按报名表创建时间）" : "暂无已发布或有真实报名记录的报名表"}</p>

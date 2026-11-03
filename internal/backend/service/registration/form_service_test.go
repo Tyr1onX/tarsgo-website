@@ -101,7 +101,7 @@ func TestRegistrationFormServiceUpdateFormRejectsPublishConflict(t *testing.T) {
 	assertRegistrationFormServiceError(t, err, 409, "已有已发布报名表")
 }
 
-func TestRegistrationFormServiceUpdatePreservesLegacySchemaWhenOnlyClosingForm(t *testing.T) {
+func TestRegistrationFormServiceClosingLegacyFormUsesSingleIntentSchema(t *testing.T) {
 	repo := newFakeRegistrationFormRepository()
 	legacyFields := legacyDualIntentRegistrationFields()
 	repo.forms[1].FieldsSchema = cloneRegistrationFields(legacyFields)
