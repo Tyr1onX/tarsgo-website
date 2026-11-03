@@ -504,8 +504,37 @@ func TestAcceptanceDatabaseQuestionWorkflow(t *testing.T) {
 		t.Fatalf("member profile did not respect visible discussion scope: stats=%#v posts=%#v", memberPosts.Stats, memberPosts.Posts)
 	}
 	badgeTab, err := service.GetCommunityMemberProfile(context.Background(), peer, member.ID, CommunityMemberTabBadges, 1)
-	if err != nil || len(badgeTab.Badges) != 1 || len(badgeTab.Badges[0].TierHistory) != 1 || badgeTab.Badges[0].TierHistory[0].LevelCode != "bronze" {
-		t.Fatalf("community profile did not show the earned badge history: badges=%#v err=%v", badgeTab.Badges, err)
+	if err != nil || len(badgeTab.Badges) != 1 || !badgeTab.Badges[0].IsEarned || badgeTab.Badges[0].LevelCode != "bronze" {
+		t.Fatalf("community profile did not show the current earned badge: badges=%#v err=%v", badgeTab.Badges, err)
+	}
+	overview, err := service.GetCommunityMemberProfile(context.Background(), peer, member.ID, CommunityMemberTabOverview, 1)
+	if err != nil || overview.Stats != memberPosts.Stats || len(overview.Posts) != 0 || len(overview.Replies) != 0 {
+		t.Fatalf("overview should contain member statistics without discussion lists: %#v err=%v", overview, err)
+	}
+	encodedBadge, err := json.Marshal(badgeTab.Badges)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, field := range []string{"tierHistory", "contributions", "revokedAt", "condition"} {
+		if strings.Contains(string(encodedBadge), `"`+field+`"`) {
+			t.Fatalf("member showcase leaked management history %q: %s", field, encodedBadge)
+		}
+	}
+	newBio := "[TEST_QA] 自动保存后的介绍"
+	updatedProfile, err := service.UpdateMyCommunityMemberProfile(context.Background(), member, CommunityMemberProfileInput{Bio: &newBio})
+	if err != nil || updatedProfile.Member.Bio != newBio || updatedProfile.Member.FeaturedBadgeKey != featuredBadge {
+		t.Fatalf("bio-only save changed the representative badge: %#v err=%v", updatedProfile, err)
+	}
+	revokedAt := statusClock.Add(time.Minute)
+	if err := db.Model(&model.CoBuilderContribution{}).Where("user_id = ?", member.ID).Update("revoked_at", revokedAt).Error; err != nil {
+		t.Fatal(err)
+	}
+	revokedProfile, err := service.GetCommunityMemberProfile(context.Background(), peer, member.ID, CommunityMemberTabBadges, 1)
+	if err != nil || len(revokedProfile.Badges) != 0 || revokedProfile.Member.FeaturedBadge != nil || revokedProfile.Member.FeaturedBadgeKey != "" {
+		t.Fatalf("revoked badge stayed in member showcase: %#v err=%v", revokedProfile, err)
+	}
+	if _, err := service.UpdateMyCommunityMemberProfile(context.Background(), member, CommunityMemberProfileInput{FeaturedBadgeKey: &featuredBadge}); questionStatus(err) != http.StatusBadRequest {
+		t.Fatalf("revoked badge could be selected: %v", err)
 	}
 	privateReplies, err := service.GetCommunityMemberProfile(context.Background(), peer, mechanicalAdmin.ID, CommunityMemberTabReplies, 1)
 	if err != nil {

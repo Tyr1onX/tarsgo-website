@@ -34,7 +34,7 @@ test("the current member can edit name, bio, and avatar directly in the profile 
   assert.match(memberProfile, /updateProfile\(\{ realName: member\.displayName\.trim\(\), phone: currentUser\.phone \?\? "", avatar: file \}\)/);
   assert.match(memberProfile, /file\.size > 2 \* 1024 \* 1024/);
   assert.match(memberProfile, /头像仅支持 JPG 或 PNG/);
-  assert.match(memberProfile, /setResult\(\(current\) => current \? \{ \.\.\.current, member: \{ \.\.\.current\.member, displayName: savedName \} \} : current\)/);
+  assert.match(memberProfile, /setResult\(\(current\) => current\?\.member\.id === updatedUser\.id \? \{ \.\.\.current, member: \{ \.\.\.current\.member, displayName: savedName \} \} : current\)/);
   assert.match(memberProfile, /clearCommunityLists\(\)/);
   assert.doesNotMatch(profile, /avatarInputRef|autoComplete="name"|realNameDraft/);
 });
@@ -85,7 +85,7 @@ test("independent settings stay reachable without a profile settings tab", () =>
   assert.match(memberProfile, /{tab === "settings" && isSelf/);
   assert.match(memberProfile, /<PersonalProfileSettings user=\{currentUser\} \/>/);
   assert.match(memberProfile, /{tab !== "settings" \? <nav className="community-member-tabs"/);
-  assert.match(memberProfile, /<CoBuilderBadgeProfile onReplay=/);
+  assert.match(memberProfile, /onReplay=\{isSelf \? requestBadgeReplay : undefined\}/);
   assert.doesNotMatch(memberProfile, /label: "资料设置"|编辑资料/);
   assert.doesNotMatch(layout, /ProfileDialog|setProfileOpen/);
   assert.doesNotMatch(layout, /import \{ ProfileDialog \}/);

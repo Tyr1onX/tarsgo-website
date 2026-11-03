@@ -16,25 +16,8 @@ export interface CommunityMemberPosition {
   categoryTitle: string;
 }
 
-export interface CommunityPublicBadgeTier {
-  levelCode: "bronze" | "silver" | "gold";
-  levelLabel: string;
-  requiredContributionCount: number;
-  earnedAt: string;
-  revokedAt?: string;
-}
-
-export interface CommunityPublicBadge {
-  key: string;
-  name: string;
-  description: string;
-  condition: string;
-  levelCode: "none" | "bronze" | "silver" | "gold";
-  levelLabel: string;
+export interface CommunityPublicBadge extends CommunityFeaturedBadge {
   isEarned: boolean;
-  earnedAt?: string;
-  tierHistory: CommunityPublicBadgeTier[];
-  contributions: Array<{ description: string; createdAt: string; revokedAt?: string }>;
 }
 
 export interface CommunityMemberGroup {
@@ -96,22 +79,10 @@ export interface CommunityMemberPost {
   isFeatured: boolean;
 }
 
-export interface CommunityMemberActivity {
-  kind: "post" | "reply";
-  id: number;
-  postId: number;
-  title?: string;
-  body: string;
-  isFeatured: boolean;
-  createdAt: string;
-  href: string;
-}
-
 export interface CommunityMemberProfileResult {
   member: CommunityMemberProfile;
   stats: CommunityMemberStats;
   badges?: CommunityPublicBadge[];
-  activities?: CommunityMemberActivity[];
   posts?: CommunityMemberPost[];
   replies?: CommunityMemberReply[];
   tab: "overview" | "posts" | "replies" | "badges" | "card";

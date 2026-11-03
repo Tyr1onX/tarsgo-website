@@ -16,7 +16,7 @@ export function CommunityBadgeMark({ badge, size = 32, className }: { badge: Com
   ><CommunityIcon name="award" /></span>;
 }
 
-export function CommunityBadgeInfo({ badge, size = 32, className }: { badge: CommunityFeaturedBadge; size?: number; className?: string }) {
+export function CommunityBadgeInfo({ badge, size = 32, className, onReplay }: { badge: CommunityFeaturedBadge; size?: number; className?: string; onReplay?: () => void }) {
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const [open, setOpen] = useState(false);
@@ -43,7 +43,7 @@ export function CommunityBadgeInfo({ badge, size = 32, className }: { badge: Com
   const earnedAt = badge.earnedAt ? new Date(badge.earnedAt) : null;
   const earnedAtLabel = earnedAt && !Number.isNaN(earnedAt.getTime())
     ? new Intl.DateTimeFormat("zh-CN", { timeZone: "Asia/Shanghai", dateStyle: "long" }).format(earnedAt)
-    : "获得时间未记录";
+    : "";
 
   return <div className={`community-badge-info${className ? ` ${className}` : ""}`} ref={rootRef} onBlur={() => window.requestAnimationFrame(() => {
     if (!rootRef.current?.contains(document.activeElement)) setOpen(false);
@@ -61,7 +61,8 @@ export function CommunityBadgeInfo({ badge, size = 32, className }: { badge: Com
       <strong>{badge.name}</strong>
       <span>{badge.levelLabel}</span>
       {badge.description ? <p>{badge.description}</p> : null}
-      <time dateTime={badge.earnedAt}>{earnedAtLabel}</time>
+      {earnedAtLabel ? <time dateTime={badge.earnedAt}>{earnedAtLabel}</time> : null}
+      {onReplay ? <button type="button" className="community-inline-link" onClick={() => { setOpen(false); onReplay(); }}>重播解锁动画</button> : null}
     </section> : null}
   </div>;
 }
