@@ -41,7 +41,7 @@ export default function AdminDashboard() {
     setLoading(true);
     const [recruitment, assignments, leave] = await Promise.allSettled([
       getAdminWorkbenchSummary(currentUser.id),
-      canManageAssignments ? assignmentClient.listAdmin() : Promise.resolve(null),
+      canManageAssignments ? assignmentClient.adminTodos() : Promise.resolve(null),
       leaveClient.schoolSummary(),
     ]);
     if (requestSequence.current !== requestId) return;
@@ -50,9 +50,7 @@ export default function AdminDashboard() {
     if (recruitment.status === "fulfilled") next.recruitment = recruitment.value;
     else next.errors.push(describeError(recruitment.reason, "招新待办暂时无法读取。"));
     if (assignments.status === "fulfilled" && assignments.value) {
-      next.assignmentReviewCount = assignments.value
-        .filter((assignment) => assignment.publicationStatus !== "withdrawn")
-        .reduce((total, assignment) => total + Math.max(0, assignment.submittedCount - assignment.reviewedCount), 0);
+      next.assignmentReviewCount = assignments.value.reviewCount;
     } else if (assignments.status === "rejected") next.errors.push(describeError(assignments.reason, "作业批改待办暂时无法读取。"));
     if (leave.status === "fulfilled") next.leaveActionableCount = leave.value.actionableCount;
     else next.errors.push(describeError(leave.reason, "请假待办暂时无法读取。"));
@@ -63,6 +61,7 @@ export default function AdminDashboard() {
   useEffect(() => {
     setState(emptyState);
     void load();
+    return () => { requestSequence.current += 1; };
   }, [load]);
 
   const pendingScreening = state.recruitment?.currentFormAvailable ? state.recruitment.summary.pendingScreening : 0;

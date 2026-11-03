@@ -846,6 +846,24 @@ func mustListAssignments(t *testing.T, service *Service, actor Actor, groupID ui
 			t.Fatalf("batched statistics differ from detail summary: got=%#v want=%#v err=%v", item, legacy, err)
 		}
 	}
+	all, err := service.ListAdmin(context.Background(), actor, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var want int64
+	for _, item := range all {
+		if item.PublicationStatus != model.AssignmentPublicationWithdrawn {
+			want += int64(max(0, item.SubmittedCount-item.ReviewedCount))
+		}
+	}
+	summary, err := service.AdminTodos(context.Background(), actor)
+	if err != nil || summary.ReviewCount != want {
+		t.Fatalf("todo summary=%#v want=%d err=%v", summary, want, err)
+	}
+	if _, err := service.AdminTodos(context.Background(), Actor{ID: actor.ID, RoleName: model.RoleNameUser}); statusOf(err) != http.StatusForbidden {
+		t.Fatalf("member summary permission err=%v", err)
+	}
+
 	return items
 }
 

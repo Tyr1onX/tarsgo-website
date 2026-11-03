@@ -110,6 +110,7 @@ export const assignmentClient = {
     for (const file of files) body.append("files", file, file.name);
     return apiRequest<MyAssignmentDetail>(`/api/assignments/${id}/submissions`, { method: "POST", body });
   },
+  adminTodos: () => apiRequest<{ reviewCount: number }>("/api/admin/assignments/todos"),
   listAdmin: (groupId?: number) => apiRequest<Assignment[]>(`/api/admin/assignments${groupId ? `?groupId=${groupId}` : ""}`),
   listGroupMembers: (groupId: number) => apiRequest<AssignmentMemberOption[]>(`/api/admin/assignment-members?groupId=${groupId}`),
   create: (input: AssignmentInput) => apiRequest<Assignment>("/api/admin/assignments", { method: "POST", body: input }),
