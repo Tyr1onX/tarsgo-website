@@ -171,6 +171,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 
 	leaveMemberAPI := api.Group("")
 	leaveMemberAPI.Use(middleware.RequireAuthenticated(authService), middleware.RequireLeaveAccess(leaveService))
+	leaveMemberAPI.GET("/school-leave/latest-status", leaveHandler.LatestRequestStatus)
 	leaveMemberAPI.GET("/school-leave/requests", leaveHandler.MyRequests)
 	leaveMemberAPI.POST("/school-leave/requests", requireSameOriginRequest(cfg), leaveHandler.CreateRequest)
 	leaveMemberAPI.PATCH("/school-leave/requests/:id", requireSameOriginRequest(cfg), leaveHandler.UpdateRequest)
@@ -188,6 +189,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 
 	assignmentMemberAPI := api.Group("")
 	assignmentMemberAPI.Use(middleware.RequireAuthenticated(authService))
+	assignmentMemberAPI.GET("/assignments/todos", assignmentHandler.ListTodos)
 	assignmentMemberAPI.GET("/assignments", assignmentHandler.ListMine)
 	assignmentMemberAPI.GET("/assignments/:id", assignmentHandler.GetMine)
 	assignmentMemberAPI.POST("/assignments/:id/submissions", requireSameOriginRequest(cfg), assignmentHandler.Submit)
@@ -329,6 +331,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	authenticatedAPI.POST("/user-group/confirmation", userGroupMembershipHandler.Confirm)
 	authenticatedAPI.GET("/work-manual/operations", workManualHandler.OperationsCatalogue)
 	authenticatedAPI.GET("/work-manual/operations/templates/campus-network-window-application.doc", workManualHandler.ApplicationForm)
+	authenticatedAPI.GET("/weekly-reports/current-status", weeklyReportHandler.GetCurrentStatus)
 	authenticatedAPI.GET("/weekly-reports", weeklyReportHandler.GetDashboard)
 	authenticatedAPI.GET("/weekly-reports/team", weeklyReportHandler.GetTeamWeek)
 	authenticatedAPI.POST("/weekly-reports/:id/attachments", requireSameOriginRequest(cfg), weeklyReportHandler.UploadAttachments)

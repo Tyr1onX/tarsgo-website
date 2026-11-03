@@ -576,3 +576,19 @@ func (s *Service) ValidateRequestOwner(ctx context.Context, userID, requestID ui
 	}
 	return nil
 }
+
+type LatestRequestStatus struct {
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"createdAt"`
+}
+
+func (s *Service) LatestRequestStatus(ctx context.Context, userID uint64) (*LatestRequestStatus, error) {
+	var rows []LatestRequestStatus
+	if err := s.db.WithContext(ctx).Model(&model.SchoolLeaveRequest{}).Select("status", "created_at").Where("user_id = ?", userID).Order("created_at DESC, id DESC").Limit(1).Find(&rows).Error; err != nil {
+		return nil, internalError("读取请假状态失败", err)
+	}
+	if len(rows) == 0 {
+		return nil, nil
+	}
+	return &rows[0], nil
+}

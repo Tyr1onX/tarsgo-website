@@ -1,12 +1,12 @@
-import type { Assignment } from "./assignment-client.ts";
-import type { LeaveAccessState, LeaveRequest } from "./leave-client.ts";
-import type { WeeklyReportDashboard } from "./weekly-report-client.ts";
+import type { AssignmentTodo } from "./assignment-client.ts";
+import type { LeaveAccessState, LatestLeaveStatus } from "./leave-client.ts";
+import type { WeeklyReportStatus } from "./weekly-report-client.ts";
 
 export type PersonalSnapshot = {
-	weekly: WeeklyReportDashboard | null;
-	assignments: Assignment[] | null;
+	weekly: WeeklyReportStatus | null;
+	assignments: AssignmentTodo[] | null;
 	leaveAccess: LeaveAccessState | null;
-	leaveRequests: LeaveRequest[] | null;
+	leaveLatest: LatestLeaveStatus | null;
 	errors: { weekly?: string; assignments?: string; leave?: string };
 };
 
@@ -14,7 +14,7 @@ export const emptyPersonalSnapshot: PersonalSnapshot = {
 	weekly: null,
 	assignments: null,
 	leaveAccess: null,
-	leaveRequests: null,
+	leaveLatest: null,
 	errors: {},
 };
 
@@ -26,7 +26,7 @@ export function getPersonalWorkbenchSnapshot(key: string) {
 }
 
 export function hasPersonalWorkbenchData(snapshot: PersonalSnapshot | undefined): snapshot is PersonalSnapshot {
-	return Boolean(snapshot && (snapshot.weekly !== null || snapshot.assignments !== null || snapshot.leaveAccess !== null || snapshot.leaveRequests !== null));
+	return Boolean(snapshot && (snapshot.weekly !== null || snapshot.assignments !== null || snapshot.leaveAccess !== null || snapshot.leaveLatest !== null));
 }
 
 export function rememberPersonalWorkbenchSnapshot(key: string, snapshot: PersonalSnapshot) {

@@ -2,6 +2,7 @@ package assignment
 
 import (
 	"context"
+	"time"
 
 	"gorm.io/gorm"
 	"tarsgo-backend/model"
@@ -125,6 +126,60 @@ func (s *Service) adminListViews(ctx context.Context, items []model.Assignment) 
 			view.TargetCount, view.SubmittedCount, view.ReviewedCount, view.PassedCount = count.TargetCount, count.SubmittedCount, count.ReviewedCount, count.PassedCount
 			view.CanDelete = deletable[item.ID]
 			result = append(result, view)
+		}
+	}
+	return result, nil
+}
+
+type Todo struct {
+	ID     uint64    `json:"id"`
+	Title  string    `json:"title"`
+	DueAt  time.Time `json:"dueAt"`
+	Status string    `json:"status"`
+}
+
+func (s *Service) ListTodos(ctx context.Context, actor Actor) ([]Todo, error) {
+	items, err := s.memberListItems(ctx, actor, true)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]Todo, 0)
+	now := s.now()
+	for start := 0; start < len(items); start += assignmentListBatchSize {
+		batch := items[start:min(start+assignmentListBatchSize, len(items))]
+		ids := make([]uint64, 0, len(batch))
+		for _, item := range batch {
+			ids = append(ids, item.ID)
+		}
+		var rows []struct {
+			AssignmentID uint64
+			Decision     string
+		}
+		err := s.db.WithContext(ctx).Raw(`SELECT s.assignment_id, COALESCE(r.decision, '') AS decision
+   FROM assignment_submissions s
+   LEFT JOIN assignment_reviews r ON r.submission_id=s.id AND NOT EXISTS
+    (SELECT 1 FROM assignment_reviews nr WHERE nr.submission_id=r.submission_id AND nr.id>r.id)
+   WHERE s.assignment_id IN ? AND s.user_id=? AND NOT EXISTS
+    (SELECT 1 FROM assignment_submissions ns WHERE ns.assignment_id=s.assignment_id AND ns.user_id=s.user_id AND ns.attempt>s.attempt)`, ids, actor.ID).Scan(&rows).Error
+		if err != nil {
+			return nil, internalError("读取作业待办失败", err)
+		}
+		decisions := make(map[uint64]string, len(rows))
+		for _, row := range rows {
+			decisions[row.AssignmentID] = row.Decision
+		}
+		for _, item := range batch {
+			decision, submitted := decisions[item.ID]
+			status := "pending"
+			if submitted {
+				if decision != model.AssignmentReviewNeedsRedo {
+					continue
+				}
+				status = decision
+			} else if now.After(readStoredUTCWall(item.DueAt)) {
+				status = "overdue"
+			}
+			result = append(result, Todo{ID: item.ID, Title: item.Title, DueAt: readStoredUTCWall(item.DueAt), Status: status})
 		}
 	}
 	return result, nil

@@ -62,7 +62,10 @@ async function adminMutation<T>(request: Promise<T>): Promise<T> {
   return result;
 }
 
+export type LatestLeaveStatus = Pick<LeaveRequest, "status" | "createdAt">;
+
 export const leaveClient = {
+ latestSchoolStatus: () => apiRequest<LatestLeaveStatus | null>("/api/school-leave/latest-status"),
   schoolSummary: () => apiRequest<SchoolLeaveSummary>("/api/admin/school-leave/summary"),
   leaveAccess: () => apiRequest<LeaveAccessState>("/api/leave/access"),
   requestLeaveAccess: () => apiRequest<LeaveAccessState>("/api/leave/access/request", { method: "POST" }),

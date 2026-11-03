@@ -640,6 +640,26 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	createdSubmissionIDs = append(createdSubmissionIDs, resubmitted.Submissions[1].ID)
 	// Compare the optimized list against the detail path after a returned first
 	// attempt and an unreviewed resubmission; old feedback must not win.
+	assertTodosMatch := func() {
+		all, err := service.ListMine(context.Background(), member)
+		if err != nil {
+			t.Fatal(err)
+		}
+		todos, err := service.ListTodos(context.Background(), member)
+		if err != nil {
+			t.Fatal(err)
+		}
+		want := make([]Todo, 0)
+		for _, item := range all {
+			if item.Status == "pending" || item.Status == "overdue" || item.Status == model.AssignmentReviewNeedsRedo {
+				want = append(want, Todo{ID: item.ID, Title: item.Title, DueAt: item.DueAt, Status: item.Status})
+			}
+		}
+		if !reflect.DeepEqual(todos, want) {
+			t.Fatalf("todos differ: got=%#v want=%#v", todos, want)
+		}
+	}
+	assertTodosMatch()
 	listed, err := service.ListMine(context.Background(), member)
 	if err != nil {
 		t.Fatal(err)
@@ -668,6 +688,7 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	if _, err := service.SetPublicationStatus(context.Background(), member, withdrawalAssignment.ID, model.AssignmentPublicationPublished); statusOf(err) != http.StatusForbidden {
 		t.Fatalf("member could republish an assignment: status=%d, want 403", statusOf(err))
 	}
+	assertTodosMatch()
 	memberAssignments, err := service.ListMine(context.Background(), member)
 	if err != nil {
 		t.Fatalf("list member assignments after withdrawal: %v", err)

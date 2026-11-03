@@ -792,3 +792,16 @@ func (h *LeaveHandler) fail(c *gin.Context, err error) {
 	}
 	writeAPIError(c, http.StatusInternalServerError, "服务器内部错误")
 }
+
+func (h *LeaveHandler) LatestRequestStatus(c *gin.Context) {
+	id, ok := leaveUserID(c)
+	if !ok {
+		return
+	}
+	result, err := h.service.LatestRequestStatus(c.Request.Context(), id)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "获取请假状态成功", result)
+}
