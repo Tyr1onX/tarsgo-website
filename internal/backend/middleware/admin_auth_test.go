@@ -324,3 +324,48 @@ func TestAdminSessionStoreErrorIsLoggedWithRequestContextAndRedacted(t *testing.
 		}
 	}
 }
+
+func TestNestedAdminRolesAuthenticateAndRenewOnce(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, role := range []string{"user", "admin", "super_admin"} {
+		t.Run(role, func(t *testing.T) {
+			service := &combinedSessionReader{result: &auth.CurrentUserRenewalResult{
+				User:    &auth.SessionUser{ID: 10, Role: auth.SessionRole{Name: role}},
+				Renewal: &auth.SessionRenewal{AuthRenewed: true, AuthCookieMaxAgeSeconds: 3600},
+			}}
+			engine := gin.New()
+			admin := engine.Group("/admin", RequireAdmin(service))
+			admin.GET("/super", RequireSuperAdmin(service), func(c *gin.Context) { c.Status(http.StatusNoContent) })
+			req := httptest.NewRequest(http.MethodGet, "/admin/super", nil)
+			req.AddCookie(&http.Cookie{Name: "session", Value: "token"})
+			response := httptest.NewRecorder()
+			engine.ServeHTTP(response, req)
+			want := http.StatusForbidden
+			if role == "super_admin" {
+				want = http.StatusNoContent
+			}
+			if response.Code != want || service.calls != 1 || len(response.Header().Values("Set-Cookie")) != 1 {
+				t.Fatalf("status=%d calls=%d cookies=%v", response.Code, service.calls, response.Header().Values("Set-Cookie"))
+			}
+		})
+	}
+}
+
+func TestAdminRenewalFailureDoesNotReachProtectedHandler(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	for _, status := range []int{http.StatusUnauthorized, http.StatusForbidden} {
+		service := &combinedSessionReader{result: &auth.CurrentUserRenewalResult{
+			User:         &auth.SessionUser{ID: 10, Role: auth.SessionRole{Name: "super_admin"}},
+			RenewalError: &auth.ServiceError{Status: status, Message: "revoked"},
+		}}
+		engine := gin.New()
+		engine.GET("/protected", RequireAdmin(service), RequireSuperAdmin(service), func(c *gin.Context) { t.Error("protected handler reached") })
+		req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+		req.AddCookie(&http.Cookie{Name: "session", Value: "token"})
+		response := httptest.NewRecorder()
+		engine.ServeHTTP(response, req)
+		if response.Code != status || service.calls != 1 {
+			t.Fatalf("status=%d calls=%d", response.Code, service.calls)
+		}
+	}
+}

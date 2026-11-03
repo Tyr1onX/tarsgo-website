@@ -256,7 +256,7 @@ func (s *Service) runView(ctx context.Context, run model.SchoolLeaveRun) (*Schoo
 	}
 	groups := groupRequests(requests)
 	var results []model.SchoolLeaveGroupResult
-	if err := s.db.WithContext(ctx).Where("run_id = ? AND expires_at > ?", run.ID, s.nowShanghai()).Find(&results).Error; err != nil {
+	if err := s.db.WithContext(ctx).Select("group_index", "original_filename", "expires_at").Where("run_id = ? AND expires_at > ?", run.ID, s.nowShanghai()).Find(&results).Error; err != nil {
 		return nil, internalError("读取签回材料状态失败", err)
 	}
 	for _, result := range results {

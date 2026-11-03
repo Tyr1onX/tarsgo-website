@@ -74,142 +74,74 @@ func OptionalAuthenticated(service sessionReader) gin.HandlerFunc {
 }
 
 func RequireAuthenticated(service sessionReader) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		token, err := c.Cookie(service.CookieName())
-		if err != nil || strings.TrimSpace(token) == "" {
-			writeAPIError(c, http.StatusUnauthorized, "未登录")
-			c.Abort()
-			return
-		}
-
-		user, authErr, renewErr := currentUserAndRenewSession(c, service, token)
-		if authErr != nil {
-			var serviceErr *auth.ServiceError
-			if errors.As(authErr, &serviceErr) {
-				if serviceErr.Status == http.StatusUnauthorized || serviceErr.Status == http.StatusForbidden {
-					clearAuthCookie(c, service)
-				}
-				logSessionServerError(c, "session lookup", authErr, serviceErr.Status)
-				writeAPIError(c, serviceErr.Status, serviceErr.Message)
-				c.Abort()
-				return
-			}
-
-			logSessionServerError(c, "session lookup", authErr, http.StatusInternalServerError)
-			writeAPIError(c, http.StatusInternalServerError, "服务器内部错误")
-			c.Abort()
-			return
-		}
-
-		if renewErr != nil {
-			var serviceErr *auth.ServiceError
-			if errors.As(renewErr, &serviceErr) && (serviceErr.Status == http.StatusUnauthorized || serviceErr.Status == http.StatusForbidden) {
-				clearAuthCookie(c, service)
-				writeAPIError(c, serviceErr.Status, serviceErr.Message)
-				c.Abort()
-				return
-			}
-			logSessionServerError(c, "session renewal", renewErr, http.StatusInternalServerError)
-		}
-		c.Set(sessionUserContextKey, user)
-		c.Next()
-	}
+	return requireSessionRole(service, "")
 }
 
 func RequireAdmin(service sessionReader) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		token, err := c.Cookie(service.CookieName())
-		if err != nil || strings.TrimSpace(token) == "" {
-			writeAPIError(c, http.StatusUnauthorized, "未登录")
-			c.Abort()
-			return
-		}
+	return requireSessionRole(service, model.RoleNameAdmin)
+}
 
-		user, err := service.CurrentUser(c.Request.Context(), token)
-		if err != nil {
-			var serviceErr *auth.ServiceError
-			if errors.As(err, &serviceErr) {
-				if serviceErr.Status == http.StatusUnauthorized || serviceErr.Status == http.StatusForbidden {
-					clearAuthCookie(c, service)
-				}
-				logSessionServerError(c, "admin session lookup", err, serviceErr.Status)
-				writeAPIError(c, serviceErr.Status, serviceErr.Message)
+func RequireSuperAdmin(service sessionReader) gin.HandlerFunc {
+	return requireSessionRole(service, model.RoleNameSuperAdmin)
+}
+
+// Authentication and renewal run once per request, including nested admin groups.
+// The context value is set only after both authentication and fatal renewal checks.
+func requireSessionRole(service sessionReader, role string) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		user, authenticated := CurrentSessionUser(c)
+		if !authenticated || user == nil {
+			token, err := c.Cookie(service.CookieName())
+			if err != nil || strings.TrimSpace(token) == "" {
+				writeAPIError(c, http.StatusUnauthorized, "未登录")
 				c.Abort()
 				return
 			}
-
-			logSessionServerError(c, "admin session lookup", err, http.StatusInternalServerError)
-			writeAPIError(c, http.StatusInternalServerError, "服务器内部错误")
-			c.Abort()
-			return
+			operation := "session"
+			if role == model.RoleNameAdmin {
+				operation = "admin session"
+			}
+			if role == model.RoleNameSuperAdmin {
+				operation = "super-admin session"
+			}
+			resolved, authErr, renewErr := currentUserAndRenewSession(c, service, token)
+			if authErr != nil {
+				status, message := http.StatusInternalServerError, "服务器内部错误"
+				var serviceErr *auth.ServiceError
+				if errors.As(authErr, &serviceErr) {
+					status, message = serviceErr.Status, serviceErr.Message
+				}
+				if status == http.StatusUnauthorized || status == http.StatusForbidden {
+					clearAuthCookie(c, service)
+				}
+				logSessionServerError(c, operation+" lookup", authErr, status)
+				writeAPIError(c, status, message)
+				c.Abort()
+				return
+			}
+			if renewErr != nil {
+				var serviceErr *auth.ServiceError
+				if errors.As(renewErr, &serviceErr) && (serviceErr.Status == http.StatusUnauthorized || serviceErr.Status == http.StatusForbidden) {
+					clearAuthCookie(c, service)
+					writeAPIError(c, serviceErr.Status, serviceErr.Message)
+					c.Abort()
+					return
+				}
+				logSessionServerError(c, operation+" renewal", renewErr, http.StatusInternalServerError)
+			}
+			user = resolved
+			c.Set(sessionUserContextKey, user)
 		}
-
-		if user.Role.Name != model.RoleNameAdmin && user.Role.Name != model.RoleNameSuperAdmin {
+		if role == model.RoleNameAdmin && user.Role.Name != model.RoleNameAdmin && user.Role.Name != model.RoleNameSuperAdmin {
 			writeAPIError(c, http.StatusForbidden, "当前账号无管理员权限")
 			c.Abort()
 			return
 		}
-
-		if renewErr := renewSessionCookies(c, service, token); renewErr != nil {
-			var serviceErr *auth.ServiceError
-			if errors.As(renewErr, &serviceErr) && (serviceErr.Status == http.StatusUnauthorized || serviceErr.Status == http.StatusForbidden) {
-				clearAuthCookie(c, service)
-				writeAPIError(c, serviceErr.Status, serviceErr.Message)
-				c.Abort()
-				return
-			}
-			logSessionServerError(c, "admin session renewal", renewErr, http.StatusInternalServerError)
-		}
-		c.Set(sessionUserContextKey, user)
-		c.Next()
-	}
-}
-
-func RequireSuperAdmin(service sessionReader) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		token, err := c.Cookie(service.CookieName())
-		if err != nil || strings.TrimSpace(token) == "" {
-			writeAPIError(c, http.StatusUnauthorized, "未登录")
-			c.Abort()
-			return
-		}
-
-		user, err := service.CurrentUser(c.Request.Context(), token)
-		if err != nil {
-			var serviceErr *auth.ServiceError
-			if errors.As(err, &serviceErr) {
-				if serviceErr.Status == http.StatusUnauthorized || serviceErr.Status == http.StatusForbidden {
-					clearAuthCookie(c, service)
-				}
-				logSessionServerError(c, "super-admin session lookup", err, serviceErr.Status)
-				writeAPIError(c, serviceErr.Status, serviceErr.Message)
-				c.Abort()
-				return
-			}
-
-			logSessionServerError(c, "super-admin session lookup", err, http.StatusInternalServerError)
-			writeAPIError(c, http.StatusInternalServerError, "服务器内部错误")
-			c.Abort()
-			return
-		}
-
-		if user.Role.Name != model.RoleNameSuperAdmin {
+		if role == model.RoleNameSuperAdmin && user.Role.Name != model.RoleNameSuperAdmin {
 			writeAPIError(c, http.StatusForbidden, "当前账号无系统配置权限")
 			c.Abort()
 			return
 		}
-
-		if renewErr := renewSessionCookies(c, service, token); renewErr != nil {
-			var serviceErr *auth.ServiceError
-			if errors.As(renewErr, &serviceErr) && (serviceErr.Status == http.StatusUnauthorized || serviceErr.Status == http.StatusForbidden) {
-				clearAuthCookie(c, service)
-				writeAPIError(c, serviceErr.Status, serviceErr.Message)
-				c.Abort()
-				return
-			}
-			logSessionServerError(c, "super-admin session renewal", renewErr, http.StatusInternalServerError)
-		}
-		c.Set(sessionUserContextKey, user)
 		c.Next()
 	}
 }

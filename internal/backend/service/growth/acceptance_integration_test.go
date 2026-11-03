@@ -44,13 +44,27 @@ func TestAcceptanceDatabaseGrowthTimeline(t *testing.T) {
 		}
 	}
 
-	var technicalGroup, operationsGroup model.UserGroup
-	if err := db.Where("name = ? AND status = ?", "机械组", model.UserGroupStatusActive).First(&technicalGroup).Error; err != nil {
-		t.Fatalf("load active technical test group: %v", err)
+	// The workflow must also run against an empty CI database, without relying
+	// on group fixtures left by another test or a developer's acceptance setup.
+	ensureGroup := func(name string) model.UserGroup {
+		var group model.UserGroup
+		err := db.Where("name = ? AND status = ?", name, model.UserGroupStatusActive).First(&group).Error
+		if err == gorm.ErrRecordNotFound {
+			group = model.UserGroup{Name: name, Status: model.UserGroupStatusActive}
+			if err := db.Create(&group).Error; err != nil {
+				t.Fatalf("create synthetic growth group: %v", err)
+			}
+			t.Cleanup(func() {
+				if err := db.Delete(&group).Error; err != nil {
+					t.Errorf("remove synthetic growth group: %v", err)
+				}
+			})
+		} else if err != nil {
+			t.Fatalf("load growth group: %v", err)
+		}
+		return group
 	}
-	if err := db.Where("name = ? AND status = ?", "运营组", model.UserGroupStatusActive).First(&operationsGroup).Error; err != nil {
-		t.Fatalf("load active operations test group: %v", err)
-	}
+	technicalGroup, operationsGroup := ensureGroup("机械组"), ensureGroup("运营组")
 	var userRole model.Role
 	if err := db.Where("name = ?", model.RoleNameUser).First(&userRole).Error; err != nil {
 		t.Fatalf("load member role: %v", err)

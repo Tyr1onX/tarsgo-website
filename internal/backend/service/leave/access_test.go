@@ -146,3 +146,29 @@ func TestSchoolSummarySeparatesActionableAndUnreadCounts(t *testing.T) {
 		}
 	}
 }
+
+// The status endpoint must never transfer the potentially 15 MiB signed file.
+func TestRunViewLoadsMetadataWithoutSignedFileContent(t *testing.T) {
+	db, mock := newLeaveAccessMockGorm(t)
+	now := time.Date(2026, 11, 3, 2, 0, 0, 0, time.UTC).In(shanghai)
+	expires := now.Add(time.Hour)
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `school_leave_requests` WHERE run_id = ? AND status = ? ORDER BY start_at, end_at, student_id_snapshot, id")).
+		WithArgs(uint64(8), model.LeaveStatusIncluded).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "start_at", "end_at", "name_snapshot", "student_id_snapshot"}).AddRow(1, 22, now, expires, "测试成员", "12345678"))
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT `group_index`,`original_filename`,`expires_at` FROM `school_leave_group_results` WHERE run_id = ? AND expires_at > ?")).
+		WithArgs(uint64(8), now).
+		WillReturnRows(sqlmock.NewRows([]string{"group_index", "original_filename", "expires_at"}).AddRow(1, "signed.pdf", expires))
+	service := NewService(db)
+	service.now = func() time.Time { return now }
+	view, err := service.runView(context.Background(), model.SchoolLeaveRun{ID: 8, Status: model.LeaveRunCompleted})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if view.RequestCount != 1 || view.MemberCount != 1 || !view.DocumentReady || len(view.Groups) != 1 {
+		t.Fatalf("run metadata changed: %#v", view)
+	}
+	result := view.Groups[0].Result
+	if !result.Available || result.Filename != "signed.pdf" || result.ExpiresAt == nil || !result.ExpiresAt.Equal(expires) {
+		t.Fatalf("result metadata changed: %#v", result)
+	}
+}

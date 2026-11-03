@@ -1342,7 +1342,7 @@ func (s *Service) loadSubmissionHistories(ctx context.Context, assignmentID uint
 	for _, submission := range submissions {
 		view := SubmissionView{
 			ID: submission.ID, Attempt: submission.Attempt, SubmittedAt: readStoredUTCWall(submission.SubmittedAt),
-			IsLate: submission.IsLate, Status: "submitted", Files: make([]FileView, 0, len(files)), Reviews: make([]ReviewView, 0, len(reviews)),
+			IsLate: submission.IsLate, Status: "submitted", Files: make([]FileView, 0, len(filesBySubmission[submission.ID])), Reviews: make([]ReviewView, 0, len(reviewsBySubmission[submission.ID])),
 		}
 		for _, file := range filesBySubmission[submission.ID] {
 			view.Files = append(view.Files, FileView{ID: file.ID, FileName: file.FileName, ContentType: file.ContentType, Size: file.Size, DownloadURL: fmt.Sprintf("/api/assignment-files/%d", file.ID)})
