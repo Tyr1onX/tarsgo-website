@@ -1,8 +1,8 @@
 import type { AuthUser } from "~/lib/auth-client";
 
-export type DashboardMenuIconKey = "community" | "transactions" | "team" | "management" | "dashboard" | "people" | "registration" | "settings" | "analytics" | "report";
+export type DashboardMenuIconKey = "community" | "transactions" | "team" | "management" | "dashboard" | "people" | "user" | "registration" | "settings" | "analytics" | "report";
 
-export type DashboardSectionKey = "community" | "workbench" | "management";
+export type DashboardSectionKey = "community" | "workbench" | "profile" | "management";
 
 export type DashboardMenuLink = {
   key: string;
@@ -194,25 +194,29 @@ export function getGrowthTabPath(tab: GrowthDashboardTabKey, currentSearch = "")
   return `/dashboard/growth?${search.toString()}`;
 }
 
-export function getDashboardSectionMenu(userOrRole: AuthUser | string): DashboardMenuLink[] {
-  const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
-  return DASHBOARD_SECTION_MENU.filter((item) => item.key !== "management" || hasDashboardAdminAccess(roleName)).map((item) => ({ ...item }));
+export function getDashboardSectionMenu(currentUser: AuthUser): DashboardMenuLink[] {
+  const managementItem = DASHBOARD_SECTION_MENU.find((item) => item.key === "management");
+  return [
+    ...DASHBOARD_SECTION_MENU.filter((item) => item.key !== "management").map((item) => ({ ...item })),
+    { key: "my-profile", label: "我的主页", href: `/dashboard/members/${currentUser.id}`, iconKey: "user" },
+    ...(managementItem && hasDashboardAdminAccess(currentUser.role.name) ? [{ ...managementItem }] : []),
+  ];
 }
 
-export function getDashboardSectionKey(pathname: string, search = "", roleName = "user", hash = ""): DashboardSectionKey | null {
+export function getDashboardSectionKey(pathname: string, roleName = "user", currentUserID?: number): DashboardSectionKey | null {
   const normalizedPath = pathname.replace(/\/+$/, "") || "/";
   if (normalizedPath === "/dashboard" || normalizedPath.startsWith("/dashboard/community/") || normalizedPath === "/dashboard/questions") {
     return "community";
   }
   if (normalizedPath === "/dashboard/admin" || normalizedPath.startsWith("/dashboard/admin/")) return "management";
   if (normalizedPath === "/dashboard/leave" && hasDashboardAdminAccess(roleName)) return "management";
+  const memberProfileMatch = normalizedPath.match(/^\/dashboard\/members\/(\d+)$/);
+  if (memberProfileMatch) return Number(memberProfileMatch[1]) === currentUserID ? "profile" : "workbench";
 
-  const query = new URLSearchParams(search);
   if (
     normalizedPath === "/dashboard/workbench"
     || normalizedPath.startsWith("/dashboard/workbench/")
     || normalizedPath === "/dashboard/team"
-    || normalizedPath.startsWith("/dashboard/members/")
     || [
       "/dashboard/weekly-reports",
       "/dashboard/updates",
@@ -223,8 +227,6 @@ export function getDashboardSectionKey(pathname: string, search = "", roleName =
       "/dashboard/users/registrations",
     ].includes(normalizedPath)
   ) {
-    // Course timetable is a profile settings anchor, but remains in the workbench section.
-    if (normalizedPath.startsWith("/dashboard/members/") && query.get("tab") === "settings" && hash === "#timetable") return "workbench";
     return "workbench";
   }
   return null;

@@ -64,32 +64,9 @@
   box-shadow: 2px 0 12px rgba(0, 0, 0, 0.08);
 }
 
-.dashboard-shell__sidebar-toggle {
-  border: 1px solid transparent;
-  color: var(--admin-muted);
-}
-
-.dashboard-shell__sidebar-toggle:hover {
-  border-color: var(--admin-border-subtle);
-  background: var(--admin-hover-overlay);
-  color: var(--admin-accent);
-}
-
-.dashboard-shell__main-frame {
-  transition: padding-left 200ms ease;
-}
-
 .dashboard-shell__content {
   width: min(100%, 84rem);
   margin-inline: auto;
-}
-
-.dashboard-shell__sidebar[data-collapsed="true"] .dashboard-shell__user-menu {
-  right: auto;
-  bottom: 0.75rem;
-  left: calc(100% - 0.5rem);
-  width: 15rem;
-  margin: 0;
 }
 
 .dashboard-shell__topbar {
@@ -297,7 +274,7 @@
   line-height: 1;
 }
 
-.dashboard-nav-badge--collapsed {
+.dashboard-nav-badge--compact {
   position: absolute;
   top: -0.55rem;
   right: -0.7rem;
@@ -635,6 +612,16 @@
   }
 }
 
+@media (min-width: 1024px) {
+  .dashboard-shell__user-menu {
+    right: auto;
+    bottom: 0.75rem;
+    left: calc(100% - 0.5rem);
+    width: 15rem;
+    margin: 0;
+  }
+}
+
 .admin-design :is(a, button, input, select, textarea):focus-visible {
   outline: 2px solid var(--admin-accent);
   outline-offset: 2px;
@@ -642,7 +629,6 @@
 
 @media (prefers-reduced-motion: reduce) {
   .dashboard-shell__sidebar,
-  .dashboard-shell__main-frame,
   .dashboard-shell__topbar-logo,
   .dashboard-navigation-tooltip {
     transition-duration: .01ms !important;

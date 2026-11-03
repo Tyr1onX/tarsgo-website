@@ -6,13 +6,16 @@ const layout = await readFile(new URL("../routes/dashboard/layout.tsx", import.m
 const navigationCss = await readFile(new URL("../admin-design.css", import.meta.url), "utf8");
 const sectionNavigation = await readFile(new URL("../components/dashboard-section-navigation.tsx", import.meta.url), "utf8");
 
-test("the primary rail shows community, workbench, and permission-gated management", () => {
-  for (const icon of ["community", "transactions", "management"]) assert.match(layout, new RegExp(`case "${icon}":`));
+test("the fixed primary rail shows community, workbench, profile, and permission-gated management", () => {
+  for (const icon of ["community", "transactions", "user", "management"]) assert.match(layout, new RegExp(`case "${icon}":`));
   assert.match(layout, /getDashboardSectionMenu\(currentUser\)/);
-  assert.match(layout, /getDashboardSectionKey\(location\.pathname, location\.search, currentUser\.role\.name, location\.hash\)/);
+  assert.match(layout, /getDashboardSectionKey\(location\.pathname, currentUser\.role\.name, currentUser\.id\)/);
   assert.match(layout, /aria-current=\{active \? "page" : undefined\}/);
-  assert.match(layout, /collapsed \? "sr-only"/);
-  assert.match(layout, /<DashboardSectionNavigation[\s\S]*?collapsed=\{isSidebarCollapsed\}/);
+  assert.match(layout, /compact \? "sr-only"/);
+  assert.match(layout, /<DashboardSectionNavigation[\s\S]*?compact=\{isDesktopViewport\}/);
+  assert.match(layout, /className="dashboard-shell__main-frame relative z-10 lg:pl-20"/);
+  assert.match(layout, /w-20 flex-col/);
+  assert.doesNotMatch(layout, /sidebarCollapsed|sidebarWidth|isResizingSidebar|cursor-col-resize|sidebar-toggle/);
   assert.doesNotMatch(layout, /const DASHBOARD_SECTION_MENU[\s\S]*?key: "team"/);
 });
 

@@ -14,7 +14,7 @@ type Props = {
   hasAssignmentGroup: boolean;
   candidateTodoCount: number | null;
   leaveActionableCount: number | null;
-  collapsed: boolean;
+  compact: boolean;
   onNavigate: () => void;
 };
 
@@ -23,11 +23,11 @@ export function DashboardSectionNavigation({
   hasAssignmentGroup,
   candidateTodoCount,
   leaveActionableCount,
-  collapsed,
+  compact,
   onNavigate,
 }: Props) {
   const location = useLocation();
-  const section = getDashboardSectionKey(location.pathname, location.search, currentUser.role.name, location.hash);
+  const section = getDashboardSectionKey(location.pathname, currentUser.role.name, currentUser.id);
   const groups = section === "workbench"
     ? getMyWorkbenchMenu(currentUser, hasAssignmentGroup)
     : section === "management"
@@ -41,7 +41,7 @@ export function DashboardSectionNavigation({
     setExpandedGroup(defaultExpandedGroup);
   }, [defaultExpandedGroup]);
 
-  if (collapsed || groups.length === 0) return null;
+  if (compact || groups.length === 0) return null;
 
   return (
     <div className="dashboard-subnav" role="group" aria-label={section === "workbench" ? "工作台功能" : "管理功能"} data-section={section}>

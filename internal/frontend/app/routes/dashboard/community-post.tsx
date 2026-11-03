@@ -1,5 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useRef, useState, type FormEvent } from "react";
-import { useLocation, useNavigate, useNavigationType, useOutletContext, useParams } from "react-router";
+import { Link, useLocation, useNavigate, useNavigationType, useOutletContext, useParams } from "react-router";
 
 import { CommunityRelatedTopics } from "~/components/community-related-topics";
 import { CommunityReplyComposer } from "~/components/community-reply-composer";
@@ -11,7 +11,7 @@ import { CommunityMarkdown } from "~/components/community-markdown";
 import { CommunityAuthorProfile } from "~/components/community-author-profile";
 import { CommunityFeaturedMark } from "~/components/community-featured-mark";
 import { CommunityIcon } from "~/components/community-icons";
-import { CommunityActionIcon, CommunityPostMenu } from "~/components/community-post-card";
+import { CommunityActionIcon, CommunityAvatar, CommunityPostMenu } from "~/components/community-post-card";
 import {
   COMMUNITY_CATEGORIES,
   communityCategoryLabel,
@@ -103,6 +103,7 @@ export default function CommunityPostRoute() {
   const returnTo = typeof returnTarget === "string" && (returnTarget === "/dashboard" || returnTarget.startsWith("/dashboard/") || returnTarget.startsWith("/dashboard?"))
     ? returnTarget
     : "/dashboard";
+  const profileReturnTo = `${location.pathname}${location.search}${location.hash}`;
 
   function backToCommunity() {
     if (hasCommunityReturnLocation) navigate(-1);
@@ -533,6 +534,7 @@ export default function CommunityPostRoute() {
       {comments.map((item) => {
         const parent = item.parentPostId ? parentByID.get(item.parentPostId) : null;
         const replies = repliesByParentID.get(item.id) ?? [];
+        const previewAuthors = [...new Map(replies.map((reply) => [reply.authorId, reply])).values()].slice(0, 3);
         const previewsExpanded = expandedReplyPreviewParentIDs.has(item.id);
         const visibleReplies = previewsExpanded ? replies : replies.slice(0, 2);
         const readingIndex = readingIndexByCommentID.get(item.id);
@@ -559,8 +561,15 @@ export default function CommunityPostRoute() {
           {replies.length ? <div className="community-reply-preview">
             <div className="community-reply-preview__heading">
               <span>{replies.length} 条回复</span>
-              <div className="community-reply-preview__avatars" role="list" aria-label="回复成员">
-                {replies.slice(0, 3).map((reply) => <span key={reply.id} role="listitem" title={reply.authorName}><CommunityAuthorProfile id={reply.authorId} name={reply.authorName} avatar={reply.authorAvatar} level={reply.authorLevel} featuredBadge={reply.authorFeaturedBadge} positions={reply.authorPositions} teamIdentityStatus={reply.authorTeamIdentityStatus} size="small" /></span>)}
+              <div className="community-reply-preview__avatars" role="group" aria-label="回复成员头像">
+                {previewAuthors.map((reply) => <Link
+                  key={reply.authorId}
+                  className="community-reply-preview__avatar-link"
+                  to={`/dashboard/members/${reply.authorId}`}
+                  state={{ communityProfileReturnTo: profileReturnTo }}
+                  aria-label={`查看 ${reply.authorName} 的个人主页`}
+                  title={reply.authorName}
+                ><CommunityAvatar name={reply.authorName} src={reply.authorAvatar} size="small" /></Link>)}
               </div>
             </div>
             <div className="community-reply-preview__items">

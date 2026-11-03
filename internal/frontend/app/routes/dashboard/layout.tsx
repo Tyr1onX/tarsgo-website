@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, type CSSProperties, type FocusEvent as ReactFocusEvent, type FormEvent, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type CSSProperties, type FocusEvent as ReactFocusEvent, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import { createPortal } from "react-dom";
 import { Link, Outlet, redirect, useLocation, useNavigate, useRevalidator } from "react-router";
 
@@ -61,10 +61,6 @@ export interface DashboardLayoutOutletContext {
 
 const DESKTOP_DASHBOARD_MEDIA = "(min-width: 1024px)";
 const SUPER_ADMIN_SETUP_PATH = "/dashboard/setup/super-admin";
-const SIDEBAR_DEFAULT_WIDTH = 200;
-const SIDEBAR_COLLAPSED_WIDTH = 80;
-const SIDEBAR_MIN_WIDTH = 160;
-const SIDEBAR_MAX_WIDTH = 420;
 const MAX_SAVED_ACCOUNT_SESSIONS = 5;
 const HIGH_PRIORITY_RENDER_PREFETCH_KEYS = new Set(["management"]);
 
@@ -118,14 +114,6 @@ function DashboardTooltip({ label, children }: { label?: string; children: React
       document.body,
     ) : null}
   </span>;
-}
-
-function getSidebarMaxWidth(viewportWidth: number) {
-  return Math.max(SIDEBAR_DEFAULT_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, Math.floor(viewportWidth * 0.4)));
-}
-
-function clampSidebarWidth(width: number, viewportWidth: number) {
-  return Math.min(getSidebarMaxWidth(viewportWidth), Math.max(SIDEBAR_MIN_WIDTH, Math.round(width)));
 }
 
 function getIsDesktopDashboardViewport() {
@@ -250,6 +238,12 @@ function MenuIcon({ iconKey }: { iconKey: DashboardMenuIconKey }) {
           <path strokeLinecap="round" strokeLinejoin="round" d="M15 19.128a9.38 9.38 0 0 0 2.625.372 9.337 9.337 0 0 0 4.121-.952 4.125 4.125 0 0 0-7.533-2.493M15 19.128v-.003c0-1.113-.285-2.16-.786-3.07M15 19.128v.106A12.318 12.318 0 0 1 8.624 21c-2.331 0-4.512-.645-6.374-1.766l-.001-.109a6.375 6.375 0 0 1 11.964-3.07M12 6.375a3.375 3.375 0 1 1-6.75 0 3.375 3.375 0 0 1 6.75 0Zm8.25 2.25a2.625 2.625 0 1 1-5.25 0 2.625 2.625 0 0 1 5.25 0Z" />
         </svg>
       );
+    case "user":
+      return (
+        <svg className="h-[18px] w-[18px] shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.7} stroke="currentColor" aria-hidden="true">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 6.75a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0ZM4.5 20.118a7.5 7.5 0 0 1 15 0A17.93 17.93 0 0 1 12 21.75a17.93 17.93 0 0 1-7.5-1.632Z" />
+        </svg>
+      );
     case "registration":
       return (
         <svg className="h-[18px] w-[18px] shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -288,14 +282,14 @@ function MenuIcon({ iconKey }: { iconKey: DashboardMenuIconKey }) {
 function SidebarSectionItem({
   item,
   active,
-  collapsed,
+  compact,
   badgeCount,
   badgeLabel,
   onNavigate,
 }: {
   item: DashboardMenuLink;
   active: boolean;
-  collapsed: boolean;
+  compact: boolean;
   badgeCount?: number | null;
   badgeLabel?: string;
   onNavigate: () => void;
@@ -304,23 +298,23 @@ function SidebarSectionItem({
   const tooltip = `${item.label}${hasBadge ? ` · ${badgeLabel ?? `${badgeCount} 项待处理`}` : ""}`;
 
   return (
-    <DashboardTooltip label={collapsed ? tooltip : undefined}>
+    <DashboardTooltip label={compact ? tooltip : undefined}>
     <Link
       to={item.href}
       prefetch={HIGH_PRIORITY_RENDER_PREFETCH_KEYS.has(item.key) ? "render" : "intent"}
       onClick={onNavigate}
       aria-label={hasBadge ? `${item.label}，${badgeLabel ?? `${badgeCount} 项待处理`}` : item.label}
       aria-current={active ? "page" : undefined}
-      className={`relative flex min-h-11 min-w-0 items-center gap-3 rounded-xl px-3 py-2.5 text-sm leading-5 transition-colors ${collapsed ? "justify-center px-2" : ""} ${
+      className={`relative flex min-h-11 min-w-0 items-center gap-3 rounded-xl px-3 py-2.5 text-sm leading-5 transition-colors ${compact ? "justify-center px-2" : ""} ${
         active ? "dashboard-nav-link dashboard-nav-link--active" : "dashboard-nav-link"
       }`}
     >
       <span className={`relative flex h-[18px] w-[18px] shrink-0 items-center justify-center ${active ? "dashboard-shell__accent" : ""}`}>
         <MenuIcon iconKey={item.iconKey ?? "dashboard"} />
-        {collapsed && hasBadge ? <span className="dashboard-nav-badge dashboard-nav-badge--collapsed" aria-label={badgeLabel ?? `${badgeCount} 项待处理`}>{badgeCount}</span> : null}
+        {compact && hasBadge ? <span className="dashboard-nav-badge dashboard-nav-badge--compact" aria-label={badgeLabel ?? `${badgeCount} 项待处理`}>{badgeCount}</span> : null}
       </span>
-      <span className={`min-w-0 flex-1 truncate ${collapsed ? "sr-only" : ""}`}>{item.label}</span>
-      {!collapsed && hasBadge ? <span className="dashboard-nav-badge" aria-label={badgeLabel ?? `${badgeCount} 项待处理`}>{badgeCount}</span> : null}
+      <span className={`min-w-0 flex-1 truncate ${compact ? "sr-only" : ""}`}>{item.label}</span>
+      {!compact && hasBadge ? <span className="dashboard-nav-badge" aria-label={badgeLabel ?? `${badgeCount} 项待处理`}>{badgeCount}</span> : null}
     </Link>
     </DashboardTooltip>
   );
@@ -334,9 +328,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [profileRevision, setProfileRevision] = useState(0);
   const [pageTitle, setPageTitle] = useState("");
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-  const [sidebarWidth, setSidebarWidth] = useState(SIDEBAR_DEFAULT_WIDTH);
-  const [isResizingSidebar, setIsResizingSidebar] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [badgeReplayRequest, setBadgeReplayRequest] = useState<CoBuilderBadgeReplayRequest | null>(null);
@@ -351,8 +342,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const sidebarRef = useRef<HTMLElement | null>(null);
   const sidebarTriggerRef = useRef<HTMLButtonElement | null>(null);
   const lastAuthRevalidationAtRef = useRef(Date.now());
-  const sidebarResizeStartXRef = useRef(0);
-  const sidebarResizeStartWidthRef = useRef(SIDEBAR_DEFAULT_WIDTH);
   const badgeReplaySequenceRef = useRef(0);
   const { currentUser, groupResolution, groupResolutionError } = loaderData;
   useEffect(() => {
@@ -379,7 +368,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const currentBadgeReplayRequest = badgeReplayRequest?.userId === currentUser.id ? badgeReplayRequest : null;
   const isImmersiveExpedition = location.pathname.replace(/\/$/, "") === "/dashboard/expedition";
   const isCommunityPostRoute = /^\/dashboard\/community\/\d+$/.test(location.pathname);
-  const isSidebarCollapsed = isDesktopViewport && sidebarCollapsed;
   const hasAssignmentGroup = hasAssignmentGroupAccess(groupResolution?.groups);
   const sectionMenuItems = getDashboardSectionMenu(currentUser);
   const adminMenuItems = getVisibleAdminDashboardMenu(currentUser, hasAssignmentGroup);
@@ -493,29 +481,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const syncSidebarWidth = () => {
-      setSidebarWidth((current) => clampSidebarWidth(current, window.innerWidth));
-    };
-
-    syncSidebarWidth();
-    window.addEventListener("resize", syncSidebarWidth);
-
-    return () => {
-      window.removeEventListener("resize", syncSidebarWidth);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isDesktopViewport) {
-      setIsResizingSidebar(false);
-    }
-  }, [isDesktopViewport]);
-
-  useEffect(() => {
     if (!userMenuOpen) {
       return;
     }
@@ -553,33 +518,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
     return () => document.removeEventListener("keydown", closeOnEscape);
   }, [isDesktopViewport, sidebarOpen]);
 
-  useEffect(() => {
-    if (typeof window === "undefined" || !isDesktopViewport || !isResizingSidebar) {
-      return;
-    }
-
-    const handleMouseMove = (event: MouseEvent) => {
-      const nextWidth = sidebarResizeStartWidthRef.current + event.clientX - sidebarResizeStartXRef.current;
-      setSidebarWidth(clampSidebarWidth(nextWidth, window.innerWidth));
-    };
-
-    const handleMouseUp = () => {
-      setIsResizingSidebar(false);
-    };
-
-    document.addEventListener("mousemove", handleMouseMove);
-    document.addEventListener("mouseup", handleMouseUp);
-    document.body.style.setProperty("cursor", "col-resize");
-    document.body.style.setProperty("user-select", "none");
-
-    return () => {
-      document.removeEventListener("mousemove", handleMouseMove);
-      document.removeEventListener("mouseup", handleMouseUp);
-      document.body.style.removeProperty("cursor");
-      document.body.style.removeProperty("user-select");
-    };
-  }, [isDesktopViewport, isResizingSidebar]);
-
   function handleSidebarNavigate() {
     if (!isDesktopViewport) {
       setSidebarOpen(false);
@@ -594,18 +532,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   function closeMobileSidebar() {
     setSidebarOpen(false);
     requestAnimationFrame(() => sidebarTriggerRef.current?.focus());
-  }
-
-  function handleSidebarResizeStart(event: ReactMouseEvent<HTMLDivElement>) {
-    if (!isDesktopViewport) {
-      return;
-    }
-
-    event.preventDefault();
-    setSidebarCollapsed(false);
-    sidebarResizeStartXRef.current = event.clientX;
-    sidebarResizeStartWidthRef.current = sidebarWidth;
-    setIsResizingSidebar(true);
   }
 
   async function handleLogout() {
@@ -749,24 +675,12 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
         aria-label="统一工作台导航"
         aria-hidden={!isDesktopViewport && !sidebarOpen}
         inert={!isDesktopViewport && !sidebarOpen}
-        className={`dashboard-shell__sidebar group/sidebar fixed top-0 left-0 z-50 flex h-full flex-col border-r transition-[transform,width] duration-200 lg:translate-x-0 ${
+        className={`dashboard-shell__sidebar fixed top-0 left-0 z-50 flex h-full w-20 flex-col border-r transition-transform duration-200 lg:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
-        style={{ width: isDesktopViewport ? (isSidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : sidebarWidth) : "min(84vw, 320px)" }}
-        data-collapsed={isSidebarCollapsed}
+        style={isDesktopViewport ? undefined : { width: "min(84vw, 320px)" }}
       >
-        <div className={`flex h-16 w-full shrink-0 items-center ${isSidebarCollapsed ? "justify-center px-2" : "justify-start px-3"}`}>
-          <button
-            type="button"
-            className={`dashboard-shell__sidebar-toggle hidden h-10 w-10 shrink-0 place-items-center rounded-md lg:grid ${isSidebarCollapsed ? "mx-auto" : ""}`}
-            onClick={() => setSidebarCollapsed((collapsed) => !collapsed)}
-            aria-label={isSidebarCollapsed ? "展开侧边栏" : "收起侧边栏"}
-            aria-expanded={!isSidebarCollapsed}
-          >
-            <svg className="h-4 w-4" fill="none" viewBox="0 0 20 20" strokeWidth={1.5} stroke="currentColor" aria-hidden="true">
-              {isSidebarCollapsed ? <path strokeLinecap="round" strokeLinejoin="round" d="m7 4 6 6-6 6M3 4v12" /> : <path strokeLinecap="round" strokeLinejoin="round" d="m13 4-6 6 6 6M17 4v12" />}
-            </svg>
-          </button>
+        <div className="flex h-16 w-full shrink-0 items-center px-3 lg:hidden">
           <button
             type="button"
             className="lg:hidden ml-auto p-1 text-[var(--admin-muted)] hover:text-[var(--admin-text)]"
@@ -779,12 +693,12 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           </button>
         </div>
 
-        <div className="dashboard-shell__divider mx-4 shrink-0" aria-hidden="true" />
+        <div className="dashboard-shell__divider mx-4 shrink-0 lg:hidden" aria-hidden="true" />
 
-        <nav className="dashboard-shell__sidebar-nav flex-1 overflow-y-auto px-3 py-4" aria-label="工作台分区">
+        <nav className="dashboard-shell__sidebar-nav flex-1 overflow-y-auto px-3 py-4 lg:px-2 lg:py-3" aria-label="工作台分区">
           <div className="space-y-1.5" role="group" aria-label="工作台分区">
             {sectionMenuItems.map((item) => {
-              const isActive = getDashboardSectionKey(location.pathname, location.search, currentUser.role.name, location.hash) === item.key;
+              const isActive = getDashboardSectionKey(location.pathname, currentUser.role.name, currentUser.id) === item.key;
               const isWorkbench = item.key === "workbench";
               const isManagement = item.key === "management";
               const managementCount = (candidateTodoCount ?? 0) + (currentLeaveActionableState?.actionableCount ?? 0);
@@ -801,7 +715,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
                   item={item}
                   active={isActive}
                   onNavigate={handleSidebarNavigate}
-                  collapsed={isSidebarCollapsed}
+                  compact={isDesktopViewport}
                   badgeCount={isManagement ? (candidateTodoCount !== null || currentLeaveActionableState ? managementCount : null) : isWorkbench && !showAdminSection ? currentLeaveActionableState?.actionableCount : undefined}
                   badgeLabel={isManagement ? (managementLabel || undefined) : isWorkbench ? leaveLabel : undefined}
                 />
@@ -813,19 +727,19 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
             hasAssignmentGroup={hasAssignmentGroup}
             candidateTodoCount={candidateTodoCount}
             leaveActionableCount={currentLeaveActionableState?.actionableCount ?? null}
-            collapsed={isSidebarCollapsed}
+            compact={isDesktopViewport}
             onNavigate={handleSidebarNavigate}
           />
         </nav>
 
-        <div ref={userMenuRef} className={`dashboard-shell__profile-area relative border-t border-[var(--admin-border-subtle)] py-3 ${isSidebarCollapsed ? "px-2" : "px-3"}`}>
-          <DashboardTooltip label={isSidebarCollapsed && !userMenuOpen ? `${currentUserName} · 账号菜单` : undefined}><button
+        <div ref={userMenuRef} className={`dashboard-shell__profile-area relative border-t border-[var(--admin-border-subtle)] px-3 py-3 lg:px-2`}>
+          <DashboardTooltip label={isDesktopViewport && !userMenuOpen ? `${currentUserName} · 账号管理` : undefined}><button
             type="button"
             onClick={() => setUserMenuOpen((open) => !open)}
             aria-haspopup="menu"
             aria-expanded={userMenuOpen}
-            aria-label={`${currentUserName}，打开账号菜单`}
-            className={`dashboard-shell__profile group w-full flex items-center gap-3 rounded-lg p-2 transition-colors ${isSidebarCollapsed ? "justify-center" : ""} ${
+            aria-label={`${currentUserName}，打开账号管理`}
+            className={`dashboard-shell__profile group w-full flex items-center gap-3 rounded-lg p-2 transition-colors ${isDesktopViewport ? "justify-center" : ""} ${
               userMenuOpen ? "dashboard-shell__profile--open" : ""
             }`}
           >
@@ -835,7 +749,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
                 <img key={currentUser.avatarUrl} src={currentUser.avatarUrl} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-cover" onError={(event) => { event.currentTarget.hidden = true; }} />
               ) : null}
             </div>
-            <div className={`flex-1 min-w-0 text-left ${isSidebarCollapsed ? "hidden" : ""}`}>
+            <div className={`flex-1 min-w-0 text-left ${isDesktopViewport ? "hidden" : ""}`}>
               <div className="text-sm font-medium text-[var(--admin-text)] truncate">
                 {currentUserName || getAuthUserRoleLabel(currentUser)}
               </div>
@@ -843,7 +757,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
             </div>
             <svg
               aria-hidden="true"
-              className={`w-4 h-4 shrink-0 transition-all duration-200 ${isSidebarCollapsed ? "hidden" : ""} ${
+              className={`w-4 h-4 shrink-0 transition-all duration-200 ${isDesktopViewport ? "hidden" : ""} ${
                 userMenuOpen
                   ? "rotate-180 dashboard-shell__accent"
                   : "text-[var(--admin-dim)] group-hover:text-[var(--admin-muted)]"
@@ -863,18 +777,15 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
               className="dashboard-shell__user-menu absolute left-3 right-3 bottom-full mb-2 overflow-hidden rounded-lg shadow-xl"
             >
               <div className="dashboard-shell__user-menu-role px-3 py-2.5">
-                <div className="text-[11px] uppercase tracking-[0.22em] text-[var(--admin-dim)]">
+                <div className="truncate text-sm font-medium text-[var(--admin-text)]">
+                  {currentUserName || getAuthUserRoleLabel(currentUser)}
+                </div>
+                <div className="truncate text-xs text-[var(--admin-muted)]">{currentUser.email}</div>
+                <div className="mt-1 text-[11px] uppercase tracking-[0.22em] text-[var(--admin-dim)]">
                   {getAuthUserRoleLabel(currentUser)}
                 </div>
               </div>
               <div className="p-1.5">
-                <button
-                  type="button"
-                  onClick={() => { setUserMenuOpen(false); openMyProfile(); }}
-                  role="menuitem"
-                  className="dashboard-shell__account-action"
-                >我的主页</button>
-                <div className="dashboard-shell__account-divider" />
                 <button
                   type="button"
                   onClick={() => { setUserMenuOpen(false); navigate("/dashboard/guide"); }}
@@ -925,20 +836,9 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           ) : null}
         </div>
 
-        <div
-          aria-hidden="true"
-          className={`absolute inset-y-0 -right-2 hidden w-4 cursor-col-resize lg:items-center lg:justify-center ${isSidebarCollapsed ? "lg:hidden" : "lg:flex"}`}
-          onMouseDown={handleSidebarResizeStart}
-        >
-          <span
-            className={`h-20 w-px rounded-full transition-colors ${
-                  isResizingSidebar ? "bg-[var(--admin-accent)]" : "bg-transparent group-hover/sidebar:bg-[var(--admin-hover-border)]"
-            }`}
-          />
-        </div>
       </aside>
 
-      <div className="dashboard-shell__main-frame relative z-10" style={isDesktopViewport ? { paddingLeft: isSidebarCollapsed ? SIDEBAR_COLLAPSED_WIDTH : sidebarWidth } : undefined}>
+      <div className="dashboard-shell__main-frame relative z-10 lg:pl-20">
         <header className="dashboard-shell__topbar sticky top-0 z-30 flex items-center gap-4 h-16 px-4 sm:px-6 border-b">
           <button
             ref={sidebarTriggerRef}
