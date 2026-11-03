@@ -269,7 +269,7 @@ export function getDefaultDashboardPath(_roleName: string) {
 
 export function canAccessDashboardAdminPath(userOrRole: AuthUser | string, pathname: string, hasAssignmentGroup = false) {
   const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
-  if (pathname === "/dashboard/leave") return hasDashboardAdminAccess(roleName);
+  if (pathname === "/dashboard/admin" || pathname === "/dashboard/admin/" || pathname === "/dashboard/leave") return hasDashboardAdminAccess(roleName);
   if (pathname === "/dashboard/admin/leave") return ["admin", "super_admin"].includes(roleName);
   if (pathname.startsWith("/dashboard/admin/leave/")) return false;
   const accessiblePaths = getAccessibleAdminPaths(roleName, hasAssignmentGroup);
