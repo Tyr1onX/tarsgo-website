@@ -115,32 +115,6 @@ export function CommunityGrowthBar({
   </section>;
 }
 
-export function CommunityGrowthProfileSection() {
-  const [profile, setProfile] = useState<CommunityGrowthProfile | null>(null);
-  const [error, setError] = useState("");
-  const [loading, setLoading] = useState(true);
-  useEffect(() => {
-    const stopProfile = subscribeCommunityGrowthProfile((next) => {
-      setProfile(next);
-      setError("");
-      setLoading(false);
-    });
-    const stopError = subscribeCommunityGrowthError((message) => {
-      setError(message);
-      setLoading(false);
-    });
-    requestCommunityExperienceRefresh();
-    return () => { stopProfile(); stopError(); };
-  }, []);
-  return <section className="community-growth-profile" aria-labelledby="community-growth-profile-heading">
-    <div className="community-growth-profile__heading">
-      <span className="community-growth-profile__icon"><CommunityIcon name="award" /></span>
-      <div><h3 id="community-growth-profile-heading">社区成长</h3><p>经验记录真实的社区参与，和共建者勋章并行展示。</p></div>
-    </div>
-    {loading ? <p className="community-growth-profile__state" role="status">正在读取社区成长…</p> : error ? <p className="community-growth-profile__state is-error" role="alert">{error}</p> : profile ? <CommunityGrowthDetails profile={profile} /> : null}
-  </section>;
-}
-
 function formatShortDay(value: string) {
   const [, month = "", day = ""] = value.split("-");
   return `${Number(month)}/${Number(day)}`;

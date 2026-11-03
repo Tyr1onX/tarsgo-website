@@ -30,14 +30,14 @@ export function WorkbenchFeatureGuide({ currentUser, groupResolution, groupResol
           <ol>
             <li><Link to="/dashboard/weekly-reports">使用工作周报记录工作进展</Link></li>
             <li><Link to="/dashboard/leave">提交、查询和管理自己的请假申请</Link></li>
-            <li>在“我的主页 → 资料设置 → 课程时间”上传教务系统导出的 Excel 课表。</li>
+            <li>在<Link to="/dashboard/timetable">课程时间</Link>上传教务系统导出的 Excel 课表。</li>
             <li><Link to="/dashboard/assignments">打开“我的作业”，提交成果并查看批改反馈</Link></li>
           </ol>
         ) : (
           <ol>
             <li><Link to="/dashboard/weekly-reports">使用工作周报记录工作进展</Link></li>
             <li><Link to="/dashboard/leave">提交、查询和管理自己的请假申请</Link></li>
-            <li><Link to="/dashboard/guide">查看工作手册</Link>；成员上传课表可在“我的主页 → 资料设置”完成。</li>
+            <li><Link to="/dashboard/guide">查看工作手册</Link>；成员可在<Link to="/dashboard/timetable">课程时间</Link>上传课表。</li>
           </ol>
         )}
         {!groupResolutionError ? <p className="workbench-feature-guide__scope-note">{GROUP_ACCESS_HELP}</p> : null}

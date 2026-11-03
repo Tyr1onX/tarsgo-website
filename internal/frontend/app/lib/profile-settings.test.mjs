@@ -11,35 +11,36 @@ const api = await readFile(new URL("../../../backend/router/router.go", import.m
 const authClient = await readFile(new URL("./auth-client.ts", import.meta.url), "utf8");
 const registrationReviews = await readFile(new URL("../routes/admin/registrations.tsx", import.meta.url), "utf8");
 
-test("profile fields share a fixed 44px control height and common grid baseline", () => {
+test("profile settings keep aligned academic fields and the timetable upload", () => {
   assert.match(profile, /const fieldClass = "admin-field box-border h-11 min-h-11/);
-  assert.match(profile, /const readOnlyClass = "flex h-11 min-h-11/);
   assert.match(profile, /const labelClass = "mb-2 block text-xs/);
   assert.match(profile, /grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2/);
-  assert.match(profile, /<input[^>]*autoComplete="name"[^>]*value=\{realNameDraft\}/);
-  assert.match(profile, /aria-label="邮箱"/);
-  assert.match(profile, /aria-label="所属组别"/);
-  assert.match(profile, /aria-label="战队职务"/);
-  assert.match(profile, /aria-label="账号权限"/);
-  assert.match(profile, /user\.organizationPositions\?\.length/);
-  assert.doesNotMatch(profile, /<div className="mt-1 min-h-10/);
-});
-
-test("avatar preview, account save and timetable upload retain separate behaviors", () => {
-  assert.match(profile, /URL\.createObjectURL\(avatar\)/);
-  assert.match(profile, /URL\.revokeObjectURL\(avatarPreview\)/);
-  assert.match(profile, /avatarInputRef\.current\?\.click\(\)/);
-  assert.match(profile, /group-hover:opacity-100 group-focus-visible:opacity-100/);
-  assert.match(profile, /file\.size > 2 \* 1024 \* 1024/);
+  assert.match(profile, />学号</);
+  assert.match(profile, />学院</);
   assert.match(profile, /id="timetable"[\s\S]*?<PersonalTimetableUpload userId=\{user\.id\} \/>/);
-  assert.match(profile, /id="profile-account-form"/);
-  assert.match(profile, /保存账号与学籍信息/);
-  assert.match(profile, /updateProfile\(\{ realName: nextRealName, phone: user\.phone \?\? "", avatar \}\)/);
-  assert.doesNotMatch(profile, /nickname|昵称/);
+  assert.doesNotMatch(profile, /updateProfile|avatarInputRef|autoComplete="name"|姓名</);
+  assert.doesNotMatch(profile, /CommunityGrowthProfileSection|community-growth/);
 });
 
-test("leave identity follows the editable canonical name until the business snapshot is locked", () => {
-  assert.match(profile, /const accountName = realNameDraft\.trim\(\)/);
+test("the current member can edit name, bio, and avatar directly in the profile header", () => {
+  assert.match(memberProfile, /const isSelf = member\.isSelf && member\.id === currentUser\.id/);
+  assert.match(memberProfile, /isSelf \? <>[\s\S]*?aria-label="更换头像"/);
+  assert.match(memberProfile, /isSelf \? <button[^>]*aria-label="编辑姓名"/);
+  assert.match(memberProfile, /isSelf \? <button[^>]*aria-label="编辑个人介绍"/);
+  assert.match(memberProfile, /event\.key === "Enter"[\s\S]*?void saveName\(\)/);
+  assert.match(memberProfile, /event\.key === "Escape"[\s\S]*?cancelNameEdit\(\)/);
+  assert.match(memberProfile, /onBlur=\{handleNameBlur\}/);
+  assert.match(memberProfile, /updateProfile\(\{ realName: nextName, phone: currentUser\.phone \?\? "", avatar: null \}\)/);
+  assert.match(memberProfile, /updateProfile\(\{ realName: member\.displayName\.trim\(\), phone: currentUser\.phone \?\? "", avatar: file \}\)/);
+  assert.match(memberProfile, /file\.size > 2 \* 1024 \* 1024/);
+  assert.match(memberProfile, /头像仅支持 JPG 或 PNG/);
+  assert.match(memberProfile, /setResult\(\(current\) => current \? \{ \.\.\.current, member: \{ \.\.\.current\.member, displayName: savedName \} \} : current\)/);
+  assert.match(memberProfile, /clearCommunityLists\(\)/);
+  assert.doesNotMatch(profile, /avatarInputRef|autoComplete="name"|realNameDraft/);
+});
+
+test("leave identity follows the canonical name and keeps its server-side access rules", () => {
+  assert.match(profile, /const accountName = user\.realName\?\.trim\(\) \?\? ""/);
   assert.match(profile, /leaveProfile\?\.identityLocked \? leaveProfile\.name : accountName/);
   assert.match(profile, /readOnly=\{Boolean\(leaveProfile\?\.identityLocked\)\}/);
   assert.match(profile, /leaveClient\.saveProfile/);
@@ -71,38 +72,21 @@ test("registration reviewers and audit actors never fall back to account email",
   assert.doesNotMatch(registrationReviews, /(?:screener|interviewer|actor)\?\.email/);
 });
 
-test("phone field stays hidden without overwriting existing account phone data", () => {
+test("phone remains out of the editor and the existing value is sent to the profile API", () => {
   assert.doesNotMatch(profile, /setPhone\(|type="tel"|>手机号<|填写 11 位手机号|手机号可自行更新/);
-  assert.match(profile, /phone: user\.phone \?\? ""/);
-  assert.match(profile, /updateProfile\(/);
+  assert.match(memberProfile, /phone: currentUser\.phone \?\? ""/);
+  assert.match(memberProfile, /updateProfile\(/);
 });
 
-
-test("academic fields are part of personal information and leave identity is not shown", () => {
-  assert.match(profile, /id="profile-account-heading"[^>]*>账号与学籍信息/);
-  assert.doesNotMatch(profile, /学籍与请假信息|profile-school-heading/);
-  const personalStart = profile.indexOf('<section aria-labelledby="profile-account-heading"');
-  const personalEnd = profile.indexOf("</section>", personalStart);
-  const personalSection = profile.slice(personalStart, personalEnd);
-  assert.match(personalSection, />姓名</);
-  assert.match(personalSection, />学号</);
-  assert.match(personalSection, />学院</);
-  assert.match(personalSection, />邮箱</);
-  assert.match(personalSection, />所属组别</);
-  assert.doesNotMatch(personalSection, />请假身份</);
-  assert.doesNotMatch(profile, /setLeaveDraft\(\(current\) => \(\{ \.\.\.current, participantType:/);
-  // Keep the stored value for legacy leave workflows without exposing an editor.
-  assert.match(profile, /participantType: profile\.participantType/);
-  assert.match(profile, /participantType: leaveDraft\.participantType/);
-});
-
-test("personal profile is a first-level link and legacy profile entry points keep the private settings tab", () => {
+test("independent settings stay reachable without a profile settings tab", () => {
   assert.match(dashboardNavigation, /key: "my-profile", label: "我的主页", href: `\/dashboard\/members\/\$\{currentUser\.id\}`, iconKey: "user"/);
   assert.doesNotMatch(layout, />我的主页<\/button>/);
   assert.match(layout, /navigate\(`\/dashboard\/members\/\$\{currentUser\.id\}\?tab=settings#timetable`/);
   assert.match(memberProfile, /{tab === "settings" && isSelf/);
-  assert.match(memberProfile, /<PersonalProfileSettings user=\{currentUser\}/);
+  assert.match(memberProfile, /<PersonalProfileSettings user=\{currentUser\} \/>/);
+  assert.match(memberProfile, /{tab !== "settings" \? <nav className="community-member-tabs"/);
   assert.match(memberProfile, /<CoBuilderBadgeProfile onReplay=/);
+  assert.doesNotMatch(memberProfile, /label: "资料设置"|编辑资料/);
   assert.doesNotMatch(layout, /ProfileDialog|setProfileOpen/);
   assert.doesNotMatch(layout, /import \{ ProfileDialog \}/);
 });

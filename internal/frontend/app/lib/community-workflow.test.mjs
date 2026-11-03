@@ -421,7 +421,8 @@ test("community growth shows Beijing check-ins, author levels, and idempotent in
   const growthService = service + await source("../../../backend/service/trainingqa/community_growth.go");
   const growthToast = await source("../components/community-experience-toast-host.tsx");
   assert.match(dashboard, /<CommunityGrowthBar profile=\{growthProfile\}/);
-  assert.match(profile, /<CommunityGrowthProfileSection\s*\/>/);
+  assert.doesNotMatch(profile, /CommunityGrowthProfileSection|community-growth-profile/);
+  assert.doesNotMatch(growthUI, /CommunityGrowthProfileSection|community-growth-profile/);
   assert.match(thread, /CommunityAuthorProfile id=\{item\.authorId\}/);
   assert.match(thread, /likeComment\(item\.id, active\)/);
   assert.match(thread, /setSolution\(item\.isAcceptedSolution \? null : item\.id\)/);
@@ -464,7 +465,10 @@ test("member profiles reuse community permissions, XP, and public badge records"
   assert.match(authorProfile, /communityMemberProfileClient\.get\(id, "card"\)/);
   assert.match(authorProfile, /communityProfileReturnTo/);
   assert.match(memberProfilePage, /概览[\s\S]*帖子[\s\S]*回复[\s\S]*徽章/);
-  assert.match(memberProfilePage, /updateMine\(\{ bio: bioDraft, featuredBadgeKey: selectedBadge \}\)/);
+  assert.match(memberProfilePage, /updateMine\(\{ bio: bioDraft, featuredBadgeKey: member\.featuredBadgeKey \?\? "" \}\)/);
+  assert.match(memberProfilePage, /updateProfile\(\{ realName: nextName, phone: currentUser\.phone \?\? "", avatar: null \}\)/);
+  assert.match(memberProfilePage, /updateProfile\(\{ realName: member\.displayName\.trim\(\), phone: currentUser\.phone \?\? "", avatar: file \}\)/);
+  assert.doesNotMatch(memberProfilePage, /CommunityGrowthProfileSection|community-member-stats/);
   assert.match(memberProfilePage, /preventScrollReset: true/);
   assert.match(memberProfilePage, /navigate\(-1\)/);
   assert.match(styles, /\.community-member-hero/);

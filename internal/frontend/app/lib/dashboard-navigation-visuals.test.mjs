@@ -26,8 +26,9 @@ test("nested navigation lives in the sidebar and replaces the flat top tabs", ()
   assert.match(sectionNavigation, /getVisibleAdminDashboardMenu\(currentUser, hasAssignmentGroup\)/);
   assert.match(sectionNavigation, /aria-expanded=\{isExpanded\}/);
   assert.match(sectionNavigation, /dashboard-subnav__heading-button/);
-  assert.match(sectionNavigation, /item\.key === "candidate-processing" \? candidateTodoCount/);
-  assert.match(sectionNavigation, /item\.key === "leave-workbench" && section === "management" \? leaveActionableCount/);
+  assert.doesNotMatch(sectionNavigation, /candidateTodoCount|leaveActionableCount|dashboard-nav-badge/);
+  assert.match(layout, /<DashboardTooltip label=\{compact \? item\.label : undefined\}/);
+  assert.doesNotMatch(layout, /managementLabel|报名待处理|请假待审批/);
   assert.doesNotMatch(sectionNavigation, /getVisibleAdminDashboardLinks|dashboard-section-nav/);
   assert.doesNotMatch(navigationCss, /\.dashboard-section-nav/);
 });

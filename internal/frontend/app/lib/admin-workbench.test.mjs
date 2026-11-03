@@ -5,27 +5,29 @@ import test from "node:test";
 import { getCandidateTodoCount, getShanghaiDate, getUpcomingInterviewSessions } from "./admin-workbench.ts";
 
 const dashboardLayout = await readFile(new URL("../routes/dashboard/layout.tsx", import.meta.url), "utf8");
+const adminDashboard = await readFile(new URL("../routes/admin/dashboard.tsx", import.meta.url), "utf8");
 const registrationsRoute = await readFile(new URL("../routes/admin/registrations.tsx", import.meta.url), "utf8");
 const registrationsClient = await readFile(new URL("./registrations-client.ts", import.meta.url), "utf8");
 const guide = await readFile(new URL("../routes/dashboard/guide.tsx", import.meta.url), "utf8");
 const sectionNavigation = await readFile(new URL("../components/dashboard-section-navigation.tsx", import.meta.url), "utf8");
 
-test("candidate sidebar count includes only actionable screening and interview queues", () => {
+test("candidate todo totals include only actionable screening and interview queues", () => {
   const summary = { total: 30, pendingScreening: 2, pendingInterview: 1, admitted: 10, rejected: 12, withdrawn: 5 };
   assert.equal(getCandidateTodoCount(true, summary), 3);
   assert.equal(getCandidateTodoCount(false, summary), 0);
   assert.equal(getCandidateTodoCount(true, { ...summary, pendingScreening: -1, pendingInterview: 0 }), 0);
 });
 
-test("sidebar todo count reuses the permission-scoped summary and refreshes after candidate actions", () => {
-  assert.match(dashboardLayout, /hasDashboardAdminAccess\(currentUser\.role\.name\)[\s\S]*?getAdminWorkbenchSummary\(userId, force\)/);
-  assert.match(dashboardLayout, /getCandidateTodoCount\(response\.currentFormAvailable, response\.summary\)/);
-  assert.match(dashboardLayout, /candidateTodoCount !== null \? `\$\{candidateTodoCount\} 项报名待处理`/);
-  assert.match(sectionNavigation, /item\.key === "candidate-processing" \? candidateTodoCount/);
-  assert.ok(dashboardLayout.includes("candidateTodoState.roleName === currentUser.role.name"));
+test("management todos stay in the home modules and do not appear in navigation", () => {
+  assert.match(adminDashboard, /getAdminWorkbenchSummary\(currentUser\.id\)/);
+  assert.match(adminDashboard, /leaveClient\.schoolSummary\(\)/);
+  assert.match(adminDashboard, /pendingScreening > 0[\s\S]*?候选人待初筛/);
+  assert.match(adminDashboard, /state\.leaveActionableCount[\s\S]*?请假事项待处理/);
+  assert.doesNotMatch(dashboardLayout, /managementLabel|报名待处理|请假待审批|leaveActionableState|candidateTodoCount/);
+  assert.doesNotMatch(sectionNavigation, /candidateTodoCount|leaveActionableCount|dashboard-nav-badge/);
   assert.ok(registrationsClient.includes("const pending = pendingWorkbenchSummaryRequests.get(accountId);"));
   assert.ok(registrationsClient.includes("if (pending && !force) return pending;"));
-  assert.ok(registrationsRoute.includes("void refreshCandidateTodoCount(true)"));
+  assert.doesNotMatch(registrationsRoute, /refreshCandidateTodoCount/);
 });
 
 test("workbench's current interview date uses Asia/Shanghai at day boundaries", () => {

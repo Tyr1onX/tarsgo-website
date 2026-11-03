@@ -12,8 +12,6 @@ import type { AuthUser } from "~/lib/auth-client";
 type Props = {
   currentUser: AuthUser;
   hasAssignmentGroup: boolean;
-  candidateTodoCount: number | null;
-  leaveActionableCount: number | null;
   compact: boolean;
   onNavigate: () => void;
 };
@@ -21,8 +19,6 @@ type Props = {
 export function DashboardSectionNavigation({
   currentUser,
   hasAssignmentGroup,
-  candidateTodoCount,
-  leaveActionableCount,
   compact,
   onNavigate,
 }: Props) {
@@ -65,10 +61,6 @@ export function DashboardSectionNavigation({
                   const isActive = item.key === "timetable"
                     ? location.pathname === targetPath && new URLSearchParams(location.search).get("tab") === "settings" && location.hash === "#timetable"
                     : isDashboardMenuPathActive(location.pathname, targetPath);
-                  const badgeCount = item.key === "candidate-processing" ? candidateTodoCount
-                    : item.key === "leave-workbench" && section === "management" ? leaveActionableCount
-                      : null;
-                  const badgeLabel = item.key === "leave-workbench" ? "请假待处理事项" : "待处理报名";
                   return (
                     <Link
                       key={item.key}
@@ -79,7 +71,6 @@ export function DashboardSectionNavigation({
                       className={`dashboard-subnav__link${isActive ? " is-active" : ""}`}
                     >
                       <span>{item.label}</span>
-                      {(badgeCount ?? 0) > 0 ? <span className="dashboard-nav-badge" aria-label={`${badgeCount} 项${badgeLabel}`}>{badgeCount}</span> : null}
                     </Link>
                   );
                 })}

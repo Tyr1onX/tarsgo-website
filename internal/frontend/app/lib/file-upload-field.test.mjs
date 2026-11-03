@@ -63,7 +63,8 @@ test("all native upload entry points use the shared field except the existing av
   const layout = await source("../routes/dashboard/layout.tsx");
   assert.match(layout, /import \{ CoBuilderBadgeUnlockToast \}/);
   assert.doesNotMatch(layout, /ProfileDialog/);
-  const avatar = await source("../components/personal-profile-settings.tsx");
+  const avatar = await source("../routes/dashboard/community-member-profile.tsx");
   assert.match(avatar, /type="file"/);
-  assert.match(avatar, /头像/);
+  assert.match(avatar, /aria-label="更换头像"/);
+  assert.match(avatar, /avatar: file/);
 });

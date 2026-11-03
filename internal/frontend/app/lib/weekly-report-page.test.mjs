@@ -70,9 +70,10 @@ test("the in-workbench guide documents open daily and assignment flows", async (
   const guide = await readFile(new URL("../routes/dashboard/guide.tsx", import.meta.url), "utf8");
   const routeConfig = await readFile(new URL("../routes.ts", import.meta.url), "utf8");
   assert.match(routeConfig, /route\("guide", "routes\/dashboard\/guide\.tsx"\)/);
-  for (const phrase of ["我的主页", "资料设置", "课程时间", "工作周报", "请假工作台", "我的作业", "提交记录", "时间协调", "其他培养入口暂未开放"]) {
+  for (const phrase of ["我的主页", "点击姓名、头像或个人介绍即可直接编辑", "课程时间", "工作周报", "请假工作台", "我的作业", "提交记录", "时间协调", "其他培养入口暂未开放"]) {
     assert.match(guide, new RegExp(phrase));
   }
+  assert.doesNotMatch(guide, /资料设置/);
   assert.match(guide, /提交成果并查看批改反馈/);
   assert.doesNotMatch(guide, /to="\/dashboard\/(practice-projects|growth|questions|skills|capabilities|expedition)/);
 });

@@ -18,18 +18,17 @@ test("account filtering uses database group options and a concrete group query",
   assert.doesNotMatch(route, /groupId\s*===\s*(1|2|3|4|5)/);
 });
 
-test("leave navigation counts approvals and actionable work, not unread rows", async () => {
-  const [layout, leave] = await Promise.all([
+test("leave actionable totals remain in the admin home instead of the navigation", async () => {
+  const [layout, leave, adminDashboard] = await Promise.all([
     read("routes/dashboard/layout.tsx"),
     read("lib/leave-client.ts"),
+    read("routes/admin/dashboard.tsx"),
   ]);
   assert.match(leave, /pendingApprovalCount: number/);
   assert.match(leave, /actionableCount: number/);
-  assert.match(layout, /actionableCount: summary\.actionableCount/);
-  assert.match(layout, /pendingApprovalCount: summary\.pendingApprovalCount, todoCount: summary\.todoCount/);
-  assert.match(layout, /currentLeaveActionableState\?\.actionableCount \?\? 0/);
-  assert.match(layout, /leaveActionableCount=\{currentLeaveActionableState\?\.actionableCount \?\? null\}/);
-  assert.match(layout, /subscribeLeaveSummaryChange/);
+  assert.match(adminDashboard, /leaveClient\.schoolSummary\(\)/);
+  assert.match(adminDashboard, /state\.leaveActionableCount/);
+  assert.doesNotMatch(layout, /leaveActionableState|leaveClient|subscribeLeaveSummaryChange|请假待审批/);
   assert.doesNotMatch(layout, /summary\.unreadCount/);
 });
 

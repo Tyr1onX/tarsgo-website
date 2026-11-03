@@ -95,7 +95,6 @@ export function PersonalTimetableUpload({ userId }: { userId: number }) {
           <button className="btn-glass min-h-10 rounded-xl px-4 py-2 text-sm disabled:opacity-50" type="submit" disabled={!file || uploading}>
             {uploading ? "正在导入…" : "上传或更新课表"}
           </button>
-          <span className="text-xs text-[var(--admin-muted)]">独立上传，无需点击下方「保存修改」</span>
         </div>
       </form>
       {uploading ? <p role="status" className="text-sm text-[var(--admin-muted)]">正在上传并解析课表…</p> : null}
