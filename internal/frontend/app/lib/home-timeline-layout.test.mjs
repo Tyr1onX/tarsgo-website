@@ -210,6 +210,7 @@ test("every sponsor remains in the homepage logo grid without changing source ar
   }
   assert.match(home, /sponsorLogos\.map\(/);
   assert.match(home, /className="home-sponsor-logo"/);
-  assert.match(styles, /\.home-sponsor-logo\s*\{[^}]*min-height:\s*5rem;[^}]*background:\s*#fff;/);
+  assert.match(styles, /\.home-sponsor-logo\s*\{[^}]*min-height:\s*3\.75rem;/);
+  assert.doesNotMatch(styles, /\.home-sponsor-logo\s*\{[^}]*background:\s*#fff;/);
   assert.match(styles, /\.home-sponsor-logo img\s*\{[^}]*object-fit:\s*contain;/);
 });

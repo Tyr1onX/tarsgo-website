@@ -291,7 +291,7 @@ func (s *Service) UploadAttachments(ctx context.Context, actor Actor, reportID u
 	if report == nil {
 		return nil, serviceError(http.StatusNotFound, "周报不存在或无权编辑", nil)
 	}
-	uploads, err := privatefile.ValidateUploads(headers)
+	uploads, err := privatefile.ValidateUploads(headers, false)
 	if err != nil {
 		return nil, serviceError(http.StatusBadRequest, err.Error(), err)
 	}

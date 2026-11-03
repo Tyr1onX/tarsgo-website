@@ -151,21 +151,13 @@ function HomeArrowIcon() {
 function HomeSponsorSection() {
   return (
     <section
-      className="home-sponsors border-t border-[var(--theme-border-subtle)] py-12 sm:py-14 lg:py-16"
+      className="home-sponsors border-t border-[var(--theme-border-subtle)] py-8 sm:py-10"
       aria-labelledby="home-sponsors-heading"
     >
       <div className="public-home-container">
-        <div className="mb-7 flex flex-col gap-2 sm:mb-8 sm:flex-row sm:items-end sm:justify-between">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-accent-primary">PARTNERS</p>
-            <h2 id="home-sponsors-heading" className="mt-2 text-2xl font-semibold tracking-tight text-fg-primary sm:text-3xl">
-              赞助商与合作伙伴
-            </h2>
-          </div>
-          <p className="max-w-xl text-sm leading-6 text-fg-muted">
-            感谢所有支持吉甲大师团队建设与实践的合作伙伴。
-          </p>
-        </div>
+        <h2 id="home-sponsors-heading" className="mb-5 text-xl font-semibold tracking-tight text-fg-primary sm:mb-6 sm:text-2xl">
+          合作与支持
+        </h2>
 
         <ul className="home-sponsor-grid" aria-label="现有赞助商">
           {sponsorLogos.map((sponsor) => (
@@ -175,13 +167,7 @@ function HomeSponsorSection() {
           ))}
         </ul>
 
-        <aside className="home-community-recommendation" aria-labelledby="home-community-recommendation-heading">
-          <div className="home-alumni-recommendation__label">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent-primary">CAMPUS AI COMMUNITY</p>
-            <h3 id="home-community-recommendation-heading" className="mt-2 text-base font-semibold tracking-tight text-fg-primary sm:text-lg">
-              校园共创社区
-            </h3>
-          </div>
+        <div className="home-partner-links">
           <a
             href="https://jluai.cn/"
             target="_blank"
@@ -198,15 +184,6 @@ function HomeSponsorSection() {
             </span>
             <span className="home-alumni-recommendation__arrow" aria-hidden="true"><HomeArrowIcon /></span>
           </a>
-        </aside>
-
-        <aside className="home-alumni-recommendation" aria-labelledby="home-alumni-recommendation-heading">
-          <div className="home-alumni-recommendation__label">
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-accent-primary">ALUMNI PROJECT</p>
-            <h3 id="home-alumni-recommendation-heading" className="mt-2 text-base font-semibold tracking-tight text-fg-primary sm:text-lg">
-              校友项目推荐
-            </h3>
-          </div>
           <a
             href="https://rightapi.ai/register?aff=RIGHTCODE_JLU"
             target="_blank"
@@ -223,7 +200,7 @@ function HomeSponsorSection() {
             </span>
             <span className="home-alumni-recommendation__arrow" aria-hidden="true"><HomeArrowIcon /></span>
           </a>
-        </aside>
+        </div>
       </div>
     </section>
   );

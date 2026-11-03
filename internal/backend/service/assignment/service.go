@@ -471,7 +471,7 @@ func (s *Service) CreateWithMaterialFiles(ctx context.Context, actor Actor, inpu
 	if err != nil {
 		return nil, err
 	}
-	validated, err := validateUploads(headers)
+	validated, err := validateUploads(headers, false)
 	if err != nil {
 		return nil, err
 	}
@@ -538,7 +538,7 @@ func (s *Service) CreateWithMaterialFiles(ctx context.Context, actor Actor, inpu
 
 		materialFiles := make([]model.AssignmentMaterialFile, 0, len(validated))
 		for _, upload := range validated {
-			stored, err := s.materials.save(ctx, item.ID, actor.ID, upload, now)
+			stored, err := s.materials.save(ctx, item.ID, actor.ID, upload, now, false)
 			if err != nil {
 				return err
 			}
@@ -879,7 +879,7 @@ func (s *Service) Submit(ctx context.Context, actor Actor, assignmentID uint64, 
 		if err := requireMemberAssignmentPublished(item); err != nil {
 			return err
 		}
-		validated, err = validateUploads(headers)
+		validated, err = validateUploads(headers, true)
 		if err != nil {
 			return err
 		}
@@ -914,7 +914,7 @@ func (s *Service) Submit(ctx context.Context, actor Actor, assignmentID uint64, 
 		}
 		files := make([]model.AssignmentSubmissionFile, 0, len(validated))
 		for _, upload := range validated {
-			stored, err := s.files.save(ctx, item.ID, actor.ID, upload, now)
+			stored, err := s.files.save(ctx, item.ID, actor.ID, upload, now, true)
 			if err != nil {
 				return err
 			}
@@ -1037,7 +1037,7 @@ func (s *Service) UploadMaterialFiles(ctx context.Context, actor Actor, assignme
 	if err := requireAdmin(actor); err != nil {
 		return nil, err
 	}
-	validated, err := validateUploads(headers)
+	validated, err := validateUploads(headers, false)
 	if err != nil {
 		return nil, err
 	}
@@ -1081,7 +1081,7 @@ func (s *Service) UploadMaterialFiles(ctx context.Context, actor Actor, assignme
 		now := s.now().UTC()
 		files := make([]model.AssignmentMaterialFile, 0, len(validated))
 		for _, upload := range validated {
-			stored, err := s.materials.save(ctx, item.ID, actor.ID, upload, now)
+			stored, err := s.materials.save(ctx, item.ID, actor.ID, upload, now, false)
 			if err != nil {
 				return err
 			}

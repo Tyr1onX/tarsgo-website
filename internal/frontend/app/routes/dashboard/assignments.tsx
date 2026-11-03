@@ -3,6 +3,7 @@ import { useOutletContext, useSearchParams } from "react-router";
 
 import { WorkbenchFeatureStatus } from "~/components/workbench-feature-status";
 import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
+import { ApiError } from "~/lib/api-client";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import {
   assignmentClient,
@@ -21,8 +22,6 @@ export function meta() {
 const fileAccept = ".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.zip,.7z,.rar";
 const inputClass = "admin-field w-full";
 const maxSubmissionFiles = 10;
-const maxSubmissionFileBytes = 20 * 1024 * 1024;
-const maxSubmissionTotalBytes = 50 * 1024 * 1024;
 
 export default function MyAssignmentsRoute() {
   const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
@@ -110,7 +109,12 @@ export default function MyAssignmentsRoute() {
     } catch (cause) {
       if (currentUserId.current === accountId && requestId.current === activeRequest) {
         setFileUploadStatus("failed");
-        setError(cause instanceof Error ? cause.message : "提交失败，请稍后重试");
+        const message = cause instanceof Error ? cause.message : "提交失败，请稍后重试";
+        setError(cause instanceof ApiError && cause.status === 413
+          ? "服务器或代理拒绝了当前大小的附件（HTTP 413），请联系管理员检查上传限制。"
+          : cause instanceof TypeError
+            ? "网络连接中断，附件未完成上传，请重新提交。"
+            : message);
       }
     } finally {
       if (currentUserId.current === accountId) setSaving(false);
@@ -178,13 +182,12 @@ export default function MyAssignmentsRoute() {
               onFilesChange={(next) => { setFiles(next); setFileUploadStatus("pending"); setError(""); }}
               accept={fileAccept}
               multiple
-              hint="最多 10 个 · 单个≤20 MB · 总计≤50 MB"
+              hint="最多 10 个附件"
               status={fileUploadStatus}
               disabled={saving}
               validateSelection={(next) => {
                 if (next.length > maxSubmissionFiles) return "最多提交 10 个文件。";
-                if (next.some((file) => file.size <= 0 || file.size > maxSubmissionFileBytes)) return "单个文件不能为空且不能超过 20 MB。";
-                if (next.reduce((total, file) => total + file.size, 0) > maxSubmissionTotalBytes) return "附件总大小不能超过 50 MB。";
+                if (next.some((file) => file.size <= 0)) return "不能提交空文件。";
                 return null;
               }}
             /></div>

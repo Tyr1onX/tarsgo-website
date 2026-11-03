@@ -45,9 +45,9 @@ func newAssignmentFileStore(rootDir string) (*assignmentFileStore, error) {
 	return &assignmentFileStore{store: store}, nil
 }
 
-func (s *assignmentFileStore) save(ctx context.Context, assignmentID, userID uint64, file validatedUpload, _ time.Time) (*storedUpload, error) {
+func (s *assignmentFileStore) save(ctx context.Context, assignmentID, userID uint64, file validatedUpload, _ time.Time, allowLarge bool) (*storedUpload, error) {
 	stored, err := s.store.Save(ctx, assignmentID, userID, privatefile.Upload{
-		Header: file.header, FileName: file.fileName, ContentType: file.contentType, ContentHash: file.contentHash,
+		Header: file.header, FileName: file.fileName, ContentType: file.contentType, ContentHash: file.contentHash, AllowLarge: allowLarge,
 	})
 	if err != nil {
 		return nil, err
@@ -65,8 +65,8 @@ func (s *assignmentFileStore) resolve(relativePath string) (string, error) {
 	return s.store.ResolvePath(relativePath)
 }
 
-func validateUploads(headers []*multipart.FileHeader) ([]validatedUpload, error) {
-	files, err := privatefile.ValidateUploads(headers)
+func validateUploads(headers []*multipart.FileHeader, allowLarge bool) ([]validatedUpload, error) {
+	files, err := privatefile.ValidateUploads(headers, allowLarge)
 	if err != nil {
 		return nil, badRequest(err.Error())
 	}
