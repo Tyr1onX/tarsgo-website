@@ -10,11 +10,11 @@
 
 ## 构建产物来源
 
-`production-ops.yml` 在固定的 Ubuntu 24.04 runner 上安装锁定的 Node.js/pnpm 工具链、运行检查并构建 Linux amd64 后端和迁移程序。只有 `main` 的 push 在全部检查成功后，才会上传名为 `tarsgo-production-release` 的 GitHub Actions artifact。产物包含 Dockerfile、两个二进制、完整提交 SHA 和 SHA256 清单。
+`production-ops.yml` 在固定的 Ubuntu 24.04 runner 上安装锁定的 Node.js/pnpm 工具链、运行检查并构建 Linux amd64 后端和迁移程序。只有 `main` 的 push 在全部检查成功后，才会把名为 `tarsgo-production-release` 的 Actions artifact 交给独立发布 job；该 job 使用仅限自身的 `GITHUB_TOKEN` `contents:write` 权限，将归档发布为 `production-artifacts` 预发布版本下的单一公开资产 `tarsgo-production-release.tar.gz`。资产包含 Dockerfile、两个二进制、完整提交 SHA 和 SHA256 清单。后续成功的 main 构建会替换这个资产。
 
-生产脚本按当前 `origin/main` 的完整提交 SHA 查询对应的成功 CI run，只接受该 run 的唯一、未过期产物。脚本校验 GitHub 返回的 artifact SHA256、解压后的文件清单、每个文件的 SHA256 和提交 SHA；随后仍通过原有非交互式 SSH/rsync 上传到临时目录，由生产机再次校验 SHA256 后原子转正。产物缺失、过期、损坏或提交不匹配时，会在生产清理、上传、迁移和版本切换前停止。
+生产脚本按当前 `origin/main` 查询公开 Release 资产元数据并要求唯一、已上传的目标资产，读取 GitHub 提供的资产 SHA256，然后通过无需登录的 Release 下载链接取回归档。脚本校验归档 SHA256、归档文件清单、每个文件的 SHA256 和完整提交 SHA；随后仍通过原有非交互式 SSH/rsync 上传到临时目录，由生产机再次校验 SHA256 后原子转正。资产缺失、损坏或提交不匹配时，会在生产清理、上传、迁移和版本切换前停止。
 
-生产访问仍由运行脚本的受控机器通过既有 SSH alias `racknerd` 完成，GitHub Actions 不获得生产服务器凭据。当前仓库为公开仓库，读取 Actions 产物不需要新增 GitHub 凭据。部署机器需要 Git、SSH、rsync、curl、unzip 和带有 `JSON::PP`/`Digest::SHA` 标准模块的 Perl；生产发布不再需要本机 Node.js、Corepack、pnpm、Go、Make 或 `sha256sum`。
+生产访问仍由运行脚本的受控机器通过既有 SSH alias `racknerd` 完成，GitHub Actions 不获得生产服务器凭据；发布 job 只在通过完整 CI 验证后获得仓库内容写权限，不接触生产 SSH 凭据。部署机器需要 Git、SSH、rsync、curl、tar、gzip 和带有 `JSON::PP`/`Digest::SHA` 标准模块的 Perl；生产发布不再需要本机 Node.js、Corepack、pnpm、Go、Make、unzip 或 `sha256sum`。
 
 ## 首次异机备份配置
 
@@ -67,4 +67,4 @@ make frontend-test
 make frontend-check
 ```
 
-`scripts/test-production-ops.sh` 只使用临时目录和 mock 命令，覆盖 CI 产物下载与校验、缺失/损坏/提交不匹配时拒绝发布、本机没有构建工具或 `sha256sum` 时仍可部署、85% 高水位清理、current/previous retention、健康检查失败回滚，以及上传中断后的安全重试。CI 负责实际构建并校验 Linux amd64 发布二进制。
+`scripts/test-production-ops.sh` 只使用临时目录和 mock 命令，覆盖公开 CI Release 资产下载与校验、缺失/损坏/提交不匹配时拒绝发布、本机没有构建工具或 `sha256sum` 时仍可部署、85% 高水位清理、current/previous retention、健康检查失败回滚，以及上传中断后的安全重试。CI 负责实际构建并校验 Linux amd64 发布二进制。

@@ -26,7 +26,8 @@ require_command() {
 }
 
 github_api="https://api.github.com/repos/Tyr1onX/tarsgo-website"
-production_artifact_name="tarsgo-production-release"
+production_release_tag="production-artifacts"
+production_release_asset="tarsgo-production-release.tar.gz"
 github_api_headers=(--header 'Accept: application/vnd.github+json' --header 'X-GitHub-Api-Version: 2022-11-28')
 
 github_api_get() {
@@ -34,75 +35,48 @@ github_api_get() {
     "${github_api_headers[@]}" "$1"
 }
 
-download_production_artifact() {
+download_production_release_asset() {
   local expected_commit="$1" archive_path="$2" destination="$3"
-  local workflow_runs_json run_id artifacts_json artifact_metadata artifact_id artifact_digest actual_digest
+  local release_json asset_metadata expected_url actual_digest
+  expected_url="https://github.com/Tyr1onX/tarsgo-website/releases/download/$production_release_tag/$production_release_asset"
 
-  if ! workflow_runs_json="$(github_api_get "$github_api/actions/workflows/production-ops.yml/runs?branch=main&event=push&head_sha=$expected_commit&per_page=100")"; then
-    echo "Production deploy aborted: unable to query GitHub Actions for commit $expected_commit." >&2
+  if ! release_json="$(github_api_get "$github_api/releases/tags/$production_release_tag")"; then
+    echo "Production deploy aborted: unable to query the public production release metadata." >&2
     return 1
   fi
-  if ! run_id="$(printf '%s' "$workflow_runs_json" | perl -MJSON::PP -e '
+  if ! asset_metadata="$(printf '%s' "$release_json" | perl -MJSON::PP -e '
     use strict;
     use warnings;
-    my $expected_commit = shift @ARGV;
+    my ($expected_tag, $expected_name, $expected_url) = @ARGV;
     local $/;
-    my $document = decode_json(<STDIN>);
-    for my $run (@{ $document->{workflow_runs} // [] }) {
-      next unless ($run->{head_sha} // "") eq $expected_commit;
-      next unless ($run->{head_branch} // "") eq "main";
-      next unless ($run->{event} // "") eq "push";
-      next unless ($run->{status} // "") eq "completed";
-      next unless ($run->{conclusion} // "") eq "success";
-      print $run->{id}, "\n";
-      exit 0;
-    }
-    exit 1;
-  ' "$expected_commit")"; then
-    echo "Production deploy aborted: no successful production-ops workflow run exists for commit $expected_commit." >&2
-    return 1
-  fi
-  if [[ ! "$run_id" =~ ^[0-9]+$ ]]; then
-    echo "Production deploy aborted: GitHub returned an invalid workflow run ID for commit $expected_commit." >&2
-    return 1
-  fi
-
-  if ! artifacts_json="$(github_api_get "$github_api/actions/runs/$run_id/artifacts?per_page=100")"; then
-    echo "Production deploy aborted: unable to list artifacts for GitHub Actions run $run_id." >&2
-    return 1
-  fi
-  if ! artifact_metadata="$(printf '%s' "$artifacts_json" | perl -MJSON::PP -e '
-    use strict;
-    use warnings;
-    my $expected_name = shift @ARGV;
-    local $/;
-    my $document = decode_json(<STDIN>);
+    my $release = decode_json(<STDIN>);
+    exit 1 unless ($release->{tag_name} // "") eq $expected_tag;
+    exit 1 if $release->{draft} || !$release->{prerelease};
     my @matches = grep {
       ($_->{name} // "") eq $expected_name &&
-      !$_->{expired} &&
-      ($_->{size_in_bytes} // 0) > 0 &&
-      ($_->{digest} // "") =~ /^sha256:[0-9a-f]{64}$/
-    } @{ $document->{artifacts} // [] };
+      ($_->{state} // "") eq "uploaded" &&
+      ($_->{size} // 0) > 0 &&
+      ($_->{digest} // "") =~ /^sha256:[0-9a-f]{64}$/ &&
+      ($_->{browser_download_url} // "") eq $expected_url
+    } @{ $release->{assets} // [] };
     exit 1 unless @matches == 1;
-    print $matches[0]->{id}, "\t", $matches[0]->{digest}, "\n";
-  ' "$production_artifact_name")"; then
-    echo "Production deploy aborted: run $run_id does not contain exactly one complete $production_artifact_name artifact with a SHA-256 digest." >&2
+    print $matches[0]->{digest}, "\n";
+  ' "$production_release_tag" "$production_release_asset" "$expected_url")"; then
+    echo "Production deploy aborted: the public production release does not contain exactly one complete $production_release_asset asset with a SHA-256 digest." >&2
     return 1
   fi
-  IFS=$'\t' read -r artifact_id artifact_digest <<<"$artifact_metadata"
-  if [[ ! "$artifact_id" =~ ^[0-9]+$ || ! "$artifact_digest" =~ ^sha256:[0-9a-f]{64}$ ]]; then
-    echo "Production deploy aborted: GitHub returned invalid artifact metadata for commit $expected_commit." >&2
+  if [[ ! "$asset_metadata" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+    echo "Production deploy aborted: GitHub returned invalid production asset metadata." >&2
     return 1
   fi
 
   if ! curl --fail --silent --show-error --location --connect-timeout 15 --max-time 300 --retry 3 --retry-delay 2 \
-    "${github_api_headers[@]}" \
-    "$github_api/actions/artifacts/$artifact_id/zip" --output "$archive_path"; then
-    echo "Production deploy aborted: unable to download the verified CI artifact for commit $expected_commit." >&2
+    "$expected_url" --output "$archive_path"; then
+    echo "Production deploy aborted: unable to anonymously download the public CI release asset for commit $expected_commit." >&2
     return 1
   fi
   if [[ ! -s "$archive_path" ]]; then
-    echo "Production deploy aborted: the CI artifact archive for commit $expected_commit is empty." >&2
+    echo "Production deploy aborted: the public CI release asset for commit $expected_commit is empty." >&2
     return 1
   fi
 
@@ -115,12 +89,33 @@ download_production_artifact() {
     $sha->addfile($file);
     print $sha->hexdigest;
   ' "$archive_path")"
-  if [[ "sha256:$actual_digest" != "$artifact_digest" ]]; then
-    echo "Production deploy aborted: downloaded CI artifact SHA-256 does not match GitHub metadata." >&2
+  if [[ "sha256:$actual_digest" != "$asset_metadata" ]]; then
+    echo "Production deploy aborted: downloaded CI release asset SHA-256 does not match GitHub metadata." >&2
     return 1
   fi
-  if ! unzip -q "$archive_path" -d "$destination"; then
-    echo "Production deploy aborted: CI artifact archive for commit $expected_commit is invalid." >&2
+  if ! tar -tzf "$archive_path" >"$destination/.archive-contents"; then
+    echo "Production deploy aborted: CI release asset archive for commit $expected_commit is invalid." >&2
+    return 1
+  fi
+  if ! perl -e '
+    use strict;
+    use warnings;
+    my @expected = qw(Dockerfile SHA256SUMS commit.txt tarsgo-backend-linux-amd64 tarsgo-migrate-linux-amd64);
+    my %expected = map { $_ => 1 } @expected;
+    my %seen;
+    while (<>) {
+      chomp;
+      s/\r\z//;
+      die "unexpected or duplicate file in CI release archive\n" unless $expected{$_} && !$seen{$_}++;
+    }
+    die "CI release archive is incomplete\n" unless keys(%seen) == @expected;
+  ' "$destination/.archive-contents"; then
+    echo "Production deploy aborted: CI release asset is incomplete, damaged, or does not match commit $expected_commit." >&2
+    return 1
+  fi
+  rm -f "$destination/.archive-contents"
+  if ! tar -xzf "$archive_path" -C "$destination"; then
+    echo "Production deploy aborted: CI release asset archive for commit $expected_commit could not be extracted." >&2
     return 1
   fi
 
@@ -133,36 +128,36 @@ download_production_artifact() {
     opendir my $dir, $directory or die "cannot read extracted CI artifact: $!\n";
     my @entries = grep { $_ ne "." && $_ ne ".." } readdir $dir;
     closedir $dir;
-    die "unexpected files in CI artifact\n" unless @entries == @expected && !grep { !$expected{$_} } @entries;
+    die "unexpected files in CI release asset\n" unless @entries == @expected && !grep { !$expected{$_} } @entries;
     for my $name (@expected) {
       my $path = "$directory/$name";
-      die "missing or invalid CI artifact file: $name\n" unless -f $path && !-l $path && -s $path;
+      die "missing or invalid CI release asset file: $name\n" unless -f $path && !-l $path && -s $path;
     }
-    open my $manifest, "<", "$directory/SHA256SUMS" or die "cannot read CI artifact checksum manifest: $!\n";
+    open my $manifest, "<", "$directory/SHA256SUMS" or die "cannot read CI release checksum manifest: $!\n";
     my %seen;
     while (my $line = <$manifest>) {
       chomp $line;
       $line =~ s/\r\z//;
       my ($expected_hash, $name) = $line =~ /\A([0-9a-f]{64})  ([A-Za-z0-9._-]+)\z/
-        or die "invalid CI artifact checksum manifest\n";
-      die "unexpected or duplicate file in CI artifact checksum manifest\n" unless $expected{$name} && !$seen{$name}++;
-      open my $file, "<:raw", "$directory/$name" or die "cannot read CI artifact file $name: $!\n";
+      or die "invalid CI release checksum manifest\n";
+      die "unexpected or duplicate file in CI release checksum manifest\n" unless $expected{$name} && !$seen{$name}++;
+      open my $file, "<:raw", "$directory/$name" or die "cannot read CI release file $name: $!\n";
       my $sha = Digest::SHA->new(256);
       $sha->addfile($file);
-      die "CI artifact SHA-256 verification failed for $name\n" unless $sha->hexdigest eq $expected_hash;
+      die "CI release SHA-256 verification failed for $name\n" unless $sha->hexdigest eq $expected_hash;
     }
     close $manifest;
-    die "CI artifact checksum manifest is incomplete\n" unless keys(%seen) == @expected - 1;
-    open my $commit_file, "<:raw", "$directory/commit.txt" or die "cannot read CI artifact commit metadata: $!\n";
+    die "CI release checksum manifest is incomplete\n" unless keys(%seen) == @expected - 1;
+    open my $commit_file, "<:raw", "$directory/commit.txt" or die "cannot read CI release commit metadata: $!\n";
     local $/;
     my $artifact_commit = <$commit_file>;
-    die "CI artifact commit does not match the requested main commit\n" unless $artifact_commit eq "$expected_commit\n";
+    die "CI release commit does not match the requested main commit\n" unless $artifact_commit eq "$expected_commit\n";
   ' "$destination" "$expected_commit"; then
-    echo "Production deploy aborted: CI release artifact is incomplete, damaged, or does not match commit $expected_commit." >&2
+    echo "Production deploy aborted: CI release asset is incomplete, damaged, or does not match commit $expected_commit." >&2
     return 1
   fi
-  printf 'Production CI artifact verified: commit=%s run=%s artifact=%s digest=%s\n' \
-    "$expected_commit" "$run_id" "$artifact_id" "$artifact_digest"
+  printf 'Production CI release asset verified: commit=%s digest=%s\n' \
+    "$expected_commit" "$asset_metadata"
 }
 
 require_command git "Git checkout validation"
@@ -333,10 +328,11 @@ run_safe_cleanup() {
 }
 
 if [[ "$target_release_status" != complete ]]; then
-  require_command curl "GitHub Actions release artifact download"
-  require_command unzip "GitHub Actions release artifact extraction"
-  require_command perl "GitHub Actions metadata and SHA-256 verification"
-  require_command mktemp "temporary release artifact storage"
+  require_command curl "public production release download"
+  require_command perl "release metadata and SHA-256 verification"
+  require_command tar "production release archive extraction"
+  require_command gzip "gzip-compressed production release archive extraction"
+  require_command mktemp "temporary production release storage"
 fi
 temporary_dir=""
 release_dir=""
@@ -359,7 +355,7 @@ if [[ "$target_release_status" != complete ]]; then
   release_dir="$temporary_dir/release"
   mkdir -m 0755 "$release_dir"
   trap cleanup EXIT
-  download_production_artifact "$commit_sha" "$temporary_dir/production-release.zip" "$release_dir"
+  download_production_release_asset "$commit_sha" "$temporary_dir/production-release.tar.gz" "$release_dir"
   chmod 0755 "$release_dir"
   chmod 0644 "$release_dir/Dockerfile" "$release_dir/SHA256SUMS" "$release_dir/commit.txt" "$release_dir/tarsgo-backend-linux-amd64" "$release_dir/tarsgo-migrate-linux-amd64"
 fi

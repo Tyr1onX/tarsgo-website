@@ -194,7 +194,7 @@ test_missing_ssh_fails_before_remote_access() {
 make_ci_client_system_bin() {
   local destination="$1" tool source
   mkdir -p "$destination"
-  for tool in bash env git date mktemp mkdir cp chmod rm cat wc awk sed tail perl unzip install mv dirname touch; do
+  for tool in bash env git date mktemp mkdir cp chmod rm cat wc awk sed tail perl tar gzip install mv dirname touch; do
     source="$(command -v "$tool")" || fail "required test fixture command is unavailable: $tool"
     ln -s "$source" "$destination/$tool"
   done
@@ -202,7 +202,8 @@ make_ci_client_system_bin() {
 
 init_ci_deploy_fixture() {
   local case_dir="$1" mode="$2" repo="$1/repo" artifact_dir="$1/artifact" remote_root="$1/remote"
-  local commit artifact_commit artifact_digest
+  local commit artifact_commit asset_digest
+  local -a archive_files
   mkdir -p "$repo/scripts" "$case_dir/client-bin" "$case_dir/remote-bin" "$artifact_dir" "$remote_root/releases/20261001-stable-abcdef0"
   make_ci_client_system_bin "$case_dir/client-system-bin"
   cp "$repo_root/scripts/deploy-production.sh" "$repo_root/scripts/production-safe-cleanup.sh" \
@@ -231,24 +232,17 @@ init_ci_deploy_fixture() {
   (cd "$artifact_dir" && sha256sum "${manifest_files[@]}" >SHA256SUMS)
   [[ "$mode" != package-corrupt ]] || printf 'damaged binary fixture\n' >"$artifact_dir/tarsgo-backend-linux-amd64"
 
-  python3 - "$artifact_dir" "$case_dir/artifact.zip" <<'PY'
-import os
-import sys
-import zipfile
-
-source, destination = sys.argv[1:]
-with zipfile.ZipFile(destination, "w", zipfile.ZIP_DEFLATED) as archive:
-    for name in sorted(os.listdir(source)):
-        archive.write(os.path.join(source, name), name)
-PY
-  artifact_digest="$(perl -MDigest::SHA -e 'my $sha = Digest::SHA->new(256); open my $file, "<:raw", $ARGV[0] or die $!; $sha->addfile($file); print $sha->hexdigest' "$case_dir/artifact.zip")"
-  cp "$case_dir/artifact.zip" "$case_dir/download.zip"
-  [[ "$mode" != download-corrupt ]] || printf 'transport corruption\n' >>"$case_dir/download.zip"
-  printf '{"total_count":1,"workflow_runs":[{"id":42001,"head_sha":"%s","head_branch":"main","event":"push","status":"completed","conclusion":"success"}]}\n' "$commit" >"$case_dir/workflow-runs.json"
+  archive_files=(Dockerfile SHA256SUMS commit.txt tarsgo-backend-linux-amd64)
+  [[ ! -f "$artifact_dir/tarsgo-migrate-linux-amd64" ]] || archive_files+=(tarsgo-migrate-linux-amd64)
+  (cd "$artifact_dir" && tar -czf "$case_dir/artifact.tar.gz" "${archive_files[@]}" 2>/dev/null)
+  asset_digest="$(perl -MDigest::SHA -e 'my $sha = Digest::SHA->new(256); open my $file, "<:raw", $ARGV[0] or die $!; $sha->addfile($file); print $sha->hexdigest' "$case_dir/artifact.tar.gz")"
+  cp "$case_dir/artifact.tar.gz" "$case_dir/download.tar.gz"
+  [[ "$mode" != download-corrupt ]] || printf 'transport corruption\n' >>"$case_dir/download.tar.gz"
+  [[ "$mode" != release-download-missing ]] || rm "$case_dir/download.tar.gz"
   if [[ "$mode" == artifact-missing ]]; then
-    printf '{"total_count":0,"artifacts":[]}\n' >"$case_dir/artifacts.json"
+    printf '{"tag_name":"production-artifacts","draft":false,"prerelease":true,"assets":[]}\n' >"$case_dir/release.json"
   else
-    printf '{"total_count":1,"artifacts":[{"id":42002,"name":"tarsgo-production-release","size_in_bytes":100,"expired":false,"digest":"sha256:%s"}]}\n' "$artifact_digest" >"$case_dir/artifacts.json"
+    printf '{"tag_name":"production-artifacts","draft":false,"prerelease":true,"assets":[{"name":"tarsgo-production-release.tar.gz","state":"uploaded","size":100,"digest":"sha256:%s","browser_download_url":"https://github.com/Tyr1onX/tarsgo-website/releases/download/production-artifacts/tarsgo-production-release.tar.gz"}]}\n' "$asset_digest" >"$case_dir/release.json"
   fi
 
   cat >"$case_dir/client-bin/curl" <<'CURL'
@@ -264,14 +258,13 @@ while (($#)); do
   esac
 done
 case "$url" in
-  *"/actions/workflows/production-ops.yml/runs?branch=main&event=push&head_sha=$MOCK_EXPECTED_COMMIT&per_page=100")
-    cat "$MOCK_WORKFLOW_RUNS" ;;
-  *"/actions/runs/42001/artifacts?per_page=100")
-    cat "$MOCK_ARTIFACTS" ;;
-  *"/actions/artifacts/42002/zip")
-    [[ -n "$output" ]] || { echo "missing artifact output path" >&2; exit 2; }
-    cp "$MOCK_ARTIFACT_DOWNLOAD" "$output" ;;
-  *) echo "unexpected GitHub API request: $url" >&2; exit 90 ;;
+  "https://api.github.com/repos/Tyr1onX/tarsgo-website/releases/tags/production-artifacts")
+    cat "$MOCK_RELEASE_METADATA" ;;
+  "https://github.com/Tyr1onX/tarsgo-website/releases/download/production-artifacts/tarsgo-production-release.tar.gz")
+    [[ -n "$output" ]] || { echo "missing release asset output path" >&2; exit 2; }
+    [[ -s "$MOCK_RELEASE_ASSET_DOWNLOAD" ]] || exit 22
+    cp "$MOCK_RELEASE_ASSET_DOWNLOAD" "$output" ;;
+  *) echo "unexpected GitHub request: $url" >&2; exit 90 ;;
 esac
 CURL
   cat >"$case_dir/client-bin/ssh" <<'SSH'
@@ -357,8 +350,8 @@ run_ci_deploy_fixture() {
   CI_DEPLOY_STATUS=0
   set +e
   CI_DEPLOY_OUTPUT="$(PATH="$case_dir/client-bin:$case_dir/client-system-bin" \
-    MOCK_EXPECTED_COMMIT="$commit" MOCK_WORKFLOW_RUNS="$case_dir/workflow-runs.json" \
-    MOCK_ARTIFACTS="$case_dir/artifacts.json" MOCK_ARTIFACT_DOWNLOAD="$case_dir/download.zip" \
+    MOCK_EXPECTED_COMMIT="$commit" MOCK_RELEASE_METADATA="$case_dir/release.json" \
+    MOCK_RELEASE_ASSET_DOWNLOAD="$case_dir/download.tar.gz" \
     MOCK_REMOTE_ROOT="$case_dir/remote" MOCK_REMOTE_BIN="$case_dir/remote-bin" MOCK_TEST_TOOLS="$test_tools" \
     MOCK_SSH_COUNT="$case_dir/ssh-count" MOCK_RSYNC_LOG="$case_dir/rsync.log" MOCK_RELEASE_NAME="$case_dir/release-name" \
     MOCK_DEPLOY_REACHED="$case_dir/deploy-reached" MOCK_NODE_INVOKED="$case_dir/node-invoked" \
@@ -386,7 +379,7 @@ test_ci_artifact_deployment_ignores_local_toolchain() {
   release="$(cat "$case_dir/release-name")"
   [[ "$(cat "$case_dir/remote/releases/$release/commit.txt")" == "$commit" ]] || fail "uploaded CI artifact commit does not match the clean main checkout"
   (cd "$case_dir/remote/releases/$release" && sha256sum --check -- SHA256SUMS) >/dev/null || fail "uploaded CI artifact failed the production-side SHA256 check"
-  pass "fixed CI artifact completes the mocked production release when Node 26 is broken and local sha256sum, /sbin, Go, and Corepack are absent"
+  pass "public CI release asset completes the mocked production release when Node 26 is broken and local sha256sum, /sbin, Go, and Corepack are absent"
 
   local no_frontend="$tmp/ci-artifact-no-frontend"
   init_ci_deploy_fixture "$no_frontend" success-no-frontend
@@ -397,28 +390,30 @@ test_ci_artifact_deployment_ignores_local_toolchain() {
   done
   run_ci_deploy_fixture "$no_frontend"
   [[ "$CI_DEPLOY_STATUS" -eq 0 && -e "$no_frontend/deploy-reached" ]] || fail "CI artifact deployment required a local frontend build environment: $CI_DEPLOY_OUTPUT"
-  pass "CI artifact deployment succeeds with no local Node, Corepack, pnpm, Go, or Make"
+  pass "CI release deployment succeeds with no local Node, Corepack, pnpm, Go, or Make"
 }
 
 test_ci_artifact_rejections_precede_production_mutation() {
   local mode case_dir
-  for mode in artifact-missing download-corrupt package-corrupt package-missing-file commit-mismatch; do
+  for mode in artifact-missing release-download-missing download-corrupt package-corrupt package-missing-file commit-mismatch; do
     case_dir="$tmp/ci-artifact-$mode"
     init_ci_deploy_fixture "$case_dir" "$mode"
     run_ci_deploy_fixture "$case_dir"
     [[ "$CI_DEPLOY_STATUS" -ne 0 ]] || fail "$mode CI artifact unexpectedly proceeded to deployment"
     case "$mode" in
       artifact-missing)
-        [[ "$CI_DEPLOY_OUTPUT" == *"does not contain exactly one complete"* ]] || fail "missing artifact was rejected for the wrong reason: $CI_DEPLOY_OUTPUT" ;;
+        [[ "$CI_DEPLOY_OUTPUT" == *"does not contain exactly one complete"* ]] || fail "missing release asset was rejected for the wrong reason: $CI_DEPLOY_OUTPUT" ;;
+      release-download-missing)
+        [[ "$CI_DEPLOY_OUTPUT" == *"unable to anonymously download the public CI release asset"* ]] || fail "unavailable release asset was rejected for the wrong reason: $CI_DEPLOY_OUTPUT" ;;
       download-corrupt)
-        [[ "$CI_DEPLOY_OUTPUT" == *"artifact SHA-256 does not match GitHub metadata"* ]] || fail "corrupt download was rejected for the wrong reason: $CI_DEPLOY_OUTPUT" ;;
+        [[ "$CI_DEPLOY_OUTPUT" == *"release asset SHA-256 does not match GitHub metadata"* ]] || fail "corrupt release download was rejected for the wrong reason: $CI_DEPLOY_OUTPUT" ;;
       package-corrupt|package-missing-file|commit-mismatch)
-        [[ "$CI_DEPLOY_OUTPUT" == *"CI release artifact is incomplete, damaged, or does not match commit"* ]] || fail "$mode artifact was rejected for the wrong reason: $CI_DEPLOY_OUTPUT" ;;
+        [[ "$CI_DEPLOY_OUTPUT" == *"CI release asset is incomplete, damaged, or does not match commit"* ]] || fail "$mode release asset was rejected for the wrong reason: $CI_DEPLOY_OUTPUT" ;;
     esac
     [[ "$(cat "$case_dir/ssh-count")" == 2 ]] || fail "$mode CI artifact reached production cleanup or upload"
     [[ ! -e "$case_dir/rsync.log" && ! -e "$case_dir/deploy-reached" ]] || fail "$mode CI artifact caused production transfer or cutover"
   done
-  pass "missing, damaged, incomplete, and commit-mismatched CI artifacts are rejected before production mutation"
+  pass "missing, damaged, incomplete, and commit-mismatched CI release assets are rejected before production mutation"
 }
 
 make_safe_cleanup_mock_bin() {
@@ -1058,9 +1053,12 @@ PY
   grep -Fq '.incoming-$release_name' "$repo_root/scripts/deploy-production.sh" || fail "resumable staged release upload is missing"
   grep -Fq -- '--rsh="$rsync_ssh"' "$repo_root/scripts/deploy-production.sh" || fail "rsync does not use the non-interactive SSH options"
   grep -Fq 'sha256sum --check -- SHA256SUMS' "$repo_root/scripts/deploy-production.sh" || fail "release upload integrity is not verified"
-  grep -Fq 'download_production_artifact "$commit_sha"' "$repo_root/scripts/deploy-production.sh" || fail "deployment does not download the artifact for the verified main commit"
+  grep -Fq 'download_production_release_asset "$commit_sha"' "$repo_root/scripts/deploy-production.sh" || fail "deployment does not download the release asset for the verified main commit"
   ! grep -Eq 'make_bin|build-linux-amd64|frontend-toolchain|require_command sha256sum' "$repo_root/scripts/deploy-production.sh" || fail "production deployment still depends on local build or checksum tools"
   grep -Fq 'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9' "$repo_root/.github/workflows/production-ops.yml" || fail "CI does not upload the built production artifact"
+  grep -Fq 'actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333' "$repo_root/.github/workflows/production-ops.yml" || fail "CI does not transfer the built artifact to the release publisher"
+  grep -Fq 'gh release upload production-artifacts' "$repo_root/.github/workflows/production-ops.yml" || fail "CI does not publish an unauthenticated production release asset"
+  ! grep -Fq '/actions/artifacts/' "$repo_root/scripts/deploy-production.sh" || fail "deployment still attempts the login-protected Actions artifact download"
   grep -Fq 'OnCalendar=Sat *-*-* 19:00:00 UTC' "$repo_root/scripts/backup-production.timer" || fail "offsite backup is not scheduled weekly"
   grep -Fq 'retention_minutes=43200' "$repo_root/scripts/backup-production.sh" || fail "local retention is not 30 days"
   grep -Fq 'retention_minutes=43200' "$repo_root/scripts/production-safe-cleanup.sh" || fail "disk cleanup retention is not 30 days"
