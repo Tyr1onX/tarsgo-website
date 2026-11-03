@@ -15,6 +15,7 @@ import (
 	"tarsgo-backend/handler"
 	"tarsgo-backend/middleware"
 	"tarsgo-backend/service/adminuser"
+	"tarsgo-backend/service/aisalon"
 	"tarsgo-backend/service/assignment"
 	"tarsgo-backend/service/auth"
 	"tarsgo-backend/service/availability"
@@ -196,6 +197,18 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	assignmentMemberAPI.GET("/assignment-files/:id", assignmentHandler.OpenFile)
 	assignmentMemberAPI.GET("/assignment-materials/:id", assignmentHandler.OpenMaterialFile)
 
+	salonHandler := handler.NewAISalonHandler(aisalon.NewService(db))
+	api.GET("/ai-salon/events", salonHandler.List)
+	api.GET("/ai-salon/events/:id", salonHandler.Get)
+	salonMemberAPI := api.Group("/ai-salon")
+	salonMemberAPI.Use(middleware.RequireAuthenticated(authService))
+	salonMemberAPI.GET("/profile", salonHandler.Profile)
+	salonMemberAPI.PUT("/profile", requireSameOriginRequest(cfg), salonHandler.SaveProfile)
+	salonMemberAPI.GET("/registrations", salonHandler.Mine)
+	salonMemberAPI.POST("/events/:id/registration", requireSameOriginRequest(cfg), salonHandler.Register)
+	salonMemberAPI.DELETE("/events/:id/registration", requireSameOriginRequest(cfg), salonHandler.Cancel)
+	salonMemberAPI.POST("/events/:id/check-in", requireSameOriginRequest(cfg), salonHandler.CheckIn)
+
 	adminAPI := api.Group("/admin")
 	adminAPI.Use(middleware.RequireAdmin(authService))
 	adminAPI.GET("/timetable-availability/options", availabilityHandler.Options)
@@ -244,6 +257,13 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	// System configuration, recruitment configuration, account management, and analytics are super-admin only.
 	superAdminAPI := adminAPI.Group("")
 	superAdminAPI.Use(middleware.RequireSuperAdmin(authService))
+	salonAdminAPI := superAdminAPI.Group("/ai-salon")
+	salonAdminAPI.GET("/events", salonHandler.AdminList)
+	salonAdminAPI.POST("/events", requireSameOriginRequest(cfg), salonHandler.SaveEvent)
+	salonAdminAPI.PUT("/events/:id", requireSameOriginRequest(cfg), salonHandler.SaveEvent)
+	salonAdminAPI.DELETE("/events/:id", requireSameOriginRequest(cfg), salonHandler.Delete)
+	salonAdminAPI.GET("/events/:id/roster", salonHandler.Roster)
+	salonAdminAPI.GET("/events/:id/export", salonHandler.Export)
 	superAdminAPI.GET("/organization-preview", handler.OrganizationPreview(db))
 	superAdminAPI.GET("/leave/access-requests", leaveHandler.ListPendingLeaveAccessRequests)
 	superAdminAPI.PATCH("/leave/access-requests/:id", requireSameOriginRequest(cfg), leaveHandler.ReviewLeaveAccessRequest)

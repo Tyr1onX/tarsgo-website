@@ -1,0 +1,383 @@
+[
+  {
+    "name": "官网→工作台 首次 0",
+    "visibleMs": 412,
+    "routeCommitMs": 392,
+    "apiRequests": [
+      {
+        "path": "/api/me/co-builder-badge/unlock-notice",
+        "durationMs": 4
+      },
+      {
+        "path": "/api/community/posts",
+        "durationMs": 5
+      },
+      {
+        "path": "/api/community/growth",
+        "durationMs": 5
+      },
+      {
+        "path": "/api/leave/access",
+        "durationMs": 2
+      },
+      {
+        "path": "/api/weekly-reports/current-status",
+        "durationMs": 2
+      },
+      {
+        "path": "/api/school-leave/latest-status",
+        "durationMs": 2
+      },
+      {
+        "path": "/api/me",
+        "durationMs": 2
+      },
+      {
+        "path": "/api/user-group/confirmation",
+        "durationMs": 1
+      }
+    ]
+  },
+  {
+    "name": "工作台→管理 首次 0",
+    "visibleMs": 310,
+    "routeCommitMs": 280,
+    "apiRequests": [
+      {
+        "path": "/api/leave/access",
+        "durationMs": 1
+      },
+      {
+        "path": "/api/me/co-builder-badge/unlock-notice",
+        "durationMs": 1
+      },
+      {
+        "path": "/api/community/growth",
+        "durationMs": 2
+      },
+      {
+        "path": "/api/weekly-reports/current-status",
+        "durationMs": 2
+      },
+      {
+        "path": "/api/school-leave/latest-status",
+        "durationMs": 1
+      },
+      {
+        "path": "/api/admin/assignments/todos",
+        "durationMs": 3
+      },
+      {
+        "path": "/api/admin/workbench/summary",
+        "durationMs": 4
+      },
+      {
+        "path": "/api/admin/school-leave/summary",
+        "durationMs": 5
+      },
+      {
+        "path": "/api/me",
+        "durationMs": 3
+      },
+      {
+        "path": "/api/user-group/confirmation",
+        "durationMs": 2
+      }
+    ]
+  },
+  {
+    "name": "官网→工作台 已加载 1",
+    "visibleMs": 207,
+    "routeCommitMs": 198,
+    "apiRequests": [
+      {
+        "path": "/api/me/co-builder-badge/unlock-notice",
+        "durationMs": 2
+      },
+      {
+        "path": "/api/community/posts",
+        "durationMs": 3
+      },
+      {
+        "path": "/api/community/growth",
+        "durationMs": 3
+      },
+      {
+        "path": "/api/leave/access",
+        "durationMs": 2
+      },
+      {
+        "path": "/api/weekly-reports/current-status",
+        "durationMs": 2
+      },
+      {
+        "path": "/api/school-leave/latest-status",
+        "durationMs": 2
+      },
+      {
+        "path": "/api/me",
+        "durationMs": 1
+      },
+      {
+        "path": "/api/user-group/confirmation",
+        "durationMs": 1
+      },
+      {
+        "path": "/api/leave/access",
+        "durationMs": 2
+      },
+      {
+        "path": "/api/me/co-builder-badge/unlock-notice",
+        "durationMs": 1
+      },
+      {
+        "path": "/api/community/growth",
+        "durationMs": 3
+      },
+      {
+        "path": "/api/weekly-reports/current-status",
+        "durationMs": 1
+      },
+      {
+        "path": "/api/school-leave/latest-status",
+        "durationMs": 1
+      }
+    ]
+  },
+  {
+    "name": "工作台→管理 已加载 1",
+    "visibleMs": 317,
+    "routeCommitMs": 285,
+    "apiRequests": [
+      {
+        "path": "/api/admin/workbench/summary",
+        "durationMs": 3
+      },
+      {
+        "path": "/api/admin/assignments/todos",
+        "durationMs": 3
+      },
+      {
+        "path": "/api/admin/school-leave/summary",
+        "durationMs": 4
+      },
+      {
+        "path": "/api/me",
+        "durationMs": 4
+      },
+      {
+        "path": "/api/user-group/confirmation",
+        "durationMs": 2
+      }
+    ]
+  },
+  {
+    "name": "官网→工作台 已加载 2",
+    "visibleMs": 425,
+    "routeCommitMs": 407,
+    "apiRequests": [
+      {
+        "path": "/api/me/co-builder-badge/unlock-notice",
+        "durationMs": 2
+      },
+      {
+        "path": "/api/community/posts",
+        "durationMs": 3
+      },
+      {
+        "path": "/api/community/growth",
+        "durationMs": 3
+      },
+      {
+        "path": "/api/leave/access",
+        "durationMs": 3
+      },
+      {
+        "path": "/api/weekly-reports/current-status",
+        "durationMs": 2
+      },
+      {
+        "path": "/api/school-leave/latest-status",
+        "durationMs": 2
+      },
+      {
+        "path": "/api/me",
+        "durationMs": 2
+      },
+      {
+        "path": "/api/user-group/confirmation",
+        "durationMs": 1
+      },
+      {
+        "path": "/api/leave/access",
+        "durationMs": 2
+      },
+      {
+        "path": "/api/me/co-builder-badge/unlock-notice",
+        "durationMs": 1
+      },
+      {
+        "path": "/api/community/growth",
+        "durationMs": 3
+      },
+      {
+        "path": "/api/school-leave/latest-status",
+        "durationMs": 1
+      },
+      {
+        "path": "/api/weekly-reports/current-status",
+        "durationMs": 2
+      }
+    ]
+  },
+  {
+    "name": "工作台→管理 已加载 2",
+    "visibleMs": 318,
+    "routeCommitMs": 284,
+    "apiRequests": [
+      {
+        "path": "/api/admin/workbench/summary",
+        "durationMs": 3
+      },
+      {
+        "path": "/api/admin/assignments/todos",
+        "durationMs": 3
+      },
+      {
+        "path": "/api/admin/school-leave/summary",
+        "durationMs": 4
+      },
+      {
+        "path": "/api/me",
+        "durationMs": 3
+      },
+      {
+        "path": "/api/user-group/confirmation",
+        "durationMs": 2
+      }
+    ]
+  },
+  {
+    "name": "官网→工作台 已加载 3",
+    "visibleMs": 210,
+    "routeCommitMs": 194,
+    "apiRequests": [
+      {
+        "path": "/api/me/co-builder-badge/unlock-notice",
+        "durationMs": 2
+      },
+      {
+        "path": "/api/community/posts",
+        "durationMs": 3
+      },
+      {
+        "path": "/api/community/growth",
+        "durationMs": 3
+      },
+      {
+        "path": "/api/leave/access",
+        "durationMs": 2
+      },
+      {
+        "path": "/api/weekly-reports/current-status",
+        "durationMs": 1
+      },
+      {
+        "path": "/api/school-leave/latest-status",
+        "durationMs": 1
+      },
+      {
+        "path": "/api/me",
+        "durationMs": 1
+      },
+      {
+        "path": "/api/user-group/confirmation",
+        "durationMs": 2
+      },
+      {
+        "path": "/api/leave/access",
+        "durationMs": 2
+      },
+      {
+        "path": "/api/me/co-builder-badge/unlock-notice",
+        "durationMs": 1
+      },
+      {
+        "path": "/api/community/growth",
+        "durationMs": 3
+      },
+      {
+        "path": "/api/weekly-reports/current-status",
+        "durationMs": 1
+      },
+      {
+        "path": "/api/school-leave/latest-status",
+        "durationMs": 1
+      }
+    ]
+  },
+  {
+    "name": "工作台→管理 已加载 3",
+    "visibleMs": 305,
+    "routeCommitMs": 273,
+    "apiRequests": [
+      {
+        "path": "/api/admin/assignments/todos",
+        "durationMs": 3
+      },
+      {
+        "path": "/api/admin/workbench/summary",
+        "durationMs": 4
+      },
+      {
+        "path": "/api/admin/school-leave/summary",
+        "durationMs": 5
+      },
+      {
+        "path": "/api/me",
+        "durationMs": 1
+      },
+      {
+        "path": "/api/user-group/confirmation",
+        "durationMs": 2
+      }
+    ]
+  },
+  {
+    "name": "首次打开沙龙列表",
+    "visibleMs": 38,
+    "routeCommitMs": null,
+    "apiRequests": [
+      {
+        "path": "/api/ai-salon/events",
+        "durationMs": 1
+      },
+      {
+        "path": "/api/admin/ai-salon/events",
+        "durationMs": 2
+      },
+      {
+        "path": "/api/me",
+        "durationMs": 1
+      },
+      {
+        "path": "/api/user-group/confirmation",
+        "durationMs": 2
+      },
+      {
+        "path": "/api/ai-salon/events",
+        "durationMs": 1
+      }
+    ]
+  },
+  {
+    "name": "沙龙列表仅请求公开活动，不读取个人资料",
+    "requests": [
+      "/api/ai-salon/events"
+    ]
+  },
+  {
+    "name": "独立页面首次冷加载",
+    "visibleMs": 2146
+  }
+]
