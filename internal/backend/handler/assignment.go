@@ -61,17 +61,11 @@ func (h *AssignmentHandler) Submit(c *gin.Context) {
 	if !ok {
 		return
 	}
-	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxAssignmentRequestBody)
 	if err := c.Request.ParseMultipartForm(1 << 20); err != nil {
 		if c.Request.MultipartForm != nil {
 			_ = c.Request.MultipartForm.RemoveAll()
 		}
-		var maxBytesError *http.MaxBytesError
-		if errors.As(err, &maxBytesError) {
-			writeAPIError(c, http.StatusRequestEntityTooLarge, "附件总大小不能超过 50 MB")
-			return
-		}
-		writeAPIError(c, http.StatusBadRequest, "作业附件提交参数不合法")
+		writeAPIError(c, http.StatusBadRequest, "作业附件上传中断或数据不完整，请重试")
 		return
 	}
 	if c.Request.MultipartForm != nil {

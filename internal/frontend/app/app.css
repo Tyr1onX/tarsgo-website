@@ -2033,7 +2033,7 @@ html[data-theme-transition] body *::after {
 .home-sponsor-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
+  gap: 0.5rem;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -2042,45 +2042,34 @@ html[data-theme-transition] body *::after {
 .home-sponsor-logo {
   display: flex;
   min-width: 0;
-  min-height: 5rem;
+  min-height: 3.75rem;
   align-items: center;
   justify-content: center;
-  padding: 0.85rem;
-  background: #fff;
+  padding: 0.4rem;
 }
 
 .home-sponsor-logo img {
   display: block;
-  width: 100%;
-  height: 3.25rem;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 2.5rem;
   object-fit: contain;
 }
 
-.home-community-recommendation {
-  width: min(100%, 56rem);
-  margin: 2.25rem auto 0;
-  padding-top: 1.65rem;
-  border-top: 1px solid var(--theme-border-subtle);
-}
-
-.home-alumni-recommendation {
-  width: min(100%, 56rem);
-  margin: 2.25rem auto 0;
-  padding-top: 1.65rem;
-  border-top: 1px solid var(--theme-border-subtle);
-}
-
-.home-alumni-recommendation__label {
-  margin-bottom: 0.8rem;
+.home-partner-links {
+  display: grid;
+  gap: 0.75rem;
+  margin-top: 1.25rem;
 }
 
 .home-alumni-recommendation__card {
   display: flex;
-  min-height: 7rem;
+  min-height: 5.5rem;
+  min-width: 0;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  padding: 1.15rem 1.2rem;
+  gap: 0.75rem;
+  padding: 0.75rem 1rem;
   border: 1px solid var(--theme-border);
   background: var(--theme-card);
   color: var(--theme-text);
@@ -2095,13 +2084,12 @@ html[data-theme-transition] body *::after {
 
 .home-alumni-recommendation__logo {
   display: grid;
-  width: 3.5rem;
-  height: 3.5rem;
+  width: 3rem;
+  height: 3rem;
   flex: 0 0 auto;
   place-items: center;
   overflow: hidden;
-  border: 1px solid rgb(255 255 255 / 0.9);
-  border-radius: 0.45rem;
+  border-radius: 0.35rem;
   background: #fff;
 }
 
@@ -2120,7 +2108,7 @@ html[data-theme-transition] body *::after {
 }
 
 .home-alumni-recommendation__name {
-  font-size: 1.125rem;
+  font-size: 1rem;
   font-weight: 650;
   letter-spacing: -0.02em;
   line-height: 1.3;
@@ -2134,12 +2122,10 @@ html[data-theme-transition] body *::after {
 
 .home-alumni-recommendation__arrow {
   display: grid;
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 1.5rem;
+  height: 1.5rem;
   flex: 0 0 auto;
   place-items: center;
-  border: 1px solid var(--theme-border-subtle);
-  border-radius: 999px;
   color: var(--theme-accent-contrast);
 }
 
@@ -2155,9 +2141,8 @@ html[data-theme-transition] body *::after {
 }
 
 @media (min-width: 640px) {
-  .home-alumni-recommendation__card {
-    min-height: 7.5rem;
-    padding: 1.35rem 1.5rem;
+  .home-partner-links {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -2285,7 +2270,7 @@ html[data-theme-transition] body *::after {
 
   .home-sponsor-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 1rem;
+    gap: 0.75rem;
   }
 }
 

@@ -425,7 +425,7 @@ func (s *PracticeService) Submit(ctx context.Context, a Actor, id uint64, progre
 	if len(headers) == 0 {
 		return nil, practiceBad("请上传过程照片或成果附件")
 	}
-	uploads, err := validateUploads(headers)
+	uploads, err := validateUploads(headers, false)
 	if err != nil {
 		return nil, err
 	}
@@ -458,7 +458,7 @@ func (s *PracticeService) Submit(ctx context.Context, a Actor, id uint64, progre
 			return practiceFail(err)
 		}
 		for _, file := range uploads {
-			stored, err := s.files.save(ctx, id, a.ID, file, s.now())
+			stored, err := s.files.save(ctx, id, a.ID, file, s.now(), false)
 			if err != nil {
 				return practiceFail(err)
 			}

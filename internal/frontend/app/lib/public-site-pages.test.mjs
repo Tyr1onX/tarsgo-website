@@ -58,18 +58,18 @@ test("all five new public topic routes are directly registered and share the exi
   }
 });
 
-test("homepage separates the campus AI community card from commercial sponsor logos", () => {
+test("homepage groups sponsors and two partner links in one compact section", () => {
   const sponsorList = home.indexOf('className="home-sponsor-grid"');
-  const communityStart = home.indexOf('className="home-community-recommendation"');
-  const alumniStart = home.indexOf('className="home-alumni-recommendation"');
-  const communityCard = home.match(/<aside className="home-community-recommendation"[\s\S]*?<\/aside>/)?.[0] ?? "";
-
-  assert.ok(sponsorList >= 0 && sponsorList < communityStart, "community feature follows the sponsor logo grid");
-  assert.ok(communityStart < alumniStart, "community feature has its own area before the alumni recommendation");
-  assert.match(communityCard, /校园共创社区[\s\S]*?JLUAI/);
-  assert.match(communityCard, /src="\/assets\/images\/Community\/jluai\.png"/);
-  assert.match(communityCard, /href="https:\/\/jluai\.cn\/"/);
-  assert.match(communityCard, /AI 交流社区，分享作品与实践经验，一起共创校园 AI 项目/);
+  const partnerLinks = home.indexOf('className="home-partner-links"');
+  assert.ok(home.includes("合作与支持"));
+  assert.ok(sponsorList >= 0 && sponsorList < partnerLinks, "partner cards follow sponsor logos");
+  assert.match(home, /src="\/assets\/images\/Community\/jluai\.png"/);
+  assert.match(home, /href="https:\/\/jluai\.cn\/"/);
+  assert.match(home, /AI 交流社区，分享作品与实践经验，一起共创校园 AI 项目/);
+  assert.match(home, /src="\/assets\/images\/Partners\/rightapi\.jpg"/);
+  assert.match(home, /href="https:\/\/rightapi\.ai\/register\?aff=RIGHTCODE_JLU"/);
+  assert.match(styles, /\.home-partner-links\s*\{[^}]*display:\s*grid;/);
+  assert.match(styles, /@media \(min-width:\s*640px\)[\s\S]*?\.home-partner-links\s*\{[^}]*grid-template-columns:\s*repeat\(2,/);
 });
 
 test("the original home keeps its video and legacy anchors while archive content lives in its own component", () => {
@@ -302,7 +302,7 @@ test("sand reveal stays on a direct preview route and uses the real homepage gal
   assert.match(home, /<HomeVisualNavigation imageTreatment="sand" playOnce \/>/);
 });
 
-test("RightAPI is a separate, disclosed alumni recommendation below the unchanged sponsor wall", async () => {
+test("RightAPI remains a disclosed alumni project in the compact partner links", async () => {
   const sponsorListEnd = home.indexOf("</ul>", home.indexOf('aria-label="现有赞助商"'));
   const recommendationStart = home.indexOf("home-alumni-recommendation", sponsorListEnd);
   assert.ok(sponsorListEnd >= 0, "missing the existing sponsor list");
@@ -310,8 +310,8 @@ test("RightAPI is a separate, disclosed alumni recommendation below the unchange
   assert.match(home, /const sponsorLogos = \[/);
   assert.match(home, /aria-label="现有赞助商"[\s\S]*?sponsorLogos\.map/);
   assert.doesNotMatch(home.match(/const sponsorLogos = \[([\s\S]*?)\n\];/)?.[1] ?? "", /RightAPI/i);
-  assert.match(home, /<aside className="home-alumni-recommendation"/);
-  assert.match(home, /校友项目推荐/);
+  assert.match(home, /<div className="home-partner-links"/);
+  assert.match(home, /合作与支持/);
   assert.match(home, /href="https:\/\/rightapi\.ai\/register\?aff=RIGHTCODE_JLU"/);
   assert.match(home, /target="_blank"/);
   assert.match(home, /rel="noopener noreferrer"/);

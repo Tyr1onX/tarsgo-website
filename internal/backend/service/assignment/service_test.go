@@ -311,14 +311,14 @@ func TestAssignmentStateKeepsSubmissionAndReviewOutcomesDistinct(t *testing.T) {
 func TestValidateUploadsAcceptsPDFAndOfficeArchiveAndRejectsMismatchedContent(t *testing.T) {
 	pdf := multipartHeader(t, "作业.pdf", []byte("%PDF-1.7\ncontent"))
 	docx := multipartHeader(t, "报告.docx", []byte{'P', 'K', 3, 4, 0, 0, 0, 0})
-	valid, err := validateUploads([]*multipart.FileHeader{pdf, docx})
+	valid, err := validateUploads([]*multipart.FileHeader{pdf, docx}, false)
 	if err != nil || len(valid) != 2 || valid[0].fileName != "作业.pdf" {
 		t.Fatalf("valid documents rejected: %#v, %v", valid, err)
 	}
-	if _, err := validateUploads([]*multipart.FileHeader{multipartHeader(t, "payload.pdf", []byte("#!/bin/sh\necho no"))}); err == nil {
+	if _, err := validateUploads([]*multipart.FileHeader{multipartHeader(t, "payload.pdf", []byte("#!/bin/sh\necho no"))}, false); err == nil {
 		t.Fatal("extension/signature mismatch was accepted")
 	}
-	if _, err := validateUploads(make([]*multipart.FileHeader, maxAssignmentFiles+1)); err == nil {
+	if _, err := validateUploads(make([]*multipart.FileHeader, maxAssignmentFiles+1), false); err == nil {
 		t.Fatal("too many attachments were accepted")
 	}
 }
@@ -343,21 +343,21 @@ func TestTeachingMaterialUploadAcceptsSupportedFormatsAndEnforcesSizeLimits(t *t
 	}
 	for _, item := range tests {
 		t.Run(item.name, func(t *testing.T) {
-			if _, err := validateUploads([]*multipart.FileHeader{multipartHeader(t, item.name, item.content)}); err != nil {
+			if _, err := validateUploads([]*multipart.FileHeader{multipartHeader(t, item.name, item.content)}, false); err != nil {
 				t.Fatalf("supported teaching material rejected: %v", err)
 			}
 		})
 	}
 
 	tooLarge := &multipart.FileHeader{Filename: "large.pdf", Size: maxAssignmentFileSize + 1}
-	if _, err := validateUploads([]*multipart.FileHeader{tooLarge}); err == nil {
+	if _, err := validateUploads([]*multipart.FileHeader{tooLarge}, false); err == nil {
 		t.Fatal("single file over 20 MB was accepted")
 	}
 	tooMany := make([]*multipart.FileHeader, maxAssignmentFiles+1)
 	for index := range tooMany {
 		tooMany[index] = &multipart.FileHeader{Filename: "small.txt", Size: 1}
 	}
-	if _, err := validateUploads(tooMany); err == nil {
+	if _, err := validateUploads(tooMany, false); err == nil {
 		t.Fatal("more than ten teaching materials were accepted")
 	}
 	tooMuchTotal := []*multipart.FileHeader{
@@ -365,8 +365,38 @@ func TestTeachingMaterialUploadAcceptsSupportedFormatsAndEnforcesSizeLimits(t *t
 		{Filename: "two.pdf", Size: 18 << 20},
 		{Filename: "three.pdf", Size: 18 << 20},
 	}
-	if _, err := validateUploads(tooMuchTotal); err == nil {
+	if _, err := validateUploads(tooMuchTotal, false); err == nil {
 		t.Fatal("teaching materials above the 50 MB total limit were accepted")
+	}
+}
+
+func TestSubmissionAttachmentsAboveLegacySizeLimitsSaveAndDownload(t *testing.T) {
+	pdf := multipartHeader(t, "large.pdf", append([]byte("%PDF-1.7\n"), bytes.Repeat([]byte("x"), 21<<20)...))
+	textFile := multipartHeader(t, "large.txt", bytes.Repeat([]byte("y"), 30<<20))
+	headers := []*multipart.FileHeader{pdf, textFile}
+	if _, err := validateUploads(headers, false); err == nil {
+		t.Fatal("teaching materials unexpectedly accepted oversized attachments")
+	}
+	validated, err := validateUploads(headers, true)
+	if err != nil || len(validated) != 2 {
+		t.Fatalf("submission attachments above 20 MB each and 50 MB total rejected: %v", err)
+	}
+	store, err := newAssignmentFileStore(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, file := range validated {
+		stored, err := store.save(context.Background(), 91, 22, file, time.Now(), true)
+		if err != nil {
+			t.Fatalf("save %s: %v", file.fileName, err)
+		}
+		data, err := store.open(stored.storagePath)
+		if err != nil || int64(len(data)) != file.header.Size || stored.size != file.header.Size {
+			t.Fatalf("download %s: bytes=%d size=%d error=%v", file.fileName, len(data), stored.size, err)
+		}
+		if err := store.remove(stored.storagePath); err != nil {
+			t.Fatal(err)
+		}
 	}
 }
 
@@ -463,11 +493,11 @@ func TestFileStoreKeepsFilesInsidePrivateRootAndUsesOpaqueNames(t *testing.T) {
 		t.Fatal(err)
 	}
 	header := multipartHeader(t, "../../资料.pdf", []byte("%PDF-1.7\nfile"))
-	validated, err := validateUploads([]*multipart.FileHeader{header})
+	validated, err := validateUploads([]*multipart.FileHeader{header}, false)
 	if err != nil {
 		t.Fatal(err)
 	}
-	saved, err := store.save(context.Background(), 12, 22, validated[0], time.Now())
+	saved, err := store.save(context.Background(), 12, 22, validated[0], time.Now(), false)
 	if err != nil {
 		t.Fatal(err)
 	}

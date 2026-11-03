@@ -29,6 +29,7 @@ type Upload struct {
 	FileName    string
 	ContentType string
 	ContentHash string
+	AllowLarge  bool
 }
 
 type StoredFile struct {
@@ -52,19 +53,24 @@ func NewStore(rootDir string) (*Store, error) {
 	return &Store{rootDir: absRoot}, nil
 }
 
-func ValidateUploads(headers []*multipart.FileHeader) ([]Upload, error) {
+func ValidateUploads(headers []*multipart.FileHeader, allowLarge bool) ([]Upload, error) {
 	if len(headers) == 0 || len(headers) > MaxFiles {
 		return nil, fmt.Errorf("请上传 1 至 %d 个附件", MaxFiles)
 	}
 	var total int64
 	validated := make([]Upload, 0, len(headers))
 	for _, header := range headers {
-		if header == nil || header.Size <= 0 || header.Size > MaxFileSize {
-			return nil, fmt.Errorf("单个附件不能为空且不能超过 20 MB")
+		if header == nil || header.Size <= 0 {
+			return nil, fmt.Errorf("不能上传空附件")
 		}
-		total += header.Size
-		if total > MaxFilesTotal {
-			return nil, fmt.Errorf("附件总大小不能超过 50 MB")
+		if !allowLarge {
+			if header.Size > MaxFileSize {
+				return nil, fmt.Errorf("单个附件不能超过 20 MB")
+			}
+			total += header.Size
+			if total > MaxFilesTotal {
+				return nil, fmt.Errorf("附件总大小不能超过 50 MB")
+			}
 		}
 		fileName := CleanFileName(header.Filename)
 		if fileName == "" {
@@ -130,9 +136,13 @@ func (s *Store) Save(ctx context.Context, scopeID, ownerID uint64, file Upload) 
 	if file.ContentHash != "" {
 		output = io.MultiWriter(destination, contentHasher)
 	}
-	written, copyErr := io.Copy(output, &contextReader{ctx: ctx, source: io.LimitReader(source, MaxFileSize+1)})
+	var reader io.Reader = source
+	if !file.AllowLarge {
+		reader = io.LimitReader(source, MaxFileSize+1)
+	}
+	written, copyErr := io.Copy(output, &contextReader{ctx: ctx, source: reader})
 	closeErr := destination.Close()
-	if copyErr != nil || closeErr != nil || written > MaxFileSize {
+	if copyErr != nil || closeErr != nil || written != file.Header.Size || (!file.AllowLarge && written > MaxFileSize) {
 		_ = os.Remove(targetPath)
 		if copyErr != nil {
 			return nil, fmt.Errorf("save private file: %w", copyErr)
@@ -140,7 +150,7 @@ func (s *Store) Save(ctx context.Context, scopeID, ownerID uint64, file Upload) 
 		if closeErr != nil {
 			return nil, fmt.Errorf("close private file: %w", closeErr)
 		}
-		return nil, fmt.Errorf("private file exceeds the size limit")
+		return nil, fmt.Errorf("private file size changed during upload or exceeds the size limit")
 	}
 	if file.ContentHash != "" && hex.EncodeToString(contentHasher.Sum(nil)) != file.ContentHash {
 		_ = os.Remove(targetPath)
