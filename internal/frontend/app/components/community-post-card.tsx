@@ -19,30 +19,26 @@ export function CommunityPostCard({ post }: { post: CommunityListItem }) {
   const participants = post.participants?.slice(0, 5) ?? [];
   const lastActivity = post.lastReplyAt ?? post.createdAt;
   return <article className={`community-topic-row${post.isPinned ? " is-pinned" : ""}`}>
-    <div className="community-topic-row__main">
-      <h2 className="community-topic-row__title"><Link to={communityPostHref(post.id)} state={postState}>{post.title}</Link></h2>
-      <div className="community-topic-row__labels">
-        {post.isPinned ? <span className="community-post__pin"><CommunityIcon name="pin" />置顶</span> : null}
-        <CommunityFeaturedMark featured={post.isFeatured} />
-        {post.isSolved ? <span className="community-post__resolved"><CommunityIcon name="check" />已解决</span> : null}
-        <span className="community-post__category">{communityCategoryLabel(post.category)}</span>
-      </div>
+    <h2 className="community-topic-row__title"><Link to={communityPostHref(post.id)} state={postState}>{post.title}</Link></h2>
+    <div className="community-topic-row__status">
+      {post.isPinned ? <span className="community-post__pin"><CommunityIcon name="pin" />置顶</span> : null}
+      <CommunityFeaturedMark featured={post.isFeatured} />
+      {post.isSolved ? <span className="community-post__resolved"><CommunityIcon name="check" />已解决</span> : null}
     </div>
-    <div className="community-topic-row__activity">
-      <div className="community-topic-row__participants" role="group" aria-label="最近参与成员">
-        {participants.map((participant) => <Link
-          key={participant.id}
-          className="community-topic-row__participant"
-          to={`/dashboard/members/${participant.id}`}
-          state={{ communityProfileReturnTo: returnTo }}
-          aria-label={`查看 ${participant.name} 的资料`}
-          title={participant.name}
-        ><CommunityAvatar name={participant.name} src={participant.avatarUrl} size="small" /></Link>)}
-      </div>
-      <span className="community-topic-row__stat" aria-label={`${post.commentCount} 条回复`}>{post.commentCount} 回复</span>
-      <span className="community-topic-row__stat" aria-label={`${post.viewCount ?? 0} 次浏览`}>{post.viewCount ?? 0} 浏览</span>
-      <time className="community-topic-row__time" dateTime={lastActivity} aria-label={`最近活动 ${formatCommunityDate(lastActivity)}`} title="最近活动">{formatCommunityDate(lastActivity)}</time>
+    <span className="community-topic-row__category community-post__category">{communityCategoryLabel(post.category)}</span>
+    <div className="community-topic-row__participants" role="group" aria-label="最近参与成员">
+      {participants.map((participant) => <Link
+        key={participant.id}
+        className="community-topic-row__participant"
+        to={`/dashboard/members/${participant.id}`}
+        state={{ communityProfileReturnTo: returnTo }}
+        aria-label={`查看 ${participant.name} 的资料`}
+        title={participant.name}
+      ><CommunityAvatar name={participant.name} src={participant.avatarUrl} size="small" /></Link>)}
     </div>
+    <span className="community-topic-row__stat community-topic-row__stat--replies" aria-label={`${post.commentCount} 条回复`}>{post.commentCount} 回复</span>
+    <span className="community-topic-row__stat community-topic-row__stat--views" aria-label={`${post.viewCount ?? 0} 次浏览`}>{post.viewCount ?? 0} 浏览</span>
+    <time className="community-topic-row__time" dateTime={lastActivity} aria-label={`最近活动 ${formatCommunityDate(lastActivity)}`} title="最近活动">{formatCommunityDate(lastActivity)}</time>
   </article>;
 }
 
