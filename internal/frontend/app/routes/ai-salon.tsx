@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { SalonShell, salonButton, salonPrimaryButton, useSalonIdentity } from "~/components/ai-salon-shared";
+import { BrandLoader } from "~/components/brand-loader";
 import { SalonArtwork } from "~/components/salon-artwork";
 import { SalonHeroArt } from "~/components/salon-hero-art";
 import { salonClient, salonDate, salonError, type SalonEvent } from "~/lib/ai-salon-client";
@@ -72,7 +73,7 @@ export default function AISalon() {
         <section id="salon-events" className="salon-events" aria-labelledby="salon-events-title">
           <div className="salon-section-heading"><h2 id="salon-events-title">近期活动</h2></div>
           {error ? <p className="salon-empty" role="alert">{error}</p> : !events ? (
-            <p className="salon-empty" role="status">正在读取活动…</p>
+            <BrandLoader label="正在加载活动" />
           ) : upcoming.length ? (
             <div className="salon-event-grid">{upcoming.map((event) => <EventCard key={event.id} event={event} />)}</div>
           ) : <div className="salon-empty"><span className="salon-empty-dot" aria-hidden="true" /><p>新一期活动筹备中</p></div>}

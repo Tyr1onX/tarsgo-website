@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { BrandLoader } from "~/components/brand-loader";
 import { Link, useParams } from "react-router";
 import {
   AcademicSummary,
@@ -191,7 +192,7 @@ export default function AISalonDetail() {
       ) : null}
       {!event ? (
         !error ? (
-          <p role="status">正在读取活动…</p>
+          <BrandLoader label="正在加载活动" />
         ) : null
       ) : (
         <>

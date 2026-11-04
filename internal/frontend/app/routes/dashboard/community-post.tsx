@@ -10,6 +10,7 @@ import { type CommunityPendingImage } from "~/components/community-markdown-edit
 import { CommunityMarkdown } from "~/components/community-markdown";
 import { CommunityAuthorProfile } from "~/components/community-author-profile";
 import { CommunityFeaturedMark } from "~/components/community-featured-mark";
+import { BrandLoader } from "~/components/brand-loader";
 import { CommunityIcon } from "~/components/community-icons";
 import { CommunityActionIcon, CommunityAvatar, CommunityPostMenu } from "~/components/community-post-card";
 import {
@@ -456,7 +457,7 @@ export default function CommunityPostRoute() {
     return <section className="admin-design community-page community-thread">
       <button className="community-thread__back" type="button" onClick={backToCommunity}><CommunityIcon name="arrowLeft" />返回吉甲社区</button>
       {summary ? <h1 className="community-post__title">{summary.title}</h1> : null}
-      <p className="community-state" role="status">正在读取正文与回复…</p>
+      <BrandLoader label="正在读取正文与回复" />
     </section>;
   }
   if (!detail || detail.post.id !== postID) return <section className="admin-design community-page"><p className="community-state community-state--error" role="alert">{error || "讨论不存在。"}{error ? <button type="button" className="community-inline-retry" onClick={() => void reload()}>重试</button> : null}</p><button className="community-thread__back" type="button" onClick={backToCommunity}><CommunityIcon name="arrowLeft" />返回吉甲社区</button></section>;
