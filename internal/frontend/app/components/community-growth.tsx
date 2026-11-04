@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
 
 import { CommunityIcon } from "~/components/community-icons";
 import { communityClient, type CommunityGrowthProfile } from "~/lib/community-client";
-import { requestCommunityGrowthSnapshot, requestCommunityExperienceRefresh, subscribeCommunityGrowthError, subscribeCommunityGrowthProfile } from "~/lib/community-experience-sync";
+import { getCommunityGrowthSnapshot, requestCommunityExperienceRefresh, subscribeCommunityGrowthError, subscribeCommunityGrowthProfile } from "~/lib/community-experience-sync";
 import "./community-growth.css";
 
 export function CommunityLevelBadge({ level }: { level: number }) {
@@ -49,17 +49,10 @@ export function CommunityGrowthDetails({ profile }: { profile: CommunityGrowthPr
   </div>;
 }
 
-export function CommunityGrowthBar({
-  profile,
-  onProfileChange,
-  loading,
-  onRetry,
-}: {
-  profile: CommunityGrowthProfile | null;
-  onProfileChange: (profile: CommunityGrowthProfile) => void;
-  loading: boolean;
-  onRetry: () => void;
-}) {
+export function CommunityGrowthBar({ userID }: { userID: number }) {
+  const subscribe = useCallback((notify: () => void) => subscribeCommunityGrowthProfile(userID, notify), [userID]);
+  const getSnapshot = useCallback(() => getCommunityGrowthSnapshot(userID), [userID]);
+  const profile = useSyncExternalStore(subscribe, getSnapshot, () => null);
   const [checkingIn, setCheckingIn] = useState(false);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
@@ -70,15 +63,7 @@ export function CommunityGrowthBar({
     requestCommunityExperienceRefresh();
   }
 
-  useEffect(() => {
-    const stopProfile = subscribeCommunityGrowthProfile((next) => {
-      onProfileChange(next);
-      setError("");
-    });
-    const stopError = subscribeCommunityGrowthError(setError);
-    requestCommunityGrowthSnapshot();
-    return () => { stopProfile(); stopError(); };
-  }, [onProfileChange]);
+  useEffect(() => subscribeCommunityGrowthError(userID, setError), [userID]);
 
   async function checkIn() {
     if (checkingIn || profile?.checkedInToday) return;
@@ -86,7 +71,7 @@ export function CommunityGrowthBar({
     setNotice("");
     setError("");
     try {
-      const result = await communityClient.checkIn();
+      const result = await communityClient.checkIn(userID);
       setNotice(result.earnedXp > 0 ? "" : "今天已经签到。");
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "签到失败，请稍后重试。");
@@ -97,21 +82,20 @@ export function CommunityGrowthBar({
 
   return <section className="community-growth" aria-label="社区成长">
     <div className="community-growth__bar">
-      <button type="button" className={`community-growth__checkin${profile?.checkedInToday ? " is-complete" : ""}`} onClick={() => void checkIn()} disabled={(loading && !error) || checkingIn || profile?.checkedInToday}>
+      <button type="button" className={`community-growth__checkin${profile?.checkedInToday ? " is-complete" : ""}`} onClick={() => void checkIn()} disabled={!profile || checkingIn || profile.checkedInToday}>
         <CommunityIcon name={profile?.checkedInToday ? "check" : "calendarCheck"} />
-        <span>{loading && !error ? "读取签到状态…" : checkingIn ? "签到中…" : profile?.checkedInToday ? "今日已签到" : "每日签到"}</span>
+        <span>{checkingIn ? "签到中…" : !profile && !error ? "读取签到状态…" : profile?.checkedInToday ? "今日已签到" : "每日签到"}</span>
         {profile && !profile.checkedInToday ? <strong>+{profile.upcomingCheckIns[0]?.rewardXp ?? 10} XP</strong> : null}
       </button>
       <span className="community-growth__summary" aria-live="polite">
         {profile ? <><CommunityLevelBadge level={profile.level} /><span>{profile.totalXp.toLocaleString("zh-CN")} XP</span><span className="community-growth__streak"><CommunityIcon name="flame" /> 连续 {profile.streakDays} 天</span></> : error ? "成长信息暂不可用" : "正在读取成长信息"}
       </span>
-      <button type="button" className="community-growth__details-toggle" aria-expanded={open} onClick={() => { const next = !open; setOpen(next); if (next) void loadProfile(); }} disabled={loading && !profile}>
+      <button type="button" className="community-growth__details-toggle" aria-expanded={open} onClick={() => { const next = !open; setOpen(next); if (next) loadProfile(); }} disabled={!profile}>
         成长详情 <CommunityIcon name="chevronDown" />
       </button>
     </div>
     {notice ? <p className="community-growth__notice" role="status">{notice}</p> : null}
     {error ? <p className="community-growth__error" role="alert">{error}<button type="button" onClick={() => void loadProfile()}>重试</button></p> : null}
-    {!profile && !loading && !error ? <p className="community-growth__error" role="alert">成长信息暂不可用。<button type="button" onClick={onRetry}>重试</button></p> : null}
     {open && profile ? <CommunityGrowthDetails profile={profile} /> : null}
   </section>;
 }

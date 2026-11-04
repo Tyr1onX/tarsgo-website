@@ -207,9 +207,9 @@ function postForm(fields: Record<string, string>, files: File[] = [], uploadToke
 
 export const communityClient = {
   growth: () => apiRequest<CommunityGrowthProfile>("/api/community/growth"),
-  checkIn: async () => {
+  checkIn: async (userID: number) => {
     const result = await apiRequest<CommunityCheckInResult>("/api/community/check-in", { method: "POST" });
-    reportCommunityGrowthProfile(result.profile);
+    reportCommunityGrowthProfile(userID, result.profile);
     return result;
   },
   list: (filter: CommunityFilter, signal?: AbortSignal) => apiRequest<CommunityPage>(`/api/community/posts?${queryString(filter)}`, { signal }),

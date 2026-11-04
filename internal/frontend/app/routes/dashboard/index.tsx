@@ -12,12 +12,10 @@ import {
   communityClient,
   communityPostHref,
   type CommunityListItem,
-  type CommunityGrowthProfile,
   type CommunityCategory,
   type CommunitySort,
 } from "~/lib/community-client";
 import { clearCommunityLists, getCommunityListSnapshot, preserveCommunityReactionUpdates, rememberCommunityList, refreshedCommunitySnapshot, COMMUNITY_CACHE_PAGE_SIZE } from "~/lib/community-list-cache";
-import { requestCommunityExperienceRefresh } from "~/lib/community-experience-sync";
 import "./community.css";
 
 export function meta() {
@@ -50,9 +48,6 @@ export default function DashboardIndex() {
   const [queryDraft, setQueryDraft] = useState(query);
   const [composerOpen, setComposerOpen] = useState(false);
   const [posts, setPosts] = useState<CommunityListItem[]>(() => getCommunityListSnapshot(cacheKey)?.posts ?? []);
-  const [growthState, setGrowthState] = useState<{ userID: number; profile: CommunityGrowthProfile } | null>(null);
-  const growthProfile = growthState?.userID === currentUser.id ? growthState.profile : null;
-  const setGrowthProfile = useCallback((profile: CommunityGrowthProfile) => setGrowthState({ userID: currentUser.id, profile }), [currentUser.id]);
   const [page, setPage] = useState(() => getCommunityListSnapshot(cacheKey)?.page ?? 1);
   const [hasMore, setHasMore] = useState(() => getCommunityListSnapshot(cacheKey)?.hasMore ?? false);
   const [loading, setLoading] = useState(true);
@@ -208,7 +203,7 @@ export default function DashboardIndex() {
       </div>
     </header>
 
-    <CommunityGrowthBar profile={growthProfile} key={currentUser.id} onProfileChange={setGrowthProfile} loading={!growthProfile} onRetry={requestCommunityExperienceRefresh} />
+    <CommunityGrowthBar userID={currentUser.id} key={currentUser.id} />
 
     {composerOpen ? <CommunityEditorDialog labelledBy="community-composer-title" onClose={closeComposer}><CommunityComposer key={currentUser.id} id="community-composer" accountId={currentUser.id} onCancel={closeComposer} onPublish={publish} /></CommunityEditorDialog> : null}
 

@@ -1,6 +1,6 @@
 import { ApiError, apiRequest, registerApiAuthLifecycle } from "./api-client.ts";
 import { AuthSessionCache } from "./auth-session-cache.ts";
-import { requestCommunityExperienceRefresh } from "./community-experience-sync.ts";
+import { clearAllCommunityGrowthSnapshots, clearCommunityGrowthSnapshot, requestCommunityExperienceRefresh } from "./community-experience-sync.ts";
 import { clearPersonalWorkbenchSnapshots } from "./personal-workbench-cache.ts";
 import {
   invalidateUserGroupConfirmationStateCache,
@@ -87,6 +87,11 @@ function notifyAuthStateChange(user: AuthUser | null) {
 function clearCurrentAccountPrivateData() {
   const currentUser = authSessionCache.getUser();
   if (currentUser) clearPersonalWorkbenchSnapshots(currentUser.id);
+}
+
+function clearCurrentAccountGrowthSnapshot() {
+  const userID = authSessionCache.getUser()?.id;
+  if (userID) clearCommunityGrowthSnapshot(userID);
 }
 
 type AccountSessionMessage =
@@ -202,6 +207,7 @@ function expireSessionAfterUnauthorized(version: number) {
   if (version < 0 || authSessionCache.version !== version) return;
   const wasAuthenticated = authSessionCache.getUser() !== null;
   clearCurrentAccountPrivateData();
+  clearCurrentAccountGrowthSnapshot();
   if (!authSessionCache.acceptAnonymousRequest(version)) return;
   invalidateCurrentUserRequest();
   invalidateUserGroupConfirmationStateCache();
@@ -370,6 +376,7 @@ export async function removeAccountSession(accountId: number): Promise<{
   });
   if (result.currentRemoved) {
     clearCurrentAccountPrivateData();
+    clearCurrentAccountGrowthSnapshot();
     authSessionCache.setAnonymous();
     invalidateCurrentUserRequest();
     invalidateUserGroupConfirmationStateCache();
@@ -386,6 +393,7 @@ export async function logoutAllAccounts(): Promise<void> {
     accountAction: true,
   });
   clearCurrentAccountPrivateData();
+  clearAllCommunityGrowthSnapshots();
   authSessionCache.setAnonymous();
   invalidateCurrentUserRequest();
   invalidateUserGroupConfirmationStateCache();
@@ -466,7 +474,10 @@ export async function getCurrentUser(options: { force?: boolean } = {}): Promise
       const isCurrentUnauthorizedRequest = requestGeneration === currentUserRequestGeneration
         && error instanceof ApiError
         && (error.status === 401 || error.status === 403);
-      if (isCurrentUnauthorizedRequest && authSessionCache.version === requestVersion) clearCurrentAccountPrivateData();
+      if (isCurrentUnauthorizedRequest && authSessionCache.version === requestVersion) {
+        clearCurrentAccountPrivateData();
+        clearCurrentAccountGrowthSnapshot();
+      }
       const stateChanged = isCurrentUnauthorizedRequest && authSessionCache.acceptAnonymousRequest(requestVersion);
       if (stateChanged) {
         invalidateCurrentUserRequest();
@@ -500,6 +511,7 @@ export async function getOptionalCurrentUser(
 export async function logout(): Promise<void> {
   await apiRequest("/api/logout", { method: "POST", body: {}, accountAction: true });
   clearCurrentAccountPrivateData();
+  clearCurrentAccountGrowthSnapshot();
   authSessionCache.setAnonymous();
   invalidateCurrentUserRequest();
   invalidateUserGroupConfirmationStateCache();

@@ -1,15 +1,91 @@
 import type { CommunityExperienceEntry, CommunityGrowthProfile } from "~/lib/community-client";
 
-const snapshotEventName = "community:experience-snapshot";
+const growthSnapshotPrefix = "community-growth-snapshot:";
+const growthSnapshots = new Map<number, { day: string; profile: CommunityGrowthProfile }>();
+const beijingOffsetMs = 8 * 60 * 60 * 1_000;
+const dayMs = 24 * 60 * 60 * 1_000;
 
-// A late-mounted view can reuse the host's current profile without another API call.
-export function requestCommunityGrowthSnapshot() {
- if (typeof window !== "undefined") window.dispatchEvent(new Event(snapshotEventName));
+export function communityBeijingDay(now = Date.now()) {
+  return new Date(now + beijingOffsetMs).toISOString().slice(0, 10);
 }
-export function subscribeToCommunityGrowthSnapshot(listener: () => void) {
- if (typeof window === "undefined") return () => {};
- window.addEventListener(snapshotEventName, listener);
- return () => window.removeEventListener(snapshotEventName, listener);
+
+export function millisecondsUntilCommunityDayChange(now = Date.now()) {
+  return dayMs - ((now + beijingOffsetMs) % dayMs);
+}
+
+export function communityGrowthSnapshotStorageKey(userID: number) {
+  return `${growthSnapshotPrefix}${userID}`;
+}
+
+function validGrowthProfile(value: unknown): value is CommunityGrowthProfile {
+  if (!value || typeof value !== "object") return false;
+  const profile = value as Record<string, unknown>;
+  return ["level", "totalXp", "levelStartXp", "nextLevelXp", "xpToNextLevel", "progress",
+    "streakDays", "dailyPostsUsed", "dailyRepliesUsed", "dailyContributionXp"]
+    .every((key) => typeof profile[key] === "number" && Number.isFinite(profile[key])) &&
+    typeof profile.checkedInToday === "boolean" &&
+    Array.isArray(profile.upcomingCheckIns) && Array.isArray(profile.recentEvents);
+}
+
+export function getCommunityGrowthSnapshot(userID: number): CommunityGrowthProfile | null {
+  if (typeof window === "undefined" || !Number.isSafeInteger(userID) || userID <= 0) return null;
+  let snapshot = growthSnapshots.get(userID);
+  if (!snapshot) {
+    try {
+      const serialized = window.localStorage.getItem(communityGrowthSnapshotStorageKey(userID));
+      if (serialized) {
+        const stored: unknown = JSON.parse(serialized);
+        if (stored && typeof stored === "object" && "day" in stored && "profile" in stored &&
+          typeof stored.day === "string" && validGrowthProfile(stored.profile)) {
+          snapshot = { day: stored.day, profile: stored.profile };
+          growthSnapshots.set(userID, snapshot);
+        }
+      }
+    } catch {
+      // Storage is optional; the in-memory snapshot remains usable.
+    }
+  }
+  if (!snapshot) return null;
+  const today = communityBeijingDay();
+  if (snapshot.day !== today) {
+    const yesterday = communityBeijingDay(Date.now() - dayMs);
+    snapshot.profile = {
+      ...snapshot.profile,
+      checkedInToday: false,
+      streakDays: snapshot.profile.lastCheckInDay === yesterday ? snapshot.profile.streakDays : 0,
+      dailyPostsUsed: 0,
+      dailyRepliesUsed: 0,
+      dailyContributionXp: 0,
+      upcomingCheckIns: [],
+    };
+    snapshot.day = today;
+  }
+  return snapshot.profile;
+}
+
+export function invalidateCommunityGrowthDay(userID: number) {
+  const previous = growthSnapshots.get(userID)?.profile;
+  const current = getCommunityGrowthSnapshot(userID);
+  if (current && current !== previous) notifyCommunityGrowthProfile(userID);
+}
+
+export function clearCommunityGrowthSnapshot(userID: number) {
+  growthSnapshots.delete(userID);
+  try { window.localStorage.removeItem(communityGrowthSnapshotStorageKey(userID)); } catch { /* No storage permission. */ }
+  notifyCommunityGrowthProfile(userID);
+}
+
+export function clearAllCommunityGrowthSnapshots() {
+  growthSnapshots.clear();
+  try {
+    const keys = Array.from({ length: window.localStorage.length }, (_, index) => window.localStorage.key(index))
+      .filter((key): key is string => !!key && key.startsWith(growthSnapshotPrefix));
+    keys.forEach((key) => window.localStorage.removeItem(key));
+  } catch { /* No storage permission. */ }
+}
+
+function notifyCommunityGrowthProfile(userID: number) {
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent<number>(profileUpdatedEventName, { detail: userID }));
 }
 
 const refreshEventName = "community:experience-refresh";
@@ -21,39 +97,50 @@ export function requestCommunityExperienceRefresh() {
   if (typeof window !== "undefined") window.dispatchEvent(new Event(refreshEventName));
 }
 
-export function reportCommunityGrowthProfile(profile: CommunityGrowthProfile) {
+export function reportCommunityGrowthProfile(userID: number, profile: CommunityGrowthProfile) {
   if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent<CommunityGrowthProfile>(serverProfileEventName, { detail: profile }));
+    window.dispatchEvent(new CustomEvent(serverProfileEventName, { detail: { userID, profile } }));
   }
 }
 
-export function publishCommunityGrowthProfile(profile: CommunityGrowthProfile) {
-  if (typeof window !== "undefined") {
-    window.dispatchEvent(new CustomEvent<CommunityGrowthProfile>(profileUpdatedEventName, { detail: profile }));
-  }
+export function publishCommunityGrowthProfile(userID: number, profile: CommunityGrowthProfile) {
+  if (typeof window === "undefined") return;
+  const day = profile.upcomingCheckIns.find((item) => item.isToday)?.day ?? communityBeijingDay();
+  growthSnapshots.set(userID, { day, profile });
+  try {
+    window.localStorage.setItem(communityGrowthSnapshotStorageKey(userID), JSON.stringify({ day, profile }));
+  } catch { /* Keep the in-memory snapshot when storage is unavailable. */ }
+  getCommunityGrowthSnapshot(userID);
+  notifyCommunityGrowthProfile(userID);
 }
 
-export function publishCommunityGrowthError(message: string) {
-  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent<string>(profileErrorEventName, { detail: message }));
+export function publishCommunityGrowthError(userID: number, message: string) {
+  if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent(profileErrorEventName, { detail: { userID, message } }));
 }
 
-export function subscribeCommunityGrowthProfile(listener: (profile: CommunityGrowthProfile) => void) {
+export function subscribeCommunityGrowthProfile(userID: number, listener: () => void) {
   if (typeof window === "undefined") return () => {};
-  const handle = (event: Event) => listener((event as CustomEvent<CommunityGrowthProfile>).detail);
+  const handle = (event: Event) => { if ((event as CustomEvent<number>).detail === userID) listener(); };
   window.addEventListener(profileUpdatedEventName, handle);
   return () => window.removeEventListener(profileUpdatedEventName, handle);
 }
 
-export function subscribeCommunityGrowthError(listener: (message: string) => void) {
+export function subscribeCommunityGrowthError(userID: number, listener: (message: string) => void) {
   if (typeof window === "undefined") return () => {};
-  const handle = (event: Event) => listener((event as CustomEvent<string>).detail);
+  const handle = (event: Event) => {
+    const detail = (event as CustomEvent<{ userID: number; message: string }>).detail;
+    if (detail.userID === userID) listener(detail.message);
+  };
   window.addEventListener(profileErrorEventName, handle);
   return () => window.removeEventListener(profileErrorEventName, handle);
 }
 
-export function subscribeToCommunityGrowthServerProfile(listener: (profile: CommunityGrowthProfile) => void) {
+export function subscribeToCommunityGrowthServerProfile(userID: number, listener: (profile: CommunityGrowthProfile) => void) {
   if (typeof window === "undefined") return () => {};
-  const handle = (event: Event) => listener((event as CustomEvent<CommunityGrowthProfile>).detail);
+  const handle = (event: Event) => {
+    const detail = (event as CustomEvent<{ userID: number; profile: CommunityGrowthProfile }>).detail;
+    if (detail.userID === userID) listener(detail.profile);
+  };
   window.addEventListener(serverProfileEventName, handle);
   return () => window.removeEventListener(serverProfileEventName, handle);
 }
