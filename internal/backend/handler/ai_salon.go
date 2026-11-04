@@ -110,6 +110,33 @@ func (h *AISalonHandler) SaveEvent(c *gin.Context) {
 	data, err := h.service.SaveEvent(c.Request.Context(), id, e)
 	salonReply(c, data, err)
 }
+func (h *AISalonHandler) UploadPoster(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, aisalon.MaxPosterUploadBytes+(1<<20))
+	parseErr := c.Request.ParseMultipartForm(1 << 20)
+	if form := c.Request.MultipartForm; form != nil {
+		defer form.RemoveAll()
+	}
+	if parseErr != nil {
+		var limitErr *http.MaxBytesError
+		if errors.As(parseErr, &limitErr) {
+			writeAPIError(c, http.StatusRequestEntityTooLarge, "海报图片不能超过 10 MB")
+		} else {
+			writeAPIError(c, http.StatusBadRequest, "请选择有效的海报图片")
+		}
+		return
+	}
+	if form := c.Request.MultipartForm; form != nil {
+		files := form.File["poster"]
+		if len(form.File) != 1 || len(files) != 1 {
+			writeAPIError(c, http.StatusBadRequest, "请选择一张海报图片")
+			return
+		}
+		posterURL, err := h.service.UploadPoster(c.Request.Context(), files[0])
+		salonReply(c, gin.H{"posterUrl": posterURL}, err)
+		return
+	}
+	writeAPIError(c, http.StatusBadRequest, "请选择一张海报图片")
+}
 func (h *AISalonHandler) Delete(c *gin.Context) {
 	id, ok := pathID(c, "id")
 	if !ok {

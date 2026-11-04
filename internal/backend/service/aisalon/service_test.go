@@ -1,11 +1,20 @@
 package aisalon
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"image"
+	"image/color"
+	"image/jpeg"
+	"image/png"
+	"mime/multipart"
+	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"testing"
@@ -54,12 +63,108 @@ func TestInputAndPublicPrivacy(t *testing.T) {
 			t.Fatal("unsafe poster accepted")
 		}
 	}
+	invalid = e
+	invalid.PosterURL = "/upload/ai-salon/posters/../../outside.png"
+	if validateEvent(&invalid) == nil {
+		t.Fatal("unsafe local poster path accepted")
+	}
+	validPoster := e
+	validPoster.PosterURL = salonPosterURLPrefix + "0123456789abcdef0123456789abcdef.webp"
+	if err := validateEvent(&validPoster); err != nil {
+		t.Fatalf("uploaded poster URL was rejected: %v", err)
+	}
 	body, _ := json.Marshal(public(e, now))
 	for _, key := range []string{"capacity", "registered", "waitlisted", "email", "userId", "studentId", "published"} {
 		if strings.Contains(string(body), `"`+key+`"`) {
 			t.Fatalf("private field %s exposed", key)
 		}
 	}
+}
+
+func TestSalonPosterUploadValidationAndPersistence(t *testing.T) {
+	poster := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	poster.Set(0, 0, color.RGBA{R: 0x30, G: 0x80, B: 0xc0, A: 0xff})
+	var pngImage bytes.Buffer
+	if err := png.Encode(&pngImage, poster); err != nil {
+		t.Fatal(err)
+	}
+	var jpegImage bytes.Buffer
+	if err := jpeg.Encode(&jpegImage, poster, nil); err != nil {
+		t.Fatal(err)
+	}
+	fixtures := []struct {
+		name      string
+		data      []byte
+		extension string
+	}{
+		{name: "poster.png", data: pngImage.Bytes(), extension: ".png"},
+		{name: "poster.jpg", data: jpegImage.Bytes(), extension: ".jpg"},
+		{name: "poster.webp", data: tinySalonWebP(), extension: ".webp"},
+	}
+	root := t.TempDir()
+	for _, fixture := range fixtures {
+		t.Run(fixture.extension, func(t *testing.T) {
+			url, err := savePosterUpload(t.Context(), root, salonPosterFileHeader(t, fixture.name, fixture.data))
+			if err != nil {
+				t.Fatal(err)
+			}
+			filename := strings.TrimPrefix(url, salonPosterURLPrefix)
+			if !salonPosterFilenamePattern.MatchString(filename) || filepath.Ext(filename) != fixture.extension {
+				t.Fatalf("unexpected stored URL: %s", url)
+			}
+			stored, err := os.ReadFile(filepath.Join(root, filename))
+			if err != nil || !bytes.Equal(stored, fixture.data) {
+				t.Fatalf("uploaded image was not persisted: %v", err)
+			}
+		})
+	}
+
+	for _, fixture := range []struct {
+		name string
+		data []byte
+	}{
+		{name: "fake.png", data: []byte("<script>alert(1)</script>")},
+		{name: "vector.svg", data: []byte("<svg xmlns=\"http://www.w3.org/2000/svg\"></svg>")},
+		{name: "broken.webp", data: []byte("RIFF0000WEBP")},
+	} {
+		if _, err := savePosterUpload(t.Context(), root, salonPosterFileHeader(t, fixture.name, fixture.data)); err == nil {
+			t.Fatalf("invalid image was accepted: %s", fixture.name)
+		}
+	}
+	if _, err := savePosterUpload(t.Context(), root, &multipart.FileHeader{Size: MaxPosterUploadBytes + 1}); err == nil {
+		t.Fatal("oversized image was accepted")
+	}
+}
+
+func salonPosterFileHeader(t *testing.T, name string, data []byte) *multipart.FileHeader {
+	t.Helper()
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	part, err := writer.CreateFormFile("poster", name)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := part.Write(data); err != nil {
+		t.Fatal(err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest("POST", "/", &body)
+	request.Header.Set("Content-Type", writer.FormDataContentType())
+	if err := request.ParseMultipartForm(1 << 20); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = request.MultipartForm.RemoveAll() })
+	return request.MultipartForm.File["poster"][0]
+}
+
+func tinySalonWebP() []byte {
+	data, err := base64.StdEncoding.DecodeString("UklGRioAAABXRUJQVlA4IB4AAABwAQCdASoCAAIABgCIJYwCdAFAAAD+7r0fmrQAAAA=")
+	if err != nil {
+		panic(err)
+	}
+	return data
 }
 
 type fixture struct {

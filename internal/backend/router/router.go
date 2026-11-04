@@ -74,6 +74,27 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 		ExposeHeaders:    []string{"X-Request-ID"},
 	}))
 	engine.Static("/upload/config/group", filepath.Join("upload", "config", "group"))
+	engine.GET("/upload/ai-salon/posters/:filename", func(c *gin.Context) {
+		filename := c.Param("filename")
+		stem := strings.TrimSuffix(filename, filepath.Ext(filename))
+		if filepath.Base(filename) != filename || filename != strings.ToLower(filename) || len(stem) != 32 {
+			c.Status(404)
+			return
+		}
+		if _, err := hex.DecodeString(stem); err != nil {
+			c.Status(404)
+			return
+		}
+		contentType := map[string]string{".jpg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}[filepath.Ext(filename)]
+		if contentType == "" {
+			c.Status(404)
+			return
+		}
+		c.Header("Content-Type", contentType)
+		c.Header("X-Content-Type-Options", "nosniff")
+		c.Header("Cache-Control", "public, max-age=31536000, immutable")
+		c.File(filepath.Join("upload", "ai-salon", "posters", filename))
+	})
 	engine.GET("/upload/avatars/:filename", func(c *gin.Context) {
 		filename := c.Param("filename")
 		if len(filename) != 36 || filepath.Base(filename) != filename ||
@@ -261,6 +282,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	superAdminAPI.GET("/recruitment/retained-records", handler.NewRecruitmentRecordsHandler(recruitmentrecords.NewService(db)).List)
 	salonAdminAPI := superAdminAPI.Group("/ai-salon")
 	salonAdminAPI.GET("/events", salonHandler.AdminList)
+	salonAdminAPI.POST("/posters", requireSameOriginRequest(cfg), salonHandler.UploadPoster)
 	salonAdminAPI.POST("/events", requireSameOriginRequest(cfg), salonHandler.SaveEvent)
 	salonAdminAPI.PUT("/events/:id", requireSameOriginRequest(cfg), salonHandler.SaveEvent)
 	salonAdminAPI.DELETE("/events/:id", requireSameOriginRequest(cfg), salonHandler.Delete)

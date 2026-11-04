@@ -1,4 +1,5 @@
 import { useEffect, useState, type FormEvent } from "react";
+import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
 import {
   AcademicSummary,
   SalonBackLink,
@@ -69,6 +70,9 @@ export default function AISalonManage() {
   } | null>(null);
   const [filter, setFilter] = useState("all");
   const [busy, setBusy] = useState(false);
+  const [posterFiles, setPosterFiles] = useState<File[]>([]);
+  const [posterUploadStatus, setPosterUploadStatus] = useState<FileUploadStatus>("pending");
+  const [posterUploadError, setPosterUploadError] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   useEffect(() => {
@@ -94,7 +98,7 @@ export default function AISalonManage() {
   const own = user && events?.userId === user.id ? events : null;
   const visibleRoster = user && roster?.userId === user.id ? roster : null;
   async function run(operation: () => Promise<unknown>, message: string) {
-    if (!user || busy) return;
+    if (!user || busy || posterUploadStatus === "uploading") return;
     setBusy(true);
     setError("");
     setNotice("");
@@ -116,6 +120,10 @@ export default function AISalonManage() {
     }
   }
   function edit(e: ManagedSalonEvent) {
+    if (posterUploadStatus === "uploading") return;
+    setPosterFiles([]);
+    setPosterUploadStatus("pending");
+    setPosterUploadError("");
     setDraft({
       ...e,
       startAt: toBeijing(e.startAt),
@@ -126,7 +134,7 @@ export default function AISalonManage() {
   }
   async function save(e: FormEvent) {
     e.preventDefault();
-    if (!draft) return;
+    if (!draft || posterUploadStatus === "uploading") return;
     const invalid = scheduleError(draft);
     if (invalid) {
       setError(invalid);
@@ -142,8 +150,22 @@ export default function AISalonManage() {
       setDraft(null);
     }, "活动已保存");
   }
+  async function uploadPoster(file: File | undefined) {
+    if (!file || !draft || busy) return;
+    setPosterUploadStatus("uploading");
+    setPosterUploadError("");
+    try {
+      const result = await salonClient.uploadPoster(file);
+      setDraft((current) => current ? { ...current, posterUrl: result.posterUrl } : current);
+      setPosterFiles([]);
+      setPosterUploadStatus("pending");
+    } catch (cause) {
+      setPosterUploadStatus("failed");
+      setPosterUploadError(salonError(cause));
+    }
+  }
   async function viewRoster(e: ManagedSalonEvent) {
-    if (!user || busy) return;
+    if (!user || busy || posterUploadStatus === "uploading") return;
     setBusy(true);
     setError("");
     try {
@@ -161,7 +183,7 @@ export default function AISalonManage() {
     }
   }
   async function exportRoster() {
-    if (!visibleRoster || busy) return;
+    if (!visibleRoster || busy || posterUploadStatus === "uploading") return;
     setBusy(true);
     setError("");
     try {
@@ -207,8 +229,13 @@ export default function AISalonManage() {
         <>
           <button
             className={`${salonPrimaryButton} mb-6`}
-            disabled={busy}
-            onClick={() => setDraft({ ...empty, ...defaultSalonSchedule() })}
+            disabled={busy || posterUploadStatus === "uploading"}
+            onClick={() => {
+              setPosterFiles([]);
+              setPosterUploadStatus("pending");
+              setPosterUploadError("");
+              setDraft({ ...empty, ...defaultSalonSchedule() });
+            }}
           >
             创建活动
           </button>
@@ -217,7 +244,7 @@ export default function AISalonManage() {
               <h2 className="text-xl font-semibold">
                 {draft.id ? "编辑活动" : "新建活动"}
               </h2>
-              <fieldset disabled={busy} className="space-y-5">
+              <fieldset disabled={busy || posterUploadStatus === "uploading"} className="space-y-5">
                 <label className="block space-y-2">
                   <span>标题</span>
                   <input
@@ -243,19 +270,52 @@ export default function AISalonManage() {
                     }
                   />
                 </label>
-                <label className="block space-y-2">
-                  <span>海报地址（选填）</span>
-                  <input
-                    type="url"
-                    maxLength={1000}
-                    placeholder="https://"
-                    className={salonField}
-                    value={draft.posterUrl}
-                    onChange={(e) =>
-                      setDraft({ ...draft, posterUrl: e.target.value })
-                    }
+                <div className="space-y-3">
+                  <span className="block">海报（选填）</span>
+                  {draft.posterUrl && posterFiles.length === 0 ? (
+                    <div className="flex flex-wrap items-start gap-3">
+                      <img
+                        className="max-h-72 max-w-full rounded-xl border border-white/10 object-contain"
+                        src={draft.posterUrl}
+                        alt="活动海报预览"
+                      />
+                      <button
+                        type="button"
+                        className={salonButton}
+                        disabled={busy || posterUploadStatus === "uploading"}
+                        onClick={() => setDraft((current) => current ? { ...current, posterUrl: "" } : current)}
+                      >
+                        移除海报
+                      </button>
+                    </div>
+                  ) : null}
+                  <FileUploadField
+                    label="活动海报"
+                    files={posterFiles}
+                    onFilesChange={(files) => {
+                      setPosterFiles(files);
+                      setPosterUploadError("");
+                      if (files[0]) void uploadPoster(files[0]);
+                    }}
+                    accept=".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp"
+                    triggerLabel={draft.posterUrl ? "更换海报" : "选择海报"}
+                    hint="点击或拖入 JPG、PNG、WebP，最大 10 MB"
+                    disabled={busy || posterUploadStatus === "uploading"}
+                    status={posterUploadStatus}
+                    error={posterUploadError}
+                    onRetry={() => void uploadPoster(posterFiles[0])}
+                    validateSelection={(_nextFiles, incomingFiles) => {
+                      const file = incomingFiles[0];
+                      if (!file) return null;
+                      const extension = file.name.split(".").pop()?.toLowerCase();
+                      if (!extension || !["jpg", "jpeg", "png", "webp"].includes(extension)) {
+                        return "仅支持 JPG、PNG 或 WebP 图片。";
+                      }
+                      if (file.size > 10 * 1024 * 1024) return "海报图片不能超过 10 MB。";
+                      return null;
+                    }}
                   />
-                </label>
+                </div>
                 <SalonSchedulePicker
                   key={draft.id ?? "new"}
                   editing={Boolean(draft.id)}
@@ -317,14 +377,19 @@ export default function AISalonManage() {
                 </label>
               </fieldset>
               <div className="flex gap-3">
-                <button className={salonPrimaryButton} disabled={busy}>
+                <button className={salonPrimaryButton} disabled={busy || posterUploadStatus === "uploading"}>
                   {busy ? "保存中…" : "保存活动"}
                 </button>
                 <button
                   type="button"
                   className={salonButton}
-                  disabled={busy}
-                  onClick={() => setDraft(null)}
+                  disabled={busy || posterUploadStatus === "uploading"}
+                  onClick={() => {
+                    setDraft(null);
+                    setPosterFiles([]);
+                    setPosterUploadStatus("pending");
+                    setPosterUploadError("");
+                  }}
                 >
                   取消编辑
                 </button>
@@ -361,21 +426,21 @@ export default function AISalonManage() {
                     <div className="flex flex-wrap items-start gap-3">
                       <button
                         className={salonButton}
-                        disabled={busy}
+                        disabled={busy || posterUploadStatus === "uploading"}
                         onClick={() => edit(e)}
                       >
                         编辑
                       </button>
                       <button
                         className={salonButton}
-                        disabled={busy}
+                        disabled={busy || posterUploadStatus === "uploading"}
                         onClick={() => void viewRoster(e)}
                       >
                         名单与统计
                       </button>
                       <button
                         className={salonButton}
-                        disabled={busy}
+                        disabled={busy || posterUploadStatus === "uploading"}
                         onClick={() =>
                           void run(
                             () =>
@@ -393,7 +458,7 @@ export default function AISalonManage() {
                       </button>
                       <button
                         className={`${salonButton} text-red-500`}
-                        disabled={busy}
+                        disabled={busy || posterUploadStatus === "uploading"}
                         onClick={() => {
                           if (
                             window.confirm(
@@ -426,14 +491,14 @@ export default function AISalonManage() {
                 <div className="flex flex-wrap gap-3">
                   <button
                     className={salonButton}
-                    disabled={busy}
+                    disabled={busy || posterUploadStatus === "uploading"}
                     onClick={() => void exportRoster()}
                   >
                     导出名单
                   </button>
                   <button
                     className={salonButton}
-                    disabled={busy}
+                    disabled={busy || posterUploadStatus === "uploading"}
                     onClick={() => setRoster(null)}
                   >
                     收起

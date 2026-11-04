@@ -71,6 +71,14 @@ export const salonClient = {
   checkIn: (id: number) =>
     apiRequest<void>(`${root}/events/${id}/check-in`, { method: "POST" }),
   adminList: () => apiRequest<ManagedSalonEvent[]>(admin),
+  uploadPoster: (file: File) => {
+    const body = new FormData();
+    body.append("poster", file);
+    return apiRequest<{ posterUrl: string }>("/api/admin/ai-salon/posters", {
+      method: "POST",
+      body,
+    });
+  },
   saveEvent: (event: Partial<ManagedSalonEvent>) =>
     apiRequest<ManagedSalonEvent>(event.id ? `${admin}/${event.id}` : admin, {
       method: event.id ? "PUT" : "POST",

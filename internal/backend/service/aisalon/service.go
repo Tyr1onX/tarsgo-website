@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/url"
+	"regexp"
 	"strings"
 	"time"
 	"unicode"
@@ -18,6 +19,10 @@ import (
 const Registered = "registered"
 const Waitlisted = "waitlisted"
 const Cancelled = "cancelled"
+
+const salonPosterURLPrefix = "/upload/ai-salon/posters/"
+
+var salonPosterFilenamePattern = regexp.MustCompile(`^[0-9a-f]{32}\.(jpg|png|webp)$`)
 
 type Error struct {
 	Status  int
@@ -291,13 +296,21 @@ func validateEvent(e *model.AISalonEvent) error {
 		return fail(400, "结束时间须晚于开始时间，报名截止时间不能晚于开始时间")
 	}
 	if e.PosterURL != "" {
-		u, err := url.Parse(e.PosterURL)
-		if err != nil || u.Scheme != "https" || u.Host == "" || u.User != nil || len(e.PosterURL) > 1000 {
-			return fail(400, "海报须为有效的 HTTPS 图片地址")
+		if !validPosterURL(e.PosterURL) {
+			return fail(400, "海报地址无效")
 		}
 	}
 	return nil
 }
+
+func validPosterURL(value string) bool {
+	if strings.HasPrefix(value, salonPosterURLPrefix) {
+		return salonPosterFilenamePattern.MatchString(strings.TrimPrefix(value, salonPosterURLPrefix))
+	}
+	u, err := url.Parse(value)
+	return err == nil && u.Scheme == "https" && u.Host != "" && u.User == nil && len(value) <= 1000
+}
+
 func (s *Service) SaveEvent(ctx context.Context, id uint64, e model.AISalonEvent) (*model.AISalonEvent, error) {
 	if err := validateEvent(&e); err != nil {
 		return nil, err

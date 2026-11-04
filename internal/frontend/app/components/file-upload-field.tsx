@@ -54,6 +54,7 @@ export function FileUploadField({
   const visibleError = selectionError || error || "";
   const retryUpload = onRetry ?? (() => inputRef.current?.form?.requestSubmit());
   const canRetry = Boolean(onRetry || inputRef.current?.form);
+  const chooserLabel = files.length && multiple ? "继续添加文件" : triggerLabel ?? (files.length ? "重新选择文件" : "选择文件");
 
   function addFiles(incomingFiles: File[]) {
     if (incomingFiles.length === 0 || disabled) return;
@@ -116,7 +117,7 @@ export function FileUploadField({
           <span className="file-upload-field__upload-icon" aria-hidden="true"><UploadIcon /></span>
         ) : null}
         <div className="file-upload-field__chooser-copy">
-          {variant === "dropzone" ? <strong>{files.length ? "继续添加文件" : triggerLabel ?? "选择文件"}</strong> : null}
+          {variant === "dropzone" ? <strong>{chooserLabel}</strong> : null}
           {hint ? <span id={helperId}>{hint}</span> : variant === "dropzone" ? <span>点击选择{multiple ? "或拖入文件" : "文件"}</span> : null}
         </div>
         <button
