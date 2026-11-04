@@ -41,7 +41,7 @@ func serveFrontendAsset(c *gin.Context, frontendFS fs.FS) {
 		return
 	}
 
-	if shouldServeIndex(c.Request, assetPath) && serveFrontendFile(c, frontendFS, "index.html") {
+	if shouldServeIndex(c.Request, assetPath) && serveFrontendFile(c, frontendFS, "__spa-fallback.html") {
 		return
 	}
 

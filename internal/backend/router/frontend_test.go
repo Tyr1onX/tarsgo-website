@@ -12,29 +12,36 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func TestFrontendFallbackServesIndexForClientRoutes(t *testing.T) {
+func TestFrontendFallbackServesPrerenderedHomeAndSPAFallback(t *testing.T) {
 	t.Parallel()
 
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	registerFrontendFallback(engine, fstest.MapFS{
-		"index.html": &fstest.MapFile{Data: []byte("<html>spa</html>")},
+		"index.html":          &fstest.MapFile{Data: []byte("<html>prerendered home</html>")},
+		"__spa-fallback.html": &fstest.MapFile{Data: []byte("<html>spa shell</html>")},
 	}, true)
 
-	request := httptest.NewRequest(http.MethodGet, "/dashboard/admin", nil)
-	request.Header.Set("Accept", "text/html")
-	recorder := httptest.NewRecorder()
-
-	engine.ServeHTTP(recorder, request)
-
-	if recorder.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d", recorder.Code)
-	}
-	if body := recorder.Body.String(); !strings.Contains(body, "spa") {
-		t.Fatalf("expected index body, got %q", body)
-	}
-	if cacheControl := recorder.Header().Get("Cache-Control"); cacheControl != "no-cache" {
-		t.Fatalf("expected no-cache header, got %q", cacheControl)
+	for _, tc := range []struct {
+		path string
+		want string
+	}{
+		{path: "/", want: "prerendered home"},
+		{path: "/robots", want: "spa shell"},
+		{path: "/dashboard/admin", want: "spa shell"},
+	} {
+		t.Run(tc.path, func(t *testing.T) {
+			request := httptest.NewRequest(http.MethodGet, tc.path, nil)
+			request.Header.Set("Accept", "text/html")
+			recorder := httptest.NewRecorder()
+			engine.ServeHTTP(recorder, request)
+			if recorder.Code != http.StatusOK || !strings.Contains(recorder.Body.String(), tc.want) {
+				t.Fatalf("GET %s: status %d body %q, want %q", tc.path, recorder.Code, recorder.Body.String(), tc.want)
+			}
+			if got := recorder.Header().Get("Cache-Control"); got != "no-cache" {
+				t.Fatalf("GET %s: cache control %q, want no-cache", tc.path, got)
+			}
+		})
 	}
 }
 
