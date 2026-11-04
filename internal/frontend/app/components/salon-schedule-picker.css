@@ -1,0 +1,292 @@
+.salon-schedule {
+  display: grid;
+  grid-template-columns: minmax(0, 22rem) minmax(0, 1fr);
+  gap: 2rem;
+  min-width: 0;
+  padding-block: 0.5rem;
+}
+.salon-schedule button:focus-visible {
+  outline: 2px solid var(--theme-accent-contrast);
+  outline-offset: 3px;
+}
+.salon-schedule button:disabled {
+  cursor: not-allowed;
+}
+.salon-date-targets {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.75rem;
+}
+.salon-date-target {
+  min-height: 5.5rem;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 2px solid var(--theme-border);
+  border-radius: 0.5rem 0.5rem 0 0;
+}
+.salon-date-target[aria-pressed="true"] {
+  background: var(--theme-surface-hover);
+}
+.salon-date-target--event {
+  border-color: var(--theme-accent-contrast);
+}
+.salon-date-target--deadline {
+  border-color: var(--theme-accent-tertiary);
+}
+.salon-date-target span,
+.salon-date-target small {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--theme-muted);
+}
+.salon-date-target strong {
+  display: block;
+  margin-top: 0.25rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.salon-date-target small {
+  margin-top: 0.125rem;
+}
+.salon-month-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0.5rem;
+  font-size: 0.875rem;
+}
+.salon-month-nav button {
+  width: 44px;
+  height: 44px;
+  font-size: 1.5rem;
+  border-radius: 0.5rem;
+}
+.salon-month-nav button:disabled {
+  opacity: 0.25;
+}
+.salon-calendar {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 0.125rem;
+}
+.salon-weekday {
+  padding-block: 0.5rem;
+  text-align: center;
+  font-size: 0.75rem;
+  color: var(--theme-muted);
+}
+.salon-day {
+  position: relative;
+  height: 42px;
+  min-width: 0;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+.salon-day:not(:disabled):hover {
+  background: var(--theme-surface-hover);
+}
+.salon-day:disabled {
+  color: var(--theme-muted);
+  opacity: 0.35;
+}
+.salon-day[aria-current="date"] {
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+.salon-day.salon-day--event {
+  background: var(--theme-accent-button);
+  color: var(--theme-accent-on);
+  opacity: 1;
+}
+.salon-day.salon-day--deadline::after {
+  content: "";
+  position: absolute;
+  inset: 3px;
+  border: 2px solid var(--theme-accent-tertiary);
+  border-radius: 0.4rem;
+}
+.salon-day--event.salon-day--deadline::after {
+  border-color: var(--theme-accent-on);
+  border-bottom: 4px solid var(--theme-accent-tertiary);
+}
+.salon-day--deadline:disabled {
+  opacity: 0.8;
+}
+.salon-time-picker {
+  min-width: 0;
+  align-self: center;
+}
+.salon-time-heading,
+.salon-time-summary {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+.salon-time-heading h3 {
+  font-weight: 600;
+  font-size: 0.9375rem;
+}
+.salon-time-heading small {
+  margin-left: 0.35rem;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--theme-muted);
+}
+.salon-time-heading output {
+  color: var(--theme-accent-contrast);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+}
+.salon-time-summary {
+  margin-top: 1.25rem;
+  font-size: 0.75rem;
+  color: var(--theme-muted);
+}
+.salon-time-summary strong {
+  margin-left: 0.4rem;
+  font-size: 1.125rem;
+  font-weight: 500;
+  color: var(--theme-text);
+  font-variant-numeric: tabular-nums;
+}
+.salon-timeline-wrap {
+  padding: 0 24px;
+  margin-top: 1.25rem;
+}
+.salon-timeline {
+  position: relative;
+  height: 158px;
+  isolation: isolate;
+}
+.salon-timeline::before {
+  content: "";
+  position: absolute;
+  inset: 66px 0 auto;
+  height: 8px;
+  background: var(--theme-border);
+  border-radius: 4px;
+}
+.salon-timeline-ticks i {
+  position: absolute;
+  top: 85px;
+  height: 4px;
+  width: 1px;
+  background: var(--theme-border);
+}
+.salon-timeline-ticks .salon-tick-hour {
+  height: 8px;
+}
+.salon-time-range {
+  position: absolute;
+  top: 48px;
+  height: 44px;
+  min-width: 4px;
+  cursor: grab;
+  touch-action: none;
+  z-index: 1;
+}
+.salon-time-range::before {
+  content: "";
+  position: absolute;
+  inset: 18px 0;
+  background: var(--theme-accent-button);
+}
+.salon-time-range::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 0;
+  width: max(100%, 44px);
+  height: 100%;
+  transform: translateX(-50%);
+}
+.salon-time-range:active {
+  cursor: grabbing;
+}
+.salon-time-handle {
+  position: absolute;
+  width: 44px;
+  height: 44px;
+  transform: translateX(-50%);
+  touch-action: none;
+  cursor: ew-resize;
+  z-index: 2;
+  border-radius: 0.4rem;
+}
+.salon-time-handle--start {
+  top: 10px;
+}
+.salon-time-handle--end {
+  top: 88px;
+}
+.salon-handle-line {
+  position: absolute;
+  left: 20px;
+  width: 4px;
+  height: 38px;
+  background: var(--theme-accent-contrast);
+  border-radius: 2px;
+}
+.salon-time-handle--start .salon-handle-line {
+  bottom: -20px;
+  pointer-events: none;
+}
+.salon-time-handle--end .salon-handle-line {
+  top: -20px;
+  pointer-events: none;
+}
+.salon-handle-time {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  color: var(--theme-accent-contrast);
+}
+.salon-time-handle--start .salon-handle-time {
+  bottom: calc(100% + 2px);
+}
+.salon-time-handle--end .salon-handle-time {
+  top: calc(100% + 2px);
+}
+.salon-hour-labels {
+  display: flex;
+  justify-content: space-between;
+  margin: 0.25rem -0.5em 0;
+  color: var(--theme-muted);
+  font-size: 0.6875rem;
+  font-variant-numeric: tabular-nums;
+}
+.salon-schedule-notice {
+  margin-top: 1rem;
+  font-size: 0.75rem;
+  color: var(--theme-muted);
+}
+.salon-legacy-time {
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  overflow-wrap: anywhere;
+}
+.salon-legacy-time button {
+  min-height: 44px;
+  margin-top: 0.75rem;
+  color: var(--theme-accent-contrast);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+@media (max-width: 800px) {
+  .salon-schedule {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 1.5rem;
+  }
+  .salon-date-picker {
+    max-width: 25rem;
+    width: 100%;
+    justify-self: center;
+  }
+}
