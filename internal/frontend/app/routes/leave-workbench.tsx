@@ -203,7 +203,7 @@ export default function LeaveWorkbench() {
 
     {error ? <p role="alert" className="admin-notice admin-notice--error">{error}</p> : null}
     {notice ? <p role="status" className="admin-notice admin-notice--success">{notice}</p> : null}
-    {loading ? <BrandLoader label="正在加载请假数据" /> : null}
+    {loading && !profile && dailyEntries.length === 0 ? <BrandLoader label="正在加载请假数据" /> : null}
 
     {!loading && !isAdmin && accessState && accessState.status !== "approved" ? <section className="admin-panel space-y-4 p-4 sm:p-5" aria-labelledby="leave-access-title">
       <div className="admin-section-heading"><h2 id="leave-access-title">请假功能</h2></div>

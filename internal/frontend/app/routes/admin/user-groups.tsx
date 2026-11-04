@@ -196,7 +196,7 @@ export function UserGroups() {
       </section>
 
       <section className="admin-panel overflow-hidden" aria-label="招新组别列表">
-        {loading ? <BrandLoader label="正在加载组别" /> : filteredGroups.length === 0 ? (
+        {loading && filteredGroups.length === 0 ? <BrandLoader label="正在加载组别" /> : filteredGroups.length === 0 ? (
           <div className="admin-table-empty">{keyword.trim() ? "没有匹配的组别。" : "暂无招新组别。"}</div>
         ) : (
           <div className="divide-y divide-[var(--admin-border-subtle)]">

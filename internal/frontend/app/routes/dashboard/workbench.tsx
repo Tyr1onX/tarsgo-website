@@ -59,7 +59,6 @@ export default function PersonalWorkbench() {
   const requestSequence = useRef(0);
   const hasSnapshot = snapshot.weekly !== null || snapshot.assignments !== null || snapshot.leaveAccess !== null || snapshot.leaveLatest !== null;
   const loading = view.key !== snapshotKey ? !getPersonalWorkbenchSnapshot(snapshotKey) : view.refreshing && !hasSnapshot;
-  const refreshing = view.key !== snapshotKey ? Boolean(getPersonalWorkbenchSnapshot(snapshotKey)) : view.refreshing && hasSnapshot;
 
   const load = useCallback(async () => {
     const requestId = ++requestSequence.current;
@@ -117,10 +116,10 @@ export default function PersonalWorkbench() {
     <main className="personal-workbench admin-design" aria-labelledby="personal-workbench-title">
       <header className="personal-workbench__header">
         <h1 id="personal-workbench-title">我的工作台</h1>
-                {!loading && hasErrors ? <button type="button" className="personal-workbench__retry" onClick={() => void load()}>重试</button> : null}
+        {!loading && hasErrors ? <button type="button" className="personal-workbench__retry" onClick={() => void load()}>重试</button> : null}
       </header>
 
-      {loading ? <BrandLoader label="正在读取个人事务状态" /> : null}
+      {loading && !hasSnapshot ? <BrandLoader label="正在读取个人事务状态" /> : null}
       {hasErrors ? <div className="personal-workbench__errors" role="status">
         {snapshot.errors.weekly ? <span>{snapshot.errors.weekly}</span> : null}
         {snapshot.errors.assignments ? <span>{snapshot.errors.assignments}</span> : null}

@@ -2,7 +2,7 @@ import "./brand-loader.css";
 
 type BrandLoaderProps = {
   label?: string;
-  size?: "sm" | "md";
+  size?: "sm" | "md" | "inline";
 };
 
 const robotImage = "/assets/images/Logo/tarsgo-robot-loading.svg";
