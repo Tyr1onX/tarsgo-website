@@ -184,9 +184,20 @@ test("the about route renders the brand and group system while the robot route d
   assert.match(robotsRoute, /<PublicHomePage page="robots">[\s\S]*?<RobotPhotoGallery \/>[\s\S]*?<\/PublicHomePage>/);
 });
 
-test("every sponsor remains in the homepage logo grid without changing source artwork", () => {
+test("DJI occupies the first independent row before two featured sponsors and the remaining logos", async () => {
   const sponsorSource = home.match(/const sponsorLogos = \[([\s\S]*?)\n\];/)?.[1] ?? "";
   assert.equal((sponsorSource.match(/name: /g) ?? []).length, 11);
+  assert.ok(sponsorSource.indexOf("YELITE") < sponsorSource.indexOf("长春纳丝精密机械有限公司"));
+  assert.ok(sponsorSource.indexOf("长春纳丝精密机械有限公司") < sponsorSource.indexOf("AMASS"));
+
+  const primary = home.indexOf('className="home-sponsor-primary"');
+  const featured = home.indexOf('className="home-sponsor-featured-grid"');
+  const other = home.indexOf('className="home-sponsor-grid"');
+  assert.ok(primary >= 0 && primary < featured && featured < other);
+  const djiLogo = await readFile(new URL("../../../../public/assets/images/Sponsors/dji.svg", import.meta.url), "utf8");
+  assert.match(djiLogo, /<svg\b[^>]*viewBox="/);
+  assert.match(djiLogo, /fill="#0971ce"/);
+  assert.doesNotMatch(djiLogo, /<(?:script|foreignObject)\b|\b(?:href|xlink:href)=|\bon\w+\s*=/i);
   assert.match(sponsorSource, /长春纳丝精密机械有限公司/);
   // These display labels are transcribed from the artwork, not inferred from legacy asset filenames.
   const logoNames = [
@@ -208,7 +219,11 @@ test("every sponsor remains in the homepage logo grid without changing source ar
   for (const outdatedName of ["驰翔股份", "金地卓立", "吉利汽车", "吉运模压器", "坤乾科技", "联讯科技", "强基装备", "夜河神"]) {
     assert.ok(!sponsorSource.includes(outdatedName), `outdated sponsor text ${outdatedName}`);
   }
-  assert.match(home, /sponsorLogos\.map\(/);
+  assert.match(home, /className="home-sponsor-primary"[\s\S]*?src="\/assets\/images\/Sponsors\/dji\.svg"/);
+  assert.match(home, /sponsorLogos\.slice\(0, 2\)\.map\(/);
+  assert.match(home, /sponsorLogos\.slice\(2\)\.map\(/);
+  assert.match(styles, /\.home-sponsor-primary\s*\{[^}]*border-bottom:/);
+  assert.match(styles, /\.home-sponsor-featured-grid\s*\{[^}]*grid-template-columns:\s*repeat\(2,/);
   assert.match(home, /className="home-sponsor-logo"/);
   assert.match(styles, /\.home-sponsor-logo\s*\{[^}]*min-height:\s*3\.75rem;/);
   assert.doesNotMatch(styles, /\.home-sponsor-logo\s*\{[^}]*background:\s*#fff;/);

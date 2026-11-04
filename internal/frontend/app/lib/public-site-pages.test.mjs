@@ -59,7 +59,7 @@ test("all five new public topic routes are directly registered and share the exi
 });
 
 test("homepage groups sponsors and two partner links in one compact section", () => {
-  const sponsorList = home.indexOf('className="home-sponsor-grid"');
+  const sponsorList = home.indexOf('className="home-sponsor-matrix"');
   const partnerLinks = home.indexOf('className="home-partner-links"');
   assert.ok(home.includes("合作与支持"));
   assert.ok(sponsorList >= 0 && sponsorList < partnerLinks, "partner cards follow sponsor logos");
@@ -303,12 +303,12 @@ test("sand reveal stays on a direct preview route and uses the real homepage gal
 });
 
 test("RightAPI remains a disclosed alumni project in the compact partner links", async () => {
-  const sponsorListEnd = home.indexOf("</ul>", home.indexOf('aria-label="现有赞助商"'));
+  const sponsorListEnd = home.indexOf("</ul>", home.indexOf('aria-label="其他合作品牌"'));
   const recommendationStart = home.indexOf("home-alumni-recommendation", sponsorListEnd);
   assert.ok(sponsorListEnd >= 0, "missing the existing sponsor list");
   assert.ok(recommendationStart > sponsorListEnd, "the alumni recommendation must follow the sponsor wall");
   assert.match(home, /const sponsorLogos = \[/);
-  assert.match(home, /aria-label="现有赞助商"[\s\S]*?sponsorLogos\.map/);
+  assert.match(home, /aria-label="现有赞助商"[\s\S]*?sponsorLogos\.slice\(2\)\.map/);
   assert.doesNotMatch(home.match(/const sponsorLogos = \[([\s\S]*?)\n\];/)?.[1] ?? "", /RightAPI/i);
   assert.match(home, /<div className="home-partner-links"/);
   assert.match(home, /合作与支持/);
@@ -474,7 +474,7 @@ test("Nasi Precision partner logo is publicly listed with a local, safe SVG asse
   const logo = await readFile(new URL("../../../../public/assets/images/Sponsors/nasi-precision.svg", import.meta.url), "utf8");
 
   assert.equal(home.split(partnerEntry).length - 1, 1, "partner should appear exactly once");
-  assert.match(home, /sponsorLogos\.map\(\(sponsor\) =>/);
+  assert.match(home, /sponsorLogos\.slice\(0, 2\)\.map\(\(sponsor\) =>/);
   assert.match(logo, /<svg\b[^>]*viewBox="/);
   assert.match(logo, /fill="#A2002A"/);
   assert.doesNotMatch(logo, /<(?:script|foreignObject)\b|\b(?:href|xlink:href)=|\bon\w+\s*=/i);

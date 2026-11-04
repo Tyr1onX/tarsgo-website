@@ -2030,6 +2030,39 @@ html[data-theme-transition] body *::after {
   outline-offset: -4px;
 }
 
+.home-sponsor-matrix {
+  display: grid;
+  gap: 0.75rem;
+}
+
+.home-sponsor-primary {
+  display: flex;
+  min-height: 7rem;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem 0 1.5rem;
+  border-bottom: 1px solid var(--theme-border-subtle);
+}
+
+.home-sponsor-primary img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: min(100%, 11rem);
+  max-height: 5rem;
+  object-fit: contain;
+}
+
+.home-sponsor-featured-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+  padding: 0 0 0.75rem;
+  border-bottom: 1px solid var(--theme-border-subtle);
+  list-style: none;
+}
+
 .home-sponsor-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
