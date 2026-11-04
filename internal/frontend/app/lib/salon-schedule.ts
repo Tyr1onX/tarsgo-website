@@ -89,16 +89,19 @@ export function moveTimeline(
   amount: number,
 ): [number, number] {
   const snap = (v: number) => Math.round(v / 30) * 30;
-  if (part === "start")
-    return [
-      Math.max(0, Math.min(Math.floor((end - 30) / 30) * 30, snap(amount))),
-      end,
-    ];
-  if (part === "end")
-    return [
-      start,
-      Math.min(1440, Math.max(Math.ceil((start + 30) / 30) * 30, snap(amount))),
-    ];
+  if (part !== "range") {
+    const fixed = part === "start" ? end : start;
+    const target = Math.max(0, Math.min(1440, snap(amount)));
+    // The moving endpoint may pass the fixed endpoint; their time roles swap.
+    // At equality, keyboard movement crosses in the direction of travel.
+    if ((target > fixed || (target === fixed && part === "start")) && fixed <= 1410)
+      return [fixed, Math.max(fixed + 30, target)];
+    if ((target < fixed || (target === fixed && part === "end")) && fixed >= 30)
+      return [Math.min(fixed - 30, target), fixed];
+    return part === "start"
+      ? [Math.max(0, Math.min(fixed - 30, target)), fixed]
+      : [fixed, Math.min(1440, Math.max(fixed + 30, target))];
+  }
   const delta = Math.max(-start, Math.min(1440 - end, snap(amount)));
   return [start + delta, end + delta];
 }

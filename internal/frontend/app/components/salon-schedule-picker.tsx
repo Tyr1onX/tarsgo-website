@@ -26,6 +26,8 @@ const exactTime = (value: string) =>
   value.slice(11, 16) +
   (Number(value.slice(17)) ? value.slice(16).replace(/\.000$/, "") : "");
 
+type HandleId = "first" | "second";
+
 export function SalonSchedulePicker({
   value,
   onChange,
@@ -41,18 +43,33 @@ export function SalonSchedulePicker({
     editing ? value.startAt.slice(0, 7) : beijingToday().slice(0, 7),
   );
   const [message, setMessage] = useState("");
+  // Physical handles retain pointer capture and focus when their time roles swap.
+  const [flipped, setFlipped] = useState(false);
+  const [preview, setPreview] = useState<{ handle: HandleId; minute: number } | null>(null);
   const calendar = useRef<HTMLDivElement>(null);
   const track = useRef<HTMLDivElement>(null);
   const drag = useRef<{
     pointerId: number;
+    handle: HandleId | "range";
     part: TimePart;
     x: number;
     width: number;
     left: number;
     start: number;
     end: number;
+    fixed: number;
+    offset: number;
+    minute: number;
+    moved: boolean;
   } | null>(null);
   const range = timelineRange(value);
+  const handles: [number, number] = range
+    ? flipped ? [range[1], range[0]] : [range[0], range[1]]
+    : [0, 0];
+  if (preview) handles[preview.handle === "first" ? 0 : 1] = preview.minute;
+  const shownRange: [number, number] | null = range
+    ? [Math.min(...handles), Math.max(...handles)]
+    : null;
   const eventDate = value.startAt.slice(0, 10);
   const deadlineDate = value.deadline.slice(0, 10);
   const activeDate = target === "event" ? eventDate : deadlineDate;
@@ -125,41 +142,78 @@ export function SalonSchedulePicker({
     );
     onChange(next);
   }
-  function startDrag(e: PointerEvent<HTMLButtonElement>, part: TimePart) {
-    if (
-      !range ||
-      drag.current ||
-      !e.isPrimary ||
-      e.button !== 0 ||
-      e.currentTarget.disabled
-    )
+  function startDrag(e: PointerEvent<HTMLButtonElement>, target: HandleId | "range") {
+    if (!range || drag.current || !e.isPrimary || e.button !== 0 || e.currentTarget.disabled)
       return;
     const rect = track.current!.getBoundingClientRect();
-    e.currentTarget.setPointerCapture(e.pointerId);
-    e.currentTarget.focus();
+    if (!rect.width) return;
+    const positions = flipped ? [range[1], range[0]] : [range[0], range[1]];
+    let handle = target;
+    if (target !== "range") {
+      // Overlapping touch targets still pick the nearest visible line.
+      const index = target === "first" ? 0 : 1;
+      const x = (minute: number) => rect.left + (minute / 1440) * rect.width;
+      if (Math.abs(e.clientX - x(positions[1 - index])) <
+          Math.abs(e.clientX - x(positions[index])))
+        handle = target === "first" ? "second" : "first";
+    }
+    const index = handle === "first" ? 0 : 1;
+    const part: TimePart = handle === "range"
+      ? "range" : positions[index] === range[0] ? "start" : "end";
+    const owner = handle === target
+      ? e.currentTarget
+      : track.current!.querySelector<HTMLButtonElement>(`[data-handle="${handle}"]`);
+    if (!owner) return;
+    owner.setPointerCapture(e.pointerId);
+    owner.focus();
     drag.current = {
       pointerId: e.pointerId,
+      handle,
       part,
       x: e.clientX,
       width: rect.width,
       left: rect.left,
       start: range[0],
       end: range[1],
+      fixed: handle === "range" ? 0 : positions[1 - index],
+      // Grabbing the edge of a touch target must not jump the line to the pointer.
+      offset: handle === "range" ? 0 : positions[index] -
+        ((e.clientX - rect.left) / rect.width) * 1440,
+      minute: handle === "range" ? 0 : positions[index],
+      moved: false,
     };
   }
   function moveDrag(e: PointerEvent<HTMLButtonElement>) {
     const d = drag.current;
     if (!d || d.pointerId !== e.pointerId) return;
-    const amount =
-      d.part === "range"
-        ? ((e.clientX - d.x) / d.width) * 1440
-        : ((e.clientX - d.left) / d.width) * 1440;
-    commit(moveTimeline(d.start, d.end, d.part, amount));
+    if (d.handle === "range") {
+      commit(moveTimeline(d.start, d.end, "range", ((e.clientX - d.x) / d.width) * 1440));
+      return;
+    }
+    const amount = ((e.clientX - d.left) / d.width) * 1440 + d.offset;
+    const minute = Math.max(0, Math.min(1440, Math.round(amount / 30) * 30));
+    d.moved ||= Math.abs(e.clientX - d.x) > 2;
+    d.minute = minute;
+    setPreview({ handle: d.handle, minute });
   }
-  function stopDrag(e: PointerEvent<HTMLButtonElement>) {
-    if (drag.current?.pointerId === e.pointerId) drag.current = null;
+  function stopDrag(e: PointerEvent<HTMLButtonElement>, completed: boolean) {
+    const d = drag.current;
+    if (!d || d.pointerId !== e.pointerId) return;
+    drag.current = null;
+    if (d.handle === "range") return;
+    if (completed && d.moved) {
+      // A crossing may temporarily collapse the preview; persist only valid ranges.
+      const target = d.minute === d.fixed
+        ? d.fixed + (d.part === "start" ? -30 : 30)
+        : d.minute;
+      const next = moveTimeline(d.start, d.end, d.part, target);
+      const movingIsEnd = next[0] === d.fixed;
+      setFlipped(d.handle === "first" ? movingIsEnd : !movingIsEnd);
+      commit(next);
+    }
+    setPreview(null);
   }
-  function timelineKey(e: KeyboardEvent<HTMLButtonElement>, part: TimePart) {
+  function timelineKey(e: KeyboardEvent<HTMLButtonElement>, handle: HandleId | "range") {
     if (!range) return;
     const direction = {
       ArrowLeft: -30,
@@ -169,33 +223,36 @@ export function SalonSchedulePicker({
     }[e.key];
     if (direction === undefined && e.key !== "Home" && e.key !== "End") return;
     e.preventDefault();
+    const part: TimePart = handle === "range"
+      ? "range"
+      : handles[handle === "first" ? 0 : 1] === range[0] ? "start" : "end";
     const current = part === "end" ? range[1] : range[0];
     const amount =
       e.key === "Home"
-        ? part === "range"
-          ? -range[0]
-          : 0
+        ? part === "range" ? -range[0] : 0
         : e.key === "End"
-          ? part === "range"
-            ? 1440 - range[1]
-            : 1440
-          : part === "range"
-            ? direction!
-            : current + direction!;
-    commit(moveTimeline(...range, part, amount));
+          ? part === "range" ? 1440 - range[1] : 1440
+          : part === "range" ? direction! : current + direction!;
+    const next = moveTimeline(...range, part, amount);
+    if (handle !== "range") {
+      const fixed = part === "start" ? range[1] : range[0];
+      const movingIsEnd = next[0] === fixed;
+      setFlipped(handle === "first" ? movingIsEnd : !movingIsEnd);
+    }
+    commit(next);
   }
-  const pointerHandlers = (part: TimePart) => ({
-    onPointerDown: (e: PointerEvent<HTMLButtonElement>) => startDrag(e, part),
+  const pointerHandlers = (handle: HandleId | "range") => ({
+    onPointerDown: (e: PointerEvent<HTMLButtonElement>) => startDrag(e, handle),
     onPointerMove: moveDrag,
-    onPointerUp: stopDrag,
-    onPointerCancel: stopDrag,
-    onLostPointerCapture: stopDrag,
-    onKeyDown: (e: KeyboardEvent<HTMLButtonElement>) => timelineKey(e, part),
+    onPointerUp: (e: PointerEvent<HTMLButtonElement>) => stopDrag(e, true),
+    onPointerCancel: (e: PointerEvent<HTMLButtonElement>) => stopDrag(e, false),
+    onLostPointerCapture: (e: PointerEvent<HTMLButtonElement>) => stopDrag(e, false),
+    onKeyDown: (e: KeyboardEvent<HTMLButtonElement>) => timelineKey(e, handle),
   });
-  const duration =
-    (Date.parse(fromBeijing(value.endAt)) -
-      Date.parse(fromBeijing(value.startAt))) /
-    60_000;
+  const duration = preview && shownRange
+    ? shownRange[1] - shownRange[0]
+    : (Date.parse(fromBeijing(value.endAt)) -
+        Date.parse(fromBeijing(value.startAt))) / 60_000;
   const durationLabel = `${Number(duration.toFixed(2))} 分钟`;
   return (
     <section className="salon-schedule" aria-label="活动日期与时间（北京时间）">
@@ -286,14 +343,14 @@ export function SalonSchedulePicker({
             {durationLabel}
           </output>
         </div>
-        {range ? (
+        {shownRange ? (
           <>
             <div className="salon-time-summary">
               <span>
-                开始 <strong>{clockTime(range[0])}</strong>
+                开始 <strong>{clockTime(shownRange[0])}</strong>
               </span>
               <span>
-                结束 <strong>{clockTime(range[1])}</strong>
+                结束 <strong>{clockTime(shownRange[1])}</strong>
               </span>
             </div>
             <div className="salon-timeline-wrap">
@@ -311,59 +368,55 @@ export function SalonSchedulePicker({
                   type="button"
                   className="salon-time-range"
                   style={{
-                    left: `${range[0] / 14.4}%`,
-                    width: `${(range[1] - range[0]) / 14.4}%`,
+                    left: `${shownRange[0] / 14.4}%`,
+                    width: `${(shownRange[1] - shownRange[0]) / 14.4}%`,
                   }}
                   role="slider"
                   aria-label="整体平移活动时段"
                   aria-valuemin={0}
-                  aria-valuemax={1440 - (range[1] - range[0])}
-                  aria-valuenow={range[0]}
-                  aria-valuetext={`${clockTime(range[0])} 至 ${clockTime(range[1])}，${durationLabel}`}
+                  aria-valuemax={1440 - (shownRange[1] - shownRange[0])}
+                  aria-valuenow={shownRange[0]}
+                  aria-valuetext={`${clockTime(shownRange[0])} 至 ${clockTime(shownRange[1])}，${durationLabel}`}
                   {...pointerHandlers("range")}
                 />
-                {(["start", "end"] as const).map((part, i) => (
-                  <button
-                    type="button"
-                    key={part}
-                    className={`salon-time-handle salon-time-handle--${part}`}
-                    style={{ left: `${range[i] / 14.4}%` }}
-                    role="slider"
-                    aria-label={
-                      part === "start" ? "活动开始时间" : "活动结束时间"
-                    }
-                    aria-orientation="horizontal"
-                    aria-valuemin={
-                      part === "start"
-                        ? 0
-                        : Math.ceil((range[0] + 30) / 30) * 30
-                    }
-                    aria-valuemax={
-                      part === "start"
-                        ? Math.floor((range[1] - 30) / 30) * 30
-                        : 1440
-                    }
-                    aria-valuenow={range[i]}
-                    aria-valuetext={clockTime(range[i])}
-                    {...pointerHandlers(part)}
-                  >
-                    <span className="salon-handle-line" aria-hidden="true" />
-                    <span
-                      className="salon-handle-time"
-                      aria-hidden="true"
-                      style={{
-                        transform:
-                          range[i] < 180
-                            ? "none"
-                            : range[i] > 1260
-                              ? "translateX(-100%)"
-                              : undefined,
-                      }}
+                {(["first", "second"] as const).map((handle, i) => {
+                  const minute = handles[i];
+                  const isStart = minute < handles[1 - i] ||
+                    (minute === handles[1 - i] && (flipped ? i === 1 : i === 0));
+                  return (
+                    <button
+                      type="button"
+                      key={handle}
+                      data-handle={handle}
+                      className="salon-time-handle"
+                      data-dragging={preview?.handle === handle || undefined}
+                      style={{ left: `${minute / 14.4}%` }}
+                      role="slider"
+                      aria-label={isStart ? "活动开始时间" : "活动结束时间"}
+                      aria-orientation="horizontal"
+                      aria-valuemin={0}
+                      aria-valuemax={1440}
+                      aria-valuenow={minute}
+                      aria-valuetext={clockTime(minute)}
+                      {...pointerHandlers(handle)}
                     >
-                      {clockTime(range[i])}
-                    </span>
-                  </button>
-                ))}
+                      <span className="salon-handle-line" aria-hidden="true" />
+                      <span
+                        className="salon-handle-time"
+                        aria-hidden="true"
+                        style={{
+                          transform: minute < 180
+                            ? "translateX(0)"
+                            : minute > 1260
+                              ? "translateX(-100%)"
+                              : "translateX(-50%)",
+                        }}
+                      >
+                        {clockTime(minute)}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
               <div className="salon-hour-labels" aria-hidden="true">
                 {[0, 6, 12, 18, 24].map((h) => (
