@@ -54,7 +54,7 @@ download_production_release_asset() {
     return 1
   fi
 
-  if ! curl --fail --silent --show-error --location --connect-timeout 15 --max-time 300 --retry 3 --retry-delay 2 \
+  if ! curl --fail --silent --show-error --location --connect-timeout 15 --max-time 900 --retry 3 --retry-delay 2 \
     "$expected_url" --output "$archive_path"; then
     echo "Production deploy aborted: unable to anonymously download the public CI release asset for commit $expected_commit." >&2
     return 1
