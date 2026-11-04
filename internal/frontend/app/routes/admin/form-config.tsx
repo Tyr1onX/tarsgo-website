@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import { RecruitmentRecords } from "./recruitment-records";
 import fileText from "@iconify-icons/lucide/file-text";
 import info from "@iconify-icons/lucide/info";
@@ -1032,13 +1033,7 @@ export default function FormConfigPage() {
               {loadingList ? (
                 <tr>
                   <td colSpan={6} className="px-5 py-14 text-center">
-                    <div className="flex flex-col items-center gap-3 text-sm text-fg-dim">
-                      <span
-                        aria-hidden="true"
-                        className="inline-flex h-8 w-8 animate-spin rounded-full border-2 border-accent-primary/20 border-t-accent-primary"
-                      />
-                      <span>正在加载表单列表...</span>
-                    </div>
+                    <BrandLoader label="正在加载表单列表" />
                   </td>
                 </tr>
               ) : summary === null ? (
@@ -1127,13 +1122,7 @@ export default function FormConfigPage() {
 
         <div className="md:hidden">
           {loadingList ? (
-            <div className="flex flex-col items-center gap-3 px-5 py-14 text-sm text-fg-dim">
-              <span
-                aria-hidden="true"
-                className="inline-flex h-8 w-8 animate-spin rounded-full border-2 border-accent-primary/20 border-t-accent-primary"
-              />
-              <span>正在加载表单列表...</span>
-            </div>
+            <BrandLoader label="正在加载表单列表" />
           ) : summary === null ? (
             <div className="px-5 py-10 text-center text-sm text-fg-dim">报名表加载失败，请刷新后重试。</div>
           ) : visibleForms.length === 0 ? (
@@ -1374,13 +1363,7 @@ export default function FormConfigPage() {
               {/* Drawer body */}
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 {detailLoading || !editor ? (
-                  <div className="flex flex-col items-center gap-3 py-20 text-sm text-fg-dim">
-                    <span
-                      aria-hidden="true"
-                      className="inline-flex h-8 w-8 animate-spin rounded-full border-2 border-accent-primary/20 border-t-accent-primary"
-                    />
-                    <span>正在加载报名表详情...</span>
-                  </div>
+                  <BrandLoader label="正在加载报名表详情" />
                 ) : (
                   <form
                     id="form-editor"
@@ -2024,13 +2007,7 @@ export default function FormConfigPage() {
 
               <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6">
                 {previewLoading || !previewEditor ? (
-                  <div className="flex flex-col items-center gap-3 py-20 text-sm text-fg-dim">
-                    <span
-                      aria-hidden="true"
-                      className="inline-flex h-8 w-8 animate-spin rounded-full border-2 border-accent-primary/20 border-t-accent-primary"
-                    />
-                    <span>正在加载表单预览...</span>
-                  </div>
+                  <BrandLoader label="正在加载表单预览" />
                 ) : (
                   <div className="space-y-6">
                     {previewEditor.coverImageUrl ? (

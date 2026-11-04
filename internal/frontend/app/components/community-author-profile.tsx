@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import { useEffect, useRef, useState } from "react";
 import { Link, useLocation } from "react-router";
 
@@ -99,7 +100,7 @@ export function CommunityAuthorProfile({ id, name, avatar, level, featuredBadge,
         </div>
         {badge ? <CommunityBadgeInfo className="community-author-profile__card-badge" badge={badge} size={28} /> : null}
       </header>
-      {loading ? <p className="community-author-profile__status" role="status">正在读取资料…</p> : null}
+      {loading && !member ? <BrandLoader label="正在读取资料" size="sm" /> : null}
       {!loading && error ? <p className="community-author-profile__status">部分资料暂不可用</p> : null}
       {member?.bio ? <p className="community-author-profile__bio">{member.bio}</p> : null}
       {groups.length || positions.length ? <div className="community-author-profile__groups">

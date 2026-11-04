@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 
@@ -59,7 +60,7 @@ export function CommunityRelatedTopics({ postId, returnTo }: { postId: number; r
 
   return <section ref={sectionRef} className="community-related" aria-labelledby="community-related-title">
     <header className="community-related__heading"><h2 id="community-related-title">继续阅读</h2></header>
-    {loading ? <p className="community-related__state" role="status">正在加载话题…</p> : null}
+    {loading && !topics ? <BrandLoader label="正在加载话题" size="sm" /> : null}
     {error ? <p className="community-related__state community-related__state--error" role="alert">{error}<button type="button" onClick={() => setAttempt((value) => value + 1)}>重试</button></p> : null}
     {topics ? <>
       {topics.related.length ? <section className="community-related__group" aria-labelledby="community-related-topics-title"><h3 id="community-related-topics-title">相关话题</h3><div>{renderRows(topics.related)}</div></section> : null}

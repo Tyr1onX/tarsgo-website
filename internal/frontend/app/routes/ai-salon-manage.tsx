@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import { useEffect, useState, type FormEvent } from "react";
 import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
 import {
@@ -222,7 +223,7 @@ export default function AISalonManage() {
         </p>
       ) : null}
       {user === undefined ? (
-        <p role="status">正在读取登录状态…</p>
+        <BrandLoader label="正在读取登录状态" size="sm" />
       ) : !isSuper ? (
         <p role="alert">仅超级管理员可管理活动</p>
       ) : (
@@ -399,7 +400,7 @@ export default function AISalonManage() {
           <section className="space-y-4" aria-label="活动管理列表">
             {!own ? (
               !error ? (
-                <p role="status">正在读取活动…</p>
+                <BrandLoader label="正在读取活动" />
               ) : null
             ) : !own.items.length ? (
               <p className="text-fg-muted">暂无活动</p>

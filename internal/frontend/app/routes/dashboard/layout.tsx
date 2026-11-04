@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type CSSProperties } from "react";
 import { createPortal } from "react-dom";
 import { Link, Outlet, redirect, useLocation, useNavigate, useRevalidator } from "react-router";
@@ -936,7 +937,7 @@ function AccountSessionDialog({
           </div>
         ) : null}
         <div className="dashboard-shell__account-list" aria-busy={loading}>
-          {loading ? <div role="status" className="dashboard-shell__account-empty">正在读取账号…</div> : accounts.length === 0 ? (
+          {loading ? <BrandLoader label="正在读取账号" size="sm" /> : accounts.length === 0 ? (
             <div className="dashboard-shell__account-empty">当前没有可切换的账号。</div>
           ) : accounts.map((account) => (
             <div className="dashboard-shell__account-row" key={account.id}>

@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import { hasWorkbenchAccess } from "~/lib/dashboard-navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useSearchParams, useOutletContext } from "react-router";
@@ -43,7 +44,7 @@ export function PersonalProfileSettings({ user }: { user: AuthUser }) {
     <section className="min-w-0" aria-labelledby="profile-academic-heading">
       <h3 id="profile-academic-heading" className="text-sm font-semibold text-[var(--admin-text)]">个人资料</h3>
       {error ? <p role="alert" className="mt-3 text-sm text-[var(--theme-danger)]">{error}</p> : null}
-      {!profile && !error ? <p role="status" className="mt-3 text-sm">正在读取个人资料…</p> : null}
+      {!profile && !error ? <BrandLoader label="正在读取个人资料" size="sm" /> : null}
       {profile ? <form onSubmit={(e) => void save(e)} className="mt-4 min-w-0 space-y-4">
         <label className="block"><span className={labelClass}>邮箱</span><input className={fieldClass} type="email" value={profile.email} readOnly /></label>
         <AccountAcademicFields value={profile} onChange={(next) => { setProfile({ ...profile, ...next }); setNotice(""); }} disabled={saving} fieldClass={fieldClass} labelClass={labelClass} />

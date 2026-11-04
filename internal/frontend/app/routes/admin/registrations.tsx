@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useOutletContext, useSearchParams } from "react-router";
 
@@ -816,7 +817,7 @@ export default function Registrations() {
             </div>
 
             {detailLoading || !detail ? (
-              <div className="py-16 text-center text-sm text-fg-dim">正在加载详情...</div>
+              <BrandLoader label="正在加载报名详情" />
             ) : (
               <div className="mt-6 space-y-5">
                 {detail.notificationWarning ? (

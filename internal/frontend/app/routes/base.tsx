@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router";
 
@@ -78,7 +79,7 @@ export default function LegacyBaseRedirect() {
 
   return (
     <main className="grid min-h-screen place-items-center bg-surface-primary px-5 text-fg-muted" role="status" aria-live="polite">
-      正在确认登录状态…
+      <BrandLoader label="正在确认登录状态" />
     </main>
   );
 }

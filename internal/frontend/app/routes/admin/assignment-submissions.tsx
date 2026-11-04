@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import { useEffect, useState } from "react";
 import { useSearchParams, useOutletContext } from "react-router";
 
@@ -142,7 +143,7 @@ export default function AssignmentSubmissionsRoute() {
     <section className="admin-design space-y-5" aria-labelledby="assignment-submissions-title">
       <header className="admin-page-header flex flex-wrap items-center justify-between gap-3">
         <h1 id="assignment-submissions-title" className="admin-page-title">提交记录</h1>
-        {groupsLoading ? <p role="status" className="text-sm text-[var(--admin-muted)]">正在加载组别…</p> : assignmentGroups.length > 1 ? <label className="admin-field-label">组别<select className="admin-field w-full" value={groupId} onChange={(event) => { setGroupId(Number(event.target.value)); setAssignments([]); setListLoaded(false); setSelectedID(0); setDetail(null); setDetailLoading(false); setError(""); }}>
+        {groupsLoading ? <BrandLoader label="正在加载组别" size="sm" /> : assignmentGroups.length > 1 ? <label className="admin-field-label">组别<select className="admin-field w-full" value={groupId} onChange={(event) => { setGroupId(Number(event.target.value)); setAssignments([]); setListLoaded(false); setSelectedID(0); setDetail(null); setDetailLoading(false); setError(""); }}>
           {assignmentGroups.map((group) => <option key={group.groupId} value={group.groupId}>{group.name}</option>)}
         </select></label> : assignmentGroups[0] ? <p className="text-sm text-[var(--admin-muted)]">{assignmentGroups[0].name}</p> : null}
       </header>
@@ -153,8 +154,8 @@ export default function AssignmentSubmissionsRoute() {
       </select></label> : null}
       {error ? <div role="alert" className="admin-notice admin-notice--error">{error}</div> : null}
       {notice ? <div role="status" className="admin-notice admin-notice--success">{notice}</div> : null}
-      {loading ? <p role="status" className="py-6 text-sm text-[var(--admin-muted)]">正在加载作业列表…</p> : null}
-      {detailLoading ? <p role="status" className="py-4 text-sm text-[var(--admin-muted)]">正在加载提交记录…</p> : null}
+      {loading && !assignments.length ? <BrandLoader label="正在加载作业列表" /> : null}
+      {detailLoading && !detail ? <BrandLoader label="正在加载提交记录" size="sm" /> : null}
       {listLoaded && !loading && !error && assignments.length === 0 ? <section className="admin-panel p-5 text-sm text-[var(--admin-muted)]">暂无本组作业。</section> : null}
       {assignment ? <>
         <section className="admin-panel flex flex-wrap gap-x-6 gap-y-2 p-4 text-sm" aria-label="作业统计">

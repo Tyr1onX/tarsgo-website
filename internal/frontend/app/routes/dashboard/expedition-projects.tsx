@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { Link, useLocation, useOutletContext, useSearchParams } from "react-router";
 
@@ -242,7 +243,7 @@ export function ExpeditionProjectsRoute() {
       <div className="expedition-projects__layout">
         <aside className="expedition-projects__list" aria-label="协作项目列表">
           <div className="expedition-projects__section-heading"><h2>{isAdminView ? "可管理项目" : "我的协作"}</h2><button type="button" onClick={refresh} disabled={loading}>{loading ? "读取中" : "刷新"}</button></div>
-          {loading ? <p className="expedition-projects__empty">正在读取项目…</p> : error ? null : projects.length ? (
+          {loading && !projects.length ? <BrandLoader label="正在读取项目" /> : error ? null : projects.length ? (
             <ul>{projects.map((project) => {
               const accepted = project.milestones.filter((milestone) => milestone.state === "accepted").length;
               return <li key={project.id}><button className={selectedProject?.id === project.id ? "is-selected" : ""} type="button" onClick={() => selectProject(project.id)}><span><strong>{project.title}</strong><small>{project.participantGroups.join(" · ")}</small></span><span className="expedition-projects__count">{accepted}/{project.milestones.length}</span></button></li>;

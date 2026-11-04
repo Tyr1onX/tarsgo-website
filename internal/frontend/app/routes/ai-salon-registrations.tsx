@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import {
@@ -51,7 +52,7 @@ export default function AISalonRegistrations() {
         </p>
       ) : null}
       {user === undefined ? (
-        <p role="status">正在读取登录状态…</p>
+        <BrandLoader label="正在读取登录状态" size="sm" />
       ) : !user ? (
         <Link
           className={salonPrimaryButton}
@@ -61,7 +62,7 @@ export default function AISalonRegistrations() {
         </Link>
       ) : !own ? (
         !error ? (
-          <p role="status">正在读取报名记录…</p>
+          <BrandLoader label="正在读取报名记录" />
         ) : null
       ) : (
         <div className="max-w-3xl">

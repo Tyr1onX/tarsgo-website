@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 
 import { CommunityIcon } from "~/components/community-icons";
@@ -230,7 +231,7 @@ export function CommunityReplyComposer({ accountId, postId, busy = false, commen
       </header>
       {replyTarget ? <div className="community-reply-panel__context"><span>{replyTarget.isDeleted ? "该回复已删除" : stripCommunityMarkdown(replyTarget.body)}</span><button type="button" onClick={() => onReplyTargetChange(null)} aria-label="改为回复话题">回复话题</button></div> : null}
       <div className="community-reply-panel__editor">
-        {ready ? <Suspense fallback={<div className="community-markdown-editor__loading" role="status">正在打开编辑器…</div>}><CommunityMarkdownEditor value={body} onChange={(next) => { setBody(next); setError(""); }} flushRef={editorFlushRef} uploads={uploads} onUploadsChange={setUploads} compact required disabled={busy || saving} placeholder="参与讨论…" /></Suspense> : <div className="community-markdown-editor__loading" role="status">正在恢复回复草稿…</div>}
+        {ready ? <Suspense fallback={<div className="community-markdown-editor__loading"><BrandLoader label="正在打开编辑器" size="sm" /></div>}><CommunityMarkdownEditor value={body} onChange={(next) => { setBody(next); setError(""); }} flushRef={editorFlushRef} uploads={uploads} onUploadsChange={setUploads} compact required disabled={busy || saving} placeholder="参与讨论…" /></Suspense> : <div className="community-markdown-editor__loading"><BrandLoader label="正在恢复回复草稿" size="sm" /></div>}
       </div>
       <footer className="community-reply-panel__footer">
         <span className={`community-draft-status${draftStatus === "failed" ? " is-error" : ""}`} role="status">{draftStatus === "saving" ? "正在保存草稿" : draftStatus === "saved" ? "草稿已保存到此设备" : draftStatus === "failed" ? "草稿保存失败" : ""}</span>

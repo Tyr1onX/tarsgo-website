@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import { useEffect, useState } from "react";
 
 import { CoBuilderBadgeSummaryView } from "~/components/co-builder-badge-summary";
@@ -61,7 +62,7 @@ export function CoBuilderBadgeAdminPanel({ userId, onUpdated }: { userId: number
       <div className="flex items-center justify-between gap-3"><h3 className="text-sm font-semibold text-[var(--admin-text)]">吉甲共建者</h3>
         {!loading && summary ? <button type="button" disabled={saving} onClick={() => setEditing((value) => !value)} className="admin-button admin-button--quiet admin-button--small">{editing ? "完成" : "管理贡献"}</button> : null}
       </div>
-      {loading ? <p role="status" className="text-xs text-[var(--admin-muted)]">正在读取贡献记录…</p> : null}
+      {loading && !summary ? <BrandLoader label="正在读取贡献记录" size="sm" /> : null}
       {!loading && summary ? <CoBuilderBadgeSummaryView summary={summary} onRevoke={editing ? (id) => void revoke(id) : undefined} /> : null}
       {!loading && editing ? (
         <div className="space-y-2">

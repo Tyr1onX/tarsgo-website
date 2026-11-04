@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import { useEffect, useMemo, useState } from "react";
 import { useOutletContext } from "react-router";
 
@@ -247,7 +248,7 @@ export default function RecruitmentAnalytics() {
         <p className="admin-page-description">按每张招新报名表独立查看报名、录取、主要组别和成员关系变化。</p>
       </header>
 
-      {loading ? <p className="recruitment-analytics__state" role="status">正在读取汇总统计…</p> : null}
+      {loading ? <BrandLoader label="正在读取汇总统计" /> : null}
       {error ? <div className="admin-alert admin-alert--error" role="alert">{error}</div> : null}
 
       {!loading && !error && report ? (

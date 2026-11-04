@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import {useEffect,useState,type FormEvent} from "react";
 import {useLocation,useOutletContext} from "react-router";
 import {FileUploadField,type FileUploadStatus} from "~/components/file-upload-field";
@@ -141,7 +142,7 @@ export default function PracticeProjectsPage(){
   </header>
   {error?<p className="admin-notice admin-notice--error" role="alert">{error}</p>:null}
   {notice?<p className="admin-notice admin-notice--success" role="status">{notice}</p>:null}
-  {loading?<p role="status">正在加载项目…</p>:null}
+  {loading && !projects.length ? <BrandLoader label="正在加载项目" /> : null}
   {admin&&!loading?<section className="rounded-xl border border-[var(--admin-border-subtle)] p-4 space-y-4">
    <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">{editing?"编辑项目":"创建本组实践项目"}</h2>{editing?<button type="button" className="text-sm underline" onClick={()=>{setEditing(false);setDeadlineError("");setDraft({...newDraft(),groupId:groups[0]?.groupId??0})}}>取消编辑</button>:null}</div>
    <form className="grid gap-3 sm:grid-cols-2" onSubmit={e=>void save(e)}>
@@ -196,7 +197,7 @@ export default function PracticeProjectsPage(){
      /></div>
      <button type="submit" disabled={busy} className="admin-button admin-button--primary">提交成果</button>
     </form>:null}
-    {detailLoadedId!==selected.id?<p role="status" className="text-sm">正在加载参与记录…</p>:admin?<section className="space-y-3"><h3 className="font-semibold">参与成员与验收</h3>
+    {detailLoadedId!==selected.id?<BrandLoader label="正在加载参与记录" size="sm" />:admin?<section className="space-y-3"><h3 className="font-semibold">参与成员与验收</h3>
       {selected.members.length===0?<p className="text-sm text-[var(--admin-muted)]">暂无报名成员。</p>:selected.members.map(m=><MemberRecord member={m} project={selected} admin key={m.userId} onUpdate={update}/>)}
      </section>:myEntry?<MemberRecord member={myEntry} project={selected} admin={false} onUpdate={update}/>:null}
    </article>:null}

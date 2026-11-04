@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import {
   isRouteErrorResponse,
   Links,
@@ -122,12 +123,12 @@ export default function App() {
 export function HydrateFallback() {
   return (
     <main
-      className="min-h-screen bg-surface-primary px-5 py-8 text-fg-primary sm:px-8 sm:py-10"
+      className="grid min-h-screen place-items-center bg-surface-primary px-5 py-8 text-fg-primary sm:px-8 sm:py-10"
       role="status"
       aria-busy="true"
       aria-live="polite"
     >
-      <p className="mx-auto max-w-7xl py-8">正在验证登录并打开工作台…</p>
+      <BrandLoader label="正在打开工作台" />
     </main>
   );
 }

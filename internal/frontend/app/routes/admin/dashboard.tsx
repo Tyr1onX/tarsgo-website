@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useOutletContext } from "react-router";
 
@@ -59,7 +60,7 @@ export default function AdminDashboard() {
 
         <section className="admin-workbench__todos" aria-labelledby="admin-workbench-todos-title">
           <h2 id="admin-workbench-todos-title">待处理事项</h2>
-          {loading && state.recruitment === null && state.assignmentReviewCount === null ? <p className="admin-workbench__state" role="status">正在检查待办…</p> : null}
+          {loading && state.recruitment === null && state.assignmentReviewCount === null ? <BrandLoader label="正在检查待办" size="sm" /> : null}
           {errors.length > 0 ? <p className="admin-workbench__read-error" role="status">{errors.join("；")}</p> : null}
           {!loading && errors.length === 0 && !hasTodos ? <p className="admin-workbench__state">目前没有待处理事项。</p> : null}
           {hasTodos ? <div className="admin-workbench__todo-list">

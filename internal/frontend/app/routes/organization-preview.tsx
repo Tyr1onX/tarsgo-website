@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router";
 
@@ -171,7 +172,7 @@ export default function OrganizationPreviewPage() {
     return (
       <main className="organization-directory admin-design" aria-labelledby="organization-directory-title">
         <h1 id="organization-directory-title">成员与岗位</h1>
-        {loadError ? <div className="organization-directory__load-error" role="alert"><span>{loadError}</span><button type="button" onClick={() => void load()}>重试</button></div> : <p role="status">正在读取成员与岗位…</p>}
+        {loadError ? <div className="organization-directory__load-error" role="alert"><span>{loadError}</span><button type="button" onClick={() => void load()}>重试</button></div> : <BrandLoader label="正在读取成员与岗位" />}
       </main>
     );
   }

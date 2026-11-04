@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import "./registrations.css";
 
 import {
@@ -920,7 +921,7 @@ function InterviewAttendanceCard({
   if (loading || !data) {
     return (
       <section className="admin-panel candidate-panel candidate-interview-card p-5 text-sm text-fg-dim">
-        正在加载面试安排...
+        <BrandLoader label="正在加载面试安排" />
       </section>
     );
   }

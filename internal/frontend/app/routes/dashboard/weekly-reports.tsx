@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type SetStateAction } from "react";
 import { useOutletContext, useSearchParams } from "react-router";
 
@@ -324,7 +325,7 @@ export default function WeeklyReportsRoute() {
         <h1 id="weekly-report-title">工作周报</h1>
       </header>
 
-      {loading && !dashboard ? <div className="weekly-report__notice" role="status">正在加载周报…</div> : null}
+      {loading && !dashboard ? <BrandLoader label="正在加载周报" /> : null}
       {!loading && loadError ? <div className="weekly-report__notice weekly-report__notice--error" role="alert">{loadError}</div> : null}
 
       {dashboard ? (
@@ -489,7 +490,7 @@ export default function WeeklyReportsRoute() {
                   </label>
                 </div>
               {dashboard.teamGroups.length === 0 ? <p className="weekly-report__empty">当前账号没有可查看的组别周报。</p> : null}
-              {teamLoading ? <div className="weekly-report__notice" role="status">正在加载组内周报…</div> : null}
+              {teamLoading && !teamWeek ? <BrandLoader label="正在加载组内周报" /> : null}
               {teamError ? <div className="weekly-report__notice weekly-report__notice--error" role="alert">{teamError}<button type="button" onClick={() => { const groupId = Number(teamGroupId); if (groupId > 0 && teamWeekStart) void loadTeamWeek(groupId, teamWeekStart); }}>重试</button></div> : null}
               {!teamLoading && teamWeek ? (
                 <>
