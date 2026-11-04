@@ -285,7 +285,6 @@
 .community-state--error { border-color: color-mix(in srgb, var(--admin-danger) 36%, var(--admin-border-subtle)); color: var(--admin-danger); background: var(--admin-danger-surface); }
 .community-inline-retry { margin-left: 9px; border: 0; border-bottom: 1px solid currentColor; padding: 1px 0; color: inherit; background: transparent; font-size: 12px; font-weight: 600; }
 .community-state--loading { display: flex; min-height: 150px; align-items: center; justify-content: center; gap: 9px; border: 0; color: var(--admin-dim); background: transparent; }
-.community-state--loading .community-icon { width: 16px; height: 16px; animation: community-spin 1.1s linear infinite; }
 .community-state--empty { display: grid; min-height: 224px; justify-items: center; align-content: center; gap: 10px; margin: 0; border: 0; border-radius: 0; padding: 22px 16px 28px; background: transparent; text-align: center; }
 .community-state__icon { display: grid; width: 42px; height: 42px; place-items: center; border: 1px solid color-mix(in srgb, var(--admin-accent) 28%, var(--admin-border-subtle)); border-radius: 13px; color: var(--admin-accent-text); background: color-mix(in srgb, var(--admin-accent) 8%, var(--admin-surface)); }
 .community-state__icon .community-icon { width: 20px; height: 20px; }
