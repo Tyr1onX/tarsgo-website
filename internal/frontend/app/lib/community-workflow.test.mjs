@@ -218,7 +218,7 @@ test("community toast, reply panel, and editor share intentional overlay layers"
 test("topic reply starts in the discussion heading and secondary actions stay with the post", () => {
   assert.match(thread, /community-comments__heading-copy[\s\S]*?comments\.filter\(\(comment\) => !comment\.isDeleted\)\.length[\s\S]*?community-comments__reply/);
   assert.match(thread, /className="[^"]*community-comments__reply[^"]*"[^>]*onClick=\{\(\) => openReply\(\)\}/);
-  assert.match(thread, /community-post__actions[\s\S]*?toggleReaction\("like"\)[\s\S]*?toggleReaction\("bookmark"\)[\s\S]*?sharePost/);
+  assert.match(thread, /community-post__actions[\s\S]*?toggleReaction\("like", event\.currentTarget\)[\s\S]*?toggleReaction\("bookmark", event\.currentTarget\)[\s\S]*?sharePost/);
   assert.doesNotMatch(thread, /community-reply-launcher/);
   assert.doesNotMatch(styles, /\.community-reply-launcher/);
   assert.match(styles, /margin-inline: var\(--community-thread-inset\)/);

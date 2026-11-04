@@ -41,6 +41,21 @@ const CommunityMarkdownEditor = lazy(() => import("~/components/community-markdo
 
 type CommunityCommentReactionSnapshot = Pick<CommunityComment, "likedByMe" | "likeCount">;
 
+function showConfirmedReaction(button: HTMLButtonElement | undefined, kind: "like" | "bookmark") {
+  if (!button?.isConnected || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const sequence = Number(button.dataset.reactionSequence ?? 0) + 1;
+  button.dataset.reactionSequence = String(sequence);
+  button.dataset.reactionKind = kind;
+  button.classList.remove("community-reaction--confirmed");
+  void button.offsetWidth;
+  button.classList.add("community-reaction--confirmed");
+  window.setTimeout(() => {
+    if (button.dataset.reactionSequence !== String(sequence)) return;
+    button.classList.remove("community-reaction--confirmed");
+    delete button.dataset.reactionKind;
+  }, 420);
+}
+
 function mergeDetailReactions(
   detail: CommunityDetail,
   postOverrides: Map<number, CommunityReactionOverride<CommunityPostReactionSnapshot>>,
@@ -185,7 +200,7 @@ export default function CommunityPostRoute() {
     };
   }, [detail, location.hash]);
 
-  async function toggleReaction(kind: "like" | "bookmark") {
+  async function toggleReaction(kind: "like" | "bookmark", button?: HTMLButtonElement) {
     if (!detail || busy || !tryAcquireCommunityReactionLock(postReactionLocksRef.current, postID)) return;
     setPostReactionBusy(true);
     setError("");
@@ -214,6 +229,7 @@ export default function CommunityPostRoute() {
       postReactionOverridesRef.current.set(postID, { reaction: settledReaction, version: settledVersion, pending: false });
       setDetail((current) => current ? { ...current, post: setCommunityPostReaction(current.post, kind, state) } : current);
       syncPostReactionCache(settledReaction, kind === "bookmark" && state.active);
+      if (active && state.active) showConfirmedReaction(button, kind);
     } catch (cause) {
       const rollbackVersion = ++reactionVersionRef.current;
       postReactionOverridesRef.current.set(postID, { reaction: previousReaction, version: rollbackVersion, pending: false });
@@ -227,7 +243,7 @@ export default function CommunityPostRoute() {
     }
   }
 
-  async function toggleCommentLike(item: CommunityComment) {
+  async function toggleCommentLike(item: CommunityComment, button?: HTMLButtonElement) {
     if (!detail || busy || !item.canLike || !tryAcquireCommunityReactionLock(commentReactionLocksRef.current, item.id)) return;
     const active = !item.likedByMe;
     const previousReaction: CommunityCommentReactionSnapshot = { likedByMe: item.likedByMe, likeCount: item.likeCount };
@@ -246,6 +262,7 @@ export default function CommunityPostRoute() {
       const settledVersion = ++reactionVersionRef.current;
       commentReactionOverridesRef.current.set(item.id, { reaction: settledReaction, version: settledVersion, pending: false });
       setDetail((current) => current ? { ...current, comments: current.comments.map((commentItem) => commentItem.id === item.id ? { ...commentItem, ...settledReaction } : commentItem) } : current);
+      if (active && result.active) showConfirmedReaction(button, "like");
     } catch (cause) {
       const rollbackVersion = ++reactionVersionRef.current;
       commentReactionOverridesRef.current.set(item.id, { reaction: previousReaction, version: rollbackVersion, pending: false });
@@ -525,8 +542,8 @@ export default function CommunityPostRoute() {
         {communityStandaloneAttachments(post.body, post.attachments).length ? <CommunityImageGallery attachments={communityStandaloneAttachments(post.body, post.attachments)} /> : null}
       </>}
       <footer className="community-post__actions">
-        <button type="button" aria-pressed={post.likedByMe} disabled={busy || postReactionBusy} onClick={() => void toggleReaction("like")}><CommunityActionIcon kind="like" active={post.likedByMe} /><span>{post.likeCount}</span>{post.likedByMe ? "已赞" : "点赞"}</button>
-        <button type="button" aria-pressed={post.savedByMe} disabled={busy || postReactionBusy} onClick={() => void toggleReaction("bookmark")}><CommunityActionIcon kind="bookmark" active={post.savedByMe} />{post.savedByMe ? "已收藏" : "收藏"}</button>
+        <button type="button" aria-pressed={post.likedByMe} disabled={busy || postReactionBusy} onClick={(event) => void toggleReaction("like", event.currentTarget)}><CommunityActionIcon kind="like" active={post.likedByMe} /><span>{post.likeCount}</span>{post.likedByMe ? "已赞" : "点赞"}</button>
+        <button type="button" aria-pressed={post.savedByMe} disabled={busy || postReactionBusy} onClick={(event) => void toggleReaction("bookmark", event.currentTarget)}><CommunityActionIcon kind="bookmark" active={post.savedByMe} />{post.savedByMe ? "已收藏" : "收藏"}</button>
         <button type="button" onClick={() => void sharePost()}><CommunityIcon name="share2" />分享</button>
         {shareStatus ? <span className="community-share-status" role="status">{shareStatus}</span> : null}
       </footer>
@@ -589,7 +606,7 @@ export default function CommunityPostRoute() {
           </div> : null}
           {!item.isDeleted && <div className="community-comment__actions">
             <button type="button" onClick={() => openReply(item)}>回复</button>
-            <button type="button" className={item.likedByMe ? "is-liked" : ""} aria-label={`${item.likedByMe ? "取消点赞" : "点赞"}，${item.likeCount} 个赞`} aria-pressed={item.likedByMe} disabled={busy || commentReactionBusyIDs.has(item.id) || !item.canLike} onClick={() => void toggleCommentLike(item)}><CommunityActionIcon kind="like" active={item.likedByMe} /><span>{item.likeCount || "赞"}</span></button>
+            <button type="button" className={item.likedByMe ? "is-liked" : ""} aria-label={`${item.likedByMe ? "取消点赞" : "点赞"}，${item.likeCount} 个赞`} aria-pressed={item.likedByMe} disabled={busy || commentReactionBusyIDs.has(item.id) || !item.canLike} onClick={(event) => void toggleCommentLike(item, event.currentTarget)}><CommunityActionIcon kind="like" active={item.likedByMe} /><span>{item.likeCount || "赞"}</span></button>
             {item.canEdit ? <><button type="button" onClick={() => { setEditingCommentID(item.id); setEditCommentBody(item.body); setEditCommentUploads([]); }}>编辑</button><button type="button" onClick={() => void deleteComment(item.id)}>删除</button></> : null}
           </div>}
         </article>;

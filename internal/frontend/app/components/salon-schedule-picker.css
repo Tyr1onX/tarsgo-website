@@ -208,6 +208,13 @@
 .salon-time-range:active {
   cursor: grabbing;
 }
+.salon-time-range::before {
+  transition: transform 180ms var(--motion-ease-standard), border-radius 180ms ease;
+}
+.salon-time-range:active::before {
+  transform: scaleY(1.35);
+  border-radius: 6px;
+}
 .salon-time-handle {
   position: absolute;
   top: 21px;
@@ -229,6 +236,11 @@
   border-radius: 3px;
   box-shadow: 0 0 0 2px var(--theme-surface);
   pointer-events: none;
+  transition: transform 180ms var(--motion-ease-standard), border-radius 180ms ease;
+}
+.salon-time-handle[data-dragging] .salon-handle-line {
+  transform: scaleX(1.6);
+  border-radius: 6px;
 }
 .salon-handle-time {
   position: absolute;
@@ -274,6 +286,12 @@
   color: var(--theme-accent-contrast);
   text-decoration: underline;
   text-underline-offset: 4px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .salon-time-range::before,
+  .salon-handle-line {
+    transition: none;
+  }
 }
 @media (max-width: 800px) {
   .salon-schedule {

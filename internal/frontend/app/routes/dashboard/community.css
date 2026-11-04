@@ -281,6 +281,46 @@
 .community-post__actions .community-action-icon { width: 16px; height: 16px; }
 .community-action-icon.is-active path { fill: currentColor; }
 
+/* Confirmation-only feedback; optimistic changes and rollback never celebrate. */
+.community-post__actions button[aria-pressed],
+.community-comment__actions button[aria-pressed] { position: relative; isolation: isolate; }
+.community-reaction--confirmed .community-action-icon {
+  animation: community-reaction-bounce 320ms cubic-bezier(.2, 1.4, .3, 1);
+}
+.community-reaction--confirmed[data-reaction-kind="bookmark"] .community-action-icon {
+  animation: community-bookmark-settle 280ms cubic-bezier(.2, 1.3, .3, 1);
+}
+.community-reaction--confirmed[data-reaction-kind="like"]::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 34px;
+  height: 34px;
+  margin: -17px;
+  pointer-events: none;
+  background:
+    radial-gradient(circle, currentColor 1.5px, transparent 2.5px) 50% 0 / 8px 8px no-repeat,
+    radial-gradient(circle, currentColor 1.5px, transparent 2.5px) 100% 50% / 8px 8px no-repeat,
+    radial-gradient(circle, currentColor 1.5px, transparent 2.5px) 50% 100% / 8px 8px no-repeat,
+    radial-gradient(circle, currentColor 1.5px, transparent 2.5px) 0 50% / 8px 8px no-repeat;
+  animation: community-reaction-sparks 380ms ease-out both;
+}
+@keyframes community-reaction-bounce {
+  0% { transform: scale(.86); }
+  55% { transform: scale(1.23); }
+  100% { transform: scale(1); }
+}
+@keyframes community-bookmark-settle {
+  0% { transform: translateY(-3px) scale(.94); }
+  60% { transform: translateY(1px) scale(1.1); }
+  100% { transform: none; }
+}
+@keyframes community-reaction-sparks {
+  0% { opacity: .7; transform: scale(.35); }
+  100% { opacity: 0; transform: scale(1.4); }
+}
+
 .community-state { margin: 16px 0; border: 1px solid var(--admin-border-subtle); border-radius: 11px; padding: 16px; color: var(--admin-muted); background: var(--admin-surface); font-size: 13px; }
 .community-state--error { border-color: color-mix(in srgb, var(--admin-danger) 36%, var(--admin-border-subtle)); color: var(--admin-danger); background: var(--admin-danger-surface); }
 .community-inline-retry { margin-left: 9px; border: 0; border-bottom: 1px solid currentColor; padding: 1px 0; color: inherit; background: transparent; font-size: 12px; font-weight: 600; }

@@ -449,16 +449,21 @@ html[data-theme-transition] body *::after {
   isolation: isolate;
   overflow: hidden;
   transition:
-    transform var(--motion-duration-fast) var(--motion-ease-standard),
+    transform 260ms cubic-bezier(0.2, 1.45, 0.35, 1),
     border-color var(--motion-duration-fast) ease,
     background-color var(--motion-duration-fast) ease,
     color var(--motion-duration-fast) ease,
     box-shadow var(--motion-duration-base) var(--motion-ease-standard);
 }
 
-.motion-button:hover {
+.motion-button:hover:not(:disabled) {
   transform: translate3d(0, -2px, 0);
   box-shadow: 0 18px 40px -24px color-mix(in srgb, var(--theme-accent-contrast) 55%, transparent);
+}
+
+.motion-button:active:not(:disabled) {
+  transform: translate3d(0, 0, 0) scale(0.97);
+  transition-duration: 120ms;
 }
 
 .motion-button:hover::before {
@@ -1934,6 +1939,27 @@ html[data-theme-transition] body *::after {
 .home-visual-card--cocreation .home-visual-card-copy {
   position: relative;
   inset: auto;
+}
+
+.home-visual-card--cocreation::after {
+  content: "";
+  position: absolute;
+  left: var(--home-ripple-x, 50%);
+  top: var(--home-ripple-y, 50%);
+  width: 340px;
+  height: 340px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgb(255 255 255 / 18%), transparent 70%);
+  opacity: 0;
+  transform: translate(-50%, -50%) scale(0.2);
+  pointer-events: none;
+}
+.home-visual-card--cocreation.home-visual-card--ripple::after {
+  animation: home-card-ripple 360ms ease-out both;
+}
+@keyframes home-card-ripple {
+  0% { opacity: .75; transform: translate(-50%, -50%) scale(.2); }
+  100% { opacity: 0; transform: translate(-50%, -50%) scale(1); }
 }
 
 .home-visual-card--community {
