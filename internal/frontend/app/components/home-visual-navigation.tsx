@@ -139,6 +139,19 @@ function HomeVisualCard({
       aria-label={`${module.title}：${module.description}`}
       data-sand-mode={module.image ? imageTreatment : undefined}
       data-sand-phase={module.image && imageTreatment ? (showFinalImage ? "done" : phase) : undefined}
+      onPointerDown={(event) => {
+        if (module.image || event.button !== 0 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+        const card = event.currentTarget;
+        const rect = card.getBoundingClientRect();
+        card.style.setProperty("--home-ripple-x", `${event.clientX - rect.left}px`);
+        card.style.setProperty("--home-ripple-y", `${event.clientY - rect.top}px`);
+        card.classList.remove("home-visual-card--ripple");
+        void card.offsetWidth;
+        card.classList.add("home-visual-card--ripple");
+      }}
+      onAnimationEnd={(event) => {
+        if (event.animationName === "home-card-ripple") event.currentTarget.classList.remove("home-visual-card--ripple");
+      }}
     >
       {module.image ? (
         <>

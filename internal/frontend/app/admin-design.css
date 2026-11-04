@@ -83,6 +83,24 @@
   background: var(--admin-surface-topbar);
 }
 
+.dashboard-shell__sidebar-toggle svg path {
+  transform-box: fill-box;
+  transform-origin: center;
+  transition: transform 220ms var(--motion-ease-standard), opacity 160ms ease;
+}
+
+.dashboard-shell__sidebar-toggle[aria-expanded="true"] svg path:first-child {
+  transform: translateY(5px) rotate(45deg);
+}
+
+.dashboard-shell__sidebar-toggle[aria-expanded="true"] svg path:nth-child(2) {
+  opacity: 0;
+}
+
+.dashboard-shell__sidebar-toggle[aria-expanded="true"] svg path:last-child {
+  transform: translateY(-5px) rotate(-45deg);
+}
+
 .dashboard-shell__sidebar-toggle:focus-visible,
 .dashboard-shell__avatar-button:focus-visible {
   outline: 2px solid var(--admin-accent);
@@ -669,6 +687,7 @@
   .dashboard-shell__sidebar,
   .dashboard-shell__topbar-logo,
   .dashboard-shell__sidebar-toggle,
+  .dashboard-shell__sidebar-toggle svg path,
   .dashboard-shell__avatar-button {
     transition-duration: .01ms !important;
   }
@@ -686,7 +705,13 @@
   font-size: 0.875rem;
   font-weight: 600;
   line-height: 1.25rem;
-  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease;
+  transition: background-color 140ms ease, border-color 140ms ease, color 140ms ease,
+    transform 260ms cubic-bezier(0.2, 1.45, 0.35, 1);
+}
+
+.admin-design .admin-button:active:not(:disabled) {
+  transform: scale(0.97);
+  transition-duration: 120ms;
 }
 
 .admin-design .admin-button:disabled {
