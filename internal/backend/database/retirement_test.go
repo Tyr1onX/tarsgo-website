@@ -11,7 +11,7 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
 	"tarsgo-backend/model"
-	"tarsgo-backend/service/historyarchive"
+	"tarsgo-backend/service/recruitmentrecords"
 	"tarsgo-backend/service/recruitmentanalytics"
 )
 
@@ -157,19 +157,19 @@ func TestMariaDBRetirementPreservesRecruitmentAndAssignmentHistory(t *testing.T)
 	if total != 27 {
 		t.Fatalf("archived group aggregate=%d want27", total)
 	}
-	svc := historyarchive.NewService(tx)
+	svc := recruitmentrecords.NewService(tx)
 	for _, role := range []string{"user", "admin", ""} {
-		if _, err := svc.List(context.Background(), role, "recruitment", ""); err != historyarchive.ErrForbidden {
+		if _, err := svc.List(context.Background(), role, "recruitment", ""); err != recruitmentrecords.ErrForbidden {
 			t.Fatal("archive access expanded")
 		}
 	}
 	for _, key := range []string{"skills", "interviews", "registrations;DROP TABLE users"} {
-		if _, err := svc.List(context.Background(), "super_admin", key, ""); err != historyarchive.ErrInvalid {
+		if _, err := svc.List(context.Background(), "super_admin", key, ""); err != recruitmentrecords.ErrInvalid {
 			t.Fatal("arbitrary dataset accepted")
 		}
 	}
 	for _, cursor := range []string{"-1", "0", "1 OR 1=1", "18446744073709551616"} {
-		if _, err := svc.List(context.Background(), "super_admin", "recruitment", cursor); err != historyarchive.ErrInvalid {
+		if _, err := svc.List(context.Background(), "super_admin", "recruitment", cursor); err != recruitmentrecords.ErrInvalid {
 			t.Fatal("invalid cursor accepted")
 		}
 	}

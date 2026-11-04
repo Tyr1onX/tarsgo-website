@@ -66,7 +66,6 @@ const ADMIN_MENU: readonly AdminMenuGroup[] = [
     label: "成员与培养",
     iconKey: "people",
     children: [
-      { key: "history-archive", label: "历史档案", href: "/dashboard/admin/history", allowedRoles: ["super_admin"] },
       { key: "accounts", label: "账号与权限", href: "/dashboard/admin/users", allowedRoles: ["super_admin"] },
       { key: "assignment-management", label: "作业管理", href: "/dashboard/admin/training/assignments", allowedRoles: ["admin", "super_admin"], requiresAssignmentGroup: true },
       { key: "assignment-submissions", label: "提交批改", href: "/dashboard/admin/training/submissions", allowedRoles: ["admin", "super_admin"], requiresAssignmentGroup: true },
@@ -259,6 +258,7 @@ export function getDefaultDashboardPath(_roleName: string) {
 export function canAccessDashboardAdminPath(userOrRole: AuthUser | string, pathname: string, hasAssignmentGroup = false) {
   const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
   if (pathname === "/dashboard/admin" || pathname === "/dashboard/admin/" || pathname === "/dashboard/leave") return hasDashboardAdminAccess(roleName);
+  if (pathname === "/dashboard/admin/history") return roleName === "super_admin";
   if (pathname === "/dashboard/admin/leave") return ["admin", "super_admin"].includes(roleName);
   if (pathname.startsWith("/dashboard/admin/leave/")) return false;
   const accessiblePaths = getAccessibleAdminPaths(roleName, hasAssignmentGroup);

@@ -1,3 +1,4 @@
+import { RecruitmentRecords } from "./recruitment-records";
 import fileText from "@iconify-icons/lucide/file-text";
 import info from "@iconify-icons/lucide/info";
 import layers from "@iconify-icons/lucide/layers";
@@ -21,7 +22,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate, useOutletContext } from "react-router";
+import { useNavigate, useOutletContext, useSearchParams } from "react-router";
 import { AnimatedSelect } from "~/components/animated-select";
 import { ModalShell, useModalAccessibility } from "~/components/modal-shell";
 import { Notify } from "~/components/notify";
@@ -245,7 +246,8 @@ export default function FormConfigPage() {
   /* ---- list state ---- */
   const [keyword, setKeyword] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [listView, setListView] = useState<"current" | "history">("current");
+  const [searchParams] = useSearchParams();
+  const [listView, setListView] = useState<"current" | "history">(searchParams.get("scope") === "history" ? "history" : "current");
   const [forms, setForms] = useState<RegistrationFormListItem[]>([]);
   const [summary, setSummary] = useState<RegistrationFormSummary | null>(null);
   const [loadingList, setLoadingList] = useState(true);
@@ -951,6 +953,8 @@ export default function FormConfigPage() {
             : "已关闭届次保留报名数据，可查看详情和导出记录。"}
         </p>
       </section>
+
+      {listView === "history" && currentUser.role.name === "super_admin" ? <RecruitmentRecords /> : null}
 
       {/* ---- Filter bar ---- */}
       <form

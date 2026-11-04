@@ -1,6 +1,6 @@
-// Package historyarchive exposes retained records without the retired workflow services.
+// Package recruitmentrecords exposes retained records without the retired workflow services.
 // All datasets and SQL projections are fixed here; callers cannot choose tables or SQL.
-package historyarchive
+package recruitmentrecords
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 	"gorm.io/gorm"
 )
 
-var ErrForbidden = errors.New("仅超级管理员可查看历史档案")
+var ErrForbidden = errors.New("仅超级管理员可查看保留记录")
 var ErrInvalid = errors.New("档案类别或分页参数不合法")
 
 const PageSize = 25

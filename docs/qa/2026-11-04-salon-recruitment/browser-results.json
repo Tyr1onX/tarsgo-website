@@ -1,0 +1,162 @@
+{
+  "base": "http://127.0.0.1:8194",
+  "checks": [
+    "旧聚合页重定向、无活动品牌主页",
+    "超级管理员创建发布、匿名查看活动、未公开报名人数",
+    "普通管理员浏览器管理隔离",
+    "报名未授予战队身份、组别或工作台权限",
+    "普通账号无战队身份报名、返回页面显示报名及资料",
+    "学号重复拒绝、满员候补、候补无签到与排位、移动端无横向溢出",
+    "正式与候补取消、取消后重排、按候补顺序自动补位",
+    "管理员扩容自动补位",
+    "提前关闭和重新开放报名",
+    "报名历史、个人资料同步、报名快照保留",
+    "截止后取消关闭、活动中签到一次、候补不可签到",
+    "报名候补签到统计、签到名单筛选、真实下载CSV",
+    "管理移动端无溢出、公开页面无私人信息",
+    "删除活动级联清除报名签到、详情404和个人记录清除"
+  ],
+  "visualChecks": [
+    {
+      "name": "home-empty",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "name": "home-empty",
+      "width": 1440,
+      "theme": "dark"
+    },
+    {
+      "name": "home-empty",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "home-empty",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "home-event",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "name": "home-event",
+      "width": 1440,
+      "theme": "dark"
+    },
+    {
+      "name": "home-event",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "home-event",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "home-poster",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "name": "home-poster",
+      "width": 1440,
+      "theme": "dark"
+    },
+    {
+      "name": "home-poster",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "home-poster",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "detail-guest",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "name": "detail-guest",
+      "width": 1440,
+      "theme": "dark"
+    },
+    {
+      "name": "detail-guest",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "detail-guest",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "detail-registered",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "name": "detail-registered",
+      "width": 1440,
+      "theme": "dark"
+    },
+    {
+      "name": "detail-registered",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "detail-registered",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "detail-waitlist",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "name": "detail-waitlist",
+      "width": 1440,
+      "theme": "dark"
+    },
+    {
+      "name": "detail-waitlist",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "detail-waitlist",
+      "width": 390,
+      "theme": "dark"
+    },
+    {
+      "name": "detail-checked-in",
+      "width": 1440,
+      "theme": "light"
+    },
+    {
+      "name": "detail-checked-in",
+      "width": 1440,
+      "theme": "dark"
+    },
+    {
+      "name": "detail-checked-in",
+      "width": 390,
+      "theme": "light"
+    },
+    {
+      "name": "detail-checked-in",
+      "width": 390,
+      "theme": "dark"
+    }
+  ],
+  "pageErrors": []
+}

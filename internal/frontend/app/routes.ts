@@ -40,7 +40,7 @@ export default [
     route("community/:id", "routes/dashboard/community-post.tsx"),
     route("members/:id", "routes/dashboard/community-member-profile.tsx"),
     route("team", "routes/dashboard/team-redirect.tsx"),
-    route("admin/history", "routes/admin/history.tsx"),
+    route("admin/history", "routes/admin/recruitment-redirect.tsx"),
     route("admin", "routes/admin/dashboard.tsx"),
     route("admin/users", "routes/admin/users.tsx"),
     route("admin/organization-preview", "routes/dashboard/team-redirect.tsx", { id: "dashboard-admin-organization-preview" }),
