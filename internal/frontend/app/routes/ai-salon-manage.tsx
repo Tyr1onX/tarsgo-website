@@ -18,6 +18,13 @@ import {
   type SalonRoster,
 } from "~/lib/ai-salon-client";
 import { ApiError } from "~/lib/api-client";
+import { SalonSchedulePicker } from "~/components/salon-schedule-picker";
+import {
+  defaultSalonSchedule,
+  fromBeijing,
+  scheduleError,
+  toBeijing,
+} from "~/lib/salon-schedule";
 export function meta() {
   return [{ title: "管理活动 | 吉甲 AI 沙龙 | TARSGO" }];
 }
@@ -46,12 +53,6 @@ const empty: Draft = {
   published: false,
   registrationClosed: false,
 };
-function toBeijing(value: string) {
-  return new Date(Date.parse(value) + 8 * 3600000).toISOString().slice(0, 16);
-}
-function fromBeijing(value: string) {
-  return new Date(`${value}:00+08:00`).toISOString();
-}
 export default function AISalonManage() {
   const { user, authError } = useSalonIdentity();
   const isSuper = user?.role.name === "super_admin";
@@ -126,6 +127,11 @@ export default function AISalonManage() {
   async function save(e: FormEvent) {
     e.preventDefault();
     if (!draft) return;
+    const invalid = scheduleError(draft);
+    if (invalid) {
+      setError(invalid);
+      return;
+    }
     await run(async () => {
       await salonClient.saveEvent({
         ...draft,
@@ -202,7 +208,7 @@ export default function AISalonManage() {
           <button
             className={`${salonPrimaryButton} mb-6`}
             disabled={busy}
-            onClick={() => setDraft({ ...empty })}
+            onClick={() => setDraft({ ...empty, ...defaultSalonSchedule() })}
           >
             创建活动
           </button>
@@ -250,47 +256,30 @@ export default function AISalonManage() {
                     }
                   />
                 </label>
-                <div className="grid gap-5 sm:grid-cols-2">
-                  {(
-                    [
-                      { key: "startAt", label: "开始时间（北京时间）" },
-                      { key: "endAt", label: "结束时间（北京时间）" },
-                      { key: "deadline", label: "报名截止时间（北京时间）" },
-                    ] as const
-                  ).map(({ key, label }) => (
-                    <label className="block min-w-0 space-y-2" key={key}>
-                      <span>{label}</span>
-                      <input
-                        required
-                        type="datetime-local"
-                        className={salonField}
-                        value={draft[key]}
-                        max={
-                          key === "deadline"
-                            ? draft.startAt || undefined
-                            : undefined
-                        }
-                        onChange={(e) =>
-                          setDraft({ ...draft, [key]: e.target.value })
-                        }
-                      />
-                    </label>
-                  ))}
-                  <label className="block space-y-2">
-                    <span>人数上限</span>
-                    <input
-                      required
-                      type="number"
-                      min={1}
-                      max={100000}
-                      className={salonField}
-                      value={draft.capacity}
-                      onChange={(e) =>
-                        setDraft({ ...draft, capacity: Number(e.target.value) })
-                      }
-                    />
-                  </label>
-                </div>
+                <SalonSchedulePicker
+                  key={draft.id ?? "new"}
+                  editing={Boolean(draft.id)}
+                  value={draft}
+                  onChange={(schedule) =>
+                    setDraft((current) =>
+                      current ? { ...current, ...schedule } : current,
+                    )
+                  }
+                />
+                <label className="block space-y-2">
+                  <span>人数上限</span>
+                  <input
+                    required
+                    type="number"
+                    min={1}
+                    max={100000}
+                    className={salonField}
+                    value={draft.capacity}
+                    onChange={(e) =>
+                      setDraft({ ...draft, capacity: Number(e.target.value) })
+                    }
+                  />
+                </label>
                 <label className="block space-y-2">
                   <span>地点</span>
                   <input
