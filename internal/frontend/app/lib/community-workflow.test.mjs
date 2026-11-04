@@ -379,7 +379,10 @@ test("uploaded images remain bound to Markdown and are removed with deleted inli
 test("community layout follows workbench themes and adapts its reading layout", () => {
   assert.match(styles, /\.community-page \{[\s\S]*?width: min\(100%, 900px\)/);
   assert.match(styles, /\.community-post-list \{ border-top: 1px solid var\(--admin-border-subtle\)/);
-  assert.match(styles, /\.community-topic-row__activity \{ display: flex/);
+  assert.match(styles, /\.community-topic-row \{[\s\S]*?grid-template-columns: minmax\(0, 1fr\) 110px 70px 110px 56px 56px 76px/);
+  assert.match(styles, /\.community-topic-row\.is-pinned \{ box-shadow: inset 2px 0/);
+  assert.match(styles, /@media \(max-width: 639px\)[\s\S]*?\.community-topic-row__participants, \.community-topic-row__stat--views \{ display: none/);
+  assert.match(postCard, /community-topic-row__status/);
   assert.match(styles, /@media \(max-width: 639px\)[\s\S]*?\.community-category-row \{ overflow-x: auto/);
   assert.doesNotMatch(styles, /\.community-rail/);
   assert.match(styles, /var\(--admin-surface\)/);
