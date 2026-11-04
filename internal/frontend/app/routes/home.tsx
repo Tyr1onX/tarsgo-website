@@ -166,7 +166,7 @@ function HomeSponsorSection() {
           <ul className="home-sponsor-featured-grid" aria-label="重点合作品牌">
             {sponsorLogos.slice(0, 2).map((sponsor) => (
               <li key={sponsor.name} className="home-sponsor-logo">
-                <img src={sponsor.image} alt={sponsor.name} loading="lazy" decoding="async" />
+                <img src={sponsor.image} alt={sponsor.name} loading="eager" />
               </li>
             ))}
           </ul>

@@ -72,6 +72,25 @@ test("homepage groups sponsors and two partner links in one compact section", ()
   assert.match(styles, /@media \(min-width:\s*640px\)[\s\S]*?\.home-partner-links\s*\{[^}]*grid-template-columns:\s*repeat\(2,/);
 });
 
+test("featured sponsor logos load eagerly and mobile logo slots stay bounded", async () => {
+  const featured = home.match(/<ul className="home-sponsor-featured-grid"[\s\S]*?<\/ul>/)?.[0] ?? "";
+  assert.match(featured, /loading="eager"/);
+  assert.doesNotMatch(featured, /loading="lazy"/);
+
+  const nasiLogo = await readFile(new URL("../../../../public/assets/images/Sponsors/nasi-precision.svg", import.meta.url), "utf8");
+  assert.match(nasiLogo, /width="876" height="809" viewBox="214 264 876 809"/);
+
+  const logoStyle = styles.match(/\.home-sponsor-logo img\s*\{([^}]*)\}/)?.[1] ?? "";
+  assert.match(logoStyle, /width:\s*100%;/);
+  assert.match(logoStyle, /height:\s*2\.5rem;/);
+  assert.match(logoStyle, /object-fit:\s*contain;/);
+  assert.match(styles, /\.home-sponsor-logo\s*\{[^}]*overflow:\s*hidden;/);
+
+  const mobile = styles.slice(styles.indexOf("@media (max-width: 639px) {"));
+  assert.match(mobile, /\.home-sponsor-featured-grid,\s*\.home-sponsor-grid\s*\{\s*grid-template-columns:\s*repeat\(2, minmax\(0, 1fr\)\);/);
+  assert.doesNotMatch(mobile.slice(0, mobile.indexOf(".home-partner-links")), /\.home-sponsor-matrix\s*\{[^}]*display:\s*flex;/);
+});
+
 test("the original home keeps its video and legacy anchors while archive content lives in its own component", () => {
   for (const anchor of ["hero", "about", "robots"]) {
     const anchorSource = anchor === "about" ? aboutPage : anchor === "robots" ? robotsRoute : home;
@@ -490,6 +509,6 @@ test("homepage mobile view prioritizes navigation without duplicating the deskto
   assert.match(homeVisualNavigation, /playOnce \? "hidden sm:block " : ""/);
   assert.match(styles, /@media \(max-width: 639px\) \{[\s\S]*?\.home-mobile-grid\s*\{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.home-mobile-link--featured\s*\{[^}]*grid-column: 1 \/ -1/);
-  assert.match(styles, /\.home-sponsor-matrix\s*\{[^}]*display: flex;[^}]*overflow-x: auto;/);
+  assert.match(styles, /\.home-sponsor-matrix\s*\{[^}]*display: grid;/);
   assert.match(styles, /\.public-site-footer--compact nav\[aria-labelledby="footer-about-heading"\]/);
 });

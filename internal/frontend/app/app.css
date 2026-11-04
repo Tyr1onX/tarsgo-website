@@ -2097,15 +2097,15 @@ html[data-theme-transition] body *::after {
   min-height: 3.75rem;
   align-items: center;
   justify-content: center;
+  overflow: hidden;
   padding: 0.4rem;
 }
 
 .home-sponsor-logo img {
   display: block;
-  width: auto;
-  height: auto;
-  max-width: 100%;
-  max-height: 2.5rem;
+  width: 100%;
+  height: 2.5rem;
+  max-width: 11rem;
   object-fit: contain;
 }
 
@@ -2435,36 +2435,22 @@ html[data-theme-transition] body *::after {
   }
 
   .home-sponsor-matrix {
-    display: flex;
     gap: 0.5rem;
-    overflow-x: auto;
-    overscroll-behavior-inline: contain;
-    padding-bottom: 0.5rem;
-    scroll-snap-type: x proximity;
   }
 
   .home-sponsor-primary {
-    min-height: 3.75rem;
-    flex: 0 0 7rem;
-    padding: 0.5rem;
-    border-bottom: 0;
+    min-height: 5rem;
+    padding: 0.75rem;
   }
 
   .home-sponsor-featured-grid,
   .home-sponsor-grid {
-    display: flex;
-    flex: 0 0 auto;
-    align-items: stretch;
-    gap: 0.5rem;
-    padding: 0;
-    border-bottom: 0;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .home-sponsor-logo {
-    min-height: 3.75rem;
-    flex: 0 0 7rem;
+    min-height: 4rem;
     padding: 0.5rem;
-    scroll-snap-align: start;
   }
 
   .home-partner-links {
