@@ -293,7 +293,7 @@ export function Navbar({ currentUser, authError = false }: NavbarProps) {
           </Link>
 
           <div className="navbar-actions">
-            <ThemeControl className="theme-control--navbar" systemOnly />
+            <ThemeControl />
 
             {/* Auth area */}
             <div className="navbar-auth-area">

@@ -2483,15 +2483,6 @@ html[data-theme-transition] body *::after {
   box-shadow: var(--nav-shadow, 0 16px 42px -28px rgb(0 0 0 / 0.7));
 }
 
-.theme-control {
-  position: relative;
-  display: inline-flex;
-  flex: 0 0 auto;
-  align-items: center;
-  gap: 0.15rem;
-  color: var(--color-fg-primary);
-}
-
 .navbar-actions {
   display: flex;
   flex: 0 0 auto;
@@ -2499,89 +2490,38 @@ html[data-theme-transition] body *::after {
   gap: 0.5rem;
 }
 
-.theme-control--navbar {
-  display: inline-flex;
-}
-
-.theme-control--navbar .theme-control__menu-toggle {
-  width: 2rem;
-  min-width: 2rem;
-  height: 2.75rem;
-  min-height: 2.75rem;
-  border-color: var(--theme-border);
-  background: var(--theme-surface);
-  color: var(--theme-text);
-}
-
-.theme-control--navbar .theme-control__toggle {
+.theme-control__toggle {
+  position: relative;
   display: inline-flex;
   width: 2.75rem;
-  min-width: 2.75rem;
   height: 2.75rem;
-  min-height: 2.75rem;
+  flex: 0 0 auto;
   align-items: center;
   justify-content: center;
   border: 1px solid var(--theme-border);
   border-radius: 999px;
   background: var(--theme-surface);
   color: var(--theme-text);
-  transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease, box-shadow 180ms ease;
+  transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease;
 }
 
-
-.theme-control--navbar .theme-control__toggle:hover,
-.theme-control--navbar .theme-control__toggle:focus-visible {
+.theme-control__toggle:hover {
   border-color: color-mix(in srgb, var(--theme-accent-contrast) 65%, var(--theme-border));
   background: var(--theme-card);
   color: var(--theme-accent-contrast);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--theme-accent-contrast) 12%, transparent);
 }
 
-.theme-control--navbar .theme-control__toggle:focus-visible,
-.theme-control--navbar .theme-control__menu-toggle:focus-visible {
+.theme-control__toggle:focus-visible {
   outline: 2px solid var(--theme-accent-contrast);
   outline-offset: 3px;
 }
 
-.theme-control--navbar .theme-control__toggle {
-  position: relative;
-  border-radius: 999px;
-  padding: 0;
-}
-
-.theme-control__toggle,
-.theme-control__menu-toggle {
-  display: inline-flex;
-  min-width: 2.65rem;
-  min-height: 2.65rem;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--color-border-subtle);
-  background: var(--color-surface-light);
-  color: var(--color-fg-primary);
-  transition: background-color 140ms ease, color 140ms ease, border-color 140ms ease;
-}
-
-.theme-control__menu-toggle {
-  min-width: 1.85rem;
-  margin-left: -0.15rem;
-  border-left: 0;
-  border-radius: 0 999px 999px 0;
-}
-
-.theme-control__toggle:hover,
-.theme-control__menu-toggle:hover,
-.theme-control__toggle:focus-visible,
-.theme-control__menu-toggle:focus-visible {
-  border-color: var(--color-accent-primary);
-  background: var(--color-surface-dark);
-  color: var(--color-accent-primary);
-}
-
 .theme-control__toggle svg {
   position: absolute;
+  inset: 0;
   width: 1.15rem;
   height: 1.15rem;
+  margin: auto;
   stroke: currentColor;
   stroke-linecap: round;
   stroke-linejoin: round;
@@ -2595,60 +2535,6 @@ html[data-theme-transition] body *::after {
 .theme-control__toggle[data-theme="light"] .theme-control__moon {
   opacity: 1;
   transform: rotate(0) scale(1);
-}
-
-.theme-control__menu-toggle svg {
-  width: 0.8rem;
-  height: 0.8rem;
-  stroke: currentColor;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-  stroke-width: 1.7;
-}
-
-.theme-control__toggle:focus-visible,
-.theme-control__menu-toggle:focus-visible,
-.theme-control__option:focus-visible {
-  outline: 2px solid var(--color-accent-primary);
-  outline-offset: 2px;
-}
-
-.theme-control__options {
-  position: absolute;
-  top: calc(100% + 0.5rem);
-  right: 0;
-  z-index: 70;
-  width: max-content;
-  min-width: 9rem;
-  overflow: hidden;
-  border: 1px solid var(--color-border-subtle);
-  border-radius: 0.75rem;
-  background: var(--color-surface-light);
-  padding: 0.3rem;
-  box-shadow: 0 16px 36px rgb(0 0 0 / 0.18);
-}
-
-.theme-control__options[hidden] {
-  display: none;
-}
-
-.theme-control__option {
-  display: flex;
-  width: 100%;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  border-radius: 0.5rem;
-  padding: 0.55rem 0.65rem;
-  color: var(--color-fg-primary);
-  font-size: 0.8rem;
-  text-align: left;
-}
-
-.theme-control__option:hover,
-.theme-control__option[aria-pressed="true"] {
-  background: color-mix(in srgb, var(--color-accent-primary) 11%, var(--color-surface-light));
-  color: var(--color-accent-primary);
 }
 
 .navbar-profile-button { min-height: 2.75rem; max-width: 220px; }
@@ -2724,7 +2610,6 @@ html[data-theme-transition] body *::after {
   .navbar-auth-loading--error { width: 7rem; font-size: 0.7rem; }
 }
 
-.theme-control--navbar .theme-control__toggle { border-radius: 999px 0 0 999px; }
 .navbar-auth-area { display: flex; align-items: center; justify-content: flex-end; }
 
 @media (prefers-reduced-motion: reduce) {
