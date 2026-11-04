@@ -29,7 +29,7 @@ export default function TracesSandRevealRoute() {
           <span aria-hidden="true">←</span>
           <span>TARSGO</span>
         </Link>
-        <ThemeControl className="traces-sand-preview__theme" />
+        <ThemeControl />
       </header>
 
       <div className="public-home-container traces-sand-preview__intro">
