@@ -46,19 +46,53 @@ export interface SalonRoster {
 }
 const root = "/api/ai-salon";
 const admin = "/api/admin/ai-salon/events";
+let eventListCache: { items: SalonEvent[]; checkedAt: number } | null = null;
+let eventListRequest: Promise<SalonEvent[]> | null = null;
+let eventListGeneration = 0;
+
+export function getCachedSalonEvent(id: string | number) {
+  return eventListCache && Date.now() - eventListCache.checkedAt < 30_000
+    ? eventListCache.items.find((event) => event.id === Number(id)) ?? null
+    : null;
+}
+
+function listSalonEvents(): Promise<SalonEvent[]> {
+  if (eventListCache && Date.now() - eventListCache.checkedAt < 30_000) return Promise.resolve(eventListCache.items);
+  if (eventListRequest) return eventListRequest;
+  const generation = eventListGeneration;
+  const request = apiRequest<SalonEvent[]>(`${root}/events`)
+    .then((items) => {
+      if (eventListGeneration === generation) eventListCache = { items, checkedAt: Date.now() };
+      return items;
+    })
+    .finally(() => {
+      if (eventListRequest === request) eventListRequest = null;
+    });
+  eventListRequest = request;
+  return request;
+}
+
+function invalidateSalonEvents() {
+  eventListGeneration += 1;
+  eventListCache = null;
+  eventListRequest = null;
+}
+
 export const salonClient = {
-  list: () => apiRequest<SalonEvent[]>(`${root}/events`),
+  list: listSalonEvents,
   event: (id: string | number) =>
     apiRequest<SalonEvent>(`${root}/events/${id}`),
   mine: () => apiRequest<SalonRecord[]>(`${root}/registrations`),
   register: (id: number) =>
     apiRequest<SalonRecord>(`${root}/events/${id}/registration`, {
       method: "POST",
-    }),
+    }).then((record) => { invalidateSalonEvents(); return record; }),
   cancel: (id: number) =>
-    apiRequest<void>(`${root}/events/${id}/registration`, { method: "DELETE" }),
+    apiRequest<void>(`${root}/events/${id}/registration`, { method: "DELETE" })
+      .then(() => { invalidateSalonEvents(); }),
   checkIn: (id: number) =>
-    apiRequest<void>(`${root}/events/${id}/check-in`, { method: "POST" }),
+    apiRequest<void>(`${root}/events/${id}/check-in`, { method: "POST" })
+      .then(() => { invalidateSalonEvents(); }),
   adminList: () => apiRequest<ManagedSalonEvent[]>(admin),
   uploadPoster: (file: File) => {
     const body = new FormData();
@@ -72,9 +106,10 @@ export const salonClient = {
     apiRequest<ManagedSalonEvent>(event.id ? `${admin}/${event.id}` : admin, {
       method: event.id ? "PUT" : "POST",
       body: event,
-    }),
+    }).then((saved) => { invalidateSalonEvents(); return saved; }),
   deleteEvent: (id: number) =>
-    apiRequest<void>(`${admin}/${id}`, { method: "DELETE" }),
+    apiRequest<void>(`${admin}/${id}`, { method: "DELETE" })
+      .then(() => { invalidateSalonEvents(); }),
   roster: (id: number) => apiRequest<SalonRoster>(`${admin}/${id}/roster`),
 };
 export const salonStatus = {

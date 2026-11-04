@@ -5,6 +5,7 @@ import { emptyAdminWorkbenchState, loadAdminWorkbench } from "~/lib/admin-workbe
 import { assignmentClient } from "~/lib/assignment-client";
 import { hasAssignmentGroupAccess } from "~/lib/dashboard-navigation";
 import { getAdminWorkbenchSummary } from "~/lib/registrations-client";
+import { getAdminWorkbenchSnapshot, rememberAdminWorkbenchSnapshot } from "~/lib/personal-workbench-cache";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 
 export function meta() {
@@ -14,22 +15,27 @@ export function meta() {
 export default function AdminDashboard() {
   const { currentUser, groupResolution } = useOutletContext<DashboardLayoutOutletContext>();
   const canManageAssignments = currentUser.role.name === "super_admin" || hasAssignmentGroupAccess(groupResolution?.groups);
-  const scope = `${currentUser.id}:${currentUser.role.name}:${canManageAssignments}`;
-  const [result, setResult] = useState({ scope, state: emptyAdminWorkbenchState, loading: true });
-  const state = result.scope === scope ? result.state : emptyAdminWorkbenchState;
+  const scope = JSON.stringify([currentUser.id, currentUser.role.name, canManageAssignments]);
+  const [result, setResult] = useState(() => ({
+    scope, state: getAdminWorkbenchSnapshot(scope) ?? emptyAdminWorkbenchState, loading: true,
+  }));
+  const state = result.scope === scope ? result.state : getAdminWorkbenchSnapshot(scope) ?? emptyAdminWorkbenchState;
   const loading = result.scope !== scope || result.loading;
   const requestSequence = useRef(0);
 
   const load = useCallback(async () => {
     const requestId = ++requestSequence.current;
-    setResult({ scope, state: emptyAdminWorkbenchState, loading: true });
+    const previous = getAdminWorkbenchSnapshot(scope) ?? emptyAdminWorkbenchState;
+    setResult({ scope, state: previous, loading: true });
     await loadAdminWorkbench(
       getAdminWorkbenchSummary(currentUser.id),
       canManageAssignments ? assignmentClient.adminTodos() : null,
       (next, pending) => {
         if (requestSequence.current !== requestId) return;
+        rememberAdminWorkbenchSnapshot(scope, next);
         setResult({ scope, state: next, loading: pending > 0 });
       },
+      previous,
     );
   }, [canManageAssignments, currentUser.id, scope]);
 
@@ -53,7 +59,7 @@ export default function AdminDashboard() {
 
         <section className="admin-workbench__todos" aria-labelledby="admin-workbench-todos-title">
           <h2 id="admin-workbench-todos-title">待处理事项</h2>
-          {loading ? <p className="admin-workbench__state" role="status">正在检查待办…</p> : null}
+          {loading && state.recruitment === null && state.assignmentReviewCount === null ? <p className="admin-workbench__state" role="status">正在检查待办…</p> : null}
           {errors.length > 0 ? <p className="admin-workbench__read-error" role="status">{errors.join("；")}</p> : null}
           {!loading && errors.length === 0 && !hasTodos ? <p className="admin-workbench__state">目前没有待处理事项。</p> : null}
           {hasTodos ? <div className="admin-workbench__todo-list">

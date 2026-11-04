@@ -430,7 +430,7 @@ export function needsCurrentUserRevalidation(): boolean {
 }
 
 export function hasKnownAnonymousSession(): boolean {
-  return authSessionCache.hasFreshAnonymousResult();
+  return authSessionCache.hasKnownAnonymousResult();
 }
 
 export function subscribeAuthStateChange(

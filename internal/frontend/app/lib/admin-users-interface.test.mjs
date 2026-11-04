@@ -11,7 +11,9 @@ const registrationService = await readFile(new URL("../../../backend/service/reg
 
 test("account list uses ten-row server pagination and keeps the search server-backed", () => {
   assert.match(page, /pageSize: 10/);
-  assert.match(page, /listAdminUsers\(\{[\s\S]*?page: nextPage[\s\S]*?keyword,[\s\S]*?role: roleFilter/);
+  assert.match(page, /listAdminUsers\(\{[\s\S]*?page: nextPage[\s\S]*?keyword: searchKeyword,[\s\S]*?role: roleFilter/);
+  assert.match(page, /setTimeout\(\(\) => setSearchKeyword\(keyword\), 300\)/);
+  assert.match(page, /loading && items\.length === 0/);
   assert.match(page, /第 \{page\} \/ \{totalPages\} 页/);
   assert.match(page, /onClick=\{\(\) => void loadAccounts\(page - 1\)\}[\s\S]*?>上一页<\/button>/);
   assert.match(page, /onClick=\{\(\) => void loadAccounts\(page \+ 1\)\}[\s\S]*?>下一页<\/button>/);

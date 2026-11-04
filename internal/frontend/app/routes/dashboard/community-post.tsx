@@ -29,7 +29,7 @@ import {
   type CommunityPostReactionSnapshot,
   type CommunityReactionOverride,
 } from "~/lib/community-client";
-import { clearCommunityLists, invalidateCommunitySavedLists, removeCommunityPostFromLists, updateCommunityPostInLists } from "~/lib/community-list-cache";
+import { clearCommunityLists, findCommunityPostInLists, invalidateCommunitySavedLists, removeCommunityPostFromLists, updateCommunityPostInLists } from "~/lib/community-list-cache";
 import { buildCommunityReadingEntries, findHotCommunityReply, groupCommunityReplies } from "~/lib/community-discussion-model";
 import { useDeferredCommunityScrollRestoration } from "~/lib/community-scroll-restoration";
 import { communityStandaloneAttachments, stripCommunityMarkdown } from "~/lib/community-markdown";
@@ -135,7 +135,7 @@ export default function CommunityPostRoute() {
 
   useEffect(() => { void reload(); }, [reload]);
 
-  const pageTitle = !loading && detail?.post.id === postID ? detail.post.title : "";
+  const pageTitle = detail?.post.id === postID ? detail.post.title : "";
   useLayoutEffect(() => {
     setPageTitle(pageTitle);
   }, [pageTitle, setPageTitle]);
@@ -451,8 +451,15 @@ export default function CommunityPostRoute() {
     }
   }
 
-  if (loading) return <section className="admin-design community-page"><p className="community-state" role="status">正在加载讨论…</p></section>;
-  if (!detail) return <section className="admin-design community-page"><p className="community-state community-state--error" role="alert">{error || "讨论不存在。"}{error ? <button type="button" className="community-inline-retry" onClick={() => void reload()}>重试</button> : null}</p><button className="community-thread__back" type="button" onClick={backToCommunity}><CommunityIcon name="arrowLeft" />返回吉甲社区</button></section>;
+  if (loading && detail?.post.id !== postID) {
+    const summary = findCommunityPostInLists(currentUser.id, postID);
+    return <section className="admin-design community-page community-thread">
+      <button className="community-thread__back" type="button" onClick={backToCommunity}><CommunityIcon name="arrowLeft" />返回吉甲社区</button>
+      {summary ? <h1 className="community-post__title">{summary.title}</h1> : null}
+      <p className="community-state" role="status">正在读取正文与回复…</p>
+    </section>;
+  }
+  if (!detail || detail.post.id !== postID) return <section className="admin-design community-page"><p className="community-state community-state--error" role="alert">{error || "讨论不存在。"}{error ? <button type="button" className="community-inline-retry" onClick={() => void reload()}>重试</button> : null}</p><button className="community-thread__back" type="button" onClick={backToCommunity}><CommunityIcon name="arrowLeft" />返回吉甲社区</button></section>;
 
   const { post, comments } = detail;
   const canManageFeatured = currentUser.role.name === "super_admin" && post.groupId === 0 && post.visibility === "public";

@@ -86,6 +86,10 @@ export default function DashboardIndex() {
     }
     setError("");
     setRetry(null);
+    if (keepCachedPosts && cached?.refreshedAt && Date.now() - cached.refreshedAt < 20_000) {
+      setLoading(false);
+      return;
+    }
 
     try {
       const pageCount = keepCachedPosts && cached ? cached.page : 1;
@@ -100,7 +104,7 @@ export default function DashboardIndex() {
       setPosts(freshItems);
       setHasMore(result.hasMore);
       setPage(result.page);
-      rememberCommunityList(cacheKey, { posts: freshItems, page: result.page, hasMore: result.hasMore });
+      rememberCommunityList(cacheKey, { posts: freshItems, page: result.page, hasMore: result.hasMore, refreshedAt: Date.now() });
     } catch (cause) {
       if (requestRef.current !== requestID) return;
       controller.abort();

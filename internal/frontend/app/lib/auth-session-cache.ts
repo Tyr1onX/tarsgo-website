@@ -23,6 +23,10 @@ export class AuthSessionCache<T> {
     return this.state.type === "anonymous" && this.state.expiresAt > now;
   }
 
+  hasKnownAnonymousResult(): boolean {
+    return this.state.type === "anonymous";
+  }
+
   setAuthenticated(user: T, now = Date.now()) {
     this.generation += 1;
     this.state = { type: "authenticated", user, verifiedAt: now };

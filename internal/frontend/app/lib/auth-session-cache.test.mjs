@@ -36,6 +36,7 @@ test("keeps an anonymous result briefly, then requires a fresh check", () => {
   assert.equal(cache.hasFreshAnonymousResult(checkedAt), true);
   assert.equal(cache.hasFreshAnonymousResult(checkedAt + ANONYMOUS_SESSION_CACHE_TTL_MS - 1), true);
   assert.equal(cache.hasFreshAnonymousResult(checkedAt + ANONYMOUS_SESSION_CACHE_TTL_MS), false);
+  assert.equal(cache.hasKnownAnonymousResult(), true, "expired anonymous identity remains visible during background revalidation");
 });
 
 test("does not let an older unauthorized response erase a later login", () => {

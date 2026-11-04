@@ -1,6 +1,6 @@
 import type { CommunityListItem } from "~/lib/community-client";
 
-export type CommunityListSnapshot = { posts: CommunityListItem[]; page: number; hasMore: boolean };
+export type CommunityListSnapshot = { posts: CommunityListItem[]; page: number; hasMore: boolean; refreshedAt?: number };
 
 export function preserveCommunityReactionUpdates(
 	requestStart: readonly CommunityListItem[],
@@ -43,9 +43,10 @@ export function getCommunityListSnapshot(key: string) {
 }
 
 export function rememberCommunityList(key: string, snapshot: CommunityListSnapshot) {
+  const lastRefresh = snapshots.get(key)?.refreshedAt;
   snapshots.delete(key);
   const page = Math.min(snapshot.page, MAX_CACHED_PAGES);
-  snapshots.set(key, { ...snapshot, page,
+  snapshots.set(key, { ...snapshot, refreshedAt: snapshot.refreshedAt ?? lastRefresh, page,
     posts: snapshot.posts.slice(0, MAX_CACHED_PAGES * COMMUNITY_CACHE_PAGE_SIZE),
     hasMore: snapshot.hasMore || snapshot.page > MAX_CACHED_PAGES,
   });
@@ -56,6 +57,15 @@ export function rememberCommunityList(key: string, snapshot: CommunityListSnapsh
     snapshots.delete(oldestKey);
     expiresAt.delete(oldestKey);
   }
+}
+
+export function findCommunityPostInLists(accountID: number, postID: number) {
+  for (const [key, snapshot] of snapshots) {
+    if (communityListScope(key)?.accountID !== accountID || !getCommunityListSnapshot(key)) continue;
+    const post = snapshot.posts.find((item) => item.id === postID);
+    if (post) return post;
+  }
+  return undefined;
 }
 
 export function clearCommunityLists() {

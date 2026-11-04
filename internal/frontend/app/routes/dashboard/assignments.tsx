@@ -32,82 +32,104 @@ export default function MyAssignmentsRoute() {
   const [detail, setDetail] = useState<MyAssignmentDetail | null>(null);
   const [files, setFiles] = useState<File[]>([]);
   const [loading, setLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [fileUploadStatus, setFileUploadStatus] = useState<FileUploadStatus>("pending");
   const [error, setError] = useState("");
-  const requestId = useRef(0);
+  const listRequestId = useRef(0);
+  const detailRequestId = useRef(0);
+  const selectedIDRef = useRef<number | null>(null);
   const currentUserId = useRef(currentUser.id);
   currentUserId.current = currentUser.id;
 
-  async function loadAssignments(selectID?: number | null) {
-    const activeRequest = ++requestId.current;
+  async function loadDetail(id: number) {
+    const activeRequest = ++detailRequestId.current;
+    const accountId = currentUser.id;
+    selectedIDRef.current = id;
+    setSelectedID(id);
+    setDetail(null);
+    setDetailLoading(true);
+    setError("");
+    try {
+      const nextDetail = await assignmentClient.getMine(id);
+      if (detailRequestId.current === activeRequest && currentUserId.current === accountId) setDetail(nextDetail);
+    } catch (cause) {
+      if (detailRequestId.current === activeRequest && currentUserId.current === accountId) {
+        setError(cause instanceof Error ? cause.message : "作业详情加载失败");
+      }
+    } finally {
+      if (detailRequestId.current === activeRequest && currentUserId.current === accountId) setDetailLoading(false);
+    }
+  }
+
+  async function loadAssignments(selectID?: number | null, reloadDetail = true) {
+    const activeRequest = ++listRequestId.current;
     const accountId = currentUser.id;
     setLoading(true);
     setError("");
     try {
       const result = await assignmentClient.listMine();
-      if (requestId.current !== activeRequest || currentUserId.current !== accountId) return;
+      if (listRequestId.current !== activeRequest || currentUserId.current !== accountId) return;
       setItems(result);
-      const id = selectID === null ? result[0]?.id ?? null : selectID ?? selectedID ?? result[0]?.id ?? null;
-      setSelectedID(id);
-      if (id != null) {
-        const nextDetail = await assignmentClient.getMine(id);
-        if (requestId.current !== activeRequest || currentUserId.current !== accountId) return;
-        setDetail(nextDetail);
+      const preferredID = selectedIDRef.current ?? selectID;
+      const id = result.find((item) => item.id === preferredID)?.id ?? result[0]?.id ?? null;
+      if (id === null) {
+        detailRequestId.current += 1;
+        selectedIDRef.current = null;
+        setSelectedID(null);
+        setDetail(null);
+        setDetailLoading(false);
+      } else if (reloadDetail || selectedIDRef.current !== id) {
+        void loadDetail(id);
       }
-      else setDetail(null);
     } catch (cause) {
-      if (requestId.current === activeRequest && currentUserId.current === accountId) {
+      if (listRequestId.current === activeRequest && currentUserId.current === accountId) {
         setError(cause instanceof Error ? cause.message : "作业加载失败");
       }
     } finally {
-      if (requestId.current === activeRequest && currentUserId.current === accountId) setLoading(false);
+      if (listRequestId.current === activeRequest && currentUserId.current === accountId) setLoading(false);
     }
   }
 
   useEffect(() => {
-    requestId.current += 1;
+    listRequestId.current += 1;
+    detailRequestId.current += 1;
+    selectedIDRef.current = null;
     setItems([]);
     setSelectedID(null);
     setDetail(null);
     void loadAssignments(requestedAssignmentID);
-  }, [currentUser.id, requestedAssignmentID]);
+    return () => { listRequestId.current += 1; detailRequestId.current += 1; };
+  }, [currentUser.id]);
+
+  useEffect(() => {
+    if (requestedAssignmentID && items.some((item) => item.id === requestedAssignmentID)
+      && selectedIDRef.current !== requestedAssignmentID) void loadDetail(requestedAssignmentID);
+  }, [requestedAssignmentID]);
 
   async function selectAssignment(item: Assignment) {
-    const activeRequest = ++requestId.current;
-    const accountId = currentUser.id;
-    setSelectedID(item.id);
-    setDetail(null);
     setFiles([]);
     setFileUploadStatus("pending");
-    setError("");
-    try {
-      const nextDetail = await assignmentClient.getMine(item.id);
-      if (requestId.current === activeRequest && currentUserId.current === accountId) setDetail(nextDetail);
-    } catch (cause) {
-      if (requestId.current === activeRequest && currentUserId.current === accountId) {
-        setError(cause instanceof Error ? cause.message : "作业详情加载失败");
-      }
-    }
+    await loadDetail(item.id);
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!detail || files.length === 0) return;
     const accountId = currentUser.id;
-    const activeRequest = ++requestId.current;
+    const activeRequest = ++detailRequestId.current;
     setSaving(true);
     setFileUploadStatus("uploading");
     setError("");
     try {
       const updated = await assignmentClient.submit(detail.assignment.id, files);
-      if (currentUserId.current !== accountId || requestId.current !== activeRequest) return;
+      if (currentUserId.current !== accountId || detailRequestId.current !== activeRequest) return;
       setDetail(updated);
       setFiles([]);
       setFileUploadStatus("pending");
-      await loadAssignments(updated.assignment.id);
+      await loadAssignments(updated.assignment.id, false);
     } catch (cause) {
-      if (currentUserId.current === accountId && requestId.current === activeRequest) {
+      if (currentUserId.current === accountId && detailRequestId.current === activeRequest) {
         setFileUploadStatus("failed");
         const message = cause instanceof Error ? cause.message : "提交失败，请稍后重试";
         setError(cause instanceof ApiError && cause.status === 413
@@ -131,9 +153,9 @@ export default function MyAssignmentsRoute() {
     <section className="admin-design space-y-5" aria-labelledby="my-assignments-title">
       <header className="admin-page-header"><div className="flex flex-wrap items-center gap-2"><h1 id="my-assignments-title" className="admin-page-title">我的作业</h1><WorkbenchFeatureStatus feature="assignments" /></div></header>
       {error ? <div role="alert" className="admin-notice admin-notice--error">{error}</div> : null}
-      {loading ? <p role="status" className="py-6 text-sm text-[var(--admin-muted)]">正在加载作业…</p> : null}
+      {loading && items.length === 0 ? <p role="status" className="py-6 text-sm text-[var(--admin-muted)]">正在加载作业…</p> : null}
       {!loading && !error && items.length === 0 ? <section className="admin-panel p-5 text-sm text-[var(--admin-muted)]">目前还没有分配给你的作业；作业发布后会显示在这里。</section> : null}
-      {!loading && items.length > 0 ? <div className="grid gap-4 xl:grid-cols-[minmax(240px,0.8fr)_minmax(0,1.6fr)]">
+      {items.length > 0 ? <div className="grid gap-4 xl:grid-cols-[minmax(240px,0.8fr)_minmax(0,1.6fr)]">
         <section className="admin-panel divide-y divide-[var(--admin-border-subtle)] p-3" aria-label="作业列表">
           {items.map((item) => <button key={item.id} type="button" disabled={saving} onClick={() => void selectAssignment(item)} className={`w-full rounded-lg px-3 py-3 text-left transition-colors disabled:cursor-wait ${selectedID === item.id ? "bg-[color-mix(in_srgb,var(--admin-accent)_10%,var(--admin-surface))]" : "hover:bg-[var(--admin-hover-overlay)]"}`}>
             <span className="flex items-start justify-between gap-2"><strong className="text-sm text-[var(--admin-text)]">{item.title}</strong><span className="shrink-0 text-xs text-[var(--admin-muted)]">{item.publicationStatus === "withdrawn" ? "已撤回" : assignmentStatusLabel(item.status)}</span></span>
@@ -193,7 +215,7 @@ export default function MyAssignmentsRoute() {
             /></div>
             <div className="flex flex-wrap items-center justify-between gap-3"><button type="submit" className="admin-button admin-button--primary" disabled={saving || files.length === 0}>{saving ? "提交中…" : detail.submissions.length ? "重新提交" : "提交作业"}</button></div>
           </form> : null}
-        </section> : selectedID != null && !loading ? <section className="admin-panel p-5 text-sm text-[var(--admin-muted)]">正在读取作业记录…</section> : null}
+        </section> : selectedID != null && detailLoading ? <section className="admin-panel p-5 text-sm text-[var(--admin-muted)]" role="status">正在读取作业记录…</section> : null}
       </div> : null}
     </section>
   );

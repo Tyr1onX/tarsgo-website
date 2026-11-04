@@ -75,6 +75,7 @@ export default function AccountManagement() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [keyword, setKeyword] = useState("");
+  const [searchKeyword, setSearchKeyword] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [groupIdFilter, setGroupIdFilter] = useState("");
@@ -114,7 +115,7 @@ export default function AccountManagement() {
     setError("");
     try {
       const result = await listAdminUsers({
-        page: nextPage, pageSize: 10, keyword, role: roleFilter,
+        page: nextPage, pageSize: 10, keyword: searchKeyword, role: roleFilter,
         status: statusFilter === "" ? "" : Number(statusFilter),
         groupId: groupIdFilter === "" ? "" : Number(groupIdFilter),
         groupState: groupStateFilter, includeInactive,
@@ -135,9 +136,13 @@ export default function AccountManagement() {
 
   useEffect(() => { void loadRoles(); }, []);
   useEffect(() => {
+    const timer = window.setTimeout(() => setSearchKeyword(keyword), 300);
+    return () => window.clearTimeout(timer);
+  }, [keyword]);
+  useEffect(() => {
     void loadAccounts(1);
     return () => { accountRequestId.current += 1; };
-  }, [keyword, roleFilter, statusFilter, groupIdFilter, groupStateFilter, includeInactive]);
+  }, [searchKeyword, roleFilter, statusFilter, groupIdFilter, groupStateFilter, includeInactive]);
 
   function showAccountDetail(detail: AdminUserDetail) {
     setEditing(detail);
@@ -398,7 +403,7 @@ export default function AccountManagement() {
       </section>
 
       <section className="admin-panel overflow-hidden" aria-label="账号列表">
-        {loading ? <div role="status" className="admin-table-empty">正在加载账号…</div> : items.length === 0 ? <div className="admin-table-empty">没有符合条件的账号。</div> : (
+        {loading && items.length === 0 ? <div role="status" className="admin-table-empty">正在加载账号…</div> : items.length === 0 ? <div className="admin-table-empty">没有符合条件的账号。</div> : (
           <div className="admin-users__table-wrap">
             <table className="admin-table admin-users__table">
               <thead><tr><th>成员</th><th>组别</th><th>身份与权限</th><th>状态</th></tr></thead>
@@ -416,7 +421,7 @@ export default function AccountManagement() {
           </div>
         )}
         <div className="flex items-center justify-between gap-3 border-t border-[var(--admin-border-subtle)] px-4 py-3 text-xs text-[var(--admin-muted)]">
-          <span>第 {page} / {totalPages} 页</span>
+          <span>{loading ? "正在更新账号… · " : ""}第 {page} / {totalPages} 页</span>
           <div className="admin-operation-group"><button type="button" disabled={page <= 1 || loading} onClick={() => void loadAccounts(page - 1)} className="admin-button admin-button--secondary admin-button--small">上一页</button><button type="button" disabled={page >= totalPages || loading} onClick={() => void loadAccounts(page + 1)} className="admin-button admin-button--secondary admin-button--small">下一页</button></div>
         </div>
       </section>
