@@ -85,7 +85,7 @@ func ValidateUploads(headers []*multipart.FileHeader, allowLarge bool) ([]Upload
 	return validated, nil
 }
 
-func HashUpload(header *multipart.FileHeader) (string, error) {
+func HashUpload(header *multipart.FileHeader, allowLarge bool) (string, error) {
 	if header == nil {
 		return "", fmt.Errorf("missing upload")
 	}
@@ -95,11 +95,15 @@ func HashUpload(header *multipart.FileHeader) (string, error) {
 	}
 	defer source.Close()
 	hash := sha256.New()
-	written, err := io.Copy(hash, io.LimitReader(source, MaxFileSize+1))
+	var reader io.Reader = source
+	if !allowLarge {
+		reader = io.LimitReader(source, MaxFileSize+1)
+	}
+	written, err := io.Copy(hash, reader)
 	if err != nil {
 		return "", err
 	}
-	if written != header.Size || written > MaxFileSize {
+	if written != header.Size || (!allowLarge && written > MaxFileSize) {
 		return "", fmt.Errorf("upload size changed during validation")
 	}
 	return hex.EncodeToString(hash.Sum(nil)), nil

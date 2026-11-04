@@ -468,7 +468,7 @@ func (s *Service) CreateWithMaterialFiles(ctx context.Context, actor Actor, inpu
 	if err != nil {
 		return nil, err
 	}
-	validated, err := validateUploads(headers, false)
+	validated, err := validateUploads(headers, true)
 	if err != nil {
 		return nil, err
 	}
@@ -535,7 +535,7 @@ func (s *Service) CreateWithMaterialFiles(ctx context.Context, actor Actor, inpu
 
 		materialFiles := make([]model.AssignmentMaterialFile, 0, len(validated))
 		for _, upload := range validated {
-			stored, err := s.materials.save(ctx, item.ID, actor.ID, upload, now, false)
+			stored, err := s.materials.save(ctx, item.ID, actor.ID, upload, now, true)
 			if err != nil {
 				return err
 			}
@@ -1033,7 +1033,7 @@ func (s *Service) UploadMaterialFiles(ctx context.Context, actor Actor, assignme
 	if err := requireAdmin(actor); err != nil {
 		return nil, err
 	}
-	validated, err := validateUploads(headers, false)
+	validated, err := validateUploads(headers, true)
 	if err != nil {
 		return nil, err
 	}
@@ -1063,21 +1063,10 @@ func (s *Service) UploadMaterialFiles(ctx context.Context, actor Actor, assignme
 		if len(existing)+len(validated) > maxAssignmentFiles {
 			return badRequest("教学资料最多 10 个文件")
 		}
-		totalSize := int64(0)
-		for _, file := range existing {
-			totalSize += file.Size
-		}
-		for _, upload := range validated {
-			totalSize += upload.header.Size
-		}
-		if totalSize > maxAssignmentFilesTotal {
-			return badRequest("教学资料总大小不能超过 50 MB")
-		}
-
 		now := s.now().UTC()
 		files := make([]model.AssignmentMaterialFile, 0, len(validated))
 		for _, upload := range validated {
-			stored, err := s.materials.save(ctx, item.ID, actor.ID, upload, now, false)
+			stored, err := s.materials.save(ctx, item.ID, actor.ID, upload, now, true)
 			if err != nil {
 				return err
 			}

@@ -305,7 +305,7 @@ func (s *Service) UploadAttachments(ctx context.Context, actor Actor, reportID u
 	}
 	unique := make([]privatefile.Upload, 0, len(uploads))
 	for _, upload := range uploads {
-		hash, err := privatefile.HashUpload(upload.Header)
+		hash, err := privatefile.HashUpload(upload.Header, false)
 		if err != nil {
 			return nil, serviceError(http.StatusBadRequest, "读取上传附件失败", err)
 		}

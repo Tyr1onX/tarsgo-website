@@ -1,6 +1,7 @@
 package assignment
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -237,6 +238,60 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	}
 	if !superAdminCanRead {
 		t.Fatal("super admin could not view the assignment published to another technical group")
+	}
+
+	// Real 51 MiB teaching-material payloads exercise both atomic publishing and
+	// editing an existing assignment without the legacy 20/50 MiB business limits.
+	largePDF := append([]byte("%PDF-1.7\n"), bytes.Repeat([]byte("p"), 21<<20)...)
+	largeTXT := bytes.Repeat([]byte("t"), 30<<20)
+	largeHeaders := []*multipart.FileHeader{
+		multipartHeader(t, "大文件.pdf", largePDF),
+		multipartHeader(t, "大文件.txt", largeTXT),
+	}
+	largeInput := CreateInput{
+		GroupID: groupIDs[groupMechanical], Title: "[TEST_ASSIGNMENT] 大文件原子发布", Description: "超过旧大小阈值",
+		DueAt: now.Add(48 * time.Hour), IsGroupWide: true,
+	}
+	largeRequestID := "10000000-0000-4000-8000-" + fmt.Sprintf("%012x", time.Now().UnixNano()&0xffffffffffff)
+	largePublished, err := service.CreateWithMaterialFiles(context.Background(), admin, largeInput, largeRequestID, largeHeaders)
+	if largePublished != nil && largePublished.Assignment.ID != 0 {
+		createdAssignmentIDs = append(createdAssignmentIDs, largePublished.Assignment.ID)
+	}
+	if err != nil || largePublished == nil || len(largePublished.MaterialFiles) != 2 {
+		t.Fatalf("large atomic teaching-material publication failed: result=%v err=%v", largePublished, err)
+	}
+	for index, expected := range [][]byte{largePDF, largeTXT} {
+		download, err := service.OpenMaterialFile(context.Background(), member, largePublished.MaterialFiles[index].ID)
+		if err != nil || !bytes.Equal(download.Content, expected) {
+			t.Fatalf("large published material %d failed download or content check: %v", index, err)
+		}
+	}
+	largeReplay, err := service.CreateWithMaterialFiles(context.Background(), admin, largeInput, largeRequestID, largeHeaders)
+	if err != nil || largeReplay.Assignment.ID != largePublished.Assignment.ID || len(largeReplay.MaterialFiles) != 2 {
+		t.Fatalf("large atomic publication retry failed: result=%v err=%v", largeReplay, err)
+	}
+	largeEdit, err := service.Create(context.Background(), admin, CreateInput{
+		GroupID: groupIDs[groupMechanical], Title: "[TEST_ASSIGNMENT] 大文件编辑追加", Description: "已有附件后追加",
+		DueAt: now.Add(48 * time.Hour), IsGroupWide: true,
+	})
+	if err != nil {
+		t.Fatalf("create assignment for large material append: %v", err)
+	}
+	createdAssignmentIDs = append(createdAssignmentIDs, largeEdit.ID)
+	if _, err := service.UploadMaterialFiles(context.Background(), admin, largeEdit.ID, []*multipart.FileHeader{
+		multipartHeader(t, "已有资料.pdf", []byte("%PDF-1.7\nexisting")),
+	}); err != nil {
+		t.Fatalf("upload initial material before large append: %v", err)
+	}
+	largeAppended, err := service.UploadMaterialFiles(context.Background(), admin, largeEdit.ID, largeHeaders)
+	if err != nil || len(largeAppended) != 3 {
+		t.Fatalf("append over 50 MiB total to existing assignment failed: files=%d err=%v", len(largeAppended), err)
+	}
+	for index, expected := range [][]byte{largePDF, largeTXT} {
+		download, err := service.OpenMaterialFile(context.Background(), member, largeAppended[index+1].ID)
+		if err != nil || !bytes.Equal(download.Content, expected) {
+			t.Fatalf("large appended material %d failed download or content check: %v", index, err)
+		}
 	}
 
 	requestID := "00000000-0000-4000-8000-" + fmt.Sprintf("%012x", time.Now().UnixNano()&0xffffffffffff)

@@ -349,7 +349,7 @@ export default function AssignmentManagementRoute() {
               onFilesChange={(next) => { setPendingMaterials(next); setMaterialsUploadStatus("pending"); setError(""); }}
               accept={assignmentMaterialAccept}
               multiple
-              hint="最多 10 个 · 单个≤20 MB · 总计≤50 MB"
+              hint="最多 10 个 · 单次请求上限 64 MiB（含表单数据）"
               disabled={saving || publishStage !== "idle" || loadingEdit || Boolean(editing && editing.submittedCount > 0)}
               status={materialsUploadStatus}
               progress={uploadProgress}
