@@ -159,13 +159,25 @@ function HomeSponsorSection() {
           合作与支持
         </h2>
 
-        <ul className="home-sponsor-grid" aria-label="现有赞助商">
-          {sponsorLogos.map((sponsor) => (
-            <li key={sponsor.name} className="home-sponsor-logo">
-              <img src={sponsor.image} alt={sponsor.name} loading="lazy" decoding="async" />
-            </li>
-          ))}
-        </ul>
+        <div className="home-sponsor-matrix" role="group" aria-label="现有赞助商">
+          <div className="home-sponsor-primary">
+            <img src="/assets/images/Sponsors/dji.svg" alt="DJI 大疆创新" loading="lazy" decoding="async" />
+          </div>
+          <ul className="home-sponsor-featured-grid" aria-label="重点合作品牌">
+            {sponsorLogos.slice(0, 2).map((sponsor) => (
+              <li key={sponsor.name} className="home-sponsor-logo">
+                <img src={sponsor.image} alt={sponsor.name} loading="lazy" decoding="async" />
+              </li>
+            ))}
+          </ul>
+          <ul className="home-sponsor-grid" aria-label="其他合作品牌">
+            {sponsorLogos.slice(2).map((sponsor) => (
+              <li key={sponsor.name} className="home-sponsor-logo">
+                <img src={sponsor.image} alt={sponsor.name} loading="lazy" decoding="async" />
+              </li>
+            ))}
+          </ul>
+        </div>
 
         <div className="home-partner-links">
           <a

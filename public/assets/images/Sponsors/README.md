@@ -1,5 +1,13 @@
 # 合作伙伴标识素材记录
 
+## DJI 大疆创新
+
+- 展示文件：`dji.svg`。
+- 素材来源：Wikimedia Commons 的 `DJI Innovations logo.svg`，原文件根据 DJI 官方《Inspire 1 Quick Start Guide》提取，作为独立 SVG 文件原样使用，不改变图形、比例及颜色。
+- 来源链接：https://commons.wikimedia.org/wiki/File:DJI_Innovations_logo.svg
+- 展示规则：按 RoboMaster 2027 赞助权益说明，DJI 标识位于首页品牌矩阵第一排独立区域，不与其他品牌标识并排。
+- 商标归属 DJI；素材的著作权状态不等同于商标使用许可。若赛事方提供 2027 专用官方素材，应核对并替换展示文件。
+
 ## 长春纳丝精密机械有限公司
 
 - 展示文件：`nasi-precision.svg`
