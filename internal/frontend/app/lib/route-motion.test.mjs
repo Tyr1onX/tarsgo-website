@@ -7,14 +7,13 @@ const styles = await readFile(new URL("../app.css", import.meta.url), "utf8");
 const home = await readFile(new URL("../routes/home.tsx", import.meta.url), "utf8");
 const microSpecialty = await readFile(new URL("../routes/micro-specialty-low-altitude.tsx", import.meta.url), "utf8");
 
-test("the route indicator reports pending navigation immediately without estimating progress", () => {
+test("pending navigation uses the transparent brand loader without a top progress line", () => {
   assert.match(root, /\{isNavigating \?/);
-  assert.match(root, /className="route-progress"/);
-  assert.match(root, /route-progress__line/);
-  assert.match(root, /role="status" aria-live="polite"/);
-  assert.match(styles, /\.route-progress__line/);
-  assert.doesNotMatch(styles, /route-progress-drift|route-progress-complete/);
-  assert.doesNotMatch(root, /aria-valuenow|role="progressbar"/);
+  assert.match(root, /className="route-feedback"/);
+  assert.match(root, /<BrandLoader label=\{getNavigationMessage\([\s\S]*?size="inline"/);
+  assert.match(styles, /\.route-feedback \.brand-loader\s*\{\s*animation: none/);
+  assert.doesNotMatch(root, /route-progress__line|role="progressbar"/);
+  assert.doesNotMatch(styles, /\.route-progress/);
 });
 
 test("fast navigation completion cancels the indicator without replacing route scroll restoration", () => {

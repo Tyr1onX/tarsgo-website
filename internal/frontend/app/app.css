@@ -38,23 +38,16 @@ body {
   color-scheme: var(--theme-color-scheme, dark);
 }
 
-.route-progress {
+.route-feedback {
   position: fixed;
-  inset: 0 0 auto;
+  top: calc(var(--site-nav-height) + 10px);
+  right: max(12px, env(safe-area-inset-right));
   z-index: 100;
-  height: 2px;
-  overflow: hidden;
   pointer-events: none;
-  background: color-mix(in srgb, var(--theme-accent) 12%, transparent);
 }
 
-.route-progress__line {
-  display: block;
-  width: 100%;
-  height: 2px;
-  background: var(--theme-accent, #d0ad69);
-  position: absolute;
-  inset: 0;
+.route-feedback .brand-loader {
+  animation: none;
 }
 
 html {
