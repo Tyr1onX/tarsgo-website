@@ -508,7 +508,7 @@ export default function CommunityPostRoute() {
       <div className="community-thread__content">
         <button className="community-thread__back" type="button" onClick={backToCommunity}><CommunityIcon name="arrowLeft" />返回吉甲社区</button>
         {error ? <p className="community-state community-state--error" role="alert">{error}{retryAction ? <button type="button" className="community-inline-retry" onClick={() => retryAction()}>重试</button> : null}</p> : null}
-    <article id={`community-post-${post.id}`} data-community-reading-index="0" className={`community-post${post.isPinned ? " is-pinned" : ""}`}>
+    <article id={`community-post-${post.id}`} data-community-reading-index="0" className="community-post">
       <div className="community-post__author">
         <CommunityAuthorProfile id={post.authorId} name={post.authorName} avatar={post.authorAvatar} level={post.authorLevel} featuredBadge={post.authorFeaturedBadge} positions={post.authorPositions} teamIdentityStatus={post.authorTeamIdentityStatus} />
         <div className="community-post__byline"><time dateTime={post.createdAt}>{formatCommunityDate(post.createdAt)}{post.editedAt ? " · 已编辑" : ""} · {post.viewCount ?? 0} 浏览</time></div>

@@ -112,9 +112,7 @@ export default function App() {
   return (
     <>
       {isNavigating ? (
-        <div className="route-feedback">
-          <BrandLoader label={getNavigationMessage(navigationPath ?? location.pathname)} size="inline" />
-        </div>
+        <div className="route-feedback" role="status" aria-label={getNavigationMessage(navigationPath ?? location.pathname)} />
       ) : null}
       <ThemeProvider>
         <Outlet />

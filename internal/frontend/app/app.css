@@ -40,14 +40,11 @@ body {
 
 .route-feedback {
   position: fixed;
-  top: calc(var(--site-nav-height) + 10px);
-  right: max(12px, env(safe-area-inset-right));
+  inset: 0 0 auto;
+  height: 2px;
   z-index: 100;
+  background: var(--theme-accent-contrast);
   pointer-events: none;
-}
-
-.route-feedback .brand-loader {
-  animation: none;
 }
 
 html {
