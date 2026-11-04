@@ -33,7 +33,7 @@ test("account actions reuse existing permissions and retain keyboard navigation"
   assert.match(dashboardLayout, /<ThemeControl \/>/);
   assert.equal((themeControl.match(/<button\b/g) ?? []).length, 1);
   assert.doesNotMatch(themeControl, /systemOnly|__menu-toggle|__option/);
-  assert.doesNotMatch(styles, /\\.theme-control__menu-toggle|\\.theme-control__options|\\.theme-control--navbar/);
+  assert.doesNotMatch(styles, /\.theme-control__menu-toggle|\.theme-control__options|\.theme-control--navbar/);
   assert.match(styles, /\.navbar-account-action\s*\{[\s\S]*?min-height:\s*2\.75rem/);
   assert.match(styles, /\.navbar-user-menu\s*\{[\s\S]*?width: min\(18rem, calc\(100vw - 2rem\)\)/);
 });
