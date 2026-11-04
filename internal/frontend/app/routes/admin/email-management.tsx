@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import mail from "@iconify-icons/lucide/mail";
 import send from "@iconify-icons/lucide/send";
 import { Icon } from "@iconify/react";
@@ -169,7 +170,7 @@ export default function EmailManagementPage() {
           </header>
 
           {loading || !templates || !config || !currentTemplate ? (
-            <div className="px-6 py-8 text-sm text-[var(--admin-muted)]">{loading ? "正在加载邮件设置..." : "邮件设置加载失败。"}</div>
+            loading ? <BrandLoader label="正在加载邮件设置" /> : <div className="px-6 py-8 text-sm text-[var(--admin-muted)]">邮件设置加载失败。</div>
           ) : (
             <form onSubmit={(event) => void handleSave(event)} className="space-y-5 px-6 py-5">
               <label className="block max-w-sm text-sm text-[var(--admin-muted)]">

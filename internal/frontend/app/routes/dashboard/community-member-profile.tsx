@@ -362,7 +362,6 @@ export default function CommunityMemberProfileRoute() {
     {tab !== "settings" ? <nav className="community-member-tabs" aria-label="成员主页栏目">
       {tabs.map((item) => <button key={item.id} type="button" aria-current={tab === item.id ? "page" : undefined} onClick={() => changeTab(item.id)}>{item.label}</button>)}
     </nav> : null}
-    {loading ? <p className="community-member-loading" role="status">正在更新内容…</p> : null}
     {notice ? <p className="community-state" role="status">{notice}</p> : null}
 
     {tab === "overview" ? <div className="community-member-overview">

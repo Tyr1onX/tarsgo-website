@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import { useEffect, useState } from "react";
 import { useOutletContext } from "react-router";
 import { apiRequest } from "~/lib/api-client";
@@ -33,7 +34,7 @@ export function RecruitmentRecords() {
     <label>档案类别 <select className="admin-field" value={dataset} disabled={loading} onChange={(event) => { setPage(null); setDataset(event.target.value); setCursors([""]); }}>
       {datasets.map((item) => <option key={item.key} value={item.key}>{item.label}</option>)}
     </select></label>
-    {loading ? <p role="status">正在读取档案…</p> : null}
+    {loading ? <BrandLoader label="正在读取历史记录" /> : null}
     {error ? <p role="alert">{error} <button type="button" onClick={() => setRetry((value) => value + 1)}>重试</button></p> : null}
     {page?.rows.length ? <div className="recruitment-records__scroll" role="region" aria-label="历史记录" tabIndex={0}><table><caption>{page.datasets.find((item) => item.key === dataset)?.label} · 第 {cursors.length} 页</caption><thead><tr>{page.columns.map((column) => <th scope="col" key={column}>{column}</th>)}</tr></thead><tbody>
       {page.rows.map((row) => <tr key={row[0]}>{row.map((value, index) => <td key={index}>{value || "—"}</td>)}</tr>)}

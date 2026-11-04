@@ -248,7 +248,7 @@ export default function AISalonDetail() {
                 </p>
               ) : null}
               {user === undefined ? (
-                <p className="mt-5 text-fg-muted">正在读取登录状态…</p>
+                <BrandLoader label="正在读取登录状态" size="sm" />
               ) : !user ? (
                 <div className="mt-5">
                   <p className="mb-5 text-sm text-fg-muted">
@@ -262,9 +262,7 @@ export default function AISalonDetail() {
                   </Link>
                 </div>
               ) : !data ? (
-                <p className="mt-5 text-fg-muted">
-                  {personalError ? "请刷新重试" : "正在读取报名资料…"}
-                </p>
+                personalError ? <p className="mt-5 text-fg-muted">请刷新重试</p> : <BrandLoader label="正在读取报名资料" size="sm" />
               ) : record && record.status !== "cancelled" ? (
                 <>
                   <p className="mt-5 text-lg font-semibold text-accent-primary">

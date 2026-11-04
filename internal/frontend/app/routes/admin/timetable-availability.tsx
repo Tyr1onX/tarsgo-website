@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useOutletContext } from "react-router";
@@ -192,11 +193,11 @@ export default function TimeCoordinationPage() {
       <h1 className="admin-page-title">时间协调</h1>
       {options?.currentSemester ? <span>{options.currentSemester}</span> : null}
     </header>
-    {loading ? <p role="status">正在读取组别…</p> : null}
+    {loading ? <BrandLoader label="正在读取组别" size="sm" /> : null}
     {error ? <p role="alert" className="admin-notice admin-notice--error">{error}</p> : null}
     {options && options.groups.length === 0 ? <p className="p-4">没有可统计的组别。</p> : null}
     {options ? <>
-      {querying ? <p role="status">正在分析整周时间…</p> : null}
+      {querying ? <BrandLoader label="正在分析整周时间" /> : null}
       {result && !querying ? <>
         <section className="availability-heatmap border border-[var(--admin-border-subtle)] bg-[var(--admin-surface)]">
           <header className="availability-heatmap__heading">

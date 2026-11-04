@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useOutletContext, useSearchParams } from "react-router";
 
@@ -403,7 +404,7 @@ export default function AccountManagement() {
       </section>
 
       <section className="admin-panel overflow-hidden" aria-label="账号列表">
-        {loading && items.length === 0 ? <div role="status" className="admin-table-empty">正在加载账号…</div> : items.length === 0 ? <div className="admin-table-empty">没有符合条件的账号。</div> : (
+        {loading && items.length === 0 ? <BrandLoader label="正在加载账号" /> : items.length === 0 ? <div className="admin-table-empty">没有符合条件的账号。</div> : (
           <div className="admin-users__table-wrap">
             <table className="admin-table admin-users__table">
               <thead><tr><th>成员</th><th>组别</th><th>身份与权限</th><th>状态</th></tr></thead>
@@ -428,7 +429,7 @@ export default function AccountManagement() {
 
 
       </> : null}
-      {requestedUserId && !editing && !error ? <p role="status" className="admin-table-empty">正在读取成员详情…</p> : null}
+      {requestedUserId && !editing && !error ? <BrandLoader label="正在读取成员详情" /> : null}
       {requestedUserId && editing?.id === Number(requestedUserId) ? <div className="mx-auto w-full max-w-4xl space-y-5">
         <section className="admin-panel flex flex-wrap items-center gap-4 p-4 sm:p-5" aria-label="成员摘要">
           <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--admin-surface)] text-lg font-semibold text-[var(--admin-text)]">

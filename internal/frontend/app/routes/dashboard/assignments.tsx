@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useOutletContext, useSearchParams } from "react-router";
 
@@ -153,7 +154,7 @@ export default function MyAssignmentsRoute() {
     <section className="admin-design space-y-5" aria-labelledby="my-assignments-title">
       <header className="admin-page-header"><div className="flex flex-wrap items-center gap-2"><h1 id="my-assignments-title" className="admin-page-title">我的作业</h1><WorkbenchFeatureStatus feature="assignments" /></div></header>
       {error ? <div role="alert" className="admin-notice admin-notice--error">{error}</div> : null}
-      {loading && items.length === 0 ? <p role="status" className="py-6 text-sm text-[var(--admin-muted)]">正在加载作业…</p> : null}
+      {loading && items.length === 0 ? <BrandLoader label="正在加载作业" /> : null}
       {!loading && !error && items.length === 0 ? <section className="admin-panel p-5 text-sm text-[var(--admin-muted)]">目前还没有分配给你的作业；作业发布后会显示在这里。</section> : null}
       {items.length > 0 ? <div className="grid gap-4 xl:grid-cols-[minmax(240px,0.8fr)_minmax(0,1.6fr)]">
         <section className="admin-panel divide-y divide-[var(--admin-border-subtle)] p-3" aria-label="作业列表">
@@ -215,7 +216,7 @@ export default function MyAssignmentsRoute() {
             /></div>
             <div className="flex flex-wrap items-center justify-between gap-3"><button type="submit" className="admin-button admin-button--primary" disabled={saving || files.length === 0}>{saving ? "提交中…" : detail.submissions.length ? "重新提交" : "提交作业"}</button></div>
           </form> : null}
-        </section> : selectedID != null && detailLoading ? <section className="admin-panel p-5 text-sm text-[var(--admin-muted)]" role="status">正在读取作业记录…</section> : null}
+        </section> : selectedID != null && detailLoading ? <section className="admin-panel p-5"><BrandLoader label="正在读取作业记录" size="sm" /></section> : null}
       </div> : null}
     </section>
   );

@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useOutletContext } from "react-router";
 
@@ -202,7 +203,7 @@ export default function LeaveWorkbench() {
 
     {error ? <p role="alert" className="admin-notice admin-notice--error">{error}</p> : null}
     {notice ? <p role="status" className="admin-notice admin-notice--success">{notice}</p> : null}
-    {loading ? <p className="py-8 text-sm text-[var(--admin-muted)]">正在加载请假数据…</p> : null}
+    {loading ? <BrandLoader label="正在加载请假数据" /> : null}
 
     {!loading && !isAdmin && accessState && accessState.status !== "approved" ? <section className="admin-panel space-y-4 p-4 sm:p-5" aria-labelledby="leave-access-title">
       <div className="admin-section-heading"><h2 id="leave-access-title">请假功能</h2></div>

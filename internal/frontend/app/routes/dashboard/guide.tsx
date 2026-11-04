@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Link, useOutletContext, useSearchParams } from "react-router";
 
@@ -121,7 +122,7 @@ export default function GuideRoute() {
 
     <div>
       {activeTab === "website" ? <WebsiteGuide currentUser={currentUser} groupResolution={groupResolution} /> : null}
-      {activeTab === "operations" ? operationsLoading ? <p className="work-manual__status" role="status">正在加载 SOP…</p>
+      {activeTab === "operations" ? operationsLoading ? <BrandLoader label="正在加载 SOP" />
         : operationsError ? <div className="work-manual__status" role={operationsError.status === 403 ? "status" : "alert"}>
           <p>{operationsError.message}</p>
           {operationsError.status !== 403 && operationsError.status !== 401 ? <button type="button" onClick={retryOperations}>重试</button> : null}

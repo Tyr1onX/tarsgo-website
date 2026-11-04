@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useOutletContext } from "react-router";
 
@@ -319,7 +320,7 @@ export default function AssignmentManagementRoute() {
       <header className="admin-page-header assignment-management__header flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2"><h1 id="assignment-management-title" className="admin-page-title">作业管理</h1><WorkbenchFeatureStatus feature="assignments" /></div>
         <div className="assignment-management__header-actions">
-        {groupsLoading ? <p role="status" className="text-sm text-[var(--admin-muted)]">正在加载组别…</p> : assignmentGroups.length > 1 ? <label className="admin-field-label assignment-management__group-select">组别<select className="admin-field w-full" value={groupId} disabled={saving || publishStage !== "idle"} onChange={(event) => { const nextGroupID = Number(event.target.value); setGroupId(nextGroupID); resetDraft(nextGroupID); setComposerOpen(true); }}>
+        {groupsLoading ? <BrandLoader label="正在加载组别" size="sm" /> : assignmentGroups.length > 1 ? <label className="admin-field-label assignment-management__group-select">组别<select className="admin-field w-full" value={groupId} disabled={saving || publishStage !== "idle"} onChange={(event) => { const nextGroupID = Number(event.target.value); setGroupId(nextGroupID); resetDraft(nextGroupID); setComposerOpen(true); }}>
           {assignmentGroups.map((group) => <option key={group.groupId} value={group.groupId}>{group.name}</option>)}
         </select></label> : assignmentGroups[0] ? <p className="text-sm text-[var(--admin-muted)]">{assignmentGroups[0].name}</p> : null}
         {!composerOpen ? <button type="button" className="admin-button admin-button--primary" onClick={() => { resetDraft(); setComposerOpen(true); }} disabled={!groupId || Boolean(groupError)}>发布作业</button> : null}
@@ -388,7 +389,7 @@ export default function AssignmentManagementRoute() {
               </div> : null}
               <div className="grid max-h-48 gap-2 overflow-y-auto rounded-xl border border-[var(--admin-border-subtle)] p-3 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredMembers.map((member) => <label key={member.userId} className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={saving || publishStage !== "idle" || Boolean(editing)} checked={draft.targetUserIds.includes(member.userId)} onChange={() => toggleMember(member.userId)} />{member.name} <span className="text-xs text-[var(--admin-muted)]">#{member.userId}</span></label>)}
-                {loading ? <p className="text-sm text-[var(--admin-muted)]">正在加载组内成员…</p> : !error && filteredMembers.length === 0 ? <p className="text-sm text-[var(--admin-muted)]">{memberSearch ? "没有匹配成员。" : "当前组没有可分配的普通成员。"}</p> : null}
+                {loading ? <BrandLoader label="正在加载组内成员" size="sm" /> : !error && filteredMembers.length === 0 ? <p className="text-sm text-[var(--admin-muted)]">{memberSearch ? "没有匹配成员。" : "当前组没有可分配的普通成员。"}</p> : null}
               </div>
             </div> : null}
           </fieldset>
@@ -398,7 +399,7 @@ export default function AssignmentManagementRoute() {
 
       <section className="admin-panel assignment-list" aria-labelledby="assignment-list-title">
         <div className="admin-section-heading"><h2 id="assignment-list-title">本组作业</h2></div>
-        {loading ? <p role="status" className="py-4 text-sm text-[var(--admin-muted)]">正在加载…</p> : null}
+        {loading && !items.length ? <BrandLoader label="正在加载作业" /> : null}
         {!loading && !error && !groupError && items.length === 0 ? <p className="py-4 text-sm text-[var(--admin-muted)]">本组尚未发布作业。</p> : null}
         <div className="assignment-list__items">{items.map((item) => <article key={item.id} className="assignment-list__item">
           <div className="assignment-list__summary"><div className="assignment-list__title"><h3>{item.title}</h3><span className={`rounded-full border px-2 py-0.5 text-xs ${item.publicationStatus === "withdrawn" ? "border-[var(--admin-border)] text-[var(--admin-muted)]" : "border-[var(--admin-success-border)] text-[var(--admin-success)]"}`}>{assignmentPublicationStatusLabel(item.publicationStatus)}</span></div><p>截止 {formatAssignmentDate(item.dueAt)} · {item.isGroupWide ? "全组（实时）" : "指定成员"} · 接收 {item.targetCount} 人 · 已提交 {item.submittedCount}/{item.targetCount} · 已通过 {item.passedCount}</p></div>

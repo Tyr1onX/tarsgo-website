@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import { lazy, Suspense, useEffect, useRef, useState, type FormEvent } from "react";
 
 import { CommunityIcon } from "~/components/community-icons";
@@ -136,7 +137,7 @@ export function CommunityComposer({ id, accountId, onCancel, onPublish }: {
         </select>
       </label>
       <div className="community-field community-field--editor"><span>正文</span>
-        {draftReady ? <Suspense fallback={<div className="community-markdown-editor__loading" role="status">正在打开编辑器…</div>}><CommunityMarkdownEditor value={body} onChange={setBody} flushRef={editorFlushRef} uploads={uploads} onUploadsChange={setUploads} required disabled={saving} placeholder="分享过程、问题或进展…" /></Suspense> : <div className="community-markdown-editor__loading" role="status">正在恢复草稿…</div>}
+        {draftReady ? <Suspense fallback={<div className="community-markdown-editor__loading"><BrandLoader label="正在打开编辑器" size="sm" /></div>}><CommunityMarkdownEditor value={body} onChange={setBody} flushRef={editorFlushRef} uploads={uploads} onUploadsChange={setUploads} required disabled={saving} placeholder="分享过程、问题或进展…" /></Suspense> : <div className="community-markdown-editor__loading"><BrandLoader label="正在恢复草稿" size="sm" /></div>}
       </div>
     </div>
     <div className="community-composer__actions">

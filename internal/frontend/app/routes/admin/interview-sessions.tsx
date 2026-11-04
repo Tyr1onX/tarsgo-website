@@ -1,3 +1,4 @@
+import { BrandLoader } from "~/components/brand-loader";
 import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 
@@ -143,7 +144,7 @@ export default function InterviewSessions() {
 
       <section className="admin-panel p-4 sm:p-5" aria-label="已配置面试场次">
         <div className="admin-section-heading"><div><h2>已配置场次</h2><p>停用的场次不会出现在候选人选项中。</p></div><span className="admin-count admin-count--compact">{sessions.length}</span></div>
-        {loading ? <div role="status" className="admin-table-empty">正在读取面试场次…</div> : sessions.length === 0 ? <div className="admin-table-empty">暂无面试场次。</div> : (
+        {loading ? <BrandLoader label="正在读取面试场次" /> : sessions.length === 0 ? <div className="admin-table-empty">暂无面试场次。</div> : (
           <div className="admin-list">
             {sessions.map((session) => (
               <div key={session.id} className="admin-list-row flex-wrap">
