@@ -89,7 +89,7 @@ export function CommunityGrowthBar({ userID }: { userID: number }) {
         {profile && !profile.checkedInToday ? <strong>+{profile.upcomingCheckIns[0]?.rewardXp ?? 10} XP</strong> : null}
       </button>
       <div className="community-growth__summary" aria-live="polite">
-        {profile ? <><CommunityLevelBadge level={profile.level} /><span>{profile.totalXp.toLocaleString("zh-CN")} XP</span><span className="community-growth__streak"><CommunityIcon name="flame" /> 连续 {profile.streakDays} 天</span></> : error ? "成长信息暂不可用" : <BrandLoader label="正在读取成长信息" size="sm" />}
+        {profile ? <><CommunityLevelBadge level={profile.level} /><span>{profile.totalXp.toLocaleString("zh-CN")} XP</span><span className="community-growth__streak"><CommunityIcon name="flame" /> 连续 {profile.streakDays} 天</span></> : error ? "成长信息暂不可用" : <BrandLoader label="正在读取成长信息" size="inline" />}
       </div>
       <button type="button" className="community-growth__details-toggle" aria-expanded={open} onClick={() => { const next = !open; setOpen(next); if (next) loadProfile(); }} disabled={!profile}>
         成长详情 <CommunityIcon name="chevronDown" />

@@ -10,6 +10,17 @@
   min-height: 48px;
 }
 
+.brand-loader--inline {
+  display: inline-grid;
+  width: 24px;
+  min-height: 24px;
+}
+
+.brand-loader--inline .brand-loader__symbol {
+  width: 20px;
+  height: 20px;
+}
+
 .brand-loader__symbol {
   position: relative;
   display: block;

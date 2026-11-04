@@ -54,6 +54,19 @@ test("cold-loading placeholders reuse one component across public and internal p
   }
 });
 
+test("inline status stays compact and cached sections remain visible while refreshing", async () => {
+  const growth = await read("../components/community-growth.tsx");
+  const interviews = await read("../routes/admin/interview-sessions.tsx");
+  const groups = await read("../routes/admin/user-groups.tsx");
+  const leave = await read("../routes/leave-workbench.tsx");
+  assert.match(component, /size\?: "sm" \| "md" \| "inline"/);
+  assert.match(css, /\.brand-loader--inline\s*\{[^}]*width: 24px/);
+  assert.match(growth, /<BrandLoader label="正在读取成长信息" size="inline"/);
+  assert.match(interviews, /loading && sessions\.length === 0 \? <BrandLoader/);
+  assert.match(groups, /loading && filteredGroups\.length === 0 \? <BrandLoader/);
+  assert.match(leave, /loading && !profile && dailyEntries\.length === 0 \? <BrandLoader/);
+});
+
 test("background refresh retains existing community data without a loading banner", async () => {
   const feed = await read("../routes/dashboard/index.tsx");
   const workbench = await read("../routes/dashboard/workbench.tsx");
