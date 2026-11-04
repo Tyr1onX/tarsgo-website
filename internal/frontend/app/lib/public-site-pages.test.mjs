@@ -479,3 +479,17 @@ test("Nasi Precision partner logo is publicly listed with a local, safe SVG asse
   assert.match(logo, /fill="#A2002A"/);
   assert.doesNotMatch(logo, /<(?:script|foreignObject)\b|\b(?:href|xlink:href)=|\bon\w+\s*=/i);
 });
+
+test("homepage mobile view prioritizes navigation without duplicating the desktop gallery", () => {
+  assert.match(home, /public-home-hero relative min-h-\[64svh\]/);
+  assert.match(home, /flex min-h-\[64svh\] items-center sm:min-h-\[92svh\]/);
+  assert.match(home, /<PublicFooter compactMobile=\{routePage === "home"\} \/>/);
+  assert.match(homeVisualNavigation, /className="home-mobile-navigation[^"]*sm:hidden"/);
+  assert.match(homeVisualNavigation, /homeNavigationModules\s*\.filter\(\(module\) => module\.href !== "\/about" && module\.href !== "\/join"\)/);
+  assert.match(homeVisualNavigation, /module\.href === "\/robots" \? "featured" : module\.image \? "compact" : "action"/);
+  assert.match(homeVisualNavigation, /playOnce \? "hidden sm:block " : ""/);
+  assert.match(styles, /@media \(max-width: 639px\) \{[\s\S]*?\.home-mobile-grid\s*\{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
+  assert.match(styles, /\.home-mobile-link--featured\s*\{[^}]*grid-column: 1 \/ -1/);
+  assert.match(styles, /\.home-sponsor-matrix\s*\{[^}]*display: flex;[^}]*overflow-x: auto;/);
+  assert.match(styles, /\.public-site-footer--compact nav\[aria-labelledby="footer-about-heading"\]/);
+});

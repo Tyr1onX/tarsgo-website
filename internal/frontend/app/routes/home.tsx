@@ -218,9 +218,9 @@ function HomeSponsorSection() {
   );
 }
 
-export function PublicFooter() {
+export function PublicFooter({ compactMobile = false }: { compactMobile?: boolean } = {}) {
   return (
-    <footer className="public-site-footer border-t border-[var(--theme-border-subtle)] py-9 sm:py-11">
+    <footer className={`public-site-footer border-t border-[var(--theme-border-subtle)] py-9 sm:py-11${compactMobile ? " public-site-footer--compact" : ""}`}>
       <div className="public-home-container">
         <div className="grid gap-8 border-b border-[var(--theme-border-subtle)] pb-8 sm:grid-cols-2 lg:grid-cols-4 lg:gap-10">
           <section aria-labelledby="footer-social-heading">
@@ -321,7 +321,7 @@ export function PublicHomePage({ page = "home", children }: { page?: PublicPage;
       {routePage === "home" ? (
       <section
         id="hero"
-        className="public-home-hero relative min-h-[88svh] overflow-hidden bg-black sm:min-h-[92svh]"
+        className="public-home-hero relative min-h-[64svh] overflow-hidden bg-black sm:min-h-[92svh]"
       >
         <div className="absolute inset-0">
           <video
@@ -340,27 +340,27 @@ export function PublicHomePage({ page = "home", children }: { page?: PublicPage;
           <div className="public-home-hero-shade absolute inset-0" />
         </div>
 
-        <div className="relative z-10 flex min-h-[88svh] items-center sm:min-h-[92svh]">
-          <div className="public-home-container mx-auto flex w-full items-center pb-20 pt-28 sm:pt-32">
-            <div className="flex max-w-2xl flex-col items-center gap-4 text-center sm:items-start sm:text-left">
+        <div className="relative z-10 flex min-h-[64svh] items-center sm:min-h-[92svh]">
+          <div className="public-home-container mx-auto flex w-full items-center pb-12 pt-24 sm:pb-20 sm:pt-32">
+            <div className="flex max-w-2xl flex-col items-center gap-3 text-center sm:items-start sm:gap-4 sm:text-left">
               <img
                 src="/assets/images/Logo/tarsgo-logo-v5.svg"
                 alt="TARSGO"
-                className="h-20 w-auto max-w-full object-contain sm:h-24"
+                className="h-16 w-auto max-w-full object-contain sm:h-24"
               />
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--hero-accent)] sm:text-xs">
                 吉林大学 · RoboMaster 战队
               </p>
-              <h1 className="max-w-2xl text-[42px] font-semibold leading-[1.1] tracking-[-0.045em] text-white sm:text-6xl lg:text-[72px]">
+              <h1 className="max-w-2xl text-[34px] font-semibold leading-[1.1] tracking-[-0.045em] text-white sm:text-6xl lg:text-[72px]">
                 从构想，到<span className="text-[var(--hero-accent)]">赛场</span>
               </h1>
               <p className="max-w-lg text-sm leading-6 text-white/78 sm:text-base sm:leading-7">
                 以 RoboMaster 竞赛为牵引，持续投入机器人研发与团队协作。
               </p>
-              <div className="mt-2 flex w-full flex-col gap-3 sm:w-auto sm:flex-row">
+              <div className="mt-2 flex w-full flex-row gap-2 sm:w-auto sm:gap-3">
                 <Link
                   to="/about"
-                  className="motion-button inline-flex min-h-11 items-center justify-center gap-2 rounded-md bg-accent-primary px-6 py-3 text-sm font-semibold text-fg-inverse transition-colors hover:bg-[var(--admin-accent-bright)] sm:px-7"
+                  className="motion-button inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-md bg-accent-primary px-3 py-3 text-sm font-semibold text-fg-inverse transition-colors hover:bg-[var(--admin-accent-bright)] sm:flex-none sm:px-7"
                 >
                   了解吉甲
                   <svg
@@ -378,7 +378,7 @@ export function PublicHomePage({ page = "home", children }: { page?: PublicPage;
                 </Link>
                 <Link
                   to="/join"
-                  className="inline-flex min-h-11 items-center justify-center rounded-md border border-white/35 px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10 sm:px-7"
+                  className="inline-flex min-h-11 flex-1 items-center justify-center rounded-md border border-white/35 px-3 py-3 text-sm font-semibold text-white transition-colors hover:bg-white/10 sm:flex-none sm:px-7"
                 >
                   加入我们
                 </Link>
@@ -417,7 +417,7 @@ export function PublicHomePage({ page = "home", children }: { page?: PublicPage;
 
       {/* Footer */}
       {routePage === "home" ? <HomeSponsorSection /> : null}
-      <PublicFooter />
+      <PublicFooter compactMobile={routePage === "home"} />
       </div>
       </div>
     </div>
