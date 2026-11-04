@@ -209,8 +209,8 @@ test("submissions and grading keep prior attempts, use Beijing deadlines, and pr
   assert.match(assignmentService, /tx\.Create\(&review\)/);
   assert.match(assignmentService, /loadSubmissionHistories/);
   assert.match(assignmentFiles, /maxAssignmentFiles\s*=\s*privatefile\.MaxFiles/);
-  assert.match(assignmentFiles, /maxAssignmentFileSize\s*=\s*privatefile\.MaxFileSize/);
-  assert.match(assignmentFiles, /maxAssignmentFilesTotal\s*=\s*privatefile\.MaxFilesTotal/);
+  assert.match(assignmentFiles, /privatefile\.HashUpload\(header, true\)/);
+  assert.doesNotMatch(assignmentFiles, /maxAssignmentFileSize|maxAssignmentFilesTotal/);
   assert.match(privateFiles, /MaxFiles\s*=\s*10/);
   assert.match(privateFiles, /MaxFileSize\s*=\s*20 << 20/);
   assert.match(privateFiles, /MaxFilesTotal\s*=\s*50 << 20/);

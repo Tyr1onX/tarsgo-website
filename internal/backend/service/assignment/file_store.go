@@ -12,9 +12,7 @@ import (
 )
 
 const (
-	maxAssignmentFiles      = privatefile.MaxFiles
-	maxAssignmentFileSize   = privatefile.MaxFileSize
-	maxAssignmentFilesTotal = privatefile.MaxFilesTotal
+	maxAssignmentFiles = privatefile.MaxFiles
 )
 
 type assignmentFileStore struct{ store *privatefile.Store }
@@ -78,7 +76,7 @@ func validateUploads(headers []*multipart.FileHeader, allowLarge bool) ([]valida
 }
 
 func hashAssignmentUpload(header *multipart.FileHeader) (string, error) {
-	return privatefile.HashUpload(header)
+	return privatefile.HashUpload(header, true)
 }
 
 func validateAssignmentFileContent(header *multipart.FileHeader, fileName string) (string, error) {

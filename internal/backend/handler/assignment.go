@@ -16,7 +16,7 @@ import (
 	"tarsgo-backend/service/assignment"
 )
 
-const maxAssignmentRequestBody = 52 << 20
+const maxAssignmentRequestBody = 64 << 20
 
 type AssignmentHandler struct{ service *assignment.Service }
 
@@ -261,9 +261,12 @@ func (h *AssignmentHandler) OpenMaterialFile(c *gin.Context) {
 func parseAssignmentMultipartFiles(c *gin.Context) ([]*multipart.FileHeader, func(), bool) {
 	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxAssignmentRequestBody)
 	if err := c.Request.ParseMultipartForm(1 << 20); err != nil {
+		if c.Request.MultipartForm != nil {
+			_ = c.Request.MultipartForm.RemoveAll()
+		}
 		var maxBytesError *http.MaxBytesError
 		if errors.As(err, &maxBytesError) {
-			writeAPIError(c, http.StatusRequestEntityTooLarge, "附件总大小不能超过 50 MB")
+			writeAPIError(c, http.StatusRequestEntityTooLarge, "单次上传请求不能超过 64 MiB（含表单数据）")
 			return nil, func() {}, false
 		}
 		writeAPIError(c, http.StatusBadRequest, "作业附件参数不合法")
