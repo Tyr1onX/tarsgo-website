@@ -5,6 +5,10 @@ import {
   clearPersonalWorkbenchSnapshots,
   emptyPersonalSnapshot,
   getPersonalWorkbenchSnapshot,
+  getAdminWorkbenchSnapshot,
+  getWeeklyDashboardSnapshot,
+  rememberAdminWorkbenchSnapshot,
+  rememberWeeklyDashboardSnapshot,
   hasPersonalWorkbenchData,
   rememberPersonalWorkbenchSnapshot,
   loadPersonalWorkbenchSections,
@@ -28,6 +32,21 @@ test("workbench snapshots are isolated by account and permission scope", () => {
   assert.equal(getPersonalWorkbenchSnapshot(accountTwoScope), emptyPersonalSnapshot);
 });
 
+
+test("account permissions invalidate admin and weekly dashboard snapshots together", () => {
+  const one = JSON.stringify([1, "admin", true]);
+  const two = JSON.stringify([2, "admin", true]);
+  rememberAdminWorkbenchSnapshot(one, { recruitment: null, assignmentReviewCount: 3, errors: {} });
+  rememberAdminWorkbenchSnapshot(two, { recruitment: null, assignmentReviewCount: 4, errors: {} });
+  rememberWeeklyDashboardSnapshot(1, { reports: [] });
+  rememberWeeklyDashboardSnapshot(2, { reports: [] });
+  clearPersonalWorkbenchSnapshots(1);
+  assert.equal(getAdminWorkbenchSnapshot(one), undefined);
+  assert.equal(getWeeklyDashboardSnapshot(1), undefined);
+  assert.equal(getAdminWorkbenchSnapshot(two)?.assignmentReviewCount, 4);
+  assert.ok(getWeeklyDashboardSnapshot(2));
+  clearPersonalWorkbenchSnapshots();
+});
 
 test("fast sections publish before slow sections and preserve failed cached data", async () => {
   const weekly = Promise.withResolvers();

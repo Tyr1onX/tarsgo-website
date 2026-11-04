@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent, type SetStateAction } from "react";
 import { useOutletContext, useSearchParams } from "react-router";
 
 import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
@@ -15,6 +15,8 @@ import {
   type WeeklyReportTeamWeek,
 } from "~/lib/weekly-report-client";
 import { formatWeekLabel } from "~/lib/weekly-report-calendar";
+import { getWeeklyDashboardSnapshot, rememberWeeklyDashboardSnapshot } from "~/lib/personal-workbench-cache";
+import { subscribePermissionChange } from "~/lib/auth-client";
 import "./weekly-reports.css";
 
 export function meta() {
@@ -44,7 +46,20 @@ export default function WeeklyReportsRoute() {
   const [searchParams, setSearchParams] = useSearchParams();
   const isEditing = searchParams.get("edit") === "1";
   const requestedWeekStart = /^\d{4}-\d{2}-\d{2}$/.test(searchParams.get("weekStart") ?? "") ? searchParams.get("weekStart") ?? "" : "";
-  const [dashboard, setDashboard] = useState<WeeklyReportDashboard | null>(null);
+  const [dashboardResult, setDashboardResult] = useState(() => ({
+    accountId: currentUser.id, data: getWeeklyDashboardSnapshot(currentUser.id) ?? null as WeeklyReportDashboard | null,
+  }));
+  const dashboard = dashboardResult.accountId === currentUser.id ? dashboardResult.data : null;
+  const setDashboard = useCallback((update: SetStateAction<WeeklyReportDashboard | null>) => {
+    setDashboardResult((current) => {
+      const previous = current.accountId === currentUser.id ? current.data : null;
+      return { accountId: currentUser.id, data: typeof update === "function" ? update(previous) : update };
+    });
+  }, [currentUser.id]);
+  useEffect(() => {
+    if (dashboard) rememberWeeklyDashboardSnapshot(currentUser.id, dashboard);
+  }, [currentUser.id, dashboard]);
+  const dashboardAccountId = useRef(currentUser.id);
   const [selectedReportKey, setSelectedReportKey] = useState("current");
   const [reportGroupId, setReportGroupId] = useState("");
   const [form, setForm] = useState<WeeklyReportInput>(emptyReport);
@@ -136,14 +151,17 @@ export default function WeeklyReportsRoute() {
     } finally {
       if (requestId === dashboardRequestId.current) setLoading(false);
     }
-  }, [requestedWeekStart]);
+  }, [requestedWeekStart, setDashboard]);
 
   useEffect(() => {
     teamRequestId.current++;
     historyRequestId.current++;
     setHistoryLoading(false);
     setHistoryError("");
-    setDashboard(null);
+    if (dashboardAccountId.current !== currentUser.id) {
+      dashboardAccountId.current = currentUser.id;
+      setDashboard(getWeeklyDashboardSnapshot(currentUser.id) ?? null);
+    }
     setSelectedReportKey("current");
     setTeamWeek(null);
     setTeamAvailableWeeks([]);
@@ -155,6 +173,13 @@ export default function WeeklyReportsRoute() {
     void loadDashboard();
     return () => { dashboardRequestId.current++; historyRequestId.current++; };
   }, [currentUser.id, loadDashboard]);
+
+  useEffect(() => subscribePermissionChange((userId) => {
+    if (userId !== null && userId !== currentUser.id) return;
+    dashboardRequestId.current += 1;
+    setDashboard(null);
+    void loadDashboard();
+  }), [currentUser.id, loadDashboard, setDashboard]);
 
   useEffect(() => {
     setForm(selectedReport
@@ -299,7 +324,7 @@ export default function WeeklyReportsRoute() {
         <h1 id="weekly-report-title">工作周报</h1>
       </header>
 
-      {loading ? <div className="weekly-report__notice" role="status">正在加载周报…</div> : null}
+      {loading && !dashboard ? <div className="weekly-report__notice" role="status">正在加载周报…</div> : null}
       {!loading && loadError ? <div className="weekly-report__notice weekly-report__notice--error" role="alert">{loadError}</div> : null}
 
       {dashboard ? (

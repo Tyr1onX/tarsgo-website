@@ -12,6 +12,7 @@ import {
 import { accountProfilePath, getAccountProfile, profileComplete, type AccountProfile } from "~/lib/account-profile";
 import {
   salonClient,
+  getCachedSalonEvent,
   salonDate,
   salonError,
   salonStatus,
@@ -27,7 +28,7 @@ export function meta() {
 export default function AISalonDetail() {
   const { id = "" } = useParams();
   const { user, authError } = useSalonIdentity();
-  const [event, setEvent] = useState<SalonEvent | null>(null);
+  const [event, setEvent] = useState<SalonEvent | null>(() => getCachedSalonEvent(id));
   const [privateData, setPrivateData] = useState<{
     userId: number;
     profile: AccountProfile;
@@ -44,10 +45,15 @@ export default function AISalonDetail() {
   const [tick, setTick] = useState(Date.now());
   useEffect(() => {
     let active = true;
-    setEvent(null);
+    let inFlight = false;
+    let lastRequestedAt = 0;
+    setEvent(getCachedSalonEvent(id));
     setError("");
     setNotice("");
     async function load() {
+      if (inFlight || document.visibilityState === "hidden") return;
+      inFlight = true;
+      lastRequestedAt = Date.now();
       try {
         const next = await salonClient.event(id);
         if (active) {
@@ -57,24 +63,33 @@ export default function AISalonDetail() {
         }
       } catch (e) {
         if (active) setError(salonError(e));
+      } finally {
+        inFlight = false;
       }
     }
     void load();
     const onFocus = () => {
-      void load();
+      if (Date.now() - lastRequestedAt >= 30_000) void load();
     };
-    const timer = window.setInterval(onFocus, 30000);
+    const timer = window.setInterval(onFocus, 30_000);
     window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
     return () => {
       active = false;
       clearInterval(timer);
       window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
     };
   }, [id]);
   useEffect(() => {
-    const timer = setInterval(() => setTick(Date.now()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+    if (!event) return;
+    const now = clock.now + Math.max(0, Date.now() - clock.receivedAt);
+    const nextBoundary = [event.deadline, event.startAt, event.endAt]
+      .map(Date.parse).filter((time) => time > now).sort((a, b) => a - b)[0];
+    if (nextBoundary === undefined) return;
+    const timer = window.setTimeout(() => setTick(Date.now()), Math.min(nextBoundary - now + 50, 2_147_000_000));
+    return () => window.clearTimeout(timer);
+  }, [event, clock, tick]);
   useEffect(() => {
     let active = true;
     setPersonalError("");
@@ -100,7 +115,12 @@ export default function AISalonDetail() {
   useEffect(() => {
     if (!user) return;
     let active = true;
+    let inFlight = false;
+    let lastRequestedAt = Date.now();
     async function refreshRecords() {
+      if (inFlight || document.visibilityState === "hidden" || Date.now() - lastRequestedAt < 30_000) return;
+      inFlight = true;
+      lastRequestedAt = Date.now();
       try {
         const records = await salonClient.mine();
         if (active)
@@ -109,6 +129,8 @@ export default function AISalonDetail() {
           );
       } catch (e) {
         if (active) setPersonalError(salonError(e));
+      } finally {
+        inFlight = false;
       }
     }
     const timer = window.setInterval(() => void refreshRecords(), 30000);

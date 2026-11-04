@@ -29,7 +29,8 @@ test("sheen delays its appearance and respects reduced motion", () => {
 
 test("brand loader is only used when required content is absent", () => {
   assert.match(feed, /visibleLoading && visiblePosts\.length === 0 \? <div[^>]*><BrandLoader/);
-  assert.match(thread, /if \(loading\) return <section[^>]*><BrandLoader/);
+  assert.match(thread, /if \(loading && detail\?\.post\.id !== postID\) \{[\s\S]*?<BrandLoader/);
+  assert.doesNotMatch(thread, /if \(loading\) return/);
   assert.match(member, /if \(loading && !result\) return <section[^>]*><BrandLoader/);
   assert.match(salon, /!events \? \(\s*<BrandLoader/);
   assert.match(detail, /!event \? \(\s*!error \? \(\s*<BrandLoader/);

@@ -13,8 +13,9 @@ export async function loadAdminWorkbench(
   recruitment: Promise<AdminWorkbenchSummaryResponse>,
   assignments: Promise<{ reviewCount: number }> | null,
   publish: (state: AdminWorkbenchState, pending: number) => void,
+  previous: AdminWorkbenchState = emptyAdminWorkbenchState,
 ) {
-  let state: AdminWorkbenchState = { ...emptyAdminWorkbenchState, errors: {} };
+  let state: AdminWorkbenchState = { ...previous, errors: {} };
   let pending = assignments ? 2 : 1;
   const run = async <T>(key: keyof AdminWorkbenchState["errors"], request: Promise<T>, apply: (value: T) => Partial<AdminWorkbenchState>, fallback: string) => {
     try { const value = await request; state = { ...state, ...apply(value) }; }

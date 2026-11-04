@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { preserveCommunityReactionUpdates, refreshedCommunitySnapshot, clearCommunityLists, getCommunityListSnapshot, rememberCommunityList } from "./community-list-cache.ts";
+import { preserveCommunityReactionUpdates, refreshedCommunitySnapshot, clearCommunityLists, findCommunityPostInLists, getCommunityListSnapshot, rememberCommunityList, updateCommunityPostInLists } from "./community-list-cache.ts";
 
 function post(overrides = {}) {
   return {
@@ -58,6 +58,17 @@ test("refresh replaces all retained pages and removes remote deletions", () => {
   assert.deepEqual(snapshot.posts.map(item => item.id), [3, 2, 4]);
   assert.equal(snapshot.page, 2);
   assert.equal(snapshot.hasMore, false);
+});
+
+test("recent list snapshots retain validation time across local reaction updates and respect account scope", () => {
+  clearCommunityLists();
+  const key = JSON.stringify([7, "latest", "", "", false]);
+  rememberCommunityList(key, { posts: [post()], page: 1, hasMore: false, refreshedAt: 100 });
+  updateCommunityPostInLists(7, 1, (item) => ({ ...item, likedByMe: true, likeCount: 5 }));
+  assert.equal(getCommunityListSnapshot(key)?.refreshedAt, 100);
+  assert.equal(findCommunityPostInLists(7, 1)?.title, "test");
+  assert.equal(findCommunityPostInLists(8, 1), undefined);
+  clearCommunityLists();
 });
 
 test("retained windows are bounded and expired snapshots are discarded", () => {
