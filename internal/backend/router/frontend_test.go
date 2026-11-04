@@ -12,14 +12,17 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func TestFrontendFallbackServesPrerenderedHomeAndSPAFallback(t *testing.T) {
+func TestFrontendFallbackServesPrerenderedPagesAndSPAFallback(t *testing.T) {
 	t.Parallel()
 
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	registerFrontendFallback(engine, fstest.MapFS{
-		"index.html":          &fstest.MapFile{Data: []byte("<html>prerendered home</html>")},
-		"__spa-fallback.html": &fstest.MapFile{Data: []byte("<html>spa shell</html>")},
+		"index.html":                  &fstest.MapFile{Data: []byte("<html>prerendered home</html>")},
+		"about/index.html":            &fstest.MapFile{Data: []byte("<html>about page</html>")},
+		"robots/index.html":           &fstest.MapFile{Data: []byte("<html>robots page</html>")},
+		"programs/ai-salon/index.html": &fstest.MapFile{Data: []byte("<html>salon page</html>")},
+		"__spa-fallback.html":         &fstest.MapFile{Data: []byte("<html>spa shell</html>")},
 	}, true)
 
 	for _, tc := range []struct {
@@ -27,8 +30,12 @@ func TestFrontendFallbackServesPrerenderedHomeAndSPAFallback(t *testing.T) {
 		want string
 	}{
 		{path: "/", want: "prerendered home"},
-		{path: "/robots", want: "spa shell"},
+		{path: "/about", want: "about page"},
+		{path: "/about/", want: "about page"},
+		{path: "/robots", want: "robots page"},
+		{path: "/programs/ai-salon", want: "salon page"},
 		{path: "/dashboard/admin", want: "spa shell"},
+		{path: "/programs/ai-salon/123", want: "spa shell"},
 	} {
 		t.Run(tc.path, func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodGet, tc.path, nil)
