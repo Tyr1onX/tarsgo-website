@@ -250,12 +250,52 @@ export function HomeVisualNavigation({
   }, [hasEntered, imageTreatment, playOnce, playbackStatus]);
 
   return (
-    <section
+    <>
+      {playOnce ? (
+        <section
+          className="home-mobile-navigation border-t border-[var(--theme-border-subtle)] py-8 sm:hidden"
+          aria-labelledby="home-mobile-navigation-heading"
+        >
+          <div className="public-home-container">
+            <h2 id="home-mobile-navigation-heading" className="mb-4 text-xl font-semibold tracking-tight text-fg-primary">
+              探索吉甲
+            </h2>
+            <nav aria-label="吉甲手机端专题导航" className="home-mobile-grid">
+              {homeNavigationModules
+                .filter((module) => module.href !== "/about" && module.href !== "/join")
+                .map((module) => {
+                  const kind = module.href === "/robots" ? "featured" : module.image ? "compact" : "action";
+                  return (
+                    <Link
+                      key={module.href}
+                      to={module.href}
+                      prefetch="intent"
+                      className={`home-mobile-link home-mobile-link--${kind}`}
+                      aria-label={`${module.title}：${module.description}`}
+                    >
+                      {kind === "featured" ? (
+                        <img src={module.image} alt={module.alt ?? ""} loading="lazy" decoding="async" />
+                      ) : null}
+                      <span className="home-mobile-link__copy">
+                        <strong>{module.title}</strong>
+                        {kind === "action" ? <span>{module.description}</span> : null}
+                      </span>
+                      <svg className="home-mobile-link__arrow" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                        <path d="M5 12h14m-6-6 6 6-6 6" />
+                      </svg>
+                    </Link>
+                  );
+                })}
+            </nav>
+          </div>
+        </section>
+      ) : null}
+      <section
       ref={sectionRef}
       id="home-navigation"
       aria-labelledby={showHeading ? "home-navigation-heading" : undefined}
       aria-label={showHeading ? undefined : "吉甲专题导航预览"}
-      className="border-t border-[var(--theme-border-subtle)] py-14 sm:py-16 lg:py-20"
+      className={`${playOnce ? "hidden sm:block " : ""}border-t border-[var(--theme-border-subtle)] py-14 sm:py-16 lg:py-20`}
     >
       <div className="public-home-container">
         {showHeading ? (
@@ -290,6 +330,7 @@ export function HomeVisualNavigation({
           ))}
         </nav>
       </div>
-    </section>
+      </section>
+    </>
   );
 }
