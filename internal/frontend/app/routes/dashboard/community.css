@@ -200,8 +200,8 @@
 .community-topic-row__participant + .community-topic-row__participant { margin-left: -5px; }
 .community-topic-row__participant:hover { z-index: 1; transform: translateY(-1px); }
 .community-topic-row__participant .community-avatar { width: 25px; height: 25px; font-size: 10px; }
-.community-topic-row__stat { min-width: 0; color: var(--admin-muted); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.community-topic-row__time { min-width: 0; color: var(--admin-dim); text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.community-topic-row__stat { min-width: 0; color: var(--admin-muted); font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.community-topic-row__time { min-width: 0; color: var(--admin-dim); font-size: 11px; text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
 
 .community-post {
   position: relative;
@@ -446,19 +446,19 @@
 
 @media (max-width: 780px) {
   .community-page { width: min(100%, 900px); }
-    .community-topic-row {
-      grid-template-columns: 110px 70px minmax(0, 1fr) 56px 56px 76px;
-      grid-template-areas: "title title title title title title" "status category participants replies views time";
-      row-gap: 8px;
-    }
-    .community-topic-row__title { grid-area: title; }
-    .community-topic-row__status { grid-area: status; }
-    .community-topic-row__category { grid-area: category; }
-    .community-topic-row__participants { grid-area: participants; justify-self: end; }
-    .community-topic-row__stat--replies { grid-area: replies; }
-    .community-topic-row__stat--views { grid-area: views; }
-    .community-topic-row__time { grid-area: time; }
-    .community-header { align-items: flex-start; }
+  .community-topic-row {
+    grid-template-columns: 110px 70px minmax(0, 1fr) 56px 56px 76px;
+    grid-template-areas: "title title title title title title" "status category participants replies views time";
+    row-gap: 8px;
+  }
+  .community-topic-row__title { grid-area: title; }
+  .community-topic-row__status { grid-area: status; }
+  .community-topic-row__category { grid-area: category; }
+  .community-topic-row__participants { grid-area: participants; justify-self: end; }
+  .community-topic-row__stat--replies { grid-area: replies; }
+  .community-topic-row__stat--views { grid-area: views; }
+  .community-topic-row__time { grid-area: time; }
+  .community-header { align-items: flex-start; }
   .community-search { width: 198px; }
   .community-thread { --community-thread-inset: 22px; }
   .community-thread__content > .community-post { padding-top: 21px; }
