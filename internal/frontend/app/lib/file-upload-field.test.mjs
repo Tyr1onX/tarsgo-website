@@ -39,6 +39,16 @@ test("shared field keeps accessible selection, drag/drop, thumbnails, status, pr
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?file-upload-field/);
 });
 
+test("shared upload colors follow the global theme in public and admin pages", () => {
+  const palette = styles.match(/\.file-upload-field\s*\{([\s\S]*?)\n\}/)?.[1] ?? "";
+  for (const token of ["--theme-border", "--theme-card", "--theme-text", "--theme-muted", "--theme-accent-contrast", "--theme-danger"]) {
+    assert.match(palette, new RegExp(`var\\(${token}\\)`));
+  }
+  assert.match(palette, /--file-upload-border:\s*color-mix\(in srgb, var\(--theme-text\) 45%, var\(--theme-border\)\)/);
+  assert.doesNotMatch(palette, /--admin-|#[0-9a-f]{3,8}\b|rgb\(/i);
+  assert.match(styles, /\.file-upload-field__status--uploaded\s*\{[^}]*var\(--theme-success\)/);
+});
+
 test("AI salon posters use the shared image upload field without a URL entry", async () => {
   const salonManage = await source("../routes/ai-salon-manage.tsx");
   const salonClient = await source("./ai-salon-client.ts");
@@ -46,6 +56,8 @@ test("AI salon posters use the shared image upload field without a URL entry", a
   assert.match(salonManage, /\.jpg,\.jpeg,\.png,\.webp,image\/jpeg,image\/png,image\/webp/);
   assert.match(salonManage, /onRetry=\{\(\) => void uploadPoster\(posterFiles\[0\]\)\}/);
   assert.match(salonManage, /alt="活动海报预览"/);
+  assert.match(salonManage, /border-border-subtle object-contain/);
+  assert.doesNotMatch(salonManage, /border-white\/10/);
   assert.match(salonManage, /移除海报/);
   assert.doesNotMatch(salonManage, /海报地址|type="url"/);
   assert.match(salonClient, /body\.append\("poster", file\)/);

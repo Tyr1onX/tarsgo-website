@@ -275,7 +275,7 @@ export default function AISalonManage() {
                   {draft.posterUrl && posterFiles.length === 0 ? (
                     <div className="flex flex-wrap items-start gap-3">
                       <img
-                        className="max-h-72 max-w-full rounded-xl border border-white/10 object-contain"
+                        className="max-h-72 max-w-full rounded-xl border border-border-subtle object-contain"
                         src={draft.posterUrl}
                         alt="活动海报预览"
                       />
