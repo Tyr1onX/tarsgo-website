@@ -1,0 +1,12 @@
+.recruitment-records { padding: clamp(16px, 3vw, 32px); min-width: 0; }
+.recruitment-records header h2 { font-size: 1.5rem; font-weight: 650; }
+.recruitment-records p { margin-block: 12px; line-height: 1.6; }
+.recruitment-records select { max-width: 100%; }
+.recruitment-records__scroll { max-width: 100%; overflow: auto; margin-block: 20px; border: 1px solid var(--admin-border, #8886); border-radius: 8px; }
+.recruitment-records table { border-collapse: collapse; width: 100%; text-align: left; }
+.recruitment-records caption { text-align: left; padding: 12px; font-weight: 600; }
+.recruitment-records th, .recruitment-records td { padding: 10px 14px; border-bottom: 1px solid var(--admin-border, #8886); vertical-align: top; min-width: 110px; max-width: 360px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.recruitment-records th { white-space: nowrap; }
+.recruitment-records nav { display: flex; gap: 12px; }
+.recruitment-records button { padding: 8px 16px; border: 1px solid var(--admin-border, #8886); border-radius: 6px; }
+.recruitment-records button:disabled { opacity: .45; cursor: default; }

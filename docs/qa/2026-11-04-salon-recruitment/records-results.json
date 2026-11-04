@@ -1,0 +1,19 @@
+{
+  "redirect": true,
+  "retainedGroupAndOutcome": true,
+  "cultivationNotes": true,
+  "oldApiRemoved": true,
+  "historyQuery": true,
+  "analytics": true,
+  "heroWidths": [
+    320,
+    390,
+    768,
+    1440
+  ],
+  "themes": [
+    "light",
+    "dark"
+  ],
+  "pageErrors": []
+}

@@ -23,10 +23,10 @@ import (
 	"tarsgo-backend/service/dailysignal"
 	"tarsgo-backend/service/email"
 	"tarsgo-backend/service/emailtemplate"
-	"tarsgo-backend/service/historyarchive"
 	"tarsgo-backend/service/leave"
 	"tarsgo-backend/service/privatefile"
 	"tarsgo-backend/service/recruitmentanalytics"
+	"tarsgo-backend/service/recruitmentrecords"
 	"tarsgo-backend/service/registration"
 	"tarsgo-backend/service/systemconfig"
 	"tarsgo-backend/service/timetable"
@@ -258,7 +258,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	// System configuration, recruitment configuration, account management, and analytics are super-admin only.
 	superAdminAPI := adminAPI.Group("")
 	superAdminAPI.Use(middleware.RequireSuperAdmin(authService))
-	superAdminAPI.GET("/history-archive", handler.NewHistoryArchiveHandler(historyarchive.NewService(db)).List)
+	superAdminAPI.GET("/recruitment/retained-records", handler.NewRecruitmentRecordsHandler(recruitmentrecords.NewService(db)).List)
 	salonAdminAPI := superAdminAPI.Group("/ai-salon")
 	salonAdminAPI.GET("/events", salonHandler.AdminList)
 	salonAdminAPI.POST("/events", requireSameOriginRequest(cfg), salonHandler.SaveEvent)

@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router";
 import { SalonShell, salonButton, salonPrimaryButton, useSalonIdentity } from "~/components/ai-salon-shared";
 import { SalonArtwork } from "~/components/salon-artwork";
+import { SalonHeroArt } from "~/components/salon-hero-art";
 import { salonClient, salonDate, salonError, type SalonEvent } from "~/lib/ai-salon-client";
 import { salonEventStatus } from "~/lib/salon-event-status";
 import "~/salon.css";
@@ -65,7 +66,7 @@ export default function AISalon() {
               <p className="salon-intro">面向吉林大学同学的<br className="sm:hidden" /> AI 创作实践与交流活动。</p>
               <a className={salonPrimaryButton} href="#salon-events">查看近期活动 <span className="ml-6" aria-hidden="true">↓</span></a>
             </div>
-            <div className="salon-hero-art"><SalonArtwork /></div>
+            <div className="salon-hero-art"><SalonHeroArt /></div>
           </div>
         </section>
         <section id="salon-events" className="salon-events" aria-labelledby="salon-events-title">
