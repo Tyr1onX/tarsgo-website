@@ -13,6 +13,7 @@ import (
 
 	"tarsgo-backend/config"
 	"tarsgo-backend/model"
+	"tarsgo-backend/service/accountprofile"
 )
 
 func TestLoginWithPasswordRecordsCredentialLoginTime(t *testing.T) {
@@ -394,8 +395,8 @@ func TestRegisterWithEmailStoresInitialLoginTime(t *testing.T) {
 		WillReturnRows(sqlmock.NewRows([]string{"id", "name", "display_name"}).AddRow(uint64(3), model.RoleNameUser, "普通用户"))
 	mock.ExpectCommit()
 
-	result, err := service.RegisterWithEmail(context.Background(), RegisterEmailInput{
-		Email: "new@example.test", Password: "Password123", RealName: "新成员", Phone: "13800138000", Code: "123456",
+	result, err := service.RegisterWithEmail(context.Background(), RegisterEmailInput{Input: accountprofile.Input{IsStudent: testStudent(false)},
+		Email: "new@example.test", Password: "Password123", RealName: "新成员", Code: "123456",
 	})
 	if err != nil {
 		t.Fatalf("RegisterWithEmail returned error: %v", err)

@@ -45,19 +45,6 @@ func (h *AISalonHandler) Get(c *gin.Context) {
 	data, err := h.service.Get(c.Request.Context(), id)
 	salonReply(c, data, err)
 }
-func (h *AISalonHandler) Profile(c *gin.Context) {
-	data, err := h.service.Profile(c.Request.Context(), salonUser(c))
-	salonReply(c, data, err)
-}
-func (h *AISalonHandler) SaveProfile(c *gin.Context) {
-	var p model.AcademicInfo
-	if err := c.ShouldBindJSON(&p); err != nil {
-		writeAPIError(c, 400, "资料格式无效")
-		return
-	}
-	data, err := h.service.SaveProfile(c.Request.Context(), salonUser(c), p)
-	salonReply(c, data, err)
-}
 func (h *AISalonHandler) Mine(c *gin.Context) {
 	data, err := h.service.Mine(c.Request.Context(), salonUser(c))
 	salonReply(c, data, err)
@@ -67,12 +54,8 @@ func (h *AISalonHandler) Register(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var p model.AcademicInfo
-	if err := c.ShouldBindJSON(&p); err != nil {
-		writeAPIError(c, 400, "资料格式无效")
-		return
-	}
-	data, err := h.service.Register(c.Request.Context(), id, salonUser(c), p)
+	// Identity is deliberately never read from the request body.
+	data, err := h.service.Register(c.Request.Context(), id, salonUser(c))
 	salonReply(c, data, err)
 }
 func (h *AISalonHandler) Cancel(c *gin.Context) {
@@ -176,10 +159,13 @@ func (h *AISalonHandler) Export(c *gin.Context) {
 	c.Status(http.StatusOK)
 	_, _ = c.Writer.Write([]byte{0xef, 0xbb, 0xbf})
 	w := csv.NewWriter(c.Writer)
-	_ = w.Write([]string{"真实姓名", "学院", "年级", "学号", "校区", "性别", "邮箱", "报名状态", "提交时间（北京时间）", "签到时间（北京时间）"})
+	_ = w.Write([]string{"真实姓名", "学院", "年级", "学号", "校区", "性别", "邮箱", "学生身份", "报名状态", "提交时间（北京时间）", "签到时间（北京时间）"})
 	zone := time.FixedZone("CST", 8*60*60)
 	for _, r := range data.Items {
-		gender := "男"
+		gender := ""
+		if r.Gender == 1 {
+			gender = "男"
+		}
 		if r.Gender == 2 {
 			gender = "女"
 		}
@@ -188,7 +174,14 @@ func (h *AISalonHandler) Export(c *gin.Context) {
 		if r.CheckedInAt != nil {
 			check = r.CheckedInAt.In(zone).Format("2006-01-02 15:04:05")
 		}
-		row := []string{r.RealName, r.College, r.Grade, r.StudentID, r.Campus, gender, r.Email, status, r.SubmittedAt.In(zone).Format("2006-01-02 15:04:05"), check}
+		student := "历史资料"
+		if r.IsStudent != nil {
+			student = "非在校学生"
+			if *r.IsStudent {
+				student = "在校学生"
+			}
+		}
+		row := []string{r.RealName, r.College, r.Grade, r.StudentID, r.Campus, gender, r.Email, student, status, r.SubmittedAt.In(zone).Format("2006-01-02 15:04:05"), check}
 		for i := range row {
 			row[i] = salonCSVCell(row[i])
 		}

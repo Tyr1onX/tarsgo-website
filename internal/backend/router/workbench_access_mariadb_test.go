@@ -132,7 +132,7 @@ func TestMariaDBWorkbenchBoundaryAndCommunityAPIs(t *testing.T) {
 	if err := db.Create(&code).Error; err != nil {
 		t.Fatal(err)
 	}
-	payload, _ := json.Marshal(map[string]string{"email": email, "password": "synthetic-user-only", "realName": "外校社区测试", "phone": "13800138000", "code": "123456"})
+	payload, _ := json.Marshal(map[string]any{"email": email, "password": "synthetic-user-only", "realName": "外校社区测试", "isStudent": false, "code": "123456"})
 	expect(request("POST", "/api/register/email", payload, "application/json", -1), 200)
 	var registered model.User
 	if err := db.Where("email = ?", email).First(&registered).Error; err != nil {

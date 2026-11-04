@@ -11,6 +11,7 @@ import (
 
 	"tarsgo-backend/middleware"
 	"tarsgo-backend/model"
+	"tarsgo-backend/service/accountprofile"
 	"tarsgo-backend/service/auth"
 )
 
@@ -30,6 +31,7 @@ type authService interface {
 	LoginWithCode(ctx context.Context, email string, code string) (*auth.AuthResult, error)
 	CurrentUser(ctx context.Context, token string) (*auth.SessionUser, error)
 	UpdateProfile(ctx context.Context, userID uint64, input auth.ProfileInput) (*auth.SessionUser, error)
+	AccountProfile(ctx context.Context, userID uint64) (*accountprofile.Profile, error)
 	CreateAccountSession(ctx context.Context, userID uint64, currentToken, vaultToken string) (*auth.AccountSessionsResult, error)
 	InitializeAccountSessions(ctx context.Context, currentToken, vaultToken string) (*auth.AccountSessionsResult, error)
 	ListAccountSessions(ctx context.Context, vaultToken, currentToken string) (*auth.AccountSessionsResult, error)
@@ -48,10 +50,10 @@ type emailRequest struct {
 }
 
 type registerEmailRequest struct {
+	accountprofile.Input
 	Email    string `json:"email" binding:"required,email,max=255"`
 	Password string `json:"password" binding:"required,min=6,max=72"`
 	RealName string `json:"realName" binding:"required,max=100"`
-	Phone    string `json:"phone" binding:"required,max=20"`
 	Code     string `json:"code" binding:"required,len=6,numeric"`
 }
 
@@ -120,10 +122,10 @@ func (h *AuthHandler) RegisterWithEmail(c *gin.Context) {
 	}
 
 	result, err := h.service.RegisterWithEmail(c.Request.Context(), auth.RegisterEmailInput{
+		Input:    request.Input,
 		Email:    request.Email,
 		Password: request.Password,
 		RealName: request.RealName,
-		Phone:    request.Phone,
 		Code:     request.Code,
 	})
 	if err != nil {
@@ -416,19 +418,19 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 		defer c.Request.MultipartForm.RemoveAll()
 	}
 	form := c.Request.MultipartForm
-	if form == nil || len(form.Value["phone"]) != 1 || len(form.Value["realName"]) != 1 || len(form.File["avatar"]) > 1 {
+	if form == nil || len(form.Value["phone"]) > 1 || len(form.Value["realName"]) != 1 || len(form.File["avatar"]) > 1 {
 		writeAPIError(c, http.StatusBadRequest, "个人资料请求参数不合法")
 		return
 	}
 	for key := range form.Value {
-		if key != "phone" && key != "realName" {
-			writeAPIError(c, http.StatusBadRequest, "只能修改姓名、头像和手机号")
+		if key != "phone" && key != "realName" && key != "isStudent" && key != "studentId" && key != "college" && key != "grade" {
+			writeAPIError(c, http.StatusBadRequest, "只能修改个人资料字段")
 			return
 		}
 	}
 	for key := range form.File {
 		if key != "avatar" {
-			writeAPIError(c, http.StatusBadRequest, "只能修改姓名、头像和手机号")
+			writeAPIError(c, http.StatusBadRequest, "只能修改个人资料字段")
 			return
 		}
 	}
@@ -436,11 +438,22 @@ func (h *AuthHandler) UpdateProfile(c *gin.Context) {
 	if files := form.File["avatar"]; len(files) == 1 {
 		avatar = files[0]
 	}
-	updated, err := h.service.UpdateProfile(c.Request.Context(), user.ID, auth.ProfileInput{
-		RealName: form.Value["realName"][0],
-		Phone:    form.Value["phone"][0],
-		Avatar:   avatar,
-	})
+	input := auth.ProfileInput{RealName: c.PostForm("realName"), Phone: c.PostForm("phone"), UpdatePhone: len(form.Value["phone"]) == 1, Avatar: avatar}
+	if len(form.Value["isStudent"]) > 0 || len(form.Value["studentId"]) > 0 || len(form.Value["college"]) > 0 || len(form.Value["grade"]) > 0 {
+		if len(form.Value["isStudent"]) != 1 || (c.PostForm("isStudent") != "true" && c.PostForm("isStudent") != "false") {
+			writeAPIError(c, 400, "请选择是否在校学生")
+			return
+		}
+		for _, key := range []string{"studentId", "college", "grade"} {
+			if len(form.Value[key]) > 1 {
+				writeAPIError(c, 400, "个人资料请求参数不合法")
+				return
+			}
+		}
+		student := c.PostForm("isStudent") == "true"
+		input.Academic = &accountprofile.Input{IsStudent: &student, StudentID: c.PostForm("studentId"), College: c.PostForm("college"), Grade: c.PostForm("grade")}
+	}
+	updated, err := h.service.UpdateProfile(c.Request.Context(), user.ID, input)
 	if err != nil {
 		h.handleServiceError(c, err)
 		return
@@ -527,4 +540,18 @@ func writeAPI(c *gin.Context, status int, message string, data any) {
 
 func writeAPIError(c *gin.Context, status int, message string) {
 	writeAPI(c, status, message, nil)
+}
+
+func (h *AuthHandler) AccountProfile(c *gin.Context) {
+	user, ok := middleware.CurrentSessionUser(c)
+	if !ok || user == nil {
+		writeAPIError(c, 401, "未登录")
+		return
+	}
+	p, err := h.service.AccountProfile(c.Request.Context(), user.ID)
+	if err != nil {
+		h.handleServiceError(c, err)
+		return
+	}
+	writeAPI(c, 200, "获取个人资料成功", p)
 }

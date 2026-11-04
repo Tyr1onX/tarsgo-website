@@ -1,6 +1,7 @@
 import { apiRequest } from "~/lib/api-client";
 
 export interface AcademicInfo {
+  isStudent?: boolean | null;
   realName: string;
   college: string;
   grade: string;
@@ -8,14 +9,6 @@ export interface AcademicInfo {
   campus: string;
   gender: number;
 }
-export const emptyAcademicInfo: AcademicInfo = {
-  realName: "",
-  college: "",
-  grade: "",
-  studentId: "",
-  campus: "",
-  gender: 0,
-};
 export interface SalonEvent {
   id: number;
   title: string;
@@ -57,14 +50,10 @@ export const salonClient = {
   list: () => apiRequest<SalonEvent[]>(`${root}/events`),
   event: (id: string | number) =>
     apiRequest<SalonEvent>(`${root}/events/${id}`),
-  profile: () => apiRequest<AcademicInfo>(`${root}/profile`),
-  saveProfile: (body: AcademicInfo) =>
-    apiRequest<AcademicInfo>(`${root}/profile`, { method: "PUT", body }),
   mine: () => apiRequest<SalonRecord[]>(`${root}/registrations`),
-  register: (id: number, body: AcademicInfo) =>
+  register: (id: number) =>
     apiRequest<SalonRecord>(`${root}/events/${id}/registration`, {
       method: "POST",
-      body,
     }),
   cancel: (id: number) =>
     apiRequest<void>(`${root}/events/${id}/registration`, { method: "DELETE" }),

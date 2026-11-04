@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"tarsgo-backend/service/accountprofile"
 	"tarsgo-backend/service/auth"
 )
 
@@ -324,8 +325,8 @@ func TestRegisterWithEmailSetsCookie(t *testing.T) {
 			if input.RealName != "张三" {
 				t.Fatalf("expected realName to be forwarded, got %q", input.RealName)
 			}
-			if input.Phone != "13800138000" {
-				t.Fatalf("expected phone to be forwarded, got %q", input.Phone)
+			if input.IsStudent == nil || *input.IsStudent {
+				t.Fatal("student identity not forwarded")
 			}
 			return &auth.AuthResult{
 				User: &auth.SessionUser{
@@ -340,12 +341,12 @@ func TestRegisterWithEmailSetsCookie(t *testing.T) {
 			}, nil
 		},
 	})
-	recorder, ctx := newJSONContext(t, http.MethodPost, "/api/register/email", map[string]string{
-		"email":    "user@example.com",
-		"password": "123456",
-		"realName": "张三",
-		"phone":    "13800138000",
-		"code":     "123456",
+	recorder, ctx := newJSONContext(t, http.MethodPost, "/api/register/email", map[string]any{
+		"email":     "user@example.com",
+		"password":  "123456",
+		"realName":  "张三",
+		"isStudent": false,
+		"code":      "123456",
 	})
 
 	handler.RegisterWithEmail(ctx)
@@ -644,4 +645,8 @@ func (n nopCloser) Close() error {
 
 func ioNopCloser(reader *bytes.Reader) nopCloser {
 	return nopCloser{Reader: reader}
+}
+
+func (s stubAuthService) AccountProfile(ctx context.Context, userID uint64) (*accountprofile.Profile, error) {
+	return &accountprofile.Profile{}, nil
 }

@@ -35,6 +35,7 @@ type User struct {
 	Phone              *string           `json:"phone,omitempty" gorm:"size:20;default:null;index:idx_phone"`
 	RealName           *string           `json:"realName,omitempty" gorm:"column:real_name;size:100;default:null"`
 	TeamIdentityStatus string            `json:"-" gorm:"column:team_identity_status;size:32;not null;default:'community_member';index:idx_team_identity_status"`
+	IsStudent          *bool             `json:"-" gorm:"column:is_student;type:tinyint(1);default:null"`
 	College            string            `json:"-" gorm:"size:100;not null;default:''"`
 	Grade              string            `json:"-" gorm:"size:40;not null;default:''"`
 	StudentID          string            `json:"-" gorm:"size:40;not null;default:''"`

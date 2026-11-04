@@ -20,6 +20,7 @@ import (
 	"tarsgo-backend/config"
 	"tarsgo-backend/database"
 	"tarsgo-backend/model"
+	"tarsgo-backend/service/accountprofile"
 	"tarsgo-backend/service/email"
 	"tarsgo-backend/service/organization"
 )
@@ -70,10 +71,10 @@ type BootstrapStatus struct {
 }
 
 type RegisterEmailInput struct {
+	accountprofile.Input
 	Email    string
 	Password string
 	RealName string
-	Phone    string
 	Code     string
 }
 
@@ -212,7 +213,10 @@ func (s *Service) RegisterWithEmail(ctx context.Context, input RegisterEmailInpu
 			LastLoginAt:  &lastLoginAt,
 		}
 		assignOptionalString(&user.RealName, normalizedInput.RealName)
-		assignOptionalString(&user.Phone, normalizedInput.Phone)
+		user.IsStudent = normalizedInput.IsStudent
+		user.StudentID = normalizedInput.StudentID
+		user.College = normalizedInput.College
+		user.Grade = normalizedInput.Grade
 		if err := tx.Create(&user).Error; err != nil {
 			if database.IsDuplicateKeyError(err) {
 				return duplicateEmailConflict()
@@ -240,10 +244,10 @@ func (s *Service) RegisterWithEmail(ctx context.Context, input RegisterEmailInpu
 }
 
 type normalizedRegisterEmailInput struct {
+	accountprofile.Input
 	Email    string
 	Password string
 	RealName string
-	Phone    string
 	Code     string
 }
 
@@ -252,22 +256,23 @@ func normalizeRegisterEmailInput(input RegisterEmailInput) (*normalizedRegisterE
 		Email:    NormalizeEmail(input.Email),
 		Password: strings.TrimSpace(input.Password),
 		RealName: strings.TrimSpace(input.RealName),
-		Phone:    strings.TrimSpace(input.Phone),
 		Code:     strings.TrimSpace(input.Code),
 	}
 
 	if normalized.Email == "" || normalized.Password == "" || normalized.Code == "" {
 		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "邮箱、密码和验证码不能为空"}
 	}
-	if normalized.RealName == "" || normalized.Phone == "" {
-		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "姓名和手机号不能为空"}
+	if normalized.RealName == "" {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "姓名不能为空"}
 	}
 	if !isChineseRealName(normalized.RealName) {
 		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "姓名需为汉字"}
 	}
-	if !isValidMainlandMobile(normalized.Phone) {
-		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "请输入正确的 11 位手机号"}
+	academic, err := accountprofile.Normalize(input.Input, time.Now())
+	if err != nil {
+		return nil, &ServiceError{Status: http.StatusBadRequest, Message: err.Error()}
 	}
+	normalized.Input = academic
 
 	return normalized, nil
 }

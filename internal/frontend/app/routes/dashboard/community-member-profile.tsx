@@ -194,7 +194,7 @@ export default function CommunityMemberProfileRoute() {
     setNameSaving(true);
     setNameError("");
     try {
-      const updatedUser = await updateProfile({ realName: nextName, phone: currentUser.phone ?? "", avatar: null });
+      const updatedUser = await updateProfile({ realName: nextName, avatar: null });
       const savedName = updatedUser.realName?.trim() ?? nextName;
       setResult((current) => current?.member.id === updatedUser.id ? { ...current, member: { ...current.member, displayName: savedName } } : current);
       setNameDraft(savedName);
@@ -237,7 +237,7 @@ export default function CommunityMemberProfileRoute() {
     setAvatarUploading(true);
     setAvatarError("");
     try {
-      const updatedUser = await updateProfile({ realName: member.displayName.trim(), phone: currentUser.phone ?? "", avatar: file });
+      const updatedUser = await updateProfile({ realName: member.displayName.trim(), avatar: file });
       const avatarUrl = updatedUser.avatarUrl?.trim() || undefined;
       setResult((current) => current?.member.id === updatedUser.id ? { ...current, member: { ...current.member, displayName: updatedUser.realName?.trim() ?? current.member.displayName, avatarUrl } } : current);
       clearCommunityLists();

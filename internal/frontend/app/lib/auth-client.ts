@@ -252,7 +252,10 @@ export async function registerWithEmail(input: {
   email: string;
   password: string;
   realName: string;
-  phone: string;
+  isStudent: boolean | null;
+  studentId: string;
+  college: string;
+  grade: string;
   code: string;
 }): Promise<AuthUser> {
   const data = await apiRequest<{ user: AuthUser }>("/api/register/email", {
@@ -390,10 +393,16 @@ export async function logoutAllAccounts(): Promise<void> {
   announceAccountSessionChange();
 }
 
-export async function updateProfile(input: { realName: string; phone: string; avatar: File | null }): Promise<AuthUser> {
+export async function updateProfile(input: { realName: string; phone?: string; avatar: File | null; academic?: import("./account-profile").AcademicInput }): Promise<AuthUser> {
   const body = new FormData();
   body.set("realName", input.realName);
-  body.set("phone", input.phone);
+  if (input.phone !== undefined) body.set("phone", input.phone);
+  if (input.academic) {
+    body.set("isStudent", String(input.academic.isStudent));
+    body.set("studentId", input.academic.studentId);
+    body.set("college", input.academic.college);
+    body.set("grade", input.academic.grade);
+  }
   if (input.avatar) body.set("avatar", input.avatar);
   const data = await apiRequest<{ user: AuthUser }>("/api/me", { method: "PUT", body });
   authSessionCache.setAuthenticated(data.user);

@@ -11,15 +11,12 @@ const api = await readFile(new URL("../../../backend/router/router.go", import.m
 const authClient = await readFile(new URL("./auth-client.ts", import.meta.url), "utf8");
 const registrationReviews = await readFile(new URL("../routes/admin/registrations.tsx", import.meta.url), "utf8");
 
-test("profile settings keep aligned academic fields and the timetable upload", () => {
-  assert.match(profile, /const fieldClass = "admin-field box-border h-11 min-h-11/);
-  assert.match(profile, /const labelClass = "mb-2 block text-xs/);
-  assert.match(profile, /grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2/);
-  assert.match(profile, />学号</);
-  assert.match(profile, />学院</);
+test("profile settings edit the canonical account and keep the timetable", () => {
+  assert.match(profile, /getAccountProfile/);
+  assert.match(profile, /<AccountAcademicFields/);
+  assert.match(profile, /academic: profile/);
   assert.match(profile, /id="timetable"[\s\S]*?<PersonalTimetableUpload userId=\{user\.id\} \/>/);
-  assert.doesNotMatch(profile, /updateProfile|avatarInputRef|autoComplete="name"|姓名</);
-  assert.doesNotMatch(profile, /CommunityGrowthProfileSection|community-growth/);
+  assert.doesNotMatch(profile, /leaveClient\.saveProfile|CommunityGrowthProfileSection/);
 });
 
 test("the current member can edit name, bio, and avatar directly in the profile header", () => {
@@ -30,8 +27,8 @@ test("the current member can edit name, bio, and avatar directly in the profile 
   assert.match(memberProfile, /event\.key === "Enter"[\s\S]*?void saveName\(\)/);
   assert.match(memberProfile, /event\.key === "Escape"[\s\S]*?cancelNameEdit\(\)/);
   assert.match(memberProfile, /onBlur=\{handleNameBlur\}/);
-  assert.match(memberProfile, /updateProfile\(\{ realName: nextName, phone: currentUser\.phone \?\? "", avatar: null \}\)/);
-  assert.match(memberProfile, /updateProfile\(\{ realName: member\.displayName\.trim\(\), phone: currentUser\.phone \?\? "", avatar: file \}\)/);
+  assert.match(memberProfile, /updateProfile\(\{ realName: nextName, avatar: null \}\)/);
+  assert.match(memberProfile, /updateProfile\(\{ realName: member\.displayName\.trim\(\), avatar: file \}\)/);
   assert.match(memberProfile, /file\.size > 2 \* 1024 \* 1024/);
   assert.match(memberProfile, /头像仅支持 JPG 或 PNG/);
   assert.match(memberProfile, /setResult\(\(current\) => current\?\.member\.id === updatedUser\.id \? \{ \.\.\.current, member: \{ \.\.\.current\.member, displayName: savedName \} \} : current\)/);
@@ -39,22 +36,11 @@ test("the current member can edit name, bio, and avatar directly in the profile 
   assert.doesNotMatch(profile, /avatarInputRef|autoComplete="name"|realNameDraft/);
 });
 
-test("leave identity follows the canonical name and keeps its server-side access rules", () => {
-  assert.match(profile, /const accountName = user\.realName\?\.trim\(\) \?\? ""/);
-  assert.match(profile, /leaveProfile\?\.identityLocked \? leaveProfile\.name : accountName/);
-  assert.match(profile, /readOnly=\{Boolean\(leaveProfile\?\.identityLocked\)\}/);
-  assert.match(profile, /leaveClient\.saveProfile/);
+test("leave documents retain their locked identity and server-side access", () => {
+  assert.match(profile, /leaveProfile\?\.identityLocked/);
   assert.match(profile, /leaveClient\.profile\(\)/);
-  assert.match(profile, /leaveClient\.colleges\(\)/);
-  assert.match(profile, /\^\[0-9\]\{8\}\$/);
-  assert.match(api, /leaveAccessAPI\.Use\(middleware\.RequireAuthenticated\(authService\), middleware\.RequireWorkbench\(\)\)/);
-  assert.match(api, /api\.GET\("\/leave\/profile"/);
-  assert.match(api, /api\.PUT\("\/leave\/profile", middleware\.RequireAuthenticated\(authService\), requireSameOriginRequest\(cfg\)/);
   assert.match(api, /leaveMemberAPI\.Use\(middleware\.RequireAuthenticated\(authService\), middleware\.RequireWorkbench\(\), middleware\.RequireLeaveAccess\(leaveService\)\)/);
   assert.match(leave, /onClick=\{\(\) => openMyProfile\("settings"\)\}>完善学籍资料/);
-  assert.match(layout, /openMyProfile: \(tab\?\: "overview" \| "settings" \| "badges"\) => void/);
-  assert.match(layout, /refreshAccountProfile: \(\) => void/);
-  assert.match(layout, /setProfileRevision\(\(revision\) => revision \+ 1\)/);
 });
 
 test("account identity display uses only the canonical real name", () => {
@@ -72,9 +58,9 @@ test("registration reviewers and audit actors never fall back to account email",
   assert.doesNotMatch(registrationReviews, /(?:screener|interviewer|actor)\?\.email/);
 });
 
-test("phone remains out of the editor and the existing value is sent to the profile API", () => {
+test("phone remains out of the editor and is not resent during unrelated edits", () => {
   assert.doesNotMatch(profile, /setPhone\(|type="tel"|>手机号<|填写 11 位手机号|手机号可自行更新/);
-  assert.match(memberProfile, /phone: currentUser\.phone \?\? ""/);
+  assert.doesNotMatch(memberProfile, /phone: currentUser\.phone/);
   assert.match(memberProfile, /updateProfile\(/);
 });
 

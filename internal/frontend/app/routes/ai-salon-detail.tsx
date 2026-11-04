@@ -1,7 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router";
 import {
-  AcademicFields,
   AcademicSummary,
   SalonBackLink,
   SalonShell,
@@ -9,17 +8,15 @@ import {
   salonPrimaryButton,
   useSalonIdentity,
 } from "~/components/ai-salon-shared";
-import { getCurrentUser } from "~/lib/auth-client";
+import { accountProfilePath, getAccountProfile, profileComplete, type AccountProfile } from "~/lib/account-profile";
 import {
   salonClient,
   salonDate,
   salonError,
   salonStatus,
-  type AcademicInfo,
   type SalonEvent,
   type SalonRecord,
 } from "~/lib/ai-salon-client";
-import { leaveClient, type CollegeOption } from "~/lib/leave-client";
 import { salonEventStatus } from "~/lib/salon-event-status";
 import "~/salon.css";
 
@@ -32,9 +29,8 @@ export default function AISalonDetail() {
   const [event, setEvent] = useState<SalonEvent | null>(null);
   const [privateData, setPrivateData] = useState<{
     userId: number;
-    profile: AcademicInfo;
+    profile: AccountProfile;
     records: SalonRecord[];
-    colleges: CollegeOption[];
   } | null>(null);
   const [error, setError] = useState("");
   const [personalError, setPersonalError] = useState("");
@@ -86,13 +82,12 @@ export default function AISalonDetail() {
       return;
     }
     void Promise.all([
-      salonClient.profile(),
+      getAccountProfile(),
       salonClient.mine(),
-      leaveClient.colleges(),
     ])
-      .then(([profile, records, colleges]) => {
+      .then(([profile, records]) => {
         if (active)
-          setPrivateData({ userId: user.id, profile, records, colleges });
+          setPrivateData({ userId: user.id, profile, records });
       })
       .catch((e) => {
         if (active) setPersonalError(salonError(e));
@@ -150,7 +145,6 @@ export default function AISalonDetail() {
           : current,
       );
       setNotice(message);
-      await getCurrentUser({ force: true });
     } catch (e) {
       setError(salonError(e));
     } finally {
@@ -161,7 +155,7 @@ export default function AISalonDetail() {
     e.preventDefault();
     if (event && data)
       void action(
-        () => salonClient.register(event.id, data.profile),
+        () => salonClient.register(event.id),
         "报名已提交",
       );
   }
@@ -298,18 +292,11 @@ export default function AISalonDetail() {
                   {record ? (
                     <p className="text-sm text-fg-muted">已取消，可重新报名</p>
                   ) : null}
-                  <AcademicFields
-                    value={data.profile}
-                    colleges={data.colleges}
-                    disabled={busy}
-                    onChange={(profile) => setPrivateData({ ...data, profile })}
-                  />
-                  <p className="break-all text-sm text-fg-muted">
-                    邮箱：{user.email}
-                  </p>
-                  <button className={`${salonPrimaryButton} w-full`} disabled={busy}>
-                    {busy ? "提交中…" : "提交报名"}
-                  </button>
+                  {profileComplete(data.profile) ? <>
+                    <AcademicSummary value={data.profile} />
+                    <button className={`${salonPrimaryButton} w-full`} disabled={busy}>{busy ? "提交中…" : "确认报名"}</button>
+                  </> : <p className="text-sm text-fg-muted">请先补齐个人资料</p>}
+                  <Link className={salonButton} to={accountProfilePath(user.id, `/programs/ai-salon/${id}`)}>{profileComplete(data.profile) ? "修改个人资料" : "完善个人资料"}</Link>
                 </form>
               ) : (
                 <p className="mt-5 text-fg-muted">
