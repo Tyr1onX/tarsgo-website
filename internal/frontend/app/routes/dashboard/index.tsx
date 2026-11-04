@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useLocation, useNavigate, useOutletContext, useSearchParams } from "react-router";
 
+import { BrandLoader } from "~/components/brand-loader";
 import { CommunityComposer } from "~/components/community-composer";
 import { CommunityEditorDialog } from "~/components/community-editor-dialog";
 import { CommunityGrowthBar } from "~/components/community-growth";
@@ -223,7 +224,7 @@ export default function DashboardIndex() {
         </div>
 
         {error ? <p className="community-state community-state--error" role="alert">{error}{retry ? <button type="button" className="community-inline-retry" onClick={retryFailedOperation}>重试</button> : null}</p> : null}
-        {visibleLoading && visiblePosts.length === 0 ? <p className="community-state community-state--loading" role="status"><CommunityIcon name="loader" />正在加载社区…</p> : visiblePosts.length ? <>
+        {visibleLoading && visiblePosts.length === 0 ? <div className="community-state community-state--loading"><BrandLoader label="正在加载社区" /></div> : visiblePosts.length ? <>
           {visibleLoading ? <p className="community-refresh-status" role="status">正在同步最新内容</p> : null}
           <div className="community-post-list">
             {visiblePosts.map((post) => <CommunityPostCard key={post.id} post={post} />)}
