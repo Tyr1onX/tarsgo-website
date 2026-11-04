@@ -3,6 +3,8 @@ import { Link, redirect, useNavigate, useSearchParams } from "react-router";
 
 import type { Route } from "./+types/register";
 
+import { AccountAcademicFields } from "~/components/account-academic-fields";
+import { emptyAcademicInput } from "~/lib/account-profile";
 import { AuthShell } from "~/components/auth-shell";
 import {
   ApiError,
@@ -38,7 +40,7 @@ export default function Register() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [realName, setRealName] = useState("");
-  const [phone, setPhone] = useState("");
+  const [academic, setAcademic] = useState(emptyAcademicInput);
   const [code, setCode] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
   const [showLoginGuidance, setShowLoginGuidance] = useState(false);
@@ -99,10 +101,6 @@ export default function Register() {
 		setErrorMessage("姓名需为汉字。");
       return;
     }
-    if (!/^1[3-9]\d{9}$/.test(phone)) {
-      setErrorMessage("请输入正确的 11 位手机号。");
-      return;
-    }
     if (code.trim().length !== 6) {
       setErrorMessage("请输入 6 位验证码。");
       return;
@@ -116,7 +114,7 @@ export default function Register() {
         email,
         password,
         realName,
-        phone,
+        ...academic,
         code,
       });
       const destination = redirectTo === "/dashboard" ? getDefaultDashboardPath(user.role.name) : redirectTo;
@@ -139,7 +137,7 @@ export default function Register() {
     <AuthShell
       mode="register"
       title={success ? "注册成功" : "加入 TARSGO"}
-      description={success ? "账号已创建，正在进入工作台。" : "完成邮箱验证后即可进入统一工作台；如可能已有账号，请先尝试登录或使用邮箱验证码。"}
+      description={success ? "账号已创建。" : "已有账号可直接登录。"}
       redirectTo={redirectTo}
       leaving={leaving}
       onHomeClick={handleBackToHome}
@@ -203,20 +201,8 @@ export default function Register() {
               />
             </div>
 
-            <div className="auth-field">
-              <label htmlFor="phone">手机号</label>
-              <input
-                id="phone"
-                type="tel"
-                inputMode="numeric"
-                autoComplete="tel"
-                required
-                maxLength={11}
-                value={phone}
-                onChange={(event) => setPhone(event.target.value.replace(/\D/g, "").slice(0, 11))}
-                placeholder="13800138000"
-                className="auth-input"
-              />
+            <div className="auth-field auth-field--wide">
+              <AccountAcademicFields value={academic} onChange={setAcademic} disabled={submitting} />
             </div>
 
             <div className="auth-field auth-field--wide">

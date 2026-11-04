@@ -93,22 +93,10 @@ func (h *LeaveHandler) GetProfile(c *gin.Context) {
 	writeAPI(c, http.StatusOK, "获取请假资料成功", profile)
 }
 
+// Retained as an explicit compatibility error for old clients. All editable
+// identity fields now belong to the authenticated account profile endpoint.
 func (h *LeaveHandler) SaveProfile(c *gin.Context) {
-	userID, ok := leaveUserID(c)
-	if !ok {
-		return
-	}
-	var input leave.ProfileInput
-	if err := c.ShouldBindJSON(&input); err != nil {
-		writeAPIError(c, http.StatusBadRequest, "请假资料不完整")
-		return
-	}
-	profile, err := h.service.SaveProfile(c.Request.Context(), userID, input)
-	if err != nil {
-		h.fail(c, err)
-		return
-	}
-	writeAPI(c, http.StatusOK, "请假资料已保存", profile)
+	writeAPIError(c, http.StatusGone, "请到统一个人资料修改学籍信息")
 }
 
 func (h *LeaveHandler) MyRequests(c *gin.Context) {

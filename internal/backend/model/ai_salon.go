@@ -37,6 +37,7 @@ type AISalonRegistration struct {
 	// NULL on cancellation preserves past attempts while releasing the account slot.
 	ActiveUserID *uint64 `json:"-" gorm:"type:bigint unsigned;uniqueIndex:uk_salon_user,priority:2"`
 	AcademicInfo `gorm:"embedded"`
+	IsStudent    *bool  `json:"isStudent" gorm:"type:tinyint(1);default:null"`
 	Email        string `json:"email" gorm:"size:255;not null"`
 	// NULL on cancellation releases the student number without losing the snapshot.
 	ActiveStudentID *string      `json:"-" gorm:"size:40;uniqueIndex:uk_salon_student,priority:2"`

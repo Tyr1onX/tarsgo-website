@@ -25,19 +25,10 @@ import (
 	"gorm.io/gorm/logger"
 	"tarsgo-backend/database"
 	"tarsgo-backend/model"
+	"tarsgo-backend/service/accountprofile"
 )
 
 func TestInputAndPublicPrivacy(t *testing.T) {
-	p := model.AcademicInfo{RealName: " 测试同学 ", College: "自定义学院", Grade: "2026", StudentID: " ab0123 ", Campus: "南岭", Gender: 1}
-	got, err := validateProfile(p)
-	if err != nil || got.StudentID != "AB0123" || got.RealName != "测试同学" {
-		t.Fatalf("normalization: %+v %v", got, err)
-	}
-	for _, bad := range []model.AcademicInfo{{}, {RealName: p.RealName, College: p.College, Grade: p.Grade, StudentID: "A B", Campus: p.Campus, Gender: 1}, {RealName: p.RealName, College: p.College, Grade: p.Grade, StudentID: "123", Campus: p.Campus, Gender: 0}} {
-		if _, err := validateProfile(bad); err == nil {
-			t.Fatal("invalid profile accepted")
-		}
-	}
 	now := time.Now().UTC()
 	e := model.AISalonEvent{Title: "活动", Summary: "介绍", Location: "南岭", Capacity: 1, StartAt: now.Add(time.Hour), EndAt: now.Add(2 * time.Hour), Deadline: now, Published: true}
 	if err := validateEvent(&e); err != nil {
@@ -249,7 +240,7 @@ func TestMariaDBAISalonWorkflow(t *testing.T) {
 	e := f.event(t, 1)
 	signup := func(i int) *model.AISalonRegistration {
 		t.Helper()
-		r, err := s.Register(ctx, e.ID, f.users[i].ID, profile(i))
+		r, err := f.register(ctx, e.ID, f.users[i].ID, profile(i))
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -259,9 +250,9 @@ func TestMariaDBAISalonWorkflow(t *testing.T) {
 	if signup(0).Status != Registered || signup(1).Status != Waitlisted || signup(2).Status != Waitlisted {
 		t.Fatal("seat assignment failed")
 	}
-	_, err := s.Register(ctx, e.ID, f.users[3].ID, profile(0))
+	_, err := f.register(ctx, e.ID, f.users[3].ID, profile(0))
 	requireStatus(t, err, 409)
-	_, err = s.Register(ctx, e.ID, f.users[0].ID, profile(3))
+	_, err = f.register(ctx, e.ID, f.users[0].ID, profile(3))
 	requireStatus(t, err, 409)
 	if err := s.Cancel(ctx, e.ID, f.users[1].ID); err != nil {
 		t.Fatal(err)
@@ -299,22 +290,22 @@ func TestMariaDBAISalonWorkflow(t *testing.T) {
 	changed.Campus = "新校区"
 	changed.Gender = 2
 	changed.RealName = "新姓名"
-	if _, err := s.SaveProfile(ctx, f.users[2].ID, changed); err != nil {
+	if _, err := f.setProfile(f.users[2].ID, changed); err != nil {
 		t.Fatal(err)
 	}
-	saved, err := s.Profile(ctx, f.users[2].ID)
+	saved, err := f.profile(ctx, f.users[2].ID)
 	if err != nil || saved != changed {
 		t.Fatalf("account profile sync: %+v %v", saved, err)
 	}
 	mine, _ = s.Mine(ctx, f.users[2].ID)
-	if mine[0].College != "自定义学院" || mine[0].Gender != 1 {
+	if mine[0].College != "自定义学院" || mine[0].Gender != 0 {
 		t.Fatal("historical snapshot mutated")
 	}
 	e.RegistrationClosed = true
 	if _, err := s.SaveEvent(ctx, e.ID, e); err != nil {
 		t.Fatal(err)
 	}
-	_, err = s.Register(ctx, e.ID, f.users[3].ID, profile(3))
+	_, err = f.register(ctx, e.ID, f.users[3].ID, profile(3))
 	requireStatus(t, err, 409)
 	if err := s.Cancel(ctx, e.ID, f.users[1].ID); err != nil {
 		t.Fatal("cancellation must remain available before deadline", err)
@@ -326,7 +317,7 @@ func TestMariaDBAISalonWorkflow(t *testing.T) {
 	signup(3)
 	signup(4)
 	f.now = e.Deadline
-	_, err = s.Register(ctx, e.ID, f.users[0].ID, profile(0))
+	_, err = f.register(ctx, e.ID, f.users[0].ID, profile(0))
 	requireStatus(t, err, 409)
 	requireStatus(t, s.Cancel(ctx, e.ID, f.users[2].ID), 409)
 	requireStatus(t, s.CheckIn(ctx, e.ID, f.users[2].ID), 409)
@@ -364,7 +355,7 @@ func TestMariaDBAISalonConcurrentSeatsAndStudentDedup(t *testing.T) {
 		go func(i int) {
 			defer wg.Done()
 			<-start
-			_, err := s.Register(ctx, e.ID, f.users[i].ID, profile(i))
+			_, err := f.register(ctx, e.ID, f.users[i].ID, profile(i))
 			errs <- err
 		}(i)
 	}
@@ -410,7 +401,7 @@ func TestMariaDBAISalonConcurrentSeatsAndStudentDedup(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
-			_, err := s.Register(ctx, dup.ID, f.users[i].ID, profile(99))
+			_, err := f.register(ctx, dup.ID, f.users[i].ID, profile(99))
 			errs <- err
 		}(i)
 	}
@@ -446,7 +437,7 @@ func TestMariaDBAISalonConcurrentSeatsAndStudentDedup(t *testing.T) {
 	if err := s.Cancel(ctx, dup.ID, original.UserID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Register(ctx, dup.ID, f.users[35].ID, profile(99)); err != nil {
+	if _, err := f.register(ctx, dup.ID, f.users[35].ID, profile(99)); err != nil {
 		t.Fatal("cancellation didn't release student number", err)
 	}
 }
@@ -459,7 +450,7 @@ func TestMariaDBAISalonProfileReuseAndPublication(t *testing.T) {
 	if err := f.db.Create(&old).Error; err != nil {
 		t.Fatal(err)
 	}
-	p, err := s.Profile(ctx, f.users[0].ID)
+	p, err := f.profile(ctx, f.users[0].ID)
 	if err != nil || p.StudentID != old.StudentID || p.College != old.CollegeCode || p.RealName != "原姓名" {
 		t.Fatalf("existing profile reuse: %+v %v", p, err)
 	}
@@ -470,7 +461,7 @@ func TestMariaDBAISalonProfileReuseAndPublication(t *testing.T) {
 	if _, err := s.Get(ctx, e.ID); !errors.Is(err, gorm.ErrRecordNotFound) {
 		t.Fatal("draft publicly visible")
 	}
-	if _, err := s.Register(ctx, e.ID, f.users[0].ID, profile(0)); err == nil {
+	if _, err := f.register(ctx, e.ID, f.users[0].ID, profile(0)); err == nil {
 		t.Fatal("draft registration allowed")
 	}
 	e.Published = true
@@ -478,12 +469,12 @@ func TestMariaDBAISalonProfileReuseAndPublication(t *testing.T) {
 	if _, err := s.SaveEvent(ctx, e.ID, e); err != nil {
 		t.Fatal("deadline extension failed", err)
 	}
-	if _, err := s.Register(ctx, e.ID, f.users[0].ID, profile(0)); err != nil {
+	if _, err := f.register(ctx, e.ID, f.users[0].ID, profile(0)); err != nil {
 		t.Fatal(err)
 	}
-	saved, err := s.Profile(ctx, f.users[0].ID)
+	saved, err := f.profile(ctx, f.users[0].ID)
 	if err != nil || saved != profile(0) {
-		t.Fatalf("registration profile sync: %+v %v", saved, err)
+		t.Fatalf("canonical profile read: %+v %v", saved, err)
 	}
 	var preserved model.LeaveProfile
 	f.db.First(&preserved, old.ID)
@@ -502,14 +493,14 @@ func TestMariaDBAISalonEqualTimestampRequeue(t *testing.T) {
 	e := f.event(t, 1)
 	s := f.service
 	for i := 0; i < 3; i++ {
-		if _, err := s.Register(ctx, e.ID, f.users[i].ID, profile(i)); err != nil {
+		if _, err := f.register(ctx, e.ID, f.users[i].ID, profile(i)); err != nil {
 			t.Fatal(err)
 		}
 	}
 	if err := s.Cancel(ctx, e.ID, f.users[1].ID); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := s.Register(ctx, e.ID, f.users[1].ID, profile(1)); err != nil {
+	if _, err := f.register(ctx, e.ID, f.users[1].ID, profile(1)); err != nil {
 		t.Fatal(err)
 	}
 	if err := s.Cancel(ctx, e.ID, f.users[0].ID); err != nil {
@@ -522,5 +513,117 @@ func TestMariaDBAISalonEqualTimestampRequeue(t *testing.T) {
 	history, err := s.Mine(ctx, f.users[1].ID)
 	if err != nil || len(history) != 2 {
 		t.Fatalf("cancelled history was lost: %+v %v", history, err)
+	}
+}
+
+// Setup changes canonical account data before invoking the production service.
+func (f *fixture) setProfile(id uint64, p model.AcademicInfo) (model.AcademicInfo, error) {
+	err := f.db.Model(&model.User{}).Where("id = ?", id).Updates(map[string]any{"real_name": p.RealName, "student_id": p.StudentID, "college": p.College, "grade": p.Grade, "campus": p.Campus, "gender": p.Gender, "is_student": true}).Error
+	return p, err
+}
+func (f *fixture) register(ctx context.Context, event, id uint64, p model.AcademicInfo) (*model.AISalonRegistration, error) {
+	if _, err := f.setProfile(id, p); err != nil {
+		return nil, err
+	}
+	return f.service.Register(ctx, event, id)
+}
+func (f *fixture) profile(ctx context.Context, id uint64) (model.AcademicInfo, error) {
+	var u model.User
+	if err := f.db.First(&u, id).Error; err != nil {
+		return model.AcademicInfo{}, err
+	}
+	p, err := accountprofile.Resolve(f.db.WithContext(ctx), u, f.now)
+	return model.AcademicInfo{RealName: p.RealName, StudentID: p.StudentID, College: p.College, Grade: p.Grade, Campus: u.Campus, Gender: u.Gender}, err
+}
+
+func TestMariaDBAISalonNeverMutatesAccountAndSupportsNonstudents(t *testing.T) {
+	f := newFixture(t, 4)
+	ctx := context.Background()
+	s := f.service
+	e := f.event(t, 1)
+	// A real team identity and a group membership must survive every salon action.
+	if _, err := f.setProfile(f.users[0].ID, profile(0)); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.db.Model(&model.User{}).Where("id = ?", f.users[0].ID).Updates(map[string]any{"team_identity_status": "formal_member", "phone": "legacy-phone"}).Error; err != nil {
+		t.Fatal(err)
+	}
+	group := model.UserGroup{Name: fmt.Sprintf("salon-identity-%d", time.Now().UnixNano()), Status: 1}
+	if err := f.db.Create(&group).Error; err != nil {
+		t.Fatal(err)
+	}
+	member := model.UserGroupMember{GroupID: group.ID, UserID: f.users[0].ID, Role: model.UserGroupMemberRoleLeader}
+	if err := f.db.Create(&member).Error; err != nil {
+		t.Fatal(err)
+	}
+	defer func() { f.db.Delete(&member); f.db.Delete(&group) }()
+	var before model.User
+	f.db.First(&before, f.users[0].ID)
+	snapshot := func() string {
+		var u model.User
+		f.db.First(&u, before.ID)
+		var members []model.UserGroupMember
+		f.db.Where("user_id = ?", u.ID).Find(&members)
+		b, _ := json.Marshal(map[string]any{"user": u, "studentId": u.StudentID, "college": u.College, "grade": u.Grade, "campus": u.Campus, "isStudent": u.IsStudent, "members": members})
+		return string(b)
+	}
+	unchanged := snapshot()
+	for i := 1; i < 3; i++ {
+		if err := f.db.Model(&model.User{}).Where("id = ?", f.users[i].ID).Update("is_student", false).Error; err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := s.Register(ctx, e.ID, before.ID); err != nil {
+		t.Fatal(err)
+	}
+	for i := 1; i < 3; i++ {
+		r, err := s.Register(ctx, e.ID, f.users[i].ID)
+		if err != nil || r.Status != Waitlisted || r.ActiveStudentID != nil || r.IsStudent == nil || *r.IsStudent {
+			t.Fatalf("nonstudent queue: %+v %v", r, err)
+		}
+	}
+	if _, err := s.Register(ctx, e.ID, before.ID); err == nil {
+		t.Fatal("duplicate accepted")
+	}
+	if _, err := s.Register(ctx, e.ID, f.users[3].ID); err == nil {
+		t.Fatal("missing profile accepted")
+	}
+	if err := s.Cancel(ctx, e.ID, before.ID); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot() != unchanged {
+		t.Fatal("registration or cancellation mutated account")
+	}
+	if _, err := s.Register(ctx, e.ID, before.ID); err != nil {
+		t.Fatal(err)
+	}
+	e.Capacity = 3
+	if _, err := s.SaveEvent(ctx, e.ID, e); err != nil {
+		t.Fatal(err)
+	}
+	f.now = e.StartAt
+	if err := s.CheckIn(ctx, e.ID, before.ID); err != nil {
+		t.Fatal(err)
+	}
+	if snapshot() != unchanged {
+		t.Fatal("promotion/check-in mutated account")
+	}
+	var groupCount int64
+	f.db.Model(&model.UserGroupMember{}).Where("user_id = ?", before.ID).Count(&groupCount)
+	if groupCount != 1 {
+		t.Fatal("salon changed group membership")
+	}
+	// A later account edit cannot change earlier snapshots.
+	if err := f.db.Model(&model.User{}).Where("id = ?", before.ID).Updates(map[string]any{"real_name": "修改姓名", "college": "修改学院", "email": fmt.Sprintf("edited-%d@tarsgo.test", before.ID)}).Error; err != nil {
+		t.Fatal(err)
+	}
+	rows, err := s.Mine(ctx, before.ID)
+	if err != nil || len(rows) != 2 {
+		t.Fatalf("history %v %v", rows, err)
+	}
+	for _, r := range rows {
+		if r.RealName != "测试同学" || r.Email != before.Email || r.College != "自定义学院" {
+			t.Fatalf("snapshot changed: %+v", r)
+		}
 	}
 }

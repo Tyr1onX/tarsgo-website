@@ -2,18 +2,16 @@ package aisalon
 
 import (
 	"context"
-	"errors"
 	"net/url"
 	"regexp"
 	"strings"
 	"time"
-	"unicode"
 	"unicode/utf8"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"tarsgo-backend/model"
-	"tarsgo-backend/service/leave"
+	"tarsgo-backend/service/accountprofile"
 )
 
 const Registered = "registered"
@@ -78,73 +76,6 @@ func (s *Service) Get(ctx context.Context, id uint64) (*PublicEvent, error) {
 	result := public(e, s.now().UTC())
 	return &result, nil
 }
-func validateProfile(p model.AcademicInfo) (model.AcademicInfo, error) {
-	fields := []*string{&p.RealName, &p.College, &p.Grade, &p.StudentID, &p.Campus}
-	limits := []int{100, 100, 40, 40, 40}
-	for i, f := range fields {
-		*f = strings.TrimSpace(*f)
-		if *f == "" || utf8.RuneCountInString(*f) > limits[i] || strings.IndexFunc(*f, unicode.IsControl) >= 0 {
-			return p, fail(400, "请完整填写真实姓名、学院、年级、学号和校区")
-		}
-	}
-	// Normalize the identifier before both validation and uniqueness checks.
-	p.StudentID = strings.ToUpper(p.StudentID)
-	for _, r := range p.StudentID {
-		if !(r >= '0' && r <= '9' || r >= 'A' && r <= 'Z') {
-			return p, fail(400, "学号仅支持字母和数字")
-		}
-	}
-	if p.Gender != 1 && p.Gender != 2 {
-		return p, fail(400, "请选择性别")
-	}
-	return p, nil
-}
-func (s *Service) Profile(ctx context.Context, userID uint64) (model.AcademicInfo, error) {
-	var u model.User
-	if err := s.db.WithContext(ctx).First(&u, userID).Error; err != nil {
-		return model.AcademicInfo{}, err
-	}
-	p := model.AcademicInfo{College: u.College, Grade: u.Grade, StudentID: u.StudentID, Campus: u.Campus, Gender: u.Gender}
-	if u.RealName != nil {
-		p.RealName = *u.RealName
-	}
-	// Reuse existing academic information without granting any internal access or
-	// overwriting identity-locked leave documents.
-	var old model.LeaveProfile
-	err := s.db.WithContext(ctx).Where("user_id = ?", userID).Take(&old).Error
-	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-		return p, err
-	}
-	if err == nil {
-		if p.RealName == "" {
-			p.RealName = old.Name
-		}
-		if p.StudentID == "" {
-			p.StudentID = old.StudentID
-		}
-		if p.College == "" {
-			p.College = old.CollegeCode
-			for _, c := range leave.NewService(s.db).Colleges() {
-				if c.Code == old.CollegeCode {
-					p.College = c.Name
-					break
-				}
-			}
-		}
-	}
-	return p, nil
-}
-func saveProfile(tx *gorm.DB, userID uint64, p model.AcademicInfo) error {
-	return tx.Model(&model.User{}).Where("id = ?", userID).Updates(map[string]any{"real_name": p.RealName, "college": p.College, "grade": p.Grade, "student_id": p.StudentID, "campus": p.Campus, "gender": p.Gender}).Error
-}
-func (s *Service) SaveProfile(ctx context.Context, userID uint64, p model.AcademicInfo) (model.AcademicInfo, error) {
-	p, err := validateProfile(p)
-	if err != nil {
-		return p, err
-	}
-	err = saveProfile(s.db.WithContext(ctx), userID, p)
-	return p, err
-}
 func lockedEvent(tx *gorm.DB, id uint64) (model.AISalonEvent, error) {
 	var e model.AISalonEvent
 	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&e, id).Error
@@ -182,13 +113,9 @@ func promote(tx *gorm.DB, e model.AISalonEvent) error {
 	}
 	return nil
 }
-func (s *Service) Register(ctx context.Context, eventID, userID uint64, p model.AcademicInfo) (*model.AISalonRegistration, error) {
-	p, err := validateProfile(p)
-	if err != nil {
-		return nil, err
-	}
+func (s *Service) Register(ctx context.Context, eventID, userID uint64) (*model.AISalonRegistration, error) {
 	var result model.AISalonRegistration
-	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		e, err := lockedEvent(tx, eventID)
 		if err != nil {
 			return err
@@ -201,18 +128,6 @@ func (s *Service) Register(ctx context.Context, eventID, userID uint64, p model.
 		if err != nil {
 			return err
 		}
-		count := 0
-		for _, r := range rows {
-			if r.UserID == userID {
-				return fail(409, "你已提交报名")
-			}
-			if r.StudentID == p.StudentID {
-				return fail(409, "该学号已报名本场活动")
-			}
-			if r.Status == Registered {
-				count++
-			}
-		}
 		var u model.User
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&u, userID).Error; err != nil {
 			return err
@@ -220,16 +135,39 @@ func (s *Service) Register(ctx context.Context, eventID, userID uint64, p model.
 		if u.Status != model.UserStatusEnabled {
 			return fail(403, "账号已停用")
 		}
+		p, err := accountprofile.Resolve(tx, u, now)
+		if err != nil {
+			return err
+		}
+		if !p.Complete() {
+			return fail(409, "请先到个人资料补齐姓名、学生身份及必要学籍信息")
+		}
+		p.StudentID = strings.ToUpper(strings.TrimSpace(p.StudentID))
+		count := 0
+		for _, r := range rows {
+			if r.UserID == userID {
+				return fail(409, "你已提交报名")
+			}
+			if p.StudentID != "" && r.StudentID == p.StudentID {
+				return fail(409, "该学号已报名本场活动")
+			}
+			if r.Status == Registered {
+				count++
+			}
+		}
 		status := Registered
 		if count >= e.Capacity {
 			status = Waitlisted
 		}
 		// Each new attempt appends to the queue and retains cancelled snapshots.
-		result = model.AISalonRegistration{EventID: eventID, UserID: userID, ActiveUserID: &userID, AcademicInfo: p, Email: u.Email, ActiveStudentID: &p.StudentID, Status: status, SubmittedAt: now}
+		result = model.AISalonRegistration{EventID: eventID, UserID: userID, ActiveUserID: &userID, AcademicInfo: model.AcademicInfo{RealName: p.RealName, StudentID: p.StudentID, College: p.College, Grade: p.Grade}, IsStudent: p.IsStudent, Email: u.Email, Status: status, SubmittedAt: now}
+		if p.StudentID != "" {
+			result.ActiveStudentID = &p.StudentID
+		}
 		if err := tx.Omit("Event").Create(&result).Error; err != nil {
 			return err
 		}
-		return saveProfile(tx, userID, p)
+		return nil
 	})
 	return &result, err
 }

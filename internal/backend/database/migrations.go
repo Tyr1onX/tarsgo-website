@@ -213,6 +213,16 @@ func migrationRegistry(appEnv string) []migration {
 		{version: 49, apply: clearRetiredLearningData},
 		{version: 50, apply: createLegacyRecruitmentArchive},
 		{version: 51, apply: archiveRetiredRecruitment},
+		{version: 52, apply: func(db *gorm.DB) error {
+			for _, table := range []string{"users", "ai_salon_registrations"} {
+				if !db.Migrator().HasColumn(table, "is_student") {
+					if err := db.Exec("ALTER TABLE `" + table + "` ADD COLUMN is_student TINYINT(1) NULL DEFAULT NULL").Error; err != nil {
+						return err
+					}
+				}
+			}
+			return nil
+		}},
 	}
 }
 

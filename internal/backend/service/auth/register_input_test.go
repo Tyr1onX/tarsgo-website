@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"tarsgo-backend/model"
+	"tarsgo-backend/service/accountprofile"
 )
 
 func TestValidateIdentityConsistencyUsesSystemRole(t *testing.T) {
@@ -29,11 +30,10 @@ func TestValidateIdentityConsistencyUsesSystemRole(t *testing.T) {
 func TestNormalizeRegisterEmailInput(t *testing.T) {
 	t.Parallel()
 
-	normalized, err := normalizeRegisterEmailInput(RegisterEmailInput{
+	normalized, err := normalizeRegisterEmailInput(RegisterEmailInput{Input: accountprofile.Input{IsStudent: testStudent(false)},
 		Email:    " User@Example.com ",
 		Password: " 123456 ",
 		RealName: " 张三 ",
-		Phone:    " 13800138000 ",
 		Code:     " 123456 ",
 	})
 	if err != nil {
@@ -49,22 +49,18 @@ func TestNormalizeRegisterEmailInput(t *testing.T) {
 	if normalized.RealName != "张三" {
 		t.Fatalf("expected trimmed realName, got %q", normalized.RealName)
 	}
-	if normalized.Phone != "13800138000" {
-		t.Fatalf("expected trimmed phone, got %q", normalized.Phone)
-	}
 	if normalized.Code != "123456" {
 		t.Fatalf("expected trimmed code, got %q", normalized.Code)
 	}
 }
 
-func TestNormalizeRegisterEmailInputRequiresRealNameAndPhone(t *testing.T) {
+func TestNormalizeRegisterEmailInputRequiresRealName(t *testing.T) {
 	t.Parallel()
 
-	_, err := normalizeRegisterEmailInput(RegisterEmailInput{
+	_, err := normalizeRegisterEmailInput(RegisterEmailInput{Input: accountprofile.Input{IsStudent: testStudent(false)},
 		Email:    "user@example.com",
 		Password: "123456",
 		RealName: "   ",
-		Phone:    "   ",
 		Code:     "123456",
 	})
 	if err == nil {
@@ -78,47 +74,26 @@ func TestNormalizeRegisterEmailInputRequiresRealNameAndPhone(t *testing.T) {
 	if serviceErr.Status != 400 {
 		t.Fatalf("expected status 400, got %d", serviceErr.Status)
 	}
-	if serviceErr.Message != "姓名和手机号不能为空" {
+	if serviceErr.Message != "姓名不能为空" {
 		t.Fatalf("unexpected message: %q", serviceErr.Message)
 	}
 }
 
-func TestNormalizeRegisterEmailInputRejectsInvalidPhone(t *testing.T) {
-	t.Parallel()
-
-	for _, phone := range []string{
-		"123",
-		"abcdefghijk",
-		"12345678901",
-		"1380013800a",
-		"138001380001",
-		"12800138000",
-	} {
-		t.Run(phone, func(t *testing.T) {
-			t.Parallel()
-			_, err := normalizeRegisterEmailInput(RegisterEmailInput{
-				Email: "user@example.com", Password: "123456",
-				RealName: "张三", Phone: phone, Code: "123456",
-			})
-			if err == nil {
-				t.Fatalf("invalid phone %q was accepted", phone)
-			}
-			serviceErr, ok := err.(*ServiceError)
-			if !ok || serviceErr.Status != 400 || serviceErr.Message != "请输入正确的 11 位手机号" {
-				t.Fatalf("unexpected error for phone %q: %v", phone, err)
-			}
-		})
+func TestNormalizeRegisterEmailInputNeedsNoPhone(t *testing.T) {
+	_, err := normalizeRegisterEmailInput(RegisterEmailInput{Input: accountprofile.Input{IsStudent: testStudent(false)}, Email: "user@example.test", Password: "123456", RealName: "张三", Code: "123456"})
+	if err != nil {
+		t.Fatal(err)
 	}
 }
+func testStudent(value bool) *bool { return &value }
 
 func TestNormalizeRegisterEmailInputRequiresChineseRealName(t *testing.T) {
 	t.Parallel()
 
-	_, err := normalizeRegisterEmailInput(RegisterEmailInput{
+	_, err := normalizeRegisterEmailInput(RegisterEmailInput{Input: accountprofile.Input{IsStudent: testStudent(false)},
 		Email:    "user@example.com",
 		Password: "123456",
 		RealName: "张三A",
-		Phone:    "13800138000",
 		Code:     "123456",
 	})
 	if err == nil {
@@ -151,14 +126,13 @@ func TestInitialSuperAdminRequiresChineseRealName(t *testing.T) {
 	}
 }
 
-// Registration profile fields are contact hints, not verified identity keys.
-func TestNormalizeRegisterInputAllowsSharedNameAndPhoneAcrossEmails(t *testing.T) {
+// Real names are not unique identity keys.
+func TestNormalizeRegisterInputAllowsSharedNamesAcrossEmails(t *testing.T) {
 	t.Parallel()
 
 	for _, email := range []string{"first@example.com", "second@example.com"} {
-		_, err := normalizeRegisterEmailInput(RegisterEmailInput{
-			Email: email, Password: "123456", RealName: "张三",
-			Phone: "13800138000", Code: "123456",
+		_, err := normalizeRegisterEmailInput(RegisterEmailInput{Input: accountprofile.Input{IsStudent: testStudent(false)},
+			Email: email, Password: "123456", RealName: "张三", Code: "123456",
 		})
 		if err != nil {
 			t.Fatalf("valid contact details must not be treated as unique identity keys for %s: %v", email, err)

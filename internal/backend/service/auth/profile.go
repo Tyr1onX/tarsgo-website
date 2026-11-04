@@ -21,6 +21,7 @@ import (
 	"gorm.io/gorm/clause"
 
 	"tarsgo-backend/model"
+	"tarsgo-backend/service/accountprofile"
 )
 
 const (
@@ -29,9 +30,11 @@ const (
 )
 
 type ProfileInput struct {
-	RealName string
-	Phone    string
-	Avatar   *multipart.FileHeader
+	RealName    string
+	Phone       string
+	UpdatePhone bool
+	Academic    *accountprofile.Input
+	Avatar      *multipart.FileHeader
 }
 
 // UpdateProfile deliberately updates only self-service fields. Email, role and
@@ -54,9 +57,24 @@ func (s *Service) UpdateProfile(ctx context.Context, userID uint64, input Profil
 		return nil, err
 	}
 
-	updates := map[string]any{"phone": nil, "real_name": realName}
-	if phone != "" {
-		updates["phone"] = phone
+	updates := map[string]any{"real_name": realName}
+	if input.UpdatePhone || phone != "" {
+		updates["phone"] = nil
+		if phone != "" {
+			updates["phone"] = phone
+		}
+	}
+	if input.Academic != nil {
+		academic, err := accountprofile.Normalize(*input.Academic, s.now())
+		if err != nil {
+			return nil, &ServiceError{Status: http.StatusBadRequest, Message: err.Error()}
+		}
+		updates["is_student"] = *academic.IsStudent
+		if *academic.IsStudent {
+			updates["student_id"] = academic.StudentID
+			updates["college"] = academic.College
+			updates["grade"] = academic.Grade
+		}
 	}
 
 	newAvatarPath := ""
@@ -120,9 +138,11 @@ func (s *Service) UpdateProfile(ctx context.Context, userID uint64, input Profil
 		return nil, &ServiceError{Status: http.StatusInternalServerError, Message: "保存个人资料失败", Err: err}
 	}
 	user.RealName = &realName
-	user.Phone = nil
-	if phone != "" {
-		user.Phone = &phone
+	if input.UpdatePhone || phone != "" {
+		user.Phone = nil
+		if phone != "" {
+			user.Phone = &phone
+		}
 	}
 	if newAvatarPath != "" {
 		user.AvatarURL = &newAvatarURL
@@ -173,4 +193,16 @@ func readProfileAvatar(file *multipart.FileHeader) ([]byte, string, error) {
 	default:
 		return nil, "", fmt.Errorf("头像仅支持 JPG 或 PNG")
 	}
+}
+
+func (s *Service) AccountProfile(ctx context.Context, userID uint64) (*accountprofile.Profile, error) {
+	var u model.User
+	if err := s.db.WithContext(ctx).First(&u, userID).Error; err != nil {
+		return nil, err
+	}
+	if err := ensureUserEnabled(&u); err != nil {
+		return nil, err
+	}
+	p, err := accountprofile.Resolve(s.db.WithContext(ctx), u, s.now())
+	return &p, err
 }

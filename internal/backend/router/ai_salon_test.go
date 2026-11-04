@@ -205,10 +205,13 @@ func TestMariaDBAISalonAPIPermissionsAndOwnership(t *testing.T) {
 		}
 	}
 	p := model.AcademicInfo{RealName: "测试同学", College: "未收录学院", Grade: "2026", StudentID: "API001", Campus: "南岭", Gender: 1}
+	if err := db.Model(&model.User{}).Where("id = ?", users[0].ID).Updates(map[string]any{"real_name": p.RealName, "college": p.College, "grade": p.Grade, "student_id": p.StudentID, "is_student": true}).Error; err != nil {
+		t.Fatal(err)
+	}
 	expect(request("POST", path+"/registration", p, -1, "http://salon.test"), 401)
 	expect(request("POST", path+"/registration", p, 0, "https://attacker.test"), 403)
 	// Submitted actor/status/email properties cannot affect another user's state.
-	payload := map[string]any{"realName": p.RealName, "college": p.College, "grade": p.Grade, "studentId": p.StudentID, "campus": p.Campus, "gender": p.Gender, "userId": users[3].ID, "status": "registered", "checkedInAt": now, "email": "spoof@tarsgo.test"}
+	payload := map[string]any{"realName": "伪造姓名", "college": "伪造学院", "grade": "伪造年级", "studentId": "SPOOF", "campus": p.Campus, "gender": p.Gender, "userId": users[3].ID, "status": "registered", "checkedInAt": now, "email": "spoof@tarsgo.test"}
 	expect(request("POST", path+"/registration", payload, 0, "http://salon.test"), 200)
 	w = request("GET", "/api/ai-salon/registrations", nil, 3, "")
 	expect(w, 200)
@@ -231,7 +234,7 @@ func TestMariaDBAISalonAPIPermissionsAndOwnership(t *testing.T) {
 	}
 	var r model.AISalonRegistration
 	db.Where("event_id = ?", e.ID).First(&r)
-	if r.UserID != users[0].ID || r.Email != users[0].Email || r.CheckedInAt != nil {
+	if r.UserID != users[0].ID || r.Email != users[0].Email || r.StudentID != p.StudentID || r.RealName != p.RealName || r.CheckedInAt != nil {
 		t.Fatal("actor spoof accepted")
 	}
 	expect(request("GET", rosterPath, nil, 2, ""), 200)
@@ -248,7 +251,8 @@ func TestMariaDBAISalonAPIPermissionsAndOwnership(t *testing.T) {
 		}
 	}
 	// A plain account with no group membership can still manage its own profile.
-	expect(request("PUT", "/api/ai-salon/profile", p, 3, "http://salon.test"), 200)
+	expect(request("PUT", "/api/ai-salon/profile", p, 3, "http://salon.test"), 404)
+	expect(request("GET", "/api/me/profile", nil, 3, ""), 200)
 	var groupCount int64
 	db.Model(&model.UserGroupMember{}).Where("user_id = ?", users[0].ID).Count(&groupCount)
 	if groupCount != 0 {

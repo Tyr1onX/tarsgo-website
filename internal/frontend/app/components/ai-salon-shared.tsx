@@ -10,7 +10,6 @@ import {
   type AuthUser,
 } from "~/lib/auth-client";
 import { type AcademicInfo } from "~/lib/ai-salon-client";
-import { type CollegeOption } from "~/lib/leave-client";
 
 export const salonPanel =
   "rounded-2xl border border-border-subtle bg-surface-light p-5 sm:p-8";
@@ -85,132 +84,10 @@ export function SalonBackLink({
     </Link>
   );
 }
-export function AcademicFields({
-  value,
-  onChange,
-  colleges,
-  disabled = false,
-}: {
-  value: AcademicInfo;
-  onChange: (value: AcademicInfo) => void;
-  colleges: CollegeOption[];
-  disabled?: boolean;
-}) {
-  const knownCollege = colleges.some((c) => c.name === value.college);
-  const [custom, setCustom] = useState(Boolean(value.college && !knownCollege));
-  return (
-    <fieldset disabled={disabled} className="grid min-w-0 gap-4 sm:grid-cols-2">
-      <label className="min-w-0 space-y-2">
-        <span className="block text-sm">真实姓名</span>
-        <input
-          required
-          maxLength={100}
-          autoComplete="name"
-          className={salonField}
-          value={value.realName}
-          onChange={(e) => onChange({ ...value, realName: e.target.value })}
-        />
-      </label>
-      <div className="min-w-0 space-y-2">
-        <label className="block space-y-2">
-          <span className="block text-sm">学院</span>
-          <select
-            aria-label="学院"
-            required
-            className={salonField}
-            value={
-              custom || (value.college && !knownCollege)
-                ? "__custom"
-                : value.college
-            }
-            onChange={(e) => {
-              setCustom(e.target.value === "__custom");
-              onChange({
-                ...value,
-                college: e.target.value === "__custom" ? "" : e.target.value,
-              });
-            }}
-          >
-            <option value="">请选择学院</option>
-            {colleges.map((c) => (
-              <option key={c.code} value={c.name}>
-                {c.name}
-              </option>
-            ))}
-            <option value="__custom">其他学院</option>
-          </select>
-        </label>
-        {custom || (value.college && !knownCollege) ? (
-          <label className="block">
-            <span className="sr-only">学院名称</span>
-            <input
-              required
-              maxLength={100}
-              placeholder="学院名称"
-              className={salonField}
-              value={value.college}
-              onChange={(e) => onChange({ ...value, college: e.target.value })}
-            />
-          </label>
-        ) : null}
-      </div>
-      <label className="min-w-0 space-y-2">
-        <span className="block text-sm">年级</span>
-        <input
-          required
-          maxLength={40}
-          placeholder="如 2026 级"
-          className={salonField}
-          value={value.grade}
-          onChange={(e) => onChange({ ...value, grade: e.target.value })}
-        />
-      </label>
-      <label className="min-w-0 space-y-2">
-        <span className="block text-sm">学号</span>
-        <input
-          required
-          maxLength={40}
-          pattern="[A-Za-z0-9]+"
-          autoComplete="off"
-          className={salonField}
-          value={value.studentId}
-          onChange={(e) => onChange({ ...value, studentId: e.target.value })}
-        />
-      </label>
-      <label className="min-w-0 space-y-2">
-        <span className="block text-sm">校区</span>
-        <input
-          required
-          maxLength={40}
-          placeholder="如 南岭校区"
-          className={salonField}
-          value={value.campus}
-          onChange={(e) => onChange({ ...value, campus: e.target.value })}
-        />
-      </label>
-      <label className="min-w-0 space-y-2">
-        <span className="block text-sm">性别</span>
-        <select
-          aria-label="性别"
-          required
-          className={salonField}
-          value={value.gender || ""}
-          onChange={(e) =>
-            onChange({ ...value, gender: Number(e.target.value) })
-          }
-        >
-          <option value="">请选择性别</option>
-          <option value={1}>男</option>
-          <option value={2}>女</option>
-        </select>
-      </label>
-    </fieldset>
-  );
-}
 export function AcademicSummary({
   value,
 }: {
-  value: AcademicInfo & { email: string };
+  value: Pick<AcademicInfo, "realName" | "college" | "grade" | "studentId" | "isStudent"> & { email: string };
 }) {
   return (
     <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
@@ -219,10 +96,9 @@ export function AcademicSummary({
         ["学院", value.college],
         ["年级", value.grade],
         ["学号", value.studentId],
-        ["校区", value.campus],
-        ["性别", value.gender === 1 ? "男" : "女"],
+        ["学生身份", value.isStudent == null ? "历史资料" : value.isStudent ? "在校学生" : "非在校学生"],
         ["邮箱", value.email],
-      ].map(([label, text]) => (
+      ].filter(([, text]) => Boolean(text)).map(([label, text]) => (
         <div key={label} className="min-w-0">
           <dt className="text-fg-muted">{label}</dt>
           <dd className="mt-1 break-words">{text}</dd>

@@ -73,7 +73,7 @@ export const leaveClient = {
   reviewLeaveAccessRequest: (id: number, status: "approved" | "rejected") => adminMutation(apiRequest<LeaveAccessState>(`/api/admin/leave/access-requests/${id}`, { method: "PATCH", body: { status } })),
   colleges: () => apiRequest<CollegeOption[]>("/api/leave/colleges"),
   profile: () => apiRequest<LeaveProfile | null>("/api/leave/profile"),
-  saveProfile: (profile: Omit<LeaveProfile, "identityLocked">) => apiRequest<LeaveProfile>("/api/leave/profile", { method: "PUT", body: profile }),
+
   schoolRequests: () => apiRequest<LeaveRequest[]>("/api/school-leave/requests"),
   createSchoolRequest: (body: { startAt: string; endAt: string }) => apiRequest<LeaveRequest>("/api/school-leave/requests", { method: "POST", body }),
   updateSchoolRequest: (id: number, body: { startAt: string; endAt: string }) => apiRequest<LeaveRequest>(`/api/school-leave/requests/${id}`, { method: "PATCH", body }),

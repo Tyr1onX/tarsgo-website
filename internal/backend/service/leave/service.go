@@ -185,62 +185,90 @@ func sortColleges(items []CollegeOption) {
 	sort.Slice(items, func(i, j int) bool { return items[i].Name < items[j].Name })
 }
 
+// GetProfile is a legal-document view; account fields are its editable source.
+// Once a document has been issued, its locked identity remains historical.
 func (s *Service) GetProfile(ctx context.Context, userID uint64) (*model.LeaveProfile, error) {
 	var profile model.LeaveProfile
 	err := s.db.WithContext(ctx).Where("user_id = ?", userID).First(&profile).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		return nil, nil
-	}
-	if err != nil {
+	if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, internalError("读取请假资料失败", err)
+	}
+	if profile.IdentityLocked {
+		return &profile, nil
+	}
+	if err := s.accountDocumentProfile(s.db.WithContext(ctx), userID, &profile); err != nil {
+		var e *ServiceError
+		if errors.As(err, &e) && e.Status == 409 {
+			return nil, nil
+		}
+		return nil, err
+	}
+	if profile.StudentID == "" {
+		return nil, nil
 	}
 	return &profile, nil
 }
 
-func (s *Service) SaveProfile(ctx context.Context, userID uint64, input ProfileInput) (*model.LeaveProfile, error) {
-	input, err := validateProfile(input)
-	if err != nil {
-		return nil, badRequest(err.Error())
+func (s *Service) accountDocumentProfile(tx *gorm.DB, userID uint64, p *model.LeaveProfile) error {
+	var u model.User
+	if err := tx.First(&u, userID).Error; err != nil {
+		return internalError("读取账号资料失败", err)
 	}
-	var profile model.LeaveProfile
-	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		lookup := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ?", userID).First(&profile)
-		if errors.Is(lookup.Error, gorm.ErrRecordNotFound) {
-			profile = model.LeaveProfile{UserID: userID, Name: input.Name, StudentID: input.StudentID, CollegeCode: input.CollegeCode, ParticipantType: input.ParticipantType}
-			return tx.Create(&profile).Error
-		}
-		if lookup.Error != nil {
-			return lookup.Error
-		}
-		if profile.IdentityLocked && (profile.Name != input.Name || profile.StudentID != input.StudentID) {
-			return conflict("已有请假记录，姓名和学号不能修改")
-		}
-		profile.Name = input.Name
-		profile.StudentID = input.StudentID
-		profile.CollegeCode = input.CollegeCode
-		profile.ParticipantType = input.ParticipantType
-		return tx.Save(&profile).Error
-	})
-	if err != nil {
-		var serviceErr *ServiceError
-		if errors.As(err, &serviceErr) {
-			return nil, serviceErr
-		}
-		if isDuplicate(err) {
-			return nil, conflict("该学号已绑定其他账号")
-		}
-		return nil, internalError("保存请假资料失败", err)
+	if u.IsStudent == nil {
+		return nil
+	} // Preserve untouched legacy leave records.
+	if !*u.IsStudent {
+		return conflict("请假业务需要在校学生身份和有效学籍资料")
 	}
-	return &profile, nil
+	name := ""
+	if u.RealName != nil {
+		name = *u.RealName
+	}
+	code := ""
+	for k, v := range collegeCodes {
+		if u.College == v || u.College == k {
+			code = k
+			break
+		}
+	}
+	in, err := validateProfile(ProfileInput{Name: name, StudentID: u.StudentID, CollegeCode: code, ParticipantType: p.ParticipantType})
+	if err != nil {
+		return conflict("请在个人资料完善请假所需的姓名、8 位学号和吉林大学学院")
+	}
+	p.UserID = userID
+	p.Name = in.Name
+	p.StudentID = in.StudentID
+	p.CollegeCode = in.CollegeCode
+	p.ParticipantType = in.ParticipantType
+	return nil
 }
 
 func (s *Service) requireProfile(tx *gorm.DB, userID uint64) (*model.LeaveProfile, error) {
 	var profile model.LeaveProfile
-	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ?", userID).First(&profile).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, conflict("请先完善姓名、学号和学院")
-		}
+	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ?", userID).First(&profile).Error
+	missing := errors.Is(err, gorm.ErrRecordNotFound)
+	if err != nil && !missing {
 		return nil, internalError("读取请假资料失败", err)
+	}
+	if profile.IdentityLocked {
+		return &profile, nil
+	}
+	if err := s.accountDocumentProfile(tx, userID, &profile); err != nil {
+		return nil, err
+	}
+	if profile.StudentID == "" {
+		return nil, conflict("请先完善姓名、学号和学院")
+	}
+	if missing {
+		err = tx.Create(&profile).Error
+	} else {
+		err = tx.Save(&profile).Error
+	}
+	if err != nil {
+		if isDuplicate(err) {
+			return nil, conflict("该学号已绑定其他账号")
+		}
+		return nil, internalError("保存请假身份失败", err)
 	}
 	return &profile, nil
 }
