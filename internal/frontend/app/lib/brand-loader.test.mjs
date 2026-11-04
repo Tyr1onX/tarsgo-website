@@ -77,14 +77,3 @@ test("background refresh retains existing community data without a loading banne
   assert.doesNotMatch(feed, /正在同步最新内容/);
   assert.doesNotMatch(workbench, /正在同步最新状态…/);
 });
-
-test("route transitions use a top-edge status without a floating brand icon", async () => {
-  const root = await read("../root.tsx");
-  const appStyles = await read("../app.css");
-  const app = root.split("export default function App()")[1]?.split("export function HydrateFallback()")[0];
-  assert.ok(app);
-  assert.match(app, /<div className="route-feedback" role="status" aria-label=\{getNavigationMessage/);
-  assert.doesNotMatch(app, /<BrandLoader/);
-  assert.match(appStyles, /\.route-feedback\s*\{[^}]*inset: 0 0 auto;[^}]*height: 2px;/);
-  assert.doesNotMatch(appStyles, /\.route-feedback \.brand-loader/);
-});
