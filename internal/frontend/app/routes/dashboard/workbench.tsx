@@ -59,6 +59,7 @@ export default function PersonalWorkbench() {
   const requestSequence = useRef(0);
   const hasSnapshot = snapshot.weekly !== null || snapshot.assignments !== null || snapshot.leaveAccess !== null || snapshot.leaveLatest !== null;
   const loading = view.key !== snapshotKey ? !getPersonalWorkbenchSnapshot(snapshotKey) : view.refreshing && !hasSnapshot;
+  const refreshing = view.key !== snapshotKey ? Boolean(getPersonalWorkbenchSnapshot(snapshotKey)) : view.refreshing && hasSnapshot;
 
   const load = useCallback(async () => {
     const requestId = ++requestSequence.current;
