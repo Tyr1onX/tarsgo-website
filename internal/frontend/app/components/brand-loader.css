@@ -22,7 +22,6 @@
 }
 
 .brand-loader__symbol {
-  position: relative;
   display: block;
   width: 64px;
   height: 64px;
@@ -34,25 +33,10 @@
 }
 
 .brand-loader__robot {
-  position: absolute;
-  inset: 0;
+  display: block;
   width: 100%;
   height: 100%;
-}
-
-.brand-loader__robot--base {
-  opacity: 0.28;
-  filter: blur(0.55px);
-}
-
-.brand-loader__robot--shine {
-  opacity: 0.96;
-  filter: brightness(1.7);
-  -webkit-mask-image: linear-gradient(110deg, transparent 35%, #000 50%, transparent 65%);
-  mask-image: linear-gradient(110deg, transparent 35%, #000 50%, transparent 65%);
-  -webkit-mask-size: 240% 100%;
-  mask-size: 240% 100%;
-  animation: brand-loader-sheen 2.5s ease-in-out infinite;
+  animation: brand-loader-pulse 1.8s ease-in-out infinite;
 }
 
 @keyframes brand-loader-appear {
@@ -60,12 +44,11 @@
   to { visibility: visible; }
 }
 
-@keyframes brand-loader-sheen {
-  0%, 12% { -webkit-mask-position: 100% 0; mask-position: 100% 0; }
-  68%, 100% { -webkit-mask-position: 0% 0; mask-position: 0% 0; }
+@keyframes brand-loader-pulse {
+  0%, 100% { opacity: 0.45; transform: scale(0.96); }
+  50% { opacity: 1; transform: scale(1); }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .brand-loader__robot--shine { animation: none; display: none; }
-  .brand-loader__robot--base { opacity: 0.7; filter: none; }
+  .brand-loader__robot { animation: none; opacity: 1; transform: none; }
 }

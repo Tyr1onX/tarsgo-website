@@ -303,7 +303,7 @@ test("a request from an older session cannot overwrite a newer account", () => {
 test("dashboard route feedback appears immediately and stale group results stay visible during refresh", async () => {
   const groupClientSource = await readFile(new URL("./user-group-client.ts", import.meta.url), "utf8");
   assert.match(rootSource, /\{isNavigating \?/);
-  assert.match(rootSource, /route-progress__line/);
+  assert.match(rootSource, /<BrandLoader label=\{getNavigationMessage\([\s\S]*?size="inline"/);
   assert.doesNotMatch(rootSource, /ROUTE_PROGRESS_REVEAL_DELAY_MS|routeProgressReducer/);
   assert.doesNotMatch(groupClientSource, /TTL|expiresAt/);
   assert.match(groupClientSource, /confirmationCache\.set\(accountId, \{ state, stale: false, verifiedAt:/);

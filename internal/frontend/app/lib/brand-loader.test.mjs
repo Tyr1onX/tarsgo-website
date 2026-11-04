@@ -14,16 +14,16 @@ test("loader renders the authentic TARSGO robot as an image, without the wordmar
   assert.ok(robot.includes(originalRobot), "the transparent loader icon retains the official geometry");
   assert.doesNotMatch(robot, /wordmark-TARSGO|<rect\b/);
   assert.match(component, /tarsgo-robot-loading\.svg/);
-  assert.match(component, /<img className="brand-loader__robot/);
+  assert.match(component, /<img className="brand-loader__robot" src=\{robotImage\} alt="" \/>/);
+  assert.equal((component.match(/<img /g) ?? []).length, 1);
   assert.doesNotMatch(component, /<use href=/);
   assert.match(component, /role="status" aria-label=\{label\}/);
 });
 
-test("sheen appears after 300ms, loops and respects reduced motion", () => {
+test("transparent robot pulses without blur or masks and respects reduced motion", () => {
   assert.match(css, /brand-loader-appear 0s 300ms both/);
-  assert.match(css, /brand-loader-sheen 2\.5s ease-in-out infinite/);
-  assert.match(css, /\.brand-loader__robot--base\s*\{[^}]*opacity: 0\.28;[^}]*blur/);
-  assert.match(css, /mask-image: linear-gradient/);
+  assert.match(css, /brand-loader-pulse 1\.8s ease-in-out infinite/);
+  assert.doesNotMatch(css, /mask-image|filter: blur|brand-loader__robot--base|brand-loader__robot--shine/);
   assert.match(css, /prefers-reduced-motion: reduce/);
 });
 

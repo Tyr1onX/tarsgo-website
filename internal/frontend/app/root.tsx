@@ -9,7 +9,7 @@ import {
   useLocation,
   useNavigation,
 } from "react-router";
-import { useEffect, useLayoutEffect, useRef } from "react";
+import { useLayoutEffect, useRef } from "react";
 
 import type { Route } from "./+types/root";
 import "./app.css";
@@ -41,7 +41,8 @@ const themeBootstrapScript = `(() => {
 export const links: Route.LinksFunction = () => [
   { rel: "icon", href: fallbackFaviconHref, type: "image/x-icon" },
   { rel: "icon", href: "/assets/images/Logo/tarsgo-robot-v5.svg", type: "image/svg+xml" },
-
+  { rel: "apple-touch-icon", href: "/apple-touch-icon.png", sizes: "180x180" },
+  { rel: "manifest", href: "/site.webmanifest" },
 ];
 
 export function Layout({ children }: { children: React.ReactNode }) {
@@ -50,6 +51,9 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
+        <meta name="theme-color" content="#101516" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-title" content="吉甲大师" />
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
         <Meta />
         <Links />
@@ -108,9 +112,8 @@ export default function App() {
   return (
     <>
       {isNavigating ? (
-        <div className="route-progress" role="status" aria-live="polite">
-          <span className="sr-only">{getNavigationMessage(navigationPath ?? location.pathname)}</span>
-          <span className="route-progress__line" aria-hidden="true" />
+        <div className="route-feedback">
+          <BrandLoader label={getNavigationMessage(navigationPath ?? location.pathname)} size="inline" />
         </div>
       ) : null}
       <ThemeProvider>
