@@ -7,9 +7,14 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"image"
+	"image/color"
+	"image/png"
+	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -87,12 +92,80 @@ func TestMariaDBAISalonAPIPermissionsAndOwnership(t *testing.T) {
 		engine.ServeHTTP(w, r)
 		return w
 	}
+	workingDirectory, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Chdir(t.TempDir()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = os.Chdir(workingDirectory) })
+	uploadPoster := func(name string, content []byte, actor int, origin string) *httptest.ResponseRecorder {
+		t.Helper()
+		var body bytes.Buffer
+		writer := multipart.NewWriter(&body)
+		part, err := writer.CreateFormFile("poster", name)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := part.Write(content); err != nil {
+			t.Fatal(err)
+		}
+		if err := writer.Close(); err != nil {
+			t.Fatal(err)
+		}
+		r := httptest.NewRequest(http.MethodPost, "http://salon.test/api/admin/ai-salon/posters", &body)
+		r.Header.Set("Content-Type", writer.FormDataContentType())
+		if origin != "" {
+			r.Header.Set("Origin", origin)
+		}
+		if actor >= 0 {
+			r.AddCookie(&http.Cookie{Name: cfg.Auth.CookieName, Value: tokens[actor]})
+		}
+		w := httptest.NewRecorder()
+		engine.ServeHTTP(w, r)
+		return w
+	}
 	expect := func(w *httptest.ResponseRecorder, status int) {
 		t.Helper()
 		if w.Code != status {
 			t.Fatalf("status %d expected %d: %s", w.Code, status, w.Body.String())
 		}
 	}
+	var imageData bytes.Buffer
+	testImage := image.NewRGBA(image.Rect(0, 0, 2, 2))
+	testImage.Set(0, 0, color.RGBA{R: 0x30, G: 0x80, B: 0xc0, A: 0xff})
+	if err := png.Encode(&imageData, testImage); err != nil {
+		t.Fatal(err)
+	}
+	for _, actor := range []int{-1, 0, 1} {
+		status := 403
+		if actor < 0 {
+			status = 401
+		}
+		expect(uploadPoster("poster.png", imageData.Bytes(), actor, "http://salon.test"), status)
+	}
+	expect(uploadPoster("poster.png", imageData.Bytes(), 2, "https://attacker.test"), 403)
+	uploadResponse := uploadPoster("poster.png", imageData.Bytes(), 2, "http://salon.test")
+	expect(uploadResponse, 200)
+	var uploaded struct {
+		Data struct {
+			PosterURL string `json:"posterUrl"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(uploadResponse.Body.Bytes(), &uploaded); err != nil || !strings.HasPrefix(uploaded.Data.PosterURL, "/upload/ai-salon/posters/") {
+		t.Fatalf("poster upload response: %+v %v", uploaded, err)
+	}
+	posterRequest := httptest.NewRequest(http.MethodGet, "http://salon.test"+uploaded.Data.PosterURL, nil)
+	posterResponse := httptest.NewRecorder()
+	New(cfg, db).ServeHTTP(posterResponse, posterRequest)
+	if posterResponse.Code != http.StatusOK || posterResponse.Header().Get("Content-Type") != "image/png" || posterResponse.Header().Get("X-Content-Type-Options") != "nosniff" || !bytes.Equal(posterResponse.Body.Bytes(), imageData.Bytes()) {
+		t.Fatalf("public poster response: %d %s", posterResponse.Code, posterResponse.Header())
+	}
+	if _, err := os.Stat(filepath.Join("upload", "ai-salon", "posters", filepath.Base(uploaded.Data.PosterURL))); err != nil {
+		t.Fatalf("poster did not persist across router recreation: %v", err)
+	}
+	expect(uploadPoster("invalid.png", []byte("not an image"), 2, "http://salon.test"), http.StatusBadRequest)
 	now := time.Now().UTC()
 	e := model.AISalonEvent{Title: "[TEST] Public salon", Summary: "介绍", Location: "南岭", Capacity: 1, Published: true, StartAt: now.Add(time.Hour), EndAt: now.Add(2 * time.Hour), Deadline: now.Add(30 * time.Minute)}
 	adminPath := "/api/admin/ai-salon/events"

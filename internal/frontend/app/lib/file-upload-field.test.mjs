@@ -39,6 +39,19 @@ test("shared field keeps accessible selection, drag/drop, thumbnails, status, pr
   assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?file-upload-field/);
 });
 
+test("AI salon posters use the shared image upload field without a URL entry", async () => {
+  const salonManage = await source("../routes/ai-salon-manage.tsx");
+  const salonClient = await source("./ai-salon-client.ts");
+  assert.match(salonManage, /<FileUploadField/);
+  assert.match(salonManage, /\.jpg,\.jpeg,\.png,\.webp,image\/jpeg,image\/png,image\/webp/);
+  assert.match(salonManage, /onRetry=\{\(\) => void uploadPoster\(posterFiles\[0\]\)\}/);
+  assert.match(salonManage, /alt="活动海报预览"/);
+  assert.match(salonManage, /移除海报/);
+  assert.doesNotMatch(salonManage, /海报地址|type="url"/);
+  assert.match(salonClient, /body\.append\("poster", file\)/);
+  assert.match(salonClient, /"\/api\/admin\/ai-salon\/posters"/);
+});
+
 test("all native upload entry points use the shared field except the existing avatar interaction", async () => {
   const paths = [
     "../routes/dashboard/weekly-reports.tsx",
