@@ -155,36 +155,36 @@
 }
 .salon-timeline-wrap {
   padding: 0 24px;
-  margin-top: 1.25rem;
+  margin-top: 0.875rem;
 }
 .salon-timeline {
   position: relative;
-  height: 158px;
+  height: 96px;
   isolation: isolate;
 }
 .salon-timeline::before {
   content: "";
   position: absolute;
-  inset: 66px 0 auto;
-  height: 8px;
+  inset: 38px 0 auto;
+  height: 10px;
   background: var(--theme-border);
-  border-radius: 4px;
+  border-radius: 6px;
 }
 .salon-timeline-ticks i {
   position: absolute;
-  top: 85px;
-  height: 4px;
+  top: 59px;
+  height: 5px;
   width: 1px;
   background: var(--theme-border);
 }
 .salon-timeline-ticks .salon-tick-hour {
-  height: 8px;
+  height: 10px;
 }
 .salon-time-range {
   position: absolute;
-  top: 48px;
+  top: 21px;
   height: 44px;
-  min-width: 4px;
+  min-width: 2px;
   cursor: grab;
   touch-action: none;
   z-index: 1;
@@ -192,8 +192,9 @@
 .salon-time-range::before {
   content: "";
   position: absolute;
-  inset: 18px 0;
+  inset: 17px 0;
   background: var(--theme-accent-button);
+  border-radius: 3px;
 }
 .salon-time-range::after {
   content: "";
@@ -209,50 +210,45 @@
 }
 .salon-time-handle {
   position: absolute;
+  top: 21px;
   width: 44px;
   height: 44px;
   transform: translateX(-50%);
   touch-action: none;
   cursor: ew-resize;
   z-index: 2;
-  border-radius: 0.4rem;
-}
-.salon-time-handle--start {
-  top: 10px;
-}
-.salon-time-handle--end {
-  top: 88px;
+  border-radius: 0.5rem;
 }
 .salon-handle-line {
   position: absolute;
-  left: 20px;
-  width: 4px;
-  height: 38px;
+  left: 19px;
+  top: 8px;
+  width: 6px;
+  height: 28px;
   background: var(--theme-accent-contrast);
-  border-radius: 2px;
-}
-.salon-time-handle--start .salon-handle-line {
-  bottom: -20px;
-  pointer-events: none;
-}
-.salon-time-handle--end .salon-handle-line {
-  top: -20px;
+  border-radius: 3px;
+  box-shadow: 0 0 0 2px var(--theme-surface);
   pointer-events: none;
 }
 .salon-handle-time {
   position: absolute;
   left: 50%;
-  transform: translateX(-50%);
+  bottom: calc(100% + 1px);
+  padding: 0.15rem 0.35rem;
+  border: 1px solid var(--theme-border);
+  border-radius: 0.375rem;
+  background: var(--theme-surface);
+  color: var(--theme-accent-contrast);
   font-size: 0.75rem;
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
-  color: var(--theme-accent-contrast);
+  opacity: 0;
+  pointer-events: none;
 }
-.salon-time-handle--start .salon-handle-time {
-  bottom: calc(100% + 2px);
-}
-.salon-time-handle--end .salon-handle-time {
-  top: calc(100% + 2px);
+.salon-time-handle:hover .salon-handle-time,
+.salon-time-handle:focus-visible .salon-handle-time,
+.salon-time-handle[data-dragging] .salon-handle-time {
+  opacity: 1;
 }
 .salon-hour-labels {
   display: flex;

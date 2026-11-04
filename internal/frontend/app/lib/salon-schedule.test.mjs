@@ -110,13 +110,34 @@ test("cross-month dates remain independent, and invalid deadlines receive the sm
   assert.equal(scheduleError(earlier), "");
 });
 
-test("handles snap to the nearest half hour and clamp to a 30-minute minimum", () => {
+test("handles snap to half-hours, cross each other, and keep a 30-minute minimum", () => {
   assert.deepEqual(moveTimeline(840, 930, "start", 854), [840, 930]);
   assert.deepEqual(moveTimeline(840, 930, "start", 855), [870, 930]);
-  assert.deepEqual(moveTimeline(840, 930, "start", 1500), [900, 930]);
-  assert.deepEqual(moveTimeline(840, 930, "end", 0), [840, 870]);
+  assert.deepEqual(moveTimeline(840, 930, "start", 900), [900, 930]);
+  assert.deepEqual(moveTimeline(840, 930, "start", 930), [930, 960]);
+  assert.deepEqual(moveTimeline(840, 930, "start", 960), [930, 960]);
+  assert.deepEqual(moveTimeline(840, 930, "start", 1500), [930, 1440]);
+  assert.deepEqual(moveTimeline(840, 930, "end", 840), [810, 840]);
+  assert.deepEqual(moveTimeline(840, 930, "end", 0), [0, 840]);
   assert.deepEqual(moveTimeline(840, 930, "end", 1441), [840, 1440]);
   assert.deepEqual(moveTimeline(840, 930, "start", -50), [0, 930]);
+  assert.deepEqual(moveTimeline(1410, 1440, "start", 1440), [1410, 1440]);
+  assert.deepEqual(moveTimeline(0, 30, "end", 0), [0, 30]);
+  // Legacy events can have arbitrary seconds near midnight; crossing must never leave the day.
+  assert.deepEqual(moveTimeline(1350, 1439.5, "start", 1440), [1409.5, 1439.5]);
+  assert.deepEqual(moveTimeline(0.25, 90, "end", 0), [0.25, 30.25]);
+});
+
+test("crossed endpoints remain valid when saved and retain the fixed endpoint", () => {
+  const fromStart = moveTimeline(840, 930, "start", 960);
+  const fromEnd = moveTimeline(840, 930, "end", 810);
+  assert.deepEqual(fromStart, [930, 960]);
+  assert.deepEqual(fromEnd, [810, 840]);
+  for (const range of [fromStart, fromEnd]) {
+    const saved = withTimeline(schedule, range);
+    assert.equal(scheduleError(saved), "");
+    assert.deepEqual(timelineRange(saved), range);
+  }
 });
 
 test("whole-range dragging preserves duration and clamps at both midnight boundaries", () => {
