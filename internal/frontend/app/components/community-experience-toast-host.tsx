@@ -1,9 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { subscribeAccountSessionChange, subscribeAuthStateChange } from "~/lib/auth-client";
 import { communityClient, type CommunityExperienceEntry, type CommunityGrowthProfile } from "~/lib/community-client";
 import {
   communityExperienceStorageKey,
   normalizeCommunityExperienceEventID,
+  getCommunityGrowthSnapshot,
+  invalidateCommunityGrowthDay,
+  millisecondsUntilCommunityDayChange,
   communityExperienceToastLabel,
   newCommunityExperienceEvents,
   readDismissedCommunityExperienceToasts,
@@ -11,7 +15,6 @@ import {
   publishCommunityGrowthError,
   publishCommunityGrowthProfile,
   subscribeToCommunityExperienceRefresh,
-  subscribeToCommunityGrowthSnapshot,
   subscribeToCommunityGrowthServerProfile,
   writeDismissedCommunityExperienceToasts,
   writePendingCommunityExperienceToasts,
@@ -50,6 +53,7 @@ export function CommunityExperienceToastHost({ userID }: { userID: number }) {
 
   useEffect(() => {
     let active = true;
+    profileRef.current = getCommunityGrowthSnapshot(userID);
     try {
       const stored = Number(window.sessionStorage.getItem(communityExperienceStorageKey(userID)));
       if (Number.isSafeInteger(stored) && stored > 0) lastSeenEventIDRef.current = stored;
@@ -127,8 +131,8 @@ export function CommunityExperienceToastHost({ userID }: { userID: number }) {
       } catch {
         // Keep showing server-confirmed XP even when the browser blocks storage.
       }
-      publishCommunityGrowthProfile(profile);
-      publishCommunityGrowthError("");
+      publishCommunityGrowthProfile(userID, profile);
+      publishCommunityGrowthError(userID, "");
     }
 
     async function refresh() {
@@ -143,7 +147,9 @@ export function CommunityExperienceToastHost({ userID }: { userID: number }) {
       } catch (cause) {
         // XP feedback is best-effort; the next mutation or visible-page sync retries.
         if (!active) return;
-        publishCommunityGrowthError(cause instanceof Error ? cause.message : "社区成长信息暂时无法读取。");
+        if (!getCommunityGrowthSnapshot(userID)) {
+          publishCommunityGrowthError(userID, cause instanceof Error ? cause.message : "社区成长信息暂时无法读取。");
+        }
       } finally {
         requestRunningRef.current = false;
         if (refreshQueuedRef.current) {
@@ -153,28 +159,38 @@ export function CommunityExperienceToastHost({ userID }: { userID: number }) {
       }
     }
 
-    const stopSnapshot = subscribeToCommunityGrowthSnapshot(() => {
-      if (profileRef.current) publishCommunityGrowthProfile(profileRef.current);
-      else if (!requestRunningRef.current) void refresh();
-    });
     const stopRefresh = subscribeToCommunityExperienceRefresh(() => { void refresh(); });
-    const stopServerProfiles = subscribeToCommunityGrowthServerProfile(acceptProfile);
+    const stopServerProfiles = subscribeToCommunityGrowthServerProfile(userID, acceptProfile);
+    const stopAuth = subscribeAuthStateChange((user) => { if (!user || user.id !== userID) active = false; });
+    const stopAccountSession = subscribeAccountSessionChange(() => { active = false; });
     const syncWhenVisible = () => {
-      if (document.visibilityState === "visible") void refresh();
+      if (document.visibilityState === "visible") {
+        invalidateCommunityGrowthDay(userID);
+        void refresh();
+      }
     };
     document.addEventListener("visibilitychange", syncWhenVisible);
     window.addEventListener("focus", syncWhenVisible);
     const interval = window.setInterval(syncWhenVisible, syncIntervalMs);
+    let dayChangeTimer: number;
+    const onDayChange = () => {
+      invalidateCommunityGrowthDay(userID);
+      void refresh();
+      dayChangeTimer = window.setTimeout(onDayChange, millisecondsUntilCommunityDayChange() + 10);
+    };
+    dayChangeTimer = window.setTimeout(onDayChange, millisecondsUntilCommunityDayChange() + 10);
     void refresh();
 
     return () => {
       active = false;
       stopRefresh();
-      stopSnapshot();
       stopServerProfiles();
+      stopAuth();
+      stopAccountSession();
       document.removeEventListener("visibilitychange", syncWhenVisible);
       window.removeEventListener("focus", syncWhenVisible);
       window.clearInterval(interval);
+      window.clearTimeout(dayChangeTimer);
       for (const timer of timersRef.current.values()) window.clearTimeout(timer);
       timersRef.current.clear();
     };
