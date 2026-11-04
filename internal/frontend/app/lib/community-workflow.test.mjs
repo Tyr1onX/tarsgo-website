@@ -476,3 +476,11 @@ test("member profiles reuse community permissions, XP, and public badge records"
   assert.match(styles, /\.community-member-hero/);
   assert.match(styles, /\.community-member-details/);
 });
+
+test("pinned topics use their existing pin badge without an accent stripe", () => {
+  assert.match(postCard, /post\.isPinned \? <span className="community-post__pin"/);
+  assert.match(thread, /post\.isPinned \? <span className="community-post__pin"/);
+  assert.doesNotMatch(styles, /\.community-topic-row\.is-pinned|\.community-post\.is-pinned/);
+  assert.doesNotMatch(postCard, /community-topic-row\$\{post\.isPinned/);
+  assert.doesNotMatch(thread, /community-post\$\{post\.isPinned/);
+});

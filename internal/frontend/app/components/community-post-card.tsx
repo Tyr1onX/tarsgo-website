@@ -18,7 +18,7 @@ export function CommunityPostCard({ post }: { post: CommunityListItem }) {
   const postState = { communityReturnTo: returnTo };
   const participants = post.participants?.slice(0, 5) ?? [];
   const lastActivity = post.lastReplyAt ?? post.createdAt;
-  return <article className={`community-topic-row${post.isPinned ? " is-pinned" : ""}`}>
+  return <article className="community-topic-row">
     <h2 className="community-topic-row__title"><Link to={communityPostHref(post.id)} state={postState}>{post.title}</Link></h2>
     <div className="community-topic-row__status">
       {post.isPinned ? <span className="community-post__pin"><CommunityIcon name="pin" />置顶</span> : null}
