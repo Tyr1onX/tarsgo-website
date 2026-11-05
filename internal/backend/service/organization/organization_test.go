@@ -110,3 +110,37 @@ func pointerValue(value *uint64) any {
 	}
 	return *value
 }
+
+func TestConfirmedRosterPreservesUnregisteredMembersWithoutDuplicatingPositions(t *testing.T) {
+	preview := PreviewData()
+	if len(preview.OtherMembers) != 18 || len(preview.OtherGuides) != 8 {
+		t.Fatalf("other roster counts = %d members, %d guides", len(preview.OtherMembers), len(preview.OtherGuides))
+	}
+	assigned := map[string]bool{preview.Leader.Name: true}
+	for _, category := range preview.Categories {
+		for _, position := range category.Positions {
+			assigned[position.Name] = true
+		}
+	}
+	seen := make(map[string]bool)
+	for _, member := range append(preview.OtherMembers, preview.OtherGuides...) {
+		if seen[member.Name] || assigned[member.Name] {
+			t.Fatalf("duplicate or positioned name in other roster: %s", member.Name)
+		}
+		seen[member.Name] = true
+		if member.UserID != nil {
+			t.Fatalf("unverified account was prelinked: %#v", member)
+		}
+	}
+	for _, name := range []string{"林俊宏", "孙宇丹", "马鸣远", "徐一凡", "杜海龙", "张乐乐"} {
+		if !seen[name] {
+			t.Fatalf("missing confirmed roster name: %s", name)
+		}
+	}
+	preview.OtherMembers[0].Name = "changed"
+	preview.OtherGuides[0].Name = "changed"
+	fresh := PreviewData()
+	if fresh.OtherMembers[0].Name == "changed" || fresh.OtherGuides[0].Name == "changed" {
+		t.Fatal("roster mutation leaked into shared data")
+	}
+}
