@@ -1,0 +1,79 @@
+{
+  "checks": [
+    {
+      "width": 1440,
+      "theme": "light",
+      "pending": true,
+      "noLoginGate": true,
+      "officialURL": "https://www.aidaxue.com/activity/cyber-maker?ch=ai_daxue_AStudio_JLuniversity"
+    },
+    {
+      "width": 1440,
+      "theme": "dark",
+      "pending": true,
+      "noLoginGate": true,
+      "officialURL": "https://www.aidaxue.com/activity/cyber-maker?ch=ai_daxue_AStudio_JLuniversity"
+    },
+    {
+      "width": 390,
+      "theme": "light",
+      "pending": true,
+      "noLoginGate": true,
+      "officialURL": "https://www.aidaxue.com/activity/cyber-maker?ch=ai_daxue_AStudio_JLuniversity"
+    },
+    {
+      "width": 390,
+      "theme": "dark",
+      "pending": true,
+      "noLoginGate": true,
+      "officialURL": "https://www.aidaxue.com/activity/cyber-maker?ch=ai_daxue_AStudio_JLuniversity"
+    },
+    {
+      "width": 320,
+      "theme": "light",
+      "pending": true,
+      "noLoginGate": true,
+      "officialURL": "https://www.aidaxue.com/activity/cyber-maker?ch=ai_daxue_AStudio_JLuniversity"
+    },
+    {
+      "width": 320,
+      "theme": "dark",
+      "pending": true,
+      "noLoginGate": true,
+      "officialURL": "https://www.aidaxue.com/activity/cyber-maker?ch=ai_daxue_AStudio_JLuniversity"
+    },
+    {
+      "adminMeetingEdit": true,
+      "anonymousMeeting": true
+    },
+    {
+      "endedPublic": true,
+      "recapImages": true,
+      "recapLinks": true
+    },
+    {
+      "offlineLoginPreserved": true
+    }
+  ],
+  "errors": [],
+  "requests": [
+    "/api/me",
+    "/api/ai-salon/events/30",
+    "/api/me",
+    "/api/ai-salon/events/30",
+    "/api/me",
+    "/api/ai-salon/events/30",
+    "/api/me",
+    "/api/ai-salon/events/30",
+    "/api/me",
+    "/api/ai-salon/events/30",
+    "/api/me",
+    "/api/ai-salon/events/30",
+    "/api/me",
+    "/api/ai-salon/events/30",
+    "/api/me",
+    "/api/ai-salon/events/30",
+    "/api/me",
+    "/api/ai-salon/events/30"
+  ]
+}

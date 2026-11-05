@@ -32,16 +32,19 @@ export function SalonSchedulePicker({
   value,
   onChange,
   editing = false,
+  registrationRequired = true,
 }: {
   value: SalonSchedule;
   onChange: (value: SalonSchedule) => void;
   editing?: boolean;
+  registrationRequired?: boolean;
 }) {
   const [today, setToday] = useState(beijingToday);
   const [target, setTarget] = useState<"event" | "deadline">("event");
   const [month, setMonth] = useState(() =>
     editing ? value.startAt.slice(0, 7) : beijingToday().slice(0, 7),
   );
+  useEffect(() => { if (!registrationRequired) setTarget("event"); }, [registrationRequired]);
   const [message, setMessage] = useState("");
   // Physical handles retain pointer capture and focus when their time roles swap.
   const [flipped, setFlipped] = useState(false);
@@ -263,7 +266,7 @@ export function SalonSchedulePicker({
               ["event", "活动日期", eventDate],
               ["deadline", "报名截止日期", deadlineDate],
             ] as const
-          ).map(([key, label, date]) => (
+          ).filter(([key]) => registrationRequired || key === "event").map(([key, label, date]) => (
             <button
               type="button"
               key={key}
@@ -320,11 +323,11 @@ export function SalonSchedulePicker({
                 data-date={date}
                 disabled={!canSelect(date)}
                 aria-current={date === today ? "date" : undefined}
-                aria-label={`${dateLabel(date)}${date === eventDate ? "，活动日期" : ""}${date === deadlineDate ? "，报名截止日期" : ""}`}
+                aria-label={`${dateLabel(date)}${date === eventDate ? "，活动日期" : ""}${registrationRequired && date === deadlineDate ? "，报名截止日期" : ""}`}
                 aria-pressed={date === activeDate}
                 onClick={() => choose(date)}
                 onKeyDown={(e) => calendarKey(e, date)}
-                className={`salon-day${date === eventDate ? " salon-day--event" : ""}${date === deadlineDate ? " salon-day--deadline" : ""}`}
+                className={`salon-day${date === eventDate ? " salon-day--event" : ""}${registrationRequired && date === deadlineDate ? " salon-day--deadline" : ""}`}
               >
                 {Number(date.slice(8))}
               </button>

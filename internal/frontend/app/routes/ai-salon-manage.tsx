@@ -31,6 +31,8 @@ export function meta() {
   return [{ title: "管理活动 | 吉甲 AI 沙龙 | TARSGO" }];
 }
 type Draft = {
+  online: boolean;
+  meetingUrl: string;
   id?: number;
   title: string;
   summary: string;
@@ -44,6 +46,8 @@ type Draft = {
   registrationClosed: boolean;
 };
 const empty: Draft = {
+  online: false,
+  meetingUrl: "",
   title: "",
   summary: "",
   posterUrl: "",
@@ -136,7 +140,8 @@ export default function AISalonManage() {
   async function save(e: FormEvent) {
     e.preventDefault();
     if (!draft || posterUploadStatus === "uploading") return;
-    const invalid = scheduleError(draft);
+    const schedule = draft.online ? { ...draft, deadline: draft.startAt } : draft;
+    const invalid = scheduleError(schedule);
     if (invalid) {
       setError(invalid);
       return;
@@ -146,7 +151,7 @@ export default function AISalonManage() {
         ...draft,
         startAt: fromBeijing(draft.startAt),
         endAt: fromBeijing(draft.endAt),
-        deadline: fromBeijing(draft.deadline),
+        deadline: fromBeijing(schedule.deadline),
       });
       setDraft(null);
     }, "活动已保存");
@@ -259,7 +264,7 @@ export default function AISalonManage() {
                   />
                 </label>
                 <label className="block space-y-2">
-                  <span>简介</span>
+                  <span>{draft.online ? "活动内容（支持 Markdown 链接、图片）" : "简介"}</span>
                   <textarea
                     required
                     maxLength={10000}
@@ -317,9 +322,21 @@ export default function AISalonManage() {
                     }}
                   />
                 </div>
+                <label className="block space-y-2">
+                  <span>活动形式</span>
+                  <select className={salonField} value={draft.online ? "online" : "offline"} onChange={(e) => setDraft({ ...draft, online: e.target.value === "online" })}>
+                    <option value="offline">线下 · 实名报名与签到</option>
+                    <option value="online">线上 · 直接参与</option>
+                  </select>
+                </label>
+                {draft.online ? <label className="block space-y-2">
+                  <span>腾讯会议链接（选填）</span>
+                  <input type="url" pattern="https://.*" maxLength={1000} className={salonField} value={draft.meetingUrl} onChange={(e) => setDraft({ ...draft, meetingUrl: e.target.value })} />
+                </label> : null}
                 <SalonSchedulePicker
                   key={draft.id ?? "new"}
                   editing={Boolean(draft.id)}
+                  registrationRequired={!draft.online}
                   value={draft}
                   onChange={(schedule) =>
                     setDraft((current) =>
@@ -327,7 +344,7 @@ export default function AISalonManage() {
                     )
                   }
                 />
-                <label className="block space-y-2">
+                {!draft.online ? <label className="block space-y-2">
                   <span>人数上限</span>
                   <input
                     required
@@ -340,9 +357,9 @@ export default function AISalonManage() {
                       setDraft({ ...draft, capacity: Number(e.target.value) })
                     }
                   />
-                </label>
+                </label> : null}
                 <label className="block space-y-2">
-                  <span>地点</span>
+                  <span>{draft.online ? "参与平台" : "地点"}</span>
                   <input
                     required
                     maxLength={300}
@@ -363,7 +380,7 @@ export default function AISalonManage() {
                   />
                   发布活动
                 </label>
-                <label className="flex min-h-11 items-center gap-3">
+                {!draft.online ? <label className="flex min-h-11 items-center gap-3">
                   <input
                     type="checkbox"
                     checked={draft.registrationClosed}
@@ -375,7 +392,7 @@ export default function AISalonManage() {
                     }
                   />
                   提前关闭报名
-                </label>
+                </label> : null}
               </fieldset>
               <div className="flex gap-3">
                 <button className={salonPrimaryButton} disabled={busy || posterUploadStatus === "uploading"}>
@@ -415,14 +432,12 @@ export default function AISalonManage() {
                       <p className="mt-3 text-sm text-fg-muted">
                         {salonDate(e.startAt)} ·{" "}
                         {e.published ? "已发布" : "草稿"} ·{" "}
-                        {e.registrationClosed ||
+                        {e.online ? "线上直接参与" : e.registrationClosed ||
                         Date.parse(e.deadline) <= Date.now()
                           ? "报名关闭"
                           : "报名开放"}
                       </p>
-                      <p className="mt-2 text-sm text-fg-muted">
-                        人数上限 {e.capacity}
-                      </p>
+                      {!e.online ? <p className="mt-2 text-sm text-fg-muted">人数上限 {e.capacity}</p> : null}
                     </div>
                     <div className="flex flex-wrap items-start gap-3">
                       <button
@@ -432,7 +447,7 @@ export default function AISalonManage() {
                       >
                         编辑
                       </button>
-                      <button
+                      {!e.online ? <><button
                         className={salonButton}
                         disabled={busy || posterUploadStatus === "uploading"}
                         onClick={() => void viewRoster(e)}
@@ -456,7 +471,7 @@ export default function AISalonManage() {
                         }
                       >
                         {e.registrationClosed ? "重新开放报名" : "提前关闭报名"}
-                      </button>
+                      </button></> : null}
                       <button
                         className={`${salonButton} text-red-500`}
                         disabled={busy || posterUploadStatus === "uploading"}

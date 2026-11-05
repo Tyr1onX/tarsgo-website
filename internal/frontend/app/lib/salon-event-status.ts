@@ -4,6 +4,7 @@ import type { SalonEvent } from "./ai-salon-client";
 export function salonEventStatus(event: SalonEvent, now: number) {
   if (now >= Date.parse(event.endAt)) return "活动已结束";
   if (now >= Date.parse(event.startAt)) return "活动进行中";
+  if (event.online) return event.meetingUrl ? "线上活动" : "会议链接待公布";
   if (now >= Date.parse(event.deadline)) return "报名已截止";
   return event.registrationOpen ? "报名开放中" : "报名已关闭";
 }

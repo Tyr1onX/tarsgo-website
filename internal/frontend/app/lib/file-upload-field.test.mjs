@@ -59,7 +59,8 @@ test("AI salon posters use the shared image upload field without a URL entry", a
   assert.match(salonManage, /border-border-subtle object-contain/);
   assert.doesNotMatch(salonManage, /border-white\/10/);
   assert.match(salonManage, /移除海报/);
-  assert.doesNotMatch(salonManage, /海报地址|type="url"/);
+  assert.doesNotMatch(salonManage, /海报地址/);
+  assert.doesNotMatch(salonManage, /<input[^>]*type="url"[^>]*value=\{draft\.posterUrl\}/);
   assert.match(salonClient, /body\.append\("poster", file\)/);
   assert.match(salonClient, /"\/api\/admin\/ai-salon\/posters"/);
 });
