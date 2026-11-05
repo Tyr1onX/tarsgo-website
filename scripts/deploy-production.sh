@@ -27,6 +27,16 @@ require_command() {
 
 production_release_tag="production-artifacts"
 production_release_asset="tarsgo-production-release.tar.gz"
+cloudflare_zone_id="d5bf777f1421d8eb09388b268e13c18b"
+public_html_cache_purge='{"files":["https://jijiamaster.com/","https://jijiamaster.com/about","https://jijiamaster.com/robots","https://jijiamaster.com/events-and-honors","https://jijiamaster.com/team-history","https://jijiamaster.com/join","https://jijiamaster.com/programs/ai-salon"]}'
+
+purge_public_html_cache() {
+  if ! cf cache purge --zone "$cloudflare_zone_id" --body "$public_html_cache_purge" --force >/dev/null; then
+    echo "Production version is healthy, but Cloudflare public HTML purge failed; rerun deployment for the same commit." >&2
+    return 1
+  fi
+  echo "Cloudflare public HTML cache purged (7 URLs)."
+}
 
 download_production_release_asset() {
   local expected_commit="$1" archive_path="$2" destination="$3"
@@ -173,6 +183,12 @@ fi
 short_sha="${commit_sha:0:7}"
 release_name="$(date -u +%Y%m%d)-ops-retention-$short_sha"
 
+require_command cf "Cloudflare public HTML cache purge"
+if ! cf auth whoami >/dev/null 2>&1; then
+  echo "Production deploy aborted: Cloudflare CLI authorization is unavailable (run cf auth login)." >&2
+  exit 1
+fi
+
 if ! ssh_run true; then
   echo "Production deploy aborted: non-interactive SSH to '$target' failed. Check the SSH alias, host key, and key access." >&2
   exit 1
@@ -294,6 +310,7 @@ case "$target_release_status" in
 esac
 if [[ "$current_commit" == "$commit_sha" ]]; then
   printf 'Production deployment already healthy: commit=%s image=%s release=%s\n' "$commit_sha" "$previous_image" "$previous_release"
+  purge_public_html_cache
   exit 0
 fi
 
@@ -475,3 +492,4 @@ if [[ "$safe_cleanup_performed" == 0 ]]; then
 fi
 
 ssh_run bash -s -- "$jijia_root" "$release_name" "$release_name" "$previous_image" "$previous_release" "$commit_sha" <"$repo_root/scripts/deploy-production-remote.sh"
+purge_public_html_cache
