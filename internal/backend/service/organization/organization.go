@@ -13,6 +13,12 @@ type Position struct {
 	AvatarURL *string `json:"avatarUrl,omitempty"`
 }
 
+type Member struct {
+	Name      string  `json:"name"`
+	UserID    *uint64 `json:"userId"`
+	AvatarURL *string `json:"avatarUrl,omitempty"`
+}
+
 type Category struct {
 	ID        string     `json:"id"`
 	Title     string     `json:"title"`
@@ -26,6 +32,7 @@ type Preview struct {
 	} `json:"team"`
 	Leader     Position   `json:"leader"`
 	Categories []Category `json:"categories"`
+	OtherMembers []Member `json:"otherMembers"`
 }
 
 type MemberPosition struct {
@@ -101,6 +108,7 @@ func basePreview() Preview {
 func PreviewData() Preview {
 	preview := basePreview()
 	preview.Leader = clonePosition(preview.Leader)
+	preview.OtherMembers = make([]Member, 0)
 	preview.Categories = append([]Category(nil), preview.Categories...)
 	for index := range preview.Categories {
 		preview.Categories[index].Positions = append([]Position(nil), preview.Categories[index].Positions...)
