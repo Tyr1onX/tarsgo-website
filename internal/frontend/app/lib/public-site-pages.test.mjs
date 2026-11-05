@@ -101,6 +101,7 @@ test("the original home keeps its video and legacy anchors while archive content
   assert.match(home, /"#certificates": "\/events-and-honors#certificates"/);
   assert.ok(joinExperience.includes("id=\"join\""), "missing legacy join anchor #join");
   assert.match(home, /hero-showreel-[a-f0-9]{8}\.mp4/);
+  assert.match(home, /<source media="\(min-width: 640px\) and \(prefers-reduced-motion: no-preference\)" src="\/assets\/images\/Video\/hero-showreel-[a-f0-9]{8}\.mp4"/);
   assert.match(historyRoute, /<TeamHistoryArchive \/>/);
   assert.match(historyData, /year: 2018,[\s\S]*?year: 2026,/);
   assert.match(historyArchive, /href=\{`#team-history-\$\{year\}`\}/);
