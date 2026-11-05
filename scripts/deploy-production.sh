@@ -172,14 +172,14 @@ if [[ "$commit_sha" != "$main_sha" || ! "$commit_sha" =~ ^[0-9a-f]{40}$ ]]; then
 fi
 
 require_command cf "Cloudflare public HTML cache invalidation"
-if ! cf auth whoami >/dev/null 2>&1; then
+if ! (cd "$HOME" && cf auth whoami >/dev/null 2>&1); then
   echo "Production deploy aborted: authorize Cloudflare CLI with 'cf auth login' before deploying." >&2
   exit 1
 fi
 
 purge_public_html_cache() {
   local payload='{"files":["https://jijiamaster.com/","https://jijiamaster.com/about","https://jijiamaster.com/robots","https://jijiamaster.com/events-and-honors","https://jijiamaster.com/team-history","https://jijiamaster.com/join","https://jijiamaster.com/programs/ai-salon"]}'
-  if ! cf cache purge --zone jijiamaster.com --force --body "$payload" >/dev/null; then
+  if ! (cd "$HOME" && cf cache purge --zone jijiamaster.com --force --body "$payload" >/dev/null); then
     echo "Production HTML cache purge failed; cached pages may reference an older release. Re-run this deployment after restoring Cloudflare access." >&2
     return 1
   fi
