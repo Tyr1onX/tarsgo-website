@@ -1,0 +1,258 @@
+{
+  "base": "http://127.0.0.1:8198",
+  "timings": [
+    {
+      "name": "官网→工作台 首次 0",
+      "routeCommitMs": 9.400000035762787,
+      "titleVisibleMs": 19.900000035762787,
+      "requests": [
+        {
+          "path": "/assets/workbench-BmemM-Os.css",
+          "durationMs": 0.88
+        },
+        {
+          "path": "/assets/layout-Y9IBogIF.css",
+          "durationMs": 0.026
+        },
+        {
+          "path": "/assets/workbench-BfYIk9Ic.js",
+          "durationMs": 0.53
+        },
+        {
+          "path": "/assets/leave-client-BcrZltd-.js",
+          "durationMs": 0.639
+        },
+        {
+          "path": "/assets/weekly-report-calendar-BIUgkguO.js",
+          "durationMs": 0.773
+        },
+        {
+          "path": "/assets/assignment-client-CuwfXc5q.js",
+          "durationMs": 0.724
+        },
+        {
+          "path": "/assets/workbench-BmemM-Os.css",
+          "durationMs": 0.39
+        },
+        {
+          "path": "/assets/images/Logo/tarsgo-robot-v5.svg",
+          "durationMs": 0.505
+        },
+        {
+          "path": "/assets/weekly-report-client-vokFIGON.js",
+          "durationMs": 0.291
+        }
+      ]
+    },
+    {
+      "name": "工作台→管理 首次 0",
+      "routeCommitMs": 0.7999999523162842,
+      "titleVisibleMs": 31.19999998807907,
+      "requests": [
+        {
+          "path": "/assets/images/Logo/tarsgo-robot-v5.svg",
+          "durationMs": 0.949
+        },
+        {
+          "path": "/assets/favicon-BAmN4Vxr.ico",
+          "durationMs": 0.269
+        },
+        {
+          "path": "/api/admin/assignments/todos",
+          "durationMs": 2.691
+        },
+        {
+          "path": "/api/admin/workbench/summary",
+          "durationMs": 3.12
+        }
+      ]
+    },
+    {
+      "name": "官网→工作台 已加载 1",
+      "routeCommitMs": 16.700000047683716,
+      "titleVisibleMs": 23.600000023841858,
+      "requests": [
+        {
+          "path": "/assets/workbench-BmemM-Os.css",
+          "durationMs": 0.611
+        },
+        {
+          "path": "/assets/images/Logo/tarsgo-robot-v5.svg",
+          "durationMs": 0.508
+        },
+        {
+          "path": "/api/leave/access",
+          "durationMs": 1.864
+        },
+        {
+          "path": "/assets/favicon-BAmN4Vxr.ico",
+          "durationMs": 0.307
+        },
+        {
+          "path": "/api/me/co-builder-badge/unlock-notice",
+          "durationMs": 1.713
+        },
+        {
+          "path": "/api/weekly-reports/current-status",
+          "durationMs": 1.874
+        },
+        {
+          "path": "/api/community/growth",
+          "durationMs": 3.316
+        }
+      ]
+    },
+    {
+      "name": "工作台→管理 已加载 1",
+      "routeCommitMs": 1.300000011920929,
+      "titleVisibleMs": 32.5,
+      "requests": [
+        {
+          "path": "/assets/images/Logo/tarsgo-robot-v5.svg",
+          "durationMs": 1.287
+        },
+        {
+          "path": "/assets/favicon-BAmN4Vxr.ico",
+          "durationMs": 0.621
+        },
+        {
+          "path": "/api/admin/workbench/summary",
+          "durationMs": 4.879
+        },
+        {
+          "path": "/api/admin/assignments/todos",
+          "durationMs": 4.83
+        }
+      ]
+    },
+    {
+      "name": "官网→工作台 已加载 2",
+      "routeCommitMs": 16.19999998807907,
+      "titleVisibleMs": 24.599999964237213,
+      "requests": [
+        {
+          "path": "/assets/workbench-BmemM-Os.css",
+          "durationMs": 0.765
+        },
+        {
+          "path": "/assets/images/Logo/tarsgo-robot-v5.svg",
+          "durationMs": 0.561
+        },
+        {
+          "path": "/api/leave/access",
+          "durationMs": 2.177
+        },
+        {
+          "path": "/api/me/co-builder-badge/unlock-notice",
+          "durationMs": 1.967
+        },
+        {
+          "path": "/assets/favicon-BAmN4Vxr.ico",
+          "durationMs": 0.158
+        },
+        {
+          "path": "/api/weekly-reports/current-status",
+          "durationMs": 1.466
+        },
+        {
+          "path": "/api/community/growth",
+          "durationMs": 3.414
+        },
+        {
+          "path": "/api/school-leave/latest-status",
+          "durationMs": 1.326
+        }
+      ]
+    },
+    {
+      "name": "工作台→管理 已加载 2",
+      "routeCommitMs": 1.399999976158142,
+      "titleVisibleMs": 31.80000001192093,
+      "requests": [
+        {
+          "path": "/assets/images/Logo/tarsgo-robot-v5.svg",
+          "durationMs": 1.436
+        },
+        {
+          "path": "/assets/favicon-BAmN4Vxr.ico",
+          "durationMs": 0.495
+        },
+        {
+          "path": "/api/admin/workbench/summary",
+          "durationMs": 5.559
+        },
+        {
+          "path": "/api/admin/assignments/todos",
+          "durationMs": 5.374
+        }
+      ]
+    },
+    {
+      "name": "官网→工作台 已加载 3",
+      "routeCommitMs": 12.800000011920929,
+      "titleVisibleMs": 27.80000001192093,
+      "requests": [
+        {
+          "path": "/assets/workbench-BmemM-Os.css",
+          "durationMs": 1.374
+        },
+        {
+          "path": "/assets/images/Logo/tarsgo-robot-v5.svg",
+          "durationMs": 0.661
+        },
+        {
+          "path": "/api/leave/access",
+          "durationMs": 3.274
+        },
+        {
+          "path": "/api/me/co-builder-badge/unlock-notice",
+          "durationMs": 2.735
+        },
+        {
+          "path": "/assets/favicon-BAmN4Vxr.ico",
+          "durationMs": 0.235
+        },
+        {
+          "path": "/api/weekly-reports/current-status",
+          "durationMs": 2.598
+        },
+        {
+          "path": "/api/community/growth",
+          "durationMs": 5.002
+        },
+        {
+          "path": "/api/school-leave/latest-status",
+          "durationMs": 1.958
+        }
+      ]
+    },
+    {
+      "name": "工作台→管理 已加载 3",
+      "routeCommitMs": 1,
+      "titleVisibleMs": 32.19999998807907,
+      "requests": [
+        {
+          "path": "/assets/images/Logo/tarsgo-robot-v5.svg",
+          "durationMs": 1.381
+        },
+        {
+          "path": "/assets/favicon-BAmN4Vxr.ico",
+          "durationMs": 0.444
+        },
+        {
+          "path": "/api/admin/workbench/summary",
+          "durationMs": 4.837
+        },
+        {
+          "path": "/api/admin/assignments/todos",
+          "durationMs": 4.651
+        }
+      ]
+    },
+    {
+      "name": "独立文档冷加载",
+      "titleVisibleMs": 59.11441599999989
+    }
+  ],
+  "errors": []
+}

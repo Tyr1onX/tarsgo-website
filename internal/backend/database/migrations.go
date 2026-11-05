@@ -223,6 +223,16 @@ func migrationRegistry(appEnv string) []migration {
 			}
 			return nil
 		}},
+		{version: 53, apply: func(db *gorm.DB) error {
+			for _, field := range []string{"Online", "MeetingURL"} {
+				if !db.Migrator().HasColumn(&model.AISalonEvent{}, field) {
+					if err := db.Migrator().AddColumn(&model.AISalonEvent{}, field); err != nil {
+						return err
+					}
+				}
+			}
+			return nil
+		}},
 	}
 }
 

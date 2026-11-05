@@ -38,6 +38,8 @@ type Service struct {
 func NewService(db *gorm.DB) *Service { return &Service{db, time.Now} }
 
 type PublicEvent struct {
+	Online           bool      `json:"online"`
+	MeetingURL       string    `json:"meetingUrl"`
 	ID               uint64    `json:"id"`
 	Title            string    `json:"title"`
 	Summary          string    `json:"summary"`
@@ -51,10 +53,10 @@ type PublicEvent struct {
 }
 
 func public(e model.AISalonEvent, now time.Time) PublicEvent {
-	return PublicEvent{e.ID, e.Title, e.Summary, e.PosterURL, e.StartAt, e.EndAt, e.Location, e.Deadline, open(e, now), now}
+	return PublicEvent{Online: e.Online, MeetingURL: e.MeetingURL, ID: e.ID, Title: e.Title, Summary: e.Summary, PosterURL: e.PosterURL, StartAt: e.StartAt, EndAt: e.EndAt, Location: e.Location, Deadline: e.Deadline, RegistrationOpen: open(e, now), ServerNow: now}
 }
 func open(e model.AISalonEvent, now time.Time) bool {
-	return e.Published && !e.RegistrationClosed && now.Before(e.Deadline)
+	return !e.Online && e.Published && !e.RegistrationClosed && now.Before(e.Deadline)
 }
 func (s *Service) List(ctx context.Context) ([]PublicEvent, error) {
 	rows := []model.AISalonEvent{}
@@ -197,7 +199,7 @@ func (s *Service) CheckIn(ctx context.Context, eventID, userID uint64) error {
 			return err
 		}
 		now := s.now().UTC()
-		if !e.Published || now.Before(e.StartAt) || !now.Before(e.EndAt) {
+		if e.Online || !e.Published || now.Before(e.StartAt) || !now.Before(e.EndAt) {
 			return fail(409, "当前不在签到时间内")
 		}
 		result := tx.Model(&model.AISalonRegistration{}).Where("event_id = ? AND user_id = ? AND status = ? AND checked_in_at IS NULL", eventID, userID, Registered).Update("checked_in_at", now)
@@ -227,6 +229,21 @@ func validateEvent(e *model.AISalonEvent) error {
 	e.Summary = strings.TrimSpace(e.Summary)
 	e.Location = strings.TrimSpace(e.Location)
 	e.PosterURL = strings.TrimSpace(e.PosterURL)
+	e.MeetingURL = strings.TrimSpace(e.MeetingURL)
+	if e.Online {
+		e.Deadline = e.StartAt
+		if e.Capacity == 0 {
+			e.Capacity = 1
+		}
+		if e.MeetingURL != "" {
+			u, err := url.Parse(e.MeetingURL)
+			if err != nil || u.Scheme != "https" || u.Hostname() == "" || u.User != nil || len(e.MeetingURL) > 1000 {
+				return fail(400, "会议链接须为有效的 HTTPS 地址")
+			}
+		}
+	} else {
+		e.MeetingURL = ""
+	}
 	if e.Title == "" || utf8.RuneCountInString(e.Title) > 200 || e.Summary == "" || utf8.RuneCountInString(e.Summary) > 10000 || e.Location == "" || utf8.RuneCountInString(e.Location) > 300 || e.Capacity < 1 || e.Capacity > 100000 {
 		return fail(400, "请填写标题、简介、地点及有效人数上限（1—100000）")
 	}
@@ -265,6 +282,9 @@ func (s *Service) SaveEvent(ctx context.Context, id uint64, e model.AISalonEvent
 		rows, err := activeRows(tx, id)
 		if err != nil {
 			return err
+		}
+		if e.Online != old.Online && len(rows) > 0 {
+			return fail(409, "已有有效报名，不能切换活动形式")
 		}
 		count := 0
 		for _, r := range rows {

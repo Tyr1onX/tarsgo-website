@@ -86,3 +86,15 @@
 }
 
 .salon-collage-spark { display: block; width: 1.7rem; height: 1.7rem; background: #d7bb7b; clip-path: polygon(45% 0,55% 0,59% 35%,83% 10%,90% 17%,65% 41%,100% 45%,100% 55%,65% 59%,90% 83%,83% 90%,59% 65%,55% 100%,45% 100%,41% 65%,17% 90%,10% 83%,35% 59%,0 55%,0 45%,35% 41%,10% 17%,17% 10%,41% 35%); }
+
+.salon-detail-description > :not(:first-child) { margin-top: 1rem; }
+.salon-detail-description a { color: var(--theme-accent-contrast); text-decoration: underline; overflow-wrap: anywhere; }
+.salon-detail-description img { max-width: 100%; height: auto; border-radius: .75rem; }
+.salon-detail-description h3 { font-size: 1.1rem; font-weight: 600; }
+.salon-detail-description ul, .salon-detail-description ol { padding-left: 1.5rem; line-height: 2; color: var(--theme-muted); }
+.salon-detail-description ul { list-style: disc; }
+.salon-detail-description ol { list-style: decimal; }
+
+@media (max-width: 767px) {
+  .salon-detail-layout--online .salon-registration { order: -1; }
+}

@@ -13,6 +13,8 @@ type AcademicInfo struct {
 }
 
 type AISalonEvent struct {
+	Online             bool      `json:"online" gorm:"not null;default:false"`
+	MeetingURL         string    `json:"meetingUrl" gorm:"size:1000;not null;default:''"`
 	ID                 uint64    `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
 	Title              string    `json:"title" gorm:"size:200;not null"`
 	Summary            string    `json:"summary" gorm:"type:text;not null"`

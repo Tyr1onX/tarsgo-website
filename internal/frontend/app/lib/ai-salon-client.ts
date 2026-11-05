@@ -10,6 +10,8 @@ export interface AcademicInfo {
   gender: number;
 }
 export interface SalonEvent {
+  online: boolean;
+  meetingUrl: string;
   id: number;
   title: string;
   summary: string;

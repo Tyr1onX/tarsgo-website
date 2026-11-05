@@ -1,3 +1,4 @@
+import ReactMarkdown from "react-markdown";
 import { useEffect, useState, type FormEvent } from "react";
 import { BrandLoader } from "~/components/brand-loader";
 import { Link, useParams } from "react-router";
@@ -23,7 +24,7 @@ import { salonEventStatus } from "~/lib/salon-event-status";
 import "~/salon.css";
 
 export function meta() {
-  return [{ title: "活动报名 | 吉甲 AI 沙龙 | TARSGO" }];
+  return [{ title: "活动详情 | 吉甲 AI 沙龙 | TARSGO" }];
 }
 export default function AISalonDetail() {
   const { id = "" } = useParams();
@@ -93,7 +94,7 @@ export default function AISalonDetail() {
   useEffect(() => {
     let active = true;
     setPersonalError("");
-    if (!user) {
+    if (!user || !event || event.online) {
       setPrivateData(null);
       return;
     }
@@ -111,9 +112,9 @@ export default function AISalonDetail() {
     return () => {
       active = false;
     };
-  }, [user?.id]);
+  }, [user?.id, event?.id, event?.online]);
   useEffect(() => {
-    if (!user) return;
+    if (!user || !event || event.online) return;
     let active = true;
     let inFlight = false;
     let lastRequestedAt = Date.now();
@@ -141,7 +142,7 @@ export default function AISalonDetail() {
       clearInterval(timer);
       window.removeEventListener("focus", onFocus);
     };
-  }, [user?.id]);
+  }, [user?.id, event?.id, event?.online]);
   const data = user && privateData?.userId === user.id ? privateData : null;
   const record = data?.records.find((r) => r.eventId === Number(id));
   const now = clock.now + Math.max(0, tick - clock.receivedAt);
@@ -200,7 +201,7 @@ export default function AISalonDetail() {
           <h1 className="salon-detail-heading">
             {event.title}
           </h1>
-          <div className="salon-detail-layout">
+          <div className={`salon-detail-layout${event.online ? " salon-detail-layout--online" : ""}`}>
             <section className="salon-detail-content" aria-label="活动介绍">
               {event.posterUrl ? (
                 <img
@@ -210,7 +211,10 @@ export default function AISalonDetail() {
                   className="salon-detail-poster"
                 />
               ) : null}
-              {event.summary ? <div className="salon-detail-description"><h2>活动内容</h2><p>{event.summary}</p></div> : null}
+              {event.summary ? <div className="salon-detail-description"><h2>活动内容</h2>{event.online ? <ReactMarkdown skipHtml components={{
+                a: ({ children, href }) => <a href={href} target={href?.startsWith("https://") ? "_blank" : undefined} rel="noopener noreferrer">{children}</a>,
+                img: ({ src, alt }) => <img src={src} alt={alt ?? ""} loading="lazy" />,
+              }}>{event.summary}</ReactMarkdown> : <p>{event.summary}</p>}</div> : null}
             </section>
             <section
               className="salon-registration"
@@ -220,7 +224,7 @@ export default function AISalonDetail() {
                 id="salon-registration-heading"
                 className="text-xl font-semibold"
               >
-                线下报名
+                {event.online ? "线上参与" : "线下报名"}
               </h2>
               <dl className="salon-detail-facts">
                 {[
@@ -229,7 +233,7 @@ export default function AISalonDetail() {
                     `${salonDate(event.startAt)} — ${salonDate(event.endAt)}（北京时间）`,
                   ],
                   ["地点", event.location],
-                  ["报名截止", `${salonDate(event.deadline)}（北京时间）`],
+                  ...(!event.online ? [["报名截止", `${salonDate(event.deadline)}（北京时间）`]] : []),
                 ].map(([label, value]) => (
                   <div key={label}>
                     <dt>{label}</dt>
@@ -237,6 +241,14 @@ export default function AISalonDetail() {
                   </div>
                 ))}
               </dl>
+              {event.online ? (
+                <div className="space-y-4">
+                  {now >= Date.parse(event.endAt) ? <p className="text-fg-muted">活动已结束</p> : event.meetingUrl ? (
+                    <a className={`${salonPrimaryButton} w-full`} href={event.meetingUrl} target="_blank" rel="noopener noreferrer">进入腾讯会议</a>
+                  ) : <p role="status" className="text-fg-muted">腾讯会议链接待公布，请于活动前回到本页查看。</p>}
+                  <p className="text-sm text-fg-muted">免费参与，无需注册、登录或在官网报名。</p>
+                </div>
+              ) : <>
               {notice ? (
                 <p role="status" className="mt-4 text-accent-primary">
                   {notice}
@@ -332,6 +344,7 @@ export default function AISalonDetail() {
                   我的报名 →
                 </Link>
               ) : null}
+              </>}
             </section>
           </div>
         </>

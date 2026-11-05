@@ -250,6 +250,28 @@ func TestMariaDBAISalonAPIPermissionsAndOwnership(t *testing.T) {
 			t.Fatalf("admin status mutation route exists: %d", w.Code)
 		}
 	}
+	// Anonymous readers can get the meeting entry without a registration.
+	online := model.AISalonEvent{Title: "[TEST] Online salon", Summary: "Online", Location: "腾讯会议", Online: true, Published: true, StartAt: now.Add(time.Hour), EndAt: now.Add(2 * time.Hour)}
+	w = request("POST", adminPath, online, 2, "http://salon.test")
+	expect(w, 200)
+	if err := json.Unmarshal(w.Body.Bytes(), &saved); err != nil {
+		t.Fatal(err)
+	}
+	online = saved.Data
+	eventIDs = append(eventIDs, online.ID)
+	onlinePath := fmt.Sprintf("/api/ai-salon/events/%d", online.ID)
+	expect(request("GET", onlinePath, nil, -1, ""), 200)
+	online.MeetingURL = "https://meeting.tencent.com/dm/example?x=1&y=2"
+	expect(request("PUT", fmt.Sprintf("%s/%d", adminPath, online.ID), online, 2, "http://salon.test"), 200)
+	w = request("GET", onlinePath, nil, -1, "")
+	expect(w, 200)
+	var publicBody struct {
+		Data aisalon.PublicEvent `json:"data"`
+	}
+	if err := json.Unmarshal(w.Body.Bytes(), &publicBody); err != nil || publicBody.Data.MeetingURL != online.MeetingURL || publicBody.Data.RegistrationOpen {
+		t.Fatalf("anonymous online entry: %s", w.Body)
+	}
+	expect(request("POST", onlinePath+"/registration", nil, 0, "http://salon.test"), 409)
 	// A plain account with no group membership can still manage its own profile.
 	expect(request("PUT", "/api/ai-salon/profile", p, 3, "http://salon.test"), 404)
 	expect(request("GET", "/api/me/profile", nil, 3, ""), 200)

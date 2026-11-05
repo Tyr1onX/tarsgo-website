@@ -627,3 +627,74 @@ func TestMariaDBAISalonNeverMutatesAccountAndSupportsNonstudents(t *testing.T) {
 		}
 	}
 }
+
+func TestOnlineEventValidation(t *testing.T) {
+	now := time.Now().UTC()
+	e := model.AISalonEvent{Title: "线上活动", Summary: "介绍", Location: "腾讯会议", Online: true, Published: true, StartAt: now.Add(time.Hour), EndAt: now.Add(2 * time.Hour)}
+	if err := validateEvent(&e); err != nil {
+		t.Fatal(err)
+	}
+	if open(e, now) || !e.Deadline.Equal(e.StartAt) {
+		t.Fatal("online must not accept registrations or require a separate deadline")
+	}
+	for _, link := range []string{"javascript:alert(1)", "http://meeting.tencent.com/a", "https://user:pass@meeting.tencent.com/a", "https:///missing-host"} {
+		invalid := e
+		invalid.MeetingURL = link
+		if validateEvent(&invalid) == nil {
+			t.Fatalf("unsafe meeting link accepted: %s", link)
+		}
+	}
+	e.MeetingURL = "https://meeting.tencent.com/dm/example?from=salon&code=abc"
+	if err := validateEvent(&e); err != nil {
+		t.Fatal(err)
+	}
+	if public(e, now).MeetingURL != e.MeetingURL {
+		t.Fatal("public meeting URL changed")
+	}
+}
+
+func TestMariaDBOnlineEventParticipation(t *testing.T) {
+	f := newFixture(t, 1)
+	ctx := context.Background()
+	offline := f.event(t, 2)
+	online := offline
+	online.ID = 0
+	online.Online = true
+	online.Capacity = 0
+	online.Deadline = time.Time{}
+	saved, err := f.service.SaveEvent(ctx, 0, online)
+	if err != nil {
+		t.Fatal(err)
+	}
+	f.events = append(f.events, saved.ID)
+	publicEvent, err := f.service.Get(ctx, saved.ID)
+	if err != nil || !publicEvent.Online || publicEvent.RegistrationOpen {
+		t.Fatalf("public event: %#v %v", publicEvent, err)
+	}
+	requireStatus(t, func() error { _, err := f.service.Register(ctx, saved.ID, f.users[0].ID); return err }(), 409)
+	f.now = saved.StartAt
+	requireStatus(t, f.service.CheckIn(ctx, saved.ID, f.users[0].ID), 409)
+	saved.MeetingURL = "https://meeting.tencent.com/dm/example?x=1&y=2"
+	if _, err = f.service.SaveEvent(ctx, saved.ID, *saved); err != nil {
+		t.Fatal(err)
+	}
+	got, err := f.service.Get(ctx, saved.ID)
+	if err != nil || got.MeetingURL != saved.MeetingURL {
+		t.Fatalf("meeting link round trip: %#v %v", got, err)
+	}
+	f.now = saved.EndAt
+	if _, err = f.service.Get(ctx, saved.ID); err != nil {
+		t.Fatal("ended event must stay public", err)
+	}
+	f.now = offline.StartAt.Add(-time.Hour - time.Minute)
+	if err := f.db.Model(&f.users[0]).Updates(map[string]any{"is_student": false}).Error; err != nil {
+		t.Fatal(err)
+	}
+	if _, err := f.service.Register(ctx, offline.ID, f.users[0].ID); err != nil {
+		t.Fatal(err)
+	}
+	offline.Online = true
+	if _, err := f.service.SaveEvent(ctx, offline.ID, offline); err == nil {
+		t.Fatal("must preserve active offline registrations")
+	}
+}

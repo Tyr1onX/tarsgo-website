@@ -31,7 +31,7 @@ function EventCard({ event }: { event: SalonEvent }) {
           <div><dt>时间</dt><dd>{salonDate(event.startAt)}（北京时间）</dd></div>
           {event.location ? <div><dt>地点</dt><dd>{event.location}</dd></div> : null}
         </dl>
-        {event.summary ? <p className="salon-event-summary">{event.summary}</p> : null}
+        {event.summary ? <p className="salon-event-summary">{event.online ? event.summary.split("\n\n")[0] : event.summary}</p> : null}
         <span className="salon-event-link">{event.registrationOpen ? "了解活动与报名" : "查看活动"}<span aria-hidden="true">↗</span></span>
       </div>
     </Link>
