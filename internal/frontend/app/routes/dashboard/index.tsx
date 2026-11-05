@@ -1,8 +1,7 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { useLocation, useNavigate, useOutletContext, useSearchParams } from "react-router";
 
 import { BrandLoader } from "~/components/brand-loader";
-import { CommunityComposer } from "~/components/community-composer";
 import { CommunityEditorDialog } from "~/components/community-editor-dialog";
 import { CommunityGrowthBar } from "~/components/community-growth";
 import { CommunityIcon } from "~/components/community-icons";
@@ -22,6 +21,8 @@ import "./community.css";
 export function meta() {
   return [{ title: "吉甲社区 | TARSGO" }];
 }
+
+const CommunityComposer = lazy(() => import("~/components/community-composer").then(({ CommunityComposer }) => ({ default: CommunityComposer })));
 
 const PAGE_SIZE = COMMUNITY_CACHE_PAGE_SIZE;
 type CommunityRetry = { kind: "first" } | { kind: "more" };
@@ -210,7 +211,7 @@ export default function DashboardIndex() {
 
     <CommunityGrowthBar userID={currentUser.id} key={currentUser.id} />
 
-    {composerOpen ? <CommunityEditorDialog labelledBy="community-composer-title" onClose={closeComposer}><CommunityComposer key={currentUser.id} id="community-composer" accountId={currentUser.id} onCancel={closeComposer} onPublish={publish} /></CommunityEditorDialog> : null}
+    {composerOpen ? <CommunityEditorDialog labelledBy="community-composer-title" onClose={closeComposer}><Suspense fallback={<BrandLoader label="正在打开编辑器" />}><CommunityComposer key={currentUser.id} id="community-composer" accountId={currentUser.id} onCancel={closeComposer} onPublish={publish} /></Suspense></CommunityEditorDialog> : null}
 
     <div className="community-layout">
       <main className="community-feed" aria-label="社区帖子">
