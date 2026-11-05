@@ -22,12 +22,12 @@ test("unsafe or malformed lead links never become an action", () => {
     assert.deepEqual(salonContent(summary, true), { summary, action: null });
   }
 });
-test("first salon configuration follows registration, preparation, teaching, submission and sharing", async () => {
+test("first salon configuration follows preparation, practice and submission", async () => {
   const event = JSON.parse(await fs.readFile(new URL("../../../../docs/events/ai-salon-01.json", import.meta.url)));
   const content = salonContent(event.summary, event.online);
   assert.equal(content.action.href, href);
   assert.equal(content.action.label, "报名参与 AI 创作活动");
-  const steps = ["注册报名", "安装准备", "线上参与", "创作与提交", "交流分享"].map(s => content.summary.indexOf(`**${s}**`));
+  const steps = ["报名准备", "线上实践", "完善投稿"].map(s => content.summary.indexOf(`**${s}**`));
   assert(steps.every((value, i) => value >= 0 && (i === 0 || value > steps[i - 1])));
   assert.doesNotMatch(content.summary, /自愿报名|相互独立|不是.*前置条件|45 分钟内(?:一定|即可|保证).*完成/);
 });
