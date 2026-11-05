@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { robotSeasons, sortRobotsByNumber, type RobotCategory, type RobotSeasonEntry } from "~/data/robot-seasons";
+import { LoadingImage } from "~/components/loading-image";
 
 const filters: readonly ({ value: "all"; label: string } | { value: RobotCategory; label: RobotCategory })[] = [
   { value: "all", label: "全部" },
@@ -141,7 +142,8 @@ export function RobotPhotoGallery() {
               aria-label={`放大查看${robot.name}，${index + 1} / ${visibleRobots.length}`}
               onClick={() => setSelectedRobotId(robot.id)}
             >
-              <img
+              <LoadingImage
+                frameClassName="robot-gallery__image-frame"
                 className="robot-gallery__image"
                 src={robot.image.medium}
                 srcSet={getImageSet(robot)}
@@ -207,8 +209,10 @@ export function RobotPhotoGallery() {
             </div>
 
             <div className="robot-gallery__dialog-stage">
-              <img
+              <LoadingImage
                 key={selectedRobot.id}
+                frameClassName="robot-gallery__dialog-image-frame"
+                loaderSize="md"
                 className="robot-gallery__dialog-image"
                 src={selectedRobot.image.large}
                 srcSet={getImageSet(selectedRobot, true)}
