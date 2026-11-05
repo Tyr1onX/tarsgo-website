@@ -170,6 +170,22 @@ if [[ "$commit_sha" != "$main_sha" || ! "$commit_sha" =~ ^[0-9a-f]{40}$ ]]; then
   echo "Production deploy aborted: checkout must match the latest origin/main commit." >&2
   exit 1
 fi
+
+require_command cf "Cloudflare public HTML cache invalidation"
+if ! cf auth whoami >/dev/null 2>&1; then
+  echo "Production deploy aborted: authorize Cloudflare CLI with 'cf auth login' before deploying." >&2
+  exit 1
+fi
+
+purge_public_html_cache() {
+  local payload='{"files":["https://jijiamaster.com/","https://jijiamaster.com/about","https://jijiamaster.com/robots","https://jijiamaster.com/events-and-honors","https://jijiamaster.com/team-history","https://jijiamaster.com/join","https://jijiamaster.com/programs/ai-salon"]}'
+  if ! cf cache purge --zone jijiamaster.com --force --body "$payload" >/dev/null; then
+    echo "Production HTML cache purge failed; cached pages may reference an older release. Re-run this deployment after restoring Cloudflare access." >&2
+    return 1
+  fi
+  echo "cloudflare_public_html_cache=purged"
+}
+
 short_sha="${commit_sha:0:7}"
 release_name="$(date -u +%Y%m%d)-ops-retention-$short_sha"
 
@@ -294,6 +310,7 @@ case "$target_release_status" in
 esac
 if [[ "$current_commit" == "$commit_sha" ]]; then
   printf 'Production deployment already healthy: commit=%s image=%s release=%s\n' "$commit_sha" "$previous_image" "$previous_release"
+  purge_public_html_cache
   exit 0
 fi
 
@@ -474,4 +491,8 @@ if [[ "$safe_cleanup_performed" == 0 ]]; then
   run_safe_cleanup
 fi
 
-ssh_run bash -s -- "$jijia_root" "$release_name" "$release_name" "$previous_image" "$previous_release" "$commit_sha" <"$repo_root/scripts/deploy-production-remote.sh"
+if ! ssh_run bash -s -- "$jijia_root" "$release_name" "$release_name" "$previous_image" "$previous_release" "$commit_sha" <"$repo_root/scripts/deploy-production-remote.sh"; then
+  purge_public_html_cache || true
+  exit 1
+fi
+purge_public_html_cache
