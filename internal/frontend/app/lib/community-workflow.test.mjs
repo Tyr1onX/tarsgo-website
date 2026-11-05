@@ -165,6 +165,13 @@ test("community images open an accessible gallery with keyboard navigation", () 
   assert.match(gallery, /setActiveIndex\(index\)/);
 });
 
+test("community feed loads the post composer only when the dialog opens", () => {
+  assert.doesNotMatch(dashboard, /import \{ CommunityComposer \} from "~\/components\/community-composer"/);
+  assert.match(dashboard, /const CommunityComposer = lazy\(\(\) => import\("~\/components\/community-composer"\)/);
+  assert.match(dashboard, /composerOpen \? <CommunityEditorDialog[\s\S]*?<Suspense fallback=\{<BrandLoader label="正在打开编辑器" \/>\}/);
+  assert.match(dashboard, /<CommunityComposer key=\{currentUser\.id\} id="community-composer"/);
+});
+
 test("post drafts persist text and selected image files per account", () => {
   assert.match(draft, /indexedDB\.open/);
   assert.match(draft, /files: File\[\]/);
