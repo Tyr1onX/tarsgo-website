@@ -12,7 +12,7 @@ import "~/salon.css";
 export function meta() {
   return [
     { title: "吉甲 AI 沙龙 | TARSGO" },
-    { name: "description", content: "让想法，成为作品。面向吉林大学同学的 AI 创作实践与交流活动。" },
+    { name: "description", content: "面向吉林大学学生的长期 AI 创作实践与交流活动。让想法成为作品，让作品带来交流，让交流产生下一次共创。" },
   ];
 }
 
@@ -65,7 +65,7 @@ export default function AISalon() {
           <div className="salon-hero-content">
             <div className="salon-hero-copy">
               <p className="salon-manifesto">让想法，<br /><span>成为作品。</span></p>
-              <p className="salon-intro">面向吉林大学同学的<br className="sm:hidden" /> AI 创作实践与交流活动。</p>
+              <p className="salon-intro">面向吉林大学同学的<br className="sm:hidden" />长期 AI 创作实践与交流活动。</p>
               <a className={salonPrimaryButton} href="#salon-events">查看近期活动 <span className="ml-6" aria-hidden="true">↓</span></a>
             </div>
             <div className="salon-hero-art"><SalonHeroArt /></div>
@@ -80,12 +80,12 @@ export default function AISalon() {
           ) : <div className="salon-empty"><span className="salon-empty-dot" aria-hidden="true" /><p>新一期活动筹备中</p></div>}
         </section>
         <section className="salon-format" aria-labelledby="salon-format-title">
-          <div className="salon-section-heading"><h2 id="salon-format-title">从想法到作品，一起实践。</h2></div>
+          <div className="salon-section-heading"><h2 id="salon-format-title">让作品带来交流，让交流产生下一次共创。</h2></div>
           <ol className="salon-steps">
             {[
-              ["发现创意", "从感兴趣的问题出发，探索 AI 能做什么。"],
-              ["动手实现", "尝试工具、搭建原型，让想法落地。"],
-              ["交流分享", "展示作品，聊聊过程中的发现与困惑。"],
+              ["创作入门", "线上体验、线下实践，从工具上手到自主完善作品。"],
+              ["作品展示", "分享作品、创作思路与经验，从学习者成为分享者。"],
+              ["交流共创", "围绕同学们的兴趣与作品，持续开展技术交流和共同创作。"],
             ].map(([title, description], index) => (
               <li key={title}><span className="salon-step-number" aria-hidden="true">0{index + 1}</span><h3>{title}</h3><p>{description}</p></li>
             ))}
