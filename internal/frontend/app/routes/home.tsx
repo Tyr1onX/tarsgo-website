@@ -223,7 +223,7 @@ export function PublicFooter({ compactMobile = false }: { compactMobile?: boolea
     <footer className={`public-site-footer border-t border-[var(--theme-border-subtle)] py-6 sm:py-8${compactMobile ? " public-site-footer--compact" : ""}`}>
       <div className="public-home-container">
         <div className="public-footer-main flex flex-col gap-5 border-b border-[var(--theme-border-subtle)] pb-5 sm:flex-row sm:items-center sm:justify-between">
-          <Link to="/" aria-label="TARSGO 首页" className="inline-flex self-start focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary">
+          <Link to="/" aria-label="TARSGO 首页" className="inline-flex self-start sm:self-auto focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary">
             <SiteLogo className="h-10 max-w-[180px]" />
           </Link>
           <nav aria-label="官方社交账号" className="flex flex-wrap gap-2">
