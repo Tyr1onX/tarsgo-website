@@ -13,6 +13,13 @@ type Position struct {
 	AvatarURL *string `json:"avatarUrl,omitempty"`
 }
 
+type Member struct {
+	Name      string  `json:"name"`
+	UserID    *uint64 `json:"userId"`
+	AvatarURL *string `json:"avatarUrl,omitempty"`
+	AccountStatus string `json:"accountStatus,omitempty"`
+}
+
 type Category struct {
 	ID        string     `json:"id"`
 	Title     string     `json:"title"`
@@ -26,6 +33,8 @@ type Preview struct {
 	} `json:"team"`
 	Leader     Position   `json:"leader"`
 	Categories []Category `json:"categories"`
+	OtherMembers []Member `json:"otherMembers"`
+	OtherGuides []Member `json:"otherGuides"`
 }
 
 type MemberPosition struct {
@@ -82,6 +91,54 @@ const organizationPreviewJSON = `{
   ]
 }`
 
+// Confirmed roster from the team; roles stay in organizationPreviewJSON.
+var formalMemberNames = []string{
+	"王彬赫",
+	"林俊宏",
+	"李晟泽",
+	"由亚洲",
+	"刘曦博",
+	"霍瑞曦",
+	"孙宇丹",
+	"张育宁",
+	"宁学玮",
+	"周子超",
+	"曲佳响",
+	"李卓群",
+	"李睿",
+	"杨凯凯",
+	"夏裕",
+	"张坤杰",
+	"姚嘉权",
+	"窦方鹏",
+	"王暄然",
+	"陆广鹏",
+	"王涛",
+	"沈桂清",
+	"雷韶冉",
+	"高畅",
+	"马鸣远",
+	"姜昊阳",
+	"徐一凡",
+	"童逸创",
+	"镇沈晖",
+	"吉荣昌",
+	"左文添",
+	"白航铭",
+	"孙煦朝",
+}
+
+var otherGuideNames = []string{
+	"张乐乐",
+	"杜海龙",
+	"耿冬妮",
+	"任庆伟",
+	"李学飞",
+	"陈玫玫",
+	"付成伟",
+	"刘长宜",
+}
+
 var (
 	organizationDataOnce sync.Once
 	organizationData     Preview
@@ -107,6 +164,24 @@ func PreviewData() Preview {
 		for positionIndex := range preview.Categories[index].Positions {
 			preview.Categories[index].Positions[positionIndex] = clonePosition(preview.Categories[index].Positions[positionIndex])
 		}
+	}
+	assignedNames := map[string]struct{}{preview.Leader.Name: {}}
+	for _, category := range preview.Categories {
+		for _, position := range category.Positions {
+			if position.Name != "待确认" {
+				assignedNames[position.Name] = struct{}{}
+			}
+		}
+	}
+	preview.OtherMembers = make([]Member, 0, len(formalMemberNames))
+	for _, name := range formalMemberNames {
+		if _, assigned := assignedNames[name]; !assigned {
+			preview.OtherMembers = append(preview.OtherMembers, Member{Name: name})
+		}
+	}
+	preview.OtherGuides = make([]Member, 0, len(otherGuideNames))
+	for _, name := range otherGuideNames {
+		preview.OtherGuides = append(preview.OtherGuides, Member{Name: name})
 	}
 	return preview
 }

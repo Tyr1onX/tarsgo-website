@@ -41,16 +41,19 @@ test("eligible workbench members can read the workbench directory, while the leg
   assert.match(routes, /route\("team", "routes\/dashboard\/team-redirect\.tsx"\)/);
   assert.match(navigation, /label: "成员与岗位",[\s\S]*?iconKey: "team",[\s\S]*?href: "\/dashboard\/workbench\/organization"/);
   assert.match(component, /apiRequest<OrganizationPreview>\("\/api\/team\/organization-preview"\)/);
-  assert.match(handler, /Select\("id", "real_name", "avatar_url"\)/);
+  assert.match(handler, /Select\("id", "real_name", "avatar_url", "status"\)/);
   assert.doesNotMatch(handler, /Select\([^)]*(email|phone)/);
 });
 
-test("organization is an avatar tree with the leader above collapsible categories", () => {
+test("organization puts the advisor above the leader and keeps categories collapsible", () => {
   assert.match(component, /useState<Set<string>>\(\(\) => new Set\(\)\)/);
   assert.match(component, /setExpandedIDs\(new Set\(\)\)/);
   assert.match(component, /aria-expanded=\{expanded\}/);
   assert.match(component, /expanded \? \([\s\S]*?organization-directory__members/);
+  assert.match(component, /<section className="organization-directory__advisor"/);
+  assert.ok(component.indexOf('organization-directory__advisor"') < component.indexOf('organization-directory__leader"'));
   assert.match(component, /<section className="organization-directory__leader"/);
+  assert.match(component, /data.categories.filter\(\(category\) => category.id !== "advisors"\)/);
   assert.match(component, /<LeaderNode position=\{data\.leader\} members=\{members\} \/>/);
   assert.match(component, /addPosition\(data\.leader, null, null\)/);
   assert.doesNotMatch(component, /核心管理层/);
@@ -79,7 +82,10 @@ test("real member avatars link to profiles and show keyboard-accessible position
 });
 
 test("vacant roles stay compact and never render a placeholder member avatar", () => {
-  assert.match(component, /const vacancies = category\.positions\.filter\(\(position\) => position\.userId === null\)/);
+  assert.match(component, /const vacancies = category\.positions\.filter\(\(position\) => position\.userId === null &&/);
+  assert.match(component, /const unlinkedMembers = category\.positions/);
+  assert.match(component, /accountStatus \?\? "账号未关联"/);
+  assert.match(component, /member.id !== null/);
   assert.match(component, /organization-directory__vacancies/);
   assert.match(component, /<small>待确认<\/small>/);
   assert.match(component, /if \(position\.userId === null\) return/);
@@ -97,4 +103,24 @@ test("tree connects category branches without claiming that roles report to the 
   assert.match(profile, /user\.organizationPositions\?\.length/);
   assert.match(organizationPositionDuty("vision-lead", "technical"), /培训和选拔/);
   assert.match(organizationPositionDuty("radar-station", "robot-classes"), /底层架构与关键技术决策/);
+});
+
+
+test("confirmed roster covers non-positioned members and all other guides", () => {
+  const members = organizationServer.match(/var formalMemberNames = \[\]string\{([\s\S]*?)\}/)?.[1].match(/"[^"]+"/g) ?? [];
+  const guides = organizationServer.match(/var otherGuideNames = \[\]string\{([\s\S]*?)\}/)?.[1].match(/"[^"]+"/g) ?? [];
+  assert.equal(members.length, 33);
+  assert.equal(guides.length, 8);
+  assert.equal(new Set([...members, ...guides]).size, 41);
+  assert.match(organizationServer, /assignedNames\[name\]/);
+  assert.match(handler, /Where\("id IN \? OR real_name IN \?", userIDs, rosterNames\)/);
+  assert.match(handler, /len\(matches\) > 1/);
+  assert.match(handler, /member\.AccountStatus = "账号不在"/);
+  assert.match(handler, /member\.AccountStatus = "账号待核实"/);
+  assert.match(component, /organization-directory__others/);
+  assert.match(component, /organization-directory__coaches/);
+  assert.ok(component.indexOf('organization-directory__advisor"') < component.indexOf('organization-directory__coaches"'));
+  assert.ok(component.indexOf('organization-directory__coaches"') < component.indexOf('organization-directory__leader"'));
+  assert.match(style, /\.organization-directory__roster/);
+  assert.doesNotMatch(handler, /Select\([^)]*(email|phone|student_id)/);
 });
