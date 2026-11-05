@@ -47,6 +47,7 @@ chmod +x "$test_tools/sha256sum"
 cat >"$test_tools/cf" <<'CF'
 #!/usr/bin/env bash
 set -Eeuo pipefail
+[[ "$PWD" == "$HOME" ]] || { echo "Cloudflare CLI ran inside the repository" >&2; exit 6; }
 if [[ "${1:-} ${2:-}" == "auth whoami" ]]; then
   [[ "${MOCK_CF_AUTH_FAIL:-0}" != 1 ]] || exit 1
   printf '{"authenticated":true}\n'
