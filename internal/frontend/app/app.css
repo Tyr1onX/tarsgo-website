@@ -3042,6 +3042,13 @@ html[data-theme-transition] body *::after {
   cursor: zoom-in;
 }
 
+.robot-gallery__image-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
 .robot-gallery__image {
   display: block;
   width: 100%;
@@ -3196,6 +3203,11 @@ html[data-theme-transition] body *::after {
   align-items: center;
   justify-content: center;
   background: #f5f4f1;
+}
+
+.robot-gallery__dialog-image-frame {
+  width: 100%;
+  height: 100%;
 }
 
 .robot-gallery__dialog-image {

@@ -8,6 +8,7 @@ import {
   type HonorMaterial,
 } from "~/lib/events-and-honors-data";
 import { honorMaterialThumbnails } from "~/lib/honor-material-thumbnails";
+import { LoadingImage } from "~/components/loading-image";
 import "./events-and-honors-archive.css";
 
 const featuredAwards = honorAwards.filter((award) => award.featured);
@@ -224,7 +225,7 @@ export function EventsAndHonorsArchive() {
                           aria-label={relationLabel + "：" + material.title + "，查看原图"}
                         >
                           <span className="honors-material-image">
-                            <img src={honorMaterialThumbnails[material.id]} alt="" loading="lazy" decoding="async" />
+                            <LoadingImage frameClassName="honors-material-image-frame" src={honorMaterialThumbnails[material.id]} alt="" loading="lazy" decoding="async" />
                           </span>
                           <span className="honors-material-meta">
                             <span className="honors-material-relation">{relationLabel}</span>
@@ -281,7 +282,7 @@ export function EventsAndHonorsArchive() {
               </div>
               <button type="button" className="honors-preview-close" onClick={() => dialogRef.current?.close()}>关闭</button>
             </div>
-            <img className="honors-preview-image" src={activeMaterial.src} alt={activeMaterial.title + "原图"} />
+            <LoadingImage frameClassName="honors-preview-image-frame" loaderSize="md" className="honors-preview-image" src={activeMaterial.src} alt={activeMaterial.title + "原图"} />
             {activeMaterial.note ? <p className="honors-preview-note">{activeMaterial.note}</p> : null}
             <a className="honors-preview-original" href={activeMaterial.src} target="_blank" rel="noreferrer">打开原图 <span aria-hidden="true">↗</span></a>
             <div className="honors-preview-controls">
