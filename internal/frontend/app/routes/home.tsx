@@ -18,17 +18,17 @@ export function meta({}: Route.MetaArgs) {
 }
 
 const sponsorLogos = [
-  { name: "YELITE", image: "/assets/images/Sponsors/yelite.webp" },
+  { name: "YELITE", image: "/assets/images/Sponsors/yelite-9c169cab.webp" },
   { name: "长春纳丝精密机械有限公司", image: "/assets/images/Sponsors/nasi-precision.svg" },
-  { name: "AMASS", image: "/assets/images/Sponsors/amass.webp" },
-  { name: "创芯工坊", image: "/assets/images/Sponsors/cxgf.webp" },
-  { name: "吉地智联", image: "/assets/images/Sponsors/jdzl.webp" },
-  { name: "嘉立创CNC", image: "/assets/images/Sponsors/jlc.webp" },
-  { name: "纪元羽毛球", image: "/assets/images/Sponsors/jyymq.webp" },
-  { name: "快趣科技", image: "/assets/images/Sponsors/kqkj.webp" },
-  { name: "留形科技", image: "/assets/images/Sponsors/lxkj.webp" },
-  { name: "千将资本", image: "/assets/images/Sponsors/qjzb.webp" },
-  { name: "YUHESEN", image: "/assets/images/Sponsors/yeheshen.webp" },
+  { name: "AMASS", image: "/assets/images/Sponsors/amass-28a9de74.webp" },
+  { name: "创芯工坊", image: "/assets/images/Sponsors/cxgf-1215c6ef.webp" },
+  { name: "吉地智联", image: "/assets/images/Sponsors/jdzl-f2d699c5.webp" },
+  { name: "嘉立创CNC", image: "/assets/images/Sponsors/jlc-5f293e37.webp" },
+  { name: "纪元羽毛球", image: "/assets/images/Sponsors/jyymq-68f0db5c.webp" },
+  { name: "快趣科技", image: "/assets/images/Sponsors/kqkj-465ae088.webp" },
+  { name: "留形科技", image: "/assets/images/Sponsors/lxkj-967e1eaa.webp" },
+  { name: "千将资本", image: "/assets/images/Sponsors/qjzb-4f9273c4.webp" },
+  { name: "YUHESEN", image: "/assets/images/Sponsors/yeheshen-c30a1363.webp" },
 ];
 
 export const groups = [
@@ -204,7 +204,7 @@ function HomeSponsorSection() {
             className="home-alumni-recommendation__card"
           >
             <span className="home-alumni-recommendation__logo" aria-hidden="true">
-              <img src="/assets/images/Partners/rightapi.jpg" alt="" loading="lazy" decoding="async" />
+              <img src="/assets/images/Partners/rightapi-f85e58d1.webp" alt="" loading="lazy" decoding="async" />
             </span>
             <span className="home-alumni-recommendation__copy">
               <span className="home-alumni-recommendation__name">RightAPI</span>

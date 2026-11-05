@@ -66,7 +66,7 @@ test("homepage groups sponsors and two partner links in one compact section", ()
   assert.match(home, /src="\/assets\/images\/Community\/jluai\.png"/);
   assert.match(home, /href="https:\/\/jluai\.cn\/"/);
   assert.match(home, /AI 交流社区，分享作品与实践经验，一起共创校园 AI 项目/);
-  assert.match(home, /src="\/assets\/images\/Partners\/rightapi\.jpg"/);
+  assert.match(home, /src="\/assets\/images\/Partners\/rightapi-f85e58d1\.webp"/);
   assert.match(home, /href="https:\/\/rightapi\.ai\/register\?aff=RIGHTCODE_JLU"/);
   assert.match(styles, /\.home-partner-links\s*\{[^}]*display:\s*grid;/);
   assert.match(styles, /@media \(min-width:\s*640px\)[\s\S]*?\.home-partner-links\s*\{[^}]*grid-template-columns:\s*repeat\(2,/);
@@ -76,6 +76,8 @@ test("featured sponsor logos load eagerly and mobile logo slots stay bounded", a
   const featured = home.match(/<ul className="home-sponsor-featured-grid"[\s\S]*?<\/ul>/)?.[0] ?? "";
   assert.match(featured, /loading="eager"/);
   assert.doesNotMatch(featured, /loading="lazy"/);
+  const other = home.match(/<ul className="home-sponsor-grid"[\s\S]*?<\/ul>/)?.[0] ?? "";
+  assert.match(other, /loading="lazy" decoding="async"/);
 
   const nasiLogo = await readFile(new URL("../../../../public/assets/images/Sponsors/nasi-precision.svg", import.meta.url), "utf8");
   assert.match(nasiLogo, /width="876" height="809" viewBox="214 264 876 809"/);
@@ -345,12 +347,13 @@ test("RightAPI remains a disclosed alumni project in the compact partner links",
   assert.match(home, /href="https:\/\/rightapi\.ai\/register\?aff=RIGHTCODE_JLU"/);
   assert.match(home, /target="_blank"/);
   assert.match(home, /rel="noopener noreferrer"/);
-  assert.match(home, /src="\/assets\/images\/Partners\/rightapi\.jpg" alt="" loading="lazy" decoding="async"/);
+  assert.match(home, /src="\/assets\/images\/Partners\/rightapi-f85e58d1\.webp" alt="" loading="lazy" decoding="async"/);
   assert.match(home, /由吉甲学长运营，提供第三方 AI 模型 API 接入服务/);
   assert.match(home, /aria-label="访问 RightAPI"/);
   assert.doesNotMatch(home, /第三方服务推荐，链接包含邀请参数/);
-  const logo = await readFile(new URL("../../../../public/assets/images/Partners/rightapi.jpg", import.meta.url));
-  assert.ok(logo.length > 1_000, "the supplied RightAPI logo should be included as a local asset");
+  const logo = await readFile(new URL("../../../../public/assets/images/Partners/rightapi-f85e58d1.webp", import.meta.url));
+  assert.ok(logo.length > 1_000 && logo.length <= 12_000, "the RightAPI logo should be compact");
+  assert.equal(createHash("sha256").update(logo).digest("hex").slice(0, 8), "f85e58d1");
   assert.match(styles, /\.home-alumni-recommendation__card\s*\{[\s\S]*?background:\s*var\(--theme-card\)/);
   assert.match(styles, /\.home-alumni-recommendation__card:focus-visible/);
   assert.match(styles, /@media \(max-width: 359px\)[\s\S]*?\.home-alumni-recommendation__logo[\s\S]*?\.home-alumni-recommendation__description/);
