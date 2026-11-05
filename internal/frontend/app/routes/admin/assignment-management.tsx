@@ -16,7 +16,7 @@ import {
   shanghaiDateTimeLocal,
   type AssignmentDeadlineShortcut,
 } from "~/lib/assignment-deadline";
-import { assignmentMaterialAccept, formatAssignmentMaterialSize, validateAssignmentMaterialSelection } from "~/lib/assignment-materials";
+import { formatAssignmentMaterialSize, validateAssignmentMaterialSelection } from "~/lib/assignment-materials";
 import { filterAssignmentMembers, toggleAssignmentMemberSelection } from "~/lib/assignment-member-selection";
 import { useAssignmentGroups } from "~/lib/use-assignment-groups";
 import "./assignment-management.css";
@@ -349,7 +349,6 @@ export default function AssignmentManagementRoute() {
               label="教学资料附件"
               files={pendingMaterials}
               onFilesChange={(next) => { setPendingMaterials(next); setMaterialsUploadStatus("pending"); setError(""); }}
-              accept={assignmentMaterialAccept}
               multiple
               hint="最多 10 个 · 单次请求上限 64 MiB（含表单数据）"
               disabled={saving || publishStage !== "idle" || loadingEdit || Boolean(editing && editing.submittedCount > 0)}

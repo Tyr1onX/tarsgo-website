@@ -79,12 +79,4 @@ func hashAssignmentUpload(header *multipart.FileHeader) (string, error) {
 	return privatefile.HashUpload(header, true)
 }
 
-func validateAssignmentFileContent(header *multipart.FileHeader, fileName string) (string, error) {
-	return privatefile.ValidateFileContent(header, fileName)
-}
-
-func matchesAssignmentFileSignature(ext string, content []byte) bool {
-	return privatefile.MatchesFileSignature(ext, content)
-}
-
 func cleanAssignmentFileName(name string) string { return privatefile.CleanFileName(name) }

@@ -8,9 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"mime"
 	"mime/multipart"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -76,11 +74,7 @@ func ValidateUploads(headers []*multipart.FileHeader, allowLarge bool) ([]Upload
 		if fileName == "" {
 			return nil, fmt.Errorf("附件文件名无效")
 		}
-		contentType, err := ValidateFileContent(header, fileName)
-		if err != nil {
-			return nil, fmt.Errorf("附件格式不受支持或文件内容与扩展名不符")
-		}
-		validated = append(validated, Upload{Header: header, FileName: fileName, ContentType: contentType})
+		validated = append(validated, Upload{Header: header, FileName: fileName, ContentType: "application/octet-stream"})
 	}
 	return validated, nil
 }
@@ -198,73 +192,6 @@ func (s *Store) resolve(relativePath string) (string, error) {
 		return "", fmt.Errorf("private file path escapes storage root")
 	}
 	return target, nil
-}
-
-func ValidateFileContent(header *multipart.FileHeader, fileName string) (string, error) {
-	ext := strings.ToLower(filepath.Ext(fileName))
-	allowed := map[string]bool{
-		".jpg": true, ".jpeg": true, ".png": true, ".gif": true, ".webp": true,
-		".pdf": true, ".doc": true, ".docx": true, ".xls": true, ".xlsx": true,
-		".ppt": true, ".pptx": true, ".txt": true, ".md": true,
-		".zip": true, ".7z": true, ".rar": true,
-	}
-	if !allowed[ext] {
-		return "", fmt.Errorf("unsupported file extension")
-	}
-	if header == nil {
-		return "", fmt.Errorf("missing upload")
-	}
-	source, err := header.Open()
-	if err != nil {
-		return "", err
-	}
-	defer source.Close()
-	buffer := make([]byte, 512)
-	count, err := io.ReadFull(source, buffer)
-	if err != nil && err != io.EOF && err != io.ErrUnexpectedEOF {
-		return "", err
-	}
-	buffer = buffer[:count]
-	if !MatchesFileSignature(ext, buffer) {
-		return "", fmt.Errorf("file signature does not match extension")
-	}
-	contentType := mime.TypeByExtension(ext)
-	if contentType == "" {
-		contentType = http.DetectContentType(buffer)
-	}
-	return contentType, nil
-}
-
-func MatchesFileSignature(ext string, content []byte) bool {
-	hasPrefix := func(prefix ...byte) bool {
-		return len(content) >= len(prefix) && string(content[:len(prefix)]) == string(prefix)
-	}
-	zip := hasPrefix('P', 'K', 3, 4) || hasPrefix('P', 'K', 5, 6) || hasPrefix('P', 'K', 7, 8)
-	office := hasPrefix(0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1)
-	switch ext {
-	case ".jpg", ".jpeg":
-		return hasPrefix(0xff, 0xd8, 0xff)
-	case ".png":
-		return hasPrefix(0x89, 'P', 'N', 'G', 0x0d, 0x0a, 0x1a, 0x0a)
-	case ".gif":
-		return hasPrefix('G', 'I', 'F', '8', '7', 'a') || hasPrefix('G', 'I', 'F', '8', '9', 'a')
-	case ".webp":
-		return len(content) >= 12 && string(content[:4]) == "RIFF" && string(content[8:12]) == "WEBP"
-	case ".pdf":
-		return hasPrefix('%', 'P', 'D', 'F', '-')
-	case ".doc", ".xls", ".ppt":
-		return office
-	case ".docx", ".xlsx", ".pptx", ".zip":
-		return zip
-	case ".7z":
-		return hasPrefix(0x37, 0x7a, 0xbc, 0xaf, 0x27, 0x1c)
-	case ".rar":
-		return hasPrefix('R', 'a', 'r', '!', 0x1a, 0x07)
-	case ".txt", ".md":
-		return utf8.Valid(content) && !strings.ContainsRune(string(content), '\x00')
-	default:
-		return false
-	}
 }
 
 func CleanFileName(name string) string {
