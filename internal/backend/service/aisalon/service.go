@@ -273,6 +273,7 @@ func (s *Service) SaveEvent(ctx context.Context, id uint64, e model.AISalonEvent
 	e.ID = id
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		if id == 0 {
+			e.RegistrationClicks = 0
 			return tx.Create(&e).Error
 		}
 		old, err := lockedEvent(tx, id)
@@ -296,6 +297,8 @@ func (s *Service) SaveEvent(ctx context.Context, id uint64, e model.AISalonEvent
 			return fail(409, "人数上限不能少于已报名人数")
 		}
 		e.CreatedAt = old.CreatedAt
+		// Editing a stale form must never reset the server-owned counter.
+		e.RegistrationClicks = old.RegistrationClicks
 		if err := tx.Save(&e).Error; err != nil {
 			return err
 		}

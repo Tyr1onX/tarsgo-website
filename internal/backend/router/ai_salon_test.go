@@ -251,7 +251,7 @@ func TestMariaDBAISalonAPIPermissionsAndOwnership(t *testing.T) {
 		}
 	}
 	// Anonymous readers can get the meeting entry without a registration.
-	online := model.AISalonEvent{Title: "[TEST] Online salon", Summary: "Online", Location: "腾讯会议", Online: true, Published: true, StartAt: now.Add(time.Hour), EndAt: now.Add(2 * time.Hour)}
+	online := model.AISalonEvent{Title: "[TEST] Online salon", Summary: "[报名](https://example.test/?ch=campus)\n\nOnline", Location: "腾讯会议", Online: true, Published: true, StartAt: now.Add(time.Hour), EndAt: now.Add(2 * time.Hour)}
 	w = request("POST", adminPath, online, 2, "http://salon.test")
 	expect(w, 200)
 	if err := json.Unmarshal(w.Body.Bytes(), &saved); err != nil {
@@ -261,6 +261,15 @@ func TestMariaDBAISalonAPIPermissionsAndOwnership(t *testing.T) {
 	eventIDs = append(eventIDs, online.ID)
 	onlinePath := fmt.Sprintf("/api/ai-salon/events/%d", online.ID)
 	expect(request("GET", onlinePath, nil, -1, ""), 200)
+	clickPath := onlinePath + "/registration-click"
+	expect(request("POST", clickPath, nil, -1, ""), 403)
+	expect(request("POST", clickPath, nil, -1, "https://other.test"), 403)
+	expect(request("POST", clickPath, nil, -1, "http://salon.test"), 200)
+	expect(request("POST", path+"/registration-click", nil, -1, "http://salon.test"), 404)
+	var counted model.AISalonEvent
+	if err := db.First(&counted, online.ID).Error; err != nil || counted.RegistrationClicks != 1 {
+		t.Fatalf("anonymous count not persisted: %d %v", counted.RegistrationClicks, err)
+	}
 	online.MeetingURL = "https://meeting.tencent.com/dm/example?x=1&y=2"
 	expect(request("PUT", fmt.Sprintf("%s/%d", adminPath, online.ID), online, 2, "http://salon.test"), 200)
 	w = request("GET", onlinePath, nil, -1, "")

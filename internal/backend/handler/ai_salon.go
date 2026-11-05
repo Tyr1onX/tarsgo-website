@@ -49,6 +49,13 @@ func (h *AISalonHandler) Mine(c *gin.Context) {
 	data, err := h.service.Mine(c.Request.Context(), salonUser(c))
 	salonReply(c, data, err)
 }
+func (h *AISalonHandler) RegistrationClick(c *gin.Context) {
+	id, ok := pathID(c, "id")
+	if !ok {
+		return
+	}
+	salonReply(c, nil, h.service.RegistrationClick(c.Request.Context(), id))
+}
 func (h *AISalonHandler) Register(c *gin.Context) {
 	id, ok := pathID(c, "id")
 	if !ok {

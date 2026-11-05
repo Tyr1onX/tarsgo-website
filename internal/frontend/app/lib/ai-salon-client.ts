@@ -30,6 +30,7 @@ export interface ManagedSalonEvent extends Omit<
   capacity: number;
   published: boolean;
   registrationClosed: boolean;
+  registrationClicks: number;
 }
 export interface SalonRecord extends AcademicInfo {
   eventId: number;
