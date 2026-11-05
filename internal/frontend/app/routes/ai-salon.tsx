@@ -82,11 +82,11 @@ export default function AISalon() {
         <section className="salon-format" aria-labelledby="salon-format-title">
           <div className="salon-section-heading"><h2 id="salon-format-title">让作品带来交流，让交流产生下一次共创。</h2></div>
           <ol className="salon-steps">
-            {[
+            {([
               ["创作入门", "线上体验、线下实践，从工具上手到自主完善作品。"],
               ["作品展示", "分享作品、创作思路与经验，从学习者成为分享者。"],
-              ["交流共创", "围绕同学们的兴趣与作品，持续开展技术交流和共同创作。"],
-            ].map(([title, description], index) => (
+              ["交流共创", <>围绕「像素吉大」（吉大版星露谷物语）等校园创作，在 <a className="text-accent-primary underline" href="https://jluai.cn/" target="_blank" rel="noopener noreferrer">JLUAI</a> 交流想法、一起共创。</>],
+            ] as const).map(([title, description], index) => (
               <li key={title}><span className="salon-step-number" aria-hidden="true">0{index + 1}</span><h3>{title}</h3><p>{description}</p></li>
             ))}
           </ol>
