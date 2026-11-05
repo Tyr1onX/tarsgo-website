@@ -335,7 +335,7 @@ export function PublicHomePage({ page = "home", children }: { page?: PublicPage;
             poster="/assets/images/Robot/hero-robot.webp"
             aria-label="吉林大学吉甲大师双创基地宣传视频"
           >
-            <source src="/assets/images/Video/hero-showreel-005cfe69.mp4" type="video/mp4" />
+            <source media="(min-width: 640px) and (prefers-reduced-motion: no-preference)" src="/assets/images/Video/hero-showreel-005cfe69.mp4" type="video/mp4" />
           </video>
           <div className="public-home-hero-shade absolute inset-0" />
         </div>
