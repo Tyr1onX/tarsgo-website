@@ -6,6 +6,7 @@ import { SalonArtwork } from "~/components/salon-artwork";
 import { SalonHeroArt } from "~/components/salon-hero-art";
 import { salonClient, salonDate, salonError, type SalonEvent } from "~/lib/ai-salon-client";
 import { salonEventStatus } from "~/lib/salon-event-status";
+import { salonContent } from "~/lib/salon-content";
 import "~/salon.css";
 
 export function meta() {
@@ -31,7 +32,7 @@ function EventCard({ event }: { event: SalonEvent }) {
           <div><dt>时间</dt><dd>{salonDate(event.startAt)}（北京时间）</dd></div>
           {event.location ? <div><dt>地点</dt><dd>{event.location}</dd></div> : null}
         </dl>
-        {event.summary ? <p className="salon-event-summary">{event.online ? event.summary.split("\n\n")[0] : event.summary}</p> : null}
+        {event.summary ? <p className="salon-event-summary">{event.online ? salonContent(event.summary, true).summary.split("\n\n")[0] : event.summary}</p> : null}
         <span className="salon-event-link">{event.registrationOpen ? "了解活动与报名" : "查看活动"}<span aria-hidden="true">↗</span></span>
       </div>
     </Link>
