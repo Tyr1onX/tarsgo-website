@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type Key
 import { Link, useLocation, useNavigate, useNavigationType, useOutletContext, useParams, useSearchParams } from "react-router";
 
 import { BrandLoader } from "~/components/brand-loader";
+import { Notify } from "~/components/notify";
 import { CommunityBadgeInfo } from "~/components/community-badge-mark";
 import { CommunityFeaturedMark } from "~/components/community-featured-mark";
 import { TeamIdentityBadge } from "~/components/community-team-identity";
@@ -362,7 +363,7 @@ export default function CommunityMemberProfileRoute() {
     {tab !== "settings" ? <nav className="community-member-tabs" aria-label="成员主页栏目">
       {tabs.map((item) => <button key={item.id} type="button" aria-current={tab === item.id ? "page" : undefined} onClick={() => changeTab(item.id)}>{item.label}</button>)}
     </nav> : null}
-    {notice ? <p className="community-state" role="status">{notice}</p> : null}
+    {notice ? <Notify tone="success" message={notice} onClose={() => setNotice("")} /> : null}
 
     {tab === "overview" ? <div className="community-member-overview">
       <dl className="community-member-details">

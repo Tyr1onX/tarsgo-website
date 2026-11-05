@@ -1,6 +1,7 @@
 import { BrandLoader } from "~/components/brand-loader";
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import { Notify } from "~/components/notify";
 import { useOutletContext } from "react-router";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import {
@@ -283,7 +284,7 @@ export default function TimeCoordinationPage() {
       {options && week === 0 && calendarWeek?.status === "unconfigured" ? <p className="text-sm text-[var(--admin-muted)]">选择教学周后可继续查看当前学期课表统计。</p> : null}
       {isSuperAdmin ? <details className="time-coordination__admin-actions">
         <summary>管理操作</summary>
-        {clearNotice ? <p role="status" className="admin-notice admin-notice--success">{clearNotice}</p> : null}
+        {clearNotice ? <Notify tone="success" message={clearNotice} onClose={() => setClearNotice("")} /> : null}
         {clearError ? <p role="alert" className="admin-notice admin-notice--error">{clearError}</p> : null}
         <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={clearLoading} onClick={() => void openClearConfirmation()}>
           {clearLoading && clearPreview === null ? "读取课表数量…" : "清空课表"}

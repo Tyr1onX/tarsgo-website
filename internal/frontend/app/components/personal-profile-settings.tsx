@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { Link, useSearchParams, useOutletContext } from "react-router";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { PersonalTimetableUpload } from "~/components/personal-timetable-upload";
+import { Notify } from "~/components/notify";
 import { AccountAcademicFields } from "~/components/account-academic-fields";
 import { updateProfile, type AuthUser } from "~/lib/auth-client";
 import { getAccountProfile, salonReturnPath, type AccountProfile } from "~/lib/account-profile";
@@ -49,7 +50,7 @@ export function PersonalProfileSettings({ user }: { user: AuthUser }) {
         <label className="block"><span className={labelClass}>邮箱</span><input className={fieldClass} type="email" value={profile.email} readOnly /></label>
         <AccountAcademicFields value={profile} onChange={(next) => { setProfile({ ...profile, ...next }); setNotice(""); }} disabled={saving} fieldClass={fieldClass} labelClass={labelClass} />
         {leaveProfile?.identityLocked ? <p className="text-xs leading-relaxed text-[var(--admin-muted)]">已有请假记录的假条身份保持锁定：{leaveProfile.name} · {leaveProfile.studentId}。账号修改不改写已提交的请假材料。</p> : null}
-        {notice ? <p role="status" className="text-sm text-[var(--admin-accent-text)]">{notice}</p> : null}
+        {notice ? <Notify tone="success" message={notice} onClose={() => setNotice("")} /> : null}
         <div className="flex flex-wrap justify-end gap-2"><button type="submit" disabled={saving} className="admin-button admin-button--primary">{saving ? "保存中…" : "保存个人资料"}</button>
           {returnTo ? <Link className="admin-button" to={returnTo}>返回活动报名</Link> : null}
         </div>

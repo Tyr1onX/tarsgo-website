@@ -5,6 +5,7 @@ import { useSearchParams, useOutletContext } from "react-router";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { assignmentClient, assignmentDecisionLabel, assignmentStatusLabel, formatAssignmentDate, type AdminAssignmentDetail, type Assignment } from "~/lib/assignment-client";
 import { useAssignmentGroups } from "~/lib/use-assignment-groups";
+import { Notify } from "~/components/notify";
 
 export function meta() {
   return [{ title: "提交记录 | TARSGO" }];
@@ -153,7 +154,7 @@ export default function AssignmentSubmissionsRoute() {
         {assignments.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
       </select></label> : null}
       {error ? <div role="alert" className="admin-notice admin-notice--error">{error}</div> : null}
-      {notice ? <div role="status" className="admin-notice admin-notice--success">{notice}</div> : null}
+      {notice ? <Notify tone="success" message={notice} onClose={() => setNotice("")} /> : null}
       {loading && !assignments.length ? <BrandLoader label="正在加载作业列表" /> : null}
       {detailLoading && !detail ? <BrandLoader label="正在加载提交记录" size="sm" /> : null}
       {listLoaded && !loading && !error && assignments.length === 0 ? <section className="admin-panel p-5 text-sm text-[var(--admin-muted)]">暂无本组作业。</section> : null}

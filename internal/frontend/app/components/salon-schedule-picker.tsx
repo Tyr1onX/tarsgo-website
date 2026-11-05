@@ -5,6 +5,7 @@ import {
   type KeyboardEvent,
   type PointerEvent,
 } from "react";
+import { Notify } from "~/components/notify";
 import {
   addDays,
   beijingToday,
@@ -439,11 +440,7 @@ export function SalonSchedulePicker({
             </button>
           </div>
         )}
-        {message ? (
-          <p className="salon-schedule-notice" role="status">
-            {message}
-          </p>
-        ) : null}
+        {message ? <Notify tone="success" message={message} onClose={() => setMessage("")} /> : null}
       </div>
     </section>
   );

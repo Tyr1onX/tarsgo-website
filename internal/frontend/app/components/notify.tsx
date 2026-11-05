@@ -1,6 +1,6 @@
 import x from "@iconify-icons/lucide/x";
 import { Icon } from "@iconify/react";
-import { type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 
 export type NotifyTone = "success" | "error";
@@ -15,15 +15,21 @@ export function Notify({
   placement = "bottom-right",
 }: {
   tone: NotifyTone;
-  title: string;
+  title?: string;
   message: ReactNode;
   open?: boolean;
   onClose: () => void;
   placement?: NotifyPlacement;
 }) {
-  if (typeof document === "undefined") {
-    return null;
-  }
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose;
+  useEffect(() => {
+    if (!open || tone !== "success") return;
+    const timer = window.setTimeout(() => onCloseRef.current(), 2800);
+    return () => window.clearTimeout(timer);
+  }, [open, tone, message]);
+
+  if (typeof document === "undefined") return null;
 
   const toneClass = tone === "success" ? "admin-notice admin-notice--success" : "admin-notice admin-notice--error";
   const wrapperClass = placement === "center"
@@ -51,37 +57,37 @@ export function Notify({
   return createPortal(
     <div className={`admin-design ${wrapperClass}`}>
       <div
-        role="status"
-        aria-live="polite"
+        role={tone === "error" ? "alert" : "status"}
+        aria-live={tone === "error" ? "assertive" : "polite"}
         className={`${cardWidthClass} ${open ? "pointer-events-auto" : "pointer-events-none"} rounded-md transition-[opacity,transform] duration-150 ${toneClass} ${motionClass}`}
       >
         {placement === "center" ? (
           <div className="relative px-5 py-4 text-center">
-            <button
+            {tone === "error" ? <button
               type="button"
               onClick={onClose}
               className="absolute right-3 top-3 inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--admin-muted)] transition hover:bg-[var(--admin-hover-overlay)] hover:text-[var(--admin-text)]"
               aria-label="关闭提醒"
             >
               <Icon icon={x} className="h-4 w-4" />
-            </button>
-            <div className="text-sm font-medium text-[var(--admin-text)]">{title}</div>
-            <div className="mt-2 text-sm leading-6">{message}</div>
+            </button> : null}
+            {title ? <div className="text-sm font-medium text-[var(--admin-text)]">{title}</div> : null}
+            <div className={title ? "mt-2 text-sm leading-6" : "text-sm leading-6"}>{message}</div>
           </div>
         ) : (
           <div className="flex items-start gap-3 px-4 py-3">
             <div className="min-w-0 flex-1">
-              <div className="text-sm font-medium text-[var(--admin-text)]">{title}</div>
-              <div className="mt-1 text-sm leading-6">{message}</div>
+              {title ? <div className="text-sm font-medium text-[var(--admin-text)]">{title}</div> : null}
+              <div className={title ? "mt-1 text-sm leading-6" : "text-sm leading-6"}>{message}</div>
             </div>
-            <button
+            {tone === "error" ? <button
               type="button"
               onClick={onClose}
               className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-[var(--admin-muted)] transition hover:bg-[var(--admin-hover-overlay)] hover:text-[var(--admin-text)]"
               aria-label="关闭提醒"
             >
               <Icon icon={x} className="h-4 w-4" />
-            </button>
+            </button> : null}
           </div>
         )}
       </div>

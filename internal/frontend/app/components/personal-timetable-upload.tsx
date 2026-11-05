@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
+import { Notify } from "~/components/notify";
 import { getPersonalTimetables, importPersonalTimetable, type PersonalTimetable } from "~/lib/timetable-client";
 
 const MAX_TIMETABLE_BYTES = 5 * 1024 * 1024;
@@ -99,7 +100,7 @@ export function PersonalTimetableUpload({ userId }: { userId: number }) {
       </form>
       {uploading ? <p role="status" className="text-sm text-[var(--admin-muted)]">正在上传并解析课表…</p> : null}
       {error ? <p role="alert" className="break-words text-sm text-[var(--theme-danger)] [overflow-wrap:anywhere]">{error}</p> : null}
-      {message ? <p role="status" className="break-words text-sm text-[var(--theme-success)] [overflow-wrap:anywhere]">{message}</p> : null}
+      {message ? <Notify tone="success" message={message} onClose={() => setMessage("")} /> : null}
     </section>
   );
 }

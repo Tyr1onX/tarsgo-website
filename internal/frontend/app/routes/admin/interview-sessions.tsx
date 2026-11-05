@@ -3,6 +3,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import { useNavigate } from "react-router";
 
 import { ApiError } from "~/lib/api-client";
+import { Notify } from "~/components/notify";
 import {
   createAdminInterviewSession,
   listAdminInterviewSessions,
@@ -119,7 +120,7 @@ export default function InterviewSessions() {
       </header>
 
       {error ? <div role="alert" className="admin-notice admin-notice--error">{error}</div> : null}
-      {notice ? <div role="status" className="admin-notice admin-notice--success">{notice}</div> : null}
+      {notice ? <Notify tone="success" message={notice} onClose={() => setNotice("")} /> : null}
 
       <section className="admin-panel p-4 sm:p-5" aria-label="面试场次编辑">
         <div className="admin-section-heading">

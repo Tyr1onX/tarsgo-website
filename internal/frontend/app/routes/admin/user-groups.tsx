@@ -159,7 +159,7 @@ export function UserGroups() {
     <div className="admin-design space-y-5">
       <Notify
         tone={flash?.tone ?? "success"}
-        title={flash?.tone === "error" ? "操作失败" : "操作成功"}
+        title={flash?.tone === "error" ? "操作失败" : undefined}
         message={flash?.message ?? ""}
         open={flash !== null}
         onClose={() => setFlash(null)}

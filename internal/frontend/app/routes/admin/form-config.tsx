@@ -93,7 +93,6 @@ type CreateFormState = {
 /* ------------------------------------------------------------------ */
 
 const DRAWER_ANIMATION_MS = 220;
-const FLASH_DURATION_MS = 3000;
 const NOTIFY_ANIMATION_MS = 300;
 
 const defaultCreateState: CreateFormState = {
@@ -478,18 +477,6 @@ export default function FormConfigPage() {
     }
     setFlashVisible(true);
   }, [flash]);
-
-  useEffect(() => {
-    if (!flash || !flashVisible) {
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      setFlashVisible(false);
-    }, FLASH_DURATION_MS);
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [flash, flashVisible]);
 
   useEffect(() => {
     if (!flash || flashVisible) {
@@ -904,7 +891,7 @@ export default function FormConfigPage() {
       {flash ? (
         <Notify
           tone={flash.type}
-          title={flash.type === "success" ? "操作成功" : "操作失败"}
+          title={flash.type === "success" ? undefined : "操作失败"}
           message={flash.message}
           open={flashVisible}
           onClose={() => clearFlash()}

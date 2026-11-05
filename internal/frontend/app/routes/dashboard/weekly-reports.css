@@ -310,12 +310,7 @@
   color: var(--admin-danger);
 }
 
-.weekly-report__inline-success {
-  color: var(--admin-success);
-}
-
-.weekly-report__inline-error,
-.weekly-report__inline-success {
+.weekly-report__inline-error {
   font-size: 12px;
   line-height: 1.5;
 }
