@@ -201,20 +201,26 @@ test("DJI occupies the first independent row before two featured sponsors and th
   assert.match(sponsorSource, /长春纳丝精密机械有限公司/);
   // These display labels are transcribed from the artwork, not inferred from legacy asset filenames.
   const logoNames = [
-    ["yelite.webp", "YELITE"],
-    ["amass.webp", "AMASS"],
-    ["cxgf.webp", "创芯工坊"],
-    ["jdzl.webp", "吉地智联"],
-    ["jlc.webp", "嘉立创CNC"],
-    ["jyymq.webp", "纪元羽毛球"],
-    ["kqkj.webp", "快趣科技"],
-    ["lxkj.webp", "留形科技"],
-    ["qjzb.webp", "千将资本"],
-    ["yeheshen.webp", "YUHESEN"],
+    ["yelite-9c169cab.webp", "YELITE"],
+    ["amass-28a9de74.webp", "AMASS"],
+    ["cxgf-1215c6ef.webp", "创芯工坊"],
+    ["jdzl-f2d699c5.webp", "吉地智联"],
+    ["jlc-5f293e37.webp", "嘉立创CNC"],
+    ["jyymq-68f0db5c.webp", "纪元羽毛球"],
+    ["kqkj-465ae088.webp", "快趣科技"],
+    ["lxkj-967e1eaa.webp", "留形科技"],
+    ["qjzb-4f9273c4.webp", "千将资本"],
+    ["yeheshen-c30a1363.webp", "YUHESEN"],
     ["nasi-precision.svg", "长春纳丝精密机械有限公司"],
   ];
   for (const [image, name] of logoNames) {
     assert.ok(sponsorSource.includes(`{ name: "${name}", image: "/assets/images/Sponsors/${image}" }`), `incorrect sponsor text for ${image}`);
+    if (image.endsWith(".webp")) {
+      const logo = await readFile(new URL(`../../../../public/assets/images/Sponsors/${image}`, import.meta.url));
+      assert.equal(logo.toString("ascii", 0, 4), "RIFF", `invalid WebP: ${image}`);
+      assert.equal(createHash("sha256").update(logo).digest("hex").slice(0, 8), image.match(/-([a-f0-9]{8})\.webp$/)?.[1]);
+      assert.ok(logo.byteLength <= 16_000, `sponsor image exceeds byte budget: ${image}`);
+    }
   }
   for (const outdatedName of ["驰翔股份", "金地卓立", "吉利汽车", "吉运模压器", "坤乾科技", "联讯科技", "强基装备", "夜河神"]) {
     assert.ok(!sponsorSource.includes(outdatedName), `outdated sponsor text ${outdatedName}`);
