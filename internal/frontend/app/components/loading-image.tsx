@@ -17,7 +17,7 @@ export function LoadingImage({
 }: LoadingImageProps) {
   const imageRef = useRef<HTMLImageElement>(null);
   const [result, setResult] = useState<{ src: string; status: "loaded" | "error" } | null>(null);
-  const status = result?.src === src ? result.status : "loading";
+  const status = result && result.src === src ? result.status : "loading";
 
   useEffect(() => {
     const image = imageRef.current;
