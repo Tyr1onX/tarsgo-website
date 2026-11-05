@@ -332,7 +332,7 @@ export function PublicHomePage({ page = "home", children }: { page?: PublicPage;
             loop
             playsInline
             preload={prefersReducedMotion ? "none" : "metadata"}
-            poster="/assets/images/Robot/hero-robot.webp"
+            poster="/assets/images/Robot/hero-robot-166a7390.webp"
             aria-label="吉林大学吉甲大师双创基地宣传视频"
           >
             <source media="(min-width: 640px) and (prefers-reduced-motion: no-preference)" src="/assets/images/Video/hero-showreel-005cfe69.mp4" type="video/mp4" />
