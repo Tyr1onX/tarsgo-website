@@ -220,47 +220,32 @@ function HomeSponsorSection() {
 
 export function PublicFooter({ compactMobile = false }: { compactMobile?: boolean } = {}) {
   return (
-    <footer className={`public-site-footer border-t border-[var(--theme-border-subtle)] py-9 sm:py-11${compactMobile ? " public-site-footer--compact" : ""}`}>
+    <footer className={`public-site-footer border-t border-[var(--theme-border-subtle)] py-6 sm:py-8${compactMobile ? " public-site-footer--compact" : ""}`}>
       <div className="public-home-container">
-        <div className="grid gap-8 border-b border-[var(--theme-border-subtle)] pb-8 sm:grid-cols-2 lg:grid-cols-3 lg:gap-10">
-          <section aria-labelledby="footer-social-heading">
-            <Link to="/" aria-label="TARSGO 首页" className="inline-flex focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary">
-              <SiteLogo className="h-11 max-w-[200px]" />
-            </Link>
-            <h2 id="footer-social-heading" className="mt-5 text-sm font-semibold text-fg-primary">社交媒体</h2>
-            <nav aria-label="官方社交账号" className="mt-3 flex flex-wrap gap-2">
-              <a
-                href="https://www.douyin.com/user/MS4wLjABAAAAZJcCtp6uwKt4wKUwa_STi1GadztAmwBwHKN0jjjDj2MNjgOclLsim387ZDtRPjvW"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="footer-social-link"
-              >
-                <DouyinIcon />
-                抖音
-              </a>
-              <a
-                href="https://space.bilibili.com/488284486"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="footer-social-link"
-              >
-                <BilibiliIcon />
-                B站
-              </a>
-            </nav>
-          </section>
-
-          <nav aria-labelledby="footer-about-heading" className="flex flex-col items-start gap-2">
-            <h2 id="footer-about-heading" className="mb-1 text-sm font-semibold text-fg-primary">关于吉甲</h2>
-            <Link className="footer-link" to="/about">认识吉甲</Link>
-            <Link className="footer-link" to="/team-history">团队历程</Link>
+        <div className="public-footer-main flex flex-col gap-5 border-b border-[var(--theme-border-subtle)] pb-5 sm:flex-row sm:items-center sm:justify-between">
+          <Link to="/" aria-label="TARSGO 首页" className="inline-flex self-start sm:self-auto focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary">
+            <SiteLogo className="h-10 max-w-[180px]" />
+          </Link>
+          <nav aria-label="官方社交账号" className="flex flex-wrap gap-2">
+            <a
+              href="https://www.douyin.com/user/MS4wLjABAAAAZJcCtp6uwKt4wKUwa_STi1GadztAmwBwHKN0jjjDj2MNjgOclLsim387ZDtRPjvW"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="footer-social-link"
+            >
+              <DouyinIcon />
+              抖音
+            </a>
+            <a
+              href="https://space.bilibili.com/488284486"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="footer-social-link"
+            >
+              <BilibiliIcon />
+              B站
+            </a>
           </nav>
-
-          <section aria-labelledby="footer-contact-heading">
-            <h2 id="footer-contact-heading" className="mb-3 text-sm font-semibold text-fg-primary">联系方式</h2>
-            <p className="text-sm leading-6 text-fg-muted">吉林大学吉甲大师双创基地</p>
-            <p className="mt-2 text-sm leading-6 text-fg-muted">请通过官方社交账号联系团队。</p>
-          </section>
         </div>
 
         <div className="public-footer-signature">

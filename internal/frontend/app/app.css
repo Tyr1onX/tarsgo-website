@@ -2232,20 +2232,17 @@ html[data-theme-transition] body *::after {
   }
 }
 
-.footer-social-link,
-.footer-link {
-  color: var(--admin-muted);
-  transition: color 180ms ease;
-}
-
 .footer-social-link {
   display: inline-flex;
   min-height: 2.75rem;
   align-items: center;
   gap: 0.55rem;
-  padding: 0.5rem 0.7rem;
+  padding: 0.5rem 0.8rem;
   border: 1px solid var(--admin-border-subtle);
+  border-radius: 9999px;
+  color: var(--admin-muted);
   font-size: 0.875rem;
+  transition: color 180ms ease, border-color 180ms ease;
 }
 
 .footer-social-link svg {
@@ -2253,16 +2250,9 @@ html[data-theme-transition] body *::after {
   height: 1.1rem;
 }
 
-.footer-social-link:hover,
-.footer-link:hover {
+.footer-social-link:hover {
   color: var(--admin-accent);
-}
-
-.footer-link {
-  display: inline-flex;
-  min-height: 2rem;
-  align-items: center;
-  font-size: 0.875rem;
+  border-color: var(--admin-accent);
 }
 
 .public-footer-signature {
@@ -2480,13 +2470,9 @@ html[data-theme-transition] body *::after {
     padding-block: 1.5rem;
   }
 
-  .public-site-footer--compact nav[aria-labelledby="footer-about-heading"] {
-    display: none;
-  }
-
-  .public-site-footer--compact .public-home-container > .grid {
-    gap: 1.25rem;
-    padding-bottom: 1.25rem;
+  .public-site-footer--compact .public-footer-main {
+    gap: 1rem;
+    padding-bottom: 1rem;
   }
 }
 
@@ -2621,8 +2607,7 @@ html[data-theme-transition] body *::after {
   .home-visual-card-arrow,
   .home-alumni-recommendation__card,
   .home-alumni-recommendation__arrow svg,
-  .footer-social-link,
-  .footer-link {
+  .footer-social-link {
     transition-duration: 0.01ms;
   }
 

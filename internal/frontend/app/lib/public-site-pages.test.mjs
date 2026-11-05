@@ -513,10 +513,20 @@ test("Nasi Precision partner logo is publicly listed with a local, safe SVG asse
   assert.doesNotMatch(logo, /<(?:script|foreignObject)\b|\b(?:href|xlink:href)=|\bon\w+\s*=/i);
 });
 
-test("public footer removes redundant quick links and keeps a three-column layout", () => {
-  assert.doesNotMatch(home, /footer-quick-links-heading|快速入口/);
-  assert.match(home, /sm:grid-cols-2 lg:grid-cols-3/);
-  assert.doesNotMatch(styles, /footer-quick-links-heading/);
+test("public footer keeps only brand, official social links, and its signature", () => {
+  const footer = home.slice(home.indexOf("export function PublicFooter("), home.indexOf("export function PublicHomePage("));
+  assert.ok(footer.includes("public-footer-main flex flex-col gap-5"));
+  assert.ok(footer.includes("sm:flex-row sm:items-center sm:justify-between"));
+  assert.ok(footer.includes('aria-label="TARSGO 首页"'));
+  assert.ok(footer.includes('aria-label="官方社交账号"'));
+  assert.ok(footer.includes("https://www.douyin.com/user/"));
+  assert.ok(footer.includes("https://space.bilibili.com/488284486"));
+  assert.ok(footer.includes("<FooterCoordinateSandTrace />"));
+  assert.ok(footer.includes("TARSGO 战队 · 吉林大学吉甲大师双创基地"));
+  assert.doesNotMatch(footer, /快速入口|关于吉甲|联系方式|请通过官方社交账号|footer-link|footer-about-heading|footer-contact-heading/);
+  assert.ok(!styles.includes(".footer-link"));
+  assert.ok(!styles.includes("footer-about-heading"));
+  assert.ok(!styles.includes("footer-quick-links-heading"));
 });
 
 test("homepage mobile view prioritizes navigation without duplicating the desktop gallery", () => {
@@ -530,5 +540,5 @@ test("homepage mobile view prioritizes navigation without duplicating the deskto
   assert.match(styles, /@media \(max-width: 639px\) \{[\s\S]*?\.home-mobile-grid\s*\{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.home-mobile-link--featured\s*\{[^}]*grid-column: 1 \/ -1/);
   assert.match(styles, /\.home-sponsor-matrix\s*\{[^}]*display: grid;/);
-  assert.match(styles, /\.public-site-footer--compact nav\[aria-labelledby="footer-about-heading"\]/);
+  assert.ok(styles.includes(".public-site-footer--compact .public-footer-main"));
 });
