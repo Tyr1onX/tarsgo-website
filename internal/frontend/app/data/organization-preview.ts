@@ -12,8 +12,15 @@ export type OrganizationCategory = {
   positions: OrganizationPosition[];
 };
 
+export type OrganizationRosterMember = {
+  name: string;
+  userId: number | null;
+  avatarUrl?: string | null;
+};
+
 export type OrganizationPreview = {
   team: { id: string; title: string };
   leader: OrganizationPosition;
   categories: OrganizationCategory[];
+  otherMembers: OrganizationRosterMember[];
 };
