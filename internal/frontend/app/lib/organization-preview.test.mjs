@@ -41,7 +41,7 @@ test("eligible workbench members can read the workbench directory, while the leg
   assert.match(routes, /route\("team", "routes\/dashboard\/team-redirect\.tsx"\)/);
   assert.match(navigation, /label: "成员与岗位",[\s\S]*?iconKey: "team",[\s\S]*?href: "\/dashboard\/workbench\/organization"/);
   assert.match(component, /apiRequest<OrganizationPreview>\("\/api\/team\/organization-preview"\)/);
-  assert.match(handler, /Select\("id", "real_name", "avatar_url", "team_identity_status", "status"\)/);
+  assert.match(handler, /Select\("id", "real_name", "avatar_url", "status"\)/);
   assert.doesNotMatch(handler, /Select\([^)]*(email|phone)/);
 });
 
@@ -84,7 +84,7 @@ test("real member avatars link to profiles and show keyboard-accessible position
 test("vacant roles stay compact and never render a placeholder member avatar", () => {
   assert.match(component, /const vacancies = category\.positions\.filter\(\(position\) => position\.userId === null &&/);
   assert.match(component, /const unlinkedMembers = category\.positions/);
-  assert.match(component, /account-missing">未注册账号/);
+  assert.match(component, /accountStatus \?\? "账号未关联"/);
   assert.match(component, /member.id !== null/);
   assert.match(component, /organization-directory__vacancies/);
   assert.match(component, /<small>待确认<\/small>/);
@@ -106,12 +106,21 @@ test("tree connects category branches without claiming that roles report to the 
 });
 
 
-test("unassigned formal team members come from identity statuses without duplicated position holders", () => {
-  assert.match(handler, /model.TeamIdentityFormalMember, model.UserStatusEnabled/);
-  assert.match(handler, /if _, assigned := assignedIDs\[account.ID\]; assigned/);
-  assert.match(handler, /preview.OtherMembers = append\(preview.OtherMembers, organization.Member/);
-  assert.match(component, /data\?\.otherMembers.filter\(\(account\) => account.userId === null \|\| !members.has\(account.userId\)\)/);
+test("confirmed roster covers non-positioned members and all other guides", () => {
+  const members = organizationServer.match(/var formalMemberNames = \[\]string\{([\s\S]*?)\}/)?.[1].match(/"[^"]+"/g) ?? [];
+  const guides = organizationServer.match(/var otherGuideNames = \[\]string\{([\s\S]*?)\}/)?.[1].match(/"[^"]+"/g) ?? [];
+  assert.equal(members.length, 33);
+  assert.equal(guides.length, 8);
+  assert.equal(new Set([...members, ...guides]).size, 41);
+  assert.match(organizationServer, /assignedNames\[name\]/);
+  assert.match(handler, /Where\("id IN \? OR real_name IN \?", userIDs, rosterNames\)/);
+  assert.match(handler, /len\(matches\) > 1/);
+  assert.match(handler, /member\.AccountStatus = "账号不在"/);
+  assert.match(handler, /member\.AccountStatus = "账号待核实"/);
   assert.match(component, /organization-directory__others/);
+  assert.match(component, /organization-directory__coaches/);
+  assert.ok(component.indexOf('organization-directory__advisor"') < component.indexOf('organization-directory__coaches"'));
+  assert.ok(component.indexOf('organization-directory__coaches"') < component.indexOf('organization-directory__leader"'));
   assert.match(style, /\.organization-directory__roster/);
   assert.doesNotMatch(handler, /Select\([^)]*(email|phone|student_id)/);
 });
