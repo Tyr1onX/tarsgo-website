@@ -23,6 +23,7 @@ type OrganizationMember = {
   id: number | null;
   name: string;
   avatarUrl?: string | null;
+  accountStatus?: string;
   positions: PositionAssignment[];
 };
 
@@ -68,7 +69,7 @@ function MemberNode({ member, className = "" }: { member: OrganizationMember; cl
     <div className={`organization-directory__member${className ? ` ${className}` : ""}`}>
       {member.id !== null
         ? <Link to={`/dashboard/members/${member.id}`} className="organization-directory__member-link" aria-label={`查看 ${member.name} 的个人主页`}>{identity}</Link>
-        : <div className="organization-directory__member-link">{identity}<span className="organization-directory__account-missing">未注册账号</span></div>}
+        : <div className="organization-directory__member-link">{identity}<span className="organization-directory__account-missing">{member.accountStatus ?? "账号未关联"}</span></div>}
       {positions.length ? <div className="organization-directory__member-tooltip" role="tooltip">
         <strong>{member.name}</strong>
         <span className="organization-directory__tooltip-label">岗位与分类</span>
@@ -152,7 +153,11 @@ export default function OrganizationPreviewPage() {
   const members = data ? collectMembers(data) : new Map<number, OrganizationMember>();
   const advisor = data?.categories.find((category) => category.id === "advisors");
   const otherMembers = data?.otherMembers.filter((account) => account.userId === null || !members.has(account.userId))
-    .map((account) => ({ id: account.userId, name: account.name, avatarUrl: account.avatarUrl, positions: [] as PositionAssignment[] })) ?? [];
+    .map((account) => ({ id: account.userId, name: account.name, avatarUrl: account.avatarUrl, accountStatus: account.accountStatus, positions: [] as PositionAssignment[] })) ?? [];
+  const otherGuides = data?.otherGuides.map((account) => ({
+    id: account.userId, name: account.name, avatarUrl: account.avatarUrl, accountStatus: account.accountStatus,
+    positions: [] as PositionAssignment[],
+  })) ?? [];
 
   const load = useCallback(async () => {
     setLoadError("");
@@ -201,6 +206,13 @@ export default function OrganizationPreviewPage() {
           }} className="is-leader" />;
         })}
       </section> : null}
+
+      <section className="organization-directory__coaches" aria-labelledby="organization-coaches-title">
+        <h2 className="organization-directory__section-label" id="organization-coaches-title">其他指导人员 · {otherGuides.length} 人</h2>
+        <div className="organization-directory__roster">
+          {otherGuides.map((member) => <MemberNode key={member.id ?? member.name} member={member} />)}
+        </div>
+      </section>
 
       <section className="organization-directory__leader" aria-labelledby="organization-leader-title">
         <h2 className="organization-directory__section-label" id="organization-leader-title">负责人</h2>
