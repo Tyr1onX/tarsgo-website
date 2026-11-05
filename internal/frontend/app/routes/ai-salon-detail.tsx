@@ -1,6 +1,7 @@
 import ReactMarkdown from "react-markdown";
 import { useEffect, useState, type FormEvent } from "react";
 import { BrandLoader } from "~/components/brand-loader";
+import { SiteLogo } from "~/components/site-logo";
 import { Notify } from "~/components/notify";
 import { Link, useParams } from "react-router";
 import {
@@ -202,6 +203,14 @@ export default function AISalonDetail() {
       ) : (
         <>
           <p className="text-sm text-accent-primary">{salonEventStatus(event, now)}</p>
+          <div className="salon-partners" aria-label="吉甲大师与 JLUAI 社区联动">
+            <SiteLogo className="salon-partners__team-logo" />
+            <span className="salon-partners__cross" aria-hidden="true">×</span>
+            <a className="salon-partners__community" href="https://jluai.cn/" target="_blank" rel="noopener noreferrer">
+              <img src="/assets/images/Community/jluai.png" alt="" width="36" height="36" />
+              <span>JLUAI 社区</span>
+            </a>
+          </div>
           <h1 className="salon-detail-heading">
             {event.title}
           </h1>
@@ -219,6 +228,18 @@ export default function AISalonDetail() {
                 a: ({ children, href }) => <a href={href} target={href?.startsWith("https://") ? "_blank" : undefined} rel="noopener noreferrer">{children}</a>,
                 img: ({ src, alt }) => <img src={src} alt={alt ?? ""} loading="lazy" />,
               }}>{content.summary}</ReactMarkdown> : <p>{event.summary}</p>}</div> : null}
+              <section className="salon-community-feature" aria-labelledby="salon-pixel-title">
+                <a className="salon-community-feature__preview" href="https://jlu.online/" target="_blank" rel="noopener noreferrer" aria-label="打开像素吉大地图">
+                  <img src="/assets/images/Community/pixel-jlu-preview.jpg" alt="像素吉大校园地图，展示前卫南区的建筑和地标" loading="lazy" width="1120" height="255" />
+                </a>
+                <p className="salon-community-feature__credit">截图来源：像素吉大 · 地图数据 © <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener noreferrer">OpenStreetMap 贡献者</a></p>
+                <h2 id="salon-pixel-title">像素吉大</h2>
+                <p>在像素画风的校园地图里，探索熟悉的建筑与地标。</p>
+                <div className="salon-community-feature__links">
+                  <a href="https://jlu.online/" target="_blank" rel="noopener noreferrer">探索像素吉大 ↗</a>
+                  <a href="https://jluai.cn/" target="_blank" rel="noopener noreferrer">进入 JLUAI 社区 ↗</a>
+                </div>
+              </section>
             </section>
             <section
               className="salon-registration"
