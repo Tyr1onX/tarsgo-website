@@ -2480,8 +2480,7 @@ html[data-theme-transition] body *::after {
     padding-block: 1.5rem;
   }
 
-  .public-site-footer--compact nav[aria-labelledby="footer-about-heading"],
-  .public-site-footer--compact nav[aria-labelledby="footer-quick-links-heading"] {
+  .public-site-footer--compact nav[aria-labelledby="footer-about-heading"] {
     display: none;
   }
 

@@ -513,6 +513,12 @@ test("Nasi Precision partner logo is publicly listed with a local, safe SVG asse
   assert.doesNotMatch(logo, /<(?:script|foreignObject)\b|\b(?:href|xlink:href)=|\bon\w+\s*=/i);
 });
 
+test("public footer removes redundant quick links and keeps a three-column layout", () => {
+  assert.doesNotMatch(home, /footer-quick-links-heading|快速入口/);
+  assert.match(home, /sm:grid-cols-2 lg:grid-cols-3/);
+  assert.doesNotMatch(styles, /footer-quick-links-heading/);
+});
+
 test("homepage mobile view prioritizes navigation without duplicating the desktop gallery", () => {
   assert.match(home, /public-home-hero relative min-h-\[64svh\]/);
   assert.match(home, /flex min-h-\[64svh\] items-center sm:min-h-\[92svh\]/);

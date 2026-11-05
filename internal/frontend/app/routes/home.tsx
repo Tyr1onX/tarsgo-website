@@ -222,7 +222,7 @@ export function PublicFooter({ compactMobile = false }: { compactMobile?: boolea
   return (
     <footer className={`public-site-footer border-t border-[var(--theme-border-subtle)] py-9 sm:py-11${compactMobile ? " public-site-footer--compact" : ""}`}>
       <div className="public-home-container">
-        <div className="grid gap-8 border-b border-[var(--theme-border-subtle)] pb-8 sm:grid-cols-2 lg:grid-cols-4 lg:gap-10">
+        <div className="grid gap-8 border-b border-[var(--theme-border-subtle)] pb-8 sm:grid-cols-2 lg:grid-cols-3 lg:gap-10">
           <section aria-labelledby="footer-social-heading">
             <Link to="/" aria-label="TARSGO 首页" className="inline-flex focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary">
               <SiteLogo className="h-11 max-w-[200px]" />
@@ -254,14 +254,6 @@ export function PublicFooter({ compactMobile = false }: { compactMobile?: boolea
             <h2 id="footer-about-heading" className="mb-1 text-sm font-semibold text-fg-primary">关于吉甲</h2>
             <Link className="footer-link" to="/about">认识吉甲</Link>
             <Link className="footer-link" to="/team-history">团队历程</Link>
-          </nav>
-
-          <nav aria-labelledby="footer-quick-links-heading" className="flex flex-col items-start gap-2">
-            <h2 id="footer-quick-links-heading" className="mb-1 text-sm font-semibold text-fg-primary">快速入口</h2>
-            <Link className="footer-link" to="/robots">机器人展示</Link>
-            <Link className="footer-link" to="/events-and-honors">赛事与荣誉</Link>
-            <Link className="footer-link" to="/join">加入我们</Link>
-            <Link className="footer-link" to="/micro-specialties/low-altitude-intelligent-sensing-control">低空微专业</Link>
           </nav>
 
           <section aria-labelledby="footer-contact-heading">
