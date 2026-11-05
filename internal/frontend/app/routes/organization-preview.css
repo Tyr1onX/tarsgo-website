@@ -26,10 +26,15 @@
   letter-spacing: 0.06em;
 }
 
+.organization-directory__advisor,
 .organization-directory__leader,
 .organization-directory__groups {
   display: grid;
   justify-items: center;
+}
+
+.organization-directory__advisor {
+  margin: 0 auto 1.7rem;
 }
 
 .organization-directory__leader {
@@ -122,8 +127,8 @@
   object-fit: cover;
 }
 
-.organization-directory__member-link:hover .organization-directory__avatar,
-.organization-directory__member-link:focus-visible .organization-directory__avatar {
+.organization-directory__member-link:is(a):hover .organization-directory__avatar,
+.organization-directory__member-link:is(a):focus-visible .organization-directory__avatar {
   transform: translateY(-2px);
   border-color: color-mix(in srgb, var(--admin-accent) 58%, var(--admin-border-subtle));
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--admin-accent) 10%, var(--admin-surface));
@@ -132,6 +137,11 @@
 .organization-directory__member-link:focus-visible {
   outline: 2px solid var(--admin-accent);
   outline-offset: 5px;
+}
+
+.organization-directory__account-missing {
+  color: var(--admin-dim);
+  font-size: 0.65rem;
 }
 
 .organization-directory__member-name {
@@ -232,6 +242,26 @@
 .organization-directory__leader-vacancy strong {
   color: var(--admin-text);
   font-weight: 580;
+}
+
+.organization-directory__others {
+  margin-top: 2.5rem;
+  border-top: 1px solid var(--admin-border-subtle);
+  padding-top: 1.55rem;
+}
+
+.organization-directory__roster {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(6rem, 1fr));
+  gap: 1.1rem 0.5rem;
+}
+
+.organization-directory__roster .organization-directory__member {
+  padding-top: 0;
+}
+
+.organization-directory__roster .organization-directory__member::before {
+  display: none;
 }
 
 .organization-directory__category-list {
