@@ -44,6 +44,22 @@ for my $path (@ARGV) {
 }
 SHA256SUM
 chmod +x "$test_tools/sha256sum"
+cat >"$test_tools/cf" <<'CLOUDFLARE'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+if [[ "$1" == auth && "$2" == whoami ]]; then
+  [[ "${MOCK_CF_AUTH_FAIL:-0}" != 1 ]]
+  exit
+fi
+[[ "$1" == cache && "$2" == purge ]] || exit 2
+[[ "$*" == *"--zone d5bf777f1421d8eb09388b268e13c18b"* && "$*" == *"--force"* ]] || exit 2
+[[ "$*" == *"https://jijiamaster.com/robots"* && "$*" != *"/dashboard"* && "$*" != *"/api/"* ]] || exit 2
+if [[ -n "${MOCK_CF_LOG:-}" ]]; then
+  printf '%s\n' "$*" >>"$MOCK_CF_LOG"
+fi
+[[ "${MOCK_CF_FAIL:-0}" != 1 ]]
+CLOUDFLARE
+chmod +x "$test_tools/cf"
 export PATH="$test_tools:$PATH"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -131,11 +147,18 @@ touch "$MOCK_BUILD_MARKER"
 MAKE
   chmod +x "$case_dir/bin/ssh" "$case_dir/bin/make"
   local output
-  output="$(PATH="$case_dir/bin:$PATH" MOCK_SSH_LOG="$case_dir/ssh.log" MOCK_BUILD_MARKER="$case_dir/build-ran" MOCK_RELEASE="$deployed_release" MOCK_COMMIT="$deployed_commit" SSH_BIN=ssh RSYNC_BIN=missing-rsync "$case_dir/repo/scripts/deploy-production.sh" 2>&1)" || fail "same-commit deployment status check failed: $output"
+  output="$(PATH="$case_dir/bin:$PATH" MOCK_CF_LOG="$case_dir/cf.log" MOCK_SSH_LOG="$case_dir/ssh.log" MOCK_BUILD_MARKER="$case_dir/build-ran" MOCK_RELEASE="$deployed_release" MOCK_COMMIT="$deployed_commit" SSH_BIN=ssh RSYNC_BIN=missing-rsync "$case_dir/repo/scripts/deploy-production.sh" 2>&1)" || fail "same-commit deployment status check failed: $output"
   [[ "$output" == *"Production deployment already healthy"* && "$output" == *"$deployed_commit"* ]] || fail "same-commit deployment was not clearly reported: $output"
   [[ "$(wc -l <"$case_dir/ssh.log")" -eq 2 ]] || fail "same-commit check continued into deployment operations"
+  [[ "$(wc -l <"$case_dir/cf.log")" -eq 1 ]] || fail "same-commit retry did not purge public HTML exactly once"
   [[ ! -e "$case_dir/build-ran" ]] || fail "same-commit check unnecessarily built a release"
-  pass "a healthy already-deployed commit returns success without building or mutating production"
+  : >"$case_dir/ssh.log"
+  set +e
+  output="$(PATH="$case_dir/bin:$PATH" MOCK_CF_FAIL=1 MOCK_SSH_LOG="$case_dir/ssh.log" MOCK_RELEASE="$deployed_release" MOCK_COMMIT="$deployed_commit" SSH_BIN=ssh RSYNC_BIN=missing-rsync "$case_dir/repo/scripts/deploy-production.sh" 2>&1)"
+  local status=$?
+  set -e
+  [[ "$status" -ne 0 && "$output" == *"Cloudflare public HTML purge failed"* ]] || fail "failed CDN purge was incorrectly reported as a healthy complete deployment: $output"
+  pass "same-commit retries purge public HTML without rebuilding and report purge failures"
 }
 
 test_missing_rsync_fails_before_cleanup_or_build() {
@@ -198,6 +221,7 @@ make_ci_client_system_bin() {
     source="$(command -v "$tool")" || fail "required test fixture command is unavailable: $tool"
     ln -s "$source" "$destination/$tool"
   done
+  ln -s "$test_tools/cf" "$destination/cf"
 }
 
 init_ci_deploy_fixture() {
@@ -355,7 +379,7 @@ run_ci_deploy_fixture() {
     MOCK_RELEASE_ASSET_CHECKSUM="$case_dir/download.tar.gz.sha256" \
     MOCK_REMOTE_ROOT="$case_dir/remote" MOCK_REMOTE_BIN="$case_dir/remote-bin" MOCK_TEST_TOOLS="$test_tools" \
     MOCK_SSH_COUNT="$case_dir/ssh-count" MOCK_RSYNC_LOG="$case_dir/rsync.log" MOCK_RELEASE_NAME="$case_dir/release-name" \
-    MOCK_DEPLOY_REACHED="$case_dir/deploy-reached" MOCK_NODE_INVOKED="$case_dir/node-invoked" \
+    MOCK_DEPLOY_REACHED="$case_dir/deploy-reached" MOCK_NODE_INVOKED="$case_dir/node-invoked" MOCK_CF_LOG="$case_dir/cf.log" \
     SSH_BIN=ssh RSYNC_BIN=rsync JIJIA_ROOT="$case_dir/remote" \
     "$case_dir/repo/scripts/deploy-production.sh" 2>&1)"
   CI_DEPLOY_STATUS=$?
@@ -377,6 +401,7 @@ test_ci_artifact_deployment_ignores_local_toolchain() {
   [[ -e "$case_dir/deploy-reached" ]] || fail "mock production cutover did not run with the CI artifact"
   [[ ! -e "$case_dir/node-invoked" ]] || fail "local Node 26 was invoked during production deployment"
   [[ "$(cat "$case_dir/ssh-count")" == 7 ]] || fail "CI artifact deployment did not complete all mocked remote stages"
+  [[ "$(wc -l <"$case_dir/cf.log")" -eq 1 ]] || fail "successful production cutover did not purge public HTML exactly once"
   release="$(cat "$case_dir/release-name")"
   [[ "$(cat "$case_dir/remote/releases/$release/commit.txt")" == "$commit" ]] || fail "uploaded CI artifact commit does not match the clean main checkout"
   (cd "$case_dir/remote/releases/$release" && sha256sum --check -- SHA256SUMS) >/dev/null || fail "uploaded CI artifact failed the production-side SHA256 check"
@@ -414,7 +439,7 @@ test_ci_artifact_rejections_precede_production_mutation() {
         [[ "$CI_DEPLOY_OUTPUT" == *"CI release asset is incomplete, damaged, or does not match commit"* ]] || fail "$mode release asset was rejected for the wrong reason: $CI_DEPLOY_OUTPUT" ;;
     esac
     [[ "$(cat "$case_dir/ssh-count")" == 2 ]] || fail "$mode CI artifact reached production cleanup or upload"
-    [[ ! -e "$case_dir/rsync.log" && ! -e "$case_dir/deploy-reached" ]] || fail "$mode CI artifact caused production transfer or cutover"
+    [[ ! -e "$case_dir/rsync.log" && ! -e "$case_dir/deploy-reached" && ! -e "$case_dir/cf.log" ]] || fail "$mode CI artifact caused production transfer, cutover, or cache purge"
   done
   pass "missing, damaged, incomplete, and commit-mismatched CI release assets are rejected before production mutation"
 }
