@@ -111,6 +111,16 @@ test("the original home keeps its video and legacy anchors while archive content
   assert.match(robotsRoute, /<RobotPhotoGallery \/>/);
 });
 
+test("homepage hero and navigation share a compact fingerprinted poster", async () => {
+  const posterPath = home.match(/poster="(\/assets\/images\/Robot\/hero-robot-[a-f0-9]{8}\.webp)"/)?.[1];
+  assert.ok(posterPath, "hero poster must use a fingerprinted image");
+  assert.ok(homeVisualNavigation.includes(`image: "${posterPath}"`), "navigation must reuse the same image");
+
+  const poster = await readFile(new URL(`../../../../public${posterPath}`, import.meta.url));
+  assert.equal(createHash("sha256").update(poster).digest("hex").slice(0, 8), posterPath.match(/-([a-f0-9]{8})\.webp$/)?.[1]);
+  assert.ok(poster.byteLength <= 200_000, "poster must stay below the mobile byte budget");
+});
+
 test("topic content keeps the five group definitions, dedicated about page, and separate evidence-based archives", () => {
   assert.match(home, /export const groups = \[/);
   assert.match(home, /机械组/);
@@ -194,8 +204,8 @@ test("large homepage photos use content-hashed responsive WebP candidates withou
     }
   }
   assert.match(modules, /image: "\/assets\/images\/ContestMoment\/contest-moment-04\.webp"/);
-  assert.match(modules, /image: "\/assets\/images\/Robot\/hero-robot\.webp"/);
-  assert.match(modules, /href: "\/robots"[\s\S]*?image: "\/assets\/images\/Robot\/hero-robot\.webp"[\s\S]*?\.\.\.noResponsiveHomeImage/);
+  assert.match(modules, /image: "\/assets\/images\/Robot\/hero-robot-[a-f0-9]{8}\.webp"/);
+  assert.match(modules, /href: "\/robots"[\s\S]*?image: "\/assets\/images\/Robot\/hero-robot-[a-f0-9]{8}\.webp"[\s\S]*?\.\.\.noResponsiveHomeImage/);
   assert.match(modules, /image: "\/assets\/images\/ContestMoment\/contest-moment-02\.webp"/);
   assert.match(modules, /image: "\/assets\/images\/Robot\/aerial-robots\.webp"/);
   assert.match(modules, /image: "\/assets\/images\/Daily\/daily-02\.webp"/);

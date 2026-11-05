@@ -18,11 +18,11 @@ func TestFrontendFallbackServesPrerenderedPagesAndSPAFallback(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	engine := gin.New()
 	registerFrontendFallback(engine, fstest.MapFS{
-		"index.html":                  &fstest.MapFile{Data: []byte("<html>prerendered home</html>")},
-		"about/index.html":            &fstest.MapFile{Data: []byte("<html>about page</html>")},
-		"robots/index.html":           &fstest.MapFile{Data: []byte("<html>robots page</html>")},
+		"index.html":                   &fstest.MapFile{Data: []byte("<html>prerendered home</html>")},
+		"about/index.html":             &fstest.MapFile{Data: []byte("<html>about page</html>")},
+		"robots/index.html":            &fstest.MapFile{Data: []byte("<html>robots page</html>")},
 		"programs/ai-salon/index.html": &fstest.MapFile{Data: []byte("<html>salon page</html>")},
-		"__spa-fallback.html":         &fstest.MapFile{Data: []byte("<html>spa shell</html>")},
+		"__spa-fallback.html":          &fstest.MapFile{Data: []byte("<html>spa shell</html>")},
 	}, true)
 
 	for _, tc := range []struct {
@@ -87,15 +87,15 @@ func TestFrontendFallbackRevalidatesStableAssetURLs(t *testing.T) {
 	modTime := time.Date(2026, time.October, 15, 5, 26, 2, 0, time.UTC)
 	engine := gin.New()
 	registerFrontendFallback(engine, fstest.MapFS{
-		"index.html":                          &fstest.MapFile{Data: []byte("<html>spa</html>")},
-		"assets/app.js":                       &fstest.MapFile{Data: []byte("console.log('ok')")},
-		"assets/images/Robot/hero-robot.webp": &fstest.MapFile{Data: []byte("webp"), ModTime: modTime},
+		"index.html":                            &fstest.MapFile{Data: []byte("<html>spa</html>")},
+		"assets/app.js":                         &fstest.MapFile{Data: []byte("console.log('ok')")},
+		"assets/images/Logo/tarsgo-logo-v5.svg": &fstest.MapFile{Data: []byte("<svg/>"), ModTime: modTime},
 		"assets/images/Home/Responsive/about-1280-8e5963df.webp": &fstest.MapFile{Data: []byte("hashed webp")},
 	}, true)
 
 	for _, assetPath := range []string{
 		"/assets/app.js",
-		"/assets/images/Robot/hero-robot.webp",
+		"/assets/images/Logo/tarsgo-logo-v5.svg",
 	} {
 		t.Run(assetPath, func(t *testing.T) {
 			request := httptest.NewRequest(http.MethodGet, assetPath, nil)
@@ -111,7 +111,7 @@ func TestFrontendFallbackRevalidatesStableAssetURLs(t *testing.T) {
 		})
 	}
 
-	request := httptest.NewRequest(http.MethodGet, "/assets/images/Robot/hero-robot.webp", nil)
+	request := httptest.NewRequest(http.MethodGet, "/assets/images/Logo/tarsgo-logo-v5.svg", nil)
 	request.Header.Set("If-Modified-Since", modTime.Format(http.TimeFormat))
 	recorder := httptest.NewRecorder()
 	engine.ServeHTTP(recorder, request)

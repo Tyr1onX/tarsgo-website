@@ -47,7 +47,7 @@ const homeNavigationModules: HomeNavigationModule[] = [
     title: "机器人展示",
     description: "浏览五类机器人影像，了解真实的团队实践。",
     href: "/robots",
-    image: "/assets/images/Robot/hero-robot.webp",
+    image: "/assets/images/Robot/hero-robot-166a7390.webp",
     // This image is also the hero video's poster; keep one shared request instead of downloading a second responsive copy.
     ...noResponsiveHomeImage,
     alt: "吉甲大师英雄机器人实物。",
