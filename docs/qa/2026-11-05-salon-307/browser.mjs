@@ -1,0 +1,72 @@
+import assert from 'node:assert/strict';
+import fs from 'node:fs/promises';
+import { execFileSync } from 'node:child_process';
+const { chromium } = await import(process.env.TARSGO_PLAYWRIGHT_MODULE || 'playwright');
+const base='http://127.0.0.1:8198';
+const out=new URL('.',import.meta.url).pathname;
+const data=JSON.parse(await fs.readFile(new URL('../../events/ai-salon-01.json',import.meta.url)));
+const official='https://www.aidaxue.com/activity/cyber-maker?ch=ai_daxue_AStudio_JLuniversity';
+const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
+const admin=await browser.newContext();
+const password=execFileSync('security',['find-generic-password','-s','com.tarsgo.acceptance','-a','TEST_SUPER_ADMIN','-w'],{encoding:'utf8'}).trim();
+const login=await admin.request.post(base+'/api/login/email/password',{data:{email:'test-super-admin@tarsgo.test',password},headers:{Origin:base}});
+assert.equal(login.status(),200,'synthetic admin login');
+const errors=[],checks=[];let id;
+async function save(e) {const r=await admin.request[e.id?'put':'post'](base+'/api/admin/ai-salon/events'+(e.id?'/'+e.id:''),{data:e,headers:{Origin:base}});assert.equal(r.status(),200);return (await r.json()).data}
+try {
+ const saved=await save(data);id=saved.id;
+ const anonymous=await browser.newContext();
+ const p=await anonymous.newPage();p.on('pageerror',e=>errors.push(e.message));
+ const requests=[];p.on('request',r=>{if(r.url().includes('/api/')) requests.push(new URL(r.url()).pathname)});
+ for (const width of [1440,390,320]) for(const theme of ['light','dark']) {
+  await p.setViewportSize({width,height:900});
+  await p.goto(base+'/programs/ai-salon/'+id);
+  await p.getByRole('heading',{name:data.title,exact:true}).waitFor();
+  if(await p.locator('html').getAttribute('data-theme')!==theme) await p.getByRole('button',{name:/^切换到.*模式$/}).click();
+  await p.waitForTimeout(500);
+  await p.getByRole('status').filter({hasText:'腾讯会议链接待公布'}).waitFor();
+  assert.equal(await p.getByRole('link',{name:'进入腾讯会议',exact:true}).count(),0);
+  assert.equal(await p.getByRole('link',{name:'报名参与 AI 创作活动',exact:true}).count(),1);
+  assert.equal(await p.locator('.salon-registration').getByRole('link',{name:'报名参与 AI 创作活动',exact:true}).count(),1);
+  const steps=await p.locator('.salon-detail-description ol li strong').allTextContents();
+  assert.deepEqual(steps,['注册报名','安装准备','线上参与','创作与提交','交流分享']);
+  assert(!/自愿报名|相互独立|不是参加沙龙的前置条件/.test(await p.locator('main').innerText()));
+  assert.equal(await p.getByRole('link',{name:'报名参与 AI 创作活动',exact:true}).getAttribute('href'),official);
+  assert.equal(await p.locator('.salon-registration').getByRole('link',{name:'登录',exact:true}).count(),0);
+  assert(await p.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`overflow ${width}`);
+  await p.screenshot({path:out+`pending-${width}-${theme}.png`,fullPage:true});
+  checks.push({width,theme,pending:true,noLoginGate:true,officialURL:official});
+ }
+ assert(!requests.includes('/api/me/profile')&&!requests.includes('/api/ai-salon/registrations'),'online does not read registration data');
+ const popupPromise=p.waitForEvent('popup');
+ await p.getByRole('link',{name:'报名参与 AI 创作活动',exact:true}).click();
+ const popup=await popupPromise;await popup.waitForURL(official);assert.equal(popup.url(),official);await popup.close();
+ checks.push({officialButtonNavigation:true,registrationFirst:true,noWebsiteLoginGate:true});
+ const a=await admin.newPage();await a.goto(base+'/programs/ai-salon/manage');
+ const row=a.getByRole('article').filter({has:a.getByRole('heading',{name:data.title,exact:true})});
+ await row.getByRole('button',{name:'编辑',exact:true}).click();
+ assert.equal(await a.getByLabel('人数上限',{exact:true}).count(),0);
+ assert.equal(await a.getByRole('button',{name:/报名截止日期/}).count(),0);
+ await a.getByLabel('腾讯会议链接（选填）',{exact:true}).fill('https://meeting.tencent.com/dm/synthetic?x=1&y=2');
+ await a.getByRole('button',{name:'保存活动',exact:true}).click();
+ await a.getByRole('status').filter({hasText:'活动已保存'}).waitFor();
+ await p.reload();await p.getByRole('link',{name:'进入腾讯会议',exact:true}).waitFor();
+ assert.equal(await p.getByRole('link',{name:'进入腾讯会议',exact:true}).getAttribute('href'),'https://meeting.tencent.com/dm/synthetic?x=1&y=2');
+ assert(await p.getByRole('link',{name:'报名参与 AI 创作活动',exact:true}).evaluate(el=>el.className.includes('bg-')));
+ assert(!(await p.getByRole('link',{name:'进入腾讯会议',exact:true}).getAttribute('class')).includes('bg-[var(--theme-accent-button)]'));
+ await p.screenshot({path:out+'meeting-320-dark.png',fullPage:true});checks.push({adminMeetingEdit:true,anonymousMeeting:true});
+ const ended=await save({...saved,meetingUrl:'https://meeting.tencent.com/dm/synthetic',startAt:new Date(Date.now()-7200000).toISOString(),endAt:new Date(Date.now()-3600000).toISOString(),summary:data.summary+'\n\n### 活动成果\n\n[作品示例](/community)\n\n![成果展示测试图](/assets/images/Home/salon-concept.svg)'});
+ await p.reload();await p.getByRole('heading',{name:'活动成果',exact:true}).waitFor();
+ await p.getByRole('heading',{name:'活动成果',exact:true}).scrollIntoViewIfNeeded();
+ await p.getByRole('img',{name:'成果展示测试图'}).waitFor();
+ assert.equal(await p.getByRole('link',{name:'进入腾讯会议',exact:true}).count(),0);
+ assert.equal(await p.getByRole('link',{name:'作品示例',exact:true}).getAttribute('href'),'/community');
+ await p.screenshot({path:out+'ended-320-dark.png',fullPage:true});checks.push({endedPublic:true,recapImages:true,recapLinks:true});
+ // Offline participation still requires a signed-in account.
+ await save({...ended,online:false,summary:'线下测试',deadline:data.startAt,startAt:data.startAt,endAt:data.endAt});
+ await p.reload();await p.getByRole('heading',{name:'线下报名',exact:true}).waitFor();
+ await p.locator('.salon-registration').getByRole('link',{name:'登录',exact:true}).waitFor();checks.push({offlineLoginPreserved:true});
+ assert.deepEqual(errors,[]);
+ await fs.writeFile(out+'browser-results.json',JSON.stringify({checks,errors,requests},null,2));
+ console.log(JSON.stringify({checks:checks.length,errors}));
+}finally{if(id) await admin.request.delete(base+'/api/admin/ai-salon/events/'+id,{headers:{Origin:base}});await browser.close()}

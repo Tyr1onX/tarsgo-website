@@ -22,6 +22,7 @@ import {
   type SalonRecord,
 } from "~/lib/ai-salon-client";
 import { salonEventStatus } from "~/lib/salon-event-status";
+import { salonContent } from "~/lib/salon-content";
 import "~/salon.css";
 
 export function meta() {
@@ -147,6 +148,7 @@ export default function AISalonDetail() {
   const data = user && privateData?.userId === user.id ? privateData : null;
   const record = data?.records.find((r) => r.eventId === Number(id));
   const now = clock.now + Math.max(0, tick - clock.receivedAt);
+  const content = salonContent(event?.summary ?? "", Boolean(event?.online));
   const registrationOpen = Boolean(
     event?.registrationOpen && now < Date.parse(event.deadline),
   );
@@ -215,7 +217,7 @@ export default function AISalonDetail() {
               {event.summary ? <div className="salon-detail-description"><h2>活动内容</h2>{event.online ? <ReactMarkdown skipHtml components={{
                 a: ({ children, href }) => <a href={href} target={href?.startsWith("https://") ? "_blank" : undefined} rel="noopener noreferrer">{children}</a>,
                 img: ({ src, alt }) => <img src={src} alt={alt ?? ""} loading="lazy" />,
-              }}>{event.summary}</ReactMarkdown> : <p>{event.summary}</p>}</div> : null}
+              }}>{content.summary}</ReactMarkdown> : <p>{event.summary}</p>}</div> : null}
             </section>
             <section
               className="salon-registration"
@@ -244,10 +246,11 @@ export default function AISalonDetail() {
               </dl>
               {event.online ? (
                 <div className="space-y-4">
+                  {content.action ? <a className={`${salonPrimaryButton} w-full`} href={content.action.href} target="_blank" rel="noopener noreferrer">{content.action.label}</a> : null}
                   {now >= Date.parse(event.endAt) ? <p className="text-fg-muted">活动已结束</p> : event.meetingUrl ? (
-                    <a className={`${salonPrimaryButton} w-full`} href={event.meetingUrl} target="_blank" rel="noopener noreferrer">进入腾讯会议</a>
+                    <a className={`${content.action ? salonButton : salonPrimaryButton} w-full`} href={event.meetingUrl} target="_blank" rel="noopener noreferrer">进入腾讯会议</a>
                   ) : <p role="status" className="text-fg-muted">腾讯会议链接待公布，请于活动前回到本页查看。</p>}
-                  <p className="text-sm text-fg-muted">免费参与，无需注册、登录或在官网报名。</p>
+                  <p className="text-sm text-fg-muted">无需注册或登录吉甲大师官网。</p>
                 </div>
               ) : <>
               {notice ? <Notify tone="success" message={notice} onClose={() => setNotice("")} /> : null}

@@ -1,0 +1,278 @@
+{
+  "base": "http://127.0.0.1:8198",
+  "timings": [
+    {
+      "name": "官网→工作台 首次 0",
+      "routeCommitMs": 12.199999988079071,
+      "titleVisibleMs": 24.5,
+      "requests": [
+        {
+          "path": "/assets/workbench-BmemM-Os.css",
+          "durationMs": 0.786
+        },
+        {
+          "path": "/assets/layout-Y9IBogIF.css",
+          "durationMs": 0.026
+        },
+        {
+          "path": "/assets/workbench-C_7YTB5G.js",
+          "durationMs": 0.474
+        },
+        {
+          "path": "/assets/leave-client-Dnr2Ojtz.js",
+          "durationMs": 1.328
+        },
+        {
+          "path": "/assets/weekly-report-calendar-CY5_I-G2.js",
+          "durationMs": 1.185
+        },
+        {
+          "path": "/assets/assignment-client-zml82vaK.js",
+          "durationMs": 1.415
+        },
+        {
+          "path": "/assets/workbench-BmemM-Os.css",
+          "durationMs": 0.554
+        },
+        {
+          "path": "/assets/weekly-report-client-vokFIGON.js",
+          "durationMs": 0.511
+        },
+        {
+          "path": "/assets/images/Logo/tarsgo-robot-v5.svg",
+          "durationMs": 0.306
+        },
+        {
+          "path": "/assets/dashboard-C3fsv8R0.js",
+          "durationMs": 0.78
+        },
+        {
+          "path": "/assets/dashboard-CPut-iJt.js",
+          "durationMs": 0.77
+        },
+        {
+          "path": "/assets/registrations-client-BhJ8Vy5q.js",
+          "durationMs": 0.845
+        },
+        {
+          "path": "/assets/favicon-BAmN4Vxr.ico",
+          "durationMs": 0.371
+        },
+        {
+          "path": "/api/leave/access",
+          "durationMs": 3.658
+        },
+        {
+          "path": "/api/me/co-builder-badge/unlock-notice",
+          "durationMs": 3.787
+        }
+      ]
+    },
+    {
+      "name": "工作台→管理 首次 0",
+      "routeCommitMs": 0.40000003576278687,
+      "titleVisibleMs": 35.700000047683716,
+      "requests": [
+        {
+          "path": "/assets/images/Logo/tarsgo-robot-v5.svg",
+          "durationMs": 0.711
+        },
+        {
+          "path": "/assets/favicon-BAmN4Vxr.ico",
+          "durationMs": 0.326
+        },
+        {
+          "path": "/api/admin/assignments/todos",
+          "durationMs": 3.123
+        },
+        {
+          "path": "/api/admin/workbench/summary",
+          "durationMs": 3.544
+        }
+      ]
+    },
+    {
+      "name": "官网→工作台 已加载 1",
+      "routeCommitMs": 16.599999964237213,
+      "titleVisibleMs": 27.799999952316284,
+      "requests": [
+        {
+          "path": "/assets/workbench-BmemM-Os.css",
+          "durationMs": 1.336
+        },
+        {
+          "path": "/assets/images/Logo/tarsgo-robot-v5.svg",
+          "durationMs": 0.407
+        },
+        {
+          "path": "/api/leave/access",
+          "durationMs": 2.452
+        },
+        {
+          "path": "/api/me/co-builder-badge/unlock-notice",
+          "durationMs": 1.705
+        },
+        {
+          "path": "/api/community/growth",
+          "durationMs": 2.616
+        },
+        {
+          "path": "/api/weekly-reports/current-status",
+          "durationMs": 1.573
+        },
+        {
+          "path": "/assets/favicon-BAmN4Vxr.ico",
+          "durationMs": 0.177
+        },
+        {
+          "path": "/api/school-leave/latest-status",
+          "durationMs": 2.151
+        }
+      ]
+    },
+    {
+      "name": "工作台→管理 已加载 1",
+      "routeCommitMs": 0.40000003576278687,
+      "titleVisibleMs": 29.19999998807907,
+      "requests": [
+        {
+          "path": "/assets/images/Logo/tarsgo-robot-v5.svg",
+          "durationMs": 0.751
+        },
+        {
+          "path": "/assets/favicon-BAmN4Vxr.ico",
+          "durationMs": 0.196
+        },
+        {
+          "path": "/api/admin/workbench/summary",
+          "durationMs": 2.712
+        },
+        {
+          "path": "/api/admin/assignments/todos",
+          "durationMs": 2.689
+        }
+      ]
+    },
+    {
+      "name": "官网→工作台 已加载 2",
+      "routeCommitMs": 8.5,
+      "titleVisibleMs": 42.69999998807907,
+      "requests": [
+        {
+          "path": "/assets/workbench-BmemM-Os.css",
+          "durationMs": 6.457
+        },
+        {
+          "path": "/assets/images/Logo/tarsgo-robot-v5.svg",
+          "durationMs": 5.101
+        },
+        {
+          "path": "/assets/favicon-BAmN4Vxr.ico",
+          "durationMs": 3.06
+        }
+      ]
+    },
+    {
+      "name": "工作台→管理 已加载 2",
+      "routeCommitMs": 0.3999999761581421,
+      "titleVisibleMs": 25,
+      "requests": [
+        {
+          "path": "/api/weekly-reports/current-status",
+          "durationMs": 51.747
+        },
+        {
+          "path": "/api/school-leave/latest-status",
+          "durationMs": 10.633
+        },
+        {
+          "path": "/api/community/growth",
+          "durationMs": 59.776
+        },
+        {
+          "path": "/assets/images/Logo/tarsgo-robot-v5.svg",
+          "durationMs": 0.723
+        },
+        {
+          "path": "/assets/favicon-BAmN4Vxr.ico",
+          "durationMs": 0.208
+        },
+        {
+          "path": "/api/admin/workbench/summary",
+          "durationMs": 2.403
+        },
+        {
+          "path": "/api/admin/assignments/todos",
+          "durationMs": 2.382
+        }
+      ]
+    },
+    {
+      "name": "官网→工作台 已加载 3",
+      "routeCommitMs": 16.400000035762787,
+      "titleVisibleMs": 30,
+      "requests": [
+        {
+          "path": "/assets/workbench-BmemM-Os.css",
+          "durationMs": 0.605
+        },
+        {
+          "path": "/assets/images/Logo/tarsgo-robot-v5.svg",
+          "durationMs": 0.463
+        },
+        {
+          "path": "/assets/favicon-BAmN4Vxr.ico",
+          "durationMs": 0.197
+        },
+        {
+          "path": "/api/leave/access",
+          "durationMs": 2.401
+        },
+        {
+          "path": "/api/me/co-builder-badge/unlock-notice",
+          "durationMs": 2.189
+        },
+        {
+          "path": "/api/weekly-reports/current-status",
+          "durationMs": 1.973
+        },
+        {
+          "path": "/api/school-leave/latest-status",
+          "durationMs": 1.159
+        },
+        {
+          "path": "/api/community/growth",
+          "durationMs": 3.571
+        }
+      ]
+    },
+    {
+      "name": "工作台→管理 已加载 3",
+      "routeCommitMs": 0.30000001192092896,
+      "titleVisibleMs": 26.100000023841858,
+      "requests": [
+        {
+          "path": "/assets/images/Logo/tarsgo-robot-v5.svg",
+          "durationMs": 0.617
+        },
+        {
+          "path": "/assets/favicon-BAmN4Vxr.ico",
+          "durationMs": 0.203
+        },
+        {
+          "path": "/api/admin/workbench/summary",
+          "durationMs": 2.2
+        },
+        {
+          "path": "/api/admin/assignments/todos",
+          "durationMs": 2.322
+        }
+      ]
+    },
+    {
+      "name": "独立文档冷加载",
+      "titleVisibleMs": 78.31129199999987
+    }
+  ],
+  "errors": []
+}
