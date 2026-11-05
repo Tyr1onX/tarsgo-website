@@ -5,6 +5,8 @@ import test from "node:test";
 
 const routes = await readFile(new URL("../routes.ts", import.meta.url), "utf8");
 const home = await readFile(new URL("../routes/home.tsx", import.meta.url), "utf8");
+const publicFooter = await readFile(new URL("../components/public-footer.tsx", import.meta.url), "utf8");
+const salonShell = await readFile(new URL("../components/ai-salon-shared.tsx", import.meta.url), "utf8");
 const homeVisualNavigation = await readFile(new URL("../components/home-visual-navigation.tsx", import.meta.url), "utf8");
 const aboutRoute = await readFile(new URL("../routes/about.tsx", import.meta.url), "utf8");
 const robotsRoute = await readFile(new URL("../routes/robots.tsx", import.meta.url), "utf8");
@@ -443,8 +445,9 @@ test("the about page tells a sourced team story through real photos, group marks
 });
 
 test("the 8421 BCD coordinate code is a pair of quiet decorative traces in public footers only", () => {
-  assert.match(home, /<FooterCoordinateSandTrace \/>/);
-  assert.match(microSpecialty, /<FooterCoordinateSandTrace \/>/);
+  assert.match(publicFooter, /<FooterCoordinateSandTrace \/>/);
+  assert.match(salonShell, /<PublicFooter \/>/);
+  assert.match(microSpecialty, /<PublicFooter \/>/);
   assert.match(footerCoordinateSandTrace, /encodeCoordinateBcd\(gijiaBaseCoordinate\)/);
   assert.match(footerCoordinateSandTrace, /aria-hidden="true"/);
   assert.match(footerCoordinateSandTrace, /data-bit=\{bit\}/);
@@ -513,8 +516,13 @@ test("Nasi Precision partner logo is publicly listed with a local, safe SVG asse
   assert.doesNotMatch(logo, /<(?:script|foreignObject)\b|\b(?:href|xlink:href)=|\bon\w+\s*=/i);
 });
 
-test("public footer keeps only brand, official social links, and its signature", () => {
-  const footer = home.slice(home.indexOf("export function PublicFooter("), home.indexOf("export function PublicHomePage("));
+test("public footer stays shared across public content pages and keeps only its essentials", () => {
+  assert.match(home, /import \{ PublicFooter \}/);
+  assert.match(salonShell, /import \{ PublicFooter \}/);
+  assert.match(microSpecialty, /import \{ PublicFooter \}/);
+  assert.doesNotMatch(salonShell, /<FooterCoordinateSandTrace \/>/);
+  assert.doesNotMatch(microSpecialty, /<footer\b/);
+  const footer = publicFooter;
   assert.ok(footer.includes("public-footer-main flex flex-col gap-5"));
   assert.ok(footer.includes("sm:flex-row sm:items-center sm:justify-between"));
   assert.ok(footer.includes('aria-label="TARSGO 首页"'));
