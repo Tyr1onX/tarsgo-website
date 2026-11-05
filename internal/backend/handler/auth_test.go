@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"mime/multipart"
 	"net/http"
 	"net/http/httptest"
@@ -14,6 +15,7 @@ import (
 
 	"tarsgo-backend/service/accountprofile"
 	"tarsgo-backend/service/auth"
+	"tarsgo-backend/service/usergroup"
 )
 
 type stubAuthService struct {
@@ -560,6 +562,115 @@ func TestMeReturnsCurrentUser(t *testing.T) {
 	}
 	if payload.Data.User.ID != 7 || payload.Data.User.Email != "user@example.com" {
 		t.Fatalf("expected current account in response, got %#v", payload.Data.User)
+	}
+}
+
+type stubAuthGroupMembership struct {
+	read func(context.Context, uint64) (*usergroup.MembershipResolution, error)
+}
+
+func (s stubAuthGroupMembership) CurrentState(ctx context.Context, userID uint64) (*usergroup.MembershipResolution, error) {
+	return s.read(ctx, userID)
+}
+
+func TestMeIncludesGroupsOnlyForAuthenticatedDashboardRequests(t *testing.T) {
+	t.Parallel()
+
+	groupCalls := 0
+	h := NewAuthHandler(stubAuthService{
+		currentUserFn: func(_ context.Context, token string) (*auth.SessionUser, error) {
+			if token != "valid-token" {
+				return nil, &auth.ServiceError{Status: http.StatusUnauthorized, Message: "未登录"}
+			}
+			return &auth.SessionUser{ID: 7, Email: "user@example.com"}, nil
+		},
+	})
+	h.SetGroupMembershipService(stubAuthGroupMembership{
+		read: func(_ context.Context, userID uint64) (*usergroup.MembershipResolution, error) {
+			groupCalls++
+			if userID != 7 {
+				t.Fatalf("group lookup used untrusted user ID %d", userID)
+			}
+			return &usergroup.MembershipResolution{
+				State:  usergroup.MembershipStateAssigned,
+				Groups: []usergroup.MembershipOption{{GroupID: 3, Name: "运营组", Role: 1}},
+			}, nil
+		},
+	})
+
+	for _, tc := range []struct {
+		path         string
+		cookie       bool
+		status       int
+		includeGroup bool
+	}{
+		{path: "/api/me", cookie: true, status: 200},
+		{path: "/api/me?include=groups&userId=999", cookie: true, status: 200, includeGroup: true},
+		{path: "/api/me?include=groups", cookie: false, status: 401},
+	} {
+		recorder, ctx := newPlainContext(http.MethodGet, tc.path)
+		if tc.cookie {
+			ctx.Request.AddCookie(&http.Cookie{Name: "tarsgo_token", Value: "valid-token"})
+		}
+		h.Me(ctx)
+		if recorder.Code != tc.status {
+			t.Fatalf("%s: status=%d, want %d; body=%s", tc.path, recorder.Code, tc.status, recorder.Body.String())
+		}
+		var payload struct {
+			Data struct {
+				User              *auth.SessionUser               `json:"user"`
+				GroupConfirmation *usergroup.MembershipResolution `json:"groupConfirmation"`
+			} `json:"data"`
+		}
+		if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+			t.Fatal(err)
+		}
+		if tc.status == 200 && (payload.Data.User == nil || payload.Data.User.ID != 7) {
+			t.Fatalf("%s: wrong session user: %#v", tc.path, payload.Data.User)
+		}
+		if tc.includeGroup {
+			if payload.Data.GroupConfirmation == nil || len(payload.Data.GroupConfirmation.Groups) != 1 ||
+				payload.Data.GroupConfirmation.Groups[0].GroupID != 3 {
+				t.Fatalf("%s: wrong group confirmation: %#v", tc.path, payload.Data.GroupConfirmation)
+			}
+		} else if payload.Data.GroupConfirmation != nil {
+			t.Fatalf("%s: group data included without authenticated opt-in", tc.path)
+		}
+	}
+	if groupCalls != 1 {
+		t.Fatalf("group service called %d times, want only one", groupCalls)
+	}
+}
+
+func TestMeGroupLookupFailurePreservesAuthenticatedUser(t *testing.T) {
+	t.Parallel()
+	h := NewAuthHandler(stubAuthService{
+		currentUserFn: func(_ context.Context, _ string) (*auth.SessionUser, error) {
+			return &auth.SessionUser{ID: 12, Email: "member@example.com"}, nil
+		},
+	})
+	h.SetGroupMembershipService(stubAuthGroupMembership{
+		read: func(_ context.Context, _ uint64) (*usergroup.MembershipResolution, error) {
+			return nil, errors.New("database temporarily unavailable")
+		},
+	})
+	recorder, ctx := newPlainContext(http.MethodGet, "/api/me?include=groups")
+	ctx.Request.AddCookie(&http.Cookie{Name: "tarsgo_token", Value: "valid-token"})
+	h.Me(ctx)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("group failure must not hide valid session: %d %s", recorder.Code, recorder.Body.String())
+	}
+	var payload struct {
+		Data struct {
+			User              *auth.SessionUser               `json:"user"`
+			GroupConfirmation *usergroup.MembershipResolution `json:"groupConfirmation"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatal(err)
+	}
+	if payload.Data.User == nil || payload.Data.User.ID != 12 || payload.Data.GroupConfirmation != nil {
+		t.Fatalf("expected identity with no group snapshot on failure: %#v", payload.Data)
 	}
 }
 

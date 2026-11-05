@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import {
+  captureGroupConfirmationCacheWriter,
   confirmUserGroup,
   getCachedUserGroupConfirmationState,
   getUserGroupConfirmationState,
@@ -22,6 +23,39 @@ const assignedState = {
   groups: [{ groupId: 8, name: "[TEST] Group", role: 1 }],
   canSelfConfirm: false,
 };
+
+test("merged account response populates the existing group cache and respects permission invalidations", async () => {
+  const originalFetch = globalThis.fetch;
+  let requests = 0;
+  globalThis.fetch = async () => {
+    requests += 1;
+    return confirmationResponse(assignedState);
+  };
+  try {
+    const accountID = 91_201;
+    const remember = captureGroupConfirmationCacheWriter();
+    remember(accountID, assignedState);
+    assert.deepEqual(await getUserGroupConfirmationState(accountID), assignedState);
+    assert.equal(requests, 0, "merged response must avoid a second network request");
+
+    const staleRemember = captureGroupConfirmationCacheWriter();
+    markUserGroupConfirmationStateStale(accountID);
+    staleRemember(accountID, { ...assignedState, state: "pending" });
+    assert.equal(needsUserGroupConfirmationRefresh(accountID), true);
+    assert.deepEqual(await getUserGroupConfirmationState(accountID), assignedState);
+    assert.equal(requests, 1, "stale merged response must not bypass revalidation");
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
+test("group-cache writer is scoped to affected account changes", () => {
+  const remember = captureGroupConfirmationCacheWriter();
+  const currentID = 91_202;
+  markUserGroupConfirmationStateStale(91_203);
+  remember(currentID, assignedState);
+  assert.deepEqual(getCachedUserGroupConfirmationState(currentID), assignedState);
+});
 
 test("coalesces pending checks and reuses completed group results by account", async () => {
   const originalFetch = globalThis.fetch;

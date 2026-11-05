@@ -3,8 +3,10 @@ import { AuthSessionCache } from "./auth-session-cache.ts";
 import { clearAllCommunityGrowthSnapshots, clearCommunityGrowthSnapshot, requestCommunityExperienceRefresh } from "./community-experience-sync.ts";
 import { clearPersonalWorkbenchSnapshots } from "./personal-workbench-cache.ts";
 import {
+  captureGroupConfirmationCacheWriter,
   invalidateUserGroupConfirmationStateCache,
   markUserGroupConfirmationStateStale,
+  type UserGroupConfirmationState,
 } from "./user-group-client.ts";
 
 export { ApiError } from "./api-client.ts";
@@ -442,7 +444,7 @@ export function subscribeAuthStateChange(
   };
 }
 
-export async function getCurrentUser(options: { force?: boolean } = {}): Promise<AuthUser> {
+export async function getCurrentUser(options: { force?: boolean; includeGroups?: boolean } = {}): Promise<AuthUser> {
   if (!options.force) {
     const cachedUser = authSessionCache.getUser();
     if (cachedUser) return cachedUser;
@@ -457,7 +459,10 @@ export async function getCurrentUser(options: { force?: boolean } = {}): Promise
 
   const requestGeneration = ++currentUserRequestGeneration;
   const requestVersion = authSessionCache.version;
-  const request = apiRequest<{ user: AuthUser }>("/api/me")
+  const rememberGroups = options.includeGroups ? captureGroupConfirmationCacheWriter() : null;
+  const request = apiRequest<{ user: AuthUser; groupConfirmation?: UserGroupConfirmationState }>(
+    options.includeGroups ? "/api/me?include=groups" : "/api/me",
+  )
     .then((data) => {
       const previousUser = authSessionCache.getUser();
       if (requestGeneration === currentUserRequestGeneration && authSessionCache.acceptAuthenticatedRequest(requestVersion, data.user)) {
@@ -466,6 +471,7 @@ export async function getCurrentUser(options: { force?: boolean } = {}): Promise
           || previousUser.role.id !== data.user.role.id
           || previousUser.role.name !== data.user.role.name
         )) clearPersonalWorkbenchSnapshots(previousUser.id);
+        if (data.groupConfirmation) rememberGroups?.(data.user.id, data.groupConfirmation);
         notifyAuthStateChange(data.user);
       }
       return data.user;

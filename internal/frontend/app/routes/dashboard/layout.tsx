@@ -79,7 +79,7 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const legacyCommunityAlias = currentPath.pathname === "/dashboard/questions" || currentPath.pathname === "/dashboard/admin/training/questions";
   const legacyDashboardAlias = legacyTeamAlias || legacyCommunityAlias;
   const auth = await resolveDashboardAuth({
-    getCurrentUser: () => getCurrentUser(),
+    getCurrentUser: () => getCurrentUser({ includeGroups: true }),
     getBootstrapStatus,
     isUnauthorized: (error) => error instanceof ApiError && (error.status === 401 || error.status === 403),
   });
