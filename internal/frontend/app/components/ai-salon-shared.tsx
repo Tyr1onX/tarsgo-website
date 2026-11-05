@@ -1,7 +1,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { Link } from "react-router";
 import { Navbar } from "~/components/navbar";
-import { FooterCoordinateSandTrace } from "~/components/footer-coordinate-sand-trace";
+import { PublicFooter } from "~/components/public-footer";
 import {
   getCachedCurrentUser,
   getOptionalCurrentUser,
@@ -64,7 +64,7 @@ export function SalonShell({ children }: { children: ReactNode }) {
       <main className="public-route-content mx-auto min-h-[70vh] max-w-6xl px-5 pb-20 pt-32 sm:px-8 lg:pt-36">
         {children}
       </main>
-      <FooterCoordinateSandTrace />
+      <PublicFooter />
     </div>
   );
 }
