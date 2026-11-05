@@ -16,6 +16,7 @@ export type OrganizationRosterMember = {
   name: string;
   userId: number | null;
   avatarUrl?: string | null;
+  accountStatus?: string;
 };
 
 export type OrganizationPreview = {
@@ -23,4 +24,5 @@ export type OrganizationPreview = {
   leader: OrganizationPosition;
   categories: OrganizationCategory[];
   otherMembers: OrganizationRosterMember[];
+  otherGuides: OrganizationRosterMember[];
 };
