@@ -392,12 +392,20 @@
 }
 
 .honors-material-image {
+  position: relative;
   display: grid;
   aspect-ratio: 4 / 3;
   place-items: center;
   overflow: hidden;
   border: 1px solid var(--theme-border);
   background: #eeece5;
+}
+
+.honors-material-image-frame {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
 }
 
 .honors-material-image img {
@@ -534,10 +542,15 @@
   border-color: #d0ad69;
 }
 
+.honors-preview-image-frame {
+  width: 100%;
+  height: min(66dvh, 50rem);
+}
+
 .honors-preview-image {
   width: auto;
   max-width: 100%;
-  max-height: min(74dvh, 60rem);
+  max-height: 100%;
   object-fit: contain;
 }
 
