@@ -1,4 +1,3 @@
-export const assignmentMaterialAccept = ".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.jpg,.jpeg,.png,.gif,.webp,.txt,.md,.zip,.7z,.rar";
 export const maxAssignmentMaterialFiles = 10;
 
 type SizedFile = { size: number };

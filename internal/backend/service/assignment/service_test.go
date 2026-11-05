@@ -317,15 +317,31 @@ func TestAssignmentStateKeepsSubmissionAndReviewOutcomesDistinct(t *testing.T) {
 	}
 }
 
-func TestValidateUploadsAcceptsPDFAndOfficeArchiveAndRejectsMismatchedContent(t *testing.T) {
-	pdf := multipartHeader(t, "作业.pdf", []byte("%PDF-1.7\ncontent"))
-	docx := multipartHeader(t, "报告.docx", []byte{'P', 'K', 3, 4, 0, 0, 0, 0})
-	valid, err := validateUploads([]*multipart.FileHeader{pdf, docx}, false)
-	if err != nil || len(valid) != 2 || valid[0].fileName != "作业.pdf" {
-		t.Fatalf("valid documents rejected: %#v, %v", valid, err)
+func TestValidateUploadsAcceptsArbitraryFileFormatsAndEnforcesCount(t *testing.T) {
+	tests := []struct {
+		name    string
+		content []byte
+	}{
+		{"作业.py", []byte("print('hello')")},
+		{"算法.ipynb", []byte(`{"cells":[]}`)},
+		{"程序.cpp", []byte("int main() { return 0; }")},
+		{"图片.png", []byte("not actually a PNG")},
+		{"脚本.sh", []byte("#!/bin/sh\necho hello")},
+		{"页面.html", []byte("<script>alert(1)</script>")},
+		{"程序.exe", []byte("MZ")},
+		{"自定义.unknown", []byte{0x00, 0xff, 0x01}},
+		{"Makefile", []byte("all:")},
 	}
-	if _, err := validateUploads([]*multipart.FileHeader{multipartHeader(t, "payload.pdf", []byte("#!/bin/sh\necho no"))}, false); err == nil {
-		t.Fatal("extension/signature mismatch was accepted")
+	for _, item := range tests {
+		t.Run(item.name, func(t *testing.T) {
+			valid, err := validateUploads([]*multipart.FileHeader{multipartHeader(t, item.name, item.content)}, false)
+			if err != nil || len(valid) != 1 {
+				t.Fatalf("attachment rejected: %#v, %v", valid, err)
+			}
+			if valid[0].contentType != "application/octet-stream" {
+				t.Fatalf("unsafe download content type: %q", valid[0].contentType)
+			}
+		})
 	}
 	if _, err := validateUploads(make([]*multipart.FileHeader, maxAssignmentFiles+1), false); err == nil {
 		t.Fatal("too many attachments were accepted")

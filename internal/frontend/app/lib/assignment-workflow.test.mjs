@@ -102,7 +102,10 @@ test("new assignments with teaching materials publish atomically and retry idemp
 });
 
 test("admin teaching materials stay separate from submissions and use permission-checked APIs", () => {
-  assert.match(assignmentManagement, /FileUploadField[\s\S]*?accept=\{assignmentMaterialAccept\}[\s\S]*?multiple/);
+  assert.doesNotMatch(assignmentManagement, /accept=\{assignmentMaterialAccept\}/);
+  assert.doesNotMatch(memberAssignments, /accept=\{fileAccept\}/);
+  assert.doesNotMatch(practicePage, /accept="\.jpg/);
+  assert.match(assignmentManagement, /FileUploadField[\s\S]*?label="教学资料附件"[\s\S]*?multiple/);
   assert.match(assignmentManagement, /validateSelection=\{\(next\) => validateAssignmentMaterialSelection\(existingMaterials, \[\], next\)/);
   assert.match(assignmentManagement, /assignmentClient\.uploadMaterialFiles\(saved\.id, pendingMaterials/);
   assert.match(assignmentManagement, /已有成员提交，教学资料已锁定/);
@@ -214,7 +217,8 @@ test("submissions and grading keep prior attempts, use Beijing deadlines, and pr
   assert.match(privateFiles, /MaxFiles\s*=\s*10/);
   assert.match(privateFiles, /MaxFileSize\s*=\s*20 << 20/);
   assert.match(privateFiles, /MaxFilesTotal\s*=\s*50 << 20/);
-  assert.match(assignmentFiles, /func matchesAssignmentFileSignature/);
+  assert.doesNotMatch(assignmentFiles, /func matchesAssignmentFileSignature/);
+  assert.match(privateFiles, /ContentType: "application\/octet-stream"/);
   assert.match(assignmentFiles, /func \(s \*assignmentFileStore\) resolve/);
 });
 

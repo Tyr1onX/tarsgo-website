@@ -20,7 +20,6 @@ export function meta() {
   return [{ title: "我的作业 | TARSGO" }];
 }
 
-const fileAccept = ".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.zip,.7z,.rar";
 const inputClass = "admin-field w-full";
 const maxSubmissionFiles = 10;
 
@@ -203,7 +202,6 @@ export default function MyAssignmentsRoute() {
               label="作业提交附件"
               files={files}
               onFilesChange={(next) => { setFiles(next); setFileUploadStatus("pending"); setError(""); }}
-              accept={fileAccept}
               multiple
               hint="最多 10 个附件"
               status={fileUploadStatus}

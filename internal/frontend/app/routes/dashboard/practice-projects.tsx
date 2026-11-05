@@ -185,7 +185,6 @@ export default function PracticeProjectsPage(){
       files={files}
       onFilesChange={(next)=>{setFiles(next);setFileUploadStatus("pending");setError("");}}
       multiple
-      accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.md,.zip,.7z,.rar"
       hint="最多 10 个 · 单个≤20 MB · 总计≤50 MB"
       status={fileUploadStatus}
       disabled={busy}
