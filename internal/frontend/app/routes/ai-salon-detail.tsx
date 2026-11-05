@@ -1,6 +1,7 @@
 import ReactMarkdown from "react-markdown";
 import { useEffect, useState, type FormEvent } from "react";
 import { BrandLoader } from "~/components/brand-loader";
+import { Notify } from "~/components/notify";
 import { Link, useParams } from "react-router";
 import {
   AcademicSummary,
@@ -249,11 +250,7 @@ export default function AISalonDetail() {
                   <p className="text-sm text-fg-muted">免费参与，无需注册、登录或在官网报名。</p>
                 </div>
               ) : <>
-              {notice ? (
-                <p role="status" className="mt-4 text-accent-primary">
-                  {notice}
-                </p>
-              ) : null}
+              {notice ? <Notify tone="success" message={notice} onClose={() => setNotice("")} /> : null}
               {authError || personalError ? (
                 <p role="alert" className="mt-4 text-red-500">
                   {authError || personalError}

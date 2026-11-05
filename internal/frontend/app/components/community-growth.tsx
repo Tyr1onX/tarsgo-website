@@ -57,7 +57,6 @@ export function CommunityGrowthBar({ userID }: { userID: number }) {
   const [checkingIn, setCheckingIn] = useState(false);
   const [open, setOpen] = useState(false);
   const [error, setError] = useState("");
-  const [notice, setNotice] = useState("");
 
   function loadProfile() {
     setError("");
@@ -69,11 +68,9 @@ export function CommunityGrowthBar({ userID }: { userID: number }) {
   async function checkIn() {
     if (checkingIn || profile?.checkedInToday) return;
     setCheckingIn(true);
-    setNotice("");
     setError("");
     try {
-      const result = await communityClient.checkIn(userID);
-      setNotice(result.earnedXp > 0 ? "" : "今天已经签到。");
+      await communityClient.checkIn(userID);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "签到失败，请稍后重试。");
     } finally {
@@ -95,7 +92,6 @@ export function CommunityGrowthBar({ userID }: { userID: number }) {
         成长详情 <CommunityIcon name="chevronDown" />
       </button>
     </div>
-    {notice ? <p className="community-growth__notice" role="status">{notice}</p> : null}
     {error ? <p className="community-growth__error" role="alert">{error}<button type="button" onClick={() => void loadProfile()}>重试</button></p> : null}
     {open && profile ? <CommunityGrowthDetails profile={profile} /> : null}
   </section>;

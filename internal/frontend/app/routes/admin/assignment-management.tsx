@@ -4,6 +4,7 @@ import { useOutletContext } from "react-router";
 
 import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
 import { WorkbenchFeatureStatus } from "~/components/workbench-feature-status";
+import { Notify } from "~/components/notify";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { ApiError } from "~/lib/api-client";
 import { assignmentClient, assignmentPublicationStatusLabel, formatAssignmentDate, type Assignment, type AssignmentInput, type AssignmentMaterialFile, type AssignmentMemberOption } from "~/lib/assignment-client";
@@ -328,7 +329,7 @@ export default function AssignmentManagementRoute() {
       </header>
       {groupError ? <div role="alert" className="admin-notice admin-notice--error">{groupError}</div> : null}
       {error ? <div role="alert" className="admin-notice admin-notice--error">{error}</div> : null}
-      {notice ? <div role="status" className="admin-notice admin-notice--success">{notice}</div> : null}
+      {notice ? <Notify tone="success" message={notice} onClose={() => setNotice("")} /> : null}
 
       {composerOpen ? <section className="admin-panel assignment-editor" aria-labelledby="assignment-editor-title">
         <div className="admin-section-heading"><h2 id="assignment-editor-title">{editing ? "编辑作业" : "发布作业"}</h2><button type="button" className="admin-button admin-button--quiet admin-button--small" onClick={() => resetDraft()} disabled={saving}>取消</button></div>

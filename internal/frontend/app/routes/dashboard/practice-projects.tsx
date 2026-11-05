@@ -1,4 +1,5 @@
 import { BrandLoader } from "~/components/brand-loader";
+import { Notify } from "~/components/notify";
 import {useEffect,useState,type FormEvent} from "react";
 import {useLocation,useOutletContext} from "react-router";
 import {FileUploadField,type FileUploadStatus} from "~/components/file-upload-field";
@@ -141,7 +142,7 @@ export default function PracticeProjectsPage(){
    <p className="mt-2 text-sm text-[var(--admin-muted)]">参与项目、记录实践成果与验收反馈。报名不需要审核，退出须经管理员同意。</p>
   </header>
   {error?<p className="admin-notice admin-notice--error" role="alert">{error}</p>:null}
-  {notice?<p className="admin-notice admin-notice--success" role="status">{notice}</p>:null}
+  {notice?<Notify tone="success" message={notice} onClose={()=>setNotice("")} />:null}
   {loading && !projects.length ? <BrandLoader label="正在加载项目" /> : null}
   {admin&&!loading?<section className="rounded-xl border border-[var(--admin-border-subtle)] p-4 space-y-4">
    <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold">{editing?"编辑项目":"创建本组实践项目"}</h2>{editing?<button type="button" className="text-sm underline" onClick={()=>{setEditing(false);setDeadlineError("");setDraft({...newDraft(),groupId:groups[0]?.groupId??0})}}>取消编辑</button>:null}</div>

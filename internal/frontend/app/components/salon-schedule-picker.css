@@ -270,11 +270,6 @@
   font-size: 0.6875rem;
   font-variant-numeric: tabular-nums;
 }
-.salon-schedule-notice {
-  margin-top: 1rem;
-  font-size: 0.75rem;
-  color: var(--theme-muted);
-}
 .salon-legacy-time {
   margin-top: 1rem;
   font-size: 0.875rem;

@@ -1,4 +1,5 @@
 import { BrandLoader } from "~/components/brand-loader";
+import { Notify } from "~/components/notify";
 import { useEffect, useRef, useState } from "react";
 import { useNavigate, useOutletContext, useSearchParams } from "react-router";
 
@@ -470,13 +471,8 @@ export default function Registrations() {
         ) : null}
       </header>
 
-      {flash ? (
-        <div
-          className={`admin-notice ${flash.type === "success" ? "admin-notice--success" : "admin-notice--error"}`}
-        >
-          {flash.message}
-        </div>
-      ) : null}
+      {flash?.type === "error" ? <div role="alert" className="admin-notice admin-notice--error">{flash.message}</div> : null}
+      {flash?.type === "success" ? <Notify tone="success" message={flash.message} onClose={() => setFlash(null)} /> : null}
 
       {interviewWorkbench ? (
         <nav aria-label="面试处理视图" className="admin-panel flex flex-wrap gap-2 p-3">

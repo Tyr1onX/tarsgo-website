@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router";
 
 import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
+import { Notify } from "~/components/notify";
 import { ApiError } from "~/lib/api-client";
 import {
   listAdminUserGroups,
@@ -94,11 +95,8 @@ export function AdmissionQRCodeSettings() {
         </p>
       </header>
 
-      {flash ? (
-        <div role={flash.tone === "error" ? "alert" : "status"} className={`admin-notice ${flash.tone === "error" ? "admin-notice--error" : "admin-notice--success"}`}>
-          {flash.message}
-        </div>
-      ) : null}
+      {flash?.tone === "error" ? <div role="alert" className="admin-notice admin-notice--error">{flash.message}</div> : null}
+      {flash?.tone === "success" ? <Notify tone="success" message={flash.message} onClose={() => setFlash(null)} /> : null}
 
       {loading ? (
         <div className="grid gap-4 md:grid-cols-2" aria-label="正在加载组别二维码配置" aria-busy="true">

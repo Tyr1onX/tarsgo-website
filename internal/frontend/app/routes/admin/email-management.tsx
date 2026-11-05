@@ -67,12 +67,6 @@ export default function EmailManagementPage() {
     };
   }, [navigate]);
 
-  useEffect(() => {
-    if (!successMessage) return;
-    const timer = window.setTimeout(() => setSuccessMessage(""), 3200);
-    return () => window.clearTimeout(timer);
-  }, [successMessage]);
-
   const currentTemplate = templates?.[activeTemplate];
   const preview = useMemo(() => {
     if (!currentTemplate || !config) return null;
@@ -144,7 +138,7 @@ export default function EmailManagementPage() {
   return (
     <>
       {successMessage ? (
-        <Notify tone="success" title="操作成功" message={successMessage} open onClose={() => setSuccessMessage("")} placement="bottom-right" />
+        <Notify tone="success" message={successMessage} onClose={() => setSuccessMessage("")} />
       ) : null}
 
       <div className="space-y-6">

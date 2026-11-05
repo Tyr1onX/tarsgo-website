@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { Link, useOutletContext } from "react-router";
 
 import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
+import { Notify } from "~/components/notify";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { downloadLeaveFile, leaveClient, type CampDetail, type CampEvent, type CollegeOption, type DailyEntry, type DailyWindow, type LeaveAccessRequest, type LeaveAccessState, type LeaveProfile, type LeaveRequest, type SchoolRun } from "~/lib/leave-client";
 
@@ -202,7 +203,7 @@ export default function LeaveWorkbench() {
     </nav> : null}
 
     {error ? <p role="alert" className="admin-notice admin-notice--error">{error}</p> : null}
-    {notice ? <p role="status" className="admin-notice admin-notice--success">{notice}</p> : null}
+    {notice ? <Notify tone="success" message={notice} onClose={() => setNotice("")} /> : null}
     {loading && !profile && dailyEntries.length === 0 ? <BrandLoader label="正在加载请假数据" /> : null}
 
     {!loading && !isAdmin && accessState && accessState.status !== "approved" ? <section className="admin-panel space-y-4 p-4 sm:p-5" aria-labelledby="leave-access-title">

@@ -54,7 +54,6 @@ import {
   type InterviewSession,
 } from "~/lib/registrations-client";
 
-const FLASH_DURATION_MS = 3000;
 const NOTIFY_ANIMATION_MS = 300;
 const MODAL_ANIMATION_MS = 220;
 
@@ -151,18 +150,6 @@ export default function UserRegistrations({
     }
     setFlashVisible(true);
   }, [flash]);
-
-  useEffect(() => {
-    if (!flash || !flashVisible) {
-      return;
-    }
-    const timer = window.setTimeout(() => {
-      setFlashVisible(false);
-    }, FLASH_DURATION_MS);
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [flash, flashVisible]);
 
   useEffect(() => {
     if (!flash || flashVisible) {
@@ -434,7 +421,7 @@ export default function UserRegistrations({
       {flash ? (
         <Notify
           tone={flash.type}
-          title={flash.type === "success" ? "操作成功" : "操作失败"}
+          title={flash.type === "success" ? undefined : "操作失败"}
           message={flash.message}
           open={flashVisible}
           onClose={clearFlash}

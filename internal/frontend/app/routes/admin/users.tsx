@@ -3,6 +3,7 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useNavigate, useOutletContext, useSearchParams } from "react-router";
 
 import { ModalShell } from "~/components/modal-shell";
+import { Notify } from "~/components/notify";
 import { CoBuilderBadgeAdminPanel } from "~/components/co-builder-badge-admin-panel";
 import { teamIdentityLabel, teamIdentityOptions, type TeamIdentityStatus } from "~/components/community-team-identity";
 import { ApiError } from "~/lib/api-client";
@@ -365,7 +366,7 @@ export default function AccountManagement() {
           : <button type="button" onClick={openCreate} className="admin-button admin-button--primary">新建账号</button>}
       </header>
       {error ? <div role="alert" className="admin-notice admin-notice--error">{error}</div> : null}
-      {notice ? <div role="status" className="admin-notice admin-notice--success">{notice}</div> : null}
+      {notice ? <Notify tone="success" message={notice} onClose={() => setNotice("")} /> : null}
       {!requestedUserId ? <>
       <div className="admin-users__summary" aria-label="账号概况">
         <span>用户总数 <strong>{summary.total}</strong></span>

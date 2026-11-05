@@ -1,4 +1,5 @@
 import { BrandLoader } from "~/components/brand-loader";
+import { Notify } from "~/components/notify";
 import { useEffect, useState, type FormEvent } from "react";
 import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
 import {
@@ -222,11 +223,7 @@ export default function AISalonManage() {
           {error || authError}
         </p>
       ) : null}
-      {notice ? (
-        <p role="status" className="mb-5 text-accent-primary">
-          {notice}
-        </p>
-      ) : null}
+      {notice ? <Notify tone="success" message={notice} onClose={() => setNotice("")} /> : null}
       {user === undefined ? (
         <BrandLoader label="正在读取登录状态" size="sm" />
       ) : !isSuper ? (

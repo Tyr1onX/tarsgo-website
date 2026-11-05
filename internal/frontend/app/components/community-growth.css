@@ -56,7 +56,6 @@
 .community-growth__details-toggle .community-icon { width: 13px; height: 13px; transition: transform 140ms ease; }
 .community-growth__details-toggle[aria-expanded="true"] .community-icon { transform: rotate(180deg); }
 .community-growth__details-toggle:disabled { opacity: .55; }
-.community-growth__notice,
 .community-growth__error { margin: 7px 1px 0; color: var(--admin-accent-text); font-size: 11px; line-height: 1.5; }
 .community-growth__error { color: var(--theme-danger); }
 .community-growth__error button { margin-left: 8px; text-decoration: underline; text-underline-offset: 2px; }
