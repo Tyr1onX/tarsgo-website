@@ -1,4 +1,4 @@
-.loading-image {
+:where(.loading-image) {
   position: relative;
   display: grid;
   min-width: 0;
