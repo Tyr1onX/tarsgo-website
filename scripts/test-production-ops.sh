@@ -44,6 +44,29 @@ for my $path (@ARGV) {
 }
 SHA256SUM
 chmod +x "$test_tools/sha256sum"
+cat >"$test_tools/cf" <<'CF'
+#!/usr/bin/env bash
+set -Eeuo pipefail
+if [[ "${1:-} ${2:-}" == "auth whoami" ]]; then
+  [[ "${MOCK_CF_AUTH_FAIL:-0}" != 1 ]] || exit 1
+  printf '{"authenticated":true}\n'
+  exit 0
+fi
+if [[ "${1:-} ${2:-}" == "cache purge" ]]; then
+  [[ "${MOCK_CF_PURGE_FAIL:-0}" != 1 ]] || exit 1
+  [[ "$*" == *"--zone jijiamaster.com --force --body "* ]] || exit 2
+  body="${@: -1}"
+  for url in https://jijiamaster.com/ https://jijiamaster.com/about https://jijiamaster.com/robots https://jijiamaster.com/events-and-honors https://jijiamaster.com/team-history https://jijiamaster.com/join https://jijiamaster.com/programs/ai-salon; do
+    [[ "$body" == *"\"$url\""* ]] || exit 3
+  done
+  [[ "$body" != *"/api/"* && "$body" != *"/login"* && "$body" != *"/dashboard"* ]] || exit 4
+  printf 'purged\n' >>"${MOCK_CF_LOG:-/dev/null}"
+  printf '{"id":"mock-zone"}\n'
+  exit 0
+fi
+exit 5
+CF
+chmod +x "$test_tools/cf"
 export PATH="$test_tools:$PATH"
 
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -131,11 +154,12 @@ touch "$MOCK_BUILD_MARKER"
 MAKE
   chmod +x "$case_dir/bin/ssh" "$case_dir/bin/make"
   local output
-  output="$(PATH="$case_dir/bin:$PATH" MOCK_SSH_LOG="$case_dir/ssh.log" MOCK_BUILD_MARKER="$case_dir/build-ran" MOCK_RELEASE="$deployed_release" MOCK_COMMIT="$deployed_commit" SSH_BIN=ssh RSYNC_BIN=missing-rsync "$case_dir/repo/scripts/deploy-production.sh" 2>&1)" || fail "same-commit deployment status check failed: $output"
+  output="$(PATH="$case_dir/bin:$PATH" MOCK_SSH_LOG="$case_dir/ssh.log" MOCK_BUILD_MARKER="$case_dir/build-ran" MOCK_RELEASE="$deployed_release" MOCK_COMMIT="$deployed_commit" MOCK_CF_LOG="$case_dir/cf.log" SSH_BIN=ssh RSYNC_BIN=missing-rsync "$case_dir/repo/scripts/deploy-production.sh" 2>&1)" || fail "same-commit deployment status check failed: $output"
   [[ "$output" == *"Production deployment already healthy"* && "$output" == *"$deployed_commit"* ]] || fail "same-commit deployment was not clearly reported: $output"
   [[ "$(wc -l <"$case_dir/ssh.log")" -eq 2 ]] || fail "same-commit check continued into deployment operations"
   [[ ! -e "$case_dir/build-ran" ]] || fail "same-commit check unnecessarily built a release"
-  pass "a healthy already-deployed commit returns success without building or mutating production"
+  [[ "$(cat "$case_dir/cf.log")" == purged ]] || fail "same-commit rerun did not retry HTML cache purge"
+  pass "a healthy already-deployed commit avoids a rebuild and can retry HTML cache purge"
 }
 
 test_missing_rsync_fails_before_cleanup_or_build() {
@@ -194,7 +218,7 @@ test_missing_ssh_fails_before_remote_access() {
 make_ci_client_system_bin() {
   local destination="$1" tool source
   mkdir -p "$destination"
-  for tool in bash env git date mktemp mkdir cp chmod rm cat wc awk sed tail perl tar gzip install mv dirname touch; do
+  for tool in bash env git date mktemp mkdir cp chmod rm cat wc awk sed tail perl tar gzip install mv dirname touch cf; do
     source="$(command -v "$tool")" || fail "required test fixture command is unavailable: $tool"
     ln -s "$source" "$destination/$tool"
   done
@@ -356,6 +380,7 @@ run_ci_deploy_fixture() {
     MOCK_REMOTE_ROOT="$case_dir/remote" MOCK_REMOTE_BIN="$case_dir/remote-bin" MOCK_TEST_TOOLS="$test_tools" \
     MOCK_SSH_COUNT="$case_dir/ssh-count" MOCK_RSYNC_LOG="$case_dir/rsync.log" MOCK_RELEASE_NAME="$case_dir/release-name" \
     MOCK_DEPLOY_REACHED="$case_dir/deploy-reached" MOCK_NODE_INVOKED="$case_dir/node-invoked" \
+    MOCK_CF_LOG="$case_dir/cf.log" MOCK_CF_AUTH_FAIL="${MOCK_CF_AUTH_FAIL:-0}" MOCK_CF_PURGE_FAIL="${MOCK_CF_PURGE_FAIL:-0}" \
     SSH_BIN=ssh RSYNC_BIN=rsync JIJIA_ROOT="$case_dir/remote" \
     "$case_dir/repo/scripts/deploy-production.sh" 2>&1)"
   CI_DEPLOY_STATUS=$?
@@ -377,6 +402,7 @@ test_ci_artifact_deployment_ignores_local_toolchain() {
   [[ -e "$case_dir/deploy-reached" ]] || fail "mock production cutover did not run with the CI artifact"
   [[ ! -e "$case_dir/node-invoked" ]] || fail "local Node 26 was invoked during production deployment"
   [[ "$(cat "$case_dir/ssh-count")" == 7 ]] || fail "CI artifact deployment did not complete all mocked remote stages"
+  [[ "$(cat "$case_dir/cf.log")" == purged ]] || fail "successful deployment did not purge public HTML"
   release="$(cat "$case_dir/release-name")"
   [[ "$(cat "$case_dir/remote/releases/$release/commit.txt")" == "$commit" ]] || fail "uploaded CI artifact commit does not match the clean main checkout"
   (cd "$case_dir/remote/releases/$release" && sha256sum --check -- SHA256SUMS) >/dev/null || fail "uploaded CI artifact failed the production-side SHA256 check"
@@ -392,6 +418,20 @@ test_ci_artifact_deployment_ignores_local_toolchain() {
   run_ci_deploy_fixture "$no_frontend"
   [[ "$CI_DEPLOY_STATUS" -eq 0 && -e "$no_frontend/deploy-reached" ]] || fail "CI artifact deployment required a local frontend build environment: $CI_DEPLOY_OUTPUT"
   pass "CI release deployment succeeds with no local Node, Corepack, pnpm, Go, or Make"
+}
+
+test_cloudflare_cache_purge_guards() {
+  local auth_case="$tmp/cf-auth-denied" purge_case="$tmp/cf-purge-failed"
+  init_ci_deploy_fixture "$auth_case" success-no-frontend
+  MOCK_CF_AUTH_FAIL=1 run_ci_deploy_fixture "$auth_case"
+  [[ "$CI_DEPLOY_STATUS" -ne 0 && "$CI_DEPLOY_OUTPUT" == *"authorize Cloudflare CLI"* ]] || fail "unauthenticated Cloudflare deployment was not rejected before cutover"
+  [[ ! -e "$auth_case/ssh-count" && ! -e "$auth_case/deploy-reached" ]] || fail "deployment attempted remote operations without Cloudflare credentials"
+
+  init_ci_deploy_fixture "$purge_case" success-no-frontend
+  MOCK_CF_PURGE_FAIL=1 run_ci_deploy_fixture "$purge_case"
+  [[ "$CI_DEPLOY_STATUS" -ne 0 && "$CI_DEPLOY_OUTPUT" == *"HTML cache purge failed"* ]] || fail "cache purge failure was not reported"
+  [[ -e "$purge_case/deploy-reached" ]] || fail "cache purge failure test did not reach mock deploy"
+  pass "Cloudflare authentication blocks unsafe cutover and purge failures stay visible"
 }
 
 test_ci_artifact_rejections_precede_production_mutation() {
@@ -1077,6 +1117,7 @@ test_already_deployed_commit_is_idempotent
 test_missing_rsync_fails_before_cleanup_or_build
 test_missing_ssh_fails_before_remote_access
 test_ci_artifact_deployment_ignores_local_toolchain
+test_cloudflare_cache_purge_guards
 test_ci_artifact_rejections_precede_production_mutation
 test_safe_cleanup_and_fresh_threshold
 test_database_unready_stops_before_build_or_migration
