@@ -46,6 +46,18 @@ function readConfirmationState(accountId: number | undefined, force: boolean): P
 	return request;
 }
 
+// Reuse the existing per-account cache when /api/me includes a group snapshot.
+// Ignore results from requests that started before a permission change.
+export function captureGroupConfirmationCacheWriter() {
+	const allVersion = allAccountsGeneration;
+	const accountVersions = new Map(accountGenerations);
+	return (accountId: number, state: UserGroupConfirmationState) => {
+		if (allVersion !== allAccountsGeneration ||
+			(accountVersions.get(accountId) ?? 0) !== (accountGenerations.get(accountId) ?? 0)) return;
+		confirmationCache.set(accountId, { state, stale: false, verifiedAt: Date.now() });
+	};
+}
+
 export function getUserGroupConfirmationState(accountId?: number): Promise<UserGroupConfirmationState> {
 	return readConfirmationState(accountId, false);
 }

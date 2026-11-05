@@ -13,10 +13,16 @@ import (
 	"tarsgo-backend/model"
 	"tarsgo-backend/service/accountprofile"
 	"tarsgo-backend/service/auth"
+	"tarsgo-backend/service/usergroup"
 )
 
+type groupMembershipReader interface {
+	CurrentState(context.Context, uint64) (*usergroup.MembershipResolution, error)
+}
+
 type AuthHandler struct {
-	service authService
+	service         authService
+	groupMembership groupMembershipReader
 }
 
 type authService interface {
@@ -87,6 +93,10 @@ type switchAccountRequest struct {
 
 func NewAuthHandler(service authService) *AuthHandler {
 	return &AuthHandler{service: service}
+}
+
+func (h *AuthHandler) SetGroupMembershipService(service groupMembershipReader) {
+	h.groupMembership = service
 }
 
 func (h *AuthHandler) SendRegisterCode(c *gin.Context) {
@@ -399,7 +409,15 @@ func (h *AuthHandler) Me(c *gin.Context) {
 		}
 	}
 
-	writeAPI(c, http.StatusOK, "获取当前用户成功", gin.H{"user": user})
+	response := gin.H{"user": user}
+	if c.Query("include") == "groups" && h.groupMembership != nil {
+		// Preserve the identity response even if the separate group lookup fails.
+		// The dashboard can then use its existing group-retry/error path.
+		if groups, groupErr := h.groupMembership.CurrentState(c.Request.Context(), user.ID); groupErr == nil {
+			response["groupConfirmation"] = groups
+		}
+	}
+	writeAPI(c, http.StatusOK, "获取当前用户成功", response)
 }
 
 // UpdateProfile uses the authenticated account ID, never a client-supplied ID.

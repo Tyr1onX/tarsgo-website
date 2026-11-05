@@ -253,14 +253,15 @@ test("a rejected profile update clears the current session on 401", async () => 
   }
 });
 
-test("dashboard verifies identity before a single account-scoped group query", () => {
+test("dashboard asks for account-scoped groups in the authenticated identity response with a safe fallback", () => {
   const clientLoaderSource = dashboardLayoutSource.slice(dashboardLayoutSource.indexOf("export async function clientLoader"), dashboardLayoutSource.indexOf("clientLoader.hydrate"));
   const groupRequestIndex = dashboardLayoutSource.indexOf("getUserGroupConfirmationState(currentUser.id)");
   const authRequestIndex = dashboardLayoutSource.indexOf("const auth = await resolveDashboardAuth(");
   assert.ok(groupRequestIndex > authRequestIndex);
   assert.doesNotMatch(clientLoaderSource, /const groupRequest =/);
   assert.match(dashboardLayoutSource, /getUserGroupConfirmationState\(currentUser\.id\)/);
-  assert.match(dashboardLayoutSource, /getCurrentUser: \(\) => getCurrentUser\(\)/);
+  assert.match(dashboardLayoutSource, /getCurrentUser: \(\) => getCurrentUser\(\{ includeGroups: true \}\)/);
+  assert.match(authClientSource, /includeGroups \? "\/api\/me\?include=groups" : "\/api\/me"/);
   assert.match(dashboardLayoutSource, /refreshUserGroupConfirmationState/);
 });
 
