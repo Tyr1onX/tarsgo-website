@@ -435,6 +435,7 @@ export default function AISalonManage() {
                           : "报名开放"}
                       </p>
                       {!e.online ? <p className="mt-2 text-sm text-fg-muted">人数上限 {e.capacity}</p> : null}
+                      {e.online ? <p className="mt-2 text-sm text-fg-muted">报名按钮点击 {e.registrationClicks} 次</p> : null}
                     </div>
                     <div className="flex flex-wrap items-start gap-3">
                       <button

@@ -225,6 +225,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	salonHandler := handler.NewAISalonHandler(aisalon.NewService(db))
 	api.GET("/ai-salon/events", salonHandler.List)
 	api.GET("/ai-salon/events/:id", salonHandler.Get)
+	api.POST("/ai-salon/events/:id/registration-click", requireSameOriginRequest(cfg), salonHandler.RegistrationClick)
 	salonMemberAPI := api.Group("/ai-salon")
 	salonMemberAPI.Use(middleware.RequireAuthenticated(authService))
 	salonMemberAPI.GET("/registrations", salonHandler.Mine)

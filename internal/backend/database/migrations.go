@@ -233,6 +233,12 @@ func migrationRegistry(appEnv string) []migration {
 			}
 			return nil
 		}},
+		{version: 54, apply: func(db *gorm.DB) error {
+			if !db.Migrator().HasColumn(&model.AISalonEvent{}, "RegistrationClicks") {
+				return db.Migrator().AddColumn(&model.AISalonEvent{}, "RegistrationClicks")
+			}
+			return nil
+		}},
 	}
 }
 

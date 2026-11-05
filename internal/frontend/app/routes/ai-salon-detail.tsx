@@ -23,6 +23,7 @@ import {
 } from "~/lib/ai-salon-client";
 import { salonEventStatus } from "~/lib/salon-event-status";
 import { salonContent } from "~/lib/salon-content";
+import { trackSalonRegistrationClick } from "~/lib/salon-registration-click";
 import "~/salon.css";
 
 export function meta() {
@@ -246,7 +247,7 @@ export default function AISalonDetail() {
               </dl>
               {event.online ? (
                 <div className="space-y-4">
-                  {content.action ? <a className={`${salonPrimaryButton} w-full`} href={content.action.href} target="_blank" rel="noopener noreferrer">{content.action.label}</a> : null}
+                  {content.action ? <a className={`${salonPrimaryButton} w-full`} href={content.action.href} target="_blank" rel="noopener noreferrer" onClick={() => trackSalonRegistrationClick(event.id)} onAuxClick={(e) => { if (e.button === 1) trackSalonRegistrationClick(event.id); }}>{content.action.label}</a> : null}
                   {now >= Date.parse(event.endAt) ? <p className="text-fg-muted">活动已结束</p> : event.meetingUrl ? (
                     <a className={`${content.action ? salonButton : salonPrimaryButton} w-full`} href={event.meetingUrl} target="_blank" rel="noopener noreferrer">进入腾讯会议</a>
                   ) : <p role="status" className="text-fg-muted">腾讯会议链接待公布，请于活动前回到本页查看。</p>}
