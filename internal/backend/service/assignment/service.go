@@ -936,6 +936,16 @@ func (s *Service) Submit(ctx context.Context, actor Actor, assignmentID uint64, 
 }
 
 func (s *Service) Review(ctx context.Context, actor Actor, submissionID uint64, input ReviewInput) (*AdminAssignmentDetail, error) {
+	return s.review(ctx, actor, submissionID, input, false)
+}
+
+// ReviewFirst keeps one-time Feishu card actions from adding duplicate history.
+// Website administrators can still revise scores through the regular Review method.
+func (s *Service) ReviewFirst(ctx context.Context, actor Actor, submissionID uint64, input ReviewInput) (*AdminAssignmentDetail, error) {
+	return s.review(ctx, actor, submissionID, input, true)
+}
+
+func (s *Service) review(ctx context.Context, actor Actor, submissionID uint64, input ReviewInput, firstOnly bool) (*AdminAssignmentDetail, error) {
 	if err := requireAdmin(actor); err != nil {
 		return nil, err
 	}
@@ -967,6 +977,15 @@ func (s *Service) Review(ctx context.Context, actor Actor, submissionID uint64, 
 		}
 		if latest.ID != submission.ID {
 			return conflict("只能批改成员最近一次提交")
+		}
+		if firstOnly {
+			var count int64
+			if err := tx.Model(&model.AssignmentReview{}).Where("submission_id = ?", submission.ID).Count(&count).Error; err != nil {
+				return err
+			}
+			if count != 0 {
+				return conflict("该提交已经完成批改")
+			}
 		}
 		review := model.AssignmentReview{
 			SubmissionID: submission.ID, ReviewerID: actor.ID, Score: input.Score,
