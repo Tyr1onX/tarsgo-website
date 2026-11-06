@@ -64,7 +64,6 @@ type EmailConfig struct {
 type FeishuConfig struct {
 	AppID             string
 	AppSecret         string
-	VerificationToken string
 	EncryptKey        string
 	TesterUnionID     string
 	TesterUserID      uint64
@@ -128,7 +127,6 @@ func Load() (*Config, error) {
 		Feishu: FeishuConfig{
 			AppID:             strings.TrimSpace(os.Getenv("FEISHU_APP_ID")),
 			AppSecret:         strings.TrimSpace(os.Getenv("FEISHU_APP_SECRET")),
-			VerificationToken: strings.TrimSpace(os.Getenv("FEISHU_VERIFICATION_TOKEN")),
 			EncryptKey:        strings.TrimSpace(os.Getenv("FEISHU_ENCRYPT_KEY")),
 			TesterUnionID:     strings.TrimSpace(os.Getenv("FEISHU_TESTER_UNION_ID")),
 			TesterUserID:      uint64(max(0, getEnvAsInt("FEISHU_TESTER_USER_ID", 0))),
