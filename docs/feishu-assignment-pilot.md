@@ -1,49 +1,43 @@
-# 飞书作业批改单人试点
+# 飞书作业评分单人试点
 
-本阶段只允许一名管理员在飞书私聊里批改。网站仍是作业状态、分数与批改历史的唯一数据源；不上传附件到飞书云盘。
+网站仍是作业成绩与批改历史的唯一数据源；试点只向指定飞书 union_id 发送卡片。
 
-## 功能范围
+## 流程
 
-- 模拟卡片：填写 0–100 分、通过/退回、评语，飞书回调只更新模拟卡片，不修改数据库。
-- 真实卡片：配置中的网站管理员**手动**指定最新、尚未批改的提交发送私聊卡片，回调调用现有作业评分服务，继续验证组权限并保留批改历史。
-- 飞书旧卡片无法重复写入成绩。网站已有的重新评分操作仍可使用。
-- 不自动向机器人推送所有新人作业；不开放其他成员；附件仍按原网站登录与权限访问。
+1. 网站试点管理员发送模拟卡片或指定待批改作业卡片。
+2. 飞书将卡片操作以 HTTP POST 发送到 `/api/integrations/feishu/card-action`。
+3. 网站解析 JSON；配置了 Encrypt Key 时先按飞书格式解密。
+4. 模拟卡片只更新飞书展示，不写数据库；真实卡片调用原有 `assignment.Service.ReviewFirst` 保存成绩。
 
-## 服务端环境变量
+回调不校验签名、时间戳、Verification Token、App ID 或飞书操作者身份，也不要求真实评分必须加密。保留 JSON 解码、输入格式检查，以及评分服务已有的提交状态和组权限逻辑。
 
-不得将真实值提交至仓库、放入前端或在聊天中发送。
+**风险：这是公开且不鉴权的回调接口。** 任意能够构造有效明文请求的人都可能冒用配置的网站管理员提交真实评分；在加密开启时，构造可解密的请求通常还需要对应密钥。仅限风险已被明确接受的试点使用，不应作为常规生产安全方案。评分服务的角色检查无法替代回调来源认证。
 
-| 环境变量 | 用途 |
-| --- | --- |
-| `FEISHU_APP_ID` | 企业自建应用 App ID |
-| `FEISHU_APP_SECRET` | 企业自建应用 App Secret |
-| `FEISHU_VERIFICATION_TOKEN` | 回调 Verification Token |
-| `FEISHU_ENCRYPT_KEY` | 回调 Encrypt Key；真实评分必须配置 |
-| `FEISHU_TESTER_UNION_ID` | 试点操作者本人飞书 union_id |
-| `FEISHU_TESTER_USER_ID` | 同一操作者的网站用户 ID |
+## 环境配置
 
-前四项中 App ID、Secret、Verification Token 和 union_id 是基础必需项。真实评分还要求网站用户 ID、Encrypt Key 以及有效的管理员组权限。修改服务器环境变量后需要重启服务。
+- `FEISHU_APP_ID`、`FEISHU_APP_SECRET`：机器人发送卡片
+- `FEISHU_TESTER_UNION_ID`：指定飞书卡片收件人
+- `FEISHU_TESTER_USER_ID`：网站评分身份
+- `FEISHU_ENCRYPT_KEY`：可选；仅用于解析飞书加密请求，需与飞书后台实际设置一致
 
-## 飞书管理后台
+不要在仓库、日志或聊天中公开密钥。
 
-1. 确认应用已开启机器人能力并拥有 `im:message:send_as_bot` 权限。
-2. 「开发配置 → 事件与回调 → 回调配置」使用 HTTPS 开发者服务器，回调 URL 设为 `https://jijiamaster.com/api/integrations/feishu/card-action`。
-3. 「加密策略」核对 Verification Token 和 Encrypt Key，填写到网站服务器的私有环境配置。
-4. 订阅卡片回调 **`card.action.trigger`**（不是普通消息事件），创建版本并发布，可用范围暂时仅自己。
+## 飞书后台
 
-网站支持 `url_verification` challenge；正式回调有 Token 验证，启用 Encrypt Key 后解密并校验 Token；携带签名时间戳时校验完整签名；未携带时间戳时，以解密后的 Verification Token 和回调创建时间（微秒级，5 分钟内）验证。飞书需要在 3 秒内获得响应。
+- 开启机器人发送消息权限。
+- 使用回调 URL `https://jijiamaster.com/api/integrations/feishu/card-action`。
+- 订阅 `card.action.trigger`，发布应用版本；需与服务器的加密设置一致。
+- 飞书必须在规定时间内收到 HTTP 200 回调响应。
 
-## 手工触发
+## 手工发送
 
-从已登录的试点管理员账号以同源请求调用：
+已登录的指定网站管理员调用：
 
-- `POST /api/admin/integrations/feishu/test-card`：发送模拟卡片。
-- `POST /api/admin/integrations/feishu/submissions/{id}/card`：发送真实作业卡片，仅供授权的测试提交使用。
+- `POST /api/admin/integrations/feishu/test-card`：模拟卡片，不修改真实成绩。
+- `POST /api/admin/integrations/feishu/submissions/{id}/card`：真实提交的批改卡片。
 
-两条接口都经过网站登录、管理员权限、同源和试点用户校验。回调根据飞书身份映射至网站管理员，并复用现有 `assignment.Service`，不能绕过组权限。
+这两个**发送**接口仍经过网站登录和管理员鉴权；**回调接收**接口不鉴权。
 
 ## 验收
 
-模拟卡片验证 0、100 分及通过/退回；101、负数、小数、缺失字段必须拒绝；非试点身份、错误 Token、签名、过期回调必须拒绝；真实写分需验证网站批改历史只新增一次以及跨组越权被拒绝。
-
-后端运行 `go test ./...`。在服务器密钥、回调 URL、发布版号配置完成前，不能声称线上卡片评分链路已验证。
+先用试点账号模拟评分（0 分、100 分、通过、退回）验证回调成功与卡片更新。真实评分仅使用专门的测试作业，不修改已有成员的真实成绩。完成现场联调前不得声称端到端通过。

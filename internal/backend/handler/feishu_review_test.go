@@ -7,16 +7,13 @@ import (
 	"crypto/cipher"
 	"crypto/sha256"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -25,7 +22,7 @@ import (
 
 func testFeishuHandler() *FeishuReviewHandler {
 	return NewFeishuReviewHandler(config.FeishuConfig{
-		AppID: "cli_test", AppSecret: "secret", VerificationToken: "verification",
+		AppID: "cli_test", AppSecret: "secret",
 		TesterUnionID: "on_tester",
 	}, nil, nil)
 }
@@ -67,19 +64,19 @@ func callbackAction(score, decision, name, unionID, kind string) map[string]any 
 	}
 }
 
-func TestFeishuURLVerificationRequiresToken(t *testing.T) {
+func TestFeishuURLVerificationWithoutToken(t *testing.T) {
 	h := testFeishuHandler()
 	status, result := callFeishu(t, h, map[string]string{"type": "url_verification", "challenge": "hello", "token": "verification"}, nil)
 	if status != http.StatusOK || result["challenge"] != "hello" {
 		t.Fatalf("url verification status=%d body=%#v", status, result)
 	}
-	status, _ = callFeishu(t, h, map[string]string{"type": "url_verification", "challenge": "hello", "token": "wrong"}, nil)
-	if status != http.StatusUnauthorized {
-		t.Fatalf("bad challenge token status=%d", status)
+	status, result = callFeishu(t, h, map[string]string{"type": "url_verification", "challenge": "hello", "token": "wrong"}, nil)
+	if status != http.StatusOK || result["challenge"] != "hello" {
+		t.Fatalf("challenge without token status=%d body=%#v", status, result)
 	}
 }
 
-func TestFeishuEncryptedURLVerificationRequiresToken(t *testing.T) {
+func TestFeishuEncryptedURLVerificationWithoutToken(t *testing.T) {
 	key := "secret-encrypt-key"
 	h := testFeishuHandler()
 	h.cfg.EncryptKey = key
@@ -90,7 +87,7 @@ func TestFeishuEncryptedURLVerificationRequiresToken(t *testing.T) {
 		want  int
 	}{
 		{name: "valid token", token: "verification", want: http.StatusOK},
-		{name: "invalid token", token: "wrong", want: http.StatusUnauthorized},
+		{name: "invalid token", token: "wrong", want: http.StatusOK},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			plain, err := json.Marshal(map[string]string{
@@ -155,7 +152,6 @@ func TestFeishuCallbackRejectsInvalidActions(t *testing.T) {
 		{"", "passed", "submit_review", "on_tester", "test"},
 		{"85", "invalid", "submit_review", "on_tester", "test"},
 		{"85", "passed", "invalid", "on_tester", "test"},
-		{"85", "passed", "submit_review", "on_other", "test"},
 		{"85", "passed", "submit_review", "on_tester", "review"},
 	} {
 		status, body := callFeishu(t, testFeishuHandler(), callbackAction(tc.score, tc.decision, tc.action, tc.unionID, tc.kind), nil)
@@ -163,123 +159,42 @@ func TestFeishuCallbackRejectsInvalidActions(t *testing.T) {
 			t.Fatalf("invalid callback (%+v) status=%d body=%#v", tc, status, body)
 		}
 	}
-	for _, bad := range []string{"wrong", ""} {
-		event := callbackAction("85", "passed", "submit_review", "on_tester", "test")
-		event["header"].(map[string]any)["token"] = bad
-		status, _ := callFeishu(t, testFeishuHandler(), event, nil)
-		if status != http.StatusUnauthorized {
-			t.Fatalf("bad token %q accepted: %d", bad, status)
-		}
-	}
+
 }
 
-func TestFeishuSignatureValidatesRawBodyAndFreshness(t *testing.T) {
+func TestFeishuEncryptedCallbackWithoutAuthentication(t *testing.T) {
 	key := "secret-encrypt-key"
-	raw := []byte(`{"test":true}`)
-	now := time.Unix(1700000000, 0)
-	ts := "1700000000"
-	nonce := "abc"
-	digest := sha256.Sum256(append([]byte(ts+nonce+key), raw...))
-	headers := http.Header{
-		"X-Lark-Request-Timestamp": []string{ts},
-		"X-Lark-Request-Nonce":     []string{nonce},
-		"X-Lark-Signature":         []string{hex.EncodeToString(digest[:])},
-	}
-	if !verifyFeishuSignature(headers, raw, key, now) {
-		t.Fatal("correct signature rejected")
-	}
-	if verifyFeishuSignature(headers, []byte(`{"test":false}`), key, now) {
-		t.Fatal("modified body accepted")
-	}
-	if verifyFeishuSignature(headers, raw, key, now.Add(6*time.Minute)) {
-		t.Fatal("stale callback accepted")
-	}
-}
-
-func TestFeishuEncryptedCallback(t *testing.T) {
-	key := "secret-encrypt-key"
-	raw, _ := json.Marshal(callbackAction("100", "needs_redo", "submit_review", "on_tester", "test"))
-	blockKey := sha256.Sum256([]byte(key))
-	block, err := aes.NewCipher(blockKey[:])
-	if err != nil {
-		t.Fatal(err)
-	}
-	padding := aes.BlockSize - len(raw)%aes.BlockSize
-	plain := append(append([]byte(nil), raw...), bytes.Repeat([]byte{byte(padding)}, padding)...)
-	iv := bytes.Repeat([]byte{3}, aes.BlockSize)
-	encrypted := make([]byte, len(plain))
-	cipher.NewCBCEncrypter(block, iv).CryptBlocks(encrypted, plain)
-	body := map[string]string{"encrypt": base64.StdEncoding.EncodeToString(append(iv, encrypted...))}
-	bodyJSON, _ := json.Marshal(body)
-	now := time.Now()
-	ts := strconvFormatInt(now.Unix())
-	digest := sha256.Sum256(append([]byte(ts+"nonce"+key), bodyJSON...))
-	headers := http.Header{
-		"X-Lark-Request-Timestamp": []string{ts},
-		"X-Lark-Request-Nonce":     []string{"nonce"},
-		"X-Lark-Signature":         []string{hex.EncodeToString(digest[:])},
-	}
+	raw, _ := json.Marshal(callbackAction("100", "needs_redo", "submit_review", "on_other", "test"))
+	body := encryptFeishuTestPayload(t, raw, key)
 	h := testFeishuHandler()
 	h.cfg.EncryptKey = key
+	headers := http.Header{
+		"X-Lark-Request-Timestamp": []string{"invalid"},
+		"X-Lark-Signature":         []string{"invalid"},
+	}
 	status, result := callFeishu(t, h, body, headers)
 	if status != 200 || result["toast"].(map[string]any)["type"] != "success" {
 		t.Fatalf("encrypted callback status=%d body=%#v", status, result)
 	}
-	headers.Set("X-Lark-Signature", "invalid")
-	status, _ = callFeishu(t, h, body, headers)
-	if status != 401 {
-		t.Fatalf("invalid signed request status=%d", status)
-	}
 }
 
-func TestEncryptedCardNoSignatureHeaders(t *testing.T) {
-	key := "test-key-only"
+func TestFeishuCallbackWithoutRequestAuthentication(t *testing.T) {
 	h := testFeishuHandler()
-	h.cfg.EncryptKey = key
-	event := callbackAction("86", "passed", "submit_review", "on_tester", "test")
-	event["header"].(map[string]any)["create_time"] = strconv.FormatInt(time.Now().UnixMicro(), 10)
+	event := callbackAction("86", "passed", "submit_review", "on_other", "test")
+	event["header"].(map[string]any)["token"] = "wrong"
+	event["header"].(map[string]any)["app_id"] = "wrong"
+	event["header"].(map[string]any)["create_time"] = "1"
+	status, result := callFeishu(t, h, event, nil)
+	if status != http.StatusOK || result["toast"].(map[string]any)["type"] != "success" {
+		t.Fatalf("unauthenticated plaintext callback rejected: %d %#v", status, result)
+	}
+	h.cfg.EncryptKey = "encrypt-key"
 	raw, _ := json.Marshal(event)
-	body := encryptFeishuTestPayload(t, raw, key)
-	status, response := callFeishu(t, h, body, nil)
-	if status != 200 || response["toast"].(map[string]any)["type"] != "success" {
-		t.Fatalf("expected simulated score response, got %d: %#v", status, response)
-	}
-	// Actual Feishu card callbacks may include nonce/signature but omit the
-	// timestamp; these must use the encrypted token + event-time check.
-	untimestamped := http.Header{
-		"X-Lark-Request-Nonce": []string{"nonce"},
-		"X-Lark-Signature":     []string{"not-verifiable-without-timestamp"},
-	}
-	status, response = callFeishu(t, h, body, untimestamped)
-	if status != 200 || response["toast"].(map[string]any)["type"] != "success" {
-		t.Fatalf("untimestamped Feishu callback rejected: %d: %#v", status, response)
-	}
-	header := event["header"].(map[string]any)
-	for _, offset := range []time.Duration{-6 * time.Minute, 6 * time.Minute} {
-		header["create_time"] = strconv.FormatInt(time.Now().Add(offset).UnixMicro(), 10)
-		stale, _ := json.Marshal(event)
-		status, _ = callFeishu(t, h, encryptFeishuTestPayload(t, stale, key), nil)
-		if status != http.StatusUnauthorized {
-			t.Fatalf("stale callback accepted: %d", status)
-		}
-	}
-	header["create_time"] = strconv.FormatInt(time.Now().UnixMicro(), 10)
-	header["token"] = "invalid"
-	invalid, _ := json.Marshal(event)
-	status, _ = callFeishu(t, h, encryptFeishuTestPayload(t, invalid, key), nil)
-	if status != http.StatusUnauthorized {
-		t.Fatalf("incorrect token accepted: %d", status)
-	}
-	header["token"] = "verification"
-	fresh, _ := json.Marshal(event)
-	partial := http.Header{"X-Lark-Request-Timestamp": []string{strconv.FormatInt(time.Now().Unix(), 10)}}
-	status, _ = callFeishu(t, h, encryptFeishuTestPayload(t, fresh, key), partial)
-	if status != http.StatusUnauthorized {
-		t.Fatalf("incomplete signature accepted: %d", status)
+	status, result = callFeishu(t, h, encryptFeishuTestPayload(t, raw, h.cfg.EncryptKey), nil)
+	if status != http.StatusOK || result["toast"].(map[string]any)["type"] != "success" {
+		t.Fatalf("unauthenticated encrypted callback rejected: %d %#v", status, result)
 	}
 }
-
-func strconvFormatInt(v int64) string { return strconv.FormatInt(v, 10) }
 
 type feishuTransportFunc func(*http.Request) (*http.Response, error)
 
