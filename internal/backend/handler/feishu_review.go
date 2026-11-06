@@ -244,32 +244,44 @@ func (h *FeishuReviewHandler) Callback(c *gin.Context) {
 		c.Status(http.StatusBadRequest)
 		return
 	}
-	// Feishu verifies the callback URL with a plain challenge before normal
-	// signed/encrypted delivery is enabled. Never accept a challenge without
-	// the app's verification token.
-	var probe feishuCallback
-	if json.Unmarshal(raw, &probe) == nil && probe.Type == "url_verification" {
-		if subtle.ConstantTimeCompare([]byte(probe.Token), []byte(h.cfg.VerificationToken)) != 1 {
-			c.Status(http.StatusUnauthorized)
-			return
-		}
-		c.JSON(http.StatusOK, gin.H{"challenge": probe.Challenge})
-		return
-	}
+	var event feishuCallback
 	if h.cfg.EncryptKey != "" {
-		if !verifyFeishuSignature(c.Request.Header, raw, h.cfg.EncryptKey, time.Now()) {
-			c.Status(http.StatusUnauthorized)
+		// Feishu sends URL verification as an encrypted envelope too, but that
+		// handshake does not carry the signature headers used for normal
+		// callbacks. Decrypt it first, then authenticate it with the token.
+		var envelope struct {
+			Encrypt string `json:"encrypt"`
+		}
+		if err := json.Unmarshal(raw, &envelope); err != nil || envelope.Encrypt == "" {
+			c.Status(http.StatusBadRequest)
 			return
 		}
-		raw, err = decryptFeishuPayload(raw, h.cfg.EncryptKey)
+		plain, err := decryptFeishuPayload(raw, h.cfg.EncryptKey)
 		if err != nil {
 			c.Status(http.StatusBadRequest)
 			return
 		}
-	}
-	var event feishuCallback
-	if err := json.Unmarshal(raw, &event); err != nil {
+		if err := json.Unmarshal(plain, &event); err != nil {
+			c.Status(http.StatusBadRequest)
+			return
+		}
+		if event.Type != "url_verification" && !verifyFeishuSignature(c.Request.Header, raw, h.cfg.EncryptKey, time.Now()) {
+			c.Status(http.StatusUnauthorized)
+			return
+		}
+	} else if err := json.Unmarshal(raw, &event); err != nil {
 		c.Status(http.StatusBadRequest)
+		return
+	}
+	// URL verification is a separate handshake. With encryption enabled its
+	// payload has already been decrypted above; without encryption it is plain.
+	// In both cases, only echo the challenge after checking the app token.
+	if event.Type == "url_verification" {
+		if subtle.ConstantTimeCompare([]byte(event.Token), []byte(h.cfg.VerificationToken)) != 1 {
+			c.Status(http.StatusUnauthorized)
+			return
+		}
+		c.JSON(http.StatusOK, gin.H{"challenge": event.Challenge})
 		return
 	}
 	token := event.Header.Token
