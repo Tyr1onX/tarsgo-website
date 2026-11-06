@@ -79,6 +79,53 @@ func TestFeishuURLVerificationRequiresToken(t *testing.T) {
 	}
 }
 
+func TestFeishuEncryptedURLVerificationRequiresToken(t *testing.T) {
+	key := "secret-encrypt-key"
+	h := testFeishuHandler()
+	h.cfg.EncryptKey = key
+
+	for _, tc := range []struct {
+		name  string
+		token string
+		want  int
+	}{
+		{name: "valid token", token: "verification", want: http.StatusOK},
+		{name: "invalid token", token: "wrong", want: http.StatusUnauthorized},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			plain, err := json.Marshal(map[string]string{
+				"type": "url_verification", "challenge": "challenge-value", "token": tc.token,
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			body := encryptFeishuTestPayload(t, plain, key)
+			status, result := callFeishu(t, h, body, nil)
+			if status != tc.want {
+				t.Fatalf("status=%d, want %d; body=%#v", status, tc.want, result)
+			}
+			if tc.want == http.StatusOK && result["challenge"] != "challenge-value" {
+				t.Fatalf("challenge=%#v", result["challenge"])
+			}
+		})
+	}
+}
+
+func encryptFeishuTestPayload(t *testing.T, plain []byte, key string) map[string]string {
+	t.Helper()
+	blockKey := sha256.Sum256([]byte(key))
+	block, err := aes.NewCipher(blockKey[:])
+	if err != nil {
+		t.Fatal(err)
+	}
+	padding := aes.BlockSize - len(plain)%aes.BlockSize
+	plain = append(append([]byte(nil), plain...), bytes.Repeat([]byte{byte(padding)}, padding)...)
+	iv := bytes.Repeat([]byte{3}, aes.BlockSize)
+	encrypted := make([]byte, len(plain))
+	cipher.NewCBCEncrypter(block, iv).CryptBlocks(encrypted, plain)
+	return map[string]string{"encrypt": base64.StdEncoding.EncodeToString(append(iv, encrypted...))}
+}
+
 func TestFeishuPreviewCardCallbackDoesNotTouchDatabase(t *testing.T) {
 	h := testFeishuHandler() // database and assignment service are deliberately nil
 	for _, score := range []string{"0", "100"} {
