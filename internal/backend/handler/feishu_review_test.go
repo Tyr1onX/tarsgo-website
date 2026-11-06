@@ -244,6 +244,16 @@ func TestEncryptedCardNoSignatureHeaders(t *testing.T) {
 	if status != 200 || response["toast"].(map[string]any)["type"] != "success" {
 		t.Fatalf("expected simulated score response, got %d: %#v", status, response)
 	}
+	// Actual Feishu card callbacks may include nonce/signature but omit the
+	// timestamp; these must use the encrypted token + event-time check.
+	untimestamped := http.Header{
+		"X-Lark-Request-Nonce": []string{"nonce"},
+		"X-Lark-Signature":     []string{"not-verifiable-without-timestamp"},
+	}
+	status, response = callFeishu(t, h, body, untimestamped)
+	if status != 200 || response["toast"].(map[string]any)["type"] != "success" {
+		t.Fatalf("untimestamped Feishu callback rejected: %d: %#v", status, response)
+	}
 	header := event["header"].(map[string]any)
 	for _, offset := range []time.Duration{-6 * time.Minute, 6 * time.Minute} {
 		header["create_time"] = strconv.FormatInt(time.Now().Add(offset).UnixMicro(), 10)

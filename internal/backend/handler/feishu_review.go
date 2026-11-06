@@ -269,9 +269,11 @@ func (h *FeishuReviewHandler) Callback(c *gin.Context) {
 		}
 		if event.Type != "url_verification" {
 			headers := c.Request.Header
-			hasSignature := headers.Get("X-Lark-Request-Timestamp") != "" ||
-				headers.Get("X-Lark-Request-Nonce") != "" ||
-				headers.Get("X-Lark-Signature") != ""
+			// Card callbacks may include signature-related headers without the
+			// required timestamp. Use the full signature only when timestamped;
+			// otherwise authenticate the encrypted payload with its token and
+			// recent event time below.
+			hasSignature := headers.Get("X-Lark-Request-Timestamp") != ""
 			if hasSignature {
 				if !verifyFeishuSignature(headers, raw, h.cfg.EncryptKey, time.Now()) {
 					c.Status(http.StatusUnauthorized)
