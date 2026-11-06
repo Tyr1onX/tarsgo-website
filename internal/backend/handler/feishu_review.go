@@ -17,6 +17,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -33,6 +34,7 @@ type FeishuReviewHandler struct {
 	db          *gorm.DB
 	assignments *assignment.Service
 	client      *http.Client
+	notifyMu    sync.Mutex
 }
 
 func NewFeishuReviewHandler(cfg config.FeishuConfig, db *gorm.DB, assignments *assignment.Service) *FeishuReviewHandler {
@@ -102,23 +104,62 @@ func (h *FeishuReviewHandler) NotifySubmission(ctx context.Context, submissionID
 		if err != nil {
 			return err
 		}
-		var names []string
-		var failed []assignment.FileView
-		fileCtx, cancel := context.WithTimeout(ctx, 80*time.Second)
-		defer cancel()
-		for _, file := range target.Files {
-			names = append(names, file.FileName)
-			if err := h.sendSubmissionFile(fileCtx, token, assignment.Actor{ID: reviewer.ID, RoleName: reviewer.Role.Name}, file); err != nil {
-				log.Printf("feishu attachment failed submission=%d file=%d: %v", submissionID, file.ID, err)
-				failed = append(failed, file)
-			}
-		}
-		card := feishuReviewCard(detail.Assignment.GroupName+" · "+detail.Assignment.Title,
-			fmt.Sprintf("提交人：%s\n第 %d 次提交\n附件：%s", member.Name, target.Attempt, strings.Join(names, "、")),
-			"review", submissionID, failed)
-		return h.sendMessage(ctx, token, "interactive", card)
+		return h.sendSubmissionReview(ctx, token, assignment.Actor{ID: reviewer.ID, RoleName: reviewer.Role.Name}, detail.Assignment, member, target, h.assignments.OpenFile)
 	}
 	return nil // A newer submission superseded this notification.
+}
+
+func (h *FeishuReviewHandler) sendSubmissionReview(
+	ctx context.Context,
+	token string,
+	actor assignment.Actor,
+	item assignment.AssignmentView,
+	member assignment.AssignmentMemberView,
+	target *assignment.SubmissionView,
+	openFile func(context.Context, assignment.Actor, uint64) (*assignment.Download, error),
+) error {
+	// Keep the context marker, attachment messages, and grading card together in the reviewer's DM.
+	h.notifyMu.Lock()
+	defer h.notifyMu.Unlock()
+
+	names := make([]string, 0, len(target.Files))
+	for _, file := range target.Files {
+		names = append(names, file.FileName)
+	}
+	identifier := fmt.Sprintf("作业 #%d · 提交 #%d", item.ID, target.ID)
+	marker := identifier + "\n附件按下列顺序发送：" + strings.Join(names, "、")
+	if len(names) == 0 {
+		marker += "无"
+	}
+	if err := h.sendMessage(ctx, token, "text", map[string]string{"text": marker}); err != nil {
+		log.Printf("feishu assignment marker failed assignment=%d submission=%d: %v", item.ID, target.ID, err)
+	}
+
+	failed := make([]assignment.FileView, 0)
+	for _, file := range target.Files {
+		var download *assignment.Download
+		var err error
+		if file.Size <= 0 || file.Size > feishuMaxFileSize {
+			err = fmt.Errorf("unsupported Feishu file size: %d", file.Size)
+		} else {
+			download, err = openFile(ctx, actor, file.ID)
+		}
+		if err == nil {
+			err = h.sendSubmissionFileContent(ctx, token, file, download)
+		}
+		if err != nil {
+			log.Printf("feishu attachment failed submission=%d file=%d: %v", target.ID, file.ID, err)
+			failed = append(failed, file)
+		}
+	}
+
+	chinaTime := target.SubmittedAt.In(feishuChinaTimeZone).Format("2006-01-02 15:04")
+	info := fmt.Sprintf("%s\n提交人：%s\n第 %d 次提交 · %s\n附件：%s", identifier, member.Name, target.Attempt, chinaTime, strings.Join(names, "、"))
+	if len(names) == 0 {
+		info = fmt.Sprintf("%s\n提交人：%s\n第 %d 次提交 · %s\n附件：无", identifier, member.Name, target.Attempt, chinaTime)
+	}
+	card := feishuReviewCard(item.GroupName+" · "+item.Title, info, "review", target.ID, failed)
+	return h.sendMessage(ctx, token, "interactive", card)
 }
 
 func feishuReviewCard(title, info, kind string, submissionID uint64, files []assignment.FileView) map[string]any {
@@ -160,16 +201,19 @@ const (
 	feishuMaxImageSize = 10 * 1000 * 1000
 )
 
-func (h *FeishuReviewHandler) sendSubmissionFile(ctx context.Context, token string, actor assignment.Actor, file assignment.FileView) error {
+var feishuChinaTimeZone = time.FixedZone("Asia/Shanghai", 8*60*60)
+
+func (h *FeishuReviewHandler) sendSubmissionFileContent(ctx context.Context, token string, file assignment.FileView, download *assignment.Download) error {
 	if file.Size <= 0 || file.Size > feishuMaxFileSize {
 		return fmt.Errorf("unsupported Feishu file size: %d", file.Size)
 	}
-	download, err := h.assignments.OpenFile(ctx, actor, file.ID)
-	if err != nil {
-		return err
+	if download == nil || int64(len(download.Content)) != file.Size {
+		return fmt.Errorf("assignment attachment content does not match its stored size")
 	}
 	ext := strings.ToLower(filepath.Ext(file.FileName))
-	image := file.Size <= feishuMaxImageSize && strings.HasPrefix(file.ContentType, "image/")
+	// Assignment uploads are stored with application/octet-stream, so select image messages by
+	// the original extension instead of relying on the stored Content-Type.
+	image := file.Size <= feishuMaxImageSize
 	if image {
 		switch ext {
 		case ".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".ico":

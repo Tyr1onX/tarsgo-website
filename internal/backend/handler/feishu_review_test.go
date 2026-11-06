@@ -9,11 +9,14 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -277,16 +280,36 @@ func TestFeishuSubmissionCardOnlyLinksFailedAttachments(t *testing.T) {
 	}
 }
 
-func TestFeishuFileMessagesUsePrivateRecipientAndOriginalNames(t *testing.T) {
+func TestFeishuSubmissionMessagesUsePrivateRecipientAndOriginalNames(t *testing.T) {
 	h := testFeishuHandler()
 	var calls []string
+	pdf := []byte("%PDF-test")
+	png := []byte("\x89PNG\r\n\x1a\nimage")
+	docx := []byte("docx content")
+	zip := []byte("zip content")
+	fileContents := map[string][]byte{
+		"测试说明.pdf":  pdf,
+		"现场图片.png":  png,
+		"编辑练习.docx": docx,
+		"附件包.zip":   zip,
+	}
+	fileKeys := map[string]string{
+		"file_test_pdf":  "测试说明.pdf",
+		"file_test_docx": "编辑练习.docx",
+		"file_test_zip":  "附件包.zip",
+	}
 	h.client = &http.Client{Transport: feishuTransportFunc(func(req *http.Request) (*http.Response, error) {
 		switch req.URL.Path {
+		case "/open-apis/auth/v3/tenant_access_token/internal":
+			calls = append(calls, "token")
+			return testFeishuHTTPResponse(`{"code":0,"tenant_access_token":"token"}`), nil
 		case "/open-apis/im/v1/files":
 			if err := req.ParseMultipartForm(1 << 20); err != nil {
 				t.Fatal(err)
 			}
-			if req.FormValue("file_type") != "pdf" || req.FormValue("file_name") != "测试说明.pdf" {
+			name := req.FormValue("file_name")
+			wantTypes := map[string]string{"测试说明.pdf": "pdf", "编辑练习.docx": "stream", "附件包.zip": "stream"}
+			if req.FormValue("file_type") != wantTypes[name] {
 				t.Errorf("wrong file metadata: %#v", req.MultipartForm.Value)
 			}
 			file, header, err := req.FormFile("file")
@@ -294,15 +317,22 @@ func TestFeishuFileMessagesUsePrivateRecipientAndOriginalNames(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer file.Close()
-			if header.Filename != "测试说明.pdf" {
-				t.Errorf("original file name lost: %s", header.Filename)
+			if header.Filename != name {
+				t.Errorf("original file name lost: got %s, want %s", header.Filename, name)
 			}
-			b, _ := io.ReadAll(file)
-			if string(b) != "%PDF-test" {
-				t.Errorf("file content changed: %q", b)
+			actual, err := io.ReadAll(file)
+			if err != nil || !bytes.Equal(actual, fileContents[name]) {
+				t.Errorf("uploaded file %s content changed: len=%d err=%v", name, len(actual), err)
 			}
-			calls = append(calls, "upload-pdf")
-			return testFeishuHTTPResponse(`{"code":0,"data":{"file_key":"file_test"}}`), nil
+			key := "file_test_pdf"
+			switch name {
+			case "编辑练习.docx":
+				key = "file_test_docx"
+			case "附件包.zip":
+				key = "file_test_zip"
+			}
+			calls = append(calls, "upload-"+strings.TrimPrefix(filepath.Ext(name), "."))
+			return testFeishuHTTPResponse(fmt.Sprintf(`{"code":0,"data":{"file_key":%q}}`, key)), nil
 		case "/open-apis/im/v1/images":
 			if err := req.ParseMultipartForm(1 << 20); err != nil {
 				t.Fatal(err)
@@ -317,6 +347,10 @@ func TestFeishuFileMessagesUsePrivateRecipientAndOriginalNames(t *testing.T) {
 			defer file.Close()
 			if header.Filename != "现场图片.png" {
 				t.Errorf("image name lost: %s", header.Filename)
+			}
+			actual, err := io.ReadAll(file)
+			if err != nil || !bytes.Equal(actual, png) {
+				t.Errorf("image content changed: len=%d err=%v", len(actual), err)
 			}
 			calls = append(calls, "upload-image")
 			return testFeishuHTTPResponse(`{"code":0,"data":{"image_key":"image_test"}}`), nil
@@ -340,10 +374,16 @@ func TestFeishuFileMessagesUsePrivateRecipientAndOriginalNames(t *testing.T) {
 				t.Fatal(err)
 			}
 			switch payload.MsgType {
+			case "text":
+				if content["text"] != "作业 #31 · 提交 #82\n附件按下列顺序发送：测试说明.pdf、现场图片.png、编辑练习.docx、附件包.zip" {
+					t.Errorf("wrong attachment context marker: %#v", content)
+				}
 			case "file":
-				if content["file_key"] != "file_test" {
+				fileName, ok := fileKeys[content["file_key"].(string)]
+				if !ok {
 					t.Errorf("bad file message: %#v", content)
 				}
+				calls = append(calls, "file-"+strings.TrimPrefix(filepath.Ext(fileName), "."))
 			case "image":
 				if content["image_key"] != "image_test" {
 					t.Errorf("bad image message: %#v", content)
@@ -352,69 +392,143 @@ func TestFeishuFileMessagesUsePrivateRecipientAndOriginalNames(t *testing.T) {
 				if content["schema"] != "2.0" {
 					t.Errorf("bad review card: %#v", content)
 				}
+				header := content["header"].(map[string]any)
+				if header["title"].(map[string]any)["content"] != "机器人组 · 新手作业" {
+					t.Errorf("card is missing assignment and group: %#v", header)
+				}
+				elements := content["body"].(map[string]any)["elements"].([]any)
+				info := elements[0].(map[string]any)["content"].(string)
+				for _, expected := range []string{"作业 #31 · 提交 #82", "提交人：联调成员", "第 2 次提交", "2026-11-06 09:30", "测试说明.pdf、现场图片.png、编辑练习.docx、附件包.zip"} {
+					if !strings.Contains(info, expected) {
+						t.Errorf("card is missing %q: %s", expected, info)
+					}
+				}
+				if len(elements) != 2 {
+					t.Errorf("successful attachments must not show website links: %#v", elements)
+				}
+				form := elements[1].(map[string]any)["elements"].([]any)
+				value := form[len(form)-1].(map[string]any)["behaviors"].([]any)[0].(map[string]any)["value"].(map[string]any)
+				if value["submission_id"] != float64(82) {
+					t.Errorf("card callback is not tied to this submission: %#v", value)
+				}
 			default:
 				t.Errorf("unexpected message type: %s", payload.MsgType)
 			}
-			calls = append(calls, payload.MsgType)
+			if payload.MsgType == "text" {
+				calls = append(calls, "marker")
+			} else if payload.MsgType == "image" {
+				calls = append(calls, "image")
+			} else if payload.MsgType == "interactive" {
+				calls = append(calls, "interactive")
+			}
 			return testFeishuHTTPResponse(`{"code":0,"data":{"message_id":"om_test"}}`), nil
 		}
 		return nil, errors.New("unexpected request")
 	})}
 	ctx := context.Background()
-	pdfKey, err := h.uploadFeishuFile(ctx, "token", "测试说明.pdf", []byte("%PDF-test"), false, "pdf")
-	if err != nil {
+	if _, err := h.tenantToken(ctx); err != nil {
 		t.Fatal(err)
 	}
-	if err := h.sendMessage(ctx, "token", "file", map[string]string{"file_key": pdfKey}); err != nil {
+	item := assignment.AssignmentView{ID: 31, GroupName: "机器人组", Title: "新手作业"}
+	member := assignment.AssignmentMemberView{Name: "联调成员"}
+	submission := assignment.SubmissionView{
+		ID: 82, Attempt: 2, SubmittedAt: time.Date(2026, 11, 6, 1, 30, 0, 0, time.UTC),
+		Files: []assignment.FileView{
+			{ID: 1001, FileName: "测试说明.pdf", Size: int64(len(pdf)), ContentType: "application/octet-stream"},
+			{ID: 1002, FileName: "现场图片.png", Size: int64(len(png)), ContentType: "application/octet-stream"},
+			{ID: 1003, FileName: "编辑练习.docx", Size: int64(len(docx)), ContentType: "application/octet-stream"},
+			{ID: 1004, FileName: "附件包.zip", Size: int64(len(zip)), ContentType: "application/octet-stream"},
+		},
+	}
+	contents := map[uint64]*assignment.Download{
+		1001: {FileName: "测试说明.pdf", Content: pdf},
+		1002: {FileName: "现场图片.png", Content: png},
+		1003: {FileName: "编辑练习.docx", Content: docx},
+		1004: {FileName: "附件包.zip", Content: zip},
+	}
+	openFile := func(_ context.Context, actor assignment.Actor, fileID uint64) (*assignment.Download, error) {
+		if actor.ID != 77 || actor.RoleName != "admin" {
+			t.Errorf("attachment was opened outside the configured reviewer identity: %+v", actor)
+		}
+		return contents[fileID], nil
+	}
+	if err := h.sendSubmissionReview(ctx, "token", assignment.Actor{ID: 77, RoleName: "admin"}, item, member, &submission, openFile); err != nil {
 		t.Fatal(err)
 	}
-	imageKey, err := h.uploadFeishuFile(ctx, "token", "现场图片.png", []byte("PNG-test"), true, "")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := h.sendMessage(ctx, "token", "image", map[string]string{"image_key": imageKey}); err != nil {
-		t.Fatal(err)
-	}
-	if err := h.sendMessage(ctx, "token", "interactive", feishuReviewCard("作业", "附件：测试说明.pdf、现场图片.png", "review", 77, nil)); err != nil {
-		t.Fatal(err)
-	}
-	if got := strings.Join(calls, ","); got != "upload-pdf,file,upload-image,image,interactive" {
+	if got := strings.Join(calls, ","); got != "token,marker,upload-pdf,file-pdf,upload-image,image,upload-docx,file-docx,upload-zip,file-zip,interactive" {
 		t.Fatalf("wrong upload/message order: %s", got)
 	}
 }
 
 func TestFeishuUploadFailureDoesNotStopCard(t *testing.T) {
 	h := testFeishuHandler()
-	cardSent := false
+	var calls []string
 	h.client = &http.Client{Transport: feishuTransportFunc(func(req *http.Request) (*http.Response, error) {
 		if req.URL.Path == "/open-apis/im/v1/files" {
+			calls = append(calls, "upload-failed")
 			return &http.Response{StatusCode: http.StatusRequestEntityTooLarge, Body: io.NopCloser(strings.NewReader(""))}, nil
 		}
+		if req.URL.Path == "/open-apis/im/v1/images" {
+			calls = append(calls, "upload-image")
+			return testFeishuHTTPResponse(`{"code":0,"data":{"image_key":"image_ok"}}`), nil
+		}
 		if req.URL.Path == "/open-apis/im/v1/messages" {
-			cardSent = true
 			var payload struct {
 				MsgType string `json:"msg_type"`
+				Content string `json:"content"`
 			}
 			if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
 				t.Fatal(err)
 			}
-			if payload.MsgType != "interactive" {
-				t.Fatalf("wrong fallback message: %s", payload.MsgType)
+			var content map[string]any
+			if err := json.Unmarshal([]byte(payload.Content), &content); err != nil {
+				t.Fatal(err)
+			}
+			switch payload.MsgType {
+			case "text":
+				calls = append(calls, "marker")
+			case "image":
+				if content["image_key"] != "image_ok" {
+					t.Errorf("second attachment was not sent after first upload failed: %#v", content)
+				}
+				calls = append(calls, "image")
+			case "interactive":
+				elements := content["body"].(map[string]any)["elements"].([]any)
+				if len(elements) != 3 {
+					t.Fatalf("only failed attachment should have a website link: %#v", elements)
+				}
+				link := elements[1].(map[string]any)
+				if link["text"].(map[string]any)["content"] != "附件发送失败，网站下载 · 失败.pdf" {
+					t.Errorf("wrong failed-file fallback: %#v", link)
+				}
+				calls = append(calls, "interactive")
+			default:
+				t.Errorf("unexpected message type: %s", payload.MsgType)
 			}
 			return testFeishuHTTPResponse(`{"code":0,"data":{"message_id":"om_card"}}`), nil
 		}
 		return nil, errors.New("unexpected request")
 	})}
 	ctx := context.Background()
-	if _, err := h.uploadFeishuFile(ctx, "token", "失败.pdf", []byte("pdf"), false, "pdf"); err == nil {
-		t.Fatal("expected upload error")
+	pdf := []byte("%PDF-failure")
+	png := []byte("\x89PNG\r\n\x1a\nimage")
+	item := assignment.AssignmentView{ID: 31, GroupName: "机器人组", Title: "新手作业"}
+	member := assignment.AssignmentMemberView{Name: "联调成员"}
+	submission := assignment.SubmissionView{ID: 82, Attempt: 1, SubmittedAt: time.Date(2026, 11, 6, 1, 30, 0, 0, time.UTC), Files: []assignment.FileView{
+		{ID: 1003, FileName: "失败.pdf", Size: int64(len(pdf))},
+		{ID: 1004, FileName: "后续图片.png", Size: int64(len(png))},
+	}}
+	contents := map[uint64]*assignment.Download{
+		1003: {FileName: "失败.pdf", Content: pdf},
+		1004: {FileName: "后续图片.png", Content: png},
 	}
-	failed := []assignment.FileView{{ID: 19, FileName: "失败.pdf"}}
-	if err := h.sendMessage(ctx, "token", "interactive", feishuReviewCard("作业", "附件：失败.pdf", "review", 77, failed)); err != nil {
+	if err := h.sendSubmissionReview(ctx, "token", assignment.Actor{ID: 77, RoleName: "admin"}, item, member, &submission, func(_ context.Context, _ assignment.Actor, fileID uint64) (*assignment.Download, error) {
+		return contents[fileID], nil
+	}); err != nil {
 		t.Fatal(err)
 	}
-	if !cardSent {
-		t.Fatal("failed attachment must not suppress review card")
+	if got := strings.Join(calls, ","); got != "marker,upload-failed,upload-image,image,interactive" {
+		t.Fatalf("failed attachment stopped later messages or card: %s", got)
 	}
 }
 
