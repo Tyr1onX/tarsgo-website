@@ -15,6 +15,7 @@ type Config struct {
 	CORS     CORSConfig
 	Auth     AuthConfig
 	Email    EmailConfig
+	Feishu   FeishuConfig
 	Source   SourceConfig
 }
 
@@ -58,6 +59,15 @@ type EmailConfig struct {
 	APIKey string `json:"-"`
 	APIURL string `json:"-"`
 	From   string
+}
+
+type FeishuConfig struct {
+	AppID             string
+	AppSecret         string
+	VerificationToken string
+	EncryptKey        string
+	TesterUnionID     string
+	TesterUserID      uint64
 }
 
 type SourceConfig struct {
@@ -114,6 +124,14 @@ func Load() (*Config, error) {
 			APIKey: strings.TrimSpace(getEnv("EMAIL_API_KEY", os.Getenv("RESEND_API_KEY"))),
 			APIURL: getEnv("EMAIL_API_URL", "https://api.resend.com/emails"),
 			From:   getEnv("EMAIL_FROM", "吉甲大师 <noreply@jijiamaster.com>"),
+		},
+		Feishu: FeishuConfig{
+			AppID:             strings.TrimSpace(os.Getenv("FEISHU_APP_ID")),
+			AppSecret:         strings.TrimSpace(os.Getenv("FEISHU_APP_SECRET")),
+			VerificationToken: strings.TrimSpace(os.Getenv("FEISHU_VERIFICATION_TOKEN")),
+			EncryptKey:        strings.TrimSpace(os.Getenv("FEISHU_ENCRYPT_KEY")),
+			TesterUnionID:     strings.TrimSpace(os.Getenv("FEISHU_TESTER_UNION_ID")),
+			TesterUserID:      uint64(max(0, getEnvAsInt("FEISHU_TESTER_USER_ID", 0))),
 		},
 		Source: SourceConfig{
 			EnvFilePath: envFilePath,
