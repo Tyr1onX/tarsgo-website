@@ -13,6 +13,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -286,6 +287,7 @@ func (h *FeishuReviewHandler) Callback(c *gin.Context) {
 	}
 	token := event.Header.Token
 	if subtle.ConstantTimeCompare([]byte(token), []byte(h.cfg.VerificationToken)) != 1 {
+		log.Print("feishu callback rejected: verification token mismatch")
 		c.Status(http.StatusUnauthorized)
 		return
 	}
@@ -371,11 +373,24 @@ func verifyFeishuSignature(headers http.Header, body []byte, key string, now tim
 	nonce := headers.Get("X-Lark-Request-Nonce")
 	signature := headers.Get("X-Lark-Signature")
 	timestamp, err := strconv.ParseInt(ts, 10, 64)
-	if err != nil || nonce == "" || signature == "" || now.Sub(time.Unix(timestamp, 0)) > 5*time.Minute || time.Unix(timestamp, 0).Sub(now) > 5*time.Minute {
+	if err != nil {
+		log.Print("feishu callback rejected: missing or invalid signature timestamp")
+		return false
+	}
+	if nonce == "" || signature == "" {
+		log.Print("feishu callback rejected: missing signature headers")
+		return false
+	}
+	if now.Sub(time.Unix(timestamp, 0)) > 5*time.Minute || time.Unix(timestamp, 0).Sub(now) > 5*time.Minute {
+		log.Print("feishu callback rejected: signature timestamp outside 5-minute window")
 		return false
 	}
 	hash := sha256.Sum256(append([]byte(ts+nonce+key), body...))
-	return subtle.ConstantTimeCompare([]byte(hex.EncodeToString(hash[:])), []byte(signature)) == 1
+	valid := subtle.ConstantTimeCompare([]byte(hex.EncodeToString(hash[:])), []byte(signature)) == 1
+	if !valid {
+		log.Print("feishu callback rejected: signature mismatch")
+	}
+	return valid
 }
 
 func decryptFeishuPayload(body []byte, key string) ([]byte, error) {
