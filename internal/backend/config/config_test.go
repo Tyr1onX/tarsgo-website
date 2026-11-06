@@ -89,3 +89,20 @@ func TestEmailConfigLoadsServerEnvironment(t *testing.T) {
 		t.Fatal("email environment not loaded")
 	}
 }
+
+func TestFeishuBitableConfigLoadsOptionalCoordinates(t *testing.T) {
+	setRequiredConfigEnvironment(t)
+	t.Setenv("FEISHU_APP_ID", "cli_test")
+	t.Setenv("FEISHU_APP_SECRET", "secret")
+	t.Setenv("FEISHU_TESTER_UNION_ID", "ou_tester")
+	t.Setenv("FEISHU_BITABLE_APP_TOKEN", "basc_test")
+	t.Setenv("FEISHU_BITABLE_TABLE_ID", "tbl_test")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load returned error: %v", err)
+	}
+	if cfg.Feishu.BitableAppToken != "basc_test" || cfg.Feishu.BitableTableID != "tbl_test" {
+		t.Fatalf("Bitable coordinates not loaded: %+v", cfg.Feishu)
+	}
+}

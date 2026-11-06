@@ -97,12 +97,17 @@ func (h *FeishuReviewHandler) NotifySubmission(ctx context.Context, submissionID
 		if target == nil || target.ID != submissionID {
 			continue
 		}
-		if len(target.Reviews) != 0 {
-			return nil
-		}
 		token, err := h.tenantToken(ctx)
 		if err != nil {
 			return err
+		}
+		if h.bitableEnabled() {
+			if _, _, err := h.syncBitableHistory(ctx, token, assignment.Actor{ID: reviewer.ID, RoleName: reviewer.Role.Name}, detail.Assignment, member); err != nil {
+				log.Printf("feishu bitable submission sync failed submission=%d: %v", submissionID, err)
+			}
+		}
+		if len(target.Reviews) != 0 {
+			return nil
 		}
 		return h.sendSubmissionReview(ctx, token, assignment.Actor{ID: reviewer.ID, RoleName: reviewer.Role.Name}, detail.Assignment, member, target, h.assignments.OpenFile)
 	}
@@ -153,6 +158,15 @@ func (h *FeishuReviewHandler) sendSubmissionReview(
 		}
 	}
 
+	return h.sendSubmissionReviewCard(ctx, token, item, member, target, failed)
+}
+
+func (h *FeishuReviewHandler) sendSubmissionReviewCard(ctx context.Context, token string, item assignment.AssignmentView, member assignment.AssignmentMemberView, target *assignment.SubmissionView, failed []assignment.FileView) error {
+	names := make([]string, 0, len(target.Files))
+	for _, file := range target.Files {
+		names = append(names, file.FileName)
+	}
+	identifier := fmt.Sprintf("作业 #%d · 提交 #%d", item.ID, target.ID)
 	chinaTime := target.SubmittedAt.In(feishuChinaTimeZone).Format("2006-01-02 15:04")
 	info := fmt.Sprintf("%s\n提交人：%s\n第 %d 次提交 · %s\n附件：%s", identifier, member.Name, target.Attempt, chinaTime, strings.Join(names, "、"))
 	if len(names) == 0 {
@@ -449,12 +463,25 @@ func (h *FeishuReviewHandler) Callback(c *gin.Context) {
 			feishuToast(c, "error", "网站管理员不可用")
 			return
 		}
-		_, err := h.assignments.ReviewFirst(c.Request.Context(), assignment.Actor{ID: user.ID, RoleName: user.Role.Name}, event.Event.Action.Value.SubmissionID, assignment.ReviewInput{
+		actor := assignment.Actor{ID: user.ID, RoleName: user.Role.Name}
+		detail, err := h.assignments.ReviewFirst(c.Request.Context(), actor, event.Event.Action.Value.SubmissionID, assignment.ReviewInput{
 			Score: uint8(score), Decision: decision, Comment: comment,
 		})
 		if err != nil {
 			feishuToast(c, "error", "批改未保存：作业已处理、提交已更新或当前无管理权限")
 			return
+		}
+		if h.bitableEnabled() {
+			for _, member := range detail.Members {
+				if member.LatestSubmission != nil && member.LatestSubmission.ID == event.Event.Action.Value.SubmissionID {
+					syncCtx, cancel := context.WithTimeout(c.Request.Context(), bitableReviewTimeout)
+					if syncErr := h.syncBitableReview(syncCtx, actor, detail.Assignment, member); syncErr != nil {
+						log.Printf("feishu bitable review sync failed submission=%d: %v", event.Event.Action.Value.SubmissionID, syncErr)
+					}
+					cancel()
+					break
+				}
+			}
 		}
 		feishuCompleted(c, "批改已保存至吉甲大师网站", score, decision, comment, "")
 	default:
