@@ -5,10 +5,21 @@
 ## 流程
 
 1. 学生在网站上传作业附件，数据库成功保存提交之后，后端检查指定试点管理员对该组的批改权限。
-2. 后端读取网站已存储的附件，依次通过飞书消息 API 发送到管理员私聊（图片优先作为图片消息，其他类型作为文件消息），最后发送评分卡片。卡片包含组别、作业、提交人、提交次数和所有附件名。
+2. 后端读取网站已存储的附件，在指定管理员私聊中先发送相同的“作业 ID · 提交 ID”标识，再按网站原始顺序发送附件，最后发送评分卡片。图片使用图片消息；其他文件使用文件消息。标识消息、附件组和评分卡片由进程内互斥锁保持连续，避免不同提交的附件交叉。
 3. 上传或发送失败的附件，在卡片中显示原有网站鉴权下载链接；其他附件不显示重复的网站按钮。单个附件失败不影响其他附件或评分卡片。
-4. 管理员在飞书输入 0–100 分、选择通过或退回、填写评语；飞书将卡片操作 POST 到 `/api/integrations/feishu/card-action`。
+4. 卡片显示作业名称、组别、提交人、提交次数、北京时间提交时刻、作业/提交标识和附件名。管理员在飞书输入 0–100 分、选择通过或退回、填写评语；飞书将卡片操作 POST 到 `/api/integrations/feishu/card-action`。
 5. 网站复用 `assignment.Service.ReviewFirst` 保存批改历史并更新飞书卡片。模拟卡片仍可用于不写成绩的回归验证。
+
+## 飞书当前文件能力
+
+本实现按飞书开放平台当前服务端 API 使用机器人身份上传，再把返回的资源 key 用于单聊消息：
+
+- 文件：`POST /open-apis/im/v1/files` 返回 `file_key`，以 `msg_type=file`、`{"file_key":"..."}` 发送；单文件 API 上限 30 MB，不能上传空文件。`pdf`、`doc`、`xls`、`ppt` 使用对应 `file_type`，其他后缀保留原文件名并用 `stream`。
+- 图片：`POST /open-apis/im/v1/images`，`image_type=message` 返回 `image_key`，以 `msg_type=image`、`{"image_key":"..."}` 发送。API 接受 JPEG、PNG、WEBP、GIF、TIFF、BMP、ICO 图片；单图上限 10 MB。网站提交文件统一保存为 `application/octet-stream`，因此后端按原始文件后缀识别图片消息。
+- 飞书客户端收到文件消息后支持点击查看或预览，但具体格式、客户端版本和组织策略会影响预览。官方格式说明列出的 PDF、Office 文件、图片和压缩包预览能力不等于上传接口接受限制；例如压缩包可查看目录结构，不代表可以直接预览包内文件。**API 上传成功、消息发送成功、客户端实际预览是三项不同结果，生产客户端必须逐项验收。**
+- 文件消息内容只有 `file_key`，图片消息内容只有 `image_key`，不能在该消息 payload 里附加作业编号。因此机器人在文件组前发送一条清晰的作业/提交编号标识，评分卡片重复相同编号；私聊中的文件按原顺序紧随标识出现。
+
+参考：[上传文件 API](https://open.feishu.cn/document/server-docs/im-v1/file/create)、[上传图片 API](https://open.feishu.cn/document/server-docs/im-v1/image/create)、[发送消息 API](https://open.feishu.cn/document/server-docs/im-v1/message/create)、[消息内容结构](https://open.feishu.cn/document/server-docs/im-v1/message-content-description/create_json?lang=zh-CN)、[文件在线预览格式和大小](https://www.feishu.cn/hc/zh-CN/articles/360049067549-文件上传-在线预览的大小及格式要求)、[会话文件查看说明](https://www.feishu.cn/hc/zh-CN/articles/360045202373-在会话中发送文件及文件夹)。
 
 回调不校验签名、时间戳、Verification Token、App ID 或飞书操作者身份，也不要求真实评分必须加密。保留 JSON 解码、输入格式检查，以及评分服务已有的提交状态和组权限逻辑。
 
@@ -26,7 +37,7 @@
 ## 飞书后台
 
 - 开启机器人发送消息权限，以及获取与上传图片或文件资源权限（`im:resource` 或对应上传权限）。
-- 飞书消息文件上传限制为单文件 30 MB，图片上传为 10 MB。普通文件按 PDF/DOC/XLS/PPT 或 `stream` 类型上传；图片使用消息图片接口。超限文件仅保留网站链接。飞书客户端预览效果需真实验证。
+- 飞书消息文件上传限制为单文件 30 MB，图片上传为 10 MB。普通文件按 PDF/DOC/XLS/PPT 或 `stream` 类型上传；小于等于 10 MB 且后缀受支持的图片使用消息图片接口。超过飞书限制的原始附件仍保存在网站，评分卡片提供网站鉴权下载入口。飞书客户端预览效果需真实验证。
 - 使用回调 URL `https://jijiamaster.com/api/integrations/feishu/card-action`。
 - 订阅 `card.action.trigger`，发布应用版本；需与服务器的加密设置一致。
 - 飞书必须在规定时间内收到 HTTP 200 回调响应。
