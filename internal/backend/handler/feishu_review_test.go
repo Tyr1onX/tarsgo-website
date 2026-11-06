@@ -170,7 +170,7 @@ func TestFeishuEncryptedCallbackWithoutAuthentication(t *testing.T) {
 	h.cfg.EncryptKey = key
 	headers := http.Header{
 		"X-Lark-Request-Timestamp": []string{"invalid"},
-		"X-Lark-Request-Signature": []string{"invalid"},
+		"X-Lark-Signature":         []string{"invalid"},
 	}
 	status, result := callFeishu(t, h, body, headers)
 	if status != 200 || result["toast"].(map[string]any)["type"] != "success" {
