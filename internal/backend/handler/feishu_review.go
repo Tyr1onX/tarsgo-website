@@ -216,9 +216,10 @@ type feishuCallback struct {
 	Token     string `json:"token"`
 	Challenge string `json:"challenge"`
 	Header    struct {
-		Token     string `json:"token"`
-		AppID     string `json:"app_id"`
-		EventType string `json:"event_type"`
+		Token      string `json:"token"`
+		AppID      string `json:"app_id"`
+		EventType  string `json:"event_type"`
+		CreateTime string `json:"create_time"`
 	} `json:"header"`
 	Event struct {
 		Operator struct {
@@ -266,9 +267,23 @@ func (h *FeishuReviewHandler) Callback(c *gin.Context) {
 			c.Status(http.StatusBadRequest)
 			return
 		}
-		if event.Type != "url_verification" && !verifyFeishuSignature(c.Request.Header, raw, h.cfg.EncryptKey, time.Now()) {
-			c.Status(http.StatusUnauthorized)
-			return
+		if event.Type != "url_verification" {
+			headers := c.Request.Header
+			hasSignature := headers.Get("X-Lark-Request-Timestamp") != "" ||
+				headers.Get("X-Lark-Request-Nonce") != "" ||
+				headers.Get("X-Lark-Signature") != ""
+			if hasSignature {
+				if !verifyFeishuSignature(headers, raw, h.cfg.EncryptKey, time.Now()) {
+					c.Status(http.StatusUnauthorized)
+					return
+				}
+			} else if !validFeishuCallbackTime(event.Header.CreateTime, time.Now()) {
+				// Card callbacks may lack signature headers; verify the encrypted
+				// payload's token below and reject stale or malformed events.
+				log.Print("feishu callback rejected: missing or expired event create_time")
+				c.Status(http.StatusUnauthorized)
+				return
+			}
 		}
 	} else if err := json.Unmarshal(raw, &event); err != nil {
 		c.Status(http.StatusBadRequest)
@@ -366,6 +381,15 @@ func feishuCompleted(c *gin.Context, title string, score int, decision, comment,
 			"body":   gin.H{"elements": []any{gin.H{"tag": "markdown", "content": text}}},
 		}},
 	})
+}
+
+func validFeishuCallbackTime(raw string, now time.Time) bool {
+	microseconds, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || microseconds <= 0 {
+		return false
+	}
+	created := time.UnixMicro(microseconds)
+	return now.Sub(created) <= 5*time.Minute && created.Sub(now) <= 5*time.Minute
 }
 
 func verifyFeishuSignature(headers http.Header, body []byte, key string, now time.Time) bool {

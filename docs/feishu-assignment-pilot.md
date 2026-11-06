@@ -31,7 +31,7 @@
 3. 「加密策略」核对 Verification Token 和 Encrypt Key，填写到网站服务器的私有环境配置。
 4. 订阅卡片回调 **`card.action.trigger`**（不是普通消息事件），创建版本并发布，可用范围暂时仅自己。
 
-网站支持 `url_verification` challenge；正式回调有 Token 验证，启用 Encrypt Key 后额外验证签名、5 分钟时间窗并解密。飞书需要在 3 秒内获得响应。
+网站支持 `url_verification` challenge；正式回调有 Token 验证，启用 Encrypt Key 后解密并校验 Token；签名头齐全时校验签名，无签名头时校验回调创建时间（微秒级，5 分钟内）。飞书需要在 3 秒内获得响应。
 
 ## 手工触发
 
