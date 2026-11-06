@@ -74,6 +74,8 @@ func TestCommunityAPIsRequireAuthenticationAndOpenWorkflowsRemain(t *testing.T) 
 		"GET /api/admin/assignments",
 		"POST /api/admin/assignments",
 		"POST /api/admin/assignments/submissions/:id/reviews",
+		"POST /api/admin/integrations/feishu/bitable/reconcile",
+		"GET /api/integrations/feishu/review-card/:submissionID",
 		"GET /api/admin/timetable-availability/cleanup",
 		"POST /api/admin/timetable-availability/cleanup",
 		"GET /api/admin/timetable-availability/week",

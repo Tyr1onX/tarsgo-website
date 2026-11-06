@@ -62,11 +62,13 @@ type EmailConfig struct {
 }
 
 type FeishuConfig struct {
-	AppID             string
-	AppSecret         string
-	EncryptKey        string
-	TesterUnionID     string
-	TesterUserID      uint64
+	AppID           string
+	AppSecret       string
+	EncryptKey      string
+	TesterUnionID   string
+	TesterUserID    uint64
+	BitableAppToken string
+	BitableTableID  string
 }
 
 type SourceConfig struct {
@@ -125,11 +127,13 @@ func Load() (*Config, error) {
 			From:   getEnv("EMAIL_FROM", "吉甲大师 <noreply@jijiamaster.com>"),
 		},
 		Feishu: FeishuConfig{
-			AppID:             strings.TrimSpace(os.Getenv("FEISHU_APP_ID")),
-			AppSecret:         strings.TrimSpace(os.Getenv("FEISHU_APP_SECRET")),
-			EncryptKey:        strings.TrimSpace(os.Getenv("FEISHU_ENCRYPT_KEY")),
-			TesterUnionID:     strings.TrimSpace(os.Getenv("FEISHU_TESTER_UNION_ID")),
-			TesterUserID:      uint64(max(0, getEnvAsInt("FEISHU_TESTER_USER_ID", 0))),
+			AppID:           strings.TrimSpace(os.Getenv("FEISHU_APP_ID")),
+			AppSecret:       strings.TrimSpace(os.Getenv("FEISHU_APP_SECRET")),
+			EncryptKey:      strings.TrimSpace(os.Getenv("FEISHU_ENCRYPT_KEY")),
+			TesterUnionID:   strings.TrimSpace(os.Getenv("FEISHU_TESTER_UNION_ID")),
+			TesterUserID:    uint64(max(0, getEnvAsInt("FEISHU_TESTER_USER_ID", 0))),
+			BitableAppToken: strings.TrimSpace(os.Getenv("FEISHU_BITABLE_APP_TOKEN")),
+			BitableTableID:  strings.TrimSpace(os.Getenv("FEISHU_BITABLE_TABLE_ID")),
 		},
 		Source: SourceConfig{
 			EnvFilePath: envFilePath,

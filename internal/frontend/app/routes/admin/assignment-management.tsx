@@ -74,6 +74,7 @@ export default function AssignmentManagementRoute() {
   const [loading, setLoading] = useState(false);
   const [loadingEdit, setLoadingEdit] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [reconciling, setReconciling] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<number | null>(null);
   const [materialsUploadStatus, setMaterialsUploadStatus] = useState<FileUploadStatus>("pending");
   const [publishStage, setPublishStage] = useState<"idle" | "saving" | "uploading" | "failed">("idle");
@@ -186,6 +187,21 @@ export default function AssignmentManagementRoute() {
   async function refresh() {
     if (!groupId) return;
     setItems(await assignmentClient.listAdmin(groupId));
+  }
+
+  async function reconcileFeishuBoard() {
+    if (!window.confirm("从网站重新核对当前管理员有权管理的全部作业和提交历史，并修复飞书看板。可能需要几分钟，不会修改网站成绩。继续吗？")) return;
+    setReconciling(true);
+    setError("");
+    setNotice("");
+    try {
+      const result = await assignmentClient.reconcileBitable();
+      setNotice(`飞书看板对账完成：新增 ${result.created} 条、更新 ${result.updated} 条；失败 ${result.failed} 项。`);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : "飞书看板对账失败");
+    } finally {
+      setReconciling(false);
+    }
   }
 
   async function changePublicationStatus(item: Assignment, status: "published" | "withdrawn") {
@@ -324,6 +340,7 @@ export default function AssignmentManagementRoute() {
         {groupsLoading ? <BrandLoader label="正在加载组别" size="sm" /> : assignmentGroups.length > 1 ? <label className="admin-field-label assignment-management__group-select">组别<select className="admin-field w-full" value={groupId} disabled={saving || publishStage !== "idle"} onChange={(event) => { const nextGroupID = Number(event.target.value); setGroupId(nextGroupID); resetDraft(nextGroupID); setComposerOpen(true); }}>
           {assignmentGroups.map((group) => <option key={group.groupId} value={group.groupId}>{group.name}</option>)}
         </select></label> : assignmentGroups[0] ? <p className="text-sm text-[var(--admin-muted)]">{assignmentGroups[0].name}</p> : null}
+        <button type="button" className="admin-button admin-button--quiet" onClick={() => void reconcileFeishuBoard()} disabled={reconciling || saving || publishStage !== "idle" || Boolean(groupError)}>{reconciling ? "正在对账…" : "修复飞书看板"}</button>
         {!composerOpen ? <button type="button" className="admin-button admin-button--primary" onClick={() => { resetDraft(); setComposerOpen(true); }} disabled={!groupId || Boolean(groupError)}>发布作业</button> : null}
         </div>
       </header>
