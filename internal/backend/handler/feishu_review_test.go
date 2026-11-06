@@ -460,6 +460,74 @@ func TestFeishuSubmissionMessagesUsePrivateRecipientAndOriginalNames(t *testing.
 	}
 }
 
+func TestFeishuHEICUsesImageUploadAndMessage(t *testing.T) {
+	h := testFeishuHandler()
+	image := []byte("HEIC test image")
+	var calls []string
+	h.client = &http.Client{Transport: feishuTransportFunc(func(req *http.Request) (*http.Response, error) {
+		switch req.URL.Path {
+		case "/open-apis/im/v1/images":
+			if err := req.ParseMultipartForm(1 << 20); err != nil {
+				t.Fatal(err)
+			}
+			if req.FormValue("image_type") != "message" {
+				t.Errorf("image_type = %q, want message", req.FormValue("image_type"))
+			}
+			file, header, err := req.FormFile("image")
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer file.Close()
+			actual, err := io.ReadAll(file)
+			if err != nil || header.Filename != "scan.heic" || !bytes.Equal(actual, image) {
+				t.Errorf("HEIC upload changed: filename=%q bytes=%d err=%v", header.Filename, len(actual), err)
+			}
+			calls = append(calls, "upload")
+			return testFeishuHTTPResponse(`{"code":0,"data":{"image_key":"image_heic"}}`), nil
+		case "/open-apis/im/v1/messages":
+			var payload struct {
+				ReceiveID string `json:"receive_id"`
+				MsgType   string `json:"msg_type"`
+				Content   string `json:"content"`
+			}
+			if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+				t.Fatal(err)
+			}
+			var content map[string]string
+			if err := json.Unmarshal([]byte(payload.Content), &content); err != nil {
+				t.Fatal(err)
+			}
+			if payload.ReceiveID != "on_tester" || payload.MsgType != "image" || content["image_key"] != "image_heic" {
+				t.Errorf("unexpected image message: %+v content=%#v", payload, content)
+			}
+			calls = append(calls, "message")
+			return testFeishuHTTPResponse(`{"code":0,"data":{"message_id":"om_test"}}`), nil
+		default:
+			return nil, fmt.Errorf("unexpected request %s", req.URL.Path)
+		}
+	})}
+
+	file := assignment.FileView{ID: 1, FileName: "scan.heic", Size: int64(len(image))}
+	download := &assignment.Download{FileName: file.FileName, Content: image}
+	if err := h.sendSubmissionFileContent(context.Background(), "token", 82, file, download); err != nil {
+		t.Fatal(err)
+	}
+	if got := strings.Join(calls, ","); got != "upload,message" {
+		t.Fatalf("HEIC path calls = %s, want upload then image message", got)
+	}
+}
+
+func TestFeishuUploadFailureIncludesPlatformCode(t *testing.T) {
+	h := testFeishuHandler()
+	h.client = &http.Client{Transport: feishuTransportFunc(func(req *http.Request) (*http.Response, error) {
+		return &http.Response{StatusCode: http.StatusBadRequest, Body: io.NopCloser(strings.NewReader(`{"code":99991672,"msg":"private diagnostic detail"}`))}, nil
+	})}
+	_, err := h.uploadFeishuFile(context.Background(), "token", "test.pdf", []byte("pdf"), false, "pdf")
+	if err == nil || err.Error() != "Feishu upload HTTP 400, code=99991672" {
+		t.Fatalf("upload error = %v; want status and platform error code without diagnostic text", err)
+	}
+}
+
 func TestFeishuUploadFailureDoesNotStopCard(t *testing.T) {
 	h := testFeishuHandler()
 	var calls []string

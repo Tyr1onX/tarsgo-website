@@ -145,7 +145,7 @@ func (h *FeishuReviewHandler) sendSubmissionReview(
 			download, err = openFile(ctx, actor, file.ID)
 		}
 		if err == nil {
-			err = h.sendSubmissionFileContent(ctx, token, file, download)
+			err = h.sendSubmissionFileContent(ctx, token, target.ID, file, download)
 		}
 		if err != nil {
 			log.Printf("feishu attachment failed submission=%d file=%d: %v", target.ID, file.ID, err)
@@ -203,7 +203,7 @@ const (
 
 var feishuChinaTimeZone = time.FixedZone("Asia/Shanghai", 8*60*60)
 
-func (h *FeishuReviewHandler) sendSubmissionFileContent(ctx context.Context, token string, file assignment.FileView, download *assignment.Download) error {
+func (h *FeishuReviewHandler) sendSubmissionFileContent(ctx context.Context, token string, submissionID uint64, file assignment.FileView, download *assignment.Download) error {
 	if file.Size <= 0 || file.Size > feishuMaxFileSize {
 		return fmt.Errorf("unsupported Feishu file size: %d", file.Size)
 	}
@@ -216,7 +216,7 @@ func (h *FeishuReviewHandler) sendSubmissionFileContent(ctx context.Context, tok
 	image := file.Size <= feishuMaxImageSize
 	if image {
 		switch ext {
-		case ".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".ico":
+		case ".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".ico", ".heic":
 		default:
 			image = false
 		}
@@ -232,10 +232,18 @@ func (h *FeishuReviewHandler) sendSubmissionFileContent(ctx context.Context, tok
 	if err != nil {
 		return err
 	}
+	messageType := "file"
+	content := map[string]string{"file_key": key}
 	if image {
-		return h.sendMessage(ctx, token, "image", map[string]string{"image_key": key})
+		messageType = "image"
+		content = map[string]string{"image_key": key}
 	}
-	return h.sendMessage(ctx, token, "file", map[string]string{"file_key": key})
+	log.Printf("feishu attachment upload succeeded submission=%d file=%d type=%s", submissionID, file.ID, messageType)
+	if err := h.sendMessage(ctx, token, messageType, content); err != nil {
+		return err
+	}
+	log.Printf("feishu attachment message sent submission=%d file=%d type=%s", submissionID, file.ID, messageType)
+	return nil
 }
 
 func (h *FeishuReviewHandler) uploadFeishuFile(ctx context.Context, token, name string, content []byte, image bool, fileType string) (string, error) {
@@ -276,6 +284,13 @@ func (h *FeishuReviewHandler) uploadFeishuFile(ctx context.Context, token, name 
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
+		var apiError struct {
+			Code int `json:"code"`
+		}
+		_ = json.NewDecoder(io.LimitReader(res.Body, 64<<10)).Decode(&apiError)
+		if apiError.Code != 0 {
+			return "", fmt.Errorf("Feishu upload HTTP %d, code=%d", res.StatusCode, apiError.Code)
+		}
 		return "", fmt.Errorf("Feishu upload HTTP %d", res.StatusCode)
 	}
 	var result struct {

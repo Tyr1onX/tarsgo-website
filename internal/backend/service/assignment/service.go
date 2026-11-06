@@ -903,7 +903,7 @@ func (s *Service) Submit(ctx context.Context, actor Actor, assignmentID uint64, 
 		}
 		submission := model.AssignmentSubmission{
 			AssignmentID: item.ID, UserID: actor.ID, Attempt: attempt,
-			SubmittedAt: now.UTC(), IsLate: now.After(readStoredUTCWall(item.DueAt)), CreatedAt: now.UTC(),
+			SubmittedAt: storeUTCWall(now.UTC()), IsLate: now.After(readStoredUTCWall(item.DueAt)), CreatedAt: storeUTCWall(now.UTC()),
 		}
 		if err := tx.Create(&submission).Error; err != nil {
 			return err
@@ -989,7 +989,7 @@ func (s *Service) review(ctx context.Context, actor Actor, submissionID uint64, 
 		}
 		review := model.AssignmentReview{
 			SubmissionID: submission.ID, ReviewerID: actor.ID, Score: input.Score,
-			Decision: input.Decision, Comment: input.Comment, CreatedAt: s.now().UTC(),
+			Decision: input.Decision, Comment: input.Comment, CreatedAt: storeUTCWall(s.now().UTC()),
 		}
 		if err := tx.Create(&review).Error; err != nil {
 			return err

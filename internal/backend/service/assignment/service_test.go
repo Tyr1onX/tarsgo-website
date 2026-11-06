@@ -534,6 +534,9 @@ func TestFileStoreKeepsFilesInsidePrivateRootAndUsesOpaqueNames(t *testing.T) {
 
 func TestReadStoredUTCWallPreservesBeijingDeadlineInstant(t *testing.T) {
 	beijing := time.FixedZone("Asia/Shanghai", 8*60*60)
+	previousLocal := time.Local
+	time.Local = beijing
+	t.Cleanup(func() { time.Local = previousLocal })
 	want := time.Date(2026, 10, 20, 18, 30, 0, 0, beijing)
 	stored := storeUTCWall(want)
 	got := readStoredUTCWall(stored)

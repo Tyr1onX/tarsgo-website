@@ -570,6 +570,9 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	if err != nil || len(submitted.Submissions) != 1 {
 		t.Fatalf("member could not submit assignment: detail=%v err=%v", submitted, err)
 	}
+	if !submitted.Submissions[0].SubmittedAt.Equal(now) {
+		t.Fatalf("submission timestamp = %s, want %s", submitted.Submissions[0].SubmittedAt, now)
+	}
 	createdSubmissionIDs = append(createdSubmissionIDs, submitted.Submissions[0].ID)
 	if _, err := service.UploadMaterialFiles(context.Background(), admin, assignment.ID, []*multipart.FileHeader{multipartHeader(t, "新资料.pdf", []byte("%PDF-1.7\nnew"))}); statusOf(err) != http.StatusConflict {
 		t.Fatalf("material replacement after submission status = %d, want 409", statusOf(err))
@@ -584,6 +587,9 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	adminReview := graded.Members[0].LatestSubmission.Reviews[0]
 	if adminReview.Score == nil || *adminReview.Score != 90 {
 		t.Fatalf("administrator score missing: %#v", adminReview)
+	}
+	if !adminReview.CreatedAt.Equal(now) {
+		t.Fatalf("review timestamp = %s, want %s", adminReview.CreatedAt, now)
 	}
 	memberReviewed, err := service.GetMine(context.Background(), member, assignment.ID)
 	if err != nil || len(memberReviewed.Submissions) != 1 || len(memberReviewed.Submissions[0].Reviews) != 1 {
