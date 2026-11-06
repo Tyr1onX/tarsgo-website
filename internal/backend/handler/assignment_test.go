@@ -56,7 +56,7 @@ func TestPublishWithMaterialsRejectsInterruptedMultipart(t *testing.T) {
 	response := httptest.NewRecorder()
 	context, _ := gin.CreateTestContext(response)
 	context.Request = request
-	NewAssignmentHandler(nil).PublishWithMaterials(context)
+	NewAssignmentHandler(nil, nil).PublishWithMaterials(context)
 
 	if response.Code != http.StatusBadRequest {
 		t.Fatalf("interrupted upload status = %d, want 400: %s", response.Code, response.Body.String())

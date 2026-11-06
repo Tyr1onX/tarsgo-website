@@ -53,7 +53,7 @@ func (h *FeishuReviewHandler) SendTestCard(c *gin.Context) {
 	if !h.authorizedTester(c) {
 		return
 	}
-	card := feishuReviewCard("模拟作业 · 评分联调", "仅用于验证飞书卡片和网站回调，不修改任何作业成绩。", "test", 0, nil)
+	card := feishuReviewCard("模拟作业 · 评分联调", "仅用于验证飞书卡片和网站回调，不修改任何作业成绩。", "test", 0, nil, nil)
 	if err := h.sendCard(c.Request.Context(), card); err != nil {
 		middleware.LogInternalError(c, "feishu test card", http.StatusBadGateway, err)
 		c.JSON(http.StatusBadGateway, gin.H{"message": "飞书卡片发送失败"})
@@ -62,64 +62,48 @@ func (h *FeishuReviewHandler) SendTestCard(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "模拟批改卡片已发送到你的飞书私聊"})
 }
 
-// SendSubmissionCard is a manual pilot operation, not an automatic notification.
-// It can only be sent by the bound tester for a submission they may already review.
-func (h *FeishuReviewHandler) SendSubmissionCard(c *gin.Context) {
-	if !h.authorizedTester(c) {
-		return
-	}
-	id, err := strconv.ParseUint(c.Param("id"), 10, 64)
-	if err != nil || id == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"message": "提交编号无效"})
-		return
+// NotifySubmission sends new homework to the designated pilot reviewer.
+// Submission has already committed; a Feishu outage must not undo the upload.
+func (h *FeishuReviewHandler) NotifySubmission(ctx context.Context, submissionID uint64) error {
+	if !h.enabled() || h.cfg.TesterUserID == 0 {
+		return nil
 	}
 	var submitted model.AssignmentSubmission
-	if err := h.db.WithContext(c.Request.Context()).First(&submitted, id).Error; err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"message": "提交不存在"})
-		return
+	if err := h.db.WithContext(ctx).First(&submitted, submissionID).Error; err != nil {
+		return err
 	}
-	detail, err := h.assignments.GetAdmin(c.Request.Context(), feishuActor(h.cfg.TesterUserID, c), submitted.AssignmentID)
+	var reviewer model.User
+	if err := h.db.WithContext(ctx).Preload("Role").First(&reviewer, h.cfg.TesterUserID).Error; err != nil {
+		return err
+	}
+	if reviewer.Status != model.UserStatusEnabled {
+		return nil
+	}
+	detail, err := h.assignments.GetAdmin(ctx, assignment.Actor{ID: reviewer.ID, RoleName: reviewer.Role.Name}, submitted.AssignmentID)
 	if err != nil {
-		c.JSON(http.StatusForbidden, gin.H{"message": "无权批改该组作业"})
-		return
-	}
-	var target *assignment.SubmissionView
-	var memberName string
-	for _, member := range detail.Members {
-		if member.LatestSubmission != nil && member.LatestSubmission.ID == id {
-			target = member.LatestSubmission
-			memberName = member.Name
-			break
+		var serviceError *assignment.ServiceError
+		if errors.As(err, &serviceError) && serviceError.Status == http.StatusForbidden {
+			return nil // This submission belongs to another group's reviewer.
 		}
+		return err
 	}
-	if target == nil || len(target.Reviews) != 0 {
-		c.JSON(http.StatusConflict, gin.H{"message": "该提交已批改或不是最新提交"})
-		return
+	for _, member := range detail.Members {
+		target := member.LatestSubmission
+		if target == nil || target.ID != submissionID {
+			continue
+		}
+		if len(target.Reviews) != 0 {
+			return nil
+		}
+		card := feishuReviewCard(detail.Assignment.GroupName+" · "+detail.Assignment.Title,
+			fmt.Sprintf("提交人：%s\n第 %d 次提交\n附件需要登录网站后查看。", member.Name, target.Attempt),
+			"review", submissionID, &detail.Assignment.ID, target.Files)
+		return h.sendCard(ctx, card)
 	}
-	var fileNames []string
-	for _, f := range target.Files {
-		fileNames = append(fileNames, f.FileName)
-	}
-	card := feishuReviewCard(detail.Assignment.GroupName+" · "+detail.Assignment.Title,
-		fmt.Sprintf("提交人：%s\n第 %d 次提交\n附件：%s\n\n查看附件请先登录吉甲大师网站。", memberName, target.Attempt, strings.Join(fileNames, "、")),
-		"review", id, &detail.Assignment.ID)
-	if err := h.sendCard(c.Request.Context(), card); err != nil {
-		middleware.LogInternalError(c, "feishu submission card", http.StatusBadGateway, err)
-		c.JSON(http.StatusBadGateway, gin.H{"message": "飞书卡片发送失败"})
-		return
-	}
-	c.JSON(http.StatusOK, gin.H{"message": "批改卡片已发送到你的飞书私聊"})
+	return nil // A newer submission superseded this notification.
 }
 
-func feishuActor(id uint64, c *gin.Context) assignment.Actor {
-	user, ok := middleware.CurrentSessionUser(c)
-	if !ok || user == nil || user.ID != id {
-		return assignment.Actor{}
-	}
-	return assignment.Actor{ID: id, RoleName: user.Role.Name}
-}
-
-func feishuReviewCard(title, info, kind string, submissionID uint64, assignmentID *uint64) map[string]any {
+func feishuReviewCard(title, info, kind string, submissionID uint64, assignmentID *uint64, files []assignment.FileView) map[string]any {
 	value := map[string]any{"kind": kind}
 	if submissionID != 0 {
 		value["submission_id"] = submissionID
@@ -131,6 +115,12 @@ func feishuReviewCard(title, info, kind string, submissionID uint64, assignmentI
 		elements = append(elements, map[string]any{
 			"tag": "button", "text": map[string]any{"tag": "plain_text", "content": "在网站查看作业"},
 			"behaviors": []any{map[string]any{"type": "open_url", "default_url": fmt.Sprintf("https://jijiamaster.com/dashboard/admin/training/submissions?assignmentId=%d", *assignmentID)}},
+		})
+	}
+	for _, file := range files {
+		elements = append(elements, map[string]any{
+			"tag": "button", "text": map[string]any{"tag": "plain_text", "content": "查看附件 · " + file.FileName},
+			"behaviors": []any{map[string]any{"type": "open_url", "default_url": fmt.Sprintf("https://jijiamaster.com/api/assignment-files/%d", file.ID)}},
 		})
 	}
 	elements = append(elements, map[string]any{
