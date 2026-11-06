@@ -88,7 +88,7 @@ func (h *AssignmentHandler) Submit(c *gin.Context) {
 	if h.feishu != nil && result.Assignment.LatestSubmission != nil {
 		submissionID := result.Assignment.LatestSubmission.ID
 		go func() {
-			ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
 			if err := h.feishu.NotifySubmission(ctx, submissionID); err != nil {
 				log.Printf("feishu assignment notification failed for submission %d: %v", submissionID, err)

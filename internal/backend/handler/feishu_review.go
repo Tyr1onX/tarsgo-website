@@ -11,7 +11,10 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
+	"mime/multipart"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -33,7 +36,7 @@ type FeishuReviewHandler struct {
 }
 
 func NewFeishuReviewHandler(cfg config.FeishuConfig, db *gorm.DB, assignments *assignment.Service) *FeishuReviewHandler {
-	return &FeishuReviewHandler{cfg: cfg, db: db, assignments: assignments, client: &http.Client{Timeout: 5 * time.Second}}
+	return &FeishuReviewHandler{cfg: cfg, db: db, assignments: assignments, client: &http.Client{Timeout: 30 * time.Second}}
 }
 
 func (h *FeishuReviewHandler) enabled() bool {
@@ -53,7 +56,7 @@ func (h *FeishuReviewHandler) SendTestCard(c *gin.Context) {
 	if !h.authorizedTester(c) {
 		return
 	}
-	card := feishuReviewCard("模拟作业 · 评分联调", "仅用于验证飞书卡片和网站回调，不修改任何作业成绩。", "test", 0, nil, nil)
+	card := feishuReviewCard("模拟作业 · 评分联调", "仅用于验证飞书卡片和网站回调，不修改任何作业成绩。", "test", 0, nil)
 	if err := h.sendCard(c.Request.Context(), card); err != nil {
 		middleware.LogInternalError(c, "feishu test card", http.StatusBadGateway, err)
 		c.JSON(http.StatusBadGateway, gin.H{"message": "飞书卡片发送失败"})
@@ -95,15 +98,30 @@ func (h *FeishuReviewHandler) NotifySubmission(ctx context.Context, submissionID
 		if len(target.Reviews) != 0 {
 			return nil
 		}
+		token, err := h.tenantToken(ctx)
+		if err != nil {
+			return err
+		}
+		var names []string
+		var failed []assignment.FileView
+		fileCtx, cancel := context.WithTimeout(ctx, 80*time.Second)
+		defer cancel()
+		for _, file := range target.Files {
+			names = append(names, file.FileName)
+			if err := h.sendSubmissionFile(fileCtx, token, assignment.Actor{ID: reviewer.ID, RoleName: reviewer.Role.Name}, file); err != nil {
+				log.Printf("feishu attachment failed submission=%d file=%d: %v", submissionID, file.ID, err)
+				failed = append(failed, file)
+			}
+		}
 		card := feishuReviewCard(detail.Assignment.GroupName+" · "+detail.Assignment.Title,
-			fmt.Sprintf("提交人：%s\n第 %d 次提交\n附件需要登录网站后查看。", member.Name, target.Attempt),
-			"review", submissionID, &detail.Assignment.ID, target.Files)
-		return h.sendCard(ctx, card)
+			fmt.Sprintf("提交人：%s\n第 %d 次提交\n附件：%s", member.Name, target.Attempt, strings.Join(names, "、")),
+			"review", submissionID, failed)
+		return h.sendMessage(ctx, token, "interactive", card)
 	}
 	return nil // A newer submission superseded this notification.
 }
 
-func feishuReviewCard(title, info, kind string, submissionID uint64, assignmentID *uint64, files []assignment.FileView) map[string]any {
+func feishuReviewCard(title, info, kind string, submissionID uint64, files []assignment.FileView) map[string]any {
 	value := map[string]any{"kind": kind}
 	if submissionID != 0 {
 		value["submission_id"] = submissionID
@@ -111,15 +129,9 @@ func feishuReviewCard(title, info, kind string, submissionID uint64, assignmentI
 	elements := []any{
 		map[string]any{"tag": "markdown", "content": info},
 	}
-	if assignmentID != nil {
-		elements = append(elements, map[string]any{
-			"tag": "button", "text": map[string]any{"tag": "plain_text", "content": "在网站查看作业"},
-			"behaviors": []any{map[string]any{"type": "open_url", "default_url": fmt.Sprintf("https://jijiamaster.com/dashboard/admin/training/submissions?assignmentId=%d", *assignmentID)}},
-		})
-	}
 	for _, file := range files {
 		elements = append(elements, map[string]any{
-			"tag": "button", "text": map[string]any{"tag": "plain_text", "content": "查看附件 · " + file.FileName},
+			"tag": "button", "text": map[string]any{"tag": "plain_text", "content": "附件发送失败，网站下载 · " + file.FileName},
 			"behaviors": []any{map[string]any{"type": "open_url", "default_url": fmt.Sprintf("https://jijiamaster.com/api/assignment-files/%d", file.ID)}},
 		})
 	}
@@ -143,23 +155,138 @@ func feishuReviewCard(title, info, kind string, submissionID uint64, assignmentI
 	}
 }
 
+const (
+	feishuMaxFileSize  = 30 * 1000 * 1000
+	feishuMaxImageSize = 10 * 1000 * 1000
+)
+
+func (h *FeishuReviewHandler) sendSubmissionFile(ctx context.Context, token string, actor assignment.Actor, file assignment.FileView) error {
+	if file.Size <= 0 || file.Size > feishuMaxFileSize {
+		return fmt.Errorf("unsupported Feishu file size: %d", file.Size)
+	}
+	download, err := h.assignments.OpenFile(ctx, actor, file.ID)
+	if err != nil {
+		return err
+	}
+	ext := strings.ToLower(filepath.Ext(file.FileName))
+	image := file.Size <= feishuMaxImageSize && strings.HasPrefix(file.ContentType, "image/")
+	if image {
+		switch ext {
+		case ".jpg", ".jpeg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff", ".ico":
+		default:
+			image = false
+		}
+	}
+	fileType := "stream"
+	if !image {
+		switch ext {
+		case ".pdf", ".doc", ".xls", ".ppt":
+			fileType = strings.TrimPrefix(ext, ".")
+		}
+	}
+	key, err := h.uploadFeishuFile(ctx, token, download.FileName, download.Content, image, fileType)
+	if err != nil {
+		return err
+	}
+	if image {
+		return h.sendMessage(ctx, token, "image", map[string]string{"image_key": key})
+	}
+	return h.sendMessage(ctx, token, "file", map[string]string{"file_key": key})
+}
+
+func (h *FeishuReviewHandler) uploadFeishuFile(ctx context.Context, token, name string, content []byte, image bool, fileType string) (string, error) {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
+	field, kind, url := "file", "file_type", "https://open.feishu.cn/open-apis/im/v1/files"
+	if image {
+		field, kind, url = "image", "image_type", "https://open.feishu.cn/open-apis/im/v1/images"
+		fileType = "message"
+	}
+	if err := writer.WriteField(kind, fileType); err != nil {
+		return "", err
+	}
+	if !image {
+		if err := writer.WriteField("file_name", name); err != nil {
+			return "", err
+		}
+	}
+	part, err := writer.CreateFormFile(field, name)
+	if err != nil {
+		return "", err
+	}
+	if _, err := part.Write(content); err != nil {
+		return "", err
+	}
+	if err := writer.Close(); err != nil {
+		return "", err
+	}
+	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, &body)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", writer.FormDataContentType())
+	res, err := h.client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("Feishu upload HTTP %d", res.StatusCode)
+	}
+	var result struct {
+		Code int    `json:"code"`
+		Msg  string `json:"msg"`
+		Data struct {
+			FileKey  string `json:"file_key"`
+			ImageKey string `json:"image_key"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(io.LimitReader(res.Body, 64<<10)).Decode(&result); err != nil {
+		return "", err
+	}
+	key := result.Data.FileKey
+	if image {
+		key = result.Data.ImageKey
+	}
+	if result.Code != 0 || key == "" {
+		return "", fmt.Errorf("Feishu upload rejected: %d %s", result.Code, result.Msg)
+	}
+	return key, nil
+}
+
 func (h *FeishuReviewHandler) sendCard(ctx context.Context, card map[string]any) error {
+	token, err := h.tenantToken(ctx)
+	if err != nil {
+		return err
+	}
+	return h.sendMessage(ctx, token, "interactive", card)
+}
+
+func (h *FeishuReviewHandler) tenantToken(ctx context.Context) (string, error) {
 	if !h.enabled() {
-		return errors.New("feishu pilot is not configured")
+		return "", errors.New("feishu pilot is not configured")
 	}
 	body, _ := json.Marshal(map[string]string{"app_id": h.cfg.AppID, "app_secret": h.cfg.AppSecret})
-	var token struct {
+	var result struct {
 		Code  int    `json:"code"`
 		Token string `json:"tenant_access_token"`
 	}
-	if err := h.postJSON(ctx, "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal", body, "", &token); err != nil {
+	if err := h.postJSON(ctx, "https://open.feishu.cn/open-apis/auth/v3/tenant_access_token/internal", body, "", &result); err != nil {
+		return "", err
+	}
+	if result.Code != 0 || result.Token == "" {
+		return "", errors.New("feishu tenant token rejected")
+	}
+	return result.Token, nil
+}
+
+func (h *FeishuReviewHandler) sendMessage(ctx context.Context, token, msgType string, content any) error {
+	payload, err := json.Marshal(content)
+	if err != nil {
 		return err
 	}
-	if token.Code != 0 || token.Token == "" {
-		return errors.New("feishu tenant token rejected")
-	}
-	cardJSON, _ := json.Marshal(card)
-	msg, _ := json.Marshal(map[string]string{"receive_id": h.cfg.TesterUnionID, "msg_type": "interactive", "content": string(cardJSON)})
+	msg, _ := json.Marshal(map[string]string{"receive_id": h.cfg.TesterUnionID, "msg_type": msgType, "content": string(payload)})
 	var result struct {
 		Code int    `json:"code"`
 		Msg  string `json:"msg"`
@@ -167,7 +294,7 @@ func (h *FeishuReviewHandler) sendCard(ctx context.Context, card map[string]any)
 			MessageID string `json:"message_id"`
 		} `json:"data"`
 	}
-	if err := h.postJSON(ctx, "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=union_id", msg, token.Token, &result); err != nil {
+	if err := h.postJSON(ctx, "https://open.feishu.cn/open-apis/im/v1/messages?receive_id_type=union_id", msg, token, &result); err != nil {
 		return err
 	}
 	if result.Code != 0 || result.Data.MessageID == "" {
