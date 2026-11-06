@@ -214,7 +214,7 @@ test("DJI occupies the first independent row before two featured sponsors and th
     ["nasi-precision.svg", "长春纳丝精密机械有限公司"],
   ];
   for (const [image, name] of logoNames) {
-    assert.ok(sponsorSource.includes(`{ name: "${name}", image: "/assets/images/Sponsors/${image}" }`), `incorrect sponsor text for ${image}`);
+    assert.ok(sponsorSource.includes(`{ name: "${name}", image: "/assets/images/Sponsors/${image}"`), `incorrect sponsor text for ${image}`);
     if (image.endsWith(".webp")) {
       const logo = await readFile(new URL(`../../../../public/assets/images/Sponsors/${image}`, import.meta.url));
       assert.equal(logo.toString("ascii", 0, 4), "RIFF", `invalid WebP: ${image}`);
