@@ -74,6 +74,13 @@ test("homepage groups sponsors and two partner links in one compact section", ()
   assert.match(styles, /@media \(min-width:\s*640px\)[\s\S]*?\.home-partner-links\s*\{[^}]*grid-template-columns:\s*repeat\(2,/);
 });
 
+test("Nasi sponsor logo shows an identifiable Chinese name next to the original mark", () => {
+  assert.match(home, /name: "长春纳丝精密机械有限公司"[^}]*caption: "长春纳丝\\n精密机械"/);
+  assert.match(home, /<span className="home-sponsor-caption">\{sponsor\.caption\}<\/span>/);
+  assert.match(styles, /\.home-sponsor-logo--captioned img\s*\{[^}]*width:\s*2\.5rem;/);
+  assert.match(styles, /\.home-sponsor-caption\s*\{[^}]*white-space:\s*pre-line;/);
+});
+
 test("featured sponsor logos load eagerly and mobile logo slots stay bounded", async () => {
   const featured = home.match(/<ul className="home-sponsor-featured-grid"[\s\S]*?<\/ul>/)?.[0] ?? "";
   assert.match(featured, /loading="eager"/);
@@ -506,7 +513,7 @@ test("the dedicated join guide only renders on its join route", () => {
 
 test("Nasi Precision partner logo is publicly listed with a local, safe SVG asset", async () => {
   const company = "长春纳丝精密机械有限公司";
-  const partnerEntry = `{ name: "${company}", image: "/assets/images/Sponsors/nasi-precision.svg" }`;
+  const partnerEntry = `{ name: "${company}", image: "/assets/images/Sponsors/nasi-precision.svg", caption: "长春纳丝\\n精密机械" }`;
   const logo = await readFile(new URL("../../../../public/assets/images/Sponsors/nasi-precision.svg", import.meta.url), "utf8");
 
   assert.equal(home.split(partnerEntry).length - 1, 1, "partner should appear exactly once");
