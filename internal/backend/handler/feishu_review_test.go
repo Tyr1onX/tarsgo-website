@@ -18,6 +18,7 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"tarsgo-backend/config"
+	"tarsgo-backend/service/assignment"
 )
 
 func testFeishuHandler() *FeishuReviewHandler {
@@ -241,11 +242,42 @@ func TestFeishuCardSendUsesBotAndOnlyTester(t *testing.T) {
 			return nil, errors.New("unexpected Feishu request")
 		}
 	})}
-	if err := h.sendCard(context.Background(), feishuReviewCard("test", "preview", "test", 0, nil)); err != nil {
+	if err := h.sendCard(context.Background(), feishuReviewCard("test", "preview", "test", 0, nil, nil)); err != nil {
 		t.Fatal(err)
 	}
 	if calls != 2 {
 		t.Fatalf("calls=%d, want 2", calls)
+	}
+}
+
+func TestFeishuSubmissionCardIncludesAttachmentLinks(t *testing.T) {
+	assignmentID := uint64(42)
+	card := feishuReviewCard("运营组 · 测试作业", "提交人：联调成员", "review", 77, &assignmentID,
+		[]assignment.FileView{{ID: 15, FileName: "test.pdf", DownloadURL: "/api/assignment-files/15"}})
+	elements := card["body"].(map[string]any)["elements"].([]any)
+	if len(elements) != 4 {
+		t.Fatalf("card elements=%d, want description, website link, file link and review form", len(elements))
+	}
+	website := elements[1].(map[string]any)["behaviors"].([]any)[0].(map[string]any)["default_url"]
+	if website != "https://jijiamaster.com/dashboard/admin/training/submissions?assignmentId=42" {
+		t.Fatalf("wrong website link: %v", website)
+	}
+	file := elements[2].(map[string]any)
+	if file["text"].(map[string]any)["content"] != "查看附件 · test.pdf" ||
+		file["behaviors"].([]any)[0].(map[string]any)["default_url"] != "https://jijiamaster.com/api/assignment-files/15" {
+		t.Fatalf("wrong attachment button: %#v", file)
+	}
+	form := elements[3].(map[string]any)["elements"].([]any)
+	action := form[len(form)-1].(map[string]any)["behaviors"].([]any)[0].(map[string]any)["value"].(map[string]any)
+	if action["kind"] != "review" || action["submission_id"] != uint64(77) {
+		t.Fatalf("wrong grading callback: %#v", action)
+	}
+}
+
+func TestFeishuNotificationIsDisabledWithoutPilotConfiguration(t *testing.T) {
+	h := testFeishuHandler()
+	if err := h.NotifySubmission(context.Background(), 99); err != nil {
+		t.Fatalf("disabled notification must not attempt database access: %v", err)
 	}
 }
 

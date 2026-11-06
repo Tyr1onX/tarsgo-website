@@ -1,9 +1,11 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -18,10 +20,13 @@ import (
 
 const maxAssignmentRequestBody = 64 << 20
 
-type AssignmentHandler struct{ service *assignment.Service }
+type AssignmentHandler struct {
+	service *assignment.Service
+	feishu  *FeishuReviewHandler
+}
 
-func NewAssignmentHandler(service *assignment.Service) *AssignmentHandler {
-	return &AssignmentHandler{service: service}
+func NewAssignmentHandler(service *assignment.Service, feishu *FeishuReviewHandler) *AssignmentHandler {
+	return &AssignmentHandler{service: service, feishu: feishu}
 }
 
 type assignmentRequest struct {
@@ -79,6 +84,16 @@ func (h *AssignmentHandler) Submit(c *gin.Context) {
 	if err != nil {
 		h.fail(c, err)
 		return
+	}
+	if h.feishu != nil && result.Assignment.LatestSubmission != nil {
+		submissionID := result.Assignment.LatestSubmission.ID
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 12*time.Second)
+			defer cancel()
+			if err := h.feishu.NotifySubmission(ctx, submissionID); err != nil {
+				log.Printf("feishu assignment notification failed for submission %d: %v", submissionID, err)
+			}
+		}()
 	}
 	writeAPI(c, http.StatusOK, "作业已提交", result)
 }

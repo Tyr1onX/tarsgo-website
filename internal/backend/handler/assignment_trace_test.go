@@ -44,7 +44,7 @@ func TestAssignmentInternalErrorIsLoggedWithRequestIDAndRedacted(t *testing.T) {
 	mock.ExpectQuery("SELECT .*group_id.*FROM `user_group_members` JOIN user_groups ON.*JOIN users ON.*").
 		WillReturnError(errors.New("database unavailable password=must-not-appear"))
 
-	assignmentHandler := NewAssignmentHandler(assignment.NewService(db))
+	assignmentHandler := NewAssignmentHandler(assignment.NewService(db), nil)
 	engine := gin.New()
 	engine.Use(middleware.RequestTracing())
 	engine.Use(gin.LoggerWithConfig(gin.LoggerConfig{Formatter: middleware.RequestLogFormatter, SkipQueryString: true}))
