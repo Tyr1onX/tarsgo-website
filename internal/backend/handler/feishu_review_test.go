@@ -22,7 +22,7 @@ import (
 
 func testFeishuHandler() *FeishuReviewHandler {
 	return NewFeishuReviewHandler(config.FeishuConfig{
-		AppID: "cli_test", AppSecret: "secret", VerificationToken: "verification",
+		AppID: "cli_test", AppSecret: "secret",
 		TesterUnionID: "on_tester",
 	}, nil, nil)
 }
@@ -180,7 +180,6 @@ func TestFeishuEncryptedCallbackWithoutAuthentication(t *testing.T) {
 
 func TestFeishuCallbackWithoutRequestAuthentication(t *testing.T) {
 	h := testFeishuHandler()
-	h.cfg.VerificationToken = ""
 	event := callbackAction("86", "passed", "submit_review", "on_other", "test")
 	event["header"].(map[string]any)["token"] = "wrong"
 	event["header"].(map[string]any)["app_id"] = "wrong"
