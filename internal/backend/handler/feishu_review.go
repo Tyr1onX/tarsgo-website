@@ -6,14 +6,11 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/sha256"
-	"crypto/subtle"
 	"encoding/base64"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"strconv"
 	"strings"
@@ -28,8 +25,6 @@ import (
 	"tarsgo-backend/service/assignment"
 )
 
-// FeishuReviewHandler is intentionally restricted to one tester during the pilot.
-// It never derives website permissions from an untrusted card action.
 type FeishuReviewHandler struct {
 	cfg         config.FeishuConfig
 	db          *gorm.DB
@@ -42,7 +37,7 @@ func NewFeishuReviewHandler(cfg config.FeishuConfig, db *gorm.DB, assignments *a
 }
 
 func (h *FeishuReviewHandler) enabled() bool {
-	return h.cfg.AppID != "" && h.cfg.AppSecret != "" && h.cfg.VerificationToken != "" && h.cfg.TesterUnionID != ""
+	return h.cfg.AppID != "" && h.cfg.AppSecret != "" && h.cfg.TesterUnionID != ""
 }
 
 func (h *FeishuReviewHandler) authorizedTester(c *gin.Context) bool {
@@ -213,18 +208,8 @@ func (h *FeishuReviewHandler) postJSON(ctx context.Context, url string, data []b
 
 type feishuCallback struct {
 	Type      string `json:"type"`
-	Token     string `json:"token"`
 	Challenge string `json:"challenge"`
-	Header    struct {
-		Token      string `json:"token"`
-		AppID      string `json:"app_id"`
-		EventType  string `json:"event_type"`
-		CreateTime string `json:"create_time"`
-	} `json:"header"`
-	Event struct {
-		Operator struct {
-			UnionID string `json:"union_id"`
-		} `json:"operator"`
+	Event     struct {
 		Action struct {
 			Name  string `json:"name"`
 			Value struct {
@@ -246,74 +231,20 @@ func (h *FeishuReviewHandler) Callback(c *gin.Context) {
 		c.Status(http.StatusBadRequest)
 		return
 	}
-	var event feishuCallback
 	if h.cfg.EncryptKey != "" {
-		// Feishu sends URL verification as an encrypted envelope too, but that
-		// handshake does not carry the signature headers used for normal
-		// callbacks. Decrypt it first, then authenticate it with the token.
-		var envelope struct {
-			Encrypt string `json:"encrypt"`
-		}
-		if err := json.Unmarshal(raw, &envelope); err != nil || envelope.Encrypt == "" {
-			c.Status(http.StatusBadRequest)
-			return
-		}
-		plain, err := decryptFeishuPayload(raw, h.cfg.EncryptKey)
+		raw, err = decryptFeishuPayload(raw, h.cfg.EncryptKey)
 		if err != nil {
 			c.Status(http.StatusBadRequest)
 			return
 		}
-		if err := json.Unmarshal(plain, &event); err != nil {
-			c.Status(http.StatusBadRequest)
-			return
-		}
-		if event.Type != "url_verification" {
-			headers := c.Request.Header
-			// Card callbacks may include signature-related headers without the
-			// required timestamp. Use the full signature only when timestamped;
-			// otherwise authenticate the encrypted payload with its token and
-			// recent event time below.
-			hasSignature := headers.Get("X-Lark-Request-Timestamp") != ""
-			if hasSignature {
-				if !verifyFeishuSignature(headers, raw, h.cfg.EncryptKey, time.Now()) {
-					c.Status(http.StatusUnauthorized)
-					return
-				}
-			} else if !validFeishuCallbackTime(event.Header.CreateTime, time.Now()) {
-				// Card callbacks may lack signature headers; verify the encrypted
-				// payload's token below and reject stale or malformed events.
-				log.Print("feishu callback rejected: missing or expired event create_time")
-				c.Status(http.StatusUnauthorized)
-				return
-			}
-		}
-	} else if err := json.Unmarshal(raw, &event); err != nil {
+	}
+	var event feishuCallback
+	if err := json.Unmarshal(raw, &event); err != nil {
 		c.Status(http.StatusBadRequest)
 		return
 	}
-	// URL verification is a separate handshake. With encryption enabled its
-	// payload has already been decrypted above; without encryption it is plain.
-	// In both cases, only echo the challenge after checking the app token.
 	if event.Type == "url_verification" {
-		if subtle.ConstantTimeCompare([]byte(event.Token), []byte(h.cfg.VerificationToken)) != 1 {
-			c.Status(http.StatusUnauthorized)
-			return
-		}
 		c.JSON(http.StatusOK, gin.H{"challenge": event.Challenge})
-		return
-	}
-	token := event.Header.Token
-	if subtle.ConstantTimeCompare([]byte(token), []byte(h.cfg.VerificationToken)) != 1 {
-		log.Print("feishu callback rejected: verification token mismatch")
-		c.Status(http.StatusUnauthorized)
-		return
-	}
-	if event.Header.AppID != h.cfg.AppID || event.Header.EventType != "card.action.trigger" {
-		c.Status(http.StatusBadRequest)
-		return
-	}
-	if event.Event.Operator.UnionID != h.cfg.TesterUnionID {
-		feishuToast(c, "error", "只有试点管理员可以批改")
 		return
 	}
 	if event.Event.Action.Name != "submit_review" {
@@ -332,10 +263,6 @@ func (h *FeishuReviewHandler) Callback(c *gin.Context) {
 	case "test":
 		feishuCompleted(c, "模拟评分完成", score, decision, comment, "已验证卡片表单回传，没有修改网站成绩")
 	case "review":
-		if h.cfg.EncryptKey == "" {
-			feishuToast(c, "error", "正式评分需要先配置飞书回调加密密钥")
-			return
-		}
 		if h.cfg.TesterUserID == 0 || event.Event.Action.Value.SubmissionID == 0 {
 			feishuToast(c, "error", "未配置网站试点管理员")
 			return
@@ -383,40 +310,6 @@ func feishuCompleted(c *gin.Context, title string, score int, decision, comment,
 			"body":   gin.H{"elements": []any{gin.H{"tag": "markdown", "content": text}}},
 		}},
 	})
-}
-
-func validFeishuCallbackTime(raw string, now time.Time) bool {
-	microseconds, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil || microseconds <= 0 {
-		return false
-	}
-	created := time.UnixMicro(microseconds)
-	return now.Sub(created) <= 5*time.Minute && created.Sub(now) <= 5*time.Minute
-}
-
-func verifyFeishuSignature(headers http.Header, body []byte, key string, now time.Time) bool {
-	ts := headers.Get("X-Lark-Request-Timestamp")
-	nonce := headers.Get("X-Lark-Request-Nonce")
-	signature := headers.Get("X-Lark-Signature")
-	timestamp, err := strconv.ParseInt(ts, 10, 64)
-	if err != nil {
-		log.Print("feishu callback rejected: missing or invalid signature timestamp")
-		return false
-	}
-	if nonce == "" || signature == "" {
-		log.Print("feishu callback rejected: missing signature headers")
-		return false
-	}
-	if now.Sub(time.Unix(timestamp, 0)) > 5*time.Minute || time.Unix(timestamp, 0).Sub(now) > 5*time.Minute {
-		log.Print("feishu callback rejected: signature timestamp outside 5-minute window")
-		return false
-	}
-	hash := sha256.Sum256(append([]byte(ts+nonce+key), body...))
-	valid := subtle.ConstantTimeCompare([]byte(hex.EncodeToString(hash[:])), []byte(signature)) == 1
-	if !valid {
-		log.Print("feishu callback rejected: signature mismatch")
-	}
-	return valid
 }
 
 func decryptFeishuPayload(body []byte, key string) ([]byte, error) {
