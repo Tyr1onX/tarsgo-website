@@ -16,9 +16,9 @@ export function meta({}: Route.MetaArgs) {
   ];
 }
 
-const sponsorLogos = [
+const sponsorLogos: { name: string; image: string; caption?: string }[] = [
   { name: "YELITE", image: "/assets/images/Sponsors/yelite-9c169cab.webp" },
-  { name: "长春纳丝精密机械有限公司", image: "/assets/images/Sponsors/nasi-precision.svg" },
+  { name: "长春纳丝精密机械有限公司", image: "/assets/images/Sponsors/nasi-precision.svg", caption: "长春纳丝\n精密机械" },
   { name: "AMASS", image: "/assets/images/Sponsors/amass-28a9de74.webp" },
   { name: "创芯工坊", image: "/assets/images/Sponsors/cxgf-1215c6ef.webp" },
   { name: "吉地智联", image: "/assets/images/Sponsors/jdzl-f2d699c5.webp" },
@@ -164,8 +164,9 @@ function HomeSponsorSection() {
           </div>
           <ul className="home-sponsor-featured-grid" aria-label="重点合作品牌">
             {sponsorLogos.slice(0, 2).map((sponsor) => (
-              <li key={sponsor.name} className="home-sponsor-logo">
+              <li key={sponsor.name} className={sponsor.caption ? "home-sponsor-logo home-sponsor-logo--captioned" : "home-sponsor-logo"}>
                 <img src={sponsor.image} alt={sponsor.name} loading="eager" />
+                {sponsor.caption ? <span className="home-sponsor-caption">{sponsor.caption}</span> : null}
               </li>
             ))}
           </ul>

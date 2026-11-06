@@ -74,6 +74,13 @@ test("homepage groups sponsors and two partner links in one compact section", ()
   assert.match(styles, /@media \(min-width:\s*640px\)[\s\S]*?\.home-partner-links\s*\{[^}]*grid-template-columns:\s*repeat\(2,/);
 });
 
+test("Nasi sponsor logo shows an identifiable Chinese name next to the original mark", () => {
+  assert.match(home, /name: "长春纳丝精密机械有限公司"[^}]*caption: "长春纳丝\\n精密机械"/);
+  assert.match(home, /<span className="home-sponsor-caption">\\{sponsor\\.caption\\}<\\/span>/);
+  assert.match(styles, /\\.home-sponsor-logo--captioned img\\s*\\{[^}]*width:\\s*2\\.5rem;/);
+  assert.match(styles, /\\.home-sponsor-caption\\s*\\{[^}]*white-space:\\s*pre-line;/);
+});
+
 test("featured sponsor logos load eagerly and mobile logo slots stay bounded", async () => {
   const featured = home.match(/<ul className="home-sponsor-featured-grid"[\s\S]*?<\/ul>/)?.[0] ?? "";
   assert.match(featured, /loading="eager"/);

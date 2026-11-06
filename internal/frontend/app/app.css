@@ -2106,6 +2106,25 @@ html[data-theme-transition] body *::after {
   object-fit: contain;
 }
 
+.home-sponsor-logo--captioned {
+  gap: 0.5rem;
+}
+
+.home-sponsor-logo--captioned img {
+  width: 2.5rem;
+  flex: 0 0 2.5rem;
+}
+
+.home-sponsor-caption {
+  min-width: 0;
+  color: var(--theme-text);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: left;
+  white-space: pre-line;
+}
+
 .home-partner-links {
   display: grid;
   gap: 0.75rem;
