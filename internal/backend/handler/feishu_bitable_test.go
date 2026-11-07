@@ -192,6 +192,69 @@ func TestBitableReviewUpdateDoesNotReuploadAttachments(t *testing.T) {
 	}
 }
 
+func TestBitableReviewSyncRunsOutsideTheCardCallbackPath(t *testing.T) {
+	h := testFeishuHandler()
+	h.cfg.BitableAppToken = "basc_test"
+	h.cfg.BitableTableID = "tbl_test"
+	started := make(chan struct{}, 1)
+	release := make(chan struct{})
+	finished := make(chan map[string]any, 1)
+	h.client = &http.Client{Transport: feishuTransportFunc(func(req *http.Request) (*http.Response, error) {
+		switch {
+		case strings.HasSuffix(req.URL.Path, "/tenant_access_token/internal"):
+			return testFeishuHTTPResponse(`{"code":0,"tenant_access_token":"token"}`), nil
+		case req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/records"):
+			started <- struct{}{}
+			<-release
+			return testFeishuHTTPResponse(`{"code":0,"data":{"items":[{"record_id":"rec_123","fields":{"提交 ID":"123"}}],"has_more":false}}`), nil
+		case req.Method == http.MethodPut && strings.Contains(req.URL.Path, "/records/rec_123"):
+			var payload struct {
+				Fields map[string]any `json:"fields"`
+			}
+			if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+				return nil, err
+			}
+			finished <- payload.Fields
+			return testFeishuHTTPResponse(`{"code":0,"data":{"record":{"record_id":"rec_123"}}}`), nil
+		default:
+			return nil, fmt.Errorf("unexpected Feishu request %s %s", req.Method, req.URL)
+		}
+	})}
+	score := uint8(88)
+	submission := assignment.SubmissionView{
+		ID: 123, Attempt: 1, SubmittedAt: time.Now(),
+		Reviews: []assignment.ReviewView{{Score: &score, Decision: model.AssignmentReviewPassed, Comment: "看板回写"}},
+	}
+	member := assignment.AssignmentMemberView{Name: "测试成员", LatestSubmission: &submission}
+	callDone := make(chan struct{})
+	go func() {
+		h.syncBitableReviewAsync(assignment.Actor{ID: 7, RoleName: model.RoleNameAdmin}, assignment.AssignmentView{ID: 9, GroupName: "视觉组", Title: "图像作业"}, member)
+		close(callDone)
+	}()
+	select {
+	case <-callDone:
+	case <-time.After(500 * time.Millisecond):
+		close(release)
+		<-callDone
+		t.Fatal("review callback path waited for Bitable")
+	}
+	select {
+	case <-started:
+	case <-time.After(time.Second):
+		close(release)
+		t.Fatal("background Bitable sync did not start")
+	}
+	close(release)
+	select {
+	case fields := <-finished:
+		if fields[bitableFieldStatus] != "通过" || fields[bitableFieldScore] != float64(88) || fields[bitableFieldComment] != "看板回写" {
+			t.Fatalf("background sync did not write the website review: %#v", fields)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("background Bitable sync did not finish")
+	}
+}
+
 func TestBitableReviewValuesUseLatestWebsiteReview(t *testing.T) {
 	passedScore := uint8(94)
 	redoScore := uint8(81)

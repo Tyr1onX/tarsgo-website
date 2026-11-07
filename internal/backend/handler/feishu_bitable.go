@@ -32,7 +32,7 @@ const (
 	feishuBitableFinishURL  = "https://open.feishu.cn/open-apis/drive/v1/medias/upload_finish"
 	bitableMediaInterval    = 210 * time.Millisecond
 	bitableMediaUploadLimit = 20 << 20
-	bitableReviewTimeout    = 2 * time.Second
+	bitableReviewTimeout    = 10 * time.Second
 
 	bitableFieldAssignment   = "作业名称"
 	bitableFieldSubmissionID = "提交 ID"
@@ -253,6 +253,20 @@ func (h *FeishuReviewHandler) syncBitableReview(ctx context.Context, actor assig
 	defer h.notifyMu.Unlock()
 	_, err = h.upsertBitableSubmission(ctx, token, actor, item, member, *member.LatestSubmission, true, false, nil)
 	return err
+}
+
+func (h *FeishuReviewHandler) syncBitableReviewAsync(actor assignment.Actor, item assignment.AssignmentView, member assignment.AssignmentMemberView) {
+	if member.LatestSubmission == nil {
+		return
+	}
+	submissionID := member.LatestSubmission.ID
+	go func() {
+		ctx, cancel := context.WithTimeout(context.Background(), bitableReviewTimeout)
+		defer cancel()
+		if err := h.syncBitableReview(ctx, actor, item, member); err != nil {
+			log.Printf("feishu bitable review sync failed submission=%d: %v", submissionID, err)
+		}
+	}()
 }
 
 type bitableAttachmentUpload struct {
