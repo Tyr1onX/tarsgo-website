@@ -184,8 +184,19 @@ export const assignmentClient = {
   removeMaterialFile: (assignmentId: number, fileId: number) =>
     apiRequest<AssignmentMaterialFile[]>(`/api/admin/assignments/${assignmentId}/materials/${fileId}`, { method: "DELETE" }),
   getAdmin: (id: number) => apiRequest<AdminAssignmentDetail>(`/api/admin/assignments/${id}`),
-  review: (submissionId: number, input: { score: number; decision: "passed" | "needs_redo"; comment: string }) =>
-    apiRequest<AdminAssignmentDetail>(`/api/admin/assignments/submissions/${submissionId}/reviews`, { method: "POST", body: input }),
+  review: (submissionId: number, input: { score: number; decision: "passed" | "needs_redo"; comment: string; files?: File[]; uploadTokens?: string[] }) => {
+    const path = `/api/admin/assignments/submissions/${submissionId}/reviews`;
+    if (!input.files?.length) {
+      return apiRequest<AdminAssignmentDetail>(path, { method: "POST", body: { score: input.score, decision: input.decision, comment: input.comment } });
+    }
+    const body = new FormData();
+    body.set("score", String(input.score));
+    body.set("decision", input.decision);
+    body.set("comment", input.comment);
+    body.set("uploadTokens", JSON.stringify(input.uploadTokens ?? []));
+    for (const file of input.files) body.append("files", file, file.name);
+    return apiRequest<AdminAssignmentDetail>(path, { method: "POST", body });
+  },
 };
 
 export function formatAssignmentDate(value: string) {

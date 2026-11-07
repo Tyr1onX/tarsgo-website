@@ -3,6 +3,7 @@ package assignment
 import (
 	"bytes"
 	"context"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"mime/multipart"
@@ -83,7 +84,7 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	createdSubmissionIDs := make([]uint64, 0, 1)
 	t.Cleanup(func() {
 		if len(createdSubmissionIDs) > 0 {
-			for _, destination := range []any{&model.AssignmentReview{}, &model.AssignmentSubmissionFile{}} {
+			for _, destination := range []any{&model.AssignmentReviewImage{}, &model.AssignmentReview{}, &model.AssignmentSubmissionFile{}} {
 				if err := db.Where("submission_id IN ?", createdSubmissionIDs).Delete(destination).Error; err != nil {
 					t.Errorf("remove synthetic assignment history: %v", err)
 				}
@@ -866,6 +867,45 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 		t.Fatalf("safe assignment delete left a parent row: count=%d err=%v", deletedRows, err)
 	}
 
+	// A website review can save and securely serve inline images in its Markdown feedback.
+	png, err := base64.StdEncoding.DecodeString("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9cZszUUAAAAASUVORK5CYII=")
+	if err != nil {
+		t.Fatal(err)
+	}
+	const imageToken = "abcdefghijklmnop"
+	annotated, err := service.Review(context.Background(), admin, submitted.Submissions[0].ID, ReviewInput{
+		Score: 88, Decision: model.AssignmentReviewNeedsRedo,
+		Comment:      "[TEST_ASSIGNMENT] 参见截图 ![问题位置](community-upload://" + imageToken + ")",
+		ImageFiles:   []*multipart.FileHeader{multipartHeader(t, "feedback.png", png)},
+		UploadTokens: []string{imageToken},
+	})
+	if err != nil || annotated.Members[0].LatestSubmission == nil {
+		t.Fatalf("save image feedback failed: %v", err)
+	}
+	reviews := annotated.Members[0].LatestSubmission.Reviews
+	lastReview := reviews[len(reviews)-1]
+	var reviewImage model.AssignmentReviewImage
+	if err := db.Where("review_id = ?", lastReview.ID).First(&reviewImage).Error; err != nil {
+		t.Fatalf("persist review image metadata: %v", err)
+	}
+	imageURL := fmt.Sprintf("/api/assignment-review-images/%d", reviewImage.ID)
+	if !strings.Contains(lastReview.Comment, imageURL) || strings.Contains(lastReview.Comment, "community-upload://") {
+		t.Fatalf("review comment did not replace temporary image token: %s", lastReview.Comment)
+	}
+	image, err := service.OpenReviewImage(context.Background(), member, reviewImage.ID)
+	if err != nil || image.ContentType != "image/png" || !bytes.Equal(image.Content, png) {
+		t.Fatalf("student cannot view own feedback image: image=%v err=%v", image, err)
+	}
+	if _, err := service.OpenReviewImage(context.Background(), otherMember, reviewImage.ID); statusOf(err) != http.StatusForbidden {
+		t.Fatalf("another member accessed feedback image: %v", err)
+	}
+	if _, err := service.OpenReviewImage(context.Background(), crossAdmin, reviewImage.ID); statusOf(err) != http.StatusForbidden {
+		t.Fatalf("another group's admin accessed feedback image: %v", err)
+	}
+	studentFeedback, err := service.GetMine(context.Background(), member, assignment.ID)
+	if err != nil || !strings.Contains(studentFeedback.Submissions[0].Reviews[len(studentFeedback.Submissions[0].Reviews)-1].Comment, imageURL) {
+		t.Fatalf("student feedback image did not round-trip: %v", err)
+	}
 }
 
 func mustListAssignments(t *testing.T, service *Service, actor Actor, groupID uint64) []AssignmentView {

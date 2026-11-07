@@ -224,6 +224,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	assignmentMemberAPI.POST("/assignments/:id/submissions", requireSameOriginRequest(cfg), assignmentHandler.Submit)
 	assignmentMemberAPI.GET("/assignment-files/:id", assignmentHandler.OpenFile)
 	assignmentMemberAPI.GET("/assignment-materials/:id", assignmentHandler.OpenMaterialFile)
+	assignmentMemberAPI.GET("/assignment-review-images/:id", assignmentHandler.OpenReviewImage)
 
 	salonHandler := handler.NewAISalonHandler(aisalon.NewService(db))
 	api.GET("/ai-salon/events", salonHandler.List)

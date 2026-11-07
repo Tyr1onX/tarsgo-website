@@ -1,5 +1,10 @@
 import { BrandLoader } from "~/components/brand-loader";
-import { useEffect, useState } from "react";
+import { CommunityMarkdown } from "~/components/community-markdown";
+import type { CommunityPendingImage } from "~/components/community-markdown-editor";
+import { validateCommunityImages } from "~/lib/community-client";
+import { validateCommunityImageBindings } from "~/lib/community-image-bindings";
+import "~/components/community-markdown-editor.css";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams, useOutletContext } from "react-router";
 
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
@@ -12,6 +17,7 @@ export function meta() {
 }
 
 const fieldClass = "admin-field w-full";
+const ReviewEditor = lazy(() => import("~/components/community-markdown-editor").then((module) => ({ default: module.CommunityMarkdownEditor })));
 
 export default function AssignmentSubmissionsRoute() {
   const { currentUser, groupResolution } = useOutletContext<DashboardLayoutOutletContext>();
@@ -23,6 +29,11 @@ export default function AssignmentSubmissionsRoute() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selectedID, setSelectedID] = useState(requestedID);
   const [submissionFilter, setSubmissionFilter] = useState<"submitted" | "pending" | "all">("submitted");
+  const [editingReviewID, setEditingReviewID] = useState(0);
+  const [reviewUploads, setReviewUploads] = useState<CommunityPendingImage[]>([]);
+  const reviewUploadsRef = useRef<CommunityPendingImage[]>([]);
+  const [reviewError, setReviewError] = useState("");
+  const reviewFlushRef = useRef<() => string>(() => "");
   const [detail, setDetail] = useState<AdminAssignmentDetail | null>(null);
   const [reviewDrafts, setReviewDrafts] = useState<Record<number, { score: string; decision: "passed" | "needs_redo"; comment: string }>>({});
   const [loading, setLoading] = useState(false);
@@ -39,6 +50,10 @@ export default function AssignmentSubmissionsRoute() {
     setDetailLoading(false);
     setSelectedID(0);
     setReviewDrafts({});
+    setEditingReviewID(0);
+    setReviewUploads([]);
+    reviewUploadsRef.current = [];
+    setReviewError("");
     setGroupId((current) => assignmentGroups.some((group) => group.groupId === current) ? current : assignmentGroups[0]?.groupId ?? 0);
   }, [currentUser.id, currentUser.role.name, assignmentGroupKey]);
 
@@ -90,29 +105,69 @@ export default function AssignmentSubmissionsRoute() {
   }
 
   function updateDraft(submissionID: number, patch: Partial<ReturnType<typeof draftFor>>) {
-    setReviewDrafts((current) => ({ ...current, [submissionID]: { ...draftFor(submissionID), ...patch } }));
+    setReviewDrafts((current) => ({ ...current, [submissionID]: { ...(current[submissionID] ?? { score: "", decision: "passed", comment: "" }), ...patch } }));
   }
 
   async function review(submissionID: number) {
     const draft = draftFor(submissionID);
-    if (draft.score === "") {
-      setError("请填写 0 至 100 分的成绩。");
+    const score = Number(draft.score);
+    if (draft.score.trim() === "" || !Number.isInteger(score) || score < 0 || score > 100) {
+      setReviewError("请输入 0 至 100 的整数成绩。");
+      return;
+    }
+    const comment = reviewFlushRef.current();
+    const files = reviewUploadsRef.current.map((item) => item.file);
+    const uploadTokens = reviewUploadsRef.current.map((item) => item.token);
+    const validationError = validateCommunityImages(files) || validateCommunityImageBindings(comment, files.length, uploadTokens);
+    if (validationError) {
+      setReviewError(validationError);
+      return;
+    }
+    if (Array.from(comment).length > 5000) {
+      setReviewError("评语不能超过 5000 字。");
       return;
     }
     setSavingID(submissionID);
+    setReviewError("");
     setError("");
     setNotice("");
     try {
-      const updated = await assignmentClient.review(submissionID, { score: Number(draft.score), decision: draft.decision, comment: draft.comment });
+      const updated = await assignmentClient.review(submissionID, { score, decision: draft.decision, comment, files, uploadTokens });
       setDetail(updated);
       setNotice("批改结果已保存。");
       syncReviewDrafts(updated);
-      setAssignments(await assignmentClient.listAdmin(groupId));
+      setEditingReviewID(0);
+      setReviewUploads([]);
+    reviewUploadsRef.current = [];
+      const refreshed = await assignmentClient.listAdmin(groupId).catch(() => null);
+      if (refreshed) setAssignments(refreshed);
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "保存批改结果失败");
+      setReviewError(cause instanceof Error ? cause.message : "保存批改结果失败");
     } finally {
       setSavingID(0);
     }
+  }
+
+  function editReview(submissionID: number, review?: { score?: number; decision: "passed" | "needs_redo"; comment: string }) {
+    if (editingReviewID === submissionID) {
+      setEditingReviewID(0);
+      setReviewUploads([]);
+    reviewUploadsRef.current = [];
+      setReviewError("");
+      return;
+    }
+    setReviewDrafts((current) => ({
+      ...current,
+      [submissionID]: {
+        score: review?.score === undefined ? "" : String(review.score),
+        decision: review?.decision ?? "passed",
+        comment: review?.comment ?? "",
+      },
+    }));
+    setEditingReviewID(submissionID);
+    setReviewUploads([]);
+    reviewUploadsRef.current = [];
+    setReviewError("");
   }
 
   function syncReviewDrafts(value: AdminAssignmentDetail) {
@@ -133,6 +188,10 @@ export default function AssignmentSubmissionsRoute() {
     setSelectedID(id);
     setDetail(null);
     setDetailLoading(Boolean(id));
+    setEditingReviewID(0);
+    setReviewUploads([]);
+    reviewUploadsRef.current = [];
+    setReviewError("");
     setError("");
     setSearchParams(id ? { assignmentId: String(id) } : {}, { replace: true });
     setNotice("");
@@ -181,27 +240,92 @@ export default function AssignmentSubmissionsRoute() {
             ] as const).map(({ value, label }) => <button key={value} type="button" className={`admin-button admin-button--small ${submissionFilter === value ? "admin-button--secondary" : "admin-button--quiet"}`} aria-pressed={submissionFilter === value} onClick={() => setSubmissionFilter(value)}>{label}</button>)}
           </div> : null}
           {detail && visibleMembers.length === 0 ? <p role="status" className="py-3 text-sm text-[var(--admin-muted)]">{detail.members.length === 0 ? "该作业当前没有分配成员。" : submissionFilter === "pending" ? "当前没有待批改的提交。" : "暂无成员提交。"}</p> : null}
-          {visibleMembers.map((member) => <article key={member.userId} className="py-4 first:pt-0 last:pb-0">
-            <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold text-[var(--admin-text)]">{member.name} <span className="text-xs font-normal text-[var(--admin-muted)]">#{member.userId}</span></h2><div className="flex items-center gap-2 text-xs text-[var(--admin-muted)]"><span>{assignmentStatusLabel(member.status)}</span>{member.isLate ? <span className="text-[var(--admin-warning)]">逾期提交</span> : null}</div></div>
-            {!member.latestSubmission ? <p className="mt-2 text-sm text-[var(--admin-muted)]">尚未提交</p> : <>
-              <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--admin-muted)]"><span>第 {member.latestSubmission.attempt} 次提交 · {formatAssignmentDate(member.latestSubmission.submittedAt)}{member.latestSubmission.isLate ? " · 逾期" : ""}</span><span>{member.latestSubmission.status === "graded" ? `${assignmentDecisionLabel(member.latestSubmission.decision)} · ${member.latestSubmission.reviews.at(-1)?.score ?? "—"} 分` : "待批改"}</span></div>
-              <ul className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm">{member.latestSubmission.files.map((file) => <li key={file.id}><a className="text-[var(--admin-warning)] hover:text-[var(--admin-warning)]" href={file.downloadUrl}>{file.fileName}</a></li>)}</ul>
-              <details className="mt-3 text-sm">
-                <summary className="cursor-pointer text-[var(--admin-muted)]">查看提交与批改历史（{member.submissions.length}）</summary>
-                <div className="mt-3 space-y-3">{member.submissions.map((submission) => <div key={submission.id} className="rounded-lg border border-[var(--admin-border-subtle)] p-3">
-                  <p className="text-xs text-[var(--admin-muted)]">第 {submission.attempt} 次 · {formatAssignmentDate(submission.submittedAt)}{submission.isLate ? " · 逾期" : ""}</p>
-                  <ul className="mt-2 space-y-1">{submission.files.map((file) => <li key={file.id}><a className="text-[var(--admin-warning)] hover:text-[var(--admin-warning)]" href={file.downloadUrl}>{file.fileName}</a></li>)}</ul>
-                  {submission.reviews.map((review) => <div key={review.id} className="mt-2 border-t border-[var(--admin-border-subtle)] pt-2 text-sm"><p>{review.score} 分 · {assignmentDecisionLabel(review.decision)} · {formatAssignmentDate(review.createdAt)}</p>{review.comment ? <p className="mt-1 whitespace-pre-wrap text-[var(--admin-muted)]">{review.comment}</p> : null}</div>)}
-                </div>)}</div>
-              </details>
-              <div className="mt-3 grid gap-3 sm:grid-cols-[100px_150px_minmax(0,1fr)_auto] sm:items-end">
-                <label className="admin-field-label">评分<input className={fieldClass} type="number" min={0} max={100} value={draftFor(member.latestSubmission.id).score} onChange={(event) => updateDraft(member.latestSubmission!.id, { score: event.target.value })} /></label>
-                <label className="admin-field-label">结果<select className="admin-field w-full" value={draftFor(member.latestSubmission.id).decision} onChange={(event) => updateDraft(member.latestSubmission!.id, { decision: event.target.value as "passed" | "needs_redo" })}><option value="passed">通过</option><option value="needs_redo">退回重做</option></select></label>
-                <label className="admin-field-label">评语<textarea className={fieldClass} rows={2} maxLength={5000} value={draftFor(member.latestSubmission.id).comment} onChange={(event) => updateDraft(member.latestSubmission!.id, { comment: event.target.value })} /></label>
-                <button type="button" className="admin-button admin-button--primary" disabled={savingID === member.latestSubmission.id || draftFor(member.latestSubmission.id).score === ""} onClick={() => void review(member.latestSubmission!.id)}>{savingID === member.latestSubmission.id ? "保存中…" : member.latestSubmission.status === "graded" ? "更新批改" : "保存批改"}</button>
+          {visibleMembers.map((member) => {
+            const latest = member.latestSubmission;
+            const lastReview = latest?.reviews.at(-1);
+            const active = latest?.id === editingReviewID;
+            return <article key={member.userId} className="py-5 first:pt-4 last:pb-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="flex min-w-0 flex-wrap items-center gap-2">
+                  <h2 className="text-base font-semibold tracking-tight text-[var(--admin-text)]">{member.name}</h2>
+                  <span className="text-xs tabular-nums text-[var(--admin-muted)]">#{member.userId}</span>
+                  <span className={`rounded-md border px-2 py-0.5 text-xs font-medium ${!latest ? "border-[var(--admin-border-subtle)] text-[var(--admin-muted)]" : latest.status === "submitted" ? "border-[var(--admin-warning-border)] bg-[var(--admin-warning-surface)] text-[var(--admin-warning)]" : "border-[var(--admin-success-border)] bg-[var(--admin-success-surface)] text-[var(--admin-success)]"}`}>
+                    {!latest ? assignmentStatusLabel(member.status) : latest.status === "submitted" ? "待批改" : assignmentDecisionLabel(latest.decision)}
+                  </span>
+                </div>
+                {latest ? <div className="text-right text-xs leading-5 text-[var(--admin-muted)]">
+                  <span>第 {latest.attempt} 次提交</span><span className="mx-1.5">·</span>
+                  <time dateTime={latest.submittedAt}>{formatAssignmentDate(latest.submittedAt)}</time>
+                  {latest.isLate ? <span className="ml-1 text-[var(--admin-warning)]">逾期</span> : null}
+                </div> : null}
               </div>
-            </>}
-          </article>)}
+              {!latest ? <p className="mt-3 text-sm text-[var(--admin-muted)]">尚未提交</p> : <>
+                <div className="mt-3 grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:gap-8">
+                  <div className="min-w-0 space-y-3">
+                    <div>
+                      <p className="mb-1.5 text-xs font-medium text-[var(--admin-muted)]">提交附件</p>
+                      <ul className="flex flex-wrap gap-2">
+                        {latest.files.map((file) => <li key={file.id} className="min-w-0 max-w-full">
+                          <a className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-[var(--admin-border-subtle)] bg-[var(--admin-surface)] px-3 py-2 text-sm text-[var(--admin-text)] transition-colors hover:border-[var(--admin-hover-border)] hover:bg-[var(--admin-surface-hover)]" href={file.downloadUrl}>
+                            <span aria-hidden="true" className="text-[var(--admin-muted)]">↗</span><span className="min-w-0 truncate">{file.fileName}</span>
+                          </a>
+                        </li>)}
+                      </ul>
+                    </div>
+                    {member.submissions.length > 1 || latest.reviews.length > 0 ? <details className="text-sm">
+                      <summary className="w-fit cursor-pointer rounded-md py-1 text-[var(--admin-muted)] hover:text-[var(--admin-text)]">提交与批改历史（{member.submissions.length} 次）</summary>
+                      <div className="mt-2 space-y-2">
+                        {member.submissions.map((submission) => <div key={submission.id} className="rounded-lg border border-[var(--admin-border-subtle)] bg-[var(--admin-surface-subtle)] p-3">
+                          <p className="text-xs text-[var(--admin-muted)]">第 {submission.attempt} 次 · {formatAssignmentDate(submission.submittedAt)}</p>
+                          <ul className="mt-2 flex flex-wrap gap-2">{submission.files.map((file) => <li key={file.id}><a className="text-sm text-[var(--admin-accent-text)] underline-offset-2 hover:underline" href={file.downloadUrl}>{file.fileName}</a></li>)}</ul>
+                          {submission.reviews.map((review) => <div key={review.id} className="mt-2 border-t border-[var(--admin-border-subtle)] pt-2">
+                            <p className="text-xs font-medium text-[var(--admin-text)]">{review.score} 分 · {assignmentDecisionLabel(review.decision)} · {formatAssignmentDate(review.createdAt)}</p>
+                            {review.comment ? <CommunityMarkdown source={review.comment} className="mt-2 whitespace-pre-wrap text-sm" /> : null}
+                          </div>)}
+                        </div>)}
+                      </div>
+                    </details> : null}
+                  </div>
+                  <div className="min-w-0">
+                    {lastReview ? <div className="rounded-lg border border-[var(--admin-border-subtle)] bg-[var(--admin-surface-subtle)] p-3 sm:p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <span className="text-sm font-semibold text-[var(--admin-text)]">{lastReview.score} 分 · {assignmentDecisionLabel(lastReview.decision)}</span>
+                        <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={savingID !== 0} onClick={() => editReview(latest.id, lastReview)}>{active ? "收起修改" : "修改批改"}</button>
+                      </div>
+                      {lastReview.comment ? <CommunityMarkdown source={lastReview.comment} className="mt-2 whitespace-pre-wrap text-sm" /> : <p className="mt-1 text-xs text-[var(--admin-muted)]">未填写评语</p>}
+                    </div> : <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--admin-border-subtle)] px-3 py-3 sm:px-4">
+                      <span className="text-sm text-[var(--admin-muted)]">尚未批改</span>
+                      <button type="button" className={`admin-button admin-button--small ${active ? "admin-button--secondary" : "admin-button--primary"}`} disabled={savingID !== 0} onClick={() => editReview(latest.id)}>{active ? "收起批改" : "批改此份"}</button>
+                    </div>}
+                  </div>
+                </div>
+                {active ? <div className="mt-4 rounded-xl border border-[var(--admin-border)] bg-[var(--admin-surface-subtle)] p-3 sm:p-4">
+                  <div className="grid gap-3 sm:grid-cols-[minmax(110px,0.35fr)_minmax(160px,0.65fr)]">
+                    <label className="admin-field-label">评分
+                      <input className={fieldClass} type="number" min={0} max={100} step={1} inputMode="numeric" placeholder="0–100" value={draftFor(latest.id).score} onChange={(event) => updateDraft(latest.id, { score: event.target.value })} disabled={savingID !== 0} />
+                    </label>
+                    <label className="admin-field-label">结果
+                      <select className="admin-field w-full" value={draftFor(latest.id).decision} onChange={(event) => updateDraft(latest.id, { decision: event.target.value as "passed" | "needs_redo" })} disabled={savingID !== 0}>
+                        <option value="passed">通过</option><option value="needs_redo">退回重做</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div className="mt-3 min-w-0 space-y-2">
+                    <p className="admin-field-label">评语（可插入图片）</p>
+                    <Suspense fallback={<BrandLoader label="正在加载评语编辑器" size="sm" />}>
+                      <ReviewEditor key={latest.id} value={draftFor(latest.id).comment} onChange={(comment) => updateDraft(latest.id, { comment })} flushRef={reviewFlushRef} uploads={reviewUploads} onUploadsChange={(next) => { reviewUploadsRef.current = next; setReviewUploads(next); }} disabled={savingID !== 0} compact placeholder="填写修改建议，可粘贴截图或插入图片…" />
+                    </Suspense>
+                  </div>
+                  {reviewError ? <p role="alert" className="mt-3 text-sm text-[var(--admin-danger)]">{reviewError}</p> : null}
+                  <div className="mt-3 flex justify-end">
+                    <button type="button" className="admin-button admin-button--primary" disabled={savingID !== 0 || draftFor(latest.id).score.trim() === ""} onClick={() => void review(latest.id)}>
+                      {savingID === latest.id ? "正在保存…" : lastReview ? "保存修改" : "保存批改"}
+                    </button>
+                  </div>
+                </div> : null}
+              </>}
+            </article>;
+          })}
         </section>
       </> : null}
     </section>
