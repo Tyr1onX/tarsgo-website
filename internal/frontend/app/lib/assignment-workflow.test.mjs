@@ -133,6 +133,14 @@ test("Beijing deadlines default to seven days, support shortcuts, and validate b
   assert.match(deadline, /wallClock - SHANGHAI_OFFSET_MS/);
 });
 
+test("submission review page lists submitted people and filters pending work", () => {
+  assert.match(assignmentSubmissions, /useState<"submitted" \| "pending" \| "all">\("submitted"\)/);
+  assert.match(assignmentSubmissions, /detail\?\.members\.filter\(\(member\) => member\.latestSubmission\)/);
+  assert.match(assignmentSubmissions, /submittedMembers\.filter\(\(member\) => member\.latestSubmission\?\.status === "submitted"\)/);
+  assert.match(assignmentSubmissions, /visibleMembers\.map\(\(member\) =>/);
+  assert.match(assignmentSubmissions, /aria-pressed=\{submissionFilter === value\}/);
+});
+
 test("specified recipients can be searched, removed, and retained across search changes", () => {
   assert.match(assignmentManagement, /type="search"[\s\S]*?搜索成员姓名/);
   assert.match(assignmentManagement, /已选 \{draft\.targetUserIds\.length\} 人/);
