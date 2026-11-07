@@ -89,7 +89,10 @@ func (h *FeishuReviewHandler) SyncSubmission(ctx context.Context, submissionID u
 	if err := h.db.WithContext(ctx).First(&submitted, submissionID).Error; err != nil {
 		return err
 	}
-	systemActor := assignment.Actor{RoleName: model.RoleNameSuperAdmin}
+	systemActor, err := h.systemAssignmentActor(ctx)
+	if err != nil {
+		return err
+	}
 	detail, err := h.assignments.GetAdmin(ctx, systemActor, submitted.AssignmentID)
 	if err != nil {
 		return err
@@ -109,6 +112,18 @@ func (h *FeishuReviewHandler) SyncSubmission(ctx context.Context, submissionID u
 		return err
 	}
 	return nil // A newer submission superseded this committed notification.
+}
+
+func (h *FeishuReviewHandler) systemAssignmentActor(ctx context.Context) (assignment.Actor, error) {
+	var user model.User
+	err := h.db.WithContext(ctx).Select("users.id").
+		Joins("JOIN roles ON roles.id = users.role_id").
+		Where("roles.name = ? AND users.status = ?", model.RoleNameSuperAdmin, model.UserStatusEnabled).
+		Order("users.id ASC").First(&user).Error
+	if err != nil {
+		return assignment.Actor{}, fmt.Errorf("find enabled site super admin for Feishu submission sync: %w", err)
+	}
+	return assignment.Actor{ID: user.ID, RoleName: model.RoleNameSuperAdmin}, nil
 }
 
 func (h *FeishuReviewHandler) sendSubmissionReviewCard(ctx context.Context, token, operatorOpenID string, item assignment.AssignmentView, member assignment.AssignmentMemberView, target *assignment.SubmissionView) error {
