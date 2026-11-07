@@ -12,11 +12,15 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/DATA-DOG/go-sqlmock"
 	"github.com/gin-gonic/gin"
+	"gorm.io/driver/mysql"
+	"gorm.io/gorm"
 	"tarsgo-backend/config"
 	"tarsgo-backend/model"
 	"tarsgo-backend/service/assignment"
@@ -293,6 +297,34 @@ func TestSubmissionSyncDoesNotSendPrivateNotice(t *testing.T) {
 	// there is no longer a per-submission DM/card notification path.
 	if err := h.SyncSubmission(context.Background(), 99); err != nil {
 		t.Fatalf("submission notice unexpectedly attempted DB or Feishu calls: %v", err)
+	}
+}
+
+func TestSystemAssignmentActorUsesEnabledSuperAdminID(t *testing.T) {
+	sqlDB, mock, err := sqlmock.New()
+	if err != nil {
+		t.Fatalf("create SQL mock: %v", err)
+	}
+	defer sqlDB.Close()
+	db, err := gorm.Open(mysql.New(mysql.Config{Conn: sqlDB, SkipInitializeWithVersion: true}), &gorm.Config{DisableAutomaticPing: true})
+	if err != nil {
+		t.Fatalf("open GORM over SQL mock: %v", err)
+	}
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT users.id FROM `users` JOIN roles ON roles.id = users.role_id WHERE roles.name = ? AND users.status = ? ORDER BY users.id ASC,`users`.`id` LIMIT ?")).
+		WithArgs(model.RoleNameSuperAdmin, model.UserStatusEnabled, 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id"}).AddRow(uint64(42)))
+
+	h := testFeishuHandler()
+	h.db = db
+	actor, err := h.systemAssignmentActor(context.Background())
+	if err != nil {
+		t.Fatalf("resolve system assignment actor: %v", err)
+	}
+	if actor.ID != 42 || actor.RoleName != model.RoleNameSuperAdmin {
+		t.Fatalf("system assignment actor=%#v", actor)
+	}
+	if err := mock.ExpectationsWereMet(); err != nil {
+		t.Fatalf("unmet SQL expectations: %v", err)
 	}
 }
 
