@@ -47,6 +47,11 @@ type Actor struct {
 	RoleName string
 }
 
+type GroupOption struct {
+	ID   uint64
+	Name string
+}
+
 type CreateInput struct {
 	GroupID                uint64
 	Title                  string
@@ -323,6 +328,28 @@ func (s *Service) ListGroupMembers(ctx context.Context, actor Actor, groupID uin
 	return result, nil
 }
 
+func (s *Service) ListManagedGroups(ctx context.Context, actor Actor) ([]GroupOption, error) {
+	if err := requireAdmin(actor); err != nil {
+		return nil, err
+	}
+	ids, err := managerAssignmentGroupIDs(s.db.WithContext(ctx), actor)
+	if err != nil {
+		return nil, internalError("读取可管理组别失败", err)
+	}
+	if len(ids) == 0 {
+		return nil, forbidden("当前账号没有可管理的技术组")
+	}
+	var groups []model.UserGroup
+	if err := s.db.WithContext(ctx).Select("id", "name").Where("id IN ? AND status = ?", ids, model.UserGroupStatusActive).Order("id ASC").Find(&groups).Error; err != nil {
+		return nil, internalError("读取可管理组别失败", err)
+	}
+	result := make([]GroupOption, 0, len(groups))
+	for _, group := range groups {
+		result = append(result, GroupOption{ID: group.ID, Name: group.Name})
+	}
+	return result, nil
+}
+
 func (s *Service) GetAdmin(ctx context.Context, actor Actor, assignmentID uint64) (*AdminAssignmentDetail, error) {
 	if err := requireAdmin(actor); err != nil {
 		return nil, err
@@ -453,9 +480,9 @@ func (s *Service) Create(ctx context.Context, actor Actor, input CreateInput) (*
 	return &view, nil
 }
 
-// CreateWithMaterialFiles publishes the assignment and its teaching materials
-// in one transaction. The assignment remains invisible to members until the
-// complete set of files and metadata has been stored and the transaction commits.
+// CreateWithMaterialFiles publishes an assignment and any supplied teaching
+// materials in one transaction. The web publishing handler still requires its
+// configured uploads; Feishu card publishing may attach materials afterward.
 func (s *Service) CreateWithMaterialFiles(ctx context.Context, actor Actor, input CreateInput, requestID string, headers []*multipart.FileHeader) (*AssignmentPublishResult, error) {
 	if err := requireAdmin(actor); err != nil {
 		return nil, err
@@ -468,9 +495,12 @@ func (s *Service) CreateWithMaterialFiles(ctx context.Context, actor Actor, inpu
 	if err != nil {
 		return nil, err
 	}
-	validated, err := validateUploads(headers, true)
-	if err != nil {
-		return nil, err
+	validated := []validatedUpload{}
+	if len(headers) > 0 {
+		validated, err = validateUploads(headers, true)
+		if err != nil {
+			return nil, err
+		}
 	}
 	for index := range validated {
 		validated[index].contentHash, err = hashAssignmentUpload(validated[index].header)

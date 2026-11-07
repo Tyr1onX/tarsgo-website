@@ -10,6 +10,10 @@
 4. 卡片显示作业名称、组别、提交人、提交次数、北京时间提交时刻、作业/提交标识和附件名。管理员在飞书输入 0–100 分、选择通过或退回、填写评语；飞书将卡片操作 POST 到 `/api/integrations/feishu/card-action`。
 5. 网站复用 `assignment.Service.ReviewFirst` 保存批改历史并更新飞书卡片。模拟卡片仍可用于不写成绩的回归验证。
 
+培训管理员也可在绑定的飞书私聊中发送“发布作业”，通过原生卡片填写作业名称、要求、组别、截止时间和接收成员。组别选项只来自该网站管理员当前可管理的组；接收成员填写网站成员 ID，留空表示全组。卡片发布复用网站作业服务和幂等请求标识。卡片没有文件上传控件，发布后可发送“资料 #作业编号”，再把教学资料发到同一私聊，最后发送“结束资料”；网站保存原始资料，上传只允许在该组且首次学生提交前进行。
+
+新人仍在网站提交、返修并查看成绩；返修提交生成新版本，旧提交及批改历史保留，飞书看板同步新提交。
+
 ## 飞书当前文件能力
 
 本实现按飞书开放平台当前服务端 API 使用机器人身份上传，再把返回的资源 key 用于单聊消息：
@@ -21,16 +25,15 @@
 
 参考：[上传文件 API](https://open.feishu.cn/document/server-docs/im-v1/file/create)、[上传图片 API](https://open.feishu.cn/document/server-docs/im-v1/image/create)、[发送消息 API](https://open.feishu.cn/document/server-docs/im-v1/message/create)、[消息内容结构](https://open.feishu.cn/document/server-docs/im-v1/message-content-description/create_json?lang=zh-CN)、[文件在线预览格式和大小](https://www.feishu.cn/hc/zh-CN/articles/360049067549-文件上传-在线预览的大小及格式要求)、[会话文件查看说明](https://www.feishu.cn/hc/zh-CN/articles/360045202373-在会话中发送文件及文件夹)。
 
-回调不校验签名、时间戳、Verification Token、App ID 或飞书操作者身份，也不要求真实评分必须加密。保留 JSON 解码、输入格式检查，以及评分服务已有的提交状态和组权限逻辑。
-
-**风险：这是公开且不鉴权的回调接口。** 任意能够构造有效明文请求的人都可能冒用配置的网站管理员提交真实评分；在加密开启时，构造可解密的请求通常还需要对应密钥。仅限风险已被明确接受的试点使用，不应作为常规生产安全方案。评分服务的角色检查无法替代回调来源认证。
+服务端回调在配置 Encrypt Key 时校验飞书请求签名并解密，在未配置 Encrypt Key 时要求 Verification Token；所有有效回调还必须匹配应用 ID。评分和发布卡片额外校验飞书操作者 union_id，只允许配置的试点管理员，并通过网站现有组别权限服务执行发布或批改。消息事件只处理该试点管理员的单聊，其余操作者和群聊均忽略。
 
 ## 环境配置
 
 - `FEISHU_APP_ID`、`FEISHU_APP_SECRET`：机器人发送卡片
 - `FEISHU_TESTER_UNION_ID`：指定飞书卡片收件人
 - `FEISHU_TESTER_USER_ID`：网站评分身份
-- `FEISHU_ENCRYPT_KEY`：可选；仅用于解析飞书加密请求，需与飞书后台实际设置一致
+- `FEISHU_ENCRYPT_KEY`：需与飞书后台 Encrypt Key 一致；配置后用于签名校验和回调解密
+- `FEISHU_VERIFICATION_TOKEN`：可选；配置后还会校验回调中的 Verification Token；未配置 Encrypt Key 时必须配置
 - `FEISHU_BITABLE_APP_TOKEN`、`FEISHU_BITABLE_TABLE_ID`：可选；同时配置后启用试点作业看板同步
 
 不要在仓库、日志或聊天中公开密钥。
@@ -40,8 +43,9 @@
 - 开启机器人发送消息权限，以及获取与上传图片或文件资源权限（`im:resource` 或对应上传权限）。
 - 飞书消息文件上传限制为单文件 30 MB，图片上传为 10 MB。普通文件按 PDF/DOC/XLS/PPT 或 `stream` 类型上传；小于等于 10 MB 且后缀受支持的图片（包括 HEIC）使用消息图片接口。超过飞书限制的原始附件仍保存在网站，评分卡片提供网站鉴权下载入口。飞书客户端预览效果需真实验证。
 - 使用回调 URL `https://jijiamaster.com/api/integrations/feishu/card-action`。
-- 订阅 `card.action.trigger`，发布应用版本；需与服务器的加密设置一致。
-- 飞书必须在规定时间内收到 HTTP 200 回调响应。
+- 在“回调配置”中设置卡片交互回调，订阅 `card.action.trigger`。
+- 在“事件配置”中使用开发者服务器方式订阅 `im.message.receive_v1`，并仅申请消息只读权限 `im:message:readonly`。服务端会忽略非试点管理员及非单聊消息。
+- 发布应用版本后配置才生效。卡片回调同步返回交互结果；消息事件立即确认，资料下载与保存在后台完成，并在私聊回报结果。
 
 ## 作业管理看板
 
@@ -61,7 +65,7 @@
 - 试点阶段仍保留 `POST /api/admin/integrations/feishu/test-card` 作为模拟卡片入口，不修改真实成绩。
 - 附件上传或发送失败按文件记录错误并在卡片添加网站下载链接；网站提交成功不回滚，仍尝试发送评分卡片。认证失败或总通知超时可能导致整条卡片无法送达。
 - 通知为进程内异步发送；服务重启期间可能漏发，暂不引入消息队列或重试状态。
-- 发送范围固定为配置的试点管理员；回调接收接口沿用本试点已确认的简化模式。
+- 作业评分卡片和发布表单只发给 `FEISHU_TESTER_UNION_ID`；接收消息事件仅处理该 union_id 的私聊。网站 API 的管理员及组别权限校验仍是业务权限依据。
 
 ## 验收
 

@@ -6,6 +6,7 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -30,15 +31,21 @@ import (
 )
 
 type FeishuReviewHandler struct {
-	cfg         config.FeishuConfig
-	db          *gorm.DB
-	assignments *assignment.Service
-	client      *http.Client
-	notifyMu    sync.Mutex
+	cfg                config.FeishuConfig
+	db                 *gorm.DB
+	assignments        *assignment.Service
+	client             *http.Client
+	notifyMu           sync.Mutex
+	pendingMaterialsMu sync.Mutex
+	pendingMaterials   map[string]feishuPendingMaterial
+	materialUploadMu   sync.Mutex
 }
 
 func NewFeishuReviewHandler(cfg config.FeishuConfig, db *gorm.DB, assignments *assignment.Service) *FeishuReviewHandler {
-	return &FeishuReviewHandler{cfg: cfg, db: db, assignments: assignments, client: &http.Client{Timeout: 30 * time.Second}}
+	return &FeishuReviewHandler{
+		cfg: cfg, db: db, assignments: assignments, client: &http.Client{Timeout: 30 * time.Second},
+		pendingMaterials: make(map[string]feishuPendingMaterial),
+	}
 }
 
 func (h *FeishuReviewHandler) enabled() bool {
@@ -399,12 +406,29 @@ func (h *FeishuReviewHandler) postJSON(ctx context.Context, url string, data []b
 type feishuCallback struct {
 	Type      string `json:"type"`
 	Challenge string `json:"challenge"`
-	Event     struct {
-		Action struct {
+	Token     string `json:"token"`
+	Header    struct {
+		Token     string `json:"token"`
+		AppID     string `json:"app_id"`
+		EventType string `json:"event_type"`
+	} `json:"header"`
+	Event struct {
+		EventType string `json:"type"`
+		Operator  struct {
+			UnionID string `json:"union_id"`
+		} `json:"operator"`
+		Sender struct {
+			SenderID struct {
+				UnionID string `json:"union_id"`
+			} `json:"sender_id"`
+		} `json:"sender"`
+		Message feishuIncomingMessage `json:"message"`
+		Action  struct {
 			Name  string `json:"name"`
 			Value struct {
 				Kind         string `json:"kind"`
 				SubmissionID uint64 `json:"submission_id"`
+				RequestID    string `json:"request_id"`
 			} `json:"value"`
 			FormValue map[string]string `json:"form_value"`
 		} `json:"action"`
@@ -421,10 +445,11 @@ func (h *FeishuReviewHandler) Callback(c *gin.Context) {
 		c.Status(http.StatusBadRequest)
 		return
 	}
-	if h.cfg.EncryptKey != "" {
-		raw, err = decryptFeishuPayload(raw, h.cfg.EncryptKey)
+	raw, urlVerification := h.feishuURLVerificationPayload(raw)
+	if !urlVerification {
+		raw, err = h.authenticateAndDecodeFeishuCallback(c, raw)
 		if err != nil {
-			c.Status(http.StatusBadRequest)
+			c.Status(http.StatusUnauthorized)
 			return
 		}
 	}
@@ -434,11 +459,40 @@ func (h *FeishuReviewHandler) Callback(c *gin.Context) {
 		return
 	}
 	if event.Type == "url_verification" {
+		if h.cfg.VerificationToken != "" && event.Token != "" && event.Token != h.cfg.VerificationToken {
+			c.Status(http.StatusUnauthorized)
+			return
+		}
 		c.JSON(http.StatusOK, gin.H{"challenge": event.Challenge})
 		return
 	}
-	if event.Event.Action.Name != "submit_review" {
+	if event.Header.EventType == "im.message.receive_v1" {
+		h.handleFeishuMessageEvent(c, event)
+		return
+	}
+	if event.Header.EventType != "card.action.trigger" || event.Event.Operator.UnionID != h.cfg.TesterUnionID {
+		c.Status(http.StatusUnauthorized)
+		return
+	}
+	kind := event.Event.Action.Value.Kind
+	if !feishuCardActionSupported(kind, event.Event.Action.Name) {
 		feishuToast(c, "error", "不支持此操作")
+		return
+	}
+	if kind == "publish" {
+		if h.cfg.TesterUserID == 0 || event.Event.Action.Value.RequestID == "" {
+			feishuToast(c, "error", "发布请求无效，请重新发送“发布作业”")
+			return
+		}
+		actor, _, err := h.bitablePilotActor(c.Request.Context())
+		if err != nil {
+			feishuToast(c, "error", "网站试点管理员不可用")
+			return
+		}
+		if err := h.publishFeishuAssignment(c, actor, event); err != nil {
+			log.Printf("feishu assignment publish failed: %v", err)
+			feishuToast(c, "error", "发布失败：请检查必填信息、接收成员与组别权限")
+		}
 		return
 	}
 	score, err := strconv.Atoi(strings.TrimSpace(event.Event.Action.FormValue["score"]))
@@ -448,7 +502,6 @@ func (h *FeishuReviewHandler) Callback(c *gin.Context) {
 		feishuToast(c, "error", "请输入 0–100 的整数成绩并选择处理结果")
 		return
 	}
-	kind := event.Event.Action.Value.Kind
 	switch kind {
 	case "test":
 		feishuCompleted(c, "模拟评分完成", score, decision, comment, "已验证卡片表单回传，没有修改网站成绩")
@@ -487,6 +540,86 @@ func (h *FeishuReviewHandler) Callback(c *gin.Context) {
 	default:
 		feishuToast(c, "error", "未知的卡片类型")
 	}
+}
+
+func feishuCardActionSupported(kind, action string) bool {
+	switch kind {
+	case "publish":
+		return action == "publish_assignment"
+	case "test", "review":
+		return action == "submit_review"
+	default:
+		return false
+	}
+}
+
+func (h *FeishuReviewHandler) authenticateAndDecodeFeishuCallback(c *gin.Context, raw []byte) ([]byte, error) {
+	if h.cfg.EncryptKey != "" {
+		timestamp := c.GetHeader("X-Lark-Request-Timestamp")
+		nonce := c.GetHeader("X-Lark-Request-Nonce")
+		signature := c.GetHeader("X-Lark-Signature")
+		if timestamp == "" || nonce == "" || signature == "" {
+			return nil, errors.New("missing Feishu callback signature")
+		}
+		content := make([]byte, 0, len(timestamp)+len(nonce)+len(h.cfg.EncryptKey)+len(raw))
+		content = append(content, timestamp...)
+		content = append(content, nonce...)
+		content = append(content, h.cfg.EncryptKey...)
+		content = append(content, raw...)
+		signatureHash := sha256.Sum256(content)
+		if len(signature) != len(signatureHash)*2 || subtle.ConstantTimeCompare([]byte(strings.ToLower(signature)), []byte(fmt.Sprintf("%x", signatureHash))) != 1 {
+			return nil, errors.New("invalid Feishu callback signature")
+		}
+		var envelope struct {
+			Encrypt string `json:"encrypt"`
+		}
+		if err := json.Unmarshal(raw, &envelope); err != nil {
+			return nil, errors.New("invalid Feishu callback envelope")
+		}
+		if envelope.Encrypt != "" {
+			decoded, err := decryptFeishuPayload(raw, h.cfg.EncryptKey)
+			if err != nil {
+				return nil, err
+			}
+			raw = decoded
+		}
+	} else if h.cfg.VerificationToken == "" {
+		return nil, errors.New("Feishu callback verification is not configured")
+	}
+	var event feishuCallback
+	if err := json.Unmarshal(raw, &event); err != nil {
+		return nil, err
+	}
+	if h.cfg.VerificationToken != "" && callbackVerificationToken(event) != h.cfg.VerificationToken {
+		return nil, errors.New("invalid Feishu verification token")
+	}
+	if event.Header.AppID == "" || event.Header.AppID != h.cfg.AppID {
+		return nil, errors.New("invalid Feishu app id")
+	}
+	return raw, nil
+}
+
+func callbackVerificationToken(event feishuCallback) string {
+	if event.Header.Token != "" {
+		return event.Header.Token
+	}
+	return event.Token
+}
+
+func (h *FeishuReviewHandler) feishuURLVerificationPayload(raw []byte) ([]byte, bool) {
+	var event struct {
+		Type string `json:"type"`
+	}
+	if json.Unmarshal(raw, &event) == nil && event.Type == "url_verification" {
+		return raw, true
+	}
+	if h.cfg.EncryptKey != "" {
+		decoded, err := decryptFeishuPayload(raw, h.cfg.EncryptKey)
+		if err == nil && json.Unmarshal(decoded, &event) == nil && event.Type == "url_verification" {
+			return decoded, true
+		}
+	}
+	return raw, false
 }
 
 func feishuToast(c *gin.Context, kind, message string) {

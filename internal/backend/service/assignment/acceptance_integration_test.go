@@ -151,6 +151,24 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	}
 	now := time.Now().UTC().Truncate(time.Second)
 	service.now = func() time.Time { return now }
+	managedGroups, err := service.ListManagedGroups(context.Background(), operationsAdmin)
+	if err != nil || len(managedGroups) != 1 || managedGroups[0].ID != groupIDs[groupOperations] {
+		t.Fatalf("managed group picker crossed its manager scope: groups=%#v err=%v", managedGroups, err)
+	}
+	noMaterialInput := CreateInput{
+		GroupID: groupIDs[groupOperations], Title: "[TEST_ASSIGNMENT] 飞书卡片发布", Description: "发布后可在私聊追加教学资料",
+		DueAt: now.Add(24 * time.Hour), IsGroupWide: true,
+	}
+	noMaterialRequestID := "20000000-0000-4000-8000-" + fmt.Sprintf("%012x", time.Now().UnixNano()&0xffffffffffff)
+	noMaterialPublish, err := service.CreateWithMaterialFiles(context.Background(), operationsAdmin, noMaterialInput, noMaterialRequestID, nil)
+	if err != nil || noMaterialPublish == nil || len(noMaterialPublish.MaterialFiles) != 0 {
+		t.Fatalf("Feishu card publication without immediate file attachments failed: result=%#v err=%v", noMaterialPublish, err)
+	}
+	createdAssignmentIDs = append(createdAssignmentIDs, noMaterialPublish.Assignment.ID)
+	noMaterialReplay, err := service.CreateWithMaterialFiles(context.Background(), operationsAdmin, noMaterialInput, noMaterialRequestID, nil)
+	if err != nil || noMaterialReplay.Assignment.ID != noMaterialPublish.Assignment.ID {
+		t.Fatalf("idempotent no-material publication duplicated: first=%d replay=%#v err=%v", noMaterialPublish.Assignment.ID, noMaterialReplay, err)
+	}
 	operationsMembers, err := service.ListGroupMembers(context.Background(), operationsAdmin, groupIDs[groupOperations])
 	if err != nil {
 		t.Fatalf("operations administrator could not list their own assignment recipients: %v", err)
