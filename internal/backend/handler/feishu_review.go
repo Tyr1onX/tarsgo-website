@@ -527,11 +527,7 @@ func (h *FeishuReviewHandler) Callback(c *gin.Context) {
 		if h.bitableEnabled() {
 			for _, member := range detail.Members {
 				if member.LatestSubmission != nil && member.LatestSubmission.ID == event.Event.Action.Value.SubmissionID {
-					syncCtx, cancel := context.WithTimeout(c.Request.Context(), bitableReviewTimeout)
-					if syncErr := h.syncBitableReview(syncCtx, actor, detail.Assignment, member); syncErr != nil {
-						log.Printf("feishu bitable review sync failed submission=%d: %v", event.Event.Action.Value.SubmissionID, syncErr)
-					}
-					cancel()
+					h.syncBitableReviewAsync(actor, detail.Assignment, member)
 					break
 				}
 			}
