@@ -347,23 +347,66 @@ func (h *AssignmentHandler) Review(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var request struct {
-		Score    *uint8 `json:"score"`
-		Decision string `json:"decision"`
-		Comment  string `json:"comment"`
+	var input assignment.ReviewInput
+	if strings.HasPrefix(c.ContentType(), "multipart/form-data") {
+		if c.Request.ContentLength > maxAssignmentRequestBody {
+			writeAPIError(c, http.StatusRequestEntityTooLarge, "评语图片请求过大")
+			return
+		}
+		c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxAssignmentRequestBody)
+		if err := c.Request.ParseMultipartForm(1 << 20); err != nil {
+			if c.Request.MultipartForm != nil {
+				_ = c.Request.MultipartForm.RemoveAll()
+			}
+			writeAPIError(c, http.StatusBadRequest, "评语图片上传中断或数据不完整")
+			return
+		}
+		defer c.Request.MultipartForm.RemoveAll()
+		score, err := strconv.ParseUint(c.PostForm("score"), 10, 8)
+		if err != nil {
+			writeAPIError(c, http.StatusBadRequest, "评分必须是 0 至 100 的整数")
+			return
+		}
+		input = assignment.ReviewInput{Score: uint8(score), Decision: c.PostForm("decision"), Comment: c.PostForm("comment"), ImageFiles: c.Request.MultipartForm.File["files"]}
+		if err := json.Unmarshal([]byte(c.PostForm("uploadTokens")), &input.UploadTokens); err != nil {
+			writeAPIError(c, http.StatusBadRequest, "评语图片参数无效")
+			return
+		}
+	} else {
+		var request struct {
+			Score    *uint8 `json:"score"`
+			Decision string `json:"decision"`
+			Comment  string `json:"comment"`
+		}
+		if err := c.ShouldBindJSON(&request); err != nil || request.Score == nil {
+			writeAPIError(c, http.StatusBadRequest, "评分、处理结果或评语不合法")
+			return
+		}
+		input = assignment.ReviewInput{Score: *request.Score, Decision: request.Decision, Comment: request.Comment}
 	}
-	if err := c.ShouldBindJSON(&request); err != nil || request.Score == nil {
-		writeAPIError(c, http.StatusBadRequest, "评分、处理结果或评语不合法")
-		return
-	}
-	item, err := h.service.Review(c.Request.Context(), currentAssignmentActor(c), submissionID, assignment.ReviewInput{
-		Score: *request.Score, Decision: request.Decision, Comment: request.Comment,
-	})
+	item, err := h.service.Review(c.Request.Context(), currentAssignmentActor(c), submissionID, input)
 	if err != nil {
 		h.fail(c, err)
 		return
 	}
 	writeAPI(c, http.StatusOK, "批改结果已保存", item)
+}
+
+func (h *AssignmentHandler) OpenReviewImage(c *gin.Context) {
+	imageID, ok := parseAssignmentPathID(c)
+	if !ok {
+		return
+	}
+	image, err := h.service.OpenReviewImage(c.Request.Context(), currentAssignmentActor(c), imageID)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	c.Header("Content-Type", image.ContentType)
+	c.Header("Content-Disposition", "inline")
+	c.Header("X-Content-Type-Options", "nosniff")
+	c.Header("Cache-Control", "private, no-store")
+	c.Data(http.StatusOK, image.ContentType, image.Content)
 }
 
 func (h *AssignmentHandler) OpenFile(c *gin.Context) {

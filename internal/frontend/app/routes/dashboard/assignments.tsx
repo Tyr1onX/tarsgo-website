@@ -1,4 +1,6 @@
 import { BrandLoader } from "~/components/brand-loader";
+import { CommunityMarkdown } from "~/components/community-markdown";
+import "~/components/community-markdown-editor.css";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useOutletContext, useSearchParams } from "react-router";
 
@@ -191,7 +193,7 @@ export default function MyAssignmentsRoute() {
                 <ul className="mt-2 space-y-1 text-sm">{submission.files.map((file) => <li key={file.id}><a className="text-[var(--admin-warning)] hover:text-[var(--admin-warning)]" href={file.downloadUrl}>{file.fileName}</a><span className="ml-2 text-xs text-[var(--admin-muted)]">{Math.ceil(file.size / 1024)} KB</span></li>)}</ul>
                 {submission.reviews.map((review) => <div key={review.id} className="mt-3 rounded-lg bg-[var(--admin-surface-subtle)] p-3">
                   <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><strong>已批改 · {assignmentDecisionLabel(review.decision)}</strong><span className="text-[var(--admin-muted)]">{formatAssignmentDate(review.createdAt)}</span></div>
-                  {review.comment ? <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-[var(--admin-text)]">{review.comment}</p> : null}
+                  {review.comment ? <CommunityMarkdown source={review.comment} className="mt-2 whitespace-pre-wrap text-sm" /> : null}
                 </div>)}
               </article>)}
             </div>}

@@ -63,9 +63,11 @@ type CreateInput struct {
 }
 
 type ReviewInput struct {
-	Score    uint8
-	Decision string
-	Comment  string
+	Score        uint8
+	Decision     string
+	Comment      string
+	ImageFiles   []*multipart.FileHeader
+	UploadTokens []string
 }
 
 type FileView struct {
@@ -987,8 +989,13 @@ func (s *Service) review(ctx context.Context, actor Actor, submissionID uint64, 
 	if input.Score > 100 || (input.Decision != model.AssignmentReviewPassed && input.Decision != model.AssignmentReviewNeedsRedo) || utf8.RuneCountInString(input.Comment) > 5000 {
 		return nil, badRequest("评分、处理结果或评语不合法")
 	}
+	imageUploads, err := validateReviewImages(input.Comment, input.ImageFiles, input.UploadTokens)
+	if err != nil {
+		return nil, err
+	}
+	storedPaths := make([]string, 0, len(imageUploads))
 	var assignmentID uint64
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var submission model.AssignmentSubmission
 		if err := tx.First(&submission, submissionID).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -1027,10 +1034,35 @@ func (s *Service) review(ctx context.Context, actor Actor, submissionID uint64, 
 		if err := tx.Create(&review).Error; err != nil {
 			return err
 		}
+		for _, upload := range imageUploads {
+			stored, err := s.files.save(ctx, item.ID, actor.ID, upload.file, s.now(), false)
+			if err != nil {
+				return err
+			}
+			storedPaths = append(storedPaths, stored.storagePath)
+			image := model.AssignmentReviewImage{
+				ReviewID: review.ID, SubmissionID: submission.ID,
+				FileName: stored.fileName, StoragePath: stored.storagePath,
+				ContentType: stored.contentType, Size: stored.size,
+			}
+			if err := tx.Create(&image).Error; err != nil {
+				return err
+			}
+			input.Comment = strings.ReplaceAll(input.Comment, "community-upload://"+upload.token,
+				fmt.Sprintf("/api/assignment-review-images/%d", image.ID))
+		}
+		if len(imageUploads) != 0 {
+			if err := tx.Model(&review).Update("comment", input.Comment).Error; err != nil {
+				return err
+			}
+		}
 		assignmentID = item.ID
 		return nil
 	})
 	if err != nil {
+		for _, path := range storedPaths {
+			_ = s.files.remove(path)
+		}
 		var serviceErr *ServiceError
 		if errors.As(err, &serviceErr) {
 			return nil, serviceErr

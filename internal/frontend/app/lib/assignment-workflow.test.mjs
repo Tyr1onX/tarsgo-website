@@ -141,6 +141,19 @@ test("submission review page lists submitted people and filters pending work", (
   assert.match(assignmentSubmissions, /aria-pressed=\{submissionFilter === value\}/);
 });
 
+test("website review reuses rich image editor and protects feedback media", () => {
+  assert.match(assignmentSubmissions, /CommunityMarkdownEditor/);
+  assert.match(assignmentSubmissions, /validateCommunityImageBindings/);
+  assert.match(assignmentSubmissions, /setEditingReviewID/);
+  assert.match(assignmentSubmissions, /visibleMembers\.map\(\(member\) =>/);
+  assert.match(assignmentSubmissions, /提交与批改历史/);
+  assert.match(assignmentClient, /body\.set\("uploadTokens", JSON\.stringify/);
+  assert.match(assignmentClient, /body\.append\("files", file, file\.name\)/);
+  assert.match(memberAssignments, /CommunityMarkdown source=\{review\.comment\}/);
+  assert.match(backendRoutes, /assignmentMemberAPI\.GET\("\/assignment-review-images\/:id", assignmentHandler\.OpenReviewImage\)/);
+  assert.match(assignmentService, /validateReviewImages\(input\.Comment, input\.ImageFiles, input\.UploadTokens\)/);
+});
+
 test("specified recipients can be searched, removed, and retained across search changes", () => {
   assert.match(assignmentManagement, /type="search"[\s\S]*?搜索成员姓名/);
   assert.match(assignmentManagement, /已选 \{draft\.targetUserIds\.length\} 人/);
