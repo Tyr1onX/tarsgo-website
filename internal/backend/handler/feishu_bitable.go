@@ -25,10 +25,14 @@ import (
 )
 
 const (
-	feishuBitableURL      = "https://open.feishu.cn/open-apis/bitable/v1/apps"
-	feishuBitableMediaURL = "https://open.feishu.cn/open-apis/drive/v1/medias/upload_all"
-	bitableMediaInterval  = 210 * time.Millisecond
-	bitableReviewTimeout  = 2 * time.Second
+	feishuBitableURL        = "https://open.feishu.cn/open-apis/bitable/v1/apps"
+	feishuBitableMediaURL   = "https://open.feishu.cn/open-apis/drive/v1/medias/upload_all"
+	feishuBitablePrepareURL = "https://open.feishu.cn/open-apis/drive/v1/medias/upload_prepare"
+	feishuBitablePartURL    = "https://open.feishu.cn/open-apis/drive/v1/medias/upload_part"
+	feishuBitableFinishURL  = "https://open.feishu.cn/open-apis/drive/v1/medias/upload_finish"
+	bitableMediaInterval    = 210 * time.Millisecond
+	bitableMediaUploadLimit = 20 << 20
+	bitableReviewTimeout    = 2 * time.Second
 
 	bitableFieldAssignment   = "作业名称"
 	bitableFieldSubmissionID = "提交 ID"
@@ -321,18 +325,38 @@ func takeBitableAttachment(previous []bitableAttachment, used []bool, file assig
 }
 
 func (h *FeishuReviewHandler) uploadBitableFile(ctx context.Context, token string, file assignment.FileView, content []byte) (string, error) {
-	var body bytes.Buffer
-	writer := multipart.NewWriter(&body)
 	parentType := "bitable_file"
 	ext := strings.ToLower(filepath.Ext(file.FileName))
 	if isFeishuImageExtension(ext) {
 		parentType = "bitable_image"
 	}
+	extra, err := bitableMediaExtra(h.cfg.BitableAppToken)
+	if err != nil {
+		return "", err
+	}
+	if len(content) > bitableMediaUploadLimit {
+		return h.uploadBitableFileChunked(ctx, token, file, parentType, extra, content)
+	}
+	return h.uploadBitableFileSingle(ctx, token, file, parentType, extra, content)
+}
+
+func bitableMediaExtra(appToken string) (string, error) {
+	extra, err := json.Marshal(map[string]string{"drive_route_token": appToken})
+	if err != nil {
+		return "", err
+	}
+	return string(extra), nil
+}
+
+func (h *FeishuReviewHandler) uploadBitableFileSingle(ctx context.Context, token string, file assignment.FileView, parentType, extra string, content []byte) (string, error) {
+	var body bytes.Buffer
+	writer := multipart.NewWriter(&body)
 	for name, value := range map[string]string{
 		"file_name":   file.FileName,
 		"parent_type": parentType,
 		"parent_node": h.cfg.BitableAppToken,
 		"size":        strconv.Itoa(len(content)),
+		"extra":       extra,
 	} {
 		if err := writer.WriteField(name, value); err != nil {
 			return "", err
@@ -356,6 +380,90 @@ func (h *FeishuReviewHandler) uploadBitableFile(ctx context.Context, token strin
 	}
 	if result.FileToken == "" {
 		return "", errors.New("Feishu Bitable upload returned no file token")
+	}
+	return result.FileToken, nil
+}
+
+func (h *FeishuReviewHandler) uploadBitableFileChunked(ctx context.Context, token string, file assignment.FileView, parentType, extra string, content []byte) (string, error) {
+	prepareBody, err := json.Marshal(map[string]any{
+		"file_name":   file.FileName,
+		"parent_type": parentType,
+		"parent_node": h.cfg.BitableAppToken,
+		"size":        len(content),
+		"extra":       extra,
+	})
+	if err != nil {
+		return "", err
+	}
+	var prepared struct {
+		UploadID  string `json:"upload_id"`
+		BlockSize int    `json:"block_size"`
+		BlockNum  int    `json:"block_num"`
+	}
+	if err := h.bitableRequest(ctx, http.MethodPost, feishuBitablePrepareURL, nil, bytes.NewReader(prepareBody), "application/json; charset=utf-8", token, &prepared); err != nil {
+		return "", err
+	}
+	if prepared.UploadID == "" || prepared.BlockSize <= 0 || prepared.BlockNum <= 0 {
+		return "", errors.New("Feishu Bitable chunked upload returned an invalid upload plan")
+	}
+	expectedBlockNum := (len(content) + prepared.BlockSize - 1) / prepared.BlockSize
+	if prepared.BlockNum != expectedBlockNum {
+		return "", fmt.Errorf("Feishu Bitable chunked upload returned %d blocks for %d expected", prepared.BlockNum, expectedBlockNum)
+	}
+
+	lastRequest := time.Now()
+	for seq := 0; seq < prepared.BlockNum; seq++ {
+		if err := waitForBitableMediaSlot(ctx, lastRequest); err != nil {
+			return "", err
+		}
+		start := seq * prepared.BlockSize
+		end := start + prepared.BlockSize
+		if end > len(content) {
+			end = len(content)
+		}
+		partContent := content[start:end]
+		var partBody bytes.Buffer
+		writer := multipart.NewWriter(&partBody)
+		for name, value := range map[string]string{
+			"upload_id": prepared.UploadID,
+			"seq":       strconv.Itoa(seq),
+			"size":      strconv.Itoa(len(partContent)),
+		} {
+			if err := writer.WriteField(name, value); err != nil {
+				return "", err
+			}
+		}
+		part, err := writer.CreateFormFile("file", file.FileName)
+		if err != nil {
+			return "", err
+		}
+		if _, err := part.Write(partContent); err != nil {
+			return "", err
+		}
+		if err := writer.Close(); err != nil {
+			return "", err
+		}
+		if err := h.bitableRequest(ctx, http.MethodPost, feishuBitablePartURL, nil, &partBody, writer.FormDataContentType(), token, nil); err != nil {
+			return "", fmt.Errorf("upload Bitable attachment chunk %d/%d: %w", seq+1, prepared.BlockNum, err)
+		}
+		lastRequest = time.Now()
+	}
+
+	if err := waitForBitableMediaSlot(ctx, lastRequest); err != nil {
+		return "", err
+	}
+	finishBody, err := json.Marshal(map[string]any{"upload_id": prepared.UploadID, "block_num": prepared.BlockNum})
+	if err != nil {
+		return "", err
+	}
+	var result struct {
+		FileToken string `json:"file_token"`
+	}
+	if err := h.bitableRequest(ctx, http.MethodPost, feishuBitableFinishURL, nil, bytes.NewReader(finishBody), "application/json; charset=utf-8", token, &result); err != nil {
+		return "", err
+	}
+	if result.FileToken == "" {
+		return "", errors.New("Feishu Bitable chunked upload returned no file token")
 	}
 	return result.FileToken, nil
 }
