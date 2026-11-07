@@ -27,6 +27,7 @@ import (
 const (
 	feishuMessageResourceURL = "https://open.feishu.cn/open-apis/im/v1/messages"
 	feishuMessageFileLimit   = 100 << 20
+	feishuCardInputMaxLength = 1000
 	feishuMaterialTTL        = 15 * time.Minute
 )
 
@@ -360,11 +361,11 @@ func feishuAssignmentPublishCard(groups []assignment.GroupOption, requestID stri
 			map[string]any{"tag": "markdown", "content": "提交后立即发布到网站。接收对象留空表示所选组全员；填写网站成员 ID（逗号分隔）可指定成员。卡片不支持本地文件上传，发布后可在本私聊发送“资料 #作业编号”并继续发送文件。"},
 			map[string]any{"tag": "form", "name": "assignment_publish_form", "elements": []any{
 				map[string]any{"tag": "input", "name": "title", "required": true, "placeholder": map[string]any{"tag": "plain_text", "content": "作业名称"}, "max_length": 120},
-				map[string]any{"tag": "input", "name": "description", "required": true, "input_type": "multiline_text", "placeholder": map[string]any{"tag": "plain_text", "content": "作业要求"}, "max_length": 10000},
+				map[string]any{"tag": "input", "name": "description", "required": true, "input_type": "multiline_text", "placeholder": map[string]any{"tag": "plain_text", "content": "作业要求"}, "max_length": feishuCardInputMaxLength},
 				map[string]any{"tag": "select_static", "name": "group_id", "required": true, "placeholder": map[string]any{"tag": "plain_text", "content": "所属组别"}, "options": options},
 				map[string]any{"tag": "input", "name": "due_at", "required": true, "placeholder": map[string]any{"tag": "plain_text", "content": "截止时间（北京时间：YYYY-MM-DD HH:mm）"}, "max_length": 16},
 				map[string]any{"tag": "input", "name": "target_user_ids", "placeholder": map[string]any{"tag": "plain_text", "content": "接收对象：成员 ID，逗号分隔；留空为全组"}, "max_length": 1000},
-				map[string]any{"tag": "input", "name": "attachment_requirements", "placeholder": map[string]any{"tag": "plain_text", "content": "提交附件要求（选填）"}, "max_length": 2000},
+				map[string]any{"tag": "input", "name": "attachment_requirements", "placeholder": map[string]any{"tag": "plain_text", "content": "提交附件要求（选填）"}, "max_length": feishuCardInputMaxLength},
 				map[string]any{"tag": "button", "name": "publish_assignment", "form_action_type": "submit", "type": "primary_filled", "text": map[string]any{"tag": "plain_text", "content": "发布作业"},
 					"behaviors": []any{map[string]any{"type": "callback", "value": value}}},
 			}},

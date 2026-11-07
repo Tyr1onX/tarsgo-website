@@ -29,6 +29,11 @@ func TestFeishuAssignmentPublishCardIncludesRequiredSiteFields(t *testing.T) {
 		field := field.(map[string]any)
 		if name, ok := field["name"].(string); ok {
 			got[name] = true
+			if name == "description" || name == "attachment_requirements" {
+				if maxLength, ok := field["max_length"].(int); !ok || maxLength > feishuCardInputMaxLength {
+					t.Errorf("%s max_length = %v, want at most %d", name, field["max_length"], feishuCardInputMaxLength)
+				}
+			}
 		}
 	}
 	for _, name := range []string{"title", "description", "group_id", "due_at", "target_user_ids", "attachment_requirements", "publish_assignment"} {
