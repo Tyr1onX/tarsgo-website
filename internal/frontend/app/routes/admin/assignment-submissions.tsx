@@ -22,6 +22,7 @@ export default function AssignmentSubmissionsRoute() {
   const [groupId, setGroupId] = useState(0);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selectedID, setSelectedID] = useState(requestedID);
+  const [submissionFilter, setSubmissionFilter] = useState<"submitted" | "pending" | "all">("submitted");
   const [detail, setDetail] = useState<AdminAssignmentDetail | null>(null);
   const [reviewDrafts, setReviewDrafts] = useState<Record<number, { score: string; decision: "passed" | "needs_redo"; comment: string }>>({});
   const [loading, setLoading] = useState(false);
@@ -140,6 +141,10 @@ export default function AssignmentSubmissionsRoute() {
   const assignment = listLoaded && assignments.some((item) => item.id === selectedID) && detail?.assignment.id === selectedID
     ? detail.assignment
     : null;
+  const submittedMembers = detail?.members.filter((member) => member.latestSubmission) ?? [];
+  const pendingMembers = submittedMembers.filter((member) => member.latestSubmission?.status === "submitted");
+  const visibleMembers = submissionFilter === "pending" ? pendingMembers : submissionFilter === "submitted" ? submittedMembers : detail?.members ?? [];
+
   return (
     <section className="admin-design space-y-5" aria-labelledby="assignment-submissions-title">
       <header className="admin-page-header flex flex-wrap items-center justify-between gap-3">
@@ -168,9 +173,15 @@ export default function AssignmentSubmissionsRoute() {
           <span>已通过 {assignment.passedCount}</span>
         </section>
         <section className="admin-panel divide-y divide-[var(--admin-border-subtle)] p-4 sm:p-5" aria-label="成员提交情况">
-          {detail?.members.length === 0 ? <p role="status" className="pb-3 text-sm text-[var(--admin-muted)]">该作业当前没有分配成员。</p> : null}
-          {detail && detail.members.length > 0 && detail.members.every((member) => member.submissions.length === 0) ? <p role="status" className="pb-3 text-sm text-[var(--admin-muted)]">暂无成员提交。</p> : null}
-          {detail?.members.map((member) => <article key={member.userId} className="py-4 first:pt-0 last:pb-0">
+          {detail && detail.members.length > 0 ? <div className="flex flex-wrap gap-2 pb-3" role="group" aria-label="提交状态筛选">
+            {([
+              { value: "pending", label: `待批改 ${pendingMembers.length}` },
+              { value: "submitted", label: `已提交 ${submittedMembers.length}` },
+              { value: "all", label: `全部 ${detail.members.length}` },
+            ] as const).map(({ value, label }) => <button key={value} type="button" className={`admin-button admin-button--small ${submissionFilter === value ? "admin-button--secondary" : "admin-button--quiet"}`} aria-pressed={submissionFilter === value} onClick={() => setSubmissionFilter(value)}>{label}</button>)}
+          </div> : null}
+          {detail && visibleMembers.length === 0 ? <p role="status" className="py-3 text-sm text-[var(--admin-muted)]">{detail.members.length === 0 ? "该作业当前没有分配成员。" : submissionFilter === "pending" ? "当前没有待批改的提交。" : "暂无成员提交。"}</p> : null}
+          {visibleMembers.map((member) => <article key={member.userId} className="py-4 first:pt-0 last:pb-0">
             <div className="flex flex-wrap items-center justify-between gap-2"><h2 className="font-semibold text-[var(--admin-text)]">{member.name} <span className="text-xs font-normal text-[var(--admin-muted)]">#{member.userId}</span></h2><div className="flex items-center gap-2 text-xs text-[var(--admin-muted)]"><span>{assignmentStatusLabel(member.status)}</span>{member.isLate ? <span className="text-[var(--admin-warning)]">逾期提交</span> : null}</div></div>
             {!member.latestSubmission ? <p className="mt-2 text-sm text-[var(--admin-muted)]">尚未提交</p> : <>
               <div className="mt-2 flex flex-wrap items-center justify-between gap-2 text-xs text-[var(--admin-muted)]"><span>第 {member.latestSubmission.attempt} 次提交 · {formatAssignmentDate(member.latestSubmission.submittedAt)}{member.latestSubmission.isLate ? " · 逾期" : ""}</span><span>{member.latestSubmission.status === "graded" ? `${assignmentDecisionLabel(member.latestSubmission.decision)} · ${member.latestSubmission.reviews.at(-1)?.score ?? "—"} 分` : "待批改"}</span></div>
