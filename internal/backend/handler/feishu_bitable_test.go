@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -236,6 +237,10 @@ func TestBitableUploadUsesAttachmentMediaAPIAndOriginalFilename(t *testing.T) {
 						fields[part.FormName()] = string(content)
 					}
 				}
+				expectedExtra := `{"drive_route_token":"basc_test"}`
+				if fields["extra"] != expectedExtra {
+					return testFeishuHTTPResponse(`{"code":1061002,"msg":"params error."}`), nil
+				}
 				if fields["parent_type"] != tc.parentType || fields["parent_node"] != "basc_test" || fields["file_name"] != tc.fileName || fileName != tc.fileName || fields["size"] != strconv.Itoa(len("file body")) || string(fileContent) != "file body" {
 					t.Errorf("incorrect Bitable upload multipart fields=%#v file=%q body=%q", fields, fileName, fileContent)
 				}
@@ -246,6 +251,104 @@ func TestBitableUploadUsesAttachmentMediaAPIAndOriginalFilename(t *testing.T) {
 				t.Fatalf("upload token=%q err=%v", token, err)
 			}
 		})
+	}
+}
+
+func TestBitableLargeAttachmentUsesChunkedMediaUpload(t *testing.T) {
+	h := testFeishuHandler()
+	h.cfg.BitableAppToken = "basc_test"
+	content := bytes.Repeat([]byte("x"), bitableMediaUploadLimit+1)
+	const blockSize = 4 << 20
+	wantBlockNum := (len(content) + blockSize - 1) / blockSize
+	var nextSeq int
+	var uploadID string
+	h.client = &http.Client{Transport: feishuTransportFunc(func(req *http.Request) (*http.Response, error) {
+		switch req.URL.Path {
+		case "/open-apis/drive/v1/medias/upload_prepare":
+			if req.Method != http.MethodPost || req.Header.Get("Content-Type") != "application/json; charset=utf-8" {
+				t.Fatalf("unexpected prepare request: %s %s content-type=%q", req.Method, req.URL, req.Header.Get("Content-Type"))
+			}
+			var payload struct {
+				FileName   string `json:"file_name"`
+				ParentType string `json:"parent_type"`
+				ParentNode string `json:"parent_node"`
+				Size       int    `json:"size"`
+				Extra      string `json:"extra"`
+			}
+			if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload.FileName != "large.zip" || payload.ParentType != "bitable_file" || payload.ParentNode != "basc_test" || payload.Size != len(content) || payload.Extra != `{"drive_route_token":"basc_test"}` {
+				t.Fatalf("incorrect chunked upload prepare request: %#v", payload)
+			}
+			uploadID = "upload_test"
+			return testFeishuHTTPResponse(fmt.Sprintf(`{"code":0,"data":{"upload_id":%q,"block_size":%d,"block_num":%d}}`, uploadID, blockSize, wantBlockNum)), nil
+		case "/open-apis/drive/v1/medias/upload_part":
+			if req.Method != http.MethodPost {
+				t.Fatalf("unexpected part method %s", req.Method)
+			}
+			reader, err := req.MultipartReader()
+			if err != nil {
+				t.Fatal(err)
+			}
+			fields := map[string]string{}
+			var partContent []byte
+			for {
+				part, err := reader.NextPart()
+				if err == io.EOF {
+					break
+				}
+				if err != nil {
+					t.Fatal(err)
+				}
+				data, err := io.ReadAll(part)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if part.FormName() == "file" {
+					partContent = data
+				} else {
+					fields[part.FormName()] = string(data)
+				}
+			}
+			seq, err := strconv.Atoi(fields["seq"])
+			if err != nil {
+				t.Fatal(err)
+			}
+			start := seq * blockSize
+			end := start + blockSize
+			if end > len(content) {
+				end = len(content)
+			}
+			if fields["upload_id"] != uploadID || seq != nextSeq || fields["size"] != strconv.Itoa(end-start) || !bytes.Equal(partContent, content[start:end]) {
+				t.Fatalf("invalid chunk seq=%d expected=%d fields=%#v bytes=%d", seq, nextSeq, fields, len(partContent))
+			}
+			nextSeq++
+			return testFeishuHTTPResponse(`{"code":0,"data":{}}`), nil
+		case "/open-apis/drive/v1/medias/upload_finish":
+			if nextSeq != wantBlockNum {
+				t.Fatalf("finish called after %d of %d chunks", nextSeq, wantBlockNum)
+			}
+			var payload struct {
+				UploadID string `json:"upload_id"`
+				BlockNum int    `json:"block_num"`
+			}
+			if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload.UploadID != uploadID || payload.BlockNum != wantBlockNum {
+				t.Fatalf("incorrect chunked upload finish request: %#v", payload)
+			}
+			return testFeishuHTTPResponse(`{"code":0,"data":{"file_token":"box_large"}}`), nil
+		default:
+			t.Fatalf("unexpected media request %s %s", req.Method, req.URL)
+			return nil, fmt.Errorf("unexpected media request")
+		}
+	})}
+
+	token, err := h.uploadBitableFile(t.Context(), "token", assignment.FileView{FileName: "large.zip"}, content)
+	if err != nil || token != "box_large" {
+		t.Fatalf("chunked upload token=%q err=%v", token, err)
 	}
 }
 
