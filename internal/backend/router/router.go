@@ -145,7 +145,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 
 	api := engine.Group("/api")
 	api.POST("/integrations/feishu/card-action", feishuReviewHandler.Callback)
-	api.GET("/integrations/feishu/review-card/:submissionID", feishuReviewHandler.SendReviewCardLink)
+	api.POST("/integrations/feishu/bitable/review-card", feishuReviewHandler.BitableReviewCardTrigger)
 	api.GET("/bootstrap/status", authHandler.BootstrapStatus)
 	api.POST("/bootstrap/super-admin", authHandler.RegisterInitialSuperAdmin)
 	api.POST("/register/email/send-code", authHandler.SendRegisterCode)
@@ -248,6 +248,9 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	adminAPI.GET("/assignments/todos", assignmentHandler.AdminTodos)
 	adminAPI.POST("/integrations/feishu/test-card", requireSameOriginRequest(cfg), feishuReviewHandler.SendTestCard)
 	adminAPI.POST("/integrations/feishu/bitable/reconcile", requireSameOriginRequest(cfg), feishuReviewHandler.ReconcileBitable)
+	adminAPI.GET("/integrations/feishu/bind", feishuReviewHandler.FeishuLinkPage)
+	adminAPI.POST("/integrations/feishu/link-code", requireSameOriginRequest(cfg), feishuReviewHandler.FeishuLinkCode)
+	adminAPI.GET("/integrations/feishu/bitable/workflow-secret", feishuReviewHandler.BitableWorkflowSecret)
 	adminAPI.POST("/assignments", requireSameOriginRequest(cfg), assignmentHandler.Create)
 	adminAPI.POST("/assignments/publish", requireSameOriginRequest(cfg), assignmentHandler.PublishWithMaterials)
 	adminAPI.GET("/assignments/:id", assignmentHandler.GetAdmin)

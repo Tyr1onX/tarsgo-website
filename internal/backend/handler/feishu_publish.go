@@ -53,7 +53,8 @@ type feishuMessageContent struct {
 
 func (h *FeishuReviewHandler) handleFeishuMessageEvent(c *gin.Context, event feishuCallback) {
 	message := event.Event.Message
-	if event.Event.Sender.SenderID.UnionID != h.cfg.TesterUnionID || message.ChatType != "p2p" || message.ChatID == "" {
+	operatorOpenID := event.Event.Sender.SenderID.OpenID
+	if !strings.HasPrefix(operatorOpenID, "ou_") || message.ChatType != "p2p" || message.ChatID == "" {
 		c.JSON(http.StatusOK, gin.H{"code": 0})
 		return
 	}
@@ -67,97 +68,109 @@ func (h *FeishuReviewHandler) handleFeishuMessageEvent(c *gin.Context, event fei
 	c.JSON(http.StatusOK, gin.H{"code": 0})
 	go func() {
 		defer cancel()
-		h.processFeishuMessage(ctx, message, content)
+		h.processFeishuMessage(ctx, operatorOpenID, message, content)
 	}()
 }
 
-func (h *FeishuReviewHandler) processFeishuMessage(ctx context.Context, message feishuIncomingMessage, content feishuMessageContent) {
+func (h *FeishuReviewHandler) processFeishuMessage(ctx context.Context, operatorOpenID string, message feishuIncomingMessage, content feishuMessageContent) {
 	command := strings.TrimSpace(content.Text)
 	switch {
-	case message.MessageType == "text" && command == "发布作业":
-		actor, _, err := h.bitablePilotActor(ctx)
+	case message.MessageType == "text" && strings.HasPrefix(command, "绑定 "):
+		code := strings.TrimSpace(strings.TrimPrefix(command, "绑定 "))
+		user, err := h.consumeFeishuLinkCode(ctx, operatorOpenID, code)
 		if err != nil {
-			h.sendFeishuMessageError(ctx, "网站管理员账号不可用")
+			if user != nil {
+				h.sendFeishuMessageError(ctx, operatorOpenID, "网站身份已绑定，但看板授权同步失败；请管理员修复看板权限")
+			} else {
+				h.sendFeishuMessageError(ctx, operatorOpenID, "绑定失败："+err.Error())
+			}
+			return
+		}
+		h.sendFeishuMessageError(ctx, operatorOpenID, "飞书账号已绑定，可查看作业看板并按网站组别权限发布、批改")
+	case message.MessageType == "text" && command == "发布作业":
+		actor, _, err := h.resolveFeishuOperator(ctx, operatorOpenID)
+		if err != nil {
+			h.sendFeishuMessageError(ctx, operatorOpenID, "请先通过网站管理员账号绑定飞书，并确认当前账号有可管理的技术组")
 			return
 		}
 		groups, err := h.assignments.ListManagedGroups(ctx, actor)
 		if err != nil {
-			h.sendFeishuMessageError(ctx, "当前网站账号没有可管理的作业组别")
+			h.sendFeishuMessageError(ctx, operatorOpenID, "当前网站账号没有可管理的作业组别")
 			return
 		}
 		requestID, err := newFeishuPublishRequestID()
 		if err == nil {
-			err = h.sendCard(ctx, feishuAssignmentPublishCard(groups, requestID))
+			err = h.sendCardTo(ctx, operatorOpenID, feishuAssignmentPublishCard(groups, requestID))
 		}
 		if err != nil {
 			log.Printf("feishu assignment publish form failed: %v", err)
-			h.sendFeishuMessageError(ctx, "发布表单发送失败，请稍后重试")
+			h.sendFeishuMessageError(ctx, operatorOpenID, "发布表单发送失败，请稍后重试")
 		}
 	case message.MessageType == "text" && strings.HasPrefix(command, "资料 #"):
 		assignmentID, err := strconv.ParseUint(strings.TrimSpace(strings.TrimPrefix(command, "资料 #")), 10, 64)
 		if err != nil || assignmentID == 0 {
-			h.sendFeishuMessageError(ctx, "格式应为：资料 #作业编号")
+			h.sendFeishuMessageError(ctx, operatorOpenID, "格式应为：资料 #作业编号")
 			return
 		}
-		actor, _, err := h.bitablePilotActor(ctx)
+		actor, _, err := h.resolveFeishuOperator(ctx, operatorOpenID)
 		if err == nil {
 			_, err = h.assignments.GetAdmin(ctx, actor, assignmentID)
 		}
 		if err != nil {
-			h.sendFeishuMessageError(ctx, "无权为该作业添加教学资料，或作业已不存在")
+			h.sendFeishuMessageError(ctx, operatorOpenID, "无权为该作业添加教学资料，或作业已不存在")
 		} else {
 			h.pendingMaterialsMu.Lock()
-			h.pendingMaterials[h.cfg.TesterUnionID] = feishuPendingMaterial{AssignmentID: assignmentID, ExpiresAt: time.Now().Add(feishuMaterialTTL)}
+			h.pendingMaterials[operatorOpenID] = feishuPendingMaterial{AssignmentID: assignmentID, ExpiresAt: time.Now().Add(feishuMaterialTTL)}
 			h.pendingMaterialsMu.Unlock()
-			if err := h.sendText(ctx, fmt.Sprintf("请在新人首次提交前，于 15 分钟内发送该作业的教学资料文件；完成后发送“结束资料”。作业 #%d", assignmentID)); err != nil {
+			if err := h.sendTextTo(ctx, operatorOpenID, fmt.Sprintf("请在新人首次提交前，于 15 分钟内发送该作业的教学资料文件；完成后发送“结束资料”。作业 #%d", assignmentID)); err != nil {
 				log.Printf("feishu material upload prompt failed assignment=%d: %v", assignmentID, err)
 			}
 		}
 	case message.MessageType == "text" && command == "结束资料":
 		h.pendingMaterialsMu.Lock()
-		delete(h.pendingMaterials, h.cfg.TesterUnionID)
+		delete(h.pendingMaterials, operatorOpenID)
 		h.pendingMaterialsMu.Unlock()
-		if err := h.sendText(ctx, "已结束教学资料上传"); err != nil {
+		if err := h.sendTextTo(ctx, operatorOpenID, "已结束教学资料上传"); err != nil {
 			log.Printf("feishu material upload completion message failed: %v", err)
 		}
 	case message.MessageType == "file" || message.MessageType == "image":
-		pending, ok := h.pendingMaterialFor(h.cfg.TesterUnionID)
+		pending, ok := h.pendingMaterialFor(operatorOpenID)
 		if ok && message.MessageID == "" {
-			h.reportMaterialFailure(ctx, pending.AssignmentID, message.MessageID, errors.New("Feishu material message has no message ID"))
+			h.reportMaterialFailure(ctx, operatorOpenID, pending.AssignmentID, message.MessageID, errors.New("Feishu material message has no message ID"))
 			return
 		}
 		if ok {
-			actor, _, err := h.bitablePilotActor(ctx)
+			actor, _, err := h.resolveFeishuOperator(ctx, operatorOpenID)
 			if err != nil {
-				h.reportMaterialFailure(ctx, pending.AssignmentID, message.MessageID, err)
+				h.reportMaterialFailure(ctx, operatorOpenID, pending.AssignmentID, message.MessageID, err)
 				return
 			}
-			h.processFeishuTeachingMaterial(ctx, actor, pending.AssignmentID, message)
+			h.processFeishuTeachingMaterial(ctx, operatorOpenID, actor, pending.AssignmentID, message)
 		}
 	}
 }
 
-func (h *FeishuReviewHandler) sendFeishuMessageError(ctx context.Context, message string) {
-	if err := h.sendText(ctx, message); err != nil {
-		log.Printf("feishu pilot reply failed: %v", err)
+func (h *FeishuReviewHandler) sendFeishuMessageError(ctx context.Context, operatorOpenID, message string) {
+	if err := h.sendTextTo(ctx, operatorOpenID, message); err != nil {
+		log.Printf("feishu operator reply failed: %v", err)
 	}
 }
 
-func (h *FeishuReviewHandler) pendingMaterialFor(unionID string) (feishuPendingMaterial, bool) {
+func (h *FeishuReviewHandler) pendingMaterialFor(openID string) (feishuPendingMaterial, bool) {
 	h.pendingMaterialsMu.Lock()
 	defer h.pendingMaterialsMu.Unlock()
-	pending, ok := h.pendingMaterials[unionID]
+	pending, ok := h.pendingMaterials[openID]
 	if !ok {
 		return feishuPendingMaterial{}, false
 	}
 	if time.Now().After(pending.ExpiresAt) {
-		delete(h.pendingMaterials, unionID)
+		delete(h.pendingMaterials, openID)
 		return feishuPendingMaterial{}, false
 	}
 	return pending, true
 }
 
-func (h *FeishuReviewHandler) processFeishuTeachingMaterial(ctx context.Context, actor assignment.Actor, assignmentID uint64, message feishuIncomingMessage) {
+func (h *FeishuReviewHandler) processFeishuTeachingMaterial(ctx context.Context, operatorOpenID string, actor assignment.Actor, assignmentID uint64, message feishuIncomingMessage) {
 	h.materialUploadMu.Lock()
 	defer h.materialUploadMu.Unlock()
 
@@ -172,17 +185,17 @@ func (h *FeishuReviewHandler) processFeishuTeachingMaterial(ctx context.Context,
 		fileName = ""
 	}
 	if resourceKey == "" || message.MessageID == "" {
-		h.reportMaterialFailure(ctx, assignmentID, message.MessageID, errors.New("Feishu material message has no resource key or message ID"))
+		h.reportMaterialFailure(ctx, operatorOpenID, assignmentID, message.MessageID, errors.New("Feishu material message has no resource key or message ID"))
 		return
 	}
 	token, err := h.tenantToken(ctx)
 	if err != nil {
-		h.reportMaterialFailure(ctx, assignmentID, message.MessageID, err)
+		h.reportMaterialFailure(ctx, operatorOpenID, assignmentID, message.MessageID, err)
 		return
 	}
 	body, mimeType, err := h.downloadFeishuMessageResource(ctx, token, message.MessageID, resourceKey, resourceType)
 	if err != nil {
-		h.reportMaterialFailure(ctx, assignmentID, message.MessageID, err)
+		h.reportMaterialFailure(ctx, operatorOpenID, assignmentID, message.MessageID, err)
 		return
 	}
 	if fileName == "" {
@@ -193,24 +206,24 @@ func (h *FeishuReviewHandler) processFeishuTeachingMaterial(ctx context.Context,
 		fileName = prefix + safeResourceSuffix(resourceKey) + filepath.Ext(mimeExtension(mimeType, body))
 	}
 	if len(body) == 0 || len(body) > feishuMessageFileLimit {
-		h.reportMaterialFailure(ctx, assignmentID, message.MessageID, errors.New("Feishu material is empty or exceeds 100 MiB"))
+		h.reportMaterialFailure(ctx, operatorOpenID, assignmentID, message.MessageID, errors.New("Feishu material is empty or exceeds 100 MiB"))
 		return
 	}
 	form, cleanup, err := feishuMultipartFiles([]feishuMaterialBytes{{Name: fileName, Content: body}})
 	if err != nil {
-		h.reportMaterialFailure(ctx, assignmentID, message.MessageID, err)
+		h.reportMaterialFailure(ctx, operatorOpenID, assignmentID, message.MessageID, err)
 		return
 	}
 	defer cleanup()
 	if err := h.skipDuplicateMaterial(ctx, actor, assignmentID, fileName, body); err != nil {
-		h.reportMaterialFailure(ctx, assignmentID, message.MessageID, err)
+		h.reportMaterialFailure(ctx, operatorOpenID, assignmentID, message.MessageID, err)
 		return
 	}
 	if _, err := h.assignments.UploadMaterialFiles(ctx, actor, assignmentID, form.File["files"]); err != nil {
-		h.reportMaterialFailure(ctx, assignmentID, message.MessageID, err)
+		h.reportMaterialFailure(ctx, operatorOpenID, assignmentID, message.MessageID, err)
 		return
 	}
-	if err := h.sendText(ctx, fmt.Sprintf("教学资料已保存到网站作业 #%d：%s", assignmentID, fileName)); err != nil {
+	if err := h.sendTextTo(ctx, operatorOpenID, fmt.Sprintf("教学资料已保存到网站作业 #%d：%s", assignmentID, fileName)); err != nil {
 		log.Printf("feishu material upload confirmation failed assignment=%d message=%s: %v", assignmentID, message.MessageID, err)
 	}
 }
@@ -326,23 +339,23 @@ func mimeExtension(contentType string, body []byte) string {
 	return ".bin"
 }
 
-func (h *FeishuReviewHandler) reportMaterialFailure(ctx context.Context, assignmentID uint64, messageID string, err error) {
+func (h *FeishuReviewHandler) reportMaterialFailure(ctx context.Context, operatorOpenID string, assignmentID uint64, messageID string, err error) {
 	// Duplicate event delivery after a successful upload is intentionally a no-op.
 	if errors.Is(err, errFeishuDuplicateMaterial) {
 		return
 	}
 	log.Printf("feishu assignment material failed assignment=%d message=%s: %v", assignmentID, messageID, err)
-	if replyErr := h.sendText(ctx, fmt.Sprintf("教学资料未保存到网站。请检查文件限制，或确认作业 #%d 尚无提交记录。", assignmentID)); replyErr != nil {
+	if replyErr := h.sendTextTo(ctx, operatorOpenID, fmt.Sprintf("教学资料未保存到网站。请检查文件限制，或确认作业 #%d 尚无提交记录。", assignmentID)); replyErr != nil {
 		log.Printf("feishu material failure message failed assignment=%d: %v", assignmentID, replyErr)
 	}
 }
 
-func (h *FeishuReviewHandler) sendText(ctx context.Context, text string) error {
+func (h *FeishuReviewHandler) sendTextTo(ctx context.Context, operatorOpenID, text string) error {
 	token, err := h.tenantToken(ctx)
 	if err != nil {
 		return err
 	}
-	return h.sendMessage(ctx, token, "text", map[string]string{"text": text})
+	return h.sendMessageTo(ctx, token, operatorOpenID, "open_id", "text", map[string]string{"text": text})
 }
 
 func feishuAssignmentPublishCard(groups []assignment.GroupOption, requestID string) map[string]any {

@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"regexp"
 	"strconv"
@@ -15,7 +14,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"tarsgo-backend/model"
 	"tarsgo-backend/service/assignment"
 )
@@ -112,6 +110,9 @@ func TestBitableSubmissionUpsertIsIdempotent(t *testing.T) {
 	row := transport.records["123"]
 	if row.Fields[bitableFieldAssignment] != "图像作业" || row.Fields[bitableFieldSubmitter] != "测试成员" || row.Fields[bitableFieldStatus] != "待批改" || row.Fields[bitableFieldCurrent] != true {
 		t.Fatalf("row fields do not reflect the submitted site record: %#v", row.Fields)
+	}
+	if _, exists := row.Fields["评分入口"]; exists {
+		t.Fatal("upsert still writes the obsolete fixed-reviewer link")
 	}
 }
 
@@ -553,27 +554,65 @@ func TestBitableCreateRequestFailureIsSurfaced(t *testing.T) {
 	}
 }
 
-func TestBitableReviewEntryIsSignedAndInvalidLinksFailClosed(t *testing.T) {
+func TestBitableWorkflowTokenIsBoundToTheConfiguredBoard(t *testing.T) {
 	h := testFeishuHandler()
 	h.cfg.BitableAppToken = "basc_test"
 	h.cfg.BitableTableID = "tbl_test"
-	link, err := url.Parse(h.reviewEntryURL(123))
-	if err != nil {
-		t.Fatal(err)
+	first := h.bitableWorkflowToken()
+	if len(first) != 64 {
+		t.Fatalf("workflow token length=%d, want hex SHA-256 token", len(first))
 	}
-	if link.Path != "/api/integrations/feishu/review-card/123" || link.Query().Get("signature") != h.reviewEntrySignature(123) {
-		t.Fatalf("invalid review card link: %s", link)
+	h.cfg.BitableTableID = "other-table"
+	if first == h.bitableWorkflowToken() {
+		t.Fatal("workflow token was not scoped to the configured board table")
 	}
+}
 
-	gin.SetMode(gin.TestMode)
-	recorder := httptest.NewRecorder()
-	c, _ := gin.CreateTestContext(recorder)
-	c.Params = gin.Params{{Key: "submissionID", Value: "123"}}
-	c.Request = httptest.NewRequest(http.MethodGet, "/api/integrations/feishu/review-card/123?signature=bad", nil)
-	h.SendReviewCardLink(c)
-	c.Writer.WriteHeaderNow()
-	if recorder.Code != http.StatusNotFound {
-		t.Fatalf("invalid review link returned HTTP %d", recorder.Code)
+func TestEnsureBitableReaderAddsTheOpenIDOnce(t *testing.T) {
+	h := testFeishuHandler()
+	h.cfg.BitableAppToken = "basc_test"
+	h.cfg.BitableTableID = "tbl_test"
+	added := false
+	addCount := 0
+	h.client = &http.Client{Transport: feishuTransportFunc(func(req *http.Request) (*http.Response, error) {
+		switch {
+		case req.URL.Path == "/open-apis/auth/v3/tenant_access_token/internal":
+			return testFeishuHTTPResponse(`{"code":0,"tenant_access_token":"token"}`), nil
+		case req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/roles"):
+			return testFeishuHTTPResponse(`{"code":0,"data":{"items":[{"role_id":"rol_read","role_name":"培训队员只读"}],"has_more":false}}`), nil
+		case req.Method == http.MethodGet && strings.HasSuffix(req.URL.Path, "/roles/rol_read/members"):
+			items := `[]`
+			if added {
+				items = `[{"member_id":"ou_trainer","member_id_type":"open_id"}]`
+			}
+			return testFeishuHTTPResponse(fmt.Sprintf(`{"code":0,"data":{"items":%s,"has_more":false}}`, items)), nil
+		case req.Method == http.MethodPost && strings.HasSuffix(req.URL.Path, "/roles/rol_read/members/batch_create"):
+			var payload struct {
+				MemberList []struct {
+					ID   string `json:"id"`
+					Type string `json:"type"`
+				} `json:"member_list"`
+			}
+			if err := json.NewDecoder(req.Body).Decode(&payload); err != nil {
+				t.Fatal(err)
+			}
+			if len(payload.MemberList) != 1 || payload.MemberList[0].ID != "ou_trainer" || payload.MemberList[0].Type != "open_id" {
+				t.Fatalf("unexpected Bitable reader grant: %#v", payload)
+			}
+			added = true
+			addCount++
+			return testFeishuHTTPResponse(`{"code":0,"data":{}}`), nil
+		default:
+			return nil, fmt.Errorf("unexpected Bitable reader request %s %s", req.Method, req.URL)
+		}
+	})}
+	for range 2 {
+		if err := h.ensureBitableReader(t.Context(), "ou_trainer"); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if addCount != 1 {
+		t.Fatalf("reader membership is not idempotent: add calls=%d", addCount)
 	}
 }
 

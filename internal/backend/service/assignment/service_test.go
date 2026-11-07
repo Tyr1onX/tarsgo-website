@@ -97,6 +97,23 @@ func TestGetMineTreatsWithdrawnAssignmentAsNotFound(t *testing.T) {
 	assertAssignmentStatus(t, err, http.StatusNotFound)
 }
 
+func TestNextPendingChecksGroupPermissionBeforeSelectingWork(t *testing.T) {
+	db, mock := newAssignmentMockGorm(t)
+	expectAssignmentGroupIDs(mock, 8, 41)
+	_, _, err := (&Service{db: db}).NextPending(context.Background(), Actor{ID: 8, RoleName: model.RoleNameAdmin}, 42)
+	assertAssignmentStatus(t, err, http.StatusForbidden)
+}
+
+func TestNextPendingQueriesOldestCurrentUnreviewedSubmission(t *testing.T) {
+	db, mock := newAssignmentMockGorm(t)
+	expectAssignmentGroupIDs(mock, 8, 41)
+	mock.ExpectQuery(`(?s)SELECT a\.id AS assignment_id, s\.user_id, s\.id AS submission_id.*WHERE a\.group_id=\?.*AND NOT EXISTS \(SELECT 1 FROM assignment_submissions newer.*newer\.attempt>s\.attempt.*assignment_reviews.*ORDER BY s\.submitted_at ASC, s\.id ASC LIMIT 1`).
+		WithArgs(uint64(41), model.AssignmentPublicationWithdrawn, model.UserGroupStatusActive, model.UserStatusEnabled, model.RoleNameUser).
+		WillReturnRows(sqlmock.NewRows([]string{"assignment_id", "user_id", "submission_id"}))
+	_, _, err := (&Service{db: db}).NextPending(context.Background(), Actor{ID: 8, RoleName: model.RoleNameAdmin}, 41)
+	assertAssignmentStatus(t, err, http.StatusNotFound)
+}
+
 func TestMemberCannotWithdrawOrRepublishAssignment(t *testing.T) {
 	service := &Service{}
 	for _, status := range []string{model.AssignmentPublicationWithdrawn, model.AssignmentPublicationPublished} {

@@ -66,8 +66,6 @@ type FeishuConfig struct {
 	AppSecret         string
 	EncryptKey        string
 	VerificationToken string
-	TesterUnionID     string
-	TesterUserID      uint64
 	BitableAppToken   string
 	BitableTableID    string
 }
@@ -132,8 +130,6 @@ func Load() (*Config, error) {
 			AppSecret:         strings.TrimSpace(os.Getenv("FEISHU_APP_SECRET")),
 			EncryptKey:        strings.TrimSpace(os.Getenv("FEISHU_ENCRYPT_KEY")),
 			VerificationToken: strings.TrimSpace(os.Getenv("FEISHU_VERIFICATION_TOKEN")),
-			TesterUnionID:     strings.TrimSpace(os.Getenv("FEISHU_TESTER_UNION_ID")),
-			TesterUserID:      uint64(max(0, getEnvAsInt("FEISHU_TESTER_USER_ID", 0))),
 			BitableAppToken:   strings.TrimSpace(os.Getenv("FEISHU_BITABLE_APP_TOKEN")),
 			BitableTableID:    strings.TrimSpace(os.Getenv("FEISHU_BITABLE_TABLE_ID")),
 		},

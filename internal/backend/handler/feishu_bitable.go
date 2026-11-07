@@ -5,12 +5,14 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log"
+	"math/big"
 	"mime/multipart"
 	"net/http"
 	"net/url"
@@ -46,7 +48,7 @@ const (
 	bitableFieldComment      = "评语"
 	bitableFieldCurrent      = "当前提交"
 	bitableFieldAttachments  = "附件"
-	bitableFieldReviewEntry  = "评分入口"
+	bitableReaderRoleName    = "培训队员只读"
 )
 
 type bitableRecord struct {
@@ -196,10 +198,6 @@ func (h *FeishuReviewHandler) upsertBitableSubmission(ctx context.Context, token
 		bitableFieldSubmittedAt:  submission.SubmittedAt.UnixMilli(),
 		bitableFieldAttempt:      submission.Attempt,
 		bitableFieldCurrent:      current,
-		bitableFieldReviewEntry: map[string]string{
-			"text": "在飞书私聊评分",
-			"link": h.reviewEntryURL(submission.ID),
-		},
 	}
 	status, score, comment := bitableReviewValues(submission)
 	fields[bitableFieldStatus] = status
@@ -518,41 +516,74 @@ func bitableClientToken(submissionID uint64) string {
 	return value[:8] + "-" + value[8:12] + "-" + value[12:16] + "-" + value[16:20] + "-" + value[20:]
 }
 
-func (h *FeishuReviewHandler) reviewEntrySignature(submissionID uint64) string {
+// BitableWorkflowSecret returns the credential used only by the board's
+// button-triggered workflow. The endpoint is registered behind admin auth and
+// this method narrows it further to website super-admins.
+func (h *FeishuReviewHandler) BitableWorkflowSecret(c *gin.Context) {
+	actor := currentAssignmentActor(c)
+	if actor.RoleName != model.RoleNameSuperAdmin || !h.bitableEnabled() {
+		c.Status(http.StatusForbidden)
+		return
+	}
+	c.Header("Cache-Control", "no-store")
+	c.JSON(http.StatusOK, gin.H{"token": h.bitableWorkflowToken()})
+}
+
+func (h *FeishuReviewHandler) bitableWorkflowToken() string {
 	mac := hmac.New(sha256.New, []byte(h.cfg.AppSecret))
-	_, _ = mac.Write([]byte("tarsgo-feishu-review-entry:" + strconv.FormatUint(submissionID, 10)))
+	_, _ = mac.Write([]byte("tarsgo-feishu-bitable-review-workflow:v1:" + h.cfg.BitableAppToken + ":" + h.cfg.BitableTableID))
 	return hex.EncodeToString(mac.Sum(nil))
 }
 
-func (h *FeishuReviewHandler) reviewEntryURL(submissionID uint64) string {
-	return fmt.Sprintf("https://jijiamaster.com/api/integrations/feishu/review-card/%d?signature=%s", submissionID, h.reviewEntrySignature(submissionID))
-}
+// BitableReviewCardTrigger receives a read-only Bitable button workflow and
+// sends the existing review card to the person who clicked it. Website session
+// identity and group permissions are resolved from the signed-in Feishu user's
+// app-scoped open_id; no score data is accepted from Bitable.
+func (h *FeishuReviewHandler) BitableReviewCardTrigger(c *gin.Context) {
+	provided := strings.TrimSpace(c.GetHeader("X-Bitable-Workflow-Token"))
+	expected := h.bitableWorkflowToken()
+	if !h.bitableEnabled() || provided == "" || subtle.ConstantTimeCompare([]byte(provided), []byte(expected)) != 1 {
+		c.Status(http.StatusUnauthorized)
+		return
+	}
+	var request struct {
+		SubmissionID json.RawMessage `json:"submission_id"`
+		Operator     json.RawMessage `json:"operator"`
+		User         json.RawMessage `json:"user"`
+	}
+	if err := json.NewDecoder(http.MaxBytesReader(c.Writer, c.Request.Body, 64<<10)).Decode(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "无效的看板操作"})
+		return
+	}
+	submissionID := parseWorkflowSubmissionID(request.SubmissionID)
+	if submissionID == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "提交编号无效"})
+		return
+	}
+	openID := workflowOperatorOpenID(request.Operator)
+	if openID == "" {
+		openID = workflowOperatorOpenID(request.User)
+	}
+	if !strings.HasPrefix(openID, "ou_") {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "无法识别当前飞书操作者"})
+		return
+	}
 
-func (h *FeishuReviewHandler) SendReviewCardLink(c *gin.Context) {
-	if !h.enabled() || !h.bitableEnabled() {
-		c.Status(http.StatusNotFound)
-		return
-	}
-	submissionID, err := strconv.ParseUint(c.Param("submissionID"), 10, 64)
-	if err != nil || submissionID == 0 || !hmac.Equal([]byte(c.Query("signature")), []byte(h.reviewEntrySignature(submissionID))) {
-		c.Status(http.StatusNotFound)
-		return
-	}
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 30*time.Second)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 25*time.Second)
 	defer cancel()
-	actor, reviewer, err := h.bitablePilotActor(ctx)
+	actor, operator, err := h.resolveFeishuOperator(ctx, openID)
 	if err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"message": "飞书试点管理员暂不可用"})
+		h.respondBitableTrigger(c, ctx, openID, http.StatusForbidden, "该飞书账号尚未绑定有作业管理权限的网站账号")
 		return
 	}
 	var submission model.AssignmentSubmission
 	if err := h.db.WithContext(ctx).First(&submission, submissionID).Error; err != nil {
-		c.Status(http.StatusNotFound)
+		h.respondBitableTrigger(c, ctx, openID, http.StatusNotFound, "提交已不存在或不可批改")
 		return
 	}
 	detail, err := h.assignments.GetAdmin(ctx, actor, submission.AssignmentID)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"message": "作业当前不可批改"})
+		h.respondBitableTrigger(c, ctx, openID, http.StatusForbidden, "没有权限批改这个技术组的作业")
 		return
 	}
 	for _, member := range detail.Members {
@@ -560,28 +591,164 @@ func (h *FeishuReviewHandler) SendReviewCardLink(c *gin.Context) {
 			continue
 		}
 		if len(member.LatestSubmission.Reviews) > 0 {
-			c.JSON(http.StatusConflict, gin.H{"message": "该提交已完成批改"})
+			h.respondBitableTrigger(c, ctx, openID, http.StatusConflict, "该提交已完成批改")
 			return
 		}
 		token, err := h.tenantToken(ctx)
 		if err == nil {
-			err = h.sendSubmissionReviewCard(ctx, token, detail.Assignment, member, member.LatestSubmission, nil)
+			err = h.sendSubmissionReviewCard(ctx, token, openID, detail.Assignment, member, member.LatestSubmission)
 		}
 		if err != nil {
-			log.Printf("feishu review card link failed submission=%d reviewer=%d: %v", submissionID, reviewer.ID, err)
-			c.JSON(http.StatusBadGateway, gin.H{"message": "评分卡片发送失败，请稍后重试"})
+			log.Printf("feishu bitable review-card trigger failed submission=%d operator=%d: %v", submissionID, operator.ID, err)
+			h.respondBitableTrigger(c, ctx, openID, http.StatusBadGateway, "评分卡片发送失败，请稍后重试")
 			return
 		}
-		c.JSON(http.StatusOK, gin.H{"message": "评分卡片已发送到指定管理员飞书私聊，请返回飞书机器人私聊完成批改"})
+		c.JSON(http.StatusOK, gin.H{"success": true, "message": "评分卡片已发送到你的飞书私聊"})
 		return
 	}
-	c.JSON(http.StatusNotFound, gin.H{"message": "作业当前不可批改"})
+	h.respondBitableTrigger(c, ctx, openID, http.StatusConflict, "该提交已被新版本替代或已完成批改")
+}
+
+func (h *FeishuReviewHandler) respondBitableTrigger(c *gin.Context, ctx context.Context, openID string, status int, message string) {
+	if openID != "" && strings.HasPrefix(openID, "ou_") {
+		if err := h.sendTextTo(ctx, openID, message); err != nil {
+			log.Printf("feishu Bitable workflow response failed: %v", err)
+		}
+	}
+	c.JSON(status, gin.H{"success": status < http.StatusBadRequest, "message": message})
+}
+
+func parseWorkflowSubmissionID(raw json.RawMessage) uint64 {
+	var value string
+	if json.Unmarshal(raw, &value) == nil {
+		return parseUnsignedWorkflowID(value)
+	}
+	var number json.Number
+	decoder := json.NewDecoder(strings.NewReader(string(raw)))
+	decoder.UseNumber()
+	if decoder.Decode(&number) != nil {
+		return 0
+	}
+	return parseUnsignedWorkflowID(number.String())
+}
+
+func parseUnsignedWorkflowID(raw string) uint64 {
+	raw = strings.TrimSpace(raw)
+	if id, err := strconv.ParseUint(raw, 10, 64); err == nil {
+		return id
+	}
+	rational, ok := new(big.Rat).SetString(raw)
+	if !ok || !rational.IsInt() || rational.Sign() <= 0 || !rational.Num().IsUint64() {
+		return 0
+	}
+	return rational.Num().Uint64()
+}
+
+func workflowOperatorOpenID(raw json.RawMessage) string {
+	var value any
+	decoder := json.NewDecoder(strings.NewReader(string(raw)))
+	decoder.UseNumber()
+	if decoder.Decode(&value) != nil {
+		return ""
+	}
+	var find func(any) string
+	find = func(current any) string {
+		switch typed := current.(type) {
+		case string:
+			if strings.HasPrefix(typed, "ou_") {
+				return typed
+			}
+		case map[string]any:
+			for _, key := range []string{"open_id", "openId", "user_id", "userId", "id"} {
+				if candidate, ok := typed[key].(string); ok && strings.HasPrefix(candidate, "ou_") {
+					return candidate
+				}
+			}
+			for _, nested := range typed {
+				if found := find(nested); found != "" {
+					return found
+				}
+			}
+		case []any:
+			for _, nested := range typed {
+				if found := find(nested); found != "" {
+					return found
+				}
+			}
+		}
+		return ""
+	}
+	return find(value)
+}
+
+func (h *FeishuReviewHandler) ensureBitableReader(ctx context.Context, openID string) error {
+	if !h.bitableEnabled() || !strings.HasPrefix(openID, "ou_") {
+		return errors.New("Bitable or Feishu reader identity is not configured")
+	}
+	token, err := h.tenantToken(ctx)
+	if err != nil {
+		return err
+	}
+	basePath := fmt.Sprintf("%s/%s/roles", feishuBitableURL, url.PathEscape(h.cfg.BitableAppToken))
+	var roles struct {
+		Items []struct {
+			RoleID   string `json:"role_id"`
+			RoleName string `json:"role_name"`
+		} `json:"items"`
+		HasMore   bool   `json:"has_more"`
+		PageToken string `json:"page_token"`
+	}
+	if err := h.bitableRequest(ctx, http.MethodGet, basePath, url.Values{"page_size": {"100"}}, nil, "", token, &roles); err != nil {
+		return fmt.Errorf("list Bitable reader roles: %w", err)
+	}
+	roleID := ""
+	for _, role := range roles.Items {
+		if role.RoleName == bitableReaderRoleName {
+			roleID = role.RoleID
+			break
+		}
+	}
+	if roleID == "" {
+		return fmt.Errorf("Bitable read-only role %q is not configured", bitableReaderRoleName)
+	}
+	rolePath := basePath + "/" + url.PathEscape(roleID) + "/members"
+	query := url.Values{"page_size": {"100"}}
+	for {
+		var members struct {
+			Items []struct {
+				MemberID     string `json:"member_id"`
+				MemberIDType string `json:"member_id_type"`
+				ID           string `json:"id"`
+				Type         string `json:"type"`
+			} `json:"items"`
+			HasMore   bool   `json:"has_more"`
+			PageToken string `json:"page_token"`
+		}
+		if err := h.bitableRequest(ctx, http.MethodGet, rolePath, query, nil, "", token, &members); err != nil {
+			return fmt.Errorf("list Bitable readers: %w", err)
+		}
+		for _, member := range members.Items {
+			id := member.MemberID
+			if id == "" {
+				id = member.ID
+			}
+			if id == openID {
+				return nil
+			}
+		}
+		if !members.HasMore || members.PageToken == "" {
+			break
+		}
+		query.Set("page_token", members.PageToken)
+	}
+	body, _ := json.Marshal(map[string]any{"member_list": []map[string]string{{"id": openID, "type": "open_id"}}})
+	if err := h.bitableRequest(ctx, http.MethodPost, rolePath+"/batch_create", nil, bytes.NewReader(body), "application/json; charset=utf-8", token, nil); err != nil {
+		return fmt.Errorf("add Bitable read-only access: %w", err)
+	}
+	return nil
 }
 
 func (h *FeishuReviewHandler) ReconcileBitable(c *gin.Context) {
-	if !h.authorizedTester(c) {
-		return
-	}
 	if !h.bitableEnabled() {
 		writeAPIError(c, http.StatusServiceUnavailable, "飞书多维表格尚未配置")
 		return
@@ -594,11 +761,7 @@ func (h *FeishuReviewHandler) ReconcileBitable(c *gin.Context) {
 	// Keep each request below the production proxy's 60-second read timeout.
 	ctx, cancel := context.WithTimeout(c.Request.Context(), 50*time.Second)
 	defer cancel()
-	actor, _, err := h.bitablePilotActor(ctx)
-	if err != nil {
-		writeAPIError(c, http.StatusServiceUnavailable, "飞书试点管理员暂不可用")
-		return
-	}
+	actor := currentAssignmentActor(c)
 	detail, err := h.assignments.GetAdmin(ctx, actor, assignmentID)
 	if err != nil {
 		writeAPIError(c, http.StatusForbidden, "无法读取当前管理员有权限管理的作业")
@@ -640,20 +803,6 @@ func parseBitableReconcileScope(query url.Values) (uint64, uint64, bool) {
 	assignmentID, assignmentErr := strconv.ParseUint(strings.TrimSpace(query.Get("assignmentId")), 10, 64)
 	memberID, memberErr := strconv.ParseUint(strings.TrimSpace(query.Get("memberId")), 10, 64)
 	return assignmentID, memberID, assignmentErr == nil && memberErr == nil && assignmentID > 0 && memberID > 0
-}
-
-func (h *FeishuReviewHandler) bitablePilotActor(ctx context.Context) (assignment.Actor, model.User, error) {
-	if h.cfg.TesterUserID == 0 {
-		return assignment.Actor{}, model.User{}, errors.New("Feishu pilot reviewer is not configured")
-	}
-	var reviewer model.User
-	if err := h.db.WithContext(ctx).Preload("Role").First(&reviewer, h.cfg.TesterUserID).Error; err != nil {
-		return assignment.Actor{}, model.User{}, err
-	}
-	if reviewer.Status != model.UserStatusEnabled {
-		return assignment.Actor{}, model.User{}, errors.New("Feishu pilot reviewer is disabled")
-	}
-	return assignment.Actor{ID: reviewer.ID, RoleName: reviewer.Role.Name}, reviewer, nil
 }
 
 func isFeishuImageExtension(ext string) bool {

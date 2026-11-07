@@ -146,22 +146,22 @@ func TestFeishuMessageResourceDownloadUsesPrivateMessageResourceAPI(t *testing.T
 	}
 }
 
-func TestFeishuMessageCommandIgnoresOtherUsersAndGroupChats(t *testing.T) {
+func TestFeishuMessageEventIgnoresGroupChatsAndMissingOpenID(t *testing.T) {
 	h := testFeishuHandler()
 	for _, tc := range []struct {
-		name    string
-		unionID string
-		chat    string
+		name   string
+		openID string
+		chat   string
 	}{
-		{name: "other user", unionID: "on_other", chat: "p2p"},
-		{name: "group chat", unionID: "on_tester", chat: "group"},
+		{name: "missing open id", chat: "p2p"},
+		{name: "group chat", openID: "ou_user", chat: "group"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			recorder := httptest.NewRecorder()
 			c, _ := gin.CreateTestContext(recorder)
 			c.Request = httptest.NewRequest(http.MethodPost, "/api/integrations/feishu/card-action", strings.NewReader("{}"))
 			var event feishuCallback
-			event.Event.Sender.SenderID.UnionID = tc.unionID
+			event.Event.Sender.SenderID.OpenID = tc.openID
 			event.Event.Message.ChatType = tc.chat
 			event.Event.Message.ChatID = "oc_private"
 			event.Event.Message.MessageType = "text"
@@ -174,13 +174,13 @@ func TestFeishuMessageCommandIgnoresOtherUsersAndGroupChats(t *testing.T) {
 	}
 }
 
-func TestFeishuPilotMessageEventAcknowledgesBeforeProcessing(t *testing.T) {
+func TestFeishuMessageEventAcknowledgesBeforeProcessing(t *testing.T) {
 	h := testFeishuHandler()
 	recorder := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(recorder)
 	c.Request = httptest.NewRequest(http.MethodPost, "/api/integrations/feishu/card-action", strings.NewReader("{}"))
 	var event feishuCallback
-	event.Event.Sender.SenderID.UnionID = "on_tester"
+	event.Event.Sender.SenderID.OpenID = "ou_unlinked"
 	event.Event.Message.ChatType = "p2p"
 	event.Event.Message.ChatID = "oc_private"
 	event.Event.Message.MessageType = "text"
