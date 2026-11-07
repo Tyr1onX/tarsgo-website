@@ -94,8 +94,8 @@ func TestFeishuBitableConfigLoadsOptionalCoordinates(t *testing.T) {
 	setRequiredConfigEnvironment(t)
 	t.Setenv("FEISHU_APP_ID", "cli_test")
 	t.Setenv("FEISHU_APP_SECRET", "secret")
+	t.Setenv("FEISHU_ENCRYPT_KEY", "encrypt-key")
 	t.Setenv("FEISHU_VERIFICATION_TOKEN", "verification")
-	t.Setenv("FEISHU_TESTER_UNION_ID", "ou_tester")
 	t.Setenv("FEISHU_BITABLE_APP_TOKEN", "basc_test")
 	t.Setenv("FEISHU_BITABLE_TABLE_ID", "tbl_test")
 
@@ -108,5 +108,8 @@ func TestFeishuBitableConfigLoadsOptionalCoordinates(t *testing.T) {
 	}
 	if cfg.Feishu.VerificationToken != "verification" {
 		t.Fatalf("Feishu verification token not loaded: %q", cfg.Feishu.VerificationToken)
+	}
+	if cfg.Feishu.EncryptKey != "encrypt-key" {
+		t.Fatalf("Feishu Encrypt Key not loaded: %q", cfg.Feishu.EncryptKey)
 	}
 }

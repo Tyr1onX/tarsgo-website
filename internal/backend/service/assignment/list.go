@@ -2,11 +2,75 @@ package assignment
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"gorm.io/gorm"
 	"tarsgo-backend/model"
 )
+
+// NextPending returns the oldest current submission that the actor can review
+// in the requested group. The database remains authoritative for freshness and
+// review status; ReviewFirst performs the final race-safe write check.
+func (s *Service) NextPending(ctx context.Context, actor Actor, groupID uint64) (*AdminAssignmentDetail, *AssignmentMemberView, error) {
+	if err := requireAdmin(actor); err != nil {
+		return nil, nil, err
+	}
+	groupIDs, err := managerAssignmentGroupIDs(s.db.WithContext(ctx), actor)
+	if err != nil {
+		return nil, nil, internalError("读取可管理组别失败", err)
+	}
+	if groupID == 0 || !containsID(groupIDs, groupID) {
+		return nil, nil, forbidden("无权批改该技术组作业")
+	}
+
+	for attempts := 0; attempts < 5; attempts++ {
+		var next struct {
+			AssignmentID uint64
+			UserID       uint64
+			SubmissionID uint64
+		}
+		err := s.db.WithContext(ctx).Raw(`SELECT a.id AS assignment_id, s.user_id, s.id AS submission_id
+ FROM assignment_submissions s
+ JOIN assignments a ON a.id=s.assignment_id
+ WHERE a.group_id=? AND a.publication_status<>?
+ AND (EXISTS (SELECT 1 FROM assignment_targets t WHERE t.assignment_id=a.id AND t.user_id=s.user_id)
+      OR (a.is_group_wide=1 AND EXISTS (
+        SELECT 1 FROM user_group_members gm
+        JOIN user_groups g ON g.id=gm.group_id AND g.status=?
+        JOIN users u ON u.id=gm.user_id AND u.status=?
+        JOIN roles role ON role.id=u.role_id AND role.name=?
+        WHERE gm.group_id=a.group_id AND gm.user_id=s.user_id)))
+ AND NOT EXISTS (SELECT 1 FROM assignment_submissions newer
+   WHERE newer.assignment_id=s.assignment_id AND newer.user_id=s.user_id AND newer.attempt>s.attempt)
+ AND NOT EXISTS (SELECT 1 FROM assignment_reviews r WHERE r.submission_id=s.id)
+ ORDER BY s.submitted_at ASC, s.id ASC LIMIT 1`, groupID, model.AssignmentPublicationWithdrawn,
+			model.UserGroupStatusActive, model.UserStatusEnabled, model.RoleNameUser).Scan(&next).Error
+		if err != nil {
+			return nil, nil, internalError("读取最早待批改提交失败", err)
+		}
+		if next.SubmissionID == 0 {
+			return nil, nil, notFound("该技术组暂无待批改作业")
+		}
+
+		detail, err := s.GetAdmin(ctx, actor, next.AssignmentID)
+		if err != nil {
+			return nil, nil, err
+		}
+		for index := range detail.Members {
+			member := &detail.Members[index]
+			if member.UserID != next.UserID || member.LatestSubmission == nil || member.LatestSubmission.ID != next.SubmissionID {
+				continue
+			}
+			if len(member.LatestSubmission.Reviews) == 0 {
+				return detail, member, nil
+			}
+			break
+		}
+		// A concurrent review or resubmission won after the selection query.
+	}
+	return nil, nil, errors.New("待批改队列正在变化，请重新点击批改下一份")
+}
 
 // Bound IN lists and temporary memory without changing the existing API order.
 const assignmentListBatchSize = 200

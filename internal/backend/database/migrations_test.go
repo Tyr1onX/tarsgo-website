@@ -18,10 +18,10 @@ import (
 
 func TestMigrationRegistryIsOrderedAndKeepsBaseVersion(t *testing.T) {
 	items := migrationRegistry("test")
-	if len(items) != 54 {
-		t.Fatalf("expected 54 registered migrations, got %d", len(items))
+	if len(items) != 55 {
+		t.Fatalf("expected 55 registered migrations, got %d", len(items))
 	}
-	wantVersions := []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54}
+	wantVersions := []uint64{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55}
 	for index, want := range wantVersions {
 		if items[index].version != want {
 			t.Fatalf("migration %d has version %d, want %d", index, items[index].version, want)
@@ -34,6 +34,20 @@ func TestMigrationRegistryIsOrderedAndKeepsBaseVersion(t *testing.T) {
 		if items[index-1].version >= items[index].version {
 			t.Fatalf("migrations must be strictly ordered at index %d", index)
 		}
+	}
+}
+
+func TestMigration55AddsUniqueFeishuIdentityMapping(t *testing.T) {
+	items := migrationRegistry("test")
+	if len(items) < 55 || items[54].version != 55 || items[54].apply == nil {
+		t.Fatal("Feishu identity migration 55 is missing")
+	}
+	field, ok := reflect.TypeOf(model.User{}).FieldByName("FeishuOpenID")
+	if !ok || field.Type.Kind() != reflect.Pointer || field.Type.Elem().Kind() != reflect.String {
+		t.Fatalf("FeishuOpenID must be a nullable string, type = %v", field.Type)
+	}
+	if !strings.Contains(field.Tag.Get("gorm"), "uniqueIndex:uk_feishu_open_id") {
+		t.Fatalf("FeishuOpenID must be unique, gorm tag = %q", field.Tag.Get("gorm"))
 	}
 }
 

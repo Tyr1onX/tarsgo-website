@@ -27,6 +27,7 @@ type User struct {
 	// Name is inert legacy storage retained to preserve historical account data.
 	Name               string            `json:"-" gorm:"column:name;size:100;not null;default:''"`
 	Email              string            `json:"email" gorm:"size:255;not null;uniqueIndex:uk_email"`
+	FeishuOpenID       *string           `json:"-" gorm:"column:feishu_open_id;size:100;uniqueIndex:uk_feishu_open_id;default:null"`
 	PasswordHash       *string           `json:"passwordHash,omitempty" gorm:"column:password_hash;size:255;default:null"`
 	PasswordResetAt    *time.Time        `json:"-" gorm:"column:password_reset_at;type:datetime;default:null"`
 	GitHubID           *string           `json:"githubId,omitempty" gorm:"column:github_id;size:100;uniqueIndex:uk_github_id"`

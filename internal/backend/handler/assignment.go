@@ -90,8 +90,8 @@ func (h *AssignmentHandler) Submit(c *gin.Context) {
 		go func() {
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
 			defer cancel()
-			if err := h.feishu.NotifySubmission(ctx, submissionID); err != nil {
-				log.Printf("feishu assignment notification failed for submission %d: %v", submissionID, err)
+			if err := h.feishu.SyncSubmission(ctx, submissionID); err != nil {
+				log.Printf("feishu assignment Bitable sync failed for submission %d: %v", submissionID, err)
 			}
 		}()
 	}
