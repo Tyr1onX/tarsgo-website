@@ -15,6 +15,7 @@ const assignmentSubmissions = await readFile(new URL("../routes/admin/assignment
 const assignmentModel = await readFile(new URL("../../../backend/model/assignment.go", import.meta.url), "utf8");
 const memberAssignments = await readFile(new URL("../routes/dashboard/assignments.tsx", import.meta.url), "utf8");
 const assignmentClient = await readFile(new URL("./assignment-client.ts", import.meta.url), "utf8");
+const feishuBitableHandler = await readFile(new URL("../../../backend/handler/feishu_bitable.go", import.meta.url), "utf8");
 const assignmentGroups = await readFile(new URL("./use-assignment-groups.ts", import.meta.url), "utf8");
 const practicePage = await readFile(new URL("../routes/dashboard/practice-projects.tsx", import.meta.url), "utf8");
 const practiceService = await readFile(new URL("../../../backend/service/assignment/practice.go", import.meta.url), "utf8");
@@ -161,6 +162,21 @@ test("latest targeted recipient shortcut reads the latest group assignment witho
   assert.match(assignmentManagement, /上次指定的成员/);
   assert.match(assignmentManagement, /#\{member\.userId\}/);
   assert.match(assignmentSubmissions, /#\{member\.userId\}/);
+});
+
+test("Bitable repair syncs each authorized member history in a bounded sequential request", () => {
+  const reconcile = assignmentManagement.slice(
+    assignmentManagement.indexOf("async function reconcileFeishuBoard()"),
+    assignmentManagement.indexOf("async function changePublicationStatus(", assignmentManagement.indexOf("async function reconcileFeishuBoard()")),
+  );
+  assert.match(reconcile, /assignmentClient\.listAdmin\(\)/);
+  assert.match(reconcile, /assignmentClient\.getAdmin\(item\.id\)/);
+  assert.match(reconcile, /for \(let index = 0; index < targets\.length; index\+\+\)/);
+  assert.match(reconcile, /assignmentClient\.reconcileBitable\(target\.assignmentId, target\.memberId\)/);
+  assert.match(assignmentClient, /reconcileBitable: \(assignmentId: number, memberId: number\)/);
+  assert.match(feishuBitableHandler, /WithTimeout\(c\.Request\.Context\(\), 50\*time\.Second\)/);
+  assert.match(feishuBitableHandler, /h\.assignments\.GetAdmin\(ctx, actor, assignmentID\)/);
+  assert.match(feishuBitableHandler, /h\.syncBitableHistory\(ctx, token, actor, detail\.Assignment, \*target\)/);
 });
 
 test("assignment lifecycle retains history, blocks submissions after withdrawal, and guards deletion", () => {

@@ -133,6 +133,28 @@ func TestBitableHistoryWritesLatestBeforeOlderSubmissions(t *testing.T) {
 	}
 }
 
+func TestParseBitableReconcileScopeRequiresPositiveAssignmentAndMemberIDs(t *testing.T) {
+	for _, tc := range []struct {
+		name         string
+		query        url.Values
+		wantAssignID uint64
+		wantMemberID uint64
+		wantOK       bool
+	}{
+		{name: "valid scope", query: url.Values{"assignmentId": {"12"}, "memberId": {"972"}}, wantAssignID: 12, wantMemberID: 972, wantOK: true},
+		{name: "missing member", query: url.Values{"assignmentId": {"12"}}, wantAssignID: 12},
+		{name: "zero assignment", query: url.Values{"assignmentId": {"0"}, "memberId": {"972"}}, wantMemberID: 972},
+		{name: "malformed member", query: url.Values{"assignmentId": {"12"}, "memberId": {"test"}}, wantAssignID: 12},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assignmentID, memberID, ok := parseBitableReconcileScope(tc.query)
+			if assignmentID != tc.wantAssignID || memberID != tc.wantMemberID || ok != tc.wantOK {
+				t.Fatalf("parse scope=(%d,%d,%t), want (%d,%d,%t)", assignmentID, memberID, ok, tc.wantAssignID, tc.wantMemberID, tc.wantOK)
+			}
+		})
+	}
+}
+
 func TestBitableReviewUpdateDoesNotReuploadAttachments(t *testing.T) {
 	h := testFeishuHandler()
 	h.cfg.BitableAppToken = "basc_test"
