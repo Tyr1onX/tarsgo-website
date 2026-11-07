@@ -81,6 +81,7 @@ export default function AssignmentManagementRoute() {
   const [publishCanCancel, setPublishCanCancel] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [reconcileProgress, setReconcileProgress] = useState("");
   const publishRequestID = useRef<string | null>(null);
   const activePublishCancel = useRef<(() => void) | null>(null);
   const editRequestID = useRef(0);
@@ -194,13 +195,44 @@ export default function AssignmentManagementRoute() {
     setReconciling(true);
     setError("");
     setNotice("");
+    setReconcileProgress("正在读取网站作业和提交记录…");
     try {
-      const result = await assignmentClient.reconcileBitable();
-      setNotice(`飞书看板对账完成：新增 ${result.created} 条、更新 ${result.updated} 条；失败 ${result.failed} 项。`);
+      const assignments = await assignmentClient.listAdmin();
+      const targets: { assignmentId: number; memberId: number }[] = [];
+      let failed = 0;
+      for (const item of assignments) {
+        try {
+          const detail = await assignmentClient.getAdmin(item.id);
+          for (const member of detail.members) {
+            if (member.latestSubmission) targets.push({ assignmentId: item.id, memberId: member.userId });
+          }
+        } catch {
+          failed++;
+        }
+      }
+
+      let created = 0;
+      let updated = 0;
+      for (let index = 0; index < targets.length; index++) {
+        const target = targets[index];
+        setReconcileProgress(`正在修复飞书看板 ${index + 1}/${targets.length}…`);
+        try {
+          const result = await assignmentClient.reconcileBitable(target.assignmentId, target.memberId);
+          created += result.created;
+          updated += result.updated;
+          failed += result.failed;
+        } catch {
+          failed++;
+        }
+      }
+      const summary = `飞书看板对账完成：新增 ${created} 条、更新 ${updated} 条；失败 ${failed} 项。`;
+      if (failed > 0) setError(summary);
+      else setNotice(summary);
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : "飞书看板对账失败");
     } finally {
       setReconciling(false);
+      setReconcileProgress("");
     }
   }
 
@@ -346,6 +378,7 @@ export default function AssignmentManagementRoute() {
       </header>
       {groupError ? <div role="alert" className="admin-notice admin-notice--error">{groupError}</div> : null}
       {error ? <div role="alert" className="admin-notice admin-notice--error">{error}</div> : null}
+      {reconcileProgress ? <div role="status" aria-live="polite" className="admin-notice">{reconcileProgress}</div> : null}
       {notice ? <Notify tone="success" message={notice} onClose={() => setNotice("")} /> : null}
 
       {composerOpen ? <section className="admin-panel assignment-editor" aria-labelledby="assignment-editor-title">

@@ -572,49 +572,60 @@ func (h *FeishuReviewHandler) ReconcileBitable(c *gin.Context) {
 		writeAPIError(c, http.StatusServiceUnavailable, "飞书多维表格尚未配置")
 		return
 	}
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 10*time.Minute)
+	assignmentID, memberID, ok := parseBitableReconcileScope(c.Request.URL.Query())
+	if !ok {
+		writeAPIError(c, http.StatusBadRequest, "作业和成员参数不合法")
+		return
+	}
+	// Keep each request below the production proxy's 60-second read timeout.
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 50*time.Second)
 	defer cancel()
 	actor, _, err := h.bitablePilotActor(ctx)
 	if err != nil {
 		writeAPIError(c, http.StatusServiceUnavailable, "飞书试点管理员暂不可用")
 		return
 	}
-	token, err := h.tenantToken(ctx)
-	if err != nil {
-		writeAPIError(c, http.StatusBadGateway, "飞书鉴权失败")
-		return
-	}
-	items, err := h.assignments.ListAdmin(ctx, actor, 0)
+	detail, err := h.assignments.GetAdmin(ctx, actor, assignmentID)
 	if err != nil {
 		writeAPIError(c, http.StatusForbidden, "无法读取当前管理员有权限管理的作业")
 		return
 	}
 	stats := bitableSyncStats{}
-	for _, item := range items {
-		detail, err := h.assignments.GetAdmin(ctx, actor, item.ID)
-		if err != nil {
-			stats.Failed++
-			log.Printf("feishu bitable reconcile assignment failed assignment=%d: %v", item.ID, err)
-			continue
+	var target *assignment.AssignmentMemberView
+	for index := range detail.Members {
+		if detail.Members[index].UserID == memberID {
+			target = &detail.Members[index]
+			break
 		}
-		for _, member := range detail.Members {
-			if member.LatestSubmission == nil {
-				continue
-			}
-			created, updated, err := h.syncBitableHistory(ctx, token, actor, detail.Assignment, member)
-			stats.Created += created
-			stats.Updated += updated
-			if err != nil {
-				stats.Failed++
-				log.Printf("feishu bitable reconcile member failed assignment=%d member=%d: %v", item.ID, member.UserID, err)
-			}
-		}
+	}
+	if target == nil || target.LatestSubmission == nil {
+		writeAPIError(c, http.StatusNotFound, "该成员没有当前作业提交记录")
+		return
+	}
+	token, err := h.tenantToken(ctx)
+	if err != nil {
+		log.Printf("feishu bitable reconcile auth failed assignment=%d member=%d: %v", assignmentID, memberID, err)
+		writeAPIError(c, http.StatusBadGateway, "飞书鉴权失败")
+		return
+	}
+	created, updated, err := h.syncBitableHistory(ctx, token, actor, detail.Assignment, *target)
+	stats.Created += created
+	stats.Updated += updated
+	if err != nil {
+		stats.Failed++
+		log.Printf("feishu bitable reconcile member failed assignment=%d member=%d: %v", assignmentID, memberID, err)
 	}
 	message := "飞书多维表格重新对账完成"
 	if stats.Failed > 0 {
 		message = "重新对账已完成，但有部分记录失败；查看服务日志后可再次执行"
 	}
 	writeAPI(c, http.StatusOK, message, stats)
+}
+
+func parseBitableReconcileScope(query url.Values) (uint64, uint64, bool) {
+	assignmentID, assignmentErr := strconv.ParseUint(strings.TrimSpace(query.Get("assignmentId")), 10, 64)
+	memberID, memberErr := strconv.ParseUint(strings.TrimSpace(query.Get("memberId")), 10, 64)
+	return assignmentID, memberID, assignmentErr == nil && memberErr == nil && assignmentID > 0 && memberID > 0
 }
 
 func (h *FeishuReviewHandler) bitablePilotActor(ctx context.Context) (assignment.Actor, model.User, error) {

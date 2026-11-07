@@ -117,7 +117,7 @@ export const assignmentClient = {
     return apiRequest<MyAssignmentDetail>(`/api/assignments/${id}/submissions`, { method: "POST", body });
   },
   adminTodos: () => apiRequest<{ reviewCount: number }>("/api/admin/assignments/todos"),
-  reconcileBitable: () => apiRequest<BitableReconcileSummary>("/api/admin/integrations/feishu/bitable/reconcile", { method: "POST" }),
+  reconcileBitable: (assignmentId: number, memberId: number) => apiRequest<BitableReconcileSummary>(`/api/admin/integrations/feishu/bitable/reconcile?assignmentId=${assignmentId}&memberId=${memberId}`, { method: "POST" }),
   listAdmin: (groupId?: number) => apiRequest<Assignment[]>(`/api/admin/assignments${groupId ? `?groupId=${groupId}` : ""}`),
   listGroupMembers: (groupId: number) => apiRequest<AssignmentMemberOption[]>(`/api/admin/assignment-members?groupId=${groupId}`),
   create: (input: AssignmentInput) => apiRequest<Assignment>("/api/admin/assignments", { method: "POST", body: input }),
