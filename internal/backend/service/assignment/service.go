@@ -575,6 +575,9 @@ func (s *Service) CreateWithMaterialFiles(ctx context.Context, actor Actor, inpu
 				StoragePath: stored.storagePath, ContentType: stored.contentType, Size: stored.size, CreatedAt: now,
 			})
 		}
+		if len(materialFiles) == 0 {
+			return nil
+		}
 		return tx.Create(&materialFiles).Error
 	})
 	if err != nil {
