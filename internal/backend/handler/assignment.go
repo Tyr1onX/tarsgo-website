@@ -384,10 +384,19 @@ func (h *AssignmentHandler) Review(c *gin.Context) {
 		}
 		input = assignment.ReviewInput{Score: *request.Score, Decision: request.Decision, Comment: request.Comment}
 	}
-	item, err := h.service.Review(c.Request.Context(), currentAssignmentActor(c), submissionID, input)
+	actor := currentAssignmentActor(c)
+	item, err := h.service.Review(c.Request.Context(), actor, submissionID, input)
 	if err != nil {
 		h.fail(c, err)
 		return
+	}
+	if h.feishu != nil && h.feishu.bitableEnabled() {
+		for _, member := range item.Members {
+			if member.LatestSubmission != nil && member.LatestSubmission.ID == submissionID {
+				h.feishu.syncBitableReviewAsync(actor, item.Assignment, member)
+				break
+			}
+		}
 	}
 	writeAPI(c, http.StatusOK, "批改结果已保存", item)
 }
