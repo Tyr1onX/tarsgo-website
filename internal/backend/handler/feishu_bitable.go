@@ -536,9 +536,9 @@ func (h *FeishuReviewHandler) bitableWorkflowToken() string {
 }
 
 // BitableReviewCardTrigger receives a read-only Bitable button workflow and
-// sends the existing review card to the person who clicked it. Website session
-// identity and group permissions are resolved from the signed-in Feishu user's
-// app-scoped open_id; no score data is accepted from Bitable.
+// sends the existing review card to the person who clicked it. If the workflow
+// only supplies a display name, it is used solely to find one bound recipient;
+// card submissions still authenticate by the callback's actual Feishu open_id.
 func (h *FeishuReviewHandler) BitableReviewCardTrigger(c *gin.Context) {
 	provided := strings.TrimSpace(c.GetHeader("X-Bitable-Workflow-Token"))
 	expected := h.bitableWorkflowToken()
@@ -560,17 +560,38 @@ func (h *FeishuReviewHandler) BitableReviewCardTrigger(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "提交编号无效"})
 		return
 	}
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 25*time.Second)
+	defer cancel()
+
 	openID := workflowOperatorOpenID(request.Operator)
 	if openID == "" {
 		openID = workflowOperatorOpenID(request.User)
 	}
-	if !strings.HasPrefix(openID, "ou_") {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "无法识别当前飞书操作者"})
-		return
+	if openID == "" {
+		name := workflowOperatorName(request.Operator)
+		if name == "" {
+			name = workflowOperatorName(request.User)
+		}
+		if name == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "无法识别当前飞书操作者"})
+			return
+		}
+		resolvedOpenID, lookupErr := h.workflowOperatorOpenIDByName(ctx, name)
+		if errors.Is(lookupErr, errWorkflowOperatorNameNotFound) {
+			c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "没有找到姓名匹配且已绑定的作业管理员"})
+			return
+		}
+		if errors.Is(lookupErr, errWorkflowOperatorNameAmbiguous) {
+			c.JSON(http.StatusConflict, gin.H{"success": false, "message": "操作者姓名匹配到多个已绑定管理员，无法安全发送评分卡片"})
+			return
+		}
+		if lookupErr != nil {
+			log.Printf("feishu bitable review-card operator lookup failed: %v", lookupErr)
+			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "识别当前飞书操作者失败"})
+			return
+		}
+		openID = resolvedOpenID
 	}
-
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 25*time.Second)
-	defer cancel()
 	actor, operator, err := h.resolveFeishuOperator(ctx, openID)
 	if err != nil {
 		h.respondBitableTrigger(c, ctx, openID, http.StatusForbidden, "该飞书账号尚未绑定有作业管理权限的网站账号")
@@ -689,6 +710,38 @@ func workflowOperatorOpenID(raw json.RawMessage) string {
 		return ""
 	}
 	return find(value)
+}
+
+func workflowOperatorName(raw json.RawMessage) string {
+	var value any
+	if json.Unmarshal(raw, &value) != nil {
+		return ""
+	}
+	if text, ok := value.(string); ok {
+		text = strings.TrimSpace(text)
+		if strings.HasPrefix(text, "{") || strings.HasPrefix(text, "[") {
+			var nested any
+			if json.Unmarshal([]byte(text), &nested) == nil {
+				if _, encodedObject := nested.(map[string]any); encodedObject {
+					return workflowOperatorName([]byte(text))
+				}
+			}
+		}
+		if strings.HasPrefix(text, "ou_") {
+			return ""
+		}
+		return text
+	}
+	object, ok := value.(map[string]any)
+	if !ok {
+		return ""
+	}
+	for _, key := range []string{"name", "real_name", "realName", "display_name", "displayName"} {
+		if text, ok := object[key].(string); ok && strings.TrimSpace(text) != "" {
+			return strings.TrimSpace(text)
+		}
+	}
+	return ""
 }
 
 func (h *FeishuReviewHandler) ensureBitableReader(ctx context.Context, openID string) error {

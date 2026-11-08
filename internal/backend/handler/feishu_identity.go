@@ -8,6 +8,7 @@ import (
 	"crypto/subtle"
 	"encoding/base64"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -21,6 +22,11 @@ import (
 )
 
 const feishuLinkCodeTTL = 10 * time.Minute
+
+var (
+	errWorkflowOperatorNameNotFound  = errors.New("no enabled bound assignment administrator matches the workflow operator name")
+	errWorkflowOperatorNameAmbiguous = errors.New("multiple enabled bound assignment administrators match the workflow operator name")
+)
 
 func (h *FeishuReviewHandler) FeishuLinkPage(c *gin.Context) {
 	c.Header("Cache-Control", "private, no-store")
@@ -147,4 +153,41 @@ func (h *FeishuReviewHandler) resolveFeishuOperator(ctx context.Context, openID 
 		return assignment.Actor{}, model.User{}, err
 	}
 	return actor, user, nil
+}
+
+func (h *FeishuReviewHandler) workflowOperatorOpenIDByName(ctx context.Context, name string) (string, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return "", errWorkflowOperatorNameNotFound
+	}
+	var matches []struct {
+		RealName     *string `gorm:"column:real_name"`
+		FeishuOpenID *string `gorm:"column:feishu_open_id"`
+		Status       uint8   `gorm:"column:status"`
+		RoleName     string  `gorm:"column:role_name"`
+	}
+	if err := h.db.WithContext(ctx).Model(&model.User{}).
+		Select("users.real_name, users.feishu_open_id, users.status, roles.name AS role_name").
+		Joins("JOIN roles ON roles.id = users.role_id").
+		Where("users.real_name = ?", name).Scan(&matches).Error; err != nil {
+		return "", err
+	}
+	openIDs := make([]string, 0, len(matches))
+	for _, match := range matches {
+		if match.RealName == nil || strings.TrimSpace(*match.RealName) != name ||
+			match.Status != model.UserStatusEnabled || match.FeishuOpenID == nil ||
+			!strings.HasPrefix(*match.FeishuOpenID, "ou_") ||
+			(match.RoleName != model.RoleNameAdmin && match.RoleName != model.RoleNameSuperAdmin) {
+			continue
+		}
+		openIDs = append(openIDs, *match.FeishuOpenID)
+	}
+	switch len(openIDs) {
+	case 0:
+		return "", errWorkflowOperatorNameNotFound
+	case 1:
+		return openIDs[0], nil
+	default:
+		return "", errWorkflowOperatorNameAmbiguous
+	}
 }
