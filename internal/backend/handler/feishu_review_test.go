@@ -264,9 +264,17 @@ func TestBitableWorkflowTriggerRejectsMissingOrWrongToken(t *testing.T) {
 }
 
 func TestWorkflowOperatorIdentityAndSubmissionIDParsing(t *testing.T) {
-	for _, raw := range []string{`{"open_id":"ou_one"}`, `{"id":"ou_two","name":"Trainer"}`, `"ou_three"`} {
-		if got := workflowOperatorOpenID(json.RawMessage(raw)); !strings.HasPrefix(got, "ou_") {
-			t.Errorf("operator open_id not found in %s: %q", raw, got)
+	for _, tc := range []struct {
+		raw  string
+		want string
+	}{
+		{`{"open_id":"ou_one"}`, "ou_one"},
+		{`{"id":"ou_two","name":"Trainer"}`, "ou_two"},
+		{`"ou_three"`, "ou_three"},
+		{`"{\"id\":\"ou_four\",\"name\":\"Trainer\"}"`, "ou_four"},
+	} {
+		if got := workflowOperatorOpenID(json.RawMessage(tc.raw)); got != tc.want {
+			t.Errorf("operator open_id from %s = %q, want %q", tc.raw, got, tc.want)
 		}
 	}
 	for _, tc := range []struct {
