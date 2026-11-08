@@ -164,8 +164,9 @@ func TestFeishuCardActionsAreSeparatedByWorkflowKind(t *testing.T) {
 	}{
 		{"publish", "publish_assignment", true},
 		{"review", "submit_review", true},
+		{"next_review", "", true},
 		{"next_review", "review_next", true},
-		{"next_review", "submit_review", false},
+		{"next_review", "submit_review", true},
 		{"review", "publish_assignment", false},
 		{"unknown", "submit_review", false},
 	} {
@@ -245,6 +246,9 @@ func TestFeishuReviewCompletionOffersNextSubmissionInTheSameGroup(t *testing.T) 
 	action := elements[1].(map[string]any)["behaviors"].([]any)[0].(map[string]any)["value"].(map[string]any)
 	if action["kind"] != "next_review" || action["group_id"] != float64(7) {
 		t.Fatalf("next review action lost current group: %#v", action)
+	}
+	if _, ok := elements[1].(map[string]any)["name"]; ok {
+		t.Fatal("standalone next-review button must not depend on form component name")
 	}
 }
 

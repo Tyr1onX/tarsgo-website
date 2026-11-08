@@ -401,7 +401,7 @@ func feishuCardActionSupported(kind, action string) bool {
 	case "test", "review":
 		return action == "submit_review"
 	case "next_review":
-		return action == "review_next"
+		return true
 	default:
 		return false
 	}
@@ -517,7 +517,7 @@ func feishuReviewCompleted(c *gin.Context, title string, score int, decision, co
 		"header": map[string]any{"template": "green", "title": map[string]any{"tag": "plain_text", "content": title}},
 		"body": map[string]any{"elements": []any{
 			map[string]any{"tag": "markdown", "content": result},
-			map[string]any{"tag": "button", "name": "review_next", "type": "primary_filled", "text": map[string]any{"tag": "plain_text", "content": "批改下一份"},
+			map[string]any{"tag": "button", "type": "primary_filled", "text": map[string]any{"tag": "plain_text", "content": "批改下一份"},
 				"behaviors": []any{map[string]any{"type": "callback", "value": map[string]any{"kind": "next_review", "group_id": groupID}}}},
 		}},
 	}
