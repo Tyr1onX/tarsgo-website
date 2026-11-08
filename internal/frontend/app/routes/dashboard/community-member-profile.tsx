@@ -319,7 +319,7 @@ export default function CommunityMemberProfileRoute() {
   const postHrefState = { communityReturnTo: currentPath };
 
   return <section className="admin-design community-page community-member-page" aria-labelledby="community-member-title">
-    <Link className="community-thread__back" to={returnTo} onClick={returnToSource}><CommunityIcon name="arrowLeft" />返回</Link>
+    <Link className="community-thread__back" to={tab === "settings" && isSelf ? location.pathname : returnTo} onClick={tab === "settings" && isSelf ? undefined : returnToSource}><CommunityIcon name="arrowLeft" />{tab === "settings" && isSelf ? "返回我的主页" : "返回"}</Link>
     {error ? <p className="community-state community-state--error" role="alert">{error}</p> : null}
 
     <header className="community-member-hero">
@@ -351,6 +351,7 @@ export default function CommunityMemberProfileRoute() {
           </div> : isSelf ? <button type="button" className={`community-member-bio-trigger${member.bio ? "" : " is-empty"}`} aria-label="编辑个人介绍" onClick={() => { skipBioBlurRef.current = false; setBioDraft(member.bio); setBioError(""); setEditingBio(true); }}>{member.bio || "添加一段个人介绍"}</button> : member.bio ? <p>{member.bio}</p> : null}
           {bioError ? <p id="community-member-bio-error" className="community-member-inline-error" role="alert">{bioError}</p> : null}
         </div>
+        {isSelf && tab !== "settings" ? <button type="button" className="community-button mt-3" onClick={() => changeTab("settings")}>编辑个人资料</button> : null}
         <div className="community-member-level" aria-label={`社区等级 Lv.${member.level.level}，总经验 ${member.level.totalXp} XP，距离下一级还差 ${Math.max(0, member.level.xpToNextLevel)} XP`}>
           <div className="community-member-level__label"><span>社区等级 Lv.{member.level.level}</span><span>{member.level.totalXp.toLocaleString("zh-CN")} XP</span></div>
           <div className="community-member-level__track" role="progressbar" aria-label="升级进度" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(member.level.progress * 100)}><span style={{ width: `${Math.round(member.level.progress * 100)}%` }} /></div>
@@ -412,7 +413,7 @@ export default function CommunityMemberProfileRoute() {
       {visibleBadges.length ? <div className="community-member-badge-grid">{visibleBadges.map((badge) => <BadgeCard key={badge.key} badge={badge} onReplay={isSelf ? requestBadgeReplay : undefined} />)}</div> : <EmptyState>{loading ? "" : "还没有获得徽章"}</EmptyState>}
     </section> : null}
     {tab === "settings" && isSelf ? <section className="community-member-section community-member-settings" aria-labelledby="community-member-settings-title">
-      <header><h2 id="community-member-settings-title">其他设置</h2></header>
+      <header><h2 id="community-member-settings-title">资料设置</h2></header>
       <PersonalProfileSettings user={currentUser} />
     </section> : null}
   </section>;
