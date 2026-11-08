@@ -294,6 +294,7 @@ func (h *FeishuReviewHandler) Callback(c *gin.Context) {
 	if !urlVerification {
 		raw, err = h.authenticateAndDecodeFeishuCallback(c, raw)
 		if err != nil {
+			log.Printf("feishu callback rejected stage=authentication reason=%q", err.Error())
 			c.Status(http.StatusUnauthorized)
 			return
 		}
@@ -316,11 +317,13 @@ func (h *FeishuReviewHandler) Callback(c *gin.Context) {
 		return
 	}
 	if event.Header.EventType != "card.action.trigger" || event.Event.Operator.OpenID == "" {
+		log.Printf("feishu callback rejected stage=event_metadata event_type=%q operator_open_id_present=%t", event.Header.EventType, event.Event.Operator.OpenID != "")
 		c.Status(http.StatusUnauthorized)
 		return
 	}
 	actor, operator, err := h.resolveFeishuOperator(c.Request.Context(), event.Event.Operator.OpenID)
 	if err != nil {
+		log.Printf("feishu callback rejected stage=operator_resolution reason=%q", err.Error())
 		c.Status(http.StatusUnauthorized)
 		return
 	}
