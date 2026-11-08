@@ -11,7 +11,7 @@ permissions:
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   verify:
@@ -126,3 +126,41 @@ jobs:
           gh release upload production-artifacts dist/tarsgo-production-release.tar.gz \
             dist/tarsgo-production-release.tar.gz.sha256 \
             --repo "$GITHUB_REPOSITORY" --clobber
+
+  deploy-production:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: publish-production-release
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Configure production SSH credentials
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.PRODUCTION_SSH_PRIVATE_KEY }}
+          SSH_KNOWN_HOSTS: ${{ secrets.PRODUCTION_SSH_KNOWN_HOSTS }}
+          DEPLOY_TARGET: ${{ secrets.PRODUCTION_SSH_TARGET }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.PRODUCTION_CLOUDFLARE_API_TOKEN }}
+        run: |
+          if [[ -z "$SSH_PRIVATE_KEY" || -z "$SSH_KNOWN_HOSTS" || -z "$DEPLOY_TARGET" || -z "$CLOUDFLARE_API_TOKEN" ]]; then
+            echo '::error::Configure PRODUCTION_SSH_PRIVATE_KEY, PRODUCTION_SSH_KNOWN_HOSTS, PRODUCTION_SSH_TARGET and PRODUCTION_CLOUDFLARE_API_TOKEN repository secrets.'
+            exit 1
+          fi
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s\n' "$SSH_PRIVATE_KEY" >"$HOME/.ssh/id_ed25519"
+          chmod 600 "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$SSH_KNOWN_HOSTS" >"$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/known_hosts"
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: internal/frontend/.nvmrc
+      - name: Install Cloudflare CLI
+        run: npm install --global cf@1.0.0-beta.25
+      - name: Deploy verified release to production
+        env:
+          DEPLOY_TARGET: ${{ secrets.PRODUCTION_SSH_TARGET }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.PRODUCTION_CLOUDFLARE_API_TOKEN }}
+        run: scripts/deploy-production.sh
