@@ -6,8 +6,10 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/sha256"
+	"database/sql/driver"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -279,11 +281,118 @@ func TestWorkflowOperatorIdentityAndSubmissionIDParsing(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		raw  string
+		want string
+	}{
+		{`"童逸创"`, "童逸创"},
+		{`{"name":" 童逸创 "}`, "童逸创"},
+		{`"{\"name\":\"童逸创\"}"`, "童逸创"},
+		{`"ou_not_a_name"`, ""},
+		{`{"id":"ou_user"}`, ""},
+	} {
+		if got := workflowOperatorName(json.RawMessage(tc.raw)); got != tc.want {
+			t.Errorf("operator name from %s = %q, want %q", tc.raw, got, tc.want)
+		}
+	}
+	for _, tc := range []struct {
+		raw  string
 		want uint64
 	}{{`"123"`, 123}, {`123`, 123}, {`123.0`, 123}, {`"123.0"`, 123}, {`1.23`, 0}, {`"bad"`, 0}, {`null`, 0}} {
 		if got := parseWorkflowSubmissionID(json.RawMessage(tc.raw)); got != tc.want {
 			t.Errorf("parse %s=%d want %d", tc.raw, got, tc.want)
 		}
+	}
+}
+
+func TestWorkflowOperatorNameMustResolveToExactlyOneEnabledBoundAdmin(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		rows    [][]driver.Value
+		want    string
+		wantErr error
+	}{
+		{
+			name: "unique enabled admin",
+			rows: [][]driver.Value{{"童逸创", "ou_trainer", model.UserStatusEnabled, model.RoleNameAdmin}},
+			want: "ou_trainer",
+		},
+		{
+			name:    "no matching account",
+			wantErr: errWorkflowOperatorNameNotFound,
+		},
+		{
+			name: "duplicate bound admins",
+			rows: [][]driver.Value{
+				{"童逸创", "ou_trainer_one", model.UserStatusEnabled, model.RoleNameAdmin},
+				{"童逸创", "ou_trainer_two", model.UserStatusEnabled, model.RoleNameSuperAdmin},
+			},
+			wantErr: errWorkflowOperatorNameAmbiguous,
+		},
+		{
+			name: "disabled unbound and non-admin accounts are excluded",
+			rows: [][]driver.Value{
+				{"童逸创", "ou_disabled", model.UserStatusDisabled, model.RoleNameAdmin},
+				{"童逸创", nil, model.UserStatusEnabled, model.RoleNameAdmin},
+				{"童逸创", "ou_member", model.UserStatusEnabled, model.RoleNameUser},
+			},
+			wantErr: errWorkflowOperatorNameNotFound,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			sqlDB, mock, err := sqlmock.New()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer sqlDB.Close()
+			db, err := gorm.Open(mysql.New(mysql.Config{Conn: sqlDB, SkipInitializeWithVersion: true}), &gorm.Config{DisableAutomaticPing: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			rows := sqlmock.NewRows([]string{"real_name", "feishu_open_id", "status", "role_name"})
+			for _, row := range tc.rows {
+				rows.AddRow(row...)
+			}
+			mock.ExpectQuery(regexp.QuoteMeta("SELECT users.real_name, users.feishu_open_id, users.status, roles.name AS role_name FROM `users` JOIN roles ON roles.id = users.role_id WHERE users.real_name = ?")).
+				WithArgs("童逸创").WillReturnRows(rows)
+
+			h := testFeishuHandler()
+			h.db = db
+			got, err := h.workflowOperatorOpenIDByName(context.Background(), " 童逸创 ")
+			if tc.wantErr != nil {
+				if !errors.Is(err, tc.wantErr) {
+					t.Fatalf("lookup error=%v, want %v", err, tc.wantErr)
+				}
+			} else if err != nil || got != tc.want {
+				t.Fatalf("lookup open_id=%q error=%v, want %q", got, err, tc.want)
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestFeishuCardCallbackDoesNotTreatOperatorNameAsAuthenticatedIdentity(t *testing.T) {
+	h := testFeishuHandler()
+	payload, err := json.Marshal(map[string]any{
+		"schema": "2.0",
+		"header": map[string]any{"token": "verification", "app_id": "cli_test", "event_type": "card.action.trigger"},
+		"event":  map[string]any{"operator": map[string]any{"name": "童逸创"}, "action": map[string]any{"name": "submit_review", "value": map[string]any{"kind": "review"}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	timestamp := fmt.Sprint(time.Now().Unix())
+	request := httptest.NewRequest(http.MethodPost, "/api/integrations/feishu/card-action", bytes.NewReader(payload))
+	request.Header.Set("X-Lark-Request-Timestamp", timestamp)
+	request.Header.Set("X-Lark-Request-Nonce", "name-only-operator")
+	request.Header.Set("X-Lark-Signature", feishuCallbackSignature(timestamp, "name-only-operator", h.cfg.EncryptKey, payload))
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Request = request
+	h.Callback(c)
+	c.Writer.WriteHeaderNow()
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("name-only card callback status=%d, want %d", recorder.Code, http.StatusUnauthorized)
 	}
 }
 
