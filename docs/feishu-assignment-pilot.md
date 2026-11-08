@@ -7,7 +7,7 @@
 1. 每位培训管理员先登录有作业管理权限的网站账号，打开 `/api/admin/integrations/feishu/bind` 生成 10 分钟绑定码，再在机器人私聊发送“绑定 <绑定码>”。绑定使用当前飞书应用的 `open_id`，一个网站账号和一个飞书账号保持唯一对应。
 2. 绑定后，机器人将该飞书账号加入“培训队员只读”多维表格角色。该角色可查看全部技术组和全部视图，但不能编辑表格、记录、字段或视图，也不能复制或下载整张表。
 3. 发布卡片中的组别只从当前网站账号可管理的组别生成。批改、评分入口和“批改下一份”都会重新查询当前飞书操作者映射的网站账号，并再次执行网站组别权限检查。
-4. 飞书卡片回调必须具有有效的飞书请求签名、近期时间戳、匹配的 Encrypt Key、Verification Token 和应用 ID。评分只调用现有 `assignment.Service.ReviewFirst`；重复评分由网站事务拒绝。
+4. 飞书卡片回调必须具有有效的飞书请求签名、匹配的 Encrypt Key、Verification Token 和应用 ID。请求头时间戳按原值参与 SHA-256 验签，不假设其为 Unix 整数秒或增加五分钟窗口，与[飞书回调验签协议](https://open.feishu.cn/document/event-subscription-guide/callback-subscription/receive-and-handle-callbacks)一致。评分只调用现有 `assignment.Service.ReviewFirst`；重复评分由网站事务拒绝。
 
 ## 作业流程
 

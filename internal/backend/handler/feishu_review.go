@@ -417,14 +417,8 @@ func (h *FeishuReviewHandler) authenticateAndDecodeFeishuCallback(c *gin.Context
 	if timestamp == "" || nonce == "" || signature == "" {
 		return nil, errors.New("missing Feishu callback signature")
 	}
-	issuedAt, err := strconv.ParseInt(timestamp, 10, 64)
-	if err != nil {
-		return nil, feishuTimestampParseDiagnostic(timestamp, err)
-	}
-	age := time.Since(time.Unix(issuedAt, 0))
-	if age > 5*time.Minute || age < -5*time.Minute {
-		return nil, fmt.Errorf("stale Feishu callback timestamp delta_seconds=%d", int64(age.Seconds()))
-	}
+	// Feishu signs the timestamp header verbatim; it does not specify Unix
+	// seconds or a five-minute validity window for card callback headers.
 	content := make([]byte, 0, len(timestamp)+len(nonce)+len(h.cfg.EncryptKey)+len(raw))
 	content = append(content, timestamp...)
 	content = append(content, nonce...)
@@ -458,46 +452,6 @@ func (h *FeishuReviewHandler) authenticateAndDecodeFeishuCallback(c *gin.Context
 		return nil, errors.New("invalid Feishu app id")
 	}
 	return raw, nil
-}
-
-// Report only aggregate character classes; strconv.NumError includes the raw
-// input in its message and must never be added to callback rejection logs.
-func feishuTimestampParseDiagnostic(timestamp string, parseErr error) error {
-	category := "other"
-	if errors.Is(parseErr, strconv.ErrSyntax) {
-		category = "syntax"
-	} else if errors.Is(parseErr, strconv.ErrRange) {
-		category = "range"
-	}
-	labels := [...]string{"digit", "letter", "space", "sign", "dot", "colon", "other_ascii", "non_ascii"}
-	var present [len(labels)]bool
-	for _, char := range timestamp {
-		switch {
-		case char >= '0' && char <= '9':
-			present[0] = true
-		case char >= 'a' && char <= 'z' || char >= 'A' && char <= 'Z':
-			present[1] = true
-		case char == ' ' || char >= '\t' && char <= '\r':
-			present[2] = true
-		case char == '+' || char == '-':
-			present[3] = true
-		case char == '.':
-			present[4] = true
-		case char == ':':
-			present[5] = true
-		case char < 128:
-			present[6] = true
-		default:
-			present[7] = true
-		}
-	}
-	classes := make([]string, 0, len(labels))
-	for i, label := range labels {
-		if present[i] {
-			classes = append(classes, label)
-		}
-	}
-	return fmt.Errorf("invalid Feishu callback timestamp length_bytes=%d character_types=%s parse_error=%s", len(timestamp), strings.Join(classes, ","), category)
 }
 
 func callbackVerificationToken(event feishuCallback) string {

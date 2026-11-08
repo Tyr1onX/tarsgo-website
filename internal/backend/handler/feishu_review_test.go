@@ -124,7 +124,7 @@ func encryptFeishuTestPayload(t *testing.T, plain []byte, key string) map[string
 	return map[string]string{"encrypt": base64.StdEncoding.EncodeToString(append(iv, encrypted...))}
 }
 
-func TestFeishuBusinessCallbackRequiresFreshValidSignature(t *testing.T) {
+func TestFeishuBusinessCallbackRequiresValidSignature(t *testing.T) {
 	h := testFeishuHandler()
 	payload, _ := json.Marshal(callbackAction("review", "submit_review"))
 	for _, tc := range []struct {
@@ -135,7 +135,7 @@ func TestFeishuBusinessCallbackRequiresFreshValidSignature(t *testing.T) {
 	}{
 		{name: "missing headers", want: http.StatusUnauthorized},
 		{name: "bad signature", timestamp: fmt.Sprint(time.Now().Unix()), signature: "bad", want: http.StatusUnauthorized},
-		{name: "stale signature", timestamp: "1700000000", signature: "irrelevant", want: http.StatusUnauthorized},
+		{name: "invalid signature with numeric timestamp", timestamp: "1700000000", signature: "irrelevant", want: http.StatusUnauthorized},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			headers := http.Header{}
