@@ -72,7 +72,10 @@ test("independent settings stay reachable without a profile settings tab", () =>
   assert.match(memberProfile, /<PersonalProfileSettings user=\{currentUser\} \/>/);
   assert.match(memberProfile, /{tab !== "settings" \? <nav className="community-member-tabs"/);
   assert.match(memberProfile, /onReplay=\{isSelf \? requestBadgeReplay : undefined\}/);
-  assert.doesNotMatch(memberProfile, /label: "资料设置"|编辑资料/);
+  assert.match(memberProfile, /\{isSelf && tab !== "settings" \? <button[^>]*onClick=\{\(\) => changeTab\("settings"\)\}>编辑个人资料<\/button>/);
+  assert.match(memberProfile, /to=\{tab === "settings" && isSelf \? location\.pathname : returnTo\}/);
+  assert.match(memberProfile, /tab === "settings" && isSelf \? "返回我的主页" : "返回"/);
+  assert.doesNotMatch(memberProfile, /label: "资料设置"/);
   assert.doesNotMatch(layout, /ProfileDialog|setProfileOpen/);
   assert.doesNotMatch(layout, /import \{ ProfileDialog \}/);
 });
