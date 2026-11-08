@@ -658,6 +658,16 @@ func workflowOperatorOpenID(raw json.RawMessage) string {
 			if strings.HasPrefix(typed, "ou_") {
 				return typed
 			}
+			// Bitable workflow raw-body references can encode a User value as a
+			// JSON string. Decode that value before giving up on the operator ID.
+			var nested any
+			decoder := json.NewDecoder(strings.NewReader(typed))
+			decoder.UseNumber()
+			if decoder.Decode(&nested) == nil {
+				if found := find(nested); found != "" {
+					return found
+				}
+			}
 		case map[string]any:
 			for _, key := range []string{"open_id", "openId", "user_id", "userId", "id"} {
 				if candidate, ok := typed[key].(string); ok && strings.HasPrefix(candidate, "ou_") {
