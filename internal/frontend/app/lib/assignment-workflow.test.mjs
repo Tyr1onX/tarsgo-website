@@ -133,12 +133,17 @@ test("Beijing deadlines default to seven days, support shortcuts, and validate b
   assert.match(deadline, /wallClock - SHANGHAI_OFFSET_MS/);
 });
 
-test("submission review page lists submitted people and filters pending work", () => {
-  assert.match(assignmentSubmissions, /useState<"submitted" \| "pending" \| "all">\("submitted"\)/);
-  assert.match(assignmentSubmissions, /detail\?\.members\.filter\(\(member\) => member\.latestSubmission\)/);
-  assert.match(assignmentSubmissions, /submittedMembers\.filter\(\(member\) => member\.latestSubmission\?\.status === "submitted"\)/);
-  assert.match(assignmentSubmissions, /visibleMembers\.map\(\(member\) =>/);
+test("submission review page groups current members by the next required action", () => {
+  assert.match(assignmentSubmissions, /useState<"toSubmit" \| "toReview" \| "passed">\("toReview"\)/);
+  assert.match(assignmentSubmissions, /member\.status === "pending" \|\| member\.status === "overdue" \|\| member\.status === "needs_redo"/);
+  assert.match(assignmentSubmissions, /member\.status === "submitted"/);
+  assert.match(assignmentSubmissions, /member\.status === "passed"/);
+  assert.match(assignmentSubmissions, /const visibleMembers = submissionFilter === "toSubmit" \? toSubmit : submissionFilter === "toReview" \? toReview : passed/);
+  assert.match(assignmentSubmissions, /label: "待提交", count: toSubmit\.length, hint: "含返修"/);
+  assert.match(assignmentSubmissions, /label: "待批改", count: toReview\.length/);
+  assert.match(assignmentSubmissions, /label: "已通过", count: passed\.length/);
   assert.match(assignmentSubmissions, /aria-pressed=\{submissionFilter === value\}/);
+  assert.match(assignmentSubmissions, /visibleMembers\.map\(\(member\) =>/);
 });
 
 test("website review reuses rich image editor and protects feedback media", () => {
@@ -229,7 +234,7 @@ test("submission page distinguishes list loading, empty lists, detail loading, a
   assert.match(assignmentSubmissions, /listLoaded && assignments\.some\(\(item\) => item\.id === selectedID\) && detail\?\.assignment\.id === selectedID/);
   assert.match(assignmentSubmissions, /正在加载作业列表/);
   assert.match(assignmentSubmissions, /正在加载提交记录/);
-  assert.match(assignmentSubmissions, /暂无成员提交/);
+  assert.match(assignmentSubmissions, /当前没有待提交或返修的成员/);
   assert.match(assignmentSubmissions, /role="alert" className="admin-notice admin-notice--error"/);
 });
 
