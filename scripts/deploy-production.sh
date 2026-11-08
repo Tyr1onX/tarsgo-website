@@ -30,13 +30,12 @@ production_release_asset="tarsgo-production-release.tar.gz"
 
 download_production_release_asset() {
   local expected_commit="$1" archive_path="$2" destination="$3"
-  local expected_url checksum_path expected_digest actual_digest
-  expected_url="https://github.com/Tyr1onX/tarsgo-website/releases/download/$production_release_tag/$production_release_asset"
+  local checksum_path expected_digest actual_digest
   checksum_path="$archive_path.sha256"
 
-  if ! curl --fail --silent --show-error --location --connect-timeout 15 --max-time 60 --retry 3 --retry-delay 2 \
-    "$expected_url.sha256" --output "$checksum_path"; then
-    echo "Production deploy aborted: unable to anonymously download the CI release asset SHA-256 sidecar." >&2
+  if ! gh release download "$production_release_tag" --repo Tyr1onX/tarsgo-website \
+    --pattern "$production_release_asset.sha256" --output "$checksum_path"; then
+    echo "Production deploy aborted: unable to download the CI release asset SHA-256 sidecar." >&2
     return 1
   fi
   if ! expected_digest="$(perl -e '
@@ -54,9 +53,9 @@ download_production_release_asset() {
     return 1
   fi
 
-  if ! curl --fail --silent --show-error --location --connect-timeout 15 --max-time 900 --retry 3 --retry-delay 2 \
-    "$expected_url" --output "$archive_path"; then
-    echo "Production deploy aborted: unable to anonymously download the public CI release asset for commit $expected_commit." >&2
+  if ! gh release download "$production_release_tag" --repo Tyr1onX/tarsgo-website \
+    --pattern "$production_release_asset" --output "$archive_path"; then
+    echo "Production deploy aborted: unable to download the CI release asset for commit $expected_commit." >&2
     return 1
   fi
   if [[ ! -s "$archive_path" ]]; then
@@ -329,7 +328,7 @@ run_safe_cleanup() {
 }
 
 if [[ "$target_release_status" != complete ]]; then
-  require_command curl "public production release download"
+  require_command gh "authenticated production release download"
   require_command perl "release sidecar and SHA-256 verification"
   require_command tar "production release archive extraction"
   require_command gzip "gzip-compressed production release archive extraction"

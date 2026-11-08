@@ -269,30 +269,34 @@ init_ci_deploy_fixture() {
   [[ "$mode" != artifact-missing ]] || rm "$case_dir/download.tar.gz"
   [[ "$mode" != checksum-missing ]] || rm "$case_dir/download.tar.gz.sha256"
 
-  cat >"$case_dir/client-bin/curl" <<'CURL'
+  cat >"$case_dir/client-bin/gh" <<'GH'
 #!/usr/bin/env bash
 set -Eeuo pipefail
-url=""
+[[ "${GH_TOKEN:-}" == "ci-fixture-token" ]] || { echo "missing GitHub token" >&2; exit 90; }
+[[ "${1:-}" == release && "${2:-}" == download && "${3:-}" == production-artifacts ]] || { echo "unexpected gh command" >&2; exit 90; }
+shift 3
+pattern=""
 output=""
+repo=""
 while (($#)); do
   case "$1" in
-    --output|-o) output="$2"; shift 2 ;;
-    https://*) url="$1"; shift ;;
-    *) shift ;;
+    --output|-O) output="$2"; shift 2 ;;
+    --pattern|-p) pattern="$2"; shift 2 ;;
+    --repo|-R) repo="$2"; shift 2 ;;
+    *) echo "unexpected gh argument: $1" >&2; exit 90 ;;
   esac
 done
-case "$url" in
-  "https://github.com/Tyr1onX/tarsgo-website/releases/download/production-artifacts/tarsgo-production-release.tar.gz.sha256")
-    [[ -n "$output" ]] || { echo "missing release asset checksum output path" >&2; exit 2; }
+[[ "$repo" == Tyr1onX/tarsgo-website && -n "$output" ]] || { echo "missing repository or output path" >&2; exit 90; }
+case "$pattern" in
+  tarsgo-production-release.tar.gz.sha256)
     [[ -s "$MOCK_RELEASE_ASSET_CHECKSUM" ]] || exit 22
     cp "$MOCK_RELEASE_ASSET_CHECKSUM" "$output" ;;
-  "https://github.com/Tyr1onX/tarsgo-website/releases/download/production-artifacts/tarsgo-production-release.tar.gz")
-    [[ -n "$output" ]] || { echo "missing release asset output path" >&2; exit 2; }
+  tarsgo-production-release.tar.gz)
     [[ -s "$MOCK_RELEASE_ASSET_DOWNLOAD" ]] || exit 22
     cp "$MOCK_RELEASE_ASSET_DOWNLOAD" "$output" ;;
-  *) echo "unexpected GitHub request: $url" >&2; exit 90 ;;
+  *) echo "unexpected GitHub release asset: $pattern" >&2; exit 90 ;;
 esac
-CURL
+GH
   cat >"$case_dir/client-bin/ssh" <<'SSH'
 #!/usr/bin/env bash
 set -Eeuo pipefail
@@ -366,7 +370,7 @@ services:
   db:
     image: mariadb:11.4
 COMPOSE
-  chmod +x "$case_dir/client-bin/curl" "$case_dir/client-bin/ssh" "$case_dir/client-bin/rsync" "$case_dir/remote-bin/sha256sum"
+  chmod +x "$case_dir/client-bin/gh" "$case_dir/client-bin/ssh" "$case_dir/client-bin/rsync" "$case_dir/remote-bin/sha256sum"
   [[ ! -e "$case_dir/client-bin/node" ]] || chmod +x "$case_dir/client-bin/node"
 }
 
@@ -382,7 +386,7 @@ run_ci_deploy_fixture() {
     MOCK_SSH_COUNT="$case_dir/ssh-count" MOCK_RSYNC_LOG="$case_dir/rsync.log" MOCK_RELEASE_NAME="$case_dir/release-name" \
     MOCK_DEPLOY_REACHED="$case_dir/deploy-reached" MOCK_NODE_INVOKED="$case_dir/node-invoked" \
     MOCK_CF_LOG="$case_dir/cf.log" MOCK_CF_AUTH_FAIL="${MOCK_CF_AUTH_FAIL:-0}" MOCK_CF_PURGE_FAIL="${MOCK_CF_PURGE_FAIL:-0}" \
-    SSH_BIN=ssh RSYNC_BIN=rsync JIJIA_ROOT="$case_dir/remote" \
+    SSH_BIN=ssh RSYNC_BIN=rsync JIJIA_ROOT="$case_dir/remote" GH_TOKEN=ci-fixture-token \
     "$case_dir/repo/scripts/deploy-production.sh" 2>&1)"
   CI_DEPLOY_STATUS=$?
   set -e
@@ -407,7 +411,7 @@ test_ci_artifact_deployment_ignores_local_toolchain() {
   release="$(cat "$case_dir/release-name")"
   [[ "$(cat "$case_dir/remote/releases/$release/commit.txt")" == "$commit" ]] || fail "uploaded CI artifact commit does not match the clean main checkout"
   (cd "$case_dir/remote/releases/$release" && sha256sum --check -- SHA256SUMS) >/dev/null || fail "uploaded CI artifact failed the production-side SHA256 check"
-  pass "public CI release asset completes the mocked production release when Node 26 is broken and local sha256sum, /sbin, Go, and Corepack are absent"
+  pass "authenticated CI release asset completes the mocked production release when Node 26 is broken and local sha256sum, /sbin, Go, and Corepack are absent"
 
   local no_frontend="$tmp/ci-artifact-no-frontend"
   init_ci_deploy_fixture "$no_frontend" success-no-frontend
@@ -444,9 +448,9 @@ test_ci_artifact_rejections_precede_production_mutation() {
     [[ "$CI_DEPLOY_STATUS" -ne 0 ]] || fail "$mode CI artifact unexpectedly proceeded to deployment"
     case "$mode" in
       artifact-missing)
-        [[ "$CI_DEPLOY_OUTPUT" == *"unable to anonymously download the public CI release asset"* ]] || fail "missing release asset was rejected for the wrong reason: $CI_DEPLOY_OUTPUT" ;;
+        [[ "$CI_DEPLOY_OUTPUT" == *"unable to download the CI release asset"* ]] || fail "missing release asset was rejected for the wrong reason: $CI_DEPLOY_OUTPUT" ;;
       checksum-missing)
-        [[ "$CI_DEPLOY_OUTPUT" == *"unable to anonymously download the CI release asset SHA-256 sidecar"* ]] || fail "missing release checksum was rejected for the wrong reason: $CI_DEPLOY_OUTPUT" ;;
+        [[ "$CI_DEPLOY_OUTPUT" == *"unable to download the CI release asset SHA-256 sidecar"* ]] || fail "missing release checksum was rejected for the wrong reason: $CI_DEPLOY_OUTPUT" ;;
       checksum-malformed)
         [[ "$CI_DEPLOY_OUTPUT" == *"sidecar is missing or malformed"* ]] || fail "malformed release checksum was rejected for the wrong reason: $CI_DEPLOY_OUTPUT" ;;
       checksum-mismatch|download-corrupt)

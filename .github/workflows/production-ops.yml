@@ -162,6 +162,7 @@ jobs:
         run: npm install --global cf@1.0.0-beta.25
       - name: Deploy verified release to production
         env:
+          GH_TOKEN: ${{ github.token }}
           DEPLOY_TARGET: ${{ secrets.PRODUCTION_SSH_TARGET }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.PRODUCTION_CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.PRODUCTION_CLOUDFLARE_ACCOUNT_ID }}
