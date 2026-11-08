@@ -418,8 +418,12 @@ func (h *FeishuReviewHandler) authenticateAndDecodeFeishuCallback(c *gin.Context
 		return nil, errors.New("missing Feishu callback signature")
 	}
 	issuedAt, err := strconv.ParseInt(timestamp, 10, 64)
-	if err != nil || time.Since(time.Unix(issuedAt, 0)) > 5*time.Minute || time.Until(time.Unix(issuedAt, 0)) > 5*time.Minute {
-		return nil, errors.New("stale Feishu callback timestamp")
+	if err != nil {
+		return nil, errors.New("invalid Feishu callback timestamp")
+	}
+	age := time.Since(time.Unix(issuedAt, 0))
+	if age > 5*time.Minute || age < -5*time.Minute {
+		return nil, fmt.Errorf("stale Feishu callback timestamp delta_seconds=%d", int64(age.Seconds()))
 	}
 	content := make([]byte, 0, len(timestamp)+len(nonce)+len(h.cfg.EncryptKey)+len(raw))
 	content = append(content, timestamp...)
