@@ -28,7 +28,7 @@ export default function AssignmentSubmissionsRoute() {
   const [groupId, setGroupId] = useState(0);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selectedID, setSelectedID] = useState(requestedID);
-  const [submissionFilter, setSubmissionFilter] = useState<"submitted" | "pending" | "all">("submitted");
+  const [submissionFilter, setSubmissionFilter] = useState<"toSubmit" | "toReview" | "passed">("toReview");
   const [editingReviewID, setEditingReviewID] = useState(0);
   const [reviewUploads, setReviewUploads] = useState<CommunityPendingImage[]>([]);
   const reviewUploadsRef = useRef<CommunityPendingImage[]>([]);
@@ -200,9 +200,10 @@ export default function AssignmentSubmissionsRoute() {
   const assignment = listLoaded && assignments.some((item) => item.id === selectedID) && detail?.assignment.id === selectedID
     ? detail.assignment
     : null;
-  const submittedMembers = detail?.members.filter((member) => member.latestSubmission) ?? [];
-  const pendingMembers = submittedMembers.filter((member) => member.latestSubmission?.status === "submitted");
-  const visibleMembers = submissionFilter === "pending" ? pendingMembers : submissionFilter === "submitted" ? submittedMembers : detail?.members ?? [];
+  const toSubmit = detail?.members.filter((member) => member.status === "pending" || member.status === "overdue" || member.status === "needs_redo") ?? [];
+  const toReview = detail?.members.filter((member) => member.status === "submitted") ?? [];
+  const passed = detail?.members.filter((member) => member.status === "passed") ?? [];
+  const visibleMembers = submissionFilter === "toSubmit" ? toSubmit : submissionFilter === "toReview" ? toReview : passed;
 
   return (
     <section className="admin-design space-y-5" aria-labelledby="assignment-submissions-title">
@@ -227,19 +228,22 @@ export default function AssignmentSubmissionsRoute() {
           <strong className="text-[var(--admin-text)]">{assignment.title}</strong>
           <span>截止 {formatAssignmentDate(assignment.dueAt)}</span>
           <span>{assignment.isGroupWide ? "全组实时接收" : "指定成员"} · 接收 {assignment.targetCount} 人</span>
-          <span>已提交 {assignment.submittedCount}/{assignment.targetCount}</span>
-          <span>已批改 {assignment.reviewedCount}</span>
-          <span>已通过 {assignment.passedCount}</span>
         </section>
         <section className="admin-panel divide-y divide-[var(--admin-border-subtle)] p-4 sm:p-5" aria-label="成员提交情况">
-          {detail && detail.members.length > 0 ? <div className="flex flex-wrap gap-2 pb-3" role="group" aria-label="提交状态筛选">
+          {detail && detail.members.length > 0 ? <div className="grid grid-cols-3 gap-2 pb-4" role="group" aria-label="成员进度筛选">
             {([
-              { value: "pending", label: `待批改 ${pendingMembers.length}` },
-              { value: "submitted", label: `已提交 ${submittedMembers.length}` },
-              { value: "all", label: `全部 ${detail.members.length}` },
-            ] as const).map(({ value, label }) => <button key={value} type="button" className={`admin-button admin-button--small ${submissionFilter === value ? "admin-button--secondary" : "admin-button--quiet"}`} aria-pressed={submissionFilter === value} onClick={() => setSubmissionFilter(value)}>{label}</button>)}
+              { value: "toSubmit", label: "待提交", count: toSubmit.length, hint: "含返修" },
+              { value: "toReview", label: "待批改", count: toReview.length, hint: "" },
+              { value: "passed", label: "已通过", count: passed.length, hint: "" },
+            ] as const).map(({ value, label, count, hint }) => <button key={value} type="button"
+              className={`rounded-xl border px-3 py-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 ${submissionFilter === value ? "border-[var(--admin-text)] bg-[var(--admin-surface-subtle)]" : "border-[var(--admin-border-subtle)] bg-[var(--admin-surface)] hover:border-[var(--admin-hover-border)]"}`}
+              aria-pressed={submissionFilter === value} onClick={() => setSubmissionFilter(value)}>
+              <span className="block text-sm text-[var(--admin-muted)]">{label}</span>
+              <strong className="mt-1 block text-2xl tabular-nums text-[var(--admin-text)]">{count}</strong>
+              {hint ? <span className="text-xs text-[var(--admin-muted)]">{hint}</span> : null}
+            </button>)}
           </div> : null}
-          {detail && visibleMembers.length === 0 ? <p role="status" className="py-3 text-sm text-[var(--admin-muted)]">{detail.members.length === 0 ? "该作业当前没有分配成员。" : submissionFilter === "pending" ? "当前没有待批改的提交。" : "暂无成员提交。"}</p> : null}
+          {detail && visibleMembers.length === 0 ? <p role="status" className="py-3 text-sm text-[var(--admin-muted)]">{detail.members.length === 0 ? "该作业当前没有分配成员。" : submissionFilter === "toSubmit" ? "当前没有待提交或返修的成员。" : submissionFilter === "toReview" ? "当前没有待批改的提交。" : "当前没有已通过的成员。"}</p> : null}
           {visibleMembers.map((member) => {
             const latest = member.latestSubmission;
             const lastReview = latest?.reviews.at(-1);
@@ -249,8 +253,8 @@ export default function AssignmentSubmissionsRoute() {
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
                   <h2 className="text-base font-semibold tracking-tight text-[var(--admin-text)]">{member.name}</h2>
                   <span className="text-xs tabular-nums text-[var(--admin-muted)]">#{member.userId}</span>
-                  <span className={`rounded-md border px-2 py-0.5 text-xs font-medium ${!latest ? "border-[var(--admin-border-subtle)] text-[var(--admin-muted)]" : latest.status === "submitted" ? "border-[var(--admin-warning-border)] bg-[var(--admin-warning-surface)] text-[var(--admin-warning)]" : "border-[var(--admin-success-border)] bg-[var(--admin-success-surface)] text-[var(--admin-success)]"}`}>
-                    {!latest ? assignmentStatusLabel(member.status) : latest.status === "submitted" ? "待批改" : assignmentDecisionLabel(latest.decision)}
+                  <span className={`rounded-md border px-2 py-0.5 text-xs font-medium ${member.status === "passed" ? "border-[var(--admin-success-border)] bg-[var(--admin-success-surface)] text-[var(--admin-success)]" : member.status === "pending" ? "border-[var(--admin-border-subtle)] text-[var(--admin-muted)]" : "border-[var(--admin-warning-border)] bg-[var(--admin-warning-surface)] text-[var(--admin-warning)]"}`}>
+                    {member.status === "submitted" ? "待批改" : assignmentStatusLabel(member.status)}
                   </span>
                 </div>
                 {latest ? <div className="text-right text-xs leading-5 text-[var(--admin-muted)]">
