@@ -133,6 +133,7 @@ export default function AssignmentManagementRoute() {
     setFeishuBinding(null);
     setFeishuPanelAccount(0);
     setFeishuCommand("");
+    setFeishuBusy(false);
     setFeishuError("");
     setFeishuNotice("");
     assignmentClient.feishuBindingStatus()
