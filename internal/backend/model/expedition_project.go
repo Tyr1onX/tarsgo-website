@@ -2,28 +2,6 @@ package model
 
 import "time"
 
-const (
-	ExpeditionVisibilityTeam         = "team"
-	ExpeditionVisibilityParticipants = "participants"
-
-	ExpeditionMilestoneOpen      = "open"
-	ExpeditionMilestoneSubmitted = "submitted"
-	ExpeditionMilestoneAccepted  = "accepted"
-
-	ExpeditionEventProjectCreated = "project_created"
-	ExpeditionEventMilestoneAdded = "milestone_added"
-	ExpeditionEventEvidence       = "evidence_submitted"
-	ExpeditionEventAccepted       = "milestone_accepted"
-	ExpeditionEventRevoked        = "acceptance_revoked"
-
-	ExpeditionEvolutionChassis    = "chassis"
-	ExpeditionEvolutionControl    = "control"
-	ExpeditionEvolutionPerception = "perception"
-	ExpeditionEvolutionDecision   = "decision"
-	ExpeditionEvolutionOperations = "operations"
-	ExpeditionEvolutionJoint      = "joint"
-)
-
 // ExpeditionProject stores only cross-group collaboration metadata. Existing
 // assignments, skills and growth records remain the source of their own data.
 type ExpeditionProject struct {

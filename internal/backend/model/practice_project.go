@@ -2,16 +2,6 @@ package model
 
 import "time"
 
-const (
-	PracticeProjectOpen      = "open"
-	PracticeProjectClosed    = "closed"
-	PracticeEntryActive      = "active"
-	PracticeEntryExitPending = "exit_pending"
-	PracticeEntryExited      = "exited"
-	PracticeReviewPassed     = "passed"
-	PracticeReviewRedo       = "needs_redo"
-)
-
 type PracticeProject struct {
 	ID          uint64    `json:"id" gorm:"primaryKey;autoIncrement"`
 	GroupID     uint64    `json:"groupId" gorm:"not null;index"`
