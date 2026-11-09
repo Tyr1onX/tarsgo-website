@@ -1,5 +1,7 @@
 # 报名系统数据库 Schema v1
 
+> 历史设计存档，不代表现行数据库结构或权限规则。当前实现以 `internal/backend/model/`、`internal/backend/database/migrations.go` 和 `internal/backend/router/router.go` 为准；旧 GitHub OAuth、技能/能力表等设计不应再用于新增功能。
+
 > 数据库：MySQL 8.0+
 > 字符集：utf8mb4
 > 引擎：InnoDB

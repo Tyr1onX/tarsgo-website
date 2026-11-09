@@ -1,10 +1,8 @@
 # 生产发布、备份与回滚
 
-生产目录为 `/opt/jijia`。正式发布只能从干净且等于最新 `origin/main` 的工作树执行：
+生产目录为 `/opt/jijia`。**正常发布由 GitHub Actions 自动执行**：PR 合并到 `main` 后，`production-ops.yml` 依次完成代码与隔离 MariaDB 验证、发布 CI 构建产物、通过 SSH 部署生产，并检查容器和 `/healthz`。PR 上只执行检查，不部署。查看状态以 [Actions](https://github.com/Tyr1onX/tarsgo-website/actions) 的实际结果为准，不能把“已合并”当作“已部署”。
 
-```bash
-./scripts/deploy-production.sh
-```
+需要人工重试时，可在已配置生产 SSH、GitHub CLI 和 Cloudflare CLI 凭据的受控环境，从干净且等于最新 `origin/main` 的工作树运行 `./scripts/deploy-production.sh`；不得在未验证的本地改动上部署。
 
 发布脚本先只读确认当前生产镜像和 release，并记录它们作为新版本的 previous_stable，再读取根分区使用率。低于 85% 时继续；达到或超过 85% 时先执行一次安全清理，清理后仍达到或超过 85% 就退出。整个发布最多执行一次安全清理：如果入口检查未触发清理，而上传 release 和业务备份后达到高水位，就在 Docker build 前用这次清理机会。安全清理仅处理可回收 Docker build cache、超过 30 天保留期的本地备份、APT cache，以及能明确识别为 current 和 previous_stable 之外的 Jijia 镜像与 release；无法明确识别回滚版本时会保留所有 Jijia 镜像和 release。它不会清理 volume、MariaDB 数据、uploads 或其他项目资源。脚本还会验证 current release 文件清单完整、SHA256 正确且镜像 tag 后缀与 release commit.txt 一致；普通发布不触发业务数据备份，仅在显式设置 `DEPLOY_REQUIRE_OFFSITE_BACKUP=1` 时，才在部署前完成本地及腾讯云异机备份与校验。
 
@@ -12,13 +10,15 @@
 
 `production-ops.yml` 在固定的 Ubuntu 24.04 runner 上安装锁定的 Node.js/pnpm 工具链、运行检查并构建 Linux amd64 后端和迁移程序。只有 `main` 的 push 在全部检查成功后，才会把名为 `tarsgo-production-release` 的 Actions artifact 交给独立发布 job；该 job 使用仅限自身的 `GITHUB_TOKEN` `contents:write` 权限，将归档和 `.sha256` 校验文件发布为 `production-artifacts` 预发布版本下的公开资产。归档包含 Dockerfile、两个二进制、完整提交 SHA 和 SHA256 清单。后续成功的 main 构建会替换这两个资产。
 
-生产脚本不调用 GitHub REST API，而是从固定的公开 Release 下载链接获取归档及其 `.sha256` 文件。脚本先校验归档 SHA256，再检查归档文件清单、每个文件的 SHA256 和完整提交 SHA；随后仍通过原有非交互式 SSH/rsync 上传到临时目录，由生产机再次校验 SHA256 后原子转正。任一资产缺失、损坏或提交不匹配时，会在生产清理、上传、迁移和版本切换前停止。
+`deploy-production.sh` 通过 `gh release download` 获取上述归档和 `.sha256` 文件，核对归档、文件清单及完整提交 SHA；随后使用 SSH/rsync 上传到生产临时目录，由生产机再次验证并原子转正。任一校验不通过均停止部署，不会切换版本。脚本在切换后还使用 Cloudflare CLI 清理公开 HTML 缓存。
 
-生产访问仍由运行脚本的受控机器通过既有 SSH alias `racknerd` 完成，GitHub Actions 不获得生产服务器凭据；发布 job 只在通过完整 CI 验证后获得仓库内容写权限，不接触生产 SSH 凭据。部署机器需要 Git、SSH、rsync、curl、tar、gzip 和带有 `Digest::SHA` 标准模块的 Perl；生产发布不再需要本机 Node.js、Corepack、pnpm、Go、Make、unzip、`sha256sum` 或 GitHub REST API 配额。
+GitHub Actions 的 `deploy-production` job **确实持有部署所需的仓库 Secrets**：`PRODUCTION_SSH_PRIVATE_KEY`、`PRODUCTION_SSH_KNOWN_HOSTS`、`PRODUCTION_SSH_TARGET`，以及 Cloudflare 的 API Token 和 Account ID。它们仅供部署 job 使用，不写入 Release 资产。部署 job 使用 Node 安装 Cloudflare CLI；实际发布使用已在 CI 构建的二进制，不会在生产机重新编译 Go 或前端。
+
+人工运行同一脚本还需要 Git、SSH、rsync、`gh`、`cf`、tar、gzip、Perl（含 `Digest::SHA`）及已授权的 CLI 凭据。`DEPLOY_TARGET` 指定生产 SSH 目标；未指定时使用本机 `racknerd` alias。
 
 ## 首次异机备份配置
 
-发布脚本首次运行时，会按本机 SSH alias `tencent` 中已保存的主机密钥配置专用备份账号、仅限备份用途的 SSH key 和接收目录。密钥由生产机生成，私钥只保存在生产机；腾讯云保存对应公钥。备份目标为 `/opt/backups/jijia`，目录仅 root 可读。之后无需额外基础设施。
+首次启用部署前强制异机备份时，若备份目标尚未配置，脚本会按 SSH alias `tencent` 中已保存的主机密钥配置专用备份账号、专用 SSH key 和接收目录。私钥仅保存在生产机，腾讯云保存公钥；备份目标为 `/opt/backups/jijia`，目录仅 root 可读。普通部署不会因此触发业务备份。
 
 主机密钥未在本机 `~/.ssh/known_hosts` 中固定时，配置会停止；先使用已有可信渠道核实并保存 Tencent 主机密钥，再重试。
 
