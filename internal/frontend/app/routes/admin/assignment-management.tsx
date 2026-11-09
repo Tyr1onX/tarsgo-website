@@ -83,10 +83,21 @@ export default function AssignmentManagementRoute() {
   const [publishCanCancel, setPublishCanCancel] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [feishuBinding, setFeishuBinding] = useState<{ accountId: number; bound: boolean; appId: string } | null>(null);
+  const [feishuPanelAccount, setFeishuPanelAccount] = useState(0);
+  const [feishuCommand, setFeishuCommand] = useState("");
+  const [feishuBusy, setFeishuBusy] = useState(false);
+  const [feishuError, setFeishuError] = useState("");
+  const [feishuNotice, setFeishuNotice] = useState("");
   const [reconcileProgress, setReconcileProgress] = useState("");
   const publishRequestID = useRef<string | null>(null);
   const activePublishCancel = useRef<(() => void) | null>(null);
   const editRequestID = useRef(0);
+  const currentAccountID = useRef(currentUser.id);
+  currentAccountID.current = currentUser.id;
+  const feishuBound = feishuBinding?.accountId === currentUser.id && feishuBinding.bound;
+  const feishuBotURL = feishuBinding?.accountId === currentUser.id && feishuBinding.appId
+    ? `https://applink.feishu.cn/client/bot/open?appId=${encodeURIComponent(feishuBinding.appId)}` : "";
   const filteredMembers = useMemo(() => filterAssignmentMembers(members, memberSearch), [members, memberSearch]);
   const selectedMembers = useMemo(() => members.filter((member) => draft.targetUserIds.includes(member.userId)), [members, draft.targetUserIds]);
   const lastTargetedAssignment = items.find((item) => !item.isGroupWide);
@@ -116,6 +127,68 @@ export default function AssignmentManagementRoute() {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [groupId, currentUser.id, view]);
+
+  useEffect(() => {
+    let active = true;
+    setFeishuBinding(null);
+    setFeishuPanelAccount(0);
+    setFeishuCommand("");
+    setFeishuError("");
+    setFeishuNotice("");
+    assignmentClient.feishuBindingStatus()
+      .then(({ bound, appId }) => { if (active) setFeishuBinding({ accountId: currentUser.id, bound, appId }); })
+      .catch(() => { if (active) setFeishuBinding({ accountId: currentUser.id, bound: false, appId: "" }); });
+    return () => { active = false; };
+  }, [currentUser.id]);
+
+  async function startFeishuBinding() {
+    const accountId = currentUser.id;
+    setFeishuPanelAccount(accountId);
+    setFeishuBusy(true);
+    setFeishuCommand("");
+    setFeishuError("");
+    setFeishuNotice("");
+    try {
+      const { code } = await assignmentClient.createFeishuLinkCode();
+      if (currentAccountID.current === accountId) setFeishuCommand(`绑定 ${code}`);
+    } catch (cause) {
+      if (currentAccountID.current === accountId) setFeishuError(cause instanceof Error ? cause.message : "生成绑定码失败");
+    } finally {
+      if (currentAccountID.current === accountId) setFeishuBusy(false);
+    }
+  }
+
+  async function copyFeishuCommand() {
+    try {
+      await navigator.clipboard.writeText(feishuCommand);
+      setFeishuNotice("已复制");
+      setFeishuError("");
+    } catch {
+      setFeishuError("复制失败，请手动选择上方命令。");
+    }
+  }
+
+  async function checkFeishuBinding() {
+    const accountId = currentUser.id;
+    setFeishuBusy(true);
+    setFeishuError("");
+    setFeishuNotice("");
+    try {
+      const { bound, appId } = await assignmentClient.feishuBindingStatus();
+      if (currentAccountID.current !== accountId) return;
+      setFeishuBinding({ accountId, bound, appId });
+      if (bound) {
+        setFeishuPanelAccount(0);
+        setFeishuCommand("");
+      } else {
+        setFeishuNotice("尚未绑定，请先在机器人私聊发送绑定命令。");
+      }
+    } catch (cause) {
+      if (currentAccountID.current === accountId) setFeishuError(cause instanceof Error ? cause.message : "检查绑定状态失败");
+    } finally {
+      if (currentAccountID.current === accountId) setFeishuBusy(false);
+    }
+  }
 
   function resetDraft(nextGroupID = groupId) {
     editRequestID.current += 1;
@@ -374,9 +447,32 @@ export default function AssignmentManagementRoute() {
         {groupsLoading ? <BrandLoader label="正在加载组别" size="sm" /> : assignmentGroups.length > 1 ? <label className="admin-field-label assignment-management__group-select">组别<select className="admin-field w-full" value={groupId} disabled={saving || publishStage !== "idle"} onChange={(event) => { const nextGroupID = Number(event.target.value); setGroupId(nextGroupID); resetDraft(nextGroupID); setSearchParams({ view }, { replace: true }); }}>
           {assignmentGroups.map((group) => <option key={group.groupId} value={group.groupId}>{group.name}</option>)}
         </select></label> : assignmentGroups[0] ? <p className="text-sm text-[var(--admin-muted)]">{assignmentGroups[0].name}</p> : null}
+        {feishuBinding?.accountId === currentUser.id ? feishuBound
+          ? <span className="text-sm text-[var(--admin-muted)]">飞书已绑定</span>
+          : <button type="button" className="admin-button admin-button--secondary" onClick={() => void startFeishuBinding()} disabled={feishuBusy}>绑定飞书</button>
+          : null}
         {!composerOpen ? <button type="button" className="admin-button admin-button--primary" onClick={() => { resetDraft(); setComposerOpen(true); setSearchParams({ view: "list" }); }} disabled={!groupId || Boolean(groupError)}>发布作业</button> : null}
         </div>
       </header>
+      {feishuPanelAccount === currentUser.id && !feishuBound ? <section className="admin-panel space-y-3 p-4 sm:p-5" aria-label="飞书账号绑定">
+        <div className="flex items-center justify-between gap-3">
+          <strong className="text-[var(--admin-text)]">绑定飞书账号</strong>
+          <button type="button" className="admin-button admin-button--quiet admin-button--small" onClick={() => setFeishuPanelAccount(0)}>收起</button>
+        </div>
+        {feishuCommand ? <>
+          <p className="text-sm text-[var(--admin-muted)]">将以下命令发送给飞书「吉甲大师作业助手」，绑定码 10 分钟内有效。</p>
+          <code className="block break-all rounded-lg bg-[var(--admin-surface-subtle)] p-3 text-sm text-[var(--admin-text)]">{feishuCommand}</code>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" className="admin-button admin-button--primary admin-button--small" onClick={() => void copyFeishuCommand()}>复制绑定命令</button>
+            {feishuBotURL ? <a className="admin-button admin-button--secondary admin-button--small" href={feishuBotURL} target="_blank" rel="noopener noreferrer">打开飞书机器人</a> : null}
+            <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={feishuBusy} onClick={() => void checkFeishuBinding()}>检查绑定状态</button>
+            <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={feishuBusy} onClick={() => void startFeishuBinding()}>重新生成</button>
+          </div>
+        </> : null}
+        {feishuBusy ? <p role="status" className="text-sm text-[var(--admin-muted)]">正在处理…</p> : null}
+        {feishuNotice ? <p role="status" className="text-sm text-[var(--admin-muted)]">{feishuNotice}</p> : null}
+        {feishuError ? <p role="alert" className="text-sm text-[var(--admin-danger)]">{feishuError}</p> : null}
+      </section> : null}
       {groupError ? <div role="alert" className="admin-notice admin-notice--error">{groupError}</div> : null}
       {error ? <div role="alert" className="admin-notice admin-notice--error">{error}</div> : null}
       {reconcileProgress ? <div role="status" aria-live="polite" className="admin-notice">{reconcileProgress}</div> : null}
