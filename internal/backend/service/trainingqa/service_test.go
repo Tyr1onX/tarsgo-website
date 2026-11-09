@@ -44,30 +44,34 @@ func expectMemberGroups(mock sqlmock.Sqlmock, userID uint64, ids ...uint64) {
 	mock.ExpectQuery(pattern).WithArgs(userID, technicalGroups[0], technicalGroups[1], technicalGroups[2], technicalGroups[3], model.UserGroupStatusActive, model.UserStatusEnabled).WillReturnRows(rows)
 }
 
-func TestTechnicalMembersCannotUseOperationsOrUnassignedGroup(t *testing.T) {
+func TestCommunityGroupAccessRejectsUnassignedTechnicalGroup(t *testing.T) {
 	db, mock := newQuestionMockGorm(t)
 	expectMemberGroups(mock, 40)
 	service := &Service{db: db}
-	_, err := service.ListMember(context.Background(), Actor{ID: 40, RoleName: model.RoleNameUser}, ListFilter{GroupID: 9})
-	assertQuestionStatus(t, err, http.StatusForbidden)
+	assertQuestionStatus(t, service.requireGroupMember(context.Background(), Actor{ID: 40, RoleName: model.RoleNameUser}, 9), http.StatusForbidden)
 }
 
-func TestRegularAdminCannotManageAnotherTechnicalGroup(t *testing.T) {
+func TestCommunityPrivateCommentRequiresOwnGroupAdmin(t *testing.T) {
 	db, mock := newQuestionMockGorm(t)
 	expectMemberGroups(mock, 8, 41)
 	service := &Service{db: db}
-	_, err := service.ListAdmin(context.Background(), Actor{ID: 8, RoleName: model.RoleNameAdmin}, ListFilter{GroupID: 42})
-	assertQuestionStatus(t, err, http.StatusForbidden)
+	groupID := uint64(42)
+	question := &model.TrainingQuestion{GroupID: &groupID, AskerID: 20, Visibility: model.TrainingQuestionPrivate}
+	if service.canCommunityComment(context.Background(), db, Actor{ID: 8, RoleName: model.RoleNameAdmin}, question) {
+		t.Fatal("admin was allowed to comment on another group's private discussion")
+	}
 }
 
-func TestSuperAdminCanManageTechnicalGroupsWithoutMembership(t *testing.T) {
+func TestCommunitySuperAdminCanModerateTechnicalGroupsWithoutMembership(t *testing.T) {
 	db, mock := newQuestionMockGorm(t)
 	pattern := `(?s)SELECT ` + regexp.QuoteMeta("`id`") + ` FROM ` + regexp.QuoteMeta("`user_groups`") + ` WHERE name IN \(\?,\?,\?,\?\) AND status = \? ORDER BY id ASC`
 	rows := sqlmock.NewRows([]string{"id"}).AddRow(2).AddRow(4).AddRow(7).AddRow(9)
 	mock.ExpectQuery(pattern).WithArgs(technicalGroups[0], technicalGroups[1], technicalGroups[2], technicalGroups[3], model.UserGroupStatusActive).WillReturnRows(rows)
 	service := &Service{db: db}
-	if err := service.requireManagerGroup(context.Background(), Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, 7); err != nil {
-		t.Fatalf("super-admin could not manage a technical group without membership: %v", err)
+	groupID := uint64(7)
+	question := &model.TrainingQuestion{GroupID: &groupID, AskerID: 20, Visibility: model.TrainingQuestionPrivate}
+	if !service.canCommunityComment(context.Background(), db, Actor{ID: 1, RoleName: model.RoleNameSuperAdmin}, question) {
+		t.Fatal("super-admin was denied a technical-group private discussion")
 	}
 }
 
@@ -86,25 +90,6 @@ func TestPrivateQuestionIsVisibleOnlyToItsAskerOrGroupAdmin(t *testing.T) {
 	expectMemberGroups(mock, 23, 41)
 	if err := service.requireVisible(context.Background(), Actor{ID: 23, RoleName: model.RoleNameAdmin}, question); err != nil {
 		t.Fatalf("same-group admin was denied private question: %v", err)
-	}
-}
-
-func TestMemberQuestionSearchIsGroupScopedAndHidesOthersPrivateQuestions(t *testing.T) {
-	db, mock := newQuestionMockGorm(t)
-	expectMemberGroups(mock, 50, 41)
-	listPattern := `(?s)SELECT training_questions\..*WHERE.*training_questions\.group_id.*training_questions\.visibility.*training_questions\.asker_id.*training_questions\.title LIKE.*training_question_posts\.body LIKE`
-	columns := []string{
-		"id", "group_id", "asker_id", "title", "body", "visibility", "is_solved", "solved_by", "solved_at", "is_faq",
-		"faq_by", "faq_at", "last_reply_at", "created_at", "updated_at", "group_name", "asker_name", "post_count",
-	}
-	mock.ExpectQuery(listPattern).WillReturnRows(sqlmock.NewRows(columns))
-	service := &Service{db: db}
-	items, err := service.ListMember(context.Background(), Actor{ID: 50, RoleName: model.RoleNameUser}, ListFilter{GroupID: 41, Keyword: "串口"})
-	if err != nil {
-		t.Fatalf("list questions: %v", err)
-	}
-	if len(items) != 0 {
-		t.Fatalf("empty search result returned %d items", len(items))
 	}
 }
 

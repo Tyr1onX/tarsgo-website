@@ -3,19 +3,14 @@ package model
 import "time"
 
 const (
-	TrainingQuestionPublic   = "public"
-	TrainingQuestionPrivate  = "private"
-	TrainingQuestionAnswer   = "answer"
-	TrainingQuestionFollowUp = "follow_up"
-	TrainingQuestionComment  = "comment"
+	TrainingQuestionPublic  = "public"
+	TrainingQuestionPrivate = "private"
+	TrainingQuestionComment = "comment"
 
 	CommunityCategoryTechnology = "technology"
 	CommunityCategoryProject    = "project"
 	CommunityCategoryExperience = "experience"
 	CommunityCategoryTeam       = "team"
-
-	TrainingQuestionGrowthSolved = "solved"
-	TrainingQuestionGrowthFAQ    = "faq"
 )
 
 type TrainingQuestion struct {
