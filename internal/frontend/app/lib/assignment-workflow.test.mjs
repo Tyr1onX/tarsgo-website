@@ -379,6 +379,21 @@ test("student submission precedes collapsible history while redo feedback stays 
   assert.match(memberAssignments, /CommunityMarkdown source=\{latestFeedback\}/);
 });
 
+test("submission deadline changes update the page without hiding server errors", () => {
+  assert.match(memberAssignments, /const \[now, setNow\] = useState\(Date\.now\)/);
+  assert.match(memberAssignments, /const remaining = new Date\(detail\.assignment\.dueAt\)\.getTime\(\) - Date\.now\(\)/);
+  assert.match(memberAssignments, /window\.setTimeout\(refresh, remaining \+ 1\)/);
+  assert.match(memberAssignments, /window\.addEventListener\("focus", refresh\)/);
+  assert.match(memberAssignments, /window\.clearTimeout\(timer\)/);
+  assert.match(memberAssignments, /\!detail\?\.submissions\.length \|\| now <= new Date\(assignment\.dueAt\)\.getTime\(\)/);
+
+  const formEnd = memberAssignments.indexOf("  ) : null;\n\n  return (");
+  const visibleError = memberAssignments.indexOf('{submissionError ? <p role="alert"');
+  const submitChoice = memberAssignments.indexOf('assignment.status === "submitted" && canSubmit ? <details');
+  assert.ok(formEnd > 0 && visibleError > formEnd && submitChoice > visibleError,
+    "Submission errors must stay outside the conditional form and before the submit action");
+});
+
 test("member actions distinguish first submission, waiting for review, redo, and completion", () => {
   assert.match(memberAssignments, /const submissionForm = canSubmit \? \(/);
   assert.match(memberAssignments, /assignment\?\.status === "needs_redo" \? "重新提交"/);
