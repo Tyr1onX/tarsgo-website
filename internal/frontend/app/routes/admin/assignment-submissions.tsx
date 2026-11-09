@@ -29,7 +29,7 @@ export function AssignmentReview({ groupId }: { groupId: number }) {
   const requestedID = Number(searchParams.get("assignmentId")) || 0;
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selectedID, setSelectedID] = useState(requestedID);
-  const [submissionFilter, setSubmissionFilter] = useState<"needsRedo" | "toReview" | "passed">("toReview");
+  const [submissionFilter, setSubmissionFilter] = useState<"toSubmit" | "toReview" | "passed">("toReview");
   const [editingReviewID, setEditingReviewID] = useState(0);
   const [reviewUploads, setReviewUploads] = useState<CommunityPendingImage[]>([]);
   const reviewUploadsRef = useRef<CommunityPendingImage[]>([]);
@@ -118,14 +118,17 @@ export function AssignmentReview({ groupId }: { groupId: number }) {
     setReviewError("");
     setError("");
     setNotice("");
+    const wasCorrection = detail?.members.some((member) => member.latestSubmission?.id === submissionID && member.latestSubmission.reviews.length > 0);
     try {
       const updated = await assignmentClient.review(submissionID, { score, decision: draft.decision, comment, files, uploadTokens });
+      const next = wasCorrection ? undefined : updated.members.find((member) => member.status === "submitted")?.latestSubmission;
       setDetail(updated);
-      setNotice("批改结果已保存。");
+      setNotice(next ? "批改已保存，已打开下一份。" : "批改结果已保存。");
       syncReviewDrafts(updated);
-      setEditingReviewID(0);
+      setSubmissionFilter("toReview");
+      setEditingReviewID(next?.id ?? 0);
       setReviewUploads([]);
-    reviewUploadsRef.current = [];
+      reviewUploadsRef.current = [];
       const refreshed = await assignmentClient.listAdmin(groupId).catch(() => null);
       if (refreshed) setAssignments(refreshed);
     } catch (cause) {
@@ -187,11 +190,10 @@ export function AssignmentReview({ groupId }: { groupId: number }) {
   const assignment = listLoaded && assignments.some((item) => item.id === selectedID) && detail?.assignment.id === selectedID
     ? detail.assignment
     : null;
-  const pendingMembers = detail?.members.filter((member) => member.status === "pending" || member.status === "overdue") ?? [];
-  const needsRedo = detail?.members.filter((member) => member.status === "needs_redo") ?? [];
+  const toSubmit = detail?.members.filter((member) => member.status === "pending" || member.status === "overdue" || member.status === "needs_redo") ?? [];
   const toReview = detail?.members.filter((member) => member.status === "submitted") ?? [];
   const passed = detail?.members.filter((member) => member.status === "passed") ?? [];
-  const visibleMembers = submissionFilter === "needsRedo" ? needsRedo : submissionFilter === "toReview" ? toReview : passed;
+  const visibleMembers = submissionFilter === "toSubmit" ? toSubmit : submissionFilter === "toReview" ? toReview : passed;
 
   return (
     <section className="space-y-5" aria-label="批改中心">
@@ -209,15 +211,11 @@ export function AssignmentReview({ groupId }: { groupId: number }) {
           <span>截止 {formatAssignmentDate(assignment.dueAt)}</span>
           <span>{assignment.isGroupWide ? "全组实时接收" : "指定成员"} · 接收 {assignment.targetCount} 人</span>
         </section>
-        {pendingMembers.length > 0 ? <details className="admin-panel px-4 py-3 text-sm">
-          <summary className="cursor-pointer text-[var(--admin-muted)]">未提交 {pendingMembers.length} 人</summary>
-          <ul className="mt-3 flex flex-wrap gap-3 text-[var(--admin-text)]">{pendingMembers.map((member) => <li key={member.userId}>{member.name}{member.status === "overdue" ? "（逾期）" : ""}</li>)}</ul>
-        </details> : null}
-        <section className="admin-panel divide-y divide-[var(--admin-border-subtle)] p-4 sm:p-5" aria-label="成员提交情况">
+         <section className="admin-panel divide-y divide-[var(--admin-border-subtle)] p-4 sm:p-5" aria-label="成员提交情况">
           {detail && detail.members.length > 0 ? <div className="grid grid-cols-3 gap-2 pb-4" role="group" aria-label="成员进度筛选">
             {([
+              { value: "toSubmit", label: "待提交（含返修）", count: toSubmit.length },
               { value: "toReview", label: "待批改", count: toReview.length },
-              { value: "needsRedo", label: "已退回", count: needsRedo.length },
               { value: "passed", label: "已通过", count: passed.length },
             ] as const).map(({ value, label, count }) => <button key={value} type="button"
               className={`rounded-xl border px-3 py-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 ${submissionFilter === value ? "border-[var(--admin-text)] bg-[var(--admin-surface-subtle)]" : "border-[var(--admin-border-subtle)] bg-[var(--admin-surface)] hover:border-[var(--admin-hover-border)]"}`}
@@ -226,7 +224,7 @@ export function AssignmentReview({ groupId }: { groupId: number }) {
               <strong className="mt-1 block text-2xl tabular-nums text-[var(--admin-text)]">{count}</strong>
             </button>)}
           </div> : null}
-          {detail && visibleMembers.length === 0 ? <p role="status" className="py-3 text-sm text-[var(--admin-muted)]">{detail.members.length === 0 ? "该作业当前没有分配成员。" : submissionFilter === "needsRedo" ? "当前没有已退回的提交。" : submissionFilter === "toReview" ? "当前没有待批改的提交。" : "当前没有已通过的成员。"}</p> : null}
+          {detail && visibleMembers.length === 0 ? <p role="status" className="py-3 text-sm text-[var(--admin-muted)]">{detail.members.length === 0 ? "该作业当前没有分配成员。" : submissionFilter === "toSubmit" ? "当前没有待提交或返修的成员。" : submissionFilter === "toReview" ? "当前没有待批改的提交。" : "当前没有已通过的成员。"}</p> : null}
           {visibleMembers.map((member) => {
             const latest = member.latestSubmission;
             const lastReview = latest?.reviews.at(-1);
@@ -289,7 +287,7 @@ export function AssignmentReview({ groupId }: { groupId: number }) {
                 {active ? <div className="mt-4 rounded-xl border border-[var(--admin-border)] bg-[var(--admin-surface-subtle)] p-3 sm:p-4">
                   <div className="grid gap-3 sm:grid-cols-[minmax(110px,0.35fr)_minmax(160px,0.65fr)]">
                     <label className="admin-field-label">评分
-                      <input className={fieldClass} type="number" min={0} max={100} step={1} inputMode="numeric" placeholder="0–100" value={draftFor(latest.id).score} onChange={(event) => updateDraft(latest.id, { score: event.target.value })} disabled={savingID !== 0} />
+                      <input autoFocus className={fieldClass} type="number" min={0} max={100} step={1} inputMode="numeric" placeholder="0–100" value={draftFor(latest.id).score} onChange={(event) => updateDraft(latest.id, { score: event.target.value })} disabled={savingID !== 0} />
                     </label>
                     <label className="admin-field-label">结果
                       <select className="admin-field w-full" value={draftFor(latest.id).decision} onChange={(event) => updateDraft(latest.id, { decision: event.target.value as "passed" | "needs_redo" })} disabled={savingID !== 0}>
