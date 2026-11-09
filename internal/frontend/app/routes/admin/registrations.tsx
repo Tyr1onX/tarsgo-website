@@ -96,7 +96,7 @@ export default function Registrations() {
       : initialStatus,
     preferredGroupId: "",
     interviewAttendance: interviewWorkbench ? "attending" : "",
-    interviewDate: interviewWorkbench ? getShanghaiDate() : "",
+    interviewDate: "",
     interviewSessionLabel: "",
     interviewResult: interviewWorkbench && initialInterviewQueue === "processed" ? "processed" : "",
     formId: Number.isSafeInteger(initialFormId) && initialFormId > 0 ? initialFormId : "",
@@ -151,7 +151,7 @@ export default function Registrations() {
     let cancelled = false;
     setLoading(true);
     setListError(false);
-    listAdminRegistrations(query)
+    listAdminRegistrations(interviewWorkbench && !query.interviewDate ? { ...query, interviewDate: getShanghaiDate() } : query)
       .then((result) => {
         if (cancelled) return;
         setItems(result.items);
@@ -175,7 +175,7 @@ export default function Registrations() {
     return () => {
       cancelled = true;
     };
-  }, [query, refreshToken]);
+  }, [query, refreshToken, interviewWorkbench]);
 
   useEffect(() => {
     if (!interviewWorkbench) return;
@@ -184,11 +184,9 @@ export default function Registrations() {
     };
     const timer = window.setInterval(refreshWhenVisible, 30_000);
     window.addEventListener("focus", refreshWhenVisible);
-    document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
       window.clearInterval(timer);
       window.removeEventListener("focus", refreshWhenVisible);
-      document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, [interviewWorkbench]);
 
@@ -422,7 +420,7 @@ export default function Registrations() {
       status: queue === "pending" ? "pending_interview" : "",
       interviewResult: queue === "processed" ? "processed" : "",
       interviewAttendance: current.interviewAttendance || "attending",
-      interviewDate: current.interviewDate || getShanghaiDate(),
+      interviewDate: current.interviewDate,
     }));
     setSearchParams((current) => {
       const next = new URLSearchParams(current);
@@ -647,7 +645,7 @@ export default function Registrations() {
         </select>
         <input
           type="date"
-          value={query.interviewDate ?? ""}
+          value={query.interviewDate || getShanghaiDate()}
           onChange={(event) => setQuery((current) => ({ ...current, page: 1, interviewDate: event.target.value }))}
           className="admin-field"
           aria-label="面试日期"

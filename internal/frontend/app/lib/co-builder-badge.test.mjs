@@ -82,8 +82,9 @@ test("workbench unlock notice reuses the current SVG and confirms only after dis
   assert.match(unlockToast, /onClick=\{onOpenProfile\}/);
   assert.match(client, /POST[\s\S]*?\/api\/me\/co-builder-badge\/unlock-notice/);
   assert.match(client, /\/api\/me\/co-builder-badge\/unlock-notice\/seen/);
-  assert.match(router, /authenticatedAPI\.POST\("\/me\/co-builder-badge\/unlock-notice", requireSameOriginRequest\(cfg\)/);
-  assert.match(router, /authenticatedAPI\.POST\("\/me\/co-builder-badge\/unlock-notice\/seen", requireSameOriginRequest\(cfg\)/);
+  assert.match(router, /authenticatedAPI\.Use\(middleware\.RequireAuthenticated\(authService\), requireSameOriginRequest\(cfg\)\)/);
+  assert.match(router, /authenticatedAPI\.POST\("\/me\/co-builder-badge\/unlock-notice", coBuilderBadgeHandler\.ClaimUnlock\)/);
+  assert.match(router, /authenticatedAPI\.POST\("\/me\/co-builder-badge\/unlock-notice\/seen"/);
 });
 
 test("unlock notice timing, responsive placement, and reduced motion are defined in native CSS", () => {

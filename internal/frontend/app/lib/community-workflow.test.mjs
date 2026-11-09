@@ -332,8 +332,8 @@ test("contribution editing is removed from community profiles and remains in acc
 test("featured state is server-gated, independently audited, visible throughout community content, and does not change sorting", () => {
   assert.match(client, /setPostFeatured:[\s\S]*?\/api\/admin\/community\/posts\/\$\{id\}\/featured/);
   assert.match(client, /setReplyFeatured:[\s\S]*?\/api\/admin\/community\/replies\/\$\{id\}\/featured/);
-  assert.match(router, /superAdminAPI\.PUT\("\/community\/posts\/:id\/featured", requireSameOriginRequest\(cfg\)/);
-  assert.match(router, /superAdminAPI\.DELETE\("\/community\/replies\/:id\/featured", requireSameOriginRequest\(cfg\)/);
+  assert.match(router, /superAdminAPI\.PUT\("\/community\/posts\/:id\/featured"/);
+  assert.match(router, /superAdminAPI\.DELETE\("\/community\/replies\/:id\/featured"/);
   assert.match(service, /actor\.RoleName != model\.RoleNameSuperAdmin/);
   assert.match(service, /Update\("is_featured", featured\)/);
   assert.doesNotMatch(service.slice(service.indexOf("func (s *Service) ListCommunity"), service.indexOf("func (s *Service) HotCommunityPosts")), /Order\([^\n]*is_featured/);
@@ -406,8 +406,8 @@ test("community layout follows workbench themes and adapts its reading layout", 
 });
 
 test("mutations are authenticated and reaction uniqueness prevents duplicate counts", () => {
-  assert.match(router, /authenticatedAPI\.Use\(middleware\.RequireAuthenticated\(authService\)\)/);
-  assert.match(router, /communityAPI\.POST\("\/posts", requireSameOriginRequest/);
+  assert.match(router, /authenticatedAPI\.Use\(middleware\.RequireAuthenticated\(authService\), requireSameOriginRequest\(cfg\)\)/);
+  assert.match(router, /communityAPI\.POST\("\/posts"/);
   assert.match(handler, /currentCommunityActor\(c\)/);
   assert.match(service, /clause\.OnConflict\{DoNothing: true\}/);
   assert.match(model, /type CommunityPostReaction struct/);
@@ -477,7 +477,7 @@ test("member profiles reuse community permissions, XP, and public badge records"
   const memberService = await source("../../../backend/service/trainingqa/community_member_profile.go");
   const badgeProjection = await source("../../../backend/service/cobuilderbadge/public.go");
   assert.match(router, /communityAPI\.GET\("\/members\/:id", communityHandler\.GetMemberProfile\)/);
-  assert.match(router, /communityAPI\.PUT\("\/me\/profile", requireSameOriginRequest/);
+  assert.match(router, /communityAPI\.PUT\("\/me\/profile"/);
   assert.match(memberProfileClient, /\/api\/community\/members\/\$\{memberID\}/);
   assert.match(memberService, /s\.communityPostQuery\(ctx, actor\)/);
   assert.match(memberService, /CommunityLevelForXP\(totalXP\)/);

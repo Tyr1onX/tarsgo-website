@@ -47,7 +47,8 @@ test("identity remains independent of account roles and organization membership"
   assert.match(update, /IsTeamIdentityStatus\(input\.Status\)/);
   assert.doesNotMatch(`${backendRepository}\n${backendAdmin}\n${backendHandler}`, /TeamIdentityChange|team_identity_changes|TeamIdentityHistory|AssessmentPassed|LeaderConfirmed|PriorFormalMembershipConfirmed|Reason/);
   assert.doesNotMatch(update, /UpdateUserGroup|UpdateUser\(|RoleID|GroupMembers|XP/);
-  assert.match(router, /superAdminAPI\.PATCH\("\/users\/:id\/team-identity", requireSameOriginRequest\(cfg\), adminUserHandler\.UpdateTeamIdentity\)/);
+  assert.match(router, /adminAPI\.Use\(middleware\.RequireAdmin\(authService\), requireSameOriginRequest\(cfg\)\)/);
+  assert.match(router, /superAdminAPI\.PATCH\("\/users\/:id\/team-identity", adminUserHandler\.UpdateTeamIdentity\)/);
 });
 
 test("super-admin account management saves only the selected identity status", () => {
