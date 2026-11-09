@@ -41,8 +41,7 @@ const ASSIGNMENT_MENU_ITEM: DashboardMenuLink = {
   iconKey: "report",
 };
 
-const TECHNICAL_GROUP_NAMES = new Set(["机械组", "电控组", "视觉组", "AI组"]);
-const ASSIGNMENT_GROUP_NAMES = new Set([...TECHNICAL_GROUP_NAMES, "运营组"]);
+const ASSIGNMENT_GROUP_NAMES = new Set(["机械组", "电控组", "视觉组", "AI组", "运营组"]);
 
 const DASHBOARD_SECTION_MENU: readonly DashboardMenuLink[] = [
   { key: "community", label: "社区", href: "/dashboard", iconKey: "community" },
@@ -103,10 +102,6 @@ export function hasOperationsWorkManualAccess(userOrRole: AuthUser | string, gro
   return roleName === "super_admin" || Boolean(groups?.some((group) => group.name === "运营组"));
 }
 
-export function isTechnicalGroupName(name: string) {
-  return TECHNICAL_GROUP_NAMES.has(name);
-}
-
 export function hasAssignmentGroupAccess(groups: readonly { name: string }[] | null | undefined) {
   return Boolean(groups?.some((group) => ASSIGNMENT_GROUP_NAMES.has(group.name)));
 }
@@ -131,10 +126,6 @@ function getAccessibleAdminPaths(roleName: string, hasAssignmentGroup = false) {
   const paths = getAccessibleAdminMenu(roleName, hasAssignmentGroup).flatMap(({ children }) => children.map(({ href }) => href));
   if (["admin", "super_admin"].includes(roleName)) paths.push("/dashboard/admin/leave");
   return paths;
-}
-
-export function hasTechnicalGroupAccess(groups: readonly { name: string }[] | null | undefined) {
-  return Boolean(groups?.some(({ name }) => isTechnicalGroupName(name)));
 }
 
 export function getUserDashboardMenu(userOrRole: AuthUser | string, hasAssignmentGroup = false): DashboardMenuLink[] {

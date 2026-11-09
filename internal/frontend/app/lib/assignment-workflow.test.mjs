@@ -29,7 +29,7 @@ test("workbench exposes assignments to all five supported groups", () => {
   assert.match(assignmentManagement, /作业列表<\/button>/);
   assert.match(navigation, /if \(pathname === "\/dashboard\/admin\/training\/submissions"\)/);
   assert.doesNotMatch(navigation, /key: "assignment-submissions"/);
-  assert.match(navigation, /const ASSIGNMENT_GROUP_NAMES = new Set\(\[\.\.\.TECHNICAL_GROUP_NAMES, "运营组"\]\)/);
+  assert.match(navigation, /const ASSIGNMENT_GROUP_NAMES = new Set\(\["机械组", "电控组", "视觉组", "AI组", "运营组"\]\)/);
   assert.match(navigation, /!item\.requiresAssignmentGroup \|\| roleName === "super_admin" \|\| hasAssignmentGroup/);
   assert.match(layout, /pathname === "\/dashboard\/assignments" && !hasAssignmentGroup/);
   assert.match(layout, /canAccessDashboardAdminPath\(currentUser, pathname, hasAssignmentGroup\)/);

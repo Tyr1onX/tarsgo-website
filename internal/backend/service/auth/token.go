@@ -27,37 +27,6 @@ type Claims struct {
 	IssuedAt  int64  `json:"iat"`
 }
 
-type tokenHeader struct {
-	Algorithm string `json:"alg"`
-	Type      string `json:"typ"`
-}
-
-func SignToken(secret string, claims Claims) (string, error) {
-	headerJSON, err := json.Marshal(tokenHeader{
-		Algorithm: "HS256",
-		Type:      "JWT",
-	})
-	if err != nil {
-		return "", fmt.Errorf("marshal token header: %w", err)
-	}
-
-	claimsJSON, err := json.Marshal(claims)
-	if err != nil {
-		return "", fmt.Errorf("marshal token claims: %w", err)
-	}
-
-	headerEncoded := encodeSegment(headerJSON)
-	claimsEncoded := encodeSegment(claimsJSON)
-	signingInput := headerEncoded + "." + claimsEncoded
-
-	signature, err := signHS256(signingInput, secret)
-	if err != nil {
-		return "", err
-	}
-
-	return signingInput + "." + signature, nil
-}
-
 func ParseToken(secret string, token string) (*Claims, error) {
 	segments := strings.Split(token, ".")
 	if len(segments) != 3 {

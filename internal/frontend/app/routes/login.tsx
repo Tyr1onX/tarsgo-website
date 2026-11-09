@@ -188,7 +188,7 @@ export default function Login() {
                 <span className="auth-saved-account__status">
                   {account.current ? "当前账号" : account.status === "available" ? "可切换" : account.status === "disabled" ? "账号已停用" : "会话已失效"}
                 </span>
-                {account.status === "available" ? <button type="button" onClick={() => void handleSwitchSavedAccount(account.id)} disabled={account.current || switchingAccountId != null} className="auth-saved-account__action">{account.current ? "当前" : switchingAccountId === account.id ? "切换中…" : "切换"}</button> : account.status === "disabled" ? null : <Link className="auth-saved-account__action" to={reauthPath(account.user.email, redirectTo, addingAccount)}>重新验证</Link>}
+                {account.status === "available" ? <button type="button" onClick={() => void handleSwitchSavedAccount(account.id)} disabled={account.current || switchingAccountId != null} className="auth-saved-account__action">{account.current ? "当前" : switchingAccountId === account.id ? "切换中…" : "切换"}</button> : account.status === "disabled" ? null : <Link className="auth-saved-account__action" to={reauthPath(account.user.email, redirectTo)}>重新验证</Link>}
               </div>
             ))}
           </div>
@@ -290,7 +290,7 @@ export default function Login() {
   );
 }
 
-function reauthPath(email: string, redirectTo: string, addingAccount: boolean) {
+function reauthPath(email: string, redirectTo: string) {
   const params = new URLSearchParams({ email, addAccount: "1" });
   if (redirectTo) params.set("redirect", redirectTo);
   params.set("reauth", "1");

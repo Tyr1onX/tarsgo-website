@@ -10,7 +10,7 @@ import {
   useState,
 } from "react";
 import { createPortal } from "react-dom";
-import { redirect, useOutletContext, useRevalidator } from "react-router";
+import { redirect, useRevalidator } from "react-router";
 import { Icon, type IconifyIcon } from "@iconify/react";
 import alertTriangle from "@iconify-icons/lucide/alert-triangle";
 import x from "@iconify-icons/lucide/x";
@@ -21,14 +21,12 @@ import shieldCheckIcon from "@iconify-icons/lucide/shield-check";
 import infoIcon from "@iconify-icons/lucide/info";
 import fileTextIcon from "@iconify-icons/lucide/file-text";
 import clipboardListIcon from "@iconify-icons/lucide/clipboard-list";
-import circleSlashIcon from "@iconify-icons/lucide/circle-slash-2";
 import arrowRightIcon from "@iconify-icons/lucide/arrow-right";
 import loaderIcon from "@iconify-icons/lucide/loader-2";
 import checkIcon from "@iconify-icons/lucide/check";
 import paperclipIcon from "@iconify-icons/lucide/paperclip";
 
 import type { Route } from "./+types/registrations";
-import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import type { ApiEnvelope } from "~/lib/api-client";
 import { ApiError, buildApiUrl } from "~/lib/api-client";
 import { Notify } from "~/components/notify";
@@ -100,7 +98,6 @@ clientLoader.hydrate = true;
 export default function UserRegistrations({
   loaderData,
 }: Route.ComponentProps) {
-  const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
   const { revalidate } = useRevalidator();
   const [pageData, setPageData] = useState<RecruitmentPageData>(loaderData);
   const initialFormValues = useMemo(
