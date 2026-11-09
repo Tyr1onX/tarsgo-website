@@ -72,7 +72,7 @@ test("background refresh retains existing community data without a loading banne
   const thread = await read("../routes/dashboard/community-post.tsx");
   assert.match(thread, /if \(loading && detail\?\.post\.id !== postID\)/);
   assert.doesNotMatch(thread, /if \(loading\) return/);
-  assert.match(feed, /visibleLoading && visiblePosts\.length === 0 \? <div[^>]*><BrandLoader/);
+  assert.match(feed, /visibleLoading && visiblePosts\.length === 0 \? <div className="community-post-list content-skeleton"/);
   assert.doesNotMatch(feed, /正在同步最新内容/);
   assert.doesNotMatch(workbench, /正在同步最新状态…/);
 });

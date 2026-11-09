@@ -19,6 +19,17 @@ test("account list uses ten-row server pagination and keeps the search server-ba
   assert.match(page, /onClick=\{\(\) => void loadAccounts\(page \+ 1\)\}[\s\S]*?>下一页<\/button>/);
 });
 
+test("account cold loading preserves table columns without fake zero totals", () => {
+  assert.match(page, /loading && items\.length === 0 && summary\.total === 0/);
+  assert.match(page, /" content-skeleton"/);
+  assert.match(page, /role=\{loading && items\.length === 0 \? "status" : undefined\}/);
+  assert.match(page, /正在加载账号列表/);
+  assert.match(page, /loading && items\.length === 0 \? \[0, 1, 2, 3, 4\]\.map/);
+  assert.match(page, /: items\.map\(\(item\) => \(/);
+  assert.equal([...page.matchAll(/<table className="admin-table admin-users__table">/g)].length, 1);
+  assert.match(styles, /\.content-skeleton \{\s*animation: content-skeleton-appear 0s 300ms both/);
+});
+
 test("account table stays compact and opens full details from the member name", () => {
   const start = page.indexOf('<table className="admin-table admin-users__table">');
   const end = page.indexOf("</table>", start);
@@ -81,5 +92,5 @@ test("account filters, key metrics, group distribution, and create action have d
   assert.match(page, /summary\.pending \+ summary\.cleanupPending/);
   assert.match(page, /<details className="admin-users__distribution">/);
   assert.match(page, /className="admin-page-header admin-users__header"[\s\S]*?新建账号/);
-  assert.doesNotMatch(page.slice(page.indexOf('className="admin-filter-panel"'), page.indexOf('className="admin-users__table-wrap"')), /新建账号/);
+  assert.doesNotMatch(filterPanel, /新建账号/);
 });
