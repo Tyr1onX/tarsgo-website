@@ -35,6 +35,15 @@ test("workbench's current interview date uses Asia/Shanghai at day boundaries", 
   assert.equal(getShanghaiDate(new Date("2026-10-12T16:00:00Z")), "2026-10-13");
 });
 
+test("interview refresh follows today without overriding a selected historical date or double-listening to return events", () => {
+  assert.match(registrationsRoute, /interviewDate: "",/);
+  assert.match(registrationsRoute, /listAdminRegistrations\(interviewWorkbench && !query\.interviewDate \? \{ \.\.\.query, interviewDate: getShanghaiDate\(\) \} : query\)/);
+  assert.match(registrationsRoute, /value=\{query\.interviewDate \|\| getShanghaiDate\(\)\}/);
+  assert.match(registrationsRoute, /interviewDate: current\.interviewDate,/);
+  assert.match(registrationsRoute, /window\.addEventListener\("focus", refreshWhenVisible\)/);
+  assert.doesNotMatch(registrationsRoute, /document\.addEventListener\("visibilitychange", refreshWhenVisible\)/);
+});
+
 test("workbench shows enabled sessions from today through the next 14 days in local schedule order", () => {
   const sessions = [
     { id: 1, date: "2026-10-05", label: "上午", startTime: "09:00", endTime: "10:00", enabled: true },

@@ -162,6 +162,27 @@ func TestMariaDBWorkbenchBoundaryAndCommunityAPIs(t *testing.T) {
 		expect(request(route.Method, path, []byte(`{}`), "application/json", 2), 403)
 	}
 	expect(request("GET", "/api/admin/users", nil, "", 6), 403)
+	// Read access stays unchanged; mutating routes reject requests without a trusted Origin.
+	for _, item := range []struct {
+		method, path string
+		actor, want  int
+	}{
+		{"GET", "/api/admin/users", 7, 200},
+		{"GET", "/api/community/posts", 2, 200},
+		{"POST", "/api/admin/users", 7, 403},
+		{"POST", "/api/admin/registrations/1/interview", 6, 403},
+		{"PATCH", "/api/recruitment/registrations/1", 2, 403},
+		{"POST", "/api/community/posts", 2, 403},
+	} {
+		req := httptest.NewRequest(item.method, "http://workbench.test"+item.path, bytes.NewReader([]byte(`{}`)))
+		req.AddCookie(&http.Cookie{Name: cfg.Auth.CookieName, Value: tokens[item.actor]})
+		w := httptest.NewRecorder()
+		engine.ServeHTTP(w, req)
+		if w.Code != item.want || (item.want == http.StatusForbidden && !strings.Contains(w.Body.String(), "请求来源校验失败")) {
+			t.Fatalf("%s %s without Origin: status=%d body=%s", item.method, item.path, w.Code, w.Body.String())
+		}
+	}
+	expect(request("GET", "/api/admin/users", nil, "", 7), 200)
 	expect(request("GET", "/api/community/posts", nil, "", 2), 200)
 	expect(request("GET", fmt.Sprintf("/api/community/members/%d", users[0].ID), nil, "", 2), 200)
 	expect(request("GET", "/api/leave/profile", nil, "", 2), 200)

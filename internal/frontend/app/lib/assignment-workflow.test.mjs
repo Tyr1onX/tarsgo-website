@@ -49,7 +49,7 @@ test("assignment member options are not cleared by unrelated loader revalidation
 
 test("backend applies role, current group, target, and ownership checks to every operation", () => {
   assert.match(backendRoutes, /assignmentMemberAPI\.Use\(middleware\.RequireAuthenticated\(authService\), middleware\.RequireWorkbench\(\)\)/);
-  assert.match(backendRoutes, /adminAPI\.Use\(middleware\.RequireAdmin\(authService\)\)[\s\S]*?adminAPI\.POST\("\/assignments"/);
+  assert.match(backendRoutes, /adminAPI\.Use\(middleware\.RequireAdmin\(authService\), requireSameOriginRequest\(cfg\)\)[\s\S]*?adminAPI\.POST\("\/assignments"/);
   assert.match(assignmentService, /user_groups\.name IN \? AND user_groups\.status = \? AND users\.status = \?/);
   assert.match(assignmentService, /JOIN roles ON roles\.id = users\.role_id[\s\S]*?roles\.name = \?"/);
   assert.match(assignmentService, /user_group_members\.user_id = \? AND user_groups\.name IN \?/);
@@ -81,7 +81,7 @@ test("successful publishing remains visible if the following list refresh fails"
 });
 
 test("new assignments with teaching materials publish atomically and retry idempotently", () => {
-  assert.match(backendRoutes, /adminAPI\.POST\("\/assignments\/publish", requireSameOriginRequest\(cfg\), assignmentHandler\.PublishWithMaterials\)/);
+  assert.match(backendRoutes, /adminAPI\.POST\("\/assignments\/publish", assignmentHandler\.PublishWithMaterials\)/);
   assert.match(assignmentService, /func \(s \*Service\) CreateWithMaterialFiles/);
   assert.ok(assignmentService.includes('Where("publish_request_id = ?", requestID)'));
   assert.match(assignmentService, /storedPaths = append\(storedPaths, stored\.storagePath\)/);
@@ -208,8 +208,8 @@ test("Bitable repair syncs each authorized member history in a bounded sequentia
 });
 
 test("assignment lifecycle retains history, blocks submissions after withdrawal, and guards deletion", () => {
-  assert.match(backendRoutes, /adminAPI\.PATCH\("\/assignments\/:id\/status", requireSameOriginRequest\(cfg\), assignmentHandler\.SetPublicationStatus\)/);
-  assert.match(backendRoutes, /adminAPI\.DELETE\("\/assignments\/:id", requireSameOriginRequest\(cfg\), assignmentHandler\.Delete\)/);
+  assert.match(backendRoutes, /adminAPI\.PATCH\("\/assignments\/:id\/status", assignmentHandler\.SetPublicationStatus\)/);
+  assert.match(backendRoutes, /adminAPI\.DELETE\("\/assignments\/:id", assignmentHandler\.Delete\)/);
   assert.match(assignmentService, /func \(s \*Service\) SetPublicationStatus/);
   assert.match(assignmentService, /func \(s \*Service\) Delete/);
   assert.match(assignmentService, /func requireMemberAssignmentPublished\(item model\.Assignment\) error \{[\s\S]*?notFound\("作业不存在"\)/);
@@ -353,7 +353,7 @@ test("assignment management lists current work before opening the editor", () =>
 
 test("Feishu binding is completed from assignment management without a second account state", () => {
   assert.match(backendRoutes, /adminAPI\.GET\("\/integrations\/feishu\/binding-status", feishuReviewHandler\.FeishuBindingStatus\)/);
-  assert.match(backendRoutes, /adminAPI\.POST\("\/integrations\/feishu\/link-code", requireSameOriginRequest\(cfg\), feishuReviewHandler\.FeishuLinkCode\)/);
+  assert.match(backendRoutes, /adminAPI\.POST\("\/integrations\/feishu\/link-code", feishuReviewHandler\.FeishuLinkCode\)/);
   assert.match(assignmentClient, /feishuBindingStatus: \(\) => apiRequest/);
   assert.match(assignmentClient, /createFeishuLinkCode: \(\) => apiRequest/);
   assert.match(assignmentManagement, /assignmentClient\.feishuBindingStatus\(\)/);
