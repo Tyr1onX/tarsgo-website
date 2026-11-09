@@ -424,6 +424,13 @@ test("community extends training Q&A storage and keeps migration additive", () =
   assert.doesNotMatch(migration, /DELETE\s+|DROP\s+/i);
 });
 
+test("focus and visibility events reuse the ongoing growth request without losing explicit refreshes", async () => {
+  const host = await source("../components/community-experience-toast-host.tsx");
+  assert.match(host, /const syncWhenVisible = \(\) => \{\s+if \(document\.visibilityState === "visible" && !requestRunningRef\.current\)/);
+  assert.match(host, /if \(requestRunningRef\.current\) \{\s+refreshQueuedRef\.current = true/);
+  assert.match(host, /subscribeToCommunityExperienceRefresh\(\(\) => \{ void refresh\(\); \}\)/);
+});
+
 test("community growth shows Beijing check-ins, author levels, and idempotent interaction rewards", async () => {
   const growthService = service + await source("../../../backend/service/trainingqa/community_growth.go");
   const growthToast = await source("../components/community-experience-toast-host.tsx");
