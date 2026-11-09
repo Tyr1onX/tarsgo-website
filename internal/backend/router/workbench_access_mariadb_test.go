@@ -57,6 +57,11 @@ func TestMariaDBWorkbenchBoundaryAndCommunityAPIs(t *testing.T) {
 		if err := db.Create(&group).Error; err != nil {
 			t.Fatal(err)
 		}
+		if kind == "disabled" {
+			if err := db.Model(&group).UpdateColumn("status", model.UserGroupStatusDisabled).Error; err != nil {
+				t.Fatal(err)
+			}
+		}
 		groups[kind] = group
 	}
 	tests := []struct {

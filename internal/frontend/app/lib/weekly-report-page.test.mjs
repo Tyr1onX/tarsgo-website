@@ -27,7 +27,7 @@ test("team submission names load only after a permitted leader expands the discl
   assert.match(route, /teamExpanded \? <>[\s\S]*?teamWeek\.members\.map/);
   assert.match(route, /teamWeek\.members\.map\(\(member\)/);
   assert.match(repository, /users\.status = \? AND users\.last_login_at >= \?/);
-  assert.match(service, /adminuser\.AccountActivityCutoff\(s\.now\(\)\)/);
+  assert.match(service, /model\.AccountActivityCutoff\(s\.now\(\)\)/);
 });
 
 test("team history choices come from stored weeks and arbitrary weeks are rejected server-side", () => {
