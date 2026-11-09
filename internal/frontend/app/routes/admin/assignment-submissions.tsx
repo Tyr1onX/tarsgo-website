@@ -125,12 +125,11 @@ export function AssignmentReview({ groupId }: { groupId: number }) {
       setDetail(updated);
       setNotice(next ? "批改已保存，已打开下一份。" : "批改结果已保存。");
       syncReviewDrafts(updated);
-      setSubmissionFilter("toReview");
+      if (!wasCorrection) setSubmissionFilter("toReview");
       setEditingReviewID(next?.id ?? 0);
       setReviewUploads([]);
       reviewUploadsRef.current = [];
-      const refreshed = await assignmentClient.listAdmin(groupId).catch(() => null);
-      if (refreshed) setAssignments(refreshed);
+      void assignmentClient.listAdmin(groupId).then(setAssignments).catch(() => {});
     } catch (cause) {
       setReviewError(cause instanceof Error ? cause.message : "保存批改结果失败");
     } finally {
