@@ -133,13 +133,32 @@ export default function AssignmentManagementRoute() {
     setFeishuBinding(null);
     setFeishuPanelAccount(0);
     setFeishuCommand("");
+    setFeishuBusy(false);
     setFeishuError("");
     setFeishuNotice("");
     assignmentClient.feishuBindingStatus()
       .then(({ bound, appId }) => { if (active) setFeishuBinding({ accountId: currentUser.id, bound, appId }); })
-      .catch(() => { if (active) setFeishuBinding({ accountId: currentUser.id, bound: false, appId: "" }); });
+      .catch((cause: unknown) => { if (active) setFeishuError(cause instanceof Error ? cause.message : "获取飞书状态失败"); });
     return () => { active = false; };
   }, [currentUser.id]);
+
+  // Check the actual website binding when the administrator returns from Feishu.
+  // Focus and visibility events cover both the desktop client and mobile app.
+  useEffect(() => {
+    if (feishuPanelAccount !== currentUser.id || !feishuCommand) return;
+    let checking = false;
+    const onReturn = () => {
+      if (checking || document.visibilityState !== "visible") return;
+      checking = true;
+      void checkFeishuBinding(true).finally(() => { checking = false; });
+    };
+    window.addEventListener("focus", onReturn);
+    document.addEventListener("visibilitychange", onReturn);
+    return () => {
+      window.removeEventListener("focus", onReturn);
+      document.removeEventListener("visibilitychange", onReturn);
+    };
+  }, [currentUser.id, feishuPanelAccount, feishuCommand]);
 
   async function startFeishuBinding() {
     const accountId = currentUser.id;
@@ -161,18 +180,18 @@ export default function AssignmentManagementRoute() {
   async function copyFeishuCommand() {
     try {
       await navigator.clipboard.writeText(feishuCommand);
-      setFeishuNotice("已复制");
+      setFeishuNotice("命令已复制，在机器人私聊粘贴发送即可。");
       setFeishuError("");
     } catch {
       setFeishuError("复制失败，请手动选择上方命令。");
     }
   }
 
-  async function checkFeishuBinding() {
+  async function checkFeishuBinding(silent = false) {
     const accountId = currentUser.id;
-    setFeishuBusy(true);
+    if (!silent) setFeishuBusy(true);
     setFeishuError("");
-    setFeishuNotice("");
+    if (!silent) setFeishuNotice("");
     try {
       const { bound, appId } = await assignmentClient.feishuBindingStatus();
       if (currentAccountID.current !== accountId) return;
@@ -180,13 +199,14 @@ export default function AssignmentManagementRoute() {
       if (bound) {
         setFeishuPanelAccount(0);
         setFeishuCommand("");
-      } else {
+        setFeishuNotice("");
+      } else if (!silent) {
         setFeishuNotice("尚未绑定，请先在机器人私聊发送绑定命令。");
       }
     } catch (cause) {
       if (currentAccountID.current === accountId) setFeishuError(cause instanceof Error ? cause.message : "检查绑定状态失败");
     } finally {
-      if (currentAccountID.current === accountId) setFeishuBusy(false);
+      if (!silent && currentAccountID.current === accountId) setFeishuBusy(false);
     }
   }
 
@@ -449,8 +469,8 @@ export default function AssignmentManagementRoute() {
         </select></label> : assignmentGroups[0] ? <p className="text-sm text-[var(--admin-muted)]">{assignmentGroups[0].name}</p> : null}
         {feishuBinding?.accountId === currentUser.id ? feishuBound
           ? <span className="text-sm text-[var(--admin-muted)]">飞书已绑定</span>
-          : <button type="button" className="admin-button admin-button--secondary" onClick={() => void startFeishuBinding()} disabled={feishuBusy}>绑定飞书</button>
-          : null}
+          : feishuPanelAccount !== currentUser.id ? <button type="button" className="admin-button admin-button--secondary" onClick={() => void startFeishuBinding()} disabled={feishuBusy}>绑定飞书</button> : null
+          : feishuError ? <button type="button" className="admin-button admin-button--quiet" disabled={feishuBusy} onClick={() => void checkFeishuBinding()}>重试飞书状态</button> : null}
         {!composerOpen ? <button type="button" className="admin-button admin-button--primary" onClick={() => { resetDraft(); setComposerOpen(true); setSearchParams({ view: "list" }); }} disabled={!groupId || Boolean(groupError)}>发布作业</button> : null}
         </div>
       </header>
@@ -463,12 +483,12 @@ export default function AssignmentManagementRoute() {
           <p className="text-sm text-[var(--admin-muted)]">将以下命令发送给飞书「吉甲大师作业助手」，绑定码 10 分钟内有效。</p>
           <code className="block break-all rounded-lg bg-[var(--admin-surface-subtle)] p-3 text-sm text-[var(--admin-text)]">{feishuCommand}</code>
           <div className="flex flex-wrap gap-2">
-            <button type="button" className="admin-button admin-button--primary admin-button--small" onClick={() => void copyFeishuCommand()}>复制绑定命令</button>
-            {feishuBotURL ? <a className="admin-button admin-button--secondary admin-button--small" href={feishuBotURL} target="_blank" rel="noopener noreferrer">打开飞书机器人</a> : null}
-            <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={feishuBusy} onClick={() => void checkFeishuBinding()}>检查绑定状态</button>
+            {feishuBotURL
+              ? <a className="admin-button admin-button--primary admin-button--small" href={feishuBotURL} target="_blank" rel="noopener noreferrer" onClick={() => void copyFeishuCommand()}>复制命令并打开飞书</a>
+              : <button type="button" className="admin-button admin-button--primary admin-button--small" onClick={() => void copyFeishuCommand()}>复制绑定命令</button>}
             <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={feishuBusy} onClick={() => void startFeishuBinding()}>重新生成</button>
           </div>
-        </> : null}
+        </> : !feishuBusy && feishuError ? <button type="button" className="admin-button admin-button--secondary admin-button--small" onClick={() => void startFeishuBinding()}>重新生成绑定码</button> : null}
         {feishuBusy ? <p role="status" className="text-sm text-[var(--admin-muted)]">正在处理…</p> : null}
         {feishuNotice ? <p role="status" className="text-sm text-[var(--admin-muted)]">{feishuNotice}</p> : null}
         {feishuError ? <p role="alert" className="text-sm text-[var(--admin-danger)]">{feishuError}</p> : null}

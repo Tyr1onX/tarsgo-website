@@ -140,17 +140,26 @@ test("Beijing deadlines default to seven days, support shortcuts, and validate b
   assert.match(deadline, /wallClock - SHANGHAI_OFFSET_MS/);
 });
 
-test("review center lists only submitted work by review outcome", () => {
-  assert.match(assignmentSubmissions, /useState<"needsRedo" \| "toReview" \| "passed">\("toReview"\)/);
-  assert.match(assignmentSubmissions, /member\.status === "needs_redo"/);
+test("review center displays each assigned member in a single current progress category", () => {
+  assert.match(assignmentSubmissions, /useState<"toSubmit" \| "toReview" \| "passed">\("toReview"\)/);
+  assert.match(assignmentSubmissions, /member\.status === "pending" \|\| member\.status === "overdue" \|\| member\.status === "needs_redo"/);
   assert.match(assignmentSubmissions, /member\.status === "submitted"/);
   assert.match(assignmentSubmissions, /member\.status === "passed"/);
-  assert.match(assignmentSubmissions, /const visibleMembers = submissionFilter === "needsRedo" \? needsRedo : submissionFilter === "toReview" \? toReview : passed/);
-  assert.match(assignmentSubmissions, /label: "已退回", count: needsRedo\.length/);
+  assert.match(assignmentSubmissions, /const visibleMembers = submissionFilter === "toSubmit" \? toSubmit : submissionFilter === "toReview" \? toReview : passed/);
+  assert.match(assignmentSubmissions, /label: "待提交（含返修）", count: toSubmit\.length/);
   assert.match(assignmentSubmissions, /label: "待批改", count: toReview\.length/);
   assert.match(assignmentSubmissions, /label: "已通过", count: passed\.length/);
+  assert.doesNotMatch(assignmentSubmissions, /未提交 \{pendingMembers\.length\} 人/);
   assert.match(assignmentSubmissions, /aria-pressed=\{submissionFilter === value\}/);
   assert.match(assignmentSubmissions, /visibleMembers\.map\(\(member\) =>/);
+});
+
+test("saving a new review opens the next current submission without interrupting corrections", () => {
+  assert.match(assignmentSubmissions, /const wasCorrection = detail\?\.members\.some\(/);
+  assert.match(assignmentSubmissions, /const next = wasCorrection \? undefined : updated\.members\.find\(\(member\) => member\.status === "submitted"\)\?\.latestSubmission/);
+  assert.match(assignmentSubmissions, /setEditingReviewID\(next\?\.id \?\? 0\)/);
+  assert.match(assignmentSubmissions, /setSubmissionFilter\("toReview"\)/);
+  assert.match(assignmentSubmissions, /<input autoFocus className=\{fieldClass\} type="number"/);
 });
 
 test("website review reuses rich image editor and protects feedback media", () => {
@@ -240,7 +249,7 @@ test("review center uses the shared group and distinguishes loading and empty st
   assert.match(assignmentSubmissions, /listLoaded && assignments\.some\(\(item\) => item\.id === selectedID\) && detail\?\.assignment\.id === selectedID/);
   assert.match(assignmentSubmissions, /正在加载作业列表/);
   assert.match(assignmentSubmissions, /正在加载提交记录/);
-  assert.match(assignmentSubmissions, /当前没有已退回的提交/);
+  assert.match(assignmentSubmissions, /当前没有待提交或返修的成员/);
   assert.match(assignmentSubmissions, /role="alert" className="admin-notice admin-notice--error"/);
 });
 
@@ -345,11 +354,11 @@ test("assignment management lists current work before opening the editor", () =>
   assert.match(assignmentManagement, /view === "review" \? <Suspense/);
   assert.match(assignmentManagement, /view === "list" \? "is-active"/);
   assert.match(assignmentManagement, /assignments\?view=review&assignmentId=\$\{item\.id\}/);
-  assert.match(assignmentSubmissions, /const needsRedo = detail\?\.members\.filter\(\(member\) => member\.status === "needs_redo"\)/);
+  assert.match(assignmentSubmissions, /const toSubmit = detail\?\.members\.filter\(\(member\) => member\.status === "pending"/);
   assert.match(assignmentSubmissions, /items\.find\(\(item\) => item\.submittedCount > item\.reviewedCount\)/);
   assert.match(assignmentSubmissions, /待批改 \$\{item\.submittedCount - item\.reviewedCount\}/);
-  assert.match(assignmentSubmissions, /const pendingMembers = detail\?\.members\.filter/);
-  assert.match(assignmentSubmissions, /未提交 \{pendingMembers\.length\} 人/);
+  assert.match(assignmentSubmissions, /label: "待提交（含返修）", count: toSubmit\.length/);
+  assert.doesNotMatch(assignmentSubmissions, /未提交 \{pendingMembers\.length\} 人/);
   assert.match(assignmentManagement, /\{composerOpen \? <section className="admin-panel assignment-editor"/);
   assert.match(assignmentManagement, /assignment-editor__description[\s\S]*?assignment-editor__requirements[\s\S]*?assignment-editor__materials[\s\S]*?assignment-editor__recipients/);
   assert.match(assignmentManagement, /assignment-deadline-shortcuts/);
@@ -365,7 +374,21 @@ test("Feishu binding is completed from assignment management without a second ac
   assert.match(assignmentManagement, /assignmentClient\.createFeishuLinkCode\(\)/);
   assert.match(assignmentManagement, /navigator\.clipboard\.writeText\(feishuCommand\)/);
   assert.match(assignmentManagement, /https:\/\/applink\.feishu\.cn\/client\/bot\/open\?appId=/);
-  assert.match(assignmentManagement, /检查绑定状态/);
+  assert.match(assignmentManagement, /window\.addEventListener\("focus", onReturn\)/);
+  assert.match(assignmentManagement, /document\.addEventListener\("visibilitychange", onReturn\)/);
+  assert.match(assignmentManagement, /onClick=\{\(\) => void copyFeishuCommand\(\)\}>复制命令并打开飞书/);
+  assert.match(assignmentManagement, /catch\(\(cause: unknown\) => \{ if \(active\) setFeishuError/);
   assert.match(assignmentManagement, /飞书已绑定/);
   assert.match(assignmentManagement, /feishuPanelAccount === currentUser\.id && !feishuBound/);
+});
+
+test("student submission precedes collapsible history while redo feedback stays visible", () => {
+  const feedback = memberAssignments.indexOf('aria-label="返修意见"');
+  const submission = memberAssignments.indexOf('{canSubmit ? <form onSubmit={submit}');
+  const history = memberAssignments.indexOf('id="assignment-history-title"');
+  assert.ok(feedback > 0 && feedback < submission && submission < history);
+  assert.match(memberAssignments, /assignment\.status === "needs_redo"/);
+  assert.match(memberAssignments, /<details key=\{assignment\.id\} className="space-y-3" aria-labelledby="assignment-history-title">/);
+  assert.match(memberAssignments, /detail\.submissions\.length > 0 \? <details/);
+  assert.match(memberAssignments, /CommunityMarkdown source=\{latestFeedback\}/);
 });
