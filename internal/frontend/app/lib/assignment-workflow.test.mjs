@@ -384,11 +384,27 @@ test("Feishu binding is completed from assignment management without a second ac
 
 test("student submission precedes collapsible history while redo feedback stays visible", () => {
   const feedback = memberAssignments.indexOf('aria-label="返修意见"');
-  const submission = memberAssignments.indexOf('{canSubmit ? <form onSubmit={submit}');
+  const submission = memberAssignments.indexOf('assignment.status === "submitted" && canSubmit ? <details');
   const history = memberAssignments.indexOf('id="assignment-history-title"');
   assert.ok(feedback > 0 && feedback < submission && submission < history);
   assert.match(memberAssignments, /assignment\.status === "needs_redo"/);
   assert.match(memberAssignments, /<details key=\{assignment\.id\} className="space-y-3" aria-labelledby="assignment-history-title">/);
   assert.match(memberAssignments, /detail\.submissions\.length > 0 \? <details/);
   assert.match(memberAssignments, /CommunityMarkdown source=\{latestFeedback\}/);
+});
+
+test("member actions distinguish first submission, waiting for review, redo, and completion", () => {
+  assert.match(memberAssignments, /const submissionForm = canSubmit \? \(/);
+  assert.match(memberAssignments, /assignment\?\.status === "needs_redo" \? "重新提交"/);
+  assert.match(memberAssignments, /assignment\?\.status === "submitted" \? "更新提交"/);
+  assert.match(memberAssignments, /item\.status === "submitted" \? "待批改"/);
+  assert.match(memberAssignments, /assignment\.status === "submitted" \? "已提交，等待批改"/);
+  assert.match(memberAssignments, /assignment\.status === "submitted" && canSubmit \? <details key=\{detail\.submissions\.at\(-1\)\?\.id\}/);
+  assert.match(memberAssignments, /<summary[^>]*>更新已提交的附件<\/summary>/);
+  assert.match(memberAssignments, /assignment\.status === "submitted" \? null : submissionForm/);
+  assert.match(memberAssignments, /assignment\.status === "needs_redo" && !canSubmit && assignment\.publicationStatus !== "withdrawn"/);
+  assert.match(memberAssignments, /已过截止时间，无法重新提交/);
+  assert.match(memberAssignments, /assignment\.status !== "passed"/);
+  assert.match(assignmentService, /if latestErr == nil \{\s+if now\.After\(readStoredUTCWall\(item\.DueAt\)\)/);
+  assert.match(assignmentService, /review\.Decision == model\.AssignmentReviewPassed/);
 });
