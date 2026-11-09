@@ -164,7 +164,7 @@ export function CommunityExperienceToastHost({ userID }: { userID: number }) {
     const stopAuth = subscribeAuthStateChange((user) => { if (!user || user.id !== userID) active = false; });
     const stopAccountSession = subscribeAccountSessionChange(() => { active = false; });
     const syncWhenVisible = () => {
-      if (document.visibilityState === "visible") {
+      if (document.visibilityState === "visible" && !requestRunningRef.current) {
         invalidateCommunityGrowthDay(userID);
         void refresh();
       }
