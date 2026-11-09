@@ -26,6 +26,7 @@ import (
 	"tarsgo-backend/config"
 	"tarsgo-backend/model"
 	"tarsgo-backend/service/assignment"
+	"tarsgo-backend/service/auth"
 )
 
 func testFeishuHandler() *FeishuReviewHandler {
@@ -397,6 +398,82 @@ func TestFeishuCardCallbackDoesNotTreatOperatorNameAsAuthenticatedIdentity(t *te
 	c.Writer.WriteHeaderNow()
 	if recorder.Code != http.StatusUnauthorized {
 		t.Fatalf("name-only card callback status=%d, want %d", recorder.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestFeishuBindingStatusReturnsOnlyAccountState(t *testing.T) {
+	for _, tc := range []struct {
+		name   string
+		openID any
+		bound  bool
+	}{
+		{name: "unbound", openID: nil, bound: false},
+		{name: "bound", openID: "ou_bound_identity", bound: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			sqlDB, mock, err := sqlmock.New()
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer sqlDB.Close()
+			db, err := gorm.Open(mysql.New(mysql.Config{Conn: sqlDB, SkipInitializeWithVersion: true}), &gorm.Config{DisableAutomaticPing: true})
+			if err != nil {
+				t.Fatal(err)
+			}
+			mock.ExpectQuery("SELECT .*feishu_open_id.*FROM .*users.*WHERE .*id.*status.*LIMIT").
+				WithArgs(uint64(42), model.UserStatusEnabled, 1).
+				WillReturnRows(sqlmock.NewRows([]string{"feishu_open_id"}).AddRow(tc.openID))
+			h := testFeishuHandler()
+			h.db = db
+			recorder := httptest.NewRecorder()
+			ctx, _ := gin.CreateTestContext(recorder)
+			ctx.Request = httptest.NewRequest(http.MethodGet, "/api/admin/integrations/feishu/binding-status", nil)
+			ctx.Set("sessionUser", &auth.SessionUser{ID: 42})
+			h.FeishuBindingStatus(ctx)
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("status=%d body=%s", recorder.Code, recorder.Body.String())
+			}
+			var response struct {
+				Data struct {
+					Bound bool   `json:"bound"`
+					AppID string `json:"appId"`
+				} `json:"data"`
+			}
+			if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+				t.Fatal(err)
+			}
+			if response.Data.Bound != tc.bound || response.Data.AppID != "cli_test" {
+				t.Fatalf("unexpected binding state: %+v", response.Data)
+			}
+			if strings.Contains(recorder.Body.String(), "ou_bound_identity") {
+				t.Fatal("binding status leaked Feishu open_id")
+			}
+			if err := mock.ExpectationsWereMet(); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func TestFeishuBindingStatusRequiresWebsiteSession(t *testing.T) {
+	h := testFeishuHandler()
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/admin/integrations/feishu/binding-status", nil)
+	h.FeishuBindingStatus(ctx)
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("status=%d, want unauthorized", recorder.Code)
+	}
+}
+
+func TestFeishuLegacyBindingPageRedirectsToWorkbench(t *testing.T) {
+	h := testFeishuHandler()
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodGet, "/api/admin/integrations/feishu/bind", nil)
+	h.FeishuLinkPage(ctx)
+	if recorder.Code != http.StatusFound || recorder.Header().Get("Location") != "/dashboard/admin/training/assignments" {
+		t.Fatalf("unexpected legacy link response: %d %s", recorder.Code, recorder.Header().Get("Location"))
 	}
 }
 
