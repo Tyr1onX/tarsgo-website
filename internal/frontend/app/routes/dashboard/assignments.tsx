@@ -4,7 +4,6 @@ import "~/components/community-markdown-editor.css";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useOutletContext, useSearchParams } from "react-router";
 
-import { WorkbenchFeatureStatus } from "~/components/workbench-feature-status";
 import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
 import { ApiError } from "~/lib/api-client";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
@@ -22,17 +21,37 @@ export function meta() {
   return [{ title: "我的作业 | TARSGO" }];
 }
 
-const inputClass = "admin-field w-full";
 const maxSubmissionFiles = 10;
+type AssignmentFilter = "all" | "todo" | "submitted" | "passed";
+
+function assignmentPriority(item: Assignment) {
+  if (item.publicationStatus === "withdrawn") return 5;
+  switch (item.status) {
+    case "overdue": return 0;
+    case "needs_redo": return 1;
+    case "pending": return 2;
+    case "submitted": return 3;
+    case "passed": return 4;
+    default: return 5;
+  }
+}
+
+function matchesFilter(item: Assignment, filter: AssignmentFilter) {
+  if (filter === "all") return true;
+  if (filter === "todo") return assignmentPriority(item) <= 2;
+  return item.status === filter && item.publicationStatus !== "withdrawn";
+}
 
 export default function MyAssignmentsRoute() {
   const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const requestedAssignmentID = Number(searchParams.get("assignmentId")) || null;
   const [items, setItems] = useState<Assignment[]>([]);
   const [selectedID, setSelectedID] = useState<number | null>(null);
   const [detail, setDetail] = useState<MyAssignmentDetail | null>(null);
   const [files, setFiles] = useState<File[]>([]);
+  const [filter, setFilter] = useState<AssignmentFilter>("all");
+  const [submissionError, setSubmissionError] = useState("");
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -51,6 +70,7 @@ export default function MyAssignmentsRoute() {
     setSelectedID(id);
     setDetail(null);
     setDetailLoading(true);
+    setSubmissionError("");
     setError("");
     try {
       const nextDetail = await assignmentClient.getMine(id);
@@ -72,9 +92,10 @@ export default function MyAssignmentsRoute() {
     try {
       const result = await assignmentClient.listMine();
       if (listRequestId.current !== activeRequest || currentUserId.current !== accountId) return;
-      setItems(result);
+      const sorted = [...result].sort((a, b) => assignmentPriority(a) - assignmentPriority(b) || a.dueAt.localeCompare(b.dueAt));
+      setItems(sorted);
       const preferredID = selectedIDRef.current ?? selectID;
-      const id = result.find((item) => item.id === preferredID)?.id ?? result[0]?.id ?? null;
+      const id = sorted.find((item) => item.id === preferredID)?.id ?? sorted[0]?.id ?? null;
       if (id === null) {
         detailRequestId.current += 1;
         selectedIDRef.current = null;
@@ -97,6 +118,7 @@ export default function MyAssignmentsRoute() {
     listRequestId.current += 1;
     detailRequestId.current += 1;
     selectedIDRef.current = null;
+    setFilter("all");
     setItems([]);
     setSelectedID(null);
     setDetail(null);
@@ -112,7 +134,21 @@ export default function MyAssignmentsRoute() {
   async function selectAssignment(item: Assignment) {
     setFiles([]);
     setFileUploadStatus("pending");
+    setSubmissionError("");
+    setSearchParams((current) => {
+      const next = new URLSearchParams(current);
+      next.set("assignmentId", String(item.id));
+      return next;
+    }, { replace: true });
     await loadDetail(item.id);
+  }
+
+  function changeFilter(next: AssignmentFilter) {
+    setFilter(next);
+    const shown = items.filter((item) => matchesFilter(item, next));
+    if (shown.length && !shown.some((item) => item.id === selectedIDRef.current)) {
+      void selectAssignment(shown[0]);
+    }
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -122,7 +158,7 @@ export default function MyAssignmentsRoute() {
     const activeRequest = ++detailRequestId.current;
     setSaving(true);
     setFileUploadStatus("uploading");
-    setError("");
+    setSubmissionError("");
     try {
       const updated = await assignmentClient.submit(detail.assignment.id, files);
       if (currentUserId.current !== accountId || detailRequestId.current !== activeRequest) return;
@@ -134,8 +170,8 @@ export default function MyAssignmentsRoute() {
       if (currentUserId.current === accountId && detailRequestId.current === activeRequest) {
         setFileUploadStatus("failed");
         const message = cause instanceof Error ? cause.message : "提交失败，请稍后重试";
-        setError(cause instanceof ApiError && cause.status === 413
-          ? "服务器或代理拒绝了当前大小的附件（HTTP 413），请联系管理员检查上传限制。"
+        setSubmissionError(cause instanceof ApiError && cause.status === 413
+          ? "附件过大，上传失败。请减小文件大小后重试。"
           : cause instanceof TypeError
             ? "网络连接中断，附件未完成上传，请重新提交。"
             : message);
@@ -145,6 +181,7 @@ export default function MyAssignmentsRoute() {
     }
   }
 
+  const visibleItems = items.filter((item) => matchesFilter(item, filter));
   const assignment = detail?.assignment;
   const canSubmit = Boolean(assignment
     && assignment.publicationStatus !== "withdrawn"
@@ -153,20 +190,33 @@ export default function MyAssignmentsRoute() {
 
   return (
     <section className="admin-design space-y-5" aria-labelledby="my-assignments-title">
-      <header className="admin-page-header"><div className="flex flex-wrap items-center gap-2"><h1 id="my-assignments-title" className="admin-page-title">我的作业</h1><WorkbenchFeatureStatus feature="assignments" /></div></header>
+      <header className="admin-page-header"><h1 id="my-assignments-title" className="admin-page-title">我的作业</h1></header>
       {error ? <div role="alert" className="admin-notice admin-notice--error">{error}</div> : null}
       {loading && items.length === 0 ? <BrandLoader label="正在加载作业" /> : null}
       {!loading && !error && items.length === 0 ? <section className="admin-panel p-5 text-sm text-[var(--admin-muted)]">目前还没有分配给你的作业；作业发布后会显示在这里。</section> : null}
       {items.length > 0 ? <div className="grid gap-4 xl:grid-cols-[minmax(240px,0.8fr)_minmax(0,1.6fr)]">
-        <section className="admin-panel divide-y divide-[var(--admin-border-subtle)] p-3" aria-label="作业列表">
-          {items.map((item) => <button key={item.id} type="button" disabled={saving} onClick={() => void selectAssignment(item)} className={`w-full rounded-lg px-3 py-3 text-left transition-colors disabled:cursor-wait ${selectedID === item.id ? "bg-[color-mix(in_srgb,var(--admin-accent)_10%,var(--admin-surface))]" : "hover:bg-[var(--admin-hover-overlay)]"}`}>
+        <section className="admin-panel p-3" aria-label="作业列表">
+          <div className="mb-2 flex flex-wrap gap-2" role="group" aria-label="筛选作业">
+            {([
+              { value: "all", label: "全部" },
+              { value: "todo", label: "待处理" },
+              { value: "submitted", label: "待批改" },
+              { value: "passed", label: "已通过" },
+            ] as const).map(({ value, label }) => <button key={value} type="button" aria-pressed={filter === value} disabled={saving}
+              onClick={() => changeFilter(value)}
+              className={`admin-button admin-button--small ${filter === value ? "admin-button--secondary" : "admin-button--quiet"}`}>{label}</button>)}
+          </div>
+          {visibleItems.length === 0 ? <p className="px-3 py-4 text-sm text-[var(--admin-muted)]">当前筛选下没有作业。</p> : null}
+          <div className="divide-y divide-[var(--admin-border-subtle)]">
+          {visibleItems.map((item) => <button key={item.id} type="button" disabled={saving} onClick={() => void selectAssignment(item)} className={`w-full rounded-lg px-3 py-3 text-left transition-colors disabled:cursor-wait ${selectedID === item.id ? "bg-[color-mix(in_srgb,var(--admin-accent)_10%,var(--admin-surface))]" : "hover:bg-[var(--admin-hover-overlay)]"}`}>
             <span className="flex items-start justify-between gap-2"><strong className="text-sm text-[var(--admin-text)]">{item.title}</strong><span className="shrink-0 text-xs text-[var(--admin-muted)]">{item.publicationStatus === "withdrawn" ? "已撤回" : assignmentStatusLabel(item.status)}</span></span>
             <span className="mt-1 block text-xs text-[var(--admin-muted)]">{item.groupName} · 截止 {formatAssignmentDate(item.dueAt)}</span>
             {item.isLate ? <span className="mt-1 block text-xs text-[var(--admin-warning)]">逾期提交</span> : null}
           </button>)}
+          </div>
         </section>
 
-        {assignment ? <section className="admin-panel space-y-4 p-4 sm:p-5" aria-labelledby="assignment-detail-title">
+        {assignment && visibleItems.some((item) => item.id === selectedID) ? <section className="admin-panel space-y-4 p-4 sm:p-5" aria-labelledby="assignment-detail-title">
           <header className="flex flex-wrap items-start justify-between gap-3">
             <div><p className="text-xs text-[var(--admin-muted)]">{assignment.groupName} · 截止 {formatAssignmentDate(assignment.dueAt)}</p><h2 id="assignment-detail-title" className="mt-1 text-xl font-semibold text-[var(--admin-text)]">{assignment.title}</h2></div>
             <span className="rounded-full border border-[var(--admin-border-subtle)] px-3 py-1 text-xs text-[var(--admin-muted)]">{assignment.publicationStatus === "withdrawn" ? assignmentPublicationStatusLabel(assignment.publicationStatus) : assignmentStatusLabel(assignment.status)}</span>
@@ -203,7 +253,7 @@ export default function MyAssignmentsRoute() {
             <div className="admin-field-label">提交附件<FileUploadField
               label="作业提交附件"
               files={files}
-              onFilesChange={(next) => { setFiles(next); setFileUploadStatus("pending"); setError(""); }}
+              onFilesChange={(next) => { setFiles(next); setFileUploadStatus("pending"); setSubmissionError(""); }}
               multiple
               hint="最多 10 个附件"
               status={fileUploadStatus}
@@ -214,9 +264,10 @@ export default function MyAssignmentsRoute() {
                 return null;
               }}
             /></div>
+            {submissionError ? <p role="alert" className="text-sm text-[var(--admin-danger)]">{submissionError}</p> : null}
             <div className="flex flex-wrap items-center justify-between gap-3"><button type="submit" className="admin-button admin-button--primary" disabled={saving || files.length === 0}>{saving ? "提交中…" : detail.submissions.length ? "重新提交" : "提交作业"}</button></div>
           </form> : null}
-        </section> : selectedID != null && detailLoading ? <section className="admin-panel p-5"><BrandLoader label="正在读取作业记录" size="sm" /></section> : null}
+        </section> : selectedID != null && detailLoading && visibleItems.some((item) => item.id === selectedID) ? <section className="admin-panel p-5"><BrandLoader label="正在读取作业记录" size="sm" /></section> : null}
       </div> : null}
     </section>
   );

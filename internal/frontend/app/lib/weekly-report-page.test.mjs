@@ -47,6 +47,13 @@ test("the team list remains a compact one-column disclosure when opened", () => 
   assert.doesNotMatch(style, /grid-template-columns:\s*repeat\(auto-fill/);
 });
 
+test("help requests are optional in both the weekly report form and backend validation", () => {
+  assert.match(route, /<span>需要帮助（选填）<\/span>/);
+  assert.match(route, /<textarea maxLength=\{5000\} value=\{form\.blockers\}/);
+  assert.match(route, /const requiredSections = \[form\.completed, form\.gains, form\.nextPlan\]/);
+  assert.match(service, /section\.name == "需要帮助"/);
+});
+
 test("weekly reports support retryable private attachment upload, download, and removal", () => {
   assert.match(route, /uploadWeeklyReportAttachments\(saved\.id, pendingFiles\)/);
   assert.match(route, /deleteWeeklyReportAttachment\(selectedReport\.id, fileID\)/);
