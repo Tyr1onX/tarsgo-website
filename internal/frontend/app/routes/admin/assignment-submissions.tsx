@@ -129,6 +129,7 @@ export function AssignmentReview({ groupId }: { groupId: number }) {
       setEditingReviewID(next?.id ?? 0);
       setReviewUploads([]);
       reviewUploadsRef.current = [];
+      reviewFlushRef.current = () => "";
       void assignmentClient.listAdmin(groupId).then(setAssignments).catch(() => {});
     } catch (cause) {
       setReviewError(cause instanceof Error ? cause.message : "保存批改结果失败");
@@ -210,7 +211,7 @@ export function AssignmentReview({ groupId }: { groupId: number }) {
           <span>截止 {formatAssignmentDate(assignment.dueAt)}</span>
           <span>{assignment.isGroupWide ? "全组实时接收" : "指定成员"} · 接收 {assignment.targetCount} 人</span>
         </section>
-         <section className="admin-panel divide-y divide-[var(--admin-border-subtle)] p-4 sm:p-5" aria-label="成员提交情况">
+        <section className="admin-panel divide-y divide-[var(--admin-border-subtle)] p-4 sm:p-5" aria-label="成员提交情况">
           {detail && detail.members.length > 0 ? <div className="grid grid-cols-3 gap-2 pb-4" role="group" aria-label="成员进度筛选">
             {([
               { value: "toSubmit", label: "待提交（含返修）", count: toSubmit.length },
