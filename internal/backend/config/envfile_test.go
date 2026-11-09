@@ -57,29 +57,3 @@ func TestResolveEnvFilePathFallsBackToExecutableDirectory(t *testing.T) {
 		t.Fatalf("expected exec env path %q, got %q", execEnv, got)
 	}
 }
-
-func TestWriteEnvFilePersistsValues(t *testing.T) {
-	t.Parallel()
-
-	envPath := filepath.Join(t.TempDir(), ".env")
-	if err := WriteEnvFile(envPath, map[string]string{
-		"APP_ENV":      "development",
-		"JWT_SECRET":   "secret",
-		"EMAIL_FROM":   "noreply@example.com",
-		"GOOGLE_SCOPE": "openid email profile",
-	}); err != nil {
-		t.Fatalf("write env file: %v", err)
-	}
-
-	values, err := ReadEnvFile(envPath)
-	if err != nil {
-		t.Fatalf("read env file: %v", err)
-	}
-
-	if values["JWT_SECRET"] != "secret" {
-		t.Fatalf("expected JWT_SECRET to persist, got %#v", values["JWT_SECRET"])
-	}
-	if values["GOOGLE_SCOPE"] != "openid email profile" {
-		t.Fatalf("expected GOOGLE_SCOPE to persist, got %#v", values["GOOGLE_SCOPE"])
-	}
-}

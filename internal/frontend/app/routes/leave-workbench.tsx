@@ -1,5 +1,5 @@
 import { BrandLoader } from "~/components/brand-loader";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useOutletContext } from "react-router";
 
 import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";

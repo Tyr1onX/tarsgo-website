@@ -46,7 +46,6 @@ import {
   getDashboardSectionMenu,
   getDefaultDashboardPath,
   hasAssignmentGroupAccess,
-  hasTechnicalGroupAccess,
   isDashboardSectionItemActive,
   type DashboardMenuIconKey,
   type DashboardMenuLink,
@@ -112,7 +111,6 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
 
   const pathname = currentPath.pathname;
   const hasAssignmentGroup = hasAssignmentGroupAccess(groupResolution?.groups);
-  const hasTechnicalGroup = hasTechnicalGroupAccess(groupResolution?.groups);
   if (
     pathname.startsWith("/dashboard/admin") &&
     !canAccessDashboardAdminPath(currentUser, pathname, hasAssignmentGroup)
