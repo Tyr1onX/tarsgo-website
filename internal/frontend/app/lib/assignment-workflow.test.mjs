@@ -355,3 +355,17 @@ test("assignment management lists current work before opening the editor", () =>
   assert.match(assignmentManagement, /assignment-deadline-shortcuts/);
   assert.match(assignmentManagement, /assignment-list__actions/);
 });
+
+test("Feishu binding is completed from assignment management without a second account state", () => {
+  assert.match(backendRoutes, /adminAPI\.GET\("\/integrations\/feishu\/binding-status", feishuReviewHandler\.FeishuBindingStatus\)/);
+  assert.match(backendRoutes, /adminAPI\.POST\("\/integrations\/feishu\/link-code", requireSameOriginRequest\(cfg\), feishuReviewHandler\.FeishuLinkCode\)/);
+  assert.match(assignmentClient, /feishuBindingStatus: \(\) => apiRequest/);
+  assert.match(assignmentClient, /createFeishuLinkCode: \(\) => apiRequest/);
+  assert.match(assignmentManagement, /assignmentClient\.feishuBindingStatus\(\)/);
+  assert.match(assignmentManagement, /assignmentClient\.createFeishuLinkCode\(\)/);
+  assert.match(assignmentManagement, /navigator\.clipboard\.writeText\(feishuCommand\)/);
+  assert.match(assignmentManagement, /https:\/\/applink\.feishu\.cn\/client\/bot\/open\?appId=/);
+  assert.match(assignmentManagement, /检查绑定状态/);
+  assert.match(assignmentManagement, /飞书已绑定/);
+  assert.match(assignmentManagement, /feishuPanelAccount === currentUser\.id && !feishuBound/);
+});
