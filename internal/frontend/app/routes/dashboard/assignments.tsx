@@ -52,6 +52,7 @@ export default function MyAssignmentsRoute() {
   const [files, setFiles] = useState<File[]>([]);
   const [filter, setFilter] = useState<AssignmentFilter>("all");
   const [submissionError, setSubmissionError] = useState("");
+  const [submittedAssignmentID, setSubmittedAssignmentID] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -60,6 +61,8 @@ export default function MyAssignmentsRoute() {
   const listRequestId = useRef(0);
   const detailRequestId = useRef(0);
   const selectedIDRef = useRef<number | null>(null);
+  const detailPanelRef = useRef<HTMLElement | null>(null);
+  const scrollToDetailIDRef = useRef<number | null>(null);
   const currentUserId = useRef(currentUser.id);
   currentUserId.current = currentUser.id;
 
@@ -71,12 +74,14 @@ export default function MyAssignmentsRoute() {
     setDetail(null);
     setDetailLoading(true);
     setSubmissionError("");
+    setSubmittedAssignmentID(null);
     setError("");
     try {
       const nextDetail = await assignmentClient.getMine(id);
       if (detailRequestId.current === activeRequest && currentUserId.current === accountId) setDetail(nextDetail);
     } catch (cause) {
       if (detailRequestId.current === activeRequest && currentUserId.current === accountId) {
+        scrollToDetailIDRef.current = null;
         setError(cause instanceof Error ? cause.message : "作业详情加载失败");
       }
     } finally {
@@ -118,6 +123,8 @@ export default function MyAssignmentsRoute() {
     listRequestId.current += 1;
     detailRequestId.current += 1;
     selectedIDRef.current = null;
+    scrollToDetailIDRef.current = null;
+    setSubmittedAssignmentID(null);
     setFilter("all");
     setItems([]);
     setSelectedID(null);
@@ -131,7 +138,17 @@ export default function MyAssignmentsRoute() {
       && selectedIDRef.current !== requestedAssignmentID) void loadDetail(requestedAssignmentID);
   }, [requestedAssignmentID]);
 
-  async function selectAssignment(item: Assignment) {
+  useEffect(() => {
+    if (!detail || scrollToDetailIDRef.current !== detail.assignment.id) return;
+    scrollToDetailIDRef.current = null;
+    detailPanelRef.current?.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      block: "start",
+    });
+  }, [detail]);
+
+  async function selectAssignment(item: Assignment, scrollOnMobile = false) {
+    scrollToDetailIDRef.current = scrollOnMobile && window.matchMedia("(max-width: 1279px)").matches ? item.id : null;
     setFiles([]);
     setFileUploadStatus("pending");
     setSubmissionError("");
@@ -159,10 +176,13 @@ export default function MyAssignmentsRoute() {
     setSaving(true);
     setFileUploadStatus("uploading");
     setSubmissionError("");
+    setSubmittedAssignmentID(null);
     try {
       const updated = await assignmentClient.submit(detail.assignment.id, files);
       if (currentUserId.current !== accountId || detailRequestId.current !== activeRequest) return;
       setDetail(updated);
+      setFilter((current) => matchesFilter(updated.assignment, current) ? current : "all");
+      setSubmittedAssignmentID(updated.assignment.id);
       setFiles([]);
       setFileUploadStatus("pending");
       await loadAssignments(updated.assignment.id, false);
@@ -208,7 +228,7 @@ export default function MyAssignmentsRoute() {
           </div>
           {visibleItems.length === 0 ? <p className="px-3 py-4 text-sm text-[var(--admin-muted)]">当前筛选下没有作业。</p> : null}
           <div className="divide-y divide-[var(--admin-border-subtle)]">
-          {visibleItems.map((item) => <button key={item.id} type="button" disabled={saving} onClick={() => void selectAssignment(item)} className={`w-full rounded-lg px-3 py-3 text-left transition-colors disabled:cursor-wait ${selectedID === item.id ? "bg-[color-mix(in_srgb,var(--admin-accent)_10%,var(--admin-surface))]" : "hover:bg-[var(--admin-hover-overlay)]"}`}>
+          {visibleItems.map((item) => <button key={item.id} type="button" disabled={saving} onClick={() => void selectAssignment(item, true)} className={`w-full rounded-lg px-3 py-3 text-left transition-colors disabled:cursor-wait ${selectedID === item.id ? "bg-[color-mix(in_srgb,var(--admin-accent)_10%,var(--admin-surface))]" : "hover:bg-[var(--admin-hover-overlay)]"}`}>
             <span className="flex items-start justify-between gap-2"><strong className="text-sm text-[var(--admin-text)]">{item.title}</strong><span className="shrink-0 text-xs text-[var(--admin-muted)]">{item.publicationStatus === "withdrawn" ? "已撤回" : assignmentStatusLabel(item.status)}</span></span>
             <span className="mt-1 block text-xs text-[var(--admin-muted)]">{item.groupName} · 截止 {formatAssignmentDate(item.dueAt)}</span>
             {item.isLate ? <span className="mt-1 block text-xs text-[var(--admin-warning)]">逾期提交</span> : null}
@@ -216,11 +236,12 @@ export default function MyAssignmentsRoute() {
           </div>
         </section>
 
-        {assignment && visibleItems.some((item) => item.id === selectedID) ? <section className="admin-panel space-y-4 p-4 sm:p-5" aria-labelledby="assignment-detail-title">
+        {assignment && visibleItems.some((item) => item.id === selectedID) ? <section ref={detailPanelRef} className="admin-panel scroll-mt-20 space-y-4 p-4 sm:p-5" aria-labelledby="assignment-detail-title">
           <header className="flex flex-wrap items-start justify-between gap-3">
             <div><p className="text-xs text-[var(--admin-muted)]">{assignment.groupName} · 截止 {formatAssignmentDate(assignment.dueAt)}</p><h2 id="assignment-detail-title" className="mt-1 text-xl font-semibold text-[var(--admin-text)]">{assignment.title}</h2></div>
             <span className="rounded-full border border-[var(--admin-border-subtle)] px-3 py-1 text-xs text-[var(--admin-muted)]">{assignment.publicationStatus === "withdrawn" ? assignmentPublicationStatusLabel(assignment.publicationStatus) : assignmentStatusLabel(assignment.status)}</span>
           </header>
+          {submittedAssignmentID === assignment.id ? <p role="status" className="rounded-lg border border-[var(--admin-success-border)] bg-[var(--admin-success-surface)] px-3 py-2 text-sm text-[var(--admin-success)]">提交成功，等待批改。</p> : null}
           {assignment.publicationStatus === "withdrawn" ? <p role="status" className="rounded-lg border border-[var(--admin-border-subtle)] px-3 py-2 text-sm text-[var(--admin-muted)]">作业已撤回，无法继续提交；已有提交和批改记录仍可查看。</p> : null}
           <div className="whitespace-pre-wrap text-sm leading-6 text-[var(--admin-text)]">{assignment.description}</div>
           {assignment.attachmentRequirements ? <div className="rounded-lg bg-[var(--admin-surface-subtle)] px-3 py-2 text-sm"><span className="text-[var(--admin-muted)]">附件要求：</span>{assignment.attachmentRequirements}</div> : null}

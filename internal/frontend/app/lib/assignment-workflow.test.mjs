@@ -256,6 +256,24 @@ test("member assignments sort actionable work, filter locally, and keep detail l
   assert.match(memberAssignments, /visibleItems\.some\(\(item\) => item\.id === selectedID\)/);
 });
 
+test("successful member submission keeps the selected assignment visible and confirms completion", () => {
+  assert.match(memberAssignments, /setDetail\(updated\);[\s\S]*?setFilter\(\(current\) => matchesFilter\(updated\.assignment, current\) \? current : "all"\)/);
+  assert.match(memberAssignments, /setSubmittedAssignmentID\(updated\.assignment\.id\)/);
+  assert.match(memberAssignments, /await loadAssignments\(updated\.assignment\.id, false\)/);
+  assert.match(memberAssignments, /submittedAssignmentID === assignment\.id \? <p role="status"[\s\S]*?提交成功，等待批改/);
+  assert.match(memberAssignments, /setSubmittedAssignmentID\(null\)/);
+});
+
+test("member assignment selection scrolls to details only on stacked mobile layout", () => {
+  assert.match(memberAssignments, /scrollToDetailIDRef\.current = scrollOnMobile && window\.matchMedia\("\(max-width: 1279px\)"\)\.matches \? item\.id : null/);
+  assert.match(memberAssignments, /onClick=\{\(\) => void selectAssignment\(item, true\)\}/);
+  assert.match(memberAssignments, /if \(!detail \|\| scrollToDetailIDRef\.current !== detail\.assignment\.id\) return/);
+  assert.match(memberAssignments, /detailPanelRef\.current\?\.scrollIntoView\(/);
+  assert.match(memberAssignments, /prefers-reduced-motion: reduce/);
+  assert.match(memberAssignments, /ref=\{detailPanelRef\} className="admin-panel scroll-mt-20/);
+  assert.match(memberAssignments, /\}, \[detail\]\);/);
+});
+
 test("member upload errors stay beside the upload field and Feishu repair stays under maintenance", () => {
   assert.match(memberAssignments, /setSubmissionError\(cause instanceof ApiError/);
   assert.match(memberAssignments, /<p role="alert" className="text-sm text-\[var\(--admin-danger\)\]">\{submissionError\}<\/p>/);
