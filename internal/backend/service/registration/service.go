@@ -3606,15 +3606,6 @@ func ptrUint64(value uint64) *uint64 {
 	return &result
 }
 
-func containsUint64(values []uint64, target uint64) bool {
-	for _, value := range values {
-		if value == target {
-			return true
-		}
-	}
-	return false
-}
-
 func (r *gormRegistrationRepository) ListShownUserGroups(ctx context.Context) ([]model.UserGroup, error) {
 	return (&gormRegistrationFormRepository{db: r.db}).ListShownUserGroups(ctx)
 }

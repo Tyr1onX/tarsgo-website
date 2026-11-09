@@ -507,7 +507,7 @@ func TestAcceptanceDatabaseCommunityWorkflow(t *testing.T) {
 	if err != nil || peerGrowth.TotalXP != 2 {
 		t.Fatalf("unsetting the best answer did not revoke its reward: profile=%#v err=%v", peerGrowth, err)
 	}
-	if _, err := service.UpdateCommunityComment(context.Background(), peer, parentID, "更新后的说明"); err != nil {
+	if _, err := service.UpdateCommunityCommentContent(context.Background(), peer, parentID, CommunityCommentUpdate{Body: "更新后的说明"}); err != nil {
 		t.Fatalf("comment author could not edit their own comment: %v", err)
 	}
 	if _, err := service.DeleteCommunityComment(context.Background(), peer, parentID); err != nil {

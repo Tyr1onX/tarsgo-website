@@ -384,24 +384,7 @@ func (s *Service) UploadGroupResult(ctx context.Context, adminID, runID uint64, 
 	return &LeaveGroupResultView{Available: true, Filename: result.OriginalFilename, ExpiresAt: &expires}, nil
 }
 
-func (s *Service) GroupResult(ctx context.Context, userID, runID uint64, groupIndex int) ([]byte, string, string, error) {
-	return s.groupResult(ctx, userID, runID, groupIndex, false)
-}
-
 func (s *Service) AdminGroupResult(ctx context.Context, runID uint64, groupIndex int) ([]byte, string, string, error) {
-	return s.groupResult(ctx, 0, runID, groupIndex, true)
-}
-
-func (s *Service) groupResult(ctx context.Context, userID, runID uint64, groupIndex int, admin bool) ([]byte, string, string, error) {
-	if !admin {
-		var request model.SchoolLeaveRequest
-		if err := s.db.WithContext(ctx).Where("run_id = ? AND status = ? AND user_id = ?", runID, model.LeaveStatusIncluded, userID).First(&request).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return nil, "", "", notFound("盖章材料不存在")
-			}
-			return nil, "", "", internalError("校验盖章材料权限失败", err)
-		}
-	}
 	var rows []model.SchoolLeaveRequest
 	if err := s.db.WithContext(ctx).Where("run_id = ? AND status = ?", runID, model.LeaveStatusIncluded).Find(&rows).Error; err != nil {
 		return nil, "", "", internalError("校验盖章材料失败", err)
@@ -585,17 +568,6 @@ func (s *Service) AdminRecordRead(ctx context.Context, userID uint64, recordType
 	}
 	if err := s.db.WithContext(ctx).Create(&model.LeaveAdminRead{RecordType: recordType, RecordID: recordID, UserID: userID, ReadAt: s.nowShanghai()}).Error; err != nil && !isDuplicate(err) {
 		return internalError("更新请假已读状态失败", err)
-	}
-	return nil
-}
-
-func (s *Service) ValidateRequestOwner(ctx context.Context, userID, requestID uint64) error {
-	var count int64
-	if err := s.db.WithContext(ctx).Model(&model.SchoolLeaveRequest{}).Where("id = ? AND user_id = ?", requestID, userID).Count(&count).Error; err != nil {
-		return internalError("校验请假申请失败", err)
-	}
-	if count == 0 {
-		return notFound("请假申请不存在")
 	}
 	return nil
 }

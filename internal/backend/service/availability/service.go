@@ -314,13 +314,3 @@ func displayName(u model.User) string {
 	}
 	return "姓名待核实"
 }
-
-// Sort for deterministic output; no personal email or timetable details are returned.
-func sortedNames(members []Member) {
-	sort.SliceStable(members, func(i, j int) bool {
-		if members[i].Name != members[j].Name {
-			return members[i].Name < members[j].Name
-		}
-		return members[i].UserID < members[j].UserID
-	})
-}

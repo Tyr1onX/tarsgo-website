@@ -489,10 +489,6 @@ func (h *AuthHandler) handleServiceError(c *gin.Context, err error) {
 	writeAPIError(c, http.StatusInternalServerError, "服务器内部错误")
 }
 
-func (h *AuthHandler) setAuthCookie(c *gin.Context, token string) {
-	h.setCookie(c, h.service.CookieName(), token, h.service.CookieMaxAgeSeconds(), true)
-}
-
 func (h *AuthHandler) setAuthCookieWithAge(c *gin.Context, token string, maxAge int) {
 	if maxAge <= 0 {
 		maxAge = h.service.CookieMaxAgeSeconds()
@@ -501,12 +497,6 @@ func (h *AuthHandler) setAuthCookieWithAge(c *gin.Context, token string, maxAge 
 }
 
 const accountVaultCookieName = auth.AccountVaultCookieName
-
-func (h *AuthHandler) setAccountVaultCookie(c *gin.Context, token string) {
-	if strings.TrimSpace(token) != "" {
-		h.setCookie(c, accountVaultCookieName, token, h.service.CookieMaxAgeSeconds(), true)
-	}
-}
 
 func (h *AuthHandler) setAccountVaultCookieWithAge(c *gin.Context, token string, maxAge int) {
 	if strings.TrimSpace(token) == "" {
