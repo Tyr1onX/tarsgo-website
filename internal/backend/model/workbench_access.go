@@ -20,11 +20,14 @@ func AccountActivityCutoff(now time.Time) time.Time {
 }
 
 // Calculated for every session read, never stored separately. A default group
-// is not a team assignment; administrative roles do not bypass this rule.
+// is not a team assignment; only super administrators bypass group membership.
 var WorkbenchAccessSQL = fmt.Sprintf(`(users.status = 1
  AND users.last_login_at >= GREATEST(DATE_SUB(NOW(), INTERVAL %d DAY), '%s')
- AND EXISTS (
-   SELECT 1 FROM user_group_members AS member
-   JOIN user_groups AS team ON team.id = member.group_id
-   WHERE member.user_id = users.id AND team.status = 1 AND team.is_default = 0
- )) AS workbench_access`, accountActivityWindowDays, AccountActivityConfirmationStartedAt.Format("2006-01-02 15:04:05"))
+ AND (
+   users.role_id = (SELECT id FROM roles WHERE name = '%s')
+   OR EXISTS (
+     SELECT 1 FROM user_group_members AS member
+     JOIN user_groups AS team ON team.id = member.group_id
+     WHERE member.user_id = users.id AND team.status = 1 AND team.is_default = 0
+   )
+ )) AS workbench_access`, accountActivityWindowDays, AccountActivityConfirmationStartedAt.Format("2006-01-02 15:04:05"), RoleNameSuperAdmin)
