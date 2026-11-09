@@ -78,78 +78,98 @@ function TrendChart({ cohorts }: { cohorts: RecruitmentAnalyticsCohort[] }) {
         <span><i className="recruitment-analytics__legend-swatch recruitment-analytics__legend-swatch--registrations" />报名记录</span>
         <span><i className="recruitment-analytics__legend-swatch recruitment-analytics__legend-swatch--admitted" />录取记录</span>
       </div>
-      <div className="recruitment-analytics__table-wrap">
-        <table className="admin-table recruitment-analytics__table">
-          <caption className="sr-only">各届报名记录与录取记录数字表</caption>
-          <thead>
-            <tr><th scope="col">招新报名表</th><th scope="col">报名记录</th><th scope="col">录取记录</th></tr>
-          </thead>
-          <tbody>
-            {cohorts.map((cohort) => (
-              <tr key={cohort.formId}>
-                <th scope="row">{cohort.title}</th>
-                <td>{formatCount(cohort.registrationCount, cohort.hasData)}</td>
-                <td>{formatCount(cohort.admittedCount, cohort.hasData)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      <details className="recruitment-analytics__trend-data">
+        <summary>查看趋势数据表</summary>
+        <div className="recruitment-analytics__table-wrap">
+          <table className="admin-table recruitment-analytics__table">
+            <caption className="sr-only">各届报名记录与录取记录数字表</caption>
+            <thead>
+              <tr><th scope="col">招新报名表</th><th scope="col">报名记录</th><th scope="col">录取记录</th></tr>
+            </thead>
+            <tbody>
+              {cohorts.map((cohort) => (
+                <tr key={cohort.formId}>
+                  <th scope="row">{cohort.title}</th>
+                  <td>{formatCount(cohort.registrationCount, cohort.hasData)}</td>
+                  <td>{formatCount(cohort.admittedCount, cohort.hasData)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </details>
     </>
   );
 }
 
 function CohortDetails({ cohort }: { cohort: RecruitmentAnalyticsCohort }) {
-  const statusRows = [
-    ["报名记录", cohort.registrationCount],
-    ["录取记录", cohort.admittedCount],
-    ["录取率", formatPercent(cohort.admissionRate)],
-    ["未通过", cohort.rejectedCount],
-    ["撤回", cohort.withdrawnCount],
-    ["待处理", cohort.pendingCount],
-    ["已匹配正式成员关系", cohort.matchedFormalMemberCount],
-  ] as const;
+  const statuses = [
+    { label: "待处理", count: cohort.pendingCount, key: "pending" },
+    { label: "已录取", count: cohort.admittedCount, key: "admitted" },
+    { label: "未通过", count: cohort.rejectedCount, key: "rejected" },
+    { label: "撤回", count: cohort.withdrawnCount, key: "withdrawn" },
+    ...(cohort.otherStatusCount > 0 ? [{ label: "未归类", count: cohort.otherStatusCount, key: "other" }] : []),
+  ];
+  const metrics = [
+    { label: "报名记录", value: cohort.registrationCount.toLocaleString("zh-CN") },
+    { label: "待处理", value: cohort.pendingCount.toLocaleString("zh-CN") },
+    { label: "录取记录", value: cohort.admittedCount.toLocaleString("zh-CN") },
+    { label: "录取率", value: formatPercent(cohort.admissionRate) },
+  ];
 
   return (
     <section className="recruitment-analytics__panel" aria-labelledby="analytics-cohort-heading">
       <div className="recruitment-analytics__section-heading">
-        <div>
-          <p className="admin-eyebrow">届次详情</p>
-          <h2 id="analytics-cohort-heading">{cohort.title}</h2>
-        </div>
+        <h2 id="analytics-cohort-heading">{cohort.title}</h2>
         <span className="recruitment-analytics__date">创建于 {formatDate(cohort.createdAt)}</span>
       </div>
       {!cohort.hasData ? (
         <p className="recruitment-analytics__empty">本届报名表暂无报名数据。</p>
       ) : (
         <>
-          <div className="recruitment-analytics__table-wrap">
-            <table className="admin-table recruitment-analytics__table">
-              <caption className="sr-only">本届报名状态与入队关系统计</caption>
-              <thead><tr><th scope="col">统计指标</th><th scope="col">记录数 / 比率</th></tr></thead>
-              <tbody>
-                {statusRows.map(([label, value]) => (
-                  <tr key={label}><th scope="row">{label}</th><td>{typeof value === "number" ? formatCount(value, cohort.hasData) : value}</td></tr>
-                ))}
-                {cohort.otherStatusCount > 0 ? (
-                  <tr><th scope="row">未归类历史状态</th><td>{formatCount(cohort.otherStatusCount, cohort.hasData)}</td></tr>
-                ) : null}
-              </tbody>
-            </table>
+          <div className="recruitment-analytics__overview" aria-label="所选届次概况">
+            {metrics.map((metric) => (
+              <article key={metric.label} className="recruitment-analytics__metric">
+                <span>{metric.label}</span>
+                <strong>{metric.value}</strong>
+              </article>
+            ))}
           </div>
-          <p className="recruitment-analytics__note">
-            “已匹配正式成员关系”仅统计已录取报名记录中，同一用户在目标组存在且加入时间不早于报名提交时间的成员关系；系统没有独立的入队事件与报名表关联，此项用于区分录取和成员关系，不代表单独登记的入队事件。
-          </p>
+
+          <div className="recruitment-analytics__breakdown">
+            <h3>招新结果分布</h3>
+            <div className="recruitment-analytics__status-track" aria-hidden="true">
+              {statuses.filter((status) => status.count > 0).map((status) => (
+                <span key={status.key} className={"recruitment-analytics__status--" + status.key} style={{ flexGrow: status.count }} />
+              ))}
+            </div>
+            <ul className="recruitment-analytics__status-list">
+              {statuses.map((status) => (
+                <li key={status.key}>
+                  <i className={"recruitment-analytics__status-key recruitment-analytics__status--" + status.key} aria-hidden="true" />
+                  <span>{status.label}</span>
+                  <strong>{status.count.toLocaleString("zh-CN")}</strong>
+                </li>
+              ))}
+            </ul>
+            <p className="recruitment-analytics__membership">已录取记录中匹配到正式成员关系：{cohort.matchedFormalMemberCount.toLocaleString("zh-CN")}</p>
+          </div>
+
           <div className="recruitment-analytics__group-detail">
-            <h3>报名主要组别</h3>
+            <h3>各组报名分布</h3>
             {cohort.groups.length === 0 ? (
               <p className="recruitment-analytics__empty">暂无可识别的主要组别数据。</p>
             ) : (
               <ul>
                 {cohort.groups.map((group) => (
                   <li key={group.name}>
-                    <span>{group.name}</span>
-                    <span>{group.registrationCount.toLocaleString("zh-CN")} 条报名记录</span>
+                    <div className="recruitment-analytics__group-label">
+                      <span>{group.name}</span>
+                      <span>{group.registrationCount.toLocaleString("zh-CN")} · {formatPercent(group.registrationCount * 100 / cohort.registrationCount)}</span>
+                    </div>
+                    <div className="recruitment-analytics__group-track" aria-hidden="true">
+                      <span style={{ width: group.registrationCount * 100 / cohort.registrationCount + "%" }} />
+                    </div>
                   </li>
                 ))}
               </ul>
@@ -171,10 +191,7 @@ function GroupTrendTable({ cohorts }: { cohorts: RecruitmentAnalyticsCohort[] })
   return (
     <section className="recruitment-analytics__panel" aria-labelledby="analytics-groups-heading">
       <div className="recruitment-analytics__section-heading">
-        <div>
-          <p className="admin-eyebrow">跨届比较</p>
-          <h2 id="analytics-groups-heading">各届主要组别变化</h2>
-        </div>
+        <h2 id="analytics-groups-heading">各届主要组别变化</h2>
       </div>
       {groupNames.length === 0 ? (
         <p className="recruitment-analytics__empty">暂无可比较的主要组别数据。</p>
@@ -199,9 +216,6 @@ function GroupTrendTable({ cohorts }: { cohorts: RecruitmentAnalyticsCohort[] })
               </tbody>
             </table>
           </div>
-          <p className="recruitment-analytics__note">
-            历史报名按保留的主要组别快照统计，当前报名按意向组统计；每条记录只计入一个组别，未记录组别的报名不计入本表。
-          </p>
         </>
       )}
     </section>
@@ -243,9 +257,7 @@ export default function RecruitmentAnalytics() {
   return (
     <div className="admin-design recruitment-analytics">
       <header className="admin-page-header">
-        <div className="admin-eyebrow">吉甲 · 招新数据</div>
-        <h1 className="admin-page-title">招新数据分析</h1>
-        <p className="admin-page-description">按每张招新报名表独立查看报名、录取、主要组别和成员关系变化。</p>
+        <h1 className="admin-page-title">招新数据</h1>
       </header>
 
       {loading ? <BrandLoader label="正在读取汇总统计" /> : null}
@@ -253,33 +265,8 @@ export default function RecruitmentAnalytics() {
 
       {!loading && !error && report ? (
         <>
-          <section className="recruitment-analytics__overview" aria-label="历届招新概况">
-            <article className="recruitment-analytics__metric">
-              <span>招新届次（独立报名表）</span>
-              <strong>{report.hasCohorts ? report.cohortCount.toLocaleString("zh-CN") : "暂无数据"}</strong>
-            </article>
-            <article className="recruitment-analytics__metric">
-              <span>累计报名记录</span>
-              <strong>{formatCount(report.totalRegistrations, report.hasRecords)}</strong>
-            </article>
-            <article className="recruitment-analytics__metric">
-              <span>累计录取记录</span>
-              <strong>{formatCount(report.totalAdmitted, report.hasRecords)}</strong>
-            </article>
-          </section>
-
-          <section className="recruitment-analytics__panel" aria-labelledby="analytics-trend-heading">
-            <div className="recruitment-analytics__section-heading">
-              <div>
-                <p className="admin-eyebrow">招新变化</p>
-                <h2 id="analytics-trend-heading">各届报名与录取趋势</h2>
-              </div>
-            </div>
-            <TrendChart cohorts={report.cohorts} />
-          </section>
-
           <section className="recruitment-analytics__selector" aria-label="选择招新届次">
-            <label className="admin-field-label" htmlFor="analytics-cohort-select">查看具体招新届次</label>
+            <label className="admin-field-label" htmlFor="analytics-cohort-select">招新届次</label>
             <select
               id="analytics-cohort-select"
               className="admin-field recruitment-analytics__select"
@@ -296,22 +283,38 @@ export default function RecruitmentAnalytics() {
           </section>
 
           {selectedCohort ? <CohortDetails cohort={selectedCohort} /> : (
-            <p className="recruitment-analytics__empty">当前没有可分析的招新报名表，历史年份不会以模拟数据补齐。</p>
+            <p className="recruitment-analytics__empty">暂无可分析的招新报名表。</p>
           )}
-          <GroupTrendTable cohorts={report.cohorts} />
 
-          <section className="recruitment-analytics__method" aria-labelledby="analytics-method-heading">
-            <h2 id="analytics-method-heading">数据说明</h2>
-            <ul>
-              <li>统计届次以实际报名表为单位；同一年多个批次分别统计，不按年份合并。只纳入已发布、已关闭的报名表，以及仍为草稿但已有真实报名记录的表单。</li>
-              <li>报名数是报名表中的记录数，跨届累计不做用户去重。录取、未通过、撤回及待处理按当前标准流程状态统计；录取率为录取记录除以本届报名记录，包含撤回记录在分母中。</li>
-              <li>正式入队不是录取的同义词。由于系统没有独立入队事件和报名届次外键，详情中的成员关系数仅按同一用户、目标组及成员关系加入时间匹配已录取记录；不作为独立登记的入队人数。</li>
-              <li>历史报名主要组别依次取最终录取组、意向组、第一志愿，并保留名称快照；当前报名取意向组。每条报名只计入一个组别，缺失名称的历史组别单列。</li>
-              <li>页面只接收数据库聚合后的届次、状态、组别和成员关系数量，不读取或传输姓名、邮箱、手机号或表单答案。未覆盖的年份不补造记录；无报名数据的表单显示“暂无数据”。</li>
-            </ul>
-            <p>数据覆盖：{report.hasCohorts ? formatDate(report.coverageStart) + " 至 " + formatDate(report.coverageEnd) + "（按报名表创建时间）" : "暂无已发布或有真实报名记录的报名表"}</p>
-            <p>统计更新时间：{formatDate(report.generatedAt)} {report.generatedAt ? new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit" }).format(new Date(report.generatedAt)) : ""}</p>
-          </section>
+          {report.hasCohorts ? <details className="recruitment-analytics__panel recruitment-analytics__history">
+            <summary>历届招新比较</summary>
+            <div className="recruitment-analytics__history-content">
+              <p className="recruitment-analytics__history-overview">
+                共 {report.cohortCount.toLocaleString("zh-CN")} 届 · 累计报名 {formatCount(report.totalRegistrations, report.hasRecords)} · 累计录取 {formatCount(report.totalAdmitted, report.hasRecords)}
+              </p>
+              <section aria-labelledby="analytics-trend-heading">
+                <h2 id="analytics-trend-heading">报名与录取趋势</h2>
+                <TrendChart cohorts={report.cohorts} />
+              </section>
+              <GroupTrendTable cohorts={report.cohorts} />
+            </div>
+          </details> : null}
+
+          <details className="recruitment-analytics__method">
+            <summary>统计口径</summary>
+            <div className="recruitment-analytics__method-content">
+              <ul>
+                <li>以报名表为独立届次，同一年多个批次分别统计。仅包含已发布、已关闭的报名表，以及有真实报名记录的草稿表单。</li>
+                <li>报名数是记录数，跨届累计不对用户去重；录取率以全部报名记录为分母，包含撤回记录。</li>
+                <li>状态分布按各报名记录的当前状态统计，包含待处理、录取、未通过、撤回及未归类历史状态。</li>
+                <li>“匹配到正式成员关系”是已录取记录中，按同一用户、目标组及加入时间关联到的成员记录数，不代表单独登记的入队事件。</li>
+                <li>各组报名按照主要组别统计：历史报名使用保留的组别快照，当前报名使用意向组。每条记录最多计入一个组别，缺失组别的记录不计入分布及对比；各组百分比以该届全部报名记录为分母。</li>
+                <li>页面仅使用数据库聚合统计，不读取或传输报名者姓名、联系方式及表单答案。没有记录的年份不补造数据。</li>
+              </ul>
+              <p>数据覆盖：{report.hasCohorts ? formatDate(report.coverageStart) + " 至 " + formatDate(report.coverageEnd) + "（按报名表创建时间）" : "暂无招新报名表"}</p>
+              <p>统计更新时间：{formatDate(report.generatedAt)} {report.generatedAt ? new Intl.DateTimeFormat("zh-CN", { hour: "2-digit", minute: "2-digit" }).format(new Date(report.generatedAt)) : ""}</p>
+            </div>
+          </details>
         </>
       ) : null}
     </div>
