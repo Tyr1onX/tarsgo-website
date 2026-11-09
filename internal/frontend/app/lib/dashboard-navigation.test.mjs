@@ -144,38 +144,35 @@ test("management deep links keep role restrictions without broadening page acces
 
 test("paused member and admin routes still reject direct entry", () => {
   const pausedPaths = [
-    "/dashboard/base",
     "/dashboard/practice-projects",
-    "/dashboard/growth?tab=skills",
-    "/dashboard/skills",
-    "/dashboard/capabilities",
     "/dashboard/expedition/projects",
     "/dashboard/admin/training/practice-projects",
-    "/dashboard/admin/training/skills",
-    "/dashboard/admin/training/capabilities",
     "/dashboard/admin/training/expedition",
-    "/dashboard/admin/cultivation",
   ];
   for (const value of pausedPaths) {
     const pathname = value.split("?")[0];
     assert.equal(isTemporarilyUnavailableDashboardPath(pathname), true, pathname);
   }
-  for (const pathname of ["/dashboard/weekly-reports", "/dashboard/leave", "/dashboard/guide", "/dashboard/admin/timetable-availability"]) {
+  for (const pathname of ["/dashboard/base", "/dashboard/growth", "/dashboard/skills", "/dashboard/capabilities", "/dashboard/admin/training/skills", "/dashboard/admin/training/capabilities", "/dashboard/admin/cultivation", "/dashboard/weekly-reports", "/dashboard/leave", "/dashboard/guide", "/dashboard/admin/timetable-availability"]) {
     assert.equal(isTemporarilyUnavailableDashboardPath(pathname), false, pathname);
   }
 });
 
 test("legacy team, timetable, profile, and help paths remain reachable through the new hierarchy", async () => {
   const routes = await readFile(new URL("../routes.ts", import.meta.url), "utf8");
-  const teamRedirect = await readFile(new URL("../routes/dashboard/team-redirect.tsx", import.meta.url), "utf8");
   const timetable = await readFile(new URL("../routes/dashboard/timetable.tsx", import.meta.url), "utf8");
   const layout = await readFile(new URL("../routes/dashboard/layout.tsx", import.meta.url), "utf8");
   const sideNavigation = await readFile(new URL("../components/dashboard-section-navigation.tsx", import.meta.url), "utf8");
   assert.match(routes, /route\("workbench", "routes\/dashboard\/workbench\.tsx"\)/);
   assert.match(routes, /route\("workbench\/organization", "routes\/organization-preview\.tsx"\)/);
-  assert.match(routes, /route\("team", "routes\/dashboard\/team-redirect\.tsx"\)/);
-  assert.match(teamRedirect, /Navigate to="\/dashboard\/workbench\/organization" replace/);
+  assert.match(routes, /route\("team", "routes\/organization-preview\.tsx", \{ id: "dashboard-team-legacy" \}\)/);
+  assert.match(routes, /route\("admin\/organization-preview", "routes\/organization-preview\.tsx"/);
+  assert.match(layout, /if \(legacyOrganizationAlias\) \{\s*throw redirect\("\/dashboard\/workbench\/organization"\)/);
+  assert.doesNotMatch(routes, /team-redirect\.tsx/);
   assert.match(timetable, /tab=settings#timetable/);
+  const base = await readFile(new URL("../routes/dashboard/base.tsx", import.meta.url), "utf8");
+  assert.match(base, /location\.search\}\$\{location\.hash\}/);
+  assert.match(layout, /skipGroupResolution[\s\S]*?currentPath\.pathname === "\/dashboard\/base"/);
   assert.match(layout, /navigate\(`\/dashboard\/members\/\$\{currentUser\.id\}\$\{tab === "overview" \? "" : `\?tab=\$\{tab\}`\}`\)/);
   assert.match(layout, /帮助与工作手册/);
   assert.doesNotMatch(layout, />我的主页<\/button>/);
