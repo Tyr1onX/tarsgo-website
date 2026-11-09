@@ -348,6 +348,7 @@ test("assignment management lists current work before opening the editor", () =>
   assert.match(assignmentManagement, /\{composerOpen \? <section className="admin-panel assignment-editor"/);
   assert.match(assignmentManagement, /assignment-editor__description[\s\S]*?assignment-editor__requirements[\s\S]*?assignment-editor__materials[\s\S]*?assignment-editor__recipients/);
   assert.match(assignmentManagement, /assignment-deadline-shortcuts/);
+  assert.match(assignmentManagement, /!groupsLoading && groupId > 0 && !loading && !error && !groupError && items\.length === 0 \? <p[^>]*>本组尚未发布作业。/);
   assert.match(assignmentManagement, /assignment-list__actions/);
 });
 
