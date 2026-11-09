@@ -76,12 +76,13 @@ func TestMariaDBWorkbenchBoundaryAndCommunityAPIs(t *testing.T) {
 		{"formal", model.TeamIdentityFormalMember, "2026-11-03 18:10:01", model.RoleNameUser, "team", false, true},
 		{"reserve", model.TeamIdentityReserveMember, "2026-11-03 18:10:01", model.RoleNameUser, "team", false, true},
 		{"admin", model.TeamIdentityCommunityMember, "2026-11-03 18:10:01", model.RoleNameAdmin, "", false, false},
-		{"super", model.TeamIdentityCommunityMember, "2026-11-03 18:10:01", model.RoleNameSuperAdmin, "", false, false},
+		{"super", model.TeamIdentityCommunityMember, "2026-11-03 18:10:01", model.RoleNameSuperAdmin, "", false, true},
 		{"default_group", model.TeamIdentityFormalMember, "2026-11-03 18:10:01", model.RoleNameUser, "default", false, false},
 		{"inactive_group", model.TeamIdentityFormalMember, "2026-11-03 18:10:01", model.RoleNameUser, "disabled", false, false},
 		{"stale_login", model.TeamIdentityFormalMember, "2026-11-03 18:10:01", model.RoleNameUser, "team", true, false},
 		{"admin_with_group", model.TeamIdentityCommunityMember, "2026-11-03 18:10:01", model.RoleNameAdmin, "team", false, true},
 		{"super_with_group", model.TeamIdentityCommunityMember, "2026-11-03 18:10:01", model.RoleNameSuperAdmin, "team", false, true},
+		{"stale_super", model.TeamIdentityCommunityMember, "2026-11-03 18:10:01", model.RoleNameSuperAdmin, "", true, false},
 	}
 	for i, test := range tests {
 		var role model.Role
