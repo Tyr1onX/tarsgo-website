@@ -35,6 +35,7 @@ function describeError(cause: unknown, fallback: string) {
 }
 
 function reportSection(label: string, content: string) {
+  if (label === "需要帮助" && !content.trim()) return null;
   return (
     <div className="weekly-report__content-section">
       <h4>{label}</h4>
@@ -222,10 +223,10 @@ export default function WeeklyReportsRoute() {
   async function submitReport(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!dashboard || !selectedWeekStart) return;
-    const requiredSections = [form.completed, form.gains, form.blockers, form.nextPlan]
+    const requiredSections = [form.completed, form.gains, form.nextPlan]
       .filter((_, index) => !(selectedReport && !selectedReport.gains?.trim() && index === 1));
     if (requiredSections.some((value) => !value.trim())) {
-      setSaveError("请填写本周进展、本周收获、下周计划和需要帮助；如暂无内容，请填写“无”。历史周报未单独记录的收获可保持为空。");
+      setSaveError("请填写本周进展、本周收获和下周计划；暂无收获可填写“无”。历史周报未单独记录的收获可保持为空。");
       return;
     }
     if (isCurrentEntry && !selectedReport && dashboard.groups.length > 1 && !reportGroupId) {
@@ -395,8 +396,8 @@ export default function WeeklyReportsRoute() {
                 <textarea required maxLength={5000} value={form.nextPlan} onChange={(event) => updateForm("nextPlan", event.target.value)} placeholder="准备学习、练习或推进哪些事项" />
               </label>
               <label className="weekly-report__field">
-                <span>需要帮助</span>
-                <textarea required maxLength={5000} value={form.blockers} onChange={(event) => updateForm("blockers", event.target.value)} placeholder="遇到的问题、需要的指导或协作支持；如暂无请填写“无”" />
+                <span>需要帮助（选填）</span>
+                <textarea maxLength={5000} value={form.blockers} onChange={(event) => updateForm("blockers", event.target.value)} placeholder="遇到的问题、需要的指导或协作支持" />
               </label>
               <div className="weekly-report__attachments">
                 <div className="weekly-report__field">

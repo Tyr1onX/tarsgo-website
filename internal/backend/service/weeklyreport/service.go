@@ -645,7 +645,7 @@ func validateInput(input ReportInput, allowEmptyLegacyGains bool) (ReportInput, 
 		{name: "下周计划", value: input.NextPlan},
 	}
 	for _, section := range sections {
-		if section.name == "本周收获" && allowEmptyLegacyGains && section.value == "" {
+		if section.value == "" && (section.name == "需要帮助" || (section.name == "本周收获" && allowEmptyLegacyGains)) {
 			continue
 		}
 		if section.value == "" {

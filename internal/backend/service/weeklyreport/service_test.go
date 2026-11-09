@@ -365,7 +365,7 @@ func TestTeamWeekListsOnlyPersistedWeeksAndRejectsArbitraryWeeks(t *testing.T) {
 	}
 }
 
-func TestReportInputRequiresAllFourSections(t *testing.T) {
+func TestReportInputRequiresProgressGainsAndPlan(t *testing.T) {
 	valid := validInput()
 	valid.Gains = ""
 	if _, err := validateInput(valid, false); err == nil {
@@ -376,7 +376,16 @@ func TestReportInputRequiresAllFourSections(t *testing.T) {
 		t.Fatal("section over the character limit must be rejected")
 	}
 	if _, err := validateInput(validInput(), false); err != nil {
-		t.Fatalf("valid four-section report should be accepted: %v", err)
+		t.Fatalf("valid report should be accepted: %v", err)
+	}
+	withoutBlockers := validInput()
+	withoutBlockers.Blockers = ""
+	if _, err := validateInput(withoutBlockers, false); err != nil {
+		t.Fatalf("report without help requests should be accepted: %v", err)
+	}
+	withoutBlockers.Blockers = tooLong
+	if _, err := validateInput(withoutBlockers, false); err == nil {
+		t.Fatal("help requests must still respect the character limit")
 	}
 	if _, err := validateInput(valid, true); err != nil {
 		t.Fatalf("legacy report without a gains field should remain editable: %v", err)

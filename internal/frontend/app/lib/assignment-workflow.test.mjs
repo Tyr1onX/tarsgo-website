@@ -244,6 +244,26 @@ test("review center uses the shared group and distinguishes loading and empty st
   assert.match(assignmentSubmissions, /role="alert" className="admin-notice admin-notice--error"/);
 });
 
+test("member assignments sort actionable work, filter locally, and keep detail links in sync", () => {
+  assert.match(memberAssignments, /const sorted = \[\.\.\.result\]\.sort\(\(a, b\) => assignmentPriority\(a\) - assignmentPriority\(b\)/);
+  assert.match(memberAssignments, /case "overdue": return 0/);
+  assert.match(memberAssignments, /case "needs_redo": return 1/);
+  assert.match(memberAssignments, /case "pending": return 2/);
+  assert.match(memberAssignments, /const visibleItems = items\.filter\(\(item\) => matchesFilter\(item, filter\)\)/);
+  assert.match(memberAssignments, /aria-pressed=\{filter === value\} disabled=\{saving\}/);
+  assert.match(memberAssignments, /next\.set\("assignmentId", String\(item\.id\)\)/);
+  assert.match(memberAssignments, /setSearchParams\(\(current\) =>/);
+  assert.match(memberAssignments, /visibleItems\.some\(\(item\) => item\.id === selectedID\)/);
+});
+
+test("member upload errors stay beside the upload field and Feishu repair stays under maintenance", () => {
+  assert.match(memberAssignments, /setSubmissionError\(cause instanceof ApiError/);
+  assert.match(memberAssignments, /<p role="alert" className="text-sm text-\[var\(--admin-danger\)\]">\{submissionError\}<\/p>/);
+  assert.match(assignmentManagement, /<details[^>]*>[\s\S]*?<summary[^>]*>维护操作<\/summary>[\s\S]*?修复飞书看板[\s\S]*?<\/details>/);
+  assert.doesNotMatch(memberAssignments, /WorkbenchFeatureStatus/);
+  assert.doesNotMatch(assignmentManagement, /WorkbenchFeatureStatus/);
+});
+
 test("member feedback preserves comments and status without exposing scores", () => {
   assert.match(assignmentService, /Score\s+\*uint8\s+`json:"score,omitempty"`/);
   assert.match(assignmentService, /loadSubmissionHistories\(ctx, assignmentID, \[\]uint64\{userID\}, false\)/);
