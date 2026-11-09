@@ -5,30 +5,31 @@ import { validateCommunityImages } from "~/lib/community-client";
 import { validateCommunityImageBindings } from "~/lib/community-image-bindings";
 import "~/components/community-markdown-editor.css";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
-import { useSearchParams, useOutletContext } from "react-router";
+import { Navigate, useLocation, useSearchParams } from "react-router";
 
-import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { assignmentClient, assignmentDecisionLabel, assignmentStatusLabel, formatAssignmentDate, type AdminAssignmentDetail, type Assignment } from "~/lib/assignment-client";
-import { useAssignmentGroups } from "~/lib/use-assignment-groups";
 import { Notify } from "~/components/notify";
 
 export function meta() {
-  return [{ title: "提交记录 | TARSGO" }];
+  return [{ title: "作业管理 | TARSGO" }];
+}
+
+export default function AssignmentSubmissionsRedirect() {
+  const { search } = useLocation();
+  const params = new URLSearchParams(search);
+  params.set("view", "review");
+  return <Navigate to={`/dashboard/admin/training/assignments?${params}`} replace />;
 }
 
 const fieldClass = "admin-field w-full";
 const ReviewEditor = lazy(() => import("~/components/community-markdown-editor").then((module) => ({ default: module.CommunityMarkdownEditor })));
 
-export default function AssignmentSubmissionsRoute() {
-  const { currentUser, groupResolution } = useOutletContext<DashboardLayoutOutletContext>();
+export function AssignmentReview({ groupId }: { groupId: number }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedID = Number(searchParams.get("assignmentId")) || 0;
-  const { assignmentGroups, error: groupError, loading: groupsLoading } = useAssignmentGroups(currentUser.id, currentUser.role.name, groupResolution?.groups);
-  const assignmentGroupKey = assignmentGroups.map((group) => group.groupId).join(",");
-  const [groupId, setGroupId] = useState(0);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [selectedID, setSelectedID] = useState(requestedID);
-  const [submissionFilter, setSubmissionFilter] = useState<"toSubmit" | "toReview" | "passed">("toReview");
+  const [submissionFilter, setSubmissionFilter] = useState<"needsRedo" | "toReview" | "passed">("toReview");
   const [editingReviewID, setEditingReviewID] = useState(0);
   const [reviewUploads, setReviewUploads] = useState<CommunityPendingImage[]>([]);
   const reviewUploadsRef = useRef<CommunityPendingImage[]>([]);
@@ -44,20 +45,6 @@ export default function AssignmentSubmissionsRoute() {
   const [notice, setNotice] = useState("");
 
   useEffect(() => {
-    setAssignments([]);
-    setListLoaded(false);
-    setDetail(null);
-    setDetailLoading(false);
-    setSelectedID(0);
-    setReviewDrafts({});
-    setEditingReviewID(0);
-    setReviewUploads([]);
-    reviewUploadsRef.current = [];
-    setReviewError("");
-    setGroupId((current) => assignmentGroups.some((group) => group.groupId === current) ? current : assignmentGroups[0]?.groupId ?? 0);
-  }, [currentUser.id, currentUser.role.name, assignmentGroupKey]);
-
-  useEffect(() => {
     if (!groupId) return;
     let active = true;
     setLoading(true);
@@ -71,9 +58,9 @@ export default function AssignmentSubmissionsRoute() {
       if (!active) return;
       setAssignments(items);
       setListLoaded(true);
-      const nextID = items.some((item) => item.id === requestedID) ? requestedID : items[0]?.id ?? 0;
+      const nextID = items.some((item) => item.id === requestedID) ? requestedID : items.find((item) => item.submittedCount > item.reviewedCount)?.id ?? items[0]?.id ?? 0;
       setSelectedID(nextID);
-      if (nextID) setSearchParams({ assignmentId: String(nextID) }, { replace: true });
+      if (nextID) setSearchParams({ view: "review", assignmentId: String(nextID) }, { replace: true });
     }).catch((cause: unknown) => {
       if (active) {
         setAssignments([]);
@@ -82,7 +69,7 @@ export default function AssignmentSubmissionsRoute() {
       }
     }).finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
-  }, [groupId, currentUser.id, currentUser.role.name, assignmentGroupKey]);
+  }, [groupId]);
 
   useEffect(() => {
     if (!listLoaded || !selectedID) {
@@ -98,7 +85,7 @@ export default function AssignmentSubmissionsRoute() {
       .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : "提交记录加载失败"); })
       .finally(() => { if (active) setDetailLoading(false); });
     return () => { active = false; };
-  }, [selectedID, currentUser.id, listLoaded]);
+  }, [selectedID, listLoaded]);
 
   function draftFor(submissionID: number) {
     return reviewDrafts[submissionID] ?? { score: "", decision: "passed" as const, comment: "" };
@@ -193,30 +180,23 @@ export default function AssignmentSubmissionsRoute() {
     reviewUploadsRef.current = [];
     setReviewError("");
     setError("");
-    setSearchParams(id ? { assignmentId: String(id) } : {}, { replace: true });
+    setSearchParams(id ? { view: "review", assignmentId: String(id) } : { view: "review" }, { replace: true });
     setNotice("");
   }
 
   const assignment = listLoaded && assignments.some((item) => item.id === selectedID) && detail?.assignment.id === selectedID
     ? detail.assignment
     : null;
-  const toSubmit = detail?.members.filter((member) => member.status === "pending" || member.status === "overdue" || member.status === "needs_redo") ?? [];
+  const pendingMembers = detail?.members.filter((member) => member.status === "pending" || member.status === "overdue") ?? [];
+  const needsRedo = detail?.members.filter((member) => member.status === "needs_redo") ?? [];
   const toReview = detail?.members.filter((member) => member.status === "submitted") ?? [];
   const passed = detail?.members.filter((member) => member.status === "passed") ?? [];
-  const visibleMembers = submissionFilter === "toSubmit" ? toSubmit : submissionFilter === "toReview" ? toReview : passed;
+  const visibleMembers = submissionFilter === "needsRedo" ? needsRedo : submissionFilter === "toReview" ? toReview : passed;
 
   return (
-    <section className="admin-design space-y-5" aria-labelledby="assignment-submissions-title">
-      <header className="admin-page-header flex flex-wrap items-center justify-between gap-3">
-        <h1 id="assignment-submissions-title" className="admin-page-title">提交记录</h1>
-        {groupsLoading ? <BrandLoader label="正在加载组别" size="sm" /> : assignmentGroups.length > 1 ? <label className="admin-field-label">组别<select className="admin-field w-full" value={groupId} onChange={(event) => { setGroupId(Number(event.target.value)); setAssignments([]); setListLoaded(false); setSelectedID(0); setDetail(null); setDetailLoading(false); setError(""); }}>
-          {assignmentGroups.map((group) => <option key={group.groupId} value={group.groupId}>{group.name}</option>)}
-        </select></label> : assignmentGroups[0] ? <p className="text-sm text-[var(--admin-muted)]">{assignmentGroups[0].name}</p> : null}
-      </header>
-      {groupError ? <div role="alert" className="admin-notice admin-notice--error">{groupError}</div> : null}
-      {!groupsLoading && !groupError && assignmentGroups.length === 0 ? <section className="admin-panel p-5 text-sm text-[var(--admin-muted)]">没有可管理的组别。</section> : null}
+    <section className="space-y-5" aria-label="批改中心">
       {assignments.length > 0 ? <label className="admin-field-label">作业<select className="admin-field w-full" value={selectedID} onChange={(event) => chooseAssignment(Number(event.target.value))}>
-        {assignments.map((item) => <option key={item.id} value={item.id}>{item.title}</option>)}
+        {assignments.map((item) => <option key={item.id} value={item.id}>{item.title}{item.submittedCount > item.reviewedCount ? ` · 待批改 ${item.submittedCount - item.reviewedCount}` : ""}</option>)}
       </select></label> : null}
       {error ? <div role="alert" className="admin-notice admin-notice--error">{error}</div> : null}
       {notice ? <Notify tone="success" message={notice} onClose={() => setNotice("")} /> : null}
@@ -229,21 +209,24 @@ export default function AssignmentSubmissionsRoute() {
           <span>截止 {formatAssignmentDate(assignment.dueAt)}</span>
           <span>{assignment.isGroupWide ? "全组实时接收" : "指定成员"} · 接收 {assignment.targetCount} 人</span>
         </section>
+        {pendingMembers.length > 0 ? <details className="admin-panel px-4 py-3 text-sm">
+          <summary className="cursor-pointer text-[var(--admin-muted)]">未提交 {pendingMembers.length} 人</summary>
+          <ul className="mt-3 flex flex-wrap gap-3 text-[var(--admin-text)]">{pendingMembers.map((member) => <li key={member.userId}>{member.name}{member.status === "overdue" ? "（逾期）" : ""}</li>)}</ul>
+        </details> : null}
         <section className="admin-panel divide-y divide-[var(--admin-border-subtle)] p-4 sm:p-5" aria-label="成员提交情况">
           {detail && detail.members.length > 0 ? <div className="grid grid-cols-3 gap-2 pb-4" role="group" aria-label="成员进度筛选">
             {([
-              { value: "toSubmit", label: "待提交", count: toSubmit.length, hint: "含返修" },
-              { value: "toReview", label: "待批改", count: toReview.length, hint: "" },
-              { value: "passed", label: "已通过", count: passed.length, hint: "" },
-            ] as const).map(({ value, label, count, hint }) => <button key={value} type="button"
+              { value: "toReview", label: "待批改", count: toReview.length },
+              { value: "needsRedo", label: "已退回", count: needsRedo.length },
+              { value: "passed", label: "已通过", count: passed.length },
+            ] as const).map(({ value, label, count }) => <button key={value} type="button"
               className={`rounded-xl border px-3 py-3 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 ${submissionFilter === value ? "border-[var(--admin-text)] bg-[var(--admin-surface-subtle)]" : "border-[var(--admin-border-subtle)] bg-[var(--admin-surface)] hover:border-[var(--admin-hover-border)]"}`}
               aria-pressed={submissionFilter === value} onClick={() => setSubmissionFilter(value)}>
               <span className="block text-sm text-[var(--admin-muted)]">{label}</span>
               <strong className="mt-1 block text-2xl tabular-nums text-[var(--admin-text)]">{count}</strong>
-              {hint ? <span className="text-xs text-[var(--admin-muted)]">{hint}</span> : null}
             </button>)}
           </div> : null}
-          {detail && visibleMembers.length === 0 ? <p role="status" className="py-3 text-sm text-[var(--admin-muted)]">{detail.members.length === 0 ? "该作业当前没有分配成员。" : submissionFilter === "toSubmit" ? "当前没有待提交或返修的成员。" : submissionFilter === "toReview" ? "当前没有待批改的提交。" : "当前没有已通过的成员。"}</p> : null}
+          {detail && visibleMembers.length === 0 ? <p role="status" className="py-3 text-sm text-[var(--admin-muted)]">{detail.members.length === 0 ? "该作业当前没有分配成员。" : submissionFilter === "needsRedo" ? "当前没有已退回的提交。" : submissionFilter === "toReview" ? "当前没有待批改的提交。" : "当前没有已通过的成员。"}</p> : null}
           {visibleMembers.map((member) => {
             const latest = member.latestSubmission;
             const lastReview = latest?.reviews.at(-1);

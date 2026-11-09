@@ -19,6 +19,32 @@
   margin: 0;
 }
 
+.assignment-management__views {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--admin-border-subtle);
+}
+
+.assignment-management__views button {
+  border: 0;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  padding: 0.65rem 1rem;
+  color: var(--admin-muted);
+  font-size: 0.875rem;
+  cursor: pointer;
+}
+
+.assignment-management__views button:hover {
+  color: var(--admin-text);
+}
+
+.assignment-management__views button.is-active {
+  color: var(--admin-text);
+  border-bottom-color: var(--admin-text);
+  font-weight: 600;
+}
+
 .assignment-editor {
   padding: 1.1rem 1.25rem 1.25rem;
 }

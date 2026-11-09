@@ -70,7 +70,7 @@ export default function AdminDashboard() {
             {pendingInterview > 0 ? <Link className="admin-workbench__todo" to="/dashboard/admin/registrations?view=interviews">
               <span><strong>候选人待面试</strong><small>招新</small></span><b>{pendingInterview}</b>
             </Link> : null}
-            {(state.assignmentReviewCount ?? 0) > 0 ? <Link className="admin-workbench__todo" to="/dashboard/admin/training/submissions">
+            {(state.assignmentReviewCount ?? 0) > 0 ? <Link className="admin-workbench__todo" to="/dashboard/admin/training/assignments?view=review">
               <span><strong>作业待批改</strong><small>成员与培养</small></span><b>{state.assignmentReviewCount}</b>
             </Link> : null}
 

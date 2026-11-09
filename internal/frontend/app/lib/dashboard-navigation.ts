@@ -68,7 +68,6 @@ const ADMIN_MENU: readonly AdminMenuGroup[] = [
     children: [
       { key: "accounts", label: "账号与权限", href: "/dashboard/admin/users", allowedRoles: ["super_admin"] },
       { key: "assignment-management", label: "作业管理", href: "/dashboard/admin/training/assignments", allowedRoles: ["admin", "super_admin"], requiresAssignmentGroup: true },
-      { key: "assignment-submissions", label: "提交批改", href: "/dashboard/admin/training/submissions", allowedRoles: ["admin", "super_admin"], requiresAssignmentGroup: true },
     ],
   },
   {
@@ -261,6 +260,9 @@ export function canAccessDashboardAdminPath(userOrRole: AuthUser | string, pathn
   if (pathname === "/dashboard/admin/history") return roleName === "super_admin";
   if (pathname === "/dashboard/admin/leave") return ["admin", "super_admin"].includes(roleName);
   if (pathname.startsWith("/dashboard/admin/leave/")) return false;
+  if (pathname === "/dashboard/admin/training/submissions") {
+    return getAccessibleAdminPaths(roleName, hasAssignmentGroup).includes("/dashboard/admin/training/assignments");
+  }
   const accessiblePaths = getAccessibleAdminPaths(roleName, hasAssignmentGroup);
   return accessiblePaths.some((href) => pathname === href || pathname.startsWith(`${href}/`));
 }

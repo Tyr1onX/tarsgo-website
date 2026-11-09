@@ -24,6 +24,13 @@ test("workbench exposes assignments to all five supported groups", () => {
   assert.match(routes, /route\("assignments", "routes\/dashboard\/assignments\.tsx"\)/);
   assert.match(routes, /route\("admin\/training\/assignments", "routes\/admin\/assignment-management\.tsx"\)/);
   assert.match(routes, /route\("admin\/training\/submissions", "routes\/admin\/assignment-submissions\.tsx"\)/);
+  assert.match(assignmentSubmissions, /function AssignmentSubmissionsRedirect\(\)/);
+  assert.match(assignmentSubmissions, /params\.set\("view", "review"\)/);
+  assert.match(assignmentManagement, /<AssignmentReview key=\{groupId\} groupId=\{groupId\}/);
+  assert.match(assignmentManagement, /批改中心<\/button>/);
+  assert.match(assignmentManagement, /作业列表<\/button>/);
+  assert.match(navigation, /if \(pathname === "\/dashboard\/admin\/training\/submissions"\)/);
+  assert.doesNotMatch(navigation, /key: "assignment-submissions"/);
   assert.match(navigation, /const ASSIGNMENT_GROUP_NAMES = new Set\(\[\.\.\.TECHNICAL_GROUP_NAMES, "运营组"\]\)/);
   assert.match(navigation, /!item\.requiresAssignmentGroup \|\| roleName === "super_admin" \|\| hasAssignmentGroup/);
   assert.match(layout, /pathname === "\/dashboard\/assignments" && !hasAssignmentGroup/);
@@ -133,13 +140,13 @@ test("Beijing deadlines default to seven days, support shortcuts, and validate b
   assert.match(deadline, /wallClock - SHANGHAI_OFFSET_MS/);
 });
 
-test("submission review page groups current members by the next required action", () => {
-  assert.match(assignmentSubmissions, /useState<"toSubmit" \| "toReview" \| "passed">\("toReview"\)/);
-  assert.match(assignmentSubmissions, /member\.status === "pending" \|\| member\.status === "overdue" \|\| member\.status === "needs_redo"/);
+test("review center lists only submitted work by review outcome", () => {
+  assert.match(assignmentSubmissions, /useState<"needsRedo" \| "toReview" \| "passed">\("toReview"\)/);
+  assert.match(assignmentSubmissions, /member\.status === "needs_redo"/);
   assert.match(assignmentSubmissions, /member\.status === "submitted"/);
   assert.match(assignmentSubmissions, /member\.status === "passed"/);
-  assert.match(assignmentSubmissions, /const visibleMembers = submissionFilter === "toSubmit" \? toSubmit : submissionFilter === "toReview" \? toReview : passed/);
-  assert.match(assignmentSubmissions, /label: "待提交", count: toSubmit\.length, hint: "含返修"/);
+  assert.match(assignmentSubmissions, /const visibleMembers = submissionFilter === "needsRedo" \? needsRedo : submissionFilter === "toReview" \? toReview : passed/);
+  assert.match(assignmentSubmissions, /label: "已退回", count: needsRedo\.length/);
   assert.match(assignmentSubmissions, /label: "待批改", count: toReview\.length/);
   assert.match(assignmentSubmissions, /label: "已通过", count: passed\.length/);
   assert.match(assignmentSubmissions, /aria-pressed=\{submissionFilter === value\}/);
@@ -225,16 +232,15 @@ test("assignment lifecycle retains history, blocks submissions after withdrawal,
 
 
 
-test("submission page distinguishes list loading, empty lists, detail loading, and no submissions", () => {
-  assert.match(assignmentSubmissions, /const assignmentGroupKey = assignmentGroups\.map\(\(group\) => group\.groupId\)\.join\(","\)/);
-  assert.match(assignmentSubmissions, /\[currentUser\.id, currentUser\.role\.name, assignmentGroupKey\]/);
-  assert.match(assignmentSubmissions, /\[groupId, currentUser\.id, currentUser\.role\.name, assignmentGroupKey\]/);
+test("review center uses the shared group and distinguishes loading and empty states", () => {
+  assert.match(assignmentSubmissions, /export function AssignmentReview\(\{ groupId \}: \{ groupId: number \}\)/);
+  assert.match(assignmentSubmissions, /\}, \[groupId\]\);/);
   assert.match(assignmentSubmissions, /setListLoaded\(true\)/);
   assert.match(assignmentSubmissions, /listLoaded && !loading && !error && assignments\.length === 0/);
   assert.match(assignmentSubmissions, /listLoaded && assignments\.some\(\(item\) => item\.id === selectedID\) && detail\?\.assignment\.id === selectedID/);
   assert.match(assignmentSubmissions, /正在加载作业列表/);
   assert.match(assignmentSubmissions, /正在加载提交记录/);
-  assert.match(assignmentSubmissions, /当前没有待提交或返修的成员/);
+  assert.match(assignmentSubmissions, /当前没有已退回的提交/);
   assert.match(assignmentSubmissions, /role="alert" className="admin-notice admin-notice--error"/);
 });
 
@@ -295,9 +301,17 @@ test("migration 25 only adds nullable idempotency metadata to existing assignmen
 
 test("assignment management lists current work before opening the editor", () => {
   assert.match(assignmentManagement, /const \[composerOpen, setComposerOpen\] = useState\(false\)/);
-  assert.match(assignmentManagement, /setGroupId\(nextGroupID\); resetDraft\(nextGroupID\); \}\}/);
+  assert.match(assignmentManagement, /setGroupId\(nextGroupID\); resetDraft\(nextGroupID\); setSearchParams\(\{ view \}, \{ replace: true \}\); \}\}/);
   assert.doesNotMatch(assignmentManagement, /resetDraft\(nextGroupID\); setComposerOpen\(true\)/);
   assert.match(assignmentManagement, /\{!composerOpen \? <button type="button" className="admin-button admin-button--primary"[\s\S]*?>发布作业<\/button> : null\}/);
+  assert.match(assignmentManagement, /view === "review" \? <Suspense/);
+  assert.match(assignmentManagement, /view === "list" \? "is-active"/);
+  assert.match(assignmentManagement, /assignments\?view=review&assignmentId=\$\{item\.id\}/);
+  assert.match(assignmentSubmissions, /const needsRedo = detail\?\.members\.filter\(\(member\) => member\.status === "needs_redo"\)/);
+  assert.match(assignmentSubmissions, /items\.find\(\(item\) => item\.submittedCount > item\.reviewedCount\)/);
+  assert.match(assignmentSubmissions, /待批改 \$\{item\.submittedCount - item\.reviewedCount\}/);
+  assert.match(assignmentSubmissions, /const pendingMembers = detail\?\.members\.filter/);
+  assert.match(assignmentSubmissions, /未提交 \{pendingMembers\.length\} 人/);
   assert.match(assignmentManagement, /\{composerOpen \? <section className="admin-panel assignment-editor"/);
   assert.match(assignmentManagement, /assignment-editor__description[\s\S]*?assignment-editor__requirements[\s\S]*?assignment-editor__materials[\s\S]*?assignment-editor__recipients/);
   assert.match(assignmentManagement, /assignment-deadline-shortcuts/);
