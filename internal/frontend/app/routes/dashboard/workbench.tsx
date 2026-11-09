@@ -1,4 +1,3 @@
-import { BrandLoader } from "~/components/brand-loader";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useOutletContext } from "react-router";
 
@@ -120,7 +119,6 @@ export default function PersonalWorkbench() {
         {!loading && hasErrors ? <button type="button" className="personal-workbench__retry" onClick={() => void load()}>重试</button> : null}
       </header>
 
-      {loading && !hasSnapshot ? <BrandLoader label="正在读取个人事务状态" /> : null}
       {hasErrors ? <div className="personal-workbench__errors" role="status">
         {snapshot.errors.weekly ? <span>{snapshot.errors.weekly}</span> : null}
         {snapshot.errors.assignments ? <span>{snapshot.errors.assignments}</span> : null}
