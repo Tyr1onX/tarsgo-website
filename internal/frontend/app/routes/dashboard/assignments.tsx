@@ -203,6 +203,7 @@ export default function MyAssignmentsRoute() {
 
   const visibleItems = items.filter((item) => matchesFilter(item, filter));
   const assignment = detail?.assignment;
+  const latestFeedback = detail?.submissions.at(-1)?.reviews.at(-1)?.comment;
   const canSubmit = Boolean(assignment
     && assignment.publicationStatus !== "withdrawn"
     && assignment.status !== "passed"
@@ -256,19 +257,10 @@ export default function MyAssignmentsRoute() {
             </ul>
           </section> : null}
 
-          <section className="space-y-3" aria-labelledby="assignment-history-title">
-            <h3 id="assignment-history-title" className="text-sm font-semibold text-[var(--admin-text)]">提交与批改记录</h3>
-            {detail.submissions.length === 0 ? <p className="text-sm text-[var(--admin-muted)]">尚未提交</p> : <div className="space-y-3">
-              {detail.submissions.map((submission) => <article key={submission.id} className="rounded-xl border border-[var(--admin-border-subtle)] p-3">
-                <div className="flex flex-wrap justify-between gap-2 text-sm"><strong>第 {submission.attempt} 次提交</strong><span className="text-xs text-[var(--admin-muted)]">{formatAssignmentDate(submission.submittedAt)}{submission.isLate ? " · 逾期提交" : ""}</span></div>
-                <ul className="mt-2 space-y-1 text-sm">{submission.files.map((file) => <li key={file.id}><a className="text-[var(--admin-warning)] hover:text-[var(--admin-warning)]" href={file.downloadUrl}>{file.fileName}</a><span className="ml-2 text-xs text-[var(--admin-muted)]">{Math.ceil(file.size / 1024)} KB</span></li>)}</ul>
-                {submission.reviews.map((review) => <div key={review.id} className="mt-3 rounded-lg bg-[var(--admin-surface-subtle)] p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><strong>已批改 · {assignmentDecisionLabel(review.decision)}</strong><span className="text-[var(--admin-muted)]">{formatAssignmentDate(review.createdAt)}</span></div>
-                  {review.comment ? <CommunityMarkdown source={review.comment} className="mt-2 whitespace-pre-wrap text-sm" /> : null}
-                </div>)}
-              </article>)}
-            </div>}
-          </section>
+          {assignment.status === "needs_redo" ? <section className="rounded-lg border border-[var(--admin-warning-border)] p-3" aria-label="返修意见">
+            <strong className="text-sm text-[var(--admin-text)]">返修意见</strong>
+            {latestFeedback ? <CommunityMarkdown source={latestFeedback} className="mt-2 whitespace-pre-wrap text-sm" /> : <p className="mt-2 text-sm text-[var(--admin-muted)]">作业已退回，请修改后重新提交。</p>}
+          </section> : null}
 
           {canSubmit ? <form onSubmit={submit} className="space-y-3 border-t border-[var(--admin-border-subtle)] pt-4">
             <div className="admin-field-label">提交附件<FileUploadField
@@ -288,6 +280,20 @@ export default function MyAssignmentsRoute() {
             {submissionError ? <p role="alert" className="text-sm text-[var(--admin-danger)]">{submissionError}</p> : null}
             <div className="flex flex-wrap items-center justify-between gap-3"><button type="submit" className="admin-button admin-button--primary" disabled={saving || files.length === 0}>{saving ? "提交中…" : detail.submissions.length ? "重新提交" : "提交作业"}</button></div>
           </form> : null}
+
+          {detail.submissions.length > 0 ? <details key={assignment.id} className="space-y-3" aria-labelledby="assignment-history-title">
+            <summary id="assignment-history-title" className="cursor-pointer text-sm font-semibold text-[var(--admin-text)]">提交与批改记录（{detail.submissions.length} 次）</summary>
+            <div className="mt-3 space-y-3">
+              {detail.submissions.map((submission) => <article key={submission.id} className="rounded-xl border border-[var(--admin-border-subtle)] p-3">
+                <div className="flex flex-wrap justify-between gap-2 text-sm"><strong>第 {submission.attempt} 次提交</strong><span className="text-xs text-[var(--admin-muted)]">{formatAssignmentDate(submission.submittedAt)}{submission.isLate ? " · 逾期提交" : ""}</span></div>
+                <ul className="mt-2 space-y-1 text-sm">{submission.files.map((file) => <li key={file.id}><a className="text-[var(--admin-warning)] hover:text-[var(--admin-warning)]" href={file.downloadUrl}>{file.fileName}</a><span className="ml-2 text-xs text-[var(--admin-muted)]">{Math.ceil(file.size / 1024)} KB</span></li>)}</ul>
+                {submission.reviews.map((review) => <div key={review.id} className="mt-3 rounded-lg bg-[var(--admin-surface-subtle)] p-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2 text-sm"><strong>已批改 · {assignmentDecisionLabel(review.decision)}</strong><span className="text-[var(--admin-muted)]">{formatAssignmentDate(review.createdAt)}</span></div>
+                  {review.comment ? <CommunityMarkdown source={review.comment} className="mt-2 whitespace-pre-wrap text-sm" /> : null}
+                </div>)}
+              </article>)}
+            </div>
+          </details> : null}
         </section> : selectedID != null && detailLoading && visibleItems.some((item) => item.id === selectedID) ? <section className="admin-panel p-5"><BrandLoader label="正在读取作业记录" size="sm" /></section> : null}
       </div> : null}
     </section>
