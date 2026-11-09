@@ -210,22 +210,22 @@ export default function MyAssignmentsRoute() {
     && (!detail?.submissions.length || Date.now() <= new Date(assignment.dueAt).getTime()));
   const submissionForm = canSubmit ? (
     <form onSubmit={submit} className="space-y-3 border-t border-[var(--admin-border-subtle)] pt-4">
-            <div className="admin-field-label">提交附件<FileUploadField
-              label="作业提交附件"
-              files={files}
-              onFilesChange={(next) => { setFiles(next); setFileUploadStatus("pending"); setSubmissionError(""); }}
-              multiple
-              hint="最多 10 个附件"
-              status={fileUploadStatus}
-              disabled={saving}
-              validateSelection={(next) => {
-                if (next.length > maxSubmissionFiles) return "最多提交 10 个文件。";
-                if (next.some((file) => file.size <= 0)) return "不能提交空文件。";
-                return null;
-              }}
-            /></div>
-            {submissionError ? <p role="alert" className="text-sm text-[var(--admin-danger)]">{submissionError}</p> : null}
-            <div className="flex flex-wrap items-center justify-between gap-3"><button type="submit" className="admin-button admin-button--primary" disabled={saving || files.length === 0}>{saving ? "提交中…" : assignment?.status === "needs_redo" ? "重新提交" : assignment?.status === "submitted" ? "更新提交" : "提交作业"}</button></div>
+      <div className="admin-field-label">提交附件<FileUploadField
+        label="作业提交附件"
+        files={files}
+        onFilesChange={(next) => { setFiles(next); setFileUploadStatus("pending"); setSubmissionError(""); }}
+        multiple
+        hint="最多 10 个附件"
+        status={fileUploadStatus}
+        disabled={saving}
+        validateSelection={(next) => {
+          if (next.length > maxSubmissionFiles) return "最多提交 10 个文件。";
+          if (next.some((file) => file.size <= 0)) return "不能提交空文件。";
+          return null;
+        }}
+      /></div>
+      {submissionError ? <p role="alert" className="text-sm text-[var(--admin-danger)]">{submissionError}</p> : null}
+      <div className="flex flex-wrap items-center justify-between gap-3"><button type="submit" className="admin-button admin-button--primary" disabled={saving || files.length === 0}>{saving ? "提交中…" : assignment?.status === "needs_redo" ? "重新提交" : assignment?.status === "submitted" ? "更新提交" : "提交作业"}</button></div>
     </form>
   ) : null;
 
