@@ -28,10 +28,30 @@ var (
 	errWorkflowOperatorNameAmbiguous = errors.New("multiple enabled bound assignment administrators match the workflow operator name")
 )
 
+// Existing links now lead to the single binding interface in the workbench.
 func (h *FeishuReviewHandler) FeishuLinkPage(c *gin.Context) {
-	c.Header("Cache-Control", "private, no-store")
-	c.Header("Content-Type", "text/html; charset=utf-8")
-	c.String(http.StatusOK, `<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>绑定飞书账号</title><style>body{font:16px/1.6 system-ui,sans-serif;max-width:560px;margin:12vh auto;padding:0 20px;color:#182222}button{padding:10px 16px}code{display:block;padding:14px;background:#f3f6f5;overflow-wrap:anywhere}#result{margin-top:16px}</style><h1>绑定飞书账号</h1><p>绑定后，机器人会按你的网站组别权限处理发布和批改。绑定码 10 分钟内有效，仅能绑定当前网站账号。</p><button id="generate">生成绑定码</button><section id="result" hidden><p>在飞书与吉甲大师作业助手的私聊中发送：</p><code id="command"></code><button id="copy">复制绑定命令</button></section><p id="status" role="status"></p><script>const status=document.querySelector('#status'),result=document.querySelector('#result'),command=document.querySelector('#command');document.querySelector('#generate').onclick=async()=>{status.textContent='';try{const r=await fetch('/api/admin/integrations/feishu/link-code',{method:'POST',credentials:'same-origin',headers:{'Content-Type':'application/json'}});const d=await r.json();if(!r.ok)throw new Error(d.message||'生成失败');command.textContent='绑定 '+d.data.code;result.hidden=false;}catch(e){status.textContent=e.message||'生成失败';}};document.querySelector('#copy').onclick=async()=>{await navigator.clipboard.writeText(command.textContent);status.textContent='已复制';};</script></html>`)
+	c.Redirect(http.StatusFound, "/dashboard/admin/training/assignments")
+}
+
+// FeishuBindingStatus exposes no Feishu identity; only the current website account's binding state.
+func (h *FeishuReviewHandler) FeishuBindingStatus(c *gin.Context) {
+	sessionUser, ok := middleware.CurrentSessionUser(c)
+	if !ok || sessionUser == nil {
+		writeAPIError(c, http.StatusUnauthorized, "请先登录网站")
+		return
+	}
+	var user model.User
+	if err := h.db.WithContext(c.Request.Context()).
+		Select("feishu_open_id").
+		Where("id = ? AND status = ?", sessionUser.ID, model.UserStatusEnabled).
+		Take(&user).Error; err != nil {
+		writeAPIError(c, http.StatusForbidden, "当前网站账号不可用")
+		return
+	}
+	writeAPI(c, http.StatusOK, "获取飞书绑定状态成功", gin.H{
+		"bound": user.FeishuOpenID != nil && *user.FeishuOpenID != "",
+		"appId": h.cfg.AppID,
+	})
 }
 
 func (h *FeishuReviewHandler) FeishuLinkCode(c *gin.Context) {
