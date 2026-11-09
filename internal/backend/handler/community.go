@@ -20,8 +20,33 @@ func NewCommunityHandler(service *trainingqa.Service) *CommunityHandler {
 	return &CommunityHandler{service: service}
 }
 
+func currentCommunityActor(c *gin.Context) trainingqa.Actor {
+	user, ok := middleware.CurrentSessionUser(c)
+	if !ok || user == nil {
+		return trainingqa.Actor{}
+	}
+	return trainingqa.Actor{ID: user.ID, RoleName: user.Role.Name}
+}
+
+func parseCommunityMultipart(c *gin.Context) bool {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, 22<<20)
+	if err := c.Request.ParseMultipartForm(1 << 20); err != nil {
+		if c.Request.MultipartForm != nil {
+			_ = c.Request.MultipartForm.RemoveAll()
+		}
+		var maxBytesError *http.MaxBytesError
+		if errors.As(err, &maxBytesError) {
+			writeAPIError(c, http.StatusRequestEntityTooLarge, "图片总大小不能超过 20 MB")
+			return false
+		}
+		writeAPIError(c, http.StatusBadRequest, "社区内容或图片参数不合法")
+		return false
+	}
+	return true
+}
+
 func (h *CommunityHandler) Growth(c *gin.Context) {
-	profile, err := h.service.GetCommunityGrowth(c.Request.Context(), currentTrainingQuestionActor(c))
+	profile, err := h.service.GetCommunityGrowth(c.Request.Context(), currentCommunityActor(c))
 	if err != nil {
 		h.fail(c, err)
 		return
@@ -43,7 +68,7 @@ func (h *CommunityHandler) GetMemberProfile(c *gin.Context) {
 		}
 		page = parsed
 	}
-	result, err := h.service.GetCommunityMemberProfile(c.Request.Context(), currentTrainingQuestionActor(c), memberID,
+	result, err := h.service.GetCommunityMemberProfile(c.Request.Context(), currentCommunityActor(c), memberID,
 		trainingqa.CommunityMemberProfileTab(strings.TrimSpace(c.Query("tab"))), page)
 	if err != nil {
 		h.fail(c, err)
@@ -58,7 +83,7 @@ func (h *CommunityHandler) UpdateMyMemberProfile(c *gin.Context) {
 		writeAPIError(c, http.StatusBadRequest, "社区资料格式不正确")
 		return
 	}
-	result, err := h.service.UpdateMyCommunityMemberProfile(c.Request.Context(), currentTrainingQuestionActor(c), request)
+	result, err := h.service.UpdateMyCommunityMemberProfile(c.Request.Context(), currentCommunityActor(c), request)
 	if err != nil {
 		h.fail(c, err)
 		return
@@ -67,7 +92,7 @@ func (h *CommunityHandler) UpdateMyMemberProfile(c *gin.Context) {
 }
 
 func (h *CommunityHandler) CheckIn(c *gin.Context) {
-	result, err := h.service.CheckInCommunity(c.Request.Context(), currentTrainingQuestionActor(c))
+	result, err := h.service.CheckInCommunity(c.Request.Context(), currentCommunityActor(c))
 	if err != nil {
 		h.fail(c, err)
 		return
@@ -84,7 +109,7 @@ func (h *CommunityHandler) List(c *gin.Context) {
 	if !ok {
 		return
 	}
-	result, err := h.service.ListCommunity(c.Request.Context(), currentTrainingQuestionActor(c), filter)
+	result, err := h.service.ListCommunity(c.Request.Context(), currentCommunityActor(c), filter)
 	if err != nil {
 		h.fail(c, err)
 		return
@@ -102,7 +127,7 @@ func (h *CommunityHandler) Hot(c *gin.Context) {
 		}
 		limit = parsed
 	}
-	items, err := h.service.HotCommunityPosts(c.Request.Context(), currentTrainingQuestionActor(c), limit)
+	items, err := h.service.HotCommunityPosts(c.Request.Context(), currentCommunityActor(c), limit)
 	if err != nil {
 		h.fail(c, err)
 		return
@@ -115,7 +140,7 @@ func (h *CommunityHandler) Get(c *gin.Context) {
 	if !ok {
 		return
 	}
-	item, err := h.service.GetCommunityPost(c.Request.Context(), currentTrainingQuestionActor(c), postID)
+	item, err := h.service.GetCommunityPost(c.Request.Context(), currentCommunityActor(c), postID)
 	if err != nil {
 		h.fail(c, err)
 		return
@@ -128,7 +153,7 @@ func (h *CommunityHandler) Related(c *gin.Context) {
 	if !ok {
 		return
 	}
-	items, err := h.service.RelatedCommunityPosts(c.Request.Context(), currentTrainingQuestionActor(c), postID)
+	items, err := h.service.RelatedCommunityPosts(c.Request.Context(), currentCommunityActor(c), postID)
 	if err != nil {
 		h.fail(c, err)
 		return
@@ -137,7 +162,7 @@ func (h *CommunityHandler) Related(c *gin.Context) {
 }
 
 func (h *CommunityHandler) Create(c *gin.Context) {
-	if !parseQuestionMultipart(c) {
+	if !parseCommunityMultipart(c) {
 		return
 	}
 	if c.Request.MultipartForm != nil {
@@ -148,7 +173,7 @@ func (h *CommunityHandler) Create(c *gin.Context) {
 	if !ok {
 		return
 	}
-	item, err := h.service.CreateCommunityPost(c.Request.Context(), currentTrainingQuestionActor(c), trainingqa.CommunityPostInput{
+	item, err := h.service.CreateCommunityPost(c.Request.Context(), currentCommunityActor(c), trainingqa.CommunityPostInput{
 		Category: c.PostForm("category"), Title: c.PostForm("title"), Body: c.PostForm("body"), Files: files, UploadTokens: uploadTokens,
 	})
 	if err != nil {
@@ -165,7 +190,7 @@ func (h *CommunityHandler) Update(c *gin.Context) {
 	}
 	var request trainingqa.CommunityPostUpdate
 	if strings.HasPrefix(strings.ToLower(c.GetHeader("Content-Type")), "multipart/form-data") {
-		if !parseQuestionMultipart(c) {
+		if !parseCommunityMultipart(c) {
 			return
 		}
 		if c.Request.MultipartForm != nil {
@@ -183,7 +208,7 @@ func (h *CommunityHandler) Update(c *gin.Context) {
 		writeAPIError(c, http.StatusBadRequest, "帖子信息不合法")
 		return
 	}
-	item, err := h.service.UpdateCommunityPost(c.Request.Context(), currentTrainingQuestionActor(c), postID, request)
+	item, err := h.service.UpdateCommunityPost(c.Request.Context(), currentCommunityActor(c), postID, request)
 	if err != nil {
 		h.fail(c, err)
 		return
@@ -196,7 +221,7 @@ func (h *CommunityHandler) Delete(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if err := h.service.DeleteCommunityPost(c.Request.Context(), currentTrainingQuestionActor(c), postID); err != nil {
+	if err := h.service.DeleteCommunityPost(c.Request.Context(), currentCommunityActor(c), postID); err != nil {
 		h.fail(c, err)
 		return
 	}
@@ -208,7 +233,7 @@ func (h *CommunityHandler) AddComment(c *gin.Context) {
 	if !ok {
 		return
 	}
-	if !parseQuestionMultipart(c) {
+	if !parseCommunityMultipart(c) {
 		return
 	}
 	if c.Request.MultipartForm != nil {
@@ -227,7 +252,7 @@ func (h *CommunityHandler) AddComment(c *gin.Context) {
 	if !ok {
 		return
 	}
-	item, err := h.service.AddCommunityComment(c.Request.Context(), currentTrainingQuestionActor(c), postID, trainingqa.CommunityCommentInput{
+	item, err := h.service.AddCommunityComment(c.Request.Context(), currentCommunityActor(c), postID, trainingqa.CommunityCommentInput{
 		Body: c.PostForm("body"), ParentPostID: parentPostID, Files: communityMultipartFiles(c), UploadTokens: uploadTokens,
 	})
 	if err != nil {
@@ -244,7 +269,7 @@ func (h *CommunityHandler) UpdateComment(c *gin.Context) {
 	}
 	var request trainingqa.CommunityCommentUpdate
 	if strings.HasPrefix(strings.ToLower(c.GetHeader("Content-Type")), "multipart/form-data") {
-		if !parseQuestionMultipart(c) {
+		if !parseCommunityMultipart(c) {
 			return
 		}
 		if c.Request.MultipartForm != nil {
@@ -265,7 +290,7 @@ func (h *CommunityHandler) UpdateComment(c *gin.Context) {
 		}
 		request.Body = jsonRequest.Body
 	}
-	item, err := h.service.UpdateCommunityCommentContent(c.Request.Context(), currentTrainingQuestionActor(c), commentID, request)
+	item, err := h.service.UpdateCommunityCommentContent(c.Request.Context(), currentCommunityActor(c), commentID, request)
 	if err != nil {
 		h.fail(c, err)
 		return
@@ -278,7 +303,7 @@ func (h *CommunityHandler) DeleteComment(c *gin.Context) {
 	if !ok {
 		return
 	}
-	item, err := h.service.DeleteCommunityComment(c.Request.Context(), currentTrainingQuestionActor(c), commentID)
+	item, err := h.service.DeleteCommunityComment(c.Request.Context(), currentCommunityActor(c), commentID)
 	if err != nil {
 		h.fail(c, err)
 		return
@@ -294,7 +319,7 @@ func (h *CommunityHandler) SetCommentLike(c *gin.Context) {
 	if !ok {
 		return
 	}
-	state, err := h.service.SetCommunityCommentReaction(c.Request.Context(), currentTrainingQuestionActor(c), commentID, c.Request.Method != http.MethodDelete)
+	state, err := h.service.SetCommunityCommentReaction(c.Request.Context(), currentCommunityActor(c), commentID, c.Request.Method != http.MethodDelete)
 	if err != nil {
 		h.fail(c, err)
 		return
@@ -312,7 +337,7 @@ func (h *CommunityHandler) SetSolution(c *gin.Context) {
 		writeAPIError(c, http.StatusBadRequest, "解决方案信息不合法")
 		return
 	}
-	item, err := h.service.SetCommunitySolution(c.Request.Context(), currentTrainingQuestionActor(c), postID, request)
+	item, err := h.service.SetCommunitySolution(c.Request.Context(), currentCommunityActor(c), postID, request)
 	if err != nil {
 		h.fail(c, err)
 		return
@@ -325,7 +350,7 @@ func (h *CommunityHandler) setReaction(c *gin.Context, kind string) {
 	if !ok {
 		return
 	}
-	state, err := h.service.SetCommunityReaction(c.Request.Context(), currentTrainingQuestionActor(c), postID, kind, c.Request.Method != http.MethodDelete)
+	state, err := h.service.SetCommunityReaction(c.Request.Context(), currentCommunityActor(c), postID, kind, c.Request.Method != http.MethodDelete)
 	if err != nil {
 		h.fail(c, err)
 		return
@@ -343,7 +368,7 @@ func (h *CommunityHandler) Moderate(c *gin.Context) {
 		writeAPIError(c, http.StatusBadRequest, "管理状态不合法")
 		return
 	}
-	item, err := h.service.ModerateCommunityPost(c.Request.Context(), currentTrainingQuestionActor(c), postID, request)
+	item, err := h.service.ModerateCommunityPost(c.Request.Context(), currentCommunityActor(c), postID, request)
 	if err != nil {
 		h.fail(c, err)
 		return
@@ -357,7 +382,7 @@ func (h *CommunityHandler) FeaturePost(c *gin.Context) {
 		return
 	}
 	featured := c.Request.Method == http.MethodPut
-	if err := h.service.SetCommunityPostFeatured(c.Request.Context(), currentTrainingQuestionActor(c), postID, featured); err != nil {
+	if err := h.service.SetCommunityPostFeatured(c.Request.Context(), currentCommunityActor(c), postID, featured); err != nil {
 		h.fail(c, err)
 		return
 	}
@@ -374,7 +399,7 @@ func (h *CommunityHandler) FeatureReply(c *gin.Context) {
 		return
 	}
 	featured := c.Request.Method == http.MethodPut
-	if err := h.service.SetCommunityReplyFeatured(c.Request.Context(), currentTrainingQuestionActor(c), replyID, featured); err != nil {
+	if err := h.service.SetCommunityReplyFeatured(c.Request.Context(), currentCommunityActor(c), replyID, featured); err != nil {
 		h.fail(c, err)
 		return
 	}
@@ -390,7 +415,7 @@ func (h *CommunityHandler) OpenFile(c *gin.Context) {
 	if !ok {
 		return
 	}
-	file, err := h.service.OpenFile(c.Request.Context(), currentTrainingQuestionActor(c), fileID)
+	file, err := h.service.OpenFile(c.Request.Context(), currentCommunityActor(c), fileID)
 	if err != nil {
 		h.fail(c, err)
 		return

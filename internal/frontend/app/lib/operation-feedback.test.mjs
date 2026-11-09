@@ -23,7 +23,6 @@ test("successful admin and workbench operations use the same non-layout notifica
     "routes/admin/assignment-submissions.tsx",
     "routes/admin/interview-sessions.tsx",
     "routes/admin/timetable-availability.tsx",
-    "routes/dashboard/practice-projects.tsx",
     "routes/dashboard/weekly-reports.tsx",
     "routes/dashboard/community-member-profile.tsx",
     "routes/leave-workbench.tsx",

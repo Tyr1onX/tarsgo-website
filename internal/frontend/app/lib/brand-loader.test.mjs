@@ -35,7 +35,6 @@ test("cold-loading placeholders reuse one component across public and internal p
     "../routes/dashboard/community-post.tsx",
     "../routes/dashboard/community-member-profile.tsx",
     "../routes/dashboard/assignments.tsx",
-    "../routes/dashboard/practice-projects.tsx",
     "../routes/dashboard/weekly-reports.tsx",
     "../routes/dashboard/workbench.tsx",
     "../routes/admin/assignment-management.tsx",

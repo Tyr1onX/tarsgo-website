@@ -400,7 +400,7 @@ test("community layout follows workbench themes and adapts its reading layout", 
 test("mutations are authenticated and reaction uniqueness prevents duplicate counts", () => {
   assert.match(router, /authenticatedAPI\.Use\(middleware\.RequireAuthenticated\(authService\)\)/);
   assert.match(router, /communityAPI\.POST\("\/posts", requireSameOriginRequest/);
-  assert.match(handler, /currentTrainingQuestionActor\(c\)/);
+  assert.match(handler, /currentCommunityActor\(c\)/);
   assert.match(service, /clause\.OnConflict\{DoNothing: true\}/);
   assert.match(model, /type CommunityPostReaction struct/);
   assert.match(model, /QuestionID\s+uint64[\s\S]*UserID\s+uint64[\s\S]*Kind\s+string/);
