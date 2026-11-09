@@ -300,7 +300,7 @@ func (h *LeaveHandler) UploadSchoolGroupResult(c *gin.Context) {
 	if !ok {
 		return
 	}
-	index, err := strconv.Atoi(c.Param("group"))
+	index, err := strconv.Atoi(c.Param("groupIndex"))
 	if err != nil || index < 1 {
 		writeAPIError(c, 400, "时间组无效")
 		return
@@ -319,33 +319,11 @@ func (h *LeaveHandler) UploadSchoolGroupResult(c *gin.Context) {
 	writeAPI(c, 200, "盖章结果已保存", result)
 }
 func (h *LeaveHandler) SchoolGroupResult(c *gin.Context) {
-	userID, ok := leaveUserID(c)
-	if !ok {
-		return
-	}
 	runID, ok := pathID(c, "id")
 	if !ok {
 		return
 	}
-	index, err := strconv.Atoi(c.Param("group"))
-	if err != nil || index < 1 {
-		writeAPIError(c, 400, "时间组无效")
-		return
-	}
-	content, filename, contentType, err := h.service.GroupResult(c.Request.Context(), userID, runID, index)
-	if err != nil {
-		h.fail(c, err)
-		return
-	}
-	writeDownload(c, content, filename, contentType, false)
-}
-
-func (h *LeaveHandler) AdminSchoolGroupResult(c *gin.Context) {
-	runID, ok := pathID(c, "id")
-	if !ok {
-		return
-	}
-	index, err := strconv.Atoi(c.Param("group"))
+	index, err := strconv.Atoi(c.Param("groupIndex"))
 	if err != nil || index < 1 {
 		writeAPIError(c, 400, "时间组无效")
 		return

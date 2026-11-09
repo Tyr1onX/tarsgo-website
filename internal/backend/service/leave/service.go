@@ -371,7 +371,3 @@ func groupRequests(requests []model.SchoolLeaveRequest) []LeaveGroup {
 	}
 	return groups
 }
-
-func (s *Service) MarkIdentityLocked(ctx context.Context, userID uint64) error {
-	return s.db.WithContext(ctx).Model(&model.LeaveProfile{}).Where("user_id = ?", userID).Update("identity_locked", true).Error
-}

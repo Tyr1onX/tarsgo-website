@@ -82,6 +82,8 @@ func TestCommunityAPIsRequireAuthenticationAndOpenWorkflowsRemain(t *testing.T) 
 		"GET /api/admin/timetable-availability/cleanup",
 		"POST /api/admin/timetable-availability/cleanup",
 		"GET /api/admin/timetable-availability/week",
+		"GET /api/admin/school-leave/runs/:id/groups/:groupIndex/result",
+		"POST /api/admin/school-leave/runs/:id/groups/:groupIndex/result",
 		"GET /api/weekly-reports",
 		"GET /api/work-manual/operations",
 		"GET /api/work-manual/operations/templates/campus-network-window-application.doc",

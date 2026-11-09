@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"sort"
-	"strconv"
 	"strings"
 	"time"
 	"unicode/utf8"
@@ -728,12 +727,4 @@ func toAuthMethods(user *model.User) AuthMethods {
 
 func stringPtr(value string) *string {
 	return &value
-}
-
-func ParseUintID(raw string) (uint64, error) {
-	value, err := strconv.ParseUint(strings.TrimSpace(raw), 10, 64)
-	if err != nil || value == 0 {
-		return 0, &ServiceError{Status: http.StatusBadRequest, Message: "无效的用户 ID"}
-	}
-	return value, nil
 }

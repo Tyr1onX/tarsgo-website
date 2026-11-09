@@ -741,10 +741,6 @@ func (s *Service) AddCommunityComment(ctx context.Context, actor Actor, postID u
 	return s.GetCommunityPost(ctx, actor, postID)
 }
 
-func (s *Service) UpdateCommunityComment(ctx context.Context, actor Actor, commentID uint64, body string) (*CommunityPostDetail, error) {
-	return s.UpdateCommunityCommentContent(ctx, actor, commentID, CommunityCommentUpdate{Body: body})
-}
-
 func (s *Service) UpdateCommunityCommentContent(ctx context.Context, actor Actor, commentID uint64, input CommunityCommentUpdate) (*CommunityPostDetail, error) {
 	body := input.Body
 	body = strings.TrimSpace(body)
@@ -1254,18 +1250,6 @@ func (s *Service) communityVisibleLegacyGroupIDs(ctx context.Context, actor Acto
 		return activeTechnicalGroupIDs(s.db.WithContext(ctx))
 	}
 	return memberTechnicalGroupIDs(s.db.WithContext(ctx), actor.ID)
-}
-
-func (s *Service) communityPostViews(ctx context.Context, actor Actor, rows []communityPostRow) ([]CommunityPostView, error) {
-	ids := make([]uint64, 0, len(rows))
-	for _, row := range rows {
-		ids = append(ids, row.ID)
-	}
-	attachments, err := s.loadAttachments(ctx, ids)
-	if err != nil {
-		return nil, internalError("读取社区附件失败", err)
-	}
-	return s.communityPostViewsWithAttachments(ctx, actor, rows, attachments)
 }
 
 func (s *Service) communityPostViewsWithAttachments(ctx context.Context, actor Actor, rows []communityPostRow, attachments map[uint64][]model.TrainingQuestionAttachment) ([]CommunityPostView, error) {

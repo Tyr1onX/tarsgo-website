@@ -910,13 +910,6 @@ func stringPtr(value string) *string {
 	return &value
 }
 
-func stringValue(value *string) string {
-	if value == nil {
-		return ""
-	}
-	return strings.TrimSpace(*value)
-}
-
 func isValidEmail(email string) bool {
 	parsed, err := mail.ParseAddress(email)
 	if err != nil {
