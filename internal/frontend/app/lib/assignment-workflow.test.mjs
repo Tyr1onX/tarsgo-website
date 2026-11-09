@@ -77,8 +77,8 @@ test("backend applies role, current group, target, and ownership checks to every
 test("paused training routes and APIs are not reachable while leave approvals stay super-admin only", () => {
   assert.match(navigation, /\/dashboard\/admin\/training\/practice-projects/);
   assert.match(layout, /isTemporarilyUnavailableDashboardPath\(currentPath\.pathname\)/);
-  assert.match(layout, /legacyCommunityAlias/);
-  assert.match(routes, /route\("admin\/training\/questions", "routes\/dashboard\/community-admin-redirect\.tsx"\)/);
+  assert.match(layout, /currentPath\.pathname === "\/dashboard\/questions"/);
+  assert.doesNotMatch(routes, /route\("admin\/training\/questions"/);
   assert.doesNotMatch(backendRoutes, /practiceHandler|trainingQuestionHandler|skillsHandler|capabilitiesHandler|cultivationHandler|expeditionHandler|growthHandler/);
   assert.match(backendRoutes, /superAdminAPI\.GET\("\/leave\/access-requests"/);
   assert.match(backendRoutes, /superAdminAPI\.PATCH\("\/leave\/access-requests\/:id"/);

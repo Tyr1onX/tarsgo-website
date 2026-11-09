@@ -75,9 +75,8 @@ type UserMenuPosition = { left: number; top: number };
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const currentPath = new URL(request.url);
   const temporarilyUnavailable = isTemporarilyUnavailableDashboardPath(currentPath.pathname);
-  const legacyTeamAlias = currentPath.pathname === "/dashboard/team" || currentPath.pathname === "/dashboard/admin/organization-preview";
-  const legacyCommunityAlias = currentPath.pathname === "/dashboard/questions" || currentPath.pathname === "/dashboard/admin/training/questions";
-  const legacyDashboardAlias = legacyTeamAlias || legacyCommunityAlias;
+  const legacyOrganizationAlias = currentPath.pathname === "/dashboard/team" || currentPath.pathname === "/dashboard/admin/organization-preview";
+  const skipGroupResolution = currentPath.pathname === "/dashboard/questions" || currentPath.pathname === "/dashboard/base";
   const auth = await resolveDashboardAuth({
     getCurrentUser: () => getCurrentUser({ includeGroups: true }),
     getBootstrapStatus,
@@ -98,13 +97,13 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   if (temporarilyUnavailable) {
     throw redirect(getDefaultDashboardPath(currentUser.role.name));
   }
-  if (legacyTeamAlias) {
+  if (legacyOrganizationAlias) {
     throw redirect("/dashboard/workbench/organization");
   }
 
   let groupResolution: UserGroupConfirmationState | null = null;
   let groupResolutionError = "";
-  if (!legacyDashboardAlias) {
+  if (!skipGroupResolution) {
     try {
       groupResolution = await getUserGroupConfirmationState(currentUser.id);
     } catch (error) {

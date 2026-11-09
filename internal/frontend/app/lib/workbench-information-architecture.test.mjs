@@ -54,8 +54,8 @@ test("personal timetable and help content are reachable outside permanent busine
   assert.match(layout, /帮助与工作手册/);
   assert.match(layout, /navigate\(`\/dashboard\/members\/\$\{currentUser\.id\}\$\{tab === "overview" \? "" : `\?tab=\$\{tab\}`\}`\)/);
   assert.doesNotMatch(navigation, /label: "课程表"|label: "工作手册"/);
-  assert.match(routeConfig, /route\("team", "routes\/dashboard\/team-redirect\.tsx"\)/);
-  assert.match(routeConfig, /route\("admin\/organization-preview", "routes\/dashboard\/team-redirect\.tsx", \{ id: "dashboard-admin-organization-preview" \}\)/);
+  assert.match(routeConfig, /route\("team", "routes\/organization-preview\.tsx", \{ id: "dashboard-team-legacy" \}\)/);
+  assert.match(routeConfig, /route\("admin\/organization-preview", "routes\/organization-preview\.tsx", \{ id: "dashboard-admin-organization-preview" \}\)/);
   assert.match(layout, /redirect\("\/dashboard\/workbench\/organization"\)/);
   assert.match(routeConfig, /route\("workbench\/organization", "routes\/organization-preview\.tsx"\)/);
 });

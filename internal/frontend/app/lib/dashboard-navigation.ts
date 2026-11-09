@@ -123,17 +123,10 @@ export function canAccessExpedition(userOrRole: AuthUser | string, hasAssignment
 export function isTemporarilyUnavailableDashboardPath(pathname: string) {
   const normalizedPath = pathname.replace(/\/+$/, "");
   const unavailablePaths = [
-    "/dashboard/base",
     "/dashboard/practice-projects",
-    "/dashboard/growth",
-    "/dashboard/skills",
-    "/dashboard/capabilities",
     "/dashboard/expedition",
     "/dashboard/admin/training/practice-projects",
-    "/dashboard/admin/training/skills",
-    "/dashboard/admin/training/capabilities",
     "/dashboard/admin/training/expedition",
-    "/dashboard/admin/cultivation",
   ];
   return unavailablePaths.some((path) => normalizedPath === path || normalizedPath.startsWith(`${path}/`));
 }

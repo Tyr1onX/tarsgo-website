@@ -38,7 +38,7 @@ test("eligible workbench members can read the workbench directory, while the leg
   assert.match(router, /teamAPI\.Use\(middleware\.RequireAuthenticated\(authService\), middleware\.RequireWorkbench\(\)\)[\s\S]*?teamAPI\.GET\("\/organization-preview", handler\.OrganizationPreview\(db\)\)/);
   assert.match(router, /superAdminAPI\.Use\(middleware\.RequireSuperAdmin\(authService\)\)[\s\S]*?superAdminAPI\.GET\("\/organization-preview", handler\.OrganizationPreview\(db\)\)/);
   assert.match(routes, /route\("workbench\/organization", "routes\/organization-preview\.tsx"\)/);
-  assert.match(routes, /route\("team", "routes\/dashboard\/team-redirect\.tsx"\)/);
+  assert.match(routes, /route\("team", "routes\/organization-preview\.tsx", \{ id: "dashboard-team-legacy" \}\)/);
   assert.match(navigation, /label: "成员与岗位",[\s\S]*?iconKey: "team",[\s\S]*?href: "\/dashboard\/workbench\/organization"/);
   assert.match(component, /apiRequest<OrganizationPreview>\("\/api\/team\/organization-preview"\)/);
   assert.match(handler, /Select\("id", "real_name", "avatar_url", "status"\)/);
