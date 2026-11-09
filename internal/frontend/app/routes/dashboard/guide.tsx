@@ -50,9 +50,9 @@ function WebsiteGuide({ currentUser, groupResolution }: Pick<DashboardLayoutOutl
       <h3 id="admin-guide-title" className="text-lg font-semibold">管理员使用</h3>
       <ol className="list-decimal space-y-3 pl-5 text-sm leading-6">
         {currentUser.role.name === "super_admin" ? <li>在 <GuideLink to="/dashboard/admin/users">账号与权限</GuideLink> 管理账号和组别。</li> : null}
-        {canUseAssignments ? <li>对已授权的五个组别之一，在 <GuideLink to="/dashboard/admin/training/assignments">作业管理</GuideLink> 发布和管理本组作业，在 <GuideLink to="/dashboard/admin/training/submissions">提交记录</GuideLink> 查看提交并批改。</li> : null}
+        {canUseAssignments ? <li>对已授权的五个组别之一，在 <GuideLink to="/dashboard/admin/training/assignments">作业管理</GuideLink> 发布作业、查看进度并批改提交。</li> : null}
         <li>在 <GuideLink to="/dashboard/admin/timetable-availability">时间协调</GuideLink> 查看全组空闲人数、具体成员及个人时段。</li>
-        <li>新人培养当前仅开放作业管理和提交批改；其他培养入口暂未开放，历史记录保留。</li>
+        <li>新人培养当前仅开放作业管理；其他培养入口暂未开放，历史记录保留。</li>
       </ol>
     </section> : null}
   </section>;
