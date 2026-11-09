@@ -250,6 +250,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	adminAPI.POST("/integrations/feishu/test-card", requireSameOriginRequest(cfg), feishuReviewHandler.SendTestCard)
 	adminAPI.POST("/integrations/feishu/bitable/reconcile", requireSameOriginRequest(cfg), feishuReviewHandler.ReconcileBitable)
 	adminAPI.GET("/integrations/feishu/bind", feishuReviewHandler.FeishuLinkPage)
+	adminAPI.GET("/integrations/feishu/binding-status", feishuReviewHandler.FeishuBindingStatus)
 	adminAPI.POST("/integrations/feishu/link-code", requireSameOriginRequest(cfg), feishuReviewHandler.FeishuLinkCode)
 	adminAPI.GET("/integrations/feishu/bitable/workflow-secret", feishuReviewHandler.BitableWorkflowSecret)
 	adminAPI.POST("/assignments", requireSameOriginRequest(cfg), assignmentHandler.Create)
