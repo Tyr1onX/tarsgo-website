@@ -229,7 +229,17 @@ export default function DashboardIndex() {
         </div>
 
         {error ? <p className="community-state community-state--error" role="alert">{error}{retry ? <button type="button" className="community-inline-retry" onClick={retryFailedOperation}>重试</button> : null}</p> : null}
-        {visibleLoading && visiblePosts.length === 0 ? <div className="community-state community-state--loading"><BrandLoader label="正在加载社区" /></div> : visiblePosts.length ? <>
+        {visibleLoading && visiblePosts.length === 0 ? <div className="community-post-list content-skeleton" role="status" aria-label="正在加载社区帖子">
+          {[0, 1, 2, 3].map((row) => <div key={row} className="community-topic-row" aria-hidden="true">
+            <span className="community-topic-row__title h-3 w-3/4 rounded bg-[var(--admin-border-subtle)]" />
+            <span className="community-topic-row__status h-3 w-8 rounded bg-[var(--admin-border-subtle)]" />
+            <span className="community-topic-row__category h-3 w-12 rounded bg-[var(--admin-border-subtle)]" />
+            <span className="community-topic-row__participants h-3 w-16 rounded bg-[var(--admin-border-subtle)]" />
+            <span className="community-topic-row__stat community-topic-row__stat--replies h-3 w-10 rounded bg-[var(--admin-border-subtle)]" />
+            <span className="community-topic-row__stat community-topic-row__stat--views h-3 w-10 rounded bg-[var(--admin-border-subtle)]" />
+            <span className="community-topic-row__time h-3 w-14 rounded bg-[var(--admin-border-subtle)]" />
+          </div>)}
+        </div> : visiblePosts.length ? <>
           <div className="community-post-list">
             {visiblePosts.map((post) => <CommunityPostCard key={post.id} post={post} />)}
           </div>

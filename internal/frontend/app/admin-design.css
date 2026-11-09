@@ -2885,3 +2885,13 @@
   background-color: var(--admin-neutral-surface);
   color: var(--admin-neutral);
 }
+
+/* Reserve list/table geometry only when no content has loaded yet. */
+.content-skeleton {
+  animation: content-skeleton-appear 0s 300ms both;
+}
+
+@keyframes content-skeleton-appear {
+  from { visibility: hidden; }
+  to { visibility: visible; }
+}

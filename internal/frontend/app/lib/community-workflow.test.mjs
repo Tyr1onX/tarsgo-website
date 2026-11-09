@@ -165,6 +165,14 @@ test("community images open an accessible gallery with keyboard navigation", () 
   assert.match(gallery, /setActiveIndex\(index\)/);
 });
 
+test("community cold loading reserves topic rows and cached refresh keeps real posts", () => {
+  assert.match(dashboard, /visibleLoading && visiblePosts\.length === 0 \? <div className="community-post-list content-skeleton"/);
+  assert.match(dashboard, /aria-label="正在加载社区帖子"/);
+  assert.match(dashboard, /\[0, 1, 2, 3\]\.map\(\(row\) => <div key=\{row\} className="community-topic-row"/);
+  assert.match(dashboard, /: visiblePosts\.length \? <>[\s\S]*?visiblePosts\.map\(\(post\) => <CommunityPostCard/);
+  assert.doesNotMatch(dashboard, /community-state--loading/);
+});
+
 test("community feed loads the post composer only when the dialog opens", () => {
   assert.doesNotMatch(dashboard, /import \{ CommunityComposer \} from "~\/components\/community-composer"/);
   assert.match(dashboard, /const CommunityComposer = lazy\(\(\) => import\("~\/components\/community-composer"\)/);

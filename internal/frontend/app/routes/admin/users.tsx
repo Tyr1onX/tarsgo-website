@@ -368,11 +368,15 @@ export default function AccountManagement() {
       {error ? <div role="alert" className="admin-notice admin-notice--error">{error}</div> : null}
       {notice ? <Notify tone="success" message={notice} onClose={() => setNotice("")} /> : null}
       {!requestedUserId ? <>
-      <div className="admin-users__summary" aria-label="账号概况">
-        <span>用户总数 <strong>{summary.total}</strong></span>
-        <span>启用 <strong>{summary.enabled}</strong></span>
-        <span>停用 <strong>{summary.disabled}</strong></span>
-        <span>组别待处理 <strong>{summary.pending + summary.cleanupPending}</strong></span>
+      <div className={`admin-users__summary${loading && items.length === 0 && summary.total === 0 ? " content-skeleton" : ""}`} aria-label="账号概况">
+        {loading && items.length === 0 && summary.total === 0
+          ? [0, 1, 2, 3].map((item) => <span key={item} aria-hidden="true"><span className="block h-3 w-20 rounded bg-[var(--admin-border-subtle)]" /></span>)
+          : <>
+            <span>用户总数 <strong>{summary.total}</strong></span>
+            <span>启用 <strong>{summary.enabled}</strong></span>
+            <span>停用 <strong>{summary.disabled}</strong></span>
+            <span>组别待处理 <strong>{summary.pending + summary.cleanupPending}</strong></span>
+          </>}
       </div>
       {summary.groupDistribution.length ? <details className="admin-users__distribution">
         <summary>查看组别分布</summary>
@@ -405,12 +409,19 @@ export default function AccountManagement() {
       </section>
 
       <section className="admin-panel overflow-hidden" aria-label="账号列表">
-        {loading && items.length === 0 ? <BrandLoader label="正在加载账号" /> : items.length === 0 ? <div className="admin-table-empty">没有符合条件的账号。</div> : (
-          <div className="admin-users__table-wrap">
+        {items.length === 0 && !loading ? <div className="admin-table-empty">没有符合条件的账号。</div> : (
+          <div className={`admin-users__table-wrap${loading && items.length === 0 ? " content-skeleton" : ""}`}
+            role={loading && items.length === 0 ? "status" : undefined}
+            aria-label={loading && items.length === 0 ? "正在加载账号列表" : undefined}>
             <table className="admin-table admin-users__table">
               <thead><tr><th>成员</th><th>组别</th><th>身份与权限</th><th>状态</th></tr></thead>
               <tbody>
-                {items.map((item) => (
+                {loading && items.length === 0 ? [0, 1, 2, 3, 4].map((row) => <tr key={row} className="admin-table-row" aria-hidden="true">
+                  <td><span className="block h-3 w-24 max-w-full rounded bg-[var(--admin-border-subtle)]" /></td>
+                  <td><span className="block h-3 w-16 max-w-full rounded bg-[var(--admin-border-subtle)]" /></td>
+                  <td><span className="block h-3 w-20 max-w-full rounded bg-[var(--admin-border-subtle)]" /></td>
+                  <td><span className="block h-3 w-10 max-w-full rounded bg-[var(--admin-border-subtle)]" /></td>
+                </tr>) : items.map((item) => (
                   <tr key={item.id} className="admin-table-row">
                     <td><button type="button" className="admin-users__member-link" onClick={() => void openEdit(item)}><strong>{item.realName || "姓名待核实"}</strong><span>查看详情</span></button></td>
                     <td>{item.groupState === "pending" ? <><span className="admin-status admin-status--screening">待确认</span><span className="admin-users__group-name">{item.groups.filter((group) => group.status === 1).map((group) => group.name).join("、")}</span></> : item.groupState === "assigned" ? <><span className="admin-users__group-name">{item.groupName}</span>{item.cleanupPending ? <span className="admin-users__group-warning">待清理停用关系</span> : null}</> : <><span className="admin-users__group-name is-muted">未分组</span>{item.cleanupPending ? <span className="admin-users__group-warning">待清理停用关系</span> : null}</>}</td>
@@ -423,7 +434,7 @@ export default function AccountManagement() {
           </div>
         )}
         <div className="flex items-center justify-between gap-3 border-t border-[var(--admin-border-subtle)] px-4 py-3 text-xs text-[var(--admin-muted)]">
-          <span>{loading ? "正在更新账号… · " : ""}第 {page} / {totalPages} 页</span>
+          <span>{loading && items.length === 0 ? null : <>{loading ? "正在更新账号… · " : ""}第 {page} / {totalPages} 页</>}</span>
           <div className="admin-operation-group"><button type="button" disabled={page <= 1 || loading} onClick={() => void loadAccounts(page - 1)} className="admin-button admin-button--secondary admin-button--small">上一页</button><button type="button" disabled={page >= totalPages || loading} onClick={() => void loadAccounts(page + 1)} className="admin-button admin-button--secondary admin-button--small">下一页</button></div>
         </div>
       </section>
