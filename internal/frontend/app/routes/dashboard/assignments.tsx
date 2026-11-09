@@ -208,6 +208,26 @@ export default function MyAssignmentsRoute() {
     && assignment.publicationStatus !== "withdrawn"
     && assignment.status !== "passed"
     && (!detail?.submissions.length || Date.now() <= new Date(assignment.dueAt).getTime()));
+  const submissionForm = canSubmit ? (
+    <form onSubmit={submit} className="space-y-3 border-t border-[var(--admin-border-subtle)] pt-4">
+            <div className="admin-field-label">提交附件<FileUploadField
+              label="作业提交附件"
+              files={files}
+              onFilesChange={(next) => { setFiles(next); setFileUploadStatus("pending"); setSubmissionError(""); }}
+              multiple
+              hint="最多 10 个附件"
+              status={fileUploadStatus}
+              disabled={saving}
+              validateSelection={(next) => {
+                if (next.length > maxSubmissionFiles) return "最多提交 10 个文件。";
+                if (next.some((file) => file.size <= 0)) return "不能提交空文件。";
+                return null;
+              }}
+            /></div>
+            {submissionError ? <p role="alert" className="text-sm text-[var(--admin-danger)]">{submissionError}</p> : null}
+            <div className="flex flex-wrap items-center justify-between gap-3"><button type="submit" className="admin-button admin-button--primary" disabled={saving || files.length === 0}>{saving ? "提交中…" : assignment?.status === "needs_redo" ? "重新提交" : assignment?.status === "submitted" ? "更新提交" : "提交作业"}</button></div>
+    </form>
+  ) : null;
 
   return (
     <section className="admin-design space-y-5" aria-labelledby="my-assignments-title">
@@ -230,7 +250,7 @@ export default function MyAssignmentsRoute() {
           {visibleItems.length === 0 ? <p className="px-3 py-4 text-sm text-[var(--admin-muted)]">当前筛选下没有作业。</p> : null}
           <div className="divide-y divide-[var(--admin-border-subtle)]">
           {visibleItems.map((item) => <button key={item.id} type="button" disabled={saving} onClick={() => void selectAssignment(item, true)} className={`w-full rounded-lg px-3 py-3 text-left transition-colors disabled:cursor-wait ${selectedID === item.id ? "bg-[color-mix(in_srgb,var(--admin-accent)_10%,var(--admin-surface))]" : "hover:bg-[var(--admin-hover-overlay)]"}`}>
-            <span className="flex items-start justify-between gap-2"><strong className="text-sm text-[var(--admin-text)]">{item.title}</strong><span className="shrink-0 text-xs text-[var(--admin-muted)]">{item.publicationStatus === "withdrawn" ? "已撤回" : assignmentStatusLabel(item.status)}</span></span>
+            <span className="flex items-start justify-between gap-2"><strong className="text-sm text-[var(--admin-text)]">{item.title}</strong><span className="shrink-0 text-xs text-[var(--admin-muted)]">{item.publicationStatus === "withdrawn" ? "已撤回" : item.status === "submitted" ? "待批改" : assignmentStatusLabel(item.status)}</span></span>
             <span className="mt-1 block text-xs text-[var(--admin-muted)]">{item.groupName} · 截止 {formatAssignmentDate(item.dueAt)}</span>
             {item.isLate ? <span className="mt-1 block text-xs text-[var(--admin-warning)]">逾期提交</span> : null}
           </button>)}
@@ -240,7 +260,7 @@ export default function MyAssignmentsRoute() {
         {assignment && visibleItems.some((item) => item.id === selectedID) ? <section ref={detailPanelRef} className="admin-panel scroll-mt-20 space-y-4 p-4 sm:p-5" aria-labelledby="assignment-detail-title">
           <header className="flex flex-wrap items-start justify-between gap-3">
             <div><p className="text-xs text-[var(--admin-muted)]">{assignment.groupName} · 截止 {formatAssignmentDate(assignment.dueAt)}</p><h2 id="assignment-detail-title" className="mt-1 text-xl font-semibold text-[var(--admin-text)]">{assignment.title}</h2></div>
-            <span className="rounded-full border border-[var(--admin-border-subtle)] px-3 py-1 text-xs text-[var(--admin-muted)]">{assignment.publicationStatus === "withdrawn" ? assignmentPublicationStatusLabel(assignment.publicationStatus) : assignmentStatusLabel(assignment.status)}</span>
+            <span className="rounded-full border border-[var(--admin-border-subtle)] px-3 py-1 text-xs text-[var(--admin-muted)]">{assignment.publicationStatus === "withdrawn" ? assignmentPublicationStatusLabel(assignment.publicationStatus) : assignment.status === "submitted" ? "已提交，等待批改" : assignmentStatusLabel(assignment.status)}</span>
           </header>
           {submittedAssignmentID === assignment.id ? <p role="status" className="rounded-lg border border-[var(--admin-success-border)] bg-[var(--admin-success-surface)] px-3 py-2 text-sm text-[var(--admin-success)]">提交成功，等待批改。</p> : null}
           {assignment.publicationStatus === "withdrawn" ? <p role="status" className="rounded-lg border border-[var(--admin-border-subtle)] px-3 py-2 text-sm text-[var(--admin-muted)]">作业已撤回，无法继续提交；已有提交和批改记录仍可查看。</p> : null}
@@ -262,24 +282,11 @@ export default function MyAssignmentsRoute() {
             {latestFeedback ? <CommunityMarkdown source={latestFeedback} className="mt-2 whitespace-pre-wrap text-sm" /> : <p className="mt-2 text-sm text-[var(--admin-muted)]">作业已退回，请修改后重新提交。</p>}
           </section> : null}
 
-          {canSubmit ? <form onSubmit={submit} className="space-y-3 border-t border-[var(--admin-border-subtle)] pt-4">
-            <div className="admin-field-label">提交附件<FileUploadField
-              label="作业提交附件"
-              files={files}
-              onFilesChange={(next) => { setFiles(next); setFileUploadStatus("pending"); setSubmissionError(""); }}
-              multiple
-              hint="最多 10 个附件"
-              status={fileUploadStatus}
-              disabled={saving}
-              validateSelection={(next) => {
-                if (next.length > maxSubmissionFiles) return "最多提交 10 个文件。";
-                if (next.some((file) => file.size <= 0)) return "不能提交空文件。";
-                return null;
-              }}
-            /></div>
-            {submissionError ? <p role="alert" className="text-sm text-[var(--admin-danger)]">{submissionError}</p> : null}
-            <div className="flex flex-wrap items-center justify-between gap-3"><button type="submit" className="admin-button admin-button--primary" disabled={saving || files.length === 0}>{saving ? "提交中…" : detail.submissions.length ? "重新提交" : "提交作业"}</button></div>
-          </form> : null}
+          {assignment.status === "submitted" && canSubmit ? <details key={detail.submissions.at(-1)?.id} className="rounded-lg border border-[var(--admin-border-subtle)] p-3">
+            <summary className="cursor-pointer text-sm font-medium text-[var(--admin-text)]">更新已提交的附件</summary>
+            <div className="mt-3">{submissionForm}</div>
+          </details> : assignment.status === "submitted" ? null : submissionForm}
+          {assignment.status === "needs_redo" && !canSubmit && assignment.publicationStatus !== "withdrawn" ? <p role="status" className="text-sm text-[var(--admin-warning)]">已过截止时间，无法重新提交。</p> : null}
 
           {detail.submissions.length > 0 ? <details key={assignment.id} className="space-y-3" aria-labelledby="assignment-history-title">
             <summary id="assignment-history-title" className="cursor-pointer text-sm font-semibold text-[var(--admin-text)]">提交与批改记录（{detail.submissions.length} 次）</summary>
