@@ -249,7 +249,7 @@ test("review center uses the shared group and distinguishes loading and empty st
   assert.match(assignmentSubmissions, /listLoaded && assignments\.some\(\(item\) => item\.id === selectedID\) && detail\?\.assignment\.id === selectedID/);
   assert.match(assignmentSubmissions, /正在加载作业列表/);
   assert.match(assignmentSubmissions, /正在加载提交记录/);
-  assert.match(assignmentSubmissions, /当前没有已退回的提交/);
+  assert.match(assignmentSubmissions, /当前没有待提交或返修的成员/);
   assert.match(assignmentSubmissions, /role="alert" className="admin-notice admin-notice--error"/);
 });
 
