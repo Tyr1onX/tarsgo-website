@@ -1,5 +1,5 @@
 import { useEffect, useId, useState } from "react";
-import { inferGrade, type AcademicInput } from "~/lib/account-profile";
+import { inferGrade, updateAcademicStudentId, type AcademicInput } from "~/lib/account-profile";
 import { leaveClient, type CollegeOption } from "~/lib/leave-client";
 
 export function AccountAcademicFields({ value, onChange, disabled = false, fieldClass = "auth-input", labelClass = "block text-sm" }: {
@@ -20,7 +20,7 @@ export function AccountAcademicFields({ value, onChange, disabled = false, field
     </label>
     {value.isStudent ? <>
       <label className="block min-w-0"><span className={labelClass}>学号</span>
-        <input aria-label="学号" className={fieldClass} required maxLength={40} pattern="[A-Za-z0-9]+" autoComplete="off" value={value.studentId} onChange={(e) => { const studentId = e.target.value; onChange({ ...value, studentId, grade: inferGrade(studentId) || (inferGrade(value.studentId) ? "" : value.grade) }); }} />
+        <input aria-label="学号" className={fieldClass} required maxLength={40} pattern="[A-Za-z0-9]+" autoComplete="off" value={value.studentId} onChange={(e) => onChange(updateAcademicStudentId(value, e.target.value))} />
       </label>
       <label className="block min-w-0"><span className={labelClass}>学院</span>
         <input aria-label="学院" className={fieldClass} required maxLength={100} list={`${id}-colleges`} value={value.college} onChange={(e) => onChange({ ...value, college: e.target.value })} />
