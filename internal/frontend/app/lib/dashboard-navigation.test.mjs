@@ -16,7 +16,6 @@ import {
   isAssignmentGroupName,
   isDashboardMenuPathActive,
   isDashboardSectionItemActive,
-  isTemporarilyUnavailableDashboardPath,
 } from "./dashboard-navigation.ts";
 
 test("primary navigation adds the signed-in member profile before role-gated Management", () => {
@@ -140,22 +139,6 @@ test("management deep links keep role restrictions without broadening page acces
   assert.equal(canAccessDashboardAdminPath("user", "/dashboard/admin/leave"), false);
   assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/leave/access-requests"), false);
   assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/organization-preview"), false);
-});
-
-test("paused member and admin routes still reject direct entry", () => {
-  const pausedPaths = [
-    "/dashboard/practice-projects",
-    "/dashboard/expedition/projects",
-    "/dashboard/admin/training/practice-projects",
-    "/dashboard/admin/training/expedition",
-  ];
-  for (const value of pausedPaths) {
-    const pathname = value.split("?")[0];
-    assert.equal(isTemporarilyUnavailableDashboardPath(pathname), true, pathname);
-  }
-  for (const pathname of ["/dashboard/base", "/dashboard/growth", "/dashboard/skills", "/dashboard/capabilities", "/dashboard/admin/training/skills", "/dashboard/admin/training/capabilities", "/dashboard/admin/cultivation", "/dashboard/weekly-reports", "/dashboard/leave", "/dashboard/guide", "/dashboard/admin/timetable-availability"]) {
-    assert.equal(isTemporarilyUnavailableDashboardPath(pathname), false, pathname);
-  }
 });
 
 test("legacy team, timetable, profile, and help paths remain reachable through the new hierarchy", async () => {

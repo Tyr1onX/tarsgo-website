@@ -70,7 +70,6 @@ test("all native upload entry points use the shared field except the existing av
     "../routes/dashboard/weekly-reports.tsx",
     "../routes/dashboard/assignments.tsx",
     "../routes/admin/assignment-management.tsx",
-    "../routes/dashboard/practice-projects.tsx",
     "../routes/users/registrations.tsx",
     "../components/personal-timetable-upload.tsx",
     "../routes/admin/admission-qr-settings.tsx",

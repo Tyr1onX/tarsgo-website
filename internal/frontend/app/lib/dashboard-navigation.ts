@@ -115,22 +115,6 @@ export function isAssignmentGroupName(name: string) {
   return ASSIGNMENT_GROUP_NAMES.has(name);
 }
 
-export function canAccessExpedition(userOrRole: AuthUser | string, hasAssignmentGroup: boolean) {
-  const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
-  return hasAssignmentGroup || roleName === "super_admin";
-}
-
-export function isTemporarilyUnavailableDashboardPath(pathname: string) {
-  const normalizedPath = pathname.replace(/\/+$/, "");
-  const unavailablePaths = [
-    "/dashboard/practice-projects",
-    "/dashboard/expedition",
-    "/dashboard/admin/training/practice-projects",
-    "/dashboard/admin/training/expedition",
-  ];
-  return unavailablePaths.some((path) => normalizedPath === path || normalizedPath.startsWith(`${path}/`));
-}
-
 function isRoleAllowed(roleName: string, allowedRoles: DashboardAllowedRoles) {
   return allowedRoles.includes(roleName);
 }

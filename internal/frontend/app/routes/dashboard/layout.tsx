@@ -42,14 +42,12 @@ import {
   hasWorkbenchAccess,
   isInternalDashboardPath,
   canAccessDashboardAdminPath,
-  canAccessExpedition,
   getDashboardSectionKey,
   getDashboardSectionMenu,
   getDefaultDashboardPath,
   hasAssignmentGroupAccess,
   hasTechnicalGroupAccess,
   isDashboardSectionItemActive,
-  isTemporarilyUnavailableDashboardPath,
   type DashboardMenuIconKey,
   type DashboardMenuLink,
 } from "~/lib/dashboard-navigation";
@@ -74,7 +72,6 @@ type UserMenuPosition = { left: number; top: number };
 
 export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const currentPath = new URL(request.url);
-  const temporarilyUnavailable = isTemporarilyUnavailableDashboardPath(currentPath.pathname);
   const legacyOrganizationAlias = currentPath.pathname === "/dashboard/team" || currentPath.pathname === "/dashboard/admin/organization-preview";
   const skipGroupResolution = currentPath.pathname === "/dashboard/questions" || currentPath.pathname === "/dashboard/base";
   const auth = await resolveDashboardAuth({
@@ -93,9 +90,6 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   const currentUser = auth.user;
   if (!hasWorkbenchAccess(currentUser) && isInternalDashboardPath(currentPath.pathname)) {
     throw redirect("/dashboard");
-  }
-  if (temporarilyUnavailable) {
-    throw redirect(getDefaultDashboardPath(currentUser.role.name));
   }
   if (legacyOrganizationAlias) {
     throw redirect("/dashboard/workbench/organization");
@@ -126,12 +120,6 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
     throw redirect(getDefaultDashboardPath(currentUser.role.name));
   }
   if (pathname === "/dashboard/assignments" && !hasAssignmentGroup) {
-    throw redirect(getDefaultDashboardPath(currentUser.role.name));
-  }
-  if (pathname === "/dashboard/expedition" && !canAccessExpedition(currentUser, hasAssignmentGroup)) {
-    throw redirect(getDefaultDashboardPath(currentUser.role.name));
-  }
-  if (pathname === "/dashboard/expedition/projects" && !canAccessExpedition(currentUser, hasAssignmentGroup)) {
     throw redirect(getDefaultDashboardPath(currentUser.role.name));
   }
 
@@ -333,7 +321,6 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const updatePageTitle = useCallback((title: string) => setPageTitle(title), []);
   useEffect(() => { setBadgeReplayRequest(null); }, [currentUser.id]);
   const currentBadgeReplayRequest = badgeReplayRequest?.userId === currentUser.id ? badgeReplayRequest : null;
-  const isImmersiveExpedition = location.pathname.replace(/\/$/, "") === "/dashboard/expedition";
   const isCommunityPostRoute = /^\/dashboard\/community\/\d+$/.test(location.pathname);
   const hasAssignmentGroup = hasAssignmentGroupAccess(groupResolution?.groups);
   const sectionMenuItems = getDashboardSectionMenu(currentUser);
@@ -662,7 +649,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   }
 
   return (
-    <div className="dashboard-shell admin-design min-h-screen text-[var(--admin-text)]" data-immersive={isImmersiveExpedition ? "expedition" : undefined}>
+    <div className="dashboard-shell admin-design min-h-screen text-[var(--admin-text)]">
       <header className="dashboard-shell__topbar sticky top-0 z-[60] flex h-16 min-w-0 items-center gap-3 border-b px-4 sm:gap-4 sm:px-6">
           <button
             ref={sidebarTriggerRef}

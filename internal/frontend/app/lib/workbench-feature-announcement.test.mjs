@@ -7,12 +7,7 @@ test("feature guide exposes the agreed title, date, statuses, and destinations",
   assert.equal(FEATURE_GUIDE_TITLE, "吉甲大师工作台调整｜日常事务与作业指南");
   assert.equal(FEATURE_GUIDE_DATE, "2026 年 10 月 30 日");
   assert.match(GROUP_ACCESS_HELP, /联系战队运营负责人核对/);
-  assert.deepEqual(WORKBENCH_FEATURES.map(({ status }) => status), [
-    "已开放",
-    "已开放",
-    "暂未开放",
-    "暂未开放",
-  ]);
+  assert.deepEqual(WORKBENCH_FEATURES.map(({ status }) => status), ["已开放", "已开放"]);
   assert.ok(WORKBENCH_FEATURES.every(({ href }) => href.startsWith("/dashboard")));
 });
 

@@ -17,8 +17,6 @@ const memberAssignments = await readFile(new URL("../routes/dashboard/assignment
 const assignmentClient = await readFile(new URL("./assignment-client.ts", import.meta.url), "utf8");
 const feishuBitableHandler = await readFile(new URL("../../../backend/handler/feishu_bitable.go", import.meta.url), "utf8");
 const assignmentGroups = await readFile(new URL("./use-assignment-groups.ts", import.meta.url), "utf8");
-const practicePage = await readFile(new URL("../routes/dashboard/practice-projects.tsx", import.meta.url), "utf8");
-const practiceService = await readFile(new URL("../../../backend/service/assignment/practice.go", import.meta.url), "utf8");
 
 test("workbench exposes assignments to all five supported groups", () => {
   assert.match(routes, /route\("assignments", "routes\/dashboard\/assignments\.tsx"\)/);
@@ -49,15 +47,6 @@ test("assignment member options are not cleared by unrelated loader revalidation
   assert.match(assignmentManagement, /正在加载组内成员/);
 });
 
-test("practice creation validates the field and converts deadlines in Beijing time", () => {
-  assert.match(practicePage, /assignmentDeadlineToISOString\(draft\.dueAt\)/);
-  assert.match(practicePage, /assignmentDeadlineIsFuture\(draft\.dueAt,new Date\(\)\)/);
-  assert.match(practicePage, /shanghaiDateTimeLocal\(selected\.dueAt\)/);
-  assert.match(practicePage, /setDeadlineError\("截止时间必须晚于当前北京时间。"/);
-  assert.doesNotMatch(practicePage, /new Date\(draft\.dueAt\)\.toISOString\(\)/);
-  assert.match(practiceService, /return practiceBad\("截止时间必须晚于当前北京时间"\)/);
-});
-
 test("backend applies role, current group, target, and ownership checks to every operation", () => {
   assert.match(backendRoutes, /assignmentMemberAPI\.Use\(middleware\.RequireAuthenticated\(authService\), middleware\.RequireWorkbench\(\)\)/);
   assert.match(backendRoutes, /adminAPI\.Use\(middleware\.RequireAdmin\(authService\)\)[\s\S]*?adminAPI\.POST\("\/assignments"/);
@@ -74,11 +63,9 @@ test("backend applies role, current group, target, and ownership checks to every
   assert.match(assignmentService, /requireManagerGroupAccessWithDB\(tx, actor, item\.GroupID\)/);
 });
 
-test("paused training routes and APIs are not reachable while leave approvals stay super-admin only", () => {
-  assert.match(navigation, /\/dashboard\/admin\/training\/practice-projects/);
-  assert.match(layout, /isTemporarilyUnavailableDashboardPath\(currentPath\.pathname\)/);
+test("removed training workflows have no routes or API handlers while leave approvals stay protected", () => {
+  assert.doesNotMatch(routes, /route\("(?:practice-projects|expedition|expedition\/projects|admin\/training\/(?:practice-projects|expedition|questions))"/);
   assert.match(layout, /currentPath\.pathname === "\/dashboard\/questions"/);
-  assert.doesNotMatch(routes, /route\("admin\/training\/questions"/);
   assert.doesNotMatch(backendRoutes, /practiceHandler|trainingQuestionHandler|skillsHandler|capabilitiesHandler|cultivationHandler|expeditionHandler|growthHandler/);
   assert.match(backendRoutes, /superAdminAPI\.GET\("\/leave\/access-requests"/);
   assert.match(backendRoutes, /superAdminAPI\.PATCH\("\/leave\/access-requests\/:id"/);
@@ -112,7 +99,6 @@ test("new assignments with teaching materials publish atomically and retry idemp
 test("admin teaching materials stay separate from submissions and use permission-checked APIs", () => {
   assert.doesNotMatch(assignmentManagement, /accept=\{assignmentMaterialAccept\}/);
   assert.doesNotMatch(memberAssignments, /accept=\{fileAccept\}/);
-  assert.doesNotMatch(practicePage, /accept="\.jpg/);
   assert.match(assignmentManagement, /FileUploadField[\s\S]*?label="教学资料附件"[\s\S]*?multiple/);
   assert.match(assignmentManagement, /validateSelection=\{\(next\) => validateAssignmentMaterialSelection\(existingMaterials, \[\], next\)/);
   assert.match(assignmentManagement, /assignmentClient\.uploadMaterialFiles\(saved\.id, pendingMaterials/);
