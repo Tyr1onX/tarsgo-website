@@ -52,6 +52,7 @@ export default function MyAssignmentsRoute() {
   const [files, setFiles] = useState<File[]>([]);
   const [filter, setFilter] = useState<AssignmentFilter>("all");
   const [submissionError, setSubmissionError] = useState("");
+  const [now, setNow] = useState(Date.now);
   const [submittedAssignmentID, setSubmittedAssignmentID] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
@@ -147,6 +148,19 @@ export default function MyAssignmentsRoute() {
     });
   }, [detail]);
 
+  useEffect(() => {
+    if (!detail?.submissions.length) return;
+    const refresh = () => setNow(Date.now());
+    const remaining = new Date(detail.assignment.dueAt).getTime() - Date.now();
+    refresh();
+    const timer = remaining > 0 ? window.setTimeout(refresh, remaining + 1) : undefined;
+    window.addEventListener("focus", refresh);
+    return () => {
+      if (timer !== undefined) window.clearTimeout(timer);
+      window.removeEventListener("focus", refresh);
+    };
+  }, [detail?.assignment.dueAt, detail?.submissions.length]);
+
   async function selectAssignment(item: Assignment, scrollOnMobile = false) {
     scrollToDetailIDRef.current = scrollOnMobile && window.matchMedia("(max-width: 1279px)").matches ? item.id : null;
     setFiles([]);
@@ -207,7 +221,7 @@ export default function MyAssignmentsRoute() {
   const canSubmit = Boolean(assignment
     && assignment.publicationStatus !== "withdrawn"
     && assignment.status !== "passed"
-    && (!detail?.submissions.length || Date.now() <= new Date(assignment.dueAt).getTime()));
+    && (!detail?.submissions.length || now <= new Date(assignment.dueAt).getTime()));
   const submissionForm = canSubmit ? (
     <form onSubmit={submit} className="space-y-3 border-t border-[var(--admin-border-subtle)] pt-4">
       <div className="admin-field-label">提交附件<FileUploadField
@@ -224,7 +238,6 @@ export default function MyAssignmentsRoute() {
           return null;
         }}
       /></div>
-      {submissionError ? <p role="alert" className="text-sm text-[var(--admin-danger)]">{submissionError}</p> : null}
       <div className="flex flex-wrap items-center justify-between gap-3"><button type="submit" className="admin-button admin-button--primary" disabled={saving || files.length === 0}>{saving ? "提交中…" : assignment?.status === "needs_redo" ? "重新提交" : assignment?.status === "submitted" ? "更新提交" : "提交作业"}</button></div>
     </form>
   ) : null;
@@ -282,6 +295,7 @@ export default function MyAssignmentsRoute() {
             {latestFeedback ? <CommunityMarkdown source={latestFeedback} className="mt-2 whitespace-pre-wrap text-sm" /> : <p className="mt-2 text-sm text-[var(--admin-muted)]">作业已退回，请修改后重新提交。</p>}
           </section> : null}
 
+          {submissionError ? <p role="alert" className="text-sm text-[var(--admin-danger)]">{submissionError}</p> : null}
           {assignment.status === "submitted" && canSubmit ? <details key={detail.submissions.at(-1)?.id} className="rounded-lg border border-[var(--admin-border-subtle)] p-3">
             <summary className="cursor-pointer text-sm font-medium text-[var(--admin-text)]">更新已提交的附件</summary>
             <div className="mt-3">{submissionForm}</div>
