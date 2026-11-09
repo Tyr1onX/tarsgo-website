@@ -269,32 +269,31 @@ init_ci_deploy_fixture() {
   [[ "$mode" != artifact-missing ]] || rm "$case_dir/download.tar.gz"
   [[ "$mode" != checksum-missing ]] || rm "$case_dir/download.tar.gz.sha256"
 
-  cat >"$case_dir/client-bin/curl" <<'CURL'
+  cat >"$case_dir/client-bin/gh" <<'GH'
 #!/usr/bin/env bash
 set -Eeuo pipefail
-output=""
-url=""
+[[ "${1:-} ${2:-} ${3:-}" == "release download production-artifacts" ]] || exit 90
+shift 3
+output="" pattern="" repo=""
 while (($#)); do
   case "$1" in
     --output) output="$2"; shift 2 ;;
-    --fail|--silent|--show-error|--location) shift ;;
-    --retry) shift 2 ;;
-    https://*) url="$1"; shift ;;
-    *) echo "unexpected curl argument: $1" >&2; exit 90 ;;
+    --pattern) pattern="$2"; shift 2 ;;
+    --repo) repo="$2"; shift 2 ;;
+    *) echo "unexpected gh argument: $1" >&2; exit 90 ;;
   esac
 done
-prefix="https://github.com/Tyr1onX/tarsgo-website/releases/download/production-artifacts/"
-[[ -n "$output" && "$url" == "$prefix"* ]] || { echo "unexpected release URL: $url" >&2; exit 90; }
-case "${url#"$prefix"}" in
+[[ -n "$output" && "$repo" == "Tyr1onX/tarsgo-website" ]] || exit 90
+case "$pattern" in
   tarsgo-production-release.tar.gz.sha256)
     [[ -s "$MOCK_RELEASE_ASSET_CHECKSUM" ]] || exit 22
     cp "$MOCK_RELEASE_ASSET_CHECKSUM" "$output" ;;
   tarsgo-production-release.tar.gz)
     [[ -s "$MOCK_RELEASE_ASSET_DOWNLOAD" ]] || exit 22
     cp "$MOCK_RELEASE_ASSET_DOWNLOAD" "$output" ;;
-  *) echo "unexpected release asset: $url" >&2; exit 90 ;;
+  *) echo "unexpected release asset: $pattern" >&2; exit 90 ;;
 esac
-CURL
+GH
   cat >"$case_dir/client-bin/ssh" <<'SSH'
 #!/usr/bin/env bash
 set -Eeuo pipefail
@@ -368,7 +367,7 @@ services:
   db:
     image: mariadb:11.4
 COMPOSE
-  chmod +x "$case_dir/client-bin/curl" "$case_dir/client-bin/ssh" "$case_dir/client-bin/rsync" "$case_dir/remote-bin/sha256sum"
+  chmod +x "$case_dir/client-bin/gh" "$case_dir/client-bin/ssh" "$case_dir/client-bin/rsync" "$case_dir/remote-bin/sha256sum"
   [[ ! -e "$case_dir/client-bin/node" ]] || chmod +x "$case_dir/client-bin/node"
 }
 
@@ -409,7 +408,7 @@ test_ci_artifact_deployment_ignores_local_toolchain() {
   release="$(cat "$case_dir/release-name")"
   [[ "$(cat "$case_dir/remote/releases/$release/commit.txt")" == "$commit" ]] || fail "uploaded CI artifact commit does not match the clean main checkout"
   (cd "$case_dir/remote/releases/$release" && sha256sum --check -- SHA256SUMS) >/dev/null || fail "uploaded CI artifact failed the production-side SHA256 check"
-  pass "public CI release asset completes the mocked production release when Node 26 is broken and local sha256sum, /sbin, Go, and Corepack are absent"
+  pass "authenticated CI release asset completes the mocked production release when Node 26 is broken and local sha256sum, /sbin, Go, and Corepack are absent"
 
   local no_frontend="$tmp/ci-artifact-no-frontend"
   init_ci_deploy_fixture "$no_frontend" success-no-frontend
@@ -1100,13 +1099,15 @@ PY
   grep -Fq -- '--rsh="$rsync_ssh"' "$repo_root/scripts/deploy-production.sh" || fail "rsync does not use the non-interactive SSH options"
   grep -Fq 'sha256sum --check -- SHA256SUMS' "$repo_root/scripts/deploy-production.sh" || fail "release upload integrity is not verified"
   grep -Fq 'download_production_release_asset "$commit_sha"' "$repo_root/scripts/deploy-production.sh" || fail "deployment does not download the release asset for the verified main commit"
+  grep -Fq 'gh release download "$production_release_tag"' "$repo_root/scripts/deploy-production.sh" || fail "deployment does not fetch release assets through authenticated GitHub API"
+  grep -Fq 'GH_TOKEN: ${{ github.token }}' "$repo_root/.github/workflows/production-ops.yml" || fail "CI deploy lacks GitHub authentication for release assets"
   ! grep -Eq 'make_bin|build-linux-amd64|frontend-toolchain|require_command sha256sum' "$repo_root/scripts/deploy-production.sh" || fail "production deployment still depends on local build or checksum tools"
   grep -Fq 'actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9' "$repo_root/.github/workflows/production-ops.yml" || fail "CI does not upload the built production artifact"
   grep -Fq 'actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333' "$repo_root/.github/workflows/production-ops.yml" || fail "CI does not transfer the built artifact to the release publisher"
   grep -Fq 'gh release upload production-artifacts' "$repo_root/.github/workflows/production-ops.yml" || fail "CI does not publish an unauthenticated production release asset"
   grep -Fq 'sha256sum tarsgo-production-release.tar.gz >tarsgo-production-release.tar.gz.sha256' "$repo_root/.github/workflows/production-ops.yml" || fail "CI does not publish a SHA-256 sidecar for the release archive"
   ! grep -Fq '/actions/artifacts/' "$repo_root/scripts/deploy-production.sh" || fail "deployment still attempts the login-protected Actions artifact download"
-  ! grep -Fq 'api.github.com' "$repo_root/scripts/deploy-production.sh" || fail "deployment still depends on the rate-limited GitHub REST API"
+  ! grep -Fq 'releases/download/' "$repo_root/scripts/deploy-production.sh" || fail "deployment still uses the unreliable public GitHub Release download URL"
   ! grep -Fq 'JSON::PP' "$repo_root/scripts/deploy-production.sh" || fail "deployment still depends on the JSON::PP module"
   grep -Fq 'OnCalendar=Sat *-*-* 19:00:00 UTC' "$repo_root/scripts/backup-production.timer" || fail "offsite backup is not scheduled weekly"
   grep -Fq 'retention_minutes=43200' "$repo_root/scripts/backup-production.sh" || fail "local retention is not 30 days"
