@@ -36,7 +36,6 @@ test("cold-loading placeholders reuse one component across public and internal p
     "../routes/dashboard/community-member-profile.tsx",
     "../routes/dashboard/assignments.tsx",
     "../routes/dashboard/weekly-reports.tsx",
-    "../routes/dashboard/workbench.tsx",
     "../routes/admin/assignment-management.tsx",
     "../routes/admin/assignment-submissions.tsx",
     "../routes/admin/form-config.tsx",
@@ -75,4 +74,13 @@ test("background refresh retains existing community data without a loading banne
   assert.match(feed, /visibleLoading && visiblePosts\.length === 0 \? <div className="community-post-list content-skeleton"/);
   assert.doesNotMatch(feed, /正在同步最新内容/);
   assert.doesNotMatch(workbench, /正在同步最新状态…/);
+});
+
+test("personal workbench keeps per-section progress without a second global loader", async () => {
+  const workbench = await read("../routes/dashboard/workbench.tsx");
+  assert.doesNotMatch(workbench, /BrandLoader|正在读取个人事务状态/);
+  assert.match(workbench, /weeklyLoading \? "读取中"/);
+  assert.match(workbench, /assignmentsLoading \? "读取中"/);
+  assert.match(workbench, /const leaveStatus = leaveLoading \? "读取中"/);
+  assert.match(workbench, /!loading && !tasksPending && taskCount === 0 && !hasErrors/);
 });
