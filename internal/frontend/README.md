@@ -8,7 +8,6 @@
 internal/frontend/
 ├── app/                    React Router 应用源码
 ├── public/                 静态资源
-├── .env.example            前端无需环境变量，该文件只保留说明
 ├── .nvmrc                  固定 Node.js 版本
 ├── package.json            前端脚本与依赖
 ├── react-router.config.ts  React Router 配置

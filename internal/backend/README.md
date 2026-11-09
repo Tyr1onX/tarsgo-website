@@ -1,13 +1,8 @@
 # TarsGo Backend
 
-`internal/backend` 现在不再只是初始化骨架，而是已经包含管理员后台 Round 1 所需的完整认证闭环：
+`internal/backend` 提供官网 API、身份与权限校验、招新、作业、社区、周报等业务。
 
-- 邮箱验证码注册
-- 邮箱密码登录
-- 邮箱验证码登录
-- JWT HttpOnly Cookie 会话
-- `/api/me` 当前会话检查
-- 首次运行超级管理员初始化
+认证使用邮箱验证码注册、密码或验证码登录，以及服务端会话（HttpOnly Cookie 持有随机令牌，数据库保存令牌摘要）。旧 JWT 只保留尚未过期 Cookie 的兼容解析。首次启动时可初始化超级管理员，`/api/me` 用于检查当前会话。
 
 ## 目录结构
 
@@ -37,12 +32,10 @@
 
 2. 检查 `.env`：
 
-   - 当前仓库已经提供可直接运行的本地 `.env`
-   - 示例模板在 `.env.example`
-   - `.env` 只负责数据库、JWT、CORS 等基础运行参数
-   - 邮箱发信配置由超级管理员在后台“系统设置”中维护
-   - 分离式前端联调默认端口通常是 `http://127.0.0.1:5173`
-   - 若前端开发端口被占用，React Router / Vite 可能自动切到 `http://127.0.0.1:5180`
+   - 仓库只提供 `.env.example`；在仓库根目录运行 `make env` 创建被 Git 忽略的 `internal/backend/.env`
+   - `.env` 包含数据库、JWT 会话签名密钥、CORS、发信凭据等服务端配置
+   - 超级管理员的“邮件管理”只维护通知模板及测试发信；发件地址、Resend API Key 由服务端环境变量配置
+   - 前端开发默认使用 `http://localhost:5173`，由 Vite 代理同源 `/api`
    - `APP_AUTO_MIGRATE` 默认为 `true`，适合本地开发；生产 Web 进程建议设置为 `false`
 
 3. 启动服务：
@@ -128,16 +121,7 @@ make build
 
 版本化迁移由 `database.RunMigrations` 执行，迁移版本记录在 `schema_migrations` 表中。`APP_AUTO_MIGRATE=true` 时 Web 服务会在启动阶段运行迁移；生产环境推荐设为 `false`，并在切换新版本前单独运行同一次构建产出的 `tarsgo-migrate`。首个版本负责创建当前业务表和角色种子；开发环境 mock 数据会在每次迁移运行后幂等补齐，但不会覆盖已有记录的审核状态；后续结构变更应新增版本迁移，避免修改历史版本。
 
-推荐的生产发布顺序：
-
-```bash
-# 从部署环境导出 DB_HOST / DB_PORT / DB_NAME / DB_USER / DB_PASSWORD 后执行
-BACKUP_DIR=./backups ./scripts/backup-mariadb.sh
-./dist/tarsgo-migrate
-APP_AUTO_MIGRATE=false ./dist/tarsgo-backend
-```
-
-迁移程序失败时不得切换 Web 进程。备份文件默认写入 `./backups`，目录权限为 `0700`，同时生成 SHA-256 校验文件。
+正式环境由 GitHub Actions 在 `main` 合并并通过检查后自动发布已验证的 Linux 构建产物、执行迁移、切换容器及健康检查，详见 [生产发布与回滚](../../docs/production-deployment.md)。`make build` 适用于本地构建验证，不是生产部署入口。迁移失败时不会切换应用版本；应用回滚不自动回滚数据库结构。
 
 | 项目 | 说明 |
 | --- | --- |
