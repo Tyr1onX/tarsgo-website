@@ -45,33 +45,59 @@ func TestMariaDBWorkbenchBoundaryAndCommunityAPIs(t *testing.T) {
 	cfg := &config.Config{App: config.AppConfig{Env: "test", GinMode: "test"}, Auth: config.AuthConfig{JWTSecret: strings.Repeat("w", 32), CookieName: "workbench_test", TokenTTL: 72 * time.Hour}}
 	engine := New(cfg, db)
 	marker := time.Now().UnixNano()
+	now := time.Now().In(time.FixedZone("Asia/Shanghai", 8*60*60))
 	users := []model.User{}
 	tokens := []string{}
-
+	groups := map[string]model.UserGroup{
+		"team":     {Name: fmt.Sprintf("[TEST] workbench-team-%d", marker), Status: model.UserGroupStatusActive},
+		"default":  {Name: fmt.Sprintf("[TEST] workbench-default-%d", marker), Status: model.UserGroupStatusActive, IsDefault: true},
+		"disabled": {Name: fmt.Sprintf("[TEST] workbench-disabled-%d", marker), Status: model.UserGroupStatusDisabled},
+	}
+	for kind, group := range groups {
+		if err := db.Create(&group).Error; err != nil {
+			t.Fatal(err)
+		}
+		groups[kind] = group
+	}
 	tests := []struct {
-		name, identity, created, role string
-		want                          bool
+		name, identity, created, role, group string
+		stale                                bool
+		want                                 bool
 	}{
-		{"old", model.TeamIdentityCommunityMember, "2026-11-03 18:09:59", model.RoleNameUser, true},
-		{"boundary", model.TeamIdentityCommunityMember, "2026-11-03 18:10:00", model.RoleNameUser, false},
-		{"new", model.TeamIdentityCommunityMember, "2026-11-03 18:10:01", model.RoleNameUser, false},
-		{"trainee", model.TeamIdentityTraineeMember, "2026-11-03 18:10:01", model.RoleNameUser, true},
-		{"formal", model.TeamIdentityFormalMember, "2026-11-03 18:10:01", model.RoleNameUser, true},
-		{"reserve", model.TeamIdentityReserveMember, "2026-11-03 18:10:01", model.RoleNameUser, false},
-		{"admin", model.TeamIdentityCommunityMember, "2026-11-03 18:10:01", model.RoleNameAdmin, true},
-		{"super", model.TeamIdentityCommunityMember, "2026-11-03 18:10:01", model.RoleNameSuperAdmin, true},
+		{"old", model.TeamIdentityCommunityMember, "2026-11-03 18:09:59", model.RoleNameUser, "", false, false},
+		{"boundary", model.TeamIdentityCommunityMember, "2026-11-03 18:10:00", model.RoleNameUser, "team", false, true},
+		{"new", model.TeamIdentityCommunityMember, "2026-11-03 18:10:01", model.RoleNameUser, "", false, false},
+		{"trainee", model.TeamIdentityTraineeMember, "2026-11-03 18:10:01", model.RoleNameUser, "team", false, true},
+		{"formal", model.TeamIdentityFormalMember, "2026-11-03 18:10:01", model.RoleNameUser, "team", false, true},
+		{"reserve", model.TeamIdentityReserveMember, "2026-11-03 18:10:01", model.RoleNameUser, "team", false, true},
+		{"admin", model.TeamIdentityCommunityMember, "2026-11-03 18:10:01", model.RoleNameAdmin, "", false, false},
+		{"super", model.TeamIdentityCommunityMember, "2026-11-03 18:10:01", model.RoleNameSuperAdmin, "", false, false},
+		{"default_group", model.TeamIdentityFormalMember, "2026-11-03 18:10:01", model.RoleNameUser, "default", false, false},
+		{"inactive_group", model.TeamIdentityFormalMember, "2026-11-03 18:10:01", model.RoleNameUser, "disabled", false, false},
+		{"stale_login", model.TeamIdentityFormalMember, "2026-11-03 18:10:01", model.RoleNameUser, "team", true, false},
+		{"admin_with_group", model.TeamIdentityCommunityMember, "2026-11-03 18:10:01", model.RoleNameAdmin, "team", false, true},
+		{"super_with_group", model.TeamIdentityCommunityMember, "2026-11-03 18:10:01", model.RoleNameSuperAdmin, "team", false, true},
 	}
 	for i, test := range tests {
 		var role model.Role
 		if err := db.Where("name = ?", test.role).First(&role).Error; err != nil {
 			t.Fatal(err)
 		}
-		user := model.User{RoleID: role.ID, Email: fmt.Sprintf("workbench-%d-%d@tarsgo.test", marker, i), Status: 1, TeamIdentityStatus: test.identity}
+		lastLoginAt := now
+		if test.stale {
+			lastLoginAt = model.AccountActivityCutoff(now).Add(-time.Second)
+		}
+		user := model.User{RoleID: role.ID, Email: fmt.Sprintf("workbench-%d-%d@tarsgo.test", marker, i), Status: 1, TeamIdentityStatus: test.identity, LastLoginAt: &lastLoginAt}
 		if err := db.Create(&user).Error; err != nil {
 			t.Fatal(err)
 		}
 		if err := db.Model(&user).UpdateColumn("created_at", test.created).Error; err != nil {
 			t.Fatal(err)
+		}
+		if test.group != "" {
+			if err := db.Create(&model.UserGroupMember{UserID: user.ID, GroupID: groups[test.group].ID}).Error; err != nil {
+				t.Fatal(err)
+			}
 		}
 		users = append(users, user)
 		token := fmt.Sprintf("synthetic-workbench-%d-%d", marker, i)
@@ -120,10 +146,6 @@ func TestMariaDBWorkbenchBoundaryAndCommunityAPIs(t *testing.T) {
 			} else {
 				expect(w, 403)
 			}
-			// No group means no assignment authority even with internal entry access.
-			if test.identity == model.TeamIdentityTraineeMember {
-				expect(request("GET", "/api/assignments", nil, "", i), 403)
-			}
 		})
 	}
 	// Register an external-school-neutral account through the real API.
@@ -141,11 +163,6 @@ func TestMariaDBWorkbenchBoundaryAndCommunityAPIs(t *testing.T) {
 	users = append(users, registered)
 	if registered.TeamIdentityStatus != model.TeamIdentityCommunityMember {
 		t.Fatal("registration identity is not community_member")
-	}
-	// Test clock is UTC wall-time before the production Shanghai cutoff; pin
-	// its stored creation timestamp at the boundary before asserting access.
-	if err := db.Model(&registered).UpdateColumn("created_at", model.WorkbenchLegacyCreatedBefore).Error; err != nil {
-		t.Fatal(err)
 	}
 	login, _ := auth.NewService(cfg, db).LoginWithPassword(context.Background(), email, "synthetic-user-only")
 	if login == nil || login.User.WorkbenchAccess {
@@ -172,10 +189,7 @@ func TestMariaDBWorkbenchBoundaryAndCommunityAPIs(t *testing.T) {
 		if err := db.Where("status = ?", model.RegistrationFormStatusPublished).First(&form).Error; err != nil {
 			t.Fatal(err)
 		}
-		var group model.UserGroup
-		if err := db.Where("status = ?", model.UserGroupStatusActive).First(&group).Error; err != nil {
-			t.Fatal(err)
-		}
+		group := groups["team"]
 		reg := model.Registration{FormID: form.ID, UserID: users[2].ID, PreferredGroupID: &group.ID, FormData: map[string]any{}, RecruitmentStatus: model.RecruitmentStatusPendingInterview}
 		if err := db.Create(&reg).Error; err != nil {
 			t.Fatal(err)

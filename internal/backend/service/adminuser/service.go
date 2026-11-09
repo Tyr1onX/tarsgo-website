@@ -17,20 +17,6 @@ import (
 	"tarsgo-backend/service/usergroup"
 )
 
-// Release baseline: the first production health check after this feature went live.
-// A fresh credential login at or after this time confirms the account.
-var accountActivityConfirmationStartedAt = time.Date(2026, time.October, 19, 11, 19, 8, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
-
-// AccountActivityCutoff returns the same active-account lower bound used by
-// account management so other features can share one definition of active.
-func AccountActivityCutoff(now time.Time) time.Time {
-	cutoff := now.Add(-90 * 24 * time.Hour)
-	if accountActivityConfirmationStartedAt.After(cutoff) {
-		return accountActivityConfirmationStartedAt
-	}
-	return cutoff
-}
-
 type Service struct {
 	repo Repository
 	now  func() time.Time
@@ -207,7 +193,7 @@ func (s *Service) ListUsers(ctx context.Context, actor Actor, input ListUsersInp
 	if input.IncludeInactive {
 		input.ActivitySince = time.Time{}
 	} else {
-		input.ActivitySince = AccountActivityCutoff(s.now())
+		input.ActivitySince = model.AccountActivityCutoff(s.now())
 	}
 	if input.GroupState != "" && input.GroupState != usergroup.MembershipStateAssigned && input.GroupState != usergroup.MembershipStateUnassigned && input.GroupState != usergroup.MembershipStatePending && input.GroupState != "cleanup" {
 		return nil, &ServiceError{Status: http.StatusBadRequest, Message: "所属组别筛选值不合法"}

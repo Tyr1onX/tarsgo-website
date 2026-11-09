@@ -326,7 +326,7 @@ func TestListUsersFiltersBySystemRoleAndStatus(t *testing.T) {
 func TestListUsersDefaultsToRecentlyConfirmedAccountsAndCanIncludeAll(t *testing.T) {
 	repo := newFakeRepository()
 	service := NewService(repo)
-	now := time.Date(2027, time.February, 1, 12, 0, 0, 0, accountActivityConfirmationStartedAt.Location())
+	now := time.Date(2027, time.February, 1, 12, 0, 0, 0, model.AccountActivityConfirmationStartedAt.Location())
 	service.now = func() time.Time { return now }
 	repo.users[1].LastLoginAt = timePtr(time.Date(2026, time.October, 20, 12, 0, 0, 0, now.Location()))
 	repo.users[2].LastLoginAt = timePtr(time.Date(2026, time.November, 3, 12, 0, 0, 0, now.Location()))
@@ -361,19 +361,19 @@ func TestListUsersDefaultsToRecentlyConfirmedAccountsAndCanIncludeAll(t *testing
 }
 
 func TestAccountActivityCutoffUsesBothConfirmationStartAndNinetyDays(t *testing.T) {
-	wantLaunch := time.Date(2026, time.October, 19, 11, 19, 8, 0, accountActivityConfirmationStartedAt.Location())
-	if !accountActivityConfirmationStartedAt.Equal(wantLaunch) {
-		t.Fatalf("confirmation start = %s, want production launch %s", accountActivityConfirmationStartedAt, wantLaunch)
+	wantLaunch := time.Date(2026, time.October, 19, 11, 19, 8, 0, model.AccountActivityConfirmationStartedAt.Location())
+	if !model.AccountActivityConfirmationStartedAt.Equal(wantLaunch) {
+		t.Fatalf("confirmation start = %s, want production launch %s", model.AccountActivityConfirmationStartedAt, wantLaunch)
 	}
 
-	launchDayNow := time.Date(2026, time.October, 20, 12, 0, 0, 0, accountActivityConfirmationStartedAt.Location())
-	if got := AccountActivityCutoff(launchDayNow); !got.Equal(accountActivityConfirmationStartedAt) {
-		t.Fatalf("cutoff shortly after launch = %s, want launch %s", got, accountActivityConfirmationStartedAt)
+	launchDayNow := time.Date(2026, time.October, 20, 12, 0, 0, 0, model.AccountActivityConfirmationStartedAt.Location())
+	if got := model.AccountActivityCutoff(launchDayNow); !got.Equal(model.AccountActivityConfirmationStartedAt) {
+		t.Fatalf("cutoff shortly after launch = %s, want launch %s", got, model.AccountActivityConfirmationStartedAt)
 	}
 
-	laterNow := time.Date(2027, time.February, 1, 12, 0, 0, 0, accountActivityConfirmationStartedAt.Location())
+	laterNow := time.Date(2027, time.February, 1, 12, 0, 0, 0, model.AccountActivityConfirmationStartedAt.Location())
 	want := laterNow.Add(-90 * 24 * time.Hour)
-	if got := AccountActivityCutoff(laterNow); !got.Equal(want) {
+	if got := model.AccountActivityCutoff(laterNow); !got.Equal(want) {
 		t.Fatalf("cutoff after 90 days = %s, want %s", got, want)
 	}
 }
@@ -402,7 +402,7 @@ func newFakeRepository() *fakeRepository {
 	rootHash, _ := auth.HashPassword("RootPassword123")
 	adminHash, _ := auth.HashPassword("AdminPassword123")
 	memberHash, _ := auth.HashPassword("UserPassword123")
-	lastLoginAt := accountActivityConfirmationStartedAt.Add(time.Minute)
+	lastLoginAt := model.AccountActivityConfirmationStartedAt.Add(time.Minute)
 	repo.addUser(&model.User{ID: 1, RoleID: 1, Name: "legacy root label", RealName: stringPtr("Root"), Email: "root@example.com", PasswordHash: stringPtr(rootHash), Status: model.UserStatusEnabled, LastLoginAt: &lastLoginAt})
 	repo.addUser(&model.User{ID: 2, RoleID: 2, Name: "legacy admin label", RealName: stringPtr("Admin"), Email: "admin@example.com", PasswordHash: stringPtr(adminHash), Status: model.UserStatusEnabled, LastLoginAt: &lastLoginAt})
 	repo.addUser(&model.User{

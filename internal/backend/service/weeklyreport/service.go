@@ -13,7 +13,6 @@ import (
 	"gorm.io/gorm"
 
 	"tarsgo-backend/model"
-	"tarsgo-backend/service/adminuser"
 	"tarsgo-backend/service/privatefile"
 )
 
@@ -506,7 +505,7 @@ func (s *Service) GetTeamWeek(ctx context.Context, userID uint64, systemRole str
 		return nil, serviceError(http.StatusBadRequest, "该组没有此周的周报记录", nil)
 	}
 	availableWeeks = includeCurrentWeek(availableWeeks, currentWeek)
-	members, err := s.repo.ListActiveMembers(ctx, group.GroupID, adminuser.AccountActivityCutoff(s.now()))
+	members, err := s.repo.ListActiveMembers(ctx, group.GroupID, model.AccountActivityCutoff(s.now()))
 	if err != nil {
 		return nil, internalError("读取组内成员失败", err)
 	}

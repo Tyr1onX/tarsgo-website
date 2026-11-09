@@ -83,7 +83,7 @@ func TestWeeklyReportAllMemberAndGroupScopeAcceptance(t *testing.T) {
 	memberB := createUser("member-b", model.RoleNameUser)
 	superAdmin := createUser("super-admin", model.RoleNameSuperAdmin)
 	unassigned := createUser("unassigned", model.RoleNameUser)
-	cutoff := adminuser.AccountActivityCutoff(acceptanceNow)
+	cutoff := model.AccountActivityCutoff(acceptanceNow)
 	boundaryMember := createUser("activity-boundary", model.RoleNameUser)
 	boundaryMember.LastLoginAt = &cutoff
 	if err := db.Save(&boundaryMember).Error; err != nil {

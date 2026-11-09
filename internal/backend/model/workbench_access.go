@@ -1,15 +1,30 @@
 package model
 
-// WorkbenchLegacyCreatedBefore is a temporary, fixed DATETIME(0) wall-clock
-// boundary: 2026-11-03 18:10:00 Asia/Shanghai (10:10:00 UTC). Production read-only
-// audit at 18:09:52 found 821 users, latest created_at 2026-10-31 09:58:21.
-// The owner confirmed no new registrations before release. Both production
-// application and database store Asia/Shanghai wall time. Comparing in SQL
-// avoids driver timezone reinterpretation. Never change this to NOW().
-const WorkbenchLegacyCreatedBefore = "2026-11-03 18:10:00"
+import (
+	"fmt"
+	"time"
+)
 
-// Derived on every session query; never persisted or cached separately. After
-// roster reconciliation remove the final OR and the constant above.
-const WorkbenchAccessSQL = `(users.team_identity_status IN ('trainee_member', 'formal_member')
- OR EXISTS (SELECT 1 FROM roles WHERE roles.id = users.role_id AND roles.name IN ('admin', 'super_admin'))
- OR users.created_at < '` + WorkbenchLegacyCreatedBefore + `') AS workbench_access`
+const accountActivityWindowDays = 90
+
+// Production login confirmation baseline, shared by account management and
+// workbench access. Database and application timestamps use Asia/Shanghai.
+var AccountActivityConfirmationStartedAt = time.Date(2026, time.October, 19, 11, 19, 8, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
+
+func AccountActivityCutoff(now time.Time) time.Time {
+	cutoff := now.Add(-accountActivityWindowDays * 24 * time.Hour)
+	if AccountActivityConfirmationStartedAt.After(cutoff) {
+		return AccountActivityConfirmationStartedAt
+	}
+	return cutoff
+}
+
+// Calculated for every session read, never stored separately. A default group
+// is not a team assignment; administrative roles do not bypass this rule.
+var WorkbenchAccessSQL = fmt.Sprintf(`(users.status = 1
+ AND users.last_login_at >= GREATEST(DATE_SUB(NOW(), INTERVAL %d DAY), '%s')
+ AND EXISTS (
+   SELECT 1 FROM user_group_members AS member
+   JOIN user_groups AS team ON team.id = member.group_id
+   WHERE member.user_id = users.id AND team.status = 1 AND team.is_default = 0
+ )) AS workbench_access`, accountActivityWindowDays, AccountActivityConfirmationStartedAt.Format("2006-01-02 15:04:05"))
