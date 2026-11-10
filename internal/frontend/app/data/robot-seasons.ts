@@ -444,6 +444,3 @@ export const robotSeasons = [
     ] satisfies readonly RobotSeasonEntry[],
   },
 ] satisfies readonly RobotSeason[];
-
-export const robotArchive2025 = robotSeasons.find((season) => season.season === 2025)!;
-export const robotArchive2024 = robotSeasons.find((season) => season.season === 2024)!;

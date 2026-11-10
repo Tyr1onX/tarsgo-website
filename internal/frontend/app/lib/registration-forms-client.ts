@@ -172,7 +172,3 @@ export async function updateAdminRegistrationForm(
     body: input,
   });
 }
-
-export async function getRecruitmentPageData(): Promise<RecruitmentPageData> {
-  return apiRequest<RecruitmentPageData>("/api/recruitment/form");
-}

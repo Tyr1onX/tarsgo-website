@@ -73,12 +73,6 @@ export function clearCommunityLists() {
   expiresAt.clear();
 }
 
-export function clearOtherCommunityLists(keepKey: string) {
-  for (const key of snapshots.keys()) {
-    if (key !== keepKey) { snapshots.delete(key); expiresAt.delete(key); }
-  }
-}
-
 export function removeCommunityPostFromLists(postId: number) {
   for (const [key, snapshot] of [...snapshots]) {
     const posts = snapshot.posts.filter((post) => post.id !== postId);

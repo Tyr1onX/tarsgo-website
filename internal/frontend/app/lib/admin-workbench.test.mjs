@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
 
-import { getCandidateTodoCount, getShanghaiDate, getUpcomingInterviewSessions } from "./admin-workbench.ts";
+import { getShanghaiDate } from "./admin-workbench.ts";
 
 const dashboardLayout = await readFile(new URL("../routes/dashboard/layout.tsx", import.meta.url), "utf8");
 const adminDashboard = await readFile(new URL("../routes/admin/dashboard.tsx", import.meta.url), "utf8");
@@ -10,13 +10,6 @@ const registrationsRoute = await readFile(new URL("../routes/admin/registrations
 const registrationsClient = await readFile(new URL("./registrations-client.ts", import.meta.url), "utf8");
 const guide = await readFile(new URL("../routes/dashboard/guide.tsx", import.meta.url), "utf8");
 const sectionNavigation = await readFile(new URL("../components/dashboard-section-navigation.tsx", import.meta.url), "utf8");
-
-test("candidate todo totals include only actionable screening and interview queues", () => {
-  const summary = { total: 30, pendingScreening: 2, pendingInterview: 1, admitted: 10, rejected: 12, withdrawn: 5 };
-  assert.equal(getCandidateTodoCount(true, summary), 3);
-  assert.equal(getCandidateTodoCount(false, summary), 0);
-  assert.equal(getCandidateTodoCount(true, { ...summary, pendingScreening: -1, pendingInterview: 0 }), 0);
-});
 
 test("management todos stay in the home modules and do not appear in navigation", () => {
   assert.match(adminDashboard, /getAdminWorkbenchSummary\(currentUser\.id\)/);
@@ -42,18 +35,6 @@ test("interview refresh follows today without overriding a selected historical d
   assert.match(registrationsRoute, /interviewDate: current\.interviewDate,/);
   assert.match(registrationsRoute, /window\.addEventListener\("focus", refreshWhenVisible\)/);
   assert.doesNotMatch(registrationsRoute, /document\.addEventListener\("visibilitychange", refreshWhenVisible\)/);
-});
-
-test("workbench shows enabled sessions from today through the next 14 days in local schedule order", () => {
-  const sessions = [
-    { id: 1, date: "2026-10-05", label: "上午", startTime: "09:00", endTime: "10:00", enabled: true },
-    { id: 2, date: "2026-10-05", label: "下午", startTime: "14:00", endTime: "16:00", enabled: true },
-    { id: 3, date: "2026-10-04", label: "昨天", startTime: "09:00", endTime: "11:00", enabled: true },
-    { id: 4, date: "2026-10-06", label: "停用", startTime: "09:00", endTime: "11:00", enabled: false },
-    { id: 5, date: "2026-10-20", label: "超出近期", startTime: "09:00", endTime: "11:00", enabled: true },
-  ];
-  const visible = getUpcomingInterviewSessions(sessions, new Date("2026-10-05T04:00:00Z"));
-  assert.deepEqual(visible.map(({ id }) => id), [2]);
 });
 
 test("workbench guide shows only the signed-in role's instructions", () => {

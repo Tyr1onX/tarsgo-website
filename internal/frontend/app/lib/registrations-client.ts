@@ -224,16 +224,6 @@ export async function submitRecruitmentRegistration(
   });
 }
 
-export async function updateRecruitmentRegistration(
-  registrationId: number,
-  formData: FormData,
-): Promise<SubmitRegistrationResult> {
-  return apiRequest<SubmitRegistrationResult>(`/api/recruitment/registrations/${registrationId}`, {
-    method: "PATCH",
-    body: formData,
-  });
-}
-
 export async function cancelRecruitmentRegistration(registrationId: number): Promise<void> {
   await apiRequest(`/api/recruitment/registrations/${registrationId}`, {
     method: "DELETE",

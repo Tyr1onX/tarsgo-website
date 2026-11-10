@@ -275,8 +275,6 @@ export function communityPostHref(id: number) {
   return `/dashboard/community/${id}`;
 }
 
-export const communityImageAccept = "image/jpeg,image/png,image/gif,image/webp";
-export const communityImageHint = "最多 5 张 · 单张≤10 MB · 总计≤20 MB";
 
 const imageExtensions = new Set(["jpg", "jpeg", "png", "gif", "webp"]);
 

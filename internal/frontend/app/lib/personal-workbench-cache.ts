@@ -38,10 +38,6 @@ export function getPersonalWorkbenchSnapshot(key: string) {
 	return snapshots.get(key);
 }
 
-export function hasPersonalWorkbenchData(snapshot: PersonalSnapshot | undefined): snapshot is PersonalSnapshot {
-	return Boolean(snapshot && (snapshot.weekly !== null || snapshot.assignments !== null || snapshot.leaveAccess !== null || snapshot.leaveLatest !== null));
-}
-
 export function rememberPersonalWorkbenchSnapshot(key: string, snapshot: PersonalSnapshot) {
 	snapshots.delete(key);
 	snapshots.set(key, snapshot);

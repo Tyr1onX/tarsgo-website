@@ -131,7 +131,6 @@ test("discussion reading navigation uses the loaded post and flat reply data wit
 test("community cache remains bounded and invalidates stale favorites and deleted posts", () => {
   assert.match(listCache, /MAX_CACHED_FILTERS = 10/);
   assert.match(listCache, /export function clearCommunityLists/);
-  assert.match(listCache, /clearOtherCommunityLists/);
   assert.match(listCache, /removeCommunityPostFromLists/);
 });
 
