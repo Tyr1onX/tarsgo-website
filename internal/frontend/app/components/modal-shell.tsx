@@ -4,60 +4,8 @@ import {
   useEffect,
   useId,
   useRef,
-  useState,
 } from "react";
 import { createPortal } from "react-dom";
-
-export const MODAL_TRANSITION_MS = 260;
-
-export function useModalPresence(open: boolean, duration = MODAL_TRANSITION_MS) {
-  const [visible, setVisible] = useState(open);
-
-  useEffect(() => {
-    if (open) {
-      setVisible(true);
-      return;
-    }
-
-    if (!visible) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setVisible(false);
-    }, duration);
-
-    return () => window.clearTimeout(timer);
-  }, [duration, open, visible]);
-
-  return visible;
-}
-
-export function useModalPresenceValue<T>(
-  value: T | null | undefined,
-  duration = MODAL_TRANSITION_MS,
-) {
-  const [visibleValue, setVisibleValue] = useState<T | null>(value ?? null);
-
-  useEffect(() => {
-    if (value != null) {
-      setVisibleValue(value);
-      return;
-    }
-
-    if (visibleValue == null) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      setVisibleValue(null);
-    }, duration);
-
-    return () => window.clearTimeout(timer);
-  }, [duration, value, visibleValue]);
-
-  return visibleValue;
-}
 
 type ModalShellProps = {
   title: string;

@@ -18,8 +18,7 @@ const styles = await readFile(new URL("../app.css", import.meta.url), "utf8");
 test("member showcase uses the profile response without a second badge request", () => {
   assert.doesNotMatch(profile, /CoBuilderBadgeProfile|getMyCoBuilderBadge/);
   assert.match(profile, /result\.badges \?\? \[\]\)\.filter\(\(badge\) => badge\.isEarned\)/);
-  assert.match(client, /getMyCoBuilderBadge\(\)[\s\S]*?"\/api\/me\/co-builder-badge"/);
-  assert.doesNotMatch(client, /getMyCoBuilderBadge\([^)]*userId/);
+  assert.doesNotMatch(client, /getMyCoBuilderBadge/);
   assert.match(router, /authenticatedAPI\.GET\("\/me\/co-builder-badge"/);
 });
 

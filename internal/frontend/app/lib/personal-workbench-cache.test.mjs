@@ -9,7 +9,6 @@ import {
   getWeeklyDashboardSnapshot,
   rememberAdminWorkbenchSnapshot,
   rememberWeeklyDashboardSnapshot,
-  hasPersonalWorkbenchData,
   rememberPersonalWorkbenchSnapshot,
   loadPersonalWorkbenchSections,
 } from "./personal-workbench-cache.ts";
@@ -23,7 +22,7 @@ test("workbench snapshots are isolated by account and permission scope", () => {
   rememberPersonalWorkbenchSnapshot(accountOneScope, snapshot);
   rememberPersonalWorkbenchSnapshot(accountTwoScope, emptyPersonalSnapshot);
 
-  assert.equal(hasPersonalWorkbenchData(getPersonalWorkbenchSnapshot(accountOneScope)), true);
+  assert.equal(getPersonalWorkbenchSnapshot(accountOneScope), snapshot);
   assert.equal(getPersonalWorkbenchSnapshot(accountOneOtherPermissions), undefined);
   assert.equal(getPersonalWorkbenchSnapshot(accountTwoScope), emptyPersonalSnapshot);
 

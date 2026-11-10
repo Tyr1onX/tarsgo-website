@@ -36,10 +36,6 @@ export interface CoBuilderBadgeUnlockNotice {
   claimToken: string;
 }
 
-export function getMyCoBuilderBadge(): Promise<CoBuilderBadgeSummary> {
-  return apiRequest<CoBuilderBadgeSummary>("/api/me/co-builder-badge");
-}
-
 export function claimMyCoBuilderBadgeUnlock(): Promise<CoBuilderBadgeUnlockNotice | null> {
   return apiRequest<CoBuilderBadgeUnlockNotice | null>("/api/me/co-builder-badge/unlock-notice", {
     method: "POST",
