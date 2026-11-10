@@ -272,9 +272,6 @@ func forbidden(message string) error {
 func notFound(message string) error {
 	return &ServiceError{Status: http.StatusNotFound, Message: message}
 }
-func conflict(message string) error {
-	return &ServiceError{Status: http.StatusConflict, Message: message}
-}
 func internalError(message string, err error) error {
 	return &ServiceError{Status: http.StatusInternalServerError, Message: message, Err: err}
 }
