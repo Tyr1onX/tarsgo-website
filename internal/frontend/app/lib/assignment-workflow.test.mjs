@@ -43,8 +43,12 @@ test("workbench exposes assignments to all five supported groups", () => {
 test("assignment member options are not cleared by unrelated loader revalidation", () => {
   assert.match(assignmentManagement, /setGroupId\(\(current\) => assignmentGroups\.some/);
   assert.doesNotMatch(assignmentManagement, /groupResolution, technicalGroups\]\)/);
-  assert.match(assignmentManagement, /setItems\(\[\]\);\s*setMembers\(\[\]\);\s*Promise\.all/);
-  assert.match(assignmentManagement, /正在加载组内成员/);
+  assert.match(assignmentManagement, /setItems\(\[\]\);\s*setMembers\(null\);\s*assignmentClient\.listAdmin\(groupId\)/);
+  assert.match(assignmentManagement, /if \(!groupId \|\| view !== "list" \|\| !composerOpen \|\| draft\.isGroupWide\) return/);
+  assert.match(assignmentManagement, /assignmentClient\.listGroupMembers\(groupId\)/);
+  assert.match(assignmentManagement, /if \(active\) setMembers\(groupMembers\)/);
+  assert.match(assignmentManagement, /\{members === null \? <BrandLoader label="正在加载组内成员"/);
+  assert.doesNotMatch(assignmentManagement, /Promise\.all\(\[assignmentClient\.listAdmin\(groupId\), assignmentClient\.listGroupMembers\(groupId\)\]\)/);
 });
 
 test("backend applies role, current group, target, and ownership checks to every operation", () => {
@@ -167,7 +171,7 @@ test("specified recipients can be searched, removed, and retained across search 
   assert.match(assignmentManagement, /取消选择\$\{member\.name\}/);
   assert.match(assignmentManagement, /清空搜索/);
   assert.match(assignmentManagement, /没有匹配成员/);
-  assert.match(assignmentManagement, /filterAssignmentMembers\(members, memberSearch\)/);
+  assert.match(assignmentManagement, /filterAssignmentMembers\(members \?\? \[\], memberSearch\)/);
   assert.match(assignmentManagement, /targetUserIds: toggleAssignmentMemberSelection/);
 });
 
