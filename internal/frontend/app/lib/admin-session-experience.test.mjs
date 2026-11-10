@@ -24,8 +24,7 @@ test("paused school leave does not load in the admin home or navigation", async 
     read("lib/leave-client.ts"),
     read("routes/admin/dashboard.tsx"),
   ]);
-  assert.match(leave, /pendingApprovalCount: number/);
-  assert.match(leave, /actionableCount: number/);
+  assert.doesNotMatch(leave, /SchoolLeaveSummary|schoolSummary/);
   assert.doesNotMatch(adminDashboard, /leaveClient|schoolSummary/);
   assert.doesNotMatch(adminDashboard, /leaveActionableCount/);
   assert.doesNotMatch(layout, /leaveActionableState|leaveClient|subscribeLeaveSummaryChange|请假待审批/);

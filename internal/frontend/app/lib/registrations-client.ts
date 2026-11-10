@@ -99,12 +99,6 @@ export interface RegistrationListResponse {
   pagination: RegistrationPagination;
 }
 
-export interface RegistrationFileMeta {
-  file_name: string;
-  file_url: string;
-  file_size: number;
-}
-
 export interface RegistrationDetail {
   notificationWarning?: string;
   interviewResultHistory: InterviewResultHistoryItem[];

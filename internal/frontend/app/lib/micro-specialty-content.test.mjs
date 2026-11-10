@@ -4,7 +4,6 @@ import test from "node:test";
 
 import {
   lowAltitudeCourseTerms,
-  lowAltitudeCourses,
   lowAltitudeFaqs,
   lowAltitudePractices,
 } from "./micro-specialty-content.ts";
@@ -32,8 +31,9 @@ test("micro-specialty page presents the four real courses in a two-semester path
     "《无人机飞行操控实务》",
     "《无人机应用实践》",
   ]);
-  assert.equal(lowAltitudeCourses.length, 4);
-  assert.ok(lowAltitudeCourses.every(({ title, description, outcome }) => title && description && outcome));
+  const courses = lowAltitudeCourseTerms.flatMap((term) => term.courses);
+  assert.equal(courses.length, 4);
+  assert.ok(courses.every(({ title, description, outcome }) => title && description && outcome));
   assert.match(route, /一年两学期，从基础认知到实践应用/);
   assert.match(route, /id="introduction"/);
   assert.match(route, /id="curriculum"/);
