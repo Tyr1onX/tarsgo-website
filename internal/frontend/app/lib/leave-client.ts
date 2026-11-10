@@ -20,13 +20,11 @@ export interface DailyEntry { id: number; windowId?: number; userId?: number; st
 export interface CampEvent { id: number; title: string; type: "winter" | "summer"; startDate: string; endDate: string; collectionDeadline: string; status: string; acceptingParticipants: boolean; joined?: boolean; participantType?: string; submittedAt?: string; participantCount?: number; publicPath?: string }
 export interface CampDetail { event: CampEvent; groups: Array<{ college: string; collegeName: string; count: number; participants: Array<{ id: number; name: string; studentId: string; participantType: string; submittedAt: string }> }> }
 export interface ReadyDownload { downloadUrl: string; filename: string }
-export interface SchoolLeaveSummary { pendingApprovalCount: number; pendingCount: number; awaitingReturnCount: number; todoCount: number; actionableCount: number; unreadCount: number; contactPhoneReady: boolean; dailyCutoff: string }
 
 export type LatestLeaveStatus = Pick<LeaveRequest, "status" | "createdAt">;
 
 export const leaveClient = {
- latestSchoolStatus: () => apiRequest<LatestLeaveStatus | null>("/api/school-leave/latest-status"),
-  schoolSummary: () => apiRequest<SchoolLeaveSummary>("/api/admin/school-leave/summary"),
+  latestSchoolStatus: () => apiRequest<LatestLeaveStatus | null>("/api/school-leave/latest-status"),
   leaveAccess: () => apiRequest<LeaveAccessState>("/api/leave/access"),
   requestLeaveAccess: () => apiRequest<LeaveAccessState>("/api/leave/access/request", { method: "POST" }),
   pendingLeaveAccessRequests: () => apiRequest<LeaveAccessRequest[]>("/api/admin/leave/access-requests"),
@@ -36,7 +34,6 @@ export const leaveClient = {
 
   schoolRequests: () => apiRequest<LeaveRequest[]>("/api/school-leave/requests"),
   createSchoolRequest: (body: { startAt: string; endAt: string }) => apiRequest<LeaveRequest>("/api/school-leave/requests", { method: "POST", body }),
-  updateSchoolRequest: (id: number, body: { startAt: string; endAt: string }) => apiRequest<LeaveRequest>(`/api/school-leave/requests/${id}`, { method: "PATCH", body }),
   withdrawSchoolRequest: (id: number) => apiRequest<LeaveRequest>(`/api/school-leave/requests/${id}/withdraw`, { method: "POST" }),
   adminSchoolRequests: () => apiRequest<LeaveRequest[]>("/api/admin/school-leave/requests"),
   markAdminRecordRead: (recordType: string, recordId: number) => apiRequest<void>("/api/admin/school-leave/admin-records/read", { method: "POST", body: { recordType, recordId } }),
@@ -56,7 +53,6 @@ export const leaveClient = {
   preparePublicDaily: (token: string, body: { name: string; studentId: string; collegeCode: string }, offline: boolean) => apiRequest<ReadyDownload>(`/api/daily-leave/public/${token}/document${offline ? "?offline=true" : ""}`, { method: "POST", body }),
   dailyRecordsPage: (admin: boolean, cursor = "") => apiRequest<{ items: DailyEntry[]; nextCursor?: string }>(`/api/${admin ? "admin/" : ""}daily-leave/records?${new URLSearchParams({ paged: "true", selfService: "true", ...(cursor ? { cursor } : {}) })}`),
   dailyRecords: () => apiRequest<DailyEntry[]>("/api/admin/daily-leave/records"),
-  myDailyRecords: () => apiRequest<DailyEntry[]>("/api/daily-leave/records"),
   campEvents: () => apiRequest<CampEvent[]>("/api/camp-leave/events"),
   adminCampEvents: () => apiRequest<CampEvent[]>("/api/admin/camp-leave/events"),
   createCampEvent: (body: { title: string; type: "winter" | "summer"; startDate: string; endDate: string; collectionDeadline: string }) => apiRequest<CampEvent>("/api/admin/camp-leave/events", { method: "POST", body }),

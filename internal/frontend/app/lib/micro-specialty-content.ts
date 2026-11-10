@@ -45,18 +45,6 @@ export const lowAltitudeCourseTerms = [
   },
 ] as const;
 
-type LowAltitudeCourse = {
-  step: string;
-  title: string;
-  description: string;
-  outcome: string;
-};
-
-export const lowAltitudeCourses = lowAltitudeCourseTerms.reduce<LowAltitudeCourse[]>(
-  (courses, term) => courses.concat(term.courses),
-  [],
-);
-
 export const lowAltitudePractices = [
   {
     title: "无人机组装与调试",
