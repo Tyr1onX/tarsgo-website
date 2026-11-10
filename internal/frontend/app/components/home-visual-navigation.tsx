@@ -13,8 +13,8 @@ const responsiveHomeImage = (
   imageSrcSet: `/assets/images/Home/Responsive/${name}-640-${width640Hash}.webp 640w, /assets/images/Home/Responsive/${name}-1280-${width1280Hash}.webp 1280w`,
   imageSizes:
     cardSize === "wide"
-      ? "(min-width: 1280px) 608px, (min-width: 1024px) 50vw, (min-width: 768px) 33vw, (min-width: 640px) 50vw, calc(100vw - 2rem)"
-      : "(min-width: 1280px) 300px, (min-width: 1024px) 25vw, (min-width: 768px) 33vw, (min-width: 640px) 50vw, calc(100vw - 2rem)",
+      ? "(min-width: 1920px) 40vw, (min-width: 1280px) 608px, (min-width: 1024px) 50vw, (min-width: 768px) 33vw, (min-width: 640px) 50vw, calc(100vw - 2rem)"
+      : "(min-width: 1920px) 20vw, (min-width: 1280px) 300px, (min-width: 1024px) 25vw, (min-width: 768px) 33vw, (min-width: 640px) 50vw, calc(100vw - 2rem)",
 });
 
 const noResponsiveHomeImage = {

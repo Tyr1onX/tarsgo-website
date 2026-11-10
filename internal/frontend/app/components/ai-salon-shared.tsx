@@ -61,7 +61,7 @@ export function SalonShell({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-surface-primary text-fg-primary">
       <Navbar />
-      <main className="public-route-content mx-auto min-h-[70vh] max-w-6xl px-5 pb-20 pt-32 sm:px-8 lg:pt-36">
+      <main className="public-route-content mx-auto min-h-[70vh] max-w-6xl px-5 pb-20 pt-32 sm:px-8 lg:pt-36 min-[1920px]:max-w-[min(80vw,120rem)]">
         {children}
       </main>
       <PublicFooter />

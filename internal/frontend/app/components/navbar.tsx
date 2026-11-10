@@ -282,14 +282,14 @@ export function Navbar({ currentUser, authError = false }: NavbarProps) {
       ) : null}
       <PrefetchPageLinks page="/login" />
       <div className={`site-navbar pointer-events-auto w-full overflow-visible ${isScrolled ? "site-navbar--scrolled" : ""}`}>
-        <div className="max-w-[1440px] mx-auto flex h-[var(--site-nav-height)] items-center justify-between px-6 sm:px-10 lg:px-20">
+        <div className="mx-auto flex h-[var(--site-nav-height)] max-w-[clamp(90rem,80vw,120rem)] items-center justify-between px-6 sm:px-10 lg:px-20">
           {/* Logo */}
           <Link
             to="/"
             aria-label="TARSGO 首页"
             className="motion-button flex shrink-0 items-center"
           >
-            <SiteLogo className="h-[48px] sm:h-[54px]" />
+            <SiteLogo className="h-12 sm:h-[3.375rem]" />
           </Link>
 
           <div className="navbar-actions">

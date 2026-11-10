@@ -278,7 +278,7 @@ export function PublicHomePage({ page = "home", children }: { page?: PublicPage;
 
         <div className="relative z-10 flex min-h-[64svh] items-center sm:min-h-[92svh]">
           <div className="public-home-container mx-auto flex w-full items-center pb-12 pt-24 sm:pb-20 sm:pt-32">
-            <div className="flex max-w-2xl flex-col items-center gap-3 text-center sm:items-start sm:gap-4 sm:text-left">
+            <div className="flex max-w-2xl flex-col items-center gap-3 text-center sm:items-start sm:gap-4 sm:text-left min-[1920px]:max-w-5xl min-[1920px]:gap-6">
               <img
                 src="/assets/images/Logo/tarsgo-logo-v5.svg"
                 alt="TARSGO"
@@ -287,10 +287,10 @@ export function PublicHomePage({ page = "home", children }: { page?: PublicPage;
               <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-[var(--hero-accent)] sm:text-xs">
                 吉林大学 · RoboMaster 战队
               </p>
-              <h1 className="max-w-2xl text-[34px] font-semibold leading-[1.1] tracking-[-0.045em] text-white sm:text-6xl lg:text-[72px]">
+              <h1 className="max-w-2xl text-[34px] font-semibold leading-[1.1] tracking-[-0.045em] text-white sm:text-6xl lg:text-[72px] min-[1920px]:max-w-5xl">
                 从构想，到<span className="text-[var(--hero-accent)]">赛场</span>
               </h1>
-              <p className="max-w-lg text-sm leading-6 text-white/78 sm:text-base sm:leading-7">
+              <p className="max-w-lg text-sm leading-6 text-white/78 sm:text-base sm:leading-7 min-[1920px]:max-w-3xl min-[1920px]:text-lg min-[1920px]:leading-relaxed">
                 以 RoboMaster 竞赛为牵引，持续投入机器人研发与团队协作。
               </p>
               <div className="mt-2 flex w-full flex-row gap-2 sm:w-auto sm:gap-3">
@@ -335,7 +335,7 @@ export function PublicHomePage({ page = "home", children }: { page?: PublicPage;
           />
           <div className="public-topic-hero-shade absolute inset-0" />
           <div className="public-home-container relative z-10 flex min-h-[26rem] items-end pb-12 pt-32 sm:min-h-[32rem] sm:pb-16 lg:min-h-[38rem]">
-            <div className="max-w-3xl">
+            <div className="max-w-3xl min-[1920px]:max-w-5xl">
               <Link to="/" className="mb-8 inline-flex min-h-11 items-center text-sm font-medium text-white/80 transition hover:text-white focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-white">
                 ← 返回首页
               </Link>
