@@ -876,25 +876,6 @@
   color: var(--admin-accent-text);
 }
 
-.admin-design .admin-session-management {
-  margin-top: var(--admin-space-6);
-  border-top: 1px solid var(--admin-border);
-  padding-top: var(--admin-space-4);
-}
-
-.admin-design .admin-session-form {
-  gap: var(--admin-space-2);
-}
-
-.admin-design .admin-session-list {
-  margin-top: var(--admin-space-3);
-}
-
-.admin-design .admin-session-row {
-  justify-content: space-between;
-  gap: var(--admin-space-3);
-}
-
 @media (min-width: 768px) {
   .admin-design .admin-stage-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -1810,14 +1791,6 @@
     width: auto;
   }
 
-  .admin-design .admin-session-row {
-    flex-wrap: wrap;
-  }
-
-  .admin-design .admin-session-row > .admin-operation-group {
-    width: 100%;
-    justify-content: flex-end;
-  }
 }
 
 /* Shared account and group-role primitives. */
