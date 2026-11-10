@@ -33,7 +33,7 @@ export default function LowAltitudeMicroSpecialty() {
             <div className="micro-specialty-grid absolute inset-0 opacity-[0.14] [background-image:linear-gradient(rgba(255,255,255,.08)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.08)_1px,transparent_1px)] [background-size:44px_44px] [mask-image:linear-gradient(to_bottom,black,transparent_90%)]" />
           </div>
 
-          <div className="mx-auto grid min-h-[680px] max-w-7xl items-center gap-12 px-5 pb-16 pt-32 sm:px-8 sm:pb-20 lg:grid-cols-[minmax(0,1.1fr)_minmax(300px,.9fr)] lg:px-12 lg:pt-36">
+          <div className="mx-auto grid min-h-[680px] max-w-7xl min-[1920px]:max-w-[min(80vw,120rem)] items-center gap-12 px-5 pb-16 pt-32 sm:px-8 sm:pb-20 lg:grid-cols-[minmax(0,1.1fr)_minmax(300px,.9fr)] lg:px-12 lg:pt-36">
             <div className="max-w-3xl">
               <Link to="/" className="mb-8 inline-flex min-h-10 items-center gap-2 text-sm text-fg-muted transition hover:text-fg-primary">
                 <span aria-hidden>←</span> 返回官网首页
@@ -93,7 +93,7 @@ export default function LowAltitudeMicroSpecialty() {
         </nav>
 
         <section id="introduction" className="scroll-mt-24 px-5 py-16 sm:px-8 sm:py-20 lg:px-12">
-          <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[.7fr_1.3fr] lg:gap-16">
+          <div className="mx-auto grid max-w-7xl min-[1920px]:max-w-[min(80vw,120rem)] gap-10 lg:grid-cols-[.7fr_1.3fr] lg:gap-16">
             <SectionLabel number="01" english="ABOUT THE PROGRAM" title="项目介绍" />
             <div>
               <h2 className="max-w-3xl text-2xl font-semibold leading-snug text-fg-primary sm:text-3xl">
@@ -118,7 +118,7 @@ export default function LowAltitudeMicroSpecialty() {
         </section>
 
         <section id="curriculum" className="scroll-mt-24 border-y border-border-subtle bg-surface-light px-5 py-16 sm:px-8 sm:py-20 lg:px-12">
-          <div className="mx-auto max-w-7xl">
+          <div className="mx-auto max-w-7xl min-[1920px]:max-w-[min(80vw,120rem)]">
             <SectionLabel number="02" english="CURRICULUM" title="课程安排" />
             <div className="mb-8 mt-7 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <h2 className="max-w-2xl text-2xl font-semibold leading-snug text-fg-primary sm:text-3xl">一年两学期，从基础认知到实践应用</h2>
@@ -152,7 +152,7 @@ export default function LowAltitudeMicroSpecialty() {
         </section>
 
         <section id="practice" className="scroll-mt-24 px-5 py-16 sm:px-8 sm:py-20 lg:px-12">
-          <div className="mx-auto max-w-7xl">
+          <div className="mx-auto max-w-7xl min-[1920px]:max-w-[min(80vw,120rem)]">
             <SectionLabel number="03" english="PROJECT PRACTICE" title="实践内容" />
             <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {lowAltitudePractices.map((practice, index) => (
@@ -170,7 +170,7 @@ export default function LowAltitudeMicroSpecialty() {
         </section>
 
         <section id="faq" className="scroll-mt-24 border-y border-border-subtle bg-surface-light px-5 py-16 sm:px-8 sm:py-20 lg:px-12">
-          <div className="mx-auto grid max-w-7xl gap-8 lg:grid-cols-[.7fr_1.3fr] lg:gap-16">
+          <div className="mx-auto grid max-w-7xl min-[1920px]:max-w-[min(80vw,120rem)] gap-8 lg:grid-cols-[.7fr_1.3fr] lg:gap-16">
             <SectionLabel number="04" english="FAQ" title="常见问题" />
             <div className="divide-y divide-border-subtle border-y border-border-subtle">
               {lowAltitudeFaqs.map((faq, index) => (

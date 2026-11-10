@@ -63,7 +63,9 @@ test("real photos, source labels, cross-links and theme tokens are part of the a
 });
 
 test("home sections share a content width and imagery uses deliberate aspect ratios", () => {
-  assert.match(styles, /\.public-home\s*\{[^}]*--public-content-width:\s*84rem;/);
+  assert.match(styles, /\.public-home\s*\{[^}]*--public-content-width:\s*clamp\(84rem,\s*80vw,\s*120rem\);/);
+  assert.match(styles, /@media \(min-width: 1920px\)\s*\{\s*:root\s*\{\s*font-size:\s*clamp\(16px,\s*0\.83vw,\s*20px\);/);
+  assert.match(styles, /\.public-home-hero h1\s*\{[^}]*font-size:\s*clamp\(72px,\s*4\.6vw,\s*116px\);/);
   assert.match(styles, /\.public-home-container\s*\{[^}]*max-width:\s*var\(--public-content-width\);[^}]*margin-inline:\s*auto;/);
   assert.match(home, /className="public-home-container"/);
   assert.match(aboutPage, /about-assembly-[a-f0-9]{8}\.webp/);

@@ -95,6 +95,13 @@ html {
   --motion-ease-soft: cubic-bezier(0.16, 1, 0.3, 1);
 }
 
+@media (min-width: 1920px) {
+  :root {
+    font-size: clamp(16px, 0.83vw, 20px);
+    --site-nav-height: clamp(68px, 4vw, 96px);
+  }
+}
+
 :root[data-theme="light"] {
   --theme-canvas: #F7F6F2;
   --theme-surface: #FFFFFF;
@@ -1145,7 +1152,7 @@ html[data-theme-transition] body *::after {
 /* Public site palette and restrained surfaces. It shares the graphite/gold
    tokens with the dashboard while keeping its own editorial layout. */
 .public-home {
-  --public-content-width: 84rem;
+  --public-content-width: clamp(84rem, 80vw, 120rem);
   --color-surface-primary: var(--admin-canvas);
   --color-surface-light: var(--admin-surface);
   --color-surface-dark: var(--admin-canvas);
@@ -1174,6 +1181,22 @@ html[data-theme-transition] body *::after {
 .public-home .public-section-heading {
   max-width: var(--public-content-width);
 }
+
+@media (min-width: 1920px) {
+  .public-home-hero h1 {
+    max-width: none;
+    font-size: clamp(72px, 4.6vw, 116px);
+  }
+
+  .public-topic-hero h1 {
+    font-size: clamp(4.5rem, 4vw, 7rem);
+  }
+
+  .micro-specialty-page h1 {
+    font-size: clamp(64px, 4vw, 104px);
+  }
+}
+
 .public-home-hero-shade {
   background:
     linear-gradient(90deg, rgba(10, 14, 14, 0.94) 0%, rgba(10, 14, 14, 0.78) 38%, rgba(10, 14, 14, 0.24) 76%, rgba(10, 14, 14, 0.34) 100%),
