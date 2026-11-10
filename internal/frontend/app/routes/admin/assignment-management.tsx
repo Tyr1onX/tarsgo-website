@@ -65,7 +65,7 @@ export default function AssignmentManagementRoute() {
   const { assignmentGroups, error: groupError, loading: groupsLoading } = useAssignmentGroups(currentUser.id, currentUser.role.name, groupResolution?.groups);
   const [groupId, setGroupId] = useState(0);
   const [items, setItems] = useState<Assignment[]>([]);
-  const [members, setMembers] = useState<AssignmentMemberOption[]>([]);
+  const [members, setMembers] = useState<AssignmentMemberOption[] | null>(null);
   const [draft, setDraft] = useState<Draft>(() => emptyDraft(0));
   const [quickDeadline, setQuickDeadline] = useState<AssignmentDeadlineShortcut | null>("seven-days");
   const [memberSearch, setMemberSearch] = useState("");
@@ -98,8 +98,8 @@ export default function AssignmentManagementRoute() {
   const feishuBound = feishuBinding?.accountId === currentUser.id && feishuBinding.bound;
   const feishuBotURL = feishuBinding?.accountId === currentUser.id && feishuBinding.appId
     ? `https://applink.feishu.cn/client/bot/open?appId=${encodeURIComponent(feishuBinding.appId)}` : "";
-  const filteredMembers = useMemo(() => filterAssignmentMembers(members, memberSearch), [members, memberSearch]);
-  const selectedMembers = useMemo(() => members.filter((member) => draft.targetUserIds.includes(member.userId)), [members, draft.targetUserIds]);
+  const filteredMembers = useMemo(() => filterAssignmentMembers(members ?? [], memberSearch), [members, memberSearch]);
+  const selectedMembers = useMemo(() => (members ?? []).filter((member) => draft.targetUserIds.includes(member.userId)), [members, draft.targetUserIds]);
   const lastTargetedAssignment = items.find((item) => !item.isGroupWide);
 
   useEffect(() => {
@@ -113,12 +113,11 @@ export default function AssignmentManagementRoute() {
     setLoading(true);
     setError("");
     setItems([]);
-    setMembers([]);
-    Promise.all([assignmentClient.listAdmin(groupId), assignmentClient.listGroupMembers(groupId)])
-      .then(([assignments, groupMembers]) => {
+    setMembers(null);
+    assignmentClient.listAdmin(groupId)
+      .then((assignments) => {
         if (!active) return;
         setItems(assignments);
-        setMembers(groupMembers);
         setDraft((current) => ({ ...current, groupId }));
       })
       .catch((cause: unknown) => {
@@ -127,6 +126,21 @@ export default function AssignmentManagementRoute() {
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, [groupId, currentUser.id, view]);
+
+  useEffect(() => {
+    if (!groupId || view !== "list" || !composerOpen || draft.isGroupWide) return;
+    let active = true;
+    setMembers(null);
+    setError("");
+    assignmentClient.listGroupMembers(groupId)
+      .then((groupMembers) => { if (active) setMembers(groupMembers); })
+      .catch((cause: unknown) => {
+        if (!active) return;
+        setMembers([]);
+        setError(cause instanceof Error ? cause.message : "组内成员加载失败");
+      });
+    return () => { active = false; };
+  }, [groupId, currentUser.id, view, composerOpen, draft.isGroupWide]);
 
   useEffect(() => {
     let active = true;
@@ -262,7 +276,7 @@ export default function AssignmentManagementRoute() {
     setError("");
     try {
       const detail = await assignmentClient.getAdmin(lastTargetedAssignment.id);
-      const currentIDs = new Set(members.map((member) => member.userId));
+      const currentIDs = new Set((members ?? []).map((member) => member.userId));
       const selected = detail.members.map((member) => member.userId).filter((id) => currentIDs.has(id));
       if (selected.length === 0) {
         setError("上次指定的成员已不在当前组，请重新选择。");
@@ -554,7 +568,7 @@ export default function AssignmentManagementRoute() {
                 <label className="sr-only" htmlFor="assignment-member-search">搜索组内成员</label>
                 <input id="assignment-member-search" type="search" disabled={saving || publishStage !== "idle" || Boolean(editing)} className="admin-field min-w-48 flex-1" autoComplete="off" placeholder="搜索成员姓名" value={memberSearch} onChange={(event) => setMemberSearch(event.target.value)} />
                 {memberSearch ? <button type="button" disabled={saving || publishStage !== "idle" || Boolean(editing)} className="admin-button admin-button--quiet" onClick={() => setMemberSearch("")}>清空搜索</button> : null}
-                {!editing && lastTargetedAssignment ? <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={saving || publishStage !== "idle"} onClick={() => void usePreviousRecipients()}>上次指定的成员</button> : null}
+                {!editing && lastTargetedAssignment ? <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={saving || publishStage !== "idle" || members === null} onClick={() => void usePreviousRecipients()}>上次指定的成员</button> : null}
                 <span className="text-sm text-[var(--admin-muted)]">已选 {draft.targetUserIds.length} 人</span>
               </div>
               {selectedMembers.length > 0 ? <div className="flex flex-wrap gap-1" aria-label="已选成员">
@@ -562,7 +576,7 @@ export default function AssignmentManagementRoute() {
               </div> : null}
               <div className="grid max-h-48 gap-2 overflow-y-auto rounded-xl border border-[var(--admin-border-subtle)] p-3 sm:grid-cols-2 lg:grid-cols-3">
                 {filteredMembers.map((member) => <label key={member.userId} className="flex items-center gap-2 text-sm"><input type="checkbox" disabled={saving || publishStage !== "idle" || Boolean(editing)} checked={draft.targetUserIds.includes(member.userId)} onChange={() => toggleMember(member.userId)} />{member.name} <span className="text-xs text-[var(--admin-muted)]">#{member.userId}</span></label>)}
-                {loading ? <BrandLoader label="正在加载组内成员" size="sm" /> : !error && filteredMembers.length === 0 ? <p className="text-sm text-[var(--admin-muted)]">{memberSearch ? "没有匹配成员。" : "当前组没有可分配的普通成员。"}</p> : null}
+                {members === null ? <BrandLoader label="正在加载组内成员" size="sm" /> : !error && filteredMembers.length === 0 ? <p className="text-sm text-[var(--admin-muted)]">{memberSearch ? "没有匹配成员。" : "当前组没有可分配的普通成员。"}</p> : null}
               </div>
             </div> : null}
           </fieldset>
