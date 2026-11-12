@@ -87,6 +87,20 @@ export function isFileField(type: RegistrationFormFieldType) {
   return type === "file" || type === "image";
 }
 
+export function registrationFieldError(field: RegistrationFormField, value: unknown, existingUpload?: unknown): string {
+  const text = typeof value === "string" ? value.trim() : typeof value === "number" ? String(value) : "";
+  const hasSelection = Array.isArray(value) && value.length > 0;
+  const hasExistingUpload = Array.isArray(existingUpload) ? existingUpload.length > 0 : Boolean(existingUpload);
+  const empty = isFileField(field.type) ? !hasSelection && !hasExistingUpload
+    : field.type === "checkbox" ? !hasSelection : !text;
+
+  if (field.required && empty) return isFileField(field.type) ? "请上传文件" : field.type === "checkbox" ? "请至少选择一项" : "此项为必填项";
+  if (empty) return "";
+  if (field.type === "email" && !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(text)) return "请输入有效的邮箱地址";
+  if (field.type === "number" && !Number.isFinite(Number(text))) return "请输入有效数字";
+  return "";
+}
+
 export function buildCustomRegistrationField(): RegistrationFormField {
   const unique = Date.now().toString(36);
   return {
