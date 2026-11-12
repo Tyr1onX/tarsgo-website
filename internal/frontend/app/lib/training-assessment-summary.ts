@@ -137,14 +137,13 @@ export function buildTrainingGradebook(snapshot: TrainingSnapshot) {
   const rankings = assessments.map((assessment) =>
     new Map(rankTrainingAssessment(snapshot, assessment.key).map((entry) => [entry.userId, entry]))
   );
+  const reviews = new Map(snapshot.assignmentGrades.map((item) => [item.userId + ":assignment:" + item.assignmentId, item] as const));
   const members: GradebookMember[] = snapshot.members.map((member) => ({
     ...member,
     results: assessments.map((assessment, index) => {
       const ranked = rankings[index].get(member.userId);
       const review = assessment.source === "assignment"
-        ? snapshot.assignmentGrades.find((item) =>
-          "assignment:" + item.assignmentId === assessment.key && item.userId === member.userId)
-        : undefined;
+        ? reviews.get(member.userId + ":" + assessment.key) : undefined;
       return {
         key: assessment.key,
         score: ranked?.score ?? null,
