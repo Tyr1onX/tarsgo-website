@@ -40,3 +40,54 @@ export function summarizeTrainingScores(snapshot: TrainingSnapshot): TrainingSco
     average: item.scored ? Math.round(sum / item.scored * 10) / 10 : null,
   }));
 }
+
+export interface RankedTrainingMember {
+  userId: number;
+  name: string;
+  score: number | null;
+  note: string;
+  rank: number | null;
+}
+
+export function rankTrainingAssessment(snapshot: TrainingSnapshot, key: string): RankedTrainingMember[] {
+  const names = new Map(snapshot.members.map((member) => [member.userId, member.name]));
+  const entries = key.startsWith("training:")
+    ? snapshot.grades
+      .filter((grade) => "training:" + grade.assessmentName === key)
+      .map((grade) => ({ userId: grade.userId, score: grade.score, note: grade.note }))
+    : snapshot.assignmentGrades
+      .filter((grade) => "assignment:" + grade.assignmentId === key)
+      .map((grade) => ({ userId: grade.userId, score: grade.score, note: "" }));
+
+  const sorted = entries
+    .filter((entry) => names.has(entry.userId))
+    .map((entry) => ({ ...entry, name: names.get(entry.userId)!, rank: null as number | null }))
+    .sort((a, b) => {
+      if (a.score === null) return b.score === null ? a.name.localeCompare(b.name, "zh") || a.userId - b.userId : 1;
+      if (b.score === null) return -1;
+      return b.score - a.score || a.name.localeCompare(b.name, "zh") || a.userId - b.userId;
+    });
+
+  let lastScore: number | null = null;
+  let rank = 0;
+  for (let i = 0; i < sorted.length; i++) {
+    if (sorted[i].score === null) break;
+    if (sorted[i].score !== lastScore) {
+      rank = i + 1;
+      lastScore = sorted[i].score;
+    }
+    sorted[i].rank = rank;
+  }
+  return sorted;
+}
+
+export function trainingScoreDistribution(rows: RankedTrainingMember[]) {
+  return [
+    { label: "90–100", count: rows.filter((row) => row.score !== null && row.score >= 90).length },
+    { label: "80–89", count: rows.filter((row) => row.score !== null && row.score >= 80 && row.score < 90).length },
+    { label: "70–79", count: rows.filter((row) => row.score !== null && row.score >= 70 && row.score < 80).length },
+    { label: "60–69", count: rows.filter((row) => row.score !== null && row.score >= 60 && row.score < 70).length },
+    { label: "0–59", count: rows.filter((row) => row.score !== null && row.score < 60).length },
+    { label: "缺失", count: rows.filter((row) => row.score === null).length },
+  ];
+}
