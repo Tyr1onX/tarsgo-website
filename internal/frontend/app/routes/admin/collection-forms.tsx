@@ -14,8 +14,8 @@ import {
 export function meta() { return [{ title: "收集表 | TARSGO" }]; }
 
 const fieldTypes: Array<{ value: CollectionField["type"]; label: string }> = [
-  { value: "text", label: "单行文本" },
-  { value: "textarea", label: "多行文本" },
+  { value: "text", label: "简短回答" },
+  { value: "textarea", label: "详细回答" },
   { value: "number", label: "数字" },
   { value: "date", label: "日期" },
   { value: "radio", label: "单选" },
@@ -25,9 +25,15 @@ const fieldTypes: Array<{ value: CollectionField["type"]; label: string }> = [
 const choiceType = (type: CollectionField["type"]) => ["radio", "select", "checkbox"].includes(type);
 const key = () => `f${Math.random().toString(36).slice(2, 10)}`;
 const option = (): CollectionOption => ({ value: key(), label: "", capacity: 0 });
+const defaultCloseTime = () => {
+  const date = new Date();
+  date.setDate(date.getDate() + 7);
+  date.setHours(23, 59, 0, 0);
+  return date.toISOString();
+};
 const blank = (): CollectionInput => ({
   title: "", description: "", fields: [{ key: key(), label: "姓名", type: "text", required: true }],
-  status: "draft", loginRequired: true, capacity: 0, opensAt: null, closesAt: null,
+  status: "draft", loginRequired: true, capacity: 0, opensAt: null, closesAt: defaultCloseTime(),
 });
 const toInputTime = (time: string | null) => {
   if (!time) return "";
@@ -52,6 +58,7 @@ export default function CollectionFormsAdmin() {
   const [records, setRecords] = useState<CollectionSubmission[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [addingField, setAddingField] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -66,6 +73,7 @@ export default function CollectionFormsAdmin() {
   function startNew() {
     setSelected(0);
     setDraft(blank());
+    setAddingField(false);
     setRecords(null);
     setCount(0);
     setUsage({});
@@ -87,6 +95,7 @@ export default function CollectionFormsAdmin() {
       setCount(detail.count);
       setUsage(detail.usage);
       setSelected(id);
+      setAddingField(false);
     } catch (err) {
       setError(errorText(err));
     } finally {
@@ -100,6 +109,22 @@ export default function CollectionFormsAdmin() {
       ...previous,
       fields: previous.fields.map((field, i) => i === index ? { ...field, ...updates } : field),
     }));
+  const moveField = (index: number, offset: number) =>
+    setDraft((previous) => {
+      const fields = [...previous.fields];
+      [fields[index], fields[index + offset]] = [fields[index + offset], fields[index]];
+      return { ...previous, fields };
+    });
+  const addField = (type: CollectionField["type"]) => {
+    setDraft((previous) => ({
+      ...previous,
+      fields: [...previous.fields, {
+        key: key(), label: "", type, required: false,
+        ...(choiceType(type) ? { options: [option(), option()] } : {}),
+      }],
+    }));
+    setAddingField(false);
+  };
   const changeOption = (index: number, optionIndex: number, updates: Partial<CollectionOption>) =>
     setDraft((previous) => ({
       ...previous, fields: previous.fields.map((field, i) => i === index
@@ -194,27 +219,27 @@ export default function CollectionFormsAdmin() {
         <div className="space-y-5">
           <section className="admin-panel space-y-4 rounded-xl p-4">
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="grid gap-1 sm:col-span-2">标题
+              <label className="grid gap-1 sm:col-span-2">表单名称
                 <input className="admin-field" maxLength={120} value={draft.title} onChange={(e) => change("title", e.target.value)} />
               </label>
-              <label className="grid gap-1 sm:col-span-2">说明
+              <label className="grid gap-1 sm:col-span-2">表单介绍
                 <textarea className="admin-field min-h-20" maxLength={1000} value={draft.description} onChange={(e) => change("description", e.target.value)} />
               </label>
-              <label className="grid gap-1">状态
+              <label className="grid gap-1">收集状态
                 <select className="admin-field" value={draft.status} onChange={(e) => change("status", e.target.value as CollectionInput["status"])}>
                   <option value="draft" disabled={locked}>草稿</option>
-                  <option value="published">发布</option>
-                  <option value="closed">关闭</option>
+                  <option value="published">开放收集</option>
+                  <option value="closed">停止收集</option>
                 </select>
               </label>
-              <label className="grid gap-1">总名额
+              <label className="grid gap-1">总报名名额
                 <input className="admin-field" type="number" min={0} max={1000000} placeholder="不限" value={draft.capacity || ""} onChange={(e) => change("capacity", Number(e.target.value))} />
               </label>
-              <label className="grid gap-1">开始时间
+              <label className="grid gap-1">开始收集（不填则立即开始）
                 <input className="admin-field" type="datetime-local" value={toInputTime(draft.opensAt)} onChange={(e) => change("opensAt", fromInputTime(e.target.value))} />
               </label>
               <label className="grid gap-1">截止时间
-                <input className="admin-field" type="datetime-local" value={toInputTime(draft.closesAt)} onChange={(e) => change("closesAt", fromInputTime(e.target.value))} />
+                <input className="admin-field" type="datetime-local" min={toInputTime(draft.opensAt)} value={toInputTime(draft.closesAt)} onChange={(e) => change("closesAt", fromInputTime(e.target.value))} />
               </label>
               <label className="flex items-center gap-2 sm:col-span-2">
                 <input type="checkbox" checked={draft.loginRequired} disabled={locked} onChange={(e) => change("loginRequired", e.target.checked)} />
@@ -223,59 +248,94 @@ export default function CollectionFormsAdmin() {
             </div>
           </section>
           <section className="space-y-3">
-            <h2 className="text-lg font-semibold">填写字段</h2>
-            {draft.fields.map((field, index) => <div className="admin-panel space-y-3 rounded-xl p-4" key={field.key}>
-              <div className="grid gap-3 sm:grid-cols-[1fr_180px_auto]">
-                <label className="grid gap-1">问题
-                  <input className="admin-field" value={field.label} disabled={locked} maxLength={100} onChange={(e) => changeField(index, { label: e.target.value })} />
-                </label>
-                <label className="grid gap-1">类型
-                  <select className="admin-field" value={field.type} disabled={locked} onChange={(e) => {
-                    const type = e.target.value as CollectionField["type"];
-                    changeField(index, { type, options: choiceType(type) ? [option(), option()] : undefined });
-                  }}>
-                    {fieldTypes.map((type) => <option value={type.value} key={type.value}>{type.label}</option>)}
-                  </select>
-                </label>
-                <div className="flex items-end gap-3">
-                  <label className="flex items-center gap-1 pb-2"><input disabled={locked} type="checkbox" checked={field.required} onChange={(e) => changeField(index, { required: e.target.checked })} />必填</label>
-                  <button disabled={locked || draft.fields.length === 1} className="admin-button admin-button--quiet" onClick={() => change("fields", draft.fields.filter((_, i) => i !== index))}>删除</button>
-                </div>
+            <h2 className="text-lg font-semibold">收集内容</h2>
+            {draft.fields.map((field, index) => <div className="admin-panel space-y-4 rounded-xl p-4" key={field.key}>
+              <div className="flex items-center gap-3">
+                <span className="shrink-0 text-sm text-fg-muted">{index + 1}.</span>
+                <input
+                  aria-label={`第 ${index + 1} 项名称`}
+                  className="admin-field min-w-0 flex-1 !text-base !font-semibold"
+                  placeholder="填写项名称，例如姓名、学院或培训场次"
+                  value={field.label} disabled={locked} maxLength={100}
+                  onChange={(e) => changeField(index, { label: e.target.value })}
+                />
+                {field.required && <span className="shrink-0 text-red-500" aria-label="必填">*</span>}
               </div>
-              {choiceType(field.type) && <div className="space-y-3">
+              {choiceType(field.type) ? <div className="space-y-2">
                 {field.options?.map((item, j) => {
                   const used = usage[field.key]?.[item.value] ?? 0;
                   const remaining = item.capacity ? Math.max(0, item.capacity - used) : null;
-                  return <div className="grid gap-3 rounded-lg border border-[var(--admin-border-subtle)] p-3 sm:grid-cols-[minmax(0,1fr)_130px_auto]" key={item.value}>
-                    <div className="min-w-0 space-y-2">
-                      <label className="grid gap-1 text-sm">选项 {j + 1}
-                        <textarea className="admin-field min-h-14 w-full resize-y" rows={2} placeholder="选项内容" maxLength={100} disabled={locked}
+                  return <div className="grid gap-3 rounded-lg border border-[var(--admin-border-subtle)] p-3 sm:grid-cols-[minmax(0,1fr)_120px_auto]" key={item.value}>
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className="mt-2 shrink-0 text-lg text-fg-muted" aria-hidden="true">{field.type === "checkbox" ? "□" : "○"}</span>
+                      <div className="min-w-0 flex-1 space-y-2">
+                        <textarea aria-label={`第 ${index + 1} 项的选项 ${j + 1}`} className="admin-field min-h-12 w-full resize-y" rows={2}
+                          placeholder={`选项 ${j + 1}，例如周六上午`} maxLength={100} disabled={locked}
                           value={item.label} onChange={(e) => changeOption(index, j, { label: e.target.value })} />
-                      </label>
-                      {field.type !== "select" && <label className="grid gap-1 text-sm">补充说明
-                        <textarea className="admin-field min-h-12 w-full resize-y" rows={2} maxLength={300} placeholder="地点、设备等信息（可选）"
-                          value={item.description ?? ""} onChange={(e) => changeOption(index, j, { description: e.target.value })} />
-                      </label>}
+                        {field.type !== "select" && <textarea
+                          aria-label={`选项 ${j + 1} 补充说明`}
+                          className="admin-field min-h-12 w-full resize-y" rows={2} maxLength={300}
+                          placeholder="补充说明，如地点、设备（可选）"
+                          value={item.description ?? ""} onChange={(e) => changeOption(index, j, { description: e.target.value })}
+                        />}
+                      </div>
                     </div>
                     <label className="grid content-start gap-1 text-sm">名额
-                      <input className="admin-field w-full" type="number" min={0} max={1000000}
+                      <input className="admin-field" type="number" min={0} max={1000000}
                         aria-label={`选项 ${j + 1} 名额`} placeholder="不限" value={item.capacity || ""}
                         onChange={(e) => changeOption(index, j, { capacity: Number(e.target.value) })} />
                       {count > 0 && <span className="text-xs text-fg-muted">已选 {used}{remaining === null ? " · 不限" : ` · 剩余 ${remaining}`}</span>}
                     </label>
-                    <button type="button" className="admin-button admin-button--quiet self-start" disabled={locked || (field.options?.length ?? 0) <= 2}
-                      onClick={() => changeField(index, { options: field.options?.filter((_, i) => i !== j) })}>移除</button>
+                    {!locked && (field.options?.length ?? 0) > 2 && <button type="button" className="admin-button admin-button--quiet self-start"
+                      onClick={() => changeField(index, { options: field.options?.filter((_, i) => i !== j) })}>删除</button>}
                   </div>;
                 })}
                 {!locked && <button type="button" disabled={(field.options?.length ?? 0) >= 30} className="admin-button admin-button--secondary"
-                  onClick={() => changeField(index, { options: [...(field.options ?? []), option()] })}>添加选项</button>}
+                  onClick={() => changeField(index, { options: [...(field.options ?? []), option()] })}>＋ 添加选项</button>}
+              </div> : <div aria-hidden="true" className="rounded-lg border border-[var(--admin-border-subtle)] px-3 py-3 text-sm text-fg-muted">
+                {field.type === "date" ? "年 / 月 / 日" : field.type === "number" ? "请输入数字" :
+                  field.type === "textarea" ? "在这里填写详细内容…" : "在这里填写内容…"}
               </div>}
+              <div className="flex flex-wrap items-end justify-between gap-3 border-t border-[var(--admin-border-subtle)] pt-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="grid gap-1 text-sm">填写方式
+                    <select className="admin-field w-36" value={field.type} disabled={locked} onChange={(e) => {
+                      const type = e.target.value as CollectionField["type"];
+                      changeField(index, {
+                        type,
+                        options: choiceType(type) ? (choiceType(field.type) ? field.options : [option(), option()]) : undefined,
+                      });
+                    }}>
+                      {fieldTypes.map((type) => <option value={type.value} key={type.value}>{type.label}</option>)}
+                    </select>
+                  </label>
+                  <label className="flex items-center gap-2 self-end pb-2 text-sm">
+                    <input disabled={locked} type="checkbox" checked={field.required}
+                      onChange={(e) => changeField(index, { required: e.target.checked })} />
+                    必填
+                  </label>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  {!locked && index > 0 && <button type="button" className="admin-button admin-button--quiet"
+                    onClick={() => moveField(index, -1)}>上移</button>}
+                  {!locked && index < draft.fields.length - 1 && <button type="button" className="admin-button admin-button--quiet"
+                    onClick={() => moveField(index, 1)}>下移</button>}
+                  {!locked && draft.fields.length > 1 && <button type="button" className="admin-button admin-button--quiet"
+                    onClick={() => change("fields", draft.fields.filter((_, i) => i !== index))}>删除</button>}
+                </div>
+              </div>
             </div>)}
-            <div className="flex flex-wrap gap-2">
-              <button className="admin-button admin-button--secondary" disabled={locked || draft.fields.length >= 30}
-                onClick={() => change("fields", [...draft.fields, { key: key(), label: "", type: "text", required: false }])}>添加字段</button>
-              <button className="admin-button admin-button--primary" disabled={saving} onClick={() => void save()}>{saving ? "保存中…" : "保存表单"}</button>
-            </div>
+            {!locked && <div className="space-y-2">
+              <button type="button" className="admin-button admin-button--secondary"
+                disabled={draft.fields.length >= 30}
+                aria-expanded={addingField} onClick={() => setAddingField((value) => !value)}>＋ 添加填写项</button>
+              {addingField && <div role="group" aria-label="选择填写方式" className="grid grid-cols-2 gap-2 rounded-xl border border-[var(--admin-border-subtle)] p-3 sm:grid-cols-4">
+                {fieldTypes.map((type) => <button type="button" className="admin-button admin-button--secondary" key={type.value}
+                  onClick={() => addField(type.value)}>{type.label}</button>)}
+              </div>}
+            </div>}
+            <button type="button" className="admin-button admin-button--primary" disabled={saving}
+              onClick={() => void save()}>{saving ? "保存中…" : "保存表单"}</button>
           </section>
           {Boolean(selected) && <section className="admin-panel space-y-3 rounded-xl p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">

@@ -33,6 +33,17 @@ test("form keeps inline errors, compact radios and registered attachment limits"
   assert.match(source, /aria-invalid=\{Boolean\(error\)\}/);
 });
 
+test("collection form editor uses inline field names and a one-week deadline default", async () => {
+  const source = await readFile(new URL("../routes/admin/collection-forms.tsx", import.meta.url), "utf8");
+  assert.match(source, /收集内容/);
+  assert.match(source, /填写项名称，例如姓名、学院或培训场次/);
+  assert.match(source, /添加填写项/);
+  assert.match(source, /addField\(type.value\)/);
+  assert.match(source, /date\.setDate\(date\.getDate\(\) \+ 7\)/);
+  assert.match(source, /date\.setHours\(23, 59, 0, 0\)/);
+  assert.doesNotMatch(source, /<label[^>]*>问题/);
+});
+
 test("authentication passwords share an accessible visibility control", async () => {
   const password = await readFile(new URL("../components/password-field.tsx", import.meta.url), "utf8");
   const register = await readFile(new URL("../routes/register.tsx", import.meta.url), "utf8");
