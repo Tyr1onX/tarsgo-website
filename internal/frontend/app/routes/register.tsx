@@ -6,6 +6,7 @@ import type { Route } from "./+types/register";
 import { AccountAcademicFields } from "~/components/account-academic-fields";
 import { emptyAcademicInput } from "~/lib/account-profile";
 import { AuthShell } from "~/components/auth-shell";
+import { PasswordField } from "~/components/password-field";
 import {
   ApiError,
   getOptionalCurrentUser,
@@ -173,17 +174,7 @@ export default function Register() {
 
             <div className="auth-field auth-field--wide">
               <label htmlFor="password">密码</label>
-              <input
-                id="password"
-                type="password"
-                autoComplete="new-password"
-                required
-                value={password}
-                onChange={(event) => setPassword(event.target.value)}
-                placeholder="至少 6 位"
-                maxLength={72}
-                className="auth-input"
-              />
+              <PasswordField id="password" autoComplete="new-password" value={password} onChange={setPassword} minLength={6} maxLength={72} placeholder="至少 6 位" />
             </div>
 
             <div className="auth-field">

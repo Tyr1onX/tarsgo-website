@@ -2,6 +2,7 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router";
 
 import { AuthShell } from "~/components/auth-shell";
+import { PasswordField } from "~/components/password-field";
 import {
   ApiError,
   getBootstrapStatus,
@@ -228,16 +229,7 @@ export default function Login() {
               <label htmlFor="password">密码</label>
               <button type="button" className="text-sm text-[var(--admin-accent-text)]" onClick={() => { setMode("reset"); setErrorMessage(""); setNotice(""); setCode(""); }}>忘记密码？</button>
             </div>
-            <input
-              id="password"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              placeholder="输入密码"
-              className="auth-input"
-            />
+            <PasswordField id="password" autoComplete="current-password" value={password} onChange={setPassword} placeholder="输入密码" />
           </div>
         ) : (
           <div key="code-field" className="auth-field animate-auth-slide-in">
@@ -270,11 +262,11 @@ export default function Login() {
           <>
             <div className="auth-field">
               <label htmlFor="reset-password">新密码</label>
-              <input id="reset-password" type="password" autoComplete="new-password" required minLength={8} maxLength={72} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} placeholder="至少 8 位" className="auth-input" />
+              <PasswordField id="reset-password" autoComplete="new-password" value={newPassword} onChange={setNewPassword} minLength={8} maxLength={72} placeholder="至少 8 位" />
             </div>
             <div className="auth-field">
               <label htmlFor="reset-password-confirm">确认新密码</label>
-              <input id="reset-password-confirm" type="password" autoComplete="new-password" required minLength={8} maxLength={72} value={confirmPassword} onChange={(event) => setConfirmPassword(event.target.value)} className="auth-input" />
+              <PasswordField id="reset-password-confirm" autoComplete="new-password" value={confirmPassword} onChange={setConfirmPassword} minLength={8} maxLength={72} />
             </div>
           </>
         ) : null}
