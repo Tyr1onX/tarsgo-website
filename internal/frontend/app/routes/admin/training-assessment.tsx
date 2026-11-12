@@ -5,9 +5,10 @@ import { BrandLoader } from "~/components/brand-loader";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { useAssignmentGroups } from "~/lib/use-assignment-groups";
 import {
-  parseTrainingGradeText, trainingAssessmentClient,
+  trainingAssessmentClient,
   type CapabilityRatingInput, type TrainingSnapshot,
 } from "~/lib/training-assessment-client";
+import { parseTrainingGradeText } from "~/lib/training-grade-parser";
 
 export function meta() {
   return [{ title: "培训成绩与能力评价 | TARSGO" }];
