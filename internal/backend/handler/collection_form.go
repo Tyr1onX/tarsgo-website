@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/csv"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -70,11 +71,9 @@ func validateCollectionForm(input collectionFormInput) error {
 			for _, option := range field.Options {
 				if strings.TrimSpace(option.Value) == "" || strings.TrimSpace(option.Label) == "" ||
 					len([]rune(option.Value)) > 100 || len([]rune(option.Label)) > 100 ||
+					len([]rune(option.Description)) > 300 ||
 					values[option.Value] || option.Capacity < 0 || option.Capacity > 1000000 {
 					return errors.New("选项或选项名额不合法")
-				}
-				if field.Type == "checkbox" && option.Capacity > 0 {
-					return errors.New("多选题暂不支持单项限额")
 				}
 				values[option.Value] = true
 			}
@@ -159,6 +158,21 @@ func collectionOptionExists(options []model.CollectionOption, value string) bool
 	return false
 }
 
+// Each selected checkbox value consumes one seat; radio and select consume
+// one seat for their sole selected value.
+func collectionOptionUsed(db *gorm.DB, formID uint64, field model.CollectionField, value string) (int64, error) {
+	query := db.Model(&model.CollectionSubmission{}).Where("form_id = ?", formID)
+	path := "$." + field.Key
+	if field.Type == "checkbox" {
+		query = query.Where("JSON_CONTAINS(JSON_EXTRACT(answers, ?), JSON_QUOTE(?)) = 1", path, value)
+	} else {
+		query = query.Where("JSON_UNQUOTE(JSON_EXTRACT(answers, ?)) = ?", path, value)
+	}
+	var used int64
+	err := query.Count(&used).Error
+	return used, err
+}
+
 func (h *CollectionFormHandler) owned(c *gin.Context) (*model.CollectionForm, bool) {
 	id, err := parsePathID(c.Param("id"))
 	if err != nil {
@@ -241,7 +255,22 @@ func (h *CollectionFormHandler) GetAdmin(c *gin.Context) {
 		writeAPIError(c, 500, "读取失败")
 		return
 	}
-	writeAPI(c, 200, "获取成功", gin.H{"form": form, "count": count})
+	usage := make(map[string]map[string]int64)
+	for _, field := range form.Fields {
+		if field.Type != "radio" && field.Type != "select" && field.Type != "checkbox" {
+			continue
+		}
+		usage[field.Key] = make(map[string]int64, len(field.Options))
+		for _, option := range field.Options {
+			used, err := collectionOptionUsed(h.db, form.ID, field, option.Value)
+			if err != nil {
+				writeAPIError(c, 500, "读取选项统计失败")
+				return
+			}
+			usage[field.Key][option.Value] = used
+		}
+	}
+	writeAPI(c, 200, "获取成功", gin.H{"form": form, "count": count, "usage": usage})
 }
 
 func (h *CollectionFormHandler) Update(c *gin.Context) {
@@ -274,9 +303,13 @@ func (h *CollectionFormHandler) Update(c *gin.Context) {
 			input.Status == "draft") {
 			return rejectCollection(409, "已有提交记录，不能修改字段或填写方式")
 		}
+		fieldsJSON, err := json.Marshal(input.Fields)
+		if err != nil {
+			return err
+		}
 		updates := map[string]any{
 			"title": strings.TrimSpace(input.Title), "description": strings.TrimSpace(input.Description),
-			"fields": input.Fields, "status": input.Status, "capacity": input.Capacity,
+			"fields": string(fieldsJSON), "status": input.Status, "capacity": input.Capacity,
 			"opens_at": input.OpensAt, "closes_at": input.ClosesAt,
 		}
 		if input.LoginRequired != nil {
@@ -306,8 +339,7 @@ func sameCollectionFields(a, b []model.CollectionField) bool {
 			return false
 		}
 		for j := range a[i].Options {
-			if a[i].Options[j].Label != b[i].Options[j].Label || a[i].Options[j].Value != b[i].Options[j].Value ||
-				a[i].Options[j].Capacity != b[i].Options[j].Capacity {
+			if a[i].Options[j].Label != b[i].Options[j].Label || a[i].Options[j].Value != b[i].Options[j].Value {
 				return false
 			}
 		}
@@ -337,10 +369,8 @@ func (h *CollectionFormHandler) GetPublic(c *gin.Context) {
 			if option.Capacity == 0 {
 				continue
 			}
-			var used int64
-			if err := h.db.Model(&model.CollectionSubmission{}).
-				Where("form_id = ? AND JSON_UNQUOTE(JSON_EXTRACT(answers, ?)) = ?", form.ID, "$."+form.Fields[i].Key, option.Value).
-				Count(&used).Error; err != nil {
+			used, err := collectionOptionUsed(h.db, form.ID, form.Fields[i], option.Value)
+			if err != nil {
 				writeAPIError(c, 500, "读取名额失败")
 				return
 			}
@@ -418,21 +448,24 @@ func (h *CollectionFormHandler) Submit(c *gin.Context) {
 			}
 		}
 		for _, field := range form.Fields {
-			if field.Type != "radio" && field.Type != "select" {
+			if field.Type != "radio" && field.Type != "select" && field.Type != "checkbox" {
 				continue
 			}
-			selected, ok := answers[field.Key].(string)
-			if !ok {
-				continue
+			selected := make(map[string]bool)
+			switch value := answers[field.Key].(type) {
+			case string:
+				selected[value] = true
+			case []string:
+				for _, item := range value {
+					selected[item] = true
+				}
 			}
 			for _, option := range field.Options {
-				if option.Value != selected || option.Capacity == 0 {
+				if !selected[option.Value] || option.Capacity == 0 {
 					continue
 				}
-				var used int64
-				if err := tx.Model(&model.CollectionSubmission{}).
-					Where("form_id = ? AND JSON_UNQUOTE(JSON_EXTRACT(answers, ?)) = ?", id, "$."+field.Key, selected).
-					Count(&used).Error; err != nil {
+				used, err := collectionOptionUsed(tx, id, field, option.Value)
+				if err != nil {
 					return err
 				}
 				if used >= int64(option.Capacity) {
@@ -494,6 +527,17 @@ func (h *CollectionFormHandler) DeleteSubmission(c *gin.Context) {
 	writeAPI(c, 200, "删除成功", gin.H{"deleted": true})
 }
 
+func collectionExportValue(field model.CollectionField, value string) string {
+	if field.Type == "radio" || field.Type == "select" || field.Type == "checkbox" {
+		for _, option := range field.Options {
+			if option.Value == value {
+				return option.Label
+			}
+		}
+	}
+	return value
+}
+
 func (h *CollectionFormHandler) Export(c *gin.Context) {
 	form, ok := h.owned(c)
 	if !ok {
@@ -521,15 +565,19 @@ func (h *CollectionFormHandler) Export(c *gin.Context) {
 			value := ""
 			switch v := raw.(type) {
 			case string:
-				value = v
+				value = collectionExportValue(field, v)
 			case []any:
 				parts := make([]string, 0, len(v))
 				for _, element := range v {
-					parts = append(parts, fmt.Sprint(element))
+					parts = append(parts, collectionExportValue(field, fmt.Sprint(element)))
 				}
 				value = strings.Join(parts, "、")
 			case []string:
-				value = strings.Join(v, "、")
+				parts := make([]string, 0, len(v))
+				for _, item := range v {
+					parts = append(parts, collectionExportValue(field, item))
+				}
+				value = strings.Join(parts, "、")
 			case nil:
 			default:
 				value = fmt.Sprint(v)
