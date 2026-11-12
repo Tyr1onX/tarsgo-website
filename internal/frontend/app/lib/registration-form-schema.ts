@@ -97,6 +97,7 @@ export function registrationFieldError(field: RegistrationFormField, value: unkn
   if (field.required && empty) return isFileField(field.type) ? "请上传文件" : field.type === "checkbox" ? "请至少选择一项" : "此项为必填项";
   if (empty) return "";
   if (field.type === "email" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(text)) return "请输入有效的邮箱地址";
+  if (field.type === "phone" && !/^1[3-9]\d{9}$/.test(text)) return "请输入有效的大陆手机号";
   if (field.type === "number" && !Number.isFinite(Number(text))) return "请输入有效数字";
   return "";
 }
