@@ -44,7 +44,9 @@ func TestMariaDBCollectionQuotasUnderConcurrency(t *testing.T) {
 	if err := db.Raw("SELECT @@port, @@datadir").Row().Scan(&port, &datadir); err != nil {
 		t.Fatal(err)
 	}
-	if port != 3317 || (localSocket && filepath.Clean(datadir) != filepath.Join(home, "Library", "Application Support", "TarsGo", "Acceptance", "mariadb")) {
+	// CI forwards host port 3317 to MariaDB's internal port 3306.
+	// Only a direct local socket needs the instance-path and port check.
+	if localSocket && (port != 3317 || filepath.Clean(datadir) != filepath.Join(home, "Library", "Application Support", "TarsGo", "Acceptance", "mariadb")) {
 		t.Fatal("database instance is not the isolated acceptance instance")
 	}
 	if err := db.AutoMigrate(&model.CollectionForm{}, &model.CollectionSubmission{}); err != nil {
