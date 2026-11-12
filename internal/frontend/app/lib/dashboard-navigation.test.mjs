@@ -115,7 +115,7 @@ test("management functions appear in three permission-filtered business groups",
   ]);
   assert.deepEqual(adminMenu[0]?.children.map(({ key }) => key), ["candidate-processing"]);
   assert.deepEqual(adminMenu[1]?.children.map(({ key }) => key), ["assignment-management", "training-assessments"]);
-  assert.deepEqual(adminMenu[2]?.children.map(({ key }) => key), ["leave-workbench", "timetable-availability"]);
+  assert.deepEqual(adminMenu[2]?.children.map(({ key }) => key), ["collection-forms", "leave-workbench", "timetable-availability"]);
   const restrictedAdminMenu = getVisibleAdminDashboardMenu("admin", false);
   assert.deepEqual(restrictedAdminMenu.map(({ key }) => key), ["recruitment", "collaboration-operations"]);
   assert.equal(restrictedAdminMenu[1]?.children.some(({ key }) => key === "timetable-availability"), true);
@@ -124,7 +124,7 @@ test("management functions appear in three permission-filtered business groups",
   assert.deepEqual(superAdminMenu.map(({ key }) => key), ["recruitment", "members-training", "collaboration-operations"]);
   assert.deepEqual(superAdminMenu[0]?.children.map(({ key }) => key), ["candidate-processing", "recruitment-management", "recruitment-analytics"]);
   assert.deepEqual(superAdminMenu[1]?.children.map(({ key }) => key), ["accounts", "assignment-management", "training-assessments"]);
-  assert.deepEqual(superAdminMenu[2]?.children.map(({ key }) => key), ["leave-workbench", "timetable-availability", "email-management"]);
+  assert.deepEqual(superAdminMenu[2]?.children.map(({ key }) => key), ["collection-forms", "leave-workbench", "timetable-availability", "email-management"]);
   assert.equal(getVisibleAdminDashboardMenu("user", true).length, 0);
 });
 
@@ -134,6 +134,9 @@ test("management deep links keep role restrictions without broadening page acces
     assert.equal(canAccessDashboardAdminPath("super_admin", path), true);
     assert.equal(canAccessDashboardAdminPath("user", path), false);
   }
+  assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/forms"), true);
+  assert.equal(canAccessDashboardAdminPath("super_admin", "/dashboard/admin/forms"), true);
+  assert.equal(canAccessDashboardAdminPath("user", "/dashboard/admin/forms"), false);
   assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/registrations"), true);
   assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/recruitment"), false);
   assert.equal(canAccessDashboardAdminPath("super_admin", "/dashboard/admin/recruitment-analytics"), true);

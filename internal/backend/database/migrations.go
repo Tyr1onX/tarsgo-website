@@ -250,6 +250,11 @@ func migrationRegistry(appEnv string) []migration {
 				&model.TrainingGrade{}, &model.CapabilityDimension{}, &model.CapabilityRating{},
 			)
 		}},
+		{version: 58, apply: func(db *gorm.DB) error {
+			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(
+				&model.CollectionForm{}, &model.CollectionSubmission{},
+			)
+		}},
 	}
 }
 
