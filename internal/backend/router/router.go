@@ -126,6 +126,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	userGroupMembershipHandler := handler.NewUserGroupMembershipHandler(membershipService)
 	workManualHandler := handler.NewWorkManualHandler(workmanual.NewService(db))
 	registrationFormHandler := handler.NewRegistrationFormHandler(registration.NewRegistrationFormService(db))
+	collectionFormHandler := handler.NewCollectionFormHandler(db)
 	registrationService := registration.NewRegistrationServiceWithMailer(db, email.NewSender(cfg.Email))
 	registrationHandler := handler.NewRegistrationHandler(registrationService)
 	recruitmentAnalyticsHandler := handler.NewRecruitmentAnalyticsHandler(recruitmentanalytics.NewService(db))
@@ -239,8 +240,20 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	salonMemberAPI.DELETE("/events/:id/registration", requireSameOriginRequest(cfg), salonHandler.Cancel)
 	salonMemberAPI.POST("/events/:id/check-in", requireSameOriginRequest(cfg), salonHandler.CheckIn)
 
+	// Public links share the site's origin checks; a valid session is optional.
+	collectionAPI := api.Group("/collection-forms")
+	collectionAPI.GET("/:id", collectionFormHandler.GetPublic)
+	collectionAPI.POST("/:id/submissions", middleware.OptionalAuthenticated(authService), requireSameOriginRequest(cfg), collectionFormHandler.Submit)
+
 	adminAPI := api.Group("/admin")
 	adminAPI.Use(middleware.RequireAdmin(authService), requireSameOriginRequest(cfg))
+	adminAPI.GET("/collection-forms", collectionFormHandler.List)
+	adminAPI.POST("/collection-forms", collectionFormHandler.Create)
+	adminAPI.GET("/collection-forms/:id", collectionFormHandler.GetAdmin)
+	adminAPI.PUT("/collection-forms/:id", collectionFormHandler.Update)
+	adminAPI.GET("/collection-forms/:id/submissions", collectionFormHandler.Submissions)
+	adminAPI.GET("/collection-forms/:id/export", collectionFormHandler.Export)
+	adminAPI.DELETE("/collection-forms/:id/submissions/:submissionId", collectionFormHandler.DeleteSubmission)
 	adminAPI.GET("/timetable-availability/options", availabilityHandler.Options)
 	adminAPI.GET("/timetable-availability/week", availabilityHandler.Week)
 	adminAPI.GET("/timetable-availability", availabilityHandler.Analyze)

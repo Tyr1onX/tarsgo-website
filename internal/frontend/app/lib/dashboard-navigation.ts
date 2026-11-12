@@ -75,6 +75,7 @@ const ADMIN_MENU: readonly AdminMenuGroup[] = [
     label: "协作与运营",
     iconKey: "settings",
     children: [
+      { key: "collection-forms", label: "收集表", href: "/dashboard/admin/forms", allowedRoles: ["admin", "super_admin"] },
       { key: "leave-workbench", label: "请假处理", href: "/dashboard/leave", allowedRoles: ["admin", "super_admin"] },
       { key: "timetable-availability", label: "时间协调", href: "/dashboard/admin/timetable-availability", allowedRoles: ["admin", "super_admin"] },
       { key: "email-management", label: "邮件管理", href: "/dashboard/admin/email", allowedRoles: ["super_admin"] },
