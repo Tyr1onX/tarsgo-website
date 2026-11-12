@@ -169,7 +169,7 @@ export default function TrainingAssessmentRoute() {
               <input className="admin-field w-full" value={assessmentName} maxLength={120} onChange={(event) => setAssessmentName(event.target.value)} required />
             </label>
             <label className="admin-field-label block">批量成绩（每行：姓名 分数或备注）
-              <textarea className="admin-field w-full" rows={5} value={rawGrades} onChange={(event) => setRawGrades(event.target.value)} placeholder={"王新锐 100\n樊思毅 未来版本？\n朱侃然"} />
+              <textarea className="admin-field w-full" rows={5} value={rawGrades} onChange={(event) => setRawGrades(event.target.value)} placeholder={"张三 80\n李四 未来版本？\n王五"} />
             </label>
             {rawGrades.trim() ? <p className="text-sm text-[var(--admin-muted)]">待匹配 {gradePreview.rows.length} 人，其中有分数 {numericCount} 人、待核实 {gradePreview.rows.length - numericCount} 人</p> : null}
             {gradePreview.errors.map((item) => <p key={item} className="text-sm text-[var(--admin-danger)]">{item}</p>)}
