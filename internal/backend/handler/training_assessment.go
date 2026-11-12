@@ -26,12 +26,6 @@ func NewTrainingAssessmentHandler(db *gorm.DB, assignments *assignment.Service) 
 	return &TrainingAssessmentHandler{db: db, assignments: assignments}
 }
 
-type trainingGradeRow struct {
-	Name  string `json:"name"`
-	Score *uint8 `json:"score"`
-	Note  string `json:"note"`
-}
-
 type capabilityRatingInput struct {
 	DimensionID uint64 `json:"dimensionId"`
 	Score       *uint8 `json:"score"`
@@ -45,24 +39,6 @@ type reviewedAssignmentGrade struct {
 	UserID         uint64 `json:"userId"`
 	Score          uint8  `json:"score"`
 	Decision       string `json:"decision"`
-}
-
-func normalizeTrainingRows(rows []trainingGradeRow) ([]trainingGradeRow, bool) {
-	if len(rows) == 0 || len(rows) > 500 {
-		return nil, false
-	}
-	seen := make(map[string]bool, len(rows))
-	result := make([]trainingGradeRow, 0, len(rows))
-	for _, row := range rows {
-		row.Name = strings.TrimSpace(row.Name)
-		row.Note = strings.TrimSpace(row.Note)
-		if row.Name == "" || utf8.RuneCountInString(row.Name) > 100 || utf8.RuneCountInString(row.Note) > 500 || (row.Score != nil && *row.Score > 100) || seen[row.Name] {
-			return nil, false
-		}
-		seen[row.Name] = true
-		result = append(result, row)
-	}
-	return result, true
 }
 
 func (h *TrainingAssessmentHandler) fail(c *gin.Context, err error) {
@@ -150,65 +126,6 @@ func (h *TrainingAssessmentHandler) Snapshot(c *gin.Context) {
 		ratings = []model.CapabilityRating{}
 	}
 	writeAPI(c, http.StatusOK, "读取培训成绩与能力评价成功", gin.H{"members": members, "grades": grades, "assignmentGrades": assignmentGrades, "dimensions": dimensions, "ratings": ratings})
-}
-
-func (h *TrainingAssessmentHandler) ImportGrades(c *gin.Context) {
-	var input struct {
-		GroupID        uint64             `json:"groupId"`
-		AssessmentName string             `json:"assessmentName"`
-		Rows           []trainingGradeRow `json:"rows"`
-	}
-	if err := c.ShouldBindJSON(&input); err != nil {
-		writeAPIError(c, http.StatusBadRequest, "成绩内容不合法")
-		return
-	}
-	input.AssessmentName = strings.TrimSpace(input.AssessmentName)
-	rows, valid := normalizeTrainingRows(input.Rows)
-	if !valid || input.AssessmentName == "" || utf8.RuneCountInString(input.AssessmentName) > 120 {
-		writeAPIError(c, http.StatusBadRequest, "成绩名称、姓名、分数或备注不合法，或存在重复姓名")
-		return
-	}
-	members, ok := h.members(c, input.GroupID)
-	if !ok {
-		return
-	}
-	byName := make(map[string][]uint64, len(members))
-	for _, member := range members {
-		byName[member.Name] = append(byName[member.Name], member.UserID)
-	}
-	grades := make([]model.TrainingGrade, 0, len(rows))
-	skipped := make([]string, 0)
-	now := time.Now().UTC()
-	for _, row := range rows {
-		ids := byName[row.Name]
-		if len(ids) != 1 {
-			skipped = append(skipped, row.Name)
-			continue
-		}
-		grades = append(grades, model.TrainingGrade{
-			GroupID: input.GroupID, AssessmentName: input.AssessmentName,
-			UserID: ids[0], Score: row.Score, Note: row.Note,
-			UpdatedBy: currentAssignmentActor(c).ID, UpdatedAt: now,
-		})
-	}
-	if len(grades) > 0 {
-		err := h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
-			for i := range grades {
-				if err := tx.Clauses(clause.OnConflict{
-					Columns:   []clause.Column{{Name: "group_id"}, {Name: "assessment_name"}, {Name: "user_id"}},
-					DoUpdates: clause.AssignmentColumns([]string{"score", "note", "updated_by", "updated_at"}),
-				}).Create(&grades[i]).Error; err != nil {
-					return err
-				}
-			}
-			return nil
-		})
-		if err != nil {
-			h.fail(c, err)
-			return
-		}
-	}
-	writeAPI(c, http.StatusOK, "成绩同步完成", gin.H{"imported": len(grades), "unmatched": skipped})
 }
 
 func (h *TrainingAssessmentHandler) AddDimension(c *gin.Context) {
