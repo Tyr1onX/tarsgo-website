@@ -47,6 +47,7 @@ export default function TrainingAssessmentRoute() {
   const [snapshot, setSnapshot] = useState<TrainingSnapshot | null>(null);
   const [loading, setLoading] = useState(false);
   const [memberId, setMemberId] = useState(0);
+  const [memberQuery, setMemberQuery] = useState("");
   const [draftRatings, setDraftRatings] = useState<Record<number, CapabilityRatingInput>>({});
   const [assessmentName, setAssessmentName] = useState("第一次培训作业");
   const [rawGrades, setRawGrades] = useState("");
@@ -74,6 +75,8 @@ export default function TrainingAssessmentRoute() {
 
   const members = snapshot?.members ?? [];
   const selectedMemberId = members.some((member) => member.userId === memberId) ? memberId : members[0]?.userId ?? 0;
+  const matchingMembers = members.filter((member) => member.name.toLowerCase().includes(memberQuery.trim().toLowerCase()) || String(member.userId).includes(memberQuery.trim()));
+  const memberOptions = matchingMembers.some((member) => member.userId === selectedMemberId) ? matchingMembers : members.filter((member) => member.userId === selectedMemberId).concat(matchingMembers);
   const dimensions = snapshot?.dimensions ?? [];
   const memberGrades = useMemo(() => snapshot?.grades.filter((grade) => grade.userId === selectedMemberId) ?? [], [snapshot, selectedMemberId]);
 
@@ -152,7 +155,7 @@ export default function TrainingAssessmentRoute() {
         <h1 className="admin-page-title">培训成绩与能力评价</h1>
         {groupsLoading ? <BrandLoader size="sm" label="正在加载组别" /> : assignmentGroups.length > 1 ?
           <label className="admin-field-label">技术组
-            <select className="admin-field" value={groupId} onChange={(event) => { setGroupId(Number(event.target.value)); setMemberId(0); setNotice(""); }}>
+            <select className="admin-field" value={groupId} onChange={(event) => { setGroupId(Number(event.target.value)); setMemberId(0); setMemberQuery(""); setNotice(""); }}>
               {assignmentGroups.map((group) => <option key={group.groupId} value={group.groupId}>{group.name}</option>)}
             </select>
           </label> : <span>{assignmentGroups[0]?.name ?? ""}</span>}
@@ -176,11 +179,13 @@ export default function TrainingAssessmentRoute() {
             <button className="admin-button admin-button--primary" type="submit" disabled={busy || !gradePreview.rows.length || !!gradePreview.errors.length}>同步成绩</button>
           </form>
           <div className="border-t border-[var(--admin-border-subtle)] pt-4">
+            {members.length > 8 ? <input type="search" className="admin-field mb-2 w-full max-w-xs" aria-label="搜索成员姓名或编号" placeholder="搜索成员" value={memberQuery} onChange={(event) => setMemberQuery(event.target.value)} /> : null}
             <label className="admin-field-label">选择成员
-              <select className="admin-field w-full max-w-xs" value={selectedMemberId} onChange={(event) => setMemberId(Number(event.target.value))}>
-                {members.map((member) => <option key={member.userId} value={member.userId}>{member.name}</option>)}
+              <select className="admin-field w-full max-w-xs" value={selectedMemberId} onChange={(event) => { setMemberId(Number(event.target.value)); setMemberQuery(""); }}>
+                {memberOptions.map((member) => <option key={member.userId} value={member.userId}>{member.name}</option>)}
               </select>
             </label>
+            {memberQuery.trim() && !matchingMembers.length ? <p className="mt-2 text-sm text-[var(--admin-muted)]">没有匹配的成员</p> : null}
             {memberGrades.length ? <ul className="mt-3 space-y-2">{memberGrades.map((grade) =>
               <li key={grade.id} className="flex flex-wrap gap-3 text-sm">
                 <span className="font-medium">{grade.assessmentName}</span>
