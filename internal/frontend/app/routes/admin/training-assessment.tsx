@@ -14,6 +14,8 @@ export function meta() {
   return [{ title: "培训成绩与能力评价 | TARSGO" }];
 }
 
+const PAGE_SIZE = 20;
+
 const LEVELS = [
   "0 · 未接触", "1 · 了解概念", "2 · 能完成简单任务",
   "3 · 可独立完成", "4 · 熟练可靠", "5 · 可带人或攻坚",
@@ -55,7 +57,8 @@ export default function TrainingAssessmentRoute() {
   const [loading, setLoading] = useState(false);
   const [memberId, setMemberId] = useState(0);
   const [memberQuery, setMemberQuery] = useState("");
-  const [sortKey, setSortKey] = useState("");
+  const [assessmentKey, setAssessmentKey] = useState("");
+  const [page, setPage] = useState(1);
   const [draftRatings, setDraftRatings] = useState<Record<number, CapabilityRatingInput>>({});
   const [dimensionName, setDimensionName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -83,9 +86,20 @@ export default function TrainingAssessmentRoute() {
   const summaries = gradebook.assessments;
   const selectedMember = gradebook.members.find((member) => member.userId === memberId);
   const selectedMemberId = selectedMember?.userId ?? 0;
-  const visibleRows = useMemo(() => sortGradebookMembers(gradebook.members, sortKey).filter((member) =>
-    member.name.toLowerCase().includes(memberQuery.trim().toLowerCase()) || String(member.userId).includes(memberQuery.trim())
-  ), [gradebook, sortKey, memberQuery]);
+  const selectedAssessment = summaries.find((item) => item.key === assessmentKey) ?? summaries[0];
+  const assessmentIndex = summaries.findIndex((item) => item.key === selectedAssessment?.key);
+  const visibleRows = useMemo(() => {
+    if (!selectedAssessment) return [];
+    const query = memberQuery.trim().toLowerCase();
+    return sortGradebookMembers(gradebook.members, selectedAssessment.key).filter((member) => {
+      const result = member.results[assessmentIndex];
+      return (result.status !== "unrecorded" || !!query)
+        && (member.name.toLowerCase().includes(query) || String(member.userId).includes(query));
+    });
+  }, [gradebook, selectedAssessment?.key, assessmentIndex, memberQuery]);
+  const totalPages = Math.max(1, Math.ceil(visibleRows.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const pageRows = visibleRows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const dimensions = snapshot?.dimensions ?? [];
 
   function selectMember(userId: number) {
@@ -160,7 +174,7 @@ export default function TrainingAssessmentRoute() {
         <h1 className="admin-page-title">培训成绩与能力评价</h1>
         {groupsLoading ? <BrandLoader size="sm" label="正在加载组别" /> : assignmentGroups.length > 1 ?
           <label className="admin-field-label">技术组
-            <select className="admin-field" value={groupId} onChange={(event) => { setGroupId(Number(event.target.value)); setMemberId(0); setMemberQuery(""); setSortKey(""); setNotice(""); }}>
+            <select className="admin-field" value={groupId} onChange={(event) => { setGroupId(Number(event.target.value)); setMemberId(0); setMemberQuery(""); setAssessmentKey(""); setPage(1); setNotice(""); }}>
               {assignmentGroups.map((group) => <option key={group.groupId} value={group.groupId}>{group.name}</option>)}
             </select>
           </label> : <span>{assignmentGroups[0]?.name ?? ""}</span>}
@@ -260,69 +274,85 @@ export default function TrainingAssessmentRoute() {
         </section>
       ) : (
         <>
-          <section className="admin-panel space-y-4 p-5" aria-label="全组考核概览">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="text-lg font-semibold">全组考核</h2>
+          <section className="admin-panel space-y-4 p-5" aria-label="考核概览">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold">考核概览</h2>
               <span className="text-sm text-[var(--admin-muted)]">{gradebook.members.length} 位成员 · {summaries.length} 次考核</span>
             </div>
-            {summaries.length ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {summaries.map((item) => <div key={item.key} className="rounded-xl border border-[var(--admin-border-subtle)] p-4">
-                <div className="flex items-start justify-between gap-2">
-                  <h3 className="text-sm font-semibold">{item.name}</h3>
-                  {item.source === "assignment" ? <span className="shrink-0 text-xs text-[var(--admin-muted)]">站内作业</span> : null}
+            {selectedAssessment ? <>
+              <label className="admin-field-label block max-w-xl">选择考核
+                <select className="admin-field mt-2 w-full" value={selectedAssessment.key}
+                  onChange={(event) => { setAssessmentKey(event.target.value); setPage(1); }}>
+                  {summaries.map((item) => <option key={item.key} value={item.key}>
+                    {item.name}{item.source === "assignment" ? "（站内作业）" : ""}
+                  </option>)}
+                </select>
+              </label>
+              <dl className="grid grid-cols-2 gap-4 border-t border-[var(--admin-border-subtle)] pt-4 sm:grid-cols-3">
+                <div>
+                  <dt className="text-sm text-[var(--admin-muted)]">平均分</dt>
+                  <dd className="mt-1 text-2xl font-semibold tabular-nums">{selectedAssessment.average === null ? "—" : selectedAssessment.average}</dd>
                 </div>
-                <div className="mt-3 flex items-baseline justify-between gap-2">
-                  <span className="text-xs text-[var(--admin-muted)]">平均分</span>
-                  <strong className="text-2xl tabular-nums">{item.average === null ? "—" : item.average}</strong>
+                <div>
+                  <dt className="text-sm text-[var(--admin-muted)]">{selectedAssessment.source === "assignment" ? "已批改" : "已评分"}</dt>
+                  <dd className="mt-1 text-2xl font-semibold tabular-nums">{selectedAssessment.scored}</dd>
                 </div>
-                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--admin-border-subtle)]">
-                  <div className="h-full bg-[var(--admin-accent-text)]" style={{ width: `${item.average ?? 0}%` }} />
-                </div>
-                <p className="mt-3 text-xs text-[var(--admin-muted)]">
-                  {item.source === "assignment" ? `已批改 ${item.scored} 人` : `已评分 ${item.scored}/${item.total} 人`}
-                  {item.missing ? ` · 缺失 ${item.missing}` : ""}
-                </p>
-              </div>)}
-            </div> : <p className="text-sm text-[var(--admin-muted)]">暂无培训成绩</p>}
+                {selectedAssessment.source === "training" ? <div>
+                  <dt className="text-sm text-[var(--admin-muted)]">成绩缺失</dt>
+                  <dd className="mt-1 text-2xl font-semibold tabular-nums">{selectedAssessment.missing}</dd>
+                </div> : null}
+              </dl>
+            </> : <p className="text-sm text-[var(--admin-muted)]">暂无培训成绩</p>}
           </section>
-          <section className="admin-panel space-y-4 p-5" aria-label="全组成绩对照">
+          <section className="admin-panel space-y-4 p-5" aria-label="当前考核成绩排名">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold">成员成绩与排名</h2>
+              <h2 className="text-lg font-semibold">成绩排名</h2>
               <input type="search" className="admin-field w-full sm:max-w-xs" aria-label="搜索成员" placeholder="搜索姓名或编号"
-                value={memberQuery} onChange={(event) => setMemberQuery(event.target.value)} />
+                value={memberQuery} onChange={(event) => { setMemberQuery(event.target.value); setPage(1); }} />
             </div>
-            {visibleRows.length ? <div className="max-h-[40rem] overflow-auto">
-              <table className="w-full min-w-[740px] border-collapse text-sm">
-                <thead className="sticky top-0 z-20 bg-[var(--admin-surface)]">
-                  <tr className="border-b border-[var(--admin-border-subtle)]">
-                    <th scope="col" className="sticky left-0 z-20 min-w-40 bg-[var(--admin-surface)] px-3 py-3 text-left font-semibold">成员</th>
-                    {summaries.map((item) => <th scope="col" key={item.key} className="min-w-36 px-2 py-3 text-center">
-                      <button type="button" className={`w-full rounded-md px-1 py-1 text-center text-sm font-semibold hover:bg-[var(--admin-surface-subtle)] focus-visible:outline-2 ${sortKey === item.key ? "text-[var(--admin-accent-text)]" : ""}`}
-                        aria-pressed={sortKey === item.key} title={`按${item.name}成绩排序`}
-                        onClick={() => setSortKey((previous) => previous === item.key ? "" : item.key)}>
-                        {item.name}{sortKey === item.key ? " ↓" : ""}
-                      </button>
-                      {item.source === "assignment" ? <div className="text-xs font-normal text-[var(--admin-muted)]">站内作业</div> : null}
-                    </th>)}
+            {pageRows.length ? <div className="overflow-x-auto">
+              <table className="w-full border-collapse text-sm">
+                <thead>
+                  <tr className="border-b border-[var(--admin-border-subtle)] text-[var(--admin-muted)]">
+                    <th scope="col" className="w-14 px-2 py-3 text-left font-medium">排名</th>
+                    <th scope="col" className="px-2 py-3 text-left font-medium">成员</th>
+                    <th scope="col" className="w-16 px-2 py-3 text-right font-medium">成绩</th>
+                    <th scope="col" className="hidden w-1/3 px-2 py-3 text-left font-medium md:table-cell">批改反馈</th>
                   </tr>
                 </thead>
                 <tbody>
-                  {visibleRows.map((member) => <tr key={member.userId} className="border-b border-[var(--admin-border-subtle)]">
-                    <th scope="row" className="sticky left-0 z-10 bg-[var(--admin-surface)] px-3 py-2 text-left">
-                      <button type="button" className="rounded-md text-left font-semibold text-[var(--admin-accent-text)] underline-offset-2 hover:underline focus-visible:outline-2"
-                        onClick={() => selectMember(member.userId)}>{member.name}</button>
-                      <div className="text-xs font-normal text-[var(--admin-muted)]">#{member.userId}</div>
-                    </th>
-                    {member.results.map((result) => <td key={result.key} className="px-2 py-2 text-center tabular-nums">
-                      {result.status === "graded" ? <>
-                        <strong className="block">{result.score}</strong>
-                        <span className="block text-xs text-[var(--admin-muted)]">第 {result.rank} 名</span>
-                      </> : <span className="text-xs text-[var(--admin-muted)]">{result.status === "missing" ? "成绩缺失" : "无记录"}</span>}
-                    </td>)}
-                  </tr>)}
+                  {pageRows.map((member) => {
+                    const result = member.results[assessmentIndex];
+                    return <tr key={member.userId} className="border-b border-[var(--admin-border-subtle)]">
+                      <td className="px-2 py-3 tabular-nums">{result.rank === null ? "—" : `#${result.rank}`}</td>
+                      <th scope="row" className="px-2 py-3 text-left">
+                        <button type="button" className="rounded-md text-left font-semibold text-[var(--admin-accent-text)] hover:underline focus-visible:outline-2"
+                          onClick={() => selectMember(member.userId)}>{member.name}</button>
+                        <span className="ml-2 text-xs font-normal text-[var(--admin-muted)]">#{member.userId}</span>
+                      </th>
+                      <td className="px-2 py-3 text-right font-semibold tabular-nums">
+                        {result.status === "graded" ? result.score : <span className="text-xs font-normal text-[var(--admin-muted)]">{result.status === "missing" ? "缺失" : "无记录"}</span>}
+                      </td>
+                      <td className="hidden px-2 py-3 text-sm text-[var(--admin-muted)] md:table-cell">
+                        <p className="line-clamp-2 break-words" title={result.note || undefined}>
+                          {result.note || (result.decision === "passed" ? "通过" : result.decision === "needs_redo" ? "退回重做" : "—")}
+                        </p>
+                      </td>
+                    </tr>;
+                  })}
                 </tbody>
               </table>
-            </div> : <p className="text-sm text-[var(--admin-muted)]">{memberQuery.trim() ? "没有匹配的成员" : "暂无成员"}</p>}
+            </div> : <p className="text-sm text-[var(--admin-muted)]">{memberQuery.trim() ? "没有匹配的成员" : "当前考核暂无成绩记录"}</p>}
+            {visibleRows.length > PAGE_SIZE ? <nav aria-label="成绩排名分页" className="flex flex-wrap items-center justify-between gap-3 border-t border-[var(--admin-border-subtle)] pt-4 text-sm">
+              <span className="text-[var(--admin-muted)]">共 {visibleRows.length} 人 · 第 {(currentPage - 1) * PAGE_SIZE + 1}–{Math.min(currentPage * PAGE_SIZE, visibleRows.length)} 人</span>
+              <div className="flex items-center gap-3">
+                <button type="button" className="admin-button admin-button--secondary admin-button--small"
+                  disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)}>上一页</button>
+                <span className="tabular-nums">{currentPage} / {totalPages}</span>
+                <button type="button" className="admin-button admin-button--secondary admin-button--small"
+                  disabled={currentPage >= totalPages} onClick={() => setPage(currentPage + 1)}>下一页</button>
+              </div>
+            </nav> : null}
           </section>
                 <details key={groupId} className="admin-panel p-5">
                   <summary className="cursor-pointer text-sm font-medium">设置人工评价维度</summary>

@@ -130,14 +130,19 @@ test("mechanical radar maps the four actual assignments to three percent-based d
   assert.equal(mechanicalTrainingSkills(snapshot, 4)[1].sources[0].recorded, false);
 });
 
-test("overview and individual profile are separate views without an assignment-driven profile", () => {
+test("selecting one assessment paginates its ranking without changing the individual profile", () => {
   const page = readFileSync(new URL("../routes/admin/training-assessment.tsx", import.meta.url), "utf8");
   assert.match(page, /snapshot \? selectedMember \?/);
-  assert.match(page, /全组考核/);
-  assert.match(page, /成员成绩与排名/);
+  assert.match(page, /选择考核/);
+  assert.match(page, /成绩排名/);
+  assert.match(page, /const PAGE_SIZE = 20/);
+  assert.match(page, /setAssessmentKey\(event\.target\.value\); setPage\(1\)/);
+  assert.match(page, /Math\.min\(page, totalPages\)/);
+  assert.match(page, /visibleRows\.slice\(/);
+  assert.match(page, /setPage\(currentPage \+ 1\)/);
   assert.match(page, /返回成绩总览/);
   assert.match(page, /个人历次成绩/);
-  assert.doesNotMatch(page, /selectedAssessment|setAssessmentKey|missingOnly|detailRef/);
+  assert.doesNotMatch(page, /sortKey|setSortKey|missingOnly|detailRef/);
 });
 
 test("training analysis no longer offers batch-grade imports", () => {
