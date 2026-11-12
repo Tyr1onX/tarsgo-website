@@ -18,6 +18,8 @@ test("recruitment validation reports missing required text, selections and uploa
 test("recruitment validation checks optional values only when supplied", () => {
   assert.equal(registrationFieldError(field("email"), "wrong-email"), "请输入有效的邮箱地址");
   assert.equal(registrationFieldError(field("email"), "student@example.com"), "");
+  assert.equal(registrationFieldError(field("phone"), "123"), "请输入有效的大陆手机号");
+  assert.equal(registrationFieldError(field("phone"), "13812345678"), "");
   assert.equal(registrationFieldError(field("number", false), "invalid"), "请输入有效数字");
   assert.equal(registrationFieldError(field("number", false), "0"), "");
 });
