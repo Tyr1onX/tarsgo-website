@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { useOutletContext } from "react-router";
 
 import { BrandLoader } from "~/components/brand-loader";
@@ -8,7 +8,7 @@ import {
   trainingAssessmentClient,
   type CapabilityRatingInput, type TrainingSnapshot,
 } from "~/lib/training-assessment-client";
-import { MECHANICAL_TRAINING_GROUP_ID, mechanicalTrainingSkills, rankTrainingAssessment, summarizeTrainingScores, trainingScoreDistribution } from "~/lib/training-assessment-summary";
+import { MECHANICAL_TRAINING_GROUP_ID, buildTrainingGradebook, mechanicalTrainingSkills, sortGradebookMembers } from "~/lib/training-assessment-summary";
 
 export function meta() {
   return [{ title: "培训成绩与能力评价 | TARSGO" }];
@@ -47,22 +47,6 @@ function Radar({ names, scores, maxScore = 5, label = "能力雷达" }: { names:
   );
 }
 
-function GradeRow({ name, score, note, detail }: { name: string; score: number | null; note?: string; detail?: string }) {
-  return <li className="rounded-xl border border-[var(--admin-border-subtle)] p-4">
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
-        <span className="block text-sm font-semibold text-[var(--admin-text)]">{name}</span>
-        {detail ? <span className="text-xs text-[var(--admin-muted)]">{detail}</span> : null}
-      </div>
-      <strong className="shrink-0 text-lg tabular-nums text-[var(--admin-text)]">{score === null ? "成绩缺失" : score + "/100"}</strong>
-    </div>
-    {score !== null ? <div className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--admin-surface-subtle)]" role="meter" aria-label={name + "成绩"} aria-valuemin={0} aria-valuemax={100} aria-valuenow={score}>
-      <div className="h-full rounded-full bg-[var(--admin-accent-text)]" style={{ width: score + "%" }} />
-    </div> : null}
-    {note ? <p className="mt-3 text-sm text-[var(--admin-muted)]">{note}</p> : null}
-  </li>;
-}
-
 export default function TrainingAssessmentRoute() {
   const { currentUser, groupResolution } = useOutletContext<DashboardLayoutOutletContext>();
   const { assignmentGroups, loading: groupsLoading, error: groupsError } = useAssignmentGroups(currentUser.id, currentUser.role.name, groupResolution?.groups);
@@ -71,9 +55,7 @@ export default function TrainingAssessmentRoute() {
   const [loading, setLoading] = useState(false);
   const [memberId, setMemberId] = useState(0);
   const [memberQuery, setMemberQuery] = useState("");
-  const [assessmentKey, setAssessmentKey] = useState("");
-  const [missingOnly, setMissingOnly] = useState(false);
-  const detailRef = useRef<HTMLElement>(null);
+  const [sortKey, setSortKey] = useState("");
   const [draftRatings, setDraftRatings] = useState<Record<number, CapabilityRatingInput>>({});
   const [dimensionName, setDimensionName] = useState("");
   const [busy, setBusy] = useState(false);
@@ -97,36 +79,19 @@ export default function TrainingAssessmentRoute() {
     return () => { active = false; };
   }, [groupId, currentUser.id]);
 
-  const members = snapshot?.members ?? [];
-  const summaries = useMemo(() => snapshot ? summarizeTrainingScores(snapshot) : [], [snapshot]);
-  const selectedAssessment = summaries.find((item) => item.key === assessmentKey) ?? summaries[0];
-  const ranking = useMemo(() => snapshot && selectedAssessment ? rankTrainingAssessment(snapshot, selectedAssessment.key) : [], [snapshot, selectedAssessment?.key]);
-  const selectedMemberId = members.some((member) => member.userId === memberId) ? memberId : ranking[0]?.userId ?? members[0]?.userId ?? 0;
-  const selectedMember = members.find((member) => member.userId === selectedMemberId);
-  const selectedRank = ranking.find((entry) => entry.userId === selectedMemberId);
-  const memberGrades = useMemo(() => snapshot?.grades.filter((grade) => grade.userId === selectedMemberId) ?? [], [snapshot, selectedMemberId]);
-  const memberAssignmentGrades = useMemo(() => snapshot?.assignmentGrades.filter((grade) => grade.userId === selectedMemberId) ?? [], [snapshot, selectedMemberId]);
+  const gradebook = useMemo(() => snapshot ? buildTrainingGradebook(snapshot) : { assessments: [], members: [] }, [snapshot]);
+  const summaries = gradebook.assessments;
+  const selectedMember = gradebook.members.find((member) => member.userId === memberId);
+  const selectedMemberId = selectedMember?.userId ?? 0;
+  const visibleRows = useMemo(() => sortGradebookMembers(gradebook.members, sortKey).filter((member) =>
+    member.name.toLowerCase().includes(memberQuery.trim().toLowerCase()) || String(member.userId).includes(memberQuery.trim())
+  ), [gradebook, sortKey, memberQuery]);
   const dimensions = snapshot?.dimensions ?? [];
-  const distribution = useMemo(() => trainingScoreDistribution(ranking), [ranking]);
-  const maxBucketCount = Math.max(1, ...distribution.map((item) => item.count));
-  const query = memberQuery.trim().toLowerCase();
-  const rankedMembers = new Set(ranking.map((entry) => entry.userId));
-  const visibleRows = [
-    ...ranking.filter((entry) => entry.name.toLowerCase().includes(query) || String(entry.userId).includes(query))
-      .map((entry) => ({ ...entry, recorded: true })),
-    ...(query ? members.filter((member) => !rankedMembers.has(member.userId)
-      && (member.name.toLowerCase().includes(query) || String(member.userId).includes(query)))
-      .map((member) => ({ ...member, score: null, rank: null, recorded: false, note: "" })) : []),
-  ].filter((entry) => !missingOnly || (entry.recorded && entry.score === null));
-  const memberIDs = new Set(members.map((member) => member.userId));
-  const scoredMembers = new Set([...(snapshot?.grades ?? []), ...(snapshot?.assignmentGrades ?? [])]
-    .filter((grade) => memberIDs.has(grade.userId)).map((grade) => grade.userId)).size;
-  const missingCount = snapshot?.grades.filter((grade) => grade.score === null && memberIDs.has(grade.userId)).length ?? 0;
-  const ratedMemberCount = new Set(snapshot?.ratings.filter((rating) => memberIDs.has(rating.userId)).map((rating) => rating.userId) ?? []).size;
 
   function selectMember(userId: number) {
     setMemberId(userId);
-    if (window.matchMedia("(max-width: 1023px)").matches) detailRef.current?.scrollIntoView({ block: "start" });
+    setNotice("");
+    window.scrollTo(0, 0);
   }
 
   useEffect(() => {
@@ -195,7 +160,7 @@ export default function TrainingAssessmentRoute() {
         <h1 className="admin-page-title">培训成绩与能力评价</h1>
         {groupsLoading ? <BrandLoader size="sm" label="正在加载组别" /> : assignmentGroups.length > 1 ?
           <label className="admin-field-label">技术组
-            <select className="admin-field" value={groupId} onChange={(event) => { setGroupId(Number(event.target.value)); setMemberId(0); setMemberQuery(""); setAssessmentKey(""); setMissingOnly(false); setNotice(""); }}>
+            <select className="admin-field" value={groupId} onChange={(event) => { setGroupId(Number(event.target.value)); setMemberId(0); setMemberQuery(""); setSortKey(""); setNotice(""); }}>
               {assignmentGroups.map((group) => <option key={group.groupId} value={group.groupId}>{group.name}</option>)}
             </select>
           </label> : <span>{assignmentGroups[0]?.name ?? ""}</span>}
@@ -204,140 +169,61 @@ export default function TrainingAssessmentRoute() {
       {error ? <p role="alert" className="text-sm text-[var(--admin-danger)]">{error}</p> : null}
       {notice ? <p role="status" className="text-sm text-[var(--admin-text)]">{notice}</p> : null}
       {loading ? <BrandLoader label="正在读取评价" /> : null}
-      {snapshot ? <>
-        <section className="admin-panel space-y-4 p-5">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-lg font-semibold">考核概览</h2>
-            {summaries.length ? <span className="text-sm text-[var(--admin-muted)]">
-              有记录成员 {scoredMembers} 人{groupId === MECHANICAL_TRAINING_GROUP_ID ? "" : ` · 已评能力 ${ratedMemberCount} 人`}{missingCount ? ` · 待核实 ${missingCount} 条` : ""}
-            </span> : null}
-          </div>
-          {summaries.length ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-            {summaries.map((item) => <button key={item.key} type="button"
-              aria-pressed={selectedAssessment?.key === item.key}
-              onClick={() => { setAssessmentKey(item.key); setMemberId(0); setMemberQuery(""); setMissingOnly(false); }}
-              className={`rounded-xl border p-4 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 ${selectedAssessment?.key === item.key
-                ? "border-[var(--admin-accent-text)] bg-[var(--admin-surface-subtle)]"
-                : "border-[var(--admin-border-subtle)] hover:border-[var(--admin-hover-border)]"}`}>
-              <div className="flex min-w-0 items-start justify-between gap-2">
-                <strong className="min-w-0 text-sm text-[var(--admin-text)]">{item.name}</strong>
-                {item.source === "assignment" ? <span className="shrink-0 text-xs text-[var(--admin-muted)]">站内作业</span> : null}
+      {snapshot ? selectedMember ? (
+        <section className="admin-panel space-y-5 p-5">
+          <button type="button" className="admin-button admin-button--quiet admin-button--small"
+            onClick={() => { setMemberId(0); window.scrollTo(0, 0); }}>返回成绩总览</button>
+          <header className="flex flex-wrap items-baseline justify-between gap-3">
+            <h2 className="text-xl font-semibold">{selectedMember.name}</h2>
+            <span className="text-sm text-[var(--admin-muted)]">成员 #{selectedMember.userId}</span>
+          </header>
+          <div className="grid gap-6 lg:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] lg:items-start">
+            <section className="space-y-3" aria-label="个人能力画像">
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h3 className="text-lg font-semibold">{trainingSkills.length ? "能力雷达" : "能力评价"}</h3>
+                {trainingSkills.length ? <span className="text-xs text-[var(--admin-muted)]">作业成绩 · 百分制</span> : null}
               </div>
-              <div className="mt-3 flex items-baseline justify-between gap-2">
-                <span className="text-xs text-[var(--admin-muted)]">平均分</span>
-                <span className="text-2xl font-semibold tabular-nums">{item.average === null ? "—" : item.average}</span>
-              </div>
-              <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--admin-border-subtle)]">
-                <div className="h-full bg-[var(--admin-accent-text)]" style={{ width: `${item.average ?? 0}%` }} />
-              </div>
-              <span className="mt-3 block text-xs text-[var(--admin-muted)]">
-                {item.source === "assignment" ? `已批改 ${item.scored} 人` : `已评分 ${item.scored}/${item.total} 人`}
-                {item.missing ? ` · 缺失 ${item.missing}` : ""}
-              </span>
-            </button>)}
-          </div> : <p className="text-sm text-[var(--admin-muted)]">暂无培训成绩</p>}
-        </section>
-
-        {selectedAssessment ? <section className="admin-panel space-y-3 p-5" aria-label="成绩分布">
-          <div className="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-lg font-semibold">成绩分布</h2>
-            <span className="text-sm text-[var(--admin-muted)]">{selectedAssessment.name}</span>
-          </div>
-          <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
-            {distribution.filter((item) => selectedAssessment.source !== "assignment" || item.label !== "缺失")
-              .map((item) => <div key={item.label} className="text-center">
-                <div className="flex h-20 items-end justify-center rounded-lg bg-[var(--admin-surface-subtle)] px-3 pt-2">
-                  <div className={`w-full max-w-12 rounded-t-sm ${item.label === "缺失" ? "bg-[var(--admin-muted)]" : "bg-[var(--admin-accent-text)]"}`}
-                    style={{ height: item.count ? `${item.count / maxBucketCount * 100}%` : "0%" }} />
+              {trainingSkills.length ? <>
+                <Radar names={trainingSkills.map((skill) => skill.name)} scores={trainingSkills.map((skill) => skill.score)}
+                  maxScore={100} label="个人作业能力雷达" />
+                <div className="space-y-2">
+                  {trainingSkills.map((skill) => <div key={skill.name}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--admin-border-subtle)] p-3">
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium">{skill.name}</div>
+                      <div className="mt-1 text-xs text-[var(--admin-muted)]">
+                        {skill.sources.map((source) => source.name).join("、")}{skill.total > 1 ? "平均" : ""}
+                        {skill.graded < skill.total ? ` · 已评分 ${skill.graded}/${skill.total}` : ""}
+                      </div>
+                    </div>
+                    <strong className="tabular-nums">{skill.score === null ? "未评分" : `${skill.score}/100`}</strong>
+                  </div>)}
                 </div>
-                <p className="mt-1 text-xs text-[var(--admin-muted)]">{item.label}</p>
-                <strong className="text-sm tabular-nums">{item.count}</strong>
-              </div>)}
+              </> : radarReady ? <Radar names={dimensions.map((item) => item.name)} scores={radarScores} /> :
+                <p className="text-sm text-[var(--admin-muted)]">{dimensions.length < 3 ? "能力维度不足 3 项" : "暂无能力评价"}</p>}
+            </section>
+            <section className="space-y-3" aria-label="个人历次成绩">
+              <h3 className="text-lg font-semibold">历次成绩</h3>
+              {summaries.length ? <ul className="divide-y divide-[var(--admin-border-subtle)]">
+                {summaries.map((assessment, index) => {
+                  const result = selectedMember.results[index];
+                  return <li key={assessment.key} className="flex flex-wrap justify-between gap-x-4 gap-y-2 py-3">
+                    <div className="min-w-0 flex-1">
+                      <div className="text-sm font-medium">{assessment.name}</div>
+                      {assessment.source === "assignment" ? <div className="mt-1 text-xs text-[var(--admin-muted)]">站内批改{result.decision ? ` · ${result.decision === "passed" ? "通过" : "退回重做"}` : ""}</div> : null}
+                      {result.note ? <p className="mt-1 text-sm text-[var(--admin-muted)]">{result.note}</p> : null}
+                    </div>
+                    <div className="shrink-0 text-right">
+                      <strong className="block text-base tabular-nums">{result.status === "graded" ? `${result.score}/100` : result.status === "missing" ? "成绩缺失" : "无记录"}</strong>
+                      {result.rank !== null ? <div className="mt-1 text-xs text-[var(--admin-muted)]">第 {result.rank} 名{assessment.average !== null ? ` · 组均 ${assessment.average}` : ""}</div> : null}
+                    </div>
+                  </li>;
+                })}
+              </ul> : <p className="text-sm text-[var(--admin-muted)]">暂无成绩记录</p>}
+            </section>
           </div>
-        </section> : null}
-
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)] lg:items-start">
-          <section className="admin-panel space-y-3 p-5">
-            <div className="flex flex-wrap items-baseline justify-between gap-2">
-              <h2 className="text-lg font-semibold">成绩排行</h2>
-              {selectedAssessment ? <span className="text-sm text-[var(--admin-muted)]">已评分 {selectedAssessment.scored} 人</span> : null}
-            </div>
-            <div className="flex flex-wrap items-center gap-3">
-              <input type="search" className="admin-field min-w-0 flex-1" aria-label="搜索成员" placeholder="搜索姓名或编号"
-                value={memberQuery} onChange={(event) => setMemberQuery(event.target.value)} />
-              {selectedAssessment?.missing ? <label className="flex shrink-0 items-center gap-1.5 text-sm">
-                <input type="checkbox" checked={missingOnly} onChange={(event) => setMissingOnly(event.target.checked)} />
-                仅看缺失
-              </label> : null}
-            </div>
-            {visibleRows.length ? <ol className="max-h-[34rem] divide-y divide-[var(--admin-border-subtle)] overflow-y-auto">
-              {visibleRows.map((entry) => <li key={entry.userId}>
-                <button type="button" aria-pressed={entry.userId === selectedMemberId} onClick={() => selectMember(entry.userId)}
-                  className={`flex w-full items-center gap-3 border-l-2 px-2 py-3 text-left focus-visible:outline-2 focus-visible:outline-offset-2 ${entry.userId === selectedMemberId
-                    ? "border-[var(--admin-accent-text)] bg-[var(--admin-surface-subtle)]"
-                    : "border-transparent hover:bg-[var(--admin-surface-subtle)]"}`}>
-                  <span className="w-10 shrink-0 text-center text-sm font-semibold tabular-nums text-[var(--admin-muted)]">
-                    {entry.rank === null ? "—" : `#${entry.rank}`}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-sm font-medium">{entry.name}
-                    <span className="ml-2 text-xs font-normal text-[var(--admin-muted)]">#{entry.userId}</span>
-                  </span>
-                  <span className="shrink-0 text-sm font-semibold tabular-nums">
-                    {!entry.recorded ? "无记录" : entry.score === null ? "成绩缺失" : entry.score}
-                  </span>
-                </button>
-              </li>)}
-            </ol> : <p className="text-sm text-[var(--admin-muted)]">{memberQuery.trim() ? "没有匹配的成员" : missingOnly ? "没有缺失成绩" : "暂无排名记录"}</p>}
-          </section>
-
-          <section ref={detailRef} className="admin-panel scroll-mt-4 space-y-5 p-5">
-            {selectedMember ? <>
-              <header className="flex flex-wrap items-baseline justify-between gap-2">
-                <h2 className="text-lg font-semibold">{selectedMember.name}</h2>
-                <span className="text-sm text-[var(--admin-muted)]">成员 #{selectedMember.userId}</span>
-              </header>
-              {selectedAssessment ? <div className="grid grid-cols-2 gap-3 rounded-xl bg-[var(--admin-surface-subtle)] p-4">
-                <div>
-                  <p className="text-xs text-[var(--admin-muted)]">本次成绩</p>
-                  <strong className="mt-1 block text-xl tabular-nums">{!selectedRank ? "无记录" : selectedRank.score === null ? "成绩缺失" : `${selectedRank.score}/100`}</strong>
-                </div>
-                <div>
-                  <p className="text-xs text-[var(--admin-muted)]">本次排名</p>
-                  <strong className="mt-1 block text-xl tabular-nums">{selectedRank?.rank ? `第 ${selectedRank.rank} 名` : "—"}</strong>
-                  {selectedAssessment.average !== null ? <p className="mt-1 text-xs text-[var(--admin-muted)]">本次平均 {selectedAssessment.average}</p> : null}
-                </div>
-              </div> : null}
-              {trainingSkills.length ? <section className="space-y-3 border-t border-[var(--admin-border-subtle)] pt-4" aria-label="能力雷达（作业成绩）">
-                  <div className="flex flex-wrap items-baseline justify-between gap-2">
-                    <h3 className="font-semibold">能力雷达</h3>
-                    <span className="text-xs text-[var(--admin-muted)]">作业成绩 · 百分制</span>
-                  </div>
-                  <Radar names={trainingSkills.map((skill) => skill.name)} scores={trainingSkills.map((skill) => skill.score)}
-                    maxScore={100} label="能力雷达（作业成绩）" />
-                  <div className="grid gap-2 sm:grid-cols-3">
-                    {trainingSkills.map((skill) => <article key={skill.name} className="rounded-lg border border-[var(--admin-border-subtle)] p-3">
-                      <h4 className="text-sm font-semibold">{skill.name}</h4>
-                      <strong className="mt-2 block text-xl tabular-nums">{skill.score === null ? "—" : `${skill.score}/100`}</strong>
-                      <p className="mt-1 text-xs text-[var(--admin-muted)]">已评分 {skill.graded}/{skill.total}</p>
-                      <ul className="mt-3 space-y-1 border-t border-[var(--admin-border-subtle)] pt-2 text-xs">
-                        {skill.sources.map((source) => <li key={source.name} className="flex flex-wrap justify-between gap-x-2 gap-y-1">
-                          <span className="text-[var(--admin-muted)]">{source.name}</span>
-                          <span className="tabular-nums">{source.score !== null ? `${source.score} 分` : source.recorded ? "成绩缺失" : "暂无评分"}</span>
-                        </li>)}
-                      </ul>
-                    </article>)}
-                  </div>
-                </section> : null}
-              <div className="space-y-3">
-                <h3 className="font-semibold">历次成绩</h3>
-                {memberGrades.length || memberAssignmentGrades.length ? <ul className="grid gap-3">
-                  {memberGrades.map((grade) => <GradeRow key={`training-${grade.id}`} name={grade.assessmentName} score={grade.score} note={grade.note} />)}
-                  {memberAssignmentGrades.map((grade) => <GradeRow key={`assignment-${grade.assignmentId}`} name={grade.assessmentName} score={grade.score}
-                    detail={`站内批改 · ${grade.decision === "passed" ? "通过" : "退回重做"}`} />)}
-                </ul> : <p className="text-sm text-[var(--admin-muted)]">暂无成绩记录</p>}
-              </div>
-              <div className="space-y-3 border-t border-[var(--admin-border-subtle)] pt-4">
-                {dimensions.length || !trainingSkills.length ? <>
+          {dimensions.length ? <section className="space-y-3 border-t border-[var(--admin-border-subtle)] pt-4" aria-label="人工能力评价">
+                {trainingSkills.length ? <>
                   <h3 className="font-semibold">{trainingSkills.length ? "人工能力评价" : "能力评价"}</h3>
                   {radarReady ? <Radar names={dimensions.map((dimension) => dimension.name)} scores={radarScores} /> :
                     <p className="text-sm text-[var(--admin-muted)]">{dimensions.length < 3 ? "能力维度不足 3 项" : "暂无能力评价"}</p>}
@@ -370,8 +256,76 @@ export default function TrainingAssessmentRoute() {
                     <button type="submit" className="admin-button admin-button--primary" disabled={busy}>保存成员评价</button>
                   </form>
                 </details> : null}
-                <details key={groupId} className="border-t border-[var(--admin-border-subtle)] pt-3">
-                  <summary className="cursor-pointer text-sm font-medium">{trainingSkills.length ? "设置人工评价维度" : "设置组内能力维度"}</summary>
+          </section> : null}
+        </section>
+      ) : (
+        <>
+          <section className="admin-panel space-y-4 p-5" aria-label="全组考核概览">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 className="text-lg font-semibold">全组考核</h2>
+              <span className="text-sm text-[var(--admin-muted)]">{gradebook.members.length} 位成员 · {summaries.length} 次考核</span>
+            </div>
+            {summaries.length ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {summaries.map((item) => <div key={item.key} className="rounded-xl border border-[var(--admin-border-subtle)] p-4">
+                <div className="flex items-start justify-between gap-2">
+                  <h3 className="text-sm font-semibold">{item.name}</h3>
+                  {item.source === "assignment" ? <span className="shrink-0 text-xs text-[var(--admin-muted)]">站内作业</span> : null}
+                </div>
+                <div className="mt-3 flex items-baseline justify-between gap-2">
+                  <span className="text-xs text-[var(--admin-muted)]">平均分</span>
+                  <strong className="text-2xl tabular-nums">{item.average === null ? "—" : item.average}</strong>
+                </div>
+                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--admin-border-subtle)]">
+                  <div className="h-full bg-[var(--admin-accent-text)]" style={{ width: `${item.average ?? 0}%` }} />
+                </div>
+                <p className="mt-3 text-xs text-[var(--admin-muted)]">
+                  {item.source === "assignment" ? `已批改 ${item.scored} 人` : `已评分 ${item.scored}/${item.total} 人`}
+                  {item.missing ? ` · 缺失 ${item.missing}` : ""}
+                </p>
+              </div>)}
+            </div> : <p className="text-sm text-[var(--admin-muted)]">暂无培训成绩</p>}
+          </section>
+          <section className="admin-panel space-y-4 p-5" aria-label="全组成绩对照">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <h2 className="text-lg font-semibold">成员成绩与排名</h2>
+              <input type="search" className="admin-field w-full sm:max-w-xs" aria-label="搜索成员" placeholder="搜索姓名或编号"
+                value={memberQuery} onChange={(event) => setMemberQuery(event.target.value)} />
+            </div>
+            {visibleRows.length ? <div className="max-h-[40rem] overflow-auto">
+              <table className="w-full min-w-[740px] border-collapse text-sm">
+                <thead className="sticky top-0 z-20 bg-[var(--admin-surface)]">
+                  <tr className="border-b border-[var(--admin-border-subtle)]">
+                    <th scope="col" className="sticky left-0 z-20 min-w-40 bg-[var(--admin-surface)] px-3 py-3 text-left font-semibold">成员</th>
+                    {summaries.map((item) => <th scope="col" key={item.key} className="min-w-36 px-2 py-3 text-center">
+                      <button type="button" className={`w-full rounded-md px-1 py-1 text-center text-sm font-semibold hover:bg-[var(--admin-surface-subtle)] focus-visible:outline-2 ${sortKey === item.key ? "text-[var(--admin-accent-text)]" : ""}`}
+                        aria-pressed={sortKey === item.key} title={`按${item.name}成绩排序`}
+                        onClick={() => setSortKey((previous) => previous === item.key ? "" : item.key)}>
+                        {item.name}{sortKey === item.key ? " ↓" : ""}
+                      </button>
+                      {item.source === "assignment" ? <div className="text-xs font-normal text-[var(--admin-muted)]">站内作业</div> : null}
+                    </th>)}
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleRows.map((member) => <tr key={member.userId} className="border-b border-[var(--admin-border-subtle)]">
+                    <th scope="row" className="sticky left-0 z-10 bg-[var(--admin-surface)] px-3 py-2 text-left">
+                      <button type="button" className="rounded-md text-left font-semibold text-[var(--admin-accent-text)] underline-offset-2 hover:underline focus-visible:outline-2"
+                        onClick={() => selectMember(member.userId)}>{member.name}</button>
+                      <div className="text-xs font-normal text-[var(--admin-muted)]">#{member.userId}</div>
+                    </th>
+                    {member.results.map((result) => <td key={result.key} className="px-2 py-2 text-center tabular-nums">
+                      {result.status === "graded" ? <>
+                        <strong className="block">{result.score}</strong>
+                        <span className="block text-xs text-[var(--admin-muted)]">第 {result.rank} 名</span>
+                      </> : <span className="text-xs text-[var(--admin-muted)]">{result.status === "missing" ? "成绩缺失" : "无记录"}</span>}
+                    </td>)}
+                  </tr>)}
+                </tbody>
+              </table>
+            </div> : <p className="text-sm text-[var(--admin-muted)]">{memberQuery.trim() ? "没有匹配的成员" : "暂无成员"}</p>}
+          </section>
+                <details key={groupId} className="admin-panel p-5">
+                  <summary className="cursor-pointer text-sm font-medium">设置人工评价维度</summary>
                   <div className="mt-4 space-y-3">
                     <form className="flex flex-wrap gap-2" onSubmit={(event) => void addDimension(event)}>
                       <input className="admin-field min-w-40 flex-1" aria-label="新增能力维度" maxLength={100} value={dimensionName}
@@ -386,11 +340,8 @@ export default function TrainingAssessmentRoute() {
                     </div>)}
                   </div>
                 </details>
-              </div>
-            </> : <p className="text-sm text-[var(--admin-muted)]">暂无成员</p>}
-          </section>
-        </div>
-      </> : null}
+        </>
+      ) : null}
     </main>
   );
 }

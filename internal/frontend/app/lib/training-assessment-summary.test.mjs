@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { mechanicalTrainingSkills, summarizeTrainingScores, rankTrainingAssessment, trainingScoreDistribution } from "./training-assessment-summary.ts";
+import { buildTrainingGradebook, mechanicalTrainingSkills, summarizeTrainingScores, rankTrainingAssessment, sortGradebookMembers } from "./training-assessment-summary.ts";
 
 test("groups existing scores by assessment and distinguishes missing from zero", () => {
   const result = summarizeTrainingScores({
@@ -54,14 +54,42 @@ test("ranking uses one assessment, shares tied positions and excludes missing sc
     { userId: 4, score: null, rank: null },
   ]);
   assert.equal(ranking[4].note, "待核实");
-  assert.deepEqual(trainingScoreDistribution(ranking), [
-    { label: "90–100", count: 2 }, { label: "80–89", count: 0 },
-    { label: "70–79", count: 1 }, { label: "60–69", count: 0 },
-    { label: "0–59", count: 1 }, { label: "缺失", count: 1 },
-  ]);
   assert.deepEqual(rankTrainingAssessment(snapshot, "assignment:9").map(({ userId, rank }) => ({ userId, rank })), [
     { userId: 5, rank: 1 },
   ]);
+});
+
+test("all-assessment gradebook shows per-column ranks and opens complete member history", () => {
+  const snapshot = {
+    members: [
+      { userId: 2, name: "同名" }, { userId: 1, name: "同名" }, { userId: 3, name: "未评分" },
+    ],
+    grades: [
+      { userId: 1, assessmentName: "第一次", score: 90, note: "已完成" },
+      { userId: 2, assessmentName: "第一次", score: null, note: "待核实" },
+    ],
+    assignmentGrades: [
+      { userId: 1, assignmentId: 8, assessmentName: "第三次", score: 0, decision: "needs_redo" },
+      { userId: 2, assignmentId: 8, assessmentName: "第三次", score: 100, decision: "passed" },
+    ],
+    dimensions: [], ratings: [],
+  };
+  const book = buildTrainingGradebook(snapshot);
+  assert.deepEqual(book.assessments.map((a) => a.key), ["training:第一次", "assignment:8"]);
+  assert.deepEqual(book.members[0].results.map((result) => [result.status, result.score, result.rank]), [
+    ["missing", null, null], ["graded", 100, 1],
+  ]);
+  assert.equal(book.members[0].results[0].note, "待核实");
+  assert.equal(book.members[0].results[1].decision, "passed");
+  assert.deepEqual(book.members[1].results.map((result) => [result.status, result.score, result.rank]), [
+    ["graded", 90, 1], ["graded", 0, 2],
+  ]);
+  assert.equal(book.members[1].results[1].decision, "needs_redo");
+  assert.deepEqual(book.members[2].results.map((result) => result.status), ["unrecorded", "unrecorded"]);
+  assert.deepEqual(sortGradebookMembers(book.members, "").map((member) => member.userId), [1, 2, 3]);
+  assert.deepEqual(sortGradebookMembers(book.members, "training:第一次").map((member) => member.userId), [1, 2, 3]);
+  assert.deepEqual(sortGradebookMembers(book.members, "assignment:8").map((member) => member.userId), [2, 1, 3]);
+  assert.equal(book.members[0].userId, 2, "sorting must not mutate the snapshot-derived members");
 });
 
 test("mechanical radar maps the four actual assignments to three percent-based dimensions", () => {
@@ -100,6 +128,16 @@ test("mechanical radar maps the four actual assignments to three percent-based d
   assert.equal(mechanicalTrainingSkills(snapshot, 3)[0].score, 0);
   assert.deepEqual(mechanicalTrainingSkills(snapshot, 4).map((skill) => skill.score), [null, null, null]);
   assert.equal(mechanicalTrainingSkills(snapshot, 4)[1].sources[0].recorded, false);
+});
+
+test("overview and individual profile are separate views without an assignment-driven profile", () => {
+  const page = readFileSync(new URL("../routes/admin/training-assessment.tsx", import.meta.url), "utf8");
+  assert.match(page, /snapshot \? selectedMember \?/);
+  assert.match(page, /全组考核/);
+  assert.match(page, /成员成绩与排名/);
+  assert.match(page, /返回成绩总览/);
+  assert.match(page, /个人历次成绩/);
+  assert.doesNotMatch(page, /selectedAssessment|setAssessmentKey|missingOnly|detailRef/);
 });
 
 test("training analysis no longer offers batch-grade imports", () => {

@@ -117,13 +117,58 @@ export function rankTrainingAssessment(snapshot: TrainingSnapshot, key: string):
   return sorted;
 }
 
-export function trainingScoreDistribution(rows: RankedTrainingMember[]) {
-  return [
-    { label: "90–100", count: rows.filter((row) => row.score !== null && row.score >= 90).length },
-    { label: "80–89", count: rows.filter((row) => row.score !== null && row.score >= 80 && row.score < 90).length },
-    { label: "70–79", count: rows.filter((row) => row.score !== null && row.score >= 70 && row.score < 80).length },
-    { label: "60–69", count: rows.filter((row) => row.score !== null && row.score >= 60 && row.score < 70).length },
-    { label: "0–59", count: rows.filter((row) => row.score !== null && row.score < 60).length },
-    { label: "缺失", count: rows.filter((row) => row.score === null).length },
-  ];
+export type GradebookResult = {
+  key: string;
+  score: number | null;
+  rank: number | null;
+  status: "graded" | "missing" | "unrecorded";
+  note: string;
+  decision?: "passed" | "needs_redo";
+};
+
+export type GradebookMember = {
+  userId: number;
+  name: string;
+  results: GradebookResult[];
+};
+
+export function buildTrainingGradebook(snapshot: TrainingSnapshot) {
+  const assessments = summarizeTrainingScores(snapshot);
+  const rankings = assessments.map((assessment) =>
+    new Map(rankTrainingAssessment(snapshot, assessment.key).map((entry) => [entry.userId, entry]))
+  );
+  const members: GradebookMember[] = snapshot.members.map((member) => ({
+    ...member,
+    results: assessments.map((assessment, index) => {
+      const ranked = rankings[index].get(member.userId);
+      const review = assessment.source === "assignment"
+        ? snapshot.assignmentGrades.find((item) =>
+          "assignment:" + item.assignmentId === assessment.key && item.userId === member.userId)
+        : undefined;
+      return {
+        key: assessment.key,
+        score: ranked?.score ?? null,
+        rank: ranked?.rank ?? null,
+        status: !ranked ? "unrecorded" as const : ranked.score === null ? "missing" as const : "graded" as const,
+        note: ranked?.note ?? "",
+        decision: review?.decision,
+      };
+    }),
+  }));
+  return { assessments, members };
+}
+
+export function sortGradebookMembers(members: GradebookMember[], assessmentKey: string) {
+  return [...members].sort((a, b) => {
+    const resultA = a.results.find((item) => item.key === assessmentKey);
+    const resultB = b.results.find((item) => item.key === assessmentKey);
+    const order = (result: GradebookResult | undefined) =>
+      result?.status === "graded" ? 0 : result?.status === "missing" ? 1 : 2;
+    const difference = order(resultA) - order(resultB);
+    if (assessmentKey && difference) return difference;
+    if (assessmentKey && resultA?.rank != null && resultB?.rank != null && resultA.rank !== resultB.rank) {
+      return resultA.rank - resultB.rank;
+    }
+    return a.name.localeCompare(b.name, "zh") || a.userId - b.userId;
+  });
 }
