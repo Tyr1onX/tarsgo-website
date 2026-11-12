@@ -19,23 +19,28 @@ const LEVELS = [
   "3 · 可独立完成", "4 · 熟练可靠", "5 · 可带人或攻坚",
 ];
 
-function Radar({ names, scores }: { names: string[]; scores: number[] }) {
+function Radar({ names, scores }: { names: string[]; scores: (number | null)[] }) {
   const point = (index: number, radius: number) => {
     const angle = 2 * Math.PI * index / names.length - Math.PI / 2;
     return [160 + Math.cos(angle) * radius, 160 + Math.sin(angle) * radius] as const;
   };
   const points = (radius: number) => names.map((_, i) => point(i, radius).join(",")).join(" ");
-  const results = names.map((_, i) => point(i, 98 * scores[i] / 5).join(",")).join(" ");
+  const complete = scores.every((score) => score !== null);
+  const results = names.map((_, i) => point(i, 98 * (scores[i] ?? 0) / 5).join(",")).join(" ");
   return (
-    <svg className="mx-auto block h-auto w-full max-w-[400px]" viewBox="0 0 320 320" role="img" aria-label={`能力雷达：${names.map((name, i) => `${name} ${scores[i]} 分`).join("，")}`}>
+    <svg className="mx-auto block h-auto w-full max-w-[400px]" viewBox="0 0 320 320" role="img" aria-label={`能力雷达：${names.map((name, i) => `${name} ${scores[i] === null ? "未评价" : `${scores[i]} 分`}`).join("，")}`}>
       {Array.from({ length: 5 }, (_, i) => <polygon key={i} points={points(98 * (i + 1) / 5)} fill="none" stroke="var(--admin-border-subtle, #d1d5db)" strokeWidth="1" />)}
       {names.map((name, i) => {
         const [x, y] = point(i, 98);
         const [tx, ty] = point(i, 129);
         return <g key={name}><line x1="160" y1="160" x2={x} y2={y} stroke="var(--admin-border-subtle, #d1d5db)" /><text x={tx} y={ty} fontSize="10" textAnchor="middle" dominantBaseline="middle" fill="currentColor">{name.length > 8 ? name.slice(0, 8) + "…" : name}</text></g>;
       })}
-      <polygon points={results} fill="rgba(220,38,38,0.13)" stroke="#dc2626" strokeWidth="2" />
-      {names.map((name, i) => { const [x, y] = point(i, 98 * scores[i] / 5); return <circle key={name} cx={x} cy={y} r="3" fill="#dc2626" />; })}
+      {complete ? <polygon points={results} fill="rgba(220,38,38,0.13)" stroke="#dc2626" strokeWidth="2" /> : null}
+      {names.map((name, i) => {
+        if (scores[i] === null) return null;
+        const [x, y] = point(i, 98 * scores[i]! / 5);
+        return <circle key={name} cx={x} cy={y} r="4" fill="#dc2626" />;
+      })}
     </svg>
   );
 }
@@ -79,6 +84,7 @@ export default function TrainingAssessmentRoute() {
   const memberOptions = matchingMembers.some((member) => member.userId === selectedMemberId) ? matchingMembers : members.filter((member) => member.userId === selectedMemberId).concat(matchingMembers);
   const dimensions = snapshot?.dimensions ?? [];
   const memberGrades = useMemo(() => snapshot?.grades.filter((grade) => grade.userId === selectedMemberId) ?? [], [snapshot, selectedMemberId]);
+  const memberAssignmentGrades = useMemo(() => snapshot?.assignmentGrades.filter((grade) => grade.userId === selectedMemberId) ?? [], [snapshot, selectedMemberId]);
 
   useEffect(() => {
     const ratings: Record<number, CapabilityRatingInput> = {};
@@ -91,7 +97,8 @@ export default function TrainingAssessmentRoute() {
 
   const gradePreview = useMemo(() => parseTrainingGradeText(rawGrades), [rawGrades]);
   const numericCount = gradePreview.rows.filter((row) => row.score !== null).length;
-  const radarReady = dimensions.length >= 3 && dimensions.every((dimension) => draftRatings[dimension.id]?.score !== null && draftRatings[dimension.id]?.score !== undefined);
+  const radarScores = dimensions.map((dimension) => draftRatings[dimension.id]?.score ?? null);
+  const radarReady = dimensions.length >= 3 && radarScores.some((score) => score !== null);
 
   async function refresh() {
     setSnapshot(await trainingAssessmentClient.snapshot(groupId));
@@ -186,12 +193,18 @@ export default function TrainingAssessmentRoute() {
               </select>
             </label>
             {memberQuery.trim() && !matchingMembers.length ? <p className="mt-2 text-sm text-[var(--admin-muted)]">没有匹配的成员</p> : null}
-            {memberGrades.length ? <ul className="mt-3 space-y-2">{memberGrades.map((grade) =>
-              <li key={grade.id} className="flex flex-wrap gap-3 text-sm">
+            {memberGrades.length || memberAssignmentGrades.length ? <ul className="mt-3 space-y-2">
+              {memberGrades.map((grade) => <li key={`import-${grade.id}`} className="flex flex-wrap gap-3 text-sm">
                 <span className="font-medium">{grade.assessmentName}</span>
                 <span>{grade.score === null ? "未评分" : `${grade.score}/100`}</span>
                 {grade.note ? <span className="text-[var(--admin-muted)]">{grade.note}</span> : null}
-              </li>)}</ul> : <p className="mt-3 text-sm text-[var(--admin-muted)]">暂无培训成绩</p>}
+              </li>)}
+              {memberAssignmentGrades.map((grade) => <li key={`assignment-${grade.assignmentId}`} className="flex flex-wrap gap-3 text-sm">
+                <span className="font-medium">{grade.assessmentName}</span>
+                <span>{grade.score}/100</span>
+                <span className="text-[var(--admin-muted)]">站内批改 · {grade.decision === "passed" ? "通过" : "退回重做"}</span>
+              </li>)}
+            </ul> : <p className="mt-3 text-sm text-[var(--admin-muted)]">暂无培训成绩</p>}
           </div>
         </section>
         <section className="admin-panel space-y-4 p-5">
@@ -201,7 +214,7 @@ export default function TrainingAssessmentRoute() {
             <button type="submit" className="admin-button admin-button--secondary" disabled={busy || !dimensionName.trim() || dimensions.length >= 8}>添加维度</button>
           </form>
           {dimensions.length === 0 ? <p className="text-sm text-[var(--admin-muted)]">尚未配置能力维度</p> : <>
-            {radarReady ? <Radar names={dimensions.map((item) => item.name)} scores={dimensions.map((item) => draftRatings[item.id]!.score!)} /> : <p className="text-sm text-[var(--admin-muted)]">完成至少 3 个维度的评价后显示雷达图，未评价不等于 0 分。</p>}
+            {radarReady ? <Radar names={dimensions.map((item) => item.name)} scores={radarScores} /> : <p className="text-sm text-[var(--admin-muted)]">至少配置 3 个维度并评价 1 项后显示雷达图。</p>}
             <form className="space-y-3" onSubmit={(event) => void saveRatings(event)}>
               {dimensions.map((dimension) => <div key={dimension.id} className="grid gap-2 border-t border-[var(--admin-border-subtle)] pt-3 md:grid-cols-[minmax(0,1fr)_10rem_1.5fr_auto] md:items-center">
                 <label className="font-medium text-sm" htmlFor={`capability-${dimension.id}`}>{dimension.name}</label>
