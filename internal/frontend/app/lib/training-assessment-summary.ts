@@ -41,6 +41,42 @@ export function summarizeTrainingScores(snapshot: TrainingSnapshot): TrainingSco
   }));
 }
 
+export const MECHANICAL_TRAINING_GROUP_ID = 4;
+
+// Mapping to the actual training records. A dimension score is a percentage,
+// not an independently verified proficiency level.
+const MECHANICAL_SKILL_SOURCES = [
+  { name: "SolidWorks", assessments: [
+    { kind: "training", key: "第一次培训作业", label: "第一次培训作业" },
+    { kind: "training", key: "第二次装配体作业", label: "第二次装配体作业" },
+  ] },
+  { name: "零件设计", assessments: [
+    { kind: "assignment", key: 8, label: "第三次作业" },
+  ] },
+  { name: "轴系设计", assessments: [
+    { kind: "assignment", key: 16, label: "轴系设计作业" },
+  ] },
+] as const;
+
+export function mechanicalTrainingSkills(snapshot: TrainingSnapshot, userId: number) {
+  return MECHANICAL_SKILL_SOURCES.map((dimension) => {
+    const sources = dimension.assessments.map((assessment) => {
+      const grade = assessment.kind === "training"
+        ? snapshot.grades.find((item) => item.userId === userId && item.assessmentName === assessment.key)
+        : snapshot.assignmentGrades.find((item) => item.userId === userId && item.assignmentId === assessment.key);
+      return { name: assessment.label, score: grade?.score ?? null, recorded: grade !== undefined };
+    });
+    const scores = sources.flatMap((source) => source.score === null ? [] : [source.score]);
+    return {
+      name: dimension.name,
+      score: scores.length ? Math.round(scores.reduce((total, score) => total + score, 0) / scores.length * 10) / 10 : null,
+      graded: scores.length,
+      total: sources.length,
+      sources,
+    };
+  });
+}
+
 export interface RankedTrainingMember {
   userId: number;
   name: string;

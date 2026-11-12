@@ -8,7 +8,7 @@ import {
   trainingAssessmentClient,
   type CapabilityRatingInput, type TrainingSnapshot,
 } from "~/lib/training-assessment-client";
-import { rankTrainingAssessment, summarizeTrainingScores, trainingScoreDistribution } from "~/lib/training-assessment-summary";
+import { MECHANICAL_TRAINING_GROUP_ID, mechanicalTrainingSkills, rankTrainingAssessment, summarizeTrainingScores, trainingScoreDistribution } from "~/lib/training-assessment-summary";
 
 export function meta() {
   return [{ title: "培训成绩与能力评价 | TARSGO" }];
@@ -19,26 +19,28 @@ const LEVELS = [
   "3 · 可独立完成", "4 · 熟练可靠", "5 · 可带人或攻坚",
 ];
 
-function Radar({ names, scores }: { names: string[]; scores: (number | null)[] }) {
+function Radar({ names, scores, maxScore = 5, label = "能力雷达" }: { names: string[]; scores: (number | null)[]; maxScore?: number; label?: string }) {
   const point = (index: number, radius: number) => {
     const angle = 2 * Math.PI * index / names.length - Math.PI / 2;
     return [160 + Math.cos(angle) * radius, 160 + Math.sin(angle) * radius] as const;
   };
   const points = (radius: number) => names.map((_, i) => point(i, radius).join(",")).join(" ");
   const complete = scores.every((score) => score !== null);
-  const results = names.map((_, i) => point(i, 98 * (scores[i] ?? 0) / 5).join(",")).join(" ");
+  const results = names.map((_, i) => point(i, 98 * (scores[i] ?? 0) / maxScore).join(",")).join(" ");
+  const evaluatedPoints = names.flatMap((_, i) => scores[i] === null ? [] : [point(i, 98 * scores[i]! / maxScore).join(",")]);
   return (
-    <svg className="mx-auto block h-auto w-full max-w-[400px]" viewBox="0 0 320 320" role="img" aria-label={`能力雷达：${names.map((name, i) => `${name} ${scores[i] === null ? "未评价" : `${scores[i]} 分`}`).join("，")}`}>
+    <svg className="mx-auto block h-auto w-full max-w-[400px]" viewBox="0 0 320 320" role="img" aria-label={`${label}：${names.map((name, i) => `${name} ${scores[i] === null ? (maxScore === 5 ? "未评价" : "无有效评分") : `${scores[i]} 分`}`).join("，")}`}>
       {Array.from({ length: 5 }, (_, i) => <polygon key={i} points={points(98 * (i + 1) / 5)} fill="none" stroke="var(--admin-border-subtle, #d1d5db)" strokeWidth="1" />)}
       {names.map((name, i) => {
         const [x, y] = point(i, 98);
         const [tx, ty] = point(i, 129);
         return <g key={name}><line x1="160" y1="160" x2={x} y2={y} stroke="var(--admin-border-subtle, #d1d5db)" /><text x={tx} y={ty} fontSize="10" textAnchor="middle" dominantBaseline="middle" fill="currentColor">{name.length > 8 ? name.slice(0, 8) + "…" : name}</text></g>;
       })}
-      {complete ? <polygon points={results} fill="rgba(220,38,38,0.13)" stroke="#dc2626" strokeWidth="2" /> : null}
+      {complete ? <polygon points={results} fill="rgba(220,38,38,0.13)" stroke="#dc2626" strokeWidth="2" /> :
+        evaluatedPoints.length > 1 ? <polyline points={evaluatedPoints.join(" ")} fill="none" stroke="#dc2626" strokeWidth="2" /> : null}
       {names.map((name, i) => {
         if (scores[i] === null) return null;
-        const [x, y] = point(i, 98 * scores[i]! / 5);
+        const [x, y] = point(i, 98 * scores[i]! / maxScore);
         return <circle key={name} cx={x} cy={y} r="4" fill="#dc2626" />;
       })}
     </svg>
@@ -141,6 +143,8 @@ export default function TrainingAssessmentRoute() {
   ));
   const radarScores = savedRatings.map((rating) => rating?.score ?? null);
   const radarReady = dimensions.length >= 3 && radarScores.some((score) => score !== null);
+  const trainingSkills = useMemo(() => groupId === MECHANICAL_TRAINING_GROUP_ID && snapshot && selectedMemberId
+    ? mechanicalTrainingSkills(snapshot, selectedMemberId) : [], [groupId, snapshot, selectedMemberId]);
 
   async function refresh() {
     setSnapshot(await trainingAssessmentClient.snapshot(groupId));
@@ -205,7 +209,7 @@ export default function TrainingAssessmentRoute() {
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-lg font-semibold">考核概览</h2>
             {summaries.length ? <span className="text-sm text-[var(--admin-muted)]">
-              有记录成员 {scoredMembers} 人 · 已评能力 {ratedMemberCount} 人{missingCount ? ` · 待核实 ${missingCount} 条` : ""}
+              有记录成员 {scoredMembers} 人{groupId === MECHANICAL_TRAINING_GROUP_ID ? "" : ` · 已评能力 ${ratedMemberCount} 人`}{missingCount ? ` · 待核实 ${missingCount} 条` : ""}
             </span> : null}
           </div>
           {summaries.length ? <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
@@ -303,6 +307,27 @@ export default function TrainingAssessmentRoute() {
                   {selectedAssessment.average !== null ? <p className="mt-1 text-xs text-[var(--admin-muted)]">本次平均 {selectedAssessment.average}</p> : null}
                 </div>
               </div> : null}
+              {trainingSkills.length ? <section className="space-y-3 border-t border-[var(--admin-border-subtle)] pt-4" aria-label="能力雷达（作业成绩）">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <h3 className="font-semibold">能力雷达</h3>
+                    <span className="text-xs text-[var(--admin-muted)]">作业成绩 · 百分制</span>
+                  </div>
+                  <Radar names={trainingSkills.map((skill) => skill.name)} scores={trainingSkills.map((skill) => skill.score)}
+                    maxScore={100} label="能力雷达（作业成绩）" />
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    {trainingSkills.map((skill) => <article key={skill.name} className="rounded-lg border border-[var(--admin-border-subtle)] p-3">
+                      <h4 className="text-sm font-semibold">{skill.name}</h4>
+                      <strong className="mt-2 block text-xl tabular-nums">{skill.score === null ? "—" : `${skill.score}/100`}</strong>
+                      <p className="mt-1 text-xs text-[var(--admin-muted)]">已评分 {skill.graded}/{skill.total}</p>
+                      <ul className="mt-3 space-y-1 border-t border-[var(--admin-border-subtle)] pt-2 text-xs">
+                        {skill.sources.map((source) => <li key={source.name} className="flex flex-wrap justify-between gap-x-2 gap-y-1">
+                          <span className="text-[var(--admin-muted)]">{source.name}</span>
+                          <span className="tabular-nums">{source.score !== null ? `${source.score} 分` : source.recorded ? "成绩缺失" : "暂无评分"}</span>
+                        </li>)}
+                      </ul>
+                    </article>)}
+                  </div>
+                </section> : null}
               <div className="space-y-3">
                 <h3 className="font-semibold">历次成绩</h3>
                 {memberGrades.length || memberAssignmentGrades.length ? <ul className="grid gap-3">
@@ -312,9 +337,11 @@ export default function TrainingAssessmentRoute() {
                 </ul> : <p className="text-sm text-[var(--admin-muted)]">暂无成绩记录</p>}
               </div>
               <div className="space-y-3 border-t border-[var(--admin-border-subtle)] pt-4">
-                <h3 className="font-semibold">能力评价</h3>
-                {radarReady ? <Radar names={dimensions.map((dimension) => dimension.name)} scores={radarScores} /> :
-                  <p className="text-sm text-[var(--admin-muted)]">{dimensions.length < 3 ? "能力维度不足 3 项" : "暂无能力评价"}</p>}
+                {dimensions.length || !trainingSkills.length ? <>
+                  <h3 className="font-semibold">{trainingSkills.length ? "人工能力评价" : "能力评价"}</h3>
+                  {radarReady ? <Radar names={dimensions.map((dimension) => dimension.name)} scores={radarScores} /> :
+                    <p className="text-sm text-[var(--admin-muted)]">{dimensions.length < 3 ? "能力维度不足 3 项" : "暂无能力评价"}</p>}
+                </> : null}
                 {dimensions.length ? <div className="grid gap-2 sm:grid-cols-2">
                   {dimensions.map((dimension, index) => <div key={dimension.id} className="rounded-lg border border-[var(--admin-border-subtle)] p-3">
                     <div className="flex items-center justify-between gap-2 text-sm">
@@ -324,9 +351,9 @@ export default function TrainingAssessmentRoute() {
                     {savedRatings[index]?.note ? <p className="mt-1 text-xs text-[var(--admin-muted)]">{savedRatings[index]?.note}</p> : null}
                   </div>)}
                 </div> : null}
-                <details key={selectedMemberId} className="border-t border-[var(--admin-border-subtle)] pt-3">
+                {dimensions.length ? <details key={selectedMemberId} className="border-t border-[var(--admin-border-subtle)] pt-3">
                   <summary className="cursor-pointer text-sm font-medium">评价当前成员</summary>
-                  {dimensions.length ? <form className="mt-4 space-y-3" onSubmit={(event) => void saveRatings(event)}>
+                  <form className="mt-4 space-y-3" onSubmit={(event) => void saveRatings(event)}>
                     {dimensions.map((dimension) => <div key={dimension.id} className="grid gap-2 border-t border-[var(--admin-border-subtle)] pt-3 md:grid-cols-[minmax(0,1fr)_10rem_1.5fr] md:items-center">
                       <label className="text-sm font-medium" htmlFor={`capability-${dimension.id}`}>{dimension.name}</label>
                       <select className="admin-field" id={`capability-${dimension.id}`} value={draftRatings[dimension.id]?.score ?? ""} onChange={(event) => setDraftRatings((previous) => ({
@@ -341,10 +368,10 @@ export default function TrainingAssessmentRoute() {
                         }))} />
                     </div>)}
                     <button type="submit" className="admin-button admin-button--primary" disabled={busy}>保存成员评价</button>
-                  </form> : <p className="mt-3 text-sm text-[var(--admin-muted)]">尚未设置能力维度</p>}
-                </details>
+                  </form>
+                </details> : null}
                 <details key={groupId} className="border-t border-[var(--admin-border-subtle)] pt-3">
-                  <summary className="cursor-pointer text-sm font-medium">设置组内能力维度</summary>
+                  <summary className="cursor-pointer text-sm font-medium">{trainingSkills.length ? "设置人工评价维度" : "设置组内能力维度"}</summary>
                   <div className="mt-4 space-y-3">
                     <form className="flex flex-wrap gap-2" onSubmit={(event) => void addDimension(event)}>
                       <input className="admin-field min-w-40 flex-1" aria-label="新增能力维度" maxLength={100} value={dimensionName}

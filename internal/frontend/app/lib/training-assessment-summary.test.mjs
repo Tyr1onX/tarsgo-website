@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { summarizeTrainingScores, rankTrainingAssessment, trainingScoreDistribution } from "./training-assessment-summary.ts";
+import { mechanicalTrainingSkills, summarizeTrainingScores, rankTrainingAssessment, trainingScoreDistribution } from "./training-assessment-summary.ts";
 
 test("groups existing scores by assessment and distinguishes missing from zero", () => {
   const result = summarizeTrainingScores({
@@ -62,6 +62,44 @@ test("ranking uses one assessment, shares tied positions and excludes missing sc
   assert.deepEqual(rankTrainingAssessment(snapshot, "assignment:9").map(({ userId, rank }) => ({ userId, rank })), [
     { userId: 5, rank: 1 },
   ]);
+});
+
+test("mechanical radar maps the four actual assignments to three percent-based dimensions", () => {
+  const snapshot = {
+    members: [],
+    grades: [
+      { userId: 1, assessmentName: "第一次培训作业", score: 60 },
+      { userId: 1, assessmentName: "第二次装配体作业", score: 100 },
+      { userId: 2, assessmentName: "第一次培训作业", score: null },
+      { userId: 2, assessmentName: "第二次装配体作业", score: 95 },
+      { userId: 3, assessmentName: "第一次培训作业", score: 0 },
+      { userId: 3, assessmentName: "第二次装配体作业", score: null },
+      { userId: 1, assessmentName: "其他作业", score: 20 },
+    ],
+    assignmentGrades: [
+      { userId: 1, assignmentId: 8, assessmentName: "第三次作业", score: 70 },
+      { userId: 1, assignmentId: 16, assessmentName: "轴系设计作业", score: 95 },
+      { userId: 1, assignmentId: 99, assessmentName: "其他作业", score: 10 },
+    ],
+    dimensions: [], ratings: [],
+  };
+  const complete = mechanicalTrainingSkills(snapshot, 1);
+  assert.deepEqual(complete.map(({ name, score, graded, total }) => ({ name, score, graded, total })), [
+    { name: "SolidWorks", score: 80, graded: 2, total: 2 },
+    { name: "零件设计", score: 70, graded: 1, total: 1 },
+    { name: "轴系设计", score: 95, graded: 1, total: 1 },
+  ]);
+  assert.deepEqual(complete[0].sources.map((source) => source.score), [60, 100]);
+  const partial = mechanicalTrainingSkills(snapshot, 2);
+  assert.deepEqual(partial.map(({ score, graded }) => ({ score, graded })), [
+    { score: 95, graded: 1 }, { score: null, graded: 0 }, { score: null, graded: 0 },
+  ]);
+  assert.deepEqual(partial[0].sources.map(({ score, recorded }) => ({ score, recorded })), [
+    { score: null, recorded: true }, { score: 95, recorded: true },
+  ]);
+  assert.equal(mechanicalTrainingSkills(snapshot, 3)[0].score, 0);
+  assert.deepEqual(mechanicalTrainingSkills(snapshot, 4).map((skill) => skill.score), [null, null, null]);
+  assert.equal(mechanicalTrainingSkills(snapshot, 4)[1].sources[0].recorded, false);
 });
 
 test("training analysis no longer offers batch-grade imports", () => {
