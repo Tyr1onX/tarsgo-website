@@ -67,6 +67,7 @@ const ADMIN_MENU: readonly AdminMenuGroup[] = [
     children: [
       { key: "accounts", label: "账号与权限", href: "/dashboard/admin/users", allowedRoles: ["super_admin"] },
       { key: "assignment-management", label: "作业管理", href: "/dashboard/admin/training/assignments", allowedRoles: ["admin", "super_admin"], requiresAssignmentGroup: true },
+      { key: "training-assessments", label: "培训成绩与能力", href: "/dashboard/admin/training/assessments", allowedRoles: ["admin", "super_admin"], requiresAssignmentGroup: true },
     ],
   },
   {

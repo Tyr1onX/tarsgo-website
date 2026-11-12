@@ -100,6 +100,8 @@ test("assignment access follows the existing five groups for both member and adm
   assert.deepEqual(getUserDashboardMenu("user", true).map(({ key }) => key), ["users-registrations", "my-assignments"]);
   assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/training/assignments", false), false);
   assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/training/assignments", true), true);
+  assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/training/assessments", false), false);
+  assert.equal(canAccessDashboardAdminPath("admin", "/dashboard/admin/training/assessments", true), true);
   assert.equal(canAccessDashboardAdminPath("super_admin", "/dashboard/admin/training/submissions", false), true);
   assert.equal(canAccessDashboardAdminPath("user", "/dashboard/admin/training/submissions", true), false);
 });
@@ -112,7 +114,7 @@ test("management functions appear in three permission-filtered business groups",
     ["collaboration-operations", "协作与运营"],
   ]);
   assert.deepEqual(adminMenu[0]?.children.map(({ key }) => key), ["candidate-processing"]);
-  assert.deepEqual(adminMenu[1]?.children.map(({ key }) => key), ["assignment-management"]);
+  assert.deepEqual(adminMenu[1]?.children.map(({ key }) => key), ["assignment-management", "training-assessments"]);
   assert.deepEqual(adminMenu[2]?.children.map(({ key }) => key), ["leave-workbench", "timetable-availability"]);
   const restrictedAdminMenu = getVisibleAdminDashboardMenu("admin", false);
   assert.deepEqual(restrictedAdminMenu.map(({ key }) => key), ["recruitment", "collaboration-operations"]);
@@ -121,7 +123,7 @@ test("management functions appear in three permission-filtered business groups",
   const superAdminMenu = getVisibleAdminDashboardMenu("super_admin");
   assert.deepEqual(superAdminMenu.map(({ key }) => key), ["recruitment", "members-training", "collaboration-operations"]);
   assert.deepEqual(superAdminMenu[0]?.children.map(({ key }) => key), ["candidate-processing", "recruitment-management", "recruitment-analytics"]);
-  assert.deepEqual(superAdminMenu[1]?.children.map(({ key }) => key), ["accounts", "assignment-management"]);
+  assert.deepEqual(superAdminMenu[1]?.children.map(({ key }) => key), ["accounts", "assignment-management", "training-assessments"]);
   assert.deepEqual(superAdminMenu[2]?.children.map(({ key }) => key), ["leave-workbench", "timetable-availability", "email-management"]);
   assert.equal(getVisibleAdminDashboardMenu("user", true).length, 0);
 });

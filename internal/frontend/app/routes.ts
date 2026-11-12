@@ -48,6 +48,7 @@ export default [
     route("admin/leave", "routes/admin/leave-workbench.tsx"),
     route("admin/timetable-availability", "routes/admin/timetable-availability.tsx"),
     route("admin/training/assignments", "routes/admin/assignment-management.tsx"),
+    route("admin/training/assessments", "routes/admin/training-assessment.tsx"),
     route("admin/training/submissions", "routes/admin/assignment-submissions.tsx"),
   ]),
   route("*", "routes/not-found.tsx"),
