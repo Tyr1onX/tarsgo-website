@@ -120,6 +120,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	assignmentService := assignment.NewService(db)
 	feishuReviewHandler := handler.NewFeishuReviewHandler(cfg.Feishu, db, assignmentService)
 	assignmentHandler := handler.NewAssignmentHandler(assignmentService, feishuReviewHandler)
+	trainingAssessmentHandler := handler.NewTrainingAssessmentHandler(db, assignmentService)
 	communityHandler := handler.NewCommunityHandler(trainingqa.NewService(db))
 	userGroupHandler := handler.NewUserGroupHandler(usergroup.NewService(usergroup.NewRepository(db)))
 	userGroupMembershipHandler := handler.NewUserGroupMembershipHandler(membershipService)
