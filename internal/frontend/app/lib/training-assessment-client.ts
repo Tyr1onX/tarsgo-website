@@ -1,5 +1,4 @@
 import { apiRequest } from "~/lib/api-client";
-import type { TrainingGradeInput } from "~/lib/training-grade-parser";
 
 export interface TrainingMember {
   userId: number;
@@ -55,10 +54,6 @@ export interface CapabilityRatingInput {
 
 export const trainingAssessmentClient = {
   snapshot: (groupId: number) => apiRequest<TrainingSnapshot>(`/api/admin/training-assessments?groupId=${groupId}`),
-  importGrades: (groupId: number, assessmentName: string, rows: TrainingGradeInput[]) =>
-    apiRequest<{ imported: number; unmatched: string[] }>("/api/admin/training-assessments/import", {
-      method: "POST", body: { groupId, assessmentName, rows },
-    }),
   addDimension: (groupId: number, name: string) =>
     apiRequest<CapabilityDimension>("/api/admin/training-assessments/dimensions", {
       method: "POST", body: { groupId, name },

@@ -8,7 +8,7 @@ import {
   trainingAssessmentClient,
   type CapabilityRatingInput, type TrainingSnapshot,
 } from "~/lib/training-assessment-client";
-import { parseTrainingGradeText } from "~/lib/training-grade-parser";
+import { summarizeTrainingScores } from "~/lib/training-assessment-summary";
 
 export function meta() {
   return [{ title: "培训成绩与能力评价 | TARSGO" }];
@@ -45,6 +45,22 @@ function Radar({ names, scores }: { names: string[]; scores: (number | null)[] }
   );
 }
 
+function GradeRow({ name, score, note, detail }: { name: string; score: number | null; note?: string; detail?: string }) {
+  return <li className="rounded-xl border border-[var(--admin-border-subtle)] p-4">
+    <div className="flex items-start justify-between gap-3">
+      <div className="min-w-0">
+        <span className="block text-sm font-semibold text-[var(--admin-text)]">{name}</span>
+        {detail ? <span className="text-xs text-[var(--admin-muted)]">{detail}</span> : null}
+      </div>
+      <strong className="shrink-0 text-lg tabular-nums text-[var(--admin-text)]">{score === null ? "成绩缺失" : score + "/100"}</strong>
+    </div>
+    {score !== null ? <div className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--admin-surface-subtle)]" role="meter" aria-label={name + "成绩"} aria-valuemin={0} aria-valuemax={100} aria-valuenow={score}>
+      <div className="h-full rounded-full bg-[var(--admin-accent-text)]" style={{ width: score + "%" }} />
+    </div> : null}
+    {note ? <p className="mt-3 text-sm text-[var(--admin-muted)]">{note}</p> : null}
+  </li>;
+}
+
 export default function TrainingAssessmentRoute() {
   const { currentUser, groupResolution } = useOutletContext<DashboardLayoutOutletContext>();
   const { assignmentGroups, loading: groupsLoading, error: groupsError } = useAssignmentGroups(currentUser.id, currentUser.role.name, groupResolution?.groups);
@@ -54,8 +70,6 @@ export default function TrainingAssessmentRoute() {
   const [memberId, setMemberId] = useState(0);
   const [memberQuery, setMemberQuery] = useState("");
   const [draftRatings, setDraftRatings] = useState<Record<number, CapabilityRatingInput>>({});
-  const [assessmentName, setAssessmentName] = useState("第一次培训作业");
-  const [rawGrades, setRawGrades] = useState("");
   const [dimensionName, setDimensionName] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -95,26 +109,15 @@ export default function TrainingAssessmentRoute() {
     setDraftRatings(ratings);
   }, [snapshot, selectedMemberId]);
 
-  const gradePreview = useMemo(() => parseTrainingGradeText(rawGrades), [rawGrades]);
-  const numericCount = gradePreview.rows.filter((row) => row.score !== null).length;
-  const radarScores = dimensions.map((dimension) => draftRatings[dimension.id]?.score ?? null);
+  const summaries = useMemo(() => snapshot ? summarizeTrainingScores(snapshot) : [], [snapshot]);
+  const savedRatings = dimensions.map((dimension) => snapshot?.ratings.find((rating) =>
+    rating.userId === selectedMemberId && rating.dimensionId === dimension.id,
+  ));
+  const radarScores = savedRatings.map((rating) => rating?.score ?? null);
   const radarReady = dimensions.length >= 3 && radarScores.some((score) => score !== null);
 
   async function refresh() {
     setSnapshot(await trainingAssessmentClient.snapshot(groupId));
-  }
-
-  async function importGrades(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!gradePreview.rows.length || gradePreview.errors.length || !assessmentName.trim()) return;
-    setBusy(true); setError(""); setNotice("");
-    try {
-      const result = await trainingAssessmentClient.importGrades(groupId, assessmentName.trim(), gradePreview.rows);
-      await refresh();
-      setNotice(`已同步 ${result.imported} 条；${result.unmatched.length ? `未匹配 ${result.unmatched.length} 名：${result.unmatched.join("、")}` : "全部匹配"}`);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "成绩同步失败");
-    } finally { setBusy(false); }
   }
 
   async function addDimension(event: FormEvent<HTMLFormElement>) {
@@ -174,64 +177,78 @@ export default function TrainingAssessmentRoute() {
       {snapshot ? <>
         <section className="admin-panel space-y-4 p-5">
           <h2 className="text-lg font-semibold">培训成绩</h2>
-          <form className="space-y-3" onSubmit={(event) => void importGrades(event)}>
-            <label className="admin-field-label block">作业名称
-              <input className="admin-field w-full" value={assessmentName} maxLength={120} onChange={(event) => setAssessmentName(event.target.value)} required />
-            </label>
-            <label className="admin-field-label block">批量成绩（每行：姓名 分数或备注）
-              <textarea className="admin-field w-full" rows={5} value={rawGrades} onChange={(event) => setRawGrades(event.target.value)} placeholder={"张三 80\n李四 未来版本？\n王五"} />
-            </label>
-            {rawGrades.trim() ? <p className="text-sm text-[var(--admin-muted)]">待匹配 {gradePreview.rows.length} 人，其中有分数 {numericCount} 人、待核实 {gradePreview.rows.length - numericCount} 人</p> : null}
-            {gradePreview.errors.map((item) => <p key={item} className="text-sm text-[var(--admin-danger)]">{item}</p>)}
-            <button className="admin-button admin-button--primary" type="submit" disabled={busy || !gradePreview.rows.length || !!gradePreview.errors.length}>同步成绩</button>
-          </form>
-          <div className="border-t border-[var(--admin-border-subtle)] pt-4">
-            {members.length > 8 ? <input type="search" className="admin-field mb-2 w-full max-w-xs" aria-label="搜索成员姓名或编号" placeholder="搜索成员" value={memberQuery} onChange={(event) => setMemberQuery(event.target.value)} /> : null}
-            <label className="admin-field-label">选择成员
-              <select className="admin-field w-full max-w-xs" value={selectedMemberId} onChange={(event) => { setMemberId(Number(event.target.value)); setMemberQuery(""); }}>
+          {summaries.length ? <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {summaries.map((item) => <article key={item.key} className="rounded-xl border border-[var(--admin-border-subtle)] p-4">
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <h3 className="text-sm font-semibold text-[var(--admin-text)]">{item.name}</h3>
+                {item.source === "assignment" ? <span className="text-xs text-[var(--admin-muted)]">站内作业</span> : null}
+              </div>
+              <div className="mt-4 flex items-baseline justify-between gap-2">
+                <span className="text-sm text-[var(--admin-muted)]">平均分</span>
+                <strong className="text-2xl tabular-nums text-[var(--admin-text)]">{item.average === null ? "—" : item.average}</strong>
+              </div>
+              {item.average !== null ? <div className="mt-2 h-2 overflow-hidden rounded-full bg-[var(--admin-surface-subtle)]" role="meter" aria-label={item.name + "平均分"} aria-valuemin={0} aria-valuemax={100} aria-valuenow={item.average}>
+                <div className="h-full rounded-full bg-[var(--admin-accent-text)]" style={{ width: item.average + "%" }} />
+              </div> : null}
+              <p className="mt-3 text-sm text-[var(--admin-muted)]">{item.source === "assignment" ? "已批改 " + item.scored + " 条" : <>已评分 {item.scored} / {item.total} 条{item.missing ? " · 缺失 " + item.missing : ""}</>}</p>
+            </article>)}
+          </div> : <p className="text-sm text-[var(--admin-muted)]">暂无培训成绩</p>}
+        </section>
+        <section className="admin-panel space-y-4 p-5">
+          <h2 className="text-lg font-semibold">成员成绩</h2>
+          {members.length ? <>
+            {members.length > 8 ? <input type="search" className="admin-field w-full max-w-xs" aria-label="搜索成员姓名或编号" placeholder="搜索成员" value={memberQuery} onChange={(event) => setMemberQuery(event.target.value)} /> : null}
+            <label className="admin-field-label block max-w-xs">选择成员
+              <select className="admin-field w-full" value={selectedMemberId} onChange={(event) => { setMemberId(Number(event.target.value)); setMemberQuery(""); }}>
                 {memberOptions.map((member) => <option key={member.userId} value={member.userId}>{member.name}</option>)}
               </select>
             </label>
-            {memberQuery.trim() && !matchingMembers.length ? <p className="mt-2 text-sm text-[var(--admin-muted)]">没有匹配的成员</p> : null}
-            {memberGrades.length || memberAssignmentGrades.length ? <ul className="mt-3 space-y-2">
-              {memberGrades.map((grade) => <li key={`import-${grade.id}`} className="flex flex-wrap gap-3 text-sm">
-                <span className="font-medium">{grade.assessmentName}</span>
-                <span>{grade.score === null ? "未评分" : `${grade.score}/100`}</span>
-                {grade.note ? <span className="text-[var(--admin-muted)]">{grade.note}</span> : null}
-              </li>)}
-              {memberAssignmentGrades.map((grade) => <li key={`assignment-${grade.assignmentId}`} className="flex flex-wrap gap-3 text-sm">
-                <span className="font-medium">{grade.assessmentName}</span>
-                <span>{grade.score}/100</span>
-                <span className="text-[var(--admin-muted)]">站内批改 · {grade.decision === "passed" ? "通过" : "退回重做"}</span>
-              </li>)}
-            </ul> : <p className="mt-3 text-sm text-[var(--admin-muted)]">暂无培训成绩</p>}
-          </div>
+            {memberQuery.trim() && !matchingMembers.length ? <p className="text-sm text-[var(--admin-muted)]">没有匹配的成员</p> : null}
+            {memberGrades.length || memberAssignmentGrades.length ? <ul className="grid gap-3 lg:grid-cols-2">
+              {memberGrades.map((grade) => <GradeRow key={"training-" + grade.id} name={grade.assessmentName} score={grade.score} note={grade.note} />)}
+              {memberAssignmentGrades.map((grade) => <GradeRow key={"assignment-" + grade.assignmentId} name={grade.assessmentName} score={grade.score}
+                detail={"站内批改 · " + (grade.decision === "passed" ? "通过" : "退回重做")} />)}
+            </ul> : <p className="text-sm text-[var(--admin-muted)]">该成员暂无成绩记录</p>}
+          </> : <p className="text-sm text-[var(--admin-muted)]">暂无成员</p>}
         </section>
         <section className="admin-panel space-y-4 p-5">
           <h2 className="text-lg font-semibold">能力雷达</h2>
-          <form className="flex flex-wrap gap-2" onSubmit={(event) => void addDimension(event)}>
-            <input className="admin-field min-w-40 flex-1" aria-label="新增能力维度" placeholder="能力维度，例如 CAD 建模" maxLength={100} value={dimensionName} onChange={(event) => setDimensionName(event.target.value)} disabled={busy || dimensions.length >= 8} />
-            <button type="submit" className="admin-button admin-button--secondary" disabled={busy || !dimensionName.trim() || dimensions.length >= 8}>添加维度</button>
-          </form>
-          {dimensions.length === 0 ? <p className="text-sm text-[var(--admin-muted)]">尚未配置能力维度</p> : <>
-            {radarReady ? <Radar names={dimensions.map((item) => item.name)} scores={radarScores} /> : <p className="text-sm text-[var(--admin-muted)]">至少配置 3 个维度并评价 1 项后显示雷达图。</p>}
-            <form className="space-y-3" onSubmit={(event) => void saveRatings(event)}>
-              {dimensions.map((dimension) => <div key={dimension.id} className="grid gap-2 border-t border-[var(--admin-border-subtle)] pt-3 md:grid-cols-[minmax(0,1fr)_10rem_1.5fr_auto] md:items-center">
-                <label className="font-medium text-sm" htmlFor={`capability-${dimension.id}`}>{dimension.name}</label>
-                <select className="admin-field" id={`capability-${dimension.id}`} value={draftRatings[dimension.id]?.score ?? ""} onChange={(event) => setDraftRatings((previous) => ({
-                  ...previous, [dimension.id]: { dimensionId: dimension.id, score: event.target.value === "" ? null : Number(event.target.value), note: previous[dimension.id]?.note ?? "" },
-                }))}>
-                  <option value="">未评价</option>
-                  {LEVELS.map((label, level) => <option key={level} value={level}>{label}</option>)}
-                </select>
-                <input className="admin-field" aria-label={`${dimension.name}评价依据`} maxLength={500} placeholder="评价依据" value={draftRatings[dimension.id]?.note ?? ""} onChange={(event) => setDraftRatings((previous) => ({
-                  ...previous, [dimension.id]: { dimensionId: dimension.id, score: previous[dimension.id]?.score ?? null, note: event.target.value },
-                }))} />
-                <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={busy} onClick={() => void deleteDimension(dimension.id, dimension.name)}>删除</button>
-              </div>)}
-              <button type="submit" className="admin-button admin-button--primary" disabled={busy || !selectedMemberId}>保存该成员评价</button>
-            </form>
-          </>}
+          {radarReady ? <Radar names={dimensions.map((item) => item.name)} scores={radarScores} /> :
+            <p className="text-sm text-[var(--admin-muted)]">{dimensions.length < 3 ? "能力维度不足 3 项" : "暂无能力评价"}</p>}
+          {dimensions.length ? <div className="grid gap-2 md:grid-cols-2">
+            {dimensions.map((dimension, index) => <div key={dimension.id} className="rounded-lg border border-[var(--admin-border-subtle)] p-3">
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-sm font-medium">{dimension.name}</span>
+                <strong className="tabular-nums">{radarScores[index] === null ? "未评价" : radarScores[index] + "/5"}</strong>
+              </div>
+              {savedRatings[index]?.note ? <p className="mt-1 text-xs text-[var(--admin-muted)]">{savedRatings[index]?.note}</p> : null}
+            </div>)}
+          </div> : null}
+          <details className="border-t border-[var(--admin-border-subtle)] pt-4">
+            <summary className="cursor-pointer text-sm font-medium text-[var(--admin-text)]">维护能力评价</summary>
+            <div className="mt-4 space-y-4">
+              <form className="flex flex-wrap gap-2" onSubmit={(event) => void addDimension(event)}>
+                <input className="admin-field min-w-40 flex-1" aria-label="新增能力维度" maxLength={100} value={dimensionName} onChange={(event) => setDimensionName(event.target.value)} disabled={busy || dimensions.length >= 8} />
+                <button type="submit" className="admin-button admin-button--secondary" disabled={busy || !dimensionName.trim() || dimensions.length >= 8}>添加维度</button>
+              </form>
+              {dimensions.length ? <form className="space-y-3" onSubmit={(event) => void saveRatings(event)}>
+                {dimensions.map((dimension) => <div key={dimension.id} className="grid gap-2 border-t border-[var(--admin-border-subtle)] pt-3 md:grid-cols-[minmax(0,1fr)_10rem_1.5fr_auto] md:items-center">
+                  <label className="font-medium text-sm" htmlFor={"capability-" + dimension.id}>{dimension.name}</label>
+                  <select className="admin-field" id={"capability-" + dimension.id} value={draftRatings[dimension.id]?.score ?? ""} onChange={(event) => setDraftRatings((previous) => ({
+                    ...previous, [dimension.id]: { dimensionId: dimension.id, score: event.target.value === "" ? null : Number(event.target.value), note: previous[dimension.id]?.note ?? "" },
+                  }))}>
+                    <option value="">未评价</option>
+                    {LEVELS.map((label, level) => <option key={level} value={level}>{label}</option>)}
+                  </select>
+                  <input className="admin-field" aria-label={dimension.name + "评价依据"} maxLength={500} placeholder="评价依据" value={draftRatings[dimension.id]?.note ?? ""} onChange={(event) => setDraftRatings((previous) => ({
+                    ...previous, [dimension.id]: { dimensionId: dimension.id, score: previous[dimension.id]?.score ?? null, note: event.target.value },
+                  }))} />
+                  <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={busy} onClick={() => void deleteDimension(dimension.id, dimension.name)}>删除</button>
+                </div>)}
+                <button type="submit" className="admin-button admin-button--primary" disabled={busy || !selectedMemberId}>保存该成员评价</button>
+              </form> : null}
+            </div>
+          </details>
         </section>
       </> : null}
     </main>
