@@ -736,6 +736,9 @@ function FieldRow({
   existingUpload,
   fileUploadStatus,
   onChange,
+  onBlur,
+  error,
+  markOnlyOptional,
   onRetry,
 }: {
   index: number;
@@ -744,28 +747,24 @@ function FieldRow({
   existingUpload: unknown;
   fileUploadStatus: FileUploadStatus;
   onChange: (key: string, value: unknown) => void;
+  onBlur: (key: string) => void;
+  error: string;
+  markOnlyOptional: boolean;
   onRetry: () => void;
 }) {
   const fieldId = `field-${field.key}`;
   return (
-    <div className="space-y-2.5">
+    <div id={`field-row-${field.key}`} className="space-y-2.5" onBlur={isFileField(field.type) ? undefined : (event) => {
+      if (!event.currentTarget.contains(event.relatedTarget as Node | null)) onBlur(field.key);
+    }}>
       <div className="flex flex-wrap items-center gap-2">
         <span className="inline-flex h-5 w-5 items-center justify-center rounded-md bg-[var(--admin-hover-overlay)] text-[11px] font-mono text-fg-dim ring-1 ring-inset ring-[var(--admin-border-subtle)]">
           {index}
         </span>
-        <label
-          htmlFor={fieldId}
-          className="text-sm font-medium text-fg-primary"
-        >
-          {field.label}
-        </label>
-        {field.required ? (
-          <span className="candidate-required">
-            必填
-          </span>
-        ) : (
-          <span className="text-[11px] text-fg-dim">选填</span>
-        )}
+        <label id={`${fieldId}-label`} htmlFor={fieldId} className="text-sm font-medium text-fg-primary">{field.label}</label>
+        {markOnlyOptional
+          ? (!field.required ? <span className="text-[11px] text-fg-dim">选填</span> : null)
+          : (field.required ? <span className="candidate-required" aria-label="必填">*</span> : null)}
       </div>
       {field.description ? (
         <p className="text-xs leading-5 text-fg-dim">{field.description}</p>
@@ -773,7 +772,8 @@ function FieldRow({
       {isFileField(field.type) ? (
         <ExistingUploadState field={field} value={existingUpload} />
       ) : null}
-      {renderFieldControl(fieldId, field, value, onChange, fileUploadStatus, onRetry)}
+      {renderFieldControl(fieldId, field, value, onChange, fileUploadStatus, onRetry, error)}
+      {error && !isFileField(field.type) ? <p id={`${fieldId}-error`} className="text-xs text-[var(--admin-danger)]" role="alert">{error}</p> : null}
     </div>
   );
 }
@@ -1304,6 +1304,7 @@ function renderFieldControl(
   onChange: (key: string, value: unknown) => void,
   fileUploadStatus: FileUploadStatus,
   onRetry: () => void,
+  error: string,
 ) {
   const commonClassName =
     "admin-field candidate-field";
@@ -1317,18 +1318,22 @@ function renderFieldControl(
         onChange={(event) => onChange(field.key, event.target.value)}
         placeholder={field.placeholder}
         className={`${commonClassName} resize-y leading-6`}
+        aria-invalid={Boolean(error)}
+        aria-describedby={error ? `${fieldId}-error` : undefined}
       />
     );
   }
 
   if (isOptionField(field.type)) {
-    if (field.type === "select" || field.type === "user_group_select") {
+    if (field.type === "user_group_select" || (field.type === "select" && ((field.options?.length ?? 0) === 0 || (field.options?.length ?? 0) > 4))) {
       return (
         <select
           id={fieldId}
           value={typeof value === "string" ? value : ""}
           onChange={(event) => onChange(field.key, event.target.value)}
           className={`${commonClassName} cursor-pointer`}
+          aria-invalid={Boolean(error)}
+          aria-describedby={error ? `${fieldId}-error` : undefined}
         >
           <option value="">请选择</option>
           {field.options?.map((option) => (
@@ -1340,9 +1345,9 @@ function renderFieldControl(
       );
     }
 
-    if (field.type === "radio") {
+    if (field.type === "radio" || field.type === "select") {
       return (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap gap-2" role="radiogroup" aria-labelledby={`${fieldId}-label`} aria-invalid={Boolean(error)} aria-describedby={error ? `${fieldId}-error` : undefined}>
           {field.options?.map((option) => {
             const checked = value === option.value;
             return (
@@ -1381,7 +1386,7 @@ function renderFieldControl(
       : [];
 
     return (
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2" role="group" aria-labelledby={`${fieldId}-label`} aria-invalid={Boolean(error)} aria-describedby={error ? `${fieldId}-error` : undefined}>
         {field.options?.map((option) => {
           const checked = selectedValues.includes(option.value);
           return (
@@ -1437,7 +1442,7 @@ function renderFieldControl(
       : isImage ? "image/*" : undefined;
     const maxSizeMB = positiveConfigNumber(fileConfig.max_size_mb);
     const maxCount = isImage ? positiveConfigNumber(fileConfig.max_count) : null;
-    const hint = [isImage ? "图片" : "单个文件", maxSizeMB ? `最大 ${maxSizeMB} MB` : "", maxCount ? `最多 ${maxCount} 张` : ""].filter(Boolean).join(" · ");
+    const hint = [isImage ? "图片" : "单个文件", allowedTypes.length ? `格式：${allowedTypes.join("、")}` : "", maxSizeMB ? `最大 ${maxSizeMB} MB` : "", maxCount ? `最多 ${maxCount} 张` : ""].filter(Boolean).join(" · ");
     return (
       <FileUploadField
         label={field.label}
@@ -1452,6 +1457,7 @@ function renderFieldControl(
         onRetry={onRetry}
         triggerLabel={selectedFiles.length ? "继续添加" : isImage ? "选择图片" : "选择文件"}
         hint={hint}
+        error={error || undefined}
         validateSelection={(nextFiles, incomingFiles) => {
           if (!isImage && nextFiles.length > 1) return "单个文件字段只能选择一个文件。";
           if (maxCount && nextFiles.length > maxCount) return `最多上传 ${maxCount} 张图片。`;
@@ -1485,6 +1491,8 @@ function renderFieldControl(
       onChange={(event) => onChange(field.key, event.target.value)}
       placeholder={field.placeholder}
       className={commonClassName}
+      aria-invalid={Boolean(error)}
+      aria-describedby={error ? `${fieldId}-error` : undefined}
     />
   );
 }
