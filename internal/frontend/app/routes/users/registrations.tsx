@@ -35,6 +35,7 @@ import { FileUploadField, type FileUploadStatus } from "~/components/file-upload
 import {
   isFileField,
   isOptionField,
+  registrationFieldError,
 } from "~/lib/registration-form-schema";
 import type {
   RecruitmentPageData,
@@ -109,6 +110,7 @@ export default function UserRegistrations({
     [pageData.form, pageData.registrationFormData, pageData.registrationSummary?.id, pageData.registrationSummary?.updatedAt],
   );
   const [formValues, setFormValues] = useState<Record<string, unknown>>(initialFormValues);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [fileUploadStatus, setFileUploadStatus] = useState<FileUploadStatus>("pending");
   const [flash, setFlash] = useState<FlashState>(null);
   const [flashVisible, setFlashVisible] = useState(false);
@@ -137,6 +139,7 @@ export default function UserRegistrations({
 
   useEffect(() => {
     setFormValues(initialFormValues);
+    setFieldErrors({});
     setSubmitting(false);
     setCancelling(false);
   }, [initialFormValues]);
@@ -217,12 +220,32 @@ export default function UserRegistrations({
       ...current,
       [key]: value,
     }));
+    setFieldErrors((current) => current[key] ? { ...current, [key]: "" } : current);
+  }
+
+  function validateFieldOnBlur(key: string) {
+    const field = pageData.form?.fieldsSchema.find((item) => item.key === key);
+    if (!field) return;
+    setFieldErrors((current) => ({
+      ...current,
+      [key]: registrationFieldError(field, formValues[key], pageData.registrationFormData?.[key]),
+    }));
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const targetForm = pageData.form;
     if (!targetForm || pageMode !== "form") {
+      return;
+    }
+    const errors = Object.fromEntries(targetForm.fieldsSchema.map((field) => [
+      field.key, registrationFieldError(field, formValues[field.key], pageData.registrationFormData?.[field.key]),
+    ]));
+    setFieldErrors(errors);
+    const firstInvalid = targetForm.fieldsSchema.find((field) => errors[field.key]);
+    if (firstInvalid) {
+      document.getElementById(`field-row-${firstInvalid.key}`)?.scrollIntoView({ block: "center" });
+      document.getElementById(`field-${firstInvalid.key}`)?.focus();
       return;
     }
     const hasUploadFiles = Object.values(formValues).some((value) => Array.isArray(value) && value.some(isFileValue));
@@ -397,6 +420,8 @@ export default function UserRegistrations({
           formValues={formValues}
           registrationFormData={pageData.registrationFormData ?? null}
           onFieldChange={updateFieldValue}
+          onFieldBlur={validateFieldOnBlur}
+          fieldErrors={fieldErrors}
           onSubmit={handleSubmit}
           submitting={submitting}
           fileUploadStatus={fileUploadStatus}
@@ -463,6 +488,8 @@ function FormStateView({
   formValues,
   registrationFormData,
   onFieldChange,
+  onFieldBlur,
+  fieldErrors,
   onSubmit,
   submitting,
   fileUploadStatus,
@@ -472,6 +499,8 @@ function FormStateView({
   formValues: Record<string, unknown>;
   registrationFormData: Record<string, unknown> | null;
   onFieldChange: (key: string, value: unknown) => void;
+  onFieldBlur: (key: string) => void;
+  fieldErrors: Record<string, string>;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   submitting: boolean;
   fileUploadStatus: FileUploadStatus;
@@ -522,6 +551,9 @@ function FormStateView({
                 existingUpload={registrationFormData?.[field.key]}
                 fileUploadStatus={fileUploadStatus}
                 onChange={onFieldChange}
+                onBlur={onFieldBlur}
+                error={fieldErrors[field.key] ?? ""}
+                markOnlyOptional={requiredFields > totalFields / 2}
                 onRetry={() => formRef.current?.requestSubmit()}
               />
             ))}
