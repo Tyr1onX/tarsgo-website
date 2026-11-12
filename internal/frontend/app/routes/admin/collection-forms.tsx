@@ -8,6 +8,7 @@ import {
   type CollectionInput,
   type CollectionOption,
   type CollectionSubmission,
+  type CollectionUsage,
 } from "~/lib/collection-forms-client";
 
 export function meta() { return [{ title: "收集表 | TARSGO" }]; }
@@ -47,6 +48,7 @@ export default function CollectionFormsAdmin() {
   const [selected, setSelected] = useState<number | null>(null);
   const [draft, setDraft] = useState<CollectionInput>(blank);
   const [count, setCount] = useState(0);
+  const [usage, setUsage] = useState<CollectionUsage>({});
   const [records, setRecords] = useState<CollectionSubmission[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -66,6 +68,7 @@ export default function CollectionFormsAdmin() {
     setDraft(blank());
     setRecords(null);
     setCount(0);
+    setUsage({});
     setError("");
     setNotice("");
   }
@@ -82,6 +85,7 @@ export default function CollectionFormsAdmin() {
         capacity: detail.form.capacity, opensAt: detail.form.opensAt, closesAt: detail.form.closesAt,
       });
       setCount(detail.count);
+      setUsage(detail.usage);
       setSelected(id);
     } catch (err) {
       setError(errorText(err));
@@ -110,7 +114,9 @@ export default function CollectionFormsAdmin() {
     try {
       const body = { ...draft, title: draft.title.trim(), fields: draft.fields.map((field) => ({
         ...field, label: field.label.trim(),
-        options: choiceType(field.type) ? field.options?.map((item) => ({ ...item, label: item.label.trim() })) : undefined,
+        options: choiceType(field.type) ? field.options?.map((item) => ({
+          ...item, label: item.label.trim(), description: item.description?.trim(),
+        })) : undefined,
       })) };
       if (selected) {
         await collectionClient.update(selected, body);
@@ -131,10 +137,23 @@ export default function CollectionFormsAdmin() {
   async function loadRecords() {
     if (!selected) return;
     try {
-      setRecords((await collectionClient.submissions(selected)).items);
+      const [submissions, detail] = await Promise.all([collectionClient.submissions(selected), collectionClient.get(selected)]);
+      setRecords(submissions.items);
+      setCount(detail.count);
+      setUsage(detail.usage);
       setError("");
     } catch (err) {
       setError(errorText(err));
+    }
+  }
+  async function copyShareLink() {
+    if (!selected) return;
+    try {
+      await navigator.clipboard.writeText(`${window.location.origin}/forms/${selected}`);
+      setNotice("填写链接已复制");
+      setError("");
+    } catch {
+      setError("复制失败，请打开填写页复制网址");
     }
   }
   async function removeRecord(recordId: number) {
@@ -142,7 +161,9 @@ export default function CollectionFormsAdmin() {
     try {
       await collectionClient.deleteSubmission(selected, recordId);
       setRecords((current) => current?.filter((item) => item.id !== recordId) ?? []);
-      setCount((current) => current - 1);
+      const detail = await collectionClient.get(selected);
+      setCount(detail.count);
+      setUsage(detail.usage);
       await refreshList();
     } catch (err) { setError(errorText(err)); }
   }
@@ -186,8 +207,8 @@ export default function CollectionFormsAdmin() {
                   <option value="closed">关闭</option>
                 </select>
               </label>
-              <label className="grid gap-1">总名额（0 为不限）
-                <input className="admin-field" type="number" min={0} max={1000000} value={draft.capacity} onChange={(e) => change("capacity", Number(e.target.value))} />
+              <label className="grid gap-1">总名额
+                <input className="admin-field" type="number" min={0} max={1000000} placeholder="不限" value={draft.capacity || ""} onChange={(e) => change("capacity", Number(e.target.value))} />
               </label>
               <label className="grid gap-1">开始时间
                 <input className="admin-field" type="datetime-local" value={toInputTime(draft.opensAt)} onChange={(e) => change("opensAt", fromInputTime(e.target.value))} />
@@ -221,18 +242,33 @@ export default function CollectionFormsAdmin() {
                   <button disabled={locked || draft.fields.length === 1} className="admin-button admin-button--quiet" onClick={() => change("fields", draft.fields.filter((_, i) => i !== index))}>删除</button>
                 </div>
               </div>
-              {choiceType(field.type) && <div className="space-y-2">
-                {field.options?.map((item, j) => <div className="flex flex-wrap items-center gap-2" key={item.value}>
-                  <input className="admin-field min-w-40 flex-1" aria-label={`选项 ${j + 1}`} placeholder="选项名称" maxLength={100} disabled={locked}
-                    value={item.label} onChange={(e) => changeOption(index, j, { label: e.target.value })} />
-                  {field.type !== "checkbox" && <label className="flex items-center gap-2 text-sm">名额
-                    <input className="admin-field w-24" type="number" min={0} max={1000000} disabled={locked}
-                      value={item.capacity ?? 0} onChange={(e) => changeOption(index, j, { capacity: Number(e.target.value) })} />
-                  </label>}
-                  <button className="admin-button admin-button--quiet" disabled={locked || (field.options?.length ?? 0) <= 2}
-                    onClick={() => changeField(index, { options: field.options?.filter((_, i) => i !== j) })}>移除</button>
-                </div>)}
-                <button disabled={locked || (field.options?.length ?? 0) >= 30} className="admin-button admin-button--secondary" onClick={() => changeField(index, { options: [...(field.options ?? []), option()] })}>添加选项</button>
+              {choiceType(field.type) && <div className="space-y-3">
+                {field.options?.map((item, j) => {
+                  const used = usage[field.key]?.[item.value] ?? 0;
+                  const remaining = item.capacity ? Math.max(0, item.capacity - used) : null;
+                  return <div className="grid gap-3 rounded-lg border border-[var(--admin-border-subtle)] p-3 sm:grid-cols-[minmax(0,1fr)_130px_auto]" key={item.value}>
+                    <div className="min-w-0 space-y-2">
+                      <label className="grid gap-1 text-sm">选项 {j + 1}
+                        <textarea className="admin-field min-h-14 w-full resize-y" rows={2} placeholder="选项内容" maxLength={100} disabled={locked}
+                          value={item.label} onChange={(e) => changeOption(index, j, { label: e.target.value })} />
+                      </label>
+                      {field.type !== "select" && <label className="grid gap-1 text-sm">补充说明
+                        <textarea className="admin-field min-h-12 w-full resize-y" rows={2} maxLength={300} placeholder="地点、设备等信息（可选）"
+                          value={item.description ?? ""} onChange={(e) => changeOption(index, j, { description: e.target.value })} />
+                      </label>}
+                    </div>
+                    <label className="grid content-start gap-1 text-sm">名额
+                      <input className="admin-field w-full" type="number" min={0} max={1000000}
+                        aria-label={`选项 ${j + 1} 名额`} placeholder="不限" value={item.capacity || ""}
+                        onChange={(e) => changeOption(index, j, { capacity: Number(e.target.value) })} />
+                      {count > 0 && <span className="text-xs text-fg-muted">已选 {used}{remaining === null ? " · 不限" : ` · 剩余 ${remaining}`}</span>}
+                    </label>
+                    <button type="button" className="admin-button admin-button--quiet self-start" disabled={locked || (field.options?.length ?? 0) <= 2}
+                      onClick={() => changeField(index, { options: field.options?.filter((_, i) => i !== j) })}>移除</button>
+                  </div>;
+                })}
+                {!locked && <button type="button" disabled={(field.options?.length ?? 0) >= 30} className="admin-button admin-button--secondary"
+                  onClick={() => changeField(index, { options: [...(field.options ?? []), option()] })}>添加选项</button>}
               </div>}
             </div>)}
             <div className="flex flex-wrap gap-2">
@@ -243,9 +279,10 @@ export default function CollectionFormsAdmin() {
           </section>
           {Boolean(selected) && <section className="admin-panel space-y-3 rounded-xl p-4">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h2 className="text-lg font-semibold">收集结果 · {count} 份</h2>
+              <h2 className="text-lg font-semibold">收集结果 · {count} 份{draft.capacity > 0 ? ` / ${draft.capacity} 个总名额` : ""}</h2>
               <div className="flex flex-wrap gap-2">
                 {draft.status !== "draft" && <Link className="admin-button admin-button--secondary" to={`/forms/${selected}`} target="_blank">打开填写页</Link>}
+                {draft.status === "published" && <button type="button" className="admin-button admin-button--secondary" onClick={() => void copyShareLink()}>复制填写链接</button>}
                 <button className="admin-button admin-button--secondary" onClick={() => void loadRecords()}>查看记录</button>
                 <a className="admin-button admin-button--secondary" href={collectionClient.exportUrl(selected!)}>导出 CSV</a>
               </div>

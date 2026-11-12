@@ -44,8 +44,8 @@ func TestCollectionFormValidation(t *testing.T) {
 	t.Run("checkbox quota", func(t *testing.T) {
 		v := testCollectionInput()
 		v.Fields[1].Type = "checkbox"
-		if err := validateCollectionForm(v); err == nil {
-			t.Fatal("checkbox quota must fail")
+		if err := validateCollectionForm(v); err != nil {
+			t.Fatalf("checkbox quotas should be supported: %v", err)
 		}
 	})
 	t.Run("deadline order", func(t *testing.T) {
@@ -79,5 +79,19 @@ func TestCollectionAnswerValidation(t *testing.T) {
 func TestCollectionExportReusesSafeCSV(t *testing.T) {
 	if got := salonCSVCell("  =SUM(A1)"); got != "'  =SUM(A1)" {
 		t.Fatalf("unsafe cell: %q", got)
+	}
+}
+
+func TestCollectionQuotaEditsPreserveSubmissionIdentity(t *testing.T) {
+	original := testCollectionInput().Fields
+	edited := testCollectionInput().Fields
+	edited[1].Options[0].Capacity = 10
+	edited[1].Options[0].Description = "南湖校区，上午培训"
+	if !sameCollectionFields(original, edited) {
+		t.Fatal("quota and display notes may change after submissions")
+	}
+	edited[1].Options[0].Label = "other session"
+	if sameCollectionFields(original, edited) {
+		t.Fatal("option identity must not change after submissions")
 	}
 }

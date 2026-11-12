@@ -1,6 +1,6 @@
 import { apiRequest, buildApiUrl } from "~/lib/api-client";
 
-export type CollectionOption = { label: string; value: string; capacity?: number; remaining?: number };
+export type CollectionOption = { label: string; description?: string; value: string; capacity?: number; remaining?: number };
 export type CollectionField = {
   key: string;
   label: string;
@@ -22,6 +22,7 @@ export type CollectionForm = {
   count?: number;
 };
 export type CollectionInput = Omit<CollectionForm, "id" | "createdAt" | "count">;
+export type CollectionUsage = Record<string, Record<string, number>>;
 export type CollectionSubmission = {
   id: number;
   formId: number;
@@ -32,7 +33,7 @@ export type CollectionSubmission = {
 
 export const collectionClient = {
   list: () => apiRequest<{ items: CollectionForm[] }>("/api/admin/collection-forms"),
-  get: (id: number) => apiRequest<{ form: CollectionForm; count: number }>(`/api/admin/collection-forms/${id}`),
+  get: (id: number) => apiRequest<{ form: CollectionForm; count: number; usage: CollectionUsage }>(`/api/admin/collection-forms/${id}`),
   create: (body: CollectionInput) => apiRequest<CollectionForm>("/api/admin/collection-forms", { method: "POST", body }),
   update: (id: number, body: CollectionInput) =>
     apiRequest<{ id: number }>(`/api/admin/collection-forms/${id}`, { method: "PUT", body }),

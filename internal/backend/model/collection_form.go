@@ -3,10 +3,11 @@ package model
 import "time"
 
 type CollectionOption struct {
-	Label     string `json:"label"`
-	Value     string `json:"value"`
-	Capacity  int    `json:"capacity,omitempty"`
-	Remaining *int   `json:"remaining,omitempty" gorm:"-"`
+	Label       string `json:"label"`
+	Description string `json:"description,omitempty"`
+	Value       string `json:"value"`
+	Capacity    int    `json:"capacity,omitempty"`
+	Remaining   *int   `json:"remaining,omitempty" gorm:"-"`
 }
 
 type CollectionField struct {
