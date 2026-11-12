@@ -764,7 +764,7 @@ function FieldRow({
         <label id={`${fieldId}-label`} htmlFor={fieldId} className="text-sm font-medium text-fg-primary">{field.label}</label>
         {markOnlyOptional
           ? (!field.required ? <span className="text-[11px] text-fg-dim">选填</span> : null)
-          : (field.required ? <span className="candidate-required" aria-label="必填">*</span> : null)}
+          : (field.required ? <span className="text-sm font-semibold text-[var(--admin-danger)]" aria-label="必填">*</span> : null)}
       </div>
       {field.description ? (
         <p className="text-xs leading-5 text-fg-dim">{field.description}</p>
