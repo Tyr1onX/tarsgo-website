@@ -56,13 +56,27 @@ test("data-heavy routes reserve their actual layout during initial requests", as
   const training = await read("../routes/admin/training-assessment.tsx");
   const analytics = await read("../routes/admin/recruitment-analytics.tsx");
   const profile = await read("../routes/dashboard/community-member-profile.tsx");
+  const registrations = await read("../routes/admin/registrations.tsx");
 
+  assert.match(registrations, /<tr key=\{row\} className="admin-table-row content-skeleton motion-safe:animate-pulse">/);
+  assert.match(registrations, /<td><div aria-hidden="true" className="admin-operation-group justify-end">/);
+  assert.doesNotMatch(registrations, /<td colSpan=\{5\} className="admin-table-empty">\s*<div role="status"/);
   assert.match(review, /loading && !error \? <ReviewSkeleton withSelector \/>/);
   assert.match(review, /listLoaded && selectedID > 0 && !assignment && !error \? <ReviewSkeleton/);
   assert.match(review, /aria-label=\{withSelector \? "正在加载作业列表" : "正在加载提交记录"\}/);
   assert.match(training, /loading && !snapshot \? <AssessmentSkeleton \/>/);
   assert.match(analytics, /loading \? <AnalyticsSkeleton \/>/);
-  assert.match(profile, /if \(loading && !result\) return <section[^>]*role="status" aria-label="正在加载成员主页"/);
+  assert.match(profile, /if \(loading && !result\) return <MemberProfileSkeleton tab=\{tab\} \/>/);
+  assert.match(profile, /function MemberProfileSkeleton\(\{ tab \}: \{ tab: ProfileTab \}\)/);
+  assert.match(profile, /setLoading\(true\);\s*setResult\(null\)/);
+  assert.match(training, /<table className="w-full border-collapse text-sm">/);
+  assert.match(training, /<th scope="col"[^>]*>批改反馈<\/th>/);
+  assert.match(analytics, /recruitment-analytics__status-track/);
+  assert.match(analytics, /recruitment-analytics__group-track/);
+  assert.match(review, /lg:grid-cols-\[minmax\(0,1fr\)_minmax\(0,1\.1fr\)\]/);
+  for (const tab of ["overview", "posts", "replies", "badges", "settings"]) {
+    assert.ok(profile.includes(`tab === "${tab}" ?`), `missing ${tab} skeleton`);
+  }
   for (const source of [review, training, analytics, profile]) {
     assert.match(source, /content-skeleton/);
     assert.match(source, /motion-safe:animate-pulse/);

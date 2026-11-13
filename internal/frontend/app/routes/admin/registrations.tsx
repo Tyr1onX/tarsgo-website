@@ -681,20 +681,19 @@ export default function Registrations() {
             </thead>
             <tbody>
               {loading && items.length === 0 ? (
-                <tr>
-                  <td colSpan={5} className="admin-table-empty">
-                    <div role="status" aria-label={interviewWorkbench ? "正在加载今日面试名单" : "正在加载报名名单"} className="space-y-3 py-2 text-left">
-                      <span className="sr-only">正在加载候选人…</span>
-                      {[0, 1, 2].map((skeleton) => (
-                        <div key={skeleton} aria-hidden="true" className="flex animate-pulse items-center justify-between gap-4 rounded-lg bg-[var(--admin-hover-overlay)] px-3 py-3">
-                          <span className="h-4 w-32 rounded bg-[var(--admin-border-subtle)]" />
-                          <span className="h-4 w-20 rounded bg-[var(--admin-border-subtle)]" />
-                          <span className="h-8 w-36 rounded bg-[var(--admin-border-subtle)]" />
-                        </div>
-                      ))}
+                [0, 1, 2, 3].map((row) => <tr key={row} className="admin-table-row content-skeleton motion-safe:animate-pulse">
+                  <td>
+                    {row === 0 ? <span className="sr-only" role="status">{interviewWorkbench ? "正在加载今日面试名单" : "正在加载报名名单"}</span> : null}
+                    <div aria-hidden="true" className="space-y-2">
+                      <div className="h-4 w-24 rounded bg-[var(--admin-border-subtle)]" />
+                      <div className="h-3 w-32 max-w-full rounded bg-[var(--admin-border-subtle)]" />
                     </div>
                   </td>
-                </tr>
+                  <td><div aria-hidden="true" className="h-4 w-16 rounded bg-[var(--admin-border-subtle)]" /></td>
+                  <td><div aria-hidden="true" className="h-5 w-16 rounded-md bg-[var(--admin-border-subtle)]" /></td>
+                  <td><div aria-hidden="true" className="h-4 w-28 rounded bg-[var(--admin-border-subtle)]" /></td>
+                  <td><div aria-hidden="true" className="admin-operation-group justify-end"><div className="h-8 w-24 rounded bg-[var(--admin-border-subtle)]" /></div></td>
+                </tr>)
               ) : items.length === 0 ? (
                 <tr>
                   <td colSpan={5} className="admin-table-empty">

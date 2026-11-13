@@ -20,21 +20,41 @@ function AssessmentSkeleton() {
   const bar = "rounded bg-[var(--admin-border-subtle)]";
   return <div className="content-skeleton space-y-5" role="status" aria-label="正在加载培训成绩">
     <div aria-hidden="true" className="motion-safe:animate-pulse space-y-5">
-      <section className="admin-panel space-y-5 p-5">
-        <div className="flex flex-wrap justify-between gap-3"><div className={bar + " h-6 w-28"} /><div className={bar + " h-4 w-36"} /></div>
-        <div className={bar + " h-10 w-full max-w-xl"} />
-        <div className="grid grid-cols-2 gap-4 border-t border-[var(--admin-border-subtle)] pt-4 sm:grid-cols-3">
-          {[0, 1, 2].map((key) => <div key={key} className="space-y-3"><div className={bar + " h-4 w-16"} /><div className={bar + " h-7 w-14"} /></div>)}
-        </div>
-      </section>
       <section className="admin-panel space-y-4 p-5">
-        <div className="flex flex-wrap justify-between gap-3"><div className={bar + " h-6 w-24"} /><div className={bar + " h-10 w-48"} /></div>
-        <div className="space-y-4 border-t border-[var(--admin-border-subtle)] pt-4">
-          {[0, 1, 2, 3, 4].map((key) => <div key={key} className="flex items-center justify-between gap-4">
-            <div className={bar + " h-4 w-8"} /><div className={bar + " h-4 w-36 max-w-[45%]"} /><div className={bar + " h-4 w-14"} /><div className={bar + " hidden h-4 w-32 md:block"} />
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className={bar + " h-6 w-28"} /><div className={bar + " h-4 w-36"} />
+        </div>
+        <div className="max-w-xl space-y-2">
+          <div className={bar + " h-4 w-20"} /><div className={bar + " h-10 w-full"} />
+        </div>
+        <div className="grid grid-cols-2 gap-4 border-t border-[var(--admin-border-subtle)] pt-4 sm:grid-cols-3">
+          {[0, 1, 2].map((key) => <div key={key} className="space-y-2">
+            <div className={bar + " h-4 w-16"} /><div className={bar + " h-7 w-14"} />
           </div>)}
         </div>
       </section>
+      <section className="admin-panel space-y-4 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className={bar + " h-6 w-24"} /><div className={bar + " h-10 w-full sm:max-w-xs"} />
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-sm">
+            <thead><tr className="border-b border-[var(--admin-border-subtle)] text-[var(--admin-muted)]">
+              <th scope="col" className="w-14 px-2 py-3 text-left font-medium">排名</th>
+              <th scope="col" className="px-2 py-3 text-left font-medium">成员</th>
+              <th scope="col" className="w-16 px-2 py-3 text-right font-medium">成绩</th>
+              <th scope="col" className="hidden w-1/3 px-2 py-3 text-left font-medium md:table-cell">批改反馈</th>
+            </tr></thead>
+            <tbody>{[0, 1, 2, 3, 4].map((key) => <tr key={key} className="border-b border-[var(--admin-border-subtle)]">
+              <td className="px-2 py-3"><div className={bar + " h-4 w-8"} /></td>
+              <th scope="row" className="px-2 py-3"><div className={bar + " h-4 w-32 max-w-full"} /></th>
+              <td className="px-2 py-3"><div className={bar + " ml-auto h-4 w-12"} /></td>
+              <td className="hidden px-2 py-3 md:table-cell"><div className={bar + " h-4 w-3/4"} /></td>
+            </tr>)}</tbody>
+          </table>
+        </div>
+      </section>
+      <div className="admin-panel p-5"><div className={bar + " h-4 w-40"} /></div>
     </div>
   </div>;
 }
