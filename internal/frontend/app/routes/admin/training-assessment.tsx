@@ -82,8 +82,9 @@ export default function TrainingAssessmentRoute() {
     return () => { active = false; };
   }, [groupId, currentUser.id]);
 
-  const gradebook = useMemo(() => snapshot ? buildTrainingGradebook(snapshot) : { assessments: [], members: [] }, [snapshot]);
+  const gradebook = useMemo(() => snapshot ? buildTrainingGradebook(snapshot, groupId) : { assessments: [], members: [] }, [snapshot, groupId]);
   const summaries = gradebook.assessments;
+  const rawSummaries = summaries.filter((item) => item.source === "training" || item.source === "assignment");
   const selectedMember = gradebook.members.find((member) => member.userId === memberId);
   const selectedMemberId = selectedMember?.userId ?? 0;
   const selectedAssessment = summaries.find((item) => item.key === assessmentKey) ?? summaries[0];
@@ -218,9 +219,9 @@ export default function TrainingAssessmentRoute() {
             </section>
             <section className="space-y-3" aria-label="个人历次成绩">
               <h3 className="text-lg font-semibold">历次成绩</h3>
-              {summaries.length ? <ul className="divide-y divide-[var(--admin-border-subtle)]">
-                {summaries.map((assessment, index) => {
-                  const result = selectedMember.results[index];
+              {rawSummaries.length ? <ul className="divide-y divide-[var(--admin-border-subtle)]">
+                {rawSummaries.map((assessment) => {
+                  const result = selectedMember.results.find((item) => item.key === assessment.key)!;
                   return <li key={assessment.key} className="flex flex-wrap justify-between gap-x-4 gap-y-2 py-3">
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-medium">{assessment.name}</div>
@@ -277,15 +278,21 @@ export default function TrainingAssessmentRoute() {
           <section className="admin-panel space-y-4 p-5" aria-label="考核概览">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-lg font-semibold">考核概览</h2>
-              <span className="text-sm text-[var(--admin-muted)]">{gradebook.members.length} 位成员 · {summaries.length} 次考核</span>
+              <span className="text-sm text-[var(--admin-muted)]">{gradebook.members.length} 位成员 · {rawSummaries.length} 次考核</span>
             </div>
             {selectedAssessment ? <>
               <label className="admin-field-label block max-w-xl">选择考核
                 <select className="admin-field mt-2 w-full" value={selectedAssessment.key}
                   onChange={(event) => { setAssessmentKey(event.target.value); setPage(1); }}>
-                  {summaries.map((item) => <option key={item.key} value={item.key}>
-                    {item.name}{item.source === "assignment" ? "（站内作业）" : ""}
-                  </option>)}
+                  {groupId === MECHANICAL_TRAINING_GROUP_ID ? <optgroup label="综合与能力维度">
+                    {summaries.filter((item) => item.source === "overall" || item.source === "skill").map((item) =>
+                      <option key={item.key} value={item.key}>{item.name}</option>)}
+                  </optgroup> : null}
+                  <optgroup label="单次作业">
+                    {rawSummaries.map((item) => <option key={item.key} value={item.key}>
+                      {item.name}{item.source === "assignment" ? "（站内作业）" : ""}
+                    </option>)}
+                  </optgroup>
                 </select>
               </label>
               <dl className="grid grid-cols-2 gap-4 border-t border-[var(--admin-border-subtle)] pt-4 sm:grid-cols-3">
@@ -294,11 +301,11 @@ export default function TrainingAssessmentRoute() {
                   <dd className="mt-1 text-2xl font-semibold tabular-nums">{selectedAssessment.average === null ? "—" : selectedAssessment.average}</dd>
                 </div>
                 <div>
-                  <dt className="text-sm text-[var(--admin-muted)]">{selectedAssessment.source === "assignment" ? "已批改" : "已评分"}</dt>
+                  <dt className="text-sm text-[var(--admin-muted)]">{selectedAssessment.source === "assignment" ? "已批改" : selectedAssessment.source === "overall" ? "具备排名资格" : selectedAssessment.source === "skill" ? "已有维度成绩" : "已评分"}</dt>
                   <dd className="mt-1 text-2xl font-semibold tabular-nums">{selectedAssessment.scored}</dd>
                 </div>
-                {selectedAssessment.source === "training" ? <div>
-                  <dt className="text-sm text-[var(--admin-muted)]">成绩缺失</dt>
+                {selectedAssessment.source !== "assignment" ? <div>
+                  <dt className="text-sm text-[var(--admin-muted)]">{selectedAssessment.source === "training" ? "成绩缺失" : "待评估"}</dt>
                   <dd className="mt-1 text-2xl font-semibold tabular-nums">{selectedAssessment.missing}</dd>
                 </div> : null}
               </dl>
@@ -331,7 +338,7 @@ export default function TrainingAssessmentRoute() {
                         <span className="ml-2 text-xs font-normal text-[var(--admin-muted)]">#{member.userId}</span>
                       </th>
                       <td className="px-2 py-3 text-right font-semibold tabular-nums">
-                        {result.status === "graded" ? result.score : <span className="text-xs font-normal text-[var(--admin-muted)]">{result.status === "missing" ? "缺失" : "无记录"}</span>}
+                        {result.status === "graded" ? result.score : <span className="text-xs font-normal text-[var(--admin-muted)]">{result.status === "pending" ? "待评估" : result.status === "missing" ? "缺失" : "无记录"}</span>}
                       </td>
                       <td className="hidden px-2 py-3 text-sm text-[var(--admin-muted)] md:table-cell">
                         <p className="line-clamp-2 break-words" title={result.note || undefined}>

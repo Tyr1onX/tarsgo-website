@@ -130,10 +130,63 @@ test("mechanical radar maps the four actual assignments to three percent-based d
   assert.equal(mechanicalTrainingSkills(snapshot, 4)[1].sources[0].recorded, false);
 });
 
+test("mechanical composite ranking requires all four grades and skill rankings accept partial evidence", () => {
+  const snapshot = {
+    members: [1, 2, 3, 4, 5, 6].map((id) => ({ userId: id, name: ({1:"甲",2:"乙",3:"丙",4:"丁",5:"戊",6:"己"})[id] })),
+    grades: [
+      ...[[1,100,100],[2,80,100],[3,0,0],[4,100,null],[6,100,100]].flatMap(([userId,first,second]) => [
+        { userId, assessmentName: "第一次培训作业", score: first, note: "" },
+        { userId, assessmentName: "第二次装配体作业", score: second, note: "" },
+      ]),
+    ],
+    assignmentGrades: [
+      ...[[1,90],[2,100],[3,0],[4,100],[6,90]].map(([userId,score]) => ({userId,score,assignmentId:8,assessmentName:"第三次作业",decision:"passed"})),
+      ...[[1,80],[2,90],[3,0],[4,100],[6,80]].map(([userId,score]) => ({userId,score,assignmentId:16,assessmentName:"轴系设计作业",decision:"passed"})),
+    ],
+    dimensions: [], ratings: [],
+  };
+  const book = buildTrainingGradebook(snapshot, 4);
+  assert.deepEqual(book.assessments.map((item) => item.key), [
+    "overall:mechanical", "skill:0", "skill:1", "skill:2",
+    "training:第一次培训作业", "training:第二次装配体作业", "assignment:8", "assignment:16",
+  ]);
+  assert.deepEqual(book.assessments.slice(0, 4).map((item) => item.name), [
+    "综合能力排名", "SolidWorks 软件能力", "零件设计能力", "轴系设计能力",
+  ]);
+  assert.deepEqual(book.assessments[0], {
+    key:"overall:mechanical",name:"综合能力排名",source:"overall",total:6,scored:4,missing:2,average:68.3,
+  });
+  const get = (id,key) => book.members.find((member) => member.userId === id).results.find((result) => result.key === key);
+  assert.deepEqual([1,2,3,4,5,6].map((id) => {
+    const {score,rank,status} = get(id,"overall:mechanical");
+    return {score,rank,status};
+  }), [
+    {score:90,rank:2,status:"graded"},
+    {score:93.3,rank:1,status:"graded"},
+    {score:0,rank:4,status:"graded"},
+    {score:null,rank:null,status:"pending"},
+    {score:null,rank:null,status:"pending"},
+    {score:90,rank:2,status:"graded"},
+  ]);
+  assert.equal(get(4,"overall:mechanical").note,"已评分 3/4");
+  assert.deepEqual(get(4,"skill:0"),{key:"skill:0",score:100,rank:1,status:"graded",note:"已评分 1/2"});
+  assert.deepEqual(get(5,"skill:0"),{key:"skill:0",score:null,rank:null,status:"pending",note:"已评分 0/2"});
+  const sorted = sortGradebookMembers(book.members,"overall:mechanical").map((member) => member.userId);
+  assert.equal(sorted[0],2);
+  assert.deepEqual(new Set(sorted.slice(1,3)),new Set([1,6]));
+  assert.deepEqual(sorted.slice(3),[3,4,5]);
+  assert.equal(get(3,"training:第一次培训作业").score,0);
+  assert.equal(get(4,"training:第二次装配体作业").status,"missing");
+  assert.equal(get(5,"training:第一次培训作业").status,"unrecorded");
+  assert.equal(buildTrainingGradebook(snapshot,2).assessments.length,4);
+});
+
 test("selecting one assessment paginates its ranking without changing the individual profile", () => {
   const page = readFileSync(new URL("../routes/admin/training-assessment.tsx", import.meta.url), "utf8");
   assert.match(page, /snapshot \? selectedMember \?/);
   assert.match(page, /选择考核/);
+  assert.match(page, /综合与能力维度/);
+  assert.match(page, /rawSummaries\.map/);
   assert.match(page, /成绩排名/);
   assert.match(page, /const PAGE_SIZE = 20/);
   assert.match(page, /setAssessmentKey\(event\.target\.value\); setPage\(1\)/);

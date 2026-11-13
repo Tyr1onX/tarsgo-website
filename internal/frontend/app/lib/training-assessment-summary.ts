@@ -3,7 +3,7 @@ import type { TrainingSnapshot } from "./training-assessment-client";
 export interface TrainingScoreSummary {
   key: string;
   name: string;
-  source: "training" | "assignment";
+  source: "training" | "assignment" | "overall" | "skill";
   total: number;
   scored: number;
   missing: number;
@@ -121,7 +121,7 @@ export type GradebookResult = {
   key: string;
   score: number | null;
   rank: number | null;
-  status: "graded" | "missing" | "unrecorded";
+  status: "graded" | "missing" | "unrecorded" | "pending";
   note: string;
   decision?: "passed" | "needs_redo";
 };
@@ -132,7 +132,7 @@ export type GradebookMember = {
   results: GradebookResult[];
 };
 
-export function buildTrainingGradebook(snapshot: TrainingSnapshot) {
+export function buildTrainingGradebook(snapshot: TrainingSnapshot, groupId = 0) {
   const assessments = summarizeTrainingScores(snapshot);
   const rankings = assessments.map((assessment) =>
     new Map(rankTrainingAssessment(snapshot, assessment.key).map((entry) => [entry.userId, entry]))
@@ -154,7 +154,63 @@ export function buildTrainingGradebook(snapshot: TrainingSnapshot) {
       };
     }),
   }));
-  return { assessments, members };
+  if (groupId !== MECHANICAL_TRAINING_GROUP_ID) return { assessments, members };
+
+  const skillsByMember = members.map((member) => mechanicalTrainingSkills(snapshot, member.userId));
+  const definitions = [
+    {
+      key: "overall:mechanical", name: "综合能力排名", source: "overall" as const,
+      values: skillsByMember.map((skills) => {
+        const graded = skills.reduce((sum, skill) => sum + skill.graded, 0);
+        const total = skills.reduce((sum, skill) => sum + skill.total, 0);
+        return {
+          score: graded === total
+            ? Math.round(skills.reduce((sum, skill) => sum + skill.score!, 0) / skills.length * 10) / 10 : null,
+          note: "已评分 " + graded + "/" + total,
+        };
+      }),
+    },
+    ...MECHANICAL_SKILL_SOURCES.map((dimension, index) => ({
+      key: "skill:" + index,
+      name: dimension.name === "SolidWorks" ? "SolidWorks 软件能力" : dimension.name + "能力",
+      source: "skill" as const,
+      values: skillsByMember.map((skills) => ({
+        score: skills[index].score,
+        note: "已评分 " + skills[index].graded + "/" + skills[index].total,
+      })),
+    })),
+  ];
+
+  const columns: { summary: TrainingScoreSummary; results: GradebookResult[] }[] = definitions.map((definition) => {
+    const scored = definition.values.flatMap((value, index) =>
+      value.score === null ? [] : [{ index, score: value.score }],
+    ).sort((a, b) => b.score - a.score || members[a.index].name.localeCompare(members[b.index].name, "zh") || members[a.index].userId - members[b.index].userId);
+    const ranks = new Map<number, number>();
+    let rank = 0;
+    scored.forEach((item, index) => {
+      if (index === 0 || item.score !== scored[index - 1].score) rank = index + 1;
+      ranks.set(item.index, rank);
+    });
+    return {
+      summary: {
+        key: definition.key, name: definition.name, source: definition.source,
+        total: members.length, scored: scored.length, missing: members.length - scored.length,
+        average: scored.length ? Math.round(scored.reduce((sum, item) => sum + item.score, 0) / scored.length * 10) / 10 : null,
+      },
+      results: definition.values.map((value, index) => ({
+        key: definition.key, score: value.score, rank: ranks.get(index) ?? null,
+        status: value.score === null ? "pending" as const : "graded" as const,
+        note: value.note,
+      })),
+    };
+  });
+
+  return {
+    assessments: [...columns.map((column) => column.summary), ...assessments],
+    members: members.map((member, index) => ({
+      ...member, results: [...columns.map((column) => column.results[index]), ...member.results],
+    })),
+  };
 }
 
 export function sortGradebookMembers(members: GradebookMember[], assessmentKey: string) {
