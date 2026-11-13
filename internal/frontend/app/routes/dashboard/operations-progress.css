@@ -109,6 +109,52 @@
 .operations-progress__feed time { font-size: 0.8rem; color: var(--admin-muted); }
 .operations-progress__feed p { margin: 0.25rem 0 0; font-size: 0.85rem; overflow-wrap: anywhere; }
 .operations-progress__back { margin: 1.5rem 0; font-size: 0.85rem; }
+.operations-progress__video-stages { margin-top: 0.95rem; }
+.operations-progress__video-stages ol {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.3rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.operations-progress__video-stages li {
+  display: grid;
+  justify-items: center;
+  align-content: start;
+  gap: 0.4rem;
+  border-top: 3px solid var(--admin-border-subtle);
+  padding: 0.55rem 0.15rem 0;
+  color: var(--admin-dim);
+  text-align: center;
+  font-size: 0.73rem;
+}
+.operations-progress__video-stages li.is-complete,
+.operations-progress__video-stages li.is-current {
+  border-top-color: var(--admin-accent);
+  color: var(--admin-text);
+}
+.operations-progress__video-stages li.is-current { font-weight: 650; }
+.operations-progress__step-marker {
+  display: grid;
+  place-items: center;
+  width: 1.4rem;
+  height: 1.4rem;
+  border: 1px solid var(--admin-border-subtle);
+  border-radius: 50%;
+  font-variant-numeric: tabular-nums;
+}
+.operations-progress__video-stages li.is-complete .operations-progress__step-marker,
+.operations-progress__video-stages li.is-current .operations-progress__step-marker {
+  border-color: var(--admin-accent);
+  color: var(--admin-accent-text);
+}
+.operations-progress__video-stages > .operations-progress__muted { display: block; margin-top: 0.4rem; }
+@media (max-width: 520px) {
+  .operations-progress__video-stages li { font-size: 0.65rem; }
+  .operations-progress__video-stages .operations-progress__step-marker { width: 1.25rem; height: 1.25rem; }
+}
+
 @media (max-width: 600px) {
   .operations-progress__stats { gap: 0.4rem; }
   .operations-progress__stats > div { padding: 0.65rem; }

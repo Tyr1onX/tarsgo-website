@@ -1,6 +1,16 @@
 import { apiRequest } from "./api-client.ts";
 
 export type OperationsItemStatus = "active" | "blocked" | "done";
+export type OperationsItemKind = "workstream" | "channel" | "video";
+export type OperationsVideoStage = "" | "unconfirmed" | "planning" | "materials" | "editing" | "review" | "published";
+
+export const videoStageLabels = [
+  { key: "planning", label: "选题文案" },
+  { key: "materials", label: "素材拍摄" },
+  { key: "editing", label: "剪辑制作" },
+  { key: "review", label: "审核确认" },
+  { key: "published", label: "发布" },
+] as const;
 
 export interface OperationsUpdate {
   id: number;
@@ -9,12 +19,15 @@ export interface OperationsUpdate {
   content: string;
   kind: "progress" | "completed";
   link: string;
+  publishedOn: string | null;
   createdAt: string;
 }
 
 export interface OperationsItem {
   id: number;
   title: string;
+  kind: OperationsItemKind;
+  stage: OperationsVideoStage;
   owner: string;
   intervalDays: number;
   nextAction: string;
@@ -23,7 +36,7 @@ export interface OperationsItem {
   createdAt: string;
   updatedAt: string;
   lastUpdate: OperationsUpdate | null;
-  lastCompletedAt: string | null;
+  lastCompletedOn: string | null;
 }
 
 export interface OperationsBoard {
@@ -32,8 +45,8 @@ export interface OperationsBoard {
   canManage: boolean;
 }
 
-export type OperationsItemInput = Pick<OperationsItem, "title" | "owner" | "intervalDays" | "nextAction" | "nextCheckAt" | "status">;
-export type OperationsUpdateInput = Pick<OperationsUpdate, "content" | "kind" | "link">;
+export type OperationsItemInput = Pick<OperationsItem, "title" | "kind" | "stage" | "owner" | "intervalDays" | "nextAction" | "nextCheckAt" | "status">;
+export type OperationsUpdateInput = Pick<OperationsUpdate, "content" | "kind" | "link" | "publishedOn">;
 
 export function getOperationsBoard() {
   return apiRequest<OperationsBoard>("/api/operations/progress");
@@ -62,25 +75,43 @@ export function getOperationsAttention(item: OperationsItem, now = new Date()): 
   if (item.status === "blocked") return "blocked";
   if (item.intervalDays > 0) {
     const expected = nextOperationsDate(item);
-    return expected && expected < now ? "overdue" : item.lastCompletedAt ? "active" : "pending";
+    return expected && expected < now ? "overdue" : item.lastCompletedOn ? "active" : "pending";
   }
   if (item.nextCheckAt && new Date(item.nextCheckAt) < now) return "overdue";
-  return item.lastUpdate ? "active" : "pending";
+  return item.lastUpdate || (item.kind === "video" && item.stage !== "unconfirmed") ? "active" : "pending";
 }
 
 export const operationsAttentionLabel: Record<OperationsAttention, string> = {
-  done: "已结束", blocked: "遇到阻塞", overdue: "需要跟进", pending: "待启动", active: "推进中",
+  done: "已结束", blocked: "遇到阻塞", overdue: "需要跟进", pending: "待补充", active: "推进中",
 };
 
 export function nextOperationsDate(item: OperationsItem): Date | null {
   if (item.intervalDays <= 0) return item.nextCheckAt ? new Date(item.nextCheckAt) : null;
-  const since = new Date(item.lastCompletedAt ?? item.createdAt);
+  const since = item.lastCompletedOn ? new Date(`${item.lastCompletedOn}T00:00:00+08:00`) : new Date(item.createdAt);
   return new Date(since.getTime() + item.intervalDays * 24 * 60 * 60 * 1000);
 }
 
 export function formatOperationsDate(date: string | Date | null | undefined): string {
   if (!date) return "尚未记录";
   return new Date(date).toLocaleString("zh-CN", { timeZone: "Asia/Shanghai", year: "numeric", month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" });
+}
+
+export function formatOperationsDay(value: string | null | undefined) {
+  if (!value) return "尚未核实";
+  const parts = value.split("-");
+  return `${Number(parts[0])}年${Number(parts[1])}月${Number(parts[2])}日`;
+}
+
+export function daysSinceOperationsPublish(publishedOn: string | null, now = new Date()) {
+  if (!publishedOn) return null;
+  const todayBeijing = new Date(now.getTime() + 8 * 60 * 60 * 1000).toISOString().slice(0, 10);
+  return Math.max(0, Math.round((Date.parse(todayBeijing) - Date.parse(publishedOn)) / 86400000));
+}
+
+export function formatOperationsUpdateDate(update: OperationsUpdate) {
+  return update.kind === "completed" && update.publishedOn
+    ? formatOperationsDay(update.publishedOn)
+    : formatOperationsDate(update.createdAt);
 }
 
 export function sortOperationsItems(items: OperationsItem[]) {

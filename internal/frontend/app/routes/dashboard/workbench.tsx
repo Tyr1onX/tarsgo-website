@@ -5,7 +5,7 @@ import { assignmentClient, assignmentStatusLabel, formatAssignmentDate, type Ass
 import { hasAssignmentGroupAccess } from "~/lib/dashboard-navigation";
 import { leaveClient, type LeaveAccessState, type LatestLeaveStatus } from "~/lib/leave-client";
 import { formatWeekLabel } from "~/lib/weekly-report-calendar";
-import { formatOperationsDate, getOperationsAttention, getOperationsBoard, operationsAttentionLabel, sortOperationsItems, type OperationsBoard } from "~/lib/operations-progress-client";
+import { formatOperationsDay, formatOperationsUpdateDate, getOperationsAttention, getOperationsBoard, operationsAttentionLabel, sortOperationsItems, type OperationsBoard } from "~/lib/operations-progress-client";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import {
   emptyPersonalSnapshot,
@@ -68,7 +68,7 @@ function OperationsSummary() {
     {board && items.length > 0 ? <ul className="personal-workbench__operations-list">{items.map((item) => <li key={item.id}>
       <Link to={`/dashboard/operations/progress#operations-item-${item.id}`}>{item.title}</Link>
       <span>{operationsAttentionLabel[getOperationsAttention(item)]}</span>
-      <time dateTime={item.lastUpdate?.createdAt ?? undefined}>{item.lastUpdate ? formatOperationsDate(item.lastUpdate.createdAt) : "尚未记录"}</time>
+      <time dateTime={item.kind === "channel" ? item.lastCompletedOn || undefined : item.lastUpdate?.publishedOn || item.lastUpdate?.createdAt || undefined}>{item.kind === "channel" ? formatOperationsDay(item.lastCompletedOn) : item.lastUpdate ? formatOperationsUpdateDate(item.lastUpdate) : "尚未记录"}</time>
     </li>)}</ul> : null}
   </section>;
 }
