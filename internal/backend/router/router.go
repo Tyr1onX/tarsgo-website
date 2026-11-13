@@ -251,6 +251,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	adminAPI.POST("/collection-forms", collectionFormHandler.Create)
 	adminAPI.GET("/collection-forms/:id", collectionFormHandler.GetAdmin)
 	adminAPI.PUT("/collection-forms/:id", collectionFormHandler.Update)
+	adminAPI.DELETE("/collection-forms/:id", collectionFormHandler.Delete)
 	adminAPI.GET("/collection-forms/:id/submissions", collectionFormHandler.Submissions)
 	adminAPI.GET("/collection-forms/:id/export", collectionFormHandler.Export)
 	adminAPI.DELETE("/collection-forms/:id/submissions/:submissionId", collectionFormHandler.DeleteSubmission)

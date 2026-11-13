@@ -39,7 +39,9 @@ func TestMariaDBCollectionQuotasUnderConcurrency(t *testing.T) {
 		t.Fatal(err)
 	}
 	sqlDB, _ := db.DB()
-	defer sqlDB.Close()
+	// Cleanup runs after defers; close the pool last so fixture deletion can
+	// still access the database.
+	t.Cleanup(func() { _ = sqlDB.Close() })
 	var port int
 	var datadir string
 	if err := db.Raw("SELECT @@port, @@datadir").Row().Scan(&port, &datadir); err != nil {
@@ -73,8 +75,10 @@ func TestMariaDBCollectionQuotasUnderConcurrency(t *testing.T) {
 		c.Set("sessionUser", &auth.SessionUser{Role: auth.SessionRole{Name: model.RoleNameSuperAdmin}})
 		c.Next()
 	}
+	engine.POST("/admin", asSuperAdmin, h.Create)
 	engine.PUT("/admin/:id", asSuperAdmin, h.Update)
 	engine.GET("/admin/:id", asSuperAdmin, h.GetAdmin)
+	engine.DELETE("/admin/:id", asSuperAdmin, h.Delete)
 	engine.GET("/admin/:id/export", asSuperAdmin, h.Export)
 	request := func(formID uint64, slot string) int {
 		body, _ := json.Marshal(map[string]any{"answers": map[string]any{"name": "测试", "slot": slot}})
@@ -266,5 +270,72 @@ func TestMariaDBCollectionQuotasUnderConcurrency(t *testing.T) {
 	if exportResponse.Code != 200 || !strings.Contains(exportResponse.Body.String(), "上午") ||
 		!strings.Contains(exportResponse.Body.String(), "下午") {
 		t.Fatalf("CSV should export option labels: %d %s", exportResponse.Code, exportResponse.Body.String())
+	}
+
+	// Unfinished drafts must persist through create/update, remain private,
+	// and fail publication until all user-facing labels are complete.
+	draftFields := testCollectionInput().Fields
+	draftFields[0].Label = ""
+	draftFields[1].Options[0].Label = ""
+	draftInput := collectionFormInput{Status: "draft", Fields: draftFields, LoginRequired: &notRequired}
+	sendAdmin := func(method, path string, input collectionFormInput) *httptest.ResponseRecorder {
+		data, _ := json.Marshal(input)
+		req := httptest.NewRequest(method, path, bytes.NewReader(data))
+		req.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+		engine.ServeHTTP(response, req)
+		return response
+	}
+	created := sendAdmin(http.MethodPost, "/admin", draftInput)
+	if created.Code != 200 {
+		t.Fatalf("unfinished draft create: %d %s", created.Code, created.Body.String())
+	}
+	var createData struct {
+		Data struct {
+			ID uint64 `json:"id"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(created.Body.Bytes(), &createData); err != nil || createData.Data.ID == 0 {
+		t.Fatalf("draft id missing: %v, %s", err, created.Body.String())
+	}
+	draftID := createData.Data.ID
+	t.Cleanup(func() { db.Delete(&model.CollectionForm{}, draftID) })
+	if response := sendAdmin(http.MethodPut, fmt.Sprintf("/admin/%d", draftID), draftInput); response.Code != 200 {
+		t.Fatalf("unfinished draft update: %d %s", response.Code, response.Body.String())
+	}
+	public := httptest.NewRecorder()
+	engine.ServeHTTP(public, httptest.NewRequest(http.MethodGet, fmt.Sprintf("/collection-forms/%d", draftID), nil))
+	if public.Code != 404 {
+		t.Fatalf("draft exposed publicly: %d", public.Code)
+	}
+	draftInput.Status = "published"
+	if response := sendAdmin(http.MethodPut, fmt.Sprintf("/admin/%d", draftID), draftInput); response.Code != 400 {
+		t.Fatalf("incomplete draft published: %d %s", response.Code, response.Body.String())
+	}
+	draftInput.Title = "填写完成的报名表"
+	draftInput.Fields[0].Label = "姓名"
+	draftInput.Fields[1].Options[0].Label = "上午"
+	if response := sendAdmin(http.MethodPut, fmt.Sprintf("/admin/%d", draftID), draftInput); response.Code != 200 {
+		t.Fatalf("completed draft could not publish: %d %s", response.Code, response.Body.String())
+	}
+	var persisted model.CollectionForm
+	if err := db.First(&persisted, draftID).Error; err != nil || persisted.Status != "published" ||
+		persisted.Fields[0].Label != "姓名" {
+		t.Fatalf("published draft was not persisted: %v %#v", err, persisted)
+	}
+	deletion := httptest.NewRecorder()
+	engine.ServeHTTP(deletion, httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/admin/%d", draftID), nil))
+	if deletion.Code != 409 {
+		t.Fatalf("published form deleted: %d %s", deletion.Code, deletion.Body.String())
+	}
+	draftInput.Status, draftInput.Title = "draft", ""
+	created = sendAdmin(http.MethodPost, "/admin", draftInput)
+	if err := json.Unmarshal(created.Body.Bytes(), &createData); err != nil || created.Code != 200 {
+		t.Fatalf("draft for deletion was not created: %v %s", err, created.Body.String())
+	}
+	deletion = httptest.NewRecorder()
+	engine.ServeHTTP(deletion, httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/admin/%d", createData.Data.ID), nil))
+	if deletion.Code != 200 {
+		t.Fatalf("draft deletion failed: %d %s", deletion.Code, deletion.Body.String())
 	}
 }

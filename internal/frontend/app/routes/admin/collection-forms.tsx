@@ -1,7 +1,8 @@
-import { useEffect, useState } from "react";
-import { Link } from "react-router";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Link, useBlocker } from "react-router";
 
 import { CollectionFormFields } from "~/components/collection-form-fields";
+import { collectionPresets, fieldKey, isChoice, makeCollectionPreset, makeField, makeOption, type CollectionPreset } from "~/lib/collection-form-presets";
 import {
   collectionClient, type CollectionField, type CollectionForm, type CollectionInput,
   type CollectionOption, type CollectionSubmission, type CollectionUsage,
@@ -19,23 +20,7 @@ const quickFields: { label: string; type: CollectionField["type"] }[] = [
   { label: "姓名", type: "text" }, { label: "学院", type: "text" },
   { label: "联系方式", type: "text" }, { label: "培训场次", type: "radio" },
 ];
-const isChoice = (type: CollectionField["type"]) => ["radio", "checkbox", "select"].includes(type);
-const key = () => `f${Math.random().toString(36).slice(2, 10)}`;
-const makeOption = (label: string): CollectionOption => ({ value: key(), label, capacity: 0 });
-const makeField = (type: CollectionField["type"], label = ""): CollectionField => ({
-  key: key(), label, type, required: true,
-  ...(isChoice(type) ? { options: [makeOption("选项 1"), makeOption("选项 2")] } : {}),
-});
-const defaultCloseTime = () => {
-  const date = new Date();
-  date.setDate(date.getDate() + 7);
-  date.setHours(23, 59, 0, 0);
-  return date.toISOString();
-};
-const blank = (): CollectionInput => ({
-  title: "", description: "", fields: [makeField("text", "姓名")],
-  status: "draft", loginRequired: true, capacity: 0, opensAt: null, closesAt: defaultCloseTime(),
-});
+
 const toInputTime = (time: string | null) => {
   if (!time) return "";
   const date = new Date(time);
@@ -50,12 +35,12 @@ const answerText = (field: CollectionField, value: unknown) => {
   return labels.get(String(value)) ?? String(value);
 };
 
-type View = "edit" | "settings" | "preview" | "results";
+type View = "edit" | "settings" | "publish" | "preview" | "results";
 
 export default function CollectionFormsAdmin() {
   const [items, setItems] = useState<CollectionForm[]>([]);
   const [selected, setSelected] = useState<number | null>(null);
-  const [draft, setDraft] = useState<CollectionInput>(blank);
+  const [draft, setDraft] = useState<CollectionInput>(() => makeCollectionPreset("blank"));
   const [view, setView] = useState<View>("edit");
   const [activeKey, setActiveKey] = useState<string | null>(null);
   const [addingField, setAddingField] = useState(false);
@@ -65,6 +50,17 @@ export default function CollectionFormsAdmin() {
   const [records, setRecords] = useState<CollectionSubmission[] | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [autoSaveState, setAutoSaveState] = useState<"saved" | "saving" | "error">("saved");
+  const savedSnapshot = useRef("");
+  const updateQueue = useRef<Promise<void>>(Promise.resolve());
+  const publishing = useRef(false);
+  const currentDraft = useRef(draft);
+  currentDraft.current = draft;
+  const handlingNavigation = useRef(false);
+  const dirty = selected !== null && JSON.stringify(draft) !== savedSnapshot.current;
+  const blocker = useBlocker(({ currentLocation, nextLocation }) =>
+    dirty && currentLocation.pathname !== nextLocation.pathname);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -76,19 +72,126 @@ export default function CollectionFormsAdmin() {
     void refreshList().catch((err) => setError(errorText(err))).finally(() => setLoading(false));
   }, []);
 
-  function startNew() {
-    const form = blank();
-    setSelected(0);
-    setDraft(form);
-    setActiveKey(form.fields[0].key);
-    setView("edit");
-    setPreviewAnswers({});
-    setAddingField(false);
-    setRecords(null);
-    setCount(0);
-    setUsage({});
+  // Serialize draft updates and publication so a delayed autosave cannot
+  // overwrite the newly published form.
+  const queueSave = useCallback((id: number, body: CollectionInput) => {
+    const snapshot = JSON.stringify(body);
+    const next = updateQueue.current.catch(() => {}).then(async () => {
+      if (savedSnapshot.current === snapshot) return;
+      await collectionClient.update(id, body);
+      savedSnapshot.current = snapshot;
+    });
+    updateQueue.current = next;
+    return next;
+  }, []);
+
+  useEffect(() => {
+    if (!selected || draft.status !== "draft" || publishing.current) return;
+    if (JSON.stringify(draft) === savedSnapshot.current) {
+      setAutoSaveState("saved");
+      return;
+    }
+    setAutoSaveState("saving");
+    const timeout = window.setTimeout(() => {
+      if (publishing.current) return;
+      void queueSave(selected, draft).then(() => {
+        if (currentDraft.current === draft) setAutoSaveState("saved");
+      }).catch(() => setAutoSaveState("error"));
+    }, 650);
+    return () => window.clearTimeout(timeout);
+  }, [selected, draft, queueSave]);
+
+  useEffect(() => {
+    if (blocker.state !== "blocked") {
+      handlingNavigation.current = false;
+      return;
+    }
+    if (handlingNavigation.current) return;
+    handlingNavigation.current = true;
+    if (selected && draft.status === "draft") {
+      void queueSave(selected, draft).then(() => {
+        if (blocker.state === "blocked") blocker.proceed();
+      }).catch((err) => {
+        setAutoSaveState("error");
+        setError(errorText(err));
+        if (blocker.state === "blocked") blocker.reset();
+      });
+    } else if (window.confirm("有尚未保存的修改，确定离开吗？")) {
+      blocker.proceed();
+    } else {
+      blocker.reset();
+    }
+  }, [blocker, selected, draft, queueSave]);
+
+  useEffect(() => {
+    if (!dirty) return;
+    const warn = (event: BeforeUnloadEvent) => {
+      event.preventDefault();
+      event.returnValue = "";
+    };
+    window.addEventListener("beforeunload", warn);
+    return () => window.removeEventListener("beforeunload", warn);
+  }, [dirty]);
+
+  async function createFromPreset(preset: CollectionPreset) {
+    if (creating) return;
+    setCreating(true);
     setError("");
-    setNotice("");
+    try {
+      const form = makeCollectionPreset(preset);
+      const created = await collectionClient.create(form);
+      savedSnapshot.current = JSON.stringify(form);
+      setDraft(form);
+      setSelected(created.id);
+      setActiveKey(form.fields[0]?.key ?? null);
+      setView("edit");
+      setAutoSaveState("saved");
+      setPreviewAnswers({});
+      setAddingField(false);
+      setRecords(null);
+      setCount(0);
+      setUsage({});
+      setNotice("");
+    } catch (err) {
+      setError(errorText(err));
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  async function returnToList() {
+    if (saving) return;
+    if (selected && draft.status === "draft" && JSON.stringify(draft) !== savedSnapshot.current) {
+      setAutoSaveState("saving");
+      try {
+        await queueSave(selected, draft);
+        setAutoSaveState("saved");
+      } catch (err) {
+        setAutoSaveState("error");
+        setError(errorText(err));
+        return;
+      }
+    } else if (JSON.stringify(draft) !== savedSnapshot.current && !window.confirm("有尚未保存的修改，确定返回列表吗？")) {
+      return;
+    }
+    try {
+      await refreshList();
+      setSelected(null);
+      setRecords(null);
+      setError("");
+    } catch (err) {
+      setError(errorText(err));
+    }
+  }
+  async function deleteDraft(id: number, title: string) {
+    if (!window.confirm(`删除草稿「${title || "未命名收集表"}」？`)) return;
+    try {
+      await collectionClient.delete(id);
+      await refreshList();
+      setError("");
+    } catch (err) {
+      setError(errorText(err));
+    }
   }
   async function open(id: number) {
     setError("");
@@ -96,11 +199,14 @@ export default function CollectionFormsAdmin() {
     setLoading(true);
     try {
       const detail = await collectionClient.get(id);
-      setDraft({
+      const form: CollectionInput = {
         title: detail.form.title, description: detail.form.description, fields: detail.form.fields,
         status: detail.form.status, loginRequired: detail.form.loginRequired,
         capacity: detail.form.capacity, opensAt: detail.form.opensAt, closesAt: detail.form.closesAt,
-      });
+      };
+      savedSnapshot.current = JSON.stringify(form);
+      setDraft(form);
+      setAutoSaveState("saved");
       setCount(detail.count);
       setUsage(detail.usage);
       setSelected(id);
@@ -146,8 +252,8 @@ export default function CollectionFormsAdmin() {
     if (draft.fields.length >= 30) return;
     const original = draft.fields[index];
     const copy: CollectionField = {
-      ...original, key: key(),
-      options: original.options?.map((item) => ({ ...item, value: key() })),
+      ...original, key: fieldKey(),
+      options: original.options?.map((item) => ({ ...item, value: fieldKey() })),
     };
     setDraft((previous) => ({
       ...previous, fields: [...previous.fields.slice(0, index + 1), copy, ...previous.fields.slice(index + 1)],
@@ -155,26 +261,31 @@ export default function CollectionFormsAdmin() {
     setActiveKey(copy.key);
   }
   async function save(publish = false) {
+    if (!selected || saving) return;
     setError("");
     setNotice("");
-    if (!draft.title.trim()) {
-      setError("请填写收集表标题");
-      setView("edit");
-      return;
+    // Drafts may contain unfinished questions; publication must not.
+    if (publish || draft.status !== "draft") {
+      if (!draft.title.trim()) {
+        setError("请填写收集表标题");
+        setView("edit");
+        return;
+      }
+      const badIndex = draft.fields.findIndex((field) =>
+        !field.label.trim() || (isChoice(field.type) && (field.options?.some((option) => !option.label.trim()) ?? true)));
+      if (badIndex !== -1 || draft.fields.length === 0) {
+        setActiveKey(draft.fields[Math.max(badIndex, 0)]?.key ?? null);
+        setView("edit");
+        setError(`请完善第 ${Math.max(badIndex, 0) + 1} 项的名称和选项`);
+        return;
+      }
+      if (draft.opensAt && draft.closesAt && new Date(draft.closesAt) <= new Date(draft.opensAt)) {
+        setView("settings");
+        setError("截止时间应晚于开始时间");
+        return;
+      }
     }
-    const badIndex = draft.fields.findIndex((field) =>
-      !field.label.trim() || (isChoice(field.type) && (field.options?.some((option) => !option.label.trim()) ?? true)));
-    if (badIndex !== -1) {
-      setActiveKey(draft.fields[badIndex].key);
-      setView("edit");
-      setError(`请完善第 ${badIndex + 1} 项的名称和选项`);
-      return;
-    }
-    if (draft.opensAt && draft.closesAt && new Date(draft.closesAt) <= new Date(draft.opensAt)) {
-      setView("settings");
-      setError("截止时间应晚于开始时间");
-      return;
-    }
+    publishing.current = true;
     setSaving(true);
     try {
       const body: CollectionInput = {
@@ -187,19 +298,17 @@ export default function CollectionFormsAdmin() {
           })) : undefined,
         })),
       };
-      const id = selected || (await collectionClient.create(body)).id;
-      if (selected) await collectionClient.update(id, body);
-      setSelected(id);
+      await queueSave(selected, body);
       setDraft(body);
-      await refreshList();
-      const detail = await collectionClient.get(id);
-      setCount(detail.count);
-      setUsage(detail.usage);
-      setNotice(publish ? "已发布，填写链接可以分享了" : "已保存");
       if (publish) setView("edit");
+      setAutoSaveState("saved");
+      setNotice(publish ? "已发布，填写链接可以分享了" : "已保存");
+      void refreshList().catch(() => {});
     } catch (err) {
+      setAutoSaveState("error");
       setError(errorText(err));
     } finally {
+      publishing.current = false;
       setSaving(false);
     }
   }
@@ -241,21 +350,38 @@ export default function CollectionFormsAdmin() {
   return <main className="admin-design space-y-4">
     <header className="admin-page-header flex flex-wrap items-center justify-between gap-3">
       <h1 className="admin-page-title">收集表</h1>
-      {selected === null
-        ? <button className="admin-button admin-button--primary" onClick={startNew}>新建收集表</button>
-        : <button className="admin-button admin-button--secondary" onClick={() => { setSelected(null); setRecords(null); setError(""); }}>返回列表</button>}
+      {selected !== null && <button className="admin-button admin-button--secondary"
+        onClick={() => void returnToList()}>返回列表</button>}
     </header>
     {selected === null ? (
       loading ? <p>正在读取…</p> : <>
         {error && <p role="alert" className="text-red-500">{error}</p>}
-        {items.length === 0 ? <p className="text-fg-muted">暂无收集表</p> :
-          <div className="grid gap-3">
-            {items.map((item) => <button key={item.id} type="button" onClick={() => void open(item.id)}
-              className="admin-panel flex flex-wrap items-center justify-between gap-3 p-4 text-left">
-              <span><strong className="block">{item.title}</strong><small className="text-fg-muted">{item.count ?? 0} 份提交</small></span>
-              <span className="text-sm text-fg-muted">{item.status === "draft" ? "草稿" : item.status === "closed" ? "已关闭" : "已发布"}</span>
+        <section className="space-y-3">
+          <h2 className="text-lg font-semibold">创建收集表</h2>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {collectionPresets.map((preset) => <button key={preset.id} type="button"
+              disabled={creating} onClick={() => void createFromPreset(preset.id)}
+              className="admin-panel space-y-2 p-4 text-left transition-colors hover:bg-[var(--admin-hover-overlay)] disabled:opacity-50">
+              <strong className="block">{preset.title}</strong>
+              <span className="block text-sm text-fg-muted">{preset.description}</span>
             </button>)}
-          </div>}
+          </div>
+        </section>
+        {items.length > 0 && <section className="space-y-3">
+          <h2 className="text-lg font-semibold">已有收集表</h2>
+          <div className="grid gap-3">
+            {items.map((item) => <div key={item.id} className="admin-panel flex items-center gap-3 p-3">
+              <button type="button" className="min-w-0 flex-1 text-left" onClick={() => void open(item.id)}>
+                <strong className="block truncate">{item.title || "未命名收集表"}</strong>
+                <span className="text-xs text-fg-muted">{item.count ?? 0} 份提交</span>
+              </button>
+              <span className="shrink-0 text-sm text-fg-muted">{item.status === "draft" ? "草稿" : item.status === "closed" ? "已关闭" : "已发布"}</span>
+              {item.status === "draft" && <button type="button" className="admin-button admin-button--quiet"
+                aria-label={`删除草稿：${item.title || "未命名收集表"}`}
+                onClick={() => void deleteDraft(item.id, item.title)}>删除</button>}
+            </div>)}
+          </div>
+        </section>}
       </>
     ) : <>
       <div className="admin-panel flex flex-wrap items-center justify-between gap-3 p-3">
@@ -263,8 +389,8 @@ export default function CollectionFormsAdmin() {
           <button type="button" aria-current={view === "edit" ? "page" : undefined}
             className={`admin-button ${view === "edit" ? "admin-button--primary" : "admin-button--quiet"}`}
             onClick={() => setView("edit")}>编辑</button>
-          <button type="button" aria-current={view === "settings" ? "page" : undefined}
-            className={`admin-button ${view === "settings" ? "admin-button--primary" : "admin-button--quiet"}`}
+          <button type="button" aria-current={view === "settings" || view === "publish" ? "page" : undefined}
+            className={`admin-button ${view === "settings" || view === "publish" ? "admin-button--primary" : "admin-button--quiet"}`}
             onClick={() => setView("settings")}>设置</button>
           {Boolean(selected) && <button type="button" aria-current={view === "results" ? "page" : undefined}
             className={`admin-button ${view === "results" ? "admin-button--primary" : "admin-button--quiet"}`}
@@ -275,12 +401,20 @@ export default function CollectionFormsAdmin() {
             onClick={() => { setPreviewAnswers({}); setView(view === "preview" ? "edit" : "preview"); }}>
             {view === "preview" ? "退出预览" : "预览"}
           </button>
-          <button type="button" className="admin-button admin-button--secondary" disabled={saving}
-            onClick={() => void save()}>{saving ? "保存中…" : "保存"}</button>
-          {draft.status !== "published"
-            ? <button type="button" className="admin-button admin-button--primary" disabled={saving}
-                onClick={() => void save(true)}>发布</button>
-            : <button type="button" className="admin-button admin-button--primary" onClick={() => void copyShareLink()}>复制填写链接</button>}
+          {draft.status === "draft" ? <>
+            <span role="status" className="self-center text-sm text-fg-muted">
+              {autoSaveState === "error" ? "保存失败" : autoSaveState === "saving" ? "自动保存中…" : "草稿已保存"}
+            </span>
+            {autoSaveState === "error" && <button type="button" className="admin-button admin-button--secondary"
+              disabled={saving} onClick={() => void save()}>重试</button>}
+            {view !== "publish" && <button type="button" className="admin-button admin-button--primary"
+              onClick={() => setView("publish")}>发布</button>}
+          </> : <>
+            <button type="button" className="admin-button admin-button--secondary" disabled={saving}
+              onClick={() => void save()}>{saving ? "保存中…" : "保存修改"}</button>
+            {draft.status === "published" && <button type="button" className="admin-button admin-button--primary"
+              onClick={() => void copyShareLink()}>复制填写链接</button>}
+          </>}
         </div>
       </div>
 
@@ -408,15 +542,16 @@ export default function CollectionFormsAdmin() {
         </div>}
       </div>}
 
-      {view === "settings" && <section className="admin-panel mx-auto max-w-3xl space-y-5 p-5">
-        <h2 className="text-lg font-semibold">填写设置</h2>
+      {(view === "settings" || view === "publish") && <section className="admin-panel mx-auto max-w-3xl space-y-5 p-5">
+        <h2 className="text-lg font-semibold">{view === "publish" ? "发布前确认" : "填写设置"}</h2>
         <div className="grid gap-4 sm:grid-cols-2">
           <label className="grid gap-1">收集状态
-            <select className="admin-field" value={draft.status} onChange={(e) => change("status", e.target.value as CollectionInput["status"])}>
-              <option value="draft" disabled={locked}>草稿</option>
-              <option value="published">开放收集</option>
-              <option value="closed">停止收集</option>
-            </select>
+            {draft.status === "draft" ? <span className="admin-field flex items-center">草稿（发布后开放填写）</span> :
+              <select className="admin-field" value={draft.status}
+                onChange={(e) => change("status", e.target.value as CollectionInput["status"])}>
+                <option value="published">开放收集</option>
+                <option value="closed">停止收集</option>
+              </select>}
           </label>
           <label className="grid gap-1">总名额
             <input className="admin-field" type="number" min={0} max={1000000} placeholder="不限"
@@ -436,6 +571,8 @@ export default function CollectionFormsAdmin() {
             onChange={(e) => change("loginRequired", e.target.checked)} />
           需要登录后填写（每个账号只能提交一次）
         </label>
+        {view === "publish" && <button type="button" className="admin-button admin-button--primary"
+          disabled={saving} onClick={() => void save(true)}>{saving ? "发布中…" : "确认发布"}</button>}
       </section>}
 
       {view === "preview" && <section className="mx-auto max-w-2xl space-y-4">

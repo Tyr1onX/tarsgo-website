@@ -40,21 +40,22 @@ type collectionFormInput struct {
 }
 
 func validateCollectionForm(input collectionFormInput) error {
-	if len([]rune(strings.TrimSpace(input.Title))) == 0 || len([]rune(input.Title)) > 120 || len([]rune(input.Description)) > 1000 {
+	draft := input.Status == "draft"
+	if (!draft && strings.TrimSpace(input.Title) == "") || len([]rune(input.Title)) > 120 || len([]rune(input.Description)) > 1000 {
 		return errors.New("标题或说明长度不合法")
 	}
 	if input.Status != "draft" && input.Status != "published" && input.Status != "closed" {
 		return errors.New("表单状态不合法")
 	}
-	if input.Capacity < 0 || input.Capacity > 1000000 || len(input.Fields) == 0 || len(input.Fields) > 30 {
+	if input.Capacity < 0 || input.Capacity > 1000000 || (!draft && len(input.Fields) == 0) || len(input.Fields) > 30 {
 		return errors.New("字段数量或总名额不合法")
 	}
-	if input.OpensAt != nil && input.ClosesAt != nil && !input.OpensAt.Before(*input.ClosesAt) {
+	if !draft && input.OpensAt != nil && input.ClosesAt != nil && !input.OpensAt.Before(*input.ClosesAt) {
 		return errors.New("截止时间必须晚于开始时间")
 	}
 	seen := make(map[string]bool, len(input.Fields))
 	for _, field := range input.Fields {
-		if !collectionFieldKey.MatchString(field.Key) || seen[field.Key] || len([]rune(strings.TrimSpace(field.Label))) == 0 || len([]rune(field.Label)) > 100 {
+		if !collectionFieldKey.MatchString(field.Key) || seen[field.Key] || (!draft && strings.TrimSpace(field.Label) == "") || len([]rune(field.Label)) > 100 {
 			return errors.New("字段名称或标识不合法")
 		}
 		seen[field.Key] = true
@@ -69,7 +70,7 @@ func validateCollectionForm(input collectionFormInput) error {
 			}
 			values := map[string]bool{}
 			for _, option := range field.Options {
-				if strings.TrimSpace(option.Value) == "" || strings.TrimSpace(option.Label) == "" ||
+				if strings.TrimSpace(option.Value) == "" || (!draft && strings.TrimSpace(option.Label) == "") ||
 					len([]rune(option.Value)) > 100 || len([]rune(option.Label)) > 100 ||
 					len([]rune(option.Description)) > 300 ||
 					values[option.Value] || option.Capacity < 0 || option.Capacity > 1000000 {
@@ -243,6 +244,25 @@ func (h *CollectionFormHandler) Create(c *gin.Context) {
 		return
 	}
 	writeAPI(c, 200, "创建成功", form)
+}
+
+func (h *CollectionFormHandler) Delete(c *gin.Context) {
+	form, ok := h.owned(c)
+	if !ok {
+		return
+	}
+	// Only unused drafts are deletable. Published forms and their submissions
+	// must not be removed through this shortcut.
+	result := h.db.Where("id = ? AND status = ?", form.ID, "draft").Delete(&model.CollectionForm{})
+	if result.Error != nil {
+		writeAPIError(c, 500, "删除失败")
+		return
+	}
+	if result.RowsAffected == 0 {
+		writeAPIError(c, 409, "只能删除未发布的草稿")
+		return
+	}
+	writeAPI(c, 200, "删除成功", gin.H{"deleted": true})
 }
 
 func (h *CollectionFormHandler) GetAdmin(c *gin.Context) {
