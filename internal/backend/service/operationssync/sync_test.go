@@ -66,8 +66,8 @@ func TestPublicBilibiliBlockedResponsesAreNotTreatedAsEmptyHistory(t *testing.T)
 		}))
 		collector := &Collector{apiURL: server.URL, client: server.Client(), now: time.Now}
 		posts, err := collector.fetchPosts(context.Background())
-		if err == nil || posts != nil {
-			t.Fatalf("must fail instead of erasing posts: %d", response.status)
+		if err == nil || len(posts) != 0 {
+			t.Fatalf("must fail instead of inventing posts: %d", response.status)
 		}
 		server.Close()
 	}

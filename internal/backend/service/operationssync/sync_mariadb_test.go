@@ -40,13 +40,22 @@ func TestMariaDBOperationsPublicSyncKeepsOneSamplePerDayAndUpsertsPosts(t *testi
 		t.Fatal(err)
 	}
 	views, followerCalls := int64(100), 0
+	blockSecondPage := false
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch r.URL.Path {
 		case "/x/relation/stat":
 			followerCalls++
 			fmt.Fprintf(w, `{"code":0,"data":{"mid":488284486,"follower":2805}}`)
 		case "/x/series/recArchivesByKeywords":
-			fmt.Fprintf(w, `{"code":0,"data":{"page":{"total":1},"archives":[{"bvid":"BV1Cz4h6cEDe","title":"培训会议","upMid":488284486,"pubdate":1793891736,"stat":{"view":%d}}]}}`, views)
+			if blockSecondPage && r.URL.Query().Get("pn") == "2" {
+				w.WriteHeader(http.StatusPreconditionFailed)
+				return
+			}
+			total := 1
+			if blockSecondPage {
+				total = 31
+			}
+			fmt.Fprintf(w, `{"code":0,"data":{"page":{"total":%d},"archives":[{"bvid":"BV1Cz4h6cEDe","title":"培训会议","upMid":488284486,"pubdate":1793891736,"stat":{"view":%d}}]}}`, total, views)
 		default:
 			http.NotFound(w, r)
 		}
@@ -74,6 +83,17 @@ func TestMariaDBOperationsPublicSyncKeepsOneSamplePerDayAndUpsertsPosts(t *testi
 	if len(posts) != 1 || posts[0].ViewCount != 125 || posts[0].ExternalID != "BV1Cz4h6cEDe" {
 		t.Fatalf("duplicate or stale posts: %+v", posts)
 	}
+	// The first page must still update the stored post even when page two returns 412.
+	blockSecondPage = true
+	views = 180
+	if err := collector.Sync(context.Background()); err == nil {
+		t.Fatal("partial public data failure must be reported")
+	}
+	var updated model.OperationsPlatformPost
+	if err := db.First(&updated, posts[0].ID).Error; err != nil || updated.ViewCount != 180 {
+		t.Fatalf("successfully fetched page was discarded: post=%+v, err=%v", updated, err)
+	}
+	blockSecondPage = false
 	now = now.Add(24 * time.Hour)
 	if err := collector.Sync(context.Background()); err != nil {
 		t.Fatal(err)
