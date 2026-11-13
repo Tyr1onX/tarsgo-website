@@ -195,6 +195,7 @@
 .dashboard-subnav__heading {
   display: flex;
   width: 100%;
+  min-height: 2.75rem;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
@@ -238,7 +239,7 @@
 .dashboard-subnav__link {
   display: flex;
   min-width: 0;
-  min-height: 2.15rem;
+  min-height: 2.75rem;
   align-items: center;
   justify-content: space-between;
   gap: 0.5rem;
