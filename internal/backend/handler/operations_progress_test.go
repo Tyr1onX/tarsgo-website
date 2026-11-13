@@ -18,7 +18,7 @@ import (
 
 func TestValidateOperationsInputs(t *testing.T) {
 	next := time.Now().UTC()
-	input := operationsProgressInput{Title: " 视频更新 ", IntervalDays: 7, Status: "active", NextCheckAt: &next}
+	input := operationsProgressInput{Title: " 视频更新 ", Kind: "workstream", IntervalDays: 7, Status: "active", NextCheckAt: &next}
 	if !validateOperationsProgress(&input) || input.Title != "视频更新" || input.NextCheckAt != nil {
 		t.Fatal("recurring input should trim its title and not retain a redundant review deadline")
 	}
@@ -28,18 +28,33 @@ func TestValidateOperationsInputs(t *testing.T) {
 		{Title: "事项", IntervalDays: 366, Status: "active"},
 		{Title: "事项", Status: "bogus"},
 		{Title: "事项", Status: "active"},
+		{Title: "事项", Kind: "video", Stage: "published", IntervalDays: 7, Status: "active"},
+		{Title: "事项", Kind: "workstream", Stage: "editing", Status: "active", NextCheckAt: &next},
 	} {
 		if validateOperationsProgress(&invalid) {
 			t.Fatalf("accepted invalid item: %+v", invalid)
 		}
 	}
+	day := "2026-11-05"
 	for _, link := range []string{"javascript:alert(1)", "file:///etc/passwd", "https://a.com@evil.test"} {
-		update := operationsUpdateInput{Content: "已更新", Kind: "completed", Link: link}
+		update := operationsUpdateInput{Content: "已更新", Kind: "completed", Link: link, PublishedOn: &day}
 		if validateOperationsUpdate(&update) {
 			t.Fatalf("accepted unsafe progress link: %s", link)
 		}
 	}
-	ok := operationsUpdateInput{Content: " 发布第 1 期 ", Kind: "completed", Link: "https://www.douyin.com/video/1"}
+	for _, invalidDay := range []string{"2026-11-40", "2031-01-01", "2026/11/05"} {
+		update := operationsUpdateInput{Content: "已更新", Kind: "completed", PublishedOn: &invalidDay}
+		if validateOperationsUpdate(&update) {
+			t.Fatalf("accepted invalid publication date: %s", invalidDay)
+		}
+	}
+	if validateOperationsUpdate(&operationsUpdateInput{Content: "已更新", Kind: "completed"}) {
+		t.Fatal("completion must specify actual publication date")
+	}
+	if validateOperationsUpdate(&operationsUpdateInput{Content: "进度说明", Kind: "progress", PublishedOn: &day}) {
+		t.Fatal("ordinary progress must not silently become a publication")
+	}
+	ok := operationsUpdateInput{Content: " 发布第 1 期 ", Kind: "completed", Link: "https://www.douyin.com/video/1", PublishedOn: &day}
 	if !validateOperationsUpdate(&ok) || ok.Content != "发布第 1 期" {
 		t.Fatal("valid completion update rejected")
 	}
@@ -84,7 +99,7 @@ func TestOperationsProgressOnlyOperationsMembersMayWrite(t *testing.T) {
 				handler.Create(c)
 			})
 			next := time.Now().Add(24 * time.Hour)
-			input, _ := json.Marshal(operationsProgressInput{Title: "运营事项", Status: "active", NextCheckAt: &next})
+			input, _ := json.Marshal(operationsProgressInput{Title: "运营事项", Kind: "workstream", Status: "active", NextCheckAt: &next})
 			response := httptest.NewRecorder()
 			router.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/api/operations/progress", bytes.NewReader(input)))
 			if response.Code != tc.want {

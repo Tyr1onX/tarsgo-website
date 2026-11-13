@@ -260,6 +260,7 @@ func migrationRegistry(appEnv string) []migration {
 				&model.OperationsProgressItem{}, &model.OperationsProgressUpdate{},
 			)
 		}},
+		{version: 60, apply: migrateOperationsProgressV60},
 	}
 }
 

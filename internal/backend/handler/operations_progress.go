@@ -22,6 +22,8 @@ func NewOperationsProgressHandler(db *gorm.DB) *OperationsProgressHandler {
 
 type operationsProgressInput struct {
 	Title        string     `json:"title"`
+	Kind         string     `json:"kind"`
+	Stage        string     `json:"stage"`
 	Owner        string     `json:"owner"`
 	IntervalDays int        `json:"intervalDays"`
 	NextAction   string     `json:"nextAction"`
@@ -30,15 +32,16 @@ type operationsProgressInput struct {
 }
 
 type operationsUpdateInput struct {
-	Content string `json:"content"`
-	Kind    string `json:"kind"`
-	Link    string `json:"link"`
+	Content     string  `json:"content"`
+	Kind        string  `json:"kind"`
+	Link        string  `json:"link"`
+	PublishedOn *string `json:"publishedOn"`
 }
 
 type operationsProgressView struct {
 	model.OperationsProgressItem
 	LastUpdate      *model.OperationsProgressUpdate `json:"lastUpdate"`
-	LastCompletedAt *time.Time                      `json:"lastCompletedAt"`
+	LastCompletedOn *string                         `json:"lastCompletedOn"`
 }
 
 func validateOperationsProgress(input *operationsProgressInput) bool {
@@ -52,7 +55,23 @@ func validateOperationsProgress(input *operationsProgressInput) bool {
 	if input.Status != "active" && input.Status != "blocked" && input.Status != "done" {
 		return false
 	}
-	if input.IntervalDays == 0 && input.Status != "done" && input.NextCheckAt == nil {
+	if input.Kind != "workstream" && input.Kind != "channel" && input.Kind != "video" {
+		return false
+	}
+	if input.Kind != "video" && input.Stage != "" {
+		return false
+	}
+	if input.Kind == "video" {
+		switch input.Stage {
+		case "unconfirmed", "planning", "materials", "editing", "review", "published":
+		default:
+			return false
+		}
+	}
+	if input.Kind != "workstream" && input.IntervalDays != 0 {
+		return false
+	}
+	if input.Kind == "workstream" && input.IntervalDays == 0 && input.Status != "done" && input.NextCheckAt == nil {
 		return false
 	}
 	// A recurring item's next review is calculated from recorded completions.
@@ -67,6 +86,17 @@ func validateOperationsUpdate(input *operationsUpdateInput) bool {
 	input.Link = strings.TrimSpace(input.Link)
 	if input.Content == "" || len([]rune(input.Content)) > 1000 || len(input.Link) > 500 ||
 		(input.Kind != "progress" && input.Kind != "completed") {
+		return false
+	}
+	if input.Kind == "completed" {
+		if input.PublishedOn == nil {
+			return false
+		}
+		_, err := time.Parse("2006-01-02", *input.PublishedOn)
+		if err != nil || *input.PublishedOn > time.Now().In(time.FixedZone("Beijing", 8*3600)).Format("2006-01-02") {
+			return false
+		}
+	} else if input.PublishedOn != nil {
 		return false
 	}
 	if input.Link != "" {
@@ -143,18 +173,18 @@ func (h *OperationsProgressHandler) List(c *gin.Context) {
 
 	type completion struct {
 		ItemID uint64
-		At     *time.Time
+		Day    *string
 	}
 	var completed []completion
 	if err := h.db.WithContext(c.Request.Context()).Model(&model.OperationsProgressUpdate{}).
-		Select("item_id, MAX(created_at) AS at").Where("kind = ?", "completed").Group("item_id").
+		Select("item_id, MAX(COALESCE(published_on, DATE_FORMAT(created_at, '%Y-%m-%d'))) AS day").Where("kind = ?", "completed").Group("item_id").
 		Scan(&completed).Error; err != nil {
 		writeAPIError(c, http.StatusInternalServerError, "运营进展读取失败")
 		return
 	}
 	for _, entry := range completed {
 		if at, exists := byID[entry.ItemID]; exists {
-			views[at].LastCompletedAt = entry.At
+			views[at].LastCompletedOn = entry.Day
 		}
 	}
 
@@ -176,7 +206,7 @@ func (h *OperationsProgressHandler) Create(c *gin.Context) {
 		return
 	}
 	item := model.OperationsProgressItem{
-		Title: input.Title, Owner: input.Owner, IntervalDays: input.IntervalDays,
+		Title: input.Title, Kind: input.Kind, Stage: input.Stage, Owner: input.Owner, IntervalDays: input.IntervalDays,
 		NextAction: input.NextAction, NextCheckAt: input.NextCheckAt, Status: input.Status,
 	}
 	if err := h.db.WithContext(c.Request.Context()).Create(&item).Error; err != nil {
@@ -201,7 +231,7 @@ func (h *OperationsProgressHandler) Update(c *gin.Context) {
 		return
 	}
 	result := h.db.WithContext(c.Request.Context()).Model(&model.OperationsProgressItem{}).Where("id = ?", id).
-		Updates(map[string]any{"title": input.Title, "owner": input.Owner,
+		Updates(map[string]any{"title": input.Title, "kind": input.Kind, "stage": input.Stage, "owner": input.Owner,
 			"interval_days": input.IntervalDays, "next_action": input.NextAction,
 			"next_check_at": input.NextCheckAt, "status": input.Status})
 	if result.Error != nil {
@@ -249,13 +279,13 @@ func (h *OperationsProgressHandler) AddUpdate(c *gin.Context) {
 		writeAPIError(c, http.StatusConflict, "已结束的事项不能追加进展")
 		return
 	}
-	if input.Kind == "completed" && item.IntervalDays == 0 {
-		writeAPIError(c, http.StatusBadRequest, "长期事项请记录进展；周期事项才能记录完成")
+	if input.Kind == "completed" && item.IntervalDays == 0 && item.Kind != "channel" {
+		writeAPIError(c, http.StatusBadRequest, "此事项只能记录进展")
 		return
 	}
 	user, _ := middleware.CurrentSessionUser(c)
 	entry := model.OperationsProgressUpdate{ItemID: id, AuthorID: user.ID,
-		Content: input.Content, Kind: input.Kind, Link: input.Link}
+		Content: input.Content, Kind: input.Kind, Link: input.Link, PublishedOn: input.PublishedOn}
 	if err := h.db.WithContext(c.Request.Context()).Create(&entry).Error; err != nil {
 		writeAPIError(c, http.StatusInternalServerError, "记录进展失败")
 		return

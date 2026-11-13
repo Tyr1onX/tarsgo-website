@@ -4,7 +4,10 @@ import { Link, useLocation } from "react-router";
 import { assignmentDeadlineToISOString, shanghaiDateTimeLocal } from "~/lib/assignment-deadline";
 import {
   createOperationsItem,
+  daysSinceOperationsPublish,
   formatOperationsDate,
+  formatOperationsDay,
+  formatOperationsUpdateDate,
   getOperationsAttention,
   getOperationsBoard,
   getOperationsHistory,
@@ -13,6 +16,7 @@ import {
   recordOperationsUpdate,
   saveOperationsItem,
   sortOperationsItems,
+  videoStageLabels,
   type OperationsBoard,
   type OperationsItem,
   type OperationsItemInput,
@@ -26,7 +30,7 @@ export function meta() {
 }
 
 const initialItem: OperationsItemInput = {
-  title: "", owner: "", intervalDays: 0, nextAction: "", nextCheckAt: null, status: "active",
+  title: "", kind: "workstream", stage: "", owner: "", intervalDays: 0, nextAction: "", nextCheckAt: null, status: "active",
 };
 
 function localDateTime(date: string | null) {
@@ -50,7 +54,7 @@ function History({ itemId }: { itemId: number }) {
   if (!history.length) return <p className="operations-progress__muted">暂无进展记录</p>;
   return <ol className="operations-progress__history">{history.map((entry) =>
     <li key={entry.id}>
-      <time dateTime={entry.createdAt}>{formatOperationsDate(entry.createdAt)}</time>
+      <time dateTime={entry.publishedOn || entry.createdAt}>{formatOperationsUpdateDate(entry)}</time>
       <span>{entry.kind === "completed" ? "已完成 · " : ""}{entry.content}</span>
       {entry.link ? <a href={entry.link} target="_blank" rel="noopener noreferrer">查看链接</a> : null}
     </li>,
@@ -65,7 +69,7 @@ export default function OperationsProgressPage() {
   const [editing, setEditing] = useState<number | "new" | null>(null);
   const [itemForm, setItemForm] = useState<OperationsItemInput>(initialItem);
   const [updating, setUpdating] = useState<number | null>(null);
-  const [updateForm, setUpdateForm] = useState<OperationsUpdateInput>({ content: "", kind: "progress", link: "" });
+  const [updateForm, setUpdateForm] = useState<OperationsUpdateInput>({ content: "", kind: "progress", link: "", publishedOn: null });
   const [saving, setSaving] = useState(false);
   const [showDone, setShowDone] = useState(false);
   const [historyItem, setHistoryItem] = useState<number | null>(null);
@@ -97,7 +101,7 @@ export default function OperationsProgressPage() {
     setUpdating(null);
     setEditing(item?.id ?? "new");
     setItemForm(item ? {
-      title: item.title, owner: item.owner, intervalDays: item.intervalDays,
+      title: item.title, kind: item.kind, stage: item.stage, owner: item.owner, intervalDays: item.intervalDays,
       nextAction: item.nextAction, nextCheckAt: item.nextCheckAt, status: item.status,
     } : { ...initialItem });
     setError("");
@@ -167,18 +171,28 @@ export default function OperationsProgressPage() {
           <label>事项名称<input required maxLength={120} value={itemForm.title} onChange={(event) => setItemForm((current) => ({ ...current, title: event.target.value }))} /></label>
           <div className="operations-progress__form-grid">
             <label>负责人<input maxLength={80} value={itemForm.owner} onChange={(event) => setItemForm((current) => ({ ...current, owner: event.target.value }))} /></label>
-            <label>类型<select value={itemForm.intervalDays > 0 ? "recurring" : "ongoing"} onChange={(event) => setItemForm((current) => ({
-              ...current, intervalDays: event.target.value === "recurring" ? 7 : 0, nextCheckAt: null,
-            }))}><option value="ongoing">长期推进</option><option value="recurring">周期更新</option></select></label>
+            <label>类型<select value={itemForm.kind === "workstream" && itemForm.intervalDays > 0 ? "recurring" : itemForm.kind} onChange={(event) => setItemForm((current) => ({
+              ...current,
+              kind: event.target.value === "recurring" ? "workstream" : event.target.value as OperationsItemInput["kind"],
+              stage: event.target.value === "video" ? "unconfirmed" : "",
+              intervalDays: event.target.value === "recurring" ? 7 : 0,
+              nextCheckAt: null,
+            }))}>
+              <option value="workstream">长期推进</option><option value="channel">账号运营</option><option value="video">视频制作</option><option value="recurring">周期更新</option>
+            </select></label>
           </div>
           <div className="operations-progress__form-grid">
             {itemForm.intervalDays > 0
               ? <label>更新周期（天）<input type="number" required min="1" max="365" value={itemForm.intervalDays} onChange={(event) => setItemForm((current) => ({ ...current, intervalDays: Number(event.target.value) }))} /></label>
-              : <label>下次跟进（北京时间）<input type="datetime-local" required={itemForm.status !== "done"} value={localDateTime(itemForm.nextCheckAt)} onChange={(event) => setItemForm((current) => ({ ...current, nextCheckAt: assignmentDeadlineToISOString(event.target.value) }))} /></label>}
+              : <label>下次跟进（北京时间）<input type="datetime-local" required={itemForm.kind === "workstream" && itemForm.status !== "done"} value={localDateTime(itemForm.nextCheckAt)} onChange={(event) => setItemForm((current) => ({ ...current, nextCheckAt: assignmentDeadlineToISOString(event.target.value) }))} /></label>}
             <label>状态<select value={itemForm.status} onChange={(event) => setItemForm((current) => ({ ...current, status: event.target.value as OperationsItemInput["status"] }))}>
               <option value="active">进行中</option><option value="blocked">遇到阻塞</option><option value="done">已结束</option>
             </select></label>
           </div>
+          {itemForm.kind === "video" ? <label>当前视频阶段<select value={itemForm.stage} onChange={(event) => setItemForm((current) => ({ ...current, stage: event.target.value as OperationsItemInput["stage"] }))}>
+            <option value="unconfirmed">阶段待确认</option>
+            {videoStageLabels.map((stage) => <option key={stage.key} value={stage.key}>{stage.label}</option>)}
+          </select></label> : null}
           <label>下一步<input maxLength={300} value={itemForm.nextAction} onChange={(event) => setItemForm((current) => ({ ...current, nextAction: event.target.value }))} /></label>
           <div className="operations-progress__actions">
             <button className="admin-button admin-button--primary" disabled={saving}>{saving ? "保存中…" : "保存"}</button>
@@ -197,13 +211,23 @@ export default function OperationsProgressPage() {
             const due = nextOperationsDate(item);
             return <article id={`operations-item-${item.id}`} className="operations-progress__item" key={item.id}>
               <div className="operations-progress__item-head">
-                <div><h3>{item.title}</h3><p className="operations-progress__muted">{item.owner || "负责人待定"} · {item.intervalDays > 0 ? `每 ${item.intervalDays} 天更新` : "长期推进"}</p></div>
+                <div><h3>{item.title}</h3><p className="operations-progress__muted">{item.owner || "负责人待定"} · {item.kind === "channel" ? "账号运营" : item.kind === "video" ? "视频制作" : item.intervalDays > 0 ? `每 ${item.intervalDays} 天更新` : "长期推进"}</p></div>
                 <span className={`operations-progress__status operations-progress__status--${attention}`}>{operationsAttentionLabel[attention]}</span>
               </div>
+              {item.kind === "video" ? <div className="operations-progress__video-stages" aria-label="视频制作流程">
+                <ol>{videoStageLabels.map((stage, index) => {
+                  const current = videoStageLabels.findIndex(({ key }) => key === item.stage);
+                  return <li key={stage.key} className={index < current ? "is-complete" : index === current ? "is-current" : ""}>
+                    <span className="operations-progress__step-marker" aria-hidden="true">{index < current ? "✓" : index + 1}</span>
+                    <span>{stage.label}</span>
+                  </li>;
+                })}</ol>
+                {item.stage === "unconfirmed" ? <span className="operations-progress__muted">阶段待确认</span> : null}
+              </div> : null}
               <div className="operations-progress__item-body">
-                <p><span>最近进展</span>{item.lastUpdate ? <>{item.lastUpdate.content} <time dateTime={item.lastUpdate.createdAt}>（{formatOperationsDate(item.lastUpdate.createdAt)}）</time>
+                <p><span>最近进展</span>{item.lastUpdate ? <>{item.lastUpdate.content} <time dateTime={item.lastUpdate.publishedOn || item.lastUpdate.createdAt}>（{formatOperationsUpdateDate(item.lastUpdate)}）</time>
                   {item.lastUpdate.link ? <a href={item.lastUpdate.link} target="_blank" rel="noopener noreferrer">查看链接</a> : null}</> : "尚未记录"}</p>
-                {item.intervalDays > 0 ? <p><span>上次完成</span>{formatOperationsDate(item.lastCompletedAt)} </p> : null}
+                {item.kind === "channel" ? <p><span>上次发布</span><strong>{formatOperationsDay(item.lastCompletedOn)}</strong>{daysSinceOperationsPublish(item.lastCompletedOn) !== null ? <small>（距今 {daysSinceOperationsPublish(item.lastCompletedOn)} 天）</small> : null}</p> : item.intervalDays > 0 ? <p><span>上次完成</span>{formatOperationsDay(item.lastCompletedOn)}</p> : null}
                 {item.status !== "done" ? <p><span>下一步</span>{item.nextAction || "待明确"}{due ? <time dateTime={due.toISOString()}> · {formatOperationsDate(due)}</time> : null}</p> : null}
               </div>
               <div className="operations-progress__item-actions">
@@ -212,7 +236,7 @@ export default function OperationsProgressPage() {
                   {item.status !== "done" ? <button type="button" onClick={() => {
                     setEditing(null);
                     setUpdating(updating === item.id ? null : item.id);
-                    setUpdateForm({ content: "", kind: item.intervalDays > 0 ? "completed" : "progress", link: "" });
+                    setUpdateForm({ content: "", kind: item.kind === "channel" || item.intervalDays > 0 ? "completed" : "progress", link: "", publishedOn: null });
                     setError("");
                   }}>记录进展</button> : null}
                   <button type="button" onClick={() => startEdit(item)}>编辑</button>
@@ -220,9 +244,10 @@ export default function OperationsProgressPage() {
               </div>
               {historyItem === item.id ? <History key={`${item.id}:${item.lastUpdate?.id ?? 0}`} itemId={item.id} /> : null}
               {updating === item.id && board.canManage ? <form className="operations-progress__update-form" onSubmit={(event) => void submitUpdate(event)}>
-                {item.intervalDays > 0 ? <label>记录类型<select value={updateForm.kind} onChange={(event) => setUpdateForm((current) => ({ ...current, kind: event.target.value as OperationsUpdateInput["kind"] }))}>
-                  <option value="completed">本期已完成</option><option value="progress">进展备注</option>
+                {item.kind === "channel" || item.intervalDays > 0 ? <label>记录类型<select value={updateForm.kind} onChange={(event) => setUpdateForm((current) => ({ ...current, kind: event.target.value as OperationsUpdateInput["kind"], publishedOn: null }))}>
+                  <option value="completed">{item.kind === "channel" ? "发布新内容" : "本期已完成"}</option><option value="progress">进展备注</option>
                 </select></label> : null}
+                {updateForm.kind === "completed" ? <label>实际发布日期<input type="date" required value={updateForm.publishedOn || ""} onChange={(event) => setUpdateForm((current) => ({ ...current, publishedOn: event.target.value || null }))} /></label> : null}
                 <label>进展内容<textarea required maxLength={1000} rows={2} value={updateForm.content} onChange={(event) => setUpdateForm((current) => ({ ...current, content: event.target.value }))} /></label>
                 <label>相关链接（选填）<input type="url" placeholder="https://" maxLength={500} value={updateForm.link} onChange={(event) => setUpdateForm((current) => ({ ...current, link: event.target.value }))} /></label>
                 <div className="operations-progress__actions">
@@ -237,7 +262,7 @@ export default function OperationsProgressPage() {
         {board.updates.length > 0 ? <section className="operations-progress__feed" aria-labelledby="operations-progress-feed-title">
           <h2 id="operations-progress-feed-title">最近动态</h2>
           <ol>{board.updates.map((entry) => <li key={entry.id}>
-            <time dateTime={entry.createdAt}>{formatOperationsDate(entry.createdAt)}</time>
+            <time dateTime={entry.publishedOn || entry.createdAt}>{formatOperationsUpdateDate(entry)}</time>
             <div><a href={`#operations-item-${entry.itemId}`}>{itemNames.get(entry.itemId) || "事项"}</a><p>{entry.kind === "completed" ? "已完成 · " : ""}{entry.content}</p></div>
           </li>)}</ol>
         </section> : null}
