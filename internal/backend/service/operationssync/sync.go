@@ -116,13 +116,13 @@ func (c *Collector) fetchPosts(ctx context.Context) ([]model.OperationsPlatformP
 		}
 		path := fmt.Sprintf("/x/series/recArchivesByKeywords?mid=%d&keywords=&ps=%d&pn=%d", bilibiliMID, pageSize, page)
 		if err := c.request(ctx, path, &reply); err != nil {
-			return nil, err
+			return posts, err
 		}
 		if reply.Code != 0 {
-			return nil, fmt.Errorf("Bilibili archive code %d", reply.Code)
+			return posts, fmt.Errorf("Bilibili archive code %d", reply.Code)
 		}
 		if reply.Data.Page.Total < 0 {
-			return nil, errors.New("invalid Bilibili archive total")
+			return posts, errors.New("invalid Bilibili archive total")
 		}
 		for _, entry := range reply.Data.Archives {
 			if entry.UpMID != bilibiliMID || !validBVID(entry.BVID) ||
@@ -147,7 +147,7 @@ func (c *Collector) fetchPosts(ctx context.Context) ([]model.OperationsPlatformP
 			return posts, nil
 		}
 	}
-	return nil, errors.New("Bilibili archive list exceeds safe page limit")
+	return posts, errors.New("Bilibili archive list exceeds safe page limit")
 }
 
 func validBVID(value string) bool {
@@ -186,7 +186,8 @@ func (c *Collector) Sync(ctx context.Context) error {
 	posts, err := c.fetchPosts(ctx)
 	if err != nil {
 		failures = append(failures, fmt.Errorf("posts: %w", err))
-	} else if len(posts) > 0 {
+	}
+	if len(posts) > 0 {
 		err = c.db.WithContext(ctx).Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "platform"}, {Name: "external_id"}},
 			DoUpdates: clause.AssignmentColumns([]string{"title", "view_count", "synced_at"}),
