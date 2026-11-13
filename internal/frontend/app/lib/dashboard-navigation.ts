@@ -91,6 +91,13 @@ const WORKBENCH_MENU: readonly DashboardMenuGroup[] = [
     children: [],
   },
   {
+    key: "operations-monitor",
+    label: "运营动态",
+    iconKey: "report",
+    href: "/dashboard/operations/progress",
+    children: [],
+  },
+  {
     key: "people-directory",
     label: "成员与岗位",
     iconKey: "team",
@@ -180,6 +187,7 @@ export function getDashboardSectionKey(pathname: string, roleName = "user", curr
     || normalizedPath === "/dashboard/team"
     || [
       "/dashboard/weekly-reports",
+      "/dashboard/operations/progress",
       "/dashboard/updates",
       "/dashboard/leave",
       "/dashboard/guide",
