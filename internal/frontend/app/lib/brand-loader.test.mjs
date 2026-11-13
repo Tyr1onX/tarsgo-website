@@ -27,13 +27,12 @@ test("transparent robot pulses without blur or masks and respects reduced motion
   assert.match(css, /prefers-reduced-motion: reduce/);
 });
 
-test("cold-loading placeholders reuse one component across public and internal pages", async () => {
+test("shared robot loader remains in pages with independent loading indicators", async () => {
   const pages = [
     "../root.tsx",
     "../routes/base.tsx",
     "../routes/dashboard/index.tsx",
     "../routes/dashboard/community-post.tsx",
-    "../routes/dashboard/community-member-profile.tsx",
     "../routes/dashboard/assignments.tsx",
     "../routes/dashboard/weekly-reports.tsx",
     "../routes/admin/assignment-management.tsx",
@@ -49,6 +48,24 @@ test("cold-loading placeholders reuse one component across public and internal p
     const source = await read(page);
     assert.match(source, /<BrandLoader\b/, page);
     assert.match(source, /import \{ BrandLoader \} from "~\/components\/brand-loader"/, page);
+  }
+});
+
+test("data-heavy routes reserve their actual layout during initial requests", async () => {
+  const review = await read("../routes/admin/assignment-submissions.tsx");
+  const training = await read("../routes/admin/training-assessment.tsx");
+  const analytics = await read("../routes/admin/recruitment-analytics.tsx");
+  const profile = await read("../routes/dashboard/community-member-profile.tsx");
+
+  assert.match(review, /loading && !error \? <ReviewSkeleton withSelector \/>/);
+  assert.match(review, /listLoaded && selectedID > 0 && !assignment && !error \? <ReviewSkeleton/);
+  assert.match(review, /aria-label=\{withSelector \? "正在加载作业列表" : "正在加载提交记录"\}/);
+  assert.match(training, /loading && !snapshot \? <AssessmentSkeleton \/>/);
+  assert.match(analytics, /loading \? <AnalyticsSkeleton \/>/);
+  assert.match(profile, /if \(loading && !result\) return <section[^>]*role="status" aria-label="正在加载成员主页"/);
+  for (const source of [review, training, analytics, profile]) {
+    assert.match(source, /content-skeleton/);
+    assert.match(source, /motion-safe:animate-pulse/);
   }
 });
 

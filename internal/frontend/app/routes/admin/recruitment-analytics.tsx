@@ -1,4 +1,3 @@
-import { BrandLoader } from "~/components/brand-loader";
 import { useEffect, useMemo, useState } from "react";
 import { useOutletContext } from "react-router";
 
@@ -222,6 +221,29 @@ function GroupTrendTable({ cohorts }: { cohorts: RecruitmentAnalyticsCohort[] })
   );
 }
 
+function AnalyticsSkeleton() {
+  const bar = "rounded bg-[var(--admin-border-subtle)]";
+  return <div className="content-skeleton space-y-5" role="status" aria-label="正在读取招新统计">
+    <div aria-hidden="true" className="motion-safe:animate-pulse space-y-5">
+      <section className="recruitment-analytics__selector space-y-2">
+        <div className={bar + " h-4 w-20"} /><div className={bar + " h-10 w-64 max-w-full"} />
+      </section>
+      <section className="recruitment-analytics__panel space-y-5">
+        <div className={bar + " h-6 w-40"} />
+        <div className="recruitment-analytics__overview">
+          {[0, 1, 2, 3].map((key) => <div key={key} className="recruitment-analytics__metric space-y-3">
+            <div className={bar + " h-4 w-20 max-w-full"} /><div className={bar + " h-8 w-16 max-w-full"} />
+          </div>)}
+        </div>
+        <div className="space-y-4 border-t border-[var(--admin-border-subtle)] pt-4">
+          <div className={bar + " h-5 w-32"} /><div className={bar + " h-8 w-full"} />
+          {[0, 1, 2].map((key) => <div key={key} className={bar + " h-4 w-3/4"} />)}
+        </div>
+      </section>
+    </div>
+  </div>;
+}
+
 export default function RecruitmentAnalytics() {
   const { currentUser } = useOutletContext<DashboardLayoutOutletContext>();
   const [report, setReport] = useState<RecruitmentAnalyticsReport | null>(null);
@@ -260,7 +282,7 @@ export default function RecruitmentAnalytics() {
         <h1 className="admin-page-title">招新数据</h1>
       </header>
 
-      {loading ? <BrandLoader label="正在读取汇总统计" /> : null}
+      {loading ? <AnalyticsSkeleton /> : null}
       {error ? <div className="admin-alert admin-alert--error" role="alert">{error}</div> : null}
 
       {!loading && !error && report ? (

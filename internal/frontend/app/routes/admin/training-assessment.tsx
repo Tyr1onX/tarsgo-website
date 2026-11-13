@@ -16,6 +16,29 @@ export function meta() {
 
 const PAGE_SIZE = 20;
 
+function AssessmentSkeleton() {
+  const bar = "rounded bg-[var(--admin-border-subtle)]";
+  return <div className="content-skeleton space-y-5" role="status" aria-label="正在加载培训成绩">
+    <div aria-hidden="true" className="motion-safe:animate-pulse space-y-5">
+      <section className="admin-panel space-y-5 p-5">
+        <div className="flex flex-wrap justify-between gap-3"><div className={bar + " h-6 w-28"} /><div className={bar + " h-4 w-36"} /></div>
+        <div className={bar + " h-10 w-full max-w-xl"} />
+        <div className="grid grid-cols-2 gap-4 border-t border-[var(--admin-border-subtle)] pt-4 sm:grid-cols-3">
+          {[0, 1, 2].map((key) => <div key={key} className="space-y-3"><div className={bar + " h-4 w-16"} /><div className={bar + " h-7 w-14"} /></div>)}
+        </div>
+      </section>
+      <section className="admin-panel space-y-4 p-5">
+        <div className="flex flex-wrap justify-between gap-3"><div className={bar + " h-6 w-24"} /><div className={bar + " h-10 w-48"} /></div>
+        <div className="space-y-4 border-t border-[var(--admin-border-subtle)] pt-4">
+          {[0, 1, 2, 3, 4].map((key) => <div key={key} className="flex items-center justify-between gap-4">
+            <div className={bar + " h-4 w-8"} /><div className={bar + " h-4 w-36 max-w-[45%]"} /><div className={bar + " h-4 w-14"} /><div className={bar + " hidden h-4 w-32 md:block"} />
+          </div>)}
+        </div>
+      </section>
+    </div>
+  </div>;
+}
+
 const LEVELS = [
   "0 · 未接触", "1 · 了解概念", "2 · 能完成简单任务",
   "3 · 可独立完成", "4 · 熟练可靠", "5 · 可带人或攻坚",
@@ -183,7 +206,7 @@ export default function TrainingAssessmentRoute() {
       {groupsError ? <p role="alert" className="text-sm text-[var(--admin-danger)]">{groupsError}</p> : null}
       {error ? <p role="alert" className="text-sm text-[var(--admin-danger)]">{error}</p> : null}
       {notice ? <p role="status" className="text-sm text-[var(--admin-text)]">{notice}</p> : null}
-      {loading ? <BrandLoader label="正在读取评价" /> : null}
+      {loading && !snapshot ? <AssessmentSkeleton /> : null}
       {snapshot ? selectedMember ? (
         <section className="admin-panel space-y-5 p-5">
           <button type="button" className="admin-button admin-button--quiet admin-button--small"
