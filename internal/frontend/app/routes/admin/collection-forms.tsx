@@ -17,8 +17,8 @@ const fieldTypes: { value: CollectionField["type"]; label: string }[] = [
   { value: "select", label: "下拉选择" },
 ];
 const quickFields: { label: string; type: CollectionField["type"] }[] = [
-  { label: "姓名", type: "text" }, { label: "学院", type: "text" },
-  { label: "联系方式", type: "text" }, { label: "培训场次", type: "radio" },
+  { label: "参加场次", type: "radio" }, { label: "确认结果", type: "radio" },
+  { label: "意见建议", type: "textarea" }, { label: "其他信息", type: "text" },
 ];
 
 const toInputTime = (time: string | null) => {
@@ -569,7 +569,7 @@ export default function CollectionFormsAdmin() {
         <label className="flex items-center gap-2">
           <input type="checkbox" checked={draft.loginRequired} disabled={locked}
             onChange={(e) => change("loginRequired", e.target.checked)} />
-          需要登录后填写（每个账号只能提交一次）
+          仅队内成员填写，自动识别身份（每人一次）
         </label>
         {view === "publish" && <button type="button" className="admin-button admin-button--primary"
           disabled={saving} onClick={() => void save(true)}>{saving ? "发布中…" : "确认发布"}</button>}
@@ -597,9 +597,17 @@ export default function CollectionFormsAdmin() {
         </div>
         {records?.length === 0 ? <p className="text-fg-muted">暂无提交</p> :
           <div className="overflow-x-auto"><table className="w-full min-w-[600px] text-left text-sm">
-            <thead><tr><th className="p-2">时间</th>{draft.fields.map((field) => <th key={field.key} className="p-2">{field.label}</th>)}<th className="p-2">操作</th></tr></thead>
+            <thead><tr>
+              <th className="p-2">时间</th><th className="p-2">提交人</th>
+              <th className="p-2">学院</th><th className="p-2">学号</th>
+              {draft.fields.map((field) => <th key={field.key} className="p-2">{field.label}</th>)}
+              <th className="p-2">操作</th>
+            </tr></thead>
             <tbody>{records?.map((record) => <tr className="border-t border-[var(--admin-border-subtle)]" key={record.id}>
               <td className="whitespace-nowrap p-2">{new Date(record.createdAt).toLocaleString("zh-CN")}</td>
+              <td className="p-2">{record.participant?.realName || "匿名"}</td>
+              <td className="p-2">{record.participant?.college || "—"}</td>
+              <td className="p-2">{record.participant?.studentId || "—"}</td>
               {draft.fields.map((field) => <td key={field.key} className="p-2">{answerText(field, record.answers[field.key])}</td>)}
               <td className="p-2"><button type="button" className="admin-button admin-button--quiet"
                 onClick={() => void removeRecord(record.id)}>删除</button></td>

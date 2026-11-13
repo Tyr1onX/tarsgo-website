@@ -242,7 +242,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 
 	// Public links share the site's origin checks; a valid session is optional.
 	collectionAPI := api.Group("/collection-forms")
-	collectionAPI.GET("/:id", collectionFormHandler.GetPublic)
+	collectionAPI.GET("/:id", middleware.OptionalAuthenticated(authService), collectionFormHandler.GetPublic)
 	collectionAPI.POST("/:id/submissions", middleware.OptionalAuthenticated(authService), requireSameOriginRequest(cfg), collectionFormHandler.Submit)
 
 	adminAPI := api.Group("/admin")

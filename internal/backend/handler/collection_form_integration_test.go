@@ -11,6 +11,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/driver/mysql"
@@ -337,5 +338,131 @@ func TestMariaDBCollectionQuotasUnderConcurrency(t *testing.T) {
 	engine.ServeHTTP(deletion, httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/admin/%d", createData.Data.ID), nil))
 	if deletion.Code != 200 {
 		t.Fatalf("draft deletion failed: %d %s", deletion.Code, deletion.Body.String())
+	}
+
+	// Internal forms use the account as identity, not duplicate name/college
+	// fields in answers. These users exist only in this isolated test DB.
+	var role model.Role
+	if err := db.Where("name = ?", model.RoleNameUser).First(&role).Error; err != nil {
+		t.Fatal(err)
+	}
+	isStudent := true
+	name := "集成测试成员"
+	member := model.User{
+		Email:  fmt.Sprintf("collection-member-%d@tarsgo.test", time.Now().UnixNano()),
+		RoleID: role.ID, Status: model.UserStatusEnabled, RealName: &name,
+		IsStudent: &isStudent, StudentID: "20240101", College: "通信工程学院", Grade: "2024 级",
+	}
+	if err := db.Create(&member).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Delete(&member) })
+
+	choice := model.CollectionField{Key: "slot", Label: "场次", Type: "radio", Required: true,
+		Options: []model.CollectionOption{{Value: "am", Label: "上午", Capacity: 2}, {Value: "pm", Label: "下午", Capacity: 2}}}
+	internal := model.CollectionForm{Title: "内部活动报名", Status: "published", LoginRequired: true,
+		Fields: []model.CollectionField{choice}}
+	if err := db.Create(&internal).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		db.Where("form_id = ?", internal.ID).Delete(&model.CollectionSubmission{})
+		db.Delete(&internal)
+	})
+	asMember := func(canUseWorkbench bool) gin.HandlerFunc {
+		return func(c *gin.Context) {
+			c.Set("sessionUser", &auth.SessionUser{ID: member.ID, WorkbenchAccess: canUseWorkbench})
+			c.Next()
+		}
+	}
+	engine.GET("/member/:id", asMember(true), h.GetPublic)
+	engine.POST("/member/:id/submissions", asMember(true), h.Submit)
+	engine.GET("/outside/:id", asMember(false), h.GetPublic)
+	engine.POST("/outside/:id/submissions", asMember(false), h.Submit)
+	engine.GET("/admin/:id/submissions", asSuperAdmin, h.Submissions)
+	sendMember := func(method, path string, body []byte) *httptest.ResponseRecorder {
+		req := httptest.NewRequest(method, path, bytes.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		response := httptest.NewRecorder()
+		engine.ServeHTTP(response, req)
+		return response
+	}
+	publicPath := fmt.Sprintf("/collection-forms/%d", internal.ID)
+	memberPath := fmt.Sprintf("/member/%d", internal.ID)
+	outsidePath := fmt.Sprintf("/outside/%d", internal.ID)
+	if response := sendMember(http.MethodGet, publicPath, nil); response.Code != 401 {
+		t.Fatalf("internal form visible without login: %d", response.Code)
+	}
+	if response := sendMember(http.MethodGet, outsidePath, nil); response.Code != 403 {
+		t.Fatalf("nonmember accessed internal form: %d", response.Code)
+	}
+	memberView := sendMember(http.MethodGet, memberPath, nil)
+	var view struct {
+		Data struct {
+			Viewer struct {
+				Participant     model.CollectionParticipant `json:"participant"`
+				ProfileComplete bool                        `json:"profileComplete"`
+				Submitted       bool                        `json:"submitted"`
+			} `json:"viewer"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(memberView.Body.Bytes(), &view); err != nil ||
+		memberView.Code != 200 || !view.Data.Viewer.ProfileComplete ||
+		view.Data.Viewer.Submitted || view.Data.Viewer.Participant.RealName != name ||
+		view.Data.Viewer.Participant.StudentID != member.StudentID {
+		t.Fatalf("member identity not loaded: %d %s, err=%v", memberView.Code, memberView.Body.String(), err)
+	}
+	selection, _ := json.Marshal(map[string]any{"answers": map[string]any{"slot": "am"}})
+	if response := sendMember(http.MethodPost, publicPath+"/submissions", selection); response.Code != 401 {
+		t.Fatalf("anonymous internal submission accepted: %d", response.Code)
+	}
+	if response := sendMember(http.MethodPost, outsidePath+"/submissions", selection); response.Code != 403 {
+		t.Fatalf("nonmember submitted internal form: %d", response.Code)
+	}
+	if response := sendMember(http.MethodPost, memberPath+"/submissions", selection); response.Code != 200 {
+		t.Fatalf("member submit failed: %d %s", response.Code, response.Body.String())
+	}
+	if response := sendMember(http.MethodPost, memberPath+"/submissions", selection); response.Code != 409 {
+		t.Fatalf("repeat member submit accepted: %d", response.Code)
+	}
+	memberView = sendMember(http.MethodGet, memberPath, nil)
+	if err := json.Unmarshal(memberView.Body.Bytes(), &view); err != nil || !view.Data.Viewer.Submitted {
+		t.Fatalf("submission state not updated: %s %v", memberView.Body.String(), err)
+	}
+	results := sendMember(http.MethodGet, fmt.Sprintf("/admin/%d/submissions", internal.ID), nil)
+	if results.Code != 200 || !strings.Contains(results.Body.String(), name) ||
+		!strings.Contains(results.Body.String(), member.StudentID) {
+		t.Fatalf("admin results lack account identity: %d %s", results.Code, results.Body.String())
+	}
+	csv := sendMember(http.MethodGet, fmt.Sprintf("/admin/%d/export", internal.ID), nil)
+	if csv.Code != 200 || !strings.Contains(csv.Body.String(), name) ||
+		!strings.Contains(csv.Body.String(), member.College) ||
+		!strings.Contains(csv.Body.String(), member.StudentID) {
+		t.Fatalf("CSV lacks account identity: %d %s", csv.Code, csv.Body.String())
+	}
+	renamed := "更新后的成员姓名"
+	if err := db.Model(&member).Update("real_name", renamed).Error; err != nil {
+		t.Fatal(err)
+	}
+	results = sendMember(http.MethodGet, fmt.Sprintf("/admin/%d/submissions", internal.ID), nil)
+	if results.Code != 200 || !strings.Contains(results.Body.String(), renamed) {
+		t.Fatalf("result does not use current account profile: %d %s", results.Code, results.Body.String())
+	}
+
+	missing := model.User{
+		Email:  fmt.Sprintf("collection-incomplete-%d@tarsgo.test", time.Now().UnixNano()),
+		RoleID: role.ID, Status: model.UserStatusEnabled,
+	}
+	if err := db.Create(&missing).Error; err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { db.Delete(&missing) })
+	engine.POST("/incomplete/:id/submissions", func(c *gin.Context) {
+		c.Set("sessionUser", &auth.SessionUser{ID: missing.ID, WorkbenchAccess: true})
+		c.Next()
+	}, h.Submit)
+	if response := sendMember(http.MethodPost,
+		fmt.Sprintf("/incomplete/%d/submissions", internal.ID), selection); response.Code != 409 {
+		t.Fatalf("incomplete profile not blocked: %d %s", response.Code, response.Body.String())
 	}
 }
