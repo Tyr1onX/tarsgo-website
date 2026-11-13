@@ -33,10 +33,20 @@ type CollectionForm struct {
 	UpdatedAt     time.Time         `json:"updatedAt"`
 }
 
+// CollectionParticipant is derived from the user account when viewing results;
+// no duplicated personal information is stored in the submission row.
+type CollectionParticipant struct {
+	UserID    uint64 `json:"userId"`
+	RealName  string `json:"realName"`
+	College   string `json:"college,omitempty"`
+	StudentID string `json:"studentId,omitempty"`
+}
+
 type CollectionSubmission struct {
-	ID        uint64         `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
-	FormID    uint64         `json:"formId" gorm:"type:bigint unsigned;not null;uniqueIndex:uk_collection_user,priority:1;index"`
-	UserID    *uint64        `json:"userId,omitempty" gorm:"type:bigint unsigned;uniqueIndex:uk_collection_user,priority:2"`
-	Answers   map[string]any `json:"answers" gorm:"type:json;serializer:json;not null"`
-	CreatedAt time.Time      `json:"createdAt" gorm:"type:datetime(6);not null;index"`
+	ID          uint64                 `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
+	FormID      uint64                 `json:"formId" gorm:"type:bigint unsigned;not null;uniqueIndex:uk_collection_user,priority:1;index"`
+	UserID      *uint64                `json:"userId,omitempty" gorm:"type:bigint unsigned;uniqueIndex:uk_collection_user,priority:2"`
+	Answers     map[string]any         `json:"answers" gorm:"type:json;serializer:json;not null"`
+	Participant *CollectionParticipant `json:"participant,omitempty" gorm:"-"`
+	CreatedAt   time.Time              `json:"createdAt" gorm:"type:datetime(6);not null;index"`
 }

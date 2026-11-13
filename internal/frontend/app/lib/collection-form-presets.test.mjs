@@ -19,11 +19,11 @@ test("collection presets provide four distinct starting points", () => {
 test("registration preset includes three independent five-seat sessions", () => {
   const first = makeCollectionPreset("registration");
   const again = makeCollectionPreset("registration");
-  assert.deepEqual(first.fields.map((field) => field.label), ["姓名", "学院", "参加场次"]);
-  assert.equal(first.fields[2].type, "radio");
-  assert.deepEqual(first.fields[2].options?.map((option) => option.capacity), [5, 5, 5]);
-  assert.equal(new Set(first.fields[2].options?.map((option) => option.value)).size, 3);
-  assert.notEqual(first.fields[2].key, again.fields[2].key);
+  assert.deepEqual(first.fields.map((field) => field.label), ["参加场次"]);
+  assert.equal(first.fields[0].type, "radio");
+  assert.deepEqual(first.fields[0].options?.map((option) => option.capacity), [5, 5, 5]);
+  assert.equal(new Set(first.fields[0].options?.map((option) => option.value)).size, 3);
+  assert.notEqual(first.fields[0].key, again.fields[0].key);
   assert.equal(first.loginRequired, true);
 });
 
@@ -31,9 +31,10 @@ test("information and feedback presets have expected privacy and required defaul
   const info = makeCollectionPreset("information");
   const feedback = makeCollectionPreset("feedback");
   const blank = makeCollectionPreset("blank");
-  assert.deepEqual(info.fields.map((field) => field.label), ["姓名", "学院", "学号", "联系方式"]);
+  assert.deepEqual(info.fields.map((field) => field.label), ["确认结果", "补充说明"]);
   assert.equal(info.fields.at(-1)?.required, false);
-  assert.equal(feedback.loginRequired, false);
+  assert.equal(info.loginRequired, true);
+  assert.equal(feedback.loginRequired, true);
   assert.equal(feedback.fields[1].type, "textarea");
   assert.equal(feedback.fields[1].required, false);
   assert.equal(blank.title, "");

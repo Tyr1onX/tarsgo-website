@@ -23,10 +23,22 @@ export type CollectionForm = {
 };
 export type CollectionInput = Omit<CollectionForm, "id" | "createdAt" | "count">;
 export type CollectionUsage = Record<string, Record<string, number>>;
+export type CollectionParticipant = {
+  userId: number;
+  realName: string;
+  college?: string;
+  studentId?: string;
+};
+export type CollectionViewer = {
+  participant: CollectionParticipant;
+  profileComplete: boolean;
+  submitted: boolean;
+};
 export type CollectionSubmission = {
   id: number;
   formId: number;
   userId?: number;
+  participant?: CollectionParticipant;
   answers: Record<string, string | number | string[]>;
   createdAt: string;
 };
@@ -42,7 +54,7 @@ export const collectionClient = {
   deleteSubmission: (id: number, submissionId: number) =>
     apiRequest(`/api/admin/collection-forms/${id}/submissions/${submissionId}`, { method: "DELETE" }),
   exportUrl: (id: number) => buildApiUrl(`/api/admin/collection-forms/${id}/export`),
-  publicForm: (id: number) => apiRequest<{ form: CollectionForm; remaining: number; count: number }>(`/api/collection-forms/${id}`),
+  publicForm: (id: number) => apiRequest<{ form: CollectionForm; remaining: number; count: number; viewer: CollectionViewer | null }>(`/api/collection-forms/${id}`),
   submit: (id: number, answers: Record<string, unknown>) =>
     apiRequest<{ submitted: boolean }>(`/api/collection-forms/${id}/submissions`, { method: "POST", body: { answers } }),
 };

@@ -3,9 +3,9 @@ import type { CollectionField, CollectionInput, CollectionOption } from "./colle
 export type CollectionPreset = "registration" | "information" | "feedback" | "blank";
 
 export const collectionPresets: { id: CollectionPreset; title: string; description: string }[] = [
-  { id: "registration", title: "活动报名", description: "姓名、学院、场次名额" },
-  { id: "information", title: "信息收集", description: "成员信息、联系方式" },
-  { id: "feedback", title: "调查反馈", description: "选择题、意见建议" },
+  { id: "registration", title: "活动报名", description: "成员直接选场次，可限制名额" },
+  { id: "information", title: "信息确认", description: "确认资料或事项，不重复填身份" },
+  { id: "feedback", title: "意见反馈", description: "收集队内成员的建议" },
   { id: "blank", title: "空白表单", description: "自己添加填写内容" },
 ];
 
@@ -37,17 +37,18 @@ export function makeCollectionPreset(preset: CollectionPreset): CollectionInput 
       const slot = makeField("radio", "参加场次");
       slot.options = [makeOption("场次一", 5), makeOption("场次二", 5), makeOption("场次三", 5)];
       return { ...base, title: "活动报名表", description: "请选择适合自己的参加场次。",
-        fields: [makeField("text", "姓名"), makeField("text", "学院"), slot] };
+        fields: [slot] };
     }
-    case "information":
-      return { ...base, title: "信息登记表", fields: [
-        makeField("text", "姓名"), makeField("text", "学院"),
-        makeField("text", "学号"), makeField("text", "联系方式", false),
-      ] };
+    case "information": {
+      const confirmation = makeField("radio", "确认结果");
+      confirmation.options = [makeOption("已确认"), makeOption("需要补充说明")];
+      return { ...base, title: "信息确认表", description: "请核对相关事项后选择确认结果。",
+        fields: [confirmation, makeField("textarea", "补充说明", false)] };
+    }
     case "feedback": {
       const rating = makeField("radio", "整体感受");
       rating.options = ["非常满意", "满意", "一般", "不满意"].map((label) => makeOption(label));
-      return { ...base, title: "活动反馈", loginRequired: false, fields: [
+      return { ...base, title: "活动反馈", fields: [
         rating, makeField("textarea", "意见与建议", false),
       ] };
     }

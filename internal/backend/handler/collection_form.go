@@ -18,6 +18,7 @@ import (
 
 	"tarsgo-backend/middleware"
 	"tarsgo-backend/model"
+	"tarsgo-backend/service/accountprofile"
 )
 
 var collectionFieldKey = regexp.MustCompile(`^[a-zA-Z][a-zA-Z0-9_]{0,39}$`)
@@ -367,6 +368,51 @@ func sameCollectionFields(a, b []model.CollectionField) bool {
 	return true
 }
 
+// The account profile is the only source of participant details; submissions
+// retain just user_id. This also honors the legacy profile fallback.
+func collectionParticipant(db *gorm.DB, user model.User) (*model.CollectionParticipant, bool, error) {
+	profile, err := accountprofile.Resolve(db, user, time.Now())
+	if err != nil {
+		return nil, false, err
+	}
+	return &model.CollectionParticipant{
+		UserID: user.ID, RealName: profile.RealName,
+		College: profile.College, StudentID: profile.StudentID,
+	}, profile.Complete(), nil
+}
+
+func (h *CollectionFormHandler) attachCollectionParticipants(items []model.CollectionSubmission) error {
+	ids := make([]uint64, 0, len(items))
+	seen := make(map[uint64]bool)
+	for _, item := range items {
+		if item.UserID != nil && !seen[*item.UserID] {
+			ids = append(ids, *item.UserID)
+			seen[*item.UserID] = true
+		}
+	}
+	if len(ids) == 0 {
+		return nil
+	}
+	var users []model.User
+	if err := h.db.Where("id IN ?", ids).Find(&users).Error; err != nil {
+		return err
+	}
+	participants := make(map[uint64]*model.CollectionParticipant, len(users))
+	for _, user := range users {
+		profile, _, err := collectionParticipant(h.db, user)
+		if err != nil {
+			return err
+		}
+		participants[user.ID] = profile
+	}
+	for i := range items {
+		if items[i].UserID != nil {
+			items[i].Participant = participants[*items[i].UserID]
+		}
+	}
+	return nil
+}
+
 func (h *CollectionFormHandler) GetPublic(c *gin.Context) {
 	id, err := parsePathID(c.Param("id"))
 	if err != nil {
@@ -377,6 +423,35 @@ func (h *CollectionFormHandler) GetPublic(c *gin.Context) {
 	if err := h.db.Where("id = ? AND status <> 'draft'", id).First(&form).Error; err != nil {
 		writeAPIError(c, 404, "表单不存在")
 		return
+	}
+	var viewer any
+	if form.LoginRequired {
+		member, ok := middleware.CurrentSessionUser(c)
+		if !ok || member == nil {
+			writeAPIError(c, 401, "请先登录后填写")
+			return
+		}
+		if !member.WorkbenchAccess {
+			writeAPIError(c, 403, "仅队伍成员可填写")
+			return
+		}
+		var account model.User
+		if err := h.db.First(&account, member.ID).Error; err != nil {
+			writeAPIError(c, 500, "读取个人资料失败")
+			return
+		}
+		profile, complete, err := collectionParticipant(h.db, account)
+		if err != nil {
+			writeAPIError(c, 500, "读取个人资料失败")
+			return
+		}
+		var submitted int64
+		if err := h.db.Model(&model.CollectionSubmission{}).
+			Where("form_id = ? AND user_id = ?", form.ID, member.ID).Count(&submitted).Error; err != nil {
+			writeAPIError(c, 500, "读取提交状态失败")
+			return
+		}
+		viewer = gin.H{"participant": profile, "profileComplete": complete, "submitted": submitted > 0}
 	}
 	var count int64
 	if err := h.db.Model(&model.CollectionSubmission{}).Where("form_id = ?", form.ID).Count(&count).Error; err != nil {
@@ -402,7 +477,7 @@ func (h *CollectionFormHandler) GetPublic(c *gin.Context) {
 	if form.Capacity > 0 {
 		remaining = max(0, form.Capacity-int(count))
 	}
-	writeAPI(c, 200, "获取成功", gin.H{"form": form, "count": count, "remaining": remaining})
+	writeAPI(c, 200, "获取成功", gin.H{"form": form, "count": count, "remaining": remaining, "viewer": viewer})
 }
 
 type collectionSubmitError struct {
@@ -444,8 +519,24 @@ func (h *CollectionFormHandler) Submit(c *gin.Context) {
 		if form.Status != "published" || (form.OpensAt != nil && now.Before(*form.OpensAt)) || (form.ClosesAt != nil && !now.Before(*form.ClosesAt)) {
 			return rejectCollection(409, "表单未开放或已截止")
 		}
-		if form.LoginRequired && userID == nil {
-			return rejectCollection(401, "请先登录后填写")
+		if form.LoginRequired {
+			if userID == nil {
+				return rejectCollection(401, "请先登录后填写")
+			}
+			if !user.WorkbenchAccess {
+				return rejectCollection(403, "仅队伍成员可填写")
+			}
+			var account model.User
+			if err := tx.First(&account, *userID).Error; err != nil {
+				return err
+			}
+			_, complete, err := collectionParticipant(tx, account)
+			if err != nil {
+				return err
+			}
+			if !complete {
+				return rejectCollection(409, "请先完善个人资料")
+			}
 		}
 		answers, err := validateCollectionAnswers(form.Fields, body.Answers)
 		if err != nil {
@@ -522,6 +613,10 @@ func (h *CollectionFormHandler) Submissions(c *gin.Context) {
 		writeAPIError(c, 500, "读取提交记录失败")
 		return
 	}
+	if err := h.attachCollectionParticipants(items); err != nil {
+		writeAPIError(c, 500, "读取成员资料失败")
+		return
+	}
 	writeAPI(c, 200, "获取成功", gin.H{"items": items})
 }
 
@@ -568,18 +663,28 @@ func (h *CollectionFormHandler) Export(c *gin.Context) {
 		writeAPIError(c, 500, "导出失败")
 		return
 	}
+	if err := h.attachCollectionParticipants(submissions); err != nil {
+		writeAPIError(c, 500, "读取成员资料失败")
+		return
+	}
 	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=collection-%d.csv", form.ID))
 	c.Header("Content-Type", "text/csv; charset=utf-8")
 	c.Status(http.StatusOK)
 	_, _ = c.Writer.Write([]byte{0xEF, 0xBB, 0xBF})
 	writer := csv.NewWriter(c.Writer)
-	header := []string{"提交编号", "提交时间"}
+	header := []string{"提交编号", "提交时间", "成员姓名", "学院", "学号"}
 	for _, field := range form.Fields {
 		header = append(header, field.Label)
 	}
 	_ = writer.Write(header)
 	for _, item := range submissions {
 		row := []string{strconv.FormatUint(item.ID, 10), item.CreatedAt.Format("2006-01-02 15:04:05")}
+		if item.Participant == nil {
+			row = append(row, "", "", "")
+		} else {
+			row = append(row, salonCSVCell(item.Participant.RealName),
+				salonCSVCell(item.Participant.College), salonCSVCell(item.Participant.StudentID))
+		}
 		for _, field := range form.Fields {
 			raw := item.Answers[field.Key]
 			value := ""

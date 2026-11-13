@@ -1,7 +1,8 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { Link, useParams } from "react-router";
 
-import { collectionClient, type CollectionField, type CollectionForm } from "~/lib/collection-forms-client";
+import { collectionClient, type CollectionField, type CollectionForm, type CollectionViewer } from "~/lib/collection-forms-client";
+import { accountProfilePath } from "~/lib/account-profile";
 import { CollectionFormFields } from "~/components/collection-form-fields";
 
 export function meta() { return [{ title: "收集表 | TARSGO" }]; }
@@ -11,6 +12,7 @@ export default function CollectionFormPage() {
   const id = Number(params.id);
   const [form, setForm] = useState<CollectionForm | null>(null);
   const [remaining, setRemaining] = useState(-1);
+  const [viewer, setViewer] = useState<CollectionViewer | null>(null);
   const [answers, setAnswers] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(true);
   const [sending, setSending] = useState(false);
@@ -22,13 +24,14 @@ export default function CollectionFormPage() {
     const data = await collectionClient.publicForm(id);
     setForm(data.form);
     setRemaining(data.remaining);
+    setViewer(data.viewer);
   }
   useEffect(() => {
     let active = true;
     setLoading(true);
     if (!Number.isSafeInteger(id) || id <= 0) { setError("表单不存在"); setLoading(false); return; }
     void collectionClient.publicForm(id).then((data) => {
-      if (active) { setForm(data.form); setRemaining(data.remaining); }
+      if (active) { setForm(data.form); setRemaining(data.remaining); setViewer(data.viewer); }
     }).catch((err: unknown) => {
       if (active) setError(err instanceof Error ? err.message : "读取失败");
     }).finally(() => { if (active) setLoading(false); });
@@ -44,6 +47,7 @@ export default function CollectionFormPage() {
       void collectionClient.publicForm(id).then((data) => {
         setForm(data.form);
         setRemaining(data.remaining);
+        setViewer(data.viewer);
       }).catch(() => {});
     };
     window.addEventListener("focus", refresh);
@@ -89,16 +93,36 @@ export default function CollectionFormPage() {
 
   return <main className="mx-auto min-h-[70vh] w-full max-w-2xl px-4 py-10 sm:py-16">
     {loading ? <p className="text-fg-muted">正在加载…</p> :
-      !form ? <p role="alert">{error || "表单不存在"}</p> :
+      !form ? <section className="space-y-3">
+        <p role="alert">{error || "表单不存在"}</p>
+        {error.includes("登录") && <Link className="inline-block underline"
+          to={`/login?redirect=${encodeURIComponent(`/forms/${id}`)}`}>登录后填写</Link>}
+      </section> :
       done ? <section className="rounded-xl border border-border-subtle p-6">
         <h1 className="text-2xl font-semibold">提交成功</h1>
         <p className="mt-3 text-fg-muted">{form.title}</p>
         <Link className="mt-5 inline-block underline" to="/">返回首页</Link>
       </section> :
+      viewer && !viewer.profileComplete ? <section className="space-y-4 rounded-xl border border-border-subtle p-6">
+        <h1 className="text-2xl font-semibold">{form.title}</h1>
+        <p>请先完善个人资料，再参加这次收集。</p>
+        <Link className="inline-block underline"
+          to={accountProfilePath(viewer.participant.userId, `/forms/${id}`)}>完善个人资料</Link>
+      </section> :
+      viewer?.submitted ? <section className="space-y-3 rounded-xl border border-border-subtle p-6">
+        <h1 className="text-2xl font-semibold">{form.title}</h1>
+        <p>你已经提交过此表单。</p>
+      </section> :
       <form className="space-y-6" onSubmit={(event) => void submit(event)}>
         <header className="space-y-3">
           <h1 className="text-3xl font-semibold">{form.title}</h1>
           {form.description && <p className="whitespace-pre-wrap text-fg-muted">{form.description}</p>}
+          {viewer && <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-fg-muted">
+            <span>填写人：{viewer.participant.realName}
+              {viewer.participant.college ? ` · ${viewer.participant.college}` : ""}</span>
+            <Link className="underline"
+              to={accountProfilePath(viewer.participant.userId, `/forms/${id}`)}>修改个人资料</Link>
+          </div>}
           {remaining >= 0 && <p className="text-sm text-fg-muted">剩余 {remaining} 个名额</p>}
         </header>
         <CollectionFormFields fields={form.fields} answers={answers} onAnswer={update} disabled={Boolean(disabledReason) || sending} />
