@@ -148,6 +148,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	engine.GET("/healthz", healthHandler.Get)
 
 	api := engine.Group("/api")
+	api.GET("/operations/public", operationsProgressHandler.Public)
 	api.POST("/integrations/feishu/card-action", feishuReviewHandler.Callback)
 	api.POST("/integrations/feishu/bitable/review-card", feishuReviewHandler.BitableReviewCardTrigger)
 	api.GET("/bootstrap/status", authHandler.BootstrapStatus)
@@ -413,6 +414,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	workbenchAPI.GET("/operations/progress/:id/updates", operationsProgressHandler.History)
 	workbenchAPI.POST("/operations/progress", operationsProgressHandler.Create)
 	workbenchAPI.PATCH("/operations/progress/:id", operationsProgressHandler.Update)
+	workbenchAPI.POST("/operations/progress/:id/stage", operationsProgressHandler.RecordStage)
 	workbenchAPI.POST("/operations/progress/:id/updates", operationsProgressHandler.AddUpdate)
 	workbenchAPI.GET("/work-manual/operations", workManualHandler.OperationsCatalogue)
 	workbenchAPI.GET("/work-manual/operations/templates/campus-network-window-application.doc", workManualHandler.ApplicationForm)

@@ -6,6 +6,7 @@ export default [
   route("robots", "routes/robots.tsx"),
   route("events-and-honors", "routes/events-and-honors.tsx"),
   route("team-history", "routes/team-history.tsx"),
+  route("team-status", "routes/dashboard/operations-progress.tsx"),
   route("join", "routes/join.tsx"),
   route("base", "routes/base.tsx"),
   route("programs", "routes/programs.tsx"),
@@ -31,7 +32,7 @@ export default [
     route("users/registrations", "routes/users/registrations.tsx"),
     route("leave", "routes/leave-workbench.tsx"),
     route("weekly-reports", "routes/dashboard/weekly-reports.tsx"),
-    route("operations/progress", "routes/dashboard/operations-progress.tsx"),
+
     route("guide", "routes/dashboard/guide.tsx"),
     route("timetable", "routes/dashboard/timetable.tsx"),
     route("assignments", "routes/dashboard/assignments.tsx"),

@@ -293,6 +293,8 @@ export function Navbar({ currentUser, authError = false }: NavbarProps) {
           </Link>
 
           <div className="navbar-actions">
+            <Link to="/team-status" aria-current={location.pathname === "/team-status" ? "page" : undefined}
+              className="inline-flex min-h-11 items-center text-sm font-medium text-fg-primary hover:text-accent-primary">战队动态</Link>
             <ThemeControl />
 
             {/* Auth area */}

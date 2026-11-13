@@ -88,7 +88,7 @@ export const groups = [
   },
 ];
 
-export type PublicPage = "home" | "about" | "robots" | "events-and-honors" | "team-history" | "join";
+export type PublicPage = "home" | "about" | "robots" | "events-and-honors" | "team-history" | "team-status" | "join";
 
 const topicPages: Record<Exclude<PublicPage, "home">, { title: string; eyebrow?: string; description?: string; image: string; alt: string }> = {
   about: {
@@ -109,6 +109,11 @@ const topicPages: Record<Exclude<PublicPage, "home">, { title: string; eyebrow?:
     description: "回看吉甲大师在比赛与创新实践中留下的关键成果。",
     image: "/assets/images/ContestMoment/contest-moment-02.webp",
     alt: "吉甲大师团队赛事现场记录。",
+  },
+  "team-status": {
+    title: "战队动态",
+    image: "/assets/images/Daily/daily-02.webp",
+    alt: "战队工作日常",
   },
   "team-history": {
     title: "团队历程",
@@ -132,6 +137,7 @@ const topicPageByPath: Record<string, PublicPage> = {
   "/robots": "robots",
   "/events-and-honors": "events-and-honors",
   "/team-history": "team-history",
+  "/team-status": "team-status",
   "/join": "join",
 };
 
@@ -324,7 +330,7 @@ export function PublicHomePage({ page = "home", children }: { page?: PublicPage;
         </div>
 
       </section>
-      ) : routePage === "join" ? null : (
+      ) : routePage === "join" || routePage === "team-status" ? null : (
         <section className={"public-topic-hero relative isolate overflow-hidden " + (routePage === "robots" ? "public-topic-hero--robots" : routePage === "events-and-honors" ? "public-topic-hero--events" : "")}>
           <img
             src={topic?.image}

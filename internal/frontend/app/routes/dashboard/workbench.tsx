@@ -5,7 +5,6 @@ import { assignmentClient, assignmentStatusLabel, formatAssignmentDate, type Ass
 import { hasAssignmentGroupAccess } from "~/lib/dashboard-navigation";
 import { leaveClient, type LeaveAccessState, type LatestLeaveStatus } from "~/lib/leave-client";
 import { formatWeekLabel } from "~/lib/weekly-report-calendar";
-import { formatOperationsDay, formatOperationsUpdateDate, getOperationsAttention, getOperationsBoard, operationsAttentionLabel, sortOperationsItems, type OperationsBoard } from "~/lib/operations-progress-client";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import {
   emptyPersonalSnapshot,
@@ -41,36 +40,6 @@ function assignmentPriority(status: string | undefined) {
   if (status === "overdue") return 0;
   if (status === "needs_redo") return 1;
   return 2;
-}
-
-function OperationsSummary() {
-  const [board, setBoard] = useState<OperationsBoard | null>(null);
-  const [error, setError] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    void getOperationsBoard().then((result) => { if (active) setBoard(result); })
-      .catch(() => { if (active) setError(true); });
-    return () => { active = false; };
-  }, []);
-
-  const items = sortOperationsItems(board?.items ?? []).filter((item) => item.status !== "done").slice(0, 3);
-  const attentionCount = board?.items.filter((item) => ["overdue", "blocked"].includes(getOperationsAttention(item))).length ?? 0;
-
-  return <section className="personal-workbench__operations" aria-labelledby="personal-workbench-operations-title">
-    <div className="personal-workbench__section-heading">
-      <h2 id="personal-workbench-operations-title">运营动态</h2>
-      <Link to="/dashboard/operations/progress">查看全部{attentionCount > 0 ? ` · ${attentionCount} 项需关注` : ""}</Link>
-    </div>
-    {error ? <p className="personal-workbench__empty">进展暂不可用，<Link to="/dashboard/operations/progress">前往查看</Link></p> : null}
-    {!board && !error ? <p className="personal-workbench__empty">读取中…</p> : null}
-    {board && items.length === 0 ? <p className="personal-workbench__empty">暂无进行中的运营事项。</p> : null}
-    {board && items.length > 0 ? <ul className="personal-workbench__operations-list">{items.map((item) => <li key={item.id}>
-      <Link to={`/dashboard/operations/progress#operations-item-${item.id}`}>{item.title}</Link>
-      <span>{operationsAttentionLabel[getOperationsAttention(item)]}</span>
-      <time dateTime={item.kind === "channel" ? item.lastCompletedOn || undefined : item.lastUpdate?.publishedOn || item.lastUpdate?.createdAt || undefined}>{item.kind === "channel" ? formatOperationsDay(item.lastCompletedOn) : item.lastUpdate ? formatOperationsUpdateDate(item.lastUpdate) : "尚未记录"}</time>
-    </li>)}</ul> : null}
-  </section>;
 }
 
 export default function PersonalWorkbench() {
@@ -175,8 +144,6 @@ export default function PersonalWorkbench() {
           {renderAssignments(upcomingAssignments)}
         </ul> : null}
       </section>
-
-      <OperationsSummary />
 
       <nav className="personal-workbench__links" aria-label="常用入口">
         <h2>常用入口</h2>

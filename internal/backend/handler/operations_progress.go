@@ -40,8 +40,10 @@ type operationsUpdateInput struct {
 
 type operationsProgressView struct {
 	model.OperationsProgressItem
-	LastUpdate      *model.OperationsProgressUpdate `json:"lastUpdate"`
-	LastCompletedOn *string                         `json:"lastCompletedOn"`
+	LastUpdate         *model.OperationsProgressUpdate `json:"lastUpdate"`
+	LastCompletedOn    *string                         `json:"lastCompletedOn"`
+	LastStageChangedAt *time.Time                      `json:"lastStageChangedAt"`
+	LastConfirmedAt    *time.Time                      `json:"lastConfirmedAt"`
 }
 
 func validateOperationsProgress(input *operationsProgressInput) bool {
@@ -55,18 +57,11 @@ func validateOperationsProgress(input *operationsProgressInput) bool {
 	if input.Status != "active" && input.Status != "blocked" && input.Status != "done" {
 		return false
 	}
-	if input.Kind != "workstream" && input.Kind != "channel" && input.Kind != "video" {
+	if input.Kind != "workstream" && input.Kind != "channel" && input.Kind != "video" && input.Kind != "merchandise" {
 		return false
 	}
-	if input.Kind != "video" && input.Stage != "" {
+	if !validOperationsStage(input.Kind, input.Stage) {
 		return false
-	}
-	if input.Kind == "video" {
-		switch input.Stage {
-		case "unconfirmed", "planning", "materials", "editing", "review", "published":
-		default:
-			return false
-		}
 	}
 	if input.Kind != "workstream" && input.IntervalDays != 0 {
 		return false
@@ -139,11 +134,18 @@ func (h *OperationsProgressHandler) requireEditor(c *gin.Context) bool {
 	return true
 }
 
-func (h *OperationsProgressHandler) List(c *gin.Context) {
-	canManage, err := h.canManage(c)
-	if err != nil {
-		writeAPIError(c, http.StatusInternalServerError, "读取权限失败")
-		return
+func (h *OperationsProgressHandler) List(c *gin.Context)   { h.list(c, false) }
+func (h *OperationsProgressHandler) Public(c *gin.Context) { h.list(c, true) }
+
+func (h *OperationsProgressHandler) list(c *gin.Context, public bool) {
+	canManage := false
+	if !public {
+		allowed, err := h.canManage(c)
+		if err != nil {
+			writeAPIError(c, http.StatusInternalServerError, "读取权限失败")
+			return
+		}
+		canManage = allowed
 	}
 	var items []model.OperationsProgressItem
 	if err := h.db.WithContext(c.Request.Context()).Order("id DESC").Find(&items).Error; err != nil {
@@ -188,12 +190,71 @@ func (h *OperationsProgressHandler) List(c *gin.Context) {
 		}
 	}
 
+	type activity struct {
+		ItemID        uint64
+		LastChanged   *time.Time
+		LastConfirmed *time.Time
+	}
+	var activities []activity
+	if err := h.db.WithContext(c.Request.Context()).Model(&model.OperationsProgressUpdate{}).
+		Select("item_id, MAX(CASE WHEN kind = 'stage' THEN created_at END) AS last_changed, MAX(CASE WHEN kind IN ('stage','confirmed') THEN created_at END) AS last_confirmed").
+		Group("item_id").Scan(&activities).Error; err != nil {
+		writeAPIError(c, http.StatusInternalServerError, "阶段进度读取失败")
+		return
+	}
+	for _, entry := range activities {
+		if at, exists := byID[entry.ItemID]; exists {
+			views[at].LastStageChangedAt = entry.LastChanged
+			views[at].LastConfirmedAt = entry.LastConfirmed
+		}
+	}
+
+	var snapshots []model.OperationsAccountSnapshot
+	if err := h.db.WithContext(c.Request.Context()).Order("observed_on ASC").Find(&snapshots).Error; err != nil {
+		writeAPIError(c, http.StatusInternalServerError, "账号历史数据读取失败")
+		return
+	}
+	var posts []model.OperationsPlatformPost
+	if err := h.db.WithContext(c.Request.Context()).Order("published_at DESC").Limit(300).Find(&posts).Error; err != nil {
+		writeAPIError(c, http.StatusInternalServerError, "历史作品读取失败")
+		return
+	}
+	for _, post := range posts {
+		if post.Platform != "bilibili" {
+			continue
+		}
+		day := post.PublishedAt.In(time.FixedZone("Beijing", 8*3600)).Format("2006-01-02")
+		for i := range views {
+			if views[i].Kind == "channel" && (views[i].Title == "B站运营" ||
+				(views[i].SeedKey != nil && *views[i].SeedKey == "channel:bilibili")) {
+				if views[i].LastCompletedOn == nil || *views[i].LastCompletedOn < day {
+					views[i].LastCompletedOn = &day
+				}
+			}
+		}
+		break
+	}
 	var updates []model.OperationsProgressUpdate
 	if err := h.db.WithContext(c.Request.Context()).Order("id DESC").Limit(15).Find(&updates).Error; err != nil {
 		writeAPIError(c, http.StatusInternalServerError, "运营进展读取失败")
 		return
 	}
-	writeAPI(c, http.StatusOK, "运营进展", gin.H{"items": views, "updates": updates, "canManage": canManage})
+	if public {
+		filtered := make([]operationsProgressView, 0, len(views))
+		for _, item := range views {
+			switch item.Title {
+			case "抖音运营", "B站运营", "公众号运营", "周边制作", "RMer 人物系列 · 下一期":
+				item.Owner = "运营组"
+				item.NextAction = ""
+				item.NextCheckAt = nil
+				item.LastUpdate = nil
+				filtered = append(filtered, item)
+			}
+		}
+		views = filtered
+		updates = nil
+	}
+	writeAPI(c, http.StatusOK, "运营进展", gin.H{"items": views, "updates": updates, "snapshots": snapshots, "posts": posts, "canManage": canManage})
 }
 
 func (h *OperationsProgressHandler) Create(c *gin.Context) {
@@ -228,6 +289,19 @@ func (h *OperationsProgressHandler) Update(c *gin.Context) {
 	var input operationsProgressInput
 	if c.ShouldBindJSON(&input) != nil || !validateOperationsProgress(&input) {
 		writeAPIError(c, http.StatusBadRequest, "请检查事项名称、负责人和跟进安排")
+		return
+	}
+	var existing model.OperationsProgressItem
+	if err := h.db.WithContext(c.Request.Context()).First(&existing, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			writeAPIError(c, http.StatusNotFound, "事项不存在")
+		} else {
+			writeAPIError(c, http.StatusInternalServerError, "读取事项失败")
+		}
+		return
+	}
+	if existing.Stage != input.Stage {
+		writeAPIError(c, http.StatusConflict, "请直接点击进度条更新阶段")
 		return
 	}
 	result := h.db.WithContext(c.Request.Context()).Model(&model.OperationsProgressItem{}).Where("id = ?", id).

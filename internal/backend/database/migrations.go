@@ -261,6 +261,7 @@ func migrationRegistry(appEnv string) []migration {
 			)
 		}},
 		{version: 60, apply: migrateOperationsProgressV60},
+		{version: 61, apply: migrateOperationsPublicMetricsV61},
 	}
 }
 

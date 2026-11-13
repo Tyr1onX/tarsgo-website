@@ -1,8 +1,8 @@
 import { apiRequest } from "./api-client.ts";
 
 export type OperationsItemStatus = "active" | "blocked" | "done";
-export type OperationsItemKind = "workstream" | "channel" | "video";
-export type OperationsVideoStage = "" | "unconfirmed" | "planning" | "materials" | "editing" | "review" | "published";
+export type OperationsItemKind = "workstream" | "channel" | "video" | "merchandise";
+export type OperationsVideoStage = "" | "unconfirmed" | "planning" | "materials" | "editing" | "review" | "published" | "design" | "approval" | "sample" | "production" | "delivered";
 
 export const videoStageLabels = [
   { key: "planning", label: "选题文案" },
@@ -12,12 +12,42 @@ export const videoStageLabels = [
   { key: "published", label: "发布" },
 ] as const;
 
+export const merchandiseStageLabels = [
+  { key: "planning", label: "需求确定" },
+  { key: "design", label: "设计制作" },
+  { key: "approval", label: "设计定稿" },
+  { key: "sample", label: "打样确认" },
+  { key: "production", label: "批量生产" },
+  { key: "delivered", label: "完成发放" },
+] as const;
+
+export interface OperationsSnapshot {
+  id: number;
+  platform: "bilibili" | "douyin" | "wechat";
+  observedOn: string;
+  followers: number;
+  source: string;
+}
+
+export interface OperationsPost {
+  id: number;
+  platform: string;
+  externalId: string;
+  title: string;
+  url: string;
+  publishedAt: string;
+  viewCount: number;
+  syncedAt: string;
+}
+
 export interface OperationsUpdate {
   id: number;
   itemId: number;
   authorId: number;
   content: string;
-  kind: "progress" | "completed";
+  kind: "progress" | "completed" | "stage" | "confirmed";
+  fromStage: string;
+  toStage: string;
   link: string;
   publishedOn: string | null;
   createdAt: string;
@@ -37,16 +67,31 @@ export interface OperationsItem {
   updatedAt: string;
   lastUpdate: OperationsUpdate | null;
   lastCompletedOn: string | null;
+  lastStageChangedAt: string | null;
+  lastConfirmedAt: string | null;
 }
 
 export interface OperationsBoard {
   items: OperationsItem[];
   updates: OperationsUpdate[];
+  snapshots: OperationsSnapshot[];
+  posts: OperationsPost[];
   canManage: boolean;
 }
 
 export type OperationsItemInput = Pick<OperationsItem, "title" | "kind" | "stage" | "owner" | "intervalDays" | "nextAction" | "nextCheckAt" | "status">;
 export type OperationsUpdateInput = Pick<OperationsUpdate, "content" | "kind" | "link" | "publishedOn">;
+
+export function getPublicOperationsBoard() {
+  return apiRequest<OperationsBoard>("/api/operations/public");
+}
+
+export function recordOperationsStage(id: number, stage: string | null) {
+  return apiRequest<{ id: number }>(`/api/operations/progress/${id}/stage`, {
+    method: "POST",
+    body: stage === null ? { confirm: true } : { stage },
+  });
+}
 
 export function getOperationsBoard() {
   return apiRequest<OperationsBoard>("/api/operations/progress");

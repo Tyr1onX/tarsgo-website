@@ -13,6 +13,7 @@ import (
 	"tarsgo-backend/router"
 	"tarsgo-backend/service/auth"
 	"tarsgo-backend/service/leave"
+	"tarsgo-backend/service/operationssync"
 )
 
 func main() {
@@ -52,6 +53,7 @@ func run() error {
 	auth.StartSessionCleanup(cleanupContext, db)
 	leave.StartResultCleanup(cleanupContext, db)
 	leave.StartDailyCollection(cleanupContext, leave.NewService(db))
+	operationssync.Start(cleanupContext, db)
 
 	engine := router.New(cfg, db)
 	addr := cfg.App.Address()
