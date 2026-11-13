@@ -22,7 +22,7 @@ func TestMariaDBOperationsPublicMetricsMigrationIsIdempotent(t *testing.T) {
 	if !strings.Contains(dsn, "@tcp(127.0.0.1:3317)/tarsgo_acceptance?") {
 		t.Fatal("isolated acceptance MariaDB required")
 	}
-	prefix := fmt.Sprintf("ops_metrics_probe_%d_", time.Now().UnixNano())
+	prefix := fmt.Sprintf("om%d_", time.Now().UnixNano())
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{NamingStrategy: schema.NamingStrategy{TablePrefix: prefix}})
 	if err != nil {
 		t.Fatal(err)

@@ -26,7 +26,7 @@ func TestMariaDBPublicOperationsStatusRedactsInternalUpdates(t *testing.T) {
 	if !strings.Contains(dsn, "@tcp(127.0.0.1:3317)/tarsgo_acceptance?") {
 		t.Fatal("isolated acceptance database required")
 	}
-	prefix := fmt.Sprintf("ops_public_probe_%d_", time.Now().UnixNano())
+	prefix := fmt.Sprintf("op%d_", time.Now().UnixNano())
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{NamingStrategy: schema.NamingStrategy{TablePrefix: prefix}})
 	if err != nil {
 		t.Fatal(err)
