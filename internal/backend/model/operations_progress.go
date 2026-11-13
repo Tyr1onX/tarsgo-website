@@ -24,6 +24,8 @@ type OperationsProgressUpdate struct {
 	AuthorID    uint64    `json:"authorId" gorm:"type:bigint unsigned;not null"`
 	Content     string    `json:"content" gorm:"size:1000;not null"`
 	Kind        string    `json:"kind" gorm:"size:16;not null;default:'progress'"`
+	FromStage   string    `json:"fromStage" gorm:"size:24;not null;default:''"`
+	ToStage     string    `json:"toStage" gorm:"size:24;not null;default:''"`
 	Link        string    `json:"link" gorm:"size:500;not null;default:''"`
 	PublishedOn *string   `json:"publishedOn" gorm:"size:10;default:null"`
 	CreatedAt   time.Time `json:"createdAt" gorm:"type:datetime;not null;default:CURRENT_TIMESTAMP"`

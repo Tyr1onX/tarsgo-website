@@ -147,15 +147,6 @@
   white-space: nowrap;
 }
 
-.personal-workbench__operations { max-width: 62rem; margin-top: 2rem; }
-.personal-workbench__operations .personal-workbench__section-heading { align-items: center; justify-content: space-between; }
-.personal-workbench__operations .personal-workbench__section-heading a { color: var(--admin-accent-text); font-size: 0.8rem; text-decoration: none; }
-.personal-workbench__operations-list { margin: 0; padding: 0; list-style: none; }
-.personal-workbench__operations-list li { display: grid; grid-template-columns: minmax(0,1fr) auto auto; gap: 0.75rem; padding: 0.8rem 0.25rem; border-bottom: 1px solid var(--admin-border-subtle); font-size: 0.85rem; }
-.personal-workbench__operations-list a { color: var(--admin-text); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-decoration: none; }
-.personal-workbench__operations-list a:hover { color: var(--admin-accent-text); }
-.personal-workbench__operations-list span, .personal-workbench__operations-list time { color: var(--admin-muted); font-size: 0.75rem; white-space: nowrap; }
-@media (max-width: 520px) { .personal-workbench__operations-list li { grid-template-columns: minmax(0,1fr) auto; } .personal-workbench__operations-list time { display: none; } }
 
 .personal-workbench__links {
   display: grid;

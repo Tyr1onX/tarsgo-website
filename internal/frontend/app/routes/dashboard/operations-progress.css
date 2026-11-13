@@ -1,6 +1,7 @@
 .operations-progress {
   max-width: 76rem;
   margin: 0 auto;
+  padding: calc(var(--site-nav-height, 72px) + 1.75rem) clamp(1rem, 3vw, 2.5rem) 4rem;
   color: var(--admin-text);
 }
 .operations-progress__header,
@@ -135,6 +136,82 @@
   color: var(--admin-text);
 }
 .operations-progress__video-stages li.is-current { font-weight: 650; }
+.operations-progress__step-button {
+  width: 100%;
+  display: grid;
+  justify-items: center;
+  gap: 0.4rem;
+  min-height: 3.2rem;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+}
+.operations-progress__step-button:disabled { cursor: default; }
+.operations-progress__step-button:not(:disabled):hover,
+.operations-progress__step-button:not(:disabled):focus-visible { color: var(--admin-accent-text); }
+.operations-progress__stage-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 1rem;
+  margin-top: 0.75rem;
+  color: var(--admin-muted);
+  font-size: 0.75rem;
+}
+.operations-progress__stage-meta button {
+  border: 0;
+  background: transparent;
+  color: var(--admin-accent-text);
+  cursor: pointer;
+  font: inherit;
+}
+.operations-progress__stage-meta button:disabled { opacity: 0.5; cursor: default; }
+.operations-progress__account-metrics {
+  display: grid;
+  grid-template-columns: repeat(2,minmax(0,1fr));
+  gap: 0.8rem;
+  margin-top: 1.1rem;
+}
+.operations-progress__follower-chart {
+  min-width: 0;
+  padding: 1.1rem 1.2rem;
+  border: 1px solid var(--admin-border-subtle);
+  border-radius: var(--admin-radius-md);
+  background: var(--admin-surface);
+}
+.operations-progress__follower-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 0.4rem;
+  font-size: 0.85rem;
+}
+.operations-progress__follower-head b { font-size: 1.3rem; color: var(--admin-text); }
+.operations-progress__follower-chart svg {
+  width: 100%;
+  height: 100px;
+  margin: 0.7rem 0 0.2rem;
+  color: var(--admin-accent-text);
+}
+.operations-progress__follower-chart p { margin: 0; }
+.operations-progress__posts { margin: 2.2rem 0; }
+.operations-progress__posts ol { padding: 0; margin: 0.8rem 0 0; list-style: none; }
+.operations-progress__posts li {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem 1rem;
+  padding: 0.8rem 0;
+  border-bottom: 1px solid var(--admin-border-subtle);
+  font-size: 0.84rem;
+}
+.operations-progress__posts li span { flex: none; color: var(--admin-muted); font-size: 0.78rem; }
+@media (max-width: 600px) {
+  .operations-progress__account-metrics { grid-template-columns: 1fr; }
+  .operations-progress__posts li { display: grid; gap: 0.25rem; }
+}
 .operations-progress__step-marker {
   display: grid;
   place-items: center;
