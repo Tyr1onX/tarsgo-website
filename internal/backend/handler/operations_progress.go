@@ -252,7 +252,7 @@ func (h *OperationsProgressHandler) list(c *gin.Context, public bool) {
 			}
 		}
 		views = filtered
-		updates = nil
+		updates = []model.OperationsProgressUpdate{}
 	}
 	writeAPI(c, http.StatusOK, "运营进展", gin.H{"items": views, "updates": updates, "snapshots": snapshots, "posts": posts, "canManage": canManage})
 }

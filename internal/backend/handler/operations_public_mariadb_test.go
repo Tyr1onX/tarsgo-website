@@ -70,6 +70,9 @@ func TestMariaDBPublicOperationsStatusRedactsInternalUpdates(t *testing.T) {
 		t.Fatalf("unexpected HTTP %d: %s", response.Code, response.Body.String())
 	}
 	body := response.Body.String()
+	if strings.Contains(body, "\"updates\":null") {
+		t.Fatal("public updates must return an empty array, not null")
+	}
 	for _, secret := range []string{"内部备注不得公开", "内部合作事项", "内部负责人", "内部沟通计划", "不可公开"} {
 		if strings.Contains(body, secret) {
 			t.Errorf("public API leaked %s", secret)
