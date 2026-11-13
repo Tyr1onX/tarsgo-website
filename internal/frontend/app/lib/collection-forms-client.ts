@@ -37,6 +37,7 @@ export const collectionClient = {
   create: (body: CollectionInput) => apiRequest<CollectionForm>("/api/admin/collection-forms", { method: "POST", body }),
   update: (id: number, body: CollectionInput) =>
     apiRequest<{ id: number }>(`/api/admin/collection-forms/${id}`, { method: "PUT", body }),
+  delete: (id: number) => apiRequest(`/api/admin/collection-forms/${id}`, { method: "DELETE" }),
   submissions: (id: number) => apiRequest<{ items: CollectionSubmission[] }>(`/api/admin/collection-forms/${id}/submissions`),
   deleteSubmission: (id: number, submissionId: number) =>
     apiRequest(`/api/admin/collection-forms/${id}/submissions/${submissionId}`, { method: "DELETE" }),

@@ -44,8 +44,14 @@ test("collection form editor separates content, settings, preview and publish", 
   assert.match(source, /onClick=\{\(\) => void save\(true\)\}/);
   assert.match(source, /CollectionFormFields fields=\{draft.fields\}/);
   assert.match(publicForm, /CollectionFormFields fields=\{form.fields\}/);
-  assert.match(source, /date\.setDate\(date\.getDate\(\) \+ 7\)/);
-  assert.match(source, /date\.setHours\(23, 59, 0, 0\)/);
+  assert.match(source, /collectionPresets\.map/);
+  assert.match(source, /queueSave\(selected, draft\)/);
+  assert.match(source, /view === "publish"/);
+  assert.match(source, /useBlocker/);
+  assert.match(source, /collectionClient\.delete\(id\)/);
+  const templates = await readFile(new URL("./collection-form-presets.ts", import.meta.url), "utf8");
+  assert.match(templates, /date\.setDate\(date\.getDate\(\) \+ 7\)/);
+  assert.match(templates, /date\.setHours\(23, 59, 0, 0\)/);
 });
 
 test("authentication passwords share an accessible visibility control", async () => {

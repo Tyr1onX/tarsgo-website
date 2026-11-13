@@ -27,6 +27,27 @@ func TestCollectionFormValidation(t *testing.T) {
 			t.Fatal(err)
 		}
 	})
+	t.Run("unfinished draft can autosave but cannot publish", func(t *testing.T) {
+		v := testCollectionInput()
+		v.Status = "draft"
+		v.Title = ""
+		v.Fields[0].Label = ""
+		v.Fields[1].Options[0].Label = ""
+		a, b := time.Now(), time.Now().Add(-time.Hour)
+		v.OpensAt, v.ClosesAt = &a, &b
+		if err := validateCollectionForm(v); err != nil {
+			t.Fatalf("draft autosave rejected: %v", err)
+		}
+		v.Status = "published"
+		if err := validateCollectionForm(v); err == nil {
+			t.Fatal("incomplete draft must not be publishable")
+		}
+		v.Status = "draft"
+		v.Fields[1].Options[0].Value = v.Fields[1].Options[1].Value
+		if err := validateCollectionForm(v); err == nil {
+			t.Fatal("draft must still reject duplicate option identities")
+		}
+	})
 	t.Run("duplicate option", func(t *testing.T) {
 		v := testCollectionInput()
 		v.Fields[1].Options[1].Value = "am"
