@@ -177,7 +177,7 @@ func TestMariaDBWorkbenchBoundaryAndCommunityAPIs(t *testing.T) {
 	// Enumerate every non-admin internal API, including file and document reads.
 	for _, route := range engine.Routes() {
 		p := route.Path
-		internal := strings.HasPrefix(p, "/api/my-timetables") || strings.HasPrefix(p, "/api/team/") || strings.HasPrefix(p, "/api/weekly-reports") || strings.HasPrefix(p, "/api/work-manual/") || strings.HasPrefix(p, "/api/assignments") || strings.HasPrefix(p, "/api/assignment-files/") || strings.HasPrefix(p, "/api/assignment-materials/") || strings.HasPrefix(p, "/api/school-leave/") || strings.HasPrefix(p, "/api/daily-leave/") || strings.HasPrefix(p, "/api/camp-leave/") || strings.HasPrefix(p, "/api/leave/access") || (p == "/api/user-group/confirmation" && route.Method != "GET") || (p == "/api/daily-signals" && route.Method != "GET") || p == "/api/daily-signals/today/mood"
+		internal := strings.HasPrefix(p, "/api/my-timetables") || strings.HasPrefix(p, "/api/team/") || strings.HasPrefix(p, "/api/weekly-reports") || strings.HasPrefix(p, "/api/operations/progress") || strings.HasPrefix(p, "/api/work-manual/") || strings.HasPrefix(p, "/api/assignments") || strings.HasPrefix(p, "/api/assignment-files/") || strings.HasPrefix(p, "/api/assignment-materials/") || strings.HasPrefix(p, "/api/school-leave/") || strings.HasPrefix(p, "/api/daily-leave/") || strings.HasPrefix(p, "/api/camp-leave/") || strings.HasPrefix(p, "/api/leave/access") || (p == "/api/user-group/confirmation" && route.Method != "GET") || (p == "/api/daily-signals" && route.Method != "GET") || p == "/api/daily-signals/today/mood"
 		if !internal || strings.Contains(p, "/public") {
 			continue
 		}
