@@ -36,6 +36,71 @@ function profileTab(value: string | null): ProfileTab {
   return tabs.some((tab) => tab.id === value) ? (value as ProfileTab) : "overview";
 }
 
+function MemberProfileSkeleton({ tab }: { tab: ProfileTab }) {
+  const bar = "rounded bg-[var(--admin-border-subtle)]";
+  return <section className="admin-design community-page community-member-page content-skeleton" role="status" aria-label="正在加载成员主页">
+    <div className="motion-safe:animate-pulse" aria-hidden="true">
+      <div className={bar + " mb-5 h-4 w-16"} />
+      <header className="community-member-hero">
+        <div className="community-member-hero__avatar-wrap"><div className="community-avatar"><div className={bar + " h-full w-full rounded-full"} /></div></div>
+        <div className="community-member-hero__identity space-y-4">
+          <div className="community-member-hero__name"><div className={bar + " h-7 w-40 max-w-full"} /></div>
+          <div className="community-member-hero__bio-row"><div className={bar + " h-4 w-60 max-w-full"} /></div>
+          <div className="community-member-level space-y-2">
+            <div className="community-member-level__label"><div className={bar + " h-3 w-28"} /><div className={bar + " h-3 w-16"} /></div>
+            <div className={bar + " h-[5px] w-full"} /><div className={bar + " h-3 w-40 max-w-full"} />
+          </div>
+        </div>
+      </header>
+      {tab !== "settings" ? <nav className="community-member-tabs">
+        {tabs.map((item) => <div key={item.id} className={bar + " h-5 w-16"} />)}
+      </nav> : null}
+      {tab === "overview" ? <div className="community-member-overview">
+        <div className="community-member-details">
+          {[0, 1].map((key) => <div key={key}>
+            <div className={bar + " h-3 w-16"} /><div className={bar + " h-5 w-40 max-w-full"} />
+          </div>)}
+        </div>
+        <div className="community-member-stats">
+          {[0, 1, 2].map((key) => <div key={key} className="space-y-2">
+            <div className={bar + " h-7 w-10"} /><div className={bar + " h-4 w-12"} />
+          </div>)}
+        </div>
+      </div> : null}
+      {tab === "posts" ? <section className="community-member-section community-member-content-list">
+        {[0, 1, 2].map((key) => <article key={key} className="community-member-post-item space-y-2">
+          <div className={bar + " h-3 w-28"} /><div className={bar + " h-5 w-2/3"} />
+          <div className={bar + " h-3 w-full"} /><div className={bar + " h-3 w-4/5"} />
+          <footer><div className={bar + " h-3 w-10"} /><div className={bar + " h-3 w-10"} /></footer>
+        </article>)}
+      </section> : null}
+      {tab === "replies" ? <section className="community-member-section community-member-content-list">
+        {[0, 1, 2].map((key) => <article key={key} className="community-member-reply-item space-y-3">
+          <div className="flex items-center justify-between gap-3"><div className={bar + " h-3 w-1/2"} /><div className={bar + " h-3 w-16"} /></div>
+          <div className={bar + " h-4 w-5/6"} /><div className={bar + " h-3 w-3/4"} />
+          <footer><div className={bar + " h-3 w-10"} /></footer>
+        </article>)}
+      </section> : null}
+      {tab === "badges" ? <section className="community-member-badges">
+        <div className="community-member-badge-grid">
+          {[0, 1, 2, 3].map((key) => <article key={key} className="community-member-badge-card">
+            <div className={bar + " h-16 w-16 rounded-full"} />
+            <div className={bar + " h-4 w-20"} /><div className={bar + " h-3 w-12"} />
+          </article>)}
+        </div>
+      </section> : null}
+      {tab === "settings" ? <section className="community-member-section community-member-settings">
+        <header><div className={bar + " h-5 w-28"} /></header>
+        <div className="personal-profile-settings space-y-4">
+          {[0, 1, 2].map((key) => <div key={key} className="space-y-2">
+            <div className={bar + " h-4 w-24"} /><div className={bar + " h-10 w-full max-w-lg"} />
+          </div>)}
+        </div>
+      </section> : null}
+    </div>
+  </section>;
+}
+
 export function meta() {
   return [{ title: "社区成员 | TARSGO" }];
 }
@@ -90,6 +155,7 @@ export default function CommunityMemberProfileRoute() {
   useEffect(() => {
     let active = true;
     setLoading(true);
+    setResult(null);
     setError("");
     const apiTab = tab === "settings" ? "card" : tab;
     communityMemberProfileClient.get(memberID, apiTab, tab === "settings" ? 1 : page).then((next) => {
@@ -309,31 +375,7 @@ export default function CommunityMemberProfileRoute() {
     }
   }
 
-  if (loading && !result) return <section className="admin-design community-page community-member-page content-skeleton" role="status" aria-label="正在加载成员主页">
-    <div className="motion-safe:animate-pulse space-y-5" aria-hidden="true">
-      <div className="h-4 w-16 rounded bg-[var(--admin-border-subtle)]" />
-      <header className="community-member-hero">
-        <div className="h-24 w-24 rounded-full bg-[var(--admin-border-subtle)]" />
-        <div className="community-member-hero__identity space-y-4">
-          <div className="h-7 w-40 max-w-full rounded bg-[var(--admin-border-subtle)]" />
-          <div className="h-4 w-60 max-w-full rounded bg-[var(--admin-border-subtle)]" />
-          <div className="h-3 w-48 max-w-full rounded bg-[var(--admin-border-subtle)]" />
-          <div className="h-2 w-full max-w-sm rounded bg-[var(--admin-border-subtle)]" />
-        </div>
-      </header>
-      <div className="flex gap-4 border-b border-[var(--admin-border-subtle)] pb-3">
-        {[0, 1, 2].map((key) => <div key={key} className="h-5 w-16 rounded bg-[var(--admin-border-subtle)]" />)}
-      </div>
-      <div className="community-member-overview">
-        <div className="community-member-details space-y-4">
-          {[0, 1].map((key) => <div key={key} className="h-5 w-48 max-w-full rounded bg-[var(--admin-border-subtle)]" />)}
-        </div>
-        <div className="community-member-stats">
-          {[0, 1, 2].map((key) => <div key={key} className="space-y-3"><div className="h-4 w-12 rounded bg-[var(--admin-border-subtle)]" /><div className="h-7 w-10 rounded bg-[var(--admin-border-subtle)]" /></div>)}
-        </div>
-      </div>
-    </div>
-  </section>;
+  if (loading && !result) return <MemberProfileSkeleton tab={tab} />;
   if (!result) return <section className="admin-design community-page"><p className="community-state community-state--error" role="alert">{error || "成员主页不存在。"}</p><Link className="community-thread__back" to={returnTo} onClick={returnToSource}><CommunityIcon name="arrowLeft" />返回</Link></section>;
 
   const { member } = result;

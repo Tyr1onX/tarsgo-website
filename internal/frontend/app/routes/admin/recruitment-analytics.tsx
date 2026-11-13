@@ -228,18 +228,41 @@ function AnalyticsSkeleton() {
       <section className="recruitment-analytics__selector space-y-2">
         <div className={bar + " h-4 w-20"} /><div className={bar + " h-10 w-64 max-w-full"} />
       </section>
-      <section className="recruitment-analytics__panel space-y-5">
-        <div className={bar + " h-6 w-40"} />
-        <div className="recruitment-analytics__overview">
-          {[0, 1, 2, 3].map((key) => <div key={key} className="recruitment-analytics__metric space-y-3">
-            <div className={bar + " h-4 w-20 max-w-full"} /><div className={bar + " h-8 w-16 max-w-full"} />
-          </div>)}
+      <section className="recruitment-analytics__panel">
+        <div className="recruitment-analytics__section-heading">
+          <div className={bar + " h-6 w-40"} /><div className={bar + " h-4 w-28"} />
         </div>
-        <div className="space-y-4 border-t border-[var(--admin-border-subtle)] pt-4">
-          <div className={bar + " h-5 w-32"} /><div className={bar + " h-8 w-full"} />
-          {[0, 1, 2].map((key) => <div key={key} className={bar + " h-4 w-3/4"} />)}
+        <div className="recruitment-analytics__overview">
+          {[0, 1, 2, 3].map((key) => <article key={key} className="recruitment-analytics__metric space-y-3">
+            <div className={bar + " h-4 w-20 max-w-full"} /><div className={bar + " h-8 w-16 max-w-full"} />
+          </article>)}
+        </div>
+        <div className="recruitment-analytics__breakdown">
+          <div className={bar + " h-5 w-32"} />
+          <div className="recruitment-analytics__status-track">
+            {[3, 2, 1, 1].map((width, key) => <span key={key} className={bar} style={{ flexGrow: width }} />)}
+          </div>
+          <ul className="recruitment-analytics__status-list">
+            {[0, 1, 2, 3].map((key) => <li key={key}>
+              <i className={bar + " h-3 w-3"} /><div className={bar + " h-4 w-14"} /><div className={bar + " h-4 w-8"} />
+            </li>)}
+          </ul>
+          <div className={bar + " h-4 w-60 max-w-full"} />
+        </div>
+        <div className="recruitment-analytics__group-detail">
+          <div className={bar + " h-5 w-32"} />
+          <ul>{[0, 1, 2].map((key) => <li key={key}>
+            <div className="recruitment-analytics__group-label">
+              <div className={bar + " h-4 w-20"} /><div className={bar + " h-4 w-24"} />
+            </div>
+            <div className="recruitment-analytics__group-track">
+              <div className={bar + " h-full"} style={{ width: (70 - key * 20) + "%" }} />
+            </div>
+          </li>)}</ul>
         </div>
       </section>
+      <div className="recruitment-analytics__panel"><div className={bar + " h-5 w-32"} /></div>
+      <div className={bar + " h-4 w-20"} />
     </div>
   </div>;
 }

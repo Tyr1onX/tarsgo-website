@@ -370,7 +370,10 @@ export default function AccountManagement() {
       {!requestedUserId ? <>
       <div className={`admin-users__summary${loading && items.length === 0 && summary.total === 0 ? " content-skeleton" : ""}`} aria-label="账号概况">
         {loading && items.length === 0 && summary.total === 0
-          ? [0, 1, 2, 3].map((item) => <span key={item} aria-hidden="true"><span className="block h-3 w-20 rounded bg-[var(--admin-border-subtle)]" /></span>)
+          ? [0, 1, 2, 3].map((item) => <span key={item} aria-hidden="true">
+              <span className="inline-block h-3 w-16 rounded bg-[var(--admin-border-subtle)]" />
+              <span className="inline-block h-5 w-8 rounded bg-[var(--admin-border-subtle)]" />
+            </span>)
           : <>
             <span>用户总数 <strong>{summary.total}</strong></span>
             <span>启用 <strong>{summary.enabled}</strong></span>
@@ -417,10 +420,10 @@ export default function AccountManagement() {
               <thead><tr><th>成员</th><th>组别</th><th>身份与权限</th><th>状态</th></tr></thead>
               <tbody>
                 {loading && items.length === 0 ? [0, 1, 2, 3, 4].map((row) => <tr key={row} className="admin-table-row" aria-hidden="true">
-                  <td><span className="block h-3 w-24 max-w-full rounded bg-[var(--admin-border-subtle)]" /></td>
-                  <td><span className="block h-3 w-16 max-w-full rounded bg-[var(--admin-border-subtle)]" /></td>
-                  <td><span className="block h-3 w-20 max-w-full rounded bg-[var(--admin-border-subtle)]" /></td>
-                  <td><span className="block h-3 w-10 max-w-full rounded bg-[var(--admin-border-subtle)]" /></td>
+                  <td><div className="space-y-2"><div className="h-4 w-24 max-w-full rounded bg-[var(--admin-border-subtle)]" /><div className="h-3 w-16 rounded bg-[var(--admin-border-subtle)]" /></div></td>
+                  <td><span className="block h-4 w-20 max-w-full rounded bg-[var(--admin-border-subtle)]" /></td>
+                  <td><div className="admin-users__identity"><span className="block h-4 w-20 rounded bg-[var(--admin-border-subtle)]" /><span className="block h-5 w-16 rounded-md bg-[var(--admin-border-subtle)]" /></div></td>
+                  <td><span className="block h-5 w-12 rounded-md bg-[var(--admin-border-subtle)]" /></td>
                 </tr>) : items.map((item) => (
                   <tr key={item.id} className="admin-table-row">
                     <td><button type="button" className="admin-users__member-link" onClick={() => void openEdit(item)}><strong>{item.realName || "姓名待核实"}</strong><span>查看详情</span></button></td>
