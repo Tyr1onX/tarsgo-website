@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState, type ChangeEvent, type FormEvent, type KeyboardEvent as ReactKeyboardEvent, type MouseEvent } from "react";
 import { Link, useLocation, useNavigate, useNavigationType, useOutletContext, useParams, useSearchParams } from "react-router";
 
-import { BrandLoader } from "~/components/brand-loader";
 import { Notify } from "~/components/notify";
 import { CommunityBadgeInfo } from "~/components/community-badge-mark";
 import { CommunityFeaturedMark } from "~/components/community-featured-mark";
@@ -310,7 +309,31 @@ export default function CommunityMemberProfileRoute() {
     }
   }
 
-  if (loading && !result) return <section className="admin-design community-page"><BrandLoader label="正在加载成员主页" /></section>;
+  if (loading && !result) return <section className="admin-design community-page community-member-page content-skeleton" role="status" aria-label="正在加载成员主页">
+    <div className="motion-safe:animate-pulse space-y-5" aria-hidden="true">
+      <div className="h-4 w-16 rounded bg-[var(--admin-border-subtle)]" />
+      <header className="community-member-hero">
+        <div className="h-24 w-24 rounded-full bg-[var(--admin-border-subtle)]" />
+        <div className="community-member-hero__identity space-y-4">
+          <div className="h-7 w-40 max-w-full rounded bg-[var(--admin-border-subtle)]" />
+          <div className="h-4 w-60 max-w-full rounded bg-[var(--admin-border-subtle)]" />
+          <div className="h-3 w-48 max-w-full rounded bg-[var(--admin-border-subtle)]" />
+          <div className="h-2 w-full max-w-sm rounded bg-[var(--admin-border-subtle)]" />
+        </div>
+      </header>
+      <div className="flex gap-4 border-b border-[var(--admin-border-subtle)] pb-3">
+        {[0, 1, 2].map((key) => <div key={key} className="h-5 w-16 rounded bg-[var(--admin-border-subtle)]" />)}
+      </div>
+      <div className="community-member-overview">
+        <div className="community-member-details space-y-4">
+          {[0, 1].map((key) => <div key={key} className="h-5 w-48 max-w-full rounded bg-[var(--admin-border-subtle)]" />)}
+        </div>
+        <div className="community-member-stats">
+          {[0, 1, 2].map((key) => <div key={key} className="space-y-3"><div className="h-4 w-12 rounded bg-[var(--admin-border-subtle)]" /><div className="h-7 w-10 rounded bg-[var(--admin-border-subtle)]" /></div>)}
+        </div>
+      </div>
+    </div>
+  </section>;
   if (!result) return <section className="admin-design community-page"><p className="community-state community-state--error" role="alert">{error || "成员主页不存在。"}</p><Link className="community-thread__back" to={returnTo} onClick={returnToSource}><CommunityIcon name="arrowLeft" />返回</Link></section>;
 
   const { member } = result;

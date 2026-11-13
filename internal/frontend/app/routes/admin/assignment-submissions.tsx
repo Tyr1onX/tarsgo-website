@@ -24,6 +24,29 @@ export default function AssignmentSubmissionsRedirect() {
 const fieldClass = "admin-field w-full";
 const ReviewEditor = lazy(() => import("~/components/community-markdown-editor").then((module) => ({ default: module.CommunityMarkdownEditor })));
 
+function ReviewSkeleton({ withSelector = false }: { withSelector?: boolean }) {
+  const bar = "rounded bg-[var(--admin-border-subtle)]";
+  return <div className="content-skeleton space-y-5" role="status" aria-label={withSelector ? "正在加载作业列表" : "正在加载提交记录"}>
+    <div aria-hidden="true" className="motion-safe:animate-pulse space-y-2">
+      {withSelector ? <><div className={bar + " h-4 w-12"} /><div className={bar + " h-11 w-full"} /></> : null}
+      <div className="admin-panel flex flex-wrap justify-between gap-4 p-4">
+        <div className={bar + " h-5 w-40"} /><div className={bar + " h-5 w-52"} />
+      </div>
+      <div className="admin-panel space-y-5 p-4 sm:p-5">
+        <div className="grid grid-cols-3 gap-2">
+          {[0, 1, 2].map((key) => <div key={key} className="space-y-3 rounded-xl border border-[var(--admin-border-subtle)] p-3">
+            <div className={bar + " h-4 w-3/4"} /><div className={bar + " h-7 w-12"} />
+          </div>)}
+        </div>
+        {[0, 1].map((key) => <div key={key} className="space-y-4 border-t border-[var(--admin-border-subtle)] pt-5">
+          <div className="flex flex-wrap justify-between gap-3"><div className={bar + " h-5 w-32"} /><div className={bar + " h-4 w-40"} /></div>
+          <div className="grid gap-4 lg:grid-cols-2"><div className={bar + " h-12 w-40 max-w-full"} /><div className={bar + " h-14 w-full"} /></div>
+        </div>)}
+      </div>
+    </div>
+  </div>;
+}
+
 export function AssignmentReview({ groupId }: { groupId: number }) {
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedID = Number(searchParams.get("assignmentId")) || 0;
@@ -39,7 +62,6 @@ export function AssignmentReview({ groupId }: { groupId: number }) {
   const [reviewDrafts, setReviewDrafts] = useState<Record<number, { score: string; decision: "passed" | "needs_redo"; comment: string }>>({});
   const [loading, setLoading] = useState(false);
   const [listLoaded, setListLoaded] = useState(false);
-  const [detailLoading, setDetailLoading] = useState(false);
   const [savingID, setSavingID] = useState(0);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -51,7 +73,6 @@ export function AssignmentReview({ groupId }: { groupId: number }) {
     setListLoaded(false);
     setAssignments([]);
     setDetail(null);
-    setDetailLoading(false);
     setSelectedID(0);
     setError("");
     assignmentClient.listAdmin(groupId).then((items) => {
@@ -74,16 +95,13 @@ export function AssignmentReview({ groupId }: { groupId: number }) {
   useEffect(() => {
     if (!listLoaded || !selectedID) {
       setDetail(null);
-      setDetailLoading(false);
-      return;
+        return;
     }
     let active = true;
     setDetail(null);
-    setDetailLoading(true);
     setError("");
     assignmentClient.getAdmin(selectedID).then((value) => { if (active) setDetail(value); })
-      .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : "提交记录加载失败"); })
-      .finally(() => { if (active) setDetailLoading(false); });
+      .catch((cause: unknown) => { if (active) setError(cause instanceof Error ? cause.message : "提交记录加载失败"); });
     return () => { active = false; };
   }, [selectedID, listLoaded]);
 
@@ -177,7 +195,6 @@ export function AssignmentReview({ groupId }: { groupId: number }) {
   function chooseAssignment(id: number) {
     setSelectedID(id);
     setDetail(null);
-    setDetailLoading(Boolean(id));
     setEditingReviewID(0);
     setReviewUploads([]);
     reviewUploadsRef.current = [];
@@ -202,8 +219,8 @@ export function AssignmentReview({ groupId }: { groupId: number }) {
       </select></label> : null}
       {error ? <div role="alert" className="admin-notice admin-notice--error">{error}</div> : null}
       {notice ? <Notify tone="success" message={notice} onClose={() => setNotice("")} /> : null}
-      {loading && !assignments.length ? <BrandLoader label="正在加载作业列表" /> : null}
-      {detailLoading && !detail ? <BrandLoader label="正在加载提交记录" size="sm" /> : null}
+      {loading && !error ? <ReviewSkeleton withSelector /> : null}
+      {listLoaded && selectedID > 0 && !assignment && !error ? <ReviewSkeleton /> : null}
       {listLoaded && !loading && !error && assignments.length === 0 ? <section className="admin-panel p-5 text-sm text-[var(--admin-muted)]">暂无本组作业。</section> : null}
       {assignment ? <>
         <section className="admin-panel flex flex-wrap gap-x-6 gap-y-2 p-4 text-sm" aria-label="作业统计">
