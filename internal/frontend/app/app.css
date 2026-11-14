@@ -1294,6 +1294,20 @@ html[data-theme-transition] body *::after {
   color: #d7b56d;
 }
 
+.home-visual-card-preview {
+  position: absolute;
+  inset: -0.75rem;
+  background-position: center;
+  background-size: cover;
+  filter: blur(12px);
+}
+
+.home-visual-card--about .home-visual-card-preview { background-position: center 46%; }
+.home-visual-card--robots .home-visual-card-preview { background-position: center 48%; }
+.home-visual-card--join .home-visual-card-preview { background-position: center 42%; }
+.home-visual-card--events .home-visual-card-preview { background-position: center 46%; }
+.home-visual-card--micro .home-visual-card-preview { background-position: center 48%; }
+
 .home-visual-card > img {
   position: absolute;
   inset: 0;
@@ -1301,8 +1315,11 @@ html[data-theme-transition] body *::after {
   height: 100%;
   object-fit: cover;
   object-position: center;
-  transition: transform 240ms ease;
+  opacity: 0;
+  transition: opacity 240ms ease, transform 240ms ease;
 }
+
+.home-visual-card[data-image-loaded="true"] > img { opacity: 1; }
 
 .home-visual-card--about > img { object-position: center 46%; }
 .home-visual-card--robots > img { object-position: center 48%; }
@@ -1378,6 +1395,35 @@ html[data-theme-transition] body *::after {
   justify-content: center;
   padding: 1rem 0 1.5rem;
   border-bottom: 1px solid var(--theme-border-subtle);
+}
+
+.home-sponsor-image {
+  position: relative;
+  display: grid;
+  width: 100%;
+  min-height: 2.5rem;
+  place-items: center;
+}
+
+.home-sponsor-primary .home-sponsor-image { min-height: 5rem; }
+
+.home-sponsor-image > img {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  opacity: 0;
+  transition: opacity 180ms ease;
+}
+
+.home-sponsor-image > img[data-loaded="true"] { opacity: 1; }
+
+.home-sponsor-fallback {
+  max-width: 90%;
+  color: var(--theme-muted);
+  font-size: 0.8125rem;
+  font-weight: 600;
+  line-height: 1.4;
+  text-align: center;
 }
 
 .home-sponsor-primary img {
@@ -1943,6 +1989,7 @@ html[data-theme-transition] body *::after {
 
 @media (prefers-reduced-motion: reduce) {
   .home-visual-card > img,
+  .home-sponsor-image > img,
   .home-visual-card-arrow,
   .home-alumni-recommendation__card,
   .home-alumni-recommendation__arrow svg,

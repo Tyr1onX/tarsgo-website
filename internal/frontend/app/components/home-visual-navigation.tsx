@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
 import { HomeSandRevealLayer } from "./home-sand-reveal-layer";
+import { homeImagePreviews } from "../data/home-image-previews";
 import type { HomeImageTreatment, SandRevealPhase } from "./home-sand-reveal-layer";
 import { claimHomeSandPlayback, hasHomeSandPlayed, HOME_SAND_PLAYED_KEY } from "~/lib/home-sand-playback";
 
@@ -28,6 +29,7 @@ type HomeNavigationModule = {
   href: string;
   placement: string;
   image?: string;
+  preview?: string;
   imageSrcSet?: string;
   imageSizes?: string;
   alt?: string;
@@ -39,6 +41,7 @@ const homeNavigationModules: HomeNavigationModule[] = [
     description: "从训练日常和团队文化，认识工程实践如何走进赛场。",
     href: "/about",
     image: "/assets/images/ContestMoment/contest-moment-04.webp",
+    preview: homeImagePreviews.about,
     ...responsiveHomeImage("about", "381e0fa8", "8e5963df"),
     alt: "队员在比赛现场协作检查机器人。",
     placement: "home-visual-card--about",
@@ -48,6 +51,7 @@ const homeNavigationModules: HomeNavigationModule[] = [
     description: "浏览五类机器人影像，了解真实的团队实践。",
     href: "/robots",
     image: "/assets/images/Robot/hero-robot-166a7390.webp",
+    preview: homeImagePreviews.robots,
     // This image is also the hero video's poster; keep one shared request instead of downloading a second responsive copy.
     ...noResponsiveHomeImage,
     alt: "吉甲大师英雄机器人实物。",
@@ -58,6 +62,7 @@ const homeNavigationModules: HomeNavigationModule[] = [
     description: "从机械、电控、视觉、AI 与运营五个方向找到入口。",
     href: "/join",
     image: "/assets/images/Daily/daily-02.webp",
+    preview: homeImagePreviews.join,
     ...noResponsiveHomeImage,
     alt: "队员围绕笔记本和工程模型交流。",
     placement: "home-visual-card--join",
@@ -79,6 +84,7 @@ const homeNavigationModules: HomeNavigationModule[] = [
     description: "回看真实赛事记录，浏览荣誉证书原图。",
     href: "/events-and-honors",
     image: "/assets/images/ContestMoment/contest-moment-02.webp",
+    preview: homeImagePreviews.events,
     ...responsiveHomeImage("events", "a0240c86", "0a9ecfa8", "wide"),
     alt: "吉甲大师团队赛事现场记录。",
     placement: "home-visual-card--events",
@@ -88,6 +94,7 @@ const homeNavigationModules: HomeNavigationModule[] = [
     description: "沿着 2018—2026 年真实资料，回看战队与平台的接力。",
     href: "/team-history",
     image: "/assets/images/Milestone/2019-breakthrough.webp",
+    preview: homeImagePreviews.history,
     ...noResponsiveHomeImage,
     alt: "TARS-Go 在 2019 ICRA RoboMaster 人工智能挑战赛的队伍合影。",
     placement: "home-visual-card--history",
@@ -97,6 +104,7 @@ const homeNavigationModules: HomeNavigationModule[] = [
     description: "了解低空智能感知与控制的课程和实践内容。",
     href: "/micro-specialties/low-altitude-intelligent-sensing-control",
     image: "/assets/images/Robot/aerial-robots.webp",
+    preview: homeImagePreviews.micro,
     ...responsiveHomeImage("micro", "9613d89c", "d641915f"),
     alt: "吉甲大师空中机器人。",
     placement: "home-visual-card--micro",
@@ -129,7 +137,13 @@ function HomeVisualCard({
   showFinalImage: boolean;
 }) {
   const imageRef = useRef<HTMLImageElement | null>(null);
+  const [imageLoaded, setImageLoaded] = useState(false);
   const [phase, setPhase] = useState<SandRevealPhase>(imageTreatment ? "idle" : "done");
+
+  useEffect(() => {
+    const image = imageRef.current;
+    setImageLoaded(Boolean(image?.complete && image.naturalWidth > 0));
+  }, [module.image]);
 
   return (
     <Link
@@ -137,6 +151,7 @@ function HomeVisualCard({
       prefetch={module.image ? "viewport" : "intent"}
       className={`home-visual-card ${module.placement}`}
       aria-label={`${module.title}：${module.description}`}
+      data-image-loaded={module.image ? imageLoaded : undefined}
       data-sand-mode={module.image ? imageTreatment : undefined}
       data-sand-phase={module.image && imageTreatment ? (showFinalImage ? "done" : phase) : undefined}
       onPointerDown={(event) => {
@@ -155,6 +170,9 @@ function HomeVisualCard({
     >
       {module.image ? (
         <>
+          {module.preview ? (
+            <span className="home-visual-card-preview" style={{ backgroundImage: `url("${module.preview}")` }} aria-hidden="true" />
+          ) : null}
           <img
             ref={imageRef}
             src={module.image}
@@ -163,6 +181,8 @@ function HomeVisualCard({
             alt={module.alt}
             loading="lazy"
             decoding="async"
+            onLoad={() => setImageLoaded(true)}
+            onError={() => setImageLoaded(false)}
           />
           {imageTreatment && !showFinalImage ? (
             <HomeSandRevealLayer
