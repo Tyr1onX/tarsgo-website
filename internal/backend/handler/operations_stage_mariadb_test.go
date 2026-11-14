@@ -96,60 +96,45 @@ func TestMariaDBOperationsStageChangesAndConfirmationsAreAudited(t *testing.T) {
 			t.Fatalf("undo status = %d, want %d: %s", res.Code, want, res.Body.String())
 		}
 	}
-	undo(history[0].ID, 409) // Only the latest action may be undone.
-	undo(history[1].ID, 200) // Undo a confirmation without changing the stage.
-	undo(history[1].ID, 409) // A repeated undo cannot remove older changes.
+	undo(history[0].ID, 409) // Only the latest action can be undone.
+	undo(history[1].ID, 200) // Delete a confirmation without changing the stage.
+	undo(history[1].ID, 409) // Repeating a delete cannot affect older changes.
 	if err := db.First(&updated, item.ID).Error; err != nil {
 		t.Fatal(err)
 	}
 	if updated.Stage != "editing" {
 		t.Fatalf("undo confirmation changed stage: %s", updated.Stage)
 	}
-	if err := db.First(&history[1], history[1].ID).Error; err != nil {
+	if err := db.First(&model.OperationsProgressUpdate{}, history[1].ID).Error; err != gorm.ErrRecordNotFound {
+		t.Fatalf("undone confirmation should be deleted: %v", err)
+	}
+	undo(history[0].ID, 200) // Now the original stage change is latest.
+	if err := db.First(&updated, item.ID).Error; err != nil {
 		t.Fatal(err)
 	}
-	if history[1].Kind != "reverted" {
-		t.Fatalf("confirmation should remain in audit history marked reverted: %+v", history[1])
+	if updated.Stage != "unconfirmed" {
+		t.Fatalf("undo stage failed to restore previous stage: %s", updated.Stage)
+	}
+	var remaining int64
+	if err := db.Model(&model.OperationsProgressUpdate{}).Where("item_id = ?", item.ID).Count(&remaining).Error; err != nil {
+		t.Fatal(err)
+	}
+	if remaining != 0 {
+		t.Fatalf("undo should leave no stage or undo records, got %d", remaining)
 	}
 	request(`{"stage":"review"}`, 200)
 	var last model.OperationsProgressUpdate
 	if err := db.Where("item_id = ?", item.ID).Order("id DESC").First(&last).Error; err != nil {
 		t.Fatal(err)
 	}
-	undo(last.ID, 200)
-	if err := db.First(&updated, item.ID).Error; err != nil {
-		t.Fatal(err)
-	}
-	if updated.Stage != "editing" {
-		t.Fatalf("undo stage failed to restore previous stage: %s", updated.Stage)
-	}
-	if err := db.First(&last, last.ID).Error; err != nil {
-		t.Fatal(err)
-	}
-	if last.Kind != "reverted" {
-		t.Fatalf("stage audit record not marked reverted: %+v", last)
-	}
-	var all []model.OperationsProgressUpdate
-	if err := db.Where("item_id = ?", item.ID).Order("id ASC").Find(&all).Error; err != nil {
-		t.Fatal(err)
-	}
-	if len(all) != 5 || all[2].Kind != "undo" || all[4].Kind != "undo" ||
-		all[4].FromStage != "review" || all[4].ToStage != "editing" {
-		payload, _ := json.Marshal(all)
-		t.Fatalf("undo history incorrect: %s", payload)
-	}
-	// A subsequent note prevents undoing a stale action.
 	if err := db.Create(&model.OperationsProgressUpdate{ItemID: item.ID, AuthorID: 42, Kind: "progress", Content: "后续备注"}).Error; err != nil {
 		t.Fatal(err)
 	}
-	undo(last.ID, 409)
-
-	// Only active stage actions count for the last stage-change timestamp.
-	var lastEffective model.OperationsProgressUpdate
-	if err := db.Where("item_id = ? AND kind = ?", item.ID, "stage").Order("id DESC").First(&lastEffective).Error; err != nil {
+	undo(last.ID, 409) // A later note makes the stage operation stale.
+	if err := db.Model(&model.OperationsProgressUpdate{}).Where("item_id = ?", item.ID).Count(&remaining).Error; err != nil {
 		t.Fatal(err)
 	}
-	if lastEffective.ID != history[0].ID {
-		t.Fatalf("expected original un-reverted stage action, got %d", lastEffective.ID)
+	if remaining != 2 {
+		t.Fatalf("stale undo should not delete any records, got %d", remaining)
 	}
 }

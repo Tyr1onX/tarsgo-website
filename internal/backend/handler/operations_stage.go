@@ -113,8 +113,8 @@ func (h *OperationsProgressHandler) RecordStage(c *gin.Context) {
 	}
 }
 
-// UndoStage reverses only the exact latest stage action. The original event
-// remains visible as reverted, while stage timestamps ignore that event.
+// UndoStage removes only the latest stage action and restores its previous stage.
+// No separate undo event is recorded.
 func (h *OperationsProgressHandler) UndoStage(c *gin.Context) {
 	if !h.requireEditor(c) {
 		return
@@ -125,7 +125,6 @@ func (h *OperationsProgressHandler) UndoStage(c *gin.Context) {
 		writeAPIError(c, http.StatusBadRequest, "撤回参数不正确")
 		return
 	}
-	user, _ := middleware.CurrentSessionUser(c)
 	err = h.db.WithContext(c.Request.Context()).Transaction(func(tx *gorm.DB) error {
 		var item model.OperationsProgressItem
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&item, id).Error; err != nil {
@@ -152,17 +151,7 @@ func (h *OperationsProgressHandler) UndoStage(c *gin.Context) {
 				return err
 			}
 		}
-		if err := tx.Model(&latest).Update("kind", "reverted").Error; err != nil {
-			return err
-		}
-		content := fmt.Sprintf("撤回阶段：%s → %s", operationsStageLabels[item.Kind][latest.ToStage], operationsStageLabels[item.Kind][latest.FromStage])
-		if latest.FromStage == latest.ToStage {
-			content = fmt.Sprintf("撤回确认：%s", operationsStageLabels[item.Kind][latest.FromStage])
-		}
-		return tx.Create(&model.OperationsProgressUpdate{
-			ItemID: id, AuthorID: user.ID, Kind: "undo",
-			FromStage: latest.ToStage, ToStage: latest.FromStage, Content: content,
-		}).Error
+		return tx.Delete(&latest).Error
 	})
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		writeAPIError(c, http.StatusNotFound, "事项不存在")

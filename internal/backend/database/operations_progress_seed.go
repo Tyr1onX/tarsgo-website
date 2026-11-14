@@ -4,6 +4,7 @@ import (
 	"errors"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"tarsgo-backend/model"
 )
@@ -66,4 +67,26 @@ func migrateOperationsProgressV60(db *gorm.DB) error {
 		}
 	}
 	return nil
+}
+
+// v62 removes the trial stage interactions for the seeded RMer item only.
+// Other items and non-stage notes remain untouched.
+func clearRMerTrialStageHistoryV62(db *gorm.DB) error {
+	return db.Transaction(func(tx *gorm.DB) error {
+		var item model.OperationsProgressItem
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Where("seed_key = ? AND title = ? AND kind = ?", "video:rmer", "RMer 人物系列 · 下一期", "video").
+			Take(&item).Error
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		if err != nil {
+			return err
+		}
+		if err := tx.Where("item_id = ? AND kind IN ?", item.ID, []string{"stage", "confirmed", "reverted", "undo"}).
+			Delete(&model.OperationsProgressUpdate{}).Error; err != nil {
+			return err
+		}
+		return tx.Model(&item).Update("stage", "unconfirmed").Error
+	})
 }
