@@ -282,7 +282,7 @@ export function EventsAndHonorsArchive() {
               </div>
               <button type="button" className="honors-preview-close" onClick={() => dialogRef.current?.close()}>关闭</button>
             </div>
-            <LoadingImage frameClassName="honors-preview-image-frame" loaderSize="md" className="honors-preview-image" src={activeMaterial.src} alt={activeMaterial.title + "原图"} />
+            <LoadingImage frameClassName="honors-preview-image-frame" className="honors-preview-image" src={activeMaterial.src} alt={activeMaterial.title + "原图"} />
             {activeMaterial.note ? <p className="honors-preview-note">{activeMaterial.note}</p> : null}
             <a className="honors-preview-original" href={activeMaterial.src} target="_blank" rel="noreferrer">打开原图 <span aria-hidden="true">↗</span></a>
             <div className="honors-preview-controls">

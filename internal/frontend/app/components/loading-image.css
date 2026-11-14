@@ -7,7 +7,21 @@
   overflow: hidden;
 }
 
-.loading-image[data-status="loading"] > img,
+.loading-image > img {
+  opacity: 0;
+  transform: scale(1.025);
+  transition: opacity 220ms ease, transform 280ms ease;
+}
+
+.loading-image[data-status="loading"] {
+  background: color-mix(in srgb, currentColor 7%, transparent);
+}
+
+.loading-image[data-status="loaded"] > img {
+  opacity: 1;
+  transform: scale(1);
+}
+
 .loading-image[data-status="error"] > img {
   visibility: hidden;
 }
@@ -21,13 +35,13 @@
   pointer-events: none;
 }
 
-.loading-image__feedback .brand-loader {
-  min-height: 0;
-}
-
 .loading-image__error {
   padding: 1rem;
   color: var(--theme-muted, #a3ada7);
   font-size: 0.875rem;
   text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .loading-image > img { transition: none; transform: none; }
 }

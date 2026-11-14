@@ -254,7 +254,7 @@
 .community-image-gallery { display: grid; max-width: 720px; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 9px; margin-top: 13px; }
 .community-image-gallery__thumb { position: relative; display: grid; width: 100%; height: 188px; place-items: center; overflow: hidden; border: 1px solid var(--admin-border-subtle); border-radius: 9px; padding: 0; background: var(--admin-surface-hover); cursor: zoom-in; }
 .community-image-gallery__frame { position: absolute; inset: 0; width: 100%; height: 100%; }
-.community-image-gallery__thumb > .community-image-gallery__frame > img { width: 100%; height: 100%; object-fit: cover; transition: transform 180ms ease; }
+.community-image-gallery__thumb > .community-image-gallery__frame > img { width: 100%; height: 100%; object-fit: cover; transition: opacity 220ms ease, transform 280ms ease; }
 .community-image-gallery__thumb:hover > .community-image-gallery__frame > img { transform: scale(1.025); }
 .community-image-gallery--compact { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
 .community-image-gallery--compact .community-image-gallery__thumb { width: 96px; height: 72px; flex: 0 0 96px; border-radius: 7px; }
@@ -332,10 +332,27 @@
 .community-state--empty strong { color: var(--admin-text); font-size: 16px; font-weight: 610; line-height: 1.35; }
 .community-state--empty p { max-width: 360px; margin: 0; color: var(--admin-muted); font-size: 13px; line-height: 1.6; }
 .community-state--empty .community-button { margin-top: 3px; }
-.community-refresh-status,.community-load-more__status { margin: 9px 2px; color: var(--admin-dim); font-size: 11px; text-align: center; }
 .community-load-more { display: block; width: 100%; min-height: 42px; margin-top: 12px; border: 1px solid var(--admin-border-subtle); border-radius: 9px; color: var(--admin-muted); background: var(--admin-surface); font-size: 13px; transition: border-color 130ms ease, color 130ms ease, background-color 130ms ease; }
 .community-load-more:hover:not(:disabled) { border-color: var(--admin-border); color: var(--admin-text); background: var(--admin-surface-hover); }
 .community-load-more:disabled { opacity: .6; }
+.community-load-more__end { display: grid; min-height: 42px; margin: 12px 0 0; place-items: center; color: var(--admin-dim); font-size: 12px; }
+.community-load-more__dots { display: inline-flex; align-items: center; gap: 6px; }
+.community-load-more__dots i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; animation: community-load-dot 900ms ease-in-out infinite alternate; }
+.community-load-more__dots i:nth-child(2) { animation-delay: 150ms; }
+.community-load-more__dots i:nth-child(3) { animation-delay: 300ms; }
+@keyframes community-load-dot { to { opacity: .4; transform: translateY(-4px); } }
+
+.community-post-list.content-skeleton { position: relative; overflow: hidden; animation: none; }
+.community-post-list.content-skeleton .community-topic-row { min-height: 53px; }
+.community-post-list.content-skeleton::after { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(110deg, transparent 35%, color-mix(in srgb, var(--admin-text) 5%, transparent) 50%, transparent 65%); content: ""; transform: translateX(100%); animation: community-skeleton-shine 1.5s ease-in-out infinite; }
+@keyframes community-skeleton-shine { to { transform: translateX(-100%); } }
+.community-post-list:not(.content-skeleton) > .community-topic-row { animation: community-topic-arrive 200ms ease-out both; }
+.community-post-list:not(.content-skeleton) > .community-topic-row:nth-child(20n + 2) { animation-delay: 50ms; }
+.community-post-list:not(.content-skeleton) > .community-topic-row:nth-child(20n + 3) { animation-delay: 100ms; }
+.community-post-list:not(.content-skeleton) > .community-topic-row:nth-child(20n + 4) { animation-delay: 150ms; }
+.community-post-list:not(.content-skeleton) > .community-topic-row:nth-child(20n + 5) { animation-delay: 200ms; }
+@keyframes community-topic-arrive { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .community-load-more__dots i, .community-post-list.content-skeleton::after, .community-post-list:not(.content-skeleton) > .community-topic-row { animation: none; } }
 
 .community-composer { display: grid; gap: 16px; margin-bottom: 22px; border: 1px solid var(--admin-border-subtle); border-radius: 14px; padding: 20px; background: var(--admin-surface); box-shadow: 0 10px 30px color-mix(in srgb, var(--admin-text) 5%, transparent); }
 .community-composer__header,.community-composer__actions { display: flex; align-items: center; gap: 9px; }

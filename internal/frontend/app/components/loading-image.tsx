@@ -1,15 +1,12 @@
 import { useEffect, useRef, useState, type ImgHTMLAttributes } from "react";
-import { BrandLoader } from "./brand-loader";
 import "./loading-image.css";
 
 type LoadingImageProps = ImgHTMLAttributes<HTMLImageElement> & {
   frameClassName: string;
-  loaderSize?: "sm" | "md";
 };
 
 export function LoadingImage({
   frameClassName,
-  loaderSize = "sm",
   src,
   onLoad,
   onError,
@@ -41,11 +38,7 @@ export function LoadingImage({
           onError?.(event);
         }}
       />
-      {status === "loading" ? (
-        <span className="loading-image__feedback">
-          <BrandLoader label="正在加载图片" size={loaderSize} />
-        </span>
-      ) : status === "error" ? (
+      {status === "error" ? (
         <span className="loading-image__feedback loading-image__error" role="status">图片加载失败</span>
       ) : null}
     </span>
