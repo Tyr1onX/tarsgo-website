@@ -132,6 +132,13 @@ test("homepage hero and navigation share a compact fingerprinted poster", async 
   assert.ok(poster.byteLength <= 200_000, "poster must stay below the mobile byte budget");
 });
 
+test("team status stays in the about section, not the global utility navigation", () => {
+  assert.doesNotMatch(navbar, /to="\/team-status"/);
+  assert.match(routes, /route\("team-status", "routes\/dashboard\/operations-progress\.tsx"\)/);
+  assert.match(aboutPage, /<ul className="about-groups-list">[\s\S]*?<Link to="\/team-status">查看战队动态/);
+  assert.doesNotMatch(homeVisualNavigation, /href: "\/team-status"/);
+});
+
 test("topic content keeps the five group definitions, dedicated about page, and separate evidence-based archives", () => {
   assert.match(home, /export const groups = \[/);
   assert.match(home, /机械组/);

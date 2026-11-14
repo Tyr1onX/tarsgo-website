@@ -1,3 +1,4 @@
+import { Link } from "react-router";
 import { teamHistorySources } from "../data/team-history";
 import "./about-team-page.css";
 
@@ -131,6 +132,9 @@ export function AboutTeamPage({ groups }: { groups: AboutGroup[] }) {
               </li>
             ))}
           </ul>
+          <div className="about-source-links" aria-label="战队当前进展">
+            <Link to="/team-status">查看战队动态 <span aria-hidden="true">→</span></Link>
+          </div>
         </div>
       </section>
 
