@@ -45,7 +45,7 @@ export interface OperationsUpdate {
   itemId: number;
   authorId: number;
   content: string;
-  kind: "progress" | "completed" | "stage" | "confirmed";
+  kind: "progress" | "completed" | "stage" | "confirmed" | "reverted" | "undo";
   fromStage: string;
   toStage: string;
   link: string;
@@ -86,6 +86,13 @@ export function recordOperationsStage(id: number, stage: string | null) {
   return apiRequest<{ id: number }>(`/api/operations/progress/${id}/stage`, {
     method: "POST",
     body: stage === null ? { confirm: true } : { stage },
+  });
+}
+
+export function undoOperationsStage(id: number, updateId: number) {
+  return apiRequest<{ id: number }>(`/api/operations/progress/${id}/stage/undo`, {
+    method: "POST",
+    body: { updateId },
   });
 }
 

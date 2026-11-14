@@ -15,6 +15,7 @@ import {
   operationsAttentionLabel,
   recordOperationsUpdate,
   recordOperationsStage,
+  undoOperationsStage,
   saveOperationsItem,
   sortOperationsItems,
   videoStageLabels,
@@ -90,7 +91,12 @@ function FollowerTrend({ platform, snapshots }: { platform: "bilibili" | "douyin
   </div>;
 }
 
-function History({ itemId }: { itemId: number }) {
+function History({ itemId, latestActionID, busy, onUndo }: {
+  itemId: number;
+  latestActionID: number | null;
+  busy: boolean;
+  onUndo: (updateID: number) => void;
+}) {
   const [history, setHistory] = useState<OperationsUpdate[] | null>(null);
   const [error, setError] = useState("");
   useEffect(() => {
@@ -108,8 +114,11 @@ function History({ itemId }: { itemId: number }) {
   return <ol className="operations-progress__history">{history.map((entry) =>
     <li key={entry.id}>
       <time dateTime={entry.publishedOn || entry.createdAt}>{formatOperationsUpdateDate(entry)}</time>
-      <span>{entry.kind === "completed" ? "已完成 · " : ""}{entry.content}</span>
+      <span>{entry.kind === "reverted" ? "已撤回 · " : entry.kind === "completed" ? "已完成 · " : ""}{entry.content}</span>
       {entry.link ? <a href={entry.link} target="_blank" rel="noopener noreferrer">查看链接</a> : null}
+      {entry.id === latestActionID && (entry.kind === "stage" || entry.kind === "confirmed") ? (
+        <button type="button" disabled={busy} onClick={() => onUndo(entry.id)}>{busy ? "撤回中…" : "撤回"}</button>
+      ) : null}
     </li>,
   )}</ol>;
 }
@@ -202,6 +211,19 @@ export default function OperationsProgressPage() {
       setHistoryItem(null);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "阶段更新失败");
+    } finally {
+      setSavingStage(null);
+    }
+  }
+
+  async function submitUndo(itemId: number, updateId: number) {
+    setSavingStage(itemId);
+    setError("");
+    try {
+      await undoOperationsStage(itemId, updateId);
+      await load();
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "撤回失败");
     } finally {
       setSavingStage(null);
     }
@@ -321,7 +343,9 @@ export default function OperationsProgressPage() {
                   <button type="button" onClick={() => startEdit(item)}>编辑</button>
                 </> : null}
               </div>
-              {historyItem === item.id ? <History key={`${item.id}:${item.lastUpdate?.id ?? 0}`} itemId={item.id} /> : null}
+              {historyItem === item.id ? <History key={`${item.id}:${item.lastUpdate?.id ?? 0}`} itemId={item.id}
+                latestActionID={board.canManage && item.status !== "done" && (item.lastUpdate?.kind === "stage" || item.lastUpdate?.kind === "confirmed") ? item.lastUpdate.id : null}
+                busy={savingStage !== null} onUndo={(updateId) => void submitUndo(item.id, updateId)} /> : null}
               {updating === item.id && board.canManage ? <form className="operations-progress__update-form" onSubmit={(event) => void submitUpdate(event)}>
                 {item.kind === "channel" || item.intervalDays > 0 ? <label>记录类型<select value={updateForm.kind} onChange={(event) => setUpdateForm((current) => ({ ...current, kind: event.target.value as OperationsUpdateInput["kind"], publishedOn: null }))}>
                   <option value="completed">{item.kind === "channel" ? "发布新内容" : "本期已完成"}</option><option value="progress">进展备注</option>
