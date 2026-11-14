@@ -231,6 +231,9 @@ func (s *Service) PrepareDailyDocument(ctx context.Context, userID uint64, windo
 		}
 		start, end = window.StartAt, window.EndAt
 	}
+	if err := s.approvedLeaveRange(ctx, userID, start, end); err != nil {
+		return nil, err
+	}
 	var entry model.DailyLeaveEntry
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		profile, err := s.requireProfile(tx, userID)
@@ -331,19 +334,46 @@ func (s *Service) DownloadDailyDocument(ctx context.Context, userID, entryID uin
 	if err != nil {
 		return nil, "", err
 	}
-	first, err := s.firstDailyDownload(ctx, entry.ID)
-	if err != nil {
+	// Build before consumption so a DOCX failure does not spend the approval.
+	if err := s.approvedLeaveRange(ctx, userID, start, end); err != nil {
 		return nil, "", err
 	}
-	if err := s.logDailyDocument(ctx, entry.ID, &userID, "download", first, offline); err != nil {
-		return nil, "", err
+	if entry.WindowID != nil {
+		return nil, "", conflict("一次性请假仅支持已审批的独立假条")
 	}
 	profile := model.LeaveProfile{Name: entry.NameSnapshot, StudentID: entry.StudentIDSnapshot, CollegeCode: entry.CollegeSnapshot}
 	content, err := buildDailyLeaveDocx(start, end, profile, collegeCodes[entry.CollegeSnapshot], os.Getenv("LEAVE_CONTACT_PHONE"), offline)
 	if err != nil {
 		return nil, "", internalError("生成请假条失败", err)
 	}
+	if err := s.consumeApprovedLeave(ctx, userID, entry.ID, start, end, offline); err != nil {
+		return nil, "", err
+	}
 	return content, dailyFilename(start, offline), nil
+}
+
+func (s *Service) consumeApprovedLeave(ctx context.Context, userID, entryID uint64, start, end time.Time, offline bool) error {
+	// A conditional update serializes concurrent downloads; only one succeeds.
+	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+		result := tx.Model(&model.LeaveAccessRequest{}).
+			Where("user_id = ? AND status = ? AND start_at = ? AND end_at = ?", userID, model.LeaveAccessApproved, start, end).
+			Update("status", model.LeaveAccessUsed)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected != 1 {
+			return conflict("本次假条已经生成，请重新申请授权")
+		}
+		return tx.Create(&model.DailyLeaveDocumentRequest{EntryID: entryID, UserID: &userID, RequestStage: "download", RequestType: dailyRequestType(true), FileVersion: DailyLeaveVersion, Offline: offline, RequestedAt: s.nowShanghai()}).Error
+	})
+	if err != nil {
+		var serviceErr *ServiceError
+		if errors.As(err, &serviceErr) {
+			return serviceErr
+		}
+		return internalError("记录假条生成失败", err)
+	}
+	return nil
 }
 
 func (s *Service) DownloadPublicDailyDocument(ctx context.Context, credential string, offline bool) ([]byte, string, error) {

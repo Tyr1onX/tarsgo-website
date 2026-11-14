@@ -151,7 +151,7 @@ func (s *Service) ListAdminRequests(ctx context.Context, adminID uint64) ([]Admi
 func (s *Service) Summary(ctx context.Context, adminID uint64, canReviewAccessRequests bool) (*SchoolLeaveSummary, error) {
 	var summary SchoolLeaveSummary
 	if canReviewAccessRequests {
-		if err := s.db.WithContext(ctx).Model(&model.LeaveAccessRequest{}).Where("status = ?", model.LeaveAccessPending).Count(&summary.PendingApprovalCount).Error; err != nil {
+		if err := s.db.WithContext(ctx).Model(&model.LeaveAccessRequest{}).Where("status = ? AND start_at IS NOT NULL AND end_at IS NOT NULL", model.LeaveAccessPending).Count(&summary.PendingApprovalCount).Error; err != nil {
 			return nil, internalError("读取请假开通审批数量失败", err)
 		}
 	}

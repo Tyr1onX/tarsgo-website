@@ -3,6 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useOutletContext } from "react-router";
 
 import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
+import { listAdminUsers, type AdminUserListItem } from "~/lib/admin-users-client";
 import { Notify } from "~/components/notify";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { downloadLeaveFile, leaveClient, type CampDetail, type CampEvent, type CollegeOption, type DailyEntry, type DailyWindow, type LeaveAccessRequest, type LeaveAccessState, type LeaveProfile, type LeaveRequest, type SchoolRun } from "~/lib/leave-client";
@@ -32,6 +33,9 @@ export default function LeaveWorkbench() {
   const [tab, setTab] = useState<Tab>("daily");
   const [accessState, setAccessState] = useState<LeaveAccessState | null>(null);
   const [accessRequests, setAccessRequests] = useState<LeaveAccessRequest[]>([]);
+  const [permissions, setPermissions] = useState<LeaveAccessRequest[]>([]);
+  const [accountKeyword, setAccountKeyword] = useState("");
+  const [accountResults, setAccountResults] = useState<AdminUserListItem[]>([]);
   const [profile, setProfile] = useState<LeaveProfile | null>(null);
   const [colleges, setColleges] = useState<CollegeOption[]>([]);
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
@@ -69,20 +73,20 @@ export default function LeaveWorkbench() {
     setHistoryLoading(false); setHistoryError("");
     setLoading(true); setError("");
     try {
-      if (!isAdmin) {
-        const nextAccessState = await leaveClient.leaveAccess();
-        if (generation !== loadSequence.current) return;
-        setAccessState(nextAccessState);
-        if (nextAccessState.status !== "approved") return;
-      }
-      const [nextProfile, nextColleges, nextDaily, nextAccessRequests] = await Promise.all([
+      const nextAccessState = await leaveClient.leaveAccess();
+      if (generation !== loadSequence.current) return;
+      setAccessState(nextAccessState);
+      if (!isSuperAdmin && !["granted", "pending", "approved"].includes(nextAccessState.status)) return;
+      const [nextProfile, nextColleges, nextDaily, nextAccessRequests, nextPermissions] = await Promise.all([
         leaveClient.profile(), leaveClient.colleges(), leaveClient.dailyRecordsPage(isAdmin),
         isSuperAdmin ? leaveClient.pendingLeaveAccessRequests() : Promise.resolve([]),
+        isSuperAdmin ? leaveClient.leavePermissions() : Promise.resolve([]),
       ]);
       if (generation !== loadSequence.current) return;
       setProfile(nextProfile);
       setColleges(nextColleges); setDailyEntries(nextDaily.items); setHistoryCursor(nextDaily.nextCursor ?? "");
       setAccessRequests(nextAccessRequests);
+      setPermissions(nextPermissions);
       if (showExtendedLeaveFeatures) {
         const [nextRequests, nextWindows, nextCamps] = await Promise.all([
           leaveClient.schoolRequests(), leaveClient.dailyWindows(), leaveClient.campEvents(),
@@ -139,13 +143,31 @@ export default function LeaveWorkbench() {
   }
 
   async function reviewLeaveAccess(request: LeaveAccessRequest, status: "approved" | "rejected") {
-    await runAction(() => leaveClient.reviewLeaveAccessRequest(request.id, status), status === "approved" ? "已开通请假功能。" : "已拒绝请假开通申请。");
+    await runAction(() => leaveClient.reviewLeaveAccessRequest(request.id, status), status === "approved" ? "本次请假已批准。" : "本次请假已拒绝。");
+  }
+
+  async function findAccounts() {
+    setBusy(true); setError("");
+    try {
+      const result = await listAdminUsers({ keyword: accountKeyword.trim(), pageSize: 10, includeInactive: true });
+      setAccountResults(result.items);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "查找账号失败"); }
+    finally { setBusy(false); }
+  }
+
+  async function setPermission(userId: number, granted: boolean) {
+    await runAction(() => leaveClient.setLeavePermission(userId, granted), granted ? "已授权一次请假。" : "已收回请假台使用资格。");
   }
 
   async function makeDaily(offline = false) {
     if (!profileReady) { setError("请先完善学号和学院。"); return; }
     setBusy(true); setError(""); setNotice("");
-    try { const ready = await leaveClient.prepareDailySelf(dailyDraft, offline); await downloadLeaveFile(ready.downloadUrl, ready.filename); setNotice("请假条已生成并开始下载。"); await load(); }
+    try {
+      if (!accessState?.startAt || !accessState.endAt || accessState.status !== "approved") throw new Error("本次请假尚未获批");
+      const ready = await leaveClient.prepareDailySelf({ startAt: accessState.startAt, endAt: accessState.endAt }, offline);
+      await downloadLeaveFile(ready.downloadUrl, ready.filename);
+      setNotice("假条已生成，使用资格已自动收回。"); await load();
+    }
     catch (reason) { setError(reason instanceof Error ? reason.message : "请假条生成失败"); }
     finally { setBusy(false); }
   }
@@ -206,19 +228,35 @@ export default function LeaveWorkbench() {
     {notice ? <Notify tone="success" message={notice} onClose={() => setNotice("")} /> : null}
     {loading && !profile && dailyEntries.length === 0 ? <BrandLoader label="正在加载请假数据" /> : null}
 
-    {!loading && !isAdmin && accessState && accessState.status !== "approved" ? <section className="admin-panel space-y-4 p-4 sm:p-5" aria-labelledby="leave-access-title">
-      <div className="admin-section-heading"><h2 id="leave-access-title">请假功能</h2></div>
-      {accessState.status === "pending" ? <p role="status" className="text-sm text-[var(--admin-muted)]">申请审核中</p> : <button type="button" className={`${button} admin-button--primary`} disabled={busy} onClick={() => void runAction(() => leaveClient.requestLeaveAccess(), "请假开通申请已提交。")}>{accessState.status === "rejected" ? "重新申请" : "申请开通"}</button>}
+    {!loading && !isSuperAdmin && accessState && !["granted", "pending", "approved"].includes(accessState.status) ? <section className="admin-panel p-4 sm:p-5">
+      <p role="status" className="text-sm text-[var(--admin-muted)]">{accessState.status === "used" ? "本次假条已生成，请假台使用资格已收回。" : "暂无请假台使用资格，请联系超级管理员。"}</p>
     </section> : null}
 
-    {!loading && (isAdmin || accessState?.status === "approved") ? <>
-      {isSuperAdmin ? <section className="admin-panel space-y-4 p-4 sm:p-5" aria-labelledby="leave-access-requests-title">
-        <div className="admin-section-heading"><h2 id="leave-access-requests-title">请假开通申请</h2></div>
-        <div className="divide-y divide-[var(--admin-border-subtle)]">{accessRequests.map((request) => <article key={request.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-          <div><strong className="text-sm">{request.userName || request.email}</strong><p className="mt-1 text-xs text-[var(--admin-muted)]">{request.email} · {dateText(request.requestedAt)}</p></div>
-          <div className="flex flex-wrap gap-2"><Link to={`/dashboard/admin/users?userId=${request.userId}`} className={`${button} admin-button--secondary`}>查看账号</Link><button type="button" className={`${button} admin-button--primary`} disabled={busy} onClick={() => void reviewLeaveAccess(request, "approved")}>批准</button><button type="button" className={`${button} admin-button--quiet`} disabled={busy} onClick={() => void reviewLeaveAccess(request, "rejected")}>拒绝</button></div>
-        </article>)}{!accessRequests.length ? <p className="py-2 text-sm text-[var(--admin-muted)]">暂无待审核申请。</p> : null}</div>
-      </section> : null}
+    {!loading && (isSuperAdmin || ["granted", "pending", "approved"].includes(accessState?.status ?? "")) ? <>
+      {isSuperAdmin ? <div className="space-y-4">
+        <section className="admin-panel space-y-3 p-4 sm:p-5">
+          <div className="admin-section-heading"><h2>请假台授权</h2></div>
+          <form className="flex gap-2" onSubmit={(event) => { event.preventDefault(); void findAccounts(); }}>
+            <input className={`${inputClass} flex-1`} value={accountKeyword} onChange={(event) => setAccountKeyword(event.target.value)} placeholder="按姓名或邮箱搜索账号" aria-label="搜索成员账号" required />
+            <button className={`${button} admin-button--secondary`} disabled={busy || !accountKeyword.trim()}>搜索</button>
+          </form>
+          {accountResults.length ? <div className="divide-y divide-[var(--admin-border-subtle)]">{accountResults.map((user) => <div key={user.id} className="flex items-center justify-between gap-2 py-2 text-sm">
+            <span>{user.realName || user.email} · {user.email}</span>
+            <button type="button" className={`${button} admin-button--primary`} disabled={busy || user.status !== 1 || permissions.some((item) => item.userId === user.id)} onClick={() => void setPermission(user.id, true)}>{permissions.some((item) => item.userId === user.id) ? "已授权" : "授权一次"}</button>
+          </div>)}</div> : null}
+          <div className="divide-y divide-[var(--admin-border-subtle)]">{permissions.map((item) => <div key={item.userId} className="flex items-center justify-between gap-2 py-2 text-sm">
+            <span>{item.userName || item.email} · {item.email} · {item.status === "granted" ? "待申请" : item.status === "pending" ? "待审核" : "待生成"}</span>
+            <button type="button" className={`${button} admin-button--quiet`} disabled={busy} onClick={() => void setPermission(item.userId, false)}>取消资格</button>
+          </div>)}{!permissions.length ? <p className="py-2 text-sm text-[var(--admin-muted)]">暂无已授权成员。</p> : null}</div>
+        </section>
+        <section className="admin-panel space-y-3 p-4 sm:p-5" aria-labelledby="leave-access-requests-title">
+          <div className="admin-section-heading"><h2 id="leave-access-requests-title">一次性请假审批</h2></div>
+          <div className="divide-y divide-[var(--admin-border-subtle)]">{accessRequests.map((request) => <article key={request.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+            <div><strong className="text-sm">{request.userName || request.email}</strong><p className="mt-1 text-xs text-[var(--admin-muted)]">{request.email} · {dateText(request.startAt)} 至 {dateText(request.endAt)}</p></div>
+            <div className="flex flex-wrap gap-2"><Link to={`/dashboard/admin/users?userId=${request.userId}`} className={`${button} admin-button--secondary`}>查看账号</Link><button type="button" className={`${button} admin-button--primary`} disabled={busy} onClick={() => void reviewLeaveAccess(request, "approved")}>批准</button><button type="button" className={`${button} admin-button--quiet`} disabled={busy} onClick={() => void reviewLeaveAccess(request, "rejected")}>拒绝</button></div>
+          </article>)}{!accessRequests.length ? <p className="py-2 text-sm text-[var(--admin-muted)]">暂无待审批申请。</p> : null}</div>
+        </section>
+      </div> : null}
       {tab === "daily" ? <div className="space-y-4">
         {showExtendedLeaveFeatures ? <section className="admin-panel space-y-4 p-4 sm:p-5">
           <div className="admin-section-heading"><div><h2>学校请假申请</h2><p>申请经管理员汇总后生成学校材料；待汇总前可以修改或撤回。</p></div></div>
@@ -230,22 +268,23 @@ export default function LeaveWorkbench() {
           {!profileReady ? <p className="text-xs text-[var(--admin-muted)]">请先完善学号和学院，再提交申请。</p> : null}
           <div className="divide-y divide-[var(--admin-border-subtle)]">{requests.map((item) => <div key={item.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-xs"><span>{dateText(item.startAt)} 至 {dateText(item.endAt)} · {statusText(item.status)}</span>{item.status === "pending" ? <button type="button" className={`${button} admin-button--quiet`} disabled={busy} onClick={() => void runAction(() => leaveClient.withdrawSchoolRequest(item.id), "请假申请已撤回。")}>撤回</button> : null}</div>)}</div>
         </section> : null}
-        <section className="admin-panel space-y-4 p-4 sm:p-5">
-          <div className="admin-section-heading"><h2>生成假条</h2></div>
-          <form onSubmit={(event) => { event.preventDefault(); void makeDaily(); }} className="space-y-4">
+        {accessState?.status === "granted" ? <section className="admin-panel space-y-3 p-4 sm:p-5">
+          <div className="admin-section-heading"><h2>一次性请假申请</h2></div>
+          <form onSubmit={(event) => { event.preventDefault(); void runAction(() => leaveClient.requestLeaveAccess(dailyDraft), "请假申请已提交。"); }} className="space-y-3">
             <div className="grid gap-3 sm:grid-cols-2">
-              <label className="admin-field-label">开始时间<input className={inputClass} type="datetime-local" required value={dailyDraft.startAt} onChange={(e) => setDailyDraft({ ...dailyDraft, startAt: e.target.value })} /></label>
-              <label className="admin-field-label">结束时间<input className={inputClass} type="datetime-local" required value={dailyDraft.endAt} onChange={(e) => setDailyDraft({ ...dailyDraft, endAt: e.target.value })} /></label>
+              <label className="admin-field-label">开始时间<input className={inputClass} type="datetime-local" required value={dailyDraft.startAt} onChange={(event) => setDailyDraft({ ...dailyDraft, startAt: event.target.value })} /></label>
+              <label className="admin-field-label">结束时间<input className={inputClass} type="datetime-local" required value={dailyDraft.endAt} onChange={(event) => setDailyDraft({ ...dailyDraft, endAt: event.target.value })} /></label>
             </div>
-            <div className="flex flex-wrap gap-2"><button type="submit" className={`${button} admin-button--primary`} disabled={busy || !profileReady}>生成并下载</button><button type="button" className={`${button} admin-button--secondary`} disabled={busy || !profileReady} onClick={(event) => { if (event.currentTarget.form?.reportValidity()) void makeDaily(true); }}>线下签章版</button></div>
+            <button className={`${button} admin-button--primary`} disabled={busy}>提交申请</button>
           </form>
-          {!profileReady ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-[var(--admin-border-subtle)] bg-[var(--admin-surface-subtle)] px-4 py-3">
-              <p className="text-sm text-[var(--admin-muted)]">生成假条前，请先完善我的主页中的学号和学院。</p>
-              <button type="button" className={`${button} admin-button--secondary`} onClick={() => openMyProfile("settings")}>完善学籍资料</button>
-            </div>
-          ) : null}
-        </section>
+        </section> : null}
+        {accessState?.status === "pending" ? <section className="admin-panel p-4 sm:p-5"><p role="status">请假申请待审批 · {dateText(accessState.startAt)} 至 {dateText(accessState.endAt)}</p></section> : null}
+        {accessState?.status === "approved" ? <section className="admin-panel space-y-3 p-4 sm:p-5">
+          <div className="admin-section-heading"><h2>已批准 · 生成一次假条</h2></div>
+          <p className="text-sm">{dateText(accessState.startAt)} 至 {dateText(accessState.endAt)}</p>
+          <div className="flex flex-wrap gap-2"><button type="button" className={`${button} admin-button--primary`} disabled={busy || !profileReady} onClick={() => void makeDaily()}>生成并下载</button><button type="button" className={`${button} admin-button--secondary`} disabled={busy || !profileReady} onClick={() => void makeDaily(true)}>线下签章版</button></div>
+          {!profileReady ? <button type="button" className={`${button} admin-button--secondary`} onClick={() => openMyProfile("settings")}>完善学籍资料</button> : null}
+        </section> : null}
         {showExtendedLeaveFeatures && isAdmin ? <section className="admin-panel space-y-4 p-4 sm:p-5">
           <div className="admin-section-heading"><div><h2>共享请假活动</h2><p>活动链接可发给队员；公开链接允许未登录报名并限时下载材料。</p></div></div>
           <form onSubmit={(e) => { e.preventDefault(); void runAction(async () => { await leaveClient.createDailyWindow(windowDraft); setWindowDraft({ title: "", startAt: "", endAt: "", openUntil: "" }); }, "共享活动已创建。"); }} className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">

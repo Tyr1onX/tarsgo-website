@@ -31,7 +31,7 @@ func (h *LeaveHandler) GetLeaveAccess(c *gin.Context) {
 		h.fail(c, err)
 		return
 	}
-	writeAPI(c, http.StatusOK, "获取请假开通状态成功", state)
+	writeAPI(c, http.StatusOK, "获取请假授权状态成功", state)
 }
 
 func (h *LeaveHandler) RequestLeaveAccess(c *gin.Context) {
@@ -39,12 +39,17 @@ func (h *LeaveHandler) RequestLeaveAccess(c *gin.Context) {
 	if !ok {
 		return
 	}
-	state, err := h.service.RequestLeaveAccess(c.Request.Context(), userID)
+	var input leave.RequestInput
+	if c.ShouldBindJSON(&input) != nil {
+		writeAPIError(c, http.StatusBadRequest, "请假时间不完整")
+		return
+	}
+	state, err := h.service.RequestLeaveAccess(c.Request.Context(), userID, input)
 	if err != nil {
 		h.fail(c, err)
 		return
 	}
-	writeAPI(c, http.StatusOK, "请假开通申请已提交", state)
+	writeAPI(c, http.StatusOK, "一次性请假申请已提交", state)
 }
 
 func (h *LeaveHandler) ListPendingLeaveAccessRequests(c *gin.Context) {
@@ -53,7 +58,7 @@ func (h *LeaveHandler) ListPendingLeaveAccessRequests(c *gin.Context) {
 		h.fail(c, err)
 		return
 	}
-	writeAPI(c, http.StatusOK, "获取请假开通申请成功", rows)
+	writeAPI(c, http.StatusOK, "获取一次性请假申请成功", rows)
 }
 
 func (h *LeaveHandler) ReviewLeaveAccessRequest(c *gin.Context) {
@@ -77,7 +82,40 @@ func (h *LeaveHandler) ReviewLeaveAccessRequest(c *gin.Context) {
 		h.fail(c, err)
 		return
 	}
-	writeAPI(c, http.StatusOK, "请假开通申请已审核", state)
+	writeAPI(c, http.StatusOK, "一次性请假申请已审核", state)
+}
+
+func (h *LeaveHandler) ListLeavePermissions(c *gin.Context) {
+	rows, err := h.service.ListLeavePermissions(c.Request.Context())
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "获取请假授权名单成功", rows)
+}
+
+func (h *LeaveHandler) SetLeavePermission(c *gin.Context) {
+	adminID, ok := leaveUserID(c)
+	if !ok {
+		return
+	}
+	userID, ok := pathID(c, "id")
+	if !ok {
+		return
+	}
+	var input struct {
+		Granted *bool `json:"granted"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil || input.Granted == nil {
+		writeAPIError(c, http.StatusBadRequest, "授权状态无效")
+		return
+	}
+	state, err := h.service.GrantLeaveAccess(c.Request.Context(), userID, adminID, *input.Granted)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "请假授权已更新", state)
 }
 
 func (h *LeaveHandler) GetProfile(c *gin.Context) {

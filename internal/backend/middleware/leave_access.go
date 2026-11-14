@@ -12,8 +12,8 @@ type leaveAccessReader interface {
 	HasLeaveAccess(ctx context.Context, userID uint64) (bool, error)
 }
 
-// RequireLeaveAccess protects authenticated leave-workbench APIs. Administrators
-// retain their existing access so they can review requests and manage records.
+// RequireLeaveAccess protects leave-workbench APIs. Only super administrators
+// bypass member access for oversight; regular admins require manual grants.
 func RequireLeaveAccess(reader leaveAccessReader) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		user, ok := CurrentSessionUser(c)
@@ -22,7 +22,7 @@ func RequireLeaveAccess(reader leaveAccessReader) gin.HandlerFunc {
 			c.Abort()
 			return
 		}
-		if user.Role.Name == model.RoleNameAdmin || user.Role.Name == model.RoleNameSuperAdmin {
+		if user.Role.Name == model.RoleNameSuperAdmin {
 			c.Next()
 			return
 		}
@@ -34,7 +34,7 @@ func RequireLeaveAccess(reader leaveAccessReader) gin.HandlerFunc {
 			return
 		}
 		if !allowed {
-			writeAPIError(c, http.StatusForbidden, "请假功能尚未开通")
+			writeAPIError(c, http.StatusForbidden, "请假工作台尚未授权或本次权限已使用")
 			c.Abort()
 			return
 		}
