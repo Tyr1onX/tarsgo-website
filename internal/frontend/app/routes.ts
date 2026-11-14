@@ -18,7 +18,6 @@ export default [
   route("leave/daily/:token", "routes/public-leave-daily.tsx"),
   route("leave/camp/:token", "routes/public-leave-camp.tsx"),
   route("micro-specialties/low-altitude-intelligent-sensing-control", "routes/micro-specialty-low-altitude.tsx"),
-  route("experiments/traces-sand-reveal", "routes/traces-sand-reveal.tsx"),
   route("login", "routes/login.tsx"),
   route("register", "routes/register.tsx"),
   route("dashboard/setup/super-admin", "routes/dashboard/setup-super-admin.tsx"),

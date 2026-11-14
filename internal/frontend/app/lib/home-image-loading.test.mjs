@@ -23,9 +23,9 @@ test("every homepage photo has a tiny inline, valid WebP preview", () => {
   assert.match(styles, /\.home-visual-card\[data-image-loaded="true"\] > img \{ opacity: 1; \}/);
 });
 
-test("production homepage never hides loaded photos behind the sand animation", () => {
-  assert.match(home, /<HomeVisualNavigation playOnce \/>/);
-  assert.doesNotMatch(home, /<HomeVisualNavigation imageTreatment="sand"/);
+test("production homepage shows progressive photos without a reveal animation", () => {
+  assert.match(home, /<HomeVisualNavigation \/>/);
+  assert.doesNotMatch(navigation, /HomeSandRevealLayer|data-sand-phase|IntersectionObserver/);
   assert.match(styles, /\.home-visual-card-preview \{[\s\S]*?filter: blur\(12px\);/);
 });
 

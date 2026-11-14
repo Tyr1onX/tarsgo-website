@@ -1,9 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router";
-import { HomeSandRevealLayer } from "./home-sand-reveal-layer";
 import { homeImagePreviews } from "../data/home-image-previews";
-import type { HomeImageTreatment, SandRevealPhase } from "./home-sand-reveal-layer";
-import { claimHomeSandPlayback, hasHomeSandPlayed, HOME_SAND_PLAYED_KEY } from "~/lib/home-sand-playback";
 
 const responsiveHomeImage = (
   name: string,
@@ -111,34 +108,9 @@ const homeNavigationModules: HomeNavigationModule[] = [
   },
 ];
 
-type HomeVisualNavigationProps = {
-  imageTreatment?: HomeImageTreatment;
-  replayToken?: number;
-  showHeading?: boolean;
-  frameOverride?: number;
-  playOnce?: boolean;
-};
-
-function HomeVisualCard({
-  module,
-  imageTreatment,
-  started,
-  replayToken,
-  staggerMs,
-  frameOverride,
-  showFinalImage,
-}: {
-  module: (typeof homeNavigationModules)[number];
-  imageTreatment?: HomeImageTreatment;
-  started: boolean;
-  replayToken: number;
-  staggerMs: number;
-  frameOverride?: number;
-  showFinalImage: boolean;
-}) {
+function HomeVisualCard({ module }: { module: HomeNavigationModule }) {
   const imageRef = useRef<HTMLImageElement | null>(null);
   const [imageLoaded, setImageLoaded] = useState(false);
-  const [phase, setPhase] = useState<SandRevealPhase>(imageTreatment ? "idle" : "done");
 
   useEffect(() => {
     const image = imageRef.current;
@@ -152,8 +124,6 @@ function HomeVisualCard({
       className={`home-visual-card ${module.placement}`}
       aria-label={`${module.title}：${module.description}`}
       data-image-loaded={module.image ? imageLoaded : undefined}
-      data-sand-mode={module.image ? imageTreatment : undefined}
-      data-sand-phase={module.image && imageTreatment ? (showFinalImage ? "done" : phase) : undefined}
       onPointerDown={(event) => {
         if (module.image || event.button !== 0 || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
         const card = event.currentTarget;
@@ -184,17 +154,6 @@ function HomeVisualCard({
             onLoad={() => setImageLoaded(true)}
             onError={() => setImageLoaded(false)}
           />
-          {imageTreatment && !showFinalImage ? (
-            <HomeSandRevealLayer
-              imageRef={imageRef}
-              mode={imageTreatment}
-              started={started}
-              replayToken={replayToken}
-              staggerMs={staggerMs}
-              frameOverride={frameOverride}
-              onPhaseChange={setPhase}
-            />
-          ) : null}
           <span className="home-visual-card-shade" aria-hidden="true" />
         </>
       ) : null}
@@ -209,116 +168,52 @@ function HomeVisualCard({
   );
 }
 
-export function HomeVisualNavigation({
-  imageTreatment,
-  replayToken = 0,
-  showHeading = true,
-  frameOverride,
-  playOnce = false,
-}: HomeVisualNavigationProps = {}) {
-  const sectionRef = useRef<HTMLElement | null>(null);
-  const [hasEntered, setHasEntered] = useState(false);
-  const [playbackStatus, setPlaybackStatus] = useState<"checking" | "ready" | "skipped">("checking");
-
-  useEffect(() => {
-    if (!playOnce || imageTreatment !== "sand") return;
-    try {
-      setPlaybackStatus(hasHomeSandPlayed(window.localStorage) ? "skipped" : "ready");
-    } catch {
-      setPlaybackStatus("ready");
-    }
-    const handleStorage = (event: StorageEvent) => {
-      if (event.key === HOME_SAND_PLAYED_KEY && event.newValue === "1") setPlaybackStatus("skipped");
-    };
-    window.addEventListener("storage", handleStorage);
-    return () => window.removeEventListener("storage", handleStorage);
-  }, [imageTreatment, playOnce]);
-
-  useEffect(() => {
-    if (!imageTreatment || hasEntered || (playOnce && playbackStatus !== "ready")) return;
-    const startReveal = () => {
-      if (playOnce) {
-        try {
-          if (!claimHomeSandPlayback(window.localStorage)) {
-            setPlaybackStatus("skipped");
-            return;
-          }
-        } catch {
-          // Storage may be disabled; keep the existing animation available.
-        }
-      }
-      setHasEntered(true);
-    };
-    if (!("IntersectionObserver" in window)) {
-      startReveal();
-      return;
-    }
-    const section = sectionRef.current;
-    if (!section) return;
-
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((entry) => entry.isIntersecting)) {
-          startReveal();
-          observer.disconnect();
-        }
-      },
-      { threshold: 0.12, rootMargin: "0px 0px -5% 0px" },
-    );
-    observer.observe(section);
-    return () => observer.disconnect();
-  }, [hasEntered, imageTreatment, playOnce, playbackStatus]);
-
+export function HomeVisualNavigation() {
   return (
     <>
-      {playOnce ? (
-        <section
-          className="home-mobile-navigation border-t border-[var(--theme-border-subtle)] py-8 sm:hidden"
-          aria-labelledby="home-mobile-navigation-heading"
-        >
-          <div className="public-home-container">
-            <h2 id="home-mobile-navigation-heading" className="mb-4 text-xl font-semibold tracking-tight text-fg-primary">
-              探索吉甲
-            </h2>
-            <nav aria-label="吉甲手机端专题导航" className="home-mobile-grid">
-              {homeNavigationModules
-                .filter((module) => module.href !== "/about" && module.href !== "/join")
-                .map((module) => {
-                  const kind = module.href === "/robots" ? "featured" : module.image ? "compact" : "action";
-                  return (
-                    <Link
-                      key={module.href}
-                      to={module.href}
-                      prefetch="intent"
-                      className={`home-mobile-link home-mobile-link--${kind}`}
-                      aria-label={`${module.title}：${module.description}`}
-                    >
-                      {kind === "featured" ? (
-                        <img src={module.image} alt={module.alt ?? ""} loading="lazy" decoding="async" />
-                      ) : null}
-                      <span className="home-mobile-link__copy">
-                        <strong>{module.title}</strong>
-                        {kind === "action" ? <span>{module.description}</span> : null}
-                      </span>
-                      <svg className="home-mobile-link__arrow" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                        <path d="M5 12h14m-6-6 6 6-6 6" />
-                      </svg>
-                    </Link>
-                  );
-                })}
-            </nav>
-          </div>
-        </section>
-      ) : null}
       <section
-      ref={sectionRef}
-      id="home-navigation"
-      aria-labelledby={showHeading ? "home-navigation-heading" : undefined}
-      aria-label={showHeading ? undefined : "吉甲专题导航预览"}
-      className={`${playOnce ? "hidden sm:block " : ""}border-t border-[var(--theme-border-subtle)] py-14 sm:py-16 lg:py-20`}
-    >
-      <div className="public-home-container">
-        {showHeading ? (
+        className="home-mobile-navigation border-t border-[var(--theme-border-subtle)] py-8 sm:hidden"
+        aria-labelledby="home-mobile-navigation-heading"
+      >
+        <div className="public-home-container">
+          <h2 id="home-mobile-navigation-heading" className="mb-4 text-xl font-semibold tracking-tight text-fg-primary">
+            探索吉甲
+          </h2>
+          <nav aria-label="吉甲手机端专题导航" className="home-mobile-grid">
+            {homeNavigationModules
+              .filter((module) => module.href !== "/about" && module.href !== "/join")
+              .map((module) => {
+                const kind = module.href === "/robots" ? "featured" : module.image ? "compact" : "action";
+                return (
+                  <Link
+                    key={module.href}
+                    to={module.href}
+                    prefetch="intent"
+                    className={`home-mobile-link home-mobile-link--${kind}`}
+                    aria-label={`${module.title}：${module.description}`}
+                  >
+                    {kind === "featured" ? (
+                      <img src={module.image} alt={module.alt ?? ""} loading="lazy" decoding="async" />
+                    ) : null}
+                    <span className="home-mobile-link__copy">
+                      <strong>{module.title}</strong>
+                      {kind === "action" ? <span>{module.description}</span> : null}
+                    </span>
+                    <svg className="home-mobile-link__arrow" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                      <path d="M5 12h14m-6-6 6 6-6 6" />
+                    </svg>
+                  </Link>
+                );
+              })}
+          </nav>
+        </div>
+      </section>
+      <section
+        id="home-navigation"
+        aria-labelledby="home-navigation-heading"
+        className="hidden border-t border-[var(--theme-border-subtle)] py-14 sm:block sm:py-16 lg:py-20"
+      >
+        <div className="public-home-container">
           <div className="mx-auto mb-8 max-w-3xl sm:mb-10 lg:mx-0">
             <p className="mb-3 text-center text-[11px] font-semibold uppercase tracking-[0.2em] text-accent-primary sm:text-left">
               探索 TARSGO
@@ -333,23 +228,12 @@ export function HomeVisualNavigation({
               从团队、机器人、赛事到成长路径，选择一个入口继续了解。
             </p>
           </div>
-        ) : null}
-
-        <nav aria-label="吉甲专题导航" className="home-visual-grid">
-          {homeNavigationModules.map((module, index) => (
-            <HomeVisualCard
-              key={module.href}
-              module={module}
-              imageTreatment={imageTreatment}
-              started={hasEntered || frameOverride !== undefined}
-              replayToken={replayToken}
-              staggerMs={(index > 4 ? index - 2 : index) * 105}
-              frameOverride={frameOverride}
-              showFinalImage={playOnce && playbackStatus !== "ready"}
-            />
-          ))}
-        </nav>
-      </div>
+          <nav aria-label="吉甲专题导航" className="home-visual-grid">
+            {homeNavigationModules.map((module) => (
+              <HomeVisualCard key={module.href} module={module} />
+            ))}
+          </nav>
+        </div>
       </section>
     </>
   );

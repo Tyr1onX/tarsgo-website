@@ -377,7 +377,7 @@ export function PublicHomePage({ page = "home", children }: { page?: PublicPage;
         </section>
       )}
 
-      {routePage === "home" ? <HomeVisualNavigation playOnce /> : null}
+      {routePage === "home" ? <HomeVisualNavigation /> : null}
 
       {children}
 

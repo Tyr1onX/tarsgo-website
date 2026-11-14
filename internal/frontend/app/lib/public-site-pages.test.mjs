@@ -13,7 +13,6 @@ const robotsRoute = await readFile(new URL("../routes/robots.tsx", import.meta.u
 const eventsRoute = await readFile(new URL("../routes/events-and-honors.tsx", import.meta.url), "utf8");
 const historyRoute = await readFile(new URL("../routes/team-history.tsx", import.meta.url), "utf8");
 const joinRoute = await readFile(new URL("../routes/join.tsx", import.meta.url), "utf8");
-const homeSandRevealLayer = await readFile(new URL("../components/home-sand-reveal-layer.tsx", import.meta.url), "utf8");
 const basePage = await readFile(new URL("../routes/base.tsx", import.meta.url), "utf8");
 const dailySignalRoute = await readFile(new URL("../routes/daily-signal.tsx", import.meta.url), "utf8");
 const dashboardLayout = await readFile(new URL("../routes/dashboard/layout.tsx", import.meta.url), "utf8");
@@ -195,7 +194,7 @@ test("the homepage keeps six photos around two co-creation entries and preserves
   assert.match(home, /autoPlay=\{!prefersReducedMotion\}/);
   assert.match(home, /preload=\{prefersReducedMotion \? "none" : "metadata"\}/);
   assert.match(home, /if \(prefersReducedMotion\) heroVideoRef\.current\?\.pause\(\)/);
-  assert.match(home, /<HomeVisualNavigation playOnce \/>/);
+  assert.match(home, /<HomeVisualNavigation \/>/);
   assert.doesNotMatch(home, /home-base-feature|to="\/base"|从每日通信开始/);
   assert.doesNotMatch(home, /home-space-entry--manage|个人工作台/);
   assert.doesNotMatch(navbar, /const navLinks|site-mobile-menu/);
@@ -263,7 +262,7 @@ test("公开基地入口已移除，旧链接只导向登录或统一工作台",
   assert.doesNotMatch(dashboardHome, /DailySignalWorkspace|daily-signal/);
   assert.doesNotMatch(dashboardHome, /快捷入口|dashboard-home__shortcuts/);
   assert.doesNotMatch(dashboardHome, /\/api\/daily-signals\?year=/);
-  assert.match(home, /<HomeVisualNavigation playOnce \/>/);
+  assert.match(home, /<HomeVisualNavigation \/>/);
   assert.doesNotMatch(styles, /\.home-space-layout|\.home-space-entry/);
   assert.doesNotMatch(basePage, /BASE<br \/>01|A PLACE FOR ORDINARY DAYS|TX \/ 01/);
 });
@@ -314,44 +313,17 @@ test("the homepage preserves photo proportions and inserts a shorter equal-width
   }
 });
 
-test("sand reveal stays on a direct preview route and uses the real homepage gallery", async () => {
-  const previewRoute = await readFile(new URL("../routes/traces-sand-reveal.tsx", import.meta.url), "utf8");
-  assert.match(routes, /route\("experiments\/traces-sand-reveal", "routes\/traces-sand-reveal\.tsx"\)/);
-  assert.match(previewRoute, /<HomeVisualNavigation[\s\S]*?imageTreatment=\{mode\}/);
-  assert.match(previewRoute, /aria-pressed=\{mode === "original"\}/);
-  assert.match(previewRoute, /aria-pressed=\{mode === "sand"\}/);
-  assert.match(previewRoute, /重播沙画/);
-  assert.match(previewRoute, /searchParams\.get\("frame"\)/);
-  assert.match(previewRoute, /frameOverride=\{frameOverride\}/);
-  assert.match(previewRoute, /noindex, nofollow/);
+test("homepage gallery renders progressive images with no sand animation", () => {
+  assert.doesNotMatch(routes, /experiments\/traces-sand-reveal/);
   assert.match(homeVisualNavigation, /loading="lazy"/);
   assert.match(homeVisualNavigation, /decoding="async"/);
   assert.match(homeVisualNavigation, /srcSet=\{module\.imageSrcSet\}/);
-  assert.match(homeVisualNavigation, /new IntersectionObserver/);
-  assert.match(homeVisualNavigation, /observer\.disconnect\(\)/);
-  assert.match(homeVisualNavigation, /staggerMs=\{\(index > 4 \? index - 2 : index\) \* 105\}/);
-  assert.match(homeVisualNavigation, /<Link[\s\S]*?to=\{module\.href\}/);
+  assert.match(homeVisualNavigation, /className="home-visual-card-preview"/);
+  assert.match(homeVisualNavigation, /data-image-loaded=\{module\.image/);
   assert.match(homeVisualNavigation, /prefetch=\{module\.image \? "viewport" : "intent"\}/);
-  assert.match(homeVisualNavigation, /<HomeSandRevealLayer/);
-  assert.match(homeVisualNavigation, /claimHomeSandPlayback\(window\.localStorage\)/);
-  assert.match(homeVisualNavigation, /window\.addEventListener\("storage", handleStorage\)/);
-  assert.match(homeVisualNavigation, /showFinalImage=\{playOnce && playbackStatus !== "ready"\}/);
-  assert.match(homeVisualNavigation, /showFinalImage \? "done" : phase/);
-  assert.match(homeVisualNavigation, /imageTreatment && !showFinalImage/);
-  assert.match(homeSandRevealLayer, /matchMedia\("\(prefers-reduced-motion: reduce\)"\)/);
-  assert.match(homeSandRevealLayer, /if \(motionReduced\)[\s\S]*?onPhaseChange\("done"\)/);
-  assert.match(homeSandRevealLayer, /cancelAnimationFrame\(animationFrame\)/);
-  assert.match(homeSandRevealLayer, /PREPARATION_TIMEOUT_MS = 4_000/);
-  assert.match(homeSandRevealLayer, /MAX_CONSECUTIVE_SLOW_FRAMES = 2/);
-  assert.match(homeSandRevealLayer, /errorListener = \(\) => finish\(false\)/);
-  assert.match(homeSandRevealLayer, /window\.setTimeout\(finishWithFallback, PREPARATION_TIMEOUT_MS\)/);
-  assert.match(homeSandRevealLayer, /finishWithFallback\(\)/);
-  assert.match(styles, /\.home-sand-reveal-canvas\s*\{[\s\S]*?pointer-events: none;/);
-  assert.match(styles, /@media \(prefers-reduced-motion: reduce\)[\s\S]*?\.home-visual-card\[data-sand-mode="sand"\] > img[\s\S]*?opacity: 1 !important;/);
-  assert.match(styles, /\.home-visual-card\[data-sand-mode="sand"\] > img\s*\{\s*filter: none;\s*opacity: 0;/);
-  assert.match(styles, /data-sand-phase="settling"\]\s*> img,[\s\S]*?opacity: 1;/);
-  assert.doesNotMatch(styles, /filter: brightness\(0\.[34]\) saturate\(0\.[68]\) blur\(/);
-  assert.match(home, /<HomeVisualNavigation playOnce \/>/);
+  assert.doesNotMatch(homeVisualNavigation, /HomeSandRevealLayer|playbackStatus|IntersectionObserver|data-sand-phase/);
+  assert.doesNotMatch(styles, /home-sand-reveal-canvas|traces-sand-preview|data-sand-mode/);
+  assert.match(home, /<HomeVisualNavigation \/>/);
 });
 
 test("RightAPI remains a disclosed alumni project in the compact partner links", async () => {
@@ -562,7 +534,7 @@ test("homepage mobile view prioritizes navigation without duplicating the deskto
   assert.match(homeVisualNavigation, /className="home-mobile-navigation[^"]*sm:hidden"/);
   assert.match(homeVisualNavigation, /homeNavigationModules\s*\.filter\(\(module\) => module\.href !== "\/about" && module\.href !== "\/join"\)/);
   assert.match(homeVisualNavigation, /module\.href === "\/robots" \? "featured" : module\.image \? "compact" : "action"/);
-  assert.match(homeVisualNavigation, /playOnce \? "hidden sm:block " : ""/);
+  assert.match(homeVisualNavigation, /className="hidden border-t[^"]*sm:block/);
   assert.match(styles, /@media \(max-width: 639px\) \{[\s\S]*?\.home-mobile-grid\s*\{[^}]*grid-template-columns: repeat\(2, minmax\(0, 1fr\)\)/);
   assert.match(styles, /\.home-mobile-link--featured\s*\{[^}]*grid-column: 1 \/ -1/);
   assert.match(styles, /\.home-sponsor-matrix\s*\{[^}]*display: grid;/);
