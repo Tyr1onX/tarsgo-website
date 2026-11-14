@@ -32,6 +32,9 @@ func TestCommunityAPIsRequireAuthenticationAndOpenWorkflowsRemain(t *testing.T) 
 	for _, route := range engine.Routes() {
 		routes[route.Method+" "+route.Path] = true
 	}
+	if routes["GET /api/operations/public"] {
+		t.Fatal("operations board must not have an anonymous API route")
+	}
 
 	pausedPrefixes := []string{
 		"/api/practice-projects", "/api/practice-files", "/api/questions", "/api/question-files",
@@ -84,7 +87,6 @@ func TestCommunityAPIsRequireAuthenticationAndOpenWorkflowsRemain(t *testing.T) 
 		"GET /api/admin/timetable-availability/week",
 		"GET /api/admin/school-leave/runs/:id/groups/:groupIndex/result",
 		"POST /api/admin/school-leave/runs/:id/groups/:groupIndex/result",
-		"GET /api/operations/public",
 		"GET /api/operations/progress",
 		"POST /api/operations/progress",
 		"PATCH /api/operations/progress/:id",

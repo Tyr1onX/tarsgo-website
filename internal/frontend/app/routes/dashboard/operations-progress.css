@@ -1,7 +1,7 @@
 .operations-progress {
   max-width: 76rem;
   margin: 0 auto;
-  padding: calc(var(--site-nav-height, 72px) + 1.75rem) clamp(1rem, 3vw, 2.5rem) 4rem;
+  padding: 0 0 2rem;
   color: var(--admin-text);
 }
 .operations-progress__header,

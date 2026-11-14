@@ -132,11 +132,13 @@ test("homepage hero and navigation share a compact fingerprinted poster", async 
   assert.ok(poster.byteLength <= 200_000, "poster must stay below the mobile byte budget");
 });
 
-test("team status stays in the about section, not the global utility navigation", () => {
+test("team status is reachable only inside the authenticated workbench", () => {
   assert.doesNotMatch(navbar, /to="\/team-status"/);
-  assert.match(routes, /route\("team-status", "routes\/dashboard\/operations-progress\.tsx"\)/);
-  assert.match(aboutPage, /<ul className="about-groups-list">[\s\S]*?<Link to="\/team-status">查看战队动态/);
+  assert.doesNotMatch(routes, /route\("team-status",/);
+  assert.match(routes, /route\("workbench\/operations", "routes\/dashboard\/operations-progress\.tsx"\)/);
+  assert.doesNotMatch(aboutPage, /to="\/team-status"/);
   assert.doesNotMatch(homeVisualNavigation, /href: "\/team-status"/);
+  assert.doesNotMatch(home, /team-status/);
 });
 
 test("topic content keeps the five group definitions, dedicated about page, and separate evidence-based archives", () => {

@@ -41,14 +41,16 @@ test("primary navigation adds the signed-in member profile before role-gated Man
 
 test("personal workbench groups my tasks and provides one direct member-and-role entry", () => {
   const memberMenu = getMyWorkbenchMenu("user", false);
-  assert.deepEqual(memberMenu.map(({ key, label }) => [key, label]), [["my-work", "我的事务"], ["people-directory", "成员与岗位"]]);
+  assert.deepEqual(memberMenu.map(({ key, label }) => [key, label]), [["my-work", "我的事务"], ["team-status", "战队动态"], ["people-directory", "成员与岗位"]]);
   assert.deepEqual(memberMenu[0]?.children.map(({ key, href }) => [key, href]), [
     ["weekly-reports", "/dashboard/weekly-reports"],
     ["leave-workbench", "/dashboard/leave"],
     ["users-registrations", "/dashboard/users/registrations"],
   ]);
-  assert.equal(memberMenu[1]?.href, "/dashboard/workbench/organization");
+  assert.equal(memberMenu[1]?.href, "/dashboard/workbench/operations");
   assert.deepEqual(memberMenu[1]?.children, []);
+  assert.equal(memberMenu[2]?.href, "/dashboard/workbench/organization");
+  assert.deepEqual(memberMenu[2]?.children, []);
   assert.deepEqual(getMyWorkbenchMenu("user", true)[0]?.children.map(({ key }) => key), ["weekly-reports", "my-assignments", "leave-workbench", "users-registrations"]);
   assert.deepEqual(getMyWorkbenchMenu("admin", true)[0]?.children.map(({ key }) => key), ["weekly-reports", "my-assignments", "leave-workbench"]);
   assert.deepEqual(getMyWorkbenchMenu("super_admin", false)[0]?.children.map(({ key }) => key), ["weekly-reports", "leave-workbench"]);
@@ -62,6 +64,7 @@ test("route classification keeps community, personal work, and management distin
   assert.equal(getDashboardSectionKey("/dashboard/workbench/organization"), "workbench");
   assert.equal(getDashboardSectionKey("/dashboard/weekly-reports"), "workbench");
   assert.equal(getDashboardSectionKey("/team-status"), null);
+  assert.equal(getDashboardSectionKey("/dashboard/workbench/operations"), "workbench");
   assert.equal(getDashboardSectionKey("/dashboard/assignments"), "workbench");
   assert.equal(getDashboardSectionKey("/dashboard/team"), "workbench");
   assert.equal(getDashboardSectionKey("/dashboard/members/42"), "workbench");

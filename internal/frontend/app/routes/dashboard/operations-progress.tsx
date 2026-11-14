@@ -1,7 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { useLocation } from "react-router";
-import { PublicHomePage } from "~/routes/home";
-import { getOptionalCurrentUser } from "~/lib/auth-client";
 
 import { assignmentDeadlineToISOString, shanghaiDateTimeLocal } from "~/lib/assignment-deadline";
 import {
@@ -12,7 +10,6 @@ import {
   formatOperationsUpdateDate,
   getOperationsAttention,
   getOperationsBoard,
-  getPublicOperationsBoard,
   getOperationsHistory,
   nextOperationsDate,
   operationsAttentionLabel,
@@ -38,6 +35,32 @@ export function meta() {
 const initialItem: OperationsItemInput = {
   title: "", kind: "workstream", stage: "", owner: "", intervalDays: 0, nextAction: "", nextCheckAt: null, status: "active",
 };
+
+function OperationsProgressSkeleton() {
+  const line = "block h-3 rounded bg-[var(--admin-border)]";
+  return <div className="content-skeleton motion-safe:animate-pulse" role="status" aria-label="正在加载战队动态">
+    <div className="operations-progress__account-metrics" aria-hidden="true">
+      {[0, 1].map((index) => <div key={index} className="operations-progress__follower-chart">
+        <span className={`${line} w-20`} />
+        <span className={`${line} mt-4 w-32`} />
+        <span className="mt-5 block h-20 rounded bg-[var(--admin-border-subtle)]" />
+      </div>)}
+    </div>
+    <div className="operations-progress__stats" aria-hidden="true">
+      {[0, 1, 2].map((index) => <div key={index}>
+        <span className="block h-7 w-12 rounded bg-[var(--admin-border)]" />
+        <span className={`${line} mt-2 w-20 max-w-full`} />
+      </div>)}
+    </div>
+    <div className="operations-progress__items" aria-hidden="true">
+      {[0, 1].map((index) => <div key={index} className="operations-progress__item">
+        <span className={`${line} w-40 max-w-full`} />
+        <span className={`${line} mt-3 w-24`} />
+        <span className="mt-6 block h-12 rounded bg-[var(--admin-border-subtle)]" />
+      </div>)}
+    </div>
+  </div>;
+}
 
 function localDateTime(date: string | null) {
   return date ? shanghaiDateTimeLocal(date) : "";
@@ -107,11 +130,7 @@ export default function OperationsProgressPage() {
 
   const load = useCallback(async () => {
     try {
-      const user = await getOptionalCurrentUser().catch(() => null);
-      const result = user?.workbenchAccess
-        ? await getOperationsBoard().catch(() => getPublicOperationsBoard())
-        : await getPublicOperationsBoard();
-      setBoard(result);
+      setBoard(await getOperationsBoard());
       setError("");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "运营进展加载失败");
@@ -195,8 +214,7 @@ export default function OperationsProgressPage() {
   const itemNames = new Map((board?.items ?? []).map((item) => [item.id, item.title]));
 
   return (
-    <PublicHomePage page="team-status">
-    <main className="operations-progress admin-design" aria-labelledby="operations-progress-title">
+    <main className="operations-progress admin-design" aria-labelledby="operations-progress-title" aria-busy={loading && !board}>
       <header className="operations-progress__header">
         <div><h1 id="operations-progress-title">战队动态</h1></div>
         <div className="operations-progress__actions">
@@ -206,7 +224,7 @@ export default function OperationsProgressPage() {
       </header>
 
       {error ? <p className="operations-progress__error" role="alert">{error} <button type="button" onClick={() => void load()}>重试</button></p> : null}
-      {loading && !board ? <p className="operations-progress__muted">正在加载…</p> : null}
+      {loading && !board ? <OperationsProgressSkeleton /> : null}
 
       {board ? <>
         {board.snapshots.length > 0 ? <section className="operations-progress__account-metrics" aria-label="宣传平台粉丝趋势">
@@ -337,6 +355,5 @@ export default function OperationsProgressPage() {
         </section> : null}
       </> : null}
     </main>
-    </PublicHomePage>
   );
 }
