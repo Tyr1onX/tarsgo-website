@@ -229,6 +229,40 @@ export default function OperationsProgressPage() {
     }
   }
 
+  function renderItemEditor() {
+    return (
+      <form className="operations-progress__form" onSubmit={(event) => void submitItem(event)}>
+          <h2>{editing === "new" ? "新增事项" : "编辑事项"}</h2>
+          <label>事项名称<input required maxLength={120} value={itemForm.title} onChange={(event) => setItemForm((current) => ({ ...current, title: event.target.value }))} /></label>
+          <div className="operations-progress__form-grid">
+            <label>负责人<input maxLength={80} value={itemForm.owner} onChange={(event) => setItemForm((current) => ({ ...current, owner: event.target.value }))} /></label>
+            <label>类型<select value={itemForm.kind === "workstream" && itemForm.intervalDays > 0 ? "recurring" : itemForm.kind} onChange={(event) => setItemForm((current) => ({
+              ...current,
+              kind: event.target.value === "recurring" ? "workstream" : event.target.value as OperationsItemInput["kind"],
+              stage: event.target.value === "video" || event.target.value === "merchandise" ? "unconfirmed" : "",
+              intervalDays: event.target.value === "recurring" ? 7 : 0,
+              nextCheckAt: null,
+            }))}>
+              <option value="workstream">长期推进</option><option value="channel">账号运营</option><option value="video">视频制作</option><option value="merchandise">周边制作</option><option value="recurring">周期更新</option>
+            </select></label>
+          </div>
+          <div className="operations-progress__form-grid">
+            {itemForm.intervalDays > 0
+              ? <label>更新周期（天）<input type="number" required min="1" max="365" value={itemForm.intervalDays} onChange={(event) => setItemForm((current) => ({ ...current, intervalDays: Number(event.target.value) }))} /></label>
+              : <label>下次跟进（北京时间）<input type="datetime-local" required={itemForm.kind === "workstream" && itemForm.status !== "done"} value={localDateTime(itemForm.nextCheckAt)} onChange={(event) => setItemForm((current) => ({ ...current, nextCheckAt: assignmentDeadlineToISOString(event.target.value) }))} /></label>}
+            <label>状态<select value={itemForm.status} onChange={(event) => setItemForm((current) => ({ ...current, status: event.target.value as OperationsItemInput["status"] }))}>
+              <option value="active">进行中</option><option value="blocked">遇到阻塞</option><option value="done">已结束</option>
+            </select></label>
+          </div>
+          <label>下一步<input maxLength={300} value={itemForm.nextAction} onChange={(event) => setItemForm((current) => ({ ...current, nextAction: event.target.value }))} /></label>
+          <div className="operations-progress__actions">
+            <button className="admin-button admin-button--primary" disabled={saving}>{saving ? "保存中…" : "保存"}</button>
+            <button className="admin-button admin-button--secondary" type="button" disabled={saving} onClick={() => setEditing(null)}>取消</button>
+          </div>
+        </form>
+    );
+  }
+
   const visibleItems = sortOperationsItems(board?.items ?? []).filter((item) => showDone || item.status !== "done");
   const attentionCount = (board?.items ?? []).filter((item) => getOperationsAttention(item) === "overdue").length;
   const blockedCount = (board?.items ?? []).filter((item) => getOperationsAttention(item) === "blocked").length;
@@ -259,35 +293,7 @@ export default function OperationsProgressPage() {
           <div><strong>{blockedCount}</strong><span>遇到阻塞</span></div>
         </div>
 
-        {editing !== null && board.canManage ? <form className="operations-progress__form" onSubmit={(event) => void submitItem(event)}>
-          <h2>{editing === "new" ? "新增事项" : "编辑事项"}</h2>
-          <label>事项名称<input required maxLength={120} value={itemForm.title} onChange={(event) => setItemForm((current) => ({ ...current, title: event.target.value }))} /></label>
-          <div className="operations-progress__form-grid">
-            <label>负责人<input maxLength={80} value={itemForm.owner} onChange={(event) => setItemForm((current) => ({ ...current, owner: event.target.value }))} /></label>
-            <label>类型<select value={itemForm.kind === "workstream" && itemForm.intervalDays > 0 ? "recurring" : itemForm.kind} onChange={(event) => setItemForm((current) => ({
-              ...current,
-              kind: event.target.value === "recurring" ? "workstream" : event.target.value as OperationsItemInput["kind"],
-              stage: event.target.value === "video" || event.target.value === "merchandise" ? "unconfirmed" : "",
-              intervalDays: event.target.value === "recurring" ? 7 : 0,
-              nextCheckAt: null,
-            }))}>
-              <option value="workstream">长期推进</option><option value="channel">账号运营</option><option value="video">视频制作</option><option value="merchandise">周边制作</option><option value="recurring">周期更新</option>
-            </select></label>
-          </div>
-          <div className="operations-progress__form-grid">
-            {itemForm.intervalDays > 0
-              ? <label>更新周期（天）<input type="number" required min="1" max="365" value={itemForm.intervalDays} onChange={(event) => setItemForm((current) => ({ ...current, intervalDays: Number(event.target.value) }))} /></label>
-              : <label>下次跟进（北京时间）<input type="datetime-local" required={itemForm.kind === "workstream" && itemForm.status !== "done"} value={localDateTime(itemForm.nextCheckAt)} onChange={(event) => setItemForm((current) => ({ ...current, nextCheckAt: assignmentDeadlineToISOString(event.target.value) }))} /></label>}
-            <label>状态<select value={itemForm.status} onChange={(event) => setItemForm((current) => ({ ...current, status: event.target.value as OperationsItemInput["status"] }))}>
-              <option value="active">进行中</option><option value="blocked">遇到阻塞</option><option value="done">已结束</option>
-            </select></label>
-          </div>
-          <label>下一步<input maxLength={300} value={itemForm.nextAction} onChange={(event) => setItemForm((current) => ({ ...current, nextAction: event.target.value }))} /></label>
-          <div className="operations-progress__actions">
-            <button className="admin-button admin-button--primary" disabled={saving}>{saving ? "保存中…" : "保存"}</button>
-            <button className="admin-button admin-button--secondary" type="button" disabled={saving} onClick={() => setEditing(null)}>取消</button>
-          </div>
-        </form> : null}
+        {editing === "new" && board.canManage ? renderItemEditor() : null}
 
         <div className="operations-progress__section-head">
           <h2>运营事项</h2>
@@ -343,6 +349,7 @@ export default function OperationsProgressPage() {
                   <button type="button" onClick={() => startEdit(item)}>编辑</button>
                 </> : null}
               </div>
+              {editing === item.id && board.canManage ? renderItemEditor() : null}
               {historyItem === item.id ? <History key={`${item.id}:${item.lastUpdate?.id ?? 0}`} itemId={item.id}
                 latestActionID={board.canManage && item.status !== "done" && (item.lastUpdate?.kind === "stage" || item.lastUpdate?.kind === "confirmed") ? item.lastUpdate.id : null}
                 busy={savingStage !== null} onUndo={(updateId) => void submitUndo(item.id, updateId)} /> : null}
