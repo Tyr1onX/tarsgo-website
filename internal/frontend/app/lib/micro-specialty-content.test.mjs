@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import test from "node:test";
 
 import {
@@ -36,6 +36,7 @@ test("micro-specialty page presents the four real courses in a two-semester path
   assert.ok(courses.every(({ title, description, outcome }) => title && description && outcome));
   assert.match(route, /一年两学期，从基础认知到实践应用/);
   assert.match(route, /id="introduction"/);
+  assert.match(route, /id="moments"/);
   assert.match(route, /id="curriculum"/);
   assert.match(route, /id="practice"/);
   assert.match(route, /id="faq"/);
@@ -43,6 +44,26 @@ test("micro-specialty page presents the four real courses in a two-semester path
   assert.match(homeVisualNavigation, /href: "\/micro-specialties\/low-altitude-intelligent-sensing-control"/);
   assert.doesNotMatch(navbar, /navbar-micro-specialty|to=.*micro-specialties/);
   assert.doesNotMatch(visibleContent, /低空系统与任务基础|智能感知与状态估计|运动控制与任务规划|综合项目与系统联调/);
+});
+
+test("宣讲会和首堂课各展示四张优化后的现场照片", async () => {
+  for (const file of [
+    "DSC05745", "DSC05861", "DSC05867", "DSC06440",
+    "IMG_1042", "IMG_1043", "IMG_1044", "IMG_1046",
+  ]) {
+    assert.match(route, new RegExp(file));
+    for (const size of [640, 1280]) {
+      const path = new URL(`../../../../public/assets/images/MicroSpecialty/${file}-${size}.webp`, import.meta.url);
+      const image = await stat(path);
+      assert.ok(image.size > 0 && image.size < 300_000, `${file}-${size} 文件大小异常`);
+    }
+  }
+  assert.match(route, /href="#moments"/);
+  assert.match(route, /title: "微专业宣讲会"/);
+  assert.match(route, /title: "首堂课现场"/);
+  assert.match(route, /srcSet=/);
+  assert.match(route, /loading="lazy"/);
+  assert.match(route, /decoding="async"/);
 });
 
 test("practice and FAQ content reflects planned teaching without unsupported promises", () => {
@@ -87,5 +108,5 @@ test("page layout remains responsive across mobile and desktop widths", () => {
   assert.match(route, /sm:grid-cols-2 xl:grid-cols-4/);
   assert.match(route, /min-h-12/);
   assert.match(route, /min-w-0/);
-  assert.doesNotMatch(route, /min-width:\s*\d+px|min-w-\[\d+px\]/);
+  assert.doesNotMatch(route.replace(/sizes="[^"]*"/g, ""), /min-width:\s*\d+px|min-w-\[\d+px\]/);
 });
