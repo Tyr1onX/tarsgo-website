@@ -91,6 +91,7 @@ func TestCommunityAPIsRequireAuthenticationAndOpenWorkflowsRemain(t *testing.T) 
 		"POST /api/operations/progress",
 		"PATCH /api/operations/progress/:id",
 		"POST /api/operations/progress/:id/stage",
+		"POST /api/operations/progress/:id/stage/undo",
 		"GET /api/operations/progress/:id/updates",
 		"POST /api/operations/progress/:id/updates",
 		"GET /api/weekly-reports",

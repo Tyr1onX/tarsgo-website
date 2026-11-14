@@ -414,6 +414,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	workbenchAPI.POST("/operations/progress", operationsProgressHandler.Create)
 	workbenchAPI.PATCH("/operations/progress/:id", operationsProgressHandler.Update)
 	workbenchAPI.POST("/operations/progress/:id/stage", operationsProgressHandler.RecordStage)
+	workbenchAPI.POST("/operations/progress/:id/stage/undo", operationsProgressHandler.UndoStage)
 	workbenchAPI.POST("/operations/progress/:id/updates", operationsProgressHandler.AddUpdate)
 	workbenchAPI.GET("/work-manual/operations", workManualHandler.OperationsCatalogue)
 	workbenchAPI.GET("/work-manual/operations/templates/campus-network-window-application.doc", workManualHandler.ApplicationForm)
