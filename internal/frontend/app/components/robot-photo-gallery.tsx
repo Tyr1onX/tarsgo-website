@@ -212,7 +212,6 @@ export function RobotPhotoGallery() {
               <LoadingImage
                 key={selectedRobot.id}
                 frameClassName="robot-gallery__dialog-image-frame"
-                loaderSize="md"
                 className="robot-gallery__dialog-image"
                 src={selectedRobot.image.large}
                 srcSet={getImageSet(selectedRobot, true)}

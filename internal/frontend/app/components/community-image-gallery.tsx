@@ -76,7 +76,7 @@ export function CommunityImageGallery({
       <button ref={closeRef} type="button" className="community-image-viewer__close" aria-label="关闭图片预览" onClick={() => setActiveIndex(-1)}><CommunityIcon name="x" /></button>
       {attachments.length > 1 ? <button type="button" className="community-image-viewer__step community-image-viewer__step--previous" aria-label="上一张图片" onClick={() => setActiveIndex((index) => (index + attachments.length - 1) % attachments.length)}><CommunityIcon name="chevronLeft" /></button> : null}
       <figure className="community-image-viewer__figure">
-        <LoadingImage frameClassName="community-image-viewer__frame" src={activeAttachment.url} alt={activeAttachment.fileName} loaderSize="md" />
+        <LoadingImage frameClassName="community-image-viewer__frame" src={activeAttachment.url} alt={activeAttachment.fileName} />
         <figcaption>{activeAttachment.fileName} · {activeIndex + 1}/{attachments.length}</figcaption>
       </figure>
       {attachments.length > 1 ? <button type="button" className="community-image-viewer__step community-image-viewer__step--next" aria-label="下一张图片" onClick={() => setActiveIndex((index) => (index + 1) % attachments.length)}><CommunityIcon name="chevronRight" /></button> : null}

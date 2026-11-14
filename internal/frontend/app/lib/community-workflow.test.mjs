@@ -167,9 +167,32 @@ test("community images open an accessible gallery with keyboard navigation", () 
 test("community cold loading reserves topic rows and cached refresh keeps real posts", () => {
   assert.match(dashboard, /visibleLoading && visiblePosts\.length === 0 \? <div className="community-post-list content-skeleton"/);
   assert.match(dashboard, /aria-label="正在加载社区帖子"/);
-  assert.match(dashboard, /\[0, 1, 2, 3\]\.map\(\(row\) => <div key=\{row\} className="community-topic-row"/);
+  assert.match(dashboard, /Array\.from\(\{ length: PAGE_SIZE \}, \(_, index\) => index\)\.map\(\(row\) => <div key=\{row\} className="community-topic-row"/);
+  assert.match(styles, /\.community-post-list\.content-skeleton \.community-topic-row \{ min-height: 53px/);
+  assert.match(styles, /community-skeleton-shine 1\.5s/);
   assert.match(dashboard, /: visiblePosts\.length \? <>[\s\S]*?visiblePosts\.map\(\(post\) => <CommunityPostCard/);
   assert.doesNotMatch(dashboard, /community-state--loading/);
+});
+
+test("community loads more near the viewport edge without discarding manual fallback", () => {
+  assert.match(dashboard, /new IntersectionObserver/);
+  assert.match(dashboard, /rootMargin: `0px 0px \$\{window\.innerHeight\}px 0px`/);
+  assert.match(dashboard, /ref=\{loadMoreRef\} type="button"/);
+  assert.match(dashboard, /!visiblePosts\.length \|\| retry\) return/);
+  assert.match(dashboard, /community-load-more__dots/);
+  assert.match(dashboard, /没有更多了/);
+  assert.match(styles, /prefers-reduced-motion: reduce/);
+});
+
+test("shared images keep their frames while appearing smoothly", async () => {
+  const image = await source("../components/loading-image.tsx");
+  const css = await source("../components/loading-image.css");
+  assert.match(image, /data-status=\{status\}/);
+  assert.match(css, /\.loading-image\[data-status="loaded"\] > img/);
+  assert.match(css, /opacity: 0/);
+  assert.match(css, /transform: scale\(1\.025\)/);
+  assert.match(css, /prefers-reduced-motion: reduce/);
+  assert.doesNotMatch(image, /BrandLoader/);
 });
 
 test("community feed loads the post composer only when the dialog opens", () => {

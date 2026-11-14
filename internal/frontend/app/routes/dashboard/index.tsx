@@ -58,6 +58,7 @@ export default function DashboardIndex() {
   const [retry, setRetry] = useState<CommunityRetry | null>(null);
   const requestRef = useRef(0);
   const listAbortRef = useRef<AbortController | null>(null);
+  const loadMoreRef = useRef<HTMLButtonElement>(null);
   const closeComposer = useCallback(() => setComposerOpen(false), []);
   const cachedList = getCommunityListSnapshot(cacheKey);
   const cacheMatchesLoadedState = loadedCacheKey === cacheKey;
@@ -142,7 +143,7 @@ export default function DashboardIndex() {
     setSearchParams(params, { replace: true });
   }
 
-  async function loadNextPage() {
+  const loadNextPage = useCallback(async () => {
     if (loadingMore || !hasMore) return;
     const nextPage = page + 1;
     const requestID = requestRef.current;
@@ -169,7 +170,18 @@ export default function DashboardIndex() {
     } finally {
       if (requestRef.current === requestID) setLoadingMore(false);
     }
-  }
+  }, [loadingMore, hasMore, page, sort, category, query, savedOnly, cacheKey]);
+
+  useEffect(() => {
+    if (!visibleHasMore || visibleLoading || !visiblePosts.length || retry) return;
+    const target = loadMoreRef.current;
+    if (!target || !("IntersectionObserver" in window)) return;
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry?.isIntersecting) void loadNextPage();
+    }, { rootMargin: `0px 0px ${window.innerHeight}px 0px` });
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [visibleHasMore, visibleLoading, visiblePosts.length, retry, loadNextPage]);
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -230,7 +242,7 @@ export default function DashboardIndex() {
 
         {error ? <p className="community-state community-state--error" role="alert">{error}{retry ? <button type="button" className="community-inline-retry" onClick={retryFailedOperation}>重试</button> : null}</p> : null}
         {visibleLoading && visiblePosts.length === 0 ? <div className="community-post-list content-skeleton" role="status" aria-label="正在加载社区帖子">
-          {[0, 1, 2, 3].map((row) => <div key={row} className="community-topic-row" aria-hidden="true">
+          {Array.from({ length: PAGE_SIZE }, (_, index) => index).map((row) => <div key={row} className="community-topic-row" aria-hidden="true">
             <span className="community-topic-row__title h-3 w-3/4 rounded bg-[var(--admin-border-subtle)]" />
             <span className="community-topic-row__status h-3 w-8 rounded bg-[var(--admin-border-subtle)]" />
             <span className="community-topic-row__category h-3 w-12 rounded bg-[var(--admin-border-subtle)]" />
@@ -249,8 +261,8 @@ export default function DashboardIndex() {
           <p>{savedOnly ? "收藏的帖子会集中显示在这里。" : query ? "换个关键词试试，或清除搜索条件。" : category ? "换个分类看看，或发布一条新的讨论。" : sort === "hot" ? "有更多人参与后，热门讨论会出现在这里。" : "分享你的第一个想法或项目进展"}</p>
           {query || category || savedOnly || sort === "hot" ? <button className="community-button community-button--quiet" type="button" onClick={() => { setQueryDraft(""); updateFilters({ q: "", category: "", saved: false, sort: "latest" }); }}>清除筛选</button> : <button className="community-button community-button--primary" type="button" onClick={() => setComposerOpen(true)}><CommunityIcon name="plus" />发布第一条帖子</button>}
         </div> : null}
-        {visibleHasMore && !visibleLoading ? <button type="button" className="community-load-more" onClick={() => void loadNextPage()} disabled={loadingMore}>{loadingMore ? "正在加载…" : "加载更多"}</button> : null}
-        {loadingMore ? <p className="community-load-more__status" role="status">正在加载更多讨论…</p> : null}
+        {visibleHasMore && !visibleLoading && retry?.kind !== "more" ? <button ref={loadMoreRef} type="button" className="community-load-more" onClick={() => void loadNextPage()} disabled={loadingMore} aria-label={loadingMore ? "正在加载更多讨论" : "加载更多讨论"}>{loadingMore ? <span className="community-load-more__dots" aria-hidden="true"><i /><i /><i /></span> : "加载更多"}</button> : null}
+        {!visibleLoading && visiblePosts.length > 0 && !visibleHasMore ? <p className="community-load-more__end">没有更多了</p> : null}
       </main>
 
     </div>
