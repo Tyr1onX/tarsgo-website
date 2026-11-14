@@ -18,7 +18,7 @@ import (
 	"tarsgo-backend/model"
 )
 
-func TestMariaDBPublicOperationsStatusRedactsInternalUpdates(t *testing.T) {
+func TestMariaDBWorkbenchOperationsStatusIncludesInternalUpdates(t *testing.T) {
 	dsn := os.Getenv("TARSGO_QA_TEST_DSN")
 	if dsn == "" {
 		t.Skip("requires isolated MariaDB")
@@ -63,19 +63,16 @@ func TestMariaDBPublicOperationsStatusRedactsInternalUpdates(t *testing.T) {
 	}
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
-	router.GET("/api/operations/public", NewOperationsProgressHandler(db).Public)
+	router.GET("/api/operations/progress", NewOperationsProgressHandler(db).List)
 	response := httptest.NewRecorder()
-	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/operations/public", nil))
+	router.ServeHTTP(response, httptest.NewRequest(http.MethodGet, "/api/operations/progress", nil))
 	if response.Code != 200 {
 		t.Fatalf("unexpected HTTP %d: %s", response.Code, response.Body.String())
 	}
 	body := response.Body.String()
-	if strings.Contains(body, "\"updates\":null") {
-		t.Fatal("public updates must return an empty array, not null")
-	}
-	for _, secret := range []string{"内部备注不得公开", "内部合作事项", "内部负责人", "内部沟通计划", "不可公开"} {
-		if strings.Contains(body, secret) {
-			t.Errorf("public API leaked %s", secret)
+	for _, content := range []string{"内部备注不得公开", "内部合作事项", "内部负责人", "内部沟通计划", "不可公开"} {
+		if !strings.Contains(body, content) {
+			t.Errorf("workbench missing internal field %s", content)
 		}
 	}
 	var wrapper struct {
@@ -87,7 +84,7 @@ func TestMariaDBPublicOperationsStatusRedactsInternalUpdates(t *testing.T) {
 	if err := json.Unmarshal(response.Body.Bytes(), &wrapper); err != nil {
 		t.Fatal(err)
 	}
-	if len(wrapper.Data.Items) != 1 || len(wrapper.Data.Posts) != 1 || wrapper.Data.Items[0].LastUpdate != nil {
-		t.Fatalf("public overview incorrect items=%d posts=%d lastNote=%v", len(wrapper.Data.Items), len(wrapper.Data.Posts), wrapper.Data.Items[0].LastUpdate)
+	if len(wrapper.Data.Items) != 2 || len(wrapper.Data.Posts) != 1 {
+		t.Fatalf("workbench overview incorrect items=%d posts=%d", len(wrapper.Data.Items), len(wrapper.Data.Posts))
 	}
 }

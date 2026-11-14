@@ -91,6 +91,13 @@ const WORKBENCH_MENU: readonly DashboardMenuGroup[] = [
     children: [],
   },
   {
+    key: "team-status",
+    label: "战队动态",
+    iconKey: "analytics",
+    href: "/dashboard/workbench/operations",
+    children: [],
+  },
+  {
     key: "people-directory",
     label: "成员与岗位",
     iconKey: "team",

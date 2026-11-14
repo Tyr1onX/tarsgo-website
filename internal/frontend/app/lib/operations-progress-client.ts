@@ -82,10 +82,6 @@ export interface OperationsBoard {
 export type OperationsItemInput = Pick<OperationsItem, "title" | "kind" | "stage" | "owner" | "intervalDays" | "nextAction" | "nextCheckAt" | "status">;
 export type OperationsUpdateInput = Pick<OperationsUpdate, "content" | "kind" | "link" | "publishedOn">;
 
-export function getPublicOperationsBoard() {
-  return apiRequest<OperationsBoard>("/api/operations/public");
-}
-
 export function recordOperationsStage(id: number, stage: string | null) {
   return apiRequest<{ id: number }>(`/api/operations/progress/${id}/stage`, {
     method: "POST",

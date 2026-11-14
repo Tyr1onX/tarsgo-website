@@ -134,18 +134,11 @@ func (h *OperationsProgressHandler) requireEditor(c *gin.Context) bool {
 	return true
 }
 
-func (h *OperationsProgressHandler) List(c *gin.Context)   { h.list(c, false) }
-func (h *OperationsProgressHandler) Public(c *gin.Context) { h.list(c, true) }
-
-func (h *OperationsProgressHandler) list(c *gin.Context, public bool) {
-	canManage := false
-	if !public {
-		allowed, err := h.canManage(c)
-		if err != nil {
-			writeAPIError(c, http.StatusInternalServerError, "读取权限失败")
-			return
-		}
-		canManage = allowed
+func (h *OperationsProgressHandler) List(c *gin.Context) {
+	canManage, err := h.canManage(c)
+	if err != nil {
+		writeAPIError(c, http.StatusInternalServerError, "读取权限失败")
+		return
 	}
 	var items []model.OperationsProgressItem
 	if err := h.db.WithContext(c.Request.Context()).Order("id DESC").Find(&items).Error; err != nil {
@@ -238,21 +231,6 @@ func (h *OperationsProgressHandler) list(c *gin.Context, public bool) {
 	if err := h.db.WithContext(c.Request.Context()).Order("id DESC").Limit(15).Find(&updates).Error; err != nil {
 		writeAPIError(c, http.StatusInternalServerError, "运营进展读取失败")
 		return
-	}
-	if public {
-		filtered := make([]operationsProgressView, 0, len(views))
-		for _, item := range views {
-			switch item.Title {
-			case "抖音运营", "B站运营", "公众号运营", "周边制作", "RMer 人物系列 · 下一期":
-				item.Owner = "运营组"
-				item.NextAction = ""
-				item.NextCheckAt = nil
-				item.LastUpdate = nil
-				filtered = append(filtered, item)
-			}
-		}
-		views = filtered
-		updates = []model.OperationsProgressUpdate{}
 	}
 	writeAPI(c, http.StatusOK, "运营进展", gin.H{"items": views, "updates": updates, "snapshots": snapshots, "posts": posts, "canManage": canManage})
 }

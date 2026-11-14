@@ -148,7 +148,6 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	engine.GET("/healthz", healthHandler.Get)
 
 	api := engine.Group("/api")
-	api.GET("/operations/public", operationsProgressHandler.Public)
 	api.POST("/integrations/feishu/card-action", feishuReviewHandler.Callback)
 	api.POST("/integrations/feishu/bitable/review-card", feishuReviewHandler.BitableReviewCardTrigger)
 	api.GET("/bootstrap/status", authHandler.BootstrapStatus)

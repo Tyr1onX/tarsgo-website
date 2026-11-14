@@ -83,6 +83,17 @@ test("data-heavy routes reserve their actual layout during initial requests", as
   }
 });
 
+test("operations dashboard uses layout-shaped skeleton on cold load", async () => {
+  const operations = await read("../routes/dashboard/operations-progress.tsx");
+  assert.match(operations, /loading && !board \? <OperationsProgressSkeleton \/>/);
+  assert.match(operations, /content-skeleton motion-safe:animate-pulse/);
+  assert.match(operations, /aria-label="正在加载战队动态"/);
+  assert.match(operations, /operations-progress__account-metrics/);
+  assert.match(operations, /operations-progress__stats/);
+  assert.match(operations, /operations-progress__items/);
+  assert.doesNotMatch(operations, /<PublicHomePage|正在加载…/);
+});
+
 test("inline status stays compact and cached sections remain visible while refreshing", async () => {
   const growth = await read("../components/community-growth.tsx");
   const interviews = await read("../routes/admin/interview-sessions.tsx");
