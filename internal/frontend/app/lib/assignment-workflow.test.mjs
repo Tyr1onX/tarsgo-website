@@ -71,8 +71,8 @@ test("removed training workflows have no routes or API handlers while leave appr
   assert.doesNotMatch(routes, /route\("(?:practice-projects|expedition|expedition\/projects|admin\/training\/(?:practice-projects|expedition|questions))"/);
   assert.match(layout, /currentPath\.pathname === "\/dashboard\/questions"/);
   assert.doesNotMatch(backendRoutes, /practiceHandler|trainingQuestionHandler|skillsHandler|capabilitiesHandler|cultivationHandler|expeditionHandler|growthHandler/);
-  assert.match(backendRoutes, /superAdminAPI\.GET\("\/leave\/access-requests"/);
-  assert.match(backendRoutes, /superAdminAPI\.PATCH\("\/leave\/access-requests\/:id"/);
+  assert.match(backendRoutes, /superAdminAPI\.GET\("\/leave\/requests"/);
+  assert.match(backendRoutes, /superAdminAPI\.PATCH\("\/leave\/requests\/:id"/);
   assert.match(backendRoutes, /leaveMemberAPI\.GET\("\/school-leave\/requests"/);
 });
 

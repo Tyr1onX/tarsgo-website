@@ -32,22 +32,20 @@ func newLeaveAccessMockGorm(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
 	return db, mock
 }
 
-func TestHasLeaveAccessRequiresAnApprovedRequest(t *testing.T) {
+func TestHasLeaveAccessRequiresManualGrantOrDatedApproval(t *testing.T) {
 	db, mock := newLeaveAccessMockGorm(t)
-	pattern := regexp.QuoteMeta("SELECT count(*) FROM `leave_access_requests` WHERE user_id = ? AND status = ?")
-	mock.ExpectQuery(pattern).WithArgs(uint64(22), model.LeaveAccessApproved).
-		WillReturnRows(sqlmock.NewRows([]string{"count(*)"}).AddRow(0))
-	mock.ExpectQuery(pattern).WithArgs(uint64(23), model.LeaveAccessApproved).
-		WillReturnRows(sqlmock.NewRows([]string{"count(*)"}).AddRow(1))
-
-	service := NewService(db)
-	allowed, err := service.HasLeaveAccess(context.Background(), 22)
-	if err != nil || allowed {
-		t.Fatalf("unapproved member access = %v, error=%v; want false", allowed, err)
-	}
-	allowed, err = service.HasLeaveAccess(context.Background(), 23)
-	if err != nil || !allowed {
-		t.Fatalf("approved member access = %v, error=%v; want true", allowed, err)
+	pattern := regexp.QuoteMeta("SELECT count(*) FROM `leave_access_requests` WHERE user_id = ? AND (status = ? OR (status IN (?,?) AND start_at IS NOT NULL AND end_at IS NOT NULL))")
+	for _, tc := range []struct {
+		user    uint64
+		count   int64
+		allowed bool
+	}{{22, 0, false}, {23, 1, true}} {
+		mock.ExpectQuery(pattern).WithArgs(tc.user, model.LeaveAccessGranted, model.LeaveAccessPending, model.LeaveAccessApproved).
+			WillReturnRows(sqlmock.NewRows([]string{"count(*)"}).AddRow(tc.count))
+		allowed, err := NewService(db).HasLeaveAccess(context.Background(), tc.user)
+		if err != nil || allowed != tc.allowed {
+			t.Fatalf("user %d access=%v error=%v", tc.user, allowed, err)
+		}
 	}
 }
 
@@ -63,22 +61,23 @@ func TestLeaveAccessStateDefaultsToNotRequested(t *testing.T) {
 	}
 }
 
-func TestRequestLeaveAccessCreatesPendingRequest(t *testing.T) {
+func TestRequestLeaveAccessRequiresGrantedStatusAndLocksTimeRange(t *testing.T) {
 	db, mock := newLeaveAccessMockGorm(t)
 	now := time.Date(2026, 10, 19, 2, 0, 0, 0, time.UTC).In(shanghai)
-	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `leave_access_requests` WHERE user_id = ? ORDER BY `leave_access_requests`.`id` LIMIT ?")).
-		WithArgs(uint64(22), 1).WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "status", "requested_at", "reviewed_at", "reviewed_by"}))
+	start, end := now, now.Add(time.Hour)
 	mock.ExpectBegin()
-	mock.ExpectExec("INSERT INTO `leave_access_requests`").
-		WithArgs(uint64(22), model.LeaveAccessPending, now, nil, nil).
-		WillReturnResult(sqlmock.NewResult(1, 1))
+	mock.ExpectExec("UPDATE `leave_access_requests` SET .* WHERE user_id = \\? AND status = \\?").
+		WithArgs(end, now, nil, nil, start, model.LeaveAccessPending, uint64(22), model.LeaveAccessGranted).
+		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
-
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `leave_access_requests` WHERE user_id = ? ORDER BY `leave_access_requests`.`id` LIMIT ?")).
+		WithArgs(uint64(22), 1).WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "status", "start_at", "end_at", "requested_at"}).
+		AddRow(9, 22, model.LeaveAccessPending, start, end, now))
 	service := NewService(db)
 	service.now = func() time.Time { return now }
-	state, err := service.RequestLeaveAccess(context.Background(), 22)
-	if err != nil || state == nil || state.Status != model.LeaveAccessPending || state.RequestedAt == nil || !state.RequestedAt.Equal(now) {
-		t.Fatalf("new access request = %#v, error=%v", state, err)
+	state, err := service.RequestLeaveAccess(context.Background(), 22, RequestInput{StartAt: "2026-10-19T10:00", EndAt: "2026-10-19T11:00"})
+	if err != nil || state == nil || state.Status != model.LeaveAccessPending || state.StartAt == nil || !state.StartAt.Equal(start) {
+		t.Fatalf("new leave request = %#v, error=%v", state, err)
 	}
 }
 
@@ -88,10 +87,10 @@ func TestReviewLeaveAccessRequestRecordsAdminAndApproval(t *testing.T) {
 	reviewedAt := time.Date(2026, 10, 19, 2, 5, 0, 0, time.UTC).In(shanghai)
 	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `leave_access_requests` WHERE id = ? ORDER BY `leave_access_requests`.`id` LIMIT ?")).
 		WithArgs(uint64(8), 1).
-		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "status", "requested_at", "reviewed_at", "reviewed_by"}).
-			AddRow(8, 22, model.LeaveAccessPending, requestedAt, nil, nil))
+		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "status", "start_at", "end_at", "requested_at", "reviewed_at", "reviewed_by"}).
+			AddRow(8, 22, model.LeaveAccessPending, requestedAt, requestedAt.Add(time.Hour), requestedAt, nil, nil))
 	mock.ExpectBegin()
-	mock.ExpectExec("UPDATE `leave_access_requests` SET .* WHERE id = \\? AND status = \\?").
+	mock.ExpectExec("UPDATE `leave_access_requests` SET .* WHERE id = \\? AND status = \\? AND start_at IS NOT NULL AND end_at IS NOT NULL").
 		WithArgs(reviewedAt, uint64(5), model.LeaveAccessApproved, uint64(8), model.LeaveAccessPending).
 		WillReturnResult(sqlmock.NewResult(0, 1))
 	mock.ExpectCommit()
@@ -106,7 +105,7 @@ func TestReviewLeaveAccessRequestRecordsAdminAndApproval(t *testing.T) {
 
 func TestListPendingLeaveAccessRequestsIncludesOnlyReviewIdentity(t *testing.T) {
 	db, mock := newLeaveAccessMockGorm(t)
-	mock.ExpectQuery("SELECT requests\\.id, requests\\.user_id, COALESCE\\(NULLIF\\(TRIM\\(users\\.real_name\\), ''\\), '姓名待核实'\\) AS user_name, users\\.email, requests\\.status, requests\\.requested_at FROM leave_access_requests AS requests JOIN users ON users\\.id = requests\\.user_id WHERE requests\\.status = \\? ORDER BY requests\\.requested_at ASC, requests\\.id ASC").
+	mock.ExpectQuery("SELECT requests\\.id, requests\\.user_id, COALESCE\\(NULLIF\\(TRIM\\(users\\.real_name\\), ''\\), '姓名待核实'\\) AS user_name, users\\.email, requests\\.status, requests\\.start_at, requests\\.end_at, requests\\.requested_at FROM leave_access_requests AS requests JOIN users ON users\\.id = requests\\.user_id WHERE requests\\.status = \\? AND requests\\.start_at IS NOT NULL AND requests\\.end_at IS NOT NULL ORDER BY requests\\.requested_at ASC, requests\\.id ASC").
 		WithArgs(model.LeaveAccessPending).
 		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "user_name", "email", "status", "requested_at"}).
 			AddRow(8, 22, "成员甲", "member@example.com", model.LeaveAccessPending, time.Date(2026, 10, 18, 10, 0, 0, 0, time.UTC)))
@@ -117,11 +116,42 @@ func TestListPendingLeaveAccessRequestsIncludesOnlyReviewIdentity(t *testing.T) 
 	}
 }
 
+func TestOneTimeLeaveGenerationConsumesApprovalOnce(t *testing.T) {
+	db, mock := newLeaveAccessMockGorm(t)
+	now := time.Date(2026, 11, 14, 10, 0, 0, 0, time.UTC).In(shanghai)
+	end := now.Add(time.Hour)
+	service := NewService(db)
+	service.now = func() time.Time { return now }
+
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE `leave_access_requests` SET `status`=\\? WHERE user_id = \\? AND status = \\? AND start_at = \\? AND end_at = \\?").
+		WithArgs(model.LeaveAccessUsed, uint64(22), model.LeaveAccessApproved, now, end).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectExec("INSERT INTO `daily_leave_document_requests`").
+		WithArgs(uint64(45), uint64(22), "download", "first_generation", DailyLeaveVersion, false, now).
+		WillReturnResult(sqlmock.NewResult(100, 1))
+	mock.ExpectCommit()
+
+	if err := service.consumeApprovedLeave(context.Background(), 22, 45, now, end, false); err != nil {
+		t.Fatalf("first approved download: %v", err)
+	}
+
+	mock.ExpectBegin()
+	mock.ExpectExec("UPDATE `leave_access_requests` SET `status`=\\? WHERE user_id = \\? AND status = \\? AND start_at = \\? AND end_at = \\?").
+		WithArgs(model.LeaveAccessUsed, uint64(22), model.LeaveAccessApproved, now, end).
+		WillReturnResult(sqlmock.NewResult(0, 0))
+	mock.ExpectRollback()
+
+	if err := service.consumeApprovedLeave(context.Background(), 22, 45, now, end, false); err == nil {
+		t.Fatal("second generation must be rejected without another audit record")
+	}
+}
+
 func TestSchoolSummarySeparatesActionableAndUnreadCounts(t *testing.T) {
 	for _, canReview := range []bool{false, true} {
 		db, mock := newLeaveAccessMockGorm(t)
 		if canReview {
-			mock.ExpectQuery(regexp.QuoteMeta("SELECT count(*) FROM `leave_access_requests` WHERE status = ?")).
+			mock.ExpectQuery(regexp.QuoteMeta("SELECT count(*) FROM `leave_access_requests` WHERE status = ? AND start_at IS NOT NULL AND end_at IS NOT NULL")).
 				WithArgs(model.LeaveAccessPending).WillReturnRows(sqlmock.NewRows([]string{"count"}).AddRow(3))
 		}
 		mock.ExpectQuery(regexp.QuoteMeta("SELECT count(*) FROM `school_leave_requests` WHERE status = ?")).

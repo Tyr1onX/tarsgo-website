@@ -137,8 +137,10 @@ func TestLeaveAccessReviewAndAccountDetailsAreSuperAdminOnly(t *testing.T) {
 		adminAPI.GET("/school-leave/summary", func(c *gin.Context) { c.Status(http.StatusNoContent) })
 		superAdminAPI := adminAPI.Group("")
 		superAdminAPI.Use(RequireSuperAdmin(roleSessionReader{role: role}))
-		superAdminAPI.GET("/leave/access-requests", func(c *gin.Context) { c.Status(http.StatusNoContent) })
-		superAdminAPI.PATCH("/leave/access-requests/:id", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+		superAdminAPI.GET("/leave/requests", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+		superAdminAPI.PATCH("/leave/requests/:id", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+		superAdminAPI.GET("/leave/permissions", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+		superAdminAPI.PUT("/leave/permissions/:id", func(c *gin.Context) { c.Status(http.StatusNoContent) })
 		superAdminAPI.GET("/users/:id", func(c *gin.Context) { c.Status(http.StatusNoContent) })
 
 		req := httptest.NewRequest(method, path, nil)
@@ -150,8 +152,10 @@ func TestLeaveAccessReviewAndAccountDetailsAreSuperAdminOnly(t *testing.T) {
 
 	for _, role := range []string{"user", "admin"} {
 		for _, route := range []struct{ method, path string }{
-			{http.MethodGet, "/api/admin/leave/access-requests"},
-			{http.MethodPatch, "/api/admin/leave/access-requests/8"},
+			{http.MethodGet, "/api/admin/leave/requests"},
+			{http.MethodPatch, "/api/admin/leave/requests/8"},
+			{http.MethodGet, "/api/admin/leave/permissions"},
+			{http.MethodPut, "/api/admin/leave/permissions/22"},
 			{http.MethodGet, "/api/admin/users/22"},
 		} {
 			if got := request(role, route.method, route.path); got != http.StatusForbidden {
@@ -163,8 +167,10 @@ func TestLeaveAccessReviewAndAccountDetailsAreSuperAdminOnly(t *testing.T) {
 		t.Fatalf("ordinary admin leave management status = %d, want %d", got, http.StatusNoContent)
 	}
 	for _, route := range []struct{ method, path string }{
-		{http.MethodGet, "/api/admin/leave/access-requests"},
-		{http.MethodPatch, "/api/admin/leave/access-requests/8"},
+		{http.MethodGet, "/api/admin/leave/requests"},
+		{http.MethodPatch, "/api/admin/leave/requests/8"},
+		{http.MethodGet, "/api/admin/leave/permissions"},
+		{http.MethodPut, "/api/admin/leave/permissions/22"},
 		{http.MethodGet, "/api/admin/users/22"},
 	} {
 		if got := request("super_admin", route.method, route.path); got != http.StatusNoContent {
@@ -184,7 +190,7 @@ func (s *leaveAccessStub) HasLeaveAccess(_ context.Context, userID uint64) (bool
 	return s.allowed, s.err
 }
 
-func TestLeaveAccessProtectsMemberRoutesAndPreservesAdminAccess(t *testing.T) {
+func TestLeaveAccessProtectsMembersAndOrdinaryAdmins(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	request := func(role string, reader *leaveAccessStub) int {
 		engine := gin.New()
@@ -206,11 +212,12 @@ func TestLeaveAccessProtectsMemberRoutesAndPreservesAdminAccess(t *testing.T) {
 		t.Fatalf("approved member route status=%d userID=%d, want 204 for user 10", got, approved.userID)
 	}
 	admin := &leaveAccessStub{}
-	if got := request("admin", admin); got != http.StatusNoContent {
-		t.Fatalf("admin route status=%d, want 204", got)
+	if got := request("admin", admin); got != http.StatusForbidden || admin.userID != 10 {
+		t.Fatalf("ungranted admin route status=%d userID=%d, want 403 for user 10", got, admin.userID)
 	}
-	if admin.userID != 0 {
-		t.Fatalf("admin leave access should bypass the member grant lookup, got userID=%d", admin.userID)
+	superAdmin := &leaveAccessStub{}
+	if got := request("super_admin", superAdmin); got != http.StatusNoContent || superAdmin.userID != 0 {
+		t.Fatalf("superadmin route status=%d lookupUser=%d, want 204 without lookup", got, superAdmin.userID)
 	}
 	failedClosed := &leaveAccessStub{err: context.DeadlineExceeded}
 	if got := request("user", failedClosed); got != http.StatusInternalServerError {

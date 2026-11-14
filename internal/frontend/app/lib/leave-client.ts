@@ -7,9 +7,9 @@ export interface LeaveProfile {
   participantType: "formal" | "reserve" | "other";
   identityLocked: boolean;
 }
-export type LeaveAccessStatus = "not_requested" | "pending" | "approved" | "rejected";
-export interface LeaveAccessState { status: LeaveAccessStatus; requestedAt?: string; reviewedAt?: string }
-export interface LeaveAccessRequest { id: number; userId: number; userName: string; email: string; status: "pending"; requestedAt: string }
+export type LeaveAccessStatus = "not_requested" | "granted" | "pending" | "approved" | "rejected" | "used" | "revoked";
+export interface LeaveAccessState { status: LeaveAccessStatus; startAt?: string; endAt?: string; requestedAt?: string; reviewedAt?: string }
+export interface LeaveAccessRequest { id: number; userId: number; userName: string; email: string; status: LeaveAccessStatus; startAt?: string; endAt?: string; requestedAt: string }
 
 export interface CollegeOption { code: string; name: string }
 export interface LeaveRequest { id: number; userId: number; startAt: string; endAt: string; name: string; studentId: string; status: string; createdAt: string; isUnread?: boolean }
@@ -26,9 +26,11 @@ export type LatestLeaveStatus = Pick<LeaveRequest, "status" | "createdAt">;
 export const leaveClient = {
   latestSchoolStatus: () => apiRequest<LatestLeaveStatus | null>("/api/school-leave/latest-status"),
   leaveAccess: () => apiRequest<LeaveAccessState>("/api/leave/access"),
-  requestLeaveAccess: () => apiRequest<LeaveAccessState>("/api/leave/access/request", { method: "POST" }),
-  pendingLeaveAccessRequests: () => apiRequest<LeaveAccessRequest[]>("/api/admin/leave/access-requests"),
-  reviewLeaveAccessRequest: (id: number, status: "approved" | "rejected") => apiRequest<LeaveAccessState>(`/api/admin/leave/access-requests/${id}`, { method: "PATCH", body: { status } }),
+  requestLeaveAccess: (body: { startAt: string; endAt: string }) => apiRequest<LeaveAccessState>("/api/leave/request", { method: "POST", body }),
+  pendingLeaveAccessRequests: () => apiRequest<LeaveAccessRequest[]>("/api/admin/leave/requests"),
+  reviewLeaveAccessRequest: (id: number, status: "approved" | "rejected") => apiRequest<LeaveAccessState>(`/api/admin/leave/requests/${id}`, { method: "PATCH", body: { status } }),
+  leavePermissions: () => apiRequest<LeaveAccessRequest[]>("/api/admin/leave/permissions"),
+  setLeavePermission: (userId: number, granted: boolean) => apiRequest<LeaveAccessState>(`/api/admin/leave/permissions/${userId}`, { method: "PUT", body: { granted } }),
   colleges: () => apiRequest<CollegeOption[]>("/api/leave/colleges"),
   profile: () => apiRequest<LeaveProfile | null>("/api/leave/profile"),
 

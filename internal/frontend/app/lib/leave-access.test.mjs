@@ -5,49 +5,44 @@ import test from "node:test";
 const route = await readFile(new URL("../routes/leave-workbench.tsx", import.meta.url), "utf8");
 const accountsRoute = await readFile(new URL("../routes/admin/users.tsx", import.meta.url), "utf8");
 const api = await readFile(new URL("../../../backend/router/router.go", import.meta.url), "utf8");
+const access = await readFile(new URL("../../../backend/service/leave/access.go", import.meta.url), "utf8");
+const generation = await readFile(new URL("../../../backend/service/leave/activities.go", import.meta.url), "utf8");
 
-test("members see application status before any leave profile or history request", () => {
+test("member access is checked before loading the workbench", () => {
   const statusCheck = route.indexOf("const nextAccessState = await leaveClient.leaveAccess()");
-  const earlyReturn = route.indexOf("if (nextAccessState.status !== \"approved\") return;");
+  const earlyReturn = route.indexOf('!["granted", "pending", "approved"].includes(nextAccessState.status)');
   const profileFetch = route.indexOf("leaveClient.profile()");
-  const recordsFetch = route.indexOf("leaveClient.dailyRecordsPage(isAdmin)");
-
-  assert.ok(statusCheck >= 0 && earlyReturn > statusCheck, "member access must be checked before loading the workbench");
-  assert.ok(profileFetch > earlyReturn && recordsFetch > earlyReturn, "unapproved members must not load leave profile or records");
-  assert.ok(route.includes("申请审核中"), "pending applications must show their review status");
-  assert.ok(route.includes('accessState.status === "rejected" ? "重新申请" : "申请开通"'), "rejected members must be able to reapply");
+  assert.ok(statusCheck >= 0 && earlyReturn > statusCheck && profileFetch > earlyReturn);
+  assert.match(route, /暂无请假台使用资格，请联系超级管理员/);
+  assert.doesNotMatch(route, /申请开通|重新申请/);
 });
 
-test("leave identity details move into personal settings without duplicating the old form", () => {
-  assert.doesNotMatch(route, /<h2 id="leave-profile-title">请假资料<\/h2>/);
+test("superadmin controls access; members request approval for a dated, single-use leave", () => {
+  assert.match(api, /leaveAccessAPI\.POST\("\/leave\/request"/);
+  assert.doesNotMatch(api, /leaveAccessAPI\.POST\("\/leave\/access\/request"/);
+  assert.match(api, /superAdminAPI\.Use\(middleware\.RequireSuperAdmin\(authService\)\)[\s\S]*?superAdminAPI\.GET\("\/leave\/requests"/);
+  assert.match(api, /superAdminAPI\.PATCH\("\/leave\/requests\/:id"/);
+  assert.match(api, /superAdminAPI\.GET\("\/leave\/permissions"/);
+  assert.match(api, /superAdminAPI\.PUT\("\/leave\/permissions\/:id"/);
+  assert.match(route, /listAdminUsers\(\{ keyword: accountKeyword\.trim\(\)/);
+  assert.match(route, /一次性请假审批/);
+  assert.match(route, /leaveClient\.requestLeaveAccess\(dailyDraft\)/);
+  assert.match(route, /accessState\?\.status === "approved"/);
+  assert.match(access, /func \(s \*Service\) GrantLeaveAccess/);
+  assert.match(access, /Where\("user_id = \? AND status = \?", userID, model\.LeaveAccessGranted\)/);
+  assert.match(generation, /Update\("status", model\.LeaveAccessUsed\)/);
+  assert.match(generation, /result\.RowsAffected != 1/);
+});
+
+test("leave identity is edited only in profile settings", () => {
   assert.doesNotMatch(route, /<form onSubmit=\{saveProfile\}/);
-  assert.match(route, /onClick=\{\(\) => openMyProfile\("settings"\)\}>完善学籍资料<\/button>/);
-  assert.match(route, /profileRevision/);
+  assert.match(route, /openMyProfile\("settings"\)/);
   assert.match(api, /api\.GET\("\/leave\/profile", middleware\.RequireAuthenticated\(authService\), leaveHandler\.GetProfile\)/);
   assert.match(api, /api\.PUT\("\/leave\/profile", middleware\.RequireAuthenticated\(authService\), requireSameOriginRequest\(cfg\), leaveHandler\.SaveProfile\)/);
-  assert.doesNotMatch(api, /leaveMemberAPI\.(?:GET|PUT)\("\/leave\/profile"/);
 });
 
-test("member leave APIs are guarded and leave-access review is super-admin only", () => {
-  assert.match(api, /leaveMemberAPI\.Use\(middleware\.RequireAuthenticated\(authService\), middleware\.RequireWorkbench\(\), middleware\.RequireLeaveAccess\(leaveService\)\)/);
-  assert.match(api, /leaveAccessAPI\.GET\("\/leave\/access", leaveHandler\.GetLeaveAccess\)/);
-  assert.match(api, /leaveAccessAPI\.POST\("\/leave\/access\/request"/);
-  assert.match(api, /superAdminAPI\.Use\(middleware\.RequireSuperAdmin\(authService\)\)[\s\S]*?superAdminAPI\.GET\("\/leave\/access-requests", leaveHandler\.ListPendingLeaveAccessRequests\)/);
-  assert.match(api, /superAdminAPI\.PATCH\("\/leave\/access-requests\/:id"/);
-  assert.match(api, /superAdminAPI\.GET\("\/users\/:id", adminUserHandler\.GetUser\)/);
-  assert.doesNotMatch(api, /adminAPI\.(?:GET|PATCH)\("\/leave\/access-requests/);
-  assert.match(route, /const isSuperAdmin = currentUser\.role\.name === "super_admin"/);
-  assert.match(route, /isSuperAdmin \? leaveClient\.pendingLeaveAccessRequests\(\)/);
-  assert.match(route, /\{isSuperAdmin \? <section[\s\S]*?请假开通申请/);
-  assert.match(route, /to=\{`\/dashboard\/admin\/users\?userId=\$\{request\.userId\}`\}[^>]*>查看账号/);
-});
-
-test("leave application account link opens the existing account detail by exact ID", () => {
-  assert.match(accountsRoute, /useSearchParams/);
+test("approval record opens existing account details by exact ID", () => {
+  assert.match(route, /to=\{\`\/dashboard\/admin\/users\?userId=\$\{request\.userId\}\`\}/);
   assert.match(accountsRoute, /const requestedUserId = searchParams\.get\("userId"\)/);
   assert.match(accountsRoute, /getAdminUser\(Number\(requestedUserId\)\)/);
-  assert.match(accountsRoute, /requestedUserId && editing\?\.id === Number\(requestedUserId\)/);
-  assert.match(accountsRoute, /账号 ID \{editing\.id\}/);
-  assert.match(accountsRoute, /\{formatDate\(editing\.lastLoginAt\)\}/);
-  assert.doesNotMatch(accountsRoute, /getAdminUser\([^)]*(?:name|email|keyword)/);
 });

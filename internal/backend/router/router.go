@@ -196,7 +196,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	leaveAccessAPI := api.Group("")
 	leaveAccessAPI.Use(middleware.RequireAuthenticated(authService), middleware.RequireWorkbench())
 	leaveAccessAPI.GET("/leave/access", leaveHandler.GetLeaveAccess)
-	leaveAccessAPI.POST("/leave/access/request", requireSameOriginRequest(cfg), leaveHandler.RequestLeaveAccess)
+	leaveAccessAPI.POST("/leave/request", requireSameOriginRequest(cfg), leaveHandler.RequestLeaveAccess)
 	// Identity details remain personal settings for all signed-in users.
 	// All document creation and leave activity endpoints remain behind RequireLeaveAccess.
 	api.GET("/leave/profile", middleware.RequireAuthenticated(authService), leaveHandler.GetProfile)
@@ -322,8 +322,10 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	salonAdminAPI.GET("/events/:id/roster", salonHandler.Roster)
 	salonAdminAPI.GET("/events/:id/export", salonHandler.Export)
 	superAdminAPI.GET("/organization-preview", handler.OrganizationPreview(db))
-	superAdminAPI.GET("/leave/access-requests", leaveHandler.ListPendingLeaveAccessRequests)
-	superAdminAPI.PATCH("/leave/access-requests/:id", leaveHandler.ReviewLeaveAccessRequest)
+	superAdminAPI.GET("/leave/requests", leaveHandler.ListPendingLeaveAccessRequests)
+	superAdminAPI.PATCH("/leave/requests/:id", leaveHandler.ReviewLeaveAccessRequest)
+	superAdminAPI.GET("/leave/permissions", leaveHandler.ListLeavePermissions)
+	superAdminAPI.PUT("/leave/permissions/:id", leaveHandler.SetLeavePermission)
 	superAdminAPI.GET("/roles", adminUserHandler.ListRoles)
 	superAdminAPI.GET("/users", adminUserHandler.ListUsers)
 	superAdminAPI.POST("/users", adminUserHandler.CreateUser)
