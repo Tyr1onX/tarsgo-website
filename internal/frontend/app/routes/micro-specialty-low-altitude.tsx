@@ -13,6 +13,27 @@ const title = "低空智能感知与控制微专业 | TARSGO";
 const description =
   "了解吉林大学低空智能感知与控制微专业的课程结构、无人机实践内容和常见问题。";
 
+const photoGroups = [
+  {
+    title: "微专业宣讲会",
+    photos: [
+      { file: "DSC05745", alt: "宣讲会现场，主讲人面向同学介绍项目" },
+      { file: "DSC05861", alt: "宣讲会现场，师生在实验室交流" },
+      { file: "DSC05867", alt: "宣讲会现场，同学们围绕设备交流" },
+      { file: "DSC06440", alt: "参与宣讲会的师生在实验室合影" },
+    ],
+  },
+  {
+    title: "首堂课现场",
+    photos: [
+      { file: "IMG_1042", alt: "首堂课上，老师面向同学讲解" },
+      { file: "IMG_1043", alt: "首堂课现场，同学们在实验室学习" },
+      { file: "IMG_1044", alt: "同学在桌前进行动手操作" },
+      { file: "IMG_1046", alt: "同学在老师指导下进行实践" },
+    ],
+  },
+] as const;
+
 export function meta({}: Route.MetaArgs) {
   return [
     { title },
@@ -86,6 +107,7 @@ export default function LowAltitudeMicroSpecialty() {
         <nav aria-label="低空微专业页面内容" className="micro-specialty-section-nav sticky top-[var(--site-nav-height)] z-30 overflow-x-auto border-b border-border-subtle bg-surface-primary/95 px-5 backdrop-blur sm:px-8 lg:px-12">
           <div className="mx-auto flex min-h-12 w-max max-w-7xl items-center gap-6 text-sm sm:gap-8">
             <a className="text-fg-muted transition hover:text-accent-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary" href="#introduction">项目介绍</a>
+            <a className="text-fg-muted transition hover:text-accent-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary" href="#moments">活动纪实</a>
             <a className="text-fg-muted transition hover:text-accent-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary" href="#curriculum">课程安排</a>
             <a className="text-fg-muted transition hover:text-accent-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary" href="#practice">实践内容</a>
             <a className="text-fg-muted transition hover:text-accent-primary focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary" href="#faq">常见问题</a>
@@ -117,9 +139,46 @@ export default function LowAltitudeMicroSpecialty() {
           </div>
         </section>
 
+        <section id="moments" className="scroll-mt-24 border-y border-border-subtle bg-surface-light px-5 py-16 sm:px-8 sm:py-20 lg:px-12">
+          <div className="mx-auto max-w-7xl min-[1920px]:max-w-[min(80vw,120rem)]">
+            <SectionLabel number="02" english="PHOTO JOURNAL" title="活动纪实" />
+            <div className="mt-8 space-y-10">
+              {photoGroups.map((group) => (
+                <div key={group.title}>
+                  <h3 className="mb-4 text-lg font-semibold text-fg-primary">{group.title}</h3>
+                  <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+                    {group.photos.map((photo) => (
+                      <a
+                        key={photo.file}
+                        href={`/assets/images/MicroSpecialty/${photo.file}-1280.webp`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        aria-label={`查看照片：${photo.alt}`}
+                        className="block min-w-0 overflow-hidden rounded-xl border border-border-subtle focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-accent-primary"
+                      >
+                        <img
+                          src={`/assets/images/MicroSpecialty/${photo.file}-640.webp`}
+                          srcSet={`/assets/images/MicroSpecialty/${photo.file}-640.webp 640w, /assets/images/MicroSpecialty/${photo.file}-1280.webp 1280w`}
+                          sizes="(min-width: 1280px) 300px, (min-width: 1024px) 23vw, (min-width: 640px) 46vw, 45vw"
+                          alt={photo.alt}
+                          loading="lazy"
+                          decoding="async"
+                          width="640"
+                          height="420"
+                          className="aspect-[4/3] w-full object-cover"
+                        />
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+
         <section id="curriculum" className="scroll-mt-24 border-y border-border-subtle bg-surface-light px-5 py-16 sm:px-8 sm:py-20 lg:px-12">
           <div className="mx-auto max-w-7xl min-[1920px]:max-w-[min(80vw,120rem)]">
-            <SectionLabel number="02" english="CURRICULUM" title="课程安排" />
+            <SectionLabel number="03" english="CURRICULUM" title="课程安排" />
             <div className="mb-8 mt-7 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <h2 className="max-w-2xl text-2xl font-semibold leading-snug text-fg-primary sm:text-3xl">一年两学期，从基础认知到实践应用</h2>
               <p className="max-w-sm text-xs leading-6 text-fg-muted sm:text-right">以下课程名称和学期结构依据现有教学资料整理；具体安排以学校正式通知为准。</p>
@@ -153,7 +212,7 @@ export default function LowAltitudeMicroSpecialty() {
 
         <section id="practice" className="scroll-mt-24 px-5 py-16 sm:px-8 sm:py-20 lg:px-12">
           <div className="mx-auto max-w-7xl min-[1920px]:max-w-[min(80vw,120rem)]">
-            <SectionLabel number="03" english="PROJECT PRACTICE" title="实践内容" />
+            <SectionLabel number="04" english="PROJECT PRACTICE" title="实践内容" />
             <div className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {lowAltitudePractices.map((practice, index) => (
                 <article key={practice.title} className="relative min-w-0 overflow-hidden rounded-2xl border border-border-subtle bg-surface-light p-5 sm:p-6">
@@ -171,7 +230,7 @@ export default function LowAltitudeMicroSpecialty() {
 
         <section id="faq" className="scroll-mt-24 border-y border-border-subtle bg-surface-light px-5 py-16 sm:px-8 sm:py-20 lg:px-12">
           <div className="mx-auto grid max-w-7xl min-[1920px]:max-w-[min(80vw,120rem)] gap-8 lg:grid-cols-[.7fr_1.3fr] lg:gap-16">
-            <SectionLabel number="04" english="FAQ" title="常见问题" />
+            <SectionLabel number="05" english="FAQ" title="常见问题" />
             <div className="divide-y divide-border-subtle border-y border-border-subtle">
               {lowAltitudeFaqs.map((faq, index) => (
                 <details key={faq.question} className="group py-5" open={index === 0}>
