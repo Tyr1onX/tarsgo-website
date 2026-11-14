@@ -147,6 +147,32 @@ function HomeArrowIcon() {
   return <svg viewBox="0 0 20 20" fill="none" aria-hidden="true"><path d="M3 10h13m-5-5 5 5-5 5" /></svg>;
 }
 
+function HomeSponsorImage({ src, alt, loading = "lazy" }: { src: string; alt: string; loading?: "lazy" | "eager" }) {
+  const imageRef = useRef<HTMLImageElement | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    const image = imageRef.current;
+    setLoaded(Boolean(image?.complete && image.naturalWidth > 0));
+  }, [src]);
+
+  return (
+    <span className="home-sponsor-image">
+      {!loaded ? <span className="home-sponsor-fallback" aria-hidden="true">{alt}</span> : null}
+      <img
+        ref={imageRef}
+        src={src}
+        alt={alt}
+        loading={loading}
+        decoding="async"
+        data-loaded={loaded}
+        onLoad={() => setLoaded(true)}
+        onError={() => setLoaded(false)}
+      />
+    </span>
+  );
+}
+
 function HomeSponsorSection() {
   return (
     <section
@@ -160,20 +186,24 @@ function HomeSponsorSection() {
 
         <div className="home-sponsor-matrix" role="group" aria-label="现有赞助商">
           <div className="home-sponsor-primary">
-            <img src="/assets/images/Sponsors/dji.svg" alt="DJI 大疆创新" loading="lazy" decoding="async" />
+            <HomeSponsorImage src="/assets/images/Sponsors/dji.svg" alt="DJI 大疆创新" loading="eager" />
           </div>
           <ul className="home-sponsor-featured-grid" aria-label="重点合作品牌">
             {sponsorLogos.slice(0, 2).map((sponsor) => (
               <li key={sponsor.name} className={"caption" in sponsor ? "home-sponsor-logo home-sponsor-logo--captioned" : "home-sponsor-logo"}>
-                <img src={sponsor.image} alt={sponsor.name} loading="eager" />
-                {"caption" in sponsor ? <span className="home-sponsor-caption">{sponsor.caption}</span> : null}
+                {"caption" in sponsor ? (
+                  <>
+                    <img src={sponsor.image} alt={sponsor.name} loading="eager" />
+                    <span className="home-sponsor-caption">{sponsor.caption}</span>
+                  </>
+                ) : <HomeSponsorImage src={sponsor.image} alt={sponsor.name} loading="eager" />}
               </li>
             ))}
           </ul>
           <ul className="home-sponsor-grid" aria-label="其他合作品牌">
             {sponsorLogos.slice(2).map((sponsor) => (
               <li key={sponsor.name} className="home-sponsor-logo">
-                <img src={sponsor.image} alt={sponsor.name} loading="lazy" decoding="async" />
+                <HomeSponsorImage src={sponsor.image} alt={sponsor.name} />
               </li>
             ))}
           </ul>
@@ -347,7 +377,7 @@ export function PublicHomePage({ page = "home", children }: { page?: PublicPage;
         </section>
       )}
 
-      {routePage === "home" ? <HomeVisualNavigation imageTreatment="sand" playOnce /> : null}
+      {routePage === "home" ? <HomeVisualNavigation playOnce /> : null}
 
       {children}
 
