@@ -104,13 +104,13 @@ func (h *LeaveHandler) SetLeavePermission(c *gin.Context) {
 		return
 	}
 	var input struct {
-		Granted *bool `json:"granted"`
+		Mode string `json:"mode"`
 	}
-	if err := c.ShouldBindJSON(&input); err != nil || input.Granted == nil {
-		writeAPIError(c, http.StatusBadRequest, "授权状态无效")
+	if err := c.ShouldBindJSON(&input); err != nil || input.Mode == "" {
+		writeAPIError(c, http.StatusBadRequest, "授权类型无效")
 		return
 	}
-	state, err := h.service.GrantLeaveAccess(c.Request.Context(), userID, adminID, *input.Granted)
+	state, err := h.service.GrantLeaveAccess(c.Request.Context(), userID, adminID, input.Mode)
 	if err != nil {
 		h.fail(c, err)
 		return

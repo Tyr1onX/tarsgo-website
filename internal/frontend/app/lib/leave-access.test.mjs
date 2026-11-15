@@ -34,6 +34,20 @@ test("superadmin controls access; members request approval for a dated, single-u
   assert.match(generation, /result\.RowsAffected != 1/);
 });
 
+test("historic approved members retain permanent self-service and admins choose either grant type", () => {
+  assert.match(access, /row\.Status == model\.LeaveAccessApproved[\s\S]*row\.StartAt == nil && row\.EndAt == nil/);
+  assert.match(access, /status = \? AND start_at IS NULL AND end_at IS NULL/);
+  assert.match(access, /mode == "permanent"/);
+  assert.match(access, /mode == "temporary"/);
+  assert.match(route, /<h2>自助生成假条<\/h2>/);
+  assert.match(route, /<h2>已批准 · 生成一次假条<\/h2>/);
+  assert.match(route, /setPermission\(user\.id, "permanent"\)/);
+  assert.match(route, /setPermission\(user\.id, "temporary"\)/);
+  assert.match(route, /setPermission\(item\.userId, "revoke"\)/);
+  assert.match(generation, /if permanent \{[\s\S]*s\.logDailyDocument/);
+  assert.match(generation, /else if err := s\.consumeApprovedLeave/);
+});
+
 test("leave identity is edited only in profile settings", () => {
   assert.doesNotMatch(route, /<form onSubmit=\{saveProfile\}/);
   assert.match(route, /openMyProfile\("settings"\)/);

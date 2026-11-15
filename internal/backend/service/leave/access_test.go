@@ -32,15 +32,15 @@ func newLeaveAccessMockGorm(t *testing.T) (*gorm.DB, sqlmock.Sqlmock) {
 	return db, mock
 }
 
-func TestHasLeaveAccessRequiresManualGrantOrDatedApproval(t *testing.T) {
+func TestHasLeaveAccessRestoresUndatedPermanentApprovals(t *testing.T) {
 	db, mock := newLeaveAccessMockGorm(t)
-	pattern := regexp.QuoteMeta("SELECT count(*) FROM `leave_access_requests` WHERE user_id = ? AND (status = ? OR (status IN (?,?) AND start_at IS NOT NULL AND end_at IS NOT NULL))")
+	pattern := regexp.QuoteMeta("SELECT count(*) FROM `leave_access_requests` WHERE user_id = ? AND (status = ? OR (status = ? AND start_at IS NULL AND end_at IS NULL) OR (status IN (?,?) AND start_at IS NOT NULL AND end_at IS NOT NULL))")
 	for _, tc := range []struct {
 		user    uint64
 		count   int64
 		allowed bool
 	}{{22, 0, false}, {23, 1, true}} {
-		mock.ExpectQuery(pattern).WithArgs(tc.user, model.LeaveAccessGranted, model.LeaveAccessPending, model.LeaveAccessApproved).
+		mock.ExpectQuery(pattern).WithArgs(tc.user, model.LeaveAccessGranted, model.LeaveAccessApproved, model.LeaveAccessPending, model.LeaveAccessApproved).
 			WillReturnRows(sqlmock.NewRows([]string{"count(*)"}).AddRow(tc.count))
 		allowed, err := NewService(db).HasLeaveAccess(context.Background(), tc.user)
 		if err != nil || allowed != tc.allowed {
@@ -58,6 +58,85 @@ func TestLeaveAccessStateDefaultsToNotRequested(t *testing.T) {
 	state, err := NewService(db).LeaveAccessState(context.Background(), 22)
 	if err != nil || state == nil || state.Status != LeaveAccessNotRequested {
 		t.Fatalf("missing access request state = %#v, error=%v", state, err)
+	}
+}
+
+func TestHistoricalPermanentApprovalRemainsUsable(t *testing.T) {
+	db, mock := newLeaveAccessMockGorm(t)
+	now := time.Date(2026, 10, 19, 10, 0, 0, 0, time.UTC).In(shanghai)
+	mock.ExpectQuery(regexp.QuoteMeta("SELECT * FROM `leave_access_requests` WHERE user_id = ? ORDER BY `leave_access_requests`.`id` LIMIT ?")).
+		WithArgs(uint64(22), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "status", "start_at", "end_at", "requested_at"}).
+			AddRow(8, 22, model.LeaveAccessApproved, nil, nil, now))
+	state, err := NewService(db).LeaveAccessState(context.Background(), 22)
+	if err != nil || state == nil || state.Status != model.LeaveAccessApproved || state.StartAt != nil || state.EndAt != nil {
+		t.Fatalf("legacy permanent approval was lost: %#v, err=%v", state, err)
+	}
+}
+
+func TestApprovedLeaveModeDifferentiatesPermanentAndTemporary(t *testing.T) {
+	start := time.Date(2026, 11, 15, 10, 0, 0, 0, time.UTC).In(shanghai)
+	end := start.Add(time.Hour)
+	for _, tc := range []struct {
+		name           string
+		status         string
+		startAt, endAt *time.Time
+		permanent      bool
+		wantError      bool
+	}{
+		{"legacy permanent", model.LeaveAccessApproved, nil, nil, true, false},
+		{"temporary approved", model.LeaveAccessApproved, &start, &end, false, false},
+		{"temporary wrong range", model.LeaveAccessApproved, &start, &start, false, true},
+		{"revoked", model.LeaveAccessRevoked, nil, nil, false, true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			db, mock := newLeaveAccessMockGorm(t)
+			mock.ExpectQuery("SELECT .* FROM .*leave_access_requests.* WHERE user_id = \\?").
+				WithArgs(uint64(22), 1).
+				WillReturnRows(sqlmock.NewRows([]string{"status", "start_at", "end_at"}).AddRow(tc.status, tc.startAt, tc.endAt))
+			actual, err := NewService(db).approvedLeaveMode(context.Background(), 22, start, end)
+			if (err != nil) != tc.wantError || actual != tc.permanent {
+				t.Fatalf("permanent=%t error=%v, want permanent=%t error=%t", actual, err, tc.permanent, tc.wantError)
+			}
+		})
+	}
+}
+
+func TestLeavePermissionsIncludeHistoricalPermanentApprovals(t *testing.T) {
+	db, mock := newLeaveAccessMockGorm(t)
+	mock.ExpectQuery("SELECT requests\\.id, requests\\.user_id.*FROM leave_access_requests AS requests.*WHERE .*").
+		WithArgs(model.LeaveAccessGranted, model.LeaveAccessApproved, model.LeaveAccessPending, model.LeaveAccessApproved).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "user_name", "email", "status", "start_at", "end_at", "requested_at"}).
+			AddRow(8, 22, "长期成员", "permanent@example.com", model.LeaveAccessApproved, nil, nil, time.Date(2026, 10, 1, 0, 0, 0, 0, time.UTC)))
+	rows, err := NewService(db).ListLeavePermissions(context.Background())
+	if err != nil || len(rows) != 1 || rows[0].UserID != 22 || rows[0].Status != model.LeaveAccessApproved || rows[0].StartAt != nil {
+		t.Fatalf("historic permanent member missing from admin permission list: %#v, err=%v", rows, err)
+	}
+}
+
+func TestGrantLeaveAccessRestoresPermanentMode(t *testing.T) {
+	db, mock := newLeaveAccessMockGorm(t)
+	now := time.Date(2026, 11, 15, 10, 0, 0, 0, time.UTC).In(shanghai)
+	mock.ExpectQuery("SELECT .* FROM .*users.* WHERE .*").WithArgs(uint64(22), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "status"}).AddRow(22, model.UserStatusEnabled))
+	mock.ExpectBegin()
+	mock.ExpectQuery("SELECT .* FROM .*leave_access_requests.* WHERE user_id = \\?").
+		WithArgs(uint64(22), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "status", "start_at", "end_at", "requested_at"}).
+			AddRow(8, 22, model.LeaveAccessRevoked, nil, nil, now))
+	mock.ExpectExec("UPDATE .*leave_access_requests.* SET .*").
+		WithArgs(nil, now, nil, uint64(5), nil, model.LeaveAccessApproved, uint64(8)).
+		WillReturnResult(sqlmock.NewResult(0, 1))
+	mock.ExpectCommit()
+	mock.ExpectQuery("SELECT .* FROM .*leave_access_requests.* WHERE user_id = \\?").
+		WithArgs(uint64(22), 1).
+		WillReturnRows(sqlmock.NewRows([]string{"id", "user_id", "status", "start_at", "end_at", "requested_at"}).
+			AddRow(8, 22, model.LeaveAccessApproved, nil, nil, now))
+	service := NewService(db)
+	service.now = func() time.Time { return now }
+	state, err := service.GrantLeaveAccess(context.Background(), 22, 5, "permanent")
+	if err != nil || state == nil || state.Status != model.LeaveAccessApproved || state.StartAt != nil || state.EndAt != nil {
+		t.Fatalf("permanent grant = %#v, err=%v", state, err)
 	}
 }
 

@@ -34,8 +34,9 @@ type LeaveAccessRequestView struct {
 
 func accessState(row model.LeaveAccessRequest) *LeaveAccessState {
 	status := row.Status
-	// Legacy approvals without a specific leave period are not valid authorizations.
-	if (status == model.LeaveAccessApproved || status == model.LeaveAccessPending) && (row.StartAt == nil || row.EndAt == nil) {
+	// Undated historical approvals are permanent; only a legacy pending
+	// application without a leave period must remain unusable.
+	if status == model.LeaveAccessPending && (row.StartAt == nil || row.EndAt == nil) {
 		status = model.LeaveAccessRevoked
 	}
 	return &LeaveAccessState{Status: status, StartAt: row.StartAt, EndAt: row.EndAt, RequestedAt: &row.RequestedAt, ReviewedAt: row.ReviewedAt}
@@ -44,8 +45,8 @@ func accessState(row model.LeaveAccessRequest) *LeaveAccessState {
 func (s *Service) HasLeaveAccess(ctx context.Context, userID uint64) (bool, error) {
 	var count int64
 	err := s.db.WithContext(ctx).Model(&model.LeaveAccessRequest{}).
-		Where("user_id = ? AND (status = ? OR (status IN ? AND start_at IS NOT NULL AND end_at IS NOT NULL))",
-			userID, model.LeaveAccessGranted, []string{model.LeaveAccessPending, model.LeaveAccessApproved}).Count(&count).Error
+		Where("user_id = ? AND (status = ? OR (status = ? AND start_at IS NULL AND end_at IS NULL) OR (status IN ? AND start_at IS NOT NULL AND end_at IS NOT NULL))",
+			userID, model.LeaveAccessGranted, model.LeaveAccessApproved, []string{model.LeaveAccessPending, model.LeaveAccessApproved}).Count(&count).Error
 	if err != nil {
 		return false, internalError("检查请假权限失败", err)
 	}
@@ -64,8 +65,12 @@ func (s *Service) LeaveAccessState(ctx context.Context, userID uint64) (*LeaveAc
 	return accessState(row), nil
 }
 
-// GrantLeaveAccess is the sole way to open a member's one-time leave workflow.
-func (s *Service) GrantLeaveAccess(ctx context.Context, userID, adminID uint64, grant bool) (*LeaveAccessState, error) {
+// GrantLeaveAccess changes the existing member permission without deleting
+// historical approvals. Approved undated rows represent permanent access.
+func (s *Service) GrantLeaveAccess(ctx context.Context, userID, adminID uint64, mode string) (*LeaveAccessState, error) {
+	if mode != "permanent" && mode != "temporary" && mode != "revoke" {
+		return nil, badRequest("授权类型无效")
+	}
 	var user model.User
 	if err := s.db.WithContext(ctx).Select("id", "status").First(&user, userID).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -73,18 +78,20 @@ func (s *Service) GrantLeaveAccess(ctx context.Context, userID, adminID uint64, 
 		}
 		return nil, internalError("查询成员失败", err)
 	}
-	if grant && user.Status != model.UserStatusEnabled {
+	if mode != "revoke" && user.Status != model.UserStatusEnabled {
 		return nil, badRequest("停用账号不能授权")
 	}
 	next := model.LeaveAccessRevoked
-	if grant {
+	if mode == "temporary" {
 		next = model.LeaveAccessGranted
+	} else if mode == "permanent" {
+		next = model.LeaveAccessApproved
 	}
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		var row model.LeaveAccessRequest
 		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where("user_id = ?", userID).First(&row).Error
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			if !grant {
+			if mode == "revoke" {
 				return nil
 			}
 			return tx.Create(&model.LeaveAccessRequest{UserID: userID, Status: next, RequestedAt: s.nowShanghai(), ReviewedBy: &adminID}).Error
@@ -146,7 +153,7 @@ func (s *Service) ListLeavePermissions(ctx context.Context) ([]LeaveAccessReques
 	err := s.db.WithContext(ctx).Table("leave_access_requests AS requests").
 		Select("requests.id, requests.user_id, COALESCE(NULLIF(TRIM(users.real_name), ''), '姓名待核实') AS user_name, users.email, requests.status, requests.start_at, requests.end_at, requests.requested_at").
 		Joins("JOIN users ON users.id = requests.user_id").
-		Where("requests.status = ? OR (requests.status IN ? AND requests.start_at IS NOT NULL AND requests.end_at IS NOT NULL)", model.LeaveAccessGranted, []string{model.LeaveAccessPending, model.LeaveAccessApproved}).
+		Where("requests.status = ? OR (requests.status = ? AND requests.start_at IS NULL AND requests.end_at IS NULL) OR (requests.status IN ? AND requests.start_at IS NOT NULL AND requests.end_at IS NOT NULL)", model.LeaveAccessGranted, model.LeaveAccessApproved, []string{model.LeaveAccessPending, model.LeaveAccessApproved}).
 		Order("requests.requested_at DESC, requests.id DESC").Scan(&rows).Error
 	if err != nil {
 		return nil, internalError("读取请假授权名单失败", err)
@@ -183,16 +190,24 @@ func (s *Service) ReviewLeaveAccessRequest(ctx context.Context, requestID, admin
 	return accessState(row), nil
 }
 
-// The approved time range is immutable until the single document is generated.
-func (s *Service) approvedLeaveRange(ctx context.Context, userID uint64, start, end time.Time) error {
-	var count int64
-	err := s.db.WithContext(ctx).Model(&model.LeaveAccessRequest{}).
-		Where("user_id = ? AND status = ? AND start_at = ? AND end_at = ?", userID, model.LeaveAccessApproved, start, end).Count(&count).Error
+// Legacy undated approvals are permanent. Dated approvals can generate
+// only one document for the approved interval.
+func (s *Service) approvedLeaveMode(ctx context.Context, userID uint64, start, end time.Time) (bool, error) {
+	var row model.LeaveAccessRequest
+	err := s.db.WithContext(ctx).Select("status", "start_at", "end_at").Where("user_id = ?", userID).First(&row).Error
+	if errors.Is(err, gorm.ErrRecordNotFound) {
+		return false, conflict("请假台尚未授权或本次请假已失效")
+	}
 	if err != nil {
-		return internalError("检查请假审批失败", err)
+		return false, internalError("检查请假审批失败", err)
 	}
-	if count != 1 {
-		return conflict("本次请假尚未获批或已使用")
+	if row.Status == model.LeaveAccessApproved {
+		if row.StartAt == nil && row.EndAt == nil {
+			return true, nil
+		}
+		if row.StartAt != nil && row.EndAt != nil && row.StartAt.Equal(start) && row.EndAt.Equal(end) {
+			return false, nil
+		}
 	}
-	return nil
+	return false, conflict("本次请假尚未获批或已使用")
 }

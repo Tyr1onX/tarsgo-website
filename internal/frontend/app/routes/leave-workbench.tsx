@@ -155,18 +155,20 @@ export default function LeaveWorkbench() {
     finally { setBusy(false); }
   }
 
-  async function setPermission(userId: number, granted: boolean) {
-    await runAction(() => leaveClient.setLeavePermission(userId, granted), granted ? "已授权一次请假。" : "已收回请假台使用资格。");
+  async function setPermission(userId: number, mode: "permanent" | "temporary" | "revoke") {
+    await runAction(() => leaveClient.setLeavePermission(userId, mode), mode === "permanent" ? "长期使用权限已开通。" : mode === "temporary" ? "已授权一次请假。" : "已收回请假台使用资格。");
   }
 
   async function makeDaily(offline = false) {
     if (!profileReady) { setError("请先完善学号和学院。"); return; }
     setBusy(true); setError(""); setNotice("");
     try {
-      if (!accessState?.startAt || !accessState.endAt || accessState.status !== "approved") throw new Error("本次请假尚未获批");
-      const ready = await leaveClient.prepareDailySelf({ startAt: accessState.startAt, endAt: accessState.endAt }, offline);
+      if (accessState?.status !== "approved") throw new Error("请假台尚未授权或本次请假尚未获批");
+      const permanent = !accessState.startAt && !accessState.endAt;
+      if (!permanent && (!accessState.startAt || !accessState.endAt)) throw new Error("请假审批时段无效");
+      const ready = await leaveClient.prepareDailySelf(permanent ? dailyDraft : { startAt: accessState.startAt!, endAt: accessState.endAt! }, offline);
       await downloadLeaveFile(ready.downloadUrl, ready.filename);
-      setNotice("假条已生成，使用资格已自动收回。"); await load();
+      setNotice(permanent ? "假条已生成并开始下载。" : "假条已生成，临时资格已自动收回。"); await load();
     }
     catch (reason) { setError(reason instanceof Error ? reason.message : "请假条生成失败"); }
     finally { setBusy(false); }
@@ -240,13 +242,20 @@ export default function LeaveWorkbench() {
             <input className={`${inputClass} flex-1`} value={accountKeyword} onChange={(event) => setAccountKeyword(event.target.value)} placeholder="按姓名或邮箱搜索账号" aria-label="搜索成员账号" required />
             <button className={`${button} admin-button--secondary`} disabled={busy || !accountKeyword.trim()}>搜索</button>
           </form>
-          {accountResults.length ? <div className="divide-y divide-[var(--admin-border-subtle)]">{accountResults.map((user) => <div key={user.id} className="flex items-center justify-between gap-2 py-2 text-sm">
-            <span>{user.realName || user.email} · {user.email}</span>
-            <button type="button" className={`${button} admin-button--primary`} disabled={busy || user.status !== 1 || permissions.some((item) => item.userId === user.id)} onClick={() => void setPermission(user.id, true)}>{permissions.some((item) => item.userId === user.id) ? "已授权" : "授权一次"}</button>
-          </div>)}</div> : null}
+          {accountResults.length ? <div className="divide-y divide-[var(--admin-border-subtle)]">{accountResults.map((user) => {
+            const permission = permissions.find((item) => item.userId === user.id);
+            const permanent = permission?.status === "approved" && !permission.startAt && !permission.endAt;
+            return <div key={user.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+              <span>{user.realName || user.email} · {user.email}</span>
+              <div className="flex gap-2">
+                <button type="button" className={`${button} admin-button--primary`} disabled={busy || user.status !== 1 || permanent} onClick={() => void setPermission(user.id, "permanent")}>{permanent ? "长期已授权" : "长期授权"}</button>
+                <button type="button" className={`${button} admin-button--secondary`} disabled={busy || user.status !== 1 || (permission && !permanent)} onClick={() => void setPermission(user.id, "temporary")}>临时授权</button>
+              </div>
+            </div>;
+          })}</div> : null}
           <div className="divide-y divide-[var(--admin-border-subtle)]">{permissions.map((item) => <div key={item.userId} className="flex items-center justify-between gap-2 py-2 text-sm">
-            <span>{item.userName || item.email} · {item.email} · {item.status === "granted" ? "待申请" : item.status === "pending" ? "待审核" : "待生成"}</span>
-            <button type="button" className={`${button} admin-button--quiet`} disabled={busy} onClick={() => void setPermission(item.userId, false)}>取消资格</button>
+            <span>{item.userName || item.email} · {item.email} · {item.status === "approved" && !item.startAt && !item.endAt ? "长期授权" : item.status === "granted" ? "临时待申请" : item.status === "pending" ? "临时待审核" : "临时待生成"}</span>
+            <button type="button" className={`${button} admin-button--quiet`} disabled={busy} onClick={() => void setPermission(item.userId, "revoke")}>取消资格</button>
           </div>)}{!permissions.length ? <p className="py-2 text-sm text-[var(--admin-muted)]">暂无已授权成员。</p> : null}</div>
         </section>
         <section className="admin-panel space-y-3 p-4 sm:p-5" aria-labelledby="leave-access-requests-title">
@@ -279,7 +288,18 @@ export default function LeaveWorkbench() {
           </form>
         </section> : null}
         {accessState?.status === "pending" ? <section className="admin-panel p-4 sm:p-5"><p role="status">请假申请待审批 · {dateText(accessState.startAt)} 至 {dateText(accessState.endAt)}</p></section> : null}
-        {accessState?.status === "approved" ? <section className="admin-panel space-y-3 p-4 sm:p-5">
+        {accessState?.status === "approved" && !accessState.startAt && !accessState.endAt ? <section className="admin-panel space-y-3 p-4 sm:p-5">
+          <div className="admin-section-heading"><h2>自助生成假条</h2></div>
+          <form onSubmit={(event) => { event.preventDefault(); void makeDaily(); }} className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="admin-field-label">开始时间<input className={inputClass} type="datetime-local" required value={dailyDraft.startAt} onChange={(event) => setDailyDraft({ ...dailyDraft, startAt: event.target.value })} /></label>
+              <label className="admin-field-label">结束时间<input className={inputClass} type="datetime-local" required value={dailyDraft.endAt} onChange={(event) => setDailyDraft({ ...dailyDraft, endAt: event.target.value })} /></label>
+            </div>
+            <div className="flex flex-wrap gap-2"><button type="submit" className={`${button} admin-button--primary`} disabled={busy || !profileReady}>生成并下载</button><button type="button" className={`${button} admin-button--secondary`} disabled={busy || !profileReady} onClick={(event) => { if (event.currentTarget.form?.reportValidity()) void makeDaily(true); }}>线下签章版</button></div>
+          </form>
+          {!profileReady ? <button type="button" className={`${button} admin-button--secondary`} onClick={() => openMyProfile("settings")}>完善学籍资料</button> : null}
+        </section> : null}
+        {accessState?.status === "approved" && accessState.startAt && accessState.endAt ? <section className="admin-panel space-y-3 p-4 sm:p-5">
           <div className="admin-section-heading"><h2>已批准 · 生成一次假条</h2></div>
           <p className="text-sm">{dateText(accessState.startAt)} 至 {dateText(accessState.endAt)}</p>
           <div className="flex flex-wrap gap-2"><button type="button" className={`${button} admin-button--primary`} disabled={busy || !profileReady} onClick={() => void makeDaily()}>生成并下载</button><button type="button" className={`${button} admin-button--secondary`} disabled={busy || !profileReady} onClick={() => void makeDaily(true)}>线下签章版</button></div>
