@@ -30,7 +30,7 @@ export const leaveClient = {
   pendingLeaveAccessRequests: () => apiRequest<LeaveAccessRequest[]>("/api/admin/leave/requests"),
   reviewLeaveAccessRequest: (id: number, status: "approved" | "rejected") => apiRequest<LeaveAccessState>(`/api/admin/leave/requests/${id}`, { method: "PATCH", body: { status } }),
   leavePermissions: () => apiRequest<LeaveAccessRequest[]>("/api/admin/leave/permissions"),
-  setLeavePermission: (userId: number, granted: boolean) => apiRequest<LeaveAccessState>(`/api/admin/leave/permissions/${userId}`, { method: "PUT", body: { granted } }),
+  setLeavePermission: (userId: number, mode: "permanent" | "temporary" | "revoke") => apiRequest<LeaveAccessState>(`/api/admin/leave/permissions/${userId}`, { method: "PUT", body: { mode } }),
   colleges: () => apiRequest<CollegeOption[]>("/api/leave/colleges"),
   profile: () => apiRequest<LeaveProfile | null>("/api/leave/profile"),
 

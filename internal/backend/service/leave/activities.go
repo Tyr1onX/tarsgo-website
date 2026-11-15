@@ -231,11 +231,15 @@ func (s *Service) PrepareDailyDocument(ctx context.Context, userID uint64, windo
 		}
 		start, end = window.StartAt, window.EndAt
 	}
-	if err := s.approvedLeaveRange(ctx, userID, start, end); err != nil {
+	permanent, err := s.approvedLeaveMode(ctx, userID, start, end)
+	if err != nil {
 		return nil, err
 	}
+	if windowID != nil && !permanent {
+		return nil, conflict("临时授权只能生成审批通过的一次性假条")
+	}
 	var entry model.DailyLeaveEntry
-	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	err = s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		profile, err := s.requireProfile(tx, userID)
 		if err != nil {
 			return err
@@ -335,18 +339,27 @@ func (s *Service) DownloadDailyDocument(ctx context.Context, userID, entryID uin
 		return nil, "", err
 	}
 	// Build before consumption so a DOCX failure does not spend the approval.
-	if err := s.approvedLeaveRange(ctx, userID, start, end); err != nil {
+	permanent, err := s.approvedLeaveMode(ctx, userID, start, end)
+	if err != nil {
 		return nil, "", err
 	}
-	if entry.WindowID != nil {
-		return nil, "", conflict("一次性请假仅支持已审批的独立假条")
+	if entry.WindowID != nil && !permanent {
+		return nil, "", conflict("临时授权只能生成审批通过的一次性假条")
 	}
 	profile := model.LeaveProfile{Name: entry.NameSnapshot, StudentID: entry.StudentIDSnapshot, CollegeCode: entry.CollegeSnapshot}
 	content, err := buildDailyLeaveDocx(start, end, profile, collegeCodes[entry.CollegeSnapshot], os.Getenv("LEAVE_CONTACT_PHONE"), offline)
 	if err != nil {
 		return nil, "", internalError("生成请假条失败", err)
 	}
-	if err := s.consumeApprovedLeave(ctx, userID, entry.ID, start, end, offline); err != nil {
+	if permanent {
+		first, err := s.firstDailyDownload(ctx, entry.ID)
+		if err != nil {
+			return nil, "", err
+		}
+		if err := s.logDailyDocument(ctx, entry.ID, &userID, "download", first, offline); err != nil {
+			return nil, "", err
+		}
+	} else if err := s.consumeApprovedLeave(ctx, userID, entry.ID, start, end, offline); err != nil {
 		return nil, "", err
 	}
 	return content, dailyFilename(start, offline), nil
