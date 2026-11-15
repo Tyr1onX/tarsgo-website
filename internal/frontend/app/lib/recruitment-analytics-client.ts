@@ -5,6 +5,11 @@ export interface RecruitmentAnalyticsGroup {
   registrationCount: number;
 }
 
+export interface RecruitmentAnalyticsCampus {
+  name: string;
+  registrationCount: number;
+}
+
 export interface RecruitmentAnalyticsCohort {
   formId: number;
   title: string;
@@ -19,6 +24,7 @@ export interface RecruitmentAnalyticsCohort {
   admissionRate?: number;
   matchedFormalMemberCount: number;
   groups: RecruitmentAnalyticsGroup[];
+  campuses: RecruitmentAnalyticsCampus[];
 }
 
 export interface RecruitmentAnalyticsReport {
