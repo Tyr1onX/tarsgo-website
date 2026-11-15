@@ -54,9 +54,15 @@ type Cohort struct {
 	AdmissionRate            *float64        `json:"admissionRate,omitempty"`
 	MatchedFormalMemberCount int64           `json:"matchedFormalMemberCount"`
 	Groups                   []GroupInterest `json:"groups"`
+	Campuses                 []CampusDistribution `json:"campuses"`
 }
 
 type GroupInterest struct {
+	Name              string `json:"name"`
+	RegistrationCount int64  `json:"registrationCount"`
+}
+
+type CampusDistribution struct {
 	Name              string `json:"name"`
 	RegistrationCount int64  `json:"registrationCount"`
 }
@@ -82,6 +88,12 @@ type groupAggregate struct {
 	Count  int64
 }
 
+type collegeAggregate struct {
+	FormID      uint64
+	CollegeText string
+	Count       int64
+}
+
 type memberAggregate struct {
 	FormID uint64
 	Count  int64
@@ -91,6 +103,7 @@ type repository interface {
 	ListCohorts(ctx context.Context) ([]cohortRow, error)
 	RegistrationAggregates(ctx context.Context, formIDs []uint64) ([]registrationAggregate, error)
 	GroupAggregates(ctx context.Context, formIDs []uint64) ([]groupAggregate, error)
+	CollegeAggregates(ctx context.Context, formIDs []uint64) ([]collegeAggregate, error)
 	MatchedFormalMembers(ctx context.Context, formIDs []uint64) ([]memberAggregate, error)
 }
 
@@ -138,6 +151,10 @@ func (s *Service) GetReport(ctx context.Context, roleName string) (*Report, erro
 	if err != nil {
 		return nil, err
 	}
+	colleges, err := s.repo.CollegeAggregates(ctx, formIDs)
+	if err != nil {
+		return nil, err
+	}
 	members, err := s.repo.MatchedFormalMembers(ctx, formIDs)
 	if err != nil {
 		return nil, err
@@ -159,6 +176,13 @@ func (s *Service) GetReport(ctx context.Context, roleName string) (*Report, erro
 			return groupsByForm[formID][i].RegistrationCount > groupsByForm[formID][j].RegistrationCount
 		})
 	}
+	campusByForm := make(map[uint64]map[string]int64, len(forms))
+	for _, college := range colleges {
+		if campusByForm[college.FormID] == nil {
+			campusByForm[college.FormID] = make(map[string]int64)
+		}
+		campusByForm[college.FormID][campusForCollege(college.CollegeText)] += college.Count
+	}
 	memberByForm := make(map[uint64]int64, len(members))
 	for _, member := range members {
 		memberByForm[member.FormID] = member.Count
@@ -170,6 +194,22 @@ func (s *Service) GetReport(ctx context.Context, roleName string) (*Report, erro
 		if groupItems == nil {
 			groupItems = []GroupInterest{}
 		}
+		campuses := make([]CampusDistribution, 0, len(campusByForm[form.ID]))
+		for name, count := range campusByForm[form.ID] {
+			campuses = append(campuses, CampusDistribution{Name: name, RegistrationCount: count})
+		}
+		sort.Slice(campuses, func(i, j int) bool {
+			if campuses[i].Name == unknownCampus {
+				return false
+			}
+			if campuses[j].Name == unknownCampus {
+				return true
+			}
+			if campuses[i].RegistrationCount != campuses[j].RegistrationCount {
+				return campuses[i].RegistrationCount > campuses[j].RegistrationCount
+			}
+			return campuses[i].Name < campuses[j].Name
+		})
 		cohort := Cohort{
 			FormID:                   form.ID,
 			Title:                    form.Title,
@@ -182,6 +222,7 @@ func (s *Service) GetReport(ctx context.Context, roleName string) (*Report, erro
 			PendingCount:             aggregate.Pending,
 			MatchedFormalMemberCount: memberByForm[form.ID],
 			Groups:                   groupItems,
+			Campuses:                 campuses,
 		}
 		classified := cohort.AdmittedCount + cohort.RejectedCount + cohort.WithdrawnCount + cohort.PendingCount
 		if aggregate.Total > classified {
@@ -256,6 +297,36 @@ func (r gormRepository) GroupAggregates(ctx context.Context, formIDs []uint64) (
  GROUP BY r.form_id, name ORDER BY r.form_id, name`
 	var rows []groupAggregate
 	err := r.db.WithContext(ctx).Raw(query, "历史组别（名称不可恢复）", formIDs).Scan(&rows).Error
+	return rows, err
+}
+
+
+func (r gormRepository) CollegeAggregates(ctx context.Context, formIDs []uint64) ([]collegeAggregate, error) {
+	if len(formIDs) == 0 {
+		return nil, nil
+	}
+	// The registration's college/major answer is a submission snapshot.
+	// Only fall back to the account college when the form lacks that field.
+	const query = `SELECT r.form_id,
+ COALESCE(NULLIF(TRIM(JSON_UNQUOTE(JSON_EXTRACT(r.form_data, CONCAT('$."', cf.field_key, '"')))), ''),
+          NULLIF(TRIM(u.college), ''), '') AS college_text,
+ COUNT(*) AS count
+ FROM registrations r
+ LEFT JOIN users u ON u.id = r.user_id
+ LEFT JOIN (
+   SELECT f.id AS form_id, MIN(fields.field_key) AS field_key
+   FROM registration_forms f
+   JOIN JSON_TABLE(f.fields_schema, '$[*]' COLUMNS (
+     field_key VARCHAR(100) PATH '$.key',
+     field_label VARCHAR(100) PATH '$.label'
+   )) fields
+   WHERE fields.field_label IN ('学院+专业', '学院及专业', '学院')
+   GROUP BY f.id
+ ) cf ON cf.form_id = r.form_id
+ WHERE r.form_id IN ?
+ GROUP BY r.form_id, college_text`
+	var rows []collegeAggregate
+	err := r.db.WithContext(ctx).Raw(query, formIDs).Scan(&rows).Error
 	return rows, err
 }
 
