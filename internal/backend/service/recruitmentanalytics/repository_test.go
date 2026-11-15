@@ -61,6 +61,14 @@ func TestGormRepositoryUsesCohortScopedAggregateQueriesOnly(t *testing.T) {
 		t.Fatalf("unexpected group aggregates: %#v, error=%v", groups, err)
 	}
 
+	mock.ExpectQuery("(?s)SELECT r.form_id,.*FROM registrations r.*JSON_TABLE.*WHERE r.form_id IN .*GROUP BY r.form_id, college_text").
+		WithArgs(uint64(4), uint64(5)).
+		WillReturnRows(sqlmock.NewRows([]string{"form_id", "college_text", "count"}).AddRow(4, "通信工程学院 通信工程", 2).AddRow(5, "", 1))
+	colleges, err := (gormRepository{db: db}).CollegeAggregates(ctx, formIDs)
+	if err != nil || len(colleges) != 2 || colleges[0].CollegeText != "通信工程学院 通信工程" || colleges[1].CollegeText != "" {
+		t.Fatalf("unexpected college aggregates: %#v, err=%v", colleges, err)
+	}
+
 	mock.ExpectQuery("(?s)SELECT r.form_id, COUNT\\(DISTINCT r.id\\) AS count FROM registrations AS r LEFT JOIN registration_legacy_archives archive ON archive.id=r.id JOIN user_group_members AS members ON .*r.form_id IN \\(\\?,\\?\\) AND r.recruitment_status = \\? GROUP BY .*form_id.*").
 		WithArgs(uint64(4), uint64(5), statusAdmitted).
 		WillReturnRows(sqlmock.NewRows([]string{"form_id", "count"}).AddRow(4, 1))
