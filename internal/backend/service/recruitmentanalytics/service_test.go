@@ -15,6 +15,7 @@ type fakeRepository struct {
 	forms         []cohortRow
 	registrations []registrationAggregate
 	groups        []groupAggregate
+	colleges      []collegeAggregate
 	members       []memberAggregate
 	err           error
 	formCalls     int
@@ -33,6 +34,10 @@ func (r *fakeRepository) RegistrationAggregates(context.Context, []uint64) ([]re
 
 func (r *fakeRepository) GroupAggregates(context.Context, []uint64) ([]groupAggregate, error) {
 	return r.groups, r.err
+}
+
+func (r *fakeRepository) CollegeAggregates(context.Context, []uint64) ([]collegeAggregate, error) {
+	return r.colleges, r.err
 }
 
 func (r *fakeRepository) MatchedFormalMembers(context.Context, []uint64) ([]memberAggregate, error) {
@@ -71,6 +76,14 @@ func TestGetReportAggregatesIndependentFormsAndKeepsStatusMeaning(t *testing.T) 
 			{FormID: 10, Name: "视觉组", Count: 2},
 			{FormID: 11, Name: "运营组", Count: 1},
 		},
+		colleges: []collegeAggregate{
+			{FormID: 10, CollegeText: "通信工程学院-通信工程", Count: 2},
+			{FormID: 10, CollegeText: "机械与航空航天工程学院", Count: 1},
+			{FormID: 10, CollegeText: "", Count: 1},
+			{FormID: 11, CollegeText: "电子科学与工程学院", Count: 1},
+			{FormID: 11, CollegeText: "公共卫生学院", Count: 1},
+			{FormID: 11, CollegeText: "", Count: 1},
+		},
 		members: []memberAggregate{{FormID: 10, Count: 1}},
 	}
 	service := newService(repo)
@@ -99,7 +112,13 @@ func TestGetReportAggregatesIndependentFormsAndKeepsStatusMeaning(t *testing.T) 
 	if !reflect.DeepEqual(first.Groups, []GroupInterest{{Name: "机械组", RegistrationCount: 3}, {Name: "视觉组", RegistrationCount: 2}}) {
 		t.Fatalf("group intentions should be sorted by count: %#v", first.Groups)
 	}
+	if !reflect.DeepEqual(first.Campuses, []CampusDistribution{{Name: "南湖校区", RegistrationCount: 2}, {Name: "南岭校区", RegistrationCount: 1}, {Name: unknownCampus, RegistrationCount: 1}}) {
+		t.Fatalf("campus distribution must include unknown records and sort by frequency: %#v", first.Campuses)
+	}
 	second := report.Cohorts[1]
+	if len(second.Campuses) != 3 || second.Campuses[2].Name != unknownCampus {
+		t.Fatalf("each cohort must retain its own campus split: %#v", second.Campuses)
+	}
 	if second.AdmissionRate == nil || *second.AdmissionRate != 0 || second.MatchedFormalMemberCount != 0 {
 		t.Fatalf("zero admission and no matched membership should remain explicit: %#v", second)
 	}
@@ -128,7 +147,7 @@ func TestGetReportMarksEmptyFormsAsNoDataAndDoesNotInventCounts(t *testing.T) {
 		t.Fatalf("unexpected empty report state: %#v", report)
 	}
 	cohort := report.Cohorts[0]
-	if cohort.HasData || cohort.RegistrationCount != 0 || cohort.AdmissionRate != nil || cohort.Groups == nil || len(cohort.Groups) != 0 {
+	if cohort.HasData || cohort.RegistrationCount != 0 || cohort.AdmissionRate != nil || cohort.Groups == nil || len(cohort.Groups) != 0 || cohort.Campuses == nil || len(cohort.Campuses) != 0 {
 		t.Fatalf("empty cohort must be distinguishable from observed zero rates: %#v", cohort)
 	}
 }
