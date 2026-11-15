@@ -155,6 +155,27 @@ function CohortDetails({ cohort }: { cohort: RecruitmentAnalyticsCohort }) {
           </div>
 
           <div className="recruitment-analytics__group-detail">
+            <h3>校区报名分布（按学院推算）</h3>
+            {cohort.campuses.length === 0 ? (
+              <p className="recruitment-analytics__empty">暂无可统计的校区数据。</p>
+            ) : (
+              <ul>
+                {cohort.campuses.map((campus) => (
+                  <li key={campus.name}>
+                    <div className="recruitment-analytics__group-label">
+                      <span>{campus.name}</span>
+                      <span>{campus.registrationCount.toLocaleString("zh-CN")} · {formatPercent(campus.registrationCount * 100 / cohort.registrationCount)}</span>
+                    </div>
+                    <div className="recruitment-analytics__group-track" aria-hidden="true">
+                      <span style={{ width: campus.registrationCount * 100 / cohort.registrationCount + "%" }} />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+
+          <div className="recruitment-analytics__group-detail">
             <h3>各组报名分布</h3>
             {cohort.groups.length === 0 ? (
               <p className="recruitment-analytics__empty">暂无可识别的主要组别数据。</p>
