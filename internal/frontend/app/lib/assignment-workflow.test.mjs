@@ -6,7 +6,11 @@ const routes = await readFile(new URL("../routes.ts", import.meta.url), "utf8");
 const layout = await readFile(new URL("../routes/dashboard/layout.tsx", import.meta.url), "utf8");
 const navigation = await readFile(new URL("./dashboard-navigation.ts", import.meta.url), "utf8");
 const backendRoutes = await readFile(new URL("../../../backend/router/router.go", import.meta.url), "utf8");
-const assignmentService = await readFile(new URL("../../../backend/service/assignment/service.go", import.meta.url), "utf8");
+const assignmentService = (await Promise.all(
+  ["service.go", "publishing.go", "review.go", "files.go"].map((file) =>
+    readFile(new URL(`../../../backend/service/assignment/${file}`, import.meta.url), "utf8"),
+  ),
+)).join("\n");
 const assignmentFiles = await readFile(new URL("../../../backend/service/assignment/file_store.go", import.meta.url), "utf8");
 const privateFiles = await readFile(new URL("../../../backend/service/privatefile/file_store.go", import.meta.url), "utf8");
 const migrations = await readFile(new URL("../../../backend/database/migrations.go", import.meta.url), "utf8");
