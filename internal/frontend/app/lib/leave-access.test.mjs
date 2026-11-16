@@ -25,7 +25,7 @@ test("superadmin controls access; members request approval for a dated, single-u
   assert.match(api, /superAdminAPI\.GET\("\/leave\/permissions"/);
   assert.match(api, /superAdminAPI\.PUT\("\/leave\/permissions\/:id"/);
   assert.match(route, /listAdminUsers\(\{ keyword: accountKeyword\.trim\(\)/);
-  assert.match(route, /一次性请假审批/);
+  assert.match(route, /待审批申请/);
   assert.match(route, /leaveClient\.requestLeaveAccess\(dailyDraft\)/);
   assert.match(route, /accessState\?\.status === "approved"/);
   assert.match(access, /func \(s \*Service\) GrantLeaveAccess/);
@@ -46,6 +46,18 @@ test("historic approved members retain permanent self-service and admins choose 
   assert.match(route, /setPermission\(item\.userId, "revoke"\)/);
   assert.match(generation, /if permanent \{[\s\S]*s\.logDailyDocument/);
   assert.match(generation, /else if err := s\.consumeApprovedLeave/);
+});
+
+test("super-admin sees pending approvals first, delegates generation, and expands permissions only as needed", () => {
+  const approval = route.indexOf('id="leave-access-requests-title"');
+  const delegated = route.indexOf('id="leave-delegate-title"');
+  const folded = route.indexOf('<details className="admin-panel');
+  assert.ok(approval >= 0 && delegated > approval && folded > delegated);
+  assert.match(route, /<summary[^>]*>授权管理/);
+  assert.match(route, /leaveClient\.adminMemberProfile\(user\.id\)/);
+  assert.match(route, /leaveClient\.adminGenerateDaily\(delegateAccount\.id, delegateDraft, offline\)/);
+  assert.match(api, /superAdminAPI\.GET\("\/leave\/users\/:id\/profile", leaveHandler\.GetAdminDocumentProfile\)/);
+  assert.match(api, /superAdminAPI\.POST\("\/leave\/users\/:id\/document", leaveHandler\.AdminGenerateDailyDocument\)/);
 });
 
 test("leave identity is edited only in profile settings", () => {

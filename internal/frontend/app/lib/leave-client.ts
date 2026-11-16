@@ -31,6 +31,12 @@ export const leaveClient = {
   reviewLeaveAccessRequest: (id: number, status: "approved" | "rejected") => apiRequest<LeaveAccessState>(`/api/admin/leave/requests/${id}`, { method: "PATCH", body: { status } }),
   leavePermissions: () => apiRequest<LeaveAccessRequest[]>("/api/admin/leave/permissions"),
   setLeavePermission: (userId: number, mode: "permanent" | "temporary" | "revoke") => apiRequest<LeaveAccessState>(`/api/admin/leave/permissions/${userId}`, { method: "PUT", body: { mode } }),
+  adminMemberProfile: (userId: number) => apiRequest<LeaveProfile | null>(`/api/admin/leave/users/${userId}/profile`),
+  adminGenerateDaily: (userId: number, body: { startAt: string; endAt: string }, offline: boolean) => downloadLeaveFile(
+    `/api/admin/leave/users/${userId}/document${offline ? "?offline=true" : ""}`,
+    "请假条.docx",
+    { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) },
+  ),
   colleges: () => apiRequest<CollegeOption[]>("/api/leave/colleges"),
   profile: () => apiRequest<LeaveProfile | null>("/api/leave/profile"),
 
@@ -67,8 +73,8 @@ export const leaveClient = {
   publicJoinCamp: (token: string, body: { name: string; studentId: string; collegeCode: string }) => apiRequest<void>(`/api/camp-leave/public/${token}/participants`, { method: "POST", body }),
 };
 
-export async function downloadLeaveFile(path: string, fallbackName: string): Promise<void> {
-  const response = await fetch(path, { credentials: "include", cache: "no-store" });
+export async function downloadLeaveFile(path: string, fallbackName: string, options: RequestInit = {}): Promise<void> {
+  const response = await fetch(path, { credentials: "include", cache: "no-store", ...options });
   if (!response.ok) {
     let message = "下载失败，请稍后重试";
     try { const payload = await response.json() as { message?: string }; message = payload.message || message; } catch { /* Keep the fallback. */ }

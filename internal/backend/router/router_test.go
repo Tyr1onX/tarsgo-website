@@ -115,6 +115,8 @@ func TestCommunityAPIsRequireAuthenticationAndOpenWorkflowsRemain(t *testing.T) 
 		"PATCH /api/admin/leave/requests/:id",
 		"GET /api/admin/leave/permissions",
 		"PUT /api/admin/leave/permissions/:id",
+		"GET /api/admin/leave/users/:id/profile",
+		"POST /api/admin/leave/users/:id/document",
 		"GET /api/admin/registrations",
 		"GET /api/admin/organization-preview",
 	} {

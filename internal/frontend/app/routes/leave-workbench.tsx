@@ -36,6 +36,11 @@ export default function LeaveWorkbench() {
   const [permissions, setPermissions] = useState<LeaveAccessRequest[]>([]);
   const [accountKeyword, setAccountKeyword] = useState("");
   const [accountResults, setAccountResults] = useState<AdminUserListItem[]>([]);
+  const [delegateKeyword, setDelegateKeyword] = useState("");
+  const [delegateResults, setDelegateResults] = useState<AdminUserListItem[]>([]);
+  const [delegateAccount, setDelegateAccount] = useState<AdminUserListItem | null>(null);
+  const [delegateProfile, setDelegateProfile] = useState<LeaveProfile | null>(null);
+  const [delegateDraft, setDelegateDraft] = useState({ startAt: "", endAt: "" });
   const [profile, setProfile] = useState<LeaveProfile | null>(null);
   const [colleges, setColleges] = useState<CollegeOption[]>([]);
   const [requests, setRequests] = useState<LeaveRequest[]>([]);
@@ -133,6 +138,7 @@ export default function LeaveWorkbench() {
     const now = new Date();
     setDailyDraft({ startAt: localDateTime(new Date(now.getFullYear(), now.getMonth(), now.getDate(), 8, 0)), endAt: localDateTime(new Date(now.getFullYear(), now.getMonth(), now.getDate(), 17, 10)) });
     setSchoolDraft({ startAt: localDateTime(new Date(now.getFullYear(), now.getMonth(), now.getDate(), 8, 0)), endAt: localDateTime(new Date(now.getFullYear(), now.getMonth(), now.getDate(), 17, 10)) });
+    setDelegateDraft({ startAt: localDateTime(new Date(now.getFullYear(), now.getMonth(), now.getDate(), 8, 0)), endAt: localDateTime(new Date(now.getFullYear(), now.getMonth(), now.getDate(), 17, 10)) });
   }, []);
 
   async function runAction(action: () => Promise<unknown>, success: string) {
@@ -157,6 +163,33 @@ export default function LeaveWorkbench() {
 
   async function setPermission(userId: number, mode: "permanent" | "temporary" | "revoke") {
     await runAction(() => leaveClient.setLeavePermission(userId, mode), mode === "permanent" ? "长期使用权限已开通。" : mode === "temporary" ? "已授权一次请假。" : "已收回请假台使用资格。");
+  }
+
+  async function findDelegates() {
+    setBusy(true); setError("");
+    try {
+      const result = await listAdminUsers({ keyword: delegateKeyword.trim(), pageSize: 10 });
+      setDelegateResults(result.items);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "查找成员失败"); }
+    finally { setBusy(false); }
+  }
+
+  async function selectDelegate(user: AdminUserListItem) {
+    setBusy(true); setError(""); setDelegateAccount(user); setDelegateProfile(null);
+    try { setDelegateProfile(await leaveClient.adminMemberProfile(user.id)); }
+    catch (reason) { setError(reason instanceof Error ? reason.message : "读取成员资料失败"); }
+    finally { setBusy(false); }
+  }
+
+  async function makeDelegateDaily(offline = false) {
+    if (!delegateAccount || !delegateProfile) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      await leaveClient.adminGenerateDaily(delegateAccount.id, delegateDraft, offline);
+      setNotice(`已生成 ${delegateAccount.realName || delegateAccount.email} 的假条，可将下载文件发送给成员。`);
+      await load();
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "代生成假条失败"); }
+    finally { setBusy(false); }
   }
 
   async function makeDaily(offline = false) {
@@ -236,8 +269,44 @@ export default function LeaveWorkbench() {
 
     {!loading && (isSuperAdmin || ["granted", "pending", "approved"].includes(accessState?.status ?? "")) ? <>
       {isSuperAdmin ? <div className="space-y-4">
-        <section className="admin-panel space-y-3 p-4 sm:p-5">
-          <div className="admin-section-heading"><h2>请假台授权</h2></div>
+        <section className="admin-panel space-y-3 p-4 sm:p-5" aria-labelledby="leave-access-requests-title">
+          <div className="admin-section-heading"><h2 id="leave-access-requests-title">待审批申请（{accessRequests.length}）</h2></div>
+          <div className="divide-y divide-[var(--admin-border-subtle)]">{accessRequests.map((request) => <article key={request.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
+            <div><strong className="text-sm">{request.userName || request.email}</strong><p className="mt-1 text-xs text-[var(--admin-muted)]">{request.email} · {dateText(request.startAt)} 至 {dateText(request.endAt)}</p></div>
+            <div className="flex flex-wrap gap-2"><Link to={`/dashboard/admin/users?userId=${request.userId}`} className={`${button} admin-button--secondary`}>查看账号</Link><button type="button" className={`${button} admin-button--primary`} disabled={busy} onClick={() => void reviewLeaveAccess(request, "approved")}>批准</button><button type="button" className={`${button} admin-button--quiet`} disabled={busy} onClick={() => void reviewLeaveAccess(request, "rejected")}>拒绝</button></div>
+          </article>)}{!accessRequests.length ? <p className="py-2 text-sm text-[var(--admin-muted)]">暂无待审批申请。</p> : null}</div>
+        </section>
+        <section className="admin-panel space-y-3 p-4 sm:p-5" aria-labelledby="leave-delegate-title">
+          <div className="admin-section-heading"><h2 id="leave-delegate-title">代成员生成假条</h2></div>
+          <form className="flex gap-2" onSubmit={(event) => { event.preventDefault(); void findDelegates(); }}>
+            <input className={`${inputClass} flex-1`} value={delegateKeyword} onChange={(event) => setDelegateKeyword(event.target.value)} placeholder="搜索姓名或邮箱" aria-label="搜索代生成成员" required />
+            <button type="submit" className={`${button} admin-button--secondary`} disabled={busy || !delegateKeyword.trim()}>查找</button>
+          </form>
+          {delegateResults.length > 0 ? <div className="divide-y divide-[var(--admin-border-subtle)]">{delegateResults.map((user) => <div key={user.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
+            <span>{user.realName || user.email} · {user.email}</span>
+            <button type="button" className={`${button} admin-button--secondary`} disabled={busy || user.status !== 1} onClick={() => void selectDelegate(user)}>选择</button>
+          </div>)}</div> : null}
+          {delegateAccount ? <div className="space-y-3 border-t border-[var(--admin-border-subtle)] pt-3">
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm">
+              <strong>{delegateAccount.realName || delegateAccount.email}</strong>
+              <button type="button" className={`${button} admin-button--quiet`} onClick={() => void navigator.clipboard.writeText(delegateAccount.email)}>复制邮箱</button>
+            </div>
+            {delegateProfile ? <p className="text-xs text-[var(--admin-muted)]">{delegateProfile.name} · {delegateProfile.studentId} · {colleges.find((item) => item.code === delegateProfile.collegeCode)?.name ?? delegateProfile.collegeCode}</p> : <p className="text-xs text-[var(--admin-muted)]">{busy ? "正在读取成员学籍资料…" : "该成员缺少完整学籍资料，暂不能生成假条。"}</p>}
+            <form className="space-y-3" onSubmit={(event) => { event.preventDefault(); void makeDelegateDaily(); }}>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="admin-field-label">请假开始<input type="datetime-local" className={inputClass} required value={delegateDraft.startAt} onChange={(event) => setDelegateDraft({ ...delegateDraft, startAt: event.target.value })} /></label>
+                <label className="admin-field-label">请假结束<input type="datetime-local" className={inputClass} required value={delegateDraft.endAt} onChange={(event) => setDelegateDraft({ ...delegateDraft, endAt: event.target.value })} /></label>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <button type="submit" className={`${button} admin-button--primary`} disabled={busy || !delegateProfile}>生成并下载</button>
+                <button type="button" className={`${button} admin-button--secondary`} disabled={busy || !delegateProfile} onClick={(event) => { if (event.currentTarget.form?.reportValidity()) void makeDelegateDaily(true); }}>线下签章版</button>
+              </div>
+            </form>
+          </div> : null}
+        </section>
+        <details className="admin-panel p-4 sm:p-5">
+          <summary className="cursor-pointer text-sm font-semibold">授权管理（{permissions.length}）</summary>
+          <div className="space-y-3 pt-4">
           <form className="flex gap-2" onSubmit={(event) => { event.preventDefault(); void findAccounts(); }}>
             <input className={`${inputClass} flex-1`} value={accountKeyword} onChange={(event) => setAccountKeyword(event.target.value)} placeholder="按姓名或邮箱搜索账号" aria-label="搜索成员账号" required />
             <button className={`${button} admin-button--secondary`} disabled={busy || !accountKeyword.trim()}>搜索</button>
@@ -257,14 +326,8 @@ export default function LeaveWorkbench() {
             <span>{item.userName || item.email} · {item.email} · {item.status === "approved" && !item.startAt && !item.endAt ? "长期授权" : item.status === "granted" ? "临时待申请" : item.status === "pending" ? "临时待审核" : "临时待生成"}</span>
             <button type="button" className={`${button} admin-button--quiet`} disabled={busy} onClick={() => void setPermission(item.userId, "revoke")}>取消资格</button>
           </div>)}{!permissions.length ? <p className="py-2 text-sm text-[var(--admin-muted)]">暂无已授权成员。</p> : null}</div>
-        </section>
-        <section className="admin-panel space-y-3 p-4 sm:p-5" aria-labelledby="leave-access-requests-title">
-          <div className="admin-section-heading"><h2 id="leave-access-requests-title">一次性请假审批</h2></div>
-          <div className="divide-y divide-[var(--admin-border-subtle)]">{accessRequests.map((request) => <article key={request.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-            <div><strong className="text-sm">{request.userName || request.email}</strong><p className="mt-1 text-xs text-[var(--admin-muted)]">{request.email} · {dateText(request.startAt)} 至 {dateText(request.endAt)}</p></div>
-            <div className="flex flex-wrap gap-2"><Link to={`/dashboard/admin/users?userId=${request.userId}`} className={`${button} admin-button--secondary`}>查看账号</Link><button type="button" className={`${button} admin-button--primary`} disabled={busy} onClick={() => void reviewLeaveAccess(request, "approved")}>批准</button><button type="button" className={`${button} admin-button--quiet`} disabled={busy} onClick={() => void reviewLeaveAccess(request, "rejected")}>拒绝</button></div>
-          </article>)}{!accessRequests.length ? <p className="py-2 text-sm text-[var(--admin-muted)]">暂无待审批申请。</p> : null}</div>
-        </section>
+          </div>
+        </details>
       </div> : null}
       {tab === "daily" ? <div className="space-y-4">
         {showExtendedLeaveFeatures ? <section className="admin-panel space-y-4 p-4 sm:p-5">

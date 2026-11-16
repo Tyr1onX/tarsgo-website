@@ -118,6 +118,41 @@ func (h *LeaveHandler) SetLeavePermission(c *gin.Context) {
 	writeAPI(c, http.StatusOK, "请假授权已更新", state)
 }
 
+func (h *LeaveHandler) GetAdminDocumentProfile(c *gin.Context) {
+	memberID, ok := pathID(c, "id")
+	if !ok {
+		return
+	}
+	profile, err := h.service.GetAdminDocumentProfile(c.Request.Context(), memberID)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "读取成员学籍资料成功", profile)
+}
+
+func (h *LeaveHandler) AdminGenerateDailyDocument(c *gin.Context) {
+	adminID, ok := leaveUserID(c)
+	if !ok {
+		return
+	}
+	memberID, ok := pathID(c, "id")
+	if !ok {
+		return
+	}
+	var input leave.RequestInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		writeAPIError(c, http.StatusBadRequest, "请假时间不完整")
+		return
+	}
+	content, filename, err := h.service.AdminGenerateDailyDocument(c.Request.Context(), adminID, memberID, input, c.Query("offline") == "true")
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	writeDownload(c, content, filename, "application/vnd.openxmlformats-officedocument.wordprocessingml.document", true)
+}
+
 func (h *LeaveHandler) GetProfile(c *gin.Context) {
 	userID, ok := leaveUserID(c)
 	if !ok {
