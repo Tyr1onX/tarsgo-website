@@ -15,6 +15,7 @@ const historyRoute = await readFile(new URL("../routes/team-history.tsx", import
 const joinRoute = await readFile(new URL("../routes/join.tsx", import.meta.url), "utf8");
 const basePage = await readFile(new URL("../routes/base.tsx", import.meta.url), "utf8");
 const dailySignalRoute = await readFile(new URL("../routes/daily-signal.tsx", import.meta.url), "utf8");
+const workbenchUpdatesRoute = await readFile(new URL("../routes/dashboard/updates.tsx", import.meta.url), "utf8");
 const dashboardLayout = await readFile(new URL("../routes/dashboard/layout.tsx", import.meta.url), "utf8");
 const dashboardNavigation = await readFile(new URL("./dashboard-navigation.ts", import.meta.url), "utf8");
 const dashboardHome = await readFile(new URL("../routes/dashboard/index.tsx", import.meta.url), "utf8");
@@ -233,6 +234,12 @@ test("large homepage photos use content-hashed responsive WebP candidates withou
   assert.match(modules, /image: "\/assets\/images\/Milestone\/2019-breakthrough\.webp"/);
 });
 
+test("旧公告深链直达现有工作手册，不保留重复说明组件", () => {
+  assert.match(routes, /route\("updates", "routes\/dashboard\/updates\.tsx"\)/);
+  assert.match(workbenchUpdatesRoute, /return redirect\("\/dashboard\/guide"\)/);
+  assert.doesNotMatch(workbenchUpdatesRoute, /WorkbenchFeatureGuide|workbench-feature-announcement/);
+});
+
 test("公开基地入口已移除，旧链接只导向登录或统一工作台", () => {
   assert.match(routes, /route\("base", "routes\/base\.tsx"\)/);
   assert.match(routes, /route\("dashboard", "routes\/dashboard\/layout\.tsx", \[[\s\S]*?route\("base", "routes\/dashboard\/base\.tsx"\)/);
@@ -250,7 +257,7 @@ test("公开基地入口已移除，旧链接只导向登录或统一工作台",
   assert.doesNotMatch(styles, /home-base-feature|gijia-base__/);
   assert.doesNotMatch(home, /to="\/base"/);
   assert.match(routes, /route\("daily-signal", "routes\/daily-signal\.tsx"\)/);
-  assert.match(dailySignalRoute, /<Navigate to=\{`\/base\$\{location\.search\}\$\{location\.hash\}`\} replace \/>/);
+  assert.match(dailySignalRoute, /export \{ default, meta \} from "\.\/base";/);
   assert.match(dashboardLayout, /getDashboardSectionMenu\(currentUser\)/);
   assert.doesNotMatch(dashboardNavigation, /href: "\/dashboard\/base"/);
   assert.match(dashboardNavigation, /label: "社区", href: "\/dashboard"/);

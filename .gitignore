@@ -22,3 +22,4 @@
 # Local runtime artifacts
 /.runtime/
 /backups/
+/internal/backend/upload/

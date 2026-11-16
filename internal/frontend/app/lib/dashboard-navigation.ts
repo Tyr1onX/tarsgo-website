@@ -187,7 +187,6 @@ export function getDashboardSectionKey(pathname: string, roleName = "user", curr
     || normalizedPath === "/dashboard/team"
     || [
       "/dashboard/weekly-reports",
-      "/dashboard/updates",
       "/dashboard/leave",
       "/dashboard/guide",
       "/dashboard/timetable",
