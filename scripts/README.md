@@ -11,4 +11,4 @@
 | [`tests/`](tests/) | 本地、CI 的数据库与发布安全测试 |
 | [`assets/`](assets/) | 仅在素材更新时手动执行的图片生成脚本 |
 
-数据库审计实验 SQL 已放入 [历史归档](../docs/archive/sql/)；它们不是自动迁移。生产部署入口仍是 `scripts/deploy-production.sh`。
+生产部署入口仍是 `scripts/deploy-production.sh`。
