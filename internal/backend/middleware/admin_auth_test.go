@@ -141,6 +141,8 @@ func TestLeaveAccessReviewAndAccountDetailsAreSuperAdminOnly(t *testing.T) {
 		superAdminAPI.PATCH("/leave/requests/:id", func(c *gin.Context) { c.Status(http.StatusNoContent) })
 		superAdminAPI.GET("/leave/permissions", func(c *gin.Context) { c.Status(http.StatusNoContent) })
 		superAdminAPI.PUT("/leave/permissions/:id", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+		superAdminAPI.GET("/leave/users/:id/profile", func(c *gin.Context) { c.Status(http.StatusNoContent) })
+		superAdminAPI.POST("/leave/users/:id/document", func(c *gin.Context) { c.Status(http.StatusNoContent) })
 		superAdminAPI.GET("/users/:id", func(c *gin.Context) { c.Status(http.StatusNoContent) })
 
 		req := httptest.NewRequest(method, path, nil)
@@ -156,6 +158,8 @@ func TestLeaveAccessReviewAndAccountDetailsAreSuperAdminOnly(t *testing.T) {
 			{http.MethodPatch, "/api/admin/leave/requests/8"},
 			{http.MethodGet, "/api/admin/leave/permissions"},
 			{http.MethodPut, "/api/admin/leave/permissions/22"},
+			{http.MethodGet, "/api/admin/leave/users/22/profile"},
+			{http.MethodPost, "/api/admin/leave/users/22/document"},
 			{http.MethodGet, "/api/admin/users/22"},
 		} {
 			if got := request(role, route.method, route.path); got != http.StatusForbidden {
@@ -171,6 +175,8 @@ func TestLeaveAccessReviewAndAccountDetailsAreSuperAdminOnly(t *testing.T) {
 		{http.MethodPatch, "/api/admin/leave/requests/8"},
 		{http.MethodGet, "/api/admin/leave/permissions"},
 		{http.MethodPut, "/api/admin/leave/permissions/22"},
+		{http.MethodGet, "/api/admin/leave/users/22/profile"},
+		{http.MethodPost, "/api/admin/leave/users/22/document"},
 		{http.MethodGet, "/api/admin/users/22"},
 	} {
 		if got := request("super_admin", route.method, route.path); got != http.StatusNoContent {

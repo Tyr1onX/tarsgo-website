@@ -326,6 +326,8 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	superAdminAPI.PATCH("/leave/requests/:id", leaveHandler.ReviewLeaveAccessRequest)
 	superAdminAPI.GET("/leave/permissions", leaveHandler.ListLeavePermissions)
 	superAdminAPI.PUT("/leave/permissions/:id", leaveHandler.SetLeavePermission)
+	superAdminAPI.GET("/leave/users/:id/profile", leaveHandler.GetAdminDocumentProfile)
+	superAdminAPI.POST("/leave/users/:id/document", leaveHandler.AdminGenerateDailyDocument)
 	superAdminAPI.GET("/roles", adminUserHandler.ListRoles)
 	superAdminAPI.GET("/users", adminUserHandler.ListUsers)
 	superAdminAPI.POST("/users", adminUserHandler.CreateUser)
