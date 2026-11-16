@@ -14,8 +14,8 @@ const backendAdmin = await readFile(new URL("../../../backend/service/adminuser/
 const backendRepository = await readFile(new URL("../../../backend/service/adminuser/repository.go", import.meta.url), "utf8");
 const backendHandler = await readFile(new URL("../../../backend/handler/admin_user.go", import.meta.url), "utf8");
 const router = await readFile(new URL("../../../backend/router/router.go", import.meta.url), "utf8");
-const communityService = await readFile(new URL("../../../backend/service/trainingqa/community.go", import.meta.url), "utf8");
-const profileService = await readFile(new URL("../../../backend/service/trainingqa/community_member_profile.go", import.meta.url), "utf8");
+const communityService = await readFile(new URL("../../../backend/service/community/community.go", import.meta.url), "utf8");
+const profileService = await readFile(new URL("../../../backend/service/community/community_member_profile.go", import.meta.url), "utf8");
 
 test("unverified members have no badge while verified statuses use the four canonical labels", () => {
   assert.match(identity, /community_member: "社区成员"/);

@@ -21,6 +21,7 @@ import (
 	"tarsgo-backend/service/auth"
 	"tarsgo-backend/service/availability"
 	"tarsgo-backend/service/cobuilderbadge"
+	"tarsgo-backend/service/community"
 	"tarsgo-backend/service/dailysignal"
 	"tarsgo-backend/service/email"
 	"tarsgo-backend/service/emailtemplate"
@@ -31,7 +32,6 @@ import (
 	"tarsgo-backend/service/registration"
 	"tarsgo-backend/service/systemconfig"
 	"tarsgo-backend/service/timetable"
-	"tarsgo-backend/service/trainingqa"
 	"tarsgo-backend/service/usergroup"
 	"tarsgo-backend/service/weeklyreport"
 	"tarsgo-backend/service/workmanual"
@@ -121,7 +121,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	feishuReviewHandler := handler.NewFeishuReviewHandler(cfg.Feishu, db, assignmentService)
 	assignmentHandler := handler.NewAssignmentHandler(assignmentService, feishuReviewHandler)
 	trainingAssessmentHandler := handler.NewTrainingAssessmentHandler(db, assignmentService)
-	communityHandler := handler.NewCommunityHandler(trainingqa.NewService(db))
+	communityHandler := handler.NewCommunityHandler(community.NewService(db))
 	userGroupHandler := handler.NewUserGroupHandler(usergroup.NewService(usergroup.NewRepository(db)))
 	userGroupMembershipHandler := handler.NewUserGroupMembershipHandler(membershipService)
 	workManualHandler := handler.NewWorkManualHandler(workmanual.NewService(db))

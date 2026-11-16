@@ -37,11 +37,11 @@ const memberProfileClient = await source("./community-member-profile-client.ts")
 const markdownEditor = await source("../components/community-markdown-editor.tsx");
 const markdownRenderer = await source("../components/community-markdown.tsx");
 const markdown = await source("./community-markdown.ts");
-const communityUploads = await source("../../../backend/service/trainingqa/community_uploads.go");
+const communityUploads = await source("../../../backend/service/community/community_uploads.go");
 const handler = await source("../../../backend/handler/community.go");
 const router = await source("../../../backend/router/router.go");
-const service = await source("../../../backend/service/trainingqa/community.go");
-const memberProfileService = await source("../../../backend/service/trainingqa/community_member_profile.go");
+const service = await source("../../../backend/service/community/community.go");
+const memberProfileService = await source("../../../backend/service/community/community_member_profile.go");
 const model = await source("../../../backend/model/training_question.go");
 const migrations = await source("../../../backend/database/migrations.go");
 
@@ -462,7 +462,7 @@ test("focus and visibility events reuse the ongoing growth request without losin
 });
 
 test("community growth shows Beijing check-ins, author levels, and idempotent interaction rewards", async () => {
-  const growthService = service + await source("../../../backend/service/trainingqa/community_growth.go");
+  const growthService = service + await source("../../../backend/service/community/community_growth.go");
   const growthToast = await source("../components/community-experience-toast-host.tsx");
   assert.match(dashboard, /<CommunityGrowthBar userID=\{currentUser\.id\}/);
   assert.doesNotMatch(profile, /CommunityGrowthProfileSection|community-growth-profile/);
@@ -496,7 +496,7 @@ test("community growth shows Beijing check-ins, author levels, and idempotent in
 });
 
 test("member profiles reuse community permissions, XP, and public badge records", async () => {
-  const memberService = await source("../../../backend/service/trainingqa/community_member_profile.go");
+  const memberService = await source("../../../backend/service/community/community_member_profile.go");
   const badgeProjection = await source("../../../backend/service/cobuilderbadge/public.go");
   assert.match(router, /communityAPI\.GET\("\/members\/:id", communityHandler\.GetMemberProfile\)/);
   assert.match(router, /communityAPI\.PUT\("\/me\/profile"/);

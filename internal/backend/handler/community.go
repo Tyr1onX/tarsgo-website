@@ -11,21 +11,21 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"tarsgo-backend/middleware"
-	"tarsgo-backend/service/trainingqa"
+	"tarsgo-backend/service/community"
 )
 
-type CommunityHandler struct{ service *trainingqa.Service }
+type CommunityHandler struct{ service *community.Service }
 
-func NewCommunityHandler(service *trainingqa.Service) *CommunityHandler {
+func NewCommunityHandler(service *community.Service) *CommunityHandler {
 	return &CommunityHandler{service: service}
 }
 
-func currentCommunityActor(c *gin.Context) trainingqa.Actor {
+func currentCommunityActor(c *gin.Context) community.Actor {
 	user, ok := middleware.CurrentSessionUser(c)
 	if !ok || user == nil {
-		return trainingqa.Actor{}
+		return community.Actor{}
 	}
-	return trainingqa.Actor{ID: user.ID, RoleName: user.Role.Name}
+	return community.Actor{ID: user.ID, RoleName: user.Role.Name}
 }
 
 func parseCommunityMultipart(c *gin.Context) bool {
@@ -69,7 +69,7 @@ func (h *CommunityHandler) GetMemberProfile(c *gin.Context) {
 		page = parsed
 	}
 	result, err := h.service.GetCommunityMemberProfile(c.Request.Context(), currentCommunityActor(c), memberID,
-		trainingqa.CommunityMemberProfileTab(strings.TrimSpace(c.Query("tab"))), page)
+		community.CommunityMemberProfileTab(strings.TrimSpace(c.Query("tab"))), page)
 	if err != nil {
 		h.fail(c, err)
 		return
@@ -78,7 +78,7 @@ func (h *CommunityHandler) GetMemberProfile(c *gin.Context) {
 }
 
 func (h *CommunityHandler) UpdateMyMemberProfile(c *gin.Context) {
-	var request trainingqa.CommunityMemberProfileInput
+	var request community.CommunityMemberProfileInput
 	if err := c.ShouldBindJSON(&request); err != nil {
 		writeAPIError(c, http.StatusBadRequest, "社区资料格式不正确")
 		return
@@ -173,7 +173,7 @@ func (h *CommunityHandler) Create(c *gin.Context) {
 	if !ok {
 		return
 	}
-	item, err := h.service.CreateCommunityPost(c.Request.Context(), currentCommunityActor(c), trainingqa.CommunityPostInput{
+	item, err := h.service.CreateCommunityPost(c.Request.Context(), currentCommunityActor(c), community.CommunityPostInput{
 		Category: c.PostForm("category"), Title: c.PostForm("title"), Body: c.PostForm("body"), Files: files, UploadTokens: uploadTokens,
 	})
 	if err != nil {
@@ -188,7 +188,7 @@ func (h *CommunityHandler) Update(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var request trainingqa.CommunityPostUpdate
+	var request community.CommunityPostUpdate
 	if strings.HasPrefix(strings.ToLower(c.GetHeader("Content-Type")), "multipart/form-data") {
 		if !parseCommunityMultipart(c) {
 			return
@@ -200,7 +200,7 @@ func (h *CommunityHandler) Update(c *gin.Context) {
 		if !valid {
 			return
 		}
-		request = trainingqa.CommunityPostUpdate{
+		request = community.CommunityPostUpdate{
 			Category: c.PostForm("category"), Title: c.PostForm("title"), Body: c.PostForm("body"),
 			Files: communityMultipartFiles(c), UploadTokens: uploadTokens,
 		}
@@ -252,7 +252,7 @@ func (h *CommunityHandler) AddComment(c *gin.Context) {
 	if !ok {
 		return
 	}
-	item, err := h.service.AddCommunityComment(c.Request.Context(), currentCommunityActor(c), postID, trainingqa.CommunityCommentInput{
+	item, err := h.service.AddCommunityComment(c.Request.Context(), currentCommunityActor(c), postID, community.CommunityCommentInput{
 		Body: c.PostForm("body"), ParentPostID: parentPostID, Files: communityMultipartFiles(c), UploadTokens: uploadTokens,
 	})
 	if err != nil {
@@ -267,7 +267,7 @@ func (h *CommunityHandler) UpdateComment(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var request trainingqa.CommunityCommentUpdate
+	var request community.CommunityCommentUpdate
 	if strings.HasPrefix(strings.ToLower(c.GetHeader("Content-Type")), "multipart/form-data") {
 		if !parseCommunityMultipart(c) {
 			return
@@ -279,7 +279,7 @@ func (h *CommunityHandler) UpdateComment(c *gin.Context) {
 		if !valid {
 			return
 		}
-		request = trainingqa.CommunityCommentUpdate{Body: c.PostForm("body"), Files: communityMultipartFiles(c), UploadTokens: uploadTokens}
+		request = community.CommunityCommentUpdate{Body: c.PostForm("body"), Files: communityMultipartFiles(c), UploadTokens: uploadTokens}
 	} else {
 		var jsonRequest struct {
 			Body string `json:"body"`
@@ -332,7 +332,7 @@ func (h *CommunityHandler) SetSolution(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var request trainingqa.CommunitySolutionUpdate
+	var request community.CommunitySolutionUpdate
 	if err := c.ShouldBindJSON(&request); err != nil {
 		writeAPIError(c, http.StatusBadRequest, "解决方案信息不合法")
 		return
@@ -363,7 +363,7 @@ func (h *CommunityHandler) Moderate(c *gin.Context) {
 	if !ok {
 		return
 	}
-	var request trainingqa.CommunityModerationUpdate
+	var request community.CommunityModerationUpdate
 	if err := c.ShouldBindJSON(&request); err != nil {
 		writeAPIError(c, http.StatusBadRequest, "管理状态不合法")
 		return
@@ -427,20 +427,20 @@ func (h *CommunityHandler) OpenFile(c *gin.Context) {
 	c.Data(http.StatusOK, file.ContentType, file.Content)
 }
 
-func communityFilter(c *gin.Context) (trainingqa.CommunityListFilter, bool) {
-	filter := trainingqa.CommunityListFilter{
+func communityFilter(c *gin.Context) (community.CommunityListFilter, bool) {
+	filter := community.CommunityListFilter{
 		Sort: strings.TrimSpace(c.DefaultQuery("sort", "latest")), Category: strings.TrimSpace(c.Query("category")),
 		Keyword: strings.TrimSpace(c.Query("q")), Saved: c.Query("saved") == "true",
 		MineOnly: c.Query("mineOnly") == "true", FAQOnly: c.Query("faqOnly") == "true",
 		IncludeGrowth: c.Query("includeGrowth") == "true",
-		Status:        strings.TrimSpace(c.Query("status")), Page: 1, PageSize: trainingqa.CommunityDefaultPageSize,
+		Status:        strings.TrimSpace(c.Query("status")), Page: 1, PageSize: community.CommunityDefaultPageSize,
 	}
 	for key, target := range map[string]*int{"page": &filter.Page, "pageSize": &filter.PageSize} {
 		if raw := strings.TrimSpace(c.Query(key)); raw != "" {
 			value, err := strconv.Atoi(raw)
 			if err != nil {
 				writeAPIError(c, http.StatusBadRequest, "分页参数不合法")
-				return trainingqa.CommunityListFilter{}, false
+				return community.CommunityListFilter{}, false
 			}
 			*target = value
 		}
@@ -449,7 +449,7 @@ func communityFilter(c *gin.Context) (trainingqa.CommunityListFilter, bool) {
 		value, err := strconv.ParseUint(raw, 10, 64)
 		if err != nil || value == 0 {
 			writeAPIError(c, http.StatusBadRequest, "技术组参数不合法")
-			return trainingqa.CommunityListFilter{}, false
+			return community.CommunityListFilter{}, false
 		}
 		filter.GroupID = value
 	}
@@ -486,7 +486,7 @@ func parseCommunityID(c *gin.Context, parameter, label string) (uint64, bool) {
 }
 
 func (h *CommunityHandler) fail(c *gin.Context, err error) {
-	var serviceErr *trainingqa.ServiceError
+	var serviceErr *community.ServiceError
 	if errors.As(err, &serviceErr) {
 		if serviceErr.Status >= http.StatusInternalServerError {
 			middleware.LogInternalError(c, "community", serviceErr.Status, err)

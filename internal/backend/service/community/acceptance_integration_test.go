@@ -1,4 +1,4 @@
-package trainingqa
+package community
 
 import (
 	"bytes"
