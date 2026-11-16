@@ -7,7 +7,7 @@
 从仓库根目录重新生成网页资源：
 
 ```sh
-python3 scripts/optimize_robot_gallery_assets.py 2025
+python3 scripts/assets/optimize_robot_gallery_assets.py 2025
 ```
 
 脚本需要本机 Python Pillow 且启用 WebP 支持；它仅用于素材准备，不属于网站运行时。衍生图使用 WebP quality 84、method 6，并对原片应用 EXIF 方向、保留可用的 ICC 色彩配置。原始 JPG 保持不变。

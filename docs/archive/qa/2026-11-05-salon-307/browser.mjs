@@ -4,7 +4,7 @@ import { execFileSync } from 'node:child_process';
 const { chromium } = await import(process.env.TARSGO_PLAYWRIGHT_MODULE || 'playwright');
 const base='http://127.0.0.1:8198';
 const out=new URL('.',import.meta.url).pathname;
-const data=JSON.parse(await fs.readFile(new URL('../../events/ai-salon-01.json',import.meta.url)));
+const data=JSON.parse(await fs.readFile(new URL('../../../events/ai-salon-01.json',import.meta.url)));
 const official='https://www.aidaxue.com/activity/cyber-maker?ch=ai_daxue_AStudio_JLuniversity';
 const browser=await chromium.launch({headless:true,executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome'});
 const admin=await browser.newContext();

@@ -13,10 +13,10 @@
 ## 实际验证
 
 - `make backend-test`：全部通过；普通单测命令的可选外部数据库/真实课表夹具按原规则跳过，不能视为执行了这些集成测试。
-- `scripts/test-database-integration.py`：独立 loopback MariaDB 3317/tarsgo_acceptance；43 项测试/子测试通过，零跳过；两次迁移执行成功。包括真实注册持久化、密码验证、非学生不收集学籍、旧字段保留、请假锁定、32 并发座位/学号去重、正式成员已有组别全过程不变及历史快照。
+- `scripts/tests/test-database-integration.py`：独立 loopback MariaDB 3317/tarsgo_acceptance；43 项测试/子测试通过，零跳过；两次迁移执行成功。包括真实注册持久化、密码验证、非学生不收集学籍、旧字段保留、请假锁定、32 并发座位/学号去重、正式成员已有组别全过程不变及历史快照。
 - `make frontend-test`：350 项，347 通过、0 失败，3 项原有可选测试跳过。
 - `make frontend-check`：通过。`make build`：前端生产构建、内嵌后端及迁移程序构建成功。
-- `scripts/test-production-ops.sh`：全部通过；`git diff --check` 通过；`go vet ./...` 通过。
+- `scripts/tests/test-production-ops.sh`：全部通过；`git diff --check` 通过；`go vet ./...` 通过。
 - 真实 Chrome + 生产构建 + 本机真实后端/隔离数据库/模拟邮箱：11 组业务检查通过，页面异常为0。另验证既有海报上传及预览。实际点击注册并获取模拟邮箱生成的验证码；在校/非在校、未知编码手选、旧账号补齐返回、正式成员复用与恶意身份请求体、重复/候补/重排/补位/扩容、签到一次、历史快照和真实 CSV 导出均有验证。比较的是完整账号关键字段及真实已有组别，不只是界面标签。桌面1440及手机390截图人工检查、无横向溢出。数据均为保留域 `.test` 的虚构账号。
 - 生产回归、生产邮箱投递及生产运行版本需以合并后的 PR 发布记录为准；这里不把本机结果写作生产验证。
 

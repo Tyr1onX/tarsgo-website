@@ -1,6 +1,6 @@
 # 吉甲官网设计约束
 
-此文件记录当前实现，不是重新设计方案。品牌、图片权利见 `docs/brand-and-asset-rights.md`；交互性能与页面文案遵循 `AGENTS.md`。Impeccable 的通用审美提示不能覆盖吉甲既有视觉身份。
+此文件记录当前实现，不是重新设计方案。品牌、图片权利见 `docs/reference/brand-and-asset-rights.md`；交互性能与页面文案遵循 `AGENTS.md`。Impeccable 的通用审美提示不能覆盖吉甲既有视觉身份。
 
 ## 主题与变量
 

@@ -11,7 +11,7 @@
 
 - Node.js 22.23.4 / pnpm 9.15.4：`make frontend-test frontend-check build` 通过（前端 334 通过，3 项既有跳过，0 失败）。
 - `make backend-test` 全包通过；需要专门环境的测试另由下述数据库集成套件执行。
-- `scripts/test-database-integration.py` 在本地隔离 MariaDB 上通过，16 项测试/子测试，无跳过。新增验证覆盖概览不包含内容列表、统计与帖子页一致、仅修改介绍保留代表徽章、全部撤销后徽章和代表徽章消失、撤销徽章不可再选，以及成员接口无管理流水。
+- `scripts/tests/test-database-integration.py` 在本地隔离 MariaDB 上通过，16 项测试/子测试，无跳过。新增验证覆盖概览不包含内容列表、统计与帖子页一致、仅修改介绍保留代表徽章、全部撤销后徽章和代表徽章消失、撤销徽章不可再选，以及成员接口无管理流水。
 - 徽章单元测试覆盖降级后的当前等级与日期、全部撤销、重新授予后的获得日期及管理信息不外泄。
 - `git diff --check` 通过。
 

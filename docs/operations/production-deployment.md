@@ -60,11 +60,11 @@ CI 和本地前端 Make 目标使用 Node.js 22.23.4、pnpm 9.15.4 与同一锁�
 
 ```bash
 for file in scripts/*.sh; do bash -n "$file"; done
-scripts/test-production-ops.sh
+scripts/tests/test-production-ops.sh
 git diff --check
 make backend-test
 make frontend-test
 make frontend-check
 ```
 
-`scripts/test-production-ops.sh` 只使用临时目录和 mock 命令，覆盖公开 CI Release 资产下载与校验、缺失/损坏/提交不匹配时拒绝发布、本机没有构建工具或 `sha256sum` 时仍可部署、85% 高水位清理、current/previous retention、健康检查失败回滚，以及上传中断后的安全重试。CI 负责实际构建并校验 Linux amd64 发布二进制。
+`scripts/tests/test-production-ops.sh` 只使用临时目录和 mock 命令，覆盖公开 CI Release 资产下载与校验、缺失/损坏/提交不匹配时拒绝发布、本机没有构建工具或 `sha256sum` 时仍可部署、85% 高水位清理、current/previous retention、健康检查失败回滚，以及上传中断后的安全重试。CI 负责实际构建并校验 Linux amd64 发布二进制。

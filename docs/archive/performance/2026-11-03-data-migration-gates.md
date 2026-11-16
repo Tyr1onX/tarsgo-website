@@ -1,11 +1,11 @@
 # 数据模型收敛的检查与迁移条件
 
-`scripts/audit-data-preflight.sql` 只读检查当前 schema、表容量估算、周报重复、招新历史字段占用、暂停模块引用及实际索引/外键。输出仅统计与结构，不输出用户 ID、正文或附件。每条语句最多 15 秒；报错或超时表示检查未完成，不能解释为零异常。
+`docs/archive/sql/audit-data-preflight.sql` 只读检查当前 schema、表容量估算、周报重复、招新历史字段占用、暂停模块引用及实际索引/外键。输出仅统计与结构，不输出用户 ID、正文或附件。每条语句最多 15 秒；报错或超时表示检查未完成，不能解释为零异常。
 
 用 MariaDB 11.4 客户端和 SELECT-only 账号先在恢复备份或只读副本执行。凭证放在权限为 0600 的客户端配置文件，不写入命令行或提交日志：
 
 ```sh
-mariadb --defaults-extra-file=/secure/audit-client.cnf --database=tarsgo --batch < scripts/audit-data-preflight.sql > /secure/audit-data-preflight.tsv
+mariadb --defaults-extra-file=/secure/audit-client.cnf --database=tarsgo --batch < docs/archive/sql/audit-data-preflight.sql > /secure/audit-data-preflight.tsv
 ```
 
 不要添加 `--force`。只读不代表零负载；重复检查会扫描周报和招新记录。容量中的 table_rows 是 InnoDB 估计值；索引清单是实际 DDL 元数据。输出并不包含生产慢查询、索引使用频率或任命真实性。
@@ -40,7 +40,7 @@ mariadb --defaults-extra-file=/secure/audit-client.cnf --database=tarsgo --batch
 
 ## 可复跑的索引实验
 
-`scripts/audit-reaction-index-experiment.sql` 在会话临时表生成 20 万条互动数据（5,000 帖子、4,000 用户），比较新增两个候选索引前后的真实 `ANALYZE FORMAT=JSON`。只在隔离库执行，需要临时表权限；不会修改业务表。
+`docs/archive/sql/audit-reaction-index-experiment.sql` 在会话临时表生成 20 万条互动数据（5,000 帖子、4,000 用户），比较新增两个候选索引前后的真实 `ANALYZE FORMAT=JSON`。只在隔离库执行，需要临时表权限；不会修改业务表。
 
 | 合成查询 | 原扫描行 | 候选索引后扫描行 | 使用索引 |
 |---|---:|---:|---|
