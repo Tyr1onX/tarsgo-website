@@ -20,6 +20,7 @@ func TestMariaDBAdminGenerateDoesNotGrantOrConsumeMemberAccess(t *testing.T) {
 	if !strings.Contains(dsn, "@tcp(127.0.0.1:3317)/tarsgo_acceptance?") {
 		t.Fatal("isolated database required")
 	}
+	setLeaveTemplateTestAssets(t)
 	t.Setenv("LEAVE_CONTACT_PHONE", "0431-00000000")
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 	if err != nil {
