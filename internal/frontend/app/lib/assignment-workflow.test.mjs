@@ -386,11 +386,11 @@ test("student submission precedes collapsible history while redo feedback stays 
 
 test("submission deadline changes update the page without hiding server errors", () => {
   assert.match(memberAssignments, /const \[now, setNow\] = useState\(Date\.now\)/);
-  assert.match(memberAssignments, /const remaining = new Date\(detail\.assignment\.dueAt\)\.getTime\(\) - Date\.now\(\)/);
+  assert.match(memberAssignments, /const deadline = new Date\(detail\.assignment\.lateDueAt \?\? detail\.assignment\.dueAt\)\.getTime\(\)/);
   assert.match(memberAssignments, /window\.setTimeout\(refresh, remaining \+ 1\)/);
   assert.match(memberAssignments, /window\.addEventListener\("focus", refresh\)/);
   assert.match(memberAssignments, /window\.clearTimeout\(timer\)/);
-  assert.match(memberAssignments, /\!detail\?\.submissions\.length \|\| now <= new Date\(assignment\.dueAt\)\.getTime\(\)/);
+  assert.match(memberAssignments, /now <= new Date\(assignment\.lateDueAt \?\? assignment\.dueAt\)\.getTime\(\)/);
 
   const formEnd = memberAssignments.indexOf("  ) : null;\n\n  return (");
   const visibleError = memberAssignments.indexOf('{submissionError ? <p role="alert"');
@@ -408,9 +408,9 @@ test("member actions distinguish first submission, waiting for review, redo, and
   assert.match(memberAssignments, /assignment\.status === "submitted" && canSubmit \? <details key=\{detail\.submissions\.at\(-1\)\?\.id\}/);
   assert.match(memberAssignments, /<summary[^>]*>更新已提交的附件<\/summary>/);
   assert.match(memberAssignments, /assignment\.status === "submitted" \? null : submissionForm/);
-  assert.match(memberAssignments, /assignment\.status === "needs_redo" && !canSubmit && assignment\.publicationStatus !== "withdrawn"/);
-  assert.match(memberAssignments, /已过截止时间，无法重新提交/);
+  assert.match(memberAssignments, /assignment\.status === "needs_redo" \|\| assignment\.status === "overdue"/);
+  assert.match(memberAssignments, /提交窗口已关闭，请联系管理员开放补交/);
   assert.match(memberAssignments, /assignment\.status !== "passed"/);
-  assert.match(assignmentService, /if latestErr == nil \{\s+if now\.After\(readStoredUTCWall\(item\.DueAt\)\)/);
+  assert.match(assignmentService, /if now\.After\(deadline\) \{\s+return conflict\("提交窗口已关闭/);
   assert.match(assignmentService, /review\.Decision == model\.AssignmentReviewPassed/);
 });
