@@ -40,7 +40,11 @@ const markdown = await source("./community-markdown.ts");
 const communityUploads = await source("../../../backend/service/community/community_uploads.go");
 const handler = await source("../../../backend/handler/community.go");
 const router = await source("../../../backend/router/router.go");
-const service = await source("../../../backend/service/community/community.go");
+const service = (await Promise.all(
+  ["community.go", "community_content.go", "community_reactions.go", "community_moderation.go"].map((file) =>
+    source(`../../../backend/service/community/${file}`),
+  ),
+)).join("\n");
 const memberProfileService = await source("../../../backend/service/community/community_member_profile.go");
 const model = await source("../../../backend/model/training_question.go");
 const migrations = await source("../../../backend/database/migrations.go");
