@@ -69,6 +69,18 @@ docs/          运维说明、素材依据与活动配置
 
 本仓库是**吉甲官网的主开发仓库**；历史仓库 [`Tyr1onX/TarsGo`](https://github.com/Tyr1onX/TarsGo) 不再作为新功能入口。本项目也**不是**独立的 TARS Base / `tarsgo-base`。
 
+## 核心流程定位
+
+排查功能时按 `internal/frontend/app/routes.ts` → 页面 → `app/lib/*-client.ts` → `internal/backend/router/router.go` → `handler` → `service` → `model/database` 追踪。下表路径均以 `internal/` 为起点：
+
+| 业务 | 代码入口及容易忽略的约束 |
+| --- | --- |
+| 登录与工作台 | `frontend/app/routes/dashboard/layout.tsx`、`frontend/app/lib/dashboard-navigation.ts`、`backend/middleware/admin_auth.go`、`backend/model/workbench_access.go`：前端菜单不等于服务端授权，工作台资格还取决于账号活跃度和有效组别关系。 |
+| 招新 | `backend/service/registration/` 按提交、列表、审核、通知、导出、数据访问拆分；经 `backend/handler/registration_handler.go` 暴露 API。普通管理员可查看跨组招新记录，招新配置仅超级管理员可修改。 |
+| 社区 | `backend/handler/community.go` → `backend/service/community/`；`backend/model/training_question.go` 的旧数据库表名因历史迁移保留，不代表仍使用独立培训问答系统。 |
+| 作业与飞书 | `backend/handler/assignment.go` → `backend/service/assignment/`；提交成功后由 Handler 异步触发 `backend/handler/feishu_review.go` 的同步，飞书失败不回滚网站提交。 |
+| 数据库与生产 | 迁移入口为 `backend/database/migrations.go`，历史版本不能直接删除；生产部署与回滚参见 `docs/operations/production-deployment.md`。 |
+
 ## 本地运行
 
 适用于 macOS / Linux。需要 Git、Make、Docker Compose v2、Go **1.25+**、Node.js **22.23.4** 和随 Node 提供的 Corepack。前端通过 `package.json` 固定使用 pnpm **9.15.4**。
