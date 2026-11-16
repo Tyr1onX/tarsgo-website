@@ -1090,6 +1090,32 @@ func TestRegistrationServiceListRegistrationsReturnsPagination(t *testing.T) {
 	}
 }
 
+func TestRegistrationServiceAdminAccessIsNotLimitedToOneGroup(t *testing.T) {
+	repo := newFakeRegistrationListRepository()
+	another := repo.items[0]
+	another.ID = 7002
+	another.UserID = 502
+	another.PreferredGroupID = uint64Ptr(102)
+	repo.items = append(repo.items, another)
+	repo.total = 2
+
+	service := newRegistrationServiceWithDependencies(repo, nil)
+	result, err := service.ListRegistrations(context.Background(), RegistrationFormActor{
+		ID: 9001, RoleName: model.RoleNameAdmin,
+	}, ListRegistrationsInput{})
+	if err != nil {
+		t.Fatalf("admin should see current recruitment across groups: %v", err)
+	}
+	if len(result.Items) != 2 {
+		t.Fatalf("admin should see both groups, got %d registrations", len(result.Items))
+	}
+
+	_, err = service.ListRegistrations(context.Background(), RegistrationFormActor{
+		ID: 9002, RoleName: model.RoleNameUser,
+	}, ListRegistrationsInput{})
+	assertRegistrationServiceError(t, err, http.StatusForbidden, "管理员")
+}
+
 func TestRegistrationServiceClosedRoundIsHistoricalAndCurrentQueueIsEmpty(t *testing.T) {
 	repo := newFakeRegistrationListRepository()
 	repo.forms[301].Status = model.RegistrationFormStatusClosed
@@ -1354,13 +1380,12 @@ func TestRegistrationServiceListRegistrationsPreservesStatsFilterSemantics(t *te
 	formID := uint64(301)
 
 	tests := []struct {
-		name                string
-		actor               RegistrationFormActor
-		input               ListRegistrationsInput
-		wantKeyword         string
-		wantFormID          *uint64
-		wantVisibleGroupIDs []uint64
-		wantCountStatus     *string
+		name            string
+		actor           RegistrationFormActor
+		input           ListRegistrationsInput
+		wantKeyword     string
+		wantFormID      *uint64
+		wantCountStatus *string
 	}{
 		{
 			name:  "no filters",
@@ -1385,9 +1410,8 @@ func TestRegistrationServiceListRegistrationsPreservesStatsFilterSemantics(t *te
 			wantFormID: &formID,
 		},
 		{
-			name:                "admin role has full current-term review access",
-			actor:               RegistrationFormActor{ID: 2001, RoleName: model.RoleNameAdmin},
-			wantVisibleGroupIDs: nil,
+			name:  "admin role has full current-term review access",
+			actor: RegistrationFormActor{ID: 2001, RoleName: model.RoleNameAdmin},
 		},
 	}
 
@@ -1415,14 +1439,6 @@ func TestRegistrationServiceListRegistrationsPreservesStatsFilterSemantics(t *te
 			}
 			if statsFilter.FormID == nil || *statsFilter.FormID != 301 {
 				t.Fatalf("expected current form ID 301, got %#v", statsFilter.FormID)
-			}
-			if len(statsFilter.VisibleGroupIDs) != len(tt.wantVisibleGroupIDs) {
-				t.Fatalf("expected stats visible groups %v, got %v", tt.wantVisibleGroupIDs, statsFilter.VisibleGroupIDs)
-			}
-			for index, groupID := range tt.wantVisibleGroupIDs {
-				if statsFilter.VisibleGroupIDs[index] != groupID {
-					t.Fatalf("expected stats visible groups %v, got %v", tt.wantVisibleGroupIDs, statsFilter.VisibleGroupIDs)
-				}
 			}
 			if len(repo.countFilters) != 1 {
 				t.Fatalf("expected 1 count filter call, got %d", len(repo.countFilters))
@@ -1549,9 +1565,7 @@ func TestRegistrationServiceExportIgnoresLegacyAdminGroupScopeForSuperAdmin(t *t
 	if len(repo.exportFilters) != 1 {
 		t.Fatalf("expected 1 export filter call, got %d", len(repo.exportFilters))
 	}
-	if len(repo.exportFilters[0].VisibleGroupIDs) != 0 {
-		t.Fatalf("admin export should not be restricted by legacy group scope, got %v", repo.exportFilters[0].VisibleGroupIDs)
-	}
+
 }
 
 func TestRegistrationServiceExportIsSuperAdminOnly(t *testing.T) {
@@ -2814,9 +2828,6 @@ func (r *fakeRegistrationListRepository) filteredRegistrations(filter ListRegist
 		if filter.FormID != nil && r.items[i].FormID != *filter.FormID {
 			continue
 		}
-		if len(filter.VisibleGroupIDs) > 0 && !registrationMatchesVisibleGroups(&r.items[i], filter.VisibleGroupIDs) {
-			continue
-		}
 		registrations = append(registrations, *cloneRegistrationModel(&r.items[i]))
 	}
 	return registrations
@@ -2875,21 +2886,6 @@ func (r *fakeRegistrationListRepository) CountInterviewSessionSelections(_ conte
 
 func (r *fakeRegistrationListRepository) CountInterviewSessionSelectionsByIDs(_ context.Context, _ []uint64) (map[uint64]int64, error) {
 	return map[uint64]int64{}, nil
-}
-
-func registrationMatchesVisibleGroups(registration *model.Registration, visibleGroupIDs []uint64) bool {
-	if registration == nil || len(visibleGroupIDs) == 0 {
-		return true
-	}
-	for _, groupID := range visibleGroupIDs {
-		if registration.Group1ID != nil && *registration.Group1ID == groupID {
-			return true
-		}
-		if registration.Group2ID != nil && *registration.Group2ID == groupID {
-			return true
-		}
-	}
-	return false
 }
 
 func cloneGroupModel(group *model.UserGroup) *model.UserGroup {

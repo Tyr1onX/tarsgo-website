@@ -22,18 +22,6 @@ type ScreeningDecisionInput struct {
 	Remark   string
 }
 
-type registrationAccessScope struct {
-	fullAccess bool
-}
-
-func newRegistrationAccessScope(fullAccess bool, _ []uint64) registrationAccessScope {
-	return registrationAccessScope{fullAccess: fullAccess}
-}
-
-func (scope registrationAccessScope) canAccessRegistration(registration *model.Registration) bool {
-	return registration != nil && scope.fullAccess
-}
-
 func canMutateRegistrationBeforeReview(registration *model.Registration) bool {
 	return registration != nil && registration.RecruitmentStatus == model.RecruitmentStatusPendingScreening
 }
