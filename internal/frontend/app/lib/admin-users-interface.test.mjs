@@ -7,7 +7,7 @@ const styles = await readFile(new URL("../admin-design.css", import.meta.url), "
 const registrations = await readFile(new URL("../routes/admin/registrations.tsx", import.meta.url), "utf8");
 const adminClient = await readFile(new URL("./admin-users-client.ts", import.meta.url), "utf8");
 const registrationClient = await readFile(new URL("./registrations-client.ts", import.meta.url), "utf8");
-const registrationService = await readFile(new URL("../../../backend/service/registration/service.go", import.meta.url), "utf8");
+const registrationList = await readFile(new URL("../../../backend/service/registration/list.go", import.meta.url), "utf8");
 
 test("account list uses ten-row server pagination and keeps the search server-backed", () => {
   assert.match(page, /pageSize: 10/);
@@ -76,7 +76,7 @@ test("recruitment intention correction has one admin entry in recruitment detail
   assert.match(registrations, /preferredGroupError \? <p role="alert"/);
   assert.match(adminClient, /updateAdminUserRecruitmentGroup\(userId: number, groupId: number\)/);
   assert.match(registrationClient, /userId: number;[\s\S]*?formStatus: number;/);
-  assert.match(registrationService, /UserID:\s+registration\.UserID,[\s\S]*?FormStatus:\s+registration\.Form\.Status/);
+  assert.match(registrationList, /UserID:\s+registration\.UserID,[\s\S]*?FormStatus:\s+registration\.Form\.Status/);
 });
 
 test("account filters, key metrics, group distribution, and create action have distinct priority", () => {
