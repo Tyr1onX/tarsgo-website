@@ -53,9 +53,13 @@ jobs:
         run: scripts/tests/test-production-ops.sh
       - name: Run backend tests
         run: make backend-test
-      - name: Run frontend checks and build release binaries
-        run: make frontend-test frontend-check build-linux-amd64
+      - name: Run frontend checks
+        run: make frontend-test frontend-check
+      - name: Build production release binaries
+        if: github.event_name == 'pull_request' || steps.deploy_changes.outputs.deploy_required == 'true'
+        run: make build-linux-amd64
       - name: Package production release
+        if: github.event_name == 'pull_request' || steps.deploy_changes.outputs.deploy_required == 'true'
         run: |
           release_dir=dist/production-release
           mkdir -p "$release_dir"
@@ -68,7 +72,7 @@ jobs:
             sha256sum --check -- SHA256SUMS
           )
       - name: Store production release artifact
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.deploy_changes.outputs.deploy_required == 'true'
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: tarsgo-production-release
@@ -105,7 +109,7 @@ jobs:
         run: python3 scripts/tests/test-database-integration.py
 
   publish-production-release:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && needs.verify.outputs.deploy_required == 'true'
     needs: [verify, database-integration]
     runs-on: ubuntu-24.04
     timeout-minutes: 10
