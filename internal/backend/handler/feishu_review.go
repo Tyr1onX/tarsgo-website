@@ -28,7 +28,7 @@ import (
 	"tarsgo-backend/service/assignment"
 )
 
-type FeishuReviewHandler struct {
+type FeishuHandler struct {
 	cfg                config.FeishuConfig
 	db                 *gorm.DB
 	assignments        *assignment.Service
@@ -39,18 +39,18 @@ type FeishuReviewHandler struct {
 	materialUploadMu   sync.Mutex
 }
 
-func NewFeishuReviewHandler(cfg config.FeishuConfig, db *gorm.DB, assignments *assignment.Service) *FeishuReviewHandler {
-	return &FeishuReviewHandler{
+func NewFeishuHandler(cfg config.FeishuConfig, db *gorm.DB, assignments *assignment.Service) *FeishuHandler {
+	return &FeishuHandler{
 		cfg: cfg, db: db, assignments: assignments, client: &http.Client{Timeout: 30 * time.Second},
 		pendingMaterials: make(map[string]feishuPendingMaterial),
 	}
 }
 
-func (h *FeishuReviewHandler) enabled() bool {
+func (h *FeishuHandler) enabled() bool {
 	return h.cfg.AppID != "" && h.cfg.AppSecret != ""
 }
 
-func (h *FeishuReviewHandler) SendTestCard(c *gin.Context) {
+func (h *FeishuHandler) SendTestCard(c *gin.Context) {
 	sessionUser, ok := middleware.CurrentSessionUser(c)
 	if !ok || sessionUser == nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"message": "请先登录网站"})
@@ -81,7 +81,7 @@ func (h *FeishuReviewHandler) SendTestCard(c *gin.Context) {
 // SyncSubmission syncs a committed website submission to the shared Bitable.
 // It never sends per-submission messages or cards; a Feishu outage cannot undo
 // the website submission.
-func (h *FeishuReviewHandler) SyncSubmission(ctx context.Context, submissionID uint64) error {
+func (h *FeishuHandler) SyncSubmission(ctx context.Context, submissionID uint64) error {
 	if !h.enabled() || !h.bitableEnabled() {
 		return nil
 	}
@@ -114,7 +114,7 @@ func (h *FeishuReviewHandler) SyncSubmission(ctx context.Context, submissionID u
 	return nil // A newer submission superseded this committed notification.
 }
 
-func (h *FeishuReviewHandler) systemAssignmentActor(ctx context.Context) (assignment.Actor, error) {
+func (h *FeishuHandler) systemAssignmentActor(ctx context.Context) (assignment.Actor, error) {
 	var user model.User
 	err := h.db.WithContext(ctx).Select("users.id").
 		Joins("JOIN roles ON roles.id = users.role_id").
@@ -126,7 +126,7 @@ func (h *FeishuReviewHandler) systemAssignmentActor(ctx context.Context) (assign
 	return assignment.Actor{ID: user.ID, RoleName: model.RoleNameSuperAdmin}, nil
 }
 
-func (h *FeishuReviewHandler) sendSubmissionReviewCard(ctx context.Context, token, operatorOpenID string, item assignment.AssignmentView, member assignment.AssignmentMemberView, target *assignment.SubmissionView) error {
+func (h *FeishuHandler) sendSubmissionReviewCard(ctx context.Context, token, operatorOpenID string, item assignment.AssignmentView, member assignment.AssignmentMemberView, target *assignment.SubmissionView) error {
 	names := make([]string, 0, len(target.Files))
 	for _, file := range target.Files {
 		names = append(names, file.FileName)
@@ -174,7 +174,7 @@ func feishuReviewCard(title, info, kind string, submissionID, groupID uint64) ma
 
 var feishuChinaTimeZone = time.FixedZone("Asia/Shanghai", 8*60*60)
 
-func (h *FeishuReviewHandler) sendCardTo(ctx context.Context, operatorOpenID string, card map[string]any) error {
+func (h *FeishuHandler) sendCardTo(ctx context.Context, operatorOpenID string, card map[string]any) error {
 	token, err := h.tenantToken(ctx)
 	if err != nil {
 		return err
@@ -182,7 +182,7 @@ func (h *FeishuReviewHandler) sendCardTo(ctx context.Context, operatorOpenID str
 	return h.sendMessageTo(ctx, token, operatorOpenID, "open_id", "interactive", card)
 }
 
-func (h *FeishuReviewHandler) tenantToken(ctx context.Context) (string, error) {
+func (h *FeishuHandler) tenantToken(ctx context.Context) (string, error) {
 	if !h.enabled() {
 		return "", errors.New("feishu app is not configured")
 	}
@@ -200,7 +200,7 @@ func (h *FeishuReviewHandler) tenantToken(ctx context.Context) (string, error) {
 	return result.Token, nil
 }
 
-func (h *FeishuReviewHandler) sendMessageTo(ctx context.Context, token, receiveID, receiveIDType, msgType string, content any) error {
+func (h *FeishuHandler) sendMessageTo(ctx context.Context, token, receiveID, receiveIDType, msgType string, content any) error {
 	if receiveID == "" || (receiveIDType != "open_id" && receiveIDType != "union_id") {
 		return errors.New("invalid Feishu message recipient")
 	}
@@ -225,7 +225,7 @@ func (h *FeishuReviewHandler) sendMessageTo(ctx context.Context, token, receiveI
 	return nil
 }
 
-func (h *FeishuReviewHandler) postJSON(ctx context.Context, url string, data []byte, token string, into any) error {
+func (h *FeishuHandler) postJSON(ctx context.Context, url string, data []byte, token string, into any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bytes.NewReader(data))
 	if err != nil {
 		return err
@@ -280,7 +280,7 @@ type feishuCallback struct {
 	} `json:"event"`
 }
 
-func (h *FeishuReviewHandler) Callback(c *gin.Context) {
+func (h *FeishuHandler) Callback(c *gin.Context) {
 	if !h.enabled() {
 		c.Status(http.StatusNotFound)
 		return
@@ -407,7 +407,7 @@ func feishuCardActionSupported(kind, action string) bool {
 	}
 }
 
-func (h *FeishuReviewHandler) authenticateAndDecodeFeishuCallback(c *gin.Context, raw []byte) ([]byte, error) {
+func (h *FeishuHandler) authenticateAndDecodeFeishuCallback(c *gin.Context, raw []byte) ([]byte, error) {
 	if h.cfg.EncryptKey == "" {
 		return nil, errors.New("Feishu Encrypt Key is required for signed callbacks")
 	}
@@ -461,7 +461,7 @@ func callbackVerificationToken(event feishuCallback) string {
 	return event.Token
 }
 
-func (h *FeishuReviewHandler) feishuURLVerificationPayload(raw []byte) ([]byte, bool) {
+func (h *FeishuHandler) feishuURLVerificationPayload(raw []byte) ([]byte, bool) {
 	var event struct {
 		Type string `json:"type"`
 	}
@@ -527,7 +527,7 @@ func feishuReviewCompleted(c *gin.Context, title string, score int, decision, co
 	})
 }
 
-func (h *FeishuReviewHandler) sendNextReviewCard(actor assignment.Actor, operator model.User, groupID uint64) {
+func (h *FeishuHandler) sendNextReviewCard(actor assignment.Actor, operator model.User, groupID uint64) {
 	ctx, cancel := context.WithTimeout(context.Background(), 25*time.Second)
 	defer cancel()
 	openID := ""
