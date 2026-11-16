@@ -45,6 +45,7 @@ export interface Assignment {
   title: string;
   description: string;
   dueAt: string;
+  lateDueAt?: string;
   attachmentRequirements: string;
   isGroupWide: boolean;
   createdAt: string;
@@ -69,6 +70,7 @@ export interface AssignmentMember {
   userId: number;
   name: string;
   status: string;
+  lateDueAt?: string;
   isLate: boolean;
   latestSubmission?: AssignmentSubmission;
   submissions: AssignmentSubmission[];
@@ -156,6 +158,8 @@ export const assignmentClient = {
   update: (id: number, input: AssignmentInput) => apiRequest<Assignment>(`/api/admin/assignments/${id}`, { method: "PATCH", body: input }),
   setPublicationStatus: (id: number, status: "published" | "withdrawn") =>
     apiRequest<Assignment>(`/api/admin/assignments/${id}/status`, { method: "PATCH", body: { status } }),
+  setLateWindow: (id: number, userIds: number[], dueAt: string | null) =>
+    apiRequest<AdminAssignmentDetail>(`/api/admin/assignments/${id}/late-window`, { method: "PATCH", body: { userIds, dueAt } }),
   delete: (id: number) => apiRequest<{ id: number }>(`/api/admin/assignments/${id}`, { method: "DELETE" }),
   uploadMaterialFiles: (id: number, files: File[], onProgress: (progress: number) => void) => {
     const body = new FormData();

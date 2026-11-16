@@ -94,7 +94,7 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 			}
 		}
 		if len(createdAssignmentIDs) > 0 {
-			for _, destination := range []any{&model.AssignmentTarget{}, &model.AssignmentMaterialFile{}} {
+			for _, destination := range []any{&model.AssignmentTarget{}, &model.AssignmentMaterialFile{}, &model.AssignmentLateWindow{}} {
 				if err := db.Where("assignment_id IN ?", createdAssignmentIDs).Delete(destination).Error; err != nil {
 					t.Errorf("remove synthetic assignment relations: %v", err)
 				}
@@ -697,6 +697,36 @@ func TestAcceptanceDatabaseTeachingMaterialsWorkflow(t *testing.T) {
 	deadlineDetail, err := service.GetMine(context.Background(), member, deadlineAssignment.ID)
 	if err != nil || deadlineDetail.Assignment.PublicationStatus != model.AssignmentPublicationPublished || deadlineDetail.Assignment.Status != "overdue" {
 		t.Fatalf("normal deadline hid the published assignment: detail=%#v err=%v", deadlineDetail, err)
+	}
+	if _, err := service.Submit(context.Background(), member, deadlineAssignment.ID, []*multipart.FileHeader{multipartHeader(t, "逾期.pdf", []byte("%PDF-1.7\\nlate"))}); statusOf(err) != http.StatusConflict {
+		t.Fatalf("first late submission without permission was accepted: %v", err)
+	}
+	if _, err := service.SetLateWindow(context.Background(), crossAdmin, deadlineAssignment.ID, []uint64{member.ID}, now.Add(3*time.Hour)); statusOf(err) != http.StatusForbidden {
+		t.Fatalf("cross-group admin opened a late window: %v", err)
+	}
+	lateWindow, err := service.SetLateWindow(context.Background(), admin, deadlineAssignment.ID, []uint64{member.ID}, now.Add(3*time.Hour))
+	if err != nil || len(lateWindow.Members) != 1 || lateWindow.Members[0].LateDueAt == nil {
+		t.Fatalf("admin failed to open the late window: detail=%#v err=%v", lateWindow, err)
+	}
+	deadlineDetail, err = service.GetMine(context.Background(), member, deadlineAssignment.ID)
+	if err != nil || deadlineDetail.Assignment.Status != "pending" || deadlineDetail.Assignment.LateDueAt == nil {
+		t.Fatalf("member did not receive an active late window: detail=%#v err=%v", deadlineDetail, err)
+	}
+	lateSubmission, err := service.Submit(context.Background(), member, deadlineAssignment.ID, []*multipart.FileHeader{multipartHeader(t, "补交.pdf", []byte("%PDF-1.7\\nlate"))})
+	if err != nil || len(lateSubmission.Submissions) != 1 || !lateSubmission.Submissions[0].IsLate {
+		t.Fatalf("authorized late submission did not preserve the original late flag: detail=%#v err=%v", lateSubmission, err)
+	}
+	createdSubmissionIDs = append(createdSubmissionIDs, lateSubmission.Submissions[0].ID)
+	service.now = func() time.Time { return now.Add(4 * time.Hour) }
+	if _, err := service.Submit(context.Background(), member, deadlineAssignment.ID, nil); statusOf(err) != http.StatusConflict {
+		t.Fatalf("expired late window permitted resubmission: %v", err)
+	}
+	service.now = func() time.Time { return now.Add(2 * time.Hour) }
+	if _, err := service.SetLateWindow(context.Background(), admin, deadlineAssignment.ID, []uint64{member.ID}, time.Time{}); err != nil {
+		t.Fatalf("revoke late window: %v", err)
+	}
+	if _, err := service.Submit(context.Background(), member, deadlineAssignment.ID, nil); statusOf(err) != http.StatusConflict {
+		t.Fatalf("revoked late window permitted resubmission: %v", err)
 	}
 	service.now = func() time.Time { return now }
 	if _, err := service.SetPublicationStatus(context.Background(), crossAdmin, withdrawalAssignment.ID, model.AssignmentPublicationWithdrawn); statusOf(err) != http.StatusForbidden {

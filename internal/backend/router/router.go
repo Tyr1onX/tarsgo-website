@@ -279,6 +279,7 @@ func New(cfg *config.Config, db *gorm.DB) *gin.Engine {
 	adminAPI.GET("/assignments/:id", assignmentHandler.GetAdmin)
 	adminAPI.PATCH("/assignments/:id", assignmentHandler.Update)
 	adminAPI.PATCH("/assignments/:id/status", assignmentHandler.SetPublicationStatus)
+	adminAPI.PATCH("/assignments/:id/late-window", assignmentHandler.SetLateWindow)
 	adminAPI.DELETE("/assignments/:id", assignmentHandler.Delete)
 	adminAPI.POST("/assignments/:id/materials", assignmentHandler.UploadMaterialFiles)
 	adminAPI.DELETE("/assignments/:id/materials/:fileId", assignmentHandler.RemoveMaterialFile)

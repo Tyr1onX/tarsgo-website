@@ -188,6 +188,36 @@ func (h *AssignmentHandler) Update(c *gin.Context) {
 	writeAPI(c, http.StatusOK, "作业已更新", item)
 }
 
+func (h *AssignmentHandler) SetLateWindow(c *gin.Context) {
+	assignmentID, ok := parseAssignmentPathID(c)
+	if !ok {
+		return
+	}
+	var input struct {
+		UserIDs []uint64 `json:"userIds"`
+		DueAt   *string  `json:"dueAt"`
+	}
+	if err := c.ShouldBindJSON(&input); err != nil {
+		writeAPIError(c, http.StatusBadRequest, "补交设置不合法")
+		return
+	}
+	var dueAt time.Time
+	if input.DueAt != nil {
+		parsed, err := parseAssignmentDueAt(*input.DueAt)
+		if err != nil {
+			writeAPIError(c, http.StatusBadRequest, "补交截止时间不合法")
+			return
+		}
+		dueAt = parsed
+	}
+	item, err := h.service.SetLateWindow(c.Request.Context(), currentAssignmentActor(c), assignmentID, input.UserIDs, dueAt)
+	if err != nil {
+		h.fail(c, err)
+		return
+	}
+	writeAPI(c, http.StatusOK, "补交设置已更新", item)
+}
+
 func (h *AssignmentHandler) SetPublicationStatus(c *gin.Context) {
 	assignmentID, ok := parseAssignmentPathID(c)
 	if !ok {
