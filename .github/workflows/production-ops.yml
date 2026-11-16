@@ -46,11 +46,11 @@ jobs:
         with:
           node-version-file: internal/frontend/.nvmrc
       - name: Check shell scripts
-        run: for file in scripts/*.sh; do bash -n "$file"; done
+        run: for file in scripts/*.sh scripts/tests/*.sh; do bash -n "$file"; done
       - name: Exercise local startup readiness paths
-        run: scripts/test-dev-startup.sh
+        run: scripts/tests/test-dev-startup.sh
       - name: Exercise production operation safety paths
-        run: scripts/test-production-ops.sh
+        run: scripts/tests/test-production-ops.sh
       - name: Run backend tests
         run: make backend-test
       - name: Run frontend checks and build release binaries
@@ -102,7 +102,7 @@ jobs:
           go-version-file: internal/backend/go.mod
           cache-dependency-path: internal/backend/go.sum
       - name: Run mandatory synthetic MariaDB workflows and migrations
-        run: python3 scripts/test-database-integration.py
+        run: python3 scripts/tests/test-database-integration.py
 
   publish-production-release:
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'

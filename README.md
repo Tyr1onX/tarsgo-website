@@ -39,7 +39,7 @@
 - **社区交流**：发帖、评论、收藏和互动，浏览成员主页及公开讨论。
 - **社区成长**：签到、经验、等级与徽章记录。
 
-技能树、旧组内答疑和培养成长时间线不再作为当前开放功能；相关功能清理记录见 [历史功能收敛](docs/qa/2026-11-03-history-retirement.md)。
+技能树、旧组内答疑和培养成长时间线不再作为当前开放功能；相关功能清理记录见 [历史功能收敛](docs/archive/qa/2026-11-03-history-retirement.md)。
 
 ### 04 · 成员工作台与团队运营
 
@@ -114,6 +114,6 @@ make frontend-check
 
 ## 文档与许可
 
-- [验收环境](docs/acceptance-environment.md) · [生产部署与回滚](docs/production-deployment.md)
-- [品牌、图片及素材使用说明](docs/brand-and-asset-rights.md)
+- [验收环境](docs/operations/acceptance-environment.md) · [生产部署与回滚](docs/operations/production-deployment.md)
+- [品牌、图片及素材使用说明](docs/reference/brand-and-asset-rights.md)
 - 代码采用 [MIT License](LICENSE)；战队名称、标志、照片、证书及第三方素材**不随代码获得 MIT 复用许可**。

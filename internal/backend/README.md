@@ -121,7 +121,7 @@ make build
 
 版本化迁移由 `database.RunMigrations` 执行，迁移版本记录在 `schema_migrations` 表中。`APP_AUTO_MIGRATE=true` 时 Web 服务会在启动阶段运行迁移；生产环境推荐设为 `false`，并在切换新版本前单独运行同一次构建产出的 `tarsgo-migrate`。首个版本负责创建当前业务表和角色种子；开发环境 mock 数据会在每次迁移运行后幂等补齐，但不会覆盖已有记录的审核状态；后续结构变更应新增版本迁移，避免修改历史版本。
 
-正式环境由 GitHub Actions 在 `main` 合并并通过检查后自动发布已验证的 Linux 构建产物、执行迁移、切换容器及健康检查，详见 [生产发布与回滚](../../docs/production-deployment.md)。`make build` 适用于本地构建验证，不是生产部署入口。迁移失败时不会切换应用版本；应用回滚不自动回滚数据库结构。
+正式环境由 GitHub Actions 在 `main` 合并并通过检查后自动发布已验证的 Linux 构建产物、执行迁移、切换容器及健康检查，详见 [生产发布与回滚](../../docs/operations/production-deployment.md)。`make build` 适用于本地构建验证，不是生产部署入口。迁移失败时不会切换应用版本；应用回滚不自动回滚数据库结构。
 
 | 项目 | 说明 |
 | --- | --- |

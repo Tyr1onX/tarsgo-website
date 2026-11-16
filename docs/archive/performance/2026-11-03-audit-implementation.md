@@ -19,7 +19,7 @@
 
 ## 隔离数据库测试运行
 
-使用一次性 MariaDB 数据库 `tarsgo_acceptance`，仅绑定 `127.0.0.1:3317`。设置带独立测试凭据的 `TARSGO_QA_TEST_DSN` 后运行 `python3 scripts/test-database-integration.py`。DSN 必须包含 `charset=utf8mb4&parseTime=true&loc=UTC`。脚本设置合成验收账号、UTC 进程时区和本地邮件地址，不读取钥匙串凭据、不重置数据库、不访问生产服务。不要指向需要保留的数据实例。
+使用一次性 MariaDB 数据库 `tarsgo_acceptance`，仅绑定 `127.0.0.1:3317`。设置带独立测试凭据的 `TARSGO_QA_TEST_DSN` 后运行 `python3 scripts/tests/test-database-integration.py`。DSN 必须包含 `charset=utf8mb4&parseTime=true&loc=UTC`。脚本设置合成验收账号、UTC 进程时区和本地邮件地址，不读取钥匙串凭据、不重置数据库、不访问生产服务。不要指向需要保留的数据实例。
 
 测试发现现有 `storeUTCWall` 依赖进程时区与驱动 loc 一致；此任务固定二者 UTC。跨时区部署的数据兼容性需要单独核对历史存储约定后处理，本批未迁移历史时间字段。
 

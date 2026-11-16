@@ -7,8 +7,8 @@
 重新生成单个赛季的网页资源时，在仓库根目录执行（默认为 2024）：
 
 ```sh
-python3 scripts/optimize_robot_gallery_assets.py 2024
-python3 scripts/optimize_robot_gallery_assets.py 2025
+python3 scripts/assets/optimize_robot_gallery_assets.py 2024
+python3 scripts/assets/optimize_robot_gallery_assets.py 2025
 ```
 
 脚本需要本机 Python Pillow 且启用 WebP 支持；该工具不属于网站运行时，也没有新增前端依赖。衍生图使用 WebP quality 84、method 6；对带方向信息的原片应用 EXIF 方向，对衍生图移除 EXIF 元数据并保留可用的 ICC 色彩配置。原始 JPG 保持不变。

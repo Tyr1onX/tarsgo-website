@@ -2,7 +2,7 @@
 
 ## 范围与依据
 
-基线为最新 `main`：`015c0fdb96c11c304a7a900320a30bc7371b6dc3`（PR #145）。检查前阅读仓库 AGENTS、贡献指南、部署流程、`docs/performance/2026-10-16-site-audit.md`，并查阅 #104 图片指纹、#113/#114 导航性能、#145 首页拆包等 PR。已有样式变量、后台视觉规范和 QA 文档，未发现统一 DESIGN.md；本轮只补充一份根目录索引式规范，不引入设计系统依赖或检测配置。
+基线为最新 `main`：`015c0fdb96c11c304a7a900320a30bc7371b6dc3`（PR #145）。检查前阅读仓库 AGENTS、贡献指南、部署流程、`docs/archive/performance/2026-10-16-site-audit.md`，并查阅 #104 图片指纹、#113/#114 导航性能、#145 首页拆包等 PR。已有样式变量、后台视觉规范和 QA 文档，未发现统一 DESIGN.md；本轮只补充一份根目录索引式规范，不引入设计系统依赖或检测配置。
 
 采用 Impeccable 的可访问性、性能、主题、响应式、实现完整性五个检查维度。现有黑金/白金主题、Inter/Anton/Geist Mono 字体、页面布局、六图导航、沙粒算法、视频、页脚 BCD 沙痕不做重新设计。未以工具审美提示判断品牌对错，不给未完全覆盖的全站标注 WCAG 合规分数。
 
@@ -14,7 +14,7 @@
 | P1 | 小字对比度不足；`app/app.css` 的 `.navbar-system-theme__state`、`.robot-gallery__filter-count` | 构建前 Chrome computed style：前景 `#74817A`，主题状态卡片背景 `#171E1E`（4.16:1）、机器人数量背景 `#151A19`（4.33:1），均约 10.88px | 这两处将 dim 用在了较亮表面；改用已有 `--theme-muted`，黑金分别达到 7.33:1、7.62:1，双主题比值由测试验证。其他 dim 在 canvas 上约 4.70:1，没有全局改色。 |
 | P2 | 外部头像失败显示破损图；`app/components/navbar.tsx` 的 UserAvatar | 本地合成用户 + 拦截外部头像使其失败，Chrome 截图 before-avatar-broken.jpg；naturalWidth=0 | 原组件只要有 URL 就替换掉首字母头像，未处理 error。现让既有首字母作为底层，成功图片覆盖，error 隐藏图片。URL 作为 key，使新 URL 重新加载；不增加 React 状态、effect、请求重试或通用图片框架。 |
 
-缩略图索引由 `scripts/optimize_honor_thumbnails.py` 生成，44 张全部带 SHA256 前 8 位指纹，使用现有静态资源 immutable 策略。原本只有 348×281 的 #24 不重新压缩。源图共 9,896,942 bytes，列表派生图共 1,740,332 bytes，减少 82.42%；这是完整资源体积，不是首页或全站传输量。
+缩略图索引由 `scripts/assets/optimize_honor_thumbnails.py` 生成，44 张全部带 SHA256 前 8 位指纹，使用现有静态资源 immutable 策略。原本只有 348×281 的 #24 不重新压缩。源图共 9,896,942 bytes，列表派生图共 1,740,332 bytes，减少 82.42%；这是完整资源体积，不是首页或全站传输量。
 
 同一台机器、1440×900 Chrome、本地页面、冷缓存、150ms 延迟、200,000 bytes/s 下载上限（约 1.6Mbps），从滚动到证书区计时至首行三张图全部 complete：原图 20,301ms，缩略图 3,039ms。每种方案一次，不作为生产稳定延迟或 P95；原始记录见 measure-before/after.json。
 
@@ -38,7 +38,7 @@
 ## 验证与覆盖边界
 
 - 前端全部 `app/lib/*.test.mjs`：201 通过、3 跳过、0 失败。跳过项为既有可选机器人原始照片归档；派生资源测试仍执行。新增测试核对 44 张缩略图的完整性、指纹、体积预算和原图保留，以及两处实际主题表面的 AA 对比度。
-- `pnpm typecheck`、`pnpm build`、`make backend-test`、`scripts/test-production-ops.sh`、`git diff --check` 通过。Node 26 本地有现有 module.register 废弃提示；CI 使用仓库固定 Node 22。
+- `pnpm typecheck`、`pnpm build`、`make backend-test`、`scripts/tests/test-production-ops.sh`、`git diff --check` 通过。Node 26 本地有现有 module.register 废弃提示；CI 使用仓库固定 Node 22。
 - 真实 Chrome 156 无头模式，本地生产构建 1440×900、390×900，黑金/白金各检查首页、认识吉甲、机器人、赛事与荣誉、团队历程、加入吉甲、低空微专业、工作台，共 32 个页面场景，无横向溢出。手机为视口仿真，未做物理手机/跨浏览器验收。
 - 每种组合检查六张导航图片、44 张证书 decode、原图弹窗、左右键、Escape 关闭和焦点返回、机器人筛选、手机导航菜单 Escape 和焦点返回、主题切换。失败头像隐藏且首字母可见。构建后未捕获页面 JavaScript 异常；生产初查 Console 的 `/api/me` 401 为访客预期，故障注入头像的网络失败为测试预期。
 - 截图在 screenshots/；final-browser.json 为本地构建检查结果。工作台使用本机拦截的合成用户和 API 响应，不能代替生产账号、真实数据库与提交操作验收；未写生产业务数据。字体与视频生产 Network 有成功响应，本轮没有重新编码或自托管字体，也未跑 Lighthouse，不给出全站性能分数提升。

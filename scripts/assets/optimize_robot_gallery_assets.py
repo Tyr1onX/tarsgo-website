@@ -15,7 +15,7 @@ from pathlib import Path
 from PIL import Image, ImageOps, features
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 WIDTHS = (720, 1440, 2400)
 QUALITY = 84
 METHOD = 6
@@ -70,7 +70,7 @@ def sha256(path: Path) -> str:
 
 def main() -> None:
     if len(sys.argv) > 2:
-        raise SystemExit("用法：python3 scripts/optimize_robot_gallery_assets.py [2024|2025|2026]")
+        raise SystemExit("用法：python3 scripts/assets/optimize_robot_gallery_assets.py [2024|2025|2026]")
     try:
         season = int(sys.argv[1]) if len(sys.argv) == 2 else 2024
     except ValueError:

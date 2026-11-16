@@ -12,7 +12,7 @@ import re
 import subprocess
 import sys
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 BACKEND = ROOT / "internal/backend"
 dsn = os.environ.get("TARSGO_QA_TEST_DSN", "")
 match = re.fullmatch(r"([^:@]+):([^@]+)@tcp\(127\.0\.0\.1:3317\)/tarsgo_acceptance\?charset=utf8mb4&parseTime=true&loc=UTC", dsn)
