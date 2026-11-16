@@ -29,12 +29,12 @@ var (
 )
 
 // Existing links now lead to the single binding interface in the workbench.
-func (h *FeishuReviewHandler) FeishuLinkPage(c *gin.Context) {
+func (h *FeishuHandler) FeishuLinkPage(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/dashboard/admin/training/assignments")
 }
 
 // FeishuBindingStatus exposes no Feishu identity; only the current website account's binding state.
-func (h *FeishuReviewHandler) FeishuBindingStatus(c *gin.Context) {
+func (h *FeishuHandler) FeishuBindingStatus(c *gin.Context) {
 	sessionUser, ok := middleware.CurrentSessionUser(c)
 	if !ok || sessionUser == nil {
 		writeAPIError(c, http.StatusUnauthorized, "请先登录网站")
@@ -54,7 +54,7 @@ func (h *FeishuReviewHandler) FeishuBindingStatus(c *gin.Context) {
 	})
 }
 
-func (h *FeishuReviewHandler) FeishuLinkCode(c *gin.Context) {
+func (h *FeishuHandler) FeishuLinkCode(c *gin.Context) {
 	if h.cfg.AppSecret == "" {
 		writeAPIError(c, http.StatusServiceUnavailable, "飞书机器人尚未配置")
 		return
@@ -83,7 +83,7 @@ func (h *FeishuReviewHandler) FeishuLinkCode(c *gin.Context) {
 	writeAPI(c, http.StatusOK, "绑定码已生成", gin.H{"code": code, "expiresInSeconds": int(feishuLinkCodeTTL.Seconds())})
 }
 
-func (h *FeishuReviewHandler) newFeishuLinkCode(userID uint64) (string, error) {
+func (h *FeishuHandler) newFeishuLinkCode(userID uint64) (string, error) {
 	if userID == 0 || h.cfg.AppSecret == "" {
 		return "", fmt.Errorf("invalid Feishu link code request")
 	}
@@ -98,7 +98,7 @@ func (h *FeishuReviewHandler) newFeishuLinkCode(userID uint64) (string, error) {
 	return encoded + "." + hex.EncodeToString(mac.Sum(nil)), nil
 }
 
-func (h *FeishuReviewHandler) consumeFeishuLinkCode(ctx context.Context, openID, code string) (*model.User, error) {
+func (h *FeishuHandler) consumeFeishuLinkCode(ctx context.Context, openID, code string) (*model.User, error) {
 	if openID == "" || !strings.HasPrefix(openID, "ou_") || h.cfg.AppSecret == "" {
 		return nil, fmt.Errorf("invalid Feishu identity or configuration")
 	}
@@ -157,7 +157,7 @@ func (h *FeishuReviewHandler) consumeFeishuLinkCode(ctx context.Context, openID,
 	return &user, nil
 }
 
-func (h *FeishuReviewHandler) resolveFeishuOperator(ctx context.Context, openID string) (assignment.Actor, model.User, error) {
+func (h *FeishuHandler) resolveFeishuOperator(ctx context.Context, openID string) (assignment.Actor, model.User, error) {
 	if openID == "" || !strings.HasPrefix(openID, "ou_") {
 		return assignment.Actor{}, model.User{}, fmt.Errorf("missing Feishu open_id")
 	}
@@ -175,7 +175,7 @@ func (h *FeishuReviewHandler) resolveFeishuOperator(ctx context.Context, openID 
 	return actor, user, nil
 }
 
-func (h *FeishuReviewHandler) workflowOperatorOpenIDByName(ctx context.Context, name string) (string, error) {
+func (h *FeishuHandler) workflowOperatorOpenIDByName(ctx context.Context, name string) (string, error) {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return "", errWorkflowOperatorNameNotFound

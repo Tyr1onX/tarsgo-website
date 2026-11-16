@@ -24,7 +24,7 @@ import (
 // BitableWorkflowSecret returns the credential used only by the board's
 // button-triggered workflow. The endpoint is registered behind admin auth and
 // this method narrows it further to website super-admins.
-func (h *FeishuReviewHandler) BitableWorkflowSecret(c *gin.Context) {
+func (h *FeishuHandler) BitableWorkflowSecret(c *gin.Context) {
 	actor := currentAssignmentActor(c)
 	if actor.RoleName != model.RoleNameSuperAdmin || !h.bitableEnabled() {
 		c.Status(http.StatusForbidden)
@@ -34,7 +34,7 @@ func (h *FeishuReviewHandler) BitableWorkflowSecret(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"token": h.bitableWorkflowToken()})
 }
 
-func (h *FeishuReviewHandler) bitableWorkflowToken() string {
+func (h *FeishuHandler) bitableWorkflowToken() string {
 	mac := hmac.New(sha256.New, []byte(h.cfg.AppSecret))
 	_, _ = mac.Write([]byte("tarsgo-feishu-bitable-review-workflow:v1:" + h.cfg.BitableAppToken + ":" + h.cfg.BitableTableID))
 	return hex.EncodeToString(mac.Sum(nil))
@@ -44,7 +44,7 @@ func (h *FeishuReviewHandler) bitableWorkflowToken() string {
 // sends the existing review card to the person who clicked it. If the workflow
 // only supplies a display name, it is used solely to find one bound recipient;
 // card submissions still authenticate by the callback's actual Feishu open_id.
-func (h *FeishuReviewHandler) BitableReviewCardTrigger(c *gin.Context) {
+func (h *FeishuHandler) BitableReviewCardTrigger(c *gin.Context) {
 	provided := strings.TrimSpace(c.GetHeader("X-Bitable-Workflow-Token"))
 	expected := h.bitableWorkflowToken()
 	if !h.bitableEnabled() || provided == "" || subtle.ConstantTimeCompare([]byte(provided), []byte(expected)) != 1 {
@@ -135,7 +135,7 @@ func (h *FeishuReviewHandler) BitableReviewCardTrigger(c *gin.Context) {
 	h.respondBitableTrigger(c, ctx, openID, http.StatusConflict, "该提交已被新版本替代或已完成批改")
 }
 
-func (h *FeishuReviewHandler) respondBitableTrigger(c *gin.Context, ctx context.Context, openID string, status int, message string) {
+func (h *FeishuHandler) respondBitableTrigger(c *gin.Context, ctx context.Context, openID string, status int, message string) {
 	if openID != "" && strings.HasPrefix(openID, "ou_") {
 		if err := h.sendTextTo(ctx, openID, message); err != nil {
 			log.Printf("feishu Bitable workflow response failed: %v", err)
@@ -249,7 +249,7 @@ func workflowOperatorName(raw json.RawMessage) string {
 	return ""
 }
 
-func (h *FeishuReviewHandler) ensureBitableReader(ctx context.Context, openID string) error {
+func (h *FeishuHandler) ensureBitableReader(ctx context.Context, openID string) error {
 	if !h.bitableEnabled() || !strings.HasPrefix(openID, "ou_") {
 		return errors.New("Bitable or Feishu reader identity is not configured")
 	}

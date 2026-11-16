@@ -29,13 +29,13 @@ import (
 	"tarsgo-backend/service/auth"
 )
 
-func testFeishuHandler() *FeishuReviewHandler {
-	return NewFeishuReviewHandler(config.FeishuConfig{
+func testFeishuHandler() *FeishuHandler {
+	return NewFeishuHandler(config.FeishuConfig{
 		AppID: "cli_test", AppSecret: "secret", EncryptKey: "encrypt-key", VerificationToken: "verification",
 	}, nil, nil)
 }
 
-func callFeishu(t *testing.T, handler *FeishuReviewHandler, body any, headers http.Header) (int, map[string]any) {
+func callFeishu(t *testing.T, handler *FeishuHandler, body any, headers http.Header) (int, map[string]any) {
 	t.Helper()
 	payload, err := json.Marshal(body)
 	if err != nil {

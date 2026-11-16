@@ -22,10 +22,10 @@ const maxAssignmentRequestBody = 64 << 20
 
 type AssignmentHandler struct {
 	service *assignment.Service
-	feishu  *FeishuReviewHandler
+	feishu  *FeishuHandler
 }
 
-func NewAssignmentHandler(service *assignment.Service, feishu *FeishuReviewHandler) *AssignmentHandler {
+func NewAssignmentHandler(service *assignment.Service, feishu *FeishuHandler) *AssignmentHandler {
 	return &AssignmentHandler{service: service, feishu: feishu}
 }
 

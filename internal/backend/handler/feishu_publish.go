@@ -51,7 +51,7 @@ type feishuMessageContent struct {
 	ImageKey string `json:"image_key"`
 }
 
-func (h *FeishuReviewHandler) handleFeishuMessageEvent(c *gin.Context, event feishuCallback) {
+func (h *FeishuHandler) handleFeishuMessageEvent(c *gin.Context, event feishuCallback) {
 	message := event.Event.Message
 	operatorOpenID := event.Event.Sender.SenderID.OpenID
 	if !strings.HasPrefix(operatorOpenID, "ou_") || message.ChatType != "p2p" || message.ChatID == "" {
@@ -72,7 +72,7 @@ func (h *FeishuReviewHandler) handleFeishuMessageEvent(c *gin.Context, event fei
 	}()
 }
 
-func (h *FeishuReviewHandler) processFeishuMessage(ctx context.Context, operatorOpenID string, message feishuIncomingMessage, content feishuMessageContent) {
+func (h *FeishuHandler) processFeishuMessage(ctx context.Context, operatorOpenID string, message feishuIncomingMessage, content feishuMessageContent) {
 	command := strings.TrimSpace(content.Text)
 	switch {
 	case message.MessageType == "text" && strings.HasPrefix(command, "绑定 "):
@@ -150,13 +150,13 @@ func (h *FeishuReviewHandler) processFeishuMessage(ctx context.Context, operator
 	}
 }
 
-func (h *FeishuReviewHandler) sendFeishuMessageError(ctx context.Context, operatorOpenID, message string) {
+func (h *FeishuHandler) sendFeishuMessageError(ctx context.Context, operatorOpenID, message string) {
 	if err := h.sendTextTo(ctx, operatorOpenID, message); err != nil {
 		log.Printf("feishu operator reply failed: %v", err)
 	}
 }
 
-func (h *FeishuReviewHandler) pendingMaterialFor(openID string) (feishuPendingMaterial, bool) {
+func (h *FeishuHandler) pendingMaterialFor(openID string) (feishuPendingMaterial, bool) {
 	h.pendingMaterialsMu.Lock()
 	defer h.pendingMaterialsMu.Unlock()
 	pending, ok := h.pendingMaterials[openID]
@@ -170,7 +170,7 @@ func (h *FeishuReviewHandler) pendingMaterialFor(openID string) (feishuPendingMa
 	return pending, true
 }
 
-func (h *FeishuReviewHandler) processFeishuTeachingMaterial(ctx context.Context, operatorOpenID string, actor assignment.Actor, assignmentID uint64, message feishuIncomingMessage) {
+func (h *FeishuHandler) processFeishuTeachingMaterial(ctx context.Context, operatorOpenID string, actor assignment.Actor, assignmentID uint64, message feishuIncomingMessage) {
 	h.materialUploadMu.Lock()
 	defer h.materialUploadMu.Unlock()
 
@@ -228,7 +228,7 @@ func (h *FeishuReviewHandler) processFeishuTeachingMaterial(ctx context.Context,
 	}
 }
 
-func (h *FeishuReviewHandler) skipDuplicateMaterial(ctx context.Context, actor assignment.Actor, assignmentID uint64, fileName string, body []byte) error {
+func (h *FeishuHandler) skipDuplicateMaterial(ctx context.Context, actor assignment.Actor, assignmentID uint64, fileName string, body []byte) error {
 	detail, err := h.assignments.GetAdmin(ctx, actor, assignmentID)
 	if err != nil {
 		return err
@@ -284,7 +284,7 @@ func feishuMultipartFiles(files []feishuMaterialBytes) (*multipart.Form, func(),
 	return request.MultipartForm, func() { _ = request.MultipartForm.RemoveAll() }, nil
 }
 
-func (h *FeishuReviewHandler) downloadFeishuMessageResource(ctx context.Context, token, messageID, resourceKey, resourceType string) ([]byte, string, error) {
+func (h *FeishuHandler) downloadFeishuMessageResource(ctx context.Context, token, messageID, resourceKey, resourceType string) ([]byte, string, error) {
 	endpoint := feishuMessageResourceURL + "/" + url.PathEscape(messageID) + "/resources/" + url.PathEscape(resourceKey)
 	query := url.Values{"type": []string{resourceType}}
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint+"?"+query.Encode(), nil)
@@ -339,7 +339,7 @@ func mimeExtension(contentType string, body []byte) string {
 	return ".bin"
 }
 
-func (h *FeishuReviewHandler) reportMaterialFailure(ctx context.Context, operatorOpenID string, assignmentID uint64, messageID string, err error) {
+func (h *FeishuHandler) reportMaterialFailure(ctx context.Context, operatorOpenID string, assignmentID uint64, messageID string, err error) {
 	// Duplicate event delivery after a successful upload is intentionally a no-op.
 	if errors.Is(err, errFeishuDuplicateMaterial) {
 		return
@@ -350,7 +350,7 @@ func (h *FeishuReviewHandler) reportMaterialFailure(ctx context.Context, operato
 	}
 }
 
-func (h *FeishuReviewHandler) sendTextTo(ctx context.Context, operatorOpenID, text string) error {
+func (h *FeishuHandler) sendTextTo(ctx context.Context, operatorOpenID, text string) error {
 	token, err := h.tenantToken(ctx)
 	if err != nil {
 		return err
@@ -397,7 +397,7 @@ func newFeishuPublishRequestID() (string, error) {
 	return encoded[:8] + "-" + encoded[8:12] + "-" + encoded[12:16] + "-" + encoded[16:20] + "-" + encoded[20:], nil
 }
 
-func (h *FeishuReviewHandler) publishFeishuAssignment(c *gin.Context, actor assignment.Actor, event feishuCallback) error {
+func (h *FeishuHandler) publishFeishuAssignment(c *gin.Context, actor assignment.Actor, event feishuCallback) error {
 	values := event.Event.Action.FormValue
 	groupID, err := strconv.ParseUint(strings.TrimSpace(values["group_id"]), 10, 64)
 	if err != nil || groupID == 0 {

@@ -357,8 +357,8 @@ test("assignment management lists current work before opening the editor", () =>
 });
 
 test("Feishu binding is completed from assignment management without a second account state", () => {
-  assert.match(backendRoutes, /adminAPI\.GET\("\/integrations\/feishu\/binding-status", feishuReviewHandler\.FeishuBindingStatus\)/);
-  assert.match(backendRoutes, /adminAPI\.POST\("\/integrations\/feishu\/link-code", feishuReviewHandler\.FeishuLinkCode\)/);
+  assert.match(backendRoutes, /adminAPI\.GET\("\/integrations\/feishu\/binding-status", feishuHandler\.FeishuBindingStatus\)/);
+  assert.match(backendRoutes, /adminAPI\.POST\("\/integrations\/feishu\/link-code", feishuHandler\.FeishuLinkCode\)/);
   assert.match(assignmentClient, /feishuBindingStatus: \(\) => apiRequest/);
   assert.match(assignmentClient, /createFeishuLinkCode: \(\) => apiRequest/);
   assert.match(assignmentManagement, /assignmentClient\.feishuBindingStatus\(\)/);

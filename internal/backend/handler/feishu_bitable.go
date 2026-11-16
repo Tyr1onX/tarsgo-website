@@ -64,11 +64,11 @@ type bitableSyncStats struct {
 	Failed  int `json:"failed"`
 }
 
-func (h *FeishuReviewHandler) bitableEnabled() bool {
+func (h *FeishuHandler) bitableEnabled() bool {
 	return h.enabled() && h.cfg.BitableAppToken != "" && h.cfg.BitableTableID != ""
 }
 
-func (h *FeishuReviewHandler) bitableRecords(ctx context.Context, token string, submissionID uint64) ([]bitableRecord, error) {
+func (h *FeishuHandler) bitableRecords(ctx context.Context, token string, submissionID uint64) ([]bitableRecord, error) {
 	var result []bitableRecord
 	var pageToken string
 	for {
@@ -95,7 +95,7 @@ func (h *FeishuReviewHandler) bitableRecords(ctx context.Context, token string, 
 	}
 }
 
-func (h *FeishuReviewHandler) bitableRequest(ctx context.Context, method, endpoint string, query url.Values, body io.Reader, contentType, token string, into any) error {
+func (h *FeishuHandler) bitableRequest(ctx context.Context, method, endpoint string, query url.Values, body io.Reader, contentType, token string, into any) error {
 	if len(query) > 0 {
 		endpoint += "?" + query.Encode()
 	}
@@ -135,7 +135,7 @@ func (h *FeishuReviewHandler) bitableRequest(ctx context.Context, method, endpoi
 	return nil
 }
 
-func (h *FeishuReviewHandler) syncBitableHistory(ctx context.Context, token string, actor assignment.Actor, item assignment.AssignmentView, member assignment.AssignmentMemberView) (int, int, error) {
+func (h *FeishuHandler) syncBitableHistory(ctx context.Context, token string, actor assignment.Actor, item assignment.AssignmentView, member assignment.AssignmentMemberView) (int, int, error) {
 	if !h.bitableEnabled() || member.LatestSubmission == nil {
 		return 0, 0, nil
 	}
@@ -172,7 +172,7 @@ func (h *FeishuReviewHandler) syncBitableHistory(ctx context.Context, token stri
 	return created, updated, errors.Join(failures...)
 }
 
-func (h *FeishuReviewHandler) upsertBitableSubmission(ctx context.Context, token string, actor assignment.Actor, item assignment.AssignmentView, member assignment.AssignmentMemberView, submission assignment.SubmissionView, current, syncAttachments bool, openFile func(context.Context, assignment.Actor, uint64) (*assignment.Download, error)) (bool, error) {
+func (h *FeishuHandler) upsertBitableSubmission(ctx context.Context, token string, actor assignment.Actor, item assignment.AssignmentView, member assignment.AssignmentMemberView, submission assignment.SubmissionView, current, syncAttachments bool, openFile func(context.Context, assignment.Actor, uint64) (*assignment.Download, error)) (bool, error) {
 	records, err := h.bitableRecords(ctx, token, submission.ID)
 	if err != nil {
 		return false, err
@@ -235,7 +235,7 @@ func (h *FeishuReviewHandler) upsertBitableSubmission(ctx context.Context, token
 	return false, attachmentErr
 }
 
-func (h *FeishuReviewHandler) syncBitableReview(ctx context.Context, actor assignment.Actor, item assignment.AssignmentView, member assignment.AssignmentMemberView) error {
+func (h *FeishuHandler) syncBitableReview(ctx context.Context, actor assignment.Actor, item assignment.AssignmentView, member assignment.AssignmentMemberView) error {
 	if !h.bitableEnabled() || member.LatestSubmission == nil {
 		return nil
 	}
@@ -249,7 +249,7 @@ func (h *FeishuReviewHandler) syncBitableReview(ctx context.Context, actor assig
 	return err
 }
 
-func (h *FeishuReviewHandler) syncBitableReviewAsync(actor assignment.Actor, item assignment.AssignmentView, member assignment.AssignmentMemberView) {
+func (h *FeishuHandler) syncBitableReviewAsync(actor assignment.Actor, item assignment.AssignmentView, member assignment.AssignmentMemberView) {
 	if member.LatestSubmission == nil {
 		return
 	}
@@ -268,7 +268,7 @@ type bitableAttachmentUpload struct {
 	err    error
 }
 
-func (h *FeishuReviewHandler) uploadBitableAttachments(ctx context.Context, token string, actor assignment.Actor, submission assignment.SubmissionView, openFile func(context.Context, assignment.Actor, uint64) (*assignment.Download, error), previousRaw json.RawMessage) bitableAttachmentUpload {
+func (h *FeishuHandler) uploadBitableAttachments(ctx context.Context, token string, actor assignment.Actor, submission assignment.SubmissionView, openFile func(context.Context, assignment.Actor, uint64) (*assignment.Download, error), previousRaw json.RawMessage) bitableAttachmentUpload {
 	result := bitableAttachmentUpload{tokens: make([]map[string]string, 0, len(submission.Files))}
 	var failures []error
 	var lastUpload time.Time
@@ -332,7 +332,7 @@ func takeBitableAttachment(previous []bitableAttachment, used []bool, file assig
 	return ""
 }
 
-func (h *FeishuReviewHandler) uploadBitableFile(ctx context.Context, token string, file assignment.FileView, content []byte) (string, error) {
+func (h *FeishuHandler) uploadBitableFile(ctx context.Context, token string, file assignment.FileView, content []byte) (string, error) {
 	parentType := "bitable_file"
 	ext := strings.ToLower(filepath.Ext(file.FileName))
 	if isFeishuImageExtension(ext) {
@@ -356,7 +356,7 @@ func bitableMediaExtra(appToken string) (string, error) {
 	return string(extra), nil
 }
 
-func (h *FeishuReviewHandler) uploadBitableFileSingle(ctx context.Context, token string, file assignment.FileView, parentType, extra string, content []byte) (string, error) {
+func (h *FeishuHandler) uploadBitableFileSingle(ctx context.Context, token string, file assignment.FileView, parentType, extra string, content []byte) (string, error) {
 	var body bytes.Buffer
 	writer := multipart.NewWriter(&body)
 	for name, value := range map[string]string{
@@ -392,7 +392,7 @@ func (h *FeishuReviewHandler) uploadBitableFileSingle(ctx context.Context, token
 	return result.FileToken, nil
 }
 
-func (h *FeishuReviewHandler) uploadBitableFileChunked(ctx context.Context, token string, file assignment.FileView, parentType, extra string, content []byte) (string, error) {
+func (h *FeishuHandler) uploadBitableFileChunked(ctx context.Context, token string, file assignment.FileView, parentType, extra string, content []byte) (string, error) {
 	prepareBody, err := json.Marshal(map[string]any{
 		"file_name":   file.FileName,
 		"parent_type": parentType,
@@ -512,7 +512,7 @@ func bitableClientToken(submissionID uint64) string {
 	return value[:8] + "-" + value[8:12] + "-" + value[12:16] + "-" + value[16:20] + "-" + value[20:]
 }
 
-func (h *FeishuReviewHandler) ReconcileBitable(c *gin.Context) {
+func (h *FeishuHandler) ReconcileBitable(c *gin.Context) {
 	if !h.bitableEnabled() {
 		writeAPIError(c, http.StatusServiceUnavailable, "飞书多维表格尚未配置")
 		return
