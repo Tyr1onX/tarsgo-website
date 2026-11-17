@@ -46,10 +46,10 @@ export function ThemeControl() {
       return;
     }
     const started = performance.now();
-    const duration = 720 * Math.abs(to - from);
+    const duration = 480 * Math.abs(to - from);
     const tick = (now: number) => {
       const fraction = clamp((now - started) / duration);
-      const eased = fraction * fraction * (3 - 2 * fraction);
+      const eased = 1 - (1 - fraction) ** 2.4;
       progressRef.current = from + (to - from) * eased;
       paint(to === 1 && fraction > 0.7 && fraction < 0.8);
       if (fraction < 1) {
