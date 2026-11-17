@@ -29,8 +29,8 @@ function ReviewSkeleton({ withSelector = false }: { withSelector?: boolean }) {
   return <div className="content-skeleton space-y-5" role="status" aria-label={withSelector ? "正在加载作业列表" : "正在加载提交记录"}>
     <div aria-hidden="true" className="motion-safe:animate-pulse space-y-2">
       {withSelector ? <><div className={bar + " h-4 w-12"} /><div className={bar + " h-11 w-full"} /></> : null}
-      <div className="admin-panel flex flex-wrap gap-x-6 gap-y-2 p-4 text-sm">
-        <div className={bar + " h-5 w-40"} /><div className={bar + " h-4 w-32"} /><div className={bar + " h-4 w-36"} />
+      <div className="flex flex-wrap gap-4">
+        <div className={bar + " h-4 w-32"} /><div className={bar + " h-4 w-36"} />
       </div>
       <div className="admin-panel space-y-5 p-4 sm:p-5">
         <div className="grid grid-cols-3 gap-2">
@@ -231,11 +231,10 @@ export function AssignmentReview({ groupId }: { groupId: number }) {
       {listLoaded && selectedID > 0 && !assignment && !error ? <ReviewSkeleton /> : null}
       {listLoaded && !loading && !error && assignments.length === 0 ? <section className="admin-panel p-5 text-sm text-[var(--admin-muted)]">暂无本组作业。</section> : null}
       {assignment ? <>
-        <section className="admin-panel flex flex-wrap gap-x-6 gap-y-2 p-4 text-sm" aria-label="作业统计">
-          <strong className="text-[var(--admin-text)]">{assignment.title}</strong>
+        <div className="flex flex-wrap gap-x-5 gap-y-1 text-sm text-[var(--admin-muted)]" aria-label="作业信息">
           <span>截止 {formatAssignmentDate(assignment.dueAt)}</span>
           <span>{assignment.isGroupWide ? "全组实时接收" : "指定成员"} · 接收 {assignment.targetCount} 人</span>
-        </section>
+        </div>
         <section className="admin-panel divide-y divide-[var(--admin-border-subtle)] p-4 sm:p-5" aria-label="成员提交情况">
           {detail && detail.members.length > 0 ? <div className="grid grid-cols-3 gap-2 pb-4" role="group" aria-label="成员进度筛选">
             {([

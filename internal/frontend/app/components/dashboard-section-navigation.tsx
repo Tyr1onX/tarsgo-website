@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Link, useLocation } from "react-router";
 
 import { assignmentClient } from "~/lib/assignment-client";
@@ -7,14 +7,13 @@ import { getAdminWorkbenchSummary } from "~/lib/registrations-client";
 import { getWeeklyReportStatus } from "~/lib/weekly-report-client";
 import type { AuthUser } from "~/lib/auth-client";
 
-type ReviewGroup = { groupId: number; groupName: string; reviewCount: number };
 type TaskCounts = {
   scope: string;
   weeklyPending: boolean | null;
   assignmentCount: number | null;
   recruitmentCount: number | null;
   recruitmentTarget: string;
-  reviewGroups: ReviewGroup[] | null;
+  reviewCount: number | null;
 };
 
 type Props = {
@@ -28,7 +27,7 @@ type Props = {
 function emptyCounts(scope: string): TaskCounts {
   return {
     scope, weeklyPending: null, assignmentCount: null, recruitmentCount: null,
-    recruitmentTarget: "/dashboard/admin/registrations", reviewGroups: null,
+    recruitmentTarget: "/dashboard/admin/registrations", reviewCount: null,
   };
 }
 
@@ -49,7 +48,7 @@ export function DashboardSectionNavigation({
   const [taskCounts, setTaskCounts] = useState<TaskCounts>(() => emptyCounts(scope));
   const counts = taskCounts.scope === scope ? taskCounts : emptyCounts(scope);
   const canManage = currentUser.role.name === "admin" || currentUser.role.name === "super_admin";
-  const canReview = currentUser.role.name === "super_admin" || (canManage && hasAssignmentGroup);
+  const canReview = currentUser.role.name === "admin" && hasAssignmentGroup;
 
   useEffect(() => {
     setExpandedGroup(defaultExpandedGroup);
@@ -89,8 +88,8 @@ export function DashboardSectionNavigation({
         .catch(() => update({ recruitmentCount: null }));
       if (canReview) {
         void assignmentClient.adminTodos()
-          .then((value) => update({ reviewGroups: value.groups }))
-          .catch(() => update({ reviewGroups: null }));
+          .then((value) => update({ reviewCount: value.reviewCount }))
+          .catch(() => update({ reviewCount: null }));
       }
     }
     return () => { active = false; };
@@ -98,9 +97,7 @@ export function DashboardSectionNavigation({
 
   if (groups.length === 0) return null;
 
-  const reviewGroups = counts.reviewGroups?.filter((item) => item.reviewCount > 0)
-    .sort((left, right) => right.reviewCount - left.reviewCount) ?? [];
-  const reviewTotal = reviewGroups.reduce((total, group) => total + group.reviewCount, 0);
+  const reviewTotal = counts.reviewCount ?? 0;
 
   return (
     <div className="dashboard-subnav" role="group" aria-label="业务功能">
@@ -133,10 +130,8 @@ export function DashboardSectionNavigation({
                     : item.key === "assignment-management" ? reviewTotal : null;
                   const target = item.key === "weekly-reports" && counts.weeklyPending ? item.href + "?edit=1"
                     : item.key === "candidate-processing" ? counts.recruitmentTarget
-                    : item.key === "assignment-management" && reviewGroups.length === 1
-                      ? item.href + "?view=review&groupId=" + reviewGroups[0].groupId : item.href;
-                  return <Fragment key={item.key}>
-                    <Link
+                    : item.href;
+                  return <Link key={item.key}
                       to={target}
                       prefetch={item.key === "candidate-processing" ? "render" : "intent"}
                       onClick={onNavigate}
@@ -145,18 +140,7 @@ export function DashboardSectionNavigation({
                     >
                       <span className="min-w-0 flex-1 truncate">{item.label}</span>
                       {count !== null && count > 0 ? <span className="dashboard-nav-badge shrink-0" aria-label={`待处理 ${count}`}>{count}</span> : null}
-                    </Link>
-                    {item.key === "assignment-management" && reviewGroups.length > 1 ? <div className="space-y-0.5 pl-4" aria-label="按技术组批改">
-                      {reviewGroups.map((reviewGroup) => <Link key={reviewGroup.groupId}
-                        to={`/dashboard/admin/training/assignments?view=review&groupId=${reviewGroup.groupId}`}
-                        onClick={onNavigate}
-                        className="dashboard-subnav__link text-xs"
-                        aria-label={`${reviewGroup.groupName}待批改 ${reviewGroup.reviewCount}`}>
-                        <span className="min-w-0 flex-1 truncate">{reviewGroup.groupName}</span>
-                        <span className="shrink-0 tabular-nums text-[var(--admin-muted)]">{reviewGroup.reviewCount}</span>
-                      </Link>)}
-                    </div> : null}
-                  </Fragment>;
+                    </Link>;
                 })}
               </div>
             ) : null}

@@ -4,6 +4,7 @@ import { Link, useOutletContext, useSearchParams } from "react-router";
 
 import { FileUploadField, type FileUploadStatus } from "~/components/file-upload-field";
 import { Notify } from "~/components/notify";
+import { AssignmentOverview } from "./assignment-overview";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
 import { ApiError } from "~/lib/api-client";
 import { assignmentClient, assignmentPublicationStatusLabel, formatAssignmentDate, type Assignment, type AssignmentInput, type AssignmentMaterialFile, type AssignmentMemberOption } from "~/lib/assignment-client";
@@ -61,10 +62,13 @@ function asDraft(item: Assignment): Draft {
 export default function AssignmentManagementRoute() {
   const { currentUser, groupResolution } = useOutletContext<DashboardLayoutOutletContext>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const view = searchParams.get("view") === "list" ? "list" : "review";
+  const isSuperAdmin = currentUser.role.name === "super_admin";
+  const requestedView = searchParams.get("view");
+  const view = requestedView === "list" || requestedView === "review" ? requestedView : isSuperAdmin ? "overview" : "review";
   const { assignmentGroups, error: groupError, loading: groupsLoading } = useAssignmentGroups(currentUser.id, currentUser.role.name, groupResolution?.groups);
   const requestedGroupId = Number(searchParams.get("groupId"));
-  const groupId = assignmentGroups.find((group) => group.groupId === requestedGroupId)?.groupId ?? assignmentGroups[0]?.groupId ?? 0;
+  const selectedGroupId = assignmentGroups.some((group) => group.groupId === requestedGroupId) ? requestedGroupId : 0;
+  const groupId = selectedGroupId || assignmentGroups[0]?.groupId || 0;
   const [items, setItems] = useState<Assignment[]>([]);
   const [members, setMembers] = useState<AssignmentMemberOption[] | null>(null);
   const [draft, setDraft] = useState<Draft>(() => emptyDraft(0));
@@ -474,17 +478,20 @@ export default function AssignmentManagementRoute() {
       <header className="admin-page-header assignment-management__header flex flex-wrap items-center justify-between gap-3">
         <h1 id="assignment-management-title" className="admin-page-title">作业管理</h1>
         <div className="assignment-management__header-actions">
-        {groupsLoading ? <BrandLoader label="正在加载组别" size="sm" /> : assignmentGroups.length > 1 ? <label className="admin-field-label assignment-management__group-select">组别<select className="admin-field w-full" value={groupId} disabled={saving || publishStage !== "idle"} onChange={(event) => { const nextGroupID = Number(event.target.value); resetDraft(nextGroupID); setSearchParams({ view, groupId: String(nextGroupID) }, { replace: true }); }}>
+        {groupsLoading ? <BrandLoader label="正在加载组别" size="sm" /> : assignmentGroups.length > 1 ? <label className="admin-field-label assignment-management__group-select">组别<select className="admin-field w-full"
+          value={view === "overview" ? selectedGroupId : groupId} disabled={saving || publishStage !== "idle"}
+          onChange={(event) => { const nextGroupID = Number(event.target.value); resetDraft(nextGroupID); setSearchParams(nextGroupID ? { view, groupId: String(nextGroupID) } : { view }, { replace: true }); }}>
+          {view === "overview" ? <option value={0}>全部组别</option> : null}
           {assignmentGroups.map((group) => <option key={group.groupId} value={group.groupId}>{group.name}</option>)}
         </select></label> : assignmentGroups[0] ? <p className="text-sm text-[var(--admin-muted)]">{assignmentGroups[0].name}</p> : null}
-        {feishuBinding?.accountId === currentUser.id ? feishuBound
+        {view !== "overview" && feishuBinding?.accountId === currentUser.id ? feishuBound
           ? <span className="text-sm text-[var(--admin-muted)]">飞书已绑定</span>
           : feishuPanelAccount !== currentUser.id ? <button type="button" className="admin-button admin-button--secondary" onClick={() => void startFeishuBinding()} disabled={feishuBusy}>绑定飞书</button> : null
           : feishuError ? <button type="button" className="admin-button admin-button--quiet" disabled={feishuBusy} onClick={() => void checkFeishuBinding()}>重试飞书状态</button> : null}
-        {!composerOpen ? <button type="button" className="admin-button admin-button--primary" onClick={() => { resetDraft(); setComposerOpen(true); setSearchParams({ view: "list", groupId: String(groupId) }); }} disabled={!groupId || Boolean(groupError)}>发布作业</button> : null}
+        {!composerOpen && view !== "overview" ? <button type="button" className="admin-button admin-button--primary" onClick={() => { resetDraft(); setComposerOpen(true); setSearchParams({ view: "list", groupId: String(groupId) }); }} disabled={!groupId || Boolean(groupError)}>发布作业</button> : null}
         </div>
       </header>
-      {feishuPanelAccount === currentUser.id && !feishuBound ? <section className="admin-panel space-y-3 p-4 sm:p-5" aria-label="飞书账号绑定">
+      {view !== "overview" && feishuPanelAccount === currentUser.id && !feishuBound ? <section className="admin-panel space-y-3 p-4 sm:p-5" aria-label="飞书账号绑定">
         <div className="flex items-center justify-between gap-3">
           <strong className="text-[var(--admin-text)]">绑定飞书账号</strong>
           <button type="button" className="admin-button admin-button--quiet admin-button--small" onClick={() => setFeishuPanelAccount(0)}>收起</button>
@@ -509,11 +516,14 @@ export default function AssignmentManagementRoute() {
       {notice ? <Notify tone="success" message={notice} onClose={() => setNotice("")} /> : null}
 
       <nav className="assignment-management__views" aria-label="作业管理视图">
+        {isSuperAdmin ? <button type="button" className={view === "overview" ? "is-active" : ""} aria-current={view === "overview" ? "page" : undefined}
+          disabled={saving || publishStage !== "idle"} onClick={() => { if (view !== "overview") { resetDraft(); setSearchParams({ view: "overview" }); } }}>跨组概览</button> : null}
         <button type="button" className={view === "review" ? "is-active" : ""} aria-current={view === "review" ? "page" : undefined} disabled={saving || publishStage !== "idle"} onClick={() => { if (view === "review") return; resetDraft(); setSearchParams({ view: "review", groupId: String(groupId) }); }}>批改中心</button>
         <button type="button" className={view === "list" ? "is-active" : ""} aria-current={view === "list" ? "page" : undefined} disabled={saving || publishStage !== "idle"} onClick={() => { if (view !== "list") setSearchParams({ view: "list", groupId: String(groupId) }); }}>作业列表</button>
       </nav>
 
-      {view === "review" ? <Suspense fallback={<BrandLoader label="正在加载批改中心" />}><AssignmentReview key={groupId} groupId={groupId} /></Suspense> : <>
+      {view === "overview" ? <AssignmentOverview accountId={currentUser.id} groups={assignmentGroups} selectedGroupId={selectedGroupId} /> :
+       view === "review" ? <Suspense fallback={<BrandLoader label="正在加载批改中心" />}><AssignmentReview key={groupId} groupId={groupId} /></Suspense> : <>
       {composerOpen ? <section className="admin-panel assignment-editor" aria-labelledby="assignment-editor-title">
         <div className="admin-section-heading"><h2 id="assignment-editor-title">{editing?.submittedCount ? "延长截止时间" : editing ? "编辑作业" : "发布作业"}</h2><button type="button" className="admin-button admin-button--quiet admin-button--small" onClick={() => resetDraft()} disabled={saving}>取消</button></div>
         <form onSubmit={save} className="assignment-editor__form">
@@ -587,7 +597,7 @@ export default function AssignmentManagementRoute() {
         {!groupsLoading && groupId > 0 && !loading && !error && !groupError && items.length === 0 ? <p className="py-4 text-sm text-[var(--admin-muted)]">本组尚未发布作业。</p> : null}
         <div className="assignment-list__items">{items.map((item) => <article key={item.id} className="assignment-list__item">
           <div className="assignment-list__summary"><div className="assignment-list__title"><h3>{item.title}</h3><span className={`rounded-full border px-2 py-0.5 text-xs ${item.publicationStatus === "withdrawn" ? "border-[var(--admin-border)] text-[var(--admin-muted)]" : "border-[var(--admin-success-border)] text-[var(--admin-success)]"}`}>{assignmentPublicationStatusLabel(item.publicationStatus)}</span></div><p>截止 {formatAssignmentDate(item.dueAt)} · {item.isGroupWide ? "全组（实时）" : "指定成员"} · 接收 {item.targetCount} 人 · 已提交 {item.submittedCount}/{item.targetCount} · 已通过 {item.passedCount}</p></div>
-          <div className="assignment-list__actions"><Link to={`/dashboard/admin/training/assignments?view=review&assignmentId=${item.id}`} className="admin-button admin-button--secondary admin-button--small">查看批改</Link><button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={saving} onClick={() => editAssignment(item)}>{item.submittedCount > 0 ? "延长截止" : "编辑"}</button>{item.publicationStatus === "withdrawn" ? <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={saving} onClick={() => void changePublicationStatus(item, "published")}>重新发布</button> : <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={saving} onClick={() => void changePublicationStatus(item, "withdrawn")}>撤回</button>}{item.canDelete ? <button type="button" className="admin-button admin-button--quiet admin-button--small text-[var(--admin-danger)]" disabled={saving} onClick={() => void deleteAssignment(item)}>删除</button> : item.publicationStatus === "withdrawn" ? <span className="assignment-list__retained">历史或技能关联已保留</span> : null}</div>
+          <div className="assignment-list__actions"><Link to={`/dashboard/admin/training/assignments?view=review&groupId=${groupId}&assignmentId=${item.id}`} className="admin-button admin-button--secondary admin-button--small">查看批改</Link><button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={saving} onClick={() => editAssignment(item)}>{item.submittedCount > 0 ? "延长截止" : "编辑"}</button>{item.publicationStatus === "withdrawn" ? <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={saving} onClick={() => void changePublicationStatus(item, "published")}>重新发布</button> : <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={saving} onClick={() => void changePublicationStatus(item, "withdrawn")}>撤回</button>}{item.canDelete ? <button type="button" className="admin-button admin-button--quiet admin-button--small text-[var(--admin-danger)]" disabled={saving} onClick={() => void deleteAssignment(item)}>删除</button> : item.publicationStatus === "withdrawn" ? <span className="assignment-list__retained">历史或技能关联已保留</span> : null}</div>
         </article>)}</div>
         <details className="mt-4 border-t border-[var(--admin-border-subtle)] pt-3 text-sm text-[var(--admin-muted)]">
           <summary className="w-fit cursor-pointer">维护操作</summary>

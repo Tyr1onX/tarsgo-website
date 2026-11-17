@@ -40,7 +40,7 @@ test("workbench exposes assignments to all five supported groups", () => {
 });
 
 test("assignment member options are not cleared by unrelated loader revalidation", () => {
-  assert.match(assignmentManagement, /assignmentGroups\.find\(\(group\) => group\.groupId === requestedGroupId\)/);
+  assert.match(assignmentManagement, /assignmentGroups\.some\(\(group\) => group\.groupId === requestedGroupId\)/);
   assert.doesNotMatch(assignmentManagement, /groupResolution, technicalGroups\]\)/);
   assert.match(assignmentManagement, /setItems\(\[\]\);\s*setMembers\(null\);\s*assignmentClient\.listAdmin\(groupId\)/);
   assert.match(assignmentManagement, /if \(!groupId \|\| view !== "list" \|\| !composerOpen \|\| draft\.isGroupWide\) return/);
@@ -303,12 +303,12 @@ test("migration 25 only adds nullable idempotency metadata to existing assignmen
 
 test("assignment management lists current work before opening the editor", () => {
   assert.match(assignmentManagement, /const \[composerOpen, setComposerOpen\] = useState\(false\)/);
-  assert.match(assignmentManagement, /resetDraft\(nextGroupID\); setSearchParams\(\{ view, groupId: String\(nextGroupID\) \}, \{ replace: true \}\); \}\}/);
+  assert.match(assignmentManagement, /resetDraft\(nextGroupID\); setSearchParams\(nextGroupID \? \{ view, groupId: String\(nextGroupID\) \} : \{ view \}, \{ replace: true \}\); \}\}/);
   assert.doesNotMatch(assignmentManagement, /resetDraft\(nextGroupID\); setComposerOpen\(true\)/);
-  assert.match(assignmentManagement, /\{!composerOpen \? <button type="button" className="admin-button admin-button--primary"[\s\S]*?>发布作业<\/button> : null\}/);
+  assert.match(assignmentManagement, /\{!composerOpen && view !== "overview" \? <button type="button" className="admin-button admin-button--primary"[\s\S]*?>发布作业<\/button> : null\}/);
   assert.match(assignmentManagement, /view === "review" \? <Suspense/);
   assert.match(assignmentManagement, /view === "list" \? "is-active"/);
-  assert.match(assignmentManagement, /assignments\?view=review&assignmentId=\$\{item\.id\}/);
+  assert.match(assignmentManagement, /assignments\?view=review&groupId=\$\{groupId\}&assignmentId=\$\{item\.id\}/);
   assert.match(assignmentSubmissions, /const toSubmit = detail\?\.members\.filter\(\(member\) => member\.status === "pending"/);
   assert.match(assignmentSubmissions, /items\.find\(\(item\) => item\.submittedCount > item\.reviewedCount\)/);
   assert.match(assignmentSubmissions, /待批改 \$\{item\.submittedCount - item\.reviewedCount\}/);

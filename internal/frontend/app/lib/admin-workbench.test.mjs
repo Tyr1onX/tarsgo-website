@@ -19,7 +19,8 @@ test("the sidebar shows actionable task indicators instead of a duplicate manage
   assert.match(sectionNavigation, /assignmentClient\.adminTodos\(\)/);
   assert.match(sectionNavigation, /getWeeklyReportStatus\(\)/);
   assert.match(sectionNavigation, /assignmentClient\.listTodos\(\)/);
-  assert.match(sectionNavigation, /reviewGroup\.groupId/);
+  assert.match(sectionNavigation, /reviewCount: value\.reviewCount/);
+  assert.doesNotMatch(sectionNavigation, /aria-label="按技术组批改"/);
   assert.match(sectionNavigation, /dashboard-nav-badge/);
   assert.doesNotMatch(sectionNavigation, /leaveClient|schoolSummary|leaveActionableCount/);
   assert.doesNotMatch(dashboardLayout, /managementLabel|请假待审批|leaveActionableState|candidateTodoCount/);
