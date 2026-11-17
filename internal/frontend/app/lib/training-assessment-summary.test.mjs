@@ -243,7 +243,7 @@ test("gradebook layout keeps group permissions and ranking statistics distinct",
   assert.match(page, /\{rawSummaries\.length\} 次考核/);
   assert.match(page, /\{visibleRows\.length\} 人/);
   assert.doesNotMatch(page, /\{visibleRows\.length\} 位成员/);
-  assert.match(page, /setMemberQuery\(" "\)/.source ? /setMemberQuery\(" "\)/ : /setMemberQuery\(" "\)/);
+  assert.match(page, /setMemberQuery\(""\)/);
 });
 
 test("training analysis no longer offers batch-grade imports", () => {
