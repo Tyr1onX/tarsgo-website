@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { buildTrainingGradebook, mechanicalTrainingSkills, summarizeTrainingScores, rankTrainingAssessment, sortGradebookMembers } from "./training-assessment-summary.ts";
+import { buildTrainingGradebook, filterGradebookMembers, mechanicalTrainingSkills, summarizeTrainingScores, rankTrainingAssessment, sortGradebookMembers } from "./training-assessment-summary.ts";
 
 test("groups existing scores by assessment and distinguishes missing from zero", () => {
   const result = summarizeTrainingScores({
@@ -57,6 +57,38 @@ test("ranking uses one assessment, shares tied positions and excludes missing sc
   assert.deepEqual(rankTrainingAssessment(snapshot, "assignment:9").map(({ userId, rank }) => ({ userId, rank })), [
     { userId: 5, rank: 1 },
   ]);
+});
+
+test("pending assignment submissions are visible without inventing scores or rankings", () => {
+  const snapshot = {
+    members: [1, 2, 3, 4, 5].map((userId) => ({ userId, name: String(userId) })),
+    grades: [
+      { userId: 4, assessmentName: "线下作业", score: null, note: "待核实" },
+      { userId: 5, assessmentName: "线下作业", score: 0, note: "" },
+    ],
+    assignmentGrades: [
+      { userId: 1, assignmentId: 8, assessmentName: "站内作业", score: 90, decision: "passed" },
+      { userId: 2, assignmentId: 8, assessmentName: "站内作业", score: null, decision: null },
+      { userId: 3, assignmentId: 8, assessmentName: "站内作业", score: 0, decision: "needs_redo" },
+      { userId: 99, assignmentId: 8, assessmentName: "站内作业", score: 77, decision: "passed" },
+    ],
+    dimensions: [], ratings: [],
+  };
+  const book = buildTrainingGradebook(snapshot);
+  const assignment = book.assessments.find((item) => item.key === "assignment:8");
+  const offline = book.assessments.find((item) => item.key === "training:线下作业");
+  assert.deepEqual(assignment, {
+    key: "assignment:8", name: "站内作业", source: "assignment", total: 3, scored: 2, missing: 1, average: 45,
+  });
+  assert.deepEqual(book.members.map((member) => member.results.find((result) => result.key === "assignment:8")?.status), [
+    "graded", "pending", "graded", "unrecorded", "unrecorded",
+  ]);
+  assert.equal(book.members[1].results.find((result) => result.key === "assignment:8")?.rank, null);
+  assert.equal(book.members[2].results.find((result) => result.key === "assignment:8")?.score, 0);
+  assert.deepEqual(filterGradebookMembers(book.members, assignment, false).map((item) => item.userId), [1, 3, 2]);
+  assert.equal(filterGradebookMembers(book.members, assignment, true).length, 5);
+  assert.deepEqual(filterGradebookMembers(book.members, offline, false).map((item) => item.userId), [5]);
+  assert.equal(filterGradebookMembers(book.members, offline, true).length, 5);
 });
 
 test("all-assessment gradebook shows per-column ranks and opens complete member history", () => {
@@ -189,7 +221,8 @@ test("selecting one assessment paginates its ranking without changing the indivi
   assert.match(page, /rawSummaries\.map/);
   assert.match(page, /成绩排名/);
   assert.match(page, /const PAGE_SIZE = 20/);
-  assert.match(page, /setAssessmentKey\(event\.target\.value\); setPage\(1\)/);
+  assert.match(page, /setAssessmentKey\(event\.target\.value\); setShowAllMembers\(false\); setPage\(1\)/);
+  assert.match(page, /aria-label="成员范围"/);
   assert.match(page, /Math\.min\(page, totalPages\)/);
   assert.match(page, /visibleRows\.slice\(/);
   assert.match(page, /setPage\(currentPage \+ 1\)/);
