@@ -5,6 +5,7 @@ import {
   getAuthUserRoleLabel,
   initializeAccountSessions,
   type AccountSessionAccount,
+  type AuthUser,
 } from "~/lib/auth-client";
 
 export function useAccountSessionChoices(open: boolean, currentUserId: number | undefined) {
@@ -28,6 +29,44 @@ export function useAccountSessionChoices(open: boolean, currentUserId: number | 
   }, [open, currentUserId]);
 
   return { accounts, setAccounts, loading, error, setError };
+}
+
+export function AccountMenuIdentity({ user }: { user: AuthUser }) {
+  const name = getAuthUserName(user);
+  const role = getAuthUserRoleLabel(user);
+  const avatarUrl = user.avatarUrl?.trim();
+
+  return (
+    <div className="account-menu-identity" aria-label="当前账号">
+      <span className="account-menu-identity__avatar" aria-hidden="true">
+        {name.charAt(0)}
+        {avatarUrl ? <img src={avatarUrl} alt="" referrerPolicy="no-referrer"
+          onError={(event) => { event.currentTarget.hidden = true; }} /> : null}
+      </span>
+      <span className="account-menu-identity__info">
+        <strong className="account-menu-identity__name">{name}</strong>
+        <span className="account-menu-identity__email">{user.email}</span>
+        {name !== role ? <span className="account-menu-identity__role">{role}</span> : null}
+      </span>
+      <svg className="account-menu-identity__check" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" />
+        <path d="m8 12 2.7 2.7L16.5 9" />
+      </svg>
+    </div>
+  );
+}
+
+export function AccountMenuActionIcon({ name }: { name: "my-profile" | "guide" | "logout" }) {
+  const paths = {
+    "my-profile": "M20 21v-2a7 7 0 0 0-14 0v2 M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z",
+    guide: "M4 5.5a2 2 0 0 1 2-2h5v17H6a2 2 0 0 0-2 2z M20 5.5a2 2 0 0 0-2-2h-5v17h5a2 2 0 0 1 2 2z",
+    logout: "M9 3H4v18h5 M14 7l5 5-5 5 M8 12h11",
+  };
+  return <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24"
+    fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round">
+    <path d={paths[name]} />
+  </svg>;
 }
 
 export function AccountSessionChoices({
@@ -57,9 +96,15 @@ export function AccountSessionChoices({
             : account.status === "expired" ? "会话已过期" : account.status === "revoked" ? "会话已撤销" : getAuthUserRoleLabel(account.user);
           const details = (
             <>
-              <span className="account-session-choices__name">{getAuthUserName(account.user)}</span>
-              <span className="account-session-choices__email">{account.user.email}</span>
-              <span className="account-session-choices__status">{status}</span>
+              <span className="account-session-choices__avatar" aria-hidden="true">
+                {getAuthUserName(account.user).charAt(0)}
+                {account.user.avatarUrl ? <img src={account.user.avatarUrl} alt="" referrerPolicy="no-referrer"
+                  onError={(event) => { event.currentTarget.hidden = true; }} /> : null}
+              </span>
+              <span className="account-session-choices__details">
+                <span className="account-session-choices__name">{getAuthUserName(account.user)}</span>
+                <span className="account-session-choices__meta">{account.user.email} · {status}</span>
+              </span>
             </>
           );
           return (
@@ -77,7 +122,11 @@ export function AccountSessionChoices({
               ) : null}
               <button type="button" role="menuitem" disabled={busy} onClick={() => onRemove(account.id)}
                 className="account-session-choices__remove"
-                aria-label={`移除${getAuthUserName(account.user)}（${account.user.email}）`} title="移除已保存账号">×</button>
+                aria-label={`移除${getAuthUserName(account.user)}（${account.user.email}）`} title="移除已保存账号">
+                <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+                  <circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" />
+                </svg>
+              </button>
             </div>
           );
         })}

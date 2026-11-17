@@ -159,7 +159,7 @@ test("legacy team, timetable, profile, and help paths remain reachable through t
   assert.match(layout, /skipGroupResolution[\s\S]*?currentPath\.pathname === "\/dashboard\/base"/);
   assert.match(layout, /navigate\(`\/dashboard\/members\/\$\{currentUser\.id\}\$\{tab === "overview" \? "" : `\?tab=\$\{tab\}`\}`\)/);
   assert.match(layout, /帮助与工作手册/);
-  assert.match(layout, />我的主页<\/button>/);
+  assert.match(layout, /<AccountMenuActionIcon name="my-profile" \/>[\s\S]*?我的主页/);
   assert.match(layout, /getDashboardSectionMenu\(currentUser\)\.filter\(\(\{ key \}\) => key !== "my-profile"\)/);
   assert.match(sideNavigation, /getUnifiedDashboardMenu\(currentUser, hasAssignmentGroup\)/);
   assert.match(layout, /getDashboardSectionMenu\(currentUser\)/);

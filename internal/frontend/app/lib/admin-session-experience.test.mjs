@@ -83,7 +83,11 @@ test("account choice stays inside both avatar menus and does not need a manageme
   assert.match(choices, /const canAddAccount = !loading && accounts\.length === 1 && otherAccounts\.length === 0/);
   assert.match(choices, /if \(!loading && !error && otherAccounts\.length === 0 && !canAddAccount\) return null/);
   assert.doesNotMatch(choices, /aria-current|管理账号|添加账号/);
-  assert.match(layout, /currentUserName !== getAuthUserRoleLabel\(currentUser\)/);
+  assert.match(layout, /<AccountMenuIdentity user=\{currentUser\} \/>/);
+  assert.match(navbar, /<AccountMenuIdentity user=\{visibleUser\} \/>/);
+  assert.match(choices, /name !== role/);
+  assert.match(choices, /account-session-choices__avatar/);
+  assert.match(choices, /account-session-choices__remove/);
   assert.match(layout, /这只会移除该账号，不会退出其他账号/);
   for (const menu of [layout, navbar]) {
     assert.match(menu, /退出登录/);

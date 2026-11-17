@@ -6,7 +6,7 @@ import type { Route } from "./+types/layout";
 import { SiteLogo } from "~/components/site-logo";
 import { ThemeControl } from "~/components/theme-control";
 import { DashboardSectionNavigation } from "~/components/dashboard-section-navigation";
-import { AccountSessionChoices, useAccountSessionChoices } from "~/components/account-session-choices";
+import { AccountMenuActionIcon, AccountMenuIdentity, AccountSessionChoices, useAccountSessionChoices } from "~/components/account-session-choices";
 import { CoBuilderBadgeUnlockToast } from "~/components/co-builder-badge-unlock-toast";
 import { CommunityExperienceToastHost } from "~/components/community-experience-toast-host";
 import type { CoBuilderBadgeLevel, CoBuilderBadgeReplayRequest } from "~/lib/co-builder-badge-client";
@@ -725,7 +725,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
           id="dashboard-user-menu"
           role="menu"
           aria-label="账号菜单"
-          className="admin-design dashboard-shell__user-menu"
+          className="admin-design dashboard-shell__user-menu account-menu-surface"
           style={{
             left: userMenuPosition?.left ?? 12,
             top: userMenuPosition?.top ?? 12,
@@ -745,29 +745,8 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
             items[nextIndex]?.focus();
           }}
         >
-          <div className="dashboard-shell__user-menu-role">
-            <div className="truncate text-sm font-medium text-[var(--admin-text)]">
-              {currentUserName || getAuthUserRoleLabel(currentUser)}
-            </div>
-            <div className="truncate text-xs text-[var(--admin-muted)]">{currentUser.email}</div>
-            {currentUserName !== getAuthUserRoleLabel(currentUser) ? (
-              <div className="mt-1 text-xs text-[var(--admin-muted)]">{getAuthUserRoleLabel(currentUser)}</div>
-            ) : null}
-          </div>
-          <div className="dashboard-shell__user-menu-actions">
-            <button
-              type="button"
-              onClick={() => { setUserMenuOpen(false); openMyProfile(); }}
-              role="menuitem"
-              className="dashboard-shell__account-action"
-            >我的主页</button>
-            {hasWorkbenchAccess(currentUser) ? <button
-              type="button"
-              onClick={() => { setUserMenuOpen(false); navigate("/dashboard/guide"); }}
-              role="menuitem"
-              className="dashboard-shell__account-action"
-            >帮助与工作手册</button> : null}
-            <div className="dashboard-shell__account-divider" />
+          <AccountMenuIdentity user={currentUser} />
+          <div className="account-menu-actions">
             <AccountSessionChoices
               accounts={accountSessions}
               currentUserId={currentUser.id}
@@ -779,14 +758,23 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
               onReauthenticate={handleReauthenticateAccount}
               onAdd={handleAddAccount}
             />
-            <div className="dashboard-shell__account-divider" />
-            <button
-              type="button"
-              onClick={handleLogout}
-              disabled={loggingOut}
-              role="menuitem"
-              className="dashboard-shell__account-action dashboard-shell__account-action--danger"
-            >退出登录</button>
+            <button type="button" onClick={() => { setUserMenuOpen(false); openMyProfile(); }}
+              role="menuitem" className="account-menu-action">
+              <AccountMenuActionIcon name="my-profile" />
+              我的主页
+            </button>
+            {hasWorkbenchAccess(currentUser) ? <button type="button"
+              onClick={() => { setUserMenuOpen(false); navigate("/dashboard/guide"); }}
+              role="menuitem" className="account-menu-action">
+              <AccountMenuActionIcon name="guide" />
+              帮助与工作手册
+            </button> : null}
+            <div className="account-menu-divider" role="separator" />
+            <button type="button" onClick={handleLogout} disabled={loggingOut}
+              role="menuitem" className="account-menu-action account-menu-action--logout">
+              <AccountMenuActionIcon name="logout" />
+              退出登录
+            </button>
             {accountActionError ? <p role="alert" className="dashboard-shell__account-error mx-2 mt-2">{accountActionError}</p> : null}
           </div>
         </div>,
