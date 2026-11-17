@@ -147,6 +147,16 @@ export default function TrainingAssessmentRoute() {
   const pageRows = visibleRows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
   const dimensions = snapshot?.dimensions ?? [];
 
+  function changeGroup(nextGroupId: number) {
+    if (nextGroupId === groupId) return;
+    setGroupId(nextGroupId);
+    setMemberId(0);
+    setMemberQuery("");
+    setAssessmentKey("");
+    setPage(1);
+    setNotice("");
+  }
+
   function selectMember(userId: number) {
     setMemberId(userId);
     setNotice("");
@@ -218,11 +228,21 @@ export default function TrainingAssessmentRoute() {
       <header className="admin-page-header flex flex-wrap items-center justify-between gap-3">
         <h1 className="admin-page-title">培训成绩与能力评价</h1>
         {groupsLoading ? <BrandLoader size="sm" label="正在加载组别" /> : assignmentGroups.length > 1 ?
-          <label className="admin-field-label">技术组
-            <select className="admin-field" value={groupId} onChange={(event) => { setGroupId(Number(event.target.value)); setMemberId(0); setMemberQuery(""); setAssessmentKey(""); setPage(1); setNotice(""); }}>
-              {assignmentGroups.map((group) => <option key={group.groupId} value={group.groupId}>{group.name}</option>)}
-            </select>
-          </label> : <span>{assignmentGroups[0]?.name ?? ""}</span>}
+          <div className="w-full min-w-0 sm:w-auto">
+            {assignmentGroups.length <= 5 ? <div className="hidden flex-wrap gap-1 rounded-xl border border-[var(--admin-border)] bg-[var(--admin-surface)] p-1 sm:flex" role="group" aria-label="技术组">
+              {assignmentGroups.map((group) => <button key={group.groupId} type="button" aria-pressed={groupId === group.groupId}
+                className={"rounded-lg px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 " + (groupId === group.groupId
+                  ? "bg-[var(--admin-surface-subtle)] text-[var(--admin-text)] shadow-sm"
+                  : "text-[var(--admin-muted)] hover:bg-[var(--admin-hover-overlay)] hover:text-[var(--admin-text)]")}
+                onClick={() => changeGroup(group.groupId)}>{group.name}</button>)}
+            </div> : null}
+            <div className={assignmentGroups.length <= 5 ? "sm:hidden" : "sm:w-48"}>
+              <select className="admin-field" aria-label="技术组"
+                value={groupId} onChange={(event) => changeGroup(Number(event.target.value))}>
+                {assignmentGroups.map((group) => <option key={group.groupId} value={group.groupId}>{group.name}</option>)}
+              </select>
+            </div>
+          </div> : <span className="text-sm text-[var(--admin-muted)]">{assignmentGroups[0]?.name ?? ""}</span>}
       </header>
       {groupsError ? <p role="alert" className="text-sm text-[var(--admin-danger)]">{groupsError}</p> : null}
       {error ? <p role="alert" className="text-sm text-[var(--admin-danger)]">{error}</p> : null}
@@ -319,14 +339,15 @@ export default function TrainingAssessmentRoute() {
         </section>
       ) : (
         <>
-          <section className="admin-panel space-y-4 p-5" aria-label="考核概览">
+          <section className="admin-panel p-4 sm:p-5" aria-label="考核概览">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold">考核概览</h2>
-              <span className="text-sm text-[var(--admin-muted)]">{visibleRows.length} 位成员 · {rawSummaries.length} 次考核</span>
-            </div>
-            {selectedAssessment ? <>
-              <label className="admin-field-label block max-w-xl">选择考核
-                <select className="admin-field mt-2 w-full" value={selectedAssessment.key}
+              <div className="flex items-baseline gap-3">
+                <h2 className="text-lg font-semibold">考核概览</h2>
+                <span className="text-xs text-[var(--admin-muted)]">{rawSummaries.length} 次考核</span>
+              </div>
+              {selectedAssessment ? <label className="block w-full min-w-0 sm:w-72">
+                <span className="sr-only">选择考核</span>
+                <select className="admin-field" value={selectedAssessment.key}
                   onChange={(event) => { setAssessmentKey(event.target.value); setShowAllMembers(false); setPage(1); }}>
                   {groupId === MECHANICAL_TRAINING_GROUP_ID ? <optgroup label="综合与能力维度">
                     {summaries.filter((item) => item.source === "overall" || item.source === "skill").map((item) =>
@@ -338,8 +359,10 @@ export default function TrainingAssessmentRoute() {
                     </option>)}
                   </optgroup>
                 </select>
-              </label>
-              <dl className="grid grid-cols-2 gap-4 border-t border-[var(--admin-border-subtle)] pt-4 sm:grid-cols-3">
+              </label> : null}
+            </div>
+            {selectedAssessment ? <>
+              <dl className="mt-4 grid grid-cols-3 gap-3 border-t border-[var(--admin-border-subtle)] pt-4 sm:gap-4">
                 <div>
                   <dt className="text-sm text-[var(--admin-muted)]">平均分</dt>
                   <dd className="mt-1 text-2xl font-semibold tabular-nums">{selectedAssessment.average === null ? "—" : selectedAssessment.average}</dd>
@@ -355,17 +378,25 @@ export default function TrainingAssessmentRoute() {
               </dl>
             </> : <p className="text-sm text-[var(--admin-muted)]">暂无培训成绩</p>}
           </section>
-          <section className="admin-panel space-y-4 p-5" aria-label="当前考核成绩排名">
+          <section className="admin-panel space-y-4 p-4 sm:p-5" aria-label="当前考核成绩排名">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h2 className="text-lg font-semibold">成绩排名</h2>
-              <div className="flex w-full flex-wrap gap-2 sm:w-auto">
-                <select className="admin-field" aria-label="成员范围" value={showAllMembers ? "all" : "participated"}
-                  onChange={(event) => { setShowAllMembers(event.target.value === "all"); setPage(1); }}>
-                  <option value="participated">{selectedAssessment?.source === "assignment" ? "已提交" : selectedAssessment?.source === "training" ? "有成绩" : "有排名"}</option>
-                  <option value="all">全部成员</option>
-                </select>
-                <input type="search" className="admin-field min-w-0 flex-1 sm:w-56 sm:flex-none" aria-label="搜索成员" placeholder="搜索姓名或编号"
-                  value={memberQuery} onChange={(event) => { setMemberQuery(event.target.value); setPage(1); }} />
+              <div className="flex items-baseline gap-3">
+                <h2 className="text-lg font-semibold">成绩排名</h2>
+                {selectedAssessment ? <span className="text-xs text-[var(--admin-muted)]">{visibleRows.length} 人</span> : null}
+              </div>
+              <div className="flex w-full flex-wrap items-center gap-2 sm:w-auto">
+                <div className="inline-flex shrink-0 gap-1 rounded-lg border border-[var(--admin-border)] bg-[var(--admin-surface-subtle)] p-1" role="group" aria-label="成员范围">
+                  {([{ value: false, label: selectedAssessment?.source === "assignment" ? "已提交" : selectedAssessment?.source === "training" ? "有成绩" : "有排名" }, { value: true, label: "全部成员" }] as const)
+                    .map((option) => <button key={String(option.value)} type="button" aria-pressed={showAllMembers === option.value}
+                      className={"rounded-md px-3 py-2 text-sm font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 " + (showAllMembers === option.value
+                        ? "bg-[var(--admin-surface)] text-[var(--admin-text)] shadow-sm"
+                        : "text-[var(--admin-muted)] hover:text-[var(--admin-text)]")}
+                      onClick={() => { setShowAllMembers(option.value); setPage(1); }}>{option.label}</button>)}
+                </div>
+                <div className="min-w-32 flex-1 sm:w-56 sm:flex-none">
+                  <input type="search" className="admin-field" aria-label="搜索成员" placeholder="搜索姓名或编号"
+                    value={memberQuery} onChange={(event) => { setMemberQuery(event.target.value); setPage(1); }} />
+                </div>
               </div>
             </div>
             {pageRows.length ? <div className="overflow-x-auto">

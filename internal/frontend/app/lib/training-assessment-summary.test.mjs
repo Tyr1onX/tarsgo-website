@@ -231,6 +231,21 @@ test("selecting one assessment paginates its ranking without changing the indivi
   assert.doesNotMatch(page, /sortKey|setSortKey|missingOnly|detailRef/);
 });
 
+test("gradebook layout keeps group permissions and ranking statistics distinct", () => {
+  const page = readFileSync(new URL("../routes/admin/training-assessment.tsx", import.meta.url), "utf8");
+  assert.match(page, /assignmentGroups\.length <= 5/);
+  assert.match(page, /aria-pressed=\{groupId === group\.groupId\}/);
+  assert.match(page, /changeGroup\(group\.groupId\)/);
+  assert.match(page, /aria-label="技术组"/);
+  assert.match(page, /sm:hidden/);
+  assert.match(page, /role="group" aria-label="成员范围"/);
+  assert.match(page, /aria-pressed=\{showAllMembers === option\.value\}/);
+  assert.match(page, /\{rawSummaries\.length\} 次考核/);
+  assert.match(page, /\{visibleRows\.length\} 人/);
+  assert.doesNotMatch(page, /\{visibleRows\.length\} 位成员/);
+  assert.match(page, /setMemberQuery\(""\)/);
+});
+
 test("training analysis no longer offers batch-grade imports", () => {
   const route = readFileSync(new URL("../routes/admin/training-assessment.tsx", import.meta.url), "utf8");
   const client = readFileSync(new URL("./training-assessment-client.ts", import.meta.url), "utf8");
