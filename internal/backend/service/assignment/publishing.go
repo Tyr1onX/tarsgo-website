@@ -328,7 +328,12 @@ func (s *Service) Update(ctx context.Context, actor Actor, assignmentID uint64, 
 			return err
 		}
 		if submissionCount != 0 {
-			return conflict("已有成员提交，不能再修改作业内容")
+			if item.Title != input.Title || item.Description != input.Description || item.AttachmentRequirements != input.AttachmentRequirements {
+				return conflict("已有成员提交，只能延长截止时间")
+			}
+			if !input.DueAt.After(readStoredUTCWall(item.DueAt)) {
+				return conflict("新截止时间必须晚于原截止时间")
+			}
 		}
 		item.Title = input.Title
 		item.Description = input.Description
@@ -437,9 +442,6 @@ func (s *Service) Delete(ctx context.Context, actor Actor, assignmentID uint64) 
 		}
 		for _, material := range materials {
 			materialPaths = append(materialPaths, material.StoragePath)
-		}
-		if err := tx.Where("assignment_id = ?", item.ID).Delete(&model.AssignmentLateWindow{}).Error; err != nil {
-			return err
 		}
 		if err := tx.Where("assignment_id = ?", item.ID).Delete(&model.AssignmentTarget{}).Error; err != nil {
 			return err

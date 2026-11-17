@@ -8,7 +8,6 @@ import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { Navigate, useLocation, useSearchParams } from "react-router";
 
 import { assignmentClient, assignmentDecisionLabel, assignmentStatusLabel, formatAssignmentDate, type AdminAssignmentDetail, type Assignment } from "~/lib/assignment-client";
-import { assignmentDeadlineForShortcut, assignmentDeadlineIsFuture, assignmentDeadlineToISOString } from "~/lib/assignment-deadline";
 import { Notify } from "~/components/notify";
 
 export function meta() {
@@ -72,9 +71,6 @@ export function AssignmentReview({ groupId }: { groupId: number }) {
   const [loading, setLoading] = useState(false);
   const [listLoaded, setListLoaded] = useState(false);
   const [savingID, setSavingID] = useState(0);
-  const [selectedMemberIDs, setSelectedMemberIDs] = useState<number[]>([]);
-  const [lateDeadline, setLateDeadline] = useState(() => assignmentDeadlineForShortcut(new Date(), 1));
-  const [savingWindow, setSavingWindow] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
@@ -86,7 +82,6 @@ export function AssignmentReview({ groupId }: { groupId: number }) {
     setAssignments([]);
     setDetail(null);
     setSelectedID(0);
-    setSelectedMemberIDs([]);
     setError("");
     assignmentClient.listAdmin(groupId).then((items) => {
       if (!active) return;
@@ -207,7 +202,6 @@ export function AssignmentReview({ groupId }: { groupId: number }) {
 
   function chooseAssignment(id: number) {
     setSelectedID(id);
-    setSelectedMemberIDs([]);
     setDetail(null);
     setEditingReviewID(0);
     setReviewUploads([]);
@@ -216,32 +210,6 @@ export function AssignmentReview({ groupId }: { groupId: number }) {
     setError("");
     setSearchParams(id ? { view: "review", assignmentId: String(id) } : { view: "review" }, { replace: true });
     setNotice("");
-  }
-
-  async function updateLateWindow(userIds: number[], dueAt: string | null) {
-    if (!selectedID || userIds.length === 0) return;
-    setSavingWindow(true);
-    setError("");
-    setNotice("");
-    try {
-      const updated = await assignmentClient.setLateWindow(selectedID, userIds, dueAt);
-      setDetail(updated);
-      setSelectedMemberIDs([]);
-      setNotice(dueAt ? `已为 ${userIds.length} 位成员开放补交` : "已取消补交");
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "更新补交窗口失败");
-    } finally {
-      setSavingWindow(false);
-    }
-  }
-
-  function grantLateWindow() {
-    const dueAt = assignmentDeadlineToISOString(lateDeadline);
-    if (!dueAt || !assignmentDeadlineIsFuture(lateDeadline, new Date()) || (assignment && new Date(dueAt) <= new Date(assignment.dueAt))) {
-      setError("补交截止时间必须晚于当前时间和原截止时间");
-      return;
-    }
-    void updateLateWindow(selectedMemberIDs, dueAt);
   }
 
   const assignment = listLoaded && assignments.some((item) => item.id === selectedID) && detail?.assignment.id === selectedID
@@ -268,15 +236,6 @@ export function AssignmentReview({ groupId }: { groupId: number }) {
           <span>截止 {formatAssignmentDate(assignment.dueAt)}</span>
           <span>{assignment.isGroupWide ? "全组实时接收" : "指定成员"} · 接收 {assignment.targetCount} 人</span>
         </section>
-        {assignment.publicationStatus !== "withdrawn" && detail?.members.some((member) => member.status !== "passed") ? <section className="admin-panel space-y-3 p-4 sm:p-5" aria-label="开放补交">
-          <h2 className="text-sm font-semibold text-[var(--admin-text)]">开放补交</h2>
-          <div className="flex flex-wrap items-end gap-3">
-            <label className="admin-field-label">补交截止时间（北京时间）
-              <input className={fieldClass} type="datetime-local" value={lateDeadline} disabled={savingWindow} onChange={(event) => setLateDeadline(event.target.value)} />
-            </label>
-            <button type="button" className="admin-button admin-button--primary" disabled={savingWindow || selectedMemberIDs.length === 0} onClick={grantLateWindow}>{savingWindow ? "保存中…" : `为选中 ${selectedMemberIDs.length} 人开放`}</button>
-          </div>
-        </section> : null}
         <section className="admin-panel divide-y divide-[var(--admin-border-subtle)] p-4 sm:p-5" aria-label="成员提交情况">
           {detail && detail.members.length > 0 ? <div className="grid grid-cols-3 gap-2 pb-4" role="group" aria-label="成员进度筛选">
             {([
@@ -298,7 +257,6 @@ export function AssignmentReview({ groupId }: { groupId: number }) {
             return <article key={member.userId} className="py-5 first:pt-4 last:pb-4">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="flex min-w-0 flex-wrap items-center gap-2">
-                  {assignment.publicationStatus !== "withdrawn" && member.status !== "passed" ? <input type="checkbox" aria-label={`选择${member.name}补交`} checked={selectedMemberIDs.includes(member.userId)} disabled={savingWindow} onChange={(event) => setSelectedMemberIDs((current) => event.target.checked ? [...current, member.userId] : current.filter((id) => id !== member.userId))} /> : null}
                   <h2 className="text-base font-semibold tracking-tight text-[var(--admin-text)]">{member.name}</h2>
                   <span className="text-xs tabular-nums text-[var(--admin-muted)]">#{member.userId}</span>
                   <span className={`rounded-md border px-2 py-0.5 text-xs font-medium ${member.status === "passed" ? "border-[var(--admin-success-border)] bg-[var(--admin-success-surface)] text-[var(--admin-success)]" : member.status === "pending" ? "border-[var(--admin-border-subtle)] text-[var(--admin-muted)]" : "border-[var(--admin-warning-border)] bg-[var(--admin-warning-surface)] text-[var(--admin-warning)]"}`}>
@@ -311,10 +269,6 @@ export function AssignmentReview({ groupId }: { groupId: number }) {
                   {latest.isLate ? <span className="ml-1 text-[var(--admin-warning)]">逾期</span> : null}
                 </div> : null}
               </div>
-              {member.lateDueAt ? <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-[var(--admin-muted)]">
-                <span>补交至 {formatAssignmentDate(member.lateDueAt)}</span>
-                <button type="button" className="admin-button admin-button--quiet admin-button--small" disabled={savingWindow} onClick={() => void updateLateWindow([member.userId], null)}>取消补交</button>
-              </div> : null}
               {!latest ? <p className="mt-3 text-sm text-[var(--admin-muted)]">尚未提交</p> : <>
                 <div className="mt-3 grid items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.1fr)] lg:gap-8">
                   <div className="min-w-0 space-y-3">

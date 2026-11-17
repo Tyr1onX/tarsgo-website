@@ -110,7 +110,6 @@ type AssignmentView struct {
 	Title                  string             `json:"title"`
 	Description            string             `json:"description"`
 	DueAt                  time.Time          `json:"dueAt"`
-	LateDueAt              *time.Time         `json:"lateDueAt,omitempty"`
 	AttachmentRequirements string             `json:"attachmentRequirements"`
 	IsGroupWide            bool               `json:"isGroupWide"`
 	PublicationStatus      string             `json:"publicationStatus"`
@@ -140,7 +139,6 @@ type AssignmentMemberView struct {
 	UserID           uint64           `json:"userId"`
 	Name             string           `json:"name"`
 	Status           string           `json:"status"`
-	LateDueAt        *time.Time       `json:"lateDueAt,omitempty"`
 	IsLate           bool             `json:"isLate"`
 	LatestSubmission *SubmissionView  `json:"latestSubmission,omitempty"`
 	Submissions      []SubmissionView `json:"submissions"`
@@ -263,11 +261,7 @@ func (s *Service) GetMine(ctx context.Context, actor Actor, assignmentID uint64)
 	if err != nil {
 		return nil, internalError("读取作业提交记录失败", err)
 	}
-	windows, err := s.loadLateWindows(s.db.WithContext(ctx), []uint64{item.ID}, []uint64{actor.ID})
-	if err != nil {
-		return nil, internalError("读取补交截止时间失败", err)
-	}
-	view := memberAssignmentView(item, groupName, history, s.now(), windows[actor.ID])
+	view := memberAssignmentView(item, groupName, history, s.now())
 	view.MaterialFiles, err = s.loadMaterialFiles(ctx, item.ID)
 	if err != nil {
 		return nil, internalError("读取教学资料失败", err)
@@ -379,10 +373,6 @@ func (s *Service) GetAdmin(ctx context.Context, actor Actor, assignmentID uint64
 	if err != nil {
 		return nil, internalError("读取成员提交记录失败", err)
 	}
-	windows, err := s.loadLateWindows(s.db.WithContext(ctx), []uint64{item.ID}, targetUserIDs)
-	if err != nil {
-		return nil, internalError("读取补交设置失败", err)
-	}
 	var users []model.User
 	if len(targetUserIDs) > 0 {
 		if err := s.db.WithContext(ctx).Select("id", "real_name").Where("id IN ?", targetUserIDs).Find(&users).Error; err != nil {
@@ -409,14 +399,7 @@ func (s *Service) GetAdmin(ctx context.Context, actor Actor, assignmentID uint64
 		if user.RealName != nil && strings.TrimSpace(*user.RealName) != "" {
 			name = strings.TrimSpace(*user.RealName)
 		}
-		deadline := readStoredUTCWall(item.DueAt)
-		window := windows[user.ID]
-		if window != nil && window.After(deadline) {
-			deadline = *window
-		} else {
-			window = nil
-		}
-		member := AssignmentMemberView{UserID: user.ID, Name: name, Submissions: history, Status: memberStatus(history, deadline, s.now()), LateDueAt: window}
+		member := AssignmentMemberView{UserID: user.ID, Name: name, Submissions: history, Status: memberStatus(history, item.DueAt, s.now())}
 		if len(history) > 0 {
 			latest := history[len(history)-1]
 			member.LatestSubmission = &latest
@@ -476,17 +459,8 @@ func (s *Service) Submit(ctx context.Context, actor Actor, assignmentID uint64, 
 		if err := requireMemberAssignmentPublished(item); err != nil {
 			return err
 		}
-		var window model.AssignmentLateWindow
-		windowErr := tx.Where("assignment_id = ? AND user_id = ?", item.ID, actor.ID).Take(&window).Error
-		if windowErr != nil && !errors.Is(windowErr, gorm.ErrRecordNotFound) {
-			return windowErr
-		}
-		deadline := readStoredUTCWall(item.DueAt)
-		if windowErr == nil && readStoredUTCWall(window.DueAt).After(deadline) {
-			deadline = readStoredUTCWall(window.DueAt)
-		}
-		if now.After(deadline) {
-			return conflict("提交窗口已关闭，请联系管理员开放补交")
+		if now.After(readStoredUTCWall(item.DueAt)) {
+			return conflict("提交时间已截止，请联系管理员延长截止时间")
 		}
 		validated, err = validateUploads(headers, true)
 		if err != nil {
@@ -855,14 +829,9 @@ func assignmentView(item model.Assignment, groupName string) AssignmentView {
 	}
 }
 
-func memberAssignmentView(item model.Assignment, groupName string, history []SubmissionView, now time.Time, lateDueAt *time.Time) AssignmentView {
+func memberAssignmentView(item model.Assignment, groupName string, history []SubmissionView, now time.Time) AssignmentView {
 	view := assignmentView(item, groupName)
-	deadline := readStoredUTCWall(item.DueAt)
-	if lateDueAt != nil && lateDueAt.After(deadline) {
-		view.LateDueAt = lateDueAt
-		deadline = *lateDueAt
-	}
-	view.Status = memberStatus(history, deadline, now)
+	view.Status = memberStatus(history, item.DueAt, now)
 	if len(history) > 0 {
 		latest := history[len(history)-1]
 		view.LatestSubmission = &latest

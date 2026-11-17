@@ -33,16 +33,6 @@ type AssignmentTarget struct {
 	CreatedAt    time.Time `json:"createdAt" gorm:"column:created_at;type:datetime;not null;default:CURRENT_TIMESTAMP"`
 }
 
-// AssignmentLateWindow grants one recipient a temporary deadline without changing
-// the assignment's original due date or its recorded late-submission flag.
-type AssignmentLateWindow struct {
-	AssignmentID uint64    `json:"assignmentId" gorm:"column:assignment_id;type:bigint unsigned;primaryKey"`
-	UserID       uint64    `json:"userId" gorm:"column:user_id;type:bigint unsigned;primaryKey"`
-	DueAt        time.Time `json:"dueAt" gorm:"column:due_at;type:datetime;not null"`
-	GrantedBy    uint64    `json:"grantedBy" gorm:"column:granted_by;type:bigint unsigned;not null"`
-	UpdatedAt    time.Time `json:"updatedAt" gorm:"column:updated_at;type:datetime;not null"`
-}
-
 type AssignmentSubmission struct {
 	ID           uint64    `json:"id" gorm:"type:bigint unsigned;primaryKey;autoIncrement"`
 	AssignmentID uint64    `json:"assignmentId" gorm:"column:assignment_id;type:bigint unsigned;not null;uniqueIndex:uk_assignment_attempt,priority:1;index:idx_assignment_submission_user,priority:1"`
