@@ -33,6 +33,17 @@ type teamIdentityChangeV41 struct {
 
 func (teamIdentityChangeV41) TableName() string { return "team_identity_changes" }
 
+// Historical v64 schema, retained only so a fresh database can replay migrations.
+type assignmentLateWindowV64 struct {
+	AssignmentID uint64    `gorm:"column:assignment_id;type:bigint unsigned;primaryKey"`
+	UserID       uint64    `gorm:"column:user_id;type:bigint unsigned;primaryKey"`
+	DueAt        time.Time `gorm:"column:due_at;type:datetime;not null"`
+	GrantedBy    uint64    `gorm:"column:granted_by;type:bigint unsigned;not null"`
+	UpdatedAt    time.Time `gorm:"column:updated_at;type:datetime;not null"`
+}
+
+func (assignmentLateWindowV64) TableName() string { return "assignment_late_windows" }
+
 func migrationRegistry(appEnv string) []migration {
 	return []migration{
 		{version: 1, apply: func(db *gorm.DB) error { return AutoMigrate(db, appEnv) }},
@@ -267,7 +278,20 @@ func migrationRegistry(appEnv string) []migration {
 			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.LeaveAccessRequest{})
 		}},
 		{version: 64, apply: func(db *gorm.DB) error {
-			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&model.AssignmentLateWindow{})
+			return db.Set("gorm:table_options", "ENGINE=InnoDB DEFAULT CHARSET=utf8mb4").AutoMigrate(&assignmentLateWindowV64{})
+		}},
+		{version: 65, apply: func(db *gorm.DB) error {
+			if !db.Migrator().HasTable(&assignmentLateWindowV64{}) {
+				return nil
+			}
+			// Preserve previously granted extensions as one shared assignment deadline.
+			if err := db.Exec(`UPDATE assignments a
+				JOIN (SELECT assignment_id, MAX(due_at) AS due_at FROM assignment_late_windows GROUP BY assignment_id) w
+				ON w.assignment_id = a.id
+				SET a.due_at = GREATEST(a.due_at, w.due_at)`).Error; err != nil {
+				return err
+			}
+			return db.Migrator().DropTable(&assignmentLateWindowV64{})
 		}},
 	}
 }

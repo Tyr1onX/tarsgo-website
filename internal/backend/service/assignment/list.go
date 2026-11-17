@@ -108,15 +108,6 @@ func (s *Service) memberListViews(ctx context.Context, userID uint64, items []mo
 		for _, item := range batch {
 			ids = append(ids, item.ID)
 		}
-		var windows []model.AssignmentLateWindow
-		if err := s.db.WithContext(ctx).Where("assignment_id IN ? AND user_id = ?", ids, userID).Find(&windows).Error; err != nil {
-			return nil, internalError("读取补交设置失败", err)
-		}
-		windowsByAssignment := make(map[uint64]*time.Time, len(windows))
-		for _, window := range windows {
-			dueAt := readStoredUTCWall(window.DueAt)
-			windowsByAssignment[window.AssignmentID] = &dueAt
-		}
 		var latest []model.AssignmentSubmission
 		err = s.db.WithContext(ctx).Table("assignment_submissions AS s").Select("s.*").
 			Where(`s.assignment_id IN ? AND s.user_id = ? AND NOT EXISTS (
@@ -135,7 +126,7 @@ func (s *Service) memberListViews(ctx context.Context, userID uint64, items []mo
 		}
 		now := s.now()
 		for _, item := range batch {
-			result = append(result, memberAssignmentView(item, names[item.GroupID], byAssignment[item.ID], now, windowsByAssignment[item.ID]))
+			result = append(result, memberAssignmentView(item, names[item.GroupID], byAssignment[item.ID], now))
 		}
 	}
 	return result, nil
@@ -232,14 +223,6 @@ func (s *Service) ListTodos(ctx context.Context, actor Actor) ([]Todo, error) {
 		for _, item := range batch {
 			ids = append(ids, item.ID)
 		}
-		var windows []model.AssignmentLateWindow
-		if err := s.db.WithContext(ctx).Where("assignment_id IN ? AND user_id = ?", ids, actor.ID).Find(&windows).Error; err != nil {
-			return nil, internalError("读取补交设置失败", err)
-		}
-		windowsByAssignment := make(map[uint64]time.Time, len(windows))
-		for _, window := range windows {
-			windowsByAssignment[window.AssignmentID] = readStoredUTCWall(window.DueAt)
-		}
 		var rows []struct {
 			AssignmentID uint64
 			Decision     string
@@ -259,20 +242,16 @@ func (s *Service) ListTodos(ctx context.Context, actor Actor) ([]Todo, error) {
 		}
 		for _, item := range batch {
 			decision, submitted := decisions[item.ID]
-			deadline := readStoredUTCWall(item.DueAt)
-			if window, ok := windowsByAssignment[item.ID]; ok && window.After(deadline) {
-				deadline = window
-			}
 			status := "pending"
 			if submitted {
 				if decision != model.AssignmentReviewNeedsRedo {
 					continue
 				}
 				status = decision
-			} else if now.After(deadline) {
+			} else if now.After(readStoredUTCWall(item.DueAt)) {
 				status = "overdue"
 			}
-			result = append(result, Todo{ID: item.ID, Title: item.Title, DueAt: deadline, Status: status})
+			result = append(result, Todo{ID: item.ID, Title: item.Title, DueAt: readStoredUTCWall(item.DueAt), Status: status})
 		}
 	}
 	return result, nil

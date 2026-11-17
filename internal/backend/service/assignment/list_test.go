@@ -21,7 +21,6 @@ func TestMemberListQueriesAreBoundedByBatchAndPreserveOrder(t *testing.T) {
 			}
 			for start := 0; start < count; start += assignmentListBatchSize {
 				mock.ExpectQuery("SELECT .* FROM `user_groups` WHERE id IN").WillReturnRows(sqlmock.NewRows([]string{"id", "name"}).AddRow(41, "机械组"))
-				mock.ExpectQuery("SELECT \\* FROM `assignment_late_windows` WHERE assignment_id IN .* AND user_id = \\?").WillReturnRows(sqlmock.NewRows([]string{"assignment_id", "user_id", "due_at"}))
 				mock.ExpectQuery("SELECT s.\\* FROM assignment_submissions AS s WHERE").WillReturnRows(sqlmock.NewRows([]string{"id"}))
 			}
 			views, err := (&Service{db: db, now: func() time.Time { return now }}).memberListViews(context.Background(), 22, items)
