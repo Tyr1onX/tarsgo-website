@@ -15,12 +15,12 @@ export interface TrainingGrade {
   updatedAt: string;
 }
 
-export interface ReviewedAssignmentGrade {
+export interface AssignmentSubmissionGrade {
   assignmentId: number;
   assessmentName: string;
   userId: number;
-  score: number;
-  decision: "passed" | "needs_redo";
+  score: number | null;
+  decision: "passed" | "needs_redo" | null;
 }
 
 export interface CapabilityDimension {
@@ -41,7 +41,7 @@ export interface CapabilityRating {
 export interface TrainingSnapshot {
   members: TrainingMember[];
   grades: TrainingGrade[];
-  assignmentGrades: ReviewedAssignmentGrade[];
+  assignmentGrades: AssignmentSubmissionGrade[];
   dimensions: CapabilityDimension[];
   ratings: CapabilityRating[];
 }

@@ -32,13 +32,13 @@ type capabilityRatingInput struct {
 	Note        string `json:"note"`
 }
 
-// Website assignment reviews remain the source of truth; no second score copy is stored.
-type reviewedAssignmentGrade struct {
-	AssignmentID   uint64 `json:"assignmentId"`
-	AssessmentName string `json:"assessmentName"`
-	UserID         uint64 `json:"userId"`
-	Score          uint8  `json:"score"`
-	Decision       string `json:"decision"`
+// Include latest submissions without reviews; a nil score means submitted but pending grading.
+type assignmentSubmissionGrade struct {
+	AssignmentID   uint64  `json:"assignmentId"`
+	AssessmentName string  `json:"assessmentName"`
+	UserID         uint64  `json:"userId"`
+	Score          *uint8  `json:"score"`
+	Decision       *string `json:"decision"`
 }
 
 func (h *TrainingAssessmentHandler) fail(c *gin.Context, err error) {
@@ -87,14 +87,14 @@ func (h *TrainingAssessmentHandler) Snapshot(c *gin.Context) {
 		h.fail(c, err)
 		return
 	}
-	var assignmentGrades []reviewedAssignmentGrade
+	var assignmentGrades []assignmentSubmissionGrade
 	if err := db.Table("assignments AS a").
 		Select("a.id AS assignment_id, a.title AS assessment_name, s.user_id, r.score, r.decision").
 		Joins("JOIN assignment_submissions AS s ON s.assignment_id = a.id").
-		Joins("JOIN assignment_reviews AS r ON r.submission_id = s.id").
+		Joins(`LEFT JOIN assignment_reviews AS r ON r.submission_id = s.id
+			AND r.id = (SELECT MAX(r2.id) FROM assignment_reviews AS r2 WHERE r2.submission_id = s.id)`).
 		Where(`a.group_id = ?
-			AND s.attempt = (SELECT MAX(s2.attempt) FROM assignment_submissions AS s2 WHERE s2.assignment_id = s.assignment_id AND s2.user_id = s.user_id)
-			AND r.id = (SELECT MAX(r2.id) FROM assignment_reviews AS r2 WHERE r2.submission_id = s.id)`, groupID).
+			AND s.attempt = (SELECT MAX(s2.attempt) FROM assignment_submissions AS s2 WHERE s2.assignment_id = s.assignment_id AND s2.user_id = s.user_id)`, groupID).
 		Order("a.id ASC, s.user_id ASC").Scan(&assignmentGrades).Error; err != nil {
 		h.fail(c, err)
 		return
@@ -117,7 +117,7 @@ func (h *TrainingAssessmentHandler) Snapshot(c *gin.Context) {
 		grades = []model.TrainingGrade{}
 	}
 	if assignmentGrades == nil {
-		assignmentGrades = []reviewedAssignmentGrade{}
+		assignmentGrades = []assignmentSubmissionGrade{}
 	}
 	if dimensions == nil {
 		dimensions = []model.CapabilityDimension{}

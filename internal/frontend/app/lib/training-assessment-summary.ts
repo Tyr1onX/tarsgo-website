@@ -148,9 +148,11 @@ export function buildTrainingGradebook(snapshot: TrainingSnapshot, groupId = 0) 
         key: assessment.key,
         score: ranked?.score ?? null,
         rank: ranked?.rank ?? null,
-        status: !ranked ? "unrecorded" as const : ranked.score === null ? "missing" as const : "graded" as const,
+        status: !ranked ? "unrecorded" as const : ranked.score === null
+          ? assessment.source === "assignment" ? "pending" as const : "missing" as const
+          : "graded" as const,
         note: ranked?.note ?? "",
-        decision: review?.decision,
+        decision: review?.decision ?? undefined,
       };
     }),
   }));
@@ -213,12 +215,20 @@ export function buildTrainingGradebook(snapshot: TrainingSnapshot, groupId = 0) 
   };
 }
 
+export function filterGradebookMembers(members: GradebookMember[], assessment: TrainingScoreSummary, showAll: boolean) {
+  return sortGradebookMembers(members, assessment.key).filter((member) => {
+    if (showAll) return true;
+    const status = member.results.find((result) => result.key === assessment.key)?.status;
+    return status === "graded" || (assessment.source === "assignment" && status === "pending");
+  });
+}
+
 export function sortGradebookMembers(members: GradebookMember[], assessmentKey: string) {
   return [...members].sort((a, b) => {
     const resultA = a.results.find((item) => item.key === assessmentKey);
     const resultB = b.results.find((item) => item.key === assessmentKey);
     const order = (result: GradebookResult | undefined) =>
-      result?.status === "graded" ? 0 : result?.status === "missing" ? 1 : 2;
+      result?.status === "graded" ? 0 : result?.status === "pending" ? 1 : result?.status === "missing" ? 2 : 3;
     const difference = order(resultA) - order(resultB);
     if (assessmentKey && difference) return difference;
     if (assessmentKey && resultA?.rank != null && resultB?.rank != null && resultA.rank !== resultB.rank) {

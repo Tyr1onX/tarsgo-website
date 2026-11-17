@@ -8,7 +8,7 @@ import {
   trainingAssessmentClient,
   type CapabilityRatingInput, type TrainingSnapshot,
 } from "~/lib/training-assessment-client";
-import { MECHANICAL_TRAINING_GROUP_ID, buildTrainingGradebook, mechanicalTrainingSkills, sortGradebookMembers } from "~/lib/training-assessment-summary";
+import { MECHANICAL_TRAINING_GROUP_ID, buildTrainingGradebook, filterGradebookMembers, mechanicalTrainingSkills } from "~/lib/training-assessment-summary";
 
 export function meta() {
   return [{ title: "培训成绩与能力评价 | TARSGO" }];
@@ -101,6 +101,7 @@ export default function TrainingAssessmentRoute() {
   const [memberId, setMemberId] = useState(0);
   const [memberQuery, setMemberQuery] = useState("");
   const [assessmentKey, setAssessmentKey] = useState("");
+  const [showAllMembers, setShowAllMembers] = useState(false);
   const [page, setPage] = useState(1);
   const [draftRatings, setDraftRatings] = useState<Record<number, CapabilityRatingInput>>({});
   const [dimensionName, setDimensionName] = useState("");
@@ -113,6 +114,8 @@ export default function TrainingAssessmentRoute() {
   }, [assignmentGroups]);
 
   useEffect(() => {
+    setShowAllMembers(false);
+    setPage(1);
     if (!groupId) { setSnapshot(null); return; }
     let active = true;
     setSnapshot(null);
@@ -135,12 +138,10 @@ export default function TrainingAssessmentRoute() {
   const visibleRows = useMemo(() => {
     if (!selectedAssessment) return [];
     const query = memberQuery.trim().toLowerCase();
-    return sortGradebookMembers(gradebook.members, selectedAssessment.key).filter((member) => {
-      const result = member.results[assessmentIndex];
-      return (result.status !== "unrecorded" || !!query)
-        && (member.name.toLowerCase().includes(query) || String(member.userId).includes(query));
-    });
-  }, [gradebook, selectedAssessment?.key, assessmentIndex, memberQuery]);
+    return filterGradebookMembers(gradebook.members, selectedAssessment, showAllMembers).filter((member) =>
+      member.name.toLowerCase().includes(query) || String(member.userId).includes(query)
+    );
+  }, [gradebook, selectedAssessment, showAllMembers, memberQuery]);
   const totalPages = Math.max(1, Math.ceil(visibleRows.length / PAGE_SIZE));
   const currentPage = Math.min(page, totalPages);
   const pageRows = visibleRows.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
@@ -268,11 +269,11 @@ export default function TrainingAssessmentRoute() {
                   return <li key={assessment.key} className="flex flex-wrap justify-between gap-x-4 gap-y-2 py-3">
                     <div className="min-w-0 flex-1">
                       <div className="text-sm font-medium">{assessment.name}</div>
-                      {assessment.source === "assignment" ? <div className="mt-1 text-xs text-[var(--admin-muted)]">站内批改{result.decision ? ` · ${result.decision === "passed" ? "通过" : "退回重做"}` : ""}</div> : null}
+                      {assessment.source === "assignment" ? <div className="mt-1 text-xs text-[var(--admin-muted)]">站内作业{result.decision ? ` · ${result.decision === "passed" ? "通过" : "退回重做"}` : ""}</div> : null}
                       {result.note ? <p className="mt-1 text-sm text-[var(--admin-muted)]">{result.note}</p> : null}
                     </div>
                     <div className="shrink-0 text-right">
-                      <strong className="block text-base tabular-nums">{result.status === "graded" ? `${result.score}/100` : result.status === "missing" ? "成绩缺失" : "无记录"}</strong>
+                      <strong className="block text-base tabular-nums">{result.status === "graded" ? `${result.score}/100` : result.status === "pending" ? "待批改" : result.status === "missing" ? "成绩缺失" : "无记录"}</strong>
                       {result.rank !== null ? <div className="mt-1 text-xs text-[var(--admin-muted)]">第 {result.rank} 名{assessment.average !== null ? ` · 组均 ${assessment.average}` : ""}</div> : null}
                     </div>
                   </li>;
@@ -321,12 +322,12 @@ export default function TrainingAssessmentRoute() {
           <section className="admin-panel space-y-4 p-5" aria-label="考核概览">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-lg font-semibold">考核概览</h2>
-              <span className="text-sm text-[var(--admin-muted)]">{gradebook.members.length} 位成员 · {rawSummaries.length} 次考核</span>
+              <span className="text-sm text-[var(--admin-muted)]">{visibleRows.length} 位成员 · {rawSummaries.length} 次考核</span>
             </div>
             {selectedAssessment ? <>
               <label className="admin-field-label block max-w-xl">选择考核
                 <select className="admin-field mt-2 w-full" value={selectedAssessment.key}
-                  onChange={(event) => { setAssessmentKey(event.target.value); setPage(1); }}>
+                  onChange={(event) => { setAssessmentKey(event.target.value); setShowAllMembers(false); setPage(1); }}>
                   {groupId === MECHANICAL_TRAINING_GROUP_ID ? <optgroup label="综合与能力维度">
                     {summaries.filter((item) => item.source === "overall" || item.source === "skill").map((item) =>
                       <option key={item.key} value={item.key}>{item.name}</option>)}
@@ -347,18 +348,25 @@ export default function TrainingAssessmentRoute() {
                   <dt className="text-sm text-[var(--admin-muted)]">{selectedAssessment.source === "assignment" ? "已批改" : selectedAssessment.source === "overall" ? "具备排名资格" : selectedAssessment.source === "skill" ? "已有维度成绩" : "已评分"}</dt>
                   <dd className="mt-1 text-2xl font-semibold tabular-nums">{selectedAssessment.scored}</dd>
                 </div>
-                {selectedAssessment.source !== "assignment" ? <div>
-                  <dt className="text-sm text-[var(--admin-muted)]">{selectedAssessment.source === "training" ? "成绩缺失" : "待评估"}</dt>
+                <div>
+                  <dt className="text-sm text-[var(--admin-muted)]">{selectedAssessment.source === "assignment" ? "待批改" : selectedAssessment.source === "training" ? "成绩缺失" : "待评估"}</dt>
                   <dd className="mt-1 text-2xl font-semibold tabular-nums">{selectedAssessment.missing}</dd>
-                </div> : null}
+                </div>
               </dl>
             </> : <p className="text-sm text-[var(--admin-muted)]">暂无培训成绩</p>}
           </section>
           <section className="admin-panel space-y-4 p-5" aria-label="当前考核成绩排名">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <h2 className="text-lg font-semibold">成绩排名</h2>
-              <input type="search" className="admin-field w-full sm:max-w-xs" aria-label="搜索成员" placeholder="搜索姓名或编号"
-                value={memberQuery} onChange={(event) => { setMemberQuery(event.target.value); setPage(1); }} />
+              <div className="flex w-full flex-wrap gap-2 sm:w-auto">
+                <select className="admin-field" aria-label="成员范围" value={showAllMembers ? "all" : "participated"}
+                  onChange={(event) => { setShowAllMembers(event.target.value === "all"); setPage(1); }}>
+                  <option value="participated">{selectedAssessment?.source === "assignment" ? "已提交" : selectedAssessment?.source === "training" ? "有成绩" : "有排名"}</option>
+                  <option value="all">全部成员</option>
+                </select>
+                <input type="search" className="admin-field min-w-0 flex-1 sm:w-56 sm:flex-none" aria-label="搜索成员" placeholder="搜索姓名或编号"
+                  value={memberQuery} onChange={(event) => { setMemberQuery(event.target.value); setPage(1); }} />
+              </div>
             </div>
             {pageRows.length ? <div className="overflow-x-auto">
               <table className="w-full border-collapse text-sm">
@@ -381,7 +389,7 @@ export default function TrainingAssessmentRoute() {
                         <span className="ml-2 text-xs font-normal text-[var(--admin-muted)]">#{member.userId}</span>
                       </th>
                       <td className="px-2 py-3 text-right font-semibold tabular-nums">
-                        {result.status === "graded" ? result.score : <span className="text-xs font-normal text-[var(--admin-muted)]">{result.status === "pending" ? "待评估" : result.status === "missing" ? "缺失" : "无记录"}</span>}
+                        {result.status === "graded" ? result.score : <span className="text-xs font-normal text-[var(--admin-muted)]">{result.status === "pending" ? selectedAssessment.source === "assignment" ? "待批改" : "待评估" : result.status === "missing" ? "缺失" : "无记录"}</span>}
                       </td>
                       <td className="hidden px-2 py-3 text-sm text-[var(--admin-muted)] md:table-cell">
                         <p className="line-clamp-2 break-words" title={result.note || undefined}>
