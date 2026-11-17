@@ -63,7 +63,7 @@ export function Navbar({ currentUser, authError = false }: NavbarProps) {
       .sort((a, b) => Number(b.key === "my-profile") - Number(a.key === "my-profile"))
     : [];
   const accountSection = visibleUser
-    ? getDashboardSectionKey(location.pathname, visibleUser.role.name, visibleUser.id)
+    ? getDashboardSectionKey(location.pathname, visibleUser.id)
     : null;
   const navigate = useNavigate();
   const revalidator = useRevalidator();
@@ -367,7 +367,7 @@ export function Navbar({ currentUser, authError = false }: NavbarProps) {
                             aria-current={accountSection === (item.key === "my-profile" ? "profile" : item.key) ? "page" : undefined}
                             className="navbar-account-action">
                             <NavbarAccountIcon name={item.key} />
-                            {item.key === "management" ? "管理后台" : item.label}
+                            {item.label}
                           </Link>
                         ))}
                         <div className="navbar-account-separator" role="separator" />
@@ -414,8 +414,7 @@ export function Navbar({ currentUser, authError = false }: NavbarProps) {
 function NavbarAccountIcon({ name }: { name: string }) {
   const paths: Record<string, string> = {
     "my-profile": "M20 21v-2a7 7 0 0 0-14 0v2 M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0Z",
-    workbench: "M9 6V4h6v2 M3 7h18v14H3Z M3 12a22 22 0 0 0 18 0 M12 11v4",
-    management: "m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6Z m-4 9 3 3 5-5",
+    overview: "M9 6V4h6v2 M3 7h18v14H3Z M3 12a22 22 0 0 0 18 0 M12 11v4",
     switch: "M4 7h16m-4-4 4 4-4 4 M20 17H4m4-4-4 4 4 4",
     logout: "M9 3H4v18h5 M14 7l5 5-5 5 M8 12h11",
   };

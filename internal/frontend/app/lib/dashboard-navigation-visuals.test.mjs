@@ -7,9 +7,9 @@ const navigationCss = await readFile(new URL("../admin-design.css", import.meta.
 const sectionNavigation = await readFile(new URL("../components/dashboard-section-navigation.tsx", import.meta.url), "utf8");
 
 test("the full-width top bar controls one hidden-by-default sidebar", () => {
-  for (const icon of ["community", "transactions", "user", "management"]) assert.match(layout, new RegExp(`case "${icon}":`));
+  for (const icon of ["community", "transactions", "user"]) assert.match(layout, new RegExp(`case "${icon}":`));
   assert.match(layout, /getDashboardSectionMenu\(currentUser\)/);
-  assert.match(layout, /getDashboardSectionKey\(location\.pathname, currentUser\.role\.name, currentUser\.id\)/);
+  assert.match(layout, /getDashboardSectionKey\(location\.pathname, currentUser\.id\)/);
   assert.match(layout, /aria-current=\{active \? "page" : undefined\}/);
   assert.match(layout, /const \[sidebarOpen, setSidebarOpen\] = useState\(false\)/);
   assert.match(layout, /<DashboardSectionNavigation[\s\S]*?onNavigate=\{handleSidebarNavigate\}/);
@@ -25,14 +25,13 @@ test("the full-width top bar controls one hidden-by-default sidebar", () => {
 test("nested navigation lives in the sidebar and replaces the flat top tabs", () => {
   const mainContent = layout.slice(layout.indexOf("<main className=\"p-4 sm:p-6 lg:p-8\">"));
   assert.doesNotMatch(mainContent, /<DashboardSectionNavigation/);
-  assert.match(sectionNavigation, /getMyWorkbenchMenu\(currentUser, hasAssignmentGroup\)/);
-  assert.match(sectionNavigation, /getVisibleAdminDashboardMenu\(currentUser, hasAssignmentGroup\)/);
+  assert.match(sectionNavigation, /getUnifiedDashboardMenu\(currentUser, hasAssignmentGroup\)/);
+  assert.doesNotMatch(sectionNavigation, /getDashboardSectionKey|section === "management"|section === "workbench"/);
   assert.match(sectionNavigation, /aria-expanded=\{isExpanded\}/);
   assert.match(sectionNavigation, /dashboard-subnav__heading-button/);
   assert.doesNotMatch(sectionNavigation, /candidateTodoCount|leaveActionableCount|dashboard-nav-badge/);
   assert.doesNotMatch(layout, /DashboardTooltip|compact/);
-  assert.match(sectionNavigation, /group\.href && group\.children\.length === 0/);
-  assert.match(sectionNavigation, /activeGroup\.children\.length > 0/);
+  assert.match(sectionNavigation, /const defaultExpandedGroup = activeGroup\?\.key \?\? groups\[0\]\?\.key \?\? null/);
   assert.doesNotMatch(layout, /managementLabel|报名待处理|请假待审批/);
   assert.doesNotMatch(sectionNavigation, /getVisibleAdminDashboardLinks|dashboard-section-nav/);
   assert.doesNotMatch(navigationCss, /\.dashboard-section-nav/);

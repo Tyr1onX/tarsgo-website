@@ -151,13 +151,6 @@ function MenuIcon({ iconKey }: { iconKey: DashboardMenuIconKey }) {
           <rect x="15" y="16" width="6" height="5" rx="1.5" />
         </svg>
       );
-    case "management":
-      return (
-        <svg className="h-[18px] w-[18px] shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.7} stroke="currentColor" aria-hidden="true">
-          <path strokeLinecap="round" strokeLinejoin="round" d="M12 3 20 6v5.2c0 4.65-3.1 8.2-8 9.8-4.9-1.6-8-5.15-8-9.8V6l8-3Z" />
-          <path strokeLinecap="round" strokeLinejoin="round" d="m8.5 11.75 2.25 2.25 4.75-4.75" />
-        </svg>
-      );
     case "people":
       return (
         <svg className="h-[18px] w-[18px] shrink-0" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
@@ -322,7 +315,7 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
   const isCommunityPostRoute = /^\/dashboard\/community\/\d+$/.test(location.pathname);
   const hasAssignmentGroup = hasAssignmentGroupAccess(groupResolution?.groups);
   const sectionMenuItems = getDashboardSectionMenu(currentUser);
-  const activeSectionKey = getDashboardSectionKey(location.pathname, currentUser.role.name, currentUser.id);
+  const activeSectionKey = getDashboardSectionKey(location.pathname, currentUser.id);
   const currentUserName = getAuthUserName(currentUser);
   const userInitial = (currentUserName || "U")
     .charAt(0)
@@ -712,15 +705,15 @@ export default function DashboardLayout({ loaderData }: Route.ComponentProps) {
         <aside
           ref={sidebarRef}
           id="dashboard-sidebar"
-          aria-label="统一工作台导航"
+          aria-label="站内导航"
           aria-hidden={!sidebarOpen}
           inert={!sidebarOpen}
           className={`dashboard-shell__sidebar fixed inset-y-16 left-0 z-50 flex h-[calc(100dvh-4rem)] w-[min(84vw,320px)] flex-col border-r transition-transform duration-200 lg:sticky lg:top-16 lg:bottom-auto lg:z-auto lg:h-[calc(100dvh-4rem)] lg:transform-none lg:transition-[width] lg:duration-200 ${
             sidebarOpen ? "translate-x-0 lg:w-64 lg:visible" : "-translate-x-full lg:w-0 lg:invisible lg:overflow-hidden lg:border-0"
           }`}
         >
-          <nav className="dashboard-shell__sidebar-nav min-h-0 flex-1 overflow-y-auto px-3 py-4" aria-label="工作台分区">
-            <div className="space-y-1.5" role="group" aria-label="工作台分区">
+          <nav className="dashboard-shell__sidebar-nav min-h-0 flex-1 overflow-y-auto px-3 py-4" aria-label="站内导航">
+            <div className="space-y-1.5" role="group" aria-label="主要入口">
               {sectionMenuItems.map((item) => {
                 const isActive = isDashboardSectionItemActive(activeSectionKey, item.key);
                 return (
