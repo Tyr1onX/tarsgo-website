@@ -32,7 +32,7 @@ test("workbench exposes assignments to all five supported groups", () => {
   assert.match(navigation, /!item\.requiresAssignmentGroup \|\| roleName === "super_admin" \|\| hasAssignmentGroup/);
   assert.match(layout, /pathname === "\/dashboard\/assignments" && !hasAssignmentGroup/);
   assert.match(layout, /canAccessDashboardAdminPath\(currentUser, pathname, hasAssignmentGroup\)/);
-  assert.match(navigation, /hasAssignmentGroup && roleName === "user"/);
+  assert.match(navigation, /hasAssignmentGroup \? \[ASSIGNMENT_MENU_ITEM\] : \[\]/);
   assert.match(assignmentGroups, /roleName === "super_admin"/);
   assert.match(assignmentGroups, /listAdminUserGroupOptions/);
   assert.match(assignmentGroups, /group\.status === 1 && isAssignmentGroupName\(group\.name\)/);

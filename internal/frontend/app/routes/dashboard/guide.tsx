@@ -32,7 +32,7 @@ function WebsiteGuide({ currentUser, groupResolution }: Pick<DashboardLayoutOutl
       <ol className="list-decimal space-y-3 pl-5 text-sm leading-6">
         <li>在 <GuideLink to="/dashboard/weekly-reports">工作周报</GuideLink> 记录和维护自己的工作进展。</li>
         <li>在 <GuideLink to="/dashboard/leave">请假工作台</GuideLink> 提交、查询和管理自己的请假申请。</li>
-        {canManage ? <li>在「日常事务」下的「请假管理」处理自己有权限管理的申请；授权审批仍仅限超级管理员。</li> : null}
+        {canManage ? <li>在「日常事务」下的「请假」中处理自己有权限管理的申请；授权审批仍仅限超级管理员。</li> : null}
         <li>成员可在 <GuideLink to="/dashboard/timetable">课程时间</GuideLink> 上传或更新教务系统导出的 Excel 课表；工作台仅使用课表计算空闲情况。</li>
       </ol>
     </section>

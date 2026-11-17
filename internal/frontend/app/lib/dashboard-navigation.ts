@@ -1,8 +1,8 @@
 import type { AuthUser } from "~/lib/auth-client";
 
-export type DashboardMenuIconKey = "community" | "transactions" | "team" | "management" | "dashboard" | "people" | "user" | "registration" | "settings" | "analytics" | "report";
+export type DashboardMenuIconKey = "community" | "transactions" | "team" | "dashboard" | "people" | "user" | "registration" | "settings" | "analytics" | "report";
 
-export type DashboardSectionKey = "community" | "workbench" | "profile" | "management";
+export type DashboardSectionKey = "community" | "overview" | "profile";
 
 export type DashboardMenuLink = {
   key: string;
@@ -15,7 +15,6 @@ export type DashboardMenuGroup = {
   key: string;
   label: string;
   iconKey?: DashboardMenuIconKey;
-  href?: string;
   children: readonly DashboardMenuLink[];
 };
 
@@ -30,9 +29,7 @@ type AdminMenuGroup = Omit<DashboardMenuGroup, "children"> & {
   children: readonly AdminMenuLeaf[];
 };
 
-const USER_MENU: readonly DashboardMenuLink[] = [
-  { key: "users-registrations", label: "我的报名", href: "/dashboard/users/registrations", iconKey: "registration" },
-];
+const MY_REGISTRATION_ITEM: DashboardMenuLink = { key: "users-registrations", label: "我的报名", href: "/dashboard/users/registrations", iconKey: "registration" };
 
 const ASSIGNMENT_MENU_ITEM: DashboardMenuLink = {
   key: "my-assignments",
@@ -45,8 +42,7 @@ const ASSIGNMENT_GROUP_NAMES = new Set(["机械组", "电控组", "视觉组", "
 
 const DASHBOARD_SECTION_MENU: readonly DashboardMenuLink[] = [
   { key: "community", label: "社区", href: "/dashboard", iconKey: "community" },
-  { key: "workbench", label: "工作台", href: "/dashboard/workbench", iconKey: "transactions" },
-  { key: "management", label: "管理", href: "/dashboard/admin", iconKey: "management" },
+  { key: "overview", label: "概览", href: "/dashboard/workbench", iconKey: "transactions" },
 ];
 
 const ADMIN_MENU: readonly AdminMenuGroup[] = [
@@ -76,35 +72,21 @@ const ADMIN_MENU: readonly AdminMenuGroup[] = [
     iconKey: "settings",
     children: [
       { key: "collection-forms", label: "收集表", href: "/dashboard/admin/forms", allowedRoles: ["admin", "super_admin"] },
-      { key: "leave-workbench", label: "请假处理", href: "/dashboard/leave", allowedRoles: ["admin", "super_admin"] },
       { key: "timetable-availability", label: "时间协调", href: "/dashboard/admin/timetable-availability", allowedRoles: ["admin", "super_admin"] },
       { key: "email-management", label: "邮件管理", href: "/dashboard/admin/email", allowedRoles: ["super_admin"] },
     ],
   },
 ];
 
-const WORKBENCH_MENU: readonly DashboardMenuGroup[] = [
-  {
-    key: "my-work",
-    label: "我的事务",
-    iconKey: "report",
-    children: [],
-  },
-  {
-    key: "team-status",
-    label: "战队动态",
-    iconKey: "analytics",
-    href: "/dashboard/workbench/operations",
-    children: [],
-  },
-  {
-    key: "people-directory",
-    label: "成员与岗位",
-    iconKey: "team",
-    href: "/dashboard/workbench/organization",
-    children: [],
-  },
-];
+const TEAM_INFORMATION: DashboardMenuGroup = {
+  key: "team-information",
+  label: "战队信息",
+  iconKey: "team",
+  children: [
+    { key: "team-status", label: "运营动态", href: "/dashboard/workbench/operations", iconKey: "analytics" },
+    { key: "people-directory", label: "成员与岗位", href: "/dashboard/workbench/organization", iconKey: "team" },
+  ],
+};
 
 export function hasOperationsWorkManualAccess(userOrRole: AuthUser | string, groups: readonly { name: string }[] | null | undefined) {
   const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
@@ -137,13 +119,6 @@ function getAccessibleAdminPaths(roleName: string, hasAssignmentGroup = false) {
   return paths;
 }
 
-export function getUserDashboardMenu(userOrRole: AuthUser | string, hasAssignmentGroup = false): DashboardMenuLink[] {
-  const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
-  const menu = [...(roleName === "user" ? USER_MENU : [])];
-  if (hasAssignmentGroup && roleName === "user") menu.push(ASSIGNMENT_MENU_ITEM);
-  return menu;
-}
-
 export function hasWorkbenchAccess(user: Pick<AuthUser, "workbenchAccess">) {
   return user.workbenchAccess === true;
 }
@@ -159,11 +134,12 @@ export function isInternalDashboardPath(pathname: string) {
 }
 
 export function getDashboardSectionMenu(currentUser: AuthUser): DashboardMenuLink[] {
-  const managementItem = DASHBOARD_SECTION_MENU.find((item) => item.key === "management");
+  const canUseWorkbench = hasWorkbenchAccess(currentUser);
+  const canOpenOverview = canUseWorkbench || hasDashboardAdminAccess(currentUser.role.name);
   return [
-    ...DASHBOARD_SECTION_MENU.filter((item) => item.key !== "management" && (item.key !== "workbench" || hasWorkbenchAccess(currentUser))).map((item) => ({ ...item })),
+    ...DASHBOARD_SECTION_MENU.filter((item) => item.key !== "overview" || canOpenOverview)
+      .map((item) => item.key === "overview" && !canUseWorkbench ? { ...item, href: "/dashboard/admin" } : { ...item }),
     { key: "my-profile", label: "我的主页", href: `/dashboard/members/${currentUser.id}`, iconKey: "user" },
-    ...(managementItem && hasDashboardAdminAccess(currentUser.role.name) ? [{ ...managementItem }] : []),
   ];
 }
 
@@ -171,50 +147,33 @@ export function isDashboardSectionItemActive(sectionKey: DashboardSectionKey | n
   return sectionKey === itemKey || (itemKey === "my-profile" && sectionKey === "profile");
 }
 
-export function getDashboardSectionKey(pathname: string, roleName = "user", currentUserID?: number): DashboardSectionKey | null {
-  const normalizedPath = pathname.replace(/\/+$/, "") || "/";
-  if (normalizedPath === "/dashboard" || normalizedPath.startsWith("/dashboard/community/") || normalizedPath === "/dashboard/questions") {
-    return "community";
-  }
-  if (normalizedPath === "/dashboard/admin" || normalizedPath.startsWith("/dashboard/admin/")) return "management";
-  if (normalizedPath === "/dashboard/leave" && hasDashboardAdminAccess(roleName)) return "management";
-  const memberProfileMatch = normalizedPath.match(/^\/dashboard\/members\/(\d+)$/);
-  if (memberProfileMatch) return Number(memberProfileMatch[1]) === currentUserID ? "profile" : "workbench";
-
-  if (
-    normalizedPath === "/dashboard/workbench"
-    || normalizedPath.startsWith("/dashboard/workbench/")
-    || normalizedPath === "/dashboard/team"
-    || [
-      "/dashboard/weekly-reports",
-      "/dashboard/leave",
-      "/dashboard/guide",
-      "/dashboard/timetable",
-      "/dashboard/assignments",
-      "/dashboard/users/registrations",
-    ].includes(normalizedPath)
-  ) {
-    return "workbench";
-  }
+export function getDashboardSectionKey(pathname: string, currentUserID?: number): DashboardSectionKey | null {
+  const path = pathname.replace(/\/+$/, "") || "/";
+  if (path === "/dashboard" || path.startsWith("/dashboard/community/") || path === "/dashboard/questions") return "community";
+  if (path === "/dashboard/workbench" || path === "/dashboard/admin") return "overview";
+  const memberProfileMatch = path.match(/^\/dashboard\/members\/(\d+)$/);
+  if (memberProfileMatch && Number(memberProfileMatch[1]) === currentUserID) return "profile";
   return null;
 }
 
-export function getMyWorkbenchMenu(userOrRole: AuthUser | string, hasAssignmentGroup = false): DashboardMenuGroup[] {
-  const myWorkLinks: DashboardMenuLink[] = [
-    { key: "weekly-reports", label: "工作周报", href: "/dashboard/weekly-reports", iconKey: "report" },
-    ...(hasAssignmentGroup ? [ASSIGNMENT_MENU_ITEM] : []),
-    { key: "leave-workbench", label: "请假事务", href: "/dashboard/leave", iconKey: "report" },
-    ...getUserDashboardMenu(userOrRole),
+export function getUnifiedDashboardMenu(currentUser: AuthUser, hasAssignmentGroup = false): DashboardMenuGroup[] {
+  const hasWorkbench = hasWorkbenchAccess(currentUser);
+  const personalLinks: DashboardMenuLink[] = [
+    ...(hasWorkbench ? [
+      { key: "weekly-reports", label: "工作周报", href: "/dashboard/weekly-reports", iconKey: "report" as const },
+      ...(hasAssignmentGroup ? [ASSIGNMENT_MENU_ITEM] : []),
+      { key: "leave-workbench", label: "请假", href: "/dashboard/leave", iconKey: "report" as const },
+    ] : []),
+    ...(currentUser.role.name === "user" ? [MY_REGISTRATION_ITEM] : []),
   ];
-  return WORKBENCH_MENU.map((group) => group.key === "my-work" ? { ...group, children: myWorkLinks } : { ...group, children: [...group.children] });
-}
-
-export function getVisibleAdminDashboardMenu(userOrRole: AuthUser | string, hasAssignmentGroup = false): DashboardMenuGroup[] {
-  const roleName = typeof userOrRole === "string" ? userOrRole : userOrRole.role.name;
-  return getAccessibleAdminMenu(roleName, hasAssignmentGroup).map((group) => ({
-    ...group,
-    children: group.children.map(({ key, label, href, iconKey }) => ({ key, label, href, iconKey })),
-  }));
+  return [
+    ...(personalLinks.length > 0 ? [{ key: "daily-work", label: "日常事务", iconKey: "report" as const, children: personalLinks }] : []),
+    ...(hasWorkbench ? [TEAM_INFORMATION] : []),
+    ...getAccessibleAdminMenu(currentUser.role.name, hasAssignmentGroup).map((group) => ({
+      ...group,
+      children: group.children.map(({ key, label, href, iconKey }) => ({ key, label, href, iconKey })),
+    })),
+  ];
 }
 
 export function hasDashboardAdminAccess(roleName: string) {
