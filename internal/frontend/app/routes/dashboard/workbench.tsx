@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Link, useOutletContext } from "react-router";
+import { ManagementTodos } from "~/components/management-todos";
 
 import { assignmentClient, assignmentStatusLabel, formatAssignmentDate, type AssignmentTodo } from "~/lib/assignment-client";
-import { hasAssignmentGroupAccess } from "~/lib/dashboard-navigation";
+import { hasAssignmentGroupAccess, hasWorkbenchAccess } from "~/lib/dashboard-navigation";
 import { leaveClient, type LeaveAccessState, type LatestLeaveStatus } from "~/lib/leave-client";
 import { formatWeekLabel } from "~/lib/weekly-report-calendar";
 import type { DashboardLayoutOutletContext } from "~/routes/dashboard/layout";
@@ -46,6 +47,7 @@ export default function PersonalWorkbench() {
   const { currentUser, groupResolution } = useOutletContext<DashboardLayoutOutletContext>();
   const hasAssignments = hasAssignmentGroupAccess(groupResolution?.groups);
   const isAdmin = currentUser.role.name === "admin" || currentUser.role.name === "super_admin";
+  const canViewPersonal = hasWorkbenchAccess(currentUser);
   const permissionScope = groupResolution?.groups.map((group) => `${group.groupId}:${group.role}`).sort().join(",") ?? groupResolution?.state ?? "unknown";
   const snapshotKey = JSON.stringify([currentUser.id, currentUser.role.name, hasAssignments, isAdmin, permissionScope]);
   const initialSnapshot = getPersonalWorkbenchSnapshot(snapshotKey);
@@ -81,9 +83,9 @@ export default function PersonalWorkbench() {
   }, [hasAssignments, isAdmin, snapshotKey]);
 
   useEffect(() => {
-    void load();
+    if (canViewPersonal) void load();
     return () => { requestSequence.current += 1; };
-  }, [load]);
+  }, [canViewPersonal, load]);
 
   const weeklyLoading = snapshot.weekly === null && !snapshot.errors.weekly && (loading || refreshing);
   const assignmentsLoading = snapshot.assignments === null && !snapshot.errors.assignments && (loading || refreshing);
@@ -115,16 +117,19 @@ export default function PersonalWorkbench() {
   return (
     <main className="personal-workbench admin-design" aria-labelledby="personal-workbench-title">
       <header className="personal-workbench__header">
-        <h1 id="personal-workbench-title">我的工作台</h1>
-        {!loading && hasErrors ? <button type="button" className="personal-workbench__retry" onClick={() => void load()}>重试</button> : null}
+        <h1 id="personal-workbench-title">{isAdmin ? "待办概览" : "我的事务"}</h1>
+        {canViewPersonal && !loading && hasErrors ? <button type="button" className="personal-workbench__retry" onClick={() => void load()}>重试</button> : null}
       </header>
 
-      {hasErrors ? <div className="personal-workbench__errors" role="status">
+      {isAdmin ? <ManagementTodos showEmpty={!canViewPersonal} /> : null}
+
+      {canViewPersonal && hasErrors ? <div className="personal-workbench__errors" role="status">
         {snapshot.errors.weekly ? <span>{snapshot.errors.weekly}</span> : null}
         {snapshot.errors.assignments ? <span>{snapshot.errors.assignments}</span> : null}
         {snapshot.errors.leave ? <span>{snapshot.errors.leave}</span> : null}
       </div> : null}
 
+      {canViewPersonal ? <>
       <section className="personal-workbench__tasks" aria-labelledby="personal-workbench-tasks-title">
         <div className="personal-workbench__section-heading">
           <h2 id="personal-workbench-tasks-title">待处理</h2>
@@ -151,6 +156,7 @@ export default function PersonalWorkbench() {
         {hasAssignments ? <Link to="/dashboard/assignments"><span>我的作业</span><span>{assignmentsLoading ? "读取中" : snapshot.errors.assignments ? "状态未知" : assignmentTodos.length ? `${assignmentTodos.length} 项待处理` : "暂无待处理"}</span></Link> : null}
         <Link to="/dashboard/leave"><span>请假事务</span><span>{leaveStatus}</span></Link>
       </nav>
+      </> : null}
     </main>
   );
 }

@@ -53,6 +53,16 @@
   max-width: 62rem;
 }
 
+.personal-workbench__management {
+  margin-bottom: 1.5rem;
+}
+
+.personal-workbench__management-error {
+  margin: 0.75rem 0;
+  color: var(--admin-danger);
+  font-size: 0.875rem;
+}
+
 .personal-workbench__section-heading {
   display: flex;
   align-items: baseline;
@@ -140,11 +150,17 @@
   font-weight: 450;
 }
 
-.personal-workbench__task time {
+.personal-workbench__task time,
+.personal-workbench__task-count {
   color: var(--admin-dim);
   font-size: 0.75rem;
   text-align: right;
   white-space: nowrap;
+}
+
+.personal-workbench__task-count {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
 }
 
 
@@ -213,7 +229,8 @@
     gap: 0.65rem;
   }
 
-  .personal-workbench__task time {
+  .personal-workbench__task time,
+  .personal-workbench__task-count {
     grid-column: 2;
     margin-top: -0.45rem;
     text-align: left;
